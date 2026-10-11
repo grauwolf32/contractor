@@ -1,5 +1,7 @@
 package auditstore
 
+import "github.com/grauwolf32/contractor/internal/projectstore"
+
 // SQL statements for store.go.
 
 // auditCreatedEvents are the first events of a draft Audit.
@@ -39,7 +41,24 @@ WITH project_gate AS MATERIALIZED (
         owner_id, operation, idempotency_key, request_digest,
         audit_id, resource_id, response_snapshot
     )
-    SELECT $2, 'audit.create', $16, $17, audit_id, audit_id, $18::jsonb
+    SELECT $2, ` + MutationCreate.sqlLiteral() + `, $16, $17, audit_id, audit_id, $18::jsonb
       FROM inserted
 )
 SELECT `
+
+// listAuditsSQL pages owner $1's Audits newest first before the
+// (created_at, audit_id) cursor $6/$7, limited to $8 rows, optionally
+// filtered by Project $2, states $3 and profile $4 at version $5. With $9 it
+// lists only Audits of Projects listed to the owner, as every owner-wide list
+// does. Used by PostgresStore.List.
+var listAuditsSQL = `
+SELECT ` + prefixedAuditColumns("audits") + `
+  FROM audits
+ WHERE owner_id = $1
+   AND ($2::text IS NULL OR project_id = $2)
+   AND ($3::text[] IS NULL OR state = ANY($3))
+   AND ($4::text IS NULL OR (profile_name = $4 AND profile_version = $5))
+   AND ($6::timestamptz IS NULL OR (created_at, audit_id) < ($6, $7))
+   AND (NOT $9::boolean OR ` + projectstore.OwnerListedProjectSQL("audits.project_id", "audits.owner_id") + `)
+ ORDER BY created_at DESC, audit_id DESC
+ LIMIT $8`

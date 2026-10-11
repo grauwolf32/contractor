@@ -144,7 +144,7 @@ func eventSummaryEnum(key, value string) bool {
 	case "subjectKind":
 		return ReviewSubjectKind(value).Valid()
 	case "kind":
-		return value == FindingReviewKind || value == "report-acceptance" || auditstore.ItemApprovalKind(value).Valid()
+		return value == FindingReviewKind || value == ReportAcceptanceReviewKind || auditstore.ItemApprovalKind(value).Valid()
 	case "verdict":
 		return AnalystVerdict(value).Valid()
 	case "action":

@@ -91,6 +91,27 @@ func TestProjectCollectionExcludesEvalExecutionWorkspacesBeforePagination(t *tes
 	if audit.ProjectID != workspaceID {
 		t.Fatalf("Audit workspace = %s, want %s", audit.ProjectID, workspaceID)
 	}
+	// The owner-wide Audit list applies the same workspace rule as the
+	// Project list; the workspace's own list still shows its Audit.
+	listedAuditIDs := func(path string) []string {
+		t.Helper()
+		page := apiDecode[struct {
+			Items []struct {
+				AuditID string `json:"auditId"`
+			} `json:"items"`
+		}](t, h.request(t, "GET", path, nil, "", "", 200))
+		ids := make([]string, len(page.Items))
+		for index, item := range page.Items {
+			ids[index] = item.AuditID
+		}
+		return ids
+	}
+	if owned := listedAuditIDs("/v1/audits?limit=200"); len(owned) != 0 {
+		t.Fatalf("owner-wide Audit list shows workspace Audits %v", owned)
+	}
+	if inWorkspace := listedAuditIDs("/v1/projects/" + workspaceID + "/audits?limit=200"); !reflect.DeepEqual(inWorkspace, []string{*submission.ExecutionID}) {
+		t.Fatalf("workspace Audit list = %v, want [%s]", inWorkspace, *submission.ExecutionID)
+	}
 	inventory := apiDecode[struct {
 		Items []evalstore.InventoryEntry `json:"items"`
 	}](t, h.request(t, "GET", memberPath+"/executions", nil, "", "", 200))

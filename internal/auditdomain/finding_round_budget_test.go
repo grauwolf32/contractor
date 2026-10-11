@@ -1,14 +1,15 @@
 package auditdomain
 
 import (
-	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/strictjson"
 )
 
 func TestJSONExtentMatchesStrictParser(t *testing.T) {
@@ -31,16 +32,23 @@ func TestJSONExtentMatchesStrictParser(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			decoder := json.NewDecoder(bytes.NewReader(encoded))
-			decoder.UseNumber()
-			nodes := 0
-			parsed, err := readJSONValue(decoder, 1, &nodes, finiteJSONNumber)
+			parsed, err := parseStrictJSON(encoded)
 			if err != nil {
 				t.Fatal(err)
 			}
 			got := jsonExtentOf(encoded)
-			if got.bytes != int64(len(encoded)) || got.nodes != int64(nodes) || got.depth != parsedDepth(parsed) {
-				t.Fatalf("extent = %+v, want bytes=%d nodes=%d depth=%d", got, len(encoded), nodes, parsedDepth(parsed))
+			if got.bytes != int64(len(encoded)) || got.depth != parsedDepth(parsed) {
+				t.Fatalf("extent = %+v, want bytes=%d depth=%d", got, len(encoded), parsedDepth(parsed))
+			}
+			// The strict parser admits exactly the extent's node count.
+			exact := strictJSONBounds
+			exact.MaxNodes = int(got.nodes)
+			if _, err := strictjson.DecodeBounded(encoded, exact, finiteJSONNumber); err != nil {
+				t.Fatalf("strict parse within %d nodes: %v", got.nodes, err)
+			}
+			exact.MaxNodes--
+			if _, err := strictjson.DecodeBounded(encoded, exact, finiteJSONNumber); !errors.Is(err, strictjson.ErrBounds) {
+				t.Fatalf("strict parse within %d nodes = %v, want ErrBounds", exact.MaxNodes, err)
 			}
 		})
 	}

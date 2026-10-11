@@ -120,9 +120,6 @@ func validateList(params ListParams) error {
 			return err
 		}
 	}
-	if params.State != nil && !params.State.Valid() {
-		return invalidf("Audit state is invalid")
-	}
 	for _, state := range params.States {
 		if !state.Valid() {
 			return invalidf("Audit state is invalid")

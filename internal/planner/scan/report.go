@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"reflect"
 	"sort"
 	"strings"
@@ -16,6 +15,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/scanplan"
+	"github.com/grauwolf32/contractor/internal/strictjson"
 )
 
 type Coverage struct {
@@ -282,66 +282,30 @@ func (p *execution) finish(ctx context.Context, identity planner.ScanSessionIden
 	return result.Clone(), nil
 }
 
+// workerReportBounds bound the structure of a Worker scan report; its numbers
+// keep their literal until the report is decoded into workerReport.
+var workerReportBounds = strictjson.Bounds{MaxDepth: 64, MaxNodes: 100000}
+
 func strictWorkerReport(data []byte, out *workerReport) bool {
 	if len(data) > planner.MaxScanReportBytes || !utf8.Valid(data) {
 		return false
 	}
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.UseNumber()
-	nodes := 0
-	var read func(int) bool
-	read = func(depth int) bool {
-		nodes++
-		if depth > 64 || nodes > 100000 {
-			return false
-		}
-		token, err := decoder.Token()
-		if err != nil {
-			return false
-		}
-		switch token {
-		case json.Delim('{'):
-			seen := map[string]bool{}
-			for decoder.More() {
-				raw, err := decoder.Token()
-				key, ok := raw.(string)
-				if err != nil || !ok || seen[key] {
-					return false
-				}
-				seen[key] = true
-				if !read(depth + 1) {
-					return false
-				}
-			}
-			end, err := decoder.Token()
-			return err == nil && end == json.Delim('}')
-		case json.Delim('['):
-			for decoder.More() {
-				if !read(depth + 1) {
-					return false
-				}
-			}
-			end, err := decoder.Token()
-			return err == nil && end == json.Delim(']')
-		}
-		return true
-	}
-	if !read(1) {
+	document, err := strictjson.DecodeBounded(data, workerReportBounds, func(literal string) (json.Number, bool) {
+		return json.Number(literal), true
+	})
+	if err != nil {
 		return false
 	}
-	if _, err := decoder.Token(); err != io.EOF {
-		return false
-	}
-	var fields map[string]json.RawMessage
-	if json.Unmarshal(data, &fields) != nil || len(fields) != 5 {
+	fields, ok := document.(map[string]any)
+	if !ok || len(fields) != 5 {
 		return false
 	}
 	for _, name := range []string{"schemaVersion", "tool", "inputDigest", "inputArtifacts", "observation"} {
-		if raw, ok := fields[name]; !ok || bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
+		if value, ok := fields[name]; !ok || value == nil {
 			return false
 		}
 	}
-	decoder = json.NewDecoder(bytes.NewReader(data))
+	decoder := json.NewDecoder(bytes.NewReader(data))
 	decoder.DisallowUnknownFields()
 	if decoder.Decode(out) != nil || out.Observation == nil || out.InputArtifacts == nil {
 		return false

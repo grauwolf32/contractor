@@ -59,7 +59,7 @@ WITH project_gate AS MATERIALIZED (
         owner_id, operation, idempotency_key, request_digest,
         audit_id, resource_id, response_snapshot
     )
-    SELECT $1, 'audit.start', $11, $12, audit_id, $4, $13::jsonb
+    SELECT $1, ` + MutationStart.sqlLiteral() + `, $11, $12, audit_id, $4, $13::jsonb
       FROM started
 )
 SELECT ` + prefixedAuditColumns("started") + ` FROM started`
@@ -261,8 +261,7 @@ WITH live_claim AS MATERIALIZED (
      WHERE item.approval_kind <> 'none'
     RETURNING request_id
 )
-SELECT round_id, audit_id, ordinal, manifest_ref, manifest_digest, state,
-       expected_item_count, revision, created_at, updated_at
+SELECT ` + prefixedRoundColumns("inserted_round") + `
   FROM inserted_round`
 
 // acceptedRoundDigestSQL reads the stored acceptance digest for the replay
@@ -321,8 +320,5 @@ var transitionRoundSQL = `
      WHERE audit.audit_id = changed.audit_id
     RETURNING audit.audit_id, ` + roundTransitionEvents.appended() + `
 )
-SELECT changed.round_id, changed.audit_id, changed.ordinal,
-       changed.manifest_ref, changed.manifest_digest, changed.state,
-       changed.expected_item_count, changed.revision,
-       changed.created_at, changed.updated_at
+SELECT ` + prefixedRoundColumns("changed") + `
   FROM changed`

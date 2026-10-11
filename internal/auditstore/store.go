@@ -65,33 +65,7 @@ func (s *PostgresStore) LookupMutationReplay(
 	if err := validateMutationReplay(ownerID, operation, key, digest); err != nil {
 		return Audit{}, false, err
 	}
-	return s.lookupAuditReplay(ctx, ownerID, string(operation), key, digest)
-}
-
-const auditColumns = `
-audit_id, owner_id, project_id,
-profile_name, profile_version, profile_digest, profile_snapshot, input_selection,
-baseline_snapshot, state, revision, current_round_id, dispatch_state, hold_state,
-deadline_at, max_rounds, batch_size, max_items_per_round, max_items_total,
-max_submitted_runs, max_item_run_attempts, max_evidence_bytes,
-reserved_run_count, submitted_run_count, outstanding_run_count, retained_evidence_bytes,
-next_event_sequence - 1, stop_reason_code, stop_reason_message,
-created_at, updated_at, started_at, finished_at, deletion_requested_at, paused_at, phase`
-
-func prefixedAuditColumns(prefix string) string {
-	return prefix + ".audit_id, " + prefix + ".owner_id, " + prefix + ".project_id, " +
-		prefix + ".profile_name, " + prefix + ".profile_version, " + prefix + ".profile_digest, " +
-		prefix + ".profile_snapshot, " + prefix + ".input_selection, " + prefix + ".baseline_snapshot, " +
-		prefix + ".state, " + prefix + ".revision, " + prefix + ".current_round_id, " +
-		prefix + ".dispatch_state, " + prefix + ".hold_state, " + prefix + ".deadline_at, " +
-		prefix + ".max_rounds, " + prefix + ".batch_size, " + prefix + ".max_items_per_round, " +
-		prefix + ".max_items_total, " + prefix + ".max_submitted_runs, " +
-		prefix + ".max_item_run_attempts, " + prefix + ".max_evidence_bytes, " +
-		prefix + ".reserved_run_count, " + prefix + ".submitted_run_count, " +
-		prefix + ".outstanding_run_count, " + prefix + ".retained_evidence_bytes, " + prefix + ".next_event_sequence - 1, " +
-		prefix + ".stop_reason_code, " + prefix + ".stop_reason_message, " +
-		prefix + ".created_at, " + prefix + ".updated_at, " + prefix + ".started_at, " + prefix + ".finished_at, " +
-		prefix + ".deletion_requested_at, " + prefix + ".paused_at, " + prefix + ".phase"
+	return s.lookupAuditReplay(ctx, ownerID, operation, key, digest)
 }
 
 func (s *PostgresStore) CreateDraft(ctx context.Context, params CreateDraftParams) (Audit, bool, error) {
@@ -99,7 +73,7 @@ func (s *PostgresStore) CreateDraft(ctx context.Context, params CreateDraftParam
 		return Audit{}, false, err
 	}
 	if replay, found, err := s.lookupAuditReplay(
-		ctx, params.OwnerID, "audit.create", params.IdempotencyKey, params.RequestDigest,
+		ctx, params.OwnerID, MutationCreate, params.IdempotencyKey, params.RequestDigest,
 	); err != nil || found {
 		return replay, false, err
 	}
@@ -125,11 +99,11 @@ func (s *PostgresStore) CreateDraft(ctx context.Context, params CreateDraftParam
 	if !errors.Is(err, pgx.ErrNoRows) && persistencepostgres.SQLState(err) != persistencepostgres.SQLStateUniqueViolation {
 		return Audit{}, false, fmt.Errorf("create Audit: %w", err)
 	}
-	return s.replayAudit(ctx, params.OwnerID, "audit.create", params.IdempotencyKey, params.RequestDigest)
+	return s.replayAudit(ctx, params.OwnerID, MutationCreate, params.IdempotencyKey, params.RequestDigest)
 }
 
 func (s *PostgresStore) replayAudit(
-	ctx context.Context, ownerID, operation, key, digest string,
+	ctx context.Context, ownerID string, operation MutationOperation, key, digest string,
 ) (Audit, bool, error) {
 	audit, found, err := s.lookupAuditReplay(ctx, ownerID, operation, key, digest)
 	if err != nil {
@@ -142,7 +116,7 @@ func (s *PostgresStore) replayAudit(
 }
 
 func (s *PostgresStore) lookupAuditReplay(
-	ctx context.Context, ownerID, operation, key, digest string,
+	ctx context.Context, ownerID string, operation MutationOperation, key, digest string,
 ) (Audit, bool, error) {
 	var auditID, storedDigest string
 	err := s.db.QueryRow(ctx, `
@@ -172,7 +146,7 @@ func (s *PostgresStore) Get(ctx context.Context, ownerID, auditID string) (Audit
 		return Audit{}, err
 	}
 	audit, err := scanAudit(s.db.QueryRow(ctx, `
-SELECT `+auditColumns+`
+SELECT `+prefixedAuditColumns("audits")+`
   FROM audits
  WHERE owner_id = $1 AND audit_id = $2`, ownerID, auditID))
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -188,32 +162,9 @@ func (s *PostgresStore) List(ctx context.Context, params ListParams) ([]Audit, e
 	if err := validateList(params); err != nil {
 		return nil, err
 	}
-	var state *string
-	if params.State != nil {
-		value := string(*params.State)
-		state = &value
-	}
-	rows, err := s.db.Query(ctx, `
-SELECT `+auditColumns+`
-  FROM audits
- WHERE owner_id = $1
-   AND ($2::text IS NULL OR project_id = $2)
-   AND ($3::text IS NULL OR state = $3)
-   AND ($4::text IS NULL OR (profile_name = $4 AND profile_version = $5))
-   AND ($6::timestamptz IS NULL OR (created_at, audit_id) < ($6, $7))
-   AND ($9::text[] IS NULL OR state = ANY($9))
-   AND (NOT $10::boolean OR EXISTS (
-       SELECT 1 FROM projects AS project WHERE project.project_id = audits.project_id
-         AND project.owner_id = audits.owner_id AND project.kind = 'project'
-         AND project.lifecycle_state = 'active'
-         AND NOT EXISTS (SELECT 1 FROM eval_submissions AS submission
-           JOIN eval_experiments AS experiment USING (experiment_id)
-           WHERE experiment.owner_id = project.owner_id
-             AND submission.execution_project_id = project.project_id)))
- ORDER BY created_at DESC, audit_id DESC
- LIMIT $8`, params.OwnerID, params.ProjectID, state,
+	rows, err := s.db.Query(ctx, listAuditsSQL, params.OwnerID, params.ProjectID, params.States,
 		params.ProfileName, params.ProfileVersion,
-		params.BeforeCreatedAt, params.BeforeAuditID, params.Limit, params.States, params.VisibleProjects)
+		params.BeforeCreatedAt, params.BeforeAuditID, params.Limit, params.VisibleProjects)
 	if err != nil {
 		return nil, fmt.Errorf("list Audits: %w", err)
 	}

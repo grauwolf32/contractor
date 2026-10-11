@@ -2,6 +2,32 @@ package projectstore
 
 // SQL statements for store.go.
 
+// listedProjectSQL is the condition that the Project row aliased project is
+// listed to its owner: it is not the execution workspace of one of the
+// owner's eval submissions. It is the one definition of that rule for the
+// Project list and, through OwnerListedProjectSQL, the owner-wide lists.
+func listedProjectSQL(project string) string {
+	return `NOT EXISTS (
+      SELECT 1 FROM eval_submissions AS submission
+      JOIN eval_experiments AS experiment USING (experiment_id)
+      WHERE experiment.owner_id = ` + project + `.owner_id
+        AND submission.execution_project_id = ` + project + `.project_id)`
+}
+
+// OwnerListedProjectSQL is the condition that the row whose Project and owner
+// are the columns projectID and ownerID belongs to a Project listed to its
+// owner that is a regular Project (not an evaluation Project), not deleting
+// and not an eval submission's execution workspace. The owner-wide Audit,
+// finding and review lists show only such rows.
+func OwnerListedProjectSQL(projectID, ownerID string) string {
+	return `EXISTS (
+      SELECT 1 FROM projects AS listed_project
+       WHERE listed_project.project_id = ` + projectID + `
+         AND listed_project.owner_id = ` + ownerID + `
+         AND listed_project.kind = 'project' AND listed_project.lifecycle_state = 'active'
+         AND ` + listedProjectSQL("listed_project") + `)`
+}
+
 // listProjectsSQL returns one page of an owner's projects, newest first,
 // optionally filtered by kind ($2). Workspace Projects owned by an eval
 // submission are hidden. $3/$4 are the (created_at, project_id)
@@ -15,11 +41,7 @@ SELECT project_id, owner_id, kind, name, description,
 FROM projects
 WHERE owner_id = $1
   AND ($2::text IS NULL OR kind = $2)
-  AND NOT EXISTS (
-      SELECT 1 FROM eval_submissions s
-      JOIN eval_experiments e USING (experiment_id)
-      WHERE e.owner_id = projects.owner_id AND s.execution_project_id = projects.project_id
-  )
+  AND ` + listedProjectSQL("projects") + `
   AND ($3::timestamptz IS NULL OR (created_at, project_id) < ($3, $4))
 ORDER BY created_at DESC, project_id DESC
 LIMIT $5`

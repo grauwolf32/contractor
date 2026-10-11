@@ -15,31 +15,6 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-const roundColumns = `
-round_id, audit_id, ordinal, manifest_ref, manifest_digest,
-state, expected_item_count, revision, created_at, updated_at`
-
-const executionColumns = `
-execution_id, audit_id, round_id, role, workflow_role, role_attempt,
-manifest_ref, manifest_digest, submission_key, request_digest, run_id,
-state, terminal_outcome, terminal_run_generation, terminal_run_sequence,
-terminal_observed_at, run_provenance, run_deleted_at, created_at, updated_at, preparation_snapshot, preparation_outputs`
-
-// collectionReceiptProjection selects a collected AuditExecution aliased as
-// its collection receipt, in scanReceipt order.
-func collectionReceiptProjection(alias string) string {
-	return alias + ".collection_receipt_id AS receipt_id, " + alias + ".audit_id, " +
-		alias + ".execution_id, " + alias + ".run_id, " + alias + ".terminal_outcome, " +
-		alias + ".terminal_run_generation, " + alias + ".terminal_run_sequence, " +
-		alias + ".collection_disposition AS disposition, " +
-		alias + ".collection_source_output_ref AS source_output_ref, " +
-		alias + ".collection_source_output_digest AS source_output_digest, " +
-		alias + ".collection_retained_refs AS retained_refs, " +
-		alias + ".collection_error_code AS error_code, " +
-		alias + ".collection_request_digest AS request_digest, " +
-		alias + ".collected_at AS created_at"
-}
-
 func (s *PostgresStore) GetRound(ctx context.Context, auditID, roundID string) (Round, error) {
 	if err := validateID("auditID", auditID); err != nil {
 		return Round{}, err
@@ -48,7 +23,7 @@ func (s *PostgresStore) GetRound(ctx context.Context, auditID, roundID string) (
 		return Round{}, err
 	}
 	result, err := scanRound(s.db.QueryRow(ctx, `
-SELECT `+roundColumns+` FROM audit_rounds
+SELECT `+prefixedRoundColumns("audit_rounds")+` FROM audit_rounds
  WHERE audit_id = $1 AND round_id = $2`, auditID, roundID))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Round{}, ErrNotFound
@@ -65,7 +40,7 @@ func (s *PostgresStore) ListRounds(ctx context.Context, auditID string) ([]Round
 		return nil, err
 	}
 	rows, err := s.db.Query(ctx, `
-SELECT `+roundColumns+` FROM audit_rounds
+SELECT `+prefixedRoundColumns("audit_rounds")+` FROM audit_rounds
  WHERE audit_id = $1 ORDER BY ordinal`, auditID)
 	if err != nil {
 		return nil, fmt.Errorf("list Audit rounds: %w", err)
@@ -241,21 +216,12 @@ SELECT count(*), count(*) FILTER (WHERE state = 'awaiting_review')
 	return unsettled != 0 && unsettled == awaiting, nil
 }
 
-func prefixedItemColumns(prefix string) string {
-	return prefix + ".item_id, " + prefix + ".audit_id, " + prefix + ".round_id, " +
-		prefix + ".item_key, " + prefix + ".ordinal, " + prefix + ".kind, " + prefix + ".subject_key, " +
-		prefix + ".task_ref, " + prefix + ".task_digest, " + prefix + ".origin, " + prefix + ".workflow_role, " + prefix + ".state, " +
-		prefix + ".approval_kind, " + prefix + ".approval_subject_digest, " +
-		prefix + ".final_disposition, " + prefix + ".accepted_result_ref, " + prefix + ".accepted_result_digest, " +
-		prefix + ".last_execution_item_id, " + prefix + ".created_at, " + prefix + ".updated_at"
-}
-
 func (s *PostgresStore) ListExecutions(ctx context.Context, auditID string) ([]Execution, error) {
 	if err := validateID("auditID", auditID); err != nil {
 		return nil, err
 	}
 	rows, err := s.db.Query(ctx, `
-SELECT `+executionColumns+` FROM audit_executions
+SELECT `+prefixedExecutionColumns("audit_executions")+` FROM audit_executions
  WHERE audit_id = $1
  ORDER BY created_at, execution_id
  LIMIT 1000001`, auditID)
@@ -296,7 +262,7 @@ SELECT `+prefixedExecutionColumns("execution")+`, run.state
 	states := make(map[string]runstore.WorkflowRunState)
 	for rows.Next() {
 		var runState *string
-		execution, scanErr := scanExecution(trailingColumns{row: rows, dest: []any{&runState}})
+		execution, scanErr := scanExecution(withColumns{row: rows, after: []any{&runState}})
 		if scanErr != nil {
 			return nil, nil, fmt.Errorf("scan Audit execution: %w", scanErr)
 		}
@@ -313,17 +279,6 @@ SELECT `+prefixedExecutionColumns("execution")+`, run.state
 		return nil, nil, fmt.Errorf("iterate Audit executions: %w", err)
 	}
 	return executions, states, nil
-}
-
-// trailingColumns lets a scan function that reads one entity's columns also
-// read the columns a query selects after them into dest.
-type trailingColumns struct {
-	row  scanner
-	dest []any
-}
-
-func (r trailingColumns) Scan(dest ...any) error {
-	return r.row.Scan(append(dest, r.dest...)...)
 }
 
 func (s *PostgresStore) ListExecutionItems(ctx context.Context, executionID string) ([]ExecutionItem, error) {
@@ -820,7 +775,7 @@ func (s *PostgresStore) listRoleExecutions(
 	ctx context.Context, auditID string, roundID *string,
 ) ([]Execution, error) {
 	rows, err := s.db.Query(ctx, `
-SELECT `+executionColumns+` FROM audit_executions
+SELECT `+prefixedExecutionColumns("audit_executions")+` FROM audit_executions
  WHERE audit_id = $1 AND (role = 'prepare' OR (
        role IN ('discovery', 'assessment') AND round_id IS NOT DISTINCT FROM $2))
  ORDER BY role, workflow_role, role_attempt, execution_id

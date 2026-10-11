@@ -41,10 +41,7 @@ SELECT item.audit_id, item.round_id, item.item_id, item.ordinal,
 // ordered by role and attempt. $3 is one more than the per-round bound so the
 // caller can detect overflow. Used by PostgresStore.listRoleReceipts.
 var listRoleReceiptsSQL = `
-SELECT execution.collection_receipt_id, execution.audit_id, execution.execution_id, execution.run_id,
-       execution.terminal_outcome, execution.terminal_run_generation,
-       execution.terminal_run_sequence, execution.collection_disposition,
-       execution.collection_error_code, execution.collection_request_digest, execution.collected_at
+SELECT ` + receiptSummaryColumns("execution") + `
   FROM audit_executions AS execution
  WHERE execution.audit_id = $1 AND (execution.role = 'prepare' OR (
        execution.role IN ('discovery', 'assessment') AND execution.round_id IS NOT DISTINCT FROM $2))
@@ -56,9 +53,7 @@ SELECT execution.collection_receipt_id, execution.audit_id, execution.execution_
 // collected executions, newest first. $2 is one more than the reconcile bound
 // so the caller can detect overflow. Used by PostgresStore.GetReconcileSnapshot.
 var listCollectionReceiptsSQL = `
-SELECT collection_receipt_id, audit_id, execution_id, run_id,
-       terminal_outcome, terminal_run_generation, terminal_run_sequence,
-       collection_disposition, collection_error_code, collection_request_digest, collected_at
+SELECT ` + receiptSummaryColumns("audit_executions") + `
   FROM audit_executions
  WHERE audit_id = $1 AND collection_receipt_id IS NOT NULL
  ORDER BY collected_at DESC, collection_receipt_id DESC

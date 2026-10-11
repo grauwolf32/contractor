@@ -48,7 +48,7 @@ func (s *PostgresStore) MaterializeRound(
 		return Audit{}, false, err
 	}
 	if replay, found, err := s.lookupAuditReplay(
-		ctx, params.OwnerID, "audit.start", params.IdempotencyKey, params.RequestDigest,
+		ctx, params.OwnerID, MutationStart, params.IdempotencyKey, params.RequestDigest,
 	); err != nil || found {
 		return replay, false, err
 	}
@@ -100,13 +100,13 @@ func (s *PostgresStore) MaterializeRound(
 	case "55000":
 		return Audit{}, false, ErrProjectDeleting
 	case persistencepostgres.SQLStateUniqueViolation:
-		return s.replayAudit(ctx, params.OwnerID, "audit.start", params.IdempotencyKey, params.RequestDigest)
+		return s.replayAudit(ctx, params.OwnerID, MutationStart, params.IdempotencyKey, params.RequestDigest)
 	}
 	if !errors.Is(err, pgx.ErrNoRows) {
 		return Audit{}, false, fmt.Errorf("materialize Audit round: %w", err)
 	}
 	if replay, found, replayErr := s.lookupAuditReplay(
-		ctx, params.OwnerID, "audit.start", params.IdempotencyKey, params.RequestDigest,
+		ctx, params.OwnerID, MutationStart, params.IdempotencyKey, params.RequestDigest,
 	); replayErr != nil || found {
 		return replay, false, replayErr
 	}

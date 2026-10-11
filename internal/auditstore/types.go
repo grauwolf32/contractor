@@ -279,9 +279,9 @@ type CreateDraftParams struct {
 }
 
 type ListParams struct {
-	OwnerID         string
-	ProjectID       *string
-	State           *AuditState
+	OwnerID   string
+	ProjectID *string
+	// States filters by Audit state; nil lists every state.
 	States          []AuditState
 	VisibleProjects bool
 	ProfileName     *string
@@ -311,6 +311,12 @@ const (
 	MutationTransition MutationOperation = "audit.transition"
 	MutationDelete     MutationOperation = "audit.delete"
 )
+
+// sqlLiteral quotes the operation for a statement that records it, so the
+// stored operation names come from these constants only.
+func (operation MutationOperation) sqlLiteral() string {
+	return "'" + string(operation) + "'"
+}
 
 type TransitionParams struct {
 	OwnerID          string

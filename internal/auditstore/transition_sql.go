@@ -40,7 +40,7 @@ WITH target AS MATERIALIZED (
         owner_id, operation, idempotency_key, request_digest,
         audit_id, resource_id, response_snapshot
     )
-    SELECT $1, 'audit.transition', $8, $9, audit_id, audit_id, $10::jsonb
+    SELECT $1, ` + MutationTransition.sqlLiteral() + `, $8, $9, audit_id, audit_id, $10::jsonb
       FROM changed
 )
 SELECT `
@@ -141,7 +141,7 @@ WITH previous AS MATERIALIZED (
         owner_id, operation, idempotency_key, request_digest,
         audit_id, resource_id, response_snapshot
     )
-    SELECT $1, 'audit.transition', $6, $7, audit_id, audit_id, $8::jsonb
+    SELECT $1, ` + MutationTransition.sqlLiteral() + `, $6, $7, audit_id, audit_id, $8::jsonb
       FROM changed
 )
 SELECT `

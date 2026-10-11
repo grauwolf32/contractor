@@ -8,12 +8,12 @@ import (
 )
 
 const (
-	MaxReviewRationale         = 64 << 10
-	defaultReviewTTL           = 7 * 24 * time.Hour
-	maximumReviewTTL           = 30 * 24 * time.Hour
+	MaxReviewRationale = 64 << 10
+	defaultReviewTTL   = 7 * 24 * time.Hour
+	maximumReviewTTL   = 30 * 24 * time.Hour
+	// An item action review's kind is its item's approval kind
+	// (auditstore.ItemApprovalKind); the other review kinds are these.
 	FindingReviewKind          = "finding-triage"
-	ActiveCheckReviewKind      = "active-check-approval"
-	ApplicabilityReviewKind    = "requirement-applicability"
 	ReportAcceptanceReviewKind = "report-acceptance"
 )
 

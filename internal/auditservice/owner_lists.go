@@ -7,16 +7,13 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/pagelimit"
+	"github.com/grauwolf32/contractor/internal/projectstore"
 )
 
-const visibleAuditProjectSQL = `
- AND EXISTS (SELECT 1 FROM projects AS project
-   WHERE project.project_id = audit.project_id AND project.owner_id = audit.owner_id
-     AND project.kind = 'project' AND project.lifecycle_state = 'active'
-     AND NOT EXISTS (SELECT 1 FROM eval_submissions AS submission
-       JOIN eval_experiments AS experiment USING (experiment_id)
-       WHERE experiment.owner_id = project.owner_id
-         AND submission.execution_project_id = project.project_id))`
+// visibleAuditProjectSQL keeps an owner-wide list to the Audits of Projects
+// listed to their owner, by the rule the owner-wide Audit list applies.
+var visibleAuditProjectSQL = `
+ AND ` + projectstore.OwnerListedProjectSQL("audit.project_id", "audit.owner_id")
 
 func validateOwnerPage(ownerID string, limit int, before *time.Time, id string, states []auditstore.AuditState) error {
 	if !validReviewIdentity(ownerID, 256) || !pagelimit.ValidFetch(limit) ||
