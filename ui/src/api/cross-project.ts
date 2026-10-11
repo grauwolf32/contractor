@@ -744,7 +744,12 @@ export interface PendingDecisions extends CrossProjectStatus {
   truncatedAuditIds: string[];
 }
 
-/** All pending requests across owned Projects; kinds share one read. */
+/**
+ * All pending requests across owned Projects that can still be decided;
+ * kinds share one read. The Server's pending filter judges expiry at its
+ * database clock and leaves out a request past its expiry before anything
+ * has expired it, so the list and its counts never offer one.
+ */
 export function usePendingDecisions(
   options: PendingDecisionsOptions = {},
 ): PendingDecisions {

@@ -8822,6 +8822,7 @@ export interface operations {
                 cursor?: components["parameters"]["Cursor"];
                 /** @description Comma-separated Audit states. */
                 auditState?: string;
+                /** @description pending lists only requests that can still be decided: a pending request past its expiresAt at the Server database clock is left out before anything has expired it. decided and expired match the stored state. */
                 state?: "pending" | "decided" | "expired";
             };
             header?: never;

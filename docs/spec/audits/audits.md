@@ -256,10 +256,10 @@ stateDiagram-v2
   finalizing --> completed: commit report and coverage
   waiting_review --> completed: accept exact report candidate
   waiting_review --> failed: reject or expire report candidate
-  active --> cancelling: cancel
-  waiting_review --> cancelling: cancel
-  paused --> cancelling: cancel
-  finalizing --> cancelling: cancel before report commit
+  active --> cancelling: cancel or delete
+  waiting_review --> cancelling: cancel or delete
+  paused --> cancelling: cancel or delete
+  finalizing --> cancelling: cancel or delete before report commit
   cancelling --> cancelled: children terminal and released
   finalizing --> failed: structural finalization failure
   draft --> deleting: delete

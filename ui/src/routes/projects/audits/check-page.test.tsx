@@ -18,6 +18,7 @@ import type {
 } from "../../../api/audits";
 import { queryKeys } from "../../../api/query-keys";
 import * as queryClientFactory from "../../../app/query-client";
+import { CHECK_STATE_LABELS } from "../../../app/vocabulary";
 import {
   DIGEST,
   emptyPage,
@@ -1876,6 +1877,118 @@ describe("Check lifecycle controls", () => {
         }),
       ).toBeVisible(),
     );
+  });
+
+  // The Server accepts DELETE in every state: drafts and ended checks are
+  // deleted directly, running work is stopped first (also while a report
+  // waits for a decision), and a deleting check is already under way.
+  const DELETABLE_STATES = (
+    Object.keys(CHECK_STATE_LABELS) as Audit["state"][]
+  ).filter((state) => state !== "deleting");
+  const STOPS_FIRST: readonly Audit["state"][] = [
+    "active",
+    "waiting_review",
+    "paused",
+    "finalizing",
+    "cancelling",
+  ];
+
+  it("offers Delete in every state except deleting", () => {
+    expect([...DELETABLE_STATES].sort()).toEqual(
+      [
+        "active",
+        "cancelled",
+        "cancelling",
+        "completed",
+        "draft",
+        "failed",
+        "finalizing",
+        "paused",
+        "waiting_review",
+      ].sort(),
+    );
+  });
+
+  it.each(DELETABLE_STATES)(
+    "confirms deleting a %s check before sending DELETE",
+    async (state) => {
+      let current = auditAt(state, 2);
+      const deletes: Request[] = [];
+      const { api } = serveCheck({
+        audit: () => current,
+        handle: (request, url) => {
+          if (
+            url.pathname === "/v1/audits/audit_example" &&
+            request.method === "DELETE"
+          ) {
+            deletes.push(request.clone());
+            current = auditAt(
+              STOPS_FIRST.includes(state) ? "cancelling" : "deleting",
+              3,
+              { deletionRequestedAt: "2026-10-05T10:03:00Z" },
+            );
+            return jsonResponse(current, {
+              status: 202,
+              headers: { ETag: '"3"' },
+            });
+          }
+          return undefined;
+        },
+      });
+      renderApplication(api, ROOT);
+      const user = userEvent.setup();
+      const progress = await screen.findByRole("region", {
+        name: "Check progress",
+      });
+      await user.click(within(progress).getByLabelText("Check actions"));
+      const deleteButton = within(progress).getByRole("button", {
+        name: "Delete check",
+      });
+      expect(deleteButton).toBeEnabled();
+      await user.click(deleteButton);
+      const dialog = screen.getByRole("alertdialog", {
+        name: "Delete this check?",
+      });
+      expect(
+        within(dialog).getByText(
+          STOPS_FIRST.includes(state)
+            ? /^Stop this check's running work, then permanently delete/u
+            : /^Permanently delete this check/u,
+        ),
+      ).toBeVisible();
+      expect(
+        within(dialog).getByRole("button", { name: "Keep the check" }),
+      ).toHaveFocus();
+      expect(deletes).toHaveLength(0);
+      await user.click(
+        within(dialog).getByRole("button", { name: "Delete check" }),
+      );
+      await vi.waitFor(() => expect(deletes).toHaveLength(1));
+      expect(deletes[0]?.headers.get("If-Match")).toBe('"2"');
+    },
+  );
+
+  it("keeps Delete unavailable while a check is deleting", async () => {
+    const { api, requests } = serveCheck({
+      audit: () =>
+        auditAt("deleting", 3, { deletionRequestedAt: "2026-10-05T10:03:00Z" }),
+    });
+    renderApplication(api, ROOT);
+    const progress = await screen.findByRole("region", {
+      name: "Check progress",
+    });
+    await userEvent
+      .setup()
+      .click(within(progress).getByLabelText("Check actions"));
+    expect(
+      within(progress).getByRole("button", { name: "Delete check" }),
+    ).toBeDisabled();
+    expect(
+      within(progress).getByText(
+        "Deleting the check and its retained results…",
+      ),
+    ).toBeVisible();
+    expect(requests.every((request) => request.method === "GET")).toBe(true);
   });
 
   it("refreshes a stale stop confirmation before an explicit retry", async () => {

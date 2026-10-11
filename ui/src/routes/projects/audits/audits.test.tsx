@@ -1122,7 +1122,11 @@ describe("Project Audit routes", () => {
         screen.queryByRole("region", { name: "Your decision" }),
       ).not.toBeInTheDocument(),
     );
-    expect(screen.getByText("Not applicable")).toBeVisible();
+    // The recorded outcome, not the "Not applicable" result filter of the
+    // item list beside it.
+    expect(
+      screen.getByText("Not applicable", { selector: ".ui-status-chip" }),
+    ).toBeVisible();
     expect(decided).toBe(true);
   });
 });

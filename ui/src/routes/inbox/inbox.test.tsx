@@ -925,6 +925,44 @@ describe("Inbox", () => {
     ).toHaveAttribute("aria-current", "page");
   });
 
+  it("lists and counts only decisions that can still be made", async () => {
+    const server = busyServer();
+    // Stored as pending, but past its expiry: the Server's pending list
+    // leaves it out before anything has expired it.
+    server.reviews.audit_trace!.push(
+      review("audit_trace", "review_expired", "requirement-applicability", 5, {
+        subjectId: "item_2",
+        expiresAt: ago(1),
+      }),
+      review("audit_trace", "review_open", "requirement-applicability", 4, {
+        subjectId: "item_3",
+        expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+      }),
+    );
+    const { sent } = renderInbox(server);
+
+    const decide = await findSection("Decide");
+    await waitFor(() =>
+      expect(
+        decide.querySelector('a[href="/?item=review:audit_trace:review_open"]'),
+      ).not.toBeNull(),
+    );
+    expect(
+      decide.querySelector(
+        'a[href="/?item=review:audit_trace:review_expired"]',
+      ),
+    ).toBeNull();
+    // The badge counts the same decisions: two possible issues, the report,
+    // the approval and the open applicability request.
+    expect(
+      await screen.findByRole("link", { name: "Inbox (5 need your decision)" }),
+    ).toBeInTheDocument();
+    const reads = sent("GET", "/v1/reviews");
+    expect(reads.length).toBeGreaterThan(0);
+    for (const request of reads)
+      expect(new URL(request.url).searchParams.get("state")).toBe("pending");
+  });
+
   it("says plainly when a section is empty", async () => {
     renderInbox(emptyServer());
 

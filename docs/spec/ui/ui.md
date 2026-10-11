@@ -317,7 +317,10 @@ bottom) with the destinations and routes shown in [Navigation](#navigation).
 **UI-R39.** The Inbox at `/` puts decisions first, then blocked work, finished
 results and running checks. Inbox decisions are pending Audit reviews for
 finding triage of possible issues, active-check approval, requirement
-applicability and report acceptance.
+applicability and report acceptance that can still be decided: the Inbox and
+the rail badge read them from `GET /v1/reviews` with `state=pending`, which
+leaves out a request past its expiry ([REV-R194](../audits/review-and-reports.md)),
+as the workspace's pending count does (UI-R143).
 
 **UI-R40.** An Audit page under `/projects/:projectId/audits/:auditId` marks
 Checks as current in the rail.
@@ -961,6 +964,7 @@ public API conventions are in [Public API](../api/public-api.md).
 | `/v1/queue` | Queue view | UI-R103 |
 | `/v1/runs` with `lifecycle=terminal` | Completed view | UI-R104, UI-R105 |
 | `GET /v1/audits/{auditId}/workspace` | Audit workspace snapshot | UI-R143, UI-R144 |
+| `GET /v1/reviews` with `state=pending` | Inbox decisions and the rail badge | UI-R39 |
 | `POST /v1/runs/{runId}/resume` | Continue from failed stage | [Runs](../execution/runs.md) RUN-R55 to RUN-R57 |
 
 Client routes owned here:

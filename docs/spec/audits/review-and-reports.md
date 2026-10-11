@@ -938,6 +938,14 @@ distinguish analyst severity from a model suggestion.
 `decided` or `expired` state, and by finding ID to retrieve paginated decision
 history.
 
+**REV-R194.** The owner-wide review list `GET /v1/reviews` filtered by
+`pending` lists only requests that can still be decided: a stored pending
+request whose expiry has passed at the PostgreSQL statement time is left out
+before anything has expired it (REV-R43), by the same rule as the workspace's
+pending count. Its `decided` and `expired` filters, its unfiltered list and
+the revision-pinned per-Audit Reviews projection (REV-R167, REV-R168) match
+the stored state.
+
 **REV-R168.** Both the Findings and the Reviews projection include
 `auditRevision` and `asOf`; an optional `auditRevision` pins the first page to
 a summary.
