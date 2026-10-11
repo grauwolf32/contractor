@@ -744,6 +744,9 @@ type CollectionDispositionCounts struct {
 // immutable Audit report is assembled. The proposal document remains in the
 // Artifact plane; this row pins its exact retained version and the exact
 // assessment/analyst decision (if any) selected by this report revision.
+// ReportFinding is the exact finding state one report build freezes into an
+// immutable report artifact, with the report projection of its first
+// proposal stored at intake.
 type ReportFinding struct {
 	FindingID         string
 	State             string
@@ -752,6 +755,8 @@ type ReportFinding struct {
 	Assessment        *ReportFindingAssessment
 	Decision          *ReportFindingDecision
 	Revision          uint64
+	CreatedAt         time.Time
+	Projection        auditdomain.FindingReportProjection
 }
 
 type ReportFindingAssessment struct {

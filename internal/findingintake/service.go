@@ -346,7 +346,7 @@ func insertReceipt(
 		auditExecutionID, auditID, auditRole, origin.Workflow.Name, origin.Workflow.Version,
 		origin.Workflow.SchemaVersion, configurationRef, origin.Workflow.ClosureDigest,
 		proposalRef, proposal.Digest, proposal.MediaType, proposal.SizeBytes,
-		evidenceJSON,
+		evidenceJSON, string(canonical.reportProjection),
 	)
 	if err != nil {
 		if persistencepostgres.SQLState(err) == persistencepostgres.SQLStateUniqueViolation {

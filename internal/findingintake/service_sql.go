@@ -24,8 +24,9 @@ SELECT EXISTS (
 
 // insertReceiptSQL inserts one finding_proposal_receipts row recording the
 // proposal and its evidence, the submitting allocation and agent, the Run and
-// Project, the optional Audit execution origin and the Workflow identity. The
-// caller maps a unique violation to a conflict. Used by insertReceipt.
+// Project, the optional Audit execution origin, the Workflow identity and the
+// proposal's canonical report projection ($28). The caller maps a unique
+// violation to a conflict. Used by insertReceipt.
 var insertReceiptSQL = `
 INSERT INTO finding_proposal_receipts (
     receipt_id, proposal_id, allocation_id, runtime_agent_id, runtime_instance_id,
@@ -33,9 +34,10 @@ INSERT INTO finding_proposal_receipts (
     run_id, owner_id, project_id, audit_execution_id, audit_id, audit_role,
     workflow_name, workflow_version, workflow_schema_version,
     workflow_configuration_ref, workflow_closure_digest,
-    proposal_ref, proposal_digest, proposal_media_type, proposal_size_bytes, evidence
+    proposal_ref, proposal_digest, proposal_media_type, proposal_size_bytes, evidence,
+    report_projection
 ) VALUES (
     $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
     $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22,
-    $23, $24, $25, $26, $27
+    $23, $24, $25, $26, $27, $28
 )`

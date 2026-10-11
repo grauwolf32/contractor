@@ -305,6 +305,10 @@ func seedPublicDeletionRunReceipt(t *testing.T, ctx context.Context, pool *pgxpo
 	if err != nil {
 		t.Fatal(err)
 	}
+	projection, err := auditdomain.EncodeFindingReportProjection(auditdomain.ProjectFindingReport(proposal))
+	if err != nil {
+		t.Fatal(err)
+	}
 	written, err := service.WriteFindingProposal(ctx, runID, suffix, artifacts.Payload{MediaType: "application/json", Data: body})
 	if err != nil {
 		t.Fatal(err)
@@ -314,11 +318,13 @@ func seedPublicDeletionRunReceipt(t *testing.T, ctx context.Context, pool *pgxpo
 	if _, err := pool.Exec(ctx, `INSERT INTO finding_proposal_receipts (
 receipt_id,proposal_id,allocation_id,runtime_agent_id,runtime_instance_id,stage_execution_id,logical_agent_name,
 invocation_id,submission_id,client_key,request_digest,run_id,owner_id,workflow_name,workflow_version,
-workflow_schema_version,workflow_configuration_ref,workflow_closure_digest,proposal_ref,proposal_digest,proposal_media_type,proposal_size_bytes,evidence
+workflow_schema_version,workflow_configuration_ref,workflow_closure_digest,proposal_ref,proposal_digest,proposal_media_type,proposal_size_bytes,evidence,
+report_projection
 ) VALUES($1,$2,$3,'runtime','instance','stage','worker',$4,$5,$6,$7,$8,$9,'source','1','contractor/v1alpha1',
-'{"name":"source","version":"1"}',$7,$10,$11,'application/json',$12,$13)`,
+'{"name":"source","version":"1"}',$7,$10,$11,'application/json',$12,$13,$14)`,
 		"receipt-"+suffix, "proposal-"+suffix, "allocation-"+suffix, "invocation-"+suffix, "submission-"+suffix, suffix,
-		auditHandlerDigest(suffix), runID, owner, refJSON, auditHandlerDigest(string(body)), written.Size, evidenceJSON); err != nil {
+		auditHandlerDigest(suffix), runID, owner, refJSON, auditHandlerDigest(string(body)), written.Size, evidenceJSON,
+		string(projection)); err != nil {
 		t.Fatal(err)
 	}
 	return written.Ref

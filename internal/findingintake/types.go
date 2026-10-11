@@ -146,7 +146,10 @@ type ResolvedProposal struct {
 type canonicalSubmission struct {
 	request       Submission
 	proposalBytes []byte
-	digest        string
+	// reportProjection is the canonical report projection of the proposal,
+	// stored with the receipt so Audit reports never read the proposal back.
+	reportProjection []byte
+	digest           string
 }
 
 func canonicalize(input Submission) (canonicalSubmission, error) {
@@ -169,6 +172,10 @@ func canonicalize(input Submission) (canonicalSubmission, error) {
 	proposalBytes, err := auditdomain.EncodeFindingProposal(input.Proposal)
 	if err != nil {
 		return canonicalSubmission{}, fmt.Errorf("%w: proposal document", ErrInvalid)
+	}
+	reportProjection, err := auditdomain.EncodeFindingReportProjection(auditdomain.ProjectFindingReport(input.Proposal))
+	if err != nil {
+		return canonicalSubmission{}, fmt.Errorf("%w: proposal report projection", ErrInvalid)
 	}
 	refs := append([]contracts.ArtifactRef(nil), input.EvidenceRefs...)
 	for _, ref := range refs {
@@ -212,7 +219,8 @@ func canonicalize(input Submission) (canonicalSubmission, error) {
 		return canonicalSubmission{}, fmt.Errorf("canonicalize finding submission: %w", err)
 	}
 	return canonicalSubmission{
-		request: input, proposalBytes: proposalBytes, digest: auditdomain.DigestBytes(encoded),
+		request: input, proposalBytes: proposalBytes, reportProjection: reportProjection,
+		digest: auditdomain.DigestBytes(encoded),
 	}, nil
 }
 

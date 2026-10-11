@@ -19,12 +19,15 @@ type Store interface {
 	ListExecutionItems(context.Context, string) ([]auditstore.ExecutionItem, error)
 	ListItemsByIDs(context.Context, string, []string) ([]auditstore.Item, error)
 	ListRounds(context.Context, string) ([]auditstore.Round, error)
-	ListItems(context.Context, string) ([]auditstore.Item, error)
-	ListCoverage(context.Context, string, string, int, int) ([]auditstore.CoverageRow, error)
-	ListReportFindings(context.Context, string) ([]auditstore.ReportFinding, error)
+	ListReportItems(context.Context, string, string, int, int) ([]auditstore.ReportItem, error)
+	ListReportFindings(context.Context, auditstore.ReportFindingPageParams) ([]auditstore.ReportFinding, bool, error)
+	ListReportPages(context.Context, string, uint64) ([]auditstore.ReportPage, error)
+	RecordReportPage(context.Context, auditstore.RecordReportPageParams) error
+	ReadReportSections(context.Context, string, uint64) (map[auditstore.ReportSection]auditstore.ReportSectionContent, error)
 	CollectionDispositionCounts(context.Context, string) (auditstore.CollectionDispositionCounts, error)
 	Collect(context.Context, auditstore.CollectParams) (auditstore.CollectionReceipt, bool, error)
 	CommitReport(context.Context, auditstore.CommitReportParams) (auditstore.Audit, error)
+	GetReportCandidate(context.Context, string) (auditstore.ReportCandidate, error)
 	ProposeReport(context.Context, auditstore.ProposeReportParams) (auditstore.Audit, bool, error)
 }
 
@@ -50,6 +53,7 @@ type Importer struct {
 	runs      RunReader
 	artifacts ArtifactAccess
 	findings  FindingRetention
+	budget    reportBudget
 }
 
 func New(
@@ -64,7 +68,7 @@ func New(
 	if len(findings) > 1 {
 		return nil, errors.New("Audit importer accepts at most one finding intake")
 	}
-	result := &Importer{store: store, runs: runs, artifacts: artifactAccess}
+	result := &Importer{store: store, runs: runs, artifacts: artifactAccess, budget: defaultReportBudget}
 	if len(findings) == 1 {
 		if findings[0] == nil {
 			return nil, errors.New("Audit importer finding intake is nil")

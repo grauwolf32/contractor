@@ -1071,14 +1071,16 @@ func TestAuditFindingReviewHistoryAndDeletedRunProvenance(t *testing.T) {
 		decided.Finding.AnalystSeverity == nil || *decided.Finding.AnalystSeverity != SeverityHigh {
 		t.Fatalf("true-positive decision = (%+v, %v)", decided, err)
 	}
-	reportFindings, err := auditstore.NewPostgresStore(pool).ListReportFindings(ctx, auditID)
+	reportFindings, more, err := auditstore.NewPostgresStore(pool).ListReportFindings(ctx, auditstore.ReportFindingPageParams{
+		AuditID: auditID, Section: auditstore.ReportSectionConfirmed, Limit: 10, ProjectionBytes: 1 << 20,
+	})
 	var reportFinding *auditstore.ReportFinding
 	for index := range reportFindings {
 		if reportFindings[index].FindingID == firstID {
 			reportFinding = &reportFindings[index]
 		}
 	}
-	if err != nil || len(reportFindings) != 2 || reportFinding == nil ||
+	if err != nil || more || len(reportFindings) != 1 || reportFinding == nil ||
 		reportFinding.Decision == nil || reportFinding.Decision.Verdict != string(VerdictTruePositive) ||
 		reportFinding.Decision.Severity == nil || *reportFinding.Decision.Severity != string(SeverityHigh) {
 		t.Fatalf("report finding snapshot = (%+v, %v)", reportFindings, err)
@@ -1405,6 +1407,10 @@ func seedAuditFindingDocument(
 	if err != nil {
 		t.Fatal(err)
 	}
+	projection, err := auditdomain.EncodeFindingReportProjection(auditdomain.ProjectFindingReport(document))
+	if err != nil {
+		t.Fatal(err)
+	}
 	projectArtifacts, err := artifacts.NewService(artifacts.NewPostgresRepository(pool)).Project(projectID)
 	if err != nil {
 		t.Fatal(err)
@@ -1430,16 +1436,17 @@ INSERT INTO finding_proposal_receipts (
     workflow_name, workflow_version, workflow_schema_version,
     workflow_configuration_ref, workflow_closure_digest,
     proposal_ref, proposal_digest, proposal_media_type,
-    proposal_size_bytes, evidence
+    proposal_size_bytes, evidence, report_projection
 ) VALUES ($1, $2, $3, 'runtime-review', 'instance-review', 'stage-review', 'worker',
           $4, $5, $6, $7, $8, $9, $10,
           'finding-source', '1', 'contractor/v1alpha1',
           '{"name":"finding-source","version":"1"}'::jsonb, $11,
-          $12::jsonb, $13, 'application/json', $14, '[]'::jsonb)`,
+          $12::jsonb, $13, 'application/json', $14, '[]'::jsonb, $15)`,
 		receiptID, "proposal-"+suffix, "allocation-"+suffix,
 		"invocation-"+suffix, "submission-"+suffix, document.ClientKey,
 		serviceTestDigest("request-"+suffix), "deleted-run-"+suffix, ownerID, projectID,
 		serviceTestDigest("workflow-"+suffix), proposalRefJSON, proposal.Digest, proposal.SizeBytes,
+		string(projection),
 	); err != nil {
 		t.Fatal(err)
 	}

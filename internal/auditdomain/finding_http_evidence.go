@@ -2,7 +2,6 @@ package auditdomain
 
 import (
 	"encoding/base64"
-	"slices"
 	"strings"
 	"unicode/utf8"
 )
@@ -31,7 +30,9 @@ type FindingHTTPAttempt struct {
 	Error           string              `json:"error,omitempty"`
 }
 
-func validateFindingHTTPExchange(exchange FindingHTTPExchange, evidenceIDs []string) error {
+// validateFindingHTTPExchange checks the exchange shape; the reference to a
+// proposal evidence ID is checked by validateFindingEvidenceReferences.
+func validateFindingHTTPExchange(exchange FindingHTTPExchange) error {
 	if !validFindingLine(exchange.RequestID) || validateIdentifier(exchange.RequestTag, "request_tag") != nil {
 		return invalid(CodeInvalid, "http_exchange.request_id")
 	}
@@ -43,7 +44,7 @@ func validateFindingHTTPExchange(exchange FindingHTTPExchange, evidenceIDs []str
 			return err
 		}
 	}
-	if exchange.ResponseBodyEvidenceID != "" && !slices.Contains(evidenceIDs, exchange.ResponseBodyEvidenceID) {
+	if exchange.ResponseBodyEvidenceID != "" && validateIdentifier(exchange.ResponseBodyEvidenceID, "http_exchange.response_body_evidence_id") != nil {
 		return invalid(CodeReferenceInvalid, "http_exchange.response_body_evidence_id")
 	}
 	return nil

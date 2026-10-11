@@ -527,6 +527,32 @@ decisions, limits and reproducible provenance.
 scope and evidence policy; partial automation is not described as complete
 compliance.
 
+**REV-R194.** A report carries at most 100,000 findings (LIM-REV-7). Its
+machine-readable `report.json` is at most 64 MiB and its `report.md` at most
+64 KiB (LIM-REV-8). An Audit whose report would pass either bound cannot form
+a structurally valid report and fails (FAIL-AUD-9).
+
+**REV-R195.** Each report finding shows the report projection that finding
+intake stored with its first receipt (FND-R158); finalization reads no
+proposal artifact.
+
+**REV-R196.** Finalization records the report's item and finding entries in
+pages, in report order: the items of each Round, then the findings of each
+state. A page holds at most 200 entries, a findings page ends with the
+finding whose report projection brings its projections to 8 MiB, and one
+finalization attempt records at most 32 pages (LIM-REV-9). An attempt that reaches its budget
+returns with its pages recorded; an attempt that times out or fails keeps the
+pages it recorded. The next attempt resumes after the last recorded page and
+never reads a recorded page again (FAIL-REV-13). Once every page is recorded,
+one attempt assembles both artifacts from the recorded entries and commits or
+freezes them.
+
+**REV-R197.** Recorded pages belong to the Audit revision they were read at.
+A revision change while `finalizing` makes them stale: the next page or the
+report commit fails its revision check, and the report is built again from
+the new revision. Every exit from `finalizing` discards the pages in the same
+transaction (LIFE-REV-6).
+
 ### Finding backtrace and offline attribution
 
 **REV-R81.** An external script must be able to start with an Audit
@@ -1072,6 +1098,12 @@ Registry entries owned by this document:
   finding-triage request expired by result collection (REV-R67).
 - [LIM-REV-6](../platform/limits.md): exactly one required primary Workflow
   output opts in to direct verification (REV-R118).
+- [LIM-REV-7](../platform/limits.md): at most 100,000 findings per report
+  (REV-R194).
+- [LIM-REV-8](../platform/limits.md): 64 MiB machine report and 64 KiB
+  Markdown summary (REV-R194).
+- [LIM-REV-9](../platform/limits.md): report finalization pages and the
+  pages one attempt records (REV-R196).
 - [FAIL-REV-1](../platform/failure-model.md): owner review decision
   (REV-R27).
 - [FAIL-REV-2](../platform/failure-model.md): creation of an authorized
@@ -1096,6 +1128,8 @@ Registry entries owned by this document:
   (REV-R159).
 - [FAIL-REV-12](../platform/failure-model.md): revision-fenced pagination of
   findings, reviews and provenance (REV-R170, REV-R192).
+- [FAIL-REV-13](../platform/failure-model.md): bounded, resumable report
+  finalization (REV-R196, REV-R197).
 - [LIFE-REV-1](../platform/lifecycle.md): backtrace provenance under Audit
   ownership (REV-R104, REV-R108).
 - [LIFE-REV-2](../platform/lifecycle.md): Audit-managed artifacts and their
@@ -1107,6 +1141,8 @@ Registry entries owned by this document:
   Audit never retained (REV-R142).
 - [LIFE-REV-5](../platform/lifecycle.md): Audit and the rows it owns
   (REV-R159, REV-R160).
+- [LIFE-REV-6](../platform/lifecycle.md): recorded report finalization pages
+  (REV-R197).
 - [Errors](../platform/errors.md): the collection disposition
   `collection-contract-invalid` (REV-R154). The revision-fence conflict uses
   the generic `409` conflict response of the

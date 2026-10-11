@@ -25,21 +25,6 @@ type FindingLocation struct {
 // RFC 9110 token characters, shared by methods and field names.
 var httpToken = regexp.MustCompile("^[!#$%&'*+.^_`|~0-9A-Za-z-]+$")
 
-func validateFindingExtensions(proposal FindingProposal) error {
-	if len(proposal.Locations) > MaximumFindingLocations {
-		return invalid(CodeLimitExceeded, "locations")
-	}
-	for _, location := range proposal.Locations {
-		if err := validateFindingLocation(location); err != nil {
-			return err
-		}
-	}
-	if proposal.HTTPExchange != nil {
-		return validateFindingHTTPExchange(*proposal.HTTPExchange, proposal.EvidenceIDs)
-	}
-	return nil
-}
-
 func validateFindingLocation(location FindingLocation) error {
 	hasFile, hasURL := location.File != "", location.URL != ""
 	if hasFile == hasURL {

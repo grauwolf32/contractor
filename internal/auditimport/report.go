@@ -3,8 +3,8 @@ package auditimport
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"sort"
 	"strings"
 	"time"
 
@@ -17,7 +17,6 @@ import (
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
-	"github.com/grauwolf32/contractor/internal/pagelimit"
 )
 
 const ReportSchema = "contractor.audit.report.v1"
@@ -128,12 +127,23 @@ type reportFinding struct {
 	DuplicateTargetID  *string                          `json:"duplicateTargetId,omitempty"`
 }
 
+// reportFindingSections holds each finding section as the JSON array of its
+// reportFinding entries, assembled from the recorded report pages.
 type reportFindingSections struct {
-	Confirmed     []reportFinding `json:"confirmed"`
-	Proposed      []reportFinding `json:"proposed"`
-	Rejected      []reportFinding `json:"rejected"`
-	Duplicates    []reportFinding `json:"duplicates"`
-	NeedsEvidence []reportFinding `json:"needsEvidence"`
+	Confirmed     json.RawMessage `json:"confirmed"`
+	Proposed      json.RawMessage `json:"proposed"`
+	Rejected      json.RawMessage `json:"rejected"`
+	Duplicates    json.RawMessage `json:"duplicates"`
+	NeedsEvidence json.RawMessage `json:"needsEvidence"`
+}
+
+// reportFindingCounts counts the findings of each report section.
+type reportFindingCounts struct {
+	confirmed, proposed, rejected, duplicates, needsEvidence int
+}
+
+func (c reportFindingCounts) total() int {
+	return c.confirmed + c.proposed + c.rejected + c.duplicates + c.needsEvidence
 }
 
 type machineReport struct {
@@ -148,13 +158,18 @@ type machineReport struct {
 	StopReason          *reportStopReason                      `json:"stopReason,omitempty"`
 	AttemptDispositions auditstore.CollectionDispositionCounts `json:"attemptDispositions"`
 	Coverage            reportCoverageSummary                  `json:"coverage"`
-	Items               []reportItem                           `json:"items"`
-	Findings            reportFindingSections                  `json:"findings"`
-	Conclusion          string                                 `json:"conclusion"`
+	// Items is the JSON array of reportItem entries in Round and item order.
+	Items      json.RawMessage       `json:"items"`
+	Findings   reportFindingSections `json:"findings"`
+	Conclusion string                `json:"conclusion"`
 }
 
 // Finalize builds deterministic exact report artifacts and commits their two
-// accepted links together with the final Audit transition.
+// accepted links together with the final Audit transition. The report entries
+// are recorded page by page under reportBudget: an attempt that reaches its
+// budget returns true with its progress recorded, and the next attempt
+// resumes from the recorded pages instead of rebuilding the report. A failed
+// attempt returns false; the pages it recorded stay for the next attempt.
 func (i *Importer) Finalize(
 	ctx context.Context,
 	claim auditstore.ControllerClaim,
@@ -176,6 +191,12 @@ func (i *Importer) Finalize(
 		baseline.Schema != auditbaseline.Schema {
 		return false, fmt.Errorf("%w: report baseline snapshot is invalid", ErrPermanent)
 	}
+	if profile.HasPreparation() && baseline.Inventory.Gaps != nil {
+		return false, fmt.Errorf("%w: preparation mutated its original baseline", ErrPermanent)
+	}
+	if !profile.HasPreparation() && baseline.Inventory.Gaps == nil {
+		return false, fmt.Errorf("%w: report inventory gaps are absent", ErrPermanent)
+	}
 	rounds, err := i.store.ListRounds(ctx, snapshot.Audit.AuditID)
 	if err != nil {
 		return false, err
@@ -183,10 +204,23 @@ func (i *Importer) Finalize(
 	if len(rounds) == 0 || rounds[len(rounds)-1].RoundID != snapshot.Round.RoundID {
 		return false, fmt.Errorf("%w: report round barrier is incomplete", ErrPermanent)
 	}
-	if profile.HasPreparation() {
-		if baseline.Inventory.Gaps != nil {
-			return false, fmt.Errorf("%w: preparation mutated its original baseline", ErrPermanent)
+	build, err := i.resumeReport(ctx, snapshot.Audit, rounds)
+	if err != nil {
+		return false, err
+	}
+	for recorded := 0; !build.complete(); recorded++ {
+		if recorded == i.budget.pagesPerAttempt {
+			return true, nil
 		}
+		if err := i.recordNextPage(ctx, claim, snapshot.Audit, &build); err != nil {
+			if errors.Is(err, auditstore.ErrPrecondition) &&
+				profile.Interaction.ReportAcceptance == config.AuditReportHumanRequired {
+				return i.replayedProposal(ctx, snapshot.Audit, err)
+			}
+			return false, err
+		}
+	}
+	if profile.HasPreparation() {
 		link, err := i.store.GetArtifactLink(ctx, snapshot.Audit.AuditID, auditstore.InitialInventoryLogicalKey)
 		if err != nil {
 			return false, err
@@ -202,69 +236,54 @@ func (i *Importer) Finalize(
 			auditdomain.ValidateDispatchExecutionManifest(derived.Inventory.ExecutionManifest) != nil {
 			return false, fmt.Errorf("%w: derived initial inventory is invalid", ErrPermanent)
 		}
+		if derived.Inventory.Gaps == nil {
+			return false, fmt.Errorf("%w: report inventory gaps are absent", ErrPermanent)
+		}
 		baseline.Inventory = derived.Inventory
 	}
-	if baseline.Inventory.Gaps == nil {
-		return false, fmt.Errorf("%w: report inventory gaps are absent", ErrPermanent)
+	return i.publishReport(ctx, claim, snapshot, profile, baseline, build)
+}
+
+// replayedProposal recognizes a lost response of an earlier attempt that
+// already froze this revision's candidate: proposing it left finalizing and
+// discarded the build. A report build is deterministic for one Audit
+// revision, so the candidate pinned to the snapshot revision is this
+// attempt's candidate. Any other precondition failure is returned.
+func (i *Importer) replayedProposal(ctx context.Context, audit auditstore.Audit, cause error) (bool, error) {
+	candidate, err := i.store.GetReportCandidate(ctx, audit.AuditID)
+	if errors.Is(err, auditstore.ErrNotFound) {
+		return false, cause
 	}
-	items, err := i.store.ListItems(ctx, snapshot.Audit.AuditID)
 	if err != nil {
 		return false, err
 	}
-	// The report covers every Round: items and coverage rows of earlier Rounds
-	// stay part of the final Audit outcome.
-	roundOrdinals := make(map[string]int, len(rounds))
-	expectedItems := 0
-	coverage := make([]auditstore.CoverageRow, 0, len(items))
-	for _, round := range rounds {
-		roundOrdinals[round.RoundID] = round.Ordinal
-		expectedItems += round.ExpectedItemCount
-		rows, err := i.allCoverage(ctx, snapshot.Audit.AuditID, round.RoundID)
-		if err != nil {
-			return false, err
-		}
-		coverage = append(coverage, rows...)
+	if candidate.SubjectRevision != audit.Revision {
+		return false, cause
 	}
-	if len(items) != expectedItems || len(coverage) != len(items) {
-		return false, fmt.Errorf("%w: report coverage barrier is incomplete", ErrPermanent)
+	return true, nil
+}
+
+// publishReport assembles the machine report from the recorded entries of a
+// complete build, writes both report artifacts and commits or proposes them.
+func (i *Importer) publishReport(
+	ctx context.Context,
+	claim auditstore.ControllerClaim,
+	snapshot auditstore.ReconcileSnapshot,
+	profile config.ResolvedAuditProfile,
+	baseline auditbaseline.ReportProjection,
+	build reportBuild,
+) (bool, error) {
+	items, findings, findingCounts, err := i.readReportSections(ctx, snapshot.Audit, build)
+	if err != nil {
+		return false, err
 	}
-	rowsByItem := make(map[string]auditstore.CoverageRow, len(coverage))
-	for _, row := range coverage {
-		rowsByItem[row.ItemID] = row
-	}
-	reportItems := make([]reportItem, len(items))
-	for index, item := range items {
-		row, exists := rowsByItem[item.ItemID]
-		_, roundExists := roundOrdinals[item.RoundID]
-		if !exists || !roundExists || row.RoundID != item.RoundID ||
-			item.State != auditstore.ItemSettled || item.FinalDisposition == nil {
-			return false, fmt.Errorf("%w: report item barrier is incomplete", ErrPermanent)
-		}
-		reportItems[index] = reportItem{
-			ItemID: item.ItemID, RoundID: item.RoundID, ItemKey: item.ItemKey, Ordinal: item.Ordinal,
-			Kind: item.Kind, SubjectKey: item.SubjectKey,
-			FinalDisposition: *item.FinalDisposition, Coverage: row.Coverage,
-			Result: row.Result, Task: item.Task,
-		}
-	}
-	sort.SliceStable(reportItems, func(left, right int) bool {
-		leftRound, rightRound := roundOrdinals[reportItems[left].RoundID], roundOrdinals[reportItems[right].RoundID]
-		if leftRound != rightRound {
-			return leftRound < rightRound
-		}
-		return reportItems[left].Ordinal < reportItems[right].Ordinal
-	})
 	attempts, err := i.store.CollectionDispositionCounts(ctx, snapshot.Audit.AuditID)
 	if err != nil {
 		return false, err
 	}
-	findings, err := i.reportFindings(ctx, snapshot.Audit)
-	if err != nil {
-		return false, err
-	}
-	coverageSummary := summarizeCoverage(coverage)
+	coverageSummary := summarizeCoverage(build.coverage, build.items)
 	conclusion := "completed"
-	if len(items) == 0 || len(baseline.Inventory.Gaps) != 0 || hasIncompleteCoverage(coverageSummary.Counts) ||
+	if build.items == 0 || len(baseline.Inventory.Gaps) != 0 || hasIncompleteCoverage(coverageSummary.Counts) ||
 		snapshot.Audit.StopReason != nil && snapshot.Audit.StopReason.Code != "round_complete" {
 		conclusion = "completed-with-gaps"
 	}
@@ -297,13 +316,13 @@ func (i *Importer) Finalize(
 		},
 		Limits: snapshot.Audit.Limits, StopReason: stopReason,
 		AttemptDispositions: attempts, Coverage: coverageSummary,
-		Items: reportItems, Findings: findings, Conclusion: conclusion,
+		Items: items, Findings: findings, Conclusion: conclusion,
 	}
 	machineBytes, err := json.Marshal(report)
 	if err != nil || len(machineBytes) > artifacts.MaxPayloadSize {
 		return false, fmt.Errorf("%w: machine report exceeds its bound", ErrPermanent)
 	}
-	summaryBytes := []byte(humanSummary(report))
+	summaryBytes := []byte(humanSummary(report, findingCounts))
 	if len(summaryBytes) > auditstore.MaxSummaryBytes {
 		return false, fmt.Errorf("%w: human report exceeds its bound", ErrPermanent)
 	}
@@ -374,120 +393,11 @@ func (i *Importer) Finalize(
 	return err == nil, err
 }
 
-func (i *Importer) allCoverage(
-	ctx context.Context, auditID, roundID string,
-) ([]auditstore.CoverageRow, error) {
-	result := make([]auditstore.CoverageRow, 0)
-	after := -1
-	for {
-		page, err := i.store.ListCoverage(ctx, auditID, roundID, after, pagelimit.MaxRows)
-		if err != nil {
-			return nil, err
-		}
-		result = append(result, page...)
-		if len(page) < pagelimit.MaxRows {
-			return result, nil
-		}
-		after = page[len(page)-1].Ordinal
-	}
-}
-
-func (i *Importer) reportFindings(
-	ctx context.Context, audit auditstore.Audit,
-) (reportFindingSections, error) {
-	rows, err := i.store.ListReportFindings(ctx, audit.AuditID)
-	if err != nil {
-		return reportFindingSections{}, err
-	}
-	result := reportFindingSections{
-		Confirmed: []reportFinding{}, Proposed: []reportFinding{}, Rejected: []reportFinding{},
-		Duplicates: []reportFinding{}, NeedsEvidence: []reportFinding{},
-	}
-	for _, row := range rows {
-		payload, err := i.artifacts.ReadProjectExact(ctx, audit.ProjectID, row.FirstProposal)
-		if err != nil {
-			return reportFindingSections{}, err
-		}
-		document, err := auditdomain.DecodeFindingProposal(payload)
-		if err != nil {
-			return reportFindingSections{}, fmt.Errorf("%w: report finding proposal is invalid", ErrPermanent)
-		}
-		value := reportFinding{
-			FindingID: row.FindingID, State: row.State, Revision: row.Revision,
-			FirstProposal: row.FirstProposal, Title: document.Title, Description: document.Description,
-			Hypothesis: document.Hypothesis,
-			Locations:  document.Locations, HTTPExchange: document.HTTPExchange,
-			SeveritySuggestion: document.SeveritySuggestion,
-			StandardRefs:       append([]auditdomain.StandardReference{}, document.StandardRefs...),
-			Limitations:        append([]string{}, document.Limitations...),
-			DuplicateTargetID:  row.DuplicateTargetID,
-		}
-		if document.Subject != nil {
-			value.Subject = document.Subject
-		}
-		if row.Assessment != nil {
-			value.Assessment = &reportFindingAssessment{
-				AssessmentID:       row.Assessment.AssessmentID,
-				SemanticAssessment: row.Assessment.SemanticAssessment,
-				Result:             row.Assessment.Result,
-				DirectVerification: row.Assessment.DirectVerification,
-				Contract:           row.Assessment.Contract,
-				AcceptedAt:         row.Assessment.AcceptedAt,
-			}
-		}
-		if row.Decision != nil {
-			value.AnalystDecision = &reportFindingDecision{
-				DecisionID: row.Decision.DecisionID, ActorID: row.Decision.ActorID,
-				Verdict: row.Decision.Verdict, Severity: row.Decision.Severity,
-				Rationale: row.Decision.Rationale, SubjectRevision: row.Decision.SubjectRevision,
-				SubjectDigest: row.Decision.SubjectDigest, CreatedAt: row.Decision.CreatedAt,
-			}
-		}
-		switch row.State {
-		case "confirmed":
-			result.Confirmed = append(result.Confirmed, value)
-		case "proposed":
-			result.Proposed = append(result.Proposed, value)
-		case "rejected":
-			result.Rejected = append(result.Rejected, value)
-		case "duplicate":
-			result.Duplicates = append(result.Duplicates, value)
-		case "needs-evidence":
-			result.NeedsEvidence = append(result.NeedsEvidence, value)
-		default:
-			return reportFindingSections{}, fmt.Errorf("%w: report finding state is invalid", ErrPermanent)
-		}
-	}
-	return result, nil
-}
-
-func summarizeCoverage(rows []auditstore.CoverageRow) reportCoverageSummary {
-	result := reportCoverageSummary{SelectedItems: len(rows)}
-	for _, row := range rows {
-		switch row.Coverage.Status {
-		case auditstore.CoverageNotTested:
-			result.Counts.NotTested++
-		case auditstore.CoverageInconclusive:
-			result.Counts.Inconclusive++
-		case auditstore.CoverageSatisfied:
-			result.Counts.Satisfied++
-		case auditstore.CoverageViolated:
-			result.Counts.Violated++
-		case auditstore.CoverageNotApplicable:
-			result.Counts.NotApplicable++
-		case auditstore.CoverageBlocked:
-			result.Counts.Blocked++
-		case auditstore.CoverageExcluded:
-			result.Counts.Excluded++
-		case auditstore.CoverageTracedComplete:
-			result.Counts.TracedComplete++
-		case auditstore.CoverageTracedPartial:
-			result.Counts.TracedPartial++
-		case auditstore.CoverageUnmapped:
-			result.Counts.Unmapped++
-		}
-	}
-	result.ApplicableDenominator = len(rows) - result.Counts.NotApplicable - result.Counts.Excluded
+// summarizeCoverage derives the report coverage summary from the per-status
+// counts of the selected items.
+func summarizeCoverage(counts auditstore.ReportCoverageCounts, selectedItems int) reportCoverageSummary {
+	result := reportCoverageSummary{Counts: reportCoverageCounts(counts), SelectedItems: selectedItems}
+	result.ApplicableDenominator = selectedItems - result.Counts.NotApplicable - result.Counts.Excluded
 	result.AssessedApplicable = result.Counts.Satisfied + result.Counts.Violated + result.Counts.TracedComplete
 	result.ZeroDenominator = result.ApplicableDenominator == 0
 	if result.ApplicableDenominator != 0 {
@@ -527,7 +437,7 @@ func hasIncompleteCoverage(counts reportCoverageCounts) bool {
 	return false
 }
 
-func humanSummary(report machineReport) string {
+func humanSummary(report machineReport, findings reportFindingCounts) string {
 	const qualification = "\nCompletion describes the bounded Audit process; it is not a security or compliance certification.\n"
 	const gapPrefix = "- Inventory gap: "
 	var builder strings.Builder
@@ -561,9 +471,9 @@ func humanSummary(report machineReport) string {
 	}
 	writeCounts("Coverage", coverageRows)
 	writeCounts("Findings", []countRow{
-		{"confirmed", len(report.Findings.Confirmed)}, {"proposed", len(report.Findings.Proposed)},
-		{"rejected", len(report.Findings.Rejected)}, {"duplicate", len(report.Findings.Duplicates)},
-		{"needs-evidence", len(report.Findings.NeedsEvidence)},
+		{"confirmed", findings.confirmed}, {"proposed", findings.proposed},
+		{"rejected", findings.rejected}, {"duplicate", findings.duplicates},
+		{"needs-evidence", findings.needsEvidence},
 	})
 	writeCounts("Attempts", []countRow{
 		{"accepted", report.AttemptDispositions.AcceptedResult}, {"missing-output", report.AttemptDispositions.MissingOutput},

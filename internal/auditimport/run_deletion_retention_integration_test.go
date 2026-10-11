@@ -29,6 +29,10 @@ func TestPostgresContractInvalidCollectionRetainsProposalAfterRunDeletion(t *tes
 		Limitations:    []string{},
 	})
 	mustCompletion(t, err)
+	decoded, err := auditdomain.DecodeFindingProposal(proposal)
+	mustCompletion(t, err)
+	projection, err := auditdomain.EncodeFindingReportProjection(auditdomain.ProjectFindingReport(decoded))
+	mustCompletion(t, err)
 	written, err := f.artifacts.WriteFindingProposal(f.ctx, f.run.RunID,
 		"candidate", artifacts.Payload{MediaType: "application/json", Data: proposal})
 	mustCompletion(t, err)
@@ -42,15 +46,16 @@ INSERT INTO finding_proposal_receipts (
     client_key, request_digest, run_id, owner_id, project_id,
     audit_execution_id, audit_id, audit_role, workflow_name, workflow_version,
     workflow_schema_version, workflow_configuration_ref, workflow_closure_digest,
-    proposal_ref, proposal_digest, proposal_media_type, proposal_size_bytes, evidence
+    proposal_ref, proposal_digest, proposal_media_type, proposal_size_bytes, evidence,
+    report_projection
 ) VALUES (
     $1, $2, $3, 'runtime', 'instance', 'stage', 'checker', $3, $3,
     'candidate', $4, $5, 'owner', $6, $7, $6, 'check', $8, $9,
-    'contractor/v1alpha1', '{}', $10, $11::jsonb, $4, 'application/json', $12, '[]'
+    'contractor/v1alpha1', '{}', $10, $11::jsonb, $4, 'application/json', $12, '[]', $13
 )`, receiptID, f.id+"-proposal", f.id+"-submission", completionDigest(proposal),
 		f.run.RunID, f.id, f.execution.ExecutionID, f.run.WorkflowName,
 		f.run.WorkflowVersion, completionDigest(f.run.WorkflowSnapshot),
-		string(proposalRef), len(proposal))
+		string(proposalRef), len(proposal), string(projection))
 	mustCompletion(t, err)
 
 	mustCompletion(t, f.artifacts.FreezeRunOutputs(f.ctx, f.run.RunID))
@@ -121,13 +126,14 @@ INSERT INTO finding_proposal_receipts (
     client_key, request_digest, run_id, owner_id, project_id,
     audit_execution_id, audit_id, audit_role, workflow_name, workflow_version,
     workflow_schema_version, workflow_configuration_ref, workflow_closure_digest,
-    proposal_ref, proposal_digest, proposal_media_type, proposal_size_bytes, evidence
+    proposal_ref, proposal_digest, proposal_media_type, proposal_size_bytes, evidence,
+    report_projection
 ) VALUES (
     $1, $1, $1, 'runtime', 'instance', 'stage', 'worker', $1, $1,
     $1, $2, $3, 'owner', $4, $5, $4, 'check', 'workflow', '1',
     'contractor/v1alpha1', '{}', $2,
     '{"namespace":"finding-proposals","name":"candidate","revision":"retained-source"}',
-    $2, 'application/json', 2, '[]'
+    $2, 'application/json', 2, '[]', '{"description":"Test finding.","limitations":[],"severity_suggestion":"","standard_refs":[],"subject":null,"title":"Test finding."}'
 )`, id, completionDigest([]byte(id)), f.run.RunID, f.id, f.execution.ExecutionID)
 		mustCompletion(t, err)
 	}
