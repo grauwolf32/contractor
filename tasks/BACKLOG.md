@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-85 open tasks: 3 in progress, 68 pending, 14 deferred. 811 finished: 808 completed, 3 archived.
+84 open tasks: 3 in progress, 67 pending, 14 deferred. 812 finished: 809 completed, 3 archived.
 
 ## In progress
 
@@ -100,12 +100,6 @@ the epics are in [epics.yml](epics.yml).
 | --- | --- | --- | --- | --- |
 | [V40-003](v40-003-agent-instruction-eval-decision.yml) | feature | P1 | V40-002 | Evaluate instruction candidates and record evidence-based adoption decisions |
 
-### Operations, authentication, CLI and deployment (`operations`)
-
-| Task | Kind | Priority | Waiting for | Title |
-| --- | --- | --- | --- | --- |
-| [V368-020](v368-020-telemetry-export-defaults.yml) | defect | P2 | — | Let the Server pin telemetry export settings |
-
 ### Public API and wire contracts (`api-contracts`)
 
 | Task | Kind | Priority | Waiting for | Title |
@@ -187,7 +181,7 @@ tasks in `introduced_by`.
 | Evaluations (`evals`) | 2 | 21 | 26 | 4 | 33 |
 | Podman sandbox (`sandbox`) | 0 | 8 | 1 | 1 | 2 |
 | Web UI (`ui`) | 0 | 19 | 51 | 10 | 47 |
-| Operations, authentication, CLI and deployment (`operations`) | 1 | 8 | 30 | 4 | 6 |
+| Operations, authentication, CLI and deployment (`operations`) | 0 | 8 | 30 | 4 | 6 |
 | Public API and wire contracts (`api-contracts`) | 9 | 1 | 24 | 16 | 6 |
 | PostgreSQL persistence and schema (`persistence`) | 11 | 0 | 17 | 29 | 3 |
 | Quality, CI and process (`quality`) | 7 | 1 | 15 | 65 | 15 |
