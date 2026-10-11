@@ -6,9 +6,10 @@ epic: audits
 kind: defect
 introduced_by: V37-010
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 5f37b8c588c7eed996d3a5b3d85f9b7756f756b9
 depends_on: []
-languages: [go]
+languages: [go, typescript]
 goal: "The Audit workspace and the Audit report classify coverage from one table, and the waiting-decisions count shows only reviews that can still be decided."
 context:
   review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq), audit G1, G2 / F3"
