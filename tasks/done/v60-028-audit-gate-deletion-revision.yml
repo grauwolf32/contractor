@@ -13,7 +13,7 @@ languages: [go, markdown]
 goal: Restore the full Audit controller regression while explicitly checking stale revision rejection.
 context:
   authority: User requested completion of V60-005 through V60-010; V60-008 reproduced this mandatory gate failure.
-  specification: docs/spec/19-audits.md
+  specification: docs/spec/audits/audits.md
   reproduction: TestPostgresControllerCollectsAndPublishesExactAuditReport deletes the source Run, then reuses the pre-deletion Audit revision; V60-012 correctly advances that revision and the test fails.
 scope:
   in:

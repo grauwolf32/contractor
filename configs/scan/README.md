@@ -25,7 +25,7 @@ operation. Missing binaries prevent placement on that Runtime. See
 [scanner provisioning](../../runtime/README.md#cli-scanners).
 
 Targets must pass the Runtime
-[target policy](../../docs/spec/11-http-and-caido-tools.md#target-policy):
+[target policy](../../docs/spec/platform/security.md):
 loopback and link-local hosts return `scan_target_denied` unless the Runtime
 was started with a matching `--allowed-target-network`, such as `127.0.0.0/8`
 for a target on the same host. Private-network and public hosts need no
@@ -71,7 +71,7 @@ body string are allowed. Supported methods are `GET`, `HEAD`, `POST`, `PUT`,
 Only the supported UTF-8 text subset is accepted; binary bodies, duplicate
 headers, unsupported framing/encoding headers and scanner injection markers
 fail before launch. See the
-[full schema and limits](../../docs/spec/01-agent-template.md#sqlmap-http-request-artifacts).
+[full schema and limits](../../docs/spec/tools/scanners.md).
 
 With the [CLI connected to the Server](../../docs/guides/cli.md#connect-to-a-server),
 upload the request and bind its exact revision to a new Run:
@@ -147,7 +147,7 @@ input revision remains visible.
 Runtime accepts at most 1 MiB, 10,000 payloads and 4096 UTF-8 bytes per payload.
 LF/CRLF line endings are supported; spaces, `#`, duplicates and empty payloads
 are preserved. See the
-[wordlist contract](../../docs/spec/03-artifact-plane.md#scanner-wordlist-artifacts)
+[wordlist contract](../../docs/spec/tools/scanners.md)
 for byte validation and final-line semantics. Runtime privately materializes
 the list and removes temporary files after completion, timeout or cancellation.
 For different matching or filtering policies, publish another template version

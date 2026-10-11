@@ -17,7 +17,7 @@ languages:
 goal: Demonstrate the full Settings->Git->Artifact->Workflow path under bounded resources and realistic
   remote/storage failures.
 context:
-  specification: docs/spec/24-git-artifacts.md
+  specification: docs/spec/artifacts/git-import.md
   product: Import a repository snapshot into an ordinary ZIP Artifact in UserScope or owned ProjectScope.
     Workflow input selection uses the returned exact ref. No clone at Run execution, automatic refresh,
     Git write, new job queue or automatic repair.

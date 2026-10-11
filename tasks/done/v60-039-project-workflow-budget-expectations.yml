@@ -13,7 +13,7 @@ goal: Restore exact process budget assertions after production ModelPolicy conso
 context:
   authority: User requested completion of the remaining V60 reviews; the required release gate reproduced this assertion failure.
   design: docs/plans/2026-09-20-project-review.md
-  specification: docs/spec/04-execution-lifecycle-and-metrics.md
+  specification: docs/spec/execution/scheduler.md
   reproduction: >-
     TestProjectWorkspaceLifecycleAcrossProductionProcesses reaches a succeeded
     dependency_discovery Stage and observes current worker@2 limits

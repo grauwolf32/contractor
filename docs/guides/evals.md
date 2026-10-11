@@ -79,5 +79,5 @@ Playground is an optional public-API client. Native experiments require no
 Playground installation or service. Existing portable plans and direct CLI
 commands remain supported; managed mode does not adopt legacy Runs by labels.
 
-See [the managed contract](../spec/30-managed-evals.md) for API semantics and
+See [the managed contract](../spec/evals/managed-evals.md) for API semantics and
 [the release gate](../testing/evals-release-gate.md) for reproducible checks.

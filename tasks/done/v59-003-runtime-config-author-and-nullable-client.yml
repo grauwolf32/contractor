@@ -23,8 +23,8 @@ context:
   - R04
   - R09
   specification:
-  - docs/spec/06-server-ui-and-operations.md
-  - docs/spec/07-runtime-labels-and-infrastructure-config.md
+  - docs/spec/ui/ui.md
+  - docs/spec/configuration/runtime-config.md
 scope:
   in:
   - Use separate author and resolved document schema families for gateway selectors and exact refs.

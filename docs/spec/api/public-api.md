@@ -50,8 +50,6 @@ It leaves to other documents:
   projection: [Planners](../execution/planners.md).
 - Run hard deletion: [Retention and deletion](../artifacts/retention-and-deletion.md).
 
-<!-- from: 00#32, 00#125, 02#76, 06#11, 06#26, 06#31, 06#34, 06#134, 06#135, 06#138, 06#139, 06#146, 07#22, 07#128, 16#6, 16#22, 19#180, 19#182, 20#19, 20#21, 20#23, 24#28, 30#63 -->
-
 ## Concepts
 
 - **Public API**: the versioned, authenticated `/v1` Server API described by
@@ -72,8 +70,6 @@ It leaves to other documents:
   `operations` stream that an Operations resource changed.
 
 Terms are defined once in the [glossary](../glossary.md).
-
-<!-- from: 06#31, 06#122, 06#123, 06#127, 06#128, 06#129, 06#130, 06#143, 06#145 -->
 
 ## Model
 
@@ -96,16 +92,12 @@ stateDiagram-v2
 Leaving `Live` through expiry, logout or revocation closes the session's live
 event sockets (API-R35).
 
-<!-- from: 06#124, 06#142, 06#145 -->
-
 ### Live event streams
 
 | Stream | Content | Cursor | Replay and retention |
 | --- | --- | --- | --- |
 | `run` | Every durable Run or StageExecution lifecycle change and every public Planner fact of one Run | Per-Run sequence assigned in the source record's transaction; generation stable for the Run; returned by Run detail | Committed events replayable from `workflow_run_events` while the Run is retained |
 | `operations` | Runtime Agent, allocation, configuration, credential and scheduler-settings changes | Process-local; generation and revision returned by the Operations snapshot; Server restart creates another generation | Latest 255 typed Operations invalidations; otherwise `resync_required` |
-
-<!-- from: 06#125, 06#128, 06#129, 06#130 -->
 
 A `run` subscription:
 
@@ -134,8 +126,6 @@ sequenceDiagram
     S-->>C: unsubscribed
 ```
 
-<!-- from: 06#124, 06#128, 06#129 -->
-
 An `operations` subscription and its resynchronization:
 
 ```mermaid
@@ -148,8 +138,6 @@ flowchart TD
     E --> A
 ```
 
-<!-- from: 06#130, 06#133 -->
-
 ## Requirements
 
 ### Contract and versioning
@@ -159,23 +147,19 @@ flowchart TD
 It describes the public `/v1` auth, Workflow, Run, Artifact and Operations
 resources, their error envelope and the mutation headers used by browser and
 non-UI clients.
-<!-- from: 06#31 -->
 
 **API-R2.** Private Control Plane, Runtime Agent and A2A wire contracts remain
 separate and are not made public by including them in this specification.
-<!-- from: 06#31 -->
 
 **API-R3.** Incompatible changes require a new public API version.
 Regenerating a client from an incompatible document does not make the change
 backward compatible.
-<!-- from: 06#31 -->
 
 The UI's supported-version check and the rule that additive changes within a
 supported version need no coordinated release are in UI
 ([UI-R5 to UI-R7](../ui/ui.md)). The public Runtime-label field name and the
 joint upgrade of Server, UI and bundled clients are in Runs
 ([RUN-R7, RUN-R8](../execution/runs.md)).
-<!-- from: 06#26, 16#6 -->
 
 ### Request bodies
 
@@ -184,27 +168,22 @@ unless a resource declares a smaller bound, such as the login body
 ([SEC-R49](../platform/security.md)). A larger body is rejected with
 `413 request_too_large` and never reaches the handler's validation
 (FAIL-API-1).
-<!-- from: 06#31 -->
 
 **API-R5.** An Artifact over its 64 MiB limit
 ([ART-R65](../artifacts/artifact-store.md),
 [LIM-ART-4](../platform/limits.md)) is rejected in the same way, with
 `413 artifact_too_large` (FAIL-API-1).
-<!-- from: 06#31 -->
 
 **API-R6.** Eval documents keep their own `422 eval_limit_exceeded` bound
 ([EVM-R63](../evals/managed-evals.md)).
-<!-- from: 06#31 -->
 
 ### Browser clients and domain services
 
 **API-R7.** Browser code uses the authenticated public Server APIs directly.
-<!-- from: 06#121 -->
 
 **API-R8.** UI-oriented query endpoints may aggregate existing durable or
 read-model state, but mutations must call the same domain application services
 as non-UI API clients.
-<!-- from: 06#121 -->
 
 ### Browser origins and CORS
 
@@ -212,24 +191,19 @@ as non-UI API clients.
 operator-configured exact browser-origin allowlist (the `--browser-origin`
 setting, [SEC-R58](../platform/security.md)). Wildcard and reflected
 origins and the opaque `null` origin are invalid.
-<!-- from: 06#122 -->
 
 **API-R10.** A matching preflight exposes only the public API methods that
 Server supports and the required headers, including `Content-Type`,
 `Idempotency-Key`, `If-Match` and `X-CSRF-Token`.
-<!-- from: 06#122 -->
 
 **API-R11.** Browser-readable response headers include `X-Request-ID`, `ETag`
 and `Content-Disposition`.
-<!-- from: 06#122 -->
 
 **API-R12.** Credentialed CORS is enabled only for an exact allowed origin.
-<!-- from: 06#122 -->
 
 **API-R13.** CORS grants no authorization. Non-browser clients remain subject
 to the public API's authentication contract: non-browser authentication gains
 no authority from CORS and does not bypass the domain's owner and audit rules.
-<!-- from: 06#122, 06#145 -->
 
 ### Browser authentication routes
 
@@ -241,13 +215,10 @@ GET  /v1/auth/session     return safe principal + session-bound CSRF token
 POST /v1/auth/logout      require CSRF; destroy session
 ```
 
-<!-- from: 06#141, 06#142 -->
-
 The single local principal and its bootstrap file, password rules, the 8 KiB
 login body bound, the generic login failure response, the failed-login limiter
 and `429`, and the non-browser `Authorization: Bearer` path are specified in
 Security ([SEC-R38 to SEC-R62](../platform/security.md)).
-<!-- from: 06#135, 06#138, 06#139 -->
 
 ### Session cookie
 
@@ -255,59 +226,48 @@ Security ([SEC-R38 to SEC-R62](../platform/security.md)).
 32-byte value (LIM-API-2), puts its unpadded base64url representation only in
 a `__Host-contractor_session` cookie and stores only its SHA-256 digest in
 Server memory.
-<!-- from: 06#143 -->
 
 **API-R16.** The session cookie is `HttpOnly`, `Secure`, `SameSite=Lax`,
 `Path=/` and has no `Domain`. Frontend requests send it with
 `credentials: include`.
-<!-- from: 06#143 -->
 
 **API-R17.** Production UI and API must therefore be HTTPS and same-site even
 when they have different origins.
-<!-- from: 06#143 -->
 
 **API-R18.** A separately named insecure cookie is permitted only behind an
 explicit loopback-development mode and is never accepted on a non-loopback
 listener. Its name and the mode's listener and origin rules are in Security
 ([SEC-R59 to SEC-R61](../platform/security.md)).
-<!-- from: 06#143 -->
 
 ### Session lifetime
 
 **API-R19.** Sessions have an eight-hour idle limit (LIM-API-3), a 24-hour
 absolute limit (LIM-API-4) and a maximum of eight live sessions (LIM-API-5); a
 ninth successful login revokes the oldest (LIFE-API-1).
-<!-- from: 06#145 -->
 
 **API-R20.** An accepted authenticated request advances only the idle
 deadline.
-<!-- from: 06#145 -->
 
 **API-R21.** Restarting Server invalidates every session. No browser session,
 password hash or CSRF token is written to PostgreSQL (LIFE-API-1).
-<!-- from: 06#145 -->
 
 **API-R22.** `GET /v1/auth/session` uses `Cache-Control: no-store` and lets a
 reloaded SPA recover the session-bound 32-byte random CSRF token (LIM-API-6)
 without exposing the session cookie.
-<!-- from: 06#145 -->
 
 ### CSRF and Origin checks
 
 **API-R23.** Every cookie-authenticated non-safe request requires both an
 exact allowed `Origin` and `X-CSRF-Token`; missing or mismatched values have no
 side effect (FAIL-API-2).
-<!-- from: 06#145 -->
 
 **API-R24.** Login itself requires JSON plus an exact allowed browser Origin
 when an Origin header is present.
-<!-- from: 06#145 -->
 
 The non-browser `Authorization: Bearer` path, which requires neither Origin
 nor CSRF, is in Security ([SEC-R62](../platform/security.md)). How the SPA
 handles `401`, `403` and a CSRF token replaced by another tab is in UI
 ([UI-R31 to UI-R36](../ui/ui.md)).
-<!-- from: 06#134 -->
 
 ### Principal and non-disclosure
 
@@ -317,36 +277,30 @@ the principal boundary by a future OIDC or session adapter and RBAC are in
 Security ([SEC-R43 to SEC-R46](../platform/security.md)). The Audit routes
 take their owner from authentication and Project membership
 ([AUD-R199](../audits/audits.md)).
-<!-- from: 06#146, 19#180 -->
 
 **API-R25.** Ownership checks keep their non-disclosing `404` behaviour; the
 Audit routes, for example, return the same safe `404` for unknown and
 other-owner IDs ([AUD-R200](../audits/audits.md)).
-<!-- from: 06#146, 19#182 -->
 
 ### Mutation preconditions
 
 **API-R26.** Run and Artifact mutations retain their existing idempotency,
 ownership and CAS requirements ([Runs](../execution/runs.md),
 [ArtifactStore](../artifacts/artifact-store.md)).
-<!-- from: 06#147 -->
 
 **API-R27.** Configuration publication, credential creation and deletion, and
 RuntimeConfig, label and Agent-label administrative commands require their own
 idempotency keys, revision preconditions where specified, and an audit actor.
-<!-- from: 06#147 -->
 
 **API-R28.** RuntimeCredential deletion is the one exception: its durable
 tombstone makes it idempotent by credential ID, so it accepts but neither
 requires nor binds an idempotency key. Its replay response and key-format
 validation are in Runtime configuration
 ([RCF-R176](../configuration/runtime-config.md)).
-<!-- from: 06#147, 07#128 -->
 
 **API-R29.** The API keeps configuration and credential mutations distinct
 from ordinary Run and Artifact use, so later RBAC does not require changing
 domain semantics.
-<!-- from: 06#148 -->
 
 The headers of individual resources are specified by their owners, which this
 table only indexes:
@@ -360,8 +314,6 @@ table only indexes:
 | Git import and the owner Git key | Git import, [GIT-R82, GIT-R84](../artifacts/git-import.md) |
 | Audit routes | Audits, [AUD-R198 to AUD-R205](../audits/audits.md) |
 
-<!-- from: 00#32, 00#125, 07#22, 07#128, 19#180, 19#182, 20#19, 20#21, 20#23, 24#28 -->
-
 ### Collections and pagination
 
 Filtering and keyset pagination are specified for each collection by its
@@ -374,8 +326,6 @@ owner, which this table only indexes:
 | Audits | Audits, [AUD-R203](../audits/audits.md) |
 | Managed Eval lists | Managed Evals, [EVM-R210 to EVM-R214](../evals/managed-evals.md) ([LIM-EVM-14, LIM-EVM-15](../platform/limits.md)) |
 
-<!-- from: 06#11, 16#22, 19#182, 30#63 -->
-
 ### Live event WebSocket
 
 #### Endpoint and authentication
@@ -383,54 +333,43 @@ owner, which this table only indexes:
 **API-R30.** Live UI updates use one read-only WebSocket endpoint on Go
 Server, `GET /v1/events/ws`, negotiated with the subprotocol
 `contractor.events.v1`.
-<!-- from: 06#123 -->
 
 **API-R31.** The browser connects directly to the configured API origin; Node
 does not proxy the upgrade.
-<!-- from: 06#123 -->
 
 **API-R32.** Production uses `wss`. `ws` is accepted only for the same
 loopback development exception as the HTTP runtime config
 ([UI-R10](../ui/ui.md)).
-<!-- from: 06#123 -->
 
 **API-R33.** The upgrade authenticates the ordinary Server session cookie and
 rejects every `Origin` other than the exact configured UI origin before
 accepting the socket.
-<!-- from: 06#124 -->
 
 **API-R34.** No credential, CSRF token or cursor is placed in the URL.
-<!-- from: 06#124 -->
 
 **API-R35.** Session expiry, logout or revocation closes the session's sockets
 (LIFE-API-1).
-<!-- from: 06#124 -->
 
 **API-R36.** Periodic socket checks validate the existing session handle
 without extending its idle deadline. Revocation notifications are only a fast
 process-local edge and do not replace those checks.
-<!-- from: 06#124 -->
 
 **API-R37.** The channel is strictly observational: subscription and
 unsubscribe frames require no CSRF token and cannot cancel a Run, publish a
 configuration, manage a credential or perform any other domain mutation. Those
 operations remain authenticated HTTP requests with their existing CSRF,
 idempotency and CAS contracts.
-<!-- from: 06#124 -->
 
 #### Subscriptions and frames
 
 **API-R38.** One connection multiplexes explicit `run` and `operations`
 subscriptions.
-<!-- from: 06#125 -->
 
 **API-R39.** Authorization is rechecked for each subscription, so a principal
 may observe only its own Runs and its permitted Operations surface.
-<!-- from: 06#124 -->
 
 **API-R40.** All client and Server frames are bounded JSON (API-R61) and carry
 the protocol version.
-<!-- from: 06#125 -->
 
 **API-R41.** A Server event envelope has this shape:
 
@@ -445,30 +384,23 @@ the protocol version.
 }
 ```
 
-<!-- from: 06#125, 06#126 -->
-
 **API-R42.** The cursor combines an opaque generation with an unsigned decimal
 string sequence, so a Server restart or browser number precision cannot
 silently alter its meaning.
-<!-- from: 06#127 -->
 
 **API-R43.** Unknown protocol versions, stream kinds, event kinds and fields
 are rejected rather than guessed.
-<!-- from: 06#127 -->
 
 **API-R44.** The message contract is committed at
 [`api/events/contractor-events-v1.schema.json`](../../../api/events/contractor-events-v1.schema.json);
 the OpenAPI document describes the HTTP upgrade and links that schema.
-<!-- from: 06#127 -->
 
 **API-R45.** Normal generated HTTP methods and the browser WebSocket adapter
 remain separate code paths.
-<!-- from: 06#127 -->
 
 **API-R46.** Server sends `subscribed` before replay, and sends
 `unsubscribed` only after that subscription pump has stopped, so no later frame
 can reuse the acknowledged subscription ID.
-<!-- from: 06#129 -->
 
 #### Run stream
 
@@ -476,104 +408,84 @@ can reuse the acknowledged subscription ID.
 change and every public Planner fact receives one monotonically increasing
 per-Run sequence in the same transaction as its source record. Its generation
 is stable for that Run.
-<!-- from: 06#128 -->
 
 **API-R48.** A Run detail response includes the corresponding event cursor.
-<!-- from: 06#128 -->
 
 **API-R49.** Subscribing with `after` replays committed events after that
 cursor in order and then follows new commits. Reconnect uses the last fully
 processed cursor.
-<!-- from: 06#128 -->
 
 **API-R50.** A subscription without `after` tails from the cursor captured
 after authorization and does not replay older history.
-<!-- from: 06#129 -->
 
 **API-R51.** Run events remain replayable for as long as the Run itself is
 retained (LIFE-API-2).
-<!-- from: 06#128 -->
 
 **API-R52.** `planner.event` carries exactly the reduced durable fact or typed
 Planner-plan projection change defined in [Planners](../execution/planners.md),
 never a live raw ADK or model stream. Prompts, model responses, reasoning, tool
 payloads, provider bodies and credentials cannot appear in a Planner event
 frame.
-<!-- from: 06#128, 06#133 -->
 
 **API-R53.** Lifecycle events are invalidation hints: the UI refetches the
 affected TanStack Query and does not treat their payload as a replacement
 authoritative aggregate.
-<!-- from: 06#128 -->
 
 **API-R54.** `workflow_run_events` is the sole Run replay authority.
-<!-- from: 06#129 -->
 
 **API-R55.** The insert trigger of `workflow_run_events` emits a PostgreSQL
 notification that becomes visible only if the source transaction commits. That
 notification is only a coalescible wake-up hint: each subscription also
 performs bounded periodic catch-up from its last delivered sequence, so a lost
 or duplicated notification cannot create a gap (FAIL-API-3).
-<!-- from: 06#129 -->
 
 #### Operations stream
 
 **API-R56.** The `operations` stream reports Runtime Agent, allocation,
 configuration, credential and scheduler-settings changes, but its cursor is
 process-local and its notifications are not a new audit log.
-<!-- from: 06#130 -->
 
 **API-R57.** The Operations snapshot response includes its current generation
 and revision. A new subscription is established from that cursor.
-<!-- from: 06#130 -->
 
 **API-R58.** Server restart creates another generation, while a missed
 revision or an unavailable cursor produces `resync_required`. The UI then
 obtains another authenticated REST snapshot before continuing (FAIL-API-5).
-<!-- from: 06#130 -->
 
 **API-R59.** Server retains only the latest 255 typed Operations invalidations
 (LIM-API-7); an older cursor also requires that snapshot resynchronization
 (LIFE-API-3, FAIL-API-5).
-<!-- from: 06#130 -->
 
 #### Delivery, flow control and limits
 
 **API-R60.** Delivery may be duplicated across disconnects. The client
 deduplicates by stream and cursor, processes events in order and treats any
 gap as a resync, not as permission to infer missing state (FAIL-API-4).
-<!-- from: 06#131 -->
 
 **API-R61.** A client frame is at most 16 KiB (LIM-API-8) and a Server frame
 at most 64 KiB (LIM-API-9).
-<!-- from: 06#132 -->
 
 **API-R62.** An authenticated session has at most eight sockets (LIM-API-10)
 and a socket at most 32 subscriptions (LIM-API-11).
-<!-- from: 06#132 -->
 
 **API-R63.** Exceeding an input or subscription limit closes or rejects only
 that socket (FAIL-API-4).
-<!-- from: 06#132 -->
 
 **API-R64.** Each connection has a bounded output queue of at most 256 frames
 (LIM-API-12) or 1 MiB (LIM-API-13), whichever is reached first. A slow
 consumer that fills it is closed with retryable overload semantics, WebSocket
 status `1013`, instead of blocking Scheduler or Planner persistence; the client
 then resynchronizes (FAIL-API-4).
-<!-- from: 06#131, 06#132 -->
 
 **API-R65.** Server ping and control frames detect dead connections: Server
 sends a ping after 20 seconds without outbound traffic (LIM-API-14) and closes
 a connection that has not answered within 60 seconds (LIM-API-15)
 (FAIL-API-4).
-<!-- from: 06#131, 06#132 -->
 
 **API-R66.** Client reconnect uses bounded exponential backoff with full
 jitter: UI reconnect starts at 500 ms (LIM-API-16) and doubles up to 30 seconds
 (LIM-API-17). The client always supports explicit manual refresh
 (FAIL-API-4).
-<!-- from: 06#131, 06#132 -->
 
 ## Interfaces
 
@@ -589,8 +501,6 @@ jitter: UI reconnect starts at 500 ms (LIM-API-16) and doubles up to 30 seconds
 The error envelope is the `Error` schema of the OpenAPI document; its
 `requestId` repeats `X-Request-ID`
 ([OBS-R5](../platform/observability.md)).
-
-<!-- from: 02#76, 06#31, 06#122, 06#123, 06#127, 06#142 -->
 
 ## Limits, failures and errors
 
@@ -649,8 +559,6 @@ the resource owners listed under
 [Mutation preconditions](#mutation-preconditions); the catalog cursor `400` by
 Configuration catalog ([CAT-R68](../configuration/catalog.md)).
 
-<!-- from: 06#31, 06#129, 06#130, 06#131, 06#132, 06#145 -->
-
 ## Security
 
 Security-relevant requirements: the exact browser-origin allowlist and CORS
@@ -660,14 +568,12 @@ Origin and CSRF checks (API-R23, API-R24); the non-disclosing `404` (API-R25);
 WebSocket authentication, per-subscription authorization, URL content and the
 observational-only channel (API-R33 to API-R39). Trust boundaries, the local
 principal and login protection are in [Security](../platform/security.md).
-<!-- from: 06#122, 06#124, 06#143, 06#145, 06#146 -->
 
 ## Observability
 
 `X-Request-ID` is browser-readable (API-R11); its generation and propagation
 are in [Observability](../platform/observability.md). Operations
 invalidations are process-local hints, not an audit log (API-R56).
-<!-- from: 02#76, 06#122, 06#130 -->
 
 ## Invariants
 
@@ -693,5 +599,3 @@ and
 5. Prompts, model responses, reasoning, tool payloads, provider bodies and
    credentials never appear in a Planner event frame (API-R52); test
    `TestProtocolAndQueueBoundsRejectUnknownOrUnsafeData`.
-
-<!-- from: 06#133 -->

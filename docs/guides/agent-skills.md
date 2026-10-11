@@ -4,7 +4,7 @@
 
 Run commands from the repository root. API examples require the local Server
 and `CONTRACTOR_API_TOKEN` from the local-stack guide. The owning contract is
-[Agent Skills](../spec/09-agent-skills.md).
+[Agent Skills](../spec/tools/skills.md).
 
 In the UI, open a package from **Skills** and choose **Browse files** to inspect
 its folders. `SKILL.md` opens automatically after loading the directory. Select

@@ -39,7 +39,7 @@ deliverables:
   - {path: internal/httpapi/public, description: StageAttempt diagnostics read model and tests.}
   - {path: api/openapi/contractor-public-v1.yaml, description: AttemptDiagnostics public contract.}
   - {path: ui/src/routes/runs, description: Accessible per-attempt diagnostic rendering and tests.}
-  - {path: docs/spec/04-execution-lifecycle-and-metrics.md, description: Updated owner-visible safety boundary.}
+  - {path: docs/spec/execution/scheduler.md, description: Updated owner-visible safety boundary.}
 
 acceptance_criteria:
   - id: A1

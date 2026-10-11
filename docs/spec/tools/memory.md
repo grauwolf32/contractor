@@ -16,7 +16,6 @@ the Planner and Worker adapters, hidden compare-and-swap (CAS) and
 response-loss reconciliation, the ordering of the Stage terminal barrier for
 memory mutations, the model-facing Memory error codes and the content rules
 for memory diagnostics and telemetry.
-<!-- from: 08#3, 01#48 -->
 
 It leaves to other documents:
 
@@ -45,8 +44,6 @@ It leaves to other documents:
   [failure model](../platform/failure-model.md) and
   [lifecycle](../platform/lifecycle.md).
 
-<!-- from: 01#48, 03#25, 00#137, 00#148, 04#47, 04#90, 08#54 -->
-
 ## Concepts
 
 Terms are defined once in the [glossary](../glossary.md).
@@ -62,8 +59,6 @@ Terms are defined once in the [glossary](../glossary.md).
 | Ordinal | The wrapper-assigned creation order of a note within its Memory Namespace. |
 | Planner mirroring | The derivation of a model-backed Planner's MemoryTools interface from the operations its prepared logical Workers select. |
 
-<!-- from: 08#3, 08#5, 08#6, 08#21, 08#23, 08#25, 08#31, 08#38, 08#51 -->
-
 ## Model
 
 ### Memory Namespace
@@ -73,8 +68,6 @@ A **Memory Namespace** is the logical view identified by:
 ```text
 (run_id, resolved Agent Namespace)
 ```
-
-<!-- from: 08#5, 08#6 -->
 
 Notes live as ordinary bindings in the Run's existing Artifact Namespaces. The
 Planner reaches them through the Server-side Planner adapter and the Worker
@@ -92,8 +85,6 @@ flowchart LR
   end
 ```
 
-<!-- from: 08#7, 08#8, 08#44, 08#45 -->
-
 ### Note artifact
 
 One note maps to one logical artifact:
@@ -103,16 +94,12 @@ ArtifactRef(namespace=<resolved Agent Namespace>, name="memory.<note name>")
 media type: application/vnd.contractor.memory-note+json
 ```
 
-<!-- from: 08#11, 08#12 -->
-
 For example, logical note `repo_overview` for logical Worker `analyst` whose
 resolved Namespace is `source_analysis` maps internally to:
 
 ```text
 ArtifactRef(namespace="source_analysis", name="memory.repo_overview")
 ```
-
-<!-- from: 08#13, 08#14 -->
 
 The stored note body is RFC 8785 canonical JSON. Its stored fields, shown with
 sample values:
@@ -128,13 +115,10 @@ sample values:
 }
 ```
 
-<!-- from: 08#16, 08#17 -->
-
 The `memory.` artifact-name prefix is reserved at the model-visible Toolset
 layer ([Reserved name prefix](#reserved-name-prefix), MEM-R89 to MEM-R92).
 This document owns the note mapping, the bounds, the hidden CAS and the
 response-loss reconciliation.
-<!-- from: 03#25, 08#15 -->
 
 ### Model-visible projections
 
@@ -152,7 +136,6 @@ class MemoryNote:
 ```
 
 The preview projection contains the same fields except `content`.
-<!-- from: 08#21, 08#22, 08#23 -->
 
 ## Requirements
 
@@ -163,13 +146,11 @@ small shared notebook without adding another content store or exposing
 Artifact revisions to the model. Every note is one immutable-versioned RunScope
 artifact, and MemoryTools is the purpose-specific, namespace-bound abstraction
 and model-tool wrapper over those artifacts.
-<!-- from: 08#3, 08#59 -->
 
 **MEM-R2.** Memory is coordination state, not hidden prompt
 context. No note is injected automatically into a Planner or Worker
 conversation; a participant sees a note only by calling an explicitly selected
 MemoryTools operation.
-<!-- from: 08#4, 08#59 -->
 
 ### Toolset and selection
 
@@ -177,103 +158,84 @@ MemoryTools operation.
 first version exports exactly six tools: `list_memories`, `read_memory`,
 `write_memory`, `append_memory`, `search_memory` and `list_memory_tags`, with
 the signatures in [Interfaces](#interfaces).
-<!-- from: 01#48, 08#27, 08#28 -->
 
 **MEM-R4.** Memory tools are never implicit. An AgentTemplate
 selects the exact Toolset version and any exact non-empty subset of its
 operations under the ordinary selection contract, in the same way as every
 other Toolset ([Toolsets](toolsets.md)).
-<!-- from: 01#48, 08#35 -->
 
 **MEM-R5.** The Runtime Agent must advertise the exact selected
 operations in its positive Toolset capability snapshot.
-<!-- from: 08#37 -->
 
 **MEM-R6.** `memory-tools@1` consumes only the allocation-bound
 Contractor Artifact client; it declares no LLM, HTTP-proxy, subprocess or
 sandbox capability by itself.
-<!-- from: 08#37 -->
 
 **MEM-R7.** A Worker's memory tools are bound to the
 allocation's resolved Agent Namespace: Runtime supplies the already fixed
 Agent Namespace and the model supplies only logical MemoryTools arguments. The
 Worker model receives no Run, Namespace, ArtifactRef or revision argument and
 never receives `worker_name`, `run_id` or Namespace as a model argument.
-<!-- from: 01#48, 08#8, 08#52 -->
 
 ### Memory Namespace and lifetime
 
 **MEM-R8.** A Memory Namespace is exactly
 `(run_id, resolved Agent Namespace)` and is never selected directly by a
 model.
-<!-- from: 08#5, 08#6, 08#59 -->
 
 **MEM-R9.** A Memory Namespace is not another ArtifactStore scope.
 Its notes live in the same `RunScope(run_id)` and Artifact Namespace that the
 Stage binding already assigns to the logical Worker.
-<!-- from: 08#7 -->
 
 **MEM-R10.** A single-Worker Streamline Planner and its
 Worker use the same Memory Namespace.
-<!-- from: 08#8 -->
 
 **MEM-R11.** A Router Planner has one view per logical Worker and
 selects the view with a validated `worker_name` argument.
-<!-- from: 08#8 -->
 
 **MEM-R12.** Logical Workers whose bindings use different Agent
 Namespaces do not share one undifferentiated notebook. If a Workflow
 deliberately assigns the same Namespace to two logical bindings, `worker_name`
 still enforces each binding's selected operation subset, while both names
 intentionally resolve to the same notebook.
-<!-- from: 08#8 -->
 
 **MEM-R13.** A later Stage that deliberately reuses the same Agent
 Namespace in the same Run sees its current notes.
-<!-- from: 08#8 -->
 
 Cross-Stage state in general, and the fact that continuing an Agent
 Namespace's notes in a later Stage remains Run-scoped artifact state rather
 than Planner-session inheritance, are specified in
 [PLN-R108 and PLN-R109](../execution/planners.md).
-<!-- from: 00#148 -->
 
 **MEM-R14.** Retries and Scheduler escalation create new
 StageExecutions but retain notes, because they remain in the same RunScope and
 Agent Namespace. The new Planner or Worker can access them only through its
 newly selected operation subset.
-<!-- from: 08#8 -->
 
 **MEM-R15.** Another WorkflowRun starts with no notes, even for the
 same user and Workflow.
-<!-- from: 08#8 -->
 
 **MEM-R16.** Memory survives allocation release and Planner-session
 replacement but expires under the owning Run's Artifact retention
 ([Retention and deletion](../artifacts/retention-and-deletion.md))
 (LIFE-MEM-1).
-<!-- from: 08#9 -->
 
 **MEM-R17.** Memory is a mutable coordination view and is not
 part of the immutable StageContext snapshot. A Workflow cannot name the
 underlying reserved binding directly in a StageContext declaration
 ([ART-R20](../artifacts/artifact-store.md)).
-<!-- from: 08#10 -->
 
 Rationale: naming the binding in StageContext would expose the exact revision
 and turn the notebook into implicit prompt state.
-<!-- from: 08#10 -->
 
 **MEM-R18.** Notes are never automatically Stage results or
 Workflow outputs. If note data must become pinned context or a product result,
 a selected domain or generic artifact tool first creates a separate
 non-`memory.*` ordinary artifact.
-<!-- from: 08#10 -->
 
 **MEM-R19.** Workflow resolution and Planner, Worker and Scheduler
 candidate validation reject a direct reserved Memory ref, even when the model
 happens to know an exact revision.
-<!-- from: 08#10 -->
 
 ### Note representation
 
@@ -281,150 +243,121 @@ happens to know an exact revision.
 `ArtifactRef(namespace=<resolved Agent Namespace>, name="memory.<note name>")`
 with media type `application/vnd.contractor.memory-note+json`
 ([Note artifact](#note-artifact)).
-<!-- from: 08#11, 08#12, 08#59 -->
 
 **MEM-R21.** MemoryTools encodes the note body as RFC 8785 canonical
 JSON with the stored fields `schemaVersion` (value
 `contractor.memory-note/v1`), `name`, `content`, `description`, `tags` and
 `ordinal`.
-<!-- from: 08#16, 08#17 -->
 
 **MEM-R22.** `name` is validated and `ordinal` is assigned by
 the trusted wrapper; a model never supplies either storage field.
-<!-- from: 08#18 -->
 
 **MEM-R23.** Tags are deduplicated and stored in lexical order, so
 equivalent tag input produces the same canonical payload.
-<!-- from: 08#18 -->
 
 **MEM-R24.** Timestamps come from ArtifactStore metadata rather
 than caller bytes: `created_at` is the logical binding creation time and
 `updated_at` is the current binding revision's creation time, both assigned by
 ArtifactStore from its authoritative database clock
 ([ART-R55](../artifacts/artifact-store.md)).
-<!-- from: 08#19, 03#38 -->
 
 **MEM-R87.** The existing Artifact read/write client contract exposes those
 two metadata values to trusted wrappers without changing ArtifactRef or
 exposing them as model arguments ([ART-R56](../artifacts/artifact-store.md)).
-<!-- from: 08#19 -->
 
 **MEM-R88.** The two timestamps are projected into `MemoryNote` responses but
 are not duplicated inside every note version.
-<!-- from: 08#19 -->
 
 **MEM-R25.** The complete canonical JSON payload, including the
 schema, name and ordinal fields, is at most 32 KiB (LIM-MEM-1). MemoryTools
 rejects a write whose resulting canonical artifact exceeds the limit with
 `memory_too_large`.
-<!-- from: 08#20, 08#54 -->
 
 **MEM-R26.** A note name is at most 121 ASCII bytes (LIM-MEM-2), so
 the internal `memory.`-prefixed binding remains within the Artifact name limit
 of 128 ([LIM-ART-1](../artifacts/artifact-store.md)), and matches
 `^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$`.
-<!-- from: 08#20 -->
 
 **MEM-R27.** A description is at most 512 UTF-8 bytes
 (LIM-MEM-3).
-<!-- from: 08#20 -->
 
 **MEM-R28.** A note has zero to three unique tags (LIM-MEM-4); each
 tag is at most 64 ASCII bytes (LIM-MEM-5) and matches `^[a-z][a-z0-9_-]*$`.
-<!-- from: 08#20 -->
 
 **MEM-R29.** Content and append fragments are non-empty UTF-8.
-<!-- from: 08#20 -->
 
 ### Reserved name prefix
 
 **MEM-R89.** The `memory.` artifact-name prefix is reserved at the
 model-visible Toolset layer in every non-reserved RunScope Namespace.
-<!-- from: 08#15 -->
 
 **MEM-R90.** `run-artifacts@1` and every other model-visible artifact-backed
 Toolset reject a source or target that resolves to such a binding and filter
 it from any accumulated exact-ref projection. This includes bounded text,
 source-analysis, OpenAPI and LikeC4 tools; selecting a domain tool must not
 become an alternate route around MemoryTools.
-<!-- from: 08#15 -->
 
 **MEM-R91.** The lower-level allocation-bound Artifact API remains
 domain-neutral and permits the trusted MemoryTools wrapper to use those
 bindings; authenticated Run owners and operator diagnostics may also inspect
 the underlying artifacts.
-<!-- from: 08#15 -->
 
 Rationale: this keeps revisions out of model context without adding another
 network service or Artifact authorization mode.
-<!-- from: 08#15 -->
 
 **MEM-R92.** An ordinary artifact named `memory.*` in a purpose-reserved
 `inputs`, `outputs` or `skills` Namespace remains governed by that Namespace's
 own contract and is not a Memory note.
-<!-- from: 08#15 -->
 
 Filtering reserved bindings from generic lists even when the same
 AgentTemplate selects MemoryTools, the use of the private Artifact API without
 another endpoint or grant kind, and the exclusion of `memory.` bindings from
 StageContext declarations and StageResults are stated from the ArtifactStore
 side in [ART-R19 to ART-R21](../artifacts/artifact-store.md).
-<!-- from: 03#25 -->
 
 ### Model-visible data
 
 **MEM-R30.** The full note projection `MemoryNote` contains
 exactly `name`, `content`, `description`, `tags`, `ordinal`, `created_at` and
 `updated_at` ([Model-visible projections](#model-visible-projections)).
-<!-- from: 08#21, 08#22 -->
 
 **MEM-R31.** The preview projection contains the same fields except
 `content`. List and search return previews; only `read_memory` and successful
 mutation responses return the full note.
-<!-- from: 08#23 -->
 
 **MEM-R32.** ArtifactRef, Artifact revision, physical blob identity
 and scope IDs are never model-visible. Revision is storage concurrency state
 and has no ordering or semantic meaning for the model.
-<!-- from: 08#23, 08#25, 08#59 -->
 
 **MEM-R33.** `tags` is always a JSON array in both full and preview
 results. An untagged note or a replacement that clears tags returns
 `tags: []`, never `null` or an omitted field.
-<!-- from: 08#24 -->
 
 **MEM-R34.** Planner and Worker serialize the same logical
 projection.
-<!-- from: 08#24 -->
 
 **MEM-R35.** `ordinal` is a monotonically increasing unsigned 64-bit
 creation order within one Memory Namespace; its first note receives `0`.
-<!-- from: 08#25 -->
 
 **MEM-R36.** The canonical JSON value of `ordinal` is restricted
 to the exactly interoperable integer range `0..9007199254740991` (`2^53-1`)
 (LIM-MEM-6).
-<!-- from: 08#25 -->
 
 Rationale: RFC 8785 uses ECMAScript number semantics, so larger integers could
 otherwise be rounded differently across languages. The `v1` quota and the
 absence of deletion keep all normally assigned values in `0..127`; the wider
 bound is a corruption and interoperability guard.
-<!-- from: 08#25 -->
 
 **MEM-R37.** Replacing or appending a note preserves `ordinal` and
 `created_at` and advances `updated_at` from ArtifactStore's authoritative
 database clock (MEM-R24).
-<!-- from: 08#25 -->
 
 **MEM-R38.** `list_memories` and `search_memory` sort previews by
 `updated_at DESC, ordinal DESC, name ASC`.
-<!-- from: 08#26 -->
 
 Rationale: the order deliberately puts recently changed notes first while
 retaining deterministic creation order and a total order even for equal
 `updated_at` timestamps.
-<!-- from: 08#26 -->
 
 ### Operations
 
@@ -432,70 +365,57 @@ retaining deterministic creation order and a total order even for equal
 bound Memory Namespace. The list is intentionally unpaginated, because one
 Memory Namespace has at most 128 active notes (LIM-MEM-8, MEM-R45) and
 previews are bounded.
-<!-- from: 08#29, 08#30, 08#31 -->
 
 **MEM-R40.** `read_memory` returns the current full note or
 `memory_not_found`.
-<!-- from: 08#30 -->
 
 **MEM-R41.** `write_memory` creates a note or fully replaces its
 content, description and tags; an omitted description or tag list therefore
 becomes empty. Replacement preserves creation metadata.
-<!-- from: 08#30 -->
 
 **MEM-R42.** `append_memory` requires an existing note and appends
 one newline followed by the supplied content, preserving description, tags and
 creation metadata. The fragment itself is checked only for non-empty valid
 UTF-8; the 32-KiB bound (LIM-MEM-1) is applied to the resulting note, so
 validation does not depend on an unrelated placeholder note name.
-<!-- from: 08#30 -->
 
 **MEM-R43.** `search_memory` accepts one to three unique valid tags
 (LIM-MEM-7) and returns previews for notes containing **any** supplied tag. It
 performs no body, fuzzy or embedding search.
-<!-- from: 08#30 -->
 
 **MEM-R44.** `list_memory_tags` returns the current distinct tag set
 as unique tags in lexical order.
-<!-- from: 08#26, 08#30 -->
 
 ### Quota and ordinals
 
 **MEM-R45.** One Memory Namespace has at most 128 active notes
 (LIM-MEM-8). Attempting to create a 129th note returns
 `memory_namespace_full`.
-<!-- from: 08#31, 08#54 -->
 
 **MEM-R93.** Existing notes remain readable, replaceable and appendable at the
 128-note limit.
-<!-- from: 08#31 -->
 
 **MEM-R94.** MemoryTools never evicts an older note to make room.
-<!-- from: 08#31 -->
 
 **MEM-R46.** Old immutable note revisions remain ordinary Run
 artifacts under ArtifactStore retention but do not count as active notes
 (LIFE-MEM-2).
-<!-- from: 08#50, 08#51 -->
 
 **MEM-R47.** Both adapters enumerate only the literal `memory.` name
 prefix through the existing ArtifactStore or Artifact API, with a limit of 129
 bindings (LIM-MEM-9). A result of 129 notes is rejected, never treated as a
 complete valid notebook. Unfiltered generic listing retains its existing
 contract.
-<!-- from: 08#32 -->
 
 Rationale: the prefix filter and the limit of 129 detect quota corruption
 without fetching unrelated artifacts from the same Namespace or exceeding the
 private list response limit ([LIM-ART-3](../artifacts/artifact-store.md)).
-<!-- from: 08#32 -->
 
 **MEM-R48.** The wrapper owns ordinals. Under the no-delete,
 serialized `v1` contract, the current Namespace therefore contains each
 ordinal in `0..count-1` exactly once. A duplicate, gap or otherwise impossible
 current ordinal set is corrupt stored state and returns `memory_unavailable`;
 it is never repaired from model input.
-<!-- from: 08#33 -->
 
 **MEM-R49.** MemoryTools serializes calls inside one Worker
 allocation. Together with the normative `v1` execution constraints — the
@@ -503,12 +423,10 @@ Planner runs one function at a time and starts no other call while its Worker
 dispatch function is waiting, the selected Worker processes its task and tool
 calls sequentially, and the Run has no concurrent StageExecutions — this makes
 creation count, ordinal assignment and the 128-note limit deterministic.
-<!-- from: 08#50, 08#59 -->
 
 **MEM-R50.** Under those constraints, a create lists the current
 `memory.` bindings, rejects count 128 (active notes only, MEM-R46) and assigns
 `max(ordinal) + 1` (or `0` when the Namespace is empty) before its CAS create.
-<!-- from: 08#50 -->
 
 ### Planner mirroring
 
@@ -518,48 +436,39 @@ receives the shared MemoryTools subset of a prepared Worker that selects
 other Worker Toolset is mirrored implicitly are specified in
 [PLN-R44 to PLN-R46](../execution/planners.md). This section owns how that
 interface is derived.
-<!-- from: 00#137, 01#48 -->
 
 **MEM-R51.** For a model-backed Planner, Server derives its
 MemoryTools interface from the prepared logical Workers rather than from a
 separate Planner template.
-<!-- from: 08#38 -->
 
 **MEM-R52.** Streamline receives exactly the selected MemoryTools
 subset of its sole Worker, with the Worker signatures of
 [Interfaces](#interfaces).
-<!-- from: 08#39 -->
 
 **MEM-R53.** Router exposes an operation when at least one prepared
 logical Worker selects it. Every exposed operation gains one required
 `worker_name` argument, whose enum contains exactly the Stage binding names
 whose AgentTemplate selected that operation ([Examples](#examples)).
-<!-- from: 08#39, 08#40, 08#41 -->
 
 **MEM-R54.** An operation selected by no Worker is absent, not a
 function that always returns forbidden.
-<!-- from: 08#39 -->
 
 **MEM-R55.** The Planner receives no generic `run-artifacts@1`
 operation or unrelated domain Toolset merely because a Worker selected it.
-<!-- from: 08#39 -->
 
 **MEM-R56.** The Planner adapter resolves `worker_name` to the
 immutable Stage binding and its Agent Namespace. It never asks the model for a
 Namespace or a physical Runtime Agent.
-<!-- from: 08#42 -->
 
 **MEM-R57.** `passthrough@1` has no model/tool loop, so only its
 Worker gets the selected tools; the deterministic Planner does not synthesize a
 second MemoryTools surface.
-<!-- from: 08#42 -->
 
 **MEM-R58.** Worker memory calls consume the Worker's ordinary
 `maxToolCalls` budget. Planner memory calls consume ordinary Planner
 function-call accounting and a model turn under its finite `maxModelCalls`;
 they do not create an unmetered side channel
 ([AgentTemplates](../configuration/agent-templates.md)).
-<!-- from: 08#43 -->
 
 ### Authority and the terminal barrier
 
@@ -567,59 +476,47 @@ they do not create an unmetered side channel
 service, private endpoint or second database. The Server-side Planner adapter
 uses a Run-scoped ArtifactStore view directly; the Python Worker adapter uses
 the existing allocation-bound private Artifact API and client.
-<!-- from: 08#44, 08#59 -->
 
 **MEM-R60.** Both implementations share canonical fixtures for
 validation, payload encoding and logical results.
-<!-- from: 08#44 -->
 
 **MEM-R61.** Worker mutations travel through the existing private
 Artifact PUT, so Agent mTLS, allocation-to-Run binding, CAS and the
 grant-locked Artifact write fence ([ART-R86 and
 ART-R87](../artifacts/artifact-store.md)) are reused unchanged.
-<!-- from: 08#52 -->
 
 **MEM-R62.** The Planner view is bound to the active
 `StageExecution`, not merely to `run_id`.
-<!-- from: 08#45 -->
 
 **MEM-R95.** A Planner mutation locks and checks the durable Run and Stage
 rows in the same Artifact transaction that advances the binding.
-<!-- from: 08#45, 04#90 -->
 
 **MEM-R96.** Worker mutations keep using the private Artifact API's
 allocation-grant write lock.
-<!-- from: 08#45, 04#90 -->
 
 **MEM-R97.** Scheduler forms one ordered terminal barrier from those existing
 mechanisms: it first fences every allocation and waits for any grant-locked
 mutation to finish, then enters the durable `finalizing` or `aborting`
 transition; a Planner transaction in turn serializes directly with that
 transition.
-<!-- from: 08#45, 04#90 -->
 
 The durable `finalizing` and `aborting` transitions are Scheduler's
 ([SCH-R60](../execution/scheduler.md)); that finalization and abort perform no
 tool work is [SCH-R59](../execution/scheduler.md).
-<!-- from: 08#52, 04#90 -->
 
 **MEM-R63.** An in-flight memory mutation either linearizes
 completely before its corresponding barrier or fails as `memory_forbidden`; it
 can never commit afterward (FAIL-MEM-2).
-<!-- from: 08#45, 08#59 -->
 
 **MEM-R64.** Planner memory calls are synchronous inside the
 active Stage invocation and use the Stage-bound trusted view; Planner produces
 no candidate until its current tool call has returned.
-<!-- from: 08#52, 08#59 -->
 
 **MEM-R65.** Planner reads after its invocation is cancelled
 are rejected by its bound tool context (FAIL-MEM-3).
-<!-- from: 08#45 -->
 
 **MEM-R66.** Retry or escalation cannot revive an old MemoryTools
 wrapper.
-<!-- from: 08#52 -->
 
 ### Concurrency and response loss
 
@@ -634,12 +531,9 @@ internally ([ART-R58 and ART-R59](../artifacts/artifact-store.md))
 4. a concurrent same-binding change returns `memory_changed`; MemoryTools
    never silently overwrites or semantically merges it.
 
-<!-- from: 08#46, 08#47 -->
-
 **MEM-R68.** The model does not resolve a conflict with a
 revision. It calls a read or list operation and decides whether to retry the
 semantic mutation.
-<!-- from: 08#48 -->
 
 **MEM-R69.** The existing Artifact CAS response-loss rule
 ([ART-R60](../artifacts/artifact-store.md)) is also sufficient for append. An
@@ -649,7 +543,6 @@ HTTP response. Worker recovery therefore treats such server failures as
 ambiguous unless the response explicitly reports an authority or fence
 rejection or a CAS conflict. Non-5xx API rejections retain their normal error
 mapping (FAIL-MEM-1).
-<!-- from: 08#49 -->
 
 **MEM-R70.** After reading revision `r`, the wrapper computes one
 canonical next payload and retries only those same bytes with the same
@@ -659,12 +552,10 @@ canonical-payload match means the first write committed; otherwise the wrapper
 returns `memory_changed` (FAIL-MEM-1). Response loss therefore cannot
 duplicate an append, and no Memory-specific idempotency record or separate
 replay store is required.
-<!-- from: 08#49, 08#59 -->
 
 **MEM-R71.** Reads and lists resolve current bindings at call time and
 are linearizable per binding or query transaction; they are not retroactively
 added to StageContext.
-<!-- from: 08#51 -->
 
 ### Errors
 
@@ -674,28 +565,23 @@ added to StageContext.
 `memory_unavailable`, with the meaning and retryability registered in
 [ERR-R3](../platform/errors.md) and listed under
 [Limits, failures and errors](#limits-failures-and-errors).
-<!-- from: 08#53, 08#54 -->
 
 **MEM-R73.** Error messages are bounded and do not include note
 content or internal revisions.
-<!-- from: 08#55 -->
 
 **MEM-R74.** Both the Planner and the Worker MemoryTools adapters
 reduce malformed model arguments, including extra fields or a value of the
 wrong JSON type, to `memory_invalid` before any Artifact side effect.
-<!-- from: 08#55 -->
 
 **MEM-R75.** An absent, unknown or operation-ineligible
 Router `worker_name` is `memory_forbidden` instead, and it takes precedence
 over unrelated malformed note fields.
-<!-- from: 08#55 -->
 
 **MEM-R76.** Framework JSON-Schema validation must not become
 a second, unbounded model-facing error vocabulary. Adapters normalize every
 internal failure to the exact code/retryability table of
 [ERR-R3](../platform/errors.md); an arbitrary exception attribute cannot add
 another Memory code.
-<!-- from: 08#55 -->
 
 ### Diagnostics, telemetry and content
 
@@ -705,61 +591,50 @@ Planner and Worker memory content from durable session facts and execution
 telemetry in [SCH-R61](../execution/scheduler.md). The general redaction of
 tool arguments is [OBS-R27](../platform/observability.md); the stricter
 MemoryTools projection applied within it is MEM-R78.
-<!-- from: 04#47, 04#90, 08#56 -->
 
 **MEM-R77.** Memory adapters never automatically copy note content,
 description or tags into ExecutionReport detail, Planner durable facts, logs
 or WebSocket events.
-<!-- from: 08#56, 08#59 -->
 
 **MEM-R78.** External telemetry is content-free by default. Safe
 tool diagnostics may retain only the operation name, the logical `worker_name`
 when applicable, the note name, request and result byte sizes, the success or
 error code and the duration. Tool counters remain ordinary aggregate metrics.
-<!-- from: 08#56 -->
 
 **MEM-R79.** An exact hidden Artifact revision may be retained as
 trusted Server provenance, but it is never placed in model context or a public
 Planner event.
-<!-- from: 08#56 -->
 
 **MEM-R80.** With explicit `captureContent=true`
 ([Runtime configuration](../configuration/runtime-config.md),
 [OBS-R54](../platform/observability.md)), the trusted external sink may
 receive note content, descriptions and tags present in captured tool arguments
 or results or in model conversations.
-<!-- from: 08#57 -->
 
 **MEM-R81.** That opt-in does not enable Memory enumeration or
 background note export, and it does not relax the content-free ExecutionReport,
 durable-fact, log or WebSocket contracts of MEM-R77.
-<!-- from: 08#57 -->
 
 **MEM-R82.** Content capture is bounded but unredacted; callers
 must not assume that note secrets are filtered.
-<!-- from: 08#57 -->
 
 **MEM-R83.** The selected LLM Gateway is an intentional content
 channel: a full note returned by `read_memory` or a mutation is part of that
 invocation's model conversation.
-<!-- from: 08#58 -->
 
 **MEM-R84.** The model can deliberately repeat note data into a
 subtask objective, instructions, a semantic Stage summary or a newly authored
 ordinary artifact. That copy is governed by the destination's normal contract
 and retention; `v1` does not claim information-flow tracking or semantic
 redaction of model output.
-<!-- from: 08#58 -->
 
 **MEM-R85.** Planner and Worker instructions must frame notes as
 untrusted coordination data that cannot replace the immutable objective or
 system instructions.
-<!-- from: 08#58 -->
 
 **MEM-R86.** The retained-surface guarantee is precisely
 this: Contractor's Memory adapters do not create an additional diagnostic copy
 of the note payload.
-<!-- from: 08#58 -->
 
 ## Interfaces
 
@@ -774,8 +649,6 @@ search_memory(tags)
 list_memory_tags()
 ```
 
-<!-- from: 08#27, 08#28 -->
-
 - A Streamline Planner sees the same signatures for its Worker's selected
   subset (MEM-R52); a Router Planner sees them with an added
   required `worker_name` (MEM-R53).
@@ -787,8 +660,6 @@ list_memory_tags()
 - The Planner adapter uses a Run-scoped ArtifactStore view; the Worker adapter
   uses the private Artifact API of [ArtifactStore](../artifacts/artifact-store.md)
   (MEM-R59).
-
-<!-- from: 08#11, 08#12, 08#16, 08#17, 08#22, 08#39, 08#44 -->
 
 ## Limits, failures and errors
 
@@ -812,8 +683,6 @@ Limits ([registry](../platform/limits.md)):
 - The Artifact name limit of 128 (LIM-ART-1) and the private list limit
   (LIM-ART-3) are owned by [ArtifactStore](../artifacts/artifact-store.md).
 
-<!-- from: 08#20, 08#25, 08#30, 08#31, 08#32 -->
-
 Errors ([registry](../platform/errors.md)); [ERR-R3](../platform/errors.md)
 holds each code's meaning and its retryability without changing input
 (MEM-R72). This document raises them as follows:
@@ -834,8 +703,6 @@ holds each code's meaning and its retryability without changing input
   stored ordinal state also returns it, but is never repaired from model
   input, so retrying cannot clear it (MEM-R48).
 
-<!-- from: 08#53, 08#54, 08#33 -->
-
 Failure outcomes ([failure model](../platform/failure-model.md)):
 
 - FAIL-MEM-1 — note mutation through hidden Artifact CAS, including a
@@ -847,14 +714,10 @@ Failure outcomes ([failure model](../platform/failure-model.md)):
   state and cancellation (MEM-R47, MEM-R48,
   MEM-R65, MEM-R72).
 
-<!-- from: 08#45, 08#46, 08#47, 08#49, 08#32, 08#33, 08#54 -->
-
 Lifecycle ([registry](../platform/lifecycle.md)):
 
 - LIFE-MEM-1 — Memory note (current `memory.` binding) (MEM-R16).
 - LIFE-MEM-2 — superseded note revisions (MEM-R46).
-
-<!-- from: 08#9, 08#51, 08#34 -->
 
 ## Security
 
@@ -876,8 +739,6 @@ The security-relevant rules of this document are:
   MEM-R84, MEM-R85, MEM-R82,
   MEM-R86.
 
-<!-- from: 08#15, 08#52, 08#56, 08#58 -->
-
 ## Observability
 
 Memory tool calls appear in ordinary aggregate tool counters and in the
@@ -886,7 +747,6 @@ descriptive metadata never reach ExecutionReport detail, durable facts, logs
 or WebSocket events (MEM-R77). Opt-in content capture is bounded by
 MEM-R80 and MEM-R81; the capture setting itself is
 owned by [Observability](../platform/observability.md).
-<!-- from: 08#56, 08#57 -->
 
 ## Invariants
 
@@ -932,8 +792,6 @@ These properties follow from the cited requirements, which are authoritative.
     implicit prompt or cross-Run injection (MEM-R2,
     MEM-R15, [Non-goals](#non-goals)).
 
-<!-- from: 08#59 -->
-
 ## Examples
 
 An AgentTemplate selecting every operation of `memory-tools@1`:
@@ -951,8 +809,6 @@ spec:
         - list_memory_tags
 ```
 
-<!-- from: 08#36 -->
-
 Router mirroring (MEM-R53). If `builder` selects all six operations and
 `reviewer` selects only list, read and search, Router receives, among others:
 
@@ -961,8 +817,6 @@ write_memory(worker_name: Literal["builder"], ...)
 read_memory(worker_name: Literal["builder", "reviewer"], name)
 search_memory(worker_name: Literal["builder", "reviewer"], tags)
 ```
-
-<!-- from: 08#40, 08#41 -->
 
 A mutation and its response-loss reconciliation (MEM-R67,
 MEM-R69, MEM-R70):
@@ -995,8 +849,6 @@ sequenceDiagram
   end
 ```
 
-<!-- from: 08#47, 08#49, 08#23 -->
-
 ## Non-goals
 
 `v1` has no delete or forget operation, automatic compaction,
@@ -1005,13 +857,10 @@ Skills are the separate immutable package and artifact contract of
 [Skills](skills.md), never a Memory note category. Removing or changing
 these remaining choices requires a new Toolset version, not an undocumented
 tool.
-<!-- from: 08#34 -->
 
 There is no automatic UserScope or cross-Run memory in `v1`.
-<!-- from: 08#9 -->
 
 A future design that permits concurrent different-name creates in one Memory
 Namespace must first add an ArtifactStore-level atomic multi-binding or
 batch-CAS primitive. It must not silently weaken the 128-note or unique-ordinal
 contract or introduce a Memory-only transport.
-<!-- from: 08#50 -->

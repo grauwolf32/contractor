@@ -1,8 +1,8 @@
 # Managed evaluation data contract
 
 V38-002 introduced data codecs and fixtures; V38-005/006 added the public routes.
-[Spec 30](../../../docs/spec/30-managed-evals.md) owns the managed behavior and
-[spec 26](../../../docs/spec/26-portable-evaluation-format.md) owns the portable
+[Managed Evals spec](../../../docs/spec/evals/managed-evals.md) owns the managed behavior and
+[portable evaluation format spec](../../../docs/spec/evals/format.md) owns the portable
 format. Public OpenAPI and generated clients describe the same closed DTOs.
 
 The V38-007/008 UI additions expose registered check schemas, native readiness
@@ -24,7 +24,7 @@ check identifiers retain the lowercase `Id` grammar. Native evaluator validation
 still rejects unknown parameter names.
 
 The `portable` directory is a byte-for-byte schema snapshot from the implementation
-of spec 26, pinned by commit and exact file hashes in `portable/provenance.json`.
+of the portable evaluation format spec, pinned by commit and exact file hashes in `portable/provenance.json`.
 The historical `playground.*` schema IDs name a format, not a required producer.
 The Server embeds these files and does not import, locate or execute Playground.
 Refresh this snapshot only with an explicit compatible format change and shared
@@ -58,7 +58,7 @@ coverage separately from whole-arm totals. Audit normalization counts each leaf
 Run/stage execution once, includes all owned roles/retries and uses parent wall
 time; it never adds parent aggregates or overlapping child durations.
 
-Schemas bound documents to spec 26's matrix limits; the decoder additionally caps
+Schemas bound documents to the matrix limits of the portable evaluation format spec; the decoder additionally caps
 bytes at 1 MiB and nesting at 32. Both must be satisfied. Imported source hashes
 remain producer assertions; visible imported bytes and frozen local bytes get
 separate computed hashes. Pure codecs cannot verify hidden external plan contents.

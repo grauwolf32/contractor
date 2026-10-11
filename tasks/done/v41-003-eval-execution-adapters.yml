@@ -13,7 +13,7 @@ languages: ["python", "json", "yaml", "go"]
 
 goal: "Run unchanged portable cases and scorers over Contractor public API observations or a recorded-output provider."
 context:
-  specification: docs/spec/26-portable-evaluation-format.md
+  specification: docs/spec/evals/format.md
   repository: "Implementation belongs in sibling playground-v2 unless a deliverable explicitly names Contractor. Commands below start at the Contractor root; the sibling location is a development convention, not a runtime dependency."
   interface: "Implement preflight, prepare, submit, reconcile, observe, cancel and collect. Provider capabilities and binding schemas are explicit/versioned; unsupported does not remove a member. Core/scorers import no Contractor packages and parse no execution IDs."
   contractor: "Reuse ContractorV2Client and Workflow/Audit runners. Workflow mode creates ordinary evaluation Project Runs; Audit mode uses real Audit APIs/controller/importer authority and existing Project-kind behavior. Never manufacture managed inputs or guess child metadata support."

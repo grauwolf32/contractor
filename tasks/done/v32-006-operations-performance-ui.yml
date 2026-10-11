@@ -15,7 +15,7 @@ goal: >-
   understandable directly in Contractor Operations without external services.
 
 context:
-  specification: docs/spec/22-performance-metrics-and-profiling.md
+  specification: docs/spec/operations/operations.md
   navigation: >-
     Add /operations/performance and a Completed/history view alongside existing
     current allocations. Keep Runtime Agent live-state and registry cursor

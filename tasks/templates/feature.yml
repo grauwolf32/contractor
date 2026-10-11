@@ -17,7 +17,7 @@ goal: >-
   <One paragraph: the user-visible outcome and why it is needed now.>
 context:
   # Documents named here are required reading for whoever implements the task.
-  specification: "docs/spec/<NN-area>.md"
+  specification: "docs/spec/<domain>/<document>.md#<PREFIX-Rn>"
   design: "<optional plan or decision record>"
 scope:
   in:

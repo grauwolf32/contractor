@@ -23,7 +23,7 @@ context:
   design: docs/plans/2026-09-19-public-openapi-corrections.md
   finding_ids: []
   specification:
-  - docs/spec/06-server-ui-and-operations.md
+  - docs/spec/ui/ui.md
 scope:
   in:
   - Record the detailed resolution of R01-R12 and task-to-finding mapping.

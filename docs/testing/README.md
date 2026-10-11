@@ -142,7 +142,7 @@ make release-verify
 | Agent Skill packaging, seeding, updates and cleanup | [Agent Skills](../guides/agent-skills.md) |
 | Worker session modes and lockstep rollout | [Runtime upgrades](../operations/runtime-configuration.md#worker-session-mode-upgrade) |
 | Audit programs | `make test-audit-program-library-e2e`; [Audit walkthrough](../guides/audits.md) |
-| Findings producer/collection/reader | `make test-findings-e2e`; [contract](../spec/27-findings-tools-and-collections.md) |
+| Findings producer/collection/reader | `make test-findings-e2e`; [contract](../spec/findings/findings.md) |
 | Performance collection and profiling | [Operations performance](../operations/performance.md) |
 | Podman execution | [Podman provisioning and verification](../../deploy/podman/README.md) |
 | PostgreSQL/filesystem artifact payloads | [Blob backend verification](../operations/artifact-blob-storage.md#release-verification) |
@@ -159,7 +159,7 @@ Worker finalization, summarization and project-workflow quality. These checks
 call a real model and require a separately chosen budget and configuration.
 
 For versioned datasets and reproducible comparisons, use the
-[portable evaluation specification](../spec/26-portable-evaluation-format.md),
+[portable evaluation specification](../spec/evals/format.md),
 [fixture catalog](../../configs/evals/README.md) and
 [instruction-evaluation guide](../../tests/eval/agent_instructions/README.md).
 Offline conformance checks do not measure model quality.

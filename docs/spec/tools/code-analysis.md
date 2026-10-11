@@ -44,8 +44,6 @@ It leaves to other documents:
   [errors](../platform/errors.md), [failure outcomes](../platform/failure-model.md)
   and [entity lifecycle](../platform/lifecycle.md).
 
-<!-- from: 12#3, 13#3, 10#44, 10#45, 12#26, 13#9, 13#14, 01#50, 02#33 -->
-
 ## Concepts
 
 - **`code-analysis@1`**: the read-only structural code-analysis Toolset; it
@@ -77,8 +75,6 @@ It leaves to other documents:
 
 Terms are defined once in the [glossary](../glossary.md).
 
-<!-- from: 12#8, 12#9, 12#27, 12#33, 12#53, 12#58, 13#3, 13#4, 13#32, 13#36, 13#39 -->
-
 ## Model
 
 ### Toolsets, surfaces and capability levels
@@ -103,8 +99,6 @@ flowchart TD
     Trailmark -- yes --> Graph["Advertise the nine graph operations"]
 ```
 
-<!-- from: 12#6, 12#8, 12#9, 12#14, 12#41, 12#67, 13#11, 13#13 -->
-
 ### Code-analysis call
 
 Every `code-analysis@1` call answers from one immutable snapshot. The session
@@ -126,8 +120,6 @@ flowchart TD
     Parse --> Answer["Answer only from this snapshot, with coverage"]
     Query --> Answer
 ```
-
-<!-- from: 12#25, 12#27, 12#28, 12#29, 12#45, 12#49, 12#52, 12#53, 12#66 -->
 
 ### Annotation mutation
 
@@ -154,8 +146,6 @@ sequenceDiagram
     end
 ```
 
-<!-- from: 13#36, 13#37, 13#38 -->
-
 ## Requirements
 
 ### Ownership boundary
@@ -165,20 +155,16 @@ Both Toolsets keep the Runtime ownership boundary:
 **CAN-R1.** The Workflow supplies the exact source and state
 artifacts through `context.workspace`; for `taint-annotations@1` these are an
 exact ZIP and optional overlay-state artifacts.
-<!-- from: 12#4, 13#5, 13#6 -->
 
 **CAN-R2.** The Scheduler pins those artifacts in `AllocationSpec`
 and performs ordinary exact capability placement, placing only against the
 Runtime Agent's frozen positive capability snapshot.
-<!-- from: 12#4, 13#6 -->
 
 **CAN-R3.** Runtime alone chooses `local` or `memory` workspace
 storage at process start and alone hydrates that disposable storage.
-<!-- from: 12#4, 13#6 -->
 
 **CAN-R4.** The AgentTemplate grants an exact set of
 model-visible operations. Installed analyzers and labels never add tools.
-<!-- from: 12#4, 13#6, 12#82 -->
 
 **CAN-R5.** The Worker receives selected tool instances and a
 narrow `WorkspaceReader` (`code-analysis@1`) or `WorkspaceWriter`
@@ -186,17 +172,14 @@ narrow `WorkspaceReader` (`code-analysis@1`) or `WorkspaceWriter`
 fsspec object, the provider's physical root or a host path; neither the
 Tree-sitter operations nor the allocation child used for Trailmark graph
 analysis receives the provider's physical root.
-<!-- from: 12#4, 13#6, 10#72 -->
 
 **CAN-R6.** `code-analysis@1` consumes the same `WorkspaceReader`
 snapshot boundary as the other model-visible workspace Toolsets
 ([Workspace](workspace.md)).
-<!-- from: 10#72 -->
 
 **CAN-R7.** `code-analysis@1` is domain-neutral. OpenAPI,
 LikeC4, security review and general repository understanding may all select
 it; the Scheduler contains no code-analysis-specific workflow behaviour.
-<!-- from: 12#5 -->
 
 **CAN-R8.** The internal Trailmark child is an implementation
 detail of a trusted local Toolset. It is not the `runtime-subprocess-launcher`
@@ -204,13 +187,11 @@ infrastructure channel used for external validators, is not configured by
 Runtime labels and is not a new model-visible process-execution authority. The
 Server descriptor records no infrastructure channel for the `code-analysis@1`
 tools.
-<!-- from: 12#24, 02#33 -->
 
 **CAN-R9.** `taint-annotations@1` mutates only the effective
 allocation workspace. It does not mutate Trailmark or any persistent graph. It
 introduces no Server-side annotation service, database table, Artifact endpoint
 or infrastructure channel.
-<!-- from: 13#7 -->
 
 ### Code-analysis operations and capability levels
 
@@ -231,13 +212,10 @@ complexity_hotspots
 functions_that_raise
 ```
 
-<!-- from: 12#6, 12#7 -->
-
 **CAN-R11.** The first two operations, `search_def` and
 `list_symbols`, are the **shallow** Tree-sitter surface. They operate directly
 on the current immutable `WorkspaceSnapshot` and are portable across both
 workspace providers: local and memory Runtime Agents may advertise them.
-<!-- from: 12#8, 01#50, 02#33 -->
 
 **CAN-R12.** The remaining nine operations are the **graph**
 surface, backed by `trailmark==0.5.0`. Only a Runtime configured with
@@ -250,38 +228,31 @@ be copied to allocation scratch.
 Rationale: this is a deliberate resource policy. Graph RSS belongs in a
 killable child on a Runtime provisioned for disk-backed project work, while
 memory Runtime Agents retain the low-overhead shallow surface.
-<!-- from: 12#9, 12#55, 01#50, 02#33, 12#82 -->
 
 **CAN-R13.** Trailmark runs in an allocation-local child process, so
 releasing one allocation reclaims its graph RSS even though the Runtime Agent
 process is long-lived.
-<!-- from: 12#9 -->
 
 **CAN-R14.** A local Runtime whose Trailmark probe fails may still
 advertise only the two shallow operations. A Runtime without a usable
 workspace provider advertises none of `code-analysis@1`.
-<!-- from: 12#14 -->
 
 **CAN-R15.** The two levels are a use of the existing operation-level
 Toolset capability model ([Toolsets](toolsets.md)), a partial positive
 capability, not a new `shallow`/`deep` capability type. The Server's
 code-backed descriptor knows all eleven legal operation names.
-<!-- from: 12#15, 02#33 -->
 
 **CAN-R16.** An AgentTemplate names the exact operations it
 needs, and placement requires that exact selected set to be contained in one
 candidate Runtime's registered set
 ([Control plane](../execution/control-plane.md)).
-<!-- from: 12#15, 01#50 -->
 
 **CAN-R146.** The Scheduler never silently substitutes shallow analysis
 for a selected graph operation: there is no graph-to-shallow fallback.
-<!-- from: 12#15, 01#50, 12#82 -->
 
 **CAN-R147.** A Stage requiring `find_callers` waits for compatible
 local capacity ([Scheduler](../execution/scheduler.md)); a template selecting
 only `search_def` and `list_symbols` can run on either provider.
-<!-- from: 12#15 -->
 
 ### Code-analysis workspace binding
 
@@ -289,24 +260,20 @@ only `search_def` and `list_symbols` can run on either provider.
 requires the corresponding Workflow Stage to declare `context.workspace`.
 Configuration validation rejects a code-analysis Worker binding without that
 logical workspace ([Catalog](../configuration/catalog.md)).
-<!-- from: 12#21 -->
 
 **CAN-R18.** The `code-analysis@1` operations work in `direct` and
 `overlay` mode and require read access only. They see the effective tree,
 including imported overlay state and edits already committed by earlier tools
 in the allocation.
-<!-- from: 12#21 -->
 
 **CAN-R19.** `code-analysis@1` is intentionally separate
 from `source-analysis@1`. `source-analysis@1` explicitly opens and searches one
 ZIP artifact and can be used without a hydrated project workspace;
 `code-analysis@1` never accepts an ArtifactRef and always analyzes the current
 effective workspace snapshot.
-<!-- from: 12#22, 12#23 -->
 
 **CAN-R20.** Adding structural tools does not change the
 behaviour or version of existing archive-oriented templates.
-<!-- from: 12#23 -->
 
 ### Snapshot semantics
 
@@ -316,7 +283,6 @@ effective managed-text projection, binary path metadata and its canonical
 digest, whose coverage is defined in [Workspace](workspace.md). The call
 answers only from that immutable value, even if an Edit tool commits a later
 workspace version concurrently; the next call acquires a fresh snapshot.
-<!-- from: 12#25, 10#44, 12#82 -->
 
 **CAN-R22.** For `local + direct`, the disk-authoritative rule of
 [Workspace](workspace.md) requires acquisition from current files, including
@@ -324,34 +290,27 @@ completed external changes; hydration state or remembered size/mtime cannot
 prove a cached analysis is current. Acquisition remains a workspace-provider
 responsibility: analysis receives the same narrow reader and adds neither host
 paths nor a refresh tool.
-<!-- from: 12#26 -->
 
 **CAN-R23.** The [Podman executor](code-execution.md) shares the
 acquisition guard; completed command edits enter the next snapshot and
 invalidate stale analysis.
-<!-- from: 12#26 -->
 
 **CAN-R24.** Derived analysis caches may be reused only after
 acquiring the current snapshot digest.
-<!-- from: 10#45 -->
 
 **CAN-R25.** One allocation owns one code-analysis session
 (LIM-CAN-1). The session remembers only its current snapshot digest
 and bounded derived state, as follows.
-<!-- from: 12#27 -->
 
 **CAN-R26.** Tree-sitter parses one file at a time and discards
 every AST after extracting compact symbol metadata.
-<!-- from: 12#28 -->
 
 **CAN-R27.** The shallow cache is bounded, contains compact per-file
 symbol rows and never source bytes or AST objects, and is keyed by snapshot
 digest plus relative path.
-<!-- from: 12#28 -->
 
 **CAN-R28.** Trailmark owns at most one child and one graph, for the
 current digest (LIM-CAN-2).
-<!-- from: 12#28 -->
 
 **CAN-R29.** A call observing a different digest first invalidates
 all shallow metadata, stops the old graph child and builds or queries only the
@@ -359,22 +318,18 @@ new snapshot. Workspace mutation therefore invalidates derived state
 automatically by digest; a `code-analysis@1` call after a
 `taint-annotations@1` mutation observes the new workspace digest and rebuilds
 its derived state.
-<!-- from: 12#28, 12#82, 13#7 -->
 
 **CAN-R30.** No model-visible `refresh` operation exists.
-<!-- from: 12#28 -->
 
 **CAN-R31.** Code-analysis calls serialize within their session. They
 do not retain the workspace lock while parsing: the immutable snapshot is their
 consistency boundary.
-<!-- from: 12#29 -->
 
 **CAN-R32.** A cursor is bound to its operation, normalized
 arguments and snapshot digest. Reusing it after an edit fails with
 `code_analysis_workspace_changed` rather than combining two trees or pages from
 two projections; the caller restarts the query without a cursor
 (FAIL-CAN-1).
-<!-- from: 12#29, 10#44 -->
 
 ### Bounds and coverage
 
@@ -403,7 +358,6 @@ every scan, result, traversal, child and cache has a finite explicit bound:
 
 Rationale: fixed ceilings give a Toolset capability the same semantic strength
 on every Runtime that advertises it.
-<!-- from: 12#30, 12#31, 12#82 -->
 
 **CAN-R34.** Workspace path and total hydration limits
 ([Workspace](workspace.md)) still apply first. Source candidates recognized by
@@ -412,7 +366,6 @@ by normalized relative path and then admitted until the file or byte ceiling
 (LIM-CAN-3, LIM-CAN-4) is reached. A file above the
 per-file ceiling (LIM-CAN-5) is skipped. Partial coverage is
 therefore deterministic instead of depending on filesystem walk order.
-<!-- from: 12#32 -->
 
 **CAN-R35.** Every successful analysis response includes bounded
 coverage metadata of this shape:
@@ -432,24 +385,19 @@ coverage metadata of this shape:
 }
 ```
 
-<!-- from: 12#33, 12#34 -->
-
 **CAN-R36.** `unsupportedSourceFiles` counts files recognized by the
 other v1 engine's source-extension registry but unsupported by the selected
 one. Unknown non-source files are ignored rather than counted.
-<!-- from: 12#32, 12#35 -->
 
 **CAN-R37.** `incomplete` is true when a file, byte, symbol or
 deadline ceiling or a parser error can make the answer omit otherwise
 supported source. Its sorted unique `reasons` are drawn from `file_limit`,
 `byte_limit`, `symbol_limit`, `symbol_name_limit`, `deadline` and
 `parse_errors`.
-<!-- from: 12#35 -->
 
 **CAN-R38.** Binary and unsupported-language counts describe
 intentional coverage boundaries and do not alone make the supported-language
 result incomplete.
-<!-- from: 12#35 -->
 
 **CAN-R39.** Graph coverage additionally reports `excludedFiles`:
 recognized source files below a directory that the pinned Trailmark walk never
@@ -460,27 +408,22 @@ exclusions are applied before the file and byte ceilings, are never copied into
 the mirror and, like binary and unsupported files, do not alone make the
 result incomplete. The reviewed directory list is pinned with the engine
 version.
-<!-- from: 12#36 -->
 
 **CAN-R40.** Graph `parseErrors` is always `0`: Trailmark
 0.5.0's public graph exposes no per-file syntax-error signal, and Tree-sitter
 recovers so that the affected definitions are simply absent.
-<!-- from: 12#36 -->
 
 **CAN-R41.** Collection responses use `items`, `nextCursor`,
 `truncated` and `observedTotal`. `observedTotal` counts the complete bounded
 result set, not an unexamined suffix when `coverage.incomplete` is true.
-<!-- from: 12#37 -->
 
 **CAN-R42.** Cursors are opaque, allocation-local,
 integrity-protected and at most 2 KiB (LIM-CAN-20). Invalid, cross-tool
 or cross-allocation cursors fail closed (FAIL-CAN-1).
-<!-- from: 12#37 -->
 
 **CAN-R43.** A page stops before the item ceiling (LIM-CAN-8) or
 the encoded JSON response ceiling (LIM-CAN-9) and returns a cursor
 for the first unreturned ordinary item. No operation silently cuts off results.
-<!-- from: 12#37 -->
 
 **CAN-R44.** Path traversals stop traversal after finding
 `limit + 1` paths and return at most `limit`. They set `truncated` when another
@@ -491,7 +434,6 @@ a total and have no cursor; callers narrow the symbols or depth instead.
 
 Rationale: continuing an exponential traversal would retain unbounded frontier
 state.
-<!-- from: 12#38 -->
 
 ### Shallow Tree-sitter surface
 
@@ -504,21 +446,16 @@ python javascript typescript tsx go rust java kotlin c cpp c_sharp ruby php
 scala swift lua elixir haskell bash
 ```
 
-<!-- from: 12#39, 12#40 -->
-
 **CAN-R46.** The extension mapping is code-backed and versioned with the
 Toolset.
-<!-- from: 12#41 -->
 
 **CAN-R47.** The startup probe loads every v1 parser from the installed
 wheel without network access. If the fixed set cannot be honored, both shallow
 operations are omitted rather than advertising an unexpressed language subset.
 Runtime startup never downloads grammars.
-<!-- from: 12#41 -->
 
 **CAN-R48.** Extensions match case-insensitively, so `Tool.PY` is
 Python source.
-<!-- from: 12#42 -->
 
 **CAN-R49.** A `.h` header is valid C and C++ alike, so one
 snapshot-wide rule picks its grammar for shallow analysis, graph admission and
@@ -528,7 +465,6 @@ otherwise C. A C project with a vendored C++ file therefore keeps C headers.
 
 Rationale: a tie favours C++, whose grammar parses nearly every C header, while
 the C grammar rejects every class, namespace, template and reference.
-<!-- from: 12#42 -->
 
 #### `search_def`
 
@@ -536,22 +472,17 @@ the C grammar rejects every class, namespace, template and reference.
 search_def(symbol, path="", language="", cursor="", limit=50)
 ```
 
-<!-- from: 12#43 -->
-
 **CAN-R50.** `symbol` is mandatory and is matched against extracted
 definition names using exact and case-folded bare-name comparison.
-<!-- from: 12#44 -->
 
 **CAN-R51.** A C or C++ definition is named by its declarator below any
 pointer, reference, array or parenthesized wrapper. A qualified C++ name keeps
 its scopes without template arguments (`Box<T>::get` is `Box::get`), and an
 operator keeps its written form (`operator()`).
-<!-- from: 12#44 -->
 
 **CAN-R52.** `path` is the normalized relative workspace root or
 subtree; `language` is empty or one exact v1 language name; `limit` is 1..200
 (LIM-CAN-8).
-<!-- from: 12#44 -->
 
 **CAN-R53.** For efficiency, the implementation first performs a
 bounded case-folded text prefilter for the bare symbol, then parses only
@@ -560,24 +491,20 @@ symbols are already cached skips the text scan: a definition's bare name is
 part of its source, so the cached rows decide the match. Only a cached file
 with a parse-error or long-name flag is still scanned, because those flags
 count in coverage only when the file contains the symbol.
-<!-- from: 12#45 -->
 
 **CAN-R54.** Search retains and counts only matching definitions toward
 the compact-symbol ceiling (LIM-CAN-7), so results are identical with
 or without the cache.
-<!-- from: 12#45 -->
 
 **CAN-R55.** Results are sorted by path, start line, column, name and
 node type. Each row contains `name`, `path`, `line`, `endLine`, `column`,
 `nodeType`, `language` and an optional definition preview capped at 12 lines
 and 4 KiB (LIM-CAN-21). A caller can use `filesystem@1/read_file` for
 more context.
-<!-- from: 12#45 -->
 
 **CAN-R56.** Absence of a structural definition returns an empty
 result. It never silently turns into a grep result; a template that wants
 textual occurrences explicitly grants `filesystem@1/grep`.
-<!-- from: 12#46 -->
 
 #### `list_symbols`
 
@@ -585,25 +512,20 @@ textual occurrences explicitly grants `filesystem@1/grep`.
 list_symbols(path="", language="", node_type="", cursor="", limit=100)
 ```
 
-<!-- from: 12#47 -->
-
 **CAN-R57.** `list_symbols` returns structural definition rows with the
 same location fields as `search_def` but no source preview. `language` and
 `path` have the same meaning as in `search_def`.
-<!-- from: 12#48 -->
 
 **CAN-R58.** `node_type` is empty or an exact parser node type. It is
 deliberately language-specific rather than pretending v1 has a lossless common
 symbol-kind taxonomy. A returned row's `nodeType` is a valid exact filter value
 for a subsequent call. Rows are sorted by path, start line, column, name and
 node type.
-<!-- from: 12#48 -->
 
 #### Parsing off the event loop
 
 **CAN-R59.** Both shallow tools perform CPU parsing outside the asyncio
 event-loop thread.
-<!-- from: 12#49 -->
 
 **CAN-R60.** The 10-second scan budget (LIM-CAN-11) is
 cooperative between files, because a Tree-sitter C parse cannot be safely
@@ -611,11 +533,9 @@ preempted inside a Python thread; the 4 MiB per-file ceiling
 (LIM-CAN-5) bounds one uninterrupted parser call. Budget exhaustion
 after that call returns explicit `deadline` coverage and retains no partial
 AST.
-<!-- from: 12#49 -->
 
 **CAN-R61.** The shallow cache may accelerate later calls but
 cannot change results or cursor ordering.
-<!-- from: 12#49 -->
 
 Rationale: offloading a parse does not keep the event loop responsive during
 it. The pinned binding holds the GIL for the whole `Parser.parse` call, so the
@@ -625,7 +545,6 @@ density (tens of milliseconds for a few MiB of long lines, around a second for
 on one stall. Result-page fitting also runs in a worker thread; it encodes each
 row once and only the small envelope per tried page size, so it keeps the loop
 running apart from interpreter pauses such as garbage collection.
-<!-- from: 12#50 -->
 
 ### Trailmark graph surface
 
@@ -634,12 +553,10 @@ running apart from interpreter pauses such as garbage collection.
 **CAN-R62.** Graph support pins exactly `trailmark==0.5.0`. A version
 change requires a new review, a lock update and either proven compatibility or
 a new Toolset version.
-<!-- from: 12#51 -->
 
 **CAN-R63.** All Python packages and grammar data are installed in the
 Runtime image or environment before startup. Capability probing is finite and
 offline.
-<!-- from: 12#51 -->
 
 **CAN-R64.** On the first graph call for a digest, the Runtime:
 
@@ -655,8 +572,6 @@ offline.
 6. serves typed bounded requests over a framed, size-bounded local protocol
    (LIM-CAN-18, LIM-CAN-19).
 
-<!-- from: 12#52, 12#53 -->
-
 **CAN-R65.** The graph never reads `ProjectWorkspaceStorage.root`, the
 local provider's live physical underlay or a model-supplied path.
 
@@ -665,21 +580,18 @@ implementation detail, and an overlay's lower tree is intentionally stale after
 edits. Snapshot materialization makes the graph match the same effective tree
 as the shallow and filesystem tools and prevents host paths from escaping in
 results.
-<!-- from: 12#54 -->
 
 **CAN-R66.** The child uses Trailmark's public parse-only API and
 retained `CodeGraph` data. The adapter does not reach through
 `QueryEngine._store._graph`, install a process-global parser monkeypatch or
 expose raw Trailmark objects. The mirror already excludes binary and non-UTF-8
 data, so no global UTF-8 workaround is needed.
-<!-- from: 12#56 -->
 
 **CAN-R67.** Graph language coverage is the exact supported set
 returned by the pinned Trailmark 0.5.0 public API: Python, JavaScript,
 TypeScript/TSX, PHP, Ruby, C, C++, C#, Java, Go, Rust, Solidity, Cairo, Circom,
 Haskell, Erlang, MASM, Swift, Objective-C, Kotlin, Dart, Move, Tact, FunC,
 Sway, Rego, Protobuf, Thrift, GraphQL and SQL.
-<!-- from: 12#57 -->
 
 **CAN-R68.** Graph coverage counts as unsupported:
 
@@ -690,13 +602,10 @@ Sway, Rego, Protobuf, Thrift, GraphQL and SQL.
   with its C and Objective-C grammars, after a `.c`, `.m` or `.mm` source
   activates one of them.
 
-<!-- from: 12#57 -->
-
 #### Stable symbol identity
 
 **CAN-R69.** Raw Trailmark IDs and Trailmark's ambiguous first-name
 resolver are not model-facing.
-<!-- from: 12#58 -->
 
 **CAN-R70.** For each graph, Contractor maps every Trailmark node to an
 opaque `symbolId` that is deterministic within the allocation,
@@ -704,16 +613,13 @@ integrity-protected by an allocation-local random key and bound to the
 workspace digest plus the complete upstream node ID. The token contains a
 bounded digest tag, so the session can distinguish stale from unknown IDs
 without retaining an old graph.
-<!-- from: 12#58 -->
 
 **CAN-R71.** `symbolId` collisions fail the build, cross-allocation IDs
 fail validation, and the key is erased on close.
-<!-- from: 12#58 -->
 
 **CAN-R72.** All graph results expose only this ID, the symbol
 name, kind and normalized relative source location. They never expose the
 mirror, workspace-provider or Runtime host path.
-<!-- from: 12#58 -->
 
 **CAN-R73.** Trailmark names a root `__init__.py` module after its
 parse-root directory, which is the randomly named mirror. The child therefore
@@ -721,14 +627,12 @@ rewrites that module, the definitions below it and the proxy nodes of its
 unresolved calls to the `__init__` package (`__init__:print` for a builtin
 call), so their upstream IDs, names and `symbolId` values stay identical when
 the same digest is rebuilt after an invalidation or query timeout.
-<!-- from: 12#59 -->
 
 **CAN-R74.** `find_symbol` is the only name-to-ID operation. Every
 relationship and path tool requires an exact `symbolId`; no graph operation
 resolves an ambiguous name by choosing the first equal bare name. An ID from
 an older digest fails with `code_analysis_stale_symbol`; an exact `symbolId`
 that is absent fails with `code_analysis_symbol_not_found`.
-<!-- from: 12#60, 12#75, 12#82 -->
 
 #### Graph operations
 
@@ -746,14 +650,11 @@ that is absent fails with `code_analysis_symbol_not_found`.
 | `complexity_hotspots(threshold=10, cursor="", limit=100)` | Nodes with detected cyclomatic complexity at or above `threshold` (1..10,000, LIM-CAN-22), highest first. |
 | `functions_that_raise(exception, cursor="", limit=100)` | Nodes whose parsed exception type exactly matches the bounded name. |
 
-<!-- from: 12#61 -->
-
 **CAN-R76.** `limit` for ordinary collections is 1..200
 (LIM-CAN-8). Path `limit` is 1..50 (LIM-CAN-15) and `max_depth` is
 1..20 (LIM-CAN-16). Rows and adjacency lists use deterministic sorting
 before pagination or traversal. A path is a list of slim symbol projections,
 not a list of raw Trailmark IDs.
-<!-- from: 12#62 -->
 
 **CAN-R77.** `find_callers` and `find_callees` return one row per
 distinct related symbol; their `observedTotal` counts those symbols, not call
@@ -761,21 +662,18 @@ sites. When multiple call sites join the same pair, the row uses the strongest
 confidence (`certain` over `inferred` over `uncertain`).
 `graph_summary.callEdgeCount` still counts the underlying Trailmark call-site
 edges.
-<!-- from: 12#63 -->
 
 **CAN-R78.** Contractor must not invoke Trailmark's public
 `paths_between` and `entrypoint_paths_to` implementations, which materialize
 all simple paths before the caller can slice them. The child performs its own
 deterministic depth-limited traversal over the retained `CodeGraph` call edges
 and stops after `limit + 1` results.
-<!-- from: 12#64 -->
 
 **CAN-R79.** Before descending, the child runs one reverse
 breadth-first search from the target, bounded by `max_depth`, and never enters
 a successor whose shortest call distance to the target exceeds the remaining
 depth. An unreachable or too-distant target, including one queried from every
 entrypoint, therefore costs no path enumeration.
-<!-- from: 12#65 -->
 
 **CAN-R80.** Every path query shares one successor-examination
 budget (LIM-CAN-17) across all of its sources, because
@@ -783,72 +681,59 @@ shortest-distance pruning cannot drop a valid simple path but cannot rule out a
 shortest route blocked by nodes already on the current path. Exhausting the
 budget returns the paths found so far with `truncated: true` well before the
 query deadline, so the child and its mirror are retained for the next call.
-<!-- from: 12#65 -->
 
 ### Graph child lifecycle and failure
 
 **CAN-R81.** The child is lazy: selecting a graph tool does not build a
 repository graph at allocation prepare. Build, query and mirror replacement
 serialize per allocation and run outside the Runtime asyncio event-loop thread.
-<!-- from: 12#66 -->
 
 **CAN-R82.** The parent enforces the build and query deadlines
 (LIM-CAN-13, LIM-CAN-12), the protocol bounds
 (LIM-CAN-18, LIM-CAN-19) and the fixed child memory ceiling
 (LIM-CAN-14). A Runtime whose OS cannot install and verify that
 memory and process-group boundary omits graph operations during probe.
-<!-- from: 12#67 -->
 
 **CAN-R83.** A timeout, malformed frame, unexpected exit or
 memory-limit termination kills and reaps the complete child (FAIL-CAN-2).
-<!-- from: 12#67 -->
 
 **CAN-R148.** A definitely-unprocessed read-only operation may be
 replayed once (LIM-CAN-23) after one clean child start or rebuild. There is
 no mutation or external side effect to reconcile.
-<!-- from: 12#67 -->
 
 **CAN-R149.** An operation that already exceeded its deadline is not
 automatically repeated.
-<!-- from: 12#67 -->
 
 **CAN-R150.** After the child is killed, the next model call may cause a
 fresh build.
-<!-- from: 12#67 -->
 
 **CAN-R84.** On graceful Worker terminalization, Runtime closes the
 analysis session and reaps the child while retaining the ordinary project
 workspace for existing release semantics. The later release idempotently
 confirms that teardown and removes any residual bounded state; ordinary
 success leaves no mirror or cache (LIFE-CAN-1).
-<!-- from: 12#68 -->
 
 **CAN-R85.** Abort, lost lease, failed prepare and process shutdown cancel
 analysis, kill and reap the child, and remove the mirror before a slot can
 become reusable.
-<!-- from: 12#68 -->
 
 **CAN-R86.** Mirror materialization runs in an uninterruptible
 worker thread. Cancellation, however often repeated, waits for it, registers
 any written mirror with the session and only then propagates as cancellation
 rather than a Toolset error.
-<!-- from: 12#68 -->
 
 **CAN-R87.** Tool close is idempotent and composes with the
 allocation-wide bounded cleanup task of [Workspace](workspace.md).
-<!-- from: 12#68 -->
 
 **CAN-R88.** Failure to confirm child termination or mirror cleanup
 leaves the Runtime fenced; it cannot return an apparently clean slot
 (FAIL-CAN-3). Release cannot make a slot reusable while an analysis
 child, mirror or source-bearing cache remains live.
-<!-- from: 12#68, 12#82 -->
 
 **CAN-R89.** No graph, index or mirror is persisted as an Artifact or
 reused by another allocation. Router Workers receive independent workspace
 sessions, mirrors, children, allocation keys and symbol IDs even when their
 initial source artifacts are equal.
-<!-- from: 12#69 -->
 
 ### Bundled code-analysis Workflows and discovery template
 
@@ -858,25 +743,21 @@ graph-backed workspace choices. The bundled `openapi-from-workspace@5`,
 ([Workflows](../configuration/workflows.md)) use the discovery AgentTemplate
 `workspace_source_graph_analyst@1`, which selects all eleven operations, so
 each waits for complete local graph capacity.
-<!-- from: 12#70, 12#71 -->
 
 **CAN-R91.** Whether the built-in project Workflows may use the
 shallow operations is defined in Workflows
 ([WFL-R79](../configuration/workflows.md)); this document's placement rule
 is CAN-R16, with no graph-to-shallow fallback (CAN-R146).
-<!-- from: 12#72 -->
 
 **CAN-R92.** `workspace_source_graph_analyst@1` retains only
 bounded filesystem reads and explicit text-artifact read and write operations
 in addition to its exact `code-analysis@1` allowlist. It has no Edit or
 workspace-change tool authority.
-<!-- from: 12#73, 12#71 -->
 
 **CAN-R93.** Its Worker instructions explain
 model-visible operation semantics, opaque graph identity, coverage and
 truncation without describing configuration objects, placement, process
 identity, scratch paths or implementation protocols.
-<!-- from: 12#73 -->
 
 ### Taint annotations
 
@@ -892,8 +773,6 @@ data and control flow. The comments have these forms:
 @sink kind=<kind> arg=<name-or-unknown>
 ```
 
-<!-- from: 13#3, 13#4 -->
-
 **CAN-R95.** The exact ref is `taint-annotations@1`; it exports
 exactly:
 
@@ -903,38 +782,31 @@ annotate_validate
 annotate_sink
 ```
 
-<!-- from: 13#11, 13#12 -->
-
 **CAN-R96.** All three operations are available together after
 the Runtime's exact pinned Tree-sitter dependencies and all nineteen v1
 language parsers pass their bounded offline startup probe. They are portable
 across `local` and `memory` workspace storage and work in both `direct` and
 `overlay` mode.
-<!-- from: 13#13 -->
 
 **CAN-R97.** A Runtime with no workspace provider or a failed
 parser probe advertises no `taint-annotations@1` capability. There is no
 partial language capability and no grep fallback.
-<!-- from: 13#13 -->
 
 **CAN-R98.** The factory declares `requires_workspace=true`,
 `workspace_access=write` and no infrastructure channels. Selecting any
 operation therefore requires `context.workspace`, but does not by itself
 require overlay mode.
-<!-- from: 13#14 -->
 
 **CAN-R99.** In direct mode the mutation lives only in the
 disposable allocation copy. A Workflow that needs durable annotation output
 selects overlay mode and ordinary workspace `state`/`diff` result slots; the
 pre-terminal auto-export contract of [Workspace](workspace.md) remains the only
 persistence path (LIFE-CAN-2).
-<!-- from: 13#14 -->
 
 **CAN-R100.** `taint-annotations@1` is independent of
 `code-analysis@1`; a template may select either or both. The annotation
 resolver uses Tree-sitter internally but does not accept or emit the graph
 Toolset's allocation-private `symbolId`.
-<!-- from: 13#15 -->
 
 #### Annotation operations
 
@@ -943,7 +815,6 @@ paths. `symbol` is the exact case-sensitive structural name as written in a
 function-like declaration: Python and Java methods use the bare name (`get` in
 `Handler.get`), an out-of-line C++ definition uses `Handler::get` (`Box::get`
 for `Box<T>::get`), and a Lua dotted function uses `Handler.get`.
-<!-- from: 13#16 -->
 
 **CAN-R102.** Callers may omit `definition_line` by passing its
 default `0` when `(path, symbol)` identifies exactly one declaration. If more
@@ -951,12 +822,10 @@ than one real declaration matches, the operation fails with
 `taint_annotation_target_ambiguous`; the caller then supplies a positive
 1-based `definition_line` observed in the current source or structural-search
 result.
-<!-- from: 13#16 -->
 
 **CAN-R103.** Wrapper rows belonging to the same decorated or
 exported declaration are deduplicated and accepted as selectors for that one
 declaration.
-<!-- from: 13#16 -->
 
 ```text
 annotate_trace(
@@ -969,43 +838,33 @@ annotate_trace(
 )
 ```
 
-<!-- from: 13#17 -->
-
 **CAN-R104.** `args` is a comma-separated ordered list of `name:state`
 entries, where the state is exactly one of `tainted`, `validated`, `clean` or
 `derived`. `calls` is a comma-separated ordered list of direct target-relevant
 callees. Empty `args` and `calls` fields are omitted from the inserted line.
 `target` defaults to the literal `unknown`; Runtime never infers it.
-<!-- from: 13#18 -->
 
 **CAN-R105.** One declaration may have multiple trace lines for
 different targets. Their order is insertion order.
-<!-- from: 13#19 -->
 
 ```text
 annotate_validate(path, symbol, arg, kind, definition_line=0)
 ```
-
-<!-- from: 13#20 -->
 
 **CAN-R106.** `annotate_validate` inserts one
 `@validate arg=<arg> kind=<kind>` line. Runtime validates only the bounded
 machine syntax: the trace Skill supplies the semantic vocabulary and evidence
 discipline, and Runtime does not guess whether visible code really validates
 the argument.
-<!-- from: 13#21 -->
 
 ```text
 annotate_sink(path, symbol, kind, arg="unknown", definition_line=0)
 ```
 
-<!-- from: 13#22 -->
-
 **CAN-R107.** `annotate_sink` inserts one `@sink kind=<kind> arg=<arg>`
 line; `arg` defaults to `unknown`. As with validation, the selected Skill and
 Worker own semantic classification, and Runtime owns only safe structural
 mutation.
-<!-- from: 13#23 -->
 
 **CAN-R108.** Every successful response has this closed shape and
 contains neither source excerpts nor annotation text:
@@ -1021,11 +880,8 @@ contains neither source excerpts nor annotation text:
 }
 ```
 
-<!-- from: 13#24, 13#25, 13#26 -->
-
 **CAN-R109.** On exact replay, `changed` is false and the line
 numbers describe the already-current file.
-<!-- from: 13#26 -->
 
 #### Structural resolution and placement
 
@@ -1034,25 +890,21 @@ declarations in the same nineteen languages as the shallow code-analysis
 surface. Classes, interfaces, types, imports, call sites and non-callable
 variables never qualify. Named arrow or closure assignments supported by the
 pinned grammar qualify under their assigned variable name.
-<!-- from: 13#27 -->
 
 **CAN-R111.** The resolver parses only the named current UTF-8
 managed-text file. It finds all exact structural matches, folds parser wrapper
 nodes belonging to one real declaration, and applies `definition_line` only
 after that deduplication. It never selects the first ambiguous result.
-<!-- from: 13#28 -->
 
 **CAN-R112.** A `.h` header uses the snapshot-wide C or C++ grammar
 rule of the shallow surface (CAN-R49), so a function definition that
 `search_def` returns from a header resolves here too.
-<!-- from: 13#28 -->
 
 **CAN-R113.** Line numbers, both the `definition_line` selector and
 the returned `annotationLine` and `definitionLine`, use
 `filesystem@1/read_file` boundaries: CRLF, a lone CR and LF each end exactly
 one line, and other Unicode separators do not. They are derived from byte
 offsets rather than parser rows, which advance only at LF.
-<!-- from: 13#29 -->
 
 **CAN-R114.** The inserted comment uses the target declaration's
 indentation and the file's existing newline style: the file's first LF-based
@@ -1061,7 +913,6 @@ used.
 
 Rationale: several parser grammars, such as Python and Go, continue a line
 comment past a lone CR, so the comment would swallow the declaration.
-<!-- from: 13#30 -->
 
 **CAN-R115.** Marker selection is fixed:
 
@@ -1071,19 +922,15 @@ comment past a lone CR, so the comment would swallow the declaration.
 | Haskell, Lua | `--` |
 | JavaScript, TypeScript, TSX, Go, Rust, Java, Kotlin, C, C++, C#, PHP, Scala, Swift | `//` |
 
-<!-- from: 13#30, 13#31 -->
-
 **CAN-R116.** Insertion precedes the declaration's complete syntax-owned
 prefix, so it lands above Python and TypeScript decorators, Rust and PHP
 attributes, Java and C# annotations, JavaScript exports and C++ templates
 rather than splitting those constructs.
-<!-- from: 13#32 -->
 
 **CAN-R117.** Existing immediately adjacent canonical taint annotations
 remain one contiguous block, and new lines append to that block so
 multi-target order is stable. Unrelated whitespace, comments and source bytes
 do not change.
-<!-- from: 13#32 -->
 
 #### Input limits and canonical form
 
@@ -1100,27 +947,21 @@ do not change.
 | canonical annotation line | 4 KiB UTF-8 | LIM-CAN-29 |
 | `definition_line` | `0` or `1..2147483647` | LIM-CAN-30 |
 
-<!-- from: 13#33, 13#34 -->
-
 **CAN-R119.** Emitted tokens use only ASCII letters, digits and the
 reviewed punctuation `_ . $ : / { } [ ] * ? + - < >`. Argument names
 additionally exclude `:` because it separates state.
-<!-- from: 13#35 -->
 
 **CAN-R120.** Empty entries, duplicates, whitespace, control
 characters, `=`, comma, comment introducers and newline injection are
 rejected.
-<!-- from: 13#35 -->
 
 **CAN-R121.** Runtime canonicalizes comma-separated lists without
 spaces and preserves their declared order.
-<!-- from: 13#35 -->
 
 #### Atomicity, replay and lifecycle
 
 **CAN-R122.** One allocation owns one annotation session
 (LIM-CAN-31), and calls through it serialize.
-<!-- from: 13#36 -->
 
 **CAN-R123.** A mutation follows this sequence:
 
@@ -1130,30 +971,24 @@ spaces and preserves their declared order.
    the parsed bytes, and apply the already-computed single-line insertion only
    if they still match.
 
-<!-- from: 13#36, 13#37 -->
-
 **CAN-R124.** Any Edit tool or other writer that wins between steps 1
 and 3 causes the retryable `taint_annotation_workspace_changed` error
 (FAIL-CAN-4). The annotation call never overwrites that change.
 There is no non-atomic read-then-write fallback.
-<!-- from: 13#38 -->
 
 **CAN-R125.** Toolsets keep their own session locks; local-direct
 workspace mutations, commands and snapshots also share the workspace operation
 guard.
-<!-- from: 13#38 -->
 
 **CAN-R126.** An exact canonical annotation already in the target's
 adjacent annotation block is a successful idempotent replay (`changed=false`).
 This covers a lost tool response after a committed write.
-<!-- from: 13#39 -->
 
 **CAN-R127.** For `@trace`, a second line for the same target with a
 different canonical body, that is different arguments or callees, returns
 `taint_annotation_conflict` rather than silently rewriting the existing line;
 lines for different targets remain valid. Exact duplicate `@validate` or
 `@sink` lines are no-ops; distinct validation and sink lines may coexist.
-<!-- from: 13#19, 13#39 -->
 
 **CAN-R128.** Cancellation while Tree-sitter is running waits for
 the bounded worker thread before releasing session ownership, then reports
@@ -1161,14 +996,12 @@ cancellation. Workspace commit itself is short and non-awaiting under the
 workspace lock: cancellation may happen before it or after a complete commit,
 never in the middle. A replay after an uncertain response reconciles through
 the exact no-op rule (CAN-R126).
-<!-- from: 13#40 -->
 
 **CAN-R129.** `close()` is idempotent, prevents new calls and waits
 for any active parse or mutation. Normal finalize, abort, lease loss and
 release use the existing Toolset-before-workspace teardown order. No parser
 tree, source snapshot, physical path or annotation body survives allocation
 cleanup (LIFE-CAN-3).
-<!-- from: 13#41 -->
 
 #### Annotations and findings
 
@@ -1176,13 +1009,11 @@ Whether annotated source and its state or diff are Workflow outputs, whether
 Audit results and findings use annotations, and how an annotation artifact
 becomes evidence through an explicit reference to an existing exact artifact
 revision are defined in [Findings](../findings/findings.md).
-<!-- from: 13#8, 13#9 -->
 
 **CAN-R130.** Annotation identity and participation in an
 investigation are different facts: an existing annotation comment, or a
 repeated call returning `changed=false`, does not prove that the current
 Worker checked that path.
-<!-- from: 13#9 -->
 
 #### Bundled trace template and Workflow
 
@@ -1191,26 +1022,22 @@ trace template intentionally does not select generic `edit-files@1`, so
 annotation comments go through the structured surface. This is an
 AgentTemplate policy, not a hidden Runtime ban: another explicitly versioned
 template may select both Toolsets.
-<!-- from: 13#48 -->
 
 **CAN-R132.** The checked-in `workspace_taint_analyst@1` template
 selects the complete local graph surface, all three annotation operations,
 bounded filesystem reads, workspace change inspection and text-artifact reads
 and writes.
-<!-- from: 13#49 -->
 
 **CAN-R133.** The one-Stage `taint-trace-from-workspace@2`
 Workflow supplies `target`, optional `objective` and `context` strings,
 hydrates one required source ZIP in overlay mode, and maps the evidence report
 plus the cumulative overlay state and text diff to Workflow outputs.
-<!-- from: 13#49 -->
 
 **CAN-R134.** The Worker uses `changed_paths` and `diff` to verify
 intended edits and never calls a materialize operation. When its Workflow
 selects overlay export, the resulting cumulative state can be applied by a
 later Stage and the text diff can be analyzed as an ordinary artifact, as
 defined in [Workspace](workspace.md).
-<!-- from: 13#50 -->
 
 ## Interfaces
 
@@ -1228,8 +1055,6 @@ shapes are stated with their requirements:
 | `code-analysis@1` common | `coverage`, collection fields, cursors | [Bounds and coverage](#bounds-and-coverage) |
 | `taint-annotations@1` | `annotate_trace`, `annotate_validate`, `annotate_sink` | [Annotation operations](#annotation-operations) |
 
-<!-- from: 12#7, 12#24, 12#33, 12#37, 12#61, 13#7, 13#12 -->
-
 ## Limits, failures and errors
 
 Limits LIM-CAN-1 to LIM-CAN-31 are registered in
@@ -1243,45 +1068,38 @@ session state (LIFE-CAN-1), annotations written into the workspace
 (LIFE-CAN-3) is registered in [lifecycle](../platform/lifecycle.md).
 Error codes, with their meaning and retryability, are registered in
 [errors](../platform/errors.md).
-<!-- from: 12#31, 12#67, 12#68, 13#34, 13#41, 12#74, 13#42 -->
 
 **CAN-R135.** The model-visible error vocabulary of `code-analysis@1`
 is [ERR-R11](../platform/errors.md); this document owns the conditions that
 raise each code (CAN-R32, CAN-R42, CAN-R74, CAN-R83, CAN-R136 to CAN-R138).
-<!-- from: 12#74, 12#75 -->
 
 **CAN-R136.** Invalid input, stale or not-found symbol and deterministic
 capacity failures are non-retryable for the same request. Workspace change is
 retryable by restarting the tool query. Unexpected child failure is retryable
 only after the one internal read-only recovery attempt has failed
 (FAIL-CAN-2).
-<!-- from: 12#76 -->
 
 **CAN-R137.** The child reports a request-time memory exhaustion as
 non-retryable capacity; if it cannot write that response, exit status 71
 carries the same classification. An unrecognized child death remains a
 retryable engine failure.
-<!-- from: 12#76 -->
 
 **CAN-R138.** Code-analysis errors contain a stable code,
 retryability and bounded structural counts. They never contain source text,
 query strings, relative or host paths, raw child stderr or arbitrary
 exceptions.
-<!-- from: 12#76 -->
 
 **CAN-R139.** The closed model-visible error vocabulary of
 `taint-annotations@1`, including which codes are retryable, is
 [ERR-R12](../platform/errors.md); this document owns the conditions that
 raise each code (CAN-R102, CAN-R110, CAN-R111, CAN-R118, CAN-R124, CAN-R127,
 CAN-R128, CAN-R129, CAN-R140).
-<!-- from: 13#42, 13#43 -->
 
 **CAN-R140.** Annotation errors never include source,
 annotation text, input values, logical or physical paths, parser diagnostics or
 arbitrary exceptions. Raw ADK arguments are validated before framework
 binding, so unknown fields and wrong types also map to
 `taint_annotation_input_invalid`.
-<!-- from: 13#44 -->
 
 ## Security
 
@@ -1300,7 +1118,6 @@ CAN-R120); error content (CAN-R138,
 CAN-R140); telemetry content (CAN-R142,
 CAN-R144); and the tool authority of the bundled templates
 (CAN-R92, CAN-R131).
-<!-- from: 12#4, 12#24, 12#37, 12#53, 12#54, 12#58, 12#69, 12#73, 12#76, 12#77, 13#6, 13#35, 13#44, 13#45, 13#48 -->
 
 ## Observability
 
@@ -1308,27 +1125,22 @@ CAN-R144); and the tool authority of the bundled templates
 Toolset and operation, the shallow or graph engine, outcome, duration, analyzed
 file, byte and symbol counts, skip and error counts, cache hit and
 invalidation, build and rebuild count and classified child termination.
-<!-- from: 12#77 -->
 
 **CAN-R142.** Metrics, logs, final reports and OTLP must not
 contain symbol or query text, source paths, source or preview content, raw IDs,
 cursors, scratch paths or credentials.
-<!-- from: 12#77 -->
 
 **CAN-R143.** Child stdout is protocol-only; stderr is bounded and
 reduced to a safe failure class instead of being copied to logs.
-<!-- from: 12#77 -->
 
 **CAN-R144.** `taint-annotations@1` Worker metrics may contain
 operation, kind, outcome, duration and `changed`. They must not retain path,
 symbol, target, argument, call or kind values, source, annotation text, parser
 diagnostics, workspace digest, physical path or credentials.
-<!-- from: 13#45 -->
 
 **CAN-R145.** Tool results sent intentionally to the model may
 contain the closed success projection (CAN-R108); automatic logs,
 final reports and OTLP do not.
-<!-- from: 13#45 -->
 
 ## Invariants
 
@@ -1354,8 +1166,6 @@ These properties follow from the cited requirements, which are authoritative.
    (CAN-R29).
 10. Release cannot make a slot reusable while an analysis child, mirror or
     source-bearing cache remains live (CAN-R88).
-
-<!-- from: 12#82 -->
 
 ## Examples
 
@@ -1399,7 +1209,6 @@ and for a local workspace Runtime whose Trailmark probe succeeded:
 ```
 
 The examples omit unrelated capability fields and workspace limits.
-<!-- from: 12#10, 12#11, 12#13, 12#14 -->
 
 ### AgentTemplate selections
 
@@ -1413,8 +1222,6 @@ spec:
         - search_def
         - list_symbols
 ```
-
-<!-- from: 12#17, 12#18 -->
 
 A graph-oriented template lists every graph operation it intends to expose:
 
@@ -1434,8 +1241,6 @@ spec:
         - functions_that_raise
 ```
 
-<!-- from: 12#19, 12#20 -->
-
 A trace-oriented template explicitly selects its authority:
 
 ```yaml
@@ -1454,8 +1259,6 @@ spec:
       name: trace
 ```
 
-<!-- from: 13#46, 13#47 -->
-
 ## Non-goals
 
 - The following behaviour is excluded from the read-only `code-analysis@1`
@@ -1473,10 +1276,8 @@ spec:
   - persisted/shared graph artifacts, cross-allocation caches and hidden
     cross-Run reuse;
   - a model-visible refresh/materialize operation or silent shallow fallback.
-  <!-- from: 12#79, 12#80 -->
 - An annotation participation registry. `target` is model-authored text, not a
   trusted Audit item identity. A structured index, snapshot reconciliation and
   cross-Worker attribution remain a separate
   [research proposal](../../research/annotation-index-proposal.md), not a
   requirement for existing annotation or finding tools.
-  <!-- from: 13#10 -->

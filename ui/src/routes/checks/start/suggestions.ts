@@ -7,7 +7,7 @@
  * fixed sentence that says only what the rule checked: which words the
  * objective mentions and what the check type does. Materials are matched by
  * format alone, so the reason says "format matches" and never claims that a
- * material fits the objective (docs/spec/ui-user-stories.md US-03).
+ * material fits the objective (docs/spec/ui/journeys.md US-03).
  */
 
 export interface SuggestionRule {

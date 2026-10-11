@@ -6,7 +6,7 @@ current Server/Runtime. A live comparison requires a new, separately pinned
 experiment using `audit-results@2` and trusted Worker completion in both arms.
 No quality or token-efficiency improvement has been measured yet.
 
-Normative contract: [portable evaluation format](../../../docs/spec/26-portable-evaluation-format.md).
+Normative contract: [portable evaluation format](../../../docs/spec/evals/format.md).
 V41-001–V41-008 passed the offline format gate on 2026-09-07.
 V40 may now map fixture gaps and prepare explicitly pinned experiments. Live model
 execution remains a separate task with an explicit frozen budget.
@@ -68,8 +68,8 @@ docstrings separately later; do not attribute a combined change to instructions.
 ## Use the existing Server evaluation mechanism
 
 The live experiment is a client of existing Server APIs, following
-[Run metadata labels](../../../docs/spec/16-run-metadata-labels.md) and
-[evaluation Projects](../../../docs/spec/17-projects-and-queue.md). It introduces
+[Run metadata labels](../../../docs/spec/execution/runs.md) and
+[evaluation Projects](../../../docs/spec/artifacts/projects.md). It introduces
 no execution engine, queue, Run store, or per-case Server process. The Server
 already provides exact inputs, retries, cancellation, idempotency, retained
 outputs and telemetry. Evals can show these Project/Runs immediately; the full

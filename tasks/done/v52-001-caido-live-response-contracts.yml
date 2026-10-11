@@ -15,7 +15,7 @@ goal: >-
   Caido schema and scalar representations rather than only mocked responses.
 context:
   authority: User requested autonomous local workflow baselines, correction of failures, and tasks for serious findings.
-  specification: docs/spec/11-http-and-caido-tools.md
+  specification: docs/spec/tools/http-caido.md
   evidence: >-
     Local Caido 0.56.2; Run run_61b5fd9b903532fa1dd31bce66c964c5.
     requestsByOffset requires HTTPQLInput/code and returns createdAt as an

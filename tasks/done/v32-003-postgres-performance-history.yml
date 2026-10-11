@@ -15,7 +15,7 @@ goal: >-
   consume the working connection pool or block normal execution on telemetry writes.
 
 context:
-  specification: docs/spec/22-performance-metrics-and-profiling.md
+  specification: docs/spec/operations/operations.md
   isolation: >-
     Enabled mode uses one additional performance pool with MaxConns=1, MinConns=0,
     the existing DB connection configuration and a fixed performance application_name.

@@ -31,8 +31,6 @@ It leaves to other documents:
   and cancellation ownership: [Failure model](failure-model.md);
 - the bounded public error envelope: [Public API](../api/public-api.md).
 
-<!-- from: 04#9, 08#54, 09#36, 09#81, 09#83, 10#88, 11#61, 12#75, 13#43, 14#37 -->
-
 ## Concepts
 
 Each term is defined once in the [glossary](../glossary.md).
@@ -56,8 +54,6 @@ Each term is defined once in the [glossary](../glossary.md).
 - **Package validator code** — one of the Agent Skill package classification
   codes of ERR-R4.
 
-<!-- from: 00#154, 08#53, 08#54, 12#74, 13#42, 14#38, 02#72, 10#87, 11#60, 09#36 -->
-
 ## Requirements
 
 ### Planner Gateway errors
@@ -70,12 +66,9 @@ Each term is defined once in the [glossary](../glossary.md).
 | `planner_gateway_unavailable` | yes | Any other failed model request, such as a transient failure sent without a recovery authority or an unavailable recovery authority |
 | `planner_gateway_invalid_response` | yes | An HTTP 2xx reply without a usable choice or valid token usage; its valid usage is still charged |
 
-<!-- from: 04#9 -->
-
 The rules for retrying a transient failure inside a Planner invocation,
 ending the invocation on these errors and recording them in a StageTermination
 are owned by [Planners](../execution/planners.md).
-<!-- from: 04#8, 00#154 -->
 
 ### Worker result failures
 
@@ -92,11 +85,8 @@ are owned by [Planners](../execution/planners.md).
 - the `worker_budget_exhausted` code of [Worker](../execution/worker.md) and
   domain and runtime failures.
 
-<!-- from: 14#37 -->
-
 The conditions that raise each of these codes and their retryability are
 owned by [Worker](../execution/worker.md).
-<!-- from: 14#38 -->
 
 ### Memory tool errors
 
@@ -112,11 +102,8 @@ owned by [Worker](../execution/worker.md).
 | `memory_forbidden` | Tool/Worker/Stage capability or write fence rejects it | no |
 | `memory_unavailable` | Bounded infrastructure failure | yes |
 
-<!-- from: 08#53, 08#54 -->
-
 The note limits and the operations that raise these codes are owned by
 [Memory](../tools/memory.md).
-<!-- from: 08#53 -->
 
 ### Agent Skill errors
 
@@ -129,31 +116,24 @@ The note limits and the operations that raise these codes are owned by
 - `skill_name_mismatch` when directory/artifact/frontmatter names differ;
 - `skill_limit_exceeded` for any per-member, count or aggregate bound.
 
-<!-- from: 09#36 -->
-
 The package bounds and the validators that use these codes are owned by
 [Skills](../tools/skills.md).
-<!-- from: 09#36 -->
 
 **ERR-R5.** The terminal WorkflowRun initialization codes are
 `skill_artifact_not_found`, `skill_media_type_invalid`, any exact package
 validator code (ERR-R4), or `skill_fork_conflict`.
-<!-- from: 09#81 -->
 
 **ERR-R6.** Transient exact Skill reads and forks use
 `skill_artifact_unavailable` or `skill_fork_failed`, leave the Run
 `initializing` and follow the same Scheduler recovery as an input fork
 ([ART-R79](../artifacts/artifact-store.md)).
-<!-- from: 09#81 -->
 
 **ERR-R7.** A transient exact read or fork does not select current again
 after Run creation committed.
-<!-- from: 09#81 -->
 
 **ERR-R8.** A transient failure of the source-selection transaction itself
 commits no Run or idempotency row and is a retryable `POST /v1/runs` failure
 rather than a partially initialized Run.
-<!-- from: 09#81 -->
 
 **ERR-R9.** Allocation preparation distinguishes at least:
 
@@ -162,8 +142,6 @@ rather than a partially initialized Run.
 - an exact package validator code (ERR-R4), non-retryable for the recorded
   Run snapshot;
 - `skill_runtime_unsupported`, non-retryable placement/configuration failure.
-
-<!-- from: 09#83 -->
 
 ```mermaid
 flowchart TD
@@ -182,8 +160,6 @@ flowchart TD
         P -->|"skill_runtime_unsupported"| PU["Non-retryable placement/configuration failure"]
     end
 ```
-
-<!-- from: 09#81, 09#83 -->
 
 ### Workspace and filesystem tool errors
 
@@ -206,12 +182,9 @@ flowchart TD
   failure);
 - `workspace_export_failed`.
 
-<!-- from: 10#87, 10#88 -->
-
 The conditions that raise these codes, and the retryability of the codes not
 classified here, are owned by
 [Run workspaces and filesystem tools](../tools/workspace.md).
-<!-- from: 10#88 -->
 
 ### Code-analysis tool errors
 
@@ -237,8 +210,6 @@ is:
   operation was being joined;
 - `code_analysis_closing` — allocation termination has begun.
 
-<!-- from: 12#74, 12#75 -->
-
 ### Taint annotation tool errors
 
 **ERR-R12.** The model-visible error vocabulary of the taint annotation
@@ -256,12 +227,9 @@ tools is closed:
 - `taint_annotation_closing`;
 - `taint_annotation_unavailable` (retryable).
 
-<!-- from: 13#42, 13#43 -->
-
 The conditions that raise the code-analysis and taint annotation codes, and
 the retryability of the codes not classified here, are owned by
 [Code analysis](../tools/code-analysis.md).
-<!-- from: 12#75, 13#43 -->
 
 ### HTTP and Caido tool errors
 
@@ -272,13 +240,10 @@ the retryability of the codes not classified here, are owned by
 - `caido_not_configured`, `caido_request_invalid`, `caido_request_failed`,
   `caido_response_invalid`, `caido_response_too_large`.
 
-<!-- from: 11#60, 11#61 -->
-
 The target-policy denials that raise the non-retryable `http_target_denied`
 are owned by [Security](security.md) (SEC-R78). The conditions that raise the
 other codes and their retryability are owned by
 [HTTP and Caido tools](../tools/http-caido.md).
-<!-- from: 11#61 -->
 
 ## Limits, failures and errors
 
@@ -299,8 +264,6 @@ other codes and their retryability are owned by
 | Git import public error codes and the content their failure responses must not disclose | [Git import](../artifacts/git-import.md) |
 | The target-policy denials that raise `http_target_denied` (SEC-R78) | [Security](security.md) |
 
-<!-- from: 00#154, 04#8, 02#72, 02#73, 14#38, 15#32, 02#112, 04#34, 04#89, 07#104, 07#130, 16#35, 17#50, 19#41, 20#24, 24#32, 11#61 -->
-
 ### Related limits and failure outcomes
 
 - The bounds named in `memory_too_large` and `memory_namespace_full` are
@@ -311,8 +274,6 @@ other codes and their retryability are owned by
   selection at Run creation (FAIL-SKL-2), exact Skill reads and forks at Run
   initialization (FAIL-SKL-3) and Skill loading during allocation preparation
   (FAIL-SKL-4) by [Skills](../tools/skills.md).
-
-<!-- from: 08#54, 09#36, 04#9, 09#81, 09#83 -->
 
 ## Registry
 
@@ -554,4 +515,3 @@ requirement that defines the code.
 | `workspace_unavailable` | — | not specified | Bounded filesystem acquisition, I/O or mutation failure | [ERR-R10](errors.md), [WSP-R173](../tools/workspace.md) |
 
 <!-- /registry-table -->
-

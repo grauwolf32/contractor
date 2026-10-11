@@ -12,7 +12,6 @@ long a proposal of an ordinary Run stays readable. It also owns finding
 collections: the immutable collection package, its publication by the Server,
 its preparation inside Runtime, the `list_findings` reader tool, and the
 bundled configurations that produce or read findings.
-<!-- from: 27#3, 27#5, 27#53, 19#94, 13#8, 19#175, 27#49 -->
 
 It leaves to other documents:
 
@@ -52,7 +51,6 @@ It leaves to other documents:
   [errors](../platform/errors.md),
   [failure model](../platform/failure-model.md) and
   [lifecycle](../platform/lifecycle.md).
-<!-- from: 11#21, 11#36, 27#64, 13#9, 27#4, 27#58, 19#205, 27#57, 27#68, 33#96 -->
 
 ## Concepts
 
@@ -96,7 +94,6 @@ document owns are:
 - **Prepared reader.** The `list_findings` tool of one allocation after
   Runtime has materialized and verified every document of its bound
   collection in the current Run.
-<!-- from: 27#3, 19#74, 19#96, 19#100, 19#73, 27#55, 27#56, 27#57, 27#59, 27#60, 27#66, 27#5, 27#11, 27#20, 27#29, 27#37, 27#41 -->
 
 ## Model
 
@@ -121,7 +118,6 @@ A proposal is one JSON document under the schema
 | `limitations` | Distinct, nonblank values (FND-R10) |
 | `locations` | Optional typed locations |
 | `http_exchange` | Optional selected HTTP evidence |
-<!-- from: 19#72, 19#73, 19#74, 27#53 -->
 
 ### Location objects
 
@@ -130,7 +126,6 @@ A location is exactly one closed object:
 - **Source:** required `file`, optional `line` or
   `range: {start_line, end_line}`.
 - **Web:** required `url`, optional `method`.
-<!-- from: 27#59, 27#60 -->
 
 ### HTTP exchange snapshot
 
@@ -147,7 +142,6 @@ proposal:
 Each attempt has `method`, `url`, `headers` (`{name,value}` rows), canonical
 `body_base64`, exactly one of `status` or `error`, and optional
 `response_headers`. `error` is `transport_error` or `cancelled`.
-<!-- from: 27#66 -->
 
 ### Collection package
 
@@ -155,10 +149,8 @@ Each attempt has `method`, `url`, `headers` (`{name,value}` rows), canonical
 | --- | --- | --- |
 | `collection` | `collection.json` | Canonical collection metadata, `application/json` |
 | Each document ID | `documents/<document ID>` | Exact retained proposal or evidence bytes |
-<!-- from: 27#7 -->
 
 The transport manifest is `manifest.json`.
-<!-- from: 27#8 -->
 
 ### Collection metadata objects
 
@@ -171,7 +163,6 @@ The transport manifest is `manifest.json`.
 | Audit origin | `audit_id`, `execution_id`, `role` |
 | Evidence link | `evidence_id`, `document_id` |
 | Review observation | `audit_id`, `finding_id`, `revision`, `state`; optional `decision_id`, `assessment_id`, `duplicate_target_id` |
-<!-- from: 27#11 -->
 
 ### Receipt retention of an ordinary-Run proposal
 
@@ -188,7 +179,6 @@ stateDiagram-v2
     [*] --> source_held: intake commits the receipt and its retention row
     source_held --> discarded: source Run hard-deleted without import
 ```
-<!-- from: 19#175, 27#15, 19#100 -->
 
 ## Requirements
 
@@ -198,85 +188,69 @@ stateDiagram-v2
 carries the proposal fields and the intake and receipt authority. It permits
 an explicitly unknown `subject: null` and adds optional `locations` and
 `http_exchange`. There is no alternate proposal schema.
-<!-- from: 27#53, 27#56 -->
 
 **FND-R2.** A missing subject is never synthesized from a URL, title or
 run ID. Verification inventory uses the existing receipt identity when a
 subject is unknown; this does not rewrite the proposal's subject.
-<!-- from: 27#53 -->
 
 **FND-R3.** A proposal may describe an observation, a hypothesis or a
 finding with evidence. Hypothesis, proposed checks, annotations and
 reproduction instructions remain optional under the generic contract;
 scenario instructions can require more detail without changing the tool
 schema.
-<!-- from: 27#3 -->
 
 **FND-R4.** `hypothesis` is optional, including for a finding
 discovered directly by a Workflow. The FindingProposal remains the candidate
 and evidence envelope; it does not imply a separate prior hypothesis or a
 mandatory later verification Run.
-<!-- from: 19#74 -->
 
 **FND-R5.** Omission of the hypothesis alone never means that
 verification was performed. When a source Workflow counts as the verifier of
 its own finding is specified in
 [review and reports](../audits/review-and-reports.md#direct-findings-verified-inside-the-source-workflow).
-<!-- from: 19#74 -->
 
 **FND-R6.** Generic Audit results and findings do not require
 annotations, `trace_id`, a function or a sink.
-<!-- from: 13#8 -->
 
 **FND-R7.** A standard ref contains `scheme`, `version` and
 `requirement_id`. Unknown IDs are rejected when a standards package is
 configured.
-<!-- from: 19#73 -->
 
 **FND-R8.** A missing standard mapping is shown as unmapped, never
 interpreted as compliance.
-<!-- from: 19#73 -->
 
 **FND-R9.** `client_key` is scoped to the trusted invocation and
 never becomes a global finding ID.
-<!-- from: 19#73 -->
 
 **FND-R10.** `limitations` contains distinct, nonblank values of at
 most 512 UTF-8 bytes each (LIM-FND-1), matching the coverage gaps retained
 for proposed checks. Intake rejects a proposal that exceeds this bound before
 publishing its receipt.
-<!-- from: 19#73 -->
 
 ### Annotations as evidence
 
 **FND-R11.** A Workflow chooses whether annotated source and its state
 or diff are outputs.
-<!-- from: 13#8 -->
 
 **FND-R12.** An annotation artifact may exist without a finding. It
 becomes evidence only through an explicit reference to an existing exact
 artifact revision; a finding cannot refer to a future workspace export.
-<!-- from: 13#8 -->
 
 **FND-R13.** Artifact availability alone does not prove a
 vulnerability or trace coverage.
-<!-- from: 13#8 -->
 
 **FND-R152.** Annotation identity and participation in an investigation are
 different facts. An existing annotation comment or a repeated annotation call
 returning `changed=false` ([code analysis](../tools/code-analysis.md)) does
 not prove that the current Worker checked that path.
-<!-- from: 13#9 -->
 
 **FND-R14.** A shared function can be reached with different inputs and
 controls; matching a function or `file + CWE` does not justify merging
 findings.
-<!-- from: 13#9 -->
 
 ### Finding Toolsets
 
 **FND-R15.** `security-findings@1` is an optional AgentTemplate Toolset.
-<!-- from: 19#94 -->
 
 **FND-R16.** An AgentTemplate that creates findings selects exactly one
 creation facade in `AgentTemplate.toolsets`:
@@ -286,127 +260,101 @@ creation facade in `AgentTemplate.toolsets`:
 | `security-findings@1` | `title`, `description` | typed `locations` |
 | `security-findings-code@1` | `title`, `description`, `file` | `line` or `range` |
 | `security-findings-http@1` | `title`, `description`, `url`, `method` | `request_id` |
-<!-- from: 27#54, 27#55, 19#95 -->
 
 **FND-R17.** Each creation facade exports the single visible name
 `finding`. Selection is fixed before the Worker starts, and duplicate visible
 tool names are rejected.
-<!-- from: 27#56 -->
 
 **FND-R18.** Each creation facade also accepts optional `cwe`, exact
 `evidence_refs` and typed `standard_refs`.
-<!-- from: 27#56, 19#95 -->
 
 **FND-R19.** The creation facades share one publisher for normalization,
 intake and receipt handling. There is no parallel old authoring
 implementation.
-<!-- from: 27#56 -->
 
 **FND-R20.** `security-findings@1` also exports `list_findings`, which can
 be selected independently of a creation facade: AgentTemplate selection can
 expose creation, reading or both.
-<!-- from: 27#4, 27#56 -->
 
 **FND-R21.** Selecting reading does not imply finding emission, Audit
 confirmation or review authority. Those mutations are owned by the Audit
 review contract ([review and reports](../audits/review-and-reports.md)).
-<!-- from: 27#4 -->
 
 **FND-R22.** A `finding` call registers a candidate. It does not confirm a
 vulnerability, create an AuditItem or Run, publish to ProjectScope or grant
 approval. The Worker never chooses the Project or Audit and never starts
 work.
-<!-- from: 19#96, 19#205 -->
 
 **FND-R23.** Model-visible arguments contain no `audit_id`,
 `project_id`, owner or Run identity, or execution override.
-<!-- from: 19#96 -->
 
 **FND-R24.** `finding(...)` uses the selected general, code or HTTP
 interface and its allocation-bound intake receipt.
-<!-- from: 27#3 -->
 
 **FND-R157.** The same client key with identical content is idempotent;
 changed content conflicts (FAIL-FND-1).
-<!-- from: 27#3 -->
 
 **FND-R25.** The hidden `client_key` is `call-` followed by the full
 SHA-256 of the nonempty ADK function-call ID. The existing invocation
 namespace and submission identity remain unchanged.
-<!-- from: 27#57 -->
 
 **FND-R26.** A transport retry of the same event reuses the exact
 submission bytes; different tool calls remain different proposals. A missing
 call identity fails before submission (FAIL-FND-1).
-<!-- from: 27#57 -->
 
 **FND-R27.** A successful `finding` call returns `proposal_id`,
 `receipt_id` and `client_key`. An Audit Worker copies the returned key into
 `submit_check_result(proposal_keys=...)`
 ([worker completion](../audits/worker-completion.md)).
-<!-- from: 27#57, 19#95 -->
 
 **FND-R28.** Finding creation introduces no content-based deduplication and
 no guessed subject.
-<!-- from: 27#57 -->
 
 ### CWE classification
 
 **FND-R29.** Optional `cwe` maps to a `standard_refs` entry with scheme
 `CWE`, version `4.20` and the explicit `CWE-NNN` weakness ID.
-<!-- from: 27#58 -->
 
 **FND-R30.** The bundled catalog records MITRE's versioned XML archive
 URL, the archive and XML SHA-256 and its weakness IDs, excluding Weakness
 entries with `Status="Deprecated"`.
-<!-- from: 27#58 -->
 
 **FND-R31.** Unknown or deprecated IDs fail locally, both in `cwe` and in
 explicit `standard_refs` entries with scheme `CWE`; such an entry must also
 use version `4.20`. Rejected references never reach intake, and no live
 taxonomy lookup occurs.
-<!-- from: 27#58 -->
 
 **FND-R32.** Updating the catalog or its version requires reviewing the
 mapping and the external benchmark binding together.
-<!-- from: 27#58 -->
 
 **FND-R153.** Audit import accepts known `CWE@4.20` references without
 pinning CWE as an Audit standard; they are incidental classifications and
 cannot satisfy an assigned checklist entry. Unknown CWE IDs and other versions
 are rejected.
-<!-- from: 27#58 -->
 
 Audit import of pinned standard references is specified in
 [audits](../audits/audits.md).
-<!-- from: 27#58 -->
 
 ### Typed locations
 
 **FND-R33.** A location is exactly one closed Source or Web object (see
 [Location objects](#location-objects)).
-<!-- from: 27#59, 27#60 -->
 
 **FND-R34.** Source coordinates are one-based and inclusive; a range end
 cannot precede its start.
-<!-- from: 27#61 -->
 
 **FND-R35.** File paths are case-sensitive relative POSIX paths. Backslashes,
 colons, empty, dot or parent components and control characters are rejected.
-<!-- from: 27#61 -->
 
 **FND-R36.** A URL must be an absolute HTTP or HTTPS URL with a host and a
 valid nonzero port if one is present, and must contain no userinfo,
 backslash, whitespace, control characters or malformed percent escapes.
-<!-- from: 27#61 -->
 
 **FND-R37.** Methods are nonempty ASCII HTTP tokens.
-<!-- from: 27#61 -->
 
 **FND-R38.** Authored spelling, query order, escaping and fragments are
 preserved. Locations are not fetched or normalized, GET is not inferred and
 paths are not remapped.
-<!-- from: 27#61 -->
 
 **FND-R39.** Locations are bounded as follows:
 
@@ -417,78 +365,64 @@ paths are not remapped.
 | URL | 8192 UTF-8 bytes (LIM-FND-4), matching the HTTP tool URL bound (LIM-HTP-8) |
 | Method | 64 ASCII bytes (LIM-FND-5), matching the bounded HTTP method field |
 | Line and range endpoints | 1–9007199254740991 (LIM-FND-6), JSON/JavaScript exact integers |
-<!-- from: 27#62 -->
 
 **FND-R40.** Absent or empty locations encode by omission. Explicit
 `null`, unknown fields, `file` together with `url`, `line` together with
 `range`, and malformed coordinates fail. Array order is retained.
-<!-- from: 27#63 -->
 
 **FND-R41.** Locations are producer claims, not proof of source identity,
 reachability or exploitation. The benchmark must separately verify exact
 source bytes.
-<!-- from: 27#63 -->
 
 ### Selected HTTP evidence
 
 **FND-R42.** The HTTP facade requires `url` and `method` even without a
 `request_id`. A missing ID permits a finding without captured evidence.
-<!-- from: 27#65 -->
 
 **FND-R43.** A `request_id` resolves only against the outgoing request
 records of the HTTP session, under the ownership and same-invocation rule of
 [HTTP and Caido tools](../tools/http-caido.md) (HTP-R71, HTP-R72). A supplied
 expired, incomplete or foreign ID returns a repairable error; the caller may
 choose a current ID or omit it (FAIL-FND-2).
-<!-- from: 27#64, 27#65 -->
 
 That a failed or incomplete exchange cannot be attached as successful
 evidence (HTP-R73), that `http_request` does not truncate the captured
 exchange and that a completed request stays usable by
 `finding(request_id=...)` (HTP-R59) are specified in
 [HTTP and Caido tools](../tools/http-caido.md).
-<!-- from: 27#64, 11#21 -->
 
 A response whose headers this evidence contract cannot retain, including a
 header block over 64 KiB (LIM-FND-8), fails `http_response_invalid` as
 specified in [HTTP and Caido tools](../tools/http-caido.md) (HTP-R58).
-<!-- from: 11#21 -->
 
 **FND-R46.** Creating a finding never sends or replays traffic.
-<!-- from: 27#65 -->
 
 **FND-R47.** The authored location and the observed request remain
 separate facts; neither silently replaces the other.
-<!-- from: 27#65 -->
 
 **FND-R48.** `http_exchange` embeds a copied snapshot in the selected
 proposal with the fields listed in
 [HTTP exchange snapshot](#http-exchange-snapshot); each attempt has exactly
 one of `status` or `error`, and `error` is `transport_error` or `cancelled`.
-<!-- from: 27#66 -->
 
 **FND-R49.** An existing final response-body artifact is pinned
 through normal exact evidence references. No new artifact is created for
 each outgoing request.
-<!-- from: 27#66 -->
 
 **FND-R50.** A request explicitly selected by an HTTP finding retains
 its actual target headers and body in full inside that proposal, including
 `Authorization` and `Cookie`. The selected target `Authorization` and `Cookie`
 headers and request bodies are not added to history summaries, metrics or
 serialized worker state.
-<!-- from: 27#66, 11#36 -->
 
 **FND-R51.** Private transport credentials remain outside the
 target request capture.
-<!-- from: 27#66 -->
 
 **FND-R52.** The Project target credential that Runtime injects on the
 target origin ([projects](../artifacts/projects.md)) is never known to the
 model, and proposals are model-readable, so its `Authorization` value is
 captured as the marker `[runtime-target-credential]`. Values that the model
 supplied or set in its session are its own and are retained as sent.
-<!-- from: 27#66, 11#36, 33#96 -->
 
 The ordinary `http-tools@1` finding capture is not the redacted projection
 proposed for autonomous pentest evidence: it keeps credentials the model
@@ -497,67 +431,55 @@ credential with the placeholder `[runtime-target-credential]`. The full
 redaction of credentials and session material proposed for
 autonomous pentest evidence is described in
 [proposal 0033](../../proposals/0033-autonomous-pentest-audits.md).
-<!-- from: 33#96 -->
 
 **FND-R53.** Selected HTTP evidence mirrors the existing HTTP bounds:
 an outgoing body of at most 1 MiB per attempt (LIM-FND-7, mirroring
 LIM-HTP-5), at most 64 KiB per header block (LIM-FND-8), and at most ten
 redirects plus three attempts, 13 records in total (LIM-FND-9, mirroring
 LIM-HTP-7 and LIM-HTP-9).
-<!-- from: 27#67 -->
 
 **FND-R54.** The request header block bounded by LIM-FND-8 is the
 complete set of headers actually sent, not only the model-supplied headers.
-<!-- from: 27#67 -->
 
 `http_request` keeps every sent block within that bound: it limits the
 model-supplied headers to 48 KiB (LIM-HTP-3), reserving the rest for
 Runtime-added headers, and refuses before sending any request whose complete
 block would exceed 64 KiB (LIM-FND-8)
 ([HTTP and Caido tools](../tools/http-caido.md), HTP-R24, HTP-R25).
-<!-- from: 27#67 -->
 
 **FND-R55.** The 8 MiB proposal and submission limit
 (LIM-FND-10) applies to the encoded snapshot. An oversized finding fails
 explicitly; evidence is never silently truncated. The size and truncation
 semantics of the original response artifact are unchanged.
-<!-- from: 27#67 -->
 
 ### Intake
 
 **FND-R56.** Runtime submits a proposal through the allocation-bound private
 route `POST /private/v1/allocations/{allocation_id}/finding-proposals`.
-<!-- from: 19#97, 19#98 -->
 
 **FND-R57.** The trusted adapter supplies the correlated invocation and
 stable submission IDs.
-<!-- from: 19#99 -->
 
 **FND-R58.** The Server derives the Run and the optional Audit identity
 from the allocation and trusted Run provenance. It verifies the Toolset
 selection, the current write fence
 ([artifact store](../artifacts/artifact-store.md), ART-R86), the exact
 evidence refs in that Run and all payload and count limits.
-<!-- from: 19#99 -->
 
 **FND-R59.** One PostgreSQL transaction creates the immutable proposal
 Artifact, verifies its exact evidence, records the receipt and commits the
 retention row. A generic artifact write cannot forge a receipt.
-<!-- from: 19#100 -->
 
 **FND-R60.** Replay of `(allocation_id, invocation_id, submission_id)` with
 the same canonical digest returns the original receipt; a different digest
 conflicts (FAIL-FND-1).
-<!-- from: 19#100 -->
 
 **FND-R61.** Receipt replay remains readable after the write fence, while a
 new submission is rejected (FAIL-FND-1).
-<!-- from: 19#100 -->
 
 **FND-R62.** Intake and the fence transition are serialized by the
 allocation write-authorization critical section that ordinary private
 artifact writes use.
-<!-- from: 19#100 -->
 
 ```mermaid
 sequenceDiagram
@@ -573,24 +495,20 @@ sequenceDiagram
     S-->>R: Receipt (the original receipt on a replay with the same digest)
     R-->>M: proposal_id, receipt_id, client_key
 ```
-<!-- from: 19#97, 19#98, 19#99, 19#100, 27#57, 27#58 -->
 
 ### Proposals of ordinary Runs
 
 **FND-R63.** A proposal of an ordinary, non-Audit Run stays readable in
 its source RunScope until it is either imported by exact revision into an
 Audit or durably discarded (LIFE-FND-1).
-<!-- from: 19#175 -->
 
 **FND-R154.** Hard deleting its source Run atomically marks every unimported
 proposal discarded, purges its proposal and evidence revisions with the
 RunScope, and retains only bounded tombstone provenance; an imported proposal
 is protected by the destination Audit's own exact holds (LIFE-FND-1).
-<!-- from: 19#175 -->
 
 Rationale: Run deletion therefore cannot leak abandoned proposals or silently
 remove evidence already retained by an Audit.
-<!-- from: 19#175 -->
 
 Hard deletion of a Run as a whole is specified in
 [retention and deletion](../artifacts/retention-and-deletion.md) (DEL-R28,
@@ -598,7 +516,6 @@ DEL-R29). Import is specified in
 [review and reports](../audits/review-and-reports.md#proposal-import-from-ordinary-runs),
 which also shows the
 [end-to-end example](../audits/review-and-reports.md#proposal-from-an-ordinary-run).
-<!-- from: 19#175, 19#205 -->
 
 ### Finding collections
 
@@ -606,15 +523,12 @@ which also shows the
 receipts and available review observations. It is an ordinary input
 artifact, usable by both ordinary Workflows and Audit child Runs, and it
 creates no verification inventory or checks.
-<!-- from: 27#5 -->
 
 **FND-R65.** Annotations, diffs, logs and reports are possible
 evidence documents; their semantic validation belongs to the consumer.
-<!-- from: 27#5 -->
 
 **FND-R66.** A collection performs no implicit deduplication by
 function, subject, description or evidence digest.
-<!-- from: 27#5 -->
 
 ### Collection package format
 
@@ -622,148 +536,120 @@ function, subject, description or evidence digest.
 `application/vnd.contractor.findings-collection+zip`. It reuses the bounded
 `contractor.audit.package.v1` ZIP transport ([audits](../audits/audits.md))
 with `kind: finding-collection` and no `entry_point`.
-<!-- from: 27#6 -->
 
 **FND-R68.** Reusing this transport does not make a collection an Audit
 execution result. Existing result importers continue to require their own
 package kind and envelopes.
-<!-- from: 27#6 -->
 
 **FND-R69.** The package contains the members listed in
 [Collection package](#collection-package). The `package_id` of its
 `manifest.json` is `collection-` followed by the full lowercase SHA-256 of
 the canonical `collection.json` bytes.
-<!-- from: 27#7, 27#8 -->
 
 **FND-R70.** Each document occurs once, including a document shared by
 multiple entries. No undeclared members and no unused documents are
 accepted.
-<!-- from: 27#8 -->
 
 **FND-R71.** The existing package codec validates ZIP integrity and paths
 before any document is exposed.
-<!-- from: 27#8 -->
 
 **FND-R72.** Both metadata documents, `manifest.json` and
 `collection.json`, use RFC 8785 canonical JSON: UTF-8 with no BOM and no
 trailing newline.
-<!-- from: 27#9 -->
 
 **FND-R73.** Collection decoding rejects noncanonical representations,
 unknown or duplicate keys, wrong key case, missing required fields, invalid
 Unicode and unsupported schema versions.
-<!-- from: 27#9 -->
 
 **FND-R74.** Optional members are omitted, never `null` or an empty
 placeholder.
-<!-- from: 27#9 -->
 
 **FND-R75.** Embedded proposal bytes retain their original representation
 and are independently decoded under the current
 `contractor.audit.finding-proposal.v1` contract.
-<!-- from: 27#9 -->
 
 ### Collection metadata
 
 **FND-R76.** Every field of the
 [collection metadata objects](#collection-metadata-objects) is required unless marked
 optional. Arrays are always arrays, including when empty.
-<!-- from: 27#10 -->
 
 **FND-R77.** ID values use the Audit-domain identifier contract: 1–160 ASCII
 bytes (LIM-FND-11) matching `[A-Za-z0-9][A-Za-z0-9._:-]*`. Exact ArtifactRefs keep
 the Artifact plane's own namespace, name and revision constraints
 ([artifact store](../artifacts/artifact-store.md), ART-R11).
-<!-- from: 27#10 -->
 
 **FND-R78.** `snapshot_at` is UTC RFC3339Nano ending in `Z`, with
 insignificant fractional zeros omitted. It records when the selection was
 captured; it is not a query for the latest database state.
-<!-- from: 27#12 -->
 
 **FND-R79.** `sources` records the requested Run and Audit scopes. Every
 entry must match a Run source through `run_id`, or an Audit source through
 its Audit origin, an Audit hold or a review observation. This is a
 consistency check, not proof of server authority.
-<!-- from: 27#12 -->
 
 **FND-R80.** A document's `scope` identifies where the exact retained
 bytes were read: a producer Run, or an authorized retained Project or User
 artifact. The entry origin still identifies the producing Run and invocation
 even when the retained bytes came from an Audit hold in ProjectScope.
-<!-- from: 27#13 -->
 
 **FND-R81.** No owner identity or source scope in the collection JSON
 grants read access.
-<!-- from: 27#13 -->
 
 **FND-R82.** Optional `audit_holds` contains up to 64 sorted, unique Audit
 IDs (LIM-FND-12) that hold retained copies of the receipt. It preserves source
 membership independently of producer origin and review state; it does not
 create a finding ID or imply confirmation. Absent or empty holds encode by
 omitting the member.
-<!-- from: 27#14 -->
 
 **FND-R83.** `retention` captures the existing receipt state:
 `source-held`, `audit-held` or `discarded`. It never substitutes for package
 byte availability.
-<!-- from: 27#15 -->
 
 **FND-R84.** A discarded receipt can be included only if all its
 selected exact bytes remain available through an authorized retained copy;
 otherwise publication fails.
-<!-- from: 27#15 -->
 
 **FND-R85.** After its source Run is deleted, a receipt is read from
 the retained copy of an Audit source that selected it (the lowest such Audit
 ID holding one), never from another destination's copy; without such a copy
 publication fails.
-<!-- from: 27#15 -->
 
 **FND-R86.** A review `revision` is an integer in 1–9007199254740991
 (LIM-FND-13). `state` is `proposed`, `confirmed`, `rejected`, `duplicate` or
 `needs-evidence`.
-<!-- from: 27#16 -->
 
 **FND-R87.** The optional review IDs (`decision_id`, `assessment_id`,
 `duplicate_target_id`) are copied only when present in the captured server
 record; in particular, current projections can have `duplicate` or
 `needs-evidence` without `current_decision_id`. The collection does not infer
 a decision or assessment.
-<!-- from: 27#16 -->
 
 **FND-R88.** These IDs are provenance, not dereference capabilities
 or full decision documents. A later review requires a new snapshot.
-<!-- from: 27#16 -->
 
 **FND-R89.** An ordinary Run proposal has no invented Audit origin,
 finding ID or review state.
-<!-- from: 27#16 -->
 
 **FND-R90.** Sources are sorted by `(kind, id)`, documents by `id`, entries
 by `receipt_id`, each entry's evidence by `evidence_id` and its reviews by
 `(audit_id, finding_id)`, in ascending ASCII lexical order. Each key is
 unique, and proposal IDs are also unique across entries.
-<!-- from: 27#17 -->
 
 **FND-R91.** If source selections overlap, the publisher keeps one receipt
 entry and merges its distinct review observations. Different receipts remain
 distinct even when they have identical subjects or bytes.
-<!-- from: 27#17 -->
 
 **FND-R92.** An entry's proposal document must be nonempty JSON and
 decode as a FindingProposal. Its `evidence_ids` set must equal the entry's
 evidence-link IDs exactly; the proposal's array order need not be lexical.
-<!-- from: 27#18 -->
 
 **FND-R93.** The publisher preserves intake's mapping of `evidence-1`,
 `evidence-2` and so on to the receipt's sorted exact refs; it does not
 renumber links after sorting the collection.
-<!-- from: 27#18 -->
 
 **FND-R94.** Review observations never replace or rewrite the original
 proposal.
-<!-- from: 27#18 -->
 
 ### Document identity and bounds
 
@@ -771,7 +657,6 @@ proposal.
 parameters, as stored by the Artifact plane. `digest` is `sha256:` followed
 by 64 lowercase hex characters. `size_bytes` is the exact byte length,
 including zero for empty evidence.
-<!-- from: 27#19 -->
 
 **FND-R96.** The document ID is `doc-` followed by the full lowercase
 SHA-256 of the RFC 8785 encoding of this array, in this exact order:
@@ -780,12 +665,10 @@ SHA-256 of the RFC 8785 encoding of this array, in this exact order:
 [scope.kind, scope.id, ref.namespace, ref.name, ref.revision,
  digest, media_type, size_bytes]
 ```
-<!-- from: 27#20, 27#21 -->
 
 Rationale: including the scope prevents two Runs with identical binding names
 and revisions from colliding, even when their content bytes are identical.
 Documents with the same entire identity can be shared within the package.
-<!-- from: 27#22 -->
 
 **FND-R97.** A collection stays within these bounds:
 
@@ -801,19 +684,16 @@ Documents with the same entire identity can be shared within the package.
 | Evidence document | 0–16 MiB (LIM-FND-21) |
 | Sum of document bytes | At most 16 MiB (LIM-FND-22) |
 | Complete ZIP | At most 16 MiB, including metadata and headers (LIM-FND-23) |
-<!-- from: 27#23 -->
 
 **FND-R98.** The transport additionally limits manifest bytes,
 expansion, JSON depth and node count ([audits](../audits/audits.md),
 AUD-R128). All these bounds apply simultaneously; the entry limit is not a
 promise that every selection of 256 large proposals fits. An oversized
 selection fails and can be explicitly narrowed.
-<!-- from: 27#24 -->
 
 **FND-R99.** An empty successful selection contains empty `entries` and
 `documents`. Missing bytes never turn a nonempty selection into an empty
 one.
-<!-- from: 27#24 -->
 
 ### Collection publication
 
@@ -822,116 +702,94 @@ capture, assembly and publication through the existing Artifact plane, in
 response to the owner-authenticated `POST /v1/finding-collections` (see the
 [publication request example](#publication-request)). No new findings
 database is introduced.
-<!-- from: 27#25, 27#31, 27#32 -->
 
 **FND-R101.** `clientKey` is an Artifact name of 1–128 bytes (LIM-ART-1;
 [artifact store](../artifacts/artifact-store.md), ART-R11). Selector
 identities use 1–128 ASCII bytes (LIM-FND-24) under the Audit-domain
 identifier pattern of FND-R77.
-<!-- from: 27#27 -->
 
 **FND-R102.** Sources are unique by kind and ID; receipt IDs and finding
 IDs are unique within a source. Both arrays are required, and a Run source
 has an empty `findings` array.
-<!-- from: 27#27 -->
 
 **FND-R103.** A request has at most 256 selectors across all sources
 (LIM-FND-25); a request over this bound is rejected like an invalid selector
 (`400`, FAIL-FND-3). The expansion of finding contributions must also fit the
 package entry and byte bounds.
-<!-- from: 27#27, 27#28 -->
 
 **FND-R104.** Overlap across sources is permitted and deduplicates only
 the same receipt identity. Input order is normalized for replay identity.
-<!-- from: 27#27 -->
 
 **FND-R105.** Selection is explicit about receipts versus admitted Audit
 findings and about any retention or review filters.
-<!-- from: 27#31 -->
 
 **FND-R155.** The caller enumerates its desired receipt IDs using existing
 paginated APIs. Empty arrays explicitly select nothing; there is no implicit
 "all", live filter or fallback to the first page.
-<!-- from: 27#28 -->
 
 **FND-R156.** Admission, retention and review policy is expressed by the
 selected IDs and finding revisions.
-<!-- from: 27#28 -->
 
 **FND-R106.** Selecting an Audit finding includes all its contributing
 selected-source receipts, not just `FirstProposal`.
-<!-- from: 27#31 -->
 
 **FND-R107.** Selection is fully enumerated before any bytes are fetched.
 Page limits, missing retained bytes or exceeded package limits cannot produce
 a successful partial snapshot.
-<!-- from: 27#31 -->
 
 **FND-R108.** Selected rejected, unreviewed or discarded records are not
 silently skipped. An unavailable exact document fails the entire publication
 (FAIL-FND-3).
-<!-- from: 27#28 -->
 
 **FND-R109.** A missing or foreign source or receipt is `404`; a stale
 finding revision is `409`; invalid selectors are `400`; package codec
 failures keep their bounded `422` codes (FAIL-FND-3).
-<!-- from: 27#28 -->
 
 **FND-R110.** The Server checks source ownership and correspondence to
 existing records, captures the available review revisions and reads the
 exact retained bytes with matching digest, MIME type and size. Publication
 exposes a complete package atomically.
-<!-- from: 27#32 -->
 
 **FND-R111.** A successful response contains `artifact` (`ref`, `digest`,
 `mediaType`, `sizeBytes`), `snapshotAt`, `entryCount` and `replayed`.
 Creation returns `201`; replay returns `200`.
-<!-- from: 27#29 -->
 
 **FND-R112.** The exact ZIP is written to the authenticated owner's
 `finding-collections/<clientKey>` binding, and a small ordinary JSON artifact
 in `finding-collection-receipts/<clientKey>` records the normalized request
 digest and the exact ZIP metadata. Both writes commit together.
-<!-- from: 27#29 -->
 
 **FND-R113.** The publication receipt is publication metadata, not a
 second finding store or review authority.
-<!-- from: 27#29 -->
 
 **FND-R114.** The same key and normalized request replay the original
 exact ZIP before sources or current reviews are looked up. A changed request
 conflicts. A pre-existing ZIP without the paired receipt conflicts, and
 missing or inconsistent retained ZIP bytes fail explicitly (FAIL-FND-3).
-<!-- from: 27#30 -->
 
 **FND-R115.** The existing Artifact-plane lifecycle rules apply to
 these UserScope bindings and their exact revisions; publication does not
 modify them on replay (LIFE-FND-2).
-<!-- from: 27#30 -->
 
 **FND-R116.** If a transaction aborts before publication, the explicit source
 IDs remain fixed; a retry validates the requested finding revisions again and
 either captures them or conflicts. Concurrent snapshots use repeatable-read
 transactions and bounded retry on definite PostgreSQL serialization aborts
 (FAIL-FND-3).
-<!-- from: 27#30 -->
 
 **FND-R117.** Retries reuse an already published exact snapshot or a
 previously fixed selection; if that selection cannot be recovered exactly,
 they fail explicitly. They never silently recompute a newer collection under
 the same publication identity (FAIL-FND-3).
-<!-- from: 27#32 -->
 
 **FND-R118.** Retention of the published ZIP retains the required bytes
 independently of later source-Run deletion (LIFE-FND-2).
-<!-- from: 27#32 -->
 
 **FND-R119.** The collection ZIP is passed as a declared ordinary Workflow
 input. Public Run creation continues to fork declared artifacts through its
 existing mechanism ([artifact store](../artifacts/artifact-store.md),
 ART-R80). It does not follow the collection's JSON refs or gain
 collection-specific recursive input handling.
-<!-- from: 27#33 -->
 
 ### Reader preparation
 
@@ -939,11 +797,9 @@ collection-specific recursive input handling.
 required and accepting `application/vnd.contractor.findings-collection+zip`.
 Workflow validation requires this slot only when an agent selects
 `list_findings`. The existing ToolsetSelection contract needs no new fields.
-<!-- from: 27#34 -->
 
 **FND-R121.** Preparation resolves `inputs/findings` once to an exact
 revision; later binding changes do not alter the prepared snapshot.
-<!-- from: 27#34 -->
 
 **FND-R122.** Runtime owns allocation-local preparation of the reader
 Toolset and performs it in these steps (FAIL-FND-4, LIFE-FND-3):
@@ -964,7 +820,6 @@ Toolset and performs it in these steps (FAIL-FND-4, LIFE-FND-3):
    A failed preparation may leave ordinary unexposed intermediate artifacts;
    a replay verifies and reuses them, and existing Run cleanup owns their
    lifecycle.
-<!-- from: 27#36, 27#37 -->
 
 **FND-R123.** A failed preparation reports its bounded `findings_*` code
 as the allocation error. `findings_collection_unavailable` and
@@ -972,17 +827,14 @@ as the allocation error. `findings_collection_unavailable` and
 transport or an Artifact API error marked retryable; invalid or oversized
 collections and `findings_document_conflict` are non-retryable for the
 recorded Run snapshot (FAIL-FND-4).
-<!-- from: 27#38 -->
 
 **FND-R124.** The Toolset may perform this internal materialization even
 in a reader-only configuration; this grants no model-visible creation
 operation. It uses the existing `WriteInputsAndIntermediates` allocation
 policy and leaves `ReadCurrentRun` intact.
-<!-- from: 27#39 -->
 
 **FND-R125.** Source refs stay separate as provenance. Preparation needs
 no Runtime read of a foreign Run.
-<!-- from: 27#39 -->
 
 ```mermaid
 flowchart TD
@@ -1003,7 +855,6 @@ flowchart TD
     P1 --> P2["Create-only writes of each document to the findings namespace of the ZIP digest, verify exact refs"]
     P2 --> L["Expose list_findings"]
 ```
-<!-- from: 27#25, 27#27, 27#28, 27#29, 27#30, 27#31, 27#32, 27#33, 27#34, 27#37 -->
 
 ### Reader tool
 
@@ -1013,58 +864,47 @@ flowchart TD
 list_findings(subject_kind?, subject_key?, limit?, cursor?)
     -> {items: [...], next_cursor: string|null}
 ```
-<!-- from: 27#40 -->
 
 **FND-R127.** The collection input is fixed by the selected Toolset version,
 never by model-supplied Run, Project, Audit or owner IDs. One prepared reader
 binds one collection.
-<!-- from: 27#41 -->
 
 **FND-R128.** Filtering compares the original proposal subject exactly and
 case-sensitively. `subject_key` requires `subject_kind`; absent values mean
 no filter, while empty strings are invalid.
-<!-- from: 27#41 -->
 
 **FND-R129.** `limit` defaults to 20 and ranges from 1 to 100 (LIM-FND-26).
-<!-- from: 27#41 -->
 
 **FND-R130.** Each item returns `receipt_id`, `proposal_id`, `run_id`,
 `invocation_id`, optional `audit_origin` and `audit_holds`, `retention`, the
 original `subject`, `title_preview`, `description_preview`, `has_hypothesis`,
 `proposal`, `evidence` and `reviews`. Reviews have the
 [review observation](#collection-metadata-objects) shape.
-<!-- from: 27#42 -->
 
 **FND-R131.** `proposal` is
 `{ref, digest, media_type, size_bytes, source: {scope, ref}}`, and each
 `evidence` item adds `evidence_id` to that shape. The top-level `ref` is the
 verified exact consumer ref; `source.ref` preserves the retained source ref.
-<!-- from: 27#42 -->
 
 **FND-R132.** Each preview is `{text, truncated}`: the title is at most 512
 UTF-8 bytes (LIM-FND-27) and the description at most 2048 bytes
 (LIM-FND-28), cut only at a code point boundary.
-<!-- from: 27#42 -->
 
 **FND-R133.** The full proposal text, hypothesis and checks remain
 available through `read_artifact(proposal.ref)`, and all evidence remains
 available through its exact refs.
-<!-- from: 27#42 -->
 
 **FND-R134.** Results keep receipt order after filtering. The canonical JSON
 response is at most 256 KiB (LIM-FND-29). Whole items are added until the
 item or byte bound is reached, accounting for the final cursor.
-<!-- from: 27#43 -->
 
 **FND-R135.** If one complete item cannot fit, the tool returns an
 explicit limit error, never an empty page or truncated evidence or review
 arrays (FAIL-FND-5).
-<!-- from: 27#43 -->
 
 **FND-R136.** `next_cursor` is `null` exactly when no matching entries
 remain. Empty selections and filters with no matches return
 `items: [], next_cursor: null`.
-<!-- from: 27#43 -->
 
 **FND-R137.** The cursor is unpadded base64url of canonical JSON with
 exactly these fields:
@@ -1073,56 +913,45 @@ exactly these fields:
 {version: 1, collection_digest: "sha256:...", subject_kind: string|null,
  subject_key: string|null, after_receipt_id: string}
 ```
-<!-- from: 27#44, 27#45 -->
 
 **FND-R138.** The decoded cursor JSON is at most 1024 bytes
 (LIM-FND-30) and the encoded cursor at most 1366 ASCII bytes
 (LIM-FND-31).
-<!-- from: 27#46 -->
 
 **FND-R139.** Cursor values must match the bound exact ZIP digest and
 the requested filters, and `after_receipt_id` must exist among the matching
 entries. `limit` may change between calls.
-<!-- from: 27#46 -->
 
 **FND-R140.** A wrong version, a malformed cursor, an unknown receipt,
 or changed filters or snapshot fail explicitly (FAIL-FND-5).
-<!-- from: 27#46 -->
 
 **FND-R141.** A cursor is a position token, not an authorization grant.
 It carries no signature, because the collection boundary is already fixed.
-<!-- from: 27#46 -->
 
 **FND-R142.** Invalid arguments, an invalid collection or cursor, missing
 or conflicting prepared artifacts, byte limits and a successful empty page
 are distinct outcomes (FAIL-FND-5).
-<!-- from: 27#47 -->
 
 **FND-R143.** Codec errors reuse the existing bounded codes
 `audit_invalid`, `audit_schema_unsupported`, `audit_limit_exceeded`,
 `audit_reference_invalid`, `audit_package_invalid` and
 `audit_digest_mismatch`. Tool transport maps them to its existing error
 envelope and never returns source bytes in error text (FAIL-FND-5).
-<!-- from: 27#47 -->
 
 **FND-R144.** Preparation and reads cannot confirm findings or mutate
 review state.
-<!-- from: 27#47 -->
 
 ### Current contract and bundled configurations
 
 **FND-R145.** Server, Runtime, configurations, clients and the benchmark
 binding use this one current contract together. Collections retain exact
 proposal bytes that satisfy it.
-<!-- from: 27#68 -->
 
 **FND-R146.** The API and machine reports expose typed coordinates and
 selected exchange evidence. The UI displays authored coordinates without
 inferred links or web previews.
-<!-- from: 27#68 -->
 
 The configuration catalog provides these opt-in configurations:
-<!-- from: 27#48 -->
 
 **FND-R147.** `openapi-operation-trace@3` binds
 `audit-openapi-operation-trace@2` and `audit_openapi_operation_tracer@2`. It
@@ -1130,24 +959,20 @@ retains the structural graph and source tools, adds text evidence writing and
 `finding`, and uses human-required finding confirmation. Its canonical results
 carry the client keys of successful proposals; `operation-resolution`
 coverage keeps its existing meaning.
-<!-- from: 27#49 -->
 
 **FND-R148.** `findings-review@1` uses `findings_analyst@1`, accepts only
 the required `findings` collection input and publishes a Markdown `report`.
 It selects `list_findings`, `read_artifact` and text report writing. Its
 generic analysis requires no hypothesis, annotation, OpenAPI input or Audit
 origin.
-<!-- from: 27#49 -->
 
 **FND-R149.** The ordinary `source-findings-review@1` Workflow uses the
 code facade. Source verifier and tracer templates select the code facade; the
 HTTP verifier selects the HTTP facade.
-<!-- from: 27#69 -->
 
 **FND-R150.** No duplicate template or Workflow versions exist for
 compatibility. External benchmark bindings consume the retained public
 receipts of the ordinary Workflow.
-<!-- from: 27#69 -->
 
 ### Conformance
 
@@ -1159,7 +984,6 @@ ordinary Run and Audit origins, an optional hypothesis, a review without a
 decision ID, and identical evidence bindings from different Runs. Codec tests
 require exact conformance and reject inconsistent metadata, byte content and
 evidence membership.
-<!-- from: 27#51 -->
 
 ## Interfaces
 
@@ -1175,7 +999,6 @@ evidence membership.
 - Media type `application/vnd.contractor.findings-collection+zip`, schema
   `contractor.findings.collection.v1` for `collection.json`, and schema
   `contractor.audit.finding-proposal.v1` for proposals.
-<!-- from: 19#95, 19#98, 27#6, 27#11, 27#25, 27#29, 27#40, 27#53, 27#55, 27#56, 27#57 -->
 
 ## Limits, failures and errors
 
@@ -1210,7 +1033,6 @@ evidence membership.
   `audit_limit_exceeded`, `audit_reference_invalid`, `audit_package_invalid`,
   `audit_digest_mismatch` (FND-R143). Publication statuses are listed
   in FND-R109.
-<!-- from: 19#73, 27#23, 27#28, 27#38, 27#47, 27#62, 27#67 -->
 
 ## Security
 
@@ -1233,14 +1055,12 @@ evidence membership.
 - Location validation rejects path traversal components, userinfo and
   control characters (FND-R35, FND-R36), and locations are never fetched
   (FND-R38).
-<!-- from: 19#96, 19#99, 19#100, 27#4, 27#13, 27#41, 27#46, 27#47, 27#61, 27#66 -->
 
 ## Observability
 
 Selected target `Authorization` and `Cookie` headers and request bodies are not
 added to HTTP history summaries, metrics or serialized worker state (FND-R50). Reader tool
 errors never carry source bytes (FND-R143).
-<!-- from: 27#47, 27#66 -->
 
 ## Invariants
 
@@ -1256,7 +1076,6 @@ errors never carry source bytes (FND-R143).
    (FND-R94).
 5. The Go and Python codecs and Runtime preparation conform exactly to the
    shared collection fixture (FND-R151).
-<!-- from: 19#96, 19#100, 27#18, 27#29, 27#31, 27#32, 27#47, 27#51 -->
 
 ## Examples
 
@@ -1278,12 +1097,10 @@ proposed_checks:
 severity_suggestion: medium
 limitations: [Live behavior has not been verified]
 ```
-<!-- from: 19#72 -->
 
 `client_key` is `call-` followed by the SHA-256 of the ADK function-call ID
 (FND-R25), here of `adk-function-call-7`, and `evidence-1` names the first of
 the receipt's sorted exact evidence refs (FND-R93).
-<!-- from: 27#57, 27#18 -->
 
 ### Publication request
 
@@ -1297,7 +1114,6 @@ the receipt's sorted exact evidence refs (FND-R93).
   ]
 }
 ```
-<!-- from: 27#26 -->
 
 ### Reader configuration
 
@@ -1315,11 +1131,9 @@ toolsets:
   - ref: run-artifacts@1
     tools: [read_artifact]
 ```
-<!-- from: 27#35 -->
 
 The end-to-end path of a proposal from an ordinary Run to an Audit is shown in
 [review and reports](../audits/review-and-reports.md#proposal-from-an-ordinary-run).
-<!-- from: 19#205 -->
 
 ## Non-goals
 
@@ -1334,4 +1148,3 @@ The end-to-end path of a proposal from an ordinary Run to an Audit is shown in
 - Live CWE taxonomy lookup (FND-R31).
 - SARIF export, which remains a separate draft
   ([proposal 0028](../../proposals/0028-finding-analysis-and-sarif.md)).
-<!-- from: 27#2, 27#68, 27#29, 27#32, 27#5, 27#57, 27#33, 27#58 -->

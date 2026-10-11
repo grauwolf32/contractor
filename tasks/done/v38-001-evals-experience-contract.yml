@@ -15,10 +15,10 @@ goal: >-
 context:
   user_stories: ["US-10"]
   review_findings: ["UX-11"]
-  planning_document: "docs/spec/ui-user-stories.md"
+  planning_document: "docs/spec/ui/journeys.md"
   design_document: "docs/evals-experience-design.md"
   portable_format: >-
-    docs/spec/26-portable-evaluation-format.md owns identity, documents, local
+    docs/spec/evals/format.md owns identity, documents, local
     evaluator authority, safe published projections and comparison semantics.
     V41 implements that contract before live evals. This task designs UI/API
     presentation over it; do not redefine the format or introduce a second
@@ -119,7 +119,7 @@ design_progress:
   branch: docs/v38-evals-experience
   state: "Product and ownership decisions resolved; design and planning verification passed."
   document: docs/evals-experience-design.md
-  specification: docs/spec/30-managed-evals.md
+  specification: docs/spec/evals/managed-evals.md
   decision: >-
     Full browser setup, launch and comparison use Contractor's native experiment
     service over ordinary Run/Audit execution. Playground is an optional independent

@@ -13,7 +13,7 @@ languages: [python]
 goal: Tell Workers that find_symbol resolves names rather than opaque symbol IDs.
 context:
   issue: https://github.com/grauwolf32/contractor/issues/200
-  specification: docs/spec/12-code-analysis-tools.md
+  specification: docs/spec/tools/code-analysis.md
   finding: The tool description promises an unsupported ID lookup.
 scope:
   in:

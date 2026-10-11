@@ -1,7 +1,7 @@
 # V37 connected journey verification — 2026-09-19
 
 Branch: `feat/v37-ui-journeys`. Scope: V37-001…V37-012 and
-[US-01…09, US-11](../spec/ui-user-stories.md) within their V37 boundaries.
+[US-01…09, US-11](../spec/ui/journeys.md) within their V37 boundaries.
 Implementation hashes are recorded in the individual task files. This report
 supersedes the [paused checkpoint](2026-09-19-v37-checkpoint.md).
 

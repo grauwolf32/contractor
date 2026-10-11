@@ -15,7 +15,7 @@ goal: >-
   stops and removes only exact Contractor resources with bounded uncertainty handling.
 
 context:
-  specification: docs/spec/21-podman-sandbox.md
+  specification: docs/spec/tools/code-execution.md
   ownership: >-
     Each resource has a generated creation identity, stable service owner,
     process incarnation and allocation ID labels applied at creation. An

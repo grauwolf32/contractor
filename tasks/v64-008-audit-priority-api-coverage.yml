@@ -15,7 +15,7 @@ goal: >-
 context:
   authority: User wants both selected and deferred checklist checks with their priorities and reasons visible.
   design: docs/plans/2026-09-20-audit-check-prioritization.md
-  specification: [docs/spec/34-audit-check-prioritization.md, docs/spec/19-audits.md]
+  specification: [docs/proposals/0034-audit-check-prioritization.md, docs/spec/audits/audits.md]
   contract: Selection, approval readiness, execution completion, verification outcomes and finding severity are independent projections.
 scope:
   in:

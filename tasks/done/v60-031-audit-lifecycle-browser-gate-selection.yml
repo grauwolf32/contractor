@@ -14,10 +14,10 @@ goal: Ensure the named Audit and lifecycle browser gates actually execute their 
 context:
   authority: User requested completion of V60 reviews; V60-008 found required browser aliases silently omit their journey files.
   specification:
-  - docs/spec/06-server-ui-and-operations.md
-  - docs/spec/18-run-and-workspace-lifecycle-controls.md
-  - docs/spec/19-audits.md
-  - docs/spec/ui-user-stories.md
+  - docs/spec/ui/ui.md
+  - docs/spec/artifacts/retention-and-deletion.md
+  - docs/spec/audits/audits.md
+  - docs/spec/ui/journeys.md
   finding: >-
     efa7d5da narrowed TestBrowserOperationsStack to e2e/stack.spec.ts.
     Both test-audits-browser and test-lifecycle-controls-browser depend only on

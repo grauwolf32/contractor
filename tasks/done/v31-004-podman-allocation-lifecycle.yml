@@ -15,7 +15,7 @@ goal: >-
   confirmed shutdown/removal, including cancellation, lease loss and startup recovery.
 
 context:
-  specification: docs/spec/21-podman-sandbox.md
+  specification: docs/spec/tools/code-execution.md
   current_seams: >-
     SandboxFactory.prepare currently returns local scratch before project
     hydration, and release currently removes project files before sandbox cleanup.

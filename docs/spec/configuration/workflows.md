@@ -7,7 +7,6 @@ Requirement prefix: `WFL` · [Specification index](../README.md)
 A Workflow defines a reusable application security check or supporting
 analysis as a sequence or graph of Stages. Workflows can run independently or
 be selected by an [Audit](../audits/audits.md) as part of a broader assessment.
-<!-- from: 00#4 -->
 
 This document owns the Workflow definition: the `v1alpha1` document shape,
 string parameters, presentation metadata, Stages and their `objective`,
@@ -17,7 +16,6 @@ count, the escalation action and the closed union of its `executionConfig`,
 Workflow input and output slots, Stage context and result artifacts, the slot
 payload contract and media-type matching, the output-slot `primary` marker,
 `workflowOutputs` mappings and the built-in workspace Workflow variants.
-<!-- from: 00#7, 00#8, 00#35 -->
 
 It leaves to other documents:
 
@@ -48,7 +46,6 @@ It leaves to other documents:
   [Code analysis](../tools/code-analysis.md);
 - the `auditTask` declaration of an Audit scan Workflow:
   [Audit scans](../audits/scans.md).
-<!-- from: 00#4, 00#48, 00#60, 00#70, 00#71, 00#76, 00#89, 03#17, 03#19, 03#37, 07#74, 10#7, 12#70, 13#49, oas#6, oas#7 -->
 
 ## Concepts
 
@@ -73,8 +70,6 @@ Terms are defined once in the [glossary](../glossary.md).
 | Session policy | The Stage's `isolated` or `shared` Worker session mode. |
 | Presentation metadata | Optional authored Catalog strings (`displayName`, `description`) with no execution semantics. |
 
-<!-- from: 00#4, 00#7, 00#35, 00#38, 00#50, 00#86, 00#92, 00#93, 00#97, 00#104, 00#112, 00#10 -->
-
 ## Model
 
 ### Workflow document
@@ -87,8 +82,6 @@ A Workflow definition declares:
 - named output artifact slots, their acceptance contract and optional
   Project-recommendation `primary` marker;
 - Stages, dependencies and product transition/escalation rules.
-
-<!-- from: 00#7, 00#8 -->
 
 ```mermaid
 flowchart TB
@@ -110,13 +103,10 @@ flowchart TB
     ST --> ON["on: {succeeded, failed, interrupted}"]
 ```
 
-<!-- from: 00#8, 00#10, 00#35, 00#36, 00#50, 00#86, 00#92, 00#93, 00#95, 00#97, 00#105, 00#109, 00#112, 10#7 -->
-
 A Workflow `spec` may also carry `executionConfig` defaults
 ([AgentTemplates](agent-templates.md)) and, for an Audit scan Workflow, an
 `auditTask` declaration with `auditTask.contract` (for example
 `openapi-scan@1`) and `auditTask.stage` ([Audit scans](../audits/scans.md)).
-<!-- from: oas#6, oas#7 -->
 
 ### Outcomes and transition actions
 
@@ -131,8 +121,6 @@ flowchart LR
     CAN["Run cancelling"] -.-> NO["on transitions not evaluated"]
 ```
 
-<!-- from: 00#37, 00#38, 00#39, 00#40 -->
-
 ### Artifact contract levels
 
 Workflow artifact contracts have three distinct levels:
@@ -145,8 +133,6 @@ Workflow artifact contracts have three distinct levels:
 - `stage.workflowOutputs` explicitly maps Workflow output slots to those
   Stage-local result names.
 
-<!-- from: 00#92, 00#93 -->
-
 ```mermaid
 flowchart LR
     RQ["Run request: bindings only for declared input slots (required ones must be supplied)"] --> IS["RunScope inputs/input-slot"]
@@ -157,82 +143,66 @@ flowchart LR
     SR -->|"workflowOutputs, accepted success, Run running"| OS["RunScope outputs/output-slot"]
 ```
 
-<!-- from: 00#93, 00#96, 00#97, 00#101, 00#105, 00#106 -->
-
 ## Requirements
 
 ### Workflow definition
 
 **WFL-R1.** One Workflow invocation creates one `WorkflowRun` (`Run`).
-<!-- from: 00#7 -->
 
 **WFL-R2.** A Workflow definition declares named input and output slots.
 The reusable definition owns these slot contracts; concrete input and output
 bindings belong to one WorkflowRun, not to the reusable Workflow definition.
-<!-- from: 03#60, 00#108 -->
 
 **WFL-R3.** The `v1alpha1` schema is an explicit state-machine graph
 with a versioned document envelope, exactly one entry Stage (LIM-WFL-1), a
 mapping of stable Stage names and Stage-local typed transitions.
-<!-- from: 00#35, 00#36 -->
 
 WorkflowCatalog resolution of the `planner`, `template` and escalation
 ExecutionConfig selectors into exact refs, the rejection of unknown or
 ambiguous selectors, the Run snapshot that stores the resolved refs and the
 rule that Scheduler never re-resolves the authoring strings while executing a
 Run are owned by [CAT-R29 to CAT-R35](catalog.md).
-<!-- from: 00#48 -->
 
 ### Parameters
 
 **WFL-R4.** `spec.parameters` is a mapping of stable parameter names to
 string-slot contracts. Each contract contains exactly one mandatory boolean
 field, `required`; it has no default.
-<!-- from: 00#50, 00#36 -->
 
 **WFL-R5.** `v1alpha1` has no parameter type declaration, because
 every accepted parameter value is a string.
-<!-- from: 00#50 -->
 
 ### Presentation metadata
 
 **WFL-R6.** A Workflow may carry an optional `spec.presentation` object of
 authored Catalog metadata with no execution semantics.
-<!-- from: 00#10, 00#11 -->
 
 **WFL-R7.** When `presentation` is present, `displayName` and
 `description` are both mandatory, strict UTF-8 and non-whitespace.
 `displayName` is at most 160 Unicode code points (LIM-WFL-2) and `description`
 at most 2000 Unicode code points (LIM-WFL-3). Unknown fields are invalid.
-<!-- from: 00#12 -->
 
 **WFL-R8.** The loader preserves the authored strings rather than
 trimming or interpolating them; the length limits and the non-whitespace check
 are validation only.
-<!-- from: 00#12 -->
 
 **WFL-R9.** The resolved `presentation` object is part of the complete
 immutable Workflow definition and is persisted in every new Run snapshot.
-<!-- from: 00#13 -->
 
 **WFL-R10.** `presentation` does not alter the graph, inputs,
 outputs, Planner prompts, placement or any other execution behavior.
-<!-- from: 00#13 -->
 
 **WFL-R11.** A persisted snapshot or authoring document without
 `presentation` decodes with presentation absent and retains its existing
 serialized shape.
-<!-- from: 00#13 -->
 
 **WFL-R12.** Adding or changing `presentation` on an already published
 exact `(name, version)` is an immutable-definition conflict, not an in-place
 metadata edit.
-<!-- from: 00#13 -->
 
 **WFL-R13.** `presentation` does not introduce a Workflow digest; the
 complete durable Run snapshot remains execution authority
 ([CAT-R34](catalog.md), [RUN-R24](../execution/runs.md)).
-<!-- from: 00#13 -->
 
 ### Stages
 
@@ -245,8 +215,6 @@ complete durable Run snapshot remains execution authority
 - named result-artifact slots and their required/optional and media-type
   contracts.
 
-<!-- from: 00#109, 00#36, 00#111 -->
-
 **WFL-R15.** Every Stage declares a mandatory non-empty literal
 `objective` and one mandatory Planner-instruction resource ref,
 `instructions`:
@@ -258,37 +226,29 @@ instructions:
   ref: instructions/build-openapi.md
 ```
 
-<!-- from: 00#73, 00#74 -->
-
 **WFL-R16.** `objective` states the Stage-specific desired outcome.
 The resolved `instructions` text gives Planner Stage-specific operating
 guidance and constraints, including how the logical Worker names may be used.
-<!-- from: 00#75 -->
 
 **WFL-R17.** Scheduler performs no parameter interpolation, expression
 evaluation or prompt-template rendering in `objective` or the resolved
 `instructions` text.
-<!-- from: 00#75 -->
 
 **WFL-R18.** Empty or whitespace-only objective or instruction text is
 invalid.
-<!-- from: 00#75 -->
 
 **WFL-R19.** The Stage `instructions` object is a configuration-root
 instruction resource ref; its shape (exactly one `ref`, not an ArtifactRef),
 grammar, resolution and confinement to the configuration root are owned by
 [CAT-R36 to CAT-R39](catalog.md).
-<!-- from: 00#73, 00#76 -->
 
 **WFL-R20.** `objective` and `instructions` are semantic input, not
 executable policy. Scheduler does not try to infer success from their text,
 and they cannot override result contracts, Workflow transitions, budgets,
 artifact grants, RuntimeSettings or platform safety constraints.
-<!-- from: 00#85 -->
 
 **WFL-R21.** Worker-wide reusable behavior remains in the selected
 `AgentTemplate`; Stage instructions do not mutate that template.
-<!-- from: 00#85 -->
 
 ### Stage Agent bindings
 
@@ -296,7 +256,6 @@ artifact grants, RuntimeSettings or platform safety constraints.
 one binding (LIM-WFL-4), from logical Agent name to an object-valued binding.
 Each value is an object with the required `template` field and an optional
 `namespace`. The authoring schema has no list or scalar shorthand.
-<!-- from: 00#112, 01#90, 01#92, 01#94, 00#109 -->
 
 ```yaml
 agents:
@@ -307,12 +266,9 @@ agents:
     template: openapi_validator@3
 ```
 
-<!-- from: 01#91 -->
-
 **WFL-R23.** The mapping key is the stable logical name visible to
 Planner, not a physical Runtime Agent or process identity. It becomes `name`
 in the normalized internal binding.
-<!-- from: 00#112, 01#92 -->
 
 **WFL-R24.** `template` is an exact versioned selector
 ([CAT-R18 to CAT-R22](catalog.md)). It resolves to
@@ -327,16 +283,12 @@ class StageAgentBinding(BaseModel):
     namespace: NamespaceId | None = None
 ```
 
-<!-- from: 00#112, 01#92, 01#93 -->
-
 **WFL-R25.** `namespace` defaults to the mapping key (`name`) and
 affects artifact tools only.
-<!-- from: 00#112, 01#94 -->
 
 **WFL-R26.** Mapping order has no execution semantics. Names are
 unique by construction; WorkflowCatalog also rejects duplicate YAML mapping
 keys before schema validation rather than accepting a parser's last value.
-<!-- from: 00#112, 01#94 -->
 
 How Scheduler resolves and carries each binding's effective Namespace
 ([ART-R27](../artifacts/artifact-store.md)), the Run-reserved Namespaces and
@@ -346,7 +298,6 @@ their access rules ([ART-R14](../artifacts/artifact-store.md)), the rule that
 Namespaces of specialized namespace-bound toolsets within one Stage, with
 deliberate reuse by a later Stage ([ART-R29](../artifacts/artifact-store.md)),
 are owned by the Artifact store.
-<!-- from: 01#94, 03#17, 03#19, 03#20 -->
 
 ### Worker session policy
 
@@ -357,77 +308,60 @@ its logical Agent bindings:
 session: isolated  # or shared
 ```
 
-<!-- from: 00#86, 00#87 -->
-
 **WFL-R28.** The authoring field is optional only to keep
 ordinary Workflow YAML concise. Omission in a newly loaded Workflow resolves to
 `isolated` before the resolved Workflow can be snapshotted.
-<!-- from: 00#88, 00#91 -->
 
 **WFL-R29.** An explicit value must be the exact YAML string
 `isolated` or `shared`; null, an empty or unknown string, a number, a sequence
 or a mapping is invalid.
-<!-- from: 00#88 -->
 
 **WFL-R30.** Resolved Workflow and Stage snapshots and the
 public Workflow read model always contain the effective value.
-<!-- from: 00#88 -->
 
 **WFL-R31.** The policy is immutable Stage semantics. Retry and
 escalation create new StageExecutions and allocations but retain the Stage's
 selected mode; an executionConfig override cannot change it.
-<!-- from: 00#90 -->
 
 **WFL-R32.** Planner, its dispatch tools and
 `StageContentRequest` carry no session override, reset operation or ADK
 session identifier.
-<!-- from: 00#90 -->
 
 **WFL-R33.** Persisted execution authority must contain the
 explicit `isolated` or `shared` value in every Stage, including Workflows
 embedded in AuditProfile snapshots. Missing, null, empty, unknown and
 non-string values are invalid.
-<!-- from: 00#91 -->
 
 **WFL-R34.** Snapshot readers never infer a session mode or
 repair the stored authority. Snapshots written before this field existed are
 unsupported.
-<!-- from: 00#91 -->
 
 What each mode means for Worker conversations, including Router Stages, is
 owned by [WRK-R65](../execution/worker.md).
-<!-- from: 00#89 -->
 
 ### Transitions
 
 **WFL-R35.** `entryStage` must name one key in `stages`.
-<!-- from: 00#37 -->
 
 **WFL-R36.** In `v1alpha1`, `on` must contain exactly the three keys
 `succeeded`, `failed` and `interrupted`, each with one action object.
-<!-- from: 00#38 -->
 
 **WFL-R81.** Each transition selects exactly one typed action: `next`,
 `retry`, `escalate`, `succeed` or `fail`.
-<!-- from: 00#37 -->
 
 **WFL-R37.** There are no ordered rules, error-code predicates,
 expression language or implicit fallback in `on`.
-<!-- from: 00#38 -->
 
 **WFL-R82.** A future schema version may add ordered predicates without
 changing snapshots validated as `v1alpha1`.
-<!-- from: 00#41 -->
 
 **WFL-R38.** A StageResult selects `succeeded` or `failed`; a
 StageTermination selects `interrupted`. `cancelled` is intentionally absent,
 because it is handled only by the enclosing WorkflowRun cancellation path.
-<!-- from: 00#38 -->
 
 **WFL-R39.** Workflow cancellation is not a graph edge: once the Run is
 `cancelling`, Stage cancellation does not evaluate `on` transitions
 (FAIL-WFL-1).
-<!-- from: 00#37 -->
 
 **WFL-R40.** Action validity is constrained by outcome:
 
@@ -435,32 +369,24 @@ because it is handled only by the enclosing WorkflowRun cancellation path.
 - `failed` allows `next`, `retry`, `escalate` or `fail`;
 - `interrupted` allows `next`, `retry`, `escalate` or `fail`.
 
-<!-- from: 00#39, 00#40 -->
-
 **WFL-R41.** `next` names another Stage, and every `next` target must
 exist.
-<!-- from: 00#37, 00#41 -->
 
 **WFL-R42.** `retry` and `escalate` create a new StageExecution for the
 same Stage rather than reopening the prior attempt.
-<!-- from: 00#37 -->
 
 **WFL-R43.** Every graph path must reach `succeed`, `fail` or a
 bounded retry or escalation exhaustion action.
-<!-- from: 00#41 -->
 
 **WFL-R44.** Arbitrary cycles through `next` are rejected in
 `v1alpha1`; the only permitted cycles are explicitly bounded `retry` and
 `escalate` actions.
-<!-- from: 00#62 -->
 
 Rationale: this leaves a direct mapping to a future block editor without
 introducing a second Scheduler DAG.
-<!-- from: 00#62 -->
 
 How Scheduler records the transition decision for an outcome and commits the
 progression is owned by [Scheduler](../execution/scheduler.md).
-<!-- from: 00#37 -->
 
 ### Retry action
 
@@ -473,18 +399,14 @@ retry:
     next: fallback
 ```
 
-<!-- from: 00#57, 00#58 -->
-
 **WFL-R46.** `maxAttempts` is an integer greater than or equal to two
 (LIM-WFL-5) and counts the initial StageExecution. Thus `maxAttempts: 3`
 permits at most two new retry executions.
-<!-- from: 00#59 -->
 
 **WFL-R47.** Every retry creates a new StageExecution with the next
 attempt number, a `previous_execution_id` pointing to the prior attempt and,
 after successful preparation, new allocations, a new Planner instance and a
 new Planner Session (FAIL-WFL-1).
-<!-- from: 00#59 -->
 
 When a `retry` action creates the next attempt and when Scheduler evaluates
 `then` instead (the `retryable` flag of StageError and StageTermination, the
@@ -493,13 +415,11 @@ absence of retry delay, backoff, error-code predicate and runtime override are
 owned by [SCH-R80 to SCH-R83](../execution/scheduler.md). Whether capacity
 backoff consumes a Workflow attempt is owned by
 [SCH-R20](../execution/scheduler.md).
-<!-- from: 00#60, 00#61 -->
 
 ### Escalation action
 
 **WFL-R48.** Escalation is a Workflow Scheduler decision, never a
 model-facing Planner operation.
-<!-- from: 00#63 -->
 
 **WFL-R49.** An escalation that selects an ExecutionConfig profile
 references it with `executionConfig.ref`:
@@ -513,17 +433,13 @@ escalate:
     fail: {}
 ```
 
-<!-- from: 00#63, 00#64 -->
-
 **WFL-R50.** Alternatively, `executionConfig` may contain the inline
 `planner`/`agents` object directly. The two shapes are a closed union: an
 object contains exactly `ref`, or it contains the inline override; `ref` plus
 inline fields is invalid, and there is no second merge layer inside a profile.
-<!-- from: 00#69 -->
 
 **WFL-R51.** Both forms produce the same normalized Stage-local
 override.
-<!-- from: 00#69 -->
 
 The ExecutionConfig profile manifest and the inline override body, which refs
 an override may select and what it cannot change, and the rule that the
@@ -532,18 +448,15 @@ Workflow author declares the escalation tier intentionally are owned by
 (LIM-SCH-5), what it counts, the effective executionConfig of an escalated
 StageExecution and its pinning in the Run snapshot are owned by
 [SCH-R84 to SCH-R90](../execution/scheduler.md).
-<!-- from: 00#70, 00#71 -->
 
 ### Artifact slots
 
 **WFL-R52.** All slot names and Stage-local context and result names are
 stable identifiers in their containing mapping.
-<!-- from: 00#96 -->
 
 **WFL-R53.** At Run creation, the caller supplies bindings only for
 declared Workflow input slots; each supplied binding is forked to
 `inputs/<input slot>` ([ART-R74, ART-R76](../artifacts/artifact-store.md)).
-<!-- from: 00#96 -->
 
 **WFL-R54.** Every artifact slot uses the same minimal payload
 contract:
@@ -552,41 +465,33 @@ contract:
 - `mediaTypes` is a mandatory, non-empty list of unique media types
   (LIM-WFL-6).
 
-<!-- from: 00#102, 00#103 -->
-
 **WFL-R55.** Each media type in a slot must be a valid canonical media
 type as defined by [ART-R63](../artifacts/artifact-store.md) (LIM-ART-2);
 the artifact store, Audit packages, schemas, Runtime and UI share
 [these cases](../../../api/testdata/v1alpha1/media-type-cases.json).
-<!-- from: 00#103, 03#37 -->
 
 **WFL-R56.** Slot matching compares the artifact version's stored media
 type ([ART-R64](../artifacts/artifact-store.md)) exactly, except that the
 single value `*/*` explicitly accepts any media type. Other wildcards are
 invalid, and `*/*` cannot be combined with specific values.
-<!-- from: 00#103, 03#37 -->
 
 **WFL-R57.** `v1alpha1` has no artifact cardinality, size,
 filename-extension or structured payload schema in a slot contract. One slot
 binds at most one ArtifactRef (LIM-WFL-7).
-<!-- from: 00#103 -->
 
 **WFL-R58.** For a required Workflow input, the Run request must supply
 a binding; an optional input may be absent.
-<!-- from: 00#106 -->
 
 **WFL-R83.** The trusted Run-creation operation
 ([ART-R76](../artifacts/artifact-store.md)) validates the media type of the
 exact selected source version against the input slot before creating any Run
 input forks.
-<!-- from: 00#106 -->
 
 ### Stage context artifacts
 
 **WFL-R59.** `context.artifacts` is a mapping from a Stage-local name to
 an authoring binding with exactly three fields: `namespace`, `name` and the
 mandatory boolean `required`. Scope is implicitly the current RunScope.
-<!-- from: 00#97 -->
 
 **WFL-R60.** A `revision` is invalid in a context binding in Workflow
 YAML, because revisions belong to one concrete Run:
@@ -604,12 +509,9 @@ context:
       required: false
 ```
 
-<!-- from: 00#97, 00#98 -->
-
 `context.workspace`, which sits next to `context.artifacts` in a Stage and
 refers to context artifact aliases, is owned by
 [Workspace](../tools/workspace.md) (WSP-R10 to WSP-R21).
-<!-- from: 10#7, 10#8, 10#11, 10#13 -->
 
 ### Stage result artifacts
 
@@ -617,53 +519,43 @@ refers to context artifact aliases, is owned by
 contract, a mandatory versionless `from` binding with exactly `namespace` and
 `name`. Its Namespace must be assigned to at least one logical Agent of that
 Stage.
-<!-- from: 00#105 -->
 
 **WFL-R62.** A revision is invalid in `from`, because the concrete
 revision is created or observed only inside one Run.
-<!-- from: 00#105 -->
 
 **WFL-R63.** The sole exception to a mandatory `from` is a
 Runtime-owned overlay `workspace_state` or `workspace_diff` export slot: it
 omits `from`, and `context.workspace.export` supplies the trusted mapping
 ([WSP-R21](../tools/workspace.md)).
-<!-- from: 00#105 -->
 
 **WFL-R64.** `from` is invalid on Workflow input and output slots and
 is never shown as a result-selection instruction to the Worker model.
-<!-- from: 00#105 -->
 
 **WFL-R65.** For a successful StageResult, every required Stage result
 slot must be present. Optional result slots may be absent, but every present
 result ref is validated against its declared media types regardless of Stage
 outcome. Unknown result names are invalid.
-<!-- from: 00#106 -->
 
 ### Workflow outputs
 
 **WFL-R66.** A Workflow output slot additionally accepts an optional
 boolean `primary`; omission is `false`. `primary` is invalid on Workflow inputs
 and Stage result slots.
-<!-- from: 00#104, 17#30 -->
 
 **WFL-R67.** `primary` is presentation and publication intent
 only: it does not change StageResult validation, required-output success,
 freezing, Scheduler transitions or Run success.
-<!-- from: 00#104, 17#30 -->
 
 **WFL-R68.** `primary` identifies canonical user-facing results
 for Project Workflow recommendations and create-only publication; how a
 Project uses it is owned by [PRJ-R48 to PRJ-R50 and PRJ-R102](../artifacts/projects.md).
-<!-- from: 00#104 -->
 
 **WFL-R69.** Internal handoff outputs such as `workspace_state` and
 `workspace_diff` normally remain non-primary; in built-in generator Workflows
 they are not primary.
-<!-- from: 00#104, 17#30 -->
 
 **WFL-R70.** Each `workflowOutputs` key must name a declared Workflow
 output, and its value must name a result artifact declared by the same Stage.
-<!-- from: 00#101 -->
 
 **WFL-R71.** Scheduler considers the mapping only for an accepted
 successful StageResult while the WorkflowRun is still `running`. The
@@ -671,30 +563,24 @@ StageResult value is an exact versioned ArtifactRef; Scheduler binds that
 version to `outputs/<output slot>` without resolving the source's current
 binding again. The transaction and lineage of that binding are owned by
 [ART-R90](../artifacts/artifact-store.md).
-<!-- from: 00#101 -->
 
 **WFL-R72.** There is no implicit output mapping based on artifact
 Namespace, name, list position or matching slot names.
-<!-- from: 00#101 -->
 
 **WFL-R73.** Workers cannot write the reserved `outputs`
 Namespace directly.
-<!-- from: 00#101 -->
 
 **WFL-R74.** A required Workflow output must be bound before Run
 success; an optional output may remain absent.
-<!-- from: 00#107 -->
 
 **WFL-R75.** When applying `workflowOutputs`, Scheduler validates the
 selected artifact against both the Stage result slot and the destination
 Workflow output slot, so an incompatible concrete artifact can never be
 accepted through the mapping.
-<!-- from: 00#107 -->
 
 **WFL-R76.** A mapping whose Stage result slot and Workflow output
 slot declare media-type sets that cannot intersect is rejected at catalog
 load.
-<!-- from: 00#107 -->
 
 ### Built-in workspace Workflows
 
@@ -707,28 +593,22 @@ catalog ([CAN-R90](../tools/code-analysis.md)) are:
 | `likec4-from-workspace@5` | `passthrough@1` | `workspace_source_graph_analyst@1` | Same graph placement contract |
 | `likec4-from-workspace-streamline@2` | `streamline@1` | `workspace_source_graph_analyst@1` | Same graph placement contract with modeled Stage decomposition |
 
-<!-- from: 12#70, 12#71 -->
-
 **WFL-R78.** Historical source-backed and shallow/default workspace
 Workflow versions are not published or archived.
-<!-- from: 12#72 -->
 
 **WFL-R79.** The portable `search_def` and `list_symbols` operations
 remain available to operator-authored AgentTemplates, but the built-in project
 Workflows never silently downgrade to them. There is no analyzer-aware
 Scheduler branch or placement fallback.
-<!-- from: 12#72 -->
 
 **WFL-R80.** Built-in generator Workflows use canonical semantic
 output slot names, including `openapi`, `likec4`, `docs` and domain-qualified
 report names.
-<!-- from: 17#30 -->
 
 The discovery and taint AgentTemplates and the one-Stage
 `taint-trace-from-workspace@2` Workflow are specified in
 [Code analysis](../tools/code-analysis.md) (CAN-R90, CAN-R92, CAN-R132,
 CAN-R133).
-<!-- from: 12#70, 13#49 -->
 
 ## Interfaces
 
@@ -736,7 +616,6 @@ A Workflow is a configuration document with the envelope
 `apiVersion: contractor/v1alpha1`, `kind: Workflow` and `metadata.name` /
 `metadata.version` ([Configuration catalog](catalog.md)); see the complete
 example under [Examples](#examples).
-<!-- from: 00#36 -->
 
 `spec` fields:
 
@@ -750,8 +629,6 @@ example under [Examples](#examples).
 | `stages` | Mapping of stable Stage names to Stages | WFL-R14; Stage fields below |
 | `executionConfig` | Workflow-wide execution defaults | [AgentTemplates](agent-templates.md) |
 | `auditTask` | Audit scan execution contract | [Audit scans](../audits/scans.md) |
-
-<!-- from: 00#8, 00#10, 00#35, 00#50, 00#92, 00#93, 00#96, 00#103, 00#104, 00#106, oas#6 -->
 
 Stage fields:
 
@@ -768,12 +645,9 @@ Stage fields:
 | `workflowOutputs` | Workflow output slot to result name | WFL-R70 to WFL-R76 |
 | `on` | `succeeded`, `failed`, `interrupted` actions | WFL-R36 to WFL-R51, WFL-R81, WFL-R82 |
 
-<!-- from: 00#36, 00#73, 00#86, 00#95, 00#97, 00#105, 00#109, 00#112, 10#7 -->
-
 The `on` actions and the escalation `executionConfig` union are encoded in
 [workflow-transition.schema.json](../../../api/v1alpha1/workflow-transition.schema.json)
 (WFL-R36, WFL-R40, WFL-R45, WFL-R46, WFL-R50, WFL-R81).
-<!-- from: 00#37, 00#38, 00#39, 00#40, 00#58, 00#59, 00#69 -->
 
 The public read model is `GET /v1/workflows` and
 `GET /v1/workflows/{name}/versions/{version}` in
@@ -782,7 +656,6 @@ always contains each Stage's effective session value (WFL-R30). Which Workflow
 Stages pin an exact AgentTemplate body is listed by the read-only
 workflow-bindings endpoint owned by
 [TPL-R109 and TPL-R110](agent-templates.md).
-<!-- from: 00#88, 06#12 -->
 
 ## Limits, failures and errors
 
@@ -802,18 +675,13 @@ Limits ([registry](../platform/limits.md)):
   (escalation `maxAttempts`), LIM-WSP-1 to LIM-WSP-3 (workspace sources and
   targets).
 
-<!-- from: 00#35, 00#12, 00#112, 01#94, 00#59, 00#103, 00#71, 10#11, 10#13 -->
-
 Failure outcomes ([failure model](../platform/failure-model.md)):
 
 - FAIL-WFL-1 — outcome of one Stage attempt handled by the declared `on`
   transition (WFL-R39, WFL-R42, WFL-R47).
 
-<!-- from: 00#37, 00#59, 00#71 -->
-
 This document defines no error codes. Errors of the AgentTemplate
 workflow-bindings endpoint are owned by [AgentTemplates](agent-templates.md).
-<!-- from: 06#12 -->
 
 ## Security
 
@@ -829,8 +697,6 @@ workflow-bindings endpoint are owned by [AgentTemplates](agent-templates.md).
 - A result artifact's `from` binding is never shown to the Worker model as a
   result-selection instruction (WFL-R64).
 
-<!-- from: 00#76, 00#85, 00#101, 00#105 -->
-
 ## Invariants
 
 - Every graph path ends in `succeed`, `fail` or a bounded retry or escalation
@@ -841,8 +707,6 @@ workflow-bindings endpoint are owned by [AgentTemplates](agent-templates.md).
 - Every persisted Stage carries an explicit session mode (WFL-R33).
 - `presentation` and `primary` never change execution behavior
   (WFL-R10, WFL-R67).
-
-<!-- from: 00#13, 00#37, 00#41, 00#62, 00#91, 00#104 -->
 
 ## Examples
 
@@ -908,8 +772,6 @@ spec:
           fail: {}
 ```
 
-<!-- from: 00#36 -->
-
 ### Slots, context, result and output mapping
 
 ```yaml
@@ -965,8 +827,6 @@ spec:
           fail: {}
 ```
 
-<!-- from: 00#95 -->
-
 ### Router Stage with two logical Agents
 
 ```yaml
@@ -985,8 +845,6 @@ result: ...
 workflowOutputs: ...
 ```
 
-<!-- from: 00#111 -->
-
 ### Presentation metadata
 
 ```yaml
@@ -995,8 +853,6 @@ spec:
     displayName: OpenAPI from source
     description: Build and validate an OpenAPI document from a source archive.
 ```
-
-<!-- from: 00#11 -->
 
 ## Non-goals
 
@@ -1011,5 +867,3 @@ spec:
   ([SCH-R83](../execution/scheduler.md)).
 - Workflow-declared Runtime labels
   ([Runtime configuration](runtime-config.md)).
-
-<!-- from: 00#38, 00#50, 00#62, 00#103, 00#101, 00#61, 07#74 -->

@@ -15,7 +15,7 @@ goal: >-
   verified process completion and the same operation ownership as filesystem tools.
 
 context:
-  specification: docs/spec/21-podman-sandbox.md
+  specification: docs/spec/tools/code-execution.md
   input: >-
     exec_command(command, cwd="", timeout_seconds=60) accepts at most 64 KiB
     UTF-8 shell text and a normalized workspace-relative cwd. Use fixed /bin/sh -c

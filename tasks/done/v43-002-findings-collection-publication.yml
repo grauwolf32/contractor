@@ -11,7 +11,7 @@ depends_on: ["V43-001"]
 languages: ["go", "typescript"]
 goal: "Supply analytical Workflows with exact findings inputs assembled from existing Run/Audit records."
 context:
-  specification: docs/spec/27-findings-tools-and-collections.md
+  specification: docs/spec/findings/findings.md
   reuse: "findingintake ListRun/ListAuditInbox and auditservice ListFindings already exist. New collection publication reuses their records and Artifact plane."
   handoff: >-
     Publish V43-001's self-contained ZIP with selected proposal/evidence bytes and

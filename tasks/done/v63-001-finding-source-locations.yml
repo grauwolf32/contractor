@@ -23,15 +23,15 @@ context:
     versioned contract, without expanding the source-only benchmark or implementing
     the separate SARIF export draft.
   specification:
-    - docs/spec/19-audits.md
-    - docs/spec/27-findings-tools-and-collections.md
-    - docs/spec/10-runtime-filesystems-and-edit-tools.md
+    - docs/spec/audits/audits.md
+    - docs/spec/findings/findings.md
+    - docs/spec/tools/workspace.md
   existing_gap: >-
     FindingProposal contains only subject.kind/key plus prose and evidence refs.
     The runtime finding tool, collection reader and public FindingProposalDocument
     have no typed source or web location. A subject key is not a file/URL locator.
   related_draft: >-
-    docs/spec/28-finding-analysis-and-sarif.md is unimplemented. Its richer exact
+    docs/proposals/0028-finding-analysis-and-sarif.md is unimplemented. Its richer exact
     evidence resolver and SARIF exporter are outside this task. Amend its current
     data description and compatibility assumptions when basic coordinates land;
     do not claim those draft capabilities are delivered.
@@ -137,7 +137,7 @@ proposed_contract:
     Reject null locations, malformed entries and unknown keys. A coordinate change
     changes the idempotency payload; missing/empty locations encode by omission.
 deliverables:
-  - path: docs/spec/27-findings-tools-and-collections.md
+  - path: docs/spec/findings/findings.md
     description: Current source/web location alternatives and shared authoring contract.
   - path: internal/auditdomain
     description: Typed locations, canonical validation and shared positive/negative fixtures.

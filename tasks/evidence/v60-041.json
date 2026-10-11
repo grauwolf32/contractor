@@ -11,8 +11,8 @@
     "owner": "tests/e2e/findings_boundaries_process_test.go:findingsBoundaryReaderStage",
     "reproduction": "The current findings-review@2 selects findings_analyst@2, whose three reader operations plus six Memory operations are rejected by a stale three-tool Gateway expectation. The first successful-empty-collection scenario fails; later boundary subtests encounter the same retained Gateway failure.",
     "normative_basis": [
-      "docs/spec/08-memory-tools.md:176-203,248-265: six operations and exact explicitly selected operation set",
-      "docs/spec/27-findings-tools-and-collections.md:227-267: collection preparation and expose the reader only after exact refs are validated",
+      "docs/spec/tools/memory.md:176-203,248-265: six operations and exact explicitly selected operation set",
+      "docs/spec/findings/findings.md:227-267: collection preparation and expose the reader only after exact refs are validated",
       "configs/workflows/findings_review_v2_memory.yaml selects findings_analyst@2",
       "configs/agent-templates/findings_analyst_v2_memory.yaml selects six Memory operations and three reader operations"
     ],

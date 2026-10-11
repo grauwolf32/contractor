@@ -125,7 +125,7 @@ host is allowed for Runs of that Project. To reach other targets on this
 machine, directly or through a local Caido forward proxy, add
 `--allowed-target-network 127.0.0.0/8`; the Server, Runtime and proxy endpoints
 stay refused. See the
-[target policy](../spec/11-http-and-caido-tools.md#target-policy).
+[target policy](../spec/platform/security.md).
 
 The Server advertises the agreed heartbeat interval of 10 seconds and confirmed
 lease of 60 seconds. A new Runtime becomes placement-eligible after it echoes

@@ -15,8 +15,8 @@ goal: >-
   retryable append that duplicates the fragment on the next model call.
 context:
   specification:
-    - docs/spec/08-memory-tools.md
-    - docs/spec/03-artifact-plane.md
+    - docs/spec/tools/memory.md
+    - docs/spec/artifacts/artifact-store.md
   authority: "User requested tasks for uncovered Memory audit findings on 2026-09-07."
   code_locations:
     - "runtime/src/contractor_runtime/toolsets/memory/tools.py: _MemorySession._write_exact"

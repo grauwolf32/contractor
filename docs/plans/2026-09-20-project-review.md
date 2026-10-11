@@ -105,8 +105,8 @@ contract decision and transition strategy; it is not an automatic quick win.
 Specs 05 and 28 are reviewed separately as boundaries of unfinished product
 work: their draft behavior is neither declared implemented nor automatically
 treated as a defect in the current release. The map covers specifications
-00–30, including [29 — Tool Workers](../spec/29-tool-workers.md) and
-[30 — managed Evals](../spec/30-managed-evals.md).
+00–30, including [29 — Tool Workers](../spec/tools/scanners.md) and
+[30 — managed Evals](../spec/evals/managed-evals.md).
 
 ## Checks by stage
 

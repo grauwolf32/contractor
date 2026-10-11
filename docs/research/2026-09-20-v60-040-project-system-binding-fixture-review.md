@@ -6,7 +6,7 @@ checks, then failed after 56.39 s. Its raw PostgreSQL binding query returned
 `contractor-system/repeat-request`, which was missing from the exact expected
 binding map. The failure stopped the target before its Python process tests.
 
-[Artifact spec 03](../spec/03-artifact-plane.md) explicitly permits that exact
+[Artifact spec 03](../spec/artifacts/artifact-store.md) explicitly permits that exact
 hidden physical record while excluding it from public and Runtime Artifact
 APIs. Commit `c008980672cdf8ac15a6f9204a9be11382e3c145` introduced it in public
 Run creation. The test inspects physical storage, so the extra binding is

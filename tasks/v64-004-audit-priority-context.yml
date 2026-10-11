@@ -15,7 +15,7 @@ goal: >-
 context:
   authority: User requested optional service description and existing findings as context for independent checklist verdicts.
   design: docs/plans/2026-09-20-audit-check-prioritization.md
-  specification: [docs/spec/34-audit-check-prioritization.md, docs/spec/19-audits.md]
+  specification: [docs/proposals/0034-audit-check-prioritization.md, docs/spec/audits/audits.md]
   contract: V64-001 fixes bounds and source semantics; V64-002 supplies immutable cycle state and protected retention.
 scope:
   in:

@@ -12,9 +12,9 @@ request with HTTP 400 because its scenario requires exactly one request. Runtime
 therefore preserves the final `BadRequestError` and `retryable=false`. This is a
 reproduced fixture-contract mismatch, independent of host pressure or deadlines.
 
-[Spec02](../spec/02-runtime-and-a2a.md) separates bounded transport attempts from
+[Spec02](../spec/execution/control-plane.md) separates bounded transport attempts from
 final failure classification: `X-Should-Retry: false` suppresses transport retries,
-while HTTP 504 still classifies as retryable. [Spec15](../spec/15-worker-summarization.md)
+while HTTP 504 still classifies as retryable. [Spec15](../spec/execution/worker.md)
 requires one logical summarizer call, permits that transport attempt series and
 preserves Gateway retryability. No production correction is needed.
 

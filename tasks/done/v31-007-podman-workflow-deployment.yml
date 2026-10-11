@@ -15,7 +15,7 @@ goal: >-
   finite operator settings and ordinary output artifacts using a documented local setup.
 
 context:
-  specification: docs/spec/21-podman-sandbox.md
+  specification: docs/spec/tools/code-execution.md
   workflow_contract: >-
     The template explicitly selects podman@1, code-execution@1 exec_command and
     only required filesystem/edit/artifact operations. Stage workspace is direct

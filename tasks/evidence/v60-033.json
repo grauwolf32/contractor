@@ -7,7 +7,7 @@
   "report": "docs/research/2026-09-20-v60-033-production-memory-staging.md",
   "classification": "P2 mandatory release test fixture dependency omission; no production configuration defect",
   "normative_basis": [
-    "docs/spec/15-worker-summarization.md: configured ref/digest/text pinned; omission keeps built-in legacy instructions",
+    "docs/spec/execution/worker.md: configured ref/digest/text pinned; omission keeps built-in legacy instructions",
     "V47-004 configurable summarizer instructions",
     "V48-004 production Memory catalog selection"
   ],

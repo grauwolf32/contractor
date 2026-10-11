@@ -166,9 +166,9 @@
   "documentation_corrections": [
     {
       "files": [
-        "docs/spec/06-server-ui-and-operations.md",
-        "docs/spec/17-projects-and-queue.md",
-        "docs/spec/26-portable-evaluation-format.md"
+        "docs/spec/ui/ui.md",
+        "docs/spec/artifacts/projects.md",
+        "docs/spec/evals/format.md"
       ],
       "classification": "stale delivery descriptions, not a production defect",
       "change": "Reflect completed V37/V38 Contractor tasks and independently merged V38-009 Playground client; retain live-quality and draft scope boundaries"

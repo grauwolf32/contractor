@@ -19,11 +19,11 @@ goal: Review authentication, delivery gates and operational recovery evidence.
 context:
   authority: User requested a detailed project review plan and commencement after V59 corrections.
   specification:
-  - docs/spec/06-server-ui-and-operations.md
-  - docs/spec/21-podman-sandbox.md
-  - docs/spec/22-performance-metrics-and-profiling.md
-  - docs/spec/23-artifact-blob-backends.md
-  - docs/spec/24-git-artifacts.md
+  - docs/spec/ui/ui.md
+  - docs/spec/tools/code-execution.md
+  - docs/spec/operations/operations.md
+  - docs/spec/artifacts/blob-storage.md
+  - docs/spec/artifacts/git-import.md
   design: docs/plans/2026-09-20-project-review.md
 scope:
   in:

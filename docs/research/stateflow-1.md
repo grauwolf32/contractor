@@ -376,9 +376,9 @@ subtasks in the same allocation.
 
 The focused specifications currently establish that one allocation may serve a
 sequence of A2A Tasks in
-[Stage execution scope](../spec/00-workflow-and-planner.md#stage-execution-scope)
+[Stage execution scope](../spec/execution/scheduler.md)
 and refer to the allocation's ADK session in
-[Contractor-owned Worker State](../spec/14-worker-results-and-live-state.md#contractor-owned-worker-state).
+[Contractor-owned Worker State](../spec/execution/worker.md).
 They do not explicitly choose whether Worker conversation continuity is isolated
 per invocation or shared for the allocation. This draft records that as a contract
 gap; it does not claim that the current implementation already supports both

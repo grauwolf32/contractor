@@ -81,7 +81,7 @@ verification:
       Aggregate validation uses half-open interval overlap; fine samples keep
       point-based bounds. The original query window, ordering, kind/step checks
       and point-count limits are preserved. The boundary rule is documented in
-      docs/spec/22-performance-metrics-and-profiling.md.
+      docs/spec/operations/operations.md.
     - >-
       API and chart suite passed 15 tests, including overlapping first intervals
       for 24h/7d, aligned/empty histories, invalid records, out-of-range intervals

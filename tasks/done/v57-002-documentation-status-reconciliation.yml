@@ -17,7 +17,7 @@ context:
   verified_problem: >-
     tasks/index.yml ui_usability_planning still says status planned and all new
     tasks pending although V37-001 through V37-012 are completed. The specification
-    index and docs/spec/25-audit-worker-finalization.md still describe V39-007 as
+    index and docs/spec/audits/worker-completion.md still describe V39-007 as
     pending although its task records completion and release evidence. The dated
     active_delivery_order retains delivered queues and needs an explicit reading
     boundary if presented as current active work; historical sequencing itself
@@ -38,7 +38,7 @@ context:
   informative_references:
     - docs/research/2026-09-19-architecture-evolution-review.md
     - docs/plans/2026-09-19-architecture-review-followups.md
-    - docs/spec/ui-user-stories.md
+    - docs/spec/ui/journeys.md
     - docs/testing/release-gates.md
 scope:
   in:
@@ -56,7 +56,7 @@ deliverables:
     description: Reconciled current status prose and explicit historical/current boundaries without changing task authority or queue priorities.
   - path: docs/spec/README.md
     description: Correct V39 release status and preserved distinction between implemented, opt-in and planned capabilities.
-  - path: docs/spec/25-audit-worker-finalization.md
+  - path: docs/spec/audits/worker-completion.md
     description: Status introduction reflects completed V39-007 with its actual verification scope and opt-in limitations.
   - path: docs
     description: Only directly related overview status corrections justified by a source task; no broad documentation rewrite.
@@ -118,7 +118,7 @@ verification:
       claim: V37 delivery is implemented and its original waves are historical; V38 remains a separate workstream whose status is owned by its task files.
       sources: [V37-001, V37-002, V37-003, V37-004, V37-005, V37-006, V37-007, V37-008, V37-009, V37-010, V37-011, V37-012, V38-001]
       evidence: All twelve V37 task files are completed and V37-012 records journey verification. V38-001 is pending in the reviewed main tree at dc4d6f3a; a parallel V38 worktree has newer development, so the new summary deliberately does not hardcode its pending status.
-    - locations: [docs/spec/README.md, docs/spec/25-audit-worker-finalization.md, tasks/index.yml fixed_decisions.audits.worker_completion, tasks/index.yml fixed_decisions.worker_model_boundary.model_output]
+    - locations: [docs/spec/README.md, docs/spec/audits/worker-completion.md, tasks/index.yml fixed_decisions.audits.worker_completion, tasks/index.yml fixed_decisions.worker_model_boundary.model_output]
       claim: The opt-in completion implementation includes the completed V39-007 deterministic release gate.
       sources: [V39-001, V39-002, V39-003, V39-004, V39-005, V39-006, V39-007]
       evidence: V39-007 records its passed PostgreSQL/restart and Runtime-to-importer gate on 2026-09-19 with zero selected skips; its scripted-model and test-orchestrated Scheduler boundaries remain explicit.
@@ -126,7 +126,7 @@ verification:
       claim: The 2026-09-06 queue ordering is historical and does not redefine current status, priorities or ownership; offline readiness is separate from live quality and archived incidents remain outside active work.
       sources: [V40-002, V40-003, V41-008, V53-001, V53-002]
       evidence: V40-002 remains in_progress, V40-003 pending, V41-008 completed for offline readiness, and both V53 tasks archived without a claimed correction; original queue ranks and task lists are unchanged.
-    - locations: [docs/spec/ui-user-stories.md US-11 performance reference]
+    - locations: [docs/spec/ui/journeys.md US-11 performance reference]
       claim: The charts and allocation metrics referenced by the V37-011 layout story were implemented by V32-006.
       sources: [V32-006, V37-011]
       evidence: Both task files are completed; only the stale planned wording and source link changed, with no change to metric intervals or UI scope.
@@ -141,4 +141,4 @@ verification:
     - Only tasks/index.yml, three specification overview files and this task's own lifecycle/evidence were edited; no other task status, commit, dependency, priority or ownership was changed.
     - Existing uncommitted planning, research and Runtime memory changes were preserved; pre-edit copies of all five touched files are retained under /tmp/contractor-v57-002-before.
     - No model, database, browser, release gate or deployment was executed; referenced historical verification was read rather than rerun.
-    - Three-way text merge previews of tasks/index.yml, docs/spec/README.md and docs/spec/ui-user-stories.md against feat/v38-managed-evals at 859852cf were clean; the V38 status is deliberately not hardcoded in the new current summary.
+    - Three-way text merge previews of tasks/index.yml, docs/spec/README.md and docs/spec/ui/journeys.md against feat/v38-managed-evals at 859852cf were clean; the V38 status is deliberately not hardcoded in the new current summary.

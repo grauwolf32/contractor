@@ -8,7 +8,6 @@ This document owns the destructive lifecycle controls for owner-scoped
 WorkflowRun history and Project workspaces: how long artifact versions stay
 resolvable, explicit terminal Run hard deletion, recoverable Project deletion,
 the controlled scope purge and reference-safe garbage collection.
-<!-- from: 18#3, 03#44 -->
 
 It leaves to other documents:
 
@@ -33,7 +32,6 @@ It leaves to other documents:
   [errors](../platform/errors.md),
   [failure model](../platform/failure-model.md) and
   [lifecycle](../platform/lifecycle.md).
-<!-- from: 18#3, 03#44, 03#89, 17#8, 19#171, 19#179, 30#69 -->
 
 ## Concepts
 
@@ -62,7 +60,6 @@ document owns are:
 
 Physical orphans of the `filesystem` payload backend are defined in
 [blob-storage](blob-storage.md).
-<!-- from: 03#88, 03#89, 18#16, 18#17, 18#21, 18#23, 18#25, 18#26, 18#28, 19#171, 19#175 -->
 
 ## Model
 
@@ -71,7 +68,6 @@ A Project has an additive lifecycle state:
 ```text
 active | deleting
 ```
-<!-- from: 18#23, 18#24 -->
 
 ```mermaid
 stateDiagram-v2
@@ -80,7 +76,6 @@ stateDiagram-v2
     deleting --> deleting: repeated DELETE, failed phase or restart, controller retries
     deleting --> [*]: every Project Run and the ProjectScope purged, Project row removed
 ```
-<!-- from: 18#24, 18#25, 18#27, 18#28, 18#29 -->
 
 ## Requirements
 
@@ -92,11 +87,9 @@ surface ([ui](../ui/ui.md)), the durable queue admission gate
 recoverable Project deletion, creates a second execution state machine:
 WorkflowRun, StageExecution and allocation state remain owned by the Scheduler
 and the Control Plane.
-<!-- from: 18#3, 18#4 -->
 
 **DEL-R2.** Destructive cleanup may start only after those authorities have
 reached their existing safe terminal or released boundaries.
-<!-- from: 18#4 -->
 
 ### Retention of artifact versions
 
@@ -105,35 +98,29 @@ version for as long as Run input provenance, a StageContext snapshot, a
 StageResult, a Run output or a retention policy keeps that version alive
 (LIFE-DEL-5). The versioned refs and timestamps carried by read and write
 results are specified in [artifact-store](artifact-store.md).
-<!-- from: 03#44 -->
 
 ### Controlled scope purge
 
 **DEL-R4.** Normal Artifact APIs, which are create-only and immutable, never
 delete committed versions; the controlled scope purge performed by trusted
 lifecycle cleanup is their only exception.
-<!-- from: 03#88, 18#21 -->
 
 **DEL-R5.** The controlled scope purge may run only after its gate, the Run
 release gate of terminal Run hard deletion (DEL-R16, DEL-R17) or the Project
 deletion gate (DEL-R44), and then removes a complete RunScope or ProjectScope
 together with the lineage edges owned by that purge set (LIFE-DEL-3,
 LIFE-DEL-4).
-<!-- from: 03#88 -->
 
 **DEL-R6.** The purge must never grant delete authority to a
 browser-selected scope, a Planner, a Runtime or a generic artifact client, and
 is never available through a Runtime or a generic Artifact endpoint.
-<!-- from: 03#88, 18#21 -->
 
 **DEL-R7.** Only authenticated public lifecycle endpoints and trusted Server
 recovery code can enter the controlled deletion path.
-<!-- from: 18#30 -->
 
 **DEL-R8.** A deletion request that names a foreign or missing Run, or a
 foreign Project, receives the ordinary owner-safe `404` with no existence
 disclosure.
-<!-- from: 18#16, 18#29 -->
 
 ### Reference-safe garbage collection
 
@@ -141,21 +128,17 @@ disclosure.
 immutable version or its content-addressed blob only when no binding, retained
 revision, pin, lineage edge or other scope outside the purge set still
 references it (LIFE-DEL-5).
-<!-- from: 03#89, 18#21 -->
 
 **DEL-R10.** A physically shared blob retained for another artifact is not a
 surviving Run artifact: when such a blob exists outside the purge set, the
 logical Run or Project data is removed and the blob remains referenced.
-<!-- from: 18#21, 18#29 -->
 
 **DEL-R11.** Removing a cross-scope provenance edge does not remove the
 independently retained target artifact.
-<!-- from: 03#89 -->
 
 **DEL-R13.** Scope registry deletion and its relational reference checks are
 one transaction; registry retention checks and scope and version removal are
 transactional and reference-safe.
-<!-- from: 03#89, 23#22 -->
 
 Physical deletion of payloads after the registry commit is owned by
 [blob-storage](blob-storage.md): PostgreSQL blob deletion
@@ -165,48 +148,39 @@ physical objects and generations ([BLB-R51](blob-storage.md)), live reads
 racing deletion ([BLB-R52](blob-storage.md)), referenced metadata whose file
 is missing ([BLB-R53](blob-storage.md)), the cleanup contract of future
 backends and offline orphan cleanup.
-<!-- from: 03#89, 23#22, 23#23 -->
 
 ### Terminal Run hard deletion
 
 **DEL-R16.** `DELETE /v1/runs/{run_id}` permanently removes an owned Run. It
 is allowed only when the Run is terminal (`succeeded`, `failed` or
 `cancelled`) and every allocation belonging to it has completed release.
-<!-- from: 18#16 -->
 
 **DEL-R17.** An Audit-bound Run additionally cannot be hard-deleted until a
 durable `AuditCollectionReceipt` records the disposition of its exact terminal
 observation. The receipt is required even when the Run failed or was
 cancelled, produced no output, or produced an invalid package.
-<!-- from: 19#171 -->
 
 **DEL-R18.** A receipt with no accepted evidence records that fact rather than
 waiting for an impossible successful import.
-<!-- from: 19#171 -->
 
 **DEL-R57.** A `collection-contract-invalid` disposition is a cleanup-safe
 technical outcome, never accepted evidence. When the collector records each
 disposition is specified in [audits/execution](../audits/execution.md).
-<!-- from: 19#171 -->
 
 **DEL-R58.** After collection, deletion of the Audit-bound Run is allowed
 once the conditions of DEL-R16 also hold.
-<!-- from: 19#171 -->
 
 **DEL-R19.** Run list and detail responses expose a Server-derived
 `deletable` boolean so that the UI shows a trash action only at that safe
 boundary.
-<!-- from: 18#16 -->
 
 **DEL-R20.** A DELETE for a Run that is nonterminal or not yet released, or
 for an Audit-bound Run that has no durable `AuditCollectionReceipt` (DEL-R17),
 including a stale attempt, receives a conflict and changes nothing; no
 partial cleanup happens (FAIL-DEL-1).
-<!-- from: 18#16, 18#29, 19#171 -->
 
 **DEL-R21.** When a Run becomes terminal while a DELETE races, one locked
 snapshot decides; the client retries after refetching (FAIL-DEL-1).
-<!-- from: 18#29 -->
 
 **DEL-R22.** Deletion is one controlled transaction over all Run-owned
 durable state (LIFE-DEL-1, LIFE-DEL-3), including:
@@ -218,85 +192,69 @@ durable state (LIFE-DEL-1, LIFE-DEL-3), including:
 - Run events, metrics, labels, cancellation state, resolved execution data,
   publication receipts and create-idempotency records;
 - the WorkflowRun row itself.
-<!-- from: 18#17, 18#18 -->
 
 **DEL-R23.** The same transaction advances the revision of every affected
 owner Audit: the managed execution's Audit, native proposal-receipt Audits and
 destination Audits retaining imported proposals. Each affected Audit,
 including a terminal Audit, advances once per successful Run deletion
 (LIM-DEL-1).
-<!-- from: 18#19 -->
 
 **DEL-R24.** A rollback or rejected deletion leaves both the Run and these
 Audit revisions unchanged.
-<!-- from: 18#19 -->
 
 Rationale: the revision advance invalidates old Audit ETags, revision pins and
 cursors when retained provenance starts reporting `runDeleted`
 ([audits](../audits/audits.md)).
-<!-- from: 18#19 -->
 
 **DEL-R25.** Run deletion never changes a finding assessment or a frozen
 report-review subject; they keep their own revisions. The finalizing report
 timestamp rule is defined in [review-and-reports](../audits/review-and-reports.md).
-<!-- from: 18#19, 19#177 -->
 
 **DEL-R26.** Source UserScope and ProjectScope artifacts selected as Run
 inputs are not Run-owned and remain after Run deletion.
-<!-- from: 18#20 -->
 
 **DEL-R27.** A ProjectScope output previously published from the Run is an
 independent Project artifact and remains when only the Run is deleted; the
 Run-owned publication receipt and cross-scope provenance edge are removed.
 Deleting the Project later removes that ProjectScope output.
-<!-- from: 18#20 -->
 
 **DEL-R28.** Hard deletion of an ordinary (non-Audit) source Run atomically
 marks its imported finding proposal receipts `audit-held` and every
 unimported proposal receipt `discarded`, then purges the source RunScope with
 its proposal and evidence revisions (LIFE-DEL-6).
-<!-- from: 19#102, 19#175 -->
 
 **DEL-R29.** Receipt provenance and discarded tombstones survive the source
 Run as bounded tombstone provenance; only imported Artifact revisions,
 protected by the destination Audit's own exact holds, survive as readable
 content.
-<!-- from: 19#102, 19#175 -->
 
 Rationale: Run deletion therefore cannot leak abandoned proposals or silently
 remove evidence already retained by an Audit. How a proposal stays readable
 until import or discard is specified in [findings](../findings/findings.md),
 and how an owner imports it into an Audit in
 [review-and-reports](../audits/review-and-reports.md).
-<!-- from: 19#102, 19#175 -->
 
 **DEL-R30.** Run deletion does not cascade to AuditExecution and
 AuditExecutionItem: through a nullable, non-cascading Run relation they retain
 the outcome, the exact retained refs when any, and tombstone provenance.
 Accepted evidence stays retained by exact revision (LIFE-DEL-7).
-<!-- from: 19#171 -->
 
 **DEL-R31.** Run deletion and creation of a destination proposal hold
 serialize on the source Run before taking Audit, receipt/retention and
 Artifact locks.
-<!-- from: 19#177 -->
 
 **DEL-R32.** Deletion locks all affected Audits in Audit-ID order, then
 commits their revision invalidation with the tombstones and the Run removal.
-<!-- from: 19#177 -->
 
 **DEL-R33.** An import that commits first is included in that invalidation;
 an import after committed deletion finds no live source (FAIL-DEL-6).
-<!-- from: 19#177 -->
 
 **DEL-R34.** The browser asks for confirmation immediately before DELETE and
 removes the Run row only after Server success.
-<!-- from: 18#22 -->
 
 **DEL-R35.** Hard deletion intentionally removes the original Run-create
 idempotency record; a later create with the same key may therefore create a
 new Run.
-<!-- from: 18#22 -->
 
 ```mermaid
 sequenceDiagram
@@ -318,48 +276,39 @@ sequenceDiagram
         B->>B: Remove the Run row
     end
 ```
-<!-- from: 18#16, 18#17, 18#18, 18#19, 18#22, 18#29, 19#102, 19#171, 19#175, 19#177 -->
 
 ### Recoverable Project deletion
 
 **DEL-R36.** Project deletion is a durable cancel/drain/purge operation, not a
 synchronous foreign-key cascade (LIFE-DEL-2).
-<!-- from: 17#8 -->
 
 **DEL-R37.** `DELETE /v1/projects/{project_id}` requires the current Project
 `If-Match` and returns `202 Accepted` after atomically changing the Project
 from `active` to `deleting` and durably scheduling cleanup.
-<!-- from: 18#25 -->
 
 **DEL-R38.** Reconciliation of an already-deleting Project returns its current
 deleting representation, so a retry after a lost DELETE response observes the
 existing `deleting` operation (FAIL-DEL-2).
-<!-- from: 18#25, 18#29 -->
 
 **DEL-R39.** The UI requires explicit confirmation by typing the Project name,
 warns that Runs and artifacts are permanent, then polls the ordinary Project
 representation until it becomes the owner-safe `404`.
-<!-- from: 18#25 -->
 
 **DEL-R40.** Once a Project is `deleting`, the Server rejects Project metadata
 and target changes, artifact writes and new Project Runs, and no Audit work
 starts in it. Reads may continue so that progress is visible.
-<!-- from: 18#26, 19#179 -->
 
 **DEL-R41.** Project deletion must fence eval operations in the same durable
 Project lifecycle before draining. The deletion barrier extends to native and
 external managed submission intents and to referenced Audit execution
 Projects (LIFE-DEL-9).
-<!-- from: 30#69 -->
 
 **DEL-R42.** Audit child projects are exact registered dependencies, not
 inferred from labels; their ownership and deletion eligibility are rechecked.
-<!-- from: 30#69 -->
 
 **DEL-R43.** An external producer returning after the fence receives `409`
 and cannot recreate deleted attempts (FAIL-DEL-5). The error code it receives
 is specified in [managed-evals](../evals/managed-evals.md).
-<!-- from: 30#69 -->
 
 **DEL-R44.** A restart-safe controller repeatedly performs these phases:
 
@@ -373,66 +322,53 @@ is specified in [managed-evals](../evals/managed-evals.md).
    complete ProjectScope, then garbage-collect only globally unreferenced
    versions and blobs (DEL-R9, LIFE-DEL-4);
 5. remove Project create-idempotency data and the Project row.
-<!-- from: 18#26, 18#27, 20#41 -->
 
 **DEL-R45.** Before its Run purge and ProjectScope purge, Project deletion
 runs an Audit cancellation and drain phase. Audit deletion itself, including
 how its deletion intent is recorded, is specified in
 [review-and-reports](../audits/review-and-reports.md).
-<!-- from: 19#179 -->
 
 **DEL-R55.** Project deletion supplies the durable deletion intent, so the
 cancellation of each of its Audits deterministically continues to `deleting`
 instead of finishing as `cancelled`.
-<!-- from: 19#179 -->
 
 **DEL-R56.** No Audit hold survives a completed Project purge.
-<!-- from: 19#179 -->
 
 **DEL-R46.** Project deletion neither changes nor bypasses the Scheduler's
 global execution limit ([scheduler](../execution/scheduler.md)), and all its
 cancellation and release phases must converge at every valid setting of that
 limit.
-<!-- from: 20#41 -->
 
 **DEL-R47.** The operation is monotonic, idempotent and retryable after a
 crash at every phase. After a Server restart the durable phase is resumed and
 no Run is recreated (FAIL-DEL-3).
-<!-- from: 18#28, 18#29 -->
 
 **DEL-R48.** Claim bookkeeping and the cancellation and drain phases use the
 controller operation budget; each Run purge and the final ProjectScope purge
 use a separate, longer purge budget, and a purge claim's lease grows by the
 same amount.
-<!-- from: 18#28 -->
 
 **DEL-R49.** A failed attempt defers or releases its claim with a fresh
 bounded budget. When cancellation or release fails, the Project stays
 `deleting` and the controller retries (FAIL-DEL-3).
-<!-- from: 18#28, 18#29 -->
 
 **DEL-R50.** Owner or Audit queue pause never blocks the cancellation, drain,
 release or cleanup work of Project deletion.
-<!-- from: 18#28, 19#179 -->
 
 **DEL-R51.** UserScope artifacts, global Skills and referenced
 RuntimeCredential records are outside Project ownership and are retained;
 deleting the Project only removes their Project and Run references
 (LIFE-DEL-8).
-<!-- from: 18#28 -->
 
 **DEL-R52.** Native private eval storage is not left behind after the Project
 purge (LIFE-DEL-9).
-<!-- from: 30#69 -->
 
 **DEL-R53.** Lifecycle uncertainty blocks the purge rather than claiming that
 external work was undone (FAIL-DEL-3).
-<!-- from: 30#69 -->
 
 **DEL-R54.** No response claims completion while an allocation or
 ProjectScope artifact is still retained: Project deletion cannot finish before
 every owned Run and the entire ProjectScope have been purged.
-<!-- from: 18#28, 18#30 -->
 
 ```mermaid
 flowchart TD
@@ -448,7 +384,6 @@ flowchart TD
     S --> R["5. Remove Project create-idempotency data and the Project row"]
     R --> N["Project reads return owner-safe 404"]
 ```
-<!-- from: 18#25, 18#27, 19#179, 30#69 -->
 
 ## Interfaces
 
@@ -461,7 +396,6 @@ flowchart TD
 - Run list and detail representations carry `deletable` (DEL-R19); the
   Project representation carries the `active` or `deleting` lifecycle state
   and stays readable while deleting (DEL-R40).
-<!-- from: 18#16, 18#25, 18#26, 19#171 -->
 
 ## Limits, failures and errors
 
@@ -494,7 +428,6 @@ Deletion failure and concurrency outcomes are stated in DEL-R8, DEL-R10,
 DEL-R20, DEL-R21, DEL-R38, DEL-R47 and DEL-R49. How
 queue pause races with normal Stage admission is specified in
 [scheduler](../execution/scheduler.md).
-<!-- from: 18#29 -->
 
 ## Security
 
@@ -502,14 +435,12 @@ Delete authority is limited to the controlled deletion path (DEL-R6, DEL-R7);
 deletion endpoints never disclose foreign resources (DEL-R8); destructive
 cleanup starts only at the Scheduler and Control Plane safe boundaries
 (DEL-R2).
-<!-- from: 03#88, 18#4, 18#21, 18#30 -->
 
 ## Observability
 
 A deleting Project stays readable so that cleanup progress is visible
 (DEL-R40). Logging of a failed `filesystem` unlink is specified in
 [blob-storage](blob-storage.md) ([BLB-R50](blob-storage.md)).
-<!-- from: 18#26, 23#22 -->
 
 ## Invariants
 
@@ -523,4 +454,3 @@ A deleting Project stays readable so that cleanup progress is visible
 4. Artifact garbage collection is reference-safe across all scopes (DEL-R9).
 5. Only authenticated public lifecycle endpoints and trusted Server recovery
    code can enter the controlled deletion path (DEL-R7).
-<!-- from: 18#30 -->

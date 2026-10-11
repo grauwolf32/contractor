@@ -12,7 +12,6 @@ not stand in for that lease: an unfenced shared `runtime_agents` table or a
 durable Runtime Agent principal. It also indexes the PostgreSQL state and the
 transaction and serialization rules that domain documents own, so each can be
 found from here while it is stated only in its owner.
-<!-- from: 02#58, 20#53 -->
 
 It leaves to other documents:
 
@@ -35,7 +34,6 @@ It leaves to other documents:
   [Operations](../operations/operations.md);
 - shared registries: [limits](limits.md), [errors](errors.md),
   [failure model](failure-model.md) and [lifecycle](lifecycle.md).
-<!-- from: 02#54, 02#58, 03#69, 03#99, 06#81, 06#129, 07#90, 16#18, 18#15, 20#11, 20#13, 20#53, 22#24, 22#38 -->
 
 ## Concepts
 
@@ -50,8 +48,6 @@ the following ones.
 | Standby Server | A Server process on the same database that does not hold the advisory lease. |
 | Lease-session loss | A single liveness probe of the lease session that fails within the tolerance window. |
 | Tolerance window | The bounded time a lease-session liveness probe may run. |
-
-<!-- from: 02#58, 20#53 -->
 
 ## Model
 
@@ -70,8 +66,6 @@ stateDiagram-v2
     note right of Active: credential recovery, Control Plane, Scheduler and private API run
     note right of Stopped: listeners closed, Scheduler cancelled
 ```
-
-<!-- from: 02#58, 20#53 -->
 
 ### Takeover after the active Server is disconnected
 
@@ -92,8 +86,6 @@ sequenceDiagram
     B->>DB: Acquisition probe acquires the lease
     Note over B: Takes over as the active Server
 ```
-
-<!-- from: 02#58, 20#53 -->
 
 ### Server connections to PostgreSQL
 
@@ -116,8 +108,6 @@ flowchart LR
     Lease -->|"direct, or through a session pooler, never transaction-mode pooling"| DB
 ```
 
-<!-- from: 20#53, 22#24 -->
-
 ### PostgreSQL state and its owners
 
 | State | Owner |
@@ -130,8 +120,6 @@ flowchart LR
 | `performance_minutes` and its migration | [Operations](../operations/operations.md) (OPS-R150, OPS-R151, OPS-R152) |
 | Not PostgreSQL state: the live Runtime Agent Registry | [Control plane](../execution/control-plane.md) (CTL-R62) |
 
-<!-- from: 02#54, 06#81, 06#129, 16#18, 20#11, 20#13, 22#38 -->
-
 ## Requirements
 
 ### One active Server per database
@@ -140,33 +128,27 @@ flowchart LR
 per PostgreSQL database (LIM-PER-1) and one or more Runtime Agent processes;
 that Server is the one active Control Plane instance of the database. The host
 topology is [SYS-R10](../overview.md).
-<!-- from: 02#58, 20#53 -->
 
 **PER-R2.** Before credential recovery, the process-local Control Plane, the
 Scheduler or the private API starts, the Server must hold a session-level
 PostgreSQL advisory lease on a dedicated connection, the lease session.
-<!-- from: 02#58, 20#53 -->
 
 **PER-R3.** Until it acquires the advisory lease, a standby Server has only
 public health and 503 readiness: it serves `/healthz`, returns 503 from
 `/readyz` and has no private API. The general `/readyz` dependency check is
 [OPS-R115](../operations/operations.md).
-<!-- from: 02#58, 20#53 -->
 
 **PER-R4.** When the active Server detects lease-session loss, it closes its
 listeners and cancels the Scheduler; the standby then takes over
 (FAIL-PER-1).
-<!-- from: 02#58, 20#53 -->
 
 **PER-R11.** Multiple active Control Plane replicas, shared fleet coordination
 and durable liveness state must not be approximated by sharing an unfenced
 `runtime_agents` table.
-<!-- from: 02#58 -->
 
 **PER-R12.** Durable certificate principals and their label assignments
 ([Control plane](../execution/control-plane.md)) are configuration records
 only; they never imply that a process is live, leased or eligible.
-<!-- from: 02#58 -->
 
 ### Lease-session loss
 
@@ -175,43 +157,34 @@ fails within a bounded tolerance window of ten seconds (LIM-PER-3). A probe may
 run that long, so a transient client-to-database stall completes late instead
 of being cancelled and dropping the lock-holding session, but a genuinely lost
 session fails within the window.
-<!-- from: 02#58, 20#53 -->
 
 Rationale: the window absorbs transient stalls.
-<!-- from: 02#58 -->
 
 **PER-R6.** The lease session sets server-side TCP keepalives of 10 s idle
 (LIM-PER-4), a 5 s interval (LIM-PER-5), 3 probes (LIM-PER-6) and a 30 s user
 timeout (LIM-PER-7), so PostgreSQL releases the lease within about half a
 minute (LIM-PER-8) when the active Server's host disappears without closing the
 connection (LIFE-PER-1).
-<!-- from: 20#53 -->
 
 **PER-R7.** The tolerance window stays below that keepalive bound, so a
 disconnected active Server stops before PostgreSQL releases the lock to a
 standby (FAIL-PER-1).
-<!-- from: 20#53 -->
 
 **PER-R8.** A standby whose acquisition probe hits a transient stall
 reconnects its lock-free session and keeps polling rather than exiting the
 process (FAIL-PER-2).
-<!-- from: 20#53 -->
 
 ### Connection pooling for the lease
 
 **PER-R9.** The lease session requires direct PostgreSQL or session pooling,
 not transaction-mode pooling.
-<!-- from: 20#53 -->
 
 **PER-R10.** Behind a session pooler, the pooler's own client keepalive
 settings bound how long a vanished Server keeps the lease (LIFE-PER-1).
-<!-- from: 20#53 -->
 
 ### Related rules owned elsewhere
 
 - Active-active Server replicas: [OPS-R5](../operations/operations.md).
-
-<!-- from: 02#58 -->
 
 ### Transactions and serialization owned elsewhere
 
@@ -224,8 +197,6 @@ settings bound how long a vanished Server keeps the lease (LIFE-PER-1).
 | Serialization of Agent-label and binding mutations against allocation pinning | [CTL-R90](../execution/control-plane.md) |
 | No database or network operation while holding the in-memory Runtime Registry lock | [CTL-R87](../execution/control-plane.md) |
 | One database serialization boundary for the owner queue pause and normal Stage admission | [SCH-R156](../execution/scheduler.md) |
-
-<!-- from: 03#69, 03#99, 07#90, 18#15 -->
 
 ## Limits, failures and errors
 
@@ -258,8 +229,6 @@ until it acquires the advisory lease (PER-R3). The `/readyz` `503` for an
 unusable working DB connection path is owned by
 [Operations](../operations/operations.md).
 
-<!-- from: 02#58, 20#53 -->
-
 ## Invariants
 
 1. A PostgreSQL database has at most one active Server, and a Server starts
@@ -284,12 +253,8 @@ unusable working DB connection path is owned by
    `TestPostgresControlPlaneLeaseSessionDetectsVanishedHolder` in
    [`internal/app/single_active_postgres_test.go`](../../../internal/app/single_active_postgres_test.go).
 
-<!-- from: 02#58, 20#53 -->
-
 ## Non-goals
 
 - Multiple active Control Plane replicas, shared fleet coordination and durable
   liveness state; they are deferred together and must not be approximated by
   sharing an unfenced `runtime_agents` table (PER-R11).
-
-<!-- from: 02#58 -->

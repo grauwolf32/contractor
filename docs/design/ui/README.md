@@ -1,6 +1,6 @@
 # UI redesign explorations
 
-[Documentation index](../../README.md) · [UI user stories](../../spec/ui-user-stories.md)
+[Documentation index](../../README.md) · [UI user stories](../../spec/ui/journeys.md)
 
 This directory records the 2026-10 exploration of a simpler Web UI: the main
 user journey redrawn in several directions, and a visual editor for

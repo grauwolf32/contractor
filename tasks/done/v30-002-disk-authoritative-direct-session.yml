@@ -15,7 +15,7 @@ goal: >-
   on-disk state while preserving narrow Reader/Writer interfaces and other modes.
 
 context:
-  specification: docs/spec/10-runtime-filesystems-and-edit-tools.md
+  specification: docs/spec/tools/workspace.md
   ownership: >-
     For mode=direct and storage=local, hydration and optional imported state
     initialize disk only. Initial archives, imported state and memory cannot

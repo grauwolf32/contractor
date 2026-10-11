@@ -11,7 +11,6 @@ code-analysis, annotation and HTTP tools retain their published contracts;
 capability/version changes are explicit amendments to owning specs. Upload, source maps, fixes, suppression sync, native security-score
 classification and complete-scan replacement are deferred beyond the stages in
 [Delivery and conformance](#delivery-and-conformance).
-<!-- from: 28#1, 28#3, 28#10, 28#99 -->
 
 ## Ownership and decisions
 
@@ -27,7 +26,6 @@ collections, code-analysis, annotation and HTTP tools retain their published
 contracts ([Findings](../spec/findings/findings.md),
 [Code analysis](../spec/tools/code-analysis.md),
 [HTTP and Caido](../spec/tools/http-caido.md)).
-<!-- from: 28#3 -->
 
 The design has three boundaries:
 
@@ -40,7 +38,6 @@ The design has three boundaries:
 3. A pure Go exporter transforms the frozen snapshot into SARIF. It performs no
    model reasoning, source discovery, tool execution, network access or review
    mutations. API, CLI and UI share this service.
-<!-- from: 28#4, 28#5 -->
 
 ```mermaid
 flowchart LR
@@ -52,13 +49,11 @@ flowchart LR
     S --> E[Deterministic SARIF exporter]
     E --> A[SARIF + diagnostics artifacts]
 ```
-<!-- from: 28#6 -->
 
 The interchange target is [SARIF 2.1.0 with Errata 01][sarif]. A separate
 `github-code-scanning` profile applies the documented [GitHub consumer
 restrictions][github-sarif]. Generic validity does not imply consumer
 suitability.
-<!-- from: 28#7 -->
 
 ## Existing data and matching boundaries
 
@@ -77,13 +72,11 @@ table states what this design may use from each and what each does not supply.
 | `http-tools@1` | Latest 128 outgoing exchanges in memory and existing response-body artifacts | A finding snapshots a selected request; a bare allocation request ID is not durable evidence. |
 | `caido@1` | Request/response projections and retained raw exchange artifacts | Requires an exact artifact and versioned decoder; external request IDs remain provenance. |
 | Git artifact import | Exact source version, repository URL and resolved commit | Attribution follows version lineage; equal content digests do not merge repository identities. |
-<!-- from: 28#8 -->
 
 Every join uses an explicit identity: receipt, contribution, exact artifact
 revision, document-local location ID or edge endpoints. Bare symbol names,
 basenames, similar descriptions, equal CWE values, shared Runs and private
 graph IDs never create durable relationships.
-<!-- from: 28#9 -->
 
 ## Compatible typed analysis evidence
 
@@ -99,32 +92,27 @@ ordinary evidence document:
 media type: application/vnd.contractor.finding-analysis+json
 schema: contractor.finding.analysis.v1
 ```
-<!-- from: 28#10, 28#11 -->
 
 A proposal may reference zero or one such document. It and all its
 dependencies must be explicitly present in that proposal's `evidence_refs`.
 Existing Artifact tools can author the document. Optional Runtime capture
 helpers may automate authoring without making source workspaces mandatory for
 `finding(...)`.
-<!-- from: 28#12 -->
 
 Dependencies use exact ArtifactRefs, not `evidence-1` ordinals: intake assigns
 ordinals after sorting the complete evidence set. Publish dependency artifacts,
 then analysis, then call `finding(...)` with all refs. The resolver maps refs
 through the containing receipt's evidence table. The document cannot choose
 another scope, grant access or cause recursive external fetches.
-<!-- from: 28#13 -->
 
 Existing immutable receipts are never enriched in place. A legacy proposal can
 be exported as it is, or a new proposal can carry structured evidence and become
 an explicit contribution/presentation choice under the existing Audit contract.
-<!-- from: 28#14 -->
 
 Analysis is a producer claim. Schema validity, matching file digests and a
 Server-produced export establish structural consistency and provenance, not
 the truth of the vulnerability. User-supplied bytes cannot mint trusted tool
 observations or analyst decisions.
-<!-- from: 28#15 -->
 
 ### Document shape
 
@@ -133,7 +121,6 @@ non-finite numbers and dangling references fail. IDs use the Audit identifier
 grammar, except `Rule.id`, which also permits `/` and is at most 160 ASCII
 bytes. Optional fields are omitted; required arrays remain arrays when empty.
 Persist new analysis documents as RFC 8785 canonical JSON.
-<!-- from: 28#16 -->
 
 | Object | Fields |
 | --- | --- |
@@ -148,7 +135,6 @@ Persist new analysis documents as RFC 8785 canonical JSON.
 | Edge | `from`, `to`, `relation`, `basis: producer-asserted\|tool-reported`, `evidence_refs`; optional `argument_binding` |
 | Gap | `after_step_id`, `before_step_id`, `reason` |
 | HTTP exchange | `id`, exact `evidence_ref`, `decoder`; optional `operation`, `implementation_location_id` |
-<!-- from: 28#17 -->
 
 The references between objects, as named by the fields above:
 
@@ -172,14 +158,12 @@ flowchart LR
     GA -. after_step_id / before_step_id .-> ST
     HX -. implementation_location_id .-> LO
 ```
-<!-- from: 28#17, 28#18, 28#36 -->
 
 `client_key` equals the containing proposal's client key; the receipt supplies
 authoritative invocation identity. Array IDs are unique within their containing
 object. Both primary IDs must resolve when present. `correlation_key` is an
 optional stable producer-defined issue discriminator, at most 160 bytes; it
 does not authorize deduplication.
-<!-- from: 28#18 -->
 
 `Rule.id` denotes the check/issue family, for example
 `contractor/sql-injection`. It is stable across Runs; finding ID, Workflow
@@ -189,13 +173,11 @@ definitions for one rule ID in an export fail with `rule_definition_conflict`;
 the exporter does not invent another ID to hide the conflict. `help_uri`, if
 present, is a bounded absolute HTTPS documentation URI without userinfo and is
 never fetched during export.
-<!-- from: 28#19 -->
 
 Absent rules use the built-in `contractor/unclassified` descriptor. Standard
 references remain classifications; a CWE number or prose does not implicitly
 select a rule. Versioned mappings are covered in
 [Rule, rating and SARIF mapping](#rule-rating-and-sarif-mapping).
-<!-- from: 28#20 -->
 
 ### Source and coordinate contract
 
@@ -207,14 +189,12 @@ path with no implicit repository attribution. Both refs are selected evidence.
 All locations of one file source must agree on its logical path. Source
 identity includes artifact scope/version; equal file bytes from different
 sources remain distinct unless that exact source identity is shared.
-<!-- from: 28#21 -->
 
 Paths are relative, case-sensitive POSIX paths. Reject absolute paths, drive
 prefixes, backslashes, control characters, empty/dot/dot-dot components and
 archive symlinks. Preserve case and Unicode spelling, independently of the
 exporting host. URI encoding escapes path components, including spaces, `#`
 and `%`, without changing their source identity.
-<!-- from: 28#22 -->
 
 Lines and columns are one-based. Columns count Unicode code points and end
 columns are exclusive. An absent end line means the start line when columns
@@ -222,14 +202,12 @@ are present. An end column requires a start column. Coordinates must be ordered
 and fit the exact text or its valid exclusive end position. Empty files may
 have file locations but no invented line 1. CRLF is one terminator and tabs are
 one code point, not display width. Emit `run.columnKind: unicodeCodePoints`.
-<!-- from: 28#23 -->
 
 Adapters must specify upstream coordinate conventions. Tree-sitter byte columns
 require decoding the exact UTF-8 line before conversion. Trailmark column units
 require a pinned-adapter fixture; unproven columns are omitted with a
 diagnostic. Do not copy zero-based columns directly. A definition location
 cannot be relabeled as an exact sink expression or call argument.
-<!-- from: 28#24 -->
 
 Resolution is deterministic:
 
@@ -240,11 +218,9 @@ Resolution is deterministic:
 4. Retain supplied symbol metadata as descriptive context. It cannot override
    contradictory physical coordinates or establish a call edge.
 5. Freeze the validated location and exact source identity.
-<!-- from: 28#25, 28#26 -->
 
 Absent coordinates stay absent. Supplied invalid coordinates fail; they never
 trigger a guessed fallback location.
-<!-- from: 28#27 -->
 
 ### Effective workspaces and annotations
 
@@ -252,7 +228,6 @@ ZIP digest, file digest and `WorkspaceSnapshot.digest` are different identities.
 Graph IDs are bound to the effective workspace and erased on release. Resolve
 them while valid into portable file/symbol projections; never persist them as
 the identity of a finding location.
-<!-- from: 28#28 -->
 
 Before publishing workspace evidence, retain the exact source representation
 the observation describes. After edits, the initial Run input is not
@@ -261,7 +236,6 @@ producer-supplied unless a trusted capture adapter records tool/version,
 normalized arguments, snapshot, bounded output and coverage at the operation's
 snapshot boundary. Current model-facing graph responses are not durable
 observation receipts.
-<!-- from: 28#29 -->
 
 Annotations shift lines. Post-insertion coordinates address the annotated
 source; earlier graph locations address the earlier snapshot. First release
@@ -269,7 +243,6 @@ performs no diff, line-offset, fuzzy-symbol or basename remapping. The producer
 retains pre-edit source/coordinates or exports annotated source as its own
 root. A future source-map adapter must verify both endpoint digests and
 mappings before attributing edited coordinates to an original commit.
-<!-- from: 28#30 -->
 
 ## Structured source-to-sink paths
 
@@ -278,26 +251,22 @@ mappings before attributing edited coordinates to an original commit.
 `call-path` records reachability through call edges, including `paths_between`
 and `entrypoint_paths_to` results. Declaration locations can describe this
 path, but do not establish argument propagation.
-<!-- from: 28#31 -->
 
 `data-flow` records a claimed transfer of a particular value between
 expressions or parameters. Steps identify input, propagation, transformations,
 checks and sink argument as available. An optional `argument_binding` is
 `{caller_value, callee_parameter}` with bounded descriptive strings. Equal
 variable names or adjacent calls do not create this binding automatically.
-<!-- from: 28#32 -->
 
 `execution-trace` records a sequence from retained instrumentation/execution
 evidence. A static call path or unrelated HTTP requests ordered by time cannot
 be reclassified as an execution trace.
-<!-- from: 28#33 -->
 
 Step roles are `source`, `propagation`, `call`, `return`, `validation`,
 `sanitizer`, `sink`, `observation`. Optional `value_state` is `unknown`,
 `tainted`, `derived`, `validated` or `clean`. Neither `validated` nor a
 sanitizer role establishes safety; preserve the claimed effect and limitations
 in the step message and evidence.
-<!-- from: 28#34 -->
 
 Edge relations are `call`, `return`, `argument`, `assignment`, `transform`,
 `control` or `observation`. A `tool-reported` basis requires retained output
@@ -305,7 +274,6 @@ from a recognized versioned decoder that reports that relation. A plain copied
 document still has producer-supplied origin unless capture provenance is
 trusted. Tool edge confidence does not become finding confidence or
 confirmation.
-<!-- from: 28#35 -->
 
 ### Connectivity, ambiguity and completeness
 
@@ -313,7 +281,6 @@ Steps are ordered. Each adjacent pair has exactly one explicit edge or gap;
 edge/gap endpoints are consecutive step IDs. Branches and alternative paths
 are separate Flows. Repeated visits to one location use distinct step IDs,
 allowing loops without changing location identity.
-<!-- from: 28#36 -->
 
 A complete data-flow starts with a located source, ends with a located sink,
 has evidence for every edge and contains no gaps. These are structural
@@ -322,13 +289,11 @@ required argument binding or coordinates makes that portion partial and
 explicit. An unlocated step has gaps to its neighbors and cannot bridge located
 steps. For other kinds, complete describes the represented sequence, not
 whole-program or whole-Audit coverage.
-<!-- from: 28#37 -->
 
 The exporter never discovers a missing edge or chooses an overloaded function
 by name. Original coverage/truncation flags remain limitations. A bounded list
 can contain complete individual paths while being incomplete as a list of
 alternatives.
-<!-- from: 28#38 -->
 
 Example: for `handler -> service -> execute`, the baseline Trailmark projection
 is a call path. A data-flow additionally identifies the request value,
@@ -336,7 +301,6 @@ actual/formal bindings, transformations and sink argument with explicit
 evidence. A retained `@trace` comment supports a claim; `calls=execute` alone
 cannot resolve an overloaded callee or prove that a particular value reaches
 it.
-<!-- from: 28#39 -->
 
 ### Rendering paths and primary locations
 
@@ -345,7 +309,6 @@ one `threadFlow`. Step order supplies `executionOrder`, starting at 1. Preserve
 native flow kind and evidence basis in Contractor properties. Step roles map
 to `kinds`; messages retain validation/sanitization qualifications. A single
 located step remains a related location and native flow record.
-<!-- from: 28#40 -->
 
 Split partial paths into contiguous located segments at gaps. Segments of at
 least two steps may become separate code flows, visibly labeled as partial
@@ -353,14 +316,12 @@ segments. Isolated locations remain related locations. Retain the complete
 native path/gaps and an incomplete-trace message. Never connect the two sides
 of a gap for presentation. Diagnostics distinguish segment counts from
 findings.
-<!-- from: 28#41 -->
 
 `primary_location_id` explicitly selects the result location. Taint producer
 instructions should choose the actionable sink expression, or the vulnerable
 entry point when that is where the fix belongs. The exporter never chooses
 the first graph node, final declaration or first evidence file automatically.
 Other validated relevant locations become related locations.
-<!-- from: 28#42 -->
 
 ### Matching existing taint annotations
 
@@ -371,7 +332,6 @@ Its target is
 `(source identity, path, declaration, explicit trace target)`. A bare symbol
 or comment elsewhere in the file cannot select a declaration. Multiple targets
 on one declaration remain separate analysis contexts.
-<!-- from: 28#43 -->
 
 | Annotation data | Native projection | Additional evidence required |
 | --- | --- | --- |
@@ -380,7 +340,6 @@ on one declaration remain separate analysis contexts.
 | `calls=...` | Claimed relevant callees | Resolve each callee explicitly; list order does not establish a sequential data-flow or unique overloaded target. |
 | `@validate arg=... kind=...` | Validation step with argument and claimed check in its message | Evidence must establish the relevant predicate/effect; syntax does not prove safety. |
 | `@sink kind=... arg=...` | Sink role, value and claimed sink category | Select the actual sink expression when available; no automatic CWE or rule assignment. |
-<!-- from: 28#44 -->
 
 Marker/declaration coordinates belong to the annotated file. Precise expression
 coordinates require a retained structural or source observation, and joining
@@ -388,7 +347,6 @@ another snapshot still follows
 [Effective workspaces and annotations](#effective-workspaces-and-annotations).
 Parsed comments remain producer assertions even when the annotation tool
 originally inserted them successfully.
-<!-- from: 28#45 -->
 
 ## HTTP, OpenAPI and non-code findings
 
@@ -396,14 +354,12 @@ An exchange references retained evidence and an exact code-backed decoder ID.
 Initial decoder implementations cover the current HTTP body and Caido exchange
 envelopes, with fixtures for their media types and schemas. Unknown decoders
 fail instead of invoking heuristic text parsing.
-<!-- from: 28#46 -->
 
 The HTTP body decoder exposes only available response fields; a body artifact
 does not recover the request, session credentials or headers. Caido parsing
 preserves truncation/malformed-data limitations; a preview never becomes a
 complete exchange. Multiple exchanges remain distinct. Only an explicit primary
 exchange supplies the result's `webRequest`/`webResponse`.
-<!-- from: 28#47 -->
 
 Optional `operation` is `{document_ref, pointer, method, path_template}`. The
 exact OpenAPI document is selected evidence; its JSON Pointer must resolve to
@@ -412,19 +368,16 @@ descriptive, not a globally unique join key. The exchange-to-operation relation
 remains a producer assertion unless a retained versioned matcher establishes
 it. Target/deployment markers, source commit and specification revision remain
 separate facts.
-<!-- from: 28#48 -->
 
 `implementation_location_id` explicitly links the exchange to a validated code
 location. Handler names, paths and operation IDs never infer this relation.
 HTTP target, specification location and implementation location are distinct.
 An OpenAPI physical region requires coordinates in that exact document; a JSON
 Pointer alone does not supply YAML line numbers.
-<!-- from: 28#49 -->
 
 Generic export supports HTTP-only, configuration, architecture and
 missing-evidence findings without code coordinates. An arbitrary evidence file
 cannot become a primary code location merely to satisfy a consumer.
-<!-- from: 28#50 -->
 
 The first HTTP projection includes method, sanitized URI, response status and
 content type when known. It excludes bodies, query values, userinfo and
@@ -432,7 +385,6 @@ credentials/cookies. Record omitted field names and reason codes, never removed
 values. Full exchanges remain ordinary access-controlled evidence. Export does
 not query Caido or replay requests. Authored finding text is not claimed to be
 automatically secret-free.
-<!-- from: 28#51 -->
 
 ## Frozen selection, presentation and identity
 
@@ -443,7 +395,6 @@ and [reader preparation](../spec/findings/findings.md#reader-preparation) in
 Findings. A v1 collection alone is not a reviewed
 export snapshot: decision IDs do not contain analyst severity/rationale, and
 one receipt can have reviews in several Audits.
-<!-- from: 28#52 -->
 
 Schema `contractor.findings.export-snapshot.v1` freezes:
 
@@ -461,14 +412,12 @@ Schema `contractor.findings.export-snapshot.v1` freezes:
   metadata captured from exact artifact versions;
 - rule definitions, classification mappings, native flow/HTTP data, rendered
   projections, limitations, diagnostics and provenance/evidence references.
-<!-- from: 28#53, 28#54 -->
 
 The snapshot contains all rendering inputs. Re-rendering never reads current
 reviews, mutable bindings or current source. Raw evidence refs remain
 provenance, not promises of eternal availability or implicit download
 capabilities. All selected evidence must be readable and validated before
 freezing the snapshot.
-<!-- from: 28#55 -->
 
 ### Findings, contributions and receipts
 
@@ -479,24 +428,20 @@ together. That proposal supplies title, description, rule, main location and
 paths. Other contributions remain supporting evidence/provenance and never
 silently replace presentation fields or append conflicting paths. The selected
 finding's applicable decision supplies triage.
-<!-- from: 28#56 -->
 
 A directly selected receipt yields one proposal result with receipt identity.
 It has no invented finding ID or authoritative review. Other Audit reviews may
 remain observations, but none is implicitly chosen as its effective decision.
-<!-- from: 28#57 -->
 
 Explicitly selecting both a receipt and its containing finding yields two
 differently typed results; UI displays the overlap. Duplicate explicit
 selectors are invalid under collection request rules; shared receipts in
 contribution expansion are retained once and linked to each selected finding.
 Similar content does not deduplicate distinct selected identities.
-<!-- from: 28#58 -->
 
 A duplicate finding retains its ID and target link. Selection does not select
 its target implicitly, copy the target's rating or turn it into another
 confirmed vulnerability.
-<!-- from: 28#59 -->
 
 ### Repository attribution and correlation
 
@@ -506,7 +451,6 @@ and ordinary uploaded archives have no inferred Git identity. Populate
 `versionControlProvenance` only from trusted Git import/fork lineage of the
 exact source version ([Git import](../spec/artifacts/git-import.md) provenance),
 captured in the snapshot.
-<!-- from: 28#60 -->
 
 For generic output, a root key is SHA-256 of the RFC 8785 array
 `[scope.kind, scope.id, ref.namespace, ref.name, ref.revision, source.kind,
@@ -516,7 +460,6 @@ their root's `uriBaseId`. These are logical addresses, not endpoints to fetch.
 The GitHub profile uses a single synthetic `file:///src/` base for its
 explicitly bound repository and keeps the original source identities in
 properties.
-<!-- from: 28#61 -->
 
 Generated/annotated archives do not inherit a commit by sharing a Run or paths.
 First release requires verified exact-version Git origin for repository
@@ -524,13 +467,11 @@ attribution; edited workspace attribution and source maps are deferred.
 Repository identity uses the normalized repository URL of
 [Git import](../spec/artifacts/git-import.md); SSH/HTTPS aliases do not become
 equal by guessing. Any future alias mapping must be explicit and versioned.
-<!-- from: 28#62 -->
 
 Native result IDs, grouping hints and consumer fingerprints have distinct jobs.
 Finding/receipt IDs and revisions stay in Contractor properties. Run/allocation
 IDs never identify issues across scans, and fingerprints never mutate Audit
 duplicate relations.
-<!-- from: 28#63 -->
 
 Emit generic fingerprint `contractor/issue/v1` only when the producer supplies
 `correlation_key` and there is a stable repository and rule identity. Hash the
@@ -539,7 +480,6 @@ correlation_key]` with SHA-256. The key must distinguish independent issues
 sharing subject, CWE or sink. Without it, omit this fingerprint and report
 `fingerprint_unavailable`. Commit, source digest and line numbers are excluded
 from this cross-scan key. It remains a correlation hint, not proof of identity.
-<!-- from: 28#64 -->
 
 ## Rule, rating and SARIF mapping
 
@@ -559,7 +499,6 @@ underlying object definitions.
 | Primary HTTP exchange | `webRequest` / `webResponse` under [HTTP, OpenAPI and non-code findings](#http-openapi-and-non-code-findings) |
 | Known versioned classifications | `taxonomies` / `taxa`; original tuples retained |
 | IDs, review, evidence, native details | Namespaced `properties.contractor` |
-<!-- from: 28#65, 28#66 -->
 
 Preserve hypothesis, preconditions, proposed checks and limitations from the
 complete original proposal in Contractor properties; messages include the
@@ -567,7 +506,6 @@ relevant explanatory text. Evidence references include exact scope/ref/digest
 and origin, not just a mutable artifact name. Generated Markdown escapes link
 labels and uses only validated documentation or explicitly configured UI URLs;
 it does not publish credentials or signed access tokens in evidence links.
-<!-- from: 28#67 -->
 
 Classification adapters preserve `(scheme, version, requirement_id)`. CWE and
 ASVS may both classify one finding. Unsupported tuples remain original refs
@@ -577,7 +515,6 @@ catalogs. Classification does not assert causal checklist origin; only trusted
 Audit backtrace establishes that origin. Which `CWE@4.20` references Audit
 import retains, without treating CWE as a pinned Audit standard, is specified
 in [AUD-R103](../spec/audits/audits.md).
-<!-- from: 28#68 -->
 
 The generic review/level policy is:
 
@@ -587,20 +524,17 @@ The generic review/level policy is:
 | Confirmed, applicable analyst severity absent | `fail` | `warning` with `severity_unrated`; native rating absent |
 | Proposed, needs-evidence, rejected or duplicate | `review` | `none` |
 | Direct proposal receipt | `review` | `none` |
-<!-- from: 28#69, 28#70 -->
 
 Native state, verdict, rating and the distinct proposal `severity_suggestion`
 remain visible in the message and Contractor properties. Proposal severity is
 never an analyst rating. The unrated display default does not store a medium
 severity. Rejection is not a successful check, and duplication is not a new
 confirmed failure.
-<!-- from: 28#71 -->
 
 Do not infer `suppressions`, `baselineState`, fixes or pass results from
 triage. They require separate suppression, comparison, remediation or
 check-result contracts. Exporting confirmed findings does not establish that
 other items were tested or passed.
-<!-- from: 28#72 -->
 
 ## GitHub Code Scanning profile
 
@@ -626,18 +560,15 @@ generic schema validation:
   release omits rule-level `security-severity`: ratings may differ among
   findings of one rule, so a shared score would misrepresent them. Native
   GitHub security-score classification is deferred.
-<!-- from: 28#73, 28#74 -->
 
 No selected findings are silently skipped. Compatibility failure returns
 diagnostics and publishes no SARIF. The user can explicitly narrow the
 selection or choose generic output. Upload is a separate integration.
-<!-- from: 28#75 -->
 
 A subset export is not a complete scan of a category. A future uploader must
 define coverage and replacement semantics before updating repository alert
 inventory. Exporting one finding does not assert that absent findings were
 fixed.
-<!-- from: 28#76 -->
 
 ## Service and publication contract
 
@@ -648,13 +579,11 @@ internal/findinganalysis       typed evidence codec and semantic validation
 internal/findingexport         authorized selection, frozen projection/publication
 internal/findingexport/sarif   pure profile rendering and validation
 ```
-<!-- from: 28#77, 28#78 -->
 
 Use internal `ResolvedFinding`/`ExportSnapshot` types independent of SARIF.
 They are projections, not another mutable finding store. Reuse ArtifactStore
 and existing finding/Audit read boundaries; Scheduler and Planner gain no
 branches.
-<!-- from: 28#79 -->
 
 The target endpoint is `POST /v1/finding-exports`, with existing owner auth and
 browser Origin/CSRF controls ([Public API](../spec/api/public-api.md)). The
@@ -681,7 +610,6 @@ target public shape is:
   ]
 }
 ```
-<!-- from: 28#80, 28#81 -->
 
 `sources` follows the collection selection semantics of
 [collection publication](../spec/findings/findings.md#collection-publication)
@@ -691,7 +619,6 @@ UI/CLI can enumerate confirmed findings before submitting exact IDs/revisions.
 GitHub additionally requires `target: {repositoryUri, commit, category}`;
 generic requests reject `target`. OpenAPI and generated clients will be
 updated during implementation.
-<!-- from: 28#82 -->
 
 Return `snapshot`, `artifact`, `diagnostics` as exact descriptors with
 `{ref, digest, mediaType, sizeBytes}`, plus `snapshotAt`, `selectedCount`,
@@ -699,26 +626,22 @@ Return `snapshot`, `artifact`, `diagnostics` as exact descriptors with
 `application/json` artifact downloaded with `.sarif`. CLI exposes
 `--format sarif --output <path>`; UI uses the same download and diagnostic
 projection.
-<!-- from: 28#83 -->
 
 Atomically publish snapshot, SARIF, diagnostics and paired idempotency receipt
 in the owner's existing artifact bindings:
 `finding-export-snapshots/<clientKey>`, `finding-exports/<clientKey>`,
 `finding-export-diagnostics/<clientKey>`, `finding-export-receipts/<clientKey>`.
 No allocation or asynchronous job is needed for the bounded first release.
-<!-- from: 28#84 -->
 
 Replay compares normalized request digests and returns original exact artifacts
 before reading current findings or selecting a new renderer version. Changed
 requests conflict. Incomplete/corrupt prior publications fail explicitly; they
 are not rebuilt from current state. New keys allow new snapshots.
-<!-- from: 28#85 -->
 
 Reuse collection transaction/retry discipline to capture revisions/contributions
 together. Only authorized selected refs are read. Definite serialization aborts
 can retry within a bound, rechecking requested revisions. Concurrent source
 deletion or missing evidence cannot produce a successful partial export.
-<!-- from: 28#86 -->
 
 ```mermaid
 flowchart TD
@@ -740,14 +663,12 @@ flowchart TD
     G -- no --> U[422 with bounded diagnostics; no SARIF published]
     G -- yes --> P[Atomically publish snapshot, SARIF, diagnostics and idempotency receipt]
 ```
-<!-- from: 28#55, 28#75, 28#84, 28#85, 28#86, 28#89, 28#92 -->
 
 Sort results by typed identity, rules by ID, roots/artifacts by exact identity
 and classifications by their full tuple. Preserve step order. Assign indexes
 after sorting. Use captured time/version, no render-time clock or random GUIDs.
 Emit deterministic UTF-8 JSON with one trailing LF. The same snapshot and
 pinned renderer/profile produce identical bytes on Linux and macOS.
-<!-- from: 28#87 -->
 
 ## Bounds and diagnostics
 
@@ -757,7 +678,6 @@ First release reuses the collection selection and evidence bounds defined in
 archives selected as evidence count toward those bounds; they cannot be fetched
 outside the budget. Oversized selections require explicitly smaller evidence
 packages or a separately specified limit increase.
-<!-- from: 28#88 -->
 
 Per analysis: at most 1 MiB, 32 sources, 256 locations, 32 flows, 128 steps
 per flow, 32 HTTP exchanges, 16 KiB per text field and nesting depth 32.
@@ -765,17 +685,14 @@ Snapshot and SARIF are each at most 16 MiB. Aggregate validation precedes
 publication; per-object maxima do not promise their Cartesian product fits.
 Source snippets and HTTP bodies are not embedded by default; native messages
 remain bounded.
-<!-- from: 28#89 -->
 
 GitHub profile limits must remain below supported consumer retention ceilings
 for results, locations and flow steps. Freeze numeric limits with the profile
 implementation/fixtures; reject selections that would otherwise be truncated.
 Original tool coverage/truncation still remains visible.
-<!-- from: 28#90 -->
 
 Diagnostics contain a code, severity, typed selection identity and bounded
 field/document locator, without raw source, credentials or decoder exceptions.
-<!-- from: 28#91 -->
 
 | Condition | Outcome |
 | --- | --- |
@@ -789,19 +706,16 @@ field/document locator, without raw source, credentials or decoder exceptions.
 | Stale revision / changed idempotency request | 409 |
 | Malformed request | 400 |
 | Semantic/profile/size validation failure | 422, bounded diagnostics |
-<!-- from: 28#92 -->
 
 Warnings never remove selected results: successful `resultCount` equals the
 normalized selected identity count. Zero selections may produce an empty
 generic run. GitHub rejects an empty selection because this endpoint does not
 establish a complete clean scan.
-<!-- from: 28#93 -->
 
 ## Worked matching example
 
 An Audit finding has two receipts. Its presentation receipt references analysis
 and exact source ZIP. The applicable analyst decision rates it high.
-<!-- from: 28#94 -->
 
 ```text
 input: src/http/orders.py:42, request.args["sort"]
@@ -815,7 +729,6 @@ request-sort (data-flow):
     -- callee binding / SQL construction, explicit evidence -->
   sink [sink, value=query, state=derived]
 ```
-<!-- from: 28#95 -->
 
 Locations resolve by source ref, member, file digest and region. Evidence must
 support each asserted transfer, including argument binding and SQL
@@ -824,19 +737,16 @@ as primary. Output has one result, `kind: fail`, `level: error`, stable rule ID,
 primary sink and one ordered code flow. Native severity remains high; both
 receipts remain provenance. Intermediate expression steps can make the coarse
 example precise.
-<!-- from: 28#96 -->
 
 If only `handler -> list_orders -> execute` is available, emit a call path.
 If a transfer is unresolved, emit a partial data-flow with a gap. If
 annotations shift line 87, require the corresponding annotated snapshot or
 original pre-edit coordinates; do not adjust it by guessing.
-<!-- from: 28#97 -->
 
 For an HTTP-only broken-authorization finding, preserve the exchange
 projection, review and evidence without a fake code location. Generic export
 succeeds; GitHub reports missing repository coordinates. A valid OpenAPI link
 enriches the result but does not automatically resolve its implementation.
-<!-- from: 28#98 -->
 
 ## Delivery and conformance
 
@@ -853,7 +763,6 @@ enriches the result but does not automatically resolve its implementation.
 4. **GitHub profile:** target validation, compatible fingerprints and consumer
    limits. Upload, source maps, fixes, suppression sync, native security-score
    classification and complete-scan replacement are deferred.
-<!-- from: 28#99 -->
 
 Implementation acceptance includes:
 
@@ -876,10 +785,8 @@ Implementation acceptance includes:
   aborts and corrupt/missing retained artifacts;
 - GitHub target/cross-repository mismatch, absent locations, fingerprint
   compatibility and zero silent consumer truncation.
-<!-- from: 28#100, 28#101 -->
 
 [sarif]: https://docs.oasis-open.org/sarif/sarif/v2.1.0/errata01/os/sarif-v2.1.0-errata01-os-complete.html
 [sarif-schema]: https://docs.oasis-open.org/sarif/sarif/v2.1.0/errata01/os/schemas/sarif-schema-2.1.0.json
 [github-sarif]: https://docs.github.com/en/code-security/reference/code-scanning/sarif-files/sarif-support
 [github-fingerprints]: https://github.com/github/codeql-action/blob/main/src/fingerprints.ts
-<!-- from: 28#102 -->

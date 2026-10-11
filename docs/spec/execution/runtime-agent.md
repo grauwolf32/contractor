@@ -25,7 +25,6 @@ allocation at a time. This document owns:
 - the placement of the private agent-state handler inside the Runtime;
 - the measured interval, sampler and accumulator of allocation resource
   metrics.
-<!-- from: 02#60, 02#61, 02#62, 02#105, 07#106, 14#70, 22#49, 22#54 -->
 
 It leaves to other documents:
 
@@ -60,7 +59,6 @@ It leaves to other documents:
 - telemetry export semantics: [Observability](../platform/observability.md);
 - the `runtime.resources` report fields and their validation:
   [Operations](../operations/operations.md).
-<!-- from: 01#54, 01#73, 01#83, 01#103, 01#114, 02#26, 02#27, 02#32, 02#35, 02#45, 02#74, 02#104, 02#115, 04#55, 04#90, 07#8, 07#94, 07#97, 07#108, 07#109, 07#112, 07#117, 09#66, 09#67, 10#21, 10#31, 10#85, 10#86, 14#18, 14#65, 14#72, 21#24, 22#50 -->
 
 ## Concepts
 
@@ -109,7 +107,6 @@ Worker is defined in [Worker](worker.md); `CapabilitySnapshot`,
 `instance_id`, the confirmed control lease, `AllocationSpec` and two-phase
 release in [Control Plane](control-plane.md); SandboxProfile in
 [AgentTemplates](../configuration/agent-templates.md).
-<!-- from: 02#60, 01#101, 01#102, 02#25, 02#28, 01#75, 02#65, 07#106, 07#110, 02#48, 02#49, 02#50, 04#77, 02#101, 02#105, 22#49 -->
 
 ## Model
 
@@ -136,7 +133,6 @@ stateDiagram-v2
     fenced --> idle : after watchdog expiry, release action, then a re-registration response re-arms the watchdog
     fenced --> idle : no allocation existed; a confirmed response establishes that the authoritative slot is unallocated and re-arms the watchdog
 ```
-<!-- from: 02#27, 01#75, 02#30, 02#49, 02#50, 02#51, 02#62, 02#65, 04#76 -->
 
 ### Allocation resources
 
@@ -156,7 +152,6 @@ created and removed:
 | RuntimeSettings | Received in `AllocationSpec` | Erased at release |
 | Access tokens | Held for the allocation | Erased at release |
 | Allocation identity and cached report | Report built by finalization or abort, or snapshotted after local lease loss (RTA-R23, RTA-R26) | Cleared after the heartbeat `release` action |
-<!-- from: 02#62, 02#75, 02#110, 01#75, 02#65, 02#49 -->
 
 ### Finalization and two-phase release
 
@@ -178,7 +173,6 @@ sequenceDiagram
     CP->>RA: heartbeat ack with release action
     RA->>RA: clear retained identity and report, become idle
 ```
-<!-- from: 02#62, 02#64, 04#76, 04#77, 02#65 -->
 
 ## Requirements
 
@@ -189,7 +183,6 @@ exclusive slot (LIM-CTL-4). Runtime Agent and Worker behaviour are implemented b
 code and execute in that same process. `Worker` names the temporary
 allocation-scoped role and runtime instance, not another service, daemon,
 subprocess or container.
-<!-- from: 02#60 -->
 
 **RTA-R2.** There is no separate domain `WorkerImplementation` or
 `WorkerImplementationCatalog`, and Control Plane does not select an executable
@@ -199,7 +192,6 @@ factories, conceptually:
 ```text
 adk@1 -> AdkWorkerRuntimeFactory
 ```
-<!-- from: 01#101, 01#102 -->
 
 **RTA-R3.** The selected Runtime Agent validates the WorkerRuntime
 ref that Control Plane places in `AllocationSpec` against its own build and
@@ -207,29 +199,23 @@ creates the Worker instance. Control Plane's deployment check and the
 exclusion of executable paths, modules, images and raw process arguments from
 Workflow YAML, AgentTemplate, Planner and public API input are
 [CTL-R4 and CTL-R5](control-plane.md).
-<!-- from: 01#103 -->
 
 **RTA-R4.** Runtime Agent control code validates the
 AllocationSpec but does not interpret the template's domain instructions. Its
 selected in-process Worker runtime consumes those instructions and configures
 the same process's A2A Server; an incompatible runtime or Agent Card fails
 preparation before the Planner starts (FAIL-RTA-3).
-<!-- from: 01#115 -->
 
 **RTA-R5.** The Worker runtime may use ADK or another future
 in-process adapter without changing Workflow Scheduler or Planner contracts.
-<!-- from: 02#63 -->
 
 **RTA-R103.** The Worker runtime's dependencies live in the Runtime Agent
 deployment, not in Contractor Server.
-<!-- from: 02#63 -->
 
 **RTA-R104.** The Worker runtime receives no PostgreSQL or S3 credential.
-<!-- from: 02#63 -->
 
 **RTA-R105.** The Worker runtime cannot outlive the Runtime Agent process
 (LIFE-RTA-4).
-<!-- from: 02#63 -->
 
 The rest of the Runtime Agent's credential boundary (artifact access uses the
 allocation-bound Server API, model access uses the supplied LLM Gateway
@@ -239,7 +225,6 @@ configuration supplied by Control Plane) is specified in
 [Security](../platform/security.md);
 the allocation-scoped telemetry exporter credential is
 [SCH-R74](scheduler.md).
-<!-- from: 01#114, 04#90 -->
 
 ### Startup capability discovery
 
@@ -249,28 +234,23 @@ enabled local FactoryRegistry, including its own installed and enabled
 ToolsetFactory registry, and runs bounded capability probes against the
 process environment. The result is one immutable `CapabilitySnapshot`, whose
 shape is defined in [Control Plane](control-plane.md#runtime-agent-registration).
-<!-- from: 02#25, 02#26, 01#54 -->
 
 **RTA-R101.** Installed code alone is not a capability: the Runtime Agent
 advertises a Toolset ref only under the complete-contract rule of
 [Toolsets](../tools/toolsets.md).
-<!-- from: 01#54 -->
 
 **RTA-R7.** The Runtime enables every installed built-in adapter by
 default. An immutable startup allowlist may narrow that installed surface with
 repeated `--runtime-adapter <ref>` flags or the comma-separated
 `CONTRACTOR_RUNTIME_ADAPTERS` environment value. Only factories in that set
 are probed, and only successful probes are advertised.
-<!-- from: 07#58 -->
 
 **RTA-R8.** The allowlist cannot add an implementation,
 manufacture a positive capability or change after registration; changing it
 means starting a new process incarnation. It is an environment and deployment
 boundary, not a label or allocation setting.
-<!-- from: 07#58 -->
 
 Every enabled factory owns its local probe semantics (RTA-R9 to RTA-R12).
-<!-- from: 02#28 -->
 
 **RTA-R9.** A WorkerRuntime probe verifies that the adapter and its
 Runtime-owned local prerequisites can construct that exact runtime contract.
@@ -278,7 +258,6 @@ For `adk@1` this includes the pinned ADK Skill models, package loader and
 native SkillToolset required by [Skills](../tools/skills.md), but no
 particular skill package; installed skill names are never advertised
 ([Skills](../tools/skills.md)).
-<!-- from: 02#29, 09#75 -->
 
 **RTA-R10.** A Toolset probe returns the exact subset of `exported_tools`
 that can honor their complete contracts, including required local
@@ -288,17 +267,14 @@ additionally require the immutable workspace storage provider of
 for example that an operation which could only return `validator unavailable`
 is omitted while independent tools stay, is specified in
 [Toolsets](../tools/toolsets.md).
-<!-- from: 02#29, 02#32, 10#21 -->
 
 **RTA-R11.** A SandboxProfile probe proves that the profile can prepare and
 clean an isolated probe resource under its operator-owned root. A cleanup
 failure is a failed probe.
-<!-- from: 02#29 -->
 
 **RTA-R12.** A RuntimeAdapter probe proves that its local code and
 dependencies can construct that exact typed adapter contract without
 contacting a configured endpoint.
-<!-- from: 02#29 -->
 
 **RTA-R102.** Supported RuntimeAdapter refs include `otlp-http@1`,
 `http-proxy@1` and `caido-graphql@1`. Their bounded startup probes verify only
@@ -307,7 +283,6 @@ contact an OTLP endpoint, proxy, Caido endpoint, LLM Gateway or credential
 service. The snapshot remains immutable for `instance_id`; changing adapter
 code or local dependencies requires a Runtime Agent restart
 ([CTL-R35](control-plane.md)).
-<!-- from: 07#100 -->
 
 **RTA-R13.** Ordinary factory probes have a 12-second timeout
 (LIM-RTA-1), and the complete startup probe phase has a 30-second timeout when
@@ -315,32 +290,26 @@ Podman is disabled (LIM-RTA-2). Opt-in Podman discovery
 ([Code execution](../tools/code-execution.md)) has a 60-second total budget
 (LIM-RTA-3) and a shared profile and execution probe bounded to 30 seconds
 (LIM-RTA-4), including an 8-second cleanup reserve (LIM-RTA-5).
-<!-- from: 02#30 -->
 
 **RTA-R14.** Unconfirmed Podman cleanup during discovery
 prevents registration; it is not an optional capability omission
 (FAIL-RTA-1).
-<!-- from: 02#30 -->
 
 **RTA-R15.** A probe timeout, cancellation or unexpected exception
 means that the factory or the affected tool is unavailable. An optional
 failure does not prevent unrelated capabilities from being advertised
 (FAIL-RTA-1).
-<!-- from: 02#30 -->
 
 **RTA-R16.** Probes must not use Workflow or User artifacts, make
 an LLM call or perform domain work.
-<!-- from: 02#30 -->
 
 **RTA-R17.** Probes may create only uniquely named, bounded
 resources below a Runtime-owned probe or work root and must remove them before
 reporting success (LIFE-RTA-7).
-<!-- from: 02#30 -->
 
 **RTA-R18.** Probes invoke external programs directly without a
 shell, with closed stdin, bounded output and the same effective executable
 search and configuration that the real tool will use.
-<!-- from: 02#30 -->
 
 **RTA-R19.** Runtime workspace-provider initialization
 ([Workspace](../tools/workspace.md)) is shared preparation inside the same
@@ -349,7 +318,6 @@ or memory storage and cleanup primitives but does not download Run artifacts
 or hydrate a tree before an allocation. Filesystem factory probes reuse the
 frozen provider and therefore remain within the per-factory probe timeout
 (LIM-RTA-1).
-<!-- from: 02#31 -->
 
 **RTA-R20.** Capability probes cover only Runtime-owned
 prerequisites available before an allocation. They do not probe an LLM Gateway
@@ -358,73 +326,60 @@ RuntimeSettings supplied later in AllocationSpec. The availability of those
 per-allocation dependencies follows the ordinary bounded preparation or
 execution failure path (RTA-R42, RTA-R106, RTA-R43) and is not a
 physical-agent placement capability.
-<!-- from: 02#34 -->
 
 How the snapshot is registered, which capabilities are omitted, the
 startup-readiness failure when no WorkerRuntime or SandboxProfile passes, the
 RuntimeAdapter list bound (LIM-CTL-3) and the freezing of the snapshot for the
 lifetime of `instance_id` are specified in
 [CTL-R30 to CTL-R35](control-plane.md).
-<!-- from: 02#27, 02#35, 07#100 -->
 
 ### Confirmed-lease watchdog
 
 The Runtime Agent renews its local confirmed lease only on a new ack for a
 heartbeat sequence it actually sent ([CTL-R44](control-plane.md)).
-<!-- from: 02#45 -->
 
 **RTA-R21.** The Runtime Agent maintains the symmetric monotonic
 watchdog over the confirmed control lease. If 60 seconds (LIM-CTL-2) pass
 without a new valid ack, the agent performs steps RTA-R22 to RTA-R26 in order
 (FAIL-RTA-2).
-<!-- from: 02#48 -->
 
 **RTA-R22.** Step 1 after local lease expiry: the Runtime Agent rejects new
 A2A Tasks and enters `draining`.
-<!-- from: 02#49 -->
 
 **RTA-R23.** Step 2 after local lease expiry: the Runtime Agent asks its
 active in-process Worker runtime to abort and snapshots the accumulated report
 without further semantic work.
-<!-- from: 02#49 -->
 
 **RTA-R24.** Step 3 after local lease expiry: the Runtime Agent stops and
 destroys that Worker instance within the configured shutdown grace,
 `CONTRACTOR_SHUTDOWN_GRACE_SECONDS` (default 10 seconds, LIM-RTA-6), which is
 also the bound before forced termination after lease loss.
-<!-- from: 02#49 -->
 
 **RTA-R25.** Step 4 after local lease expiry: if in-process termination cannot
 be guaranteed, the Runtime Agent exits its process instead of reusing the slot.
-<!-- from: 02#49 -->
 
 **RTA-R26.** Step 5 after local lease expiry: otherwise the Runtime Agent
 deactivates the allocation's A2A identity, secrets and access context, retains
 its allocation ID and cached final report, and enters `fenced` rather than
 `idle` (LIFE-RTA-5).
-<!-- from: 02#49 -->
 
 **RTA-R27.** Local confirmed-lease loss invokes the same bounded
 adapter teardown as finalization and abort while the Worker self-terminates.
 It never waits for an exporter beyond the remaining local grace deadline, and
 the Runtime Agent remains fenced even when telemetry cannot be delivered
 (FAIL-RTA-9).
-<!-- from: 07#118 -->
 
 **RTA-R28.** A fenced agent continues registration and heartbeat
 retries. It cannot accept another allocation until Control Plane explicitly
 acknowledges release of the old allocation.
-<!-- from: 02#50 -->
 
 **RTA-R29.** If no allocation existed when the local lease
 expired, the agent still remains fenced until a confirmed response establishes
 that the authoritative slot is unallocated.
-<!-- from: 02#50 -->
 
 **RTA-R30.** A lost release response is safe: the agent continues
 reporting the old allocation as fenced, and Control Plane repeats the
 idempotent release action ([CTL-R48](control-plane.md)) (FAIL-RTA-5).
-<!-- from: 02#50 -->
 
 **RTA-R31.** After local watchdog expiry, a `release` action
 clears the old allocation but keeps the slot fenced. The agent re-registers,
@@ -432,34 +387,28 @@ and only a successful response that re-arms the watchdog permits `idle`. That
 allocation-free re-registration starts a fresh Control Plane claim deadline
 ([CTL-R49](control-plane.md)), so the Runtime's new local deadline cannot
 outlive Server authority.
-<!-- from: 02#51 -->
 
 How abort and lease loss stop workspace operations, cancel work, skip export
 and delete the WorkspaceSession is specified in
 [Workspace](../tools/workspace.md).
-<!-- from: 10#85 -->
 
 ### Allocation preparation
 
 **RTA-R32.** For one allocation the Runtime Agent performs preparation
 steps RTA-R33 to RTA-R41 in order.
-<!-- from: 02#61, 02#62 -->
 
 **RTA-R33.** Preparation step 1: the Runtime Agent reserves its only slot and
 validates `AllocationSpec` against its frozen startup runtime, Toolset/tool,
 SandboxProfile and RuntimeAdapter capability snapshot, including the effective
 digest-bearing ModelPolicy, the exact `resolvedSkills` manifest and the
 mandatory `workerSessionMode`.
-<!-- from: 02#62 -->
 
 **RTA-R34.** Preparation step 2: the Runtime Agent constructs the selected
 allocation-scoped infrastructure adapters and validates their typed handle set
 before creating any sandbox, Toolset or Worker resource.
-<!-- from: 02#62 -->
 
 **RTA-R35.** Preparation step 3: the Runtime Agent asks the selected
 SandboxProfile to prepare the allocation-local scratch.
-<!-- from: 02#62 -->
 
 **RTA-R36.** Preparation step 4: if `AllocationSpec.workspace` is present, the
 Runtime Agent creates a private WorkspaceSession, downloads its exact RunScope
@@ -467,12 +416,10 @@ ZIP and state refs through the existing Artifact API, hydrates the selected
 local or memory storage and establishes a checkpoint. For `podman@1`, it
 prepares the allocation-owned container only after local direct hydration and
 before any Toolset or Worker receives execution access.
-<!-- from: 02#62 -->
 
 **RTA-R37.** Preparation step 5: the Runtime Agent binds the private Artifact
 client and fetches and validates the exact RunScope Agent Skill packages
 selected for the Run ([Skills](../tools/skills.md)).
-<!-- from: 02#62 -->
 
 **RTA-R38.** Preparation step 6: the Runtime Agent validates the resolved
 AgentTemplate projection; prepares allocation-local Contractor State,
@@ -480,19 +427,15 @@ instrumentation reducers, the selected tools and the native ADK SkillToolset;
 and then passes only the minimal `WorkerBuildContext` plus the effective
 ModelPolicy selected by the Run's ResolvedExecutionConfig to the in-process
 Worker runtime factory.
-<!-- from: 02#62 -->
 
 **RTA-R39.** Preparation step 7: the Runtime Agent configures its own A2A
 Server and Agent Card for that allocation.
-<!-- from: 02#62 -->
 
 **RTA-R40.** Preparation step 8: the Runtime Agent binds model access to the
 allocation context.
-<!-- from: 02#62 -->
 
 **RTA-R41.** Preparation step 9: the Runtime Agent reports ready and handles
 the Worker's A2A Tasks itself.
-<!-- from: 02#62 -->
 
 The detailed sequences inside steps 4 and 5 are specified elsewhere: secure
 hydration of `application/zip` sources and optional overlay state, returning
@@ -501,30 +444,25 @@ starting the Podman container with `/workspace` bound to the hydrated content
 in [Code execution](../tools/code-execution.md); and reading every exact
 `resolvedSkills[].artifact`, verifying, extracting and loading it into one
 native ADK SkillToolset in [Skills](../tools/skills.md).
-<!-- from: 10#31, 21#24, 09#66, 09#67 -->
 
 **RTA-R42.** After reservation, the Runtime Agent validates
 the exact typed settings against its frozen capability snapshot before
 creating a workspace, tool or Worker.
-<!-- from: 07#102 -->
 
 **RTA-R106.** Malformed settings, a missing required secret, a digest
 mismatch or a local adapter construction failure is a bounded preparation
 failure (FAIL-RTA-3).
-<!-- from: 07#102 -->
 
 Retryability of these preparation failures is
 [FAIL-R16, FAIL-R17, FAIL-R20 and FAIL-R21](../platform/failure-model.md)
 (FAIL-FAIL-5). The fail-closed rules for unknown fields, duplicate JSON keys,
 an unrecognized exact adapter ref, multiple proxy credential variants and
 secrets in provenance are [RCF-R164](../configuration/runtime-config.md).
-<!-- from: 07#102, 07#97 -->
 
 **RTA-R43.** Remote OTLP or proxy availability is not a startup
 capability. Telemetry delivery failure is best-effort (FAIL-RTA-9); an
 unavailable required HTTP proxy produces the ordinary bounded LLM or tool HTTP
 failure and can therefore affect the semantic Stage outcome (FAIL-RTA-8).
-<!-- from: 07#102 -->
 
 **RTA-R44.** The Runtime Agent constructs an
 `AllocationAdapterHost` before constructing the sandbox, any Toolset or the
@@ -532,19 +470,16 @@ Worker. The host owns only adapters present in the resolved settings and
 injects explicit clients and handles into the model client and the selected
 Toolset factories (LIFE-RTA-6). Label names and complete RuntimeConfig
 documents are not supplied to the model.
-<!-- from: 07#106 -->
 
 **RTA-R45.** The Runtime Agent must have the implementation that
 matches the `SandboxProfileRef` of the resolved AgentTemplate in AllocationSpec
 and rejects allocation preparation if it does not (FAIL-RTA-3). What a
 SandboxProfile ref may carry is specified in
 [AgentTemplates](../configuration/agent-templates.md).
-<!-- from: 01#73 -->
 
 **RTA-R46.** The `local-workdir@1` SandboxProfile is prepared
 before any Toolset factory or Worker can run. Failure to create its fresh
 allocation directory is an allocation-preparation failure (FAIL-RTA-3).
-<!-- from: 02#65 -->
 
 Before creating the Worker, the Runtime Agent verifies the instruction,
 policy-dependency and AgentTemplate digests carried in AllocationSpec. The
@@ -553,42 +488,34 @@ failure and the ban on recomputing an identity or fetching replacement
 content are owned by [AgentTemplates](../configuration/agent-templates.md).
 Cleanup after a partial preparation is specified in
 [Workspace](../tools/workspace.md).
-<!-- from: 01#83, 10#85 -->
 
 ### The `local-workdir@1` SandboxProfile
 
 **RTA-R47.** `local-workdir@1` is a built-in SandboxProfile whose
 behaviour is RTA-R48 to RTA-R52.
-<!-- from: 01#74 -->
 
 **RTA-R48.** `local-workdir@1` creates a new empty directory owned by one
 allocation before constructing the selected Toolsets (LIFE-RTA-1).
-<!-- from: 01#75 -->
 
 **RTA-R49.** `local-workdir@1` chooses the allocation directory internally
 below the operator-configured Runtime Agent work root and never serializes its
 host path into AgentTemplate, StageExecution, A2A messages or ArtifactRefs.
-<!-- from: 01#75 -->
 
 **RTA-R50.** `local-workdir@1` provides an allocation-local workspace handle
 only to the runtime and Toolset factories that need it, and never reuses the
 allocation directory for another allocation.
-<!-- from: 01#75 -->
 
 **RTA-R51.** `local-workdir@1` keeps the allocation directory until release,
 then acknowledges release only after its contents are removed; a cleanup
 failure leaves the Runtime Agent fenced and unavailable for placement, so that
 the slot cannot reuse dirty state (FAIL-RTA-5).
-<!-- from: 01#75 -->
 
 **RTA-R52.** `local-workdir@1` removes recognized orphan allocation
 directories below its dedicated work root on Runtime Agent startup, before the
 slot can report `idle`.
-<!-- from: 01#75, 02#65 -->
 
 The opt-in `podman@1` SandboxProfile is specified in
 [Code execution](../tools/code-execution.md).
-<!-- from: 01#74 -->
 
 **RTA-R53.** A directory is recognized as an allocation directory
 only by an exact `allocation-<32 hex>` name plus a sibling owner marker that
@@ -596,14 +523,12 @@ the Runtime writes before creating the directory and removes after removing
 it (LIFE-RTA-2). Unmarked entries, including those left by releases before
 markers existed, are never removed; only exact marker-owned Runtime work
 directories are cleanup targets.
-<!-- from: 02#65, 02#62 -->
 
 The workspace provider's startup cleanup below the exact configured
 `workRoot`, including what happens to a stale directory that cannot be
 removed, and how local removal restores owner `rwx`, uses pinned directory
 descriptors, never follows links and removes the ownership marker last, are
 specified in [Workspace](../tools/workspace.md).
-<!-- from: 10#85 -->
 
 **RTA-R54.** Despite the type name, `local-workdir@1` is lifecycle
 isolation, not an OS security boundary. Worker and tools still run in the
@@ -611,35 +536,29 @@ Runtime Agent process with that process's filesystem, network and subprocess
 privileges. The profile promises no container, mount, syscall, process or
 network isolation and adds no process, container, filesystem-permission or
 network security boundary.
-<!-- from: 01#76, 02#65 -->
 
 **RTA-R55.** Selected Toolsets remain responsible for safe
 input handling. Stronger future profiles require new exact refs rather than
 changing `local-workdir@1` semantics.
-<!-- from: 01#76 -->
 
 ### Allocation-scoped adapters and proxying
 
 **RTA-R56.** The Runtime Agent applies Worker proxy and
 telemetry settings only through allocation-owned adapter objects. It does not
 mutate process-global proxy environment or trust stores.
-<!-- from: 02#75 -->
 
 **RTA-R57.** Registration, heartbeat, control, A2A and Artifact API
 traffic always bypasses the Worker proxy. MemoryTools uses that same Artifact
 client and adds no proxied endpoint.
-<!-- from: 02#75 -->
 
 **RTA-R58.** Finalization and abort close adapters after a bounded
 best-effort telemetry flush (FAIL-RTA-9); release idempotently ensures that
 they remain closed and erases their retained settings secrets (LIFE-RTA-6).
-<!-- from: 02#75 -->
 
 **RTA-R59.** HTTP proxy configuration is never applied through
 process-global environment, global certificate stores or module-global
 clients. The meanings of the `llm-gateway`, `tool-http` and `tool-subprocess`
 targets are [RCF-R106](../configuration/runtime-config.md).
-<!-- from: 07#107, 07#108 -->
 
 Proxy targets are injection contracts, not transparent network interception.
 Each exported tool's declaration of whether it consumes the Runtime-owned HTTP
@@ -647,36 +566,30 @@ client or the bounded subprocess launcher, the Runtime's validation of that
 declaration against the factory registration, and the duty of an affected
 tool to use the injected handle are specified in
 [Toolsets](../tools/toolsets.md).
-<!-- from: 07#109 -->
 
 **RTA-R60.** For `tool-subprocess`, the bounded launcher constructs a
 child-only `HTTP_PROXY`/`HTTPS_PROXY`/`NO_PROXY` and trust-bundle environment,
 closes it after the process exits and treats every proxy-auth value as secret
 (LIFE-RTA-8).
-<!-- from: 07#110 -->
 
 **RTA-R61.** Private Contractor hosts are in the bypass set, and
 the child receives no Runtime client certificate, Artifact grant or Control
 Plane token unless its separate selected tool contract explicitly requires an
 allocation-scoped handle.
-<!-- from: 07#110 -->
 
 **RTA-R62.** The child's own outcome reaches the calling tool
 unchanged: any exit code (a validator exits 1 for findings), a timeout or an
 output-limit breach is reported by that tool as it would be without a proxy.
-<!-- from: 07#110 -->
 
 **RTA-R63.** Only failing to prepare, launch or clean up the
 route is an adapter failure, `proxy_subprocess_failed`, and it counts as a
 failed adapter operation (FAIL-RTA-7).
-<!-- from: 07#110 -->
 
 **RTA-R64.** Each child runs in a task the launcher owns.
 Cancelling the calling tool stops the child before the call ends. Closing the
 adapter stops running children and removes their CA files without cancelling
 the calling tool's own task, whose call then fails with
 `proxy_subprocess_failed` (FAIL-RTA-7, LIFE-RTA-8).
-<!-- from: 07#110 -->
 
 **RTA-R65.** The `v1alpha1` generic subprocess environment can carry
 unauthenticated or Basic-authenticated proxy URLs but cannot faithfully encode
@@ -684,31 +597,25 @@ Bearer proxy authentication for an arbitrary executable. If `tool-subprocess`
 is selected with `http-proxy-bearer@1`, the launcher therefore returns a
 bounded fail-closed tool error; it never retries directly and never translates
 the Bearer token into Basic credentials (FAIL-RTA-7).
-<!-- from: 07#111 -->
 
 **RTA-R66.** Model and tool HTTP clients support both credential
 kinds.
-<!-- from: 07#111 -->
 
 **RTA-R67.** For a selected target, proxying is fail-closed: a
 connection, authentication or TLS failure is returned as the bounded model or
 tool error and never retries the same request directly (FAIL-RTA-8).
-<!-- from: 07#113 -->
 
 **RTA-R68.** The model client may perform the bounded same-route SDK
 retry series of [Worker](worker.md) (WRK-R11 to WRK-R14); every physical
 attempt still uses this allocation's proxy and is visible in its adapter
 operation counters.
-<!-- from: 07#113 -->
 
 **RTA-R69.** Proxy credentials are sent only to the configured
 proxy authority.
-<!-- from: 07#113 -->
 
 **RTA-R70.** The optional CA bundle augments the Runtime's ordinary
 public trust roots only for targeted allocation clients; it never replaces or
 augments the private Contractor mTLS context.
-<!-- from: 07#113 -->
 
 Related rules owned elsewhere: the bypass of the private
 registration/heartbeat/control endpoint, the A2A server and the Artifact API
@@ -722,7 +629,6 @@ attributes (RCF-R167) are in
 [Runtime configuration](../configuration/runtime-config.md); exporter error
 handling and the bounded flush and close of telemetry senders are in
 [Observability](../platform/observability.md).
-<!-- from: 07#112, 02#74, 07#8, 07#94, 07#117 -->
 
 ### Allocation-scoped A2A endpoint
 
@@ -730,13 +636,11 @@ handling and the bounded flush and close of telemetry senders are in
 authenticated A2A address (LIM-RTA-7). While its slot is allocated, the same
 process configures its A2A Server and external Agent Card from the active
 AgentTemplate.
-<!-- from: 02#105 -->
 
 **RTA-R72.** An opaque allocation routing key may be carried in the
 [`AgentInterface.tenant`](https://a2a-protocol.org/v1.0.0/specification) field
 defined by A2A 1.0, which leaves its routing semantics opaque. It is not an
 authentication credential.
-<!-- from: 02#105 -->
 
 **RTA-R73.** The Agent Card exposes one strict Contractor
 stage-content skill (LIM-RTA-8). Its input mode is
@@ -745,62 +649,50 @@ stage-content skill (LIM-RTA-8). Its input mode is
 response media-type check are [WRK-R38](worker.md). The AgentTemplate's
 selected tools remain internal model capabilities and are not advertised as
 independent A2A skills.
-<!-- from: 02#107, 14#18 -->
 
 **RTA-R74.** The external card declares the endpoint's mutual-TLS
 security requirement. The Planner client is configured with the Server's
 Control Plane certificate; the advertised `tenant` remains only the opaque
 route selector and is never treated as a credential.
-<!-- from: 02#108 -->
 
 **RTA-R75.** The A2A endpoint authenticates the Server as a Control Plane
 peer through mTLS.
-<!-- from: 02#110 -->
 
 **RTA-R76.** The A2A endpoint validates that `tenant` matches the active
 allocation and lease.
-<!-- from: 02#110 -->
 
 **RTA-R77.** The A2A endpoint delivers every A2A operation and stream to the
 current in-process Worker runtime.
-<!-- from: 02#110 -->
 
 **RTA-R78.** The A2A endpoint rejects stale, expired or released allocations.
-<!-- from: 02#110 -->
 
 **RTA-R79.** The A2A endpoint is deactivated during finalization, abort and
 release.
-<!-- from: 02#110 -->
 
 **RTA-R107.** The A2A endpoint has no responsibilities beyond RTA-R75 to
 RTA-R79.
-<!-- from: 02#109 -->
 
 **RTA-R80.** The transport layer does not plan work or assemble
 results. The in-process Worker runtime owns Task semantics, including every
 A2A Task under the allocation, while the surrounding Runtime Agent owns
 transport, allocation and lease checks.
-<!-- from: 02#111, 02#119 -->
 
 **RTA-R81.** A2A owns interaction with a Runtime Agent's already
 prepared Worker instance: messages and streams, Task state and continuation,
 cancellation, progress and artifact refs. How normal durable artifact bytes,
 Agent Skill package bytes and workspace source and state bytes stay out of
 A2A is [ART-R100, ART-R112 and ART-R113](../artifacts/artifact-store.md).
-<!-- from: 02#114, 02#115 -->
 
 **RTA-R82.** Every executed Task reaches a terminal state with a
 Contractor result. An exception escaping the Worker invocation becomes a
 bounded retryable `worker_execution_failed` WorkerCompletion on a `failed`
 Task, never a Task left `working` or a provider or exception message
 (FAIL-RTA-6).
-<!-- from: 02#112 -->
 
 **RTA-R83.** `CancelTask` cancels only the Worker invocation started by
 that Task ID. Cancelling a Task that was rejected as `worker_busy`, already
 finished or never ran leaves the active invocation of another Task untouched
 (FAIL-RTA-6).
-<!-- from: 02#112 -->
 
 The separation of allocation, A2A Task and context, Contractor invocation and
 ADK session identities is [WRK-R69](worker.md). One Runtime Agent has one
@@ -808,41 +700,34 @@ active slot, so a Stage with three named Workers needs three Runtime Agent
 processes ([CTL-R112 and CTL-R143](control-plane.md)); one Worker executes at most one Task
 at a time, and draining and fenced allocations reject work
 ([CTL-R113 and CTL-R114](control-plane.md)).
-<!-- from: 02#104, 02#100, 02#101 -->
 
 ### Finalization and abort
 
 **RTA-R84.** Finalization and abort enter through the Runtime Agent's
 existing private control endpoint.
-<!-- from: 02#64 -->
 
 **RTA-R108.** Finalization and abort perform no new semantic work: the same
 process stops its current Worker runtime, converts accumulated metrics to
 `ExecutionReport` and returns the report.
-<!-- from: 02#64 -->
 
 **RTA-R109.** Neither finalization nor abort is exposed as an A2A skill or
 waits for A2A cancellation to reach a terminal Task state.
-<!-- from: 02#64 -->
 
 **RTA-R85.** Worker finalization performs no model or tool calls
 and cannot mutate artifacts. It only serializes already accumulated data,
 destroys the in-process runtime instance and closes allocation-owned Toolsets
 before returning. An active A2A Task is asked to cancel locally, but
 finalization does not wait for the A2A protocol to report a terminal state.
-<!-- from: 04#76 -->
 
 **RTA-R86.** Before each graceful terminal A2A
 `WorkerCompletion`, the Runtime closes the matching observation snapshot and
 performs any declared overlay auto export ([Workspace](../tools/workspace.md)).
-<!-- from: 02#62 -->
 
 **RTA-R87.** On finalization or abort, the Runtime rejects new Tasks,
 requests cancellation of active work, destroys the Worker runtime instance,
 closes every selected Toolset, confirms that the Podman execution container
 stopped when present, bounded-flushes and destroys allocation adapters and
 serializes the report (LIFE-RTA-4).
-<!-- from: 02#62 -->
 
 **RTA-R88.** The finalize command is idempotent for
 `finalization_id`. The Runtime Agent waits only until the supplied deadline;
@@ -850,14 +735,12 @@ if it cannot guarantee that the Worker stopped, it exits its own process
 rather than reusing the slot (FAIL-RTA-4). Control Plane then records an
 incomplete report from the facts it can observe, and Scheduler accepts the
 already durable candidate (see also [CTL-R118](control-plane.md)).
-<!-- from: 04#76 -->
 
 **RTA-R89.** The Runtime Agent keeps the resulting
 `AllocationFinalReport` with the allocation until `release` (LIFE-RTA-5). If
 the response is lost, repeating the same `finalization_id` returns that cached
 report even though the Worker has already exited; a different finalization ID
 for the same draining allocation is rejected (FAIL-RTA-4).
-<!-- from: 04#77 -->
 
 The abort command's idempotence for `abort_id` is
 [CTL-R119](control-plane.md). Retention of workspace data until release for
@@ -865,7 +748,6 @@ idempotent finalization and replay is specified in
 [Workspace](../tools/workspace.md); the snapshot and cleanup of ADK sessions
 and carried State, which must be cleared before the slot is reused, are
 [WRK-R75 to WRK-R77](worker.md).
-<!-- from: 10#85, 04#55 -->
 
 ### Release
 
@@ -876,15 +758,12 @@ extracted allocation-local skill files, RuntimeSettings, access tokens and the
 profile workspace (LIFE-RTA-3; the profile workspace is LIFE-RTA-1, the
 WorkspaceSession LIFE-WSP-1, Worker State LIFE-WRK-3, allocation-local Skill
 state LIFE-SKL-3 and RuntimeSettings LIFE-RCF-6 and LIFE-SEC-1).
-<!-- from: 02#62 -->
 
 **RTA-R110.** The private release confirms Toolset cleanup and Podman
 container removal before disposing mounted files.
-<!-- from: 02#62 -->
 
 **RTA-R111.** The private release retains the allocation identity and cached
 report in `fenced` state (LIFE-RTA-5).
-<!-- from: 02#62 -->
 
 **RTA-R91.** During release, the Runtime Agent acknowledges local
 cleanup only after removing the `local-workdir@1` allocation directory, while
@@ -892,20 +771,17 @@ continuing to report the old allocation identity as `fenced`. A cleanup
 failure keeps the slot unavailable, and an idempotent release retry repeats
 cleanup. A lost HTTP response is therefore safe: neither side can infer an
 idle slot (FAIL-RTA-5).
-<!-- from: 02#65 -->
 
 **RTA-R92.** After Control Plane has removed its authority, a
 subsequent heartbeat `release` action confirms that edge; only then does the
 Runtime Agent clear the retained identity and report, become `idle` and free
 the slot (LIFE-RTA-5).
-<!-- from: 02#62 -->
 
 The allocation-wide cleanup task (run off the event-loop thread, awaited under
 one finite cleanup deadline, joined rather than duplicated by a retry) and the
 removal of the private local directory or memory namespace are specified in
 [Workspace](../tools/workspace.md); the Control Plane side of two-phase
 release is [CTL-R124 to CTL-R126](control-plane.md).
-<!-- from: 10#86, 10#85 -->
 
 ### Live Worker State handler
 
@@ -915,13 +791,11 @@ route lives beside the allocation lifecycle routes and delegates to
 Worker. The Worker implementation returns a framework-neutral
 `AgentStateSnapshot`; the HTTP layer never reaches directly into the ADK
 Session.
-<!-- from: 14#70 -->
 
 The route `GET /private/v1/allocations/{allocation_id}/agent-state`, its
 accepted peer, caching, 4 MiB body bound (LIM-WRK-17) and errors
 (`allocation_not_found`, `agent_state_unavailable`) are
 [WRK-R112 to WRK-R122](worker.md).
-<!-- from: 14#65, 14#66, 14#72 -->
 
 ### Allocation resource measurement
 
@@ -929,41 +803,33 @@ accepted peer, caching, 4 MiB body bound (LIM-WRK-17) and errors
 allocation ownership, before expensive prepare work. It stops and freezes the
 measurement after bounded Worker and adapter teardown, immediately before the
 cached finalize or abort response is built.
-<!-- from: 22#49 -->
 
 **RTA-R95.** A failed prepare follows the existing cleanup and
 report delivery rules; metrics add no new required response or lifecycle.
-<!-- from: 22#49 -->
 
 **RTA-R96.** Release occurs after the final report and is
 outside the measured interval. Idle time before or after the allocation and a
 later allocation never enter its sample.
-<!-- from: 22#49 -->
 
 **RTA-R97.** The Runtime keeps a constant-size accumulator and one
 cancellable sampler (LIM-RTA-9), with no overlapping reads and no leaked
 sampler after prepare failure, abort, watchdog drain or release.
-<!-- from: 22#54 -->
 
 **RTA-R98.** Measurement failure changes only resource
 completeness, not Worker report completeness or semantic outcomes
 (FAIL-RTA-10).
-<!-- from: 22#54 -->
 
 **RTA-R99.** If the Runtime is lost before reporting, the Server
 records unknown resources; there is no periodic delivery or crash recovery of
 the accumulator (FAIL-RTA-10).
-<!-- from: 22#54 -->
 
 **RTA-R100.** No sampling happens while idle or when the request is
 absent.
-<!-- from: 22#54 -->
 
 The `runtime.resources` fields of `RuntimeReport`, their validity rules, the
 meaning of `complete` and the process-wide scope of the values are
 [OPS-R174 to OPS-R181](../operations/operations.md); the collection request and
 the persisted decision are [CTL-R132 to CTL-R138](control-plane.md).
-<!-- from: 22#50, 22#51, 22#52, 22#53 -->
 
 ## Interfaces
 
@@ -975,7 +841,6 @@ Startup configuration:
 | Shutdown grace | `CONTRACTOR_SHUTDOWN_GRACE_SECONDS`, default 10 seconds | Bound for stopping the Worker after lease loss (RTA-R24) |
 | Work root | Operator configuration; a dedicated directory | Parent of allocation directories (RTA-R49); probes create resources below a Runtime-owned probe or work root (RTA-R17) |
 | Workspace storage provider | Immutable process configuration | [Workspace](../tools/workspace.md) |
-<!-- from: 07#58, 02#49, 01#75, 02#30, 10#21 -->
 
 A2A endpoint: one stable authenticated address per Runtime Agent with an
 allocation routing key in `AgentInterface.tenant` (RTA-R71,
@@ -985,7 +850,6 @@ RTA-R72). Request content uses
 and the terminal response
 `application/vnd.contractor.worker-completion+json`
 ([`worker-completion.schema.json`](../../../api/v1alpha1/worker-completion.schema.json)).
-<!-- from: 02#105, 02#107, 14#18 -->
 
 Private Runtime routes, reached only by Control Plane: the private control
 endpoint that receives prepare, finalize, abort and release
@@ -994,7 +858,6 @@ endpoint that receives prepare, finalize, abort and release
 ([Worker](worker.md)). The private surface is the one strict
 `contractor/v1alpha1` contract with one schema and fixture catalog under
 [`api/v1alpha1`](../../../api/v1alpha1/) ([CTL-R6 and CTL-R8](control-plane.md)).
-<!-- from: 02#64, 14#66, readme#16 -->
 
 ## Limits, failures and errors
 
@@ -1078,7 +941,6 @@ Errors ([registry](../platform/errors.md)):
   ([AgentTemplates](../configuration/agent-templates.md));
   `runtime_adapter_prepare_failed` ([Failure model](../platform/failure-model.md));
   `allocation_not_found` and `agent_state_unavailable` ([Worker](worker.md)).
-<!-- from: 02#30, 02#31, 02#49, 02#105, 02#107, 22#54, 02#27, 02#48, 02#100, 02#101, 14#72, 01#75, 02#65, 02#62, 04#76, 04#77, 02#112, 07#110, 07#111, 07#113, 07#102, 07#118, 02#75, 01#83 -->
 
 ## Security
 
@@ -1103,7 +965,6 @@ The security model, mutual TLS and the trust boundary are specified in
 - subprocess children receive only a child-only proxy environment, no Runtime
   credentials, and no Bearer-to-Basic translation (RTA-R60,
   RTA-R61, RTA-R65).
-<!-- from: 01#76, 01#75, 02#63, 02#108, 02#110, 02#49, 02#62, 02#75, 07#107, 07#110, 07#111, 07#113 -->
 
 ## Observability
 
@@ -1118,7 +979,6 @@ The security model, mutual TLS and the trust boundary are specified in
   [Observability](../platform/observability.md).
 - Resource measurement covers exactly the measured interval
   (RTA-R94 to RTA-R100).
-<!-- from: 02#27, 07#113, 07#110, 02#75, 07#118, 22#49, 22#54 -->
 
 ## Invariants
 
@@ -1140,7 +1000,6 @@ process environment, label changes, proxy bypass and identity separation are
 listed in [Control Plane](control-plane.md#invariants); those on the
 `finalizing`/`aborting` race and the durable deadlines in
 [Scheduler](scheduler.md).
-<!-- from: 02#119, 04#90, 01#75, 02#65 -->
 
 ## Examples
 
@@ -1157,7 +1016,6 @@ external Agent Card
 Runtime Agent active slot
   allocation-123 -> in-process Worker runtime created from AgentTemplate
 ```
-<!-- from: 02#106 -->
 
 ## Non-goals
 
@@ -1168,4 +1026,3 @@ Runtime Agent active slot
   requires a future versioned local relay contract (RTA-R65).
 - Dynamic re-probing, capability withdrawal and in-place re-registration
   ([Control Plane](control-plane.md#non-goals)).
-<!-- from: 01#76, 07#111, 02#35 -->

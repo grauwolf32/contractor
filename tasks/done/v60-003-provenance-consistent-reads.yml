@@ -19,8 +19,8 @@ context:
   authority: User requested detailed project review and implementation; initial pass exposed these provenance-read
     gaps.
   specification:
-  - docs/spec/19-audits.md
-  - docs/spec/27-findings-tools-and-collections.md
+  - docs/spec/audits/audits.md
+  - docs/spec/findings/findings.md
   design: docs/plans/2026-09-20-project-review.md
   finding_ids:
   - PR-02

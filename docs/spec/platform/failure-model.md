@@ -31,8 +31,6 @@ It leaves to other documents:
   [Failure rules owned by other documents](#failure-rules-owned-by-other-documents);
 - error and stop codes: [Errors](errors.md).
 
-<!-- from: 04#7, 07#103, 07#104, 07#105, 02#71, 14#38, 04#6 -->
-
 ## Concepts
 
 - **Outcome class**: the kind of result a failed call or mutation produced:
@@ -63,8 +61,6 @@ It leaves to other documents:
 
 Terms are defined once in the [glossary](../glossary.md).
 
-<!-- from: 04#7, 07#104, 07#105, 12#76, 14#38, 03#43, 08#49, 06#98, 32#20 -->
-
 ## Model
 
 ### Outcome classes
@@ -76,8 +72,6 @@ Terms are defined once in the [glossary](../glossary.md).
 | Ambiguous | The caller cannot tell whether a mutation committed: a response lost after commit ([ART-R60](../artifacts/artifact-store.md)), an Artifact PUT transport failure or HTTP 5xx that does not prove rollback ([MEM-R69](../tools/memory.md)), an ambiguous Gateway or database result of a credential delete ([RCF-R53](../configuration/runtime-config.md)), or an ambiguous scan invocation outcome ([SCN-R207](../tools/scanners.md)). The owning document states how each is reconciled. |
 | Timeout | A bound expired before an answer. An existing Stage deadline remains the outer authority over label resolution and adapter preparation (FAIL-R22). For model calls, HTTP 408 and transport timeouts are transient (FAIL-R2); a request the Gateway received but did not answer within the participant's own request timeout is reported `released`, is not resent and fails as transient ([SCH-R109](../execution/scheduler.md)). |
 | Cancelled | The operation was stopped through Stage cancellation or abort. Existing Stage deadline, cancellation and abort bounds remain the outer authority over label resolution and adapter preparation (FAIL-R22); during model-availability recovery, cancellation and the admitted Stage wall-clock limit remain effective when manual retry reopens the window, and cancellation before a grant is known sends nothing ([SCH-R107](../execution/scheduler.md), [SCH-R110](../execution/scheduler.md)). |
-
-<!-- from: 14#38, 12#76, 07#105, 04#7, 03#43, 08#49, 06#98, 32#20, 04#6 -->
 
 ### Gateway failure classification
 
@@ -94,8 +88,6 @@ flowchart TD
   R -- "HTTP 401, 403 or another 4xx" --> P2["Permanent"]
 ```
 
-<!-- from: 04#7 -->
-
 ## Requirements
 
 ### Gateway failure classification
@@ -103,50 +95,41 @@ flowchart TD
 **FAIL-R1.** Classification of a failed LLM Gateway model call has two layers:
 the protocol's status rules and the provider-specific failure signatures of
 the selected Gateway.
-<!-- from: 04#7 -->
 
 **FAIL-R2.** Status rules belong to the `openai-compatible@1` protocol and are
 fixed in code. Transport errors, HTTP 408, 409, 429 and 5xx, and an explicit
 `x-should-retry: true` hint are transient (FAIL-FAIL-1).
-<!-- from: 04#7 -->
 
 **FAIL-R3.** HTTP 401, 403 and every other 4xx status not listed in FAIL-R2
 are permanent (FAIL-FAIL-1).
-<!-- from: 04#7 -->
 
 **FAIL-R4.** Provider-specific text belongs to the selected Gateway's
 `failureSignatures`. The field's schema, bounds, default and forwarding to
 allocations are owned by
 [RCF-R19](../configuration/runtime-config.md) to
 [RCF-R25](../configuration/runtime-config.md).
-<!-- from: 04#7 -->
 
 **FAIL-R5.** A `modelUnavailable` entry names an exact `status` plus either
 `messageEquals` or `litellmWrapped` (the same text inside LiteLLM's observed
 BadRequest wrapper). A response that matches an entry is classified as
 transient `model_unavailable` (FAIL-FAIL-1).
-<!-- from: 04#7 -->
 
 **FAIL-R6.** `permanentCodes` name provider error codes. A response carrying a
 listed code fails the invocation without blocking the route, whatever status
 or hint accompanies it (FAIL-FAIL-1). Route blocking and recovery are owned by
 [SCH-R105](../execution/scheduler.md) and
 [SCH-R106](../execution/scheduler.md).
-<!-- from: 04#7, 04#6 -->
 
 **FAIL-R7.** Signature matching is exact: substrings, prefixes and patterns are
 never accepted, so arbitrary provider text cannot become an availability
 failure.
-<!-- from: 04#7 -->
 
 **FAIL-R8.** Server-side Planners and Runtime Workers apply the same effective
 set of failure signatures.
-<!-- from: 04#7 -->
 
 **FAIL-R9.** One shared fixture,
 [`api/testdata/v1alpha1/gateway-failure-classification-cases.json`](../../../api/testdata/v1alpha1/gateway-failure-classification-cases.json),
 keeps the Server-side Planner and Runtime Worker classifiers identical.
-<!-- from: 04#7 -->
 
 The Runtime Worker's classification of its final failure after the transport
 attempt series, including the explicit `insufficient_quota`, `budget_exceeded`
@@ -159,13 +142,11 @@ reports and the recording of observed outcomes) is owned by
 [SCH-R105](../execution/scheduler.md) to
 [SCH-R113](../execution/scheduler.md); the model call under the recovery gate
 is FAIL-SCH-14.
-<!-- from: 02#71, 14#38, 04#6 -->
 
 ### Runtime label resolution and adapter preparation
 
 **FAIL-R10.** Failures of Runtime label resolution and adapter preparation map
 deterministically to the boundary results in FAIL-R11 to FAIL-R19.
-<!-- from: 07#103, 07#104 -->
 
 - **FAIL-R11.** An unknown Runtime label, a Run-selected Runtime-label conflict
   or an invalid referenced config at Run creation returns a public validation
@@ -196,27 +177,21 @@ deterministically to the boundary results in FAIL-R11 to FAIL-R19.
   reflected in adapter metrics only; the semantic result and release continue
   (FAIL-FAIL-7).
 
-<!-- from: 07#104, 07#102 -->
-
 **FAIL-R20.** Schema, digest, credential-kind and capability mismatches are
 non-retryable for that immutable configuration (FAIL-FAIL-5).
-<!-- from: 07#105 -->
 
 **FAIL-R21.** A transient local construction failure is retryable
 (FAIL-FAIL-5).
-<!-- from: 07#105 -->
 
 **FAIL-R22.** Existing Stage deadline, cancellation and abort bounds remain the
 outer authority; label resolution introduces no unbounded wait (FAIL-FAIL-4,
 FAIL-FAIL-5).
-<!-- from: 07#105 -->
 
 The Runtime Agent's validation of the exact typed settings against its frozen
 capability snapshot, which yields the bounded preparation failure, and the
 rule that remote OTLP or proxy availability is not a startup capability are
 owned by [RTA-R42](../execution/runtime-agent.md) and
 [RTA-R43](../execution/runtime-agent.md).
-<!-- from: 07#102 -->
 
 ## Limits, failures and errors
 
@@ -245,8 +220,6 @@ by [Worker](../execution/worker.md); `memory_changed` by
 [Memory](../tools/memory.md); `ArtifactConflict` by
 [Artifact store](../artifacts/artifact-store.md).
 
-<!-- from: 04#7, 07#104, 07#105, 14#38, 08#49, 03#43 -->
-
 ### Failure rules owned by other documents
 
 | Topic | Owner |
@@ -267,8 +240,6 @@ by [Worker](../execution/worker.md); `memory_changed` by
 | Scan-plan persistence: deterministic create-only bindings and recovery of a lost write acknowledgement | [SCN-R200](../tools/scanners.md) to [SCN-R202](../tools/scanners.md) |
 | Scan job recovery under a new Scheduler claim and after an ambiguous invocation outcome | [SCN-R206](../tools/scanners.md), [SCN-R207](../tools/scanners.md) |
 
-<!-- from: 02#71, 14#38, 04#6, 03#43, 08#49, 06#97, 06#98, 07#102, 10#89, 12#76, 17#50, 18#29, 32#18, 32#20 -->
-
 ## Invariants
 
 These properties follow from the cited requirements, which are authoritative.
@@ -285,8 +256,6 @@ These properties follow from the cited requirements, which are authoritative.
 4. Label resolution never waits beyond the Stage's deadline, cancellation and
    abort bounds (FAIL-R22).
 
-<!-- from: 04#7, 07#105 -->
-
 ## Failure registry
 
 The registry has one row per external call or mutation whose failure
@@ -297,8 +266,6 @@ outcomes by class (permanent, retryable, ambiguous, cancelled and timeout;
 "not specified" where the owner says nothing) and the requirements that state
 them. Domain documents cite the entry ID where they state the behaviour
 instead of repeating it.
-
-<!-- from: docs/spec/conventions.md (registry shape) -->
 
 <!-- registry-table -->
 
@@ -576,4 +543,3 @@ instead of repeating it.
 | `FAIL-WSP-8` | Runtime startup cleanup of stale marker-owned workspace directories | permanent: a stale directory that cannot be removed is logged and retained, marker included, for the next start and does not block initialization or later allocations; retryable: not specified; ambiguous: not specified; cancelled: not specified; timeout: not specified. | [WSP-R166](../tools/workspace.md) |
 
 <!-- /registry-table -->
-

@@ -38,8 +38,8 @@ deliverables:
   - {path: internal/runstore, description: Read-only durable Run idempotency lookup.}
   - {path: internal/httpapi/public, description: Dependency-independent exact replay ordering and regression test.}
   - {path: internal/controlplane, description: Hashed bounded reservation tombstones and current-agent retirement.}
-  - {path: docs/spec/00-workflow-and-planner.md, description: Replay ordering contract.}
-  - {path: docs/spec/06-server-ui-and-operations.md, description: Superseded Runtime visibility rule.}
+  - {path: docs/spec/configuration/workflows.md, description: Replay ordering contract.}
+  - {path: docs/spec/ui/ui.md, description: Superseded Runtime visibility rule.}
 
 acceptance_criteria:
   - id: A1

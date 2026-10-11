@@ -83,8 +83,8 @@ reproduces the previous bytes and exact refs, allowing the required CAS to pass.
 
 For other Audit states, `updatedAt` advances normally. The authoritative change
 token is revision/ETag. This rule is recorded in
-[spec 19](../spec/19-audits.md), and deletion atomicity in
-[spec 18](../spec/18-run-and-workspace-lifecycle-controls.md).
+[spec 19](../spec/audits/audits.md), and deletion atomicity in
+[spec 18](../spec/artifacts/retention-and-deletion.md).
 
 Pending human review already has a frozen subject revision/digest and exact
 report refs. Changing the current Audit revision does not invalidate that

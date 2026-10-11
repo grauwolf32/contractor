@@ -34,9 +34,21 @@ class CheckSpecTest(unittest.TestCase):
         self.assertIn("a.md: unknown requirement ART-R7", errors)
         self.assertIn("a.md: unknown registry entry LIM-ART-9", errors)
 
+    def test_requirements_use_the_declared_prefix(self):
+        docs = {"execution/runs.md": "Requirement prefix: `RUN`\n\n**RUN-R1.** One.\n\n**SCH-R2.** Two.\n"}
+        self.assertEqual(
+            check(docs),
+            ["execution/runs.md: requirement SCH-R2 does not use the document prefix RUN"],
+        )
+
+    def test_broken_links_are_rejected(self):
+        docs = {"execution/runs.md": "See [Scheduler](scheduler.md#x), [old](../19-audits.md) and [web](https://example.com).\n"}
+        existing = {"execution/scheduler.md"}
+        self.assertEqual(check(docs, existing.__contains__), ["execution/runs.md: broken link ../19-audits.md"])
+
     def test_ids_in_code_are_examples(self):
         docs = {"conventions.md": "Write `**ART-R12.** text` and refer to `[ART-R12](x.md)`.\n\n```\nLIM-ART-3\n```\n"}
-        self.assertEqual(check(docs), [])
+        self.assertEqual(check(docs, lambda _: False), [])
 
 
 if __name__ == "__main__":

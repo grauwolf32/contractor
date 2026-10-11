@@ -8,8 +8,8 @@
   "finding": {
     "priority": "P2",
     "normative_basis": [
-      "docs/spec/02-runtime-and-a2a.md:519-554: bounded physical retries, explicit x-should-retry override and final-status retryability are distinct.",
-      "docs/spec/15-worker-summarization.md:192-201: one logical summarizer call permits the Gateway transport series and preserves Gateway failure retryability."
+      "docs/spec/execution/control-plane.md:519-554: bounded physical retries, explicit x-should-retry override and final-status retryability are distinct.",
+      "docs/spec/execution/worker.md:192-201: one logical summarizer call permits the Gateway transport series and preserves Gateway failure retryability."
     ],
     "cause": "The one-shot provider-timeout fixture sends HTTP504 without suppressing transport retries. A permitted second physical attempt is rejected as a duplicate summary with HTTP400, so Runtime correctly preserves retryable=false.",
     "correction": "Set X-Should-Retry:false only on scriptedProviderFailure HTTP504; retain existing exact call counts and failure/result assertions.",

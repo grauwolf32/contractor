@@ -15,7 +15,7 @@ goal: >-
   let authenticated users read the base instructions of an exact AgentTemplate.
 
 context:
-  specification: docs/spec/06-server-ui-and-operations.md
+  specification: docs/spec/ui/ui.md
   identities: >-
     Catalog Agents are reusable AgentTemplates, not deployed Runtime Agents.
     Runtime instances remain in Operations. Base instructions are loaded catalog

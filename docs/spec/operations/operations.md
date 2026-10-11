@@ -57,14 +57,10 @@ It leaves to other documents:
   [failure model](../platform/failure-model.md) and
   [lifecycle](../platform/lifecycle.md).
 
-<!-- from: 02#5, 04#61, 04#72, 06#20, 06#24, 06#25, 06#54, 22#6, 20#3, 20#53, 23#5 -->
-
 Operator guides complement this document: the
 [operational timeout reference](../../operations/timeout-configuration.md),
 [Operations performance](../../operations/performance.md) and
 [Go profiling](../../operations/go-profiling.md).
-
-<!-- from: 06#24, 22#32, 22#63 -->
 
 ## Concepts
 
@@ -106,8 +102,6 @@ following ones.
 - **Diagnostic listener.** The separate loopback-only HTTP listener that serves
   an allowlist of Go profiles when `--pprof` is enabled.
 
-<!-- from: 06#22, 06#52, 06#53, 20#9, 20#13, 22#4, 22#14, 22#16, 22#17, 22#38, 22#42, 22#50, 22#59 -->
-
 ## Model
 
 ### Operations resources
@@ -135,8 +129,6 @@ flowchart LR
     Reports --> HistoryUI["Completed allocation history"]
 ```
 
-<!-- from: 06#52, 06#53, 06#54, 06#55, 20#13, 22#14, 22#38, 22#58 -->
-
 ### Snapshot entries
 
 The Operations snapshot describes Runtime Agent process entries and current
@@ -148,8 +140,6 @@ allocation whose Runtime is observed `allocated` reports `observedPhase`
 `fenced`, using the reconciliation vocabulary of
 [Control plane](../execution/control-plane.md).
 
-<!-- from: 06#50, 06#57 -->
-
 ### Scheduler settings
 
 The authoritative singleton setting is:
@@ -159,8 +149,6 @@ maxConcurrentRuns: integer, 1..32, default 1
 revision:          positive monotonic integer
 updatedAt:         UTC timestamp
 ```
-
-<!-- from: 20#9, 20#10 -->
 
 ### Collection schedule
 
@@ -173,8 +161,6 @@ updatedAt:         UTC timestamp
 | PostgreSQL database size | Every 5 minutes (LIM-OPS-4) | Latest typed snapshot and minute history |
 | Server/DB history write | Every minute (LIM-OPS-5) | Minute aggregates, 7-day retention (LIM-OPS-6) |
 | Allocation process resources | At start/end and every 15 seconds while owned ([LIM-CTL-8](../platform/limits.md)) | Constant-size allocation accumulator and final report |
-
-<!-- from: 22#14 -->
 
 ```mermaid
 flowchart TD
@@ -195,8 +181,6 @@ flowchart TD
     Report --> AllocHistory["GET /v1/operations/allocation-history"]
 ```
 
-<!-- from: 22#5, 22#14, 22#39, 22#42 -->
-
 ### Allocation resource summary
 
 The optional `runtime.resources` block of `RuntimeReport` has these fields:
@@ -214,14 +198,10 @@ The optional `runtime.resources` block of `RuntimeReport` has these fields:
 | `rssSampleCount` | Number of successful RSS observations, including boundaries |
 | `maxSampleGapSeconds` | Largest uncovered interval, including missing boundaries |
 
-<!-- from: 22#50, 22#51 -->
-
 Allocation history shows each terminal allocation's resources as `disabled`,
 `unsupported`, `pending`, `available`, `partial` or `unavailable`, derived from
 the trusted collection policy recorded for the allocation (`requested`,
 `disabled` or `unsupported`) and the available report.
-
-<!-- from: 22#56 -->
 
 ## Requirements
 
@@ -230,16 +210,13 @@ the trusted collection policy recorded for the allocation (`requested`,
 **OPS-R1.** The Server and the ordinary Runtime target Linux and macOS.
 The allocation-scoped Podman backend requires the Linux host capabilities in
 [Code execution](../tools/code-execution.md).
-<!-- from: 06#19 -->
 
 **OPS-R2.** Cross-compilation or a working remote browser does not
 establish a tested native Runtime, filesystem or sandbox on another operating
 system.
-<!-- from: 06#19 -->
 
 **OPS-R3.** Platform-dependent resource observations may
 return `unsupported_platform`.
-<!-- from: 06#19, 22#51 -->
 
 Host placement of one active Server/Control Plane, PostgreSQL, single-slot
 Runtime Agents and the separate UI service, the single-VM baseline and its
@@ -250,63 +227,51 @@ in [Persistence](../platform/persistence.md). The Web UI is its own build
 artifact and service ([UI](../ui/ui.md)). Which payload backend the active
 Server and any replica sharing its registry use is defined in
 [Blob storage](../artifacts/blob-storage.md).
-<!-- from: 02#116, 02#117, 02#118, 06#20, 06#25, 20#53, 23#10 -->
 
 **OPS-R4.** The example Deployment uses one replica and `Recreate`
 updates.
-<!-- from: 20#54 -->
 
 **OPS-R5.** Active-active Server replicas are unsupported: two
 independently active Schedulers would each apply their local lane count.
-<!-- from: 20#54 -->
 
 **OPS-R6.** Kubernetes without a PVC is an explicitly supported
 deployment, and Kubernetes examples require no PVC. The payload backend
 behaviour of such a deployment is defined in
 [Blob storage](../artifacts/blob-storage.md) (BLB-R5, BLB-R6, BLB-R20).
-<!-- from: 23#5, 23#17 -->
 
 **OPS-R7.** A read-only root filesystem with PostgreSQL blob
 storage must work without a blob or tmp volume.
-<!-- from: 23#17 -->
 
 **OPS-R8.** Mutable managed configuration is a separate
 concern from Artifact storage. An example may mount a memory-backed `emptyDir`
 at its configured managed root and must then document explicitly that this
 configuration is also ephemeral.
-<!-- from: 23#17 -->
 
 **OPS-R9.** The no-PVC example loses every API-published managed
 version on pod replacement, so it must use baked-in operator versions and must
 not bind credentials, admin keys or RuntimeConfigs to Gateways published in
 that root.
-<!-- from: 23#17 -->
 
 **OPS-R10.** Durable managed publication requires a persistent
 managed configuration root that supports hard links; see
 [SYS-R21](../overview.md). This is not an Artifact storage requirement.
-<!-- from: 23#17, 06#20 -->
 
 **OPS-R11.** Memory-backed volumes count towards container memory
 and are not durable; see the
 [Kubernetes volume contract](https://kubernetes.io/docs/concepts/storage/volumes/#emptydir).
-<!-- from: 23#17 -->
 
 ### Process settings and operational budgets
 
 **OPS-R12.** `ServerConfig.spec` contains typed, non-secret process
 settings. They are distinct from published Workflow and ModelPolicy documents,
 RuntimeConfig label overlays and the durable Scheduler concurrency setting.
-<!-- from: 06#22 -->
 
 **OPS-R13.** Process settings are resolved once with the
 precedence defaults < YAML < environment < flags, validated before startup,
 and require a restart to change (FAIL-OPS-1).
-<!-- from: 06#22, 04#72 -->
 
 **OPS-R14.** Effective-setting diagnostics expose resolved
 durations and bounded counts, not credentials, URLs or secret paths.
-<!-- from: 06#22 -->
 
 **OPS-R15.** Process settings keep separate budgets for:
 
@@ -321,17 +286,13 @@ durations and bounded counts, not credentials, URLs or secret paths.
 - A2A polling;
 - credential-management HTTP.
 
-<!-- from: 04#72, 06#23 -->
-
 **OPS-R16.** Increasing one transport timeout cannot silently
 enlarge an operation or reset a stored deadline: changing the HTTP timeout
 changes neither the other budgets nor an already recorded terminal deadline.
-<!-- from: 04#72, 06#23 -->
 
 **OPS-R17.** Credential-management HTTP limits do not control LLM
 inference, and Audit claim batches do not replace AuditProfile child Run
 batching or global Scheduler concurrency.
-<!-- from: 06#23 -->
 
 **OPS-R18.** The
 [operational timeout reference](../../operations/timeout-configuration.md) is
@@ -339,24 +300,20 @@ the single table of configuration paths, defaults, limits, environment and
 flag mappings and migration rules. It also specifies input precedence,
 validation, database timeout ordering and the handling of conflicting DSN and
 environment inputs.
-<!-- from: 06#24, 04#72 -->
 
 Terminal deadline and cleanup behaviour is defined in
 [Scheduler](../execution/scheduler.md); Runtime-local workspace budgets,
 including the local workspace operation timeout, are defined in
 [Workspace](../tools/workspace.md).
-<!-- from: 06#24, 04#72, 10#83 -->
 
 **OPS-R19.** No process setting adds an Operations UI mutation or
 hot reload.
-<!-- from: 06#24 -->
 
 ### Operations surface
 
 #### Observation
 
 **OPS-R20.** The Operations surface is read-only for execution state.
-<!-- from: 06#49 -->
 
 **OPS-R21.** For the live deployment, Operations shows at least:
 
@@ -377,80 +334,64 @@ hot reload.
 - safe aggregate call, tool, token and error counters and whether a
   ModelPolicy execution-safety dimension was exhausted.
 
-<!-- from: 06#49, 06#50 -->
-
 **OPS-R22.** Operations never exposes certificate bytes or
 label-supplied secrets.
-<!-- from: 06#50 -->
 
 How Operations displays a Runtime Agent's workspace capability (storage,
 supported modes and limits) without workspace refs, paths or content is
 defined in [Workspace](../tools/workspace.md).
-<!-- from: 10#29 -->
 
 **OPS-R23.** The Operations page is an observation surface. It
 cannot force a Runtime Agent to idle, reassign an allocation, mark a Stage
 successful or bypass bounded abort or release.
-<!-- from: 06#51 -->
 
 #### Live snapshot
 
 **OPS-R24.** The REST snapshot is mutex-consistent with the
 in-process Control Plane registry and carries a random process generation and
 an unsigned decimal revision.
-<!-- from: 06#53 -->
 
 **OPS-R25.** Every observable registration, heartbeat,
 reservation, lifecycle, report or release change advances the revision. A
 Server restart changes the generation.
-<!-- from: 06#53 -->
 
 **OPS-R26.** Pagination cursors pin both the generation and the
 revision and fail closed when either is stale, which causes the UI to fetch a
 new snapshot (FAIL-OPS-2).
-<!-- from: 06#53 -->
 
 **OPS-R27.** The snapshot is a current-state view, not durable
 allocation history: an allocation disappears from it after authoritative
 release ([LIFE-CTL-2](../platform/lifecycle.md)).
-<!-- from: 06#53 -->
 
 Retirement of superseded and control-lease-expired Runtime Agent process
 entries from the live registry, and therefore from the snapshot, is defined in
 [Control plane](../execution/control-plane.md).
-<!-- from: 06#58 -->
 
 Live invalidation of the snapshot uses the `operations` stream of the live
 event WebSocket, which starts from the snapshot's generation and revision; the
 stream's content, cursor, retention and resynchronisation rules are defined in
 [Public API](../api/public-api.md).
-<!-- from: 06#130 -->
 
 **OPS-R28.** `lastAcceptedHeartbeat` and
 `confirmedLeaseUntil` are absent between a new registration and the
 corresponding first accepted or confirmed heartbeat; the snapshot does not
 manufacture either timestamp from registration time.
-<!-- from: 06#56 -->
 
 **OPS-R29.** Observed and authoritative fields remain
 separate. A reserved allocation with an idle observation is `reserved`.
-<!-- from: 06#57 -->
 
 **OPS-R30.** An observed `allocated` Runtime proves that the
 Worker role was prepared but does not prove that an A2A call is currently
 executing, so allocation `observedPhase` reports `prepared`, not a guessed
 `busy`. The derived slot may still be `busy`, because the allocation
 exclusively owns that single slot.
-<!-- from: 06#57 -->
 
 **OPS-R31.** A fenced observation remains visible beside an
 unreleased authoritative allocation during reconciliation.
-<!-- from: 06#57 -->
 
 **OPS-R32.** Until a final Runtime report arrives, allocation
 metrics are an incomplete zero aggregate. The live projection retains only safe
 counters and the exhausted budget dimension.
-<!-- from: 06#57 -->
 
 #### Runtime Agent principals and infrastructure configuration
 
@@ -459,13 +400,11 @@ configuration ([Runtime config](../configuration/runtime-config.md)) is an
 Operations resource separate from the live registry view. It remains listable
 while no process for that certificate principal is connected and does not
 claim liveness.
-<!-- from: 06#55 -->
 
 **OPS-R34.** When an instance is live, the current-state
 projection links it to that principal and its pinned active allocation
 settings. Process-local Operations revisions govern only the live registry
 view.
-<!-- from: 06#55 -->
 
 **OPS-R35.** Operations provides the following authenticated,
 audited surfaces:
@@ -487,61 +426,49 @@ audited surfaces:
 - inspect a Run's pinned labels and a StageExecution's safe resolved config
   provenance and adapter status.
 
-<!-- from: 07#122, 07#123, 06#118 -->
-
 The REST resources behind these surfaces are defined in
 [Runtime config](../configuration/runtime-config.md) and the
 [public API schema](../../../api/openapi/contractor-public-v1.yaml).
 Idempotency keys, revision preconditions and stale-revision handling of binding
 and Agent-label dialogs are defined in [UI](../ui/ui.md).
-<!-- from: 07#127, 07#125 -->
 
 #### Overview and Runtime Agent cards
 
 **OPS-R36.** Operations Overview leads with observed idle,
 reserved/busy and draining/fenced slots.
-<!-- from: 06#110 -->
 
 **OPS-R37.** An idle count does not establish compatible
 capacity for a particular Run. Navigation exposes Runtime Agents,
 configuration and Server-owned Run wait reasons.
-<!-- from: 06#110 -->
 
 **OPS-R38.** Snapshot generation and revision and
 live-connection details are disclosed under Diagnostics, independently from
 readiness.
-<!-- from: 06#110 -->
 
 **OPS-R39.** A Runtime Agent card combines the durable identity with
 its current process observation: a shortened copyable Agent ID,
 Server-reported availability, process liveness, slot occupancy, heartbeat age,
 workspace modes and saved label chips. Missing observations stay explicit.
-<!-- from: 06#117 -->
 
 **OPS-R40.** Supported adapter chips describe startup
 capabilities, not remote endpoint health or compatibility with every
 Workflow.
-<!-- from: 06#117 -->
 
 **OPS-R41.** Missing adapters and allocation reconciliation
 appear as visible warnings; an idle process observation never overrides the
 authoritative slot.
-<!-- from: 06#117 -->
 
 **OPS-R42.** A current allocation link opens its exact entry, with a
 Run link when the current snapshot supplies the matching allocation identity.
-<!-- from: 06#117 -->
 
 **OPS-R43.** Full identities, label revision, lease timestamps
 and exact capabilities live under each card's diagnostics disclosure. The
 process inventory is a separate collapsed diagnostic view.
-<!-- from: 06#118 -->
 
 **OPS-R44.** Edit labels opens the shared accessible Dialog with an
 isolated draft and the expected revision. Dismissing it performs no mutation;
 a changed revision requires an explicit reload and review before retry
 (FAIL-OPS-3).
-<!-- from: 06#118 -->
 
 ### Scheduler concurrency setting
 
@@ -549,7 +476,6 @@ What the setting limits, its admission semantics, why it is global rather than
 owner- or Project-local, why `0` is invalid and Queue Pause is the way to stop
 normal admission, and the concurrency invariants it drives are defined in
 [Scheduler](../execution/scheduler.md).
-<!-- from: 20#3, 20#15, 20#57 -->
 
 #### Resource and storage
 
@@ -557,53 +483,44 @@ normal admission, and the concurrency invariants it drives are defined in
 durable, explicitly editable deployment settings. The global Workflow
 Scheduler concurrency setting is one of them, edited at
 `/operations/settings`.
-<!-- from: 06#52 -->
 
 **OPS-R46.** Editing the Scheduler concurrency setting changes
 future Run admission only. It cannot manufacture Run state, force an
 allocation, or bypass Queue Pause, cancellation and cleanup contracts.
-<!-- from: 06#52 -->
 
 **OPS-R47.** The setting is an authoritative singleton with the
 fields in [Scheduler settings](#scheduler-settings): `maxConcurrentRuns` is an
 integer from 1 to 32 with default 1 (LIM-OPS-7), `revision` is a positive
 monotonic integer carried on the wire as a decimal string (see
 [Examples](#examples)) and `updatedAt` is a UTC timestamp.
-<!-- from: 20#9, 20#10, 20#19, 20#20 -->
 
 **OPS-R48.** The setting is persisted as a dedicated typed
 `scheduler_settings` singleton, not a generic string or JSON settings bag.
 `Operations / Settings` is a UI grouping; every future setting keeps its own
 typed validation, storage and API resource.
-<!-- from: 20#13 -->
 
 **OPS-R49.** A forward-only PostgreSQL migration creates and seeds
 exactly one `scheduler_settings` row with `maxConcurrentRuns = 1` and
 `revision = 1`. Upgrade and restart therefore preserve effective serial
 behaviour until an operator changes the seeded value from one.
-<!-- from: 20#11, 20#57 -->
 
 **OPS-R50.** A database check enforces the 1..32 range
 (LIM-OPS-7). A missing or invalid singleton is a storage invariant
 failure, not an invitation to guess a default at runtime
 (LIFE-OPS-5).
-<!-- from: 20#11 -->
 
 Rationale: the upper bound of 32 is a deliberately finite single-host bound,
 not an estimate derived from the current number of agents. Raising it requires
 an explicit contract and a load and recovery gate rather than an unbounded
 integer accepted by old Servers.
-<!-- from: 20#12 -->
 
 **OPS-R51.** The setting is deployment state. It is not
 part of Workflow, RuntimeConfig, ExecutionConfig, owner Queue control,
 Project, Run or Audit snapshots, so a Run does not pin the value that existed
 when it was created.
-<!-- from: 20#14 -->
 
 **OPS-R52.** Changing the setting affects future Scheduler
 admission for every owner and every nonterminal Run.
-<!-- from: 20#14 -->
 
 #### Settings API
 
@@ -632,67 +549,54 @@ sequenceDiagram
     end
 ```
 
-<!-- from: 20#19, 20#21, 20#23, 20#24, 20#25, 20#52 -->
-
 **OPS-R53.** The singleton has a resource-oriented API of
 exactly `GET /v1/operations/settings/scheduler` and
 `PUT /v1/operations/settings/scheduler`. There is no action endpoint, Run
 identifier, `force` query parameter, `POST` or `DELETE` form of this resource.
-<!-- from: 20#16, 20#17, 20#18 -->
 
 **OPS-R54.** An authorized `GET` returns `200 OK`,
 `Cache-Control: no-store` and a strong ETag containing the decimal revision
 (see [Examples](#examples)).
-<!-- from: 20#19, 20#20 -->
 
 **OPS-R55.** `PUT` is a complete idempotent replacement of the
 editable settings resource. It requires `Content-Type: application/json`, the
 Operations capability, normal browser CSRF protection and exactly one strong
 `If-Match` revision (see [Examples](#examples)).
-<!-- from: 20#21, 20#22 -->
 
 **OPS-R56.** Unknown or missing fields, a value outside 1..32
 (LIM-OPS-7), a weak, multiple or malformed ETag, or an unsupported media
 type fail without mutation (FAIL-OPS-4).
-<!-- from: 20#23 -->
 
 **OPS-R57.** A well-formed stale revision returns
 `412 Precondition Failed`.
-<!-- from: 20#23 -->
 
 **OPS-R58.** A successful change returns the complete new
 resource and its ETag.
-<!-- from: 20#23 -->
 
 **OPS-R59.** Replacing the resource with its existing value under
 the current revision returns that same resource without advancing the
 revision or emitting a false change notification.
-<!-- from: 20#23 -->
 
 **OPS-R60.** Authentication failures use `401`, a missing
 Operations capability uses `403`, an unsupported request media type uses
 `415`, malformed JSON, schema or header or an out-of-range value uses `400`,
 and a valid but stale revision uses `412`. These responses use the bounded
 public error envelope of [Public API](../api/public-api.md).
-<!-- from: 20#24 -->
 
 **OPS-R61.** The mutation writes the ordinary safe administrative
 audit record with the actor and the old and new numeric values. Neither the
 public response nor logs expose credentials or execution payloads.
-<!-- from: 20#25 -->
 
 The settings API and UI invariants are
 [SCH-R143](../execution/scheduler.md) and
 [SCH-R144](../execution/scheduler.md); the settings resource is represented in
 the [public API schema](../../../api/openapi/contractor-public-v1.yaml).
-<!-- from: 20#57 -->
 
 **OPS-R63.** A committed change emits a typed Operations
 invalidation with resource `schedulerSettings` and no resource ID. The event
 is a process-local hint; how the UI refetches the authoritative singleton and
 shows a concurrently saved value after a revision conflict is defined in
 [UI](../ui/ui.md).
-<!-- from: 20#52 -->
 
 #### Settings UI
 
@@ -707,11 +611,8 @@ contains:
 - concise copy distinguishing this global bound from owner Queue Pause and
   Runtime Agent capacity.
 
-<!-- from: 20#49, 20#50 -->
-
 How the independently deployed UI handles the setting without guessing an
 effective value is [SCH-R144](../execution/scheduler.md).
-<!-- from: 20#57 -->
 
 ### Performance metrics
 
@@ -720,29 +621,24 @@ effective value is [SCH-R144](../execution/scheduler.md).
 **OPS-R66.** Operations displays current Server and PostgreSQL
 performance, optional host GPU measurements, a bounded history and resource
 summaries for completed allocations.
-<!-- from: 22#4 -->
 
 **OPS-R67.** Contractor owns collection, storage and
 presentation of performance metrics. No Prometheus, Grafana, exporter service
 or external time-series database is required.
-<!-- from: 22#4 -->
 
 **OPS-R68.** While the feature is enabled, the Server collects
 its own process, HTTP and pool measurements continuously. The Runtime collects
 process resources only during an explicitly requested allocation and returns
 aggregates in the existing finalize/abort response.
-<!-- from: 22#5 -->
 
 **OPS-R69.** Performance telemetry cannot affect placement
 eligibility, semantic outcomes, lease confirmation, write fencing or release
 eligibility.
-<!-- from: 22#6 -->
 
 **OPS-R70.** Disabling performance collection does not disable
 execution accounting, safety budgets or the report lifecycle, which belong to
 [Worker](../execution/worker.md) and
 [Observability](../platform/observability.md).
-<!-- from: 04#61, 22#6 -->
 
 **OPS-R71.** The optional allocation resource collection
 request and its diagnostic capability advertisement are owned here. The
@@ -750,17 +646,14 @@ capability does not constrain placement or change the allocation lifecycle.
 Their wire fields, the persisted per-allocation decision and the protocol
 compatibility rules are defined in
 [Control plane](../execution/control-plane.md).
-<!-- from: 02#5, 22#44, 22#45, 22#46, 22#47, 22#48 -->
 
 **OPS-R72.** Invalid resource measurements are isolated from
 otherwise valid execution reports
 ([FAIL-CTL-10](../platform/failure-model.md)).
-<!-- from: 04#61 -->
 
 **OPS-R73.** Performance collection targets Linux, including the
 single-host deployment. Unsupported process measurements are unknown with a
 bounded reason and never prevent startup or execution (FAIL-OPS-5).
-<!-- from: 22#7 -->
 
 #### Startup switches
 
@@ -773,129 +666,101 @@ switches:
 | `--pprof` | `CONTRACTOR_PPROF` | `false` | Enable the separate Go diagnostic listener |
 | `--pprof-listen` | `CONTRACTOR_PPROF_LISTEN` | `127.0.0.1:6060` | Numeric loopback IP and TCP port for that listener |
 
-<!-- from: 22#8 -->
-
 **OPS-R75.** Boolean environment values accept `true` or `false`.
 Explicit CLI values take precedence. An invalid effective configuration fails
 startup with a safe error (FAIL-OPS-1).
-<!-- from: 22#9 -->
 
 **OPS-R76.** The switches are immutable for one Server
 process; changing them requires a restart.
-<!-- from: 22#9 -->
 
 **OPS-R213.** There is no writable Operations setting or browser action for
 these switches.
-<!-- from: 22#9, uis#37 -->
 
 **OPS-R214.** The switches are not Workflow, AgentTemplate or RuntimeConfig
 authoring fields.
-<!-- from: 22#9 -->
 
 **OPS-R77.** With `--performance-metrics=false` the Server does not
 install the HTTP accounting middleware, allocate sample or history buffers,
 start sampler, writer or retention timers, or open the diagnostic DB pool.
-<!-- from: 22#10, 22#11 -->
 
 **OPS-R78.** With `--performance-metrics=false` the Server omits
 performance collection requests from newly prepared allocations.
-<!-- from: 22#10, 22#11 -->
 
 **OPS-R79.** With `--performance-metrics=false` the Server returns
 explicit `enabled: false` from the current-performance API, with no
 manufactured current measurements.
-<!-- from: 22#10, 22#11 -->
 
 **OPS-R80.** With `--performance-metrics=false` the Server keeps
 existing retained history available through explicitly requested bounded
 reads; disabling does not delete data or expose expired rows.
-<!-- from: 22#10, 22#11 -->
 
 **OPS-R81.** With `--performance-metrics=false` the Server pauses this
 feature's physical time-series retention cleanup until re-enabled, while
 ordinary Run and Project deletion and existing execution-report cleanup
 continue (LIFE-OPS-6).
-<!-- from: 22#10, 22#11 -->
 
 **OPS-R82.** With `--performance-metrics=false` the Server preserves
 existing execution metrics, budgets, OTLP trace adapters, logging, health and
 readiness behaviour and immutable report ingestion.
-<!-- from: 22#10, 22#11 -->
 
 **OPS-R83.** A previously prepared allocation retains its pinned
 collection instruction even if the Server restarts with metrics disabled.
 Recovery may accept that allocation's final report through the existing report
 path; there is no remote command to toggle collection partway through an
 allocation (FAIL-OPS-6).
-<!-- from: 22#12 -->
 
 **OPS-R84.** The API and UI distinguish the current collection
 policy from the policy recorded for a historical allocation.
-<!-- from: 22#12 -->
 
 **OPS-R85.** `--pprof` is independent of
 `--performance-metrics`: all four boolean combinations work. Disabling either
 facility does not disable Go's ordinary runtime and GC bookkeeping or the
 runtime's default heap sampling, and does not promise zero total diagnostic
 overhead.
-<!-- from: 22#13 -->
 
 #### Collection and bounded records
 
 **OPS-R86.** Collection follows the schedule and storage in
 [Collection schedule](#collection-schedule).
-<!-- from: 22#14 -->
 
 **OPS-R87.** Initial measurements are taken after initialization
 without delaying readiness.
-<!-- from: 22#15 -->
 
 **OPS-R88.** The first CPU or rate measurement needs two
 observations; an absent baseline is unknown.
-<!-- from: 22#15 -->
 
 **OPS-R89.** Rates and durations use monotonic elapsed time; display and
 history use UTC timestamps.
-<!-- from: 22#15 -->
 
 **OPS-R90.** Skipped ticks are not replayed in a catch-up burst.
-<!-- from: 22#15 -->
 
 **OPS-R91.** Every sample group carries its own `observedAt`, last
 attempt and result, coverage and bounded status (`ok`, `partial`,
 `unavailable`).
-<!-- from: 22#16 -->
 
 **OPS-R92.** A cached 5-minute database-size value is never
 relabelled as a fresh 15-second measurement.
-<!-- from: 22#16 -->
 
 **OPS-R93.** The UI derives staleness from the last successful
 observation and the group's declared interval; two missed intervals mark the
 group stale (LIM-OPS-8).
-<!-- from: 22#16 -->
 
 **OPS-R94.** Performance error codes never contain SQL, DSNs,
 credentials, filesystem paths or raw driver messages.
-<!-- from: 22#16 -->
 
 **OPS-R95.** Performance records are bounded: at most 240 completed
 15-second frames plus one active frame (LIM-OPS-9), at most 32 KiB
 encoded per frame or minute record (LIM-OPS-10) and at most 8 MiB of
 retained live frames (LIM-OPS-11).
-<!-- from: 22#17 -->
 
 **OPS-R96.** Records should be compact and typed.
-<!-- from: 22#17 -->
 
 **OPS-R97.** Exceeding a byte or count limit evicts the oldest live
 frames or omits optional details with explicit partial coverage; core counters
 must not silently become zero.
-<!-- from: 22#17 -->
 
 **OPS-R98.** Performance collection keeps no unbounded labels and
 no per-request records.
-<!-- from: 22#17 -->
 
 #### HTTP, process and pool measurements
 
@@ -903,87 +768,69 @@ no per-request records.
 instrumented with fixed dimensions: `surface` (`public`, `private`), a fixed
 HTTP-method allowlist with `other`, and status class (`1xx` through `5xx`, or
 `no_response`). Histogram totals are per surface.
-<!-- from: 22#18 -->
 
 **OPS-R100.** Raw paths, query strings, user, Run and allocation IDs
 and exception text never become dimensions.
-<!-- from: 22#18 -->
 
 **OPS-R101.** Health and readiness, performance-read APIs and the
 profiling listener are excluded from the workload HTTP aggregates.
-<!-- from: 22#19 -->
 
 **OPS-R102.** In-flight requests increment at entry and decrement
 exactly once on completion, panic or disconnect (FAIL-OPS-7).
-<!-- from: 22#19 -->
 
 **OPS-R103.** Ordinary response count, status, duration and
 histogram are recorded at completion, including implicit HTTP 200 and safe
 handling of failures before headers.
-<!-- from: 22#19 -->
 
 **OPS-R104.** Instrumentation preserves streaming, flushing, HTTP
 hijacking, cancellation and WebSocket behaviour. WebSocket upgrades count as
 handshakes; connection lifetime is not ordinary request latency.
-<!-- from: 22#19 -->
 
 **OPS-R105.** HTTP errors mean 5xx or no response. 4xx responses are
 visible separately and are not treated as server failures.
-<!-- from: 22#19 -->
 
 **OPS-R106.** HTTP histogram bucket upper bounds in seconds are
 `0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60, +Inf`
 (LIM-OPS-12). Count, sum and buckets are retained, and approximate
 p50, p95 and p99 are derived when reading.
-<!-- from: 22#20 -->
 
 **OPS-R107.** An estimate in the overflow bucket is displayed
 as `>60s`, not as a fabricated finite quantile.
-<!-- from: 22#20 -->
 
 **OPS-R108.** Empty intervals have zero completed requests and
 unknown latency quantiles.
-<!-- from: 22#20 -->
 
 **OPS-R109.** Aggregation merges buckets and counts and never
 averages percentile values.
-<!-- from: 22#20 -->
 
 **OPS-R110.** Process readings include user and system CPU
 seconds, RSS bytes, Go heap live bytes, goroutine count, completed GC cycle
 count and the cumulative GC pause histogram.
-<!-- from: 22#21 -->
 
 **OPS-R111.** Process readings use selected runtime counters and
 inexpensive OS process readings; collection does not force GC or build heap or
 stack profiles.
-<!-- from: 22#21 -->
 
 **OPS-R112.** CPU utilization is
 `delta(user + system CPU seconds) / monotonic elapsed seconds`, displayed in
 used CPU cores. It is not host load or a percentage of a container CPU limit.
-<!-- from: 22#21 -->
 
 **OPS-R113.** Pool readings come from the application's existing
 `pgxpool.Stat()` in memory: acquired, idle, total and max connections,
 successful acquisition count and time, waits on an empty pool and cancelled
 acquisitions.
-<!-- from: 22#22 -->
 
 **OPS-R114.** A mean successful acquisition time is not a p95 and does
 not include cancelled attempts. Pool, probe and HTTP latency remain distinct.
-<!-- from: 22#22 -->
 
 **OPS-R115.** Readiness remains an independent dependency check:
 `/healthz` reports process liveness, and `/readyz` uses a bounded check of the
 working DB connection path and returns 503 when that path is unusable
 (FAIL-OPS-8).
-<!-- from: 22#23 -->
 
 **OPS-R116.** The total DB wait of `/readyz` is at most one
 second (LIM-OPS-13), and it depends neither on metrics being enabled nor
 on a cached minute-old DB sample.
-<!-- from: 22#23 -->
 
 #### PostgreSQL collector
 
@@ -992,17 +839,14 @@ on a cached minute-old DB sample.
 connection configuration and a fixed `application_name` identifying
 performance maintenance. The pool is separate from the work pool and from
 LISTEN connections.
-<!-- from: 22#24 -->
 
 **OPS-R118.** A collector startup or reconnect failure marks DB
 metrics unavailable and must not make an otherwise working Server fail
 startup. The collector retries only on a subsequent scheduled cycle
 (FAIL-OPS-9).
-<!-- from: 22#24 -->
 
 **OPS-R119.** The collector requires no extension, superuser,
 server setting change or automatic role grant.
-<!-- from: 22#24 -->
 
 **OPS-R120.** Every minute (LIM-OPS-3) the collector executes fixed aggregate
 SELECTs restricted to `current_database()`:
@@ -1018,25 +862,19 @@ SELECTs restricted to `current_database()`:
    estimates, not a bloat measurement or a declaration that the database needs
    manual vacuuming.
 
-<!-- from: 22#25, 22#26 -->
-
 **OPS-R121.** Activity and lock values are point observations; short
 waits between samples can be missed.
-<!-- from: 22#27 -->
 
 **OPS-R122.** Database counters are cumulative and include other users
 of the same database as well as Contractor's own monitoring and history
 traffic. Rates are computed from actual observed intervals; a `stats_reset`
 change or a counter decrease invalidates the delta.
-<!-- from: 22#27 -->
 
 **OPS-R123.** Buffer hits describe PostgreSQL's buffer cache, not the
 OS cache, and rollbacks are not a count of application errors.
-<!-- from: 22#27 -->
 
 **OPS-R124.** The collector does not enable
 `track_io_timing`, `pg_stat_statements` or other extra instrumentation.
-<!-- from: 22#27 -->
 
 **OPS-R125.** Every five minutes (LIM-OPS-4) the collector separately executes:
 
@@ -1044,17 +882,13 @@ OS cache, and rollbacks are not a count of application errors.
 SELECT pg_database_size(current_database());
 ```
 
-<!-- from: 22#28, 22#29 -->
-
 This measures database files, including tables, indexes and TOAST, across the
 database's tablespaces; it is neither free filesystem space nor total cluster
 or WAL usage. PostgreSQL inspects directory and file metadata to answer it, so
 it is not a constant-time counter read.
-<!-- from: 22#30 -->
 
 **OPS-R126.** The size query must not gate the minute collector
 or be recomputed on API reads.
-<!-- from: 22#30 -->
 
 **OPS-R127.** The DB budgets are: connection or acquisition at most
 250 ms per attempt (LIM-OPS-15); lock timeout 100 ms
@@ -1063,44 +897,36 @@ size and history maintenance (LIM-OPS-17); client query deadline
 1 s and 2 s respectively (LIM-OPS-18); and at most 5 s for a complete
 minute collection cycle (LIM-OPS-19). Earlier caller or shutdown
 deadlines win.
-<!-- from: 22#31 -->
 
 **OPS-R128.** The collector reuses the existing database budget and
 cleanup mechanisms; transaction-local overrides cannot leak into the working
 pool.
-<!-- from: 22#31 -->
 
 **OPS-R129.** Every collector transaction ends before the next cycle,
 so cached PostgreSQL snapshots do not persist.
-<!-- from: 22#31 -->
 
 **OPS-R130.** Size and maintenance operations are separately
 scheduled, serial and bounded. They never create a queue of collector queries
 or immediate retries.
-<!-- from: 22#31 -->
 
 **OPS-R131.** Ordinary DB roles can see restricted session details
 only for their own or member roles. The collector detects visibility and
 configuration limitations and marks affected aggregates partial or unknown
 instead of counting hidden state as zero.
-<!-- from: 22#32 -->
 
 **OPS-R132.** The optional operator grant of `pg_read_all_stats` for
 full session visibility is documented
 ([Operations performance](../../operations/performance.md)); Contractor never
 issues it automatically.
-<!-- from: 22#32 -->
 
 **OPS-R133.** Missing privileges or disabled PostgreSQL
 statistics do not disable the independent HTTP, process and pool metrics.
-<!-- from: 22#32 -->
 
 Rationale: [PostgreSQL statistics](https://www.postgresql.org/docs/current/monitoring-stats.html)
 define cumulative versus current observations and visibility restrictions;
 [PostgreSQL database-size functions](https://www.postgresql.org/docs/current/functions-admin.html#FUNCTIONS-ADMIN-DBSIZE)
 and [their implementation](https://doxygen.postgresql.org/dbsize_8c_source.html)
 explain the separately scheduled file-size query.
-<!-- from: 22#69 -->
 
 #### Host GPU measurements
 
@@ -1108,90 +934,72 @@ explain the separately scheduled file-size query.
 cover physical NVIDIA devices visible to the Server, including their use by
 other applications, and are not attributed to a model, Run, allocation or
 Runtime Agent. A remote model router's GPU usage is outside their scope.
-<!-- from: 22#33 -->
 
 **OPS-R135.** When performance metrics are enabled, the Server
 resolves `nvidia-smi` on its PATH once at construction without running it. If
 it is absent or not executable, the GPU reader is disabled and the optional
 `gpu` group is omitted; this is normal operation, not a startup, readiness or
 collection error.
-<!-- from: 22#34 -->
 
 **OPS-R136.** Installing the binary later requires a Server restart.
 With metrics disabled there is no GPU lookup and no subprocess.
-<!-- from: 22#34 -->
 
 **OPS-R137.** The normal 15-second sampler (LIM-OPS-1) executes a fixed, read-only
 query without a shell or retries. Each probe has a two-second deadline
 (LIM-OPS-20), inherits Server cancellation, discards stderr and
 retains at most 16 KiB of stdout (LIM-OPS-21) and eight devices
 (LIM-OPS-22).
-<!-- from: 22#35 -->
 
 **OPS-R138.** GPU probes never run in HTTP handlers.
-<!-- from: 22#35 -->
 
 **OPS-R139.** Driver failures, timeouts and malformed output only
 invalidate GPU measurements; process, HTTP, pool and database collection
 remain independent (FAIL-OPS-10).
-<!-- from: 22#35 -->
 
 **OPS-R140.** No driver, exporter or optional binary is
 installed automatically.
-<!-- from: 22#35 -->
 
 **OPS-R141.** Each device has a stable GPU UUID and model name. The
 available fields are device utilization percent, used and total framebuffer
 memory in bytes (converted from `nvidia-smi` MiB), temperature in Celsius, and
 power draw and power limit in watts.
-<!-- from: 22#36 -->
 
 **OPS-R142.** Unsupported individual fields are omitted; a measured
 zero remains zero. Device identity is independent of row order.
-<!-- from: 22#36 -->
 
 **OPS-R143.** Current GPU cards are hidden when no measurements are
 available, and unsupported fields have no placeholder rows. Cards identify
 the Server host scope and retain freshness and staleness indicators.
-<!-- from: 22#36 -->
 
 **OPS-R144.** Optional GPU groups extend the existing version-1 JSON
 records without a database migration. Old records without GPU data remain
 valid, and GPU absence does not make otherwise valid Server minute records
 partial.
-<!-- from: 22#37 -->
 
 **OPS-R145.** Per-device gauge summaries retain last, min and max
 values, observation counts and timestamps in the seven-day history
 (LIM-OPS-6). Retained history remains readable after current
 collection stops.
-<!-- from: 22#37 -->
 
 **OPS-R146.** History charts appear only for metrics with
 observations in the selected range, preserve gaps and Server generations, and
 show the last observed value in each aggregate interval.
-<!-- from: 22#37 -->
 
 **OPS-R147.** At most the eight most recently observed device
 identities are displayed (LIM-OPS-23).
-<!-- from: 22#37 -->
 
 **OPS-R215.** Each physical GPU has its own current card.
-<!-- from: 22#37 -->
 
 **OPS-R216.** History uses four shared charts (utilization, used VRAM,
 temperature, power draw) with one coloured series per device.
-<!-- from: 22#37 -->
 
 **OPS-R148.** A UUID-keyed palette is shared by card markers and
 chart legends and is retained through refreshes, row reordering and range
 changes within the view. Legends identify model plus short UUID and show the
 last observed value; numeric summaries remain available per device.
-<!-- from: 22#37 -->
 
 **OPS-R149.** Missing sensors omit only that device's series, and gaps
 and restarts split each series independently.
-<!-- from: 22#37 -->
 
 #### Performance history
 
@@ -1200,70 +1008,55 @@ created by its own forward-only migration and separate from Stage execution
 truth. Rows are keyed by `(server_generation, minute_start)` and carry a
 schema version, observation coverage, a typed bounded aggregate payload and an
 expiry.
-<!-- from: 22#38 -->
 
 **OPS-R151.** Each Server boot creates a new generation; counters
 from different boots are never subtracted.
-<!-- from: 22#38 -->
 
 **OPS-R152.** A partial final minute may be written during bounded
 shutdown.
-<!-- from: 22#38 -->
 
 **OPS-R153.** The writer uses the single performance DB pool, writes
 minute batches with idempotent keys and keeps at most ten pending minute
 records (LIM-OPS-24). On overflow it drops the oldest unwritten minutes
 and increments a loss diagnostic (FAIL-OPS-11).
-<!-- from: 22#39 -->
 
 **OPS-R154.** Request handlers and samplers never wait for
 the writer.
-<!-- from: 22#39 -->
 
 **OPS-R155.** Cleanup runs at most once a minute, deletes at most 1,000
 expired performance rows within the maintenance deadline
 (LIM-OPS-25) and never uses an unbounded `DELETE` or `VACUUM`
 (LIFE-OPS-6).
-<!-- from: 22#39 -->
 
 **OPS-R156.** Expired data is excluded from reads regardless of
 physical cleanup timing.
-<!-- from: 22#39 -->
 
 **OPS-R157.** Run and Project deletion remove linked
 allocation reports independently of `performance_minutes`
 ([Retention and deletion](../artifacts/retention-and-deletion.md)).
-<!-- from: 22#39 -->
 
 **OPS-R158.** Counts and histograms aggregate events; CPU uses
 CPU-time over elapsed-time deltas; gauges preserve last, min, max and observed
 coverage.
-<!-- from: 22#40 -->
 
 **OPS-R159.** Sparse DB observations keep their actual timestamps and are
 not counted repeatedly as new measurements.
-<!-- from: 22#40 -->
 
 **OPS-R160.** Minute boundaries, partial windows and missing
 samples must have deterministic, tested behaviour.
-<!-- from: 22#40 -->
 
 **OPS-R161.** Restart, writer loss and disabled periods produce gaps. Fine
 history is volatile; minute history survives restart (LIFE-OPS-7).
-<!-- from: 22#40 -->
 
 **OPS-R162.** An unavailable DB still allows current and in-memory
 performance reads.
-<!-- from: 22#40 -->
 
 **OPS-R163.** The performance read endpoints are read-only and
 use the existing authenticated Operations authority.
-<!-- from: 22#41 -->
 
 **OPS-R164.** `GET /v1/operations/performance` returns the
 enabled state, generation, intervals, current groups, freshness and collector
 and writer diagnostics. No SQL runs on this path.
-<!-- from: 22#42 -->
 
 **OPS-R165.**
 `GET /v1/operations/performance/history?from=...&to=...&step=15s|1m|5m|1h`
@@ -1271,13 +1064,11 @@ returns bounded series, coverage and generation boundaries. `15s` is limited
 to the current process's last hour (LIM-OPS-26); durable queries are
 limited to seven days and at most 1,000 points (LIM-OPS-27).
 Excessive ranges and point counts are rejected explicitly.
-<!-- from: 22#42 -->
 
 **OPS-R166.** Fine samples use point bounds
 `from <= observedAt < to`. Durable reads select retained minute records with
 `from <= minuteStart < to` and then group them into UTC-aligned intervals of
 the requested step.
-<!-- from: 22#42 -->
 
 **OPS-R167.** An aggregate's `minuteStart` identifies the
 interval start, which can precede `from`; clients accept it when
@@ -1285,37 +1076,30 @@ interval start, which can precede `from`; clients accept it when
 requested window stays unchanged, partial first intervals are retained with
 their actual observed coverage, and intervals wholly outside the window are
 rejected.
-<!-- from: 22#42 -->
 
 **OPS-R168.** `GET /v1/operations/allocation-history`
 returns durable terminal-allocation resource summaries with an optional exact
 Run filter, a default page size of 50 and a maximum of 100
 (LIM-OPS-28), a descending `(finished_at, allocation_id)` keyset
 cursor and a pinned upper boundary for subsequent pages.
-<!-- from: 22#42 -->
 
 **OPS-R169.** `finished_at` is the owning StageExecution's durable
 terminal timestamp, available even without a Runtime report, so a late report
 cannot reorder the history. Resource interval timestamps remain separate.
-<!-- from: 22#42 -->
 
 **OPS-R170.** Allocation history applies the existing owner
 authorization in SQL.
-<!-- from: 22#42 -->
 
 **OPS-R171.** Performance DTOs follow public API conventions and generated
 TypeScript contracts.
-<!-- from: 22#43 -->
 
 **OPS-R172.** Current metrics use their own timestamps, not
 Control Plane registry revisions; sampling must not advance live-registry
 cursors or emit heartbeat-like events.
-<!-- from: 22#43, 06#54 -->
 
 **OPS-R173.** Bounded history queries use the normal authorized
 request DB budgets. They remain available when collection is off, without
 starting the diagnostic pool.
-<!-- from: 22#43 -->
 
 #### Allocation resources
 
@@ -1328,215 +1112,172 @@ are defined in [Control plane](../execution/control-plane.md). When the
 Runtime measures, how its sampler and constant-size accumulator behave, and
 what happens when the Runtime is lost before reporting are defined in
 [Runtime agent](../execution/runtime-agent.md).
-<!-- from: 22#44, 22#45, 22#46, 22#47, 22#48, 22#49, 22#54, 22#55 -->
 
 **OPS-R174.** The existing `RuntimeReport` carries an optional
 `runtime.resources` block with the fields in
 [Allocation resource summary](#allocation-resource-summary).
-<!-- from: 22#50, 22#51 -->
 
 **OPS-R175.** Optional unknown numeric values are absent, not
 zero. Present values are finite and nonnegative.
-<!-- from: 22#52 -->
 
 **OPS-R176.** Average CPU is derived from the available CPU deltas
 and duration and never divides by zero. CPU remains a boundary delta despite
 skipped intermediate samples.
-<!-- from: 22#52 -->
 
 **OPS-R177.** Negative, NaN, infinite or overflowing values and
 inconsistent sample, boundary or peak combinations are rejected at the
 telemetry boundary (FAIL-OPS-12).
-<!-- from: 22#52 -->
 
 **OPS-R178.** `complete` means both boundaries and the
 scheduled measurements succeeded without an uncovered gap greater than twice
 the 15-second interval (LIM-OPS-29). It never asserts that the true RSS
 peak was captured.
-<!-- from: 22#52 -->
 
 **OPS-R179.** Resource fields cover the entire Runtime process,
 including its service work and memory retained from earlier allocations. They
 exclude subprocesses and containers, including the Podman sandboxes of
 [Code execution](../tools/code-execution.md).
-<!-- from: 22#53 -->
 
 **OPS-R180.** The UI must label that scope and call the RSS value
 an observed peak.
-<!-- from: 22#53 -->
 
 **OPS-R181.** The process-lifetime RSS high-water mark is never
 used as an allocation-local peak, and collection neither traces Python object
 allocations nor forces garbage collection.
-<!-- from: 22#53 -->
 
 **OPS-R182.** Allocation resource summaries use the existing
 30-day terminal execution-report retention (LIM-OBS-8) of
 [Observability](../platform/observability.md)
 ([LIFE-OBS-2](../platform/lifecycle.md)).
-<!-- from: 22#56 -->
 
 **OPS-R183.** Allocation history includes terminal allocation
 records even when their report is missing and shows `disabled`,
 `unsupported`, `pending`, `available`, `partial` or `unavailable` from trusted
 policy and available reports, rather than silently omitting failures.
-<!-- from: 22#56 -->
 
 **OPS-R184.** Every allocation must retain an explicit
 `requested`, `disabled` or `unsupported` policy.
-<!-- from: 22#56 -->
 
 **OPS-R217.** Resource history rejects a missing or invalid stored policy
 instead of inventing a legacy projection.
-<!-- from: 22#56 -->
 
 **OPS-R218.** Report ingestion likewise rejects an absent or unsupported
 envelope policy before persisting or replaying a report.
-<!-- from: 22#56 -->
 
 **OPS-R185.** A valid policy with missing or partial
 observations remains a supported resource state.
-<!-- from: 22#56 -->
 
 **OPS-R186.** Allocation resources that were not collected are
 never reconstructed.
-<!-- from: 22#3 -->
 
 **OPS-R187.** Late reports follow the related-telemetry rules of
 [Observability](../platform/observability.md) (OBS-R39); no frozen Stage
 outcome or StageMetrics is rewritten to populate history.
-<!-- from: 22#56 -->
 
 #### Performance presentation
 
 **OPS-R188.** `/operations/performance` shows Server, HTTP and
 Database cards and charts, time ranges and explicit last-update, partial,
 stale and disabled states.
-<!-- from: 22#57 -->
 
 **OPS-R189.** The page polls current snapshots every 15 seconds
 (LIM-OPS-30) only while it is visible, coalesces requests and cancels
 them on navigation.
-<!-- from: 22#57 -->
 
 **OPS-R190.** Historical reads occur on range changes, with a
 bounded refresh for a range that follows the present. Browser tabs do not
 multiply collection work.
-<!-- from: 22#57 -->
 
 **OPS-R191.** The Performance page and the durable
 completed-allocation history are separate from the live registry view: they
 do not extend the live registry's retention, and periodic samples do not
 advance its revisions.
-<!-- from: 06#54 -->
 
 **OPS-R192.** A Completed/history view sits alongside the current
 allocations page; the live registry still removes released allocations.
-<!-- from: 22#58 -->
 
 **OPS-R193.** The Completed view comes from durable Run,
 allocation and report joins and uses existing indexes plus narrowly required
 new indexes. It shows the Run link, logical Worker, outcome, duration, CPU
 seconds and cores, observed RSS peak and completeness.
-<!-- from: 22#58 -->
 
 **OPS-R194.** The Completed view has no execution mutation
 controls and never exposes payloads, SQL, secrets or raw profiles.
-<!-- from: 22#58 -->
 
 **OPS-R195.** Run attempt details show resources through the
 same safe projection, without creating another store.
-<!-- from: 22#58 -->
 
 ### Go profiling
 
 **OPS-R196.** With `--pprof=false` the Server creates no diagnostic
 listener and starts no CPU, trace, block or mutex collection.
-<!-- from: 22#59 -->
 
 **OPS-R197.** Enabling `--pprof` exposes a dedicated explicit
 HTTP mux on the configured numeric loopback address only. Wildcard and
 non-loopback addresses and invalid ports are rejected, and an explicitly
 enabled listener that cannot bind fails startup cleanly (FAIL-OPS-13).
-<!-- from: 22#59 -->
 
 **OPS-R198.** The diagnostic listener stops through the same
 bounded Server shutdown lifecycle.
-<!-- from: 22#59 -->
 
 **OPS-R199.** The diagnostic mux answers 403 unless the request
 `Host` is a loopback IP literal or `localhost` (with an optional port), so a
 browser page cannot reach it through DNS rebinding.
-<!-- from: 22#59 -->
 
 **OPS-R200.** Public and private application muxes never serve
 `/debug/pprof/*`, regardless of settings, and Go profiling is never exposed
 through the Operations browser API.
-<!-- from: 22#60, 06#54 -->
 
 **OPS-R201.** The Server does not serve
 `http.DefaultServeMux`, because importing `net/http/pprof` registers global
 handlers as a side effect.
-<!-- from: 22#60 -->
 
 **OPS-R202.** The diagnostic mux registers only an explicit
 allowlist, and a generic Index prefix must not bypass it. In particular it
 never exposes `cmdline`, which may contain command-line credentials.
-<!-- from: 22#60 -->
 
 **OPS-R203.** The allowlist is an index, symbol lookup, CPU
 `profile`, `heap`, `allocs`, `goroutine`, `threadcreate` and execution
 `trace`.
-<!-- from: 22#61 -->
 
 **OPS-R204.** CPU sampling starts only on request, with a
 default of 30 s and an allowed range of 1..60 s (LIM-OPS-31).
 Execution trace defaults to 1 s with an allowed range of 1..10 s
 (LIM-OPS-32).
-<!-- from: 22#61 -->
 
 **OPS-R205.** Duration parameters are validated on every
 supported timed or delta endpoint; invalid, duplicate and out-of-range values
 are rejected rather than silently falling back.
-<!-- from: 22#61 -->
 
 **OPS-R206.** CPU and trace requests share one active-session slot
 with no waiting queue, and a conflict returns 409. At most one additional
 instantaneous or delta profile request is permitted, also without a waiting
 queue (LIM-OPS-33).
-<!-- from: 22#61 -->
 
 **OPS-R207.** Cancellation and shutdown release the slots and stop
 any active recording within the existing shutdown deadline.
-<!-- from: 22#61 -->
 
 **OPS-R208.** Block and mutex profiling remain off: there are
 no sampling-rate flags for them, and `runtime.MemProfileRate` is not altered.
-<!-- from: 22#62 -->
 
 **OPS-R209.** Ordinary performance collection never invokes
 the profiling handlers or forces GC.
-<!-- from: 22#62 -->
 
 **OPS-R210.** Profile requests may be expensive, including an
 explicitly requested heap GC, so their cost is measured separately from
 background metrics and from merely enabling the idle listener.
-<!-- from: 22#62 -->
 
 **OPS-R211.** Profiles stream to the diagnostic client. They are
 not stored in PostgreSQL or execution reports and are not served through
 Operations (LIFE-OPS-9).
-<!-- from: 22#63, 06#54 -->
 
 **OPS-R212.** Operator documentation covers local use and SSH
 tunnelling, including a bounded example (see [Examples](#examples) and
 [Go profiling](../../operations/go-profiling.md)).
-<!-- from: 22#63, 22#64 -->
 
 Rationale: [Go HTTP profiling](https://pkg.go.dev/net/http/pprof) defines the
 standard diagnostic transport and on-demand profiles;
 [Go diagnostics](https://go.dev/doc/diagnostics) describes profiling overhead.
-<!-- from: 22#69 -->
 
 ## Interfaces
 
@@ -1553,13 +1294,10 @@ the conventions of [Public API](../api/public-api.md).
 | `/v1/operations/performance/history` | `GET` | OPS-R165 to OPS-R167 |
 | `/v1/operations/allocation-history` | `GET` | OPS-R168 to OPS-R170 |
 
-<!-- from: 20#17, 22#42 -->
-
 The Operations snapshot resources are in the public API schema. The
 RuntimeConfig, runtime label, runtime credential and Runtime Agent principal
 resources under `/v1/operations/` are defined in
 [Runtime config](../configuration/runtime-config.md).
-<!-- from: 06#53, 07#127 -->
 
 ### Server command line
 
@@ -1576,8 +1314,6 @@ OPS-R74. Other startup inputs are owned elsewhere:
   their environment equivalents): [Security](../platform/security.md);
 - the local workspace operation timeout: [Workspace](../tools/workspace.md).
 
-<!-- from: 22#8, 22#64, 06#24, 23#6, 06#144, 10#83 -->
-
 Operator commands outside the Server process:
 
 - `contractor server auth hash-password` emits the local-auth bootstrap YAML;
@@ -1585,8 +1321,6 @@ Operator commands outside the Server process:
   [Security](../platform/security.md);
 - the offline blob cleanup command, with its dry-run default and explicit
   apply option, is defined in [Blob storage](../artifacts/blob-storage.md).
-
-<!-- from: 06#138, 23#24 -->
 
 ## Limits, failures and errors
 
@@ -1635,7 +1369,6 @@ Operations invalidations by [Public API](../api/public-api.md), the lease
 keepalive and tolerance values by [Persistence](../platform/persistence.md)
 and the local workspace operation timeout by
 [Workspace](../tools/workspace.md).
-<!-- from: 22#55, 22#56, 22#14, 06#130, 20#53, 10#83 -->
 
 Failure outcomes ([failure model](../platform/failure-model.md)):
 
@@ -1676,7 +1409,6 @@ and runtime credentials are [LIFE-RCF-4](../platform/lifecycle.md) and
 [LIFE-RCF-5](../platform/lifecycle.md) (OPS-R35), and allocation resource
 summaries, as part of the execution report, are
 [LIFE-OBS-2](../platform/lifecycle.md) (OPS-R182).
-<!-- from: 06#53, 07#123, 22#56 -->
 
 Errors ([registry](../platform/errors.md)):
 
@@ -1693,8 +1425,6 @@ Errors ([registry](../platform/errors.md)):
 - resource reasons: `unsupported_platform`, `read_failed`, `sampling_gap`,
   `counter_reset` and `invalid_report` (OPS-R174,
   OPS-R3).
-
-<!-- from: 20#24, 22#9, 22#23, 22#42, 22#51, 22#59, 22#61, 06#19 -->
 
 ## Security
 
@@ -1717,7 +1447,6 @@ binds no credentials, admin keys or RuntimeConfigs to Gateways in an ephemeral
 managed root (OPS-R9). The GPU probe runs a fixed read-only query
 without a shell (OPS-R137). Trust boundaries, mTLS identity and the
 browser session are defined in [Security](../platform/security.md).
-<!-- from: 06#22, 06#50, 20#21, 20#25, 22#16, 22#35, 22#41, 22#58, 22#59, 22#60, 23#17 -->
 
 ## Observability
 
@@ -1727,7 +1456,6 @@ ingestion (OPS-R82), and their HTTP dimensions never include raw
 paths or identifiers (OPS-R100). OTLP traces, telemetry content
 rules and execution-report retention are defined in
 [Observability](../platform/observability.md).
-<!-- from: 04#61, 22#6, 22#11, 22#18 -->
 
 ## Invariants
 
@@ -1748,8 +1476,6 @@ rules and execution-report retention are defined in
 6. Allocation resources that were not collected are never reconstructed
    (OPS-R186).
 
-<!-- from: 20#57, 22#6, 22#38, 22#17, 22#3, 06#49, 06#51 -->
-
 ## Examples
 
 Reading the Scheduler settings returns:
@@ -1762,8 +1488,6 @@ Reading the Scheduler settings returns:
 }
 ```
 
-<!-- from: 20#20 -->
-
 Replacing them under the current revision:
 
 ```http
@@ -1774,8 +1498,6 @@ Content-Type: application/json
 {"maxConcurrentRuns": 3}
 ```
 
-<!-- from: 20#22 -->
-
 Running the Server with only the diagnostic listener and taking a bounded CPU
 profile:
 
@@ -1784,33 +1506,23 @@ contractor server run --performance-metrics=false --pprof=true
 go tool pprof 'http://127.0.0.1:6060/debug/pprof/profile?seconds=30'
 ```
 
-<!-- from: 22#64 -->
-
 ## Non-goals
 
 - Explicit administrative recovery operations are not part of the Operations
   surface; if they are later required, they need separate idempotent Server
   commands and audit contracts.
-  <!-- from: 06#51 -->
 - Manual force-release, force-run or force-cancel Operations actions. The other
   concurrency non-goals (quotas, queue positions, automatic scaling,
   concurrent StageExecutions within one Run, multi-slot Runtime Agents) are
   listed in [Scheduler](../execution/scheduler.md).
-  <!-- from: 20#56 -->
 - A current-utilization gauge derived from allocation count or from the number
   of durable `running` records, because neither equals active Scheduler
   lanes.
-  <!-- from: 20#51 -->
 - Active-active Server replicas; a distributed global semaphore and a shared
   Control Plane Registry are separate features.
-  <!-- from: 20#54 -->
 - Host-wide CPU, container or cgroup limits, child-process resources, Podman
   resources, Python profiling, live Runtime polling, per-allocation time
   series, SQL statement profiling and external exports.
-  <!-- from: 22#7 -->
 - Route-specific HTTP breakdowns.
-  <!-- from: 22#18 -->
 - SQL latency and error instrumentation for all application statements.
-  <!-- from: 22#22 -->
 - An S3 payload backend; see [Blob storage](../artifacts/blob-storage.md).
-  <!-- from: 23#5 -->

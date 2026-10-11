@@ -22,8 +22,6 @@ classes of failed calls and mutations in the [failure model](failure-model.md).
 The place of registries in the specification is set out in the
 [conventions](../conventions.md#registries).
 
-<!-- from: conventions.md#registries, 00#55, 07#28, 07#36, 07#38, 07#50, 08#20, 08#31, 09#12, 09#31, 09#32, 09#60, 09#74, 11#45, 12#31, 13#34, 14#20, 14#52, 21#15, 31#20, 32#3, 32#17 -->
-
 ## Concepts
 
 Terms are defined once in the [glossary](../glossary.md); this document owns
@@ -50,8 +48,6 @@ the following ones.
 - **Reservation.** Capacity set aside inside a shared ceiling or budget before
   the content that uses it is admitted.
 
-<!-- from: 07#28, 07#36, 07#38, 08#31, 09#12, 09#32, 09#60, 09#74, 12#31, 14#52, 21#15, 31#20, 32#3 -->
-
 ## Model
 
 ### Registry entry
@@ -63,8 +59,6 @@ the following ones.
 | Applies to | The quantity that is bounded |
 | Enforced by | Every enforcement point of the bound |
 | Owner | A link to the owning requirement |
-
-<!-- from: conventions.md#registries, 07#28, 09#60 -->
 
 ### Value forms
 
@@ -78,8 +72,6 @@ the following ones.
 | Per-member and aggregate | A bound on each member together with a bound on the total, or on several scopes | `otlp-headers@1` values and total (LIM-RCF-21, LIM-RCF-22); Skill package members and ZIP (LIM-SKL-15 to LIM-SKL-19); resolved Skill bytes per AgentTemplate and per Run union (LIM-SKL-22 to LIM-SKL-25); Automate payloads (LIM-HTP-26, LIM-HTP-27); aggregate source bytes and one analyzed source file (LIM-CAN-4, LIM-CAN-5); RequestSet header value and total header bytes (LIM-SCN-55, LIM-SCN-56) |
 | Budget | A cumulative quantity consumed over a lifetime, a scan or a selection | Skill disclosure budget (LIM-SKL-26), shallow scan CPU budget (LIM-CAN-11), concrete-hint work budget (LIM-SCN-45), `maxTotalSeconds` (LIM-SCN-59) |
 
-<!-- from: 07#28, 07#36, 07#38, 07#50, 08#20, 09#31, 09#32, 09#60, 09#74, 11#45, 12#31, 13#34, 21#15, 31#20, 32#3, 32#17 -->
-
 ### Units of measure
 
 | Quantity | Units used |
@@ -91,8 +83,6 @@ the following ones.
 | Depth | Levels of a parsed document or of reference resolution; nodes of a call path |
 | Time | Milliseconds and seconds, as wall time, CPU time or a deadline |
 | Resource | vCPU, bytes of memory or address space, processes |
-
-<!-- from: 07#28, 07#36, 07#38, 07#50, 08#20, 09#31, 09#32, 09#60, 11#45, 12#31, 13#34, 14#20, 14#52, 21#15, 31#20, 32#3, 32#17 -->
 
 ### Outcomes at a bound
 
@@ -106,8 +96,6 @@ specification uses these outcomes:
 | Fails explicitly instead of returning unaccounted partial data | [SCN-R169](../tools/scanners.md), [SKL-R100](../tools/skills.md) |
 | The running execution is terminated | [EXE-R70](../tools/code-execution.md) |
 | Admission stops early and the result is marked incomplete | [WRK-R99](../execution/worker.md), [WRK-R101](../execution/worker.md) |
-
-<!-- from: 08#20, 08#31, 09#12, 09#60, 09#74, 14#52, 21#15, 31#20 -->
 
 ### Layered bounds
 
@@ -124,8 +112,6 @@ flowchart TD
   MTC["maxToolCalls and ModelPolicy limits"] -->|still counts| SKC["Skill call refused by the disclosure budget<br/>SKL-R100"]
 ```
 
-<!-- from: 00#55, 08#20, 09#32, 09#74, 31#20 -->
-
 ## Requirements
 
 **LIM-R1.** Every numeric bound and cardinality target is stated by exactly
@@ -135,8 +121,6 @@ where `<area>` is the requirement prefix of the owning document.
 Rationale: a value that several components enforce stays consistent only when
 it is defined in one place.
 
-<!-- from: conventions.md#registries, 00#55, 08#20, 09#32 -->
-
 **LIM-R2.** A requirement that depends on a bound owned by another document
 cites that bound's registry entry and does not define a second value for it.
 For example, Run parameters rely on the public JSON request-body bound
@@ -144,62 +128,42 @@ For example, Run parameters rely on the public JSON request-body bound
 name bound ([MEM-R26](../tools/memory.md)) and the stored Skill ZIP bound sits
 below the generic Artifact payload bound ([SKL-R34](../tools/skills.md)).
 
-<!-- from: 00#55, 08#20, 09#32 -->
-
 **LIM-R3.** An entry's value states its unit. A size bound states the
 representation it counts wherever its owning requirement specifies one (UTF-8
 bytes, ASCII bytes, Unicode scalar values, characters, the bytes of a canonical
 or encoded form, stored or decompressed bytes), and a count states what it
 counts.
 
-<!-- from: 07#28, 07#50, 08#20, 09#31, 09#32, 09#60, 11#45, 12#31, 13#34, 14#20, 31#20 -->
-
 **LIM-R4.** KiB, MiB and GiB are binary multiples: 1 KiB is 1,024 bytes, 1 MiB
 is 1,048,576 bytes and 1 GiB is 1,073,741,824 bytes. For example, 8 MiB is
 8,388,608 bytes and 64 MiB is 67,108,864 bytes.
 
-<!-- from: 07#36 -->
-
 **LIM-R5.** A range written `a–b`, `a..b` or "from a through b" includes both
 ends.
-
-<!-- from: 07#28, 07#36, 07#38, 11#45, 13#34, 32#3 -->
 
 **LIM-R6.** Bounds of different layers apply together. A bound owned by one
 document never relaxes a bound that encloses it: the inner bound may be lower
 than the enclosing one, and work within the inner bound must still fit the
 enclosing bound. The [layered bounds](#layered-bounds) show examples.
 
-<!-- from: 00#55, 08#20, 09#32, 31#20 -->
-
 **LIM-R7.** When more than one component enforces a bound, its entry names
 every enforcement point.
-
-<!-- from: conventions.md#registries, 07#28, 09#60 -->
 
 **LIM-R8.** A bound constrains only the quantity its entry names and
 guarantees nothing about a quantity derived from it
 ([SCN-R198](../tools/scanners.md)).
 
-<!-- from: 32#17 -->
-
 **LIM-R9.** Separate bounds on related quantities are counted separately and
 leave each other unchanged ([WRK-R37](../execution/worker.md),
 [SKL-R100](../tools/skills.md)).
-
-<!-- from: 09#74, 14#20 -->
 
 **LIM-R10.** Each enforcement point enforces the registered value
 independently ([SKL-R77](../tools/skills.md),
 [RCF-R87](../configuration/runtime-config.md)).
 
-<!-- from: 07#28, 09#60 -->
-
 **LIM-R11.** A maximum does not reserve capacity; a reservation exists only
 where its owning requirement states one ([WRK-R100](../execution/worker.md),
 [WRK-R101](../execution/worker.md), [SKL-R98](../tools/skills.md)).
-
-<!-- from: 09#74, 14#52 -->
 
 ## Registry
 
@@ -787,4 +751,3 @@ its owning requirement.
 | `LIM-WSP-15` | 30 seconds (default); finite and positive | process-local `operation_timeout_seconds` of local direct filesystem work | Runtime workspace provider; set by --workspace-operation-timeout-seconds or CONTRACTOR_WORKSPACE_OPERATION_TIMEOUT_SECONDS | [WSP-R155](../tools/workspace.md) |
 
 <!-- /registry-table -->
-

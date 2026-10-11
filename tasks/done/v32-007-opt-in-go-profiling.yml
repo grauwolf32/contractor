@@ -15,7 +15,7 @@ goal: >-
   bounded on-demand profiles without turning on performance metrics.
 
 context:
-  specification: docs/spec/22-performance-metrics-and-profiling.md
+  specification: docs/spec/operations/operations.md
   configuration: >-
     --pprof / CONTRACTOR_PPROF defaults false and independently controls one
     diagnostic listener. --pprof-listen / CONTRACTOR_PPROF_LISTEN defaults

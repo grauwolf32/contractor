@@ -27,7 +27,7 @@ context:
     update_text before inserting. Do not accept ArtifactRefs, host roots,
     Trailmark IDs or concrete provider objects.
   contract: >-
-    Follow docs/spec/13-taint-annotations.md exactly, including nineteen
+    Follow docs/spec/tools/code-analysis.md exactly, including nineteen
     languages, named arrow/closure assignments, wrapper deduplication,
     definition_line disambiguation, limits, canonical tokens, stable response
     shape and closed errors.

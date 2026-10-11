@@ -107,7 +107,7 @@ proof/replay engine. It may retry idempotent requests internally (up to three
 attempts). Managed Project Authorization overrides a supplied header on that
 origin, so clearing a session does not prove an anonymous identity. This preset
 uses the current approval-based HTTP workflow; it does not implement the
-autonomous pentest contracts in draft specification 33.
+autonomous pentest contracts in draft proposal 0033.
 
 ## Pinned sources and licensing
 

@@ -13,7 +13,7 @@ languages: [go]
 goal: Preserve every allowed child-Run finding proposal before a contract-invalid collection receipt permits Run deletion.
 context:
   issue: https://github.com/grauwolf32/contractor/issues/201
-  specification: docs/spec/19-audits.md
+  specification: docs/spec/audits/audits.md
   finding: Check collection validates members before retaining proposals, then commits a permanent fallback receipt without a hold.
 scope:
   in:

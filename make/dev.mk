@@ -15,6 +15,7 @@ lint:
 	python3 -m unittest discover -s scripts -p 'test_*.py'
 	python3 scripts/check_release_verify_graph.py
 	cd runtime && uv run python ../scripts/check_tasks.py
+	python3 scripts/check_spec.py
 	cd runtime && uv run ruff check .
 	cd runtime && uv run ruff format --check .
 	cd runtime && uv run lint-imports --no-cache --no-logo

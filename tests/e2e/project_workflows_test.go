@@ -314,7 +314,7 @@ func TestProjectWorkspaceLifecycleAcrossProductionProcesses(t *testing.T) {
 		[]string{"dependency_discovery", "project_discovery", "openapi_build", "openapi_validate"},
 		[]int64{5, 5, 9, 9},
 		map[string]string{
-			// Public Run creation retains this exact hidden record (Artifact spec 03).
+			// Public Run creation retains this exact hidden record (Artifact artifact store spec).
 			artifactpolicy.RunSystemNamespace + "/" + artifactpolicy.RunRepeatRequestName: artifactpolicy.RunRepeatRequestMediaType,
 			"inputs/source": "application/zip", "inputs/existing_openapi": "application/yaml",
 			"analysis/dependencies": "text/markdown", "analysis/project": "text/markdown",
@@ -396,7 +396,7 @@ func TestProjectWorkspaceLifecycleAcrossProductionProcesses(t *testing.T) {
 		[]string{"dependency_discovery", "project_discovery", "likec4_build", "likec4_validate"},
 		[]int64{5, 5, 11, 9},
 		map[string]string{
-			// Public Run creation retains this exact hidden record (Artifact spec 03).
+			// Public Run creation retains this exact hidden record (Artifact artifact store spec).
 			artifactpolicy.RunSystemNamespace + "/" + artifactpolicy.RunRepeatRequestName: artifactpolicy.RunRepeatRequestMediaType,
 			"inputs/source": "application/zip", "inputs/existing_likec4": "text/plain",
 			"analysis/dependencies": "text/markdown", "analysis/project": "text/markdown",

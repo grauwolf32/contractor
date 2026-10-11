@@ -10,7 +10,6 @@ session recovery, the information architecture (the navigation rail, routes,
 the Library, the consolidated Runs surface, Project and Audit sections), UI
 vocabulary, accessibility, and the presentation rules of the Catalog, Run
 setup, Project, Audit and Operations surfaces.
-<!-- from: 06#3, 18#3 -->
 
 Other documents own the adjacent concepts:
 
@@ -47,7 +46,6 @@ Other documents own the adjacent concepts:
 - AgentTemplates: [AgentTemplates](../configuration/agent-templates.md).
 - Artifact list filters and their pagination semantics:
   [ArtifactStore](../artifacts/artifact-store.md).
-<!-- from: 06#14, 06#121, 18#3 -->
 
 ## Concepts
 
@@ -57,46 +55,32 @@ Each term is defined once in the [glossary](../glossary.md).
   client-rendered single-page application it serves; it uses the Server's
   public API and is not a second Scheduler, configuration resolver or source of
   lifecycle truth.
-  <!-- from: 06#3, 06#25, 06#27 -->
 - **Runtime config document** — the non-secret `/runtime-config.json` that
   Node serves, holding exactly the UI version, the supported API versions and
   one absolute `apiBaseUrl`.
-  <!-- from: 06#27 -->
 - **Transport adapter** — the small handwritten adapter around the generated
   TypeScript API client that alone handles the base URL, session cookie, CSRF
   token, idempotency and precondition headers and error mapping.
-  <!-- from: 06#32, 06#33 -->
 - **Navigation rail** — the top-level navigation, in three groups: main,
   secondary and bottom.
-  <!-- from: 06#4 -->
 - **Inbox** — the destination at `/` that lists decisions first, then blocked
   work, finished results and running checks.
-  <!-- from: 06#5, 06#6, uis#5 -->
 - **Library** — the user-facing name of the Catalog, which groups reusable
   execution definitions.
-  <!-- from: 06#6, 06#7 -->
 - **Check type** — the user-facing name of an AuditProfile.
-  <!-- from: 06#6 -->
 - **Runs surface** — the single **Runs** destination with its Queue and
   Completed views.
-  <!-- from: 18#5, 18#6 -->
 - **Run draft** — the in-memory, unsubmitted Run request for one exact Workflow
   version and scope, with its slot confirmations.
-  <!-- from: 06#103, 06#160 -->
 - **Format-only suggestion** — an automatically prepopulated Artifact candidate
   for a Workflow input slot whose exact revision the user has not confirmed.
-  <!-- from: 06#103 -->
 - **Run setup drawer** — the Configure Run surface: a drawer on desktop and a
   full-width panel on mobile.
-  <!-- from: 06#159 -->
 - **Workflow discovery card** — the card that Project and Catalog share for one
   logical Workflow name, with its version selector.
-  <!-- from: 06#151 -->
 - **Project Overview** — the bounded root page of a Project.
-  <!-- from: 06#161 -->
 - **Audit workspace snapshot** — the owner-scoped SQL snapshot that
   `GET /v1/audits/{auditId}/workspace` returns for the Audit pages.
-  <!-- from: 19#193 -->
 
 ## Model
 
@@ -111,7 +95,6 @@ flowchart LR
     B -->|"API calls, Artifact upload and download, Operations mutations"| S
     N -.- X["Node: no SSR, BFF, API proxying, session storage or domain operation; no Server credential; no database, Control Plane or Runtime Agent access"]
 ```
-<!-- from: 06#25, 06#26, 06#27 -->
 
 ### Navigation
 
@@ -133,7 +116,6 @@ Operations            Runtime Agents, Allocations, LLM configurations,
 (/operations)         Credentials, Settings
 Account menu          signed-in user, Settings, Theme, Sign out, UI version
 ```
-<!-- from: 06#4, 06#5 -->
 
 ### Runs surface
 
@@ -142,7 +124,6 @@ Runs
   Queue       default; initializing | pending | running | waiting | cancelling
   Completed   succeeded | failed | cancelled
 ```
-<!-- from: 18#5, 18#6 -->
 
 ### Run input review
 
@@ -158,11 +139,9 @@ stateDiagram-v2
     Unset --> Confirmed: explicit picker selection or completed upload
     Suggested --> Confirmed: explicit picker selection or completed upload
 ```
-<!-- from: 06#103 -->
 
 Form readiness reports three separate conditions: missing fields, pending input
 review, and a request ready for submission.
-<!-- from: 06#103 -->
 
 ## Requirements
 
@@ -171,90 +150,71 @@ review, and a request ready for submission.
 **UI-R1.** Contractor deployment includes one separately deployable Node.js
 Web UI for security Workflows, Project-bound Audits and single-VM operational
 visibility.
-<!-- from: 06#3 -->
 
 **UI-R2.** The UI uses the Server's public API; it does not become a second
 Scheduler, configuration resolver or source of lifecycle truth.
-<!-- from: 06#3 -->
 
 **UI-R3.** The Web UI is its own Node.js build artifact and runtime service.
 The Go Server embeds and serves no HTML, JavaScript, CSS or other frontend
 asset.
-<!-- from: 06#25 -->
 
 **UI-R4.** Rebuilding, releasing, restarting or rolling back the Web UI does
 not rebuild or restart the Server, and Server startup and health never depend
 on UI availability. Both services may run on the same VM.
-<!-- from: 06#25 -->
 
 **UI-R5.** The only product contract between the Web UI and the Server is the
 versioned authenticated public Server API.
-<!-- from: 06#26 -->
 
 **UI-R6.** The UI build records its own version and its supported Server API
 versions. It must show an explicit incompatible-version error rather than
 guessing around a missing or changed field.
-<!-- from: 06#26 -->
 
 **UI-R7.** Additive API changes within a supported version do not require a
 coordinated release.
-<!-- from: 06#26 -->
 
 **UI-R8.** The UI is a client-rendered frontend. Node serves its static
 assets and a non-secret `/runtime-config.json`; it performs no SSR, BFF, API
 proxying, session storage or domain operation.
-<!-- from: 06#27 -->
 
 **UI-R9.** The runtime config contains exactly the UI version, the supported
 API versions and one absolute `apiBaseUrl` (LIM-UI-1), so the same UI build
 can target another Server without rebuilding.
-<!-- from: 06#27 -->
 
 **UI-R10.** `apiBaseUrl` has no userinfo, query or fragment and uses HTTPS;
 HTTP is accepted only for a loopback origin in local development.
-<!-- from: 06#27 -->
 
 **UI-R11.** Browser code, not Node, calls the configured Go Server URL
 directly through the authenticated public Server APIs, including for Artifact
 upload and download and Operations mutations.
-<!-- from: 06#27, 06#121 -->
 
 **UI-R12.** Node receives no Server credential and has no database, Control
 Plane or Runtime Agent access.
-<!-- from: 06#27 -->
 
 **UI-R13.** Existing API clients can perform the same domain operations
 without using the Web UI.
-<!-- from: 06#149 -->
 
 ### Frontend implementation
 
 **UI-R14.** The UI is a React single-page application written in TypeScript
 with strict type checking. Vite builds the browser bundle.
-<!-- from: 06#28 -->
 
 **UI-R15.** React Router is used in Data Mode with browser history.
-<!-- from: 06#28 -->
 
 **UI-R16.** The Node static server returns `index.html` for known
 client-route fallbacks, but never uses that fallback for assets,
 `/runtime-config.json` or unknown API-looking paths.
-<!-- from: 06#28 -->
 
 **UI-R17.** TanStack Query is the only shared cache of Server state. It owns
 API queries, mutations, invalidation, refetch and the selected live-update
 policy.
-<!-- from: 06#29 -->
 
 **UI-R18.** Router, form and transient presentation state stay local to the
 narrowest route or component that needs them. The UI has no Redux, Zustand or
 second client-side copy of the Workflow/Run domain model.
-<!-- from: 06#29 -->
 
 **UI-R19.** The UI build pins the exact public contract and a deterministic
 TypeScript client generator. Generated DTO and client files are not
 hand-edited, and CI fails when regeneration produces an uncommitted diff.
-<!-- from: 06#32 -->
 
 **UI-R20.** A small handwritten transport adapter around the generated client
 is the only place that:
@@ -266,56 +226,45 @@ is the only place that:
   provided by the caller;
 - maps the specified success and error envelopes into one bounded client error
   type without logging response bodies or secrets.
-<!-- from: 06#32, 06#33 -->
 
 **UI-R21.** The transport adapter does not implement domain transitions, does
 not retry unsafe mutations with a new idempotency key and does not persist
 credentials or session material (FAIL-UI-2).
-<!-- from: 06#34 -->
 
 **UI-R22.** Server contract tests exercise request and response examples
 against the same OpenAPI document that the UI build pins.
-<!-- from: 06#34 -->
 
 **UI-R23.** Vite's transform is not the type-checking gate: CI separately
 runs strict TypeScript checking.
-<!-- from: 06#35 -->
 
 **UI-R24.** Vitest and React Testing Library cover units and routed
 components. Playwright covers browser behaviour against the real Node static
 service and Go Server, including login and session recovery, CORS and CSRF
 failure, one Run lifecycle, Artifact transfer and an authorized Operations
 mutation.
-<!-- from: 06#35 -->
 
 **UI-R25.** The Node major version, the package-manager version, the
 generator and all frontend dependencies are lockfile-pinned. Their upgrades
 and the UI release remain independent of the Go Server release while the
 supported API version overlaps.
-<!-- from: 06#35 -->
 
 ### Server state and data freshness
 
 **UI-R26.** The UI never predicts an authoritative Run, StageExecution,
 allocation, configuration-publication or credential-operation transition.
-<!-- from: 06#30 -->
 
 **UI-R27.** A successful mutation causes the affected query keys to be
 invalidated and refetched; only a subsequent Server response establishes the
 displayed domain state (FAIL-UI-2).
-<!-- from: 06#30 -->
 
 **UI-R28.** Optimistic updates are allowed for purely local drafts, but not
 for execution lifecycle, published configuration or credential state.
-<!-- from: 06#30 -->
 
 **UI-R29.** WebSocket Operations notifications remain hints: after a
 process-generation or revision gap the UI refetches the authoritative REST
 snapshot (FAIL-UI-8).
-<!-- from: 07#125 -->
 
 **UI-R30.** No mutation is sent over WebSocket.
-<!-- from: 07#125 -->
 
 ### Browser session
 
@@ -334,105 +283,84 @@ flowchart TD
     G -->|"yes"| Y["Retry once"]
     G -->|"no"| Q["Ask the user to try again with the refreshed token"]
 ```
-<!-- from: 06#134 -->
 
 **UI-R31.** An authoritative `401` from a domain API request clears the SPA's
 in-memory CSRF token, authenticated session and protected query cache,
 returning the user to sign-in (LIFE-UI-1). This applies to both typed JSON and
 direct Artifact requests.
-<!-- from: 06#134 -->
 
 **UI-R32.** A `403` and failed login attempts do not invalidate a session.
-<!-- from: 06#134 -->
 
 **UI-R33.** A late `401` from a request started with an older CSRF token must
 not invalidate a newer login.
-<!-- from: 06#134 -->
 
 **UI-R34.** After an unsafe request returns `403`, the SPA re-reads the
 session once. If another tab replaced the session and the CSRF token changed,
 it retries a request guarded by an idempotency key or conditional header once
 (LIM-UI-2); other mutations ask the user to try again with the refreshed token
 (FAIL-UI-1).
-<!-- from: 06#134 -->
 
 **UI-R35.** An unrelated origin or capability denial stays `403`, without a
 retry loop or session invalidation.
-<!-- from: 06#134 -->
 
 **UI-R36.** This session handling does not require background session polling
 that would extend idle expiry.
-<!-- from: 06#134 -->
 
 ### Navigation and information architecture
 
 **UI-R37.** The navigation is a rail of three groups (main, secondary,
 bottom) with the destinations and routes shown in [Navigation](#navigation).
-<!-- from: 06#4, 06#5 -->
 
 **UI-R38.** The rail is the main navigation; the user journeys in
 [UI journeys](journeys.md) add no navigation items.
-<!-- from: uis#5 -->
 
 **UI-R39.** The Inbox at `/` puts decisions first, then blocked work, finished
 results and running checks. Inbox decisions are pending Audit reviews for
 finding triage of possible issues, active-check approval, requirement
 applicability and report acceptance.
-<!-- from: 06#5, 06#6, uis#5 -->
 
 **UI-R40.** An Audit page under `/projects/:projectId/audits/:auditId` marks
 Checks as current in the rail.
-<!-- from: 06#6 -->
 
 **UI-R41.** Operations appears only with the `operations` capability;
 Settings (`/operations/settings`, with the Git SSH key) does not need it.
-<!-- from: 06#6 -->
 
 **UI-R42.** Every existing destination stays reachable and every existing URL
 loads directly.
-<!-- from: 06#6 -->
 
 **UI-R43.** The Catalog's canonical routes are `/catalog/audit-presets`
 (Check types), `/catalog/workflows`, `/catalog/agents` and `/catalog/skills`;
 `/catalog` opens Workflows. Exact Workflow details use
 `/catalog/workflows/:name/:version`.
-<!-- from: 06#7 -->
 
 **UI-R44.** Runtime Agent processes stay in Operations, not in the Catalog.
-<!-- from: 06#7 -->
 
 **UI-R45.** The UI supports an extensible catalog of security checks and
 supporting analyses.
-<!-- from: 06#14 -->
 
 **UI-R46.** Project artifact tiles may provide familiar OpenAPI, LikeC4,
 source, documentation and diff icons, but they are shortcuts over arbitrary
 ArtifactRefs rather than hard-coded Server modes. The shortcut set and its
 presentation-only classification are owned by
 [Projects](../artifacts/projects.md) (PRJ-R13, PRJ-R15, PRJ-R16).
-<!-- from: 06#14, 17#17 -->
 
 **UI-R47.** Project Workflows offer Recommended and All Workflow launch
 surfaces; their contents follow
 [Projects](../artifacts/projects.md) (PRJ-R45, PRJ-R47, PRJ-R49).
-<!-- from: 17#49 -->
 
 **UI-R48.** Evals renders evaluation Projects and eval-specific label
 grouping. The [experiment journey](../../evals-experience-design.md) makes
 experiments the Evals entry point while preserving legacy workspace routes and
 ordinary Run and Audit execution.
-<!-- from: 17#49 -->
 
 Browser Evals setup, launch and comparison, their chart projections and
 evidence navigation, and the support for both Workflow and Audit experiments
 without Playground are owned by [Managed Evals](../evals/managed-evals.md).
-<!-- from: 06#17 -->
 
 **UI-R49.** Skills is a global owner-level view over `skills/*` UserScope
 artifacts and the existing SkillCatalog rules ([Skills](../tools/skills.md)).
 A Project may show the Skills required by a candidate Workflow (PRJ-R21) only
 read-only; it cannot own, copy or override them.
-<!-- from: 17#49 -->
 
 ### Library
 
@@ -440,110 +368,84 @@ read-only; it cannot own, copy or override them.
 AgentTemplate versions, with description and links to a read-only detail at
 `/catalog/agents/:name/:version` that exposes the loaded base instruction
 text.
-<!-- from: 01#2, 06#8 -->
 
 **UI-R51.** Agent detail emphasizes the base instructions with Markdown
 Preview, literal Source and Copy, alongside Skills, selected tools, Runtime,
 sandbox and ModelPolicy.
-<!-- from: 06#8 -->
 
 **UI-R52.** Agent detail is read-only: it does not expose invocation context
 or introduce a prompt editor.
-<!-- from: 01#2 -->
 
 **UI-R53.** The displayed instruction text is not an effective invocation
 prompt: task context, conversation and expanded Skills are not included.
-<!-- from: 06#8 -->
 
 **UI-R54.** Markdown Preview executes no HTML and loads no remote images.
-<!-- from: 06#8 -->
 
 **UI-R55.** Workflow logical Worker bindings link to the exact AgentTemplate
 version.
-<!-- from: 06#8 -->
 
 **UI-R56.** Agent discovery and exact Agent usage keep predecessor cursors for
 the same route and filters in page navigation state. Item links and explicit
 return links preserve that state, so Previous opens the preceding result page
 independently of browser history.
-<!-- from: 06#13 -->
 
 **UI-R57.** Browser Back and Forward restore each visited page's cursor
 context.
-<!-- from: 06#13 -->
 
 **UI-R187.** Changing the search or the Agent version resets pagination.
-<!-- from: 06#13 -->
 
 **UI-R58.** A directly opened later page with no known predecessor disables
 Previous and offers First page for the same query.
-<!-- from: 06#13 -->
 
 **UI-R59.** Workflow family discovery shows the complete inventory
 (UI-R62); its detail links preserve search and return context.
-<!-- from: 06#13 -->
 
 **UI-R60.** Catalog and Audit read projections filter before pagination.
-<!-- from: 06#16 -->
 
 #### Workflow discovery cards
 
 **UI-R61.** Project and Catalog use the same Workflow identity, version
 selector and card structure. Each logical name appears once (LIM-UI-3).
-<!-- from: 06#151 -->
 
 **UI-R62.** The Catalog reads all bounded pages before offering a default, so
 a later page cannot hide a newer version.
-<!-- from: 06#151 -->
 
 **UI-R63.** Numeric versions, including dot-separated integer components, sort
 by components without floating-point conversion; the highest is initially
 selected and marked Latest. Other published labels use deterministic natural
 ordering without a Latest claim.
-<!-- from: 06#151 -->
 
 **UI-R64.** An explicit older selection survives background refresh.
-<!-- from: 06#151 -->
 
 **UI-R65.** Changing a version changes its displayed inputs, outputs, matching
 and exact-version actions together.
-<!-- from: 06#151 -->
 
 **UI-R188.** An already open Run setup remains pinned to its selected version.
-<!-- from: 06#151 -->
 
 **UI-R66.** Catalog cards display input and output contracts, primary-output
 flags, formats and parameter counts.
-<!-- from: 06#152 -->
 
 **UI-R182.** Project cards display only the selected version's artifact
 matches, ambiguous choices, missing requirements and primary outputs.
-<!-- from: 06#152 -->
 
 **UI-R183.** Matching media types is not proof of semantic suitability or
 Runtime capacity.
-<!-- from: 06#152 -->
 
 **UI-R184.** Existing outputs suppress recommendations, but the suppressed
 Workflows remain available through **All workflows**.
-<!-- from: 06#152 -->
 
 **UI-R185.** The UI never silently selects an older compatible version.
-<!-- from: 06#152 -->
 
 The Workflow recommendation model and the suppression rule for Workflows whose
 primary outputs exist are defined in [Projects](../artifacts/projects.md)
 (PRJ-R49).
-<!-- from: 06#152 -->
 
 **UI-R67.** Workflow quick starts use the complete Workflow inventory and the
 same numeric version policy as Project and Catalog cards.
-<!-- from: 06#155 -->
 
 **UI-R186.** Project Workflow matching loads every Artifact page before
 considering a unique MIME match; incomplete or cyclic pagination displays an
 error with explicit retry and supplies no partial match (FAIL-PRJ-3).
-<!-- from: 06#155 -->
 
 #### Workflow detail
 
@@ -551,28 +453,22 @@ error with explicit retry and supplies no partial match (FAIL-PRJ-3).
 identity heading, the version selector, input and output contracts and the
 published stage objectives. It uses the Catalog card formats and version
 ordering.
-<!-- from: 06#158 -->
 
 **UI-R69.** Loading the version inventory never replaces the version
 specified by the URL. Latest and Earlier labels require a complete numeric
 family containing that exact version.
-<!-- from: 06#158 -->
 
 **UI-R70.** An inventory failure leaves the exact contract available with an
 explicit retry (FAIL-UI-3).
-<!-- from: 06#158 -->
 
 **UI-R71.** Authored descriptions and primary-output flags are shown only
 when published.
-<!-- from: 06#158 -->
 
 **UI-R72.** Entry is identified independently of list order; multi-stage
 summaries do not imply a linear execution graph.
-<!-- from: 06#158 -->
 
 **UI-R73.** Exact Agents, resolved execution settings and transitions remain
 accessible in a disclosure.
-<!-- from: 06#158 -->
 
 ### Run setup
 
@@ -582,99 +478,79 @@ label selection through `runtimeLabels` such as `debug` or `caido`, metadata
 labels, creating, cancelling, continuing and
 repeating Runs, Stage and Planner progress, artifact previews and bounded
 metrics) are listed in [UI journeys](journeys.md).
-<!-- from: 06#38, 06#39 -->
 
 **UI-R74.** Configure Run opens a standalone UserScope drawer on desktop and a
 full-width panel on mobile.
-<!-- from: 06#159 -->
 
 **UI-R75.** The Workflow detail view itself does not acquire a Run draft or
 fetch input inventories until setup opens.
-<!-- from: 06#159 -->
 
 **UI-R76.** Before execution settings, the Run form presents declared
 parameters and exact Artifact inputs: Artifact inputs and required parameters
 precede collapsed optional parameters and advanced settings.
-<!-- from: 06#103, 06#159 -->
 
 **UI-R77.** The drawer reuses the shared modal stack, inert background,
 keyboard focus containment and focus restoration; closed disclosure contents
 are excluded from the focus loop. Nested upload, Git import and discard dialogs
 close independently.
-<!-- from: 06#159 -->
 
 **UI-R78.** The `#workflow-run-setup` destination opens the drawer directly,
 including for Run-repeat drafts.
-<!-- from: 06#160 -->
 
 **UI-R79.** Closing setup preserves the session-memory draft for its exact
 Workflow version and scope (LIFE-UI-2). Included optional values reopen
 visibly, including an explicit empty string.
-<!-- from: 06#160 -->
 
 **UI-R80.** The drawer leaves required input review, repeat review,
 ambiguous-response recovery and exact-request idempotency unchanged
 (FAIL-UI-4).
-<!-- from: 06#160 -->
 
 **UI-R81.** Close and Escape cannot dismiss setup while its submission is
 pending.
-<!-- from: 06#160 -->
 
 **UI-R82.** Automatically prepopulated Artifact candidates remain visibly
 marked as format-only suggestions until the user confirms their exact revision
 for that one slot. Explicit picker selection and a completed upload count as
 that slot's confirmation.
-<!-- from: 06#103 -->
 
 **UI-R83.** Readiness separately reports missing fields, pending input review
 and a request ready for submission.
-<!-- from: 06#103 -->
 
 **UI-R84.** The retained in-memory draft stores the slot-to-exact-ref
 confirmation and enough bounded metadata to keep a confirmed revision
 inspectable across ordinary inventory refetches; it stores neither upload bytes
 nor secrets (LIFE-UI-2).
-<!-- from: 06#103 -->
 
 **UI-R181.** A media-type recommendation does not establish semantic input
 suitability: the retained Run draft requires explicit per-slot review of each
 populated exact suggestion without changing Server media-type validation.
-<!-- from: 06#16 -->
 
 The media-type recommendation itself is defined in
 [Projects](../artifacts/projects.md).
-<!-- from: 06#16 -->
 
 #### Repeating and continuing Runs
 
 **UI-R85.** A repeat Run uses authorized exact source refs rather than
 treating RunScope refs as UserScope or ProjectScope inputs.
-<!-- from: 06#16 -->
 
 **UI-R86.** A draft for another Run opened from a terminal ordinary Run seeds
 a separate in-memory draft without replacing a mounted or edited draft for the
 same Workflow and scope (LIFE-UI-2).
-<!-- from: 06#46 -->
 
 **UI-R87.** All retained values of a repeat draft require explicit review,
 and every exact Artifact selection still requires the ordinary per-slot
 confirmation.
-<!-- from: 06#46 -->
 
 **UI-R88.** Submission of a repeat draft uses the normal create endpoint and
 a fresh draft idempotency identity; lost-response replay of the unchanged new
 request uses that same identity (FAIL-UI-4).
-<!-- from: 06#46 -->
 
 **UI-R89.** A configured Scheduler retry is shown as an attempt within the
 existing Run, while a terminal failure has no implied retry.
-<!-- from: 06#46 -->
 
 **UI-R90.** Known placement and Gateway states link only to diagnostics the
 current user is authorized to read; unknown causes recommend inspecting the
 durable attempt without inventing a capacity or recovery claim.
-<!-- from: 06#46 -->
 
 The **Continue from failed stage** action, its eligibility from
 `RunStatus.resumeStageExecutionId`, its confirmation, the resume request
@@ -682,7 +558,6 @@ The **Continue from failed stage** action, its eligibility from
 idempotency identity and response, the post-request refresh of Run, Queue and
 Project queries, and the execution and cleanup rules are specified in
 [Runs](../execution/runs.md) (RUN-R55, RUN-R56, RUN-R57).
-<!-- from: 06#42 -->
 
 #### Labels on the Run form
 
@@ -692,33 +567,26 @@ RuntimeConfig selection, and that conventional `eval.*` shortcuts are
 presentation over the generic label query without an eval-only Server
 execution path are specified in [Runs](../execution/runs.md) (RUN-R74,
 RUN-R76).
-<!-- from: 06#119 -->
 
 **UI-R95.** The Run-create UI presents Runtime labels separately, as
 infrastructure configuration.
-<!-- from: 16#32 -->
 
 **UI-R96.** Metadata labels use editable badges: `key:value` creates a pair,
 and `key` creates a label with an empty string value. The UI does not offer
 them as RuntimeConfig checkboxes.
-<!-- from: 16#32 -->
 
 **UI-R97.** Run list and detail show metadata labels independently from
 pinned Runtime configuration provenance.
-<!-- from: 16#33 -->
 
 **UI-R98.** The label filter supports exact conjunctions and may provide
 shortcuts for the conventional `purpose=eval`, `eval.name`, `eval.id` and
 `eval.leg` keys without changing the generic API.
-<!-- from: 16#33 -->
 
 **UI-R100.** The UI must explain that metadata labels are immutable and
 telemetry-visible.
-<!-- from: 16#34 -->
 
 **UI-R101.** The UI must not infer permissions, execution success or A/B
 comparability from a label.
-<!-- from: 16#34 -->
 
 How the reserved default Runtime label binding, the default, Run and Agent
 layers and the selected Agent labels are shown on the Run page, that a label
@@ -726,63 +594,50 @@ without a binding cannot be selected, and that the owner Run surface shows
 labels and exact refs and digests rather than resolved credentials or physical
 Runtime Agent configuration are owned by
 [RuntimeConfig](../configuration/runtime-config.md).
-<!-- from: 06#115, 07#124 -->
 
 ### Runs surface
 
 **UI-R102.** The navigation rail has one **Runs** destination, in its secondary
 group, with two views: Queue (default) and Completed, holding the Run states
 shown in [Runs surface](#runs-surface).
-<!-- from: 18#5, 18#6 -->
 
 **UI-R103.** Queue renders the owner-scoped `/v1/queue` read projection of
 [Projects](../artifacts/projects.md) (PRJ-R89 to PRJ-R94), including its
 optional Project display context.
-<!-- from: 18#7 -->
 
 **UI-R104.** Completed uses the ordinary newest-first `/v1/runs` collection
 with an additive `lifecycle=terminal` filter. The Server applies the filter
 before keyset pagination; filtering one browser page is incorrect.
-<!-- from: 18#7 -->
 
 **UI-R105.** Exact `state` and metadata label filters may be combined with the
 lifecycle filter by intersection, and all filters are bound into the cursor
 kind.
-<!-- from: 18#7 -->
 
 **UI-R106.** The Queue and Completed views need not use the same endpoint.
-<!-- from: 18#8 -->
 
 Rationale: their ordering and display projections are different even though
 both read `workflow_runs`.
-<!-- from: 18#8 -->
 
 **UI-R107.** The Queue view opens at `/runs`; Queue is not a separate rail
 item.
-<!-- from: 18#8 -->
 
 ### Projects
 
 **UI-R108.** Project navigation leads to Overview, Artifacts, Workflows, Runs,
 Audits, Findings and Settings at independent URLs under `/projects/:projectId`.
-<!-- from: 06#153 -->
 
 **UI-R109.** Add artifact is a contextual Artifacts action; Workflow cards open
 exact Run setup.
-<!-- from: 06#153 -->
 
 **UI-R110.** The compact Project actions menu contains metadata refresh and the
 existing confirmed deletion action
 ([Retention and deletion](../artifacts/retention-and-deletion.md)).
-<!-- from: 06#153 -->
 
 **UI-R189.** The Project header carries no duplicate Audits or Run analysis
 shortcuts.
-<!-- from: 06#153 -->
 
 **UI-R111.** Cards are content-sized and do not stretch merely to match a
 larger neighbouring contract.
-<!-- from: 06#153 -->
 
 **UI-R112.** The Project root is a bounded Overview rather than a concatenation
 of every workspace collection. It reads:
@@ -798,82 +653,63 @@ of every workspace collection. It reads:
 - a sample of current Artifacts: five recent ones and up to three each in
   `sources` and `openapi` (LIM-UI-8);
 - the published Audit profiles, for check types whose input formats match.
-<!-- from: 06#161 -->
 
 **UI-R113.** Counts over Audits say when they cover only the 50 newest
 (LIM-UI-4); the Run and Artifact samples are not total counts.
-<!-- from: 06#161 -->
 
 **UI-R114.** The Projects list counts each Project's possible issues to review
 from the same per-Audit reads, so the list and the Overview agree.
-<!-- from: 06#161 -->
 
 **UI-R115.** Recent results resolve exact successful Run outputs and published
 Workflow output roles; missing or unavailable primary outputs are not replaced
 with guessed results.
-<!-- from: 06#161 -->
 
 **UI-R190.** Result links retain their RunScope and exact revision.
-<!-- from: 06#161 -->
 
 **UI-R116.** The Overview does not load the complete input or Workflow
 inventories.
-<!-- from: 06#161 -->
 
 **UI-R117.** Artifacts, Workflows, Runs, Audits, Findings and Settings mount
 only when selected. They share the Project header, actions and section
 navigation; mobile navigation uses a labelled select.
-<!-- from: 06#162 -->
 
 **UI-R118.** Project Settings contains metadata and application access.
-<!-- from: 06#162 -->
 
 **UI-R119.** Adding an Artifact opens a chooser with the existing upload and
 Git import flows.
-<!-- from: 06#162 -->
 
 **UI-R120.** Project Workflow setup uses the shared drawer in ProjectScope,
 retains its ProjectScope form, the selected exact version and exact version
 semantics, and keeps its draft across close and section navigation in the
 current tab (LIFE-UI-2).
-<!-- from: 06#160, 06#162 -->
 
 **UI-R121.** Project Runs use pages of 25 (LIM-UI-9) and Server-backed
 lifecycle and state filters. Workflow, state, Audit origin and update time
 remain visible; full identity and metadata labels are disclosed on demand.
-<!-- from: 06#163 -->
 
 **UI-R122.** No page-local text filter is presented as a complete history
 search.
-<!-- from: 06#163 -->
 
 **UI-R123.** Section URLs preserve filters and cursor stacks through reload
 and detail return. Navigation between sections retains each section's query in
 browser history state; filters and explicit Workflow versions remain in that
 section's URL.
-<!-- from: 06#164 -->
 
 **UI-R124.** Links to Project sections use their explicit paths.
-<!-- from: 06#164 -->
 
 **UI-R125.** Eval workspaces retain their existing layout and scope, including
 their in-page anchors.
-<!-- from: 06#164 -->
 
 **UI-R126.** The static server accepts direct requests for every section URL.
-<!-- from: 06#164 -->
 
 **UI-R127.** Run and Artifact drill-down links retain the originating URL and
 nested return context.
-<!-- from: 06#156 -->
 
 **UI-R128.** Global and Project Artifact namespace and cursor filters are
 URL-backed; Artifact revision selection retains the origin.
-<!-- from: 06#156 -->
 
 **UI-R129.** Direct detail links continue to have a deterministic parent
 destination.
-<!-- from: 06#156 -->
 
 ### Artifacts and uploads
 
@@ -882,29 +718,24 @@ library. Its paginated list requests `excludeNamespace=skills`; exclusion is
 evaluated by the Server before keyset pagination, so a page cannot become short
 or incorrectly claim completion after browser-side filtering. An exact
 `namespace` filter and the exclusion are part of the cursor identity.
-<!-- from: 06#47 -->
 
 The Artifact list API and its filter parameters are defined in
 [ArtifactStore](../artifacts/artifact-store.md).
-<!-- from: 06#47 -->
 
 **UI-R131.** The **Skills** route requests exactly `namespace=skills` and
 remains the single UI surface for creating and listing Skill packages. The
 generic Artifacts upload form directs an attempted `skills` namespace to that
 route instead of duplicating it.
-<!-- from: 06#47 -->
 
 **UI-R132.** UserScope and ProjectScope uploads share one accessible file-drop
 component. Drop and file-picker input select exactly one local file
 (LIM-UI-10), show its name and size, enforce the 64 MiB payload limit
 (LIM-ART-4) before mutation, derive a safe editable name from the file stem and
 infer known media types by browser value or extension.
-<!-- from: 06#48 -->
 
 **UI-R133.** Scope, CAS and mutation endpoints remain owned by the forms that
 contain the file-drop component; sharing the drop interaction grants no
 cross-scope authority.
-<!-- from: 06#48 -->
 
 What the browser may do with an Agent Skill ZIP
 (`application/vnd.contractor.agent-skill+zip`) and what it must not do,
@@ -912,20 +743,16 @@ authoritative Skill package validation when a referencing Run initializes and
 again in Runtime, and the bundled `configs/skills` sources that only create
 missing owner artifacts at startup are specified in [Skills](../tools/skills.md)
 (SKL-R63).
-<!-- from: 06#75 -->
 
 **UI-R136.** The personal **Repository access** editor lives directly at
 `/operations/settings`, linked from the account menu. It remains available
 without the Operations capability; in that case the page omits the server-wide
 Scheduler settings and every other Operations section.
-<!-- from: 24#4 -->
 
 **UI-R137.** There is no separate `/settings` route and no compatibility
 redirect.
-<!-- from: 24#4 -->
 
 **UI-R138.** Closing the Git-import dialog restores focus.
-<!-- from: 24#4 -->
 
 The shared Git-import dialog, the one owner-scoped encrypted SSH key, exact
 revision review before replacement, request cancellation on close without
@@ -933,60 +760,47 @@ closing the parent Run form, assignment
 of the imported ref to the requested input only and the display of Git
 provenance are owned by [Git import](../artifacts/git-import.md) (GIT-R1,
 GIT-R3, GIT-R6, GIT-R10, GIT-R11, GIT-R12, GIT-R37, GIT-R88).
-<!-- from: 06#37, 24#4 -->
 
 ### Audits
 
 **UI-R139.** Audit navigation is Project → Audits → Overview / Coverage /
 Findings / Checks / Reviews / Runs / Report.
-<!-- from: 19#190 -->
 
 **UI-R140.** Audit pages display technical Run outcome separately from semantic
 assessment, and proposed findings separately from confirmed findings.
-<!-- from: 19#190 -->
 
 **UI-R141.** The generic Runs and Queue UI remains authoritative for execution
 and links back to the Audit; an Audit does not create a second Runtime queue.
-<!-- from: 19#190 -->
 
 **UI-R142.** The Audit heading combines profile, Project and creation date,
 with the exact ID and a copy action.
-<!-- from: 19#193 -->
 
 **UI-R143.** `GET /v1/audits/{auditId}/workspace` returns one owner-scoped SQL
 snapshot (`auditRevision`, `asOf`): current-round completed and total checks,
 issues, gaps and unchecked work, plus whole-Audit unreviewed findings and
 pending reviews.
-<!-- from: 19#193 -->
 
 **UI-R144.** Completed includes concluded assessments and explicit exclusions;
 none of the workspace counts implies accepted findings or an approved report.
-<!-- from: 19#193 -->
 
 **UI-R145.** Audit Overview begins with current-round progress and pending
 decisions, based on complete coverage and review collections.
-<!-- from: 06#157 -->
 
 **UI-R146.** Overview counts link to the same result groups used by Coverage,
 or to the URL-backed pending review filter. A sole pending review is anchored
 directly.
-<!-- from: 06#157 -->
 
 **UI-R147.** Unavailable counts remain unknown; refresh errors identify
 retained snapshot counts (FAIL-UI-6).
-<!-- from: 06#157 -->
 
 **UI-R148.** Execution state, coverage assessments and human acceptance remain
 separate.
-<!-- from: 06#157 -->
 
 **UI-R149.** Profile and scope remain expanded for drafts; immutable baseline
 details are available through disclosure.
-<!-- from: 06#157 -->
 
 **UI-R150.** Audit Overview adds no Evals experiment API or comparison
 metrics.
-<!-- from: 06#157 -->
 
 The Findings and Reviews projections (bounded server pages, a `total` over the
 entire normalized filter, finding and review filters, `auditRevision` and
@@ -997,31 +811,25 @@ summary-revision pin of Coverage links that the UI checks before and after
 collecting the current-round coverage pages, rejecting mixed revisions, are
 specified in [Review and reports](../audits/review-and-reports.md) (REV-R171,
 REV-R172).
-<!-- from: 19#194 -->
 
 **UI-R153.** All activity reads 50 events at a time (LIM-UI-11), exposes Load
 older activity, keeps settled events visible on continuation errors and
 refreshes the complete loaded cursor chain while the Audit is nonterminal or
 after a mutation or reconnect (FAIL-UI-6).
-<!-- from: 19#198 -->
 
 **UI-R154.** The current-state sentence is separate from recorded history.
 Per-item activity summarizes its retained attempts and current results, without
 claiming an immutable per-item ledger.
-<!-- from: 19#198 -->
 
 **UI-R155.** The UI uses bounded polling of authoritative Audit and profile
 reads while an Audit is nonterminal or deleting, keyed by Audit revision or
 ETag, and stops when the route is inactive or the Audit is terminal.
-<!-- from: 19#199 -->
 
 **UI-R156.** The UI refetches Audit reads immediately after a mutation and
 after browser reconnect.
-<!-- from: 19#199 -->
 
 **UI-R157.** The existing Run event socket is not treated as an Audit
 invalidation contract.
-<!-- from: 19#199 -->
 
 ### Operations and configuration
 
@@ -1029,66 +837,54 @@ The Operations Overview, Runtime Agent cards and their diagnostics disclosure,
 the Edit labels dialog, offline identity removal, the `Workflow scheduling`
 card of Settings, the performance page and completed allocation history are
 owned by [Operations](../operations/operations.md).
-<!-- from: 06#110, 06#117, 06#118, 20#49, 20#50, 22#57, 22#58 -->
 
 Effect copy for new Run snapshots versus future allocations, publishing a
 version without changing a binding, the display of the reserved default
 binding, replacing a Runtime Agent's complete label set, the absence of a
 disable toggle and the non-disclosure of secret payloads are owned by
 [RuntimeConfig](../configuration/runtime-config.md).
-<!-- from: 06#112, 06#115, 06#116, 07#124 -->
 
 **UI-R158.** The configuration workspace lists RuntimeConfig versions and
 credentials. Publication and credential creation open separate accessible
 dialogs through named actions; a version's binding action opens a dialog with
 that exact RuntimeConfig preselected. Existing bindings are indicated on the
 version row.
-<!-- from: 06#109 -->
 
 Open question: the navigation location and route of the configuration
 workspace are not decided. The Runs surface has only the Queue and Completed
 views (UI-R102), and the navigation lists LLM configurations and Credentials
 under Operations ([Navigation](#navigation)); the client route table gains the
 workspace's route once its location is decided.
-<!-- from: 06#109, 18#5, 06#5 -->
 
 **UI-R159.** Publishing a version and binding it remain separate actions.
-<!-- from: 06#109 -->
 
 **UI-R160.** Binding and Agent-label dialogs show the current exact version and
 digest beside the proposal. A binding dialog lists current bindings
 independently of the version used to open it.
-<!-- from: 07#125, 06#111 -->
 
 **UI-R161.** Binding and Agent-label mutations use independent idempotency keys
 plus revision preconditions.
-<!-- from: 07#125 -->
 
 **UI-R162.** A stale revision blocks another write until the authoritative
 binding is explicitly reloaded. Reload preserves the proposal for review and
 retry, even when another operator moved the binding to a different version,
 and never silently submits it (FAIL-UI-7, LIFE-UI-4).
-<!-- from: 07#125, 06#111 -->
 
 **UI-R163.** Publication errors likewise retain the unpublished proposal
 (FAIL-UI-7, LIFE-UI-4).
-<!-- from: 07#125 -->
 
 **UI-R164.** Closing the credential dialog clears its unsaved secret fields.
 Secret fields are also cleared on credential submission and kind change,
 including rejected submissions (LIFE-UI-3).
-<!-- from: 06#109, 06#111 -->
 
 **UI-R165.** A committed change of the Scheduler settings emits a typed
 Operations invalidation with resource `schedulerSettings` and no resource ID.
 The event remains a process-local hint; the UI refetches the authoritative
 singleton.
-<!-- from: 20#52 -->
 
 **UI-R166.** A revision conflict on saving the Scheduler settings refetches and
 shows the newly saved value instead of silently overwriting another operator's
 change (FAIL-UI-5).
-<!-- from: 20#52 -->
 
 ### Language
 
@@ -1096,73 +892,57 @@ change (FAIL-UI-5).
 is the long-running single-slot process, while Worker is its temporary
 allocation-scoped role. The UI must not present them as two independently
 deployed services.
-<!-- from: 06#41 -->
 
 **UI-R168.** The UI calls the Catalog **Library** and AuditProfiles **Check
 types**.
-<!-- from: 06#6 -->
 
 **UI-R169.** Missing authored presentation is not replaced with an invented
 purpose or a placeholder paragraph.
-<!-- from: 06#152 -->
 
 **UI-R170.** Audit-specific pause wording remains exactly “Pause new Audit
 Runs,” not “Pause execution.”
-<!-- from: 19#122 -->
 
 The Audit pause semantics are specified in
 [Audit execution](../audits/execution.md) and the owner Queue Pause gate in
 [Scheduler](../execution/scheduler.md).
-<!-- from: 19#122 -->
 
 ### Accessibility
 
 **UI-R171.** Section navigation shares control sizing and active and focus
 states across Catalog, Runs, Operations, Projects and Audits.
-<!-- from: 06#154 -->
 
 **UI-R191.** Local Project and Audit navigation remains sticky.
-<!-- from: 06#154 -->
 
 **UI-R172.** Project overflow actions support Escape and outside dismissal.
-<!-- from: 06#154 -->
 
 **UI-R173.** Run removal, Project HTTP target configuration and Skill upload
 use the shared modal focus containment, inert background and return-focus
 behaviour.
-<!-- from: 06#154 -->
 
 **UI-R174.** A keyboard skip link targets the main content.
-<!-- from: 06#154 -->
 
 **UI-R175.** Icon actions retain accessible names and tooltips, and keyboard
 focus follows the shared Dialog contract.
-<!-- from: 06#109 -->
 
 **UI-R176.** Preview tabs support arrows, Home and End, and a single tab stop
 for the selected tab.
-<!-- from: 06#156 -->
 
 ### Secrets and browser state
 
 **UI-R177.** Public read APIs never return raw key material.
-<!-- from: 06#149 -->
 
 **UI-R178.** LiteLLM virtual keys and its master key never appear in durable
 execution state, metrics, logs or browser persistence; only generated virtual
 keys are encrypted in the LLM credential store.
-<!-- from: 06#149 -->
 
 **UI-R179.** Adapter-specific runtime credentials may be submitted once through
 the authenticated write-only Operations boundary defined by
 [RuntimeConfig](../configuration/runtime-config.md); they are then likewise
 encrypted and never readable.
-<!-- from: 06#149 -->
 
 **UI-R180.** Browser passwords, session cookies and CSRF tokens never reach
 Node or durable execution state or storage; the Go Server derives the sole
 local principal from its authenticated in-memory session.
-<!-- from: 06#149 -->
 
 ## Interfaces
 
@@ -1177,7 +957,6 @@ public API conventions are in [Public API](../api/public-api.md).
 | `/v1/runs` with `lifecycle=terminal` | Completed view | UI-R104, UI-R105 |
 | `GET /v1/audits/{auditId}/workspace` | Audit workspace snapshot | UI-R143, UI-R144 |
 | `POST /v1/runs/{runId}/resume` | Continue from failed stage | [Runs](../execution/runs.md) RUN-R55 to RUN-R57 |
-<!-- from: 06#27, 18#7, 19#193, 06#42 -->
 
 Client routes owned here:
 
@@ -1195,7 +974,6 @@ Client routes owned here:
 | `/evals` | Evals | UI-R48 |
 | `/operations`, `/operations/settings` | Operations; Settings with Repository access | UI-R41, UI-R136 |
 | `#workflow-run-setup` | Run setup drawer | UI-R78 |
-<!-- from: 06#5, 06#6, 06#7, 06#8, 06#47, 06#153, 06#160, 18#8, 24#4 -->
 
 ## Limits, failures and errors
 
@@ -1222,7 +1000,6 @@ The upload component enforces the generic 64 MiB Artifact payload limit
 LIM-ART-4 ([ArtifactStore](../artifacts/artifact-store.md)). The Scheduler
 settings range and the performance polling interval are owned by
 [Operations](../operations/operations.md).
-<!-- from: 06#27, 06#134, 06#151, 06#161, 06#163, 06#48, 19#198, 20#50, 22#57 -->
 
 Failure outcomes ([failure model](../platform/failure-model.md)):
 
@@ -1242,7 +1019,6 @@ Failure outcomes ([failure model](../platform/failure-model.md)):
 Project Workflow matching over the Artifact inventory (UI-R186) is registered
 as FAIL-PRJ-3 by [Projects](../artifacts/projects.md): incomplete or cyclic
 pagination shows an error with explicit retry and supplies no partial match.
-<!-- from: 06#155 -->
 
 Lifecycle ([registry](../platform/lifecycle.md)):
 
@@ -1271,7 +1047,6 @@ capability (UI-R41); secret field clearing (UI-R164); and key material and
 browser credentials (UI-R177 to UI-R180). Trust boundaries, the browser
 session and CORS are in [Security](../platform/security.md) and
 [Public API](../api/public-api.md).
-<!-- from: 06#27, 06#33, 06#34, 06#134, 06#8, 06#46, 06#103, 06#48, 06#6, 06#109, 06#111, 06#149 -->
 
 ## Observability
 
@@ -1280,7 +1055,6 @@ Metadata labels are telemetry-visible, and the UI says so (UI-R100).
 WebSocket Operations notifications are hints; after a gap the UI refetches the
 authoritative REST snapshot (UI-R29). Shared rules are in
 [observability](../platform/observability.md).
-<!-- from: 06#33, 16#34, 07#125 -->
 
 ## Invariants
 
@@ -1325,15 +1099,11 @@ authoritative REST snapshot (UI-R29). Shared rules are in
     UI-R11).
 13. Browser passwords, session cookies and CSRF tokens never reach Node or
     durable execution state or storage (UI-R180).
-<!-- from: 06#149 -->
 
 ## Non-goals
 
 - React Router Framework Mode, SSR and pre-rendering are out of scope.
-  <!-- from: 06#28 -->
 - Text search across all Project Runs is deferred pending an explicit Server
   query contract.
-  <!-- from: 06#163 -->
 - Audit WebSocket subscriptions, their authorization, cursor and sequence
   replay, and resync are deferred as one complete later transport feature.
-  <!-- from: 19#199 -->

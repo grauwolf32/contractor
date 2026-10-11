@@ -27,8 +27,6 @@ It leaves to other documents:
 - Placement of the Settings page and of the Git-import dialog in the Workflow
   user surface, navigation and dialog focus behaviour: [UI](../ui/ui.md).
 
-<!-- from: 03#98, 06#37, 23#14, 24#4, 24#15, 24#18, 24#20, 24#28, 24#31, 24#32 -->
-
 ## Concepts
 
 - **Git import**: creating an ordinary exact source ZIP artifact from one
@@ -47,8 +45,6 @@ It leaves to other documents:
 - **Git admission**: the per-process slot an active Git import holds.
 
 Terms are defined once in the [glossary](../glossary.md).
-
-<!-- from: 24#3, 24#4, 24#10, 24#13, 24#14, 24#15, 24#16, 24#18, 24#20 -->
 
 ## Model
 
@@ -78,8 +74,6 @@ sequenceDiagram
     S->>S: Release Git admission and the transfer slot after the metadata response
 ```
 
-<!-- from: 24#5, 24#16, 24#18, 24#20, 24#24, 24#30, 24#31, 24#36 -->
-
 ### Git-source record
 
 A Git-source record belongs to one Artifact version (GIT-R29) and holds:
@@ -91,8 +85,6 @@ A Git-source record belongs to one Artifact version (GIT-R29) and holds:
 | Resolved commit | The full resolved commit object ID |
 | Import time | The Server import timestamp |
 
-<!-- from: 24#10, 24#11 -->
-
 A Run's exact input leads through forks to the version and its record:
 
 ```mermaid
@@ -103,8 +95,6 @@ flowchart LR
     Record --> Repo["Normalized repository URL and requested ref"]
     Record --> Commit["Full resolved commit object ID"]
 ```
-
-<!-- from: 03#98, 24#12, 24#13, 24#36 -->
 
 ### Owner Git key
 
@@ -122,8 +112,6 @@ stateDiagram-v2
     Configured --> Configured: rejected key
 ```
 
-<!-- from: 24#3, 24#14, 24#29 -->
-
 ## Requirements
 
 ### Entry points and destinations
@@ -132,109 +120,86 @@ stateDiagram-v2
 through the ArtifactStore service and storage boundary
 ([ArtifactStore](artifact-store.md)): an import materializes a source ZIP and
 publishes an ordinary exact ArtifactRef with commit provenance.
-<!-- from: 03#98, 06#37, 24#5 -->
 
 **GIT-R2.** An authenticated user may import a Git repository when
 selecting a Workflow input or when adding a Project artifact. The import takes
 a repository URL, an optional branch or tag, and an ordinary Artifact namespace
 and name.
-<!-- from: 24#3 -->
 
 **GIT-R3.** Standalone Workflow inputs, Project Workflow inputs and the
 Project artifact library must use the same Git-import dialog for the repository
 URL and ref.
-<!-- from: 06#37, 24#4 -->
 
 **GIT-R4.** A Project import must write directly to the owned
 ProjectScope. A standalone Workflow input import must write to the owner's
 UserScope; a Project-bound input selection uses that ProjectScope.
-<!-- from: 24#5 -->
 
 **GIT-R5.** A Workflow must receive an imported ref through the
 existing input selection and forking ([ArtifactStore](artifact-store.md)); it
 must not clone the repository on execution.
-<!-- from: 24#5 -->
 
 **GIT-R6.** Importing must never start a Run or change a Workflow
 definition, and must not require a PVC.
-<!-- from: 06#37, 24#5 -->
 
 **GIT-R7.** The existing ASCII Artifact-name validation applies to the
 import target, including its length and reserved-namespace rules; names with
 spaces are rejected.
-<!-- from: 24#6 -->
 
 **GIT-R8.** A suggested Artifact name must be editable and must be
 validated before import; the Server must never silently rewrite it.
-<!-- from: 24#6 -->
 
 **GIT-R9.** Replacing an existing binding requires explicit CAS
 replacement.
-<!-- from: 24#6 -->
 
 **GIT-R88.** The dialog must have the user review and confirm the binding's
 exact revision before replacement.
-<!-- from: 24#4 -->
 
 **GIT-R10.** Closing the dialog cancels its pending request without
 closing the parent Run form.
-<!-- from: 24#4 -->
 
 **GIT-R89.** Closing a completed import dialog must not delete its artifact
 (LIFE-GIT-1).
-<!-- from: 24#5 -->
 
 **GIT-R11.** After a successful import the UI must assign the exact
 returned ref to the requested input slot only, preserve every other input and
 show the recorded commit.
-<!-- from: 24#4, 24#6 -->
 
 **GIT-R12.** Artifact metadata detail pages must display Git provenance.
-<!-- from: 24#4 -->
 
 The Repository access editor's location (`/operations/settings`, linked from
 the account menu), its availability without the Operations capability, the
 absence of a separate `/settings` route and the restoration of focus when the
 dialog closes are specified in [UI](../ui/ui.md).
-<!-- from: 24#4 -->
 
 ### Repository URLs and refs
 
 **GIT-R13.** The importer accepts anonymous `https://host/path`,
 `ssh://user@host[:port]/path` and conventional `git@host:path` repository URLs.
-<!-- from: 24#7 -->
 
 **GIT-R14.** A conventional `git@host:path` URL must be normalized to an SSH
 URL. Its home-relative path is preserved as `/~/path`; an explicitly absolute
 SCP path remains absolute.
-<!-- from: 24#7 -->
 
 **GIT-R15.** The importer must reject passwords, URL query or
 fragment credentials, local paths, `file://`, `git://`, remote helpers and
 unsupported schemes.
-<!-- from: 24#7 -->
 
 **GIT-R16.** Transport credentials must never enter the normalized
 repository URL.
-<!-- from: 24#7 -->
 
 **GIT-R17.** An omitted ref resolves to the remote default branch. An
 explicit ref selects a branch or tag; fully qualified `refs/heads/...` and
 `refs/tags/...` names are supported.
-<!-- from: 24#8 -->
 
 **GIT-R18.** An ambiguous short ref name must fail with a safe error.
-<!-- from: 24#8 -->
 
 **GIT-R19.** The importer must resolve the ref once and archive
 exactly that commit, including when the named branch advances during the
 operation. Every successful import records the full resolved commit object ID.
-<!-- from: 24#8 -->
 
 **GIT-R20.** Unsupported repository or object formats must fail
 explicitly; SHA-256 repositories are rejected explicitly. The importer must
 never reinterpret an object ID.
-<!-- from: 24#8, 24#24 -->
 
 ### Snapshot content
 
@@ -242,40 +207,32 @@ never reinterpret an object ID.
 tree at the selected commit, in stable sorted path order, with normalized file
 modes and timestamps: every entry has mode 0644 and the same fixed 1980
 timestamp.
-<!-- from: 24#9, 24#25 -->
 
 **GIT-R22.** The archive must exclude the Git object database and
 transport configuration.
-<!-- from: 24#9 -->
 
 **GIT-R23.** An import must not create a working tree and must not
 execute hooks, filters, scripts or builds.
-<!-- from: 24#9 -->
 
 **GIT-R24.** The importer must not apply host Git configuration,
 `.gitignore` rules to already tracked files, or host-specific source-directory
 bundling rules.
-<!-- from: 24#9 -->
 
 **GIT-R25.** The importer must reject unsafe paths, symlink
 entries, submodules and recognizable Git LFS pointer entries with explicit
 unsupported-content errors; it must not silently omit them or claim that their
 targets were fetched. For a symlink, submodule or LFS pointer, the
 `git_content_unsupported` message names the entry kind and its tree path.
-<!-- from: 24#9 -->
 
 **GIT-R26.** The importer must refuse Git internals, special modes,
 control characters and paths incompatible with Runtime source validation. A
 path is at most 512 UTF-8 bytes (LIM-GIT-1).
-<!-- from: 24#25 -->
 
 **GIT-R27.** Repository filenames retain the existing safe UTF-8
 archive-path rules, and the importer must validate the existing path and
 archive rules before publication.
-<!-- from: 24#6, 24#22 -->
 
 **GIT-R28.** An empty source tree must be rejected.
-<!-- from: 24#9 -->
 
 ### Provenance
 
@@ -285,99 +242,79 @@ mutable name or content digest alone. This per-version repository, ref and
 commit metadata preserves origin across exact input forks without changing
 ArtifactRef and without turning a Workflow input into a live repository
 reference.
-<!-- from: 03#98, 24#10, 24#11 -->
 
 **GIT-R30.** Git-source records are stored in `artifact_git_sources`,
 keyed by `artifact_versions.version_id`; metadata queries join it without
 reading blobs.
-<!-- from: 24#36 -->
 
 **GIT-R31.** Content deduplication may share bytes between imports with
 different origins; it must not merge their provenance.
-<!-- from: 24#12 -->
 
 **GIT-R32.** Existing forks reuse the exact version or preserve an
 explicit origin lineage edge; the ordinary exact input fork reuses the imported
 version. Subsequent imports must never rewrite earlier provenance.
-<!-- from: 24#12, 24#36 -->
 
 **GIT-R33.** Purging the final retained version may remove its Git-source
 record under the existing lifecycle rules
 ([Retention and deletion](retention-and-deletion.md)) (LIFE-GIT-2).
-<!-- from: 24#12 -->
 
 **GIT-R34.** Authorized Artifact metadata and version responses
 expose an optional `gitSource`; its absence means an ordinary upload. Existing
 byte and list contracts are preserved.
-<!-- from: 24#13 -->
 
 **GIT-R35.** Authorized scripts can trace a Run's exact input through
 existing forks to the repository and commit, even after branch movement or key
 deletion.
-<!-- from: 24#13 -->
 
 **GIT-R36.** Source metadata must follow Artifact ownership
 checks and must not be emitted in global logs or metrics.
 
 Rationale: repository URLs can disclose private project names.
-<!-- from: 24#13 -->
 
 ### Owner Git SSH key
 
 **GIT-R37.** Each owner has at most one optional Git SSH private key for
 private repositories (LIM-GIT-2). The personal **Repository access**
 editor in Settings offers replace and remove for it.
-<!-- from: 06#37, 24#3, 24#4, 24#14 -->
 
 **GIT-R38.** Anonymous HTTPS repositories work without a key; SSH
 imports use the importing owner's key. No automatic fallback to another owner,
 the host SSH agent or a machine key is allowed.
-<!-- from: 24#3, 24#16 -->
 
 **GIT-R39.** The Server accepts unencrypted OpenSSH or PEM private
 keys supported by the chosen implementation, at least Ed25519 and RSA.
 Encrypted or passphrase-protected keys must return an explicit
 unsupported-format response; the Server must never prompt a background process
 for a passphrase.
-<!-- from: 24#14 -->
 
 **GIT-R40.** Key input is bounded to 32 KiB (LIM-GIT-3) and
 must be validated before it replaces the previous value (FAIL-GIT-1).
-<!-- from: 24#14, 24#21 -->
 
 **GIT-R41.** The key must be protected with the Server credential
 master-key mechanism ([Security](../platform/security.md)) and stored only as
 authenticated ciphertext in PostgreSQL, with authenticated owner, purpose and
 key-generation identity.
-<!-- from: 06#37, 24#15 -->
 
 **GIT-R42.** Git-key rows must be included in the startup
 master-key requirements and integrity checks.
-<!-- from: 24#15 -->
 
 **GIT-R43.** The key must not reuse LLM credential records and
 must not be sent in allocation RuntimeSettings.
-<!-- from: 24#15 -->
 
 **GIT-R44.** No private-key readback API, browser storage, Artifact
 payload, Workflow field, log or telemetry field may contain the key.
-<!-- from: 24#15 -->
 
 **GIT-R45.** Key responses expose only configured state, public-key
 fingerprint and type, and update time.
-<!-- from: 24#15 -->
 
 **GIT-R46.** A successful replacement clears the UI secret input.
-<!-- from: 24#15 -->
 
 **GIT-R47.** An admitted import captures one key generation. A
 concurrent replacement or removal affects subsequent imports; an already
 admitted import may finish with its captured key.
-<!-- from: 24#16 -->
 
 **GIT-R48.** Deleting a key does not invalidate existing ZIP
 artifacts or provenance (LIFE-GIT-3).
-<!-- from: 24#16 -->
 
 ### SSH host trust
 
@@ -385,16 +322,13 @@ artifacts or provenance (LIFE-GIT-3).
 read-only `known_hosts` file selected with `--git-known-hosts-file`, the
 environment variable `CONTRACTOR_GIT_KNOWN_HOSTS_FILE` or the ServerConfig YAML
 field `spec.gitKnownHostsFile`.
-<!-- from: 24#17, 24#18 -->
 
 **GIT-R50.** Unknown or changed host keys must fail closed; there is
 no automatic trust-on-first-use prompt.
-<!-- from: 24#17 -->
 
 **GIT-R51.** Missing `known_hosts` configuration makes SSH import
 unavailable, while anonymous HTTPS import can still work. The optional
 configuration mount is compatible with a read-only root and requires no PVC.
-<!-- from: 24#17 -->
 
 ### Outbound network
 
@@ -403,35 +337,28 @@ allowlist of exact `host:port` pairs, configured by repeated
 `--git-allowed-remote` flags, the comma-separated
 `CONTRACTOR_GIT_ALLOWED_REMOTES` environment variable or the ServerConfig YAML
 field `spec.gitAllowedRemotes`.
-<!-- from: 24#18 -->
 
 **GIT-R53.** Git configuration precedence is defaults, YAML,
 environment, CLI, so the CLI overrides the environment; a CLI allowlist
 replaces the lower-priority list.
-<!-- from: 24#18 -->
 
 **GIT-R90.** Relative file paths in the ServerConfig YAML Git fields, such as
 `spec.gitKnownHostsFile`, resolve beside the YAML file.
-<!-- from: 24#18 -->
 
 **GIT-R54.** The default empty allowlist disables Git network
 import without disabling the Server or existing artifacts.
-<!-- from: 24#18 -->
 
 **GIT-R55.** HTTPS uses normal CA verification and SSH uses the configured
 host-key verifier. HTTP redirects are disabled.
-<!-- from: 24#18 -->
 
 **GIT-R56.** The importer must resolve and validate the destination
 used for each actual connection and must disallow loopback, link-local,
 unspecified and multicast addresses. Corporate private addresses are permitted
 only through the explicitly allowlisted hostname and port.
-<!-- from: 24#18 -->
 
 **GIT-R57.** Tests may opt into isolated loopback fixtures
 through a test-only injection; there is no production flag that disables
 verification.
-<!-- from: 24#18 -->
 
 ### Reader
 
@@ -440,39 +367,31 @@ in-memory object storage and bounded decode; no `git` subprocess, temporary
 checkout, pack file, SSH key file, shell or credential helper is required. The
 importer honours the bounded-memory boundary of [Blob storage](blob-storage.md)
 with in-memory snapshots and no local checkout.
-<!-- from: 23#14, 24#19 -->
 
 **GIT-R59.** The importer must never silently fall back to local disk.
 Read-only operator trust and CA files are configuration, not scratch storage.
-<!-- from: 24#19 -->
 
 **GIT-R60.** The reader uses go-git protocol, pack-scanner and delta
 primitives. It does not use `Clone`, an on-disk repository, the high-level pack
 parser or host Git configuration.
-<!-- from: 24#24 -->
 
 **GIT-R61.** The client requires shallow negotiation and requests
 depth one (LIM-GIT-4) for the chosen advertised ref. If the remote cannot
 provide a bounded selected-ref snapshot, the import must fail explicitly
 instead of fetching unlimited history.
-<!-- from: 24#23, 24#24 -->
 
 **GIT-R62.** Large Git history can exhaust an import budget even
 when the final tree is small; the import then returns the relevant limit
 without publishing a partial artifact.
-<!-- from: 24#23 -->
 
 **GIT-R63.** The pack scanner exposes declared object sizes before
 inflation, and the importer checks them before allocating fixed buffers. Delta
 base and result sizes are checked before patching.
-<!-- from: 24#24 -->
 
 **GIT-R64.** SHA-1 pack checksums and decoded object identities must be
 verified.
-<!-- from: 24#24 -->
 
 **GIT-R65.** Annotated tags are peeled from fetched objects to a commit.
-<!-- from: 24#24 -->
 
 ### Import budgets
 
@@ -500,66 +419,53 @@ as the final output:
 Rationale: the source ZIP entry, expanded-byte and one-file budgets preserve
 the current source-analysis budgets rather than assuming that a 64 MiB
 transport artifact is always consumable as a workspace.
-<!-- from: 24#21, 24#22, 24#25 -->
 
 **GIT-R67.** Decoded accounting includes delta programs and
 intermediate results, even after their buffers become reclaimable. Every
 traversed tree entry, including directories, counts toward the source ZIP
 entry budget (LIM-GIT-16).
-<!-- from: 24#25 -->
 
 **GIT-R68.** Actual process peak memory must be reported, including
 object storage, ZIP buffers, driver copies and GC; the import budgets are not a
 total RAM guarantee.
-<!-- from: 24#22 -->
 
 ### Admission and cancellation
 
 **GIT-R69.** A Server process admits at most one active Git import
 (LIM-GIT-19).
-<!-- from: 24#20 -->
 
 **GIT-R91.** Git admission and the shared Artifact transfer slot the import
 holds remain held from before fetch through the metadata response
 ([BLB-R27](blob-storage.md)).
-<!-- from: 24#20, 24#36 -->
 
 How nested Artifact operations share the import's transfer slot and how other
 Artifact transfers use the remaining capacity is specified by
 [BLB-R27](blob-storage.md).
-<!-- from: 24#20 -->
 
 **GIT-R70.** When admission is saturated, the Server must reject
 the import promptly, without a queued request or buffered clone.
-<!-- from: 24#20 -->
 
 **GIT-R71.** Fetching and ZIP creation must hold no database
 connection or authoritative mutation lock; no long SQL lock is held during
 network transfer.
-<!-- from: 24#16, 24#20 -->
 
 **GIT-R72.** Server, client and proxy timeouts must be aligned with
 the whole-import deadline (LIM-GIT-6).
-<!-- from: 24#30 -->
 
 **GIT-R73.** On request cancellation or deadline expiry, the importer
 must cancel network transfer and decoding and release both admission slots
 (FAIL-GIT-2).
-<!-- from: 24#22 -->
 
 **GIT-R74.** The socket write of the metadata response has its own short
 deadline.
-<!-- from: 24#36 -->
 
 **GIT-R75.** While an import runs, the dialog shows a cancellable
 pending request.
-<!-- from: 24#30 -->
 
 ### Publication
 
 **GIT-R76.** The import service must validate authority and
 preconditions before fetch and recheck them at publication.
-<!-- from: 24#30, 24#36 -->
 
 **GIT-R77.** Once a complete bounded ZIP exists and its selected blob
 backend is prepared ([BLB-R35](blob-storage.md), which also applies the
@@ -567,24 +473,19 @@ filesystem orphan and ambiguous-commit rules), one short registry transaction
 locks the owned Project lifecycle, rechecks ownership, Project lifecycle and
 CAS, and commits the Artifact revision and its Git-source record atomically
 (FAIL-GIT-3).
-<!-- from: 24#12, 24#31, 24#36 -->
 
 **GIT-R78.** A rejected or interrupted import must not publish
 partial content.
-<!-- from: 24#31 -->
 
 **GIT-R79.** If cancellation races with a successful commit, the complete
 artifact may remain (LIFE-GIT-1).
-<!-- from: 24#31 -->
 
 **GIT-R80.** A lost response is resolved through metadata
 inspection, not an automatic mutation retry; interrupted responses instruct
 clients to inspect metadata before retrying.
-<!-- from: 24#31, 24#36 -->
 
 **GIT-R81.** Duplicate create or CAS retries must not advance the
 binding twice.
-<!-- from: 24#31 -->
 
 ## Interfaces
 
@@ -603,20 +504,15 @@ authorization ([Public API](../api/public-api.md)):
 | `POST /v1/artifacts/{namespace}/{name}/git-import` | Import into UserScope |
 | `POST /v1/projects/{projectId}/artifacts/{namespace}/{name}/git-import` | Import into owned ProjectScope |
 
-<!-- from: 24#28, 24#29 -->
-
 **GIT-R83.** Import JSON contains `repositoryUrl` and optional `ref`. No
 request can choose another owner, credential, backend or output filesystem
 path.
-<!-- from: 24#30 -->
 
 **GIT-R84.** Import uses the existing Artifact create and CAS headers:
 `If-None-Match: *` or an exact `If-Match`.
-<!-- from: 24#30 -->
 
 **GIT-R85.** A successful import returns 201 for create or 200 for
 replacement, with the normal write fields plus `gitSource`.
-<!-- from: 24#30 -->
 
 ## Limits, failures and errors
 
@@ -628,7 +524,6 @@ Limits LIM-GIT-1 to LIM-GIT-19 are registered in
 imported artifacts (LIFE-GIT-1), Git-source records
 (LIFE-GIT-2) and owner Git keys (LIFE-GIT-3) are
 registered in [lifecycle](../platform/lifecycle.md).
-<!-- from: 24#12, 24#16, 24#21, 24#25, 24#31 -->
 
 **GIT-R86.** The Git routes use bounded public error codes that
 distinguish invalid URL, ref or key; unavailable key or trust configuration;
@@ -636,12 +531,10 @@ refused remote or host identity; repository or ref access; unsupported tree
 content; exceeded import budgets; timeout; and capacity. Existing
 ownership-not-found, CAS and blob error semantics are preserved. Codes are
 registered in [errors](../platform/errors.md).
-<!-- from: 24#32 -->
 
 **GIT-R87.** Failure responses must not return remote protocol
 diagnostics, credential content, local paths or URLs containing
 authentication material.
-<!-- from: 24#32, 24#36 -->
 
 ## Security
 
@@ -655,30 +548,22 @@ GIT-R51), the remote allowlist and destination checks
 (GIT-R23, GIT-R24), unsupported content
 (GIT-R25, GIT-R26), ownership checks on provenance
 (GIT-R36) and error content (GIT-R87).
-<!-- from: 24#7, 24#9, 24#13, 24#15, 24#17, 24#18, 24#32 -->
 
 ## Observability
 
 Source metadata never reaches global logs or metrics (GIT-R36),
 the owner Git key never reaches logs or telemetry (GIT-R44), and
 actual process peak memory is reported (GIT-R68).
-<!-- from: 24#13, 24#15, 24#22 -->
 
 ## Non-goals
 
 - Private HTTPS tokens, multiple named keys per owner, repository browsing and
   Git writes.
-  <!-- from: 24#3 -->
 - Fetching an arbitrary commit ID.
-  <!-- from: 24#8 -->
 - Git LFS object download, recursive submodules, and sparse or subdirectory
   imports.
-  <!-- from: 24#9 -->
 - Scheduled refresh of an imported artifact, and automatic refetch when
   filesystem blob content is lost.
-  <!-- from: 24#5 -->
 - A new durable import job, broker, progress stream or resumable clone.
-  <!-- from: 24#30 -->
 - A new finding or verification attribution model: Git-source records add
   source provenance only.
-  <!-- from: 24#13 -->

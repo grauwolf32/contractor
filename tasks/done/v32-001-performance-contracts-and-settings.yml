@@ -15,7 +15,7 @@ goal: >-
   and independent Go profiling before implementing collectors or listeners.
 
 context:
-  specification: docs/spec/22-performance-metrics-and-profiling.md
+  specification: docs/spec/operations/operations.md
   startup: >-
     --performance-metrics / CONTRACTOR_PERFORMANCE_METRICS defaults true;
     --pprof / CONTRACTOR_PPROF defaults false; --pprof-listen /

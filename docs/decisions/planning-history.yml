@@ -58,7 +58,7 @@ audit_check_prioritization_planning:
     review, then authorized implementation. V64-000 extracts the independent
     pure core while V62-001's current V62-009 delivery prerequisite is in progress.
   design: docs/plans/2026-09-20-audit-check-prioritization.md
-  specification: docs/spec/34-audit-check-prioritization.md
+  specification: docs/proposals/0034-audit-check-prioritization.md
   review: docs/research/2026-09-20-audit-check-prioritization-review.md
   task_ids: [V64-000, V64-001, V64-002, V64-003, V64-004, V64-005, V64-006, V64-007, V64-008, V64-009, V64-010, V64-011]
   dependency_layers:
@@ -250,7 +250,7 @@ managed_evals_planning:
     pending: []
     evidence: docs/plans/2026-09-20-managed-evals-ui.md
     review: docs/plans/2026-09-20-open-task-review.md
-  specification: docs/spec/30-managed-evals.md
+  specification: docs/spec/evals/managed-evals.md
   design: docs/evals-experience-design.md
   design_task: V38-001
   tasks: [V38-002, V38-003, V38-004, V38-005, V38-006, V38-007, V38-008, V38-009, V38-010]
@@ -280,7 +280,7 @@ portable_eval_format_planning:
     completed: [V41-001, V41-002, V41-003, V41-004, V41-005, V41-006, V41-007, V41-008]
     in_progress: []
     pending: []
-  specification: docs/spec/26-portable-evaluation-format.md
+  specification: docs/spec/evals/format.md
   implementation_repository: playground-v2
   tasks: [V41-001, V41-002, V41-003, V41-004, V41-005, V41-006, V41-007, V41-008]
   delivery_order:
@@ -305,7 +305,7 @@ audit_worker_completion_planning:
   completed: [V39-001, V39-002, V39-003, V39-004, V39-005, V39-006, V39-007]
   in_progress: []
   pending: []
-  specification: docs/spec/25-audit-worker-finalization.md
+  specification: docs/spec/audits/worker-completion.md
   tasks: [V39-001, V39-002, V39-003, V39-004, V39-005, V39-006, V39-007]
   delivery_order:
     - {wave: 1, tasks: [V39-001], outcome: Inert contracts and real-ADK continuation proof before freezing interfaces.}
@@ -334,7 +334,7 @@ ui_usability_planning:
     verification. V38 remains a separate Evals workstream; it is not completed
     by the V37 delivery. Read individual task files for current status
     and verification evidence.
-  user_stories: docs/spec/ui-user-stories.md
+  user_stories: docs/spec/ui/journeys.md
   delivery_order:
     - {wave: 1, tasks: [V37-001, V37-002, V37-003, V37-004, V37-005]}
     - {wave: 2, tasks: [V37-006, V37-007, V37-008, V37-009]}
@@ -366,7 +366,7 @@ ui_design_review_2_planning:
     - No API or execution contract changes; UI-only work with focused tests and browser checks.
 
 performance_metrics_planning:
-  specification: docs/spec/22-performance-metrics-and-profiling.md
+  specification: docs/spec/operations/operations.md
   status: implemented
   implementation_status:
     reviewed_on: "2026-09-06"
@@ -1825,9 +1825,9 @@ local_direct_podman_planning_review:
     commands: [make test-podman-release, make verify]
     evidence: runtime/PODMAN.md#release-verification-v31-008
   specifications:
-    - docs/spec/10-runtime-filesystems-and-edit-tools.md
-    - docs/spec/12-code-analysis-tools.md
-    - docs/spec/21-podman-sandbox.md
+    - docs/spec/tools/workspace.md
+    - docs/spec/tools/code-analysis.md
+    - docs/spec/tools/code-execution.md
   phases:
     - >-
       V30-001 adds rooted bounded I/O and operation ownership. V30-002 makes

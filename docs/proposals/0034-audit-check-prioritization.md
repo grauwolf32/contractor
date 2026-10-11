@@ -3,7 +3,6 @@
 Proposal 0034 · Status: **Draft integration target; pure core implemented
 ([V64-000](../../tasks/done/v64-000-audit-priority-core.yml)); Audit capability
 not enabled.**
-<!-- from: 34#1 -->
 
 Only the pure core is implemented: the `internal/auditpriority` package with
 its schema and fixtures in `api/audit-priority/v1` (see
@@ -17,7 +16,6 @@ document owns the proposed behavior; the
 [plan](../plans/2026-09-20-audit-check-prioritization.md) owns task sequencing.
 Existing profiles and [Audit contracts](../spec/audits/audits.md) remain
 unchanged until this opt-in capability is implemented and advertised.
-<!-- from: 34#1, 34#2, 34#10, 34#35 -->
 
 ## User outcome and boundary
 
@@ -27,7 +25,6 @@ against the same frozen context and rubric. The Server selects the
 highest-priority items for the current pass and retains every remaining item,
 its evaluation and its deferral explanation. A pass means selection of one
 immutable Audit Round.
-<!-- from: 34#3 -->
 
 `topN` defaults to 10 and must be an integer from 10 to 1,000 (resolution and
 overrides: [Pass size](#pass-size-topn)). For `R` remaining candidates, a
@@ -37,7 +34,6 @@ satisfy this rule. If fewer than `topN` candidates remain (always the case when
 fewer than ten remain), select all of them and expose
 `fewer_candidates_remaining`. If none remain, close selection with
 `no_remaining_candidates`; create neither a ranking Run nor an empty Round.
-<!-- from: 34#4, 34#34 -->
 
 V1 supports a supplied `custom-checklist` inventory. Findings are context, not
 additional candidates. Source analysis, generated OpenAPI, standard-package
@@ -46,13 +42,11 @@ checks and autonomous pentest
 ([proposal 0033](0033-autonomous-pentest-audits.md)) are separate
 capabilities. Scans and code-analysis checks can both execute selected items
 through existing profile-owned Workflows.
-<!-- from: 34#5 -->
 
 This is an Audit selection capability. `scan-plan@1` remains the model-free
 planner of concrete scanner jobs ([scanners](../spec/tools/scanners.md)). The
 narrower optional scanner ranking in
 [V55-009](../../tasks/v55-009-scan-candidate-ranking.yml) is independent.
-<!-- from: 34#6 -->
 
 ## Ownership and prerequisite contracts
 
@@ -64,7 +58,6 @@ narrower optional scanner ranking in
 | Pure selector | Reproducible ordering and selection from complete validated verdicts |
 | Scheduler | Ranking/check Run admission, global queue, concurrency, deadlines and claims |
 | Existing check Workers | Execute accepted checks and publish ordinary Audit results |
-<!-- from: 34#7 -->
 
 Prioritization reuses the shared preparation contracts, persistence
 foundations and control paths for Audit work before a Round exists
@@ -76,14 +69,12 @@ not require generated-input, OpenAPI, retained-dependency or routing inputs. A
 later prepared-checklist bridge must explicitly depend on prepared inventory
 (the preparation contract in [scans](../spec/audits/scans.md)) instead of
 implying that it already works.
-<!-- from: 34#8 -->
 
 Verification: integration depends on the preparation contract, store and
 controller tasks
 ([V62-001](../../tasks/done/v62-001-audit-composition-contracts.yml),
 [V62-002](../../tasks/done/v62-002-audit-preparation-store.yml),
 [V62-003](../../tasks/done/v62-003-audit-preparation-controller.yml)).
-<!-- from: 34#9 -->
 
 A new opt-in profile declares a pinned ranking Workflow, its resolved model
 route and finite ranking policy, plus existing check roles, limits and
@@ -91,7 +82,6 @@ interaction policy. The authoring field `prioritization` is reserved; the
 current profile schema rejects it. Unknown or incomplete capabilities fail
 compatibility checks. No existing profile is opted in by default; current
 non-priority execution and review behavior remains supported.
-<!-- from: 34#10 -->
 
 This proposal follows the Audit composition
 [schema policy](../plans/2026-09-20-audit-workflow-composition.md#current-schema-policy).
@@ -105,7 +95,6 @@ Accepted baseline, Run and Artifact snapshots stay immutable, and
 current-schema Audits retain recovery, retention and deletion guarantees.
 Storage upgrade tests use current-schema snapshot fixtures; preserving
 historical schema readability is not an acceptance requirement.
-<!-- from: 34#11 -->
 
 ## Full inventory, candidates and pass identity
 
@@ -115,27 +104,23 @@ Audit relations. A candidate ID binds the inventory digest, checklist item key
 and version. Keys are validated for uniqueness by the trusted importer;
 matching titles never merge distinct items. The original source ref, version,
 task package and configured Workflow role remain exact and immutable.
-<!-- from: 34#12 -->
 
 Candidates are not pre-created as executable AuditItems. Acceptance atomically
 binds the selected candidates to a new Round and creates their AuditItems.
 Deferred candidates consume inventory and retention space, but do not consume
 `maxItemsTotal`, `maxItemsPerRound`, check attempts or a Round barrier slot.
 The original complete inventory remains the coverage denominator.
-<!-- from: 34#13 -->
 
 The opt-in path must separate inventory capacity from execution capacity in
 profile validation, preview, start and retention. A 100-item checklist with
 `topN: 10` and `maxItemsPerRound: 10` is valid when other budgets suffice.
 Existing non-priority profiles keep their full-inventory admission checks.
-<!-- from: 34#14 -->
 
 Remaining candidates are inventory members never admitted into an accepted
 Round. Once admitted, their ordinary retries, review and settlement remain
 owned by that Round; a failed or inconclusive check does not silently re-enter
 ranking. Rechecking settled candidates and introducing new checklist versions
 are outside v1. New findings affect context, not candidate membership.
-<!-- from: 34#15 -->
 
 A cycle has a stable Audit-local ID and ordinal independent of its child Run's
 Stage retry identity. It binds the remaining-candidate digest, source
@@ -143,7 +128,6 @@ inventory, context ref and digest, rubric/prompt version, policy and exact
 resolved model route. There is at most one active cycle per Audit and one
 accepted Round per cycle. Both successful model outputs and selection outcomes
 are immutable history.
-<!-- from: 34#16 -->
 
 ### Pass size (`topN`)
 
@@ -158,7 +142,6 @@ with a different `topN` conflicts. An active or paused Audit cannot edit it;
 resume and deadline changes preserve it. A new Audit can choose a new value.
 Admission checks the actual `min(topN, R)` against execution limits, including
 the all-if-fewer case.
-<!-- from: 34#17 -->
 
 ## Context snapshot and independent input
 
@@ -173,7 +156,6 @@ Before a cycle starts, retain one bounded snapshot containing:
   capture.
 - Original scope/profile references and available task metadata. Absence of a
   description or findings is a valid input, not an assumed safe service.
-<!-- from: 34#18, 34#19 -->
 
 The source set is declared by the profile and supplied inputs. Do not search
 unrelated Project artifacts, use mutable `latest` bindings or silently import
@@ -182,7 +164,6 @@ consistent revision; a concurrent review update causes a retry of snapshot
 capture, not a mixture of old and new rows. Source Run deletion does not remove
 retained context or break provenance; Audit deletion releases the corresponding
 holds.
-<!-- from: 34#20 -->
 
 V1 sends the same complete bounded common context to every item. It does not
 add per-item model retrieval or summaries from other evaluations. Each request
@@ -191,7 +172,6 @@ statement, its applicability text, allowed methods and required evidence. No
 sibling verdict, conversation transcript, mutable memory or previous evaluation
 is carried over. Common context may be prepared once and reused as immutable
 bytes.
-<!-- from: 34#21 -->
 
 The service description is accepted as UTF-8 text and supplied findings through
 the existing strict findings-collection codec
@@ -202,14 +182,12 @@ text can contain private data: only owner-selected scoped input is sent to the
 pinned model route, and public events and diagnostics never echo it.
 Descriptions and finding text are untrusted data, not instructions or authority
 to change the candidate set.
-<!-- from: 34#22 -->
 
 Oversized descriptions or collections, or context that cannot fit the complete
 projection, produce `priority_context_limit_exceeded` before model dispatch.
 There is no silent truncation or arbitrary subset of findings in v1. Snapshot
 replacement during an active pass is not supported. Newly arriving results or
 review changes are eligible only for a subsequent cycle.
-<!-- from: 34#23 -->
 
 ## Verdict and comparison rubric
 
@@ -225,7 +203,6 @@ Model output is one strict object, not prose surrounding JSON:
   "missing_context": ["The tenant isolation design is not supplied."]
 }
 ```
-<!-- from: 34#24, 34#25 -->
 
 The Server supplies cycle and candidate IDs, context and input digests,
 model-policy provenance, call identity and usage. The model only echoes the
@@ -235,7 +212,6 @@ keys, oversized values, tool calls and truncated or incomplete provider output
 are rejected. Evidence IDs refer only to the exact context entries supplied to
 that item. Free-text reasoning is an explanation, not accepted evidence of a
 vulnerability or applicability.
-<!-- from: 34#26 -->
 
 One versioned rubric applies to every item and pass of the pinned profile:
 
@@ -245,7 +221,6 @@ One versioned rubric applies to every item and pass of the pinned profile:
 | high | Relevant sensitive behavior or supporting observations make this check materially useful now |
 | medium | Applicable/general checklist coverage with no stronger prioritizing evidence; the baseline when context is absent |
 | low | Concrete context supports lower usefulness in this pass; explain that fact |
-<!-- from: 34#27, 34#28 -->
 
 Relevance, potential impact, supporting observations and what a new check adds
 to existing results drive the assessment. Finding severity is an input fact,
@@ -253,14 +228,12 @@ never overwritten by a priority verdict. Confidence (`low | medium | high`) is
 reported separately and does not change sorting. Missing context alone must not
 lower priority below the rubric's baseline; applicability is advisory and
 cannot remove a candidate or create `not-applicable` coverage.
-<!-- from: 34#29 -->
 
 Sort by priority descending (`critical`, `high`, `medium`, `low`), then by
 canonical candidate ID ascending. The same input, accepted verdicts and policy
 reproduce the same order and selection digest. Model calls themselves are not
 asserted to be deterministic. Tests cover both the mechanics and scripted
 rubric examples; they do not claim live-model prioritization quality.
-<!-- from: 34#30 -->
 
 ### Pure core boundary
 
@@ -276,7 +249,6 @@ references and missing-context strings must be unique within their respective
 arrays. Both raw response bytes and canonical programmatic verdicts respect the
 8 KiB bound; the other response limits in
 [Bounds](#bounds) apply before selection as well.
-<!-- from: 34#31 -->
 
 Candidate identity is `priority-candidate-` followed by the lowercase SHA-256
 hex digest of RFC 8785 canonical JSON containing `schema` equal to
@@ -288,7 +260,6 @@ versions of the same key, are rejected. The pure pool has schema
 `contractor.audit.priority-candidates.v1`, the source inventory digest and
 candidate-ID-sorted identity rows; its canonical digest binds exact remaining
 membership. This identity pool is not the metadata-bearing Run input.
-<!-- from: 34#32 -->
 
 The caller binds each verdict to the cycle ID, the
 inventory/pool/context/policy/prompt/model-configuration digests and the
@@ -298,7 +269,6 @@ retained-context whitelist (at most 100 IDs). The caller is responsible for
 proving that the whitelist and input digests actually belong to that retained
 context and accepted model Run. Pure validation does not authenticate them or
 prove receipt or journal authority.
-<!-- from: 34#33 -->
 
 The internal calculation has schema `contractor.audit.priority-selection.v1`,
 the complete binding, ordered candidate/verdict rows, a one-based rank, a
@@ -311,7 +281,6 @@ and empty remaining pools use `fewer_candidates_remaining` and
 empty original inventory. Canonical result bytes are bounded by 16 MiB. Results
 detach all mutable slices from inputs; confidence and input response order
 never break priority ties.
-<!-- from: 34#34 -->
 
 `Selection.Validate` and `MarshalSelection` check internal consistency only.
 They are not the accepted `contractor.audit.priorities.v1` Run output or an
@@ -322,11 +291,9 @@ atomic budget/selection admission
 [selection](#selection-readiness-and-subsequent-passes)) are required before
 the result can authorize a Round. The pure package registers no planner or
 profile capability and changes no existing API or canonical contract.
-<!-- from: 34#35 -->
 
 Verification: the pure core is recorded in
 [V64-000](../../tasks/done/v64-000-audit-priority-core.yml).
-<!-- from: 34#36 -->
 
 ## Evaluation execution, bounds and accounting
 
@@ -342,7 +309,6 @@ separate external ranking service is required. Each item is one independent
 logical and physical model call. V1 evaluates sequentially in candidate-ID
 order; bounded parallel evaluation is a later optimization, not a new
 Scheduler pool.
-<!-- from: 34#37 -->
 
 The Workflow declares required exact RunScope inputs `candidates` and `context`
 and one required output `priorities` with media type
@@ -352,7 +318,6 @@ checklist metadata and identity; complete per-item tasks and target credentials
 stay outside the ranking Run's input set. The typed model adapter reads only
 these named authorized inputs and the pinned rubric, not arbitrary ProjectScope
 data.
-<!-- from: 34#38 -->
 
 For a complete cycle, the Planner creates a bounded canonical result containing
 cycle/candidate/context/policy digests and exactly one journal-backed verdict
@@ -371,7 +336,6 @@ Run/output/receipt; check dispatch never precedes receipt acceptance. Child Run
 deletion is fenced until required output retention and receipt collection
 complete, using the existing Audit child-Run deletion rules
 ([DEL-R17](../spec/artifacts/retention-and-deletion.md)).
-<!-- from: 34#39 -->
 
 ```mermaid
 sequenceDiagram
@@ -398,7 +362,6 @@ sequenceDiagram
     AC->>AC: Fenced acceptance: commit Round, AuditItems, candidate consumption
     AC->>SCH: Dispatch selected checks
 ```
-<!-- from: 34#18, 34#37, 34#39, 34#43, 34#45, 34#48, 34#50 -->
 
 This shape requires explicit support, not an empty-Agent loophole:
 configuration, resolved snapshots, execution policy, preparation, allocation
@@ -412,7 +375,6 @@ state ([control plane](../spec/execution/control-plane.md)). The ranking Run
 uses a global queue/concurrency slot and honours queue pause even with no
 Runtime connected ([scheduler](../spec/execution/scheduler.md)). Model
 credentials stay in memory and use existing pinned resolution.
-<!-- from: 34#40 -->
 
 ### Bounds
 
@@ -430,7 +392,6 @@ credentials stay in memory and use existing pinned resolution.
 | Output tokens | Profile value 128–2,048, also within pinned ModelPolicy |
 | Cycle model/token/time budget | Explicit positive finite policy; all calls and provider-reported total tokens accounted |
 | Stored ranking result | At most 16 MiB, separate paginated projections; no model input contains this full artifact |
-<!-- from: 34#41 -->
 
 The 1,000-item bound deliberately fits the current ModelPolicy call limit
 ([agent templates](../spec/configuration/agent-templates.md)). It is separate
@@ -438,7 +399,6 @@ from the existing broader inventory ceiling. Reject overflow before ranking
 instead of evaluating an invisible prefix. An enabled profile must provide
 enough call budget for its current candidate count; zero-call or absent model
 access is an explicit ranking failure, not a low priority score.
-<!-- from: 34#42 -->
 
 ### Capacity reservation
 
@@ -452,7 +412,6 @@ reserved slot to consumed rather than requiring another unreserved slot.
 Duplicate acknowledgement or reconciliation is idempotent. Pre-acceptance
 failure or cancellation releases only unused reservations; submitted ranking
 and check Runs and unknown external calls remain charged.
-<!-- from: 34#43, 34#44 -->
 
 Ranking Runs count in `maxSubmittedRuns`; selected distinct items count in item
 budgets ([Audit execution](../spec/audits/execution.md)). The reservation for
@@ -464,7 +423,6 @@ reserved capacity; the v1 profile omits discovery and assessment roles. Retries
 use remaining unreserved Audit capacity and never consume capacity already
 reserved for other selected initial check attempts. No existing hard network
 request or cost ceiling is implied by this accounting.
-<!-- from: 34#44 -->
 
 ### Token admission and usage
 
@@ -475,26 +433,22 @@ insufficient call count or a known insufficient whole-pool token budget
 produces zero gateway calls. The current policy must also cover the complete
 declared request count. This avoids spending on a pool already known to be
 unfinishable.
-<!-- from: 34#45 -->
 
 Before each call, persist its intent and transfer its existing reservation
 under the current Scheduler claim, without a second charge. Input/output
 bounds, accumulated actual usage and outstanding reservations govern dispatch.
-<!-- from: 34#45 -->
 
 The pinned `utf8-bytes-v1` admission estimate is the encoded request byte
 length plus the configured maximum output tokens. It deliberately over-reserves
 ordinary text input and is a local scheduling estimate, not a provider billing
 guarantee. The estimate must fit both the remaining token budget and the
 configured context window; no new tokenizer service is required.
-<!-- from: 34#45 -->
 
 Record provider input, output and total usage separately, including unknown
 usage after a lost response. Unknown usage retains its reservation; known
 overruns are recorded honestly and stop further calls. Limits are enforced
 before dispatch where knowable. Responses never grant authority to increase a
 budget.
-<!-- from: 34#45 -->
 
 ## Persistence, failure and recovery
 
@@ -506,7 +460,6 @@ digests, the resolved model reference and version when returned, usage and the
 bounded rationale. Persisted call state is fenced by both the current ranking
 Run claim and the Audit's active cycle association. A stale process cannot
 settle a new cycle.
-<!-- from: 34#46 -->
 
 Known completed verdicts are reused after process restart. A committed
 `started` intent with no durable response becomes `unknown`; it is never
@@ -516,7 +469,6 @@ provider still keeps its conservative unknown accounting. An ordinary Run
 retry or escalation cannot reset the cycle journal or mint a new cycle; the v1
 ranking Workflow has no retry or escalation path. A new Audit is an explicit
 new budget and evaluation scope.
-<!-- from: 34#47 -->
 
 For v1, **all remaining candidates must have valid verdicts before ranked
 selection**. The first `invalid`, `failed` or `unknown` evaluation stops new
@@ -527,7 +479,6 @@ deterministic fallback as the highest model priorities. Automatic fallback
 modes and manual reranking of a failed cycle are deferred. Existing
 non-priority Audit profiles remain available for deterministic execution
 without ranking.
-<!-- from: 34#48 -->
 
 Cancellation, a Run/Stage/cycle deadline, Project or Audit deletion and lost
 ownership stop new calls and check dispatch. Queue pause prevents new Run and
@@ -541,7 +492,6 @@ extend or disable that admission deadline. Resume reuses the same cycle,
 context and outcomes. Late output after cancellation or deletion is
 non-authoritative. These controls also work before any Round exists, through
 the shared preparation-phase lifecycle ([scans](../spec/audits/scans.md)).
-<!-- from: 34#49 -->
 
 ## Selection, readiness and subsequent passes
 
@@ -553,7 +503,6 @@ exact retained reference and ownership, the Round and its Items, and the
 candidate-consumption records in one acceptance transaction. Staging an
 artifact alone cannot authorize work; replay recovers equal bytes and garbage
 collection can remove unaccepted staging refs.
-<!-- from: 34#50 -->
 
 Selection contains every remaining candidate's rank, priority, confidence,
 verdict reference and disposition. Selected items receive immutable ordinals in
@@ -561,7 +510,6 @@ rank order. Deferred items retain their priority and `deferred_top_n` with
 their rank, the configured limit and the selected count. For example, the item
 ranked 11 may stay `high` while deferred behind ten other items. There is no
 score modification to justify its exclusion from this pass.
-<!-- from: 34#51 -->
 
 Readiness is separate: an item requiring existing approval can be selected and
 then await approval. It is not removed from the top-N, and lower-ranked work is
@@ -569,7 +517,6 @@ not backfilled. Missing check capability follows the existing preparation
 failure; it cannot silently replace a selected candidate. Successful selection
 is not a promise of ten successful checks: execution may later fail, time out
 or be cancelled, with distinct selected, started and completed counts.
-<!-- from: 34#52 -->
 
 If budgets cannot admit exactly `min(topN, R)`, record
 `selection_blocked_budget` and accept no smaller Round. Preflight catches known
@@ -577,7 +524,6 @@ shortfalls before model calls; acceptance rechecks remaining capacity. Context
 failure, incomplete ranking or blocked selection stops automatic progression
 with an explicit gap or stop reason and releases unused reservations. There is
 no indefinite hidden retry loop.
-<!-- from: 34#53 -->
 
 ```mermaid
 flowchart TD
@@ -594,7 +540,6 @@ flowchart TD
     ACC -->|"no"| SB
     ACC -->|"yes"| RD["Round with selected items; others deferred_top_n"]
 ```
-<!-- from: 34#4, 34#18, 34#23, 34#37, 34#43, 34#45, 34#48, 34#50, 34#51, 34#53 -->
 
 Terminal mapping is explicit and uses the shared no-Round cleanup and report
 path:
@@ -610,13 +555,11 @@ path:
 | No remaining candidates after a settled Round | Normal existing report-finalization/review path to `completed` |
 | Configured maxRounds reached after a settled Round | Same bounded finalization path, with remaining candidates explicitly not-tested |
 | Pause | `paused`, nonterminal; resume uses the same snapshot/journal |
-<!-- from: 34#53, 34#54 -->
 
 A terminal failed or cancelled Audit still exposes a retained coverage/stop
 snapshot; this diagnostic projection is not an owner-accepted successful
 report. Any earlier accepted report and result revisions remain immutable. No
 review decision is invented merely to close a ranking failure.
-<!-- from: 34#55 -->
 
 After every selected item settles, an enabled later pass may rank the remaining
 candidates against a fresh context snapshot, within the existing `maxRounds`,
@@ -629,7 +572,6 @@ enabled, remaining baseline candidates have their own deterministic next-pass
 path. Finding proposals never become new candidates implicitly. No remaining
 candidates means normal bounded closure; remaining candidates at final closure
 stay visible as untested coverage.
-<!-- from: 34#56 -->
 
 ## Public API, UI, coverage and retention
 
@@ -648,20 +590,17 @@ All cursors bind the Audit/cycle snapshot. Counts declare their scope:
   rejection or cancellation without invocation. An accepted result remains
   separate from technical completion and from a passing semantic finding
   assessment.
-<!-- from: 34#57, 34#58 -->
 
 For 25 original candidates and two passes of 10, Audit totals are 20 selected
 and five remaining; the second cycle evaluates 15, selects ten and defers five.
 An approval rejection can increase settled while leaving started and
 accepted-result unchanged.
-<!-- from: 34#59 -->
 
 API labels use these exact meanings rather than ambiguous completed or
 evaluated counters. Use optional exact input selectors for the description and
 findings; omission is meaningful. The Draft/Start form exposes the bounded
 `topN` override defined in [Pass size](#pass-size-topn) and shows the pinned
 value read-only after start.
-<!-- from: 34#59 -->
 
 Audit coverage and machine and human reports include every original candidate
 across all passes ([review and reports](../spec/audits/review-and-reports.md)).
@@ -670,7 +609,6 @@ become `not-applicable`, or imply a passing check. Earlier accepted results
 keep their ordinary semantic status even after later rounds. Priority, finding
 severity, analyst judgement and execution status remain separate. No-Round
 failure or cancellation still reports the known inventory and its gaps.
-<!-- from: 34#60 -->
 
 Retain exact context, verdict, selection and result/decision references across
 permitted child and source Run deletion. Subsequent analyst edits cannot
@@ -684,7 +622,6 @@ existing Audit and Artifact contracts
 phase, count and error codes; rationale and context are accessed through
 authorized artifact and detail reads and rendered as untrusted text. Reports
 and UI must show incomplete ranking distinctly from a fully ranked top-N.
-<!-- from: 34#61 -->
 
 ## Required verification
 
@@ -732,10 +669,8 @@ model or external target is required. Mandatory cases include:
   rejected. Current public clients and storage upgrade/recovery fixtures pass
   without compatibility readers. Tests explicitly distinguish planning
   mechanics from model quality.
-<!-- from: 34#62, 34#63 -->
 
 The release task must register discoverable mandatory process and browser
 cases, fail on missing prerequisites, zero selected tests or skips, and retain
 the actual commands, revisions and results. Creating this document or task
 files is not implementation or test evidence.
-<!-- from: 34#64 -->

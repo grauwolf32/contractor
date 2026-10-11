@@ -13,7 +13,7 @@ languages: [go, python, typescript]
 decision: >-
   Keep + in the version grammar: id [a-z][a-z0-9_-]* (at most 128 characters)
   and version [A-Za-z0-9][A-Za-z0-9._+-]* (at most 64). No shipped
-  configuration uses +, but docs/spec/00-workflow-and-planner.md defines the
+  configuration uses +, but docs/spec/configuration/workflows.md defines the
   selector version grammar with it, Audit standard versions allow it
   (auditstandards, the public AuditStandardRef and audit-standard routes) and
   AuditProfiles reference them through the configuration version grammar, and

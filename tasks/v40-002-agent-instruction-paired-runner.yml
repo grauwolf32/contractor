@@ -14,7 +14,7 @@ goal: >-
   Prepare the instruction-specific experiment using the portable format already
   implemented by V41, without starting model executions.
 context:
-  specification: docs/spec/26-portable-evaluation-format.md
+  specification: docs/spec/evals/format.md
   plan: tests/eval/agent_instructions/README.md
   implementation_repository: >-
     Use sibling playground-v2 and its existing CLI, dataset catalog, adapters,

@@ -14,7 +14,7 @@ languages: ["python", "json", "yaml", "go"]
 
 goal: "Prove format, compatibility, portability and recovery using offline/recorded evidence before enabling V40 model evaluations."
 context:
-  specification: docs/spec/26-portable-evaluation-format.md
+  specification: docs/spec/evals/format.md
   repository: "Implementation belongs in sibling playground-v2 unless a deliverable explicitly names Contractor. Commands below start at the Contractor root; the sibling location is a development convention, not a runtime dependency."
   gate: "Validate every schema/example/negative fixture, legacy reader, adapter boundary, frozen-plan recovery, scorer/result separation, comparison arithmetic and owner-safe publication. Record exact schema/build/scorer digests in a readiness report."
   scope: "No model/gateway evaluation, real benchmark target campaign, default catalog publication or running Audit change is permitted by this task. Deterministic API stubs and recorded responses are conformance verification, not quality runs."

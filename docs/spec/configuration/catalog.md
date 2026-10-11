@@ -13,7 +13,6 @@ snapshot, immutability of published versions, managed publication of new
 versions, and catalog discovery on the listing endpoints. It also owns
 WorkflowCatalog and the in-process AgentTemplateCatalog configuration
 boundary.
-<!-- from: 00#9, 00#14, 00#18, 00#42, 01#99, 06#10, 06#63 -->
 
 It leaves to other documents:
 
@@ -35,7 +34,6 @@ It leaves to other documents:
 - Pagination, idempotency and the error envelope shared by every resource:
   [Public API](../api/public-api.md).
 - Planner budgets: [Planners](../execution/planners.md).
-<!-- from: 00#13, 00#16, 00#68, 01#32, 01#41, 07#18, 19#17, 23#17, readme#6 -->
 
 ## Concepts
 
@@ -57,7 +55,6 @@ Terms are defined once in the [glossary](../glossary.md).
 | Managed publication | The atomic, create-only addition of a new immutable ModelPolicy or LLMGatewayConfig version to the managed root and the configuration set. |
 | Draft | A clone of a published configuration whose typed fields are edited in the Operations authoring flow; it is not executable configuration. |
 | Catalog source fingerprint | The SHA-256 fingerprint of the immutable catalog source a listing result was built from. |
-<!-- from: 00#9, 00#14, 00#18, 00#20, 00#42, 00#48, 00#76, 00#77, 01#99, 06#11, 06#61, 06#63, 06#64, 06#68, 06#69 -->
 
 ## Model
 
@@ -69,7 +66,6 @@ Default root paths (CAT-R1, CAT-R2):
 /etc/contractor/configs/       operator/bootstrap root, normally read-only
 /var/lib/contractor/configs/   Server-managed root for UI publications
 ```
-<!-- from: 06#63, 06#64, 00#14 -->
 
 Subtree layout of each root (CAT-R4):
 
@@ -83,7 +79,6 @@ configs/
   audit-profiles/      # operator-authored resolved multi-Run Audit programs
   instructions/       # UTF-8 instruction resources
 ```
-<!-- from: 00#14, 00#15, readme#6, 19#17 -->
 
 ```mermaid
 flowchart LR
@@ -96,7 +91,6 @@ flowchart LR
   V -- yes --> P["publish the complete configuration set"]
   V -- no --> N["publish nothing"]
 ```
-<!-- from: 00#14, 00#18, 00#19, 00#20, 06#63, 06#65 -->
 
 ### Configuration kinds
 
@@ -113,12 +107,10 @@ publication.
 | ExecutionConfig | `execution-configs/` | operator | `ExecutionConfigRef` with digest ([TPL-R86](agent-templates.md)) | [AgentTemplates](agent-templates.md) |
 | AuditProfile | `audit-profiles/` | operator; accepted only from the operator root (CAT-R8) | see [Audits](../audits/audits.md) | [Audits](../audits/audits.md) |
 | instruction resource | `instructions/` | operator | `ResolvedInstructions` ref and digest (CAT-R41) | this document |
-<!-- from: 00#9, 00#13, 00#15, 00#17, 00#19, 00#68, 01#32, 01#41, 06#67, 15#12, 19#17 -->
 
 RuntimeConfig versions and label bindings are stored in PostgreSQL and add no
 configuration subtree; RuntimeConfig uses the selector grammar of this
 document ([RCF-R78](runtime-config.md), [RCF-R79](runtime-config.md)).
-<!-- from: 07#18 -->
 
 ### Instruction refs
 
@@ -134,7 +126,6 @@ class ResolvedInstructions(BaseModel):
     digest: str    # "sha256:" + 64 lowercase hexadecimal characters
     text: str
 ```
-<!-- from: 00#77, 00#78 -->
 
 ### Selector resolution
 
@@ -151,7 +142,6 @@ flowchart LR
   ER --> SN
   RI --> SN
 ```
-<!-- from: 00#47, 00#48, 00#68, 00#80 -->
 
 ### Managed publication
 
@@ -164,7 +154,6 @@ published configuration
   -> validate references and consumer compatibility
   -> publish new immutable name@version + digest
 ```
-<!-- from: 06#61, 06#62 -->
 
 ```mermaid
 sequenceDiagram
@@ -180,7 +169,6 @@ sequenceDiagram
   S->>M: atomically swap the configuration snapshot
   S-->>C: success, only after file and snapshot are both published
 ```
-<!-- from: 06#70, 06#71, 06#72 -->
 
 ## Requirements
 
@@ -191,26 +179,22 @@ configuration kinds loaded from the configuration roots. The Server has two
 configured roots, an operator/bootstrap root
 and a separate Server-managed publication root, which form one logical
 configuration namespace.
-<!-- from: 06#63, 00#14 -->
 
 **CAT-R2.** The root paths are deployment defaults, not
 hard-coded identities. Local development may point both roots at
 workspace-specific directories.
-<!-- from: 06#65 -->
 
 **CAT-R3.** The executable settings are
 `--operator-config-root` / `CONTRACTOR_OPERATOR_CONFIG_ROOT` and
 `--managed-config-root` / `CONTRACTOR_MANAGED_CONFIG_ROOT`. When the managed
 root is omitted, local configuration derives a sibling `managed-configs/`
 directory from the final operator-root path.
-<!-- from: 06#66 -->
 
 ### Subtrees
 
 **CAT-R4.** Both roots use the same seven fixed manifest/resource
 subtrees: `workflows`, `agent-templates`, `model-policies`, `llm-gateways`,
 `execution-configs`, `audit-profiles` and `instructions`.
-<!-- from: 00#14, 00#15, readme#6, 19#17 -->
 
 **CAT-R5.** The operator root may also hold the non-YAML source
 subtrees `configs/skills` and `configs/audit-standards`. `configs/skills` holds
@@ -220,12 +204,10 @@ population and their lifecycle are owned by [Skills](../tools/skills.md)
 `configs/audit-standards` holds the curated Audit standard packages, one
 `standard.json` per package directory; that catalog is owned by
 [Audits](../audits/audits.md) ([AUD-R49](../audits/audits.md)).
-<!-- from: 00#16, readme#6 -->
 
 **CAT-R6.** Toolsets, SandboxProfiles, WorkerRuntime
 factories and Planner factories are registered code plus Server-visible
 descriptors, not configuration subtrees.
-<!-- from: 00#20 -->
 
 ### Manifest files
 
@@ -233,31 +215,25 @@ descriptors, not configuration subtrees.
 ending in `.yaml` below the six YAML subtrees `workflows`, `agent-templates`,
 `model-policies`, `llm-gateways`, `execution-configs` and `audit-profiles`, in
 either root.
-<!-- from: 00#17 -->
 
 **CAT-R8.** AuditProfile manifests are accepted only from the
 operator root. The managed `audit-profiles` subtree remains empty, and no
 generic configuration publication kind is added for AuditProfile
 ([AUD-R25](../audits/audits.md)).
-<!-- from: 00#17, 19#17 -->
 
 **CAT-R9.** Each file contains exactly one non-empty YAML document; a
 multi-document stream is invalid.
-<!-- from: 00#17 -->
 
 **CAT-R10.** A manifest's `kind` must match its subtree.
-<!-- from: 00#17 -->
 
 **CAT-R11.** The loader rejects duplicate YAML mapping keys and
 validates the exact schema selected by `apiVersion` and `kind` rather than
 retaining unknown fields.
-<!-- from: 00#17 -->
 
 **CAT-R12.** Every YAML manifest has the envelope `apiVersion`,
 `kind`, `metadata` and `spec`. `metadata` contains the mandatory `name` and
 `version`, which use the selector `id` and `version` grammars respectively
 (CAT-R18).
-<!-- from: 00#18 -->
 
 ### Identity
 
@@ -266,27 +242,22 @@ retaining unknown fields.
 configuration key `(name, version)`. A YAML document's identity comes from its
 lookup key, not from its file name: file name and nesting below the kind
 subtree are organizational only.
-<!-- from: 00#18, 00#9, readme#6 -->
 
 **CAT-R14.** No YAML manifest may depend on a local absolute
 path, inode or file name for its identity.
-<!-- from: 00#21 -->
 
 **CAT-R15.** Two files with the same lookup key, in one root or
 across both roots, make the complete configuration set invalid. There is no
 root precedence, no implicit override and no last-writer-wins overlay.
-<!-- from: 00#18, 06#65 -->
 
 **CAT-R16.** Instruction resources follow a different identity
 rule: the identity of an instruction resource is its normalized logical path
 below `instructions/`, such as `instructions/openapi/planner.md`, and that path
 is the ref embedded into the resolved parent document. Instruction resources
 need not be YAML and are not indexed by `kind/name/version`.
-<!-- from: 00#20 -->
 
 **CAT-R17.** The two roots also form one instruction namespace:
 the same normalized path in both roots is invalid rather than an override.
-<!-- from: 00#20 -->
 
 ### Selectors
 
@@ -303,11 +274,9 @@ grammar:
 id      = [a-z][a-z0-9_-]*
 version = [A-Za-z0-9][A-Za-z0-9._+-]*
 ```
-<!-- from: 00#42, 00#43, 00#45 -->
 
 **CAT-R19.** A selector contains exactly one `@`, and both parts
 are non-empty; whitespace and `/` are consequently invalid.
-<!-- from: 00#46 -->
 
 **CAT-R20.** A configuration id has at most 128 characters
 ([LIM-CAT-1](../platform/limits.md)) and a version at most 64 characters
@@ -315,23 +284,18 @@ are non-empty; whitespace and `/` are consequently invalid.
 `ConfigurationName`, `ConfigVersion` and `Selector` schemas. The Server, the
 schemas, the Runtime and the UI share the cases in
 [`config-identity-cases.json`](../../../api/testdata/v1alpha1/config-identity-cases.json).
-<!-- from: 00#46 -->
 
 Rationale: the version grammar keeps `+` because Audit standard versions,
 which AuditProfiles reference through it, allow it.
-<!-- from: 00#46 -->
 
 **CAT-R21.** Version comparison is opaque, case-sensitive
 exact equality; Contractor does not interpret semantic-version ordering.
-<!-- from: 00#46 -->
 
 **CAT-R22.** `latest`, version ranges and an omitted version are
 invalid.
-<!-- from: 00#46 -->
 
 **CAT-R23.** A selector is an authoring and API lookup
 value only, never the complete durable execution identity.
-<!-- from: 00#46 -->
 
 ### Loading and validation
 
@@ -339,30 +303,24 @@ value only, never the complete durable execution identity.
 all-or-nothing: the Server publishes no partially resolved in-memory
 configuration set if any manifest, instruction ref or cross-document selector
 is invalid ([FAIL-CAT-1](../platform/failure-model.md)).
-<!-- from: 00#19 -->
 
 **CAT-R25.** The Server first loads and validates ModelPolicies and
 LLMGatewayConfigs, then resolves AgentTemplates and reusable ExecutionConfigs,
 and finally resolves Workflows. LLMGatewayConfig schema and digest validation
 before `executionConfig` resolution is specified in
 [RCF-R26](runtime-config.md).
-<!-- from: 00#19, 01#41 -->
 
 **CAT-R26.** At startup the Server loads the complete union of both roots.
-<!-- from: 00#19 -->
 
 **CAT-R71.** At startup WorkflowCatalog loads, parses and validates the
 Workflow definitions into internal DTOs.
-<!-- from: 00#9 -->
 
 **CAT-R72.** There is no hot reload of configuration files.
-<!-- from: 00#9 -->
 
 **CAT-R27.** AgentTemplateCatalog is an in-process Server configuration
 boundary in the single-VM baseline. It loads through the shared all-or-nothing
 configuration root; it is not a new network service, Kubernetes CRD or runtime
 service locator.
-<!-- from: 01#99 -->
 
 **CAT-R70.** Cross-document validation rules owned elsewhere are part of the
 same all-or-nothing load, for example: a missing or incompatible
@@ -371,34 +329,28 @@ ExecutionConfig profile rejects the consuming Workflow
 missing one of its required finite limits ([TPL-R27](agent-templates.md)); and
 configuration validation rejects a code-analysis Worker binding without a Stage
 `context.workspace` ([CAN-R17](../tools/code-analysis.md)).
-<!-- from: 00#68, 06#60, 12#21 -->
 
 ### Selector resolution and the Run snapshot
 
 **CAT-R28.** At Run creation WorkflowCatalog resolves the
 supplied Workflow selector to the exact Workflow document whose
 `metadata.name` and `metadata.version` match it.
-<!-- from: 00#47 -->
 
 **CAT-R29.** WorkflowCatalog resolves `planner` through the
 configured PlannerFactory registry to an exact `(planner_id, version)`
 implementation ref.
-<!-- from: 00#48 -->
 
 **CAT-R30.** WorkflowCatalog resolves each `template` through
 AgentTemplateCatalog to an exact `AgentTemplateRef(template_id, version,
 digest)` and a validated template body.
-<!-- from: 00#48 -->
 
 **CAT-R31.** WorkflowCatalog resolves every escalation
 ExecutionConfig selector to its exact digest-bearing ref and normalized
 Stage-local body; the `ExecutionConfigRef` digest is specified in
 [TPL-R86](agent-templates.md).
-<!-- from: 00#48, 00#68 -->
 
 **CAT-R32.** An unknown or ambiguous selector makes the
 Workflow invalid.
-<!-- from: 00#48 -->
 
 **CAT-R33.** Creating a Run stores the complete validated,
 dependency-resolved and normalized Workflow snapshot used by that Run: its
@@ -410,64 +362,53 @@ execution configuration, the resolved instruction dependencies
 selected under [Skills](../tools/skills.md). Later file or
 current-Skill-binding edits cannot change the Run's graph or active execution
 contract.
-<!-- from: 00#9, 00#47, 00#48, 00#80 -->
 
 **CAT-R34.** The durable Run snapshot, rather than a separately
 computed Workflow digest, is the execution authority for its Run. No Workflow
 digest exists; Workflow `presentation` metadata does not add one
 ([WFL-R13](workflows.md)).
-<!-- from: 00#9, 00#13 -->
 
 **CAT-R35.** Scheduler never consults configuration files to
 reinterpret a Run and never re-resolves the authoring selector strings while
 executing it.
-<!-- from: 00#47, 00#48 -->
 
 ### Instruction resources
 
 **CAT-R36.** The authoring `instructions` object contains exactly one
 `ref`. It is not an ArtifactRef and is never resolved through UserScope or
 RunScope; it names a UTF-8 text resource under the configured `configs/` root.
-<!-- from: 00#76 -->
 
 **CAT-R37.** The normalized ref is a non-empty `/`-separated
 relative path. Absolute paths, URI schemes, backslashes, empty segments, `.`
 segments and `..` segments are invalid.
-<!-- from: 00#76 -->
 
 **CAT-R38.** A local configuration loader rejects a symlink whose
 resolved target escapes the configured root.
-<!-- from: 00#76 -->
 
 **CAT-R39.** WorkflowCatalog resolves the ref while loading the
 Workflow, requires non-empty text, and records the normalized ref, the content
 digest and the resolved text.
-<!-- from: 00#80 -->
 
 **CAT-R40.** The loader first verifies that the source bytes decode
 as strict UTF-8 and that the decoded text is not whitespace-only.
-<!-- from: 00#79 -->
 
 **CAT-R41.** The instruction digest is SHA-256 over the exact
 source bytes, encoded as `sha256:<64 lowercase hex>`. The loader performs no
 Unicode, line-ending, BOM or trailing-newline normalization before hashing, so
 the stored text and digest identify exactly the bytes loaded from the
 configuration resource.
-<!-- from: 00#79, 00#78 -->
 
 **CAT-R42.** No separate maximum size applies to an instruction
 resource: it is an operator-authored file under the configuration root, loaded
 once at startup, and its only content rule is non-empty strict UTF-8. Its
 practical bound is the Planner budget that must carry the rendered text
 ([Planners](../execution/planners.md)).
-<!-- from: 00#79 -->
 
 **CAT-R43.** WorkflowCatalog does not read the instruction file
 again while creating or executing a Run. The complete resolved instruction
 dependency is embedded in the immutable Run snapshot, so editing or deleting
 the configuration resource cannot change an existing Run
 ([LIFE-CAT-2](../platform/lifecycle.md)).
-<!-- from: 00#80 -->
 
 ### Immutability
 
@@ -476,36 +417,29 @@ immutable and is never edited in place. A publication that reuses a published
 identity with different content conflicts (CAT-R59). For ModelPolicy and
 LLMGatewayConfig see also [TPL-R36](agent-templates.md); for Workflow
 `presentation` metadata see [WFL-R12](workflows.md).
-<!-- from: 06#60, 00#13 -->
 
 **CAT-R45.** Workflow, AgentTemplate, ExecutionConfig and
 instruction resources are operator-authored and read-only; UI publication
 accepts only ModelPolicy and LLMGatewayConfig manifests.
-<!-- from: 06#67, 00#19 -->
 
 **CAT-R46.** At runtime Operations may create a new immutable ModelPolicy or
 LLMGatewayConfig version only in the managed root, through managed
 publication; it cannot replace an existing identity.
-<!-- from: 00#19, 01#41 -->
 
 **CAT-R47.** Operations lists the version-indexed configuration
 kinds. Instruction refs and digests are visible through their consuming
 resources, and the Catalog adds the exact-template instruction read
 ([TPL-R104](agent-templates.md)).
-<!-- from: 06#67 -->
 
 **CAT-R48.** UI publication is create-only: it cannot edit,
 replace, disable or delete an existing published identity
 ([LIFE-CAT-1](../platform/lifecycle.md)).
-<!-- from: 06#68 -->
 
 **CAT-R49.** An implementation must not approximate retirement by
 silently hiding a file that is still referenced by a Workflow or Run.
-<!-- from: 06#68 -->
 
 **CAT-R50.** Drafts are not executable configuration and may be stored
 separately without becoming a source of truth.
-<!-- from: 06#68, 06#61, 06#62 -->
 
 ### Managed publication
 
@@ -513,16 +447,13 @@ separately without becoming a source of truth.
 version to the Server's current configuration set. Readers observe either the
 set before publication or the set including the new version, never partial
 dependency resolution.
-<!-- from: 06#69 -->
 
 **CAT-R52.** Publication does not mutate an existing version and
 does not require re-resolving existing Runs.
-<!-- from: 06#69 -->
 
 **CAT-R53.** The startup file loader is a valid bootstrap
 and import path but is not by itself sufficient for writable Operations UI
 behavior.
-<!-- from: 06#69 -->
 
 **CAT-R54.** For one publication the Server, in order:
 
@@ -533,53 +464,43 @@ behavior.
 3. writes the canonical YAML durably into the managed kind subtree
    (CAT-R55);
 4. atomically swaps the in-memory configuration snapshot.
-<!-- from: 06#70, 06#71 -->
 
 **CAT-R55.** The Server writes the canonical YAML to a new
 same-directory temporary file in the managed kind subtree and flushes it,
 atomically creates the stable name with a hard link that never replaces an
 existing entry, removes the temporary name and flushes the parent directory.
-<!-- from: 06#71 -->
 
 **CAT-R56.** The link and unlink steps use descriptor-relative
 `linkat`/`unlinkat`, which support Linux and macOS.
-<!-- from: 06#71 -->
 
 **CAT-R73.** The managed filesystem must support hard links
 ([OPS-R10](../operations/operations.md)).
-<!-- from: 06#71, 23#17 -->
 
 **CAT-R57.** No successful response is returned before the
 file and the in-memory snapshot are both published.
-<!-- from: 06#72 -->
 
 **CAT-R58.** A crash after file publication but before the
 snapshot swap is recovered by the ordinary startup load. A temporary `.tmp`
 name left by a crash between link and unlink is ignored by that loader
 ([FAIL-CAT-2](../platform/failure-model.md),
 [LIFE-CAT-3](../platform/lifecycle.md)).
-<!-- from: 06#72 -->
 
 **CAT-R59.** Publication requires an `Idempotency-Key`. Retrying an
 identical identity and body returns that published version; the same identity
 with different normalized content conflicts
 ([FAIL-CAT-2](../platform/failure-model.md)).
-<!-- from: 06#72 -->
 
 **CAT-R60.** Loss of the PostgreSQL audit record cannot remove or
 reinterpret the YAML version.
-<!-- from: 06#72 -->
 
 **CAT-R61.** The client never supplies a filesystem path. The
 Server derives a stable relative path from the validated kind, name and
 version and creates parent directories inside the dedicated managed root.
-<!-- from: 06#73 -->
 
 **CAT-R62.** The Server rejects symlinks and any resolved escape from
 the managed root. Temporary and final creation use exclusive, no-follow
 semantics; an existing destination is handled only by the idempotency
 comparison (CAT-R59).
-<!-- from: 06#73 -->
 
 ### Catalog discovery
 
@@ -587,38 +508,31 @@ comparison (CAT-R59).
 before pagination. `GET /v1/workflows` and `GET /v1/configurations/{kind}`
 accept an optional `q` of at most 200 Unicode code points
 ([LIM-CAT-3](../platform/limits.md)) and an optional exact `name`.
-<!-- from: 06#10 -->
 
 **CAT-R64.** The Server trims Unicode whitespace around `q`,
 normalizes it to NFC, applies Unicode case folding and then performs literal
 substring matching; no wildcard or regular-expression syntax is interpreted.
 An empty normalized query is equivalent to omission.
-<!-- from: 06#10 -->
 
 **CAT-R65.** Workflow matching covers the exact name, the opaque
 version and the available authored `presentation.displayName` and
 `presentation.description`. Configuration matching covers the exact name, the
 opaque version and an available safe authored description, notably
 `AgentTemplate.description`.
-<!-- from: 06#10 -->
 
 **CAT-R66.** `name` uses the ordinary exact configuration-name
 grammar (CAT-R18) and never implies latest-version selection.
-<!-- from: 06#10 -->
 
 **CAT-R67.** Filtering precedes the bounded keyset pagination
 ([Public API](../api/public-api.md)). A continuation cursor is bound to the
 normalized query, the exact-name filter and a SHA-256 fingerprint of the
 immutable catalog source used to build that result.
-<!-- from: 06#11 -->
 
 **CAT-R68.** Reusing a cursor with another query, kind or catalog
 snapshot is a bounded `400`; the client restarts from the first page.
-<!-- from: 06#11 -->
 
 **CAT-R69.** Versions remain opaque strings ordered by the
 existing exact selector order.
-<!-- from: 06#11 -->
 
 ## Interfaces
 
@@ -634,7 +548,6 @@ existing exact selector order.
   [`config-identity-cases.json`](../../../api/testdata/v1alpha1/config-identity-cases.json)
   (CAT-R20).
 - The AgentTemplate instruction read: [TPL-R104](agent-templates.md).
-<!-- from: 06#10, 06#11, 06#67, 06#72, 00#46 -->
 
 ## Limits, failures and errors
 
@@ -663,7 +576,6 @@ catalog cursor with another query, kind or catalog snapshot is a bounded `400`
 (CAT-R68); publishing an existing identity with different
 normalized content is an immutable-definition conflict (CAT-R44,
 CAT-R59).
-<!-- from: 00#19, 00#46, 00#80, 06#10, 06#11, 06#68, 06#72 -->
 
 ## Security
 
@@ -675,7 +587,6 @@ CAT-R59).
 - Managed publication never accepts a client filesystem path and never
   follows a symlink out of the managed root (CAT-R61,
   CAT-R62).
-<!-- from: 00#15, 00#76, 06#60, 06#73 -->
 
 ## Non-goals
 
@@ -683,18 +594,13 @@ CAT-R59).
   manifest/resource subtrees to prefixes and preserves the same document keys
   and relative instruction refs, so the instruction resource rule can be
   backed by an S3 prefix without changing Workflow YAML.
-  <!-- from: 00#21, 00#76 -->
 - Editors for Workflow, AgentTemplate, ExecutionConfig and instruction
   resources; they require a separate contract.
-  <!-- from: 06#67 -->
 - A standalone path-indexed instruction API. Instruction resources are not
   given an invented `name@version` identity; their refs and digests are visible
   through their consuming resources (CAT-R47).
-  <!-- from: 06#67 -->
 - Managed publication of AuditProfile and its acceptance by
   `/v1/configurations/{kind}` ([AUD-R25](../audits/audits.md)); that requires a
   separate API and versioning decision.
-  <!-- from: 19#17 -->
 - Retiring configurations and safe garbage collection of published versions
   (CAT-R49).
-  <!-- from: 06#68 -->

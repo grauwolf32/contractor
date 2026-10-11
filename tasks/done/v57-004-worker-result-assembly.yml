@@ -21,10 +21,10 @@ context:
     bounded follow-up tasks. This task changes internal ownership of decoding
     and assembly, not the accepted completion policy.
   specification:
-    - docs/spec/14-worker-results-and-live-state.md
-    - docs/spec/15-worker-summarization.md
-    - docs/spec/25-audit-worker-finalization.md
-    - docs/spec/10-runtime-filesystems-and-edit-tools.md
+    - docs/spec/execution/worker.md
+    - docs/spec/execution/worker.md
+    - docs/spec/audits/worker-completion.md
+    - docs/spec/tools/workspace.md
   history:
     - V17-003 established strict model results and Runtime-owned observations/artifacts.
     - V21-001 requires the ordinary tool-free exact-copy model finalizer and its same-budget accounting.

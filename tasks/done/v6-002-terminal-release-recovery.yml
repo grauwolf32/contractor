@@ -38,7 +38,7 @@ deliverables:
   - {path: internal/persistence/migrations/000013_allocation_release_recovery.sql, description: Indexed durable release recovery state.}
   - {path: internal/runstore, description: Bounded fair pending query and idempotent marker operations.}
   - {path: internal/scheduler, description: Per-allocation partial release recovery that cannot block claims.}
-  - {path: docs/spec/04-execution-lifecycle-and-metrics.md, description: Normative terminal cleanup recovery semantics.}
+  - {path: docs/spec/execution/scheduler.md, description: Normative terminal cleanup recovery semantics.}
 
 acceptance_criteria:
   - id: A1

@@ -26,8 +26,6 @@ Caido-assisted security workflows:
 The implementation is domain-specific, but the architectural boundary is the
 same as for every Worker Toolset.
 
-<!-- from: 11#3 -->
-
 It leaves to other documents:
 
 - the common Toolset boundary between AgentTemplate tool selection, Runtime
@@ -55,8 +53,6 @@ It leaves to other documents:
 - the table of reserved artifact name prefixes and the generic payload limit:
   [Artifact store](../artifacts/artifact-store.md);
 - the registry of error codes: [Errors](../platform/errors.md).
-
-<!-- from: 11#4, 11#56, 01#51, 06#113, 07#46, 11#9, 11#10, 11#13, 11#24, 11#25, 11#28, 11#29, 11#30, 27#67, 32#11, 11#58, 17#42, 11#34, 11#60, 11#61 -->
 
 ## Concepts
 
@@ -104,8 +100,6 @@ following ones.
 - **Convert workflow.** A Caido workflow that `caido_workflow_run` runs on
   non-empty UTF-8 `input`.
 
-<!-- from: 11#6, 11#7, 11#14, 11#17, 11#22, 11#33, 11#34, 11#37, 11#40, 11#47, 11#48, 11#49, 11#52, 27#64 -->
-
 ## Model
 
 ### Two distinct facilities
@@ -129,8 +123,6 @@ flowchart LR
     CT -->|"raw exchanges, large workflow output"| AS
 ```
 
-<!-- from: 11#6, 11#7, 11#8, 11#12, 11#14, 11#15, 11#34, 11#46 -->
-
 ### HTTP session state
 
 Each allocation of `http-tools@1` holds this state in memory:
@@ -144,8 +136,6 @@ Each allocation of `http-tools@1` holds this state in memory:
 | Outgoing exchange store | The latest outgoing exchanges with their attempts and invocation ownership | Only through `finding(request_id=...)` |
 | Body refs | The exact body ArtifactRef of each request ID | The exact ref in the response record; body content only through `http_read_body(request_id, offset, length)` |
 | Project target | Target URL, derived `Authorization` header and source secret | Never |
-
-<!-- from: 11#22, 11#33, 11#34, 11#36, 11#37, 17#42, 27#64 -->
 
 ### One `http_request` call
 
@@ -171,8 +161,6 @@ sequenceDiagram
     H->>H: Commit prospective cookies, retain the exchange
     H-->>M: Response record with preview and body ref
 ```
-
-<!-- from: 11#20, 11#21, 11#23, 11#32, 11#34, 11#37 -->
 
 ### One Caido tool call
 
@@ -202,8 +190,6 @@ sequenceDiagram
     Note over C,G: No mutation is retried automatically
 ```
 
-<!-- from: 11#13, 11#15, 11#40, 11#46, 11#48, 11#50, 11#51, 11#53 -->
-
 ### Allocation lifecycle
 
 ```mermaid
@@ -217,8 +203,6 @@ flowchart TD
     TD --> IDLE["Slot idle"]
 ```
 
-<!-- from: 11#14, 11#36, 11#55, 11#64, 17#42 -->
-
 ## Requirements
 
 ### Scope and authority
@@ -227,33 +211,26 @@ flowchart TD
 trusted capture specified in
 [Autonomous pentest Audits](../../proposals/0033-autonomous-pentest-audits.md)
 does not upgrade the guarantees of `http-tools@1` or `caido@1` described here.
-<!-- from: 11#2 -->
 
 **HTP-R2.** `http-tools@1` and `caido@1` use the same exact allowlist rule as
 every other Toolset ([AgentTemplates](../configuration/agent-templates.md)).
-<!-- from: 01#51 -->
 
 **HTP-R3.** A Caido mutation is permitted only when its exact tool name is
 selected.
-<!-- from: 11#56 -->
 
 **HTP-R4.** A Runtime label may configure HTTP routing or a Caido endpoint and
 credential, but labels do not add either Toolset.
-<!-- from: 01#51, 11#56, 11#64 -->
 
 **HTP-R123.** A label can retarget the Caido client but cannot make `caido@1`
 model-visible when the AgentTemplate omitted it.
-<!-- from: 07#66 -->
 
 That neither a Run label such as `debug` nor a Skill adds a tool the
 AgentTemplate omitted, and that AgentTemplate selection is the model authority
 boundary, is owned by [Toolsets](toolsets.md).
-<!-- from: 11#56 -->
 
 **HTP-R5.** Infrastructure endpoint and credential values never enter prompts
 or tool arguments: the model never chooses an infrastructure endpoint, proxy
 credential or Caido bearer token.
-<!-- from: 11#4, 11#64 -->
 
 ### Facilities and routing
 
@@ -261,81 +238,65 @@ credential or Caido bearer token.
 targets. It uses the `tool-http` route of the optional `http-proxy@1` adapter
 (for example a Caido forward proxy) when that route is resolved, and a
 Runtime-owned direct transport when no such route is resolved.
-<!-- from: 11#6 -->
 
 **HTP-R7.** A resolved `tool-http` proxy route is mandatory routing, not a
 hint: its failure never falls back to the direct network (FAIL-HTP-1).
-<!-- from: 11#23 -->
 
 **HTP-R8.** `caido@1` calls the trusted Caido control GraphQL API. That
 endpoint is not an HTTP forward proxy and must not be represented by
 `httpProxy.proxyUrl`.
-<!-- from: 11#7 -->
 
 **HTP-R124.** `caido-graphql@1` is a typed Runtime adapter separate from the
 `http-proxy@1` adapter, so the forward proxy and the Caido control API are
 different typed configurations.
-<!-- from: 11#7, 11#64, 07#46 -->
 
 **HTP-R9.** The Caido GraphQL endpoint and credential are infrastructure and
 therefore belong to one atomic `spec.worker.caido` RuntimeConfig field, whose
 shape is owned by [Runtime configuration](../configuration/runtime-config.md).
 `caido@1` requires the private `caido-graphql@1` adapter resolved for the
 allocation.
-<!-- from: 07#66, 01#51, 11#9, 06#113 -->
 
 ### Caido endpoint
 
 **HTP-R10.** The `worker.caido` `endpoint` is an absolute `http` or `https`
 origin without userinfo, query or fragment; a deployment may include a fixed
 path prefix in it. The Runtime appends exactly `/graphql`.
-<!-- from: 11#12 -->
 
 **HTP-R11.** HTTPS to the Caido endpoint uses system trust plus an optional
 bounded PEM CA bundle (`caBundlePem`).
-<!-- from: 11#12, 06#113 -->
 
 **HTP-R12.** `requestTimeoutSeconds` is 1..120 seconds (LIM-HTP-1) and defaults
 to the allocation request timeout.
-<!-- from: 11#12 -->
 
 The optional `credential` member is specified by
 [RCF-R109](../configuration/runtime-config.md), and a complete `worker.caido`
 example is in [Runtime configuration](../configuration/runtime-config.md).
-<!-- from: 11#13, 11#10 -->
 
 ### Caido adapter
 
 **HTP-R13.** `caido-graphql@1` advertises one private infrastructure handle,
 `caido-graphql-client`. Every `caido@1` tool requires that channel.
-<!-- from: 11#14 -->
 
 **HTP-R14.** Placement must reject a selected Caido Toolset when the effective
 labels do not resolve the `caido-graphql@1` adapter, and must choose a Runtime
 Agent advertising the adapter. The Runtime repeats the check during prepare.
-<!-- from: 11#14 -->
 
 **HTP-R15.** The adapter uses `trust_env=false` and is not implicitly routed
 through `http-proxy@1`.
-<!-- from: 11#14 -->
 
 Rationale: this avoids proxy loops.
-<!-- from: 11#14 -->
 
 **HTP-R16.** The adapter owns connection pooling, bounded request and response
 reads, bearer header injection, the TLS context, safe metrics, and close and
 credential erasure.
-<!-- from: 11#15 -->
 
 **HTP-R17.** The adapter exposes a narrow `execute(operation, variables)`
 client in which `operation` is one implementation-defined static operation,
 never arbitrary model GraphQL.
-<!-- from: 11#15 -->
 
 **HTP-R18.** Adapter capability discovery proves only that the local
 implementation can construct the typed client; it deliberately does not contact
 or introspect an infrastructure instance during Runtime Agent registration.
-<!-- from: 11#42 -->
 
 ### HTTP Toolset operations
 
@@ -350,78 +311,62 @@ or introspect an infrastructure instance during Runtime Agent registration.
 | `http_session_get` | Return the redacted session view. |
 | `http_session_clear` | Erase cookies, headers, authentication and history; retained response artifacts remain immutable. |
 
-<!-- from: 11#16, 11#17 -->
-
 **HTP-R20.** The callable shape remains compatible with the migrated Skills:
 `http_request(url, method, headers, query, body, body_type, timeout, follow_redirects)`.
-<!-- from: 11#22 -->
 
 ### Request contract
 
 **HTP-R21.** `url` is an absolute `http` or `https` URL without userinfo. A
 `#fragment` is client-side state and is removed before the request is sent.
-<!-- from: 11#19, 11#20 -->
 
 **HTP-R22.** `method` is one of `GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS`.
-<!-- from: 11#20 -->
 
 **HTP-R23.** A request carries at most 64 bounded headers and query keys
 (LIM-HTP-2).
-<!-- from: 11#20 -->
 
 **HTP-R24.** Session default headers plus request headers total at most 48 KiB
 (LIM-HTP-3). The rest of the 64 KiB header block that finding evidence retains
 (LIM-FND-8) is reserved for headers the Runtime adds: the request tag, `Host`,
 the session `Authorization` and client defaults.
-<!-- from: 11#20, 27#67 -->
 
 **HTP-R25.** A request whose complete header block, including session cookies
 and authorization, would still exceed 64 KiB (LIM-FND-8) fails
 `http_request_invalid` before it is sent, so every sent request can be selected
 as evidence. The evidence limits themselves are owned by
 [Findings](../findings/findings.md).
-<!-- from: 11#20, 27#67 -->
 
 **HTP-R26.** Hop-by-hop headers, `Host`, `Content-Length`, proxy authentication
 and CR/LF header injection are rejected.
-<!-- from: 11#23 -->
 
 **HTP-R27.** `body_type` is one of `none|json|form|text`, with at most 1 MiB of
 encoded request body (LIM-HTP-5).
-<!-- from: 11#20 -->
 
 **HTP-R28.** `timeout` is 1..120 seconds, capped by the allocation settings
 (LIM-HTP-6); when it is omitted it is
 `min(allocation request timeout, 120 seconds)`.
-<!-- from: 11#20 -->
 
 **HTP-R29.** The timeout is one deadline for the whole call: connecting,
 sending and reading every redirect hop and retry, retry waits, and reading the
 complete response body. The same value also bounds each individual network
 operation. Storing the body artifact afterwards is not included.
-<!-- from: 11#20 -->
 
 **HTP-R30.** Expiry of the deadline fails with the retryable
 `http_request_failed` (FAIL-HTP-1).
-<!-- from: 11#20 -->
 
 **HTP-R31.** `follow_redirects` follows at most 10 redirects (LIM-HTP-7). Every
 hop is parsed, stripped of its fragment and checked against the target policy
 again.
-<!-- from: 11#20 -->
 
 **HTP-R32.** Before each send, including redirects and retries, the Runtime
 checks the final httpx-built URL against the finding-evidence URL rules. A URL
 that grows past 8192 UTF-8 bytes after encoding (LIM-HTP-8), contains a
 backslash or has an invalid percent escape fails `http_request_invalid` before
 that hop is sent.
-<!-- from: 11#20 -->
 
 **HTP-R33.** Raw control characters and hosts outside the shared host syntax
 rule of the [target policy](../platform/security.md) are also invalid input
 (`http_request_invalid`); neither the direct nor the proxy route resolves,
 forwards or retries them as transport failures.
-<!-- from: 11#20, 11#25 -->
 
 ### HTTP session
 
@@ -430,28 +375,23 @@ forwards or retries them as transport failures.
 applies sparse updates; `auth` is exactly one of `{"kind":"none"}`,
 `{"kind":"bearer","token":"..."}` or
 `{"kind":"basic","username":"...","password":"..."}`.
-<!-- from: 11#22 -->
 
 **HTP-R35.** Sparse header, cookie and auth updates are validated as one
 prospective state before mutation.
-<!-- from: 11#37 -->
 
 **HTP-R36.** The redacted session view that `http_session_get` returns contains
 only `auth_kind`, non-sensitive default-header values, redaction markers for
 sensitive headers, cookie names and count, and the history count. Cookie values
 are not model-visible after being set.
-<!-- from: 11#22, 11#36 -->
 
 **HTP-R37.** Session cookies, default headers and authentication live only in
 allocation memory. They are available to sequential A2A tasks on the same
 allocation and are erased on release, abort or lease loss (LIFE-HTP-1). Ambient
 session authentication is not serialized to an artifact.
-<!-- from: 11#36 -->
 
 **HTP-R38.** `http_session_clear` erases cookies, headers, authentication and
 history; clearing or closing the session also erases the outgoing exchange
 store (LIFE-HTP-2). Retained response artifacts remain immutable (LIFE-HTP-3).
-<!-- from: 11#17, 27#64 -->
 
 ### Project target authorization
 
@@ -459,44 +399,36 @@ store (LIFE-HTP-2). Retained response artifacts remain immutable (LIFE-HTP-3).
 model-supplied `Authorization` header only on that exact origin. It is not
 injected on another port or subdomain and is removed before following a
 cross-origin redirect.
-<!-- from: 17#42 -->
 
 **HTP-R40.** The Project target origin also unlocks the Runtime target policy
 for exactly the addresses it resolves to at allocation start and its port, so a
 loopback or link-local application target is reachable without widening access
 to its host.
-<!-- from: 17#42 -->
 
 **HTP-R41.** Model-visible HTTP session inspection reports neither the target
 nor its credential.
-<!-- from: 17#42 -->
 
 **HTP-R42.** Allocation cleanup clears the target URL, the derived
 `Authorization` header and the source secret before slot reuse (LIFE-HTP-4).
-<!-- from: 17#42 -->
 
 ### Redirects and cookies
 
 **HTP-R43.** The httpx transport cookie jar is scratch state: allocation-owned
 cookies are the authoritative copy, and transport cookies are cleared before
 every hop, including redirects and retries on direct and proxied requests.
-<!-- from: 11#37 -->
 
 **HTP-R44.** Same-origin response cookies and deletions are applied to the
 prospective request state. Prospective cookies become session state only after
 the full request and the body Artifact write succeed (FAIL-HTP-2).
-<!-- from: 11#37 -->
 
 **HTP-R45.** Each redirect hop is compared with the originally requested
 origin. A hop on another origin receives no session cookies, no session
 authorization and no sensitive request header (`Authorization`, `Cookie`, and
 any name containing `api-key`, `auth-token` or `access-token`); a later hop
 back on the original origin receives them again.
-<!-- from: 11#37 -->
 
 **HTP-R46.** Every response is closed, including when its redirect target is
 malformed or forbidden.
-<!-- from: 11#37 -->
 
 ### Target policy on the forward-proxy route
 
@@ -505,18 +437,15 @@ target policy owned by [Security](../platform/security.md): its host syntax
 rule, destination classes, allowed target networks, the denial codes
 `http_target_denied` and `caido_target_denied`, and the DNS boundary of the
 direct client. The rules below govern only the `tool-http` route.
-<!-- from: 11#24, 11#25, 11#28, 11#29, 11#30 -->
 
 **HTP-R47.** With a `tool-http` route, the forward proxy resolves target names;
 the Runtime does not resolve them locally, because proxy-only names are valid
 there. The Runtime still applies every literal-address, name and Runtime
 endpoint check of the target policy before sending.
-<!-- from: 11#31 -->
 
 **HTP-R48.** The route handle has no host list of its own: every tool request
 names the allocation's target policy, and the handle refuses a denied
 destination before any network I/O.
-<!-- from: 11#31 -->
 
 **HTP-R49.** A same-host target on `localhost`, `127.0.0.1` or `::1` behind a
 local proxy such as Caido is therefore reachable exactly when the policy allows
@@ -524,21 +453,17 @@ it, as the Project target's origin or inside an allowed target network, while
 Runtime endpoints, including the proxy and Caido endpoints on their loopback
 ports, and metadata stay refused. Loopback then means the proxy's host: allow
 it only when the proxy runs beside the Runtime.
-<!-- from: 11#31 -->
 
 **HTP-R50.** DNS-based address policy for proxied names belongs to that proxy.
 Deployments needing a closed network boundary beyond this policy enforce it at
 the proxy, by restricting the Runtime's network namespace, or both.
-<!-- from: 11#31 -->
 
 **HTP-R51.** Both the direct and the proxied path use normal TLS certificate
 and endpoint-name verification; neither supports an agent-selected
 `verify=false`.
-<!-- from: 11#31 -->
 
 **HTP-R52.** The proxy endpoint itself is Control Plane configuration and
 cannot be changed by a tool argument.
-<!-- from: 11#31 -->
 
 ### Retries and response status
 
@@ -546,31 +471,26 @@ cannot be changed by a tool argument.
 transport failure plus `408`, `425`, `429`, `500`, `502`, `503` and `504`. A
 non-idempotent request is not retried unless a future explicit idempotency
 contract is added.
-<!-- from: 11#32 -->
 
 **HTP-R54.** At most two retries follow the first attempt (LIM-HTP-9). The
 first retry waits 0.25 seconds and the second 0.5 seconds (LIM-HTP-10); a
 target's `Retry-After` (delta seconds or HTTP date) of at most 5 seconds
 (LIM-HTP-11) replaces a shorter wait.
-<!-- from: 11#32 -->
 
 **HTP-R55.** A longer `Retry-After`, or a wait that would leave the retry less
 of the call deadline than the wait itself, ends retrying: the last response is
 returned as data, or the transport failure as `http_request_failed`
 (FAIL-HTP-1).
-<!-- from: 11#32 -->
 
 **HTP-R56.** The target's 4xx or 5xx response is a valid response record, not
 an adapter failure: generic HTTP response status is data, while a transport or
 routing failure is an error. This requires the proxy handle to expose the
 response status rather than collapsing it into a transport failure.
-<!-- from: 11#32, 11#64 -->
 
 **HTP-R57.** Only a `407` answering a forwarded plain-HTTP request is treated
 as the proxy refusing the route, because it may come from either hop. For HTTPS
 the proxy's refusal fails the `CONNECT` tunnel before any request is sent, so a
 `407` response is the target's own record.
-<!-- from: 11#32 -->
 
 ### Response record
 
@@ -578,21 +498,17 @@ the proxy's refusal fails the `CONNECT` tunnel before any request is sent, so a
 headers that the finding-evidence contract cannot retain, including a header
 block over 64 KiB (LIM-FND-8), fails `http_response_invalid` before
 `http_request` completes.
-<!-- from: 11#21 -->
 
 **HTP-R59.** The Runtime does not truncate the captured exchange; a completed
 request remains usable by `finding(request_id=...)`.
-<!-- from: 11#21 -->
 
 **HTP-R60.** The response record contains the request ID and tag, method, final
 URL, status, content type and length, safe response headers, body kind, at most
 8192 characters of text preview (LIM-HTP-14), the exact body ArtifactRef when
 the body is non-empty, truncation and elapsed milliseconds.
-<!-- from: 11#33 -->
 
 **HTP-R61.** `Authorization`, cookies, `set-cookie` and proxy headers are
 removed from returned headers and from retained metrics.
-<!-- from: 11#33 -->
 
 ### Response bodies
 
@@ -600,42 +516,34 @@ removed from returned headers and from retained metrics.
 (LIM-HTP-15), into an ordinary artifact in the allocation's logical namespace
 with media type `application/vnd.contractor.http-body+json`. The limit applies
 separately to the bytes received and to the decoded body.
-<!-- from: 11#34 -->
 
 **HTP-R63.** `gzip` and `deflate` content codings are decoded incrementally, so
 compressed data never inflates past the limit in memory; any other content
 coding is stored as received.
-<!-- from: 11#34 -->
 
 **HTP-R64.** Text is stored as UTF-8 text; arbitrary bytes use base64.
-<!-- from: 11#34 -->
 
 **HTP-R65.** The JSON envelope itself must also fit the Artifact plane's 64 MiB
 payload limit (LIM-ART-4) after text escaping or base64 encoding. The raw
 response-body limit remains independently capped at 16 MiB.
-<!-- from: 11#34 -->
 
 **HTP-R66.** Internal body names are collision-resistant. Bindings use the
 reserved `http.body.` prefix: generic model-visible Artifact tools neither list
 nor read or write them. This is a Toolset authority boundary, not a new
 Artifact API or storage class. The exact returned ref is retained in allocation
 memory.
-<!-- from: 11#34 -->
 
 **HTP-R67.** `http_read_body` accepts only a request ID created by that
 allocation, never an arbitrary ArtifactRef.
-<!-- from: 11#34 -->
 
 **HTP-R68.** `http_read_body(request_id, offset, length)` returns at most 8192
 text characters or binary bytes (LIM-HTP-16). Offsets are characters for UTF-8
 text and bytes for binary bodies.
-<!-- from: 11#35 -->
 
 **HTP-R69.** `http_read_body` reports transient Artifact API or transport
 failures as the retryable `http_request_failed`, and the same request ID can be
 read again. Missing, invalid or oversized stored bodies fail with the
 non-retryable `http_body_not_found` (FAIL-HTP-3).
-<!-- from: 11#18 -->
 
 ### History, request IDs and the outgoing exchange store
 
@@ -643,7 +551,6 @@ non-retryable `http_body_not_found` (FAIL-HTP-3).
 `http_history(limit)` returns them in request-ID order, oldest first, and omits
 previews and body content. Only completed, still-retained records appear in
 `http_history`.
-<!-- from: 11#35, 11#37, 11#17 -->
 
 **HTP-R71.** An outgoing exchange store accompanies the history and retains the
 latest 128 outgoing exchanges (LIM-HTP-18), within the history capacity. Each
@@ -651,41 +558,34 @@ record contains the actual httpx request method and URL, the ordered headers
 including duplicate fields, the complete outgoing body bytes, the response
 status and headers or a transport outcome, the redirect and retry attempts, and
 invocation ownership.
-<!-- from: 11#37, 27#64 -->
 
 **HTP-R72.** The store is allocation-owned; resolving a request ID from it
 additionally requires the same invocation. No per-request outgoing artifact is
 created, and existing response body artifacts remain unchanged.
-<!-- from: 11#37, 27#64 -->
 
 **HTP-R73.** `finding(request_id=...)` snapshots a selected exchange without
 replay. An expired or foreign-invocation ID fails explicitly, and a failed or
 incomplete exchange cannot be attached as successful evidence.
-<!-- from: 11#37, 27#64 -->
 
 **HTP-R74.** A request explicitly selected by an HTTP finding retains its
 actual target headers and body inside that proposal, including `Authorization`
 and `Cookie`, except that the Project target credential the Runtime injects is
 captured as the marker `[runtime-target-credential]`. The snapshot is specified
 by [the finding evidence contract](../findings/findings.md).
-<!-- from: 11#36 -->
 
 **HTP-R75.** Request IDs are monotonic for the allocation. Tool calls serialize
 session mutation and request ID assignment; network waits do not permit a
 second call to reuse state or an ID.
-<!-- from: 11#37 -->
 
 **HTP-R76.** Once reserved, a request ID is never reused: not after a
 validation failure, transport ambiguity, cancellation or an Artifact write
 whose response is lost (FAIL-HTP-1, FAIL-HTP-2), and not after the session is
 cleared or closed.
-<!-- from: 11#37, 27#64, 11#64 -->
 
 **HTP-R77.** A body blob that was committed before cancellation but never
 selected into the session remains an unreferenced reserved binding (LIFE-HTP-5,
 FAIL-HTP-2); it cannot be recovered through `http_read_body`, and ordinary
 Artifact tools cannot enumerate its prefix.
-<!-- from: 11#37 -->
 
 ### Caido Toolset operations
 
@@ -704,57 +604,46 @@ Artifact tools cannot enumerate its prefix.
 | `caido_workflow_run` | Run one convert or active workflow with bounded input |
 | `caido_workflow_findings` | Page findings created by workflows |
 
-<!-- from: 11#38, 11#39 -->
-
 **HTP-R79.** Every GraphQL document is a source-code constant selected by the
 tool method; the model supplies variables only. Variable objects are strictly
 built and bounded, and unknown sort, strategy, kind or depth values fail before
 a request.
-<!-- from: 11#40, 11#64 -->
 
 ### Caido compatibility
 
 **HTP-R80.** Caido compatibility is defined by GraphQL operation shape, not by
 a claimed Caido semantic-version range. The Runtime performs no introspection,
 arbitrary query fallback or startup schema negotiation.
-<!-- from: 11#41 -->
 
 **HTP-R81.** A configured Caido endpoint is compatible when it accepts the
 checked-in operation documents, field selections, input and enumeration values
 and exact response identities used by the selected tools.
-<!-- from: 11#41 -->
 
 **HTP-R82.** Missing or renamed fields, changed nullability, an unknown
 response member or another schema drift becomes a bounded
 `caido_response_invalid` or `caido_request_failed`, and arbitrary GraphQL or
 server text is discarded. Drift does not trigger a less constrained query
 (FAIL-HTP-4).
-<!-- from: 11#41 -->
 
 **HTP-R83.** A Caido upgrade is an explicit compatibility event: deterministic
 fixtures for all static operations and the repository compatibility gate must
 pass before the supported deployment is updated. A future version that needs a
 different document receives a reviewed adapter or tool revision rather than
 runtime-generated GraphQL.
-<!-- from: 11#42 -->
 
 **HTP-R84.** For Caido 0.56.2, filtered history supplies an `HTTPQLInput`
 object with a `code` field.
-<!-- from: 11#43 -->
 
 **HTP-R85.** Caido 0.56.2's numeric `Timestamp` scalars contain integer
 milliseconds since the Unix epoch; tools normalize them to UTC ISO 8601 strings
 with millisecond precision. Bounded textual timestamps remain accepted for
 compatible deployments. Boolean, fractional, negative and overflowing numeric
 timestamps are malformed responses.
-<!-- from: 11#43 -->
 
 **HTP-R86.** A deployment compatibility check should exercise a real proxied
 request through the production history and request detail tools.
-<!-- from: 11#43 -->
 
 Rationale: schema validation alone does not validate scalar values.
-<!-- from: 11#43 -->
 
 ### Caido limits
 
@@ -774,44 +663,35 @@ Rationale: schema validation alone does not validate scalar values.
 | Automate workers | 1..50 | LIM-HTP-28 |
 | Poll or wait | At most the allocation deadline and 60 seconds | LIM-HTP-29 |
 
-<!-- from: 11#44, 11#45 -->
-
 ### Raw exchanges and workflow output
 
 **HTP-R88.** The full raw Caido request and response and large workflow output
 are stored with the same allocation Artifact client under reserved
 collision-resistant bindings; tool results contain previews and exact refs. A
 tool result never returns an unbounded raw exchange inline.
-<!-- from: 11#46 -->
 
 **HTP-R89.** For request detail, the tool validates and decodes both Caido
 Blobs before one mutation, then stores request plus response in a single
 `application/vnd.contractor.caido-exchange+json` artifact (FAIL-HTP-5).
-<!-- from: 11#47 -->
 
 Rationale: one atomic exchange binding avoids a half-published pair if the
 second write were to fail.
-<!-- from: 11#47 -->
 
 **HTP-R90.** Inside the envelope, text is UTF-8 and arbitrary bytes are base64.
 Each returned preview is at most 8192 characters (LIM-HTP-21), or 6144 binary
 bytes encoded as base64 (LIM-HTP-30).
-<!-- from: 11#47 -->
 
 **HTP-R91.** A missing request or session is an explicit bounded `not_found`
 domain result, while a malformed partial response is `caido_response_invalid`
 and produces no selected artifact (FAIL-HTP-5).
-<!-- from: 11#47 -->
 
 **HTP-R92.** `caido_workflow_run` dispatches by mutually exclusive input:
 `request_id` starts an active workflow asynchronously, while non-empty UTF-8
 `input` runs a convert workflow.
-<!-- from: 11#52 -->
 
 **HTP-R93.** A convert result is returned inline only when it is bounded UTF-8;
 a large text or any binary result is written to one exact reserved
 `caido.output.*` artifact with a bounded preview in the tool result.
-<!-- from: 11#52 -->
 
 ### Credentials in Caido-captured traffic
 
@@ -823,24 +703,20 @@ output therefore replace a header line whose value equals the Project target
 credential with `[runtime-target-credential]`, and one whose value equals the
 proxy or Gateway credential with `[runtime-credential]`, at any length; the
 authentication scheme compares case-insensitively.
-<!-- from: 11#48 -->
 
 **HTP-R95.** Other Runtime secrets, and these header values elsewhere in a
 message such as an echoing response body, are replaced by `[REDACTED]` in raw
 bytes and in every result string when they are at least 16 bytes long
 (LIM-OBS-3), under the shared substring policy
 ([OBS-R31](../platform/observability.md)).
-<!-- from: 11#48 -->
 
 **HTP-R96.** Previews, sizes and artifacts describe the scrubbed bytes, while a
 captured request used for Replay or Automate is still submitted to Caido
 unchanged.
-<!-- from: 11#48 -->
 
 **HTP-R97.** Caido itself retains the credentials and evaluates HTTPQL filters
 against them (LIFE-HTP-6), so a deployment that must keep the Project
 credential from the model does not route credentialed traffic through Caido.
-<!-- from: 11#48 -->
 
 ### Request tags
 
@@ -848,56 +724,46 @@ credential from the model does not route credentialed traffic through Caido.
 `X-Request-Id` tag. HTTP tool and Caido Replay counters use distinct infixes,
 so proxy history can correlate traffic without exposing Run or Stage IDs. Tags
 are safe observability identifiers, not authentication.
-<!-- from: 11#49 -->
 
 **HTP-R99.** Reserved HTTP and Caido request tags, like request IDs, are
 monotonic and are never reused after an ambiguous or cancelled operation.
-<!-- from: 11#64, 11#50 -->
 
 ### Scope, Replay and Automate
 
 **HTP-R100.** `caido_scope(action="create")` requires a bounded non-empty name
 and accepts at most 256 non-empty allow and deny terms in total (LIM-HTP-23).
-<!-- from: 11#50 -->
 
 **HTP-R101.** `caido_replay` accepts exactly one source: an existing request
 ID, or a UTF-8 raw request plus host, port and TLS.
-<!-- from: 11#50 -->
 
 **HTP-R102.** Before the first mutation, `caido_replay` replaces any existing
 `X-Request-Id` header in the exact request bytes and consumes a fresh tag. The
 tag is not reused after cancellation or an ambiguous response loss
 (FAIL-HTP-6).
-<!-- from: 11#50, 11#64 -->
 
 **HTP-R103.** Replay polling may return only `completed`, `failed`, `timeout`,
 `started`, `rejected` or `not_found`, as supported by the chosen path.
 `timeout` describes only the bounded local observation window: it neither
 claims that Caido stopped nor starts a cleanup mutation (FAIL-HTP-6).
-<!-- from: 11#50 -->
 
 **HTP-R104.** `caido_automate_run` reads one existing request, injects its own
 fresh tag, then computes every placeholder against the exact tagged UTF-8 bytes
 submitted to Caido. It rejects missing, duplicate or overlapping targets.
-<!-- from: 11#51 -->
 
 **HTP-R105.** One simple payload list may contain at most 1000 values and 1 MiB
 in total (LIM-HTP-26); empty and control-character payload strings remain valid
 fuzz inputs.
-<!-- from: 11#51 -->
 
 **HTP-R106.** The Automate strategy is exactly
 `SEQUENTIAL|PARALLEL|MATRIX|ALL`, workers are 1..50 (LIM-HTP-28), delay is
 0..60000 ms (LIM-HTP-31), redirects are disabled and Caido request retries are
 configured to zero (LIM-HTP-32).
-<!-- from: 11#51 -->
 
 **HTP-R107.** Raw Replay connections, captured Replay and Automate connections,
 and captured requests passed to active workflows must pass the allocation
 target policy before their first mutation. A denied destination cannot be
 revived by a Caido scope rule or by an allowed-target-network exception for a
 Runtime service.
-<!-- from: 11#51 -->
 
 ### Caido failures
 
@@ -906,46 +772,37 @@ after send has an unknown remote outcome and is returned as a non-retryable
 bounded failure for that model-visible action (FAIL-HTP-6); the Worker may
 inspect Caido state before deciding whether another explicit tool call is
 appropriate.
-<!-- from: 11#53 -->
 
 **HTP-R109.** Read-only polling queries also use no transport retry
 (FAIL-HTP-4).
-<!-- from: 11#53 -->
 
 **HTP-R110.** Every returned object has an exact operation-specific shape, and
 identities returned for an ID-addressed query or mutation must match the
 requested or session identity before they are exposed.
-<!-- from: 11#53 -->
 
 **HTP-R111.** Known Caido domain failures become bounded tool results. Every
 user-error selection includes `__typename`, so a user-error type without its
 own fragment (for example one added by a newer Caido) is still a `rejected`
 result whose `error_code` is that type name rather than an invalid response.
-<!-- from: 11#54 -->
 
 **HTP-R112.** Transport, JSON, GraphQL and schema errors return a stable code
 and retryability without echoing the endpoint, bearer token, raw query,
 variables or arbitrary server text.
-<!-- from: 11#54 -->
 
 ### Allocation lifecycle
 
 **HTP-R113.** Prepare order is adapter host first, selected Toolsets second,
 Worker last.
-<!-- from: 11#55 -->
 
 **HTP-R114.** Creating `caido@1` without its typed handle fails
 `caido_not_configured` and does not create a ready Worker (FAIL-HTP-7).
-<!-- from: 11#55 -->
 
 **HTP-R115.** HTTP direct and proxied clients and Caido sessions are closed on
 finalize or release through their owning Toolset or adapter, and secrets are
 overwritten or dereferenced before the slot becomes idle (LIFE-HTP-4).
-<!-- from: 11#55 -->
 
 **HTP-R125.** Allocation teardown erases all session credentials and client
 handles (LIFE-HTP-4).
-<!-- from: 11#64 -->
 
 ### Checked-in templates and the Caido Skill
 
@@ -954,16 +811,13 @@ It selects all ten `caido@1` operations, the bounded `http_request`,
 `http_read_body` and `http_history` operations, text artifact read and write,
 and the versionless `skills/caido` ref. `security-analysis@2` uses that
 template in one passthrough Stage.
-<!-- from: 11#57 -->
 
 **HTP-R117.** `http_explorer@1` is the reusable HTTP-only template; it selects
 all six `http-tools@1` operations without a Caido Skill or adapter requirement.
-<!-- from: 11#57 -->
 
 **HTP-R118.** The Workflow, these templates, their instructions and the Skill
 contain no endpoint, proxy route or credential setting; a deployment binds
 those separately through RuntimeConfig labels.
-<!-- from: 11#57 -->
 
 **HTP-R119.** The association between the Caido Skill and its template is
 configuration, not Skill metadata semantics ([Skills](skills.md)). A repository
@@ -971,7 +825,6 @@ compatibility gate scans the model-visible operation names in the bundled Caido
 package and requires them in the exact checked-in template; changing either
 side requires a reviewed configuration or Skill revision and a new canonical
 package digest.
-<!-- from: 11#58 -->
 
 ### Metrics
 
@@ -979,11 +832,9 @@ package digest.
 status class, request and response byte counts, retry count and safe error
 code. They must not retain URLs, query or filter text, headers, cookies,
 credentials, raw bodies, payloads, findings or GraphQL data.
-<!-- from: 11#59 -->
 
 **HTP-R121.** The HTTP and Caido tools add no durable metrics plane: the
 Toolset call counters and Runtime adapter metrics remain the only ones.
-<!-- from: 11#59 -->
 
 ### Error codes
 
@@ -995,8 +846,6 @@ Toolset call counters and Runtime adapter metrics remain the only ones.
   owns;
 - `caido_not_configured`, `caido_request_invalid`, `caido_request_failed`,
   `caido_response_invalid` and `caido_response_too_large`.
-
-<!-- from: 11#60, 11#61, 11#29 -->
 
 ## Interfaces
 
@@ -1019,8 +868,6 @@ Toolset call counters and Runtime adapter metrics remain the only ones.
 - Configuration: `worker.caido` and the `tool-http` route of `http-proxy@1`,
   specified in [Runtime configuration](../configuration/runtime-config.md);
   endpoint and timeout rules in HTP-R10 to HTP-R12.
-
-<!-- from: 11#15, 11#17, 11#22, 11#34, 11#35, 11#39, 11#47, 11#49, 11#52, 11#12 -->
 
 ## Limits, failures and errors
 
@@ -1086,8 +933,6 @@ Errors ([registry](../platform/errors.md)): `http_request_invalid`,
 [Security](../platform/security.md). The Caido `not_found` and `rejected`
 outcomes are domain results, not error codes (HTP-R91, HTP-R111).
 
-<!-- from: 11#12, 11#18, 11#20, 11#21, 11#29, 11#32, 11#33, 11#34, 11#35, 11#37, 11#45, 11#47, 11#48, 11#50, 11#51, 11#53, 11#54, 11#55, 11#60, 11#61, 27#67 -->
-
 ## Security
 
 - Authority: only AgentTemplate selection makes these tools model-visible, and
@@ -1109,16 +954,12 @@ outcomes are domain results, not error codes (HTP-R91, HTP-R111).
 - The shared target policy, its host syntax and its denial codes are owned by
   [Security](../platform/security.md).
 
-<!-- from: 11#4, 11#24, 11#31, 11#34, 11#48, 11#56, 11#64, 07#66, 17#42 -->
-
 ## Observability
 
 - Metrics content (HTP-R120) and metric planes (HTP-R121).
 - Request tags for proxy-history correlation (HTP-R98).
 - Header removal from retained metrics (HTP-R61).
 - The adapter owns its safe metrics (HTP-R16).
-
-<!-- from: 11#15, 11#33, 11#49, 11#59 -->
 
 ## Invariants
 
@@ -1160,8 +1001,6 @@ These properties follow from the cited requirements, which are authoritative.
    in
    [`runtime/tests/test_http_caido_concurrency.py`](../../../runtime/tests/test_http_caido_concurrency.py).
 
-<!-- from: 11#64 -->
-
 ## Examples
 
 The two request paths:
@@ -1173,11 +1012,8 @@ model -> caido_history/static operation -> caido-graphql@1 handle
                                       -> configured Caido /graphql endpoint
 ```
 
-<!-- from: 11#8 -->
-
 A complete `worker.caido` RuntimeConfig example is in
 [Runtime configuration](../configuration/runtime-config.md).
-<!-- from: 11#10 -->
 
 ## Non-goals
 
@@ -1190,5 +1026,3 @@ A complete `worker.caido` RuntimeConfig example is in
 - Automatic Skill-to-Toolset dependency installation.
 - UI-specific Caido panels or an HTTP history browser.
 - Reconciling Caido findings into a separate Contractor domain model.
-
-<!-- from: 11#63 -->

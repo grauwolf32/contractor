@@ -7,8 +7,8 @@ six Memory operations. The Gateway correctly rejected that mismatch before the
 empty-collection success scenario completed. Later boundary failures reuse that
 same recorded Gateway error; they are not separate production findings.
 
-The [Memory specification](../spec/08-memory-tools.md) requires the exact selected
-operations. The [Findings specification](../spec/27-findings-tools-and-collections.md)
+The [Memory specification](../spec/tools/memory.md) requires the exact selected
+operations. The [Findings specification](../spec/findings/findings.md)
 requires complete collection preparation and verified exact references before
 exposing the reader. The active [Workflow](../../configs/workflows/findings_review_v2_memory.yaml)
 and [AgentTemplate](../../configs/agent-templates/findings_analyst_v2_memory.yaml)

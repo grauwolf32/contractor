@@ -15,7 +15,7 @@ goal: >-
   setup before consuming a model run.
 context:
   authority: User requested autonomous local XBOW smoke runs and tasks for serious findings.
-  specification: docs/spec/11-http-and-caido-tools.md
+  specification: docs/spec/tools/http-caido.md
   implementation_repository: /home/ruslan/src/playground-v2
   evidence: >-
     XbowComposeTarget always advertised 127.0.0.1; Runtime correctly rejects

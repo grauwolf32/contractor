@@ -14,8 +14,8 @@ context:
   authority: User requested completion and integration of the V60 reviews; the post-merge Findings gate reproduced this fixture failure.
   design: docs/plans/2026-09-20-project-review.md
   specifications:
-    - docs/spec/27-findings-tools-and-collections.md
-    - docs/spec/08-memory-tools.md
+    - docs/spec/findings/findings.md
+    - docs/spec/tools/memory.md
   reproduction: >-
     At 43cea5b89ac8c9bf9d43101f399079c31aabd439, the Findings boundary
     process runs findings-review@2 with findings_analyst@2. Its scripted

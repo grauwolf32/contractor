@@ -55,8 +55,6 @@ It leaves to other documents:
   [Security](security.md);
 - the REST error envelope: [Public API](../api/public-api.md).
 
-<!-- from: 02#76, 02#77, 04#39, 04#61, 04#62, 04#63, 04#68, 04#70, 06#120, 07#33, 07#34, 07#114, 14#40, 15#36, 16#27, 22#6, 22#18 -->
-
 ## Concepts
 
 Terms are collected in the [glossary](../glossary.md); this document owns the
@@ -97,8 +95,6 @@ following ones.
   the telemetry adapters a Planner may use.
 - **Closed instrumentation vocabulary.** The fixed set of Planner span kinds and
   metadata attributes; content never enters it.
-
-<!-- from: 02#76, 04#62, 04#63, 04#64, 04#68, 07#114, 07#115, 07#43, 07#119, 07#120 -->
 
 ## Model
 
@@ -195,13 +191,10 @@ class StageMetrics(BaseModel):
     runtime: dict[AgentName, RuntimeReport] = Field(default_factory=dict)
 ```
 
-<!-- from: 04#62, 04#63 -->
-
 `ExecutionMetrics` also carries the optional summarizer aggregate specified in
 [WRK-R155](../execution/worker.md). The Worker Runtime report of an
 `otlp-http@1` adapter adds the optional `droppedSpans` counters
 (OBS-R81).
-<!-- from: 15#36, 07#43 -->
 
 ### Report flow
 
@@ -226,8 +219,6 @@ sequenceDiagram
     Note over S,SM: A started participant without a report gets an incomplete placeholder
     Note over S,SM: A report after the StageExecution is terminal is related telemetry only
 ```
-
-<!-- from: 04#62, 04#64, 04#65, 04#66, 04#67, 04#68 -->
 
 ### Worker trace export
 
@@ -257,8 +248,6 @@ flowchart TD
     E -- "close" --> SD["Discard active batch and queued tail: shutdown"]
 ```
 
-<!-- from: 07#40, 07#41, 07#42, 07#44 -->
-
 ### Metadata labels in telemetry
 
 ```mermaid
@@ -270,45 +259,36 @@ flowchart LR
     RV -. never .-> MV["Prompts, ADK State, tool arguments, WorkspaceFS, Skills, model-visible results"]
 ```
 
-<!-- from: 16#27, 16#28 -->
-
 ## Requirements
 
 ### Request correlation
 
 **OBS-R1.** Every public and private HTTP response carries one bounded
 `X-Request-ID` (LIM-OBS-1).
-<!-- from: 02#76 -->
 
 **OBS-R2.** Public ingress always generates its own request ID.
-<!-- from: 02#76 -->
 
 **OBS-R3.** Private Control Plane, lifecycle, Artifact and A2A hops
 propagate one syntactically valid incoming value and replace a missing,
 duplicated or malformed value.
-<!-- from: 02#76 -->
 
 **OBS-R4.** The Server's private Control Plane and Artifact APIs
 propagate an incoming value only from a peer that presented a verified Runtime
 Agent certificate. A request that fails mTLS gets a generated value, so an
 unauthenticated caller cannot choose its logged ID.
-<!-- from: 02#76 -->
 
 **OBS-R5.** REST error objects repeat the request ID as `requestId`
 ([Public API](../api/public-api.md)). A2A keeps its protocol error envelope and
 carries correlation in the HTTP header.
-<!-- from: 02#76 -->
 
 ### Server-side diagnostics
 
 **OBS-R6.** Server-side 5xx diagnostics record the request ID, boundary,
 method, status and safe error type. They do not record raw URL paths, request
 bodies, artifact bytes, provider exception messages, RuntimeSettings or tokens.
-<!-- from: 02#77 -->
 
 Rationale: an operator gets a stable lookup key without a user-controlled path
 or a nested tool argument becoming a logging channel.
-<!-- from: 02#77 -->
 
 ### Execution reports and the trusted envelope
 
@@ -316,34 +296,28 @@ or a nested tool argument becoming a logging channel.
 framework-neutral report shape, `ExecutionReport`. Allocation lifecycle facts
 observed by the surrounding Runtime Agent remain a separate `RuntimeReport`,
 because their source and completeness differ.
-<!-- from: 04#62 -->
 
 **OBS-R8.** The trusted Server envelope binds each report to the
 Run, the StageExecution, the globally unique allocation ID and the logical Agent
 name. A Worker-supplied payload cannot select or override those identities.
-<!-- from: 04#64 -->
 
 **OBS-R9.** `report_id` makes repeated delivery of a report
 idempotent (FAIL-OBS-1).
-<!-- from: 04#64 -->
 
 **OBS-R10.** The envelope derives ModelPolicy attribution from the
 Run's immutable ResolvedExecutionConfig. The Planner's LLMGatewayConfig and
 LLMCredential refs also come from that Run snapshot.
-<!-- from: 04#65 -->
 
 **OBS-R11.** For a logical Worker, the final LLMGatewayConfig
 and LLMCredential refs come from the Server-pinned allocation configuration
 provenance, because the default, Run and Agent infrastructure layers may
 override the Workflow route
 ([Runtime configuration](../configuration/runtime-config.md)).
-<!-- from: 04#65 -->
 
 **OBS-R12.** None of the ModelPolicy, LLMGatewayConfig or
 LLMCredential refs is accepted from a Runtime report. They let Operations
 aggregate calls and tokens by policy, route and credential without persisting
 or exposing the secret value.
-<!-- from: 04#65 -->
 
 **OBS-R13.** When label-driven infrastructure configuration is
 active, the envelope also derives the sorted Run and Agent label names, the
@@ -352,48 +326,39 @@ Server-owned resolution provenance. Runtime reports cannot claim or replace
 them. Endpoint credentials and resolved secret-bearing RuntimeSettings remain
 absent. The pinning and merge contract is owned by
 [Runtime configuration](../configuration/runtime-config.md).
-<!-- from: 04#66 -->
 
 **OBS-R14.** The envelope may additionally copy the WorkflowRun's
 immutable metadata labels ([Runs](../execution/runs.md)) as trusted correlation
 metadata. These labels describe the Run, are not accepted from Runtime reports
 and are not metric dimensions (OBS-R108).
-<!-- from: 04#67 -->
 
 ### Usage attribution
 
 **OBS-R15.** Attribution records the ModelPolicy, LLMGatewayConfig and
 credential refs together with the WorkflowRun, the StageExecution and the
 Planner or Worker role.
-<!-- from: 06#102 -->
 
 **OBS-R16.** Provider-reported tokens and calls are operational
 measurements, not billing-grade proof.
-<!-- from: 06#102 -->
 
 **OBS-R17.** Gateway-reported spend and rate state may be displayed as
 operational information, but a Gateway quota rejection follows the ordinary
 bounded LLM error path (FAIL-OBS-2).
-<!-- from: 06#102 -->
 
 **OBS-R18.** ModelPolicy call and token ceilings remain
 independently enforced, because they bound one Planner or Worker execution
 rather than account consumption.
-<!-- from: 06#102 -->
 
 ### Report content
 
 **OBS-R19.** `complete` describes report completeness, not
 execution success.
-<!-- from: 04#68 -->
 
 **OBS-R20.** A known zero is `0`; an unobserved or unsupported value is
 `null` or absent.
-<!-- from: 04#68 -->
 
 **OBS-R21.** `metrics` contains only aggregate values. Tool
 arguments and errors are diagnostic records, not counters.
-<!-- from: 04#68 -->
 
 **OBS-R22.** `worker_budget` is present for an ADK Worker invocation.
 It records the exact configured ceilings, the operations actually started, the
@@ -401,53 +366,44 @@ sum of available provider token usage, the count of responses without usage and
 at most one exhausted dimension (LIM-OBS-2). `max_tool_calls` is absent only
 for a compatible tool-free policy. `worker_budget` contains no prompt, response
 or tool payload.
-<!-- from: 04#68, 04#63 -->
 
 **OBS-R23.** Every started tool call is recorded exactly once (FAIL-OBS-3).
-<!-- from: 04#68 -->
 
 **OBS-R24.** A tool call cancelled while it runs, including an Agent
 Skill or `audit-results@2` call and a call still pending when the Worker closes,
 fails with the retryable `tool_call_cancelled` unless its toolset records a
 domain error (FAIL-OBS-3).
-<!-- from: 04#68 -->
 
 **OBS-R25.** Full tool results are not retained by default. Durable or
 large results belong in the ArtifactStore
 ([Artifact store](../artifacts/artifact-store.md)); metrics may retain their
 size and outcome without their body (LIFE-OBS-1).
-<!-- from: 04#68 -->
 
 **OBS-R26.** External observability exporters are optional
 adapters over Contractor-owned reports; no LangChain- or Langfuse-style service
 is required.
-<!-- from: 04#68 -->
 
 ### Redaction of tool arguments and errors
 
 **OBS-R27.** Tool arguments are recursively redacted before they leave
 the Worker and again at the Server persistence boundary. They are bounded
 (LIM-OBS-6) and carry an explicit truncation marker.
-<!-- from: 04#68 -->
 
 **OBS-R28.** MemoryTools applies a stricter projection: note
 content, description and tags are always dropped rather than merely truncated.
 Only the operation, the logical Worker (`worker_name`) when applicable, the note
 name, byte sizes, outcome and duration may remain. The memory-specific
 diagnostic and content contracts are in [Memory](../tools/memory.md).
-<!-- from: 04#68, 08#56 -->
 
 **OBS-R29.** Agent Skill tools apply a similar stricter projection:
 only the validated logical skill name, the bounded normalized reference or asset
 path, outcome, duration, result size and stable error code may remain.
 Instructions, resource and package bytes, extracted paths and generated context
 are always dropped ([SKL-R114](../tools/skills.md)).
-<!-- from: 04#68, 09#85 -->
 
 **OBS-R30.** RuntimeSettings tokens and other known deployment
 secrets are always removed, even when a tool argument or error accidentally
 contains them.
-<!-- from: 04#68 -->
 
 **OBS-R31.** One secret-matching policy applies to metrics, allocation
 checks and Worker results: a secret of at least 16 UTF-8 bytes (LIM-OBS-3)
@@ -458,33 +414,27 @@ result that contains a secret is handled is specified in the Worker document
 ([WRK-R60](../execution/worker.md), [WRK-R61](../execution/worker.md)). How an
 allocation check applies it is specified in the Control Plane document
 ([CTL-R110](../execution/control-plane.md)).
-<!-- from: 04#68 -->
 
 **OBS-R32.** Tool names and error codes are Runtime vocabulary
 and are never redacted. An error code that is not an identifier, or that
 contains a long secret, is recorded as `tool_call_failed` (FAIL-OBS-3).
-<!-- from: 04#68 -->
 
 ### Runtime adapter metrics
 
 **OBS-R33.** Runtime adapter metrics are keyed by the exact
 RuntimeAdapter ref selected by trusted Server provenance.
-<!-- from: 04#68 -->
 
 **OBS-R34.** Adapter counters are non-negative and saturating.
 `flush_*` fields are absent for an adapter without a flush operation.
-<!-- from: 04#68, 04#63 -->
 
 **OBS-R35.** Adapter error codes are a bounded allowlist and
 never contain an endpoint, provider body or exception message.
-<!-- from: 04#68 -->
 
 **OBS-R36.** The Server accepts adapter metrics only for refs present
 in the pinned allocation provenance. Unknown keys and malformed counters are
 discarded as incomplete telemetry with a bounded safe diagnostic; they cannot
 relabel attribution or block semantic terminalization and allocation release
 (FAIL-OBS-1).
-<!-- from: 04#68 -->
 
 ### Report collection
 
@@ -492,17 +442,14 @@ relabel attribution or block semantic terminalization and allocation release
 no report, Scheduler records an incomplete placeholder with unknown fields.
 Absence from a `StageMetrics` map means the participant was not started or was
 not applicable (FAIL-OBS-1).
-<!-- from: 04#68 -->
 
 **OBS-R38.** Report collection is best-effort and cannot raise into the
 Planner or change a semantically valid StageResult or a durable
 StageTermination (FAIL-OBS-1).
-<!-- from: 04#68 -->
 
 **OBS-R39.** A report delivered after the StageExecution is terminal
 may be retained as related telemetry but never mutates the frozen StageResult or
 StageTermination (FAIL-OBS-1).
-<!-- from: 04#68 -->
 
 ### Report bounds and retention
 
@@ -512,79 +459,63 @@ most 4,096 UTF-8/JSON bytes per argument summary or error message (LIM-OBS-6)
 and at most 1 MiB per final allocation report (LIM-OBS-7). The report shape
 does not depend on these values, so they can become deployment policy without
 a change to the shape.
-<!-- from: 04#69 -->
 
 **OBS-R41.** Overflow removes the oldest detail, preserves aggregate
 counters and sets `truncated`.
-<!-- from: 04#69 -->
 
 **OBS-R42.** JSON sizes count compact UTF-8 bytes without HTML
 escaping; U+2028 and U+2029 count as three-byte UTF-8 characters. Error-message
 sizes count UTF-8 text bytes.
-<!-- from: 04#69 -->
 
 **OBS-R43.** Durable telemetry expires after 30 days (LIM-OBS-8). Cleanup
 is batch-bounded and may delete only telemetry that belongs to a terminal
 StageExecution (LIFE-OBS-2).
-<!-- from: 04#69 -->
 
 **OBS-R44.** Each telemetry table has a bounded deletion budget.
 Full batches are drained with a short pause before the next retention interval,
 so a metrics backlog cannot starve reports.
-<!-- from: 04#69 -->
 
 ### Trace export with `otlp-http@1`
 
 The `otlp-http@1` adapter itself and its selection are specified in
 [RCF-R98](../configuration/runtime-config.md).
-<!-- from: 07#33 -->
 
 **OBS-R45.** `otlp-http@1` exports OTLP/HTTP protobuf traces to the
 configured complete traces endpoint. It does not export OpenTelemetry metrics or
 logs and does not replace Contractor's durable `ExecutionReport`.
-<!-- from: 07#34 -->
 
 **OBS-R46.** Telemetry instrumentation emits bounded
 framework-neutral spans and events for model calls, selected tool calls, the A2A
 task lifecycle and Worker errors.
-<!-- from: 07#114 -->
 
 **OBS-R47.** Bounded resource attributes contain the Contractor
 service and version, the Run, StageExecution and allocation or Planner session
 correlation IDs, the logical Worker name, the exact adapter and configuration
 refs and safe label names.
-<!-- from: 07#34 -->
 
 **OBS-R48.** Span attributes may contain the operation kind, model alias,
 tool name, outcome, duration and token and count aggregates.
-<!-- from: 07#34 -->
 
 **OBS-R49.** One span has at most 64 attributes (LIM-OBS-9). Metadata
 strings are at most 256 UTF-8 bytes (LIM-OBS-10).
-<!-- from: 07#34 -->
 
 **OBS-R50.** Transport credentials and provider error bodies are
 never added automatically.
-<!-- from: 07#34 -->
 
 **OBS-R51.** Export uses a bounded queue. Each Planner and Worker exporter
 queue holds at most 2,048 span records (LIM-OBS-11) and 64 MiB of encoded
 pending data (LIM-OBS-12).
-<!-- from: 07#34 -->
 
 **OBS-R109.** A record that would exceed either bound is dropped and counted;
 overflow increments adapter failures without blocking model or tool execution
 (FAIL-OBS-4).
-<!-- from: 07#34 -->
 
 The Worker's queue limits are configured within these bounds in
 `worker.telemetry.export` ([RCF-R99](../configuration/runtime-config.md)).
-<!-- from: 07#40 -->
 
 **OBS-R52.** There is no durable exporter spool and no infinite retry. A
 process crash may lose unflushed external telemetry, while Contractor's own
 durable lifecycle remains authoritative (LIFE-OBS-3).
-<!-- from: 07#34 -->
 
 ### Content capture
 
@@ -592,7 +523,6 @@ durable lifecycle remains authoritative (LIFE-OBS-3).
 (`captureContent=false`): prompts, model responses, artifact bytes and content,
 tool arguments and results and RuntimeSettings secrets are absent from exported
 telemetry.
-<!-- from: 07#114, 07#34 -->
 
 **OBS-R54.** Setting `captureContent=true`, independently on Worker
 telemetry, Planner telemetry or both, explicitly trusts the configured sink with
@@ -600,28 +530,23 @@ unredacted content. Langfuse is treated as a trusted sink: no secret-content
 filter is applied. With capture enabled, content may itself contain secrets and
 is not filtered, so secrets included in messages or tool results can be
 exported.
-<!-- from: 07#114, 07#34 -->
 
 **OBS-R55.** Content capture does not include automatic export of
 client configuration or authentication headers.
-<!-- from: 07#114 -->
 
 **OBS-R56.** Tools whose results carry command output, captured
 HTTP traffic or HTTP session material declare sensitive output
 (`contractor_sensitive_output`). A Worker that selects any such tool uses
 metadata-only instrumentation for the whole allocation, even when
 `captureContent=true`.
-<!-- from: 07#115, 21#58 -->
 
 Rationale: later model requests, result finalizers and summaries can repeat the
 earlier output.
-<!-- from: 07#115 -->
 
 **OBS-R57.** `exec_command` declares sensitive output on the tool. The
 `http-tools@1` and `caido@1` toolset factories declare it for every tool they
 export (`sensitive_output_tools`); the Runtime derives the set from the
 registered toolsets and passes it to the Worker.
-<!-- from: 07#115 -->
 
 **OBS-R58.** Captured model input includes conversation messages,
 system instructions and tool declarations; captured output includes the model
@@ -629,119 +554,95 @@ response. Worker tool spans include arguments and results. Planner invocation
 and passthrough dispatch spans include their semantic input and output. Worker
 result-finalizer and terminal-summarizer model calls also capture input and
 output.
-<!-- from: 07#116 -->
 
 **OBS-R59.** Captured content is serialized as JSON into
 `langfuse.observation.input` and `langfuse.observation.output`. Model spans
 carry `langfuse.observation.type=generation` and the model alias.
-<!-- from: 07#116 -->
 
 **OBS-R60.** Each captured content field is bounded to 256 KiB of
 UTF-8 (LIM-OBS-13), separately from the metadata-string bound. Oversized content
 becomes a valid JSON object with `truncated: true` and a preview.
-<!-- from: 07#116, 07#34 -->
 
 **OBS-R61.** The 64 MiB pending-queue bound (LIM-OBS-12) still applies
 to captured content, so content-heavy spans may be dropped. The bound is per
 exporter, not a process-wide memory limit: simultaneous allocations multiply the
 retained capacity, and serialization and transport may need additional memory.
-<!-- from: 07#116 -->
 
 **OBS-R62.** Content capture does not change durable reports,
 ordinary logs or metrics.
-<!-- from: 07#116 -->
 
 **OBS-R63.** Existing Runs keep their pinned configuration; enabling
 capture affects only new Runs resolved against the new RuntimeConfig version.
-<!-- from: 07#116 -->
 
 ### Worker export scheduling
 
 **OBS-R64.** A Worker exporter starts one asynchronous sender when the
 queue reaches `batchSizeBytes` of encoded pending data or `maxPendingSpans`.
-<!-- from: 07#40 -->
 
 **OBS-R65.** Requests contain whole spans and are bounded to
 `batchSizeBytes`, including the protobuf envelope.
-<!-- from: 07#40 -->
 
 **OBS-R66.** An overflow also wakes the sender to drain accepted spans
 when another whole span cannot fit before the byte threshold is reached
 (FAIL-OBS-4).
-<!-- from: 07#40 -->
 
 **OBS-R67.** The sender transmits ready batches sequentially while Worker
 callbacks continue appending. The in-flight batch remains charged to both queue
 limits. Only its prefix is removed after delivery, which preserves spans added
 during the request.
-<!-- from: 07#40 -->
 
 **OBS-R68.** Each batch gets at most `maxAttempts` HTTP attempts; retries
 preserve the payload and the span IDs.
-<!-- from: 07#40 -->
 
 **OBS-R69.** One absolute `flushTimeoutSeconds` budget covers a batch's
 encoding, HTTP attempts and waits. Each HTTP attempt is also bounded by
 `min(requestTimeoutSeconds, flushTimeoutSeconds)`.
-<!-- from: 07#40 -->
 
 **OBS-R70.** Final draining has its own `flushTimeoutSeconds` cap,
 shortened by the enclosing allocation deadline. None of these deadlines is
 extended for retries.
-<!-- from: 07#40 -->
 
 **OBS-R71.** Adapter operation and error counters account for each
 HTTP attempt.
-<!-- from: 07#40 -->
 
 **OBS-R72.** Subsequent batches can proceed after a failed batch is
 discarded. Cancellation is not retried (FAIL-OBS-5).
-<!-- from: 07#40 -->
 
 **OBS-R73.** There is no periodic timer: a sub-threshold tail waits for
 more spans or the final flush.
-<!-- from: 07#40 -->
 
 ### Worker delivery and acknowledgements
 
 **OBS-R74.** Worker delivery retries temporary transport failures
 and HTTP 429, 502, 503 and 504. Other HTTP errors, including 500, are terminal
 (FAIL-OBS-5).
-<!-- from: 07#41 -->
 
 **OBS-R75.** A valid `Retry-After` header is honoured as seconds or as an
 HTTP date. Without it, exponential backoff starts at
 `initialBackoffMilliseconds` and doubles up to `maxBackoffMilliseconds`; equal
 jitter selects a delay between half that ceiling and the ceiling.
-<!-- from: 07#41 -->
 
 **OBS-R76.** If the delay cannot fit the remaining batch budget, the
 batch expires without another attempt (FAIL-OBS-5).
-<!-- from: 07#41 -->
 
 **OBS-R77.** Worker export accepts bounded OTLP protobuf or JSON
 acknowledgements and the Langfuse v3 JSON ingestion-job acknowledgement
 (`name=otel-ingestion-job` with a non-empty string `id`). Malformed or oversized
 acknowledgements are terminal (FAIL-OBS-5).
-<!-- from: 07#42 -->
 
 **OBS-R78.** OTLP partial success is never retried: only the
 `rejectedSpans` are discarded. A warning with zero rejected spans counts as
 successful delivery (FAIL-OBS-5).
-<!-- from: 07#42 -->
 
 These rules follow the
 [OTLP retry and partial-success rules](https://opentelemetry.io/docs/specs/otlp/).
-<!-- from: 07#42 -->
 
 **OBS-R79.** Provider error messages are not retained in
 diagnostics.
-<!-- from: 07#42 -->
 
 **OBS-R80.** The Worker export scheduling, retry and
 acknowledgement rules above do not change Planner export scheduling or
 acknowledgement handling, which follow [Planner telemetry](#planner-telemetry).
-<!-- from: 07#42 -->
 
 ### Dropped-span counters
 
@@ -761,56 +662,44 @@ reasons:
 | `cancelled` | The sender is cancelled, including by an enclosing flush deadline. |
 | `shutdown` | Close discards an active batch or queued tail, or a span finishes after close. |
 
-<!-- from: 07#43, 07#44 -->
-
 **OBS-R82.** Each local discard is counted once, including during close;
 successful retries add no discarded spans.
-<!-- from: 07#45 -->
 
 **OBS-R83.** The counters saturate at the uint64 maximum
 (LIM-OBS-14) and remain in the final Runtime report after adapter cleanup
 (LIFE-OBS-3).
-<!-- from: 07#45 -->
 
 **OBS-R84.** The counters record local discard decisions only. A lost
 acknowledgement can make remote acceptance unknown, and retries can produce
 duplicates; the counters do not measure confirmed collector loss or spans lost
 in a process crash (FAIL-OBS-5).
-<!-- from: 07#45 -->
 
 **OBS-R85.** The counters include no endpoint, response body,
 credential or captured content.
-<!-- from: 07#45 -->
 
 ### Export failure, flush and teardown
 
 **OBS-R86.** An OTLP exporter delivery error, timeout or unavailable
 backend increments bounded adapter error metrics but does not change the
 StageResult, the StageTermination or release eligibility (FAIL-OBS-6).
-<!-- from: 07#117, 04#68 -->
 
 **OBS-R87.** Finalization and abort perform one best-effort flush,
 bounded by both the configured timeout and the remaining finalization or abort
 deadline (FAIL-OBS-6).
-<!-- from: 07#117, 04#68 -->
 
 **OBS-R88.** For a Worker the flush joins the active sender and drains
 the remaining spans in the same bounded batches; the deadline bounds the entire
 drain, not each batch independently.
-<!-- from: 07#117 -->
 
 **OBS-R89.** Closing cancels and joins any sender before erasing its queue and
 transport credentials (LIFE-OBS-3).
-<!-- from: 07#117 -->
 
 **OBS-R90.** The Runtime then returns the Contractor
 `ExecutionReport` regardless of export success.
-<!-- from: 07#117 -->
 
 **OBS-R91.** Release erases all credential values, closes clients and
 removes temporary proxy trust material before the slot can become idle
 (LIFE-OBS-3).
-<!-- from: 07#117 -->
 
 ### Planner telemetry
 
@@ -818,44 +707,36 @@ removes temporary proxy trust material before the slot can become idle
 configuration as Worker telemetry but is constructed in the Server, not in a
 Runtime Agent. Its exporter follows the same no-content default, bounded flush
 and best-effort delivery rules.
-<!-- from: 07#119 -->
 
 **OBS-R93.** Planner telemetry never receives Agent labels or Worker
 proxy settings.
-<!-- from: 07#119 -->
 
 **OBS-R94.** The Server owns a versioned PlannerTelemetryAdapter
 registry, and publication rejects a `planner.telemetry.adapter` unknown to that
 registry. This Server capability is deployment code, not a Runtime Agent
 placement fact.
-<!-- from: 07#119 -->
 
 **OBS-R95.** One selected Planner `otlp-http@1` adapter is
 invocation-local. It does not install a global OpenTelemetry provider, read
 ambient proxy variables, follow redirects or retry.
-<!-- from: 07#120 -->
 
 **OBS-R96.** The Passthrough, Streamline and Router Planners use
 a closed instrumentation vocabulary for invocation or session, model, Worker
 dispatch, subtask transition and finish spans. Content never enters the closed
 metadata vocabulary; explicit capture uses the separate bounded input and output
 fields of OBS-R59 and OBS-R60.
-<!-- from: 07#120 -->
 
 **OBS-R97.** Planner session IDs are attached only after durable
 session creation.
-<!-- from: 07#120 -->
 
 **OBS-R98.** Every span of one invocation shares safe Run,
 Stage and Planner correlation and the exact pinned RuntimeConfig resource
 correlation; Agent-label provenance is absent.
-<!-- from: 07#120 -->
 
 **OBS-R99.** After the Planner returns, the Server makes at most
 one OTLP request (LIM-OBS-15). Its deadline is the minimum of the configured
 flush timeout, the remaining Stage deadline and the finalization bound
 (FAIL-OBS-7).
-<!-- from: 07#121 -->
 
 **OBS-R100.** Adapter creation, credential decryption, encoding,
 delivery, queue overflow and flush failures are supplementary. They are logged
@@ -863,11 +744,9 @@ with a closed safe code and, when a Planner report identity exists, recorded as
 the `telemetry.export` tool outcome in the durable `ExecutionReport`. They never
 change the candidate, the retry or escalation decision, the StageTermination or
 allocation release (FAIL-OBS-7).
-<!-- from: 07#121 -->
 
 **OBS-R101.** When no Planner telemetry is selected, no exporter, client
 or request is created.
-<!-- from: 07#121 -->
 
 ### Metadata labels
 
@@ -876,40 +755,32 @@ WorkflowRun ([Runs](../execution/runs.md)) available to Planner and Worker
 telemetry, so that an operator can correlate model traces with an eval
 invocation and leg. Planner and Worker trace exporters may attach the bounded
 map without exposing it to either model.
-<!-- from: 16#27, 04#67 -->
 
 **OBS-R103.** Planner spans obtain the labels from the authoritative
 WorkflowRun row.
-<!-- from: 16#28 -->
 
 **OBS-R104.** Scheduler copies the same bounded map into each
 `AllocationSpec` as `runMetadataLabels`.
-<!-- from: 16#28 -->
 
 **OBS-R105.** The Runtime validates the wire bounds and exposes labels
 only to its telemetry adapter, as per-execution span attributes. They are not
 process-wide resource attributes, because one Runtime process serves different
 Runs over time.
-<!-- from: 16#28 -->
 
 **OBS-R106.** The Runtime never injects metadata labels into
 prompts, ADK State, tool arguments, WorkspaceFS, Skills or model-visible
 results.
-<!-- from: 16#28 -->
 
 **OBS-R107.** Telemetry uses a namespaced attribute projection such
 as `contractor.run.label.eval.id`. An exporter-specific adapter may additionally
 map the conventional eval labels to native trace tags when that mapping loses no
 values. The exact original map remains authoritative in the Server.
-<!-- from: 16#29 -->
 
 **OBS-R108.** Metadata labels are not metric dimensions.
-<!-- from: 16#30, 04#67 -->
 
 Rationale: keys such as `eval.id`, `eval.case` and `run_id` are high-cardinality
 and would create unsafe time-series growth. The existing Run and Stage
 correlation IDs and trace attributes are sufficient for detailed drill-down.
-<!-- from: 16#30 -->
 
 ## Interfaces
 
@@ -933,8 +804,6 @@ correlation IDs and trace attributes are sufficient for detailed drill-down.
   (`initialBackoffMilliseconds`, `maxBackoffMilliseconds`;
   [RCF-R103](../configuration/runtime-config.md));
   `requestTimeoutSeconds`.
-
-<!-- from: 02#76, 04#63, 07#34, 07#40, 07#41, 07#42, 07#116, 16#29 -->
 
 ## Limits, failures and errors
 
@@ -996,8 +865,6 @@ Entity lifecycle ([lifecycle](lifecycle.md)):
 Error codes ([registry](errors.md)): `tool_call_cancelled` (OBS-R24)
 and `tool_call_failed` (OBS-R32).
 
-<!-- from: 02#76, 04#64, 04#68, 04#69, 04#70, 06#102, 07#34, 07#40, 07#41, 07#42, 07#45, 07#116, 07#117, 07#121 -->
-
 ## Security
 
 - The Server's private Control Plane and Artifact APIs propagate an incoming
@@ -1017,8 +884,6 @@ and `tool_call_failed` (OBS-R32).
 - Metadata labels never reach a model (OBS-R106).
 - Trust boundaries, mTLS identity and the handling of RuntimeSettings secrets
   are in [Security](security.md).
-
-<!-- from: 02#76, 02#77, 04#64, 04#65, 04#66, 04#68, 07#114, 07#115, 16#28 -->
 
 ## Observability
 
@@ -1043,8 +908,6 @@ This whole document is the shared observability model.
 | Podman sandbox metrics and metadata-only instrumentation of execution-enabled Workers | [Code execution](../tools/code-execution.md) |
 | Performance collection, `RuntimeReport.resources`, Server and database performance history, HTTP listener dimensions; performance telemetry never affects placement, outcomes, leases, fencing or release | [OPS-R69](../operations/operations.md), [OPS-R70](../operations/operations.md), [OPS-R99](../operations/operations.md), [OPS-R100](../operations/operations.md) |
 | Closing allocation adapters after the flush and keeping them closed at release | [RTA-R58](../execution/runtime-agent.md) |
-
-<!-- from: 04#39, 04#61, 04#70, 06#120, 07#33, 08#56, 08#57, 09#85, 10#90, 11#59, 12#77, 13#45, 14#40, 14#41, 14#82, 15#36, 21#58, 22#6, 22#18, 07#117 -->
 
 ## Invariants
 
@@ -1092,23 +955,15 @@ These properties follow from the cited requirements, which are authoritative.
 8. Metadata labels reach telemetry only as bounded attributes and never reach a
    model (OBS-R102, OBS-R106).
 
-<!-- from: 02#76, 04#64, 04#68, 04#69, 07#34, 07#40, 07#41, 07#45, 07#114, 07#115, 07#117, 07#121, 16#28 -->
-
 ## Non-goals
 
 - Incremental report delivery per A2A Task. It could reduce data loss from a
   hard Worker crash without changing the terminal report schema.
-  <!-- from: 04#87 -->
 - Secret filtering of captured content and a separate retention policy for it;
   neither is a prerequisite for the trusted-sink mode (OBS-R54).
-  <!-- from: 07#116 -->
 - Export of OpenTelemetry metrics or logs, a durable exporter spool and infinite
   retry (OBS-R45, OBS-R52).
-  <!-- from: 07#34 -->
 - A required external observability service (OBS-R26).
-  <!-- from: 04#68 -->
 - Metadata labels as metric dimensions (OBS-R108).
-  <!-- from: 16#30, 04#67 -->
 - Route-specific HTTP metric breakdowns, owned by
   [Operations](../operations/operations.md).
-  <!-- from: 22#18 -->

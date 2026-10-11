@@ -11,7 +11,6 @@ frozen plans and member identity, durable submission and recovery, execution
 results and assessments, comparison and denominators, the Contractor transport
 and publication, v1 compatibility, the `playground-eval experiment` command
 line and the conformance behaviour of the format.
-<!-- from: 26#2, 26#3 -->
 
 Other documents own the adjacent concepts:
 
@@ -32,7 +31,6 @@ Other documents own the adjacent concepts:
   [errors](../platform/errors.md),
   [failure model](../platform/failure-model.md) and
   [lifecycle](../platform/lifecycle.md).
-<!-- from: 26#2, 26#63, 01#70 -->
 
 ## Concepts
 
@@ -104,7 +102,6 @@ document owns are:
 - **Execution success**, **end-to-end pass** and **conditional quality** —
   the per-arm rates defined under
   [Comparison and denominators](#comparison-and-denominators).
-<!-- from: 26#5, 26#9, 26#13, 26#17, 26#19, 26#23, 26#24, 26#27, 26#28, 26#29, 26#30, 26#31, 26#32, 26#34, 26#35, 26#37, 26#38, 26#39, 26#53, 26#55, 26#59, 26#61 -->
 
 ## Model
 
@@ -121,7 +118,6 @@ document owns are:
 | `playground.result/v2` | Observed execution and collected outputs, independent of quality | Portable record with a safe publication projection |
 | `playground.assessment/v1` | Versioned scorer judgments over one exact result | Evaluator record; allowlisted score summary may be published |
 | `playground.comparison/v1` | Expected denominators, pairing, completeness, quality and cost | Portable report and safe server projection |
-<!-- from: 26#9 -->
 
 ### Data flow
 
@@ -130,7 +126,6 @@ plan. An execution adapter runs each member on existing Server execution and
 returns a normalized result. A scorer judges the result against private ground
 truth; assessments feed the comparison, which may be published safely to a
 Project.
-<!-- from: 26#6 -->
 
 ```mermaid
 flowchart LR
@@ -145,7 +140,6 @@ flowchart LR
     Q --> M[Assessment and comparison]
     M --> U[Safe Project publication]
 ```
-<!-- from: 26#6 -->
 
 ## Requirements
 
@@ -154,91 +148,73 @@ flowchart LR
 **EVF-R1.** `playground-v2` owns datasets, hidden ground truth, suite
 definitions, experiment planning, adapters, scorers, result serialization and
 comparison.
-<!-- from: 26#3 -->
 
 **EVF-R2.** Contractor executes ordinary Workflows and Audits through
 its public APIs. Evaluations reuse Contractor's evaluation Projects, Runs,
 artifact store, queue, retries and metrics.
-<!-- from: 26#3 -->
 
 **EVF-R3.** The format must not introduce an eval Scheduler, direct
 database access, an import of an internal Contractor package or a per-case
 Server process.
-<!-- from: 26#3 -->
 
 **EVF-R4.** The `playground-v2` implementation of this format extends the
 `playground_evals` modules and reuses their project, corpus and target
 manifests, source packager, scorers and upstream oracles. A new format is not
 a new benchmark dataset or a new implementation of all scorers.
-<!-- from: 26#4 -->
 
 **EVF-R5.** The format supports a Contractor execution provider,
 with Workflow and Audit bindings, and a recorded-output provider used in
 conformance tests.
-<!-- from: 26#5 -->
 
 **EVF-R6.** The same case and scorer must work with both
 providers.
-<!-- from: 26#5 -->
 
 **EVF-R7.** Provider configuration may describe real differences in
 capability; the common contract must not require ADK, tool names, Worker
 counts, Workflow stages or ArtifactStore namespaces.
-<!-- from: 26#5 -->
 
 **EVF-R8.** External oracle protocols remain exact domain
 requirements. In particular, WebExploitBench verification and judging must
 observe the same target instance under the pinned CAGE contract; portability
 does not replace that oracle with text matching.
-<!-- from: 26#7 -->
 
 **EVF-R9.** Native annotated diffs may remain an explicitly required
 output format for annotation-specific suites; ordinary trace-quality suites
 should consume neutral trace evidence rather than require a particular comment
 syntax.
-<!-- from: 26#7 -->
 
 **EVF-R10.** This specification stays canonical in Contractor until it
 is deliberately transferred; a cross-repository handoff pins or copies it
 rather than maintaining divergent specifications.
-<!-- from: 26#8 -->
 
 ### Documents and encoding
 
 **EVF-R11.** Every document requires `schema_version`.
-<!-- from: 26#10 -->
 
 **EVF-R12.** Schemas are closed objects except for explicit
 provider/scorer configuration and namespaced `extensions`. Extension data
 cannot change identities, execution state, denominators or score semantics.
-<!-- from: 26#10 -->
 
 **EVF-R13.** An unknown schema version fails with
 `schema_version_unsupported`. A reader never guesses v1 and never silently
 discards required fields.
-<!-- from: 26#10 -->
 
 **EVF-R14.** A new incompatible meaning requires a new schema identity.
 Optional additive extensions preserve existing meanings.
-<!-- from: 26#10 -->
 
 **EVF-R15.** Authoring accepts JSON or a JSON-compatible subset of
 YAML: string object keys, and no custom tags, duplicate keys, aliases,
 non-finite numbers or implicit date objects.
-<!-- from: 26#11 -->
 
 **EVF-R16.** Frozen records are persisted as UTF-8 JSON.
-<!-- from: 26#11 -->
 
 **EVF-R17.** Validation is JSON Schema validation plus semantic
 validation; matching JSON types alone does not prove consistency or
 completeness.
-<!-- from: 26#11 -->
 
 **EVF-R18.** Validation uses the repository's JSON Schema 2020-12
 dialect and a local schema registry. It must not fetch remote schemas or
 execute document-supplied code.
-<!-- from: 26#11 -->
 
 ### Common types
 
@@ -264,28 +240,23 @@ The common types are:
 - **EVF-R25.** Provider and scorer IDs use `VersionedId`, for example
   `contractor@1` or `openapi-coverage@1`. Registrations are local allowlists,
   not automatic imports.
-<!-- from: 26#12, 26#13 -->
 
 ### Digests and immutable references
 
 **EVF-R26.** Digests cover the exact retained bytes, not parsed
 YAML equivalence or a cross-language canonicalization claim. A reserialization
 has a different digest.
-<!-- from: 26#14 -->
 
 **EVF-R27.** Documents do not embed their own digest; the
 referencing records and receipts carry it.
-<!-- from: 26#14 -->
 
 **EVF-R28.** Mutable aliases may be used to author an experiment but
 are resolved before the plan is frozen. An execution never follows a later
 `latest` input, suite or seed.
-<!-- from: 26#14 -->
 
 **EVF-R29.** Source archives pin their produced bytes and their
 packager and exclusion configuration, not just the Git HEAD of a possibly
 dirty workspace.
-<!-- from: 26#14 -->
 
 ### Format limits
 
@@ -301,30 +272,24 @@ dirty workspace.
 | Expanded members | 10,000 | LIM-EVF-8 |
 | Input/output roles | 128 | LIM-EVF-9 |
 | Evidence refs per result | 1,024 | LIM-EVF-10 |
-<!-- from: 26#15 -->
 
 **EVF-R31.** The expanded matrix is validated before any submit.
-<!-- from: 26#15 -->
 
 **EVF-R32.** Scorer and provider configuration and failure messages
 must fit within the enclosing document bound.
-<!-- from: 26#15 -->
 
 **EVF-R33.** Input and output blobs have separate provider limits;
 the Contractor artifact bound is checked by the Contractor adapter.
-<!-- from: 26#15 -->
 
 **EVF-R34.** If the member count and byte limits cannot both be met,
 the work is split into explicit experiments; a plan or comparison is never
 silently truncated.
-<!-- from: 26#15 -->
 
 **EVF-R35.** The 10,000-member ceiling (LIM-EVF-8) is a format limit,
 not a promise that one plan document can contain 10,000 members. External
 producers may use the format ceiling subject to each document's byte limit.
 Managed native authoring applies a smaller effective matrix bound before
 storing a draft ([Managed Evals](managed-evals.md), EVM-R63).
-<!-- from: 26#15 -->
 
 ### Cases
 
@@ -339,135 +304,107 @@ storing a draft ([Managed Evals](managed-evals.md), EVM-R63).
 | `outputs` | Map of role to `{media_types, required}`; logical roles such as `document`, `report`, `trace`, `findings` |
 | `evaluation` | Private `{ground_truth, assertions}` maps of logical roles to exact `BlobRef` |
 | `provenance` | Dataset/source identity, exact revisions/digests and applicable subset/target/oracle refs |
-<!-- from: 26#16, 26#17 -->
 
 **EVF-R37.** An empty evaluation map is permitted only when the
 selected scorer does not require expected data.
-<!-- from: 26#18 -->
 
 **EVF-R38.** A black-box case can provide public task and target
 descriptions without providing target source.
-<!-- from: 26#18 -->
 
 **EVF-R39.** Target locators and lifecycle setup are resolved by the
 evaluator's target service. Private flags and oracle state are never task
 inputs.
-<!-- from: 26#18 -->
 
 **EVF-R40.** Cases describe the capabilities they need, not how
 a Worker obtains them.
-<!-- from: 26#18 -->
 
 ### Execution projection and hidden truth
 
 **EVF-R41.** An explicit execution projection
 `{id, task, inputs, requires, outputs}` is built for each case. It contains
 neither `evaluation` nor raw project or corpus metadata.
-<!-- from: 26#19 -->
 
 **EVF-R42.** Adapters receive only the execution projection plus
 their binding and target handle. Scorers receive expected data separately.
-<!-- from: 26#19 -->
 
 **EVF-R43.** No upload path may serialize a full Case, Suite, Plan or
 project manifest to the evaluated system.
-<!-- from: 26#19 -->
 
 **EVF-R44.** Source packaging must preserve playground's existing
 truth-exclusion boundary.
-<!-- from: 26#19 -->
 
 ### Suites and scoring
 
 **EVF-R45.** A `suite/v2` document requires `id`, `cases` (ordered
 exact Case DocumentRefs), `scoring` and `provenance`.
-<!-- from: 26#20 -->
 
 **EVF-R46.** Duplicate case IDs, or one case ID resolving to different
 bytes within a suite, are errors.
-<!-- from: 26#20 -->
 
 **EVF-R47.** A suite groups cases with compatible output and
 scoring contracts; an experiment may combine several suites.
-<!-- from: 26#20 -->
 
 **EVF-R48.** `scoring.checks` contains unique check IDs and, for each
 check: `scorer` (exact version), `implementation_sha256`, `parameters`,
 `ground_truth_role` (nullable), `required` and `allow_not_applicable` (default
 false).
-<!-- from: 26#21 -->
 
 **EVF-R49.** The local scorer registration declares the required
 output roles and media types, the accepted expected-data schema, the metric
 definitions and `accepts_partial` (default false).
-<!-- from: 26#21 -->
 
 **EVF-R50.** Provider statuses, tool counts and LLM names are not
 correctness criteria. Domain conformance checks may explicitly require a
 particular output contract.
-<!-- from: 26#21 -->
 
 **EVF-R51.** The suite decision is `all_required_pass`; a suite needs
 at least one required check (LIM-EVF-12).
-<!-- from: 26#22 -->
 
 **EVF-R52.** An individual scorer may retain its documented
 weighted scalar metric; there is no invented universal weighted score across
 unrelated suites.
-<!-- from: 26#22 -->
 
 **EVF-R53.** A parameter or threshold, implementation, expected-data
 or validator/oracle change produces a new pin and cannot retroactively rewrite
 a previous assessment.
-<!-- from: 26#22 -->
 
 ### Bindings
 
 **EVF-R54.** A `binding/v1` document requires `id`, `provider`,
 `capabilities`, `connection`, `settings`, `input_mapping`, `output_mapping`
 and `normalizers`.
-<!-- from: 26#23 -->
 
 **EVF-R55.** `connection` is a local credential reference, never a
 token or a credential-bearing URL.
-<!-- from: 26#23 -->
 
 **EVF-R56.** Generic schema validation delegates `settings` and the
 mappings to the selected provider's closed schema.
-<!-- from: 26#23 -->
 
 **EVF-R57.** Mappings connect logical case roles to
 provider-specific inputs and outputs; all required roles must resolve.
-<!-- from: 26#24 -->
 
 **EVF-R58.** Normalizers are allowlisted, versioned local
 functions with pinned implementation digests. They may decode or project
 observed data and preserve exact raw-evidence refs.
-<!-- from: 26#24 -->
 
 **EVF-R59.** A normalizer must not fabricate a finding, control,
 verdict or missing artifact from hidden expectations.
-<!-- from: 26#24 -->
 
 **EVF-R60.** Contractor settings use `mode: workflow | audit`;
 exactly one of `workflow` or `audit_profile` must be present (LIM-EVF-13).
-<!-- from: 26#25 -->
 
 **EVF-R61.** Workflow selectors, the AuditProfile name and version,
 runtime labels, execution overrides, parameter mappings and artifact
 namespaces exist only in the Contractor binding settings, not in portable
 Cases or scorers.
-<!-- from: 26#25 -->
 
 **EVF-R62.** Runtime labels
 ([RuntimeConfig](../configuration/runtime-config.md)) are kept separate from
 `eval.*` metadata.
-<!-- from: 26#25 -->
 
 **EVF-R63.** Contractor's exact-input, authorization and
 profile/task authority rules apply to evaluation executions unchanged
 ([Projects](../artifacts/projects.md), [Audits](../audits/audits.md)).
-<!-- from: 26#25 -->
 
 ### Adapter contract
 
@@ -482,39 +419,32 @@ profile/task authority rules apply to evaluation executions unchanged
 | `observe` | Read authoritative execution state and available usage/evidence, with bounded pagination |
 | `cancel` | Request cancellation; acceptance is not proof of remote termination |
 | `collect` | Return normalized roles/evidence and completeness, including usable partial results on failure |
-<!-- from: 26#26, 26#27 -->
 
 **EVF-R65.** The common `ExecutionRef` is
 `{provider, connection_id, kind, id}` with an opaque `id`. Provider details
 belong in a private receipt.
-<!-- from: 26#28 -->
 
 **EVF-R66.** Core code and scorers do not parse Contractor IDs and do
 not need to know how many child Runs an Audit created.
-<!-- from: 26#28 -->
 
 **EVF-R67.** Capability IDs are versioned strings checked by provider
 and scorer registrations. An unknown capability is unsupported, never silently
 ignored or auto-installed.
-<!-- from: 26#28 -->
 
 **EVF-R68.** Binding capability claims are checked against the
 registered adapter and the resolved provider configuration; an author cannot
 enable a capability by naming it.
-<!-- from: 26#28 -->
 
 **EVF-R69.** The recorded-output provider supports the same
 interface and fixture result contracts as a real provider. Provider parity
 means unchanged case and scorer code over the same observations, not an
 assertion that two different real systems behave identically.
-<!-- from: 26#29 -->
 
 ### Experiments
 
 **EVF-R70.** An `experiment/v1` document requires `id`, `suites`,
 `variants`, `repetitions`, `order`, `budgets`, `comparison` and
 `publication`, with these meanings:
-<!-- from: 26#30 -->
 
 - **EVF-R71.** `id` identifies one invocation, not a suite or a remote
   Run. Editing a frozen experiment requires a new invocation ID.
@@ -538,7 +468,6 @@ assertion that two different real systems behave identically.
 - **EVF-R79.** `publication` is `{provider, connection, enabled}`.
   Disabled or local publication must work for other execution providers
   without importing Contractor.
-<!-- from: 26#31 -->
 
 ### Frozen plan and member identity
 
@@ -546,48 +475,38 @@ assertion that two different real systems behave identically.
 `created_at`, `experiment_ref`, the resolved `suites`, `variants`, `pins`,
 `members`, `execution_order`, `budgets`, `comparison` and `publication`. Its
 exact JSON bytes are frozen before the first submit.
-<!-- from: 26#32 -->
 
 **EVF-R81.** Each member records
 `{member_id, suite_id, case_id, case_sha256, variant_id, sample, binding_sha256, eligibility, reason}`.
 Samples are one-based integers.
-<!-- from: 26#32 -->
 
 **EVF-R82.** Member identity is the SHA-256 of the UTF-8 JSON
 encoding, with no insignificant whitespace, of the array
 `[experiment_id, suite_id, case_id, sample, variant_id]`. All 64 hex digits
 are kept.
-<!-- from: 26#33 -->
 
 Rationale: IDs have the ASCII restriction of `Id`, so the identity encoding
 has no Unicode or float ambiguity.
-<!-- from: 26#33 -->
 
 **EVF-R83.** A Contractor idempotency key is `eval-` plus the member
 identity digest. Project and Audit create and start intents use distinct
 operation suffixes within the provider's documented key bound.
-<!-- from: 26#33 -->
 
 **EVF-R84.** The member matrix is expanded once, before
 submission.
-<!-- from: 26#34 -->
 
 **EVF-R85.** Eligibility is `eligible | unsupported | blocked`; a
 reason is mandatory for `unsupported` and `blocked`.
-<!-- from: 26#34 -->
 
 **EVF-R86.** Unsupported and blocked members remain in the expected
 denominator and in the capability coverage report.
-<!-- from: 26#34 -->
 
 **EVF-R87.** Fixing a frozen eligibility, configuration or source
 mismatch creates a new plan and invocation; it does not silently remove
 difficult cases.
-<!-- from: 26#34 -->
 
 **EVF-R88.** A transient transport failure before a preflight
 completes leaves no executable plan (FAIL-EVF-1).
-<!-- from: 26#34 -->
 
 ### Pins and comparability
 
@@ -596,121 +515,94 @@ validator, oracle and source bytes; the target reset specification; the model
 or provider identifier and exposed model revision; sampling settings; the
 resolved policy and budgets; tool declarations including docstrings;
 instructions; Skill revisions; and adapter and runtime build identities.
-<!-- from: 26#35, 01#70 -->
 
 Rationale: changing tool descriptions, including their docstrings, changes
 model-visible guidance ([Toolsets](../tools/toolsets.md)).
-<!-- from: 01#70 -->
 
 **EVF-R90.** An unexposed model revision is explicitly unknown.
-<!-- from: 26#35 -->
 
 **EVF-R91.** Pin availability and evidence origin
 (`observed | operator_supplied | unavailable`) are recorded per dimension.
-<!-- from: 26#35 -->
 
 **EVF-R92.** An operator-supplied expected pin is not itself proof
 of the running provider.
-<!-- from: 26#35 -->
 
 **EVF-R93.** The read-only provider preflight must resolve the
 required pins before execution; authored variant names cannot replace those
 observations.
-<!-- from: 26#77, 26#75 -->
 
 **EVF-R94.** A validator entrypoint hash alone does not pin its
 external dependencies.
-<!-- from: 26#77 -->
 
 **EVF-R95.** Recorded oracle receipts prove association with
 the selected result or session, not success of a real target campaign.
-<!-- from: 26#77 -->
 
 **EVF-R96.** A strict instruction A/B blocks when a required-equal
 dimension cannot be established or has changed before submission. Missing
 required pins block strict comparisons rather than turning into assumed
 equality.
-<!-- from: 26#35, 26#77 -->
 
 **EVF-R97.** A declared exploratory comparison retains unknowns
 and cannot claim that the effect is isolated.
-<!-- from: 26#35 -->
 
 **EVF-R98.** For an instruction A/B, source, tasks, expected data,
 scorers, tools and docstrings, Skills, model and sampling, and effective
 budgets must match. Instruction bytes and their dependent template, Workflow
 and AuditProfile wrapper version and digest refs may differ.
-<!-- from: 26#36 -->
 
 **EVF-R99.** Audit wrappers must preserve inventory, standards,
 evidence, execution and interaction policy, except for the explicitly changed
 child Workflow refs.
-<!-- from: 26#36 -->
 
 **EVF-R100.** The comparability check compares the resolved
 settings, not just catalog selectors. It requires no raw secret or
 confidential model request dump and uses safe metadata and digests.
-<!-- from: 26#36 -->
 
 ### Durable submission and recovery
 
 **EVF-R101.** The local experiment bundle is the evaluator authority:
 immutable plan and records and an fsynced journal under an exclusive process
 lock (LIFE-EVF-7).
-<!-- from: 26#37 -->
 
 **EVF-R102.** Server Runs and Audits remain the authority for
 execution. Project artifacts are versioned publication copies, not a second
 writable manifest authority.
-<!-- from: 26#37 -->
 
 **EVF-R103.** Resuming an experiment requires its bundle.
-<!-- from: 26#37 -->
 
 **EVF-R104.** A copied bundle must be handed over to one writer.
-<!-- from: 26#37 -->
 
 **EVF-R105.** Same-key provider replay still protects against
 accidental duplicates.
-<!-- from: 26#37 -->
 
 **EVF-R106.** Before each external mutation, a `submission/v1` record is
 persisted containing the member ID, plan digest, operation, stable idempotency
 key, exact request digest, secret-free request payload or ref, and provider and
 connection identity (LIFE-EVF-4).
-<!-- from: 26#38 -->
 
 **EVF-R107.** Credentials are resolved at call time.
-<!-- from: 26#38 -->
 
 **EVF-R108.** Updates append immutable receipts and recovery
 observations; they do not overwrite the original intent.
-<!-- from: 26#38 -->
 
 **EVF-R109.** Snapshot and index replacement is atomic.
-<!-- from: 26#38 -->
 
 **EVF-R110.** An existing key with changed request bytes is a
 conflict, not a retry strategy (FAIL-EVF-2).
-<!-- from: 26#38 -->
 
 **EVF-R111.** After a lost response, the submission is marked
 `uncertain` and reconciled by identical provider replay or an authoritative
 receipt lookup (FAIL-EVF-2).
-<!-- from: 26#39 -->
 
 **EVF-R112.** Another key, case or sample, WorkflowRun or Audit must
 not be generated to hide the uncertainty.
-<!-- from: 26#39 -->
 
 **EVF-R113.** If the adapter cannot prove or recover the outcome,
 that member stops with `submission_unknown`.
-<!-- from: 26#39 -->
 
 **EVF-R114.** Server Stage retries and Audit child attempts stay
 inside the existing member; a new statistical repetition is a different
 predeclared sample.
-<!-- from: 26#39 -->
 
 ```mermaid
 sequenceDiagram
@@ -736,49 +628,39 @@ sequenceDiagram
         end
     end
 ```
-<!-- from: 26#38, 26#39, 26#71 -->
 
 ### Admission and budgets
 
 **EVF-R115.** The runner keeps bounded client submission
 bookkeeping, not a second remote Run state machine. It schedules no Workers
 and changes no provider retry policy.
-<!-- from: 26#40 -->
 
 **EVF-R116.** Admission obeys `max_members` and `max_in_flight`.
-<!-- from: 26#40 -->
 
 **EVF-R117.** Wall and token observation limits stop further
 submissions and request cancellation of owned active executions (FAIL-EVF-3).
-<!-- from: 26#40 -->
 
 **EVF-R118.** `max_observed_total_tokens` is an observation threshold,
 **not a guaranteed hard spend cap**: usage may be delayed and in-flight work
 may overshoot.
-<!-- from: 26#40 -->
 
 **EVF-R119.** Unknown usage is preserved and overshoot is reported;
 hard per-Run policy limits stay with the execution provider.
-<!-- from: 26#40 -->
 
 **EVF-R120.** A restart does not reset spent time or tokens or the
 original deadline.
-<!-- from: 26#40 -->
 
 ### Targets
 
 **EVF-R121.** Targets get explicit per-member lifecycle receipts
 and a reset policy (LIFE-EVF-6).
-<!-- from: 26#41 -->
 
 **EVF-R122.** A stateful target or session of variant A is not reused
 for variant B.
-<!-- from: 26#41 -->
 
 **EVF-R123.** A timeout is not proof that a replay or Automate
 job or a target stopped; its receipt and actual cleanup outcome are retained
 (FAIL-EVF-4).
-<!-- from: 26#41 -->
 
 ### Execution results
 
@@ -786,117 +668,92 @@ job or a target stopped; its receipt and actual cleanup outcome are retained
 `member_id`, `plan_sha256`, `observed_at`, `previous_result` (nullable
 DocumentRef), `execution`, `collection`, `outputs`, `evidence`, `usage`,
 `provenance` and `diagnostics`.
-<!-- from: 26#42 -->
 
 **EVF-R125.** `execution` contains opaque `refs`, `state`,
 `started_at`, `finished_at` and `reason`. State is `not_submitted | accepted |
 running | succeeded | failed | cancelled | unknown`.
-<!-- from: 26#43 -->
 
 **EVF-R126.** `finished_at` is null until the provider terminal
 state is confirmed.
-<!-- from: 26#43 -->
 
 **EVF-R127.** A local timeout or cancellation request produces a
 diagnostic and the last known provider state (or `unknown`), not a fabricated
 terminal status (FAIL-EVF-3).
-<!-- from: 26#43 -->
 
 **EVF-R128.** Unsupported membership is recorded in Plan
 eligibility, not as a successful execution.
-<!-- from: 26#43 -->
 
 **EVF-R129.** `collection` is
 `{status: complete | partial | unavailable, gaps}`. Completeness refers to the
 required output roles and their resolvable bytes; optional outputs do not
 decide it.
-<!-- from: 26#44 -->
 
 **EVF-R130.** `outputs` maps logical roles to exact BlobRefs.
-<!-- from: 26#44 -->
 
 **EVF-R131.** `evidence` contains bounded `{id, kind, blob, location}`
 entries (LIM-EVF-10). Locations use source-relative paths and one-based
 inclusive line ranges, stable domain item keys, or opaque exchange refs.
-<!-- from: 26#44, 26#15 -->
 
 **EVF-R132.** A normalizer cannot synthesize a source location from a
 tool name.
-<!-- from: 26#44 -->
 
 **EVF-R133.** Raw output and evidence refs are preserved beside the
 normalized data.
-<!-- from: 26#45 -->
 
 **EVF-R134.** Source citations must refer to the pinned source
 snapshot. Scoring a post-annotation snapshot requires its exact digest and an
 explicit mapping, not silent reuse of changed line numbers.
-<!-- from: 26#45 -->
 
 **EVF-R135.** Missing and invalid outputs remain explicit. A result
 can be collected from a failed Run without asserting execution success
 (FAIL-EVF-5).
-<!-- from: 26#45 -->
 
 **EVF-R136.** Later recovery produces a new result revision linked
 by `previous_result`, preserving the earlier observation (LIFE-EVF-2).
-<!-- from: 26#45 -->
 
 ### Usage
 
 **EVF-R137.** `usage` separates measures, each
 `{value, unit, completeness, source_refs, scope}`.
-<!-- from: 26#46 -->
 
 **EVF-R138.** A value is a nonnegative finite number or null.
 Completeness is `complete | partial | unavailable`; `unavailable` requires
 null, and partial numbers are lower or observed bounds, not full costs.
-<!-- from: 26#46 -->
 
 **EVF-R139.** A known zero requires complete observation.
-<!-- from: 26#46 -->
 
 **EVF-R140.** The core measures are `input_tokens`,
 `output_tokens`, `total_tokens`, `cached_input_tokens`, `model_calls`,
 `tool_calls`, `tool_failures` and `wall_ms`.
-<!-- from: 26#46 -->
 
 **EVF-R141.** A measure's scope identifies the member and the included
 execution refs and attempts. It must include retries and all measured
 planner, worker and finalizer work, or state the missing portion.
-<!-- from: 26#46 -->
 
 **EVF-R142.** `wall_ms` uses provider execution timestamps with a
 declared interval, preferably creation or acceptance through terminal
 completion, including provider queue time.
-<!-- from: 26#47 -->
 
 **EVF-R143.** `wall_ms` is not mixed with evaluator packaging,
 polling, scoring or publication time; those may be separate measures. Missing
 comparable timestamps make `wall_ms` unavailable.
-<!-- from: 26#47 -->
 
 **EVF-R144.** Authoritative cumulative totals are used once per
 execution or attempt; successive poll snapshots are never added.
-<!-- from: 26#48 -->
 
 **EVF-R145.** Audit parent and child counters must not be
 double-counted.
-<!-- from: 26#48 -->
 
 **EVF-R146.** Cached input tokens (`cached_input_tokens`) are a subset of
 `input_tokens`, not an extra term in `total_tokens`.
-<!-- from: 26#48 -->
 
 **EVF-R147.** No token price or monetary cost is invented. An optional
 monetary measure pins its currency, pricing source and date, and covered
 usage.
-<!-- from: 26#48 -->
 
 **EVF-R148.** Contractor `reportsComplete` and `truncated`
 propagate into completeness. Contractor's MetricsSummary does not expose
 cached tokens.
-<!-- from: 26#48 -->
 
 ### Assessments
 
@@ -904,39 +761,31 @@ cached tokens.
 `member_id`, `result_ref`, `suite_ref`, `scorer_pins`, private
 `expected_refs`, `created_at`, `checks` and `decision`. Checks contain `id`,
 `status`, `metrics`, `failures` and `evidence_refs`.
-<!-- from: 26#49 -->
 
 **EVF-R150.** Check status is
 `pass | fail | not_applicable | not_scored | error`; a reason is required for
 every status except `pass`.
-<!-- from: 26#49 -->
 
 **EVF-R151.** Metrics declare a name, a finite value or null, a unit,
 a numerator and denominator when applicable, and completeness. Score values
 are not mixed with execution usage.
-<!-- from: 26#49 -->
 
 **EVF-R152.** The assessment decision over required checks has this
 precedence: `error`, then `fail`, then `incomplete`, otherwise `pass`.
-<!-- from: 26#50 -->
 
 **EVF-R153.** Missing or not-scored required checks, and
 not-applicable checks that are not allowed, make the decision incomplete.
-<!-- from: 26#50 -->
 
 **EVF-R154.** An explicitly allowed not-applicable check does not
 create a factual positive result.
-<!-- from: 26#50 -->
 
 **EVF-R155.** Optional-check failures remain visible but do not
 change the decision.
-<!-- from: 26#50 -->
 
 **EVF-R156.** Each scorer documents its empty-denominator
 behaviour. For detection, zero expected positives means recall is not
 applicable, while a clean fixture still checks that there are no false
 positives. 0/0 is never silently turned into 100%.
-<!-- from: 26#50 -->
 
 ```mermaid
 flowchart TD
@@ -948,28 +797,22 @@ flowchart TD
     I -->|yes| DI["decision: incomplete"]
     I -->|no| DP["decision: pass"]
 ```
-<!-- from: 26#50, 26#21 -->
 
 **EVF-R157.** Scoring incomplete output is allowed only for a scorer
 that declares `accepts_partial`.
-<!-- from: 26#51 -->
 
 **EVF-R158.** Scorer errors do not rewrite provider state
 (FAIL-EVF-6).
-<!-- from: 26#51 -->
 
 **EVF-R159.** Rescoring creates another immutable Assessment against
 an exact Result and new scorer or expected-data pins; it never silently
 updates an old score (LIFE-EVF-3).
-<!-- from: 26#51 -->
 
 **EVF-R160.** Comparisons select assessment refs explicitly.
-<!-- from: 26#51 -->
 
 **EVF-R161.** An LLM judge, if a suite deliberately uses one, is a
 separately versioned and pinned evaluator with its own cost and provenance,
 not an implicit fallback in generic normalization.
-<!-- from: 26#51 -->
 
 ### Comparison and denominators
 
@@ -978,25 +821,20 @@ the selected result and assessment refs, the baseline and candidate IDs,
 expected member counts, membership conflicts, eligibility, execution,
 collection and scoring completeness, quality, paired differences, usage,
 diagnostics and `conclusion: pass | regressions | inconclusive`.
-<!-- from: 26#52 -->
 
 **EVF-R163.** A conclusion requires predeclared suite and
 experiment gates. Missing required evidence or an unresolved member conflict
 makes the conclusion `inconclusive` regardless of apparent averages.
-<!-- from: 26#52 -->
 
 **EVF-R164.** Members are paired by `(suite_id, case_id, sample)`.
 The input, source and scorer pins and the required-equal execution dimensions
 of a pair must agree.
-<!-- from: 26#53 -->
 
 **EVF-R165.** Per-family and per-suite denominators are stored
 before any overall view.
-<!-- from: 26#53 -->
 
 **EVF-R166.** A comparison never silently compares only successful
 runs or the first page.
-<!-- from: 26#53 -->
 
 For each arm, a comparison reports separately:
 
@@ -1010,88 +848,70 @@ For each arm, a comparison reports separately:
   with its explicit denominator;
 - **EVF-R171.** the paired count for each comparison dimension and
   the excluded-pair reasons.
-<!-- from: 26#54, 26#55 -->
 
 **EVF-R172.** `pass@N` may be a separately labelled secondary metric; it
 cannot replace per-attempt results.
-<!-- from: 26#56 -->
 
 **EVF-R173.** There is no silent retry or resample exemption from the
 expected denominator.
-<!-- from: 26#56 -->
 
 **EVF-R174.** Two distinct provider executions claiming one
 member are a conflict until explicitly adjudicated by receipts; neither
 last-write-wins nor best-score selection is allowed.
-<!-- from: 26#56 -->
 
 **EVF-R175.** A Run with matching labels but no matching intent or
 receipt is quarantined as unassociated and cannot prove membership.
-<!-- from: 26#56 -->
 
 **EVF-R176.** Quality is compared only where both assessments
 support that dimension.
-<!-- from: 26#57 -->
 
 **EVF-R177.** A cost or latency comparison requires matching
 measurement scopes and complete values in both arms; it includes technical
 failures when those measurements are known.
-<!-- from: 26#57 -->
 
 **EVF-R178.** Excluded counts and observed partial values are
 reported separately.
-<!-- from: 26#57 -->
 
 **EVF-R179.** p50 and p90 use the nearest rank `ceil(p * n)` of
 the sorted values for n > 0, otherwise null.
-<!-- from: 26#57 -->
 
 **EVF-R180.** Totals always state the covered member count; incomplete
 totals cannot support a cost-saving conclusion.
-<!-- from: 26#57 -->
 
 **EVF-R181.** Any confidence calculation records its method and
 sample size. A small pilot makes no default claim of statistical
 significance.
-<!-- from: 26#57 -->
 
 ### Contractor Workflow mode
 
 **EVF-R182.** Workflow mode reuses evaluation Projects and
 `POST /v1/projects/{project_id}/runs` ([Projects](../artifacts/projects.md),
 PRJ-R22).
-<!-- from: 26#58 -->
 
 **EVF-R183.** Both variants use the same exact input bytes, with
 distinct immutable Workflow or AgentTemplate versions where instructions
 change.
-<!-- from: 26#58 -->
 
 **EVF-R184.** Upload and source reuse must resolve and verify exact
 revisions; a versionless ref after a create-only conflict is insufficient
 (FAIL-EVF-7). The existing `put_exact_project_artifact` helper provides the
 basis for that check.
-<!-- from: 26#58 -->
 
 **EVF-R185.** The adapter labels each Run with `purpose=eval`,
 `eval.name`, `eval.id`, `eval.leg`, `eval.fixture`, `eval.case` and
 `eval.sample` ([Managed Evals](managed-evals.md), EVM-R15); label values
 follow the server's bounds ([Runs](../execution/runs.md)).
-<!-- from: 26#59 -->
 
 **EVF-R186.** Labels are indexes, not uniqueness, execution
 configuration, score storage or authority.
-<!-- from: 26#59 -->
 
 **EVF-R187.** The adapter follows every page and uses authoritative
 receipts for membership.
-<!-- from: 26#59 -->
 
 **EVF-R188.** Sample outputs come from the exact RunScope outputs
 ([ArtifactStore](../artifacts/artifact-store.md)). The Project
 `outputs/<slot>` binding is a create-only publication convenience and does not
 identify each sample's output.
-<!-- from: 26#59 -->
 
 ### Contractor Audit mode
 
@@ -1099,109 +919,87 @@ identify each sample's output.
 observe APIs and the real importer. It does not forge trusted task or manifest
 inputs or bypass the Audit controller ([Audit
 execution](../audits/execution.md)).
-<!-- from: 26#60 -->
 
 **EVF-R190.** The adapter collects every item and child Run page
 and maps normalized item keys to authoritative Audit refs.
-<!-- from: 26#60 -->
 
 **EVF-R191.** The existing stable-subject and ordinal matching is
 preserved; a scorer does not replicate Contractor's canonical operation-key
 algorithm.
-<!-- from: 26#60 -->
 
 **EVF-R192.** If child eval labels are unavailable, the adapter
 uses receipt membership; label propagation is not a prerequisite.
-<!-- from: 26#60 -->
 
 **EVF-R193.** The existing Audit runner Project-kind behaviour is
 retained where required. An evaluation Project may index its references
 without pretending that the child Runs have a different membership.
-<!-- from: 26#60 -->
 
 **EVF-R194.** Historical `audit-results@1` samples and current
 `audit-results@2` completion samples belong to separate experiments.
-<!-- from: 26#60 -->
 
 **EVF-R195.** `audit-results@1` is unavailable. New live
 experiments must use the current completion contract and repin both
 comparison arms.
-<!-- from: 26#60 -->
 
 ### Publication
 
 **EVF-R196.** The publisher takes an explicit allowlisted
 projection, not a raw `asdict` of private records.
-<!-- from: 26#61 -->
 
 **EVF-R197.** The publisher writes schema-versioned JSON or
 Markdown to non-reserved namespaces, such as `eval-manifests`,
 `eval-results`, `eval-assessments` and `eval-comparisons`, using the existing
 owner Project artifact APIs ([ArtifactStore](../artifacts/artifact-store.md)).
-<!-- from: 26#61 -->
 
 **EVF-R198.** A publication must omit expected-data refs, paths and
 bytes, secret-bearing requests and locators, credentials and raw private
 bindings. Source, result and config digests, safe judgments and exact public
 execution refs may remain.
-<!-- from: 26#61 -->
 
 **EVF-R199.** A projection has its own digest and a
 `source_record_sha256` linking it to the private record; it does not claim
 identical bytes when fields were removed.
-<!-- from: 26#61 -->
 
 **EVF-R200.** Publication uses content-addressed create-only
 artifact names within the server limits.
-<!-- from: 26#62 -->
 
 **EVF-R201.** After a conflict, exact replay verifies bytes, digest
 and media type; a different body at the same name fails explicitly
 (FAIL-EVF-8).
-<!-- from: 26#62 -->
 
 **EVF-R202.** A per-experiment index may advance with exact revision
 CAS ([ArtifactStore](../artifacts/artifact-store.md), ART-R58) after all
 referenced records are durable.
-<!-- from: 26#62 -->
 
 **EVF-R203.** A lost write response is reconciled, not blindly
 retried with a new logical identity (FAIL-EVF-8).
-<!-- from: 26#62 -->
 
 **EVF-R204.** A publication failure leaves valid local results and a
 pending receipt; publication resumes without repeating model execution
 (FAIL-EVF-8).
-<!-- from: 26#62 -->
 
 **EVF-R205.** Publication is not score acceptance or execution
 completion.
-<!-- from: 26#62 -->
 
 **EVF-R206.** The existing owner isolation, deletion and
 retention rules ([Retention and
 deletion](../artifacts/retention-and-deletion.md)) apply to all published
 Project artifacts (LIFE-EVF-1).
-<!-- from: 26#63 -->
 
 **EVF-R207.** Deleted or unavailable evidence makes a later
 comparison explicitly incomplete; a cached score cannot silently recreate
 proof.
-<!-- from: 26#63 -->
 
 ### v1 compatibility
 
 **EVF-R208.** v1 suites and result files remain readable.
-<!-- from: 26#4 -->
 
 **EVF-R209.** Converters are local, deterministic and side-effect
 free.
-<!-- from: 26#64 -->
 
 **EVF-R210.** Converters preserve the original bytes and their
 digest; a v1 file is never overwritten in place and its score is never
 silently changed (LIFE-EVF-5).
-<!-- from: 26#64 -->
 
 **EVF-R211.** Existing data is handled as follows:
 
@@ -1214,27 +1012,21 @@ silently changed (LIFE-EVF-5).
 | v1 `outcome` (`passed` or `failed`) and scalar score | Preserve as a legacy assessment, not inferred provider success/failure |
 | v1 `harness_error` | Diagnostic/legacy evaluator error, provider execution state unknown unless independently evidenced |
 | Missing experiment/sample/usage/pins | Explicit unknown/legacy-unpaired; never derive sample identity from timestamps, array order or a random local run ID |
-<!-- from: 26#65 -->
 
 A v1 result records its outcome as `outcome=passed|failed`.
-<!-- from: 26#65 -->
 
 **EVF-R212.** Legacy records can be displayed and scored under their
 legacy provenance, but cannot enter a strict paired A/B without an explicit
 member association backed by receipts and the required pins.
-<!-- from: 26#66 -->
 
 **EVF-R213.** An operator-supplied association is a new, attributed
 record, never an unnoticed migration guess.
-<!-- from: 26#66 -->
 
 **EVF-R214.** Existing CLI commands remain usable through the
 compatibility path.
-<!-- from: 26#66 -->
 
 **EVF-R215.** Unsupported legacy extension data is retained
 privately and reported as such rather than lost or guessed.
-<!-- from: 26#66 -->
 
 ### Command line
 
@@ -1254,16 +1046,13 @@ The `playground-eval experiment` command group provides:
   publish or resume safe projections; `--initialize-local` explicitly
   initializes a local publication target. Connections remain
   environment-local.
-<!-- from: 26#74, 26#75 -->
 
 **EVF-R221.** `validate` checks the existing catalogs and v2 format
 documents.
-<!-- from: 26#79 -->
 
 **EVF-R222.** Invalid plans, missing required live settings and
 incompatible schemas fail explicitly; an explicitly requested execution cannot
 silently skip and pass.
-<!-- from: 26#79 -->
 
 ### Diagnostics
 
@@ -1273,16 +1062,13 @@ silently skip and pass.
 `member_conflict`, `output_missing`, `output_invalid`, `scorer_error`,
 `usage_incomplete` and `publication_conflict`. The codes are stable; bounded
 explanatory text is not a machine-readable matching contract.
-<!-- from: 26#72 -->
 
 ### Conformance
 
 **EVF-R224.** Format validation and the pre-live gate use recorded
 targets and deterministic stubs, not model-driven target campaigns.
-<!-- from: 26#41 -->
 
 The conformance fixtures freeze these failure behaviours:
-<!-- from: 26#70 -->
 
 - **EVF-R226.** Partial launch: resume verifies the immutable plan
   and journal and submits only the unsubmitted member, preserving all
@@ -1317,7 +1103,6 @@ The conformance fixtures freeze these failure behaviours:
 - **EVF-R235.** Local observation timeout: the remote running or
   unknown state and the cancel receipt are retained; the evaluator never
   asserts that the remote action was undone or stopped (FAIL-EVF-3).
-<!-- from: 26#71 -->
 
 ## Interfaces
 
@@ -1337,7 +1122,6 @@ Document requirements: EVF-R36, EVF-R45,
 EVF-R54, EVF-R70, EVF-R80,
 EVF-R106, EVF-R124, EVF-R149,
 EVF-R162.
-<!-- from: 26#9 -->
 
 | Interface | Requirements |
 | --- | --- |
@@ -1347,7 +1131,6 @@ EVF-R162.
 | Contractor Workflow mode: `POST /v1/projects/{project_id}/runs` | EVF-R182 |
 | Contractor Audit mode: Audit create, start and observe APIs | EVF-R189 |
 | Publication to owner Project artifact APIs | EVF-R197 |
-<!-- from: 26#27, 26#58, 26#60, 26#61, 26#75, 26#79 -->
 
 ## Limits, failures and errors
 
@@ -1409,14 +1192,12 @@ Registry entries owned by this document:
   (EVF-R121).
 - [LIFE-EVF-7](../platform/lifecycle.md): the experiment bundle
   (EVF-R101).
-<!-- from: 26#13, 26#15, 26#22, 26#25, 26#31, 26#34, 26#37, 26#38, 26#39, 26#40, 26#41, 26#43, 26#45, 26#51, 26#58, 26#62, 26#63, 26#64, 26#71 -->
 
 Error and stop codes owned by this document
 ([registry](../platform/errors.md)) are the core diagnostics of
 EVF-R223. `schema_version_unsupported` is stated by
 EVF-R13, `submission_unknown` by EVF-R113 and
 `pin_mismatch` by EVF-R231.
-<!-- from: 26#10, 26#39, 26#71, 26#72 -->
 
 ## Security
 
@@ -1432,7 +1213,6 @@ projections (EVF-R196, EVF-R198, EVF-R199); and
 Audit mode that neither forges trusted inputs nor bypasses the Audit
 controller (EVF-R189). The shared model is in
 [security](../platform/security.md).
-<!-- from: 26#9, 26#11, 26#18, 26#19, 26#23, 26#28, 26#36, 26#38, 26#60, 26#61, 26#71 -->
 
 ## Examples
 
@@ -1442,7 +1222,6 @@ Illustrative data, not a runnable benchmark: suite `trace-small`, cases
 `unsafe-query` and `safe-query`, two samples, variants `a` and `b`. The frozen
 matrix has 8 members. Source, scorer, model, tools and Skills match;
 instructions differ.
-<!-- from: 26#67 -->
 
 | Case | Sample | A | B |
 | --- | ---: | --- | --- |
@@ -1450,7 +1229,6 @@ instructions differ.
 | unsafe-query | 2 | succeeded, quality pass, 100 tokens | not submitted after client interruption |
 | safe-query | 1 | succeeded, quality pass, 50 tokens | succeeded, quality fail (false positive), usage unavailable |
 | safe-query | 2 | failed, not scored, 45 tokens | succeeded, quality pass, 60 tokens |
-<!-- from: 26#68 -->
 
 Expected per arm is 4. A has 4 submitted/terminal, 3 scored/passed, and
 execution success and end-to-end pass of 3/4. B has 3
@@ -1461,18 +1239,14 @@ execution observations, 2 with fully scored quality, and 2 with complete
 comparable token usage (unsafe-query sample 1, safe-query sample 2). B's
 observed token sum 130 covers only 2 of 4 expected members; it is not evidence
 of lower total experiment cost. The overall conclusion remains inconclusive.
-<!-- from: 26#69 -->
 
 ## Non-goals
 
 - Assessment is available through the Python API; a generic assessment CLI is
   not part of this contract.
-  <!-- from: 26#76 -->
 - Reconstructing an experiment bundle from server labels or artifacts is
   unsupported, and shared-machine distributed writers of one bundle are out
   of scope.
-  <!-- from: 26#37 -->
 - The portable format has no Server eval endpoint or global aggregate query of
   its own; native Server execution, assessment and comparison belong to
   [Managed Evals](managed-evals.md).
-  <!-- from: 26#63 -->

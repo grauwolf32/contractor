@@ -55,7 +55,6 @@ It leaves to other documents:
 - Run pages, the Queue and Completed views, including the Completed view's
   `lifecycle=terminal` filter, and the Run form: [UI](../ui/ui.md).
 - The end-to-end path of one Run: [Overview](../overview.md).
-<!-- from: 00#7, 00#9, 00#26, 00#31, 00#33, 07#69, 00#47, 00#54, 00#80, 00#91, 00#113, 04#67, 06#16, 06#104, 06#128, 16#23, 16#27, 16#31, 17#19, 18#7, 20#8, readme#12 -->
 
 ## Concepts
 
@@ -82,7 +81,6 @@ document owns are:
 This document also uses Runtime labels, the `runtimeLabels` names a Run selects
 to pin RuntimeConfig bindings; that term is owned by
 [RuntimeConfig](../configuration/runtime-config.md).
-<!-- from: 00#7, 03#60, 17#4, 00#9, 00#51, 16#1, 16#4, 00#125, 04#4, 00#121, 00#122, 04#31, 04#32, 06#43, 06#44, 04#70 -->
 
 ## Model
 
@@ -103,7 +101,6 @@ One Workflow invocation creates one WorkflowRun. A Run durably records:
 - a WorkflowRunError while `failed`, and a WorkflowRunCancellation while
   `cancelling` or `cancelled`;
 - the repeat-request fragment (RUN-R99).
-<!-- from: 00#7, 00#123, 17#22, 04#4, 04#31, 00#122, 06#44 -->
 
 ### Run lifecycle
 
@@ -118,7 +115,6 @@ initializing -> pending -> running -> succeeded
 initializing / pending / running / waiting -> failed
 initializing / pending / running / waiting -> cancelling -> cancelled
 ```
-<!-- from: 00#119, 00#120, readme#12 -->
 
 Manual continuation adds the one transition out of `failed`:
 
@@ -143,7 +139,6 @@ stateDiagram-v2
     succeeded --> [*]
     cancelled --> [*]
 ```
-<!-- from: 00#120, 00#123, 00#124, 00#130, 04#4, 04#5, 04#31 -->
 
 | State | Meaning |
 | --- | --- |
@@ -153,7 +148,6 @@ stateDiagram-v2
 | `waiting` | The current invocation waits for recovery of its model route (RUN-R30). |
 | `cancelling` | Cancellation intent is durable (RUN-R42). |
 | `succeeded`, `cancelled`, `failed` | Terminal states (RUN-R39). |
-<!-- from: 00#123, 04#5 -->
 
 ### Error and cancellation records
 
@@ -170,7 +164,6 @@ class WorkflowRunCancellation(BaseModel):
     requested_by: str | None = None
     reason: str | None = None
 ```
-<!-- from: 00#121 -->
 
 ### Create-Run request
 
@@ -183,7 +176,6 @@ class WorkflowRunCancellation(BaseModel):
 | `labels` | optional key/value string map | Metadata labels | this document |
 | `executionConfig` | optional top-level object with the `planner`/`workers`/`stages` shape | Reference-only execution override | [AgentTemplates](../configuration/agent-templates.md) |
 | `Idempotency-Key` header | exactly one bounded key | Create idempotency | this document; header conventions in [Public API](../api/public-api.md) |
-<!-- from: 00#26, 00#51, 00#125, 07#67, 07#68, 07#130, 16#7, 16#8, 00#113, 03#62 -->
 
 ### Two label domains
 
@@ -193,7 +185,6 @@ There are two deliberately separate label domains:
 | --- | --- | --- |
 | `runtimeLabels` | sorted unique array of names | Selects and pins RuntimeConfig bindings such as `debug` or `caido` under [RuntimeConfig](../configuration/runtime-config.md) |
 | `labels` | key/value string map | Immutable metadata describing one WorkflowRun |
-<!-- from: 16#3, 16#4, 16#1 -->
 
 ### Run creation
 
@@ -206,7 +197,6 @@ flowchart TD
     LOOK -->|"none"| TX["one transaction: lock and resolve default and selected Runtime-label bindings, credentials and Skill sources; store Run, key and digest, execution configuration, Runtime-label pins, metadata labels, input forks, Skill selection outcome, repeat-request fragment"]
     TX --> INIT["Run initialization commits pending"]
 ```
-<!-- from: 00#32, 00#125, 07#69, 07#70, 16#15, 16#16, 06#44, 09#52, 04#4 -->
 
 ## Requirements
 
@@ -216,27 +206,22 @@ flowchart TD
 `parameters` mapping, `artifacts` input bindings, an optional top-level
 `runtimeLabels` array, an optional `labels` map and an optional top-level
 reference-only `executionConfig` override.
-<!-- from: 00#26, 00#33, 00#125, 07#67, 16#7 -->
 
 **RUN-R2.** At Run creation `WorkflowCatalog` resolves the Workflow selector
 to the exact Workflow document it names
 ([Configuration catalog](../configuration/catalog.md)).
-<!-- from: 00#47 -->
 
 **RUN-R3.** For a required Workflow input the Run request must supply a
 binding; an optional input may be absent. The source scope, version selection,
 media-type validation and fork of each supplied input follow
 [ART-R74 to ART-R79](../artifacts/artifact-store.md).
-<!-- from: 00#106, 00#113, 03#62, 03#65 -->
 
 **RUN-R4.** `executionConfig` is the reference-only override specified by
 [TPL-R70, TPL-R76 and TPL-R77](../configuration/agent-templates.md).
-<!-- from: 00#26, 06#59, 06#104 -->
 
 **RUN-R5.** A caller may select only published configurations
 it is authorized to use. The single-owner UI exposes all active published
 configurations.
-<!-- from: 00#32 -->
 
 **RUN-R6.** `runtimeLabels` is one optional top-level array of
 Runtime label names and is sorted and unique in the canonical request. A
@@ -248,72 +233,60 @@ digest and non-secret credential ref, and stores that snapshot in the same
 transaction as the Run. The row lock order of those bindings is specified in
 [RCF-R134](../configuration/runtime-config.md), and their merge precedence in
 [RuntimeConfig](../configuration/runtime-config.md).
-<!-- from: 00#33, 07#67, 07#69, 07#130 -->
 
 **RUN-R7.** The public Runtime-label field is `runtimeLabels`.
 Server must not accept a Runtime-label array and the metadata map under one
 overloaded `labels` field.
-<!-- from: 16#6 -->
 
 **RUN-R8.** Server, UI and bundled clients are upgraded together.
 Durable RuntimeConfig snapshot tables and refs carry no dependency on the
 public field name. Incompatible public changes follow the API-version rule of
 the [Public API](../api/public-api.md).
-<!-- from: 16#6 -->
 
 **RUN-R9.** A WorkflowRun may be created without a Project; such a
 Run is standalone, and Server creates no default Project for it
 ([PRJ-R1](../artifacts/projects.md)). A Project Run is created through
 `POST /v1/projects/{project_id}/runs` with the ordinary create-Run body and
 idempotency header ([PRJ-R22, PRJ-R97](../artifacts/projects.md)).
-<!-- from: 17#4, 17#19, 17#22 -->
 
 ### Workflow parameters
 
 **RUN-R10.** The Run request supplies Workflow parameters as a string
 mapping, separately from its artifact-slot bindings.
-<!-- from: 00#51 -->
 
 **RUN-R11.** Before the Run becomes schedulable, Server must reject
 missing required parameters, unknown names and every non-string value,
 including numbers, booleans, arrays, objects and null.
-<!-- from: 00#53 -->
 
 **RUN-R12.** Server performs no coercion, trimming,
 interpolation or structured parsing of parameters. An empty string is a valid
 supplied string.
-<!-- from: 00#53 -->
 
 **RUN-R13.** The exact validated mapping is stored durably with the
 Run and is immutable for its lifetime (LIFE-RUN-1). Retrying a Stage does not
 re-read or modify it. How Planners receive the mapping is specified in
 [Planners](planners.md).
-<!-- from: 00#53, 00#54 -->
 
 **RUN-R14.** In `v1alpha1` no separate count, name-length,
 value-length or total-size limit applies to string parameters. The Run request
 as a whole is bounded by the public JSON request limit of the
 [Public API](../api/public-api.md), and the validated mapping is stored as
 ordinary Run data within that bound.
-<!-- from: 00#55 -->
 
 **RUN-R15.** Parameters are ordinary persisted Run data, not a
 secret channel. Callers must not place credentials or provider tokens in them;
 deployment and allocation-scoped secrets enter Runtime Agent only through
 `RuntimeSettings`.
-<!-- from: 00#56 -->
 
 **RUN-R16.** Structured, repeated or binary input belongs in a
 declared Workflow artifact slot, using an appropriate media type such as
 `application/json`, rather than inside the parameter contract. Contractor does
 not inspect a string merely because its contents happen to resemble JSON.
-<!-- from: 00#56 -->
 
 ### Create idempotency
 
 **RUN-R17.** Public `POST /v1/runs` requires exactly one bounded
 `Idempotency-Key` (LIM-RUN-1).
-<!-- from: 00#125 -->
 
 **RUN-R18.** Server binds the key to the authenticated owner and a
 canonical digest of the validated request. The validated request includes the
@@ -323,7 +296,6 @@ override. The digest includes the supplied executionConfig selectors, the
 sorted explicit `runtimeLabels` list and, independently of that list, the
 complete metadata-label map sorted by key. The pinned `default` RuntimeConfig
 binding is a resolved dependency rather than caller input.
-<!-- from: 00#32, 00#125, 07#69, 16#16 -->
 
 **RUN-R19.** An already committed `(owner, idempotency key)` is
 looked up and its digest compared before Server resolves any mutable Workflow
@@ -331,23 +303,19 @@ dependency, such as a managed credential or a current Runtime-label binding,
 including `default` (FAIL-RUN-1). An exact replay therefore returns the
 existing Run, with its original labels, even if such a dependency was later
 deleted.
-<!-- from: 00#32, 07#69, 07#70, 16#16 -->
 
 **RUN-R20.** A retry with the same owner, key and digest returns the
 existing Run and does not repeat label or Skill resolution, input forks or
 Scheduler notification (FAIL-RUN-1). Skill replay behaviour is specified in
 [Skills](../tools/skills.md).
-<!-- from: 00#125, 09#57 -->
 
 **RUN-R21.** Reusing the key with a different digest is a
 conflict, including a changed label key or value when Workflow inputs and
 executionConfig are otherwise equal. The original Run is unchanged
 (FAIL-RUN-1).
-<!-- from: 00#125, 16#16, 16#35 -->
 
 Rationale: losing the successful HTTP response cannot create a second
 WorkflowRun or semantic execution.
-<!-- from: 00#125 -->
 
 ### Run creation transaction and snapshot
 
@@ -358,7 +326,6 @@ forks and the complete Agent Skill current-source selection outcome commit in
 one transaction. A committed Run therefore never exists with a partially
 stored label set. A transient Skill-selection failure aborts Run creation
 ([Skills](../tools/skills.md)).
-<!-- from: 00#125, 16#15, 09#52 -->
 
 **RUN-R23.** Creating a Run stores the complete validated and
 dependency-resolved Workflow snapshot specified by
@@ -366,7 +333,6 @@ dependency-resolved Workflow snapshot specified by
 session mode ([Workflows](../configuration/workflows.md)). What execution
 configuration the snapshot holds, and that it never holds secret bytes, is
 specified in [AgentTemplates](../configuration/agent-templates.md).
-<!-- from: 00#9, 00#31, 00#80, 00#91, 01#95 -->
 
 **RUN-R24.** The durable Run snapshot, rather than later configuration edits
 or UI state, is the execution authority for its Run, within the Runtime-label
@@ -376,12 +342,10 @@ its AgentTemplate from the snapshot rather than from a fresh catalog lookup.
 That no separately computed Workflow digest exists and that Scheduler never
 consults configuration files to reinterpret the Run are specified in
 [CAT-R34, CAT-R35](../configuration/catalog.md).
-<!-- from: 00#9, 00#31, 00#47, 01#95 -->
 
 **RUN-R25.** Metrics and audit records identify the effective
 ModelPolicy, LLMGatewayConfig and credential refs of a Run, so consumption can
 be grouped without exposing a token.
-<!-- from: 00#32 -->
 
 ### Run initialization
 
@@ -389,13 +353,11 @@ be grouped without exposing a token.
 Stage is selected until every input fork succeeds and its exact source version
 is recorded ([ART-R78](../artifacts/artifact-store.md)); a partially
 initialized Run is never schedulable.
-<!-- from: 00#123, 00#113, 03#65, 09#57 -->
 
 **RUN-R27.** An initialization error moves the Run to `failed` with a
 stable error and no StageExecution (FAIL-RUN-2). Missing or invalid current
 Agent Skill packages fail that Run's initialization; a committed missing-source
 result fails it with `skill_artifact_not_found` ([Skills](../tools/skills.md)).
-<!-- from: 00#124, 00#49, 09#52 -->
 
 ### Admission and the waiting state
 
@@ -404,17 +366,14 @@ sets `running` and the Run's first `started_at`. Each Stage records its own
 `admitted_at`, which starts that Stage's wall-clock budget, so a queued Stage
 can wait for capacity without consuming its execution deadline
 ([Scheduler](scheduler.md)).
-<!-- from: 04#4 -->
 
 **RUN-R29.** Admission, cancellation and finalization share Run-first
 transaction locking.
-<!-- from: 04#4 -->
 
 **RUN-R30.** A live invocation waiting for model availability sets its
 Run to `waiting`. `waiting` is an active state: leases, cancellation,
 retention, credentials, queue and Audit and eval reconciliation must treat it
 as non-terminal.
-<!-- from: 04#5 -->
 
 **RUN-R31.** While the Run is `waiting`, the StageExecution
 retains its existing lifecycle state and invocation identity. Runtime and
@@ -422,17 +381,14 @@ modeled Planner clients retry only the interrupted model request, with the
 same serialized input; tools and findings already produced by the invocation
 are not replayed (FAIL-RUN-3). The recovery gate itself is specified in
 [Scheduler](scheduler.md).
-<!-- from: 04#5 -->
 
 **RUN-R32.** Public `RunStatus.recovery` contains a safe cause and
 timing and whether a manual retry is required.
-<!-- from: 04#10 -->
 
 **RUN-R33.** `POST /v1/runs/{runId}/retry-gateway` is
 owner-scoped and preserves the current invocation. Local recovery settings are
 described in the
 [local stack guide](../../guides/local-stack.md#model-availability-and-queued-runs).
-<!-- from: 04#10 -->
 
 ### Run success
 
@@ -445,7 +401,6 @@ following are true:
 - the corresponding `outputs/<slot name>` bindings are created and frozen.
 
 An optional Workflow output may remain absent.
-<!-- from: 00#126, 00#127, 00#107 -->
 
 **RUN-R35.** Accepting the StageResult that causes success, applying
 its Workflow-output mapping, freezing all required outputs and changing
@@ -453,54 +408,45 @@ its Workflow-output mapping, freezing all required outputs and changing
 ([ART-R92](../artifacts/artifact-store.md), FAIL-ART-6). Frozen Run outputs are
 never implicitly published or overwritten in UserScope
 ([ART-R95](../artifacts/artifact-store.md)).
-<!-- from: 00#128, 03#67 -->
 
 ### Run failure
 
 **RUN-R36.** `failed` requires a WorkflowRunError.
-<!-- from: 00#122 -->
 
 **RUN-R37.** Run failure is committed with a stable machine-readable
 error when Workflow policy explicitly selects failure, retry and escalation
 paths are exhausted, Run initialization fails, or the graph is quiescent
 without a valid successful terminal transition. Graph exhaustion with a
 missing required output is `failed`, not an indefinitely running Run.
-<!-- from: 00#129 -->
 
 **RUN-R38.** Scheduler executes at most one StageExecution at a time per
 WorkflowRun (LIM-SCH-1, [Scheduler](scheduler.md)), so a policy-selected
 failure is committed only after that execution is terminal. Any future
 parallel-Stage scheduling inside one Run must add a bounded failure-drain state
 before allowing other active executions.
-<!-- from: 00#129, 20#8 -->
 
 **RUN-R39.** `succeeded` and `cancelled` are immutable terminal
 states. `failed` is terminal unless the owner explicitly continues an eligible
 Run (RUN-R46).
-<!-- from: 00#123 -->
 
 ### Cancellation
 
 **RUN-R40.** `cancelling` and `cancelled` require the same
 immutable WorkflowRunCancellation, recorded by the winning cancel request.
-<!-- from: 00#122, 00#121 -->
 
 **RUN-R41.** Cancellation is accepted from `initializing`,
 `pending`, `running` or `waiting` by compare-and-set. Repeating cancellation is
 idempotent; cancellation of any terminal Run returns that existing terminal
 state without mutation (FAIL-RUN-4).
-<!-- from: 00#124 -->
 
 **RUN-R42.** While a Run is `cancelling`, no new StageExecution or
 Workflow-output mapping is allowed, and active executions are stopped through
 their bounded `aborting` path unless they already entered `finalizing`.
-<!-- from: 00#123 -->
 
 **RUN-R43.** `cancelling -> cancelled` occurs after all active
 StageExecutions are terminal and their Server-side routes and grants are
 released or durably fenced. An unreachable Runtime Agent cannot keep the Run in
 `cancelling` after its bounded Stage abort deadline (FAIL-RUN-4).
-<!-- from: 00#130 -->
 
 **RUN-R44.** Run cancellation and successful progression serialize on the
 WorkflowRun row:
@@ -514,12 +460,10 @@ WorkflowRun row:
   nor creates its Workflow output bindings;
 - a StageExecution still in `preparing` or `running` enters `aborting` with a
   cancelled StageTermination.
-<!-- from: 00#131, 00#132, readme#12 -->
 
 **RUN-R45.** The terminal transition that commits first is
 authoritative; message arrival time and volatile Planner state do not determine
 the winner.
-<!-- from: 00#133, readme#12 -->
 
 ### Manual continuation of a failed Run
 
@@ -528,7 +472,6 @@ from its latest `failed` or `interrupted` StageExecution after every allocation
 is released, through `POST /v1/runs/{runId}/resume`. Continuation is not a
 mutation of a terminal StageExecution and does not revive it or replay its
 Planner session.
-<!-- from: 04#31, 00#123 -->
 
 **RUN-R47.** One transaction changes the Run from `failed` to
 `pending`, clears its finish time, creates a new `preparing` attempt of the
@@ -536,7 +479,6 @@ same Stage, records a durable manual-continuation receipt and unfreezes the
 Run's `outputs` bindings without changing their current revisions, so later
 Scheduler publication may advance them
 ([ART-R97](../artifacts/artifact-store.md)).
-<!-- from: 04#31, 00#123, 03#68 -->
 
 **RUN-R48.** The new attempt increments `attempt`, links
 `previousExecutionId` and copies the failed attempt's exact StageSpec,
@@ -544,63 +486,52 @@ StageContext pins and effective execution configuration, including escalation.
 It records an immutable `resumeSourceExecutionId` equal to its
 `previousExecutionId`, retains the source's execution configuration variant
 and escalation ordinal, and is linked to its receipt in the same transaction.
-<!-- from: 04#31, 04#32 -->
 
 **RUN-R49.** Manual continuation leaves Run configuration,
 exact input and configuration pins, completed StageExecutions, successful
 Stages, accepted results and existing artifact revisions unchanged. The
 original automatic `fail` transition decision remains immutable.
-<!-- from: 04#31, 04#32, 00#123 -->
 
 **RUN-R50.** The manual-continuation receipt is unique per source
 execution. Repeating the same request returns the same target even if that
 target has already failed; another manual attempt must name that newer failed
 execution (FAIL-RUN-5).
-<!-- from: 04#32 -->
 
 **RUN-R51.** Manual continuation does not reset automatic retry
 or escalation counters. Only original automatic escalation attempts consume
 escalation ordinal positions; manual attempts neither create nor reset that
 budget. The new attempt still increments the overall attempt number used by
 retry limits.
-<!-- from: 04#32 -->
 
 **RUN-R52.** Continuation is unavailable for initialization
 failures with no failed Stage, cancelled or succeeded Runs, incomplete cleanup,
 deleting Projects, already-published outputs, Audit-managed Runs and
 evaluation Runs (FAIL-RUN-5). Audit-managed and evaluation Runs retain their
 controller-owned lifecycle.
-<!-- from: 04#33, 03#68 -->
 
 **RUN-R53.** A continued Run's admission still follows the
 owner's Queue pause and the normal Scheduler capacity limits
 ([Scheduler](scheduler.md)).
-<!-- from: 04#33 -->
 
 **RUN-R54.** At most 1,024 attempts remain representable
 (LIM-RUN-2).
-<!-- from: 04#33 -->
 
 **RUN-R55.** `RunStatus.resumeStageExecutionId` exposes
 eligibility; a client must take eligibility from it, not infer it from `state`
 alone.
-<!-- from: 06#42 -->
 
 **RUN-R56.** `POST /v1/runs/{runId}/resume` takes the expected
 `stageExecutionId`, which doubles as the durable idempotency identity. The
 response identifies the original and the new attempts.
-<!-- from: 06#42 -->
 
 **RUN-R57.** For an eligible failed Run the Run detail page offers
 **Continue from failed stage**, with an explicit confirmation that names the
 Stage and warns that model and tool calls, including external side effects,
 will repeat. After the request the UI refreshes the Run, Queue and Project
 queries without optimistically changing lifecycle state.
-<!-- from: 06#42, 04#32 -->
 
 Rationale: a new attempt repeats model and tool work and can repeat external
 side effects, so the UI asks for confirmation.
-<!-- from: 04#32 -->
 
 ```mermaid
 sequenceDiagram
@@ -614,14 +545,12 @@ sequenceDiagram
     UI->>S: refetch Run, Queue and Project queries
     Note over S: admission follows the owner Queue pause and Scheduler capacity
 ```
-<!-- from: 04#31, 04#32, 04#33, 06#42 -->
 
 ### Metadata labels
 
 **RUN-R58.** `POST /v1/runs` accepts the metadata `labels` map
 independently of `runtimeLabels`. Labels are used only to identify, group and
 query concrete Runs.
-<!-- from: 00#34, 16#7 -->
 
 Rationale: the first motivating use is evaluation. One eval invocation may
 create many ordinary WorkflowRuns for fixtures, cases, repeated samples and A/B
@@ -630,105 +559,84 @@ introducing a second execution path into Scheduler. The Evals UI may organize
 these Runs in an `evaluation` Project ([Projects](../artifacts/projects.md));
 this remains an owner-facing grouping and does not alter the generic label or
 execution contract.
-<!-- from: 16#2 -->
 
 **RUN-R59.** Runtime labels may change infrastructure
 resolution. Metadata labels never change Workflow semantics, configuration
 resolution, Scheduler eligibility, queue priority, placement, Runtime
 capabilities, authorization, budgets, tools, Skills, model selection or
 artifact access.
-<!-- from: 00#34, 16#5 -->
 
 **RUN-R60.** Omitting `labels` is equivalent to an empty map.
 Explicit `null`, an array or non-string values are invalid.
-<!-- from: 16#9 -->
 
 **RUN-R61.** A label map has at most 32 entries (LIM-RUN-3).
-<!-- from: 16#10 -->
 
 **RUN-R62.** A key is 1–63 ASCII bytes (LIM-RUN-4) and matches:
 
 ```text
 [a-z][a-z0-9]*(?:[._-][a-z0-9]+)*
 ```
-<!-- from: 16#10, 16#11 -->
 
 **RUN-R63.** A value is UTF-8 of at most 256 bytes after JSON
 decoding (LIM-RUN-5). An empty string is valid and represents a key-only label;
 an empty-valued label is distinct from an absent key, including in exact
 filters and idempotency identity.
-<!-- from: 16#12 -->
 
 **RUN-R64.** A value must not contain U+0000.
-<!-- from: 16#12 -->
 
 Rationale: U+0000 has no PostgreSQL `text` representation.
-<!-- from: 16#12 -->
 
 **RUN-R65.** Values are opaque: they may contain paths, spaces or
 punctuation, and Server performs no case folding or semantic parsing.
-<!-- from: 16#12 -->
 
 **RUN-R66.** The `contractor.` key prefix is reserved for future
 Server-owned keys; caller-supplied keys in that namespace are rejected.
-<!-- from: 16#12 -->
 
 **RUN-R67.** The strict request decoder rejects duplicate JSON object
 keys rather than resolving them by last-value-wins behaviour.
-<!-- from: 16#12 -->
 
 **RUN-R68.** A label key or value with an invalid shape or bounds,
 or a reserved caller key, fails Run creation with `400`; no Run, input fork or
 label row is created (FAIL-RUN-1).
-<!-- from: 16#35 -->
 
 **RUN-R69.** Labels are safe metadata, not a secret container. A
 caller must not place credentials, tokens, prompts, source excerpts or other
 confidential payloads in them. Server does not promise value redaction after
 accepting a label.
-<!-- from: 16#13 -->
 
 Rationale: Server cannot reliably infer secrecy from arbitrary text.
-<!-- from: 16#13 -->
 
 **RUN-R70.** The normalized metadata-label map is immutable for
 the complete WorkflowRun lifetime; there is no endpoint to add, replace or
 delete a label.
-<!-- from: 16#14, 00#34 -->
 
 **RUN-R71.** Labels belong to the Run owner and follow owner
 isolation. They grant no access and are not trusted claims about the caller.
 Operations may display them, but neither Scheduler nor Control Plane
 authorizes behaviour from their contents.
-<!-- from: 16#17 -->
 
 **RUN-R72.** Metadata labels are durable first-class indexed
 data, not a substring encoded into `run_id`, a log field or an artifact name.
 Storage must enforce one value per `(run_id, key)` (LIM-RUN-6), the entry, key
 and value bounds, and atomic insertion with the Run.
-<!-- from: 16#18, 16#15 -->
 
 **RUN-R73.** Terminal retention of metadata labels follows the
 WorkflowRun retention policy (LIFE-RUN-2,
 [Retention and deletion](../artifacts/retention-and-deletion.md)).
-<!-- from: 16#18 -->
 
 **RUN-R74.** Successful Run-create, Run detail and Run list
 projections expose the complete normalized map. Lifecycle events carry
 `run_id` and do not repeat the full map in every event.
-<!-- from: 16#9, 06#119 -->
 
 **RUN-R75.** Generic Run label validation and Scheduler behaviour
 add no eval-specific branches. The eval convention over generic labels and
 managed eval membership are specified in
 [Managed Evals](../evals/managed-evals.md).
-<!-- from: 16#23 -->
 
 **RUN-R76.** The UI's label key/value editor and exact filters never
 share controls with RuntimeConfig selection. Conventional `eval.*` shortcuts
 are presentation over the generic label query and do not create an eval-only
 Server execution path.
-<!-- from: 06#119 -->
 
 **RUN-R77.** Planner and Worker traces may carry metadata labels
 as bounded attributes. The UI therefore treats label values as
@@ -739,7 +647,6 @@ specified in [Observability](../platform/observability.md); allocation replay
 identity in [Control Plane](control-plane.md). A telemetry exporter failure is
 a bounded best-effort telemetry failure; the semantic Run outcome is unchanged
 (FAIL-RUN-9).
-<!-- from: 06#120, 00#34, 04#67, 16#27, 16#28, 16#31, 16#35 -->
 
 ### Run collection queries
 
@@ -747,29 +654,24 @@ a bounded best-effort telemetry failure; the semantic Run outcome is unchanged
 `label` selector of the form `label=<key>=<value>`. The first `=` separates key
 from value; the remaining decoded characters belong to the value. Repeated
 selectors are a logical AND.
-<!-- from: 16#19, 16#20, 16#21 -->
 
 **RUN-R79.** Only exact key/value equality is supported: no
 existence, inequality, set, regex, prefix or OR syntax.
-<!-- from: 16#21 -->
 
 **RUN-R80.** An invalid selector fails the request with
 `400` and no partial interpretation; an unknown or unmatched pair returns an
 empty owner-scoped page (FAIL-RUN-6).
-<!-- from: 16#21, 16#35 -->
 
 **RUN-R81.** Label filtering composes with the existing owner,
 state and keyset-pagination constraints. Pagination remains stable
 newest-first and must neither leak foreign-owner labels nor produce duplicate
 Runs when a Run has several matching labels. The query must be index-backed
 rather than scan and deserialize every historical Run.
-<!-- from: 16#22 -->
 
 **RUN-R82.** The newest-first `/v1/runs` collection accepts the additive
 `lifecycle=terminal` filter that the Completed view uses. Its application
 before keyset pagination and its intersection with `state` and metadata-label
 filters are specified in [UI-R104, UI-R105](../ui/ui.md).
-<!-- from: 18#7 -->
 
 ### Run status and detail
 
@@ -777,7 +679,6 @@ filters are specified in [UI-R104, UI-R105](../ui/ui.md).
 labels and the pinned default and label config refs. What the successful
 response and detail surface show of those pins, and the secrets they never
 expose, is specified in [RCF-R168](../configuration/runtime-config.md).
-<!-- from: 07#130, 06#114 -->
 
 **RUN-R84.** Run detail exposes final Agent-label and config
 provenance only after an allocation snapshot commits; the public
@@ -788,7 +689,6 @@ pins, required RuntimeAdapter refs, closed field origins and
 physical Runtime Agent IDs, endpoints, credentials and the complete
 `RuntimeSettings`, and current Operations state is never joined into historical
 Run detail.
-<!-- from: 07#130 -->
 
 **RUN-R85.** The stable errors of the Runtime-label API
 contract, including Run creation with `runtimeLabels`, include
@@ -799,26 +699,21 @@ contract, including Run creation with `runtimeLabels`, include
 precondition and idempotency errors of the
 [Public API](../api/public-api.md). Error bodies remain bounded and
 secret-free.
-<!-- from: 07#130 -->
 
 **RUN-R86.** Run detail shows the selected execution-config refs and
 their origin (`workflow`, `run override`, inline escalation or exact
 ExecutionConfig ref) and never reconstructs authority from browser state.
-<!-- from: 06#107 -->
 
 **RUN-R87.** A Run detail response includes the event cursor of the
 Run's `run` stream ([Public API](../api/public-api.md)).
-<!-- from: 06#128 -->
 
 **RUN-R88.** The Run detail handler verifies ownership before it
 loads related Stage data.
-<!-- from: 06#40 -->
 
 **RUN-R89.** The Run detail readers for allocations, metrics and
 Planner plans, and the Planner session store, must provide batch reads.
 PostgreSQL uses at most one query per related collection, independent of the
 number of Stages (LIM-RUN-7).
-<!-- from: 06#40 -->
 
 **RUN-R90.** Metrics and Planner-plan readers remain optional
 dependencies. Unavailable or malformed metrics omit diagnostics without hiding
@@ -826,7 +721,6 @@ healthy peers or the durable Run state. A configured Planner-plan reader must
 validate the exact session, Stage and invocation identity; a missing session or
 a read failure fails the request, while a valid session without a plan omits
 that optional field (FAIL-RUN-7).
-<!-- from: 06#40 -->
 
 **RUN-R91.** The authenticated owner's Run status exposes aggregate
 counts, report completeness and one optional `AttemptDiagnostics` projection
@@ -834,36 +728,30 @@ when StageMetrics exists. Diagnostics contain only normalized Planner and
 Worker report errors: the participant kind, the logical Agent name for a
 Worker, a bounded stable code, a message of at most 4,096 bytes (LIM-RUN-8) and
 an optional `retryable`.
-<!-- from: 04#70 -->
 
 **RUN-R92.** Planner entries are ordered before Workers, Workers are
 sorted by logical Agent name and source error order is preserved. At most the
 newest 128 entries in that deterministic sequence are returned (LIM-RUN-9); any
 source or projection overflow sets `truncated`.
-<!-- from: 04#70 -->
 
 **RUN-R93.** Before this projection, the mandatory
 persistence-boundary policy has already removed configured secrets and bounded
 every error. The projection additionally replaces URL-shaped text and rejects
 non-contract error codes.
-<!-- from: 04#71 -->
 
 **RUN-R94.** Raw model output, prompts, provider bodies and URLs, tool
 calls, tool arguments and results, stack traces, physical Runtime addresses and
 report, session and allocation identities are never part of public Run status.
-<!-- from: 04#71 -->
 
 **RUN-R95.** An absent StageMetrics record omits diagnostics; a
 present record with no normalized errors returns an empty list, so the UI can
 distinguish "no participant errors" from "telemetry unavailable".
-<!-- from: 04#71 -->
 
 ### Repeat draft
 
 **RUN-R96.** For every terminal Run the detail page may offer
 **Configure another Run**. This is not continuation, Scheduler retry or
 mutation of execution history.
-<!-- from: 06#43 -->
 
 **RUN-R97.** `GET /v1/runs/{run_id}/repeat-draft` is an owner-only,
 read-only projection. For an ordinary Run it returns the exact Workflow ref,
@@ -872,13 +760,11 @@ labels, the requested executionConfig patch and each verified original
 UserScope or ProjectScope input ref. It is the only owner access to the
 retained `contractor-system` fragment and rechecks authorization and source
 scopes on every read.
-<!-- from: 06#43, 03#18 -->
 
 **RUN-R98.** The projection never returns the frozen RunScope
 input fork as a reusable source and never resolves a missing revision to the
 current binding. A repeat Run uses authorized exact source refs rather than
 treating RunScope refs as UserScope or ProjectScope inputs.
-<!-- from: 06#43, 06#16 -->
 
 **RUN-R99.** Run creation retains the bounded non-secret request
 fragment that the projection needs, in the same transaction as the input forks.
@@ -887,37 +773,30 @@ selections; it may retain credential identities, and must not retain
 credential values or resolved RuntimeSettings. It is held in the `repeat-request`
 binding of the hidden `contractor-system` Namespace
 ([ART-R17, ART-R18](../artifacts/artifact-store.md)).
-<!-- from: 06#44, 03#18 -->
 
 **RUN-R100.** Existing durable Run fields remain authoritative
 for parameters, labels and Runtime-label selection.
-<!-- from: 06#44 -->
 
 **RUN-R101.** A repeat requires a valid retained fragment that
 matches its Run's Workflow and Project. A missing or invalid fragment returns a
 blocking notice and no draft; neither lineage nor current or effective
 configuration may reconstruct the original request (FAIL-RUN-8).
-<!-- from: 06#44 -->
 
 **RUN-R102.** An explicitly retained empty executionConfig object
 is valid; an omitted or null object is invalid. Repeat-draft reads never
 repair or rewrite retained data.
-<!-- from: 06#44 -->
 
 **RUN-R103.** The projection validates that the exact Workflow,
 Project, source revisions, selected configurations, credential identities and
 Runtime-label bindings are still usable. Missing values and changed bindings
 are explicit stable notices (FAIL-RUN-8).
-<!-- from: 06#45 -->
 
 **RUN-R104.** For an Audit-managed Run the projection returns only
 its owning Project and Audit context and no ordinary draft.
-<!-- from: 06#45 -->
 
 **RUN-R105.** Evaluation labels are copied only into a visible review
 state; the browser neither strips them silently nor creates reserved Audit
 labels.
-<!-- from: 06#45 -->
 
 ## Interfaces
 
@@ -935,12 +814,10 @@ shared conventions are in the [Public API](../api/public-api.md).
 | `POST /v1/runs/{runId}/retry-gateway` | Manual retry of a blocked model route | RUN-R33 |
 | `GET /v1/runs/{runId}/repeat-draft` | Repeat draft of a terminal Run | RUN-R97 |
 | `POST /v1/projects/{project_id}/runs` | Create a Project Run ([Projects](../artifacts/projects.md)) | RUN-R9 |
-<!-- from: 00#125, 16#19, 18#7, 06#40, 00#124, 06#42, 04#10, 06#43, 17#19 -->
 
 Public fields owned here: `parameters`, `runtimeLabels`, `labels`,
 `RunStatus.recovery`, `RunStatus.resumeStageExecutionId`,
 `StageAttempt.runtimeConfiguration` and `AttemptDiagnostics`.
-<!-- from: 00#51, 07#67, 16#7, 04#10, 06#42, 07#130, 04#70 -->
 
 ## Limits, failures and errors
 
@@ -966,7 +843,6 @@ Limits ([registry](../platform/limits.md)):
   the public JSON request limit of the [Public API](../api/public-api.md)
   (RUN-R14). One active StageExecution per WorkflowRun is LIM-SCH-1
   ([Scheduler](scheduler.md)).
-<!-- from: 16#10, 16#12, 16#18, 04#70, 06#40, 04#33, 00#125, 00#55, 00#129, 20#8 -->
 
 Failure outcomes ([failure model](../platform/failure-model.md)):
 
@@ -985,7 +861,6 @@ Failure outcomes ([failure model](../platform/failure-model.md)):
 - FAIL-RUN-9 — export of metadata labels to telemetry (RUN-R77).
 - Input fork initialization and its recovery: FAIL-ART-2; the success
   transaction: FAIL-ART-6 ([Artifact store](../artifacts/artifact-store.md)).
-<!-- from: 00#32, 00#124, 00#125, 00#130, 04#5, 04#32, 04#33, 06#40, 06#44, 06#45, 16#21, 16#35, 03#65, 00#128 -->
 
 Metadata-label failures:
 
@@ -998,7 +873,6 @@ Metadata-label failures:
 | Valid selector with no match | Empty owner-scoped page | RUN-R80 |
 | Allocation label-map mismatch or invalid bounds | Private protocol invariant failure before Worker construction | [Control Plane](control-plane.md) |
 | Telemetry exporter failure | Bounded best-effort telemetry failure; semantic Run outcome is unchanged | RUN-R77 (FAIL-RUN-9) |
-<!-- from: 16#35, 16#31 -->
 
 Lifecycle ([registry](../platform/lifecycle.md)):
 
@@ -1010,7 +884,6 @@ Lifecycle ([registry](../platform/lifecycle.md)):
   `contractor-system` bindings that hold the repeat-request fragment:
   LIFE-ART-1; Run `outputs` bindings: LIFE-ART-2
   ([Artifact store](../artifacts/artifact-store.md)).
-<!-- from: 16#14, 16#18, 00#53, 03#18, 03#67, 03#68 -->
 
 Errors ([registry](../platform/errors.md)):
 
@@ -1019,7 +892,6 @@ Errors ([registry](../platform/errors.md)):
 - `skill_artifact_not_found` is defined by [Skills](../tools/skills.md); the
   `runtime_*` codes by [RuntimeConfig](../configuration/runtime-config.md)
   (RUN-R85).
-<!-- from: 00#121, 09#52, 07#130 -->
 
 ## Security
 
@@ -1036,7 +908,6 @@ status excludes model, tool and identity data (RUN-R93, RUN-R94); Run detail
 checks ownership first (RUN-R88); and the repeat draft is owner-only, rechecks
 authorization and source scopes and retains no credential values (RUN-R97,
 RUN-R99). The shared model is in [security](../platform/security.md).
-<!-- from: 00#56, 06#59, 00#32, 07#69, 16#13, 16#17, 16#22, 07#130, 06#114, 04#71, 06#40, 06#43, 06#44, 03#18 -->
 
 ## Observability
 
@@ -1047,7 +918,6 @@ telemetry export failure never changes the Run outcome (FAIL-RUN-9). Lifecycle
 events carry `run_id` rather than the label map (RUN-R74). Shared
 rules, including report envelopes and label propagation, are in
 [observability](../platform/observability.md).
-<!-- from: 00#32, 06#120, 16#35, 16#9, 04#67, 16#27, 16#28 -->
 
 ## Invariants
 
@@ -1065,7 +935,6 @@ rules, including report envelopes and label propagation, are in
    result provenance.
 8. Cancel and success serialize on the durable Run row; the first committed
    transition wins.
-<!-- from: 16#38, readme#12 -->
 
 ## Examples
 
@@ -1081,14 +950,12 @@ artifacts:
     namespace: projects
     name: payment-service-source
 ```
-<!-- from: 00#52 -->
 
 A create-Run body selecting Runtime labels:
 
 ```json
 {"workflow":"likec4-from-workspace@5","runtimeLabels":["caido","debug"],"labels":{"purpose":"eval"},"parameters":{},"artifacts":{}}
 ```
-<!-- from: 07#68 -->
 
 A create-Run body with both label domains:
 
@@ -1109,7 +976,6 @@ A create-Run body with both label domains:
   "artifacts": {}
 }
 ```
-<!-- from: 16#8 -->
 
 Run-list label selectors:
 
@@ -1117,17 +983,13 @@ Run-list label selectors:
 GET /v1/runs?label=purpose=eval&label=eval.id=eval_01k4example
 GET /v1/runs?label=eval.name=openapi-regression&label=eval.leg=b
 ```
-<!-- from: 16#20 -->
 
 ## Non-goals
 
 - A multi-tenant policy for which published configurations a caller may
   select is deferred.
-  <!-- from: 00#32 -->
 - Concurrent Stages inside one Run are not supported
   ([Scheduler](scheduler.md)).
-  <!-- from: 20#8, 00#129 -->
 - Mutable metadata labels are not supported. A future mutable operator-tag
   feature requires its own compare-and-set contract and must not silently
   weaken eval provenance.
-  <!-- from: 16#14 -->

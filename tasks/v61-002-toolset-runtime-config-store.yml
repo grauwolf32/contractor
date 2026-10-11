@@ -17,7 +17,7 @@ deferral:
     port is postponed instead of resolving 35 conflicts now.
   reactivate_when: >-
     Explicit user decision that external MCP tools are needed (for example
-    for autonomous pentest Audits, spec 33); then port the branch onto main
+    for autonomous pentest Audits, proposal 0033); then port the branch onto main
     rather than reimplementing, renumber its migration and rerun the V61-009
     release gate.
   branch_commit: "761068d111291c092d1106aabd81d44ec09cb351"
@@ -30,7 +30,7 @@ goal: >-
 context:
   authority: User requested generic tool configuration using current RuntimeConfig and bindings with one value per ref on a Run.
   design: docs/plans/2026-09-19-toolset-runtime-configuration.md
-  specification: docs/spec/07-runtime-labels-and-infrastructure-config.md
+  specification: docs/spec/configuration/runtime-config.md
   reuse: >-
     Reuse immutable runtime_config_versions, binding CAS/locks, publication
     idempotency, AtomicPatch, canonicalization and RuntimeCredentialService.

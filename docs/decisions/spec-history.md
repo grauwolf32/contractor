@@ -142,7 +142,7 @@ This slice must demonstrate:
 - every Stage accepts only `session: isolated|shared`; new omission resolves to
   explicit `isolated` before persistence, persisted snapshots without an
   explicit value are unsupported under
-  [00](00-workflow-and-planner.md#stage-worker-session-policy), and retry or
+  [00](../spec/configuration/workflows.md), and retry or
   escalation retains the pinned mode;
 - every AgentTemplate has a mandatory configuration-root-relative Worker
   `instructions.ref`; its resolved text contributes to the template digest and
@@ -152,7 +152,7 @@ This slice must demonstrate:
   `local-workdir@1` creates fresh allocation scratch, exposes no host path
   through declarative contracts, cleans it before the slot returns to `idle`,
   and promises no OS, process or network isolation. The opt-in `podman@1`
-  extension in [21](21-podman-sandbox.md) adds verified rootless code execution
+  extension in [21](../spec/tools/code-execution.md) adds verified rootless code execution
   only for local direct project workspaces, with container removal before files;
 - every `adk@1` AgentTemplate selects an exact digest-bearing default
   ModelPolicy through `modelPolicy`; reference-only Run executionConfig may
@@ -192,7 +192,7 @@ This slice must demonstrate:
 - Workflow defaults plus reference-only Run overrides resolve an exact
   ModelPolicy for every modeled consumer and a complete Gateway route for every
   model-backed Planner; a Worker route may be completed or physically
-  overridden by the pinned Run/Agent-label boundary in [07](07-runtime-labels-and-infrastructure-config.md). Control Plane
+  overridden by the pinned Run/Agent-label boundary in [07](../spec/configuration/runtime-config.md). Control Plane
   supplies the resulting allocation URL and optional token in RuntimeSettings
   over mTLS, and Agent clears secrets on release;
 - Workflow Scheduler records `preparing -> running -> finalizing -> terminal`;
@@ -240,7 +240,7 @@ This slice must demonstrate:
   `execute_current_subtask(subtask_id)`, while Router's is exactly
   `execute_current_subtask(subtask_id, worker_name)` with `worker_name`
   constrained to the immutable Stage binding keys; explicitly selected
-  MemoryTools may add only the surface derived by [08](08-memory-tools.md);
+  MemoryTools may add only the surface derived by [08](../spec/tools/memory.md);
 - Router's system instruction is deterministically augmented with every logical
   binding's name and purpose from the resolved immutable
   `AgentTemplate.description`, never placement or credential information;
@@ -281,7 +281,7 @@ This slice must demonstrate:
   Worker ADK state remains in the allocated Runtime Agent process and only its
   bounded Contractor-owned subtree is readable by Control Plane through the
   allocation-correlated private endpoint in
-  [14](14-worker-results-and-live-state.md);
+  [14](../spec/execution/worker.md);
 - Runtime Agent finalizes and destroys its in-process Worker instance through
   its private control endpoint and returns bounded reports before terminal
   acceptance;
@@ -303,7 +303,7 @@ This slice must demonstrate:
 - Runtime Agent sends a monotonic heartbeat and echoes the last received ack;
   both sides advance and expire the confirmed control lease only through that
   round trip, with the interval and lease duration owned by
-  [02](02-runtime-and-a2a.md#heartbeat-and-confirmed-control-lease);
+  [02](../spec/execution/control-plane.md);
 - local lease loss drains and ultimately kills Worker, then leaves Runtime
   Agent `fenced` with the old allocation ID until Control Plane explicitly
   acknowledges release; it cannot silently reuse the slot as `idle`;
@@ -1042,14 +1042,14 @@ in section 4.4.
 
 ### 19 — Audits: checks, findings, and iterative assessment › 22. Sources and decision status
 
-- The current Contractor specifications, especially [00](00-workflow-and-planner.md),
-  [02](02-runtime-and-a2a.md), [03](03-artifact-plane.md),
-  [04](04-execution-lifecycle-and-metrics.md),
-  [12](12-code-analysis-tools.md), [13](13-taint-annotations.md),
-  [14](14-worker-results-and-live-state.md),
-  [17](17-projects-and-queue.md), and
-  [18](18-run-and-workspace-lifecycle-controls.md), and
-  [20](20-scheduler-concurrency-control.md).
+- The current Contractor specifications, especially [00](../spec/configuration/workflows.md),
+  [02](../spec/execution/control-plane.md), [03](../spec/artifacts/artifact-store.md),
+  [04](../spec/execution/scheduler.md),
+  [12](../spec/tools/code-analysis.md), [13](../spec/tools/code-analysis.md),
+  [14](../spec/execution/worker.md),
+  [17](../spec/artifacts/projects.md), and
+  [18](../spec/artifacts/retention-and-deletion.md), and
+  [20](../spec/execution/scheduler.md).
 - [OWASP Top 10:2025](https://owasp.org/Top10/2025/), verified 2026-09-05.
 - [OWASP ASVS](https://owasp.org/www-project-application-security-verification-standard/)
   and its [official repository](https://github.com/OWASP/ASVS), including stable
@@ -1289,7 +1289,7 @@ deployment test.
 ### 26 — Portable evaluation format and execution bindings
 
 Status: **Implemented in playground-v2 and offline-verified ([V41-008](../../tasks/done/v41-008-eval-format-release-gate.yml)).**
-The managed Evals UX is owned by [30](30-managed-evals.md). Offline conformance
+The managed Evals UX is owned by [30](../spec/evals/managed-evals.md). Offline conformance
 does not prove instruction quality or a successful live target campaign.
 
 ### 26 — Portable evaluation format and execution bindings › 12. Delivery gate before evaluations
@@ -1343,7 +1343,7 @@ fixture, real ArtifactClient preparation behavior, previews, pagination and
 independent tool selection. The findings process gate, `make test-findings-e2e`,
 proves producer → publication → ordinary input fork → preparation → reader
 across Server/Runtime processes. Model quality evals remain separate and follow
-the portable evaluation format in [26](26-portable-evaluation-format.md).
+the portable evaluation format in [26](../spec/evals/format.md).
 
 ### 27 — Finding tools and immutable collections › Finding proposal and selected authoring interfaces › Development contract and verification
 
@@ -1418,12 +1418,12 @@ This table does not mark any task complete or create new task records.
 | V54 proposed 005–007 | URL-only discovery plus source enrichment, typed plans, explicit round routing, verification and replay |
 | V54 proposed 008–010 | Shared API/UI, fixtures/scorer and API profile release gate |
 | V54 proposed 011–012 | Browser and callback extensions with full web acceptance |
-| V55 and [scan planning](32-scan-planning.md) | Reuse prepared inputs, fixed Workers and durable scan-job recovery only after scope/identity/capture integration; scan planner owns scanner fanout, Audit owns hypotheses |
+| V55 and [scan planning](../spec/tools/scanners.md) | Reuse prepared inputs, fixed Workers and durable scan-job recovery only after scope/identity/capture integration; scan planner owns scanner fanout, Audit owns hypotheses |
 | V55 crawler/ranking work | Optional discovery/ranking adapters; neither is required for direct HTTP MVP |
 | V61 toolset configuration | Reuse exact settings, credential holds and MCP lifecycle; target principals are identities within a Run, not conflicting per-agent infrastructure settings |
-| [Portable Evals](26-portable-evaluation-format.md), [managed Evals](30-managed-evals.md), V38 | Add pentest fixtures/scorers and attributed comparison through existing engines |
+| [Portable Evals](../spec/evals/format.md), [managed Evals](../spec/evals/managed-evals.md), V38 | Add pentest fixtures/scorers and attributed comparison through existing engines |
 | V60 recovery/runtime/evidence/security reviews | Include the new invariants in their relevant checks; the full review backlog is not a prerequisite for contract work |
-| [Finding analysis](28-finding-analysis-and-sarif.md) | Align evidence decoders and vocabulary; SARIF remains independently deliverable |
+| [Finding analysis](../proposals/0028-finding-analysis-and-sarif.md) | Align evidence decoders and vocabulary; SARIF remains independently deliverable |
 
 Implement in this dependency order:
 
@@ -1581,52 +1581,52 @@ Status: **Working agreement**
 
 | Document | Owns |
 |---|---|
-| [00](00-workflow-and-planner.md) | Workflow Scheduler, Stage, Planner and StageResult |
-| [01](01-agent-template.md) | Reusable Worker behavior and Stage binding |
-| [02](02-runtime-and-a2a.md) | Allocation and the single-slot Runtime Agent acting as Worker/A2A Server |
-| [03](03-artifact-plane.md) | ArtifactStore scopes, RunArtifactSpace, input/output forks, Namespace and CAS |
-| [04](04-execution-lifecycle-and-metrics.md) | StageExecution identity, StageTermination, sessions, finalization, recovery and metrics |
-| [05](05-first-slice-and-open-decisions.md) | First implementation slice and deliberately deferred decisions |
-| [06](06-server-ui-and-operations.md) | Separate Node.js Web UI, Operations visibility, process budgets and published execution configuration selection |
-| [07](07-runtime-labels-and-infrastructure-config.md) | Run-selected/Agent Runtime labels, database-backed infrastructure configs, adapter placement and allocation-scoped settings |
-| [08](08-memory-tools.md) | Run-scoped shared Memory Namespace and the artifact-backed `memory-tools@1` contract |
-| [09](09-agent-skills.md) | AgentTemplate-selected, artifact-pinned Agent Skills loaded through native Google ADK |
-| [10](10-runtime-filesystems-and-edit-tools.md) | Run-artifact workspaces, Runtime local/memory storage, overlay export and filesystem/Edit tools |
-| [11](11-http-and-caido-tools.md) | Allocation-scoped HTTP exploration and label-configured Caido GraphQL tools |
-| [12](12-code-analysis-tools.md) | Workspace Tree-sitter analysis and local-only allocation-scoped Trailmark graph tools |
-| [13](13-taint-annotations.md) | Structured, atomic `@trace`/`@validate`/`@sink` workspace annotations |
-| [14](14-worker-results-and-live-state.md) | Typed Worker results, deterministic observations, volatile Worker State and explicit Planner projections |
-| [15](15-worker-summarization.md) | Optional one-shot terminal Worker summarization at a deterministic soft limit |
-| [16](16-run-metadata-labels.md) | Immutable queryable WorkflowRun metadata labels and the eval correlation convention |
-| [17](17-projects-and-queue.md) | Optional Projects, ProjectScope artifact reuse, Workflow recommendations, Evals and the global Queue |
-| [18](18-run-and-workspace-lifecycle-controls.md) | Consolidated Runs UI, durable queue pause/resume and safe Run/Project deletion |
-| [19](19-audits.md) | Project-bound multi-Run Audits, deterministic inventories, findings, review, coverage and recovery |
-| [20](20-scheduler-concurrency-control.md) | Durable Operations-controlled concurrency across ordinary WorkflowRuns and Audit dispatch backpressure |
-| [21](21-podman-sandbox.md) | Implemented: opt-in local Podman execution, direct workspace sharing and verified container cleanup |
-| [22](22-performance-metrics-and-profiling.md) | Implemented: Server/DB performance charts, completed allocation resources, retained history and independent Go profiling |
-| [23](23-artifact-blob-backends.md) | Startup-selected PostgreSQL/filesystem blobs, Kubernetes without PVC, bounded memory and deferred S3 |
-| [24](24-git-artifacts.md) | Owner SSH-key Settings, bounded in-memory Git snapshots, Workflow/Project import UI and immutable commit provenance |
-| [25](25-audit-worker-finalization.md) | Implemented opt-in: collection, Runtime completion, ZIP publication and diagnostics; [V39-007](../../tasks/done/v39-007-audit-completion-release-gate.yml) records the completed deterministic release gate |
-| [26](26-portable-evaluation-format.md) | Implemented in playground-v2 and offline-gated: portable documents, execution bindings, v1 compatibility, recovery and comparison; model quality evals remain |
-| [27](27-findings-tools-and-collections.md) | Implemented: findings collection codec, Server publication, Runtime materialization, independent finding/list_findings tools and producer/analyst Workflows |
-| [28](28-finding-analysis-and-sarif.md) | Draft; not implemented: structured finding analysis, exact-evidence resolution and deterministic SARIF export |
-| [29](29-tool-workers.md) | Implemented: deterministic model-free tool Workers, typed execution bindings and durable invocation receipts |
-| [30](30-managed-evals.md) | Implemented: native Evals execution, assessments, comparison APIs, browser UI and optional independent Playground client |
-| [31](31-scan-request-preparation.md) | Implemented: bounded deterministic OpenAPI request preparation, RequestSet identities and coverage gaps |
-| [32](32-scan-planning.md) | Implemented: bounded model-free scan plans, fixed Worker routing, durable job intent and conservative recovery |
-| [33](33-autonomous-pentest-audits.md) | Draft; not implemented: source-optional web/API pentest Audits, enforced scope, isolated identities, live proof and replay, recovery and release gates |
-| [34](34-audit-check-prioritization.md) | Draft integration target; V64-000 pure verdict/selection core implemented, Audit capability pending |
-| [Database ERD](database-erd.html) | Interactive PostgreSQL schema at migration 000096: 71 tables, keys, each table's purpose and the processes that use it, and where the tables removed by V365 went; regenerate with `make docs-erd` ([generator](../../scripts/erd/README.md)) |
-| [LikeC4](artitecture.likec4) | Component map and focused architecture views |
-| [OpenAPI Audit scans](openapi-audit-scans.md) | Released: assigned SQLMap requests and pinned Nuclei URLs; prepare-role OpenAPI generation specified but not delivered |
-| [UI user stories](ui-user-stories.md) | User goals and acceptance scenarios; individual stories retain their implementation status |
+| [00](../spec/configuration/workflows.md) | Workflow Scheduler, Stage, Planner and StageResult |
+| [01](../spec/configuration/agent-templates.md) | Reusable Worker behavior and Stage binding |
+| [02](../spec/execution/control-plane.md) | Allocation and the single-slot Runtime Agent acting as Worker/A2A Server |
+| [03](../spec/artifacts/artifact-store.md) | ArtifactStore scopes, RunArtifactSpace, input/output forks, Namespace and CAS |
+| [04](../spec/execution/scheduler.md) | StageExecution identity, StageTermination, sessions, finalization, recovery and metrics |
+| [05](spec-history.md) | First implementation slice and deliberately deferred decisions |
+| [06](../spec/ui/ui.md) | Separate Node.js Web UI, Operations visibility, process budgets and published execution configuration selection |
+| [07](../spec/configuration/runtime-config.md) | Run-selected/Agent Runtime labels, database-backed infrastructure configs, adapter placement and allocation-scoped settings |
+| [08](../spec/tools/memory.md) | Run-scoped shared Memory Namespace and the artifact-backed `memory-tools@1` contract |
+| [09](../spec/tools/skills.md) | AgentTemplate-selected, artifact-pinned Agent Skills loaded through native Google ADK |
+| [10](../spec/tools/workspace.md) | Run-artifact workspaces, Runtime local/memory storage, overlay export and filesystem/Edit tools |
+| [11](../spec/tools/http-caido.md) | Allocation-scoped HTTP exploration and label-configured Caido GraphQL tools |
+| [12](../spec/tools/code-analysis.md) | Workspace Tree-sitter analysis and local-only allocation-scoped Trailmark graph tools |
+| [13](../spec/tools/code-analysis.md) | Structured, atomic `@trace`/`@validate`/`@sink` workspace annotations |
+| [14](../spec/execution/worker.md) | Typed Worker results, deterministic observations, volatile Worker State and explicit Planner projections |
+| [15](../spec/execution/worker.md) | Optional one-shot terminal Worker summarization at a deterministic soft limit |
+| [16](../spec/execution/runs.md) | Immutable queryable WorkflowRun metadata labels and the eval correlation convention |
+| [17](../spec/artifacts/projects.md) | Optional Projects, ProjectScope artifact reuse, Workflow recommendations, Evals and the global Queue |
+| [18](../spec/artifacts/retention-and-deletion.md) | Consolidated Runs UI, durable queue pause/resume and safe Run/Project deletion |
+| [19](../spec/audits/audits.md) | Project-bound multi-Run Audits, deterministic inventories, findings, review, coverage and recovery |
+| [20](../spec/execution/scheduler.md) | Durable Operations-controlled concurrency across ordinary WorkflowRuns and Audit dispatch backpressure |
+| [21](../spec/tools/code-execution.md) | Implemented: opt-in local Podman execution, direct workspace sharing and verified container cleanup |
+| [22](../spec/operations/operations.md) | Implemented: Server/DB performance charts, completed allocation resources, retained history and independent Go profiling |
+| [23](../spec/artifacts/blob-storage.md) | Startup-selected PostgreSQL/filesystem blobs, Kubernetes without PVC, bounded memory and deferred S3 |
+| [24](../spec/artifacts/git-import.md) | Owner SSH-key Settings, bounded in-memory Git snapshots, Workflow/Project import UI and immutable commit provenance |
+| [25](../spec/audits/worker-completion.md) | Implemented opt-in: collection, Runtime completion, ZIP publication and diagnostics; [V39-007](../../tasks/done/v39-007-audit-completion-release-gate.yml) records the completed deterministic release gate |
+| [26](../spec/evals/format.md) | Implemented in playground-v2 and offline-gated: portable documents, execution bindings, v1 compatibility, recovery and comparison; model quality evals remain |
+| [27](../spec/findings/findings.md) | Implemented: findings collection codec, Server publication, Runtime materialization, independent finding/list_findings tools and producer/analyst Workflows |
+| [28](../proposals/0028-finding-analysis-and-sarif.md) | Draft; not implemented: structured finding analysis, exact-evidence resolution and deterministic SARIF export |
+| [29](../spec/tools/scanners.md) | Implemented: deterministic model-free tool Workers, typed execution bindings and durable invocation receipts |
+| [30](../spec/evals/managed-evals.md) | Implemented: native Evals execution, assessments, comparison APIs, browser UI and optional independent Playground client |
+| [31](../spec/tools/scanners.md) | Implemented: bounded deterministic OpenAPI request preparation, RequestSet identities and coverage gaps |
+| [32](../spec/tools/scanners.md) | Implemented: bounded model-free scan plans, fixed Worker routing, durable job intent and conservative recovery |
+| [33](../proposals/0033-autonomous-pentest-audits.md) | Draft; not implemented: source-optional web/API pentest Audits, enforced scope, isolated identities, live proof and replay, recovery and release gates |
+| [34](../proposals/0034-audit-check-prioritization.md) | Draft integration target; V64-000 pure verdict/selection core implemented, Audit capability pending |
+| [Database ERD](../spec/database-erd.html) | Interactive PostgreSQL schema at migration 000096: 71 tables, keys, each table's purpose and the processes that use it, and where the tables removed by V365 went; regenerate with `make docs-erd` ([generator](../../scripts/erd/README.md)) |
+| [LikeC4](../spec/artitecture.likec4) | Component map and focused architecture views |
+| [OpenAPI Audit scans](../spec/audits/scans.md) | Released: assigned SQLMap requests and pinned Nuclei URLs; prepare-role OpenAPI generation specified but not delivered |
+| [UI user stories](../spec/ui/journeys.md) | User goals and acceptance scenarios; individual stories retain their implementation status |
 
 ### Contractor v2 — working specifications › Specification rule
 
 Each decision has one owning document. Other documents link to it instead of
 repeating a second normative version. Unresolved behavior is recorded
 explicitly rather than inferred from historical designs: cross-cutting
-decisions stay in [05](05-first-slice-and-open-decisions.md), and a document
+decisions stay in [05](spec-history.md), and a document
 may keep its own deferred section for decisions inside its scope; 05 links
 those sections. Implementation status lives only in a document's `Status:`
 line, in the reading-order table above and in task files; normative body text
@@ -1636,7 +1636,7 @@ describes the accepted target without task identifiers, dates or evidence.
 
 ### OpenAPI Audit scan adapter
 
-Status: **Supplied-input scans released and verified ([V62-009](../../tasks/done/v62-009-audit-openapi-scan-profile.yml)). Preparation execution and generated initial inventory are implemented by V62-003–004 under [19 §4.4](19-audits.md#44-preparation-contract); the generated-flow process/browser acceptance gate remains V62-012.**
+Status: **Supplied-input scans released and verified ([V62-009](../../tasks/done/v62-009-audit-openapi-scan-profile.yml)). Preparation execution and generated initial inventory are implemented by V62-003–004 under [19 §4.4](../spec/audits/scans.md); the generated-flow process/browser acceptance gate remains V62-012.**
 
 ### OpenAPI Audit scan adapter › Assigned inputs and authority › Settings and inventory contract
 

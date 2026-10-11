@@ -261,7 +261,7 @@ with a repeatable `--allowed-target-network CIDR` (or
 `CONTRACTOR_ALLOWED_TARGET_NETWORKS`), for example `127.0.0.0/8`. Server,
 Runtime and other infrastructure endpoints and cloud metadata addresses remain
 refused even inside an allowed network; see the
-[target policy](spec/11-http-and-caido-tools.md#target-policy).
+[target policy](spec/platform/security.md).
 
 Start the built UI behind its HTTPS proxy:
 

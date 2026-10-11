@@ -15,7 +15,6 @@ proposals; Audit retention, Audit-managed artifact links and holds; the
 effects of Run deletion on Audit reports and collection; Audit deletion; and
 the finding, review, provenance and report reads of the public API and the
 Reviews view.
-<!-- from: 19#64, 19#142, 19#143, 19#149, 19#151, 19#153, 19#155, 19#160, 19#167, 19#179, 19#186, 19#196 -->
 
 It leaves to other documents:
 
@@ -39,7 +38,6 @@ It leaves to other documents:
   [errors](../platform/errors.md),
   [failure model](../platform/failure-model.md) and
   [lifecycle](../platform/lifecycle.md).
-<!-- from: 19#23, 19#39, 19#40, 19#92, 19#101, 19#106, 19#107, 19#141, 19#168, 19#171, 19#173, 19#177, 19#178, 19#181, 06#157, 19#195 -->
 
 ## Concepts
 
@@ -91,7 +89,6 @@ document owns are:
   keeps retained revisions alive under Audit ownership.
 - **Deletion intent.** The dedicated `deletion_requested_at` marker that
   records that owner or Project deletion requested an Audit's deletion.
-<!-- from: 19#143, 19#142, 19#144, 19#145, 19#107, 19#146, 19#151, 19#150, 19#156, 19#157, 19#160, 19#161, 19#165, 19#167, 19#168, 19#174, 19#179 -->
 
 ## Model
 
@@ -101,7 +98,6 @@ records `AuditFinding`, `AuditReviewRequest`, `AuditReviewDecision`,
 `AuditReportCandidate`, `AuditArtifactLink` and `AuditCollectionReceipt` are
 defined in [audits](audits.md). This document states the rules that keep the
 layers apart and that govern those records.
-<!-- from: 19#64 -->
 
 ### Review kinds
 
@@ -113,7 +109,6 @@ layers apart and that govern those records.
 | `report-acceptance` | Frozen candidate digest and pre-publication Audit revision | `approve`, `reject` |
 
 `plan-approval` and `provide-evidence` are reserved extensions (REV-R25).
-<!-- from: 19#142, 19#143, 19#145, 19#146, 19#147, 19#195, 19#196 -->
 
 ### Review request states
 
@@ -129,7 +124,6 @@ stateDiagram-v2
     decided --> [*]
     expired --> [*]
 ```
-<!-- from: 19#143, 19#144, 19#145, 19#147, 19#194 -->
 
 ### Analyst verdict
 
@@ -138,7 +132,6 @@ stateDiagram-v2
 | `true_positive` | `confirmed`, subject to the profile evidence contract | Required: `informational`, `low`, `medium`, `high` or `critical` |
 | `false_positive` | `rejected` with the false-positive reason | No effective severity |
 | none (unreviewed) | — | Null; `severity_suggestion` is never a fallback |
-<!-- from: 19#146, 19#147 -->
 
 ### Coverage states
 
@@ -146,7 +139,6 @@ stateDiagram-v2
 | --- | --- |
 | Requirement | `satisfied`, `violated`, `inconclusive`, `not-tested`, `not-applicable` |
 | Operation | `traced-complete`, `traced-partial`, `unmapped`, `not-tested` |
-<!-- from: 19#151 -->
 
 ### Report artifacts
 
@@ -154,7 +146,6 @@ stateDiagram-v2
 | --- | --- | --- |
 | `report.md` | `text/markdown` | Human-readable report with headings and coverage, finding and attempt tables |
 | `report.json` | not specified | Machine-readable report |
-<!-- from: 19#153 -->
 
 ### Report acceptance
 
@@ -179,7 +170,6 @@ sequenceDiagram
         API->>DB: lifecycle transition and, in the same Audit transition, expire the request and record one review.expired after the lifecycle event
     end
 ```
-<!-- from: 19#107, 19#145, 19#195 -->
 
 ### Backtrace relations
 
@@ -203,7 +193,6 @@ flowchart LR
     P --> CL
     F -->|duplicate link| CT["Canonical finding in the same Audit"]
 ```
-<!-- from: 19#150, 19#157, 19#159, 19#166 -->
 
 ## Requirements
 
@@ -211,25 +200,19 @@ flowchart LR
 
 **REV-R1.** A succeeded Run never automatically confirms a finding or
 satisfies a requirement.
-<!-- from: 19#64 -->
 
 **REV-R2.** A failed or cancelled Run does not refute a hypothesis.
-<!-- from: 19#64 -->
 
 **REV-R3.** `supported` describes evidence; `confirmed` is a
 policy-authorized triage decision.
-<!-- from: 19#64 -->
 
 **REV-R4.** Severity and confidence are distinct fields.
-<!-- from: 19#64 -->
 
 **REV-R5.** A profile may disable finding production; otherwise
 human confirmation is required.
-<!-- from: 19#64 -->
 
 **REV-R6.** A future profile may allow deterministic
 auto-confirmation only under an explicit evidence contract.
-<!-- from: 19#64 -->
 
 What `completed` means and requires is specified in [audits](audits.md)
 (AUD-R175 to AUD-R177); the OWASP Top 10 non-certification rule for
@@ -237,94 +220,74 @@ risk-assessment reports and ASVS version pinning in AUD-R74 and AUD-R75; and
 the rule that an unmapped endpoint or truncated graph yields an explicit gap
 or inconclusive result, never "no vulnerabilities found", in AUD-R157 and
 AUD-R158.
-<!-- from: 19#106, 19#23, 19#92 -->
 
 ### Evidence
 
 **REV-R7.** Every accepted observation records its exact inputs,
 instrument and version, actor role, observation time, output refs, scope,
 limitations and truncation.
-<!-- from: 19#149 -->
 
 **REV-R8.** For live HTTP observations, evidence also records the
 observation time and an available deployment marker.
-<!-- from: 19#54 -->
 
 Rationale: pinned source does not prove that a live target remained unchanged.
-<!-- from: 19#54 -->
 
 **REV-R9.** Code, documents and HTTP responses are untrusted data;
 instructions embedded in them grant no tools or approvals.
-<!-- from: 19#149 -->
 
 ### Finding identity
 
 **REV-R10.** Finding fingerprints combine the scope snapshot, the
 subject and the normalized issue family only as a grouping hint; they do not
 merge identities automatically.
-<!-- from: 19#150 -->
 
 **REV-R11.** A human duplicate decision creates an acyclic link inside one
 Audit.
-<!-- from: 19#150 -->
 
 **REV-R12.** One finding may map to multiple requirements, and a
 requirement may be violated without a technical vulnerability, for example
 because required documentary evidence is absent.
-<!-- from: 19#150 -->
 
 ### Coverage
 
 **REV-R13.** Coverage starts with one row per selected requirement or
 operation (LIM-REV-1).
-<!-- from: 19#151 -->
 
 **REV-R14.** Every selected requirement gets an initial
 `not-tested` coverage row, even when no automated Workflow applies.
-<!-- from: 19#86 -->
 
 **REV-R15.** Manual and documentary requirements create review work
 rather than disappearing from the denominator.
-<!-- from: 19#86 -->
 
 **REV-R16.** `not-applicable` requires a rationale and a
 policy-authorized decision.
-<!-- from: 19#86 -->
 
 **REV-R17.** Requirement and operation states share one typed
 coverage field but are not interchangeable.
-<!-- from: 19#152 -->
 
 **REV-R18.** `traced-complete` means every requested trace
 dimension completed with no gap; some completed dimensions plus any gap is
 `traced-partial`; no completed dimension with a known resolution gap is
 `unmapped`.
-<!-- from: 19#152 -->
 
 **REV-R19.** The semantic assessment of a result is retained
 independently of its coverage state; for example, a complete trace may still
 have an inconclusive security assessment.
-<!-- from: 19#152 -->
 
 **REV-R20.** Technical Run failure, collection failure and semantic
 assessment remain three distinct report dimensions.
-<!-- from: 19#152 -->
 
 **REV-R21.** Exclusions and N/A rationales are reported separately.
-<!-- from: 19#151 -->
 
 **REV-R22.** Applicability coverage is
 `(satisfied + violated) / selected applicable`; `inconclusive` remains a
 separate count.
-<!-- from: 19#151 -->
 
 **REV-R23.** A zero denominator is `N/A`, never 100%.
-<!-- from: 19#151 -->
 
 When a limit prevents more hypotheses or executions, the retention of counts,
 omission reasons and coverage gaps is specified in [execution](execution.md)
 (AUX-R87); the report includes those limits (REV-R79).
-<!-- from: 19#141 -->
 
 ### Human review
 
@@ -332,12 +295,10 @@ omission reasons and coverage gaps is specified in [execution](execution.md)
 
 **REV-R24.** The review kinds are `active-check-approval`,
 `requirement-applicability`, `finding-triage` and `report-acceptance`.
-<!-- from: 19#142 -->
 
 **REV-R25.** `plan-approval` and `provide-evidence` are reserved
 extensions and do not become effective merely because a model emits those
 strings.
-<!-- from: 19#142 -->
 
 Which items start in `awaiting_review` (items of a Workflow role that exposes
 a classified active-check tool under `activeChecks: approval-required`,
@@ -345,279 +306,218 @@ manual checklist items, and standard-backed items with package-authored
 `human-review` applicability or a `required` evidence-contract review) is
 specified in [audits](audits.md) (AUD-R83 to AUD-R87). Those item decisions
 and report acceptance use the exact-subject review ledger below (AUD-R85).
-<!-- from: 19#39, 19#40 -->
 
 #### Exact-subject review ledger
 
 **REV-R26.** A review request pins an immutable subject revision/digest.
-<!-- from: 19#143 -->
 
 **REV-R27.** A decision is accepted only through the owner-authenticated
 Audit API with CAS and idempotency (FAIL-REV-1).
-<!-- from: 19#143 -->
 
 **REV-R28.** Model text or an artifact claiming "approved" has no
 authority.
-<!-- from: 19#143 -->
 
 **REV-R29.** A new subject revision requires a new decision.
-<!-- from: 19#143 -->
 
 **REV-R30.** An item-action subject hashes the Audit and item
 identities, the pinned profile digest, the Workflow role and the exact task
 artifact; the immutable Audit baseline supplies the associated scope,
 execution closure and credential selections.
-<!-- from: 19#143 -->
 
 **REV-R31.** Active-check approval is attached only to roles whose
 pinned AgentTemplates select a classified active tool.
-<!-- from: 19#143 -->
 
 **REV-R32.** Runtime adapters still enforce their own scope and
 egress controls.
-<!-- from: 19#143 -->
 
 **REV-R33.** A decision never rewrites original observations.
-<!-- from: 19#144 -->
 
 #### Waiting, expiry and renewal
 
 **REV-R34.** Waiting for a person holds no allocation, Controller claim or
 database transaction.
-<!-- from: 19#144 -->
 
 **REV-R35.** A new item request uses the current Audit deadline as
 its expiry when one is set; with no Audit deadline, its expiry may be absent.
-<!-- from: 19#144 -->
 
 **REV-R36.** Pausing, extending or disabling the Audit clock does not
 extend an existing review's authority.
-<!-- from: 19#144 -->
 
 **REV-R37.** Resume replaces expired requests with fresh exact-subject
 requests for eligible unfinished work, requiring a new decision.
-<!-- from: 19#144 -->
 
 **REV-R38.** The Controller also renews item requests that expire
 after Resume, including while the Audit waits for review.
-<!-- from: 19#144 -->
 
 **REV-R39.** Resume and the Controller use one renewal: it expires a
 still-pending or approved request, creates the fresh request, returns a
 formerly ready item to awaiting review, and records `review.expired` and
 `review.requested` events, each advancing the Audit revision by one
 (LIM-REV-2).
-<!-- from: 19#144 -->
 
 **REV-R40.** Resume records these events before `audit.resumed`,
 and its fresh requests expire with the deadline Resume applies.
-<!-- from: 19#144 -->
 
 **REV-R41.** Historical expired requests do not keep the Audit
 claimable after a live replacement exists.
-<!-- from: 19#144 -->
 
 **REV-R42.** Before creating an authorized execution intent,
 PostgreSQL rechecks that the item is still ready, the exact request was
 accepted, its digest still matches and its expiry is absent or in the future
 (FAIL-REV-2).
-<!-- from: 19#144 -->
 
 **REV-R43.** Every review expiry, whether the Controller, an owner
 decision, finding-review creation or Resume judges it, compares against the
 PostgreSQL clock under the request's lock, so process clock skew cannot end or
 extend human authority.
-<!-- from: 19#144 -->
 
 **REV-R189.** The default finding-triage window starts at the PostgreSQL
 clock.
-<!-- from: 19#144 -->
 
 **REV-R44.** An expired request cannot authorize later execution.
-<!-- from: 19#144 -->
 
 Rejecting an item settles it as excluded with a visible coverage gap, and
 resuming never silently extends human authority; both are specified in
 [audits](audits.md) (AUD-R178, AUD-R173).
-<!-- from: 19#144, 19#107 -->
 
 #### Report acceptance
 
 **REV-R45.** Human report acceptance uses a frozen candidate rather than
 regenerating bytes after review.
-<!-- from: 19#145 -->
 
 **REV-R46.** The report-acceptance request pins the candidate digest and
 the pre-publication Audit revision.
-<!-- from: 19#145 -->
 
 **REV-R47.** Acceptance atomically publishes the two exact report
 links (LIM-REV-3) and marks the Audit `completed`.
-<!-- from: 19#145 -->
 
 **REV-R188.** Rejection or bounded expiry of a report request records a
 stable terminal reason.
-<!-- from: 19#145 -->
 
 **REV-R48.** Each outcome is an ordinary revisioned Audit transition:
 acceptance records the same `audit.report_committed` event as an automatic
 report commit, rejection records `audit.state_changed` to `failed`, and the
 owner's decision then records `review.decided`.
-<!-- from: 19#145 -->
 
 **REV-R49.** Every other exit from `waiting_review` (owner
 cancellation, owner deletion or deletion of the owning Project) expires the
 pending report request in the same Audit transition and records one
 `review.expired` event after the lifecycle event (LIM-REV-4).
-<!-- from: 19#145 -->
 
 **REV-R50.** A non-expired report request is excluded from Controller
 claims, while an expired request becomes claimable solely for deterministic
 cleanup.
-<!-- from: 19#145 -->
 
 **REV-R51.** A pending report review continues to authorize only
 its frozen subject revision/digest, independent of the current Audit revision
 after an availability change.
-<!-- from: 19#201 -->
 
 **REV-R52.** Historical or unavailable report requests cannot
 silently decide a replacement report.
-<!-- from: 19#195 -->
 
 The two uses of `waiting_review`, the fence on new finding reviews, finding
 imports and pause/resume during the report decision, the effect of accept,
 reject and expiry on the Audit state, and continued finding triage after the
 decision are specified in [audits](audits.md) (AUD-R178 to AUD-R181).
-<!-- from: 19#107 -->
 
 #### Analyst verdict and severity
 
 **REV-R53.** The Findings UI lets an authenticated owner acting as
 analyst record `true_positive` or `false_positive`, a severity and a bounded
 rationale through the existing `finding-triage` review flow.
-<!-- from: 19#146 -->
 
 **REV-R54.** There is no separate analyst role or second approval
 system.
-<!-- from: 19#146 -->
 
 **REV-R55.** The immutable decision contains actor and time, the exact
 finding revision/digest, verdict, severity and rationale.
-<!-- from: 19#146 -->
 
 **REV-R56.** A verdict requires a rationale; `true_positive` also
 requires a severity from `informational | low | medium | high | critical`.
-<!-- from: 19#146 -->
 
 **REV-R57.** `false_positive` has no effective severity.
-<!-- from: 19#146 -->
 
 **REV-R58.** An unreviewed finding has a null analyst verdict and
 severity; the Worker's `severity_suggestion` remains separate and is never a
 fallback analyst rating.
-<!-- from: 19#146 -->
 
 **REV-R59.** `true_positive` sets triage to `confirmed`, subject to the
 profile evidence contract; `false_positive` sets it to `rejected` with the
 false-positive reason.
-<!-- from: 19#147 -->
 
 **REV-R60.** Other rejection reasons, `duplicate` and `needs-evidence` do
 not imply a false positive.
-<!-- from: 19#147 -->
 
 **REV-R61.** Current analyst fields are projected from the applicable
 decision, not independently mutable copies of triage state.
-<!-- from: 19#147 -->
 
 **REV-R62.** Reopening a finding or marking it duplicate clears the
 effective verdict and severity while preserving all previous decisions.
-<!-- from: 19#147 -->
 
 **REV-R63.** Severity changes and corrected verdicts append a new
 exact-subject decision using CAS and idempotency.
-<!-- from: 19#147 -->
 
 **REV-R64.** The owner may create or reuse a pending finding-triage
 request for the current finding revision through the finding review endpoint;
 a completed request is never reopened or overwritten (FAIL-REV-3).
-<!-- from: 19#147 -->
 
 **REV-R65.** Corrections never rewrite the proposal, check result,
 earlier assessment or decision.
-<!-- from: 19#147 -->
 
 **REV-R66.** A new assessment cannot silently carry forward an
 earlier confirmation: it requires renewed triage.
-<!-- from: 19#147 -->
 
 **REV-R67.** Collecting a check result that assesses a finding
 advances the finding's revision and, in the same transaction, expires every
 pending finding-triage request for the earlier revision, recording one
 `review.expired` event per request (LIM-REV-5).
-<!-- from: 19#147 -->
 
 Rationale: such a request could otherwise never be decided.
-<!-- from: 19#147 -->
 
 **REV-R68.** Review remains possible after Audit execution completes
 until deletion begins; it does not restart execution.
-<!-- from: 19#148 -->
 
 **REV-R69.** Finding and Audit revisions advance on visible review,
 assessment and duplicate changes.
-<!-- from: 19#148 -->
 
 **REV-R70.** An already accepted report retains the finding and
 decision revisions it used; the API and UI distinguish its historical ratings
 from current analyst ratings rather than rewriting that report.
-<!-- from: 19#148 -->
 
 ### Reports
 
 **REV-R71.** The human-readable report is `report.md` with media type
 `text/markdown`, headings, and coverage, finding and attempt tables.
-<!-- from: 19#153 -->
 
 **REV-R72.** The machine-readable report remains `report.json`.
-<!-- from: 19#153 -->
 
 **REV-R73.** The Audit Report view renders `report.md` with the
 existing safe Markdown preview and downloads the exact Markdown bytes.
-<!-- from: 19#153 -->
 
 **REV-R74.** Report commit, candidate reads, approval and
 accepted-report reads require the current media type `text/markdown`.
-<!-- from: 19#153 -->
 
 **REV-R75.** Historical `text/plain` summaries are unsupported;
 readers never relabel or rewrite their artifacts.
-<!-- from: 19#153 -->
 
 **REV-R76.** Report reads require the retained descriptor to match the
 artifact's actual media type, digest and byte length.
-<!-- from: 19#153 -->
 
 **REV-R77.** Rejected reads and approval attempts leave report links,
 review decisions and Audit history unchanged (FAIL-REV-4).
-<!-- from: 19#153 -->
 
 **REV-R78.** The report covers the items of every Round, ordered by
 Round ordinal and then item ordinal, and each report item names its
 `roundId`.
-<!-- from: 19#154 -->
 
 **REV-R79.** The report includes baseline, profile and standard
 versions, scope, the coverage matrix, confirmed and proposed findings
 separately, unresolved questions, exclusions, incomplete evidence, human
 decisions, limits and reproducible provenance.
-<!-- from: 19#154 -->
 
 **REV-R80.** Any ASVS statement is limited to the selected version, level,
 scope and evidence policy; partial automation is not described as complete
 compliance.
-<!-- from: 19#154 -->
 
 ### Finding backtrace and offline attribution
 
@@ -625,202 +525,160 @@ compliance.
 finding ID and obtain its analyst rating and provenance through the
 owner-authenticated public API, without database access, parsing narrative
 reports or inferring Run labels.
-<!-- from: 19#155 -->
 
 **REV-R82.** Hypothesis content, when present, remains in an exact
 FindingProposal.
-<!-- from: 19#155 -->
 
 The retained relations distinguish discovery from verification
 (see [Backtrace relations](#backtrace-relations)):
-<!-- from: 19#156 -->
 
 **REV-R83.** A finding links to its exact first proposal and every
 explicitly contributing proposal; each proposal links to its trusted receipt
 and originating Run.
-<!-- from: 19#157 -->
 
 **REV-R84.** A proposal links to its verifying AuditItems, including
 items in later rounds; each item links to all its AuditExecutionItem attempts,
 exact results and evidence, execution and verification Run.
-<!-- from: 19#157 -->
 
 **REV-R85.** Failed, inconclusive and superseded attempts remain
 visible.
-<!-- from: 19#157 -->
 
 **REV-R86.** The current assessment explicitly identifies which
 result/attempt refs support it, or the exact direct Workflow results
 (REV-R130).
-<!-- from: 19#157 -->
 
 **REV-R87.** Missing verification is represented by an empty set
 and a reason, never an invented successful check.
-<!-- from: 19#157 -->
 
 **REV-R88.** Each originating or verification Run links to its
 immutable Workflow name, its configuration version when available and its
 complete ResolvedWorkflow closure digest; the exact retained configuration
 reference used to compute that digest is preserved independently of the
 mutable catalog.
-<!-- from: 19#157 -->
 
 **REV-R89.** The origin also records Run ID, stage execution ID,
 allocation ID and invocation ID from trusted state; for Audit Runs it includes
 the Audit, round and execution identity and the role.
-<!-- from: 19#157 -->
 
 **REV-R90.** Items and proposals link to the exact checklist
 package revision/digest and entry key/version, with `scheme`, `version` and
 `requirement_id` for standards.
-<!-- from: 19#157 -->
 
 **REV-R91.** A validated standards mapping and a causal source
 checklist are distinct: attaching an ASVS reference does not prove that ASVS
 generated the hypothesis.
-<!-- from: 19#157 -->
 
 **REV-R92.** Missing mappings are preserved as unmapped, and
 direct discoveries as having no checklist source.
-<!-- from: 19#157 -->
 
 **REV-R93.** Receipt origins are captured at intake; checklist origins and
 proposal-to-item relations are bound at trusted inventory, import or worklist
 acceptance.
-<!-- from: 19#158 -->
 
 **REV-R94.** Result import resolves invocation-local proposal keys to
 exact receipts and validates item membership.
-<!-- from: 19#158 -->
 
 **REV-R95.** A finding discovered while checking an item inherits that
 item's checklist origin only through this validated association; sharing a
 Run, batch, subject or fingerprint never links a proposal to every item.
-<!-- from: 19#158 -->
 
 **REV-R96.** References outside the authorized Audit or imported
 inputs are rejected (FAIL-REV-5).
-<!-- from: 19#158 -->
 
 **REV-R97.** The lineage write and its corresponding acceptance commit
 atomically; replay cannot create another contribution (FAIL-REV-5).
-<!-- from: 19#158 -->
 
 **REV-R98.** Backtrace preserves both the first source and
 additional contributors without claiming each was an independent discovery.
-<!-- from: 19#159 -->
 
 **REV-R99.** A duplicate link keeps each original finding and proposal
 and identifies the canonical target inside the Audit; ratings are not silently
 copied to duplicate records.
-<!-- from: 19#159 -->
 
 **REV-R100.** A script can count distinct confirmed canonical findings per
 source Workflow or checklist, and separately count participation in
 verification.
-<!-- from: 19#159 -->
 
 **REV-R101.** Retries, multiple evidence refs, multiple checklist
 mappings and duplicate proposals must not inflate unique-finding counts.
-<!-- from: 19#159 -->
 
 **REV-R102.** Comparisons should state baseline, scope, profile and
 Workflow digest, separate unreviewed and inconclusive work, and use attempted
 items or Runs as denominators when measuring yield.
-<!-- from: 19#159 -->
 
 **REV-R103.** The Server supplies provenance and ratings; aggregation and
 the choice of attribution policy belong to the external script.
-<!-- from: 19#159 -->
 
 **REV-R104.** For backtrace, the Audit retains under its own
 ownership the original Run IDs even when their live relation disappears, the
 Workflow identity, closure digest and exact configuration reference, item and
 attempt links, checklist origins, proposal links and analyst decision history
 (LIFE-REV-1).
-<!-- from: 19#172 -->
 
 **REV-R105.** Public projections expose `runDeleted` instead of
 requiring a live Run join.
-<!-- from: 19#172 -->
 
 **REV-R106.** Configuration provenance contains no credential values or
 active grants.
-<!-- from: 19#172 -->
 
 **REV-R107.** This retention applies to child checks, imported
 ordinary-Run proposals and finding relations; source-owned holds are released
 only after that retention is durable.
-<!-- from: 19#172 -->
 
 **REV-R108.** This retention lasts for the Audit lifetime and does
 not prevent explicit Audit or Project purge (LIFE-REV-1).
-<!-- from: 19#172 -->
 
 The immutable checklist origin of an `AuditItem`, its completeness checks and
 the Workflow identity required by bound execution history are specified in
 [audits](audits.md) (AUD-R195 to AUD-R197).
-<!-- from: 19#173 -->
 
 ### Direct findings verified inside the source Workflow
 
 **REV-R109.** A Workflow may discover and verify a finding in the same
 Run without consuming an earlier hypothesis; this is a supported path for both
 ordinary and Audit Runs.
-<!-- from: 19#160 -->
 
 **REV-R110.** The finding candidate of a direct verification still
 uses trusted intake and a receipt, but no synthetic hypothesis, AuditItem or
 additional verification Run is created just to complete a lineage chain.
-<!-- from: 19#160 -->
 
 **REV-R111.** The same Run may be recorded as both the source and
 the verifier; an actual check execution retains its existing item/attempt
 link.
-<!-- from: 19#160 -->
 
 **REV-R112.** Treating the source Workflow as verifier requires its
 exact pinned output/evidence contract to define verification and the accepted
 result to satisfy that contract.
-<!-- from: 19#161 -->
 
 **REV-R113.** A direct verification retains a direct verification
 reference containing the source Run and exact Workflow closure, the result
 artifact revision/digest, the evidence refs, the contract revision/digest, the
 semantic assessment and the acceptance record.
-<!-- from: 19#161 -->
 
 **REV-R114.** For an ordinary Run, validation and retention occur on
 import into a compatible Audit; for an Audit Run they occur during trusted
 collection and assessment.
-<!-- from: 19#161 -->
 
 **REV-R115.** Direct verification uses the existing acceptance and
 receipt mechanism and grants no new model authority.
-<!-- from: 19#161 -->
 
 **REV-R116.** Intake alone records a candidate; a successful Run or a
 model assertion of verification does not create an accepted verification
 reference.
-<!-- from: 19#161 -->
 
 **REV-R117.** Without a valid result contract the finding remains a
 candidate with no accepted verification, eligible for further checks or human
 evidence review.
-<!-- from: 19#161 -->
 
 **REV-R118.** A Workflow opts in through exactly one required primary
 Workflow output whose declared media types include
 `application/vnd.contractor.audit.direct-verifications+json` (LIM-REV-6).
-<!-- from: 19#162 -->
 
 **REV-R119.** Multiple matching primary outputs are ambiguous and
 therefore do not verify anything.
-<!-- from: 19#162 -->
 
 **REV-R120.** The frozen output uses this bounded, strictly decoded
 envelope:
-<!-- from: 19#162 -->
 
 ```yaml
 schema: contractor.audit.direct-verifications.v1
@@ -831,83 +689,66 @@ verifications:
     summary: The exact retained trace establishes the reported path.
     evidence_ids: [ev-12]
 ```
-<!-- from: 19#163 -->
 
 **REV-R121.** Entries are ordered by `(invocation_id, client_key)`,
 identities are unique, and assessments are limited to `supported`, `refuted`,
 `inconclusive` or `blocked`.
-<!-- from: 19#164 -->
 
 **REV-R122.** Every selected evidence ID must belong to the exact
 proposal receipt.
-<!-- from: 19#164 -->
 
 **REV-R123.** The Server matches only the receipt currently being
 imported; it does not search by title, subject, Run-wide client key or mutable
 binding.
-<!-- from: 19#164 -->
 
 **REV-R124.** On acceptance the Server forks the exact frozen result
 into the Audit namespace and creates a frozen contract artifact containing the
 immutable `ResolvedWorkflow` snapshot, its closure digest, the selected output
 declaration, the result schema and the identity/evidence binding rule.
-<!-- from: 19#165 -->
 
 **REV-R125.** Both exact refs and digests are stored on the assessment
 and as Audit artifact links.
-<!-- from: 19#165 -->
 
 **REV-R126.** The bytes of the forked result and the contract artifact
 count against the Audit evidence budget and survive permitted source Run and
 catalog deletion (LIFE-REV-2).
-<!-- from: 19#165 -->
 
 **REV-R127.** Replay matches the current deterministic assessment
 identity derived from the destination Audit and the proposal receipt,
 validates its stored content and does not add links or retained bytes again
 (FAIL-REV-6).
-<!-- from: 19#165 -->
 
 **REV-R128.** Direct-assessment replay supports only the current
 Audit-and-receipt identity: receipt-only assessment IDs are not recognized as
 repeats of a current assessment and are not replay aliases.
-<!-- from: 19#165, 19#176 -->
 
 **REV-R129.** An absent, unfrozen, malformed, ambiguous, mismatched or
 budget-exceeding opt-in output leaves the proposal unassessed; it never turns
 Run success into evidence (FAIL-REV-6).
-<!-- from: 19#165 -->
 
 **REV-R130.** Finding assessment accepts both item-attempt result refs
 and direct Workflow result refs.
-<!-- from: 19#166 -->
 
 **REV-R131.** Further checks may supplement either path without
 changing the original source.
-<!-- from: 19#166 -->
 
 **REV-R132.** The API exposes a direct verification record with
 nullable item/attempt IDs and an explicit shared source/verifier Run ID; it
 must not look like a missing relation.
-<!-- from: 19#166 -->
 
 **REV-R133.** The exact result, contract and provenance of a direct
 verification are preserved after permitted source Run deletion
 (LIFE-REV-2).
-<!-- from: 19#166 -->
 
 **REV-R134.** Analyst TP/FP and severity remain separate decisions
 (REV-R53); verified evidence does not bypass the human-confirmation
 policy.
-<!-- from: 19#166 -->
 
 **REV-R135.** Offline attribution can credit discovery and
 verification to the same Workflow while counting one unique finding.
-<!-- from: 19#166 -->
 
 The evidence budget (`maxEvidenceBytes`, LIM-AUX-6) and its accounting are
 specified in [execution](execution.md) (AUX-R45).
-<!-- from: 19#165 -->
 
 ### Proposal import from ordinary Runs
 
@@ -916,35 +757,28 @@ into a non-terminal Audit in the same Project whose pinned profile requires
 finding confirmation; the import retains the proposal and its evidence
 revisions in the same way as collection does for an Audit child Run
 ([execution](execution.md), AUX-R48).
-<!-- from: 19#102, 19#101 -->
 
 **REV-R137.** The same exact receipt may be imported into multiple
 compatible Audits owned by the same owner.
-<!-- from: 19#176 -->
 
 **REV-R138.** Each destination independently owns its finding, analyst
 review, assessment and exact evidence holds; replay within one Audit reuses
 that Audit's records (FAIL-REV-7).
-<!-- from: 19#176 -->
 
 **REV-R139.** Finding and direct-assessment IDs are opaque and scoped to
 the destination Audit.
-<!-- from: 19#176 -->
 
 **REV-R140.** Deleting one destination does not release another
 destination's retained evidence or change its finding decisions
 (LIFE-REV-3).
-<!-- from: 19#176 -->
 
 **REV-R141.** A receipt read through one Audit lists only that
 Audit's own hold and, after source Run deletion, reads the proposal from that
 Audit's retained copy, never from another destination's.
-<!-- from: 19#176 -->
 
 **REV-R142.** After source Run deletion, the Audit inbox omits a native
 child receipt the Audit never retained, such as a proposal whose collection
 was rejected, because no readable copy remains for it (LIFE-REV-4).
-<!-- from: 19#176 -->
 
 A proposal from a non-Audit Run stays attached to that Run until import
 ([audits](audits.md), AUD-R161); finding imports are fenced during a report
@@ -954,76 +788,61 @@ proposal receipts is specified in
 DEL-R29), and how an import racing that deletion serializes in DEL-R31 to
 DEL-R33. An end-to-end example is in
 [Proposal from an ordinary Run](#proposal-from-an-ordinary-run).
-<!-- from: 19#102, 19#177, 19#205 -->
 
 ### Audit retention and publication
 
 **REV-R143.** `AuditArtifactLink` retains exact immutable content
 independently of source Run lifetime (LIFE-REV-2).
-<!-- from: 19#167 -->
 
 **REV-R144.** Trusted import forks accepted packages into protected,
 create-only ProjectScope bindings under an Audit-specific logical namespace
 and records a receipt.
-<!-- from: 19#167 -->
 
 **REV-R145.** Binding keys include the Audit identity and version; a
 collision never overwrites another result.
-<!-- from: 19#167 -->
 
 **REV-R146.** Imported results, external evidence and generated
 reports are created as frozen bindings in the Server-derived, reserved
 `audit-*` Project namespace.
-<!-- from: 19#168 -->
 
 **REV-R147.** Such a binding may exist briefly as recovery staging
 before its receipt or report-link transaction commits; this is why generic
 Project routes hide the entire reserved prefix (ART-R26).
-<!-- from: 19#168 -->
 
 **REV-R148.** Owner-facing Audit report and evidence projections
 expose only exact bindings that have a committed `AuditArtifactLink`;
 database-internal staging is not an acceptance signal.
-<!-- from: 19#168 -->
 
 **REV-R149.** Crash replay accepts an existing binding only when its
 bytes, media type, size, exact source Run revision and import lineage all
 match (FAIL-REV-8).
-<!-- from: 19#168 -->
 
 **REV-R150.** Workers see only exact RunScope inputs and have no Audit
 or Project Artifact authority.
-<!-- from: 19#169 -->
 
 Generic Project route hiding, the ban on ordinary public Project Artifact
 mutation writing or deleting Audit-managed bindings, and owner uploads through
 non-reserved namespaces form the explicit reserved-prefix policy of
 [artifact store](../artifacts/artifact-store.md) (ART-R26).
-<!-- from: 19#168, 19#169 -->
 
 **REV-R151.** Audit-level credential dispatch holds and evidence holds
 are not released by the same transition.
-<!-- from: 19#174 -->
 
 **REV-R187.** Dispatch holds may be released once dispatch is durably closed
 and no unresolved child submission intent can create another Run
 (LIFE-AUD-1).
-<!-- from: 19#174 -->
 
 **REV-R152.** Per-Run credential holds follow the ordinary Run lifecycle.
-<!-- from: 19#174 -->
 
 **REV-R153.** Exact Audit evidence holds and accepted proposal holds
 remain until Audit deletion or until an explicit later retention policy
 transfers and releases them (LIFE-REV-3).
-<!-- from: 19#174 -->
 
 The Audit-level credential dispatch holds themselves are described in
 [audits](audits.md) (AUD-R17). How collection copies every committed proposal
 of an Audit child Run into an Audit hold, or records it as rejected, before the
 Run becomes deletable is specified in [execution](execution.md) (AUX-R48 to
 AUX-R53).
-<!-- from: 19#174, 19#101, 19#178 -->
 
 ### Effects of Run deletion on Audits
 
@@ -1036,7 +855,6 @@ serialization with proposal imports and the rule that Run deletion never
 changes a finding assessment or a frozen report-review subject are specified
 in [retention and deletion](../artifacts/retention-and-deletion.md) (DEL-R17,
 DEL-R18, DEL-R23, DEL-R25, DEL-R30 to DEL-R33, DEL-R57, DEL-R58).
-<!-- from: 19#171, 19#177, 19#201 -->
 
 **REV-R154.** If the trusted collector cannot validate pinned internal data,
 or the Store rejects a collection request by its content alone so that no
@@ -1046,26 +864,21 @@ invalid with blocked coverage, and preserves their prior requested and
 completed coverage arrays (FAIL-REV-9). This is a cleanup-safe technical
 outcome, never accepted evidence, after which Run deletion is allowed
 (DEL-R57, DEL-R58).
-<!-- from: 19#171 -->
 
 **REV-R155.** While an Audit is `finalizing`, the external-retention
 invalidation caused by Run deletion preserves its `updatedAt`: report
 `generatedFrom` uses that frozen timestamp, and Run availability is not part
 of the report payload.
-<!-- from: 19#201 -->
 
 **REV-R156.** A conflict after an immutable report write can
 therefore retry with identical bytes and exact refs before the mandatory
 revision CAS (FAIL-REV-10).
-<!-- from: 19#201 -->
 
 **REV-R157.** In other Audit states, Run deletion advances
 `updatedAt` normally.
-<!-- from: 19#201 -->
 
 **REV-R158.** The revision and ETag, rather than the timestamp alone,
 remain the authoritative change token.
-<!-- from: 19#201 -->
 
 ### Audit deletion
 
@@ -1076,25 +889,20 @@ phases in order (FAIL-REV-11, LIFE-REV-5):
 2. cancel, drain and collect owned Runs;
 3. release evidence and accepted-proposal holds;
 4. only then purge Audit-managed Project bindings and domain rows.
-<!-- from: 19#179 -->
 
 **REV-R160.** The purge removes every row the Audit owns, including
 immutable review decisions and finding assessments that outlive the deleted
 child Runs; their restricting keys protect them only outside a purge.
-<!-- from: 19#179 -->
 
 **REV-R161.** Audit deletion cleanup runs regardless of owner or Audit
 queue pause.
-<!-- from: 19#179 -->
 
 **REV-R162.** Deletion intent is represented by a dedicated
 `deletion_requested_at` marker, not inferred from the stop reason.
-<!-- from: 19#179 -->
 
 **REV-R163.** Cancellation finishes as `cancelled` when no deletion
 was requested and deterministically continues to `deleting` when owner or
 Project deletion supplied the durable intent.
-<!-- from: 19#179 -->
 
 The Audit cancellation and drain phase that Project deletion runs before its
 Run and ProjectScope purge, the exclusion of Audit work from a deleting
@@ -1103,59 +911,46 @@ every Audit hold by a completed Project purge are specified in
 [retention and deletion](../artifacts/retention-and-deletion.md) (DEL-R40,
 DEL-R45, DEL-R50, DEL-R55, DEL-R56). Cancellation and drain of owned Runs are
 specified in [execution](execution.md).
-<!-- from: 19#179 -->
 
 ### Finding, review, provenance and report reads
 
 The endpoints are listed in [audits](audits.md); this section specifies the
 behaviour of the finding, review, provenance and report reads.
-<!-- from: 19#181 -->
 
 **REV-R164.** Findings and Reviews use bounded server pages.
-<!-- from: 19#194 -->
 
 **REV-R165.** Their `total` covers the entire normalized filter, before
 the cursor; it is never inferred from visible rows.
-<!-- from: 19#194 -->
 
 **REV-R166.** Finding lists support filters for triage
 disposition, analyst verdict (including unreviewed) and analyst severity, and
 distinguish analyst severity from a model suggestion.
-<!-- from: 19#186, 19#194 -->
 
 **REV-R167.** Reviews can be filtered by `pending`,
 `decided` or `expired` state, and by finding ID to retrieve paginated decision
 history.
-<!-- from: 19#186, 19#194 -->
 
 **REV-R168.** Both the Findings and the Reviews projection include
 `auditRevision` and `asOf`; an optional `auditRevision` pins the first page to
 a summary.
-<!-- from: 19#194 -->
 
 **REV-R169.** Signed continuation cursors bind owner, Audit, normalized
 filters and revision.
-<!-- from: 19#194 -->
 
 **REV-R170.** A revision fence includes count, page and finding
 hydration, returning 409 on concurrent changes (FAIL-REV-12).
-<!-- from: 19#194 -->
 
 **REV-R171.** Filter changes clear incompatible cursors and
 revision pins.
-<!-- from: 19#194 -->
 
 **REV-R190.** Refresh explicitly starts a new context.
-<!-- from: 19#194 -->
 
 **REV-R172.** Coverage links also pin the summary revision; the UI
 checks it before and after collecting the current-round coverage pages and
 rejects mixed revisions.
-<!-- from: 19#194 -->
 
 **REV-R173.** Finding detail identifies the exact first and contributing
 proposals, the current assessment and decision, and the duplicate target.
-<!-- from: 19#186 -->
 
 **REV-R174.** Provenance pages return typed source-proposal,
 check-attempt and direct-verification records with the complete respective
@@ -1163,49 +958,38 @@ chain of the backtrace and direct verification rules (REV-R83 to
 REV-R92, REV-R113, REV-R132), stable IDs, exact
 refs/digests, role, technical outcome, semantic assessment, whether a result
 supports the current assessment, and `runDeleted`.
-<!-- from: 19#186 -->
 
 **REV-R175.** Checklist sources and standards mappings are separate
 fields.
-<!-- from: 19#186 -->
 
 **REV-R176.** These reads use the same ownership checks and
 generated OpenAPI client as the UI.
-<!-- from: 19#186 -->
 
 **REV-R177.** The provenance response carries finding and Audit
 revisions.
-<!-- from: 19#187 -->
 
 **REV-R191.** Bounded keyset provenance cursors bind to those revisions.
-<!-- from: 19#187 -->
 
 **REV-R192.** A change during provenance traversal returns a conflict and
 requires restarting rather than silently mixing histories (FAIL-REV-12).
-<!-- from: 19#187 -->
 
 **REV-R178.** A script may pass the revisions obtained from finding
 detail to the first provenance page to detect an intervening edit.
-<!-- from: 19#187 -->
 
 **REV-R179.** The public contract includes
 [`docs/examples/audit-finding-backtrace.sh`](../../examples/audit-finding-backtrace.sh),
 which reads ratings and follows revision-bound pagination to emit one
 finding's complete backtrace; no analytics service, dashboard or direct SQL
 access is required.
-<!-- from: 19#187 -->
 
 **REV-R180.** An exact review read exposes its ETag.
-<!-- from: 19#195 -->
 
 **REV-R181.** A proposed report read includes its exact review request
 and the retained bytes under an Audit revision fence.
-<!-- from: 19#195 -->
 
 **REV-R182.** A duplicate finding decision accepts an exact same-Audit
 target ID, including one taken from another page; the Server's ownership and
 duplicate validation still apply.
-<!-- from: 19#195 -->
 
 Review navigation (direct links from each review to its exact finding or
 proposed report, return links that preserve the queue URL, filters and cursor,
@@ -1215,26 +999,21 @@ without replaying a mutation) is specified in [journeys](../ui/journeys.md).
 Audit Overview, including its current-round progress, pending decisions and
 counts linking to Coverage result groups or the pending review filter, is
 specified in [ui](../ui/ui.md).
-<!-- from: 19#195, 06#157 -->
 
 #### Reviews view
 
 **REV-R183.** The Reviews view renders pending item-action requests
 with an explicit rationale and exact-subject controls.
-<!-- from: 19#196 -->
 
 **REV-R184.** Applicability reviews offer `approve`, `reject` and
 `not_applicable`; `not_applicable` settles the item with a durable owner
 rationale and removes only that item from the applicable denominator.
-<!-- from: 19#196 -->
 
 **REV-R185.** Other item reviews and report reviews remain
 approve/reject.
-<!-- from: 19#196 -->
 
 **REV-R186.** A proposed report is readable before acceptance and
 links back to its request; it is never presented as an accepted result.
-<!-- from: 19#196 -->
 
 ## Interfaces
 
@@ -1258,7 +1037,6 @@ links back to its request; it is never presented as an accepted result.
 - Backtrace example:
   [`docs/examples/audit-finding-backtrace.sh`](../../examples/audit-finding-backtrace.sh)
   (REV-R179).
-<!-- from: 19#162, 19#163, 19#153, 19#181, 19#187 -->
 
 ## Limits, failures and errors
 
@@ -1325,7 +1103,6 @@ Failure entries owned elsewhere: the human report acceptance fence
 (FAIL-AUD-11, [audits](audits.md)); a proposal import racing source Run
 deletion (FAIL-DEL-6); Audit-bound Run deletion before collection
 (FAIL-DEL-1).
-<!-- from: 19#107, 19#165, 19#171, 19#177, 19#201 -->
 
 ## Security
 
@@ -1343,7 +1120,6 @@ shared Run, batch, subject or fingerprint (REV-R95); direct
 verification grants no new model authority (REV-R115). Retained
 configuration provenance contains no credential values or active grants
 (REV-R106). The shared model is in [security](../platform/security.md).
-<!-- from: 19#143, 19#144, 19#149, 19#158, 19#161, 19#168, 19#169, 19#172, 19#174 -->
 
 ## Observability
 
@@ -1357,7 +1133,6 @@ projections carry `auditRevision` and `asOf` (REV-R168), and retained
 provenance reports `runDeleted` (REV-R105). The Audit event history
 itself is specified in [audits](audits.md); shared rules are in
 [observability](../platform/observability.md).
-<!-- from: 19#144, 19#145, 19#147, 19#148, 19#172, 19#194 -->
 
 ## Invariants
 
@@ -1380,7 +1155,6 @@ itself is specified in [audits](audits.md); shared rules are in
    REV-R108).
 7. Paginated finding, review and provenance reads never mix revisions
    (REV-R170, REV-R191, REV-R192).
-<!-- from: 19#64, 19#143, 19#144, 19#147, 19#148, 19#151, 19#159, 19#165, 19#172, 19#176, 19#187, 19#194 -->
 
 ## Examples
 
@@ -1394,26 +1168,18 @@ itself is specified in [audits](audits.md); shared rules are in
 5. If the owner instead hard-deletes the source Run, unimported proposals are
    durably discarded and purged with the source Run; imported revisions remain
    held by their destination Audits.
-<!-- from: 19#205 -->
 
 The direct verification envelope example is shown with REV-R120.
-<!-- from: 19#163 -->
 
 ## Non-goals
 
 - A separate global Hypothesis entity or generic graph engine for backtrace
   (REV-R82).
-  <!-- from: 19#155 -->
 - Cross-Audit deduplication: it is not implied.
-  <!-- from: 19#159 -->
 - Cross-Audit snapshot export.
-  <!-- from: 19#187 -->
 - An analytics service, dashboard or direct SQL access for attribution
   (REV-R179, REV-R103).
-  <!-- from: 19#159, 19#187 -->
 - A separate analyst role or second approval system (REV-R54).
-  <!-- from: 19#146 -->
 - The reserved review kinds `plan-approval` and `provide-evidence`
   (REV-R25) and historical `text/plain` report summaries
   (REV-R75).
-  <!-- from: 19#142, 19#153 -->

@@ -15,7 +15,7 @@ goal: >-
   to browser polling or changing HTTP streaming and execution behavior.
 
 context:
-  specification: docs/spec/22-performance-metrics-and-profiling.md
+  specification: docs/spec/operations/operations.md
   composition: >-
     The performance flag defaults true; false installs no new HTTP instrumentation,
     sampler, performance buffer, timer or writer. Existing telemetry, budget

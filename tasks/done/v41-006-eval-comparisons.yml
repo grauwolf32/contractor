@@ -13,7 +13,7 @@ languages: ["python", "json", "yaml", "go"]
 
 goal: "Produce reproducible comparisons over the frozen denominator, retaining failures, missing/duplicate members and metric uncertainty."
 context:
-  specification: docs/spec/26-portable-evaluation-format.md
+  specification: docs/spec/evals/format.md
   repository: "Implementation belongs in sibling playground-v2 unless a deliverable explicitly names Contractor. Commands below start at the Contractor root; the sibling location is a development convention, not a runtime dependency."
   pairing: "Pair by suite/case/sample with exact required-equal pins. Manifest plus receipts owns membership; eval labels only discover candidates. Select result/assessment refs explicitly; conflicts cannot be solved by best score or last write."
   rates: "Report expected/eligible/unsupported/blocked/submitted/terminal/missing/conflicting/collection-complete/scored/passed counts. Execution and end-to-end rates use expected denominator; conditional quality states its scored denominator. pass@N is secondary."

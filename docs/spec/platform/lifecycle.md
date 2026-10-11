@@ -37,8 +37,6 @@ It leaves to other documents:
 The place of registries in the specification is set out in the
 [conventions](../conventions.md#registries).
 
-<!-- from: conventions.md#registries, 04#69, 07#23, 07#51, 09#59 -->
-
 ## Concepts
 
 Terms are defined once in the [glossary](../glossary.md); this document owns
@@ -55,8 +53,6 @@ the following ones.
   readable, for example for a fixed period, without ever being purged, while
   something refers to it, or for the lifetime of another entity.
 
-<!-- from: conventions.md#registries, 04#69, 07#23, 09#59 -->
-
 ## Model
 
 ### Lifecycle entry
@@ -72,8 +68,6 @@ the following ones.
 | Owner | A link to the owning requirement |
 
 A field that the owning requirements leave open reads "not specified".
-
-<!-- from: conventions.md#registries -->
 
 ### Field forms
 
@@ -93,8 +87,6 @@ is in the linked requirement.
 | Retained | Readable while a retained Run snapshot refers to it | Exact owner source and Run fork revisions: LIFE-SKL-1, LIFE-SKL-2 ([SKL-R81](../tools/skills.md)) |
 | Retained | For the lifetime of another entity | Run skill fork, which lives as long as its Run: LIFE-SKL-2 ([SKL-R81](../tools/skills.md)) |
 
-<!-- from: 04#69, 07#23, 07#51, 09#59 -->
-
 ## Requirements
 
 **LIFE-R1.** Every entity whose deletion, deletion blockers, cascade or
@@ -105,12 +97,8 @@ that owns the entity's lifecycle rules.
 Rationale: a lifecycle rule that several components enforce stays consistent
 only when it is defined in one place.
 
-<!-- from: conventions.md#registries -->
-
 **LIFE-R2.** The owning document states an entity's lifecycle rules as
 requirements and cites the entry where it states them.
-
-<!-- from: conventions.md#registries -->
 
 **LIFE-R3.** An entry names every deleter, deletion blocker, cascade and
 retention that its owning requirements give for the entity; several holders
@@ -118,8 +106,6 @@ that constrain one entity do not get separate entries. For example, the one
 entry of an immutable RuntimeConfig version (LIFE-RCF-3) names the active label
 binding, the non-terminal Run snapshot and the live allocation, each of which
 blocks its deletion ([RCF-R128](../configuration/runtime-config.md)).
-
-<!-- from: conventions.md#registries, 07#23 -->
 
 **LIFE-R4.** A document that depends on a lifecycle rule owned elsewhere links
 to the owning requirement or to the entry and does not restate the rule. For
@@ -130,8 +116,6 @@ RuntimeConfig versions and encrypted credentials once by
 [RCF-R54](../configuration/runtime-config.md) (LIFE-RCF-3, LIFE-RCF-1,
 LIFE-RCF-5).
 
-<!-- from: conventions.md#registries, 04#69, 07#23, 07#51 -->
-
 ## Limits, failures and errors
 
 This document owns no bound, error code or failure outcome. Lifecycle rules
@@ -140,8 +124,6 @@ the retention of durable telemetry for 30 days (LIM-OBS-8,
 [OBS-R43](observability.md)); the bounded deletion budget of each telemetry
 table is stated by [OBS-R44](observability.md).
 
-<!-- from: 04#69 -->
-
 ## Non-goals
 
 - Physical garbage collection of unreferenced immutable RuntimeConfig
@@ -149,8 +131,6 @@ table is stated by [OBS-R44](observability.md).
   unreferenced historical Skill packages. Both deferrals are owned by their
   documents: [Runtime configuration](../configuration/runtime-config.md#non-goals)
   and [Skills](../tools/skills.md#non-goals).
-
-<!-- from: 07#23, 09#59 -->
 
 ## Registry
 
@@ -301,4 +281,3 @@ Owner column links each entry to its owning requirement.
 | `LIFE-WSP-4` | Partial auto-export artifact revision (one of state or diff written when the other write failed) | not specified | not specified | not specified | harmless: Scheduler never selects it | [WSP-R151](../tools/workspace.md) |
 
 <!-- /registry-table -->
-

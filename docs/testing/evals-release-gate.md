@@ -1,7 +1,7 @@
 # Managed Evals release verification
 
 This gate covers the managed experiment protocol and the browser journey from
-[spec 30](../spec/30-managed-evals.md). It uses disposable PostgreSQL schemas,
+[Managed Evals spec](../spec/evals/managed-evals.md). It uses disposable PostgreSQL schemas,
 the real Server, Python Runtime and production Node UI, and a deterministic
 loopback model Gateway. It does not call a paid model or a live target.
 

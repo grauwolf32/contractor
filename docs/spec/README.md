@@ -1,166 +1,177 @@
-# Contractor v2 — working specifications
+# Contractor specification
 
-Status: **Working agreement**
+The reference specification of Contractor: how the system is meant to behave,
+organised by domain. It is normative. When code and specification disagree,
+find out which one is wrong and fix it in the same change.
 
-[Documentation index](../README.md) · [Development guides](../development.md)
+[Documentation index](../README.md) · [Conventions](conventions.md) · [Glossary](glossary.md)
 
-This directory is the canonical working specification for Contractor v2, an
-Application Security orchestration platform. Workflows define reusable security
-checks and supporting analyses. Audit is the higher-level abstraction that
-coordinates WorkflowRuns into a Project-bound assessment with shared scope,
-evidence, findings, coverage and review.
+Contractor is an Application Security orchestration platform. Versioned
+Workflows define security checks and supporting analyses; a Run executes one
+Workflow; an Audit coordinates many ordinary Runs inside a Project against a
+pinned baseline and tracks coverage, evidence, findings and human review.
+Everything runs on one host: Server, PostgreSQL and one or more single-slot
+Runtime Agents.
 
-The target deployment is one VM or one physical host. Server, PostgreSQL and
-one or more lightweight Runtime Agent processes may all run on that host.
-Nothing in this model requires Kubernetes, a controller or a separate control-
-plane service.
+## Start here
 
-The catalog of checks is extensible. Check-specific behavior belongs in
-versioned Workflow, Planner and AgentTemplate definitions, instructions, Skills
-and toolsets. The execution core remains generic: Scheduler manages Run and
-Stage lifecycles without branching on security-check types. AuditProfile defines
-how selected Workflows participate in an assessment; [19](19-audits.md) owns
-that coordination contract.
+| Document | Read it for |
+| --- | --- |
+| [System overview](overview.md) | Purpose, deployables, single-host topology, trust boundaries and the end-to-end path of one Run |
+| [Conventions](conventions.md) | What belongs in the specification, document shape, requirement IDs, registries |
+| [Glossary](glossary.md) | One definition per term, linked to the document that owns it |
 
-The configuration/UI target loads YAML/text definitions from `configs/` with
-seven fixed subtrees: `workflows`, `agent-templates`, `model-policies`,
-`llm-gateways`, `execution-configs`, `audit-profiles` and `instructions`.
-YAML document identity comes from
-`kind + metadata.name + metadata.version`, not its file name;
-[00](00-workflow-and-planner.md) owns the complete loading contract.
-Reviewable built-in Agent Skill sources live in the additional non-YAML
-`configs/skills` subtree. It is the create-only source for initial
-`SkillCatalog` population of the local owner's ordinary `skills/*` UserScope
-artifacts, not live desired state; restart never overwrites a binding advanced
-through the Artifact API. [09](09-agent-skills.md) owns that lifecycle.
-Curated Audit standard packages live in the additional non-YAML
-`configs/audit-standards` subtree, one `standard.json` per package directory;
-[19](19-audits.md#42-curated-standard-package-catalog) owns that catalog.
+Each document starts with its requirement prefix. Requirements are numbered
+`**PREFIX-Rn.**`, never renumbered, and cited as `[RUN-R12](execution/runs.md)`.
+Numeric bounds, error codes, failure outcomes and deletion rules are defined
+once in the platform registries and cited by ID (`LIM-…`, error code,
+`FAIL-…`, `LIFE-…`).
 
-## Reading order
+## Domains
 
-| Document | Owns |
-|---|---|
-| [00](00-workflow-and-planner.md) | Workflow Scheduler, Stage, Planner and StageResult |
-| [01](01-agent-template.md) | Reusable Worker behavior and Stage binding |
-| [02](02-runtime-and-a2a.md) | Allocation and the single-slot Runtime Agent acting as Worker/A2A Server |
-| [03](03-artifact-plane.md) | ArtifactStore scopes, RunArtifactSpace, input/output forks, Namespace and CAS |
-| [04](04-execution-lifecycle-and-metrics.md) | StageExecution identity, StageTermination, sessions, finalization, recovery and metrics |
-| [05](05-first-slice-and-open-decisions.md) | First implementation slice and deliberately deferred decisions |
-| [06](06-server-ui-and-operations.md) | Separate Node.js Web UI, Operations visibility, process budgets and published execution configuration selection |
-| [07](07-runtime-labels-and-infrastructure-config.md) | Run-selected/Agent Runtime labels, database-backed infrastructure configs, adapter placement and allocation-scoped settings |
-| [08](08-memory-tools.md) | Run-scoped shared Memory Namespace and the artifact-backed `memory-tools@1` contract |
-| [09](09-agent-skills.md) | AgentTemplate-selected, artifact-pinned Agent Skills loaded through native Google ADK |
-| [10](10-runtime-filesystems-and-edit-tools.md) | Run-artifact workspaces, Runtime local/memory storage, overlay export and filesystem/Edit tools |
-| [11](11-http-and-caido-tools.md) | Allocation-scoped HTTP exploration and label-configured Caido GraphQL tools |
-| [12](12-code-analysis-tools.md) | Workspace Tree-sitter analysis and local-only allocation-scoped Trailmark graph tools |
-| [13](13-taint-annotations.md) | Structured, atomic `@trace`/`@validate`/`@sink` workspace annotations |
-| [14](14-worker-results-and-live-state.md) | Typed Worker results, deterministic observations, volatile Worker State and explicit Planner projections |
-| [15](15-worker-summarization.md) | Optional one-shot terminal Worker summarization at a deterministic soft limit |
-| [16](16-run-metadata-labels.md) | Immutable queryable WorkflowRun metadata labels and the eval correlation convention |
-| [17](17-projects-and-queue.md) | Optional Projects, ProjectScope artifact reuse, Workflow recommendations, Evals and the global Queue |
-| [18](18-run-and-workspace-lifecycle-controls.md) | Consolidated Runs UI, durable queue pause/resume and safe Run/Project deletion |
-| [19](19-audits.md) | Project-bound multi-Run Audits, deterministic inventories, findings, review, coverage and recovery |
-| [20](20-scheduler-concurrency-control.md) | Durable Operations-controlled concurrency across ordinary WorkflowRuns and Audit dispatch backpressure |
-| [21](21-podman-sandbox.md) | Implemented: opt-in local Podman execution, direct workspace sharing and verified container cleanup |
-| [22](22-performance-metrics-and-profiling.md) | Implemented: Server/DB performance charts, completed allocation resources, retained history and independent Go profiling |
-| [23](23-artifact-blob-backends.md) | Startup-selected PostgreSQL/filesystem blobs, Kubernetes without PVC, bounded memory and deferred S3 |
-| [24](24-git-artifacts.md) | Owner SSH-key Settings, bounded in-memory Git snapshots, Workflow/Project import UI and immutable commit provenance |
-| [25](25-audit-worker-finalization.md) | Implemented opt-in: collection, Runtime completion, ZIP publication and diagnostics; [V39-007](../../tasks/done/v39-007-audit-completion-release-gate.yml) records the completed deterministic release gate |
-| [26](26-portable-evaluation-format.md) | Implemented in playground-v2 and offline-gated: portable documents, execution bindings, v1 compatibility, recovery and comparison; model quality evals remain |
-| [27](27-findings-tools-and-collections.md) | Implemented: findings collection codec, Server publication, Runtime materialization, independent finding/list_findings tools and producer/analyst Workflows |
-| [28](28-finding-analysis-and-sarif.md) | Draft; not implemented: structured finding analysis, exact-evidence resolution and deterministic SARIF export |
-| [29](29-tool-workers.md) | Implemented: deterministic model-free tool Workers, typed execution bindings and durable invocation receipts |
-| [30](30-managed-evals.md) | Implemented: native Evals execution, assessments, comparison APIs, browser UI and optional independent Playground client |
-| [31](31-scan-request-preparation.md) | Implemented: bounded deterministic OpenAPI request preparation, RequestSet identities and coverage gaps |
-| [32](32-scan-planning.md) | Implemented: bounded model-free scan plans, fixed Worker routing, durable job intent and conservative recovery |
-| [33](33-autonomous-pentest-audits.md) | Draft; not implemented: source-optional web/API pentest Audits, enforced scope, isolated identities, live proof and replay, recovery and release gates |
-| [34](34-audit-check-prioritization.md) | Draft integration target; V64-000 pure verdict/selection core implemented, Audit capability pending |
-| [Database ERD](database-erd.html) | Interactive PostgreSQL schema at migration 000096: 71 tables, keys, each table's purpose and the processes that use it, and where the tables removed by V365 went; regenerate with `make docs-erd` ([generator](../../scripts/erd/README.md)) |
-| [LikeC4](artitecture.likec4) | Component map and focused architecture views |
-| [OpenAPI Audit scans](openapi-audit-scans.md) | Released: assigned SQLMap requests and pinned Nuclei URLs; prepare-role OpenAPI generation specified but not delivered |
-| [UI user stories](ui-user-stories.md) | User goals and acceptance scenarios; individual stories retain their implementation status |
+### Platform
 
-[`core-execution-model.md`](core-execution-model.md) is a short navigation entry
-point for links that previously targeted the monolithic working agreement.
+Rules shared by every domain.
 
-## Smallest useful mental model
+| Document | Prefix | Owns |
+| --- | --- | --- |
+| [Limits](platform/limits.md) | `LIM` | Registry of numeric limits and cardinality targets |
+| [Error and stop codes](platform/errors.md) | `ERR` | Registry of error and stop codes |
+| [Failure model](platform/failure-model.md) | `FAIL` | Outcome classes, retryability, idempotency and receipts, ambiguous writes, cancellation ownership |
+| [Entity lifecycle](platform/lifecycle.md) | `LIFE` | Entity deletion, cascade and retention matrix |
+| [Security](platform/security.md) | `SEC` | Trust boundaries, mTLS identity, authentication, secrets and redaction, target policy |
+| [Observability](platform/observability.md) | `OBS` | Metrics, OTLP traces, telemetry content rules, metadata propagation |
+| [Persistence](platform/persistence.md) | `PER` | PostgreSQL ownership, transactions, migrations, schema conventions, leases in the database |
 
-An Audit coordinates ordinary WorkflowRuns. Each Run executes a selected
-Workflow through the lifecycle below; a Workflow can also run independently
-of an Audit.
+### Configuration
 
-```text
-Workflow
-  -> Workflow Scheduler validates immutable parameters and forks exact UserScope or ProjectScope inputs and selected owner skills into RunArtifactSpace
-  -> selects a ready Stage
-  -> resolve its AgentTemplate bindings
-  -> Control Plane resolves pinned default/Run-selected Runtime labels plus Agent Runtime labels and prepares compatible Worker allocations
-  -> PlannerFactory creates the selected Stage-local Planner
-  -> Planner tools talk through WorkerInvoker/A2A to allocated Runtime Agents acting as Workers
-  -> Runtime validates one typed semantic Worker result and attaches deterministic observations
-  -> explicit Planner state tools may inspect safe live projections from that allocation
-  -> explicitly selected MemoryTools let Planner and each logical Worker share that Worker's Run-scoped notes
-  -> all participants exchange durable data through RunArtifactSpace
-  -> Planner returns one candidate StageResult
-  -> Workflow Scheduler persists finalizing, drains Workers and collects reports
-  -> Workflow Scheduler accepts the terminal result, binds outputs and releases allocations
-  -> an explicit successful Workflow transition freezes required outputs and commits Run success
-```
+What can be configured and how a configuration is identified, loaded and selected.
 
-If Scheduler-owned cancellation or interruption wins before `finalizing`, the
-alternative path is `aborting`: Scheduler stores StageTermination, fences
-writes, performs a bounded best-effort drain and reaches `cancelled` or
-`interrupted` without waiting for terminal A2A Task state.
+| Document | Prefix | Owns |
+| --- | --- | --- |
+| [Configuration catalog](configuration/catalog.md) | `CAT` | Configuration kinds, `(kind, name, version)` identity, selectors, digests, loading, validation, managed configuration roots, immutability |
+| [Workflows](configuration/workflows.md) | `WFL` | Workflow definitions: Stages, transitions, bindings, input and output slots, presentation |
+| [Agent templates](configuration/agent-templates.md) | `TPL` | AgentTemplate, ModelPolicy, ExecutionConfig layering, toolset selection |
+| [Runtime configuration, labels, credentials and Gateways](configuration/runtime-config.md) | `RCF` | RuntimeConfig, runtime labels, label resolution and merge, credentials, LLM Gateways, adapters |
 
-WorkflowRun separately owns `initializing`, `pending`, `running`, `waiting`, `cancelling` and terminal
-`succeeded`/`failed`/`cancelled` states. Cancel and success serialize on the
-durable Run row; the first committed transition wins.
+### Execution
 
-The boundaries are deliberately narrow:
+How a Run executes: Runs, the Scheduler, the Control Plane, Runtime Agents, Planners and Workers.
 
-| Concept | Responsibility |
-|---|---|
-| Workflow | Reusable check or supporting analysis, with a Stage graph and transition/acceptance policy |
-| Workflow Scheduler | WorkflowRun progression and durable StageExecution lifecycle |
-| Planner | Stage-local decomposition and routing among prepared Workers |
-| AgentTemplate | Immutable, reusable Worker behavior/configuration |
-| Worker session mode | Immutable Stage policy selecting isolated-by-default or explicit shared sequential ADK conversation semantics inside each allocation |
-| Control Plane | Capacity and allocation lifecycle |
-| Runtime Agent | One process and one slot: control client, A2A Server and one in-process Worker runtime while allocated |
-| Runtime label | Control Plane alias selecting an immutable typed infrastructure config for a Run or Runtime Agent |
-| Run metadata label | Immutable queryable key/value metadata that groups Runs without changing execution |
-| Runtime adapter | Allocation-scoped Runtime code configured by Control Plane without adding model-visible tools |
-| ArtifactStore | One physical artifact service, registry and blob boundary |
-| Agent Skill | Owner UserScope guidance artifact selected by AgentTemplate and pinned/forked per Run |
-| SkillCatalog | Internal validator/resolver over ordinary Skill artifacts; no separate API or storage |
-| MemoryTools | Thin Planner/Worker wrapper over reserved RunScope note artifacts; hidden CAS and logical note projection |
-| WorkspaceFS | Allocation-scoped Run artifact workspace with Runtime-local local/memory storage and optional overlay export |
-| HTTP/Caido tools | Explicit Worker tools over allocation-owned direct/proxied HTTP and typed label-configured Caido clients |
-| Code analysis | Read-only shallow Tree-sitter tools on local/memory workspaces and local-only killable Trailmark graph tools |
-| Taint annotations | Explicitly selected structured source mutations over a narrowed workspace Writer |
-| Worker State | Bounded volatile Runtime-owned metrics/observation state, readable only through private Control Plane transport |
-| Planner state tools | Explicit typed projections over a logical Worker's newest correlated live snapshot; never a generic State query |
-| UserScope | Authenticated user's durable artifact library |
-| Project | Optional owner-scoped organization of reusable artifacts and ordinary Runs; never an execution state machine |
-| ProjectScope | Long-lived Project artifact view from which exact inputs are forked into a Run |
-| RunArtifactSpace | RunScope view with mutable inputs, intermediates and declared outputs |
-| Queue | Owner-scoped read projection over nonterminal WorkflowRuns; never a second Scheduler |
-| Queue control | Durable owner-scoped admission gate; never a WorkflowRun state or process-local switch |
-| Audit | Assessment abstraction over Workflows; coordinates ordinary Runs, scope, evidence, findings, coverage and review within a Project |
+| Document | Prefix | Owns |
+| --- | --- | --- |
+| [Runs](execution/runs.md) | `RUN` | WorkflowRun resource and lifecycle, creation and admission, metadata labels, cancellation, outputs |
+| [Scheduler](execution/scheduler.md) | `SCH` | StageExecution, claims, lanes and concurrency, retry and escalation, owner pause, recovery |
+| [Control Plane](execution/control-plane.md) | `CTL` | Runtime Agent registration, principals, mTLS identity, heartbeat and lease, capability discovery, placement, allocation and release |
+| [Runtime Agent](execution/runtime-agent.md) | `RTA` | Runtime process, startup probes, allocation lifecycle on the Runtime side, A2A endpoint, work root |
+| [Planners](execution/planners.md) | `PLN` | Passthrough, Streamline and Router Planners, plans, budgets, Planner tools |
+| [Worker](execution/worker.md) | `WRK` | Worker model boundary, result finalizer, structured results and observations, live state, summarization, session modes, Gateway client |
 
-## Specification rule
+### Artifacts
 
-Each decision has one owning document. Other documents link to it instead of
-repeating a second normative version. Unresolved behavior is recorded
-explicitly rather than inferred from historical designs: cross-cutting
-decisions stay in [05](05-first-slice-and-open-decisions.md), and a document
-may keep its own deferred section for decisions inside its scope; 05 links
-those sections. Implementation status lives only in a document's `Status:`
-line, in the reading-order table above and in task files; normative body text
-describes the accepted target without task identifiers, dates or evidence.
+Durable data: the ArtifactStore, Projects, retention and deletion, blob storage and Git import.
 
-[02](02-runtime-and-a2a.md#one-private-wire-contract) uses one strict
-`contractor/v1alpha1` private surface and one schema/fixture catalog. The
-specification describes that accepted target; implementation task files retain
-their own verification status.
+| Document | Prefix | Owns |
+| --- | --- | --- |
+| [Artifact store](artifacts/artifact-store.md) | `ART` | ArtifactStore scopes, namespaces, refs, revisions, CAS, tool authority, Workflow input forks and output publication |
+| [Projects](artifacts/projects.md) | `PRJ` | Project resource, ProjectScope, recommendations, output publication, the global queue view, Project target configuration |
+| [Retention and deletion](artifacts/retention-and-deletion.md) | `DEL` | Run hard deletion, Project deletion, purge and garbage collection |
+| [Artifact blob storage](artifacts/blob-storage.md) | `BLB` | Payload backends (PostgreSQL, filesystem), transfer slots, orphan cleanup |
+| [Git import](artifacts/git-import.md) | `GIT` | Git repositories as artifact inputs, source bundles, SSH trust |
+
+### Tools
+
+Toolsets available to Workers.
+
+| Document | Prefix | Owns |
+| --- | --- | --- |
+| [Toolsets](tools/toolsets.md) | `TLS` | Common toolset contract: selection, capabilities, tool errors versus exceptions, bounds, telemetry |
+| [Memory](tools/memory.md) | `MEM` | Memory notes and memory tools |
+| [Agent Skills](tools/skills.md) | `SKL` | Agent Skill packages, catalog, pinning, ADK Skill toolset |
+| [Run workspaces and filesystem tools](tools/workspace.md) | `WSP` | Run workspaces, hydration, direct and overlay modes, filesystem and edit tools |
+| [Code analysis](tools/code-analysis.md) | `CAN` | Tree-sitter and Trailmark tools, taint annotations |
+| [HTTP and Caido tools](tools/http-caido.md) | `HTP` | HTTP tools, forward proxy, Caido tools |
+| [Scanners](tools/scanners.md) | `SCN` | Tool Workers, scanner adapters, scan request preparation and scan planning |
+| [Code execution](tools/code-execution.md) | `EXE` | Podman sandbox and code execution |
+
+### Audits
+
+Project-bound assessments that coordinate many Runs.
+
+| Document | Prefix | Owns |
+| --- | --- | --- |
+| [Audits](audits/audits.md) | `AUD` | AuditProfile, baseline and scope, durable model, packages and schemas, inventories, Audit and Round lifecycle |
+| [Audit execution](audits/execution.md) | `AUX` | Audit Controller: submission, dispatch, collection, import, recovery, budgets |
+| [Review and reports](audits/review-and-reports.md) | `REV` | Human review, evidence, coverage, reports, Audit retention |
+| [Audit Worker completion](audits/worker-completion.md) | `AWC` | Audit check result collection and completion inside the Worker |
+| [Audit preparation and OpenAPI scans](audits/scans.md) | `ASC` | Audit preparation and OpenAPI scan checks |
+
+### Findings
+
+Finding proposals, collections and finding tools.
+
+| Document | Prefix | Owns |
+| --- | --- | --- |
+| [Findings](findings/findings.md) | `FND` | Finding proposals, collections, locations and finding tools |
+
+### Evals
+
+The portable evaluation format and managed Evals.
+
+| Document | Prefix | Owns |
+| --- | --- | --- |
+| [Portable evaluation format](evals/format.md) | `EVF` | Portable evaluation format |
+| [Managed Evals](evals/managed-evals.md) | `EVM` | Managed Evals and external producers |
+
+### API
+
+Conventions shared by every public resource.
+
+| Document | Prefix | Owns |
+| --- | --- | --- |
+| [Public API](api/public-api.md) | `API` | Public API conventions: authentication, sessions, CSRF, pagination, idempotency, error envelope, versioning, events |
+
+### UI
+
+The web UI.
+
+| Document | Prefix | Owns |
+| --- | --- | --- |
+| [Web UI](ui/ui.md) | `UI` | UI architecture, information architecture, language, data freshness, accessibility |
+| [UI journeys](ui/journeys.md) | `UIJ` | User journeys the UI must support |
+
+### Operations
+
+Operations settings, performance metrics, profiling, PKI, deployment and the command line.
+
+| Document | Prefix | Owns |
+| --- | --- | --- |
+| [Operations](operations/operations.md) | `OPS` | Operations surface and settings, performance metrics, profiling, local PKI, deployment boundary, CLI |
+
+## Registries
+
+| Registry | Defines |
+| --- | --- |
+| [Limits](platform/limits.md) | Every numeric bound and cardinality target (`LIM-<area>-<n>`) |
+| [Error and stop codes](platform/errors.md) | Every error and stop code, its HTTP status and retryability |
+| [Failure model](platform/failure-model.md) | Outcome classes and how each external call and mutation behaves (`FAIL-<area>-<n>`) |
+| [Entity lifecycle](platform/lifecycle.md) | Who deletes each entity, what blocks it, what cascades and what is retained (`LIFE-<area>-<n>`) |
+
+## Contracts and models outside this directory
+
+| Source | Contents |
+| --- | --- |
+| [`api/openapi/contractor-public-v1.yaml`](../../api/openapi/contractor-public-v1.yaml) | Public HTTP contract |
+| [`api/events/`](../../api/events/) | Public WebSocket event schemas |
+| [`api/v1alpha1/`](../../api/v1alpha1/) | Server ↔ Runtime wire contract and shared fixtures |
+| [Architecture model](artitecture.likec4) | LikeC4 component map and focused views (`make verify-architecture`) |
+| [Database ERD](database-erd.html) | Interactive PostgreSQL schema: tables, keys, purpose and the processes that use them (`make docs-erd`) |
+| [`configs/`](../../configs/README.md) | Shipped Workflows, templates, policies and Skills |
+
+## Outside the specification
+
+| Location | Contents |
+| --- | --- |
+| [`docs/proposals/`](../proposals/) | Designs of capabilities that are not implemented yet; folded into the specification once implemented |
+| [`docs/decisions/`](../decisions/README.md) | Settled architecture decisions, planning history, [open questions](../decisions/open-questions.md), the [specification history](../decisions/spec-history.md) and the [legacy-to-domain map](../decisions/spec-migration.md) |
+| `tasks/` | What is done, in progress or planned; tasks cite the specification, never the reverse |
