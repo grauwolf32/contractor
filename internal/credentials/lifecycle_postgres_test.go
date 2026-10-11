@@ -507,7 +507,13 @@ func TestCredentialDeleteSerializesAgainstRunSnapshotCommit(t *testing.T) {
 func TestCredentialRunReferenceQueryRejectsUnsafePublicRunIDs(t *testing.T) {
 	pool, ctx := lifecycleTestPool(t)
 	runs := runstore.NewPostgresStore(pool)
-	createPinnedRun(t, ctx, runs, "unsafe run id", "managed-worker")
+	// The store refuses an unsafe Run ID on write (API-R70), so the row that
+	// the read path must still refuse is copied in below the store.
+	if _, err := runs.CreateRun(ctx, pinnedRunParams("unsafe run id", "managed-worker")); !errors.Is(err, runstore.ErrInvalid) {
+		t.Fatalf("unsafe Run ID write error = %v, want ErrInvalid", err)
+	}
+	createPinnedRun(t, ctx, runs, "run-unsafe-source", "managed-worker")
+	copyRunWithID(t, ctx, pool, "run-unsafe-source", "unsafe run id")
 	if _, err := runs.ListNonTerminalRunIDsByCredential(ctx, "managed-worker", 128); err == nil {
 		t.Fatal("unsafe Run ID was returned as public credential-in-use detail")
 	}
@@ -790,6 +796,37 @@ func lookupManagedCredential(ctx context.Context, pool *pgxpool.Pool, credential
 		_, err = lookup.LookupLLMCredential(ctx, credentialID)
 		return err
 	})
+}
+
+// copyRunWithID inserts a copy of a stored Run under another run_id without
+// the store's write validation, for tests of what the read paths refuse.
+func copyRunWithID(t *testing.T, ctx context.Context, pool *pgxpool.Pool, sourceRunID, runID string) {
+	t.Helper()
+	rows, err := pool.Query(ctx, `
+SELECT column_name FROM information_schema.columns
+WHERE table_schema = current_schema() AND table_name = 'workflow_runs'
+  AND is_generated = 'NEVER' AND is_identity = 'NO'
+ORDER BY ordinal_position`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	columns, err := pgx.CollectRows(rows, pgx.RowTo[string])
+	if err != nil {
+		t.Fatal(err)
+	}
+	selected := make([]string, len(columns))
+	for i, column := range columns {
+		selected[i] = pgx.Identifier{column}.Sanitize()
+		if column == "run_id" {
+			selected[i] = "$1"
+		}
+		columns[i] = pgx.Identifier{column}.Sanitize()
+	}
+	statement := "INSERT INTO workflow_runs (" + strings.Join(columns, ", ") + ") SELECT " +
+		strings.Join(selected, ", ") + " FROM workflow_runs WHERE run_id = $2"
+	if _, err := pool.Exec(ctx, statement, runID, sourceRunID); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func createPinnedRun(

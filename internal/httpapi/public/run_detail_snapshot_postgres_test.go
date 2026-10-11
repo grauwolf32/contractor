@@ -64,7 +64,10 @@ func TestPostgresRunDetailResponseKeepsStateWithItsCursor(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := runs.TransitionRun(ctx, runID, runstore.RunInitializing, runstore.RunRunning, runstore.Reason{Code: "initialized"}); err != nil {
+	if _, err := runs.TransitionRun(ctx, runID, runstore.RunInitializing, runstore.RunPending, runstore.Reason{Code: "initialized"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := runs.TransitionRun(ctx, runID, runstore.RunPending, runstore.RunRunning, runstore.Reason{Code: "admitted"}); err != nil {
 		t.Fatal(err)
 	}
 	before, err := runs.GetRunEventCursor(ctx, runID)

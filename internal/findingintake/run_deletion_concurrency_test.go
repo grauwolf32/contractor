@@ -292,11 +292,15 @@ func newFindingImportFixture(t *testing.T, direct bool) deletionImportFixture {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	terminal := runstore.RunFailed
+	from, terminal := runstore.RunInitializing, runstore.RunFailed
 	if direct {
-		terminal = runstore.RunRunning
+		// A Run reaches running only through pending (RUN-R26, RUN-R28).
+		if _, err := runs.TransitionRun(ctx, runID, from, runstore.RunPending, runstore.Reason{Code: "fixture_admitted"}); err != nil {
+			t.Fatal(err)
+		}
+		from, terminal = runstore.RunPending, runstore.RunRunning
 	}
-	if _, err := runs.TransitionRun(ctx, runID, runstore.RunInitializing, terminal, runstore.Reason{Code: "fixture_done"}); err != nil {
+	if _, err := runs.TransitionRun(ctx, runID, from, terminal, runstore.Reason{Code: "fixture_done"}); err != nil {
 		t.Fatal(err)
 	}
 	intake, err := New(pool)

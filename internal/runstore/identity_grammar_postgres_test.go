@@ -55,7 +55,7 @@ func TestPostgresStoreRejectsIdentitiesOutsideThePublicGrammars(t *testing.T) {
 	}
 
 	run := createTestRun(t, ctx, store, "run-stage-grammar")
-	if _, err := store.TransitionRun(ctx, run.RunID, RunInitializing, RunRunning, Reason{Code: "ready"}); err != nil {
+	if _, err := admitTestRun(ctx, store, run.RunID); err != nil {
 		t.Fatal(err)
 	}
 	stageParams := func(mutate func(*CreateStageExecutionParams)) CreateStageExecutionParams {

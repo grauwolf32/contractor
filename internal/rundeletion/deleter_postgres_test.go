@@ -158,10 +158,13 @@ func createDeletionRun(
 	}
 	from := runstore.RunInitializing
 	if state != runstore.RunFailed {
-		if _, err := runs.TransitionRun(ctx, runID, from, runstore.RunRunning, runstore.Reason{Code: "started"}); err != nil {
-			t.Fatal(err)
+		// A Run reaches running only through pending (RUN-R26, RUN-R28).
+		for _, next := range []runstore.WorkflowRunState{runstore.RunPending, runstore.RunRunning} {
+			if _, err := runs.TransitionRun(ctx, runID, from, next, runstore.Reason{Code: "started"}); err != nil {
+				t.Fatal(err)
+			}
+			from = next
 		}
-		from = runstore.RunRunning
 	}
 	if state != from {
 		if _, err := runs.TransitionRun(ctx, runID, from, state, runstore.Reason{Code: "finished"}); err != nil {

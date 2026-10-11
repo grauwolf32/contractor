@@ -19,7 +19,7 @@ func TestPostgresStageOutputPublicationFailuresCountOnlyWhileFinalizing(t *testi
 	pool := isolatedRunStorePool(t, ctx)
 	store := NewPostgresStore(pool)
 	run := createTestRun(t, ctx, store, "run-publication-failures")
-	if _, err := store.TransitionRun(ctx, run.RunID, RunInitializing, RunRunning, Reason{Code: "initialized"}); err != nil {
+	if _, err := admitTestRun(ctx, store, run.RunID); err != nil {
 		t.Fatal(err)
 	}
 	other := createTestRun(t, ctx, store, "run-publication-failures-other")
