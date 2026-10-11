@@ -4,18 +4,29 @@ package auditservice
 
 // getWorkspaceSQL reads the workspace summary of owner $1's Audit $2:
 // revision, statement time, current round, state, outstanding Runs,
-// current-round coverage counts by status bucket (total, completed, issues,
-// gaps, unchecked), finding and unreviewed-finding counts, and pending review
-// requests. Used by Service.GetWorkspace.
+// current-round coverage counts (total, then the completed $3, issue $4, gap
+// $5 and unchecked $6 coverage statuses of auditdomain's one bucket table, in
+// one pass over the round's items), finding and unreviewed-finding counts,
+// and the review requests that can still be decided: pending and not past
+// their expiry at the statement time the snapshot reports as asOf.
+// Used by Service.GetWorkspace.
 var getWorkspaceSQL = `
 SELECT audit.audit_id, audit.revision, statement_timestamp(), audit.current_round_id,
        audit.state, audit.outstanding_run_count,
-       (SELECT count(*) FROM audit_items WHERE audit_id = audit.audit_id AND round_id = audit.current_round_id),
-       (SELECT count(*) FROM audit_items WHERE audit_id = audit.audit_id AND round_id = audit.current_round_id AND coverage_status IN ('satisfied', 'violated', 'traced-complete', 'not-applicable', 'excluded')),
-       (SELECT count(*) FROM audit_items WHERE audit_id = audit.audit_id AND round_id = audit.current_round_id AND coverage_status = 'violated'),
-       (SELECT count(*) FROM audit_items WHERE audit_id = audit.audit_id AND round_id = audit.current_round_id AND coverage_status IN ('inconclusive', 'blocked', 'traced-partial', 'unmapped')),
-       (SELECT count(*) FROM audit_items WHERE audit_id = audit.audit_id AND round_id = audit.current_round_id AND coverage_status = 'not-tested'),
+       coverage.total, coverage.completed, coverage.issues, coverage.gaps, coverage.unchecked,
        (SELECT count(*) FROM audit_findings WHERE audit_id = audit.audit_id),
        (SELECT count(*) FROM audit_findings WHERE audit_id = audit.audit_id AND current_decision_id IS NULL),
-       (SELECT count(*) FROM audit_review_requests WHERE audit_id = audit.audit_id AND state = 'pending')
-FROM audits audit WHERE owner_id = $1 AND audit_id = $2`
+       (SELECT count(*) FROM audit_review_requests AS request
+         WHERE request.audit_id = audit.audit_id AND request.state = 'pending'
+           AND (request.expires_at IS NULL OR request.expires_at > statement_timestamp()))
+  FROM audits AS audit
+ CROSS JOIN LATERAL (
+       SELECT count(*) AS total,
+              count(*) FILTER (WHERE item.coverage_status = ANY($3::text[])) AS completed,
+              count(*) FILTER (WHERE item.coverage_status = ANY($4::text[])) AS issues,
+              count(*) FILTER (WHERE item.coverage_status = ANY($5::text[])) AS gaps,
+              count(*) FILTER (WHERE item.coverage_status = ANY($6::text[])) AS unchecked
+         FROM audit_items AS item
+        WHERE item.audit_id = audit.audit_id AND item.round_id = audit.current_round_id
+       ) AS coverage
+ WHERE audit.owner_id = $1 AND audit.audit_id = $2`

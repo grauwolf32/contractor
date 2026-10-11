@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-39 open tasks: 3 in progress, 22 pending, 14 deferred. 785 finished: 782 completed, 3 archived.
+38 open tasks: 3 in progress, 21 pending, 14 deferred. 786 finished: 783 completed, 3 archived.
 
 ## In progress
 
@@ -55,7 +55,6 @@ the epics are in [epics.yml](epics.yml).
 | [V64-009](v64-009-audit-priority-ui.yml) | feature | P1 | V64-008 | Show Audit ranking progress, top-N selection and deferred checklist reasons |
 | [V64-010](v64-010-audit-priority-profile.yml) | feature | P1 | V64-008 | Publish a runnable prioritized custom-checklist Audit profile and guide |
 | [V64-011](v64-011-audit-priority-release.yml) | feature | P1 | V64-009, V64-010 | Verify contextual checklist prioritization across process and browser boundaries |
-| [V367-009](v367-009-audit-workspace-coverage-truth.yml) | defect | P2 | — | Count excluded items as gaps and ignore expired reviews in the Audit workspace |
 
 ### Evaluations (`evals`)
 
@@ -107,7 +106,7 @@ tasks in `introduced_by`.
 | Findings tools and collections (`findings`) | 0 | 7 | 2 | 1 | 6 |
 | Workflow catalog and document workflows (`workflows`) | 0 | 13 | 8 | 5 | 11 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 2 | 27 | 26 | 2 | 32 |
-| Audits (`audits`) | 19 | 49 | 59 | 9 | 70 |
+| Audits (`audits`) | 18 | 49 | 59 | 9 | 70 |
 | Evaluations (`evals`) | 2 | 21 | 26 | 4 | 33 |
 | Podman sandbox (`sandbox`) | 0 | 8 | 1 | 1 | 2 |
 | Web UI (`ui`) | 0 | 19 | 49 | 10 | 46 |

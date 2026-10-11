@@ -5,12 +5,17 @@ import (
 	"errors"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/jackc/pgx/v5"
 )
 
 // WorkspaceSummary is one database statement's owner-scoped snapshot. Work is
 // scoped to the current round; findings and reviews span the entire Audit.
+// CompletedChecks, Gaps and Unchecked partition TotalChecks by the coverage
+// buckets of auditdomain, the classification the Audit report concludes
+// with; Issues is the part of CompletedChecks with an issue found.
+// PendingReviews counts only requests that can still be decided.
 type WorkspaceSummary struct {
 	AuditID            string    `json:"auditId"`
 	AuditRevision      uint64    `json:"auditRevision"`
@@ -48,7 +53,10 @@ func (s *Service) GetWorkspace(ctx context.Context, ownerID, auditID string) (Wo
 		return WorkspaceSummary{}, auditstore.ErrInvalid
 	}
 	var result WorkspaceSummary
-	err := s.pool.QueryRow(ctx, getWorkspaceSQL, ownerID, auditID).Scan(
+	err := s.pool.QueryRow(ctx, getWorkspaceSQL, ownerID, auditID,
+		auditdomain.CoverageStatusesIn(auditdomain.CoverageBucketCompleted), auditdomain.CoverageIssueStatuses(),
+		auditdomain.CoverageStatusesIn(auditdomain.CoverageBucketGap), auditdomain.CoverageStatusesIn(auditdomain.CoverageBucketUnchecked),
+	).Scan(
 		&result.AuditID, &result.AuditRevision, &result.AsOf, &result.RoundID, &result.ExecutionState, &result.OutstandingRuns,
 		&result.TotalChecks, &result.CompletedChecks, &result.Issues, &result.Gaps, &result.Unchecked, &result.Findings, &result.UnreviewedFindings, &result.PendingReviews)
 	if errors.Is(err, pgx.ErrNoRows) {

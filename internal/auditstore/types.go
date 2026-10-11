@@ -188,28 +188,30 @@ func (d FinalDisposition) Valid() bool {
 
 type CoverageStatus string
 
+// The coverage statuses and their progress buckets are defined once in
+// auditdomain.
 const (
-	CoverageNotTested      CoverageStatus = "not-tested"
-	CoverageInconclusive   CoverageStatus = "inconclusive"
-	CoverageSatisfied      CoverageStatus = "satisfied"
-	CoverageViolated       CoverageStatus = "violated"
-	CoverageNotApplicable  CoverageStatus = "not-applicable"
-	CoverageBlocked        CoverageStatus = "blocked"
-	CoverageExcluded       CoverageStatus = "excluded"
-	CoverageTracedComplete CoverageStatus = "traced-complete"
-	CoverageTracedPartial  CoverageStatus = "traced-partial"
-	CoverageUnmapped       CoverageStatus = "unmapped"
+	CoverageNotTested      CoverageStatus = auditdomain.CoverageNotTested
+	CoverageInconclusive   CoverageStatus = auditdomain.CoverageInconclusive
+	CoverageSatisfied      CoverageStatus = auditdomain.CoverageSatisfied
+	CoverageViolated       CoverageStatus = auditdomain.CoverageViolated
+	CoverageNotApplicable  CoverageStatus = auditdomain.CoverageNotApplicable
+	CoverageBlocked        CoverageStatus = auditdomain.CoverageBlocked
+	CoverageExcluded       CoverageStatus = auditdomain.CoverageExcluded
+	CoverageTracedComplete CoverageStatus = auditdomain.CoverageTracedComplete
+	CoverageTracedPartial  CoverageStatus = auditdomain.CoverageTracedPartial
+	CoverageUnmapped       CoverageStatus = auditdomain.CoverageUnmapped
 )
 
 func (s CoverageStatus) Valid() bool {
-	switch s {
-	case CoverageNotTested, CoverageInconclusive, CoverageSatisfied,
-		CoverageViolated, CoverageNotApplicable, CoverageBlocked, CoverageExcluded,
-		CoverageTracedComplete, CoverageTracedPartial, CoverageUnmapped:
-		return true
-	default:
-		return false
-	}
+	_, ok := auditdomain.CoverageStatusBucket(string(s))
+	return ok
+}
+
+// Bucket returns the progress bucket of a valid coverage status.
+func (s CoverageStatus) Bucket() auditdomain.CoverageBucket {
+	bucket, _ := auditdomain.CoverageStatusBucket(string(s))
+	return bucket
 }
 
 type Limits struct {

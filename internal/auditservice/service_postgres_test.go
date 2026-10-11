@@ -177,12 +177,42 @@ func TestAuditDraftStartReplayAndAtomicUnsupportedRollback(t *testing.T) {
 	if coverage[0].Details == nil || coverage[0].Details.Objective == "" || !json.Valid(coverage[0].Details.TaskDocument) {
 		t.Fatalf("coverage omitted the retained task: %+v", coverage[0].Details)
 	}
-	for _, tc := range []struct {
-		status                             string
+	// Every coverage status, with the counts the workspace must report. Each
+	// expectation also matches the status's auditdomain bucket, from which the
+	// report concludes completed-with-gaps, so workspace and report agree.
+	workspaceCases := []struct {
+		status                             auditstore.CoverageStatus
 		completed, issues, gaps, unchecked int
 	}{
-		{"not-tested", 0, 0, 0, 1}, {"blocked", 0, 0, 1, 0}, {"violated", 1, 1, 0, 0}, {"satisfied", 1, 0, 0, 0}, {"traced-partial", 0, 0, 1, 0}, {"not-applicable", 1, 0, 0, 0},
+		{auditstore.CoverageNotTested, 0, 0, 0, 1}, {auditstore.CoverageInconclusive, 0, 0, 1, 0},
+		{auditstore.CoverageSatisfied, 1, 0, 0, 0}, {auditstore.CoverageViolated, 1, 1, 0, 0},
+		{auditstore.CoverageNotApplicable, 1, 0, 0, 0}, {auditstore.CoverageBlocked, 0, 0, 1, 0},
+		{auditstore.CoverageExcluded, 0, 0, 1, 0}, {auditstore.CoverageTracedComplete, 1, 0, 0, 0},
+		{auditstore.CoverageTracedPartial, 0, 0, 1, 0}, {auditstore.CoverageUnmapped, 0, 0, 1, 0},
+	}
+	coveredStatuses := map[auditstore.CoverageStatus]bool{}
+	for _, tc := range workspaceCases {
+		if !tc.status.Valid() || coveredStatuses[tc.status] {
+			t.Fatalf("workspace case %q is invalid or repeated", tc.status)
+		}
+		coveredStatuses[tc.status] = true
+		bucket := tc.status.Bucket()
+		if (bucket == auditdomain.CoverageBucketCompleted) != (tc.completed == 1) ||
+			(bucket == auditdomain.CoverageBucketGap) != (tc.gaps == 1) ||
+			(bucket == auditdomain.CoverageBucketUnchecked) != (tc.unchecked == 1) {
+			t.Fatalf("workspace counts for %s disagree with the report's %q bucket", tc.status, bucket)
+		}
+	}
+	for _, bucket := range []auditdomain.CoverageBucket{
+		auditdomain.CoverageBucketCompleted, auditdomain.CoverageBucketGap, auditdomain.CoverageBucketUnchecked,
 	} {
+		for _, status := range auditdomain.CoverageStatusesIn(bucket) {
+			if !coveredStatuses[auditstore.CoverageStatus(status)] {
+				t.Fatalf("workspace cases omit coverage status %q", status)
+			}
+		}
+	}
+	for _, tc := range workspaceCases {
 		if _, err := pool.Exec(ctx, `UPDATE audit_items SET coverage_status=$1 WHERE audit_id=$2`, tc.status, draft.AuditID); err != nil {
 			t.Fatal(err)
 		}
@@ -367,6 +397,36 @@ UPDATE audit_review_requests SET expires_at = clock_timestamp() - interval '1 se
 	if err != nil || len(rejectedReviews) != 1 {
 		t.Fatalf("rejected item review = (%+v, %v)", rejectedReviews, err)
 	}
+	// Only requests that can still be decided wait: a pending request past its
+	// expiry is not counted, whether or not anything has expired it yet.
+	pendingReviews := func(step string, want int) {
+		t.Helper()
+		summary, err := service.GetWorkspace(ctx, project.OwnerID, rejectedDraft.AuditID)
+		if err != nil || summary.PendingReviews != want {
+			t.Fatalf("%s: workspace pending reviews = (%+v, %v), want %d", step, summary, err, want)
+		}
+	}
+	setReviewExpiry := func(expiry string) {
+		t.Helper()
+		if _, err := pool.Exec(ctx, `UPDATE audit_review_requests SET expires_at = `+expiry+` WHERE request_id = $1`,
+			rejectedReviews[0].RequestID); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var originalExpiry *time.Time
+	if err := pool.QueryRow(ctx, `SELECT expires_at FROM audit_review_requests WHERE request_id = $1`,
+		rejectedReviews[0].RequestID).Scan(&originalExpiry); err != nil {
+		t.Fatal(err)
+	}
+	pendingReviews("pending request", 1)
+	setReviewExpiry("clock_timestamp() - interval '1 second'")
+	pendingReviews("pending request past its expiry", 0)
+	setReviewExpiry("clock_timestamp() + interval '1 hour'")
+	pendingReviews("pending request before its expiry", 1)
+	if _, err := pool.Exec(ctx, `UPDATE audit_review_requests SET expires_at = $2 WHERE request_id = $1`,
+		rejectedReviews[0].RequestID, originalExpiry); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := service.DecideActionReview(ctx, DecideActionReviewParams{
 		OwnerID: project.OwnerID, AuditID: rejectedDraft.AuditID,
 		RequestID:               rejectedReviews[0].RequestID,
@@ -392,6 +452,14 @@ UPDATE audit_review_requests SET expires_at = clock_timestamp() - interval '1 se
 	if err != nil || len(rejectedCoverage) != 1 ||
 		rejectedCoverage[0].Coverage.Status != auditstore.CoverageExcluded {
 		t.Fatalf("rejected item coverage = (%+v, %v)", rejectedCoverage, err)
+	}
+	// The owner's rejection is a visible coverage gap, not completed work
+	// (AUD-R178), and the decided request no longer waits.
+	rejectedSummary, err := service.GetWorkspace(ctx, project.OwnerID, rejectedDraft.AuditID)
+	if err != nil || rejectedSummary.TotalChecks != 1 || rejectedSummary.CompletedChecks != 0 ||
+		rejectedSummary.Issues != 0 || rejectedSummary.Gaps != 1 || rejectedSummary.Unchecked != 0 ||
+		rejectedSummary.PendingReviews != 0 {
+		t.Fatalf("rejected item workspace = (%+v, %v)", rejectedSummary, err)
 	}
 	var roundCount, artifactCount int
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM audit_rounds WHERE audit_id = $1`, manualDraft.AuditID).Scan(&roundCount); err != nil {

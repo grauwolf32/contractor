@@ -497,9 +497,34 @@ func summarizeCoverage(rows []auditstore.CoverageRow) reportCoverageSummary {
 	return result
 }
 
+// coverageStatusCount is one coverage status with its report count.
+type coverageStatusCount struct {
+	status auditstore.CoverageStatus
+	count  int
+}
+
+// byStatus pairs every coverage status with its count, in the order of the
+// report's coverage table.
+func (c reportCoverageCounts) byStatus() []coverageStatusCount {
+	return []coverageStatusCount{
+		{auditstore.CoverageSatisfied, c.Satisfied}, {auditstore.CoverageViolated, c.Violated},
+		{auditstore.CoverageInconclusive, c.Inconclusive}, {auditstore.CoverageNotTested, c.NotTested},
+		{auditstore.CoverageBlocked, c.Blocked}, {auditstore.CoverageNotApplicable, c.NotApplicable},
+		{auditstore.CoverageExcluded, c.Excluded}, {auditstore.CoverageTracedComplete, c.TracedComplete},
+		{auditstore.CoverageTracedPartial, c.TracedPartial}, {auditstore.CoverageUnmapped, c.Unmapped},
+	}
+}
+
+// hasIncompleteCoverage reports whether any selected item is outside the
+// completed coverage bucket, the classification the Audit workspace counts
+// with: a gap or unchecked work makes the report completed-with-gaps.
 func hasIncompleteCoverage(counts reportCoverageCounts) bool {
-	return counts.NotTested != 0 || counts.Inconclusive != 0 || counts.Blocked != 0 ||
-		counts.Excluded != 0 || counts.TracedPartial != 0 || counts.Unmapped != 0
+	for _, entry := range counts.byStatus() {
+		if entry.count != 0 && entry.status.Bucket() != auditdomain.CoverageBucketCompleted {
+			return true
+		}
+	}
+	return false
 }
 
 func humanSummary(report machineReport) string {
@@ -530,13 +555,11 @@ func humanSummary(report machineReport) string {
 			fmt.Fprintf(&builder, "| %s | %d |\n", row.label, row.count)
 		}
 	}
-	writeCounts("Coverage", []countRow{
-		{"satisfied", report.Coverage.Counts.Satisfied}, {"violated", report.Coverage.Counts.Violated},
-		{"inconclusive", report.Coverage.Counts.Inconclusive}, {"not-tested", report.Coverage.Counts.NotTested},
-		{"blocked", report.Coverage.Counts.Blocked}, {"not-applicable", report.Coverage.Counts.NotApplicable},
-		{"excluded", report.Coverage.Counts.Excluded}, {"traced-complete", report.Coverage.Counts.TracedComplete},
-		{"traced-partial", report.Coverage.Counts.TracedPartial}, {"unmapped", report.Coverage.Counts.Unmapped},
-	})
+	coverageRows := []countRow{}
+	for _, entry := range report.Coverage.Counts.byStatus() {
+		coverageRows = append(coverageRows, countRow{string(entry.status), entry.count})
+	}
+	writeCounts("Coverage", coverageRows)
 	writeCounts("Findings", []countRow{
 		{"confirmed", len(report.Findings.Confirmed)}, {"proposed", len(report.Findings.Proposed)},
 		{"rejected", len(report.Findings.Rejected)}, {"duplicate", len(report.Findings.Duplicates)},

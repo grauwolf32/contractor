@@ -1191,6 +1191,51 @@ func TestReportCoverageCountsOperationStatesWithoutClaimingPartialCompletion(t *
 	}
 }
 
+// TestReportConclusionClassifiesEveryCoverageStatusLikeTheWorkspace keeps the
+// report's completed-with-gaps rule on auditdomain's bucket table, which the
+// Audit workspace counts with: an owner-rejected (excluded) item is a gap.
+func TestReportConclusionClassifiesEveryCoverageStatusLikeTheWorkspace(t *testing.T) {
+	statuses := []struct {
+		status     auditstore.CoverageStatus
+		incomplete bool
+	}{
+		{auditstore.CoverageNotTested, true}, {auditstore.CoverageInconclusive, true},
+		{auditstore.CoverageSatisfied, false}, {auditstore.CoverageViolated, false},
+		{auditstore.CoverageNotApplicable, false}, {auditstore.CoverageBlocked, true},
+		{auditstore.CoverageExcluded, true}, {auditstore.CoverageTracedComplete, false},
+		{auditstore.CoverageTracedPartial, true}, {auditstore.CoverageUnmapped, true},
+	}
+	listed := map[auditstore.CoverageStatus]bool{}
+	for _, entry := range (reportCoverageCounts{}).byStatus() {
+		if !entry.status.Valid() || listed[entry.status] {
+			t.Fatalf("report coverage table lists %q twice or invalid", entry.status)
+		}
+		listed[entry.status] = true
+	}
+	if len(listed) != len(statuses) {
+		t.Fatalf("report coverage table lists %d statuses, want %d", len(listed), len(statuses))
+	}
+	for _, test := range statuses {
+		summary := summarizeCoverage([]auditstore.CoverageRow{{Coverage: auditstore.Coverage{Status: test.status}}})
+		counted := 0
+		for _, entry := range summary.Counts.byStatus() {
+			counted += entry.count
+			if entry.count != 0 && entry.status != test.status {
+				t.Errorf("%s counted as %s", test.status, entry.status)
+			}
+		}
+		if counted != 1 {
+			t.Errorf("%s counted %d times", test.status, counted)
+		}
+		if got := hasIncompleteCoverage(summary.Counts); got != test.incomplete {
+			t.Errorf("%s incomplete = %t, want %t", test.status, got, test.incomplete)
+		}
+		if bucket := test.status.Bucket(); (bucket != auditdomain.CoverageBucketCompleted) != test.incomplete {
+			t.Errorf("%s bucket = %q disagrees with the report conclusion", test.status, bucket)
+		}
+	}
+}
+
 type importHarness struct {
 	importer  *Importer
 	store     *fakeImportStore

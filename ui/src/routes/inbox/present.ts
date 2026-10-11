@@ -78,8 +78,8 @@ export function checkPath(projectId: string, auditId: string): string {
 
 /**
  * The check's coverage filtered to the work that needs follow-up: blocked,
- * inconclusive, partially traced and unmapped items, the statuses the
- * workspace counts as gaps.
+ * inconclusive, partially traced, unmapped and excluded items, the statuses
+ * the workspace counts as gaps.
  */
 export function followUpPath(projectId: string, auditId: string): string {
   return `${checkPath(projectId, auditId)}/coverage?result=uncertain`;
@@ -132,7 +132,7 @@ export interface CheckProgress {
   /** Concluded items, including those with an issue found. */
   done: number;
   issues: number;
-  /** Blocked, inconclusive, partially traced or unmapped items. */
+  /** Blocked, inconclusive, partially traced, unmapped or excluded items. */
   gaps: number;
   unchecked: number;
   segments: ProgressSegment[];
