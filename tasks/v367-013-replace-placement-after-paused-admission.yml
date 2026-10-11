@@ -6,7 +6,7 @@ epic: execution-core
 kind: defect
 introduced_by: V290-001
 priority: P2
-status: pending
+status: in_progress
 depends_on: []
 languages: [go]
 goal: "Pausing the owner queue between placement and admission defers the Stage and places it again after resume, without spending a retry attempt."
