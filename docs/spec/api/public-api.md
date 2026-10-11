@@ -161,6 +161,16 @@ network access, and is never hand-edited. Its freshness check regenerates it
 into a temporary file and fails `make lint` when the result differs from the
 committed client; the UI client follows the same rule (UI-R19).
 
+**API-R70.** Every identity the public API shows as a `ResourceId` (or as the
+`Revision` and live event `SafeIdentifier` it equals) uses the resource
+identifier grammar `[A-Za-z0-9][A-Za-z0-9_.:-]*` of at most 256 characters
+(LIM-API-19), and every name it shows as a `ConfigId` or `ArtifactName` uses
+the shared name grammar `[A-Za-z0-9][A-Za-z0-9_.-]*` of at most 128 characters
+(LIM-API-20). The Server has one definition of each grammar, which handlers,
+the live event protocol and the stores apply. A store rejects an identity
+outside its grammar as invalid when it is written, so no stored identity can
+fail a later strict read.
+
 The UI's supported-version check and the rule that additive changes within a
 supported version need no coordinated release are in UI
 ([UI-R5 to UI-R7](../ui/ui.md)). The public Runtime-label field name and the
@@ -555,6 +565,10 @@ Limits ([registry](../platform/limits.md)):
 - LIM-API-17 — UI reconnect maximum delay: 30 seconds (API-R66).
 - LIM-API-18 — page of a collection with the shared `limit` parameter: 200
   items, default 50 (API-R67).
+- LIM-API-19 — `ResourceId`: 1 to 256 characters in the resource identifier
+  grammar (API-R70).
+- LIM-API-20 — `ConfigId` and `ArtifactName`: 1 to 128 characters in the
+  shared name grammar (API-R70).
 
 The generic Artifact payload limit is [LIM-ART-4](../platform/limits.md)
 ([ART-R65](../artifacts/artifact-store.md)); the login body and login limiter

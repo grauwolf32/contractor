@@ -64,10 +64,12 @@ var (
 	// runtimeAgentIDPattern is the only Go definition of a Runtime Agent ID:
 	// the lowercase hexadecimal SHA-256 fingerprint of the agent's SPKI.
 	runtimeAgentIDPattern = regexp.MustCompile(`^[0-9a-f]{64}$`)
-	// namePattern is the shared name grammar of the public ConfigId schema:
-	// the tool names of Toolset capabilities and the logical Worker names
-	// that Operations shows. resourceIDPattern is the public ResourceId
-	// grammar of Runtime Agent instance and allocation IDs. The shared cases
+	// namePattern is the shared name grammar of the public ConfigId and
+	// ArtifactName schemas: tool names, Stage and logical Worker names,
+	// Artifact namespaces and names. resourceIDPattern is the public
+	// ResourceId grammar of every identity the public API shows. They are
+	// the only Go definitions of both grammars (API-R70); a source scan in
+	// the contracts tests rejects a copy in another package. The shared cases
 	// in api/testdata/v1alpha1/runtime-capability-cases.json hold Go, the
 	// private schemas, the public OpenAPI and the Runtime to both.
 	namePattern       = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.-]*$`)

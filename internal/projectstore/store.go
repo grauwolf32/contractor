@@ -18,7 +18,6 @@ import (
 )
 
 var (
-	resourceIDPattern     = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$`)
 	idempotencyKeyPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$`)
 )
 
@@ -332,7 +331,7 @@ func validateList(params ListParams) error {
 	if (params.BeforeCreatedAt == nil) != (params.BeforeProjectID == "") {
 		return invalid("Project page cursor is invalid")
 	}
-	if params.BeforeProjectID != "" && !resourceIDPattern.MatchString(params.BeforeProjectID) {
+	if params.BeforeProjectID != "" && !contracts.ValidResourceID(params.BeforeProjectID) {
 		return invalid("Project page cursor is invalid")
 	}
 	return nil
@@ -340,7 +339,7 @@ func validateList(params ListParams) error {
 
 func validateIdentity(ownerID, projectID string) error {
 	if strings.TrimSpace(ownerID) == "" || len(ownerID) > 256 || strings.IndexByte(ownerID, 0) >= 0 ||
-		!resourceIDPattern.MatchString(projectID) {
+		!contracts.ValidResourceID(projectID) {
 		return invalid("Project identity is invalid")
 	}
 	return nil

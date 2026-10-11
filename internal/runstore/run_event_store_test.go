@@ -104,6 +104,11 @@ func TestPlannerRunEventIdentityMustMatchDurableSession(t *testing.T) {
 func TestPublicRunEventGrammarRejectsValuesOutsideTheWebSocketSchema(t *testing.T) {
 	for _, mutate := range []func(*plannerRunEventData){
 		func(data *plannerRunEventData) { data.SessionID = "unsafe session" },
+		// The public SafeIdentifier grammar starts with a letter or digit.
+		func(data *plannerRunEventData) { data.SessionID = "_session" },
+		func(data *plannerRunEventData) { data.InvocationID = ":invocation" },
+		func(data *plannerRunEventData) { data.StageExecutionID = ".stage" },
+		func(data *plannerRunEventData) { data.SessionID = strings.Repeat("s", contracts.MaxResourceIDLength+1) },
 		func(data *plannerRunEventData) { data.SubtaskID = "00" },
 		func(data *plannerRunEventData) { data.CallID = "dispatch-1" },
 		func(data *plannerRunEventData) { data.WorkerName = "unsafe worker" },
@@ -127,6 +132,19 @@ func TestPublicRunEventGrammarRejectsValuesOutsideTheWebSocketSchema(t *testing.
 	}
 	if _, err := EncodePublicRunEventData(lifecycle); err == nil {
 		t.Fatal("lifecycle data for another Run was accepted for public delivery")
+	}
+	for _, data := range []string{
+		`{"runId":"-run-1","resource":"run","state":"running"}`,
+		`{"runId":"run-1","resource":"run","state":"_running"}`,
+		`{"runId":"run-1","resource":"stageExecution","stageExecutionId":":stage-1","state":"running"}`,
+	} {
+		event := RunEventAppend{
+			EventID: "event-lifecycle", EventSchemaVersion: contracts.APIVersion,
+			Kind: RunEventLifecycleChanged, Data: json.RawMessage(data),
+		}
+		if err := validateRunEventAppend(event); err == nil {
+			t.Fatalf("lifecycle event outside the public WebSocket grammar was accepted: %s", data)
+		}
 	}
 }
 

@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"regexp"
 	"strings"
 	"time"
 
@@ -19,8 +18,6 @@ import (
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/jackc/pgx/v5"
 )
-
-var credentialRunIDPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$`)
 
 // Repository groups the broad RunStore operations used by e2e test helpers.
 // Production consumers declare narrower interfaces at their use sites.
@@ -97,7 +94,7 @@ func (s *PostgresStore) ListNonTerminalRunIDsByCredential(
 		if err := rows.Scan(&runID); err != nil {
 			return nil, errors.New("read non-terminal Run credential reference")
 		}
-		if !credentialRunIDPattern.MatchString(runID) {
+		if !contracts.ValidResourceID(runID) {
 			return nil, errors.New("stored credential Run reference is not publicly safe")
 		}
 		result = append(result, runID)
@@ -591,8 +588,11 @@ WHERE run_id = $1 AND state IN ('initializing', 'pending', 'running', 'waiting',
 }
 
 func validateCreateRun(params CreateRunParams) error {
+	if err := validateResourceID("runID", params.RunID); err != nil {
+		return err
+	}
 	for field, value := range map[string]string{
-		"runID": params.RunID, "ownerID": params.OwnerID,
+		"ownerID":      params.OwnerID,
 		"workflowName": params.WorkflowName, "workflowVersion": params.WorkflowVersion,
 		"workflowSchemaVersion": params.WorkflowSchemaVersion,
 	} {
@@ -601,7 +601,7 @@ func validateCreateRun(params CreateRunParams) error {
 		}
 	}
 	if params.ProjectID != nil {
-		if err := validateOpaque("projectID", *params.ProjectID); err != nil {
+		if err := validateResourceID("projectID", *params.ProjectID); err != nil {
 			return err
 		}
 	}

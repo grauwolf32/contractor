@@ -19,13 +19,14 @@ func (s *PostgresStore) RecordStageAllocation(ctx context.Context, allocation St
 	for field, value := range map[string]string{
 		"allocationID":           allocation.AllocationID,
 		"stageExecutionID":       allocation.StageExecutionID,
-		"logicalAgentName":       allocation.LogicalAgentName,
-		"runtimeAgentID":         allocation.RuntimeAgentID,
 		"runtimeAgentInstanceID": allocation.RuntimeAgentInstanceID,
 	} {
-		if err := validateOpaque(field, value); err != nil {
+		if err := validateResourceID(field, value); err != nil {
 			return err
 		}
+	}
+	if err := validateName("logicalAgentName", allocation.LogicalAgentName); err != nil {
+		return err
 	}
 	if err := validateNamespace(allocation.Namespace); err != nil {
 		return err

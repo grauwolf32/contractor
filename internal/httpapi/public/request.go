@@ -8,7 +8,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"regexp"
 	"strings"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
@@ -19,11 +18,6 @@ import (
 )
 
 const maxJSONRequestSize = 1 << 20
-
-var (
-	publicArtifactNamePattern = regexp.MustCompile(contracts.ArtifactNamePattern)
-	publicRevisionPattern     = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$`)
-)
 
 func decodeJSON(w http.ResponseWriter, r *http.Request, target any) error {
 	return decodeJSONBounded(w, r, target, maxJSONRequestSize)
@@ -148,14 +142,14 @@ func exactQueryWithRepeated(
 }
 
 func validatePublicArtifactName(value string) error {
-	if !publicArtifactNamePattern.MatchString(value) {
+	if !contracts.ValidName(value) {
 		return fmt.Errorf("%w: invalid Artifact namespace or name", errInvalidRequest)
 	}
 	return nil
 }
 
 func validatePublicRevision(value string) error {
-	if !publicRevisionPattern.MatchString(value) {
+	if !contracts.ValidResourceID(value) {
 		return fmt.Errorf("%w: invalid Artifact revision", errInvalidRequest)
 	}
 	return nil

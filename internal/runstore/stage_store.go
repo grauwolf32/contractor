@@ -306,7 +306,16 @@ func transitionResult(operation, id string, expected StageExecutionState, rows i
 func validateCreateStageExecution(params CreateStageExecutionParams) error {
 	for field, value := range map[string]string{
 		"stageExecutionID": params.StageExecutionID, "runID": params.RunID,
-		"stageName": params.StageName, "stageSpecSchemaVersion": params.StageSpecSchemaVersion,
+	} {
+		if err := validateResourceID(field, value); err != nil {
+			return err
+		}
+	}
+	if err := validateName("stageName", params.StageName); err != nil {
+		return err
+	}
+	for field, value := range map[string]string{
+		"stageSpecSchemaVersion":    params.StageSpecSchemaVersion,
 		"stageContextSchemaVersion": params.StageContextSchemaVersion,
 	} {
 		if err := validateOpaque(field, value); err != nil {
@@ -320,7 +329,7 @@ func validateCreateStageExecution(params CreateStageExecutionParams) error {
 		return invalidf("attempt and previousExecutionID have inconsistent lineage")
 	}
 	if params.PreviousExecutionID != nil {
-		if err := validateOpaque("previousExecutionID", *params.PreviousExecutionID); err != nil {
+		if err := validateResourceID("previousExecutionID", *params.PreviousExecutionID); err != nil {
 			return err
 		}
 	}

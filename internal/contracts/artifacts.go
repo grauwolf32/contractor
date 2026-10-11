@@ -11,11 +11,6 @@ const (
 	MaxWorkflowRunSkills   = 128
 )
 
-// ArtifactNamePattern is shared by namespaces and logical binding names.
-const ArtifactNamePattern = `^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$`
-
-var artifactNamePattern = regexp.MustCompile(ArtifactNamePattern)
-
 // MaxArtifactListCursorLength bounds the opaque private Artifact list cursor
 // (LIM-ART-5). The cursor is unpadded base64url; the Runtime and
 // artifact.schema.json apply the same grammar.
@@ -34,8 +29,10 @@ func ValidateArtifactListCursor(value string) error {
 	return nil
 }
 
+// ValidateArtifactName checks an Artifact namespace or name, or a logical
+// binding name: the shared name grammar of ValidName.
 func ValidateArtifactName(value string) error {
-	if !artifactNamePattern.MatchString(value) {
+	if !ValidName(value) {
 		return Invalidf("artifact name must be 1 through 128 ASCII letters, digits, dots, underscores or hyphens, starting with a letter or digit")
 	}
 	return nil
