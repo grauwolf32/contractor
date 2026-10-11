@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-105 open tasks: 3 in progress, 88 pending, 14 deferred. 791 finished: 788 completed, 3 archived.
+104 open tasks: 3 in progress, 87 pending, 14 deferred. 792 finished: 789 completed, 3 archived.
 
 ## In progress
 
@@ -21,7 +21,6 @@ the epics are in [epics.yml](epics.yml).
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
-| [V368-011](v368-011-run-transitions-match-spec.yml) | defect | P1 | — | Allow only the Run transitions the spec defines |
 | [V368-017](v368-017-registration-permanent-failure.yml) | defect | P1 | — | Stop retrying a Runtime registration the Server rejected permanently |
 | [V368-019](v368-019-release-budget-timeouts.yml) | defect | P2 | — | Give each Scheduler timeout its own operation |
 | [V368-034](v368-034-gateway-recovery-followups.yml) | chore | P3 | — | Share the gateway recovery participant protocol and index the probe holder |
@@ -206,8 +205,8 @@ tasks in `introduced_by`.
 
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Run execution core (`execution-core`) | 9 | 36 | 44 | 9 | 62 |
-| Planners and the Worker model boundary (`planner-worker`) | 3 | 23 | 34 | 7 | 41 |
+| Run execution core (`execution-core`) | 8 | 36 | 44 | 9 | 62 |
+| Planners and the Worker model boundary (`planner-worker`) | 3 | 23 | 34 | 7 | 42 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 10 | 25 | 11 | 2 | 35 |
 | Shared Memory tools (`memory`) | 1 | 6 | 8 | 1 | 11 |
 | Agent Skills (`agent-skills`) | 0 | 10 | 2 | 1 | 1 |
