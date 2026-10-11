@@ -443,6 +443,55 @@ UPDATE workflow_runs SET next_run_event_sequence = next_run_event_sequence + 1 W
 	}
 }
 
+// TestPostgresClaimRenewalIsHeapOnlyUpdate renews a Scheduler claim: the
+// renewal writes only the lease expiry, which no workflow_runs index covers,
+// so PostgreSQL updates the row in place (HOT) without touching an index,
+// the Run's updated_at (its public updatedAt and claim order) stays as it
+// was, and the renewal returns the Run's state (SCH-R166).
+func TestPostgresClaimRenewalIsHeapOnlyUpdate(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedRunStorePool(t, ctx)
+	store := NewPostgresStore(pool)
+	run := createTestRun(t, ctx, store, "run-claim-renewal-hot")
+	if _, err := admitTestRun(ctx, store, run.RunID); err != nil {
+		t.Fatal(err)
+	}
+	claimed, err := store.ClaimRunnableRun(ctx, "claim-hot", time.Minute)
+	if err != nil || claimed.RunID != run.RunID {
+		t.Fatalf("claim = (%s, %v)", claimed.RunID, err)
+	}
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = tx.Rollback(context.Background()) }()
+	counters := func() (updated, heapOnly int64) {
+		t.Helper()
+		if err := tx.QueryRow(ctx, `
+SELECT pg_stat_get_xact_tuples_updated('workflow_runs'::regclass),
+       pg_stat_get_xact_tuples_hot_updated('workflow_runs'::regclass)`).Scan(&updated, &heapOnly); err != nil {
+			t.Fatal(err)
+		}
+		return updated, heapOnly
+	}
+	updatedBefore, heapOnlyBefore := counters()
+	state, err := NewPostgresStore(tx).RenewRunClaim(ctx, run.RunID, "claim-hot", 2*time.Minute)
+	if err != nil || state != RunRunning {
+		t.Fatalf("renewal = (%s, %v), want running", state, err)
+	}
+	updatedAfter, heapOnlyAfter := counters()
+	if updated, heapOnly := updatedAfter-updatedBefore, heapOnlyAfter-heapOnlyBefore; updated != 1 || heapOnly != 1 {
+		t.Fatalf("claim renewal: %d updates, %d heap-only; an index covers what the renewal writes", updated, heapOnly)
+	}
+	renewed, err := NewPostgresStore(tx).GetRun(ctx, run.RunID)
+	if err != nil || !renewed.UpdatedAt.Equal(claimed.UpdatedAt) || renewed.SchedulerClaim == nil ||
+		!renewed.SchedulerClaim.ExpiresAt.After(claimed.SchedulerClaim.ExpiresAt) {
+		t.Fatalf("renewed Run updatedAt %v (claimed %v), claim %+v (claimed %+v), err %v",
+			renewed.UpdatedAt, claimed.UpdatedAt, renewed.SchedulerClaim, claimed.SchedulerClaim, err)
+	}
+}
+
 // TestPostgresWorkflowCredentialMatchKeepsItsExactSemantics checks that the
 // indexed superset in the LLM credential read only narrows candidates: the
 // read still reports exactly the Runs whose Workflow snapshot has a

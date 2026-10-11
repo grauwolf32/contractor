@@ -27,6 +27,9 @@ func TestPostgresClaimLossDuringFinalizationPreventsReportAndProgression(t *test
 	s := newLaneTestScheduler(t, newLaneTestStore(), newMutableSchedulerSettings(2, time.Second), 10*time.Millisecond)
 	s.store = store
 	s.persistence = fixture.persistence
+	// The lane renews every third of its lease, so the renewal that finds
+	// the stolen claim comes within 100 milliseconds.
+	s.options.ClaimDuration = 300 * time.Millisecond
 	done := make(chan error, 1)
 	go func() {
 		defer close(done)

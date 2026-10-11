@@ -413,8 +413,8 @@ func (s *laneTestStore) ClaimRunnableRun(
 	return runstore.WorkflowRun{}, runstore.ErrNoWork
 }
 
-func (s *laneTestStore) RenewRunClaim(context.Context, string, string, time.Duration) error {
-	return nil
+func (s *laneTestStore) RenewRunClaim(context.Context, string, string, time.Duration) (runstore.WorkflowRunState, error) {
+	return runstore.RunRunning, nil
 }
 
 func (s *laneTestStore) ReleaseRunClaim(_ context.Context, runID, claimID string) error {

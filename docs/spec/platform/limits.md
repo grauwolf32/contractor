@@ -508,6 +508,7 @@ its owning requirement.
 | `LIM-PLN-4` | at most 1 active dispatch | one Planner plan (activeDispatch) | Server Planner adapter | [PLN-R30](../execution/planners.md) |
 | `LIM-PLN-5` | 1 tool call executed per model turn | model-backed Planner (streamline@1, router@1) tool calls; parallel selections are rejected | Server Planner adapter | [PLN-R41](../execution/planners.md) |
 | `LIM-PLN-6` | 1..100 items per call, default 100 | limit argument of list_read_files and list_unread_files projection tools | Server-side Planner projection tools | [PLN-R60](../execution/planners.md) |
+| `LIM-PLN-7` | 2 seconds, or `a2a.pollInterval` when that is longer | delay between GetTask polls of one running A2A Task; starts at `a2a.pollInterval` and doubles after every poll that finds the Task running | A2A WorkerInvoker | [PLN-R114](../execution/planners.md) |
 | `LIM-PRJ-1` | at most 1 HTTP target per Project (one application URL plus one RuntimeCredential reference) | Project http_target / public field httpTarget | Server (Project API, Project resource shape) | [PRJ-R64](../artifacts/projects.md) |
 | `LIM-PRJ-2` | exactly 1 bounded publication result per present declared output of a successful Project Run (0 for a legitimately absent optional output) | Automatic Project output publication receipts | Server (terminal Run transaction) | [PRJ-R56](../artifacts/projects.md) |
 | `LIM-PRJ-3` | at least 1 character (non-empty) | Project name | Server (Project API) | [PRJ-R2](../artifacts/projects.md) |
@@ -579,6 +580,7 @@ its owning requirement.
 | `LIM-SCH-12` | exactly 1 immutable transition decision | source StageExecution whose StageResult is accepted, or whose interrupted StageTermination is committed, while the Run is running | Workflow Scheduler progression transaction (keyed by source stage_execution_id) | [SCH-R77](../execution/scheduler.md) |
 | `LIM-SCH-13` | exactly 1 `next` or `fail` action | `then` of a retry or escalate action | Workflow validation | [SCH-R81](../execution/scheduler.md) |
 | `LIM-SCH-14` | exactly 1 StageTermination and 0 accepted StageResult | `aborting` StageExecution | Workflow Scheduler (aborting transition) | [SCH-R43](../execution/scheduler.md) |
+| `LIM-SCH-15` | 3 renewals per claim lease (one every third of `scheduler.claimDuration`) while renewals succeed; after a failure, one retry per `scheduler.pollInterval` until the last lease has a third of it left | Run claim renewals of one execution lane | Scheduler lane | [SCH-R166](../execution/scheduler.md) |
 | `LIM-SCN-1` | exactly 1 selected tool | tools selected by a tool@1 AgentTemplate | tool@1 AgentTemplate validation | [SCN-R2](../tools/scanners.md) |
 | `LIM-SCN-2` | 32 keys | execution.arguments object | tool@1 AgentTemplate validation | [SCN-R6](../tools/scanners.md) |
 | `LIM-SCN-3` | 1-64 characters (pattern [A-Za-z_][A-Za-z0-9_]{0,63}) | execution argument names | tool@1 AgentTemplate validation | [SCN-R6](../tools/scanners.md) |

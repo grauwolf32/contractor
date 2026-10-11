@@ -2076,13 +2076,15 @@ func (s *memorySchedulerStore) ClaimRunnableRun(
 	return s.run, nil
 }
 
+// RenewRunClaim answers as the store does: the claimed Run's state, or a
+// conflict once the claim is gone (a terminal transition clears it).
 func (s *memorySchedulerStore) RenewRunClaim(
 	_ context.Context, runID, claimID string, _ time.Duration,
-) error {
+) (runstore.WorkflowRunState, error) {
 	if runID != s.run.RunID || claimID != s.claimID {
-		return runstore.ErrConflict
+		return "", runstore.ErrConflict
 	}
-	return nil
+	return s.run.State, nil
 }
 
 func (s *memorySchedulerStore) ReleaseRunClaim(_ context.Context, runID, claimID string) error {

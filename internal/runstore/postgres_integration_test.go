@@ -873,8 +873,9 @@ func TestPostgresIntegrationClaimsConflictsAndExplicitTransactions(t *testing.T)
 	if claims != 1 || noWork != 1 || claimed.SchedulerClaim == nil {
 		t.Fatalf("claim race claims=%d noWork=%d claimed=%+v", claims, noWork, claimed)
 	}
-	if err := store.RenewRunClaim(ctx, claimed.RunID, claimed.SchedulerClaim.ClaimID, 2*time.Minute); err != nil {
-		t.Fatalf("renew claim: %v", err)
+	if state, err := store.RenewRunClaim(ctx, claimed.RunID, claimed.SchedulerClaim.ClaimID, 2*time.Minute); err != nil ||
+		state != claimed.State {
+		t.Fatalf("renew claim = (%s, %v), want the claimed Run's state %s", state, err, claimed.State)
 	}
 	if err := store.ReleaseRunClaim(ctx, claimed.RunID, "wrong-claim"); !errors.Is(err, ErrConflict) {
 		t.Fatalf("wrong release error = %v", err)
@@ -1432,8 +1433,8 @@ func TestPostgresIntegrationRunCancellationIsDurableAndIdempotent(t *testing.T) 
 	if err != nil || claimed.RunID != first.RunID || claimed.State != RunCancelling {
 		t.Fatalf("claim cancelling Run = (%+v, %v)", claimed, err)
 	}
-	if err := store.RenewRunClaim(ctx, first.RunID, "cancel-claim", time.Minute); err != nil {
-		t.Fatalf("renew cancelling Run claim: %v", err)
+	if state, err := store.RenewRunClaim(ctx, first.RunID, "cancel-claim", time.Minute); err != nil || state != RunCancelling {
+		t.Fatalf("renew cancelling Run claim = (%s, %v), want cancelling", state, err)
 	}
 	cancelled, err := store.TransitionRun(
 		ctx, first.RunID, RunCancelling, RunCancelled, Reason{Code: CancellationUserRequested},

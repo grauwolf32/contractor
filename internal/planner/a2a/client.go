@@ -33,6 +33,11 @@ const (
 	maxGetTaskFailures        = 4
 	maxGetTaskRetryBackoff    = 500 * time.Millisecond
 	bestEffortCancelTimeout   = 2 * time.Second
+	// maxPollInterval bounds the adaptive GetTask cadence (PLN-R114,
+	// LIM-PLN-7): a running Task is polled first after the configured poll
+	// interval, and every poll that finds it still running doubles the delay
+	// up to this bound, or up to the configured interval when that is longer.
+	maxPollInterval = 2 * time.Second
 )
 
 type Options struct {
@@ -54,6 +59,9 @@ type Invoker struct {
 	requireHTTPS bool
 	tlsConfig    *tls.Config
 	timeout      time.Duration
+	// wait, when set, replaces the timer between polls, so a test drives the
+	// poll cadence on a virtual clock.
+	wait func(context.Context, time.Duration) error
 }
 
 // New accepts an injected HTTP client for tests and local composition. Private
@@ -206,6 +214,7 @@ func (i *Invoker) resolve(
 	taskID *sdk.TaskID,
 ) (contracts.WorkerCompletion, error) {
 	var contextID string
+	delay := i.pollInterval
 	for {
 		switch current := response.(type) {
 		case *sdk.Message:
@@ -262,13 +271,10 @@ func (i *Invoker) resolve(
 					"invalid_a2a_response", "Terminal A2A Task has no Contractor result", false, nil,
 				)
 			}
-			timer := time.NewTimer(i.pollInterval)
-			select {
-			case <-ctx.Done():
-				timer.Stop()
-				return contracts.WorkerCompletion{}, transportError(ctx, ctx.Err())
-			case <-timer.C:
+			if err := i.sleep(ctx, delay); err != nil {
+				return contracts.WorkerCompletion{}, transportError(ctx, err)
 			}
+			delay = i.nextPollDelay(delay)
 			next, getErr := i.pollTask(ctx, client, allocationID, *taskID)
 			if getErr != nil {
 				if ctx.Err() == nil && errors.Is(getErr, context.DeadlineExceeded) {
@@ -304,16 +310,40 @@ func (i *Invoker) pollTask(
 		if attempt == maxGetTaskFailures-1 || ctx.Err() != nil || !retryableGetTaskError(err) {
 			return nil, err
 		}
-		timer := time.NewTimer(backoff)
-		select {
-		case <-ctx.Done():
-			timer.Stop()
-			return nil, ctx.Err()
-		case <-timer.C:
+		if err := i.sleep(ctx, backoff); err != nil {
+			return nil, err
 		}
 		backoff = min(backoff*2, maxGetTaskRetryBackoff)
 	}
 	return nil, lastError
+}
+
+// nextPollDelay doubles the delay before the next poll of a Task that is
+// still running, up to maxPollInterval or the configured poll interval when
+// that is longer: a quick Task is noticed after a few short polls, and a
+// Worker call that runs for minutes costs about 30 GetTask requests a minute
+// instead of one per poll interval.
+func (i *Invoker) nextPollDelay(delay time.Duration) time.Duration {
+	limit := max(i.pollInterval, maxPollInterval)
+	if delay <= 0 || delay >= limit/2 {
+		return limit
+	}
+	return 2 * delay
+}
+
+// sleep waits delay, or until ctx ends with its error.
+func (i *Invoker) sleep(ctx context.Context, delay time.Duration) error {
+	if i.wait != nil {
+		return i.wait(ctx, delay)
+	}
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
 }
 
 func retryableGetTaskError(err error) bool {

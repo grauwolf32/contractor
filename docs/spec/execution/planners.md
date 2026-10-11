@@ -507,6 +507,14 @@ StageResult ([WRK-R27](worker.md)).
 remote Worker invocation produces an immediate A2A `Message` or a terminal
 Task (FAIL-PLN-2).
 
+**PLN-R114.** The A2A `WorkerInvoker` polls a Task that is still running
+with `GetTask`: first after `a2a.pollInterval`, then after a delay that doubles
+with every poll that finds the Task still running, up to 2 seconds or the
+configured interval when that is longer (LIM-PLN-7). A Task that finishes
+quickly is noticed after a few short polls, while a Worker call that runs for
+minutes costs about 30 mTLS requests a minute instead of one per poll
+interval; it is noticed at most one maximal delay after it ends.
+
 **PLN-R67.** An A2A Task in `INPUT_REQUIRED` or `AUTH_REQUIRED` ends
 the Passthrough invocation promptly with the non-retryable Planner error
 `worker_input_required` or `worker_auth_required` respectively and produces no

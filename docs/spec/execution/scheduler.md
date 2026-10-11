@@ -904,6 +904,15 @@ resent.
 session after Runtime process loss. Which model request is retried during
 `waiting` is specified in [Runs](runs.md).
 
+**SCH-R165.** A model-call update that changes nothing is decided from one
+read without row locks or writes: an `acquire` on a route that is not blocked,
+and a terminal update whose participant holds neither the route's probe nor,
+for `succeeded` and `finished`, a recovery wait while its Run is not
+`waiting`. Every call on a healthy route is such a pair, so model calls of an
+owner's Runs no longer serialize on the Run row and the shared route row. The
+decision is the one the locking path makes at the moment of that read; every
+other update takes the Run and route locks (SCH-R106, SCH-R108).
+
 ### Run claims and execution lanes
 
 **SCH-R114.** One WorkflowRun has at most one active StageExecution
@@ -947,6 +956,17 @@ it as completion (FAIL-SCH-16).
 **SCH-R120.** The `FOR UPDATE SKIP LOCKED` claim boundary is authoritative:
 different lanes cannot claim the same Run, and a claim cannot be silently
 stolen before expiry (FAIL-SCH-16).
+
+**SCH-R166.** A lane renews its claim every third of `scheduler.claimDuration`
+(LIM-SCH-15). A failed renewal is retried every `scheduler.pollInterval` while
+the last lease still has a third of its duration left; past that, the lane
+gives the claim up before another Scheduler could take it over (FAIL-SCH-16).
+A renewal writes only the lease expiry, which no index covers, so it is a
+heap-only update and leaves the Run's `updatedAt` and claim order unchanged.
+It returns the Run state: a Run found `cancelling` interrupts the lane, which
+the in-process cancellation of SCH-R117 normally does first. Only a renewal
+that finds the claim gone reads the Run state again, to tell a terminal
+transition (SCH-R119) from a lost claim.
 
 **SCH-R121.** Claim ordering prioritizes cancellation and rotates
 capacity-deferred work: cancelling Runs retain priority over ordinary running
@@ -1275,7 +1295,7 @@ Failure outcomes ([failure model](../platform/failure-model.md)):
 - FAIL-SCH-13 — unprogressable durable state (SCH-R102).
 - FAIL-SCH-14 — model call under the recovery gate (SCH-R108, SCH-R109).
 - FAIL-SCH-15 — recording an observed model outcome (SCH-R111).
-- FAIL-SCH-16 — Run claim renewal (SCH-R119, SCH-R120).
+- FAIL-SCH-16 — Run claim renewal (SCH-R119, SCH-R120, SCH-R166).
 - FAIL-SCH-17 — concurrency setting update (SCH-R133, SCH-R138).
 - FAIL-SCH-18 — owner queue control update (SCH-R146, SCH-R156).
 

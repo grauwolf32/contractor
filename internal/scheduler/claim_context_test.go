@@ -5,6 +5,8 @@ import (
 	"errors"
 	"testing"
 	"time"
+
+	"github.com/grauwolf32/contractor/internal/runstore"
 )
 
 func TestClaimCleanupPreservesOwnershipAfterExecutionCancellation(t *testing.T) {
@@ -66,6 +68,8 @@ func TestCompletedRunCancelsInflightRenewalWithoutClaimLoss(t *testing.T) {
 	s := newLaneTestScheduler(t, store.laneTestStore, newMutableSchedulerSettings(1, time.Second), 10*time.Millisecond)
 	s.store = store
 	s.options.OperationTimeout = 5 * time.Second
+	// The lane renews every third of its lease.
+	s.options.ClaimDuration = 30 * time.Millisecond
 	ctx, cancel := context.WithCancel(t.Context())
 	done := make(chan error, 1)
 	go func() {
@@ -97,8 +101,8 @@ type blockedRenewalStore struct {
 	started chan struct{}
 }
 
-func (s *blockedRenewalStore) RenewRunClaim(ctx context.Context, _, _ string, _ time.Duration) error {
+func (s *blockedRenewalStore) RenewRunClaim(ctx context.Context, _, _ string, _ time.Duration) (runstore.WorkflowRunState, error) {
 	close(s.started)
 	<-ctx.Done()
-	return ctx.Err()
+	return "", ctx.Err()
 }

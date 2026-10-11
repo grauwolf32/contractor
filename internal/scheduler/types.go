@@ -42,7 +42,7 @@ func (*AllocationLeaseLossError) Unwrap() error { return ErrAllocationLeaseLost 
 // transactions used at lifecycle commit points.
 type Store interface {
 	ClaimRunnableRun(context.Context, string, time.Duration) (runstore.WorkflowRun, error)
-	RenewRunClaim(context.Context, string, string, time.Duration) error
+	RenewRunClaim(context.Context, string, string, time.Duration) (runstore.WorkflowRunState, error)
 	ReleaseRunClaim(context.Context, string, string) error
 	DeferRunClaim(context.Context, string, string) error
 	GetRun(context.Context, string) (runstore.WorkflowRun, error)
@@ -261,9 +261,11 @@ func (realClock) After(duration time.Duration) <-chan time.Time { return time.Af
 type Options struct {
 	GatewayRecovery *gatewayrecovery.Service
 	// PollInterval is scheduler.pollInterval: the lane refill and terminal
-	// release recovery period, and the upper bound of the claim renewal period.
+	// release recovery period, and the retry period after a failed claim
+	// renewal.
 	PollInterval time.Duration
-	// ClaimDuration is scheduler.claimDuration, the Run claim lease.
+	// ClaimDuration is scheduler.claimDuration, the Run claim lease, renewed
+	// every third of it.
 	ClaimDuration time.Duration
 	// OperationTimeout is scheduler.operationTimeout: one store operation
 	// (claim, renewal, read, transition or commit). Runtime batches carry

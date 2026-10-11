@@ -332,15 +332,20 @@ func (s *Scheduler) renewClaim(
 	claimedState runstore.WorkflowRunState,
 	leaseExpiresAt time.Time,
 ) {
+	// A lane renews every third of the lease (SCH-R166, LIM-SCH-15). The
+	// renewal also reports the Run state, so a cancellation the in-process
+	// Cancel did not reach still interrupts the lane.
 	interval := s.options.ClaimDuration / 3
-	if s.options.PollInterval < interval {
-		interval = s.options.PollInterval
-	}
 	if interval <= 0 {
 		interval = time.Millisecond
 	}
-	// Transient store failures are retried while the last known lease still
-	// has a safety margin; past that point another Scheduler may reclaim it.
+	// Transient store failures are retried every poll interval while the
+	// last known lease still has a safety margin; past that point another
+	// Scheduler may reclaim it.
+	retry := min(s.options.PollInterval, interval)
+	if retry <= 0 {
+		retry = time.Millisecond
+	}
 	safetyMargin := s.options.ClaimDuration / 3
 	keepRenewing := func(err error) bool {
 		if !claimOwnershipLost(err) && s.now().Before(leaseExpiresAt.Add(-safetyMargin)) {
@@ -353,27 +358,29 @@ func (s *Scheduler) renewClaim(
 		cancelOwnership(errors.Join(ErrClaimLost, err))
 		return false
 	}
+	wait := interval
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-stop:
 			return
-		case <-s.after(interval):
+		case <-s.after(wait):
 		}
 		renewContext, renewCancel := context.WithTimeout(ctx, s.options.OperationTimeout)
 		renewStarted := s.now()
-		err := s.store.RenewRunClaim(renewContext, runID, claimID, s.options.ClaimDuration)
+		state, err := s.store.RenewRunClaim(renewContext, runID, claimID, s.options.ClaimDuration)
 		if err != nil {
 			if ctx.Err() != nil {
 				renewCancel()
 				return
 			}
 			if errors.Is(err, runstore.ErrConflict) {
-				// A terminal transition atomically clears its own claim. Renewal
-				// racing that commit is normal completion, not stolen ownership.
-				current, loadErr := s.store.GetRun(renewContext, runID)
-				if loadErr == nil && terminalRunReleasedClaim(current) {
+				// A terminal transition atomically clears its own claim: a
+				// terminal Run holds none. Renewal racing that commit is
+				// normal completion, not stolen ownership.
+				current, loadErr := s.store.GetRunState(renewContext, runID)
+				if loadErr == nil && runstore.RunLifecycleTerminal.Includes(current) {
 					renewCancel()
 					return
 				}
@@ -385,26 +392,15 @@ func (s *Scheduler) renewClaim(
 			if !keepRenewing(err) {
 				return
 			}
+			wait = retry
 			continue
 		}
-		leaseExpiresAt = renewStarted.Add(s.options.ClaimDuration)
-		current, err := s.store.GetRun(renewContext, runID)
 		renewCancel()
-		if err != nil {
-			if ctx.Err() != nil {
-				return
-			}
-			if !keepRenewing(err) {
-				return
-			}
-			continue
-		}
-		if terminalRunReleasedClaim(current) {
-			return
-		}
+		wait = interval
+		leaseExpiresAt = renewStarted.Add(s.options.ClaimDuration)
 		// A Run claimed while already cancelling is using executionContext
 		// for its bounded abort or finalization; do not interrupt that cleanup.
-		if current.State == runstore.RunCancelling && claimedState != runstore.RunCancelling {
+		if state == runstore.RunCancelling && claimedState != runstore.RunCancelling {
 			cancelExecution(ErrRunCancellationRequested)
 		}
 	}
@@ -415,8 +411,4 @@ func (s *Scheduler) renewClaim(
 func claimOwnershipLost(err error) bool {
 	return errors.Is(err, runstore.ErrConflict) || errors.Is(err, runstore.ErrNotFound) ||
 		errors.Is(err, runstore.ErrInvalid)
-}
-
-func terminalRunReleasedClaim(run runstore.WorkflowRun) bool {
-	return run.SchedulerClaim == nil && runstore.RunLifecycleTerminal.Includes(run.State)
 }
