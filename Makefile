@@ -34,7 +34,7 @@ build:
 	go build ./cmd/...
 	cd runtime && uv run python -m compileall -q src
 
-verify: lint test build ui-verify
+verify: lint test build ui-verify test-config
 
 # release-verify runs verify first and then the heavier stages; its stages
 # and their order are defined in make/release.mk.

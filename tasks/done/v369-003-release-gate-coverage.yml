@@ -1,0 +1,100 @@
+schema_version: "1.0"
+id: V369-003
+title: "Add the missing checks to the release gate"
+milestone: hub-audit-guards-2026-10
+epic: quality
+kind: chore
+priority: P1
+status: completed
+implementation_commit: fa04328c3ab8c4ede56d7bf4f0b6a15946ddc0f9
+depends_on: []
+languages: [go]
+goal: "Each check fails when its subject breaks (stale ERD, invalid catalog, filesystem orphan)."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq; raw reports in docs/research/2026-10-11-hub-audit/), artifacts F2; config D 3.5; persistence G2; file:line as of 02bbdcbf, re-verify on current main"
+  finding: >-
+    The filesystem Artifact backend matrix runs only in the opt-in test-
+    artifact-blob-backends (make/platform.mk:129-133) and covers 8 of 13
+    tests; Project and Audit purge on filesystem are untested. make test-
+    config (contractor server config validate) is in no gate. The ERD has no
+    freshness check.
+  siblings: >-
+    Re-verified on 4146eea: 22 artifacts tests take their backend from
+    CONTRACTOR_TEST_ARTIFACT_BACKEND through testBlobContext (13
+    TestPostgresIntegration*, 6 Audit preparation, Git provenance, prefix
+    list, ref page; the opt-in selection matched 8), plus 2 findingintake
+    tests; the storage review tests set the variable themselves and run
+    both backends in every pass. The ERD showed schemaVersion 000001 while
+    the migrations reach 000005 and add audit_report_pages. Run purge on
+    the filesystem backend was already tested
+    (TestFilesystemRegistryAndCommitCleanup); Project and Audit purge were
+    not. Other gate members were checked: the architecture model runs in
+    the families stage; the ERD meta.json is checked by the generator
+    itself.
+  decision: >-
+    Guarantee: release-verify fails when a backend-switched test fails on
+    the filesystem backend, when a Project's Audit purge or the final
+    Project purge leaves an orphan or missing object or unlinks a shared
+    one, when the shipped catalog does not validate, and when the ERD's
+    schemaVersion or table set differs from the migrations; the
+    release-graph guard fails when any of these checks leaves the gate.
+    (1) make test-artifact-filesystem runs ARTIFACT_BACKEND_PACKAGES
+    (artifacts, findingintake) whole with
+    CONTRACTOR_TEST_ARTIFACT_BACKEND=filesystem and -tags=integration in
+    release-verify-integration; the guard discovers every package whose
+    tests read the variable and requires a complete pass with the tags of
+    the reading files. It runs without -race: the default backend is raced
+    in release-verify-race, the always-filesystem tests (Run, Project and
+    Audit purge, cleanup, dedup) are raced there too, and a raced pass would
+    add several minutes to a 45-minute stage; test-artifact-blob-backends
+    keeps the raced filesystem pass, now over the same whole packages
+    instead of its 8-test selection. Reverse if a race appears only on the
+    filesystem backend: add -race and raise the guard's integration command
+    count. (2) TestProjectAndAuditPurgesUnlinkOnlyUnreferencedFilesystemBlobs
+    (projectlifecycle) always claims the filesystem backend, so every
+    database pass runs it: it drives a Project deletion through the
+    Controller and the Audit purge through auditstore.PurgeClaimed and
+    checks each object (shared, Project-only, Audit-only, Audit-and-Project,
+    Run-only) and the offline cleanup report after each purge; it fails
+    when the purge skips the unlink (orphan) or runs without the blob
+    runtime. (3) test-config joins release-verify-lint and make verify,
+    which must stay equal; the configuration unit tests rerun uncached in
+    the lint job (about 15 s), accepted to keep the target the task names.
+    A catalog copy with an entryStage naming no Stage makes config validate
+    exit 1. (4) scripts/check_database_erd.py reads the page's embedded
+    data and applies every migration's CREATE TABLE, DROP TABLE and ALTER
+    TABLE ... RENAME TO in order, ignoring comments, string literals,
+    routine bodies and temporary tables but not DO blocks; the
+    schemaVersion rule and paths come from scripts/erd/build_erd.py. It runs
+    in make lint and fails on the 4146eea page (000001, no
+    audit_report_pages). The page was regenerated with make docs-erd and a
+    meta.json entry for audit_report_pages. Alternatives rejected: checking
+    meta.json too (the generator already refuses a mismatch); comparing
+    columns (needs a database; schemaVersion already changes with every
+    migration). Coordination: every merged branch that adds a migration
+    makes make lint fail until the page is regenerated after the final
+    merge. Commands run: the 22 backend-switched artifacts tests and the 2
+    findingintake ones with CONTRACTOR_TEST_ARTIFACT_BACKEND=filesystem and
+    -run (all pass), the new purge test with and without -race, make
+    test-config, make docs-erd, the scripts unit tests, the release-graph
+    guard (also against a gate without the new passes, which it rejects),
+    check_database_erd, check_spec, archtest, persistence, vet and
+    staticcheck U1000. The whole artifacts and findingintake packages and
+    make lint run in the coordinator's full suites. introduced_by is
+    omitted: the gate targets predate the shallow history (boundary
+    6349621).
+scope:
+  in:
+    - "Filesystem backend for all artifacts integration tests in release-verify-integration; Project and Audit purge tests on filesystem; test-config in release-verify-lint; an ERD check comparing schemaVersion and table set with the migrations without a database."
+  out:
+    - "What the checks assert."
+acceptance_criteria:
+  - id: A1
+    text: "Each check fails when its subject breaks (stale ERD, invalid catalog, filesystem orphan)."
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "make test-config"
+    covers: [A1]
+  - command: "CONTRACTOR_TEST_ARTIFACT_BACKEND=filesystem go test -tags integration ./internal/artifacts"
+    covers: [A1]

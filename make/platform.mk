@@ -16,7 +16,7 @@
 	test-performance-matrix test-performance-go test-performance-runtime \
 	test-performance-postgres test-performance-browser \
 	test-performance-metrics benchmark-performance test-git-artifacts \
-	test-artifact-blob-backends
+	test-artifact-filesystem test-artifact-blob-backends
 
 test-runtime-wire:
 	go test ./internal/contracts/... ./internal/controlplane/...
@@ -126,10 +126,20 @@ test-git-artifacts: require-database runtime-venv
 	node ui/server/git-artifacts-gate.mjs
 	go test -tags=e2e -count=1 -timeout=12m ./tests/e2e -run '^TestGitArtifactsProductionContainers$$' -v
 
+# The packages whose tests take their Artifact blob backend from
+# CONTRACTOR_TEST_ARTIFACT_BACKEND; the release-graph guard keeps the list
+# complete. Their tests use the PostgreSQL backend unless it says filesystem.
+ARTIFACT_BACKEND_PACKAGES := ./internal/artifacts ./internal/findingintake
+
+# Every one of those tests on the filesystem backend, without Podman; a
+# release-verify-integration pass. Tests that always claim the filesystem
+# backend, such as the Run, Project and Audit purge tests, run in every pass.
+test-artifact-filesystem: require-database
+	CONTRACTOR_TEST_ARTIFACT_BACKEND=filesystem go test -tags=integration -count=1 -timeout=15m $(ARTIFACT_BACKEND_PACKAGES)
+
 test-artifact-blob-backends: require-database
 	@command -v podman >/dev/null || (echo "podman is required" >&2; exit 1)
 	go test -race -tags=integration -count=1 ./internal/artifacts ./internal/app ./internal/persistence/postgres ./internal/httpapi/public ./internal/httpapi/privateartifacts ./internal/auditstore ./internal/findingintake ./internal/projectlifecycle
-	CONTRACTOR_TEST_ARTIFACT_BACKEND=filesystem go test -race -count=1 ./internal/artifacts -run 'TestPostgresIntegration(64MiB|InputFork|ProjectInput|ProjectScope|Publishes|DeletesReleased|ArtifactCAS|SkillFork)'
-	CONTRACTOR_TEST_ARTIFACT_BACKEND=filesystem go test -race -tags=integration -count=1 ./internal/findingintake
+	CONTRACTOR_TEST_ARTIFACT_BACKEND=filesystem go test -race -tags=integration -count=1 $(ARTIFACT_BACKEND_PACKAGES)
 	cd runtime && uv run pytest -q tests/test_artifacts.py tests/test_workspace_auto_export.py tests/test_projectfs_overlay.py
 	go test -tags=e2e -count=1 -timeout=8m ./tests/e2e -run '^TestArtifactBlobBackendsContainers$$' -v

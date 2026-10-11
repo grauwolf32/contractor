@@ -182,8 +182,14 @@ required. S3 is not implemented.
 
 ## Release verification
 
-Run `CONTRACTOR_TEST_DATABASE_URL=... make test-artifact-blob-backends` with
-Podman and the locked Runtime environment available. Tests use isolated
+Every release runs `make test-artifact-filesystem` in `release-verify-integration`:
+each Go package whose tests take their backend from
+`CONTRACTOR_TEST_ARTIFACT_BACKEND` (`internal/artifacts`,
+`internal/findingintake`) runs whole on the filesystem backend; it needs only
+the test database. For the complete matrix, run
+`CONTRACTOR_TEST_DATABASE_URL=... make test-artifact-blob-backends` with
+Podman and the locked Runtime environment available; it repeats that pass
+under the race detector and adds the containers. Tests use isolated
 PostgreSQL schemas and temporary containers/images; they do not touch demo data.
 The container test builds the real static Server in a scratch image, disables
 Podman's implicit writable tmpfs mounts, and uses only read-only bootstrap and
@@ -197,6 +203,7 @@ secret files plus `/managed` (and `/blobs` for filesystem).
 | Four-transfer saturation and cancellation | Four incomplete 64 MiB HTTP uploads hold all slots; another upload or output download gets 503, cancel frees a slot, remaining uploads commit; Run metadata stays available |
 | Oversize, integrity, generation keys, symlink escape, startup configuration | Adapter/config tests plus container Content-Length rejection |
 | CAS, forks, outputs, Run/Project/Skill retention | Shared PostgreSQL integration cases run with both backend contexts |
+| Run, Project and Audit purge unlink exactly the unreferenced objects | `TestFilesystemRegistryAndCommitCleanup` and `TestProjectAndAuditPurgesUnlinkOnlyUnreferencedFilesystemBlobs` (always on the filesystem backend) check every object and require offline cleanup to find no orphan or missing object |
 | Audit direct verification/evidence | `internal/findingintake` integration suite runs with both backend contexts |
 | Commit/rollback/ambiguous outcomes and failed unlink | `TestFilesystemRegistryAndCommitCleanup`, `TestFilesystemLostWriteAcknowledgementKeepsCommittedBytes`, `TestFilesystemFailedUnlinkLeavesCleanableOrphan`, PostgreSQL commit-effect tests |
 | Offline cleanup and missing references | `TestFilesystemOfflineCleanupPreservesReferences` verifies dry-run, apply, repeated apply and symlink refusal |
