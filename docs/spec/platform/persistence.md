@@ -116,8 +116,8 @@ flowchart LR
 | `workflow_run_events`, the Run replay authority, and its insert-trigger notification | [Public API](../api/public-api.md) (API-R54, API-R55) |
 | `llm_credentials` and the `credential_operations` internal recovery journal | [Runtime config, LLM credential record](../configuration/runtime-config.md#llm-credential-record) (RCF-R33, RCF-R71) |
 | WorkflowRun metadata labels | [Runs](../execution/runs.md) (RUN-R72, RUN-R73) |
-| The `scheduler_settings` singleton and its seeding migration | [Operations](../operations/operations.md) (OPS-R48, OPS-R49, OPS-R50) |
-| `performance_minutes` and its migration | [Operations](../operations/operations.md) (OPS-R150, OPS-R151, OPS-R152) |
+| The `scheduler_settings` singleton and its seed row | [Operations](../operations/operations.md) (OPS-R48, OPS-R49, OPS-R50) |
+| `performance_minutes` | [Operations](../operations/operations.md) (OPS-R150, OPS-R151, OPS-R152) |
 | Not PostgreSQL state: the live Runtime Agent Registry | [Control plane](../execution/control-plane.md) (CTL-R62) |
 
 ## Requirements

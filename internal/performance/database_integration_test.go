@@ -12,7 +12,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/grauwolf32/contractor/internal/persistence/migrations"
 	"github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -63,11 +62,7 @@ func databaseFixture(t *testing.T) (*pgxpool.Pool, *DatabaseStore, string) {
 		t.Fatal(err)
 	}
 	t.Cleanup(working.Close)
-	sql, err := migrations.Files.ReadFile("000049_performance_minutes.sql")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err = working.Exec(ctx, string(sql)); err != nil {
+	if _, err = postgres.ApplyMigrations(ctx, working); err != nil {
 		t.Fatal(err)
 	}
 	pool, err := NewDiagnosticPool(ctx, scoped)

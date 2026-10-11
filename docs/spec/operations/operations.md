@@ -1004,7 +1004,7 @@ and restarts split each series independently.
 #### Performance history
 
 **OPS-R150.** Minute history is stored in `performance_minutes`,
-created by its own forward-only migration and separate from Stage execution
+created by the forward-only schema migrations and separate from Stage execution
 truth. Rows are keyed by `(server_generation, minute_start)` and carry a
 schema version, observation coverage, a typed bounded aggregate payload and an
 expiry.

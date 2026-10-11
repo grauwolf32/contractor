@@ -34,12 +34,12 @@ cases:
     faults: [F03]
     expected: Run and labels commit atomically, project completely and cannot be updated, deleted or inserted after creation.
     test: {source: internal/runstore/postgres_integration_test.go, kind: go_test, name: TestPostgresWorkflowRunMetadataLabelsAreAtomicImmutableAndProjected}
-  - id: bounded_indexed_migration
+  - id: bounded_indexed_schema
     category: persistence
     acceptance: [A4]
     faults: [F04]
-    expected: The migration owns relational bounds, exact lookup indexes, immutable triggers and cascade lifecycle without a legacy labels array.
-    test: {source: internal/persistence/postgres/migrate_test.go, kind: go_test, name: TestWorkflowRunMetadataLabelMigrationIsBoundedIndexedAndImmutable}
+    expected: The schema bounds metadata labels, keeps a GIN index for exact label lookup and rejects any change after the Run is created.
+    test: {source: internal/persistence/postgres/schema_invariants_postgres_test.go, kind: go_test, name: TestPostgresRunMetadataLabelsAreBoundedIndexedAndImmutable}
   - id: response_loss_and_changed_body
     category: idempotency
     acceptance: [A3]

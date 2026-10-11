@@ -235,9 +235,7 @@ go test -tags=e2e -count=1 -timeout=6m ./tests/e2e \
 
 ## Release verification
 
-Apply Server migrations before using these Workflows. Migration `000061` permits
-the model-free allocation provenance emitted by `tool@1`; without it the older
-database constraint rejects placement even when Runtime advertises the scanner.
+Apply Server migrations before using these Workflows.
 
 The real-process gate requires a disposable PostgreSQL database in
 `CONTRACTOR_TEST_DATABASE_URL`, installed Runtime dependencies (`cd runtime &&
