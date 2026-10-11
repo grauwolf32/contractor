@@ -549,10 +549,18 @@ def test_cancellation_and_close_reap_process_group(tmp_path, monkeypatch, stop):
         with pytest.raises(asyncio.CancelledError):
             await asyncio.wait_for(task, 3)
         child = int(marker.read_text())
-        # A dead child may remain a zombie until the host's init reaps it.
+        # A dead child may remain a zombie until the host's init reaps it,
+        # and the host may reap it between any two reads of its /proc entry.
         stat = Path(f"/proc/{child}/stat")
+
+        def running() -> bool:
+            try:
+                return stat.read_text().split()[2] != "Z"
+            except (FileNotFoundError, ProcessLookupError):
+                return False
+
         async with asyncio.timeout(3):
-            while stat.exists() and stat.read_text().split()[2] != "Z":
+            while running():
                 await asyncio.sleep(0.01)
         assert list((tmp_path / "workspace").iterdir()) == []
 

@@ -1,0 +1,39 @@
+schema_version: "1.0"
+id: V371-001
+title: "Tolerate a reaped process in the scan toolset reaping test"
+milestone: hub-audit-defects-2026-10
+epic: quality
+kind: defect
+priority: P3
+status: in_progress
+depends_on: []
+languages: [python]
+goal: "test_cancellation_and_close_reap_process_group waits for the forked child to be gone or a zombie and never fails because the host reaped it while the test read its /proc entry."
+context:
+  review: "CI run 38175886935 of PR grauwolf32/contractor#544 (head 95df8a1), job release-verify-unit"
+  severity: low
+  finding: >-
+    runtime/tests/test_scan_toolset.py:555 waits for the child with
+    `while stat.exists() and stat.read_text().split()[2] != "Z"`. When the
+    host reaps the child between exists() and the read, the read of
+    /proc/<pid>/stat raises ProcessLookupError (ESRCH) and the test fails
+    although the behaviour under test (cancel and close reap the process
+    group) worked: test_cancellation_and_close_reap_process_group[cancel]
+    failed once in CI with 3643 other Runtime tests passing. The code
+    predates the shallow history (6349621), so introduced_by is unknown.
+  siblings: >-
+    The [close] parametrization runs the same loop and is fixed with it. No
+    other Runtime test reads /proc/<pid>/stat.
+scope:
+  in:
+    - "Treat a /proc entry that disappears before or during the read as a reaped child and leave the wait loop."
+  out:
+    - "The reaping behaviour of the scan toolset."
+acceptance_criteria:
+  - id: A1
+    text: "A child reaped between the existence check and the read ends the wait instead of failing the test."
+tests:
+  - command: "cd runtime && uv run pytest tests/test_scan_toolset.py -k reap_process_group"
+    covers: [A1]
+  - command: make lint
+    covers: [A1]
