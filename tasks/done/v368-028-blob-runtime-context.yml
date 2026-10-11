@@ -1,0 +1,70 @@
+schema_version: "1.0"
+id: V368-028
+title: "Fail loudly when a filesystem blob operation has no blob runtime"
+milestone: hub-audit-defects-2026-10
+epic: projects-artifacts
+kind: defect
+priority: P3
+status: completed
+implementation_commit: 40b3462ced5eb907898910d4ec681f4aa2717d84
+depends_on: []
+languages: [go]
+goal: "A test with a background context reads and deletes a filesystem blob correctly."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq; raw reports in docs/research/2026-10-11-hub-audit/), artifacts G8; file:line as of 02bbdcbf, re-verify on current main"
+  specification:
+    - docs/spec/artifacts/blob-storage.md
+  finding: >-
+    Without the blob runtime in context a filesystem read becomes
+    ErrArtifactIntegrity (blob.go:109-111, blob_context.go:76) and unlink
+    after commit is skipped silently (blob_context.go:114); a new
+    context.Background() (already in auditcontroller/controller.go:72,
+    scheduler/allocation_release.go:39) breaks it without a signal.
+  siblings: >-
+    Fixed: Read, ReadExactBatch and the prefix batch read (one store method),
+    the deduplication Check and Read of a prepared filesystem payload, and the
+    post-commit unlink of PurgeRun, PurgeProject and PurgeAuditNamespace (one
+    collector). discardUnusedBlob and discardUnpublishedBlob now log instead of
+    returning silently; both are unreachable without a runtime because only a
+    runtime stores filesystem candidates. Ruled out: writes, because without a
+    runtime they offer inline bytes and artifact_blob_backend_guard rejects
+    them on a filesystem installation (tested, SQLSTATE 23514); AcquireTransfer,
+    which only skips the transfer budget and touches no payload; the cited
+    context.Background() sites (auditcontroller claim release, scheduler
+    allocation release, shutdown contexts), none of which reach Artifact
+    operations.
+  decision: >-
+    A context without the runtime now resolves to runtimelessBlobStore: inline
+    PostgreSQL payloads work as before (tests rely on it), and a filesystem
+    object returns errBlobRuntimeMissing, logged through slog.Default where it
+    is detected and mapped by callers to a generic internal error, never to
+    corrupt or missing content. A purge that would orphan a filesystem object
+    fails before its commit, so nothing is deleted until a context with the
+    runtime retries (BLB-R75). Alternative: the store carries its runtime;
+    that changes NewPostgresRepository and NewPostgresPurger at about 35
+    production and 100 test call sites in 15 packages, and keeps the same
+    silent fallback for a nil runtime unless every test installs one. Logging
+    after an orphaning commit was rejected because a composition defect then
+    only leaves a log line. Reopen when the Artifact service becomes one
+    composed dependency (V370-016): move the runtime into it and delete the
+    context key.
+scope:
+  in:
+    - "The store carries its blob runtime instead of the context, or a missing runtime is a logged internal error."
+  out:
+    - "PostgreSQL blob storage."
+acceptance_criteria:
+  - id: A1
+    text: "A test with a background context reads and deletes a filesystem blob correctly."
+    evidence: >-
+      TestFilesystemBlobWithoutRuntimeFailsLoudly (internal/artifacts) reads,
+      batch-reads, writes a prepared payload and deletes the Run with
+      context.Background(): each fails with the logged missing-runtime error,
+      the deletion rolls back with the file intact, and the same deletion with
+      the runtime unlinks the file. Before the fix the read returned
+      ErrArtifactIntegrity.
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "CONTRACTOR_TEST_ARTIFACT_BACKEND=filesystem go test -tags integration ./internal/artifacts"
+    covers: [A1]
