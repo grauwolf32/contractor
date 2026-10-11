@@ -6,6 +6,10 @@ import "testing"
 // filesystem payload operation returns without an installed blob runtime.
 var ErrBlobRuntimeMissing = errBlobRuntimeMissing
 
+// ListProjectMetadataSQL lets external tests explain the generic Project
+// listing query.
+var ListProjectMetadataSQL = listProjectMetadataSQL
+
 // PurgeBatchSize reports the purge batch bound (LIM-DEL-2) that external tests
 // measure purge statements against.
 func PurgeBatchSize() int { return purgeBatchSize }

@@ -11,6 +11,7 @@ from contractor_runtime.allocation import WorkerState
 from contractor_runtime.artifacts import ArtifactValue
 from contractor_runtime.contracts import (
     API_VERSION,
+    ArtifactReadResult,
     ArtifactRef,
     ArtifactWriteResult,
     RuntimeSettings,
@@ -242,6 +243,20 @@ def test_text_tools_reject_invalid_windows_utf8_and_oversize(tmp_path: Path) -> 
     asyncio.run(scenario())
 
 
+def test_read_text_artifact_rejects_binary_media_types_before_download(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        client = MemoryArtifactClient()
+        archive = client.seed("inputs", "source", "application/zip", b"PK\x03\x04")
+        tools = await make_tools(tmp_path, client, WorkerState())
+
+        for revision in (None, archive.revision):
+            with pytest.raises(ValueError, match=r"binary \(application/zip\)"):
+                await tools["read_text_artifact"]("inputs", "source", revision)
+        assert client.metadata_calls == 2 and client.read_calls == 0
+
+    asyncio.run(scenario())
+
+
 def test_text_content_and_secrets_are_redacted_from_metrics(tmp_path: Path) -> None:
     async def scenario() -> None:
         client = MemoryArtifactClient()
@@ -362,6 +377,7 @@ class MemoryArtifactClient:
         self._known: dict[tuple[str, str, str], ArtifactRef] = {}
         self._observed: list[ArtifactRef] = []
         self._next_revision = 1
+        self.metadata_calls = 0
         self.read_calls = 0
         self.write_calls = 0
 
@@ -381,6 +397,19 @@ class MemoryArtifactClient:
 
     def seed(self, namespace: str, name: str, media_type: str, data: bytes) -> ArtifactRef:
         return self._store(namespace, name, media_type, data)
+
+    async def read_artifact_metadata(self, ref: ArtifactRef) -> ArtifactReadResult:
+        self.metadata_calls += 1
+        if ref.revision is None:
+            stored = self.bindings[(ref.namespace, ref.name)]
+        else:
+            stored = self.history[(ref.namespace, ref.name, ref.revision)]
+        return ArtifactReadResult(
+            apiVersion=API_VERSION,
+            artifact=ArtifactRef(namespace=ref.namespace, name=ref.name, revision=stored.revision),
+            mediaType=stored.media_type,
+            size=len(stored.data),
+        )
 
     async def read_artifact(self, ref: ArtifactRef) -> ArtifactValue:
         self.read_calls += 1

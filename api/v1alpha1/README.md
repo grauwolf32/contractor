@@ -42,6 +42,10 @@ characters, never on an empty page) continues a paged listing and is absent on
 the last page and from a `namePrefix` listing; the listing limit and cursor
 grammar are pinned by `api/testdata/v1alpha1/artifact-list-cases.json`, which
 also lists the bindings the paged listing hides from model tools.
+`ArtifactReadOrWriteResult` is the body of a private write and of the private
+metadata read `GET …/artifacts/{namespace}/{name}/metadata`, which answers the
+exact revision, media type and size of a current or exact ref without the
+payload.
 
 `AllocationSpec.agentTemplate.modelPolicy` remains the immutable template
 default covered by the AgentTemplate digest. The separate required

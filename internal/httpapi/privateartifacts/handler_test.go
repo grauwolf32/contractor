@@ -60,6 +60,60 @@ func TestPrivateArtifactReadDerivesRunScopeOnlyFromAllocation(t *testing.T) {
 	assertArtifactTimestampHeaders(t, response.Header(), artifactTestEpoch, artifactTestEpoch)
 }
 
+// The metadata read answers the exact revision, media type and size of the
+// current or an exact binding without reading the payload, under the same
+// allocation and namespace rules as the raw read (ART-R116).
+func TestPrivateArtifactMetadataReadSkipsThePayload(t *testing.T) {
+	repository := newMemoryRepository()
+	repository.seed("run-a", "inputs", "source", "revision-a", []byte("run A"))
+	repository.seed("run-a", "inputs", "source", "revision-b", []byte("run A, second"))
+	repository.seed("run-b", "inputs", "source", "revision-c", []byte("run B secret"))
+	handler := newTestHandler(t, &fakeRegistry{grant: testGrant("run-a")}, repository)
+	read := func(target string) *httptest.ResponseRecorder {
+		t.Helper()
+		response := httptest.NewRecorder()
+		handler.ServeHTTP(response, trustedRequest(http.MethodGet, target, nil))
+		return response
+	}
+	for _, test := range []struct{ query, revision, size string }{
+		{"", "revision-b", "13"},
+		{"?revision=revision-a", "revision-a", "5"},
+	} {
+		response := read("/private/v1/allocations/allocation-1/artifacts/inputs/source/metadata" + test.query)
+		want := `{"apiVersion":"contractor/v1alpha1","artifact":{"namespace":"inputs","name":"source","revision":"` +
+			test.revision + `"},"mediaType":"text/plain","size":` + test.size + `}`
+		if response.Code != http.StatusOK || response.Header().Get("Content-Type") != "application/json" ||
+			strings.TrimSpace(response.Body.String()) != want {
+			t.Fatalf("metadata read %q = %d %s", test.query, response.Code, response.Body.String())
+		}
+	}
+	if repository.readCalls != 0 || repository.metadataCalls != 2 {
+		t.Fatalf("metadata reads used %d payload and %d metadata reads", repository.readCalls, repository.metadataCalls)
+	}
+	for _, test := range []struct {
+		target string
+		status int
+		code   string
+	}{
+		{"/private/v1/allocations/allocation-1/artifacts/inputs/source/metadata?runId=run-b", http.StatusBadRequest, "invalid_request"},
+		{"/private/v1/allocations/allocation-1/artifacts/inputs/source/metadata?revision=revision-c", http.StatusNotFound, "artifact_not_found"},
+		{"/private/v1/allocations/allocation-1/artifacts/inputs/missing/metadata", http.StatusNotFound, "artifact_not_found"},
+		{"/private/v1/allocations/allocation-1/artifacts/contractor-system/repeat/metadata", http.StatusForbidden, "artifact_access_denied"},
+	} {
+		response := read(test.target)
+		assertPrivateErrorEnvelope(t, response, test.status, test.code, false)
+		if strings.Contains(response.Body.String(), "secret") {
+			t.Fatalf("metadata read %s disclosed another Run: %s", test.target, response.Body.String())
+		}
+	}
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, trustedRequest(http.MethodPut,
+		"/private/v1/allocations/allocation-1/artifacts/inputs/source/metadata", strings.NewReader("x")))
+	if response.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("metadata PUT = %d %s", response.Code, response.Body.String())
+	}
+}
+
 func TestPrivateArtifactSkillReadRequiresTheLiveAllocationGrant(t *testing.T) {
 	repository := newMemoryRepository()
 	canary := []byte("selected-skill-body-canary")
@@ -846,6 +900,8 @@ type memoryRepository struct {
 	next           int
 	listCalls      int
 	writeCalls     int
+	readCalls      int
+	metadataCalls  int
 	bindings       map[string]storedArtifact
 	history        map[string]storedArtifact
 	writeStarted   chan struct{}
@@ -926,6 +982,7 @@ func (m *memoryRepository) Read(
 ) (artifacts.ReadResult, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	m.readCalls++
 	var value storedArtifact
 	var exists bool
 	if ref.Revision == nil {
@@ -943,6 +1000,42 @@ func (m *memoryRepository) Read(
 		BindingCreatedAt:  value.bindingCreatedAt,
 		RevisionCreatedAt: value.revisionCreatedAt,
 	}, nil
+}
+
+// Metadata resolves a current or exact ref like Read, without the payload.
+func (m *memoryRepository) Metadata(
+	_ context.Context, scope artifacts.Scope, ref artifacts.ArtifactRef,
+) (artifacts.Metadata, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.metadataCalls++
+	current, exists := m.bindings[artifactKey(string(scope.Kind()), scope.ID(), ref.Namespace, ref.Name)]
+	value := current
+	if ref.Revision != nil {
+		value, exists = m.history[historyKey(string(scope.Kind()), scope.ID(), ref.Namespace, ref.Name, *ref.Revision)]
+	}
+	if !exists {
+		return artifacts.Metadata{}, artifacts.ErrArtifactNotFound
+	}
+	revision := value.revision
+	return artifacts.Metadata{
+		Ref:       artifacts.ArtifactRef{Namespace: ref.Namespace, Name: ref.Name, Revision: &revision},
+		MediaType: value.mediaType, Size: int64(len(value.data)),
+		Current: current.revision == revision, CreatedAt: value.revisionCreatedAt,
+	}, nil
+}
+
+// The query side of the store is used only through Metadata.
+func (*memoryRepository) ListMetadata(context.Context, artifacts.Scope, artifacts.BindingPageQuery) ([]artifacts.Metadata, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (*memoryRepository) ListVersions(context.Context, artifacts.Scope, artifacts.ArtifactRef, artifacts.VersionPageQuery) ([]artifacts.Metadata, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (*memoryRepository) ListLineage(context.Context, artifacts.Scope, artifacts.ArtifactRef, artifacts.LineagePageQuery) ([]artifacts.LineageEdge, error) {
+	return nil, errors.New("not implemented")
 }
 
 func assertArtifactTimestampHeaders(t *testing.T, header http.Header, binding, revision time.Time) {

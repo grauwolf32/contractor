@@ -304,6 +304,43 @@ class ArtifactClient:
                 "Artifact API returned an invalid list response"
             ) from error
 
+    async def read_artifact_metadata(self, ref: ArtifactRef) -> ArtifactReadResult:
+        """Return the exact revision, media type and size ``read_artifact`` of
+        ``ref`` would return, without downloading the payload (ART-R116).
+
+        The result is not a content observation: only a payload read records
+        the exact revision for invocation provenance.
+        """
+
+        _validate_ref(ref)
+        path = f"{self._root}/{quote(ref.namespace, safe='')}/{quote(ref.name, safe='')}/metadata"
+        if ref.revision is not None:
+            path += f"?revision={quote(ref.revision, safe='')}"
+        response = await self._transport.request(
+            "GET",
+            path,
+            headers={"Accept": "application/json"},
+            body=b"",
+            max_response_bytes=MAX_ARTIFACT_JSON_BYTES,
+        )
+        self._raise_for_status(response)
+        _require_json(response.headers)
+        try:
+            result = ArtifactReadResult.model_validate_json(response.body)
+        except ValidationError as error:
+            raise ArtifactTransportError(
+                "Artifact API returned invalid artifact metadata"
+            ) from error
+        exact = result.artifact
+        if (
+            exact.namespace != ref.namespace
+            or exact.name != ref.name
+            or (ref.revision is not None and exact.revision != ref.revision)
+            or not 0 <= result.size <= MAX_ARTIFACT_BYTES
+        ):
+            raise ArtifactTransportError("Artifact API metadata does not match the requested ref")
+        return result
+
     async def read_artifact(
         self, ref: ArtifactRef, *, max_bytes: int = MAX_ARTIFACT_BYTES
     ) -> ArtifactValue:

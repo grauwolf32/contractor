@@ -322,6 +322,15 @@ continue through non-reserved Namespaces. Frozen Audit bindings, recovery
 staging, artifact links and crash replay are owned by
 [Review and reports](../audits/review-and-reports.md).
 
+**ART-R115.** The generic Project list reads its pages from an index of
+exactly the listable Project bindings, those outside the reserved prefix, so
+a page never reads an Audit-managed binding however many an Audit holds.
+
+Rationale: a key range on the primary key cannot replace the prefix filter.
+In a linguistic database collation such as `en_US` punctuation is ignored at
+the first comparison level, so `audit-` names interleave with names such as
+`audit0`; a `LIKE` predicate matches characters whatever the collation.
+
 ### Stage Agent Namespaces
 
 **ART-R27.** Workflow Scheduler resolves each Stage Agent's
@@ -490,10 +499,30 @@ even though the model may see none of them.
 Accepted cost: a page is one primary-key range scan from the cursor, and the
 hidden bindings it passes over are filtered rather than skipped by index, so
 the rows one page reads are bounded by the Run's (or the filtered Namespace's)
-bindings after the cursor, not by `limit`. A test pages 15,000 hidden and
-7,000 visible bindings through the Server and the Runtime. If listing latency
-is measured to grow with Run size, add a binding quota per Run or skip hidden
-name ranges in the index.
+bindings after the cursor, not by `limit`; the Run revision limit (LIM-ART-6,
+ART-R114) bounds those bindings. A test pages 15,000 hidden and 7,000 visible
+bindings through the Server and the Runtime. If listing latency is measured
+to grow with Run size, skip hidden name ranges in the index.
+
+**ART-R116.** `GET /private/v1/allocations/{allocationID}/artifacts/{namespace}/{name}/metadata`,
+with the same optional `revision` and the same allocation, Namespace and
+grant checks as the raw read, returns the `ArtifactReadResult` of the ref (its
+exact revision, media type and size) without reading or sending the payload.
+It is not a content observation: only a payload read records the exact
+revision for invocation provenance.
+
+**ART-R117.** The UTF-8 readers `read_artifact` and `read_text_artifact`
+first resolve a ref through the metadata read (ART-R116), unless its exact
+revision is already cached. A media type that names a binary format is
+refused before any byte is downloaded: the top-level types `image` (except
+`image/svg+xml`), `audio`, `video`, `font` and `model`, and the `application`
+archive and document subtypes `zip`, `x-zip-compressed`, any `+zip` suffix,
+`gzip`, `x-gzip`, `x-tar`, `x-7z-compressed`, `x-bzip2`, `x-xz`, `zstd`,
+`java-archive`, `pdf` and `wasm`. Any other media type, including
+`application/octet-stream`, is downloaded once per exact revision and refused
+when it is not valid UTF-8. The allocation keeps one downloaded revision of
+at most 64 MiB, so paging it, or reading a versionless ref whose current
+revision it holds, downloads nothing again.
 
 ### Versions, reads and writes
 
@@ -923,6 +952,10 @@ The scope-bound operations are conceptually:
 ```python
 async def read_artifact(ref: ArtifactRef) -> ArtifactReadResult: ...
 
+async def read_artifact_metadata(
+    ref: ArtifactRef,
+) -> ArtifactMetadata: ...  # exact ref, media type and size, no payload
+
 async def write_artifact(
     ref: ArtifactRef,
     payload: ArtifactPayload,
@@ -940,13 +973,15 @@ async def list_artifact_prefix(
 ```
 
 Private allocation Artifact API (ART-R40 to ART-R48,
-ART-R56):
+ART-R56, ART-R116):
 
 | Element | Value |
 | --- | --- |
 | Authentication | mTLS Runtime Agent principal plus `X-Contractor-Runtime-Instance-ID` |
 | Path identity | `allocationID` |
 | List | `GET /private/v1/allocations/{allocationID}/artifacts` with `limit` and optional `namespace` and `cursor` (model-visible pages), or `limit` with `namespace` and `namePrefix` |
+| Raw read | `GET /private/v1/allocations/{allocationID}/artifacts/{namespace}/{name}` with optional `revision` |
+| Metadata read | `GET /private/v1/allocations/{allocationID}/artifacts/{namespace}/{name}/metadata` with optional `revision`; JSON `ArtifactReadResult` (ART-R116) |
 | Create precondition | `If-None-Match: *` |
 | Update precondition | exactly one quoted strong `If-Match: "<revision>"` |
 | Revision on read and write | `ETag` |
