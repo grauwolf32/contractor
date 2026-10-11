@@ -8,6 +8,7 @@ from datetime import datetime
 from contractor_runtime.allocation.errors import AllocationError
 from contractor_runtime.capabilities import CapabilitySnapshot
 from contractor_runtime.contracts import AllocationSpec, normalize_run_metadata_labels
+from contractor_runtime.contracts.artifacts import PURPOSE_RESERVED_NAMESPACES
 from contractor_runtime.digests import (
     TemplateDigestMismatch,
     verify_model_policy_digest,
@@ -18,8 +19,6 @@ from contractor_runtime.factories import (
     WorkerRuntimeFactory,
 )
 from contractor_runtime.sandbox.contracts import SandboxContractError, validate_sandbox_selection
-
-RESERVED_NAMESPACES = frozenset({"inputs", "outputs", "skills"})
 
 
 def validate_spec(
@@ -77,7 +76,7 @@ def validate_spec(
             retryable=False,
             status_code=422,
         ) from None
-    if spec.namespace in RESERVED_NAMESPACES:
+    if spec.namespace in PURPOSE_RESERVED_NAMESPACES:
         raise AllocationError(
             "invalid_agent_namespace",
             "agent allocation cannot use a Run-reserved namespace",

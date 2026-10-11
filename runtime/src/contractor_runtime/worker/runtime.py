@@ -48,6 +48,10 @@ from contractor_runtime.contracts import (
     WorkerResult,
     WorkerSummarizerConfig,
 )
+from contractor_runtime.contracts.artifacts import (
+    is_reserved_memory_binding,
+    is_reserved_result_binding,
+)
 from contractor_runtime.contracts.base import is_blank
 from contractor_runtime.core.worker_completion import (
     ContinueCompletion,
@@ -77,7 +81,6 @@ from contractor_runtime.telemetry.execution import (
     ContentFreeInstrumentation,
     declares_sensitive_output,
 )
-from contractor_runtime.toolsets.common.artifact_visibility import is_reserved_memory_binding
 from contractor_runtime.worker.budget import WorkerBudgetExceeded, _InvocationBudget
 from contractor_runtime.worker.finalizer import (
     ResultFinalizerFailure,
@@ -1026,9 +1029,7 @@ class AdkWorkerRuntime:
         for slot, binding in request.result_artifacts.items():
             if slot in reserved_slots:
                 continue
-            if binding.namespace in {"inputs", "outputs", "skills"} or is_reserved_memory_binding(
-                binding.namespace, binding.name
-            ):
+            if is_reserved_result_binding(binding.namespace, binding.name):
                 return _failure(
                     "invalid_worker_result_binding",
                     "Worker result binding is reserved by Runtime policy",

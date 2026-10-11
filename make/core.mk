@@ -37,6 +37,8 @@ test-wire-cross-language:
 	cd runtime && uv run pytest tests/test_audit_completion_diagnostics.py -k 'test_shared'
 	go test ./internal/contracts ./internal/contracts/reporting ./internal/config -run '^TestShared(WorkspacePathCases|BlankTextCases|JSONByteSizeCases|WorkerStatePathCases|WorkerStateBoundsCountCompactUTF8|WorkspaceTargetCases)$$'
 	cd runtime && uv run pytest tests/test_shared_text_rules.py
+	go test ./internal/artifactpolicy ./internal/contracts -run '^TestShared(MemoryReservationCases|WorkerResultReservedBindings)$$'
+	cd runtime && uv run pytest tests/test_shared_memory_reservation.py
 
 test-config:
 	go test ./internal/config/... ./internal/configload/...

@@ -53,6 +53,12 @@ JSON size that byte bounds measure (WRK-R37, WRK-R164;
 `contracts.ResultJSONSize`, `json_byte_size`): U+2028 and U+2029 count three
 bytes and `<`, `>` and `&` one.
 
+`memory-reservation-cases.json` holds the purpose-reserved Run Namespaces and,
+per binding, whether it is a reserved Memory binding and whether a Stage or
+Worker result may name it (ART-R114). Go `artifactpolicy` and the Worker
+result check in `contracts`, and the Runtime's `contracts.artifacts`, which the
+Worker, MemoryTools and allocation admission use, read it.
+
 `ArtifactListResult` is one page of versionless refs from the private
 allocation listing. Its optional `nextCursor` (1 to 512 unpadded base64url
 characters, never on an empty page) continues a paged listing and is absent on

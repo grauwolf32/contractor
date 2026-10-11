@@ -14,6 +14,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/strictjson"
 	"github.com/ucarion/jcs"
 )
@@ -21,7 +22,7 @@ import (
 const (
 	SchemaVersion            = "contractor.memory-note/v1"
 	MediaType                = "application/vnd.contractor.memory-note+json"
-	ArtifactNamePrefix       = "memory."
+	ArtifactNamePrefix       = artifactpolicy.MemoryArtifactPrefix // a reserved Memory binding (ART-R19)
 	MaximumArtifactNameBytes = 128
 	MaximumPayloadBytes      = 32 * 1024
 	MaximumNameBytes         = MaximumArtifactNameBytes - len(ArtifactNamePrefix)

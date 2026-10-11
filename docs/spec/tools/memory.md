@@ -306,8 +306,9 @@ Rationale: this keeps revisions out of model context without adding another
 network service or Artifact authorization mode.
 
 **MEM-R92.** An ordinary artifact named `memory.*` in a purpose-reserved
-`inputs`, `outputs` or `skills` Namespace remains governed by that Namespace's
-own contract and is not a Memory note.
+Namespace (`inputs`, `outputs`, `skills`, `finding-proposals` or
+`contractor-system`, [ART-R114](../artifacts/artifact-store.md)) remains
+governed by that Namespace's own contract and is not a Memory note.
 
 Filtering reserved bindings from generic lists even when the same
 AgentTemplate selects MemoryTools, the use of the private Artifact API without

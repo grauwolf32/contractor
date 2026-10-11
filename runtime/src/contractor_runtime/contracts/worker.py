@@ -13,7 +13,7 @@ from pydantic import (
     model_validator,
 )
 
-from contractor_runtime.contracts.artifacts import ArtifactRef
+from contractor_runtime.contracts.artifacts import ArtifactRef, is_reserved_result_binding
 from contractor_runtime.contracts.base import (
     _STATE_METRIC_NAME_PATTERN,
     DIGEST_PATTERN,
@@ -91,12 +91,6 @@ class StageContentRequest(VersionedWireModel):
             if artifact.revision is not None:
                 raise ValueError("result artifact binding must be versionless")
         return self
-
-
-def _reserved_worker_result_binding(artifact: ArtifactRef) -> bool:
-    return artifact.namespace in {"inputs", "outputs", "skills"} or artifact.name.startswith(
-        "memory."
-    )
 
 
 class WorkerModelResult(WireModel):
@@ -408,7 +402,7 @@ class WorkerResult(WireModel):
         for slot, artifact in self.artifacts.items():
             _require_text("Worker result artifact slot", slot)
             artifact.require_exact()
-            if _reserved_worker_result_binding(artifact):
+            if is_reserved_result_binding(artifact.namespace, artifact.name):
                 raise ValueError("Worker result artifact identifies a reserved binding")
         return self
 
