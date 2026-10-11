@@ -143,7 +143,7 @@ func (s *PostgresStore) StartPreparation(ctx context.Context, p StartPreparation
 		}
 	}
 	links, _ := prepareRetainedLinks(CollectParams{Retained: p.InitialRetained})
-	result, err := scanAudit(s.db.QueryRow(ctx, startPreparationSQL,
+	result, err := scanAudit(persistencepostgres.SavepointQueryRow(ctx, s.db, startPreparationSQL,
 		p.OwnerID, p.AuditID, p.ExpectedRevision, []byte(p.BaselineSnapshot), optionalDeadline(p.DeadlineAt),
 		links, retainedBytes, p.IdempotencyKey, p.RequestDigest,
 	))

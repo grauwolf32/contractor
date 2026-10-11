@@ -263,6 +263,16 @@ on one that a pool can back.
 budget selected for its operation, including a transaction whose caller
 classifies its own commit, such as a Planner Memory transaction.
 
+**PER-R19.** A store operation that recovers from a failed statement with
+further statements, such as a replay read after a unique violation, runs that
+statement under a savepoint when it is in a caller's transaction. A database
+error rolls back to the savepoint, so only the failed statement's writes are
+undone and the recovery and the caller's transaction continue; a statement
+that returns no rows keeps its writes, as it would on a pool. A recovery read
+in a REPEATABLE READ transaction sees only that transaction's snapshot, so a
+concurrent winner that committed after it began is found by the caller's
+replay after rollback (FAIL-AUD-4), not inside the transaction.
+
 ## Limits, failures and errors
 
 Limits ([registry](limits.md)):
@@ -358,6 +368,15 @@ outlasts its retries is the retryable `503 storage_transaction_conflict`
     [`internal/persistence/postgres/within_postgres_test.go`](../../../internal/persistence/postgres/within_postgres_test.go)
     and `TestPostgresPlannerMemoryTransactionKeepsTheOperationBudget` in
     [`internal/memory/budget_postgres_test.go`](../../../internal/memory/budget_postgres_test.go).
+14. Every Audit store recovery path runs and returns its own outcome inside a
+    caller's transaction, and a concurrent create is replayed there (PER-R19);
+    tests `TestPostgresRecoveryPathsRunInsideACallerTransaction` and
+    `TestPostgresCreateDraftReplaysAConcurrentWinnerInsideATransaction` in
+    [`internal/auditstore/transaction_recovery_postgres_test.go`](../../../internal/auditstore/transaction_recovery_postgres_test.go),
+    `TestPostgresAuditPreparationStartRecoversInsideACallerTransaction` in
+    [`internal/artifacts/audit_preparation_transaction_postgres_test.go`](../../../internal/artifacts/audit_preparation_transaction_postgres_test.go)
+    and `TestPostgresSavepointQueryRowKeepsTheCallerTransactionUsable` in
+    [`internal/persistence/postgres/savepoint_postgres_test.go`](../../../internal/persistence/postgres/savepoint_postgres_test.go).
 
 ## Non-goals
 

@@ -30,7 +30,7 @@ func (s *PostgresStore) ProposeReport(
 		return Audit{}, false, err
 	}
 	reviewID := "review-report-" + strings.TrimPrefix(params.RequestDigest, "sha256:")
-	audit, err := scanAudit(s.db.QueryRow(ctx, proposeReportSQL+prefixedAuditColumns("changed")+` FROM changed`,
+	audit, err := scanAudit(persistencepostgres.SavepointQueryRow(ctx, s.db, proposeReportSQL+prefixedAuditColumns("changed")+` FROM changed`,
 		params.Claim.AuditID, params.Claim.HolderID, params.Claim.Epoch,
 		params.ExpectedAuditRevision, params.RoundID, params.ExpectedRoundRevision,
 		reviewID, params.RequestDigest, machine, summary,

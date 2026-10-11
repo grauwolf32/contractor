@@ -98,7 +98,7 @@ func (s *PostgresStore) AcceptInitialRound(ctx context.Context, p AcceptInitialR
 	encodedItems, _ := json.Marshal(items)
 	encodedRef, _ := json.Marshal(p.Manifest.Ref)
 	links, _ := prepareRetainedLinks(CollectParams{Retained: []ArtifactLink{p.Inventory}})
-	_, err = scanAudit(s.db.QueryRow(ctx, acceptInitialRoundSQL,
+	_, err = scanAudit(persistencepostgres.SavepointQueryRow(ctx, s.db, acceptInitialRoundSQL,
 		p.Claim.AuditID, p.Claim.HolderID, p.Claim.Epoch, p.ExpectedAuditRevision, p.RoundID, encodedRef,
 		encodedItems, p.Manifest.Digest,
 		links, retainedBytes, digest,

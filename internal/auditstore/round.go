@@ -86,7 +86,7 @@ func (s *PostgresStore) MaterializeRound(
 	encodedLinks, _ := json.Marshal(links)
 	retainedBytes, _ := validateArtifactLinks(params.InitialRetained)
 	response, _ := json.Marshal(map[string]string{"auditId": params.AuditID, "roundId": params.RoundID})
-	audit, err := scanAudit(s.db.QueryRow(ctx, materializeRoundSQL,
+	audit, err := scanAudit(persistencepostgres.SavepointQueryRow(ctx, s.db, materializeRoundSQL,
 		params.OwnerID, params.AuditID, params.ExpectedRevision,
 		params.RoundID, params.RoundOrdinal, encodedManifestRef,
 		[]byte(params.BaselineSnapshot), optionalDeadline(params.DeadlineAt), encodedItems,
@@ -163,7 +163,7 @@ func (s *PostgresStore) AcceptNextRound(
 	}
 	encodedItems, _ := json.Marshal(items)
 	encodedSources, _ := json.Marshal(sources)
-	round, err := scanRound(s.db.QueryRow(ctx, acceptNextRoundSQL,
+	round, err := scanRound(persistencepostgres.SavepointQueryRow(ctx, s.db, acceptNextRoundSQL,
 		params.Claim.AuditID, params.Claim.HolderID, params.Claim.Epoch,
 		params.ExpectedAuditRevision, params.PreviousRoundID,
 		params.RoundID, params.RoundOrdinal, encodedManifestRef,

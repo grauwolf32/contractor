@@ -117,7 +117,7 @@ func (s *PostgresStore) CreateDraft(ctx context.Context, params CreateDraftParam
 		return replay, false, err
 	}
 	response, _ := json.Marshal(map[string]string{"auditId": params.AuditID})
-	audit, err := scanAudit(s.db.QueryRow(ctx, createDraftSQL+prefixedAuditColumns("inserted")+` FROM inserted`,
+	audit, err := scanAudit(persistencepostgres.SavepointQueryRow(ctx, s.db, createDraftSQL+prefixedAuditColumns("inserted")+` FROM inserted`,
 		params.AuditID, params.OwnerID, params.ProjectID,
 		params.Profile.Name, params.Profile.Version, params.Profile.Digest,
 		[]byte(params.ProfileSnapshot), []byte(params.InputSelection),
