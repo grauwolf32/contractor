@@ -17,6 +17,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/rundeletion"
 	"github.com/grauwolf32/contractor/internal/runstore"
 )
 
@@ -111,7 +112,7 @@ func TestPostgresInitialInventoryAtomicAcceptanceAndPackageReplay(t *testing.T) 
 	ctx, h, c := generatedInventoryHarness(t)
 	readyGeneratedInventory(t, ctx, h, c)
 	prepared := preparationExecutions(t, ctx, h, 1)[0]
-	if err := h.runs.DeleteReleasedTerminalRun(ctx, h.started.Audit.OwnerID, *prepared.RunID); err != nil {
+	if err := rundeletion.New(h.pool).DeleteReleasedTerminalRun(ctx, h.started.Audit.OwnerID, *prepared.RunID); err != nil {
 		t.Fatalf("release preparation source before inventory: %v", err)
 	}
 	claim, snapshot := initialInventoryClaim(t, ctx, h)

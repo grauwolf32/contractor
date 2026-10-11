@@ -17,6 +17,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/rundeletion"
 	"github.com/grauwolf32/contractor/internal/runservice"
 	"github.com/grauwolf32/contractor/internal/runstore"
 )
@@ -526,7 +527,7 @@ func newControllerHarness(t *testing.T, itemCount, window int) *controllerHarnes
 	creator := &fakeControllerCreator{store: store, runs: runs}
 	notifier := &fakeControllerNotifier{}
 	var ids atomic.Int64
-	controller, err := New(store, runs, creator, fakeSubmissionBuilder{}, notifier, Options{
+	controller, err := New(store, runs, runs, creator, fakeSubmissionBuilder{}, notifier, Options{
 		HolderID: "controller-test", ClaimLease: time.Second,
 		OperationTimeout: 100 * time.Millisecond, ClaimBatch: 1,
 		NewID: func(prefix string) (string, error) {
@@ -1250,7 +1251,7 @@ func (r *fakeControllerRuns) DeleteReleasedTerminalRun(
 		return runstore.ErrNotFound
 	}
 	if !runstore.RunLifecycleTerminal.Includes(run.State) {
-		return &runstore.RunNotDeletableError{RunID: runID, Reason: runstore.RunNotTerminal}
+		return &rundeletion.NotDeletableError{RunID: runID, Reason: rundeletion.RunNotTerminal}
 	}
 	delete(r.runs, runID)
 	delete(r.cursors, runID)

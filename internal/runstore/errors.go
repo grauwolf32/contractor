@@ -17,27 +17,6 @@ var (
 	ErrProjectDeleting = errors.New("WorkflowRun Project is deleting")
 )
 
-type RunNotDeletableReason string
-
-const (
-	RunNotTerminal              RunNotDeletableReason = "run_not_terminal"
-	RunAllocationReleasePending RunNotDeletableReason = "allocation_release_pending"
-	RunAuditCollectionPending   RunNotDeletableReason = "audit_collection_pending"
-)
-
-// RunNotDeletableError identifies the lifecycle gate that rejected a hard
-// deletion without exposing any owner information.
-type RunNotDeletableError struct {
-	RunID  string
-	Reason RunNotDeletableReason
-}
-
-func (e *RunNotDeletableError) Error() string {
-	return fmt.Sprintf("WorkflowRun %q is not deletable: %s", e.RunID, e.Reason)
-}
-
-func (e *RunNotDeletableError) Unwrap() error { return ErrConflict }
-
 // StateConflictError reports the compare-and-swap predicate that lost.
 type StateConflictError struct {
 	Resource string

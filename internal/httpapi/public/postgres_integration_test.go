@@ -25,6 +25,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/performance"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
+	"github.com/grauwolf32/contractor/internal/rundeletion"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/grauwolf32/contractor/internal/settingsstore"
@@ -76,7 +77,7 @@ func TestPostgresPublicRunInitializationAndFrozenOutput(t *testing.T) {
 		RuntimeAgentPrincipals: runtimePrincipals,
 		Projects:               projectstore.NewPostgresStore(pool),
 		Audits:                 &fakeAuditManagement{},
-		Runs:                   runs, RunQueue: runs, RunLifecycle: runs, Artifacts: service,
+		Runs:                   runs, RunQueue: runs, RunLifecycle: runs, RunDeletion: rundeletion.New(pool), Artifacts: service,
 		Operations: operations, OperationsInvalidator: operations,
 		Performance: performance.NewReadService(
 			false, nil, nil, performance.NewHistoryRepository(pool, time.Now), time.Now,

@@ -19,6 +19,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
+	"github.com/grauwolf32/contractor/internal/rundeletion"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/jackc/pgx/v5"
@@ -563,20 +564,18 @@ INSERT INTO allocation_execution_reports (
 		t.Fatal(err)
 	}
 
-	terminal := runstore.RunLifecycleTerminal
-	page, err := runs.ListRuns(ctx, runstore.ListRunsParams{
-		OwnerID: "user-1", Lifecycle: &terminal, Limit: 10,
-	})
-	if err != nil || len(page) != 1 || page[0].Deletable {
-		t.Fatalf("release-pending Run page = (%+v, %v)", page, err)
+	deletions := rundeletion.New(pool)
+	deletable, err := deletions.DeletableRuns(ctx, "user-1", []string{runID})
+	if err != nil || deletable[runID] {
+		t.Fatalf("release-pending Run deletable = (%v, %v)", deletable, err)
 	}
-	if err := runs.DeleteReleasedTerminalRun(ctx, "user-2", runID); !errors.Is(err, runstore.ErrNotFound) {
+	if err := deletions.DeleteReleasedTerminalRun(ctx, "user-2", runID); !errors.Is(err, runstore.ErrNotFound) {
 		t.Fatalf("foreign deletion error = %v", err)
 	}
-	deleteErr := runs.DeleteReleasedTerminalRun(ctx, "user-1", runID)
-	var notDeletable *runstore.RunNotDeletableError
+	deleteErr := deletions.DeleteReleasedTerminalRun(ctx, "user-1", runID)
+	var notDeletable *rundeletion.NotDeletableError
 	if !errors.As(deleteErr, &notDeletable) ||
-		notDeletable.Reason != runstore.RunAllocationReleasePending {
+		notDeletable.Reason != rundeletion.AllocationReleasePending {
 		t.Fatalf("release-pending deletion error = %v", deleteErr)
 	}
 	if _, err := run.Read(ctx, ephemeral.Ref); err != nil {
@@ -585,11 +584,9 @@ INSERT INTO allocation_execution_reports (
 	if err := runs.MarkStageAllocationReleased(ctx, "allocation-run-delete"); err != nil {
 		t.Fatal(err)
 	}
-	page, err = runs.ListRuns(ctx, runstore.ListRunsParams{
-		OwnerID: "user-1", Lifecycle: &terminal, Limit: 10,
-	})
-	if err != nil || len(page) != 1 || !page[0].Deletable {
-		t.Fatalf("released Run page = (%+v, %v)", page, err)
+	deletable, err = deletions.DeletableRuns(ctx, "user-1", []string{runID})
+	if err != nil || !deletable[runID] {
+		t.Fatalf("released Run deletable = (%v, %v)", deletable, err)
 	}
 
 	var ephemeralVersionID, ephemeralBlobDigest string
@@ -604,7 +601,7 @@ WHERE revision.scope_kind = 'run' AND revision.scope_id = $1
 	); err != nil {
 		t.Fatal(err)
 	}
-	if err := runs.DeleteReleasedTerminalRun(ctx, "user-1", runID); err != nil {
+	if err := rundeletion.New(pool).DeleteReleasedTerminalRun(ctx, "user-1", runID); err != nil {
 		t.Fatalf("delete released terminal Run: %v", err)
 	}
 	if _, err := runs.GetRun(ctx, runID); !errors.Is(err, runstore.ErrNotFound) {
@@ -694,7 +691,7 @@ func TestPostgresIntegrationRunDeletionParticipatesInCallerTransaction(t *testin
 	rollback := errors.New("rollback Run deletion")
 	err = persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		txRuns := runstore.NewPostgresStore(tx)
-		if err := txRuns.DeleteReleasedTerminalRun(ctx, "user-1", runID); err != nil {
+		if err := rundeletion.New(tx).DeleteReleasedTerminalRun(ctx, "user-1", runID); err != nil {
 			return err
 		}
 		if _, err := txRuns.GetRun(ctx, runID); !errors.Is(err, runstore.ErrNotFound) {

@@ -34,6 +34,9 @@ var errNoDeletion = errors.New("no Project deletion is claimable")
 
 type RunStore interface {
 	RequestRunCancellation(context.Context, string, runstore.WorkflowRunCancellation) (runstore.WorkflowRun, error)
+}
+
+type RunDeleter interface {
 	DeleteReleasedTerminalRun(context.Context, string, string) error
 }
 
@@ -61,6 +64,7 @@ type Options struct {
 type Controller struct {
 	pool     *pgxpool.Pool
 	runs     RunStore
+	deleter  RunDeleter
 	notifier RunCancellationNotifier
 	options  Options
 	wake     chan struct{}
@@ -69,10 +73,11 @@ type Controller struct {
 func New(
 	pool *pgxpool.Pool,
 	runs RunStore,
+	deleter RunDeleter,
 	notifier RunCancellationNotifier,
 	options Options,
 ) (*Controller, error) {
-	if pool == nil || runs == nil || notifier == nil {
+	if pool == nil || runs == nil || deleter == nil || notifier == nil {
 		return nil, errors.New("Project deletion controller dependencies are incomplete")
 	}
 	if options.PollInterval == 0 {
@@ -101,7 +106,7 @@ func New(
 		return nil, errors.New("Project deletion controller durations must be positive")
 	}
 	return &Controller{
-		pool: pool, runs: runs, notifier: notifier, options: options,
+		pool: pool, runs: runs, deleter: deleter, notifier: notifier, options: options,
 		wake: make(chan struct{}, 1),
 	}, nil
 }
@@ -356,7 +361,7 @@ LIMIT 1`, claim.ProjectID, claim.OwnerID).Scan(&runID)
 	if err != nil {
 		return false, false, fmt.Errorf("list Project Runs to purge: %w", err)
 	}
-	if err := c.runs.DeleteReleasedTerminalRun(ctx, claim.OwnerID, runID); err != nil {
+	if err := c.deleter.DeleteReleasedTerminalRun(ctx, claim.OwnerID, runID); err != nil {
 		return false, false, fmt.Errorf("purge Project Run %q: %w", runID, err)
 	}
 	return true, false, nil

@@ -34,8 +34,6 @@ type Repository interface {
 	LookupRunIdempotency(context.Context, string, string, string) (WorkflowRun, bool, error)
 	GetRun(context.Context, string) (WorkflowRun, error)
 	ListRuns(context.Context, ListRunsParams) ([]WorkflowRunSummary, error)
-	RunDeletionBlocker(context.Context, string, string) (*RunNotDeletableReason, error)
-	DeleteReleasedTerminalRun(context.Context, string, string) error
 	ListRunQueue(context.Context, ListRunQueueParams) ([]WorkflowRunQueueItem, error)
 	GetOwnerQueueControl(context.Context, string) (OwnerQueueControl, error)
 	UpdateOwnerQueueControl(context.Context, UpdateOwnerQueueControlParams) (OwnerQueueControl, error)
@@ -110,9 +108,10 @@ func (s *PostgresStore) ListNonTerminalRunIDsByCredential(
 }
 
 // PostgresStore runs most operations on its supplied DBTX. When backed by a
-// pool, DeleteReleasedTerminalRun and ResumeFailedRun start their own retrying
-// transactions; with a pgx.Tx they join the caller's transaction. Runtime
-// label pinning additionally requires NewRunCreationPostgresStore.
+// pool, ResumeFailedRun starts its own retrying transaction; with a pgx.Tx it
+// joins the caller's transaction. Run deletion locks require a pgx.Tx (see
+// internal/rundeletion). Runtime label pinning additionally requires
+// NewRunCreationPostgresStore.
 type PostgresStore struct {
 	db                persistencepostgres.DBTX
 	runCreationTx     pgx.Tx
@@ -349,6 +348,10 @@ func (s *PostgresStore) GetRun(ctx context.Context, runID string) (WorkflowRun, 
 	return result, nil
 }
 
+// MaxRunPageRows bounds one ListRuns page, including the extra row a caller
+// reads to build a continuation cursor, and one ReadRunDeletionGates batch.
+const MaxRunPageRows = 201
+
 // ListRuns returns at most Limit Runs in deterministic newest-first order.
 // Callers request one extra row when they need to construct a continuation
 // cursor; the repository does not attach transport pagination semantics.
@@ -371,8 +374,8 @@ func (s *PostgresStore) ListRuns(ctx context.Context, params ListRunsParams) ([]
 		selectorKeys[index] = selector.Key
 		selectorValues[index] = selector.Value
 	}
-	if params.Limit < 1 || params.Limit > 201 {
-		return nil, invalidf("Run page limit must be between 1 and 201")
+	if params.Limit < 1 || params.Limit > MaxRunPageRows {
+		return nil, invalidf("Run page limit must be between 1 and %d", MaxRunPageRows)
 	}
 	if (params.BeforeCreatedAt == nil) != (params.BeforeRunID == "") {
 		return nil, invalidf("Run page keyset is incomplete")
@@ -416,7 +419,7 @@ func (s *PostgresStore) ListRuns(ctx context.Context, params ListRunsParams) ([]
 		var encodedLabels []byte
 		if scanErr := rows.Scan(
 			&run.RunID, &run.ProjectID, &run.WorkflowName, &run.WorkflowVersion, &state,
-			&run.CreatedAt, &run.UpdatedAt, &run.FinishedAt, &run.Deletable, &encodedLabels,
+			&run.CreatedAt, &run.UpdatedAt, &run.FinishedAt, &encodedLabels,
 		); scanErr != nil {
 			return nil, fmt.Errorf("scan WorkflowRun summary page: %w", scanErr)
 		}

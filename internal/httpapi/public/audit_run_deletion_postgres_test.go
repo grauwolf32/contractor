@@ -24,6 +24,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/findingintake"
 	"github.com/grauwolf32/contractor/internal/projectstore"
+	"github.com/grauwolf32/contractor/internal/rundeletion"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/jackc/pgx/v5"
@@ -201,7 +202,9 @@ WHERE receipt_id='receipt-source-extra' AND audit_id='audit-a'`, findingID); err
 		t.Fatalf("initial cursor: %d %s err=%v", initialResponse.Code, initialResponse.Body.String(), err)
 	}
 	pinnedPath := fmt.Sprintf("%s?auditRevision=%d&findingRevision=%d", path, initial.AuditRevision, initial.FindingRevision)
-	trace.delete = func(ctx context.Context) error { return runs.DeleteReleasedTerminalRun(ctx, owner, runID) }
+	trace.delete = func(ctx context.Context) error {
+		return rundeletion.New(pool).DeleteReleasedTerminalRun(ctx, owner, runID)
+	}
 	changing := get(pinnedPath)
 	if !trace.called || trace.err != nil {
 		t.Fatalf("deletion interleaving called=%t err=%v", trace.called, trace.err)

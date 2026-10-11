@@ -29,7 +29,7 @@ func NewHandler(dependencies Dependencies) (http.Handler, error) {
 	if dependencies.Config == nil || dependencies.ConfigurationPublisher == nil ||
 		dependencies.Credentials == nil || dependencies.ManagedCredentials == nil ||
 		dependencies.Runs == nil || dependencies.RunQueue == nil ||
-		dependencies.RunLifecycle == nil || dependencies.RunCreator == nil ||
+		dependencies.RunLifecycle == nil || dependencies.RunDeletion == nil || dependencies.RunCreator == nil ||
 		dependencies.RuntimeConfigs == nil || dependencies.RuntimeCredentials == nil ||
 		dependencies.RuntimeAgentPrincipals == nil ||
 		dependencies.Projects == nil || dependencies.Audits == nil ||

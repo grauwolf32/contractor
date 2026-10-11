@@ -108,12 +108,21 @@ func (h *handler) listRunsFromProject(w http.ResponseWriter, r *http.Request, pr
 		h.handleError(w, err)
 		return
 	}
+	runIDs := make([]string, 0, len(runs))
+	for _, run := range runs {
+		runIDs = append(runIDs, run.RunID)
+	}
+	deletable, err := h.dependencies.RunDeletion.DeletableRuns(r.Context(), params.OwnerID, runIDs)
+	if err != nil {
+		h.handleError(w, err)
+		return
+	}
 	items := make([]runSummaryResponse, 0, len(runs))
 	for _, run := range runs {
 		items = append(items, runSummaryResponse{
 			RunID: run.RunID, ProjectID: run.ProjectID,
 			Workflow: run.WorkflowName + "@" + run.WorkflowVersion,
-			State:    run.State, Deletable: run.Deletable,
+			State:    run.State, Deletable: deletable[run.RunID],
 			CreatedAt: run.CreatedAt, UpdatedAt: run.UpdatedAt,
 			Labels: run.MetadataLabels.Clone(), FinishedAt: run.FinishedAt,
 		})
@@ -408,7 +417,7 @@ func (h *handler) deleteRun(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, errInvalidRequest)
 		return
 	}
-	if err := h.dependencies.RunLifecycle.DeleteReleasedTerminalRun(
+	if err := h.dependencies.RunDeletion.DeleteReleasedTerminalRun(
 		r.Context(), principalUserID(r.Context()), r.PathValue("runID"),
 	); err != nil {
 		h.handleError(w, err)
@@ -440,7 +449,7 @@ func (h *handler) getRun(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, err)
 		return
 	}
-	deletionBlocker, err := h.dependencies.Runs.RunDeletionBlocker(
+	deletionBlocker, err := h.dependencies.RunDeletion.RunDeletionBlocker(
 		r.Context(), principalUserID(r.Context()), run.RunID,
 	)
 	if err != nil {

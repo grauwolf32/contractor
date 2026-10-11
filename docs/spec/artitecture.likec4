@@ -481,7 +481,11 @@ model {
         #contractor
       }
 
-      runStore = component 'Run / Stage Store — lifecycle, Queue projection and terminal Run purge' {
+      runStore = component 'Run / Stage Store — lifecycle, Queue projection and Run-owned deletion steps' {
+        #contractor
+      }
+
+      runDeletion = component 'Run Deletion — one transaction across Run, Audit, finding receipt and Artifact state' {
         #contractor
       }
     }
@@ -635,7 +639,8 @@ model {
     productSurface.auditApi -> auditCoordination.auditStore 'Poll authoritative Audit/items/coverage/report projections by revision; no Audit WebSocket'
     productSurface.auditApi -> auditCoordination.reviewService 'Submit authenticated exact-subject decisions and explicit evidence imports'
     productSurface.publicApi -> workspaceLifecycle.projectStore 'Create / query / update Projects; begin deletion with If-Match'
-    productSurface.publicApi -> workspaceLifecycle.runStore 'Query/filter Runs and delete released terminal Runs'
+    productSurface.publicApi -> workspaceLifecycle.runStore 'Query/filter Runs'
+    productSurface.publicApi -> workspaceLifecycle.runDeletion 'Report deletability and delete released terminal Runs'
     productSurface.publicApi -> workspaceLifecycle.ownerQueueGate 'Read or CAS-update the owner pause state'
     productSurface.publicApi -> identityConfiguration.runtimeConfigService 'Pin default + explicit Run-selected Runtime labels'
     productSurface.userArtifactApi -> artifactPlane.artifactService 'Authenticated UserScope and ProjectScope history / upload / download'
@@ -703,6 +708,7 @@ model {
     auditCoordination.auditController -> runtimeOperations.schedulerSettingsService 'Transactional per-Audit look-ahead = current maxConcurrentRuns; count intents + nonterminal children; no pinned concurrency policy'
     auditCoordination.auditController -> orchestration.runService 'Replay stable intent with start-pinned Workflow/Runtime/Skill snapshots; internal audit-managed publication'
     auditCoordination.auditController -> workspaceLifecycle.runStore 'Read authoritative child terminal outcome/version; notifications are wake hints only'
+    auditCoordination.auditController -> workspaceLifecycle.runDeletion 'Delete collected child Runs while the Audit is deleting'
     auditCoordination.auditController -> auditCoordination.resultImporter 'Collect every terminal execution before retry/settlement; one receipt even for missing, invalid, failed or cancelled output'
     auditCoordination.auditController -> auditCoordination.packageInventory 'Preflight exact task sizes; truncate compatible ordered prefix to 16 MiB package budget before reserving attempts; single-item fallback'
     auditCoordination.auditController -> auditCoordination.reviewService 'Apply exact authorized decisions; discovery/assessment/next rounds only after capability and barrier checks'
@@ -724,10 +730,11 @@ model {
     workspaceLifecycle.projectDeletionController -> workspaceLifecycle.projectStore 'Claim and durably advance one monotonic deletion phase'
     workspaceLifecycle.projectDeletionController -> auditCoordination.auditService 'Persist Audit deletion intent in SQL; Audit Controller drains and purges before Run/Project purge'
     workspaceLifecycle.projectDeletionController -> orchestration.workflowScheduler 'Request ordinary cancellation and wait for terminal allocation release'
-    workspaceLifecycle.projectDeletionController -> workspaceLifecycle.runStore 'Delete every released terminal Project Run idempotently'
+    workspaceLifecycle.projectDeletionController -> workspaceLifecycle.runDeletion 'Delete every released terminal Project Run idempotently'
     workspaceLifecycle.projectDeletionController -> artifactPlane.artifactPurger 'Purge complete ProjectScope after all Project Runs are gone'
-    workspaceLifecycle.runStore -> artifactPlane.artifactPurger 'Purge complete RunScope inside the locked terminal delete'
-    workspaceLifecycle.runStore -> auditCoordination.auditStore 'Require terminal release + exact collection receipt for Audit child deletion; retain tombstone provenance and dispose ordinary proposal pins'
+    workspaceLifecycle.runDeletion -> workspaceLifecycle.runStore 'Lock the Run and read terminal release first; delete the Run row last'
+    workspaceLifecycle.runDeletion -> artifactPlane.artifactPurger 'Purge complete RunScope inside the locked terminal delete'
+    workspaceLifecycle.runDeletion -> auditCoordination.auditStore 'Lock affected Audits; require exact collection receipt for Audit child deletion; retain tombstone provenance, dispose ordinary proposal pins and advance Audit revisions'
 
     runtimeOperations.controlPlane -> runtimeOperations.runtimeRegistry 'Track live instances / reserve free single slots'
     runtimeOperations.controlPlane -> identityConfiguration.executionConfigService 'Resolve pinned Worker credentials for RuntimeSettings'
@@ -1716,6 +1723,9 @@ views {
     include server.workspaceLifecycle.runStore with {
       title 'Run / Stage Store'
     }
+    include server.workspaceLifecycle.runDeletion with {
+      title 'Run Deletion'
+    }
     include server.workspaceLifecycle.ownerQueueGate with {
       title 'Owner Queue Gate'
     }
@@ -1743,7 +1753,10 @@ views {
       title 'Create / query / deletion fence'
     }
     include server.productSurface.publicApi -> server.workspaceLifecycle.runStore with {
-      title 'Query / terminal delete'
+      title 'Query'
+    }
+    include server.productSurface.publicApi -> server.workspaceLifecycle.runDeletion with {
+      title 'Deletability / terminal delete'
     }
     include server.productSurface.publicApi -> server.workspaceLifecycle.ownerQueueGate with {
       title 'Read / CAS pause'
@@ -1763,19 +1776,22 @@ views {
     include server.workspaceLifecycle.projectDeletionController -> server.auditCoordination.auditService with {
       title 'Persist SQL deletion intent / await drain'
     }
-    include server.workspaceLifecycle.runStore -> server.auditCoordination.auditStore with {
+    include server.workspaceLifecycle.runDeletion -> server.auditCoordination.auditStore with {
       title 'Require receipt / retain provenance'
     }
     include server.workspaceLifecycle.projectDeletionController -> server.orchestration.workflowScheduler with {
       title 'Cancel / await release'
     }
-    include server.workspaceLifecycle.projectDeletionController -> server.workspaceLifecycle.runStore with {
+    include server.workspaceLifecycle.projectDeletionController -> server.workspaceLifecycle.runDeletion with {
       title 'Delete released Project Runs'
     }
     include server.workspaceLifecycle.projectDeletionController -> server.artifactPlane.artifactPurger with {
       title 'Purge drained ProjectScope'
     }
-    include server.workspaceLifecycle.runStore -> server.artifactPlane.artifactPurger with {
+    include server.workspaceLifecycle.runDeletion -> server.workspaceLifecycle.runStore with {
+      title 'Lock Run / delete row'
+    }
+    include server.workspaceLifecycle.runDeletion -> server.artifactPlane.artifactPurger with {
       title 'Purge locked terminal RunScope'
     }
     global predicate withoutContextOnly
@@ -2421,8 +2437,8 @@ views {
     include server.workspaceLifecycle.projectDeletionController with {
       title 'Project Deletion Controller'
     }
-    include server.workspaceLifecycle.runStore with {
-      title 'Run / Stage Store'
+    include server.workspaceLifecycle.runDeletion with {
+      title 'Run Deletion'
     }
     include server.artifactPlane.artifactPurger with {
       title 'Scope Purger'
@@ -2443,13 +2459,13 @@ views {
 
     // Show only the relationships relevant to this view.
     exclude * -> *
-    include server.workspaceLifecycle.projectDeletionController -> server.workspaceLifecycle.runStore with {
+    include server.workspaceLifecycle.projectDeletionController -> server.workspaceLifecycle.runDeletion with {
       title 'Delete released Project Runs'
     }
     include server.workspaceLifecycle.projectDeletionController -> server.artifactPlane.artifactPurger with {
       title 'Purge drained ProjectScope'
     }
-    include server.workspaceLifecycle.runStore -> server.artifactPlane.artifactPurger with {
+    include server.workspaceLifecycle.runDeletion -> server.artifactPlane.artifactPurger with {
       title 'Locked terminal RunScope purge'
     }
     include server.artifactPlane.artifactPurger -> server.artifactPlane.artifactRegistry with {
@@ -3050,7 +3066,7 @@ views {
     include server.artifactPlane.artifactService with {
       title 'UserScope / ProjectScope / RunScope'
     }
-    include server.workspaceLifecycle.runStore with {
+    include server.workspaceLifecycle.runDeletion with {
       title 'Run Deletion Gate'
     }
     include server.workspaceLifecycle.projectDeletionController with {
@@ -3082,8 +3098,11 @@ views {
     include server.auditCoordination.resultImporter -> server.auditCoordination.auditStore with {
       title 'Receipt / retry-or-settle / truthful gaps'
     }
-    include server.workspaceLifecycle.runStore -> server.auditCoordination.auditStore with {
+    include server.workspaceLifecycle.runDeletion -> server.auditCoordination.auditStore with {
       title 'Require collection receipt / retain tombstone'
+    }
+    include server.auditCoordination.auditController -> server.workspaceLifecycle.runDeletion with {
+      title 'Delete collected child Runs'
     }
     include server.workspaceLifecycle.projectDeletionController -> server.auditCoordination.auditService with {
       title 'Persist deletion intent / await Audit purge'

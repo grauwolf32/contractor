@@ -16,6 +16,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/projectstore"
+	"github.com/grauwolf32/contractor/internal/rundeletion"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/grauwolf32/contractor/internal/settingsstore"
@@ -908,8 +909,8 @@ func (f *fakeRunStore) ListRuns(
 			RunID: run.RunID, ProjectID: run.ProjectID,
 			WorkflowName: run.WorkflowName, WorkflowVersion: run.WorkflowVersion,
 			MetadataLabels: run.MetadataLabels.Clone(),
-			State:          run.State, Deletable: f.runDeletable(run),
-			CreatedAt: run.CreatedAt, UpdatedAt: run.UpdatedAt,
+			State:          run.State,
+			CreatedAt:      run.CreatedAt, UpdatedAt: run.UpdatedAt,
 			FinishedAt: run.FinishedAt,
 		})
 	}
@@ -921,6 +922,17 @@ func (f *fakeRunStore) ListRuns(
 	})
 	if len(result) > params.Limit {
 		result = result[:params.Limit]
+	}
+	return result, nil
+}
+
+func (f *fakeRunStore) DeletableRuns(
+	_ context.Context, ownerID string, runIDs []string,
+) (map[string]bool, error) {
+	result := make(map[string]bool, len(runIDs))
+	for _, runID := range runIDs {
+		run, ok := f.runs[runID]
+		result[runID] = ok && run.OwnerID == ownerID && f.runDeletable(run)
 	}
 	return result, nil
 }
@@ -941,19 +953,19 @@ func (f *fakeRunStore) runDeletable(run runstore.WorkflowRun) bool {
 
 func (f *fakeRunStore) RunDeletionBlocker(
 	_ context.Context, ownerID string, runID string,
-) (*runstore.RunNotDeletableReason, error) {
+) (*rundeletion.Reason, error) {
 	run, ok := f.runs[runID]
 	if !ok || run.OwnerID != ownerID {
 		return nil, runstore.ErrNotFound
 	}
 	if !runstore.RunLifecycleTerminal.Includes(run.State) {
-		reason := runstore.RunNotTerminal
+		reason := rundeletion.RunNotTerminal
 		return &reason, nil
 	}
 	for _, execution := range f.executions[runID] {
 		for _, allocation := range f.allocations[execution.StageExecutionID] {
 			if allocation.ReleaseCompletedAt == nil {
-				reason := runstore.RunAllocationReleasePending
+				reason := rundeletion.AllocationReleasePending
 				return &reason, nil
 			}
 		}
@@ -969,15 +981,15 @@ func (f *fakeRunStore) DeleteReleasedTerminalRun(
 		return runstore.ErrNotFound
 	}
 	if !runstore.RunLifecycleTerminal.Includes(run.State) {
-		return &runstore.RunNotDeletableError{
-			RunID: runID, Reason: runstore.RunNotTerminal,
+		return &rundeletion.NotDeletableError{
+			RunID: runID, Reason: rundeletion.RunNotTerminal,
 		}
 	}
 	for _, execution := range f.executions[runID] {
 		for _, allocation := range f.allocations[execution.StageExecutionID] {
 			if allocation.ReleaseCompletedAt == nil {
-				return &runstore.RunNotDeletableError{
-					RunID: runID, Reason: runstore.RunAllocationReleasePending,
+				return &rundeletion.NotDeletableError{
+					RunID: runID, Reason: rundeletion.AllocationReleasePending,
 				}
 			}
 		}

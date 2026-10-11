@@ -29,6 +29,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/performance"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/projectstore"
+	"github.com/grauwolf32/contractor/internal/rundeletion"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/grauwolf32/contractor/internal/telemetry"
@@ -753,7 +754,7 @@ func newHandlerFixtureWithAuth(
 		RuntimeAgentPrincipals: runtimePrincipals,
 		Projects:               projects,
 		Audits:                 &fakeAuditManagement{},
-		Runs:                   runs, RunQueue: runs, RunLifecycle: runs, Artifacts: service,
+		Runs:                   runs, RunQueue: runs, RunLifecycle: runs, RunDeletion: runs, Artifacts: service,
 		Operations: operations, OperationsInvalidator: operations, SchedulerSettings: settings, Events: eventHub,
 		Performance: performance.NewReadService(false, nil, nil, nil, func() time.Time {
 			return time.Date(2026, 8, 29, 12, 0, 0, 0, time.UTC)
@@ -1738,14 +1739,14 @@ func TestDeleteRunRequiresOwnedReleasedTerminalRun(t *testing.T) {
 	if response := requestDeletion("/v1/runs/run-foreign", nil); response.Code != http.StatusNotFound {
 		t.Errorf("foreign deletion = %d, want owner-safe 404: %s", response.Code, response.Body.String())
 	}
-	assertNotDeletable := func(runID string, reason runstore.RunNotDeletableReason) {
+	assertNotDeletable := func(runID string, reason rundeletion.Reason) {
 		t.Helper()
 		response := requestDeletion("/v1/runs/"+runID, nil)
 		var problem struct {
 			Code    string `json:"code"`
 			Details struct {
-				Kind   string                         `json:"kind"`
-				Reason runstore.RunNotDeletableReason `json:"reason"`
+				Kind   string             `json:"kind"`
+				Reason rundeletion.Reason `json:"reason"`
 			} `json:"details"`
 		}
 		if err := json.Unmarshal(response.Body.Bytes(), &problem); err != nil ||
@@ -1754,8 +1755,8 @@ func TestDeleteRunRequiresOwnedReleasedTerminalRun(t *testing.T) {
 			t.Errorf("delete %s = status %d problem %+v error %v", runID, response.Code, problem, err)
 		}
 	}
-	assertNotDeletable("run-active", runstore.RunNotTerminal)
-	assertNotDeletable("run-release-pending", runstore.RunAllocationReleasePending)
+	assertNotDeletable("run-active", rundeletion.RunNotTerminal)
+	assertNotDeletable("run-release-pending", rundeletion.AllocationReleasePending)
 	if response := requestDeletion("/v1/runs/run-active?force=true", nil); response.Code != http.StatusBadRequest {
 		t.Errorf("deletion with query = %d, want 400: %s", response.Code, response.Body.String())
 	}

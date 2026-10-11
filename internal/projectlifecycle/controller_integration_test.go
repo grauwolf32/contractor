@@ -18,6 +18,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
+	"github.com/grauwolf32/contractor/internal/rundeletion"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/jackc/pgx/v5"
@@ -637,7 +638,7 @@ UPDATE audit_findings
 
 // delayedPurgeRuns makes one Run purge outlast an ordinary operation budget.
 type delayedPurgeRuns struct {
-	*runstore.PostgresStore
+	*rundeletion.Deleter
 	delay    time.Duration
 	onDelete func(context.Context)
 }
@@ -655,7 +656,7 @@ func (s *delayedPurgeRuns) DeleteReleasedTerminalRun(ctx context.Context, ownerI
 	case <-ctx.Done():
 		return ctx.Err()
 	}
-	return s.PostgresStore.DeleteReleasedTerminalRun(ctx, ownerID, runID)
+	return s.Deleter.DeleteReleasedTerminalRun(ctx, ownerID, runID)
 }
 
 // projectAwaitingRunPurge returns a deleting Project whose only terminal Run
@@ -703,14 +704,14 @@ func TestProjectRunPurgeHasItsOwnBudgetAndClaimLease(t *testing.T) {
 	pool, runs, projectID := projectAwaitingRunPurge(t, ctx)
 	operationTimeout, purgeTimeout, claimDuration := 500*time.Millisecond, 10*time.Second, time.Minute
 	var lease time.Duration
-	slow := &delayedPurgeRuns{PostgresStore: runs, delay: 3 * operationTimeout, onDelete: func(ctx context.Context) {
+	slow := &delayedPurgeRuns{Deleter: rundeletion.New(pool), delay: 3 * operationTimeout, onDelete: func(ctx context.Context) {
 		if err := pool.QueryRow(ctx, `
 SELECT deletion_claim_expires_at - deletion_claimed_at FROM projects WHERE project_id = $1`,
 			projectID).Scan(&lease); err != nil {
 			t.Error(err)
 		}
 	}}
-	controller, err := New(pool, slow, &recordingNotifier{}, Options{
+	controller, err := New(pool, runs, slow, &recordingNotifier{}, Options{
 		PollInterval: time.Millisecond, ClaimDuration: claimDuration,
 		OperationTimeout: operationTimeout, PurgeTimeout: purgeTimeout,
 	})
@@ -734,8 +735,8 @@ func TestProjectDeletionDefersClaimAfterPhaseBudgetExpires(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	pool, runs, projectID := projectAwaitingRunPurge(t, ctx)
-	blocked := &delayedPurgeRuns{PostgresStore: runs, delay: -1}
-	controller, err := New(pool, blocked, &recordingNotifier{}, Options{
+	blocked := &delayedPurgeRuns{Deleter: rundeletion.New(pool), delay: -1}
+	controller, err := New(pool, runs, blocked, &recordingNotifier{}, Options{
 		PollInterval: time.Second, ClaimDuration: time.Hour,
 		OperationTimeout: time.Second, PurgeTimeout: 300 * time.Millisecond,
 	})
@@ -794,7 +795,7 @@ func newTestController(
 ) *Controller {
 	t.Helper()
 	sequence := 0
-	controller, err := New(pool, runs, notifier, Options{
+	controller, err := New(pool, runs, rundeletion.New(pool), notifier, Options{
 		PollInterval: time.Millisecond, ClaimDuration: time.Minute,
 		OperationTimeout: 5 * time.Second,
 		NewID: func(prefix string) (string, error) {

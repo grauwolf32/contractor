@@ -10,6 +10,7 @@ import (
 
 	. "github.com/grauwolf32/contractor/internal/artifacts"
 	postgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
+	"github.com/grauwolf32/contractor/internal/rundeletion"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/jackc/pgx/v5"
 )
@@ -47,7 +48,7 @@ func TestFilesystemRegistryAndCommitCleanup(t *testing.T) {
 	}
 	abort := errors.New("abort")
 	err = postgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		if err := runstore.NewPostgresStore(tx).DeleteReleasedTerminalRun(ctx, "user-1", "files-run"); err != nil {
+		if err := rundeletion.New(tx).DeleteReleasedTerminalRun(ctx, "user-1", "files-run"); err != nil {
 			return err
 		}
 		return abort
@@ -58,7 +59,7 @@ func TestFilesystemRegistryAndCommitCleanup(t *testing.T) {
 	if _, err := run.Read(ctx, written.Ref); err != nil {
 		t.Fatalf("rollback lost bytes: %v", err)
 	}
-	if err := runstore.NewPostgresStore(pool).DeleteReleasedTerminalRun(ctx, "user-1", "files-run"); err != nil {
+	if err := rundeletion.New(pool).DeleteReleasedTerminalRun(ctx, "user-1", "files-run"); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(filepath.Join(path, key)); !errors.Is(err, os.ErrNotExist) {
@@ -124,7 +125,7 @@ func TestFilesystemFailedUnlinkLeavesCleanableOrphan(t *testing.T) {
 	if _, err := runstore.NewPostgresStore(pool).TransitionRun(ctx, "unlink-run", runstore.RunRunning, runstore.RunSucceeded, runstore.Reason{Code: "done"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := runstore.NewPostgresStore(pool).DeleteReleasedTerminalRun(ctx, "user-1", "unlink-run"); err != nil {
+	if err := rundeletion.New(pool).DeleteReleasedTerminalRun(ctx, "user-1", "unlink-run"); err != nil {
 		t.Fatalf("unlink failed logical deletion: %v", err)
 	}
 	report, err := CleanupFilesystemBlobs(ctx, pool, path, true)

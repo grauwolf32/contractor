@@ -13,6 +13,7 @@ import (
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
+	"github.com/grauwolf32/contractor/internal/rundeletion"
 	"github.com/grauwolf32/contractor/internal/runservice"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
@@ -73,7 +74,7 @@ func configureAudits(
 		return auditServices{}, fmt.Errorf("configure Audit importer: %w", err)
 	}
 	auditController, err := auditcontroller.New(
-		auditstore.NewPostgresStore(pool), runstore.NewPostgresStore(pool),
+		auditstore.NewPostgresStore(pool), runstore.NewPostgresStore(pool), rundeletion.New(pool),
 		runCreationService, auditSubmissionBuilder, workflows.scheduler,
 		auditcontroller.Options{
 			PollInterval:     cfg.Operations.AuditController.PollInterval,

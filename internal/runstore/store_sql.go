@@ -73,35 +73,13 @@ SELECT `
 // listRunsSQL returns one keyset page of an owner's Runs, newest first, with
 // optional state, Project, lifecycle (active/terminal) and all-labels-match
 // filters; the labels filter is a containment match on the Run's labels.
-// Each row carries a deletable flag (terminal, all allocations released, and
-// for Audit-managed Runs a collected AuditExecution with a receipt) and the
-// metadata labels as a JSON object.
+// Each row carries the metadata labels as a JSON object.
+// internal/rundeletion reports which listed Runs are deletable.
 // Used by PostgresStore.ListRuns.
 var listRunsSQL = `
 WITH page AS (
     SELECT run_id, project_id, workflow_name, workflow_version, state, created_at, updated_at, finished_at,
-           metadata_labels,
-           state IN ('succeeded', 'failed', 'cancelled')
-           AND NOT EXISTS (
-               SELECT 1
-               FROM stage_executions AS execution
-               JOIN stage_allocations AS allocation
-                 ON allocation.stage_execution_id = execution.stage_execution_id
-               WHERE execution.run_id = workflow_runs.run_id
-                 AND allocation.release_completed_at IS NULL
-           )
-           AND (
-               publication_mode <> 'audit-managed'
-               OR EXISTS (
-                   SELECT 1
-                     FROM audit_executions AS audit_execution
-                    WHERE audit_execution.execution_id = workflow_runs.audit_execution_id
-                      AND audit_execution.run_id = workflow_runs.run_id
-                      AND audit_execution.state = 'collected'
-                      AND audit_execution.run_provenance IS NOT NULL
-                      AND audit_execution.collection_receipt_id IS NOT NULL
-               )
-           ) AS deletable
+           metadata_labels
     FROM workflow_runs
     WHERE owner_id = $1
       AND ($2::text IS NULL OR state = $2)
@@ -128,7 +106,7 @@ WITH page AS (
     LIMIT $5
 )
 SELECT run_id, project_id, workflow_name, workflow_version, state,
-       created_at, updated_at, finished_at, deletable, metadata_labels
+       created_at, updated_at, finished_at, metadata_labels
 FROM page
 ORDER BY created_at DESC, run_id DESC`
 
