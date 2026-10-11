@@ -21,7 +21,7 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parent.parent.parent
-LEGACY_NAME = r"(?:\d{2}-[a-z0-9-]+|ui-user-stories|openapi-audit-scans|core-execution-model)\.md"
+LEGACY_NAME = r"(?:[0-9]{2}-[a-z0-9-]+|ui-user-stories|openapi-audit-scans|core-execution-model)\.md"
 LINK = re.compile(r"(?P<path>(?:[\w.-]+/)*" + LEGACY_NAME + r")(?P<anchor>#[\w-]+)?")
 
 
@@ -109,6 +109,29 @@ def main() -> int:
         if write and updated != text:
             source.write_text(updated, encoding="utf-8")
     print(f"{total} links {'rewritten' if write else 'to rewrite'}")
+
+    # spec-history.md and open-questions.md quote legacy blocks verbatim; their
+    # relative links were written from docs/spec/, so rebase them onto docs/decisions/.
+    spec_dir, decisions = REPO / "docs" / "spec", REPO / "docs" / "decisions"
+    for name in ("spec-history.md", "open-questions.md"):
+        path = decisions / name
+        text = path.read_text(encoding="utf-8")
+
+        def rebase(match: re.Match[str]) -> str:
+            href = match.group(1)
+            if re.match(r"^[a-z]+:", href) or href.startswith(("#", "../spec/", "../proposals/")):
+                return match.group(0)
+            link, _, anchor = href.partition("#")
+            target = Path(os.path.normpath(spec_dir / link))
+            if target.parent == spec_dir and target.name in doc_map:
+                dest = section_map.get((target.name, anchor), doc_map[target.name]) if anchor else doc_map[target.name]
+                return f"]({os.path.relpath(REPO / dest, decisions)})"
+            return f"]({os.path.relpath(target, decisions)}{'#' + anchor if anchor else ''})"
+
+        updated = re.sub(r"\]\(([^)\s]+)\)", rebase, text)
+        if write and updated != text:
+            path.write_text(updated, encoding="utf-8")
+        print(f"{name}: links rebased onto docs/decisions/")
 
     lines = [
         "# Specification migration map",

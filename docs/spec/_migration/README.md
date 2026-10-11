@@ -25,7 +25,7 @@ document is gone.
 | `overview.md` | — | System purpose, deployables, single-host topology, trust boundaries, end-to-end path of one Run |
 | `glossary.md` | — | One definition per term, linking to its owner |
 | `platform/limits.md` | LIM | Registry of numeric limits and cardinality targets |
-| `platform/errors.md` | — | Registry of error and stop codes |
+| `platform/errors.md` | ERR | Registry of error and stop codes |
 | `platform/failure-model.md` | FAIL | Outcome classes, retryability, idempotency and receipts, ambiguous writes, cancellation ownership |
 | `platform/lifecycle.md` | LIFE | Entity deletion, cascade and retention matrix |
 | `platform/security.md` | SEC | Trust boundaries, mTLS identity, authentication, secrets and redaction, target policy |

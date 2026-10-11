@@ -24,6 +24,7 @@ HERE = Path(__file__).resolve().parent
 REPO = HERE.parent.parent.parent
 SPEC = REPO / "docs" / "spec"
 MARKER = "<!-- registry-table -->"
+END = "<!-- /registry-table -->"
 
 
 def cell(value: object) -> str:
@@ -40,10 +41,15 @@ def write_registry(name: str, title: str, intro: str, header: list[str], rows: l
     path = SPEC / "platform" / name
     table = ["| " + " | ".join(header) + " |", "| " + " | ".join("---" for _ in header) + " |"]
     table += ["| " + " | ".join(row) + " |" for row in rows]
-    block = "\n".join(table) + "\n"
+    block = MARKER + "\n\n" + "\n".join(table) + "\n\n" + END
     if path.is_file():
         text = path.read_text(encoding="utf-8")
-        text = text.replace(MARKER, block) if MARKER in text else text.rstrip() + "\n\n## Registry\n\n" + block
+        if MARKER in text and END in text:
+            text = text[: text.index(MARKER)] + block + text[text.index(END) + len(END) :]
+        elif MARKER in text:
+            text = text.replace(MARKER, block)
+        else:
+            text = text.rstrip() + "\n\n## Registry\n\n" + block + "\n"
     else:
         path.parent.mkdir(parents=True, exist_ok=True)
         text = f"# {title}\n\n[Specification index](../README.md)\n\n{intro}\n\n## Registry\n\n{block}"
@@ -130,7 +136,8 @@ def main() -> int:
         open_q += ["## Contradictions found during the migration", ""]
         for c in sorted(conflicts, key=lambda c: c["target"]):
             ids = ", ".join(c["blocks"]) or "—"
-            open_q += [f"- **[{c['target']}](../spec/{c['target']})** ({ids}): {' '.join(c['description'].split())}"]
+            link = f"../{c['target']}" if c["target"].startswith("proposals/") else f"../spec/{c['target']}"
+            open_q += [f"- **[{c['target']}]({link})** ({ids}): {' '.join(c['description'].split())}"]
     (REPO / "docs" / "decisions" / "open-questions.md").write_text("\n".join(open_q).rstrip() + "\n", encoding="utf-8")
 
     (results_path.parent / "glossary.json").write_text(json.dumps(glossary, indent=1), encoding="utf-8")
