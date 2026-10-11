@@ -1,0 +1,77 @@
+schema_version: "1.0"
+id: V368-026
+title: "Pin the JSON paths SQL reads from Go-encoded snapshots"
+milestone: hub-audit-defects-2026-10
+epic: persistence
+kind: defect
+priority: P2
+status: completed
+implementation_commit: "168c5ced6692975c477c168c3c646278db0c967b"
+depends_on: []
+languages: [go]
+goal: "Renaming a referenced json tag fails a unit test without a database."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq; raw reports in docs/research/2026-10-11-hub-audit/), exec-state C3; audits C3; config C1; file:line as of 02bbdcbf, re-verify on current main"
+  finding: >-
+    SQL reads JSON keys of Go structs directly: llmCredentialIds and
+    runtimeCredentialIds (runstore/store_sql.go:17-22,
+    credentials/runtime_repository.go:236-238, auditstore/store.go:33), and
+    ResolvedAuditProfile keys workflows, kind, maxRunAttempts,
+    workerCompletion.*, interaction.findingConfirmation
+    (auditstore/execution.go:156, preparation_sql.go,
+    findingintake/service.go:265-269, triggers). Renaming a tag silently
+    empties credential deletion checks.
+  specification:
+    - docs/spec/platform/persistence.md#PER-R13
+  decision: >-
+    Re-verified on 7d52ae3; the class was wider than the finding: every
+    credential deletion check also reads credentialId in Workflow snapshots,
+    provenance.llmCredential.credentialId and
+    provenance.runtimeCredentialRefs[].credentialId in allocations,
+    credential.credentialId in Project HTTP targets and five credential paths
+    of canonical RuntimeConfig documents; the baseline-migration triggers read
+    the Audit profile's role inputs, parameters, outputs, Workflow input and
+    output slots and completion target, the baseline's schema, inputs,
+    inventory and scope and the Run completion snapshot; and evalstore reads
+    the Planner of stored Stage snapshots. Guarantee: each member SQL reads is
+    a constant beside its Go type (llmgateway, runtimesettings, runtimeconfig,
+    runstore, config), every Go SQL builder (runstore, credentials, auditstore,
+    findingintake, evalstore) uses them, and the compared enum values come from
+    the existing Go constants. Temporary comparison tests proved every changed
+    statement byte for byte equal to 4146eea, so the expression indexes still
+    match. TestSQLReadsTheJSONMembersItsGoTypesEncode (internal/persistence,
+    no database) encodes each type, resolves all 39 read paths, checks the
+    values SQL compares with and requires the migrations to read the same
+    members; renaming a tag alone, or a tag and its constant without the
+    migration, failed it when tried. The Audit baseline repeats RunSnapshot's
+    credential members and auditstore and credentials cannot import
+    auditbaseline (cycle, layer), so they use the runtimeconfig constants and
+    the test pins both encodings to them. New import edges: credentials to
+    runstore and auditstore to runtimeconfig, both allowed by the layer table.
+    Alternatives rejected: binding member names as query parameters (breaks
+    expression-index matching), constants only the test uses (AGENTS.md 3.7),
+    parsing SQL to discover paths (fragile; the registry is explicit).
+    Explicitly not pinned, because a rename fails loudly rather than silently:
+    the shape checks of contractor_valid_* functions (every insert is
+    rejected), stage_termination and candidate_stage_result outcome reads (a
+    NULL state violates NOT NULL), the preparation trigger's reads of
+    preparation snapshots, outputs and retained refs (the trigger raises), and
+    jsonb_to_recordset over Go-encoded parameters (constraint failures).
+    Telemetry report members are the Runtime wire contract, pinned by
+    api/v1alpha1 schemas and shared fixtures. evalstore's reads of eval
+    documents (setup, comparison pages, report sources, stage metrics) are the
+    same class and are left to a follow-up. Reopen if a snapshot format moves
+    off encoding/json of these types.
+scope:
+  in:
+    - "Constants for the JSON paths next to the Go types and a unit test that marshals each type and finds every path the SQL uses."
+  out:
+    - "Snapshot formats."
+acceptance_criteria:
+  - id: A1
+    text: "Renaming a referenced json tag fails a unit test without a database."
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "go test ./internal/runtimeconfig ./internal/config ./internal/auditbaseline ./internal/runstore"
+    covers: [A1]
