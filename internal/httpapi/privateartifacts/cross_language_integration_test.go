@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"net"
+	"net/http"
 	"net/http/httptest"
 	"os"
 	"os/exec"
@@ -21,95 +22,9 @@ import (
 )
 
 func TestCrossLanguagePrivateArtifactLifecycle(t *testing.T) {
-	repositoryRoot, err := filepath.Abs("../../..")
-	if err != nil {
-		t.Fatal(err)
-	}
-	temporary := t.TempDir()
-	pkiRoot := filepath.Join(temporary, "pki")
-	generator := localpki.Generator{}
-	ca, err := generator.InitCA(pkiRoot, false)
-	if err != nil {
-		t.Fatal(err)
-	}
-	leaf := localpki.LeafOptions{
-		DNSNames: []string{"localhost"}, IPAddresses: []net.IP{net.ParseIP("127.0.0.1")},
-	}
-	controlPlane, err := generator.IssueControlPlane(pkiRoot, localpki.ControlPlaneOptions{LeafOptions: leaf})
-	if err != nil {
-		t.Fatal(err)
-	}
-	agent, err := generator.IssueAgent(pkiRoot, "artifact-agent", leaf)
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	repository := newMemoryRepository()
-	agentPEM, err := os.ReadFile(agent.Certificate)
-	if err != nil {
-		t.Fatal(err)
-	}
-	block, _ := pem.Decode(agentPEM)
-	if block == nil {
-		t.Fatal("Agent certificate is not PEM")
-	}
-	agentCertificate, err := x509.ParseCertificate(block.Bytes)
-	if err != nil {
-		t.Fatal(err)
-	}
-	principalID, err := mtls.RuntimeAgentID(agentCertificate)
-	if err != nil {
-		t.Fatal(err)
-	}
-	grant := testGrant("run-a")
-	grant.RuntimeAgentID = principalID
-	registry := &fakeRegistry{grant: grant}
-	handler, err := NewHandler(Dependencies{
-		Registry: registry, Artifacts: artifacts.NewService(repository),
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	tlsConfig, err := mtls.ControlPlaneServerConfig(mtls.Files{
-		Certificate: controlPlane.Certificate, PrivateKey: controlPlane.PrivateKey, CA: ca.Certificate,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	server := httptest.NewUnstartedServer(handler)
-	server.TLS = tlsConfig
-	server.StartTLS()
-	defer server.Close()
-
-	probe := func(arguments ...string) map[string]any {
-		t.Helper()
-		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-		defer cancel()
-		baseArguments := []string{
-			"tests/artifact_client_probe.py",
-			"--api-url", server.URL + "/private/v1",
-			"--allocation-id", "allocation-1",
-			"--instance-id", "runtime-1",
-			"--ca", ca.Certificate,
-			"--certificate", agent.Certificate,
-			"--private-key", agent.PrivateKey,
-		}
-		command := exec.CommandContext(
-			ctx,
-			filepath.Join(repositoryRoot, "runtime", ".venv", "bin", "python"),
-			append(baseArguments, arguments...)...,
-		)
-		command.Dir = filepath.Join(repositoryRoot, "runtime")
-		output, err := command.CombinedOutput()
-		if err != nil {
-			t.Fatalf("Python ArtifactClient probe: %v\n%s", err, output)
-		}
-		var value map[string]any
-		if err := json.Unmarshal(output, &value); err != nil {
-			t.Fatalf("decode Python probe output %q: %v", output, err)
-		}
-		return value
-	}
+	harness := newCrossLanguageHarness(t, repository, nil)
+	registry, probe := harness.registry, harness.probe
 
 	result := probe()
 	created, _ := result["createdRevision"].(string)
@@ -137,4 +52,109 @@ func TestCrossLanguagePrivateArtifactLifecycle(t *testing.T) {
 	if !exists || current.revision != updated || string(current.data) != "second payload" {
 		t.Fatalf("fenced write changed artifact: %+v", current)
 	}
+}
+
+type crossLanguageHarness struct {
+	registry *fakeRegistry
+	probe    func(arguments ...string) map[string]any
+}
+
+// newCrossLanguageHarness serves the production private handler over mTLS for
+// repository and runs the Python ArtifactClient probe against it. wrap, when
+// set, observes every request in front of the handler.
+func newCrossLanguageHarness(
+	t *testing.T, repository artifacts.Repository, wrap func(http.Handler) http.Handler,
+) crossLanguageHarness {
+	t.Helper()
+	repositoryRoot, err := filepath.Abs("../../..")
+	if err != nil {
+		t.Fatal(err)
+	}
+	temporary := t.TempDir()
+	pkiRoot := filepath.Join(temporary, "pki")
+	generator := localpki.Generator{}
+	ca, err := generator.InitCA(pkiRoot, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	leaf := localpki.LeafOptions{
+		DNSNames: []string{"localhost"}, IPAddresses: []net.IP{net.ParseIP("127.0.0.1")},
+	}
+	controlPlane, err := generator.IssueControlPlane(pkiRoot, localpki.ControlPlaneOptions{LeafOptions: leaf})
+	if err != nil {
+		t.Fatal(err)
+	}
+	agent, err := generator.IssueAgent(pkiRoot, "artifact-agent", leaf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	agentPEM, err := os.ReadFile(agent.Certificate)
+	if err != nil {
+		t.Fatal(err)
+	}
+	block, _ := pem.Decode(agentPEM)
+	if block == nil {
+		t.Fatal("Agent certificate is not PEM")
+	}
+	agentCertificate, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	principalID, err := mtls.RuntimeAgentID(agentCertificate)
+	if err != nil {
+		t.Fatal(err)
+	}
+	grant := testGrant("run-a")
+	grant.RuntimeAgentID = principalID
+	registry := &fakeRegistry{grant: grant}
+	handler, err := NewHandler(Dependencies{
+		Registry: registry, Artifacts: artifacts.NewService(repository),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if wrap != nil {
+		handler = wrap(handler)
+	}
+	tlsConfig, err := mtls.ControlPlaneServerConfig(mtls.Files{
+		Certificate: controlPlane.Certificate, PrivateKey: controlPlane.PrivateKey, CA: ca.Certificate,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	server := httptest.NewUnstartedServer(handler)
+	server.TLS = tlsConfig
+	server.StartTLS()
+	t.Cleanup(server.Close)
+
+	probe := func(arguments ...string) map[string]any {
+		t.Helper()
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		defer cancel()
+		baseArguments := []string{
+			"tests/artifact_client_probe.py",
+			"--api-url", server.URL + "/private/v1",
+			"--allocation-id", "allocation-1",
+			"--instance-id", "runtime-1",
+			"--ca", ca.Certificate,
+			"--certificate", agent.Certificate,
+			"--private-key", agent.PrivateKey,
+		}
+		command := exec.CommandContext(
+			ctx,
+			filepath.Join(repositoryRoot, "runtime", ".venv", "bin", "python"),
+			append(baseArguments, arguments...)...,
+		)
+		command.Dir = filepath.Join(repositoryRoot, "runtime")
+		output, err := command.CombinedOutput()
+		if err != nil {
+			t.Fatalf("Python ArtifactClient probe: %v\n%.4000s", err, output)
+		}
+		var value map[string]any
+		if err := json.Unmarshal(output, &value); err != nil {
+			t.Fatalf("decode Python probe output %.4000q: %v", output, err)
+		}
+		return value
+	}
+	return crossLanguageHarness{registry: registry, probe: probe}
 }

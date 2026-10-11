@@ -482,9 +482,6 @@ def test_memory_ignores_large_ordinary_artifact_namespace(note_count: int) -> No
             WorkerState(),
             ["list_memories", "search_memory", "list_memory_tags", "write_memory"],
         )
-        # The old path really exceeds the unchanged byte limit in this fixture.
-        with pytest.raises(ArtifactTransportError):
-            await client.list_artifacts("builder")
         if note_count > MAXIMUM_NOTES:
             with pytest.raises(MemoryToolError) as corrupt:
                 await tools["list_memories"]()
@@ -740,8 +737,10 @@ def test_unexpected_tool_failure_is_normalized_before_metrics_and_model_dispatch
         retryable = False
 
     class FailingClient(FakeArtifactClient):
-        async def list_artifacts(self, namespace: str | None = None) -> list[ArtifactRef]:
-            del namespace
+        async def list_artifact_prefix(
+            self, namespace: str, name_prefix: str, *, limit: int
+        ) -> list[ArtifactRef]:
+            del namespace, name_prefix, limit
             raise ArbitraryFailure("unexpected-memory-detail-canary")
 
     async def scenario() -> None:
@@ -937,11 +936,10 @@ class FaultingArtifactTransport:
             raise AssertionError(f"unexpected Artifact path {path!r}")
         if method == "GET" and len(parts) == 3:
             query = parse_qs(parsed.query, keep_blank_values=True)
-            namespace = query.get("namespace", [None])[0]
-            refs = await self.backend.list_artifacts(
-                namespace,
-                name_prefix=query.get("namePrefix", [None])[0],
-                limit=int(query["limit"][0]) if "limit" in query else None,
+            if set(query) != {"namespace", "namePrefix", "limit"}:
+                raise AssertionError(f"Memory used a non-prefix Artifact listing {path!r}")
+            refs = await self.backend.list_artifact_prefix(
+                query["namespace"][0], query["namePrefix"][0], limit=int(query["limit"][0])
             )
             response = self._json_response(
                 200,
@@ -1098,12 +1096,8 @@ class FakeArtifactClient:
         finally:
             self.active_operations -= 1
 
-    async def list_artifacts(
-        self,
-        namespace: str | None = None,
-        *,
-        name_prefix: str | None = None,
-        limit: int | None = None,
+    async def list_artifact_prefix(
+        self, namespace: str, name_prefix: str, *, limit: int
     ) -> list[ArtifactRef]:
         async with self._operation():
             if self.list_error is not None:
@@ -1111,8 +1105,7 @@ class FakeArtifactClient:
             return [
                 ArtifactRef(namespace=item_namespace, name=name)
                 for item_namespace, name in sorted(self._bindings)
-                if (namespace is None or item_namespace == namespace)
-                and (name_prefix is None or name.startswith(name_prefix))
+                if item_namespace == namespace and name.startswith(name_prefix)
             ][:limit]
 
     async def read_artifact(

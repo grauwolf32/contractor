@@ -1,6 +1,9 @@
 package contracts
 
-import "regexp"
+import (
+	"regexp"
+	"strconv"
+)
 
 const (
 	AgentSkillNamespace    = "skills"
@@ -12,6 +15,24 @@ const (
 const ArtifactNamePattern = `^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$`
 
 var artifactNamePattern = regexp.MustCompile(ArtifactNamePattern)
+
+// MaxArtifactListCursorLength bounds the opaque private Artifact list cursor
+// (LIM-ART-5). The cursor is unpadded base64url; the Runtime and
+// artifact.schema.json apply the same grammar.
+const MaxArtifactListCursorLength = 512
+
+var artifactListCursorPattern = regexp.MustCompile(
+	`^[A-Za-z0-9_-]{1,` + strconv.Itoa(MaxArtifactListCursorLength) + `}$`,
+)
+
+// ValidateArtifactListCursor checks the grammar of an opaque list cursor. Only
+// the Server that issued it interprets its content.
+func ValidateArtifactListCursor(value string) error {
+	if !artifactListCursorPattern.MatchString(value) {
+		return Invalidf("artifact list cursor must be 1 through %d base64url characters", MaxArtifactListCursorLength)
+	}
+	return nil
+}
 
 func ValidateArtifactName(value string) error {
 	if !artifactNamePattern.MatchString(value) {
@@ -159,14 +180,25 @@ type ArtifactWriteResult struct {
 	Size       int64       `json:"size"`
 }
 
+// ArtifactListResult is one page of versionless refs. NextCursor continues a
+// paged listing and is absent on its last page and from a namePrefix listing.
 type ArtifactListResult struct {
 	APIVersion string        `json:"apiVersion"`
 	Artifacts  []ArtifactRef `json:"artifacts"`
+	NextCursor *string       `json:"nextCursor,omitempty"`
 }
 
 func (r ArtifactListResult) Validate() error {
 	if err := ValidateAPIVersion(r.APIVersion); err != nil {
 		return err
+	}
+	if r.NextCursor != nil {
+		if err := ValidateArtifactListCursor(*r.NextCursor); err != nil {
+			return err
+		}
+		if len(r.Artifacts) == 0 {
+			return Invalidf("an empty artifact list page cannot continue")
+		}
 	}
 	for _, artifact := range r.Artifacts {
 		if err := artifact.Validate(); err != nil {

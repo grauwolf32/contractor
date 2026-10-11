@@ -7,9 +7,12 @@ import asyncio
 import json
 from pathlib import Path
 
+from contractor_runtime.allocation import WorkerState
 from contractor_runtime.artifacts import ArtifactAPIError, ArtifactClient, MTLSArtifactTransport
-from contractor_runtime.contracts import ArtifactRef
+from contractor_runtime.contracts import ArtifactRef, RuntimeSettings
 from contractor_runtime.mtls import runtime_agent_client_context
+from contractor_runtime.toolsets.run_artifacts.tools import RunArtifactsToolsetFactory
+from contractor_runtime.workspace import AllocationWorkspace
 
 
 async def run(args: argparse.Namespace) -> dict[str, object]:
@@ -24,6 +27,8 @@ async def run(args: argparse.Namespace) -> dict[str, object]:
             args.api_url, context, timeout_seconds=3, runtime_instance_id=args.instance_id
         ),
     )
+    if args.mode == "page":
+        return await page_through(client, args.limit)
     if args.mode == "fenced":
         try:
             await client.write_artifact(
@@ -44,7 +49,7 @@ async def run(args: argparse.Namespace) -> dict[str, object]:
     )
     current = await client.read_artifact(ArtifactRef(namespace="inputs", name="source"))
     exact = await client.read_artifact(created.artifact)
-    listed = await client.list_artifacts("inputs")
+    listed = (await client.list_artifact_page("inputs", limit=10)).artifacts
     updated = await client.write_artifact(
         ArtifactRef(namespace="inputs", name="source"),
         data=b"second payload",
@@ -81,6 +86,54 @@ async def run(args: argparse.Namespace) -> dict[str, object]:
     }
 
 
+async def page_through(client: ArtifactClient, limit: int) -> dict[str, object]:
+    """Follow every page through the client and through the list_artifacts tool."""
+
+    client_refs: list[list[str]] = []
+    client_pages = 0
+    cursor: str | None = None
+    while True:
+        page = await client.list_artifact_page(limit=limit, cursor=cursor)
+        client_pages += 1
+        client_refs += [[ref.namespace, ref.name] for ref in page.artifacts]
+        cursor = page.next_cursor
+        if cursor is None:
+            break
+    state = WorkerState()
+    tools = await RunArtifactsToolsetFactory(lambda _allocation, _settings: client).create_selected(
+        selected=["list_artifacts"],
+        allocation_id="allocation-1",
+        run_id="run-a",
+        namespace="builder",
+        runtime_settings=RuntimeSettings(
+            llmGatewayUrl="https://llm.invalid/v1",
+            artifactApiUrl="https://control.invalid/private/v1",
+            requestTimeoutSeconds=30,
+        ),
+        workspace=AllocationWorkspace(
+            root=Path("/nonexistent/contractor-probe"),
+            path=Path("/nonexistent/contractor-probe/allocation-1"),
+        ),
+        state=state,
+    )
+    tool_refs: list[list[str]] = []
+    tool_pages = 0
+    tool_cursor: str | None = None
+    while True:
+        result = await tools["list_artifacts"](cursor=tool_cursor)
+        tool_pages += 1
+        tool_refs += [[ref["namespace"], ref["name"]] for ref in result["artifacts"]]
+        tool_cursor = result["nextCursor"]
+        if tool_cursor is None:
+            break
+    return {
+        "client": client_refs,
+        "clientPages": client_pages,
+        "tool": tool_refs,
+        "toolPages": tool_pages,
+    }
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--api-url", required=True)
@@ -89,8 +142,9 @@ def main() -> None:
     parser.add_argument("--ca", type=Path, required=True)
     parser.add_argument("--certificate", type=Path, required=True)
     parser.add_argument("--private-key", type=Path, required=True)
-    parser.add_argument("--mode", choices=("normal", "fenced"), default="normal")
+    parser.add_argument("--mode", choices=("normal", "fenced", "page"), default="normal")
     parser.add_argument("--expected-revision")
+    parser.add_argument("--limit", type=int, default=256)
     print(json.dumps(asyncio.run(run(parser.parse_args())), separators=(",", ":")))
 
 

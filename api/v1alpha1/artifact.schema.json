@@ -30,7 +30,17 @@
               {"not": {"required": ["revision"]}}
             ]
           }
+        },
+        "nextCursor": {
+          "description": "Opaque position of the next page of a paged listing (LIM-ART-5); absent on the last page and from a namePrefix listing.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512,
+          "pattern": "^[A-Za-z0-9_-]+$"
         }
+      },
+      "dependentSchemas": {
+        "nextCursor": {"properties": {"artifacts": {"minItems": 1}}}
       }
     }
   ]

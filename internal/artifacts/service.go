@@ -227,18 +227,6 @@ func (s ScopedStore) Read(ctx context.Context, ref ArtifactRef) (ReadResult, err
 	return s.service.repository.Read(ctx, s.scope, ref)
 }
 
-func (s ScopedStore) List(ctx context.Context, namespace *string) ([]ArtifactRef, error) {
-	if err := validateScope(s.scope); err != nil {
-		return nil, err
-	}
-	if namespace != nil {
-		if err := validateComponent(*namespace); err != nil {
-			return nil, err
-		}
-	}
-	return s.service.repository.List(ctx, s.scope, namespace)
-}
-
 func (s ScopedStore) Metadata(ctx context.Context, ref ArtifactRef) (Metadata, error) {
 	if err := validateScope(s.scope); err != nil {
 		return Metadata{}, err

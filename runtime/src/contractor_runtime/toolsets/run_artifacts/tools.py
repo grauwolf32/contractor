@@ -4,14 +4,24 @@ from __future__ import annotations
 
 import base64
 import binascii
+import re
 from collections.abc import Mapping, Sequence
 from types import MappingProxyType
 from typing import Any
 
 from contractor_runtime.adapters import AdapterHandles
 from contractor_runtime.adapters.host import EMPTY_ADAPTER_HANDLES
-from contractor_runtime.artifacts import MAX_ARTIFACT_BYTES, ArtifactClient
-from contractor_runtime.contracts import ArtifactRef, RuntimeSettings
+from contractor_runtime.artifacts import (
+    MAX_ARTIFACT_BYTES,
+    ArtifactClient,
+    ArtifactTransportError,
+)
+from contractor_runtime.contracts import (
+    ARTIFACT_LIST_CURSOR_PATTERN,
+    ARTIFACT_NAME_PATTERN,
+    ArtifactRef,
+    RuntimeSettings,
+)
 from contractor_runtime.core.input_errors import ToolInputError
 from contractor_runtime.core.tool_metrics import ToolMetrics
 from contractor_runtime.redaction import runtime_secrets
@@ -22,6 +32,7 @@ from contractor_runtime.toolsets.common.artifact_read_cache import (
 from contractor_runtime.toolsets.common.artifact_visibility import (
     is_model_hidden_binding,
     require_model_visible_binding,
+    require_model_visible_namespace,
 )
 from contractor_runtime.toolsets.common.artifacts import (
     ArtifactClientFactory,
@@ -33,6 +44,9 @@ from contractor_runtime.workspace import AllocationWorkspace
 
 MAX_BASE64_PAYLOAD_LENGTH = ((MAX_ARTIFACT_BYTES + 2) // 3) * 4
 MAX_READ_CHUNK_BYTES = 256 * 1024
+# Refs per list_artifacts page: a page stays a few thousand tokens for small
+# models; the private API allows up to MAX_BINDING_LIST_LIMIT.
+LIST_PAGE_SIZE = 100
 
 
 class RunArtifactsToolsetFactory:
@@ -75,27 +89,46 @@ class RunArtifactsToolsetFactory:
 
 class ListArtifactsTool(ArtifactTool):
     name = "list_artifacts"
-    description = """List current artifact references visible in this Workflow Run.
+    description = f"""List current artifacts visible in this Workflow Run, one page at a time.
+
+    Artifacts are ordered by namespace and name. Listed references carry no
+    revision; read_artifact without a revision reads the current one. When
+    nextCursor is not null, call again with the same namespace and cursor set
+    to nextCursor for the next page.
 
     Args:
-        namespace: Namespace to filter by; omit to list all visible namespaces.
+        namespace: Namespace to list; omit to list every visible namespace.
+        cursor: nextCursor returned by the previous page; omit for the first page.
 
     Returns:
-        Artifact references with namespace, name and current revision.
+        Up to {LIST_PAGE_SIZE} artifact references with namespace and name, and
+        nextCursor, which is null on the last page.
     """
 
-    async def __call__(self, namespace: str | None = None) -> list[dict[str, Any]]:
-        arguments = {"namespace": namespace}
+    async def __call__(
+        self, namespace: str | None = None, cursor: str | None = None
+    ) -> dict[str, Any]:
+        arguments = {"namespace": namespace, "cursor": cursor}
         with self._recorded(arguments) as call:
-            if namespace == "skills":
-                require_model_visible_binding(namespace, "selected")
-            refs = await self._client.list_artifacts(namespace)
-            result = [
-                ref.model_dump(by_alias=True, exclude_none=True)
-                for ref in refs
-                if not is_model_hidden_binding(ref.namespace, ref.name)
-            ]
-            call.succeed({"count": len(result)})
+            require_model_visible_namespace(namespace)
+            if namespace is not None and not _matches(ARTIFACT_NAME_PATTERN, namespace):
+                raise ToolInputError("namespace must be an artifact namespace")
+            if cursor is not None and not _matches(ARTIFACT_LIST_CURSOR_PATTERN, cursor):
+                raise ToolInputError("cursor must be the nextCursor of a previous page")
+            page = await self._client.list_artifact_page(
+                namespace, limit=LIST_PAGE_SIZE, cursor=cursor
+            )
+            # The Server excludes hidden bindings before its limit; one here is
+            # a contract violation, not something to filter into a short page.
+            if any(is_model_hidden_binding(ref.namespace, ref.name) for ref in page.artifacts):
+                raise ArtifactTransportError("Artifact API listed a binding hidden from models")
+            result = {
+                "artifacts": [
+                    ref.model_dump(by_alias=True, exclude_none=True) for ref in page.artifacts
+                ],
+                "nextCursor": page.next_cursor,
+            }
+            call.succeed({"count": len(page.artifacts), "hasMore": page.next_cursor is not None})
             return result
 
 
@@ -261,3 +294,7 @@ class WriteArtifactTool(ArtifactTool):
                 }
             )
             return serialized
+
+
+def _matches(pattern: re.Pattern[str], value: object) -> bool:
+    return isinstance(value, str) and pattern.fullmatch(value) is not None

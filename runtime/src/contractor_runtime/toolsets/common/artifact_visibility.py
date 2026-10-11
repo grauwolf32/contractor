@@ -9,6 +9,13 @@ from contractor_runtime.contracts import ArtifactRef
 MEMORY_ARTIFACT_PREFIX = "memory."
 HTTP_BODY_ARTIFACT_PREFIX = "http.body."
 PURPOSE_RESERVED_NAMESPACES = frozenset({"inputs", "outputs", "skills"})
+# Model visibility (ART-R17, ART-R19, ART-R24, ART-R109), the same rule as the
+# Server's artifactpolicy.IsModelHiddenBinding, which also excludes these
+# bindings from the private paged listing; both are checked against
+# api/testdata/v1alpha1/artifact-list-cases.json.
+MODEL_HIDDEN_NAMESPACES = frozenset({"skills", "contractor-system"})
+MODEL_HIDDEN_NAME_PREFIXES = (MEMORY_ARTIFACT_PREFIX, HTTP_BODY_ARTIFACT_PREFIX)
+MODEL_NAME_PREFIX_EXEMPT_NAMESPACES = frozenset({"inputs", "outputs"})
 
 
 class ModelArtifactAccessError(ValueError):
@@ -33,20 +40,24 @@ def is_reserved_memory_binding(namespace: object, name: object) -> bool:
 def is_model_hidden_binding(namespace: object, name: object) -> bool:
     """Return whether generic model tools must not disclose this binding."""
 
-    return (
-        namespace == "skills"
-        or is_reserved_memory_binding(namespace, name)
-        or (
-            isinstance(namespace, str)
-            and namespace not in PURPOSE_RESERVED_NAMESPACES
-            and isinstance(name, str)
-            and name.startswith(HTTP_BODY_ARTIFACT_PREFIX)
-        )
-    )
+    if not isinstance(namespace, str):
+        return False
+    if namespace in MODEL_HIDDEN_NAMESPACES:
+        return True
+    if namespace in MODEL_NAME_PREFIX_EXEMPT_NAMESPACES:
+        return False
+    return isinstance(name, str) and name.startswith(MODEL_HIDDEN_NAME_PREFIXES)
 
 
 def require_model_visible_binding(namespace: object, name: object) -> None:
     if is_model_hidden_binding(namespace, name):
+        raise ModelArtifactAccessError
+
+
+def require_model_visible_namespace(namespace: object) -> None:
+    """Reject a Namespace whose every binding is hidden from model tools."""
+
+    if isinstance(namespace, str) and namespace in MODEL_HIDDEN_NAMESPACES:
         raise ModelArtifactAccessError
 
 

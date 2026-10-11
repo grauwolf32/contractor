@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-38 open tasks: 3 in progress, 21 pending, 14 deferred. 786 finished: 783 completed, 3 archived.
+37 open tasks: 3 in progress, 20 pending, 14 deferred. 787 finished: 784 completed, 3 archived.
 
 ## In progress
 
@@ -35,7 +35,6 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V367-004](v367-004-retry-transient-output-publication.yml) | defect | P1 | — | Retry Project output publication after transient database failures |
-| [V367-010](v367-010-page-run-artifact-listing.yml) | defect | P2 | — | Page the private Artifact list and the list_artifacts tool |
 
 ### Audits (`audits`)
 
@@ -105,7 +104,7 @@ tasks in `introduced_by`.
 | Scanner tool Workers and scan planning (`scan-tools`) | 1 | 10 | 4 | 1 | 7 |
 | Findings tools and collections (`findings`) | 0 | 7 | 2 | 1 | 6 |
 | Workflow catalog and document workflows (`workflows`) | 0 | 13 | 8 | 5 | 11 |
-| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 2 | 27 | 26 | 2 | 32 |
+| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 1 | 27 | 26 | 2 | 32 |
 | Audits (`audits`) | 18 | 49 | 59 | 9 | 70 |
 | Evaluations (`evals`) | 2 | 21 | 26 | 4 | 33 |
 | Podman sandbox (`sandbox`) | 0 | 8 | 1 | 1 | 2 |

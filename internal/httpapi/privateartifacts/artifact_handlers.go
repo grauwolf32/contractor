@@ -19,10 +19,25 @@ const (
 	revisionCreatedAtHeader = "X-Contractor-Revision-Created-At"
 )
 
+// listArtifacts serves the two bounded listing forms of ART-R47. Without
+// namePrefix it returns one keyset page of model-visible bindings: the store
+// excludes Run system and model-hidden bindings before the limit, so a page is
+// never shortened, and nextCursor continues the traversal. With namePrefix it
+// returns at most limit refs of one Namespace for trusted adapters (Memory).
 func (h *handler) listArtifacts(w http.ResponseWriter, r *http.Request) {
-	query, err := exactQuery(r.URL.RawQuery, "namespace", "namePrefix", "limit")
+	query, err := exactQuery(r.URL.RawQuery, "namespace", "namePrefix", "limit", "cursor")
 	if err != nil {
 		h.handleError(w, err)
+		return
+	}
+	limitValues, limitPresent := query["limit"]
+	if !limitPresent {
+		h.handleError(w, fmt.Errorf("%w: limit is required", errInvalidRequest))
+		return
+	}
+	limit, err := strconv.Atoi(limitValues[0])
+	if err != nil {
+		h.handleError(w, fmt.Errorf("%w: limit must be an integer", errInvalidRequest))
 		return
 	}
 	var namespace *string
@@ -33,40 +48,53 @@ func (h *handler) listArtifacts(w http.ResponseWriter, r *http.Request) {
 		}
 		namespace = &values[0]
 	}
+	prefixValues, prefixPresent := query["namePrefix"]
+	cursorValues, cursorPresent := query["cursor"]
+	if prefixPresent && (namespace == nil || cursorPresent) {
+		h.handleError(w, fmt.Errorf("%w: namePrefix requires namespace and takes no cursor", errInvalidRequest))
+		return
+	}
+	pageQuery := artifacts.RefPageQuery{Namespace: namespace, ModelVisible: true, Limit: limit}
+	if cursorPresent {
+		cursor, decodeErr := decodeListCursor(cursorValues[0])
+		if decodeErr != nil {
+			h.handleError(w, decodeErr)
+			return
+		}
+		pageQuery.AfterNamespace, pageQuery.AfterName = cursor.Namespace, cursor.Name
+	}
 	store, err := h.runStore(r, false)
 	if err != nil {
 		h.handleError(w, err)
 		return
 	}
-	var refs []artifacts.ArtifactRef
-	prefixValues, prefixPresent := query["namePrefix"]
-	limitValues, limitPresent := query["limit"]
-	if prefixPresent || limitPresent {
-		if !prefixPresent || !limitPresent || namespace == nil {
-			h.handleError(w, errInvalidRequest)
+	response := contracts.ArtifactListResult{APIVersion: contracts.APIVersion}
+	if prefixPresent {
+		refs, listErr := store.ListPrefix(r.Context(), *namespace, prefixValues[0], limit)
+		if listErr != nil {
+			h.handleError(w, listErr)
 			return
 		}
-		limit, parseErr := strconv.Atoi(limitValues[0])
-		if parseErr != nil {
-			h.handleError(w, errInvalidRequest)
-			return
+		if artifactpolicy.IsRunSystemNamespace(*namespace) {
+			refs = refs[:0]
 		}
-		refs, err = store.ListPrefix(r.Context(), *namespace, prefixValues[0], limit)
+		response.Artifacts = refs
 	} else {
-		refs, err = store.List(r.Context(), namespace)
-	}
-	if err != nil {
-		h.handleError(w, err)
-		return
-	}
-	visible := refs[:0]
-	for _, ref := range refs {
-		if !artifactpolicy.IsRunSystemNamespace(ref.Namespace) {
-			visible = append(visible, ref)
+		page, listErr := store.ListRefs(r.Context(), pageQuery)
+		if listErr != nil {
+			h.handleError(w, listErr)
+			return
+		}
+		response.Artifacts = page.Refs
+		if page.More {
+			next, encodeErr := encodeListCursor(page.Refs[len(page.Refs)-1])
+			if encodeErr != nil {
+				h.handleError(w, encodeErr)
+				return
+			}
+			response.NextCursor = &next
 		}
 	}
-	refs = visible
-	response := contracts.ArtifactListResult{APIVersion: contracts.APIVersion, Artifacts: refs}
 	if err := response.Validate(); err != nil {
 		h.handleError(w, err)
 		return

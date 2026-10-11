@@ -10,7 +10,9 @@ from pydantic import (
 )
 
 from contractor_runtime.contracts.base import (
+    ARTIFACT_LIST_CURSOR_PATTERN,
     ARTIFACT_NAME_PATTERN,
+    MAX_ARTIFACT_LIST_CURSOR_LENGTH,
     MEDIA_TYPE_PATTERN,
     VersionedWireModel,
     WireModel,
@@ -49,12 +51,23 @@ def _validate_media_type(value: str) -> None:
 
 
 class ArtifactListResult(VersionedWireModel):
+    """One page of versionless refs; next_cursor continues a paged listing."""
+
     artifacts: list[ArtifactRef]
+    next_cursor: str | None = None
 
     @model_validator(mode="after")
     def validate_artifacts(self) -> Self:
         if any(artifact.revision is not None for artifact in self.artifacts):
             raise ValueError("listed artifact refs must be versionless")
+        if self.next_cursor is not None:
+            if ARTIFACT_LIST_CURSOR_PATTERN.fullmatch(self.next_cursor) is None:
+                raise ValueError(
+                    f"nextCursor must be 1 through {MAX_ARTIFACT_LIST_CURSOR_LENGTH} "
+                    "base64url characters"
+                )
+            if not self.artifacts:
+                raise ValueError("an empty artifact list page cannot continue")
         return self
 
 

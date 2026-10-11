@@ -2,8 +2,10 @@ package artifacts
 
 import "context"
 
-// MaxBindingListLimit bounds the generic private binding query independently
-// of the number of unrelated bindings in the same namespace.
+// MaxBindingListLimit bounds every binding listing (ListRefs, ListPrefix)
+// independently of the number of bindings in the scope (LIM-ART-3). The
+// Runtime's artifacts.MAX_BINDING_LIST_LIMIT and
+// api/testdata/v1alpha1/artifact-list-cases.json carry the same value.
 const MaxBindingListLimit = 256
 
 type prefixListRepository interface {
