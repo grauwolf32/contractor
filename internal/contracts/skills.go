@@ -5,9 +5,9 @@ package contracts
 // bytes: Runtime can read only this exact RunScope artifact through the
 // allocation-bound private Artifact API.
 type ResolvedSkill struct {
-	Name          string      `json:"name"`
-	Artifact      ArtifactRef `json:"artifact"`
-	PackageDigest string      `json:"packageDigest"`
+	Name          string      `json:"name" strictjson:"required"`
+	Artifact      ArtifactRef `json:"artifact" strictjson:"required"`
+	PackageDigest string      `json:"packageDigest" strictjson:"required"`
 }
 
 func (s ResolvedSkill) Validate() error {

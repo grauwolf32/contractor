@@ -80,7 +80,7 @@ class WorkerSummarizerMetrics(WireModel):
     output_tokens: int = Field(ge=0, le=MAX_UINT64)
     total_tokens: int = Field(ge=0, le=MAX_UINT64)
     token_usage_unavailable: int = Field(ge=0, le=MAX_UINT64)
-    failure_codes: dict[str, int] = Field(default_factory=dict, max_length=64)
+    failure_codes: dict[str, int] = Field(max_length=64)
 
     @model_validator(mode="after")
     def validate_aggregate(self) -> Self:
@@ -191,7 +191,7 @@ class ExecutionMetrics(WireModel):
     input_tokens: int | None = Field(default=None, ge=0)
     output_tokens: int | None = Field(default=None, ge=0)
     total_tokens: int | None = Field(default=None, ge=0)
-    tools: dict[str, ToolMetrics] = Field(default_factory=dict)
+    tools: dict[str, ToolMetrics]
     worker_budget: WorkerBudgetMetrics | None = None
     summarizer: WorkerSummarizerMetrics | None = None
 
@@ -286,9 +286,9 @@ class ExecutionReport(WireModel):
     report_id: str
     complete: bool
     metrics: ExecutionMetrics
-    tool_calls: list[ToolCallRecord] = Field(default_factory=list)
-    errors: list[ExecutionError] = Field(default_factory=list)
-    truncated: bool = False
+    tool_calls: list[ToolCallRecord]
+    errors: list[ExecutionError]
+    truncated: bool
     completion: WorkerCompletionDiagnostics | None = Field(
         default=None, exclude_if=lambda value: value is None
     )

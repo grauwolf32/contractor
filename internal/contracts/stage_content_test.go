@@ -58,6 +58,42 @@ func TestStageContentResultRejectsAbsentArtifactsOnDecode(t *testing.T) {
 	}
 }
 
+// The schema requires parameters and artifacts, so a nil map, which encodes to
+// null, is invalid both when the Planner builds a request and on decode.
+func TestStageContentRequestRequiresParametersAndArtifacts(t *testing.T) {
+	valid := StageContentRequest{
+		APIVersion: APIVersion, SubtaskID: "0", Objective: "check", Instructions: "inspect",
+		Parameters: map[string]string{}, Artifacts: map[string]ArtifactRef{},
+	}
+	if err := valid.Validate(); err != nil {
+		t.Fatalf("empty maps rejected: %v", err)
+	}
+	withoutParameters, withoutArtifacts := valid, valid
+	withoutParameters.Parameters = nil
+	withoutArtifacts.Artifacts = nil
+	for name, request := range map[string]StageContentRequest{
+		"nil parameters": withoutParameters, "nil artifacts": withoutArtifacts,
+	} {
+		if err := request.Validate(); err == nil {
+			t.Errorf("%s accepted", name)
+		}
+	}
+	const prefix = `{"apiVersion":"contractor/v1alpha1","subtaskId":"0","objective":"check","instructions":"inspect"`
+	for _, input := range []string{
+		prefix + `,"artifacts":{}}`,
+		prefix + `,"parameters":{}}`,
+		prefix + `,"parameters":null,"artifacts":{}}`,
+		prefix + `,"parameters":{},"artifacts":null}`,
+	} {
+		if _, err := DecodePrivateStrict[StageContentRequest]([]byte(input)); err == nil {
+			t.Errorf("StageContentRequest accepted: %s", input)
+		}
+	}
+	if _, err := DecodePrivateStrict[StageContentRequest]([]byte(prefix + `,"parameters":{},"artifacts":{}}`)); err != nil {
+		t.Fatalf("valid StageContentRequest rejected: %v", err)
+	}
+}
+
 func TestStageContentRequestValidateCountsCompactUTF8(t *testing.T) {
 	deadline := time.Date(2026, 10, 11, 12, 0, 0, 0, time.UTC)
 	request := func(instructions string) StageContentRequest {

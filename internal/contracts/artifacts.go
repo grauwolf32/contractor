@@ -50,8 +50,8 @@ func AcceptsMediaType(accepted []string, actual string) bool {
 }
 
 type ArtifactRef struct {
-	Namespace string  `json:"namespace"`
-	Name      string  `json:"name"`
+	Namespace string  `json:"namespace" strictjson:"required"`
+	Name      string  `json:"name" strictjson:"required"`
 	Revision  *string `json:"revision,omitempty"`
 }
 
@@ -154,10 +154,10 @@ func validAgentSkillName(value string) bool {
 }
 
 type ArtifactReadResult struct {
-	APIVersion string      `json:"apiVersion"`
-	Artifact   ArtifactRef `json:"artifact"`
-	MediaType  string      `json:"mediaType"`
-	Size       int64       `json:"size"`
+	APIVersion string      `json:"apiVersion" strictjson:"required"`
+	Artifact   ArtifactRef `json:"artifact" strictjson:"required"`
+	MediaType  string      `json:"mediaType" strictjson:"required"`
+	Size       int64       `json:"size" strictjson:"required"`
 }
 
 func (r ArtifactReadResult) Validate() error {
@@ -180,8 +180,8 @@ type ArtifactWriteResult struct {
 // ArtifactListResult is one page of versionless refs. NextCursor continues a
 // paged listing and is absent on its last page and from a namePrefix listing.
 type ArtifactListResult struct {
-	APIVersion string        `json:"apiVersion"`
-	Artifacts  []ArtifactRef `json:"artifacts"`
+	APIVersion string        `json:"apiVersion" strictjson:"required"`
+	Artifacts  []ArtifactRef `json:"artifacts" strictjson:"required"`
 	NextCursor *string       `json:"nextCursor,omitempty"`
 }
 

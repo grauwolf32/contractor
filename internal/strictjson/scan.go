@@ -22,9 +22,10 @@ const smallKeySet = 16
 var errSyntax = errors.New("strictjson: invalid JSON syntax")
 
 // scanner reads one JSON value once, checking duplicate keys everywhere and
-// the member names of every struct it decodes into. It reports a duplicate
-// key as soon as it finds one and keeps the first member error until the
-// value ends, so a duplicate key always wins over a member error.
+// the member names and required members of every struct it decodes into. It
+// reports a duplicate key as soon as it finds one and keeps the first member
+// error until the value ends, so a duplicate key always wins over a member
+// error.
 type scanner struct {
 	data      []byte
 	pos       int
@@ -60,6 +61,11 @@ func (s *scanner) skipSpace() {
 func (s *scanner) value(info *typeInfo) error {
 	if s.pos >= len(s.data) {
 		return errSyntax
+	}
+	if info.kind == kindStruct && len(info.fields.required) > 0 && s.data[s.pos] == 'n' {
+		// encoding/json leaves a struct unchanged for null, which would
+		// stand in for an object without its required members.
+		s.memberError(fmt.Errorf("%w: null instead of an object", ErrMissingField))
 	}
 	for info.kind == kindPointer {
 		info = info.elem
@@ -106,6 +112,9 @@ func (s *scanner) object(info *typeInfo) error {
 	switch info.kind {
 	case kindStruct:
 		fields = info.fields
+		if fields.tagErr != nil {
+			return fields.tagErr
+		}
 	case kindMap:
 		elem = info.elem
 	}
@@ -114,6 +123,7 @@ func (s *scanner) object(info *typeInfo) error {
 	s.skipSpace()
 	if s.pos < len(s.data) && s.data[s.pos] == '}' {
 		s.pos++
+		s.requireMembers(fields, &seen)
 		return nil
 	}
 	for {
@@ -142,7 +152,11 @@ func (s *scanner) object(info *typeInfo) error {
 			if !seen.add(index) {
 				return ErrDuplicateKey
 			}
-			valueInfo = fields.members[index].info
+			field := &fields.members[index]
+			valueInfo = field.info
+			if field.required && !field.nullable && s.pos < len(s.data) && s.data[s.pos] == 'n' {
+				s.memberError(fmt.Errorf("%w: %q is null", ErrMissingField, field.name))
+			}
 		} else {
 			if !keys.add(key) {
 				return ErrDuplicateKey
@@ -163,9 +177,24 @@ func (s *scanner) object(info *typeInfo) error {
 			s.pos++
 		case '}':
 			s.pos++
+			s.requireMembers(fields, &seen)
 			return nil
 		default:
 			return errSyntax
+		}
+	}
+}
+
+// requireMembers records the first required member of fields that an object
+// did not set. encoding/json would leave it at its zero value.
+func (s *scanner) requireMembers(fields *structInfo, seen *memberSet) {
+	if fields == nil {
+		return
+	}
+	for _, index := range fields.required {
+		if !seen.has(index) {
+			s.memberError(fmt.Errorf("%w: %q", ErrMissingField, fields.members[index].name))
+			return
 		}
 	}
 }
@@ -363,6 +392,15 @@ func (m *memberSet) add(index int) bool {
 	}
 	m.high[word] |= bit
 	return true
+}
+
+// has reports whether index was recorded.
+func (m *memberSet) has(index int) bool {
+	if index < 64 {
+		return m.low&(uint64(1)<<index) != 0
+	}
+	word := (index - 64) / 64
+	return word < len(m.high) && m.high[word]&(uint64(1)<<((index-64)%64)) != 0
 }
 
 // keySet records member names that are not struct fields: map keys, keys of

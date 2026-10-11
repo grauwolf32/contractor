@@ -488,7 +488,7 @@ func decodeResultMessage(message *sdk.Message) (contracts.WorkerCompletion, erro
 			"invalid_a2a_response", "Worker Contractor payload is invalid or oversized", false, err,
 		)
 	}
-	result, err := contracts.DecodeStrict[contracts.WorkerCompletion](encoded)
+	result, err := contracts.DecodePrivateStrict[contracts.WorkerCompletion](encoded)
 	if err != nil {
 		return contracts.WorkerCompletion{}, planner.NewError(
 			"invalid_worker_result", "Worker returned an invalid WorkerCompletion", false, err,

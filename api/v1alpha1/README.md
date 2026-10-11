@@ -31,6 +31,13 @@ including non-ASCII text and floating-point temperatures and ratios.
 `agent-card-secret-scan-cases.json` holds the WorkerHandle Agent Card secret
 scan both implementations apply: the trusted path table, the Runtime's card and
 the cases each must accept or reject.
+`required-member-cases.json` is generated from these schemas and the valid
+fixtures: for every valid fixture it lists each member whose omission the
+schema rejects, and those of them whose `null` the schema rejects too. Go,
+Python and the schema reject every case. Go DTO fields declare such members
+with `strictjson:"required"` (or `strictjson:"required,nullable"` where the
+schema allows `null`), which `strictjson.Decode` enforces, and a test pins the
+tags to the `required` lists; Python models declare them without defaults.
 `runtime-capability-cases.json` holds the registration and heartbeat values
 Operations shows: the tool-name and identity grammars and the capability
 bounds that Go registration, the registration and heartbeat schemas, the

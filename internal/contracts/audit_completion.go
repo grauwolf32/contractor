@@ -5,10 +5,10 @@ package contracts
 const AuditCheckResultsV1 = "audit-check-results@1"
 
 type WorkerCompletionContract struct {
-	Kind              string      `json:"kind"`
-	Task              ArtifactRef `json:"task"`
-	ExecutionManifest ArtifactRef `json:"executionManifest"`
-	ResultArtifact    ArtifactRef `json:"resultArtifact"`
+	Kind              string      `json:"kind" strictjson:"required"`
+	Task              ArtifactRef `json:"task" strictjson:"required"`
+	ExecutionManifest ArtifactRef `json:"executionManifest" strictjson:"required"`
+	ResultArtifact    ArtifactRef `json:"resultArtifact" strictjson:"required"`
 }
 
 func (c WorkerCompletionContract) Validate() error {
@@ -114,7 +114,7 @@ func SupportsWorkerCompletion(capabilities *RuntimeCompletionCapabilities, c *Wo
 }
 
 type RuntimeCompletionCapabilities struct {
-	CompletionContracts []string `json:"completionContracts"`
+	CompletionContracts []string `json:"completionContracts" strictjson:"required"`
 }
 
 func (c RuntimeCompletionCapabilities) Validate() error {

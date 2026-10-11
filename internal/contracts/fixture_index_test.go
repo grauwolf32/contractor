@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
 	"sort"
 	"strings"
 	"testing"
@@ -35,6 +36,7 @@ type fixtureIndex struct {
 }
 
 type fixtureCodec struct {
+	typ              reflect.Type
 	roundTrip        func([]byte) ([]byte, error)
 	reject           func([]byte) error
 	privateRoundTrip func([]byte) ([]byte, error)
@@ -42,7 +44,7 @@ type fixtureCodec struct {
 }
 
 func codecFor[T contracts.Validatable]() fixtureCodec {
-	return fixtureCodec{roundTrip[T], reject[T], privateRoundTrip[T], privateReject[T]}
+	return fixtureCodec{reflect.TypeFor[T](), roundTrip[T], reject[T], privateRoundTrip[T], privateReject[T]}
 }
 
 // revealingCodecFor round-trips a type that carries RuntimeSettings secrets
@@ -50,6 +52,7 @@ func codecFor[T contracts.Validatable]() fixtureCodec {
 // them and the fixtures hold their plaintext.
 func revealingCodecFor[T contracts.Validatable](reveal func(T) ([]byte, error)) fixtureCodec {
 	return fixtureCodec{
+		typ: reflect.TypeFor[T](),
 		roundTrip: func(data []byte) ([]byte, error) {
 			value, err := contracts.DecodeStrict[T](data)
 			if err != nil {

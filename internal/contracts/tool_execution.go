@@ -33,7 +33,7 @@ func (t *ResolvedAgentTemplate) UnmarshalJSON(data []byte) error {
 }
 
 type ToolArgumentBinding struct {
-	Source string `json:"source" yaml:"source"`
+	Source string `json:"source" yaml:"source" strictjson:"required"`
 	Name   string `json:"name,omitempty" yaml:"name,omitempty"`
 	Value  any    `json:"value,omitempty" yaml:"value,omitempty"`
 }
@@ -68,10 +68,10 @@ func (b *ToolArgumentBinding) UnmarshalYAML(node *yaml.Node) error {
 }
 
 type ToolExecutionConfig struct {
-	Tool           string                         `json:"tool" yaml:"tool"`
-	Arguments      map[string]ToolArgumentBinding `json:"arguments" yaml:"arguments"`
-	ResultArtifact string                         `json:"resultArtifact" yaml:"resultArtifact"`
-	TimeoutSeconds int                            `json:"timeoutSeconds" yaml:"timeoutSeconds"`
+	Tool           string                         `json:"tool" yaml:"tool" strictjson:"required"`
+	Arguments      map[string]ToolArgumentBinding `json:"arguments" yaml:"arguments" strictjson:"required"`
+	ResultArtifact string                         `json:"resultArtifact" yaml:"resultArtifact" strictjson:"required"`
+	TimeoutSeconds int                            `json:"timeoutSeconds" yaml:"timeoutSeconds" strictjson:"required"`
 }
 
 func (t ResolvedAgentTemplate) IsToolWorker() bool {

@@ -1,7 +1,14 @@
 // Package strictjson adds the checks encoding/json does not make on its own:
 // duplicate object keys, member names that match a field only when case is
-// ignored, unknown members, trailing values, lone UTF-16 surrogate escapes,
-// and RFC 8785 canonical encoding. Callers map the errors to their own codes.
+// ignored, unknown members, missing required members, trailing values, lone
+// UTF-16 surrogate escapes, and RFC 8785 canonical encoding. Callers map the
+// errors to their own codes.
+//
+// A struct field tagged `strictjson:"required"` names a member every object
+// decoded into the struct must set to a non-null value, and
+// `strictjson:"required,nullable"` one it must set but may set to null, as a
+// JSON Schema required list does. Without the tag encoding/json would leave
+// an omitted or null member at its zero value.
 package strictjson
 
 import (
@@ -22,6 +29,10 @@ var (
 	// of the target struct exactly, including a name encoding/json would
 	// match case-insensitively.
 	ErrUnknownField = errors.New("JSON object has an unknown member")
+	// ErrMissingField reports an object that omits a member its target
+	// struct tags strictjson:"required", or sets one that is not nullable
+	// to null, and a null where such a struct is expected.
+	ErrMissingField = errors.New("JSON object lacks a required member")
 )
 
 // Decode decodes exactly one JSON value into target. Beyond encoding/json with
@@ -29,6 +40,8 @@ var (
 //   - a repeated object member name, after unescaping (ErrDuplicateKey);
 //   - a member whose name matches no field of its target struct exactly,
 //     such as a case alias encoding/json would accept (ErrUnknownField);
+//   - an omitted required member, a null one that is not nullable, and a
+//     null in place of a struct with required members (ErrMissingField);
 //   - anything after the value, valid or not (ErrTrailingData).
 //
 // A duplicate key is reported before member errors. A type that decodes

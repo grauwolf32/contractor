@@ -6,10 +6,10 @@ import (
 
 // TelemetryExportSettings bounds one Worker's allocation-local OTLP exporter.
 type TelemetryExportSettings struct {
-	BatchSizeBytes  int                     `json:"batchSizeBytes"`
-	MaxAttempts     int                     `json:"maxAttempts"`
-	MaxPendingSpans int                     `json:"maxPendingSpans"`
-	MaxPendingBytes int                     `json:"maxPendingBytes"`
+	BatchSizeBytes  int                     `json:"batchSizeBytes" strictjson:"required"`
+	MaxAttempts     int                     `json:"maxAttempts" strictjson:"required"`
+	MaxPendingSpans int                     `json:"maxPendingSpans" strictjson:"required"`
+	MaxPendingBytes int                     `json:"maxPendingBytes" strictjson:"required"`
 	Retry           *TelemetryRetrySettings `json:"retry,omitempty"`
 }
 
@@ -43,8 +43,8 @@ func (s TelemetryExportSettings) Validate() error {
 
 // TelemetryRetrySettings is optional so stored RuntimeConfig digests remain stable.
 type TelemetryRetrySettings struct {
-	InitialBackoffMilliseconds int `json:"initialBackoffMilliseconds"`
-	MaxBackoffMilliseconds     int `json:"maxBackoffMilliseconds"`
+	InitialBackoffMilliseconds int `json:"initialBackoffMilliseconds" strictjson:"required"`
+	MaxBackoffMilliseconds     int `json:"maxBackoffMilliseconds" strictjson:"required"`
 }
 
 func DefaultTelemetryRetrySettings() TelemetryRetrySettings {
