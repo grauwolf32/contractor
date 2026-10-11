@@ -117,8 +117,13 @@ func TestAuditManagedRunSkipsGenericProjectOutputPublication(t *testing.T) {
 		}); err != nil {
 			return err
 		}
+		if _, err := runs.TransitionRun(
+			ctx, runID, runstore.RunInitializing, runstore.RunPending, runstore.Reason{Code: "initialized"},
+		); err != nil {
+			return err
+		}
 		_, err := runs.TransitionRun(
-			ctx, runID, runstore.RunInitializing, runstore.RunRunning, runstore.Reason{Code: "initialized"},
+			ctx, runID, runstore.RunPending, runstore.RunRunning, runstore.Reason{Code: "admitted"},
 		)
 		return err
 	}); err != nil {

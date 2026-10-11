@@ -35,8 +35,12 @@ func TestPostgresSchedulerSupervisorBoundsRealRunClaims(t *testing.T) {
 			t.Fatal(err)
 		}
 		if _, err := postgresStore.TransitionRun(
-			ctx, runID, runstore.RunInitializing, runstore.RunRunning,
-			runstore.Reason{Code: "initialized"},
+			ctx, runID, runstore.RunInitializing, runstore.RunPending, runstore.Reason{Code: "initialized"},
+		); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := postgresStore.TransitionRun(
+			ctx, runID, runstore.RunPending, runstore.RunRunning, runstore.Reason{Code: "admitted"},
 		); err != nil {
 			t.Fatal(err)
 		}
@@ -117,8 +121,12 @@ func TestPostgresSchedulerSupervisorResizesAndDrainsDurableLanes(t *testing.T) {
 			t.Fatal(err)
 		}
 		if _, err := postgresStore.TransitionRun(
-			ctx, runID, runstore.RunInitializing, runstore.RunRunning,
-			runstore.Reason{Code: "initialized"},
+			ctx, runID, runstore.RunInitializing, runstore.RunPending, runstore.Reason{Code: "initialized"},
+		); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := postgresStore.TransitionRun(
+			ctx, runID, runstore.RunPending, runstore.RunRunning, runstore.Reason{Code: "admitted"},
 		); err != nil {
 			t.Fatal(err)
 		}

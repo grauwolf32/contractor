@@ -441,8 +441,12 @@ func TestRuntimeCredentialDeleteSerializesWithRuntimeConfigBindings(t *testing.T
 		t.Fatal(err)
 	}
 	if _, err := allocationStore.TransitionRun(
-		ctx, allocationRun.RunID, runstore.RunInitializing, runstore.RunRunning,
-		runstore.Reason{Code: "ready"},
+		ctx, allocationRun.RunID, runstore.RunInitializing, runstore.RunPending, runstore.Reason{Code: "ready"},
+	); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := allocationStore.TransitionRun(
+		ctx, allocationRun.RunID, runstore.RunPending, runstore.RunRunning, runstore.Reason{Code: "admitted"},
 	); err != nil {
 		t.Fatal(err)
 	}

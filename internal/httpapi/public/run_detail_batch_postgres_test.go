@@ -121,7 +121,14 @@ func TestPostgresRunDetailFixedBatchQueries(t *testing.T) {
 			if _, err := runs.CreateRun(ctx, runstore.CreateRunParams{RunID: runID, OwnerID: "user-1", WorkflowName: "artifact-copy", WorkflowVersion: "1", WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: json.RawMessage(`{}`), RuntimeConfig: runtimeconfig.BuiltInRunSnapshot()}); err != nil {
 				t.Fatal(err)
 			}
-			if _, err := runs.TransitionRun(ctx, runID, runstore.RunInitializing, runstore.RunRunning, runstore.Reason{Code: "initialized"}); err != nil {
+			if _, err := runs.TransitionRun(
+				ctx, runID, runstore.RunInitializing, runstore.RunPending, runstore.Reason{Code: "initialized"},
+			); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := runs.TransitionRun(
+				ctx, runID, runstore.RunPending, runstore.RunRunning, runstore.Reason{Code: "admitted"},
+			); err != nil {
 				t.Fatal(err)
 			}
 			service := artifacts.NewService(artifacts.NewPostgresRepository(pool))

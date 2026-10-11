@@ -713,8 +713,12 @@ func createRunningMemoryStage(
 		t.Fatal(err)
 	}
 	if _, err := store.TransitionRun(
-		ctx, runID, runstore.RunInitializing, runstore.RunRunning,
-		runstore.Reason{Code: "initialized"},
+		ctx, runID, runstore.RunInitializing, runstore.RunPending, runstore.Reason{Code: "initialized"},
+	); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.TransitionRun(
+		ctx, runID, runstore.RunPending, runstore.RunRunning, runstore.Reason{Code: "admitted"},
 	); err != nil {
 		t.Fatal(err)
 	}

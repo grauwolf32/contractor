@@ -98,9 +98,15 @@ INSERT INTO runtime_credentials (
 	projectID := project.ProjectID
 	active := createProjectRun(t, ctx, runs, "run-active", projectID)
 	active, err = runs.TransitionRun(
-		ctx, active.RunID, runstore.RunInitializing, runstore.RunRunning,
+		ctx, active.RunID, runstore.RunInitializing, runstore.RunPending,
 		runstore.Reason{Code: "initialized"},
 	)
+	if err == nil {
+		active, err = runs.TransitionRun(
+			ctx, active.RunID, runstore.RunPending, runstore.RunRunning,
+			runstore.Reason{Code: "admitted"},
+		)
+	}
 	if err != nil {
 		t.Fatal(err)
 	}

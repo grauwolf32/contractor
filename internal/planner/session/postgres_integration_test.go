@@ -96,22 +96,26 @@ func TestPostgresSessionPersistsCompletionForRecovery(t *testing.T) {
 		!reflect.DeepEqual(*recovered.Completion.Result, result) {
 		t.Fatalf("recovery = (%+v, %v)", recovered, err)
 	}
+	// Run events 1 to 5 record the Run's initializing, pending and running
+	// states and its Stage's preparing and running states.
+	const lifecycleEvents = 5
 	runEvents, err := store.ListRunEvents(ctx, "run-planner", 0, 20)
-	if err != nil || len(runEvents) != 8 {
+	if err != nil || len(runEvents) != lifecycleEvents+4 {
 		t.Fatalf("Run events = (%+v, %v)", runEvents, err)
 	}
-	if strings.Contains(string(runEvents[6].Data), providerSecret) ||
-		!strings.Contains(string(runEvents[6].Data), `"finish"`) {
-		t.Fatalf("unsafe ADK event = %s", runEvents[6].Data)
+	if strings.Contains(string(runEvents[lifecycleEvents+2].Data), providerSecret) ||
+		!strings.Contains(string(runEvents[lifecycleEvents+2].Data), `"finish"`) {
+		t.Fatalf("unsafe ADK event = %s", runEvents[lifecycleEvents+2].Data)
 	}
 	wantKinds := []runstore.RunEventKind{
 		runstore.RunEventPlannerStarted, runstore.RunEventPlannerRequestRecorded,
 		runstore.RunEventPlannerActivity, runstore.RunEventPlannerCompleted,
 	}
 	for index := range wantKinds {
-		if runEvents[index+4].SequenceNumber != int64(index+5) || runEvents[index+4].Kind != wantKinds[index] ||
-			strings.Contains(string(runEvents[index+4].Data), providerSecret) {
-			t.Fatalf("Planner Run event %d = %+v", index, runEvents[index+4])
+		event := runEvents[lifecycleEvents+index]
+		if event.SequenceNumber != int64(lifecycleEvents+index+1) || event.Kind != wantKinds[index] ||
+			strings.Contains(string(event.Data), providerSecret) {
+			t.Fatalf("Planner Run event %d = %+v", index, event)
 		}
 	}
 	session, err := store.GetPlannerSession(ctx, started.Identity.SessionID)
@@ -119,7 +123,7 @@ func TestPostgresSessionPersistsCompletionForRecovery(t *testing.T) {
 		t.Fatalf("Planner session = (%+v, %v)", session, err)
 	}
 	cursor, err := store.GetRunEventCursor(ctx, "run-planner")
-	if err != nil || cursor.Sequence != 8 || cursor.Generation == "" {
+	if err != nil || cursor.Sequence != lifecycleEvents+4 || cursor.Generation == "" {
 		t.Fatalf("Run cursor = (%+v, %v)", cursor, err)
 	}
 	execution, err := store.GetStageExecution(ctx, "stage-planner")
@@ -247,8 +251,11 @@ func TestPostgresTypedPlanEventsAreOrderedAndCompareAppendIsAtomic(t *testing.T)
 		t.Fatalf("exact committed retry: %v", err)
 	}
 
+	// Run events 1 to 5 record the Run's initializing, pending and running
+	// states and its Stage's preparing and running states.
+	const lifecycleEvents = 5
 	runEvents, err := store.ListRunEvents(ctx, "run-planner", 0, 100)
-	if err != nil || len(runEvents) != 14 {
+	if err != nil || len(runEvents) != lifecycleEvents+10 {
 		t.Fatalf("Run events = (%d, %v)", len(runEvents), err)
 	}
 	wantKinds := []runstore.RunEventKind{
@@ -264,17 +271,18 @@ func TestPostgresTypedPlanEventsAreOrderedAndCompareAppendIsAtomic(t *testing.T)
 		runstore.RunEventPlannerPlanChanged,
 	}
 	for index := range wantKinds {
-		runSequence := int64(index + 5)
-		if runEvents[index+4].SequenceNumber != runSequence || runEvents[index+4].Kind != wantKinds[index] {
-			t.Fatalf("Planner Run event %d = %+v", index, runEvents[index+4])
+		event := runEvents[lifecycleEvents+index]
+		if event.SequenceNumber != int64(lifecycleEvents+index+1) || event.Kind != wantKinds[index] {
+			t.Fatalf("Planner Run event %d = %+v", index, event)
 		}
 	}
 	cursor, err := store.GetRunEventCursor(ctx, "run-planner")
-	if err != nil || cursor.Sequence != 14 || cursor.Generation == "" {
+	if err != nil || cursor.Sequence != lifecycleEvents+10 || cursor.Generation == "" {
 		t.Fatalf("Run cursor = (%+v, %v)", cursor, err)
 	}
-	page, err := store.ListRunEvents(ctx, "run-planner", 11, 2)
-	if err != nil || len(page) != 2 || page[0].SequenceNumber != 12 || page[1].SequenceNumber != 13 {
+	page, err := store.ListRunEvents(ctx, "run-planner", lifecycleEvents+7, 2)
+	if err != nil || len(page) != 2 || page[0].SequenceNumber != lifecycleEvents+8 ||
+		page[1].SequenceNumber != lifecycleEvents+9 {
 		t.Fatalf("resumed Run event page = (%+v, %v)", page, err)
 	}
 	session, err := store.GetPlannerSession(ctx, started.Identity.SessionID)
@@ -299,8 +307,12 @@ func createPlannerStage(
 		t.Fatal(err)
 	}
 	if _, err := store.TransitionRun(
-		ctx, "run-planner", runstore.RunInitializing, runstore.RunRunning,
-		runstore.Reason{Code: "initialized"},
+		ctx, "run-planner", runstore.RunInitializing, runstore.RunPending, runstore.Reason{Code: "initialized"},
+	); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.TransitionRun(
+		ctx, "run-planner", runstore.RunPending, runstore.RunRunning, runstore.Reason{Code: "admitted"},
 	); err != nil {
 		t.Fatal(err)
 	}
