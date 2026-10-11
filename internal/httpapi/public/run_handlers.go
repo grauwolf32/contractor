@@ -57,7 +57,7 @@ func (h *handler) listRunsFromProject(w http.ResponseWriter, r *http.Request, pr
 	var state *runstore.WorkflowRunState
 	if values, present := query["state"]; present {
 		candidate := runstore.WorkflowRunState(values[0])
-		if !publicRunState(candidate) {
+		if !candidate.Valid() {
 			h.handleError(w, fmt.Errorf("%w: unknown Run state", errInvalidRequest))
 			return
 		}
@@ -167,16 +167,6 @@ func runListCursorKindForProject(
 	}
 	encoded, _ := json.Marshal(selectors)
 	return kind + ":labels:" + string(encoded)
-}
-
-func publicRunState(state runstore.WorkflowRunState) bool {
-	switch state {
-	case runstore.RunInitializing, runstore.RunPending, runstore.RunRunning, runstore.RunWaiting, runstore.RunCancelling,
-		runstore.RunSucceeded, runstore.RunFailed, runstore.RunCancelled:
-		return true
-	default:
-		return false
-	}
 }
 
 func (h *handler) createRun(w http.ResponseWriter, r *http.Request) {

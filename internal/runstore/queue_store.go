@@ -82,12 +82,7 @@ func validateRunQueueParams(params ListRunQueueParams) error {
 	if err := validateOpaque("ownerID", params.OwnerID); err != nil {
 		return err
 	}
-	if params.State != nil &&
-		*params.State != RunInitializing &&
-		*params.State != RunRunning &&
-		*params.State != RunPending &&
-		*params.State != RunWaiting &&
-		*params.State != RunCancelling {
+	if params.State != nil && !RunLifecycleActive.Includes(*params.State) {
 		return invalidf("WorkflowRun queue state must be non-terminal")
 	}
 	if params.Membership != nil && !params.Membership.Valid() {

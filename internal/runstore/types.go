@@ -3,6 +3,7 @@ package runstore
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -25,6 +26,23 @@ const (
 	RunCancelled    WorkflowRunState = "cancelled"
 )
 
+// activeRunStates and terminalRunStates partition the WorkflowRun states
+// (RUN-R30, RUN-R39). They are the one definition of both sets: Go code asks
+// RunLifecycleActive and RunLifecycleTerminal, and the RunStateSets tests hold
+// the OpenAPI enums, every Run-state list in Go SQL and the workflow_runs
+// CHECKs and partial-index predicates to them. SQL spells the lists as
+// literals rather than binding them as an array parameter: PostgreSQL proves
+// a partial-index predicate only from constants written in the query.
+var (
+	activeRunStates   = [...]WorkflowRunState{RunInitializing, RunPending, RunRunning, RunWaiting, RunCancelling}
+	terminalRunStates = [...]WorkflowRunState{RunSucceeded, RunFailed, RunCancelled}
+)
+
+// Valid reports whether state is one of the WorkflowRun states.
+func (s WorkflowRunState) Valid() bool {
+	return RunLifecycleActive.Includes(s) || RunLifecycleTerminal.Includes(s)
+}
+
 // WorkflowRunLifecycle is a read-only grouping used by owner list queries. It
 // does not add a durable WorkflowRun state.
 type WorkflowRunLifecycle string
@@ -41,9 +59,9 @@ func (l WorkflowRunLifecycle) Valid() bool {
 func (l WorkflowRunLifecycle) Includes(state WorkflowRunState) bool {
 	switch l {
 	case RunLifecycleActive:
-		return state == RunInitializing || state == RunPending || state == RunRunning || state == RunWaiting || state == RunCancelling
+		return slices.Contains(activeRunStates[:], state)
 	case RunLifecycleTerminal:
-		return state == RunSucceeded || state == RunFailed || state == RunCancelled
+		return slices.Contains(terminalRunStates[:], state)
 	default:
 		return false
 	}

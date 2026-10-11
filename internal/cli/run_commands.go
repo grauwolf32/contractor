@@ -13,6 +13,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/publicclient"
 	publicapi "github.com/grauwolf32/contractor/internal/publicclient/generated"
+	"github.com/grauwolf32/contractor/internal/runstore"
 )
 
 type stringList []string
@@ -455,12 +456,11 @@ func printRunStatus(printer *Printer, status *publicapi.RunStatus) error {
 }
 
 func validRunState(value string, nonTerminal bool) bool {
-	for _, state := range []string{"initializing", "pending", "running", "waiting", "cancelling", "succeeded", "failed", "cancelled"} {
-		if state == value {
-			return !nonTerminal || state == "initializing" || state == "pending" || state == "running" || state == "waiting" || state == "cancelling"
-		}
+	state := runstore.WorkflowRunState(value)
+	if nonTerminal {
+		return runstore.RunLifecycleActive.Includes(state)
 	}
-	return false
+	return state.Valid()
 }
 
 func splitAssignment(value string) (string, string, error) {

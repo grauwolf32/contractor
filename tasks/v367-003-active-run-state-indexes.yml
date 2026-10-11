@@ -33,6 +33,67 @@ context:
     gatewayrecovery, memory, auditstore, evalstore, scheduler) with no shared
     definition; workflow_runs_scheduler_idx appears superseded by
     workflow_runs_admission_idx.
+  siblings: >-
+    Fixed: the LLM credential read (runstore/store_sql.go) could not use
+    workflow_runs_runtime_llm_credentials_idx even with the right states,
+    because its other OR arm, jsonb_path_exists over workflow_snapshot, has
+    no index; the Runtime credential read (credentials, now
+    runtime_repository_sql.go) could not use
+    workflow_runs_project_http_target_credential_idx, because its predicate's
+    "? 'credential'" is not implied by "#>> ... = $1". Go copies of the
+    active, terminal and all-state sets in runstore/queue_store.go,
+    runstore/store.go, httpapi/public/queue_handlers.go and run_handlers.go,
+    scheduler/supervisor.go, auditcontroller/controller.go and
+    cli/run_commands.go now use RunLifecycleActive, RunLifecycleTerminal and
+    WorkflowRunState.Valid. Checked and left as they are: the SQL lists of
+    narrower sets (cancellable, claimable, admitted running/waiting,
+    gateway-routed pending/running/waiting) and their Go counterparts in
+    scheduler, gatewayrecovery, memory and auditcontroller are separate rules,
+    now declared in the state-set test; reads by run_id (claim renewal,
+    gatewayrecovery, memory, scheduler locks) use the primary key; the Project
+    drain and cancel reads in projectlifecycle use
+    workflow_runs_owner_project_created_idx, bounded by the Project's Runs and
+    run only while it is deleted; ListRuns with lifecycle=active uses the
+    rebuilt queue index in its custom plan, while its generic plan reads the
+    owner's history like every other optional ListRuns filter (query shape out
+    of scope). Not covered: the UI copies (ui/src/api/runs.ts, queue.ts,
+    workflows.ts) are typed against the generated OpenAPI enum but their
+    completeness is not tested.
+  decision: >-
+    One definition: unexported activeRunStates and terminalRunStates arrays in
+    runstore/types.go behind the existing RunLifecycleActive/Terminal.Includes
+    and a new WorkflowRunState.Valid. It stays in runstore, not a kernel
+    package: nothing below the execution layer needs the full sets
+    (gatewayrecovery uses narrower ones). SQL keeps literal IN lists instead
+    of binding the set as state = ANY($n), as the audit suggested, because
+    PostgreSQL proves a partial-index predicate only from constants in the
+    query, and a cached generic plan would never see the values. The literals
+    are held to the definition by TestRunStateSetsMatchOpenAPIAndGoSQL, which
+    scans every string literal of production Go code under cmd and internal,
+    and by TestPostgresRunStateSetsMatchSchema for the CHECKs and partial
+    indexes; both accept only declared sets derived from the definition, so an
+    added state fails every literal not updated with it (a removed state
+    leaves only dead values). Deviations from the scope, each needed for A1:
+    (1) the LLM read's Workflow arm is narrowed by an indexed superset,
+    jsonb_path_query_array(workflow_snapshot, '$.**.credentialId.**', '{}',
+    true) ? $1, backed by the new partial GIN index
+    workflow_runs_workflow_credentials_idx, and the exact jsonb_path_exists
+    test is kept, so results are unchanged (checked on string, nested-array,
+    object and number credentialId values); the alternative, reading every
+    active Run's Workflow snapshot, would bound the check by active Runs only
+    and leave workflow_runs_runtime_llm_credentials_idx without a reader. The
+    cost is evaluating that expression on non-HOT updates of active Runs;
+    reopen if claim renewal shows up in write profiles. (2) The Runtime
+    credential read adds the redundant "? 'credential'" conjunct. (3) The
+    queue index is rebuilt without its INCLUDE list: the page selects
+    metadata_labels, so it is never index-only, and next_run_event_sequence in
+    the list made every Run event append a non-HOT update of all
+    workflow_runs indexes; TestPostgresRunEventSequenceBumpIsHeapOnlyUpdate
+    pins it. (4) workflow_runs_scheduler_idx is dropped: EXPLAIN of the claim
+    uses workflow_runs_admission_idx and
+    workflow_runs_skill_initialization_scheduler_idx, and the scan finds no
+    query restricting state to running and cancelling. PRJ-R93, RCF-R48 and
+    RCF-R128 now state that these reads never scan the Run history.
 scope:
   in:
     - "Migration 000002 recreates the four indexes with the five active states."

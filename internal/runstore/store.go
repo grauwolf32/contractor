@@ -390,7 +390,7 @@ func (s *PostgresStore) ListRuns(ctx context.Context, params ListRunsParams) ([]
 	}
 	var state *string
 	if params.State != nil {
-		if !validWorkflowRunState(*params.State) {
+		if !params.State.Valid() {
 			return nil, invalidf("unknown WorkflowRun state %q", *params.State)
 		}
 		value := string(*params.State)
@@ -670,13 +670,4 @@ func validateRunTransition(expected, next WorkflowRunState) error {
 		return invalidf("illegal WorkflowRun transition %s -> %s", expected, next)
 	}
 	return nil
-}
-
-func validWorkflowRunState(state WorkflowRunState) bool {
-	switch state {
-	case RunInitializing, RunPending, RunRunning, RunWaiting, RunCancelling, RunSucceeded, RunFailed, RunCancelled:
-		return true
-	default:
-		return false
-	}
 }

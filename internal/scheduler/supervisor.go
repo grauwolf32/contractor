@@ -418,6 +418,5 @@ func claimOwnershipLost(err error) bool {
 }
 
 func terminalRunReleasedClaim(run runstore.WorkflowRun) bool {
-	return run.SchedulerClaim == nil &&
-		(run.State == runstore.RunSucceeded || run.State == runstore.RunFailed || run.State == runstore.RunCancelled)
+	return run.SchedulerClaim == nil && runstore.RunLifecycleTerminal.Includes(run.State)
 }
