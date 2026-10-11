@@ -126,13 +126,16 @@ func (r ArtifactRef) Key() string {
 // ValidateAgentSkillRef validates the logical, versionless ref accepted in an
 // AgentTemplate. Exact revisions belong to the Run snapshot instead.
 func (r ArtifactRef) ValidateAgentSkillRef() error {
-	if r.Namespace != AgentSkillNamespace || r.Revision != nil || !validAgentSkillName(r.Name) {
+	if r.Namespace != AgentSkillNamespace || r.Revision != nil || !ValidAgentSkillName(r.Name) {
 		return Invalidf("AgentTemplate skill ref must be versionless skills/<portable-name>")
 	}
 	return nil
 }
 
-func validAgentSkillName(value string) bool {
+// ValidAgentSkillName reports whether value is a portable Agent Skill name: 1
+// to 64 lowercase ASCII letters, digits and single inner hyphens. It is the one
+// Go definition of the grammar; SkillCatalog and skill packages use it too.
+func ValidAgentSkillName(value string) bool {
 	if len(value) < 1 || len(value) > 64 || value[0] == '-' || value[len(value)-1] == '-' {
 		return false
 	}

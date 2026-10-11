@@ -187,7 +187,7 @@ func normalizeAuditCreate(params AuditCreateParams) (AuditCreateParams, json.Raw
 		return AuditCreateParams{}, nil, fmt.Errorf("%w: encode pinned Workflow", ErrInvalid)
 	}
 	workflow, err := config.DecodeResolvedWorkflowSnapshot(workflowSnapshot)
-	if err != nil || config.ValidateWorkflowGraph(workflow) != nil {
+	if err != nil {
 		return AuditCreateParams{}, nil, fmt.Errorf("%w: pinned Workflow is invalid", ErrInvalid)
 	}
 	params.Workflow = workflow

@@ -14,8 +14,13 @@ import (
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
+	"github.com/grauwolf32/contractor/internal/securefile"
 	"go.yaml.in/yaml/v4"
 )
+
+// maximumCatalogFileBytes bounds the read of one YAML manifest or instruction
+// resource (LIM-CAT-5, CAT-R77).
+const maximumCatalogFileBytes = 4 << 20
 
 type loader struct {
 	roots                       []configurationRoot
@@ -37,7 +42,7 @@ type configurationRoot struct {
 }
 
 type manifestFile struct {
-	absolute string
+	root     string
 	relative string
 	source   ConfigurationSource
 }
@@ -221,7 +226,7 @@ func (l *loader) discover(subtree string) ([]manifestFile, error) {
 			}
 			seen[relative] = root.source
 			result = append(result, manifestFile{
-				absolute: path, relative: relative, source: root.source,
+				root: root.path, relative: relative, source: root.source,
 			})
 			return nil
 		})
@@ -288,7 +293,7 @@ func (l *loader) loadInstructionResources() error {
 					relative, previous, root.source,
 				)
 			}
-			data, readErr := os.ReadFile(path)
+			data, readErr := readCatalogFile(root.path, relative)
 			if readErr != nil {
 				return fmt.Errorf("read instruction %q: %w", relative, readErr)
 			}
@@ -308,9 +313,20 @@ func (l *loader) loadInstructionResources() error {
 	return nil
 }
 
+// readCatalogFile reads one discovered manifest or instruction resource again
+// without following a symlink at any component below its root, so a link
+// swapped in after discovery is refused, and within maximumCatalogFileBytes.
+func readCatalogFile(root, relative string) ([]byte, error) {
+	data, err := securefile.ReadBeneath(root, relative, maximumCatalogFileBytes)
+	if errors.Is(err, securefile.ErrTooLarge) {
+		return nil, fmt.Errorf("%w: at most %d bytes", err, maximumCatalogFileBytes)
+	}
+	return data, err
+}
+
 func decodeOne[T any](file manifestFile) (T, error) {
 	var zero T
-	data, err := os.ReadFile(file.absolute)
+	data, err := readCatalogFile(file.root, file.relative)
 	if err != nil {
 		return zero, fmt.Errorf("%s: read manifest: %w", file.relative, err)
 	}

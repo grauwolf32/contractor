@@ -35,7 +35,7 @@ func TestLoadValidatesBundledSkillsWithoutReadingManagedRoot(t *testing.T) {
 	// not a bundle and never reaches the validators.
 	managed := filepath.Join(t.TempDir(), "managed")
 	writeFile(t, filepath.Join(managed, "skills", "review", "SKILL.md"), "not a skill")
-	if _, err := LoadUnionReadOnly(root, managed, config.MVPDescriptors()); err != nil {
+	if _, _, err := LoadUnionReadOnly(root, managed, config.MVPDescriptors()); err != nil {
 		t.Fatalf("managed skills directory was validated as a bundle: %v", err)
 	}
 
@@ -44,7 +44,7 @@ func TestLoadValidatesBundledSkillsWithoutReadingManagedRoot(t *testing.T) {
 	for name, load := range map[string]func() error{
 		"Load": func() error { _, err := Load(root, config.MVPDescriptors()); return err },
 		"LoadUnionReadOnly": func() error {
-			_, err := LoadUnionReadOnly(root, managed, config.MVPDescriptors())
+			_, _, err := LoadUnionReadOnly(root, managed, config.MVPDescriptors())
 			return err
 		},
 	} {
@@ -66,10 +66,58 @@ func TestLoadValidatesBundledAuditStandards(t *testing.T) {
 	}
 }
 
+// The Server seeds what its startup load validated instead of discovering the
+// operator root a second time; config validate checks the same plan.
+func TestLoadsReturnTheBundlesTheyValidated(t *testing.T) {
+	root := configtest.CopyWithPolicies(t, catalogFixture)
+	writeFile(t, filepath.Join(root, "skills", "review", "SKILL.md"), "---\nname: review\ndescription: Review guidance.\n---\n# Review\n")
+	managed := filepath.Join(t.TempDir(), "managed")
+	_, offline, err := LoadUnionReadOnly(root, managed, config.MVPDescriptors())
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, startup, err := NewManager(config.ManagerOptions{
+		OperatorRoot: root, ManagedRoot: managed, Descriptors: config.MVPDescriptors(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, bundles := range map[string]Bundles{"LoadUnionReadOnly": offline, "NewManager": startup} {
+		skills := bundles.Skills.Packages()
+		if len(skills) != 1 || skills[0].Name != "review" || bundles.Standards == nil ||
+			len(bundles.Standards.Packages()) != 0 {
+			t.Fatalf("%s bundles = %+v and %+v", name, skills, bundles.Standards)
+		}
+	}
+}
+
+// A long-lived Manager reruns the checks before each publication; once the
+// startup bundles are taken, those reloads keep no package bytes.
+func TestBundleChecksKeepOnlyTheStartupLoad(t *testing.T) {
+	root := configtest.CopyWithPolicies(t, catalogFixture)
+	writeFile(t, filepath.Join(root, "skills", "review", "SKILL.md"), "---\nname: review\ndescription: Review guidance.\n---\n# Review\n")
+	checks := newBundleChecks()
+	run := func() {
+		for _, check := range checks.operatorRootChecks() {
+			if err := check.Check(root); err != nil {
+				t.Fatalf("%s: %v", check.Subject, err)
+			}
+		}
+	}
+	run()
+	if startup := checks.take(); len(startup.Skills.Packages()) != 1 || startup.Standards == nil {
+		t.Fatalf("startup bundles = %+v", startup)
+	}
+	run()
+	if later := checks.take(); later != (Bundles{}) {
+		t.Fatalf("a reload after startup kept bundles: %+v", later)
+	}
+}
+
 func TestManagerRechecksBundlesBeforePublication(t *testing.T) {
 	root := configtest.CopyWithPolicies(t, catalogFixture)
 	managed := filepath.Join(t.TempDir(), "managed")
-	manager, err := NewManager(config.ManagerOptions{
+	manager, _, err := NewManager(config.ManagerOptions{
 		OperatorRoot: root, ManagedRoot: managed, Descriptors: config.MVPDescriptors(),
 	})
 	if err != nil {
@@ -87,7 +135,7 @@ func TestManagerRechecksBundlesBeforePublication(t *testing.T) {
 	if _, statErr := os.Stat(filepath.Join(managed, "model-policies", "ui-worker@2.yaml")); !errors.Is(statErr, os.ErrNotExist) {
 		t.Fatalf("rejected publication wrote a manifest: %v", statErr)
 	}
-	if _, err := NewManager(config.ManagerOptions{
+	if _, _, err := NewManager(config.ManagerOptions{
 		OperatorRoot: root, ManagedRoot: managed, Descriptors: config.MVPDescriptors(),
 	}); err == nil || !strings.HasPrefix(err.Error(), "bundled skills: ") {
 		t.Fatalf("restart with an invalid bundle: %v", err)

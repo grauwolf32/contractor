@@ -125,7 +125,7 @@ func TestPostgresTrustedAuditRunIsAtomicReplayableAndPinsExactSkill(t *testing.T
 		t.Fatal(err)
 	}
 
-	manager, err := configload.NewManager(config.ManagerOptions{
+	manager, _, err := configload.NewManager(config.ManagerOptions{
 		OperatorRoot: filepath.Join("..", "config", "testdata", "valid"),
 		ManagedRoot:  filepath.Join(t.TempDir(), "managed"), Descriptors: config.MVPDescriptors(),
 	})

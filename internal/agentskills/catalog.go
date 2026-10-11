@@ -10,6 +10,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/contentdigest"
+	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
 const (
@@ -106,7 +107,7 @@ func DiscoverBundled(operatorRoot string) (*SeedPlan, error) {
 	plan := &SeedPlan{packages: make([]seedPackage, 0, len(entries))}
 	for _, entry := range entries {
 		safeName := ""
-		if validSkillName(entry.Name()) {
+		if contracts.ValidAgentSkillName(entry.Name()) {
 			safeName = entry.Name()
 		}
 		entryInfo, infoErr := entry.Info()

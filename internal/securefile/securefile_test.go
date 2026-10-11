@@ -2,8 +2,10 @@ package securefile
 
 import (
 	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -104,6 +106,119 @@ func TestReadOpenedRefusesFIFOWithoutBlocking(t *testing.T) {
 			_ = writer.Close()
 		}
 		t.Fatal("readOpened blocked on a FIFO")
+	}
+}
+
+func TestReadBeneathReadsRegularFilesWithinTheBound(t *testing.T) {
+	root := t.TempDir()
+	writeBeneath(t, root, "nested/dir/file.yaml", "abcd")
+	writeBeneath(t, root, "empty.md", "")
+	if data, err := ReadBeneath(root, "nested/dir/file.yaml", 4); err != nil || string(data) != "abcd" {
+		t.Fatalf("ReadBeneath(at bound) = %q, %v", data, err)
+	}
+	if data, err := ReadBeneath(root, "empty.md", 4); err != nil || len(data) != 0 {
+		t.Fatalf("ReadBeneath(empty) = %q, %v", data, err)
+	}
+	if data, err := ReadBeneath(root, "nested/dir/file.yaml", 3); !errors.Is(err, ErrTooLarge) || data != nil {
+		t.Fatalf("ReadBeneath(over bound) = %q, %v", data, err)
+	}
+}
+
+// Every component is opened without following a symlink, so a link anywhere
+// on the path, including the root itself, is refused rather than followed.
+func TestReadBeneathRefusesSymlinksAndOtherFileTypes(t *testing.T) {
+	root := t.TempDir()
+	writeBeneath(t, root, "real/file.yaml", "value")
+	outside := writeFile(t, "outside", "secret", 0o600)
+	for link, target := range map[string]string{
+		"link.yaml":    "real/file.yaml",
+		"escape.yaml":  outside,
+		"linked":       "real",
+		"real/up.yaml": "../real/file.yaml",
+	} {
+		if err := os.Symlink(target, filepath.Join(root, link)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	linkedRoot := filepath.Join(t.TempDir(), "root")
+	if err := os.Symlink(root, linkedRoot); err != nil {
+		t.Fatal(err)
+	}
+	if err := unix.Mkfifo(filepath.Join(root, "fifo"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for name, read := range map[string]func() ([]byte, error){
+		"final symlink":        func() ([]byte, error) { return ReadBeneath(root, "link.yaml", 64) },
+		"escaping symlink":     func() ([]byte, error) { return ReadBeneath(root, "escape.yaml", 64) },
+		"directory symlink":    func() ([]byte, error) { return ReadBeneath(root, "linked/file.yaml", 64) },
+		"relative symlink":     func() ([]byte, error) { return ReadBeneath(root, "real/up.yaml", 64) },
+		"symlinked root":       func() ([]byte, error) { return ReadBeneath(linkedRoot, "real/file.yaml", 64) },
+		"missing file":         func() ([]byte, error) { return ReadBeneath(root, "real/missing.yaml", 64) },
+		"file as directory":    func() ([]byte, error) { return ReadBeneath(root, "real/file.yaml/child", 64) },
+		"directory as file":    func() ([]byte, error) { return ReadBeneath(root, "real", 64) },
+		"FIFO without writers": func() ([]byte, error) { return ReadBeneath(root, "fifo", 64) },
+	} {
+		t.Run(name, func(t *testing.T) {
+			result := make(chan error, 1)
+			go func() {
+				data, err := read()
+				if err == nil || data != nil || errors.Is(err, ErrTooLarge) {
+					err = errors.Join(errors.New("unsafe path was read"), err)
+				}
+				result <- err
+			}()
+			select {
+			case err := <-result:
+				if strings.HasPrefix(err.Error(), "unsafe path was read") {
+					t.Fatal(err)
+				}
+			case <-time.After(5 * time.Second):
+				// Unblock a stuck FIFO open so the goroutine can finish.
+				if writer, err := os.OpenFile(filepath.Join(root, "fifo"), os.O_WRONLY, 0); err == nil {
+					_ = writer.Close()
+				}
+				t.Fatal("ReadBeneath blocked")
+			}
+		})
+	}
+	// A symlink or another file type is a changed path, not an
+	// operating-system failure; a missing file keeps its own error.
+	for name, read := range map[string]func() ([]byte, error){
+		"final symlink":     func() ([]byte, error) { return ReadBeneath(root, "link.yaml", 64) },
+		"directory symlink": func() ([]byte, error) { return ReadBeneath(root, "linked/file.yaml", 64) },
+		"symlinked root":    func() ([]byte, error) { return ReadBeneath(linkedRoot, "real/file.yaml", 64) },
+		"file as directory": func() ([]byte, error) { return ReadBeneath(root, "real/file.yaml/child", 64) },
+		"directory":         func() ([]byte, error) { return ReadBeneath(root, "real", 64) },
+		"FIFO":              func() ([]byte, error) { return ReadBeneath(root, "fifo", 64) },
+	} {
+		var errno unix.Errno
+		if _, err := read(); !errors.Is(err, ErrNotRegular) || errors.As(err, &errno) {
+			t.Errorf("ReadBeneath(%s) error = %v, want ErrNotRegular without an errno", name, err)
+		}
+	}
+	if _, err := ReadBeneath(root, "real/missing.yaml", 64); !errors.Is(err, fs.ErrNotExist) {
+		t.Fatalf("ReadBeneath(missing) error = %v", err)
+	}
+}
+
+func TestReadBeneathRejectsPathsThatLeaveTheRoot(t *testing.T) {
+	root := t.TempDir()
+	writeBeneath(t, root, "a/file", "value")
+	for _, relative := range []string{"", "/a/file", "a//file", "./a/file", "a/./file", "a/../a/file", "..", "a/file/"} {
+		if data, err := ReadBeneath(root, relative, 64); !errors.Is(err, ErrBeneathPath) || data != nil {
+			t.Errorf("ReadBeneath(%q) = %q, %v", relative, data, err)
+		}
+	}
+}
+
+func writeBeneath(t *testing.T, root, relative, content string) {
+	t.Helper()
+	path := filepath.Join(root, filepath.FromSlash(relative))
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
 	}
 }
 

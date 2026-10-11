@@ -65,7 +65,7 @@ func TestPostgresPublicRunCreationRecoversFreshPinsAndRolledBackResults(t *testi
 					}
 					return provider, nil
 				})
-			manager, err := configload.NewManager(config.ManagerOptions{OperatorRoot: "../config/testdata/valid", ManagedRoot: t.TempDir(), Descriptors: config.MVPDescriptors()})
+			manager, _, err := configload.NewManager(config.ManagerOptions{OperatorRoot: "../config/testdata/valid", ManagedRoot: t.TempDir(), Descriptors: config.MVPDescriptors()})
 			if err != nil {
 				t.Fatal(err)
 			}
