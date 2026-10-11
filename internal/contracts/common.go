@@ -221,21 +221,29 @@ func Invalidf(format string, args ...any) error {
 	return fmt.Errorf("%w: %s", ErrValidation, fmt.Sprintf(format, args...))
 }
 
-// SecretString is wire-serializable but redacts String and GoString output.
-// Reveal must be used only at the point where a private client is configured.
+// SecretString redacts String, GoString and default JSON output, so a log
+// line, an error or a stored document that encodes a value holding one never
+// contains the plaintext (SEC-R88). Reveal must be used only at the point
+// where a private client is configured or where an explicit private-wire
+// encoder, such as runtimesettings.RuntimeSettings.RevealJSON, writes it.
+// Decoding still accepts the plaintext a private wire delivers.
 type SecretString struct {
 	value string
 }
+
+// redactedSecret replaces every SecretString in formatted and default JSON
+// output.
+const redactedSecret = "[REDACTED]"
 
 func NewSecretString(value string) SecretString { return SecretString{value: value} }
 
 func (s SecretString) Reveal() string { return s.value }
 
-func (s SecretString) String() string { return "[REDACTED]" }
+func (s SecretString) String() string { return redactedSecret }
 
-func (s SecretString) GoString() string { return "contracts.SecretString([REDACTED])" }
+func (s SecretString) GoString() string { return "contracts.SecretString(" + redactedSecret + ")" }
 
-func (s SecretString) MarshalJSON() ([]byte, error) { return json.Marshal(s.value) }
+func (s SecretString) MarshalJSON() ([]byte, error) { return json.Marshal(redactedSecret) }
 
 func (s *SecretString) UnmarshalJSON(data []byte) error {
 	var value string

@@ -44,8 +44,9 @@ func DecodePrivateStrict[T Validatable](data []byte) (T, error) {
 }
 
 // MarshalPrivateCanonical uses RFC 8785 JCS for cross-language fixtures and
-// fingerprints. It remains a private-wire encoder and therefore includes
-// SecretString values; callers must never log its result.
+// fingerprints. It encodes SecretString redacted, like any default JSON
+// encoding (SEC-R88); a fingerprint that must identify a secret passes its
+// plaintext explicitly, and such a result must never be logged.
 func MarshalPrivateCanonical(value any) ([]byte, error) {
 	canonical, err := strictjson.Canonical(value)
 	if err != nil {

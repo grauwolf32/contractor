@@ -323,19 +323,25 @@ func TestPrivateAllocationSpecComposesValidatedSettingsAndProvenance(t *testing.
 		ModelPolicy:     active.ModelPolicy,
 		RuntimeSettings: settings, ResolvedRuntimeConfigProvenance: provenance,
 	}
-	canonical, err := contracts.MarshalPrivateCanonical(value)
-	if err != nil {
-		t.Fatal(err)
+	wireCanonical := func(spec AllocationSpec) []byte {
+		t.Helper()
+		wire, err := spec.RevealJSON()
+		if err != nil {
+			t.Fatal(err)
+		}
+		canonical, err := contracts.MarshalPrivateCanonical(json.RawMessage(wire))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return canonical
 	}
+	canonical := wireCanonical(value)
 	if _, err := contracts.DecodePrivateStrict[AllocationSpec](canonical); err != nil {
 		t.Fatalf("round-trip AllocationSpec: %v", err)
 	}
 	missingLabels := value
 	missingLabels.RunMetadataLabels = nil
-	missingCanonical, err := contracts.MarshalPrivateCanonical(missingLabels)
-	if err != nil {
-		t.Fatal(err)
-	}
+	missingCanonical := wireCanonical(missingLabels)
 	if _, err := contracts.DecodePrivateStrict[AllocationSpec](missingCanonical); err == nil {
 		t.Fatal("AllocationSpec accepted missing runMetadataLabels")
 	}
@@ -346,11 +352,26 @@ func TestPrivateAllocationSpecComposesValidatedSettingsAndProvenance(t *testing.
 		t.Fatalf("private allocation omitted canonical Run metadata labels: %s", canonical)
 	}
 	formatted := fmt.Sprintf("%v %+v %#v", value.RuntimeSettings, value.RuntimeSettings, value.RuntimeSettings)
+	encoded, err := json.Marshal(PrepareAllocationRequest{APIVersion: contracts.APIVersion, Spec: value})
+	if err != nil {
+		t.Fatal(err)
+	}
+	request, err := PrepareAllocationRequest{APIVersion: contracts.APIVersion, Spec: value}.RevealJSON()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if decoded, err := contracts.DecodePrivateStrict[PrepareAllocationRequest](request); err != nil ||
+		decoded.Spec.RuntimeSettings.LLMGatewayToken.Reveal() != "gateway-secret" {
+		t.Fatalf("prepare request wire encoding does not round-trip: %v", err)
+	}
 	for _, secret := range []string{"gateway-secret", "telemetry-secret", "proxy-bearer-secret", "caido-bearer-secret"} {
 		if strings.Contains(formatted, secret) {
 			t.Fatalf("formatted RuntimeSettings leaked %q", secret)
 		}
-		if !bytes.Contains(canonical, []byte(secret)) {
+		if bytes.Contains(encoded, []byte(secret)) {
+			t.Fatalf("default JSON encoding of the prepare request leaked %q", secret)
+		}
+		if !bytes.Contains(canonical, []byte(secret)) || !bytes.Contains(request, []byte(secret)) {
 			t.Fatalf("private wire omitted required secret %q", secret)
 		}
 	}

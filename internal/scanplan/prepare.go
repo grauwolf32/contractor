@@ -69,8 +69,8 @@ func prepare(data []byte, mediaType string, source contracts.ArtifactRef, option
 		PolicyVersion int                   `json:"policyVersion"`
 		Source        scan.RequestSetSource `json:"source"`
 		MediaType     string                `json:"mediaType"`
-		Options       Options               `json:"options"`
-	}{2, set.Source, mediaType, options})
+		Options       revealedOptions       `json:"options"`
+	}{2, set.Source, mediaType, options.revealed()})
 	if err != nil {
 		return empty, failure("invalid_options")
 	}
@@ -213,7 +213,7 @@ func normalizeOptions(options Options) (Options, error) {
 	if !validateOptionsValues(options) {
 		return Options{}, failure("invalid_options")
 	}
-	encoded, err := json.Marshal(options)
+	encoded, err := json.Marshal(options.revealed())
 	if err != nil || len(encoded) > MaxOptionsBytes {
 		return Options{}, failure("invalid_options")
 	}

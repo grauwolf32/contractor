@@ -45,6 +45,34 @@ func codecFor[T contracts.Validatable]() fixtureCodec {
 	return fixtureCodec{roundTrip[T], reject[T], privateRoundTrip[T], privateReject[T]}
 }
 
+// revealingCodecFor round-trips a type that carries RuntimeSettings secrets
+// through its allocation-wire encoder, because default JSON encoding redacts
+// them and the fixtures hold their plaintext.
+func revealingCodecFor[T contracts.Validatable](reveal func(T) ([]byte, error)) fixtureCodec {
+	return fixtureCodec{
+		roundTrip: func(data []byte) ([]byte, error) {
+			value, err := contracts.DecodeStrict[T](data)
+			if err != nil {
+				return nil, err
+			}
+			return reveal(value)
+		},
+		reject: reject[T],
+		privateRoundTrip: func(data []byte) ([]byte, error) {
+			value, err := contracts.DecodePrivateStrict[T](data)
+			if err != nil {
+				return nil, err
+			}
+			revealed, err := reveal(value)
+			if err != nil {
+				return nil, err
+			}
+			return contracts.MarshalPrivateCanonical(json.RawMessage(revealed))
+		},
+		privateReject: privateReject[T],
+	}
+}
+
 var fixtureCodecs = map[string]fixtureCodec{
 	"AbortAllocationRequest":          codecFor[control.AbortAllocationRequest](),
 	"AgentHeartbeat":                  codecFor[control.AgentHeartbeat](),
@@ -52,7 +80,7 @@ var fixtureCodecs = map[string]fixtureCodec{
 	"AgentRegistrationResponse":       codecFor[control.AgentRegistrationResponse](),
 	"AgentStateSnapshot":              codecFor[reporting.AgentStateSnapshot](),
 	"AllocationFinalResponse":         codecFor[reporting.AllocationFinalResponse](),
-	"AllocationSpec":                  codecFor[control.AllocationSpec](),
+	"AllocationSpec":                  revealingCodecFor(control.AllocationSpec.RevealJSON),
 	"AllocationWorkspaceSpec":         codecFor[contracts.AllocationWorkspaceSpec](),
 	"ArtifactListResult":              codecFor[contracts.ArtifactListResult](),
 	"ArtifactReadResult":              codecFor[contracts.ArtifactReadResult](),
@@ -62,7 +90,7 @@ var fixtureCodecs = map[string]fixtureCodec{
 	"ResolvedLLMGatewayConfig":        codecFor[llmgateway.ResolvedLLMGatewayConfig](),
 	"ResolvedRuntimeConfigProvenance": codecFor[runtimesettings.ResolvedRuntimeConfigProvenance](),
 	"RuntimeReport":                   codecFor[reporting.RuntimeReport](),
-	"RuntimeSettings":                 codecFor[runtimesettings.RuntimeSettings](),
+	"RuntimeSettings":                 revealingCodecFor(runtimesettings.RuntimeSettings.RevealJSON),
 	"StageContentRequest":             codecFor[contracts.StageContentRequest](),
 	"StageContentResult":              codecFor[contracts.StageContentResult](),
 	"WorkerCompletion":                codecFor[contracts.WorkerCompletion](),

@@ -3,33 +3,187 @@ package runtimesettings
 import (
 	"encoding/json"
 	"fmt"
+	"reflect"
+	"slices"
+	"sort"
 	"strings"
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
-func TestRuntimeSettingsRedactFormattingButSerializeOnWire(t *testing.T) {
+// everySecretSettings sets each SecretString that RuntimeSettings can hold to
+// a distinct canary. The checks below first prove by reflection that no
+// secret field is left unset, so a secret field added later fails them until
+// it is populated here and covered by RevealJSON and SecretValues. Mutually
+// exclusive members are both set: encoding does not validate.
+func everySecretSettings() RuntimeSettings {
+	secret := func(value string) *contracts.SecretString {
+		result := contracts.NewSecretString(value)
+		return &result
+	}
+	return RuntimeSettings{
+		LLMGatewayURL:   "https://gateway.example/v1",
+		LLMGatewayToken: secret("canary-llm-token"),
+		ArtifactAPIURL:  "https://server.example/private/v1",
+		Telemetry: &TelemetrySettings{
+			Adapter: contracts.RuntimeAdapterOTLPHTTP, Endpoint: "https://otel.example/v1/traces",
+			Headers: map[string]contracts.SecretString{
+				"Authorization": contracts.NewSecretString("canary-otlp-authorization"),
+				"X-Scope-OrgID": contracts.NewSecretString("canary-otlp-tenant"),
+			},
+			FlushTimeoutSeconds: 5,
+		},
+		HTTPProxy: &HTTPProxySettings{
+			Adapter: contracts.RuntimeAdapterHTTPProxy, ProxyURL: "http://proxy.example:3128",
+			BasicAuth: &HTTPProxyBasicAuth{
+				Username: contracts.NewSecretString("canary-proxy-user"),
+				Password: contracts.NewSecretString("canary-proxy-password"),
+			},
+			BearerToken: secret("canary-proxy-bearer"),
+			Targets:     []HTTPProxyTarget{ProxyTargetLLMGateway},
+		},
+		Caido: &CaidoSettings{
+			Adapter: contracts.RuntimeAdapterCaidoGraphQL, Endpoint: "https://caido.example/graphql",
+			BearerToken: secret("canary-caido-bearer"), RequestTimeoutSeconds: 30,
+		},
+		HTTPOriginTarget: &HTTPOriginTargetSettings{
+			URL: "https://app.example/api",
+			BasicAuth: &HTTPProxyBasicAuth{
+				Username: contracts.NewSecretString("canary-origin-user"),
+				Password: contracts.NewSecretString("canary-origin-password"),
+			},
+			BearerToken: secret("canary-origin-bearer"),
+		},
+		RequestTimeoutSeconds: 180,
+	}
+}
+
+var secretStringType = reflect.TypeFor[contracts.SecretString]()
+
+// secretTypePaths lists every place a type can hold a SecretString.
+func secretTypePaths(value reflect.Type, path string) []string {
+	switch {
+	case value == secretStringType:
+		return []string{path}
+	case value.Kind() == reflect.Pointer || value.Kind() == reflect.Slice:
+		return secretTypePaths(value.Elem(), path)
+	case value.Kind() == reflect.Map:
+		return secretTypePaths(value.Elem(), path+"[]")
+	case value.Kind() == reflect.Struct:
+		var paths []string
+		for index := range value.NumField() {
+			field := value.Field(index)
+			paths = append(paths, secretTypePaths(field.Type, path+"."+field.Name)...)
+		}
+		return paths
+	}
+	return nil
+}
+
+// secretValues collects the plaintext of every SecretString a value holds,
+// keyed by the secretTypePaths path that holds it.
+func secretValues(value reflect.Value, path string, result map[string][]string) {
+	switch {
+	case value.Type() == secretStringType:
+		result[path] = append(result[path], value.Interface().(contracts.SecretString).Reveal())
+	case value.Kind() == reflect.Pointer:
+		if !value.IsNil() {
+			secretValues(value.Elem(), path, result)
+		}
+	case value.Kind() == reflect.Slice:
+		for index := range value.Len() {
+			secretValues(value.Index(index), path, result)
+		}
+	case value.Kind() == reflect.Map:
+		for _, key := range value.MapKeys() {
+			secretValues(value.MapIndex(key), path+"[]", result)
+		}
+	case value.Kind() == reflect.Struct:
+		for index := range value.NumField() {
+			secretValues(value.Field(index), path+"."+value.Type().Field(index).Name, result)
+		}
+	}
+}
+
+func TestRuntimeSettingsRevealSecretsOnlyThroughTheAllocationWireEncoder(t *testing.T) {
 	t.Parallel()
 
-	const token = "recognizable-secret-token"
-	secret := contracts.NewSecretString(token)
-	settings := RuntimeSettings{
-		LLMGatewayURL:         "https://gateway.example/v1",
-		LLMGatewayToken:       &secret,
-		ArtifactAPIURL:        "https://server.example/private/v1",
-		RequestTimeoutSeconds: 30,
+	settings := everySecretSettings()
+	held := map[string][]string{}
+	secretValues(reflect.ValueOf(settings), "", held)
+	var canaries []string
+	for _, path := range secretTypePaths(reflect.TypeFor[RuntimeSettings](), "") {
+		if len(held[path]) == 0 {
+			t.Fatalf("everySecretSettings leaves the secret field %s unset", path)
+		}
+		canaries = append(canaries, held[path]...)
 	}
+	sort.Strings(canaries)
+
 	formatted := fmt.Sprintf("%v %+v %#v %s", settings, settings, settings, settings.LLMGatewayToken)
-	if strings.Contains(formatted, token) {
-		t.Fatalf("formatted RuntimeSettings leaked token: %s", formatted)
-	}
-	wire, err := json.Marshal(settings)
+	encoded, err := json.Marshal(settings)
 	if err != nil {
 		t.Fatalf("marshal RuntimeSettings: %v", err)
 	}
-	if !strings.Contains(string(wire), token) {
-		t.Fatalf("wire JSON did not contain required private token: %s", wire)
+	for _, canary := range canaries {
+		if strings.Contains(formatted, canary) || strings.Contains(string(encoded), canary) {
+			t.Fatalf("formatted or default-encoded RuntimeSettings leaked %q: %s %s", canary, formatted, encoded)
+		}
+	}
+	if got := strings.Count(string(encoded), `"[REDACTED]"`); got != len(canaries) {
+		t.Fatalf("default encoding redacted %d secrets, want %d: %s", got, len(canaries), encoded)
+	}
+
+	wire, err := settings.RevealJSON()
+	if err != nil {
+		t.Fatalf("RevealJSON: %v", err)
+	}
+	for _, canary := range canaries {
+		if !strings.Contains(string(wire), canary) {
+			t.Fatalf("allocation wire encoding omits %q: %s", canary, wire)
+		}
+	}
+	var decoded RuntimeSettings
+	decoder := json.NewDecoder(strings.NewReader(string(wire)))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&decoded); err != nil || !reflect.DeepEqual(decoded, settings) {
+		t.Fatalf("allocation wire encoding does not round-trip: %v\n got: %#v\nwant: %#v", err, decoded, settings)
+	}
+
+	values := settings.SecretValues()
+	sort.Strings(values)
+	if !slices.Equal(values, canaries) {
+		t.Fatalf("SecretValues = %v, want every secret %v", values, canaries)
+	}
+}
+
+func TestRuntimeSettingsWireEncodingKeepsAbsentSecretsAbsent(t *testing.T) {
+	t.Parallel()
+
+	settings := RuntimeSettings{
+		ArtifactAPIURL: "https://server.example/private/v1", RequestTimeoutSeconds: 30,
+		Telemetry: &TelemetrySettings{
+			Adapter: contracts.RuntimeAdapterOTLPHTTP, Endpoint: "https://otel.example/v1/traces",
+			Headers: map[string]contracts.SecretString{}, FlushTimeoutSeconds: 5,
+		},
+		HTTPProxy: &HTTPProxySettings{
+			Adapter: contracts.RuntimeAdapterHTTPProxy, ProxyURL: "http://proxy.example:3128",
+			Targets: []HTTPProxyTarget{ProxyTargetToolHTTP},
+		},
+	}
+	wire, err := settings.RevealJSON()
+	if err != nil {
+		t.Fatal(err)
+	}
+	encoded, err := json.Marshal(settings)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var revealed, plain any
+	if json.Unmarshal(wire, &revealed) != nil || json.Unmarshal(encoded, &plain) != nil ||
+		!reflect.DeepEqual(revealed, plain) {
+		t.Fatalf("settings without secrets encode differently on the wire:\n wire: %s\nplain: %s", wire, encoded)
 	}
 }
 
