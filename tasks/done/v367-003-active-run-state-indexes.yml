@@ -6,7 +6,8 @@ epic: persistence
 kind: defect
 introduced_by: V65-003
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: 6214bb423b210304e0359bc937a3c22592794905
 depends_on: []
 languages: [go, sql]
 goal: "The queue and credential-reference reads use their partial indexes again, and the active Run state set has one source that SQL literals are tested against."
