@@ -51,11 +51,28 @@ func TestPostgresSchedulerReplaysTerminalCommitAfterTransientPublicationFailure(
 	})
 }
 
+// A transient failure that never clears stops being replayed: after
+// LIM-PRJ-4 counted failures the next replay attempts no publication, records
+// one failed result and the Run succeeds (PRJ-R58).
+func TestPostgresSchedulerBoundsTerminalCommitReplaysAfterTransientPublicationFailures(t *testing.T) {
+	faults := make([]string, 0, maxOutputPublicationFailures)
+	for index := range maxOutputPublicationFailures {
+		faults = append(faults, []string{
+			persistencepostgres.SQLStateDeadlockDetected, persistencepostgres.SQLStateLockNotAvailable,
+			persistencepostgres.SQLStateQueryCanceled,
+		}[index%3])
+	}
+	testPostgresSchedulerPublication(t, schedulerPublicationScenario{publicationFaults: faults, exhausted: true})
+}
+
 type schedulerPublicationScenario struct {
 	resume bool
 	// publicationFaults are SQLSTATEs raised, in order, by the first Project
 	// output publication attempts.
 	publicationFaults []string
+	// exhausted expects the replay after the faults to stop publishing because
+	// they reached the bound.
+	exhausted bool
 }
 
 // installPublicationFaults makes the Nth Project output publication attempt
@@ -210,7 +227,7 @@ func testPostgresSchedulerPublication(t *testing.T, scenario schedulerPublicatio
 	if len(scenario.publicationFaults) > 0 {
 		installPublicationFaults(t, ctx, pool, scenario.publicationFaults)
 	}
-	for _, code := range scenario.publicationFaults {
+	for index, code := range scenario.publicationFaults {
 		worked, err := scheduler.RunOnce(ctx)
 		if !worked || persistencepostgres.SQLState(err) != code {
 			t.Fatalf("RunOnce with injected %s = (%v, %v)", code, worked, err)
@@ -227,6 +244,12 @@ func testPostgresSchedulerPublication(t *testing.T, scenario schedulerPublicatio
 		if receipts, err := store.ListRunOutputPublications(ctx, "run-1"); err != nil || len(receipts) != 0 {
 			t.Fatalf("publication receipts after injected %s = (%+v, %v)", code, receipts, err)
 		}
+		// The aborted terminal transaction recorded nothing; the Scheduler
+		// counted the failure on its own, exactly once.
+		failures, err := store.StageOutputPublicationFailures(ctx, "run-1", executions[len(executions)-1].StageExecutionID)
+		if err != nil || failures != index+1 {
+			t.Fatalf("counted publication failures after injected %s = (%d, %v)", code, failures, err)
+		}
 	}
 	worked, err := scheduler.RunOnce(ctx)
 	if err != nil || !worked {
@@ -237,26 +260,10 @@ func testPostgresSchedulerPublication(t *testing.T, scenario schedulerPublicatio
 		t.Fatalf("Run = (%+v, %v)", run, err)
 	}
 	publications, err := store.ListRunOutputPublications(ctx, "run-1")
-	if err != nil || len(publications) != 1 ||
-		publications[0].Status != runstore.OutputPublicationPublished ||
-		publications[0].Source.Revision == nil || publications[0].Target == nil {
-		t.Fatalf("Project output publications = (%+v, %v)", publications, err)
-	}
-	replayed, created, err := store.RecordRunOutputPublication(
-		ctx, runstore.RecordRunOutputPublicationParams{
-			RunID: "run-1", ProjectID: projectID, OutputName: publications[0].OutputName,
-			Status: publications[0].Status, Source: publications[0].Source,
-			Target: publications[0].Target,
-		},
-	)
-	if err != nil || created || replayed.Target == nil ||
-		*replayed.Target.Revision != *publications[0].Target.Revision {
-		t.Fatalf("publication receipt replay = (%+v, created=%t, %v)", replayed, created, err)
-	}
-	projectArtifacts, _ := artifactService.Project(projectID)
-	published, err := projectArtifacts.Read(ctx, *publications[0].Target)
-	if err != nil || string(published.Payload.Data) != "copied\n" {
-		t.Fatalf("published Project output = (%q, %v)", published.Payload.Data, err)
+	if scenario.exhausted {
+		requireExhaustedPublication(t, ctx, pool, artifactService, projectID, len(scenario.publicationFaults), publications, err)
+	} else {
+		requirePublishedOutput(t, ctx, store, artifactService, projectID, publications, err)
 	}
 	executions, err := store.ListStageExecutions(ctx, "run-1")
 	if err != nil || len(executions) != expectedAttempts || executions[len(executions)-1].State != runstore.StageSucceeded ||
@@ -288,6 +295,69 @@ func testPostgresSchedulerPublication(t *testing.T, scenario schedulerPublicatio
 		workers.finalizeCalls != expectedFinalizations || workers.releaseCalls != expectedAttempts {
 		t.Fatalf("semantic/lifecycle calls = invoker:%d workers:(%d,%d,%d)",
 			invoker.calls, workers.prepareCalls, workers.finalizeCalls, workers.releaseCalls)
+	}
+}
+
+func requirePublishedOutput(
+	t *testing.T,
+	ctx context.Context,
+	store *runstore.PostgresStore,
+	artifactService *artifacts.Service,
+	projectID string,
+	publications []runstore.RunOutputPublication,
+	err error,
+) {
+	t.Helper()
+	if err != nil || len(publications) != 1 ||
+		publications[0].Status != runstore.OutputPublicationPublished ||
+		publications[0].Source.Revision == nil || publications[0].Target == nil {
+		t.Fatalf("Project output publications = (%+v, %v)", publications, err)
+	}
+	replayed, created, err := store.RecordRunOutputPublication(
+		ctx, runstore.RecordRunOutputPublicationParams{
+			RunID: "run-1", ProjectID: projectID, OutputName: publications[0].OutputName,
+			Status: publications[0].Status, Source: publications[0].Source,
+			Target: publications[0].Target,
+		},
+	)
+	if err != nil || created || replayed.Target == nil ||
+		*replayed.Target.Revision != *publications[0].Target.Revision {
+		t.Fatalf("publication receipt replay = (%+v, created=%t, %v)", replayed, created, err)
+	}
+	projectArtifacts, _ := artifactService.Project(projectID)
+	published, err := projectArtifacts.Read(ctx, *publications[0].Target)
+	if err != nil || string(published.Payload.Data) != "copied\n" {
+		t.Fatalf("published Project output = (%q, %v)", published.Payload.Data, err)
+	}
+}
+
+// requireExhaustedPublication checks the replay that ends at the bound: one
+// failed result, no Project output, and no publication attempt after the
+// counted faults.
+func requireExhaustedPublication(
+	t *testing.T,
+	ctx context.Context,
+	pool *pgxpool.Pool,
+	artifactService *artifacts.Service,
+	projectID string,
+	faults int,
+	publications []runstore.RunOutputPublication,
+	err error,
+) {
+	t.Helper()
+	if err != nil || len(publications) != 1 ||
+		publications[0].Status != runstore.OutputPublicationFailed ||
+		publications[0].ErrorCode != "publication_attempts_exhausted" || publications[0].ErrorMessage == "" ||
+		publications[0].Source.Revision == nil || publications[0].Target != nil {
+		t.Fatalf("exhausted Project output publications = (%+v, %v)", publications, err)
+	}
+	projectArtifacts, _ := artifactService.Project(projectID)
+	if _, err := projectArtifacts.Metadata(ctx, contracts.ArtifactRef{Namespace: "outputs", Name: "result"}); !errors.Is(err, artifacts.ErrArtifactNotFound) {
+		t.Fatalf("exhausted publication created a Project output: %v", err)
+	}
+	var attempts int
+	if err := pool.QueryRow(ctx, `SELECT last_value FROM test_project_output_publication_attempts`).Scan(&attempts); err != nil || attempts != faults {
+		t.Fatalf("publication attempts = (%d, %v), want only the %d faulted ones", attempts, err, faults)
 	}
 }
 
@@ -330,7 +400,7 @@ func TestPostgresProjectOutputPublicationRaceKeepsBothRunsSucceeded(t *testing.T
 					StageProgression{
 						TerminalRunState: runstore.RunSucceeded,
 						RunReason:        runstore.Reason{Code: "workflow_succeeded"},
-					},
+					}, 0,
 				)
 			})
 		}(runID)
@@ -400,7 +470,7 @@ func TestPostgresProjectOutputPublicationRollsBackWithTerminalTransactionAndRetr
 			return err
 		}
 		if err := commitTerminalRun(
-			ctx, tx, runstore.NewPostgresStore(tx), runID, contractsByName, progression,
+			ctx, tx, runstore.NewPostgresStore(tx), runID, contractsByName, progression, 0,
 		); err != nil {
 			return err
 		}
@@ -426,7 +496,7 @@ func TestPostgresProjectOutputPublicationRollsBackWithTerminalTransactionAndRetr
 			return err
 		}
 		return commitTerminalRun(
-			ctx, tx, runstore.NewPostgresStore(tx), runID, contractsByName, progression,
+			ctx, tx, runstore.NewPostgresStore(tx), runID, contractsByName, progression, 0,
 		)
 	})
 	if err != nil {
@@ -491,7 +561,7 @@ FOR EACH ROW EXECUTE FUNCTION reject_test_project_output_publication()`); err !=
 			StageProgression{
 				TerminalRunState: runstore.RunSucceeded,
 				RunReason:        runstore.Reason{Code: "workflow_succeeded"},
-			},
+			}, 0,
 		)
 	})
 	if err != nil {
@@ -570,7 +640,7 @@ func TestPostgresProjectOutputPublicationRecordsPermanentFailureOnce(t *testing.
 			StageProgression{
 				TerminalRunState: runstore.RunSucceeded,
 				RunReason:        runstore.Reason{Code: "workflow_succeeded"},
-			},
+			}, 0,
 		)
 	})
 	if err != nil {

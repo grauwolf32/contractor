@@ -2220,6 +2220,25 @@ func (s *memorySchedulerStore) MarkStageAllocationReleased(
 	return runstore.ErrNotFound
 }
 
+// Memory persistence never publishes Project outputs, so nothing reads the
+// count; the guard mirrors PostgreSQL so a misuse fails like the real store.
+func (s *memorySchedulerStore) RecordStageOutputPublicationFailure(
+	_ context.Context, runID string, stageExecutionID string,
+) error {
+	if runID == "" || stageExecutionID == "" {
+		return runstore.ErrInvalid
+	}
+	for _, execution := range s.stages {
+		if execution.StageExecutionID == stageExecutionID && execution.RunID == runID &&
+			execution.State == runstore.StageFinalizing {
+			return nil
+		}
+	}
+	return &runstore.StateConflictError{
+		Resource: "StageExecution", ID: stageExecutionID, Expected: string(runstore.StageFinalizing),
+	}
+}
+
 func (s *memorySchedulerStore) RecordStageExecutionReport(
 	_ context.Context, report runstore.RecordStageExecutionReportParams,
 ) error {

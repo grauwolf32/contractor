@@ -52,6 +52,62 @@ WHERE run_id = $1 AND output_name = $2`, params.RunID, params.OutputName))
 	return record, created, nil
 }
 
+// RecordStageOutputPublicationFailure counts one terminal transaction of a
+// finalizing StageExecution that a transient Project output publication
+// failure aborted (PRJ-R58). The aborted transaction recorded nothing, so the
+// count is its own statement. It grows only while the StageExecution is still
+// finalizing and leaves updated_at alone: it is not a lifecycle change.
+func (s *PostgresStore) RecordStageOutputPublicationFailure(
+	ctx context.Context,
+	runID string,
+	stageExecutionID string,
+) error {
+	if err := validateOpaque("runID", runID); err != nil {
+		return err
+	}
+	if err := validateOpaque("stageExecutionID", stageExecutionID); err != nil {
+		return err
+	}
+	tag, err := s.db.Exec(ctx, `
+UPDATE stage_executions
+SET output_publication_failures = output_publication_failures + 1
+WHERE stage_execution_id = $1 AND run_id = $2 AND state = 'finalizing'`, stageExecutionID, runID)
+	if err != nil {
+		return fmt.Errorf("record Project output publication failure: %w", err)
+	}
+	if tag.RowsAffected() != 1 {
+		return &StateConflictError{Resource: "StageExecution", ID: stageExecutionID, Expected: string(StageFinalizing)}
+	}
+	return nil
+}
+
+// StageOutputPublicationFailures reads that count for the terminal transaction
+// that holds the StageExecution lock.
+func (s *PostgresStore) StageOutputPublicationFailures(
+	ctx context.Context,
+	runID string,
+	stageExecutionID string,
+) (int, error) {
+	if err := validateOpaque("runID", runID); err != nil {
+		return 0, err
+	}
+	if err := validateOpaque("stageExecutionID", stageExecutionID); err != nil {
+		return 0, err
+	}
+	var failures int
+	err := s.db.QueryRow(ctx, `
+SELECT output_publication_failures
+FROM stage_executions
+WHERE stage_execution_id = $1 AND run_id = $2`, stageExecutionID, runID).Scan(&failures)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return 0, fmt.Errorf("read Project output publication failures: %w", ErrNotFound)
+	}
+	if err != nil {
+		return 0, fmt.Errorf("read Project output publication failures: %w", err)
+	}
+	return failures, nil
+}
+
 func (s *PostgresStore) ListRunOutputPublications(
 	ctx context.Context,
 	runID string,

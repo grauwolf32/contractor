@@ -60,6 +60,10 @@ type Store interface {
 	ListStageAllocations(context.Context, string) ([]runstore.StageAllocation, error)
 	MarkStageAllocationReleaseAttempt(context.Context, string) error
 	MarkStageAllocationReleased(context.Context, string) error
+	// RecordStageOutputPublicationFailure counts a terminal commit of the
+	// finalizing StageExecution (runID, stageExecutionID) that a transient
+	// Project output publication failure aborted (PRJ-R58).
+	RecordStageOutputPublicationFailure(context.Context, string, string) error
 	RecordStageExecutionReport(context.Context, runstore.RecordStageExecutionReportParams) error
 	RecordPlannerExecutionReport(context.Context, runstore.RecordPlannerExecutionReportParams) error
 	RebuildStageMetrics(context.Context, string, string) error

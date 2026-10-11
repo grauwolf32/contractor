@@ -136,7 +136,7 @@ Publication results:
 | --- | --- |
 | `published` | The Project output binding was created; the result records the exact source revision and the target revision. |
 | `already_present` | The destination binding already existed. |
-| `failed` | Publication was definitely rejected, for example because the exact source is unavailable or the Project is unavailable or deleting; the bounded error is recorded once. A transient database failure records no result (PRJ-R58). |
+| `failed` | Publication was definitely rejected, for example because the exact source is unavailable or the Project is unavailable or deleting, or transient database failures exhausted its replays (`publication_attempts_exhausted`); the bounded error is recorded once. A transient database failure below that bound records no result (PRJ-R58). |
 
 ### Queue membership
 
@@ -447,9 +447,15 @@ publication (deadlock, serialization failure, lock, statement or pool timeout,
 lost connection, cancellation) records no result: it aborts the terminal Run
 transaction, the Stage keeps its durable `finalizing` candidate, and
 finalization recovery ([SCH-R99](../execution/scheduler.md)) replays the same
-terminal transaction against the same exact source until it commits. Each
-replay is one terminal transaction within the Scheduler operation budget and
-at most one per Run claim (FAIL-PRJ-4).
+terminal transaction against the same exact source. Each replay is one
+terminal transaction within the Scheduler operation budget and at most one per
+Run claim. Scheduler counts each such abort for the finalizing StageExecution
+in a store operation of its own, because the aborted transaction keeps
+nothing; an abort it cannot count, because the database is unavailable or the
+claim was lost, does not consume the bound. Once LIM-PRJ-4 aborts are counted,
+the next replay attempts no publication: it records one bounded `failed`
+result with code `publication_attempts_exhausted` per present output and the
+Run succeeds (FAIL-PRJ-4).
 
 **PRJ-R59.** Retrying publication is idempotent against the
 recorded exact source.
@@ -654,6 +660,8 @@ Registry entries owned by this document:
   declared output of a successful Project Run (PRJ-R56).
 - [LIM-PRJ-3](../platform/limits.md): a Project name has at least one
   character (PRJ-R2).
+- [LIM-PRJ-4](../platform/limits.md): counted transient publication failures
+  before a replay stops attempting publication (PRJ-R58).
 - [FAIL-PRJ-1](../platform/failure-model.md): Project metadata and target
   update (PRJ-R4, PRJ-R5, PRJ-R65, PRJ-R75).
 - [FAIL-PRJ-2](../platform/failure-model.md): Project Run creation and input
