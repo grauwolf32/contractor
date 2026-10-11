@@ -709,7 +709,15 @@ func publishOneProjectOutput(
 		publishErr = fmt.Errorf("record successful publication: %w", recordErr)
 	}
 	if err := attempt.Rollback(ctx); err != nil && !errors.Is(err, pgx.ErrTxClosed) {
-		return fmt.Errorf("rollback Project output publication %q: %w", outputName, err)
+		return fmt.Errorf("rollback Project output publication %q: %w", outputName, errors.Join(publishErr, err))
+	}
+	if transientPublicationFailure(ctx, publishErr) {
+		// A deadlock, serialization abort, lock or statement timeout or lost
+		// connection says nothing about the output. Abort the whole terminal
+		// transaction instead of recording a permanent failure: the Stage stays
+		// finalizing and finalization recovery replays the same terminal
+		// commit, which publishes the same exact source (PRJ-R58, PRJ-R59).
+		return fmt.Errorf("publish Project output %q: %w", outputName, publishErr)
 	}
 
 	params := runstore.RecordRunOutputPublicationParams{
@@ -725,6 +733,14 @@ func publishOneProjectOutput(
 		return fmt.Errorf("record Project output publication %q: %w", outputName, err)
 	}
 	return nil
+}
+
+// transientPublicationFailure reports a publication error that a replay of the
+// terminal transaction may outlast. Everything else is a definite rejection
+// that is recorded once as a failed publication.
+func transientPublicationFailure(ctx context.Context, err error) bool {
+	return ctx.Err() != nil || errors.Is(err, context.Canceled) ||
+		persistencepostgres.IsTransientFailure(err)
 }
 
 func projectOutputPublicationFailure(err error) (string, string) {
