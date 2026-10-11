@@ -12,6 +12,7 @@ import (
 	"golang.org/x/text/unicode/norm"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/strictjson"
 )
 
 const (
@@ -655,12 +656,10 @@ func (s *WorkerStateWorkspaceInteraction) UnmarshalJSON(data []byte) error {
 }
 
 func decodeStrictAgentStateJSON(data []byte, target any) error {
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(target); err != nil {
+	if err := strictjson.Decode(data, target); err != nil {
 		return fmt.Errorf("decode Agent State JSON: %w", err)
 	}
-	return contracts.EnsureJSONEOF(decoder)
+	return nil
 }
 
 func requireAgentStateFields(data []byte, required ...string) error {

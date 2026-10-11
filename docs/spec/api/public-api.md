@@ -183,6 +183,14 @@ unless a resource declares a smaller bound, such as the login body
 **API-R6.** Eval documents keep their own `422 eval_limit_exceeded` bound
 ([EVM-R63](../evals/managed-evals.md)).
 
+**API-R70.** A JSON request body and a WebSocket client frame are decoded
+strictly: a member name must match its OpenAPI or event-schema property
+exactly, so a case alias such as `Reason` for `reason` is an unknown member,
+and duplicate member names at any depth, unknown members and data after the
+value are rejected rather than guessed. A body is rejected with
+`400 invalid_request`; a frame is answered with an `invalid_frame` error frame
+and leaves the socket and its subscriptions unchanged.
+
 ### Browser clients and domain services
 
 **API-R7.** Browser code uses the authenticated public Server APIs directly.

@@ -1,8 +1,8 @@
 package reporting
 
 import (
-	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -104,9 +104,6 @@ func (r RuntimeReport) MarshalJSON() ([]byte, error) {
 }
 
 func (r *RuntimeReport) UnmarshalJSON(data []byte) error {
-	if err := strictjson.RejectDuplicateKeys(data); err != nil {
-		return contracts.Invalidf("invalid runtime report JSON")
-	}
 	type wireRuntimeReport struct {
 		Complete   bool                       `json:"complete"`
 		DurationMS *int64                     `json:"durationMs,omitempty"`
@@ -115,12 +112,9 @@ func (r *RuntimeReport) UnmarshalJSON(data []byte) error {
 		Resources  json.RawMessage            `json:"resources"`
 	}
 	var wire wireRuntimeReport
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&wire); err != nil {
-		return err
-	}
-	if err := strictjson.RequireEOF(decoder); err != nil {
+	if err := strictjson.Decode(data, &wire); errors.Is(err, strictjson.ErrDuplicateKey) {
+		return contracts.Invalidf("invalid runtime report JSON")
+	} else if err != nil {
 		return err
 	}
 	*r = RuntimeReport{
@@ -146,12 +140,7 @@ func (r *RuntimeReport) UnmarshalJSON(data []byte) error {
 
 func decodeRuntimeAdapterMetrics(data []byte) (RuntimeAdapterMetrics, error) {
 	var metrics RuntimeAdapterMetrics
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&metrics); err != nil {
-		return RuntimeAdapterMetrics{}, err
-	}
-	if err := strictjson.RequireEOF(decoder); err != nil {
+	if err := strictjson.Decode(data, &metrics); err != nil {
 		return RuntimeAdapterMetrics{}, err
 	}
 	if err := metrics.Validate(); err != nil {
@@ -180,14 +169,11 @@ func (r *AllocationFinalReport) UnmarshalJSON(data []byte) error {
 	if len(data) > 1024*1024 {
 		return contracts.Invalidf("allocation final report exceeds 1 MiB")
 	}
-	if err := strictjson.RejectDuplicateKeys(data); err != nil {
-		return contracts.Invalidf("invalid allocation report JSON")
-	}
 	type wireReport AllocationFinalReport
 	var value wireReport
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&value); err != nil {
+	if err := strictjson.Decode(data, &value); errors.Is(err, strictjson.ErrDuplicateKey) {
+		return contracts.Invalidf("invalid allocation report JSON")
+	} else if err != nil {
 		return err
 	}
 	*r = AllocationFinalReport(value)

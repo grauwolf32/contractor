@@ -6,7 +6,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
-	"io"
 	"regexp"
 	"slices"
 	"sort"
@@ -15,6 +14,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/grauwolf32/contractor/internal/strictjson"
 	"github.com/ucarion/jcs"
 )
 
@@ -191,11 +191,11 @@ func Decode(artifactName string, payload []byte) (StoredNote, error) {
 	if len(payload) > MaximumPayloadBytes {
 		return StoredNote{}, invalid(ReasonPayloadTooLarge)
 	}
-	if !utf8.Valid(payload) || rejectDuplicateRootKeys(payload) != nil {
+	var fields map[string]json.RawMessage
+	if !utf8.Valid(payload) || strictjson.Decode(payload, &fields) != nil || fields == nil {
 		return StoredNote{}, invalid(ReasonMalformed)
 	}
-	fields, ok := storedFields(payload)
-	if !ok {
+	if !storedFields(fields) {
 		return StoredNote{}, invalid(ReasonSchema)
 	}
 	var note StoredNote
@@ -311,50 +311,17 @@ func canonicalBytes(note StoredNote) ([]byte, error) {
 	return []byte(formatted), nil
 }
 
-func rejectDuplicateRootKeys(payload []byte) error {
-	decoder := json.NewDecoder(bytes.NewReader(payload))
-	decoder.UseNumber()
-	opening, err := decoder.Token()
-	if err != nil || opening != json.Delim('{') {
-		return errors.New("invalid root")
-	}
-	seen := make(map[string]struct{}, 6)
-	for decoder.More() {
-		token, err := decoder.Token()
-		if err != nil {
-			return err
-		}
-		key, ok := token.(string)
-		if !ok {
-			return errors.New("invalid key")
-		}
-		if _, exists := seen[key]; exists {
-			return errors.New("duplicate key")
-		}
-		seen[key] = struct{}{}
-		var value json.RawMessage
-		if err := decoder.Decode(&value); err != nil {
-			return err
-		}
-	}
-	closing, err := decoder.Token()
-	if err != nil || closing != json.Delim('}') {
-		return errors.New("invalid root")
-	}
-	return requireEOF(decoder)
-}
-
-func storedFields(payload []byte) (map[string]json.RawMessage, bool) {
-	var fields map[string]json.RawMessage
-	if err := json.Unmarshal(payload, &fields); err != nil || len(fields) != 6 {
-		return nil, false
+// storedFields reports whether a stored note has exactly its six members.
+func storedFields(fields map[string]json.RawMessage) bool {
+	if len(fields) != 6 {
+		return false
 	}
 	for _, name := range []string{"schemaVersion", "name", "content", "description", "tags", "ordinal"} {
 		if _, ok := fields[name]; !ok {
-			return nil, false
+			return false
 		}
 	}
-	return fields, true
+	return true
 }
 
 func decodeString(raw json.RawMessage) (string, bool) {
@@ -370,7 +337,7 @@ func decodeOrdinal(raw json.RawMessage) (uint64, ErrorReason) {
 	decoder := json.NewDecoder(bytes.NewReader(raw))
 	decoder.UseNumber()
 	var value json.Number
-	if err := decoder.Decode(&value); err != nil || requireEOF(decoder) != nil {
+	if err := decoder.Decode(&value); err != nil || strictjson.RequireEOF(decoder) != nil {
 		return 0, ReasonMalformed
 	}
 	text := value.String()
@@ -385,15 +352,4 @@ func decodeOrdinal(raw json.RawMessage) (uint64, ErrorReason) {
 		return 0, ReasonOrdinal
 	}
 	return ordinal, ""
-}
-
-func requireEOF(decoder *json.Decoder) error {
-	var trailing any
-	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
-		if err != nil {
-			return err
-		}
-		return errors.New("multiple JSON values")
-	}
-	return nil
 }

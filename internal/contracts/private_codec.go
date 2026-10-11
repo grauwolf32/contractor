@@ -4,8 +4,6 @@ package contracts
 // DTOs. Mirrors the Python runtime's contracts/codec.py.
 
 import (
-	"bytes"
-	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -14,24 +12,17 @@ import (
 
 var privateVersionError = errors.New("private protocol version mismatch")
 
-// DecodePrivateStrict rejects duplicate keys, unknown fields and trailing
-// JSON before returning a semantically validated private DTO.
+// DecodePrivateStrict decodes one private DTO with strictjson.Decode, so
+// duplicate keys, case aliases, unknown members and trailing data are
+// rejected, before semantic validation. Errors carry only their class.
 func DecodePrivateStrict[T Validatable](data []byte) (T, error) {
 	var value T
-	if err := strictjson.RejectDuplicateKeys(data); err != nil {
+	if err := strictjson.Decode(data, &value); err != nil {
 		class := PrivateProtocolErrorSchema
 		if errors.Is(err, strictjson.ErrDuplicateKey) {
 			class = PrivateProtocolErrorDuplicate
 		}
 		return value, &PrivateProtocolError{Class: class}
-	}
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&value); err != nil {
-		return value, &PrivateProtocolError{Class: PrivateProtocolErrorSchema}
-	}
-	if err := EnsureJSONEOF(decoder); err != nil {
-		return value, &PrivateProtocolError{Class: PrivateProtocolErrorSchema}
 	}
 	if err := value.Validate(); err != nil {
 		class := PrivateProtocolErrorInvariant

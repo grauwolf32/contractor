@@ -48,32 +48,23 @@ func decodeWorkerCompletionDiagnostics(data []byte) (*WorkerCompletionDiagnostic
 	if len(data) == 0 || bytes.Equal(bytes.TrimSpace(data), []byte("null")) {
 		return nil, nil
 	}
-	if len(data) > 4096 || strictjson.RejectDuplicateKeys(data) != nil {
+	var fields map[string]json.RawMessage
+	if len(data) > 4096 || strictjson.Decode(data, &fields) != nil {
 		return nil, contracts.Invalidf("invalid Worker completion diagnostics JSON")
 	}
-	var header struct {
-		Kind  string `json:"kind"`
-		Phase string `json:"phase"`
-	}
-	if err := json.Unmarshal(data, &header); err != nil {
-		return nil, err
-	}
-	if header.Kind != "" && header.Phase != "" && (header.Kind != contracts.AuditCheckResultsV1 || !knownCompletionPhase(header.Phase)) {
+	var kind, phase string
+	_ = json.Unmarshal(fields["kind"], &kind)
+	_ = json.Unmarshal(fields["phase"], &phase)
+	if kind != "" && phase != "" && (kind != contracts.AuditCheckResultsV1 || !knownCompletionPhase(phase)) {
 		return nil, nil
-	}
-	var value WorkerCompletionDiagnostics
-	var fields map[string]json.RawMessage
-	if err := json.Unmarshal(data, &fields); err != nil {
-		return nil, err
 	}
 	for _, key := range []string{"kind", "phase", "acceptedCount", "totalCount", "reminderCount"} {
 		if raw, ok := fields[key]; !ok || bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
 			return nil, contracts.Invalidf("missing Worker completion field")
 		}
 	}
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&value); err != nil {
+	var value WorkerCompletionDiagnostics
+	if err := strictjson.Decode(data, &value); err != nil {
 		return nil, err
 	}
 	if raw, ok := fields["failureCode"]; ok && !bytes.Equal(bytes.TrimSpace(raw), []byte("null")) && value.FailureCode == "" {
@@ -92,12 +83,7 @@ func (r *ExecutionReport) UnmarshalJSON(data []byte) error {
 		*plain
 		Completion json.RawMessage `json:"completion"`
 	}{plain: &value}
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.DisallowUnknownFields()
-	if err := strictjson.RejectDuplicateKeys(data); err != nil {
-		return err
-	}
-	if err := decoder.Decode(&wire); err != nil {
+	if err := strictjson.Decode(data, &wire); err != nil {
 		return err
 	}
 	completion, err := decodeWorkerCompletionDiagnostics(wire.Completion)

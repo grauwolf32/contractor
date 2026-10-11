@@ -1,7 +1,6 @@
 package public
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"time"
@@ -116,9 +115,7 @@ func (r *createRuntimeCredentialRequest) UnmarshalJSON(data []byte) error {
 		Kind         credentials.RuntimeCredentialKind `json:"kind"`
 		Material     json.RawMessage                   `json:"material"`
 	}
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&envelope); err != nil {
+	if err := strictjson.Decode(data, &envelope); err != nil {
 		return err
 	}
 	if len(envelope.Material) == 0 || isJSONNull(envelope.Material) {

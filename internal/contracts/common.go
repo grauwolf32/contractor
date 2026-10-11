@@ -14,7 +14,6 @@
 package contracts
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -119,17 +118,15 @@ type Validatable interface {
 	Validate() error
 }
 
-// DecodeStrict decodes one JSON object, rejects unknown/trailing fields, and
-// runs its semantic validation.
+// DecodeStrict decodes one JSON value with strictjson.Decode, so duplicate
+// keys, case aliases, unknown members and trailing data are rejected, and runs
+// its semantic validation.
 func DecodeStrict[T Validatable](data []byte) (T, error) {
 	var value T
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&value); err != nil {
+	if err := strictjson.Decode(data, &value); errors.Is(err, strictjson.ErrTrailingData) {
+		return value, Invalidf("multiple JSON values are not allowed")
+	} else if err != nil {
 		return value, fmt.Errorf("decode JSON: %w", err)
-	}
-	if err := EnsureJSONEOF(decoder); err != nil {
-		return value, err
 	}
 	if err := value.Validate(); err != nil {
 		return value, err
@@ -137,28 +134,16 @@ func DecodeStrict[T Validatable](data []byte) (T, error) {
 	return value, nil
 }
 
-// DecodeStrictObject decodes one JSON object into target, rejecting unknown
-// fields, and returns its raw top-level members so callers can tell an
-// explicit null from an omitted field.
+// DecodeStrictObject decodes one JSON object into target with
+// strictjson.Decode and returns its raw top-level members so callers can tell
+// an explicit null from an omitted field.
 func DecodeStrictObject(data []byte, target any) (map[string]json.RawMessage, error) {
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(target); err != nil {
+	if err := strictjson.Decode(data, target); err != nil {
 		return nil, err
 	}
 	var fields map[string]json.RawMessage
 	err := json.Unmarshal(data, &fields)
 	return fields, err
-}
-
-// EnsureJSONEOF rejects any JSON value or data after the one decoder read.
-func EnsureJSONEOF(decoder *json.Decoder) error {
-	if err := strictjson.RequireEOF(decoder); errors.Is(err, strictjson.ErrTrailingData) {
-		return Invalidf("multiple JSON values are not allowed")
-	} else if err != nil {
-		return fmt.Errorf("decode trailing JSON: %w", err)
-	}
-	return nil
 }
 
 // ValidateAPIVersion requires the exact contractor/v1alpha1 wire version.
