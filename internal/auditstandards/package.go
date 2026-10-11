@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/grauwolf32/contractor/internal/contentdigest"
+	"github.com/grauwolf32/contractor/internal/securefile"
 	"github.com/grauwolf32/contractor/internal/zipdirectory"
 )
 
@@ -32,9 +33,9 @@ func PackageDirectory(source string) ([]byte, *Package, error) {
 		manifestInfo.Size() > MaximumManifestBytes {
 		return nil, nil, validationError(CodeMemberForbidden, ManifestPath)
 	}
-	manifest, err := readSourceManifestNoFollow(clean)
+	manifest, err := securefile.ReadBeneath(clean, ManifestPath, MaximumManifestBytes)
 	if err != nil {
-		if errors.Is(err, errSourceManifestLimit) {
+		if errors.Is(err, securefile.ErrTooLarge) {
 			return nil, nil, validationError(CodeLimitExceeded, ManifestPath)
 		}
 		return nil, nil, validationError(CodeMemberForbidden, ManifestPath)

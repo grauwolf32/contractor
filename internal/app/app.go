@@ -172,7 +172,7 @@ func runCLI(
 		return err
 	}
 	ctx = artifacts.WithBlobRuntime(ctx, artifacts.NewBlobRuntime(blobStore, logger))
-	configurationManager, err := loadServerConfiguration(cfg.OperatorConfigRoot, cfg.ManagedConfigRoot, logger)
+	configurationManager, bundles, err := loadServerConfiguration(cfg.OperatorConfigRoot, cfg.ManagedConfigRoot, logger)
 	if err != nil {
 		return fmt.Errorf("load configuration: %w", err)
 	}
@@ -191,7 +191,7 @@ func runCLI(
 	if err != nil {
 		return err
 	}
-	catalogs, err := configureCatalogs(ctx, pool, configurationManager, cfg, bootstrap.Principal.UserID, logger)
+	catalogs, err := configureCatalogs(ctx, pool, configurationManager, bundles, bootstrap.Principal.UserID, logger)
 	if err != nil {
 		return err
 	}

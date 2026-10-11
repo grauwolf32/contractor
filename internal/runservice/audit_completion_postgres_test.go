@@ -102,7 +102,7 @@ func TestAuditCompletionPostgresAtomicCreationRestartAndAllocation(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	manager, err := configload.NewManager(config.ManagerOptions{OperatorRoot: filepath.Join("..", "config", "testdata", "valid"), ManagedRoot: filepath.Join(t.TempDir(), "managed"), Descriptors: config.MVPDescriptors()})
+	manager, _, err := configload.NewManager(config.ManagerOptions{OperatorRoot: filepath.Join("..", "config", "testdata", "valid"), ManagedRoot: filepath.Join(t.TempDir(), "managed"), Descriptors: config.MVPDescriptors()})
 	if err != nil {
 		t.Fatal(err)
 	}

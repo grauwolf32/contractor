@@ -90,6 +90,11 @@ func testPostgresFindingReceiptAuditImportDirectVerificationAndRunDeletion(t *te
 		Tools: []string{"finding"},
 	})
 	stage.Agents["builder"] = binding
+	// The Stage result feeds the retyped primary output, so it declares the
+	// same media type: a stored snapshot is read as a complete, valid graph.
+	copied := stage.Result.Artifacts["copied"]
+	copied.MediaTypes = []string{auditdomain.DirectVerificationsMediaType}
+	stage.Result.Artifacts["copied"] = copied
 	workflow.Stages[workflow.EntryStage] = stage
 	workflow.Outputs["result"] = workflowconfig.ArtifactSlot{
 		Required: true, Primary: true,

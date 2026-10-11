@@ -51,10 +51,56 @@ class ControlClientError(Exception):
     """A bounded, non-secret private protocol error."""
 
 
+# Without the Server's error envelope these statuses may succeed on a later
+# attempt; every other status below 500 cannot.
+_RETRYABLE_STATUSES_WITHOUT_ENVELOPE = frozenset({408, 409, 425, 429})
+
+
 class ControlHTTPError(ControlClientError):
-    def __init__(self, status_code: int) -> None:
-        super().__init__(f"Control Plane returned HTTP status {status_code}")
+    """A non-2xx Control Plane response and its private error envelope, if any."""
+
+    def __init__(self, status_code: int, error: _https.PrivateError | None = None) -> None:
+        detail = f" ({error.code})" if error is not None else ""
+        super().__init__(f"Control Plane returned HTTP status {status_code}{detail}")
         self.status_code = status_code
+        self.code = error.code if error is not None else None
+        self.retryable = error.retryable if error is not None else None
+        self.request_id = error.request_id if error is not None else None
+
+    @property
+    def permanent(self) -> bool:
+        """Whether sending the same request again cannot succeed.
+
+        The Server's retryable flag decides when its envelope is present.
+        Otherwise 5xx, 408, 409, 425 and 429 may clear and any other status is
+        permanent.
+        """
+
+        if self.retryable is not None:
+            return not self.retryable
+        return (
+            self.status_code < 500 and self.status_code not in _RETRYABLE_STATUSES_WITHOUT_ENVELOPE
+        )
+
+
+class RegistrationRejectedError(ControlClientError):
+    """The Control Plane rejected this process's registration permanently.
+
+    Its message names only the HTTP status, the Server's error code and request
+    ID, so it is safe to log; the process stops instead of repeating a
+    registration that cannot succeed (RTA-R113).
+    """
+
+    def __init__(self, error: ControlHTTPError) -> None:
+        reason = f"HTTP {error.status_code}"
+        if error.code is not None:
+            reason += f" {error.code}, request {error.request_id}"
+        super().__init__(
+            f"Control Plane rejected the Runtime Agent registration permanently ({reason}); "
+            "correct the Runtime Agent or Server configuration and restart"
+        )
+        self.status_code = error.status_code
+        self.code = error.code
 
 
 @dataclass(frozen=True, slots=True)
@@ -108,7 +154,7 @@ class MTLSJSONTransport:
         except _https.HTTPResponseError as error:
             raise ControlClientError(str(error)) from None
         if not 200 <= response.status_code < 300:
-            raise ControlHTTPError(response.status_code)
+            raise ControlHTTPError(response.status_code, _https.decode_private_error(response.body))
         return response.body
 
     def _encode_request(self, path: str, payload: Mapping[str, Any]) -> bytes:
@@ -200,6 +246,14 @@ class ControlClient:
         return response
 
     async def register_until_stopped(self, stop: asyncio.Event) -> bool:
+        """Register at startup, retrying with backoff until success or stop.
+
+        A failure that may clear (a transport error, a timeout or a rejection
+        the Server marks retryable) is retried. A permanent rejection raises
+        RegistrationRejectedError at once: the same registration of this
+        process can never succeed (RTA-R113, FAIL-CTL-1).
+        """
+
         failures = 0
         while not stop.is_set():
             try:
@@ -207,10 +261,19 @@ class ControlClient:
                 return True
             except asyncio.CancelledError:
                 raise
+            except ControlHTTPError as error:
+                if error.permanent:
+                    raise RegistrationRejectedError(error) from None
+                failures += 1
+                logger.warning(
+                    "Control Plane registration failed (HTTP %d %s)",
+                    error.status_code,
+                    error.code or "without an error code",
+                )
             except Exception as error:
                 failures += 1
                 logger.warning("Control Plane registration failed (%s)", type(error).__name__)
-                await self._sleep_until_stopped(stop, self._backoff(failures))
+            await self._sleep_until_stopped(stop, self._backoff(failures))
         return False
 
     async def heartbeat_once(self) -> HeartbeatResponse:

@@ -705,7 +705,7 @@ func newHandlerFixtureWithAuth(
 	configure ...func(*Dependencies),
 ) handlerFixture {
 	t.Helper()
-	manager, err := configload.NewManager(config.ManagerOptions{
+	manager, _, err := configload.NewManager(config.ManagerOptions{
 		OperatorRoot: configRoot,
 		ManagedRoot:  filepath.Join(t.TempDir(), "managed-configs"),
 		Descriptors:  config.MVPDescriptors(),

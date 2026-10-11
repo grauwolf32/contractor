@@ -432,11 +432,7 @@ func (s *Service) validateProfileDependencies(
 				"%w: Audit Workflow role %q credential selection is not runnable: %v", ErrInvalid, role, err,
 			)
 		}
-		ids, err := config.ResolvedWorkflowCredentialIDs(workflow)
-		if err != nil {
-			return nil, nil, nil, err
-		}
-		credentialSets = append(credentialSets, ids)
+		credentialSets = append(credentialSets, config.ResolvedWorkflowCredentialIDs(workflow))
 		refs, err := config.WorkflowSkillRefs(workflow)
 		if err != nil {
 			return nil, nil, nil, err

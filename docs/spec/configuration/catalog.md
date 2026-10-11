@@ -237,6 +237,14 @@ retaining unknown fields.
 `version`, which use the selector `id` and `version` grammars respectively
 (CAT-R18).
 
+**CAT-R77.** The loader reads each discovered YAML manifest and instruction
+resource with at most 4 MiB per file ([LIM-CAT-5](../platform/limits.md)). It
+opens the root and every path component below it again without following a
+symlink, so a link or a non-regular file swapped in after discovery is refused
+rather than followed. A larger file, or a path that no longer reaches a regular
+file, invalidates the complete configuration set. The same reads apply at
+startup, on the reload before a managed publication and in `config validate`.
+
 ### Identity
 
 **CAT-R13.** The configuration lookup key is
@@ -374,6 +382,11 @@ digest exists; Workflow `presentation` metadata does not add one
 reinterpret a Run and never re-resolves the authoring selector strings while
 executing it.
 
+**CAT-R78.** Every reader of a persisted Workflow snapshot decodes it strictly
+and applies the complete Workflow graph validation WorkflowCatalog applies at
+load; a snapshot that fails it is invalid on read. The check belongs to the
+decoder, so no reader skips it and none repeats it.
+
 ### Instruction resources
 
 **CAT-R36.** The authoring `instructions` object contains exactly one
@@ -400,7 +413,8 @@ Unicode, line-ending, BOM or trailing-newline normalization before hashing, so
 the stored text and digest identify exactly the bytes loaded from the
 configuration resource.
 
-**CAT-R42.** No separate maximum size applies to an instruction
+**CAT-R42.** Apart from the per-file read bound of CAT-R77, no separate
+maximum size applies to an instruction
 resource: it is an operator-authored file under the configuration root, loaded
 once at startup, and its only content rule is non-empty strict UTF-8. Its
 practical bound is the Planner budget that must carry the rendered text
@@ -614,6 +628,8 @@ Registry entries owned by this document:
   characters (CAT-R20).
 - [LIM-CAT-3](../platform/limits.md): the catalog discovery `q` has at most 200
   Unicode code points (CAT-R63).
+- [LIM-CAT-5](../platform/limits.md): one YAML manifest or instruction resource
+  is read with at most 4 MiB (CAT-R77).
 - [FAIL-CAT-1](../platform/failure-model.md): loading and resolving the
   configuration set (CAT-R24, CAT-R15,
   CAT-R32).

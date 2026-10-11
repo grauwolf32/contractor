@@ -34,7 +34,6 @@ MAX_FINDING_SUBMISSION_BYTES = 8 * 1024 * 1024
 # api/testdata/v1alpha1/artifact-list-cases.json.
 MAX_BINDING_LIST_LIMIT = 256
 PATH_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]+$")
-REQUEST_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
 DIGEST_PATTERN = re.compile(r"^sha256:[0-9a-f]{64}$")
 RUNTIME_INSTANCE_HEADER = "X-Contractor-Runtime-Instance-ID"
 BINDING_CREATED_AT_HEADER = "x-contractor-binding-created-at"
@@ -171,7 +170,10 @@ class ArtifactClient:
             raise ArtifactTransportError("finding proposal API returned an invalid version")
         for field_name in ("proposalId", "receiptId"):
             candidate = value.get(field_name)
-            if not isinstance(candidate, str) or REQUEST_ID_PATTERN.fullmatch(candidate) is None:
+            if (
+                not isinstance(candidate, str)
+                or _https.REQUEST_ID_PATTERN.fullmatch(candidate) is None
+            ):
                 raise ArtifactTransportError("finding proposal API returned an invalid identity")
         if not isinstance(value.get("replayed"), bool):
             raise ArtifactTransportError("finding proposal API returned an invalid replay marker")
@@ -428,29 +430,10 @@ class ArtifactClient:
     def _raise_for_status(response: ArtifactHTTPResponse) -> None:
         if 200 <= response.status_code < 300:
             return
-        code = "invalid_error_response"
-        retryable = False
-        request_id: str | None = None
-        if len(response.body) <= MAX_ARTIFACT_JSON_BYTES:
-            try:
-                value = json.loads(response.body)
-                if (
-                    isinstance(value, dict)
-                    and set(value) == {"code", "message", "retryable", "requestId"}
-                    and isinstance(value["code"], str)
-                    and value["code"].strip()
-                    and isinstance(value["message"], str)
-                    and value["message"].strip()
-                    and isinstance(value["retryable"], bool)
-                    and isinstance(value["requestId"], str)
-                    and REQUEST_ID_PATTERN.fullmatch(value["requestId"]) is not None
-                ):
-                    code = value["code"]
-                    retryable = value["retryable"]
-                    request_id = value["requestId"]
-            except (UnicodeDecodeError, json.JSONDecodeError):
-                pass
-        raise ArtifactAPIError(response.status_code, code, retryable, request_id)
+        error = _https.decode_private_error(response.body)
+        if error is None:
+            raise ArtifactAPIError(response.status_code, "invalid_error_response", False)
+        raise ArtifactAPIError(response.status_code, error.code, error.retryable, error.request_id)
 
 
 class MTLSArtifactTransport:

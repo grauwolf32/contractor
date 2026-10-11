@@ -255,6 +255,13 @@ func newFindingImportFixture(t *testing.T, direct bool) deletionImportFixture {
 			Required: true, Primary: true,
 			MediaTypes: []string{auditdomain.DirectVerificationsMediaType},
 		}
+		// The Stage result feeds the retyped output, so the stored snapshot
+		// stays a valid graph when it is read.
+		stage := workflow.Stages[workflow.EntryStage]
+		copied := stage.Result.Artifacts["copied"]
+		copied.MediaTypes = []string{auditdomain.DirectVerificationsMediaType}
+		stage.Result.Artifacts["copied"] = copied
+		workflow.Stages[workflow.EntryStage] = stage
 	}
 	encoded, err := json.Marshal(workflow)
 	if err != nil {

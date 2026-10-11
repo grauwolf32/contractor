@@ -23,16 +23,52 @@ var catalogLoaders = map[string]bool{
 	"Load": true, "LoadUnion": true, "LoadUnionReadOnly": true, "NewManager": true,
 }
 
+// referenceRule restricts the named exports of one package to the listed
+// internal/ packages (including their tests).
+type referenceRule struct {
+	importPath string
+	names      map[string]bool
+	allowed    []string
+}
+
 func TestCatalogLoadersAreReachedOnlyThroughConfigload(t *testing.T) {
 	t.Parallel()
 
+	for _, violation := range moduleReferences(t, referenceRule{
+		importPath: configImportPath, names: catalogLoaders, allowed: []string{"config", "configload"},
+	}) {
+		t.Errorf("%s: use configload instead so the bundle checks apply", violation)
+	}
+}
+
+// The checks in this package discover and validate the bundles on every load
+// and return them, so the Server walks its operator root once at startup and
+// seeds that plan; no other package discovers the bundles again.
+func TestBundleDiscoveryIsReachedOnlyThroughConfigload(t *testing.T) {
+	t.Parallel()
+
+	discover := map[string]bool{"DiscoverBundled": true}
+	for _, violation := range moduleReferences(t,
+		referenceRule{
+			importPath: "github.com/grauwolf32/contractor/internal/agentskills",
+			names:      discover, allowed: []string{"agentskills", "configload"},
+		},
+		referenceRule{
+			importPath: "github.com/grauwolf32/contractor/internal/auditstandards",
+			names:      discover, allowed: []string{"auditstandards", "configload"},
+		},
+	) {
+		t.Errorf("%s: use the Bundles a configload load returns instead of discovering the root again", violation)
+	}
+}
+
+// moduleReferences returns every reference a rule forbids in the Go files of
+// the module, walked once for all rules.
+func moduleReferences(t *testing.T, rules ...referenceRule) []string {
+	t.Helper()
 	moduleRoot, err := filepath.Abs(filepath.Join("..", ".."))
 	if err != nil {
 		t.Fatal(err)
-	}
-	allowed := map[string]bool{
-		filepath.Join(moduleRoot, "internal", "config"):     true,
-		filepath.Join(moduleRoot, "internal", "configload"): true,
 	}
 	var violations []string
 	fset := token.NewFileSet()
@@ -48,32 +84,46 @@ func TestCatalogLoadersAreReachedOnlyThroughConfigload(t *testing.T) {
 			}
 			return nil
 		}
-		if filepath.Ext(path) != ".go" || allowed[filepath.Dir(path)] {
+		if filepath.Ext(path) != ".go" {
 			return nil
 		}
 		source, err := os.ReadFile(path)
 		if err != nil {
 			return err
 		}
-		if !bytes.Contains(source, []byte(strconv.Quote(configImportPath))) {
-			return nil
+		var file *ast.File
+		for _, rule := range rules {
+			if rule.allows(moduleRoot, filepath.Dir(path)) ||
+				!bytes.Contains(source, []byte(strconv.Quote(rule.importPath))) {
+				continue
+			}
+			if file == nil {
+				if file, err = parser.ParseFile(fset, path, source, parser.SkipObjectResolution); err != nil {
+					return err
+				}
+			}
+			violations = append(violations, importReferences(fset, moduleRoot, file, rule)...)
 		}
-		file, err := parser.ParseFile(fset, path, source, parser.SkipObjectResolution)
-		if err != nil {
-			return err
-		}
-		violations = append(violations, loaderReferences(fset, moduleRoot, file)...)
 		return nil
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, violation := range violations {
-		t.Errorf("%s: use configload instead so the bundle checks apply", violation)
-	}
+	return violations
 }
 
-func loaderReferences(fset *token.FileSet, moduleRoot string, file *ast.File) []string {
+func (r referenceRule) allows(moduleRoot, directory string) bool {
+	for _, name := range r.allowed {
+		if directory == filepath.Join(moduleRoot, "internal", name) {
+			return true
+		}
+	}
+	return false
+}
+
+// importReferences finds every selector naming one of the rule's exports
+// through the file's import of the rule's package, under any alias.
+func importReferences(fset *token.FileSet, moduleRoot string, file *ast.File, rule referenceRule) []string {
 	var found []string
 	report := func(position token.Pos, what string) {
 		at := fset.Position(position)
@@ -82,15 +132,15 @@ func loaderReferences(fset *token.FileSet, moduleRoot string, file *ast.File) []
 	}
 	alias := ""
 	for _, spec := range file.Imports {
-		if path, _ := strconv.Unquote(spec.Path.Value); path != configImportPath {
+		if path, _ := strconv.Unquote(spec.Path.Value); path != rule.importPath {
 			continue
 		}
-		alias = "config"
+		alias = rule.importPath[strings.LastIndex(rule.importPath, "/")+1:]
 		if spec.Name != nil {
 			alias = spec.Name.Name
 		}
 		if alias == "." {
-			report(spec.Pos(), "dot import of internal/config hides catalog loader calls")
+			report(spec.Pos(), "dot import of "+rule.importPath+" hides restricted calls")
 		}
 	}
 	if alias == "" || alias == "_" || alias == "." {
@@ -101,7 +151,7 @@ func loaderReferences(fset *token.FileSet, moduleRoot string, file *ast.File) []
 		if !ok {
 			return true
 		}
-		if ident, ok := selector.X.(*ast.Ident); ok && ident.Name == alias && catalogLoaders[selector.Sel.Name] {
+		if ident, ok := selector.X.(*ast.Ident); ok && ident.Name == alias && rule.names[selector.Sel.Name] {
 			report(selector.Pos(), alias+"."+selector.Sel.Name)
 		}
 		return true
@@ -116,6 +166,7 @@ func TestLoaderReferencesFindAliasedCallsAndValues(t *testing.T) {
 
 import (
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/agentskills"
 )
 
 var load = workflowconfig.Load
@@ -123,6 +174,7 @@ var load = workflowconfig.Load
 func f() {
 	_, _ = workflowconfig.NewManager(workflowconfig.ManagerOptions{})
 	_ = workflowconfig.MVPDescriptors()
+	_, _ = agentskills.DiscoverBundled("configs")
 }
 `
 	fset := token.NewFileSet()
@@ -130,9 +182,18 @@ func f() {
 	if err != nil {
 		t.Fatal(err)
 	}
-	got := strings.Join(loaderReferences(fset, "/module", file), "\n")
-	want := "sample.go:7: workflowconfig.Load\nsample.go:10: workflowconfig.NewManager"
+	got := strings.Join(importReferences(fset, "/module", file, referenceRule{
+		importPath: configImportPath, names: catalogLoaders,
+	}), "\n")
+	want := "sample.go:8: workflowconfig.Load\nsample.go:11: workflowconfig.NewManager"
 	if got != want {
 		t.Fatalf("references =\n%s\nwant\n%s", got, want)
+	}
+	got = strings.Join(importReferences(fset, "/module", file, referenceRule{
+		importPath: "github.com/grauwolf32/contractor/internal/agentskills",
+		names:      map[string]bool{"DiscoverBundled": true},
+	}), "\n")
+	if want := "sample.go:13: agentskills.DiscoverBundled"; got != want {
+		t.Fatalf("discovery references = %q, want %q", got, want)
 	}
 }

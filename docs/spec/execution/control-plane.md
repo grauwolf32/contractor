@@ -324,6 +324,15 @@ Control Plane reconnects, but does not reuse it after its own restart.
 authentication credential; mTLS authenticates the agent and derives its stable
 principal.
 
+**CTL-R151.** Control Plane answers a rejected private request with the JSON
+envelope `code`, `message`, `retryable` and `requestId`. `retryable` is its
+verdict on whether the same request can succeed later: a registration that
+fails strict validation (`invalid_request`) or names labels that cannot be
+registered (`invalid_runtime_labels`) is not retryable; a conflict with the
+current Runtime Agent state and an internal failure are. The Runtime Agent
+follows the flag ahead of the HTTP status and never logs `message`
+([RTA-R113](runtime-agent.md)).
+
 **CTL-R13.** For the live instance, Control Plane records the last
 accepted registration/heartbeat request, the issued and confirmed heartbeat
 sequences, and the observed and authoritative single-slot facts.

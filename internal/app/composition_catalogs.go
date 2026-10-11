@@ -10,6 +10,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditstandards"
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/findingintake"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -19,11 +20,13 @@ type catalogServices struct {
 	findings  *findingintake.Service
 }
 
+// configureCatalogs seeds the bundles the startup configuration load
+// discovered and validated; it never walks the operator root itself.
 func configureCatalogs(
 	ctx context.Context,
 	pool *pgxpool.Pool,
 	configurationManager *workflowconfig.Manager,
-	cfg Config,
+	bundles configload.Bundles,
 	ownerID string,
 	logger *slog.Logger,
 ) (catalogServices, error) {
@@ -36,11 +39,7 @@ func configureCatalogs(
 	if err != nil {
 		return catalogServices{}, fmt.Errorf("configure SkillCatalog: %w", err)
 	}
-	skillSeedPlan, err := agentskills.DiscoverBundled(cfg.OperatorConfigRoot)
-	if err != nil {
-		return catalogServices{}, fmt.Errorf("discover bundled skills: %w", err)
-	}
-	skillSeedOutcomes, err := skillCatalog.Initialize(ctx, ownerID, skillSeedPlan)
+	skillSeedOutcomes, err := skillCatalog.Initialize(ctx, ownerID, bundles.Skills)
 	if err != nil {
 		return catalogServices{}, fmt.Errorf("initialize bundled skills: %w", err)
 	}
@@ -57,12 +56,8 @@ func configureCatalogs(
 	if err != nil {
 		return catalogServices{}, fmt.Errorf("configure Audit standard catalog: %w", err)
 	}
-	standardSeedPlan, err := auditstandards.DiscoverBundled(cfg.OperatorConfigRoot)
-	if err != nil {
-		return catalogServices{}, fmt.Errorf("discover bundled Audit standards: %w", err)
-	}
 	standardSeedOutcomes, err := standardCatalog.Initialize(
-		ctx, ownerID, standardSeedPlan,
+		ctx, ownerID, bundles.Standards,
 	)
 	if err != nil {
 		return catalogServices{}, fmt.Errorf("initialize bundled Audit standards: %w", err)

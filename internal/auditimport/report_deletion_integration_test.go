@@ -321,7 +321,7 @@ func newReportDeletionFixture(t *testing.T, pool *pgxpool.Pool, acceptance strin
 
 func reportDeletionReviewService(t *testing.T, f *completionFixture) *auditservice.Service {
 	t.Helper()
-	manager, err := configload.NewManager(config.ManagerOptions{
+	manager, _, err := configload.NewManager(config.ManagerOptions{
 		OperatorRoot: "../config/testdata/valid", ManagedRoot: filepath.Join(t.TempDir(), "managed"),
 		Descriptors: config.MVPDescriptors(),
 	})

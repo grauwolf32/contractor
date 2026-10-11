@@ -244,6 +244,18 @@ registration bounds of [CTL-R148](control-plane.md) fails startup readiness
 with a safe discovery error, because Control Plane would reject every
 registration of it (FAIL-CTL-1).
 
+**RTA-R113.** Startup registration retries, with the bounded control backoff,
+only a failure that may clear: a connection error, a timeout, an invalid
+response, or a rejection whose private error envelope says `retryable: true`
+([CTL-R151](control-plane.md)); without that envelope, HTTP 408, 409, 425, 429
+and every 5xx. Any other rejection is permanent: the Runtime Agent ends startup
+with a safe error that names only the HTTP status, the Server's error code and
+its request ID, stops its listener and exits non-zero instead of repeating a
+registration that cannot succeed (FAIL-CTL-1). A running agent's
+re-registration, requested by a heartbeat or after a release, keeps retrying
+(RTA-R28), because the agent may still have to confirm the release of a
+fenced allocation.
+
 **RTA-R7.** The Runtime enables every installed built-in adapter by
 default. An immutable startup allowlist may narrow that installed surface with
 repeated `--runtime-adapter <ref>` flags or the comma-separated
@@ -914,6 +926,8 @@ Failure outcomes ([failure model](../platform/failure-model.md)):
   FAIL-FAIL-7.
 - FAIL-RTA-10 — allocation resource measurement (RTA-R98,
   RTA-R99).
+- Registration outcomes are FAIL-CTL-1 in [Control Plane](control-plane.md);
+  the Runtime ends startup on a permanent rejection (RTA-R113).
 
 Lifecycle ([registry](../platform/lifecycle.md)):
 

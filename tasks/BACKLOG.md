@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-80 open tasks: 3 in progress, 63 pending, 14 deferred. 816 finished: 813 completed, 3 archived.
+78 open tasks: 3 in progress, 61 pending, 14 deferred. 818 finished: 815 completed, 3 archived.
 
 ## In progress
 
@@ -21,7 +21,6 @@ the epics are in [epics.yml](epics.yml).
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
-| [V368-017](v368-017-registration-permanent-failure.yml) | defect | P1 | — | Stop retrying a Runtime registration the Server rejected permanently |
 | [V368-034](v368-034-gateway-recovery-followups.yml) | chore | P3 | — | Share the gateway recovery participant protocol and index the probe holder |
 | [V370-001](v370-001-run-stage-transition-owner.yml) | chore | P1 | V369-001 | Give Run and Stage state transitions one owner |
 | [V370-011](v370-011-scheduler-controlplane-surface.yml) | chore | P3 | — | Slim the Scheduler and Control Plane surfaces |
@@ -62,7 +61,6 @@ the epics are in [epics.yml](epics.yml).
 | [V368-014](v368-014-snapshot-size-on-write.yml) | defect | P1 | — | Reject oversized Workflow snapshots when the Run is created |
 | [V369-006](v369-006-toolset-parity-fixture.yml) | chore | P2 | — | Extend the toolset parity fixture to the whole descriptor |
 | [V370-006](v370-006-config-model-split.yml) | chore | P2 | — | Separate the configuration data model from the catalog loader |
-| [V370-015](v370-015-simplify-config.yml) | chore | P3 | — | Remove duplicated code in config and catalog bundles |
 | [V370-030](v370-030-catalog-hot-paths.yml) | defect | P3 | — | Cache catalog fingerprints and decoded Workflow snapshots |
 
 ### Projects, artifacts and lifecycle controls (`projects-artifacts`)
@@ -171,7 +169,7 @@ tasks in `introduced_by`.
 
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Run execution core (`execution-core`) | 7 | 36 | 44 | 9 | 62 |
+| Run execution core (`execution-core`) | 6 | 36 | 44 | 9 | 62 |
 | Planners and the Worker model boundary (`planner-worker`) | 2 | 23 | 34 | 7 | 42 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 9 | 25 | 11 | 2 | 37 |
 | Shared Memory tools (`memory`) | 1 | 6 | 8 | 1 | 11 |
@@ -181,7 +179,7 @@ tasks in `introduced_by`.
 | HTTP and Caido tools (`http-tools`) | 0 | 8 | 11 | 1 | 10 |
 | Scanner tool Workers and scan planning (`scan-tools`) | 1 | 10 | 4 | 1 | 7 |
 | Findings tools and collections (`findings`) | 2 | 7 | 4 | 1 | 6 |
-| Workflow catalog and document workflows (`workflows`) | 5 | 13 | 13 | 8 | 11 |
+| Workflow catalog and document workflows (`workflows`) | 4 | 13 | 13 | 8 | 11 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 3 | 27 | 31 | 3 | 33 |
 | Audits (`audits`) | 24 | 49 | 64 | 12 | 71 |
 | Evaluations (`evals`) | 2 | 21 | 26 | 4 | 33 |

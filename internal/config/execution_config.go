@@ -705,23 +705,19 @@ func validateRunCredentials(
 
 // ValidateResolvedWorkflowCredentials revalidates every base and escalation
 // credential selected by an already-resolved Workflow. Audit start uses this
-// without consulting the mutable Workflow catalog again. Its errors follow the
-// ErrCredentialLookup classification of ResolveRunWorkflow.
+// without consulting the mutable Workflow catalog again. The Workflow comes
+// from a catalog Snapshot, ResolveRunWorkflow or a snapshot decoder, which
+// have validated its graph, so only the credentials are checked here. Its
+// errors follow the ErrCredentialLookup classification of ResolveRunWorkflow.
 func ValidateResolvedWorkflowCredentials(
 	ctx context.Context, workflow ResolvedWorkflow, lookup CredentialLookup,
 ) error {
-	if err := ValidateWorkflowGraph(workflow); err != nil {
-		return err
-	}
 	return validateRunCredentials(ctx, workflow, lookup)
 }
 
 // ResolvedWorkflowCredentialIDs returns the canonical exact credential-ID set
-// retained by a resolved Workflow, including escalation variants.
-func ResolvedWorkflowCredentialIDs(workflow ResolvedWorkflow) ([]string, error) {
-	if err := ValidateWorkflowGraph(workflow); err != nil {
-		return nil, err
-	}
+// retained by an already validated Workflow, including escalation variants.
+func ResolvedWorkflowCredentialIDs(workflow ResolvedWorkflow) []string {
 	selected := make(map[string]struct{})
 	for _, stageName := range slices.Sorted(maps.Keys(workflow.Stages)) {
 		stage := workflow.Stages[stageName]
@@ -747,7 +743,7 @@ func ResolvedWorkflowCredentialIDs(workflow ResolvedWorkflow) ([]string, error) 
 		result = append(result, credentialID)
 	}
 	sort.Strings(result)
-	return result, nil
+	return result
 }
 
 func validateStageExecutionConfigCredentials(

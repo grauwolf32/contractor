@@ -14,30 +14,10 @@ func DecodeResolvedWorkflowSnapshot(data []byte) (ResolvedWorkflow, error) {
 	if err := strictjson.Decode(data, &workflow); err != nil {
 		return ResolvedWorkflow{}, err
 	}
-	if err := ValidateAuditTaskWorkflow(workflow); err != nil {
-		return ResolvedWorkflow{}, err
-	}
-	for name, stage := range workflow.Stages {
-		if err := validateWorkflowName("persisted Workflow Stage name", name); err != nil {
-			return ResolvedWorkflow{}, err
-		}
-		if err := validateStageAgentNames(fmt.Sprintf("persisted Workflow Stage %q", name), stage.Agents); err != nil {
-			return ResolvedWorkflow{}, err
-		}
-		if err := stage.Session.Validate(); err != nil {
-			return ResolvedWorkflow{}, fmt.Errorf("persisted Workflow Stage %q: %w", name, err)
-		}
-		if err := ValidateScanPlanStage(stage); err != nil {
-			return ResolvedWorkflow{}, fmt.Errorf("persisted Workflow Stage %q: %w", name, err)
-		}
-		if stage.ScanPlan != nil {
-			if err := validateStageExecutionConfig(name, stage); err != nil {
-				return ResolvedWorkflow{}, err
-			}
-			if err := validateScanPlanInputMedia(workflow, stage); err != nil {
-				return ResolvedWorkflow{}, err
-			}
-		}
+	// Every reader gets a Workflow that passes the same complete graph check
+	// as a catalog load (CAT-R78), so no caller validates it again.
+	if err := ValidateWorkflowGraph(workflow); err != nil {
+		return ResolvedWorkflow{}, fmt.Errorf("persisted Workflow: %w", err)
 	}
 	return workflow, nil
 }

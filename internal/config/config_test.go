@@ -1,6 +1,9 @@
 package config
 
 import (
+	"bytes"
+	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -9,6 +12,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/configtest"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/securefile"
 	"go.yaml.in/yaml/v4"
 )
 
@@ -765,6 +769,89 @@ func TestManifestDiscoveryRejectsSymlinks(t *testing.T) {
 	if snapshot, err := Load(root, MVPDescriptors()); err == nil || snapshot != nil ||
 		!strings.Contains(err.Error(), "is a symlink") {
 		t.Fatalf("Load() = (%v, %v), want strict symlink error", snapshot, err)
+	}
+}
+
+// Every manifest and instruction resource is read with one file bound
+// (LIM-CAT-5, CAT-R77): a file of exactly the bound loads, one more byte
+// rejects the complete set.
+func TestCatalogFileReadsAreBounded(t *testing.T) {
+	t.Parallel()
+
+	t.Run("instruction", func(t *testing.T) {
+		root := copyCoreFixture(t)
+		path := filepath.Join(root, "instructions", "padding.md")
+		writeFile(t, path, bytes.Repeat([]byte("a"), maximumCatalogFileBytes))
+		if _, err := Load(root, MVPDescriptors()); err != nil {
+			t.Fatalf("instruction at the bound: %v", err)
+		}
+		writeFile(t, path, bytes.Repeat([]byte("a"), maximumCatalogFileBytes+1))
+		snapshot, err := Load(root, MVPDescriptors())
+		if snapshot != nil || !errors.Is(err, securefile.ErrTooLarge) ||
+			!strings.Contains(err.Error(), `read instruction "instructions/padding.md"`) {
+			t.Fatalf("instruction over the bound = (%v, %v)", snapshot, err)
+		}
+	})
+	t.Run("manifest", func(t *testing.T) {
+		root := copyCoreFixture(t)
+		path := filepath.Join(root, "model-policies", "test-worker.yaml")
+		original := readFile(t, path)
+		// A trailing YAML comment keeps the manifest valid at any length.
+		padded := func(size int) []byte {
+			data := append(append([]byte(nil), original...), "\n#"...)
+			return append(data, bytes.Repeat([]byte("x"), size-len(data))...)
+		}
+		writeFile(t, path, padded(maximumCatalogFileBytes))
+		if _, err := Load(root, MVPDescriptors()); err != nil {
+			t.Fatalf("manifest at the bound: %v", err)
+		}
+		writeFile(t, path, padded(maximumCatalogFileBytes+1))
+		snapshot, err := Load(root, MVPDescriptors())
+		if snapshot != nil || !errors.Is(err, securefile.ErrTooLarge) ||
+			!strings.Contains(err.Error(), "model-policies/test-worker.yaml: read manifest") {
+			t.Fatalf("manifest over the bound = (%v, %v)", snapshot, err)
+		}
+	})
+}
+
+// A persisted Workflow snapshot is read with the same complete graph check as
+// a catalog load (CAT-R78), so no reader validates it again and none skips it.
+func TestDecodeResolvedWorkflowSnapshotChecksTheWholeGraph(t *testing.T) {
+	t.Parallel()
+
+	snapshot := mustLoad(t, copyCoreFixture(t), MVPDescriptors())
+	workflow, err := snapshot.Workflow("artifact-copy@1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	encoded, err := json.Marshal(workflow)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if decoded, err := DecodeResolvedWorkflowSnapshot(encoded); err != nil || !reflect.DeepEqual(decoded, workflow) {
+		t.Fatalf("valid snapshot = (%+v, %v)", decoded, err)
+	}
+	for name, tamper := range map[string]func(*ResolvedWorkflow){
+		"missing entry Stage": func(workflow *ResolvedWorkflow) { workflow.EntryStage = "missing" },
+		"undeclared Workflow output": func(workflow *ResolvedWorkflow) {
+			workflow.Stages["copy"].WorkflowOutputs["undeclared"] = "copied"
+		},
+		"transition to a missing Stage": func(workflow *ResolvedWorkflow) {
+			stage := workflow.Stages["copy"]
+			stage.On.Succeeded = TransitionAction{Kind: TransitionNext, NextStage: "missing"}
+			workflow.Stages["copy"] = stage
+		},
+	} {
+		tampered := cloneWorkflow(workflow)
+		tamper(&tampered)
+		encoded, err := json.Marshal(tampered)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if decoded, err := DecodeResolvedWorkflowSnapshot(encoded); err == nil ||
+			!strings.HasPrefix(err.Error(), "persisted Workflow: ") || !reflect.DeepEqual(decoded, ResolvedWorkflow{}) {
+			t.Errorf("%s: DecodeResolvedWorkflowSnapshot = (%+v, %v)", name, decoded, err)
+		}
 	}
 }
 

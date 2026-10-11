@@ -39,7 +39,7 @@ func TestPostgresPublicRunInitializationAndFrozenOutput(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	pool := isolatedPublicPool(t, ctx)
-	configurationManager, err := configload.NewManager(config.ManagerOptions{
+	configurationManager, _, err := configload.NewManager(config.ManagerOptions{
 		OperatorRoot: "../../config/testdata/valid",
 		ManagedRoot:  filepath.Join(t.TempDir(), "managed-configs"),
 		Descriptors:  config.MVPDescriptors(),

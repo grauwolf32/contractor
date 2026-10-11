@@ -76,7 +76,7 @@ func TestConfigValidateMatchesServerForFilesystemAndUnionFailures(t *testing.T) 
 			if validationErr == nil || !strings.Contains(validationErr.Error(), test.want) {
 				t.Fatalf("config validate error = %v, want %q", validationErr, test.want)
 			}
-			_, serverErr := loadServerConfiguration(operator, managed, slog.New(slog.NewTextHandler(io.Discard, nil)))
+			_, _, serverErr := loadServerConfiguration(operator, managed, slog.New(slog.NewTextHandler(io.Discard, nil)))
 			if serverErr == nil || !strings.Contains(serverErr.Error(), test.want) {
 				t.Fatalf("Server load error = %v, want %q", serverErr, test.want)
 			}
@@ -93,7 +93,7 @@ func TestConfigValidateAndServerAcceptFindingsReaderWithCollectionInput(t *testi
 	if err := validateConfigForTest(operator, managed); err != nil {
 		t.Fatalf("config validate rejected the findings reader: %v", err)
 	}
-	manager, err := loadServerConfiguration(operator, managed, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	manager, _, err := loadServerConfiguration(operator, managed, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	if err != nil {
 		t.Fatalf("Server rejected the findings reader: %v", err)
 	}
@@ -148,7 +148,7 @@ func TestConfigValidateNeverCreatesManagedRootOrSubtrees(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(managed, "workflows")); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("validation created managed subtree: %v", err)
 	}
-	if _, err := loadServerConfiguration(operator, managed, slog.New(slog.NewTextHandler(io.Discard, nil))); err != nil {
+	if _, _, err := loadServerConfiguration(operator, managed, slog.New(slog.NewTextHandler(io.Discard, nil))); err != nil {
 		t.Fatalf("Server rejected configuration accepted by config validate: %v", err)
 	}
 }

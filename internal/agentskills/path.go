@@ -54,24 +54,3 @@ func isASCII(value string) bool {
 	}
 	return true
 }
-
-func validSkillName(value string) bool {
-	if len(value) < 1 || len(value) > 64 || value[0] == '-' || value[len(value)-1] == '-' {
-		return false
-	}
-	previousHyphen := false
-	for _, char := range []byte(value) {
-		if char == '-' {
-			if previousHyphen {
-				return false
-			}
-			previousHyphen = true
-			continue
-		}
-		previousHyphen = false
-		if (char < 'a' || char > 'z') && (char < '0' || char > '9') {
-			return false
-		}
-	}
-	return true
-}

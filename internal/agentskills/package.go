@@ -3,16 +3,17 @@ package agentskills
 import (
 	"archive/zip"
 	"bytes"
+	"errors"
 	"fmt"
 	"hash/crc32"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
-	"strings"
-)
 
-var errSourceLimit = fmt.Errorf("source member exceeds limit")
+	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/securefile"
+)
 
 // PackageDirectory validates a source tree and returns its canonical archive.
 // The expected skill name is the source directory's base name.
@@ -23,7 +24,7 @@ func PackageDirectory(source string) ([]byte, *Package, error) {
 		return nil, nil, validationError(CodeMemberForbidden, "")
 	}
 	expectedName := filepath.Base(filepath.Clean(source))
-	if !validSkillName(expectedName) {
+	if !contracts.ValidAgentSkillName(expectedName) {
 		return nil, nil, validationError(CodeNameMismatch, "")
 	}
 
@@ -92,10 +93,10 @@ func PackageDirectory(source string) ([]byte, *Package, error) {
 		if path == "SKILL.md" {
 			limit = MaximumManifestBytes
 		}
-		data, readErr := readSourceFileNoFollow(source, path, limit)
+		data, readErr := securefile.ReadBeneath(source, path, limit)
 		if readErr != nil {
 			_ = writer.Close()
-			if readErr == errSourceLimit {
+			if errors.Is(readErr, securefile.ErrTooLarge) {
 				return nil, nil, validationError(CodeLimitExceeded, path)
 			}
 			return nil, nil, validationError(CodeMemberForbidden, path)
@@ -129,5 +130,3 @@ func PackageDirectory(source string) ([]byte, *Package, error) {
 	}
 	return append([]byte(nil), payload...), validated, nil
 }
-
-func sourcePathParts(path string) []string { return strings.Split(path, "/") }

@@ -36,9 +36,6 @@ func decodeExecutableWorkflow(run runstore.WorkflowRun) (executableWorkflow, err
 		strings.TrimSpace(workflow.EntryStage) == "" {
 		return executableWorkflow{}, fmt.Errorf("%w: Workflow identity or entry Stage is invalid", ErrUnsupportedWorkflow)
 	}
-	if err := workflowconfig.ValidateWorkflowGraph(workflow); err != nil {
-		return executableWorkflow{}, fmt.Errorf("%w: invalid Workflow graph: %v", ErrUnsupportedWorkflow, err)
-	}
 	for stageName, stage := range workflow.Stages {
 		plannerRef := stage.Planner.PlannerID + "@" + stage.Planner.Version
 		validShape := false
