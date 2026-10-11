@@ -32,8 +32,8 @@ from contractor_runtime.contracts.base import (
     TerminationError,
     VersionedWireModel,
     WireModel,
+    _bounded_completion,
     _encoded_state_path_list_size,
-    _known_completion,
     _require_state_workspace_path,
     _require_text,
     _require_worker_result_text,
@@ -426,8 +426,8 @@ class WorkerAllocationMetricsState(WireModel):
 
     @field_validator("completion", mode="before")
     @classmethod
-    def known_completion(cls, value):
-        return _known_completion(value)
+    def bounded_completion(cls, value):
+        return _bounded_completion(value)
 
     worker_budget: WorkerStateBudget | None = Field(
         default=None, exclude_if=lambda value: value is None

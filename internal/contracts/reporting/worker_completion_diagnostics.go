@@ -42,24 +42,16 @@ func (d WorkerCompletionDiagnostics) Validate() error {
 	return nil
 }
 
-// Unknown optional kinds/phases are discarded instead of being interpreted as
-// successful completion. Known data is decoded strictly and remains bounded.
+// decodeWorkerCompletionDiagnostics strictly decodes the optional completion
+// object of a report or live Worker State. An unknown kind or phase is invalid
+// like any other malformed value (AWC-R115): it fails the containing message
+// with contracts.ErrValidation instead of being dropped.
 func decodeWorkerCompletionDiagnostics(data []byte) (*WorkerCompletionDiagnostics, error) {
 	if len(data) == 0 || bytes.Equal(bytes.TrimSpace(data), []byte("null")) {
 		return nil, nil
 	}
 	if len(data) > 4096 || strictjson.RejectDuplicateKeys(data) != nil {
 		return nil, contracts.Invalidf("invalid Worker completion diagnostics JSON")
-	}
-	var header struct {
-		Kind  string `json:"kind"`
-		Phase string `json:"phase"`
-	}
-	if err := json.Unmarshal(data, &header); err != nil {
-		return nil, err
-	}
-	if header.Kind != "" && header.Phase != "" && (header.Kind != contracts.AuditCheckResultsV1 || !knownCompletionPhase(header.Phase)) {
-		return nil, nil
 	}
 	var value WorkerCompletionDiagnostics
 	var fields map[string]json.RawMessage

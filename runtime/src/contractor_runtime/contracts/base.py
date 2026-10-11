@@ -114,23 +114,12 @@ class ReconciliationAction(StrEnum):
     REREGISTER = "reregister"
 
 
-def _known_completion(value):
-    # Optional future diagnostics must not make historical reports unreadable.
+def _bounded_completion(value):
+    # The optional completion object is bounded before its strict model
+    # validation (LIM-AWC-12). An unknown kind or phase is not dropped: the
+    # model rejects it like any other malformed value (AWC-R115).
     if isinstance(value, dict) and len(json.dumps(value).encode()) > 4096:
         raise ValueError("completion diagnostics exceed their bound")
-    if (
-        isinstance(value, dict)
-        and isinstance(value.get("kind"), str)
-        and isinstance(value.get("phase"), str)
-        and value["kind"] != ""
-        and value["phase"] != ""
-        and (
-            value.get("kind") != "audit-check-results@1"
-            or value.get("phase")
-            not in {"collecting", "sealed", "publishing", "published", "failed"}
-        )
-    ):
-        return None
     return value
 
 

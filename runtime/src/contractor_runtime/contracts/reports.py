@@ -22,7 +22,7 @@ from contractor_runtime.contracts.base import (
     RuntimeAdapterRef,
     VersionedWireModel,
     WireModel,
-    _known_completion,
+    _bounded_completion,
     _require_aware_datetime,
     _require_text,
 )
@@ -295,8 +295,8 @@ class ExecutionReport(WireModel):
 
     @field_validator("completion", mode="before")
     @classmethod
-    def known_completion(cls, value):
-        return _known_completion(value)
+    def bounded_completion(cls, value):
+        return _bounded_completion(value)
 
     @field_validator("report_id")
     @classmethod

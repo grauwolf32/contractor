@@ -2,28 +2,36 @@ package reporting
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"strings"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 )
 
+// TestSharedWorkerCompletionDiagnostics gives every case of the shared fixture
+// the same verdict as the Python models and the JSON Schema: a valid object
+// is kept exactly, and any invalid one, including an unknown kind or phase
+// (AWC-R115), rejects the whole report or live Worker State.
 func TestSharedWorkerCompletionDiagnostics(t *testing.T) {
 	data, err := os.ReadFile(contractstest.Path(t, "api", "testdata", "audit-completion", "diagnostics.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	var cases []struct {
-		Name  string
-		Value json.RawMessage
-		Valid bool
-		Known bool
+		Name         string
+		Value        json.RawMessage
+		Valid        bool
+		SemanticOnly bool
 	}
 	if err := json.Unmarshal(data, &cases); err != nil {
 		t.Fatal(err)
 	}
+	seen := map[string]bool{}
 	for _, item := range cases {
+		seen[item.Name] = true
 		t.Run(item.Name, func(t *testing.T) {
 			liveRaw := `{"counters":{},"toolCalls":[],"errors":[],"finalOutcome":null,"truncated":false,"completion":` + string(item.Value) + `}`
 			var live WorkerAllocationState
@@ -43,21 +51,29 @@ func TestSharedWorkerCompletionDiagnostics(t *testing.T) {
 			if (err == nil) != item.Valid {
 				t.Fatalf("valid=%v want=%v: %v", err == nil, item.Valid, err)
 			}
+			if strings.HasPrefix(item.Name, "unknown-") &&
+				(!errors.Is(err, contracts.ErrValidation) || !errors.Is(liveErr, contracts.ErrValidation)) {
+				t.Fatalf("unknown kind or phase is not a validation error: report %v, live %v", err, liveErr)
+			}
 			if !item.Valid {
 				return
 			}
-			if (report.Completion != nil) != item.Known || (live.Completion != nil) != item.Known {
-				t.Fatal("unknown diagnostics were interpreted")
+			if report.Completion == nil || live.Completion == nil {
+				t.Fatal("valid diagnostics were dropped")
 			}
-			encoded, err := json.Marshal(report)
-			if err != nil || strings.Contains(string(encoded), "private-evidence-marker") {
-				t.Fatal("unsafe report roundtrip")
-			}
-			encoded, err = json.Marshal(live)
-			if err != nil || strings.Contains(string(encoded), "private-evidence-marker") {
-				t.Fatal("unsafe live State roundtrip")
+			for _, value := range []*WorkerCompletionDiagnostics{report.Completion, live.Completion} {
+				encoded, err := json.Marshal(value)
+				if err != nil {
+					t.Fatal(err)
+				}
+				contractstest.AssertSemanticJSONEqual(t, encoded, item.Value)
 			}
 		})
+	}
+	for _, name := range []string{"unknown-kind", "unknown-phase"} {
+		if !seen[name] {
+			t.Fatalf("shared fixture lost its %s case", name)
+		}
 	}
 }
 
