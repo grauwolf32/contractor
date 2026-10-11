@@ -26,13 +26,19 @@ type OperationalSettings struct {
 	CredentialManagement CredentialManagementSettings
 }
 
+// SchedulerSettings are the Workflow Scheduler's process budgets. A Runtime
+// batch is not a Scheduler operation: RuntimeLifecycleSettings bound it.
 type SchedulerSettings struct {
+	PollInterval        time.Duration
+	ClaimDuration       time.Duration
+	LeaseScanInterval   time.Duration
 	OperationTimeout    time.Duration
 	FinalizationTimeout time.Duration
 	AbortTimeout        time.Duration
 }
 
 type RuntimeLifecycleSettings struct {
+	PrepareTimeout time.Duration
 	CleanupTimeout time.Duration
 }
 
@@ -74,11 +80,15 @@ type operationalSpec struct {
 		AutomaticWindow *string `yaml:"automaticWindow"`
 	} `yaml:"llmRecovery"`
 	Scheduler struct {
+		PollInterval        *string `yaml:"pollInterval"`
+		ClaimDuration       *string `yaml:"claimDuration"`
+		LeaseScanInterval   *string `yaml:"leaseScanInterval"`
 		OperationTimeout    *string `yaml:"operationTimeout"`
 		FinalizationTimeout *string `yaml:"finalizationTimeout"`
 		AbortTimeout        *string `yaml:"abortTimeout"`
 	} `yaml:"scheduler"`
 	RuntimeLifecycle struct {
+		PrepareTimeout *string `yaml:"prepareTimeout"`
 		CleanupTimeout *string `yaml:"cleanupTimeout"`
 	} `yaml:"runtimeLifecycle"`
 	ProjectLifecycle struct {
@@ -113,11 +123,15 @@ func defaultOperationalSettings() OperationalSettings {
 	return OperationalSettings{
 		LLMRecovery: gatewayrecovery.DefaultPolicy(),
 		Scheduler: SchedulerSettings{
+			PollInterval:        time.Second,
+			ClaimDuration:       2 * time.Minute,
+			LeaseScanInterval:   time.Second,
 			OperationTimeout:    30 * time.Second,
 			FinalizationTimeout: 10 * time.Second,
 			AbortTimeout:        10 * time.Second,
 		},
 		RuntimeLifecycle: RuntimeLifecycleSettings{
+			PrepareTimeout: 30 * time.Second,
 			CleanupTimeout: 30 * time.Second,
 		},
 		ProjectLifecycle: ProjectLifecycleSettings{
@@ -161,9 +175,13 @@ func (s *OperationalSettings) durations(spec operationalSpec) []operationalDurat
 		{"llmRecovery.initialDelay", "llm-recovery-initial-delay", &s.LLMRecovery.InitialDelay, spec.LLMRecovery.InitialDelay},
 		{"llmRecovery.maxDelay", "llm-recovery-max-delay", &s.LLMRecovery.MaxDelay, spec.LLMRecovery.MaxDelay},
 		{"llmRecovery.automaticWindow", "llm-recovery-automatic-window", &s.LLMRecovery.AutomaticWindow, spec.LLMRecovery.AutomaticWindow},
+		{"scheduler.pollInterval", "scheduler-poll-interval", &s.Scheduler.PollInterval, spec.Scheduler.PollInterval},
+		{"scheduler.claimDuration", "scheduler-claim-duration", &s.Scheduler.ClaimDuration, spec.Scheduler.ClaimDuration},
+		{"scheduler.leaseScanInterval", "scheduler-lease-scan-interval", &s.Scheduler.LeaseScanInterval, spec.Scheduler.LeaseScanInterval},
 		{"scheduler.operationTimeout", "scheduler-operation-timeout", &s.Scheduler.OperationTimeout, spec.Scheduler.OperationTimeout},
 		{"scheduler.finalizationTimeout", "scheduler-finalization-timeout", &s.Scheduler.FinalizationTimeout, spec.Scheduler.FinalizationTimeout},
 		{"scheduler.abortTimeout", "scheduler-abort-timeout", &s.Scheduler.AbortTimeout, spec.Scheduler.AbortTimeout},
+		{"runtimeLifecycle.prepareTimeout", "runtime-lifecycle-prepare-timeout", &s.RuntimeLifecycle.PrepareTimeout, spec.RuntimeLifecycle.PrepareTimeout},
 		{"runtimeLifecycle.cleanupTimeout", "runtime-lifecycle-cleanup-timeout", &s.RuntimeLifecycle.CleanupTimeout, spec.RuntimeLifecycle.CleanupTimeout},
 		{"projectLifecycle.operationTimeout", "project-lifecycle-operation-timeout", &s.ProjectLifecycle.OperationTimeout, spec.ProjectLifecycle.OperationTimeout},
 		{"projectLifecycle.claimDuration", "project-lifecycle-claim-duration", &s.ProjectLifecycle.ClaimDuration, spec.ProjectLifecycle.ClaimDuration},
@@ -239,6 +257,13 @@ func (s *OperationalSettings) validate() error {
 	}
 	if audit.ClaimBatch < 1 || audit.ClaimBatch > auditstore.MaxClaimBatch {
 		return fmt.Errorf("spec.auditController.claimBatch must be 1..%d", auditstore.MaxClaimBatch)
+	}
+	// A claim renewal is one Scheduler operation. It starts at most a third of
+	// the lease after the previous renewal, so with operationTimeout at most
+	// half the lease it ends before that lease expires.
+	scheduler := s.Scheduler
+	if scheduler.ClaimDuration < time.Microsecond || scheduler.OperationTimeout > scheduler.ClaimDuration/2 {
+		return fmt.Errorf("spec.scheduler.claimDuration must be at least 1us and at least twice operationTimeout")
 	}
 	if s.ProjectLifecycle.ClaimDuration < time.Microsecond || s.ProjectLifecycle.OperationTimeout >= s.ProjectLifecycle.ClaimDuration {
 		return fmt.Errorf("spec.projectLifecycle.claimDuration must be at least 1us and greater than operationTimeout")

@@ -3,7 +3,10 @@ package app
 import (
 	"bytes"
 	"log/slog"
+	"os"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -27,8 +30,8 @@ func TestOperationalSettingsFromFileReachDatabaseAndEffectiveLog(t *testing.T) {
 	writeServerConfigTestFile(t, path, `apiVersion: contractor/v1alpha1
 kind: ServerConfig
 spec:
-  scheduler: {operationTimeout: 37s, finalizationTimeout: 13s, abortTimeout: 11s}
-  runtimeLifecycle: {cleanupTimeout: 17s}
+  scheduler: {pollInterval: 3s, claimDuration: 5m, leaseScanInterval: 2s, operationTimeout: 37s, finalizationTimeout: 13s, abortTimeout: 11s}
+  runtimeLifecycle: {prepareTimeout: 21s, cleanupTimeout: 17s}
   projectLifecycle: {operationTimeout: 19s, claimDuration: 71s, purgeTimeout: 5m}
   auditController: {pollInterval: 3s, claimLease: 45s, operationTimeout: 12s, claimBatch: 9}
   database: {connectTimeout: 4s, acquireTimeout: 3s, queryTimeout: 23s, statementTimeout: 16s, lockTimeout: 4s, idleTransactionTimeout: 31s}
@@ -41,9 +44,12 @@ spec:
 		t.Fatal(err)
 	}
 	want := OperationalSettings{
-		LLMRecovery:          gatewayrecovery.Policy{InitialDelay: 2 * time.Second, MaxDelay: 40 * time.Second, AutomaticWindow: 6 * time.Minute},
-		Scheduler:            SchedulerSettings{37 * time.Second, 13 * time.Second, 11 * time.Second},
-		RuntimeLifecycle:     RuntimeLifecycleSettings{17 * time.Second},
+		LLMRecovery: gatewayrecovery.Policy{InitialDelay: 2 * time.Second, MaxDelay: 40 * time.Second, AutomaticWindow: 6 * time.Minute},
+		Scheduler: SchedulerSettings{
+			PollInterval: 3 * time.Second, ClaimDuration: 5 * time.Minute, LeaseScanInterval: 2 * time.Second,
+			OperationTimeout: 37 * time.Second, FinalizationTimeout: 13 * time.Second, AbortTimeout: 11 * time.Second,
+		},
+		RuntimeLifecycle:     RuntimeLifecycleSettings{PrepareTimeout: 21 * time.Second, CleanupTimeout: 17 * time.Second},
 		ProjectLifecycle:     ProjectLifecycleSettings{19 * time.Second, 71 * time.Second, 5 * time.Minute},
 		AuditController:      AuditControllerSettings{3 * time.Second, 45 * time.Second, 12 * time.Second, 9},
 		Database:             DatabaseSettings{4 * time.Second, 3 * time.Second, 23 * time.Second, 16 * time.Second, 4 * time.Second, 31 * time.Second},
@@ -65,7 +71,15 @@ spec:
 	}
 	var output bytes.Buffer
 	cfg.Operations.logEffective(slog.New(slog.NewJSONHandler(&output, nil)), cfg.RuntimeRequestTimeout)
-	if !strings.Contains(output.String(), `"scheduler.operationTimeout":"37s"`) || strings.Contains(output.String(), "do-not-log") {
+	for _, effective := range []string{
+		`"scheduler.operationTimeout":"37s"`, `"scheduler.claimDuration":"5m0s"`,
+		`"runtimeLifecycle.prepareTimeout":"21s"`, `"runtimeLifecycle.cleanupTimeout":"17s"`,
+	} {
+		if !strings.Contains(output.String(), effective) {
+			t.Fatalf("effective settings log lacks %s: %s", effective, output.String())
+		}
+	}
+	if strings.Contains(output.String(), "do-not-log") {
 		t.Fatalf("unexpected effective settings log: %s", output.String())
 	}
 }
@@ -94,6 +108,11 @@ spec:
 	}
 	for _, spec := range []string{
 		"scheduler: {operationTimeout: 0s}", "runtimeLifecycle: {cleanupTimeout: -1s}",
+		"runtimeLifecycle: {prepareTimeout: 0s}", "scheduler: {pollInterval: 0s}",
+		"scheduler: {leaseScanInterval: -1s}",
+		// The Run claim lease is at least twice the Scheduler operation budget.
+		"scheduler: {claimDuration: 59s}", "scheduler: {operationTimeout: 61s}",
+		"scheduler: {claimDuration: 999ns, operationTimeout: 1ns}",
 		"scheduler: {finalizationTimeout: NaN}", "scheduler: {unknown: 1s}",
 		"scheduler: {abortTimeout: 1s, abortTimeout: 2s}",
 		"auditController: {claimBatch: 0}", "auditController: {claimBatch: 101}",
@@ -114,6 +133,77 @@ spec:
 				t.Fatal("invalid settings accepted")
 			}
 		})
+	}
+}
+
+func TestSchedulerAndRuntimeBatchBudgetsFollowPrecedence(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "server.yaml")
+	writeServerConfigTestFile(t, path, `apiVersion: contractor/v1alpha1
+kind: ServerConfig
+spec:
+  scheduler: {claimDuration: 1m, operationTimeout: 30s, pollInterval: 4s}
+  runtimeLifecycle: {prepareTimeout: 40s}
+`)
+	env := map[string]string{
+		"CONTRACTOR_RUNTIME_LIFECYCLE_PREPARE_TIMEOUT": "44s",
+		"CONTRACTOR_SCHEDULER_LEASE_SCAN_INTERVAL":     "2s",
+	}
+	cfg, err := ParseConfig(
+		[]string{"--config", path, "--scheduler-lease-scan-interval", "3s"},
+		func(key string) string { return env[key] },
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	scheduler, runtime := cfg.Operations.Scheduler, cfg.Operations.RuntimeLifecycle
+	// A lease of exactly twice the operation budget is the accepted boundary.
+	if scheduler.ClaimDuration != time.Minute || scheduler.PollInterval != 4*time.Second ||
+		scheduler.LeaseScanInterval != 3*time.Second || runtime.PrepareTimeout != 44*time.Second ||
+		runtime.CleanupTimeout != defaultOperationalSettings().RuntimeLifecycle.CleanupTimeout {
+		t.Fatalf("resolved budgets = %+v, %+v", scheduler, runtime)
+	}
+}
+
+// The timeout reference is the single table of process budgets (OPS-R18):
+// every ServerConfig timeout has one row stating the default the Server
+// resolves, and every row names a setting the Server reads.
+func TestTimeoutReferenceTableMatchesServerConfig(t *testing.T) {
+	document, err := os.ReadFile(filepath.Join("..", "..", "docs", "operations", "timeout-configuration.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defaults := defaultServerConfigValues()
+	want := map[string]string{
+		"shutdownTimeout":            defaults.shutdownTimeout.String(),
+		"runtimeRequestTimeout":      defaults.runtimeRequestTimeout.String(),
+		"workerRequestTimeout":       defaults.workerRequestTimeout.String(),
+		"plannerTimeout":             defaults.plannerTimeout.String(),
+		"auditController.claimBatch": strconv.Itoa(defaults.operations.AuditController.ClaimBatch),
+	}
+	for _, setting := range defaults.operations.durations(operationalSpec{}) {
+		want[setting.path] = setting.target.String()
+	}
+	got := map[string]string{}
+	rows := regexp.MustCompile("(?m)^\\| `([A-Za-z0-9.]+)` \\| `([^`]+)` \\|").FindAllStringSubmatch(string(document), -1)
+	for _, row := range rows {
+		path, value := row[1], row[2]
+		if _, duplicate := got[path]; duplicate {
+			t.Errorf("timeout reference repeats %s", path)
+		}
+		if duration, parseErr := time.ParseDuration(value); parseErr == nil {
+			value = duration.String()
+		}
+		got[path] = value
+	}
+	for path, value := range want {
+		if got[path] != value {
+			t.Errorf("timeout reference %s default = %q, Server resolves %q", path, got[path], value)
+		}
+	}
+	for path := range got {
+		if _, known := want[path]; !known {
+			t.Errorf("timeout reference lists %s, which ServerConfig does not read", path)
+		}
 	}
 }
 

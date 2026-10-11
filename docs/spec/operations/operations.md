@@ -276,9 +276,12 @@ durations and bounded counts, not credentials, URLs or secret paths.
 **OPS-R15.** Process settings keep separate budgets for:
 
 - individual Runtime and A2A HTTP requests (`runtimeRequestTimeout`);
-- Scheduler operations (`scheduler.operationTimeout`);
+- Scheduler store operations (`scheduler.operationTimeout`);
+- the Scheduler claim lease and polling (`scheduler.claimDuration`,
+  `scheduler.pollInterval`, `scheduler.leaseScanInterval`);
 - stored Scheduler terminal budgets (`scheduler.finalizationTimeout` and
   `scheduler.abortTimeout`);
+- Runtime batch preparation (`runtimeLifecycle.prepareTimeout`);
 - Runtime batch cleanup (`runtimeLifecycle.cleanupTimeout`);
 - Project lifecycle operations and claims;
 - Audit controller polling, claims and operations;

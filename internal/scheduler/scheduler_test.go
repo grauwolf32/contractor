@@ -1904,7 +1904,7 @@ func newSchedulerHarness(t *testing.T) *schedulerHarness {
 	}
 	idSequence := 0
 	scheduler, err := New(store, persistence, resolver, allocator, workers, planners, Options{
-		PollInterval: time.Second, ClaimDuration: time.Hour, OperationTimeout: time.Second,
+		PollInterval: time.Second, LeaseScanInterval: time.Second, ClaimDuration: time.Hour, OperationTimeout: time.Second,
 		PlannerTimeout: 30 * time.Second, FinalizationTimeout: 10 * time.Second, AbortTimeout: 10 * time.Second,
 		RuntimeTransport: RuntimeTransportSettings{
 			ArtifactAPIURL: "https://control.test/private/v1", RequestTimeoutSeconds: 5,
@@ -2228,6 +2228,25 @@ func (s *memorySchedulerStore) MarkStageAllocationReleased(
 		}
 	}
 	return runstore.ErrNotFound
+}
+
+// Memory persistence never publishes Project outputs, so nothing reads the
+// count; the guard mirrors PostgreSQL so a misuse fails like the real store.
+func (s *memorySchedulerStore) RecordStageOutputPublicationFailure(
+	_ context.Context, runID string, stageExecutionID string,
+) error {
+	if runID == "" || stageExecutionID == "" {
+		return runstore.ErrInvalid
+	}
+	for _, execution := range s.stages {
+		if execution.StageExecutionID == stageExecutionID && execution.RunID == runID &&
+			execution.State == runstore.StageFinalizing {
+			return nil
+		}
+	}
+	return &runstore.StateConflictError{
+		Resource: "StageExecution", ID: stageExecutionID, Expected: string(runstore.StageFinalizing),
+	}
 }
 
 func (s *memorySchedulerStore) RecordStageExecutionReport(

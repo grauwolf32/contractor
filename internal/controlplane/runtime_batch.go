@@ -34,6 +34,12 @@ type AllocationRegistry interface {
 // RuntimeBatchController coordinates allocation lifecycle calls and Registry
 // observations. Failed Runtime releases retain live grants; expired owners can
 // be retired after their bounded release attempt fails.
+//
+// The controller owns the Runtime batch budgets (OPS-R15): one prepare
+// deadline per PrepareAll batch and one cleanup deadline per release batch or
+// failed-prepare cleanup (SCH-R65). Callers pass only cancellation; a caller's
+// earlier deadline still wins, so a caller must not wrap these batches in an
+// unrelated store-operation budget.
 type RuntimeBatchController struct {
 	runtime        RuntimeLifecycle
 	registry       AllocationRegistry
@@ -41,12 +47,17 @@ type RuntimeBatchController struct {
 	nowMu          sync.Mutex
 	newID          func(string) (string, error)
 	idMu           sync.Mutex
+	prepareTimeout time.Duration
 	cleanupTimeout time.Duration
 }
 
+// RuntimeBatchOptions carries the resolved ServerConfig budgets
+// runtimeLifecycle.prepareTimeout and runtimeLifecycle.cleanupTimeout. Both are
+// required: the process configuration owns their defaults.
 type RuntimeBatchOptions struct {
 	Now            func() time.Time
 	NewID          func(string) (string, error)
+	PrepareTimeout time.Duration
 	CleanupTimeout time.Duration
 }
 
@@ -64,23 +75,26 @@ func NewRuntimeBatchController(
 	if options.NewID == nil {
 		options.NewID = randomid.New
 	}
-	if options.CleanupTimeout == 0 {
-		options.CleanupTimeout = 10 * time.Second
-	}
-	if options.CleanupTimeout <= 0 {
-		return nil, errors.New("cleanup timeout must be positive")
+	if options.PrepareTimeout <= 0 || options.CleanupTimeout <= 0 {
+		return nil, errors.New("Runtime batch prepare and cleanup timeouts must be positive")
 	}
 	return &RuntimeBatchController{
 		runtime: runtime, registry: registry, now: options.Now,
-		newID: options.NewID, cleanupTimeout: options.CleanupTimeout,
+		newID: options.NewID, prepareTimeout: options.PrepareTimeout,
+		cleanupTimeout: options.CleanupTimeout,
 	}, nil
 }
 
+// PrepareAll prepares a Stage's allocations in order under one prepare
+// deadline. A failure, including that deadline, triggers failed-prepare
+// cleanup under its own cleanup deadline.
 func (c *RuntimeBatchController) PrepareAll(
 	ctx context.Context,
 	reservations []Reservation,
 	settings map[string]runtimesettings.WorkerExecutionSettings,
 ) (map[string]contracts.WorkerHandle, error) {
+	ctx, cancel := context.WithTimeout(ctx, c.prepareTimeout)
+	defer cancel()
 	if err := validateReservationBatch(reservations); err != nil {
 		return nil, err
 	}
@@ -213,6 +227,7 @@ func (c *RuntimeBatchController) AbortAll(
 	return reports, errors.Join(failures...)
 }
 
+// ReleaseAll releases one batch under one cleanup deadline (SCH-R65).
 func (c *RuntimeBatchController) ReleaseAll(ctx context.Context, reservations []Reservation) error {
 	ctx, cancel := context.WithTimeout(ctx, c.cleanupTimeout)
 	defer cancel()

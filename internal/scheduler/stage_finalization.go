@@ -207,6 +207,9 @@ func (s *Scheduler) resumeFinalizing(
 		})
 	}
 	cancelCommit()
+	if errors.Is(err, errTransientOutputPublication) {
+		err = errors.Join(err, s.countTransientOutputPublication(ctx, execution))
+	}
 	if errors.Is(err, runstore.ErrConflict) {
 		stateContext, cancelState := s.terminalOperationContext(ctx)
 		current, loadErr := s.store.GetRun(stateContext, run.RunID)
@@ -223,6 +226,22 @@ func (s *Scheduler) resumeFinalizing(
 	}
 	_ = s.releaseTerminal(execution.StageExecutionID, reservations)
 	return nil
+}
+
+// countTransientOutputPublication records, as its own store operation, a
+// terminal commit that a transient publication failure aborted, so that
+// finalization recovery stops attempting publication after LIM-PRJ-4 such
+// failures (PRJ-R58). A failure it cannot count, because the database is
+// unavailable or the claim was lost, does not consume the bound. A finalizing
+// Stage that has since left finalizing needs no count.
+func (s *Scheduler) countTransientOutputPublication(ctx context.Context, execution runstore.StageExecution) error {
+	operation, cancel := s.terminalOperationContext(ctx)
+	defer cancel()
+	err := s.store.RecordStageOutputPublicationFailure(operation, execution.RunID, execution.StageExecutionID)
+	if errors.Is(err, runstore.ErrConflict) {
+		return nil
+	}
+	return err
 }
 
 func (s *Scheduler) buildProgression(

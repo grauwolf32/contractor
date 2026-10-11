@@ -521,6 +521,10 @@ func (s *laneTestStore) MarkStageAllocationReleased(context.Context, string) err
 	return errors.New("unexpected release completion")
 }
 
+func (s *laneTestStore) RecordStageOutputPublicationFailure(context.Context, string, string) error {
+	return errors.New("unexpected output publication failure")
+}
+
 func (s *laneTestStore) RecordStageExecutionReport(context.Context, runstore.RecordStageExecutionReportParams) error {
 	return errors.New("unexpected Stage report")
 }

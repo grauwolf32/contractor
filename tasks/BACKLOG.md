@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-99 open tasks: 3 in progress, 82 pending, 14 deferred. 797 finished: 794 completed, 3 archived.
+97 open tasks: 3 in progress, 80 pending, 14 deferred. 799 finished: 796 completed, 3 archived.
 
 ## In progress
 
@@ -22,7 +22,6 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V368-017](v368-017-registration-permanent-failure.yml) | defect | P1 | — | Stop retrying a Runtime registration the Server rejected permanently |
-| [V368-019](v368-019-release-budget-timeouts.yml) | defect | P2 | — | Give each Scheduler timeout its own operation |
 | [V368-034](v368-034-gateway-recovery-followups.yml) | chore | P3 | — | Share the gateway recovery participant protocol and index the probe holder |
 | [V370-001](v370-001-run-stage-transition-owner.yml) | chore | P1 | V369-001 | Give Run and Stage state transitions one owner |
 | [V370-011](v370-011-scheduler-controlplane-surface.yml) | chore | P3 | — | Slim the Scheduler and Control Plane surfaces |
@@ -80,7 +79,6 @@ the epics are in [epics.yml](epics.yml).
 | --- | --- | --- | --- | --- |
 | [V368-022](v368-022-artifact-request-validation.yml) | defect | P2 | — | Tighten Artifact namespace and revision validation |
 | [V368-028](v368-028-blob-runtime-context.yml) | defect | P3 | — | Fail loudly when a filesystem blob operation has no blob runtime |
-| [V368-035](v368-035-publication-replay-cap.yml) | defect | P3 | — | Bound replays of a terminal commit that keeps failing on publication |
 | [V370-016](v370-016-simplify-artifacts.yml) | chore | P3 | — | Simplify the Artifact service and Runtime client |
 | [V370-024](v370-024-artifact-purge-bound.yml) | defect | P2 | — | Bound Artifact purge and the number of bindings per Run |
 | [V370-025](v370-025-artifact-read-efficiency.yml) | defect | P3 | — | Avoid full Artifact materialization and unindexed listing filters |
@@ -200,9 +198,9 @@ tasks in `introduced_by`.
 
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Run execution core (`execution-core`) | 8 | 36 | 44 | 9 | 62 |
+| Run execution core (`execution-core`) | 7 | 36 | 44 | 9 | 62 |
 | Planners and the Worker model boundary (`planner-worker`) | 2 | 23 | 34 | 7 | 42 |
-| Runtime labels, configuration and credentials (`runtime-config`) | 10 | 25 | 11 | 2 | 35 |
+| Runtime labels, configuration and credentials (`runtime-config`) | 10 | 25 | 11 | 2 | 36 |
 | Shared Memory tools (`memory`) | 1 | 6 | 8 | 1 | 11 |
 | Agent Skills (`agent-skills`) | 0 | 10 | 2 | 1 | 1 |
 | Run workspaces and project filesystem (`workspaces`) | 0 | 16 | 12 | 4 | 15 |
@@ -211,7 +209,7 @@ tasks in `introduced_by`.
 | Scanner tool Workers and scan planning (`scan-tools`) | 1 | 10 | 4 | 1 | 7 |
 | Findings tools and collections (`findings`) | 2 | 7 | 4 | 1 | 6 |
 | Workflow catalog and document workflows (`workflows`) | 7 | 13 | 13 | 8 | 11 |
-| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 6 | 27 | 31 | 3 | 32 |
+| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 5 | 27 | 31 | 3 | 33 |
 | Audits (`audits`) | 26 | 49 | 64 | 12 | 71 |
 | Evaluations (`evals`) | 2 | 21 | 26 | 4 | 33 |
 | Podman sandbox (`sandbox`) | 0 | 8 | 1 | 1 | 2 |

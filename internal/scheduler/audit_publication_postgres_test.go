@@ -150,7 +150,7 @@ func TestAuditManagedRunSkipsGenericProjectOutputPublication(t *testing.T) {
 	if err := persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		return publishProjectOutputs(ctx, tx, runID, map[string]workflowconfig.ArtifactSlot{
 			"result": {Required: true, MediaTypes: []string{"text/plain"}},
-		})
+		}, 0)
 	}); err != nil {
 		t.Fatalf("skip Audit-managed output publication: %v", err)
 	}

@@ -192,7 +192,19 @@ func (p *PostgresPersistence) CommitResultProgression(
 		if _, err := store.RecordStageTransitionDecision(ctx, value.Progression.Decision); err != nil {
 			return err
 		}
-		return commitTerminalRun(ctx, tx, store, value.RunID, value.OutputContracts, value.Progression)
+		publicationFailures := 0
+		if value.Progression.TerminalRunState == runstore.RunSucceeded && len(value.OutputContracts) > 0 {
+			// The StageExecution lock keeps the count stable while this
+			// transaction decides whether to attempt publication.
+			failures, err := store.StageOutputPublicationFailures(ctx, value.RunID, value.StageExecutionID)
+			if err != nil {
+				return err
+			}
+			publicationFailures = failures
+		}
+		return commitTerminalRun(
+			ctx, tx, store, value.RunID, value.OutputContracts, value.Progression, publicationFailures,
+		)
 	})
 }
 
@@ -231,7 +243,7 @@ func (p *PostgresPersistence) CommitTerminationProgression(
 		if _, err := store.RecordStageTransitionDecision(ctx, value.Progression.Decision); err != nil {
 			return err
 		}
-		return commitTerminalRun(ctx, tx, store, value.RunID, nil, value.Progression)
+		return commitTerminalRun(ctx, tx, store, value.RunID, nil, value.Progression, 0)
 	})
 }
 
@@ -580,6 +592,10 @@ func commitNextStage(
 	return nil
 }
 
+// commitTerminalRun finishes the Run of a terminal progression. On success it
+// publishes Project outputs unless publicationFailures, the transient
+// publication failures counted for the committing StageExecution, has reached
+// LIM-PRJ-4.
 func commitTerminalRun(
 	ctx context.Context,
 	tx pgx.Tx,
@@ -587,6 +603,7 @@ func commitTerminalRun(
 	runID string,
 	outputContracts map[string]workflowconfig.ArtifactSlot,
 	progression StageProgression,
+	publicationFailures int,
 ) error {
 	if progression.TerminalRunState == "" {
 		return nil
@@ -601,7 +618,7 @@ func commitTerminalRun(
 		return fmt.Errorf("freeze Workflow outputs: %w", err)
 	}
 	if progression.TerminalRunState == runstore.RunSucceeded {
-		if err := publishProjectOutputs(ctx, tx, runID, outputContracts); err != nil {
+		if err := publishProjectOutputs(ctx, tx, runID, outputContracts, publicationFailures); err != nil {
 			return err
 		}
 	}
@@ -619,11 +636,22 @@ func commitTerminalRun(
 	return err
 }
 
+// maxOutputPublicationFailures is LIM-PRJ-4: the transient publication
+// failures counted for one finalizing StageExecution before its terminal
+// commit stops attempting publication (PRJ-R58).
+const maxOutputPublicationFailures = 5
+
+// errTransientOutputPublication marks a terminal transaction that a transient
+// Project output publication failure aborted. It recorded nothing; the
+// Scheduler counts it against maxOutputPublicationFailures.
+var errTransientOutputPublication = errors.New("Project output publication failed transiently")
+
 func publishProjectOutputs(
 	ctx context.Context,
 	tx pgx.Tx,
 	runID string,
 	outputContracts map[string]workflowconfig.ArtifactSlot,
+	publicationFailures int,
 ) error {
 	var projectID *string
 	var publicationMode runstore.OutputPublicationMode
@@ -642,6 +670,8 @@ WHERE run_id = $1`, runID).Scan(&projectID, &publicationMode); err != nil {
 	if publicationMode != runstore.PublicationOrdinary {
 		return fmt.Errorf("WorkflowRun output publication mode is invalid")
 	}
+
+	exhausted := publicationFailures >= maxOutputPublicationFailures
 
 	artifactService := artifacts.NewService(artifacts.NewPostgresRepository(tx))
 	runArtifacts, err := artifactService.Run(runID)
@@ -665,6 +695,12 @@ WHERE run_id = $1`, runID).Scan(&projectID, &publicationMode); err != nil {
 		}
 		if !source.Frozen || source.Ref.Revision == nil {
 			return fmt.Errorf("Workflow output %q is not frozen at an exact revision", name)
+		}
+		if exhausted {
+			if err := recordExhaustedOutputPublication(ctx, tx, runID, *projectID, name, source.Ref); err != nil {
+				return err
+			}
+			continue
 		}
 		if err := publishOneProjectOutput(ctx, tx, runID, *projectID, name, source.Ref); err != nil {
 			return err
@@ -716,7 +752,7 @@ func publishOneProjectOutput(
 		// transaction instead of recording a permanent failure: the Stage stays
 		// finalizing and finalization recovery replays the same terminal
 		// commit, which publishes the same exact source (PRJ-R58, PRJ-R59).
-		return fmt.Errorf("publish Project output %q: %w", outputName, publishErr)
+		return fmt.Errorf("publish Project output %q: %w: %w", outputName, errTransientOutputPublication, publishErr)
 	}
 
 	params := runstore.RecordRunOutputPublicationParams{
@@ -729,6 +765,31 @@ func publishOneProjectOutput(
 		params.ErrorCode, params.ErrorMessage = projectOutputPublicationFailure(publishErr)
 	}
 	if _, _, err := runstore.NewPostgresStore(tx).RecordRunOutputPublication(ctx, params); err != nil {
+		return fmt.Errorf("record Project output publication %q: %w", outputName, err)
+	}
+	return nil
+}
+
+// recordExhaustedOutputPublication ends publication replays without another
+// attempt: the Run keeps its success and the output gets one bounded failed
+// result (PRJ-R58, LIM-PRJ-4).
+func recordExhaustedOutputPublication(
+	ctx context.Context,
+	tx pgx.Tx,
+	runID string,
+	projectID string,
+	outputName string,
+	source contracts.ArtifactRef,
+) error {
+	_, _, err := runstore.NewPostgresStore(tx).RecordRunOutputPublication(ctx, runstore.RecordRunOutputPublicationParams{
+		RunID: runID, ProjectID: projectID, OutputName: outputName, Source: source,
+		Status: runstore.OutputPublicationFailed, ErrorCode: "publication_attempts_exhausted",
+		ErrorMessage: fmt.Sprintf(
+			"The Project output was not published after %d transient database failures.",
+			maxOutputPublicationFailures,
+		),
+	})
+	if err != nil {
 		return fmt.Errorf("record Project output publication %q: %w", outputName, err)
 	}
 	return nil

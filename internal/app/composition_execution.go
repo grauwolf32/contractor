@@ -152,6 +152,9 @@ func configureWorkflows(
 		planners.registry,
 		scheduler.Options{
 			GatewayRecovery:     recovery,
+			PollInterval:        cfg.Operations.Scheduler.PollInterval,
+			ClaimDuration:       cfg.Operations.Scheduler.ClaimDuration,
+			LeaseScanInterval:   cfg.Operations.Scheduler.LeaseScanInterval,
 			OperationTimeout:    cfg.Operations.Scheduler.OperationTimeout,
 			FinalizationTimeout: cfg.Operations.Scheduler.FinalizationTimeout,
 			AbortTimeout:        cfg.Operations.Scheduler.AbortTimeout,
