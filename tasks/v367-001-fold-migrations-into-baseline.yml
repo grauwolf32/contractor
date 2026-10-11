@@ -1,0 +1,66 @@
+schema_version: "1.0"
+id: V367-001
+title: "Fold the 102 migrations into one baseline schema"
+milestone: hub-audit-2026-10
+epic: persistence
+kind: chore
+priority: P2
+status: in_progress
+depends_on: []
+languages: [go, sql]
+goal: "A new database is created by one readable baseline migration instead of 102 historical steps, and the upgrade tests for those steps are gone."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq), persistence H6; the user chose to fold."
+  specification:
+    - docs/spec/platform/persistence.md
+  finding: >-
+    internal/persistence/migrations held 102 files (6959 lines of SQL) that
+    create, alter and drop the same tables many times; the final shape of a
+    table could only be read by replaying them. 17 upgrade tests in
+    internal/persistence/postgres (about 1700 lines) and 16 tests that matched
+    the text of single migration files existed only to protect upgrades of
+    databases that, in a pre-production project, do not exist. Some of those
+    text tests pinned stale shapes, for example the three-state predicate of
+    workflow_runs_owner_nonterminal_queue_idx.
+  decision: >-
+    The baseline is generated once from pg_dump of the schema the 102 files
+    produce (PostgreSQL 17, as in CI), with schema qualification and session
+    settings removed, tables grouped by context with their keys, indexes and
+    triggers, functions first and foreign keys last, followed by the four
+    rows every database starts with. It is then an ordinary migration:
+    immutable, extended by new numbered files. Equivalence is proved by
+    applying both to scratch databases and comparing catalogs. A database
+    migrated by the old files has a different ledger; the migrator reports
+    drift and the database must be recreated, which is acceptable because no
+    deployment needs an upgrade. Alternatives: concatenating the files keeps
+    every historical step; a hand-written baseline risks silent differences.
+    Reopen if a deployment with data must be upgraded across the fold.
+scope:
+  in:
+    - "Replace migrations 000001-000102 with internal/persistence/migrations/000001_baseline.sql."
+    - "Remove the upgrade tests that install a historical prefix and the text tests of individual migration files; keep the ordering, ledger, lock, drift and redaction tests."
+    - "Keep the design rules those text tests guarded (secrets only as ciphertext, no Runtime Agent liveness, queue position or per-owner scheduler state in the schema) as a test on the migrated schema."
+    - "Apply the full schema in the performance store test instead of one historical file."
+    - "Update comments, docs and AGENTS.md that name individual migrations; regenerate the ERD."
+  out:
+    - "Any change to tables, columns, constraints, indexes, triggers, functions, views or seed rows."
+    - "The migrator, its ledger format and drift handling."
+    - "The demo stand database; it is recreated by its owner, not migrated by this task."
+acceptance_criteria:
+  - id: A1
+    text: "internal/persistence/migrations contains one SQL file, and it applies on an empty schema."
+  - id: A2
+    text: "A schema built by the baseline and one built by the 102 removed files have equal columns, constraints, indexes, triggers, function sources, views, sequences and seed rows; the only differences are logically equivalent deparse output (one trigger WHEN condition's OR nesting) and column ordinal gaps left by dropped columns."
+  - id: A3
+    text: "The schema invariant test fails if a migration adds a plaintext secret column, a liveness column to runtime_agent_principals or execution state to owner_queue_controls or scheduler_settings."
+  - id: A4
+    text: "All Go unit, integration and race suites and every release stage pass."
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "go test -tags integration ./internal/persistence/... ./internal/performance"
+    covers: [A1, A3]
+  - command: "catalog comparison of scratch databases contractor_fold (102 files) and contractor_fold_b (baseline)"
+    covers: [A2]
+  - command: "make -k release-verify-lint release-verify-unit release-verify-integration release-verify-race release-verify-race-discovered test-config verify-wire-contracts test-wire-cross-language release-verify-families release-verify-browser-a release-verify-browser-b release-verify-process-a release-verify-process-b release-verify-process-c"
+    covers: [A4]

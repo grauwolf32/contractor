@@ -74,6 +74,9 @@ execution_policy:
     P3: Low-impact correction with no user-visible failure, such as documentation, dead code or test hygiene.
 
 milestones:
+  - id: hub-audit-2026-10
+    exit_task: V367-001
+    outcome: Accepted findings of the 2026-10-11 hub audit are resolved with regression tests or recorded decisions.
   - id: architecture-layers-2026-10
     exit_task: V366-006
     outcome: Dependencies follow the layer stack in the Go server and the Runtime, enforced in CI, with no known exceptions.
