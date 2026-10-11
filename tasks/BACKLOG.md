@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-83 open tasks: 3 in progress, 66 pending, 14 deferred. 813 finished: 810 completed, 3 archived.
+82 open tasks: 3 in progress, 65 pending, 14 deferred. 814 finished: 811 completed, 3 archived.
 
 ## In progress
 
@@ -54,7 +54,6 @@ the epics are in [epics.yml](epics.yml).
 | --- | --- | --- | --- | --- |
 | [V368-014](v368-014-snapshot-size-on-write.yml) | defect | P1 | — | Reject oversized Workflow snapshots when the Run is created |
 | [V368-030](v368-030-llm-gateway-clone.yml) | defect | P3 | — | Deep-copy LLMGateway configuration in snapshot accessors |
-| [V369-006](v369-006-toolset-parity-fixture.yml) | chore | P2 | — | Extend the toolset parity fixture to the whole descriptor |
 | [V370-006](v370-006-config-model-split.yml) | chore | P2 | — | Separate the configuration data model from the catalog loader |
 | [V370-015](v370-015-simplify-config.yml) | chore | P3 | — | Remove duplicated code in config and catalog bundles |
 | [V370-030](v370-030-catalog-hot-paths.yml) | defect | P3 | — | Cache catalog fingerprints and decoded Workflow snapshots |
@@ -174,7 +173,7 @@ tasks in `introduced_by`.
 | HTTP and Caido tools (`http-tools`) | 0 | 8 | 11 | 1 | 10 |
 | Scanner tool Workers and scan planning (`scan-tools`) | 1 | 10 | 4 | 1 | 7 |
 | Findings tools and collections (`findings`) | 2 | 7 | 4 | 1 | 6 |
-| Workflow catalog and document workflows (`workflows`) | 6 | 13 | 13 | 8 | 11 |
+| Workflow catalog and document workflows (`workflows`) | 5 | 13 | 13 | 8 | 11 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 4 | 27 | 31 | 3 | 33 |
 | Audits (`audits`) | 24 | 49 | 64 | 12 | 71 |
 | Evaluations (`evals`) | 2 | 21 | 26 | 4 | 33 |
