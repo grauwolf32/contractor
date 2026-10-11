@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-87 open tasks: 3 in progress, 70 pending, 14 deferred. 809 finished: 806 completed, 3 archived.
+86 open tasks: 3 in progress, 69 pending, 14 deferred. 810 finished: 807 completed, 3 archived.
 
 ## In progress
 
@@ -131,7 +131,6 @@ the epics are in [epics.yml](epics.yml).
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
-| [V368-003](v368-003-classify-database-failures-once.yml) | defect | P1 | — | Classify database failures in one place |
 | [V368-026](v368-026-run-snapshot-json-paths.yml) | defect | P2 | — | Pin the JSON paths SQL reads from Go-encoded snapshots |
 | [V368-029](v368-029-dbtx-error-recovery.yml) | defect | P3 | — | Do not continue on a DBTX after a failed statement inside a transaction |
 | [V369-001](v369-001-table-ownership-test.yml) | chore | P1 | — | Assign every table an owner package and test SQL against it |
@@ -196,5 +195,5 @@ tasks in `introduced_by`.
 | Web UI (`ui`) | 0 | 19 | 51 | 10 | 47 |
 | Operations, authentication, CLI and deployment (`operations`) | 1 | 8 | 30 | 4 | 6 |
 | Public API and wire contracts (`api-contracts`) | 10 | 1 | 24 | 16 | 6 |
-| PostgreSQL persistence and schema (`persistence`) | 11 | 0 | 17 | 29 | 3 |
+| PostgreSQL persistence and schema (`persistence`) | 10 | 0 | 17 | 29 | 3 |
 | Quality, CI and process (`quality`) | 7 | 1 | 15 | 65 | 15 |
