@@ -381,6 +381,45 @@ func TestResolverReturnsCallerOwnedValuesAndPreservesModelPolicy(t *testing.T) {
 	}
 }
 
+// The resolved Gateway body and ResolvedRuntimeConfig.Clone must not share the
+// credential manager or failure signatures with their source.
+func TestResolverAndCloneDetachTheGatewayBody(t *testing.T) {
+	primaryRef := testGatewayRef("primary", "1")
+	signedGateway := func() llmgateway.ResolvedLLMGatewayConfig {
+		return llmgateway.ResolvedLLMGatewayConfig{
+			Ref: primaryRef, Protocol: llmgateway.OpenAICompatibleProtocol, URL: "http://127.0.0.1:4000/v1",
+			CredentialManager: &llmgateway.LLMGatewayCredentialManager{
+				Implementation: llmgateway.LiteLLMVirtualKeysManager, ManagementURL: "http://127.0.0.1:4000",
+			},
+			FailureSignatures: &llmgateway.GatewayFailureSignatures{
+				ModelUnavailable: []llmgateway.GatewayFailureSignature{{Status: 404, MessageEquals: "model not found"}},
+				PermanentCodes:   []string{"insufficient_quota"},
+			},
+		}
+	}
+	mutate := func(gateway *llmgateway.ResolvedLLMGatewayConfig) {
+		gateway.CredentialManager.ManagementURL = "http://changed.invalid"
+		gateway.FailureSignatures.ModelUnavailable[0].MessageEquals = "changed"
+		gateway.FailureSignatures.PermanentCodes[0] = "changed"
+	}
+	input := resolverInput()
+	input.Gateways[primaryRef] = signedGateway()
+	result, err := ResolveRuntimeConfig(input)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	clone := result.Clone()
+	mutate(&clone.LLMGateway)
+	if !reflect.DeepEqual(result.LLMGateway, signedGateway()) {
+		t.Fatalf("ResolvedRuntimeConfig.Clone shares the Gateway body: %+v", result.LLMGateway.FailureSignatures)
+	}
+	mutate(&result.LLMGateway)
+	if !reflect.DeepEqual(input.Gateways[primaryRef], signedGateway()) {
+		t.Fatalf("resolved Gateway body shares the input: %+v", input.Gateways[primaryRef].FailureSignatures)
+	}
+}
+
 type resolverFixtureProjection struct {
 	GatewayID       string                                          `json:"gatewayId"`
 	CredentialID    string                                          `json:"credentialId"`

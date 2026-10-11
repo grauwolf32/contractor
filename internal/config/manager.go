@@ -580,7 +580,7 @@ func (s *Snapshot) withPublication(candidate publicationCandidate) *Snapshot {
 	}
 	if candidate.gateway != nil {
 		gateways = cloneMap(s.gateways)
-		gateways[candidate.selector.String()] = cloneLLMGatewayConfig(*candidate.gateway)
+		gateways[candidate.selector.String()] = candidate.gateway.Clone()
 	}
 	sources := cloneMap(s.sources)
 	sources[configurationSourceKey(candidate.resource.Ref.Kind, candidate.selector.String())] = ConfigurationSourceManaged

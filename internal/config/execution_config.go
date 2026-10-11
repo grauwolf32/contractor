@@ -276,7 +276,7 @@ func applyResolvedExecutionSelectionOverride(
 		if err := override.LLMGateway.Validate(); err != nil {
 			return fmt.Errorf("llmGateway is invalid: %w", err)
 		}
-		gateway := cloneLLMGatewayConfig(*override.LLMGateway)
+		gateway := override.LLMGateway.Clone()
 		selection.LLMGateway = &gateway
 		selection.Origins.LLMGateway = origin
 	}
@@ -423,7 +423,7 @@ func (l *loader) applySelection(
 		if !ok {
 			return fmt.Errorf("llmGateway selects unknown LLMGatewayConfig %q", selector)
 		}
-		resolved := cloneLLMGatewayConfig(gateway)
+		resolved := gateway.Clone()
 		selection.LLMGateway = &resolved
 		selection.Origins.LLMGateway = origin
 	}
