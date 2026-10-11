@@ -1,0 +1,75 @@
+schema_version: "1.0"
+id: V368-010
+title: "Make test fakes enforce the same rules as the real stores"
+milestone: hub-audit-defects-2026-10
+epic: quality
+kind: defect
+priority: P1
+status: completed
+implementation_commit: 3db82e5b95a195d77cc9adfed9a57ec56974d194
+depends_on: []
+languages: [go]
+goal: "A table test drives each fake and the real store with the same invalid operations and both reject them."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq; raw reports in docs/research/2026-10-11-hub-audit/), exec-state G4; dispatch D 3.5; audits D 3.5; artifacts D 3.5; file:line as of 02bbdcbf, re-verify on current main"
+  finding: >-
+    Fakes accept transitions the stores reject:
+    httpapi/public/fakes_test.go:1174-1191 and
+    scheduler/scheduler_test.go:2102-2117 TransitionRun accept
+    succeeded->running; memorySchedulerStore.RecordStageAllocation validates
+    nothing; memoryAtomicPersistence admits fewer states than
+    postgres.go:131; fakeControllerStore.TransitionClaimed
+    (auditcontroller/controller_test.go:854-867) skips the transition table;
+    the public Artifact fake ignores frozen (fakes_test.go:390-424). This is
+    the V280 class.
+  siblings: >-
+    Fixed beyond the finding: memoryAtomicPersistence also admitted fewer Run
+    states than PostgreSQL in EnterFinalizingWithResult, CommitResultProgression
+    and CommitTerminationProgression, and more in AdmitStage; its commits
+    moved the Run without the transition rule and kept a waiting Run waiting
+    where gatewayrecovery.EndStage resumes it; memoryRunSkillInitializer moved
+    initializing straight to running where production commits pending; the
+    public Artifact fake's BindOutputExact ignored the expected output
+    revision as well as frozen; fakeControllerStore.TransitionClaimed reported
+    a lost claim as ErrPrecondition where the store reports ErrClaimLost; the
+    Git import precondition (gitimport/importer.go) held a second copy of the
+    binding compare-and-set. Ruled out: the artifact doubles in agentskills,
+    auditstandards, artifacts and httpapi/privateartifacts cannot freeze a
+    binding (FreezeOutputs is unsupported there), so the frozen rule cannot
+    apply; laneTestStore and laneNoopPersistence answer every transition,
+    allocation write and commit with an "unexpected" error, so they accept
+    nothing the store refuses. Not covered here: the doubles' write side
+    effects (finished_at, started_at, claim clearing) are not compared with
+    PostgreSQL; the parity tables compare acceptance and the error class.
+  decision: >-
+    Each rule is one exported function that the store itself calls before its
+    SQL and that its doubles call too, so the two cannot drift:
+    runstore.ValidateRunTransition, runstore.StageAllocation.Validate,
+    auditstore.ValidateClaimedTransition and artifacts.WritePrecondition (the
+    binding compare-and-set with frozen first, used by the store to classify
+    a refused write and by gitimport). The Scheduler's commit points name
+    their Run-state sets once (stageCreationRunStates, finalizationRunStates,
+    progressionRunStates, abortRunStates) for lockRunState and the memory
+    double. Alternatives: doubles that re-implement the rules (the defect),
+    or replacing the doubles with PostgreSQL (unit suites would need a
+    database). Each double package carries a parity test that drives the
+    double and the real store with the same table and requires the same
+    answer: fakes_parity_test.go in httpapi/public (every Run transition;
+    frozen and open binding writes), scheduler (every Run transition,
+    malformed allocations, an abort in every Run state) and auditcontroller
+    (invalid claimed transitions; the PostgreSQL half is
+    integration-tagged). Each fails against the old doubles. Reopen when a
+    rule moves into SQL only: the parity test then fails first.
+scope:
+  in:
+    - "Export the rules (Run transition table, Audit claimed transitions, frozen check) and call them from the fakes; remove fake-only shortcuts."
+  out:
+    - "Test intent of existing tests."
+acceptance_criteria:
+  - id: A1
+    text: "A table test drives each fake and the real store with the same invalid operations and both reject them."
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "go test ./internal/httpapi/public ./internal/scheduler ./internal/auditcontroller ./internal/runstore"
+    covers: [A1]
