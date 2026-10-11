@@ -1,0 +1,31 @@
+schema_version: "1.0"
+id: V370-029
+title: "Batch the finding collection publication reads"
+milestone: hub-audit-structure-2026-10
+epic: findings
+kind: defect
+priority: P3
+status: pending
+depends_on: []
+languages: [go]
+goal: "Query count per publication is constant in the number of entries."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq; raw reports in docs/research/2026-10-11-hub-audit/), persistence I4; file:line as of 02bbdcbf, re-verify on current main"
+  finding: >-
+    Collection publication runs 5-8 queries per entry (up to 256) inside one
+    REPEATABLE READ transaction under an advisory lock
+    (collection_publication.go:181-260, 309-324; postgres.go:49-64,
+    222-224).
+scope:
+  in:
+    - "Batched ANY($1) reads for authorization, receipts and holds."
+  out:
+    - "Results."
+acceptance_criteria:
+  - id: A1
+    text: "Query count per publication is constant in the number of entries."
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "go test -tags integration ./internal/findingintake"
+    covers: [A1]

@@ -74,6 +74,15 @@ execution_policy:
     P3: Low-impact correction with no user-visible failure, such as documentation, dead code or test hygiene.
 
 milestones:
+  - id: hub-audit-defects-2026-10
+    exit_task: V368-035
+    outcome: Every defect the 2026-10-11 hub audit and its fix batch found is fixed with a regression test or closed by a recorded decision.
+  - id: hub-audit-guards-2026-10
+    exit_task: V369-007
+    outcome: Gates and fitness tests stop the hub audit's defect classes from coming back (table ownership, shared fixtures, release gate coverage, route and operation coverage).
+  - id: hub-audit-structure-2026-10
+    exit_task: V370-030
+    outcome: The hub audit's structural, simplification and scaling recommendations are done or explicitly declined.
   - id: hub-audit-2026-10
     exit_task: V367-013
     outcome: Accepted findings of the 2026-10-11 hub audit are resolved with regression tests or recorded decisions.

@@ -1,0 +1,36 @@
+schema_version: "1.0"
+id: V368-010
+title: "Make test fakes enforce the same rules as the real stores"
+milestone: hub-audit-defects-2026-10
+epic: quality
+kind: defect
+priority: P1
+status: pending
+depends_on: []
+languages: [go]
+goal: "A table test drives each fake and the real store with the same invalid operations and both reject them."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq; raw reports in docs/research/2026-10-11-hub-audit/), exec-state G4; dispatch D 3.5; audits D 3.5; artifacts D 3.5; file:line as of 02bbdcbf, re-verify on current main"
+  finding: >-
+    Fakes accept transitions the stores reject:
+    httpapi/public/fakes_test.go:1174-1191 and
+    scheduler/scheduler_test.go:2102-2117 TransitionRun accept
+    succeeded->running; memorySchedulerStore.RecordStageAllocation validates
+    nothing; memoryAtomicPersistence admits fewer states than
+    postgres.go:131; fakeControllerStore.TransitionClaimed
+    (auditcontroller/controller_test.go:854-867) skips the transition table;
+    the public Artifact fake ignores frozen (fakes_test.go:390-424). This is
+    the V280 class.
+scope:
+  in:
+    - "Export the rules (Run transition table, Audit claimed transitions, frozen check) and call them from the fakes; remove fake-only shortcuts."
+  out:
+    - "Test intent of existing tests."
+acceptance_criteria:
+  - id: A1
+    text: "A table test drives each fake and the real store with the same invalid operations and both reject them."
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "go test ./internal/httpapi/public ./internal/scheduler ./internal/auditcontroller ./internal/runstore"
+    covers: [A1]

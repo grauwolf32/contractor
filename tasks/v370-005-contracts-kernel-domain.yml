@@ -1,0 +1,34 @@
+schema_version: "1.0"
+id: V370-005
+title: "Move domain logic out of the contracts kernel"
+milestone: hub-audit-structure-2026-10
+epic: api-contracts
+kind: chore
+priority: P2
+status: pending
+depends_on: []
+languages: [go]
+goal: "No importer of contracts uses it only for non-wire symbols."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq; raw reports in docs/research/2026-10-11-hub-audit/), contracts B, F6; file:line as of 02bbdcbf, re-verify on current main"
+  finding: >-
+    19 of 37 importers of internal/contracts use no wire symbol; the kernel
+    holds CheckPinnedSelection, AuditTaskOpenAPIScanV1,
+    FindingCollectionMediaType, ValidateForPlanner, the audit-results@2 tool
+    names and RunSkillSnapshot; StageContentResult is a Server type in the
+    private catalog.
+scope:
+  in:
+    - "Move each to its domain owner (auditdomain, agentskills, planner, runtimesettings); MarshalPrivateCanonical callers use strictjson.Canonical; archtest allowlist of contracts importers."
+  out:
+    - "Wire format (JSON tags unchanged)."
+acceptance_criteria:
+  - id: A1
+    text: "No importer of contracts uses it only for non-wire symbols."
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "go test ./internal/... -run Contract"
+    covers: [A1]
+  - command: "make test-wire-cross-language"
+    covers: [A1]

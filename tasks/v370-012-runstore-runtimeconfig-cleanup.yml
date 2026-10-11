@@ -1,0 +1,34 @@
+schema_version: "1.0"
+id: V370-012
+title: "Merge Run creation paths and split the Runtime principal registry"
+milestone: hub-audit-structure-2026-10
+epic: execution-core
+kind: chore
+priority: P3
+status: pending
+depends_on: []
+languages: [go]
+goal: "No duplicated creation SQL; runtimeconfig no longer owns principals."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq; raw reports in docs/research/2026-10-11-hub-audit/), exec-state B, F5, F6, H; file:line as of 02bbdcbf, re-verify on current main"
+  finding: >-
+    Three Run creation encoders (store.go:169-296, audit_run.go:15-69,
+    store_sql.go:41-74; 7 commits edited two at once); a second runtime-
+    credential validator (store.go:148-167) that returns raw pgx.ErrNoRows;
+    the Runtime Agent principal registry (runtimeconfig/principal.go, 848
+    lines) lives in runtimeconfig; duplicate management replay
+    (management.go:323-405 vs principal.go:677-742); planner-event
+    validation inside runstore.
+scope:
+  in:
+    - "One creation encoder and SQL; the credentials repository validator; principals in their own package; one replay helper."
+  out:
+    - "Behaviour."
+acceptance_criteria:
+  - id: A1
+    text: "No duplicated creation SQL; runtimeconfig no longer owns principals."
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "go test -tags integration ./internal/runstore ./internal/runtimeconfig ./internal/credentials"
+    covers: [A1]

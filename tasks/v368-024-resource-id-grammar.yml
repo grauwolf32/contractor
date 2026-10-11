@@ -1,0 +1,35 @@
+schema_version: "1.0"
+id: V368-024
+title: "Use one ResourceId and ConfigId grammar in every Go package"
+milestone: hub-audit-defects-2026-10
+epic: api-contracts
+kind: defect
+priority: P2
+status: pending
+depends_on: []
+languages: [go]
+goal: "A test finds no Go regexp equal to the ResourceId or ConfigId grammar outside contracts; an invalid run_id is rejected at write."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq; raw reports in docs/research/2026-10-11-hub-audit/), V367-007 follow-up; exec-state G5, G6; file:line as of 02bbdcbf, re-verify on current main"
+  finding: >-
+    Six Go copies of the ResourceId pattern remain (auditstore, runstore,
+    evalstore, auditservice, httpapi/public request and events) and auth
+    keeps its own ConfigId copy. runstore accepts any non-blank run_id on
+    write (types.go:605) while ListNonTerminalRunIDsByCredential fails on
+    the first ID outside credentialRunIDPattern (store.go:99-101), blocking
+    credential deletion forever (lifecycle.go:368-372). planner/session
+    validatePlannerFact (service.go:712-726) accepts IDs runstore later
+    rejects (run_event_store.go:370-399).
+scope:
+  in:
+    - "contracts.ValidResourceID and contracts.ValidName used everywhere, including write validation in runstore and planner session."
+  out:
+    - "The grammar itself."
+acceptance_criteria:
+  - id: A1
+    text: "A test finds no Go regexp equal to the ResourceId or ConfigId grammar outside contracts; an invalid run_id is rejected at write."
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "go test ./internal/contracts ./internal/runstore ./internal/planner/session ./internal/auditstore ./internal/evalstore ./internal/httpapi/..."
+    covers: [A1]

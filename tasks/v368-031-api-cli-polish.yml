@@ -1,0 +1,31 @@
+schema_version: "1.0"
+id: V368-031
+title: "Fix small public API and CLI inaccuracies"
+milestone: hub-audit-defects-2026-10
+epic: api-contracts
+kind: defect
+priority: P3
+status: pending
+depends_on: []
+languages: [go]
+goal: "Tests for each of the three."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq; raw reports in docs/research/2026-10-11-hub-audit/), V367-005 and V367-012 follow-ups; file:line as of 02bbdcbf, re-verify on current main"
+  finding: >-
+    The Run repeat-draft 200 response lacks Cache-Control: no-store, which
+    OpenAPI marks required. The CLI prints its retry-with---idempotency-key
+    hint after permanent failures. diagnosticCause logs a recovery-required
+    error as cause=unknown.
+scope:
+  in:
+    - "Set the header, print the hint only for retryable failures, classify the diagnostic cause."
+  out:
+    - "Response bodies."
+acceptance_criteria:
+  - id: A1
+    text: "Tests for each of the three."
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "go test ./internal/httpapi/public ./internal/cli"
+    covers: [A1]

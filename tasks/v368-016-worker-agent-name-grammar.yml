@@ -1,0 +1,31 @@
+schema_version: "1.0"
+id: V368-016
+title: "Validate Workflow agent names with the grammar Operations shows"
+milestone: hub-audit-defects-2026-10
+epic: workflows
+kind: defect
+priority: P1
+status: pending
+depends_on: []
+languages: [go]
+goal: "A Workflow with an invalid agent name fails config validation; Operations lists every accepted name."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq; raw reports in docs/research/2026-10-11-hub-audit/), V367-007 follow-up; file:line as of 02bbdcbf, re-verify on current main"
+  finding: >-
+    Workflow agent names are only checked as non-blank without a slash
+    (config validateMapKey), but Operations shows them as logicalWorker in
+    the ConfigId grammar; a name such as "my worker" breaks the Operations
+    allocation list.
+scope:
+  in:
+    - "Agent names use contracts.ValidName at catalog load and in the schemas."
+  out:
+    - "Existing shipped names (all valid)."
+acceptance_criteria:
+  - id: A1
+    text: "A Workflow with an invalid agent name fails config validation; Operations lists every accepted name."
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "go test ./internal/config ./internal/controlplane"
+    covers: [A1]

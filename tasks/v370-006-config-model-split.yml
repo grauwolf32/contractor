@@ -1,0 +1,33 @@
+schema_version: "1.0"
+id: V370-006
+title: "Separate the configuration data model from the catalog loader"
+milestone: hub-audit-structure-2026-10
+epic: workflows
+kind: chore
+priority: P2
+status: pending
+depends_on: []
+languages: [go]
+goal: "The loader's fan-in drops to the packages that load the catalog."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq; raw reports in docs/research/2026-10-11-hub-audit/), config B, C5, F5, F6; file:line as of 02bbdcbf, re-verify on current main"
+  finding: >-
+    19 of 22 importers of config use only the resolved data model; 47 of 92
+    commits did not touch it. The Descriptors parameter is decorative: five
+    paths read the global registry (sandbox_compatibility.go:11,
+    tool_workflow_inputs.go:14, workflow.go:514, descriptors.go:289,
+    auditservice/compatibility.go:69, findingintake/service.go:283); planner
+    cardinality facts live in scheduler/workflow.go:43-56.
+scope:
+  in:
+    - "config/resolved and config/auditprofile packages; one normalized descriptor registry without the parameter; planner facts in the descriptor; boundary test against MVPDescriptors() outside config."
+  out:
+    - "Catalog behaviour."
+acceptance_criteria:
+  - id: A1
+    text: "The loader's fan-in drops to the packages that load the catalog."
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "go test ./internal/config/... ./internal/scheduler"
+    covers: [A1]

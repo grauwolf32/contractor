@@ -1,0 +1,35 @@
+schema_version: "1.0"
+id: V368-015
+title: "Validate configuration names in the UI with the shared fixtures"
+milestone: hub-audit-defects-2026-10
+epic: ui
+kind: defect
+priority: P1
+status: pending
+depends_on: []
+languages: [typescript]
+goal: "Every valid fixture case routes and validates; every invalid one is rejected; no unit test reads configs/."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq; raw reports in docs/research/2026-10-11-hub-audit/), config G4, G6, D 3.5; file:line as of 02bbdcbf, re-verify on current main"
+  finding: >-
+    ui/server/static-server.mjs:36, 42, 50 return 404 for deep links to
+    versions with '+' (valid per config-identity-cases.json). Studio
+    validation (ui/src/routes/studio/validation.ts:41, 53, 82) accepts names
+    and media types the Server rejects. Studio tests read the live configs/
+    tree (document.test.ts:17, 72-95, advanced-forms.test.tsx:46), against
+    AGENTS.md section 2.
+scope:
+  in:
+    - "static-server and Studio validation tested against config-identity-cases.json and media-type-cases.json; the real-catalog check moves to tests/ui-stack."
+  out:
+    - "Studio behaviour for valid input."
+acceptance_criteria:
+  - id: A1
+    text: "Every valid fixture case routes and validates; every invalid one is rejected; no unit test reads configs/."
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "corepack pnpm --dir ui exec vitest run src/routes/studio"
+    covers: [A1]
+  - command: "node --test ui/server"
+    covers: [A1]

@@ -1,0 +1,33 @@
+schema_version: "1.0"
+id: V370-020
+title: "Bound the Scheduler claim and tick reads"
+milestone: hub-audit-structure-2026-10
+epic: execution-core
+kind: defect
+priority: P2
+status: pending
+depends_on: []
+languages: [go]
+goal: "EXPLAIN on 10,000 Runs uses an index for the claim; a tick reads one stage."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq; raw reports in docs/research/2026-10-11-hub-audit/), exec-state I2, I3; file:line as of 02bbdcbf, re-verify on current main"
+  finding: >-
+    The claim ORDER BY CASE (store_sql.go:155-181) cannot use admission_idx
+    and sorts all unclaimed active Runs; pending Runs of paused owners are
+    claimed and deferred, P/30 claims per second each with GetRun and
+    ListStageExecutions. Every tick reads all StageExecutions (up to 1024
+    per Run) and the full Run to find one active stage (run_execution.go:39,
+    105; scheduler/postgres.go:607).
+scope:
+  in:
+    - "Skip paused owners in the claim SQL; tier as an indexed generated column; GetActiveStageExecution and a narrow GetRunState."
+  out:
+    - "Claim fairness."
+acceptance_criteria:
+  - id: A1
+    text: "EXPLAIN on 10,000 Runs uses an index for the claim; a tick reads one stage."
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "go test -tags integration ./internal/runstore ./internal/scheduler"
+    covers: [A1]

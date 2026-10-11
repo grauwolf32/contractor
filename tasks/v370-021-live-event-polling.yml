@@ -1,0 +1,30 @@
+schema_version: "1.0"
+id: V370-021
+title: "Poll Run events once per Run instead of once per subscription"
+milestone: hub-audit-structure-2026-10
+epic: api-contracts
+kind: defect
+priority: P2
+status: pending
+depends_on: []
+languages: [go]
+goal: "Idle subscriptions to one Run cause one query per catch-up interval."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq; raw reports in docs/research/2026-10-11-hub-audit/), public API I1; file:line as of 02bbdcbf, re-verify on current main"
+  finding: >-
+    Every Run subscription calls ListRunEvents every second
+    (subscriptions.go:79-91) even with a healthy NOTIFY: up to 8 sockets x
+    32 subscriptions = 256 queries/s per idle session.
+scope:
+  in:
+    - "One poller per runID in the hub and a slow safety catch-up while LISTEN is healthy."
+  out:
+    - "Event delivery guarantees."
+acceptance_criteria:
+  - id: A1
+    text: "Idle subscriptions to one Run cause one query per catch-up interval."
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "go test ./internal/httpapi/public/events"
+    covers: [A1]

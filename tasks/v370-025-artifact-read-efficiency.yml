@@ -1,0 +1,34 @@
+schema_version: "1.0"
+id: V370-025
+title: "Avoid full Artifact materialization and unindexed listing filters"
+milestone: hub-audit-structure-2026-10
+epic: projects-artifacts
+kind: defect
+priority: P3
+status: pending
+depends_on: []
+languages: [go, python]
+goal: "EXPLAIN uses the PK for the Project list; a binary read is rejected before download."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq; raw reports in docs/research/2026-10-11-hub-audit/), artifacts I2, I4, I6; file:line as of 02bbdcbf, re-verify on current main"
+  finding: >-
+    ListMetadata excludes audit-* with left(namespace, length($5)) <> $5
+    (postgres_query.go:77), which no index serves; Python read_artifact
+    downloads up to 64 MiB for a 256 KiB page and rejects binaries only
+    afterwards (run_artifacts/tools.py:163-174); Run detail pages through
+    all inputs and outputs on every poll.
+scope:
+  in:
+    - "Range exclusion; metadata or Range reads before download; bounded Run detail artifact projection."
+  out:
+    - "Results."
+acceptance_criteria:
+  - id: A1
+    text: "EXPLAIN uses the PK for the Project list; a binary read is rejected before download."
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "go test -tags integration ./internal/artifacts"
+    covers: [A1]
+  - command: "cd runtime && uv run pytest tests -k read_artifact"
+    covers: [A1]

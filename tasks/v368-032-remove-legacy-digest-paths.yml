@@ -1,0 +1,34 @@
+schema_version: "1.0"
+id: V368-032
+title: "Remove backward-compatibility digest code"
+milestone: hub-audit-defects-2026-10
+epic: api-contracts
+kind: chore
+priority: P3
+status: pending
+depends_on: []
+languages: [go]
+goal: "No code or test fake mentions keeping an old format replayable."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq; raw reports in docs/research/2026-10-11-hub-audit/), V367-012 follow-up; AGENTS.md section 2; file:line as of 02bbdcbf, re-verify on current main"
+  finding: >-
+    auditRequestDigest keeps a legacy omitempty "to keep stored start
+    digests replayable"; test fakes in
+    tests/e2e/fake_domain_gateway_test.go:850 and tests/ui-
+    stack/model_gateway_test.go:552 accept a legacy StageContentRequest
+    wrapper. Pre-production, so neither is needed.
+scope:
+  in:
+    - "Remove both and any sibling legacy paths found by searching for legacy/compat comments."
+  out:
+    - "Digests of current requests."
+acceptance_criteria:
+  - id: A1
+    text: "No code or test fake mentions keeping an old format replayable."
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "go test ./internal/auditservice ./internal/httpapi/public"
+    covers: [A1]
+  - command: "go test -tags e2e -run Fake ./tests/e2e"
+    covers: [A1]

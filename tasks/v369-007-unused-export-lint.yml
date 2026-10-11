@@ -1,0 +1,30 @@
+schema_version: "1.0"
+id: V369-007
+title: "Fail lint on exported identifiers used only by tests"
+milestone: hub-audit-guards-2026-10
+epic: quality
+kind: chore
+priority: P3
+status: pending
+depends_on: [V370-008]
+languages: [go]
+goal: "A new exported function used only by a test fails lint."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq; raw reports in docs/research/2026-10-11-hub-audit/), exec-state F3; dispatch F6; audits C6; file:line as of 02bbdcbf, re-verify on current main"
+  finding: >-
+    staticcheck U1000 covers only unexported code; exported test-only
+    surface keeps growing (runstore.Repository, controlplane
+    Register/Heartbeat/ReserveAll/GetAgent, auditstore.ListEvents, ...).
+scope:
+  in:
+    - "A go/packages check in make lint listing exported identifiers referenced only from _test.go files, with an allowlist for intended test helpers."
+  out:
+    - "Behaviour not named in the finding."
+acceptance_criteria:
+  - id: A1
+    text: "A new exported function used only by a test fails lint."
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "make lint"
+    covers: [A1]
