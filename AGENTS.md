@@ -358,6 +358,8 @@ Notes:
 - Migrations live in `internal/persistence/migrations/NNNNNN_name.sql`,
   numbered sequentially. A migration that moves or folds data has a
   `*_migration_test.go` in `internal/persistence/postgres`.
+  `000001_baseline.sql` is the whole schema as of 2026-10-11 (V367-001);
+  a database migrated before that must be recreated.
 - A table needs a named reader; a transaction-scoped lookup uses the
   transaction, never a second pool connection (nested acquisition deadlocked
   under `MaxConns=1`, V60-003, V60-015).

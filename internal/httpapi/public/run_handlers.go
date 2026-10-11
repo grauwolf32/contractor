@@ -295,8 +295,7 @@ func createRunRequestDigest(request createRunRequest) (string, error) {
 		"workflow": request.Workflow, "parameters": parameters, "artifacts": artifactRefs,
 		"executionConfig": request.ExecutionConfig.CanonicalValue(),
 	}
-	// Preserve the pre-Runtime-label digest for the empty set so response-loss replay of
-	// Runs created before migration 000018 remains exact after upgrade.
+	// An empty label set is omitted, as metadata labels are below.
 	if len(labels) != 0 {
 		canonical["runtimeLabels"] = labels
 	}

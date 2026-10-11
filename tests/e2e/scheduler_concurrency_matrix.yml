@@ -19,12 +19,12 @@ policy:
     hints reconciled against PostgreSQL and authoritative HTTP reads.
 
 cases:
-  - id: migration_preserves_serial_default
+  - id: schema_seeds_serial_default
     category: default
     acceptance: [A1]
     faults: [F01]
-    expected: The forward migration seeds exactly one protected value of one and never guesses a process-local fallback.
-    test: {source: internal/persistence/postgres/migrate_test.go, kind: go_test, name: TestSchedulerSettingsMigrationIsNarrowSeededAndProtected}
+    expected: The schema seeds exactly one protected value of one and never guesses a process-local fallback.
+    test: {source: internal/persistence/postgres/schema_invariants_postgres_test.go, kind: go_test, name: TestPostgresSchemaSeedsOneProtectedSchedulerSetting}
   - id: settings_cas_and_restart
     category: persistence
     acceptance: [A1, A4]
