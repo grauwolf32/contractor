@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-86 open tasks: 3 in progress, 69 pending, 14 deferred. 810 finished: 807 completed, 3 archived.
+85 open tasks: 3 in progress, 68 pending, 14 deferred. 811 finished: 808 completed, 3 archived.
 
 ## In progress
 
@@ -33,7 +33,6 @@ the epics are in [epics.yml](epics.yml).
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
-| [V368-025](v368-025-a2a-numbers-and-duplicates.yml) | defect | P2 | — | Decode A2A Worker results without float64 and with duplicate detection |
 | [V370-026](v370-026-worker-state-read-cost.yml) | defect | P3 | — | Cut the CPU cost of reading Worker State |
 
 ### Shared Memory tools (`memory`)
@@ -178,7 +177,7 @@ tasks in `introduced_by`.
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | Run execution core (`execution-core`) | 7 | 36 | 44 | 9 | 62 |
-| Planners and the Worker model boundary (`planner-worker`) | 2 | 23 | 34 | 7 | 42 |
+| Planners and the Worker model boundary (`planner-worker`) | 1 | 23 | 34 | 7 | 42 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 9 | 25 | 11 | 2 | 36 |
 | Shared Memory tools (`memory`) | 1 | 6 | 8 | 1 | 11 |
 | Agent Skills (`agent-skills`) | 0 | 10 | 2 | 1 | 1 |
