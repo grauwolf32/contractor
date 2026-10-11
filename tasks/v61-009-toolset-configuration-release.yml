@@ -17,7 +17,7 @@ deferral:
     port is postponed instead of resolving 35 conflicts now.
   reactivate_when: >-
     Explicit user decision that external MCP tools are needed (for example
-    for autonomous pentest Audits, spec 33); then port the branch onto main
+    for autonomous pentest Audits, proposal 0033); then port the branch onto main
     rather than reimplementing, renumber its migration and rerun the V61-009
     release gate.
   branch_commit: "caaca07543d3ef15db679a44ad250069f2815acf"
@@ -31,11 +31,11 @@ context:
   authority: User requested a complete task specification for the agreed Run-scoped toolset/MCP feature, including verification.
   design: docs/plans/2026-09-19-toolset-runtime-configuration.md
   specification:
-    - docs/spec/01-agent-template.md
-    - docs/spec/02-runtime-and-a2a.md
-    - docs/spec/07-runtime-labels-and-infrastructure-config.md
-    - docs/spec/19-audits.md
-    - docs/spec/ui-user-stories.md
+    - docs/spec/configuration/agent-templates.md
+    - docs/spec/execution/control-plane.md
+    - docs/spec/configuration/runtime-config.md
+    - docs/spec/audits/audits.md
+    - docs/spec/ui/journeys.md
   acceptance: >-
     Use real Server/PostgreSQL/Scheduler/private allocation/Runtime/ADK boundaries,
     a controlled local Streamable HTTP server and scripted model responses.

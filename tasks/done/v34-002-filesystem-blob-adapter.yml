@@ -14,7 +14,7 @@ languages:
 goal: Store complete immutable blobs under an explicit writable root using a simple failure model
   that tolerates orphan files and ephemeral-volume loss.
 context:
-  specification: docs/spec/23-artifact-blob-backends.md
+  specification: docs/spec/artifacts/blob-storage.md
   deployment: PostgreSQL is the default and requires no writable blob/tmp directory or Kubernetes
     PVC. Filesystem is explicitly selected with an absolute path and may be ephemeral; file loss
     and physical orphans after failure are accepted, but successful responses must never invent content.

@@ -10,7 +10,7 @@ Application Security orchestration platform. Versioned Workflows define checks
 and supporting analyses; AuditProfiles define how Audits coordinate selected
 Workflows into assessment programs. Extend the catalog with new Workflow and
 AgentTemplate definitions, instructions and Skills, using the available toolsets and the
-[configuration contract](../docs/spec/00-workflow-and-planner.md).
+[configuration contract](../docs/spec/configuration/workflows.md).
 
 [`server.local.yaml`](server.local.yaml) is a separate, non-secret
 `ServerConfig` for the loopback demo process. It is not a published catalog

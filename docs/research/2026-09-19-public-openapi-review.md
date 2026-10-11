@@ -106,7 +106,7 @@ resolve them. The listed fixes do not require rewriting the entire API.
    is stored
    ([normalize.go](../../internal/runtimeconfig/normalize.go), lines 335–350).
    This matches the
-   [RuntimeConfig specification](../spec/07-runtime-labels-and-infrastructure-config.md),
+   [RuntimeConfig specification](../spec/configuration/runtime-config.md),
    line 133.
 
    Reproduction: JSON Schema accepts each worker block

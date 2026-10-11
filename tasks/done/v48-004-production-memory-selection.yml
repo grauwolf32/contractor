@@ -15,9 +15,9 @@ goal: >-
   Planners, rather than available only in dedicated e2e configuration.
 context:
   specification:
-    - docs/spec/08-memory-tools.md
-    - docs/spec/01-agent-template.md
-    - docs/spec/00-workflow-and-planner.md
+    - docs/spec/tools/memory.md
+    - docs/spec/configuration/agent-templates.md
+    - docs/spec/configuration/workflows.md
   authority: >-
     On 2026-09-07 the user explicitly identified the absence of memory-tools@1
     in all 20 working template entries as a real problem and requested missing

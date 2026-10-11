@@ -22,10 +22,10 @@ they do not replace the V62-012 real-process acceptance gate. Results and exact
 checks are recorded in [V62-003 evidence](../../tasks/evidence/v62-003.json) and
 [V62-004 evidence](../../tasks/evidence/v62-004.json).
 
-V62-009 owns the [scan contract](../spec/openapi-audit-scans.md), including
+V62-009 owns the [scan contract](../spec/audits/scans.md), including
 scan-specific coverage and repeat prevention across Audit attempts. V62-001 then
 owns promotion of the proposed preparation syntax and lifecycle into the normative
-[Audit specification](../spec/19-audits.md). Later tasks depend on that contract.
+[Audit specification](../spec/audits/audits.md). Later tasks depend on that contract.
 V62-009 now supplies the explicit `Workflow.auditTask` consumer contract and
 executor Stage selection. V62-001 reuses these: it adds preparation before the
 initial inventory, whereas surrounding Stages in a check Workflow run only after
@@ -151,7 +151,7 @@ Workers can read evidence only through inputs authorized for their Run.
 ### Later checks and routing — deferred
 
 Reuse the typed `proposedChecks` mapping and `retained-dependency` direction in
-[specification 33](../spec/33-autonomous-pentest-audits.md#8-profiles-hypotheses-and-immutable-rounds).
+[specification 33](../proposals/0033-autonomous-pentest-audits.md).
 Generic routing belongs to V62; pentest recipe, predicate, proof and transport
 semantics remain owned by that separate specification. Fix the shared contract
 when the deferred tasks are reactivated so the two implementations cannot create incompatible mechanisms.

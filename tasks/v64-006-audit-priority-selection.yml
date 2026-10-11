@@ -15,7 +15,7 @@ goal: >-
 context:
   authority: User explicitly required filtering no fewer than ten candidates with the highest priority.
   design: docs/plans/2026-09-20-audit-check-prioritization.md
-  specification: [docs/spec/34-audit-check-prioritization.md, docs/spec/19-audits.md]
+  specification: [docs/proposals/0034-audit-check-prioritization.md, docs/spec/audits/audits.md]
   contract: The V64-000 pure selector consumes complete validated verdicts; this task verifies accepted receipt/journal authority and delegates atomic admission to the V64-002 store interface.
 scope:
   in:

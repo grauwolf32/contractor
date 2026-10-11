@@ -15,7 +15,7 @@ goal: >-
   reads while preserving live registry semantics and existing report authority.
 
 context:
-  specification: docs/spec/22-performance-metrics-and-profiling.md
+  specification: docs/spec/operations/operations.md
   allocation_policy: >-
     Server requests performanceMetrics:{version:1,intervalSeconds:15} only when
     its metrics switch is enabled and the selected Runtime advertises version 1.

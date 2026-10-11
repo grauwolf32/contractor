@@ -13,7 +13,7 @@ languages: [go, sql, markdown]
 goal: Allow the same exact receipt in compatible Audits without colliding finding or direct-assessment identities.
 context:
   authority: User requested completion of open V60 reviews; V60-008 owns the documented multi-Audit import ambiguity.
-  specification: docs/spec/19-audits.md
+  specification: docs/spec/audits/audits.md
   design: docs/plans/2026-09-20-project-review.md
   decision: >-
     One owner may import the same exact receipt into multiple compatible Audits.

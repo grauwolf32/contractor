@@ -15,7 +15,7 @@ goal: >-
   and Contractor lifecycle evidence before declaring the feature implemented.
 
 context:
-  specification: docs/spec/21-podman-sandbox.md
+  specification: docs/spec/tools/code-execution.md
   acceptance_mapping: Podman acceptance cases 1 through 11 plus the prerequisite local direct gate.
   release_policy: >-
     Mocks cover deterministic faults, but cannot substitute for real namespace,

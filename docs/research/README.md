@@ -32,7 +32,7 @@ Scheduler decisions from these records.
 
 ## Drafts and evaluation design
 
-- [Autonomous pentest Audit specification](../spec/33-autonomous-pentest-audits.md)
+- [Autonomous pentest Audit specification](../proposals/0033-autonomous-pentest-audits.md)
   — moved to the owning specification: source-optional web/API auditing,
   engagement/session/proof contracts, recovery, budgets and release gates;
   specified implementation target, not yet implemented.
@@ -43,11 +43,11 @@ Scheduler decisions from these records.
   the V57 task statuses and the boundaries of deferred research.
 - [Annotation participation index](annotation-index-proposal.md) — proposed
   attribution and snapshot reconciliation. The accepted evidence boundary is
-  in [specification 13](../spec/13-taint-annotations.md#annotation-artifacts-and-evidence).
+  in [specification 13](../spec/tools/code-analysis.md).
 - [`stateflow@1` Planner draft](stateflow-1.md) — proposed
   explicit Planner state and deterministic Worker context; not a registered
   production Planner.
-- [Portable evaluation specification](../spec/26-portable-evaluation-format.md)
+- [Portable evaluation specification](../spec/evals/format.md)
   owns the accepted format.
 - [Instruction-evaluation fixtures and workflow](../../tests/eval/agent_instructions/README.md)
 - [Live-model evaluation commands](../testing/live-models.md)

@@ -15,7 +15,7 @@ goal: >-
   and negative security cases, and real artifact contracts before comparing models.
 context:
   plan: tests/eval/agent_instructions/README.md
-  format: docs/spec/26-portable-evaluation-format.md
+  format: docs/spec/evals/format.md
   readiness: >-
     V41 owns generic schemas, adapters, recovery, scoring/comparison contracts and
     publication. Start only after its pre-live readiness gate. This task maps

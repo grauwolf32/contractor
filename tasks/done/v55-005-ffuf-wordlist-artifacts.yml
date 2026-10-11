@@ -12,7 +12,7 @@ languages: [python, go, yaml, markdown]
 goal: Execute bounded ffuf scans using an exact uploaded wordlist revision without accepting host filesystem paths.
 context:
   authority: User requested ffuf and reusable scan lists uploaded as artifacts with meaningful types.
-  specification: docs/spec/03-artifact-plane.md
+  specification: docs/spec/artifacts/artifact-store.md
   design: docs/plans/2026-09-19-scan-tools.md
 scope:
   in:

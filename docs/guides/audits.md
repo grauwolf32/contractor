@@ -3,7 +3,7 @@
 An Audit coordinates Workflows into an application security assessment. Its
 AuditProfile selects the check Workflows and assessment rules, while the Audit
 tracks scope, coverage, evidence, findings and review across their Runs. See the
-[Audit specification](../spec/19-audits.md) for the complete coordination model.
+[Audit specification](../spec/audits/audits.md) for the complete coordination model.
 
 The operator catalog ships two bounded source-input demo programs:
 

@@ -18,7 +18,7 @@ disagree, fix one of them in the same commit.
 | Every capability today and where it lands | [v3b-coverage.html](v3b-coverage.html) (open in a browser; the data is the `ROWS` array in the page source) |
 | Visual reference | `docs/design/ui/mockups/v3b/{home,project,start,check,issue}.html` (open in a browser; `?theme=dark` / `?theme=black`) and [v3b-panes.md](v3b-panes.md) |
 | Tokens and palette | `ui/src/app/theme.css`, [themes.md](themes.md) |
-| User goals and acceptance | `docs/spec/ui-user-stories.md`, `docs/spec/06-server-ui-and-operations.md`, `docs/spec/18-…`, `docs/spec/19-audits.md` (UI parts), `docs/spec/24-git-artifacts.md`, `docs/spec/30-managed-evals.md` |
+| User goals and acceptance | `docs/spec/ui/journeys.md`, `docs/spec/ui/ui.md`, `docs/spec/18-…`, `docs/spec/audits/audits.md` (UI parts), `docs/spec/artifacts/git-import.md`, `docs/spec/evals/managed-evals.md` |
 | API | `api/openapi/contractor-public-v1.yaml`, wrappers in `ui/src/api/*.ts` |
 
 ## 2. Ground rules

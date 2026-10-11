@@ -15,7 +15,7 @@ goal: >-
   capability discovery without claiming unsupported isolation or cleanup behavior.
 
 context:
-  specification: docs/spec/21-podman-sandbox.md
+  specification: docs/spec/tools/code-execution.md
   capability_rule: >-
     Enabled settings or installed code are not capabilities. Require local
     rootless engine, finite cgroup/resources, pinned image, compatible supervisor,

@@ -15,7 +15,7 @@ goal: >-
   then deliver constant-size aggregates through existing finalize/abort responses.
 
 context:
-  specification: docs/spec/22-performance-metrics-and-profiling.md
+  specification: docs/spec/operations/operations.md
   request: >-
     AllocationSpec.performanceMetrics is optional; only version=1 and
     intervalSeconds=15 are supported. Omission means no sampler or resource

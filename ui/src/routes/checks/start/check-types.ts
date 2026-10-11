@@ -7,7 +7,7 @@
  * (inputs, inventory, standards, interaction, workflows) and from the
  * project's current materials. Media types decide compatibility: a match
  * means the format matches, never that a material is the right one
- * (docs/spec/ui-user-stories.md US-03).
+ * (docs/spec/ui/journeys.md US-03).
  */
 import type { ArtifactMetadata } from "../../../api/artifacts";
 import type { AuditProfile } from "../../../api/audits";

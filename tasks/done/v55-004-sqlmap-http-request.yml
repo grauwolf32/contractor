@@ -12,7 +12,7 @@ languages: [python, yaml, markdown]
 goal: Preserve the method, URL, headers and body of one supplied HTTP request when invoking sqlmap.
 context:
   authority: User requested sqlmap scans of prepared requests, with OpenAPI generation planned later.
-  specification: docs/spec/01-agent-template.md
+  specification: docs/spec/configuration/agent-templates.md
   design: docs/plans/2026-09-19-scan-tools.md
 scope:
   in:

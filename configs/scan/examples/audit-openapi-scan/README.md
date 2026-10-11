@@ -33,7 +33,7 @@ go test ./internal/planner/scan -run '^TestAuditExecutor'
 These checks perform no scanner or network calls. Editing the examples here
 does not change the tests; refresh the fixture copies only alongside a change
 to the input contract.
-See the [adapter contract](../../../../docs/spec/openapi-audit-scans.md) for
+See the [adapter contract](../../../../docs/spec/audits/scans.md) for
 execution, result and recovery requirements. With disposable PostgreSQL and
 installed SQLMap/Nuclei, run `make test-openapi-audit-scan-e2e` for the mandatory
 process acceptance gate against its own local target.

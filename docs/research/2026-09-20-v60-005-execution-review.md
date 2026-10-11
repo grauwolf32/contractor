@@ -8,10 +8,10 @@ Control Plane/Runtime; она не является заявлением о ко
 ## Контракт и история
 
 Прочитаны сценарии Scheduler, отмены и восстановления в
-[spec 00](../spec/00-workflow-and-planner.md), жизненный цикл и durable deadlines
-в [spec 04](../spec/04-execution-lifecycle-and-metrics.md), owner Queue Pause в
-[spec 18](../spec/18-run-and-workspace-lifecycle-controls.md) и concurrency lanes
-в [spec 20](../spec/20-scheduler-concurrency-control.md).
+[spec 00](../spec/configuration/workflows.md), жизненный цикл и durable deadlines
+в [spec 04](../spec/execution/scheduler.md), owner Queue Pause в
+[spec 18](../spec/artifacts/retention-and-deletion.md) и concurrency lanes
+в [spec 20](../spec/execution/scheduler.md).
 
 История определяет границы проверки:
 

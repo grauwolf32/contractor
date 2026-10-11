@@ -16,7 +16,7 @@ retaining the original full source identity. `PrepareOperationTarget` fixes a
 concrete URL for Nuclei, including operation provenance and explicit URL-only
 limitations; it does not turn a POST/authenticated operation into a GET request.
 Both preserve exact source revision/digest and reject bindings outside their
-interface. The [Audit scan adapter contract](../../docs/spec/openapi-audit-scans.md)
+interface. The [Audit scan adapter contract](../../docs/spec/audits/scans.md)
 describes the remaining integration and release requirements.
 
 `DecodeAuditScanSettings` validates the bounded, JSON-only
@@ -35,7 +35,7 @@ resource bounds, HTTP serialization and explicit authentication bindings retain
 their strict checks. The output remains RequestSet v1.
 
 See the runnable operation-scoped [example](example_test.go), the
-[normative preparation policy](../../docs/spec/31-scan-request-preparation.md)
+[normative preparation policy](../../docs/spec/tools/scanners.md)
 and [RequestSet schema](../../api/scan/v1/http-request-set.schema.json).
 
 An operation binding uses its exact source pointer:
@@ -85,7 +85,7 @@ keywords do not create gaps. `BuildPlan` accepts a `PlanInput`, explicit
 exact wordlist refs. It selects scanner inputs and budgets, deduplicates jobs
 while retaining provenance, and emits canonical `ScanPlan` v1 through
 `MarshalPlan`. `DecodePlan` validates persisted plan bytes. See
-[scan planning](../../docs/spec/32-scan-planning.md) and its
+[scan planning](../../docs/spec/tools/scanners.md) and its
 [schema](../../api/scan/v1/scan-plan.schema.json) for selection, identity and
 conservative recovery semantics.
 

@@ -9,7 +9,7 @@ The original assertions came from `94264867` and subsequent fixture history.
 Commit `394018a04a57c52a1e4cdce8d0c4ef63edd74114` consolidated the production
 Project Workflow selections on `worker@2`, whose current limits match the
 report. This is a stale process assertion, not evidence of incorrect Runtime
-budget enforcement. [Spec 04](../spec/04-execution-lifecycle-and-metrics.md)
+budget enforcement. [Spec 04](../spec/execution/scheduler.md)
 binds ModelPolicy attribution to immutable execution configuration.
 
 ## Correction

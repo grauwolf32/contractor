@@ -2,7 +2,7 @@
 
 Status: implemented in the working tree. On 2026-09-20 the user explicitly
 rejected supporting old finding schemas while the application is in development.
-The current contract is [specification 27](../spec/27-findings-tools-and-collections.md#finding-proposal-and-selected-authoring-interfaces).
+The current contract is [specification 27](../spec/findings/findings.md).
 No deployment or model campaign is part of this change.
 
 ## Current design

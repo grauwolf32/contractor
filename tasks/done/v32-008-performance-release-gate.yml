@@ -15,7 +15,7 @@ goal: >-
   database/browser fault evidence and measured enabled/disabled overhead.
 
 context:
-  specification: docs/spec/22-performance-metrics-and-profiling.md
+  specification: docs/spec/operations/operations.md
   fixed_policy: >-
     Performance defaults on and pprof off. Server/pool/UI and active-allocation
     observations use 15 seconds, DB statistics 60 seconds and size 300 seconds.

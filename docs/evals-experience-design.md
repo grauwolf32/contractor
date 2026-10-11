@@ -5,10 +5,10 @@ The user selected the complete browser journey and explicitly required Contracto
 to remain independent of Playground. The managed Playground service proposed in
 the earlier draft is superseded.
 
-[US-10](spec/ui-user-stories.md#us-10--compare-variants-through-evals) ·
+[US-10](spec/ui/journeys.md) ·
 [V38-001](../tasks/done/v38-001-evals-experience-contract.yml) ·
-[Managed Evals contract](spec/30-managed-evals.md) ·
-[Portable format](spec/26-portable-evaluation-format.md)
+[Managed Evals contract](spec/evals/managed-evals.md) ·
+[Portable format](spec/evals/format.md)
 
 ## Product and ownership decisions
 
@@ -85,7 +85,7 @@ Existing Playground CLI/local bundles remain valid. Its optional Contractor
 integration adapts public manifests and registers managed submissions. Unmodified
 legacy Runs can still be inspected as history. They do not acquire strict paired
 membership by matching labels. Details and compatibility are in
-[spec 30](spec/30-managed-evals.md#compatibility-and-external-clients).
+[Managed Evals spec](spec/evals/managed-evals.md).
 
 ## User journey and screens
 
@@ -104,7 +104,7 @@ comes from the selected checks/review, never from Audit completion alone. Token
 charts include all owned execution roles once; Audit duration measures its parent
 interval rather than summing possibly overlapping child Runs. Missing child metrics
 remain partial. The authoritative details are in
-[Workflow and Audit parity](spec/30-managed-evals.md#workflow-and-audit-parity).
+[Workflow and Audit parity](spec/evals/managed-evals.md).
 
 ### List and navigation
 
@@ -179,7 +179,7 @@ safe-query / 1     Pass · 50      Fail · —         False positive; open pair
 safe-query / 2     Run failed     Pass · 60        Failure remains counted
 ```
 
-These are the illustrative spec 26 trace numbers, not measured instruction
+These are the illustrative trace numbers of the portable evaluation format spec, not measured instruction
 quality. The default comparison prioritizes regressions and unresolved pairs;
 All pairs is one click away. Display pair counts beside each cost/time delta.
 User-visible labels distinguish Failed execution, Failed check, Awaiting review,
@@ -229,7 +229,7 @@ at 1280px the two Overview charts fit side by side. Reuse Operations chart visua
 conventions and shared primitives where appropriate. Cross-experiment history
 trends are a later extension: differing datasets/pins must not form a misleading
 single performance line. API bounds and aggregation semantics are owned by
-[spec 30](spec/30-managed-evals.md#chart-projections).
+[Managed Evals spec](spec/evals/managed-evals.md).
 
 ### Controls
 
@@ -247,30 +247,30 @@ External finalization and Project deletion fences are enforced by the API.
 
 ## Worked example and reviewed failure cases
 
-Use spec 26's two cases, two repetitions and A/B, eight members. A has 4 submitted
+Use the two cases of the portable evaluation format spec, two repetitions and A/B, eight members. A has 4 submitted
 and terminal, 3 successful/scored/passed; B has 3 submitted and terminal, all three
 successful/scored but only two passed. A's failed attempt uses 45 known tokens;
 B's false positive has unavailable usage. B's fourth member was not submitted.
 
 | Case | Expected behavior and recovery | Contract reference |
 | --- | --- | --- |
-| Partial submission | Keep all 8 members. Native coordinator resumes only pending attempts; an external driver must reconnect. | Spec 30 execution control |
-| Lost submit response | Replay the same member/submission operation and exact body/key; return the same execution. Persist uncertainty until reconciled. | Spec 30 submissions |
-| Failed A execution | Count it in expected and execution metrics; preserve its known usage, with quality unscored. | Spec 26 comparison |
-| Unrelated matching labels | Display only in legacy history; no membership or score contribution. | Spec 30 compatibility |
-| Conflicting execution association | Quarantine the member/pair; no best-score or latest-Run choice. | Spec 30 identity |
-| Missing B usage | Show unavailable, exclude it only from that paired dimension. B total 130 covers 2/4 members. | Spec 30 read model |
-| Scorer failure | Record assessment error separately from Run success; reassess exact retained outputs without model replay. | Spec 30 assessments |
-| Changed source/model/tools | Reject required pin mismatch, preserve existing records; corrected plan gets a new ID. | Spec 30 preparation |
-| Browser close / coordinator restart | Durable command receipts, lease and submission intents recover independently of UI; no Playground service needed. | Spec 30 ownership |
-| Pause racing with submission | Fence new intents; reconcile already committed intents, then reach Paused after accepted work settles. | Spec 30 execution control |
-| Cancel / deadline / unknown terminal state | Stop dispatch, cancel owned live work and retain draining/unknown until proven terminal. Original denominators and usage remain. | Spec 30 execution control |
-| External runner disappears | Keep authoritative attempt states and the last producer activity time; no automatic takeover or fabricated completion. | Spec 30 external clients |
-| Foreign workspace or evidence | Owner-safe 404 before any import/submit/assessment effect. Private Runtime APIs cannot mutate eval control or scores. | Spec 30 authorization |
-| Project deleted mid-run | Fence new submissions first, drain executions, then purge private eval records with their workspace. | Spec 30 retention |
-| Publication/projection interrupted | Keep previous complete view generation and resume projection, without rerunning models or scorers. | Spec 30 read model |
-| Evidence later unavailable | Retain the historical judgment but invalidate current evidence completeness; no reconstructed proof. | Spec 30 retention |
-| More pairs than a page | Frozen full-experiment aggregates remain identical on every page; stale snapshot cursors reload explicitly. | Spec 30 pagination |
+| Partial submission | Keep all 8 members. Native coordinator resumes only pending attempts; an external driver must reconnect. | Managed Evals spec execution control |
+| Lost submit response | Replay the same member/submission operation and exact body/key; return the same execution. Persist uncertainty until reconciled. | Managed Evals spec submissions |
+| Failed A execution | Count it in expected and execution metrics; preserve its known usage, with quality unscored. | Portable evaluation format spec comparison |
+| Unrelated matching labels | Display only in legacy history; no membership or score contribution. | Managed Evals spec compatibility |
+| Conflicting execution association | Quarantine the member/pair; no best-score or latest-Run choice. | Managed Evals spec identity |
+| Missing B usage | Show unavailable, exclude it only from that paired dimension. B total 130 covers 2/4 members. | Managed Evals spec read model |
+| Scorer failure | Record assessment error separately from Run success; reassess exact retained outputs without model replay. | Managed Evals spec assessments |
+| Changed source/model/tools | Reject required pin mismatch, preserve existing records; corrected plan gets a new ID. | Managed Evals spec preparation |
+| Browser close / coordinator restart | Durable command receipts, lease and submission intents recover independently of UI; no Playground service needed. | Managed Evals spec ownership |
+| Pause racing with submission | Fence new intents; reconcile already committed intents, then reach Paused after accepted work settles. | Managed Evals spec execution control |
+| Cancel / deadline / unknown terminal state | Stop dispatch, cancel owned live work and retain draining/unknown until proven terminal. Original denominators and usage remain. | Managed Evals spec execution control |
+| External runner disappears | Keep authoritative attempt states and the last producer activity time; no automatic takeover or fabricated completion. | Managed Evals spec external clients |
+| Foreign workspace or evidence | Owner-safe 404 before any import/submit/assessment effect. Private Runtime APIs cannot mutate eval control or scores. | Managed Evals spec authorization |
+| Project deleted mid-run | Fence new submissions first, drain executions, then purge private eval records with their workspace. | Managed Evals spec retention |
+| Publication/projection interrupted | Keep previous complete view generation and resume projection, without rerunning models or scorers. | Managed Evals spec read model |
+| Evidence later unavailable | Retain the historical judgment but invalidate current evidence completeness; no reconstructed proof. | Managed Evals spec retention |
+| More pairs than a page | Frozen full-experiment aggregates remain identical on every page; stale snapshot cursors reload explicitly. | Managed Evals spec pagination |
 
 Reviewed arithmetic: execution success A=3/4, B=3/4; end-to-end pass A=3/4,
 B=2/4; conditional scored quality A=3/3, B=2/3. There are 3 terminal pairs,
@@ -322,7 +322,7 @@ pending-task statements describe 2026-09-19, before this implementation.
 
 - Reviewed the eight-member example and all 17 fault rows against ownership,
   exact membership, recovery, private-data separation and bounded reads. Recomputed
-  the arm/pair counts and B's partial token total independently; they match spec 26.
+  the arm/pair counts and B's partial token total independently; they match the portable evaluation format spec.
 - Ran V38-001's exact `design-artifact` and `planning-validation` commands: passed.
   Parsed 336 indexed tasks and checked the complete dependency graph for missing
   IDs/cycles; all ten V38 tasks have indexed files, valid milestones and acceptance
@@ -331,7 +331,7 @@ pending-task statements describe 2026-09-19, before this implementation.
   examples. The unchanged documentation landing-page link to the missing
   `reviews/architecture-review-2026-09-15.md` is a pre-existing issue outside this
   design. No new broken links were found.
-- Confirmed the delivered spec 26 bytes are unchanged. The optional external
+- Confirmed the delivered bytes of the portable evaluation format spec are unchanged. The optional external
   client and Go implementation will share protocol fixtures, not runtime imports.
 
 This section records design-time verification. Implementation evidence is tracked
@@ -345,7 +345,7 @@ storage), V38-006 (collection/projections), V38-008 (UI) and V38-010 (release
 verification). Setup, public API and Playground client tasks explicitly cover
 both Workflow and Audit; implementation statuses remain pending.
 
-The review checked spec 19 Audit authority and spec 26 identity/accounting against
+The review checked Audit authority in the Audits spec and identity/accounting in the portable evaluation format spec against
 current Contractor Audit creation/response routes and Playground provider code.
 It made two integration requirements explicit: Audit execution Projects use kind
 `project`, and item pages alone cannot prove that all discovery/assessment/check
@@ -357,6 +357,6 @@ Verification passed: 336 indexed tasks and their complete dependency graph,
 acceptance/test coverage for every V38 task, new local links/anchors, API JSON
 examples, chart pair deltas and nearest-rank percentiles. The shared trace token
 cohort has paired totals 125/130, differences -10/+15, p50 45/60 and p90 80/70;
-those are partial paired statistics, not whole-experiment savings. Spec 26 bytes
+those are partial paired statistics, not whole-experiment savings. The portable evaluation format spec bytes
 and completed task evidence were preserved. Runtime/UI validation belongs to the
 pending implementation tasks; this review does not claim those features work yet.

@@ -13,7 +13,7 @@ languages: ["python", "json", "yaml", "go"]
 
 goal: "Reuse domain scorers through a portable assessment contract that separates technical outcome, quality and incomplete evidence."
 context:
-  specification: docs/spec/26-portable-evaluation-format.md
+  specification: docs/spec/evals/format.md
   repository: "Implementation belongs in sibling playground-v2 unless a deliverable explicitly names Contractor. Commands below start at the Contractor root; the sibling location is a development convention, not a runtime dependency."
   scorers: "Keep current OpenAPI/LikeC4/trace/Audit scorers and pinned real-oracle semantics. Add registration of required roles/media/expected schema, implementation digest, metric definitions and accepts_partial=false default."
   assessment: "Assessment pins one exact Result, suite, expected refs and scorer implementations. Required checks use error > fail > incomplete > pass precedence; optional errors remain visible. N/A is explicit; 0/0 is never silently perfect recall."

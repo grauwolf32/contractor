@@ -22,8 +22,8 @@ context:
   - R01
   - R05
   specification:
-  - docs/spec/06-server-ui-and-operations.md
-  - docs/spec/19-audits.md
+  - docs/spec/ui/ui.md
+  - docs/spec/audits/audits.md
 scope:
   in:
   - Project pending review from the Audit service into proposed report responses and require review for

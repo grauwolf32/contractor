@@ -27,7 +27,7 @@ languages:
 goal: Demonstrate PostgreSQL and ephemeral-filesystem behavior through real Server/API paths, including
   no-PVC startup and the deliberately limited filesystem failure contract.
 context:
-  specification: docs/spec/23-artifact-blob-backends.md
+  specification: docs/spec/artifacts/blob-storage.md
   deployment: PostgreSQL is the default and requires no writable blob/tmp directory or Kubernetes
     PVC. Filesystem is explicitly selected with an absolute path and may be ephemeral; file loss
     and physical orphans after failure are accepted, but successful responses must never invent content.

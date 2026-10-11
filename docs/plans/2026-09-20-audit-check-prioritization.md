@@ -7,7 +7,7 @@ priority verdicts and selection of at least ten highest-priority checks for each
 Audit pass. Lower-ranked items must retain explanations. The user then requested
 self-contained implementation tasks followed by a detailed review.
 
-[Specification 34](../spec/34-audit-check-prioritization.md) owns the proposed
+[Specification 34](../proposals/0034-audit-check-prioritization.md) owns the proposed
 contract. This plan records decomposition and integration boundaries; individual
 `tasks/v64-*.yml` own implementation status. Planning/review does not satisfy any
 implementation acceptance criterion.

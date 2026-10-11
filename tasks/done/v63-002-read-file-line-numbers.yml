@@ -16,7 +16,7 @@ goal: >-
 context:
   authority: User requested the disabled-by-default option from Contractor v.1.0 on 2026-09-20 and asked for a task for required Contractor work.
   specification:
-    - docs/spec/10-runtime-filesystems-and-edit-tools.md
+    - docs/spec/tools/workspace.md
   historical_evidence:
     branch: v.1.0
     implementation: contractor/tools/fs/read_tools.py

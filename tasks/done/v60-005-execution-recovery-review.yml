@@ -17,10 +17,10 @@ goal: Review execution recovery and concurrent lifecycle transitions.
 context:
   authority: User requested a detailed project review plan and commencement after V59 corrections.
   specification:
-  - docs/spec/00-workflow-and-planner.md
-  - docs/spec/04-execution-lifecycle-and-metrics.md
-  - docs/spec/18-run-and-workspace-lifecycle-controls.md
-  - docs/spec/20-scheduler-concurrency-control.md
+  - docs/spec/configuration/workflows.md
+  - docs/spec/execution/scheduler.md
+  - docs/spec/artifacts/retention-and-deletion.md
+  - docs/spec/execution/scheduler.md
   design: docs/plans/2026-09-20-project-review.md
 scope:
   in:

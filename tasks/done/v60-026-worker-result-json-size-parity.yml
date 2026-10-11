@@ -14,7 +14,7 @@ goal: Accept the same bounded Worker results in Go and Python without changing n
 context:
   authority: User requested completion of the V60 review and bounded corrections for confirmed defects.
   specification:
-  - docs/spec/14-worker-results-and-live-state.md
+  - docs/spec/execution/worker.md
   design: docs/plans/2026-09-20-project-review.md
   review_task: V60-006
   reproduction: >-

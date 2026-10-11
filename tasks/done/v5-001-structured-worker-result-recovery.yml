@@ -46,7 +46,7 @@ scope:
 deliverables:
   - {path: runtime/src/contractor_runtime/worker/runtime.py, description: Structured tool-free finalizer and one-shot invalid-result recovery.}
   - {path: runtime/tests/test_adk_runtime.py, description: Missing, invalid, recovered, exhausted and strict-schema regression tests.}
-  - {path: docs/spec/04-execution-lifecycle-and-metrics.md, description: Normative finalizer and budget semantics.}
+  - {path: docs/spec/execution/scheduler.md, description: Normative finalizer and budget semantics.}
 
 acceptance_criteria:
   - id: A1

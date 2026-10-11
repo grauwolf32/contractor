@@ -19,9 +19,9 @@ context:
     concrete follow-up tasks. Connection reuse is an unmeasured candidate,
     not a demonstrated production defect or an approved default change.
   specification:
-    - docs/spec/02-runtime-and-a2a.md
-    - docs/spec/04-execution-lifecycle-and-metrics.md
-    - docs/spec/07-runtime-labels-and-infrastructure-config.md
+    - docs/spec/execution/control-plane.md
+    - docs/spec/execution/scheduler.md
+    - docs/spec/configuration/runtime-config.md
   history:
     - >-
       V8-004 and commit 3e359fb9b4c1463e325bd660b2cfe2422e78b8b1 added

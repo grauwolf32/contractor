@@ -15,7 +15,7 @@ goal: >-
   reproducible paired report and explicit inconclusive or rejected outcomes.
 context:
   plan: tests/eval/agent_instructions/README.md
-  format: docs/spec/26-portable-evaluation-format.md
+  format: docs/spec/evals/format.md
   runner: >-
     Use the existing playground-v2 CLI/runner extended by V41. Record its
     actual supported invocation in the measured report; do not invent a second

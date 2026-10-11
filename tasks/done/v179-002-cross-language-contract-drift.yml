@@ -20,7 +20,7 @@ context:
   decisions:
     scan_error_codes: >-
       api/scan/v1/testdata/worker-error-codes.json lists all 18 Runtime codes.
-      Following docs/spec/32-scan-planning.md, scanner absence
+      Following docs/spec/tools/scanners.md, scanner absence
       (scanner_unavailable, nuclei_templates_unavailable) is unavailable;
       pre-launch refusals (closed session, unsupported proxy, denied or
       unresolved target, unavailable request/wordlist/artifact input, existing

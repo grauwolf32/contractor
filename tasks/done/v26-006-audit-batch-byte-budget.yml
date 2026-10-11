@@ -17,7 +17,7 @@ goal: >-
   bounds.
 
 context:
-  specification: docs/spec/19-audits.md
+  specification: docs/spec/audits/audits.md
   failure: >-
     V26-004 groups ready items only by batchSize. Three individually valid task
     packages can exceed the 16 MiB stored task-set package limit, after which

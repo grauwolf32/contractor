@@ -15,7 +15,7 @@ goal: >-
 context:
   authority: User requested task specifications followed by detailed review before implementation of Audit checklist prioritization.
   design: docs/plans/2026-09-20-audit-check-prioritization.md
-  specification: [docs/spec/34-audit-check-prioritization.md, docs/spec/19-audits.md]
+  specification: [docs/proposals/0034-audit-check-prioritization.md, docs/spec/audits/audits.md]
   boundary: Use disposable local infrastructure and scripted gateway replies; this gate proves behavior and persistence, not live-model ranking quality.
 scope:
   in:

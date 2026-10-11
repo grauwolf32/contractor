@@ -13,7 +13,7 @@ languages: [yaml, markdown]
 goal: Restore the mandatory fault gate without weakening partial preparation cleanup coverage.
 context:
   authority: User requested completion of open V60 reviews; V60-005 reproduced this gate failure.
-  specification: docs/spec/04-execution-lifecycle-and-metrics.md
+  specification: docs/spec/execution/scheduler.md
   design: docs/plans/2026-09-20-project-review.md
   finding: >-
     Commit 5fad87a3 moved TestPrepareAllCleansEveryReservationAfterPartialFailure

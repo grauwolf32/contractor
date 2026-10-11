@@ -26,8 +26,8 @@ context:
   - R11
   - R12
   specification:
-  - docs/spec/06-server-ui-and-operations.md
-  - docs/spec/00-workflow-and-planner.md
+  - docs/spec/ui/ui.md
+  - docs/spec/configuration/workflows.md
 scope:
   in:
   - Encode finding verdict-specific required and forbidden fields.

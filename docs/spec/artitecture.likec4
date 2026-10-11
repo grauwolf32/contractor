@@ -1144,7 +1144,7 @@ model {
   runtimeAgent.workerExecution.workerInstrumentation -> runtimeAgent.allocationCapabilities.otlpExporter 'Enqueue bounded spans without waiting for HTTP; overflow counts failure and wakes sender'
   server.identityConfiguration.runtimeConfigService -> runtimeAgent.allocationCapabilities.otlpExporter 'Resolved RuntimeSettings: default batch 8 MiB, 2 total attempts, 2048 spans/64 MiB queue, flush 10 s'
 
-  // Managed Evals (spec 30)
+  // Managed Evals (Managed Evals spec)
   server.productSurface.evalApi -> server.identityConfiguration.authService 'Authenticate session; owner-scoped Project and experiment authority'
   server.productSurface.evalApi -> server.managedEvals.evalStore 'Datasets, revisions, drafts, frozen plans and command receipts under CAS'
   server.productSurface.evalApi -> server.managedEvals.evalSubmissionService 'Member submissions, external results and assessments bound to planSha256'
@@ -1158,7 +1158,7 @@ model {
   server.managedEvals.evalStore -> artifactDatabase.evalState 'Eval authority rows; multi-statement mutations in one transaction'
   evaluationHarness.runner -> server.productSurface.evalApi 'External controlMode: registered safe manifest, member submissions, results and assessments'
 
-  // Deterministic scan preparation, planning and tool Workers (specs 29, 31, 32, OpenAPI Audit scans)
+  // Deterministic scan preparation, planning and tool Workers (scanners spec, OpenAPI Audit scans)
   server.orchestration.plannerFactories -> server.orchestration.scanPlanner 'Construct scan-plan@1 when the Stage selects it; no Planner model configuration'
   server.orchestration.scanPlanner -> server.orchestration.plannerArtifactInspector 'Validate the exact RequestSet v1 / target-list input Artifact'
   server.orchestration.scanPlanner -> server.orchestration.workerInvokerTools 'Dispatch bounded jobs to fixed tool@1 scanner Workers with durable job intent'
@@ -1172,7 +1172,7 @@ model {
   runtimeAgent.workerExecution.toolRuntime -> runtimeAgent.allocationCapabilities.artifactClient 'tool-invocation.<key> receipt with If-None-Match; terminal CAS update and exact report ref'
   runtimeAgent.workerExecution.toolRuntime -> runtimeAgent.workerExecution.completionGate 'Trusted complete / fail without a model'
 
-  // Model gateway recovery (spec 04)
+  // Model gateway recovery (Scheduler spec)
   server.orchestration.workflowScheduler -> server.runtimeOperations.gatewayRecovery 'Run waiting state; active invocations recover before queued work'
   server.orchestration.stagePlanner -> server.runtimeOperations.gatewayRecovery 'Retry only the interrupted Planner model request with the same serialized input'
   runtimeAgent.allocationCapabilities.modelClient -> server.runtimeOperations.gatewayRecovery 'Private gateway-recovery route: classified failure reports and reopen decisions'
@@ -1185,7 +1185,7 @@ model {
   server.identityConfiguration.localPki -> server.runtimeOperations.controlPlane 'Control Plane certificate and key files'
   server.identityConfiguration.localPki -> runtimeAgent.agentControl 'Per-agent certificate and key files'
 
-  // Draft specs 28, 33, 34 — specified, not available product functionality
+  // Draft proposals 0028, 0033 and 0034 — specified, not available product functionality
   server.auditCoordination.auditController -> server.auditCoordination.prioritySelector 'Reproducible ordering and selection from complete validated verdicts' #planned
   server.orchestration.priorityPlanner -> server.auditCoordination.prioritySelector 'Strict verdicts from independent bounded model calls' #planned
   server.auditCoordination.pentestProgram -> runtimeAgent.allocationCapabilities.pentestTools 'Engagement projection, exact credential holds and proof registration' #planned
@@ -2875,7 +2875,7 @@ views {
 
   view audits {
     title '24 / Audits / Coordination and Ordinary Runs'
-    description 'Spec 19 / V25-V26. One Project-bound coordinator uses ordinary Runs; bounded compatible check items may share a Run without sharing identity or authority.'
+    description 'Audits spec / V25-V26. One Project-bound coordinator uses ordinary Runs; bounded compatible check items may share a Run without sharing identity or authority.'
 
     include server.productSurface.auditApi with {
       title 'Audit API'
@@ -3032,7 +3032,7 @@ views {
 
   view auditCollection {
     title '26 / Audits / Results, Retention and Deletion'
-    description 'Spec 19 / V25-007–008 and V26-004. Every terminal execution gets a receipt. Full manifest membership is checked before per-item settlement; Run success is independent of assessment.'
+    description 'Audits spec / V25-007–008 and V26-004. Every terminal execution gets a receipt. Full manifest membership is checked before per-item settlement; Run success is independent of assessment.'
 
     include server.auditCoordination.auditController with {
       title 'Audit Controller'
@@ -3181,7 +3181,7 @@ views {
 
   view schedulerConcurrency {
     title '28 / Execution / Global Concurrency and Audit Backpressure'
-    description 'Spec 20 / V27 implemented. One active Server; maxConcurrentRuns 1..32 (default 1) bounds Run lanes. Decreases drain; owner pause and compatible single-slot Runtime capacity constrain admission separately.'
+    description 'Scheduler spec / V27 implemented. One active Server; maxConcurrentRuns 1..32 (default 1) bounds Run lanes. Decreases drain; owner pause and compatible single-slot Runtime capacity constrain admission separately.'
 
     include browser with {
       title 'Operations / Settings UI'
@@ -3945,7 +3945,7 @@ views {
 
   view portableEvaluations {
     title '39 / Evaluation / External Portable Producer'
-    description 'Optional external playground-v2 producer (spec 26). It drives external-controlMode experiments through the Managed Evals API and keeps private ground truth and connection secrets local. Native coordination lives in the Managed Evals view (spec 30).'
+    description 'Optional external playground-v2 producer (portable evaluation format spec). It drives external-controlMode experiments through the Managed Evals API and keeps private ground truth and connection secrets local. Native coordination lives in the Managed Evals view (Managed Evals spec).'
 
     include apiClient with {
       title 'Explicit Evaluator CLI'
@@ -4243,7 +4243,7 @@ views {
 
   view managedEvals {
     title '43 / Evaluation / Managed Evals'
-    description 'Spec 30. Native datasets, experiments and assessments run inside Contractor Server: EvalStore authority, EvalCoordinator dispatch under durable claims, a common submission service for native and external producers, and a rebuildable read model for pairs, charts and reports.'
+    description 'Managed Evals spec. Native datasets, experiments and assessments run inside Contractor Server: EvalStore authority, EvalCoordinator dispatch under durable claims, a common submission service for native and external producers, and a rebuildable read model for pairs, charts and reports.'
 
     include browser with {
       title 'Evals UI'
@@ -4323,7 +4323,7 @@ views {
 
   view scanPlanning {
     title '44 / Execution / Deterministic Scan Planning and Tool Workers'
-    description 'Specs 29, 31, 32 and OpenAPI Audit scans. Request preparation is a pure library; scan-plan@1 builds a bounded immutable plan without a model; tool@1 Workers run one registered scanner callable with durable invocation receipts.'
+    description 'Scanners spec and OpenAPI Audit scans. Request preparation is a pure library; scan-plan@1 builds a bounded immutable plan without a model; tool@1 Workers run one registered scanner callable with durable invocation receipts.'
 
     include server.auditCoordination.packageInventory with {
       title 'Audit Inventory'
@@ -4415,7 +4415,7 @@ views {
 
   view modelRecovery {
     title '45 / Execution / Model Gateway Recovery'
-    description 'Spec 04. A live invocation waiting for model availability sets its Run to waiting. Server keeps one durable route gate per owner/gateway/model/credential/proxy, probes it under a lease, bounds the automatic window and lets the owner reopen it with retry-gateway.'
+    description 'Scheduler spec. A live invocation waiting for model availability sets its Run to waiting. Server keeps one durable route gate per owner/gateway/model/credential/proxy, probes it under a lease, bounds the automatic window and lets the owner reopen it with retry-gateway.'
 
     include server.productSurface.publicApi with {
       title 'Runs API'
@@ -4466,7 +4466,7 @@ views {
 
   view inboundTrust {
     title '46 / Operations / Inbound Trust and Private PKI'
-    description 'Specs 02 and 06. Browser and API clients reach Server through sessions, CSRF and a login limiter that attributes clients behind listed trusted proxies. Control Plane and Runtime Agents authenticate with deployment-local mTLS material issued by the offline PKI CLI.'
+    description 'Security and Public API specs. Browser and API clients reach Server through sessions, CSRF and a login limiter that attributes clients behind listed trusted proxies. Control Plane and Runtime Agents authenticate with deployment-local mTLS material issued by the offline PKI CLI.'
 
     include browser with {
       title 'User Browser'
@@ -4529,7 +4529,7 @@ views {
   }
 
   view plannedCapabilities {
-    title '47 / Roadmap / Draft Specifications 28, 33 and 34'
+    title '47 / Roadmap / Draft Proposals 0028, 0033 and 0034'
     description 'Dashed components are specified in draft documents and are not available product functionality: structured finding analysis with SARIF export (28), autonomous pentest Audits (33) and contextual Audit checklist prioritization (34; only the pure verdict/selection core exists).'
 
     include server.artifactPlane.sarifExporter with {

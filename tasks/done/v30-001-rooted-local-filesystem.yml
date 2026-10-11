@@ -15,7 +15,7 @@ goal: >-
   make local direct workspaces authoritative on disk without exposing host paths.
 
 context:
-  specification: docs/spec/10-runtime-filesystems-and-edit-tools.md
+  specification: docs/spec/tools/workspace.md
   current_boundary: >-
     DirectWorkspaceSession currently stores managed text in memory and writes
     deltas through fsspec. Existing atomic text writes use directory descriptors;

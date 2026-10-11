@@ -15,7 +15,7 @@ goal: >-
 context:
   authority: User requested starting the reviewed V64 implementation on 2026-09-20.
   design: docs/plans/2026-09-20-audit-check-prioritization.md
-  specification: [docs/spec/34-audit-check-prioritization.md, docs/spec/19-audits.md]
+  specification: [docs/proposals/0034-audit-check-prioritization.md, docs/spec/audits/audits.md]
   extraction: >-
     Concurrent V62 replanning places V62-009 ahead of V62-001 and V62-009 is
     already in progress. Extract the pure portion of V64-001/006 so useful
@@ -37,7 +37,7 @@ deliverables:
     description: Pure candidate/policy/verdict/selection package and meaningful contract/algorithm tests.
   - path: api/audit-priority/v1
     description: Strict model-verdict schema and selected canonical fixtures.
-  - path: docs/spec/34-audit-check-prioritization.md
+  - path: docs/proposals/0034-audit-check-prioritization.md
     description: Implemented core boundary and exact model-verdict/identity contract, with remaining feature clearly unimplemented.
 acceptance_criteria:
   - id: A1

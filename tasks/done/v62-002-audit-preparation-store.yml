@@ -13,7 +13,7 @@ goal: Persist preparation and its accepted outputs without inventing a Round or 
 context:
   authority: User-requested V62 Audit Workflow composition task series.
   design: docs/plans/2026-09-20-audit-workflow-composition.md
-  specification: [docs/spec/19-audits.md, docs/spec/03-artifact-plane.md]
+  specification: [docs/spec/audits/audits.md, docs/spec/artifacts/artifact-store.md]
   contract: V62-001 owns phase, identity, retention and current-schema validation; obsolete snapshots are rejected without compatibility readers or implicit conversion.
 scope:
   in:

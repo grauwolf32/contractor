@@ -1,7 +1,7 @@
 # UI usability review — 2026-09-19
 
 Branch: `feat/ui-user-story-usability`, based on the two completed design commits.
-Reference: [US-01…US-11](../spec/ui-user-stories.md). This is a scenario walkthrough
+Reference: [US-01…US-11](../spec/ui/journeys.md). This is a scenario walkthrough
 and implementation review, not a measured usability study with participants.
 
 Evidence: route definitions, request/interaction code, existing scenario tests,

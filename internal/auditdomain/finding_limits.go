@@ -1,7 +1,7 @@
 package auditdomain
 
 // Wire limits for finding-proposal.v1. Their rationale and Python counterparts
-// are specified in docs/spec/27-findings-tools-and-collections.md.
+// are specified in docs/spec/findings/findings.md.
 const (
 	MaximumFindingLocations     = MaximumEvidencePerItem
 	MaximumFindingPathBytes     = 4096      // V63-001 relative POSIX path contract.

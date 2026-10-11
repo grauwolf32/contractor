@@ -63,10 +63,10 @@ context:
     and asked for concrete follow-up tasks. Removing the finalizer is not a
     predetermined outcome.
   specification:
-    - docs/spec/14-worker-results-and-live-state.md
-    - docs/spec/15-worker-summarization.md
-    - docs/spec/04-execution-lifecycle-and-metrics.md
-    - docs/spec/25-audit-worker-finalization.md
+    - docs/spec/execution/worker.md
+    - docs/spec/execution/worker.md
+    - docs/spec/execution/scheduler.md
+    - docs/spec/audits/worker-completion.md
   history:
     - >-
       V13-001 (bdcaca77cc7bf148464c98b94086375f7c670e24) removed the old

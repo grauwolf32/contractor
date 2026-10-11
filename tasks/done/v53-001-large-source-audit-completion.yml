@@ -28,7 +28,7 @@ context:
   authority: >-
     User requested monitoring the execution queue, investigating failures,
     creating tasks and fixing serious bugs; simple fixes need no separate task.
-  specification: docs/spec/19-audits.md
+  specification: docs/spec/audits/audits.md
   incident:
     project_id: project_26f02cc01364ebe6d382dd6cc3091122
     audit_id: audit_aeeed3020f85b21c435a5d4c5117b5ed

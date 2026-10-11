@@ -18,8 +18,8 @@ goal: Select the correct check Workflow for each admitted typed proposal while p
 context:
   authority: User-requested V62 Audit Workflow composition task series.
   design: docs/plans/2026-09-20-audit-workflow-composition.md
-  specification: [docs/spec/19-audits.md, docs/spec/33-autonomous-pentest-audits.md]
-  reuse: Specification 33 proposes proposedChecks mappings by planSchema and phase; define the common routing contract here on reactivation and use V62-006 exact dependencies.
+  specification: [docs/spec/audits/audits.md, docs/proposals/0033-autonomous-pentest-audits.md]
+  reuse: Proposal 0033 proposes proposedChecks mappings by planSchema and phase; define the common routing contract here on reactivation and use V62-006 exact dependencies.
 scope:
   in:
     - Validate profile mappings from typed plan schema and phase to a compatible exact check binding and required capabilities.

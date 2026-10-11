@@ -90,7 +90,7 @@ Evidence: [config_flags.go](../../internal/app/config_flags.go),
 [config_inputs.go](../../internal/app/config_inputs.go),
 [config_validate.go](../../internal/app/config_validate.go) and
 [app.go](../../internal/app/app.go). Updated
-[specification 06](../spec/06-server-ui-and-operations.md) to the current surface.
+[specification 06](../spec/ui/ui.md) to the current surface.
 
 Updated [Makefile](../../Makefile)'s `run-local`, numerous
 `tests/e2e` launchers, `tests/eval/project_workflows`, `tests/ui-stack`, and
@@ -297,7 +297,7 @@ Current writers already resolve authored omission to `isolated` and persist
 intentional allocation-local conversation behavior. No writer, current snapshot
 format or Runtime session lifecycle needed changing.
 
-Updated [specification 00](../spec/00-workflow-and-planner.md). The
+Updated [specification 00](../spec/configuration/workflows.md). The
 [configuration tests](../../internal/config/worker_session_test.go) cover both
 valid modes through Workflow/Stage round trips, malformed and missing modes,
 and a missing mode inside an AuditProfile. The
@@ -316,7 +316,7 @@ always includes that kind, the embedded Workflow and any explicit
 `workerCompletion` contract. Current authors already provide explicit role kinds
 and current writers retain them. Their serialized format and digest are unchanged.
 
-Updated [specification 19](../spec/19-audits.md). The
+Updated [specification 19](../spec/audits/audits.md). The
 [snapshot tests](../../internal/config/persisted_audit_profile_test.go) cover
 current role round trips, legacy and mixed snapshots, missing/null/empty/unknown/
 non-string kinds, a changed valid kind and a frozen digest from the removed

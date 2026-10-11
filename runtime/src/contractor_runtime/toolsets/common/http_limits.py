@@ -1,4 +1,4 @@
-"""HTTP transport bounds from docs/spec/11-http-and-caido-tools.md.
+"""HTTP transport bounds from docs/spec/tools/http-caido.md.
 
 These are the existing http-tools@1 limits. Finding evidence reuses them so
 retention never silently changes the transport's payload or attempt contract.

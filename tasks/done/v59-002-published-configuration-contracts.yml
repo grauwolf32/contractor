@@ -22,8 +22,8 @@ context:
   - R02
   - R03
   specification:
-  - docs/spec/06-server-ui-and-operations.md
-  - docs/spec/15-worker-summarization.md
+  - docs/spec/ui/ui.md
+  - docs/spec/execution/worker.md
 scope:
   in:
   - Describe optional summarizer instructions as a safe exact reference.

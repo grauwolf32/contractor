@@ -13,7 +13,7 @@ languages: [go]
 goal: Ensure the production A2A invoker constructs only principal-bound transports.
 context:
   issue: https://github.com/grauwolf32/contractor/issues/205
-  specification: docs/spec/02-runtime-and-a2a.md
+  specification: docs/spec/execution/control-plane.md
   decision: docs/research/2026-09-19-a2a-connection-reuse-decision.md
   finding: NewMTLS stores a pooled unbound builder that Invoke always replaces.
 scope:

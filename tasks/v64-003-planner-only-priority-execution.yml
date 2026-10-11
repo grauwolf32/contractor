@@ -15,7 +15,7 @@ goal: >-
 context:
   authority: Independent Audit verdicts need direct bounded Planner model calls with no Worker or tools.
   design: docs/plans/2026-09-20-audit-check-prioritization.md
-  specification: [docs/spec/34-audit-check-prioritization.md, docs/spec/19-audits.md]
+  specification: [docs/proposals/0034-audit-check-prioritization.md, docs/spec/audits/audits.md]
   compatibility: The new execution shape is explicitly identified; existing Worker-backed, scan and model-free planner shapes retain their constraints.
 scope:
   in:

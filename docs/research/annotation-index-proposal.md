@@ -1,7 +1,7 @@
 # Annotations as an optional Workflow artifact
 
 Status: proposal. The automatic annotation index is not implemented and is not a
-prerequisite for extending the general [finding creation and reading tools](../spec/27-findings-tools-and-collections.md).
+prerequisite for extending the general [finding creation and reading tools](../spec/findings/findings.md).
 
 Annotations are one possible investigation output, alongside a report, graph,
 diff or validation log. Each Workflow chooses its outputs. The general Audit,
@@ -81,6 +81,6 @@ merge findings automatically. This distinction applies regardless of whether
 annotations exist.
 
 A possible export extension should align with the
-[common completion contract / V39](../spec/25-audit-worker-finalization.md)
+[common completion contract / V39](../spec/audits/worker-completion.md)
 if its references need to be included in the deterministic result. This requires
 neither a new independent finalizer nor a mandatory annotation stage.

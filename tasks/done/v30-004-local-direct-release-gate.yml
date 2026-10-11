@@ -15,7 +15,7 @@ goal: >-
   parity evidence so Podman implementation can depend on a verified filesystem contract.
 
 context:
-  specification: docs/spec/10-runtime-filesystems-and-edit-tools.md
+  specification: docs/spec/tools/workspace.md
   acceptance_mapping: Local direct amendment acceptance cases 1 through 10.
   invariants: >-
     Disk is authoritative only for local direct. API coordination cannot claim

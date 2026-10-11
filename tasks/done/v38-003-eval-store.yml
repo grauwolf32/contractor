@@ -15,13 +15,13 @@ goal: >-
   crash-safe revisions, ownership and deletion fences.
 context:
   specification: >-
-    docs/spec/30-managed-evals.md
+    docs/spec/evals/managed-evals.md
   design: >-
     docs/evals-experience-design.md
   format: >-
-    docs/spec/26-portable-evaluation-format.md
+    docs/spec/evals/format.md
   user_story: >-
-    US-10 in docs/spec/ui-user-stories.md
+    US-10 in docs/spec/ui/journeys.md
   boundary: >-
     Contractor builds and runs native Evals without Playground. Server and external control
     modes are immutable and mutually exclusive for dispatch. Both submit ordinary Runs/Audits

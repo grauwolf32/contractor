@@ -13,7 +13,7 @@ goal: Restore the Code Analysis process gate after retirement of its generated t
 context:
   authority: User requested completion of the remaining V60 reviews; the required release gate reproduced this fixture startup failure.
   design: docs/plans/2026-09-20-project-review.md
-  specification: docs/spec/12-code-analysis-tools.md
+  specification: docs/spec/tools/code-analysis.md
   reproduction: >-
     TestCodeAnalysisAcrossHeterogeneousRuntimeProcesses fails before Server readiness
     because generated code_analysis_graph_e2e and code_analysis_shallow_e2e templates

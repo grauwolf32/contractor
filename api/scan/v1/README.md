@@ -13,7 +13,7 @@ semantic rules below are enforced by
 [`internal/contracts/scan/http_request_set.go`](../../../internal/contracts/scan/http_request_set.go).
 The [valid fixture](testdata/valid.json) is canonical JSON. Preparation policy,
 including supported OpenAPI versions and coverage gap meanings, is specified in
-[scan request preparation](../../../docs/spec/31-scan-request-preparation.md).
+[scan request preparation](../../../docs/spec/tools/scanners.md).
 
 All fields shown in the schema are mandatory. Empty arrays and an empty request
 body are present explicitly. Unknown, duplicate, differently cased and null
@@ -95,7 +95,7 @@ candidates and 100 jobs. Time budgets sum configured Worker timeouts; they do
 not bound the number of individual scanner network requests. Generated Artifact
 revisions and physical allocations are excluded from semantic job identity.
 
-[Scan planning](../../../docs/spec/32-scan-planning.md) owns the selection policy,
+[Scan planning](../../../docs/spec/tools/scanners.md) owns the selection policy,
 fixed Worker bindings, SQLMap/ffuf materialization, durable intent, aggregate
 coverage and recovery behavior. Recovery preserves completed and unknown job
 outcomes instead of silently rescanning them.

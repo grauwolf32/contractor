@@ -12,7 +12,7 @@ languages: [go, python, typescript, yaml, markdown]
 goal: Let a user select a simple scan Workflow, supply a target/request/list and inspect a report through the existing product.
 context:
   authority: User agreed to start with simple scan scenarios before OpenAPI planning and Katana.
-  specification: docs/spec/01-agent-template.md
+  specification: docs/spec/configuration/agent-templates.md
   design: docs/plans/2026-09-19-scan-tools.md
 scope:
   in:

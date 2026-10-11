@@ -47,7 +47,7 @@ deliverables:
   - {path: internal/planner/plan.go, description: Framework-neutral bounded plan types, validation, cloning, and transition controller.}
   - {path: internal/planner/streamline, description: ADK add/list tool adapters and finish precondition integration.}
   - {path: internal/planner/plan_test.go, description: Exhaustive legal/illegal transition and concurrency tests.}
-  - {path: docs/spec/00-workflow-and-planner.md, description: Exact first-version subtask tool and status contract.}
+  - {path: docs/spec/configuration/workflows.md, description: Exact first-version subtask tool and status contract.}
 
 requirements:
   - id: R1

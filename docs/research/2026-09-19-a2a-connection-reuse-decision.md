@@ -139,9 +139,9 @@ A certificate identifies a principal, not a process or allocation. A same-key
 restart does not make an old tenant valid. The retirement fixture models the
 HTTP gate; it does not prove production watchdog, Registry or two-phase release
 behavior. Closing the transport alone does not release an allocation. These
-boundaries come from [Runtime/A2A](../spec/02-runtime-and-a2a.md),
-[lifecycle](../spec/04-execution-lifecycle-and-metrics.md) and
-[identity/configuration](../spec/07-runtime-labels-and-infrastructure-config.md).
+boundaries come from [Runtime/A2A](../spec/execution/control-plane.md),
+[lifecycle](../spec/execution/scheduler.md) and
+[identity/configuration](../spec/configuration/runtime-config.md).
 
 ## Bounded responses and reuse conditions
 

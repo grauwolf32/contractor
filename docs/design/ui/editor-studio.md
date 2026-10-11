@@ -78,7 +78,7 @@ decision and use the former lime accent and Inter.
 
 ## Composition and rounds: proposed next direction
 
-Keep the distinction established in [the Audit contract](../../spec/19-audits.md):
+Keep the distinction established in [the Audit contract](../../spec/audits/audits.md):
 Workflow defines one task's stages and local retry/escalation; AuditProfile
 composes ordinary WorkflowRuns, and Audit holds process state and immutable
 rounds. A later round represents new work after assessment, not another attempt

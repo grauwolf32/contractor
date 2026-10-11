@@ -15,7 +15,7 @@ goal: >-
 context:
   authority: User requested independent contextual checklist verdicts, at least ten highest-priority checks per pass, task specifications and detailed review on 2026-09-20.
   design: docs/plans/2026-09-20-audit-check-prioritization.md
-  specification: [docs/spec/34-audit-check-prioritization.md, docs/spec/19-audits.md]
+  specification: [docs/proposals/0034-audit-check-prioritization.md, docs/spec/audits/audits.md]
   foundations: >-
     V64-000 supplies the pure model-verdict and selection core. V62-001 supplies
     shared pre-Round lifecycle contracts; its current ordering through V62-009
@@ -23,7 +23,7 @@ context:
   schema_policy: Use V62-001's current explicit inventory mappings; migrate repository profiles, fixtures and clients and reject obsolete fields and snapshots without compatibility readers or implicit conversion.
 scope:
   in:
-    - Define strict versioned profile opt-in, prioritization role, inventory/cycle/context/verdict/selection schemas and finite field/collection limits from specification 34.
+    - Define strict versioned profile opt-in, prioritization role, inventory/cycle/context/verdict/selection schemas and finite field/collection limits from proposal 0034.
     - Integrate V64-000 stable candidate identity and strict verdicts into Audit-wide contracts; fix remaining-pool membership as never-admitted candidates and the distinction between inventory capacity and immutable selected Round item budgets.
     - Define optional description/findings snapshots, analyst revision pins, evidence references and a common low/medium/high/critical rubric with confidence separate from priority.
     - Require complete valid verdicts for the entire remaining pool before sorting and selecting exact min(topN, remaining), with topN default 10 and range 10 through 1000.
@@ -37,7 +37,7 @@ scope:
   out:
     - Execute models or Workers, enable a runnable profile, revise finding severity, generate new checklist entries or add deterministic fallback ranking.
 deliverables:
-  - path: docs/spec/34-audit-check-prioritization.md
+  - path: docs/proposals/0034-audit-check-prioritization.md
     description: Implementation-ready contract with exact bounds, transitions, independent verdict schema, eligibility and atomic selection behavior.
   - path: internal/config
     description: Strict opt-in profile and planner/policy validation with capability gating and current-schema canonical fixtures.
@@ -64,5 +64,5 @@ tests:
   - command: git diff --check
     covers: [A1, A3]
 verification_requirements:
-  - Review the transition, limit, capability and current/obsolete-schema matrices against specification 34; prose-only cases do not satisfy executable fixture criteria.
+  - Review the transition, limit, capability and current/obsolete-schema matrices against proposal 0034; prose-only cases do not satisfy executable fixture criteria.
   - Treat V62-001 as a real pending dependency and avoid claiming the contract alone enables prioritization.

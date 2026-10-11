@@ -13,7 +13,7 @@ languages: ["python", "json", "yaml", "go"]
 
 goal: "Extend the existing playground runner with durable bounded experiment planning and resumable member submission, without another execution engine."
 context:
-  specification: docs/spec/26-portable-evaluation-format.md
+  specification: docs/spec/evals/format.md
   repository: "Implementation belongs in sibling playground-v2 unless a deliverable explicitly names Contractor. Commands below start at the Contractor root; the sibling location is a development convention, not a runtime dependency."
   plan: "Resolve suite/case/binding/scorer/source/config pins, expand immutable members and execution order, validate budgets and required-equal dimensions before submit. Preserve unsupported/blocked members. A changed frozen plan gets a new experiment ID."
   durability: "The local bundle is evaluator authority under one exclusive writer lock; fsync exact request/key intents before external mutations, append receipts and replace indexes atomically. Server owns remote execution. First release cannot reconstruct private authority from labels or published artifacts."

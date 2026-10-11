@@ -7,12 +7,12 @@ user Audit, live model, production service or external scan target was used.
 
 ## Contract and historical basis
 
-The review follows specs [06](../spec/06-server-ui-and-operations.md),
-[17](../spec/17-projects-and-queue.md),
-[18](../spec/18-run-and-workspace-lifecycle-controls.md),
-[19](../spec/19-audits.md), [25](../spec/25-audit-worker-finalization.md),
-[27](../spec/27-findings-tools-and-collections.md) and
-[US-01–07](../spec/ui-user-stories.md).
+The review follows specs [06](../spec/ui/ui.md),
+[17](../spec/artifacts/projects.md),
+[18](../spec/artifacts/retention-and-deletion.md),
+[19](../spec/audits/audits.md), [25](../spec/audits/worker-completion.md),
+[27](../spec/findings/findings.md) and
+[US-01–07](../spec/ui/journeys.md).
 
 Relevant accepted changes were read before evaluating current behavior:
 

@@ -309,7 +309,7 @@ finishing V55 scans.
 
 **R10 — evidence: close a specific gap for a specific consumer**
 
-The [findings specification](../spec/27-findings-tools-and-collections.md) already
+The [findings specification](../spec/findings/findings.md) already
 describes observations/hypotheses/findings, exact refs, retention and collections.
 Generic ArtifactRef and optional reproduction instructions are deliberate
 generality, not the absence of an evidence plane.
@@ -317,7 +317,7 @@ generality, not the absence of an evidence plane.
 A narrow gap is confirmed: the
 [HTTP tool](../../runtime/src/contractor_runtime/toolsets/http/tools.py) stores
 response bodies as artifacts but history in an allocation-local deque cleared
-during cleanup. [Spec 28](../spec/28-finding-analysis-and-sarif.md) explicitly
+during cleanup. [Spec 28](../proposals/0028-finding-analysis-and-sarif.md) explicitly
 notes that the body does not reconstruct the request, headers and credentials.
 
 Replay requires durable exchange/verification evidence with exact
@@ -330,7 +330,7 @@ new contract before a working consumer exists.
 
 **R11 — annotations: preserve the output's purpose**
 
-[Spec 13](../spec/13-taint-annotations.md),
+[Spec 13](../spec/tools/code-analysis.md),
 [V16-004](../../tasks/done/v16-004-trace-annotation-config.yml) and the
 [trace skill](../../configs/skills/trace/SKILL.md) intentionally provide source
 mutation, cumulative overlay state, diff and report. No retained direct user
@@ -349,7 +349,7 @@ a comment does not justify reusing old graph coordinates.
 
 **R12 — streaming artifacts: accepted bounds are not an unbounded buffer**
 
-[Spec 23](../spec/23-artifact-blob-backends.md) permits one complete payload for
+[Spec 23](../spec/artifacts/blob-storage.md) permits one complete payload for
 hash verification: at most 64 MiB and four concurrent transfers, with admission
 before reading. This is not a 256 MiB process cap: additional driver/serialization
 buffers exist. The [filesystem backend](../../internal/artifacts/blob_filesystem.go)
@@ -368,14 +368,14 @@ this recommendation.
 
 [V15-003](../../tasks/done/v15-003-trailmark-child-host.yml) introduced a child lifecycle,
 in part to return graph RSS to the OS.
-[Spec 12](../spec/12-code-analysis-tools.md) explicitly excludes persisted/shared
+[Spec 12](../spec/tools/code-analysis.md) explicitly excludes persisted/shared
 graph artifacts and cross-allocation caching. However, a cached graph for the
 current digest and a shallow cache already exist within an allocation.
 Each tool call does not imply a new graph build.
 
 [V2-009](../../tasks/done/v2-009-precomputed-analysis-variants.yml) implemented explicit
 from-analysis workflows with exact discovery reports. Model-analysis reuse is
-already available. [Memory](../spec/08-memory-tools.md) survives allocation release
+already available. [Memory](../spec/tools/memory.md) survives allocation release
 within its Run scope; a different Run receives previous conclusions through
 explicitly promoted artifacts, not hidden note reads.
 
@@ -409,7 +409,7 @@ At-most-one Planner invocation and interruption after process loss are original
 constraints confirmed by [V1-006](../../tasks/done/v1-006-streamline-planner.yml),
 not accidentally unfinished persistence.
 
-[Tool Workers](../spec/29-tool-workers.md) already have durable receipts, unknown
+[Tool Workers](../spec/tools/scanners.md) already have durable receipts, unknown
 outcomes and a prohibition on unsafe automatic rescanning.
 [V55-008](../../tasks/done/v55-008-deterministic-scan-planner.yml) contains the required
 bounded deterministic planner/restart scope. It must check logical job identity
@@ -425,8 +425,8 @@ Transparent Stage resume remains a substantial subsystem redesign.
 [V26-004](../../tasks/done/v26-004-batched-audit-executions.yml) deliberately chose
 small bounded batches to reduce repeated preparation and share analysis;
 partial durable checkpoints were left out of scope.
-[Spec 19](../spec/19-audits.md) and
-[spec 25](../spec/25-audit-worker-finalization.md) preserve terminal collection
+[Spec 19](../spec/audits/audits.md) and
+[spec 25](../spec/audits/worker-completion.md) preserve terminal collection
 and atomic batch acceptance.
 
 Items accepted by an allocation-local collector have not yet been accepted by
@@ -443,7 +443,7 @@ This changes the unit of result acceptance; it is not partial ZIP import.
 
 [V3-004](../../tasks/done/v3-004-router-planner.yml) deliberately hides physical capacity
 from Planner and excludes parallel dispatch. The
-[core spec](../spec/02-runtime-and-a2a.md) requires complete injective matching
+[core spec](../spec/execution/control-plane.md) requires complete injective matching
 before reservation, preventing partial resource holds and greedy-placement errors.
 A fixed set provides stable sessions/workspaces and avoids waiting for capacity
 mid-Planner.

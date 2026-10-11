@@ -17,7 +17,7 @@ related_work:
     User refined the immediate priority-selection goal to Audit checklist items
     with optional service/finding context and at least ten checks per pass.
     V64 specifies that separate Audit feature in
-    docs/spec/34-audit-check-prioritization.md. This narrower scanner-candidate
+    docs/proposals/0034-audit-check-prioritization.md. This narrower scanner-candidate
     ranking task remains pending and is not a prerequisite for V64.
 scope:
   in:

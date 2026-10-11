@@ -13,7 +13,7 @@ languages: [go]
 goal: Stop persisting unused cumulative token counts without losing old Planner sessions.
 context:
   issue: https://github.com/grauwolf32/contractor/issues/210
-  specification: docs/spec/04-execution-lifecycle-and-metrics.md
+  specification: docs/spec/execution/scheduler.md
   finding: Session token counters are written but Planner metrics use execution state and per-event facts.
 scope:
   in:

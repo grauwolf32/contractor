@@ -15,7 +15,7 @@ goal: >-
   observations and snapshot-based analysis without introducing host-path access.
 
 context:
-  specifications: [docs/spec/10-runtime-filesystems-and-edit-tools.md, docs/spec/12-code-analysis-tools.md]
+  specifications: [docs/spec/tools/workspace.md, docs/spec/tools/code-analysis.md]
   consumers: >-
     filesystem@1 currently obtains full WorkspaceSnapshots even for read_file.
     Code analysis and observations key derived state by the managed-text digest.

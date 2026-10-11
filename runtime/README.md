@@ -26,7 +26,7 @@ for an allocation-private in-process tree, add `--workspace-storage memory`.
 configuration. Physical roots are never registered with Control Plane.
 
 Model-selected HTTP requests and scanner targets pass one
-[target policy](../docs/spec/11-http-and-caido-tools.md#target-policy). Runtime
+[target policy](../docs/spec/platform/security.md). Runtime
 service endpoints and cloud metadata addresses are always refused. Private
 networks (RFC 1918, `100.64.0.0/10`, IPv6 unique local) and public addresses
 are allowed. Loopback and link-local addresses are refused unless they are the
@@ -312,7 +312,7 @@ SQLMap request artifacts use UTF-8 JSON with media type `application/json` or
 `schemaVersion: 1`, `method`, `url`, `headers`, `body` and a nonempty explicit
 `testParameters` list. The artifact is limited to 256 KiB and its text body to
 64 KiB. Runtime validates the supported request subset before launch; the
-[request contract](../docs/spec/01-agent-template.md#sqlmap-http-request-artifacts)
+[request contract](../docs/spec/tools/scanners.md)
 defines methods, header/parameter limits and rejected representations.
 `request_ref` must contain a revision and cannot be combined with nonempty
 `url`, `parameter`, `data` or `cookie`. No additional generic Artifact tool is
@@ -333,7 +333,7 @@ ffuf uses `scan_ffuf(url, wordlist_ref, ...)` with `FUZZ` in the URL path/query
 and an exact uploaded `text/vnd.contractor.wordlist` or `text/plain` revision.
 The bounded UTF-8 list is validated and privately materialized without trimming
 payloads or dropping duplicates/comments/blank entries. The
-[wordlist and ffuf contract](../docs/spec/03-artifact-plane.md#scanner-wordlist-artifacts)
+[wordlist and ffuf contract](../docs/spec/tools/scanners.md)
 defines newline semantics, limits and result fields. Calls use GET, one thread,
 `rate=10` by default and `timeout_seconds=300`; `match_status` defaults to `all`.
 Optional `filter_status`, `filter_size`, `filter_words` and `filter_lines` accept
@@ -375,7 +375,7 @@ parameter, ArtifactRef and literal bindings, without a ModelPolicy or gateway.
 It publishes a bounded JSON report through the Artifact API and returns its
 exact revision in WorkerCompletion. Durable invocation receipts prevent an
 automatic rescan after cancellation, response loss or an unknown outcome.
-See the [Worker contract](../docs/spec/29-tool-workers.md) and the standalone
+See the [Worker contract](../docs/spec/tools/scanners.md) and the standalone
 [nuclei/naabu/SQLMap Workflow fixtures](../configs/scan/README.md). The
 `sqlmap-request@1` fixture binds its required `request` artifact to
 `sqlmap-scan@1`, publishes a `report` and uses a 300-second Worker timeout
@@ -425,7 +425,7 @@ Combined workflows follow in the
 
 ## Tool descriptions
 
-The [tool-description contract](../docs/spec/01-agent-template.md#model-visible-tool-descriptions)
+The [tool-description contract](../docs/spec/tools/toolsets.md)
 owns wording, argument/return documentation and ADK declaration behavior.
 Callable implementations in `src/contractor_runtime/toolsets/` expose their
 single `description` value as `__doc__`; native Skill tools construct explicit

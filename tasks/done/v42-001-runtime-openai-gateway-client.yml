@@ -64,7 +64,7 @@ deliverables:
     description: "Offline request/response, structured-output, tool, usage, error and cleanup contract tests."
   - path: runtime/tests/test_dependency_smoke.py
     description: "Dependency/import regression coverage proving the Runtime no longer requires LiteLLM."
-  - path: docs/spec/02-runtime-and-a2a.md
+  - path: docs/spec/execution/control-plane.md
     description: "Backend-neutral Gateway and direct Runtime client boundary."
   - path: runtime/README.md
     description: "Runtime implementation and memory-boundary note."

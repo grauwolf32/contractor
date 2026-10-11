@@ -15,7 +15,7 @@ goal: >-
   interfaces without advertising an execution implementation before it is ready.
 
 context:
-  specification: docs/spec/21-podman-sandbox.md
+  specification: docs/spec/tools/code-execution.md
   compatibility: >-
     podman@1 requires context.workspace, mode direct and Runtime storage local.
     code-execution@1 exports only exec_command and requires podman@1. The profile

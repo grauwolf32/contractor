@@ -1,6 +1,6 @@
 # Audit checklist prioritization — specification and task review
 
-Date: 2026-09-20. Scope: proposed [specification 34](../spec/34-audit-check-prioritization.md),
+Date: 2026-09-20. Scope: proposed [specification 34](../proposals/0034-audit-check-prioritization.md),
 [V64 plan](../plans/2026-09-20-audit-check-prioritization.md) and V64-001–011.
 Implementation inspection base: `cd2f377b`. This is a design/task review, not
 implementation verification or evidence of deployed functionality.

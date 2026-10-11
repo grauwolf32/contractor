@@ -68,7 +68,7 @@ completed. Keep its implementation commit distinct from this WIP checkpoint.
 After V37-011, complete the connected journey verification task and its dated
 before/after report. Use the task's full UI/Playwright gates and real
 `make test-ui-stack` integration with disposable PostgreSQL and fixture model
-services, not live models or the shared demo. Update `docs/spec/ui-user-stories.md`.
+services, not live models or the shared demo. Update `docs/spec/ui/journeys.md`.
 Do not mark deferred V38 work as complete or change model limits.
 
 Read-only inspection found that `ui/e2e/stack.spec.ts` still contains older

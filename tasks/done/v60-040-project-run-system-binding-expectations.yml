@@ -13,7 +13,7 @@ goal: Restore exact physical Run binding assertions while preserving required wo
 context:
   authority: User requested completion of the remaining V60 reviews; the integrated required process gate reproduced this fixture assertion failure.
   design: docs/plans/2026-09-20-project-review.md
-  specification: docs/spec/03-artifact-plane.md
+  specification: docs/spec/artifacts/artifact-store.md
   reproduction: >-
     After all Worker budget assertions pass, the Project Workspaces process
     rejects the physical contractor-system/repeat-request binding. Commit

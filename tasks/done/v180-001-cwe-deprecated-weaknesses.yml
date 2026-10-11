@@ -13,7 +13,7 @@ languages: [python, go]
 goal: Reject retired CWE classifications before a finding proposal is stored.
 context:
   issue: https://github.com/grauwolf32/contractor/issues/236
-  specification: docs/spec/27-findings-tools-and-collections.md
+  specification: docs/spec/findings/findings.md
   finding: The CWE 4.20 catalog includes Weakness entries with Status=Deprecated.
 scope:
   in:

@@ -13,7 +13,7 @@ languages: ["python", "json", "yaml", "go"]
 
 goal: "Expose experiment manifests and results in existing evaluation Projects without copying hidden truth or creating another authoritative store."
 context:
-  specification: docs/spec/26-portable-evaluation-format.md
+  specification: docs/spec/evals/format.md
   repository: "Implementation belongs in sibling playground-v2 unless a deliverable explicitly names Contractor. Commands below start at the Contractor root; the sibling location is a development convention, not a runtime dependency."
   authority: "The local immutable bundle/journal stays evaluator authority; Server remains execution authority. Publish allowlisted JSON/Markdown projections with their own digest and source_record_sha256. No raw private asdict serialization."
   transport: "Reuse owner-scoped Project artifacts in eval-manifests/results/assessments/comparisons namespaces; content-addressed create-only writes verify exact bytes after conflict. Advance a per-experiment index using exact CAS only after records are durable."

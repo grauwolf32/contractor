@@ -8,17 +8,20 @@ extensible checks and supporting analyses; Audits coordinate them into assessmen
 | [Deployment](deployment.md) | Install, configure and run Server, Runtime, UI and their dependencies |
 | [User guides](guides/README.md) | CLI, Projects, Audits, artifacts and Skills |
 | [Development](development.md) | Dependencies, building the CLI and local checks |
-| [Specification](spec/README.md) | Execution model, component contracts and UI acceptance scenarios |
+| [Specification](spec/README.md) | Reference specification by domain: contracts, limits, error codes, failure model, entity lifecycle and UI journeys |
 | [Testing](testing/README.md) | Deterministic checks, integration gates and live-model evaluations |
 
 The [configuration catalog](../configs/README.md) lists shipped Workflows and
 policies. [Operations](operations/README.md) contains focused references used by
 the deployment guide.
 
-[Decisions](decisions/README.md) holds the settled architecture decisions and
-the planning history of past epics.
+[Decisions](decisions/README.md) holds the settled architecture decisions,
+the planning history of past epics, open specification questions and the
+history and legacy-to-domain map of the specification.
 
-[Research](research/README.md) holds unimplemented proposals and hypotheses.
+[Proposals](proposals/) hold designs of capabilities that are not implemented
+yet; each is folded into the specification once implemented.
+[Research](research/README.md) holds hypotheses and exploratory reports.
 Accepted contracts belong in the specification; implementation status belongs in
 [task files](../tasks/) governed by [tasks/index.yml](../tasks/index.yml). A historical test report does not establish
 current readiness.
@@ -40,11 +43,11 @@ removal plan. Python shims, deprecated process settings and obsolete UI
 redirects have been removed. The project does not require backward compatibility;
 remaining readers will move to strict current formats in subsequent increments.
 
-[Autonomous pentest Audit specification](spec/33-autonomous-pentest-audits.md)
+[Autonomous pentest Audit proposal](proposals/0033-autonomous-pentest-audits.md)
 defines source-optional web/API auditing, enforced scope, isolated identities,
 typed evidence, independent replay, recovery, budgets and acceptance gates.
-It specifies the implementation target and maps existing work to delivery
-stages; the new capabilities are not yet implemented.
+It maps existing work to delivery stages; the new capabilities are not yet
+implemented.
 
 [Audit preparation and Workflow composition](plans/2026-09-20-audit-workflow-composition.md)
 tracks V62: first supplied-OpenAPI SQLMap and pinned-URL Nuclei checks, then

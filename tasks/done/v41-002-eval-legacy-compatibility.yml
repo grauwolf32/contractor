@@ -13,7 +13,7 @@ languages: ["python", "json", "yaml", "go"]
 
 goal: "Keep current playground catalogs and results usable while separating portable cases/scoring from provider execution bindings."
 context:
-  specification: docs/spec/26-portable-evaluation-format.md
+  specification: docs/spec/evals/format.md
   repository: "Implementation belongs in sibling playground-v2 unless a deliverable explicitly names Contractor. Commands below start at the Contractor root; the sibling location is a development convention, not a runtime dependency."
   reuse: "Retain existing project/corpus/target manifests, packaging rules, expected datasets, scorer implementations and upstream oracles. Convert suite/v1 Workflow/Audit configuration into an explicit Contractor binding without rewriting source files."
   legacy: "Preserve original bytes/digest. contractor_run_id/audit_id/run_ids become opaque refs; old passed/failed and scalar scores are legacy assessments, not inferred execution state. Missing sample/experiment/usage/pins remain unknown and legacy-unpaired."

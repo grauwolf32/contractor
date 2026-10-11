@@ -41,7 +41,8 @@ or legacy data to protect.
 
 | Question | Source of truth |
 | --- | --- |
-| How should it behave? | `docs/spec/NN-*.md` (accepted contracts), `docs/spec/core-execution-model.md` |
+| How should it behave? | `docs/spec/` by domain: start at `docs/spec/README.md`; registries of limits, error codes, failure outcomes and entity lifecycle in `docs/spec/platform/` |
+| Designs not implemented yet | `docs/proposals/` |
 | Public HTTP/WebSocket contract | `api/openapi/contractor-public-v1.yaml`, `api/events/` |
 | Server ↔ Runtime wire contract | `api/v1alpha1/` plus shared golden fixtures |
 | What is done, in progress or deferred? | `tasks/BACKLOG.md` (generated), `tasks/*.yml` (open), `tasks/done/*.yml` (finished), policy in `tasks/index.yml` |
@@ -56,15 +57,21 @@ or legacy data to protect.
 not prove current behaviour. If code and spec disagree, find out which one is
 wrong and fix that one in the same change; do not leave them disagreeing.
 
-Spec index by area: 00 Workflow/Planner · 01 AgentTemplate · 02 Runtime/A2A ·
-03 artifacts · 04 execution lifecycle · 06 server UI/operations · 07 Runtime
-labels/config · 08 Memory · 09 Skills · 10 Runtime filesystems · 11 HTTP/Caido
-· 12 code analysis · 13 taint · 14 Worker results · 15 summarization · 16 Run
-labels · 17 Projects/queue · 18 lifecycle controls · 19 Audits · 20 Scheduler
-concurrency · 21 Podman · 22 performance · 23 blob backends · 24 Git artifacts ·
-25 Audit Worker completion · 26–30 evals and findings · 31–32 scan preparation
-and planning · 33 autonomous pentest Audits (target, not implemented) · 34
-check prioritization.
+The specification is organised by domain (`docs/spec/conventions.md` has the
+rules): `platform/` (limits, errors, failure model, lifecycle, security,
+observability, persistence) · `configuration/` (catalog, Workflows,
+AgentTemplates, RuntimeConfig) · `execution/` (Runs, Scheduler, Control Plane,
+Runtime Agent, Planners, Worker) · `artifacts/` (ArtifactStore, Projects,
+deletion, blobs, Git import) · `tools/` (toolsets, Memory, Skills, workspaces,
+code analysis, HTTP/Caido, scanners, code execution) · `audits/` · `findings/` ·
+`evals/` · `api/` · `ui/` · `operations/`. Each concept has one owning
+document; requirements are numbered `PREFIX-Rn` and never renumbered. A spec
+never cites tasks; a task cites the spec as
+`docs/spec/<domain>/<document>.md#PREFIX-Rn`. `make lint` runs
+`scripts/check_spec.py`. Legacy `NN-*.md` names in old task records map to
+their new owners in `docs/decisions/spec-migration.md`; unresolved
+contradictions found during the migration are in
+`docs/decisions/open-questions.md`.
 
 ## 2. Ground rules
 
@@ -151,8 +158,9 @@ happens on each outcome and test it:
 Reuse the receipt, lease and idempotency mechanism the subsystem already has.
 The schema review found nine different idempotency mechanisms; do not add a
 tenth. Leases, claims and the single-active-Server assumption are recurring
-sources of races (V107, V111, V114, V168, V288): read spec 20 before touching
-them.
+sources of races (V107, V111, V114, V168, V288): read
+`docs/spec/execution/scheduler.md` and `docs/spec/platform/persistence.md`
+before touching them.
 
 ### 3.3 Bound the work, not just the input (~70 tasks)
 

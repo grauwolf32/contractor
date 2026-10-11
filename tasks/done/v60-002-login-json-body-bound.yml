@@ -21,7 +21,7 @@ context:
   authority: User requested fixes followed by implementation of a detailed project review; first pass reproduced
     this admission defect.
   specification:
-  - docs/spec/06-server-ui-and-operations.md
+  - docs/spec/ui/ui.md
   design: docs/plans/2026-09-20-project-review.md
   finding_ids:
   - PR-01
