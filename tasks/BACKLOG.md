@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-86 open tasks: 3 in progress, 69 pending, 14 deferred. 810 finished: 807 completed, 3 archived.
+85 open tasks: 3 in progress, 68 pending, 14 deferred. 811 finished: 808 completed, 3 archived.
 
 ## In progress
 
@@ -147,7 +147,6 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V347-001](v347-001-protect-main-branch.yml) | chore | P1 | — | Protect main with a required check |
-| [V369-003](v369-003-release-gate-coverage.yml) | chore | P1 | — | Add the missing checks to the release gate |
 | [V369-007](v369-007-unused-export-lint.yml) | chore | P3 | V370-008 | Fail lint on exported identifiers used only by tests |
 | [V370-008](v370-008-remove-test-only-exports.yml) | chore | P3 | — | Remove exported surface that only tests use |
 
@@ -196,4 +195,4 @@ tasks in `introduced_by`.
 | Operations, authentication, CLI and deployment (`operations`) | 1 | 8 | 30 | 4 | 6 |
 | Public API and wire contracts (`api-contracts`) | 10 | 1 | 24 | 16 | 6 |
 | PostgreSQL persistence and schema (`persistence`) | 11 | 0 | 17 | 29 | 3 |
-| Quality, CI and process (`quality`) | 6 | 1 | 15 | 65 | 15 |
+| Quality, CI and process (`quality`) | 5 | 1 | 15 | 65 | 15 |
