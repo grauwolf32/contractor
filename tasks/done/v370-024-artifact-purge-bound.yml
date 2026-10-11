@@ -1,0 +1,88 @@
+schema_version: "1.0"
+id: V370-024
+title: "Bound Artifact purge and the number of bindings per Run"
+milestone: hub-audit-structure-2026-10
+epic: projects-artifacts
+kind: defect
+priority: P2
+status: completed
+implementation_commit: 81bd87aac6f5151df547b33439c346a004204960
+depends_on: []
+languages: [go, python]
+goal: "A purge test with 50,000 revisions completes in bounded transactions."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq; raw reports in docs/research/2026-10-11-hub-audit/), artifacts I3; file:line as of 02bbdcbf, re-verify on current main"
+  specification:
+    - docs/spec/artifacts/artifact-store.md#ART-R114
+    - docs/spec/artifacts/retention-and-deletion.md#DEL-R59
+    - docs/spec/artifacts/retention-and-deletion.md#DEL-R60
+    - docs/spec/platform/limits.md
+  finding: >-
+    Purge collects every version_id in Go and locks each version and blob in
+    one transaction (postgres_purge.go:228-268) bounded only by a 2 minute
+    budget (budgets.go:136-137); with no per-Run quota a large enough Run
+    can never be deleted.
+  siblings: >-
+    Fixed: PurgeRun, PurgeProject and PurgeAuditNamespace share one batched
+    revision walk and one collector; every RunScope insert path (Write,
+    finding proposals, input and Skill forks, output binds) is counted by
+    one PostgreSQL trigger; the private Artifact API and both MemoryTools
+    adapters (Go Planner, Python Worker) map the exhausted limit to a
+    permanent error. Ruled out: the public API, which writes no RunScope
+    after Run creation; input and Skill forks, which run on an empty RunScope
+    at initialization. Left open (outside this task): the Audit Controller
+    runs child Run deletion and the Audit purge under its 10 s operation
+    timeout, not a purge budget, and an Audit namespace (up to 100,000 items,
+    LIM-AUD-25) is still purged in one transaction.
+  decision: >-
+    Limit: 50,000 binding revisions per RunScope outside outputs (LIM-ART-6),
+    about seven times the largest Run seen (7,000 artifacts, V48-002); it
+    bounds bindings, versions and owned lineage too, because each hangs off a
+    revision. Enforcement is a statement trigger counting into
+    artifact_scopes.revision_count: one definition in the database, O(1) per
+    write, exact under concurrency because the UPDATE holds the scope row
+    lock, and it covers every insert path. outputs is exempt so the
+    Scheduler can always bind a Run's declared outputs (bounded by Workflow
+    outputs and Stage attempts). Alternatives: counting rows under a scope
+    lock on each write (O(n) per write); a Go-side check per write path
+    (several copies). Purge: key-range batches of 1,000 (LIM-DEL-2); the
+    earlier unnest-join batches reread the scope per batch and took 58 s of
+    a 70 s purge, the range form reads each revision about three times.
+    Measured on the shared 4-CPU test host under heavy load: 50,000-revision
+    Run purge about 55 s (about 10 s unloaded), dominated by per-row foreign
+    key checks, within the 2 minute cleanup budget. Run purge stays one
+    transaction (DEL-R22); the ProjectScope has no limit, so Project deletion
+    commits one batch per transaction, each after the idempotent eval purge
+    so no artifact goes while eval work could need it. Reopen when a Run
+    legitimately needs more than 50,000 revisions or the per-row foreign key
+    cost grows: then purge a Run across transactions behind a deleting Run
+    state instead of raising the limit.
+scope:
+  in:
+    - "A per-Run bindings and revisions quota checked under the scope lock, and purge in bounded batches."
+  out:
+    - "Purge outcome."
+acceptance_criteria:
+  - id: A1
+    text: "A purge test with 50,000 revisions completes in bounded transactions."
+    evidence: >-
+      TestPostgresRunRevisionLimitAndBoundedPurge (internal/artifacts,
+      integration) fills a Run to 50,000 revisions, proves the limit under two
+      concurrent writers, keeps outputs bindable, then deletes the Run in one
+      transaction: no statement handles more than 1,000 rows, the statement
+      count is 517 for 51 batches, and the transaction reads each revision
+      about three times (pg_stat_xact_user_tables). Before the fix the write
+      past 50,000 succeeded and the purge used whole-scope statements.
+      TestProjectDeletionPurgesLargeScopeInBoundedTransactions
+      (internal/projectlifecycle, integration) purges a 50,000-revision
+      Project in 50 controller transactions of at most 1,000 revisions;
+      TestPostgresIntegrationProjectScopePurgeCommitsBoundedBatches checks
+      batch commits, straddled bindings and filesystem unlinks on both
+      backends; TestPostgresPrivateRunRevisionLimitIsPermanent checks the 409.
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "go test -tags integration ./internal/artifacts ./internal/rundeletion ./internal/projectlifecycle"
+    covers: [A1]
+  - command: "CONTRACTOR_TEST_ARTIFACT_BACKEND=filesystem go test ./internal/artifacts -run TestPostgresIntegrationProjectScope"
+    covers: [A1]
