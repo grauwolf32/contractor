@@ -6,7 +6,8 @@ epic: api-contracts
 kind: defect
 introduced_by: V23-001
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: 11a9cc279055b013b7eec95c637f05fcfc7637b7
 depends_on: []
 languages: [go]
 goal: "Every paged public list accepts limit=200, and the page size and the one-extra-row fetch are defined once."
@@ -29,6 +30,38 @@ context:
     (contractor project list --limit 200). 592271f5 fixed only GET /v1/audits;
     fakes ignore Limit, so no unit test sees it. Other introducing commits:
     c7632c22 (V25-004), 610cab5f (V25-010).
+  decision: >-
+    The shared bound lives in a new foundation package, internal/pagelimit
+    (MaxRows 200, MaxFetchRows 201, FetchRows for the look-ahead read,
+    ValidPage, ValidFetch), because the stores sit in the platform,
+    execution and product layers and the handlers and CLI above them; the
+    runstore.MaxRunPageRows precedent and the other per-store copies
+    (projectstore.MaxPageSize, auditstore.MaxPageSize,
+    auditservice.MaxFindingPageSize, credentials, runtimeconfig,
+    findingintake, artifacts, run queue, Runtime Agent principals) were
+    removed rather than kept as aliases. A2 is enforced by a Go source test,
+    TestNoOtherPublicPageBound in internal/pagelimit (make test-go), that
+    rejects a limit compared with, assigned or declared as a literal 200/201
+    outside the package; make lint (go vet, staticcheck) proves no caller of a
+    removed constant remains. Siblings found beyond the finding: the CLI
+    --limit check had two copies (validatedLimit, listWorkflowsParams) and
+    now uses pagelimit; ReadRunDeletionGates and DeletableRuns, which only
+    receive the trimmed page, are bounded by MaxRows instead of 201; the
+    internal credential recovery batch got its own constant instead of
+    reusing the page constant; the Audit next-round inbox scan and Audit
+    import loop read pages of pagelimit.MaxRows. Ruled out: Managed Eval
+    lists (own bound LIM-EVM-15, no look-ahead read), allocation history
+    (own bound LIM-OPS-28), Runtime code-analysis tool pages (LIM-CAN-8), and
+    internal batch sizes that are chunked (MaxAuditReceiptBatchSize,
+    MaxReconcileRows). The A1 test calls every operation that takes the
+    OpenAPI Limit parameter (36) and fails when a new one has no request
+    path; Projects, Runs, Artifacts, Audits, finding intake and Runtime Agent
+    principals are the real services, and LLM credentials, Runtime
+    credentials and RuntimeConfigs/labels list through their real
+    repositories behind thin adapters because their services pass the limit
+    through unchanged. The rule is stated in the spec as API-R67 and
+    LIM-API-18. auditstore.PostgresStore.ListEvents has no production caller
+    (only tests); it was left in place and is outside this task.
 scope:
   in:
     - "One exported page bound in a low layer (public page maximum 200, store fetch maximum 201) used by the handlers and by every store behind a public paged list; runstore.MaxRunPageRows is the existing precedent."
