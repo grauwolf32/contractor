@@ -55,16 +55,16 @@ func (r *Resolver) Resolve(ctx context.Context, owner string, v evaldomain.Varia
 	}
 	err = r.Barrier.WithRunCreation(ctx, func() error {
 		return pg.InTx(ctx, r.Pool, pgx.TxOptions{IsoLevel: pgx.RepeatableRead}, func(tx pgx.Tx) error {
-			tracker, lookup, err := bindPreflightCredentials(tx, r.Credentials)
+			lookup, err := runtimeconfig.BindTransactionLLMCredentialLookup(tx, r.Credentials)
 			if err != nil {
 				return err
 			}
 			service := artifacts.NewService(artifacts.NewPostgresRepository(tx))
-			binding, err := r.resolveBinding(ctx, owner, v, tracker, service)
+			binding, err := r.resolveBinding(ctx, owner, v, lookup, service)
 			if err != nil {
 				return err
 			}
-			if err := binding.pinDependencies(ctx, tx, service, owner, v, tracker, lookup); err != nil {
+			if err := binding.pinDependencies(ctx, tx, service, owner, v, lookup); err != nil {
 				return err
 			}
 			out.Capabilities = binding.capabilities()

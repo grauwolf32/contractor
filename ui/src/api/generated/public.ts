@@ -9895,7 +9895,7 @@ export interface operations {
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
             500: components["responses"]["InternalError"];
-            503: components["responses"]["StorageTransactionConflict"];
+            503: components["responses"]["CredentialRecoveryRequired"];
         };
     };
     retryRunGateway: {

@@ -2,6 +2,7 @@ package config
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"maps"
 	"reflect"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
+	"github.com/grauwolf32/contractor/internal/credentialerrors"
 	"go.yaml.in/yaml/v4"
 )
 
@@ -35,6 +37,39 @@ type CredentialMetadata struct {
 
 type CredentialLookup interface {
 	LookupLLMCredential(context.Context, string) (CredentialMetadata, error)
+}
+
+// ErrCredentialLookup classifies an LLM credential lookup that failed for a
+// reason other than confirmed absence: credential recovery in progress, a
+// database transaction conflict or outage, or cancellation. ResolveRunWorkflow
+// and ValidateResolvedWorkflowCredentials return it only for such lookups, so
+// every other error they return is a deterministic validation failure of the
+// selection. The lookup cause stays reachable through errors.Is/As and SQLState
+// for retry classification, while Error() renders only a static message, so no
+// provider, database or credential text escapes.
+var ErrCredentialLookup = errors.New("LLM credential lookup failed")
+
+type credentialLookupError struct {
+	message string
+	cause   error
+}
+
+func (e *credentialLookupError) Error() string   { return e.message }
+func (e *credentialLookupError) Unwrap() []error { return []error{ErrCredentialLookup, e.cause} }
+
+// credentialLookupFailure is the one rule for a failed credential lookup during
+// Workflow resolution. Only confirmed absence rejects the selection, and that
+// cause is dropped on purpose: a missing credential is an invalid selection,
+// not a missing request resource. Every other failure, and any failure after
+// the caller's context ended, keeps its cause behind ErrCredentialLookup.
+func credentialLookupFailure(ctx context.Context, subject string, err error) error {
+	if contextErr := ctx.Err(); contextErr != nil {
+		return &credentialLookupError{message: subject + " credential lookup failed", cause: contextErr}
+	}
+	if errors.Is(err, credentialerrors.LLMNotFound) {
+		return fmt.Errorf("%s credential is unavailable", subject)
+	}
+	return &credentialLookupError{message: subject + " credential lookup failed", cause: err}
 }
 
 func (l *loader) resolveWorkflowExecutionConfig(
@@ -73,6 +108,8 @@ func (l *loader) resolveWorkflowExecutionConfig(
 
 // ResolveRunWorkflow applies the two Run override layers to a caller-owned
 // clone and rechecks every selected credential against current active metadata.
+// A credential lookup that cannot confirm presence or absence returns an error
+// classified as ErrCredentialLookup; every other error is a validation failure.
 func (s *Snapshot) ResolveRunWorkflow(
 	ctx context.Context,
 	raw string,
@@ -668,7 +705,8 @@ func validateRunCredentials(
 
 // ValidateResolvedWorkflowCredentials revalidates every base and escalation
 // credential selected by an already-resolved Workflow. Audit start uses this
-// without consulting the mutable Workflow catalog again.
+// without consulting the mutable Workflow catalog again. Its errors follow the
+// ErrCredentialLookup classification of ResolveRunWorkflow.
 func ValidateResolvedWorkflowCredentials(
 	ctx context.Context, workflow ResolvedWorkflow, lookup CredentialLookup,
 ) error {
@@ -739,7 +777,9 @@ func validateStageExecutionConfigCredentials(
 		}
 		metadata, err := lookup.LookupLLMCredential(ctx, selection.Credential.CredentialID)
 		if err != nil {
-			return fmt.Errorf("Stage %q %s %s credential is unavailable", stageName, variant, consumer)
+			return credentialLookupFailure(
+				ctx, fmt.Sprintf("Stage %q %s %s", stageName, variant, consumer), err,
+			)
 		}
 		if metadata.Ref != *selection.Credential ||
 			selection.LLMGateway != nil && metadata.LLMGateway != selection.LLMGateway.Ref {

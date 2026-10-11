@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-43 open tasks: 3 in progress, 26 pending, 14 deferred. 781 finished: 778 completed, 3 archived.
+42 open tasks: 3 in progress, 25 pending, 14 deferred. 782 finished: 779 completed, 3 archived.
 
 ## In progress
 
@@ -29,12 +29,6 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V367-008](v367-008-one-stage-result-bound.yml) | defect | P2 | — | Check StageResult bounds once in StageContentResult.Validate |
-
-### Runtime labels, configuration and credentials (`runtime-config`)
-
-| Task | Kind | Priority | Waiting for | Title |
-| --- | --- | --- | --- | --- |
-| [V367-005](v367-005-classify-credential-lookup-failures.yml) | defect | P1 | — | Keep the failure class of credential lookups during Workflow resolution |
 
 ### Scanner tool Workers and scan planning (`scan-tools`)
 
@@ -121,7 +115,7 @@ tasks in `introduced_by`.
 | --- | ---: | ---: | ---: | ---: | ---: |
 | Run execution core (`execution-core`) | 2 | 36 | 39 | 5 | 62 |
 | Planners and the Worker model boundary (`planner-worker`) | 1 | 23 | 31 | 7 | 41 |
-| Runtime labels, configuration and credentials (`runtime-config`) | 10 | 25 | 10 | 2 | 35 |
+| Runtime labels, configuration and credentials (`runtime-config`) | 9 | 25 | 10 | 2 | 35 |
 | Shared Memory tools (`memory`) | 0 | 6 | 7 | 1 | 11 |
 | Agent Skills (`agent-skills`) | 0 | 10 | 2 | 1 | 1 |
 | Run workspaces and project filesystem (`workspaces`) | 0 | 16 | 12 | 4 | 15 |

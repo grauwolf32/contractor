@@ -4,11 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
+	"github.com/grauwolf32/contractor/internal/credentialerrors"
 )
 
 func TestResolveRunWorkflowAppliesAllWorkerLayersAndPinsBodies(t *testing.T) {
@@ -326,6 +328,61 @@ func TestResolveRunWorkflowRejectsMissingOrMismatchedCredentialSafely(t *testing
 	}
 }
 
+func TestCredentialLookupFailuresKeepTheirClassAndCause(t *testing.T) {
+	snapshot := mustLoad(t, copyCoreFixture(t), MVPDescriptors())
+	localGateway, _ := snapshot.LLMGateway("local-litellm@1")
+	patch := decodeExecutionConfigPatch(t, `{"workers":{"credential":"selected-credential"}}`)
+	resolved, err := snapshot.ResolveRunWorkflow(
+		t.Context(), "artifact-copy@1", patch,
+		metadataLookup{"selected-credential": credentialMetadata("selected-credential", localGateway.Ref)},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cancelled, cancel := context.WithCancel(t.Context())
+	cancel()
+	recovery := errors.New("fixture: credential recovery in progress, secret-value must not escape")
+	outage := fmt.Errorf("fixture: storage outage: %w", errors.New("secret-value must not escape"))
+	for _, test := range []struct {
+		name   string
+		ctx    context.Context
+		lookup CredentialLookup
+		cause  error
+	}{
+		{"recovery", t.Context(), failingCredentialLookup{recovery}, recovery},
+		{"storage outage", t.Context(), failingCredentialLookup{outage}, outage},
+		{"cancelled while absent", cancelled, metadataLookup{}, context.Canceled},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			_, resolveErr := snapshot.ResolveRunWorkflow(test.ctx, "artifact-copy@1", patch, test.lookup)
+			validateErr := ValidateResolvedWorkflowCredentials(test.ctx, resolved, test.lookup)
+			for name, err := range map[string]error{"resolve": resolveErr, "revalidate": validateErr} {
+				if !errors.Is(err, ErrCredentialLookup) || !errors.Is(err, test.cause) ||
+					errors.Is(err, credentialerrors.LLMNotFound) || strings.Contains(err.Error(), "secret-value") {
+					t.Fatalf("%s lookup failure = %v; classified=%t cause=%t", name, err,
+						errors.Is(err, ErrCredentialLookup), errors.Is(err, test.cause))
+				}
+			}
+		})
+	}
+	t.Run("confirmed absence", func(t *testing.T) {
+		_, resolveErr := snapshot.ResolveRunWorkflow(t.Context(), "artifact-copy@1", patch, metadataLookup{})
+		validateErr := ValidateResolvedWorkflowCredentials(t.Context(), resolved, metadataLookup{})
+		for name, err := range map[string]error{"resolve": resolveErr, "revalidate": validateErr} {
+			if err == nil || errors.Is(err, ErrCredentialLookup) || errors.Is(err, credentialerrors.LLMNotFound) ||
+				!strings.Contains(err.Error(), "credential is unavailable") || strings.Contains(err.Error(), "secret-value") {
+				t.Fatalf("%s missing credential = %v", name, err)
+			}
+		}
+	})
+}
+
+type failingCredentialLookup struct{ err error }
+
+func (l failingCredentialLookup) LookupLLMCredential(context.Context, string) (CredentialMetadata, error) {
+	return CredentialMetadata{}, l.err
+}
+
 func TestExecutionConfigPatchJSONIsStrictAndPreservesCredentialNull(t *testing.T) {
 	invalid := []string{
 		`null`,
@@ -361,7 +418,7 @@ type metadataLookup map[string]CredentialMetadata
 func (l metadataLookup) LookupLLMCredential(_ context.Context, id string) (CredentialMetadata, error) {
 	metadata, ok := l[id]
 	if !ok {
-		return CredentialMetadata{}, errors.New("secret-value must not escape")
+		return CredentialMetadata{}, fmt.Errorf("%w: secret-value must not escape", credentialerrors.LLMNotFound)
 	}
 	return metadata, nil
 }

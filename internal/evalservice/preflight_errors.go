@@ -1,7 +1,6 @@
 package evalservice
 
 import (
-	"context"
 	"errors"
 
 	"github.com/grauwolf32/contractor/internal/agentskills"
@@ -12,7 +11,6 @@ import (
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
-	"github.com/jackc/pgx/v5"
 )
 
 // Dependency errors retain their cause. Only documented validation/not-found
@@ -49,55 +47,12 @@ func preflightDependencyError(cause error) error {
 	return cause
 }
 
-// Catalog validation can hide lookup errors. Retain the dependency error
-// before that boundary so only confirmed configuration failures return the
-// experiment to draft.
-type preflightCredentials struct {
-	config.CredentialLookup
-	runtime runtimeconfig.RuntimeCredentialValidator
-	failure error
-}
-
-func bindPreflightCredentials(tx pgx.Tx, factory runtimeconfig.TransactionLLMCredentialLookupFactory) (*preflightCredentials, runtimeconfig.TransactionLLMCredentialLookup, error) {
-	tracker := &preflightCredentials{runtime: credentials.NewRuntimeCredentialRepository(tx)}
-	tracked := runtimeconfig.TransactionLLMCredentialLookupFactoryFunc(func(tx pgx.Tx) (config.CredentialLookup, error) {
-		lookup, err := factory.ForTransaction(tx)
-		if err != nil || lookup == nil {
-			return lookup, err
-		}
-		tracker.CredentialLookup = lookup
-		return tracker, nil
-	})
-	lookup, err := runtimeconfig.BindTransactionLLMCredentialLookup(tx, tracked)
-	return tracker, lookup, err
-}
-
-func (l *preflightCredentials) LookupLLMCredential(ctx context.Context, id string) (config.CredentialMetadata, error) {
-	value, err := l.CredentialLookup.LookupLLMCredential(ctx, id)
-	if err != nil {
-		l.failure = err
-	}
-	return value, err
-}
-
-func (l *preflightCredentials) ValidateRuntimeCredential(ctx context.Context, id string, kinds ...string) error {
-	err := l.runtime.ValidateRuntimeCredential(ctx, id, kinds...)
-	if err != nil {
-		l.failure = err
-	}
-	return err
-}
-
-func (l *preflightCredentials) dependencyError(cause error) error {
-	if l.failure != nil {
-		return preflightDependencyError(l.failure)
-	}
-	return preflightDependencyError(cause)
-}
-
-func (l *preflightCredentials) catalogError(cause error) error {
-	if l.failure != nil {
-		return preflightDependencyError(l.failure)
+// A Workflow selection that fails validation needs a draft edit. A credential
+// lookup outage keeps its cause, so only a confirmed configuration failure
+// returns the experiment to draft and recovery or storage failures retry.
+func workflowSelectionError(cause error) error {
+	if errors.Is(cause, config.ErrCredentialLookup) {
+		return preflightDependencyError(cause)
 	}
 	return errors.Join(evaldomain.Failure("eval_not_ready"), cause)
 }

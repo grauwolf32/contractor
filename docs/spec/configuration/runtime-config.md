@@ -419,7 +419,14 @@ because an immutable YAML default may outlive a deleted operational credential.
 A YAML default naming a deleted or missing credential is not rewritten or
 hidden and remains inspectable, but it is not runnable unless a valid
 higher-precedence Run or Agent infrastructure layer replaces that physical
-Worker credential before prepare (FAIL-RCF-4).
+Worker credential before prepare (FAIL-RCF-4). The same revalidation runs when
+a Run, an Audit start or an eval preflight resolves Workflow credentials. Only
+a confirmed absent, tombstoned or mismatched credential makes the selection
+invalid. A lookup that cannot confirm presence or absence (credential recovery
+in progress, a transaction conflict, a storage failure or cancellation) is not
+an absence: it keeps its cause behind a secret-free message and the caller
+answers the retryable outcome of that cause (FAIL-RUN-1, FAIL-AUD-4,
+FAIL-EVM-2).
 
 **RCF-R48.** There is no disable operation. Credential deletion is idempotent
 and allowed only when no non-terminal WorkflowRun, active RuntimeConfig label
