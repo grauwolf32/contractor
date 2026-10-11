@@ -23,28 +23,25 @@ func decodeJSON(w http.ResponseWriter, r *http.Request, target any) error {
 	return decodeJSONBounded(w, r, target, maxJSONRequestSize)
 }
 
+// decodeJSONBounded reads at most maximum bytes and decodes them strictly:
+// case aliases, duplicate keys, unknown members and trailing data are
+// rejected rather than guessed (API-R70).
 func decodeJSONBounded(w http.ResponseWriter, r *http.Request, target any, maximum int64) error {
 	if maximum <= 0 || r.ContentLength > maximum {
 		return fmt.Errorf("%w: JSON body is too large", errRequestTooLarge)
 	}
-	body := http.MaxBytesReader(w, r.Body, maximum)
-	decoder := json.NewDecoder(body)
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(target); err != nil {
+	data, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maximum))
+	if err != nil {
 		if exceedsBodyLimit(err) {
 			return fmt.Errorf("%w: JSON body is too large", errRequestTooLarge)
 		}
-		return fmt.Errorf("%w: decode JSON body: %v", errInvalidRequest, err)
+		return fmt.Errorf("%w: read JSON body: %v", errInvalidRequest, err)
 	}
-	var trailing json.RawMessage
-	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
-		if err == nil {
-			return fmt.Errorf("%w: multiple JSON values", errInvalidRequest)
-		}
-		if exceedsBodyLimit(err) {
-			return fmt.Errorf("%w: JSON body is too large", errRequestTooLarge)
-		}
-		return fmt.Errorf("%w: decode trailing JSON: %v", errInvalidRequest, err)
+	switch err := strictjson.Decode(data, target); {
+	case errors.Is(err, strictjson.ErrTrailingData):
+		return fmt.Errorf("%w: multiple JSON values", errInvalidRequest)
+	case err != nil:
+		return fmt.Errorf("%w: decode JSON body: %v", errInvalidRequest, err)
 	}
 	return nil
 }

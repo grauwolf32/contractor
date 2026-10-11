@@ -6,6 +6,7 @@ import (
 	"math"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/strictjson"
 )
 
 const PerformanceMetricsVersion = 1
@@ -95,7 +96,7 @@ type RuntimeResources struct {
 
 func (r *RuntimeResources) UnmarshalJSON(data []byte) error {
 	var fields map[string]json.RawMessage
-	if err := json.Unmarshal(data, &fields); err != nil {
+	if err := strictjson.Decode(data, &fields); err != nil {
 		return contracts.Invalidf("invalid resources")
 	}
 	if fields == nil {
@@ -108,9 +109,7 @@ func (r *RuntimeResources) UnmarshalJSON(data []byte) error {
 	}
 	type wireResources RuntimeResources
 	var value wireResources
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&value); err != nil {
+	if err := strictjson.Decode(data, &value); err != nil {
 		return contracts.Invalidf("invalid resource fields")
 	}
 	*r = RuntimeResources(value)

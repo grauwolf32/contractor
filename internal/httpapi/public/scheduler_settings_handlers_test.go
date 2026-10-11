@@ -115,6 +115,8 @@ func TestSchedulerSettingsReplaceRejectsInvalidRequestsWithoutMutation(t *testin
 		{name: "zero-leading precondition", body: `{"maxConcurrentRuns":2}`, contentType: "application/json", ifMatch: []string{`"01"`}, wantStatus: http.StatusBadRequest},
 		{name: "stale precondition", body: `{"maxConcurrentRuns":2}`, contentType: "application/json", ifMatch: []string{`"2"`}, wantStatus: http.StatusPreconditionFailed},
 		{name: "unknown field", body: `{"maxConcurrentRuns":2,"extra":true}`, contentType: "application/json", ifMatch: []string{`"1"`}, wantStatus: http.StatusBadRequest},
+		{name: "case alias", body: `{"MaxConcurrentRuns":2}`, contentType: "application/json", ifMatch: []string{`"1"`}, wantStatus: http.StatusBadRequest},
+		{name: "duplicate key", body: `{"maxConcurrentRuns":2,"maxConcurrentRuns":3}`, contentType: "application/json", ifMatch: []string{`"1"`}, wantStatus: http.StatusBadRequest},
 		{name: "fraction", body: `{"maxConcurrentRuns":2.5}`, contentType: "application/json", ifMatch: []string{`"1"`}, wantStatus: http.StatusBadRequest},
 		{name: "null", body: `{"maxConcurrentRuns":null}`, contentType: "application/json", ifMatch: []string{`"1"`}, wantStatus: http.StatusBadRequest},
 		{name: "too small", body: `{"maxConcurrentRuns":0}`, contentType: "application/json", ifMatch: []string{`"1"`}, wantStatus: http.StatusBadRequest},

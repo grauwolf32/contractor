@@ -357,8 +357,14 @@ Notes:
 
 ### Go server
 
-- Decode untrusted JSON with `internal/strictjson`, which rejects unknown
-  fields, duplicate keys and trailing data.
+- Decode untrusted JSON with `strictjson.Decode`. Anywhere in the value it
+  rejects duplicate keys and a member whose name matches no field exactly (a
+  case alias such as `Reason` for `reason` is unknown, although
+  `encoding/json` would accept it, and so is any other unknown member); it
+  also rejects data after the value. A type with its own `UnmarshalJSON` is
+  checked for duplicate keys only, so such a method must decode its members
+  with `strictjson.Decode` itself. Plain `json.Unmarshal` and `json.Decoder`
+  check none of this.
 - Return classified errors; map them to stable API codes and statuses. Every
   handler that reaches PostgreSQL documents the retryable `503`
   `storage_transaction_conflict`.

@@ -1,11 +1,9 @@
 package events
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"regexp"
 	"strconv"
 	"time"
@@ -13,6 +11,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/runstore"
+	"github.com/grauwolf32/contractor/internal/strictjson"
 )
 
 const (
@@ -106,21 +105,24 @@ type operationsEventData struct {
 	Revision   string                          `json:"revision"`
 }
 
+// decodeClientFrame decodes one client frame strictly (API-R43, API-R70):
+// member names must match exactly, and duplicate, unknown and trailing data
+// make the frame invalid.
 func decodeClientFrame(data []byte) (clientFrame, error) {
 	if len(data) == 0 || len(data) > maximumClientFrameBytes {
 		return clientFrame{}, errors.New("client frame exceeds its bounded contract")
 	}
-	var discriminator struct {
-		Version string `json:"version"`
-		Type    string `json:"type"`
-	}
-	if err := decodeClosedJSON(data, &discriminator, false); err != nil || discriminator.Version != ProtocolVersion {
+	var members map[string]json.RawMessage
+	var version, frameType string
+	if strictjson.Decode(data, &members) != nil || members == nil ||
+		strictjson.Decode(members["version"], &version) != nil || version != ProtocolVersion ||
+		strictjson.Decode(members["type"], &frameType) != nil {
 		return clientFrame{}, errors.New("invalid protocol version or frame")
 	}
-	switch discriminator.Type {
+	switch frameType {
 	case "subscribe":
 		var source subscribeFrame
-		if err := decodeClosedJSON(data, &source, true); err != nil ||
+		if err := strictjson.Decode(data, &source); err != nil ||
 			!subscriptionIDPattern.MatchString(source.SubscriptionID) {
 			return clientFrame{}, errors.New("invalid subscribe frame")
 		}
@@ -131,7 +133,7 @@ func decodeClientFrame(data []byte) (clientFrame, error) {
 		var after *Cursor
 		if len(source.After) != 0 {
 			var cursor Cursor
-			if err := decodeClosedJSON(source.After, &cursor, true); err != nil {
+			if err := strictjson.Decode(source.After, &cursor); err != nil {
 				return clientFrame{}, errors.New("invalid subscription cursor")
 			}
 			if _, err := parseCursor(cursor); err != nil {
@@ -145,7 +147,7 @@ func decodeClientFrame(data []byte) (clientFrame, error) {
 		}, nil
 	case "unsubscribe":
 		var source unsubscribeFrame
-		if err := decodeClosedJSON(data, &source, true); err != nil ||
+		if err := strictjson.Decode(data, &source); err != nil ||
 			!subscriptionIDPattern.MatchString(source.SubscriptionID) {
 			return clientFrame{}, errors.New("invalid unsubscribe frame")
 		}
@@ -155,33 +157,18 @@ func decodeClientFrame(data []byte) (clientFrame, error) {
 	}
 }
 
-func decodeClosedJSON(data []byte, target any, disallowUnknown bool) error {
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	if disallowUnknown {
-		decoder.DisallowUnknownFields()
-	}
-	if err := decoder.Decode(target); err != nil {
-		return err
-	}
-	var trailing any
-	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
-		return errors.New("JSON frame contains trailing data")
-	}
-	return nil
-}
-
 func decodeStream(data json.RawMessage) (Stream, error) {
 	var source struct {
 		Kind string          `json:"kind"`
 		ID   json.RawMessage `json:"id,omitempty"`
 	}
-	if err := decodeClosedJSON(data, &source, true); err != nil {
+	if err := strictjson.Decode(data, &source); err != nil {
 		return Stream{}, errors.New("invalid stream")
 	}
 	switch source.Kind {
 	case StreamRun:
 		var id string
-		if len(source.ID) == 0 || decodeClosedJSON(source.ID, &id, true) != nil ||
+		if len(source.ID) == 0 || strictjson.Decode(source.ID, &id) != nil ||
 			!contracts.ValidResourceID(id) {
 			return Stream{}, errors.New("invalid Run stream")
 		}
