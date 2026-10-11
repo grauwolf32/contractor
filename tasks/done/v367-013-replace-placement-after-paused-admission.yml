@@ -6,7 +6,8 @@ epic: execution-core
 kind: defect
 introduced_by: V290-001
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: "2f2e568a091c3a5d2d41d061230a8bb9f418c7ac"
 depends_on: []
 languages: [go]
 goal: "Pausing the owner queue between placement and admission defers the Stage and places it again after resume, without spending a retry attempt."
@@ -30,6 +31,36 @@ context:
     records the same allocations a second time. The gateway Admit
     reservation of the same Run may also refuse the Run's own re-admission
     (gatewayrecovery/admission.go:62, 77-85; to verify).
+  decision: >-
+    Chose removal over retention: V290-001 accepted that a paused owner pins
+    no Runtime slot, so SCH-R152's sentence that a placement made durable
+    before the pause stays reserved until resume was corrected instead. The
+    V290 path was broken twice in production: the stale stage_allocations rows
+    (finding) and, even without them, Registry.Release leaves a released
+    tombstone, so ReserveAllContext for the same StageExecution returns
+    ErrReservationReleased (reproduced by the new Control Plane test). On
+    ErrQueuePaused for any unadmitted Stage (fresh or reused placement) the
+    Scheduler now runs AtomicPersistence.DiscardUnadmittedPlacement: one
+    transaction locks Run (pending) and Stage (preparing, unadmitted), deletes
+    the unreleased rows, relinquishes the Run's admission probe reservations
+    (gatewayrecovery.ReleaseAdmission) and calls
+    Allocator.DiscardUnprepared, a new Registry operation that drops a
+    committed, never prepared reservation without tombstone or
+    reconciliation (refused for activated, fenced, lost or non-preparing
+    batches, under the allocations' write gates); a discard error rolls the
+    deletion back and the placement is reused. Residual risk, recorded in
+    FAIL-SCH-18: a commit failing after the in-memory discard leaves rows
+    without grants, which the next claim aborts with retryable
+    control_plane_state_lost (the pre-fix behaviour, now only on a failed
+    commit). scheduler.recordReservations, releaseUnprepared, the
+    allocation_record_failed abort and Store.RecordStageAllocation are
+    removed; placement is the only writer of the rows. The scheduler test
+    fake now requires pinning, keeps released tombstones like the Registry
+    and its store rejects a second write of an allocation row (A2). The
+    gateway self-reservation reproduced (second Admit of the same Run was
+    refused); Admit now first relinquishes the Run's earlier admission
+    reservations in one key-ordered locking pass, which also frees a route
+    the Run no longer admits.
 scope:
   in:
     - "On ErrQueuePaused for an unadmitted Stage, remove its durable allocation rows in the same transaction as the release (or keep them explicitly retained and reuse them), so resume places it again."

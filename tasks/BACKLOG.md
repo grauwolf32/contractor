@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-44 open tasks: 4 in progress, 26 pending, 14 deferred. 780 finished: 777 completed, 3 archived.
+43 open tasks: 3 in progress, 26 pending, 14 deferred. 781 finished: 778 completed, 3 archived.
 
 ## In progress
 
@@ -14,7 +14,6 @@ the epics are in [epics.yml](epics.yml).
 | [V40-002](v40-002-agent-instruction-paired-runner.yml) | evals | feature | P1 | Prepare instruction experiment bindings and a frozen plan after format readiness |
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
-| [V367-013](v367-013-replace-placement-after-paused-admission.yml) | execution-core | defect | P2 | Re-place a Stage whose admission was deferred by a paused owner queue |
 
 ## Pending
 
@@ -115,7 +114,7 @@ tasks in `introduced_by`.
 
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Run execution core (`execution-core`) | 1 | 36 | 39 | 5 | 62 |
+| Run execution core (`execution-core`) | 0 | 36 | 39 | 5 | 62 |
 | Planners and the Worker model boundary (`planner-worker`) | 1 | 23 | 31 | 7 | 41 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 10 | 25 | 10 | 2 | 35 |
 | Shared Memory tools (`memory`) | 0 | 6 | 7 | 1 | 11 |
