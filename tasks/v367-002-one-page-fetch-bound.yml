@@ -6,7 +6,7 @@ epic: api-contracts
 kind: defect
 introduced_by: V23-001
 priority: P1
-status: pending
+status: in_progress
 depends_on: []
 languages: [go]
 goal: "Every paged public list accepts limit=200, and the page size and the one-extra-row fetch are defined once."
