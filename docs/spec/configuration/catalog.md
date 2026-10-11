@@ -603,7 +603,10 @@ grammar (CAT-R18) and never implies latest-version selection.
 **CAT-R67.** Filtering precedes the bounded keyset pagination
 ([Public API](../api/public-api.md)). A continuation cursor is bound to the
 normalized query, the exact-name filter and a SHA-256 fingerprint of the
-immutable catalog source used to build that result.
+immutable catalog source used to build that result. The Server computes each
+fingerprint once, when it builds a configuration snapshot at load or
+publication, and takes a page's resources from that same snapshot; a page read
+neither copies nor encodes the whole catalog.
 
 **CAT-R68.** Reusing a cursor with another query, kind or catalog
 snapshot is a bounded `400`; the client restarts from the first page.

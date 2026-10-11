@@ -103,13 +103,14 @@ type ConfigurationCatalog interface {
 	AgentInstructions(string) (config.AgentInstructions, error)
 	Workflow(string) (config.ResolvedWorkflow, error)
 	Workflows() []config.ResolvedWorkflow
+	WorkflowDiscovery() (config.WorkflowDiscovery, error)
 	ResolveRunWorkflow(
 		context.Context,
 		string,
 		config.ExecutionConfigPatch,
 		config.CredentialLookup,
 	) (config.ResolvedWorkflow, error)
-	Configurations(config.ConfigurationKind) ([]config.ConfigurationResource, error)
+	ConfigurationDiscovery(config.ConfigurationKind) (config.ConfigurationDiscovery, error)
 	Configuration(config.ConfigurationKind, string) (config.ConfigurationResource, error)
 }
 

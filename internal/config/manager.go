@@ -275,6 +275,10 @@ func (m *Manager) Workflow(raw string) (ResolvedWorkflow, error) {
 
 func (m *Manager) Workflows() []ResolvedWorkflow { return m.Snapshot().Workflows() }
 
+func (m *Manager) WorkflowDiscovery() (WorkflowDiscovery, error) {
+	return m.Snapshot().WorkflowDiscovery()
+}
+
 func (m *Manager) AuditProfile(raw string) (ResolvedAuditProfile, error) {
 	return m.Snapshot().AuditProfile(raw)
 }
@@ -300,8 +304,8 @@ func (m *Manager) ResolveRunWorkflow(
 	return m.Snapshot().ResolveRunWorkflow(ctx, raw, patch, credentials)
 }
 
-func (m *Manager) Configurations(kind ConfigurationKind) ([]ConfigurationResource, error) {
-	return m.Snapshot().Configurations(kind)
+func (m *Manager) ConfigurationDiscovery(kind ConfigurationKind) (ConfigurationDiscovery, error) {
+	return m.Snapshot().ConfigurationDiscovery(kind)
 }
 
 func (m *Manager) Configuration(

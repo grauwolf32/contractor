@@ -28,13 +28,14 @@ func (h *handler) listWorkflows(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, err)
 		return
 	}
-	workflows := h.dependencies.Config.Workflows()
-	sourceFingerprint, err := catalogSourceFingerprint(workflows)
+	// The snapshot fingerprinted its Workflows once; a page copies only the
+	// Workflows it returns (CAT-R67).
+	discovery, err := h.dependencies.Config.WorkflowDiscovery()
 	if err != nil {
 		h.handleError(w, err)
 		return
 	}
-	cursorKind := catalogPageCursorKind(workflowPageCursorKind, query, sourceFingerprint)
+	cursorKind := catalogPageCursorKind(workflowPageCursorKind, query, discovery.SourceFingerprint)
 	cursor, err := h.decodePageCursor(encodedCursor, cursorKind, 1)
 	if err != nil {
 		h.handleError(w, err)
@@ -45,23 +46,14 @@ func (h *handler) listWorkflows(w http.ResponseWriter, r *http.Request) {
 		after = cursor[0]
 	}
 
-	items := make([]workflowSummaryResponse, 0, min(limit, len(workflows)))
+	workflows := discovery.Page(after, pagelimit.FetchRows(limit), func(
+		ref config.WorkflowRef, presentation config.WorkflowPresentation,
+	) bool {
+		return catalogMatches(query, ref.Name, ref.Version, presentation.DisplayName, presentation.Description)
+	})
+	items := make([]workflowSummaryResponse, 0, len(workflows))
 	for _, workflow := range workflows {
-		authored := []string(nil)
-		if workflow.Presentation != nil {
-			authored = []string{workflow.Presentation.DisplayName, workflow.Presentation.Description}
-		}
-		if !catalogMatches(query, workflow.Ref.Name, workflow.Ref.Version, authored...) {
-			continue
-		}
-		selector := workflow.Ref.Name + "@" + workflow.Ref.Version
-		if selector <= after {
-			continue
-		}
 		items = append(items, workflowSummaryReadModel(workflow))
-		if len(items) == pagelimit.FetchRows(limit) {
-			break
-		}
 	}
 	items, page, err := paginate(h, items, limit, cursorKind, func(last workflowSummaryResponse) []string {
 		return []string{last.Ref.Name + "@" + last.Ref.Version}

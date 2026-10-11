@@ -580,6 +580,7 @@ its owning requirement.
 | `LIM-SCH-12` | exactly 1 immutable transition decision | source StageExecution whose StageResult is accepted, or whose interrupted StageTermination is committed, while the Run is running | Workflow Scheduler progression transaction (keyed by source stage_execution_id) | [SCH-R77](../execution/scheduler.md) |
 | `LIM-SCH-13` | exactly 1 `next` or `fail` action | `then` of a retry or escalate action | Workflow validation | [SCH-R81](../execution/scheduler.md) |
 | `LIM-SCH-14` | exactly 1 StageTermination and 0 accepted StageResult | `aborting` StageExecution | Workflow Scheduler (aborting transition) | [SCH-R43](../execution/scheduler.md) |
+| `LIM-SCH-15` | at most 64 Runs and 64 MiB of stored snapshot text (two Runs per possible lane, LIM-OPS-7; every lane at LIM-CAT-4) | decoded Workflow snapshots one Scheduler keeps for reuse across Run steps | Workflow Scheduler snapshot cache (least recently used Run evicted first) | [SCH-R163](../execution/scheduler.md) |
 | `LIM-SCN-1` | exactly 1 selected tool | tools selected by a tool@1 AgentTemplate | tool@1 AgentTemplate validation | [SCN-R2](../tools/scanners.md) |
 | `LIM-SCN-2` | 32 keys | execution.arguments object | tool@1 AgentTemplate validation | [SCN-R6](../tools/scanners.md) |
 | `LIM-SCN-3` | 1-64 characters (pattern [A-Za-z_][A-Za-z0-9_]{0,63}) | execution argument names | tool@1 AgentTemplate validation | [SCN-R6](../tools/scanners.md) |

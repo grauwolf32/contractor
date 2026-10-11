@@ -32,7 +32,7 @@ func (s *Scheduler) executeRun(ctx context.Context, run runstore.WorkflowRun, cl
 	if run.State != runstore.RunRunning && run.State != runstore.RunPending && run.State != runstore.RunWaiting {
 		return nil
 	}
-	workflow, err := decodeExecutableWorkflow(run)
+	workflow, err := s.workflows.executableWorkflow(run)
 	if err != nil {
 		return s.failUnsupportedRun(ctx, run.RunID, err)
 	}
@@ -106,7 +106,7 @@ func (s *Scheduler) executeCancelling(ctx context.Context, run runstore.Workflow
 	if err != nil {
 		return err
 	}
-	workflow, workflowErr := decodeExecutableWorkflow(run)
+	workflow, workflowErr := s.workflows.executableWorkflow(run)
 	if workflowErr != nil {
 		s.options.Logger.Warn("cancelling Run has an unreadable Workflow snapshot", "run_id", run.RunID)
 	}

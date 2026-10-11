@@ -5,8 +5,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"maps"
-	"slices"
 	"sort"
 )
 
@@ -50,7 +48,9 @@ func (index AgentTemplateWorkflowBindings) Page(after *AgentTemplateWorkflowBind
 
 type templateBindingIdentity struct{ name, version, digest string }
 
-func (s *Snapshot) buildWorkflowBindingIndex() {
+// buildWorkflowBindingIndex fingerprints each usage index with the Workflow
+// list buildDiscovery encoded once for the snapshot.
+func (s *Snapshot) buildWorkflowBindingIndex(workflowJSON []byte, encodeErr error) {
 	uses := make(map[templateBindingIdentity][]AgentTemplateWorkflowBinding)
 	for _, workflow := range s.workflows {
 		for stageName, stage := range workflow.Stages {
@@ -61,13 +61,6 @@ func (s *Snapshot) buildWorkflowBindingIndex() {
 			}
 		}
 	}
-	// Preserve the previous cursor fingerprint byte for byte. Encode the catalog
-	// once while constructing the snapshot, never on a binding-page request.
-	workflows := make([]ResolvedWorkflow, 0, len(s.workflows))
-	for _, key := range slices.Sorted(maps.Keys(s.workflows)) {
-		workflows = append(workflows, s.workflows[key])
-	}
-	workflowJSON, encodeErr := json.Marshal(workflows)
 	s.workflowBindings = make(map[string]AgentTemplateWorkflowBindings, len(s.templates))
 	for selector, template := range s.templates {
 		ref := template.Ref

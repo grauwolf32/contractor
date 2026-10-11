@@ -36,6 +36,10 @@ func EncodeResolvedWorkflowSnapshot(workflow ResolvedWorkflow) ([]byte, error) {
 	return data, nil
 }
 
+// Clone returns a deep copy of workflow that shares no mutable state with it,
+// so a decoded snapshot can be reused without a holder seeing another's edits.
+func (workflow ResolvedWorkflow) Clone() ResolvedWorkflow { return cloneWorkflow(workflow) }
+
 // DecodeResolvedWorkflowSnapshot strictly decodes immutable Run authority.
 // Every Stage must retain its explicit Worker session mode. Authoring defaults
 // are resolved before persistence and are never inferred while reading a snapshot.

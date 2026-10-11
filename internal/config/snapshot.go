@@ -22,6 +22,11 @@ type Snapshot struct {
 	auditProfiles    map[string]ResolvedAuditProfile
 	instructions     map[string]contracts.ResolvedInstructions
 	sources          map[string]ConfigurationSource
+
+	// Discovery views and fingerprints are derived once in newSnapshot.
+	workflowDiscovery         WorkflowDiscovery
+	workflowFingerprint       catalogFingerprint
+	configurationFingerprints map[ConfigurationKind]catalogFingerprint
 }
 
 func newSnapshot(
@@ -68,7 +73,7 @@ func newSnapshot(
 	for key, source := range sources {
 		result.sources[key] = source
 	}
-	result.buildWorkflowBindingIndex()
+	result.buildWorkflowBindingIndex(result.buildDiscovery())
 	return result
 }
 

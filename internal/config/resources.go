@@ -62,7 +62,9 @@ func ParseConfigurationKind(raw string) (ConfigurationKind, error) {
 	}
 }
 
-func (s *Snapshot) Configurations(kind ConfigurationKind) ([]ConfigurationResource, error) {
+// configurations builds caller-owned resources of kind in exact selector
+// order; ConfigurationDiscovery publishes them with their fingerprint.
+func (s *Snapshot) configurations(kind ConfigurationKind) ([]ConfigurationResource, error) {
 	if _, err := ParseConfigurationKind(string(kind)); err != nil {
 		return nil, err
 	}

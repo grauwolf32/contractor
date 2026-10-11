@@ -40,6 +40,7 @@ type Scheduler struct {
 	running     bool
 	releaseMu   sync.Mutex
 	releasing   map[string]struct{}
+	workflows   *workflowSnapshotCache
 }
 
 func New(
@@ -71,6 +72,9 @@ func New(
 		allocator: allocator, workers: workers, planners: planners, options: options,
 		wake: make(chan struct{}, 1), active: make(map[string]activeRunClaim),
 		releasing: make(map[string]struct{}),
+		workflows: newWorkflowSnapshotCache(
+			decodeExecutableWorkflow, workflowSnapshotCacheRuns, workflowSnapshotCacheBytes,
+		),
 	}, nil
 }
 
