@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-87 open tasks: 3 in progress, 70 pending, 14 deferred. 809 finished: 806 completed, 3 archived.
+86 open tasks: 3 in progress, 69 pending, 14 deferred. 810 finished: 807 completed, 3 archived.
 
 ## In progress
 
@@ -93,7 +93,6 @@ the epics are in [epics.yml](epics.yml).
 | [V64-009](v64-009-audit-priority-ui.yml) | feature | P1 | V64-008 | Show Audit ranking progress, top-N selection and deferred checklist reasons |
 | [V64-010](v64-010-audit-priority-profile.yml) | feature | P1 | V64-008 | Publish a runnable prioritized custom-checklist Audit profile and guide |
 | [V64-011](v64-011-audit-priority-release.yml) | feature | P1 | V64-009, V64-010 | Verify contextual checklist prioritization across process and browser boundaries |
-| [V368-006](v368-006-freeze-audit-artifacts.yml) | defect | P1 | — | Write Audit manifests, tasks and worklists frozen through one path |
 | [V368-023](v368-023-audit-api-bounds.yml) | defect | P2 | — | Bound the Audit start replay and validate action review keys |
 | [V370-004](v370-004-split-auditstore.yml) | chore | P2 | — | Split auditstore along its seams |
 | [V370-014](v370-014-simplify-audit.yml) | chore | P3 | — | Remove duplicated code in the Audit packages |
@@ -190,7 +189,7 @@ tasks in `introduced_by`.
 | Findings tools and collections (`findings`) | 2 | 7 | 4 | 1 | 6 |
 | Workflow catalog and document workflows (`workflows`) | 6 | 13 | 13 | 8 | 11 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 4 | 27 | 31 | 3 | 33 |
-| Audits (`audits`) | 24 | 49 | 64 | 12 | 71 |
+| Audits (`audits`) | 23 | 49 | 64 | 12 | 71 |
 | Evaluations (`evals`) | 2 | 21 | 26 | 4 | 33 |
 | Podman sandbox (`sandbox`) | 0 | 8 | 1 | 1 | 2 |
 | Web UI (`ui`) | 0 | 19 | 51 | 10 | 47 |
