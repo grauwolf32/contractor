@@ -21,7 +21,7 @@ context:
     is unchecked.
   decision: >-
     The allocator is the PL/pgSQL function contractor_append_audit_events
-    (migration 000040), the only statement that inserts into audit_events.
+    (migration 000003), the only statement that inserts into audit_events.
     A statement reserves its events in the one UPDATE of its audits row,
     where revision and next_event_sequence advance once per event, and hands
     the same events to the function in that UPDATE's RETURNING. PostgreSQL

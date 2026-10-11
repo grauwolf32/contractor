@@ -25,7 +25,7 @@ context:
     keeps nothing, so the count is a store operation of its own: the
     PostgreSQL persistence marks the abort with errTransientOutputPublication,
     and the Scheduler, after CommitResultProgression returns it, increments
-    stage_executions.output_publication_failures (migration 000070) under a
+    stage_executions.output_publication_failures (migration 000005) under a
     fresh terminal operation budget. The count belongs to the finalizing
     StageExecution whose commit is replayed, not to the Run: a manual
     continuation is a new StageExecution and starts from zero, and the row

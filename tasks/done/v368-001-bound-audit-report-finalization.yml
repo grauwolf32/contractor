@@ -45,7 +45,7 @@ context:
     projection in finding_proposal_receipts.report_projection (text, so
     octet_length bounds findings pages without detoasting); finalization
     reads no proposal artifact. The column cannot be backfilled in SQL for
-    filesystem blob payloads, so migration 000050 requires a database
+    filesystem blob payloads, so migration 000004 requires a database
     without receipts, as every database recreated for the V367-001 baseline
     is. Pages belong to one Audit revision: a revision change while
     finalizing makes them stale and the report is rebuilt, the same window
