@@ -19,6 +19,7 @@ from fakes.model import (
     thought_result,
     tool_call,
 )
+from fakes.telemetry import SERVER_EXPORT
 from google.adk.models.base_llm import BaseLlm
 from google.adk.models.llm_request import LlmRequest
 from google.adk.models.llm_response import LlmResponse
@@ -547,6 +548,7 @@ def private_runtime_settings() -> RuntimeSettings:
                 headers={"Authorization": TELEMETRY_HEADER},
                 captureContent=False,
                 flushTimeoutSeconds=1,
+                export=SERVER_EXPORT,
             ),
             "http_proxy": HTTPProxySettings(
                 adapter="http-proxy@1",

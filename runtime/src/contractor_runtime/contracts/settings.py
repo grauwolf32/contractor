@@ -237,10 +237,6 @@ class TelemetryRetrySettings(WireModel):
     initial_backoff_milliseconds: int = Field(strict=True, ge=1, le=60_000)
     max_backoff_milliseconds: int = Field(strict=True, ge=1, le=60_000)
 
-    @classmethod
-    def defaults(cls) -> TelemetryRetrySettings:
-        return cls(initialBackoffMilliseconds=100, maxBackoffMilliseconds=1000)
-
     @model_validator(mode="after")
     def validate_backoff(self) -> Self:
         if self.initial_backoff_milliseconds > self.max_backoff_milliseconds:
@@ -249,20 +245,17 @@ class TelemetryRetrySettings(WireModel):
 
 
 class TelemetryExportSettings(WireModel):
+    """The Worker's OTLP export settings, which the Server always sends complete.
+
+    The Server pins every value (RCF-R102), including its defaults for a
+    RuntimeConfig without an export or retry block, so the Runtime has none.
+    """
+
     batch_size_bytes: int = Field(strict=True, ge=1024 * 1024, le=64 * 1024 * 1024)
     max_attempts: int = Field(strict=True, ge=1, le=10)
     max_pending_spans: int = Field(strict=True, ge=1, le=2048)
     max_pending_bytes: int = Field(strict=True, ge=1024 * 1024, le=64 * 1024 * 1024)
-    retry: TelemetryRetrySettings | None = None
-
-    @classmethod
-    def defaults(cls) -> TelemetryExportSettings:
-        return cls(
-            batchSizeBytes=8 * 1024 * 1024,
-            maxAttempts=2,
-            maxPendingSpans=2048,
-            maxPendingBytes=64 * 1024 * 1024,
-        )
+    retry: TelemetryRetrySettings
 
     @model_validator(mode="after")
     def validate_queue_capacity(self) -> Self:
@@ -385,7 +378,7 @@ class TelemetrySettings(WireModel):
     headers: dict[str, SecretStr]
     capture_content: bool
     flush_timeout_seconds: int = Field(ge=1, le=10)
-    export: TelemetryExportSettings | None = None
+    export: TelemetryExportSettings
 
     @model_validator(mode="after")
     def validate_telemetry(self) -> Self:

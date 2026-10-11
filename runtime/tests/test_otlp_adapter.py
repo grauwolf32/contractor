@@ -9,6 +9,7 @@ from typing import Any
 import httpx
 import pytest
 from fakes.spec import allocation_spec
+from fakes.telemetry import SERVER_EXPORT
 from fakes.worker_runtime import StubADKWorkerRuntimeFactory
 from opentelemetry.proto.collector.trace.v1.trace_service_pb2 import (
     ExportTraceServiceRequest,
@@ -30,7 +31,6 @@ from contractor_runtime.contracts import (
     AllocationSpec,
     FinalizeAllocationRequest,
     ReleaseAllocationRequest,
-    TelemetryExportSettings,
     TelemetrySettings,
 )
 from contractor_runtime.factories import (
@@ -40,8 +40,8 @@ from contractor_runtime.factories import (
 from contractor_runtime.state import ProcessState, RuntimeState
 from contractor_runtime.workspace import LocalWorkdirFactory
 
-MAX_PENDING_BYTES = TelemetryExportSettings.defaults().max_pending_bytes
-MAX_PENDING_SPANS = TelemetryExportSettings.defaults().max_pending_spans
+MAX_PENDING_BYTES = SERVER_EXPORT.max_pending_bytes
+MAX_PENDING_SPANS = SERVER_EXPORT.max_pending_spans
 
 HEADER_SECRET = "recognizable-otlp-header-secret"
 PROMPT_SECRET = "recognizable-prompt-content-canary"
@@ -210,6 +210,8 @@ def test_otlp_metadata_uses_shared_secret_matching(secret: str) -> None:
         _metrics(),
         {"service.name": embedded, "exact": secret, "values": (embedded, secret)},
         secret_values=(secret,),
+        max_pending_spans=MAX_PENDING_SPANS,
+        max_pending_bytes=MAX_PENDING_BYTES,
         run_metadata_labels={"note": embedded, "exact": secret},
     )
     span = instrumentation.start_span(
@@ -238,7 +240,12 @@ def test_otlp_metadata_uses_shared_secret_matching(secret: str) -> None:
 def test_otlp_content_queue_retains_late_spans_beyond_two_mib() -> None:
     metrics = _metrics()
     instrumentation = OTLPInstrumentation(
-        metrics, {"service.name": "test"}, secret_values=(), capture_content=True
+        metrics,
+        {"service.name": "test"},
+        secret_values=(),
+        max_pending_spans=MAX_PENDING_SPANS,
+        max_pending_bytes=MAX_PENDING_BYTES,
+        capture_content=True,
     )
     for _ in range(16):
         span = instrumentation.start_span("contractor.worker.model", attributes={})
@@ -424,6 +431,7 @@ def telemetry_settings() -> TelemetrySettings:
         headers={"Authorization": f"Bearer {HEADER_SECRET}"},
         captureContent=False,
         flushTimeoutSeconds=1,
+        export=SERVER_EXPORT,
     )
 
 

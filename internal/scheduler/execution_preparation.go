@@ -170,14 +170,19 @@ func (s *Scheduler) materializeRuntimeSettings(
 			Headers: map[string]contracts.SecretString{}, CaptureContent: resolved.WorkerTelemetry.CaptureContent,
 			FlushTimeoutSeconds: resolved.WorkerTelemetry.FlushTimeoutSeconds,
 		}
+		// The Server pins every export value (RCF-R102): a RuntimeConfig that
+		// omits the export or retry block gets the defaults (RCF-R99, RCF-R103),
+		// copied so the settings never alias the resolved configuration.
+		export := runtimesettings.DefaultTelemetryExportSettings()
 		if resolved.WorkerTelemetry.Export != nil {
-			export := *resolved.WorkerTelemetry.Export
-			if export.Retry != nil {
-				retry := *export.Retry
-				export.Retry = &retry
-			}
-			telemetry.Export = &export
+			export = *resolved.WorkerTelemetry.Export
 		}
+		retry := runtimesettings.DefaultTelemetryRetrySettings()
+		if export.Retry != nil {
+			retry = *export.Retry
+		}
+		export.Retry = &retry
+		telemetry.Export = &export
 		if credentialID := resolved.WorkerTelemetry.Credential; credentialID != "" {
 			if err := s.useRuntimeCredential(
 				ctx, credentialID, []contracts.RuntimeCredentialKind{contracts.RuntimeCredentialOTLPHeaders},

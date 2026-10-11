@@ -44,8 +44,6 @@ from contractor_runtime.contracts import (
     RUN_METADATA_LABEL_KEY_PATTERN,
     DroppedSpanCounts,
     RuntimeAdapterRef,
-    TelemetryExportSettings,
-    TelemetryRetrySettings,
     TelemetrySettings,
 )
 from contractor_runtime.redaction import contains_private_value
@@ -169,11 +167,11 @@ class OTLPInstrumentation(RuntimeInstrumentation):
         resource_attributes: Mapping[str, TelemetryAttribute],
         *,
         secret_values: Sequence[str],
+        max_pending_spans: int,
+        max_pending_bytes: int,
         run_metadata_labels: Mapping[str, str] | None = None,
         wall_time_ns: Callable[[], int] = time.time_ns,
         monotonic_ns: Callable[[], int] = time.perf_counter_ns,
-        max_pending_spans: int | None = None,
-        max_pending_bytes: int | None = None,
         capture_content: bool = False,
         on_enqueue: Callable[[], None] | None = None,
     ) -> None:
@@ -182,13 +180,9 @@ class OTLPInstrumentation(RuntimeInstrumentation):
         self._secret_values = tuple(value for value in secret_values if value)
         self._wall_time_ns = wall_time_ns
         self.monotonic_ns = monotonic_ns
-        defaults = TelemetryExportSettings.defaults()
-        self._max_pending_spans = (
-            max_pending_spans if max_pending_spans is not None else defaults.max_pending_spans
-        )
-        self._max_pending_bytes = (
-            max_pending_bytes if max_pending_bytes is not None else defaults.max_pending_bytes
-        )
+        # The bounds come from the export settings the Server sends (RCF-R102).
+        self._max_pending_spans = max_pending_spans
+        self._max_pending_bytes = max_pending_bytes
         self._on_enqueue = on_enqueue
         self._trace_id = os.urandom(16)
         self._run_metadata_attributes = MappingProxyType(
@@ -405,12 +399,9 @@ class OTLPHTTPAdapter:
         transport: httpx.AsyncBaseTransport | None = None,
     ) -> None:
         self.metrics = RuntimeAdapterMetricsState(dropped_spans=DroppedSpanCounts())
-        self._export_settings = (settings.export or TelemetryExportSettings.defaults()).model_copy(
-            deep=True
-        )
-        self._retry_settings = (
-            self._export_settings.retry or TelemetryRetrySettings.defaults()
-        ).model_copy(deep=True)
+        # The Server sends complete export and retry settings (RCF-R102).
+        self._export_settings = settings.export.model_copy(deep=True)
+        self._retry_settings = self._export_settings.retry.model_copy(deep=True)
         self._batch_timeout = float(settings.flush_timeout_seconds)
         self._flush_timeout = float(settings.flush_timeout_seconds)
         secret_headers = {

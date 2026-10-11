@@ -68,10 +68,13 @@ func (s TelemetrySettings) Validate() error {
 	if s.FlushTimeoutSeconds < 1 || s.FlushTimeoutSeconds > 10 {
 		return contracts.Invalidf("telemetry flushTimeoutSeconds must be from 1 through 10")
 	}
-	if s.Export != nil {
-		return s.Export.Validate()
+	// The Server pins every export value (RCF-R102): the allocation wire always
+	// carries the export block and its retry object, which a RuntimeConfig may
+	// omit, and the Runtime has no defaults of its own.
+	if s.Export == nil || s.Export.Retry == nil {
+		return contracts.Invalidf("telemetry export and its retry settings are required")
 	}
-	return nil
+	return s.Export.Validate()
 }
 
 type HTTPProxyBasicAuth struct {

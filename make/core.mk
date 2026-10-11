@@ -39,6 +39,8 @@ test-wire-cross-language:
 	cd runtime && uv run pytest tests/test_shared_text_rules.py
 	go test ./internal/artifactpolicy ./internal/contracts -run '^TestShared(MemoryReservationCases|WorkerResultReservedBindings)$$'
 	cd runtime && uv run pytest tests/test_shared_memory_reservation.py
+	go test ./internal/contracts/runtimesettings -run '^TestSharedRuntimeSettingsBoundsCases$$'
+	cd runtime && uv run pytest tests/test_shared_runtime_settings_bounds.py
 
 test-config:
 	go test ./internal/config/... ./internal/configload/...

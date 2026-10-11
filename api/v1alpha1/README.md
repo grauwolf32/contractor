@@ -59,6 +59,12 @@ Worker result may name it (ART-R114). Go `artifactpolicy` and the Worker
 result check in `contracts`, and the Runtime's `contracts.artifacts`, which the
 Worker, MemoryTools and allocation admission use, read it.
 
+`runtime-settings-bounds-cases.json` holds every numeric `RuntimeSettings`
+bound, the required `telemetry.export` and `export.retry` objects, and the
+export values the Server sends when a Worker RuntimeConfig omits them
+(RCF-R102); Go decoding, the Runtime model and this schema are checked against
+it.
+
 `ArtifactListResult` is one page of versionless refs from the private
 allocation listing. Its optional `nextCursor` (1 to 512 unpadded base64url
 characters, never on an empty page) continues a paged listing and is absent on
