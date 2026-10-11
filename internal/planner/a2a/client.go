@@ -139,6 +139,9 @@ func (i *Invoker) Invoke(
 	if err != nil {
 		return contracts.WorkerCompletion{}, err
 	}
+	// The Worker's result is decoded from the body of the response that
+	// carried it, not from the SDK's float64 values.
+	ctx, _ = withResponseCapture(ctx)
 	builder := i.build
 	if i.tlsConfig != nil {
 		bound, bindErr := mtls.BindRuntimeAgentPrincipal(i.tlsConfig, handle.RuntimeAgentID)
@@ -206,13 +209,14 @@ func (i *Invoker) resolve(
 	taskID *sdk.TaskID,
 ) (contracts.WorkerCompletion, error) {
 	var contextID string
+	location := resultLocation{wrapped: true, history: -1}
 	for {
 		switch current := response.(type) {
 		case *sdk.Message:
 			if err := validateResultMessageCorrelation(current, "", ""); err != nil {
 				return contracts.WorkerCompletion{}, err
 			}
-			return decodeResultMessage(current)
+			return decodeResultMessage(ctx, current, location)
 		case *sdk.Task:
 			if current == nil || current.ID == "" || current.ContextID == "" {
 				return contracts.WorkerCompletion{}, planner.NewError(
@@ -227,7 +231,7 @@ func (i *Invoker) resolve(
 					"invalid_a2a_response", "Worker changed A2A Task correlation while polling", false, nil,
 				)
 			}
-			message, wait, err := taskMessage(current)
+			message, history, wait, err := taskMessage(current)
 			if err != nil {
 				return contracts.WorkerCompletion{}, err
 			}
@@ -235,7 +239,8 @@ func (i *Invoker) resolve(
 				if err := validateResultMessageCorrelation(message, current.ID, current.ContextID); err != nil {
 					return contracts.WorkerCompletion{}, err
 				}
-				result, err := decodeResultMessage(message)
+				location.task, location.history = true, history
+				result, err := decodeResultMessage(ctx, message, location)
 				if err != nil {
 					return contracts.WorkerCompletion{}, err
 				}
@@ -279,6 +284,7 @@ func (i *Invoker) resolve(
 				return contracts.WorkerCompletion{}, transportError(ctx, getErr)
 			}
 			response = next
+			location.wrapped = false
 		default:
 			return contracts.WorkerCompletion{}, planner.NewError(
 				"invalid_a2a_response", "Worker returned an unsupported A2A response", false, nil,
@@ -416,54 +422,61 @@ func normalizeEmptySecurityScopes(card map[string]any) {
 	}
 }
 
-func taskMessage(task *sdk.Task) (*sdk.Message, bool, error) {
+// taskMessage selects the Worker message of a terminal Task with its index in
+// the Task history, or -1 for the status message.
+func taskMessage(task *sdk.Task) (*sdk.Message, int, bool, error) {
 	if task == nil || task.ID == "" || task.ContextID == "" {
-		return nil, false, planner.NewError(
+		return nil, -1, false, planner.NewError(
 			"invalid_a2a_response", "Worker returned an invalid A2A Task", false, nil,
 		)
 	}
 	switch task.Status.State {
 	case sdk.TaskStateSubmitted, sdk.TaskStateWorking:
-		return nil, true, nil
+		return nil, -1, true, nil
 	case sdk.TaskStateInputRequired:
-		return nil, false, planner.NewError(
+		return nil, -1, false, planner.NewError(
 			"worker_input_required", "Worker requires input unsupported by passthrough@1", false, nil,
 		)
 	case sdk.TaskStateAuthRequired:
-		return nil, false, planner.NewError(
+		return nil, -1, false, planner.NewError(
 			"worker_auth_required", "Worker requires authentication unsupported by passthrough@1", false, nil,
 		)
 	case sdk.TaskStateCanceled:
-		return nil, false, planner.NewError(
+		return nil, -1, false, planner.NewError(
 			"worker_task_cancelled", "Worker A2A Task was cancelled", true, nil,
 		)
 	case sdk.TaskStateRejected:
-		return nil, false, planner.NewError(
+		return nil, -1, false, planner.NewError(
 			"worker_task_rejected", "Worker rejected the A2A Task", false, nil,
 		)
 	case sdk.TaskStateCompleted, sdk.TaskStateFailed:
 		if task.Status.Message != nil {
-			return task.Status.Message, false, nil
+			return task.Status.Message, -1, false, nil
 		}
 		for index := len(task.History) - 1; index >= 0; index-- {
 			if task.History[index] != nil && task.History[index].Role == sdk.MessageRoleAgent {
-				return task.History[index], false, nil
+				return task.History[index], index, false, nil
 			}
 		}
 		if task.Status.State == sdk.TaskStateFailed {
-			return nil, false, planner.NewError(
+			return nil, -1, false, planner.NewError(
 				"worker_task_failed", "Worker A2A Task failed without a Contractor result", true, nil,
 			)
 		}
-		return nil, false, nil
+		return nil, -1, false, nil
 	default:
-		return nil, false, planner.NewError(
+		return nil, -1, false, planner.NewError(
 			"invalid_a2a_response", "Worker returned an unknown A2A Task state", false, nil,
 		)
 	}
 }
 
-func decodeResultMessage(message *sdk.Message) (contracts.WorkerCompletion, error) {
+// decodeResultMessage decodes the WorkerCompletion of message, which the SDK
+// read at location in the latest response of ctx, from that response's bytes,
+// so integers keep their digits and duplicate keys are rejected.
+func decodeResultMessage(
+	ctx context.Context, message *sdk.Message, location resultLocation,
+) (contracts.WorkerCompletion, error) {
 	if message == nil || message.Role != sdk.MessageRoleAgent || len(message.Parts) != 1 ||
 		message.Parts[0] == nil {
 		return contracts.WorkerCompletion{}, planner.NewError(
@@ -476,19 +489,22 @@ func decodeResultMessage(message *sdk.Message) (contracts.WorkerCompletion, erro
 			"invalid_a2a_response", "Worker response has an incompatible media type", false, nil,
 		)
 	}
-	data, ok := part.Content.(sdk.Data)
-	if !ok {
+	if _, ok := part.Content.(sdk.Data); !ok {
 		return contracts.WorkerCompletion{}, planner.NewError(
 			"invalid_a2a_response", "Worker response must be one Agent DataPart", false, nil,
 		)
 	}
-	encoded, err := json.Marshal(data.Value)
-	if err != nil || len(encoded) == 0 || len(encoded) > maxA2AResponseBytes {
+	var encoded []byte
+	err := errNoResultData
+	if capture := responseCaptureFrom(ctx); capture != nil {
+		encoded, err = resultData(capture.last(), location)
+	}
+	if err != nil || len(encoded) > maxA2AResponseBytes {
 		return contracts.WorkerCompletion{}, planner.NewError(
 			"invalid_a2a_response", "Worker Contractor payload is invalid or oversized", false, err,
 		)
 	}
-	result, err := contracts.DecodePrivateStrict[contracts.WorkerCompletion](encoded)
+	result, err := contracts.DecodePrivateStrict[contracts.WorkerCompletion](integralNumbers(encoded))
 	if err != nil {
 		return contracts.WorkerCompletion{}, planner.NewError(
 			"invalid_worker_result", "Worker returned an invalid WorkerCompletion", false, err,
@@ -547,5 +563,8 @@ func (t boundedRoundTripper) RoundTrip(request *http.Request) (*http.Response, e
 		io.Reader
 		io.Closer
 	}{Reader: io.LimitReader(response.Body, t.limit+1), Closer: response.Body}
+	if capture := responseCaptureFrom(request.Context()); capture != nil {
+		response.Body = capture.record(response.Body)
+	}
 	return response, nil
 }
