@@ -15,6 +15,19 @@ export const CONFIG_NAME_PATTERN = /^[a-z][a-z0-9_-]{0,127}$/;
 export const CONFIG_VERSION_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$/;
 const RESOURCE_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$/;
 
+/**
+ * An exact `<name>@<version>` configuration selector, as in the public
+ * Selector schema: neither part may contain `@`, so the first one separates.
+ */
+export function isConfigSelector(value: string): boolean {
+  const separator = value.indexOf("@");
+  return (
+    separator > 0 &&
+    CONFIG_NAME_PATTERN.test(value.slice(0, separator)) &&
+    CONFIG_VERSION_PATTERN.test(value.slice(separator + 1))
+  );
+}
+
 export type WorkflowPage = components["schemas"]["WorkflowPage"];
 export type WorkflowResource = components["schemas"]["WorkflowResource"];
 export type WorkflowSummary = components["schemas"]["WorkflowSummary"];

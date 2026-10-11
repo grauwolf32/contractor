@@ -1,0 +1,77 @@
+schema_version: "1.0"
+id: V368-015
+title: "Validate configuration names in the UI with the shared fixtures"
+milestone: hub-audit-defects-2026-10
+epic: ui
+kind: defect
+priority: P1
+status: completed
+implementation_commit: 5eb0a679f7ae191010c5ff2b13822de0c549d908
+depends_on: []
+languages: [typescript]
+goal: "Every valid fixture case routes and validates; every invalid one is rejected; no unit test reads configs/."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq; raw reports in docs/research/2026-10-11-hub-audit/), config G4, G6, D 3.5; file:line as of 02bbdcbf, re-verify on current main"
+  finding: >-
+    ui/server/static-server.mjs:36, 42, 50 return 404 for deep links to
+    versions with '+' (valid per config-identity-cases.json). Studio
+    validation (ui/src/routes/studio/validation.ts:41, 53, 82) accepts names
+    and media types the Server rejects. Studio tests read the live configs/
+    tree (document.test.ts:17, 72-95, advanced-forms.test.tsx:46), against
+    AGENTS.md section 2.
+  specification:
+    - docs/spec/ui/ui.md#UI-R16
+  decision: >-
+    One client definition per grammar instead of more copies: Studio uses
+    CONFIG_NAME_PATTERN and CONFIG_VERSION_PATTERN (already held to
+    config-identity-cases.json and the OpenAPI schemas), a new
+    isConfigSelector composed from them (probed against the OpenAPI Selector
+    schema and the fixture), and MEDIA_TYPE_PATTERN plus the Server's slot
+    rules (each media type once, */* alone, as config.validateMediaTypes).
+    The Node static server cannot import the TypeScript client, so it keeps
+    named grammar fragments and node --test holds every route to the shared
+    fixture (valid cases route, invalid ones get 404 or 400, both length
+    bounds); the Runtime configuration route keeps its own public bounds
+    (RuntimeInfrastructureId 63, RuntimeConfigVersion 128). The shipped
+    catalog check moved to ui/e2e/studio-catalog.spec.ts, a process spec
+    listed in the browser spec inventory and run by tests/ui-stack
+    (TestBrowserOperationsStack); unit tests and the mocked Studio browser
+    spec use byte-identical fixture copies in ui/src/routes/studio/testdata
+    (prettier-ignored, the round-trip tests compare their exact bytes).
+    Alternative rejected: a separate Go test that only runs the catalog spec
+    (more surface for the same check). The listed command "node --test
+    ui/server" fails on Node 24 before any test runs (a directory is loaded
+    as a module); the equivalent "node --test ui/server/*.test.mjs" (pnpm
+    test:server) is recorded instead. introduced_by is omitted: the shallow
+    history cannot attribute the three routes and the Studio rules.
+  siblings: >-
+    Fixed: the catalog, Project Workflow Run and Operations configuration
+    routes; Studio metadata name and version, every selector field
+    (planner, agent template, AgentTemplate runtime, sandboxProfile,
+    modelPolicy, summarizer and toolset refs, AuditProfile inventory and
+    workflow refs), the advanced execution selectors (modelPolicy,
+    llmGateway, executionConfig ref) and their credential IDs (LLM
+    credential IDs use the name grammar), and slot media types of Workflow
+    inputs, outputs and results and AuditProfile inputs; the mocked Studio
+    browser spec, which also read configs/. Ruled out: the Runtime
+    configuration route (already the public grammar); Runtime capability
+    and adapter refs in api/operations.ts and api/runtime-configuration.ts
+    (the runtime capability grammar, its own fixture); CONFIG_ID_PATTERN
+    users (ConfigId names of stages, slots and tools, a different grammar).
+scope:
+  in:
+    - "static-server and Studio validation tested against config-identity-cases.json and media-type-cases.json; the real-catalog check moves to tests/ui-stack."
+  out:
+    - "Studio behaviour for valid input."
+acceptance_criteria:
+  - id: A1
+    text: "Every valid fixture case routes and validates; every invalid one is rejected; no unit test reads configs/."
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "corepack pnpm --dir ui exec vitest run src/routes/studio"
+    covers: [A1]
+  - command: "node --test ui/server/*.test.mjs"
+    covers: [A1]
+  - command: "cd ui && corepack pnpm exec playwright test e2e/studio-catalog.spec.ts"
+    covers: [A1]

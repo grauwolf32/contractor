@@ -1,5 +1,4 @@
-import { readFileSync, readdirSync } from "node:fs";
-import { resolve } from "node:path";
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   addBlock,
@@ -14,7 +13,10 @@ import {
 import { buildGraph } from "./graph";
 import { validateDraft } from "./validation";
 
-const configRoot = resolve(process.cwd(), "../configs");
+// Fixture copies of authored definitions; the shipped catalog itself is
+// checked by e2e/studio-catalog.spec.ts in tests/ui-stack.
+const fixture = (file: string) =>
+  readFileSync(`src/routes/studio/testdata/${file}`, "utf8");
 describe("authored YAML studio", () => {
   it("preserves comments, multiline instructions and opaque fields through graph edits", () => {
     const source = `# Bundle note\napiVersion: contractor/v1alpha1\nkind: Workflow\nmetadata:\n  name: sample # retain me\n  version: "1"\nspec:\n  x-future: {opaque: [one, two]}\n  entryStage: start\n  stages:\n    start:\n      objective: |\n        Keep this multiline objective.\n        Keep the second line.\n      planner: passthrough@1 # planner note\n      agents: {worker: {template: worker@1}}\n      on:\n        succeeded: {succeed: {}}\n        failed: {retry: {maxAttempts: 2, then: {fail: {}}}}\n        interrupted: {fail: {}}\n`;
@@ -69,30 +71,22 @@ describe("authored YAML studio", () => {
       { kind: "same", line: "last" },
     ]);
   });
-  for (const [directory, kind] of [
-    ["workflows", "Workflow"],
-    ["audit-profiles", "AuditProfile"],
-    ["agent-templates", "AgentTemplate"],
+  for (const [file, kind] of [
+    ["openapi_from_workspace_v7_memory.yaml", "Workflow"],
+    ["openapi_operation_trace.yaml", "AuditProfile"],
+    ["audit_sqlmap_scan.yaml", "AgentTemplate"],
+    ["workspace_openapi_builder_v3_memory.yaml", "AgentTemplate"],
   ] as const) {
-    for (const file of readdirSync(resolve(configRoot, directory)).filter(
-      (file) => file.endsWith(".yaml"),
-    )) {
-      it(`loads real ${directory}/${file} without inventing local errors`, () => {
-        const source = readFileSync(
-          resolve(configRoot, directory, file),
-          "utf8",
-        );
-        const draft = readDraft(source);
-        expect(draft.kind).toBe(kind);
-        expect(draft.source).toBe(source);
-        expect(
-          validateDraft(draft).filter(
-            (problem) => problem.severity === "error",
-          ),
-        ).toEqual([]);
-        expect(buildGraph(draft).nodes.length).toBeGreaterThan(0);
-      });
-    }
+    it(`loads the authored ${file} without inventing local errors`, () => {
+      const source = fixture(file);
+      const draft = readDraft(source);
+      expect(draft.kind).toBe(kind);
+      expect(draft.source).toBe(source);
+      expect(
+        validateDraft(draft).filter((problem) => problem.severity === "error"),
+      ).toEqual([]);
+      expect(buildGraph(draft).nodes.length).toBeGreaterThan(0);
+    });
   }
 });
 

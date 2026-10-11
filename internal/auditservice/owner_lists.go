@@ -84,6 +84,11 @@ func (s *Service) ListOwnerFindings(ctx context.Context, params OwnerFindingList
 	return result, nil
 }
 
+// ListOwnerReviews lists the owner's review requests newest first. The
+// pending filter lists only requests that can still be decided: a stored
+// pending request past its expiry at the PostgreSQL clock is left out before
+// anything has expired it, as in the workspace's pending count. The decided
+// and expired filters and the unfiltered list use the stored state.
 func (s *Service) ListOwnerReviews(ctx context.Context, params OwnerReviewListParams) ([]ReviewRequest, error) {
 	if err := validateOwnerPage(params.OwnerID, params.Limit, params.BeforeCreatedAt, params.BeforeRequestID, params.AuditStates); err != nil {
 		return nil, err
@@ -94,6 +99,7 @@ func (s *Service) ListOwnerReviews(ctx context.Context, params OwnerReviewListPa
 	rows, err := s.pool.Query(ctx, reviewSelect+`
  WHERE audit.owner_id = $1`+visibleAuditProjectSQL+`
    AND ($2::text IS NULL OR request.state = $2)
+   AND ($2::text IS DISTINCT FROM 'pending' OR `+reviewUnexpiredSQL+`)
    AND ($3::timestamptz IS NULL OR (request.created_at, request.request_id) < ($3, $4))
    AND ($6::text[] IS NULL OR audit.state = ANY($6))
  ORDER BY request.created_at DESC, request.request_id DESC LIMIT $5`,

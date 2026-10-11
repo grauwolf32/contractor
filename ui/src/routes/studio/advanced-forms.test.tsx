@@ -43,7 +43,7 @@ function workflow() {
 const workspacePath: Path = ["spec", "stages", "start", "context", "workspace"];
 const tool = () =>
   readDraft(
-    readFileSync("../configs/agent-templates/audit_sqlmap_scan.yaml", "utf8"),
+    readFileSync("src/routes/studio/testdata/audit_sqlmap_scan.yaml", "utf8"),
   );
 function mount(initial: Draft, type: string) {
   function Harness() {

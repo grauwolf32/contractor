@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-95 open tasks: 3 in progress, 78 pending, 14 deferred. 801 finished: 798 completed, 3 archived.
+93 open tasks: 3 in progress, 76 pending, 14 deferred. 803 finished: 800 completed, 3 archived.
 
 ## In progress
 
@@ -115,13 +115,6 @@ the epics are in [epics.yml](epics.yml).
 | --- | --- | --- | --- | --- |
 | [V40-003](v40-003-agent-instruction-eval-decision.yml) | feature | P1 | V40-002 | Evaluate instruction candidates and record evidence-based adoption decisions |
 
-### Web UI (`ui`)
-
-| Task | Kind | Priority | Waiting for | Title |
-| --- | --- | --- | --- | --- |
-| [V368-012](v368-012-audit-ui-truth.yml) | defect | P1 | — | Show only decidable reviews and the real delete rule in the Audit UI |
-| [V368-015](v368-015-ui-config-grammars.yml) | defect | P1 | — | Validate configuration names in the UI with the shared fixtures |
-
 ### Operations, authentication, CLI and deployment (`operations`)
 
 | Task | Kind | Priority | Waiting for | Title |
@@ -211,7 +204,7 @@ tasks in `introduced_by`.
 | Audits (`audits`) | 26 | 49 | 64 | 12 | 71 |
 | Evaluations (`evals`) | 2 | 21 | 26 | 4 | 33 |
 | Podman sandbox (`sandbox`) | 0 | 8 | 1 | 1 | 2 |
-| Web UI (`ui`) | 2 | 19 | 51 | 10 | 46 |
+| Web UI (`ui`) | 0 | 19 | 51 | 10 | 46 |
 | Operations, authentication, CLI and deployment (`operations`) | 1 | 8 | 30 | 4 | 6 |
 | Public API and wire contracts (`api-contracts`) | 12 | 1 | 24 | 16 | 6 |
 | PostgreSQL persistence and schema (`persistence`) | 11 | 0 | 17 | 29 | 3 |

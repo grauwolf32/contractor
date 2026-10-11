@@ -3954,7 +3954,7 @@ paths:
         - $ref: '#/components/parameters/Limit'
         - $ref: '#/components/parameters/Cursor'
         - {name: auditState, in: query, schema: {type: string}, description: 'Comma-separated Audit states.'}
-        - {name: state, in: query, schema: {type: string, enum: [pending, decided, expired]}}
+        - {name: state, in: query, schema: {type: string, enum: [pending, decided, expired]}, description: 'pending lists only requests that can still be decided: a pending request past its expiresAt at the Server database clock is left out before anything has expired it. decided and expired match the stored state.'}
       responses:
         '200':
           description: Newest-first page across owned Projects

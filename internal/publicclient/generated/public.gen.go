@@ -7993,8 +7993,10 @@ type ListOwnerReviewsParams struct {
 	Cursor *Cursor `form:"cursor,omitempty" json:"cursor,omitempty"`
 
 	// AuditState Comma-separated Audit states.
-	AuditState *string                      `form:"auditState,omitempty" json:"auditState,omitempty"`
-	State      *ListOwnerReviewsParamsState `form:"state,omitempty" json:"state,omitempty"`
+	AuditState *string `form:"auditState,omitempty" json:"auditState,omitempty"`
+
+	// State pending lists only requests that can still be decided: a pending request past its expiresAt at the Server database clock is left out before anything has expired it. decided and expired match the stored state.
+	State *ListOwnerReviewsParamsState `form:"state,omitempty" json:"state,omitempty"`
 }
 
 // ListOwnerReviewsParamsState defines parameters for ListOwnerReviews.

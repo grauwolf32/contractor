@@ -1,3 +1,9 @@
+import { MEDIA_TYPE_PATTERN } from "../../api/artifacts";
+import {
+  CONFIG_NAME_PATTERN,
+  CONFIG_VERSION_PATTERN,
+  isConfigSelector,
+} from "../../api/workflows";
 import { at, record, textValue, type Draft, type Path } from "./document";
 import { validateAdvanced } from "./advanced-validation";
 
@@ -22,6 +28,37 @@ export function nextStages(stage: unknown): string[] {
   });
 }
 
+// Configuration names, versions and selectors follow the Server grammar
+// (CONFIG_NAME_PATTERN, CONFIG_VERSION_PATTERN and isConfigSelector, held to
+// api/testdata/v1alpha1/config-identity-cases.json).
+export const NAME_MESSAGE =
+  "Use a name of at most 128 lowercase letters, digits, - and _, starting with a letter.";
+export const VERSION_MESSAGE =
+  "Use a version of at most 64 letters, digits, ., _, + and -, starting with a letter or digit.";
+export const SELECTOR_MESSAGE = "Use a versioned selector such as worker@1.";
+
+/**
+ * Why a file slot's media types are refused, as the Server refuses them: one
+ * or more canonical type/subtype values (MEDIA_TYPE_PATTERN), each listed
+ * once, or the wildcard alone.
+ */
+export function mediaTypesProblem(value: unknown): string | undefined {
+  if (
+    !Array.isArray(value) ||
+    !value.length ||
+    value.some(
+      (type) =>
+        typeof type !== "string" ||
+        (type !== "*/*" && !MEDIA_TYPE_PATTERN.test(type)),
+    )
+  )
+    return "Provide one or more lowercase media types such as text/plain, or */* for any file.";
+  if (new Set(value).size !== value.length) return "List each media type once.";
+  if (value.includes("*/*") && value.length > 1)
+    return "*/* already accepts any file; remove the other media types.";
+  return undefined;
+}
+
 /** Rules available from authored YAML. Bundle/catalog resolution stays in CLI. */
 export function validateDraft(draft: Draft): Problem[] {
   const problems: Problem[] = [];
@@ -37,23 +74,18 @@ export function validateDraft(draft: Draft): Problem[] {
       error(path, "A non-empty string is required.");
   };
   const selector = (path: Path) => {
-    if (
-      !/^[A-Za-z0-9][A-Za-z0-9_.-]*@[A-Za-z0-9][A-Za-z0-9_.+-]*$/.test(
-        textValue(at(draft.value, path)),
-      )
-    )
-      error(path, "Use a versioned selector such as worker@1.");
+    const value = at(draft.value, path);
+    if (typeof value !== "string" || !isConfigSelector(value))
+      error(path, SELECTOR_MESSAGE);
   };
   if (draft.value.apiVersion !== "contractor/v1alpha1")
     error(["apiVersion"], "Expected contractor/v1alpha1.");
-  for (const key of ["name", "version"]) {
-    const value = at(draft.value, ["metadata", key]);
-    if (
-      typeof value !== "string" ||
-      !/^[A-Za-z0-9][A-Za-z0-9_.+-]*$/.test(value)
-    )
-      error(["metadata", key], "Use a non-empty identifier string.");
-  }
+  const name = at(draft.value, ["metadata", "name"]);
+  if (typeof name !== "string" || !CONFIG_NAME_PATTERN.test(name))
+    error(["metadata", "name"], NAME_MESSAGE);
+  const version = at(draft.value, ["metadata", "version"]);
+  if (typeof version !== "string" || !CONFIG_VERSION_PATTERN.test(version))
+    error(["metadata", "version"], VERSION_MESSAGE);
   if (
     draft.value.spec === null ||
     typeof draft.value.spec !== "object" ||
@@ -75,14 +107,8 @@ export function validateDraft(draft: Draft): Problem[] {
         row = record(slot);
       if (typeof row.required !== "boolean")
         error([...p, "required"], "Choose whether this file is required.");
-      if (
-        !Array.isArray(row.mediaTypes) ||
-        !row.mediaTypes.length ||
-        row.mediaTypes.some(
-          (type) => typeof type !== "string" || !/^\S+\/\S+$/.test(type),
-        )
-      )
-        error([...p, "mediaTypes"], "Provide one or more media types.");
+      const problem = mediaTypesProblem(row.mediaTypes);
+      if (problem !== undefined) error([...p, "mediaTypes"], problem);
     }
   };
   if (draft.kind === "Workflow") {
