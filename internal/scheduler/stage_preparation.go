@@ -180,33 +180,26 @@ func (s *Scheduler) prepareStageWorkers(ctx context.Context, run runstore.Workfl
 	}
 	admitting := execution.AdmittedAt == nil
 	if admitting {
-		execution, err = s.persistence.AdmitStage(ctx, run.RunID, execution.StageExecutionID)
+		admitted, err := s.persistence.AdmitStage(ctx, run.RunID, execution.StageExecutionID)
 		if err != nil {
-			if fresh && errors.Is(err, runstore.ErrQueuePaused) {
+			if errors.Is(err, runstore.ErrQueuePaused) {
 				// The owner's queue paused between the pre-placement probe and
-				// atomic admission. This Stage was never admitted and recorded
-				// no durable allocations, so discard the just-reserved batch;
-				// otherwise its pinned grant keeps the Runtime ineligible for
-				// other owners until the paused owner resumes. The next claim
-				// re-places the Stage on resume.
-				s.releaseUnprepared(reservations)
-				return nil, err
+				// atomic admission. The Stage was never admitted, so no Runtime
+				// prepared its allocations: discard the placement instead of
+				// pinning Runtime slots for the whole pause, and the first claim
+				// after resume places the Stage again (SCH-R152).
+				s.discardUnadmittedPlacement(ctx, run.RunID, execution.StageExecutionID)
 			}
-			// Placement is already durable. Keep it live so the next claim
+			// Otherwise placement stays durable and live, and the next claim
 			// reuses it instead of finding pinned rows without grants.
 			return nil, err
 		}
+		execution = admitted
 		stageDeadline = s.stageDeadline(execution)
 	}
-	if fresh {
-		if err := s.recordReservations(ctx, execution.StageExecutionID, reservations); err != nil {
-			s.releaseUnprepared(reservations)
-			return nil, s.beginAbort(ctx, run, workflow, execution, nil, planner.Failure{
-				Code: "allocation_record_failed", Message: "Stage allocation provenance could not be recorded", Retryable: true,
-			})
-		}
-	}
 
+	// Placement pinned the durable allocation rows before it exposed the
+	// reservations, so the Scheduler records none itself.
 	if fresh || admitting {
 		if err := s.bindModelRoutes(ctx, run, reservations); err != nil {
 			return nil, s.beginAbort(ctx, run, workflow, execution, reservations, planner.Failure{Code: "model_route_binding_failed", Message: "Model recovery route could not be bound", Retryable: true})
@@ -240,6 +233,19 @@ func (s *Scheduler) prepareStageWorkers(ctx context.Context, run runstore.Workfl
 	}
 
 	return &preparedStageWorkers{reservations: reservations, handles: handles, deadline: stageDeadline}, nil
+}
+
+// discardUnadmittedPlacement deletes a deferred Stage's durable allocation
+// rows together with its live reservation. If it fails, placement stays
+// durable and live and the next claim reuses it.
+func (s *Scheduler) discardUnadmittedPlacement(ctx context.Context, runID, stageID string) {
+	discardContext, cancel := context.WithTimeout(ctx, s.options.OperationTimeout)
+	defer cancel()
+	if err := s.persistence.DiscardUnadmittedPlacement(discardContext, runID, stageID, func() error {
+		return s.allocator.DiscardUnprepared(stageID)
+	}); err != nil {
+		s.options.Logger.Warn("deferred Stage placement was kept for its next claim", "stage_execution_id", stageID)
+	}
 }
 
 func (s *Scheduler) stageDeadline(execution runstore.StageExecution) time.Time {

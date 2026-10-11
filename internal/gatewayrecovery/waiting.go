@@ -57,14 +57,31 @@ func EndStage(ctx context.Context, tx pgx.Tx, runID string) error {
 	if _, err := tx.Exec(ctx, `DELETE FROM gateway_run_routes WHERE run_id=$1`, runID); err != nil {
 		return err
 	}
-	if _, err := tx.Exec(ctx, `
-UPDATE gateway_recovery_routes SET probe_id=NULL,probe_run_id=NULL,probe_until=NULL
-WHERE route_key IN (
- SELECT route_key FROM gateway_recovery_routes WHERE probe_run_id=$1
- ORDER BY route_key FOR UPDATE)`, runID); err != nil {
+	if err := relinquishProbes(ctx, tx, runID, false); err != nil {
 		return err
 	}
 	return resumeRun(ctx, tx, runID)
+}
+
+// ReleaseAdmission relinquishes the probes that admission reserved for a Run
+// whose placement was discarded before its Stage was admitted, inside the
+// caller's transaction, which holds the Run row lock. The Run may wait for a
+// paused queue for long; its reservation must not refuse other Runs' probes
+// meanwhile. Its route membership stays, so its status still names the route.
+func ReleaseAdmission(ctx context.Context, tx pgx.Tx, runID string) error {
+	return relinquishProbes(ctx, tx, runID, true)
+}
+
+// relinquishProbes clears the probes a Run holds, or only those admission
+// reserved, locking route rows in key order like Admit and Retry.
+func relinquishProbes(ctx context.Context, tx pgx.Tx, runID string, admissionOnly bool) error {
+	_, err := tx.Exec(ctx, `
+UPDATE gateway_recovery_routes SET probe_id=NULL,probe_run_id=NULL,probe_until=NULL
+WHERE route_key IN (
+ SELECT route_key FROM gateway_recovery_routes
+ WHERE probe_run_id=$1 AND (NOT $2 OR probe_id IS NULL)
+ ORDER BY route_key FOR UPDATE)`, runID, admissionOnly)
+	return err
 }
 
 // Status deliberately excludes provider data, route identities and credentials.

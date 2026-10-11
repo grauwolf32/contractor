@@ -849,7 +849,11 @@ successful responses cannot reopen it. Repeated failure reports are idempotent
 even when other invocations report failures between retries. A probe lease
 lasts its holder's own request timeout (`workerRequestTimeout` for a Runtime
 Worker, `plannerTimeout` for a Server-side Planner) plus the initial probe
-delay, never the longer of the two.
+delay, never the longer of the two. Admitting a Stage onto a blocked, due
+route that no live invocation waits for reserves that probe for the admitted
+Run until its first request. A later admission of the same Run first
+relinquishes its earlier reservations, so its own reservation never refuses
+it and a route it no longer admits is freed.
 
 **SCH-R107.** The automatic recovery window is bounded; manual retry reopens
 it, while cancellation and the admitted Stage wall-clock limit remain
@@ -1103,9 +1107,14 @@ pause commits.
 **SCH-R152.** A pending Run's not-yet-admitted Stage, such as a manual
 continuation or a capacity-deferred attempt created before the pause, reserves
 no Runtime slot while paused: Scheduler reads the gate before placement, as it
-does for lack of capacity, and admission still rechecks it atomically. Only a
-placement that became durable before a concurrent pause commit stays reserved
-until resume.
+does for lack of capacity, and admission still rechecks it atomically. When a
+pause commits after placement became durable but before admission, admission
+observes the pause and Scheduler discards that never admitted, unprepared
+placement: one transaction deletes its durable allocation rows, relinquishes
+any recovery probe its admission reserved and drops its live reservation, so
+no slot stays reserved for the pause. The first claim after resume places the
+Stage again as the same attempt, consuming no retry. If the discard fails, the
+placement stays durable and live and the next claim reuses it.
 
 **SCH-R153.** Cancellation, abort, recovery of an already admitted Stage and
 allocation release continue while paused; result acceptance and output

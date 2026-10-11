@@ -791,6 +791,12 @@ func (a *PlacementAllocator) SetWriteFence(allocationID string) error {
 	return a.registry.SetWriteFence(allocationID)
 }
 
+// DiscardUnprepared drops a committed Stage reservation that was never
+// prepared, so the same StageExecution can be placed again.
+func (a *PlacementAllocator) DiscardUnprepared(stageExecutionID string) error {
+	return a.registry.DiscardUnpreparedReservations(stageExecutionID)
+}
+
 func (a *PlacementAllocator) Release(allocationID string) error {
 	return a.registry.Release(allocationID)
 }

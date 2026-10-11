@@ -137,6 +137,7 @@ func (a *scanFixedAllocator) ReserveAllContext(ctx context.Context, request cont
 	a.events.add("reserve")
 	a.request = request
 	if len(a.cached) == 0 {
+		reservations := make([]controlplane.Reservation, 0, len(request.Bindings))
 		for _, binding := range request.Bindings {
 			one := request
 			one.Bindings = []controlplane.BindingRequirement{binding}
@@ -144,7 +145,14 @@ func (a *scanFixedAllocator) ReserveAllContext(ctx context.Context, request cont
 			if err != nil {
 				return nil, err
 			}
-			a.cached = append(a.cached, reservation)
+			reservations = append(reservations, reservation)
+		}
+		// Like production placement, pin the rows before exposing the set.
+		if err := a.pin(ctx, reservations); err != nil {
+			return nil, err
+		}
+		a.cached = reservations
+		for _, reservation := range reservations {
 			a.grants[reservation.Grant.AllocationID] = reservation.Grant
 		}
 	}

@@ -150,7 +150,7 @@ func testPostgresSchedulerPublication(t *testing.T, scenario schedulerPublicatio
 	events := &eventRecorder{}
 	allocator := &memoryAllocator{
 		workflow: workflow, clock: clock, events: events,
-		grants: map[string]controlplane.AllocationGrant{},
+		grants: map[string]controlplane.AllocationGrant{}, pin: pinStageAllocations(store),
 	}
 	workers := &memoryWorkers{allocator: allocator, workflow: workflow, clock: clock, events: events}
 	resolver, _ := NewArtifactServiceResolver(artifactService)

@@ -1886,7 +1886,10 @@ func newSchedulerHarness(t *testing.T) *schedulerHarness {
 			},
 		},
 	}
-	allocator := &memoryAllocator{workflow: workflow, clock: clock, events: events, grants: map[string]controlplane.AllocationGrant{}}
+	allocator := &memoryAllocator{
+		workflow: workflow, clock: clock, events: events, grants: map[string]controlplane.AllocationGrant{},
+		pin: pinStageAllocations(store),
+	}
 	workers := &memoryWorkers{allocator: allocator, workflow: workflow, clock: clock, events: events}
 	result := contracts.StageContentResult{
 		APIVersion: contracts.APIVersion, Outcome: contracts.StageSucceeded, Summary: "copied",
@@ -2156,14 +2159,18 @@ func (s *memorySchedulerStore) GetStageExecution(
 	return runstore.StageExecution{}, runstore.ErrNotFound
 }
 
+// RecordStageAllocation enforces the table's identity and per-Stage agent
+// uniqueness. Placement is the only writer of a row, so unlike the idempotent
+// PostgreSQL store this fake rejects a second write of the same allocation.
 func (s *memorySchedulerStore) RecordStageAllocation(
 	_ context.Context, allocation runstore.StageAllocation,
 ) error {
 	for _, current := range s.allocations {
 		if current.AllocationID == allocation.AllocationID {
-			if sameStageAllocation(current, allocation) {
-				return nil
-			}
+			return errDuplicateAllocationWrite
+		}
+		if current.StageExecutionID == allocation.StageExecutionID &&
+			current.LogicalAgentName == allocation.LogicalAgentName {
 			return runstore.ErrConflict
 		}
 	}
@@ -2171,6 +2178,8 @@ func (s *memorySchedulerStore) RecordStageAllocation(
 	s.events.add("record_allocation")
 	return nil
 }
+
+var errDuplicateAllocationWrite = errors.New("Stage allocation row was written twice")
 
 func (s *memorySchedulerStore) ListStageAllocations(
 	_ context.Context, stageExecutionID string,
@@ -2607,9 +2616,26 @@ type memoryAllocator struct {
 	reserveError          error
 	losses                []controlplane.AllocationLoss
 	resolvedRuntimeConfig *runtimeconfig.ResolvedRuntimeConfig
-	// record mirrors production placement, which durably pins
-	// stage_allocations rows before the reservation becomes visible.
-	record func(context.Context, string, []controlplane.Reservation) error
+	// pin is required: like production placement, the fake durably pins the
+	// stage_allocations rows before a reservation becomes visible.
+	pin func(context.Context, []controlplane.Reservation) error
+	// released holds Stages whose committed reservation was released; like
+	// the production Registry it cannot be reserved again.
+	released map[string]bool
+}
+
+// pinStageAllocations records placement rows as production placement does.
+func pinStageAllocations(store interface {
+	RecordStageAllocation(context.Context, runstore.StageAllocation) error
+}) func(context.Context, []controlplane.Reservation) error {
+	return func(ctx context.Context, reservations []controlplane.Reservation) error {
+		for _, reservation := range reservations {
+			if err := store.RecordStageAllocation(ctx, stageAllocationFromReservation(reservation)); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
 }
 
 func (a *memoryAllocator) ReserveAllContext(ctx context.Context, request controlplane.ReservationRequest) ([]controlplane.Reservation, error) {
@@ -2622,6 +2648,12 @@ func (a *memoryAllocator) ReserveAllContext(ctx context.Context, request control
 		return nil, a.reserveError
 	}
 	if len(a.cached) == 0 || a.cached[0].Grant.StageExecutionID != request.StageExecutionID {
+		if a.released[request.StageExecutionID] {
+			return nil, controlplane.ErrReservationReleased
+		}
+		if a.pin == nil {
+			return nil, errors.New("test placement must pin durable allocation rows like production")
+		}
 		reservation, err := a.reservationForRequest(request)
 		if err != nil {
 			return nil, err
@@ -2631,10 +2663,8 @@ func (a *memoryAllocator) ReserveAllContext(ctx context.Context, request control
 				return nil, err
 			}
 		}
-		if a.record != nil {
-			if err := a.record(ctx, request.StageExecutionID, []controlplane.Reservation{reservation}); err != nil {
-				return nil, err
-			}
+		if err := a.pin(ctx, []controlplane.Reservation{reservation}); err != nil {
+			return nil, err
 		}
 		a.cached = []controlplane.Reservation{reservation}
 		for _, reservation := range a.cached {
@@ -2728,13 +2758,35 @@ func (a *memoryAllocator) SetWriteFence(allocationID string) error {
 }
 
 func (a *memoryAllocator) Release(allocationID string) error {
-	if _, ok := a.grants[allocationID]; !ok {
+	grant, ok := a.grants[allocationID]
+	if !ok {
 		return controlplane.ErrAllocationNotFound
 	}
 	delete(a.grants, allocationID)
 	if len(a.cached) > 0 && a.cached[0].Grant.AllocationID == allocationID {
 		a.cached = nil
 	}
+	if a.released == nil {
+		a.released = make(map[string]bool)
+	}
+	a.released[grant.StageExecutionID] = true
+	return nil
+}
+
+func (a *memoryAllocator) DiscardUnprepared(stageExecutionID string) error {
+	if len(a.cached) == 0 || a.cached[0].Grant.StageExecutionID != stageExecutionID {
+		return nil
+	}
+	for _, reservation := range a.cached {
+		if a.fenced[reservation.Grant.AllocationID] {
+			return controlplane.ErrReservationConflict
+		}
+	}
+	for _, reservation := range a.cached {
+		delete(a.grants, reservation.Grant.AllocationID)
+	}
+	a.cached = nil
+	a.events.add("discard")
 	return nil
 }
 
@@ -2976,13 +3028,6 @@ func exactRef(namespace, name, revision string) contracts.ArtifactRef {
 	return contracts.ArtifactRef{Namespace: namespace, Name: name, Revision: &revision}
 }
 
-func sameStageAllocation(left, right runstore.StageAllocation) bool {
-	return left.AllocationID == right.AllocationID && left.StageExecutionID == right.StageExecutionID &&
-		left.LogicalAgentName == right.LogicalAgentName && left.Namespace == right.Namespace &&
-		left.AgentTemplateRef == right.AgentTemplateRef && left.WorkerRuntimeRef == right.WorkerRuntimeRef &&
-		left.RuntimeAgentInstanceID == right.RuntimeAgentInstanceID
-}
-
 func assertOrderedEvents(t *testing.T, events []string, expected ...string) {
 	t.Helper()
 	position := 0
@@ -3003,6 +3048,37 @@ func eventIndex(events []string, expected string) (int, bool) {
 		}
 	}
 	return 0, false
+}
+
+func (p *memoryAtomicPersistence) DiscardUnadmittedPlacement(
+	_ context.Context, runID, stageID string, discard func() error,
+) error {
+	if p.store.run.RunID != runID || p.store.run.State != runstore.RunPending {
+		return runstore.ErrConflict
+	}
+	unadmitted := false
+	for _, stage := range p.store.stages {
+		if stage.StageExecutionID == stageID {
+			unadmitted = stage.State == runstore.StagePreparing && stage.AdmittedAt == nil
+		}
+	}
+	if !unadmitted {
+		return runstore.ErrConflict
+	}
+	kept := make([]runstore.StageAllocation, 0, len(p.store.allocations))
+	for _, allocation := range p.store.allocations {
+		if allocation.StageExecutionID != stageID || allocation.ReleaseAttemptedAt != nil ||
+			allocation.ReleaseCompletedAt != nil {
+			kept = append(kept, allocation)
+		}
+	}
+	// The deletion commits only with the discarded live reservation.
+	if err := discard(); err != nil {
+		return err
+	}
+	p.store.allocations = kept
+	p.events.add("discard_placement")
+	return nil
 }
 
 func (p *memoryAtomicPersistence) AdmitStage(_ context.Context, runID, stageID string) (runstore.StageExecution, error) {

@@ -32,24 +32,59 @@ DELETE FROM gateway_run_routes WHERE run_id=$1 AND NOT (route_key=ANY($2::text[]
 		if err != nil {
 			return err
 		}
-		probes := map[string]bool{}
+		// An earlier admission of this Run may still reserve probes, for
+		// instance when Queue Pause discarded its placement. Release them, so
+		// the Run competes for each probe again instead of being refused by its
+		// own reservation, and a route it no longer admits is not left blocked
+		// until that lease expires. Admitted and reserved routes are locked in
+		// one key-ordered pass, the order every route lock uses.
+		rows, err := tx.Query(ctx, `
+SELECT route_key FROM gateway_recovery_routes WHERE probe_run_id=$1 AND probe_id IS NULL`, runID)
+		if err != nil {
+			return err
+		}
+		reserved, err := pgx.CollectRows(rows, pgx.RowTo[string])
+		if err != nil {
+			return err
+		}
+		admitted := make(map[string]Route, len(ordered))
+		lockKeys := append([]string(nil), keys...)
 		for _, route := range ordered {
-			key := route.Key()
-			if _, err := tx.Exec(ctx, `
+			admitted[route.Key()] = route
+		}
+		for _, key := range reserved {
+			if _, ok := admitted[key]; !ok {
+				lockKeys = append(lockKeys, key)
+			}
+		}
+		sort.Strings(lockKeys)
+		probes := map[string]bool{}
+		for _, key := range lockKeys {
+			route, admitting := admitted[key]
+			if admitting {
+				if _, err := tx.Exec(ctx, `
 INSERT INTO gateway_recovery_routes(route_key,owner_id) VALUES($1,$2)
 ON CONFLICT DO NOTHING`, key, route.OwnerID); err != nil {
-				return err
-			}
-			if _, err := tx.Exec(ctx, `
+					return err
+				}
+				if _, err := tx.Exec(ctx, `
 INSERT INTO gateway_run_routes(run_id,route_key) VALUES($1,$2)
 ON CONFLICT DO NOTHING`, runID, key); err != nil {
-				return err
+					return err
+				}
 			}
 			state, err := readRoute(ctx, tx, key)
 			if err != nil {
 				return err
 			}
-			if !state.blocked {
+			if state.probeID == nil && state.probeRunID != nil && *state.probeRunID == runID {
+				if _, err := tx.Exec(ctx, `
+UPDATE gateway_recovery_routes SET probe_run_id=NULL,probe_until=NULL WHERE route_key=$1`, key); err != nil {
+					return err
+				}
+				state.probeRunID, state.probeUntil = nil, nil
+			}
+			if !admitting || !state.blocked {
 				continue
 			}
 			var waiter bool
