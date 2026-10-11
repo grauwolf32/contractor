@@ -240,7 +240,7 @@ its proposal and evidence revisions (LIFE-DEL-6).
 **DEL-R29.** Receipt provenance and discarded tombstones survive the source
 Run as bounded tombstone provenance; only imported Artifact revisions,
 protected by the destination Audit's own exact holds, survive as readable
-content.
+content. The tombstones of a Project's Runs go with the Project (DEL-R61).
 
 Rationale: Run deletion therefore cannot leak abandoned proposals or silently
 remove evidence already retained by an Audit. How a proposal stays readable
@@ -332,7 +332,8 @@ is specified in [managed-evals](../evals/managed-evals.md).
    completed release;
 3. invoke the terminal Run purge (DEL-R22) for every Project Run, including
    Runs that were already terminal when deletion began;
-4. purge every binding, retained revision, pin and lineage edge in the
+4. delete every finding proposal receipt of the Project (DEL-R61), then
+   purge every binding, retained revision, pin and lineage edge in the
    complete ProjectScope, then garbage-collect only globally unreferenced
    versions and blobs (DEL-R9, LIFE-DEL-4), one purge batch per transaction
    (DEL-R60);
@@ -342,12 +343,35 @@ is specified in [managed-evals](../evals/managed-evals.md).
 purges it in transactions of at most one purge batch each (LIM-DEL-2). Every
 such transaction rechecks the deletion claim and that no Project Run or Audit
 remains, purges the Project's native private eval storage, which is a no-op
-after the first time, and only then removes one batch and collects the
-versions and blobs that batch left unreferenced. The transaction that finds
-the scope empty removes the scope and the Project row. A committed batch
-stays purged: a deleting Project without Runs and Audits admits no Artifact
-write (DEL-R40), and a failed transaction leaves the earlier batches purged
-and the Project `deleting` (DEL-R47).
+after the first time, deletes the next batch of the Project's finding
+proposal receipts (DEL-R61), and only when no receipt is left removes one
+purge batch and collects the versions and blobs that batch left
+unreferenced. The transaction that finds the scope empty removes the scope
+and the Project row. A committed batch stays purged: a deleting Project
+without Runs and Audits admits no Artifact write (DEL-R40), and a failed
+transaction leaves the earlier batches purged and the Project `deleting`
+(DEL-R47).
+
+**DEL-R61.** Project deletion deletes every finding proposal receipt of the
+Project, which by then is the `audit-held` or `discarded` tombstone of a
+deleted Project Run (DEL-R28, DEL-R29), before it purges the ProjectScope
+(LIFE-DEL-10). It deletes them in receipt order, in batches bounded by
+LIM-DEL-3, one batch per Project purge transaction (DEL-R60), and only after
+every Project Run and Audit is gone: an Audit hold, contribution, finding or
+assessment that refers to a receipt belongs to an Audit of the receipt's own
+Project and is purged with that Audit. Nothing else deletes a receipt: the
+database refuses its deletion outside the Project purge or while its Project
+is not `deleting`. A receipt of a standalone Run names no Project and keeps
+its tombstone.
+
+Rationale: a receipt holds the owner, Project, client key, report projection
+and evidence references of a finding, so none may outlive the Project it
+names. The tombstones of standalone Runs are an accepted retention without a
+deleter: their number grows with the owner's deleted standalone Runs that
+submitted findings, and the database rule above is what enforces that
+nothing removes them by accident. The decision is to be reopened when
+deleting an owner's data, or a retention period for standalone Run
+provenance, is specified.
 
 **DEL-R45.** Before its Run purge and ProjectScope purge, Project deletion
 runs an Audit cancellation and drain phase. Audit deletion itself, including
@@ -392,9 +416,10 @@ purge (LIFE-DEL-9).
 **DEL-R53.** Lifecycle uncertainty blocks the purge rather than claiming that
 external work was undone (FAIL-DEL-3).
 
-**DEL-R54.** No response claims completion while an allocation or
-ProjectScope artifact is still retained: Project deletion cannot finish before
-every owned Run and the entire ProjectScope have been purged.
+**DEL-R54.** No response claims completion while an allocation, a finding
+proposal receipt of the Project or a ProjectScope artifact is still retained:
+Project deletion cannot finish before every owned Run, every receipt of the
+Project (DEL-R61) and the entire ProjectScope have been purged.
 
 ```mermaid
 flowchart TD
@@ -406,7 +431,7 @@ flowchart TD
     F --> AU["Cancel and drain the Project's Audits"]
     W --> P["3. Purge every Project Run"]
     AU --> P
-    P --> S["4. Purge the complete ProjectScope, collect globally unreferenced versions and blobs"]
+    P --> S["4. Delete the Project's finding proposal receipts, purge the complete ProjectScope, collect globally unreferenced versions and blobs"]
     S --> R["5. Remove Project create-idempotency data and the Project row"]
     R --> N["Project reads return owner-safe 404"]
 ```
@@ -429,6 +454,9 @@ flowchart TD
   per successful Run deletion (DEL-R23).
 - [LIM-DEL-2](../platform/limits.md): 1,000 binding revisions per purge batch,
   one batch per ProjectScope purge transaction (DEL-R59, DEL-R60).
+- [LIM-DEL-3](../platform/limits.md): 1,000 finding proposal receipts and
+  64 MiB of their stored report projections and evidence per Project purge
+  transaction (DEL-R61).
 - [LIM-ART-6](../platform/limits.md): the Run revision limit that bounds one
   Run purge transaction (DEL-R59).
 - [FAIL-DEL-1](../platform/failure-model.md): terminal Run hard deletion
@@ -451,7 +479,9 @@ flowchart TD
   [LIFE-DEL-7](../platform/lifecycle.md) AuditExecution and
   AuditExecutionItem,
   [LIFE-DEL-8](../platform/lifecycle.md) records outside Project ownership,
-  [LIFE-DEL-9](../platform/lifecycle.md) managed eval data of a Project.
+  [LIFE-DEL-9](../platform/lifecycle.md) managed eval data of a Project,
+  [LIFE-DEL-10](../platform/lifecycle.md) finding proposal receipt
+  tombstones of a Project.
 - [Errors](../platform/errors.md): `run_not_deletable` (DEL-R20).
 
 Deletion failure and concurrency outcomes are stated in DEL-R8, DEL-R10,

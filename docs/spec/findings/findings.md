@@ -171,7 +171,9 @@ An entry's `retention` records one of the receipt states `source-held`,
 readable in its source RunScope (FND-R63); hard deletion of the source Run
 discards it when it was never imported (FND-R154, and
 [retention and deletion](../artifacts/retention-and-deletion.md), DEL-R28).
-This document does not specify when a receipt enters `audit-held`.
+This document does not specify when a receipt enters `audit-held`. The
+receipt itself stays as tombstone provenance until its Project is deleted
+(DEL-R61).
 
 ```mermaid
 stateDiagram-v2
