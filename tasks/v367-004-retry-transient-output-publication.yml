@@ -6,7 +6,7 @@ epic: projects-artifacts
 kind: defect
 introduced_by: V23-005
 priority: P1
-status: pending
+status: in_progress
 depends_on: []
 languages: [go]
 goal: "A deadlock, serialization failure or statement timeout during output publication is retried instead of being recorded as a permanent failed publication of a succeeded Run."
