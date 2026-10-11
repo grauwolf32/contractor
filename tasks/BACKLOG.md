@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-105 open tasks: 3 in progress, 88 pending, 14 deferred. 791 finished: 788 completed, 3 archived.
+104 open tasks: 3 in progress, 87 pending, 14 deferred. 792 finished: 789 completed, 3 archived.
 
 ## In progress
 
@@ -150,7 +150,6 @@ the epics are in [epics.yml](epics.yml).
 | [V370-005](v370-005-contracts-kernel-domain.yml) | chore | P2 | — | Move domain logic out of the contracts kernel |
 | [V370-009](v370-009-context-handlers.yml) | chore | P2 | V368-013 | Split the public API handler by context with required dependencies |
 | [V370-010](v370-010-domain-error-kinds.yml) | chore | P2 | — | Classify domain errors through one error kind and a code registry |
-| [V370-013](v370-013-simplify-public-api.yml) | chore | P3 | — | Remove duplicated code in the public API handlers |
 | [V370-017](v370-017-simplify-contracts.yml) | chore | P3 | — | Remove orphan schemas and lenient paths in the wire contracts |
 | [V370-021](v370-021-live-event-polling.yml) | defect | P2 | — | Poll Run events once per Run instead of once per subscription |
 
@@ -223,6 +222,6 @@ tasks in `introduced_by`.
 | Podman sandbox (`sandbox`) | 0 | 8 | 1 | 1 | 2 |
 | Web UI (`ui`) | 2 | 19 | 51 | 10 | 46 |
 | Operations, authentication, CLI and deployment (`operations`) | 1 | 8 | 30 | 4 | 6 |
-| Public API and wire contracts (`api-contracts`) | 15 | 1 | 24 | 16 | 6 |
+| Public API and wire contracts (`api-contracts`) | 14 | 1 | 24 | 16 | 6 |
 | PostgreSQL persistence and schema (`persistence`) | 11 | 0 | 17 | 29 | 3 |
 | Quality, CI and process (`quality`) | 8 | 1 | 15 | 65 | 15 |
