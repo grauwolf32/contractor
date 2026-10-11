@@ -6158,6 +6158,8 @@ export interface components {
         /** @description Accepted for uniform mutation headers; the operation is idempotent by resource identity and does not bind the key. */
         OptionalIdempotencyKey: string;
         IfMatch: string;
+        /** @description One strong quoted Artifact revision in the `Revision` grammar. A malformed revision is 400 `invalid_request`, never a CAS conflict. */
+        ArtifactIfMatch: string;
         RequiredIfMatch: string;
         RequiredQueueControlIfMatch: string;
         IfNoneMatch: "*";
@@ -7811,7 +7813,8 @@ export interface operations {
                 /** @description Required for sessionCookie authentication; omitted for bearerAuth. */
                 "X-CSRF-Token"?: components["parameters"]["OptionalCSRFToken"];
                 "If-None-Match"?: "*";
-                "If-Match"?: string;
+                /** @description One strong quoted Artifact revision in the `Revision` grammar. A malformed revision is 400 `invalid_request`, never a CAS conflict. */
+                "If-Match"?: components["parameters"]["ArtifactIfMatch"];
             };
             path: {
                 namespace: components["parameters"]["ArtifactNamespace"];
@@ -7865,7 +7868,8 @@ export interface operations {
                 /** @description Required for sessionCookie authentication; omitted for bearerAuth. */
                 "X-CSRF-Token"?: components["parameters"]["OptionalCSRFToken"];
                 "If-None-Match"?: "*";
-                "If-Match"?: string;
+                /** @description One strong quoted Artifact revision in the `Revision` grammar. A malformed revision is 400 `invalid_request`, never a CAS conflict. */
+                "If-Match"?: components["parameters"]["ArtifactIfMatch"];
             };
             path: {
                 projectId: components["parameters"]["ProjectId"];
@@ -8278,7 +8282,8 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
-                "If-Match"?: components["parameters"]["IfMatch"];
+                /** @description One strong quoted Artifact revision in the `Revision` grammar. A malformed revision is 400 `invalid_request`, never a CAS conflict. */
+                "If-Match"?: components["parameters"]["ArtifactIfMatch"];
                 "If-None-Match"?: components["parameters"]["IfNoneMatch"];
                 /** @description Required with exact allowlist match when sessionCookie authenticates an unsafe request. */
                 Origin?: components["parameters"]["OptionalOrigin"];
@@ -10376,7 +10381,8 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
-                "If-Match"?: components["parameters"]["IfMatch"];
+                /** @description One strong quoted Artifact revision in the `Revision` grammar. A malformed revision is 400 `invalid_request`, never a CAS conflict. */
+                "If-Match"?: components["parameters"]["ArtifactIfMatch"];
                 "If-None-Match"?: components["parameters"]["IfNoneMatch"];
                 /** @description Required with exact allowlist match when sessionCookie authenticates an unsafe request. */
                 Origin?: components["parameters"]["OptionalOrigin"];

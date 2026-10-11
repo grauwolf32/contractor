@@ -6966,6 +6966,9 @@ type WorkspaceLimits struct {
 	MaxManagedTextBytes int64 `json:"maxManagedTextBytes"`
 }
 
+// ArtifactIfMatch defines model for ArtifactIfMatch.
+type ArtifactIfMatch = string
+
 // ArtifactNameParameter defines model for ArtifactName.
 type ArtifactNameParameter = ArtifactName
 
@@ -7148,7 +7151,8 @@ type DownloadArtifactParams struct {
 
 // PutArtifactParams defines parameters for PutArtifact.
 type PutArtifactParams struct {
-	IfMatch     *IfMatch                      `json:"If-Match,omitempty"`
+	// IfMatch One strong quoted Artifact revision in the `Revision` grammar. A malformed revision is 400 `invalid_request`, never a CAS conflict.
+	IfMatch     *ArtifactIfMatch              `json:"If-Match,omitempty"`
 	IfNoneMatch *PutArtifactParamsIfNoneMatch `json:"If-None-Match,omitempty"`
 
 	// Origin Required with exact allowlist match when sessionCookie authenticates an unsafe request.
@@ -7180,7 +7184,9 @@ type ImportGitArtifactParams struct {
 	// XCSRFToken Required for sessionCookie authentication; omitted for bearerAuth.
 	XCSRFToken  *OptionalCSRFToken                  `json:"X-CSRF-Token,omitempty"`
 	IfNoneMatch *ImportGitArtifactParamsIfNoneMatch `json:"If-None-Match,omitempty"`
-	IfMatch     *string                             `json:"If-Match,omitempty"`
+
+	// IfMatch One strong quoted Artifact revision in the `Revision` grammar. A malformed revision is 400 `invalid_request`, never a CAS conflict.
+	IfMatch *ArtifactIfMatch `json:"If-Match,omitempty"`
 }
 
 // ImportGitArtifactParamsIfNoneMatch defines parameters for ImportGitArtifact.
@@ -7845,7 +7851,8 @@ type DownloadProjectArtifactParams struct {
 
 // PutProjectArtifactParams defines parameters for PutProjectArtifact.
 type PutProjectArtifactParams struct {
-	IfMatch     *IfMatch                             `json:"If-Match,omitempty"`
+	// IfMatch One strong quoted Artifact revision in the `Revision` grammar. A malformed revision is 400 `invalid_request`, never a CAS conflict.
+	IfMatch     *ArtifactIfMatch                     `json:"If-Match,omitempty"`
 	IfNoneMatch *PutProjectArtifactParamsIfNoneMatch `json:"If-None-Match,omitempty"`
 
 	// Origin Required with exact allowlist match when sessionCookie authenticates an unsafe request.
@@ -7877,7 +7884,9 @@ type ImportProjectGitArtifactParams struct {
 	// XCSRFToken Required for sessionCookie authentication; omitted for bearerAuth.
 	XCSRFToken  *OptionalCSRFToken                         `json:"X-CSRF-Token,omitempty"`
 	IfNoneMatch *ImportProjectGitArtifactParamsIfNoneMatch `json:"If-None-Match,omitempty"`
-	IfMatch     *string                                    `json:"If-Match,omitempty"`
+
+	// IfMatch One strong quoted Artifact revision in the `Revision` grammar. A malformed revision is 400 `invalid_request`, never a CAS conflict.
+	IfMatch *ArtifactIfMatch `json:"If-Match,omitempty"`
 }
 
 // ImportProjectGitArtifactParamsIfNoneMatch defines parameters for ImportProjectGitArtifact.

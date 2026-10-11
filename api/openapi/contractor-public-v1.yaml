@@ -3081,9 +3081,7 @@ paths:
         - name: If-None-Match
           in: header
           schema: {type: string, const: '*'}
-        - name: If-Match
-          in: header
-          schema: {type: string}
+        - $ref: '#/components/parameters/ArtifactIfMatch'
       requestBody:
         required: true
         content:
@@ -3134,9 +3132,7 @@ paths:
         - name: If-None-Match
           in: header
           schema: {type: string, const: '*'}
-        - name: If-Match
-          in: header
-          schema: {type: string}
+        - $ref: '#/components/parameters/ArtifactIfMatch'
       requestBody:
         required: true
         content:
@@ -3458,7 +3454,7 @@ paths:
       x-contractor-implementation: implemented
       x-max-request-body-bytes: 67108864
       parameters:
-        - $ref: '#/components/parameters/IfMatch'
+        - $ref: '#/components/parameters/ArtifactIfMatch'
         - $ref: '#/components/parameters/IfNoneMatch'
         - $ref: '#/components/parameters/OptionalOrigin'
         - $ref: '#/components/parameters/OptionalCSRFToken'
@@ -5243,7 +5239,7 @@ paths:
       x-contractor-implementation: implemented
       x-max-request-body-bytes: 67108864
       parameters:
-        - $ref: '#/components/parameters/IfMatch'
+        - $ref: '#/components/parameters/ArtifactIfMatch'
         - $ref: '#/components/parameters/IfNoneMatch'
         - $ref: '#/components/parameters/OptionalOrigin'
         - $ref: '#/components/parameters/OptionalCSRFToken'
@@ -6421,6 +6417,12 @@ components:
       in: header
       required: false
       schema: {type: string, pattern: '^"[^"\\]+"$'}
+    ArtifactIfMatch:
+      name: If-Match
+      in: header
+      required: false
+      description: One strong quoted Artifact revision in the `Revision` grammar. A malformed revision is 400 `invalid_request`, never a CAS conflict.
+      schema: {type: string, minLength: 3, maxLength: 258, pattern: '^"[A-Za-z0-9][A-Za-z0-9_.:-]*"$'}
     RequiredIfMatch:
       name: If-Match
       in: header

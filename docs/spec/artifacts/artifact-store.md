@@ -98,7 +98,7 @@ Reserved Namespaces and name prefixes:
 
 | Name | Kind | Scope | Holds | Rules |
 | --- | --- | --- | --- | --- |
-| `inputs` | Namespace | RunScope | Mutable working copies of declared Workflow inputs | ART-R14, ART-R76 |
+| `inputs` | Namespace | RunScope | Mutable working copies of declared Workflow inputs | ART-R14, ART-R37, ART-R76 |
 | `outputs` | Namespace | RunScope | Declared Workflow results, managed by Workflow Scheduler | ART-R14, ART-R90 |
 | `skills` | Namespace | RunScope | Exact read-only Agent Skill packages ([Skills](../tools/skills.md)) | ART-R14, ART-R39, ART-R108, ART-R109 |
 | `contractor-system` | Namespace, hidden | RunScope | Bounded Control Plane records coupled to a Run | ART-R17, ART-R18 |
@@ -251,7 +251,9 @@ binding.
 
 **ART-R16.** `inputs`, `outputs` and `skills` cannot be
 selected as Stage Agent Namespaces. The names in them are Workflow slot names
-or trusted runtime-resource names, not arbitrary Worker-selected paths.
+or trusted runtime-resource names, not arbitrary Worker-selected paths: only
+trusted Server operations create a binding in them, and a Worker can at most
+advance an existing `inputs` binding (ART-R37).
 
 **ART-R17.** The physical store may additionally contain the exact
 hidden `contractor-system` Namespace for bounded Control Plane records coupled
@@ -311,8 +313,12 @@ private paged listing applies the same rule in storage (ART-R47).
 **ART-R25.** The UserScope Namespace `audit-standards` is
 reserved for curated Audit standard packages. Generic Artifact APIs cannot
 write it or read or list raw package bytes; only the trusted catalog seed path
-can create a binding. The catalog rules are owned by
-[Audits](../audits/audits.md).
+can create a binding. The reservation is this exact Namespace, not a prefix: a
+Namespace that only begins with it, such as `audit-standards-notes`, is an
+ordinary UserScope Namespace that the owner can write, read and list. The
+public UserScope list hides the reserved Namespace in storage before keyset
+pagination, together with any caller `excludeNamespace` (ART-R71). The catalog
+rules are owned by [Audits](../audits/audits.md).
 
 **ART-R26.** The Server derives and reserves the `audit-*` Project
 Namespace prefix. Generic Project list, read, metadata, version, lineage and
@@ -383,8 +389,24 @@ Namespace and the `memory.` and `http.body.` names.
 
 **ART-R37.** The baseline allocation write grant permits `inputs`
 and non-reserved Namespaces, so Workers can modify their working input copies
-and intermediate artifacts. It denies writes to `outputs` and `skills`, whose
-bindings are created only by trusted Scheduler operations.
+and intermediate artifacts. In `inputs` it permits only a CAS update
+(`If-Match`, `expected_revision`) of an existing binding: a create
+(`If-None-Match: *`, `expected_revision=None`) there is rejected with
+`artifact_access_denied` (HTTP 403, `retryable` false), whether or not the name
+exists, and creates nothing. Every `inputs` binding is therefore a declared
+Workflow input forked by the trusted Run-creation operation (ART-R76). It
+denies writes to `outputs` and `skills`, whose bindings are created only by
+trusted Scheduler operations.
+
+Rationale: a Worker-created `inputs/<name>` would appear among the Run's
+inputs as if the Run had been started with it, including an optional input
+that was absent at creation (ART-R78). Denying every Worker write to `inputs`
+would remove the working copies ART-R77 promises, and checking a created name
+against the Workflow's input slots would put the Workflow snapshot on the
+allocation write path while still letting a Worker supply an absent optional
+input. Reopen this only if a Workflow needs an input-like binding during the
+Run that neither an ordinary Stage Namespace with a context mapping nor a new
+trusted Server operation can provide.
 
 **ART-R107.** Workers may read declared outputs produced by earlier accepted
 Stages.
@@ -623,7 +645,12 @@ and their scope binding are owned by [Projects](projects.md).
 
 **ART-R70.** In the public Artifact API, create uses
 `If-None-Match: *` and update uses the strong current revision ETag; the
-response contains the new exact `ArtifactRef`.
+response contains the new exact `ArtifactRef`. The `If-Match` value is one
+plain double-quoted revision in the public `Revision` grammar (API-R70,
+LIM-API-19), the same grammar as the `revision` query parameter. A malformed,
+escaped or otherwise quoted value is `400 invalid_request` before the store is
+read, never a CAS conflict. The Git import routes use the same headers
+(GIT-R84).
 
 **ART-R71.** The public UserScope Artifact list accepts an exact
 `namespace` filter and an `excludeNamespace` exclusion. The Server evaluates
@@ -1042,8 +1069,8 @@ These properties follow from the cited requirements, which are authoritative.
 4. Every required input is forked at an exact revision before the Run is
    schedulable; Run mutations never modify the source binding
    (ART-R76, ART-R77).
-5. Generic Worker grants never cross a Run and cannot write `outputs`
-   (ART-R37, ART-R38).
+5. Generic Worker grants never cross a Run, cannot write `outputs` and cannot
+   create a binding in `inputs` (ART-R37, ART-R38).
 6. Allocation writes are rejected from the durable transition to `finalizing`
    or `aborting`, independently of Worker shutdown and allocation release
    (ART-R86).

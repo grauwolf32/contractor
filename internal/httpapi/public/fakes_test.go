@@ -618,6 +618,7 @@ func (f *fakeArtifactRepository) ListMetadata(
 		if key.kind != scope.Kind() || key.id != scope.ID() ||
 			query.Namespace != nil && key.namespace != *query.Namespace ||
 			query.ExcludeNamespace != nil && key.namespace == *query.ExcludeNamespace ||
+			query.HiddenNamespace != "" && key.namespace == query.HiddenNamespace ||
 			query.ExcludeNamespacePrefix != "" && strings.HasPrefix(key.namespace, query.ExcludeNamespacePrefix) ||
 			query.AfterNamespace != "" && (key.namespace < query.AfterNamespace ||
 				key.namespace == query.AfterNamespace && key.name <= query.AfterName) {

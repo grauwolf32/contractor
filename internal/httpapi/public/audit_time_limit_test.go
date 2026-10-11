@@ -39,7 +39,7 @@ func TestAuditTimeLimitRequestAndIdempotency(t *testing.T) {
 	if _, err := readAuditTimeLimit(httptest.NewRecorder(), oversized); !errors.Is(err, errRequestTooLarge) {
 		t.Fatalf("oversized time limit error=%v", err)
 	}
-	if auditRequestDigest("", "audit", 1) == auditRequestDigest("", "audit", 1, timeLimitPointer(0)) {
+	if auditRequestDigest("start", "audit", 1) == auditRequestDigest("start", "audit", 1, timeLimitPointer(0)) {
 		t.Fatal("unlimited start shares default request digest")
 	}
 	if auditRequestDigest("resume", "audit", 1, timeLimitPointer(3600)) == auditRequestDigest("resume", "audit", 1, timeLimitPointer(0)) {

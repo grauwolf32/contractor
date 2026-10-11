@@ -32,7 +32,7 @@ async def run(args: argparse.Namespace) -> dict[str, object]:
     if args.mode == "fenced":
         try:
             await client.write_artifact(
-                ArtifactRef(namespace="inputs", name="source"),
+                ArtifactRef(namespace="builder", name="source"),
                 data=b"must not commit",
                 media_type="text/plain",
                 expected_revision=args.expected_revision,
@@ -42,20 +42,31 @@ async def run(args: argparse.Namespace) -> dict[str, object]:
         raise RuntimeError("fenced write unexpectedly succeeded")
 
     created = await client.write_artifact(
-        ArtifactRef(namespace="inputs", name="source"),
+        ArtifactRef(namespace="builder", name="source"),
         data=b"first payload",
         media_type="text/plain",
         expected_revision=None,
     )
-    current = await client.read_artifact(ArtifactRef(namespace="inputs", name="source"))
+    current = await client.read_artifact(ArtifactRef(namespace="builder", name="source"))
     exact = await client.read_artifact(created.artifact)
-    listed = (await client.list_artifact_page("inputs", limit=10)).artifacts
+    listed = (await client.list_artifact_page("builder", limit=10)).artifacts
     updated = await client.write_artifact(
-        ArtifactRef(namespace="inputs", name="source"),
+        ArtifactRef(namespace="builder", name="source"),
         data=b"second payload",
         media_type="text/plain",
         expected_revision=created.artifact.revision,
     )
+    try:
+        await client.write_artifact(
+            ArtifactRef(namespace="inputs", name="invented"),
+            data=b"forbidden",
+            media_type="text/plain",
+            expected_revision=None,
+        )
+    except ArtifactAPIError as error:
+        input_error = error.code
+    else:
+        raise RuntimeError("Worker-created input unexpectedly succeeded")
     try:
         await client.write_artifact(
             ArtifactRef(namespace="outputs", name="result"),
@@ -83,6 +94,7 @@ async def run(args: argparse.Namespace) -> dict[str, object]:
         "payload": current.data.decode(),
         "listed": [ref.model_dump(by_alias=True, exclude_none=True) for ref in listed],
         "outputError": output_error,
+        "inputError": input_error,
     }
 
 

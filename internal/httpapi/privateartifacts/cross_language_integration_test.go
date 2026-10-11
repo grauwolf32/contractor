@@ -37,8 +37,12 @@ func TestCrossLanguagePrivateArtifactLifecycle(t *testing.T) {
 		result["createdRevisionAt"] != result["currentRevisionAt"] ||
 		result["createdRevisionAt"] != result["exactRevisionAt"] ||
 		result["createdRevisionAt"] == result["updatedRevisionAt"] ||
-		result["payload"] != "first payload" || result["outputError"] != "artifact_access_denied" {
+		result["payload"] != "first payload" || result["outputError"] != "artifact_access_denied" ||
+		result["inputError"] != "artifact_access_denied" {
 		t.Fatalf("unexpected cross-language lifecycle: %+v", result)
+	}
+	if _, exists := repository.current("run-a", "inputs", "invented"); exists {
+		t.Fatal("Worker-created input reached the repository")
 	}
 
 	registry.mu.Lock()
@@ -48,7 +52,7 @@ func TestCrossLanguagePrivateArtifactLifecycle(t *testing.T) {
 	if fenced["code"] != "allocation_write_fenced" || fenced["retryable"] != false {
 		t.Fatalf("fenced cross-language write = %+v", fenced)
 	}
-	current, exists := repository.current("run-a", "inputs", "source")
+	current, exists := repository.current("run-a", "builder", "source")
 	if !exists || current.revision != updated || string(current.data) != "second payload" {
 		t.Fatalf("fenced write changed artifact: %+v", current)
 	}

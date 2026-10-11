@@ -70,6 +70,17 @@ func TestWriteRejectsDistinctInvalidInputsBeforeRepository(t *testing.T) {
 			payload: Payload{MediaType: artifactpolicy.RunRepeatRequestMediaType},
 			want:    ErrReservedNamespace,
 		},
+		{
+			// Only the trusted input forks create inputs/<slot> (ART-R16).
+			name: "created Run input", scope: "run",
+			ref:     ArtifactRef{Namespace: "inputs", Name: "invented"},
+			payload: Payload{MediaType: "text/plain"}, want: ErrReservedNamespace,
+		},
+		{
+			name: "reserved Audit standard catalog", scope: "user",
+			ref:     ArtifactRef{Namespace: artifactpolicy.AuditStandardCatalogNamespace, Name: "package"},
+			payload: Payload{MediaType: "application/zip"}, want: ErrReservedNamespace,
+		},
 	}
 
 	for _, test := range tests {
@@ -94,6 +105,29 @@ func TestWriteRejectsDistinctInvalidInputsBeforeRepository(t *testing.T) {
 				t.Fatalf("repository called %d times for invalid input", repository.writeCalls)
 			}
 		})
+	}
+}
+
+// A Worker advances its working input copy by exact CAS (ART-R37), and a
+// UserScope Namespace that only starts with audit-standards stays writable
+// (ART-R25).
+func TestWriteAllowsInputUpdatesAndSimilarCatalogNames(t *testing.T) {
+	t.Parallel()
+	repository := &fakeRepository{}
+	service := NewService(repository)
+	run, _ := service.Run("run-1")
+	current := "revision-1"
+	if _, err := run.Write(context.Background(), ArtifactRef{Namespace: "inputs", Name: "source"},
+		Payload{MediaType: "text/plain", Data: []byte("changed")}, &current); err != nil {
+		t.Fatalf("Run input update: %v", err)
+	}
+	user, _ := service.User("user-1")
+	if _, err := user.Write(context.Background(), ArtifactRef{Namespace: "audit-standards-notes", Name: "draft"},
+		Payload{MediaType: "text/plain", Data: []byte("notes")}, nil); err != nil {
+		t.Fatalf("ordinary UserScope Namespace: %v", err)
+	}
+	if repository.writeCalls != 2 {
+		t.Fatalf("repository writes = %d, want 2", repository.writeCalls)
 	}
 }
 
@@ -162,6 +196,12 @@ func TestBindingPageQueryValidatesExcludedNamespace(t *testing.T) {
 		Limit:            10,
 	}); !errors.Is(err, ErrInvalidName) {
 		t.Fatalf("invalid excluded namespace error = %v, want %v", err, ErrInvalidName)
+	}
+	if err := validateBindingPageQuery(BindingPageQuery{
+		HiddenNamespace: invalid,
+		Limit:           10,
+	}); !errors.Is(err, ErrInvalidName) {
+		t.Fatalf("invalid hidden namespace error = %v, want %v", err, ErrInvalidName)
 	}
 }
 

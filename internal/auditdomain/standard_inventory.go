@@ -80,8 +80,9 @@ func BuildStandardMappingInventory(
 		}
 		statement := mapping.Objective
 		// An exact selected requirements denominator carries the normative
-		// requirement statement into each task. Legacy all-mapping profiles
-		// retain their existing scenario-objective behavior (Top 10).
+		// requirement statement into each task. Without one, as in an
+		// all-mapping profile such as Top 10, a task states the scenario
+		// objective of its mapping.
 		if selection != nil && len(entryIDs) == 1 {
 			statement = entries[entryIDs[0]].Statement
 		}

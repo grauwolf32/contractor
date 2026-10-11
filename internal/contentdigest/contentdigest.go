@@ -15,9 +15,8 @@ func Bytes(data []byte) string {
 	return "sha256:" + hex.EncodeToString(sum[:])
 }
 
-// JSON returns the Bytes digest of the encoding/json encoding of value. The
-// encoding is part of every stored request digest, so callers must not change
-// the shape of the values they pass.
+// JSON returns the Bytes digest of the encoding/json encoding of value, so the
+// shape of the value a caller passes is part of the identity it digests.
 func JSON(value any) (string, error) {
 	encoded, err := json.Marshal(value)
 	if err != nil {

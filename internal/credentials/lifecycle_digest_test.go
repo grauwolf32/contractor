@@ -5,8 +5,8 @@ import (
 	"testing"
 )
 
-// Operation request digests are stored for idempotent replay, so their
-// encoding must not change.
+// The canonical encoding of the operation request digest is pinned, so a
+// change to what an idempotency key binds is deliberate.
 func TestOperationRequestDigestIsPinned(t *testing.T) {
 	digest, err := operationRequestDigest(struct {
 		CredentialID string `json:"credentialId"`

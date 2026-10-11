@@ -23,8 +23,8 @@ func (h *handler) listArtifacts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.listArtifactBindings(
-		w, r, store, "user-artifacts", true, "",
-		artifactpolicy.AuditStandardCatalogNamespace,
+		w, r, store, "user-artifacts", true,
+		artifactpolicy.AuditStandardCatalogNamespace, "",
 	)
 }
 
@@ -218,9 +218,7 @@ func (h *handler) listArtifactBindings(
 		cursorKind += ":exclude:" + value
 	}
 	if hardExcludeNamespace != "" {
-		value := hardExcludeNamespace
-		excludeNamespace = &value
-		cursorKind += ":hidden:" + value
+		cursorKind += ":hidden:" + hardExcludeNamespace
 	}
 	cursor, err := h.decodePageCursor(encodedCursor, cursorKind, 2)
 	if err != nil {
@@ -228,7 +226,7 @@ func (h *handler) listArtifactBindings(
 		return
 	}
 	pageQuery := artifacts.BindingPageQuery{
-		Namespace: namespace, ExcludeNamespace: excludeNamespace,
+		Namespace: namespace, ExcludeNamespace: excludeNamespace, HiddenNamespace: hardExcludeNamespace,
 		ExcludeNamespacePrefix: excludeNamespacePrefix, Limit: pagelimit.FetchRows(limit),
 	}
 	if len(cursor) != 0 {

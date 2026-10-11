@@ -76,9 +76,10 @@ WHERE binding.scope_kind = $1 AND binding.scope_id = $2
   AND ($4::text IS NULL OR binding.namespace <> $4)
   AND ($5::text = '' OR left(binding.namespace, length($5)) <> $5)
   AND ($6::text = '' OR (binding.namespace, binding.name) > ($6, $7))
+  AND ($9::text = '' OR binding.namespace <> $9)
 ORDER BY binding.namespace, binding.name
 LIMIT $8`, scope.kind, scope.id, query.Namespace, query.ExcludeNamespace,
-		query.ExcludeNamespacePrefix, query.AfterNamespace, query.AfterName, query.Limit)
+		query.ExcludeNamespacePrefix, query.AfterNamespace, query.AfterName, query.Limit, query.HiddenNamespace)
 	if err != nil {
 		return nil, fmt.Errorf("list artifact metadata: %w", err)
 	}

@@ -58,23 +58,36 @@ func TestArtifactArchiveScopesAndExactRevision(t *testing.T) {
 	} {
 		t.Run(tc.path, func(t *testing.T) {
 			namespace := "skills"
+			firstPayload := artifacts.Payload{MediaType: tc.mediaType, Data: archiveFixtureBytes(t, "folder/SKILL.md", "# First\n<script>untrusted()</script>")}
+			var first contracts.ArtifactRef
 			if tc.store == run {
+				// Only the trusted Run-creation fork creates inputs/<slot>
+				// (ART-R76); the Run then advances its working copy.
 				namespace = "inputs"
+				source, err := user.Write(t.Context(), contracts.ArtifactRef{Namespace: "sources", Name: "package"}, firstPayload, nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				fork, err := fixture.artifacts.ForkInput(t.Context(), "user-1", source.Ref, "run-one", "package")
+				if err != nil {
+					t.Fatal(err)
+				}
+				first = fork.TargetRef
+			} else {
+				written, err := tc.store.Write(t.Context(), contracts.ArtifactRef{Namespace: namespace, Name: "package"}, firstPayload, nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				first = written.Ref
 			}
-			first, err := tc.store.Write(t.Context(), contracts.ArtifactRef{Namespace: namespace, Name: "package"},
-				artifacts.Payload{MediaType: tc.mediaType, Data: archiveFixtureBytes(t, "folder/SKILL.md", "# First\n<script>untrusted()</script>")}, nil)
-			if err != nil {
+			if _, err := tc.store.Write(t.Context(), contracts.ArtifactRef{Namespace: namespace, Name: "package"},
+				artifacts.Payload{MediaType: tc.mediaType, Data: archiveFixtureBytes(t, "folder/SKILL.md", "# Second")}, first.Revision); err != nil {
 				t.Fatal(err)
 			}
-			_, err = tc.store.Write(t.Context(), contracts.ArtifactRef{Namespace: namespace, Name: "package"},
-				artifacts.Payload{MediaType: tc.mediaType, Data: archiveFixtureBytes(t, "folder/SKILL.md", "# Second")}, first.Ref.Revision)
-			if err != nil {
-				t.Fatal(err)
-			}
-			query := "?revision=" + url.QueryEscape(*first.Ref.Revision)
+			query := "?revision=" + url.QueryEscape(*first.Revision)
 			index := serveAndValidatePublicContract(t, router, fixture.handler,
 				newPublicContractRequest(http.MethodGet, tc.path+"/archive"+query, nil), true)
-			if index.Code != http.StatusOK || index.Header().Get("ETag") != httpx.QuotedETag(first.Ref.Revision) {
+			if index.Code != http.StatusOK || index.Header().Get("ETag") != httpx.QuotedETag(first.Revision) {
 				t.Fatalf("index = %d %s", index.Code, index.Body.String())
 			}
 			var listing artifactArchiveResponse
