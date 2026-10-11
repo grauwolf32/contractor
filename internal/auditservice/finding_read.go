@@ -69,7 +69,7 @@ SELECT `+findingRowColumns+`
 			return nil, err
 		}
 	}
-	return s.hydrateFindings(ctx, params.OwnerID, params.AuditID, base)
+	return s.hydrateFindings(ctx, params.OwnerID, base)
 }
 
 func (s *Service) GetFinding(
@@ -95,46 +95,52 @@ SELECT `+findingRowColumns+`
 }
 
 func (s *Service) hydrateFinding(ctx context.Context, ownerID string, row findingRow) (Finding, error) {
-	values, err := s.hydrateFindings(ctx, ownerID, row.auditID, []findingRow{row})
+	values, err := s.hydrateFindings(ctx, ownerID, []findingRow{row})
 	if err != nil {
 		return Finding{}, err
 	}
 	return values[0], nil
 }
 
-func (s *Service) hydrateFindings(ctx context.Context, ownerID, auditID string, rows []findingRow) ([]Finding, error) {
+// hydrateFindings completes a page of finding rows, which may belong to
+// several of the owner's Audits, with their first proposal receipts, analyst
+// decisions and current assessments. Each related record is read through its
+// finding's own Audit, and the page costs the same statements whatever the
+// number of Audits on it: one batch of receipts per MaxAuditReceiptBatchSize
+// rows, one decision read and one assessment read.
+func (s *Service) hydrateFindings(ctx context.Context, ownerID string, rows []findingRow) ([]Finding, error) {
 	result := make([]Finding, len(rows))
 	if len(rows) == 0 {
 		return result, nil
 	}
-	receiptIDs := make([]string, len(rows))
-	var decisionIDs, assessmentIDs []string
+	receiptKeys := make([]findingintake.AuditReceiptKey, len(rows))
+	var decisions, assessments auditRecordKeys
 	for index, row := range rows {
-		receiptIDs[index] = row.firstReceiptID
-		if row.currentDecisionID != nil {
-			decisionIDs = append(decisionIDs, *row.currentDecisionID)
+		receiptKeys[index] = findingintake.AuditReceiptKey{AuditID: row.auditID, ReceiptID: row.firstReceiptID}
+		if row.currentDecisionID != nil && !decisions.add(row.auditID, *row.currentDecisionID) {
+			return nil, pgx.ErrNoRows
 		}
-		if row.currentAssessmentID != nil {
-			assessmentIDs = append(assessmentIDs, *row.currentAssessmentID)
+		if row.currentAssessmentID != nil && !assessments.add(row.auditID, *row.currentAssessmentID) {
+			return nil, pgx.ErrNoRows
 		}
 	}
 	// A full public page includes a cursor sentinel. Keep receipt hydration
 	// within its independent batch bound, including ownership and exact reads
 	// for that extra row before the HTTP handler trims it from the response.
-	receipts := make([]findingintake.Receipt, 0, len(receiptIDs))
-	for start := 0; start < len(receiptIDs); start += findingintake.MaxAuditReceiptBatchSize {
-		end := min(start+findingintake.MaxAuditReceiptBatchSize, len(receiptIDs))
-		batch, err := s.findings.GetAuditReceipts(ctx, ownerID, auditID, receiptIDs[start:end])
+	receipts := make([]findingintake.Receipt, 0, len(receiptKeys))
+	for start := 0; start < len(receiptKeys); start += findingintake.MaxAuditReceiptBatchSize {
+		end := min(start+findingintake.MaxAuditReceiptBatchSize, len(receiptKeys))
+		batch, err := s.findings.GetOwnerAuditReceipts(ctx, ownerID, receiptKeys[start:end])
 		if err != nil {
 			return nil, err
 		}
 		receipts = append(receipts, batch...)
 	}
-	decisions, err := s.readFindingDecisions(ctx, ownerID, auditID, decisionIDs)
+	decisionsByID, err := s.readFindingDecisions(ctx, ownerID, decisions)
 	if err != nil {
 		return nil, err
 	}
-	assessments, err := s.readFindingAssessments(ctx, ownerID, auditID, assessmentIDs)
+	assessmentsByID, err := s.readFindingAssessments(ctx, ownerID, assessments)
 	if err != nil {
 		return nil, err
 	}
@@ -146,7 +152,7 @@ func (s *Service) hydrateFindings(ctx context.Context, ownerID, auditID string, 
 			CreatedAt: row.createdAt, UpdatedAt: row.updatedAt,
 		}
 		if row.currentDecisionID != nil {
-			decision, ok := decisions[*row.currentDecisionID]
+			decision, ok := decisionsByID[*row.currentDecisionID]
 			if !ok {
 				return nil, pgx.ErrNoRows
 			}
@@ -155,7 +161,7 @@ func (s *Service) hydrateFindings(ctx context.Context, ownerID, auditID string, 
 			finding.AnalystSeverity = decision.Severity
 		}
 		if row.currentAssessmentID != nil {
-			assessment, ok := assessments[*row.currentAssessmentID]
+			assessment, ok := assessmentsByID[*row.currentAssessmentID]
 			if !ok {
 				return nil, pgx.ErrNoRows
 			}
@@ -166,15 +172,42 @@ func (s *Service) hydrateFindings(ctx context.Context, ownerID, auditID string, 
 	return result, nil
 }
 
-func (s *Service) readFindingDecisions(ctx context.Context, ownerID, auditID string, ids []string) (map[string]ReviewDecision, error) {
-	result := make(map[string]ReviewDecision, len(ids))
-	if len(ids) == 0 {
+// auditRecordKeys are the parallel Audit and record identities of the
+// decisions or assessments one finding page reads, each through its own Audit.
+// A read returns a record only through the Audit it belongs to, so a record
+// identity names one Audit on the page.
+type auditRecordKeys struct {
+	auditIDs, recordIDs []string
+	auditByRecord       map[string]string
+}
+
+// add records that a finding of auditID references recordID and reports
+// false when a finding of another Audit references the same record: each
+// decision and assessment belongs to one Audit's finding, so one of the two
+// references cannot resolve.
+func (k *auditRecordKeys) add(auditID, recordID string) bool {
+	if k.auditByRecord == nil {
+		k.auditByRecord = make(map[string]string)
+	}
+	if previous, seen := k.auditByRecord[recordID]; seen {
+		return previous == auditID
+	}
+	k.auditByRecord[recordID] = auditID
+	k.auditIDs = append(k.auditIDs, auditID)
+	k.recordIDs = append(k.recordIDs, recordID)
+	return true
+}
+
+func (s *Service) readFindingDecisions(ctx context.Context, ownerID string, keys auditRecordKeys) (map[string]ReviewDecision, error) {
+	result := make(map[string]ReviewDecision, len(keys.recordIDs))
+	if len(keys.recordIDs) == 0 {
 		return result, nil
 	}
 	rows, err := s.pool.Query(ctx, decisionSelect+`
   JOIN audits AS audit ON audit.audit_id = decision.audit_id
- WHERE audit.owner_id = $1 AND audit.audit_id = $2
-   AND decision.decision_id = ANY($3::text[])`, ownerID, auditID, ids)
+ WHERE audit.owner_id = $1
+   AND (decision.audit_id, decision.decision_id) IN (
+       SELECT * FROM unnest($2::text[], $3::text[]))`, ownerID, keys.auditIDs, keys.recordIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -189,15 +222,16 @@ func (s *Service) readFindingDecisions(ctx context.Context, ownerID, auditID str
 	return result, rows.Err()
 }
 
-func (s *Service) readFindingAssessments(ctx context.Context, ownerID, auditID string, ids []string) (map[string]FindingAssessment, error) {
-	result := make(map[string]FindingAssessment, len(ids))
-	if len(ids) == 0 {
+func (s *Service) readFindingAssessments(ctx context.Context, ownerID string, keys auditRecordKeys) (map[string]FindingAssessment, error) {
+	result := make(map[string]FindingAssessment, len(keys.recordIDs))
+	if len(keys.recordIDs) == 0 {
 		return result, nil
 	}
 	rows, err := s.pool.Query(ctx, assessmentSelect+`
   JOIN audits AS audit ON audit.audit_id = assessment.audit_id
- WHERE audit.owner_id = $1 AND audit.audit_id = $2
-   AND assessment.assessment_id = ANY($3::text[])`, ownerID, auditID, ids)
+ WHERE audit.owner_id = $1
+   AND (assessment.audit_id, assessment.assessment_id) IN (
+       SELECT * FROM unnest($2::text[], $3::text[]))`, ownerID, keys.auditIDs, keys.recordIDs)
 	if err != nil {
 		return nil, err
 	}

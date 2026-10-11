@@ -8,6 +8,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/pagelimit"
+	"github.com/grauwolf32/contractor/internal/runstore"
 )
 
 const (
@@ -278,9 +279,9 @@ type CreateDraftParams struct {
 }
 
 type ListParams struct {
-	OwnerID         string
-	ProjectID       *string
-	State           *AuditState
+	OwnerID   string
+	ProjectID *string
+	// States filters by Audit state; nil lists every state.
 	States          []AuditState
 	VisibleProjects bool
 	ProfileName     *string
@@ -310,6 +311,12 @@ const (
 	MutationTransition MutationOperation = "audit.transition"
 	MutationDelete     MutationOperation = "audit.delete"
 )
+
+// sqlLiteral quotes the operation for a statement that records it, so the
+// stored operation names come from these constants only.
+func (operation MutationOperation) sqlLiteral() string {
+	return "'" + string(operation) + "'"
+}
 
 type TransitionParams struct {
 	OwnerID          string
@@ -860,9 +867,13 @@ type ReconcileSnapshot struct {
 	Round             *Round
 	Items             []Item
 	Executions        []Execution
-	RoleExecutions    []Execution
-	Receipts          []CollectionReceiptSummary
-	RoleReceipts      []CollectionReceiptSummary
+	// RunStates is the lifecycle state of the Run bound to each execution in
+	// Executions, keyed by Run ID and read in the same snapshot. A Run whose
+	// row no longer exists has no entry.
+	RunStates      map[string]runstore.WorkflowRunState
+	RoleExecutions []Execution
+	Receipts       []CollectionReceiptSummary
+	RoleReceipts   []CollectionReceiptSummary
 	// ReadyItems are the current Round's dispatchable items, read directly so
 	// that items awaiting review ahead of them cannot starve dispatch.
 	ReadyItems     []Item

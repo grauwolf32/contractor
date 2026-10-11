@@ -158,6 +158,29 @@ func TestObservationClassificationIsDeterministic(t *testing.T) {
 	}
 }
 
+// TestWorkerReportKeepsNumberLiterals checks that the bounded structure walk
+// interprets no number: observation values keep their exact literals, and
+// only the typed fields decode them.
+func TestWorkerReportKeepsNumberLiterals(t *testing.T) {
+	var report workerReport
+	data := `{"schemaVersion":1,"tool":"scan.nuclei","inputDigest":"unused","inputArtifacts":{},` +
+		`"observation":{"status":"completed","exitCode":1e400,"count":9007199254740993,"zero":-0}}`
+	if !strictWorkerReport([]byte(data), &report) {
+		t.Fatal("report with exact number literals was rejected")
+	}
+	for name, want := range map[string]string{"exitCode": "1e400", "count": "9007199254740993", "zero": "-0"} {
+		if got := string(report.Observation[name]); got != want {
+			t.Fatalf("observation %s = %s, want %s", name, got, want)
+		}
+	}
+	for _, schemaVersion := range []string{"1.5", "1e400"} {
+		data := `{"schemaVersion":` + schemaVersion + `,"tool":"scan.nuclei","inputDigest":"unused","inputArtifacts":{},"observation":{}}`
+		if strictWorkerReport([]byte(data), &workerReport{}) {
+			t.Fatalf("schemaVersion %s was accepted", schemaVersion)
+		}
+	}
+}
+
 func TestWorkerReportRejectsCaseAliasesAndNullFields(t *testing.T) {
 	for _, data := range []string{
 		`{"schemaVersion":1,"tool":"scan_nuclei","Tool":"scan_sqlmap","inputDigest":"digest","inputArtifacts":{},"observation":{}}`,

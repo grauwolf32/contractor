@@ -107,7 +107,7 @@ func (s *PostgresStore) StartPreparation(ctx context.Context, p StartPreparation
 	if err != nil {
 		return Audit{}, false, err
 	}
-	if replay, found, err := s.lookupAuditReplay(ctx, p.OwnerID, "audit.start", p.IdempotencyKey, p.RequestDigest); err != nil || found {
+	if replay, found, err := s.lookupAuditReplay(ctx, p.OwnerID, MutationStart, p.IdempotencyKey, p.RequestDigest); err != nil || found {
 		return replay, false, err
 	}
 	audit, err := s.Get(ctx, p.OwnerID, p.AuditID)
@@ -154,7 +154,7 @@ func (s *PostgresStore) StartPreparation(ctx context.Context, p StartPreparation
 		return Audit{}, false, ErrProjectDeleting
 	}
 	if errors.Is(err, pgx.ErrNoRows) || persistencepostgres.Classify(err) == persistencepostgres.ClassDuplicate {
-		if replay, found, replayErr := s.lookupAuditReplay(ctx, p.OwnerID, "audit.start", p.IdempotencyKey, p.RequestDigest); replayErr != nil || found {
+		if replay, found, replayErr := s.lookupAuditReplay(ctx, p.OwnerID, MutationStart, p.IdempotencyKey, p.RequestDigest); replayErr != nil || found {
 			return replay, false, replayErr
 		}
 		return Audit{}, false, ErrPrecondition

@@ -151,7 +151,8 @@ func (h *handler) listProjectAudits(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, err)
 		return
 	}
-	var state *auditstore.AuditState
+	// The owner-wide list accepts a comma-separated state set; a Project list
+	// filters by one state.
 	var states []auditstore.AuditState
 	if values, ok := query["state"]; ok {
 		if projectID == "" {
@@ -166,7 +167,7 @@ func (h *handler) listProjectAudits(w http.ResponseWriter, r *http.Request) {
 				h.handleError(w, errInvalidRequest)
 				return
 			}
-			state = &candidate
+			states = []auditstore.AuditState{candidate}
 		}
 	}
 	var profileName, profileVersion *string
@@ -180,7 +181,7 @@ func (h *handler) listProjectAudits(w http.ResponseWriter, r *http.Request) {
 		profileSelector = selector.String()
 		profileName, profileVersion = &selector.ID, &selector.Version
 	}
-	cursorKind := "project-audits:" + projectID + ":" + pointerAuditState(state) + ":" + profileSelector
+	cursorKind := "project-audits:" + projectID + ":" + auditStateKey(states) + ":" + profileSelector
 	if projectID == "" {
 		cursorKind = "owner-audits:" + principalUserID(r.Context()) + ":" + auditStateKey(states) + ":" + profileSelector
 	}
@@ -190,7 +191,7 @@ func (h *handler) listProjectAudits(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	params := auditstore.ListParams{
-		OwnerID: principalUserID(r.Context()), State: state, States: states, VisibleProjects: projectID == "",
+		OwnerID: principalUserID(r.Context()), States: states, VisibleProjects: projectID == "",
 		ProfileName: profileName, ProfileVersion: profileVersion, Limit: pagelimit.FetchRows(limit),
 	}
 	if projectID != "" {

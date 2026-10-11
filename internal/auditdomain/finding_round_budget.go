@@ -338,7 +338,7 @@ func measureJSON(value any) (jsonExtent, error) {
 }
 
 // jsonExtentOf measures compact, valid JSON such as json.Marshal output. It
-// counts values as readJSONValue does: every object, array, string, number,
+// counts values as strictJSONBounds does: every object, array, string, number,
 // boolean and null is one node, while object keys are not. Depth counts the
 // root value as one.
 func jsonExtentOf(data []byte) jsonExtent {

@@ -88,14 +88,6 @@ SELECT retained_evidence_bytes + $2 > max_evidence_bytes
 	return exceeded, nil
 }
 
-func prefixedReceiptColumns(prefix string) string {
-	return prefix + ".receipt_id, " + prefix + ".audit_id, " + prefix + ".execution_id, " +
-		prefix + ".run_id, " + prefix + ".terminal_outcome, " + prefix + ".terminal_run_generation, " +
-		prefix + ".terminal_run_sequence, " + prefix + ".disposition, " + prefix + ".source_output_ref, " +
-		prefix + ".source_output_digest, " + prefix + ".retained_refs, " + prefix + ".error_code, " +
-		prefix + ".request_digest, " + prefix + ".created_at"
-}
-
 func (s *PostgresStore) lookupReceiptReplay(
 	ctx context.Context, auditID, executionID, digest string,
 ) (CollectionReceipt, bool, error) {

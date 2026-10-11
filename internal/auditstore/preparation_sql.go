@@ -34,7 +34,7 @@ WITH project_gate AS MATERIALIZED (
       FROM started CROSS JOIN link_input AS link
 ), idempotency_row AS (
     INSERT INTO audit_idempotency (owner_id, operation, idempotency_key, request_digest, audit_id, resource_id, response_snapshot)
-    SELECT $1, 'audit.start', $8, $9, audit_id, audit_id, jsonb_build_object('auditId', audit_id) FROM started
+    SELECT $1, ` + MutationStart.sqlLiteral() + `, $8, $9, audit_id, audit_id, jsonb_build_object('auditId', audit_id) FROM started
 )
 SELECT ` + prefixedAuditColumns("started") + ` FROM started`
 

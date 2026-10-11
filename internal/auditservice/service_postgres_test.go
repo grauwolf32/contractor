@@ -287,7 +287,7 @@ func TestAuditDraftStartReplayAndAtomicUnsupportedRollback(t *testing.T) {
 	reviews, err := service.ListReviews(ctx, ReviewListParams{
 		OwnerID: project.OwnerID, AuditID: manualDraft.AuditID, Limit: 10,
 	})
-	if err != nil || len(reviews) != 1 || reviews[0].Kind != ApplicabilityReviewKind ||
+	if err != nil || len(reviews) != 1 || reviews[0].Kind != string(auditstore.ItemApprovalApplicability) ||
 		reviews[0].SubjectKind != ReviewSubjectItemAction ||
 		reviews[0].SubjectID != manualStarted.Items[0].ItemID {
 		t.Fatalf("manual item reviews = (%+v, %v)", reviews, err)

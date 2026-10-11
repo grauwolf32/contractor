@@ -21,7 +21,7 @@ func (s *PostgresStore) RequestDelete(
 		return Audit{}, false, err
 	}
 	if replay, found, err := s.lookupAuditReplay(
-		ctx, params.OwnerID, string(MutationDelete), params.IdempotencyKey, params.RequestDigest,
+		ctx, params.OwnerID, MutationDelete, params.IdempotencyKey, params.RequestDigest,
 	); err != nil || found {
 		return replay, false, err
 	}
@@ -34,13 +34,13 @@ func (s *PostgresStore) RequestDelete(
 		return audit, true, nil
 	}
 	if persistencepostgres.Classify(err) == persistencepostgres.ClassDuplicate {
-		return s.replayAudit(ctx, params.OwnerID, string(MutationDelete), params.IdempotencyKey, params.RequestDigest)
+		return s.replayAudit(ctx, params.OwnerID, MutationDelete, params.IdempotencyKey, params.RequestDigest)
 	}
 	if !errors.Is(err, pgx.ErrNoRows) {
 		return Audit{}, false, fmt.Errorf("request Audit deletion: %w", err)
 	}
 	if replay, found, replayErr := s.lookupAuditReplay(
-		ctx, params.OwnerID, string(MutationDelete), params.IdempotencyKey, params.RequestDigest,
+		ctx, params.OwnerID, MutationDelete, params.IdempotencyKey, params.RequestDigest,
 	); replayErr != nil || found {
 		return replay, false, replayErr
 	}

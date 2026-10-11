@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-78 open tasks: 3 in progress, 61 pending, 14 deferred. 818 finished: 815 completed, 3 archived.
+76 open tasks: 3 in progress, 59 pending, 14 deferred. 820 finished: 817 completed, 3 archived.
 
 ## In progress
 
@@ -92,8 +92,6 @@ the epics are in [epics.yml](epics.yml).
 | [V368-006](v368-006-freeze-audit-artifacts.yml) | defect | P1 | — | Write Audit manifests, tasks and worklists frozen through one path |
 | [V368-023](v368-023-audit-api-bounds.yml) | defect | P2 | — | Bound the Audit start replay and validate action review keys |
 | [V370-004](v370-004-split-auditstore.yml) | chore | P2 | — | Split auditstore along its seams |
-| [V370-014](v370-014-simplify-audit.yml) | chore | P3 | — | Remove duplicated code in the Audit packages |
-| [V370-022](v370-022-batch-audit-reads.yml) | defect | P2 | — | Batch the Audit controller and owner finding reads |
 | [V370-027](v370-027-audit-write-and-read-cost.yml) | defect | P3 | — | Reduce Audit start and event listing costs |
 
 ### Evaluations (`evals`)
@@ -181,7 +179,7 @@ tasks in `introduced_by`.
 | Findings tools and collections (`findings`) | 2 | 7 | 4 | 1 | 6 |
 | Workflow catalog and document workflows (`workflows`) | 4 | 13 | 13 | 8 | 11 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 3 | 27 | 31 | 3 | 33 |
-| Audits (`audits`) | 24 | 49 | 64 | 12 | 71 |
+| Audits (`audits`) | 22 | 49 | 64 | 12 | 71 |
 | Evaluations (`evals`) | 2 | 21 | 26 | 4 | 33 |
 | Podman sandbox (`sandbox`) | 0 | 8 | 1 | 1 | 2 |
 | Web UI (`ui`) | 0 | 19 | 51 | 10 | 48 |

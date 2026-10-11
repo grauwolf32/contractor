@@ -23,7 +23,7 @@ WITH candidate AS MATERIALIZED (
         owner_id, operation, idempotency_key, request_digest,
         audit_id, resource_id, response_snapshot
     )
-    SELECT $1, 'audit.delete', $4, $5, audit_id, audit_id, $6::jsonb
+    SELECT $1, ` + MutationDelete.sqlLiteral() + `, $4, $5, audit_id, audit_id, $6::jsonb
       FROM selected
 )
 SELECT * FROM selected`

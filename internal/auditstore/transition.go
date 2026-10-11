@@ -21,7 +21,7 @@ func (s *PostgresStore) Transition(
 		return Audit{}, false, err
 	}
 	if replay, found, err := s.lookupAuditReplay(
-		ctx, params.OwnerID, "audit.transition", params.IdempotencyKey, params.RequestDigest,
+		ctx, params.OwnerID, MutationTransition, params.IdempotencyKey, params.RequestDigest,
 	); err != nil || found {
 		return replay, false, err
 	}
@@ -39,13 +39,13 @@ func (s *PostgresStore) Transition(
 		return audit, true, nil
 	}
 	if persistencepostgres.Classify(err) == persistencepostgres.ClassDuplicate {
-		return s.replayAudit(ctx, params.OwnerID, "audit.transition", params.IdempotencyKey, params.RequestDigest)
+		return s.replayAudit(ctx, params.OwnerID, MutationTransition, params.IdempotencyKey, params.RequestDigest)
 	}
 	if !errors.Is(err, pgx.ErrNoRows) {
 		return Audit{}, false, fmt.Errorf("transition Audit: %w", err)
 	}
 	if replay, found, replayErr := s.lookupAuditReplay(
-		ctx, params.OwnerID, "audit.transition", params.IdempotencyKey, params.RequestDigest,
+		ctx, params.OwnerID, MutationTransition, params.IdempotencyKey, params.RequestDigest,
 	); replayErr != nil || found {
 		return replay, false, replayErr
 	}
@@ -105,7 +105,7 @@ func (s *PostgresStore) Resume(ctx context.Context, params ResumeParams) (Audit,
 		return Audit{}, false, err
 	}
 	if replay, found, err := s.lookupAuditReplay(
-		ctx, params.OwnerID, "audit.transition", params.IdempotencyKey, params.RequestDigest,
+		ctx, params.OwnerID, MutationTransition, params.IdempotencyKey, params.RequestDigest,
 	); err != nil || found {
 		return replay, false, err
 	}
@@ -122,13 +122,13 @@ func (s *PostgresStore) Resume(ctx context.Context, params ResumeParams) (Audit,
 		return Audit{}, false, ErrProjectDeleting
 	}
 	if persistencepostgres.Classify(err) == persistencepostgres.ClassDuplicate {
-		return s.replayAudit(ctx, params.OwnerID, "audit.transition", params.IdempotencyKey, params.RequestDigest)
+		return s.replayAudit(ctx, params.OwnerID, MutationTransition, params.IdempotencyKey, params.RequestDigest)
 	}
 	if !errors.Is(err, pgx.ErrNoRows) {
 		return Audit{}, false, fmt.Errorf("resume Audit: %w", err)
 	}
 	if replay, found, replayErr := s.lookupAuditReplay(
-		ctx, params.OwnerID, "audit.transition", params.IdempotencyKey, params.RequestDigest,
+		ctx, params.OwnerID, MutationTransition, params.IdempotencyKey, params.RequestDigest,
 	); replayErr != nil || found {
 		return replay, false, replayErr
 	}
@@ -192,7 +192,7 @@ func (s *PostgresStore) ActivateAfterItemReview(
 
 func (s *PostgresStore) getAuditTrusted(ctx context.Context, auditID string) (Audit, error) {
 	audit, err := scanAudit(s.db.QueryRow(ctx, `
-SELECT `+auditColumns+` FROM audits WHERE audit_id = $1`, auditID))
+SELECT `+prefixedAuditColumns("audits")+` FROM audits WHERE audit_id = $1`, auditID))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Audit{}, ErrNotFound
 	}

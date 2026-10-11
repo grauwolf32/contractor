@@ -257,7 +257,11 @@ func (s *Service) listAuditInbox(
 	if err != nil {
 		return nil, err
 	}
-	return s.hydrateAuditReceipts(ctx, ownerID, auditID, receipts)
+	keys := make([]AuditReceiptKey, len(receipts))
+	for index, receipt := range receipts {
+		keys[index] = AuditReceiptKey{AuditID: auditID, ReceiptID: receipt.ReceiptID}
+	}
+	return s.hydrateAuditReceipts(ctx, ownerID, keys, receipts)
 }
 
 // GetAuditReceipt reads one receipt admitted to the owner's Audit through

@@ -3,6 +3,7 @@ package scanplan
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"io"
 	"strconv"
 	"strings"
@@ -163,18 +164,19 @@ func (r *documentReader) read(node *yaml.Node, depth int) (any, error) {
 	return nil, &PreparationError{Code: "invalid_document"}
 }
 
+// parseJSONDocument applies the bounds the YAML reader applies: member names
+// count as nodes, as YAML keys do.
 func parseJSONDocument(data []byte) (map[string]any, error) {
 	if !strictjson.ValidUnicodeEscapes(data) {
 		return nil, &PreparationError{Code: "invalid_document"}
 	}
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.UseNumber()
-	reader := documentReader{}
-	value, err := reader.readJSON(decoder, 1)
-	if err != nil {
-		return nil, err
+	value, err := strictjson.DecodeBounded(data, strictjson.Bounds{
+		MaxDepth: MaxDepth, MaxNodes: MaxNodes, NamesAreNodes: true,
+	}, documentnumber.Float)
+	if errors.Is(err, strictjson.ErrBounds) {
+		return nil, &PreparationError{Code: "source_limit_exceeded"}
 	}
-	if _, err := decoder.Token(); err != io.EOF {
+	if err != nil {
 		return nil, &PreparationError{Code: "invalid_document"}
 	}
 	result, ok := value.(map[string]any)
@@ -182,61 +184,4 @@ func parseJSONDocument(data []byte) (map[string]any, error) {
 		return nil, &PreparationError{Code: "invalid_document"}
 	}
 	return result, nil
-}
-
-func (r *documentReader) readJSON(decoder *json.Decoder, depth int) (any, error) {
-	if err := r.count(depth); err != nil {
-		return nil, err
-	}
-	token, err := decoder.Token()
-	if err != nil {
-		return nil, &PreparationError{Code: "invalid_document"}
-	}
-	switch token := token.(type) {
-	case json.Delim:
-		switch token {
-		case '{':
-			result := make(map[string]any)
-			for decoder.More() {
-				if err := r.count(depth + 1); err != nil {
-					return nil, err
-				}
-				keyToken, err := decoder.Token()
-				key, ok := keyToken.(string)
-				if err != nil || !ok {
-					return nil, &PreparationError{Code: "invalid_document"}
-				}
-				if _, duplicate := result[key]; duplicate {
-					return nil, &PreparationError{Code: "invalid_document"}
-				}
-				value, err := r.readJSON(decoder, depth+1)
-				if err != nil {
-					return nil, err
-				}
-				result[key] = value
-			}
-			if closing, err := decoder.Token(); err == nil && closing == json.Delim('}') {
-				return result, nil
-			}
-		case '[':
-			result := make([]any, 0)
-			for decoder.More() {
-				value, err := r.readJSON(decoder, depth+1)
-				if err != nil {
-					return nil, err
-				}
-				result = append(result, value)
-			}
-			if closing, err := decoder.Token(); err == nil && closing == json.Delim(']') {
-				return result, nil
-			}
-		}
-	case json.Number:
-		if value, ok := documentnumber.Float(token.String()); ok {
-			return value, nil
-		}
-	case string, bool, nil:
-		return token, nil
-	}
-	return nil, &PreparationError{Code: "invalid_document"}
 }

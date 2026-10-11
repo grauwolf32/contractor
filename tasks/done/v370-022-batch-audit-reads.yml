@@ -1,0 +1,80 @@
+schema_version: "1.0"
+id: V370-022
+title: "Batch the Audit controller and owner finding reads"
+milestone: hub-audit-structure-2026-10
+epic: audits
+kind: defect
+priority: P2
+status: completed
+implementation_commit: 94fe029329b7f77d9d7f2c955b1d8a7d7841b36e
+depends_on: []
+languages: [go]
+goal: "Query counts per tick and per page are constant in the number of Audits (test)."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq; raw reports in docs/research/2026-10-11-hub-audit/), audits I2, I4; public API I3; file:line as of 02bbdcbf, re-verify on current main"
+  finding: >-
+    Each controller claim runs about 12 snapshot queries, observeOneTerminal
+    makes up to 32 GetRun calls (controller.go:416) and dispatch up to 64
+    NextItemAttempt (dispatch_selection.go:38). Owner-wide findings hydrate
+    per Audit (owner_lists.go:68-78): about 3-4 queries per Audit on a
+    201-row page.
+  specification:
+    - docs/spec/audits/execution.md#AUX-R95
+    - docs/spec/audits/review-and-reports.md#REV-R199
+  decision: >-
+    Guarantee: a Controller pass issues the same statements whatever the
+    number of the Audit's items, executions and child Runs, and an
+    owner-wide finding page the same statements whatever the number of
+    Audits on it. GetReconcileSnapshot reads the whole snapshot in one
+    read-only REPEATABLE READ transaction (it takes no locks and cannot
+    fail with a serialization conflict, so it is not retried) and joins the
+    lifecycle state of each window execution's child Run from
+    workflow_runs (ReconcileSnapshot.RunStates); terminal observation and
+    cancellation use it and read no Run per execution, and the Controller's
+    RunStore no longer has GetRun. The one terminal Run a pass observes
+    still reads a fresh event cursor, which ObserveTerminal re-validates
+    against the Run row. NextItemAttempts reads the next attempts of the
+    ordered candidate batch (at most 64) with one GROUP BY only when the
+    window has room; an item that left ready is absent and stops the
+    dispatch as ErrPrecondition did. Owner finding hydration reads receipts
+    and holds by (Audit, receipt) pairs, decisions and assessments by
+    (Audit, record) pairs, so every record is still read through its
+    finding's own Audit; GetAuditReceipts, the inbox and the per-Audit list
+    use the same pair path, and a record named by findings of two Audits
+    fails as before. Evidence (PostgreSQL, counting tracers):
+    TestPostgresControllerFullWindowPassCostIsConstantInChildRuns (two vs
+    six submitted child Runs, no per-Run statement),
+    TestPostgresControllerDispatchReadsBatchAttemptsOnce (four members, one
+    attempt statement) and TestOwnerFindingPageQueriesAreConstantInAudits
+    (41 findings over 40 Audits and over one Audit both cost 7 statements;
+    201 before; a receipt shared by two Audits exposes only each finding's
+    own hold; page hydration equals single reads); each fails on the
+    previous code. Alternatives: attempts for all ready items inside the
+    snapshot (reads up to 200 items' history on every pass, also with a
+    full window); the event cursor in the snapshot (widens the window in
+    which a later Run event makes ObserveTerminal refuse); folding the
+    scheduler setting, Round and review counts into the Audit statement
+    (fewer round trips, no consistency gain once the snapshot is one
+    transaction). The pool-or-transaction check in GetReconcileSnapshot is
+    the pattern V370-018 replaces with persistencepostgres.Within; it
+    should move there when both land. Sibling ruled out: GET /v1/audits
+    reads Preparation (three statements) for each listed Audit that is
+    preparing or in inventory with preparation roles
+    (httpapi/public/audit_preparation.go:24); that is the Audit list's
+    read model in a transient start phase, not finding hydration, and is
+    left for a follow-up. Reopen if a reconcile step needs Run state newer
+    than its snapshot, or if a page must hydrate more than one receipt
+    batch per 200 rows.
+scope:
+  in:
+    - "Join Run state into listExecutions, one GROUP BY for attempts, one read-only snapshot transaction, batched owner-wide hydration by (audit, receipt)."
+  out:
+    - "Results."
+acceptance_criteria:
+  - id: A1
+    text: "Query counts per tick and per page are constant in the number of Audits (test)."
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "go test -tags integration ./internal/auditcontroller ./internal/auditservice"
+    covers: [A1]

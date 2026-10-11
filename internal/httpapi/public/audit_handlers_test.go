@@ -425,7 +425,7 @@ func TestAuditFindingReviewHandlersBindCASIdempotencyAndProvenanceRevision(t *te
 	management.reviews[0] = auditservice.ReviewRequest{
 		RequestID: "review-action", AuditID: "audit-fixed",
 		SubjectKind: auditservice.ReviewSubjectItemAction, SubjectID: "item-one",
-		Kind: auditservice.ActiveCheckReviewKind, SubjectRevision: 1,
+		Kind: string(auditstore.ItemApprovalActiveCheck), SubjectRevision: 1,
 		SubjectDigest: auditHandlerDigest("active-action"),
 		RequestedActions: []auditservice.ReviewRequestedAction{
 			auditservice.ReviewRequestedAction(action),

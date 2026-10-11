@@ -183,13 +183,6 @@ func pointerString(value *string) string {
 	return *value
 }
 
-func pointerAuditState(value *auditstore.AuditState) string {
-	if value == nil {
-		return ""
-	}
-	return string(*value)
-}
-
 func pointerItemState(value *auditstore.ItemState) string {
 	if value == nil {
 		return ""
