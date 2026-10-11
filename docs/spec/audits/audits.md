@@ -1233,6 +1233,10 @@ response, package content or model transcript.
 **AUD-R205.** Start and resume require `If-Match` and `Idempotency-Key` and
 accept an optional JSON object with only `deadlineSeconds`.
 
+**AUD-R226.** A start response, first or replayed, carries the Audit, its
+current Round and only that Round's items, so it holds at most LIM-AUD-26
+items however many items earlier Rounds hold.
+
 **AUD-R206.** `deadlineSeconds` must be an integer from zero through 31,536,000
 (LIM-AUD-23); explicit `null` is invalid. An absent body and `{}` both omit the
 override.

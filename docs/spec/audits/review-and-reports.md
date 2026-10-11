@@ -322,6 +322,13 @@ and report acceptance use the exact-subject review ledger below (AUD-R85).
 **REV-R27.** A decision is accepted only through the owner-authenticated
 Audit API with CAS and idempotency (FAIL-REV-1).
 
+**REV-R199.** Every review decision, a finding verdict as much as an item or
+report action, accepts exactly the public `Idempotency-Key` grammar
+(`[A-Za-z0-9][A-Za-z0-9._:-]*`, at most 128 characters). A decision that the
+review ledger's stored constraints refuse is invalid, `400 invalid_request`
+for the API and the service's invalid-argument error for trusted callers,
+never an internal error, and nothing is written.
+
 **REV-R28.** Model text or an artifact claiming "approved" has no
 authority.
 

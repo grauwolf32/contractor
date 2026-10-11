@@ -813,7 +813,9 @@ func (s *Service) startedProjectionWithStore(
 	if err != nil {
 		return StartedAudit{}, err
 	}
-	items, err := store.ListItems(ctx, audit.AuditID)
+	// The response carries the current Round and only its items, at most
+	// LIM-AUD-26, however many items earlier Rounds hold.
+	items, err := store.ListRoundItems(ctx, audit.AuditID, round.RoundID)
 	if err != nil {
 		return StartedAudit{}, err
 	}

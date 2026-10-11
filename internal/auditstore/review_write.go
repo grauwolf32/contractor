@@ -99,9 +99,15 @@ RETURNING request_id, revision`, auditID, findingID)
 	return s.AppendReviewEvents(ctx, events)
 }
 
+// reviewWriteError classifies a refused review write. A CHECK violation is a
+// value the service should have rejected; nothing was written and repeating
+// the request cannot succeed.
 func reviewWriteError(err error) error {
-	if persistencepostgres.SQLState(err) == persistencepostgres.SQLStateUniqueViolation {
+	switch persistencepostgres.SQLState(err) {
+	case persistencepostgres.SQLStateUniqueViolation:
 		return ErrConflict
+	case persistencepostgres.SQLStateCheckViolation:
+		return invalidf("review write violates a stored constraint: %v", err)
 	}
 	return err
 }
