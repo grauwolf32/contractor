@@ -1,0 +1,64 @@
+schema_version: "1.0"
+id: V370-026
+title: "Cut the CPU cost of reading Worker State"
+milestone: hub-audit-structure-2026-10
+epic: planner-worker
+kind: defect
+priority: P3
+status: completed
+implementation_commit: "2022fbe069cb53752787456e4ba99fb62b24f170"
+depends_on: [V368-002]
+languages: [go]
+goal: "A benchmark at 10,000 paths stays under 60 ms."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq; raw reports in docs/research/2026-10-11-hub-audit/), contracts I1; file:line as of 02bbdcbf, re-verify on current main"
+  specification: "docs/spec/execution/planners.md#PLN-R114"
+  finding: >-
+    Each changed Worker State revision costs about 300 ms CPU per Planner
+    tool call at the contract maximum: DecodeStrict plus Validate 141 ms and
+    cloneSnapshot (marshal and strict decode again) 156 ms
+    (stateview/service.go:383-391, 560-566).
+  siblings: >-
+    Re-verified on 4146eea with BenchmarkWorkerStateChangedRevision (10,000
+    scope paths and 10,000 interactions, 1.94 MB): about 770 ms wall, 715
+    CPU-ms, 131 MB and 781k allocations per call on the shared build machine.
+    Fixed: the clone (marshal, strict decode and Validate a second time), the
+    nested Worker State decoders that parsed each subtree two or three times
+    (removed by V368-002, whose tags check presence in the single scan),
+    strictjson.Decode copying its input through a json.Decoder, and the four
+    maps the coverage projection filled. Ruled out: Validate's whole-snapshot
+    re-encode for the 4 MiB bound and the path checks stay (validation
+    strength is out of scope, and marshalAgentStateJSON's byte counting is
+    being changed in parallel for U+2028 and U+2029); the unchanged-revision
+    path already served the cached snapshot after a 304.
+  decision: >-
+    WorkerStateReader now states that a returned snapshot passed Validate and
+    belongs to the caller, which the Runtime client meets by decoding every
+    response afresh, so the projection service keeps it without a copy
+    (PLN-R114). Evidence, measured back to back under the same load (load
+    average about 6.5 on 4 CPUs): the call now takes 67-83 ms wall (median
+    71), 66-76 CPU-ms, 13 MB and 40k allocations, against 731-813 ms, 705-728
+    CPU-ms, 131 MB and 781k allocations before. On this machine a plain
+    encoding/json parse of the same bytes into a map takes 48-63 ms; the audit
+    measured that parse at 18 ms. The call therefore costs about 1.3 such
+    parses, which is about 24 ms on the audit's machine, against about 14
+    before (the audit's 300 ms). The absolute wall time on the loaded shared
+    machine stays above 60 ms. Alternatives: a hand-written Worker State
+    decoder (a second decoder beside the strict one) and skipping Validate on
+    the projection side (it runs once, in the reader). Reversal: restore a
+    deep copy if a projection ever mutates the snapshot or a reader shares
+    one; replace the scan plus json.Unmarshal pair when encoding/json/v2
+    ships without an experiment flag.
+scope:
+  in:
+    - "Remove the clone and validate presence in one pass (with V368-002)."
+  out:
+    - "Validation strength."
+acceptance_criteria:
+  - id: A1
+    text: "A benchmark at 10,000 paths stays under 60 ms."
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "go test -bench WorkerState ./internal/planner/stateview"
+    covers: [A1]
