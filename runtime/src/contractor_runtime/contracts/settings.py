@@ -36,6 +36,7 @@ from contractor_runtime.contracts.base import (
     _require_sorted_unique,
     _require_text,
     _require_url,
+    trim_whitespace,
 )
 from contractor_runtime.contracts.tool_execution import ToolExecutionConfig
 
@@ -155,7 +156,7 @@ class GatewayFailureSignature(WireModel):
             or not text
             or any(unicodedata.category(char) in {"Cc", "Cf", "Co", "Cs"} for char in text)
             or len(text.encode("utf-8")) > MAX_GATEWAY_FAILURE_SIGNATURE_TEXT
-            or text.strip() != text
+            or trim_whitespace(text) != text
         ):
             raise ValueError("failureSignatures.modelUnavailable text is invalid")
         return self

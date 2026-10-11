@@ -48,6 +48,7 @@ from contractor_runtime.contracts import (
     WorkerResult,
     WorkerSummarizerConfig,
 )
+from contractor_runtime.contracts.base import is_blank
 from contractor_runtime.core.worker_completion import (
     ContinueCompletion,
     FailCompletion,
@@ -822,7 +823,7 @@ class AdkWorkerRuntime:
             return _failure(
                 "worker_result_too_large", "Worker terminal result exceeds its limit", False
             ), False
-        if not candidate.strip():
+        if is_blank(candidate):
             return _failure(
                 "worker_result_invalid", "Worker returned an invalid terminal result", True
             ), False

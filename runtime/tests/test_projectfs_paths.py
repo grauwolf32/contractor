@@ -44,6 +44,16 @@ def test_project_paths_reject_non_relative_or_ambiguous_syntax(value: str) -> No
         normalize_project_path(value, allow_root=False)
 
 
+@pytest.mark.parametrize("value", ["\u212a:docs", "\u212a:/x/y"])
+def test_project_paths_and_globs_judge_a_drive_after_nfc(value: str) -> None:
+    # NFC turns U+212A KELVIN SIGN into "K", so the normalized path would start
+    # with the drive "K:", which Worker State and the Server reject (WSP-R13).
+    with pytest.raises(ProjectPathError, match="Windows drive"):
+        normalize_project_path(value, allow_root=False)
+    with pytest.raises(ProjectPathError):
+        normalize_project_glob(value)
+
+
 def test_project_paths_enforce_depth_and_utf8_byte_bounds() -> None:
     with pytest.raises(ProjectPathError, match="depth"):
         normalize_project_path("/".join(["a"] * (MAX_PROJECT_PATH_COMPONENTS + 1)))

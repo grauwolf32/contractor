@@ -8,6 +8,7 @@ import re
 from pydantic import ValidationError
 
 from contractor_runtime.contracts import API_VERSION, ArtifactRef
+from contractor_runtime.contracts.base import is_blank
 from contractor_runtime.core.input_errors import ToolInputError
 
 FINDING_SCHEMA = "contractor.audit.finding-proposal.v1"
@@ -129,5 +130,5 @@ def _text(field: str, value: str, *, required: bool) -> None:
         valid = False
     if not valid:
         raise ToolInputError(f"{field} must be UTF-8 text of at most 64 KiB without NUL characters")
-    if required and not value.strip():
+    if required and is_blank(value):
         raise ToolInputError(f"{field} must be non-empty text")

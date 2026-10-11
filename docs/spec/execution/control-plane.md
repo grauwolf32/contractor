@@ -306,6 +306,17 @@ no legacy registration fallback.
 parity checks use this single catalog, and strict Go/Python DTOs, JSON schemas
 and fixtures must change together.
 
+**CTL-R149.** A private wire text field that must not be blank, such as the
+`StageContentRequest` objective or an error message, is blank when it is empty
+or holds only Unicode White_Space characters, the characters Go's
+`strings.TrimSpace` removes; a field that must be trimmed is compared with the
+same set. The information separators U+001C to U+001F are text. The Server and
+the Runtime apply one definition per language, pinned by
+[`blank-text-cases.json`](../../../api/testdata/v1alpha1/blank-text-cases.json),
+and the Runtime's checks of Audit result text, finding proposals and Skill
+manifests that the Server repeats use it as well, so text one side accepts is
+never refused by the other as blank.
+
 **CTL-R9.** The document version does not collapse
 independently versioned Toolsets, completion contracts, workspace packages,
 Audit package formats or A2A envelopes; their own versions remain explicit.

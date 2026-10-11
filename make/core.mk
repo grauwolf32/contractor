@@ -35,6 +35,8 @@ test-wire-cross-language:
 	cd runtime && uv run pytest tests/test_contracts.py tests/test_performance_contracts.py -k 'golden or digest or resolved_skills'
 	go test ./internal/contracts/reporting ./internal/controlplane -run '^TestShared(WorkerCompletionDiagnostics|CompletionDiagnosticsDecideRuntimeResponses)$$'
 	cd runtime && uv run pytest tests/test_audit_completion_diagnostics.py -k 'test_shared'
+	go test ./internal/contracts ./internal/contracts/reporting ./internal/config -run '^TestShared(WorkspacePathCases|BlankTextCases|JSONByteSizeCases|WorkerStatePathCases|WorkerStateBoundsCountCompactUTF8|WorkspaceTargetCases)$$'
+	cd runtime && uv run pytest tests/test_shared_text_rules.py
 
 test-config:
 	go test ./internal/config/... ./internal/configload/...

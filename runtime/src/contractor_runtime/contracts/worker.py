@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import re
 from datetime import datetime
 from enum import StrEnum
@@ -33,11 +32,13 @@ from contractor_runtime.contracts.base import (
     VersionedWireModel,
     WireModel,
     _bounded_completion,
-    _encoded_state_path_list_size,
     _require_state_workspace_path,
     _require_text,
     _require_worker_result_text,
     _require_worker_subtask_id,
+    is_blank,
+    json_byte_size,
+    trim_whitespace,
 )
 from contractor_runtime.contracts.reports import ToolCallOutcome, WorkerCompletionDiagnostics
 from contractor_runtime.contracts.workspace import WorkspaceObservationSummary
@@ -132,7 +133,7 @@ class WorkerFailure(WireModel):
         if WORKER_FAILURE_CODE_PATTERN.fullmatch(self.code) is None:
             raise ValueError("Worker failure code is invalid")
         if (
-            not self.message.strip()
+            is_blank(self.message)
             or len(self.message.encode("utf-8")) > MAX_WORKER_FAILURE_MESSAGE_BYTES
         ):
             raise ValueError("Worker failure message must contain 1..4096 UTF-8 bytes")
@@ -357,9 +358,7 @@ class WorkerStateWorkspaceObservation(WireModel):
     @model_validator(mode="after")
     def validate_workspace(self) -> Self:
         scope = [_require_state_workspace_path(path) for path in self.scope_paths]
-        if scope != sorted(set(scope)) or _encoded_state_path_list_size(scope) > (
-            MAX_STATE_WORKSPACE_PATH_BYTES
-        ):
+        if scope != sorted(set(scope)) or json_byte_size(scope) > MAX_STATE_WORKSPACE_PATH_BYTES:
             raise ValueError("Worker State workspace scope is invalid")
         interaction_order = [(item.first_ordinal, item.path) for item in self.interactions]
         if interaction_order != sorted(interaction_order) or len(
@@ -367,7 +366,7 @@ class WorkerStateWorkspaceObservation(WireModel):
         ) != len(self.interactions):
             raise ValueError("Worker State workspace interactions are invalid")
         if (
-            _encoded_state_path_list_size([item.path for item in self.interactions])
+            json_byte_size([item.path for item in self.interactions])
             > MAX_STATE_WORKSPACE_PATH_BYTES
         ):
             raise ValueError("Worker State workspace interaction paths exceed their bound")
@@ -450,15 +449,10 @@ class WorkerAllocationMetricsState(WireModel):
         for call in self.tool_calls:
             if call.arguments is not None:
                 try:
-                    encoded = json.dumps(
-                        call.arguments,
-                        ensure_ascii=False,
-                        separators=(",", ":"),
-                        allow_nan=False,
-                    ).encode("utf-8")
+                    size = json_byte_size(call.arguments)
                 except (TypeError, ValueError) as error:
                     raise ValueError("Worker State tool arguments are invalid") from error
-                if len(encoded) > 4096:
+                if size > 4096:
                     raise ValueError("Worker State tool arguments exceed their bound")
             if call.error is not None and len(call.error.message.encode("utf-8")) > 4096:
                 raise ValueError("Worker State tool error exceeds its bound")
@@ -479,7 +473,7 @@ class WorkerInvocationState(WireModel):
     @model_validator(mode="after")
     def validate_invocation(self) -> Self:
         if (
-            self.invocation_id != self.invocation_id.strip()
+            self.invocation_id != trim_whitespace(self.invocation_id)
             or not 1 <= len(self.invocation_id.encode("utf-8")) <= 128
             or any(character in self.invocation_id for character in "\r\n\t\x00")
         ):
@@ -501,7 +495,7 @@ class WorkerCompletion(VersionedWireModel):
         if (self.result is None) == (self.failure is None):
             raise ValueError("WorkerCompletion requires exactly one result or failure")
         if (
-            self.invocation_id != self.invocation_id.strip()
+            self.invocation_id != trim_whitespace(self.invocation_id)
             or not 1 <= len(self.invocation_id.encode("utf-8")) <= 128
             or any(character in self.invocation_id for character in "\r\n\t\x00")
         ):

@@ -459,6 +459,14 @@ bounds: every Planner, the Workflow Scheduler and RunStore apply the same
 another for its size. The 64 KiB result-text bound (LIM-WRK-5),
 model-output bounds and outer transport limits are separate limits.
 
+**WRK-R164.** The Worker State byte bounds count compact UTF-8 JSON bytes as
+WRK-R37 does: the `AgentStateSnapshot` body (LIM-WRK-17), the 4,096-byte
+arguments of each retained tool call and the 2 MiB workspace scope and
+interaction path lists. The Runtime that produces the State and the Server that
+reads it measure with the same rule, pinned by
+`api/testdata/v1alpha1/json-byte-size-cases.json`, so State the Runtime exports
+at a bound is never rejected by the Server for its size.
+
 **WRK-R38.** The A2A request DataPart uses
 `application/vnd.contractor.stage-content+json` and the terminal response
 DataPart uses `application/vnd.contractor.worker-completion+json`. The Agent
