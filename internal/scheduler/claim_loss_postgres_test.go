@@ -111,11 +111,13 @@ type claimLossReportStore struct {
 
 func (s *claimLossReportStore) unblock() { s.once.Do(func() { close(s.resume) }) }
 
-func (s *claimLossReportStore) ListStageExecutions(ctx context.Context, runID string) ([]runstore.StageExecution, error) {
+// GetActiveStageExecution is the progression attempt's Stage read, so it
+// sees the execution context the lost claim must cancel.
+func (s *claimLossReportStore) GetActiveStageExecution(ctx context.Context, runID string) (runstore.StageExecution, error) {
 	s.mu.Lock()
 	s.executionContext = ctx
 	s.mu.Unlock()
-	return s.PostgresStore.ListStageExecutions(ctx, runID)
+	return s.PostgresStore.GetActiveStageExecution(ctx, runID)
 }
 
 func (s *claimLossReportStore) RecordPlannerExecutionReport(ctx context.Context, params runstore.RecordPlannerExecutionReportParams) error {

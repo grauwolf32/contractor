@@ -22,11 +22,11 @@ func (p *PostgresPersistence) AdmitStage(ctx context.Context, runID, stageID str
 			return err
 		}
 		store := runstore.NewPostgresStore(tx)
-		run, err := store.GetRun(ctx, runID)
+		state, err := store.GetRunState(ctx, runID)
 		if err != nil {
 			return err
 		}
-		if run.State == runstore.RunPending {
+		if state == runstore.RunPending {
 			if err := store.LockRunQueueAdmission(ctx, runID); err != nil {
 				return err
 			}

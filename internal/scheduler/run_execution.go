@@ -10,12 +10,23 @@ import (
 	"github.com/grauwolf32/contractor/internal/runstore"
 )
 
+// executeRun performs one progression attempt of the claimed run. It reads
+// the Run's state and its active StageExecution, not its Stage history
+// (SCH-R164).
 func (s *Scheduler) executeRun(ctx context.Context, run runstore.WorkflowRun, claimID string) error {
-	current, err := s.store.GetRun(ctx, run.RunID)
+	// The claim returned the whole Run, and what a progression attempt uses
+	// of it changes only with its state (cancellation, a model-route wait;
+	// Skill initialization reads its own copy), so only a changed state
+	// makes the attempt read the whole Run again.
+	state, err := s.store.GetRunState(ctx, run.RunID)
 	if err != nil {
 		return err
 	}
-	run = current
+	if state != run.State {
+		if run, err = s.store.GetRun(ctx, run.RunID); err != nil {
+			return err
+		}
+	}
 	if run.State == runstore.RunInitializing &&
 		run.StateReason.Code == runstore.SkillInitializationPendingReason {
 		if s.options.RunSkills == nil {
@@ -36,36 +47,34 @@ func (s *Scheduler) executeRun(ctx context.Context, run runstore.WorkflowRun, cl
 	if err != nil {
 		return s.failUnsupportedRun(ctx, run.RunID, err)
 	}
-	executions, err := s.store.ListStageExecutions(ctx, run.RunID)
-	if err != nil {
-		return err
-	}
-	var execution runstore.StageExecution
-	if len(executions) == 0 {
-		execution, err = s.createStageExecution(ctx, run, workflow)
-		if err != nil {
-			return err
-		}
-	} else {
-		active := make([]runstore.StageExecution, 0, 1)
-		for _, candidate := range executions {
-			switch candidate.State {
-			case runstore.StagePreparing, runstore.StageRunning, runstore.StageFinalizing, runstore.StageAborting:
-				active = append(active, candidate)
-			}
-		}
-		if len(active) != 1 {
-			return s.failInvalidRunState(
-				ctx,
-				run.RunID,
-				fmt.Errorf("running WorkflowRun has %d active StageExecutions", len(active)),
-			)
-		}
-		execution = active[0]
+	execution, err := s.store.GetActiveStageExecution(ctx, run.RunID)
+	switch {
+	case err == nil:
 		workflow, err = workflow.selectStage(execution.StageName)
 		if err != nil {
 			return s.failInvalidRunState(ctx, run.RunID, err)
 		}
+	case errors.Is(err, runstore.ErrNotFound):
+		// Only a Run whose first Stage was never created has no active
+		// StageExecution: every later Stage, retry and manual continuation is
+		// created in the transaction that ends its predecessor.
+		executions, listErr := s.store.ListStageExecutions(ctx, run.RunID)
+		if listErr != nil {
+			return listErr
+		}
+		if len(executions) != 0 {
+			return s.failInvalidRunState(
+				ctx, run.RunID, fmt.Errorf("running WorkflowRun has no active StageExecution"),
+			)
+		}
+		execution, err = s.createStageExecution(ctx, run, workflow)
+		if err != nil {
+			return err
+		}
+	case errors.Is(err, runstore.ErrMultipleActiveStages):
+		return s.failInvalidRunState(ctx, run.RunID, err)
+	default:
+		return err
 	}
 	workflow, err = workflow.selectExecution(execution)
 	if err != nil {
@@ -102,26 +111,19 @@ func (s *Scheduler) executeRun(ctx context.Context, run runstore.WorkflowRun, cl
 }
 
 func (s *Scheduler) executeCancelling(ctx context.Context, run runstore.WorkflowRun, claimID string) error {
-	executions, err := s.store.ListStageExecutions(ctx, run.RunID)
-	if err != nil {
-		return err
-	}
 	workflow, workflowErr := decodeExecutableWorkflow(run)
 	if workflowErr != nil {
 		s.options.Logger.Warn("cancelling Run has an unreadable Workflow snapshot", "run_id", run.RunID)
 	}
-
-	active := make([]runstore.StageExecution, 0, 1)
-	for _, execution := range executions {
-		switch execution.State {
-		case runstore.StagePreparing, runstore.StageRunning, runstore.StageFinalizing, runstore.StageAborting:
-			active = append(active, execution)
+	execution, err := s.store.GetActiveStageExecution(ctx, run.RunID)
+	if errors.Is(err, runstore.ErrNotFound) {
+		// No Stage is active: the cancellation ends the Run once every
+		// earlier attempt's allocations are fenced and released, which this
+		// one-time path reads the Stage history for.
+		executions, listErr := s.store.ListStageExecutions(ctx, run.RunID)
+		if listErr != nil {
+			return listErr
 		}
-	}
-	if len(active) > 1 {
-		return fmt.Errorf("cancelling MVP Run %q has multiple active StageExecutions", run.RunID)
-	}
-	if len(active) == 0 {
 		for _, execution := range executions {
 			_ = s.fenceRecordedAllocations(ctx, execution.StageExecutionID, nil)
 			if workflowErr == nil {
@@ -131,8 +133,10 @@ func (s *Scheduler) executeCancelling(ctx context.Context, run runstore.Workflow
 		}
 		return s.finishCancelledRun(ctx, run.RunID)
 	}
+	if err != nil {
+		return fmt.Errorf("cancelling Run %q: %w", run.RunID, err)
+	}
 
-	execution := active[0]
 	s.setActiveStage(run.RunID, claimID, execution.StageExecutionID)
 	var reservations []controlplane.Reservation
 	if workflowErr == nil {
@@ -164,8 +168,8 @@ func (s *Scheduler) finishCancelledRun(ctx context.Context, runID string) error 
 		runstore.Reason{Code: runstore.CancellationUserRequested},
 	)
 	if errors.Is(err, runstore.ErrConflict) {
-		current, loadErr := s.store.GetRun(operationContext, runID)
-		if loadErr == nil && current.State == runstore.RunCancelled {
+		state, loadErr := s.store.GetRunState(operationContext, runID)
+		if loadErr == nil && state == runstore.RunCancelled {
 			return nil
 		}
 	}
@@ -181,7 +185,7 @@ func (s *Scheduler) failInvalidRunState(ctx context.Context, runID string, cause
 func (s *Scheduler) failActiveRun(ctx context.Context, runID, code string, cause error) error {
 	operationContext, cancel := context.WithTimeout(ctx, s.options.OperationTimeout)
 	defer cancel()
-	current, err := s.store.GetRun(operationContext, runID)
+	state, err := s.store.GetRunState(operationContext, runID)
 	if err != nil {
 		return errors.Join(cause, err)
 	}
@@ -190,7 +194,7 @@ func (s *Scheduler) failActiveRun(ctx context.Context, runID, code string, cause
 		Outcome: runstore.TerminationInterrupted, Code: code,
 		Message: "Scheduler could not progress the WorkflowRun", OccurredAt: s.now(),
 	}
-	if current.State == runstore.RunCancelling {
+	if state == runstore.RunCancelling {
 		// Cancellation already owns the outcome; cancelling may only end as
 		// cancelled, so failing it would leave a poison Run.
 		next, reason = runstore.RunCancelled, runstore.Reason{Code: runstore.CancellationUserRequested}
@@ -202,7 +206,7 @@ func (s *Scheduler) failActiveRun(ctx context.Context, runID, code string, cause
 	}
 	// Active Stages end with the Run so terminal recovery releases their
 	// allocations; this is a single commit and never re-enters Stage recovery.
-	err = s.persistence.FailRunWithActiveStages(operationContext, runID, current.State, next, reason, termination, abortID)
+	err = s.persistence.FailRunWithActiveStages(operationContext, runID, state, next, reason, termination, abortID)
 	if err != nil {
 		return errors.Join(cause, err)
 	}

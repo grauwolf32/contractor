@@ -346,6 +346,27 @@ func (s *PostgresStore) GetRun(ctx context.Context, runID string) (WorkflowRun, 
 	return result, nil
 }
 
+// GetRunState reads only the lifecycle state of Run runID. Callers that
+// decide on the state alone use it instead of GetRun, which reads, decodes
+// and validates every snapshot of the Run.
+func (s *PostgresStore) GetRunState(ctx context.Context, runID string) (WorkflowRunState, error) {
+	if err := validateOpaque("runID", runID); err != nil {
+		return "", err
+	}
+	var state WorkflowRunState
+	err := s.db.QueryRow(ctx, `SELECT state FROM workflow_runs WHERE run_id = $1`, runID).Scan(&state)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", fmt.Errorf("get WorkflowRun %q state: %w", runID, ErrNotFound)
+	}
+	if err != nil {
+		return "", fmt.Errorf("get WorkflowRun %q state: %w", runID, err)
+	}
+	if !state.Valid() {
+		return "", fmt.Errorf("get WorkflowRun %q state: stored state %q is not a WorkflowRun state", runID, state)
+	}
+	return state, nil
+}
+
 // ListRuns returns at most Limit Runs in deterministic newest-first order.
 // Callers request one extra row when they need to construct a continuation
 // cursor; the repository does not attach transport pagination semantics.

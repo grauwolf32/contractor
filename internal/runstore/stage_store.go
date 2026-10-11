@@ -110,6 +110,47 @@ ORDER BY pending.next_attempt_at, execution.stage_execution_id`, terminalRelease
 	return result, nil
 }
 
+// GetActiveStageExecution returns the StageExecution of Run runID that is
+// preparing, running, finalizing or aborting, read through
+// stage_executions_run_active_idx instead of the Run's Stage history. A Run
+// has at most one (SCH-R114), so the read stops at a second: it returns
+// ErrNotFound when the Run has none and ErrMultipleActiveStages when it has
+// more than one.
+func (s *PostgresStore) GetActiveStageExecution(ctx context.Context, runID string) (StageExecution, error) {
+	if err := validateOpaque("runID", runID); err != nil {
+		return StageExecution{}, err
+	}
+	rows, err := s.db.Query(ctx, `
+SELECT `+stageExecutionColumns+`
+FROM stage_executions
+WHERE run_id = $1 AND state IN ('preparing', 'running', 'finalizing', 'aborting')
+ORDER BY created_at, stage_execution_id
+LIMIT 2`, runID)
+	if err != nil {
+		return StageExecution{}, fmt.Errorf("get active StageExecution of WorkflowRun %q: %w", runID, err)
+	}
+	defer rows.Close()
+	var active []StageExecution
+	for rows.Next() {
+		execution, scanErr := scanStageExecution(rows)
+		if scanErr != nil {
+			return StageExecution{}, fmt.Errorf("scan active StageExecution of WorkflowRun %q: %w", runID, scanErr)
+		}
+		active = append(active, execution)
+	}
+	if err := rows.Err(); err != nil {
+		return StageExecution{}, fmt.Errorf("iterate active StageExecutions of WorkflowRun %q: %w", runID, err)
+	}
+	switch len(active) {
+	case 0:
+		return StageExecution{}, fmt.Errorf("get active StageExecution of WorkflowRun %q: %w", runID, ErrNotFound)
+	case 1:
+		return active[0], nil
+	default:
+		return StageExecution{}, fmt.Errorf("WorkflowRun %q: %w", runID, ErrMultipleActiveStages)
+	}
+}
+
 func (s *PostgresStore) ListStageExecutions(ctx context.Context, runID string) ([]StageExecution, error) {
 	if err := validateOpaque("runID", runID); err != nil {
 		return nil, err

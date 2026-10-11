@@ -206,10 +206,11 @@ func assertPlanUsesIndexes(
 }
 
 // TestPostgresActiveRunReadsUseActiveStateIndexes checks the reads over active
-// Runs on a history that is mostly terminal: the polled Queue page, the LLM
-// credential deletion check and the Scheduler claim each use their partial
-// index over the active states, and the Queue and credential reads return
-// exactly the active Runs, pending and waiting ones included.
+// Runs on a history that is mostly terminal: the polled Queue page and the
+// LLM credential deletion check use their partial index over the active
+// states and the Scheduler claim its claim-order indexes over the claimable
+// Runs, and the Queue and credential reads return exactly the active Runs,
+// pending and waiting ones included.
 func TestPostgresActiveRunReadsUseActiveStateIndexes(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
@@ -270,7 +271,7 @@ func TestPostgresActiveRunReadsUseActiveStateIndexes(t *testing.T) {
 	assertPlanUsesIndexes(t, ctx, pool, "Scheduler claim", captureStatement(t, func(store *PostgresStore) error {
 		_, err := store.ClaimRunnableRun(ctx, "claim-plan", time.Minute)
 		return err
-	}), "workflow_runs_admission_idx", "workflow_runs_skill_initialization_scheduler_idx")
+	}), "workflow_runs_claim_idx", "workflow_runs_deferred_claim_idx")
 }
 
 var (
@@ -341,13 +342,13 @@ ORDER BY conname`)
 	}
 
 	wantPredicates := map[string][]WorkflowRunState{
-		"workflow_runs_admission_idx":                      declared["claimable"],
+		"workflow_runs_claim_idx":                          nil,
+		"workflow_runs_deferred_claim_idx":                 nil,
 		"workflow_runs_owner_nonterminal_queue_idx":        declared["active"],
 		"workflow_runs_runtime_llm_credentials_idx":        declared["active"],
 		"workflow_runs_workflow_credentials_idx":           declared["active"],
 		"workflow_runs_runtime_credentials_idx":            declared["active"],
 		"workflow_runs_project_http_target_credential_idx": declared["active"],
-		"workflow_runs_skill_initialization_scheduler_idx": {RunInitializing},
 		"workflow_runs_owner_idempotency_key":              nil,
 		"workflow_runs_owner_project_created_idx":          nil,
 		"workflow_runs_publication_mode_idx":               nil,
@@ -382,6 +383,28 @@ ORDER BY index.relname`)
 			t.Errorf("partial index %s is missing", name)
 		}
 	}
+
+	// The claim indexes' predicates restrict scheduler_claim_tier, whose
+	// expression ranks every active state and no terminal one: an active
+	// state it left out could never be claimed, and a terminal one it ranked
+	// would be claimed after it ended.
+	var tierExpression string
+	if err := pool.QueryRow(ctx, `
+SELECT pg_get_expr(def.adbin, def.adrelid)
+FROM pg_attrdef AS def
+JOIN pg_attribute AS attribute ON attribute.attrelid = def.adrelid AND attribute.attnum = def.adnum
+WHERE def.adrelid = 'workflow_runs'::regclass AND attribute.attname = 'scheduler_claim_tier'`).Scan(&tierExpression); err != nil {
+		t.Fatalf("read scheduler_claim_tier expression: %v", err)
+	}
+	if got := predicateStates(tierExpression); !sameRunStates(slices.Compact(sortedRunStates(got)), declared["active"]) {
+		t.Errorf("scheduler_claim_tier ranks states %v, want the active states %v (%s)", got, declared["active"], tierExpression)
+	}
+}
+
+func sortedRunStates(states []WorkflowRunState) []WorkflowRunState {
+	sorted := slices.Clone(states)
+	slices.Sort(sorted)
+	return sorted
 }
 
 // TestPostgresRunEventSequenceBumpIsHeapOnlyUpdate pins why the Queue index

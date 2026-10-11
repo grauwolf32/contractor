@@ -622,14 +622,15 @@ func commitTerminalRun(
 			return err
 		}
 	}
-	current, err := store.GetRun(ctx, runID)
+	// The Run row is locked; only its state is needed for the transition.
+	state, err := store.GetRunState(ctx, runID)
 	if err != nil {
 		return err
 	}
 	_, err = store.TransitionRun(
 		ctx,
 		runID,
-		current.State,
+		state,
 		progression.TerminalRunState,
 		progression.RunReason,
 	)

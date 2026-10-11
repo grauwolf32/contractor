@@ -2027,7 +2027,11 @@ type memorySchedulerStore struct {
 	reportError    error
 	claimID        string
 	claimCalls     int
-	events         *eventRecorder
+	// activeStageReads and stageListReads count the Stage reads, so a test
+	// can prove a progression attempt reads one Stage, not the history.
+	activeStageReads int
+	stageListReads   int
+	events           *eventRecorder
 	// queuePaused aliases the owner Queue gate enforced by memory persistence.
 	queuePaused *bool
 	queueProbes int
@@ -2100,6 +2104,13 @@ func (s *memorySchedulerStore) GetRun(_ context.Context, runID string) (runstore
 	return s.run, nil
 }
 
+func (s *memorySchedulerStore) GetRunState(_ context.Context, runID string) (runstore.WorkflowRunState, error) {
+	if runID != s.run.RunID {
+		return "", runstore.ErrNotFound
+	}
+	return s.run.State, nil
+}
+
 func (s *memorySchedulerStore) GetOwnerQueueControl(_ context.Context, ownerID string) (runstore.OwnerQueueControl, error) {
 	s.queueProbes++
 	return runstore.OwnerQueueControl{OwnerID: ownerID, Paused: s.queuePaused != nil && *s.queuePaused}, nil
@@ -2125,9 +2136,37 @@ func (s *memorySchedulerStore) TransitionRun(
 	return s.run, nil
 }
 
+// GetActiveStageExecution answers as the PostgreSQL store does: the one
+// active StageExecution, ErrNotFound for none and ErrMultipleActiveStages
+// for more.
+func (s *memorySchedulerStore) GetActiveStageExecution(
+	_ context.Context, runID string,
+) (runstore.StageExecution, error) {
+	s.activeStageReads++
+	if runID != s.run.RunID {
+		return runstore.StageExecution{}, runstore.ErrNotFound
+	}
+	var active []runstore.StageExecution
+	for _, execution := range s.stages {
+		switch execution.State {
+		case runstore.StagePreparing, runstore.StageRunning, runstore.StageFinalizing, runstore.StageAborting:
+			active = append(active, execution)
+		}
+	}
+	switch len(active) {
+	case 0:
+		return runstore.StageExecution{}, runstore.ErrNotFound
+	case 1:
+		return active[0], nil
+	default:
+		return runstore.StageExecution{}, runstore.ErrMultipleActiveStages
+	}
+}
+
 func (s *memorySchedulerStore) ListStageExecutions(
 	_ context.Context, runID string,
 ) ([]runstore.StageExecution, error) {
+	s.stageListReads++
 	if runID != s.run.RunID {
 		return nil, runstore.ErrNotFound
 	}

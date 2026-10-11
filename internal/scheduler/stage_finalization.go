@@ -172,13 +172,13 @@ func (s *Scheduler) resumeFinalizing(
 	s.persistReports(ctx, run, workflow, execution, reservations, reports)
 
 	stateContext, cancelState := s.terminalOperationContext(ctx)
-	current, err := s.store.GetRun(stateContext, run.RunID)
+	state, err := s.store.GetRunState(stateContext, run.RunID)
 	cancelState()
 	if err != nil {
 		return err
 	}
-	if current.State == runstore.RunCancelling {
-		return s.acceptFinalizingDuringCancellation(ctx, current, execution, reservations)
+	if state == runstore.RunCancelling {
+		return s.acceptFinalizingDuringCancellation(ctx, run, execution, reservations)
 	}
 	action := workflow.stage.On.Succeeded
 	retryable := false
@@ -212,10 +212,10 @@ func (s *Scheduler) resumeFinalizing(
 	}
 	if errors.Is(err, runstore.ErrConflict) {
 		stateContext, cancelState := s.terminalOperationContext(ctx)
-		current, loadErr := s.store.GetRun(stateContext, run.RunID)
+		state, loadErr := s.store.GetRunState(stateContext, run.RunID)
 		cancelState()
-		if loadErr == nil && current.State == runstore.RunCancelling {
-			return s.acceptFinalizingDuringCancellation(ctx, current, execution, reservations)
+		if loadErr == nil && state == runstore.RunCancelling {
+			return s.acceptFinalizingDuringCancellation(ctx, run, execution, reservations)
 		}
 	}
 	if errors.Is(err, runstore.ErrQueuePaused) {

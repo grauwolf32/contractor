@@ -363,6 +363,8 @@ VALUES($1,$2,true,'model_unavailable',clock_timestamp()+interval '1 hour',clock_
 
 // A paused owner's pending Run must not pin a durable placement that
 // AdmitStage then rejects: that would hold Runtime slots for the whole pause.
+// Holding no placement, it is not even claimed until the Queue resumes
+// (SCH-R163).
 func TestPostgresQueuePauseDoesNotPlacePendingStage(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
@@ -392,8 +394,8 @@ WHERE run_id = 'run-1'`); err != nil {
 	setPaused(true)
 	allocator.reserveError = nil
 	reserveCalls := allocator.reserveCalls
-	if worked, err := h.scheduler.RunOnce(ctx); !errors.Is(err, ErrDeferred) || !worked {
-		t.Fatalf("paused RunOnce = (%v, %v)", worked, err)
+	if worked, err := h.scheduler.RunOnce(ctx); err != nil || worked {
+		t.Fatalf("paused RunOnce = (%v, %v), want no claimable work", worked, err)
 	}
 	executions, err := h.store.ListStageExecutions(ctx, "run-1")
 	if err != nil || len(executions) != 1 || executions[0].State != runstore.StagePreparing ||

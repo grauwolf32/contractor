@@ -969,6 +969,17 @@ starve it.
 query; the Queue read model and its lack of position guarantees are specified
 in [PRJ-R90 to PRJ-R92](../artifacts/projects.md).
 
+**SCH-R164.** The claim reads candidates in claim order from indexes and locks
+the first one it can claim; it never sorts the candidates. Its work grows only
+with the Runs it skips ahead of that one: Runs claimed by a lane (at most
+`maxConcurrentRuns`), Runs deferred within their window and pending Runs of
+paused owners (SCH-R163). A progression attempt reads the Run's lifecycle
+state and its one active StageExecution (SCH-R114), not the Run's Stage
+history of up to 1,024 attempts (LIM-RUN-2); it reads the whole Run again only
+when its state changed since the claim. Only a Run without an active
+StageExecution, whose first Stage is not yet created or whose state the
+Scheduler cannot progress, has its Stage history read.
+
 **SCH-R125.** `RunOnce` is a deterministic single-claim primitive for focused
 tests and recovery tools and may perform one maintenance tick before that
 claim. Production lanes use the claim and progression primitive directly; the
@@ -1127,6 +1138,16 @@ deletion request can therefore always make progress
 
 **SCH-R154.** Resume makes waiting Runs eligible after a restart without
 rewriting them.
+
+**SCH-R163.** The claim does not take a pending Run whose owner's Queue is
+paused: admission could not start its Stage (SCH-R151), so claiming it would
+only defer it again. It still takes such a Run while one of its active
+StageExecutions is aborting or holds an allocation whose release has not
+completed, because that release work continues while paused (SCH-R148,
+SCH-R153), including the discard of an unadmitted placement that failed
+before (SCH-R152). A pause that commits after a lane claimed the Run is still
+observed by the gate before placement and by admission. Resume makes the
+skipped Runs claimable again in their claim order (SCH-R121, SCH-R154).
 
 **SCH-R155.** If completion would admit a next Stage, retry or escalation,
 acceptance of the current result or termination, output mapping, transition

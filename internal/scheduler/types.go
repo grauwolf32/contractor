@@ -46,6 +46,9 @@ type Store interface {
 	ReleaseRunClaim(context.Context, string, string) error
 	DeferRunClaim(context.Context, string, string) error
 	GetRun(context.Context, string) (runstore.WorkflowRun, error)
+	// GetRunState reads only the Run's lifecycle state; decisions on the
+	// state alone use it instead of GetRun.
+	GetRunState(context.Context, string) (runstore.WorkflowRunState, error)
 	GetOwnerQueueControl(context.Context, string) (runstore.OwnerQueueControl, error)
 	TransitionRun(
 		context.Context,
@@ -54,6 +57,11 @@ type Store interface {
 		runstore.WorkflowRunState,
 		runstore.Reason,
 	) (runstore.WorkflowRun, error)
+	// GetActiveStageExecution reads the Run's one active StageExecution:
+	// runstore.ErrNotFound when it has none, runstore.ErrMultipleActiveStages
+	// when it has more (SCH-R114). A progression attempt reads only this
+	// Stage, not the Run's Stage history.
+	GetActiveStageExecution(context.Context, string) (runstore.StageExecution, error)
 	ListStageExecutions(context.Context, string) ([]runstore.StageExecution, error)
 	ListTerminalStageExecutionsWithAllocations(context.Context) ([]runstore.StageExecution, error)
 	GetStageExecution(context.Context, string) (runstore.StageExecution, error)
