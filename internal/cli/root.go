@@ -348,6 +348,16 @@ func idempotencyKey(explicit string) (string, error) {
 	return publicclient.NewIdempotencyKey()
 }
 
+// printCreateRetryHint names a generated Idempotency-Key after a create
+// failure that another attempt may fix, such as a lost response or a Server
+// error marked retryable. A permanent rejection needs a changed request, which
+// must not reuse the key (API-R69), so it gets no hint.
+func (c *CLI) printCreateRetryHint(key string, err error) {
+	if err != nil && publicclient.IsTransient(err) {
+		_, _ = fmt.Fprintf(c.stderr, "Retry the create request with --idempotency-key %s\n", key)
+	}
+}
+
 func stringValue(value any) string {
 	if value == nil {
 		return ""

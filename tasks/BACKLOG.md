@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-104 open tasks: 3 in progress, 87 pending, 14 deferred. 792 finished: 789 completed, 3 archived.
+101 open tasks: 3 in progress, 84 pending, 14 deferred. 795 finished: 792 completed, 3 archived.
 
 ## In progress
 
@@ -137,19 +137,16 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V368-002](v368-002-strict-wire-decoding.yml) | defect | P1 | — | Reject wire messages that omit required fields in Go |
-| [V368-005](v368-005-honest-error-retryability.yml) | defect | P1 | — | Make Artifact and configuration errors report the right retryability |
 | [V368-007](v368-007-strict-json-everywhere.yml) | defect | P1 | — | Decode every untrusted JSON body strictly |
 | [V368-008](v368-008-go-python-text-rules.yml) | defect | P1 | — | Share the workspace path, blank-text and byte-count rules between Go and Python |
 | [V368-013](v368-013-run-detail-cursor-snapshot.yml) | defect | P1 | — | Read the Run detail and its event cursor in one snapshot |
 | [V368-024](v368-024-resource-id-grammar.yml) | defect | P2 | — | Use one ResourceId and ConfigId grammar in every Go package |
-| [V368-031](v368-031-api-cli-polish.yml) | defect | P3 | — | Fix small public API and CLI inaccuracies |
 | [V368-032](v368-032-remove-legacy-digest-paths.yml) | chore | P3 | — | Remove backward-compatibility digest code |
 | [V369-002](v369-002-wire-gate-all-fixtures.yml) | chore | P1 | — | Run every shared fixture on both sides and mutate the schemas |
 | [V369-004](v369-004-route-table-and-operation-coverage.yml) | chore | P2 | — | Register routes from one table and validate every operation |
 | [V370-005](v370-005-contracts-kernel-domain.yml) | chore | P2 | — | Move domain logic out of the contracts kernel |
 | [V370-009](v370-009-context-handlers.yml) | chore | P2 | V368-013 | Split the public API handler by context with required dependencies |
-| [V370-010](v370-010-domain-error-kinds.yml) | chore | P2 | V368-005 | Classify domain errors through one error kind and a code registry |
-| [V370-013](v370-013-simplify-public-api.yml) | chore | P3 | — | Remove duplicated code in the public API handlers |
+| [V370-010](v370-010-domain-error-kinds.yml) | chore | P2 | — | Classify domain errors through one error kind and a code registry |
 | [V370-017](v370-017-simplify-contracts.yml) | chore | P3 | — | Remove orphan schemas and lenient paths in the wire contracts |
 | [V370-021](v370-021-live-event-polling.yml) | defect | P2 | — | Poll Run events once per Run instead of once per subscription |
 
@@ -222,6 +219,6 @@ tasks in `introduced_by`.
 | Podman sandbox (`sandbox`) | 0 | 8 | 1 | 1 | 2 |
 | Web UI (`ui`) | 2 | 19 | 51 | 10 | 46 |
 | Operations, authentication, CLI and deployment (`operations`) | 1 | 8 | 30 | 4 | 6 |
-| Public API and wire contracts (`api-contracts`) | 16 | 1 | 24 | 16 | 6 |
+| Public API and wire contracts (`api-contracts`) | 13 | 1 | 24 | 16 | 6 |
 | PostgreSQL persistence and schema (`persistence`) | 11 | 0 | 17 | 29 | 3 |
 | Quality, CI and process (`quality`) | 8 | 1 | 15 | 65 | 15 |

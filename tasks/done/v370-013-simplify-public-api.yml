@@ -1,0 +1,49 @@
+schema_version: "1.0"
+id: V370-013
+title: "Remove duplicated code in the public API handlers"
+milestone: hub-audit-structure-2026-10
+epic: api-contracts
+kind: chore
+priority: P3
+status: completed
+implementation_commit: 170d6ace9396b54e4e391cc792d7ee3e6c14afbd
+depends_on: []
+languages: [go]
+goal: "The duplicated branches and helpers are gone and tests pass."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq; raw reports in docs/research/2026-10-11-hub-audit/), public API H3-H5; file:line as of 02bbdcbf, re-verify on current main"
+  decision: >-
+    The five precondition sentinels share one branch at the position of the
+    first; no error matches both a precondition sentinel and the Audit
+    unsupported or validation errors checked between the old branches, so
+    the reordering does not change any response. The handler-level
+    requireOperationsCapability calls were unreachable for a denied caller:
+    withMiddleware runs requireOperationsRoutes for every /v1/operations
+    path before ServeMux, and an unclean path is redirected to the clean one
+    before a handler runs. The capability test called getSchedulerSettings
+    directly and so only proved the duplicate; it now sends GET and PUT
+    Scheduler settings and the three performance routes through
+    registerOperationsRoutes behind requireOperationsRoutes.
+    requireOperationsCapability stays as the body of withOperationsCapability.
+    listAllocationResourceHistory uses paginate; the first page still pins
+    its upper boundary from the first row. Ruled out: listAuditItems pages
+    by hand because its cursor position needs a fallible GetRound read,
+    which paginate's position function cannot return.
+  finding: >-
+    Five identical ErrPrecondition branches in errors.go (36-39, 50-55);
+    requireOperationsCapability repeats the middleware in
+    performance_handlers.go and scheduler_settings_handlers.go;
+    performance_handlers.go:88-106 repeats paginate.
+scope:
+  in:
+    - "Remove the duplicates."
+  out:
+    - "Behaviour."
+acceptance_criteria:
+  - id: A1
+    text: "The duplicated branches and helpers are gone and tests pass."
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "go test ./internal/httpapi/public"
+    covers: [A1]

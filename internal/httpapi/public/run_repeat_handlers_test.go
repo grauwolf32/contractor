@@ -48,6 +48,7 @@ func TestRunRepeatDraftRetainsExactRequestAndHidesSystemArtifact(t *testing.T) {
 		repeat.Draft.ExecutionConfig.Status != repeatStatusAvailable {
 		t.Fatalf("repeat draft = status %d, %+v", response.Code, repeat)
 	}
+	assertRepeatDraftNotCached(t, response)
 	input := repeat.Draft.Inputs["source"]
 	if input.Status != repeatStatusAvailable || input.Artifact == nil || input.Metadata == nil ||
 		!input.Artifact.Equal(source.Ref) || !input.Metadata.Ref.Equal(source.Ref) {
@@ -120,6 +121,7 @@ func TestRunRepeatDraftBlocksMissingOrInvalidAuthorityDespiteLineage(t *testing.
 				if response.Code != http.StatusOK || repeat.Authority != repeatAuthorityOrdinary || repeat.Draft != nil {
 					t.Fatalf("untrusted repeat draft = %d, %+v", response.Code, repeat)
 				}
+				assertRepeatDraftNotCached(t, response)
 				blocked := false
 				for _, notice := range repeat.Notices {
 					if notice.Code == test.code && notice.Severity == "blocking" {
@@ -180,6 +182,7 @@ func TestRunRepeatDraftPreservesAuditAuthorityAndTerminalBoundary(t *testing.T) 
 		repeat.AuditID == nil || *repeat.AuditID != "audit-1" || !hasRepeatNotice(repeat.Notices, "audit_managed_run") {
 		t.Fatalf("Audit repeat context = status %d, %+v", response.Code, repeat)
 	}
+	assertRepeatDraftNotCached(t, response)
 
 	active := queryRun("run-active", "user-1", runstore.RunRunning, time.Now().UTC())
 	fixture.runs.runs[active.RunID] = active
@@ -269,6 +272,14 @@ func hasRepeatNotice(notices []runRepeatDraftNotice, code string) bool {
 		}
 	}
 	return false
+}
+
+// OpenAPI requires Cache-Control: no-store on every repeat-draft 200.
+func assertRepeatDraftNotCached(t *testing.T, response *httptest.ResponseRecorder) {
+	t.Helper()
+	if got := response.Header().Values("Cache-Control"); len(got) != 1 || got[0] != "no-store" {
+		t.Fatalf("repeat draft Cache-Control = %q, want no-store", got)
+	}
 }
 
 func timePointer(value time.Time) *time.Time { return &value }

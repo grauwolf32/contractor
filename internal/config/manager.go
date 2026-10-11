@@ -98,6 +98,15 @@ type idempotentPublication struct {
 	requestDigest string
 }
 
+// unswappedPublication is a publication that failed at or after its durable
+// link step, so its manifest may be in the managed root although the current
+// snapshot lacks it. The next publication adopts it when the reload shows it
+// (FAIL-CAT-2).
+type unswappedPublication struct {
+	idempotencyKey string
+	candidate      publicationCandidate
+}
+
 // Manager owns the process-local current immutable configuration snapshot and
 // serializes managed publications. Filesystem locking across Server processes
 // is deliberately outside the single-Server first slice.
@@ -113,6 +122,9 @@ type Manager struct {
 	now          func() time.Time
 	afterPublish func(ConfigurationResource) error
 	idempotency  map[string]idempotentPublication
+	// unswapped holds at most one entry per kind and selector; every
+	// reconciliation that is not drift empties it.
+	unswapped map[string]unswappedPublication
 }
 
 func NewManager(options ManagerOptions) (*Manager, error) {
@@ -155,6 +167,7 @@ func NewManager(options ManagerOptions) (*Manager, error) {
 		now:          now,
 		afterPublish: options.AfterDurablePublish,
 		idempotency:  make(map[string]idempotentPublication),
+		unswapped:    make(map[string]unswappedPublication),
 	}
 	manager.current.Store(snapshot)
 	return manager, nil
@@ -310,54 +323,113 @@ func (m *Manager) Publish(
 
 	loaded, err := LoadUnion(m.operatorRoot, m.managedRoot, m.descriptors, m.rootChecks...)
 	if err != nil {
-		return PublicationResult{}, fmt.Errorf("reload configuration roots before publication: %w", err)
+		return PublicationResult{}, classifyReloadFailure(err)
 	}
-	if previous, exists := m.idempotency[request.IdempotencyKey]; exists {
-		if previous.requestDigest != candidate.requestDigest {
-			return PublicationResult{}, fmt.Errorf("%w: Idempotency-Key was already used for another publication", contracts.ErrIdempotencyConflict)
-		}
-		existing, existingErr := loaded.Configuration(request.Kind, candidate.selector.String())
-		if existingErr != nil || existing.Source != ConfigurationSourceManaged ||
-			existing.Ref.Digest != candidate.resource.Ref.Digest ||
-			!snapshotsEqual(loaded, m.current.Load()) {
-			return PublicationResult{}, fmt.Errorf("configuration roots changed after the original publication")
-		}
-		return PublicationResult{Resource: existing, Replayed: true}, nil
+	if err := m.reconcile(loaded, candidate); err != nil {
+		return PublicationResult{}, err
+	}
+	// From here on the reloaded union equals the current snapshot.
+	if previous, exists := m.idempotency[request.IdempotencyKey]; exists &&
+		previous.requestDigest != candidate.requestDigest {
+		return PublicationResult{}, fmt.Errorf("%w: Idempotency-Key was already used for another publication", contracts.ErrIdempotencyConflict)
 	}
 	existing, existingErr := loaded.Configuration(request.Kind, candidate.selector.String())
 	if existingErr == nil {
 		if existing.Source != ConfigurationSourceManaged || existing.Ref.Digest != candidate.resource.Ref.Digest {
 			return PublicationResult{}, fmt.Errorf("%w: %s already exists", ErrPublicationConflict, candidate.selector)
 		}
-		expected := m.current.Load().withPublication(candidate)
-		if !snapshotsEqual(loaded, expected) {
-			return PublicationResult{}, fmt.Errorf("configuration roots changed outside the publication manager")
-		}
-		// This includes recovery from a crash after durable publication and before
-		// the previous process could swap its in-memory snapshot.
-		m.current.Store(loaded)
 		m.rememberPublication(request.IdempotencyKey, candidate.requestDigest)
 		return PublicationResult{Resource: existing, Replayed: true}, nil
 	}
 	if !errors.Is(existingErr, ErrConfigurationNotFound) {
 		return PublicationResult{}, existingErr
 	}
-	if !snapshotsEqual(loaded, m.current.Load()) {
-		return PublicationResult{}, fmt.Errorf("configuration roots changed outside the publication manager")
-	}
 
 	next := loaded.withPublication(candidate)
 	if err := m.writeDurableManifest(candidate); err != nil {
+		if !errors.Is(err, ErrPublicationConflict) {
+			m.rememberUnswapped(request.IdempotencyKey, candidate)
+		}
 		return PublicationResult{}, err
 	}
 	if m.afterPublish != nil {
 		if err := m.afterPublish(candidate.resource); err != nil {
+			m.rememberUnswapped(request.IdempotencyKey, candidate)
 			return PublicationResult{}, err
 		}
 	}
 	m.current.Store(next)
 	m.rememberPublication(request.IdempotencyKey, candidate.requestDigest)
 	return PublicationResult{Resource: candidate.resource}, nil
+}
+
+// reconcile accepts a reloaded union that equals the current snapshot plus
+// managed versions this manager durably linked without swapping its snapshot:
+// a publication whose later step failed, or the identical version the current
+// request retries. It adopts them exactly as the startup load would
+// (CAT-R58), binding each recovered publication's Idempotency-Key. Any other
+// difference, such as an operator-root edit or a managed file the manager did
+// not write, is ErrConfigurationDrift: the publication is refused until the
+// roots match the snapshot again or a restart loads them (CAT-R74).
+func (m *Manager) reconcile(loaded *Snapshot, candidate publicationCandidate) error {
+	current := m.current.Load()
+	expected := current
+	recovered := make([]unswappedPublication, 0, len(m.unswapped))
+	for _, publication := range m.unswapped {
+		if publication.candidate.durableIn(loaded) && !publication.candidate.durableIn(expected) {
+			expected = expected.withPublication(publication.candidate)
+			recovered = append(recovered, publication)
+		}
+	}
+	if candidate.durableIn(loaded) && !candidate.durableIn(expected) {
+		expected = expected.withPublication(candidate)
+	}
+	if !snapshotsEqual(loaded, expected) {
+		return fmt.Errorf("%w; restore them to the loaded configuration or restart the Server", ErrConfigurationDrift)
+	}
+	if expected != current {
+		m.current.Store(loaded)
+	}
+	// A recovered publication committed, so its key stays bound to it even if
+	// the current request reuses the key for another body (API-R69).
+	for _, publication := range recovered {
+		m.rememberPublication(publication.idempotencyKey, publication.candidate.requestDigest)
+	}
+	// Every remembered link is now either in the snapshot or proven absent.
+	clear(m.unswapped)
+	return nil
+}
+
+// classifyReloadFailure reports a reload that no longer yields a valid set as
+// drift: the same roots loaded at startup, so an invalid or incomplete set, or
+// a missing file or directory, means they changed outside the manager. Any
+// other operating-system error (I/O, resource exhaustion, permissions) may
+// not be a change to the roots and stays an unclassified failure.
+func classifyReloadFailure(err error) error {
+	err = fmt.Errorf("reload configuration roots before publication: %w", err)
+	var errno unix.Errno
+	if !errors.As(err, &errno) || errno == unix.ENOENT || errno == unix.ENOTDIR {
+		return reloadDriftError{err: err}
+	}
+	return err
+}
+
+// reloadDriftError classifies a failed reload as drift and keeps its message.
+type reloadDriftError struct{ err error }
+
+func (e reloadDriftError) Error() string   { return e.err.Error() }
+func (e reloadDriftError) Unwrap() []error { return []error{ErrConfigurationDrift, e.err} }
+
+func (m *Manager) rememberUnswapped(key string, candidate publicationCandidate) {
+	m.unswapped[configurationSourceKey(candidate.resource.Ref.Kind, candidate.selector.String())] =
+		unswappedPublication{idempotencyKey: key, candidate: candidate}
+}
+
+// durableIn reports whether a snapshot holds this exact managed version.
+func (c publicationCandidate) durableIn(snapshot *Snapshot) bool {
+	existing, err := snapshot.Configuration(c.resource.Ref.Kind, c.selector.String())
+	return err == nil && existing.Source == ConfigurationSourceManaged &&
+		existing.Ref.Digest == c.resource.Ref.Digest
 }
 
 type publicationCandidate struct {

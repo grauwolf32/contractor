@@ -10,9 +10,11 @@ import (
 	"github.com/grauwolf32/contractor/internal/settingsstore"
 )
 
+// Both Scheduler settings routes are authorized by requireOperationsRoutes.
+
 func (h *handler) getSchedulerSettings(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
-	if h.rejectHead(w, r) || !h.requireOperationsCapability(w, r) {
+	if h.rejectHead(w, r) {
 		return
 	}
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
@@ -29,9 +31,6 @@ func (h *handler) getSchedulerSettings(w http.ResponseWriter, r *http.Request) {
 
 func (h *handler) putSchedulerSettings(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
-	if !h.requireOperationsCapability(w, r) {
-		return
-	}
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
 		h.handleError(w, err)
 		return

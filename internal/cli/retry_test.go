@@ -64,6 +64,62 @@ func TestCreateFailureShowsGeneratedKeyForManualRetry(t *testing.T) {
 	}
 }
 
+// A generated key is worth repeating only after a failure another attempt may
+// fix; a permanent rejection needs a changed request and a new key (API-R69).
+func TestCreateFailureHintsGeneratedKeyOnlyWhenRetryable(t *testing.T) {
+	for _, command := range []struct {
+		name string
+		args []string
+	}{
+		{name: "project", args: []string{"project", "create", "demo"}},
+		{name: "run", args: []string{"run", "create", "flow@1"}},
+	} {
+		for _, test := range []struct {
+			name   string
+			status int
+			body   string
+			calls  int32
+			hint   bool
+		}{
+			{"invalid request", http.StatusBadRequest,
+				`{"code":"invalid_request","message":"invalid","retryable":false,"requestId":"r"}`, 1, false},
+			{"reused key", http.StatusConflict,
+				`{"code":"idempotency_conflict","message":"reused","retryable":false,"requestId":"r"}`, 1, false},
+			{"permanent server error", http.StatusServiceUnavailable,
+				`{"code":"artifact_content_corrupt","message":"corrupt","retryable":false,"requestId":"r"}`, 1, false},
+			{"retryable server error", http.StatusServiceUnavailable,
+				`{"code":"storage_transaction_conflict","message":"conflict","retryable":true,"requestId":"r"}`, 3, true},
+		} {
+			t.Run(command.name+" "+test.name, func(t *testing.T) {
+				var calls atomic.Int32
+				var key atomic.Value
+				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					calls.Add(1)
+					key.Store(r.Header.Get("Idempotency-Key"))
+					w.Header().Set("X-Contractor-API-Version", "contractor.public.v1")
+					w.Header().Set("Content-Type", "application/json")
+					w.WriteHeader(test.status)
+					_, _ = io.WriteString(w, test.body)
+				}))
+				defer server.Close()
+				var stdout, stderr bytes.Buffer
+				cli := New(strings.NewReader(""), &stdout, &stderr, func(name string) string {
+					if name == "CONTRACTOR_API_TOKEN" {
+						return "secret"
+					}
+					return ""
+				})
+				err := cli.Run(t.Context(), append([]string{"--server", server.URL}, command.args...))
+				generated, _ := key.Load().(string)
+				hinted := strings.Contains(stderr.String(), "--idempotency-key "+generated)
+				if err == nil || generated == "" || calls.Load() != test.calls || hinted != test.hint {
+					t.Fatalf("error=%v calls=%d key=%q stderr=%q", err, calls.Load(), generated, stderr.String())
+				}
+			})
+		}
+	}
+}
+
 func TestExplicitCreateKeyNeedsNoGeneratedKeyHint(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Idempotency-Key") != "operator-key" {

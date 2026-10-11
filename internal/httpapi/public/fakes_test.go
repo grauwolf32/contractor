@@ -420,6 +420,10 @@ func (f *fakeArtifactRepository) Write(
 	f.writes++
 	key := artifactKey{scope.Kind(), scope.ID(), ref.Namespace, ref.Name}
 	current, exists := f.current[key]
+	if exists && f.frozen[key] {
+		// Like PostgresRepository.Write, a frozen binding rejects every write.
+		return artifacts.WriteResult{}, artifacts.ErrArtifactFrozen
+	}
 	if !exists && expected != nil || exists && (expected == nil || current.Ref.Revision == nil || *current.Ref.Revision != *expected) {
 		return artifacts.WriteResult{}, artifacts.ErrArtifactConflict
 	}
