@@ -214,7 +214,7 @@ erDiagram
 | `AuditReviewRequest` | id, audit_id, subject kind/id, review kind, exact subject revision/digest, requested actions, state, optional expiry |
 | `AuditReviewDecision` | id, request_id, actor_id, typed finding verdict or action decision, exact subject revision/digest, bounded rationale, timestamp |
 | `AuditReportCandidate` | audit_id, request_id, round_id, exact pre-publication Audit revision/digest, frozen machine/summary artifact descriptors, timestamp |
-| `AuditEvent` | audit_id, monotonic sequence, kind, entity id/revision, bounded safe summary |
+| `AuditEvent` | audit_id, dense sequence (AUD-R223), kind, entity id/revision, bounded safe summary |
 
 ### Result layers
 
@@ -1259,6 +1259,14 @@ coverage, retained-artifact or budget-counter mutation.
 **AUD-R216.** Controller claim acquire, renew and release is internal lease
 traffic and does not advance the public revision.
 
+**AUD-R223.** An Audit numbers its events 1, 2, 3 and so on without gaps: the
+n-th event has sequence n, and `eventSequence` is the sequence of the last
+event. A mutation that records k events advances the Audit revision and
+`eventSequence` by k in the same database statement and appends its events in
+order directly after the last one. One database allocator writes every Audit
+event; a recording that would skip or reuse a sequence fails the whole
+mutation as an internal error, so no committed Audit has a gap.
+
 **AUD-R217.** Consequently an unchanged strong ETag means the complete bounded
 Audit projection is unchanged, not merely that the top-level lifecycle state is
 unchanged.
@@ -1448,6 +1456,13 @@ raw provider responses, package content or model transcripts
    it shares an execution (AUD-R105, AUD-R110).
 8. An unchanged strong ETag means the complete bounded Audit projection is
    unchanged (AUD-R217).
+9. The events of every Audit are numbered 1..N with N = `eventSequence`, and
+   only the database allocator `contractor_append_audit_events` inserts them
+   (AUD-R223); tests `TestPostgresAuditEventSequencesStayDense` and
+   `TestPostgresAuditEventAllocatorRejectsBrokenReservations` in
+   [`internal/auditstore/event_allocation_postgres_test.go`](../../../internal/auditstore/event_allocation_postgres_test.go)
+   and `TestAuditEventsHaveOneWriter` in
+   [`internal/auditstore/event_allocation_test.go`](../../../internal/auditstore/event_allocation_test.go).
 
 ## Examples
 

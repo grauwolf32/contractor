@@ -5,6 +5,25 @@ package auditstore
 // that follows, so an incomplete batch leaves no partial durable effects.
 // Keep the CTEs in place when editing; see round.go for the callers.
 
+// initialRoundReviewCount counts the item reviews initialRoundRowsSQL opens
+// for the items in round_input: one per item that needs approval.
+const initialRoundReviewCount = `(
+               SELECT count(*)
+                 FROM round_input,
+                      jsonb_to_recordset(round_input.items) AS item(approval_kind text)
+                WHERE item.approval_kind <> 'none'
+           )`
+
+// materializedRoundEvents record round $4, ordinal $5, with the items $9 and
+// the reviews they open.
+var materializedRoundEvents = auditEvents(auditEvent(
+	"'round.accepted'", "$4::text", "1",
+	`jsonb_build_object(
+               'round', $5::integer, 'items', jsonb_array_length($9::jsonb),
+               'reviews', `+initialRoundReviewCount+`
+           )`,
+))
+
 // materializeRoundSQL opens the first round of an audit: it gates on the
 // project being active, pins the manifest and items, and returns the
 // started audit row.
@@ -25,8 +44,7 @@ WITH project_gate AS MATERIALIZED (
 	           hold_state = 'held', deadline_at = $8,
 	           retained_evidence_bytes = $15,
 	           started_at = clock_timestamp(),
-           revision = revision + 1,
-           next_event_sequence = next_event_sequence + 1,
+           ` + materializedRoundEvents.advance() + `,
            updated_at = GREATEST(clock_timestamp(), updated_at + interval '1 microsecond')
       FROM project_gate
      WHERE audit.owner_id = $1 AND audit.audit_id = $2
@@ -35,23 +53,13 @@ WITH project_gate AS MATERIALIZED (
 	       AND jsonb_array_length($9::jsonb) <= audit.max_items_per_round
 	       AND jsonb_array_length($9::jsonb) <= audit.max_items_total
 	       AND $15 <= audit.max_evidence_bytes
-	    RETURNING audit.*
+	    RETURNING audit.*, ` + materializedRoundEvents.appended() + `
 ` + initialRoundRowsSQL + `), idempotency_row AS (
     INSERT INTO audit_idempotency (
         owner_id, operation, idempotency_key, request_digest,
         audit_id, resource_id, response_snapshot
     )
     SELECT $1, 'audit.start', $11, $12, audit_id, $4, $13::jsonb
-      FROM started
-), event_row AS (
-    INSERT INTO audit_events (
-        audit_id, sequence_number, kind, entity_id, entity_revision, summary
-    )
-    SELECT audit_id, next_event_sequence - 1, 'round.accepted', $4, 1,
-           jsonb_build_object(
-               'round', $5::integer, 'items', jsonb_array_length($9::jsonb),
-               'reviews', (SELECT count(*) FROM inserted_reviews)
-           )
       FROM started
 )
 SELECT ` + prefixedAuditColumns("started") + ` FROM started`
@@ -125,6 +133,16 @@ const initialRoundRowsSQL = `), inserted_round AS (
 	  FROM started CROSS JOIN link_input AS link
 `
 
+// nextRoundEvents record the accepted round $6, ordinal $7, with the items $10
+// and the reviews they open.
+var nextRoundEvents = auditEvents(auditEvent(
+	"'round.accepted'", "$6::text", "1",
+	`jsonb_build_object(
+               'round', $7::integer, 'items', jsonb_array_length($10::jsonb),
+               'reviews', (SELECT count(*) FROM item_input WHERE item_input.approval_kind <> 'none')
+           )`,
+))
+
 // acceptNextRoundSQL closes the previous round and opens its successor
 // under one controller claim, carrying proposal sources forward.
 var acceptNextRoundSQL = `
@@ -170,7 +188,7 @@ WITH live_claim AS MATERIALIZED (
      )
 ), audit_gate AS MATERIALIZED (
     SELECT audit.audit_id, audit.max_items_per_round, audit.max_items_total,
-           audit.max_rounds, audit.next_event_sequence,
+           audit.max_rounds,
            contractor_require_active_audit_project(audit.project_id, audit.owner_id)
       FROM audits AS audit
       JOIN live_claim USING (audit_id)
@@ -191,12 +209,11 @@ WITH live_claim AS MATERIALIZED (
 ), advanced AS (
     UPDATE audits AS audit
        SET current_round_id = $6,
-           revision = audit.revision + 1,
-           next_event_sequence = audit.next_event_sequence + 1,
+           ` + nextRoundEvents.advance() + `,
            updated_at = GREATEST(clock_timestamp(), audit.updated_at + interval '1 microsecond')
       FROM audit_gate
      WHERE audit.audit_id = audit_gate.audit_id
-    RETURNING audit.*
+    RETURNING audit.*, ` + nextRoundEvents.appended() + `
 ), inserted_round AS (
     INSERT INTO audit_rounds (
         round_id, audit_id, ordinal, manifest_ref, manifest_digest,
@@ -243,17 +260,6 @@ WITH live_claim AS MATERIALIZED (
       FROM inserted_items AS item JOIN advanced USING (audit_id)
      WHERE item.approval_kind <> 'none'
     RETURNING request_id
-), event_row AS (
-    INSERT INTO audit_events (
-        audit_id, sequence_number, kind, entity_id, entity_revision, summary
-    )
-    SELECT round.audit_id, advanced.next_event_sequence - 1,
-           'round.accepted', round.round_id, round.revision,
-           jsonb_build_object(
-               'round', round.ordinal, 'items', round.expected_item_count,
-               'reviews', (SELECT count(*) FROM inserted_reviews)
-           )
-      FROM inserted_round AS round JOIN advanced USING (audit_id)
 )
 SELECT round_id, audit_id, ordinal, manifest_ref, manifest_digest, state,
        expected_item_count, revision, created_at, updated_at
@@ -265,6 +271,13 @@ var acceptedRoundDigestSQL = `
 SELECT acceptance_digest
   FROM audit_rounds
  WHERE audit_id = $1 AND round_id = $2`
+
+// roundTransitionEvents record the round transition from $6 to $7 at the
+// round's new revision.
+var roundTransitionEvents = auditEvents(auditEvent(
+	"'round.state_changed'", "changed.round_id", "changed.revision",
+	"jsonb_build_object('from', $6::text, 'to', $7::text)",
+))
 
 // transitionRoundSQL moves a round between states under the controller
 // claim and the expected round revision.
@@ -302,18 +315,11 @@ var transitionRoundSQL = `
     RETURNING round.*
 ), advanced_audit AS (
     UPDATE audits AS audit
-       SET revision = audit.revision + 1,
-           next_event_sequence = audit.next_event_sequence + 1,
+       SET ` + roundTransitionEvents.advance() + `,
            updated_at = GREATEST(clock_timestamp(), audit.updated_at + interval '1 microsecond')
       FROM changed
      WHERE audit.audit_id = changed.audit_id
-    RETURNING audit.audit_id, audit.next_event_sequence
-), event_row AS (
-    INSERT INTO audit_events (audit_id, sequence_number, kind, entity_id, entity_revision, summary)
-    SELECT changed.audit_id, advanced.next_event_sequence - 1,
-           'round.state_changed', changed.round_id, changed.revision,
-           jsonb_build_object('from', $6::text, 'to', $7::text)
-      FROM changed JOIN advanced_audit AS advanced USING (audit_id)
+    RETURNING audit.audit_id, ` + roundTransitionEvents.appended() + `
 )
 SELECT changed.round_id, changed.audit_id, changed.ordinal,
        changed.manifest_ref, changed.manifest_digest, changed.state,

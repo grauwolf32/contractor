@@ -906,6 +906,17 @@ func TestPostgresAuditTrustedTransitionsApplyGateAndEvents(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	var roundItems, roundReviews, openedReviews int
+	if err := pool.QueryRow(ctx, `
+SELECT (event.summary->>'items')::int, (event.summary->>'reviews')::int,
+       (SELECT count(*) FROM audit_review_requests WHERE audit_id = event.audit_id)
+  FROM audit_events AS event
+ WHERE event.audit_id = $1 AND event.kind = 'round.accepted'`, audit.AuditID).Scan(
+		&roundItems, &roundReviews, &openedReviews,
+	); err != nil || roundItems != 2 || roundReviews != 2 || openedReviews != 2 {
+		t.Fatalf("round.accepted counts = (%d items, %d reviews, %d opened, %v), want 2, 2, 2",
+			roundItems, roundReviews, openedReviews, err)
+	}
 	if _, err := store.TransitionTrusted(ctx, TrustedTransitionParams{
 		AuditID: audit.AuditID, ExpectedRevision: audit.Revision,
 		ExpectedState: AuditCompleted, TargetState: AuditActive,
@@ -1047,9 +1058,11 @@ func isolatedAuditPool(t *testing.T, ctx context.Context, databaseURL string) *p
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
-		pool.Close()
 		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cleanupCancel()
+		// Every test that mutates an Audit leaves its events dense.
+		requireDenseAuditEvents(t, cleanupCtx, pool)
+		pool.Close()
 		_, _ = admin.Exec(cleanupCtx, `DROP SCHEMA `+identifier+` CASCADE`)
 		admin.Close()
 	})

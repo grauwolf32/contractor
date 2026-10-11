@@ -1,5 +1,16 @@
 package auditstore
 
+// executionIntentEvents record execution intent $4 of role $5 for workflow
+// role $13 with the members $12.
+var executionIntentEvents = auditEvents(auditEvent(
+	"'execution.intent_created'", "$4::text", "NULL",
+	`jsonb_build_object(
+	           'role', $5::text,
+	           'workflowRole', $13::text,
+	           'members', jsonb_array_length($12::jsonb)
+	       )`,
+))
+
 // createExecutionIntentSQL keeps reservation and complete-batch submission in
 // one statement. live_claim, claim_gate and round_gate preserve authority and
 // lock order; eligible_members validates exact tasks, approval and attempts.
@@ -67,8 +78,7 @@ WITH member_input AS MATERIALIZED (
     UPDATE audits AS audit
        SET reserved_run_count = audit.reserved_run_count + 1,
            outstanding_run_count = audit.outstanding_run_count + 1,
-           revision = audit.revision + 1,
-           next_event_sequence = audit.next_event_sequence + 1,
+           ` + executionIntentEvents.advance() + `,
            updated_at = GREATEST(clock_timestamp(), audit.updated_at + interval '1 microsecond')
       FROM claim_gate, eligible_members
      WHERE audit.audit_id = claim_gate.audit_id
@@ -119,7 +129,7 @@ WITH member_input AS MATERIALIZED (
 	                  WHERE round_gate.round_id = $6 AND round_gate.state = 'assessing'
 	             ))
        )
-    RETURNING audit.*
+    RETURNING audit.*, ` + executionIntentEvents.appended() + `
 ), inserted_execution AS (
     INSERT INTO audit_executions (
         execution_id, audit_id, round_id, role, workflow_role, role_attempt,
@@ -146,18 +156,6 @@ WITH member_input AS MATERIALIZED (
            updated_at = GREATEST(clock_timestamp(), item.updated_at + interval '1 microsecond')
       FROM inserted_members AS member
      WHERE item.item_id = member.item_id AND item.state = 'ready'
-), event_row AS (
-    INSERT INTO audit_events (
-        audit_id, sequence_number, kind, entity_id, summary
-    )
-    SELECT execution.audit_id, reserved.next_event_sequence - 1,
-           'execution.intent_created', execution.execution_id,
-           jsonb_build_object(
-	           'role', execution.role,
-	           'workflowRole', execution.workflow_role,
-	           'members', jsonb_array_length($12::jsonb)
-	       )
-      FROM inserted_execution AS execution JOIN reserved USING (audit_id)
 )
 SELECT ` + prefixedExecutionColumns("inserted_execution") + `
   FROM inserted_execution`
