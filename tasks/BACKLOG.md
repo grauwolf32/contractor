@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-106 open tasks: 3 in progress, 89 pending, 14 deferred. 790 finished: 787 completed, 3 archived.
+105 open tasks: 3 in progress, 88 pending, 14 deferred. 791 finished: 788 completed, 3 archived.
 
 ## In progress
 
@@ -109,11 +109,10 @@ the epics are in [epics.yml](epics.yml).
 | [V368-001](v368-001-bound-audit-report-finalization.yml) | defect | P1 | — | Bound and resume Audit report finalization |
 | [V368-006](v368-006-freeze-audit-artifacts.yml) | defect | P1 | — | Write Audit manifests, tasks and worklists frozen through one path |
 | [V368-023](v368-023-audit-api-bounds.yml) | defect | P2 | — | Bound the Audit start replay and validate action review keys |
-| [V370-003](v370-003-audit-event-allocator.yml) | chore | P1 | — | Allocate Audit events in one place |
-| [V370-004](v370-004-split-auditstore.yml) | chore | P2 | V370-003 | Split auditstore along its seams |
+| [V370-004](v370-004-split-auditstore.yml) | chore | P2 | — | Split auditstore along its seams |
 | [V370-014](v370-014-simplify-audit.yml) | chore | P3 | — | Remove duplicated code in the Audit packages |
 | [V370-022](v370-022-batch-audit-reads.yml) | defect | P2 | — | Batch the Audit controller and owner finding reads |
-| [V370-027](v370-027-audit-write-and-read-cost.yml) | defect | P3 | V370-003 | Reduce Audit start and event listing costs |
+| [V370-027](v370-027-audit-write-and-read-cost.yml) | defect | P3 | — | Reduce Audit start and event listing costs |
 
 ### Evaluations (`evals`)
 
@@ -219,7 +218,7 @@ tasks in `introduced_by`.
 | Findings tools and collections (`findings`) | 2 | 7 | 4 | 1 | 6 |
 | Workflow catalog and document workflows (`workflows`) | 8 | 13 | 13 | 8 | 11 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 6 | 27 | 31 | 3 | 32 |
-| Audits (`audits`) | 26 | 49 | 64 | 12 | 70 |
+| Audits (`audits`) | 25 | 49 | 64 | 12 | 70 |
 | Evaluations (`evals`) | 2 | 21 | 26 | 4 | 33 |
 | Podman sandbox (`sandbox`) | 0 | 8 | 1 | 1 | 2 |
 | Web UI (`ui`) | 2 | 19 | 51 | 10 | 46 |
