@@ -6,7 +6,8 @@ epic: projects-artifacts
 kind: chore
 introduced_by: V60-012
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 8206fee94fb3a9d435a9d37b27e99d2fddcc4412
 depends_on: [V366-001]
 languages: [go]
 goal: >-
