@@ -6,7 +6,7 @@ epic: execution-core
 kind: defect
 introduced_by: V65-002
 priority: P1
-status: pending
+status: in_progress
 depends_on: []
 languages: [go, python]
 goal: "Aborting, cancelling or finishing a Stage frees its recovery probe at once, so other Runs on the same route are not blocked for the probe lease."
