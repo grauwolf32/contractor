@@ -37,9 +37,9 @@ func (h *handler) handleError(w http.ResponseWriter, err error) {
 		// new key can carry the changed request.
 		h.writeError(w, http.StatusConflict, "idempotency_conflict",
 			"Idempotency-Key is already bound to a different request; use a new key for a new request", false)
-	case errors.Is(err, settingsstore.ErrPrecondition):
-		h.writeError(w, http.StatusPreconditionFailed, "precondition_failed", "resource revision precondition failed", false)
-	case errors.Is(err, auditstore.ErrPrecondition):
+	case errors.Is(err, settingsstore.ErrPrecondition), errors.Is(err, auditstore.ErrPrecondition),
+		errors.Is(err, runstore.ErrPrecondition), errors.Is(err, projectstore.ErrPrecondition),
+		errors.Is(err, runtimeconfig.ErrPrecondition):
 		h.writeError(w, http.StatusPreconditionFailed, "precondition_failed", "resource revision precondition failed", false)
 	case errors.As(err, &auditUnsupported):
 		writeJSON(w, http.StatusUnprocessableEntity, errorResponse{
@@ -52,12 +52,6 @@ func (h *handler) handleError(w http.ResponseWriter, err error) {
 		})
 	case auditdomain.ErrorCode(err) != "":
 		h.writeError(w, http.StatusUnprocessableEntity, auditdomain.ErrorCode(err), "Audit input could not be processed", false)
-	case errors.Is(err, runstore.ErrPrecondition):
-		h.writeError(w, http.StatusPreconditionFailed, "precondition_failed", "resource revision precondition failed", false)
-	case errors.Is(err, projectstore.ErrPrecondition):
-		h.writeError(w, http.StatusPreconditionFailed, "precondition_failed", "resource revision precondition failed", false)
-	case errors.Is(err, runtimeconfig.ErrPrecondition):
-		h.writeError(w, http.StatusPreconditionFailed, "precondition_failed", "resource revision precondition failed", false)
 	case errors.Is(err, runtimeconfig.ErrAgentLabelNotApplicable):
 		h.writeError(w, http.StatusBadRequest, "runtime_agent_label_not_applicable", "Runtime label has no Worker-applicable setting", false)
 	case errors.Is(err, runtimeconfig.ErrPrincipalInUse):
