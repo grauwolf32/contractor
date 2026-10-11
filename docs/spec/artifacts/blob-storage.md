@@ -206,6 +206,14 @@ receipts, Skill forks, Project output publication and Git import publication
 all use the blob boundary. No direct-SQL payload path may silently bypass the
 filesystem selection.
 
+**BLB-R75.** An operation that reaches a `filesystem` object without the
+installation's blob store, a Server composition defect such as work started
+from a fresh background context, fails as a logged internal error. It is never
+reported as missing or corrupt content, and a deletion fails before its commit
+instead of skipping the unlink. Without the blob store a write can only offer
+inline bytes, which the persisted backend kind rejects on a `filesystem`
+installation (BLB-R10).
+
 ### Transfers and memory
 
 **BLB-R20.** Receiving a file and retaining it are separate operations.
@@ -490,7 +498,8 @@ code:
 - unusable `filesystem` path — startup failure (BLB-R8);
 - blob path supplied with `postgresql` (BLB-R9);
 - transfer capacity exhausted — retryable (BLB-R25);
-- missing or corrupt content (BLB-R46, BLB-R52).
+- missing or corrupt content (BLB-R46, BLB-R52);
+- blob store not installed for an operation — internal error (BLB-R75).
 
 ## Security
 
