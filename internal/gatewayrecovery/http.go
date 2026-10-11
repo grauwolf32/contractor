@@ -49,38 +49,22 @@ func (p *Participant) Do(request *http.Request, client *http.Client, maxResponse
 			return nil, fmt.Errorf("copy model request")
 		}
 		body, failure, delay := send(attempt, client, maxResponseBytes, p.signatures)
-		if failure != nil && request.Context().Err() != nil {
-			// The invocation ended while this attempt was outstanding, so its
-			// failure is the cancellation, not a Gateway outcome. Relinquish
-			// the grant without blocking the route and report the
-			// cancellation itself (SCH-R108).
-			_ = p.deliverTerminal(request.Context(), Request{RequestID: requestID, Action: "released"})
+		// A failure seen after the invocation ended is the cancellation, not a
+		// Gateway outcome: the grant is released without blocking the route
+		// and the cancellation itself is reported (SCH-R108).
+		cancelled := failure != nil && request.Context().Err() != nil
+		update := attemptUpdate(requestID, failure, delay, cancelled)
+		err = p.deliver(request.Context(), update)
+		if cancelled {
 			return nil, context.Cause(request.Context())
 		}
-		action := "succeeded"
-		if failure != nil {
-			switch {
-			case failure.Abandoned:
-				// No model result was observed: relinquish a probe without
-				// reopening or further blocking the route.
-				action = "released"
-			case failure.Retryable:
-				action = "failed"
-			default:
-				action = "finished"
-			}
-		}
-		update := Request{RequestID: requestID, Action: action, RetryAfterSeconds: delay}
-		if action == "failed" {
-			update.Code = failure.Code
-			err = p.record(request.Context(), update)
-		} else {
-			err = p.deliverTerminal(request.Context(), update)
-		}
-		if action == "failed" {
+		if update.Action == "failed" {
 			// The route must record the failure before the request is resent.
 			if err != nil {
 				return nil, err
+			}
+			if request.Context().Err() != nil {
+				return nil, context.Cause(request.Context())
 			}
 			continue
 		}
@@ -101,24 +85,60 @@ func (p *Participant) Do(request *http.Request, client *http.Client, maxResponse
 // attempt is itself bounded by the database acquire and lock budgets.
 const maxRecordAttempts = 3
 
-// terminalRedeliveryTimeout bounds the best-effort re-delivery of a terminal
-// update after the invocation ended, like the Runtime's
+// terminalRedeliveryTimeout bounds the best-effort re-delivery of an update
+// after the invocation ended, like the Runtime's
 // RECOVERY_RELEASE_TIMEOUT_SECONDS; the end of the Stage relinquishes a probe
 // whose update is lost.
 const terminalRedeliveryTimeout = 5 * time.Second
 
-// deliverTerminal records the terminal update of a granted attempt. When the
-// invocation ends before the update is acknowledged, it re-delivers the same
-// idempotent update on a detached, bounded context, so cancellation does not
-// leave the probe held until its lease expires (SCH-R108).
-func (p *Participant) deliverTerminal(ctx context.Context, update Request) error {
+// attemptUpdate is the update that reports one granted attempt (SCH-R108,
+// SCH-R109, SCH-R112): succeeded for a model response, released for an
+// attempt that ended without an observed outcome (cancelled, or abandoned by
+// the Gateway after it received the request), failed with its code and retry
+// hint for a retryable failure, which is resent, and finished for any other
+// failure. The Runtime's _attempt_update applies the same rule;
+// api/testdata/v1alpha1/gateway-recovery-participant-cases.json pins both.
+func attemptUpdate(requestID string, failure *Failure, retryAfterSeconds float64, cancelled bool) Request {
+	update := Request{RequestID: requestID}
+	switch {
+	case cancelled:
+		update.Action = "released"
+	case failure == nil:
+		update.Action = "succeeded"
+	case failure.Abandoned:
+		update.Action = "released"
+	case failure.Retryable:
+		update.Action, update.Code, update.RetryAfterSeconds = "failed", failure.Code, retryAfterSeconds
+	default:
+		update.Action = "finished"
+	}
+	return update
+}
+
+// redelivery is the update re-delivered when the invocation ends before
+// update is acknowledged: a terminal update itself, and released in place of
+// failed, so an ending invocation relinquishes its probe without making its
+// Run wait; the Server accepts only terminal updates from an ending Stage
+// (SCH-R108).
+func redelivery(update Request) Request {
+	if update.Terminal() {
+		return update
+	}
+	return Request{RequestID: update.RequestID, Action: "released"}
+}
+
+// deliver records the update of a granted attempt. When the invocation ends
+// before the update is acknowledged, it re-delivers its redelivery on a
+// detached, bounded context, so cancellation does not leave the probe held
+// until its lease expires (SCH-R108).
+func (p *Participant) deliver(ctx context.Context, update Request) error {
 	err := p.record(ctx, update)
 	if err == nil || ctx.Err() == nil {
 		return err
 	}
 	detached, cancel := context.WithTimeout(context.WithoutCancel(ctx), terminalRedeliveryTimeout)
 	defer cancel()
-	return p.record(detached, update)
+	return p.record(detached, redelivery(update))
 }
 
 // record reports an observed outcome and retries a transient database failure.

@@ -65,6 +65,14 @@ export values the Server sends when a Worker RuntimeConfig omits them
 (RCF-R102); Go decoding, the Runtime model and this schema are checked against
 it.
 
+`gateway-recovery-participant-cases.json` holds the model recovery participant
+protocol of `POST /private/v1/allocations/{allocationID}/gateway-recovery`
+(SCH-R163): the updates and which are terminal, the codes a `failed` update may
+carry, the update grammar, the update each attempt outcome produces and the
+update re-delivered after cancellation. The Server's `gatewayrecovery`, used by
+the private API and the Server-side Planner, and the Runtime's recovery client
+are checked against it.
+
 `ArtifactListResult` is one page of versionless refs from the private
 allocation listing. Its optional `nextCursor` (1 to 512 unpadded base64url
 characters, never on an empty page) continues a paged listing and is absent on

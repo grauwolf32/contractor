@@ -20,7 +20,11 @@ from contractor_runtime.contracts.settings import (
     default_gateway_failure_signatures,
 )
 from contractor_runtime.llm.errors import GatewayFailure, classify_response
-from contractor_runtime.llm.recovery import GatewayRecoveryClient, RecoveryStoppedError
+from contractor_runtime.llm.recovery import (
+    TERMINAL_RECOVERY_ACTIONS,
+    GatewayRecoveryClient,
+    RecoveryStoppedError,
+)
 
 if TYPE_CHECKING:
     from contractor_runtime.factories import WorkerBuildContext
@@ -190,13 +194,13 @@ class GatewayClientHandle:
                 if not decision.allowed:
                     await sleep(decision.retry_after_seconds)
                     continue
-                # A grant exists from here until its terminal update is
-                # delivered. Cancellation or an unexpected failure anywhere in
-                # between, including while reporting the outcome, re-delivers
-                # that update so the Server does not hold the probe until it
-                # times out. An abandoned model call reports "released" so it
-                # cannot reopen a blocked route without a model response.
-                terminal: tuple[str, str | None, float] = ("released", None, 0)
+                # A grant exists from here until its update is delivered.
+                # Cancellation or an unexpected failure anywhere in between,
+                # including while reporting the outcome, re-delivers that
+                # update's redelivery so the Server does not hold the probe
+                # until it times out. An attempt without an observed outcome
+                # reports "released" so it cannot reopen a blocked route.
+                terminal = _attempt_update(None, cancelled=True)
                 error = None
                 try:
                     try:
@@ -208,22 +212,14 @@ class GatewayClientHandle:
                         error = caught
                     except TimeoutError:
                         error = _abandoned_request_error()
-                    if error is None:
-                        terminal = ("succeeded", None, 0)
-                    elif error.abandoned:
-                        # No model result was observed: a slow model is not an
-                        # outage, so neither block nor reopen the route.
-                        terminal = ("released", None, 0)
-                    elif error.retryable and error.transport_retry_allowed:
-                        failure = error.failure or GatewayFailure("gateway_unavailable", True)
-                        terminal = ("failed", failure.code, error.retry_after_seconds)
-                    else:
-                        terminal = ("finished", None, 0)
+                    terminal = _attempt_update(error)
                     await recovery.update(model, request_id, *terminal)
                 except RecoveryStoppedError:
                     raise
                 except (asyncio.CancelledError, Exception):
-                    await asyncio.shield(_release_probe(recovery, model, request_id, *terminal))
+                    await asyncio.shield(
+                        _release_probe(recovery, model, request_id, *_redelivery(terminal))
+                    )
                     raise
                 if error is None:
                     return result
@@ -252,6 +248,49 @@ class GatewayClientHandle:
             return
         if owns_http_client:
             await client.aclose()
+
+
+RecoveryUpdateArguments = tuple[str, str | None, float]
+
+
+def _attempt_update(
+    error: GatewayRequestError | None, *, cancelled: bool = False
+) -> RecoveryUpdateArguments:
+    """Return the action, code and retry hint that report one granted attempt.
+
+    succeeded reports a model response and released an attempt that ended
+    without an observed outcome (cancelled, or abandoned by a Gateway that
+    received the request), so a slow model neither blocks nor reopens the
+    route. A retryable failure reports failed with its code and hint and is
+    resent; any other failure reports finished (SCH-R108, SCH-R109, SCH-R112).
+    The Server's gatewayrecovery attemptUpdate applies the same rule;
+    api/testdata/v1alpha1/gateway-recovery-participant-cases.json pins both.
+    """
+
+    if cancelled:
+        return ("released", None, 0)
+    if error is None:
+        return ("succeeded", None, 0)
+    if error.abandoned:
+        return ("released", None, 0)
+    if error.retryable and error.transport_retry_allowed:
+        failure = error.failure or GatewayFailure("gateway_unavailable", True)
+        return ("failed", failure.code, error.retry_after_seconds)
+    return ("finished", None, 0)
+
+
+def _redelivery(update: RecoveryUpdateArguments) -> RecoveryUpdateArguments:
+    """Return the update re-delivered when the invocation ends before update is acknowledged.
+
+    A terminal update is re-delivered itself and failed is replaced by
+    released: the Server accepts only terminal updates from an ending Stage,
+    and an ending invocation must relinquish its probe without making its Run
+    wait (SCH-R108).
+    """
+
+    if update[0] in TERMINAL_RECOVERY_ACTIONS:
+        return update
+    return ("released", None, 0)
 
 
 def _abandoned_request_error() -> GatewayRequestError:
