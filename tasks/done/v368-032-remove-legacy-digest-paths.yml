@@ -1,0 +1,73 @@
+schema_version: "1.0"
+id: V368-032
+title: "Remove backward-compatibility digest code"
+milestone: hub-audit-defects-2026-10
+epic: api-contracts
+kind: chore
+priority: P3
+status: completed
+implementation_commit: 79b54885b489e8f8472dc86e7f4f3525b06b6a6c
+depends_on: []
+languages: [go]
+goal: "No code or test fake mentions keeping an old format replayable."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq; raw reports in docs/research/2026-10-11-hub-audit/), V367-012 follow-up; AGENTS.md section 2; file:line as of 02bbdcbf, re-verify on current main"
+  decision: >-
+    The digest lives in httpapi/public (audit_models.go), not auditservice.
+    A start now binds the explicit action "start" and the action field is
+    always encoded, as for pause, resume, cancel and delete; requests stored
+    by an earlier Server with the action-less start encoding are not kept
+    replayable (pre-production, AGENTS.md section 2). The pinned start
+    digests change; TestAuditCreateStartQueryAndStableErrors now checks that
+    the start handler sends the digest of the exact canonical request and
+    fails on the previous code (checked with go test -overlay), and
+    TestAuditRequestDigestBindsEveryAction checks every action's encoding.
+    The fake gateways' legacy StageContentRequest wrapper branch was
+    redundant: their recursive JSON walk visits the nested artifacts map
+    anyway, so removing it changes no lookup; the current named-input shape
+    stays covered by TestDomainGatewayFindsNamedInputAfterParameterBlock and
+    TestModelGatewayFindsNamedInputAfterParameterBlock. Siblings found by
+    searching for legacy, compatibility, predate, replayable and "must not
+    change" comments: contentdigest.JSON, the pinned digest tests in
+    httpapi/public and credentials, the Audit inventory builder contracts
+    (config/audit_inventory.go, auditdomain/task_contract.go) and the
+    standard inventory statement justified current behaviour by old
+    snapshots or digests; their comments now state the current rule, and
+    the pins stay as deliberate-change detectors. Ruled out as current
+    behaviour named "legacy", not compatibility paths: Eval receipt and Audit
+    profile tests that assert legacy shapes are rejected, optional
+    RuntimeConfig telemetry export and AgentTemplate summarizer fields,
+    ordinary Runs without audit completion, the UI's legacy evaluation
+    workspace route, legacy IPv4 notations in Runtime target parsing and the
+    scan tool's URL mode. Not changed here: the Run repeat-draft OpenAPI
+    description still explains repeat_request_unavailable with historical
+    requests that predate executionConfig retention; every current
+    non-Audit Run writes its repeat request, so that notice only covers a
+    missing record. The listed command go test -tags e2e -run Fake
+    ./tests/e2e selects no test (no test name contains Fake), which AGENTS.md
+    3.5 counts as a failure; the gateway tests are selected by name below.
+    introduced_by is not knowable in this shallow clone; V367-012 recorded
+    the omitempty as left open.
+  finding: >-
+    auditRequestDigest keeps a legacy omitempty "to keep stored start
+    digests replayable"; test fakes in
+    tests/e2e/fake_domain_gateway_test.go:850 and tests/ui-
+    stack/model_gateway_test.go:552 accept a legacy StageContentRequest
+    wrapper. Pre-production, so neither is needed.
+scope:
+  in:
+    - "Remove both and any sibling legacy paths found by searching for legacy/compat comments."
+  out:
+    - "Digests of current requests."
+acceptance_criteria:
+  - id: A1
+    text: "No code or test fake mentions keeping an old format replayable."
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "go test ./internal/auditservice ./internal/httpapi/public"
+    covers: [A1]
+  - command: "go test -tags e2e -run '^TestDomainGateway' ./tests/e2e"
+    covers: [A1]
+  - command: "go test -tags e2e -run '^TestModelGateway' ./tests/ui-stack"
+    covers: [A1]
