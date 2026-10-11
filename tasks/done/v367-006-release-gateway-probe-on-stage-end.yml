@@ -6,7 +6,8 @@ epic: execution-core
 kind: defect
 introduced_by: V65-002
 priority: P1
-status: pending
+status: completed
+implementation_commit: "79c060ce3933a439482dc9de32e2d0f2d55d259b"
 depends_on: []
 languages: [go, python]
 goal: "Aborting, cancelling or finishing a Stage frees its recovery probe at once, so other Runs on the same route are not blocked for the probe lease."
@@ -30,6 +31,39 @@ context:
     The Go Planner participant classifies context.Canceled as
     gateway_unavailable and records it with the cancelled request context
     (gatewayrecovery/http.go:67, 159-164). 8112e65a introduced the max lease.
+  decision: >-
+    gatewayrecovery.EndStage runs in all five Stage-ending transactions
+    (CommitResultProgression, CommitTerminationProgression,
+    AcceptResultDuringCancellation, CommitTerminationAndFinishRun,
+    FailRunWithActiveStages; in the last two after the Run transition, whose
+    expected state may be waiting). It drops waits and route membership and
+    clears every probe with probe_run_id = Run, which includes an Admit
+    reservation, locking route rows in key order like Admit and Retry; the
+    scheduler no longer writes gateway tables. The routes table has no index on
+    probe_run_id and no migration is allowed in this batch; it holds one row
+    per owner model route, so the scan is bounded by that catalog (reopen: add
+    the index with the next schema change or when route cleanup lands). Leaving
+    waiting now uses the same statement as clearWaiting (reason
+    gateway_recovered), which also ends the stale "Waiting for the model
+    gateway" reason after a Stage end. Deviation: the fenced-grant exception
+    covers succeeded as well as released and finished, because the Runtime and
+    the Planner re-deliver whichever terminal update was in flight and a
+    succeeded update only relinquishes the probe or reopens a route that
+    really answered; acquire and failed stay rejected for fenced grants, and
+    the same terminal set is accepted while the Run is cancelling (lockRun),
+    otherwise a user cancellation would still keep the probe. Leases follow
+    the holder (Worker: workerRequestTimeout, Planner: plannerTimeout); the
+    Admit reservation, which covers preparation before the first request of
+    either participant, keeps the longer of the two plus maxDelay and is now
+    released at the Stage end. Planner: a cancelled attempt reports released on
+    a detached 5s context (mirroring RECOVERY_RELEASE_TIMEOUT_SECONDS) and
+    returns the context's cause; a failed outcome interrupted by cancellation
+    while being recorded is not re-delivered, the Stage end reconciles it.
+    Python: no change needed. The Runtime already re-delivers the terminal
+    update under asyncio.shield and Worker._stop waits for the cancelled task,
+    so its release reaches the Server before teardown; only the Server's fence
+    check rejected it. Open: the participant protocol (action set, terminal
+    set, redelivery bound) still has no shared Go/Python fixture.
 scope:
   in:
     - "Clear the probe held by a Run in the same transaction that ends its Stage: clearStageGatewayWaits, FailRunWithActiveStages, CommitTerminationAndFinishRun and the cancellation paths, through a gatewayrecovery method rather than raw SQL in scheduler."

@@ -624,6 +624,9 @@ func (laneNoopAllocator) GetReservation(string) (controlplane.Reservation, error
 }
 func (laneNoopAllocator) SetWriteFence(string) error { return errors.New("unexpected fence") }
 func (laneNoopAllocator) Release(string) error       { return errors.New("unexpected release") }
+func (laneNoopAllocator) DiscardUnprepared(string) error {
+	return errors.New("unexpected placement discard")
+}
 func (laneNoopAllocator) PollAllocationLosses() []controlplane.AllocationLoss {
 	return nil
 }
@@ -682,4 +685,7 @@ func receiveError(t *testing.T, channel <-chan error, timeout time.Duration, ope
 
 func (laneNoopPersistence) AdmitStage(context.Context, string, string) (runstore.StageExecution, error) {
 	return runstore.StageExecution{}, errors.New("unexpected admission")
+}
+func (laneNoopPersistence) DiscardUnadmittedPlacement(context.Context, string, string, func() error) error {
+	return errors.New("unexpected placement discard")
 }

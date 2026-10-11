@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-37 open tasks: 3 in progress, 20 pending, 14 deferred. 787 finished: 784 completed, 3 archived.
+34 open tasks: 3 in progress, 17 pending, 14 deferred. 790 finished: 787 completed, 3 archived.
 
 ## In progress
 
@@ -17,24 +17,11 @@ the epics are in [epics.yml](epics.yml).
 
 ## Pending
 
-### Run execution core (`execution-core`)
-
-| Task | Kind | Priority | Waiting for | Title |
-| --- | --- | --- | --- | --- |
-| [V367-006](v367-006-release-gateway-probe-on-stage-end.yml) | defect | P1 | — | Release the model gateway recovery probe when its Stage ends |
-| [V367-013](v367-013-replace-placement-after-paused-admission.yml) | defect | P2 | — | Re-place a Stage whose admission was deferred by a paused owner queue |
-
 ### Scanner tool Workers and scan planning (`scan-tools`)
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V55-009](v55-009-scan-candidate-ranking.yml) | feature | P2 | — | Optionally rank existing scan candidates with an LLM |
-
-### Projects, artifacts and lifecycle controls (`projects-artifacts`)
-
-| Task | Kind | Priority | Waiting for | Title |
-| --- | --- | --- | --- | --- |
-| [V367-004](v367-004-retry-transient-output-publication.yml) | defect | P1 | — | Retry Project output publication after transient database failures |
 
 ### Audits (`audits`)
 
@@ -93,7 +80,7 @@ tasks in `introduced_by`.
 
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Run execution core (`execution-core`) | 2 | 36 | 39 | 5 | 62 |
+| Run execution core (`execution-core`) | 0 | 36 | 39 | 5 | 62 |
 | Planners and the Worker model boundary (`planner-worker`) | 0 | 23 | 31 | 7 | 41 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 9 | 25 | 10 | 2 | 35 |
 | Shared Memory tools (`memory`) | 0 | 6 | 7 | 1 | 11 |
@@ -104,7 +91,7 @@ tasks in `introduced_by`.
 | Scanner tool Workers and scan planning (`scan-tools`) | 1 | 10 | 4 | 1 | 7 |
 | Findings tools and collections (`findings`) | 0 | 7 | 2 | 1 | 6 |
 | Workflow catalog and document workflows (`workflows`) | 0 | 13 | 8 | 5 | 11 |
-| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 1 | 27 | 26 | 2 | 32 |
+| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 27 | 26 | 2 | 32 |
 | Audits (`audits`) | 18 | 49 | 59 | 9 | 70 |
 | Evaluations (`evals`) | 2 | 21 | 26 | 4 | 33 |
 | Podman sandbox (`sandbox`) | 0 | 8 | 1 | 1 | 2 |

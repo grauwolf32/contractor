@@ -136,7 +136,7 @@ Publication results:
 | --- | --- |
 | `published` | The Project output binding was created; the result records the exact source revision and the target revision. |
 | `already_present` | The destination binding already existed. |
-| `failed` | Publication infrastructure failed; the failure is bounded and publication is retried. |
+| `failed` | Publication was definitely rejected, for example because the exact source is unavailable or the Project is unavailable or deleting; the bounded error is recorded once. A transient database failure records no result (PRJ-R58). |
 
 ### Queue membership
 
@@ -441,8 +441,15 @@ publication result, because it has no exact source revision.
 **PRJ-R58.** An existing Project output or a publication
 failure cannot rewrite semantic WorkflowRun success: when the destination
 already exists the Run succeeds and publication records `already_present`;
-when publication infrastructure fails the Run succeeds and publication records
-and retries a bounded failure (FAIL-PRJ-4).
+when publication is definitely rejected the Run succeeds and publication
+records one bounded `failed` result. A transient database failure during
+publication (deadlock, serialization failure, lock, statement or pool timeout,
+lost connection, cancellation) records no result: it aborts the terminal Run
+transaction, the Stage keeps its durable `finalizing` candidate, and
+finalization recovery ([SCH-R99](../execution/scheduler.md)) replays the same
+terminal transaction against the same exact source until it commits. Each
+replay is one terminal transaction within the Scheduler operation budget and
+at most one per Run claim (FAIL-PRJ-4).
 
 **PRJ-R59.** Retrying publication is idempotent against the
 recorded exact source.

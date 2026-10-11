@@ -121,8 +121,8 @@ func configureWorkflows(
 	logger *slog.Logger,
 ) (workflowServices, error) {
 	// Workers bound each model request by workerRequestTimeout and modeled
-	// planners by plannerTimeout; a recovery probe lease must outlast either.
-	recovery, err := gatewayrecovery.New(pool, cfg.Operations.LLMRecovery, max(cfg.WorkerRequestTimeout, cfg.PlannerTimeout))
+	// planners by plannerTimeout; a recovery probe lease outlasts its holder's.
+	recovery, err := gatewayrecovery.New(pool, cfg.Operations.LLMRecovery, cfg.WorkerRequestTimeout, cfg.PlannerTimeout)
 	if err != nil {
 		return workflowServices{}, err
 	}

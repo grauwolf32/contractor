@@ -122,48 +122,6 @@ func (s *Scheduler) requireOwnerQueueRunning(ctx context.Context, ownerID string
 	return nil
 }
 
-func (s *Scheduler) recordReservations(
-	ctx context.Context,
-	stageExecutionID string,
-	reservations []controlplane.Reservation,
-) error {
-	for _, reservation := range reservations {
-		resolved := reservation.ResolvedRuntimeConfig
-		allocation := runstore.StageAllocation{
-			CompletionContract: contracts.CloneWorkerCompletionContract(reservation.CompletionContract),
-			AllocationID:       reservation.Grant.AllocationID, StageExecutionID: stageExecutionID,
-			LogicalAgentName: reservation.Grant.LogicalAgentName, Namespace: reservation.Grant.Namespace,
-			AgentTemplateRef:                  reservation.AgentTemplate.Ref,
-			WorkerRuntimeRef:                  reservation.AgentTemplate.Runtime,
-			RuntimeAgentID:                    reservation.Grant.RuntimeAgentID,
-			RuntimeAgentInstanceID:            reservation.Grant.RuntimeInstanceID,
-			RuntimeAgentLabelRevision:         reservation.RuntimeAgentLabelRevision,
-			PerformanceCollectionPolicy:       reservation.PerformanceCollectionPolicy,
-			RuntimeConfigurationSchemaVersion: runstore.AllocationRuntimeConfigurationSchemaVersion,
-			RuntimeConfiguration: &runstore.AllocationRuntimeConfiguration{
-				ModelPolicy: resolved.ModelPolicy.Ref,
-				Origins:     resolved.Origins,
-				Provenance:  resolved.Provenance,
-			},
-		}
-		operationContext, cancel := context.WithTimeout(ctx, s.options.OperationTimeout)
-		err := s.store.RecordStageAllocation(operationContext, allocation)
-		cancel()
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func (s *Scheduler) releaseUnprepared(reservations []controlplane.Reservation) {
-	for _, reservation := range reservations {
-		if err := s.allocator.Release(reservation.Grant.AllocationID); err != nil {
-			s.options.Logger.Warn("release unprepared allocation failed", "allocation_id", reservation.Grant.AllocationID)
-		}
-	}
-}
-
 func verifyReservations(
 	run runstore.WorkflowRun,
 	workflow executableWorkflow,

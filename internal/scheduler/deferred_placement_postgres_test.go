@@ -165,13 +165,16 @@ func newDeferredPlacementHarness(t *testing.T, ctx context.Context, wrap func(At
 	if err != nil {
 		t.Fatal(err)
 	}
-	recovery, err := gatewayrecovery.New(pool, gatewayrecovery.DefaultPolicy(), time.Minute)
+	recovery, err := gatewayrecovery.New(pool, gatewayrecovery.DefaultPolicy(), time.Minute, time.Minute)
 	if err != nil {
 		t.Fatal(err)
 	}
 	clock := staticClock{now: time.Now().UTC()}
 	events := &eventRecorder{}
-	allocator := &memoryAllocator{workflow: workflow, clock: clock, events: events, grants: map[string]controlplane.AllocationGrant{}}
+	allocator := &memoryAllocator{
+		workflow: workflow, clock: clock, events: events, grants: map[string]controlplane.AllocationGrant{},
+		pin: pinStageAllocations(store),
+	}
 	workers := &memoryWorkers{allocator: allocator, workflow: workflow, clock: clock, events: events}
 	resolver, _ := NewArtifactServiceResolver(artifactService)
 	transactions, _ := NewPostgresPersistence(pool)
@@ -204,7 +207,6 @@ func newDeferredPlacementHarness(t *testing.T, ctx context.Context, wrap func(At
 	if err != nil {
 		t.Fatal(err)
 	}
-	allocator.record = scheduler.recordReservations
 	return deferredPlacementHarness{pool, store, scheduler, workflow, invoker, workers}
 }
 

@@ -31,7 +31,9 @@ func (e *FailureError) Error() string {
 // Do retries the same serialized model request inside a planner invocation.
 // Each attempt is bounded by the client's own timeout. Context cancellation
 // remains authoritative over all waits and network calls. A non-retryable or
-// abandoned failure ends the call as a *FailureError.
+// abandoned failure ends the call as a *FailureError; cancellation of an
+// outstanding attempt releases its grant and ends the call with the context's
+// cause, never as a Gateway failure.
 func (p *Participant) Do(request *http.Request, client *http.Client, maxResponseBytes int64) ([]byte, error) {
 	for {
 		requestID, err := newRequestID()
@@ -47,6 +49,14 @@ func (p *Participant) Do(request *http.Request, client *http.Client, maxResponse
 			return nil, fmt.Errorf("copy model request")
 		}
 		body, failure, delay := send(attempt, client, maxResponseBytes, p.signatures)
+		if failure != nil && request.Context().Err() != nil {
+			// The invocation ended while this attempt was outstanding, so its
+			// failure is the cancellation, not a Gateway outcome. Relinquish
+			// the grant without blocking the route and report the
+			// cancellation itself (SCH-R108).
+			_ = p.deliverTerminal(request.Context(), Request{RequestID: requestID, Action: "released"})
+			return nil, context.Cause(request.Context())
+		}
 		action := "succeeded"
 		if failure != nil {
 			switch {
@@ -63,8 +73,10 @@ func (p *Participant) Do(request *http.Request, client *http.Client, maxResponse
 		update := Request{RequestID: requestID, Action: action, RetryAfterSeconds: delay}
 		if action == "failed" {
 			update.Code = failure.Code
+			err = p.record(request.Context(), update)
+		} else {
+			err = p.deliverTerminal(request.Context(), update)
 		}
-		err = p.record(request.Context(), update)
 		if action == "failed" {
 			// The route must record the failure before the request is resent.
 			if err != nil {
@@ -88,6 +100,26 @@ func (p *Participant) Do(request *http.Request, client *http.Client, maxResponse
 // maxRecordAttempts bounds the bookkeeping of one observed outcome. Each
 // attempt is itself bounded by the database acquire and lock budgets.
 const maxRecordAttempts = 3
+
+// terminalRedeliveryTimeout bounds the best-effort re-delivery of a terminal
+// update after the invocation ended, like the Runtime's
+// RECOVERY_RELEASE_TIMEOUT_SECONDS; the end of the Stage relinquishes a probe
+// whose update is lost.
+const terminalRedeliveryTimeout = 5 * time.Second
+
+// deliverTerminal records the terminal update of a granted attempt. When the
+// invocation ends before the update is acknowledged, it re-delivers the same
+// idempotent update on a detached, bounded context, so cancellation does not
+// leave the probe held until its lease expires (SCH-R108).
+func (p *Participant) deliverTerminal(ctx context.Context, update Request) error {
+	err := p.record(ctx, update)
+	if err == nil || ctx.Err() == nil {
+		return err
+	}
+	detached, cancel := context.WithTimeout(context.WithoutCancel(ctx), terminalRedeliveryTimeout)
+	defer cancel()
+	return p.record(detached, update)
+}
 
 // record reports an observed outcome and retries a transient database failure.
 // Repeating an update for the same request ID is idempotent, including after

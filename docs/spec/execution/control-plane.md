@@ -810,7 +810,13 @@ unprepared reservation and retries placement for the same StageExecution
 (FAIL-CTL-4). A concurrent Agent-label or binding mutation serializes on those
 rows: if allocation pinning commits first, the mutation affects the next
 allocation; if the mutation commits first, this allocation observes the new set
-or binding.
+or binding. Control Plane likewise drops a committed reservation that no
+Runtime was asked to prepare when Queue Pause defers its Stage's admission
+([SCH-R152](scheduler.md)): no Runtime observed a prepared allocation, so the
+slot needs no reconciliation heartbeat, and unlike the release of a prepared
+allocation no released reservation remains, so placement for the same
+StageExecution can run again. A write-fenced, lost or prepared reservation is
+not dropped this way.
 
 **CTL-R91.** After reserving the full set, Control Plane creates one
 globally unique `allocation_id` and one complete AllocationSpec per logical
