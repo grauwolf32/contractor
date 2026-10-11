@@ -33,6 +33,9 @@ func newFakeManagedCredentials() *fakeManagedCredentials {
 func (f *fakeManagedCredentials) ListCredentials(
 	_ context.Context, after string, limit int,
 ) ([]credentials.Record, error) {
+	if err := fakePageFetch(limit, credentials.ErrInvalid); err != nil {
+		return nil, err
+	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	ids := make([]string, 0, len(f.records))
@@ -69,7 +72,7 @@ func (f *fakeManagedCredentials) Create(
 	defer f.mu.Unlock()
 	if previous, exists := f.created[request.IdempotencyKey]; exists {
 		if previous != request.CredentialID {
-			return credentials.CreateResult{}, credentials.ErrConflict
+			return credentials.CreateResult{}, contracts.ErrIdempotencyConflict
 		}
 		return credentials.CreateResult{Credential: f.records[previous], Replayed: true}, nil
 	}
@@ -111,7 +114,7 @@ func (f *fakeManagedCredentials) Delete(
 	}
 	if previous, exists := f.deleted[request.IdempotencyKey]; exists {
 		if previous != request.CredentialID {
-			return credentials.DeleteResult{}, credentials.ErrConflict
+			return credentials.DeleteResult{}, contracts.ErrIdempotencyConflict
 		}
 		return credentials.DeleteResult{Replayed: true}, nil
 	}

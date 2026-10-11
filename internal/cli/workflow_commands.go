@@ -81,10 +81,10 @@ func (c *CLI) runWorkflow(ctx context.Context, client *publicclient.Client, prin
 }
 
 func listWorkflowsParams(limit int, cursor string) (*publicapi.ListWorkflowsParams, error) {
-	if limit < 1 || limit > 200 {
-		return nil, &UsageError{Message: "limit must be between 1 and 200"}
+	value, err := validatedLimit(limit)
+	if err != nil {
+		return nil, err
 	}
-	value := publicapi.Limit(limit)
 	params := &publicapi.ListWorkflowsParams{Limit: &value}
 	if cursor != "" {
 		current := publicapi.Cursor(cursor)

@@ -361,6 +361,57 @@ func TestPlacementPostgresAdmissionDenialLeavesNoDurableAllocation(t *testing.T)
 	}
 }
 
+// A committed reservation no Runtime prepared, as when Queue Pause defers the
+// Stage's admission, is discarded without a released tombstone: once the
+// Scheduler deletes its pinned rows the same StageExecution is placed again.
+// A write-fenced reservation belongs to an ending Stage and is not discarded.
+func TestPlacementPostgresDiscardedUnpreparedReservationIsPlacedAgain(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedPlacementPool(t, ctx)
+	fixture := newPlacementFixture(t, ctx, pool, nil)
+	fixture.registerCandidate(t, ctx, "runtime-discard", "5", nil)
+	store := runstore.NewPostgresStore(pool)
+	first, err := fixture.allocator.ReserveAllContext(ctx, fixture.request())
+	if err != nil || len(first) != 1 {
+		t.Fatalf("first placement = (%+v, %v)", first, err)
+	}
+	if err := fixture.allocator.DiscardUnprepared(fixture.stageExecutionID); err != nil {
+		t.Fatalf("discard unprepared reservation: %v", err)
+	}
+	agent, err := fixture.registry.GetAgent("runtime-discard")
+	if err != nil || agent.AuthoritativeAllocationID != nil {
+		t.Fatalf("discarded reservation still owns the Runtime: (%+v, %v)", agent, err)
+	}
+	if _, err := fixture.allocator.GetGrant(first[0].Grant.AllocationID); !errors.Is(err, ErrAllocationNotFound) {
+		t.Fatalf("discarded grant = %v", err)
+	}
+	if err := fixture.allocator.DiscardUnprepared(fixture.stageExecutionID); err != nil {
+		t.Fatalf("repeated discard: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `DELETE FROM stage_allocations WHERE stage_execution_id=$1`, fixture.stageExecutionID); err != nil {
+		t.Fatal(err)
+	}
+
+	second, err := fixture.allocator.ReserveAllContext(ctx, fixture.request())
+	if err != nil || len(second) != 1 || second[0].Grant.AllocationID == first[0].Grant.AllocationID {
+		t.Fatalf("placement after discard = (%+v, %v)", second, err)
+	}
+	allocations, err := store.ListStageAllocations(ctx, fixture.stageExecutionID)
+	if err != nil || len(allocations) != 1 || allocations[0].AllocationID != second[0].Grant.AllocationID {
+		t.Fatalf("pinned rows after discard = (%+v, %v)", allocations, err)
+	}
+	if err := fixture.allocator.SetWriteFence(second[0].Grant.AllocationID); err != nil {
+		t.Fatal(err)
+	}
+	if err := fixture.allocator.DiscardUnprepared(fixture.stageExecutionID); !errors.Is(err, ErrReservationConflict) {
+		t.Fatalf("discard of a fenced reservation = %v", err)
+	}
+	if _, err := fixture.allocator.GetGrant(second[0].Grant.AllocationID); err != nil {
+		t.Fatalf("fenced reservation was discarded: %v", err)
+	}
+}
+
 func TestPlacementPostgresKeepsOldAgentBindingAndNextResolutionUsesRebind(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()

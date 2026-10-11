@@ -95,7 +95,7 @@
       "$ref": "common.schema.json#/$defs/apiVersion"
     },
     "instanceId": {
-      "$ref": "common.schema.json#/$defs/opaqueId"
+      "$ref": "common.schema.json#/$defs/resourceId"
     },
     "softwareVersion": {
       "type": "string",
@@ -121,7 +121,7 @@
       "minItems": 1,
       "uniqueItems": true,
       "items": {
-        "$ref": "common.schema.json#/$defs/selector"
+        "$ref": "common.schema.json#/$defs/capabilityRef"
       },
       "maxItems": 128
     },
@@ -136,15 +136,15 @@
         ],
         "properties": {
           "ref": {
-            "$ref": "common.schema.json#/$defs/selector"
+            "$ref": "common.schema.json#/$defs/capabilityRef"
           },
           "tools": {
             "type": "array",
             "minItems": 1,
+            "maxItems": 256,
             "uniqueItems": true,
             "items": {
-              "type": "string",
-              "minLength": 1
+              "$ref": "common.schema.json#/$defs/name"
             }
           }
         }
@@ -156,7 +156,7 @@
       "minItems": 1,
       "uniqueItems": true,
       "items": {
-        "$ref": "common.schema.json#/$defs/selector"
+        "$ref": "common.schema.json#/$defs/capabilityRef"
       },
       "maxItems": 128
     },
@@ -169,7 +169,7 @@
       ]
     },
     "allocationId": {
-      "$ref": "common.schema.json#/$defs/opaqueId"
+      "$ref": "common.schema.json#/$defs/resourceId"
     },
     "capabilities": {
       "anyOf": [

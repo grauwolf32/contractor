@@ -14,6 +14,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/credentialerrors"
+	"github.com/grauwolf32/contractor/internal/pagelimit"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/jackc/pgx/v5"
@@ -282,7 +283,7 @@ WHERE owner_id = $1 AND request_idempotency_key = $2`,
 		return WorkflowRun{}, false, fmt.Errorf("read idempotent WorkflowRun: %w", err)
 	}
 	if existingDigest != params.RequestDigest {
-		return WorkflowRun{}, false, fmt.Errorf("reuse public idempotency key: %w", ErrConflict)
+		return WorkflowRun{}, false, fmt.Errorf("reuse public idempotency key: %w", contracts.ErrIdempotencyConflict)
 	}
 	existing, err := s.GetRun(ctx, existingRunID)
 	if err != nil {
@@ -293,8 +294,8 @@ WHERE owner_id = $1 AND request_idempotency_key = $2`,
 
 // LookupRunIdempotency resolves an already committed public create-Run claim
 // without consulting mutable Workflow dependencies such as managed
-// credentials. A digest mismatch is the same fail-closed key reuse conflict as
-// CreateRunIdempotent.
+// credentials. A digest mismatch is the same permanent
+// contracts.ErrIdempotencyConflict as in CreateRunIdempotent.
 func (s *PostgresStore) LookupRunIdempotency(
 	ctx context.Context,
 	ownerID string,
@@ -323,7 +324,7 @@ WHERE owner_id = $1 AND request_idempotency_key = $2`, ownerID, idempotencyKey,
 		return WorkflowRun{}, false, fmt.Errorf("lookup idempotent WorkflowRun: %w", err)
 	}
 	if storedDigest != requestDigest {
-		return WorkflowRun{}, false, fmt.Errorf("reuse public idempotency key: %w", ErrConflict)
+		return WorkflowRun{}, false, fmt.Errorf("reuse public idempotency key: %w", contracts.ErrIdempotencyConflict)
 	}
 	run, err := s.GetRun(ctx, runID)
 	if err != nil {
@@ -348,10 +349,6 @@ func (s *PostgresStore) GetRun(ctx context.Context, runID string) (WorkflowRun, 
 	return result, nil
 }
 
-// MaxRunPageRows bounds one ListRuns page, including the extra row a caller
-// reads to build a continuation cursor, and one ReadRunDeletionGates batch.
-const MaxRunPageRows = 201
-
 // ListRuns returns at most Limit Runs in deterministic newest-first order.
 // Callers request one extra row when they need to construct a continuation
 // cursor; the repository does not attach transport pagination semantics.
@@ -374,8 +371,8 @@ func (s *PostgresStore) ListRuns(ctx context.Context, params ListRunsParams) ([]
 		selectorKeys[index] = selector.Key
 		selectorValues[index] = selector.Value
 	}
-	if params.Limit < 1 || params.Limit > MaxRunPageRows {
-		return nil, invalidf("Run page limit must be between 1 and %d", MaxRunPageRows)
+	if !pagelimit.ValidFetch(params.Limit) {
+		return nil, invalidf("Run page limit must be between 1 and %d", pagelimit.MaxFetchRows)
 	}
 	if (params.BeforeCreatedAt == nil) != (params.BeforeRunID == "") {
 		return nil, invalidf("Run page keyset is incomplete")
@@ -390,7 +387,7 @@ func (s *PostgresStore) ListRuns(ctx context.Context, params ListRunsParams) ([]
 	}
 	var state *string
 	if params.State != nil {
-		if !validWorkflowRunState(*params.State) {
+		if !params.State.Valid() {
 			return nil, invalidf("unknown WorkflowRun state %q", *params.State)
 		}
 		value := string(*params.State)
@@ -670,13 +667,4 @@ func validateRunTransition(expected, next WorkflowRunState) error {
 		return invalidf("illegal WorkflowRun transition %s -> %s", expected, next)
 	}
 	return nil
-}
-
-func validWorkflowRunState(state WorkflowRunState) bool {
-	switch state {
-	case RunInitializing, RunPending, RunRunning, RunWaiting, RunCancelling, RunSucceeded, RunFailed, RunCancelled:
-		return true
-	default:
-		return false
-	}
 }

@@ -629,6 +629,85 @@ func (r *InMemoryRegistry) DiscardCandidateReservations(stageExecutionID string)
 	return nil
 }
 
+// DiscardUnpreparedReservations removes a committed Stage reservation that no
+// Runtime Agent was asked to prepare, as when Queue Pause defers admission of
+// a never admitted Stage. Like a discarded candidate the Runtime never
+// observed a prepared allocation, so its slot needs no reconciliation
+// heartbeat, and no released tombstone is kept: placement for the same
+// StageExecution can run again. The caller guarantees that no prepare request
+// was sent. A batch that is activated, fenced, lost or past preparing is not
+// discarded. Each allocation's write gate is held exclusively, as Release
+// does, so no earlier private write can commit afterward.
+func (r *InMemoryRegistry) DiscardUnpreparedReservations(stageExecutionID string) error {
+	r.mu.Lock()
+	existing, ok := r.stageReservations[stageExecutionID]
+	if !ok {
+		r.mu.Unlock()
+		return nil
+	}
+	if !existing.committed || existing.released {
+		r.mu.Unlock()
+		return ErrReservationConflict
+	}
+	allocationIDs := append([]string(nil), existing.allocationIDs...)
+	sort.Strings(allocationIDs)
+	gates := make([]*sync.RWMutex, 0, len(allocationIDs))
+	for _, allocationID := range allocationIDs {
+		stored, present := r.allocations[allocationID]
+		if !present || stored.writeGate == nil {
+			r.mu.Unlock()
+			return ErrReservationConflict
+		}
+		gates = append(gates, stored.writeGate)
+	}
+	r.mu.Unlock()
+
+	for _, gate := range gates {
+		gate.Lock()
+		defer gate.Unlock()
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	current, ok := r.stageReservations[stageExecutionID]
+	if !ok || !current.committed || current.released || len(current.allocationIDs) != len(allocationIDs) {
+		return ErrReservationConflict
+	}
+	for index, allocationID := range allocationIDs {
+		stored, present := r.allocations[allocationID]
+		if !present || stored.writeGate != gates[index] || stored.loss != nil ||
+			stored.reservation.Grant.WriteFenced || stored.reservation.Grant.Lost ||
+			stored.phase != AllocationPreparing {
+			return ErrReservationConflict
+		}
+		entry, present := r.agents[stored.reservation.Grant.RuntimeInstanceID]
+		if !present || entry.authoritativeAllocationID == nil ||
+			*entry.authoritativeAllocationID != allocationID || entry.allocationActivated {
+			return ErrReservationConflict
+		}
+	}
+	for _, allocationID := range allocationIDs {
+		stored := r.allocations[allocationID]
+		entry := r.agents[stored.reservation.Grant.RuntimeInstanceID]
+		entry.authoritativeAllocationID = nil
+		entry.allocationLost = false
+		entry.allocationActivated = false
+		delete(r.allocations, allocationID)
+		r.recordOperationsChangeLocked(OperationsAllocation, allocationID)
+		for _, candidate := range r.agents {
+			if candidate.blockedByInstanceID != nil && *candidate.blockedByInstanceID == entry.registration.InstanceID {
+				candidate.blockedByInstanceID = nil
+				candidate.reconciliationRequired = r.entryNeedsReconciliationLocked(candidate)
+				r.recordOperationsChangeLocked(OperationsRuntimeAgent, candidate.registration.InstanceID)
+			}
+		}
+		if !r.retireInactiveAgentLocked(entry.registration.InstanceID) {
+			r.recordOperationsChangeLocked(OperationsRuntimeAgent, entry.registration.InstanceID)
+		}
+	}
+	delete(r.stageReservations, stageExecutionID)
+	return nil
+}
+
 func validateCandidateEdges(bindings []BindingRequirement, edges []CandidateEdge) error {
 	if edges == nil || len(edges) > len(bindings)*maximumOperationsItems {
 		return fmt.Errorf("%w: candidate edge set is invalid", ErrInvalidRequest)

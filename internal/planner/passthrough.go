@@ -314,10 +314,6 @@ func stageRequest(invocation Invocation) (contracts.StageContentRequest, error) 
 	if err := request.Validate(); err != nil {
 		return contracts.StageContentRequest{}, fmt.Errorf("invalid StageContentRequest: %w", err)
 	}
-	encoded, err := json.Marshal(request)
-	if err != nil || len(encoded) > contracts.MaxStageRequestBytes {
-		return contracts.StageContentRequest{}, fmt.Errorf("StageContentRequest exceeds its bounded contract")
-	}
 	return request, nil
 }
 

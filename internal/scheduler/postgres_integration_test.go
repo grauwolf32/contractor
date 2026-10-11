@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"os"
@@ -32,15 +33,66 @@ import (
 )
 
 func TestPostgresSchedulerRunsPassthroughAndPublishesFrozenOutput(t *testing.T) {
-	testPostgresSchedulerPublication(t, false)
+	testPostgresSchedulerPublication(t, schedulerPublicationScenario{})
 }
 
 func TestPostgresSchedulerContinuesManuallyResumedFailedStage(t *testing.T) {
-	testPostgresSchedulerPublication(t, true)
+	testPostgresSchedulerPublication(t, schedulerPublicationScenario{resume: true})
 }
 
-func testPostgresSchedulerPublication(t *testing.T, resume bool) {
+// A deadlock or statement timeout while publishing a Project output aborts the
+// terminal transaction; finalization recovery replays it and publishes the
+// output instead of recording a permanent failed receipt.
+func TestPostgresSchedulerReplaysTerminalCommitAfterTransientPublicationFailure(t *testing.T) {
+	testPostgresSchedulerPublication(t, schedulerPublicationScenario{
+		publicationFaults: []string{
+			persistencepostgres.SQLStateDeadlockDetected, persistencepostgres.SQLStateQueryCanceled,
+		},
+	})
+}
+
+type schedulerPublicationScenario struct {
+	resume bool
+	// publicationFaults are SQLSTATEs raised, in order, by the first Project
+	// output publication attempts.
+	publicationFaults []string
+}
+
+// installPublicationFaults makes the Nth Project output publication attempt
+// raise faults[N-1]. A sequence counts attempts because it is not rolled back
+// with the aborted transaction.
+func installPublicationFaults(t *testing.T, ctx context.Context, pool *pgxpool.Pool, faults []string) {
 	t.Helper()
+	cases := make([]string, 0, len(faults))
+	for index, code := range faults {
+		cases = append(cases, fmt.Sprintf(
+			"WHEN %d THEN RAISE EXCEPTION 'injected publication fault' USING ERRCODE = '%s';", index+1, code,
+		))
+	}
+	if _, err := pool.Exec(ctx, `
+CREATE SEQUENCE test_project_output_publication_attempts;
+CREATE FUNCTION fault_test_project_output_publication()
+RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+    IF NEW.lineage_kind = 'project_output_publish' THEN
+        CASE nextval('test_project_output_publication_attempts')
+        `+strings.Join(cases, "\n        ")+`
+        ELSE NULL;
+        END CASE;
+    END IF;
+    RETURN NEW;
+END;
+$$;
+CREATE TRIGGER fault_test_project_output_publication
+BEFORE INSERT ON artifact_lineage
+FOR EACH ROW EXECUTE FUNCTION fault_test_project_output_publication()`); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func testPostgresSchedulerPublication(t *testing.T, scenario schedulerPublicationScenario) {
+	t.Helper()
+	resume := scenario.resume
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	pool := isolatedSchedulerPool(t, ctx)
@@ -98,7 +150,7 @@ func testPostgresSchedulerPublication(t *testing.T, resume bool) {
 	events := &eventRecorder{}
 	allocator := &memoryAllocator{
 		workflow: workflow, clock: clock, events: events,
-		grants: map[string]controlplane.AllocationGrant{},
+		grants: map[string]controlplane.AllocationGrant{}, pin: pinStageAllocations(store),
 	}
 	workers := &memoryWorkers{allocator: allocator, workflow: workflow, clock: clock, events: events}
 	resolver, _ := NewArtifactServiceResolver(artifactService)
@@ -155,6 +207,27 @@ func testPostgresSchedulerPublication(t *testing.T, resume bool) {
 		invoker.result = candidate
 		expectedAttempts = 2
 	}
+	if len(scenario.publicationFaults) > 0 {
+		installPublicationFaults(t, ctx, pool, scenario.publicationFaults)
+	}
+	for _, code := range scenario.publicationFaults {
+		worked, err := scheduler.RunOnce(ctx)
+		if !worked || persistencepostgres.SQLState(err) != code {
+			t.Fatalf("RunOnce with injected %s = (%v, %v)", code, worked, err)
+		}
+		run, err := store.GetRun(ctx, "run-1")
+		if err != nil || run.State != runstore.RunRunning || run.SchedulerClaim != nil {
+			t.Fatalf("Run after injected %s = (%+v, %v)", code, run, err)
+		}
+		executions, err := store.ListStageExecutions(ctx, "run-1")
+		if err != nil || len(executions) != expectedAttempts ||
+			executions[len(executions)-1].State != runstore.StageFinalizing {
+			t.Fatalf("StageExecutions after injected %s = (%+v, %v)", code, executions, err)
+		}
+		if receipts, err := store.ListRunOutputPublications(ctx, "run-1"); err != nil || len(receipts) != 0 {
+			t.Fatalf("publication receipts after injected %s = (%+v, %v)", code, receipts, err)
+		}
+	}
 	worked, err := scheduler.RunOnce(ctx)
 	if err != nil || !worked {
 		t.Fatalf("RunOnce = (%v, %v)", worked, err)
@@ -208,7 +281,11 @@ func testPostgresSchedulerPublication(t *testing.T, resume bool) {
 	); !errors.Is(err, artifacts.ErrArtifactFrozen) {
 		t.Fatalf("frozen output update error = %v", err)
 	}
-	if invoker.calls != expectedAttempts || workers.prepareCalls != expectedAttempts || workers.finalizeCalls != 1 || workers.releaseCalls != expectedAttempts {
+	// Each replay of the terminal commit reissues the same idempotent
+	// finalization; the Planner and preparation never run again.
+	expectedFinalizations := 1 + len(scenario.publicationFaults)
+	if invoker.calls != expectedAttempts || workers.prepareCalls != expectedAttempts ||
+		workers.finalizeCalls != expectedFinalizations || workers.releaseCalls != expectedAttempts {
 		t.Fatalf("semantic/lifecycle calls = invoker:%d workers:(%d,%d,%d)",
 			invoker.calls, workers.prepareCalls, workers.finalizeCalls, workers.releaseCalls)
 	}
@@ -435,6 +512,97 @@ FOR EACH ROW EXECUTE FUNCTION reject_test_project_output_publication()`); err !=
 	}
 }
 
+// Definite rejections are not transient: a deleting Project and a missing
+// exact source each record one failed receipt, the Run still succeeds and a
+// replay of the same publication keeps that single receipt.
+func TestPostgresProjectOutputPublicationRecordsPermanentFailureOnce(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedSchedulerPool(t, ctx)
+	service := artifacts.NewService(artifacts.NewPostgresRepository(pool))
+	store := runstore.NewPostgresStore(pool)
+	contractsByName := map[string]workflowconfig.ArtifactSlot{
+		"result": {Required: true, MediaTypes: []string{"text/plain"}},
+	}
+	projects := projectstore.NewPostgresStore(pool)
+	createProject := func(projectID, digest string) projectstore.Project {
+		t.Helper()
+		project, _, err := projects.Create(ctx, projectstore.CreateParams{
+			ProjectID: projectID, OwnerID: "user-1", Kind: projectstore.KindProject,
+			Name: projectID, IdempotencyKey: projectID, RequestDigest: "sha256:" + strings.Repeat(digest, 64),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return project
+	}
+	singleFailedReceipt := func(runID, code string) {
+		t.Helper()
+		var rows int
+		if err := pool.QueryRow(ctx,
+			`SELECT count(*) FROM workflow_run_output_publications WHERE run_id = $1`, runID,
+		).Scan(&rows); err != nil || rows != 1 {
+			t.Fatalf("Run %s publication receipt rows = (%d, %v)", runID, rows, err)
+		}
+		receipts, err := store.ListRunOutputPublications(ctx, runID)
+		if err != nil || len(receipts) != 1 || receipts[0].Status != runstore.OutputPublicationFailed ||
+			receipts[0].ErrorCode != code || receipts[0].ErrorMessage == "" || receipts[0].Target != nil {
+			t.Fatalf("Run %s failed receipt = (%+v, %v)", runID, receipts, err)
+		}
+	}
+
+	// The Project starts deleting after the Run reached its terminal commit.
+	deleting := createProject("project-publication-deleting", "1")
+	createBoundProjectRunOutput(
+		t, ctx, pool, service, "run-publication-deleting", deleting.ProjectID, "result", "deleting\n",
+	)
+	if _, _, err := projects.BeginDeletion(ctx, projectstore.BeginDeletionParams{
+		OwnerID: "user-1", ProjectID: deleting.ProjectID, ExpectedRevision: deleting.Revision,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	err := persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+		if err := lockRunState(ctx, tx, "run-publication-deleting", runstore.RunRunning); err != nil {
+			return err
+		}
+		return commitTerminalRun(
+			ctx, tx, runstore.NewPostgresStore(tx), "run-publication-deleting", contractsByName,
+			StageProgression{
+				TerminalRunState: runstore.RunSucceeded,
+				RunReason:        runstore.Reason{Code: "workflow_succeeded"},
+			},
+		)
+	})
+	if err != nil {
+		t.Fatalf("terminal success with deleting Project: %v", err)
+	}
+	if run, err := store.GetRun(ctx, "run-publication-deleting"); err != nil || run.State != runstore.RunSucceeded {
+		t.Fatalf("Run with deleting Project = (%+v, %v)", run, err)
+	}
+	singleFailedReceipt("run-publication-deleting", "project_unavailable")
+
+	// The exact source is no frozen Run output, so publication cannot select
+	// it; replaying the same publication keeps the one recorded failure.
+	createProject("project-publication-missing", "2")
+	source := createBoundProjectRunOutput(
+		t, ctx, pool, service, "run-publication-missing", "project-publication-missing", "result", "missing\n",
+	)
+	for attempt := 0; attempt < 2; attempt++ {
+		if err := persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+			return publishOneProjectOutput(
+				ctx, tx, "run-publication-missing", "project-publication-missing", "result", source,
+			)
+		}); err != nil {
+			t.Fatalf("publication attempt %d with missing source: %v", attempt+1, err)
+		}
+		singleFailedReceipt("run-publication-missing", "source_unavailable")
+	}
+	project, _ := service.Project("project-publication-missing")
+	if _, err := project.Metadata(ctx, contracts.ArtifactRef{Namespace: "outputs", Name: "result"}); !errors.Is(err, artifacts.ErrArtifactNotFound) {
+		t.Fatalf("missing-source publication created Project output: %v", err)
+	}
+}
+
 func TestPostgresAcceptanceRollsBackStageAndOutputWhenRunCASLoses(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
@@ -461,7 +629,8 @@ func TestPostgresAcceptanceRollsBackStageAndOutputWhenRunCASLoses(t *testing.T) 
 	}
 	runStore, _ := fixture.artifacts.Run("run-1")
 	outputs := "outputs"
-	listed, err := runStore.List(ctx, &outputs)
+	outputPage, err := runStore.ListRefs(ctx, artifacts.RefPageQuery{Namespace: &outputs, Limit: 10})
+	listed := outputPage.Refs
 	if err != nil || len(listed) != 0 {
 		t.Fatalf("rolled back outputs = (%+v, %v)", listed, err)
 	}
@@ -476,7 +645,8 @@ func TestPostgresAcceptanceRollsBackStageAndOutputWhenRunCASLoses(t *testing.T) 
 	}
 	execution, err = fixture.store.GetStageExecution(ctx, fixture.executionID)
 	run, runErr := fixture.store.GetRun(ctx, "run-1")
-	listed, listErr := runStore.List(ctx, &outputs)
+	outputPage, listErr := runStore.ListRefs(ctx, artifacts.RefPageQuery{Namespace: &outputs, Limit: 10})
+	listed = outputPage.Refs
 	if err != nil || runErr != nil || listErr != nil || execution.State != runstore.StageSucceeded ||
 		execution.AcceptedResult == nil || run.State != runstore.RunCancelled || len(listed) != 0 {
 		t.Fatalf("audit-only acceptance = stage:(%+v,%v) run:(%+v,%v) outputs:(%v,%v)",
@@ -598,10 +768,11 @@ func TestPostgresCancelAndSuccessRaceSerializesOnRunRow(t *testing.T) {
 	}
 	runArtifacts, _ := fixture.artifacts.Run("run-1")
 	outputs := "outputs"
-	listed, err := runArtifacts.List(ctx, &outputs)
+	outputPage, err := runArtifacts.ListRefs(ctx, artifacts.RefPageQuery{Namespace: &outputs, Limit: 10})
 	if err != nil {
 		t.Fatal(err)
 	}
+	listed := outputPage.Refs
 	switch run.State {
 	case runstore.RunSucceeded:
 		if acceptErr != nil || cancelResult.run.State != runstore.RunSucceeded || len(listed) != 1 {
@@ -946,6 +1117,24 @@ func createFinalizingFixtureWith(
 	t *testing.T, ctx context.Context, pool *pgxpool.Pool, beforeResult func(),
 ) finalizingFixture {
 	t.Helper()
+	fixture := createRunningStageFixture(t, ctx, pool)
+	if beforeResult != nil {
+		beforeResult()
+	}
+	if err := fixture.persistence.EnterFinalizingWithResult(ctx, runstore.EnterFinalizingParams{
+		StageExecutionID: fixture.executionID, ResultSchemaVersion: contracts.APIVersion,
+		Candidate: fixture.result, FinalizationID: "finalization-1", Deadline: time.Now().Add(time.Minute),
+		Reason: runstore.Reason{Code: "planner_completed"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	return fixture
+}
+
+// createRunningStageFixture creates run-1 with one running Stage whose Planner
+// started; result is the candidate its Planner would return.
+func createRunningStageFixture(t *testing.T, ctx context.Context, pool *pgxpool.Pool) finalizingFixture {
+	t.Helper()
 	workflow := loadSchedulerWorkflow(t)
 	store := runstore.NewPostgresStore(pool)
 	artifactService := artifacts.NewService(artifacts.NewPostgresRepository(pool))
@@ -1000,19 +1189,9 @@ func createFinalizingFixtureWith(
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if beforeResult != nil {
-		beforeResult()
-	}
 	result := contracts.StageContentResult{
 		APIVersion: contracts.APIVersion, Outcome: contracts.StageSucceeded, Summary: "copied",
 		Artifacts: map[string]contracts.ArtifactRef{"copied": written.Ref},
-	}
-	if err := persistence.EnterFinalizingWithResult(ctx, runstore.EnterFinalizingParams{
-		StageExecutionID: executionID, ResultSchemaVersion: contracts.APIVersion,
-		Candidate: result, FinalizationID: "finalization-1", Deadline: time.Now().Add(time.Minute),
-		Reason: runstore.Reason{Code: "planner_completed"},
-	}); err != nil {
-		t.Fatal(err)
 	}
 	return finalizingFixture{
 		store: store, artifacts: artifactService, persistence: persistence,
@@ -1136,15 +1315,23 @@ func loadSchedulerWorkflow(t *testing.T) workflowconfig.ResolvedWorkflow {
 type postgresTestWorkerInvoker struct {
 	result contracts.StageContentResult
 	calls  int
+	// before, when set, acts as the Worker before it answers; its error fails
+	// the Worker invocation.
+	before func(context.Context, contracts.WorkerHandle) error
 }
 
 func (i *postgresTestWorkerInvoker) Invoke(
-	_ context.Context,
+	ctx context.Context,
 	_ string,
-	_ contracts.WorkerHandle,
+	handle contracts.WorkerHandle,
 	request contracts.StageContentRequest,
 ) (contracts.WorkerCompletion, error) {
 	i.calls++
+	if i.before != nil {
+		if err := i.before(ctx, handle); err != nil {
+			return contracts.WorkerCompletion{}, err
+		}
+	}
 	result := i.result.Clone()
 	return contracts.WorkerCompletion{
 		APIVersion: contracts.APIVersion,

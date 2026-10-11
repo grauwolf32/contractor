@@ -1,14 +1,14 @@
 # Formatting, linting, code generation and the checks that hold the
 # public API and the architecture model to the specifications.
 
-.PHONY: fmt lint generate-public-client verify-architecture docs-erd verify-public-api \
+.PHONY: fmt lint generate-public-client generate-public-client-check verify-architecture docs-erd verify-public-api \
 	verify-public-api-postgres run-local tasks-backlog
 
 fmt:
 	gofmt -w cmd internal tests
 	cd runtime && uv run ruff format .
 
-lint:
+lint: generate-public-client-check
 	test -z "$$(gofmt -l cmd internal tests)"
 	go vet ./...
 	go run honnef.co/go/tools/cmd/staticcheck@v0.8.1 -checks U1000 -tests -tags=e2e,integration ./...
@@ -24,8 +24,26 @@ lint:
 tasks-backlog:
 	cd runtime && uv run python ../scripts/check_tasks.py --write-backlog
 
+# The Go public client used by the CLI is generated from the committed OpenAPI
+# document. oapi-codegen is pinned in its own tool modfile, so it builds offline
+# from the module cache with the dependency versions it was released with and
+# without changing the Server's go.mod.
+public_client = go tool -modfile=tools/oapi-codegen.mod oapi-codegen \
+	-config internal/publicclient/generated/oapi-codegen.yaml -o $(1) \
+	api/openapi/contractor-public-v1.yaml
+
 generate-public-client:
-	go generate ./internal/publicclient/generated
+	$(call public_client,internal/publicclient/generated/public.gen.go)
+
+# Regenerates the client into a temporary file and fails when it differs from
+# the committed one, like ui-generate-check for the UI client.
+generate-public-client-check:
+	@tmp=$$(mktemp -d) && trap 'rm -rf "$$tmp"' EXIT && \
+	$(call public_client,"$$tmp/public.gen.go") && \
+	if ! cmp -s "$$tmp/public.gen.go" internal/publicclient/generated/public.gen.go; then \
+		echo 'internal/publicclient/generated/public.gen.go is stale; run make generate-public-client' >&2; \
+		exit 1; \
+	fi
 
 verify-architecture:
 	npx --yes likec4@1.56.0 validate docs/spec

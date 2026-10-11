@@ -10,10 +10,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/clone"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
+	"github.com/grauwolf32/contractor/internal/pagelimit"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/rundeletion"
@@ -22,6 +24,17 @@ import (
 	"github.com/grauwolf32/contractor/internal/settingsstore"
 	"github.com/grauwolf32/contractor/internal/telemetry"
 )
+
+// fakePageFetch applies the bound every real store behind a public list
+// applies to one page read, with that store's invalid sentinel, so a handler
+// that reads more than pagelimit.MaxFetchRows fails against fakes as it does
+// against PostgreSQL.
+func fakePageFetch(limit int, invalid error) error {
+	if !pagelimit.ValidFetch(limit) {
+		return fmt.Errorf("%w: fake page read of %d rows exceeds %d", invalid, limit, pagelimit.MaxFetchRows)
+	}
+	return nil
+}
 
 type fakeAllocationResourceReader struct {
 	items   []telemetry.AllocationResourceSummary
@@ -90,7 +103,7 @@ func (f *fakeProjectStore) Create(
 	claimKey := params.OwnerID + "\x00" + params.IdempotencyKey
 	if claim, exists := f.claims[claimKey]; exists {
 		if claim.digest != params.RequestDigest {
-			return projectstore.Project{}, false, projectstore.ErrConflict
+			return projectstore.Project{}, false, contracts.ErrIdempotencyConflict
 		}
 		return f.projects[claim.projectID], false, nil
 	}
@@ -129,6 +142,9 @@ func (f *fakeProjectStore) Get(
 func (f *fakeProjectStore) List(
 	_ context.Context, params projectstore.ListParams,
 ) ([]projectstore.Project, error) {
+	if err := fakePageFetch(params.Limit, projectstore.ErrInvalid); err != nil {
+		return nil, err
+	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	projects := make([]projectstore.Project, 0)
@@ -444,16 +460,21 @@ func (f *fakeArtifactRepository) Read(
 	return result, nil
 }
 
-func (f *fakeArtifactRepository) List(
-	_ context.Context, scope artifacts.Scope, namespace *string,
-) ([]artifacts.ArtifactRef, error) {
+// ListRefs pages like PostgresRepository.ListRefs, ordered by namespace and
+// name with the limit applied after the keyset position.
+func (f *fakeArtifactRepository) ListRefs(
+	_ context.Context, scope artifacts.Scope, query artifacts.RefPageQuery,
+) (artifacts.RefPage, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	result := make([]artifacts.ArtifactRef, 0)
 	for key := range f.current {
-		if key.kind == scope.Kind() && key.id == scope.ID() && (namespace == nil || key.namespace == *namespace) {
-			result = append(result, artifacts.ArtifactRef{Namespace: key.namespace, Name: key.name})
+		if key.kind != scope.Kind() || key.id != scope.ID() || query.Namespace != nil && key.namespace != *query.Namespace ||
+			query.ModelVisible && artifactpolicy.IsModelHiddenBinding(key.namespace, key.name) ||
+			key.namespace < query.AfterNamespace || key.namespace == query.AfterNamespace && key.name <= query.AfterName {
+			continue
 		}
+		result = append(result, artifacts.ArtifactRef{Namespace: key.namespace, Name: key.name})
 	}
 	sort.Slice(result, func(i, j int) bool {
 		if result[i].Namespace == result[j].Namespace {
@@ -461,7 +482,10 @@ func (f *fakeArtifactRepository) List(
 		}
 		return result[i].Namespace < result[j].Namespace
 	})
-	return result, nil
+	if len(result) > query.Limit {
+		return artifacts.RefPage{Refs: result[:query.Limit], More: true}, nil
+	}
+	return artifacts.RefPage{Refs: result}, nil
 }
 
 func (f *fakeArtifactRepository) ForkInput(
@@ -564,6 +588,9 @@ func (f *fakeArtifactRepository) Metadata(
 func (f *fakeArtifactRepository) ListMetadata(
 	_ context.Context, scope artifacts.Scope, query artifacts.BindingPageQuery,
 ) ([]artifacts.Metadata, error) {
+	if err := fakePageFetch(query.Limit, artifacts.ErrInvalidName); err != nil {
+		return nil, err
+	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.queryReads++
@@ -596,6 +623,9 @@ func (f *fakeArtifactRepository) ListVersions(
 	_ context.Context, scope artifacts.Scope, ref artifacts.ArtifactRef,
 	query artifacts.VersionPageQuery,
 ) ([]artifacts.Metadata, error) {
+	if err := fakePageFetch(query.Limit, artifacts.ErrInvalidName); err != nil {
+		return nil, err
+	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.queryReads++
@@ -631,6 +661,9 @@ func (f *fakeArtifactRepository) ListLineage(
 	_ context.Context, scope artifacts.Scope, ref artifacts.ArtifactRef,
 	query artifacts.LineagePageQuery,
 ) ([]artifacts.LineageEdge, error) {
+	if err := fakePageFetch(query.Limit, artifacts.ErrInvalidName); err != nil {
+		return nil, err
+	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.queryReads++
@@ -880,6 +913,9 @@ func (f *fakeRunStore) ListRunOutputPublications(
 func (f *fakeRunStore) ListRuns(
 	_ context.Context, params runstore.ListRunsParams,
 ) ([]runstore.WorkflowRunSummary, error) {
+	if err := fakePageFetch(params.Limit, runstore.ErrInvalid); err != nil {
+		return nil, err
+	}
 	selectors, err := runstore.NormalizeRunMetadataLabelSelectors(params.MetadataLabelSelectors)
 	if err != nil {
 		return nil, err
@@ -929,6 +965,9 @@ func (f *fakeRunStore) ListRuns(
 func (f *fakeRunStore) DeletableRuns(
 	_ context.Context, ownerID string, runIDs []string,
 ) (map[string]bool, error) {
+	if len(runIDs) > pagelimit.MaxRows {
+		return nil, fmt.Errorf("%w: fake inspects at most one page of Runs", runstore.ErrInvalid)
+	}
 	result := make(map[string]bool, len(runIDs))
 	for _, runID := range runIDs {
 		run, ok := f.runs[runID]
@@ -1014,6 +1053,9 @@ func (f *fakeRunStore) DeleteReleasedTerminalRun(
 func (f *fakeRunStore) ListRunQueue(
 	ctx context.Context, params runstore.ListRunQueueParams,
 ) ([]runstore.WorkflowRunQueueItem, error) {
+	if err := fakePageFetch(params.Limit, runstore.ErrInvalid); err != nil {
+		return nil, err
+	}
 	result := make([]runstore.WorkflowRunQueueItem, 0)
 	for _, run := range f.runs {
 		if run.OwnerID != params.OwnerID ||
@@ -1106,7 +1148,7 @@ func (f *fakeRunStore) CreateRunIdempotent(
 	key := params.OwnerID + "\x00" + params.IdempotencyKey
 	if existing, ok := f.idempotencyClaims[key]; ok {
 		if existing.digest != params.RequestDigest {
-			return runstore.WorkflowRun{}, false, runstore.ErrConflict
+			return runstore.WorkflowRun{}, false, contracts.ErrIdempotencyConflict
 		}
 		run, err := f.GetRun(ctx, existing.runID)
 		return run, false, err
@@ -1145,7 +1187,7 @@ func (f *fakeRunStore) LookupRunIdempotency(
 		return runstore.WorkflowRun{}, false, nil
 	}
 	if existing.digest != requestDigest {
-		return runstore.WorkflowRun{}, false, runstore.ErrConflict
+		return runstore.WorkflowRun{}, false, contracts.ErrIdempotencyConflict
 	}
 	run, err := f.GetRun(ctx, existing.runID)
 	return run, err == nil, err

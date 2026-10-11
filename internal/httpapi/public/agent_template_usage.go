@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/pagelimit"
 )
 
 const agentTemplateWorkflowBindingsCursorKind = "agent-template-workflow-bindings"
@@ -61,7 +62,7 @@ func (h *handler) listAgentTemplateWorkflowBindings(w http.ResponseWriter, r *ht
 	if len(cursor) != 0 {
 		afterBinding = &after
 	}
-	pageItems := index.Page(afterBinding, limit+1)
+	pageItems := index.Page(afterBinding, pagelimit.FetchRows(limit))
 	pageItems, page, err := paginate(h, pageItems, limit, cursorKind, func(last config.AgentTemplateWorkflowBinding) []string {
 		return []string{
 			last.Workflow.Name + "@" + last.Workflow.Version,

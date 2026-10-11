@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/grauwolf32/contractor/internal/artifactpolicy"
+	"github.com/grauwolf32/contractor/internal/pagelimit"
 )
 
 // Service owns validation and creates scope-bound views over one Repository.
@@ -226,18 +227,6 @@ func (s ScopedStore) Read(ctx context.Context, ref ArtifactRef) (ReadResult, err
 	return s.service.repository.Read(ctx, s.scope, ref)
 }
 
-func (s ScopedStore) List(ctx context.Context, namespace *string) ([]ArtifactRef, error) {
-	if err := validateScope(s.scope); err != nil {
-		return nil, err
-	}
-	if namespace != nil {
-		if err := validateComponent(*namespace); err != nil {
-			return nil, err
-		}
-	}
-	return s.service.repository.List(ctx, s.scope, namespace)
-}
-
 func (s ScopedStore) Metadata(ctx context.Context, ref ArtifactRef) (Metadata, error) {
 	if err := validateScope(s.scope); err != nil {
 		return Metadata{}, err
@@ -318,7 +307,7 @@ func (s ScopedStore) ListLineage(
 }
 
 func validateBindingPageQuery(query BindingPageQuery) error {
-	if query.Limit < 1 || query.Limit > 201 {
+	if !pagelimit.ValidFetch(query.Limit) {
 		return ErrInvalidName
 	}
 	if query.Namespace != nil {
@@ -351,7 +340,7 @@ func validateBindingPageQuery(query BindingPageQuery) error {
 }
 
 func validateVersionPageQuery(query VersionPageQuery) error {
-	if query.Limit < 1 || query.Limit > 201 {
+	if !pagelimit.ValidFetch(query.Limit) {
 		return ErrInvalidName
 	}
 	if (query.BeforeCreatedAt == nil) != (query.BeforeRevision == "") {
@@ -367,7 +356,7 @@ func validateVersionPageQuery(query VersionPageQuery) error {
 }
 
 func validateLineagePageQuery(query LineagePageQuery) error {
-	if query.Limit < 1 || query.Limit > 201 {
+	if !pagelimit.ValidFetch(query.Limit) {
 		return ErrInvalidName
 	}
 	present := query.BeforeCreatedAt != nil

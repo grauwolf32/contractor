@@ -76,3 +76,49 @@ func TestGatewayRecoveryUsesPackageJSONContract(t *testing.T) {
 		})
 	}
 }
+
+// A write-fenced allocation belongs to an ending Stage. It may still deliver
+// the terminal update that relinquishes its probe, but it can neither start a
+// model call nor report a failure that would make its Run wait.
+func TestGatewayRecoveryFencedAllocationDeliversOnlyTerminalUpdates(t *testing.T) {
+	for _, test := range []struct {
+		action string
+		status int
+	}{
+		{"succeeded", http.StatusOK},
+		{"finished", http.StatusOK},
+		{"released", http.StatusOK},
+		{"acquire", http.StatusConflict},
+		{"failed", http.StatusConflict},
+	} {
+		t.Run(test.action, func(t *testing.T) {
+			grant := testGrant("run-a")
+			grant.WriteFenced = true
+			recovery := &recordingRecovery{}
+			current := &handler{
+				dependencies: Dependencies{
+					Registry:  &fakeRegistry{grant: grant},
+					Artifacts: artifacts.NewService(newMemoryRepository()),
+				},
+				recovery: recovery,
+			}
+			mux := http.NewServeMux()
+			mux.HandleFunc("POST /private/v1/allocations/{allocationID}/gateway-recovery", current.gatewayRecovery)
+			body := `{"model":"model","requestId":"request-1","action":"` + test.action + `"`
+			if test.action == "failed" {
+				body += `,"code":"model_unavailable"`
+			}
+			request := trustedRequest(
+				http.MethodPost, "/private/v1/allocations/allocation-1/gateway-recovery",
+				bytes.NewReader([]byte(body+`}`)),
+			)
+			request.Header.Set("Content-Type", "application/json")
+			response := httptest.NewRecorder()
+			current.requireMTLS(mux).ServeHTTP(response, request)
+			delivered := len(recovery.requests)
+			if response.Code != test.status || (test.status == http.StatusOK) != (delivered == 1) {
+				t.Fatalf("fenced %s = %d body=%s, delivered %d", test.action, response.Code, response.Body.String(), delivered)
+			}
+		})
+	}
+}

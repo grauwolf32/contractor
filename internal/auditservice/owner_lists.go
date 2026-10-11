@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/pagelimit"
 )
 
 const visibleAuditProjectSQL = `
@@ -18,7 +19,7 @@ const visibleAuditProjectSQL = `
          AND submission.execution_project_id = project.project_id))`
 
 func validateOwnerPage(ownerID string, limit int, before *time.Time, id string, states []auditstore.AuditState) error {
-	if !validReviewIdentity(ownerID, 256) || limit < 1 || limit > maxFindingListRows ||
+	if !validReviewIdentity(ownerID, 256) || !pagelimit.ValidFetch(limit) ||
 		(before == nil) != (id == "") ||
 		(before != nil && (before.IsZero() || !validReviewIdentity(id, 256))) || len(states) > 10 {
 		return auditstore.ErrInvalid

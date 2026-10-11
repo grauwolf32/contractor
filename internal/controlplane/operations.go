@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
-	"regexp"
 	"sort"
 	"strconv"
 	"sync"
@@ -18,16 +17,8 @@ import (
 )
 
 const (
-	maximumOperationsItems        = 10_000
-	maximumRuntimeCapabilityRefs  = 128
-	maximumRuntimeToolsetRefs     = 128
-	maximumRuntimeToolsPerToolset = 256
-	operationsHistoryLimit        = 255
-)
-
-var (
-	operationsResourceIDPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$`)
-	operationsConfigIDPattern   = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$`)
+	maximumOperationsItems = 10_000
+	operationsHistoryLimit = 255
 )
 
 type SlotState string
@@ -182,7 +173,7 @@ type OperationsSnapshot struct {
 }
 
 func (s OperationsSnapshot) Validate() error {
-	if !operationsResourceIDPattern.MatchString(s.Cursor.Generation) ||
+	if !contracts.ValidResourceID(s.Cursor.Generation) ||
 		len(s.RuntimeAgents) > maximumOperationsItems || len(s.Allocations) > maximumOperationsItems {
 		return fmt.Errorf("invalid Operations cursor or collection bound")
 	}
@@ -210,7 +201,7 @@ func (s OperationsSnapshot) Validate() error {
 }
 
 func (o RuntimeAgentObservation) Validate() error {
-	if !operationsResourceIDPattern.MatchString(o.InstanceID) ||
+	if !contracts.ValidResourceID(o.InstanceID) ||
 		len(o.SoftwareVersion) > 128 || !contracts.ValidVersion(o.SoftwareVersion) || o.LastAcceptedHeartbeat != nil &&
 		o.LastAcceptedHeartbeat.IsZero() || o.ConfirmedLeaseUntil != nil && o.ConfirmedLeaseUntil.IsZero() {
 		return fmt.Errorf("invalid Runtime Agent observation identity or time")
@@ -229,7 +220,7 @@ func (o RuntimeAgentObservation) Validate() error {
 		return fmt.Errorf("invalid Runtime Agent slot state")
 	}
 	for _, value := range []*string{o.CurrentAllocationID, o.AuthoritativeAllocationID} {
-		if value != nil && !operationsResourceIDPattern.MatchString(*value) {
+		if value != nil && !contracts.ValidResourceID(*value) {
 			return fmt.Errorf("invalid Runtime Agent allocation identity")
 		}
 	}
@@ -239,13 +230,16 @@ func (o RuntimeAgentObservation) Validate() error {
 	return nil
 }
 
+// validateRuntimeCapabilities applies the registration capability rules of
+// contracts/control, so every accepted registration can be shown. Its errors
+// never echo a value.
 func validateRuntimeCapabilities(observation RuntimeAgentObservation) error {
 	if len(observation.SupportedRuntimes) == 0 ||
-		len(observation.SupportedRuntimes) > maximumRuntimeCapabilityRefs ||
+		len(observation.SupportedRuntimes) > control.MaxRuntimeCapabilityRefs ||
 		len(observation.SupportedSandboxProfiles) == 0 ||
-		len(observation.SupportedSandboxProfiles) > maximumRuntimeCapabilityRefs ||
-		len(observation.SupportedToolsets) > maximumRuntimeToolsetRefs ||
-		len(observation.SupportedRuntimeAdapters) > maximumRuntimeCapabilityRefs {
+		len(observation.SupportedSandboxProfiles) > control.MaxRuntimeCapabilityRefs ||
+		len(observation.SupportedToolsets) > control.MaxRuntimeCapabilityRefs ||
+		len(observation.SupportedRuntimeAdapters) > control.MaxRuntimeCapabilityRefs {
 		return fmt.Errorf("invalid Runtime Agent capability collection bound")
 	}
 	if !validUniqueCapabilityRefs(observation.SupportedRuntimes) ||
@@ -258,26 +252,13 @@ func validateRuntimeCapabilities(observation RuntimeAgentObservation) error {
 	}
 	seenToolsets := make(map[string]struct{}, len(observation.SupportedToolsets))
 	for _, capability := range observation.SupportedToolsets {
-		if !validRuntimeCapabilityRef(capability.Ref) {
-			return fmt.Errorf("invalid Runtime Agent Toolset capability ref")
+		if control.ValidateToolsetCapability(capability.Ref, capability.Tools) != nil {
+			return fmt.Errorf("invalid Runtime Agent Toolset capability")
 		}
 		if _, duplicate := seenToolsets[capability.Ref]; duplicate {
 			return fmt.Errorf("duplicate Runtime Agent Toolset capability ref")
 		}
 		seenToolsets[capability.Ref] = struct{}{}
-		if len(capability.Tools) == 0 || len(capability.Tools) > maximumRuntimeToolsPerToolset {
-			return fmt.Errorf("invalid Runtime Agent Toolset tool collection bound")
-		}
-		seenTools := make(map[string]struct{}, len(capability.Tools))
-		for _, tool := range capability.Tools {
-			if !operationsConfigIDPattern.MatchString(tool) {
-				return fmt.Errorf("invalid Runtime Agent tool capability name")
-			}
-			if _, duplicate := seenTools[tool]; duplicate {
-				return fmt.Errorf("duplicate Runtime Agent tool capability name")
-			}
-			seenTools[tool] = struct{}{}
-		}
 	}
 	return nil
 }
@@ -285,7 +266,7 @@ func validateRuntimeCapabilities(observation RuntimeAgentObservation) error {
 func validUniqueCapabilityRefs(values []string) bool {
 	seen := make(map[string]struct{}, len(values))
 	for _, value := range values {
-		if !validRuntimeCapabilityRef(value) {
+		if !control.ValidRuntimeCapabilityRef(value) {
 			return false
 		}
 		if _, duplicate := seen[value]; duplicate {
@@ -296,19 +277,15 @@ func validUniqueCapabilityRefs(values []string) bool {
 	return true
 }
 
-func validRuntimeCapabilityRef(value string) bool {
-	return len(value) <= 256 && contracts.ValidSelector(value)
-}
-
 func (o AllocationObservation) Validate() error {
 	for _, value := range []string{
 		o.AllocationID, o.RunID, o.StageExecutionID, o.RuntimeAgentInstanceID,
 	} {
-		if !operationsResourceIDPattern.MatchString(value) {
+		if !contracts.ValidResourceID(value) {
 			return fmt.Errorf("invalid allocation observation identity")
 		}
 	}
-	if !operationsConfigIDPattern.MatchString(o.LogicalWorker) ||
+	if !contracts.ValidName(o.LogicalWorker) ||
 		o.AgentTemplate.ValidateRef() != nil || o.ExecutionConfig.Validate() != nil ||
 		!validAllocationPhase(o.AuthoritativePhase) || !validObservedPhase(o.ObservedPhase) ||
 		o.Reason != nil && !validSafeReason(*o.Reason) || !validMetricsSummary(o.Metrics) ||
@@ -420,7 +397,7 @@ func (r *InMemoryRegistry) InvalidateOperations(
 	resourceID string,
 ) error {
 	if !validOperationsResource(resource) ||
-		resourceID != "" && !operationsResourceIDPattern.MatchString(resourceID) ||
+		resourceID != "" && !contracts.ValidResourceID(resourceID) ||
 		resource == OperationsSchedulerSettings && resourceID != "" {
 		return ErrInvalidRequest
 	}

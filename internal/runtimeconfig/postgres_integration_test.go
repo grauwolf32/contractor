@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
@@ -110,7 +111,8 @@ func TestPostgresRuntimeConfigBootstrapPublicationReplayAndBindingCAS(t *testing
 		t.Fatalf("replay after catalog change = (%+v, calls=%d, %v)", replayed, resolverCalls.Load(), err)
 	}
 	changed := bytesReplace(document, `"worker-local"`, `"other-worker"`)
-	if _, err := publisher.Publish(ctx, changed, "publish-debug-1", "operator"); !errors.Is(err, ErrConflict) || resolverCalls.Load() != 1 {
+	if _, err := publisher.Publish(ctx, changed, "publish-debug-1", "operator"); !errors.Is(err, contracts.ErrIdempotencyConflict) ||
+		errors.Is(err, ErrConflict) || resolverCalls.Load() != 1 {
 		t.Fatalf("changed idempotency replay = (calls=%d, %v)", resolverCalls.Load(), err)
 	}
 
@@ -276,7 +278,7 @@ func TestPostgresRuntimeManagementBindingMutationIsCASAndReplaySafe(t *testing.T
 	}
 	if _, err := management.CreateBinding(
 		ctx, "managed", refs[1], "binding-create", "operator", now,
-	); !errors.Is(err, ErrConflict) {
+	); !errors.Is(err, contracts.ErrIdempotencyConflict) || errors.Is(err, ErrConflict) {
 		t.Fatalf("changed create replay error = %v", err)
 	}
 	if _, err := management.Rebind(

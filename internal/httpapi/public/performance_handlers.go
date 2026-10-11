@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/pagelimit"
 	"github.com/grauwolf32/contractor/internal/performance"
 	"github.com/grauwolf32/contractor/internal/telemetry"
 )
@@ -42,7 +43,7 @@ func (h *handler) listAllocationResourceHistory(w http.ResponseWriter, r *http.R
 		return
 	}
 	params := telemetry.AllocationResourceHistoryParams{
-		OwnerID: principalUserID(r.Context()), RunID: runID, Limit: limit + 1,
+		OwnerID: principalUserID(r.Context()), RunID: runID, Limit: pagelimit.FetchRows(limit),
 	}
 	var upperAt time.Time
 	var upperAllocationID string

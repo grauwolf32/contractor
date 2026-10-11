@@ -6074,7 +6074,7 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
-        /** @description Immutable identity, idempotency body, or CAS state conflicts */
+        /** @description An immutable identity or CAS state conflict (`conflict` or a resource-specific code, retryable as marked), or an Idempotency-Key already bound to a different request (`idempotency_conflict`, retryable false) */
         Error409: {
             headers: {
                 "X-Request-ID": components["headers"]["RequestId"];
@@ -6153,6 +6153,7 @@ export interface components {
         AuditId: components["schemas"]["ResourceId"];
         FindingId: components["schemas"]["ResourceId"];
         ReviewRequestId: components["schemas"]["ResourceId"];
+        /** @description Binds this exact request. Repeating it with the same key replays the original result; sending a different request with the key is the permanent 409 `idempotency_conflict` (retryable false), and only a new key can carry the changed request. */
         IdempotencyKey: string;
         /** @description Accepted for uniform mutation headers; the operation is idempotent by resource identity and does not bind the key. */
         OptionalIdempotencyKey: string;
@@ -6317,6 +6318,7 @@ export interface operations {
         parameters: {
             query?: never;
             header: {
+                /** @description Binds this exact request. Repeating it with the same key replays the original result; sending a different request with the key is the permanent 409 `idempotency_conflict` (retryable false), and only a new key can carry the changed request. */
                 "Idempotency-Key": components["parameters"]["IdempotencyKey"];
             };
             path: {
@@ -6451,6 +6453,7 @@ export interface operations {
         parameters: {
             query?: never;
             header: {
+                /** @description Binds this exact request. Repeating it with the same key replays the original result; sending a different request with the key is the permanent 409 `idempotency_conflict` (retryable false), and only a new key can carry the changed request. */
                 "Idempotency-Key": components["parameters"]["IdempotencyKey"];
             };
             path: {
@@ -6647,6 +6650,7 @@ export interface operations {
         parameters: {
             query?: never;
             header: {
+                /** @description Binds this exact request. Repeating it with the same key replays the original result; sending a different request with the key is the permanent 409 `idempotency_conflict` (retryable false), and only a new key can carry the changed request. */
                 "Idempotency-Key": components["parameters"]["IdempotencyKey"];
                 "If-Match": components["parameters"]["RequiredIfMatch"];
             };
@@ -6716,6 +6720,7 @@ export interface operations {
         parameters: {
             query?: never;
             header: {
+                /** @description Binds this exact request. Repeating it with the same key replays the original result; sending a different request with the key is the permanent 409 `idempotency_conflict` (retryable false), and only a new key can carry the changed request. */
                 "Idempotency-Key": components["parameters"]["IdempotencyKey"];
                 "If-Match": components["parameters"]["RequiredIfMatch"];
             };
@@ -6785,6 +6790,7 @@ export interface operations {
         parameters: {
             query?: never;
             header: {
+                /** @description Binds this exact request. Repeating it with the same key replays the original result; sending a different request with the key is the permanent 409 `idempotency_conflict` (retryable false), and only a new key can carry the changed request. */
                 "Idempotency-Key": components["parameters"]["IdempotencyKey"];
                 "If-Match": components["parameters"]["RequiredIfMatch"];
             };
@@ -7000,6 +7006,7 @@ export interface operations {
         parameters: {
             query?: never;
             header: {
+                /** @description Binds this exact request. Repeating it with the same key replays the original result; sending a different request with the key is the permanent 409 `idempotency_conflict` (retryable false), and only a new key can carry the changed request. */
                 "Idempotency-Key": components["parameters"]["IdempotencyKey"];
             };
             path: {
@@ -7068,6 +7075,7 @@ export interface operations {
         parameters: {
             query?: never;
             header: {
+                /** @description Binds this exact request. Repeating it with the same key replays the original result; sending a different request with the key is the permanent 409 `idempotency_conflict` (retryable false), and only a new key can carry the changed request. */
                 "Idempotency-Key": components["parameters"]["IdempotencyKey"];
             };
             path: {
@@ -7136,6 +7144,7 @@ export interface operations {
         parameters: {
             query?: never;
             header: {
+                /** @description Binds this exact request. Repeating it with the same key replays the original result; sending a different request with the key is the permanent 409 `idempotency_conflict` (retryable false), and only a new key can carry the changed request. */
                 "Idempotency-Key": components["parameters"]["IdempotencyKey"];
             };
             path: {
@@ -7334,6 +7343,7 @@ export interface operations {
         parameters: {
             query?: never;
             header: {
+                /** @description Binds this exact request. Repeating it with the same key replays the original result; sending a different request with the key is the permanent 409 `idempotency_conflict` (retryable false), and only a new key can carry the changed request. */
                 "Idempotency-Key": components["parameters"]["IdempotencyKey"];
                 "If-Match": components["parameters"]["RequiredIfMatch"];
             };
@@ -8052,6 +8062,7 @@ export interface operations {
         parameters: {
             query?: never;
             header: {
+                /** @description Binds this exact request. Repeating it with the same key replays the original result; sending a different request with the key is the permanent 409 `idempotency_conflict` (retryable false), and only a new key can carry the changed request. */
                 "Idempotency-Key": components["parameters"]["IdempotencyKey"];
                 /** @description Required with exact allowlist match when sessionCookie authenticates an unsafe request. */
                 Origin?: components["parameters"]["OptionalOrigin"];
@@ -8510,6 +8521,7 @@ export interface operations {
         parameters: {
             query?: never;
             header: {
+                /** @description Binds this exact request. Repeating it with the same key replays the original result; sending a different request with the key is the permanent 409 `idempotency_conflict` (retryable false), and only a new key can carry the changed request. */
                 "Idempotency-Key": components["parameters"]["IdempotencyKey"];
                 /** @description Required with exact allowlist match when sessionCookie authenticates an unsafe request. */
                 Origin?: components["parameters"]["OptionalOrigin"];
@@ -8696,6 +8708,7 @@ export interface operations {
         parameters: {
             query?: never;
             header: {
+                /** @description Binds this exact request. Repeating it with the same key replays the original result; sending a different request with the key is the permanent 409 `idempotency_conflict` (retryable false), and only a new key can carry the changed request. */
                 "Idempotency-Key": components["parameters"]["IdempotencyKey"];
                 /** @description Required with exact allowlist match when sessionCookie authenticates an unsafe request. */
                 Origin?: components["parameters"]["OptionalOrigin"];
@@ -8868,6 +8881,7 @@ export interface operations {
         parameters: {
             query?: never;
             header: {
+                /** @description Binds this exact request. Repeating it with the same key replays the original result; sending a different request with the key is the permanent 409 `idempotency_conflict` (retryable false), and only a new key can carry the changed request. */
                 "Idempotency-Key": components["parameters"]["IdempotencyKey"];
                 "If-Match": components["parameters"]["RequiredIfMatch"];
                 /** @description Required with exact allowlist match when sessionCookie authenticates an unsafe request. */
@@ -8909,6 +8923,7 @@ export interface operations {
         parameters: {
             query?: never;
             header: {
+                /** @description Binds this exact request. Repeating it with the same key replays the original result; sending a different request with the key is the permanent 409 `idempotency_conflict` (retryable false), and only a new key can carry the changed request. */
                 "Idempotency-Key": components["parameters"]["IdempotencyKey"];
                 "If-Match": components["parameters"]["RequiredIfMatch"];
                 /** @description Required with exact allowlist match when sessionCookie authenticates an unsafe request. */
@@ -8956,6 +8971,7 @@ export interface operations {
         parameters: {
             query?: never;
             header: {
+                /** @description Binds this exact request. Repeating it with the same key replays the original result; sending a different request with the key is the permanent 409 `idempotency_conflict` (retryable false), and only a new key can carry the changed request. */
                 "Idempotency-Key": components["parameters"]["IdempotencyKey"];
                 "If-Match": components["parameters"]["RequiredIfMatch"];
                 /** @description Required with exact allowlist match when sessionCookie authenticates an unsafe request. */
@@ -8997,6 +9013,7 @@ export interface operations {
         parameters: {
             query?: never;
             header: {
+                /** @description Binds this exact request. Repeating it with the same key replays the original result; sending a different request with the key is the permanent 409 `idempotency_conflict` (retryable false), and only a new key can carry the changed request. */
                 "Idempotency-Key": components["parameters"]["IdempotencyKey"];
                 "If-Match": components["parameters"]["RequiredIfMatch"];
                 /** @description Required with exact allowlist match when sessionCookie authenticates an unsafe request. */
@@ -9043,6 +9060,7 @@ export interface operations {
         parameters: {
             query?: never;
             header: {
+                /** @description Binds this exact request. Repeating it with the same key replays the original result; sending a different request with the key is the permanent 409 `idempotency_conflict` (retryable false), and only a new key can carry the changed request. */
                 "Idempotency-Key": components["parameters"]["IdempotencyKey"];
                 "If-Match": components["parameters"]["RequiredIfMatch"];
                 /** @description Required with exact allowlist match when sessionCookie authenticates an unsafe request. */
@@ -9463,6 +9481,7 @@ export interface operations {
         parameters: {
             query?: never;
             header: {
+                /** @description Binds this exact request. Repeating it with the same key replays the original result; sending a different request with the key is the permanent 409 `idempotency_conflict` (retryable false), and only a new key can carry the changed request. */
                 "Idempotency-Key": components["parameters"]["IdempotencyKey"];
                 "If-Match": components["parameters"]["RequiredIfMatch"];
                 /** @description Required with exact allowlist match when sessionCookie authenticates an unsafe request. */
@@ -9547,6 +9566,7 @@ export interface operations {
         parameters: {
             query?: never;
             header: {
+                /** @description Binds this exact request. Repeating it with the same key replays the original result; sending a different request with the key is the permanent 409 `idempotency_conflict` (retryable false), and only a new key can carry the changed request. */
                 "Idempotency-Key": components["parameters"]["IdempotencyKey"];
                 "If-Match": components["parameters"]["RequiredIfMatch"];
                 /** @description Required with exact allowlist match when sessionCookie authenticates an unsafe request. */
@@ -9724,6 +9744,7 @@ export interface operations {
         parameters: {
             query?: never;
             header: {
+                /** @description Binds this exact request. Repeating it with the same key replays the original result; sending a different request with the key is the permanent 409 `idempotency_conflict` (retryable false), and only a new key can carry the changed request. */
                 "Idempotency-Key": components["parameters"]["IdempotencyKey"];
                 /** @description Required with exact allowlist match when sessionCookie authenticates an unsafe request. */
                 Origin?: components["parameters"]["OptionalOrigin"];
@@ -9874,7 +9895,7 @@ export interface operations {
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
             500: components["responses"]["InternalError"];
-            503: components["responses"]["StorageTransactionConflict"];
+            503: components["responses"]["CredentialRecoveryRequired"];
         };
     };
     retryRunGateway: {
@@ -10588,6 +10609,7 @@ export interface operations {
         parameters: {
             query?: never;
             header: {
+                /** @description Binds this exact request. Repeating it with the same key replays the original result; sending a different request with the key is the permanent 409 `idempotency_conflict` (retryable false), and only a new key can carry the changed request. */
                 "Idempotency-Key": components["parameters"]["IdempotencyKey"];
                 /** @description Required with exact allowlist match when sessionCookie authenticates an unsafe request. */
                 Origin?: components["parameters"]["OptionalOrigin"];
@@ -10749,6 +10771,7 @@ export interface operations {
         parameters: {
             query?: never;
             header: {
+                /** @description Binds this exact request. Repeating it with the same key replays the original result; sending a different request with the key is the permanent 409 `idempotency_conflict` (retryable false), and only a new key can carry the changed request. */
                 "Idempotency-Key": components["parameters"]["IdempotencyKey"];
                 /** @description Required with exact allowlist match when sessionCookie authenticates an unsafe request. */
                 Origin?: components["parameters"]["OptionalOrigin"];
@@ -10880,6 +10903,7 @@ export interface operations {
         parameters: {
             query?: never;
             header: {
+                /** @description Binds this exact request. Repeating it with the same key replays the original result; sending a different request with the key is the permanent 409 `idempotency_conflict` (retryable false), and only a new key can carry the changed request. */
                 "Idempotency-Key": components["parameters"]["IdempotencyKey"];
                 "If-Match"?: components["parameters"]["IfMatch"];
                 "If-None-Match"?: components["parameters"]["IfNoneMatch"];
@@ -10916,6 +10940,7 @@ export interface operations {
         parameters: {
             query?: never;
             header: {
+                /** @description Binds this exact request. Repeating it with the same key replays the original result; sending a different request with the key is the permanent 409 `idempotency_conflict` (retryable false), and only a new key can carry the changed request. */
                 "Idempotency-Key": components["parameters"]["IdempotencyKey"];
                 "If-Match": components["parameters"]["RequiredIfMatch"];
                 /** @description Required with exact allowlist match when sessionCookie authenticates an unsafe request. */
@@ -10974,6 +10999,7 @@ export interface operations {
         parameters: {
             query?: never;
             header: {
+                /** @description Binds this exact request. Repeating it with the same key replays the original result; sending a different request with the key is the permanent 409 `idempotency_conflict` (retryable false), and only a new key can carry the changed request. */
                 "Idempotency-Key": components["parameters"]["IdempotencyKey"];
                 /** @description Required with exact allowlist match when sessionCookie authenticates an unsafe request. */
                 Origin?: components["parameters"]["OptionalOrigin"];
@@ -11130,6 +11156,7 @@ export interface operations {
         parameters: {
             query?: never;
             header: {
+                /** @description Binds this exact request. Repeating it with the same key replays the original result; sending a different request with the key is the permanent 409 `idempotency_conflict` (retryable false), and only a new key can carry the changed request. */
                 "Idempotency-Key": components["parameters"]["IdempotencyKey"];
                 "If-Match": components["parameters"]["RequiredIfMatch"];
                 /** @description Required with exact allowlist match when sessionCookie authenticates an unsafe request. */
@@ -11159,6 +11186,7 @@ export interface operations {
         parameters: {
             query?: never;
             header: {
+                /** @description Binds this exact request. Repeating it with the same key replays the original result; sending a different request with the key is the permanent 409 `idempotency_conflict` (retryable false), and only a new key can carry the changed request. */
                 "Idempotency-Key": components["parameters"]["IdempotencyKey"];
                 "If-Match": components["parameters"]["RequiredIfMatch"];
                 /** @description Required with exact allowlist match when sessionCookie authenticates an unsafe request. */
@@ -11233,6 +11261,7 @@ export interface operations {
         parameters: {
             query?: never;
             header: {
+                /** @description Binds this exact request. Repeating it with the same key replays the original result; sending a different request with the key is the permanent 409 `idempotency_conflict` (retryable false), and only a new key can carry the changed request. */
                 "Idempotency-Key": components["parameters"]["IdempotencyKey"];
                 /** @description Required with exact allowlist match when sessionCookie authenticates an unsafe request. */
                 Origin?: components["parameters"]["OptionalOrigin"];
@@ -11301,6 +11330,7 @@ export interface operations {
         parameters: {
             query?: never;
             header: {
+                /** @description Binds this exact request. Repeating it with the same key replays the original result; sending a different request with the key is the permanent 409 `idempotency_conflict` (retryable false), and only a new key can carry the changed request. */
                 "Idempotency-Key": components["parameters"]["IdempotencyKey"];
                 /** @description Required with exact allowlist match when sessionCookie authenticates an unsafe request. */
                 Origin?: components["parameters"]["OptionalOrigin"];

@@ -233,13 +233,16 @@ func (c *Catalog) List(ctx context.Context, ownerID string) ([]ResolvedPackage, 
 		return nil, err
 	}
 	namespace := CatalogNamespace
-	refs, err := store.List(ctx, &namespace)
+	// One bounded page detects a catalog over its package limit without
+	// reading every binding in the Namespace.
+	page, err := store.ListRefs(ctx, artifacts.RefPageQuery{Namespace: &namespace, Limit: MaximumPackages})
 	if err != nil {
 		return nil, err
 	}
-	if len(refs) > MaximumPackages {
+	if page.More {
 		return nil, validationError(CodeLimitExceeded, "")
 	}
+	refs := page.Refs
 	result := make([]ResolvedPackage, 0, len(refs))
 	for _, ref := range refs {
 		read, readErr := store.Read(ctx, ref)

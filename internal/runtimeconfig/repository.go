@@ -12,11 +12,10 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/pagelimit"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
 )
-
-const maximumPageSize = 200
 
 // Repository contains only transaction-neutral primitives. Construct it with
 // either a pgx pool or a caller-owned pgx.Tx.
@@ -149,7 +148,7 @@ JOIN unnest($1::text[], $2::text[], $3::text[]) AS requested(name, version, dige
 }
 
 func (r *Repository) ListVersions(ctx context.Context, afterName, afterVersion string, limit int) ([]Version, error) {
-	if (afterName == "") != (afterVersion == "") || limit < 1 || limit > maximumPageSize {
+	if (afterName == "") != (afterVersion == "") || !pagelimit.ValidFetch(limit) {
 		return nil, invalid("RuntimeConfig page cursor or limit is invalid")
 	}
 	if afterName != "" {
@@ -268,7 +267,7 @@ func (r *Repository) GetBindingsByLabels(ctx context.Context, labels []string) (
 }
 
 func (r *Repository) ListBindings(ctx context.Context, afterLabel string, limit int) ([]Binding, error) {
-	if limit < 1 || limit > maximumPageSize || (afterLabel != "" && validateLabel(afterLabel) != nil) {
+	if !pagelimit.ValidFetch(limit) || (afterLabel != "" && validateLabel(afterLabel) != nil) {
 		return nil, invalid("RuntimeConfig binding page is invalid")
 	}
 	rows, err := r.db.Query(ctx, bindingSelect+` WHERE label > $1 ORDER BY label LIMIT $2`, afterLabel, limit)

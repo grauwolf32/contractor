@@ -54,9 +54,9 @@ func TestPostgresPrefixListIsLiteralBoundedAndIsolated(t *testing.T) {
 		t.Fatalf("literal underscore = %+v, %v", refs, err)
 	}
 	namespace := "builder"
-	refs, err = owner.List(ctx, &namespace)
-	if err != nil || len(refs) != 7004 {
-		t.Fatalf("legacy list count = %d, %v", len(refs), err)
+	page, err := owner.ListRefs(ctx, RefPageQuery{Namespace: &namespace, Limit: MaxBindingListLimit})
+	if err != nil || len(page.Refs) != MaxBindingListLimit || !page.More {
+		t.Fatalf("paged list count = %d, more %t, %v", len(page.Refs), page.More, err)
 	}
 	for _, prefix := range []string{"", "memory%", "../memory", strings.Repeat("x", 129)} {
 		if _, err := owner.ListPrefix(ctx, "builder", prefix, 129); err == nil {

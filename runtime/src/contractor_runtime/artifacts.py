@@ -16,6 +16,7 @@ from pydantic import Field, ValidationError
 
 from contractor_runtime import _https
 from contractor_runtime.contracts import (
+    ARTIFACT_LIST_CURSOR_PATTERN,
     ARTIFACT_NAME_PATTERN,
     MEDIA_TYPE_PATTERN,
     ArtifactListResult,
@@ -29,6 +30,8 @@ MAX_ARTIFACT_BYTES = 64 * 1024 * 1024
 MAX_ARTIFACT_JSON_BYTES = 1 << 20
 # findingintake.MaxRequestBytes / auditdomain.MaximumDocumentBytes.
 MAX_FINDING_SUBMISSION_BYTES = 8 * 1024 * 1024
+# artifacts.MaxBindingListLimit (LIM-ART-3), pinned by
+# api/testdata/v1alpha1/artifact-list-cases.json.
 MAX_BINDING_LIST_LIMIT = 256
 PATH_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]+$")
 REQUEST_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
@@ -225,24 +228,66 @@ class ArtifactClient:
 
         self._remember(ref.require_exact())
 
-    async def list_artifacts(
+    async def list_artifact_page(
         self,
         namespace: str | None = None,
         *,
-        name_prefix: str | None = None,
-        limit: int | None = None,
-    ) -> list[ArtifactRef]:
-        path = self._root
+        limit: int,
+        cursor: str | None = None,
+    ) -> ArtifactListResult:
+        """Return one page of model-visible versionless refs (ART-R47).
+
+        The Server excludes Run system and model-hidden bindings before the
+        limit, so every page except the last holds exactly ``limit`` refs.
+        Pass the returned ``next_cursor`` with the same namespace for the next
+        page; it is ``None`` on the last page.
+        """
+
+        query: list[tuple[str, str]] = []
         if namespace is not None:
             _validate_component("namespace", namespace)
-            path += f"?namespace={quote(namespace, safe='')}"
-        if name_prefix is not None or limit is not None:
-            if namespace is None or type(name_prefix) is not str:
-                raise ValueError("filtered artifact list requires namespace, name_prefix and limit")
-            _validate_component("name prefix", name_prefix)
-            if type(limit) is not int or not 1 <= limit <= MAX_BINDING_LIST_LIMIT:
-                raise ValueError("artifact list limit is invalid")
-            path += f"&namePrefix={quote(name_prefix, safe='')}&limit={limit}"
+            query.append(("namespace", namespace))
+        _validate_list_limit(limit)
+        query.append(("limit", str(limit)))
+        if cursor is not None:
+            if type(cursor) is not str or ARTIFACT_LIST_CURSOR_PATTERN.fullmatch(cursor) is None:
+                raise ValueError("artifact list cursor is invalid")
+            query.append(("cursor", cursor))
+        result = await self._list(query)
+        if len(result.artifacts) > limit or any(
+            namespace is not None and ref.namespace != namespace for ref in result.artifacts
+        ):
+            raise ArtifactTransportError("Artifact API returned an invalid list page")
+        if result.next_cursor is not None and len(result.artifacts) != limit:
+            raise ArtifactTransportError("Artifact API returned a short list page with a cursor")
+        return result
+
+    async def list_artifact_prefix(
+        self, namespace: str, name_prefix: str, *, limit: int
+    ) -> list[ArtifactRef]:
+        """Return at most ``limit`` refs of one namespace whose names start
+        with ``name_prefix``, for trusted adapters such as Memory. Callers
+        checking a quota request one extra ref to detect overflow."""
+
+        _validate_component("namespace", namespace)
+        _validate_component("name prefix", name_prefix)
+        _validate_list_limit(limit)
+        result = await self._list(
+            [("namespace", namespace), ("namePrefix", name_prefix), ("limit", str(limit))]
+        )
+        if (
+            result.next_cursor is not None
+            or len(result.artifacts) > limit
+            or any(
+                ref.namespace != namespace or not ref.name.startswith(name_prefix)
+                for ref in result.artifacts
+            )
+        ):
+            raise ArtifactTransportError("Artifact API returned an invalid filtered list")
+        return result.artifacts
+
+    async def _list(self, query: list[tuple[str, str]]) -> ArtifactListResult:
+        path = self._root + "?" + "&".join(f"{key}={quote(value, safe='')}" for key, value in query)
         response = await self._transport.request(
             "GET",
             path,
@@ -253,22 +298,11 @@ class ArtifactClient:
         self._raise_for_status(response)
         _require_json(response.headers)
         try:
-            result = ArtifactListResult.model_validate_json(response.body)
+            return ArtifactListResult.model_validate_json(response.body)
         except ValidationError as error:
             raise ArtifactTransportError(
                 "Artifact API returned an invalid list response"
             ) from error
-        if name_prefix is not None and (
-            len(result.artifacts) > limit
-            or any(
-                ref.namespace != namespace
-                or not ref.name.startswith(name_prefix)
-                or ref.revision is not None
-                for ref in result.artifacts
-            )
-        ):
-            raise ArtifactTransportError("Artifact API returned an invalid filtered list")
-        return result.artifacts
 
     async def read_artifact(
         self, ref: ArtifactRef, *, max_bytes: int = MAX_ARTIFACT_BYTES
@@ -513,8 +547,13 @@ def _validate_ref(ref: ArtifactRef) -> None:
 
 
 def _validate_component(field_name: str, value: str) -> None:
-    if not ARTIFACT_NAME_PATTERN.fullmatch(value):
+    if type(value) is not str or not ARTIFACT_NAME_PATTERN.fullmatch(value):
         raise ValueError(f"artifact {field_name} is invalid")
+
+
+def _validate_list_limit(limit: int) -> None:
+    if type(limit) is not int or not 1 <= limit <= MAX_BINDING_LIST_LIMIT:
+        raise ValueError("artifact list limit is invalid")
 
 
 def _validate_media_type(value: str) -> None:

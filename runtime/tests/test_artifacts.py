@@ -7,9 +7,11 @@ import ssl
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from pathlib import Path
 from unittest.mock import AsyncMock, Mock
 
 import pytest
+from pydantic import ValidationError
 
 from contractor_runtime import artifacts
 from contractor_runtime.artifacts import (
@@ -21,8 +23,16 @@ from contractor_runtime.artifacts import (
     ArtifactTransportError,
     MTLSArtifactTransport,
 )
-from contractor_runtime.contracts import ArtifactRef
+from contractor_runtime.contracts import (
+    ARTIFACT_LIST_CURSOR_PATTERN,
+    MAX_ARTIFACT_LIST_CURSOR_LENGTH,
+    ArtifactListResult,
+    ArtifactRef,
+)
 
+SHARED_LIST_CASES = (
+    Path(__file__).resolve().parents[2] / "api/testdata/v1alpha1/artifact-list-cases.json"
+)
 CREATED_AT = "2026-09-01T10:11:12.123456Z"
 UPDATED_AT = "2026-09-01T10:11:13.987654Z"
 TIMESTAMP_HEADERS = {
@@ -73,8 +83,9 @@ def test_client_preserves_exact_revisions_without_any_scope_selector() -> None:
         )
         client = ArtifactClient("allocation-1", transport)
 
-        listed = await client.list_artifacts()
-        assert [ref.revision for ref in listed] == [None, None]
+        listed = await client.list_artifact_page(limit=10)
+        assert [ref.revision for ref in listed.artifacts] == [None, None]
+        assert listed.next_cursor is None
         value = await client.read_artifact(ArtifactRef(namespace="inputs", name="source"))
         assert value.artifact.revision == "revision-read"
         assert value.data == b"payload"
@@ -99,7 +110,7 @@ def test_client_preserves_exact_revisions_without_any_scope_selector() -> None:
         }
 
         assert [request.path for request in transport.requests] == [
-            "/allocations/allocation-1/artifacts",
+            "/allocations/allocation-1/artifacts?limit=10",
             "/allocations/allocation-1/artifacts/inputs/source",
             "/allocations/allocation-1/artifacts/inputs/new",
         ]
@@ -123,43 +134,120 @@ def test_filtered_list_validates_query_and_response_without_widening_scope() -> 
             ]
         )
         client = ArtifactClient("allocation-1", transport)
-        refs = await client.list_artifacts("builder", name_prefix="memory.", limit=129)
+        refs = await client.list_artifact_prefix("builder", "memory.", limit=129)
         assert len(refs) == 1 and refs[0].revision is None
         assert transport.requests[0].path.endswith(
             "?namespace=builder&namePrefix=memory.&limit=129"
         )
-        for kwargs in (
-            {"name_prefix": "memory.", "limit": 129},
-            {"namespace": "builder", "name_prefix": "memory."},
-            {"namespace": "builder", "limit": 129},
-            {"namespace": "builder", "name_prefix": "memory%", "limit": 129},
-            {"namespace": "builder", "name_prefix": "memory.", "limit": 0},
-            {"namespace": "builder", "name_prefix": "memory.", "limit": 257},
-            {"namespace": "builder", "name_prefix": "memory.", "limit": True},
+        for args, kwargs in (
+            (("builder", "memory%"), {"limit": 129}),
+            (("builder", ""), {"limit": 129}),
+            (("", "memory."), {"limit": 129}),
+            ((None, "memory."), {"limit": 129}),
+            (("builder", None), {"limit": 129}),
+            (("builder", "memory."), {"limit": 0}),
+            (("builder", "memory."), {"limit": 257}),
+            (("builder", "memory."), {"limit": True}),
+            (("builder", "memory."), {"limit": "129"}),
         ):
             with pytest.raises(ValueError):
-                await client.list_artifacts(**kwargs)
+                await client.list_artifact_prefix(*args, **kwargs)
         assert len(transport.requests) == 1
         for invalid in (
-            [{"namespace": "foreign", "name": "memory.one"}],
-            [{"namespace": "builder", "name": "ordinary"}],
-            [{"namespace": "builder", "name": "memory.one", "revision": "hidden"}],
-            [{"namespace": "builder", "name": f"memory.n{i}"} for i in range(130)],
+            {"artifacts": [{"namespace": "foreign", "name": "memory.one"}]},
+            {"artifacts": [{"namespace": "builder", "name": "ordinary"}]},
+            {"artifacts": [{"namespace": "builder", "name": "memory.one", "revision": "hidden"}]},
+            {"artifacts": [{"namespace": "builder", "name": f"memory.n{i}"} for i in range(130)]},
+            {"artifacts": [{"namespace": "builder", "name": "memory.one"}], "nextCursor": "abc"},
         ):
             malformed = ArtifactClient(
                 "allocation-1",
                 FakeTransport(
-                    [
-                        json_response(
-                            200, {"apiVersion": "contractor/v1alpha1", "artifacts": invalid}
-                        )
-                    ]
+                    [json_response(200, {"apiVersion": "contractor/v1alpha1", **invalid})]
                 ),
             )
             with pytest.raises(ArtifactTransportError):
-                await malformed.list_artifacts("builder", name_prefix="memory.", limit=129)
+                await malformed.list_artifact_prefix("builder", "memory.", limit=129)
 
     asyncio.run(scenario())
+
+
+def test_paged_list_validates_query_cursor_and_page_without_widening_scope() -> None:
+    async def scenario() -> None:
+        page = [{"namespace": "builder", "name": "a"}, {"namespace": "builder", "name": "b"}]
+        transport = FakeTransport(
+            [
+                json_response(
+                    200,
+                    {"apiVersion": "contractor/v1alpha1", "artifacts": page, "nextCursor": "c1"},
+                ),
+                json_response(200, {"apiVersion": "contractor/v1alpha1", "artifacts": page[:1]}),
+            ]
+        )
+        client = ArtifactClient("allocation-1", transport)
+        first = await client.list_artifact_page("builder", limit=2)
+        assert [ref.name for ref in first.artifacts] == ["a", "b"]
+        assert first.next_cursor == "c1"
+        last = await client.list_artifact_page("builder", limit=2, cursor=first.next_cursor)
+        assert last.next_cursor is None
+        assert [request.path for request in transport.requests] == [
+            "/allocations/allocation-1/artifacts?namespace=builder&limit=2",
+            "/allocations/allocation-1/artifacts?namespace=builder&limit=2&cursor=c1",
+        ]
+        for kwargs in (
+            {"limit": 0},
+            {"limit": 257},
+            {"limit": None},
+            {"limit": 1.0},
+            {"limit": 1, "cursor": ""},
+            {"limit": 1, "cursor": "a=b"},
+            {"limit": 1, "cursor": "a" * 513},
+            {"limit": 1, "cursor": 7},
+            {"namespace": "bad/namespace", "limit": 1},
+        ):
+            with pytest.raises(ValueError):
+                await client.list_artifact_page(**kwargs)
+        with pytest.raises(TypeError):
+            await client.list_artifact_page("builder")  # type: ignore[call-arg]
+        assert len(transport.requests) == 2
+        for invalid in (
+            {"artifacts": [*page, {"namespace": "builder", "name": "c"}]},
+            {"artifacts": [{"namespace": "foreign", "name": "a"}]},
+            {"artifacts": [{"namespace": "builder", "name": "a", "revision": "r"}]},
+            {"artifacts": page[:1], "nextCursor": "c2"},
+            {"artifacts": [], "nextCursor": "c2"},
+            {"artifacts": page, "nextCursor": ""},
+            {"artifacts": page, "nextCursor": "a" * 513},
+            {"artifacts": page, "cursor": "c2"},
+        ):
+            malformed = ArtifactClient(
+                "allocation-1",
+                FakeTransport(
+                    [json_response(200, {"apiVersion": "contractor/v1alpha1", **invalid})]
+                ),
+            )
+            with pytest.raises(ArtifactTransportError):
+                await malformed.list_artifact_page("builder", limit=2)
+
+    asyncio.run(scenario())
+
+
+def test_list_limits_and_cursor_grammar_match_the_shared_cases() -> None:
+    cases = json.loads(SHARED_LIST_CASES.read_text(encoding="utf-8"))
+    assert cases["maxLimit"] == artifacts.MAX_BINDING_LIST_LIMIT
+    assert cases["maxCursorLength"] == MAX_ARTIFACT_LIST_CURSOR_LENGTH
+    ref = {"namespace": "analysis", "name": "report"}
+    for cursor in cases["cursors"]["valid"]:
+        assert ARTIFACT_LIST_CURSOR_PATTERN.fullmatch(cursor)
+        ArtifactListResult.model_validate(
+            {"apiVersion": "contractor/v1alpha1", "artifacts": [ref], "nextCursor": cursor}
+        )
+    for cursor in cases["cursors"]["invalid"]:
+        assert ARTIFACT_LIST_CURSOR_PATTERN.fullmatch(cursor) is None
+        with pytest.raises(ValidationError):
+            ArtifactListResult.model_validate(
+                {"apiVersion": "contractor/v1alpha1", "artifacts": [ref], "nextCursor": cursor}
+            )
 
 
 def test_exact_read_and_cas_update_use_unambiguous_revision_channels() -> None:

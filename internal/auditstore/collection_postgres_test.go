@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/pagelimit"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -112,7 +113,7 @@ SELECT request.state, request.revision, finding.revision
 	if err != nil || audit.Revision != audit.EventSequence {
 		t.Fatalf("Audit revision/event sequence = (%+v, %v)", audit, err)
 	}
-	events, err := f.store.ListEvents(f.ctx, f.audit.AuditID, 0, MaxPageSize)
+	events, err := f.store.ListEvents(f.ctx, f.audit.AuditID, 0, pagelimit.MaxRows)
 	if err != nil || len(events) < 2 {
 		t.Fatalf("Audit events = (%+v, %v)", events, err)
 	}

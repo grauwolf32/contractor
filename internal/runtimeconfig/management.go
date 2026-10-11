@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/contentdigest"
+	"github.com/grauwolf32/contractor/internal/contracts"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -362,7 +363,7 @@ WHERE idempotency_key_digest = $1`, keyDigest).Scan(
 		return BindingMutationResult{}, false, errors.New("get Runtime management replay")
 	}
 	if operation.RequestDigest != requestDigest || operation.Kind != kind || operation.ResourceID != resourceID {
-		return BindingMutationResult{}, false, ErrConflict
+		return BindingMutationResult{}, false, fmt.Errorf("%w: Runtime label management key", contracts.ErrIdempotencyConflict)
 	}
 	var wire bindingMutationResultWire
 	if err := json.Unmarshal([]byte(resultText), &wire); err != nil || (wire.Binding == nil) == !wire.Deleted {

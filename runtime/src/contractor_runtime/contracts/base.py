@@ -19,12 +19,26 @@ from pydantic import (
 
 API_VERSION = "contractor/v1alpha1"
 ARTIFACT_NAME_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}")
+# Opaque private Artifact list cursor (LIM-ART-5): unpadded base64url issued by
+# the Server; api/testdata/v1alpha1/artifact-list-cases.json pins the grammar.
+MAX_ARTIFACT_LIST_CURSOR_LENGTH = 512
+ARTIFACT_LIST_CURSOR_PATTERN = re.compile(rf"[A-Za-z0-9_-]{{1,{MAX_ARTIFACT_LIST_CURSOR_LENGTH}}}")
 # RFC 6838 restricted names in canonical lowercase, without parameters or
 # wildcards, at most 255 characters as in the public MediaType schema;
 # api/testdata/v1alpha1/media-type-cases.json pins the grammar and bound.
 MEDIA_TYPE_PATTERN = re.compile(
     r"(?=.{3,255}\Z)[a-z0-9][a-z0-9!#$&^_.+-]*/[a-z0-9][a-z0-9!#$&^_.+-]*"
 )
+# Runtime Agent registration values that Operations shows. Tool names use the
+# public ConfigId grammar, instance and allocation IDs the public ResourceId
+# grammar; api/testdata/v1alpha1/runtime-capability-cases.json pins them and
+# the capability bounds to the Go contracts and the schemas.
+TOOL_NAME_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}")
+MAX_RESOURCE_ID_LENGTH = 256
+RESOURCE_ID_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}")
+MAX_RUNTIME_CAPABILITY_REFS = 128
+MAX_RUNTIME_CAPABILITY_REF_LENGTH = 256
+MAX_TOOLSET_CAPABILITY_TOOLS = 256
 ID_PATTERN = re.compile(r"^[a-z][a-z0-9_-]*$")
 VERSION_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._+-]*$")
 DIGEST_PATTERN = re.compile(r"^sha256:[0-9a-f]{64}$")
@@ -57,6 +71,14 @@ def _to_camel(value: str) -> str:
 def _require_text(field: str, value: str) -> str:
     if not value.strip():
         raise ValueError(f"{field} must not be empty")
+    return value
+
+
+def _require_resource_id(field: str, value: str) -> str:
+    if RESOURCE_ID_PATTERN.fullmatch(value) is None:
+        raise ValueError(
+            f"{field} must be a resource identifier of at most {MAX_RESOURCE_ID_LENGTH} characters"
+        )
     return value
 
 
@@ -268,6 +290,14 @@ def _require_selector(field: str, value: str) -> str:
     if ID_PATTERN.fullmatch(identifier) is None or VERSION_PATTERN.fullmatch(version) is None:
         raise ValueError(f"{field} has an invalid exact selector")
     return value
+
+
+def _require_capability_ref(field: str, value: str) -> str:
+    if len(value) > MAX_RUNTIME_CAPABILITY_REF_LENGTH:
+        raise ValueError(
+            f"{field} must contain at most {MAX_RUNTIME_CAPABILITY_REF_LENGTH} characters"
+        )
+    return _require_selector(field, value)
 
 
 def _require_digest(field: str, value: str) -> str:

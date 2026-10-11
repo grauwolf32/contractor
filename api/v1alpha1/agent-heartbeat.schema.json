@@ -9,11 +9,11 @@
       "required": ["apiVersion", "instanceId", "heartbeatSeq", "echoedAckSeq", "observedState"],
       "properties": {
         "apiVersion": {"$ref": "common.schema.json#/$defs/apiVersion"},
-        "instanceId": {"$ref": "common.schema.json#/$defs/opaqueId"},
+        "instanceId": {"$ref": "common.schema.json#/$defs/resourceId"},
         "heartbeatSeq": {"type": "integer", "minimum": 1},
         "echoedAckSeq": {"type": "integer", "minimum": 0},
         "observedState": {"enum": ["idle", "allocated", "draining", "fenced"]},
-        "allocationId": {"$ref": "common.schema.json#/$defs/opaqueId"}
+        "allocationId": {"$ref": "common.schema.json#/$defs/resourceId"}
       },
       "allOf": [
         {

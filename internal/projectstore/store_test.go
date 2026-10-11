@@ -75,8 +75,8 @@ func TestPostgresProjectIdempotencyOwnershipPaginationAndCAS(t *testing.T) {
 		Name: "Changed", IdempotencyKey: "create-one",
 		RequestDigest: "sha256:" + strings.Repeat("b", 64),
 	})
-	if !errors.Is(err, ErrConflict) {
-		t.Fatalf("changed replay error = %v", err)
+	if !errors.Is(err, contracts.ErrIdempotencyConflict) || errors.Is(err, ErrConflict) {
+		t.Fatalf("changed replay error = %v, want only the permanent idempotency conflict", err)
 	}
 	if _, err := store.Get(ctx, "owner-2", created.ProjectID); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("foreign read error = %v", err)

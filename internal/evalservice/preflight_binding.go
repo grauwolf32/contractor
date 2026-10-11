@@ -12,6 +12,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditstandards"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/credentials"
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/jackc/pgx/v5"
@@ -32,16 +33,16 @@ type preflightBinding struct {
 	standards []auditstandards.ResolvedPackage
 }
 
-func (r *Resolver) resolveBinding(ctx context.Context, owner string, v evaldomain.Variant, tracker *preflightCredentials, service *artifacts.Service) (preflightBinding, error) {
+func (r *Resolver) resolveBinding(ctx context.Context, owner string, v evaldomain.Variant, lookup config.CredentialLookup, service *artifacts.Service) (preflightBinding, error) {
 	b := preflightBinding{
 		snapshot:  BindingSnapshot{Skills: []contracts.RunSkillSnapshot{}, Standards: []auditstandards.ExactPackage{}},
 		workflows: map[string]config.ResolvedWorkflow{},
 		inputs:    map[string]config.ArtifactSlot{},
 	}
 	if v.Kind == "workflow" {
-		workflow, err := r.Catalog.ResolveRunWorkflow(ctx, v.Selector, v.ExecutionConfig, tracker)
+		workflow, err := r.Catalog.ResolveRunWorkflow(ctx, v.Selector, v.ExecutionConfig, lookup)
 		if err != nil {
-			return b, tracker.catalogError(err)
+			return b, workflowSelectionError(err)
 		}
 		b.snapshot.Workflow = &workflow
 		b.workflows["workflow"] = workflow
@@ -84,13 +85,13 @@ func (r *Resolver) resolveBinding(ctx context.Context, owner string, v evaldomai
 	return b, nil
 }
 
-func (b *preflightBinding) pinDependencies(ctx context.Context, tx pgx.Tx, service *artifacts.Service, owner string, v evaldomain.Variant, tracker *preflightCredentials, lookup runtimeconfig.TransactionLLMCredentialLookup) error {
+func (b *preflightBinding) pinDependencies(ctx context.Context, tx pgx.Tx, service *artifacts.Service, owner string, v evaldomain.Variant, lookup runtimeconfig.TransactionLLMCredentialLookup) error {
 	skillRefs := map[string]contracts.ArtifactRef{}
 	var skillSets [][]string
 	modelFree := b.snapshot.Audit == nil
 	for _, workflow := range b.workflows {
-		if err := config.ValidateResolvedWorkflowCredentials(ctx, workflow, tracker); err != nil {
-			return tracker.catalogError(err)
+		if err := config.ValidateResolvedWorkflowCredentials(ctx, workflow, lookup); err != nil {
+			return workflowSelectionError(err)
 		}
 		refs, err := config.WorkflowSkillRefs(workflow)
 		if err != nil {
@@ -102,9 +103,11 @@ func (b *preflightBinding) pinDependencies(ctx context.Context, tx pgx.Tx, servi
 		skillSets = append(skillSets, config.WorkflowSkillSets(workflow)...)
 		modelFree = modelFree && workflowModelFree(workflow)
 	}
-	runtime, err := runtimeconfig.PinRunSnapshot(ctx, tx, v.RuntimeLabels, tracker, lookup, modelFree)
+	runtime, err := runtimeconfig.PinRunSnapshot(
+		ctx, tx, v.RuntimeLabels, credentials.NewRuntimeCredentialRepository(tx), lookup, modelFree,
+	)
 	if err != nil {
-		return tracker.dependencyError(err)
+		return preflightDependencyError(err)
 	}
 	b.snapshot.Runtime = runtime
 	if len(skillRefs) == 0 {

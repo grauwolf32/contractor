@@ -12,6 +12,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	"github.com/grauwolf32/contractor/internal/httpapi/httpx"
+	"github.com/grauwolf32/contractor/internal/pagelimit"
 	"github.com/grauwolf32/contractor/internal/requestid"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 )
@@ -52,7 +53,7 @@ func (h *handler) listRuntimeConfigs(w http.ResponseWriter, r *http.Request) {
 	if len(cursor) != 0 {
 		afterName, afterVersion = cursor[0], cursor[1]
 	}
-	versions, err := h.dependencies.RuntimeConfigs.ListVersions(r.Context(), afterName, afterVersion, limit+1)
+	versions, err := h.dependencies.RuntimeConfigs.ListVersions(r.Context(), afterName, afterVersion, pagelimit.FetchRows(limit))
 	if err != nil {
 		h.handleError(w, err)
 		return
@@ -162,7 +163,7 @@ func (h *handler) listRuntimeLabels(w http.ResponseWriter, r *http.Request) {
 	if len(cursor) != 0 {
 		after = cursor[0]
 	}
-	bindings, err := h.dependencies.RuntimeConfigs.ListBindings(r.Context(), after, limit+1)
+	bindings, err := h.dependencies.RuntimeConfigs.ListBindings(r.Context(), after, pagelimit.FetchRows(limit))
 	if err != nil {
 		h.handleError(w, err)
 		return
@@ -345,7 +346,7 @@ func (h *handler) listRuntimeCredentials(w http.ResponseWriter, r *http.Request)
 	if len(cursor) != 0 {
 		after = cursor[0]
 	}
-	items, err := h.dependencies.RuntimeCredentials.List(r.Context(), after, limit+1)
+	items, err := h.dependencies.RuntimeCredentials.List(r.Context(), after, pagelimit.FetchRows(limit))
 	if err != nil {
 		h.handleError(w, err)
 		return

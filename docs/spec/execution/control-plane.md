@@ -456,6 +456,20 @@ and resolved settings that require neither.
 sorted unique exact refs (LIM-CTL-3); the complete registration request remains
 subject to the private registration body bound.
 
+**CTL-R148.** Registration and heartbeat validation bound every value that
+Operations shows, so Control Plane rejects a registration Operations could not
+show when it arrives (FAIL-CTL-1) instead of failing every Operations list
+afterwards. `supportedRuntimes`, `supportedToolsets` and
+`supportedSandboxProfiles` each hold at most 128 exact refs of at most 256
+characters; a Toolset capability holds 1 to 256 unique tool names in the
+shared name grammar `[A-Za-z0-9][A-Za-z0-9_.-]*` of at most 128 characters;
+`instance_id` and a reported `allocation_id` use the resource identifier
+grammar `[A-Za-z0-9][A-Za-z0-9_.:-]*` of at most 256 characters (LIM-CTL-9).
+Go registration validation, the private schemas, the Runtime models and the
+public `RuntimeAgentObservation` schema read these rules from one set of shared
+cases, and the Server's Toolset descriptor registry exports only tool names in
+the same grammar.
+
 **CTL-R34.** The computed snapshot is frozen for the lifetime of
 `instance_id` and reused byte-for-byte across registration retries and Control
 Plane reconnects. Control Plane rejects a registration retry that reuses the
@@ -796,7 +810,13 @@ unprepared reservation and retries placement for the same StageExecution
 (FAIL-CTL-4). A concurrent Agent-label or binding mutation serializes on those
 rows: if allocation pinning commits first, the mutation affects the next
 allocation; if the mutation commits first, this allocation observes the new set
-or binding.
+or binding. Control Plane likewise drops a committed reservation that no
+Runtime was asked to prepare when Queue Pause defers its Stage's admission
+([SCH-R152](scheduler.md)): no Runtime observed a prepared allocation, so the
+slot needs no reconciliation heartbeat, and unlike the release of a prepared
+allocation no released reservation remains, so placement for the same
+StageExecution can run again. A write-fenced, lost or prepared reservation is
+not dropped this way.
 
 **CTL-R91.** After reserving the full set, Control Plane creates one
 globally unique `allocation_id` and one complete AllocationSpec per logical
@@ -1202,6 +1222,8 @@ The private live-state route is
   declared Stage Agent name (CTL-R105).
 - [LIM-CTL-8](../platform/limits.md): 15-second allocation resource sampling
   interval requested in `AllocationSpec` (CTL-R133).
+- [LIM-CTL-9](../platform/limits.md): Runtime capability and identity bounds
+  of one registration (CTL-R148).
 - [FAIL-CTL-1](../platform/failure-model.md): Runtime Agent registration and
   re-registration (CTL-R12, CTL-R34,
   CTL-R50).

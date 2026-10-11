@@ -99,6 +99,30 @@ type BindingPageQuery struct {
 	Limit                  int
 }
 
+// RefPageQuery selects one keyset page of versionless current bindings in
+// namespace and name order (ART-R47).
+type RefPageQuery struct {
+	Namespace *string
+	// AfterNamespace and AfterName name the last binding of the previous page
+	// and are both empty for the first page. With Namespace set,
+	// AfterNamespace must equal it.
+	AfterNamespace string
+	AfterName      string
+	// ModelVisible excludes the bindings artifactpolicy.IsModelHiddenBinding
+	// hides. Storage applies the exclusion before Limit, so it never shortens a
+	// page.
+	ModelVisible bool
+	// Limit is 1 through MaxBindingListLimit (LIM-ART-3).
+	Limit int
+}
+
+// RefPage is one RefPageQuery result. More reports that further bindings
+// follow the last ref.
+type RefPage struct {
+	Refs []ArtifactRef
+	More bool
+}
+
 type VersionPageQuery struct {
 	BeforeCreatedAt *time.Time
 	BeforeRevision  string
@@ -139,7 +163,7 @@ const (
 type Repository interface {
 	Write(context.Context, Scope, ArtifactRef, Payload, *string) (WriteResult, error)
 	Read(context.Context, Scope, ArtifactRef) (ReadResult, error)
-	List(context.Context, Scope, *string) ([]ArtifactRef, error)
+	ListRefs(context.Context, Scope, RefPageQuery) (RefPage, error)
 	ForkInput(context.Context, Scope, ArtifactRef, Scope, string) (ForkResult, error)
 	BindOutputExact(context.Context, Scope, string, ArtifactRef, *string) (ForkResult, error)
 	RequireExact(context.Context, Scope, ArtifactRef) error

@@ -36,10 +36,25 @@ const (
 	MaxConfigVersionLength = 64
 )
 
+// MaxNameLength bounds a name in the shared name grammar (ValidName), as the
+// public ConfigId schema does.
+const MaxNameLength = 128
+
+// MaxResourceIDLength bounds a resource identifier (ValidResourceID), as the
+// public ResourceId schema does.
+const MaxResourceIDLength = 256
+
 var (
 	// ErrValidation identifies a syntactically valid JSON value that violates a
 	// Contractor wire invariant.
 	ErrValidation = errors.New("contract validation failed")
+	// ErrIdempotencyConflict identifies a request idempotency key that is
+	// already bound to a different request. It is permanent: the original
+	// result is unchanged, and repeating this request with this key can never
+	// succeed. Every store with request idempotency reports this outcome with
+	// it, never with its optimistic-revision or identity conflict, and the
+	// public API maps it to 409 idempotency_conflict with retryable false.
+	ErrIdempotencyConflict = errors.New("idempotency key is already bound to a different request")
 	// idPattern and versionPattern are the only Go definitions of the
 	// identifier and opaque version grammars. The shared cases in
 	// api/testdata/v1alpha1/config-identity-cases.json hold Go, the schemas,
@@ -49,6 +64,14 @@ var (
 	// runtimeAgentIDPattern is the only Go definition of a Runtime Agent ID:
 	// the lowercase hexadecimal SHA-256 fingerprint of the agent's SPKI.
 	runtimeAgentIDPattern = regexp.MustCompile(`^[0-9a-f]{64}$`)
+	// namePattern is the shared name grammar of the public ConfigId schema:
+	// the tool names of Toolset capabilities and the logical Worker names
+	// that Operations shows. resourceIDPattern is the public ResourceId
+	// grammar of Runtime Agent instance and allocation IDs. The shared cases
+	// in api/testdata/v1alpha1/runtime-capability-cases.json hold Go, the
+	// private schemas, the public OpenAPI and the Runtime to both.
+	namePattern       = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.-]*$`)
+	resourceIDPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.:-]*$`)
 )
 
 // ValidIdentifier reports whether value matches the identifier grammar
@@ -68,6 +91,18 @@ func ValidSelector(value string) bool {
 
 // ValidRuntimeAgentID reports whether value is a Runtime Agent ID.
 func ValidRuntimeAgentID(value string) bool { return runtimeAgentIDPattern.MatchString(value) }
+
+// ValidName reports whether value is a bounded name in the shared name
+// grammar [A-Za-z0-9][A-Za-z0-9_.-]*, such as a tool name.
+func ValidName(value string) bool {
+	return len(value) <= MaxNameLength && namePattern.MatchString(value)
+}
+
+// ValidResourceID reports whether value is a bounded resource identifier in
+// the grammar [A-Za-z0-9][A-Za-z0-9_.:-]*, such as a Runtime Agent instance ID.
+func ValidResourceID(value string) bool {
+	return len(value) <= MaxResourceIDLength && resourceIDPattern.MatchString(value)
+}
 
 // ValidConfigID reports whether value is a bounded configuration identifier.
 func ValidConfigID(value string) bool {
@@ -138,6 +173,14 @@ func ValidateAPIVersion(value string) error {
 func ValidateOpaqueID(field, value string) error {
 	if strings.TrimSpace(value) == "" {
 		return Invalidf("%s must not be empty", field)
+	}
+	return nil
+}
+
+// ValidateResourceID requires a bounded resource identifier.
+func ValidateResourceID(field, value string) error {
+	if !ValidResourceID(value) {
+		return Invalidf("%s must be a resource identifier of at most %d characters", field, MaxResourceIDLength)
 	}
 	return nil
 }

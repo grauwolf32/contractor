@@ -169,7 +169,7 @@ func TestPrivateArtifactWriteEnforcesCASAndReservedOutputs(t *testing.T) {
 	}
 	list := httptest.NewRecorder()
 	handler.ServeHTTP(list, trustedRequest(
-		http.MethodGet, "/private/v1/allocations/allocation-1/artifacts", nil,
+		http.MethodGet, "/private/v1/allocations/allocation-1/artifacts?limit=10", nil,
 	))
 	if list.Code != http.StatusOK || bytes.Contains(list.Body.Bytes(), []byte(artifactpolicy.RunSystemNamespace)) {
 		t.Fatalf("system list visibility = %d %s", list.Code, list.Body.String())
@@ -386,7 +386,7 @@ func TestPrivateArtifactListIsVersionlessAndMTLSRequired(t *testing.T) {
 	handler := newTestHandler(t, registry, repository)
 
 	untrusted := httptest.NewRequest(
-		http.MethodGet, "/private/v1/allocations/allocation-1/artifacts", nil,
+		http.MethodGet, "/private/v1/allocations/allocation-1/artifacts?limit=10", nil,
 	)
 	untrustedResponse := httptest.NewRecorder()
 	handler.ServeHTTP(untrustedResponse, untrusted)
@@ -395,7 +395,7 @@ func TestPrivateArtifactListIsVersionlessAndMTLSRequired(t *testing.T) {
 	}
 
 	request := trustedRequest(
-		http.MethodGet, "/private/v1/allocations/allocation-1/artifacts?namespace=analysis", nil,
+		http.MethodGet, "/private/v1/allocations/allocation-1/artifacts?namespace=analysis&limit=10", nil,
 	)
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(response, request)
@@ -412,7 +412,7 @@ func TestPrivateArtifactTrustsIncomingRequestIDOnlyAfterMTLS(t *testing.T) {
 	repository := newMemoryRepository()
 	handler := newTestHandler(t, &fakeRegistry{grant: testGrant("run-a")}, repository)
 
-	untrusted := httptest.NewRequest(http.MethodGet, "/private/v1/allocations/allocation-1/artifacts", nil)
+	untrusted := httptest.NewRequest(http.MethodGet, "/private/v1/allocations/allocation-1/artifacts?limit=10", nil)
 	untrusted.Header.Set("X-Request-ID", "attacker-chosen")
 	untrustedResponse := httptest.NewRecorder()
 	handler.ServeHTTP(untrustedResponse, untrusted)
@@ -423,7 +423,7 @@ func TestPrivateArtifactTrustsIncomingRequestIDOnlyAfterMTLS(t *testing.T) {
 			untrustedResponse.Header().Get("X-Request-ID"), untrustedResponse.Body.String())
 	}
 
-	trusted := trustedRequest(http.MethodGet, "/private/v1/allocations/allocation-1/artifacts", nil)
+	trusted := trustedRequest(http.MethodGet, "/private/v1/allocations/allocation-1/artifacts?limit=10", nil)
 	trusted.Header.Set("X-Request-ID", "runtime:request-1")
 	trustedResponse := httptest.NewRecorder()
 	handler.ServeHTTP(trustedResponse, trusted)
@@ -461,7 +461,7 @@ func TestPrivateArtifactGrantBindsPrincipalAndInstanceBeforeBodyRead(t *testing.
 	}
 
 	wrongInstance := trustedRequest(
-		http.MethodGet, "/private/v1/allocations/allocation-1/artifacts", nil,
+		http.MethodGet, "/private/v1/allocations/allocation-1/artifacts?limit=10", nil,
 	)
 	wrongInstance.Header.Set(RuntimeInstanceHeader, "runtime-2")
 	wrongResponse := httptest.NewRecorder()
@@ -844,6 +844,7 @@ var artifactTestEpoch = time.Date(2026, 9, 1, 10, 11, 12, 123456000, time.UTC)
 type memoryRepository struct {
 	mu             sync.Mutex
 	next           int
+	listCalls      int
 	writeCalls     int
 	bindings       map[string]storedArtifact
 	history        map[string]storedArtifact
@@ -954,11 +955,14 @@ func assertArtifactTimestampHeaders(t *testing.T, header http.Header, binding, r
 	}
 }
 
-func (m *memoryRepository) List(
-	_ context.Context, scope artifacts.Scope, namespace *string,
-) ([]artifacts.ArtifactRef, error) {
+// ListRefs pages like PostgresRepository.ListRefs: exclusions apply before
+// the limit, and order is by namespace, then name.
+func (m *memoryRepository) ListRefs(
+	_ context.Context, scope artifacts.Scope, query artifacts.RefPageQuery,
+) (artifacts.RefPage, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	m.listCalls++
 	prefix := string(scope.Kind()) + "\x00" + scope.ID() + "\x00"
 	result := make([]artifacts.ArtifactRef, 0)
 	for key := range m.bindings {
@@ -966,15 +970,25 @@ func (m *memoryRepository) List(
 			continue
 		}
 		parts := strings.Split(key, "\x00")
-		if namespace != nil && parts[2] != *namespace {
+		ref := artifacts.ArtifactRef{Namespace: parts[2], Name: parts[3]}
+		if query.Namespace != nil && ref.Namespace != *query.Namespace ||
+			query.ModelVisible && artifactpolicy.IsModelHiddenBinding(ref.Namespace, ref.Name) ||
+			ref.Namespace < query.AfterNamespace ||
+			ref.Namespace == query.AfterNamespace && ref.Name <= query.AfterName {
 			continue
 		}
-		result = append(result, artifacts.ArtifactRef{Namespace: parts[2], Name: parts[3]})
+		result = append(result, ref)
 	}
 	sort.Slice(result, func(i, j int) bool {
-		return result[i].Namespace+"/"+result[i].Name < result[j].Namespace+"/"+result[j].Name
+		if result[i].Namespace != result[j].Namespace {
+			return result[i].Namespace < result[j].Namespace
+		}
+		return result[i].Name < result[j].Name
 	})
-	return result, nil
+	if len(result) > query.Limit {
+		return artifacts.RefPage{Refs: result[:query.Limit], More: true}, nil
+	}
+	return artifacts.RefPage{Refs: result}, nil
 }
 
 func (*memoryRepository) ForkInput(context.Context, artifacts.Scope, artifacts.ArtifactRef, artifacts.Scope, string) (artifacts.ForkResult, error) {

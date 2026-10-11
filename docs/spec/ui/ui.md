@@ -778,10 +778,15 @@ with the exact ID and a copy action.
 **UI-R143.** `GET /v1/audits/{auditId}/workspace` returns one owner-scoped SQL
 snapshot (`auditRevision`, `asOf`): current-round completed and total checks,
 issues, gaps and unchecked work, plus whole-Audit unreviewed findings and
-pending reviews.
+pending reviews. Pending reviews count only requests that can still be
+decided: a pending request whose expiry has passed at `asOf` is not counted,
+whether or not anything has expired it yet.
 
-**UI-R144.** Completed includes concluded assessments and explicit exclusions;
-none of the workspace counts implies accepted findings or an approved report.
+**UI-R144.** Completed, gaps and unchecked partition the current round by the
+coverage buckets the report concludes with (REV-R193): completed includes
+concluded assessments and not-applicable decisions, issues are its `violated`
+part, and an item the owner rejected is excluded and counts as a gap. None of
+the workspace counts implies accepted findings or an approved report.
 
 **UI-R145.** Audit Overview begins with current-round progress and pending
 decisions, based on complete coverage and review collections.

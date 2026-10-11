@@ -21,6 +21,27 @@ WHERE c.canonical_document::jsonb #>> '{spec,worker,telemetry,credential}' = $1
 ORDER BY b.label
 LIMIT $2`
 
+// runtimeCredentialRunUsageSQL lists active Runs (up to $2, oldest first)
+// whose immutable snapshots pin credential $1: the RuntimeConfig snapshot's
+// runtimeCredentialIds or the Project HTTP target credential. The redundant
+// "? 'credential'" test lets the planner prove the predicate of
+// workflow_runs_project_http_target_credential_idx, so both arms are index
+// scans over active Runs instead of a scan of the Run history.
+// Used by RuntimeCredentialRepository.InspectRuntimeCredentialUsage.
+var runtimeCredentialRunUsageSQL = `
+SELECT run_id
+FROM workflow_runs
+WHERE state IN ('initializing', 'pending', 'running', 'waiting', 'cancelling')
+  AND (
+      (runtime_config_snapshot->'runtimeCredentialIds') ? $1
+      OR (
+          project_http_target_snapshot ? 'credential'
+          AND project_http_target_snapshot#>>'{credential,credentialId}' = $1
+      )
+  )
+ORDER BY created_at, run_id
+LIMIT $2`
+
 // runtimeCredentialAllocationUsageSQL lists unreleased stage allocations (up
 // to $2, oldest first) that reference credential $1, either in the provenance
 // runtimeCredentialRefs of their runtime configuration or through the HTTP

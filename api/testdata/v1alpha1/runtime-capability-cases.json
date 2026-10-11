@@ -1,0 +1,76 @@
+{
+  "description": "Runtime Agent registration values the Operations read model shows. Go registration and heartbeat validation, the agent-registration and agent-heartbeat JSON Schemas, the Runtime models and the public RuntimeAgentObservation schema apply these grammars and bounds, so every registration the Server accepts yields a valid Operations snapshot. toolName is the public ConfigId grammar; identity is the public ResourceId grammar of instanceId and allocationId; capabilityRefs bounds each of supportedRuntimes, supportedToolsets and supportedSandboxProfiles and each ref in them, whose selector grammar config-identity-cases.json pins.",
+  "toolName": {
+    "maxLength": 128,
+    "valid": [
+      "a",
+      "Z",
+      "0",
+      "9z",
+      "read_artifact",
+      "list-artifacts",
+      "tool.v2",
+      "Tool_1",
+      "a_",
+      "a-",
+      "a."
+    ],
+    "invalid": [
+      "",
+      "_a",
+      "-a",
+      ".a",
+      "server:tool",
+      "a/b",
+      "a@b",
+      "a+b",
+      "a*b",
+      "a b",
+      " a",
+      "a ",
+      "a\n",
+      "a\t",
+      "a\u0000",
+      "é",
+      "aé",
+      "а"
+    ]
+  },
+  "toolsPerToolset": {
+    "maxItems": 256
+  },
+  "capabilityRefs": {
+    "maxItems": 128,
+    "maxLength": 256
+  },
+  "identity": {
+    "maxLength": 256,
+    "valid": [
+      "a",
+      "0",
+      "runtime-1",
+      "runtime-0b6f4c2e-1d3a-4c5b-9e7f-2a1b3c4d5e6f",
+      "alloc_0123456789abcdef0123456789abcdef",
+      "A.b_c:d-e"
+    ],
+    "invalid": [
+      "",
+      " ",
+      "runtime 1",
+      " runtime-1",
+      "runtime-1 ",
+      "-runtime",
+      "_runtime",
+      ".runtime",
+      ":runtime",
+      "runtime/1",
+      "runtime@1",
+      "runtime+1",
+      "runtime-1\n",
+      "runtime\t1",
+      "runtime\u0000",
+      "é",
+      "runtime-а"
+    ]
+  }
+}

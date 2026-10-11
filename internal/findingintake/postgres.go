@@ -13,6 +13,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/pagelimit"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
 )
@@ -361,7 +362,7 @@ func (s *Service) hydrateReceiptDocuments(ctx context.Context, receipts []Receip
 }
 
 func validListQuery(query ListQuery) bool {
-	if query.Limit < 1 || query.Limit > 200 {
+	if !pagelimit.ValidFetch(query.Limit) {
 		return false
 	}
 	return (query.AfterCreatedAt == nil) == (query.AfterReceiptID == "")

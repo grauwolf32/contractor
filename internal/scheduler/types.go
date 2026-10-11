@@ -57,7 +57,6 @@ type Store interface {
 	ListStageExecutions(context.Context, string) ([]runstore.StageExecution, error)
 	ListTerminalStageExecutionsWithAllocations(context.Context) ([]runstore.StageExecution, error)
 	GetStageExecution(context.Context, string) (runstore.StageExecution, error)
-	RecordStageAllocation(context.Context, runstore.StageAllocation) error
 	ListStageAllocations(context.Context, string) ([]runstore.StageAllocation, error)
 	MarkStageAllocationReleaseAttempt(context.Context, string) error
 	MarkStageAllocationReleased(context.Context, string) error
@@ -107,6 +106,11 @@ type TerminationProgression struct {
 // every listed RunStore and ArtifactStore mutation or expose none of them.
 type AtomicPersistence interface {
 	AdmitStage(context.Context, string, string) (runstore.StageExecution, error)
+	// DiscardUnadmittedPlacement deletes the durable allocation rows of a
+	// pending Run's never admitted Stage and, in the same transaction, runs
+	// discard to drop the matching live reservation; a discard error rolls
+	// the deletion back.
+	DiscardUnadmittedPlacement(ctx context.Context, runID, stageID string, discard func() error) error
 	CreateStageWithContext(
 		context.Context,
 		runstore.CreateStageExecutionParams,
@@ -159,6 +163,9 @@ type Allocator interface {
 	GetGrant(string) (controlplane.AllocationGrant, error)
 	GetReservation(string) (controlplane.Reservation, error)
 	SetWriteFence(string) error
+	// DiscardUnprepared drops a Stage's committed reservation that was never
+	// prepared, leaving no released tombstone, so the Stage can be placed again.
+	DiscardUnprepared(string) error
 	Release(string) error
 	PollAllocationLosses() []controlplane.AllocationLoss
 }

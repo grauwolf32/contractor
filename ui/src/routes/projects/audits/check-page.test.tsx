@@ -675,10 +675,10 @@ describe("Check page", () => {
     ).toEqual([
       "All 6",
       "Issues found 1",
-      "Need follow-up 2",
+      "Need follow-up 3",
       "Not checked yet 0",
       "Met 1",
-      "Not applicable / excluded 2",
+      "Not applicable 1",
     ]);
     expect(
       within(

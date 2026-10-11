@@ -4,10 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/contentdigest"
+	"github.com/grauwolf32/contractor/internal/contracts"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
 )
@@ -38,7 +40,7 @@ SELECT decision_id, request_id, request_digest
 		).Scan(&decisionID, &requestID, &storedDigest)
 		if err == nil {
 			if storedDigest != params.RequestDigest || requestID != params.RequestID {
-				return auditstore.ErrConflict
+				return fmt.Errorf("%w: review decision key", contracts.ErrIdempotencyConflict)
 			}
 			replayed = true
 			return nil

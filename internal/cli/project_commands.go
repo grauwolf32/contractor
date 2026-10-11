@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/pagelimit"
 	"github.com/grauwolf32/contractor/internal/publicclient"
 	publicapi "github.com/grauwolf32/contractor/internal/publicclient/generated"
 )
@@ -236,8 +237,8 @@ func currentProjectRevision(ctx context.Context, client *publicclient.Client, pr
 }
 
 func validatedLimit(value int) (publicapi.Limit, error) {
-	if value < 1 || value > 200 {
-		return 0, &UsageError{Message: "limit must be between 1 and 200"}
+	if !pagelimit.ValidPage(value) {
+		return 0, &UsageError{Message: fmt.Sprintf("limit must be between 1 and %d", pagelimit.MaxRows)}
 	}
 	return publicapi.Limit(value), nil
 }

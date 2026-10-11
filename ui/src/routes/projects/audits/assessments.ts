@@ -19,7 +19,14 @@ export const GROUP_IDS: readonly Group[] = [
   "out-of-scope",
 ];
 
-/** The result filter each coverage status belongs to. */
+/**
+ * The result filter each coverage status belongs to. The filters nest in the
+ * Server's coverage buckets (api/testdata/public/audit-coverage-buckets.json):
+ * issues, complete and out-of-scope are its completed work, uncertain is its
+ * gaps and not-tested its unchecked work, so a workspace count links to the
+ * filter that lists exactly its items. An item the owner rejected is excluded
+ * and needs follow-up: it is a gap, not concluded work.
+ */
 export const STATUS_GROUPS: Readonly<Record<Status, Exclude<Group, "all">>> = {
   violated: "issues",
   satisfied: "complete",
@@ -28,10 +35,17 @@ export const STATUS_GROUPS: Readonly<Record<Status, Exclude<Group, "all">>> = {
   blocked: "uncertain",
   "traced-partial": "uncertain",
   unmapped: "uncertain",
+  excluded: "uncertain",
   "not-tested": "not-tested",
   "not-applicable": "out-of-scope",
-  excluded: "out-of-scope",
 };
+
+/** The filters of concluded work: what the Server counts as completed. */
+const CONCLUDED_GROUPS: ReadonlySet<Group> = new Set<Group>([
+  "issues",
+  "complete",
+  "out-of-scope",
+]);
 
 /**
  * What a coverage status means. Coverage is not a verdict on security: a
@@ -58,6 +72,11 @@ export function statusGroup(status: Status): Exclude<Group, "all"> {
     : "uncertain";
 }
 
+/** True for concluded coverage, which the Server counts as completed work. */
+export function isConcludedStatus(status: Status): boolean {
+  return CONCLUDED_GROUPS.has(statusGroup(status));
+}
+
 export function statusDescription(status: Status): string | undefined {
   return Object.hasOwn(STATUS_DESCRIPTIONS, status)
     ? STATUS_DESCRIPTIONS[status]
@@ -82,7 +101,7 @@ export function groupLabel(group: Group, kind: ItemKind): string {
           ? "Met / fully traced"
           : "Met";
     case "out-of-scope":
-      return "Not applicable / excluded";
+      return "Not applicable";
   }
 }
 

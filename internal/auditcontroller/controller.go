@@ -673,7 +673,7 @@ func auditSettlementBarrier(snapshot auditstore.ReconcileSnapshot) bool {
 }
 
 func terminalRun(state runstore.WorkflowRunState) bool {
-	return state == runstore.RunSucceeded || state == runstore.RunFailed || state == runstore.RunCancelled
+	return runstore.RunLifecycleTerminal.Includes(state)
 }
 
 func permanentSubmissionError(err error) bool {

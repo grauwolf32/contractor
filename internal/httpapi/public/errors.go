@@ -32,6 +32,11 @@ func (h *handler) handleError(w http.ResponseWriter, err error) {
 	var runtimeLabelInUse *runtimeconfig.LabelInUseError
 	var runNotDeletable *rundeletion.NotDeletableError
 	switch {
+	case errors.Is(err, contracts.ErrIdempotencyConflict):
+		// Permanent (FAIL-RUN-1): the key keeps its original result, so only a
+		// new key can carry the changed request.
+		h.writeError(w, http.StatusConflict, "idempotency_conflict",
+			"Idempotency-Key is already bound to a different request; use a new key for a new request", false)
 	case errors.Is(err, settingsstore.ErrPrecondition):
 		h.writeError(w, http.StatusPreconditionFailed, "precondition_failed", "resource revision precondition failed", false)
 	case errors.Is(err, auditstore.ErrPrecondition):

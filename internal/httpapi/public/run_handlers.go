@@ -14,6 +14,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/gatewayrecovery"
+	"github.com/grauwolf32/contractor/internal/pagelimit"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/runservice"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -57,7 +58,7 @@ func (h *handler) listRunsFromProject(w http.ResponseWriter, r *http.Request, pr
 	var state *runstore.WorkflowRunState
 	if values, present := query["state"]; present {
 		candidate := runstore.WorkflowRunState(values[0])
-		if !publicRunState(candidate) {
+		if !candidate.Valid() {
 			h.handleError(w, fmt.Errorf("%w: unknown Run state", errInvalidRequest))
 			return
 		}
@@ -85,7 +86,7 @@ func (h *handler) listRunsFromProject(w http.ResponseWriter, r *http.Request, pr
 	}
 	params := runstore.ListRunsParams{
 		OwnerID: principalUserID(r.Context()), State: state, Lifecycle: lifecycle,
-		ProjectID: projectID, MetadataLabelSelectors: selectors, Limit: limit + 1,
+		ProjectID: projectID, MetadataLabelSelectors: selectors, Limit: pagelimit.FetchRows(limit),
 	}
 	if len(cursor) != 0 {
 		before, parseErr := time.Parse(time.RFC3339Nano, cursor[0])
@@ -167,16 +168,6 @@ func runListCursorKindForProject(
 	}
 	encoded, _ := json.Marshal(selectors)
 	return kind + ":labels:" + string(encoded)
-}
-
-func publicRunState(state runstore.WorkflowRunState) bool {
-	switch state {
-	case runstore.RunInitializing, runstore.RunPending, runstore.RunRunning, runstore.RunWaiting, runstore.RunCancelling,
-		runstore.RunSucceeded, runstore.RunFailed, runstore.RunCancelled:
-		return true
-	default:
-		return false
-	}
 }
 
 func (h *handler) createRun(w http.ResponseWriter, r *http.Request) {
@@ -778,7 +769,7 @@ func (h *handler) runArtifactsByNamespace(
 		return nil, err
 	}
 	result := make(map[string]contracts.ArtifactRef)
-	query := artifacts.BindingPageQuery{Namespace: &namespace, Limit: maxPageLimit}
+	query := artifacts.BindingPageQuery{Namespace: &namespace, Limit: pagelimit.MaxRows}
 	for {
 		page, err := store.ListMetadata(r.Context(), query)
 		if err != nil {

@@ -183,3 +183,67 @@ func TestPostgresEvalPinnedLLMCredentialFailureClassification(t *testing.T) {
 		})
 	}
 }
+
+// Workflow credential revalidation (catalog resolution for a Workflow variant,
+// pinned-snapshot revalidation for an Audit variant) keeps the lookup class:
+// an outage or credential recovery keeps Prepare pending, a confirmed missing
+// credential returns the experiment to draft.
+func TestPostgresEvalWorkflowCredentialLookupFailureClassification(t *testing.T) {
+	transient := errors.New("fixture: credential store temporarily unavailable")
+	for _, kind := range []string{"workflow", "audit"} {
+		for _, test := range []struct {
+			name      string
+			cause     error
+			retryable bool
+		}{
+			{name: "infrastructure", cause: transient, retryable: true},
+			{name: "recovery", cause: credentials.ErrRecoveryRequired, retryable: true},
+			{name: "missing", cause: credentials.ErrNotFound},
+		} {
+			t.Run(kind+"/"+test.name, func(t *testing.T) {
+				h := newHarness(t)
+				ctx := t.Context()
+				factory := h.resolver.Credentials
+				failure := test.cause
+				h.resolver.Credentials = runtimeconfig.TransactionLLMCredentialLookupFactoryFunc(func(tx pgx.Tx) (config.CredentialLookup, error) {
+					original, err := factory.ForTransaction(tx)
+					if err != nil {
+						return nil, err
+					}
+					return credentialLookupFunc(func(ctx context.Context, id string) (config.CredentialMetadata, error) {
+						if id == "development-worker" && failure != nil {
+							return config.CredentialMetadata{}, failure
+						}
+						return original.LookupLLMCredential(ctx, id)
+					}), nil
+				})
+				e := h.create(t, kind)
+				h.command(t, e, "prepare")
+				coordinator := h.coordinator(t, "workflow-credential-lookup")
+				_, err := coordinator.RunOnce(ctx)
+				if test.retryable && !errors.Is(err, test.cause) {
+					t.Fatalf("lost lookup failure: %v", err)
+				}
+				e = h.get(t, e.ID)
+				pending, err := evalstore.NewPostgresStore(h.pool).PendingCommands(ctx, e.OwnerID, e.ID)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if !test.retryable {
+					if e.State != evaldomain.StateDraft || len(pending) != 0 {
+						t.Fatalf("missing credential did not return to draft: %s pending=%d", e.State, len(pending))
+					}
+					return
+				}
+				if e.State != evaldomain.StatePreparing || len(pending) != 1 {
+					t.Fatalf("lookup outage was rejected: %s pending=%d diagnostic=%s", e.State, len(pending), e.Diagnostic)
+				}
+				failure = nil
+				tick(t, coordinator)
+				if e = h.get(t, e.ID); e.State != evaldomain.StateReady || len(e.Diagnostic) != 0 {
+					t.Fatalf("lookup recovery: %s %s", e.State, e.Diagnostic)
+				}
+			})
+		}
+	}
+}

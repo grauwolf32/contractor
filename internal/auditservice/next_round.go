@@ -10,10 +10,11 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/pagelimit"
 )
 
 const (
-	nextRoundInboxPage    = 200
+	nextRoundInboxPage    = pagelimit.MaxRows
 	maxNextRoundInboxScan = 10_000
 )
 

@@ -233,13 +233,24 @@ func verifyTrustedExecution(
 	if !allocationMatches {
 		return Origin{}, "", nil, ErrAccessDenied
 	}
+	// Only a confirmed absence denies the grant. A storage failure keeps its
+	// cause so the submission stays retryable instead of becoming a denial.
 	runs := runstore.NewPostgresStore(tx)
 	run, err := runs.GetRun(ctx, grant.RunID)
-	if err != nil {
+	if errors.Is(err, runstore.ErrNotFound) {
 		return Origin{}, "", nil, ErrAccessDenied
 	}
+	if err != nil {
+		return Origin{}, "", nil, fmt.Errorf("read finding Run provenance: %w", err)
+	}
 	stage, err := runs.GetStageExecution(ctx, grant.StageExecutionID)
-	if err != nil || stage.RunID != run.RunID {
+	if errors.Is(err, runstore.ErrNotFound) {
+		return Origin{}, "", nil, ErrAccessDenied
+	}
+	if err != nil {
+		return Origin{}, "", nil, fmt.Errorf("read finding StageExecution provenance: %w", err)
+	}
+	if stage.RunID != run.RunID {
 		return Origin{}, "", nil, ErrAccessDenied
 	}
 	resolved, err := workflowconfig.DecodeResolvedStageSnapshot(stage.StageSpecSnapshot)
@@ -271,8 +282,11 @@ SELECT execution.audit_id, execution.execution_id, execution.role,
  WHERE execution.execution_id = $1 AND execution.run_id = $2`,
 			*run.AuditExecutionID, run.RunID,
 		).Scan(&audit.AuditID, &audit.ExecutionID, &audit.Role, &findingPolicy)
-		if err != nil || findingPolicy == "disabled" {
+		if errors.Is(err, pgx.ErrNoRows) || err == nil && findingPolicy == "disabled" {
 			return Origin{}, "", nil, ErrToolNotSelected
+		}
+		if err != nil {
+			return Origin{}, "", nil, fmt.Errorf("read finding Audit provenance: %w", err)
 		}
 		origin.Audit = &audit
 	}

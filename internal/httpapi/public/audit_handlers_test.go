@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -21,6 +22,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/findingintake"
+	"github.com/grauwolf32/contractor/internal/pagelimit"
 )
 
 func TestAuditProfileHandlersExposeCompatibilityAndExactDetail(t *testing.T) {
@@ -596,14 +598,20 @@ type fakeFindingProposalManagement struct {
 }
 
 func (f *fakeFindingProposalManagement) ListRun(
-	context.Context, string, string, findingintake.ListQuery,
+	_ context.Context, _, _ string, query findingintake.ListQuery,
 ) ([]findingintake.Receipt, error) {
+	if err := fakePageFetch(query.Limit, findingintake.ErrInvalid); err != nil {
+		return nil, err
+	}
 	return append([]findingintake.Receipt(nil), f.receipts...), nil
 }
 
 func (f *fakeFindingProposalManagement) ListAuditInbox(
-	_ context.Context, ownerID, auditID string, _ findingintake.ListQuery,
+	_ context.Context, ownerID, auditID string, query findingintake.ListQuery,
 ) ([]findingintake.Receipt, error) {
+	if err := fakePageFetch(query.Limit, findingintake.ErrInvalid); err != nil {
+		return nil, err
+	}
 	f.listOwner, f.listAudit = ownerID, auditID
 	return append([]findingintake.Receipt(nil), f.receipts...), nil
 }
@@ -624,6 +632,9 @@ func (f *fakeAuditManagement) Profiles() []auditservice.ProfileProjection {
 }
 
 func (f *fakeAuditManagement) ListEventsPage(_ context.Context, p auditservice.EventListParams) (auditservice.EventPage, error) {
+	if err := fakePageFetch(p.Limit, auditstore.ErrInvalid); err != nil {
+		return auditservice.EventPage{}, err
+	}
 	f.eventParams = p
 	return f.events, f.err
 }
@@ -700,20 +711,29 @@ func (f *fakeAuditManagement) Get(context.Context, string, string) (auditstore.A
 	return f.audit, f.err
 }
 
-func (f *fakeAuditManagement) List(context.Context, auditstore.ListParams) ([]auditstore.Audit, error) {
+func (f *fakeAuditManagement) List(_ context.Context, params auditstore.ListParams) ([]auditstore.Audit, error) {
+	if err := fakePageFetch(params.Limit, auditstore.ErrInvalid); err != nil {
+		return nil, err
+	}
 	if f.err != nil {
 		return nil, f.err
 	}
 	return []auditstore.Audit{f.audit}, nil
 }
 
-func (f *fakeAuditManagement) ListItems(context.Context, auditstore.ListItemsParams) ([]auditstore.Item, error) {
+func (f *fakeAuditManagement) ListItems(_ context.Context, params auditstore.ListItemsParams) ([]auditstore.Item, error) {
+	if err := fakePageFetch(params.Limit, auditstore.ErrInvalid); err != nil {
+		return nil, err
+	}
 	return append([]auditstore.Item(nil), f.started.Items...), f.err
 }
 
 func (f *fakeAuditManagement) ListItemAttempts(
-	context.Context, string, string, []string,
+	_ context.Context, _, _ string, itemIDs []string,
 ) (map[string][]auditstore.ItemAttempt, error) {
+	if len(itemIDs) == 0 || len(itemIDs) > pagelimit.MaxRows {
+		return nil, fmt.Errorf("%w: fake attempt selection of %d items", auditstore.ErrInvalid, len(itemIDs))
+	}
 	return map[string][]auditstore.ItemAttempt{}, f.err
 }
 
@@ -722,8 +742,11 @@ func (f *fakeAuditManagement) GetRound(context.Context, string, string, string) 
 }
 
 func (f *fakeAuditManagement) ListCoverage(
-	context.Context, string, string, string, int, int,
+	_ context.Context, _, _, _ string, _ int, limit int,
 ) ([]auditstore.CoverageRow, error) {
+	if err := fakePageFetch(limit, auditstore.ErrInvalid); err != nil {
+		return nil, err
+	}
 	return nil, f.err
 }
 
@@ -736,6 +759,9 @@ func (f *fakeAuditManagement) GetReport(
 func (f *fakeAuditManagement) ListFindings(
 	_ context.Context, params auditservice.FindingListParams,
 ) ([]auditservice.Finding, error) {
+	if err := fakePageFetch(params.Limit, auditstore.ErrInvalid); err != nil {
+		return nil, err
+	}
 	f.findingListParams = params
 	return append([]auditservice.Finding(nil), f.findings...), f.err
 }
@@ -797,6 +823,9 @@ func (f *fakeAuditManagement) GetReview(
 func (f *fakeAuditManagement) ListReviews(
 	_ context.Context, params auditservice.ReviewListParams,
 ) ([]auditservice.ReviewRequest, error) {
+	if err := fakePageFetch(params.Limit, auditstore.ErrInvalid); err != nil {
+		return nil, err
+	}
 	f.reviewListParams = params
 	return append([]auditservice.ReviewRequest(nil), f.reviews...), f.err
 }
@@ -804,6 +833,9 @@ func (f *fakeAuditManagement) ListReviews(
 func (f *fakeAuditManagement) ListFindingProvenance(
 	_ context.Context, params auditservice.ProvenanceListParams,
 ) ([]auditservice.FindingProvenance, error) {
+	if err := fakePageFetch(params.Limit, auditstore.ErrInvalid); err != nil {
+		return nil, err
+	}
 	f.provenanceParams = params
 	return append([]auditservice.FindingProvenance(nil), f.provenance...), f.err
 }
@@ -848,10 +880,16 @@ func (f *fakeAuditManagement) ListReviewsPage(ctx context.Context, params audits
 }
 
 func (f *fakeAuditManagement) ListOwnerFindings(_ context.Context, params auditservice.OwnerFindingListParams) ([]auditservice.Finding, error) {
+	if err := fakePageFetch(params.Limit, auditstore.ErrInvalid); err != nil {
+		return nil, err
+	}
 	f.ownerFindings = params
 	return f.findings, f.err
 }
 func (f *fakeAuditManagement) ListOwnerReviews(_ context.Context, params auditservice.OwnerReviewListParams) ([]auditservice.ReviewRequest, error) {
+	if err := fakePageFetch(params.Limit, auditstore.ErrInvalid); err != nil {
+		return nil, err
+	}
 	f.ownerReviews = params
 	return f.reviews, f.err
 }

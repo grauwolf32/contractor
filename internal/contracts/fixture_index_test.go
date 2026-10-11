@@ -134,8 +134,10 @@ func compileECMAPattern(pattern string) (jsonschema.Regexp, error) {
 	return ecmaRegexp{compiled}, nil
 }
 
-func TestPrivateSchemasAcceptAndRejectGoldenFixtures(t *testing.T) {
-	t.Parallel()
+// privateSchemaCompiler loads every api/v1alpha1 schema with ECMA-262
+// patterns and returns the compiler and each file's $id.
+func privateSchemaCompiler(t *testing.T) (*jsonschema.Compiler, map[string]string) {
+	t.Helper()
 	compiler := jsonschema.NewCompiler()
 	compiler.UseRegexpEngine(compileECMAPattern)
 	paths, err := filepath.Glob(filepath.Join("..", "..", "api", "v1alpha1", "*.schema.json"))
@@ -158,6 +160,12 @@ func TestPrivateSchemasAcceptAndRejectGoldenFixtures(t *testing.T) {
 		}
 		ids[filepath.Base(path)] = id
 	}
+	return compiler, ids
+}
+
+func TestPrivateSchemasAcceptAndRejectGoldenFixtures(t *testing.T) {
+	t.Parallel()
+	compiler, ids := privateSchemaCompiler(t)
 	index := readFixtureIndex(t)
 	for kind, entries := range map[string]map[string]fixtureIndexEntry{"valid": index.Valid, "invalid": index.Invalid} {
 		for _, name := range sortedFixtureNames(entries) {

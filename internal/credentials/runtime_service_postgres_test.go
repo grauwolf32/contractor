@@ -135,7 +135,7 @@ func TestRuntimeCredentialPostgresLifecycleReplayAndSecretBoundary(t *testing.T)
 	if _, err := service.Create(ctx, RuntimeCredentialCreateRequest{
 		CredentialID: "otel-auth", Material: changed,
 		IdempotencyKey: "runtime-create-otel", ActorID: "operator",
-	}); !errors.Is(err, ErrRuntimeCredentialConflict) {
+	}); !errors.Is(err, contracts.ErrIdempotencyConflict) || errors.Is(err, ErrRuntimeCredentialConflict) {
 		t.Fatalf("changed replay error = %v", err)
 	}
 

@@ -97,6 +97,25 @@ func TestAuditPostgresPublicCreateStartAndQuery(t *testing.T) {
 	if created.Code != http.StatusCreated || created.Header().Get("ETag") != `"1"` {
 		t.Fatalf("create Audit = %d headers=%v body=%s", created.Code, created.Header(), created.Body.String())
 	}
+	// The same key with another request is permanent; it never creates a
+	// second draft or changes the first.
+	changedBody, err := json.Marshal(createAuditRequest{
+		Profile: auditProfileSelectorRequest{Name: "public-checklist", Version: "1"},
+		Inputs: map[string]contracts.ArtifactRef{
+			"source": source.Ref, "checklist": checklist.Ref,
+		},
+		RuntimeLabels: []string{}, Scope: auditservice.Scope{Objective: "Review authorization"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	reusedCreate := auditAuthenticatedRequest(http.MethodPost, "/v1/projects/"+project.ProjectID+"/audits", changedBody)
+	reusedCreate.SetPathValue("projectId", project.ProjectID)
+	reusedCreate.Header.Set("Content-Type", "application/json")
+	reusedCreate.Header.Set("Idempotency-Key", "create-public-audit")
+	reusedCreated := httptest.NewRecorder()
+	h.createAudit(reusedCreated, reusedCreate)
+	assertIdempotencyConflict(t, reusedCreated)
 	var draft auditResponse
 	if err := json.Unmarshal(created.Body.Bytes(), &draft); err != nil || draft.State != auditstore.AuditDraft ||
 		draft.Inputs["source"].Ref.Revision == nil || draft.Baseline != nil {
@@ -129,6 +148,13 @@ func TestAuditPostgresPublicCreateStartAndQuery(t *testing.T) {
 		replayed.Body.String() != startedResponse.Body.String() {
 		t.Fatalf("start replay = %d headers=%v body=%s", replayed.Code, replayed.Header(), replayed.Body.String())
 	}
+	reusedStart := auditAuthenticatedRequest(http.MethodPost, "/v1/audits/"+draft.AuditID+"/start", nil)
+	reusedStart.SetPathValue("auditId", draft.AuditID)
+	reusedStart.Header.Set("Idempotency-Key", "start-public-audit")
+	reusedStart.Header.Set("If-Match", `"2"`)
+	reusedStarted := httptest.NewRecorder()
+	h.startAudit(reusedStarted, reusedStart)
+	assertIdempotencyConflict(t, reusedStarted)
 
 	coverage := auditAuthenticatedRequest(http.MethodGet, "/v1/audits/"+draft.AuditID+"/coverage", nil)
 	coverage.SetPathValue("auditId", draft.AuditID)
@@ -161,6 +187,7 @@ func TestAuditPostgresPublicCreateStartAndQuery(t *testing.T) {
 		if paused.Code != http.StatusOK {
 			t.Fatalf("pause = %d %s", paused.Code, paused.Body.String())
 		}
+		assertIdempotencyConflict(t, mutate("pause", "pause-public-audit", `"3"`, nil, h.pauseAudit))
 		body := []byte(`{"deadlineSeconds":0}`)
 		resumed := mutate("resume", "resume-public-audit", `"3"`, body, h.resumeAudit)
 		var current auditResponse
@@ -171,6 +198,7 @@ func TestAuditPostgresPublicCreateStartAndQuery(t *testing.T) {
 		if replayed.Code != http.StatusOK || replayed.Header().Get("Idempotency-Replayed") != "true" || replayed.Body.String() != resumed.Body.String() {
 			t.Fatalf("Resume replay = %d %s", replayed.Code, replayed.Body.String())
 		}
+		assertIdempotencyConflict(t, mutate("resume", "resume-public-audit", `"3"`, []byte(`{"deadlineSeconds":3600}`), h.resumeAudit))
 		for _, state := range []auditstore.AuditState{auditstore.AuditCompleted, auditstore.AuditFailed} {
 			if _, err := pool.Exec(ctx, `UPDATE audits SET state=$2,dispatch_state='closed',hold_state='released',finished_at=clock_timestamp(),stop_reason_code='deadline_exhausted',stop_reason_message='Legacy deadline' WHERE audit_id=$1`, draft.AuditID, state); err != nil {
 				t.Fatal(err)

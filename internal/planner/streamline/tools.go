@@ -416,13 +416,8 @@ func (p *streamlinePlanner) workerRequest(
 	}
 	if err := request.Validate(); err != nil {
 		return contracts.StageContentRequest{}, safeToolFailure(
-			"worker_request_invalid", "Worker objective, instructions, or structured context is invalid", false,
-		)
-	}
-	encoded, err := json.Marshal(request)
-	if err != nil || len(encoded) > contracts.MaxStageRequestBytes {
-		return contracts.StageContentRequest{}, safeToolFailure(
-			"worker_request_invalid", "Worker request exceeds its bounded contract", false,
+			"worker_request_invalid",
+			"Worker objective, instructions, or structured context is invalid or exceeds its size bound", false,
 		)
 	}
 	return request, nil

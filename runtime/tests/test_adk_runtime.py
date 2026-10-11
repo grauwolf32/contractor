@@ -2941,9 +2941,11 @@ class NoArtifactAccessClient:
     def __init__(self) -> None:
         self.calls: list[str] = []
 
-    async def list_artifacts(self, namespace: str | None = None) -> list[ArtifactRef]:
-        del namespace
-        self.calls.append("list_artifacts")
+    async def list_artifact_prefix(
+        self, namespace: str, name_prefix: str, *, limit: int
+    ) -> list[ArtifactRef]:
+        del namespace, name_prefix, limit
+        self.calls.append("list_artifact_prefix")
         raise AssertionError("malformed Memory arguments reached ArtifactClient")
 
     async def read_artifact(self, ref: ArtifactRef) -> ArtifactValue:

@@ -557,9 +557,11 @@ func hmacDigest(key, value []byte) []byte {
 	return mac.Sum(nil)
 }
 
+// cloneSnapshot leaves the size bound to AgentStateSnapshot.Validate inside
+// DecodeStrict; json.Marshal escapes HTML and would overcount it.
 func cloneSnapshot(input reporting.AgentStateSnapshot) (reporting.AgentStateSnapshot, error) {
 	encoded, err := json.Marshal(input)
-	if err != nil || len(encoded) > reporting.MaxAgentStateSnapshotBytes {
+	if err != nil {
 		return reporting.AgentStateSnapshot{}, errors.New("Worker State snapshot cannot be cloned")
 	}
 	return contracts.DecodeStrict[reporting.AgentStateSnapshot](encoded)

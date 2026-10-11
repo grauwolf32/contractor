@@ -3,8 +3,10 @@ package runtimeconfig
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/contracts"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -177,7 +179,7 @@ func lookupReplay(ctx context.Context, repository publicationReader, keyDigest, 
 		return PublishResult{}, false, err
 	}
 	if publication.RequestDigest != requestDigest {
-		return PublishResult{}, false, ErrConflict
+		return PublishResult{}, false, fmt.Errorf("%w: RuntimeConfig publication key", contracts.ErrIdempotencyConflict)
 	}
 	version, err := repository.GetVersionByRef(ctx, publication.Ref)
 	if err != nil {

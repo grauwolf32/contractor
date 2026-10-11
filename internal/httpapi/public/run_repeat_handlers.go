@@ -131,7 +131,11 @@ func (h *handler) getRunRepeatDraft(w http.ResponseWriter, r *http.Request) {
 	if workflowAvailable {
 		if _, resolveErr := h.dependencies.Config.ResolveRunWorkflow(
 			r.Context(), selector, snapshot.ExecutionConfig, h.dependencies.Credentials,
-		); resolveErr != nil {
+		); errors.Is(resolveErr, config.ErrCredentialLookup) {
+			// An outage is not an unavailable selection; let the client retry.
+			h.handleError(w, resolveErr)
+			return
+		} else if resolveErr != nil {
 			response.Notices = append(response.Notices, runRepeatDraftNotice{
 				Code: "execution_configuration_unavailable", Severity: "blocking", Field: "executionConfig",
 				Message: "At least one retained model, Gateway or credential selection is no longer available. Review the execution overrides before submitting.",

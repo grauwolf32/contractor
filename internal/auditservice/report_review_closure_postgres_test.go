@@ -11,6 +11,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/findingintake"
+	"github.com/grauwolf32/contractor/internal/pagelimit"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -102,7 +103,7 @@ func TestAuditReportReviewExpiresOnCancelOrDelete(t *testing.T) {
 			if err != nil || review.State != ReviewExpired || review.Revision != 2 {
 				t.Fatalf("expired report review = (%+v, %v)", review, err)
 			}
-			events, err := store.ListEvents(ctx, audit.AuditID, waiting.EventSequence, auditstore.MaxPageSize)
+			events, err := store.ListEvents(ctx, audit.AuditID, waiting.EventSequence, pagelimit.MaxRows)
 			if err != nil || len(events) != 2 {
 				t.Fatalf("events after closing report review = (%+v, %v)", events, err)
 			}

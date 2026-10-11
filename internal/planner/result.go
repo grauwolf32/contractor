@@ -21,13 +21,6 @@ func validateCandidate(
 			"invalid_worker_result", "Worker returned an invalid StageContentResult", false, err,
 		)
 	}
-	size, err := contracts.ResultJSONSize(result)
-	if err != nil || size > contracts.MaxStageResultBytes ||
-		len(result.Summary) > contracts.MaxStageResultSummaryBytes || len(result.Artifacts) > contracts.MaxStageResultArtifacts {
-		return NewError(
-			"invalid_worker_result", "Worker returned an oversized StageContentResult", false, err,
-		)
-	}
 	for name := range result.Artifacts {
 		if _, ok := contract[name]; !ok {
 			return NewError(

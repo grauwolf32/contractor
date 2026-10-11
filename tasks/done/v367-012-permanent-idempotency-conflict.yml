@@ -1,0 +1,91 @@
+schema_version: "1.0"
+id: V367-012
+title: "Report a reused idempotency key as a permanent conflict and honour retryable in the CLI client"
+milestone: hub-audit-2026-10
+epic: api-contracts
+kind: defect
+introduced_by: MVP-006
+priority: P2
+status: completed
+implementation_commit: 10a3bf7ff23e45856979a3dfc9bbdc60bd6db93d
+depends_on: []
+languages: [go]
+goal: "Reusing an Idempotency-Key with a different body is a permanent error to every client, and the Go client never retries what the Server marked not retryable."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq), public API G3, G6 / F4"
+  specification:
+    - docs/spec/platform/failure-model.md
+    - docs/spec/platform/errors.md
+  finding: >-
+    Stores return ErrConflict for an idempotency key reused with a different
+    digest (runstore/store.go:284-285, 325-326, projectstore/store.go:61-68),
+    and httpapi/public/errors.go:145-149 maps it to 409 conflict with
+    retryable:true and "retry with the current revision". FAIL-RUN-1
+    (failure-model.md:461) calls this outcome permanent. The Go client
+    retries it twice more (publicclient/retry.go:104-121) and treats every
+    502/503/504 as transient (retry.go:124-127, 141-146) even when the
+    Server sent retryable:false (artifact_content_corrupt,
+    git_import_unavailable). The idempotency conflict test checks only 409
+    (handler_test.go:1316-1322).
+  decision: >-
+    One shared sentinel, contracts.ErrIdempotencyConflict (beside
+    contracts.ErrValidation in the kernel layer), instead of a new sentinel
+    per store: the outcome is one rule with one public code, and handleError
+    maps it in one place. Stores fixed: projectstore, runstore (create and
+    LookupRunIdempotency), auditstore (lookupAuditReplay, the funnel for
+    create, start, pause/resume/cancel and delete), auditservice (finding
+    review, finding decision, action decision), config.Manager publication
+    (was ErrPublicationConflict), runtimeconfig (publication, Runtime label
+    and Agent label management replays), credentials (LLM credential
+    create/delete, Runtime credential create; the Runtime credential error
+    sanitizer now passes the sentinel instead of turning it into a store
+    failure). Identity conflicts (no replay row for a unique violation),
+    state conflicts and stored-request decode failures keep the old
+    sentinels. Sibling found beyond the finding: Managed Eval mutations
+    returned eval_idempotency_conflict with retryable true because evalError
+    derived retryable from the retry_same_request recovery; it is now
+    retryable false and keeps its Eval code (EvalAPIError is a closed enum).
+    The OpenAPI Error schema has a free code field, so the code is listed in
+    the IdempotencyKey parameter and Error409 descriptions (additive; both
+    clients regenerated). Spec: API-R69 and an errors.md registry row; RUN-R21,
+    FAIL-RUN-1, FAIL-AUD-4, FAIL-AUD-10, FAIL-PRJ-2 and FAIL-RCF-8 name the
+    code. A1 is covered in three layers: real-store PostgreSQL tests for every
+    store path (key reused with another digest gives only the new sentinel;
+    the same digest replays), the Run and Audit (create, start, pause, resume)
+    PostgreSQL handler tests asserting 409 idempotency_conflict with retryable
+    false next to their replays, and TestEveryKeyedOperationReportsKeyReuseAsPermanent,
+    which enumerates every OpenAPI operation with the IdempotencyKey parameter
+    (20 plus 9 Eval mutations, the latter through evalError and the Eval
+    PostgreSQL CAS test) and fails on one without a request. UI code was
+    checked: its literal comparisons with conflict cover Artifact CAS writes
+    and ErrorNotice reconcile hints, and its keyrings bind the revision into
+    every keyed request, so it never reuses a key for another request; no UI
+    change was needed. Ruled out: internal Audit controller submission and
+    collection replays (not client keys; permanentSubmissionError already
+    treats auditstore.ErrConflict as permanent), the private finding
+    submission API (already 409 retryable false), and the
+    insertManagementResult unique race in runtimeconfig (unreachable under the
+    per-key advisory lock). Left open: the fake Runtime Agent principal
+    manager does not remember keys (the real path is tested on PostgreSQL);
+    the CLI prints its retry-with-key hint after any failure of a create with
+    a generated key, including permanent ones; auditRequestDigest keeps an
+    omitempty action "to keep stored start digests replayable", a legacy
+    compatibility rule that pre-production does not need.
+scope:
+  in:
+    - "A distinct idempotency-conflict sentinel in every store with request idempotency (runstore, projectstore, auditstore, credentials, runtimeconfig and others found by search), mapped to a stable code with retryable:false; the code is listed in the error registry (docs/spec/platform/errors.md) and OpenAPI."
+    - "The Go client honours retryable:false on any status."
+  out:
+    - "Optimistic revision conflicts (still retryable 409)."
+acceptance_criteria:
+  - id: A1
+    text: "Handler tests for each create operation with an Idempotency-Key: same key, different body gives the permanent code with retryable:false; same key, same body still replays."
+  - id: A2
+    text: "A publicclient test shows no retry for a 503 with retryable:false and retries for retryable:true."
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "go test ./internal/httpapi/public ./internal/publicclient/... ./internal/runstore ./internal/projectstore"
+    covers: [A1, A2]
+  - command: make verify-public-api
+    covers: [A1]

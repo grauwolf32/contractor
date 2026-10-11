@@ -155,9 +155,7 @@ func TestPostgresPublicRunInitializationAndFrozenOutput(t *testing.T) {
 	reused.Header.Set(idempotencyKeyHeader, "postgres-create-run")
 	reusedResponse := httptest.NewRecorder()
 	handler.ServeHTTP(reusedResponse, reused)
-	if reusedResponse.Code != http.StatusConflict {
-		t.Fatalf("reused Idempotency-Key = %d %s", reusedResponse.Code, reusedResponse.Body.String())
-	}
+	assertIdempotencyConflict(t, reusedResponse)
 
 	user, _ := service.User("user-1")
 	current, err := user.Read(ctx, contracts.ArtifactRef{Namespace: "projects", Name: "source"})

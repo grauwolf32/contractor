@@ -31,6 +31,17 @@ including non-ASCII text and floating-point temperatures and ratios.
 `agent-card-secret-scan-cases.json` holds the WorkerHandle Agent Card secret
 scan both implementations apply: the trusted path table, the Runtime's card and
 the cases each must accept or reject.
+`runtime-capability-cases.json` holds the registration and heartbeat values
+Operations shows: the tool-name and identity grammars and the capability
+bounds that Go registration, the registration and heartbeat schemas, the
+Runtime models and the public `RuntimeAgentObservation` schema share.
+
+`ArtifactListResult` is one page of versionless refs from the private
+allocation listing. Its optional `nextCursor` (1 to 512 unpadded base64url
+characters, never on an empty page) continues a paged listing and is absent on
+the last page and from a `namePrefix` listing; the listing limit and cursor
+grammar are pinned by `api/testdata/v1alpha1/artifact-list-cases.json`, which
+also lists the bindings the paged listing hides from model tools.
 
 `AllocationSpec.agentTemplate.modelPolicy` remains the immutable template
 default covered by the AgentTemplate digest. The separate required
