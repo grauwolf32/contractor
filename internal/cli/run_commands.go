@@ -215,11 +215,7 @@ func (c *CLI) createRun(ctx context.Context, client *publicclient.Client, printe
 		return err
 	}
 	if generatedKey {
-		defer func() {
-			if resultErr != nil {
-				_, _ = fmt.Fprintf(c.stderr, "Retry the create request with --idempotency-key %s\n", key)
-			}
-		}()
+		defer func() { c.printCreateRetryHint(key, resultErr) }()
 	}
 	var created *publicapi.CreateRunResponse
 	if projectID != "" {

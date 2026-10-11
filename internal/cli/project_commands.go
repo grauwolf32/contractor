@@ -102,11 +102,7 @@ func (c *CLI) createProject(ctx context.Context, client *publicclient.Client, pr
 		return err
 	}
 	if generatedKey {
-		defer func() {
-			if resultErr != nil {
-				_, _ = fmt.Fprintf(c.stderr, "Retry the create request with --idempotency-key %s\n", key)
-			}
-		}()
+		defer func() { c.printCreateRetryHint(key, resultErr) }()
 	}
 	body := publicapi.CreateProjectRequest{Name: positionals[0], Kind: publicapi.ProjectKind(kind)}
 	if description != "" {
