@@ -196,9 +196,10 @@ outputs, Planner prompts, placement or any other execution behavior.
 `presentation` decodes with presentation absent and retains its existing
 serialized shape.
 
-**WFL-R12.** Adding or changing `presentation` on an already published
-exact `(name, version)` is an immutable-definition conflict, not an in-place
-metadata edit.
+**WFL-R12.** `presentation` is Workflow content, not separately editable
+metadata: adding or changing it changes the exact `(name, version)` like any
+other content change, under [CAT-R44](catalog.md) and, for the pre-production
+shipped catalog, [CAT-R74](catalog.md).
 
 **WFL-R13.** `presentation` does not introduce a Workflow digest; the
 complete durable Run snapshot remains execution authority

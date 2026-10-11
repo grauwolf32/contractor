@@ -9,8 +9,9 @@ instruction resources, the operator and managed configuration roots and their
 fixed subtrees, the manifest envelope and the `(kind, name, version)` lookup
 key, the `<id>@<version>` selector grammar, all-or-nothing loading and
 validation, the resolution of selectors and instruction refs into the Run
-snapshot, immutability of published versions, managed publication of new
-versions, and catalog discovery on the listing endpoints. It also owns
+snapshot, immutability of published versions and the pre-production exception
+for the shipped catalog, managed publication of new versions, and catalog
+discovery on the listing endpoints. It also owns
 WorkflowCatalog and the in-process AgentTemplateCatalog configuration
 boundary.
 
@@ -55,6 +56,7 @@ Terms are defined once in the [glossary](../glossary.md).
 | Managed publication | The atomic, create-only addition of a new immutable ModelPolicy or LLMGatewayConfig version to the managed root and the configuration set. |
 | Draft | A clone of a published configuration whose typed fields are edited in the Operations authoring flow; it is not executable configuration. |
 | Catalog source fingerprint | The SHA-256 fingerprint of the immutable catalog source a listing result was built from. |
+| Shipped catalog | The operator-root manifests and instruction resources that the repository ships under `configs/`; pre-production until the first release (CAT-R74). |
 
 ## Model
 
@@ -412,11 +414,50 @@ the configuration resource cannot change an existing Run
 
 ### Immutability
 
-**CAT-R44.** A published configuration version of any kind is
-immutable and is never edited in place. A publication that reuses a published
-identity with different content conflicts (CAT-R59). For ModelPolicy and
-LLMGatewayConfig see also [TPL-R36](agent-templates.md); for Workflow
-`presentation` metadata see [WFL-R12](workflows.md).
+**CAT-R44.** A configuration version published at runtime is
+immutable and is never edited in place. Managed publication is create-only: a
+publication that reuses an existing identity with different content conflicts
+(CAT-R59), and it never replaces an identity that the operator root defines,
+even with identical content (CAT-R46). Content that the Server seeds from the
+operator root at runtime keeps its own drift checks: bundled Skill sources
+([SKL-R54](../tools/skills.md)) and Audit standard packages, whose changed
+content needs a new version ([AUD-R54](../audits/audits.md),
+[AUD-R55](../audits/audits.md)). The shipped catalog follows CAT-R74 until the
+first release. For ModelPolicy and LLMGatewayConfig see also
+[TPL-R36](agent-templates.md); for Workflow `presentation` metadata see
+[WFL-R12](workflows.md).
+
+**CAT-R74.** Until the first release, the shipped catalog is
+pre-production: the Workflow, AgentTemplate, ModelPolicy, LLMGatewayConfig,
+ExecutionConfig and AuditProfile manifests and the instruction resources of the
+operator root, which the repository ships under `configs/`, may change in place
+without a new `metadata.version`. The Server loads the changed content under
+the existing lookup key at its next start (CAT-R26, CAT-R72); nothing records
+the earlier content of a shipped identity. Bundled Skill sources and Audit
+standard packages are not part of this exception (CAT-R44).
+
+What a Run used stays exact, because the identity of executed content never
+rests on `name@version` alone:
+
+- every Run snapshot stores the complete resolved Workflow with the
+  digest-bearing AgentTemplate, ModelPolicy, LLMGatewayConfig and
+  ExecutionConfig refs and the instruction digests (CAT-R33, CAT-R34,
+  CAT-R41), and an edit never changes an existing Run (CAT-R35, CAT-R43);
+- a started Audit runs its child Runs from the Workflow closures it pinned at
+  start ([AUD-R31](../audits/audits.md));
+- a managed Eval rechecks the selection digests frozen in its plan when it
+  creates a member Run or Audit, and a changed selection rejects that member
+  with `eval_pin_mismatch` instead of running other content
+  ([managed Evals](../evals/managed-evals.md)).
+
+Accepted risk: two Runs, or a Run and the current catalog, can carry the same
+`name@version` with different content, so `name@version` alone does not
+identify behaviour; compare digests or Run snapshots instead. The edit itself
+is not rejected; it is detected by those digests, by the snapshots and by the
+Eval pin check. Reopen at the first release or the first external deployment,
+whichever comes first: then a committed digest lock (`kind name@version ->
+digest`) for the shipped catalog, checked by `contractor server config
+validate` and the release gate, replaces this requirement.
 
 **CAT-R45.** Workflow, AgentTemplate, ExecutionConfig and
 instruction resources are operator-authored and read-only; UI publication
@@ -604,3 +645,4 @@ CAT-R59).
   separate API and versioning decision.
 - Retiring configurations and safe garbage collection of published versions
   (CAT-R49).
+- A digest lock for the shipped catalog before the first release (CAT-R74).
