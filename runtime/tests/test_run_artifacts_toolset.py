@@ -2,23 +2,35 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import json
 from datetime import UTC, datetime
 from pathlib import Path
+from urllib.parse import parse_qs, urlsplit
 
 import pytest
 
 import contractor_runtime.toolsets.run_artifacts.tools as run_artifacts
 from contractor_runtime.allocation import WorkerState
-from contractor_runtime.artifacts import ArtifactAPIError, ArtifactValue
+from contractor_runtime.artifacts import (
+    ArtifactAPIError,
+    ArtifactClient,
+    ArtifactHTTPResponse,
+    ArtifactTransportError,
+    ArtifactValue,
+)
 from contractor_runtime.contracts import (
     API_VERSION,
+    ArtifactListResult,
     ArtifactRef,
     ArtifactWriteResult,
     RuntimeSettings,
 )
 from contractor_runtime.core.input_errors import ToolInputError
 from contractor_runtime.telemetry.metrics import MAX_METRIC_TOOL_CALLS
-from contractor_runtime.toolsets.common.artifact_visibility import is_reserved_memory_binding
+from contractor_runtime.toolsets.common.artifact_visibility import (
+    is_model_hidden_binding,
+    is_reserved_memory_binding,
+)
 from contractor_runtime.toolsets.run_artifacts.tools import RunArtifactsToolsetFactory
 from contractor_runtime.workspace import AllocationWorkspace
 
@@ -49,10 +61,13 @@ def test_factory_constructs_only_explicitly_selected_tools(
         assert "write_artifact" not in tools
 
         listed = await tools["list_artifacts"]("inputs")
-        assert listed == [
-            {"namespace": "inputs", "name": "source"},
-            {"namespace": "inputs", "name": "memory.allowed_input"},
-        ]
+        assert listed == {
+            "artifacts": [
+                {"namespace": "inputs", "name": "source"},
+                {"namespace": "inputs", "name": "memory.allowed_input"},
+            ],
+            "nextCursor": None,
+        }
         read = await tools["read_artifact"]("inputs", "source")
         assert read["artifact"]["revision"] == "revision-read"
         assert base64.b64decode(read["dataBase64"]) == b"payload"
@@ -203,13 +218,15 @@ def test_memory_artifacts_are_hidden_from_generic_list_read_write_and_known_refs
             factory, state, ["list_artifacts", "read_artifact", "write_artifact"]
         )
 
-        assert await tools["list_artifacts"]("analysis") == [
-            {"namespace": "analysis", "name": "report"}
-        ]
+        assert await tools["list_artifacts"]("analysis") == {
+            "artifacts": [{"namespace": "analysis", "name": "report"}],
+            "nextCursor": None,
+        }
         calls_before = (client.read_calls, client.write_calls)
         list_calls_before = client.list_calls
-        with pytest.raises(ValueError, match="purpose-specific"):
-            await tools["list_artifacts"]("skills")
+        for hidden_namespace in ("skills", "contractor-system"):
+            with pytest.raises(ValueError, match="purpose-specific"):
+                await tools["list_artifacts"](hidden_namespace)
         assert client.list_calls == list_calls_before
         with pytest.raises(ValueError, match="purpose-specific"):
             await tools["read_artifact"]("skills", "likec4", "revision-skill")
@@ -269,6 +286,123 @@ def test_reserved_skills_namespace_is_hidden_before_generic_client_access() -> N
     asyncio.run(scenario())
 
 
+SHARED_LIST_CASES = (
+    Path(__file__).resolve().parents[2] / "api/testdata/v1alpha1/artifact-list-cases.json"
+)
+
+
+def test_model_hidden_bindings_match_the_shared_cases() -> None:
+    cases = json.loads(SHARED_LIST_CASES.read_text(encoding="utf-8"))["bindings"]
+    assert cases
+    for case in cases:
+        assert is_model_hidden_binding(case["namespace"], case["name"]) is case["hidden"], case
+
+
+class PagingTransport:
+    """Private list endpoint that pages a fixed binding set like the Server."""
+
+    def __init__(self, refs: list[ArtifactRef], *, leak: ArtifactRef | None = None) -> None:
+        self.refs = sorted(
+            (ref for ref in refs if not is_model_hidden_binding(ref.namespace, ref.name)),
+            key=lambda ref: (ref.namespace, ref.name),
+        )
+        self.leak = leak
+        self.paths: list[str] = []
+
+    async def request(
+        self,
+        method: str,
+        path: str,
+        *,
+        headers: dict[str, str],
+        body: bytes,
+        max_response_bytes: int,
+    ) -> ArtifactHTTPResponse:
+        del headers, body, max_response_bytes
+        assert method == "GET"
+        self.paths.append(path)
+        query = parse_qs(urlsplit(path).query)
+        limit = int(query["limit"][0])
+        namespace = query.get("namespace", [None])[0]
+        start = int(query["cursor"][0][1:]) if "cursor" in query else 0
+        selected = [ref for ref in self.refs if namespace in {None, ref.namespace}]
+        page = selected[start : start + limit]
+        if self.leak is not None:
+            page = [self.leak, *page[1:]]
+        payload: dict[str, object] = {
+            "apiVersion": API_VERSION,
+            "artifacts": [ref.model_dump(by_alias=True, exclude_none=True) for ref in page],
+        }
+        if start + limit < len(selected):
+            payload["nextCursor"] = f"p{start + limit}"
+        return ArtifactHTTPResponse(
+            200, {"content-type": "application/json"}, json.dumps(payload).encode()
+        )
+
+
+def test_list_artifacts_pages_through_every_visible_binding_once() -> None:
+    async def scenario() -> None:
+        refs = [ArtifactRef(namespace="builder", name=f"report_{i:04d}") for i in range(250)]
+        refs += [ArtifactRef(namespace="builder", name=f"http.body.{i:04d}") for i in range(300)]
+        refs += [ArtifactRef(namespace="inputs", name="memory.allowed")]
+        transport = PagingTransport(refs)
+        client = ArtifactClient("allocation-1", transport)
+        state = WorkerState()
+        factory = RunArtifactsToolsetFactory(lambda _allocation, _settings: client)
+        tools = await create_tools(factory, state, ["list_artifacts"])
+
+        listed: list[tuple[str, str]] = []
+        cursor = None
+        while True:
+            page = await tools["list_artifacts"](cursor=cursor)
+            assert set(page) == {"artifacts", "nextCursor"}
+            assert len(page["artifacts"]) <= run_artifacts.LIST_PAGE_SIZE
+            listed += [(ref["namespace"], ref["name"]) for ref in page["artifacts"]]
+            cursor = page["nextCursor"]
+            if cursor is None:
+                break
+        assert len(listed) == len(set(listed)) == 251
+        assert ("inputs", "memory.allowed") in listed
+        assert not any(name.startswith("http.body.") for _, name in listed)
+        assert len(transport.paths) == 3
+        assert all(f"limit={run_artifacts.LIST_PAGE_SIZE}" in path for path in transport.paths)
+        assert len(state.metrics.tool_calls) == 3
+
+        for invalid in ("", "a b", "a=", "x" * 513, 7):
+            with pytest.raises(ToolInputError):
+                await tools["list_artifacts"](cursor=invalid)
+        for invalid in ("", "bad/namespace", 7):
+            with pytest.raises(ToolInputError):
+                await tools["list_artifacts"](invalid)
+        assert len(transport.paths) == 3
+
+    asyncio.run(scenario())
+
+
+def test_list_artifacts_rejects_a_hidden_binding_from_the_server() -> None:
+    async def scenario() -> None:
+        leak = ArtifactRef(namespace="builder", name="memory.leaked")
+        transport = PagingTransport([ArtifactRef(namespace="builder", name="report")], leak=leak)
+        client = ArtifactClient("allocation-1", transport)
+        tools = await create_tools(
+            RunArtifactsToolsetFactory(lambda _allocation, _settings: client),
+            WorkerState(),
+            ["list_artifacts"],
+        )
+        with pytest.raises(ArtifactTransportError, match="hidden"):
+            await tools["list_artifacts"]("builder")
+
+    asyncio.run(scenario())
+
+
+def test_list_artifacts_description_matches_the_returned_fields() -> None:
+    description = run_artifacts.ListArtifactsTool.description
+    assert "revision" in description and "nextCursor" in description
+    assert "current revision" not in description.split("Returns:")[1]
+    assert f"Up to {run_artifacts.LIST_PAGE_SIZE} artifact references" in description
+    assert "{" not in description and "}" not in description
+
+
 async def create_tools(
     factory: RunArtifactsToolsetFactory,
     state: WorkerState,
@@ -313,20 +447,22 @@ class FakeArtifactClient:
             ArtifactRef(namespace="skills", name="likec4", revision="revision-skill"),
         )
 
-    async def list_artifacts(self, namespace: str | None = None) -> list[ArtifactRef]:
+    async def list_artifact_page(
+        self, namespace: str | None = None, *, limit: int, cursor: str | None = None
+    ) -> ArtifactListResult:
+        # Like the Server: hidden bindings never reach a model-visible page.
         self.list_calls += 1
+        assert limit == run_artifacts.LIST_PAGE_SIZE and cursor is None
         if namespace == "inputs":
-            return [
+            refs = [
                 ArtifactRef(namespace="inputs", name="source"),
                 ArtifactRef(namespace="inputs", name="memory.allowed_input"),
             ]
-        if namespace == "analysis":
-            return [
-                ArtifactRef(namespace="analysis", name="report"),
-                ArtifactRef(namespace="analysis", name="memory.hidden"),
-                ArtifactRef(namespace="analysis", name="http.body.hidden"),
-            ]
-        raise AssertionError(f"unexpected namespace {namespace!r}")
+        elif namespace == "analysis":
+            refs = [ArtifactRef(namespace="analysis", name="report")]
+        else:
+            raise AssertionError(f"unexpected namespace {namespace!r}")
+        return ArtifactListResult(api_version=API_VERSION, artifacts=refs)
 
     async def read_artifact(self, ref: ArtifactRef) -> ArtifactValue:
         self.read_calls += 1

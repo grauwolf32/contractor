@@ -1,0 +1,141 @@
+{
+  "description": "Private allocation Artifact listing rules shared by the Go Server and the Python Runtime: the page limit (LIM-ART-3), the opaque cursor grammar (LIM-ART-5) and which RunScope bindings generic model tools must not disclose (ART-R17, ART-R19, ART-R24, ART-R109). Go checks the store, handler and artifactpolicy against it; Python checks ArtifactClient, ArtifactListResult and artifact_visibility.",
+  "maxLimit": 256,
+  "maxCursorLength": 512,
+  "cursors": {
+    "valid": [
+      "a",
+      "Z9_-",
+      "eyJ2IjoxLCJuYW1lc3BhY2UiOiJidWlsZGVyIiwibmFtZSI6InJlcG9ydCJ9",
+      "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+    ],
+    "invalid": [
+      "",
+      "a=",
+      "a b",
+      "a/b",
+      "a+b",
+      "a.b",
+      "a\n",
+      "\u00e9",
+      "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+    ]
+  },
+  "bindings": [
+    {
+      "namespace": "builder",
+      "name": "report",
+      "hidden": false
+    },
+    {
+      "namespace": "builder",
+      "name": "memory.note",
+      "hidden": true
+    },
+    {
+      "namespace": "builder",
+      "name": "memory.",
+      "hidden": true
+    },
+    {
+      "namespace": "builder",
+      "name": "http.body.0123456789abcdef.000001",
+      "hidden": true
+    },
+    {
+      "namespace": "builder",
+      "name": "memory",
+      "hidden": false
+    },
+    {
+      "namespace": "builder",
+      "name": "memoryXnote",
+      "hidden": false
+    },
+    {
+      "namespace": "builder",
+      "name": "memory_note",
+      "hidden": false
+    },
+    {
+      "namespace": "builder",
+      "name": "Memory.note",
+      "hidden": false
+    },
+    {
+      "namespace": "builder",
+      "name": "http.bodyX1",
+      "hidden": false
+    },
+    {
+      "namespace": "builder",
+      "name": "http_body.1",
+      "hidden": false
+    },
+    {
+      "namespace": "builder",
+      "name": "report.memory.note",
+      "hidden": false
+    },
+    {
+      "namespace": "inputs",
+      "name": "memory.allowed",
+      "hidden": false
+    },
+    {
+      "namespace": "inputs",
+      "name": "http.body.allowed",
+      "hidden": false
+    },
+    {
+      "namespace": "outputs",
+      "name": "memory.result",
+      "hidden": false
+    },
+    {
+      "namespace": "outputs",
+      "name": "http.body.result",
+      "hidden": false
+    },
+    {
+      "namespace": "skills",
+      "name": "likec4",
+      "hidden": true
+    },
+    {
+      "namespace": "skills",
+      "name": "memory.note",
+      "hidden": true
+    },
+    {
+      "namespace": "contractor-system",
+      "name": "repeat-request",
+      "hidden": true
+    },
+    {
+      "namespace": "finding-proposals",
+      "name": "proposal-1",
+      "hidden": false
+    },
+    {
+      "namespace": "finding-proposals",
+      "name": "memory.note",
+      "hidden": true
+    },
+    {
+      "namespace": "Skills",
+      "name": "likec4",
+      "hidden": false
+    },
+    {
+      "namespace": "skills-extra",
+      "name": "likec4",
+      "hidden": false
+    },
+    {
+      "namespace": "memory.",
+      "name": "report",
+      "hidden": false
+    }
+  ]
+}

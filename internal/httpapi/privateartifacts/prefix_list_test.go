@@ -37,7 +37,8 @@ func TestPrivateArtifactPrefixListIsBoundedAndValidated(t *testing.T) {
 		t.Fatal("unrelated bindings reached the response")
 	}
 	for _, query := range []string{
-		"namePrefix=memory.&limit=129", "namespace=builder&limit=129", "namespace=builder&namePrefix=memory.",
+		"namePrefix=memory.&limit=129", "namespace=builder&namePrefix=memory.",
+		"namespace=builder&namePrefix=memory.&limit=129&cursor=eyJ2IjoxfQ",
 		"namespace=builder&namePrefix=&limit=129", "namespace=builder&namePrefix=memory%25&limit=129",
 		"namespace=builder&namePrefix=memory.&limit=0", "namespace=builder&namePrefix=memory.&limit=257",
 		"namespace=builder&namePrefix=memory.&limit=bad", "namespace=builder&namePrefix=memory.&limit=1&limit=2",
@@ -54,10 +55,19 @@ func TestPrivateArtifactPrefixListIsBoundedAndValidated(t *testing.T) {
 	if repository.prefixCalls != 1 {
 		t.Fatal("invalid query reached prefix repository")
 	}
-	legacy := httptest.NewRecorder()
-	handler.ServeHTTP(legacy, trustedRequest(http.MethodGet, target+"?namespace=builder", nil))
-	if legacy.Code != 200 || len(legacy.Body.Bytes()) <= 1<<20 {
-		t.Fatal("legacy list changed")
+	// The unbounded listing is gone: a listing without limit is rejected and
+	// the paged form stays bounded by its limit.
+	unbounded := httptest.NewRecorder()
+	handler.ServeHTTP(unbounded, trustedRequest(http.MethodGet, target+"?namespace=builder", nil))
+	if unbounded.Code != 400 || repository.listCalls != 0 {
+		t.Fatalf("unbounded list = %d %s", unbounded.Code, unbounded.Body.String())
+	}
+	paged := httptest.NewRecorder()
+	handler.ServeHTTP(paged, trustedRequest(http.MethodGet, target+"?namespace=builder&limit=256", nil))
+	var page contracts.ArtifactListResult
+	if err := json.Unmarshal(paged.Body.Bytes(), &page); err != nil || paged.Code != 200 ||
+		len(page.Artifacts) != 256 || page.NextCursor == nil || len(paged.Body.Bytes()) >= 1<<20 {
+		t.Fatalf("paged list = %d, %d refs, %d bytes, %v", paged.Code, len(page.Artifacts), len(paged.Body.Bytes()), err)
 	}
 }
 

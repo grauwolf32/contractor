@@ -148,10 +148,11 @@ func TestPostgresIntegrationInputForkAndHistoricalReads(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	listed, err := run.List(ctx, nil)
-	if err != nil || len(listed) != 2 || listed[0].Namespace != "analysis" || listed[1].Namespace != "inputs" ||
+	page, err := run.ListRefs(ctx, RefPageQuery{Limit: 10})
+	listed := page.Refs
+	if err != nil || page.More || len(listed) != 2 || listed[0].Namespace != "analysis" || listed[1].Namespace != "inputs" ||
 		listed[0].Revision != nil || listed[1].Revision != nil {
-		t.Fatalf("RunScope list = (%+v, %v)", listed, err)
+		t.Fatalf("RunScope list = (%+v, %v)", page, err)
 	}
 
 	var distinctVersions int

@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 )
 
@@ -382,16 +383,21 @@ func (r *memoryRepository) Read(_ context.Context, scope artifacts.Scope, ref ar
 	return result, nil
 }
 
-func (r *memoryRepository) List(_ context.Context, scope artifacts.Scope, namespace *string) ([]artifacts.ArtifactRef, error) {
+// ListRefs pages like PostgresRepository.ListRefs, ordered by namespace and
+// name with the limit applied after the keyset position.
+func (r *memoryRepository) ListRefs(_ context.Context, scope artifacts.Scope, query artifacts.RefPageQuery) (artifacts.RefPage, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	prefix := string(scope.Kind()) + "/" + scope.ID() + "/"
 	result := make([]artifacts.ArtifactRef, 0)
 	for key, value := range r.bindings {
-		if len(key) < len(prefix) || key[:len(prefix)] != prefix || namespace != nil && value.Ref.Namespace != *namespace {
+		ref := artifacts.ArtifactRef{Namespace: value.Ref.Namespace, Name: value.Ref.Name}
+		if len(key) < len(prefix) || key[:len(prefix)] != prefix || query.Namespace != nil && ref.Namespace != *query.Namespace ||
+			query.ModelVisible && artifactpolicy.IsModelHiddenBinding(ref.Namespace, ref.Name) ||
+			ref.Namespace < query.AfterNamespace || ref.Namespace == query.AfterNamespace && ref.Name <= query.AfterName {
 			continue
 		}
-		result = append(result, value.Ref)
+		result = append(result, ref)
 	}
 	sort.Slice(result, func(i, j int) bool {
 		if result[i].Namespace == result[j].Namespace {
@@ -399,7 +405,10 @@ func (r *memoryRepository) List(_ context.Context, scope artifacts.Scope, namesp
 		}
 		return result[i].Namespace < result[j].Namespace
 	})
-	return result, nil
+	if len(result) > query.Limit {
+		return artifacts.RefPage{Refs: result[:query.Limit], More: true}, nil
+	}
+	return artifacts.RefPage{Refs: result}, nil
 }
 
 func (r *memoryRepository) ForkInput(context.Context, artifacts.Scope, artifacts.ArtifactRef,

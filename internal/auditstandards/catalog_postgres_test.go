@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"os"
 	"sync"
 	"testing"
@@ -143,4 +144,45 @@ func isolatedCatalogPool(
 		admin.Close()
 	})
 	return pool
+}
+
+func TestCatalogPostgresListRejectsAnOverfullCatalogWithABoundedRead(t *testing.T) {
+	databaseURL := os.Getenv("CONTRACTOR_TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("CONTRACTOR_TEST_DATABASE_URL is not set")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedCatalogPool(t, ctx, databaseURL)
+	root := t.TempDir()
+	writePackageSource(t, root, "example-v1", validDocument("example", "1"))
+	plan, err := DiscoverBundled(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	catalog, _ := NewCatalog(artifacts.NewService(artifacts.NewPostgresRepository(pool)))
+	if _, err := catalog.Initialize(ctx, "catalog-owner", plan); err != nil {
+		t.Fatal(err)
+	}
+	if listed, err := catalog.List(ctx, "catalog-owner"); err != nil || len(listed) != 1 {
+		t.Fatalf("catalog list = (%d, %v)", len(listed), err)
+	}
+	// Bindings beyond the package limit fail the listing before any of them
+	// is read or validated.
+	_, err = pool.Exec(ctx, `WITH bindings AS (
+ INSERT INTO artifact_bindings (scope_kind, scope_id, namespace, name, current_revision)
+ SELECT 'user', 'catalog-owner', 'audit-standards', 'zz-extra-' || lpad(i::text, 4, '0'), 'bulk-rev'
+ FROM generate_series(1, $1::int) AS i
+ RETURNING scope_kind, scope_id, namespace, name, current_revision
+) INSERT INTO artifact_binding_revisions (scope_kind, scope_id, namespace, name, revision, version_id)
+ SELECT scope_kind, scope_id, namespace, name, current_revision, (SELECT version_id FROM artifact_versions LIMIT 1)
+ FROM bindings`, MaximumPackages+500)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = catalog.List(ctx, "catalog-owner")
+	var validation *ValidationError
+	if !errors.As(err, &validation) || validation.Code != CodeLimitExceeded {
+		t.Fatalf("overfull catalog list error = %v", err)
+	}
 }

@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/clone"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -444,16 +445,21 @@ func (f *fakeArtifactRepository) Read(
 	return result, nil
 }
 
-func (f *fakeArtifactRepository) List(
-	_ context.Context, scope artifacts.Scope, namespace *string,
-) ([]artifacts.ArtifactRef, error) {
+// ListRefs pages like PostgresRepository.ListRefs, ordered by namespace and
+// name with the limit applied after the keyset position.
+func (f *fakeArtifactRepository) ListRefs(
+	_ context.Context, scope artifacts.Scope, query artifacts.RefPageQuery,
+) (artifacts.RefPage, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	result := make([]artifacts.ArtifactRef, 0)
 	for key := range f.current {
-		if key.kind == scope.Kind() && key.id == scope.ID() && (namespace == nil || key.namespace == *namespace) {
-			result = append(result, artifacts.ArtifactRef{Namespace: key.namespace, Name: key.name})
+		if key.kind != scope.Kind() || key.id != scope.ID() || query.Namespace != nil && key.namespace != *query.Namespace ||
+			query.ModelVisible && artifactpolicy.IsModelHiddenBinding(key.namespace, key.name) ||
+			key.namespace < query.AfterNamespace || key.namespace == query.AfterNamespace && key.name <= query.AfterName {
+			continue
 		}
+		result = append(result, artifacts.ArtifactRef{Namespace: key.namespace, Name: key.name})
 	}
 	sort.Slice(result, func(i, j int) bool {
 		if result[i].Namespace == result[j].Namespace {
@@ -461,7 +467,10 @@ func (f *fakeArtifactRepository) List(
 		}
 		return result[i].Namespace < result[j].Namespace
 	})
-	return result, nil
+	if len(result) > query.Limit {
+		return artifacts.RefPage{Refs: result[:query.Limit], More: true}, nil
+	}
+	return artifacts.RefPage{Refs: result}, nil
 }
 
 func (f *fakeArtifactRepository) ForkInput(

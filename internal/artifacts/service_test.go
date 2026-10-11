@@ -198,6 +198,7 @@ func exactRef(namespace, name, revision string) ArtifactRef {
 }
 
 type fakeRepository struct {
+	listCalls    int
 	writeCalls   int
 	bindCalls    int
 	publishCalls int
@@ -215,8 +216,9 @@ func (f *fakeRepository) Read(context.Context, Scope, ArtifactRef) (ReadResult, 
 	return ReadResult{}, nil
 }
 
-func (f *fakeRepository) List(context.Context, Scope, *string) ([]ArtifactRef, error) {
-	return nil, nil
+func (f *fakeRepository) ListRefs(context.Context, Scope, RefPageQuery) (RefPage, error) {
+	f.listCalls++
+	return RefPage{}, nil
 }
 
 func (f *fakeRepository) ForkInput(context.Context, Scope, ArtifactRef, Scope, string) (ForkResult, error) {
@@ -242,3 +244,41 @@ func (f *fakeRepository) RequireExact(context.Context, Scope, ArtifactRef) error
 }
 
 func (f *fakeRepository) FreezeOutputs(context.Context, Scope) error { return nil }
+
+func TestListRefsValidatesThePageBeforeStorage(t *testing.T) {
+	repository := &fakeRepository{}
+	run, err := NewService(repository).Run("run-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	namespace, other, invalid := "builder", "inputs", "bad/name"
+	for name, query := range map[string]RefPageQuery{
+		"zero limit":            {Limit: 0},
+		"negative limit":        {Limit: -1},
+		"limit over maximum":    {Limit: MaxBindingListLimit + 1},
+		"invalid namespace":     {Namespace: &invalid, Limit: 1},
+		"name without position": {AfterName: "report", Limit: 1},
+		"namespace only":        {AfterNamespace: "builder", Limit: 1},
+		"invalid position":      {AfterNamespace: "builder", AfterName: "a b", Limit: 1},
+		"foreign position":      {Namespace: &namespace, AfterNamespace: other, AfterName: "report", Limit: 1},
+	} {
+		if _, err := run.ListRefs(context.Background(), query); !errors.Is(err, ErrInvalidName) {
+			t.Errorf("%s: error = %v, want ErrInvalidName", name, err)
+		}
+	}
+	if repository.listCalls != 0 {
+		t.Fatalf("invalid page queries reached storage %d times", repository.listCalls)
+	}
+	for _, query := range []RefPageQuery{
+		{Limit: 1}, {Limit: MaxBindingListLimit, ModelVisible: true},
+		{Namespace: &namespace, AfterNamespace: namespace, AfterName: "report", Limit: 10},
+		{AfterNamespace: other, AfterName: "source", Limit: 10},
+	} {
+		if _, err := run.ListRefs(context.Background(), query); err != nil {
+			t.Errorf("valid query %+v: %v", query, err)
+		}
+	}
+	if repository.listCalls != 4 {
+		t.Fatalf("valid page queries reached storage %d times", repository.listCalls)
+	}
+}

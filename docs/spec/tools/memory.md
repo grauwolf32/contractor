@@ -404,8 +404,9 @@ artifacts under ArtifactStore retention but do not count as active notes
 **MEM-R47.** Both adapters enumerate only the literal `memory.` name
 prefix through the existing ArtifactStore or Artifact API, with a limit of 129
 bindings (LIM-MEM-9). A result of 129 notes is rejected, never treated as a
-complete valid notebook. Unfiltered generic listing retains its existing
-contract.
+complete valid notebook. The paged model-visible listing
+([ART-R47](../artifacts/artifact-store.md)) excludes `memory.` bindings, so
+Memory never uses it.
 
 Rationale: the prefix filter and the limit of 129 detect quota corruption
 without fetching unrelated artifacts from the same Namespace or exceeding the

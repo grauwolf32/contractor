@@ -461,7 +461,8 @@ func TestPostgresAcceptanceRollsBackStageAndOutputWhenRunCASLoses(t *testing.T) 
 	}
 	runStore, _ := fixture.artifacts.Run("run-1")
 	outputs := "outputs"
-	listed, err := runStore.List(ctx, &outputs)
+	outputPage, err := runStore.ListRefs(ctx, artifacts.RefPageQuery{Namespace: &outputs, Limit: 10})
+	listed := outputPage.Refs
 	if err != nil || len(listed) != 0 {
 		t.Fatalf("rolled back outputs = (%+v, %v)", listed, err)
 	}
@@ -476,7 +477,8 @@ func TestPostgresAcceptanceRollsBackStageAndOutputWhenRunCASLoses(t *testing.T) 
 	}
 	execution, err = fixture.store.GetStageExecution(ctx, fixture.executionID)
 	run, runErr := fixture.store.GetRun(ctx, "run-1")
-	listed, listErr := runStore.List(ctx, &outputs)
+	outputPage, listErr := runStore.ListRefs(ctx, artifacts.RefPageQuery{Namespace: &outputs, Limit: 10})
+	listed = outputPage.Refs
 	if err != nil || runErr != nil || listErr != nil || execution.State != runstore.StageSucceeded ||
 		execution.AcceptedResult == nil || run.State != runstore.RunCancelled || len(listed) != 0 {
 		t.Fatalf("audit-only acceptance = stage:(%+v,%v) run:(%+v,%v) outputs:(%v,%v)",
@@ -598,10 +600,11 @@ func TestPostgresCancelAndSuccessRaceSerializesOnRunRow(t *testing.T) {
 	}
 	runArtifacts, _ := fixture.artifacts.Run("run-1")
 	outputs := "outputs"
-	listed, err := runArtifacts.List(ctx, &outputs)
+	outputPage, err := runArtifacts.ListRefs(ctx, artifacts.RefPageQuery{Namespace: &outputs, Limit: 10})
 	if err != nil {
 		t.Fatal(err)
 	}
+	listed := outputPage.Refs
 	switch run.State {
 	case runstore.RunSucceeded:
 		if acceptErr != nil || cancelResult.run.State != runstore.RunSucceeded || len(listed) != 1 {

@@ -305,7 +305,8 @@ declared as Stage result or Workflow output targets.
 **ART-R24.** HTTP response-body bindings use the reserved
 `http.body.` name prefix ([HTTP and Caido](../tools/http-caido.md)): generic
 model-visible Artifact tools neither list nor read or write them. This is a
-Toolset authority boundary, not a new Artifact API or storage class.
+Toolset authority boundary, not a new Artifact API or storage class; the
+private paged listing applies the same rule in storage (ART-R47).
 
 **ART-R25.** The UserScope Namespace `audit-standards` is
 reserved for curated Audit standard packages. Generic Artifact APIs cannot
@@ -450,18 +451,49 @@ validator or with a list of validators is rejected.
 versioned `ArtifactWriteResult`.
 
 **ART-R47.** `GET /private/v1/allocations/{allocationID}/artifacts`
-supports an unfiltered listing with an optional `namespace` query. Trusted
-adapters may instead supply all three of `namespace`, `namePrefix` and
-`limit`. This form requires non-empty portable ASCII namespace and prefix
-components and an integer `limit` in `1..256` (LIM-ART-3), applies a literal
-case-sensitive name prefix in storage, and returns at most `limit` versionless
-refs ordered by name. Underscores are literal, not SQL wildcards. Missing
-paired parameters, duplicates and invalid values are rejected.
+always requires an integer `limit` in `1..256` (LIM-ART-3) and has two forms;
+there is no unbounded listing.
 
-**ART-R48.** The filtered listing is a bounded query, not an
+- The paged form takes an optional `namespace` and an optional opaque
+  `cursor` (LIM-ART-5). It returns at most `limit` versionless refs of the
+  model-visible bindings in namespace and name order, and a `nextCursor` when
+  more follow. Storage excludes the model-hidden bindings before the limit:
+  the `contractor-system` and `skills` Namespaces, and names starting with
+  `memory.` or `http.body.` outside `inputs` and `outputs` (ART-R17, ART-R19,
+  ART-R24, ART-R109). A page is therefore never shortened by filtering: every
+  page but the last holds exactly `limit` refs. The response size is bounded by
+  `limit`, independent of how many bindings the Run holds.
+- Trusted adapters may instead supply all three of `namespace`, `namePrefix`
+  and `limit`, without a `cursor`. This form requires non-empty portable ASCII
+  namespace and prefix components, applies a literal case-sensitive name
+  prefix in storage, and returns at most `limit` versionless refs ordered by
+  name, without the model-visibility exclusion and without `nextCursor`.
+  Underscores are literal, not SQL wildcards.
+
+Missing or unpaired parameters, duplicates and invalid values are rejected
+with `invalid_request`.
+
+**ART-R48.** The cursor names the last binding of the previous page and is
+bound to the `namespace` filter: a cursor positioned in another Namespace is
+rejected for a filtered listing. It carries no authority, because the
+allocation still selects the RunScope. Every binding that exists for the whole
+traversal is returned exactly once; one created or deleted meanwhile may or
+may not appear (FAIL-ART-7). The `namePrefix` form is a bounded query, not an
 assertion that the result is complete: quota-aware callers request one extra
-row to detect overflow. Run system Namespaces remain hidden. The filtering adds
-no scope selector and does not change the unfiltered client contract.
+row to detect overflow. Run system Namespaces remain hidden in both forms, and
+neither adds a scope selector.
+
+Rationale: the Runtime rejects list responses over 1 MiB, and a Run with
+thousands of HTTP response bodies would otherwise fail every model listing
+even though the model may see none of them.
+
+Accepted cost: a page is one primary-key range scan from the cursor, and the
+hidden bindings it passes over are filtered rather than skipped by index, so
+the rows one page reads are bounded by the Run's (or the filtered Namespace's)
+bindings after the cursor, not by `limit`. A test pages 15,000 hidden and
+7,000 visible bindings through the Server and the Runtime. If listing latency
+is measured to grow with Run size, add a binding quota per Run or skip hidden
+name ranges in the index.
 
 ### Versions, reads and writes
 
@@ -475,7 +507,8 @@ all authorized participants of the Run. StageResult acceptance is therefore not
 a general artifact visibility event; only its optional binding into the
 reserved `outputs` Namespace is Scheduler-controlled.
 
-**ART-R52.** `list_artifacts` returns versionless refs.
+**ART-R52.** `list_artifacts` returns versionless refs one page at a time,
+with the `nextCursor` of the paged private listing (ART-R47).
 
 **ART-R53.** Reading a versionless ref resolves the current
 committed binding and returns the exact versioned ref that was read. Reading a
@@ -874,10 +907,14 @@ async def write_artifact(
     expected_revision: ArtifactRevision | None,
 ) -> ArtifactWriteResult: ...
 
-async def list_artifacts(
+async def list_artifact_page(
     namespace: NamespaceId | None = None,
-    *, name_prefix: str | None = None, limit: int | None = None,
-) -> list[ArtifactRef]: ...
+    *, limit: int, cursor: str | None = None,
+) -> ArtifactListResult: ...  # model-visible refs and next_cursor
+
+async def list_artifact_prefix(
+    namespace: NamespaceId, name_prefix: str, *, limit: int,
+) -> list[ArtifactRef]: ...  # trusted adapters such as Memory
 ```
 
 Private allocation Artifact API (ART-R40 to ART-R48,
@@ -887,7 +924,7 @@ ART-R56):
 | --- | --- |
 | Authentication | mTLS Runtime Agent principal plus `X-Contractor-Runtime-Instance-ID` |
 | Path identity | `allocationID` |
-| List | `GET /private/v1/allocations/{allocationID}/artifacts` with optional `namespace`, or all of `namespace`, `namePrefix`, `limit` |
+| List | `GET /private/v1/allocations/{allocationID}/artifacts` with `limit` and optional `namespace` and `cursor` (model-visible pages), or `limit` with `namespace` and `namePrefix` |
 | Create precondition | `If-None-Match: *` |
 | Update precondition | exactly one quoted strong `If-Match: "<revision>"` |
 | Revision on read and write | `ETag` |
@@ -932,10 +969,12 @@ Limits ([registry](../platform/limits.md)):
 - LIM-ART-1 — `namespace` and `name`: 1 through 128 characters
   (ART-R11).
 - LIM-ART-2 — media type: at most 255 characters (ART-R63).
-- LIM-ART-3 — filtered private list `limit`: 1 through 256 refs
+- LIM-ART-3 — private list `limit`: 1 through 256 refs, both forms
   (ART-R47).
 - LIM-ART-4 — generic Artifact payload: 64 MiB (67,108,864 bytes)
   (ART-R65).
+- LIM-ART-5 — private list `cursor` and `nextCursor`: 1 through 512 base64url
+  characters (ART-R48).
 
 Errors ([registry](../platform/errors.md)):
 
@@ -957,6 +996,7 @@ Failure outcomes ([failure model](../platform/failure-model.md)):
   (ART-R61).
 - FAIL-ART-6 — StageResult acceptance, output mapping and terminal transition
   (ART-R92).
+- FAIL-ART-7 — paged private listing (ART-R47, ART-R48).
 
 Lifecycle ([registry](../platform/lifecycle.md)):
 

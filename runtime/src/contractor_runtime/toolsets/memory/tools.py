@@ -210,8 +210,8 @@ class _MemorySession:
 
     async def _load_all(self) -> list[_LoadedNote]:
         try:
-            refs = await self._client.list_artifacts(
-                self._namespace, name_prefix=ARTIFACT_NAME_PREFIX, limit=MAXIMUM_NOTES + 1
+            refs = await self._client.list_artifact_prefix(
+                self._namespace, ARTIFACT_NAME_PREFIX, limit=MAXIMUM_NOTES + 1
             )
         except (ArtifactTransportError, ArtifactAPIError) as error:
             raise _mapped_client_error(error) from None

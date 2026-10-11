@@ -402,8 +402,8 @@ func (r *memoryArtifactRepository) Write(_ context.Context, scope artifacts.Scop
 	return artifacts.WriteResult{Ref: read.Ref, MediaType: payload.MediaType, Size: int64(len(payload.Data)), BindingCreatedAt: now, RevisionCreatedAt: now}, nil
 }
 
-func (r *memoryArtifactRepository) List(context.Context, artifacts.Scope, *string) ([]artifacts.ArtifactRef, error) {
-	return nil, artifacts.ErrQueryUnsupported
+func (r *memoryArtifactRepository) ListRefs(context.Context, artifacts.Scope, artifacts.RefPageQuery) (artifacts.RefPage, error) {
+	return artifacts.RefPage{}, artifacts.ErrQueryUnsupported
 }
 func (r *memoryArtifactRepository) ForkInput(context.Context, artifacts.Scope, artifacts.ArtifactRef, artifacts.Scope, string) (artifacts.ForkResult, error) {
 	return artifacts.ForkResult{}, artifacts.ErrQueryUnsupported
