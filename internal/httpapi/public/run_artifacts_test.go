@@ -3,15 +3,18 @@ package public
 import (
 	"fmt"
 	"net/http"
-	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/pagelimit"
+	"github.com/grauwolf32/contractor/internal/runstore"
 )
 
-func TestRunArtifactsByNamespaceReadsEveryMetadataPage(t *testing.T) {
-	repository := newFakeArtifactRepository()
+func TestRunDetailReadsEveryArtifactMetadataPage(t *testing.T) {
+	fixture := newHandlerFixture(t)
+	repository := fixture.repository
+	fixture.runs.runs["run-1"] = queryRun("run-1", "user-1", runstore.RunSucceeded, time.Now().UTC())
 	scope, err := artifacts.RunScope("run-1")
 	if err != nil {
 		t.Fatal(err)
@@ -33,23 +36,27 @@ func TestRunArtifactsByNamespaceReadsEveryMetadataPage(t *testing.T) {
 		artifacts.Payload{MediaType: "text/plain", Data: []byte("in")}, nil); err != nil {
 		t.Fatal(err)
 	}
-	h := &handler{dependencies: Dependencies{Artifacts: artifacts.NewService(repository)}}
-	request := httptest.NewRequest(http.MethodGet, "/", nil)
+	repository.queryReads = 0
 
-	got, err := h.runArtifactsByNamespace(request, "run-1", "outputs")
-	if err != nil {
-		t.Fatalf("runArtifactsByNamespace: %v", err)
+	response := serveQuery(t, fixture.handler, "/v1/runs/run-1")
+	if response.Code != http.StatusOK {
+		t.Fatalf("Run detail = %d %s", response.Code, response.Body.String())
 	}
-	if len(got) != len(want) {
-		t.Fatalf("runArtifactsByNamespace returned %d refs, want %d", len(got), len(want))
+	var detail runStatusResponse
+	decodeQueryResponse(t, response, &detail)
+	if len(detail.Outputs) != len(want) || len(detail.Inputs) != 1 || detail.Inputs["source"].Namespace != "inputs" {
+		t.Fatalf("Run detail returned %d outputs and inputs %+v, want %d outputs and one input",
+			len(detail.Outputs), detail.Inputs, len(want))
 	}
 	for name, revision := range want {
-		ref, ok := got[name]
+		ref, ok := detail.Outputs[name]
 		if !ok || ref.Namespace != "outputs" || ref.Name != name || ref.Revision == nil || *ref.Revision != revision {
 			t.Fatalf("ref %s = %+v, want revision %s", name, ref, revision)
 		}
 	}
-	if repository.queryReads != 3 {
-		t.Fatalf("metadata queries = %d, want 3 keyset pages", repository.queryReads)
+	// Three keyset pages of outputs and one page of inputs, never one lookup
+	// per binding.
+	if repository.queryReads != 4 {
+		t.Fatalf("metadata queries = %d, want 4 keyset pages", repository.queryReads)
 	}
 }

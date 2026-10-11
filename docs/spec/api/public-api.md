@@ -437,7 +437,10 @@ change and every public Planner fact receives one monotonically increasing
 per-Run sequence in the same transaction as its source record. Its generation
 is stable for that Run.
 
-**API-R48.** A Run detail response includes the corresponding event cursor.
+**API-R48.** A Run detail response includes the corresponding event cursor,
+read in the same database snapshot as the rest of the response, so the cursor
+never runs ahead of the state it accompanies
+([RUN-R87](../execution/runs.md)).
 
 **API-R49.** Subscribing with `after` replays committed events after that
 cursor in order and then follows new commits. Reconnect uses the last fully

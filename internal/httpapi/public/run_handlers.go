@@ -9,11 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
-	"github.com/grauwolf32/contractor/internal/gatewayrecovery"
 	"github.com/grauwolf32/contractor/internal/pagelimit"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/runservice"
@@ -434,89 +432,36 @@ func (h *handler) getRun(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, err)
 		return
 	}
-	run, err := h.ownedRun(r)
-	if err != nil {
-		h.handleError(w, err)
-		return
-	}
-	deletionBlocker, err := h.dependencies.RunDeletion.RunDeletionBlocker(
-		r.Context(), principalUserID(r.Context()), run.RunID,
+	detail, err := h.dependencies.RunDetails.Read(
+		r.Context(), principalUserID(r.Context()), r.PathValue("runID"),
 	)
 	if err != nil {
 		h.handleError(w, err)
 		return
 	}
-	executions, err := h.dependencies.Runs.ListStageExecutions(r.Context(), run.RunID)
+	attempts, activeExecutionID, err := stageAttemptsReadModel(detail)
 	if err != nil {
 		h.handleError(w, err)
 		return
 	}
-	decisions, err := h.dependencies.Runs.ListStageTransitionDecisions(r.Context(), run.RunID)
-	if err != nil {
-		h.handleError(w, err)
-		return
-	}
-	outputs, err := h.runArtifactsByNamespace(r, run.RunID, "outputs")
-	if err != nil {
-		h.handleError(w, err)
-		return
-	}
-	publicationRecords, err := h.dependencies.Runs.ListRunOutputPublications(r.Context(), run.RunID)
-	if err != nil {
-		h.handleError(w, err)
-		return
-	}
-	inputs, err := h.runArtifactsByNamespace(r, run.RunID, "inputs")
-	if err != nil {
-		h.handleError(w, err)
-		return
-	}
-	eventCursor, err := h.dependencies.Runs.GetRunEventCursor(r.Context(), run.RunID)
-	if err != nil {
-		h.handleError(w, err)
-		return
-	}
-	related, err := h.loadRunDetailRelated(r.Context(), run.OwnerID, executions)
-	if err != nil {
-		h.handleError(w, err)
-		return
-	}
-	var resumeSource *string
-	if run.State == runstore.RunFailed {
-		resumeSource, err = h.dependencies.Runs.ResumableStage(r.Context(), run.OwnerID, run.RunID)
-		if err != nil {
-			h.handleError(w, err)
-			return
-		}
-	}
-	attempts, activeExecutionID, err := stageAttemptsReadModel(executions, related)
-	if err != nil {
-		h.handleError(w, err)
-		return
-	}
-	var recovery *gatewayrecovery.Status
-	if h.dependencies.GatewayRecovery != nil {
-		recovery, err = h.dependencies.GatewayRecovery.Status(r.Context(), run.RunID)
-		if err != nil {
-			h.handleError(w, err)
-			return
-		}
-	}
+	run := detail.Run
 	writeJSON(w, http.StatusOK, runStatusResponse{
-		Recovery:               recovery,
-		ResumeStageExecutionID: resumeSource,
+		Recovery:               detail.Recovery,
+		ResumeStageExecutionID: detail.ResumeStageExecutionID,
 		RunID:                  run.RunID, ProjectID: run.ProjectID,
 		Workflow: run.WorkflowName + "@" + run.WorkflowVersion,
-		State:    run.State, Deletable: deletionBlocker == nil,
+		State:    run.State, Deletable: detail.DeletionBlocker == nil,
 		RuntimeLabels:        append([]string{}, run.RuntimeLabels...),
 		Labels:               run.MetadataLabels.Clone(),
 		RuntimeConfiguration: runtimeConfigReadModel(run.RuntimeConfig),
 		ProjectHTTPTarget:    run.ProjectHTTPTarget.Clone(),
 		Cancellation:         run.Cancellation, Parameters: run.Parameters,
-		Inputs: inputs, Attempts: attempts, Transitions: stageTransitionsReadModel(decisions), Outputs: outputs,
-		OutputPublications: outputPublicationsReadModel(publicationRecords),
+		Inputs: detail.Inputs, Attempts: attempts,
+		Transitions: stageTransitionsReadModel(detail.Transitions), Outputs: detail.Outputs,
+		OutputPublications: outputPublicationsReadModel(detail.OutputPublications),
 		EventCursor: &eventCursorResponse{
-			Generation: eventCursor.Generation, Sequence: strconv.FormatInt(eventCursor.Sequence, 10),
+			Generation: detail.EventCursor.Generation,
+			Sequence:   strconv.FormatInt(detail.EventCursor.Sequence, 10),
 		},
 		ActiveStageExecutionID: activeExecutionID,
 		CreatedAt:              run.CreatedAt, UpdatedAt: run.UpdatedAt,
@@ -526,12 +471,10 @@ func (h *handler) getRun(w http.ResponseWriter, r *http.Request) {
 
 // stageAttemptsReadModel projects StageExecutions in order and reports the
 // last non-terminal one as the active execution.
-func stageAttemptsReadModel(
-	executions []runstore.StageExecution, related runDetailRelated,
-) ([]stageAttemptResponse, *string, error) {
-	attempts := make([]stageAttemptResponse, 0, len(executions))
+func stageAttemptsReadModel(detail runservice.RunDetail) ([]stageAttemptResponse, *string, error) {
+	attempts := make([]stageAttemptResponse, 0, len(detail.Executions))
 	var activeExecutionID *string
-	for _, execution := range executions {
+	for _, execution := range detail.Executions {
 		stage, err := config.DecodeResolvedStageSnapshot(execution.StageSpecSnapshot)
 		if err != nil {
 			return nil, nil, fmt.Errorf("decode StageExecution read model: %w", err)
@@ -542,18 +485,18 @@ func stageAttemptsReadModel(
 		}
 		var metrics *telemetry.Summary
 		var diagnostics *telemetry.AttemptDiagnostics
-		if record, ok := related.metrics[execution.StageExecutionID]; ok {
+		if record, ok := detail.Metrics[execution.StageExecutionID]; ok {
 			value := record.Summary
 			metrics = &value
 			diagnosticValue := telemetry.ProjectAttemptDiagnostics(record.Metrics)
 			diagnostics = &diagnosticValue
 		}
 		var plan *planner.PlannerPlanProjection
-		if loaded, ok := related.plans[execution.StageExecutionID]; ok {
+		if loaded, ok := detail.Plans[execution.StageExecutionID]; ok {
 			plan = &loaded
 		}
-		runtimeConfiguration := stageRuntimeConfigurationReadModel(related.allocations[execution.StageExecutionID])
-		resources := related.resources[execution.StageExecutionID]
+		runtimeConfiguration := stageRuntimeConfigurationReadModel(detail.Allocations[execution.StageExecutionID])
+		resources := detail.Resources[execution.StageExecutionID]
 		if resources == nil {
 			resources = []telemetry.AllocationResourceSummary{}
 		}
@@ -756,34 +699,6 @@ func (h *handler) ownedRun(r *http.Request) (runstore.WorkflowRun, error) {
 		return runstore.WorkflowRun{}, runstore.ErrNotFound
 	}
 	return run, nil
-}
-
-// runArtifactsByNamespace maps binding names in one Run namespace to their
-// current exact refs, reading metadata in keyset pages instead of one
-// lookup per binding.
-func (h *handler) runArtifactsByNamespace(
-	r *http.Request, runID string, namespace string,
-) (map[string]contracts.ArtifactRef, error) {
-	store, err := h.dependencies.Artifacts.Run(runID)
-	if err != nil {
-		return nil, err
-	}
-	result := make(map[string]contracts.ArtifactRef)
-	query := artifacts.BindingPageQuery{Namespace: &namespace, Limit: pagelimit.MaxRows}
-	for {
-		page, err := store.ListMetadata(r.Context(), query)
-		if err != nil {
-			return nil, err
-		}
-		for _, metadata := range page {
-			result[metadata.Ref.Name] = metadata.Ref
-		}
-		if len(page) < query.Limit {
-			return result, nil
-		}
-		last := page[len(page)-1].Ref
-		query.AfterNamespace, query.AfterName = last.Namespace, last.Name
-	}
 }
 
 func (h *handler) getRunOutput(w http.ResponseWriter, r *http.Request) {
