@@ -40,6 +40,21 @@ func (r Request) Validate() error {
 	return ErrInvalid
 }
 
+// Terminal reports the terminal update of a granted attempt: an observed
+// response (succeeded, finished) or an abandoned call (released). Each one
+// relinquishes the sender's probe and wait, so it stays deliverable after the
+// sender's Stage began to end (SCH-R108): from a write-fenced allocation and
+// while the Run is cancelling. acquire and failed are not terminal: an ending
+// Stage must neither start a model call nor make its Run wait.
+func (r Request) Terminal() bool {
+	switch r.Action {
+	case "succeeded", "finished", "released":
+		return true
+	default:
+		return false
+	}
+}
+
 // Update resolves the route from an authenticated allocation's durable binding.
 func (s *Service) Update(ctx context.Context, allocationID string, request Request) (Decision, error) {
 	if err := request.Validate(); err != nil {
@@ -51,7 +66,7 @@ SELECT run_id,route_key FROM gateway_allocation_routes
 WHERE allocation_id=$1 AND model=$2`, allocationID, request.Model).Scan(&runID, &key); err != nil {
 		return Decision{}, err
 	}
-	return s.update(ctx, runID, "allocation:"+allocationID, key, request)
+	return s.update(ctx, runID, "allocation:"+allocationID, key, request, s.workerRequestTimeout)
 }
 
 // Participant is a Server-side planner's invocation, bound to the same authority
@@ -72,13 +87,17 @@ func (p *Participant) Update(ctx context.Context, request Request) (Decision, er
 	if err := request.Validate(); err != nil {
 		return Decision{}, err
 	}
-	return p.service.update(ctx, p.runID, p.participantID, p.key, request)
+	return p.service.update(ctx, p.runID, p.participantID, p.key, request, p.service.plannerRequestTimeout)
 }
 
-func (s *Service) update(ctx context.Context, runID, participantID, key string, request Request) (Decision, error) {
+// update applies one participant request. requestTimeout bounds that
+// participant's own model request and so sizes a probe lease it acquires.
+func (s *Service) update(
+	ctx context.Context, runID, participantID, key string, request Request, requestTimeout time.Duration,
+) (Decision, error) {
 	result := Decision{RetryAfterSeconds: s.policy.MaxDelay.Seconds()}
 	err := persistencepostgres.InTx(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		if err := lockRun(ctx, tx, runID); err != nil {
+		if err := lockRun(ctx, tx, runID, request.Terminal()); err != nil {
 			return err
 		}
 		state, err := readRoute(ctx, tx, key)
@@ -145,7 +164,7 @@ WHERE route_key=$1`, key, request.Code, now, now.Add(s.policy.AutomaticWindow), 
 			}
 			_, err = tx.Exec(ctx, `
 UPDATE gateway_recovery_routes SET probe_id=$2,probe_run_id=$3,probe_until=$4
-WHERE route_key=$1`, key, request.RequestID, runID, now.Add(s.requestTimeout+s.policy.InitialDelay))
+WHERE route_key=$1`, key, request.RequestID, runID, now.Add(requestTimeout+s.policy.InitialDelay))
 			result.Allowed = err == nil
 			return err
 		case "succeeded", "finished":

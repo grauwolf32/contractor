@@ -203,7 +203,7 @@ func admittedPlannerParticipant(
 	t.Helper()
 	service, err := gatewayrecovery.New(pool, gatewayrecovery.Policy{
 		InitialDelay: time.Second, MaxDelay: time.Second, AutomaticWindow: time.Minute,
-	}, time.Minute)
+	}, time.Minute, time.Minute)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -1114,6 +1114,24 @@ func createFinalizingFixtureWith(
 	t *testing.T, ctx context.Context, pool *pgxpool.Pool, beforeResult func(),
 ) finalizingFixture {
 	t.Helper()
+	fixture := createRunningStageFixture(t, ctx, pool)
+	if beforeResult != nil {
+		beforeResult()
+	}
+	if err := fixture.persistence.EnterFinalizingWithResult(ctx, runstore.EnterFinalizingParams{
+		StageExecutionID: fixture.executionID, ResultSchemaVersion: contracts.APIVersion,
+		Candidate: fixture.result, FinalizationID: "finalization-1", Deadline: time.Now().Add(time.Minute),
+		Reason: runstore.Reason{Code: "planner_completed"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	return fixture
+}
+
+// createRunningStageFixture creates run-1 with one running Stage whose Planner
+// started; result is the candidate its Planner would return.
+func createRunningStageFixture(t *testing.T, ctx context.Context, pool *pgxpool.Pool) finalizingFixture {
+	t.Helper()
 	workflow := loadSchedulerWorkflow(t)
 	store := runstore.NewPostgresStore(pool)
 	artifactService := artifacts.NewService(artifacts.NewPostgresRepository(pool))
@@ -1168,19 +1186,9 @@ func createFinalizingFixtureWith(
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if beforeResult != nil {
-		beforeResult()
-	}
 	result := contracts.StageContentResult{
 		APIVersion: contracts.APIVersion, Outcome: contracts.StageSucceeded, Summary: "copied",
 		Artifacts: map[string]contracts.ArtifactRef{"copied": written.Ref},
-	}
-	if err := persistence.EnterFinalizingWithResult(ctx, runstore.EnterFinalizingParams{
-		StageExecutionID: executionID, ResultSchemaVersion: contracts.APIVersion,
-		Candidate: result, FinalizationID: "finalization-1", Deadline: time.Now().Add(time.Minute),
-		Reason: runstore.Reason{Code: "planner_completed"},
-	}); err != nil {
-		t.Fatal(err)
 	}
 	return finalizingFixture{
 		store: store, artifacts: artifactService, persistence: persistence,
@@ -1304,15 +1312,23 @@ func loadSchedulerWorkflow(t *testing.T) workflowconfig.ResolvedWorkflow {
 type postgresTestWorkerInvoker struct {
 	result contracts.StageContentResult
 	calls  int
+	// before, when set, acts as the Worker before it answers; its error fails
+	// the Worker invocation.
+	before func(context.Context, contracts.WorkerHandle) error
 }
 
 func (i *postgresTestWorkerInvoker) Invoke(
-	_ context.Context,
+	ctx context.Context,
 	_ string,
-	_ contracts.WorkerHandle,
+	handle contracts.WorkerHandle,
 	request contracts.StageContentRequest,
 ) (contracts.WorkerCompletion, error) {
 	i.calls++
+	if i.before != nil {
+		if err := i.before(ctx, handle); err != nil {
+			return contracts.WorkerCompletion{}, err
+		}
+	}
 	result := i.result.Clone()
 	return contracts.WorkerCompletion{
 		APIVersion: contracts.APIVersion,

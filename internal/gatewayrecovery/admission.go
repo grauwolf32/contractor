@@ -15,7 +15,7 @@ func (s *Service) Admit(ctx context.Context, runID string, routes []Route) (bool
 	ordered := append([]Route(nil), routes...)
 	sort.Slice(ordered, func(i, j int) bool { return ordered[i].Key() < ordered[j].Key() })
 	err := persistencepostgres.InTx(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		if err := lockRun(ctx, tx, runID); err != nil {
+		if err := lockRun(ctx, tx, runID, false); err != nil {
 			return err
 		}
 		// Candidate selection may change between attempts. Keep only the routes
@@ -76,10 +76,11 @@ WHERE run_id=$1 AND state='pending' AND state_reason_code IS DISTINCT FROM $2`, 
 		}
 		for key := range probes {
 			// Include preparation time in this reservation. A crashed scheduler cannot
-			// hold the gate indefinitely; the first request takes a request-sized lease.
+			// hold the gate indefinitely; the first request, from a Worker or the
+			// planner, takes a lease sized by its own request timeout.
 			if _, err := tx.Exec(ctx, `
 UPDATE gateway_recovery_routes SET probe_id=NULL,probe_run_id=$2,probe_until=$3
-WHERE route_key=$1`, key, runID, now.Add(s.requestTimeout+s.policy.MaxDelay)); err != nil {
+WHERE route_key=$1`, key, runID, now.Add(max(s.workerRequestTimeout, s.plannerRequestTimeout)+s.policy.MaxDelay)); err != nil {
 				return err
 			}
 		}

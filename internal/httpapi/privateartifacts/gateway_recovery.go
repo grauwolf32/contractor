@@ -19,7 +19,7 @@ type gatewayRecoveryUpdater interface {
 
 func (h *handler) gatewayRecovery(w http.ResponseWriter, r *http.Request) {
 	grant, identity, err := h.allocationGrant(r)
-	if err != nil || grant.Lost || grant.WriteFenced {
+	if err != nil || grant.Lost {
 		h.writeError(w, http.StatusConflict, "allocation_unavailable", "Allocation is not active", false)
 		return
 	}
@@ -33,9 +33,20 @@ func (h *handler) gatewayRecovery(w http.ResponseWriter, r *http.Request) {
 		h.writeError(w, http.StatusBadRequest, "invalid_recovery_request", "Invalid recovery request", false)
 		return
 	}
+	// The write fence marks an ending Stage. Its Worker may still deliver the
+	// terminal update of a granted attempt, which relinquishes the probe
+	// (SCH-R108), but cannot start a model call or report a failure.
+	activeOnly := !request.Terminal()
+	if grant.WriteFenced && activeOnly {
+		h.writeError(w, http.StatusConflict, "allocation_unavailable", "Allocation is not active", false)
+		return
+	}
 	var result gatewayrecovery.Decision
 	err = h.dependencies.Registry.WithWriteGrant(grant.AllocationID, func(current controlplane.AllocationGrant) error {
-		if _, err := h.runStoreForGrant(grant.AllocationID, current, identity, true); err != nil {
+		// The grant must still be authorized to write; only the fence check
+		// is waived for a terminal update.
+		if _, err := h.runStoreForGrant(grant.AllocationID, current, identity, false); err != nil ||
+			current.WritePolicy != controlplane.WriteInputsAndIntermediates || (current.WriteFenced && activeOnly) {
 			return gatewayrecovery.ErrUnavailable
 		}
 		var updateErr error

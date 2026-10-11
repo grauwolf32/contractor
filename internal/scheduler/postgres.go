@@ -10,6 +10,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/gatewayrecovery"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/jackc/pgx/v5"
@@ -165,8 +166,9 @@ func (p *PostgresPersistence) CommitResultProgression(
 		); err != nil {
 			return err
 		}
-		// A completed invocation no longer waits for its model gateway.
-		if err := clearStageGatewayWaits(ctx, tx, value.RunID); err != nil {
+		// A completed invocation no longer waits for its model gateway or
+		// holds a recovery probe.
+		if err := gatewayrecovery.EndStage(ctx, tx, value.RunID); err != nil {
 			return err
 		}
 
@@ -236,8 +238,8 @@ func (p *PostgresPersistence) CommitTerminationProgression(
 			return err
 		}
 		// A terminated invocation cannot continue recovering its model. Drop
-		// its waits before admitting any configured follow-up Stage.
-		if err := clearStageGatewayWaits(ctx, tx, value.RunID); err != nil {
+		// its waits and probe before admitting any configured follow-up Stage.
+		if err := gatewayrecovery.EndStage(ctx, tx, value.RunID); err != nil {
 			return err
 		}
 
@@ -249,21 +251,6 @@ func (p *PostgresPersistence) CommitTerminationProgression(
 		}
 		return commitTerminalRun(ctx, tx, store, value.RunID, nil, value.Progression)
 	})
-}
-
-// clearStageGatewayWaits drops the finished Stage's gateway recovery waits and
-// route membership, then returns a waiting Run to running before the follow-up
-// Stage or terminal transition is committed in the same transaction.
-func clearStageGatewayWaits(ctx context.Context, tx pgx.Tx, runID string) error {
-	if _, err := tx.Exec(ctx, `DELETE FROM gateway_recovery_waits WHERE run_id=$1`, runID); err != nil {
-		return err
-	}
-	if _, err := tx.Exec(ctx, `DELETE FROM gateway_run_routes WHERE run_id=$1`, runID); err != nil {
-		return err
-	}
-	_, err := tx.Exec(ctx, `UPDATE workflow_runs SET state='running',updated_at=clock_timestamp()
-WHERE run_id=$1 AND state='waiting'`, runID)
-	return err
 }
 
 func (p *PostgresPersistence) AcceptResultDuringCancellation(
@@ -293,11 +280,13 @@ func (p *PostgresPersistence) AcceptResultDuringCancellation(
 		if err := artifactService.FreezeRunOutputs(ctx, runID); err != nil {
 			return fmt.Errorf("freeze Workflow outputs: %w", err)
 		}
-		_, err := store.TransitionRun(
+		if _, err := store.TransitionRun(
 			ctx, runID, runstore.RunCancelling, runstore.RunCancelled,
 			runstore.Reason{Code: runstore.CancellationUserRequested},
-		)
-		return err
+		); err != nil {
+			return err
+		}
+		return gatewayrecovery.EndStage(ctx, tx, runID)
 	})
 }
 
@@ -324,14 +313,18 @@ func (p *PostgresPersistence) CommitTerminationAndFinishRun(
 		if err := artifactService.FreezeRunOutputs(ctx, runID); err != nil {
 			return fmt.Errorf("freeze Workflow outputs: %w", err)
 		}
-		_, err := store.TransitionRun(
+		if _, err := store.TransitionRun(
 			ctx,
 			runID,
 			expectedRunState,
 			nextRunState,
 			reason,
-		)
-		return err
+		); err != nil {
+			return err
+		}
+		// After the Run transition, whose expected state the gateway cleanup
+		// must not change, and still in the transaction that ends the Stage.
+		return gatewayrecovery.EndStage(ctx, tx, runID)
 	})
 }
 
@@ -392,8 +385,14 @@ SET state = candidate_stage_result->>'outcome',
 WHERE run_id = $1 AND state = 'finalizing'`, runID); err != nil {
 			return fmt.Errorf("accept finalizing StageExecutions: %w", err)
 		}
-		_, err := runstore.NewPostgresStore(tx).TransitionRun(ctx, runID, expectedRunState, nextRunState, reason)
-		return err
+		if _, err := runstore.NewPostgresStore(tx).TransitionRun(
+			ctx, runID, expectedRunState, nextRunState, reason,
+		); err != nil {
+			return err
+		}
+		// Every active Stage ended above; a waiting Run's expected state is
+		// matched before the gateway cleanup could return it to running.
+		return gatewayrecovery.EndStage(ctx, tx, runID)
 	})
 }
 

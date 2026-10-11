@@ -846,19 +846,32 @@ invocations recover before new queued work.
 
 **SCH-R106.** One leased probe checks a blocked route (LIM-SCH-11); stale
 successful responses cannot reopen it. Repeated failure reports are idempotent
-even when other invocations report failures between retries.
+even when other invocations report failures between retries. A probe lease
+lasts its holder's own request timeout (`workerRequestTimeout` for a Runtime
+Worker, `plannerTimeout` for a Server-side Planner) plus the initial probe
+delay, never the longer of the two.
 
 **SCH-R107.** The automatic recovery window is bounded; manual retry reopens
 it, while cancellation and the admitted Stage wall-clock limit remain
-effective. Terminated invocations relinquish their recovery waits.
+effective. Terminated invocations relinquish their recovery waits: every
+transaction that ends a Stage, whether it accepts a result, commits a
+termination, finishes a cancelled Run or fails an unprogressable Run, also
+drops that Stage's waits and route membership and relinquishes any probe its
+Run holds or reserved, without reopening the route or resetting its retry
+window, so another Run can probe at once.
 
-**SCH-R108.** A Runtime call that abandons a granted attempt, through
-cancellation or an unexpected failure at any point before its terminal update
-is acknowledged (including while reporting the outcome), re-delivers that
-idempotent update as a bounded best effort, so the leased probe is not held
-until it expires. An attempt abandoned before any outcome reports `released`,
-which relinquishes the probe without reopening the blocked route or resetting
-its retry window (FAIL-SCH-14).
+**SCH-R108.** A Runtime call or Server-side Planner request that abandons a
+granted attempt, through cancellation or an unexpected failure at any point
+before its terminal update is acknowledged (including while reporting the
+outcome), re-delivers that idempotent update as a bounded best effort, the
+Planner on a context detached from its cancelled invocation, so the leased
+probe is not held until it expires. An attempt abandoned before any outcome
+reports `released`, which relinquishes the probe without reopening the blocked
+route or resetting its retry window; a cancelled attempt is never reported as
+a Gateway failure. A terminal update (`succeeded`, `finished` or `released`)
+is accepted from a write-fenced allocation and while the Run is cancelling;
+`acquire` and `failed` are not, so an ending Stage neither starts a model call
+nor makes its Run wait (FAIL-SCH-14).
 
 **SCH-R109.** A request the Gateway received but did not answer within the
 participant's own request timeout (`workerRequestTimeout` or `plannerTimeout`)
@@ -869,7 +882,7 @@ Rationale: a slow model is not an outage, and the Gateway may still be
 generating its answer.
 
 **SCH-R110.** Cancellation before a grant is known sends nothing and leaves an
-unknown lease to its expiry.
+unknown lease to its expiry or to the end of its Stage (SCH-R107).
 
 **SCH-R111.** A Server-side Planner retries a transient database failure while
 recording an observed outcome a bounded number of times. A model reply or

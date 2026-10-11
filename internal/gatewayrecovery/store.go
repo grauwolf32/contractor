@@ -12,19 +12,24 @@ import (
 type Service struct {
 	pool   *pgxpool.Pool
 	policy Policy
-	// requestTimeout is the longest model request any participant may make;
-	// a probe lease must outlast it, or a slow probe would admit a second one.
-	requestTimeout time.Duration
+	// A probe lease must outlast its holder's own model request, or a slow
+	// probe would admit a second one. Runtime Workers bound each request by
+	// workerRequestTimeout and Server-side planners by plannerRequestTimeout;
+	// each lease follows its holder's bound, not the longest one.
+	workerRequestTimeout, plannerRequestTimeout time.Duration
 }
 
-func New(pool *pgxpool.Pool, policy Policy, requestTimeout time.Duration) (*Service, error) {
-	if pool == nil || requestTimeout < time.Second {
+func New(pool *pgxpool.Pool, policy Policy, workerRequestTimeout, plannerRequestTimeout time.Duration) (*Service, error) {
+	if pool == nil || workerRequestTimeout < time.Second || plannerRequestTimeout < time.Second {
 		return nil, ErrInvalid
 	}
 	if err := policy.Validate(); err != nil {
 		return nil, err
 	}
-	return &Service{pool: pool, policy: policy, requestTimeout: requestTimeout}, nil
+	return &Service{
+		pool: pool, policy: policy,
+		workerRequestTimeout: workerRequestTimeout, plannerRequestTimeout: plannerRequestTimeout,
+	}, nil
 }
 
 type routeState struct {
@@ -57,12 +62,14 @@ func transactionNow(ctx context.Context, tx pgx.Tx) (time.Time, error) {
 	return now, nil
 }
 
-func lockRun(ctx context.Context, tx pgx.Tx, runID string) error {
+// lockRun locks an active Run. A cancelling Run still accepts the terminal
+// update of a granted attempt, so that cancellation relinquishes its probe.
+func lockRun(ctx context.Context, tx pgx.Tx, runID string, terminalUpdate bool) error {
 	var state string
 	if err := tx.QueryRow(ctx, `SELECT state FROM workflow_runs WHERE run_id=$1 FOR UPDATE`, runID).Scan(&state); err != nil {
 		return err
 	}
-	if state != "pending" && state != "running" && state != "waiting" {
+	if state != "pending" && state != "running" && state != "waiting" && (!terminalUpdate || state != "cancelling") {
 		return ErrUnavailable
 	}
 	return nil
