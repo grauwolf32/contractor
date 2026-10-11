@@ -494,10 +494,18 @@ func TestProjectArtifactRoutesAreOwnerScopedAndRevisionExact(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := projectArtifacts.Write(
-		t.Context(), contracts.ArtifactRef{Namespace: "audit-staging", Name: "report.json"},
-		artifacts.Payload{MediaType: "application/json", Data: []byte(`{"hidden":true}`)}, nil,
-	); err != nil {
+	staging := contracts.ArtifactRef{Namespace: "audit-staging", Name: "report.json"}
+	stagingPayload := artifacts.Payload{MediaType: "application/json", Data: []byte(`{"hidden":true}`)}
+	if _, err := projectArtifacts.Write(t.Context(), staging, stagingPayload, nil); !errors.Is(err, artifacts.ErrReservedNamespace) {
+		t.Fatalf("generic Audit staging write = %v, want reserved namespace", err)
+	}
+	// Seed the staging binding below the Service, as Audit staging exists only
+	// through the trusted Audit writers.
+	projectScope, err := artifacts.ProjectScope("project_fixed")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := fixture.repository.Write(t.Context(), projectScope, staging, stagingPayload, nil); err != nil {
 		t.Fatal(err)
 	}
 	listHidden := authenticatedRequest(

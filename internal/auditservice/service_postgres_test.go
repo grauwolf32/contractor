@@ -1411,13 +1411,9 @@ func seedAuditFindingDocument(
 	if err != nil {
 		t.Fatal(err)
 	}
-	projectArtifacts, err := artifacts.NewService(artifacts.NewPostgresRepository(pool)).Project(projectID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	written, err := projectArtifacts.Write(ctx,
+	written, err := artifacts.NewService(artifacts.NewPostgresRepository(pool)).WriteAuditArtifact(ctx, projectID,
 		contracts.ArtifactRef{Namespace: "audit-finding-proposals", Name: "candidate-" + suffix},
-		artifacts.Payload{MediaType: "application/json", Data: payload}, nil)
+		artifacts.Payload{MediaType: "application/json", Data: payload})
 	if err != nil {
 		t.Fatal(err)
 	}

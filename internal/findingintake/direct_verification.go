@@ -291,14 +291,9 @@ func readExactFindingProposal(
 	store artifacts.ScopedStore,
 	expected ExactArtifact,
 ) (auditdomain.FindingProposal, error) {
-	read, err := store.Read(ctx, expected.Ref)
+	read, err := store.ReadExact(ctx, expected)
 	if err != nil {
 		return auditdomain.FindingProposal{}, err
-	}
-	if read.Payload.MediaType != expected.MediaType ||
-		int64(len(read.Payload.Data)) != expected.SizeBytes ||
-		auditdomain.DigestBytes(read.Payload.Data) != expected.Digest {
-		return auditdomain.FindingProposal{}, artifacts.ErrArtifactIntegrity
 	}
 	proposal, err := auditdomain.DecodeFindingProposal(read.Payload.Data)
 	if err != nil {

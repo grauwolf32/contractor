@@ -318,19 +318,15 @@ func (c *Catalog) ResolvePinned(
 	if err != nil {
 		return ResolvedPackage{}, err
 	}
-	read, err := store.Read(ctx, pinned.Retained.Artifact)
+	read, err := store.ReadExact(ctx, pinned.Retained.Exact())
 	if errors.Is(err, artifacts.ErrArtifactNotFound) {
 		return ResolvedPackage{}, ErrNotFound
 	}
+	if errors.Is(err, contracts.ErrExactArtifactMismatch) {
+		return ResolvedPackage{}, fmt.Errorf("%w: retained Audit standard identity: %v", ErrDrift, err)
+	}
 	if err != nil {
 		return ResolvedPackage{}, err
-	}
-	if read.Ref.Revision == nil || pinned.Retained.Artifact.Revision == nil ||
-		*read.Ref.Revision != *pinned.Retained.Artifact.Revision ||
-		read.Payload.MediaType != pinned.Retained.MediaType ||
-		int64(len(read.Payload.Data)) != pinned.Retained.SizeBytes ||
-		contentdigest.Bytes(read.Payload.Data) != pinned.Retained.Digest {
-		return ResolvedPackage{}, fmt.Errorf("%w: retained Audit standard identity", ErrDrift)
 	}
 	pkg, err := ValidateRetainedPayload(read.Payload.Data, pinned)
 	if err != nil {
@@ -347,24 +343,14 @@ func (c *Catalog) writeRetained(
 ) (ExactPackage, error) {
 	payload := artifacts.Payload{MediaType: MediaType, Data: resolved.Package.Payload()}
 	written, err := c.service.WriteAuditArtifact(ctx, projectID, target, payload)
-	if err == nil {
-		return ExactPackage{Artifact: written.Ref, Digest: resolved.Package.Digest,
-			MediaType: written.MediaType, SizeBytes: written.Size}, nil
-	}
-	if !errors.Is(err, artifacts.ErrArtifactConflict) {
-		return ExactPackage{}, err
-	}
-	store, openErr := c.service.Project(projectID)
-	if openErr != nil {
-		return ExactPackage{}, openErr
-	}
-	current, readErr := store.Read(ctx, target)
-	if readErr != nil || current.Ref.Revision == nil || current.Payload.MediaType != MediaType ||
-		contentdigest.Bytes(current.Payload.Data) != resolved.Package.Digest {
+	if errors.Is(err, artifacts.ErrAuditArtifactCollision) {
 		return ExactPackage{}, fmt.Errorf("%w: retained Audit standard collision", ErrDrift)
 	}
-	return ExactPackage{Artifact: current.Ref, Digest: resolved.Package.Digest,
-		MediaType: current.Payload.MediaType, SizeBytes: int64(len(current.Payload.Data))}, nil
+	if err != nil {
+		return ExactPackage{}, err
+	}
+	return ExactPackage{Artifact: written.Ref, Digest: resolved.Package.Digest,
+		MediaType: written.MediaType, SizeBytes: written.Size}, nil
 }
 
 func Projection(resolved ResolvedPackage, detail bool) PackageProjection {

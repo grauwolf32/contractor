@@ -45,12 +45,9 @@ type Submission struct {
 	EvidenceRefs []contracts.ArtifactRef     `json:"evidenceRefs"`
 }
 
-type ExactArtifact struct {
-	Ref       contracts.ArtifactRef `json:"ref"`
-	Digest    string                `json:"digest"`
-	MediaType string                `json:"mediaType"`
-	SizeBytes int64                 `json:"sizeBytes"`
-}
+// ExactArtifact is the shared exact-content descriptor. Receipts always
+// record media type and size, so their JSON carries all four fields.
+type ExactArtifact = contracts.ExactArtifact
 
 type WorkflowOrigin struct {
 	Name             string `json:"name"`

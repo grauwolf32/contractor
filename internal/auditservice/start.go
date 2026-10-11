@@ -248,18 +248,15 @@ func (s *Service) startInTransaction(
 		return StartedAudit{}, fmt.Errorf("%w: Audit inventory exceeds profile limits", ErrInvalid)
 	}
 
-	projectArtifacts, err := artifactService.Project(audit.ProjectID)
-	if err != nil {
-		return StartedAudit{}, err
-	}
+	writer := auditArtifactWriter{service: artifactService, projectID: audit.ProjectID}
 	taskArtifacts, executionManifest, err := writeTaskPackages(
-		ctx, projectArtifacts, namespace, profile, selection, inventory,
+		ctx, writer, namespace, profile, selection, inventory,
 	)
 	if err != nil {
 		return StartedAudit{}, err
 	}
 	worklistArtifact, err := writeRoundPackage(
-		ctx, projectArtifacts, namespace, 1, inventory, executionManifest,
+		ctx, writer, namespace, 1, inventory, executionManifest,
 	)
 	if err != nil {
 		return StartedAudit{}, err
@@ -355,11 +352,8 @@ func auditStandardLinks(pinned []auditstandards.PinnedPackage) ([]auditstore.Art
 			return nil, err
 		}
 		result[index] = auditstore.ArtifactLink{
-			LogicalKey: "standard/" + standard.Reference.Scheme + "/" + standard.Reference.Version,
-			Artifact: auditstore.ExactArtifact{
-				Ref: standard.Retained.Artifact, Digest: standard.Retained.Digest,
-				MediaType: standard.Retained.MediaType, SizeBytes: standard.Retained.SizeBytes,
-			},
+			LogicalKey:       "standard/" + standard.Reference.Scheme + "/" + standard.Reference.Version,
+			Artifact:         standard.Retained.Exact(),
 			SourceProvenance: provenance,
 			DisplayRef:       standard.Reference.Scheme + "@" + standard.Reference.Version,
 		}
@@ -476,14 +470,15 @@ func readAndVerifyInputs(
 		if !exists || !contracts.AcceptsMediaType(contract.MediaTypes, selected.MediaType) {
 			return nil, fmt.Errorf("%w: stored Audit input no longer matches profile", ErrInvalid)
 		}
-		read, err := store.Read(ctx, selected.Ref)
+		if selected.Validate() != nil || !selected.HasMetadata() {
+			return nil, fmt.Errorf("%w: exact Audit input failed integrity validation", ErrInvalid)
+		}
+		read, err := store.ReadExact(ctx, selected)
+		if errors.Is(err, contracts.ErrExactArtifactMismatch) {
+			return nil, fmt.Errorf("%w: exact Audit input failed integrity validation: %v", ErrInvalid, err)
+		}
 		if err != nil {
 			return nil, err
-		}
-		if read.Ref.Revision == nil || selected.Ref.Revision == nil ||
-			*read.Ref.Revision != *selected.Ref.Revision || read.Payload.MediaType != selected.MediaType ||
-			int64(len(read.Payload.Data)) != selected.SizeBytes || auditdomain.DigestBytes(read.Payload.Data) != selected.Digest {
-			return nil, fmt.Errorf("%w: exact Audit input failed integrity validation", ErrInvalid)
 		}
 		result[name] = read
 	}
@@ -569,7 +564,7 @@ func buildInventoryFromSources(profile config.ResolvedAuditProfile, selection Dr
 
 func writeTaskPackages(
 	ctx context.Context,
-	store artifacts.ScopedStore,
+	writer auditArtifactWriter,
 	namespace string,
 	profile config.ResolvedAuditProfile,
 	selection DraftSelection,
@@ -580,7 +575,7 @@ func writeTaskPackages(
 	manifest.Items = append([]auditdomain.ExecutionItem(nil), inventory.ExecutionManifest.Items...)
 	result := make([]auditstore.ExactArtifact, len(inventory.Tasks))
 	for index, task := range inventory.Tasks {
-		write, err := writeImmutableArtifact(ctx, store, contracts.ArtifactRef{
+		write, err := writer.write(ctx, contracts.ArtifactRef{
 			Namespace: namespace, Name: task.Item.TaskPackageID,
 		}, artifacts.Payload{MediaType: auditdomain.PackageMediaType, Data: task.Package})
 		if err != nil {
@@ -644,7 +639,7 @@ func workflowInputs(
 
 func writeRoundPackage(
 	ctx context.Context,
-	store artifacts.ScopedStore,
+	writer auditArtifactWriter,
 	namespace string,
 	roundOrdinal int,
 	inventory auditdomain.Inventory,
@@ -674,7 +669,7 @@ func writeRoundPackage(
 	if err != nil {
 		return auditstore.ExactArtifact{}, err
 	}
-	write, err := writeImmutableArtifact(ctx, store, contracts.ArtifactRef{
+	write, err := writer.write(ctx, contracts.ArtifactRef{
 		Namespace: namespace,
 		Name:      auditdomain.DeterministicID("round-worklist", strconv.Itoa(roundOrdinal), validated.Digest),
 	}, artifacts.Payload{MediaType: auditdomain.PackageMediaType, Data: payload})
@@ -690,13 +685,24 @@ func writeRoundPackage(
 	}, nil
 }
 
-func writeImmutableArtifact(
+// auditArtifactWriter writes the frozen, content-named Audit artifacts of one
+// Project through artifacts.Service.WriteAuditArtifact, which also recovers a
+// write whose acknowledgement was lost.
+type auditArtifactWriter struct {
+	service   *artifacts.Service
+	projectID string
+}
+
+func (w auditArtifactWriter) write(
 	ctx context.Context,
-	store artifacts.ScopedStore,
 	target contracts.ArtifactRef,
 	payload artifacts.Payload,
 ) (auditstore.ExactArtifact, error) {
-	return auditstore.WriteImmutableArtifact(ctx, store, target, payload, artifacts.ErrArtifactConflict)
+	written, err := w.service.WriteAuditArtifact(ctx, w.projectID, target, payload)
+	if err != nil {
+		return auditstore.ExactArtifact{}, err
+	}
+	return contracts.ExactContent(written.Ref, written.MediaType, payload.Data), nil
 }
 
 func (s *Service) startedProjection(

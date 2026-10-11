@@ -367,12 +367,9 @@ type RoundTransitionParams struct {
 	TargetState      RoundState
 }
 
-type ExactArtifact struct {
-	Ref       contracts.ArtifactRef `json:"ref"`
-	Digest    string                `json:"digest"`
-	MediaType string                `json:"mediaType,omitempty"`
-	SizeBytes int64                 `json:"sizeBytes,omitempty"`
-}
+// ExactArtifact is the shared exact-content descriptor. Rounds, executions
+// and results persist only its ref and digest and read back digest-only.
+type ExactArtifact = contracts.ExactArtifact
 
 // ItemOrigin is the immutable attribution of a materialized Audit item to the
 // exact source document and normalized inventory entry from which it was

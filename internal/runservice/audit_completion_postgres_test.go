@@ -48,14 +48,14 @@ func TestAuditCompletionPostgresAtomicCreationRestartAndAllocation(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	task := writeExact(t, ctx, store, "audit-test", "task", "application/zip", inventory.Tasks[0].Package)
+	task := writeAuditExact(t, ctx, artifactService, project.ProjectID, "task", "application/zip", inventory.Tasks[0].Package)
 	manifestDoc := inventory.ExecutionManifest
 	manifestDoc.Items[0].TaskRef = &task.Ref
 	manifestBytes, err := auditdomain.EncodeExecutionManifest(manifestDoc)
 	if err != nil {
 		t.Fatal(err)
 	}
-	manifest := writeExact(t, ctx, store, "audit-test", "manifest", "application/json", manifestBytes)
+	manifest := writeAuditExact(t, ctx, artifactService, project.ProjectID, "manifest", "application/json", manifestBytes)
 	catalog, err := configload.Load("../../testdata/configs", config.MVPDescriptors())
 	if err != nil {
 		t.Fatal(err)

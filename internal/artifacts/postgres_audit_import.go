@@ -3,8 +3,8 @@ package artifacts
 import (
 	"context"
 	"fmt"
-	"strings"
 
+	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 )
 
@@ -29,7 +29,7 @@ func (r *PostgresRepository) ImportAuditArtifact(
 	if _, err := exactRevision(sourceRef); err != nil {
 		return ForkResult{}, err
 	}
-	if targetRef.Revision != nil || !strings.HasPrefix(targetRef.Namespace, "audit-") {
+	if targetRef.Revision != nil || !artifactpolicy.IsAuditManagedProjectNamespace(targetRef.Namespace) {
 		return ForkResult{}, ErrInvalidName
 	}
 	if err := validateRef(targetRef); err != nil {

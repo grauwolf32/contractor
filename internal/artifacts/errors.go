@@ -23,6 +23,11 @@ var (
 	ErrScopeDeleting         = errors.New("artifact Project scope is deleting")
 )
 
+// ErrAuditArtifactCollision means a content-named Audit artifact binding
+// already holds other content. It is an integrity failure: retrying the same
+// write can never succeed.
+var ErrAuditArtifactCollision = fmt.Errorf("%w: Audit artifact binding holds other content", ErrArtifactIntegrity)
+
 type ConflictError struct {
 	Ref              ArtifactRef
 	ExpectedRevision *string

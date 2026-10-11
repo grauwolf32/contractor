@@ -835,9 +835,13 @@ and records a receipt.
 **REV-R145.** Binding keys include the Audit identity and version; a
 collision never overwrites another result.
 
-**REV-R146.** Imported results, external evidence and generated
-reports are created as frozen bindings in the Server-derived, reserved
-`audit-*` Project namespace.
+**REV-R146.** Every Audit-managed binding is created frozen in the
+Server-derived, reserved `audit-*` Project namespace: imported results and
+external evidence through the trusted import, and Server-generated material
+(task packages, worklists, execution manifests and task sets, inventories,
+retained standards, direct-verification contracts and reports) through the
+one trusted Audit writer. A generic Project artifact write never creates or
+advances a binding under the reserved prefix.
 
 **REV-R147.** Such a binding may exist briefly as recovery staging
 before its receipt or report-link transaction commits; this is why generic
@@ -847,9 +851,11 @@ Project routes hide the entire reserved prefix (ART-R26).
 expose only exact bindings that have a committed `AuditArtifactLink`;
 database-internal staging is not an acceptance signal.
 
-**REV-R149.** Crash replay accepts an existing binding only when its
-bytes, media type, size, exact source Run revision and import lineage all
-match (FAIL-REV-8).
+**REV-R149.** Crash replay accepts an existing binding only when it is
+frozen and its bytes, media type and size match and, for an imported binding,
+its exact source Run revision and import lineage match as well. Any other
+existing binding is a permanent integrity failure, never overwritten
+(FAIL-REV-8).
 
 **REV-R150.** Workers see only exact RunScope inputs and have no Audit
 or Project Artifact authority.

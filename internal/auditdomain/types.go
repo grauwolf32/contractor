@@ -230,10 +230,18 @@ type ExecutionItem struct {
 	Inputs            []ExactInput           `json:"inputs"`
 }
 
+// ExactInput pins one named Workflow input of an execution manifest to an
+// exact revision and digest. The manifest carries no media type or size, so
+// Exact returns a digest-only shared descriptor.
 type ExactInput struct {
 	Name   string                `json:"name"`
 	Ref    contracts.ArtifactRef `json:"ref"`
 	Digest string                `json:"digest"`
+}
+
+// Exact returns the pin as the shared exact-content descriptor.
+func (i ExactInput) Exact() contracts.ExactArtifact {
+	return contracts.ExactArtifact{Ref: i.Ref.Clone(), Digest: i.Digest}
 }
 
 type CheckResultSet struct {

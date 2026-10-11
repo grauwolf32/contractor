@@ -317,8 +317,9 @@ can create a binding. The catalog rules are owned by
 **ART-R26.** The Server derives and reserves the `audit-*` Project
 Namespace prefix. Generic Project list, read, metadata, version, lineage and
 mutation routes hide the entire reserved prefix, and ordinary public Project
-Artifact mutation cannot write or delete Audit-managed bindings. Owner uploads
-continue through non-reserved Namespaces. Frozen Audit bindings, recovery
+Artifact mutation cannot write or delete Audit-managed bindings; the store
+itself refuses every generic ProjectScope write under the prefix as reserved.
+Owner uploads continue through non-reserved Namespaces. Frozen Audit bindings, recovery
 staging, artifact links and crash replay are owned by
 [Review and reports](../audits/review-and-reports.md).
 

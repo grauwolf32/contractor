@@ -6,7 +6,6 @@ import (
 	"fmt"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
@@ -25,28 +24,27 @@ type ArtifactAccess interface {
 	) (artifacts.Payload, error)
 }
 
+// ReadProjectExact reads a complete exact descriptor through the one exact
+// read (artifacts.ScopedStore.ReadExact); other content invalidates the
+// submission.
 func (a *ProjectArtifactAccess) ReadProjectExact(
 	ctx context.Context,
 	projectID string,
 	descriptor auditstore.ExactArtifact,
 ) (artifacts.Payload, error) {
-	if err := descriptor.Ref.ValidateExact(); err != nil || descriptor.Digest == "" ||
-		descriptor.MediaType == "" || descriptor.SizeBytes < 0 {
+	if descriptor.Validate() != nil || !descriptor.HasMetadata() {
 		return artifacts.Payload{}, fmt.Errorf("%w: exact Project artifact descriptor is invalid", ErrInvalidSubmission)
 	}
 	store, err := a.service.Project(projectID)
 	if err != nil {
 		return artifacts.Payload{}, err
 	}
-	result, err := store.Read(ctx, descriptor.Ref)
+	result, err := store.ReadExact(ctx, descriptor)
+	if errors.Is(err, contracts.ErrExactArtifactMismatch) {
+		return artifacts.Payload{}, fmt.Errorf("%w: exact Project artifact content changed", ErrInvalidSubmission)
+	}
 	if err != nil {
 		return artifacts.Payload{}, err
-	}
-	if !result.Ref.SameExact(descriptor.Ref) ||
-		auditdomain.DigestBytes(result.Payload.Data) != descriptor.Digest ||
-		result.Payload.MediaType != descriptor.MediaType ||
-		int64(len(result.Payload.Data)) != descriptor.SizeBytes {
-		return artifacts.Payload{}, fmt.Errorf("%w: exact Project artifact content changed", ErrInvalidSubmission)
 	}
 	return artifacts.Payload{
 		MediaType: result.Payload.MediaType,
@@ -63,41 +61,24 @@ func NewProjectArtifactAccess(service *artifacts.Service) (*ProjectArtifactAcces
 	return &ProjectArtifactAccess{service: service}, nil
 }
 
+// PutImmutableProject writes a content-named manifest or task package as a
+// frozen Audit artifact. A crash after the write but before intent creation
+// is recovered by WriteAuditArtifact, which returns the identical binding
+// without staging another blob.
 func (a *ProjectArtifactAccess) PutImmutableProject(
 	ctx context.Context,
 	projectID string,
 	target contracts.ArtifactRef,
 	payload artifacts.Payload,
 ) (auditstore.ExactArtifact, error) {
-	store, err := a.service.Project(projectID)
+	written, err := a.service.WriteAuditArtifact(ctx, projectID, target, payload)
+	if errors.Is(err, artifacts.ErrAuditArtifactCollision) {
+		return auditstore.ExactArtifact{}, fmt.Errorf("%w: immutable Audit artifact binding collision: %v", ErrInvalidSubmission, err)
+	}
 	if err != nil {
 		return auditstore.ExactArtifact{}, err
 	}
-	if target.Revision != nil {
-		return auditstore.ExactArtifact{}, artifacts.ErrVersionedWriteTarget
-	}
-	// Content-derived names are immutable. A successful prior attempt already
-	// has the exact descriptor, so avoid staging another filesystem blob.
-	metadata, err := store.Metadata(ctx, target)
-	if err == nil {
-		if metadata.Digest != auditdomain.DigestBytes(payload.Data) ||
-			metadata.MediaType != payload.MediaType || metadata.Size != int64(len(payload.Data)) {
-			return auditstore.ExactArtifact{}, fmt.Errorf("%w: immutable Audit artifact binding collision", ErrInvalidSubmission)
-		}
-		return auditstore.ExactArtifact{
-			Ref: metadata.Ref, Digest: metadata.Digest,
-			MediaType: metadata.MediaType, SizeBytes: metadata.Size,
-		}, nil
-	}
-	if !errors.Is(err, artifacts.ErrArtifactNotFound) {
-		return auditstore.ExactArtifact{}, err
-	}
-	// The target name is content-derived. A crash after this write but before
-	// intent creation is recovered by accepting only byte-identical content.
-	return auditstore.WriteImmutableArtifact(
-		ctx, store, target, payload,
-		fmt.Errorf("%w: immutable Audit artifact binding collision", ErrInvalidSubmission),
-	)
+	return contracts.ExactContent(written.Ref, written.MediaType, payload.Data), nil
 }
 
 func (a *ProjectArtifactAccess) ResolveProjectExact(
@@ -113,11 +94,8 @@ func (a *ProjectArtifactAccess) ResolveProjectExact(
 	if err != nil {
 		return auditstore.ExactArtifact{}, err
 	}
-	if metadata.Digest != descriptor.Digest {
-		return auditstore.ExactArtifact{}, fmt.Errorf("%w: exact Project artifact digest changed", ErrInvalidSubmission)
+	if err := descriptor.Verify(metadata.Exact()); err != nil {
+		return auditstore.ExactArtifact{}, fmt.Errorf("%w: exact Project artifact digest changed: %v", ErrInvalidSubmission, err)
 	}
-	descriptor.Ref = metadata.Ref
-	descriptor.MediaType = metadata.MediaType
-	descriptor.SizeBytes = metadata.Size
-	return descriptor, nil
+	return metadata.Exact(), nil
 }
