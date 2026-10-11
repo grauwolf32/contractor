@@ -40,7 +40,7 @@ func TestClassifyMapsEverySQLStateClassToOneOutcome(t *testing.T) {
 		"23P01": ClassDuplicate,
 		"25P02": ClassInternal, "28P01": ClassInternal,
 		"40001": ClassTransactionConflict, "40P01": ClassTransactionConflict, "40003": ClassUnavailable,
-		"42501": ClassPermissionDenied, "42P01": ClassInternal, "42601": ClassInternal,
+		"42501": ClassPermissionDenied, "42703": ClassInternal, "42P01": ClassInternal, "42601": ClassInternal,
 		"53100": ClassUnavailable, "53300": ClassUnavailable,
 		"55006": ClassInternal, "55P03": ClassTimeout,
 		"57014": ClassTimeout, "57P01": ClassUnavailable, "57P02": ClassUnavailable, "57P03": ClassUnavailable,
@@ -61,7 +61,7 @@ func TestClassifyMapsEverySQLStateClassToOneOutcome(t *testing.T) {
 		SQLStateConnectionFailure: "08006", SQLStateForeignKeyViolation: "23503", SQLStateUniqueViolation: "23505",
 		SQLStateCheckViolation: "23514", SQLStateExclusionViolation: "23P01",
 		SQLStateSerializationFailure: "40001", SQLStateDeadlockDetected: "40P01",
-		SQLStateInsufficientPrivilege: "42501", SQLStateUndefinedTable: "42P01",
+		SQLStateInsufficientPrivilege: "42501", SQLStateUndefinedColumn: "42703", SQLStateUndefinedTable: "42P01",
 		SQLStateTooManyConnections: "53300", SQLStateObjectNotInPrerequisiteState: "55000",
 		SQLStateLockNotAvailable: "55P03", SQLStateQueryCanceled: "57014", SQLStateAssertFailure: "P0004",
 	} {
@@ -72,7 +72,7 @@ func TestClassifyMapsEverySQLStateClassToOneOutcome(t *testing.T) {
 			t.Errorf("SQLSTATE constant %q: explicit outcome = %t", constant, named)
 		}
 	}
-	if len(sqlStateCodes) != 13 {
+	if len(sqlStateCodes) != 14 {
 		t.Errorf("sqlStateCodes has %d codes; add each named constant to this test", len(sqlStateCodes))
 	}
 }

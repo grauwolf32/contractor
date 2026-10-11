@@ -18,12 +18,40 @@ type fakeRuntimeAgentPrincipalManagement struct {
 	mu         sync.Mutex
 	principals map[string]controlplane.RuntimeAgentPrincipalProjection
 	replaceErr error
+	// mutations remembers each key's request and committed result, as the
+	// real manager's runtime_management_operations rows do.
+	mutations map[string]fakePrincipalMutation
+}
+
+// fakePrincipalMutation is one remembered principal mutation: the request
+// the key is bound to and the principal it returned (nil for a delete).
+type fakePrincipalMutation struct {
+	request   string
+	principal *controlplane.RuntimeAgentPrincipalProjection
 }
 
 func newFakeRuntimeAgentPrincipalManagement() *fakeRuntimeAgentPrincipalManagement {
 	return &fakeRuntimeAgentPrincipalManagement{
 		principals: make(map[string]controlplane.RuntimeAgentPrincipalProjection),
+		mutations:  make(map[string]fakePrincipalMutation),
 	}
+}
+
+// replayMutation answers a key already used by a committed mutation, before
+// any other check, as runtimeconfig.PrincipalService does: the same request
+// replays its stored result, another request with the key is a permanent
+// idempotency conflict. Refused mutations are not remembered.
+func (f *fakeRuntimeAgentPrincipalManagement) replayMutation(
+	key, request string,
+) (fakePrincipalMutation, bool, error) {
+	mutation, ok := f.mutations[key]
+	if !ok {
+		return fakePrincipalMutation{}, false, nil
+	}
+	if mutation.request != request {
+		return fakePrincipalMutation{}, false, fmt.Errorf("%w: Runtime Agent management key", contracts.ErrIdempotencyConflict)
+	}
+	return mutation, true, nil
 }
 
 func (f *fakeRuntimeAgentPrincipalManagement) List(
@@ -70,6 +98,18 @@ func (f *fakeRuntimeAgentPrincipalManagement) ReplaceLabels(
 ) (controlplane.RuntimeAgentPrincipalProjection, bool, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	request := fmt.Sprint("replace", id, expected, labels)
+	if replay, ok, err := f.replayMutation(key, request); ok || err != nil {
+		if err != nil {
+			return controlplane.RuntimeAgentPrincipalProjection{}, false, err
+		}
+		// controlplane.PrincipalOperations reads the current principal after a
+		// replay, so replaying the labels of a deleted principal is not found.
+		if _, exists := f.principals[id]; !exists {
+			return controlplane.RuntimeAgentPrincipalProjection{}, false, runtimeconfig.ErrNotFound
+		}
+		return clonePrincipalProjection(*replay.principal), true, nil
+	}
 	value, ok := f.principals[id]
 	if !ok {
 		return controlplane.RuntimeAgentPrincipalProjection{}, false, runtimeconfig.ErrNotFound
@@ -85,6 +125,8 @@ func (f *fakeRuntimeAgentPrincipalManagement) ReplaceLabels(
 	value.Principal.UpdatedBy = actor
 	value.Principal.UpdatedAt = at
 	f.principals[id] = value
+	stored := clonePrincipalProjection(value)
+	f.mutations[key] = fakePrincipalMutation{request: request, principal: &stored}
 	return clonePrincipalProjection(value), false, nil
 }
 
@@ -93,6 +135,10 @@ func (f *fakeRuntimeAgentPrincipalManagement) Delete(
 ) (bool, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	request := fmt.Sprint("delete", id, expected)
+	if _, ok, err := f.replayMutation(key, request); ok || err != nil {
+		return ok, err
+	}
 	value, ok := f.principals[id]
 	if !ok {
 		return false, runtimeconfig.ErrNotFound
@@ -104,6 +150,7 @@ func (f *fakeRuntimeAgentPrincipalManagement) Delete(
 		return false, runtimeconfig.ErrPrincipalInUse
 	}
 	delete(f.principals, id)
+	f.mutations[key] = fakePrincipalMutation{request: request}
 	return false, nil
 }
 

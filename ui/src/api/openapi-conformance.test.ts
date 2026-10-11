@@ -4,6 +4,7 @@ import { parse } from "yaml";
 
 import evalLifecycle from "../../../api/testdata/evals/lifecycle-states.json";
 
+import type { RuntimeConfig } from "../config/runtime-config";
 import {
   ARTIFACT_NAME_PATTERN,
   ARTIFACT_REVISION_PATTERN,
@@ -14,6 +15,7 @@ import {
   AUDIT_STANDARD_VERSION_PATTERN,
 } from "./audit-presets";
 import { AUDIT_ID_PATTERN } from "./audits";
+import { PublicAPI } from "./client";
 import { EVAL_STATES, TERMINAL_EVAL_STATES } from "./evals";
 import { BUDGET_DURATION_PATTERN, CONFIGURATION_KINDS } from "./operations";
 import { PROJECT_ID_PATTERN, PROJECT_REVISION_PATTERN } from "./projects";
@@ -23,6 +25,7 @@ import {
   CONFIG_ID_PATTERN,
   CONFIG_NAME_PATTERN,
   CONFIG_VERSION_PATTERN,
+  createRun,
   isConfigSelector,
 } from "./workflows";
 
@@ -193,5 +196,57 @@ describe("hand-written UI contracts match the public OpenAPI", () => {
         .filter((state) => !queued.has(state))
         .sort(),
     );
+  });
+
+  it("Run creation accepts exactly the WorkflowRunState values", async () => {
+    const states = schemaAt("WorkflowRunState").enum ?? [];
+    expect(states).not.toHaveLength(0);
+    const runtimeConfig: RuntimeConfig = {
+      uiVersion: "0.1.0",
+      supportedApiVersions: ["contractor.public.v1"],
+      apiBaseUrl: "http://127.0.0.1:8080",
+    };
+    const accepted: string[] = [];
+    for (const [index, state] of [...states, "paused", "Running"].entries()) {
+      const api = new PublicAPI(
+        runtimeConfig,
+        async () =>
+          new Response(
+            JSON.stringify({
+              runId: "run_states",
+              state,
+              runtimeLabels: [],
+              labels: {},
+              runtimeConfiguration: {
+                default: {
+                  label: "default",
+                  bindingRevision: "1",
+                  config: {
+                    name: "contractor-empty",
+                    version: "1",
+                    digest: `sha256:${"0".repeat(64)}`,
+                  },
+                },
+                labels: [],
+              },
+            }),
+            {
+              status: 202,
+              headers: {
+                "content-type": "application/json",
+                "X-Contractor-API-Version": "contractor.public.v1",
+              },
+            },
+          ),
+      );
+      api.csrf.replace("a".repeat(43));
+      try {
+        await createRun(api, { workflow: "artifact-copy@1" }, `state-${index}`);
+        accepted.push(state);
+      } catch (error) {
+        expect(error).toMatchObject({ code: "invalid_api_response" });
+      }
+    }
+    expect(accepted.sort()).toEqual([...states].sort());
   });
 });

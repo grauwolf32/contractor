@@ -4,6 +4,7 @@ import type { components } from "./generated/public";
 import { safeConfigurationPage, safeCredentialPage } from "./safe-resources";
 import { safeRunRuntimeConfiguration } from "./runtime-configuration";
 import { safeRunMetadataLabels } from "./run-metadata-labels";
+import { RUN_STATES } from "./runs";
 
 export const WORKFLOW_PAGE_SIZE = 50;
 export const REFERENCE_PAGE_SIZE = 50;
@@ -209,16 +210,7 @@ function safeCreateRunResponse(
   if (
     result.response.status !== 202 ||
     !RESOURCE_ID_PATTERN.test(response.runId) ||
-    ![
-      "initializing",
-      "pending",
-      "running",
-      "waiting",
-      "cancelling",
-      "succeeded",
-      "failed",
-      "cancelled",
-    ].includes(response.state)
+    !RUN_STATES.includes(response.state)
   ) {
     throw invalidRunResponse(result.response.status);
   }

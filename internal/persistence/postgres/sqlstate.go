@@ -21,6 +21,7 @@ const (
 	SQLStateSerializationFailure  = "40001"
 	SQLStateDeadlockDetected      = "40P01"
 	SQLStateInsufficientPrivilege = "42501"
+	SQLStateUndefinedColumn       = "42703"
 	SQLStateUndefinedTable        = "42P01"
 	SQLStateTooManyConnections    = "53300"
 	// SQLStateObjectNotInPrerequisiteState is what the schema's deletion
@@ -106,6 +107,7 @@ var sqlStateCodes = map[string]Class{
 	SQLStateSerializationFailure:         ClassTransactionConflict,
 	SQLStateDeadlockDetected:             ClassTransactionConflict,
 	SQLStateInsufficientPrivilege:        ClassPermissionDenied,
+	SQLStateUndefinedColumn:              ClassInternal,
 	SQLStateUndefinedTable:               ClassInternal,
 	SQLStateTooManyConnections:           ClassUnavailable,
 	SQLStateObjectNotInPrerequisiteState: ClassDeleting,
