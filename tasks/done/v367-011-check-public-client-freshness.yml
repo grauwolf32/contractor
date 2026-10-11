@@ -5,7 +5,8 @@ milestone: hub-audit-2026-10
 epic: api-contracts
 kind: defect
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: d1cb8856d8b0b5ae37b9b42cefc3f2d7cd3314f8
 depends_on: []
 languages: [go]
 goal: "The CLI's generated client always matches the committed OpenAPI document, and a stale client fails make lint as a stale UI client already does."
@@ -21,6 +22,27 @@ context:
     regeneration was be4b7338 (2026-10-04); cc167827 and 99e91963 changed the
     OpenAPI without it. make/dev.mk:27-28 only generates; there is no
     counterpart of ui-generate-check (make/ui.mk:16-17).
+  decision: >-
+    oapi-codegen v2.8.0 is pinned in its own tool modfile,
+    tools/oapi-codegen.mod (with tools/oapi-codegen.sum), and run with
+    go tool -modfile=tools/oapi-codegen.mod. The existing go run ...@v2.8.0
+    pin did not work offline (it fails under GOPROXY=off on the module
+    deprecation lookup even with a warm cache). A tool directive in the main
+    go.mod was tried and rejected: it upgraded Server dependencies
+    (dlclark/regexp2 1.11.0 to 1.11.4, go-openapi jsonpointer and
+    swag/jsonname) and would build the generator against the Server's
+    kin-openapi 0.149.0 instead of the 0.142.0 that v2.8.0 ships with. The
+    separate modfile resolves the released dependency set, works with
+    GOPROXY=off, and its output is byte-identical to the go run ...@v2.8.0
+    build. The generator command is defined once in make/dev.mk
+    (public_client) for generate-public-client and
+    generate-public-client-check; the go:generate directive was removed and
+    oapi-codegen.yaml no longer sets output, because a config output path
+    overrides -o and made a temporary-path check impossible. make lint runs
+    the check as a prerequisite. A1 was shown by adding one description line
+    to the OpenAPI Limit parameter: make lint failed with the stale-client
+    message, and passed after restoring it. No hand-written publicclient or
+    CLI code needed changes. The rule is stated in the spec as API-R68.
 scope:
   in:
     - "Regenerate the client; add a generate-public-client-check target that regenerates to a temporary path and compares, and run it from make lint."
