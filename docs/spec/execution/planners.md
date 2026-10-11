@@ -541,8 +541,8 @@ records only when no dispatch is active.
 Rationale: a genuine blocker need not be disguised as completed work.
 
 **PLN-R75.** The Workflow Scheduler independently repeats candidate
-validation before acceptance, normalizes the candidate and may replace an
-invalid claimed success with a failed `result_contract_violation`
+validation, with the same `StageResult` bounds, before acceptance and may
+replace an invalid claimed success with a failed `result_contract_violation`
 ([SCH-R35](scheduler.md)).
 
 **PLN-R113.** The Workflow Scheduler alone applies the declared outcome

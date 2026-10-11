@@ -241,10 +241,6 @@ func (p *execution) request(job scanplan.ScanJob, record planner.ScanJobRecord, 
 	if err := request.Validate(); err != nil {
 		return contracts.StageContentRequest{}, err
 	}
-	data, err := contracts.MarshalPrivateCanonical(request)
-	if err != nil || len(data) > contracts.MaxStageRequestBytes {
-		return contracts.StageContentRequest{}, fmt.Errorf("scan Worker request exceeds its bound")
-	}
 	return request, nil
 }
 

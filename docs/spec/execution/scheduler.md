@@ -379,11 +379,12 @@ adapter may map to and from `google.genai.types.Content`, but the core result
 does not expose an ADK type. Its exact text and structured-part shape is an
 implementation decision.
 
-**SCH-R35.** Workflow Scheduler validates and normalizes the candidate and
-stores one normalized `StageResult` while entering `finalizing`. It may replace
-an invalid claimed success with a failed `result_contract_violation`. Final
-report collection may update StageMetrics but never rewrites this semantic
-result.
+**SCH-R35.** Workflow Scheduler validates the candidate with the same
+`StageResult` bounds the Planner applied ([WRK-R37](worker.md)) and stores it
+unchanged while entering `finalizing`; RunStore rejects, rather than repairs,
+a candidate that fails them. It may replace an invalid claimed success with a
+failed `result_contract_violation`. Final report collection may update
+StageMetrics but never rewrites this semantic result.
 
 **SCH-R36.** Scheduler-driven cancellation or interruption is never represented
 as a StageResult; it uses the distinct `StageTermination` contract.

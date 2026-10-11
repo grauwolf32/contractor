@@ -446,12 +446,17 @@ non-empty `message` is at most 4,096 UTF-8 bytes (LIM-WRK-7).
 `invocation_id` is an opaque Runtime-generated 1..128-byte identifier
 (LIM-WRK-8), and `state_revision` is positive.
 
-**WRK-R37.** The 256 KiB encoded limits for `WorkerCompletion`, the
-Planner-facing `WorkerResult` and the resulting `StageResult`
-(LIM-WRK-9) count compact UTF-8 JSON bytes. Optional HTML (`<`,
+**WRK-R37.** The 256 KiB encoded limits for `StageContentRequest`,
+`WorkerCompletion`, the Planner-facing `WorkerResult` and the resulting
+`StageResult` (LIM-WRK-9) count compact UTF-8 JSON bytes. Optional HTML (`<`,
 `>`, `&`) and JavaScript line-separator escaping must not consume extra budget
 in one language; required JSON escaping, object and envelope overhead and
-exact integer digits still count. The 64 KiB result-text bound (LIM-WRK-5),
+exact integer digits still count. A `StageResult` also has a non-null
+`artifacts` map of at most 128 entries and a `summary` of at most 64 KiB. In
+the Server each message's own validator is the single definition of its
+bounds: every Planner, the Workflow Scheduler and RunStore apply the same
+`StageResult` check, so a candidate one of them accepts is never rejected by
+another for its size. The 64 KiB result-text bound (LIM-WRK-5),
 model-output bounds and outer transport limits are separate limits.
 
 **WRK-R38.** The A2A request DataPart uses
@@ -1244,8 +1249,8 @@ Limits ([registry](../platform/limits.md)):
   (WRK-R36).
 - LIM-WRK-8: `invocation_id` 1..128 bytes
   (WRK-R36).
-- LIM-WRK-9: `WorkerCompletion`, Planner-facing `WorkerResult`
-  and `StageResult` 256 KiB each (WRK-R37).
+- LIM-WRK-9: `StageContentRequest`, `WorkerCompletion`, Planner-facing
+  `WorkerResult` and `StageResult` 256 KiB each (WRK-R37).
 - LIM-WRK-10: result-finalizer input document 256 KiB
   (WRK-R46).
 - LIM-WRK-11: one result-finalizer provider call per ordinary

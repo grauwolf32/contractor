@@ -50,6 +50,12 @@ func (r StageContentRequest) Validate() error {
 			return Invalidf("result artifact binding must be versionless")
 		}
 	}
+	// The Runtime measures the same compact UTF-8 encoding (WRK-R37), so a
+	// request the Planner sends is never rejected by the Worker for its size.
+	size, err := ResultJSONSize(r)
+	if err != nil || size > MaxStageRequestBytes {
+		return Invalidf("StageContentRequest exceeds its bounded contract")
+	}
 	return nil
 }
 
@@ -80,12 +86,18 @@ func (r StageContentResult) Clone() StageContentResult {
 	return result
 }
 
+// Validate is the only definition of the StageResult bounds: every Planner,
+// the Scheduler and RunStore call it, so they cannot disagree about a
+// candidate's size (WRK-R37).
 func (r StageContentResult) Validate() error {
 	if err := ValidateAPIVersion(r.APIVersion); err != nil {
 		return err
 	}
-	if strings.TrimSpace(r.Summary) == "" {
-		return Invalidf("summary must not be empty")
+	if strings.TrimSpace(r.Summary) == "" || len(r.Summary) > MaxStageResultSummaryBytes {
+		return Invalidf("summary must be non-empty and at most %d bytes", MaxStageResultSummaryBytes)
+	}
+	if r.Artifacts == nil || len(r.Artifacts) > MaxStageResultArtifacts {
+		return Invalidf("StageContentResult artifacts must be a non-null map of at most %d entries", MaxStageResultArtifacts)
 	}
 	switch r.Outcome {
 	case StageSucceeded:
@@ -109,6 +121,10 @@ func (r StageContentResult) Validate() error {
 		if err := ref.ValidateExact(); err != nil {
 			return err
 		}
+	}
+	size, err := ResultJSONSize(r)
+	if err != nil || size > MaxStageResultBytes {
+		return Invalidf("StageContentResult exceeds its bounded contract")
 	}
 	return nil
 }

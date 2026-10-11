@@ -258,6 +258,21 @@ WHERE allocation_id = 'allocation-1'`); persistencepostgres.SQLState(err) != "23
 			"copied": {Namespace: "builder", Name: "result", Revision: &resultRevision},
 		},
 	}
+	withoutArtifacts := candidate.Clone()
+	withoutArtifacts.Artifacts = nil
+	err = store.EnterFinalizing(ctx, EnterFinalizingParams{
+		StageExecutionID:    execution.StageExecutionID,
+		ResultSchemaVersion: "contractor/v1alpha1", Candidate: withoutArtifacts,
+		FinalizationID: "finalization-null-artifacts", Deadline: time.Now().Add(time.Minute),
+		Reason: Reason{Code: "planner_completed"},
+	})
+	if !errors.Is(err, ErrInvalid) {
+		t.Fatalf("candidate without artifacts error = %v, want invalid", err)
+	}
+	if running, getErr := store.GetStageExecution(ctx, execution.StageExecutionID); getErr != nil ||
+		running.State != StageRunning || running.CandidateResult != nil {
+		t.Fatalf("StageExecution after a rejected candidate = (%+v, %v)", running, getErr)
+	}
 	err = store.EnterFinalizing(ctx, EnterFinalizingParams{
 		StageExecutionID:    execution.StageExecutionID,
 		ResultSchemaVersion: "contractor/v1alpha1", Candidate: candidate,
@@ -278,6 +293,13 @@ WHERE allocation_id = 'allocation-1'`); persistencepostgres.SQLState(err) != "23
 	})
 	if !errors.Is(err, ErrConflict) {
 		t.Fatalf("late abort error = %v, want conflict", err)
+	}
+	if err := store.CompleteStageResult(ctx, execution.StageExecutionID, "contractor/v1alpha1", withoutArtifacts); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("accepted StageResult without artifacts error = %v, want invalid", err)
+	}
+	if finalizing, getErr := store.GetStageExecution(ctx, execution.StageExecutionID); getErr != nil ||
+		finalizing.State != StageFinalizing || finalizing.AcceptedResult != nil {
+		t.Fatalf("StageExecution after a rejected acceptance = (%+v, %v)", finalizing, getErr)
 	}
 	if err := store.CompleteStageResult(ctx, execution.StageExecutionID, "contractor/v1alpha1", candidate); err != nil {
 		t.Fatalf("complete StageResult: %v", err)
