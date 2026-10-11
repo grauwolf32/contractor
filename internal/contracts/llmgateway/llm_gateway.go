@@ -39,6 +39,11 @@ type LLMCredentialRef struct {
 	CredentialID string `json:"credentialId"`
 }
 
+// CredentialIDMember is LLMCredentialRef's JSON member. Credential deletion
+// checks find it in stored Workflow snapshots and allocation provenance, so
+// renaming the tag must rename this constant; internal/persistence pins both.
+const CredentialIDMember = "credentialId"
+
 func (r LLMCredentialRef) Validate() error {
 	return contracts.ValidateSelector("llmCredentialRef", r.CredentialID+"@1")
 }

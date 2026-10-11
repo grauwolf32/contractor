@@ -1,5 +1,11 @@
 package runstore
 
+import (
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+)
+
 // SQL statements for store.go.
 
 // listNonTerminalRunIDsByCredentialSQL returns up to $2 Run IDs, oldest first,
@@ -9,7 +15,8 @@ package runstore
 // The jsonb_path_query_array test is the expression of
 // workflow_runs_workflow_credentials_idx: a superset of the exact
 // jsonb_path_exists test, which it narrows to indexed candidates, so both
-// arms are index scans over active Runs.
+// arms are index scans over active Runs. The JSON members come from the
+// constants beside the encoded types, so the text still matches the indexes.
 // Used by PostgresStore.ListNonTerminalRunIDsByCredential.
 var listNonTerminalRunIDsByCredentialSQL = `
 WITH credential_runs AS (
@@ -18,15 +25,15 @@ WITH credential_runs AS (
     WHERE state IN ('initializing', 'pending', 'running', 'waiting', 'cancelling')
       AND (
           (
-              jsonb_path_query_array(workflow_snapshot, '$.**.credentialId.**', '{}', true) ? $1
+              jsonb_path_query_array(workflow_snapshot, '$.**.` + llmgateway.CredentialIDMember + `.**', '{}', true) ? $1
               AND jsonb_path_exists(
                   workflow_snapshot,
-                  '$.**.credentialId ? (@ == $credential)',
+                  '$.**.` + llmgateway.CredentialIDMember + ` ? (@ == $credential)',
                   jsonb_build_object('credential', to_jsonb($1::text)),
                   true
               )
           )
-          OR (runtime_config_snapshot->'llmCredentialIds') ? $1
+          OR (runtime_config_snapshot->'` + runtimeconfig.LLMCredentialIDsMember + `') ? $1
       )
     UNION
     SELECT e.run_id, r.created_at
@@ -34,7 +41,8 @@ WITH credential_runs AS (
     JOIN stage_executions e ON e.stage_execution_id = a.stage_execution_id
     JOIN workflow_runs r ON r.run_id = e.run_id
     WHERE a.release_completed_at IS NULL
-      AND a.runtime_configuration #>> '{provenance,llmCredential,credentialId}' = $1
+      AND a.runtime_configuration #>> '{` + AllocationProvenanceMember + `,` +
+	runtimesettings.LLMCredentialMember + `,` + llmgateway.CredentialIDMember + `}' = $1
 )
 SELECT run_id
 FROM credential_runs

@@ -9,9 +9,10 @@ active Server per PostgreSQL database, the session-level PostgreSQL advisory
 lease that enforces it, the standby Server, detection of lease-session loss and
 its time bounds, the connection pooling that the lease needs, and what must
 not stand in for that lease: an unfenced shared `runtime_agents` table or a
-durable Runtime Agent principal. It also indexes the PostgreSQL state and the
-transaction and serialization rules that domain documents own, so each can be
-found from here while it is stated only in its owner.
+durable Runtime Agent principal. It owns how SQL names the members of `jsonb`
+documents the Server encodes from Go types. It also indexes the PostgreSQL
+state and the transaction and serialization rules that domain documents own,
+so each can be found from here while it is stated only in its owner.
 
 It leaves to other documents:
 
@@ -182,6 +183,21 @@ not transaction-mode pooling.
 **PER-R10.** Behind a session pooler, the pooler's own client keepalive
 settings bound how long a vanished Server keeps the lease (LIFE-PER-1).
 
+### JSON documents encoded from Go types
+
+**PER-R13.** SQL that reads a member of a document the Server encodes from a
+Go type and stores in a `jsonb` column (Workflow, Stage, Run, allocation,
+Project-target, Audit profile and baseline snapshots and canonical
+RuntimeConfig documents) takes the member name from a constant declared beside
+the Go type, so a query and its encoding cannot be renamed apart. Migrations,
+which cannot use the constants, are pinned by a unit test that encodes each
+type, resolves every path SQL reads in it and requires the migrations to read
+the same members.
+
+Rationale: credential deletion checks find references by these members; a
+renamed member would make them find none and let an in-use credential be
+deleted, and only database tests would notice.
+
 ### Related rules owned elsewhere
 
 - Active-active Server replicas: [OPS-R5](../operations/operations.md).
@@ -252,6 +268,10 @@ unusable working DB connection path is owned by
 5. The lease session carries the keepalive values of PER-R6; test
    `TestPostgresControlPlaneLeaseSessionDetectsVanishedHolder` in
    [`internal/app/single_active_postgres_test.go`](../../../internal/app/single_active_postgres_test.go).
+6. Every JSON path SQL reads from a Go-encoded document resolves in a value
+   encoded from its Go type, and the migrations read the same members
+   (PER-R13); test `TestSQLReadsTheJSONMembersItsGoTypesEncode` in
+   [`internal/persistence/snapshot_json_paths_test.go`](../../../internal/persistence/snapshot_json_paths_test.go).
 
 ## Non-goals
 

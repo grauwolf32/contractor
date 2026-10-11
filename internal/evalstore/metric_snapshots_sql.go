@@ -1,5 +1,7 @@
 package evalstore
 
+import "github.com/grauwolf32/contractor/internal/config"
+
 // SQL statements for metric_snapshots.go.
 
 // metricSnapshotsQuery returns one row per stage execution of the owner's Runs
@@ -33,8 +35,8 @@ WITH snapshots AS (
                 FROM jsonb_each(metrics.metrics -> 'runtime')
             ), '{}'::jsonb)
         ) END AS document,
-        COALESCE(stage.stage_spec_snapshot #>> '{planner,plannerId}', '') AS planner_id,
-        COALESCE(stage.stage_spec_snapshot #>> '{planner,version}', '') AS planner_version,
+        COALESCE(stage.stage_spec_snapshot #>> '` + config.StagePlannerIDPath + `', '') AS planner_id,
+        COALESCE(stage.stage_spec_snapshot #>> '` + config.StagePlannerVersionPath + `', '') AS planner_version,
         (SELECT count(*) FROM stage_allocations allocation
             WHERE allocation.stage_execution_id = stage.stage_execution_id)::int AS expected_workers
     FROM stage_executions stage

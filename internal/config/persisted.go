@@ -36,6 +36,20 @@ func EncodeResolvedWorkflowSnapshot(workflow ResolvedWorkflow) ([]byte, error) {
 	return data, nil
 }
 
+// JSON members and PostgreSQL text-array paths of persisted snapshots that SQL
+// reads: Audit queries read the ResolvedAuditProfile an Audit retains, Finding
+// intake its interaction policy and Eval metrics the Planner of a stored
+// ResolvedStage. Renaming a tag must rename its constant; internal/persistence
+// pins each one against an encoded value and the migrations.
+const (
+	AuditProfileWorkflowsMember         = "workflows"
+	AuditWorkflowKindMember             = "kind"
+	AuditWorkflowMaxRunAttemptsMember   = "maxRunAttempts"
+	AuditProfileFindingConfirmationPath = "{interaction,findingConfirmation}"
+	StagePlannerIDPath                  = "{planner,plannerId}"
+	StagePlannerVersionPath             = "{planner,version}"
+)
+
 // Clone returns a deep copy of workflow that shares no mutable state with it,
 // so a decoded snapshot can be reused without a holder seeing another's edits.
 func (workflow ResolvedWorkflow) Clone() ResolvedWorkflow { return cloneWorkflow(workflow) }

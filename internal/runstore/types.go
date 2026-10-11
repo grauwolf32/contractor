@@ -579,6 +579,12 @@ type AllocationRuntimeConfiguration struct {
 	Provenance  runtimesettings.ResolvedRuntimeConfigProvenance `json:"provenance"`
 }
 
+// AllocationProvenanceMember is AllocationRuntimeConfiguration's provenance
+// member, under which credential deletion checks find an unreleased
+// allocation's credentials. Renaming the tag must rename this constant;
+// internal/persistence pins both.
+const AllocationProvenanceMember = "provenance"
+
 // StageExecutionReport is the trusted Server envelope around one bounded
 // Runtime Agent report. Identity comes from the allocation record, never from
 // model-visible data.
