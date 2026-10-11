@@ -116,6 +116,14 @@ stable version 5.0.0 and version-qualified requirement identifiers.
 
 ## Model
 
+The figure follows one Audit end to end: the Project inputs and authorization
+it starts from, the ordinary WorkflowRuns it coordinates, the evidence and
+coverage it collects, and the human review that turns finding proposals into
+conclusions. It illustrates the requirements; where the two differ, the
+requirements apply.
+
+[![Audit orchestration: project inputs and authorization, coordinated WorkflowRuns, evidence, coverage, and human review](../../assets/audit-workflows.png)](../../assets/audit-workflows.png)
+
 ### Ownership boundaries
 
 ```mermaid
