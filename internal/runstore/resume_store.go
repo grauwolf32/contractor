@@ -9,7 +9,6 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type ResumeRunResult struct {
@@ -139,14 +138,6 @@ func (s *PostgresStore) ResumeFailedRun(ctx context.Context, ownerID, runID, sou
 		result.StageExecutionID = next.StageExecutionID
 		return err
 	}
-	var err error
-	switch db := s.db.(type) {
-	case *pgxpool.Pool:
-		err = persistencepostgres.InTxWithRetry(ctx, db, pgx.TxOptions{}, operation)
-	case pgx.Tx:
-		err = operation(db)
-	default:
-		err = fmt.Errorf("Run continuation requires a PostgreSQL transaction")
-	}
+	err := persistencepostgres.Within(ctx, s.db, pgx.TxOptions{}, operation)
 	return result, err
 }

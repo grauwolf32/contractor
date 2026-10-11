@@ -136,7 +136,7 @@ func (i *Importer) DoImport(ctx context.Context, request ImportRequest, respond 
 				return projectstore.ErrDeleting
 			}
 		}
-		repository := artifacts.NewPostgresRepository(tx)
+		repository := artifacts.NewPostgresTxRepository(tx)
 		store, _, err := importScope(artifacts.NewService(repository), request)
 		if err != nil {
 			return err

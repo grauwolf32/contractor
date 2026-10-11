@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"reflect"
 	"testing"
 	"time"
 
@@ -101,15 +102,17 @@ func TestPostgresResumeRenewalRecordsReviewEvents(t *testing.T) {
 	params := ResumeRenewalParams{
 		OwnerID: audit.OwnerID, AuditID: audit.AuditID, ExpectedRevision: audit.Revision, DeadlineAt: &deadline,
 	}
-	if _, err := store.RenewItemReviewsForResume(ctx, params); err == nil {
-		t.Fatal("renewal ran outside the Resume transaction")
+	// Renewal exists only on the Resume transaction's store; a store that can
+	// be backed by a pool has no such step.
+	if _, found := reflect.TypeOf(store).MethodByName("RenewItemReviewsForResume"); found {
+		t.Fatal("renewal is available outside the Resume transaction")
 	}
 	tx, err := pool.Begin(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
-	txStore := NewPostgresStore(tx)
+	txStore := NewPostgresTxStore(tx)
 	stale := params
 	stale.ExpectedRevision--
 	if _, err := txStore.RenewItemReviewsForResume(ctx, stale); !errors.Is(err, ErrPrecondition) {

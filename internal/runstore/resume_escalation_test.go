@@ -114,7 +114,7 @@ func TestPostgresResumeEscalatedStage(t *testing.T) {
 			}
 			failResumeStage(t, ctx, store, runID, latest.StageExecutionID)
 			if err := persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-				locked := NewPostgresStore(tx)
+				locked := NewPostgresTxStore(tx)
 				if _, err := locked.LockRunForDeletion(ctx, run.OwnerID, runID); err != nil {
 					return err
 				}

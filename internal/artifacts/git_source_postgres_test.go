@@ -27,7 +27,7 @@ func TestPostgresGitProvenanceRetainsExactRunInputAndRollsBack(t *testing.T) {
 			return err
 		}
 		return postgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-			repo := NewPostgresRepository(tx)
+			repo := NewPostgresTxRepository(tx)
 			store, _ := NewService(repo).User("user-1")
 			written, err := store.Write(ctx, ArtifactRef{Namespace: "source", Name: name}, payload, nil)
 			if err != nil {

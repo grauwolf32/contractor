@@ -17,6 +17,19 @@ func NewPostgresStore(db persistencepostgres.DBTX) *PostgresStore {
 	return &PostgresStore{db: db}
 }
 
+// PostgresTxStore is a PostgresStore bound to the caller's transaction. Its
+// own methods take row locks that must last until the caller commits, so they
+// exist only on a store that cannot be backed by a pool.
+type PostgresTxStore struct {
+	*PostgresStore
+	tx pgx.Tx
+}
+
+// NewPostgresTxStore binds a PostgresStore to the caller's transaction tx.
+func NewPostgresTxStore(tx pgx.Tx) *PostgresTxStore {
+	return &PostgresTxStore{PostgresStore: NewPostgresStore(tx), tx: tx}
+}
+
 // ListHeldAuditIDsByLLMCredential exposes only the durable dispatch-hold
 // projection needed by the managed credential lifecycle. A held Audit keeps
 // its exact baseline dependencies available until dispatch is closed and the

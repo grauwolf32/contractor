@@ -248,6 +248,21 @@ retries of its operation stays a transaction conflict. The public API reports
 it as the retryable `503 storage_transaction_conflict`; it never becomes a
 `409 conflict` or a `500 internal_error`.
 
+### Transactions of shared stores
+
+**PER-R17.** A store that serves both a pool and a caller's transaction runs
+an operation that needs a transaction through one rule. On a pool it starts a
+fresh transaction per attempt and replays a transaction conflict (PER-R13), so
+the operation must be safe to replay. On a caller's transaction it runs once
+inside that transaction; the caller owns the isolation level, the commit and
+any retry. A step whose row locks must last until the caller commits, such as
+the Run deletion locks, exists only on a store bound to a transaction, never
+on one that a pool can back.
+
+**PER-R18.** Every transaction the Server begins runs under the operation
+budget selected for its operation, including a transaction whose caller
+classifies its own commit, such as a Planner Memory transaction.
+
 ## Limits, failures and errors
 
 Limits ([registry](limits.md)):
@@ -331,6 +346,18 @@ outlasts its retries is the retryable `503 storage_transaction_conflict`
     database failure, including a lock timeout and a lost connection
     (PER-R13); test `TestCredentialFailuresClassifyRetryabilityAndLogSafeCause`
     in [`internal/scheduler/credential_failure_test.go`](../../../internal/scheduler/credential_failure_test.go).
+12. A shared store's operation replays a conflict on a pool and runs once in
+    a caller's transaction (PER-R17); test
+    `TestPostgresWithinRetriesOnAPoolAndJoinsACallerTransaction` in
+    [`internal/persistence/postgres/within_postgres_test.go`](../../../internal/persistence/postgres/within_postgres_test.go).
+    The Run deletion locks exist only on transaction-bound stores; test
+    `TestDeletionLocksRequireTransaction` in
+    [`internal/rundeletion/deleter_postgres_test.go`](../../../internal/rundeletion/deleter_postgres_test.go).
+13. A transaction begun outside InTx keeps the operation budget (PER-R18);
+    tests `TestPostgresBeginTxAppliesTheOperationBudget` in
+    [`internal/persistence/postgres/within_postgres_test.go`](../../../internal/persistence/postgres/within_postgres_test.go)
+    and `TestPostgresPlannerMemoryTransactionKeepsTheOperationBudget` in
+    [`internal/memory/budget_postgres_test.go`](../../../internal/memory/budget_postgres_test.go).
 
 ## Non-goals
 
