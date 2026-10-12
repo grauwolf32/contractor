@@ -108,9 +108,9 @@ func (s *PostgresStore) ListNonTerminalRunIDsByCredential(
 
 // PostgresStore runs most operations on its supplied DBTX. When backed by a
 // pool, ResumeFailedRun starts its own retrying transaction; with a pgx.Tx it
-// joins the caller's transaction. Run deletion locks require a pgx.Tx (see
-// internal/rundeletion). Runtime label pinning additionally requires
-// NewRunCreationPostgresStore.
+// joins the caller's transaction. Run deletion locks exist only on
+// PostgresTxStore (see internal/rundeletion). Runtime label pinning
+// additionally requires NewRunCreationPostgresStore.
 type PostgresStore struct {
 	db                persistencepostgres.DBTX
 	runCreationTx     pgx.Tx
@@ -121,6 +121,19 @@ var _ Repository = (*PostgresStore)(nil)
 
 func NewPostgresStore(db persistencepostgres.DBTX) *PostgresStore {
 	return &PostgresStore{db: db}
+}
+
+// PostgresTxStore is a PostgresStore bound to the caller's transaction. Its
+// own methods take row locks that must last until the caller commits, so they
+// exist only on a store that cannot be backed by a pool.
+type PostgresTxStore struct {
+	*PostgresStore
+	tx pgx.Tx
+}
+
+// NewPostgresTxStore binds a PostgresStore to the caller's transaction tx.
+func NewPostgresTxStore(tx pgx.Tx) *PostgresTxStore {
+	return &PostgresTxStore{PostgresStore: NewPostgresStore(tx), tx: tx}
 }
 
 // NewRunCreationPostgresStore is the only constructor which enables Runtime

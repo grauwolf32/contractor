@@ -20,20 +20,16 @@ type RunDeletionGates struct {
 }
 
 // LockRunForDeletion locks owner-visible Run runID FOR UPDATE and reads its
-// deletion gates. The lock must be held until DeleteLockedRun, so the store
-// must be transaction-backed.
-func (s *PostgresStore) LockRunForDeletion(
+// deletion gates. The lock is held until DeleteLockedRun in the same
+// transaction.
+func (s *PostgresTxStore) LockRunForDeletion(
 	ctx context.Context, ownerID, runID string,
 ) (RunDeletionGates, error) {
 	if err := validateRunDeletionIdentity(ownerID, runID); err != nil {
 		return RunDeletionGates{}, err
 	}
-	tx, ok := s.db.(pgx.Tx)
-	if !ok {
-		return RunDeletionGates{}, fmt.Errorf("lock WorkflowRun %q for deletion: a transaction-backed store is required", runID)
-	}
 	var gates RunDeletionGates
-	err := tx.QueryRow(ctx, lockRunForDeletionSQL, runID, ownerID).Scan(
+	err := s.tx.QueryRow(ctx, lockRunForDeletionSQL, runID, ownerID).Scan(
 		&gates.State, &gates.PublicationMode, &gates.AuditExecutionID,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -42,7 +38,7 @@ func (s *PostgresStore) LockRunForDeletion(
 	if err != nil {
 		return RunDeletionGates{}, fmt.Errorf("lock WorkflowRun %q for deletion: %w", runID, err)
 	}
-	if err := tx.QueryRow(ctx, runAllocationReleasePendingSQL, runID).Scan(&gates.AllocationReleasePending); err != nil {
+	if err := s.tx.QueryRow(ctx, runAllocationReleasePendingSQL, runID).Scan(&gates.AllocationReleasePending); err != nil {
 		return RunDeletionGates{}, fmt.Errorf("check WorkflowRun %q allocation release: %w", runID, err)
 	}
 	return gates, nil
@@ -94,15 +90,11 @@ func (s *PostgresStore) ReadRunDeletionGates(
 
 // DeleteLockedRun deletes the Run row locked by LockRunForDeletion in the
 // same transaction; Run-owned rows cascade through their foreign keys.
-func (s *PostgresStore) DeleteLockedRun(ctx context.Context, ownerID, runID string) error {
+func (s *PostgresTxStore) DeleteLockedRun(ctx context.Context, ownerID, runID string) error {
 	if err := validateRunDeletionIdentity(ownerID, runID); err != nil {
 		return err
 	}
-	tx, ok := s.db.(pgx.Tx)
-	if !ok {
-		return fmt.Errorf("delete WorkflowRun %q: a transaction-backed store is required", runID)
-	}
-	tag, err := tx.Exec(ctx, `
+	tag, err := s.tx.Exec(ctx, `
 DELETE FROM workflow_runs
 WHERE run_id = $1 AND owner_id = $2`, runID, ownerID)
 	if err != nil {

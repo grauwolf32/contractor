@@ -22,7 +22,7 @@ func (s *PostgresStore) CreateExecutionIntent(
 		return replay, false, err
 	}
 	prepared := prepareExecutionIntentWrite(params)
-	execution, err := scanExecution(s.db.QueryRow(ctx, createExecutionIntentSQL,
+	execution, err := scanExecution(persistencepostgres.SavepointQueryRow(ctx, s.db, createExecutionIntentSQL,
 		params.Claim.AuditID, params.Claim.HolderID, params.Claim.Epoch,
 		params.ExecutionID, string(params.Role), prepared.roundID, prepared.roleAttempt,
 		prepared.manifestRef, params.Manifest.Digest, params.SubmissionKey,

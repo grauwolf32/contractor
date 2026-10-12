@@ -26,7 +26,7 @@ func (s *PostgresStore) RequestDelete(
 		return replay, false, err
 	}
 	response, _ := json.Marshal(map[string]string{"auditId": params.AuditID})
-	audit, err := scanAudit(s.db.QueryRow(ctx, requestDeleteSQL,
+	audit, err := scanAudit(persistencepostgres.SavepointQueryRow(ctx, s.db, requestDeleteSQL,
 		params.OwnerID, params.AuditID, params.ExpectedRevision,
 		params.IdempotencyKey, params.RequestDigest, response,
 	))

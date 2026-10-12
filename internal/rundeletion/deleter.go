@@ -14,7 +14,6 @@ import (
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // Reason names the lifecycle gate that keeps a Run from being deleted.
@@ -53,20 +52,13 @@ func New(db persistencepostgres.DBTX) *Deleter {
 // DeleteReleasedTerminalRun permanently removes one owner-visible terminal
 // Run and its Run-owned data.
 func (d *Deleter) DeleteReleasedTerminalRun(ctx context.Context, ownerID, runID string) error {
-	switch db := d.db.(type) {
-	case *pgxpool.Pool:
-		return persistencepostgres.InTxWithRetry(ctx, db, pgx.TxOptions{}, func(tx pgx.Tx) error {
-			return deleteReleasedTerminalRun(ctx, tx, ownerID, runID)
-		})
-	case pgx.Tx:
-		return deleteReleasedTerminalRun(ctx, db, ownerID, runID)
-	default:
-		return fmt.Errorf("delete WorkflowRun: PostgreSQL transaction support is required")
-	}
+	return persistencepostgres.Within(ctx, d.db, pgx.TxOptions{}, func(tx pgx.Tx) error {
+		return deleteReleasedTerminalRun(ctx, tx, ownerID, runID)
+	})
 }
 
 func deleteReleasedTerminalRun(ctx context.Context, tx pgx.Tx, ownerID, runID string) error {
-	runs := runstore.NewPostgresStore(tx)
+	runs := runstore.NewPostgresTxStore(tx)
 	gates, err := runs.LockRunForDeletion(ctx, ownerID, runID)
 	if err != nil {
 		return err
@@ -81,7 +73,7 @@ func deleteReleasedTerminalRun(ctx context.Context, tx pgx.Tx, ownerID, runID st
 	// destination hold. Our Run lock makes this destination set stable. Take
 	// Audit locks before execution, retention and Artifact locks, matching
 	// import and Audit purge rather than adding an Audit lock at the end.
-	audits := auditstore.NewPostgresStore(tx)
+	audits := auditstore.NewPostgresTxStore(tx)
 	auditIDs, err := audits.LockRunDeletionAudits(ctx, ownerID, runID)
 	if err != nil {
 		return err

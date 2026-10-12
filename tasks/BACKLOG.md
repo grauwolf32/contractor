@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-56 open tasks: 3 in progress, 39 pending, 14 deferred. 844 finished: 841 completed, 3 archived.
+52 open tasks: 3 in progress, 35 pending, 14 deferred. 848 finished: 845 completed, 3 archived.
 
 ## In progress
 
@@ -84,14 +84,10 @@ the epics are in [epics.yml](epics.yml).
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
-| [V368-029](v368-029-dbtx-error-recovery.yml) | defect | P3 | — | Do not continue on a DBTX after a failed statement inside a transaction |
 | [V369-001](v369-001-table-ownership-test.yml) | chore | P1 | — | Assign every table an owner package and test SQL against it |
 | [V369-005](v369-005-sql-placement-concatenation.yml) | chore | P2 | — | Make the SQL placement check see concatenated statements |
 | [V370-002](v370-002-cross-context-writes.yml) | chore | P2 | V369-001 | Move the remaining cross-context table writes behind their owners |
 | [V370-007](v370-007-one-receipt-and-claim-mechanism.yml) | chore | P2 | — | Use one receipt and claim mechanism |
-| [V370-018](v370-018-simplify-persistence.yml) | chore | P3 | — | Remove duplicated transaction helpers in persistence callers |
-| [V370-023](v370-023-audit-purge-fk-indexes.yml) | defect | P2 | — | Index the foreign keys Audit purge checks and test all of them |
-| [V370-028](v370-028-run-event-trigger-cost.yml) | defect | P3 | — | Skip trigger work for Run event appends |
 
 ### Quality, CI and process (`quality`)
 
@@ -139,11 +135,11 @@ tasks in `introduced_by`.
 | Findings tools and collections (`findings`) | 0 | 7 | 4 | 1 | 7 |
 | Workflow catalog and document workflows (`workflows`) | 1 | 13 | 13 | 8 | 11 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 1 | 27 | 31 | 3 | 34 |
-| Audits (`audits`) | 19 | 49 | 64 | 12 | 72 |
+| Audits (`audits`) | 19 | 49 | 64 | 12 | 73 |
 | Evaluations (`evals`) | 2 | 21 | 27 | 4 | 33 |
 | Podman sandbox (`sandbox`) | 0 | 8 | 1 | 1 | 2 |
 | Web UI (`ui`) | 0 | 19 | 51 | 10 | 48 |
 | Operations, authentication, CLI and deployment (`operations`) | 0 | 8 | 30 | 4 | 6 |
 | Public API and wire contracts (`api-contracts`) | 6 | 1 | 24 | 16 | 7 |
-| PostgreSQL persistence and schema (`persistence`) | 9 | 0 | 17 | 29 | 3 |
+| PostgreSQL persistence and schema (`persistence`) | 5 | 0 | 17 | 29 | 4 |
 | Quality, CI and process (`quality`) | 5 | 1 | 18 | 65 | 15 |

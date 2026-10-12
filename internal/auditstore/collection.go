@@ -29,7 +29,7 @@ func (s *PostgresStore) Collect(
 	}
 	prepared := prepareCollectionWrite(params)
 	outputs, _ := json.Marshal(append([]PreparationOutput{}, params.PreparationOutputs...))
-	receipt, err := scanReceipt(s.db.QueryRow(ctx, collectAuditExecutionSQL,
+	receipt, err := scanReceipt(persistencepostgres.SavepointQueryRow(ctx, s.db, collectAuditExecutionSQL,
 		params.Claim.AuditID, params.Claim.HolderID, params.Claim.Epoch,
 		params.ExecutionID, params.ReceiptID, string(params.Disposition),
 		prepared.sourceRef, prepared.sourceDigest, prepared.retained, prepared.items, prepared.links,

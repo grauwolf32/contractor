@@ -266,6 +266,61 @@ retries of its operation stays a transaction conflict. The public API reports
 it as the retryable `503 storage_transaction_conflict`; it never becomes a
 `409 conflict` or a `500 internal_error`.
 
+### Transactions of shared stores
+
+**PER-R18.** A store that serves both a pool and a caller's transaction runs
+an operation that needs a transaction through one rule. On a pool it starts a
+fresh transaction per attempt and replays a transaction conflict (PER-R13), so
+the operation must be safe to replay. On a caller's transaction it runs once
+inside that transaction; the caller owns the isolation level, the commit and
+any retry. A step whose row locks must last until the caller commits, such as
+the Run deletion locks, exists only on a store bound to a transaction, never
+on one that a pool can back.
+
+**PER-R19.** Every transaction the Server begins runs under the operation
+budget selected for its operation, including a transaction whose caller
+classifies its own commit, such as a Planner Memory transaction.
+
+**PER-R20.** A store operation that recovers from a failed statement with
+further statements, such as a replay read after a unique violation, runs that
+statement under a savepoint when it is in a caller's transaction. A database
+error rolls back to the savepoint, so only the failed statement's writes are
+undone and the recovery and the caller's transaction continue; a statement
+that returns no rows keeps its writes, as it would on a pool. A recovery read
+in a REPEATABLE READ transaction sees only that transaction's snapshot, so a
+concurrent winner that committed after it began is found by the caller's
+replay after rollback (FAIL-AUD-4), not inside the transaction.
+
+### Indexes of foreign keys
+
+**PER-R21.** Every foreign key has a valid index on its referencing table
+whose leading keys are all of the key's columns, in any order; a partial
+index counts when it holds every row whose key is set. PostgreSQL checks or
+cascades a foreign key for each deleted or re-keyed referenced row by
+querying the referencing table on the key columns, so without that index each
+probe reads the whole table, or the whole of an index that holds the key in a
+later column, and a purge costs as much as the table instead of the rows it
+removes. A foreign key without that index is listed by the schema test with
+its reason and with the schema object that bounds its probe: a usable index
+led by some of the key's columns that selects few rows, or a trigger of the
+referenced table that rejects every deletion and key change, so the probe
+never runs.
+
+### Row triggers
+
+**PER-R22.** A row trigger fires only when what it guards or checks can
+change. A guard that rejects changes to some columns fires on `UPDATE OF`
+exactly the columns its function compares, and no BEFORE UPDATE trigger of its
+table assigns a column, so only an UPDATE that lists a guarded column runs it;
+an after-row or deferred trigger states in its WHEN condition the change it
+reacts to, and fires on every INSERT when its function checks new rows. A Run
+event append, which only advances the Run's event sequence, therefore fires no
+trigger of `workflow_runs` except the deferred binding check of an
+audit-managed Run. The deferred Audit completion check runs when a Run is
+inserted and when its completion changes, not on later updates that keep it:
+the completion cannot change once set, and the profile binding it is checked
+against is immutable ([AWC-R7](../audits/worker-completion.md)).
+
 ## Limits, failures and errors
 
 Limits ([registry](limits.md)):
@@ -353,6 +408,46 @@ outlasts its retries is the retryable `503 storage_transaction_conflict`
     encoded from its Go type, and the migrations read the same members
     (PER-R17); test `TestSQLReadsTheJSONMembersItsGoTypesEncode` in
     [`internal/persistence/snapshot_json_paths_test.go`](../../../internal/persistence/snapshot_json_paths_test.go).
+13. A shared store's operation replays a conflict on a pool and runs once in
+    a caller's transaction (PER-R18); test
+    `TestPostgresWithinRetriesOnAPoolAndJoinsACallerTransaction` in
+    [`internal/persistence/postgres/within_postgres_test.go`](../../../internal/persistence/postgres/within_postgres_test.go).
+    The Run deletion locks exist only on transaction-bound stores; test
+    `TestDeletionLocksRequireTransaction` in
+    [`internal/rundeletion/deleter_postgres_test.go`](../../../internal/rundeletion/deleter_postgres_test.go).
+14. A transaction begun outside InTx keeps the operation budget (PER-R19);
+    tests `TestPostgresBeginTxAppliesTheOperationBudget` in
+    [`internal/persistence/postgres/within_postgres_test.go`](../../../internal/persistence/postgres/within_postgres_test.go)
+    and `TestPostgresPlannerMemoryTransactionKeepsTheOperationBudget` in
+    [`internal/memory/budget_postgres_test.go`](../../../internal/memory/budget_postgres_test.go).
+15. Every Audit store recovery path runs and returns its own outcome inside a
+    caller's transaction, and a concurrent create is replayed there (PER-R20);
+    tests `TestPostgresRecoveryPathsRunInsideACallerTransaction` and
+    `TestPostgresCreateDraftReplaysAConcurrentWinnerInsideATransaction` in
+    [`internal/auditstore/transaction_recovery_postgres_test.go`](../../../internal/auditstore/transaction_recovery_postgres_test.go),
+    `TestPostgresAuditPreparationStartRecoversInsideACallerTransaction` in
+    [`internal/artifacts/audit_preparation_transaction_postgres_test.go`](../../../internal/artifacts/audit_preparation_transaction_postgres_test.go)
+    and `TestPostgresSavepointQueryRowKeepsTheCallerTransactionUsable` in
+    [`internal/persistence/postgres/savepoint_postgres_test.go`](../../../internal/persistence/postgres/savepoint_postgres_test.go).
+16. Every foreign key of the migrated schema has an index led by all of its
+    columns, or a listed index or trigger that bounds its probe (PER-R21);
+    test `TestForeignKeysHaveProbeIndexes` in
+    [`internal/persistence/postgres/foreign_key_indexes_postgres_test.go`](../../../internal/persistence/postgres/foreign_key_indexes_postgres_test.go).
+    The purge of an Audit with 100,000 executions, beside another Audit's
+    executions and findings, scans none of those tables sequentially and
+    reads no large index whole; test
+    `TestPostgresAuditPurgeAtScaleProbesForeignKeysThroughIndexes` in
+    [`internal/auditstore/purge_scale_postgres_test.go`](../../../internal/auditstore/purge_scale_postgres_test.go).
+17. The Planner's Run event appends fire no trigger of `workflow_runs`, a
+    state change fires the lifecycle capture and an assigned guarded column
+    its guard (PER-R22); test `TestPostgresRunEventAppendsFireNoWorkflowRunTrigger`
+    in [`internal/runstore/run_event_triggers_postgres_test.go`](../../../internal/runstore/run_event_triggers_postgres_test.go).
+    An append to a Run with an Audit completion fires only the binding
+    check; test `TestAuditCompletionPostgresAtomicCreationRestartAndAllocation`
+    in [`internal/runservice/audit_completion_postgres_test.go`](../../../internal/runservice/audit_completion_postgres_test.go).
+    Each column-scoped guard of `workflow_runs` lists exactly the columns its
+    function compares; test `TestWorkflowRunGuardsFireOnTheColumnsTheyCompare`
+    in [`internal/persistence/postgres/workflow_run_triggers_postgres_test.go`](../../../internal/persistence/postgres/workflow_run_triggers_postgres_test.go).
 
 ## Non-goals
 

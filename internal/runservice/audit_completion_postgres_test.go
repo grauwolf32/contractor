@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"maps"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -23,6 +24,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 func TestAuditCompletionPostgresAtomicCreationRestartAndAllocation(t *testing.T) {
@@ -192,6 +194,14 @@ func TestAuditCompletionPostgresAtomicCreationRestartAndAllocation(t *testing.T)
 	if _, err := pool.Exec(ctx, `UPDATE workflow_runs SET audit_completion = NULL WHERE run_id = 'run'`); persistencepostgres.SQLState(err) != persistencepostgres.SQLStateCheckViolation {
 		t.Fatal("completion rewrite accepted", err)
 	}
+	// A Run event append keeps the pinned completion, so neither Audit
+	// completion trigger fires for it; the binding check of an audit-managed
+	// Run still does (PER-R22).
+	if fired := runEventAppendTriggers(t, ctx, pool, "run"); !maps.Equal(fired, map[string]int64{
+		"workflow_runs_require_complete_audit_binding": 1,
+	}) {
+		t.Fatalf("a Run event append on a Run with a completion fired the triggers %v", fired)
+	}
 	stageBytes, _ := json.Marshal(stage)
 	executionStage, err := runs.CreateStageExecution(ctx, runstore.CreateStageExecutionParams{StageExecutionID: "stage", RunID: "run", StageName: "check", Attempt: 1, StageSpecSchemaVersion: contracts.APIVersion, StageSpecSnapshot: stageBytes, StageContextSchemaVersion: contracts.APIVersion, StageContext: runstore.StageContextSnapshot{Parameters: map[string]string{}, Artifacts: map[string]runstore.PinnedContextArtifact{"task": {Required: true, Artifact: &completion.Contract.Task}, "manifest": {Required: true, Artifact: &completion.Contract.ExecutionManifest}}}})
 	if err != nil {
@@ -347,4 +357,43 @@ type omitCompletionWriter struct{ AuditRunWriter }
 
 func (omitCompletionWriter) SetAuditCompletion(context.Context, string, runstore.AuditCompletionSnapshot) error {
 	return nil
+}
+
+// runEventAppendTriggers advances the Run's event sequence as every Run event
+// append does, under EXPLAIN ANALYZE in a transaction that it rolls back,
+// with every deferred check made immediate, and returns the calls of each
+// trigger of workflow_runs that fired.
+func runEventAppendTriggers(t *testing.T, ctx context.Context, pool *pgxpool.Pool, runID string) map[string]int64 {
+	t.Helper()
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
+	if _, err := tx.Exec(ctx, `SET CONSTRAINTS ALL IMMEDIATE`); err != nil {
+		t.Fatal(err)
+	}
+	var output []byte
+	if err := tx.QueryRow(ctx, `EXPLAIN (ANALYZE, TIMING OFF, SUMMARY OFF, FORMAT JSON)
+UPDATE workflow_runs SET next_run_event_sequence = next_run_event_sequence + 1 WHERE run_id = $1`,
+		runID).Scan(&output); err != nil {
+		t.Fatal(err)
+	}
+	var plans []struct {
+		Triggers []struct {
+			Name     string `json:"Trigger Name"`
+			Relation string `json:"Relation"`
+			Calls    int64  `json:"Calls"`
+		} `json:"Triggers"`
+	}
+	if err := json.Unmarshal(output, &plans); err != nil || len(plans) != 1 {
+		t.Fatalf("explain output %s: %v", output, err)
+	}
+	fired := map[string]int64{}
+	for _, trigger := range plans[0].Triggers {
+		if trigger.Relation == "workflow_runs" {
+			fired[trigger.Name] += trigger.Calls
+		}
+	}
+	return fired
 }

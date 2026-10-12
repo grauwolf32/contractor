@@ -44,7 +44,7 @@ func (s *Service) Resume(ctx context.Context, params MutationParams) (MutationRe
 }
 
 func (s *Service) resumeInTransaction(ctx context.Context, tx pgx.Tx, params MutationParams) (MutationResult, error) {
-	store := auditstore.NewPostgresStore(tx)
+	store := auditstore.NewPostgresTxStore(tx)
 	// Serialize retries before any mutable dependency checks.
 	if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`, "audit-resume:"+params.OwnerID+":"+params.IdempotencyKey); err != nil {
 		return MutationResult{}, err

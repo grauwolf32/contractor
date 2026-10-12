@@ -5,6 +5,7 @@ import (
 
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/randomid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
@@ -31,6 +32,20 @@ type PostgresRepository struct {
 
 func NewPostgresRepository(db persistencepostgres.DBTX) *PostgresRepository {
 	return &PostgresRepository{db: db, newID: randomid.New}
+}
+
+// PostgresTxRepository is a PostgresRepository bound to the caller's
+// transaction, for writes that must commit together with the version they
+// describe.
+type PostgresTxRepository struct {
+	*PostgresRepository
+	tx pgx.Tx
+}
+
+// NewPostgresTxRepository binds a PostgresRepository to the caller's
+// transaction tx.
+func NewPostgresTxRepository(tx pgx.Tx) *PostgresTxRepository {
+	return &PostgresTxRepository{PostgresRepository: NewPostgresRepository(tx), tx: tx}
 }
 
 var _ Repository = (*PostgresRepository)(nil)

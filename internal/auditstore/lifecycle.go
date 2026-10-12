@@ -9,7 +9,6 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // SettleUndispatched closes items for which the durable dispatch fence won
@@ -119,16 +118,9 @@ func (s *PostgresStore) PurgeClaimed(
 	if namespace != auditdomain.ArtifactNamespace(claim.AuditID) {
 		return invalidf("Audit purge namespace is invalid")
 	}
-	switch db := s.db.(type) {
-	case *pgxpool.Pool:
-		return persistencepostgres.InTxWithRetry(ctx, db, pgx.TxOptions{}, func(tx pgx.Tx) error {
-			return purgeClaimedAudit(ctx, tx, claim, namespace)
-		})
-	case pgx.Tx:
-		return purgeClaimedAudit(ctx, db, claim, namespace)
-	default:
-		return errors.New("purge Audit: PostgreSQL transaction support is required")
-	}
+	return persistencepostgres.Within(ctx, s.db, pgx.TxOptions{}, func(tx pgx.Tx) error {
+		return purgeClaimedAudit(ctx, tx, claim, namespace)
+	})
 }
 
 func purgeClaimedAudit(

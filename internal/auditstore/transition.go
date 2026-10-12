@@ -30,7 +30,7 @@ func (s *PostgresStore) Transition(
 		reasonCode, reasonMessage = &params.Reason.Code, &params.Reason.Message
 	}
 	response, _ := json.Marshal(map[string]string{"auditId": params.AuditID})
-	audit, err := scanAudit(s.db.QueryRow(ctx, transitionSQL+prefixedAuditColumns("changed")+` FROM changed`,
+	audit, err := scanAudit(persistencepostgres.SavepointQueryRow(ctx, s.db, transitionSQL+prefixedAuditColumns("changed")+` FROM changed`,
 		params.OwnerID, params.AuditID, params.ExpectedRevision,
 		string(params.ExpectedState), string(params.TargetState), reasonCode, reasonMessage,
 		params.IdempotencyKey, params.RequestDigest, response,
@@ -111,7 +111,7 @@ func (s *PostgresStore) Resume(ctx context.Context, params ResumeParams) (Audit,
 	}
 	deadline, _ := json.Marshal(params.DeadlineAt)
 	response, _ := json.Marshal(map[string]string{"auditId": params.AuditID})
-	audit, err := scanAudit(s.db.QueryRow(ctx, resumeSQL+prefixedAuditColumns("changed")+` FROM changed`,
+	audit, err := scanAudit(persistencepostgres.SavepointQueryRow(ctx, s.db, resumeSQL+prefixedAuditColumns("changed")+` FROM changed`,
 		params.OwnerID, params.AuditID, params.ExpectedRevision, params.DeadlineAt, deadline,
 		params.IdempotencyKey, params.RequestDigest, response,
 	))
