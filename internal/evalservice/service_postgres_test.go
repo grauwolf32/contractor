@@ -873,8 +873,9 @@ func TestPostgresRecoveryAfterTransitionBeforeCommandAcknowledgement(t *testing.
 	if err = h.service.prepare(t.Context(), e, claims[0]); err != nil {
 		t.Fatal(err)
 	}
-	// Simulate process death after its commit and lease expiry without acknowledgement.
-	if _, err = h.pool.Exec(t.Context(), `UPDATE eval_controller_claims SET expires_at=clock_timestamp()-interval '1 second' WHERE experiment_id=$1`, e.ID); err != nil {
+	// Simulate process death after its commit and lease expiry without
+	// acknowledgement. A held claim's lease ends after it starts, so both move.
+	if _, err = h.pool.Exec(t.Context(), `UPDATE eval_controller_claims SET claimed_at=clock_timestamp()-interval '2 seconds', expires_at=clock_timestamp()-interval '1 second' WHERE experiment_id=$1`, e.ID); err != nil {
 		t.Fatal(err)
 	}
 	tick(t, h.coordinator(t, "restarted"))
