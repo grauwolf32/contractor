@@ -16,7 +16,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditservice"
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/findingintake"
 	"github.com/grauwolf32/contractor/internal/projectstore"
@@ -39,7 +39,7 @@ func TestFindingCollectionHTTPPublicationAndOrdinaryRunInput(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	workflowBytes = bytes.Replace(workflowBytes, []byte("source: {required: true, mediaTypes: [text/plain]}"), []byte("source: {required: true, mediaTypes: ["+config.FindingCollectionMediaType+"]}"), 1)
+	workflowBytes = bytes.Replace(workflowBytes, []byte("source: {required: true, mediaTypes: [text/plain]}"), []byte("source: {required: true, mediaTypes: ["+resolved.FindingCollectionMediaType+"]}"), 1)
 	if err := os.WriteFile(workflowPath, workflowBytes, 0o600); err != nil {
 		t.Fatal(err)
 	}

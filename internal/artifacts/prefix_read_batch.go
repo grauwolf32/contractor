@@ -8,36 +8,19 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-type prefixReadBatchRepository interface {
-	ReadPrefixBatch(context.Context, Scope, string, string, int) ([]ReadResult, error)
-}
-
 // ReadPrefixBatch returns at most limit current bindings and their payloads in
 // name order. It lets callers detect quota overflow by requesting one extra
 // binding without performing a separate listing and one read per artifact.
 func (s ScopedStore) ReadPrefixBatch(ctx context.Context, namespace, prefix string, limit int) ([]ReadResult, error) {
-	if err := validateScope(s.scope); err != nil {
-		return nil, err
-	}
 	if err := validatePrefixList(namespace, prefix, limit); err != nil {
 		return nil, err
 	}
-	repository, ok := s.service.repository.(prefixReadBatchRepository)
-	if !ok {
-		return nil, ErrQueryUnsupported
-	}
-	return repository.ReadPrefixBatch(ctx, s.scope, namespace, prefix, limit)
+	return s.service.repository.ReadPrefixBatch(ctx, s.scope, namespace, prefix, limit)
 }
 
 func (r *PostgresRepository) ReadPrefixBatch(
 	ctx context.Context, scope Scope, namespace, prefix string, limit int,
 ) ([]ReadResult, error) {
-	if err := validateScope(scope); err != nil {
-		return nil, err
-	}
-	if err := validatePrefixList(namespace, prefix, limit); err != nil {
-		return nil, err
-	}
 	ctx, releaseTransfer, err := AcquireTransfer(ctx)
 	if err != nil {
 		return nil, err

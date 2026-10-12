@@ -19,15 +19,15 @@
 	test-artifact-filesystem test-artifact-blob-backends
 
 test-runtime-principals: require-database
-	go test -count=1 ./internal/runtimeconfig ./internal/persistence/postgres
+	go test -count=1 ./internal/agentprincipal ./internal/runtimeconfig ./internal/persistence/postgres
 
 test-runtime-label-placement: require-database
-	go test -count=1 ./internal/controlplane ./internal/credentials ./internal/runstore ./internal/runtimeconfig
+	go test -count=1 ./internal/agentprincipal ./internal/controlplane ./internal/credentials ./internal/runstore ./internal/runtimeconfig
 
 test-runtime-configuration-matrix: test-hardening-matrices
 
 test-runtime-configuration-hardening: require-database test-runtime-configuration-matrix
-	$(call run-family-test,go test -race -count=1 ./internal/controlplane/... ./internal/credentials/... ./internal/httpapi/... ./internal/mtls/... ./internal/runstore/... ./internal/runtimeconfig/... ./internal/scheduler/... ./internal/telemetry/... ./tests/integration/lease)
+	$(call run-family-test,go test -race -count=1 ./internal/agentprincipal/... ./internal/controlplane/... ./internal/credentials/... ./internal/httpapi/... ./internal/mtls/... ./internal/runstore/... ./internal/runtimeconfig/... ./internal/scheduler/... ./internal/telemetry/... ./tests/integration/lease)
 	cd runtime && uv run pytest -W error tests/test_adapter_host.py tests/test_http_proxy_adapter.py tests/test_lease_watchdog.py tests/test_otlp_adapter.py
 
 test-runtime-configuration-e2e: require-database test-runtime-configuration-hardening test-runtime-labels-e2e test-ui-stack

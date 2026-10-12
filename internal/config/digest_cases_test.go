@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
@@ -25,7 +26,7 @@ func TestSharedDigestCases(t *testing.T) {
 	}
 	checkPolicy := func(policy contracts.ResolvedModelPolicy) {
 		t.Helper()
-		got, err := modelPolicyDigest(Selector{ID: policy.Ref.PolicyID, Version: policy.Ref.Version}, policy)
+		got, err := modelPolicyDigest(resolved.Selector{ID: policy.Ref.PolicyID, Version: policy.Ref.Version}, policy)
 		if err != nil || got != policy.Ref.Digest {
 			t.Errorf("ModelPolicy %s digest = %s, %v; want %s", policy.Ref.PolicyID, got, err, policy.Ref.Digest)
 		}
@@ -40,7 +41,7 @@ func TestSharedDigestCases(t *testing.T) {
 		checkPolicy(policy)
 	}
 	for _, gateway := range cases.LLMGatewayConfigs {
-		got, err := llmGatewayConfigDigest(Selector{ID: gateway.Ref.GatewayID, Version: gateway.Ref.Version}, gateway)
+		got, err := llmGatewayConfigDigest(resolved.Selector{ID: gateway.Ref.GatewayID, Version: gateway.Ref.Version}, gateway)
 		if err != nil || got != gateway.Ref.Digest {
 			t.Errorf("LLMGatewayConfig %s digest = %s, %v; want %s", gateway.Ref.GatewayID, got, err, gateway.Ref.Digest)
 		}
@@ -56,7 +57,7 @@ func TestSharedDigestCases(t *testing.T) {
 				checkInstructions(template.Ref.TemplateID+" summarizer", *summarizer.Instructions)
 			}
 		}
-		got, err := agentTemplateDigest(Selector{ID: template.Ref.TemplateID, Version: template.Ref.Version}, template)
+		got, err := agentTemplateDigest(resolved.Selector{ID: template.Ref.TemplateID, Version: template.Ref.Version}, template)
 		if err != nil || got != template.Ref.Digest {
 			t.Errorf("AgentTemplate %s digest = %s, %v; want %s", template.Ref.TemplateID, got, err, template.Ref.Digest)
 		}

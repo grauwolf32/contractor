@@ -12,7 +12,7 @@ import (
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/getkin/kin-openapi/routers/gorillamux"
 	"github.com/grauwolf32/contractor/internal/auth"
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	"github.com/grauwolf32/contractor/internal/gitimport"
@@ -193,7 +193,7 @@ func TestSharedPublicRequestAndHistoryContracts(t *testing.T) {
 			t.Fatal(err)
 		}
 		selectedStage := workflow.Stages["copy"]
-		selectedStage.On.Failed = config.TransitionAction{Kind: config.TransitionRetry, Retry: &config.RetryTransition{MaxAttempts: count, Then: config.TransitionAction{Kind: config.TransitionFail}}}
+		selectedStage.On.Failed = resolved.TransitionAction{Kind: resolved.TransitionRetry, Retry: &resolved.RetryTransition{MaxAttempts: count, Then: resolved.TransitionAction{Kind: resolved.TransitionFail}}}
 		stage, err := json.Marshal(selectedStage)
 		if err != nil {
 			t.Fatal(err)

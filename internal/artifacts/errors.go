@@ -19,7 +19,6 @@ var (
 	ErrReservedNamespace     = errors.New("artifact namespace is reserved")
 	ErrArtifactFrozen        = errors.New("artifact binding is frozen")
 	ErrArtifactIntegrity     = errors.New("artifact payload integrity failure")
-	ErrQueryUnsupported      = errors.New("artifact query repository is unavailable")
 	ErrScopeDeleting         = errors.New("artifact Project scope is deleting")
 	// ErrRunRevisionLimit reports that a RunScope already holds the most
 	// binding revisions one Run may create (LIM-ART-6). It is permanent for

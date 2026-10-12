@@ -12,7 +12,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstandards"
 	"github.com/grauwolf32/contractor/internal/auditstore"
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
@@ -120,8 +120,8 @@ func ValidateBaseline(value BaselineSnapshot) error {
 	if selection := value.Inventory.StandardSelection; selection != nil {
 		if selection.Scope == "" || !utf8.ValidString(selection.Scope) || len([]byte(selection.Scope)) > 512 ||
 			strings.TrimSpace(selection.Scope) != selection.Scope || strings.ContainsRune(selection.Scope, 0) ||
-			len(selection.Levels) == 0 || len(selection.Levels) > config.MaxAuditStandardLevels ||
-			len(selection.EntryIDs) == 0 || len(selection.EntryIDs) > config.MaxAuditStandardEntries ||
+			len(selection.Levels) == 0 || len(selection.Levels) > auditprofile.MaxAuditStandardLevels ||
+			len(selection.EntryIDs) == 0 || len(selection.EntryIDs) > auditprofile.MaxAuditStandardEntries ||
 			!strictSortedAuditValues(selection.Levels) || !strictSortedAuditValues(selection.EntryIDs) {
 			return fmt.Errorf("%w: Audit baseline standard selection is invalid", ErrInvalid)
 		}
@@ -234,8 +234,8 @@ func cloneBaseline(source BaselineSnapshot) BaselineSnapshot {
 }
 
 func cloneAuditStandardSelection(
-	source *config.AuditStandardSelection,
-) *config.AuditStandardSelection {
+	source *auditprofile.AuditStandardSelection,
+) *auditprofile.AuditStandardSelection {
 	if source == nil {
 		return nil
 	}

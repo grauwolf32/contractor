@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	workflowconfig "github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/planner"
 )
@@ -30,7 +30,7 @@ func (f *Factory) Create(invocation planner.Invocation) (planner.Planner, error)
 	if invocation.Stage.Planner.PlannerID+"@"+invocation.Stage.Planner.Version != planner.ScanPlanRef || invocation.ModelAccess != nil || strings.TrimSpace(invocation.SchedulerClaimID) == "" || invocation.StageExecutionID == "" || invocation.RunID == "" || invocation.Deadline.IsZero() {
 		return nil, fmt.Errorf("scan planner requires a model-free Stage and durable Scheduler ownership")
 	}
-	if err := workflowconfig.ValidateScanPlanStage(invocation.Stage); err != nil {
+	if err := resolved.ValidateScanPlanStage(invocation.Stage); err != nil {
 		return nil, err
 	}
 	if invocation.Stage.AuditScan != nil {
@@ -73,7 +73,7 @@ func (f *Factory) Create(invocation planner.Invocation) (planner.Planner, error)
 	if err != nil {
 		return nil, fmt.Errorf("scan Stage cannot be copied")
 	}
-	var stage workflowconfig.ResolvedStage
+	var stage resolved.ResolvedStage
 	if json.Unmarshal(encoded, &stage) != nil {
 		return nil, fmt.Errorf("scan Stage cannot be copied")
 	}

@@ -5,7 +5,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
@@ -13,7 +12,7 @@ import (
 func TestPrecomputedAnalysisRunInputsAreExplicitAndStrict(t *testing.T) {
 	t.Parallel()
 
-	snapshot, err := configload.Load("testdata/analysis-workflow", config.MVPDescriptors())
+	snapshot, err := configload.Load("testdata/analysis-workflow")
 	if err != nil {
 		t.Fatal(err)
 	}

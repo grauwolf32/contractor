@@ -401,7 +401,7 @@ func withoutWorkerModels(values []PinnedRuntimeConfig) []PinnedRuntimeConfig {
 
 func validatePinned(value PinnedRuntimeConfig, expectedLabel string) error {
 	if value.Label != expectedLabel || value.BindingRevision == 0 ||
-		validateLabel(value.Label) != nil || validateRef(value.Config) != nil {
+		ValidateLabel(value.Label) != nil || validateRef(value.Config) != nil {
 		return resolutionError(ResolutionInvalid, "label_binding", ErrInvalid)
 	}
 	return nil

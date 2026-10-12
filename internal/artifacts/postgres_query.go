@@ -12,12 +12,6 @@ import (
 func (r *PostgresRepository) Metadata(
 	ctx context.Context, scope Scope, ref ArtifactRef,
 ) (Metadata, error) {
-	if err := validateScope(scope); err != nil {
-		return Metadata{}, err
-	}
-	if err := validateRef(ref); err != nil {
-		return Metadata{}, err
-	}
 	var result Metadata
 	var revision string
 	err := r.db.QueryRow(ctx, `
@@ -54,12 +48,6 @@ WHERE binding.scope_kind = $1 AND binding.scope_id = $2
 func (r *PostgresRepository) ListMetadata(
 	ctx context.Context, scope Scope, query BindingPageQuery,
 ) ([]Metadata, error) {
-	if err := validateScope(scope); err != nil {
-		return nil, err
-	}
-	if err := validateBindingPageQuery(query); err != nil {
-		return nil, err
-	}
 	var rows pgx.Rows
 	var err error
 	if scope.kind == ScopeProject &&
@@ -95,15 +83,6 @@ func (r *PostgresRepository) ListMetadata(
 func (r *PostgresRepository) ListVersions(
 	ctx context.Context, scope Scope, ref ArtifactRef, query VersionPageQuery,
 ) ([]Metadata, error) {
-	if err := validateScope(scope); err != nil {
-		return nil, err
-	}
-	if err := validateRef(ref); err != nil || ref.Revision != nil {
-		return nil, ErrInvalidName
-	}
-	if err := validateVersionPageQuery(query); err != nil {
-		return nil, err
-	}
 	rows, err := r.db.Query(ctx, `
 SELECT revision.namespace, revision.name, revision.revision,
        version.media_type, blob.size_bytes,
@@ -140,18 +119,10 @@ LIMIT $7`, scope.kind, scope.id, ref.Namespace, ref.Name,
 	return result, nil
 }
 
+// ListLineage lists the lineage of exact, an exact revision of scope.
 func (r *PostgresRepository) ListLineage(
 	ctx context.Context, scope Scope, exact ArtifactRef, query LineagePageQuery,
 ) ([]LineageEdge, error) {
-	if err := validateScope(scope); err != nil {
-		return nil, err
-	}
-	if _, err := exactRevision(exact); err != nil {
-		return nil, err
-	}
-	if err := validateLineagePageQuery(query); err != nil {
-		return nil, err
-	}
 	rows, err := r.db.Query(ctx, listLineageSQL, scope.kind, scope.id, exact.Namespace, exact.Name, *exact.Revision,
 		query.ExcludeKind,
 		query.BeforeCreatedAt, query.BeforeTargetRevision, query.BeforeSourceRevision,

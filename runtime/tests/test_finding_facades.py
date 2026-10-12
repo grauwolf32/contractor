@@ -16,6 +16,7 @@ from test_http_toolset import FakeArtifactClient, close_tools, create_tools, mak
 from test_security_findings_toolset import FakeFindingClient, _settings, _workspace
 
 from contractor_runtime.allocation import WorkerState
+from contractor_runtime.artifacts import ArtifactClient
 from contractor_runtime.contracts import HTTPOriginTargetSettings, RuntimeSettings
 from contractor_runtime.core.input_errors import ToolInputError
 from contractor_runtime.llm.openai import _tools
@@ -100,7 +101,10 @@ def test_actual_provider_schema(tool_type, required):
 
 
 async def finding_tool(factory_type, client, state):
-    tools = await factory_type(lambda _allocation, _settings: client).create_selected(
+    # The toolset submits through the allocation's private API transport.
+    tools = await factory_type(
+        lambda _allocation, _settings: ArtifactClient("allocation-test", client)
+    ).create_selected(
         selected=["finding"],
         allocation_id="allocation-test",
         run_id="run-test",

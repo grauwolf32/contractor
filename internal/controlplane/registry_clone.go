@@ -7,7 +7,7 @@ package controlplane
 
 import (
 	"github.com/grauwolf32/contractor/internal/clone"
-	workflowconfig "github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/control"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
@@ -75,8 +75,8 @@ func cloneReservation(source Reservation) Reservation {
 }
 
 func cloneRuntimeSelection(
-	source *workflowconfig.ResolvedConsumerExecutionConfig,
-) *workflowconfig.ResolvedConsumerExecutionConfig {
+	source *resolved.ResolvedConsumerExecutionConfig,
+) *resolved.ResolvedConsumerExecutionConfig {
 	if source == nil {
 		return nil
 	}

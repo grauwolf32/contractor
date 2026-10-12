@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	workflowconfig "github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
@@ -55,7 +55,7 @@ func TestCredentialFailuresClassifyRetryabilityAndLogSafeCause(t *testing.T) {
 			run := runstore.WorkflowRun{RunID: "run-1"}
 			execution := runstore.StageExecution{StageExecutionID: "stage-1"}
 
-			_, plannerErr := s.resolveCredential(t.Context(), workflowconfig.ResolvedConsumerExecutionConfig{
+			_, plannerErr := s.resolveCredential(t.Context(), resolved.ResolvedConsumerExecutionConfig{
 				LLMGateway: &llmgateway.ResolvedLLMGatewayConfig{},
 				Credential: &llmgateway.LLMCredentialRef{CredentialID: "planner-credential"},
 			})
@@ -115,7 +115,7 @@ func TestCompositeCredentialFailuresKeepRetryableCauses(t *testing.T) {
 			s := &Scheduler{options: Options{
 				Logger: slog.New(slog.NewTextHandler(&logs, nil)), Credentials: composite,
 			}}
-			_, resolveErr := s.resolveCredential(t.Context(), workflowconfig.ResolvedConsumerExecutionConfig{
+			_, resolveErr := s.resolveCredential(t.Context(), resolved.ResolvedConsumerExecutionConfig{
 				LLMGateway: &llmgateway.ResolvedLLMGatewayConfig{},
 				Credential: &llmgateway.LLMCredentialRef{CredentialID: "managed-credential"},
 			})

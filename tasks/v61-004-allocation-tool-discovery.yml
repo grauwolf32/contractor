@@ -49,7 +49,7 @@ scope:
     - Connect to an endpoint, accept wildcard tools, trust MCP annotations as effect authority or automatically enable capabilities for an unfinished production factory.
     - Rework unrelated capability matching, permit arbitrary descriptor injection or add a new Audit approval workflow.
 deliverables:
-  - path: internal/config/descriptors.go
+  - path: internal/config/resolved/descriptors.go
     description: Trusted MCP contract and static/dynamic descriptor validation with exact selected names.
   - path: internal/controlplane/registry.go
     description: Allocation-discovery compatibility alongside existing static subset matching.

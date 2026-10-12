@@ -9,7 +9,6 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstandards"
-	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
@@ -22,7 +21,7 @@ func TestFastWSTGPreservesSelectedObjectivesAndEvidencePolicies(t *testing.T) {
 		"WSTG-v42-INPV-01", "WSTG-v42-INPV-02", "WSTG-v42-INPV-05",
 		"WSTG-v42-INPV-12", "WSTG-v42-INPV-18", "WSTG-v42-INPV-19", "WSTG-v42-SESS-05",
 	}
-	snapshot, err := configload.Load(configRoot(), config.MVPDescriptors())
+	snapshot, err := configload.Load(configRoot())
 	if err != nil {
 		t.Fatal(err)
 	}

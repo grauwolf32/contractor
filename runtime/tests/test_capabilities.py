@@ -55,7 +55,7 @@ SHARED_DESCRIPTOR_FIELDS = frozenset(
 def test_shared_toolset_descriptor_parity(tmp_path: Path) -> None:
     """Every Runtime ToolsetFactory matches api/testdata/toolset-descriptors.json.
 
-    The Server's descriptors are held to the same fixture (internal/config
+    The Server's descriptors are held to the same fixture (internal/config/resolved
     TestSharedToolsetDescriptorParity), so a tool or Toolset added on one side
     only fails. activeCheckTools, findingProposalTools and
     requiredWorkflowInputs are classifications only the Server reads.

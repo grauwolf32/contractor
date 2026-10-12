@@ -20,19 +20,25 @@ import (
 
 type normalizingReportStore struct{ *memorySchedulerStore }
 
-func (s *normalizingReportStore) RecordStageExecutionReport(
-	ctx context.Context, params runstore.RecordStageExecutionReportParams,
+func (s *normalizingReportStore) RecordAllocationReport(
+	ctx context.Context, envelope telemetry.AllocationReportEnvelope,
 ) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	report, err := telemetry.NewPolicy(params.Secrets...).NormalizeAllocationReport(params.Report)
+	report, err := telemetry.NewPolicy(envelope.Secrets...).NormalizeAllocationReport(envelope.Report)
 	if err != nil {
 		return err
 	}
-	params.Report = report
-	params.Secrets = nil
-	return s.memorySchedulerStore.RecordStageExecutionReport(ctx, params)
+	envelope.Report = report
+	envelope.Secrets = nil
+	return s.memorySchedulerStore.RecordAllocationReport(ctx, envelope)
+}
+
+// withReports is a copy of the harness options that records reports in store.
+func withReports(options Options, store ReportStore) Options {
+	options.Reports = store
+	return options
 }
 
 func TestReportPersistenceReresolvesAllocationCredentialsAcrossSchedulers(t *testing.T) {
@@ -144,7 +150,7 @@ func TestReportPersistenceReresolvesAllocationCredentialsAcrossSchedulers(t *tes
 	store := &normalizingReportStore{harness.store}
 	other, err := New(
 		store, harness.persistence, harness.artifacts, harness.allocator, harness.workers,
-		harness.planners, harness.scheduler.options,
+		harness.planners, withReports(harness.scheduler.options, store),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -189,7 +195,7 @@ func TestReportPersistenceContinuesWhenCredentialResolutionFails(t *testing.T) {
 	})
 	store := &normalizingReportStore{harness.store}
 	other, err := New(store, harness.persistence, harness.artifacts, harness.allocator,
-		harness.workers, harness.planners, harness.scheduler.options)
+		harness.workers, harness.planners, withReports(harness.scheduler.options, store))
 	if err != nil {
 		t.Fatal(err)
 	}

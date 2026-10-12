@@ -621,7 +621,7 @@ func TestSharedRuntimeControlClientWorkerStateFailuresAreBoundedAndSafe(t *testi
 			_, readErr := client.ReadWorkerState(
 				context.Background(), stateWorkerHandle(server.URL, "allocation_1"), test.conditional,
 			)
-			var typed *WorkerStateReadError
+			var typed *reporting.WorkerStateReadError
 			if !errors.As(readErr, &typed) || typed.Code != test.wantCode ||
 				strings.Contains(readErr.Error(), server.URL) {
 				t.Fatalf("Worker State failure = %#v", readErr)
@@ -633,7 +633,7 @@ func TestSharedRuntimeControlClientWorkerStateFailuresAreBoundedAndSafe(t *testi
 	_, err := client.ReadWorkerState(
 		context.Background(), stateWorkerHandle("http://127.0.0.1:1", "allocation_1"), "",
 	)
-	var typed *WorkerStateReadError
+	var typed *reporting.WorkerStateReadError
 	if !errors.As(err, &typed) || typed.Code != "worker_state_transport_failed" ||
 		strings.Contains(err.Error(), "127.0.0.1") {
 		t.Fatalf("safe transport failure = %#v", err)
@@ -667,7 +667,7 @@ func TestSharedRuntimeControlClientRejectsCaseAliasesAndDuplicateKeys(t *testing
 			_, readErr := client.ReadWorkerState(
 				context.Background(), stateWorkerHandle(server.URL, "allocation_1"), "",
 			)
-			var typed *WorkerStateReadError
+			var typed *reporting.WorkerStateReadError
 			if name == "valid" {
 				if readErr != nil {
 					t.Fatalf("valid Worker State rejected: %v", readErr)
@@ -726,7 +726,7 @@ func TestRuntimeControlClientRejectsMismatchedWorkerStateEndpointBeforeRequest(t
 	client, _ := NewRuntimeControlClient(server.Client())
 
 	_, err := client.ReadWorkerState(context.Background(), handle, "")
-	var typed *WorkerStateReadError
+	var typed *reporting.WorkerStateReadError
 	if !errors.As(err, &typed) || typed.Code != "worker_state_endpoint_invalid" ||
 		requests.Load() != 0 || strings.Contains(err.Error(), server.URL) {
 		t.Fatalf("mismatched Worker State endpoint = (%#v, requests %d)", err, requests.Load())

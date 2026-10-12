@@ -600,27 +600,6 @@ type StageExecutionReport struct {
 	ExpiresAt           time.Time
 }
 
-type RecordStageExecutionReportParams struct {
-	StageExecutionID            string
-	AllocationID                string
-	LogicalAgentName            string
-	ReportSchemaVersion         string
-	Report                      reporting.AllocationFinalReport
-	PerformanceCollectionPolicy reporting.PerformanceCollectionPolicy
-	Secrets                     []string
-}
-
-type RecordPlannerExecutionReportParams struct {
-	StageExecutionID    string
-	SessionID           string
-	InvocationID        string
-	StartedAt           time.Time
-	FinishedAt          time.Time
-	ReportSchemaVersion string
-	Report              reporting.ExecutionReport
-	Secrets             []string
-}
-
 func validateReason(reason Reason) error {
 	if strings.TrimSpace(reason.Code) == "" {
 		return invalidf("state reason code is required")

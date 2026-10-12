@@ -10,7 +10,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/clone"
-	workflowconfig "github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/controlplane"
@@ -203,7 +203,7 @@ func (s *Scheduler) resumeFinalizing(
 			RunID: run.RunID, StageExecutionID: execution.StageExecutionID,
 			Result:          execution.CandidateResult.Clone(),
 			WorkflowOutputs: clone.Map(workflow.stage.WorkflowOutputs),
-			OutputContracts: workflowconfig.CloneArtifactSlots(workflow.workflow.Outputs),
+			OutputContracts: resolved.CloneArtifactSlots(workflow.workflow.Outputs),
 			Progression:     progression,
 		})
 	}
@@ -250,7 +250,7 @@ func (s *Scheduler) buildProgression(
 	run runstore.WorkflowRun,
 	workflow executableWorkflow,
 	execution runstore.StageExecution,
-	action workflowconfig.TransitionAction,
+	action resolved.TransitionAction,
 	retryable bool,
 	reasonCode string,
 	escalationVariant runstore.StageExecutionConfigVariant,
@@ -258,7 +258,7 @@ func (s *Scheduler) buildProgression(
 	selected := action
 	var nextEscalationOrdinal *int
 	var exhaustedEscalationOrdinal *int
-	if action.Kind == workflowconfig.TransitionRetry {
+	if action.Kind == resolved.TransitionRetry {
 		if action.Retry == nil {
 			return StageProgression{}, fmt.Errorf("retry Transition has no bounded policy")
 		}
@@ -266,7 +266,7 @@ func (s *Scheduler) buildProgression(
 			selected = action.Retry.Then
 		}
 	}
-	if action.Kind == workflowconfig.TransitionEscalate {
+	if action.Kind == resolved.TransitionEscalate {
 		if action.Escalate == nil ||
 			(escalationVariant != runstore.StageExecutionConfigFailedEscalation &&
 				escalationVariant != runstore.StageExecutionConfigInterruptedEscalation) {
@@ -292,7 +292,7 @@ func (s *Scheduler) buildProgression(
 		decision.EscalationExhausted = true
 	}
 	switch selected.Kind {
-	case workflowconfig.TransitionRetry:
+	case resolved.TransitionRetry:
 		targetWorkflow, err := workflow.selectStage(execution.StageName)
 		if err != nil {
 			return StageProgression{}, err
@@ -310,7 +310,7 @@ func (s *Scheduler) buildProgression(
 		decision.TargetStageName = &targetStage
 		decision.TargetExecutionID = &targetExecution
 		return StageProgression{Decision: decision, NextStage: &creation}, nil
-	case workflowconfig.TransitionEscalate:
+	case resolved.TransitionEscalate:
 		if action.Escalate == nil || nextEscalationOrdinal == nil {
 			return StageProgression{}, fmt.Errorf("escalate Transition selection is incomplete")
 		}
@@ -335,7 +335,7 @@ func (s *Scheduler) buildProgression(
 		decision.TargetExecutionID = &targetExecution
 		decision.EscalationOrdinal = nextEscalationOrdinal
 		return StageProgression{Decision: decision, NextStage: &creation}, nil
-	case workflowconfig.TransitionNext:
+	case resolved.TransitionNext:
 		targetWorkflow, err := workflow.selectStage(selected.NextStage)
 		if err != nil {
 			return StageProgression{}, err
@@ -352,13 +352,13 @@ func (s *Scheduler) buildProgression(
 		decision.TargetStageName = &targetStage
 		decision.TargetExecutionID = &targetExecution
 		return StageProgression{Decision: decision, NextStage: &creation}, nil
-	case workflowconfig.TransitionSucceed:
+	case resolved.TransitionSucceed:
 		decision.Action = runstore.StageTransitionSucceed
 		return StageProgression{
 			Decision: decision, TerminalRunState: runstore.RunSucceeded,
 			RunReason: runstore.Reason{Code: "workflow_succeeded"},
 		}, nil
-	case workflowconfig.TransitionFail:
+	case resolved.TransitionFail:
 		if strings.TrimSpace(reasonCode) == "" {
 			reasonCode = "stage_failed"
 		}

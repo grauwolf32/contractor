@@ -1,0 +1,51 @@
+schema_version: "1.0"
+id: V371-011
+title: "Register the per-Run proposal and per-proposal evidence quotas in the specification"
+milestone: hub-audit-defects-2026-10
+epic: findings
+kind: chore
+priority: P3
+status: pending
+depends_on: []
+languages: [go, python, markdown]
+goal: "The 4,096 proposals per Run and 64 MiB of evidence per proposal that finding intake enforces are defined in the limits registry and the findings specification with their failure outcome, and code and specification are held to one definition."
+context:
+  review: "Out-of-scope finding of the hub audit fix batch, sent by the coordinator on 2026-10-12; verified on a07f5e9"
+  specification: "docs/spec/findings/findings.md#FND-R55"
+  finding: >-
+    internal/findingintake/service.go:22-23 defines maxProposalsPerRun = 4096
+    and maxProposalEvidenceBytes = 64 MiB. A submission counts the Run's
+    receipts under an advisory lock and rejects the 4,097th as ErrInvalid
+    "Run proposal quota exceeded" (service.go:126-139), and sums the sizes of
+    its evidence refs and rejects more than 64 MiB as "proposal evidence
+    quota exceeded" (service.go:146-159). Neither bound appears in
+    docs/spec/platform/limits.md (LIM-FND-1 to LIM-FND-31) or in
+    docs/spec/findings/findings.md, so the Runtime tools, the documentation
+    and the code cannot be held to one definition (AGENTS.md 3.1). Predates
+    the shallow history (boundary 6349621).
+  siblings: >-
+    The Runtime submission tools
+    (runtime/src/contractor_runtime/toolsets/security_findings) do not
+    mention either quota in their agent-facing docstrings. Registered
+    neighbours: LIM-FND-10 (8 MiB per encoded submission) and LIM-FND-2
+    (256 locations per finding). The private finding intake API maps
+    ErrInvalid to its permanent error; the registry must name it.
+scope:
+  in:
+    - "LIM-FND rows and FND requirements for both quotas, with the error code and retryability the submitter receives (a FAIL row in failure-model.md)."
+    - "One definition: a test holds the Go constants to the registry values (or the constants are generated from it)."
+    - "The agent-facing submit tool docstrings name the quota outcome."
+  out:
+    - "Changing either bound."
+acceptance_criteria:
+  - id: A1
+    text: "limits.md and findings.md define both quotas, and scripts/check_spec.py passes."
+  - id: A2
+    given: "A Run with 4,096 receipts, and a proposal whose evidence totals 64 MiB plus one byte"
+    when: "One more proposal, and that proposal, are submitted"
+    then: "Each is rejected with the code and retryability the registry states, and the test fails if a constant drifts from the registry."
+tests:
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 -tags integration ./internal/findingintake"
+    covers: [A2]
+  - command: make lint
+    covers: [A1, A2]

@@ -6,15 +6,15 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/auditstore"
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/jackc/pgx/v5"
 )
 
 func validateDeadlineSeconds(seconds *int) error {
-	if seconds != nil && (*seconds < 0 || *seconds > config.MaxAuditDeadlineSeconds) {
-		return fmt.Errorf("%w: Audit time limit must be between 0 (unlimited) and %d seconds", ErrInvalid, config.MaxAuditDeadlineSeconds)
+	if seconds != nil && (*seconds < 0 || *seconds > auditprofile.MaxAuditDeadlineSeconds) {
+		return fmt.Errorf("%w: Audit time limit must be between 0 (unlimited) and %d seconds", ErrInvalid, auditprofile.MaxAuditDeadlineSeconds)
 	}
 	return nil
 }
@@ -113,7 +113,7 @@ func resumeDeadline(audit auditstore.Audit, seconds *int, now time.Time) (*time.
 		deadline := now.Add(audit.DeadlineAt.Sub(*audit.PausedAt))
 		return &deadline, nil
 	}
-	profile, err := config.DecodeResolvedAuditProfileSnapshot(audit.ProfileSnapshot)
+	profile, err := auditprofile.DecodeResolvedAuditProfileSnapshot(audit.ProfileSnapshot)
 	if err != nil {
 		return nil, err
 	}

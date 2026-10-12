@@ -404,7 +404,7 @@ channels follows from TLS-R28.
   built-in Toolset agree on its tools, channels, workspace need and
   SandboxProfile (TLS-R22, TLS-R23, TLS-R38). Owning tests:
   `TestSharedToolsetDescriptorParity` in
-  [internal/config/config_test.go](../../../internal/config/config_test.go) and
+  [internal/config/resolved/descriptors_test.go](../../../internal/config/resolved/descriptors_test.go) and
   `test_shared_toolset_descriptor_parity` in
   [runtime/tests/test_capabilities.py](../../../runtime/tests/test_capabilities.py).
 

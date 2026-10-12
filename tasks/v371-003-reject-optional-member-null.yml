@@ -1,0 +1,75 @@
+schema_version: "1.0"
+id: V371-003
+title: "Reject explicit null for optional private-wire members and null map values"
+milestone: hub-audit-defects-2026-10
+epic: api-contracts
+kind: defect
+priority: P3
+status: pending
+depends_on: [V371-002]
+languages: [go, python]
+goal: "Every optional member of every valid private fixture, set to null, and every null value in a scalar map is rejected by the schema, the Go strict private decoder and the Python models alike."
+context:
+  review: "Out-of-scope finding of the hub audit fix batch (groups G1 and G13), recorded 2026-10-12; left open by V368-002 ('Not fixed here'); re-verified on a07f5e9"
+  specification: "docs/spec/execution/control-plane.md#CTL-R149"
+  severity: low
+  finding: >-
+    CTL-R149 and api/testdata/v1alpha1/required-member-cases.json reject a
+    null only for required members. For an optional member the schemas allow
+    only the member's own type (for example failureCode of
+    workerCompletionDiagnostics and of summarizerState, and completion of
+    allocationMetrics), but internal/strictjson/scan.go:157 checks a null
+    only for required, non-nullable fields, so Go decodes an explicit null as
+    absent, and Python WireModel fields declared `X | None = None` accept it
+    too. Reproduced on a07f5e9: {"completion":null} in WorkerAllocationState,
+    {"failureCode":null} in WorkerStateSummarizer and in
+    decodeWorkerCompletionDiagnostics all decode and validate in Go, and
+    Python's WorkerAllocationMetricsState and WorkerStateSummarizer accept
+    the same documents. A null value in a scalar map is worse: Go decodes
+    {"counters":{"a":null}} into counters["a"] == 0 (encoding/json keeps the
+    zero value) and Validate passes, while Python rejects it and the schema
+    requires an integer. V368-002 recorded both as not fixed. The lenient
+    behaviour predates the shallow history (boundary 6349621).
+  siblings: >-
+    Go: every strictjson.Decode behind contracts.DecodePrivate and
+    DecodePrivateStrict (registration, heartbeat, lifecycle responses, Worker
+    State, the A2A WorkerCompletion) and the hand-written UnmarshalJSON
+    methods under internal/contracts that call strictjson.Decode (for example
+    WorkerCompletionDiagnostics). Scalar maps on the private wire:
+    WorkerAllocationState.Counters (map[string]uint64),
+    StageContentRequest.Parameters (map[string]string) and the
+    RuntimeSettings maps; maps of structs with required members already
+    reject null. Python: WireModel subclasses under
+    runtime/src/contractor_runtime/contracts with `| None = None` optional
+    fields. Public request bodies also go through strictjson.Decode, but the
+    public OpenAPI document marks some members nullable, so the public side
+    keeps its own schema's verdict. The State endpoint's own null emission is
+    V371-002, which must land first.
+scope:
+  in:
+    - "Record in CTL-R149: an optional private-wire member is omitted, never null (as FND-R74 states for findings), unless its schema allows null."
+    - "Go private decoders reject an explicit null for such a member and a null value in a scalar map; Python WireModel does the same."
+    - "Extend the generated required-member-cases.json, or a sibling generated fixture, with the null replacement of every optional member and map value the schema rejects; the schema, Go and Python must reject each."
+  out:
+    - "Public request bodies whose OpenAPI schema allows null."
+    - "The producer fix of the State endpoint (V371-002)."
+acceptance_criteria:
+  - id: A1
+    given: "Any valid private golden fixture"
+    when: "One optional member or one scalar map value is replaced by null"
+    then: "The schema, the Go strict private decoder and the Python model all reject the document."
+  - id: A2
+    text: 'WorkerAllocationState with counters {"a":null} is rejected in Go instead of decoding to 0.'
+  - id: A3
+    text: "Every message the Runtime and the Server exchange in the cross-language lifecycle tests still decodes on the other side."
+  - id: A4
+    text: "The generated null cases fail on a07f5e9."
+tests:
+  - command: "go test ./internal/strictjson ./internal/contracts/..."
+    covers: [A1, A2, A4]
+  - command: "cd runtime && uv run pytest tests/test_contracts.py tests/test_shared_text_rules.py"
+    covers: [A1, A4]
+  - command: "make test-wire-cross-language"
+    covers: [A1, A3]
+  - command: make lint
+    covers: [A1, A2, A3, A4]

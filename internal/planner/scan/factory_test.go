@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	workflowconfig "github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	contractscan "github.com/grauwolf32/contractor/internal/contracts/scan"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -350,14 +350,14 @@ func newFactoryHarness(t *testing.T, count int) *factoryHarness {
 	}
 	invocation := planner.Invocation{
 		StageExecutionID: "stage-scan", RunID: "run-scan", SchedulerClaimID: "claim-scan", Deadline: time.Now().Add(time.Minute),
-		Stage: workflowconfig.ResolvedStage{
+		Stage: resolved.ResolvedStage{
 			Objective: "Execute bounded scan jobs", Instructions: contracts.ResolvedInstructions{Text: "Use only the fixed scanner configuration"},
-			Planner: workflowconfig.PlannerRef{PlannerID: "scan-plan", Version: "1"},
+			Planner: resolved.PlannerRef{PlannerID: "scan-plan", Version: "1"},
 			ScanPlan: &contractscan.ScanPlanPolicy{InputArtifact: "requests", MaxInputs: 100, MaxJobs: 100, MaxTotalSeconds: 3600,
 				Tools: []contractscan.ScanToolPolicy{{Worker: "sqlmap", MaxJobs: 100, MaxTotalSeconds: 3600, TestParameters: []string{"id"}}}},
-			Agents:  map[string]workflowconfig.ResolvedAgentBinding{"sqlmap": {Template: template, Namespace: "sqlmap"}},
-			Context: workflowconfig.StageContext{Artifacts: map[string]workflowconfig.ContextArtifact{"requests": {Namespace: "inputs", Name: "requests", Required: true}}},
-			Result:  workflowconfig.StageResultContract{Artifacts: map[string]workflowconfig.ArtifactSlot{"report": {Required: true, MediaTypes: []string{"application/json"}, From: &workflowconfig.ArtifactBinding{Namespace: "scan-results", Name: "aggregate"}}}},
+			Agents:  map[string]resolved.ResolvedAgentBinding{"sqlmap": {Template: template, Namespace: "sqlmap"}},
+			Context: resolved.StageContext{Artifacts: map[string]resolved.ContextArtifact{"requests": {Namespace: "inputs", Name: "requests", Required: true}}},
+			Result:  resolved.StageResultContract{Artifacts: map[string]resolved.ArtifactSlot{"report": {Required: true, MediaTypes: []string{"application/json"}, From: &resolved.ArtifactBinding{Namespace: "scan-results", Name: "aggregate"}}}},
 		},
 		Context: planner.StageContext{Artifacts: map[string]*contracts.ArtifactRef{"requests": &source}},
 		Workers: map[string]contracts.WorkerHandle{"sqlmap": {AllocationID: "allocation-scan", AgentTemplateRef: template.Ref, WorkerRuntimeRef: template.Runtime, AgentCard: map[string]any{"name": "sqlmap"}, LeaseExpiresAt: time.Now().Add(time.Minute)}},

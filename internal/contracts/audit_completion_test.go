@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 	"github.com/grauwolf32/contractor/internal/contracts/control"
@@ -55,5 +55,5 @@ func allocationCompletionReject(data []byte) error {
 	if err != nil {
 		return err
 	}
-	return config.ValidateWorkerCompletionSelection(spec.CompletionContract, spec.Namespace, spec.AgentTemplate)
+	return resolved.ValidateWorkerCompletionSelection(spec.CompletionContract, spec.Namespace, spec.AgentTemplate)
 }

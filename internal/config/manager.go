@@ -16,6 +16,8 @@ import (
 	"unicode/utf8"
 
 	"github.com/grauwolf32/contractor/internal/clone"
+	"github.com/grauwolf32/contractor/internal/config/auditprofile"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/randomid"
@@ -82,7 +84,6 @@ type PublicationResult struct {
 type ManagerOptions struct {
 	OperatorRoot string
 	ManagedRoot  string
-	Descriptors  Descriptors
 	// OperatorRootChecks apply at startup and on every reload before a
 	// publication. internal/configload supplies the production set.
 	OperatorRootChecks []OperatorRootCheck
@@ -116,7 +117,6 @@ type Manager struct {
 
 	operatorRoot string
 	managedRoot  string
-	descriptors  Descriptors
 	rootChecks   []OperatorRootCheck
 	logger       *slog.Logger
 	now          func() time.Time
@@ -146,7 +146,7 @@ func NewManager(options ManagerOptions) (*Manager, error) {
 		return nil, fmt.Errorf("operator and managed configuration roots must not overlap")
 	}
 	rootChecks := slices.Clone(options.OperatorRootChecks)
-	snapshot, err := LoadUnion(operatorRoot, managedRoot, options.Descriptors, rootChecks...)
+	snapshot, err := LoadUnion(operatorRoot, managedRoot, rootChecks...)
 	if err != nil {
 		return nil, err
 	}
@@ -161,7 +161,6 @@ func NewManager(options ManagerOptions) (*Manager, error) {
 	manager := &Manager{
 		operatorRoot: operatorRoot,
 		managedRoot:  managedRoot,
-		descriptors:  options.Descriptors,
 		rootChecks:   rootChecks,
 		logger:       logger,
 		now:          now,
@@ -177,7 +176,7 @@ func NewManager(options ManagerOptions) (*Manager, error) {
 // a missing managed root or its subtrees. Missing managed directories are
 // equivalent to the empty directories NewManager would create at startup.
 func LoadUnionReadOnly(
-	operatorPath, managedPath string, descriptors Descriptors, checks ...OperatorRootCheck,
+	operatorPath, managedPath string, checks ...OperatorRootCheck,
 ) (*Snapshot, error) {
 	operatorRoot, err := requireStrictRoot(operatorPath, false)
 	if err != nil {
@@ -213,7 +212,7 @@ func LoadUnionReadOnly(
 	if managedExists {
 		roots = append(roots, configurationRoot{path: managedRoot, source: ConfigurationSourceManaged})
 	}
-	return loadConfigurationRoots(roots, descriptors, loadOptions{
+	return loadConfigurationRoots(roots, loadOptions{
 		allowMissingManagedSubtrees: true, operatorRootChecks: checks,
 	})
 }
@@ -269,21 +268,21 @@ func resolveMissingRoot(path string) (string, error) {
 
 func (m *Manager) Snapshot() *Snapshot { return m.current.Load() }
 
-func (m *Manager) Workflow(raw string) (ResolvedWorkflow, error) {
+func (m *Manager) Workflow(raw string) (resolved.ResolvedWorkflow, error) {
 	return m.Snapshot().Workflow(raw)
 }
 
-func (m *Manager) Workflows() []ResolvedWorkflow { return m.Snapshot().Workflows() }
+func (m *Manager) Workflows() []resolved.ResolvedWorkflow { return m.Snapshot().Workflows() }
 
 func (m *Manager) WorkflowDiscovery() (WorkflowDiscovery, error) {
 	return m.Snapshot().WorkflowDiscovery()
 }
 
-func (m *Manager) AuditProfile(raw string) (ResolvedAuditProfile, error) {
+func (m *Manager) AuditProfile(raw string) (auditprofile.ResolvedAuditProfile, error) {
 	return m.Snapshot().AuditProfile(raw)
 }
 
-func (m *Manager) AuditProfiles() []ResolvedAuditProfile {
+func (m *Manager) AuditProfiles() []auditprofile.ResolvedAuditProfile {
 	return m.Snapshot().AuditProfiles()
 }
 
@@ -298,9 +297,9 @@ func (m *Manager) ModelPolicy(raw string) (contracts.ResolvedModelPolicy, error)
 func (m *Manager) ResolveRunWorkflow(
 	ctx context.Context,
 	raw string,
-	patch ExecutionConfigPatch,
-	credentials CredentialLookup,
-) (ResolvedWorkflow, error) {
+	patch resolved.ExecutionConfigPatch,
+	credentials resolved.CredentialLookup,
+) (resolved.ResolvedWorkflow, error) {
 	return m.Snapshot().ResolveRunWorkflow(ctx, raw, patch, credentials)
 }
 
@@ -325,7 +324,7 @@ func (m *Manager) Publish(
 	m.publicationMu.Lock()
 	defer m.publicationMu.Unlock()
 
-	loaded, err := LoadUnion(m.operatorRoot, m.managedRoot, m.descriptors, m.rootChecks...)
+	loaded, err := LoadUnion(m.operatorRoot, m.managedRoot, m.rootChecks...)
 	if err != nil {
 		return PublicationResult{}, classifyReloadFailure(err)
 	}
@@ -437,7 +436,7 @@ func (c publicationCandidate) durableIn(snapshot *Snapshot) bool {
 }
 
 type publicationCandidate struct {
-	selector      Selector
+	selector      resolved.Selector
 	resource      ConfigurationResource
 	policy        *contracts.ResolvedModelPolicy
 	gateway       *llmgateway.ResolvedLLMGatewayConfig

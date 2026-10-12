@@ -9,6 +9,7 @@ import (
 	"testing"
 	"unicode/utf8"
 
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 	"go.yaml.in/yaml/v4"
@@ -36,7 +37,7 @@ func loadConfigIdentityCases(t *testing.T) (ids, versions configIdentityCaseGrou
 // identityAcceptance reports, in order, whether ParseSelector, file metadata
 // validation and publication accept one configuration identity.
 func identityAcceptance(id, version string) [3]bool {
-	_, selectorErr := ParseSelector(id + "@" + version)
+	_, selectorErr := resolved.ParseSelector(id + "@" + version)
 	_, metadataErr := validateMetadata(&metadataSource{Name: id, Version: version})
 	request := validPolicyPublication("identity-probe")
 	request.Name, request.Version = id, version

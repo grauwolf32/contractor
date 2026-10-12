@@ -1,0 +1,43 @@
+schema_version: "1.0"
+id: V371-025
+title: "Document a pnpm invocation that works from the repository root"
+milestone: hub-audit-defects-2026-10
+epic: quality
+kind: chore
+priority: P3
+status: pending
+depends_on: []
+languages: [markdown]
+goal: "Every documented UI command runs as written; the guides use the form make and CI use."
+context:
+  review: "Out-of-scope finding of the hub audit fix batch (group G12), recorded 2026-10-12; reproduced on a07f5e9"
+  finding: >-
+    AGENTS.md:398, ui/README.md:22, 24 and 43 and
+    docs/guides/local-stack.md:179 say to run `corepack pnpm --dir ui …` from
+    the repository root. The root has no package.json, so Corepack starts its
+    default pnpm (v12.11.2 here), which refuses ui/package.json's
+    packageManager pnpm@11.24.0: `corepack pnpm --dir ui --version` fails
+    with ERR_PNPM_BAD_PM_VERSION, while `cd ui && corepack pnpm --version`
+    prints 11.24.0. make (make/ui.mk, make/features.mk, make/platform.mk)
+    and CI (.github/workflows/ci.yml:100) already use `cd ui && corepack
+    pnpm`. The README form predates the shallow history (boundary 6349621);
+    AGENTS.md copied it in 83f6ded, which has no task.
+  siblings: >-
+    Six task files under tasks/done quote the --dir form in their commands;
+    they are historical records and stay. ui/server/browser-gate.mjs calls
+    pnpm with cwd set to ui and is correct.
+scope:
+  in:
+    - "Replace the --dir form with `cd ui && corepack pnpm …` in AGENTS.md, ui/README.md and docs/guides/local-stack.md, or make the root form work (for example a root packageManager pin) and record why."
+  out:
+    - "The pinned pnpm version."
+acceptance_criteria:
+  - id: A1
+    text: "Every documented pnpm command runs from the stated directory on a machine with only Corepack enabled."
+  - id: A2
+    text: "No current guide outside tasks/done uses the failing form."
+tests:
+  - command: "cd ui && corepack pnpm --version"
+    covers: [A1]
+  - command: make lint
+    covers: [A1, A2]

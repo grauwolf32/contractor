@@ -1,0 +1,83 @@
+schema_version: "1.0"
+id: V370-011
+title: "Slim the Scheduler and Control Plane surfaces"
+milestone: hub-audit-structure-2026-10
+epic: execution-core
+kind: chore
+priority: P3
+status: completed
+implementation_commit: 8e00f2bd3497c8a80bdf86fbf86263c9f9790a33
+depends_on: []
+languages: [go]
+goal: "controlplane no longer imports planner; Registry matches its consumer."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq; raw reports in docs/research/2026-10-11-hub-audit/), dispatch B, C2, C3, H; file:line as of 02bbdcbf, re-verify on current main"
+  finding: >-
+    Registry has 15 methods while its only consumer uses 3
+    (registry.go:30-46, http.go:39, 67); Store 18 and Options 20 fields
+    exist for fakes; telemetry retention runs through the Scheduler
+    (supervisor.go:278-305) and a runstore proxy (report_store.go);
+    controlplane imports planner only for aliases (runtime_client.go:36-39);
+    scan history N+1 (scan_history.go:71).
+  siblings: >-
+    Re-verified on fc25b5d (after wave 1): Registry still had 15 methods
+    and NewHTTPHandler was its only consumer; the Scheduler Store had grown
+    to 21 methods (GetRunState, GetActiveStageExecution and
+    RecordStageOutputPublicationFailure came with wave 1) and Options still
+    had 20 fields. Every other Registry consumer already takes a narrower
+    port (placement the concrete InMemoryRegistry, the Runtime batch
+    controller AllocationRegistry, principal Operations PrincipalRegistry,
+    private Artifacts AllocationRegistry). The runstore proxy carried four
+    telemetry calls, not one: CleanupExpiredTelemetry for retention and
+    RecordStageExecutionReport, RecordPlannerExecutionReport and
+    RebuildStageMetrics for the Scheduler's reports; all four left.
+    ListStageExecutionReports stays in report_store.go because only tests
+    call it; V370-008 owns that export, together with the test-only
+    InMemoryRegistry methods Register, Heartbeat, ReserveAll and GetAgent,
+    which the narrowed interface no longer lists.
+  decision: >-
+    Registry (controlplane/http.go) now declares RegisterAuthenticated,
+    RegistrationResponse and HeartbeatAuthenticated, the methods of its one
+    consumer. WorkerStateReadResult and WorkerStateReadError moved to
+    contracts/reporting beside the AgentStateSnapshot they carry; planner
+    keeps the WorkerStateReader port, and the composition root still
+    type-checks RuntimeControlClient against it, so controlplane drops both
+    aliases, its interface assertion and the planner import.
+    telemetry.Retention owns the expired-telemetry loop and the app runs it
+    in the background runner group beside the Scheduler. Its policy is the
+    one the Scheduler applied: a pass every 24 h, at most 500 rows per
+    table, a 1 s pause before draining a full batch (OBS-R43, OBS-R44), and
+    a pass bounded by scheduler.operationTimeout; that budget is now named
+    in docs/operations/timeout-configuration.md. Alternatives: the
+    database query budget would have shortened a pass from 30 s to 20 s by
+    default, a behaviour change; a new ServerConfig key is configuration
+    surface the task excludes. The interval and batch stay constants
+    because no deployment setting ever reached them. The Scheduler records
+    allocation and Planner reports and rebuilds StageMetrics through
+    Options.Reports, a ReportStore port that telemetry.Repository
+    implements; the proxy's mapping of telemetry errors to runstore classes
+    had no reader, since report write failures were and are only logged.
+    Store went from 21 to 17 methods, and Options lost its two retention
+    fields and gained Reports (19 fields). The Audit scan history reads
+    every attempt's Planner session with one GetPlannerSessions query.
+    Verification: the moved retention tests cover the drain rule, the
+    error wait and cancellation without a wall clock;
+    TestScanHistoryReadsEveryAttemptSessionInOneBatch reads 64 attempts
+    with one batch and fails closed on a lost session; the scheduler fakes
+    implement ReportStore, and the claim-loss PostgreSQL test pauses the
+    real telemetry write. Reversal condition: retention that needs its own
+    budget or interval gets a ServerConfig key, not the Scheduler's.
+    introduced_by is not recorded: the surfaces grew over many tasks.
+scope:
+  in:
+    - "Narrow interfaces, telemetry retention in its own loop, aliases moved to contracts/reporting, batched scan history read."
+  out:
+    - "Behaviour."
+acceptance_criteria:
+  - id: A1
+    text: "controlplane no longer imports planner; Registry matches its consumer."
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "go test ./internal/scheduler ./internal/controlplane ./internal/telemetry"
+    covers: [A1]

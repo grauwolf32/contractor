@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 )
 
 // TestPostgresStoreBoundsTheWorkflowSnapshotItStores is the regression for a
@@ -24,7 +24,7 @@ func TestPostgresStoreBoundsTheWorkflowSnapshotItStores(t *testing.T) {
 	store := NewPostgresStore(isolatedRunStorePool(t, ctx))
 
 	over := testRunParams("run-snapshot-over")
-	over.WorkflowSnapshot = workflowSnapshotOfSize(t, config.MaxWorkflowSnapshotBytes+1)
+	over.WorkflowSnapshot = workflowSnapshotOfSize(t, resolved.MaxWorkflowSnapshotBytes+1)
 	project := "project-snapshot"
 	overInProject := over
 	overInProject.ProjectID = &project
@@ -57,7 +57,7 @@ func TestPostgresStoreBoundsTheWorkflowSnapshotItStores(t *testing.T) {
 	}
 
 	atBound := testRunParams("run-snapshot-at-bound")
-	atBound.WorkflowSnapshot = workflowSnapshotOfSize(t, config.MaxWorkflowSnapshotBytes)
+	atBound.WorkflowSnapshot = workflowSnapshotOfSize(t, resolved.MaxWorkflowSnapshotBytes)
 	if _, err := store.CreateRun(ctx, atBound); err != nil {
 		t.Fatalf("CreateRun with a snapshot at the bound: %v", err)
 	}
@@ -72,7 +72,7 @@ func TestPostgresStoreBoundsTheWorkflowSnapshotItStores(t *testing.T) {
 	if err := json.Unmarshal(stored.WorkflowSnapshot, &got); err != nil || !reflect.DeepEqual(got, want) {
 		t.Fatalf("stored snapshot content changed (decode error %v)", err)
 	}
-	if len(stored.WorkflowSnapshot) <= config.MaxWorkflowSnapshotBytes {
+	if len(stored.WorkflowSnapshot) <= resolved.MaxWorkflowSnapshotBytes {
 		t.Fatalf("stored jsonb text = %d bytes; the fixture must show PostgreSQL returning longer text than was stored", len(stored.WorkflowSnapshot))
 	}
 }

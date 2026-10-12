@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -86,7 +87,7 @@ func testLegacyCommittedReportRejection(t *testing.T, ctx context.Context, pool 
 		t.Fatalf("foreign report read = %v", err)
 	}
 	payload := []byte(before.Summary)
-	written, err := artifacts.NewService(artifacts.NewPostgresRepository(pool)).WriteAuditArtifact(ctx, project,
+	written, err := artifactstest.WriteAuditArtifact(ctx, artifacts.NewService(artifacts.NewPostgresRepository(pool)), project,
 		contracts.ArtifactRef{Namespace: "audit-report-review", Name: "historical-report.txt"},
 		artifacts.Payload{MediaType: "text/plain", Data: payload})
 	if err != nil {

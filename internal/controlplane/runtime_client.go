@@ -16,13 +16,12 @@ import (
 	"strings"
 	"time"
 
-	workflowconfig "github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/control"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/mtls"
-	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/requestid"
 	"github.com/grauwolf32/contractor/internal/strictjson"
 )
@@ -33,11 +32,6 @@ var (
 	runtimePathIDPattern  = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
 	agentStateETagPattern = regexp.MustCompile(`^"contractor-agent-state-v1-[1-9][0-9]*"$`)
 )
-
-type WorkerStateReadResult = planner.WorkerStateReadResult
-type WorkerStateReadError = planner.WorkerStateReadError
-
-var _ planner.WorkerStateReader = (*RuntimeControlClient)(nil)
 
 type RuntimeAPIError struct {
 	StatusCode int
@@ -92,7 +86,7 @@ func (c *RuntimeControlClient) Prepare(
 	if !contracts.SupportsWorkerCompletion(reservation.CompletionCapabilities, reservation.CompletionContract) {
 		return contracts.WorkerHandle{}, fmt.Errorf("%w: Runtime does not support completion contract", ErrInvalidRequest)
 	}
-	if err := workflowconfig.ValidateWorkerCompletionSelection(reservation.CompletionContract, reservation.Grant.Namespace, reservation.AgentTemplate); err != nil {
+	if err := resolved.ValidateWorkerCompletionSelection(reservation.CompletionContract, reservation.Grant.Namespace, reservation.AgentTemplate); err != nil {
 		return contracts.WorkerHandle{}, err
 	}
 	resolvedSkills := reservation.ResolvedSkills
@@ -232,13 +226,13 @@ func (c *RuntimeControlClient) ReadWorkerState(
 	ctx context.Context,
 	handle contracts.WorkerHandle,
 	ifNoneMatch string,
-) (WorkerStateReadResult, error) {
+) (reporting.WorkerStateReadResult, error) {
 	if ifNoneMatch != "" && !agentStateETagPattern.MatchString(ifNoneMatch) {
-		return WorkerStateReadResult{}, workerStateReadError(0, "worker_state_etag_invalid", false)
+		return reporting.WorkerStateReadResult{}, workerStateReadError(0, "worker_state_etag_invalid", false)
 	}
 	target, err := c.workerStateEndpoint(handle)
 	if err != nil {
-		return WorkerStateReadResult{}, workerStateReadError(0, "worker_state_endpoint_invalid", false)
+		return reporting.WorkerStateReadResult{}, workerStateReadError(0, "worker_state_endpoint_invalid", false)
 	}
 	headers := map[string]string{}
 	if ifNoneMatch != "" {
@@ -252,65 +246,65 @@ func (c *RuntimeControlClient) ReadWorkerState(
 		if ctx.Err() != nil {
 			code = "worker_state_cancelled"
 		}
-		return WorkerStateReadResult{}, workerStateReadError(0, code, true)
+		return reporting.WorkerStateReadResult{}, workerStateReadError(0, code, true)
 	}
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusOK && response.StatusCode != http.StatusNotModified {
 		apiErr := decodeRuntimeError(response)
 		if typed, ok := apiErr.(*RuntimeAPIError); ok {
-			return WorkerStateReadResult{}, workerStateReadError(
+			return reporting.WorkerStateReadResult{}, workerStateReadError(
 				typed.StatusCode, typed.Code, typed.Retryable,
 			)
 		}
-		return WorkerStateReadResult{}, workerStateReadError(
+		return reporting.WorkerStateReadResult{}, workerStateReadError(
 			response.StatusCode, "worker_state_response_invalid", false,
 		)
 	}
 	if !oneHeaderValue(response, "Cache-Control", "private, no-cache") {
-		return WorkerStateReadResult{}, workerStateReadError(
+		return reporting.WorkerStateReadResult{}, workerStateReadError(
 			response.StatusCode, "worker_state_response_invalid", false,
 		)
 	}
 	etagValues := response.Header.Values("ETag")
 	if len(etagValues) != 1 || !agentStateETagPattern.MatchString(etagValues[0]) {
-		return WorkerStateReadResult{}, workerStateReadError(
+		return reporting.WorkerStateReadResult{}, workerStateReadError(
 			response.StatusCode, "worker_state_response_invalid", false,
 		)
 	}
 	etag := etagValues[0]
 	if response.StatusCode == http.StatusNotModified {
 		if ifNoneMatch == "" || etag != ifNoneMatch {
-			return WorkerStateReadResult{}, workerStateReadError(
+			return reporting.WorkerStateReadResult{}, workerStateReadError(
 				response.StatusCode, "worker_state_response_invalid", false,
 			)
 		}
 		data, readErr := io.ReadAll(io.LimitReader(response.Body, 1))
 		if readErr != nil || len(data) != 0 {
-			return WorkerStateReadResult{}, workerStateReadError(
+			return reporting.WorkerStateReadResult{}, workerStateReadError(
 				response.StatusCode, "worker_state_response_invalid", false,
 			)
 		}
-		return WorkerStateReadResult{ETag: etag, NotModified: true}, nil
+		return reporting.WorkerStateReadResult{ETag: etag, NotModified: true}, nil
 	}
 	if ifNoneMatch != "" && etag == ifNoneMatch {
-		return WorkerStateReadResult{}, workerStateReadError(
+		return reporting.WorkerStateReadResult{}, workerStateReadError(
 			response.StatusCode, "worker_state_response_invalid", false,
 		)
 	}
 	if err := requireJSONContentType(response); err != nil {
-		return WorkerStateReadResult{}, workerStateReadError(
+		return reporting.WorkerStateReadResult{}, workerStateReadError(
 			response.StatusCode, "worker_state_response_invalid", false,
 		)
 	}
 	data, err := readBoundedBody(response.Body, reporting.MaxAgentStateSnapshotBytes)
 	if err != nil {
-		return WorkerStateReadResult{}, workerStateReadError(
+		return reporting.WorkerStateReadResult{}, workerStateReadError(
 			response.StatusCode, "worker_state_response_invalid", false,
 		)
 	}
 	snapshot, err := contracts.DecodePrivateStrict[reporting.AgentStateSnapshot](data)
 	if err != nil {
-		return WorkerStateReadResult{}, workerStateReadError(
+		return reporting.WorkerStateReadResult{}, workerStateReadError(
 			response.StatusCode, "worker_state_response_invalid", false,
 		)
 	}
@@ -318,11 +312,11 @@ func (c *RuntimeControlClient) ReadWorkerState(
 		"\"contractor-agent-state-v1-%d\"", snapshot.State.StateRevision,
 	)
 	if etag != expectedETag {
-		return WorkerStateReadResult{}, workerStateReadError(
+		return reporting.WorkerStateReadResult{}, workerStateReadError(
 			response.StatusCode, "worker_state_response_invalid", false,
 		)
 	}
-	return WorkerStateReadResult{Snapshot: &snapshot, ETag: etag}, nil
+	return reporting.WorkerStateReadResult{Snapshot: &snapshot, ETag: etag}, nil
 }
 
 func (c *RuntimeControlClient) postJSON(
@@ -801,7 +795,7 @@ func oneHeaderValue(response *http.Response, name, expected string) bool {
 }
 
 func workerStateReadError(statusCode int, code string, retryable bool) error {
-	return &WorkerStateReadError{StatusCode: statusCode, Code: code, Retryable: retryable}
+	return &reporting.WorkerStateReadError{StatusCode: statusCode, Code: code, Retryable: retryable}
 }
 
 // Python datetime and PostgreSQL both retain microseconds. Normalize private

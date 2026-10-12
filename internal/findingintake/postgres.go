@@ -345,14 +345,18 @@ SELECT receipt.receipt_id, hold.proposal_ref
 }
 
 func (s *Service) hydrateReceiptDocuments(ctx context.Context, receipts []Receipt) ([]Receipt, error) {
-	repository := artifacts.NewPostgresRepository(s.pool)
+	artifactService := artifacts.NewService(artifacts.NewPostgresRepository(s.pool))
 	for index := range receipts {
 		receipt := &receipts[index]
 		request, expected, err := receiptArtifact(*receipt)
 		if err != nil {
 			return nil, err
 		}
-		read, err := repository.Read(ctx, request.Scope, request.Ref)
+		store, err := artifactService.Scoped(request.Scope)
+		if err != nil {
+			return nil, err
+		}
+		read, err := store.Read(ctx, request.Ref)
 		if err != nil {
 			return nil, err
 		}
@@ -557,21 +561,25 @@ SELECT project_id FROM workflow_runs
 	if err != nil {
 		return fmt.Errorf("lock source Run for Audit finding import: %w", err)
 	}
-	var lockedAuditID, auditState string
-	err = tx.QueryRow(ctx, `
-SELECT audit_id, state FROM audits
- WHERE audit_id = $1 AND owner_id = $2 AND project_id = $3
- FOR UPDATE`, request.AuditID, request.OwnerID, sourceProjectID).Scan(&lockedAuditID, &auditState)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return ErrNotFound
-	}
+	auditState, err := lockFindingAudit(ctx, tx, request.OwnerID, request.AuditID, sourceProjectID)
 	if err != nil {
-		return fmt.Errorf("lock destination Audit for finding import: %w", err)
+		return err
 	}
 	if collection && !slices.Contains(collectionRetentionAuditStates, auditState) {
 		return ErrAuditClosed
 	}
 	return nil
+}
+
+// lockFindingAudit takes the destination-Audit lock of finding intake through
+// auditstore, which owns the Audit row, and returns the Audit's state. An
+// empty projectID admits an Audit of any Project.
+func lockFindingAudit(ctx context.Context, tx pgx.Tx, ownerID, auditID, projectID string) (string, error) {
+	state, err := auditstore.NewPostgresTxStore(tx).LockFindingIntakeAudit(ctx, ownerID, auditID, projectID)
+	if errors.Is(err, auditstore.ErrNotFound) {
+		return "", ErrNotFound
+	}
+	return string(state), err
 }
 
 // importIntoAuditWithTx creates or replays one Audit hold in tx, which already
@@ -710,16 +718,9 @@ func (s *Service) RejectAuditCollection(
 		return ErrInvalid
 	}
 	return persistencepostgres.InTx(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		var auditState string
-		err := tx.QueryRow(ctx, `
-SELECT state FROM audits
- WHERE audit_id = $1 AND owner_id = $2
- FOR UPDATE`, request.AuditID, request.OwnerID).Scan(&auditState)
-		if errors.Is(err, pgx.ErrNoRows) {
-			return ErrNotFound
-		}
+		auditState, err := lockFindingAudit(ctx, tx, request.OwnerID, request.AuditID, "")
 		if err != nil {
-			return fmt.Errorf("lock Audit for finding proposal rejection: %w", err)
+			return err
 		}
 		if !slices.Contains(collectionRetentionAuditStates, auditState) {
 			return ErrAuditClosed
@@ -779,16 +780,31 @@ func exactArtifactFromRun(
 	}, nil
 }
 
+// retainFindingArtifact retains the exact revision source of runID as the
+// create-only, frozen Audit-managed binding namespace/name of projectID, with
+// audit_import lineage and without copying bytes. Authorization and the receipt
+// that names the retained copy belong to the finding service.
 func retainFindingArtifact(
 	ctx context.Context,
 	service *artifacts.Service,
 	runID, projectID, namespace, name string,
 	source ExactArtifact,
 ) (ExactArtifact, error) {
-	result, err := service.ImportFindingArtifact(
-		ctx, runID, source.Ref, projectID,
-		contracts.ArtifactRef{Namespace: namespace, Name: name},
-	)
+	run, err := artifacts.RunScope(runID)
+	if err != nil {
+		return ExactArtifact{}, err
+	}
+	project, err := artifacts.ProjectScope(projectID)
+	if err != nil {
+		return ExactArtifact{}, err
+	}
+	if source.Ref.Revision == nil {
+		return ExactArtifact{}, artifacts.ErrExactRevisionRequired
+	}
+	result, err := service.Fork(ctx, artifacts.Fork{
+		Kind: artifacts.LineageAuditImport, Source: run, SourceRef: source.Ref,
+		Target: project, TargetRef: contracts.ArtifactRef{Namespace: namespace, Name: name}, Frozen: true,
+	})
 	if err != nil {
 		return ExactArtifact{}, err
 	}

@@ -34,7 +34,7 @@ var directFindingAssessmentEvents = auditEvents(auditEvent(
 // $1 only while the total stays within max_evidence_bytes, advances it and
 // records a finding.assessed event for finding $3 at revision $4 with
 // assessment $5. Over quota it returns no row and changes nothing.
-// Used by PostgresStore.RecordDirectFindingAssessment.
+// Used by PostgresStore.recordDirectFindingAssessment.
 var recordDirectFindingAssessmentSQL = `
 WITH advanced AS (
     UPDATE audits AS audit

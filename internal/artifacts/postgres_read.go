@@ -10,12 +10,6 @@ import (
 )
 
 func (r *PostgresRepository) Read(ctx context.Context, scope Scope, ref ArtifactRef) (ReadResult, error) {
-	if err := validateScope(scope); err != nil {
-		return ReadResult{}, err
-	}
-	if err := validateRef(ref); err != nil {
-		return ReadResult{}, err
-	}
 	ctx, releaseTransfer, err := AcquireTransfer(ctx)
 	if err != nil {
 		return ReadResult{}, err

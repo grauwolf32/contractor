@@ -6,6 +6,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/unicode/norm"
 )
@@ -30,7 +31,7 @@ func parseCatalogQuery(search, name string, namePresent bool) (catalogQuery, err
 	normalizedSearch := norm.NFC.String(strings.TrimSpace(search))
 	normalizedSearch = foldCatalogText(normalizedSearch)
 	if namePresent {
-		if _, err := config.ParseSelector(name + "@1"); err != nil {
+		if _, err := resolved.ParseSelector(name + "@1"); err != nil {
 			return catalogQuery{}, fmt.Errorf("%w: name must be an exact configuration name", errInvalidRequest)
 		}
 	}

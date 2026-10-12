@@ -104,6 +104,89 @@ func TestPostgresSchedulerSettingsSeedCASRestartAndFailClosed(t *testing.T) {
 	if _, err := store.GetSchedulerSettings(ctx); !errors.Is(err, ErrInvariant) {
 		t.Fatalf("missing singleton read error = %v", err)
 	}
+	if err := pgx.BeginFunc(ctx, pool, func(tx pgx.Tx) error {
+		_, err := NewPostgresTxStore(tx).LockSchedulerSettings(ctx)
+		return err
+	}); !errors.Is(err, ErrInvariant) {
+		t.Fatalf("missing singleton lock error = %v", err)
+	}
+}
+
+// TestPostgresSchedulerSettingsLockOrdersAChange checks the order an Audit
+// dispatch reservation relies on (AUX-R6): a change waits for the transaction
+// that locked the settings row, and a transaction that locks the row after a
+// change committed reads the changed value.
+func TestPostgresSchedulerSettingsLockOrdersAChange(t *testing.T) {
+	databaseURL := os.Getenv("CONTRACTOR_TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("CONTRACTOR_TEST_DATABASE_URL is not set")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool, _ := isolatedSettingsPool(t, ctx, databaseURL)
+
+	locker, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = locker.Rollback(context.Background()) }()
+	locked, err := NewPostgresTxStore(locker).LockSchedulerSettings(ctx)
+	if err != nil || locked.MaxConcurrentRuns != 1 || locked.Revision != 1 {
+		t.Fatalf("locked Scheduler settings = (%+v, %v)", locked, err)
+	}
+
+	updater, err := pool.Acquire(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer updater.Release()
+	var updaterPID int
+	if err := updater.QueryRow(ctx, `SELECT pg_backend_pid()`).Scan(&updaterPID); err != nil {
+		t.Fatal(err)
+	}
+	type updateResult struct {
+		settings SchedulerSettings
+		err      error
+	}
+	updated := make(chan updateResult, 1)
+	go func() {
+		settings, err := NewPostgresStore(updater).UpdateSchedulerSettings(ctx, UpdateSchedulerSettingsParams{
+			MaxConcurrentRuns: 4, ExpectedRevision: locked.Revision,
+		})
+		updated <- updateResult{settings: settings, err: err}
+	}()
+	for waiting := false; !waiting; {
+		select {
+		case result := <-updated:
+			t.Fatalf("settings change committed while the row was locked: (%+v, %v)", result.settings, result.err)
+		case <-ctx.Done():
+			t.Fatal("settings change never waited for the locked row")
+		case <-time.After(10 * time.Millisecond):
+		}
+		var waitEventType *string
+		if err := pool.QueryRow(ctx, `
+SELECT wait_event_type FROM pg_stat_activity WHERE pid = $1`, updaterPID).Scan(&waitEventType); err != nil {
+			t.Fatal(err)
+		}
+		waiting = waitEventType != nil && *waitEventType == "Lock"
+	}
+	if err := locker.Commit(ctx); err != nil {
+		t.Fatal(err)
+	}
+	result := <-updated
+	if result.err != nil || result.settings.MaxConcurrentRuns != 4 || result.settings.Revision != 2 {
+		t.Fatalf("settings change after the lock = (%+v, %v)", result.settings, result.err)
+	}
+
+	if err := pgx.BeginFunc(ctx, pool, func(tx pgx.Tx) error {
+		relocked, err := NewPostgresTxStore(tx).LockSchedulerSettings(ctx)
+		if err == nil && relocked != result.settings {
+			t.Errorf("lock after the change = %+v, want %+v", relocked, result.settings)
+		}
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func isolatedSettingsPool(

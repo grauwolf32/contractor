@@ -21,6 +21,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -103,7 +104,7 @@ func TestPostgresPagedListThroughPythonClientAndTool(t *testing.T) {
 	}
 	for _, runID := range []string{"run-a", "run-b"} {
 		// Only the trusted Workflow input fork creates inputs/<slot>.
-		if _, err := service.ForkInput(ctx, "user-1", source.Ref, runID, "source"); err != nil {
+		if _, err := artifactstest.ForkInput(ctx, service, "user-1", source.Ref, runID, "source"); err != nil {
 			t.Fatal(err)
 		}
 	}

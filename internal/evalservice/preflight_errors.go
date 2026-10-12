@@ -6,7 +6,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/agentskills"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditstandards"
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 	"github.com/grauwolf32/contractor/internal/projectstore"
@@ -51,7 +51,7 @@ func preflightDependencyError(cause error) error {
 // lookup outage keeps its cause, so only a confirmed configuration failure
 // returns the experiment to draft and recovery or storage failures retry.
 func workflowSelectionError(cause error) error {
-	if errors.Is(cause, config.ErrCredentialLookup) {
+	if errors.Is(cause, resolved.ErrCredentialLookup) {
 		return preflightDependencyError(cause)
 	}
 	return errors.Join(evaldomain.Failure("eval_not_ready"), cause)

@@ -4,12 +4,13 @@ import (
 	"fmt"
 
 	"github.com/grauwolf32/contractor/internal/auditdomain"
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/auditprofile"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 )
 
 // Validate actual task requirements after inventory construction and before any
 // task is retained or dispatched. Builders do not inspect executor topology.
-func validateInventoryTaskExecution(profile config.ResolvedAuditProfile, inventory auditdomain.Inventory) error {
+func validateInventoryTaskExecution(profile auditprofile.ResolvedAuditProfile, inventory auditdomain.Inventory) error {
 	for _, generated := range inventory.Tasks {
 		task := generated.Document
 		binding, exists := profile.Workflows[task.WorkflowRole]
@@ -28,7 +29,7 @@ func validateInventoryTaskExecution(profile config.ResolvedAuditProfile, invento
 			return fmt.Errorf("%w: task contract differs from Workflow executor", ErrInvalid)
 		}
 		switch contract {
-		case config.AuditTaskOpenAPIScanV1:
+		case resolved.AuditTaskOpenAPIScanV1:
 			stage, exists := binding.Workflow.Stages[execution.Stage]
 			if !exists || stage.AuditScan == nil || task.Scan == nil || stage.AuditScan.Scanner != task.Scan.Scanner {
 				return fmt.Errorf("%w: assigned scanner differs from task executor", ErrInvalid)

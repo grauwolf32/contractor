@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	workflowconfig "github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/gatewayrecovery"
@@ -38,7 +38,7 @@ type streamlinePlanner struct {
 	request        contracts.StageContentRequest
 	workers        []workerBinding
 	plan           *planner.PlannerPlanController
-	resultContract map[string]workflowconfig.ArtifactSlot
+	resultContract map[string]resolved.ArtifactSlot
 	sessions       planner.PlanSessionService
 	adkSessions    ADKSessionFactory
 	invoker        planner.WorkerInvoker
@@ -335,11 +335,11 @@ type promptWorker struct {
 }
 
 type promptContext struct {
-	Objective       string                                 `json:"objective"`
-	Parameters      map[string]string                      `json:"parameters"`
-	Artifacts       map[string]*contracts.ArtifactRef      `json:"artifacts"`
-	Workers         []promptWorker                         `json:"workers"`
-	ResultArtifacts map[string]workflowconfig.ArtifactSlot `json:"resultArtifacts"`
+	Objective       string                            `json:"objective"`
+	Parameters      map[string]string                 `json:"parameters"`
+	Artifacts       map[string]*contracts.ArtifactRef `json:"artifacts"`
+	Workers         []promptWorker                    `json:"workers"`
+	ResultArtifacts map[string]resolved.ArtifactSlot  `json:"resultArtifacts"`
 }
 
 func (p *streamlinePlanner) initialMessage() (*genai.Content, error) {

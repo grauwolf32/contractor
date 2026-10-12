@@ -20,7 +20,6 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
-	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/control"
@@ -687,7 +686,7 @@ func newProductionGrantHandler(
 			}
 		}
 	}
-	snapshot, err := configload.Load("../../config/testdata/valid", workflowconfig.MVPDescriptors())
+	snapshot, err := configload.Load("../../config/testdata/valid")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -923,7 +922,10 @@ type storedArtifact struct {
 
 var artifactTestEpoch = time.Date(2026, 9, 1, 10, 11, 12, 123456000, time.UTC)
 
+// memoryRepository stores the RunScope bindings the private handler reads and
+// writes. Any other Repository method panics on the nil embedded interface.
 type memoryRepository struct {
+	artifacts.Repository
 	mu             sync.Mutex
 	next           int
 	listCalls      int
@@ -1053,19 +1055,6 @@ func (m *memoryRepository) Metadata(
 	}, nil
 }
 
-// The query side of the store is used only through Metadata.
-func (*memoryRepository) ListMetadata(context.Context, artifacts.Scope, artifacts.BindingPageQuery) ([]artifacts.Metadata, error) {
-	return nil, errors.New("not implemented")
-}
-
-func (*memoryRepository) ListVersions(context.Context, artifacts.Scope, artifacts.ArtifactRef, artifacts.VersionPageQuery) ([]artifacts.Metadata, error) {
-	return nil, errors.New("not implemented")
-}
-
-func (*memoryRepository) ListLineage(context.Context, artifacts.Scope, artifacts.ArtifactRef, artifacts.LineagePageQuery) ([]artifacts.LineageEdge, error) {
-	return nil, errors.New("not implemented")
-}
-
 func assertArtifactTimestampHeaders(t *testing.T, header http.Header, binding, revision time.Time) {
 	t.Helper()
 	if got := header.Get(bindingCreatedAtHeader); got != binding.Format(time.RFC3339Nano) {
@@ -1110,22 +1099,6 @@ func (m *memoryRepository) ListRefs(
 		return artifacts.RefPage{Refs: result[:query.Limit], More: true}, nil
 	}
 	return artifacts.RefPage{Refs: result}, nil
-}
-
-func (*memoryRepository) ForkInput(context.Context, artifacts.Scope, artifacts.ArtifactRef, artifacts.Scope, string) (artifacts.ForkResult, error) {
-	return artifacts.ForkResult{}, errors.New("not implemented")
-}
-
-func (*memoryRepository) BindOutputExact(context.Context, artifacts.Scope, string, artifacts.ArtifactRef, *string) (artifacts.ForkResult, error) {
-	return artifacts.ForkResult{}, errors.New("not implemented")
-}
-
-func (*memoryRepository) RequireExact(context.Context, artifacts.Scope, artifacts.ArtifactRef) error {
-	return errors.New("not implemented")
-}
-
-func (*memoryRepository) FreezeOutputs(context.Context, artifacts.Scope) error {
-	return errors.New("not implemented")
 }
 
 func artifactKey(kind, id, namespace, name string) string {

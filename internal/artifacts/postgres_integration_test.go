@@ -16,6 +16,7 @@ import (
 	"time"
 
 	. "github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
@@ -80,9 +81,7 @@ func TestPostgresIntegrationInputForkAndHistoricalReads(t *testing.T) {
 		userWrite.RevisionCreatedAt.Before(userWrite.BindingCreatedAt) {
 		t.Fatalf("UserScope write timestamps = (%s, %s)", userWrite.BindingCreatedAt, userWrite.RevisionCreatedAt)
 	}
-	fork, err := service.ForkInput(
-		ctx, "user-1", ArtifactRef{Namespace: "projects", Name: "source"}, "run-fork", "source",
-	)
+	fork, err := artifactstest.ForkInput(ctx, service, "user-1", ArtifactRef{Namespace: "projects", Name: "source"}, "run-fork", "source")
 	if err != nil {
 		t.Fatalf("fork input: %v", err)
 	}
@@ -254,15 +253,12 @@ func TestPostgresIntegrationProjectInputForkPinsExactAndCurrentRevisions(t *test
 		t.Fatalf("write second Project revision: %v", err)
 	}
 
-	exactFork, err := service.ForkProjectInput(
-		ctx, projectID, first.Ref, "run-project-exact", "source",
-	)
+	exactFork, err := artifactstest.ForkProjectInput(ctx, service, projectID, first.Ref, "run-project-exact", "source")
 	if err != nil {
 		t.Fatalf("fork exact Project revision: %v", err)
 	}
-	currentFork, err := service.ForkProjectInput(
-		ctx, projectID, ArtifactRef{Namespace: "sources", Name: "service"},
-		"run-project-current", "source",
+	currentFork, err := artifactstest.ForkProjectInput(
+		ctx, service, projectID, ArtifactRef{Namespace: "sources", Name: "service"}, "run-project-current", "source",
 	)
 	if err != nil {
 		t.Fatalf("fork current Project revision: %v", err)
@@ -280,9 +276,7 @@ func TestPostgresIntegrationProjectInputForkPinsExactAndCurrentRevisions(t *test
 			t.Fatalf("read %s pinned input = (%q, %v), want %q", runID, read.Payload.Data, readErr, want)
 		}
 	}
-	_, err = service.ForkProjectInput(
-		ctx, projectID, first.Ref, "run-project-scope-mismatch", "source",
-	)
+	_, err = artifactstest.ForkProjectInput(ctx, service, projectID, first.Ref, "run-project-scope-mismatch", "source")
 	if !errors.Is(err, ErrArtifactNotFound) {
 		t.Fatalf("cross-scope Project fork error = %v", err)
 	}
@@ -402,23 +396,19 @@ func TestPostgresIntegrationPublishesExactFrozenRunOutputToOwningProject(t *test
 	if err != nil {
 		t.Fatal(err)
 	}
-	bound, err := service.BindOutputExact(
-		ctx, "run-project-output", "openapi", workerResult.Ref, nil,
-	)
+	bound, err := artifactstest.BindOutput(ctx, service, "run-project-output", "openapi", workerResult.Ref)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := service.PublishRunOutput(
-		ctx, "run-project-output", projectID, "openapi", bound.TargetRef,
+	if _, err := publishOutput(
+		ctx, service, "run-project-output", projectID, "openapi", bound.TargetRef,
 	); !errors.Is(err, ErrArtifactNotFound) {
 		t.Fatalf("unfrozen Run output publication error = %v", err)
 	}
-	if err := service.FreezeRunOutputs(ctx, "run-project-output"); err != nil {
+	if err := artifactstest.FreezeOutputs(ctx, service, "run-project-output"); err != nil {
 		t.Fatal(err)
 	}
-	published, err := service.PublishRunOutput(
-		ctx, "run-project-output", projectID, "openapi", bound.TargetRef,
-	)
+	published, err := publishOutput(ctx, service, "run-project-output", projectID, "openapi", bound.TargetRef)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -433,8 +423,8 @@ func TestPostgresIntegrationPublishesExactFrozenRunOutputToOwningProject(t *test
 		lineage[0].Source.Revision == nil || *lineage[0].Source.Revision != *bound.TargetRef.Revision {
 		t.Fatalf("Project output lineage = (%+v, %v)", lineage, err)
 	}
-	if _, err := service.PublishRunOutput(
-		ctx, "run-project-output", projectID, "openapi", bound.TargetRef,
+	if _, err := publishOutput(
+		ctx, service, "run-project-output", projectID, "openapi", bound.TargetRef,
 	); !errors.Is(err, ErrArtifactConflict) {
 		t.Fatalf("create-only publication replay error = %v", err)
 	}
@@ -498,10 +488,10 @@ func TestPostgresIntegrationDeletesReleasedTerminalRunWithoutSharedArtifacts(t *
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := service.ForkInput(ctx, "user-1", userSource.Ref, runID, "user-source"); err != nil {
+	if _, err := artifactstest.ForkInput(ctx, service, "user-1", userSource.Ref, runID, "user-source"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := service.ForkProjectInput(ctx, projectID, projectSource.Ref, runID, "project-source"); err != nil {
+	if _, err := artifactstest.ForkProjectInput(ctx, service, projectID, projectSource.Ref, runID, "project-source"); err != nil {
 		t.Fatal(err)
 	}
 	ephemeral, err := run.Write(
@@ -518,14 +508,14 @@ func TestPostgresIntegrationDeletesReleasedTerminalRunWithoutSharedArtifacts(t *
 	if err != nil {
 		t.Fatal(err)
 	}
-	bound, err := service.BindOutputExact(ctx, runID, "result", workerOutput.Ref, nil)
+	bound, err := artifactstest.BindOutput(ctx, service, runID, "result", workerOutput.Ref)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := service.FreezeRunOutputs(ctx, runID); err != nil {
+	if err := artifactstest.FreezeOutputs(ctx, service, runID); err != nil {
 		t.Fatal(err)
 	}
-	published, err := service.PublishRunOutput(ctx, runID, projectID, "result", bound.TargetRef)
+	published, err := publishOutput(ctx, service, runID, projectID, "result", bound.TargetRef)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -860,7 +850,7 @@ func TestPostgresIntegrationFreezeEmptyRunOutputs(t *testing.T) {
 	ctx = testBlobContext(t, ctx, pool)
 	createArtifactRun(t, ctx, pool, "run-empty-freeze", true)
 	service := NewService(NewPostgresRepository(pool))
-	if err := service.FreezeRunOutputs(ctx, "run-empty-freeze"); err != nil {
+	if err := artifactstest.FreezeOutputs(ctx, service, "run-empty-freeze"); err != nil {
 		t.Fatalf("freeze empty Run outputs: %v", err)
 	}
 	var scopes int
@@ -899,7 +889,7 @@ func TestPostgresIntegrationSkillForkUsesExactSourceAndReservedTarget(t *testing
 	); err != nil {
 		t.Fatal(err)
 	}
-	fork, err := service.ForkSkill(ctx, "user-1", first.Ref, "run-skill-fork", "review")
+	fork, err := forkSkill(ctx, service, "user-1", first.Ref, "run-skill-fork", "review")
 	if err != nil {
 		t.Fatalf("fork exact Skill source: %v", err)
 	}
@@ -920,7 +910,7 @@ func TestPostgresIntegrationSkillForkUsesExactSourceAndReservedTarget(t *testing
 	); !errors.Is(err, ErrReservedNamespace) {
 		t.Fatalf("reserved Skill write error = %v", err)
 	}
-	replayed, err := service.ForkSkill(ctx, "user-1", first.Ref, "run-skill-fork", "review")
+	replayed, err := forkSkill(ctx, service, "user-1", first.Ref, "run-skill-fork", "review")
 	if err != nil || replayed.TargetRef.Revision == nil ||
 		*replayed.TargetRef.Revision != *fork.TargetRef.Revision {
 		t.Fatalf("idempotent Skill fork = (%+v, %v)", replayed, err)
@@ -1018,7 +1008,7 @@ func TestPostgresIntegrationOutputBindingSharesCallerTransaction(t *testing.T) {
 	rollback := errors.New("rollback output")
 	err = persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		txService := NewService(NewPostgresRepository(tx))
-		if _, err := txService.BindOutputExact(ctx, "run-output", "result", selected.Ref, nil); err != nil {
+		if _, err := artifactstest.BindOutput(ctx, txService, "run-output", "result", selected.Ref); err != nil {
 			return err
 		}
 		outside, _ := service.Run("run-output")
@@ -1036,10 +1026,10 @@ func TestPostgresIntegrationOutputBindingSharesCallerTransaction(t *testing.T) {
 
 	err = persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		txService := NewService(NewPostgresRepository(tx))
-		if _, err := txService.BindOutputExact(ctx, "run-output", "result", selected.Ref, nil); err != nil {
+		if _, err := artifactstest.BindOutput(ctx, txService, "run-output", "result", selected.Ref); err != nil {
 			return err
 		}
-		if err := txService.FreezeRunOutputs(ctx, "run-output"); err != nil {
+		if err := artifactstest.FreezeOutputs(ctx, txService, "run-output"); err != nil {
 			return err
 		}
 		_, err := runstore.NewPostgresStore(tx).TransitionRun(
@@ -1059,11 +1049,15 @@ func TestPostgresIntegrationOutputBindingSharesCallerTransaction(t *testing.T) {
 	if err != nil || !bytes.Equal(currentIntermediate.Payload.Data, []byte(`{"version":2}`)) {
 		t.Fatalf("current intermediate = (%+v, %v)", currentIntermediate, err)
 	}
-	_, err = service.BindOutputExact(
-		ctx, "run-output", "result", currentIntermediate.Ref, output.Ref.Revision,
-	)
-	if !errors.Is(err, ErrArtifactFrozen) {
-		t.Fatalf("update frozen output error = %v", err)
+	// An output binding is only created; the frozen one keeps its revision.
+	if _, err = artifactstest.BindOutput(
+		ctx, service, "run-output", "result", currentIntermediate.Ref,
+	); !errors.Is(err, ErrArtifactConflict) {
+		t.Fatalf("rebind frozen output error = %v", err)
+	}
+	if metadata, err := run.Metadata(ctx, ArtifactRef{Namespace: "outputs", Name: "result"}); err != nil ||
+		!metadata.Frozen || !metadata.Ref.SameExact(output.Ref) {
+		t.Fatalf("frozen output after rebind = (%+v, %v), want %+v", metadata, err, output.Ref)
 	}
 }
 
@@ -1173,4 +1167,54 @@ func mustProjectScope(t *testing.T, projectID string) Scope {
 		t.Fatal(err)
 	}
 	return scope
+}
+
+// The helpers below perform the forks that only the store tests make, as the
+// flows that own them do; artifactstest provides the shared ones.
+
+func forkSkill(ctx context.Context, service *Service, userID string, source ArtifactRef, runID, name string) (ForkResult, error) {
+	user, err := UserScope(userID)
+	if err != nil {
+		return ForkResult{}, err
+	}
+	run, err := RunScope(runID)
+	if err != nil {
+		return ForkResult{}, err
+	}
+	return service.Fork(ctx, Fork{
+		Kind: LineageInputFork, Source: user, SourceRef: source,
+		Target: run, TargetRef: ArtifactRef{Namespace: "skills", Name: name}, Replay: true,
+	})
+}
+
+func publishOutput(ctx context.Context, service *Service, runID, projectID, slot string, source ArtifactRef) (ForkResult, error) {
+	run, err := RunScope(runID)
+	if err != nil {
+		return ForkResult{}, err
+	}
+	project, err := ProjectScope(projectID)
+	if err != nil {
+		return ForkResult{}, err
+	}
+	return service.Fork(ctx, Fork{
+		Kind: LineageProjectOutputPublish, Source: run, SourceRef: source, SourceFrozen: true,
+		Target: project, TargetRef: ArtifactRef{Namespace: "outputs", Name: slot},
+	})
+}
+
+func importAuditArtifact(
+	ctx context.Context, service *Service, runID string, source ArtifactRef, projectID string, target ArtifactRef,
+) (ForkResult, error) {
+	run, err := RunScope(runID)
+	if err != nil {
+		return ForkResult{}, err
+	}
+	project, err := ProjectScope(projectID)
+	if err != nil {
+		return ForkResult{}, err
+	}
+	return service.Fork(ctx, Fork{
+		Kind: LineageAuditImport, Source: run, SourceRef: source,
+		Target: project, TargetRef: target, Frozen: true,
+	})
 }

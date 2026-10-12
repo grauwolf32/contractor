@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/grauwolf32/contractor/internal/agentprincipal"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditservice"
@@ -54,7 +55,7 @@ func (h *handler) handleError(w http.ResponseWriter, err error) {
 		h.writeError(w, http.StatusUnprocessableEntity, auditdomain.ErrorCode(err), "Audit input could not be processed", false)
 	case errors.Is(err, runtimeconfig.ErrAgentLabelNotApplicable):
 		h.writeError(w, http.StatusBadRequest, "runtime_agent_label_not_applicable", "Runtime label has no Worker-applicable setting", false)
-	case errors.Is(err, runtimeconfig.ErrPrincipalInUse):
+	case errors.Is(err, agentprincipal.ErrInUse):
 		h.writeError(w, http.StatusConflict, "runtime_agent_in_use", "Runtime Agent principal is live, labeled, or allocation-referenced", false)
 	case errors.As(err, &runtimeLabelInUse):
 		writeJSON(w, http.StatusConflict, errorResponse{

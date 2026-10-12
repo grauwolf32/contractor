@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	workflowconfig "github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/contracts/runlabels"
@@ -31,7 +31,7 @@ type BindingRequirement struct {
 	Workspace          *contracts.AllocationWorkspaceSpec
 	// RuntimeSelection is the immutable Workflow/Run/escalation selection.
 	// Candidate Agent labels are deliberately resolved later by placement.
-	RuntimeSelection *workflowconfig.ResolvedConsumerExecutionConfig
+	RuntimeSelection *resolved.ResolvedConsumerExecutionConfig
 }
 
 type ReservationRequest struct {

@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
@@ -19,7 +18,7 @@ import (
 )
 
 func TestSchedulerDispatchesFixedScanWorkersWithDurableClaimAndNoModelAccess(t *testing.T) {
-	snapshot, err := configload.Load("../../testdata/configs-scan", workflowconfig.MVPDescriptors())
+	snapshot, err := configload.Load("../../testdata/configs-scan")
 	if err != nil {
 		t.Fatal(err)
 	}

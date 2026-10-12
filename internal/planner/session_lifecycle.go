@@ -5,7 +5,7 @@ import (
 	"errors"
 	"time"
 
-	workflowconfig "github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/planner/stageresult"
 	"github.com/grauwolf32/contractor/internal/telemetry"
@@ -58,7 +58,7 @@ func StartSession(
 func RecoverCompletion(
 	ctx context.Context,
 	runID string,
-	contract map[string]workflowconfig.ArtifactSlot,
+	contract map[string]resolved.ArtifactSlot,
 	completion Completion,
 	inspector ArtifactInspector,
 ) (stageresult.StageContentResult, error) {

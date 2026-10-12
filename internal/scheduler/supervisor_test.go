@@ -18,6 +18,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/planner/stageresult"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/settingsstore"
+	"github.com/grauwolf32/contractor/internal/telemetry"
 )
 
 func TestSchedulerSupervisorBoundsDistinctRunLanes(t *testing.T) {
@@ -224,11 +225,11 @@ func newLaneTestScheduler(
 		laneNoopWorkers{}, laneNoopPlanners{}, Options{
 			PollInterval: poll, ClaimDuration: time.Hour, OperationTimeout: 250 * time.Millisecond,
 			PlannerTimeout: time.Second, FinalizationTimeout: time.Second, AbortTimeout: time.Second,
-			LeaseScanInterval: time.Second, MetricsCleanupInterval: time.Hour,
+			LeaseScanInterval: time.Second,
 			RuntimeTransport: RuntimeTransportSettings{
 				ArtifactAPIURL: "https://control.test/private/v1", RequestTimeoutSeconds: 1,
 			},
-			Settings: settings, Clock: &unsynchronizedLaneClock{now: time.Now().UTC()},
+			Reports: store, Settings: settings, Clock: &unsynchronizedLaneClock{now: time.Now().UTC()},
 			NewID: func(prefix string) (string, error) {
 				sequence++
 				return fmt.Sprintf("%s%d", prefix, sequence), nil
@@ -537,20 +538,16 @@ func (s *laneTestStore) RecordStageOutputPublicationFailure(context.Context, str
 	return errors.New("unexpected output publication failure")
 }
 
-func (s *laneTestStore) RecordStageExecutionReport(context.Context, runstore.RecordStageExecutionReportParams) error {
+func (s *laneTestStore) RecordAllocationReport(context.Context, telemetry.AllocationReportEnvelope) error {
 	return errors.New("unexpected Stage report")
 }
 
-func (s *laneTestStore) RecordPlannerExecutionReport(context.Context, runstore.RecordPlannerExecutionReportParams) error {
+func (s *laneTestStore) RecordPlannerReport(context.Context, telemetry.PlannerReportEnvelope) error {
 	return errors.New("unexpected Planner report")
 }
 
-func (s *laneTestStore) RebuildStageMetrics(context.Context, string, string) error {
-	return errors.New("unexpected metric rebuild")
-}
-
-func (s *laneTestStore) CleanupExpiredTelemetry(context.Context, time.Time, int) (int64, error) {
-	return 0, nil
+func (s *laneTestStore) RebuildStageMetrics(context.Context, string, string) (telemetry.StageMetricsRecord, error) {
+	return telemetry.StageMetricsRecord{}, errors.New("unexpected metric rebuild")
 }
 
 func (s *laneTestStore) unblock(runID string) {

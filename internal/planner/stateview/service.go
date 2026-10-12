@@ -378,7 +378,7 @@ func (s *Service) load(
 	read, readErr := s.reader.ReadWorkerState(ctx, binding.handle.Clone(), etag)
 	if readErr != nil {
 		retryable := true
-		var typed *planner.WorkerStateReadError
+		var typed *reporting.WorkerStateReadError
 		if errors.As(readErr, &typed) {
 			retryable = typed.Retryable
 		}

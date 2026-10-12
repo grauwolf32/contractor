@@ -2,16 +2,17 @@ package auditservice
 
 import (
 	"fmt"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditstandards"
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
 // ValidateInputPreview reuses the ordinary Audit inventory and compatibility
 // validators without creating an Audit, retaining artifacts, or running a target.
 // The caller must authenticate and verify exact input bytes before invoking it.
-func ValidateInputPreview(profile config.ResolvedAuditProfile, scope Scope, inputs map[string]artifacts.ReadResult, standards []auditstandards.ResolvedPackage) error {
+func ValidateInputPreview(profile auditprofile.ResolvedAuditProfile, scope Scope, inputs map[string]artifacts.ReadResult, standards []auditstandards.ResolvedPackage) error {
 	if !ProfileCompatibility(profile).ServerCompatible {
 		return unsupported(ProfileCompatibility(profile).Reasons)
 	}

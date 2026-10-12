@@ -197,12 +197,14 @@ func (c *Catalog) InitializeRun(
 	if err := validateInitializedLimits(initialized, templateSets); err != nil {
 		return nil, err
 	}
-	if _, err := artifacts.RunScope(runID); err != nil {
+	owner, ownerErr := artifacts.UserScope(ownerID)
+	run, runErr := artifacts.RunScope(runID)
+	if ownerErr != nil || runErr != nil {
 		return nil, runSkillError(CodeForkFailed, "", true)
 	}
 	for index := range initialized {
 		skill := &initialized[index]
-		fork, forkErr := c.service.ForkSkill(ctx, ownerID, *skill.Source, runID, skill.Name)
+		fork, forkErr := c.forkSkill(ctx, owner, *skill.Source, run, skill.Name)
 		if errors.Is(forkErr, artifacts.ErrArtifactConflict) {
 			return nil, runSkillError(CodeForkConflict, skill.Name, false)
 		}
@@ -217,6 +219,25 @@ func (c *Catalog) InitializeRun(
 		skill.Artifact = exactRefPointer(fork.TargetRef)
 	}
 	return initialized, nil
+}
+
+// forkSkill forks the exact owner version source of the Skill name into the
+// reserved skills Namespace of run (ART-R76). Generic Run writes can neither
+// create nor advance that Namespace. A retry returns the existing target when
+// its lineage points to the same exact source.
+func (c *Catalog) forkSkill(
+	ctx context.Context, owner artifacts.Scope, source contracts.ArtifactRef, run artifacts.Scope, name string,
+) (artifacts.ForkResult, error) {
+	if source.Namespace != SkillNamespace || source.Name != name {
+		return artifacts.ForkResult{}, artifacts.ErrInvalidName
+	}
+	if source.Revision == nil {
+		return artifacts.ForkResult{}, artifacts.ErrExactRevisionRequired
+	}
+	return c.service.Fork(ctx, artifacts.Fork{
+		Kind: artifacts.LineageInputFork, Source: owner, SourceRef: source,
+		Target: run, TargetRef: contracts.ArtifactRef{Namespace: SkillNamespace, Name: name}, Replay: true,
+	})
 }
 
 func validateLogicalRunRefs(refs []contracts.ArtifactRef) error {

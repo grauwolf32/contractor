@@ -15,15 +15,12 @@ import (
 func (p *PostgresPersistence) AdmitStage(ctx context.Context, runID, stageID string) (runstore.StageExecution, error) {
 	var stage runstore.StageExecution
 	err := persistencepostgres.InTx(ctx, p.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		if err := lockRunState(ctx, tx, runID, progressionRunStates...); err != nil {
-			return err
-		}
-		if err := lockStageForRun(ctx, tx, stageID, runID); err != nil {
-			return err
-		}
-		store := runstore.NewPostgresStore(tx)
-		state, err := store.GetRunState(ctx, runID)
+		store := runstore.NewPostgresTxStore(tx)
+		state, err := store.LockRunState(ctx, runID, progressionRunStates...)
 		if err != nil {
+			return err
+		}
+		if _, err := store.LockStageState(ctx, runID, stageID); err != nil {
 			return err
 		}
 		if state == runstore.RunPending {
@@ -34,10 +31,7 @@ func (p *PostgresPersistence) AdmitStage(ctx context.Context, runID, stageID str
 				return err
 			}
 		}
-		if _, err := tx.Exec(ctx, `UPDATE stage_executions SET admitted_at=COALESCE(admitted_at,clock_timestamp()) WHERE stage_execution_id=$1`, stageID); err != nil {
-			return err
-		}
-		stage, err = store.GetStageExecution(ctx, stageID)
+		stage, err = store.MarkStageAdmitted(ctx, stageID)
 		return err
 	})
 	return stage, err
@@ -56,24 +50,11 @@ func (p *PostgresPersistence) DiscardUnadmittedPlacement(
 		return fmt.Errorf("placement discard is required")
 	}
 	return persistencepostgres.InTx(ctx, p.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		if err := lockRunState(ctx, tx, runID, runstore.RunPending); err != nil {
+		store := runstore.NewPostgresTxStore(tx)
+		if _, err := store.LockRunState(ctx, runID, runstore.RunPending); err != nil {
 			return err
 		}
-		if err := lockStageForRun(ctx, tx, stageID, runID); err != nil {
-			return err
-		}
-		var unadmitted bool
-		if err := tx.QueryRow(ctx, `
-SELECT state='preparing' AND admitted_at IS NULL FROM stage_executions
-WHERE stage_execution_id=$1`, stageID).Scan(&unadmitted); err != nil {
-			return err
-		}
-		if !unadmitted {
-			return &runstore.StateConflictError{Resource: "StageExecution", ID: stageID, Expected: "unadmitted preparing"}
-		}
-		if _, err := tx.Exec(ctx, `
-DELETE FROM stage_allocations
-WHERE stage_execution_id=$1 AND release_attempted_at IS NULL AND release_completed_at IS NULL`, stageID); err != nil {
+		if err := store.DiscardUnadmittedAllocations(ctx, runID, stageID); err != nil {
 			return err
 		}
 		// Admission may have reserved a recovery probe for this placement.

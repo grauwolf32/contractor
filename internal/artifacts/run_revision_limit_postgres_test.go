@@ -9,6 +9,7 @@ import (
 	"time"
 
 	. "github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
 	postgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/rundeletion"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -94,7 +95,7 @@ SELECT (SELECT count(*) FROM artifact_binding_revisions WHERE scope_kind = 'run'
 		t.Fatalf("write to another Run: %v", err)
 	}
 	// The Scheduler still binds outputs of an exhausted Run.
-	if _, err := NewService(NewPostgresRepository(pool)).BindOutputExact(ctx, "limit-run", "result", last.Ref, nil); err != nil {
+	if _, err := artifactstest.BindOutput(ctx, NewService(NewPostgresRepository(pool)), "limit-run", "result", last.Ref); err != nil {
 		t.Fatalf("bind output of an exhausted Run: %v", err)
 	}
 	purged, bindings := revisions+1, bindings+1 // with the outputs revision and binding

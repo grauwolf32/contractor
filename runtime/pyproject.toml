@@ -92,7 +92,7 @@ layers = [
   # platform: infrastructure clients, workspace, sandbox, settings and protocol
   # bindings, plus the workspace observations that tools report (the Worker
   # keeps only their reducer)
-  "a2a_server : adapters : agent_skills : artifacts : llm : observations : projectfs : sandbox : settings : telemetry : work_root_lock : workspace",
+  "a2a_server : adapters : agent_skills : artifacts : finding_proposals : llm : observations : projectfs : sandbox : settings : telemetry : work_root_lock : workspace",
   # kernel: wire contracts and dependency-free helpers (core: target policy,
   # subprocess pipes, line splitting, tool metrics and input errors, and the
   # Worker completion protocol)

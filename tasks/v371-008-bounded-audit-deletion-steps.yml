@@ -1,0 +1,82 @@
+schema_version: "1.0"
+id: V371-008
+title: "Run the Audit deletion phase in bounded steps under its own budget"
+milestone: hub-audit-defects-2026-10
+epic: audits
+kind: defect
+priority: P2
+status: pending
+depends_on: [V370-024]
+languages: [go, sql]
+goal: "Child-Run deletion and the Audit purge each proceed in steps that fit a named deletion budget and the controller's claim lease, so an Audit with a large namespace or large child Runs is deleted instead of timing out on every pass."
+context:
+  review: "Out-of-scope findings of the hub audit fix batch, sent by the coordinator on 2026-10-12 (controller timeout reused for deletion and purge; Audit namespace purged in one transaction); verified on a07f5e9"
+  specification: "docs/spec/audits/review-and-reports.md#REV-R159"
+  severity: medium
+  finding: >-
+    The Audit Controller reconciles each claimed Audit under one context with
+    c.options.OperationTimeout (internal/auditcontroller/controller.go:66;
+    10 s by default, types.go:23), the budget it also uses for snapshot reads
+    and ordinary transitions. In the deleting phase the same pass deletes one
+    child Run (settlement.go:77-89: rundeletion.Deleter.DeleteReleasedTerminalRun,
+    which purges the Run's whole RunScope) or purges the Audit
+    (settlement.go:90: auditstore.PurgeClaimed, lifecycle.go:113-163), which
+    in one transaction deletes the namespace's lineage, bindings and
+    revisions, locks and collects every version and blob of it
+    (internal/artifacts/postgres_purge.go:22-85 and 252-325) and deletes the
+    Audit row, cascading over every Audit-owned table. Both purges ask for
+    persistencepostgres.WithCleanupBudget
+    (internal/persistence/postgres/budgets.go:134-138: 2 minutes, 60 s
+    statements), but context.WithTimeout cannot extend the parent's 10 s
+    deadline, so the cleanup budget is silently cut to what is left of the
+    reconcile pass, and the work per transaction is bounded only by the
+    Audit's size. A step that needs more than that is cancelled and repeated
+    from the start on every pass, so the Audit never leaves deleting
+    (AGENTS.md 3.2, timeout row: one timeout reused for unrelated operations;
+    3.3: unbounded work per transaction). A longer timeout alone is no fix:
+    the claim lease (30 s, at least twice the operation timeout,
+    types.go:191-193) would expire under a longer step, which then loses the
+    claim before it commits. Predates the shallow history (boundary 6349621).
+  siblings: >-
+    Run deletion through DELETE /v1/runs/{runId} and the Project deletion
+    controller use the same PurgeRun, which V370-024 bounds in batches with a
+    per-Run quota; this task reuses that for child Runs and depends on it.
+    PurgeProject and the Project lifecycle controller run under their own
+    budgets: check them for the same truncation. V370-023 adds the FK indexes
+    the Audit row cascade needs (complementary). The fence for stale-claim
+    artifact writes is V371-007.
+scope:
+  in:
+    - "A named deletion budget, separate from OperationTimeout and owned by the deleting phase, kept inside the claim lease by renewal or by steps shorter than the lease; record the choice in REV-R159 and the limits registry."
+    - "Purge the Audit namespace and the Audit-owned rows in bounded batches across passes while the Audit stays deleting, deleting the Audit row last, so REV-R159's order and REV-R160's completeness hold after a crash between batches."
+    - "A PostgreSQL test with an Audit namespace and child Runs large enough to exceed one operation timeout."
+  out:
+    - "Batching of the shared Run and Project artifact purge (V370-024) and the FK indexes (V370-023)."
+failure_outcomes:
+  - operation: "One Audit deletion step (a child-Run deletion batch or a purge batch)"
+    permanent: "A child Run that is not deletable keeps the Audit in deleting and is retried as today (NotDeletableError)."
+    retryable: "A transaction conflict or a cancelled step keeps the committed batches; the next pass continues from what remains."
+    ambiguous: "Each batch is idempotent: after a lost commit the next pass recomputes from the remaining rows."
+    cancelled: "Shutdown cancels the current batch; no step outlives the claim."
+    timeout: "The named deletion budget owns each step; OperationTimeout keeps owning the other reconcile phases."
+cardinality:
+  - collection: "Bindings, revisions and versions of one Audit namespace, and the Audit-owned rows"
+    expected: "hundreds to thousands"
+    maximum: "bounded only by the Audit's items, Rounds, attempts and maxEvidenceBytes"
+    bound: "a fixed number of rows per transaction and per step"
+acceptance_criteria:
+  - id: A1
+    given: "A deleting Audit whose namespace and child Runs take longer than one operation timeout to purge"
+    when: "The controller reconciles it repeatedly"
+    then: "The deletion completes and the Audit row is removed last."
+  - id: A2
+    given: "A crash or claim loss between two purge batches"
+    when: "Another controller resumes"
+    then: "It continues from the remaining rows and leaves no Audit-owned binding, version or row behind."
+  - id: A3
+    text: "The large-Audit test fails on a07f5e9."
+tests:
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 -tags integration ./internal/auditcontroller ./internal/auditstore ./internal/artifacts ./internal/rundeletion"
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A1, A2, A3]

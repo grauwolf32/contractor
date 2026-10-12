@@ -35,7 +35,7 @@ func (c WorkerCompletionContract) Validate() error {
 // ValidateAllocation checks the contract as an AllocationSpec carries it: its
 // output lies in the allocation namespace. Which AgentTemplate can complete
 // under it is the audit-results@2 Toolset's rule
-// (config.ValidateWorkerCompletionSelection).
+// (resolved.ValidateWorkerCompletionSelection).
 func (c WorkerCompletionContract) ValidateAllocation(namespace string) error {
 	if err := c.Validate(); err != nil {
 		return err

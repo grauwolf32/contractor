@@ -25,7 +25,7 @@ mutations:
     test: {source: internal/runtimeconfig/postgres_integration_test.go, symbol: TestPostgresRuntimeManagementBindingMutationIsCASAndReplaySafe}
   - id: runtime_agent_labels.put_delete
     response_loss: Exact replay returns the original principal revision while concurrent CAS has one winner.
-    test: {source: internal/runtimeconfig/principal_postgres_integration_test.go, symbol: TestPostgresRuntimeAgentPrincipalSeedCASAndDelete}
+    test: {source: internal/agentprincipal/postgres_integration_test.go, symbol: TestPostgresRuntimeAgentPrincipalSeedCASAndDelete}
   - id: run.create
     response_loss: Replay is resolved before mutable dependencies and returns the same pinned Run.
     test: {source: internal/httpapi/public/handler_test.go, symbol: TestCreateRunPinsCanonicalLabelsAndReplaySkipsCurrentBindings}

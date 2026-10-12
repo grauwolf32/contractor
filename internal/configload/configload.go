@@ -73,18 +73,16 @@ func (c *bundleChecks) take() Bundles {
 }
 
 // Load validates one operator root: its bundles, then its catalog.
-func Load(root string, descriptors config.Descriptors) (*config.Snapshot, error) {
-	return config.Load(root, descriptors, newBundleChecks().operatorRootChecks()...)
+func Load(root string) (*config.Snapshot, error) {
+	return config.Load(root, newBundleChecks().operatorRootChecks()...)
 }
 
 // LoadUnionReadOnly is offline validation of the Server's operator and managed
 // roots; see config.LoadUnionReadOnly. It also returns the bundles it
 // validated.
-func LoadUnionReadOnly(
-	operatorRoot, managedRoot string, descriptors config.Descriptors,
-) (*config.Snapshot, Bundles, error) {
+func LoadUnionReadOnly(operatorRoot, managedRoot string) (*config.Snapshot, Bundles, error) {
 	checks := newBundleChecks()
-	snapshot, err := config.LoadUnionReadOnly(operatorRoot, managedRoot, descriptors, checks.operatorRootChecks()...)
+	snapshot, err := config.LoadUnionReadOnly(operatorRoot, managedRoot, checks.operatorRootChecks()...)
 	if err != nil {
 		return nil, Bundles{}, err
 	}

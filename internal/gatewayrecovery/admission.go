@@ -15,7 +15,7 @@ func (s *Service) Admit(ctx context.Context, runID string, routes []Route) (bool
 	ordered := append([]Route(nil), routes...)
 	sort.Slice(ordered, func(i, j int) bool { return ordered[i].Key() < ordered[j].Key() })
 	err := persistencepostgres.InTx(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		if err := lockRun(ctx, tx, runID, false); err != nil {
+		if err := lockRun(ctx, tx, s.runs, runID, false); err != nil {
 			return err
 		}
 		// Candidate selection may change between attempts. Keep only the routes
@@ -96,10 +96,7 @@ WHERE w.route_key=$1 AND r.state IN ('running','waiting'))`, key).Scan(&waiter);
 			}
 			if waiter || state.automaticExpired(now) || state.next == nil || now.Before(*state.next) || state.activeProbe(now) {
 				allowed = false
-				if _, err := tx.Exec(ctx, `
-UPDATE workflow_runs SET state_reason_code=$2,
- state_reason_message='Waiting for the model gateway', updated_at=clock_timestamp()
-WHERE run_id=$1 AND state='pending' AND state_reason_code IS DISTINCT FROM $2`, runID, state.code); err != nil {
+				if err := s.runs.RecordAdmissionWait(ctx, tx, runID, state.code); err != nil {
 					return err
 				}
 			} else {

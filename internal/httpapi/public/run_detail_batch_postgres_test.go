@@ -12,8 +12,8 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
 	"github.com/grauwolf32/contractor/internal/auth"
-	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
@@ -84,7 +84,7 @@ func TestPostgresRunDetailFixedBatchQueries(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	catalog, err := configload.Load("../../config/testdata/valid", config.MVPDescriptors())
+	catalog, err := configload.Load("../../config/testdata/valid")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -132,11 +132,11 @@ func TestPostgresRunDetailFixedBatchQueries(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			output, err := service.BindOutputExact(ctx, runID, "result", source.Ref, nil)
+			output, err := artifactstest.BindOutput(ctx, service, runID, "result", source.Ref)
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := service.FreezeRunOutputs(ctx, runID); err != nil {
+			if err := artifactstest.FreezeOutputs(ctx, service, runID); err != nil {
 				t.Fatal(err)
 			}
 			for i := 0; i < n; i++ {

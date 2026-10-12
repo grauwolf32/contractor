@@ -9,12 +9,11 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/agentskills"
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
-	"github.com/grauwolf32/contractor/internal/credentialerrors"
 	"github.com/grauwolf32/contractor/internal/pagelimit"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/planner/stageresult"
@@ -66,11 +65,7 @@ type Repository interface {
 	ListStageAllocations(context.Context, string) ([]StageAllocation, error)
 	MarkStageAllocationReleaseAttempt(context.Context, string) error
 	MarkStageAllocationReleased(context.Context, string) error
-	RecordStageExecutionReport(context.Context, RecordStageExecutionReportParams) error
 	ListStageExecutionReports(context.Context, string) ([]StageExecutionReport, error)
-	RecordPlannerExecutionReport(context.Context, RecordPlannerExecutionReportParams) error
-	RebuildStageMetrics(context.Context, string, string) error
-	CleanupExpiredTelemetry(context.Context, time.Time, int) (int64, error)
 }
 
 // ListNonTerminalRunIDsByCredential returns a bounded deterministic set of
@@ -114,9 +109,10 @@ func (s *PostgresStore) ListNonTerminalRunIDsByCredential(
 // PostgresTxStore (see internal/rundeletion). Runtime label pinning
 // additionally requires NewRunCreationPostgresStore.
 type PostgresStore struct {
-	db                persistencepostgres.DBTX
-	runCreationTx     pgx.Tx
-	runLLMCredentials runtimeconfig.TransactionLLMCredentialLookup
+	db                    persistencepostgres.DBTX
+	runCreationTx         pgx.Tx
+	runLLMCredentials     runtimeconfig.TransactionLLMCredentialLookup
+	runRuntimeCredentials runtimeconfig.RuntimeCredentialValidator
 }
 
 var _ Repository = (*PostgresStore)(nil)
@@ -140,90 +136,106 @@ func NewPostgresTxStore(tx pgx.Tx) *PostgresTxStore {
 
 // NewRunCreationPostgresStore is the only constructor which enables Runtime
 // label pinning. The concrete transaction-bound lookup prevents a global
-// pool-backed credential provider from being used inside the owning tx.
+// pool-backed credential provider from being used inside the owning tx, and
+// runtimeCredentials must validate through the same tx; production passes
+// credentials.NewRuntimeCredentialRepository(tx).
 func NewRunCreationPostgresStore(
 	tx pgx.Tx,
 	llmCredentials runtimeconfig.TransactionLLMCredentialLookup,
+	runtimeCredentials runtimeconfig.RuntimeCredentialValidator,
 ) *PostgresStore {
-	return &PostgresStore{db: tx, runCreationTx: tx, runLLMCredentials: llmCredentials}
+	return &PostgresStore{
+		db: tx, runCreationTx: tx,
+		runLLMCredentials: llmCredentials, runRuntimeCredentials: runtimeCredentials,
+	}
 }
 
 func (s *PostgresStore) PinRuntimeLabels(
 	ctx context.Context, labels []string, modelFree ...bool,
 ) (runtimeconfig.RunSnapshot, error) {
-	if s == nil || s.runCreationTx == nil {
+	if s == nil || s.runCreationTx == nil || s.runRuntimeCredentials == nil {
 		return runtimeconfig.RunSnapshot{}, errors.New("Runtime label pinning requires a Run-creation transaction store")
 	}
 	return runtimeconfig.PinRunSnapshot(
-		ctx, s.runCreationTx, labels, runtimeCredentialValidator{s.db}, s.runLLMCredentials, modelFree...,
+		ctx, s.runCreationTx, labels, s.runRuntimeCredentials, s.runLLMCredentials, modelFree...,
 	)
 }
 
-type runtimeCredentialValidator struct{ db persistencepostgres.DBTX }
+// runRecord is everything one new initializing WorkflowRun row stores: the
+// common creation parameters and, on the paths that have them, the public
+// create-Run key with its request digest or the trusted Audit association.
+// insertRun is its only encoder and createRunSQL its only statement.
+type runRecord struct {
+	CreateRunParams
+	idempotencyKey     *string
+	requestDigest      *string
+	auditExecutionID   *string
+	auditSubmissionKey *string
+}
 
-func (v runtimeCredentialValidator) ValidateRuntimeCredential(
-	ctx context.Context, credentialID string, allowedKinds ...string,
-) error {
-	var kind string
-	err := v.db.QueryRow(ctx, `
-SELECT credential_kind
-FROM runtime_credentials
-WHERE credential_id = $1 AND deleted_at IS NULL`, credentialID).Scan(&kind)
+// insertRun stores record after its caller validated it. A unique conflict
+// stores nothing and reports inserted false; each caller resolves that for
+// its own path.
+func (s *PostgresStore) insertRun(
+	ctx context.Context, operation string, record runRecord,
+) (WorkflowRun, bool, error) {
+	metadataLabels, _ := NormalizeRunMetadataLabels(record.MetadataLabels)
+	parameters := record.Parameters
+	if parameters == nil {
+		parameters = map[string]string{}
+	}
+	encodedParameters, err := json.Marshal(parameters)
 	if err != nil {
-		return err
+		return WorkflowRun{}, false, fmt.Errorf("%s: encode parameters: %w", operation, err)
 	}
-	for _, allowed := range allowedKinds {
-		if kind == allowed {
-			return nil
-		}
+	encodedRuntimeConfig, err := json.Marshal(record.RuntimeConfig)
+	if err != nil {
+		return WorkflowRun{}, false, fmt.Errorf("%s: encode RuntimeConfig snapshot: %w", operation, err)
 	}
-	return credentialerrors.RuntimeNotFound
+	encodedProjectHTTPTarget, err := encodeProjectHTTPTarget(record.ProjectHTTPTarget)
+	if err != nil {
+		return WorkflowRun{}, false, err
+	}
+	encodedMetadataLabels, err := json.Marshal(metadataLabels)
+	if err != nil {
+		return WorkflowRun{}, false, fmt.Errorf("%s: encode metadata labels: %w", operation, err)
+	}
+	publicationMode := PublicationOrdinary
+	if record.auditExecutionID != nil {
+		publicationMode = PublicationAuditManaged
+	}
+	result, err := scanWorkflowRun(s.db.QueryRow(ctx, createRunSQL+prefixedWorkflowRunColumns("inserted_run")+`
+FROM inserted_run`,
+		record.RunID, record.OwnerID, record.ProjectID, record.WorkflowName, record.WorkflowVersion,
+		record.WorkflowSchemaVersion, []byte(record.WorkflowSnapshot), encodedParameters,
+		record.RuntimeConfig.ExplicitLabels(), encodedRuntimeConfig, encodedProjectHTTPTarget, encodedMetadataLabels,
+		record.idempotencyKey, record.requestDigest,
+		string(publicationMode), record.auditExecutionID, record.auditSubmissionKey,
+	))
+	switch {
+	case err == nil:
+		return result, true, nil
+	case errors.Is(err, pgx.ErrNoRows):
+		return WorkflowRun{}, false, nil
+	case persistencepostgres.Classify(err) == persistencepostgres.ClassDeleting:
+		return WorkflowRun{}, false, fmt.Errorf("%s %q: %w", operation, record.RunID, ErrProjectDeleting)
+	default:
+		return WorkflowRun{}, false, fmt.Errorf("%s %q: %w", operation, record.RunID, err)
+	}
 }
 
 func (s *PostgresStore) CreateRun(ctx context.Context, params CreateRunParams) (WorkflowRun, error) {
 	if err := validateCreateRun(params); err != nil {
 		return WorkflowRun{}, err
 	}
-	metadataLabels, _ := NormalizeRunMetadataLabels(params.MetadataLabels)
-	parameters := params.Parameters
-	if parameters == nil {
-		parameters = map[string]string{}
-	}
-	encodedParameters, err := json.Marshal(parameters)
-	if err != nil {
-		return WorkflowRun{}, fmt.Errorf("create WorkflowRun: encode parameters: %w", err)
-	}
-	encodedRuntimeConfig, err := json.Marshal(params.RuntimeConfig)
-	if err != nil {
-		return WorkflowRun{}, fmt.Errorf("create WorkflowRun: encode RuntimeConfig snapshot: %w", err)
-	}
-	encodedProjectHTTPTarget, err := encodeProjectHTTPTarget(params.ProjectHTTPTarget)
+	run, inserted, err := s.insertRun(ctx, "create WorkflowRun", runRecord{CreateRunParams: params})
 	if err != nil {
 		return WorkflowRun{}, err
 	}
-	runtimeLabels := params.RuntimeConfig.ExplicitLabels()
-	encodedMetadataLabels, err := json.Marshal(metadataLabels)
-	if err != nil {
-		return WorkflowRun{}, fmt.Errorf("create WorkflowRun: encode metadata labels: %w", err)
+	if !inserted {
+		return WorkflowRun{}, fmt.Errorf("create WorkflowRun %q: %w", params.RunID, ErrConflict)
 	}
-
-	row := s.db.QueryRow(ctx, createRunSQL+prefixedWorkflowRunColumns("inserted_run")+`
-FROM inserted_run`,
-		params.RunID, params.OwnerID, params.ProjectID, params.WorkflowName, params.WorkflowVersion,
-		params.WorkflowSchemaVersion, []byte(params.WorkflowSnapshot), encodedParameters,
-		runtimeLabels, encodedRuntimeConfig, encodedProjectHTTPTarget, encodedMetadataLabels,
-	)
-	result, err := scanWorkflowRun(row)
-	if err != nil {
-		if persistencepostgres.Classify(err) == persistencepostgres.ClassDeleting {
-			return WorkflowRun{}, fmt.Errorf("create WorkflowRun %q: %w", params.RunID, ErrProjectDeleting)
-		}
-		if persistencepostgres.Classify(err) == persistencepostgres.ClassDuplicate {
-			return WorkflowRun{}, fmt.Errorf("create WorkflowRun %q: %w", params.RunID, ErrConflict)
-		}
-		return WorkflowRun{}, fmt.Errorf("create WorkflowRun %q: %w", params.RunID, err)
-	}
-	return result, nil
+	return run, nil
 }
 
 // CreateRunIdempotent atomically claims one public create-Run key. The bool is
@@ -237,49 +249,21 @@ func (s *PostgresStore) CreateRunIdempotent(
 	if err := validateCreateRun(params.CreateRunParams); err != nil {
 		return WorkflowRun{}, false, err
 	}
-	metadataLabels, _ := NormalizeRunMetadataLabels(params.MetadataLabels)
 	if err := validateIdempotencyKey(params.IdempotencyKey); err != nil {
 		return WorkflowRun{}, false, err
 	}
 	if !contentdigest.Valid(params.RequestDigest) {
 		return WorkflowRun{}, false, invalidf("request digest is invalid")
 	}
-	parameters := params.Parameters
-	if parameters == nil {
-		parameters = map[string]string{}
-	}
-	encodedParameters, err := json.Marshal(parameters)
-	if err != nil {
-		return WorkflowRun{}, false, fmt.Errorf("create idempotent WorkflowRun: encode parameters: %w", err)
-	}
-	encodedRuntimeConfig, err := json.Marshal(params.RuntimeConfig)
-	if err != nil {
-		return WorkflowRun{}, false, fmt.Errorf("create idempotent WorkflowRun: encode RuntimeConfig snapshot: %w", err)
-	}
-	encodedProjectHTTPTarget, err := encodeProjectHTTPTarget(params.ProjectHTTPTarget)
+	result, inserted, err := s.insertRun(ctx, "create idempotent WorkflowRun", runRecord{
+		CreateRunParams: params.CreateRunParams,
+		idempotencyKey:  &params.IdempotencyKey, requestDigest: &params.RequestDigest,
+	})
 	if err != nil {
 		return WorkflowRun{}, false, err
 	}
-	runtimeLabels := params.RuntimeConfig.ExplicitLabels()
-	encodedMetadataLabels, err := json.Marshal(metadataLabels)
-	if err != nil {
-		return WorkflowRun{}, false, fmt.Errorf("create idempotent WorkflowRun: encode metadata labels: %w", err)
-	}
-	result, err := scanWorkflowRun(s.db.QueryRow(ctx, createRunIdempotentSQL+prefixedWorkflowRunColumns("inserted_run")+`
-FROM inserted_run`,
-		params.RunID, params.OwnerID, params.ProjectID, params.WorkflowName, params.WorkflowVersion,
-		params.WorkflowSchemaVersion, []byte(params.WorkflowSnapshot), encodedParameters,
-		runtimeLabels, encodedRuntimeConfig, encodedProjectHTTPTarget, params.IdempotencyKey, params.RequestDigest,
-		encodedMetadataLabels,
-	))
-	if err == nil {
+	if inserted {
 		return result, true, nil
-	}
-	if persistencepostgres.Classify(err) == persistencepostgres.ClassDeleting {
-		return WorkflowRun{}, false, fmt.Errorf("create idempotent WorkflowRun %q: %w", params.RunID, ErrProjectDeleting)
-	}
-	if !errors.Is(err, pgx.ErrNoRows) {
-		return WorkflowRun{}, false, fmt.Errorf("create idempotent WorkflowRun %q: %w", params.RunID, err)
 	}
 	var existingRunID, existingDigest string
 	err = s.db.QueryRow(ctx, `
@@ -650,8 +634,8 @@ func validateCreateRun(params CreateRunParams) error {
 	}
 	// Callers store config.EncodeResolvedWorkflowSnapshot's encoding, the
 	// measure of the snapshot bound (LIM-CAT-4, CAT-R76).
-	if len(params.WorkflowSnapshot) > config.MaxWorkflowSnapshotBytes {
-		return invalidf("workflowSnapshot exceeds %d bytes", config.MaxWorkflowSnapshotBytes)
+	if len(params.WorkflowSnapshot) > resolved.MaxWorkflowSnapshotBytes {
+		return invalidf("workflowSnapshot exceeds %d bytes", resolved.MaxWorkflowSnapshotBytes)
 	}
 	if err := validateJSONObject("workflowSnapshot", params.WorkflowSnapshot); err != nil {
 		return err
@@ -716,6 +700,9 @@ const (
 	// ResumeFailedRun records the continuation receipt and the new attempt
 	// with the one transition out of failed (RUN-R46).
 	transitionByContinuation runTransitionOperation = "ResumeFailedRun"
+	// EnterWaiting and LeaveWaiting move an admitted Run between running and
+	// waiting for model-availability recovery (RUN-R30).
+	transitionByGatewayWait runTransitionOperation = "EnterWaiting and LeaveWaiting"
 )
 
 // runLifecycle is the WorkflowRun lifecycle of docs/spec/execution/runs.md,
@@ -726,8 +713,8 @@ const (
 var runLifecycle = map[[2]WorkflowRunState]runTransitionOperation{
 	{RunInitializing, RunPending}:    transitionByTransitionRun,
 	{RunPending, RunRunning}:         transitionByTransitionRun,
-	{RunRunning, RunWaiting}:         transitionByTransitionRun,
-	{RunWaiting, RunRunning}:         transitionByTransitionRun,
+	{RunRunning, RunWaiting}:         transitionByGatewayWait,
+	{RunWaiting, RunRunning}:         transitionByGatewayWait,
 	{RunRunning, RunSucceeded}:       transitionByTransitionRun,
 	{RunInitializing, RunFailed}:     transitionByTransitionRun,
 	{RunPending, RunFailed}:          transitionByTransitionRun,
@@ -744,8 +731,9 @@ var runLifecycle = map[[2]WorkflowRunState]runTransitionOperation{
 // ValidateRunTransition is the transition rule TransitionRun applies before
 // its compare-and-set: it returns ErrInvalid for an edge TransitionRun must
 // not perform, either because the lifecycle has no such edge or because
-// cancellation or manual continuation owns it. Test doubles of TransitionRun
-// apply it too, so they reject what the store rejects.
+// cancellation, manual continuation or the waiting operations own it. Test
+// doubles of TransitionRun apply it too, so they reject what the store
+// rejects.
 func ValidateRunTransition(expected, next WorkflowRunState) error {
 	if runLifecycle[[2]WorkflowRunState{expected, next}] != transitionByTransitionRun {
 		return invalidf("illegal WorkflowRun transition %s -> %s", expected, next)

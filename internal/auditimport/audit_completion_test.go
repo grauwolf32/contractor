@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/auditdomain"
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 )
 
@@ -18,10 +18,10 @@ func TestSharedAuditCompletionSharedTaskLocalValidation(t *testing.T) {
 	var fixtures struct {
 		Tasks map[string]auditdomain.ItemTask `json:"tasks"`
 		Cases []struct {
-			Name   string                  `json:"name"`
-			Task   string                  `json:"task"`
-			Mode   config.AuditProfileMode `json:"mode"`
-			Valid  bool                    `json:"valid"`
+			Name   string                        `json:"name"`
+			Task   string                        `json:"task"`
+			Mode   auditprofile.AuditProfileMode `json:"mode"`
+			Valid  bool                          `json:"valid"`
 			Result struct {
 				Assessment string                 `json:"assessment"`
 				Summary    string                 `json:"summary"`

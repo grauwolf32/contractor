@@ -101,7 +101,7 @@ func (s *Service) update(
 	}
 	result := Decision{RetryAfterSeconds: s.policy.MaxDelay.Seconds()}
 	err := persistencepostgres.InTx(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		if err := lockRun(ctx, tx, runID, request.Terminal()); err != nil {
+		if err := lockRun(ctx, tx, s.runs, runID, request.Terminal()); err != nil {
 			return err
 		}
 		state, err := readRoute(ctx, tx, key)
@@ -141,14 +141,14 @@ WHERE route_key=$1`, key, request.Code, now, now.Add(s.policy.AutomaticWindow), 
 					return err
 				}
 			}
-			return setWaiting(ctx, tx, participantID, request.Model, runID, key, request.Code)
+			return setWaiting(ctx, tx, s.runs, participantID, request.Model, runID, key, request.Code)
 		case "acquire":
 			result.Code = state.code
 			if !state.blocked {
 				result.Allowed = true
 				return nil
 			}
-			if err := setWaiting(ctx, tx, participantID, request.Model, runID, key, state.code); err != nil {
+			if err := setWaiting(ctx, tx, s.runs, participantID, request.Model, runID, key, state.code); err != nil {
 				return err
 			}
 			result.RequiresRetry = state.automaticExpired(now)
@@ -184,7 +184,7 @@ WHERE route_key=$1`, key)
 					return err
 				}
 			}
-			return clearWaiting(ctx, tx, participantID, request.Model, runID)
+			return clearWaiting(ctx, tx, s.runs, participantID, request.Model, runID)
 		case "released":
 			// The Runtime abandoned its granted call without observing a model
 			// result. Relinquish only its current probe; a stale release must not
@@ -198,7 +198,7 @@ WHERE route_key=$1 AND probe_id=$2`, key, request.RequestID)
 			if err != nil {
 				return err
 			}
-			return clearWaiting(ctx, tx, participantID, request.Model, runID)
+			return clearWaiting(ctx, tx, s.runs, participantID, request.Model, runID)
 		}
 		return ErrInvalid
 	})

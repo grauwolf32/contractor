@@ -7,8 +7,11 @@ import pytest
 from jsonschema import Draft202012Validator
 from pydantic import ValidationError
 
-from contractor_runtime.artifacts import _validate_media_type
-from contractor_runtime.contracts import MEDIA_TYPE_PATTERN, ArtifactReadResult
+from contractor_runtime.contracts import (
+    MEDIA_TYPE_PATTERN,
+    ArtifactReadResult,
+    validate_media_type,
+)
 
 ROOT = Path(__file__).parents[2]
 CASES = json.loads((ROOT / "api/testdata/v1alpha1/media-type-cases.json").read_text())
@@ -29,10 +32,10 @@ def test_shared_media_type_cases_match_runtime_and_schema(valid: bool, value: st
         "size": 0,
     }
     if valid:
-        _validate_media_type(value)
+        validate_media_type(value)
         ArtifactReadResult.model_validate(result)
     else:
         with pytest.raises(ValueError, match="media type is invalid"):
-            _validate_media_type(value)
+            validate_media_type(value)
         with pytest.raises(ValidationError):
             ArtifactReadResult.model_validate(result)

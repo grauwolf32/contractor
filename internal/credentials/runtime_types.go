@@ -252,8 +252,19 @@ type RuntimeCredentialInUseError struct{ Usage RuntimeCredentialUsage }
 func (e *RuntimeCredentialInUseError) Error() string { return ErrRuntimeCredentialInUse.Error() }
 func (e *RuntimeCredentialInUseError) Unwrap() error { return ErrRuntimeCredentialInUse }
 
+// RuntimeCredentialUsageChecker reports the RuntimeConfig bindings, Projects,
+// Runs and allocations that reference a Runtime credential: every field of
+// RuntimeCredentialUsage except AuditIDs, which RuntimeCredentialAuditHoldLookup
+// reports.
 type RuntimeCredentialUsageChecker interface {
 	InspectRuntimeCredentialUsage(context.Context, string, int) (RuntimeCredentialUsage, error)
+}
+
+// RuntimeCredentialAuditHoldLookup reports, up to a limit, the Audits whose
+// dispatch hold keeps a Runtime credential for future child Runs (AUD-R16);
+// auditstore, which owns the Audits, implements it.
+type RuntimeCredentialAuditHoldLookup interface {
+	ListHeldAuditIDsByRuntimeCredential(context.Context, string, int) ([]string, error)
 }
 
 func newRuntimeCredentialMaterial(kind RuntimeCredentialKind, value any) (RuntimeCredentialMaterial, error) {

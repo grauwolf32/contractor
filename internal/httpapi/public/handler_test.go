@@ -15,8 +15,10 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
 	"github.com/grauwolf32/contractor/internal/auth"
 	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/configtest"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -716,7 +718,6 @@ func newHandlerFixtureWithAuth(
 	manager, _, err := configload.NewManager(config.ManagerOptions{
 		OperatorRoot: configRoot,
 		ManagedRoot:  filepath.Join(t.TempDir(), "managed-configs"),
-		Descriptors:  config.MVPDescriptors(),
 	})
 	if err != nil {
 		t.Fatalf("load test config: %v", err)
@@ -732,7 +733,7 @@ func newHandlerFixtureWithAuth(
 	managedCredentials := newFakeManagedCredentials()
 	if gateway, gatewayErr := manager.LLMGateway("local-litellm@1"); gatewayErr == nil {
 		for _, id := range []string{"development-worker", "development-planner"} {
-			managedCredentials.lookups[id] = config.CredentialMetadata{
+			managedCredentials.lookups[id] = resolved.CredentialMetadata{
 				Ref: llmgateway.LLMCredentialRef{CredentialID: id}, LLMGateway: gateway.Ref,
 			}
 		}
@@ -1443,7 +1444,7 @@ func TestCreateRunReplayDoesNotResolveDeletedManagedCredential(t *testing.T) {
 		t.Fatal(err)
 	}
 	resolved, err := fixture.configs.ResolveRunWorkflow(
-		t.Context(), "artifact-copy@1", config.ExecutionConfigPatch{}, fixture.credentials,
+		t.Context(), "artifact-copy@1", resolved.ExecutionConfigPatch{}, fixture.credentials,
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -1501,7 +1502,7 @@ func TestCreateRunPinsExecutionConfigAndDetectsSelectorIdempotencyConflict(t *te
 		t.Fatalf("first create = %d %s", firstResponse.Code, firstResponse.Body.String())
 	}
 	stored := fixture.runs.runs["run_fixed"]
-	var workflow config.ResolvedWorkflow
+	var workflow resolved.ResolvedWorkflow
 	if err := json.Unmarshal(stored.WorkflowSnapshot, &workflow); err != nil {
 		t.Fatal(err)
 	}
@@ -1543,7 +1544,7 @@ func TestCreateRunPinsNamedEscalationVariant(t *testing.T) {
 		t.Fatalf("create = %d %s", response.Code, response.Body.String())
 	}
 	stored := fixture.runs.runs["run_fixed"]
-	var workflow config.ResolvedWorkflow
+	var workflow resolved.ResolvedWorkflow
 	if err := json.Unmarshal(stored.WorkflowSnapshot, &workflow); err != nil {
 		t.Fatal(err)
 	}
@@ -1589,7 +1590,7 @@ func TestCreateRunDigestNormalizesEquivalentEmptyMappings(t *testing.T) {
 	if err != nil || explicitLabels != omitted {
 		t.Fatalf("empty metadata label digest = %q, omitted = %q, error = %v", explicitLabels, omitted, err)
 	}
-	var emptyExecutionConfig config.ExecutionConfigPatch
+	var emptyExecutionConfig resolved.ExecutionConfigPatch
 	if err := json.Unmarshal([]byte(`{"stages":{}}`), &emptyExecutionConfig); err != nil {
 		t.Fatal(err)
 	}
@@ -1797,7 +1798,7 @@ func TestDeleteRunRequiresOwnedReleasedTerminalRun(t *testing.T) {
 
 func TestRunStatusExposesSafeMetricsAndAttemptDiagnostics(t *testing.T) {
 	fixture := newHandlerFixture(t)
-	snapshot, err := configload.Load("../../config/testdata/valid", config.MVPDescriptors())
+	snapshot, err := configload.Load("../../config/testdata/valid")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1907,7 +1908,7 @@ func TestRunStatusExposesSafeMetricsAndAttemptDiagnostics(t *testing.T) {
 
 func TestRunStatusExposesEscalationLineageAndSafeEffectiveRefs(t *testing.T) {
 	fixture := newHandlerFixture(t)
-	snapshot, err := configload.Load(configtest.CopyWithEscalation(t, "../../../testdata/configs"), config.MVPDescriptors())
+	snapshot, err := configload.Load(configtest.CopyWithEscalation(t, "../../../testdata/configs"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2004,7 +2005,7 @@ func TestRunOutputDownloadRequiresOwnerAndReturnsExactMetadata(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	bound, err := fixture.artifacts.BindOutputExact(t.Context(), "run-owned", "result", source.Ref, nil)
+	bound, err := artifactstest.BindOutput(t.Context(), fixture.artifacts, "run-owned", "result", source.Ref)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2053,7 +2054,7 @@ func TestRawArtifactBytesAreNeverRenderedInAPIOrigin(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := fixture.artifacts.BindOutputExact(t.Context(), "run-owned", "result", source.Ref, nil); err != nil {
+	if _, err := artifactstest.BindOutput(t.Context(), fixture.artifacts, "run-owned", "result", source.Ref); err != nil {
 		t.Fatal(err)
 	}
 	for _, path := range []string{

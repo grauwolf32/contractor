@@ -3,7 +3,9 @@ package evalstore
 import (
 	"context"
 	"encoding/json"
+	"errors"
 
+	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 )
@@ -13,10 +15,58 @@ func (s *Store) RunOutput(ctx context.Context, owner, runID, name string) (evald
 	ref := evaldomain.Artifact{
 		Scope: "run", ScopeID: runID, Namespace: "outputs", Name: name,
 	}
-	err := s.db.QueryRow(ctx, runOutputQuery, owner, runID, name).Scan(
-		&ref.Revision, &ref.SHA256, &ref.MediaType, &ref.SizeBytes,
-	)
-	return ref, normalize(err)
+	var owned bool
+	if err := s.db.QueryRow(ctx, `
+SELECT EXISTS(SELECT 1 FROM workflow_runs WHERE owner_id = $1 AND run_id = $2)`, owner, runID,
+	).Scan(&owned); err != nil {
+		return ref, normalize(err)
+	}
+	if !owned {
+		return ref, evaldomain.Failure("eval_not_found")
+	}
+	metadata, err := s.artifactMetadata(ctx, ref, nil)
+	if artifactAbsent(err) {
+		return ref, evaldomain.Failure("eval_not_found")
+	}
+	if err != nil {
+		return ref, err
+	}
+	ref.Revision, ref.SHA256 = *metadata.Ref.Revision, metadata.Digest
+	ref.MediaType, ref.SizeBytes = metadata.MediaType, metadata.Size
+	return ref, nil
+}
+
+// artifactMetadata reads, through the ArtifactStore, the metadata of the
+// binding ref names: of its exact revision when revision is set, otherwise of
+// its current revision.
+func (s *Store) artifactMetadata(
+	ctx context.Context, ref evaldomain.Artifact, revision *string,
+) (artifacts.Metadata, error) {
+	var scope artifacts.Scope
+	var err error
+	switch ref.Scope {
+	case "run":
+		scope, err = artifacts.RunScope(ref.ScopeID)
+	case "project":
+		scope, err = artifacts.ProjectScope(ref.ScopeID)
+	case "user":
+		scope, err = artifacts.UserScope(ref.ScopeID)
+	default:
+		err = artifacts.ErrInvalidScope
+	}
+	if err != nil {
+		return artifacts.Metadata{}, err
+	}
+	return artifacts.NewPostgresRepository(s.db).Metadata(ctx, scope, artifacts.ArtifactRef{
+		Namespace: ref.Namespace, Name: ref.Name, Revision: revision,
+	})
+}
+
+// artifactAbsent reports whether an artifactMetadata error means that no such
+// binding revision exists, as for a reference no binding can have.
+func artifactAbsent(err error) bool {
+	return errors.Is(err, artifacts.ErrArtifactNotFound) || errors.Is(err, artifacts.ErrInvalidScope) ||
+		errors.Is(err, artifacts.ErrInvalidName)
 }
 
 const auditOutputQuery = `
@@ -51,33 +101,18 @@ func (s *Store) AuditOutput(ctx context.Context, owner, auditID, logicalKey stri
 	return ref, s.VerifyEvidence(ctx, ref)
 }
 
-const evidenceMetadataQuery = `
-SELECT 'sha256:' || encode(version.blob_sha256, 'hex'), version.media_type, blob.size_bytes
-FROM artifact_binding_revisions AS revision
-JOIN artifact_versions AS VERSION USING (version_id)
-JOIN artifact_blobs AS blob ON blob.sha256 = version.blob_sha256
-WHERE revision.scope_kind = $1
-    AND revision.scope_id = $2
-    AND revision.namespace = $3
-    AND revision.name = $4
-    AND revision.revision = $5
-`
-
 // VerifyEvidence verifies metadata for an already-authorized exact reference.
 // Public ingestion must establish ownership and member association first.
 func (s *Store) VerifyEvidence(ctx context.Context, ref evaldomain.Artifact) error {
-	var digest, mediaType string
-	var sizeBytes int64
-	err := s.db.QueryRow(ctx, evidenceMetadataQuery,
-		ref.Scope, ref.ScopeID, ref.Namespace, ref.Name, ref.Revision,
-	).Scan(&digest, &mediaType, &sizeBytes)
+	revision := ref.Revision
+	metadata, err := s.artifactMetadata(ctx, ref, &revision)
+	if artifactAbsent(err) {
+		return evaldomain.Failure("eval_evidence_unavailable")
+	}
 	if err != nil {
-		if evaldomain.IsCode(normalize(err), "eval_not_found") {
-			return evaldomain.Failure("eval_evidence_unavailable")
-		}
 		return err
 	}
-	if digest != ref.SHA256 || mediaType != ref.MediaType || sizeBytes != ref.SizeBytes {
+	if metadata.Digest != ref.SHA256 || metadata.MediaType != ref.MediaType || metadata.Size != ref.SizeBytes {
 		return evaldomain.Failure("eval_member_conflict")
 	}
 	return nil

@@ -1,0 +1,43 @@
+schema_version: "1.0"
+id: V371-023
+title: "Keep the Audit route UI tests within their timeout under load"
+milestone: hub-audit-defects-2026-10
+epic: quality
+kind: chore
+priority: P3
+status: pending
+depends_on: []
+languages: [typescript]
+goal: "check-page.test.tsx and audits.test.tsx pass reliably when the whole UI suite runs in parallel on a loaded host, without raising the timeout blindly."
+context:
+  review: "Out-of-scope finding of the hub audit fix batch (group G4), recorded 2026-10-12; verified on a07f5e9"
+  finding: >-
+    ui/src/routes/projects/audits/check-page.test.tsx (2,574 lines, 33 tests)
+    and audits.test.tsx (1,601 lines, 7 tests) render whole Audit routes and
+    wait with findBy queries under vitest's default 5,000 ms test timeout
+    (ui/vite.config.ts sets none); both hit it under load when they ran
+    together. A raised timeout is a tolerance bump of the kind V341-001
+    investigates, so the slow part has to be found first (AGENTS.md 3.5).
+    Predates the shallow history (boundary 6349621).
+  siblings: >-
+    Other whole-route tests with long waits in the same directory
+    (projection-refresh, event-history, collections and coverage-data), and
+    routes/runs and routes/workflows: measure them the same way and fix any
+    that takes more than half the budget.
+scope:
+  in:
+    - "Measure per-test durations alone and in the full parallel suite; remove the slow part (repeated expensive setup, real timers where fake ones fit, full-route renders a smaller render can replace), and only then give an inherently long test an explicit timeout with its measurement in a comment."
+  out:
+    - "The behaviour the tests check."
+acceptance_criteria:
+  - id: A1
+    given: "The full UI suite run ten times with parallel CPU load"
+    when: "vitest runs it"
+    then: "No Audit route test times out."
+  - id: A2
+    text: "No test or file timeout is raised without a recorded measurement."
+tests:
+  - command: "cd ui && corepack pnpm test --run src/routes/projects/audits"
+    covers: [A1]
+  - command: "make ui-verify"
+    covers: [A1, A2]

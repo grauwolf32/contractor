@@ -118,6 +118,16 @@ func TestPlacementManagedCredentialsDoNotBorrowAnotherConnection(t *testing.T) {
 	}
 }
 
+// noRuntimeCredentialAuditHolds is the Audit dispatch-hold lookup of a
+// Runtime credential service that never deletes a credential in these tests.
+type noRuntimeCredentialAuditHolds struct{}
+
+func (noRuntimeCredentialAuditHolds) ListHeldAuditIDsByRuntimeCredential(
+	context.Context, string, int,
+) ([]string, error) {
+	return nil, nil
+}
+
 func TestPlacementRuntimeCredentialsDoNotBorrowAnotherConnection(t *testing.T) {
 	for _, maxConns := range []int32{1, 2} {
 		t.Run(fmt.Sprint(maxConns), func(t *testing.T) {
@@ -148,7 +158,8 @@ func TestPlacementRuntimeCredentialsDoNotBorrowAnotherConnection(t *testing.T) {
 			}
 			barrier := credentials.NewLifecycleBarrier()
 			service, err := credentials.NewRuntimeCredentialService(credentials.RuntimeCredentialServiceOptions{
-				Pool: limited, Cipher: cipher, Usage: credentials.NewRuntimeCredentialRepository(limited), Barrier: barrier,
+				Pool: limited, Cipher: cipher, Usage: credentials.NewRuntimeCredentialRepository(limited),
+				Audits: noRuntimeCredentialAuditHolds{}, Barrier: barrier,
 			})
 			if err != nil {
 				t.Fatal(err)

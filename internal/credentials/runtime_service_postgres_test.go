@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/agentprincipal"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
@@ -38,7 +39,7 @@ func TestRuntimeCredentialPostgresLifecycleReplayAndSecretBoundary(t *testing.T)
 		t.Fatal(err)
 	}
 	service, err := NewRuntimeCredentialService(RuntimeCredentialServiceOptions{
-		Pool: pool, Cipher: cipher, Usage: repository, Barrier: barrier,
+		Pool: pool, Cipher: cipher, Usage: repository, Audits: staticAuditDispatchHolds{}, Barrier: barrier,
 		Now: func() time.Time { return time.Date(2026, 8, 31, 18, 0, 0, 0, time.UTC) },
 	})
 	if err != nil {
@@ -249,7 +250,8 @@ func TestRuntimeCredentialDeleteSerializesWithRuntimeConfigBindings(t *testing.T
 	cipher, _ := NewTokenCipher(bytes.Repeat([]byte{0x73}, 32))
 	now := time.Date(2026, 8, 31, 19, 0, 0, 0, time.UTC)
 	service, err := NewRuntimeCredentialService(RuntimeCredentialServiceOptions{
-		Pool: pool, Cipher: cipher, Usage: repository, Barrier: barrier, Now: func() time.Time { return now },
+		Pool: pool, Cipher: cipher, Usage: repository, Audits: staticAuditDispatchHolds{}, Barrier: barrier,
+		Now: func() time.Time { return now },
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -265,7 +267,7 @@ func TestRuntimeCredentialDeleteSerializesWithRuntimeConfigBindings(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
-	management, err := runtimeconfig.NewManagementService(pool, publisher, bindings)
+	management, err := runtimeconfig.NewManagementService(pool, publisher, bindings, agentprincipal.LabelHolders{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -390,7 +392,7 @@ func TestRuntimeCredentialDeleteSerializesWithRuntimeConfigBindings(t *testing.T
 		if providerErr != nil {
 			return providerErr
 		}
-		store := runstore.NewRunCreationPostgresStore(tx, lookup)
+		store := runstore.NewRunCreationPostgresStore(tx, lookup, NewRuntimeCredentialRepository(tx))
 		pinned, pinErr := store.PinRuntimeLabels(ctx, []string{"run-debug"})
 		if pinErr != nil {
 			return pinErr

@@ -9,7 +9,8 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/auditprofile"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/runstore"
 )
@@ -17,21 +18,21 @@ import (
 // Authority comes from the claim-locked Audit profile, never from caller labels
 // or a lookup of the current configuration catalog.
 func prepareAuditCompletion(ctx context.Context, service *artifacts.Service, intent auditstore.RunCreationIntent, params AuditCreateParams) (*runstore.AuditCompletionSnapshot, error) {
-	var binding config.ResolvedAuditWorkflowBinding
+	var binding auditprofile.ResolvedAuditWorkflowBinding
 	if err := json.Unmarshal(intent.WorkflowBinding, &binding); err != nil {
 		return nil, fmt.Errorf("%w: invalid owned Audit binding", ErrInvalid)
 	}
 	if binding.WorkerCompletion == nil {
 		return nil, nil
 	}
-	if intent.Execution.Role != auditstore.ExecutionCheck || config.ValidateAuditWorkerCompletion(binding) != nil {
+	if intent.Execution.Role != auditstore.ExecutionCheck || auditprofile.ValidateAuditWorkerCompletion(binding) != nil {
 		return nil, fmt.Errorf("%w: invalid Audit completion binding", ErrInvalid)
 	}
 	raw, err := json.Marshal(binding.Workflow)
 	if err != nil {
 		return nil, err
 	}
-	workflow, err := config.DecodeResolvedWorkflowSnapshot(raw)
+	workflow, err := resolved.DecodeResolvedWorkflowSnapshot(raw)
 	if err != nil || !reflect.DeepEqual(workflow, params.Workflow) {
 		return nil, fmt.Errorf("%w: completion Workflow differs from owned profile", ErrInvalid)
 	}
@@ -44,10 +45,10 @@ func prepareAuditCompletion(ctx context.Context, service *artifacts.Service, int
 	var task auditstore.ExactArtifact
 	for slot, mapping := range binding.Inputs {
 		switch mapping.Source {
-		case config.AuditInputFromItemPackage:
+		case auditprofile.AuditInputFromItemPackage:
 			task = params.Inputs[slot]
 			result.Contract.Task = contracts.ArtifactRef{Namespace: "inputs", Name: slot}
-		case config.AuditInputFromExecutionManifest:
+		case auditprofile.AuditInputFromExecutionManifest:
 			if !sameExactIdentity(params.Inputs[slot], intent.Execution.Manifest) {
 				return nil, fmt.Errorf("%w: completion manifest differs from execution", ErrInvalid)
 			}

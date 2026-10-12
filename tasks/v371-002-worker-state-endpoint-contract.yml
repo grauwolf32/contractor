@@ -1,0 +1,119 @@
+schema_version: "1.0"
+id: V371-002
+title: "Serve a schema-valid Worker State and classify its failures like the Server"
+milestone: hub-audit-defects-2026-10
+epic: planner-worker
+kind: defect
+introduced_by: V368-027
+priority: P2
+status: pending
+depends_on: []
+languages: [python, go]
+goal: "The Runtime agent-state endpoint serves only bodies agent-state.schema.json accepts, answers a snapshot that fails its own validation with the retryability the Server gives the same failure, and Go and Python measure the 4 KiB completion bound with the shared byte rule."
+context:
+  review: "Out-of-scope finding of the hub audit fix batch (group G13), recorded 2026-10-12; re-verified on a07f5e9"
+  specification: "docs/spec/audits/worker-completion.md#AWC-R115"
+  severity: medium
+  finding: >-
+    Three mismatches at the private agent-state endpoint
+    (GET /private/v1/allocations/{allocation_id}/agent-state, WRK-R112).
+    (1) runtime/src/contractor_runtime/server.py:216-218 serializes the
+    snapshot with model_dump_json(by_alias=True) and no exclude_none, because
+    finalOutcome, currentInvocation and lastCompletedInvocation are required
+    and nullable; WorkerCompletionDiagnostics.failure_code
+    (runtime/src/contractor_runtime/contracts/reports.py:116) has no
+    exclude_if, so every snapshot whose metrics.completion is not failed is
+    served with "failureCode": null, which the workerCompletionDiagnostics
+    definition of api/v1alpha1/allocation.schema.json rejects (type string,
+    and not present unless phase is failed). Reproduced on a07f5e9: a
+    collecting completion is served as {"kind":"audit-check-results@1",
+    "phase":"collecting",...,"failureCode":null}. Go
+    (decodeWorkerCompletionDiagnostics, internal/contracts/reporting/worker_completion_diagnostics.go:61-76)
+    and Python both read the null as absent, so no test noticed, and
+    test_shared_completion_diagnostics_gate_the_agent_state_endpoint
+    (runtime/tests/test_audit_completion_diagnostics.py:110-139) re-dumps the
+    served object with exclude_none before it compares, which hides it.
+    (2) runtime/src/contractor_runtime/allocation/service.py:176-186 turns
+    every exception of worker.agent_state_snapshot(), including the pydantic
+    ValidationError of a snapshot the Worker built and its own model rejects,
+    into 503 agent_state_unavailable with retryable true, and server.py:221-226
+    does the same for an oversized body. The same State fails the same way on
+    every read until its revision changes. The Server classifies an invalid
+    snapshot as the non-retryable worker_state_response_invalid
+    (internal/controlplane/runtime_client.go:310-314) and the Planner
+    projection answers the non-retryable worker_state_unavailable
+    (FAIL-AWC-7), but the Server passes the Runtime's retryable flag through
+    (runtime_client.go:257-262, internal/planner/stateview/service.go:377-385),
+    so a Planner model is told to retry a read that cannot succeed. The test
+    above pins retryable true (line 137).
+    (3) The 4 KiB completion bound (LIM-AWC-12, AWC-R116) is the raw received
+    byte count in Go (worker_completion_diagnostics.go:58, whitespace and
+    escapes counted as sent) and len(json.dumps(value)) with the default
+    ", " and ": " separators and ASCII escapes in Python
+    (runtime/src/contractor_runtime/contracts/base.py:200-206). Every other
+    private-wire byte bound uses the compact UTF-8 rule of json_byte_size
+    (base.py:98-112) and contracts.ResultJSONSize
+    (internal/contracts/result_limits.go:23), pinned by
+    api/testdata/v1alpha1/json-byte-size-cases.json. A valid object padded
+    with whitespace beyond 4096 raw bytes is rejected by Go and accepted by
+    Python.
+    The retryable answer, the null emission and both byte measures predate
+    the shallow history (boundary 6349621). introduced_by names V368-027
+    (df7abad), which made the endpoint reject unknown completion kinds and
+    phases through that retryable answer, contrary to its own non-retryable
+    verdict on the Server side, and pinned retryable true in its test.
+  siblings: >-
+    Producers of the completion object: the State endpoint (affected) and the
+    final and abort ExecutionReport, which server.py lifecycle_call
+    serializes with exclude_none=True (not affected; the new schema check
+    covers it too). Other optional members the endpoint serializes:
+    WorkerStateSummarizer.request_state_revision and failure_code and
+    WorkerAllocationMetricsState.completion and worker_budget already use
+    exclude_if (contracts/worker.py:187-201, 416-427); check every remaining
+    optional member of the AgentStateSnapshot model tree the same way.
+    Retryability: the 409 answer for a missing, preparing or draining Worker
+    (allocation/service.py:165-175) is transient and stays retryable. Byte
+    bound: ExecutionReport uses the same _bounded_completion and
+    decodeWorkerCompletionDiagnostics and is fixed with it. Decoders that
+    accept an explicit null for an optional member are the class V371-003
+    fixes; it depends on this task.
+scope:
+  in:
+    - "Serve agent-state bodies without null for optional members (omit an absent failureCode); a Runtime test validates every served body, with each valid case of api/testdata/audit-completion/diagnostics.json, against api/v1alpha1/agent-state.schema.json without re-serializing it."
+    - "Answer a snapshot that fails its own validation, and an oversized one, with a non-retryable closed error; keep 409 retryable for missing, preparing and draining Workers; state both in WRK-R121, FAIL-AWC-7 and the errors.md registry row of the code used."
+    - "Measure LIM-AWC-12 with the shared json_byte_size / contracts.ResultJSONSize rule on both sides and add shared diagnostics.json cases for a whitespace-padded object."
+    - "test_shared_completion_diagnostics_gate_the_agent_state_endpoint asserts the raw served JSON and the corrected retryability."
+  out:
+    - "Rejecting an explicit null in the Go and Python decoders (V371-003)."
+    - "The completion contract itself (kinds, phases, counts)."
+failure_outcomes:
+  - operation: "GET /private/v1/allocations/{allocation_id}/agent-state"
+    permanent: "A snapshot that fails validation or exceeds LIM-WRK-17: closed error with retryable false; the Server keeps it non-retryable and the Planner projection answers the non-retryable worker_state_unavailable (FAIL-AWC-7)."
+    retryable: "No Worker, or a preparing or draining slot: 409 agent_state_unavailable with retryable true, unchanged."
+    ambiguous: "Read-only; not applicable."
+    cancelled: "Unchanged: the read ends with the request."
+    timeout: "Unchanged: the Server's Worker State read timeout owns it."
+acceptance_criteria:
+  - id: A1
+    given: "A live Worker whose metrics.completion holds each valid case of api/testdata/audit-completion/diagnostics.json"
+    when: "The agent-state endpoint is read"
+    then: "The raw response body validates against agent-state.schema.json and holds no null for an optional member."
+  - id: A2
+    given: "A Worker State that fails its own snapshot validation"
+    when: "The endpoint is read twice and the Planner projection reads it"
+    then: "Both reads carry the same non-retryable code and the projection answers a non-retryable worker_state_unavailable."
+  - id: A3
+    given: "A completion object padded with whitespace beyond 4096 raw bytes whose compact size is within the bound"
+    when: "Go and Python decode it inside an ExecutionReport and inside Worker State"
+    then: "Both give the verdict the shared fixture states."
+  - id: A4
+    text: "Each new test fails on a07f5e9."
+tests:
+  - command: "cd runtime && uv run pytest tests/test_agent_state_endpoint.py tests/test_audit_completion_diagnostics.py tests/test_contracts.py"
+    covers: [A1, A2, A3, A4]
+  - command: "go test ./internal/contracts/reporting ./internal/controlplane ./internal/planner/stateview"
+    covers: [A2, A3, A4]
+  - command: "make test-wire-cross-language"
+    covers: [A1, A3]
+  - command: make lint
+    covers: [A1, A2, A3, A4]

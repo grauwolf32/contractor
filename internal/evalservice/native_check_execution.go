@@ -141,7 +141,11 @@ func (c *nativeChecker) validateJSON(ctx context.Context, check evaldomain.Check
 	if err != nil {
 		return "", "", err
 	}
-	read, err := artifacts.NewPostgresRepository(c.db).Read(ctx, scope, contracts.ArtifactRef{Namespace: ref.Namespace, Name: ref.Name, Revision: &ref.Revision})
+	store, err := artifacts.NewService(artifacts.NewPostgresRepository(c.db)).Scoped(scope)
+	if err != nil {
+		return "", "", err
+	}
+	read, err := store.Read(ctx, contracts.ArtifactRef{Namespace: ref.Namespace, Name: ref.Name, Revision: &ref.Revision})
 	if errors.Is(err, artifacts.ErrArtifactNotFound) || errors.Is(err, artifacts.ErrBlobMissing) {
 		return "incomplete", "Exact output bytes are unavailable.", nil
 	}

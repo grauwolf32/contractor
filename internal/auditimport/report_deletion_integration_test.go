@@ -20,6 +20,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/rundeletion"
@@ -323,12 +324,11 @@ func reportDeletionReviewService(t *testing.T, f *completionFixture) *auditservi
 	t.Helper()
 	manager, _, err := configload.NewManager(config.ManagerOptions{
 		OperatorRoot: "../config/testdata/valid", ManagedRoot: filepath.Join(t.TempDir(), "managed"),
-		Descriptors: config.MVPDescriptors(),
 	})
 	mustCompletion(t, err)
 	service, err := auditservice.New(auditservice.Options{
 		Pool: f.pool, Profiles: manager, CredentialGuard: completionCredentials{},
-		TransactionLLMCredentials: runtimeconfig.TransactionLLMCredentialLookupFactoryFunc(func(pgx.Tx) (config.CredentialLookup, error) {
+		TransactionLLMCredentials: runtimeconfig.TransactionLLMCredentialLookupFactoryFunc(func(pgx.Tx) (resolved.CredentialLookup, error) {
 			return completionCredentials{}, nil
 		}), Now: time.Now,
 	})

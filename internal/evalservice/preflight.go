@@ -7,7 +7,8 @@ import (
 	"github.com/grauwolf32/contractor/internal/agentskills"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditstandards"
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/auditprofile"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 	pg "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
@@ -16,8 +17,8 @@ import (
 )
 
 type Catalog interface {
-	ResolveRunWorkflow(context.Context, string, config.ExecutionConfigPatch, config.CredentialLookup) (config.ResolvedWorkflow, error)
-	AuditProfile(string) (config.ResolvedAuditProfile, error)
+	ResolveRunWorkflow(context.Context, string, resolved.ExecutionConfigPatch, resolved.CredentialLookup) (resolved.ResolvedWorkflow, error)
+	AuditProfile(string) (auditprofile.ResolvedAuditProfile, error)
 }
 
 type CredentialBarrier interface {
@@ -32,11 +33,11 @@ type Resolver struct {
 }
 
 type BindingSnapshot struct {
-	Workflow  *config.ResolvedWorkflow       `json:"workflow,omitempty"`
-	Audit     *config.ResolvedAuditProfile   `json:"audit,omitempty"`
-	Runtime   runtimeconfig.RunSnapshot      `json:"runtime"`
-	Skills    []agentskills.RunSkillSnapshot `json:"skills"`
-	Standards []auditstandards.ExactPackage  `json:"standards"`
+	Workflow  *resolved.ResolvedWorkflow         `json:"workflow,omitempty"`
+	Audit     *auditprofile.ResolvedAuditProfile `json:"audit,omitempty"`
+	Runtime   runtimeconfig.RunSnapshot          `json:"runtime"`
+	Skills    []agentskills.RunSkillSnapshot     `json:"skills"`
+	Standards []auditstandards.ExactPackage      `json:"standards"`
 }
 
 // Resolve freezes exact configuration and input metadata in one read transaction.

@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/credentials"
@@ -15,7 +15,7 @@ import (
 type fakeManagedCredentials struct {
 	mu        sync.Mutex
 	records   map[string]credentials.Record
-	lookups   map[string]config.CredentialMetadata
+	lookups   map[string]resolved.CredentialMetadata
 	created   map[string]string
 	deleted   map[string]string
 	guarded   int
@@ -25,7 +25,7 @@ type fakeManagedCredentials struct {
 
 func newFakeManagedCredentials() *fakeManagedCredentials {
 	return &fakeManagedCredentials{
-		records: make(map[string]credentials.Record), lookups: make(map[string]config.CredentialMetadata),
+		records: make(map[string]credentials.Record), lookups: make(map[string]resolved.CredentialMetadata),
 		created: make(map[string]string), deleted: make(map[string]string),
 	}
 }
@@ -139,10 +139,10 @@ func (f *fakeManagedCredentials) WithRunCreation(_ context.Context, fn func() er
 
 func (f *fakeManagedCredentials) LookupLLMCredential(
 	ctx context.Context, id string,
-) (config.CredentialMetadata, error) {
+) (resolved.CredentialMetadata, error) {
 	record, err := f.GetCredential(ctx, id)
 	if err == nil {
-		return config.CredentialMetadata{
+		return resolved.CredentialMetadata{
 			Ref: llmgateway.LLMCredentialRef{CredentialID: id}, LLMGateway: record.LLMGateway,
 		}, nil
 	}
@@ -150,12 +150,12 @@ func (f *fakeManagedCredentials) LookupLLMCredential(
 	defer f.mu.Unlock()
 	metadata, ok := f.lookups[id]
 	if !ok {
-		return config.CredentialMetadata{}, err
+		return resolved.CredentialMetadata{}, err
 	}
 	return metadata, nil
 }
 
 var _ ManagedCredentialLifecycle = (*fakeManagedCredentials)(nil)
-var _ config.CredentialLookup = (*fakeManagedCredentials)(nil)
+var _ resolved.CredentialLookup = (*fakeManagedCredentials)(nil)
 
 func stringPointer(value string) *string { return &value }

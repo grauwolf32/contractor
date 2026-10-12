@@ -10,7 +10,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
@@ -20,7 +20,7 @@ func (i *Importer) commitRoleFailure(ctx context.Context, claim auditstore.Contr
 	if execution.Role != auditstore.ExecutionPrepare || execution.RunID == nil || code == "evidence-budget-exhausted" {
 		return i.commitCollection(ctx, claim, execution, disposition, source, nil, &code, nil)
 	}
-	profile, err := config.DecodeResolvedAuditProfileSnapshot(snapshot.Audit.ProfileSnapshot)
+	profile, err := auditprofile.DecodeResolvedAuditProfileSnapshot(snapshot.Audit.ProfileSnapshot)
 	if err != nil {
 		return false, err
 	}

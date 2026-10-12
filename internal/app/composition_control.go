@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/agentprincipal"
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/controlplane"
@@ -19,7 +20,7 @@ import (
 type controlServices struct {
 	tls                   *tls.Config
 	registry              *controlplane.InMemoryRegistry
-	principals            *runtimeconfig.PrincipalService
+	principals            *agentprincipal.Service
 	principalOperations   *controlplane.PrincipalOperations
 	allocator             *controlplane.PlacementAllocator
 	runtimeClient         *controlplane.RuntimeControlClient
@@ -52,7 +53,7 @@ func configureControlPlane(
 		return controlServices{}, fmt.Errorf("configure Runtime label bindings: %w", err)
 	}
 	runtimeConfigManagement, err := runtimeconfig.NewManagementService(
-		pool, runtimeConfigPublisher, runtimeBindingService,
+		pool, runtimeConfigPublisher, runtimeBindingService, agentprincipal.LabelHolders{},
 	)
 	if err != nil {
 		return controlServices{}, fmt.Errorf("configure RuntimeConfig management: %w", err)
@@ -72,7 +73,7 @@ func configureControlPlane(
 	if err != nil {
 		return controlServices{}, fmt.Errorf("configure Control Plane registry: %w", err)
 	}
-	principalService, err := runtimeconfig.NewPrincipalService(runtimeconfig.PrincipalServiceOptions{
+	principalService, err := agentprincipal.NewService(agentprincipal.ServiceOptions{
 		Pool: pool, DeletionGuard: registry,
 	})
 	if err != nil {

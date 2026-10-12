@@ -1,17 +1,21 @@
 package config
 
-import "testing"
+import (
+	"testing"
 
-func assertNext(t *testing.T, action TransitionAction, want string) {
+	"github.com/grauwolf32/contractor/internal/config/resolved"
+)
+
+func assertNext(t *testing.T, action resolved.TransitionAction, want string) {
 	t.Helper()
-	if action.Kind != TransitionNext || action.NextStage != want {
+	if action.Kind != resolved.TransitionNext || action.NextStage != want {
 		t.Fatalf("next transition = %+v, want %q", action, want)
 	}
 }
 
-func assertBoundedRetry(t *testing.T, action TransitionAction, maxAttempts int) {
+func assertBoundedRetry(t *testing.T, action resolved.TransitionAction, maxAttempts int) {
 	t.Helper()
-	if action.Kind != TransitionRetry || action.Retry == nil || action.Retry.MaxAttempts != maxAttempts || action.Retry.Then.Kind != TransitionFail {
+	if action.Kind != resolved.TransitionRetry || action.Retry == nil || action.Retry.MaxAttempts != maxAttempts || action.Retry.Then.Kind != resolved.TransitionFail {
 		t.Fatalf("retry transition = %+v, want maxAttempts=%d then fail", action, maxAttempts)
 	}
 }

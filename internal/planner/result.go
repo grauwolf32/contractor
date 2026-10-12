@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/grauwolf32/contractor/internal/artifactpolicy"
-	workflowconfig "github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/planner/stageresult"
 )
@@ -13,7 +13,7 @@ import (
 func validateCandidate(
 	ctx context.Context,
 	runID string,
-	contract map[string]workflowconfig.ArtifactSlot,
+	contract map[string]resolved.ArtifactSlot,
 	result stageresult.StageContentResult,
 	inspector ArtifactInspector,
 ) *Error {
@@ -79,7 +79,7 @@ func validateCandidate(
 func ValidateCandidate(
 	ctx context.Context,
 	runID string,
-	contract map[string]workflowconfig.ArtifactSlot,
+	contract map[string]resolved.ArtifactSlot,
 	result stageresult.StageContentResult,
 	inspector ArtifactInspector,
 ) *Error {

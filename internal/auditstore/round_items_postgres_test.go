@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 )
 
@@ -39,8 +39,8 @@ func TestPostgresListRoundItemsReadsOneBoundedRound(t *testing.T) {
 		ProfileSnapshot: json.RawMessage(`{"name":"profile"}`),
 		InputSelection:  json.RawMessage(`{"inputs":{}}`),
 		Limits: Limits{
-			MaxRounds: 2, BatchSize: 1, MaxItemsPerRound: config.MaxAuditItemsPerRound,
-			MaxItemsTotal: config.MaxAuditItemsPerRound + 1, MaxSubmittedRuns: config.MaxAuditItemsPerRound + 1,
+			MaxRounds: 2, BatchSize: 1, MaxItemsPerRound: auditprofile.MaxAuditItemsPerRound,
+			MaxItemsTotal: auditprofile.MaxAuditItemsPerRound + 1, MaxSubmittedRuns: auditprofile.MaxAuditItemsPerRound + 1,
 			MaxItemRunAttempts: 1, MaxEvidenceBytes: 1024,
 		},
 		IdempotencyKey: "audit-round-items", RequestDigest: testDigest("3"),
@@ -48,7 +48,7 @@ func TestPostgresListRoundItemsReadsOneBoundedRound(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	first := make([]MaterializedItem, config.MaxAuditItemsPerRound)
+	first := make([]MaterializedItem, auditprofile.MaxAuditItemsPerRound)
 	for index := range first {
 		key := fmt.Sprintf("check-%05d", index)
 		first[index] = MaterializedItem{
@@ -102,16 +102,16 @@ func TestPostgresListRoundItemsReadsOneBoundedRound(t *testing.T) {
 
 	var total int
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM audit_items WHERE audit_id = $1`, audit.AuditID).Scan(&total); err != nil ||
-		total != config.MaxAuditItemsPerRound+1 {
-		t.Fatalf("Audit items = (%d, %v), want %d", total, err, config.MaxAuditItemsPerRound+1)
+		total != auditprofile.MaxAuditItemsPerRound+1 {
+		t.Fatalf("Audit items = (%d, %v), want %d", total, err, auditprofile.MaxAuditItemsPerRound+1)
 	}
 	second, err := store.ListRoundItems(ctx, audit.AuditID, "round-two")
 	if err != nil || len(second) != 1 || second[0].ItemID != "item-round-two" || second[0].RoundID != "round-two" {
 		t.Fatalf("second Round items = (%d, %v)", len(second), err)
 	}
 	firstItems, err := store.ListRoundItems(ctx, audit.AuditID, "round-one")
-	if err != nil || len(firstItems) != config.MaxAuditItemsPerRound {
-		t.Fatalf("first Round items = (%d, %v), want %d", len(firstItems), err, config.MaxAuditItemsPerRound)
+	if err != nil || len(firstItems) != auditprofile.MaxAuditItemsPerRound {
+		t.Fatalf("first Round items = (%d, %v), want %d", len(firstItems), err, auditprofile.MaxAuditItemsPerRound)
 	}
 	for index, item := range firstItems {
 		if item.Ordinal != index || item.RoundID != "round-one" {

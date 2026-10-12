@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
@@ -33,7 +33,7 @@ func TestAuditStartReplaysTheWinnerAfterADeadlockAbort(t *testing.T) {
 		t.Fatal(err)
 	}
 	credentials := &switchableCredentialLookup{available: true, gateway: gateway.Ref}
-	newService := func(lookup func(pgx.Tx) (config.CredentialLookup, error)) *Service {
+	newService := func(lookup func(pgx.Tx) (resolved.CredentialLookup, error)) *Service {
 		service, err := New(Options{
 			Pool: pool, Profiles: &switchableProfileCatalog{snapshot: profileSnapshot, available: true},
 			TransactionLLMCredentials: runtimeconfig.TransactionLLMCredentialLookupFactoryFunc(lookup),
@@ -44,7 +44,7 @@ func TestAuditStartReplaysTheWinnerAfterADeadlockAbort(t *testing.T) {
 		}
 		return service
 	}
-	winner := newService(func(pgx.Tx) (config.CredentialLookup, error) { return credentials, nil })
+	winner := newService(func(pgx.Tx) (resolved.CredentialLookup, error) { return credentials, nil })
 
 	project, _, err := projectstore.NewPostgresStore(pool).Create(ctx, projectstore.CreateParams{
 		ProjectID: "project-start-conflict", OwnerID: "owner-start-conflict", Kind: projectstore.KindProject,
@@ -77,7 +77,7 @@ func TestAuditStartReplaysTheWinnerAfterADeadlockAbort(t *testing.T) {
 	// commits the same start; the loser's transaction then aborts on a deadlock.
 	var won StartedAudit
 	var winnerErr error
-	loser := newService(func(pgx.Tx) (config.CredentialLookup, error) {
+	loser := newService(func(pgx.Tx) (resolved.CredentialLookup, error) {
 		won, winnerErr = winner.Start(ctx, start)
 		return nil, &pgconn.PgError{Code: postgres.SQLStateDeadlockDetected}
 	})

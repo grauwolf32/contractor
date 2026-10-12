@@ -20,8 +20,9 @@ import (
 // codec. Domain rules live with their owners: Run Skill provenance in
 // agentskills, the Stage result in planner/stageresult, Audit task contracts,
 // the finding collection media type, Planner model policies and the
-// audit-results Toolset rules in config, Runtime adapter and credential kinds
-// in contracts/runtimesettings, and pinned selections in contentdigest.
+// audit-results Toolset rules in config/resolved, Runtime adapter and
+// credential kinds in contracts/runtimesettings, and pinned selections in
+// contentdigest.
 const contractsKernel = "internal/contracts"
 
 // contractsImporters lists every non-test package that imports the kernel,
@@ -29,9 +30,11 @@ const contractsKernel = "internal/contracts"
 // is added for such a symbol; a package that needs only a domain rule
 // imports the rule's owner instead.
 var contractsImporters = map[string][]string{
+	"internal/agentprincipal":            {"ValidRuntimeAgentID"},
 	"internal/agentskills":               {"ArtifactRef", "ValidAgentSkillName"},
 	"internal/app":                       {"ArtifactRef", "SecretString"},
 	"internal/artifacts":                 {"ArtifactRef", "ValidateArtifactName", "ValidMediaType"},
+	"internal/artifacts/artifactstest":   {"ArtifactRef"},
 	"internal/auditcontroller":           {"ArtifactRef"},
 	"internal/auditdomain":               {"ArtifactRef", "ValidMediaType"},
 	"internal/auditimport":               {"ArtifactRef"},
@@ -42,6 +45,8 @@ var contractsImporters = map[string][]string{
 	"internal/auth":                      {"ValidName"},
 	"internal/cli":                       {"ValidateArtifactName"},
 	"internal/config":                    {"ResolvedAgentTemplate", "ResolvedModelPolicy", "ToolsetSelection"},
+	"internal/config/auditprofile":       {"AuditCheckResultsV1", "ValidConfigVersion"},
+	"internal/config/resolved":           {"ResolvedAgentTemplate", "ResolvedModelPolicy", "ToolsetSelection"},
 	"internal/contracts/control":         {"ResolvedAgentTemplate", "WorkerCompletionContract", "WorkerHandle"},
 	"internal/contracts/llmgateway":      {"ValidConfigID", "ValidateDigest"},
 	"internal/contracts/reporting":       {"DecodePrivateStrict", "ValidateWorkerSubtaskID"},
@@ -69,7 +74,7 @@ var contractsImporters = map[string][]string{
 	"internal/runrepeat":                 {"ArtifactRef", "ValidateArtifactName"},
 	"internal/runservice":                {"AgentSkillNamespace", "ArtifactRef"},
 	"internal/runstore":                  {"ArtifactRef", "ValidRuntimeAgentID", "WorkerCompletionContract"},
-	"internal/runtimeconfig":             {"ResolvedModelPolicy", "ValidRuntimeAgentID"},
+	"internal/runtimeconfig":             {"ResolvedModelPolicy", "ValidIdentifier"},
 	"internal/scanplan":                  {"ResolvedAgentTemplate", "ToolExecutionConfig"},
 	"internal/scheduler":                 {"AllocationWorkspaceSpec", "ResolvedSkill", "WorkerHandle"},
 	"internal/telemetry":                 {"DecodePrivateStrict", "ResultJSONSize"},

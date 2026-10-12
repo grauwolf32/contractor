@@ -12,7 +12,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditstore"
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	managedcredentials "github.com/grauwolf32/contractor/internal/credentials"
@@ -129,7 +129,7 @@ func newStartStagingService(t *testing.T, pool *pgxpool.Pool, guard CredentialRe
 		t.Fatal(err)
 	}
 	development, err := managedcredentials.NewStaticProvider([]managedcredentials.StaticEntry{{
-		Metadata: config.CredentialMetadata{
+		Metadata: resolved.CredentialMetadata{
 			Ref:        llmgateway.LLMCredentialRef{CredentialID: "development-worker"},
 			LLMGateway: gateway.Ref, Unrestricted: true,
 		},
