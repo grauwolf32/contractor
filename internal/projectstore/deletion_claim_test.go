@@ -95,11 +95,13 @@ func TestPostgresProjectDeletionClaimLifecycle(t *testing.T) {
 	if err != nil || !found || purge.Phase != DeletionPurgingRuns {
 		t.Fatalf("claim in a purge phase = (%+v, %t, %v)", purge, found, err)
 	}
+	// The claim and its expiry read the clock separately, a few microseconds
+	// apart; an ordinary lease would be a minute.
 	var leased time.Duration
 	if err := pool.QueryRow(ctx, `
 SELECT deletion_claim_expires_at - deletion_claimed_at FROM projects WHERE project_id = $1`,
-		project.ProjectID).Scan(&leased); err != nil || leased != time.Hour {
-		t.Fatalf("purge phase lease = (%v, %v), want the purge lease", leased, err)
+		project.ProjectID).Scan(&leased); err != nil || leased < time.Hour || leased >= time.Hour+time.Minute {
+		t.Fatalf("purge phase lease = (%v, %v), want the purge lease of an hour", leased, err)
 	}
 	if err := store.AdvanceDeletion(ctx, purge, DeletionPurgingArtifacts); err != nil {
 		t.Fatal(err)
