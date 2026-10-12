@@ -1,0 +1,92 @@
+schema_version: "1.0"
+id: V370-028
+title: "Skip trigger work for Run event appends"
+milestone: hub-audit-structure-2026-10
+epic: persistence
+kind: defect
+introduced_by: V39-002
+priority: P3
+status: completed
+implementation_commit: b154f9009d50733fa42d55f8d70007dabf976e38
+depends_on: []
+languages: [sql, go]
+goal: "pg_stat_user_functions shows no calls of the audit_completion triggers on event appends."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq; raw reports in docs/research/2026-10-11-hub-audit/), persistence I3; file:line as of 02bbdcbf, re-verify on current main"
+  finding: >-
+    Each Run event append updates workflow_runs (planner_store_sql.go:26,
+    stage_store_sql.go:53), firing three BEFORE triggers and two deferred
+    constraint triggers that return immediately when audit_completion is
+    unchanged.
+  siblings: >-
+    Every row trigger of workflow_runs that fires on UPDATE: the guards
+    workflow_runs_protect_audit_completion, workflow_runs_protect_immutable
+    and workflow_runs_protect_skill_snapshot, the lifecycle capture
+    workflow_runs_capture_lifecycle_event, and the deferred checks
+    workflow_runs_require_audit_completion and
+    workflow_runs_require_complete_audit_binding; eval_runs_projection was
+    already UPDATE OF state, finished_at. Every Run event append path sets
+    only next_run_event_sequence: appendPlannerEventSQL, startPlannerSQL and
+    contractor_append_workflow_run_lifecycle_event, which the lifecycle
+    triggers call nested. Ruled out: the triggers of the tables an append
+    also writes (workflow_run_events, planner_sessions, stage_executions)
+    act on the appended event itself.
+  decision: >-
+    Guarantee (PER-R21): a guard fires on UPDATE OF exactly the columns its
+    function compares (audit_completion; the 21 immutable and cancellation
+    columns; skill_snapshot), and no BEFORE UPDATE trigger of workflow_runs
+    assigns a column; the lifecycle capture and the deferred completion
+    check fire on every INSERT and on an UPDATE only WHEN the state or the
+    completion changed, each split into an INSERT trigger that keeps the old
+    name and an _on_update trigger, since an INSERT trigger's WHEN cannot
+    read OLD; the binding check fires only WHEN the Run is audit-managed.
+    Alternatives: WHEN conditions on the guards are exact even if a BEFORE
+    trigger rewrote a column, but still compare the large snapshots on every
+    append, so they save only the call; keeping the completion check's own
+    early return (both completions NULL) still runs its full lookup on every
+    append to an Audit check Run, while its inputs, a completion that cannot
+    change once set and an immutable profile binding (AWC-R7), cannot change;
+    narrowing the binding check further was rejected because it also reads
+    the audit_executions row, which an update of the Run does not cover.
+    Evidence: with track_functions = pl, pg_stat_xact_user_functions showed
+    each append (nested lifecycle, Planner start, Planner event) calling six
+    trigger functions and a state change calling them twice; after the
+    migration appends call none and a state change only the capture and the
+    append. That literal check needs a superuser, so the committed tests use
+    EXPLAIN ANALYZE with deferred checks immediate, which any role may run:
+    TestPostgresRunEventAppendsFireNoWorkflowRunTrigger reports six
+    triggers per append without the migration and none with it; the Audit
+    completion test reports six instead of only the binding check for a Run
+    with a completion; TestWorkflowRunGuardsFireOnTheColumnsTheyCompare
+    fails on a guard list missing run_cancellation and without the
+    migration. EXPLAIN does not see triggers of nested statements, so the
+    lifecycle appends rely on the shared single-column shape and the
+    diagnostic above. The two tests that disable
+    workflow_runs_capture_lifecycle_event for bulk Run inserts keep working
+    because the INSERT trigger kept that name. Verified: go test -tags
+    integration ./internal/persistence/... and, selected with -run, 14
+    runstore tests (new test, completion, lifecycle, Skill snapshot,
+    cancellation, labels, project membership, claims, event notification,
+    state sets, heap-only sequence bump, active-state index reads), both
+    runservice Audit completion tests, and the credential usage, three
+    scheduler, four auditstore and two artifacts tests that change Run
+    state or bind audit-managed Runs; the new runstore and guard tests also
+    as a role without superuser or CREATEDB. The whole runstore suite was
+    left to the release gate. Reversal condition: a BEFORE UPDATE trigger
+    that must assign a guarded column needs WHEN guards instead, and a
+    mutable profile binding or completion needs the completion check on
+    that change. introduced_by: V39-002 added the completion triggers
+    without conditions; the other triggers predate this clone's history.
+scope:
+  in:
+    - "UPDATE OF or WHEN conditions on the triggers in a migration."
+  out:
+    - "Trigger semantics."
+acceptance_criteria:
+  - id: A1
+    text: "pg_stat_user_functions shows no calls of the audit_completion triggers on event appends."
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "go test -tags integration ./internal/runstore"
+    covers: [A1]
