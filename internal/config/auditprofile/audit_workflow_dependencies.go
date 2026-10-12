@@ -1,10 +1,12 @@
-package config
+package auditprofile
 
 import (
 	"fmt"
 	"maps"
 	"slices"
 	"sort"
+
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 )
 
 func validateAuditWorkflowDependencies(
@@ -32,7 +34,7 @@ func validateAuditWorkflowDependencies(
 			if !exists {
 				return fmt.Errorf("spec.workflows.%s.inputs.%s names unknown logical output %q on role %q", role, inputName, mapping.Name, mapping.Role)
 			}
-			if !mediaTypesIntersect(source.Workflow.Outputs[workflowOutput].MediaTypes, binding.Workflow.Inputs[inputName].MediaTypes) {
+			if !resolved.MediaTypesIntersect(source.Workflow.Outputs[workflowOutput].MediaTypes, binding.Workflow.Inputs[inputName].MediaTypes) {
 				return fmt.Errorf("spec.workflows.%s.inputs.%s retained output media types are incompatible", role, inputName)
 			}
 			dependencies[role] = append(dependencies[role], mapping.Role)

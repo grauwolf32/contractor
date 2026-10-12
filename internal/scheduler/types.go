@@ -6,7 +6,7 @@ import (
 	"log/slog"
 	"time"
 
-	workflowconfig "github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
@@ -104,7 +104,7 @@ type ResultProgression struct {
 	StageExecutionID string
 	Result           contracts.StageContentResult
 	WorkflowOutputs  map[string]string
-	OutputContracts  map[string]workflowconfig.ArtifactSlot
+	OutputContracts  map[string]resolved.ArtifactSlot
 	Progression      StageProgression
 }
 

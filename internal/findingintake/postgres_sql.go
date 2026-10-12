@@ -1,6 +1,6 @@
 package findingintake
 
-import workflowconfig "github.com/grauwolf32/contractor/internal/config"
+import "github.com/grauwolf32/contractor/internal/config/auditprofile"
 
 // SQL statements for postgres.go.
 
@@ -27,6 +27,6 @@ SELECT receipt.receipt_id, audit.project_id, receipt.proposal_ref, receipt.evide
         WHERE review.audit_id = audit.audit_id AND review.subject_kind = 'audit-report'
           AND review.state = 'pending'
    )
-   AND audit.profile_snapshot #>> '` + workflowconfig.AuditProfileFindingConfirmationPath + `' = '` +
-	string(workflowconfig.AuditFindingHumanRequired) + `'
+   AND audit.profile_snapshot #>> '` + auditprofile.AuditProfileFindingConfirmationPath + `' = '` +
+	string(auditprofile.AuditFindingHumanRequired) + `'
  FOR UPDATE OF receipt, audit`

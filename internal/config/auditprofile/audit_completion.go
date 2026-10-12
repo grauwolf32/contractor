@@ -1,8 +1,9 @@
-package config
+package auditprofile
 
 import (
 	"fmt"
 
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
@@ -21,10 +22,10 @@ func ValidateAuditWorkerCompletion(binding ResolvedAuditWorkflowBinding) error {
 	if c.Kind != contracts.AuditCheckResultsV1 || binding.Kind != AuditWorkflowCheck {
 		return fmt.Errorf("workerCompletion requires a check binding and audit-check-results@1")
 	}
-	if err := validateWorkflowName("workerCompletion.stage", c.Stage); err != nil {
+	if err := resolved.ValidateWorkflowName("workerCompletion.stage", c.Stage); err != nil {
 		return err
 	}
-	if err := validateWorkflowName("workerCompletion.agent", c.Agent); err != nil {
+	if err := resolved.ValidateWorkflowName("workerCompletion.agent", c.Agent); err != nil {
 		return err
 	}
 	stage, ok := binding.Workflow.Stages[c.Stage]
@@ -37,15 +38,15 @@ func ValidateAuditWorkerCompletion(binding ResolvedAuditWorkflowBinding) error {
 	// Escalation currently replaces effective model access, while the stage's
 	// template/result ownership stays fixed. Validate the fully effective stage
 	// for every bounded retry/escalation branch, including future template checks.
-	var visit func(TransitionAction, int, string) error
-	visit = func(action TransitionAction, depth int, outcome string) error {
+	var visit func(resolved.TransitionAction, int, string) error
+	visit = func(action resolved.TransitionAction, depth int, outcome string) error {
 		if depth > 32 {
 			return fmt.Errorf("workerCompletion transition depth exceeded")
 		}
 		if action.Escalate != nil {
 			variant := stage
-			variant.ExecutionConfig = cloneStageExecutionConfig(action.Escalate.ExecutionConfig.Effective)
-			if err := validateStageEscalationVariant(c.Stage, outcome, stage, action); err != nil {
+			variant.ExecutionConfig = action.Escalate.ExecutionConfig.Effective.Clone()
+			if err := resolved.ValidateStageEscalationVariant(c.Stage, outcome, stage, action); err != nil {
 				return err
 			}
 			if err := validateAuditCompletionStage(binding, c.Stage, c.Agent, variant); err != nil {
@@ -58,7 +59,7 @@ func ValidateAuditWorkerCompletion(binding ResolvedAuditWorkflowBinding) error {
 		}
 		return nil
 	}
-	for outcome, action := range map[string]TransitionAction{"succeeded": stage.On.Succeeded, "failed": stage.On.Failed, "interrupted": stage.On.Interrupted} {
+	for outcome, action := range map[string]resolved.TransitionAction{"succeeded": stage.On.Succeeded, "failed": stage.On.Failed, "interrupted": stage.On.Interrupted} {
 		if err := visit(action, 0, outcome); err != nil {
 			return err
 		}
@@ -66,7 +67,7 @@ func ValidateAuditWorkerCompletion(binding ResolvedAuditWorkflowBinding) error {
 	return nil
 }
 
-func validateAuditCompletionStage(binding ResolvedAuditWorkflowBinding, stageName, agentName string, stage ResolvedStage) error {
+func validateAuditCompletionStage(binding ResolvedAuditWorkflowBinding, stageName, agentName string, stage resolved.ResolvedStage) error {
 	if stage.Planner.PlannerID != "passthrough" || stage.Planner.Version != "1" || len(stage.Agents) != 1 {
 		return fmt.Errorf("workerCompletion requires a single-Worker passthrough@1 Stage")
 	}
@@ -77,7 +78,7 @@ func validateAuditCompletionStage(binding ResolvedAuditWorkflowBinding, stageNam
 	if err := contracts.ValidateAuditCompletionTemplate(agent.Template); err != nil {
 		return err
 	}
-	if err := validateStageExecutionConfig(stageName, stage); err != nil {
+	if err := resolved.ValidateStageExecutionConfig(stageName, stage); err != nil {
 		return err
 	}
 	output, ok := binding.Outputs["result"]
@@ -90,7 +91,7 @@ func validateAuditCompletionStage(binding ResolvedAuditWorkflowBinding, stageNam
 	}
 	result, ok := stage.Result.Artifacts[resultName]
 	if !ok || !result.Required || result.From == nil || result.From.Namespace != agent.Namespace ||
-		!mediaTypesIntersect(result.MediaTypes, []string{"application/zip"}) {
+		!resolved.MediaTypesIntersect(result.MediaTypes, []string{"application/zip"}) {
 		return fmt.Errorf("workerCompletion result must be a required ZIP bound to the selected Worker namespace")
 	}
 	for otherName, other := range binding.Workflow.Stages {

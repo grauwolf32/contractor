@@ -16,6 +16,8 @@ import (
 	"unicode/utf8"
 
 	"github.com/grauwolf32/contractor/internal/clone"
+	"github.com/grauwolf32/contractor/internal/config/auditprofile"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/randomid"
@@ -266,21 +268,21 @@ func resolveMissingRoot(path string) (string, error) {
 
 func (m *Manager) Snapshot() *Snapshot { return m.current.Load() }
 
-func (m *Manager) Workflow(raw string) (ResolvedWorkflow, error) {
+func (m *Manager) Workflow(raw string) (resolved.ResolvedWorkflow, error) {
 	return m.Snapshot().Workflow(raw)
 }
 
-func (m *Manager) Workflows() []ResolvedWorkflow { return m.Snapshot().Workflows() }
+func (m *Manager) Workflows() []resolved.ResolvedWorkflow { return m.Snapshot().Workflows() }
 
 func (m *Manager) WorkflowDiscovery() (WorkflowDiscovery, error) {
 	return m.Snapshot().WorkflowDiscovery()
 }
 
-func (m *Manager) AuditProfile(raw string) (ResolvedAuditProfile, error) {
+func (m *Manager) AuditProfile(raw string) (auditprofile.ResolvedAuditProfile, error) {
 	return m.Snapshot().AuditProfile(raw)
 }
 
-func (m *Manager) AuditProfiles() []ResolvedAuditProfile {
+func (m *Manager) AuditProfiles() []auditprofile.ResolvedAuditProfile {
 	return m.Snapshot().AuditProfiles()
 }
 
@@ -295,9 +297,9 @@ func (m *Manager) ModelPolicy(raw string) (contracts.ResolvedModelPolicy, error)
 func (m *Manager) ResolveRunWorkflow(
 	ctx context.Context,
 	raw string,
-	patch ExecutionConfigPatch,
-	credentials CredentialLookup,
-) (ResolvedWorkflow, error) {
+	patch resolved.ExecutionConfigPatch,
+	credentials resolved.CredentialLookup,
+) (resolved.ResolvedWorkflow, error) {
 	return m.Snapshot().ResolveRunWorkflow(ctx, raw, patch, credentials)
 }
 
@@ -434,7 +436,7 @@ func (c publicationCandidate) durableIn(snapshot *Snapshot) bool {
 }
 
 type publicationCandidate struct {
-	selector      Selector
+	selector      resolved.Selector
 	resource      ConfigurationResource
 	policy        *contracts.ResolvedModelPolicy
 	gateway       *llmgateway.ResolvedLLMGatewayConfig

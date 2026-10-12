@@ -6,6 +6,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 )
 
 func TestAuditPreparationAuthoringFixtures(t *testing.T) {
@@ -48,7 +50,7 @@ func TestAuditPreparationAuthoringFixtures(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			restored, err := DecodeResolvedAuditProfileSnapshot(encoded)
+			restored, err := auditprofile.DecodeResolvedAuditProfileSnapshot(encoded)
 			if err != nil || !reflect.DeepEqual(profile, restored) {
 				t.Fatalf("snapshot round trip: %v", err)
 			}
@@ -58,40 +60,6 @@ func TestAuditPreparationAuthoringFixtures(t *testing.T) {
 				t.Fatal("inventory source mutation leaked")
 			}
 		})
-	}
-}
-
-func TestAuditPreparationAttemptBudgetChangesDigestAndInvalidatesSnapshot(t *testing.T) {
-	root := copyAuditPreparationCatalog(t)
-	writeAuditProfile(t, root, "prepared-openapi-scan", string(readFile(t, "../../api/testdata/audit-composition/prepared-openapi-scan.yaml")))
-	profile, err := mustLoad(t, root).AuditProfile("prepared-openapi-scan@1")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if profile.Workflows["generate-api"].MaxRunAttempts != 2 {
-		t.Fatal("prepare fixture no longer has two attempts")
-	}
-	digests := map[string]bool{profile.Ref.Digest: true}
-	for _, attempts := range []int{1, 3} {
-		candidate := cloneAuditProfile(profile)
-		binding := candidate.Workflows["generate-api"]
-		binding.MaxRunAttempts = attempts
-		candidate.Workflows["generate-api"] = binding
-		digest, err := auditProfileDigest(Selector{ID: profile.Ref.Name, Version: profile.Ref.Version}, candidate)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if digests[digest] {
-			t.Fatalf("maxRunAttempts=%d reused digest %s", attempts, digest)
-		}
-		digests[digest] = true
-		raw, err := json.Marshal(candidate)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if _, err := DecodeResolvedAuditProfileSnapshot(raw); err == nil || !strings.Contains(err.Error(), "persisted AuditProfile digest is invalid") {
-			t.Fatalf("changed maxRunAttempts=%d with stale digest = %v", attempts, err)
-		}
 	}
 }
 
@@ -111,62 +79,6 @@ func TestAuditProfilesWithoutPreparationKeepDigests(t *testing.T) {
 		if profile.Ref.Digest != digest {
 			t.Fatalf("%s digest = %s, want %s", ref, profile.Ref.Digest, digest)
 		}
-	}
-}
-
-func TestAuditPreparationDependenciesAndSnapshotValidation(t *testing.T) {
-	root := copyAuditPreparationCatalog(t)
-	data := string(readFile(t, "../../api/testdata/audit-composition/prepared-openapi-scan.yaml"))
-	writeAuditProfile(t, root, "prepared-openapi-scan", data)
-	snapshot := mustLoad(t, root)
-	profile, err := snapshot.AuditProfile("prepared-openapi-scan@1")
-	if err != nil {
-		t.Fatal(err)
-	}
-	second := profile.Workflows["generate-api"]
-	second.Inputs = cloneMap(second.Inputs)
-	second.Inputs["existing_openapi"] = AuditWorkflowInputMapping{Source: AuditInputFromPreparation, Role: "generate-api", Name: "api"}
-	profile.Workflows["refine-api"] = second
-	profile.Inventory.Source.Role = "refine-api"
-	profile.Workflows["scan"].Inputs["openapi"] = *profile.Inventory.Source
-	if err := ValidateAuditPreparationProfile(profile); err != nil {
-		t.Fatal(err)
-	}
-	if err := ValidateAuditTaskProfile(profile); err != nil {
-		t.Fatal(err)
-	}
-	for _, mutate := range []func(*ResolvedAuditProfile){
-		func(p *ResolvedAuditProfile) {
-			b := p.Workflows["generate-api"]
-			b.MaxRunAttempts = 0
-			p.Workflows["generate-api"] = b
-		},
-		func(p *ResolvedAuditProfile) { p.Inventory.Source.Source = AuditInputFromItemPackage },
-		func(p *ResolvedAuditProfile) {
-			p.Workflows["generate-api"].Inputs["existing_openapi"] = AuditWorkflowInputMapping{Source: AuditInputFromPreparation, Role: "refine-api", Name: "api"}
-		},
-	} {
-		candidate := cloneAuditProfile(profile)
-		mutate(&candidate)
-		candidate.Ref.Digest, err = auditProfileDigest(Selector{ID: candidate.Ref.Name, Version: candidate.Ref.Version}, candidate)
-		if err != nil {
-			t.Fatal(err)
-		}
-		encoded, err := json.Marshal(candidate)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if _, err := DecodeResolvedAuditProfileSnapshot(encoded); err == nil {
-			t.Fatal("invalid snapshot accepted despite a recomputed digest")
-		}
-	}
-	encoded, err := json.Marshal(profile)
-	if err != nil {
-		t.Fatal(err)
-	}
-	obsolete := strings.Replace(string(encoded), `"implementation":"openapi-scans@1"`, `"implementation":"openapi-scans@1","sourceInput":"source"`, 1)
-	if _, err := DecodeResolvedAuditProfileSnapshot([]byte(obsolete)); err == nil {
-		t.Fatal("obsolete snapshot schema accepted")
 	}
 }
 

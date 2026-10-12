@@ -1,4 +1,4 @@
-package config
+package auditprofile_test
 
 import (
 	"bytes"
@@ -6,16 +6,15 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 )
 
 func TestDecodeResolvedAuditProfileSnapshotRequiresCurrentRolesAndDigest(t *testing.T) {
 	t.Parallel()
-	root := copyAuditProfileConfigTree(t)
-	writeAuditProfile(t, root, "legacy-profile", validAuditProfileYAML("legacy-profile"))
-	profile, err := mustLoad(t, root).AuditProfile("legacy-profile@1")
-	if err != nil {
-		t.Fatal(err)
-	}
+	root := copyCatalog(t, "audit-profile-catalog")
+	writeAuditProfile(t, root, "legacy-profile", templateAuditProfileYAML(t, "legacy-profile"))
+	profile := loadProfile(t, root, "legacy-profile@1")
 	encoded, err := json.Marshal(profile)
 	if err != nil {
 		t.Fatal(err)
@@ -69,13 +68,13 @@ func TestDecodeResolvedAuditProfileSnapshotRequiresCurrentRolesAndDigest(t *test
 				t.Fatal(err)
 			}
 			original := bytes.Clone(raw)
-			decoded, err := DecodeResolvedAuditProfileSnapshot(raw)
+			decoded, err := auditprofile.DecodeResolvedAuditProfileSnapshot(raw)
 			if test.wantError == "" {
 				if err != nil || !reflect.DeepEqual(decoded, profile) {
 					t.Fatalf("current profile changed during round trip: %v", err)
 				}
 			} else if err == nil || !strings.Contains(err.Error(), test.wantError) ||
-				!reflect.DeepEqual(decoded, ResolvedAuditProfile{}) {
+				!reflect.DeepEqual(decoded, auditprofile.ResolvedAuditProfile{}) {
 				t.Fatalf("decode = (%+v, %v), want empty profile and %q", decoded, err, test.wantError)
 			}
 			if !bytes.Equal(raw, original) {
@@ -85,20 +84,17 @@ func TestDecodeResolvedAuditProfileSnapshotRequiresCurrentRolesAndDigest(t *test
 	}
 
 	t.Run("all current role kinds", func(t *testing.T) {
-		for _, kind := range []AuditWorkflowRoleKind{AuditWorkflowDiscovery, AuditWorkflowAssessment} {
+		for _, kind := range []auditprofile.AuditWorkflowRoleKind{auditprofile.AuditWorkflowDiscovery, auditprofile.AuditWorkflowAssessment} {
 			binding := profile.Workflows["check"]
 			binding.Kind = kind
 			profile.Workflows[string(kind)] = binding
 		}
-		profile.Ref.Digest, err = auditProfileDigest(Selector{ID: profile.Ref.Name, Version: profile.Ref.Version}, profile)
-		if err != nil {
-			t.Fatal(err)
-		}
+		redigest(t, &profile)
 		raw, err := json.Marshal(profile)
 		if err != nil {
 			t.Fatal(err)
 		}
-		decoded, err := DecodeResolvedAuditProfileSnapshot(raw)
+		decoded, err := auditprofile.DecodeResolvedAuditProfileSnapshot(raw)
 		if err != nil || !reflect.DeepEqual(decoded, profile) {
 			t.Fatalf("current role kinds changed during round trip: %v", err)
 		}

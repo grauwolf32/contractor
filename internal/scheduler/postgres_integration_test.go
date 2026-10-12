@@ -16,7 +16,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	workflowconfig "github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
@@ -116,7 +116,7 @@ func testPostgresSchedulerPublication(t *testing.T, scenario schedulerPublicatio
 	workflow := loadSchedulerWorkflow(t)
 	if resume {
 		stage := workflow.Stages[workflow.EntryStage]
-		stage.On.Failed = workflowconfig.TransitionAction{Kind: workflowconfig.TransitionFail}
+		stage.On.Failed = resolved.TransitionAction{Kind: resolved.TransitionFail}
 		workflow.Stages[workflow.EntryStage] = stage
 	}
 	store := runstore.NewPostgresStore(pool)
@@ -177,7 +177,7 @@ func testPostgresSchedulerPublication(t *testing.T, scenario schedulerPublicatio
 		t.Fatal("test Worker has no complete credential route")
 	}
 	credentialProvider, err := credentials.NewStaticProvider([]credentials.StaticEntry{{
-		Metadata: workflowconfig.CredentialMetadata{
+		Metadata: resolved.CredentialMetadata{
 			Ref:          *workerSelection.Credential,
 			LLMGateway:   workerSelection.LLMGateway.Ref,
 			Unrestricted: true,
@@ -379,7 +379,7 @@ func TestPostgresProjectOutputPublicationRaceKeepsBothRunsSucceeded(t *testing.T
 		createBoundProjectRunOutput(t, ctx, pool, service, runID, projectID, "result", runID+"\n")
 	}
 
-	contractsByName := map[string]workflowconfig.ArtifactSlot{
+	contractsByName := map[string]resolved.ArtifactSlot{
 		"result":   {Required: true, MediaTypes: []string{"text/plain"}},
 		"optional": {Required: false, MediaTypes: []string{"text/plain"}},
 	}
@@ -457,7 +457,7 @@ func TestPostgresProjectOutputPublicationRollsBackWithTerminalTransactionAndRetr
 	service := artifacts.NewService(artifacts.NewPostgresRepository(pool))
 	runID := "run-publication-retry"
 	createBoundProjectRunOutput(t, ctx, pool, service, runID, projectID, "result", "retry\n")
-	contractsByName := map[string]workflowconfig.ArtifactSlot{
+	contractsByName := map[string]resolved.ArtifactSlot{
 		"result": {Required: true, MediaTypes: []string{"text/plain"}},
 	}
 	progression := StageProgression{
@@ -549,7 +549,7 @@ BEFORE INSERT ON artifact_lineage
 FOR EACH ROW EXECUTE FUNCTION reject_test_project_output_publication()`); err != nil {
 		t.Fatal(err)
 	}
-	contractsByName := map[string]workflowconfig.ArtifactSlot{
+	contractsByName := map[string]resolved.ArtifactSlot{
 		"result": {Required: true, MediaTypes: []string{"text/plain"}},
 	}
 	err = persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
@@ -591,7 +591,7 @@ func TestPostgresProjectOutputPublicationRecordsPermanentFailureOnce(t *testing.
 	pool := isolatedSchedulerPool(t, ctx)
 	service := artifacts.NewService(artifacts.NewPostgresRepository(pool))
 	store := runstore.NewPostgresStore(pool)
-	contractsByName := map[string]workflowconfig.ArtifactSlot{
+	contractsByName := map[string]resolved.ArtifactSlot{
 		"result": {Required: true, MediaTypes: []string{"text/plain"}},
 	}
 	projects := projectstore.NewPostgresStore(pool)
@@ -1169,7 +1169,7 @@ type finalizingFixture struct {
 	store       *runstore.PostgresStore
 	artifacts   *artifacts.Service
 	persistence *PostgresPersistence
-	workflow    workflowconfig.ResolvedWorkflow
+	workflow    resolved.ResolvedWorkflow
 	executionID string
 	result      contracts.StageContentResult
 }
@@ -1274,7 +1274,7 @@ func createSchedulerRun(
 	ctx context.Context,
 	store *runstore.PostgresStore,
 	artifactService *artifacts.Service,
-	workflow workflowconfig.ResolvedWorkflow,
+	workflow resolved.ResolvedWorkflow,
 ) artifacts.ScopedStore {
 	return createSchedulerRunInProject(t, ctx, store, artifactService, workflow, nil)
 }
@@ -1284,7 +1284,7 @@ func createSchedulerRunInProject(
 	ctx context.Context,
 	store *runstore.PostgresStore,
 	artifactService *artifacts.Service,
-	workflow workflowconfig.ResolvedWorkflow,
+	workflow resolved.ResolvedWorkflow,
 	projectID *string,
 ) artifacts.ScopedStore {
 	t.Helper()
@@ -1399,7 +1399,7 @@ func createBoundProjectRunOutput(
 	return bound.TargetRef
 }
 
-func loadSchedulerWorkflow(t *testing.T) workflowconfig.ResolvedWorkflow {
+func loadSchedulerWorkflow(t *testing.T) resolved.ResolvedWorkflow {
 	t.Helper()
 	snapshot, err := configload.Load("../../testdata/configs")
 	if err != nil {

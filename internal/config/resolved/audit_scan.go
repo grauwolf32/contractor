@@ -1,6 +1,8 @@
-package config
+package resolved
 
-import "fmt"
+import (
+	"fmt"
+)
 
 // AuditScanConfig opts scan-plan@1 into trusted single-item preparation and
 // result assembly. Settings and manifest bytes are pinned Audit inputs.
@@ -69,39 +71,6 @@ func validateAuditScanContext(stage ResolvedStage) error {
 	}
 	if len(stage.Context.Artifacts) != len(slots) || stage.Context.Workspace != nil {
 		return fmt.Errorf("auditScan accepts only source, settings, task and execution manifest context")
-	}
-	return nil
-}
-
-func validateAuditScanMappings(profile ResolvedAuditProfile, binding ResolvedAuditWorkflowBinding, stage ResolvedStage) error {
-	if profile.Inventory.Source == nil || profile.Inventory.Settings == nil || *profile.Inventory.Source == *profile.Inventory.Settings {
-		return fmt.Errorf("scan task requires distinct source and settings")
-	}
-	checks := []struct {
-		slot    string
-		mapping AuditWorkflowInputMapping
-	}{
-		{stage.ScanPlan.InputArtifact, *profile.Inventory.Source},
-		{stage.AuditScan.SettingsArtifact, *profile.Inventory.Settings},
-		{stage.AuditScan.TaskArtifact, AuditWorkflowInputMapping{Source: AuditInputFromItemPackage}},
-		{stage.AuditScan.ManifestArtifact, AuditWorkflowInputMapping{Source: AuditInputFromExecutionManifest}},
-	}
-	for _, check := range checks {
-		mapping, exists := binding.Inputs[stage.Context.Artifacts[check.slot].Name]
-		if !exists || mapping != check.mapping {
-			return fmt.Errorf("auditScan input mapping differs from inventory authority")
-		}
-	}
-	if output, exists := binding.Outputs["result"]; !exists || stage.WorkflowOutputs[output] != "report" {
-		return fmt.Errorf("auditScan must publish its canonical result package")
-	}
-	output := binding.Outputs["result"]
-	for name, other := range binding.Workflow.Stages {
-		if name != binding.Workflow.AuditTask.Stage {
-			if _, publishes := other.WorkflowOutputs[output]; publishes {
-				return fmt.Errorf("auditTask canonical result has another Stage producer")
-			}
-		}
 	}
 	return nil
 }

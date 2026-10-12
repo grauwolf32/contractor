@@ -16,7 +16,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	workflowconfig "github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
@@ -1289,14 +1289,14 @@ var _ planner.WorkerStateReader = unavailableWorkerStateReader{}
 
 func testInvocation(bindings ...string) planner.Invocation {
 	sourceRevision := "source-r1"
-	stageAgents := make(map[string]workflowconfig.ResolvedAgentBinding, len(bindings))
+	stageAgents := make(map[string]resolved.ResolvedAgentBinding, len(bindings))
 	workers := make(map[string]contracts.WorkerHandle, len(bindings))
 	for _, name := range bindings {
 		templateRef := contracts.AgentTemplateRef{
 			TemplateID: name, Version: "1", Digest: "sha256:" + strings.Repeat("a", 64),
 		}
 		runtimeRef := contracts.WorkerRuntimeRef{RuntimeID: "adk", Version: "1"}
-		stageAgents[name] = workflowconfig.ResolvedAgentBinding{
+		stageAgents[name] = resolved.ResolvedAgentBinding{
 			Namespace: name,
 			Template: contracts.ResolvedAgentTemplate{
 				Ref: templateRef, Runtime: runtimeRef, Description: "Worker " + name,
@@ -1321,15 +1321,15 @@ func testInvocation(bindings ...string) planner.Invocation {
 				Protocol: llmgateway.OpenAICompatibleProtocol, URL: "https://gateway.example/v1",
 			},
 		},
-		Stage: workflowconfig.ResolvedStage{
+		Stage: resolved.ResolvedStage{
 			Objective:    "Produce a reviewed report",
 			Instructions: contracts.ResolvedInstructions{Text: "Use the Workers carefully."},
-			Planner:      workflowconfig.PlannerRef{PlannerID: "streamline", Version: "1"},
+			Planner:      resolved.PlannerRef{PlannerID: "streamline", Version: "1"},
 			Agents:       stageAgents,
-			Context: workflowconfig.StageContext{Artifacts: map[string]workflowconfig.ContextArtifact{
+			Context: resolved.StageContext{Artifacts: map[string]resolved.ContextArtifact{
 				"source": {Namespace: "inputs", Name: "source", Required: true},
 			}},
-			Result: workflowconfig.StageResultContract{Artifacts: map[string]workflowconfig.ArtifactSlot{
+			Result: resolved.StageResultContract{Artifacts: map[string]resolved.ArtifactSlot{
 				"report": {Required: true, MediaTypes: []string{"application/json"}},
 			}},
 		},

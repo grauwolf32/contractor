@@ -5,7 +5,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auth"
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/rundeletion"
@@ -58,12 +58,12 @@ type allocationPageResponse struct {
 }
 
 type workflowSummaryResponse struct {
-	Ref          config.WorkflowRef              `json:"ref"`
-	Presentation *config.WorkflowPresentation    `json:"presentation,omitempty"`
-	EntryStage   string                          `json:"entryStage"`
-	Parameters   map[string]config.ParameterSlot `json:"parameters"`
-	Inputs       map[string]config.ArtifactSlot  `json:"inputs"`
-	Outputs      map[string]config.ArtifactSlot  `json:"outputs"`
+	Ref          resolved.WorkflowRef              `json:"ref"`
+	Presentation *resolved.WorkflowPresentation    `json:"presentation,omitempty"`
+	EntryStage   string                            `json:"entryStage"`
+	Parameters   map[string]resolved.ParameterSlot `json:"parameters"`
+	Inputs       map[string]resolved.ArtifactSlot  `json:"inputs"`
+	Outputs      map[string]resolved.ArtifactSlot  `json:"outputs"`
 }
 
 type workflowResourceResponse struct {
@@ -85,12 +85,12 @@ type workflowAgentBindingResponse struct {
 type workflowStageResponse struct {
 	Objective        string                                  `json:"objective"`
 	Instructions     instructionsRefResponse                 `json:"instructions"`
-	Planner          config.PlannerRef                       `json:"planner"`
+	Planner          resolved.PlannerRef                     `json:"planner"`
 	Session          contracts.WorkerSessionMode             `json:"session"`
 	Agents           map[string]workflowAgentBindingResponse `json:"agents"`
 	ExecutionConfig  resolvedStageExecutionConfigResponse    `json:"executionConfig"`
-	ContextArtifacts map[string]config.ContextArtifact       `json:"contextArtifacts"`
-	ResultArtifacts  map[string]config.ArtifactSlot          `json:"resultArtifacts"`
+	ContextArtifacts map[string]resolved.ContextArtifact     `json:"contextArtifacts"`
+	ResultArtifacts  map[string]resolved.ArtifactSlot        `json:"resultArtifacts"`
 	WorkflowOutputs  map[string]string                       `json:"workflowOutputs"`
 	On               workflowTransitionsResponse             `json:"on"`
 }
@@ -107,7 +107,7 @@ type workflowTransitionsResponse struct {
 }
 
 type workflowTransitionResponse struct {
-	Kind            config.TransitionKind             `json:"kind"`
+	Kind            resolved.TransitionKind           `json:"kind"`
 	NextStage       string                            `json:"nextStage,omitempty"`
 	MaxAttempts     int                               `json:"maxAttempts,omitempty"`
 	ExecutionConfig *workflowEscalationConfigResponse `json:"executionConfig,omitempty"`
@@ -115,7 +115,7 @@ type workflowTransitionResponse struct {
 }
 
 type workflowEscalationConfigResponse struct {
-	Ref       *config.ExecutionConfigRef           `json:"ref,omitempty"`
+	Ref       *resolved.ExecutionConfigRef         `json:"ref,omitempty"`
 	Effective resolvedStageExecutionConfigResponse `json:"effective"`
 }
 

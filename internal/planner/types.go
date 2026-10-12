@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	workflowconfig "github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
@@ -33,7 +33,7 @@ type Invocation struct {
 	// SchedulerClaimID fences scan job intents against durable Run ownership.
 	SchedulerClaimID string
 	RunID            string
-	Stage            workflowconfig.ResolvedStage
+	Stage            resolved.ResolvedStage
 	Context          StageContext
 	Workers          map[string]contracts.WorkerHandle
 	ModelAccess      *ModelAccess

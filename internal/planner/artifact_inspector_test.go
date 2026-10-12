@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	workflowconfig "github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
@@ -82,7 +82,7 @@ func TestArtifactInspectorsUseExactMetadataWithTransferSlotsSaturated(t *testing
 			APIVersion: contracts.APIVersion, Outcome: contracts.StageSucceeded, Summary: "done",
 			Artifacts: map[string]contracts.ArtifactRef{"report": ref},
 		}
-		contract := map[string]workflowconfig.ArtifactSlot{
+		contract := map[string]resolved.ArtifactSlot{
 			"report": {Required: true, MediaTypes: []string{"application/json"}},
 		}
 		if failure := ValidateCandidate(ctx, "run-1", contract, candidate, inspector); failure != nil {

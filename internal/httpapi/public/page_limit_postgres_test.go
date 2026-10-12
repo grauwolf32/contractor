@@ -13,6 +13,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/credentials"
@@ -127,7 +128,7 @@ func TestPostgresPublicPagedListsAcceptTheLargestPage(t *testing.T) {
 			audits, err := auditservice.New(auditservice.Options{
 				Pool: pool, Profiles: dependencies.Config.(*config.Manager), CredentialGuard: managed,
 				TransactionLLMCredentials: runtimeconfig.TransactionLLMCredentialLookupFactoryFunc(
-					func(pgx.Tx) (config.CredentialLookup, error) { return managed, nil },
+					func(pgx.Tx) (resolved.CredentialLookup, error) { return managed, nil },
 				),
 			})
 			if err != nil {

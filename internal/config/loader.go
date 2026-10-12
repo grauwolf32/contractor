@@ -11,6 +11,8 @@ import (
 	"unicode/utf8"
 
 	"github.com/grauwolf32/contractor/internal/clone"
+	"github.com/grauwolf32/contractor/internal/config/auditprofile"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
@@ -28,10 +30,10 @@ type loader struct {
 	instructions                map[string]contracts.ResolvedInstructions
 	policies                    map[string]contracts.ResolvedModelPolicy
 	gateways                    map[string]llmgateway.ResolvedLLMGatewayConfig
-	executionConfigs            map[string]ResolvedExecutionConfigProfile
+	executionConfigs            map[string]resolved.ResolvedExecutionConfigProfile
 	templates                   map[string]contracts.ResolvedAgentTemplate
-	workflows                   map[string]ResolvedWorkflow
-	auditProfiles               map[string]ResolvedAuditProfile
+	workflows                   map[string]resolved.ResolvedWorkflow
+	auditProfiles               map[string]auditprofile.ResolvedAuditProfile
 	sources                     map[string]ConfigurationSource
 }
 
@@ -103,11 +105,11 @@ func loadConfigurationRoots(roots []configurationRoot, options loadOptions) (*Sn
 		if info.Mode()&os.ModeSymlink != 0 {
 			return nil, fmt.Errorf("%s root is a symlink", root.source)
 		}
-		resolved, resolveErr := resolveRoot(root.path)
+		rootPath, resolveErr := resolveRoot(root.path)
 		if resolveErr != nil {
 			return nil, fmt.Errorf("%s root: %w", root.source, resolveErr)
 		}
-		resolvedRoots = append(resolvedRoots, configurationRoot{path: resolved, source: root.source})
+		resolvedRoots = append(resolvedRoots, configurationRoot{path: rootPath, source: root.source})
 	}
 	for _, root := range resolvedRoots {
 		if root.source != ConfigurationSourceOperator {
@@ -126,10 +128,10 @@ func loadConfigurationRoots(roots []configurationRoot, options loadOptions) (*Sn
 		instructions:                make(map[string]contracts.ResolvedInstructions),
 		policies:                    make(map[string]contracts.ResolvedModelPolicy),
 		gateways:                    make(map[string]llmgateway.ResolvedLLMGatewayConfig),
-		executionConfigs:            make(map[string]ResolvedExecutionConfigProfile),
+		executionConfigs:            make(map[string]resolved.ResolvedExecutionConfigProfile),
 		templates:                   make(map[string]contracts.ResolvedAgentTemplate),
-		workflows:                   make(map[string]ResolvedWorkflow),
-		auditProfiles:               make(map[string]ResolvedAuditProfile),
+		workflows:                   make(map[string]resolved.ResolvedWorkflow),
+		auditProfiles:               make(map[string]auditprofile.ResolvedAuditProfile),
 		sources:                     make(map[string]ConfigurationSource),
 	}
 	if err := current.loadInstructionResources(); err != nil {

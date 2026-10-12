@@ -3,7 +3,7 @@ package evalservice
 import (
 	"testing"
 
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 )
 
@@ -25,7 +25,7 @@ func TestAuditOutputEligibilityMatchesCollectedArtifacts(t *testing.T) {
 				"evidence": {Required: true, MediaTypes: []string{test.media}},
 			}}
 			variant := evaldomain.Variant{Kind: "audit", OutputMapping: map[string]string{"evidence": test.slot}}
-			snapshot := BindingSnapshot{Audit: &config.ResolvedAuditProfile{}}
+			snapshot := BindingSnapshot{Audit: &auditprofile.ResolvedAuditProfile{}}
 			got := caseEligibility(c, variant, snapshot, nil)
 			if got.State != test.state {
 				t.Fatalf("output %s (%s): got %+v, want %s", test.slot, test.media, got, test.state)

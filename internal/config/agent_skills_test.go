@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/control"
 )
@@ -57,7 +58,7 @@ func TestAgentTemplateSkillDigestMatchesSharedPythonFixture(t *testing.T) {
 		t.Fatal(err)
 	}
 	digest, err := agentTemplateDigest(
-		Selector{ID: allocation.AgentTemplate.Ref.TemplateID, Version: allocation.AgentTemplate.Ref.Version},
+		resolved.Selector{ID: allocation.AgentTemplate.Ref.TemplateID, Version: allocation.AgentTemplate.Ref.Version},
 		allocation.AgentTemplate,
 	)
 	if err != nil {
@@ -104,16 +105,9 @@ func TestAgentTemplateSkillRefsAreStrict(t *testing.T) {
 
 func TestAgentTemplateSkillsReserveNativeToolsAndRequireToolBudget(t *testing.T) {
 	t.Run("reserved collision", func(t *testing.T) {
-		// No registered Toolset may export a native Agent Skills tool, so a
-		// template cannot select one beside its skills.
-		descriptors := builtInDescriptors()
-		descriptor := descriptors.Toolsets["run-artifacts@1"]
-		descriptor.Tools = append(descriptor.Tools, "load_skill")
-		descriptors.Toolsets["run-artifacts@1"] = descriptor
-		if _, err := normalizeDescriptors(descriptors); err == nil ||
-			!strings.Contains(err.Error(), "reserved by Agent Skills") {
-			t.Fatalf("reserved tool descriptor error = %v", err)
-		}
+		// No registered Toolset exports a native Agent Skills tool
+		// (TestToolsetDescriptorRejectsNativeSkillToolNames), so a template
+		// cannot select one beside its skills.
 		root := copyAgentSkillsFixture(t)
 		addTemplateSkills(t, root, "  skills: [{namespace: skills, name: review}]\n")
 		path := filepath.Join(root, "agent-templates/artifact_builder.yaml")
@@ -158,7 +152,7 @@ func TestWorkflowSkillUnionIncludesAllRetainedTemplatesAndIsBounded(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
-	workflow := ResolvedWorkflow{Stages: make(map[string]ResolvedStage)}
+	workflow := resolved.ResolvedWorkflow{Stages: make(map[string]resolved.ResolvedStage)}
 	for stageIndex := range 5 {
 		variant := template
 		variant.Skills = make([]contracts.ArtifactRef, contracts.MaxAgentTemplateSkills)
@@ -168,11 +162,11 @@ func TestWorkflowSkillUnionIncludesAllRetainedTemplatesAndIsBounded(t *testing.T
 				Name:      fmt.Sprintf("s%03d", stageIndex*contracts.MaxAgentTemplateSkills+skillIndex),
 			}
 		}
-		workflow.Stages[fmt.Sprintf("stage-%d", stageIndex)] = ResolvedStage{
-			Agents: map[string]ResolvedAgentBinding{"worker": {Template: variant}},
+		workflow.Stages[fmt.Sprintf("stage-%d", stageIndex)] = resolved.ResolvedStage{
+			Agents: map[string]resolved.ResolvedAgentBinding{"worker": {Template: variant}},
 		}
 	}
-	if refs, err := WorkflowSkillRefs(workflow); err == nil || refs != nil ||
+	if refs, err := resolved.WorkflowSkillRefs(workflow); err == nil || refs != nil ||
 		!strings.Contains(err.Error(), "at most 128") {
 		t.Fatalf("WorkflowSkillRefs() = (%v, %v)", refs, err)
 	}

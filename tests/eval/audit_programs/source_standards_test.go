@@ -13,7 +13,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstandards"
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
@@ -117,8 +117,8 @@ func TestExpandedSourcePresetsBuildExactRunnableInventories(t *testing.T) {
 			}
 			if !auditservice.ProfileCompatibility(profile).ServerCompatible || len(profile.Standards) != 1 ||
 				profile.Standards[0].Scheme != pkg.Reference().Scheme || profile.Standards[0].Version != pkg.Reference().Version ||
-				profile.Interaction.ActiveChecks != config.AuditActiveChecksProhibited ||
-				profile.Interaction.FindingConfirmation != config.AuditFindingHumanRequired ||
+				profile.Interaction.ActiveChecks != auditprofile.AuditActiveChecksProhibited ||
+				profile.Interaction.FindingConfirmation != auditprofile.AuditFindingHumanRequired ||
 				profile.Execution.MaxItemsTotal != test.count || profile.Execution.MaxItemsPerRound != test.count ||
 				profile.Execution.MaxSubmittedRuns < test.count*profile.Execution.MaxItemRunAttempts {
 				t.Fatalf("preset is not a bounded compatible source review: %+v", profile)
@@ -207,8 +207,8 @@ func TestWSTGHTTPPresetHasSameScenariosAndDistinctExecutionEvidence(t *testing.T
 	}
 	binding := profile.Workflows["check"]
 	if !auditservice.ProfileCompatibility(profile).ServerCompatible ||
-		profile.Interaction.ActiveChecks != config.AuditActiveChecksApprovalRequired ||
-		profile.Interaction.FindingConfirmation != config.AuditFindingHumanRequired ||
+		profile.Interaction.ActiveChecks != auditprofile.AuditActiveChecksApprovalRequired ||
+		profile.Interaction.FindingConfirmation != auditprofile.AuditFindingHumanRequired ||
 		profile.Standards[0].Version != active.Reference().Version ||
 		len(profile.Inputs) != 1 || !profile.Inputs["context"].Required ||
 		profile.Execution.MaxItemsTotal != 94 || profile.Execution.MaxItemsPerRound != 94 ||

@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/clone"
-	workflowconfig "github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/control"
@@ -1165,7 +1165,7 @@ func isCompatible(
 	template contracts.ResolvedAgentTemplate,
 	workspace *contracts.AllocationWorkspaceSpec,
 ) bool {
-	if !workflowconfig.SandboxWorkspaceCompatible(template, workspace, registration.WorkspaceCapabilities) {
+	if !resolved.SandboxWorkspaceCompatible(template, workspace, registration.WorkspaceCapabilities) {
 		return false
 	}
 	runtime := template.Runtime.RuntimeID + "@" + template.Runtime.Version
@@ -1553,9 +1553,9 @@ func validateAuthenticatedPrincipal(principal AuthenticatedPrincipal) error {
 	return nil
 }
 
-func validateRuntimeSelection(value workflowconfig.ResolvedConsumerExecutionConfig, toolWorker bool) error {
+func validateRuntimeSelection(value resolved.ResolvedConsumerExecutionConfig, toolWorker bool) error {
 	if toolWorker {
-		if !value.ModelPolicy.IsZero() || value.LLMGateway != nil || value.Credential != nil || value.Origins != (workflowconfig.ExecutionConfigOrigins{}) {
+		if !value.ModelPolicy.IsZero() || value.LLMGateway != nil || value.Credential != nil || value.Origins != (resolved.ExecutionConfigOrigins{}) {
 			return ErrInvalidRequest
 		}
 		return nil

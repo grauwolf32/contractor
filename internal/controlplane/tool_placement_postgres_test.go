@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	workflowconfig "github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -24,7 +24,7 @@ func TestPlacementPostgresToolWorkerWithoutModel(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	fixture.selection = workflowconfig.ResolvedConsumerExecutionConfig{}
+	fixture.selection = resolved.ResolvedConsumerExecutionConfig{}
 	principalID := fixture.registerCandidate(t, ctx, "tool-runtime", "5", nil)
 	request := ReservationRequest{
 		RunID: fixture.runID, StageExecutionID: fixture.stageExecutionID, RuntimeConfig: &fixture.runtimeSnapshot,

@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 )
 
 // sharedNameCases reads the public ConfigId name grammar cases of
@@ -206,12 +208,12 @@ func TestPersistedSnapshotsRejectNamesOperationsCannotShow(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := ValidateWorkflowGraph(workflow); err != nil {
+	if err := resolved.ValidateWorkflowGraph(workflow); err != nil {
 		t.Fatal(err)
 	}
 	_, invalid := sharedNameCases(t)
 	for _, name := range invalid {
-		renamedAgent := cloneWorkflow(workflow)
+		renamedAgent := workflow.Clone()
 		stage := renamedAgent.Stages["copy"]
 		stage.Agents[name] = stage.Agents["builder"]
 		delete(stage.Agents, "builder")
@@ -219,20 +221,20 @@ func TestPersistedSnapshotsRejectNamesOperationsCannotShow(t *testing.T) {
 		delete(stage.ExecutionConfig.Agents, "builder")
 		renamedAgent.Stages["copy"] = stage
 
-		renamedStage := cloneWorkflow(workflow)
+		renamedStage := workflow.Clone()
 		renamedStage.Stages[name] = renamedStage.Stages["copy"]
 		delete(renamedStage.Stages, "copy")
 		renamedStage.EntryStage = name
 
-		for label, candidate := range map[string]ResolvedWorkflow{"logical Agent name": renamedAgent, "Stage name": renamedStage} {
-			if err := ValidateWorkflowGraph(candidate); err == nil || !strings.Contains(err.Error(), label) {
+		for label, candidate := range map[string]resolved.ResolvedWorkflow{"logical Agent name": renamedAgent, "Stage name": renamedStage} {
+			if err := resolved.ValidateWorkflowGraph(candidate); err == nil || !strings.Contains(err.Error(), label) {
 				t.Errorf("ValidateWorkflowGraph(%s %q) error = %v", label, name, err)
 			}
 			encoded, err := json.Marshal(candidate)
 			if err != nil {
 				t.Fatal(err)
 			}
-			if _, err := DecodeResolvedWorkflowSnapshot(encoded); err == nil || !strings.Contains(err.Error(), label) {
+			if _, err := resolved.DecodeResolvedWorkflowSnapshot(encoded); err == nil || !strings.Contains(err.Error(), label) {
 				t.Errorf("DecodeResolvedWorkflowSnapshot(%s %q) error = %v", label, name, err)
 			}
 		}
@@ -240,7 +242,7 @@ func TestPersistedSnapshotsRejectNamesOperationsCannotShow(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err := DecodeResolvedStageSnapshot(encodedStage); err == nil || !strings.Contains(err.Error(), "logical Agent name") {
+		if _, err := resolved.DecodeResolvedStageSnapshot(encodedStage); err == nil || !strings.Contains(err.Error(), "logical Agent name") {
 			t.Errorf("DecodeResolvedStageSnapshot(logical Agent name %q) error = %v", name, err)
 		}
 	}

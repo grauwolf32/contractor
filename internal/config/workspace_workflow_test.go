@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
@@ -32,44 +33,44 @@ func TestResolveWorkspaceContextAndExportContract(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := &WorkspaceContext{
+	want := &resolved.WorkspaceContext{
 		Mode: contracts.WorkspaceModeOverlay,
-		Sources: []WorkspaceSource{
+		Sources: []resolved.WorkspaceSource{
 			{Artifact: "backend", Target: "backend"},
 			{Artifact: "frontend", Target: "frontend"},
 		},
-		State:  &WorkspaceStateInput{Artifact: "previous_state"},
-		Export: &WorkspaceExport{State: "workspace_state", Diff: "workspace_diff"},
+		State:  &resolved.WorkspaceStateInput{Artifact: "previous_state"},
+		Export: &resolved.WorkspaceExport{State: "workspace_state", Diff: "workspace_diff"},
 	}
 	if !reflect.DeepEqual(context.Workspace, want) {
 		t.Fatalf("workspace = %+v, want %+v", context.Workspace, want)
 	}
-	result := StageResultContract{Artifacts: map[string]ArtifactSlot{
+	result := resolved.StageResultContract{Artifacts: map[string]resolved.ArtifactSlot{
 		"workspace_state": {Required: true, MediaTypes: []string{"application/vnd.contractor.workspace-overlay+json"}},
 		"workspace_diff":  {Required: true, MediaTypes: []string{"text/x-diff"}},
 	}}
 	agents := workspaceAgents("workspace-changes")
-	if err := validateStageWorkspace(context, result, agents); err != nil {
+	if err := resolved.ValidateStageWorkspace(context, result, agents); err != nil {
 		t.Fatalf("valid workspace contract: %v", err)
 	}
 	if err := validateStageResultBindings(result, context.Workspace, agents); err != nil {
 		t.Fatalf("valid Runtime-owned result bindings: %v", err)
 	}
 	badBinding := result
-	badBinding.Artifacts = CloneArtifactSlots(result.Artifacts)
+	badBinding.Artifacts = resolved.CloneArtifactSlots(result.Artifacts)
 	state := badBinding.Artifacts["workspace_state"]
-	state.From = &ArtifactBinding{Namespace: "worker", Name: "workspace_state"}
+	state.From = &resolved.ArtifactBinding{Namespace: "worker", Name: "workspace_state"}
 	badBinding.Artifacts["workspace_state"] = state
 	if err := validateStageResultBindings(badBinding, context.Workspace, agents); err == nil ||
 		!strings.Contains(err.Error(), "must be omitted") {
 		t.Fatalf("Runtime-owned result binding error = %v", err)
 	}
 
-	stage := cloneStage(ResolvedStage{Context: context})
+	stage := resolved.ResolvedWorkflow{Stages: map[string]resolved.ResolvedStage{"copy": {Context: context}}}.Clone().Stages["copy"]
 	stage.Context.Workspace.Sources[0].Target = "mutated"
 	stage.Context.Workspace.Export.State = "mutated"
 	if context.Workspace.Sources[0].Target != "backend" || context.Workspace.Export.State != "workspace_state" {
-		t.Fatal("cloneStage aliases workspace state")
+		t.Fatal("Clone aliases workspace state")
 	}
 }
 
@@ -116,22 +117,22 @@ func TestWorkspaceContextRejectsAliasesTargetsAndModeMismatch(t *testing.T) {
 
 func TestWorkspaceToolsetAndResultCrossValidation(t *testing.T) {
 	t.Parallel()
-	overlay := StageContext{Artifacts: map[string]ContextArtifact{}, Workspace: &WorkspaceContext{
-		Mode: contracts.WorkspaceModeOverlay, Sources: []WorkspaceSource{{Artifact: "source", Target: ""}},
-		Export: &WorkspaceExport{State: "state", Diff: "diff"},
+	overlay := resolved.StageContext{Artifacts: map[string]resolved.ContextArtifact{}, Workspace: &resolved.WorkspaceContext{
+		Mode: contracts.WorkspaceModeOverlay, Sources: []resolved.WorkspaceSource{{Artifact: "source", Target: ""}},
+		Export: &resolved.WorkspaceExport{State: "state", Diff: "diff"},
 	}}
-	validResult := StageResultContract{Artifacts: map[string]ArtifactSlot{
+	validResult := resolved.StageResultContract{Artifacts: map[string]resolved.ArtifactSlot{
 		"state": {MediaTypes: []string{"application/vnd.contractor.workspace-overlay+json"}},
 		"diff":  {MediaTypes: []string{"text/x-diff"}},
 	}}
-	if err := validateStageWorkspace(StageContext{Artifacts: map[string]ContextArtifact{}}, StageResultContract{}, workspaceAgents("filesystem")); err == nil {
+	if err := resolved.ValidateStageWorkspace(resolved.StageContext{Artifacts: map[string]resolved.ContextArtifact{}}, resolved.StageResultContract{}, workspaceAgents("filesystem")); err == nil {
 		t.Fatal("filesystem Toolset without workspace was accepted")
 	}
-	if err := validateStageWorkspace(StageContext{Artifacts: map[string]ContextArtifact{}}, StageResultContract{}, workspaceAgents("code-analysis")); err == nil ||
+	if err := resolved.ValidateStageWorkspace(resolved.StageContext{Artifacts: map[string]resolved.ContextArtifact{}}, resolved.StageResultContract{}, workspaceAgents("code-analysis")); err == nil ||
 		!strings.Contains(err.Error(), "workspace-dependent Toolsets require context.workspace") {
 		t.Fatalf("code-analysis@1 without workspace error = %v", err)
 	}
-	if err := validateStageWorkspace(StageContext{Artifacts: map[string]ContextArtifact{}}, StageResultContract{}, workspaceAgents("taint-annotations")); err == nil ||
+	if err := resolved.ValidateStageWorkspace(resolved.StageContext{Artifacts: map[string]resolved.ContextArtifact{}}, resolved.StageResultContract{}, workspaceAgents("taint-annotations")); err == nil ||
 		!strings.Contains(err.Error(), "workspace-dependent Toolsets require context.workspace") {
 		t.Fatalf("taint-annotations@1 without workspace error = %v", err)
 	}
@@ -140,22 +141,22 @@ func TestWorkspaceToolsetAndResultCrossValidation(t *testing.T) {
 	directWorkspace.Mode = contracts.WorkspaceModeDirect
 	directWorkspace.Export = nil
 	direct.Workspace = &directWorkspace
-	if err := validateStageWorkspace(direct, StageResultContract{}, workspaceAgents("code-analysis")); err != nil {
+	if err := resolved.ValidateStageWorkspace(direct, resolved.StageResultContract{}, workspaceAgents("code-analysis")); err != nil {
 		t.Fatalf("code-analysis@1 with direct workspace was rejected: %v", err)
 	}
-	if err := validateStageWorkspace(direct, StageResultContract{}, workspaceAgents("taint-annotations")); err != nil {
+	if err := resolved.ValidateStageWorkspace(direct, resolved.StageResultContract{}, workspaceAgents("taint-annotations")); err != nil {
 		t.Fatalf("taint-annotations@1 with direct workspace was rejected: %v", err)
 	}
-	if err := validateStageWorkspace(direct, StageResultContract{}, workspaceAgents("workspace-changes")); err == nil {
+	if err := resolved.ValidateStageWorkspace(direct, resolved.StageResultContract{}, workspaceAgents("workspace-changes")); err == nil {
 		t.Fatal("workspace-changes@1 with direct mode was accepted")
 	}
 	badResult := validResult
-	badResult.Artifacts = CloneArtifactSlots(validResult.Artifacts)
-	badResult.Artifacts["state"] = ArtifactSlot{MediaTypes: []string{"application/json"}}
-	if err := validateStageWorkspace(overlay, badResult, workspaceAgents("workspace-changes")); err == nil {
+	badResult.Artifacts = resolved.CloneArtifactSlots(validResult.Artifacts)
+	badResult.Artifacts["state"] = resolved.ArtifactSlot{MediaTypes: []string{"application/json"}}
+	if err := resolved.ValidateStageWorkspace(overlay, badResult, workspaceAgents("workspace-changes")); err == nil {
 		t.Fatal("overlay export with incorrect result media type was accepted")
 	}
-	if err := validateStageWorkspace(overlay, validResult, workspaceAgents("workspace-changes")); err != nil {
+	if err := resolved.ValidateStageWorkspace(overlay, validResult, workspaceAgents("workspace-changes")); err != nil {
 		t.Fatalf("valid workspace Toolset/result contract: %v", err)
 	}
 }
@@ -196,8 +197,8 @@ func TestWorkflowPublicationRequiresWorkspaceForTaintAnnotations(t *testing.T) {
 	}
 }
 
-func workspaceAgents(toolsetID string) map[string]ResolvedAgentBinding {
-	return map[string]ResolvedAgentBinding{
+func workspaceAgents(toolsetID string) map[string]resolved.ResolvedAgentBinding {
+	return map[string]resolved.ResolvedAgentBinding{
 		"worker": {Template: contracts.ResolvedAgentTemplate{Toolsets: []contracts.ToolsetSelection{{
 			Ref: contracts.ToolsetRef{ToolsetID: toolsetID, Version: "1"}, Tools: []string{"tool"},
 		}}}},

@@ -12,6 +12,7 @@ import (
 	"sort"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/configtest"
 )
 
@@ -116,7 +117,7 @@ func TestSnapshotAccessorResultsShareNoMemoryWithSnapshot(t *testing.T) {
 	// callers read them only through Page, which must return detached copies.
 	workflowDiscovery, err := snapshot.WorkflowDiscovery()
 	record("WorkflowDiscovery", "", workflowDiscovery.Page("", math.MaxInt,
-		func(WorkflowRef, WorkflowPresentation) bool { return true }), err)
+		func(resolved.WorkflowRef, resolved.WorkflowPresentation) bool { return true }), err)
 	credentials := developmentCredentialLookup(t, snapshot)
 	workflows := snapshot.Workflows()
 	record("Workflows", "", workflows, nil)
@@ -124,8 +125,8 @@ func TestSnapshotAccessorResultsShareNoMemoryWithSnapshot(t *testing.T) {
 		selector := listed.Ref.Name + "@" + listed.Ref.Version
 		workflow, err := snapshot.Workflow(selector)
 		record("Workflow", selector, workflow, err)
-		resolved, err := snapshot.ResolveRunWorkflow(t.Context(), selector, ExecutionConfigPatch{}, credentials)
-		record("ResolveRunWorkflow", selector, resolved, err)
+		runWorkflow, err := snapshot.ResolveRunWorkflow(t.Context(), selector, resolved.ExecutionConfigPatch{}, credentials)
+		record("ResolveRunWorkflow", selector, runWorkflow, err)
 		for _, stage := range workflow.Stages {
 			instructionRefs[stage.Instructions.Ref] = struct{}{}
 		}
@@ -300,9 +301,9 @@ func TestSnapshotAccessorsReturnDeepCopies(t *testing.T) {
 	}
 
 	workflow, _ := snapshot.Workflow("artifact-copy@1")
-	workflow.Inputs["source"] = ArtifactSlot{Required: false, MediaTypes: []string{"corrupted/type"}}
+	workflow.Inputs["source"] = resolved.ArtifactSlot{Required: false, MediaTypes: []string{"corrupted/type"}}
 	stage := workflow.Stages["copy"]
-	stage.Result.Artifacts["copied"] = ArtifactSlot{MediaTypes: []string{"corrupted/type"}}
+	stage.Result.Artifacts["copied"] = resolved.ArtifactSlot{MediaTypes: []string{"corrupted/type"}}
 	binding := stage.Agents["builder"]
 	binding.Template.Toolsets[0].Tools[0] = "corrupted"
 	stage.Agents["builder"] = binding

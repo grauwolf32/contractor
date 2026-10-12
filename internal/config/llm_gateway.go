@@ -6,11 +6,12 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 )
 
 func resolveLLMGatewayConfig(
-	selector Selector, spec *llmGatewayConfigSpecSource,
+	selector resolved.Selector, spec *llmGatewayConfigSpecSource,
 ) (llmgateway.ResolvedLLMGatewayConfig, error) {
 	if spec == nil {
 		return llmgateway.ResolvedLLMGatewayConfig{}, fmt.Errorf("spec is required")

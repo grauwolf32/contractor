@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts/control"
 )
@@ -98,7 +99,7 @@ func TestSummaryInstructionGoldenDigest(t *testing.T) {
 	if instruction == nil || instruction.Digest != contentdigest.Bytes([]byte(instruction.Text)) {
 		t.Fatal("incorrect instruction digest")
 	}
-	got, err := agentTemplateDigest(Selector{ID: template.Ref.TemplateID, Version: template.Ref.Version}, template)
+	got, err := agentTemplateDigest(resolved.Selector{ID: template.Ref.TemplateID, Version: template.Ref.Version}, template)
 	if err != nil {
 		t.Fatal(err)
 	}

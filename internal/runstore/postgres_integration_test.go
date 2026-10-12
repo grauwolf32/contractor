@@ -15,7 +15,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
@@ -1661,20 +1661,20 @@ type pinTestLLMCredentials struct{}
 
 func (pinTestLLMCredentials) LookupLLMCredential(
 	context.Context, string,
-) (config.CredentialMetadata, error) {
-	return config.CredentialMetadata{}, errors.New("LLM credential unavailable")
+) (resolved.CredentialMetadata, error) {
+	return resolved.CredentialMetadata{}, errors.New("LLM credential unavailable")
 }
 
 func newRunCreationTestStore(
 	t *testing.T,
 	tx pgx.Tx,
-	lookup config.CredentialLookup,
+	lookup resolved.CredentialLookup,
 ) *PostgresStore {
 	t.Helper()
 	bound, err := runtimeconfig.BindTransactionLLMCredentialLookup(
 		tx,
 		runtimeconfig.TransactionLLMCredentialLookupFactoryFunc(
-			func(pgx.Tx) (config.CredentialLookup, error) { return lookup, nil },
+			func(pgx.Tx) (resolved.CredentialLookup, error) { return lookup, nil },
 		),
 	)
 	if err != nil {

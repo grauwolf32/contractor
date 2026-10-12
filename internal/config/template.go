@@ -6,11 +6,12 @@ import (
 	"strings"
 
 	"github.com/grauwolf32/contractor/internal/clone"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
 func (l *loader) resolveAgentTemplate(
-	selector Selector,
+	selector resolved.Selector,
 	spec *agentTemplateSpecSource,
 ) (contracts.ResolvedAgentTemplate, error) {
 	if spec == nil {
@@ -20,11 +21,11 @@ func (l *loader) resolveAgentTemplate(
 		return contracts.ResolvedAgentTemplate{}, fmt.Errorf("spec.description must not be empty or whitespace-only")
 	}
 
-	runtime, err := ParseSelector(spec.Runtime)
+	runtime, err := resolved.ParseSelector(spec.Runtime)
 	if err != nil {
 		return contracts.ResolvedAgentTemplate{}, fmt.Errorf("spec.runtime: %w", err)
 	}
-	if !KnownWorkerRuntime(runtime.String()) {
+	if !resolved.KnownWorkerRuntime(runtime.String()) {
 		return contracts.ResolvedAgentTemplate{}, fmt.Errorf("spec.runtime selects unknown WorkerRuntime %q", runtime)
 	}
 
@@ -37,7 +38,7 @@ func (l *loader) resolveAgentTemplate(
 			return contracts.ResolvedAgentTemplate{}, fmt.Errorf("spec.instructions: %w", err)
 		}
 
-		policySelector, err := ParseSelector(spec.ModelPolicy)
+		policySelector, err := resolved.ParseSelector(spec.ModelPolicy)
 		if err != nil {
 			return contracts.ResolvedAgentTemplate{}, fmt.Errorf("spec.modelPolicy: %w", err)
 		}
@@ -68,11 +69,11 @@ func (l *loader) resolveAgentTemplate(
 		}
 	}
 
-	sandbox, err := ParseSelector(spec.SandboxProfile)
+	sandbox, err := resolved.ParseSelector(spec.SandboxProfile)
 	if err != nil {
 		return contracts.ResolvedAgentTemplate{}, fmt.Errorf("spec.sandboxProfile: %w", err)
 	}
-	if !KnownSandboxProfile(sandbox.String()) {
+	if !resolved.KnownSandboxProfile(sandbox.String()) {
 		return contracts.ResolvedAgentTemplate{}, fmt.Errorf("spec.sandboxProfile selects unknown SandboxProfile %q", sandbox)
 	}
 
@@ -97,7 +98,7 @@ func (l *loader) resolveAgentTemplate(
 	if err := result.ValidateToolExecution(); err != nil {
 		return contracts.ResolvedAgentTemplate{}, err
 	}
-	if err := ValidateSandboxToolCompatibility(result); err != nil {
+	if err := resolved.ValidateSandboxToolCompatibility(result); err != nil {
 		return contracts.ResolvedAgentTemplate{}, err
 	}
 	digest, err := agentTemplateDigest(selector, result)
@@ -115,7 +116,7 @@ func (l *loader) resolveWorkerSummarizer(
 	if source == nil {
 		return nil, nil
 	}
-	selector, err := ParseSelector(source.ModelPolicy)
+	selector, err := resolved.ParseSelector(source.ModelPolicy)
 	if err != nil {
 		return nil, fmt.Errorf("modelPolicy: %w", err)
 	}
@@ -176,7 +177,7 @@ func (l *loader) resolveToolsets(source *[]toolsetSelectionSource) ([]contracts.
 	seenRefs := make(map[string]struct{}, len(*source))
 	visibleNames := make(map[string]string)
 	for index, item := range *source {
-		selector, err := ParseSelector(item.Ref)
+		selector, err := resolved.ParseSelector(item.Ref)
 		if err != nil {
 			return nil, fmt.Errorf("spec.toolsets[%d].ref: %w", index, err)
 		}
@@ -184,7 +185,7 @@ func (l *loader) resolveToolsets(source *[]toolsetSelectionSource) ([]contracts.
 			return nil, fmt.Errorf("spec.toolsets contains duplicate ref %q", selector)
 		}
 		seenRefs[selector.String()] = struct{}{}
-		exportedTools, ok := ToolsetTools(selector.String())
+		exportedTools, ok := resolved.ToolsetTools(selector.String())
 		if !ok {
 			return nil, fmt.Errorf("spec.toolsets[%d] selects unknown Toolset %q", index, selector)
 		}
@@ -199,7 +200,7 @@ func (l *loader) resolveToolsets(source *[]toolsetSelectionSource) ([]contracts.
 		selected := make([]string, 0, len(item.Tools))
 		seenSelected := make(map[string]struct{}, len(item.Tools))
 		for _, tool := range item.Tools {
-			if err := validateIdentifier("selected tool", tool); err != nil {
+			if err := resolved.ValidateIdentifier("selected tool", tool); err != nil {
 				return nil, fmt.Errorf("spec.toolsets[%d]: %w", index, err)
 			}
 			if _, duplicate := seenSelected[tool]; duplicate {

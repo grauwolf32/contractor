@@ -17,7 +17,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
-	workflowconfig "github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
@@ -96,7 +96,7 @@ func testPostgresFindingReceiptAuditImportDirectVerificationAndRunDeletion(t *te
 	copied.MediaTypes = []string{auditdomain.DirectVerificationsMediaType}
 	stage.Result.Artifacts["copied"] = copied
 	workflow.Stages[workflow.EntryStage] = stage
-	workflow.Outputs["result"] = workflowconfig.ArtifactSlot{
+	workflow.Outputs["result"] = resolved.ArtifactSlot{
 		Required: true, Primary: true,
 		MediaTypes: []string{auditdomain.DirectVerificationsMediaType},
 	}

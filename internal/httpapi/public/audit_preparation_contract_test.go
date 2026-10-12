@@ -10,7 +10,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
@@ -76,15 +76,15 @@ func TestPublicAuditPreparationContracts(t *testing.T) {
 		t.Fatal(err)
 	}
 	prepareBinding := auditProfileWorkflowResponse{
-		Kind: config.AuditWorkflowPrepare, Workflow: workflow.Ref, MaxRunAttempts: 2,
-		Inputs:     map[string]config.AuditWorkflowInputMapping{"source": {Source: config.AuditInputFromAudit, Name: "source"}},
-		Parameters: map[string]config.AuditWorkflowParameterMapping{}, Outputs: map[string]string{"api": "openapi"},
+		Kind: auditprofile.AuditWorkflowPrepare, Workflow: workflow.Ref, MaxRunAttempts: 2,
+		Inputs:     map[string]auditprofile.AuditWorkflowInputMapping{"source": {Source: auditprofile.AuditInputFromAudit, Name: "source"}},
+		Parameters: map[string]auditprofile.AuditWorkflowParameterMapping{}, Outputs: map[string]string{"api": "openapi"},
 	}
 	validate("AuditProfileWorkflow", prepareBinding, true)
 	prepareBinding.MaxRunAttempts = 0
 	validate("AuditProfileWorkflow", prepareBinding, false)
 	prepareBinding.MaxRunAttempts = 2
-	prepareBinding.Kind = config.AuditWorkflowCheck
+	prepareBinding.Kind = auditprofile.AuditWorkflowCheck
 	validate("AuditProfileWorkflow", prepareBinding, false)
 
 	// These DTOs specify the controller's future public contract. No prepare

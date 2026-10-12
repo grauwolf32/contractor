@@ -1,15 +1,13 @@
 package config
 
 import (
-	"fmt"
-
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
-	"github.com/grauwolf32/contractor/internal/strictjson"
 )
 
-func modelPolicyDigest(selector Selector, policy contracts.ResolvedModelPolicy) (string, error) {
+func modelPolicyDigest(selector resolved.Selector, policy contracts.ResolvedModelPolicy) (string, error) {
 	spec := map[string]any{
 		"model": policy.Model,
 	}
@@ -26,11 +24,11 @@ func modelPolicyDigest(selector Selector, policy contracts.ResolvedModelPolicy) 
 		},
 		"spec": spec,
 	}
-	return digestJCS(manifest)
+	return contentdigest.CanonicalJSON(manifest)
 }
 
 func llmGatewayConfigDigest(
-	selector Selector, gateway llmgateway.ResolvedLLMGatewayConfig,
+	selector resolved.Selector, gateway llmgateway.ResolvedLLMGatewayConfig,
 ) (string, error) {
 	spec := map[string]any{
 		"protocol": gateway.Protocol,
@@ -45,7 +43,7 @@ func llmGatewayConfigDigest(
 	if gateway.FailureSignatures != nil {
 		spec["failureSignatures"] = failureSignaturesDocument(*gateway.FailureSignatures)
 	}
-	return digestJCS(map[string]any{
+	return contentdigest.CanonicalJSON(map[string]any{
 		"apiVersion": contracts.APIVersion,
 		"kind":       llmGatewayConfigKind,
 		"metadata": map[string]any{
@@ -55,18 +53,18 @@ func llmGatewayConfigDigest(
 	})
 }
 
-func executionConfigDigest(selector Selector, patch StageExecutionConfigPatch) (string, error) {
-	return digestJCS(map[string]any{
+func executionConfigDigest(selector resolved.Selector, patch resolved.StageExecutionConfigPatch) (string, error) {
+	return contentdigest.CanonicalJSON(map[string]any{
 		"apiVersion": contracts.APIVersion,
 		"kind":       executionConfigKind,
 		"metadata": map[string]any{
 			"name": selector.ID, "version": selector.Version,
 		},
-		"spec": patch.canonicalValue(),
+		"spec": patch.CanonicalValue(),
 	})
 }
 
-func agentTemplateDigest(selector Selector, template contracts.ResolvedAgentTemplate) (string, error) {
+func agentTemplateDigest(selector resolved.Selector, template contracts.ResolvedAgentTemplate) (string, error) {
 	toolsets := make([]any, 0, len(template.Toolsets))
 	for _, selection := range template.Toolsets {
 		tools := make([]any, len(selection.Tools))
@@ -135,7 +133,7 @@ func agentTemplateDigest(selector Selector, template contracts.ResolvedAgentTemp
 		},
 		"spec": spec,
 	}
-	return digestJCS(manifest)
+	return contentdigest.CanonicalJSON(manifest)
 }
 
 func resolvedModelPolicyCanonicalValue(policy contracts.ResolvedModelPolicy) map[string]any {
@@ -167,14 +165,4 @@ func addModelPolicyLimits(target map[string]any, policy contracts.ResolvedModelP
 			target[name] = value
 		}
 	}
-}
-
-// digestJCS converts Go's typed values through encoding/json so the JCS
-// implementation receives exactly the I-JSON data model it supports.
-func digestJCS(manifest any) (string, error) {
-	canonical, err := strictjson.Canonical(manifest)
-	if err != nil {
-		return "", fmt.Errorf("canonicalize digest manifest: %w", err)
-	}
-	return contentdigest.Bytes(canonical), nil
 }

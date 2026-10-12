@@ -5,6 +5,7 @@ import (
 	"maps"
 	"slices"
 
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"go.yaml.in/yaml/v4"
 )
@@ -73,8 +74,8 @@ func (l *loader) loadExecutionConfigs() error {
 		if digestErr != nil {
 			return fmt.Errorf("%s: compute ExecutionConfig digest: %w", file.relative, digestErr)
 		}
-		l.executionConfigs[selector.String()] = ResolvedExecutionConfigProfile{
-			Ref: ExecutionConfigRef{
+		l.executionConfigs[selector.String()] = resolved.ResolvedExecutionConfigProfile{
+			Ref: resolved.ExecutionConfigRef{
 				ConfigID: selector.ID, Version: selector.Version, Digest: digest,
 			},
 			Override: override,
@@ -87,9 +88,9 @@ func (l *loader) loadExecutionConfigs() error {
 func stageExecutionConfigPatchFromProfileSource(
 	source *executionConfigProfileSpecSource,
 	field string,
-) (StageExecutionConfigPatch, error) {
+) (resolved.StageExecutionConfigPatch, error) {
 	if source == nil {
-		return StageExecutionConfigPatch{}, fmt.Errorf("%s is required", field)
+		return resolved.StageExecutionConfigPatch{}, fmt.Errorf("%s is required", field)
 	}
 	return stageExecutionConfigPatchFromParts(
 		source.Planner, source.Agents, source.plannerPresent, source.agentsPresent, field,
@@ -99,9 +100,9 @@ func stageExecutionConfigPatchFromProfileSource(
 func stageExecutionConfigPatchFromEscalationSource(
 	source *escalationExecutionConfigSource,
 	field string,
-) (StageExecutionConfigPatch, error) {
+) (resolved.StageExecutionConfigPatch, error) {
 	if source == nil {
-		return StageExecutionConfigPatch{}, fmt.Errorf("%s is required", field)
+		return resolved.StageExecutionConfigPatch{}, fmt.Errorf("%s is required", field)
 	}
 	return stageExecutionConfigPatchFromParts(
 		source.Planner, source.Agents, source.plannerPresent, source.agentsPresent, field,
@@ -114,38 +115,38 @@ func stageExecutionConfigPatchFromParts(
 	plannerPresent bool,
 	agentsPresent bool,
 	field string,
-) (StageExecutionConfigPatch, error) {
+) (resolved.StageExecutionConfigPatch, error) {
 	if !plannerPresent && !agentsPresent {
-		return StageExecutionConfigPatch{}, fmt.Errorf("%s must contain planner and/or agents", field)
+		return resolved.StageExecutionConfigPatch{}, fmt.Errorf("%s must contain planner and/or agents", field)
 	}
-	result := StageExecutionConfigPatch{}
+	result := resolved.StageExecutionConfigPatch{}
 	if plannerPresent {
 		if planner == nil {
-			return StageExecutionConfigPatch{}, fmt.Errorf("%s.planner must not be null", field)
+			return resolved.StageExecutionConfigPatch{}, fmt.Errorf("%s.planner must not be null", field)
 		}
 		selection, err := executionSelectionFromYAML(*planner, true, field+".planner")
 		if err != nil {
-			return StageExecutionConfigPatch{}, err
+			return resolved.StageExecutionConfigPatch{}, err
 		}
 		result.Planner = &selection
 	}
 	if agentsPresent {
 		if agents == nil {
-			return StageExecutionConfigPatch{}, fmt.Errorf("%s.agents must not be null", field)
+			return resolved.StageExecutionConfigPatch{}, fmt.Errorf("%s.agents must not be null", field)
 		}
 		if len(*agents) == 0 {
-			return StageExecutionConfigPatch{}, fmt.Errorf("%s.agents must be a non-empty mapping", field)
+			return resolved.StageExecutionConfigPatch{}, fmt.Errorf("%s.agents must be a non-empty mapping", field)
 		}
-		result.Agents = make(map[string]ExecutionSelectionPatch, len(*agents))
+		result.Agents = make(map[string]resolved.ExecutionSelectionPatch, len(*agents))
 		for logicalName, sourceSelection := range *agents {
-			if err := validateWorkflowName(field+" logical Agent name", logicalName); err != nil {
-				return StageExecutionConfigPatch{}, err
+			if err := resolved.ValidateWorkflowName(field+" logical Agent name", logicalName); err != nil {
+				return resolved.StageExecutionConfigPatch{}, err
 			}
 			selection, err := executionSelectionFromYAML(
 				sourceSelection, true, field+".agents."+logicalName,
 			)
 			if err != nil {
-				return StageExecutionConfigPatch{}, err
+				return resolved.StageExecutionConfigPatch{}, err
 			}
 			result.Agents[logicalName] = selection
 		}
@@ -154,22 +155,22 @@ func stageExecutionConfigPatchFromParts(
 }
 
 func (l *loader) resolveStageExecutionConfigOverride(
-	patch StageExecutionConfigPatch,
-) (ResolvedStageExecutionConfigOverride, error) {
-	result := ResolvedStageExecutionConfigOverride{}
+	patch resolved.StageExecutionConfigPatch,
+) (resolved.ResolvedStageExecutionConfigOverride, error) {
+	result := resolved.ResolvedStageExecutionConfigOverride{}
 	if patch.Planner != nil {
 		selection, err := l.resolveExecutionSelectionOverride(*patch.Planner)
 		if err != nil {
-			return ResolvedStageExecutionConfigOverride{}, fmt.Errorf("planner: %w", err)
+			return resolved.ResolvedStageExecutionConfigOverride{}, fmt.Errorf("planner: %w", err)
 		}
 		result.Planner = &selection
 	}
 	if len(patch.Agents) > 0 {
-		result.Agents = make(map[string]ResolvedExecutionSelectionOverride, len(patch.Agents))
+		result.Agents = make(map[string]resolved.ResolvedExecutionSelectionOverride, len(patch.Agents))
 		for _, logicalName := range slices.Sorted(maps.Keys(patch.Agents)) {
 			selection, err := l.resolveExecutionSelectionOverride(patch.Agents[logicalName])
 			if err != nil {
-				return ResolvedStageExecutionConfigOverride{}, fmt.Errorf("agents.%s: %w", logicalName, err)
+				return resolved.ResolvedStageExecutionConfigOverride{}, fmt.Errorf("agents.%s: %w", logicalName, err)
 			}
 			result.Agents[logicalName] = selection
 		}
@@ -178,43 +179,43 @@ func (l *loader) resolveStageExecutionConfigOverride(
 }
 
 func (l *loader) resolveExecutionSelectionOverride(
-	patch ExecutionSelectionPatch,
-) (ResolvedExecutionSelectionOverride, error) {
-	result := ResolvedExecutionSelectionOverride{}
-	if patch.modelPolicy.present {
-		selector, err := ParseSelector(patch.modelPolicy.value)
+	patch resolved.ExecutionSelectionPatch,
+) (resolved.ResolvedExecutionSelectionOverride, error) {
+	result := resolved.ResolvedExecutionSelectionOverride{}
+	if patch.ModelPolicy.Present {
+		selector, err := resolved.ParseSelector(patch.ModelPolicy.Value)
 		if err != nil {
-			return ResolvedExecutionSelectionOverride{}, fmt.Errorf("modelPolicy: %w", err)
+			return resolved.ResolvedExecutionSelectionOverride{}, fmt.Errorf("modelPolicy: %w", err)
 		}
 		policy, ok := l.policies[selector.String()]
 		if !ok {
-			return ResolvedExecutionSelectionOverride{}, fmt.Errorf(
+			return resolved.ResolvedExecutionSelectionOverride{}, fmt.Errorf(
 				"modelPolicy selects unknown ModelPolicy %q", selector,
 			)
 		}
-		resolved := policy.Clone()
-		result.ModelPolicy = &resolved
+		pinned := policy.Clone()
+		result.ModelPolicy = &pinned
 	}
-	if patch.llmGateway.present {
-		selector, err := ParseSelector(patch.llmGateway.value)
+	if patch.LLMGateway.Present {
+		selector, err := resolved.ParseSelector(patch.LLMGateway.Value)
 		if err != nil {
-			return ResolvedExecutionSelectionOverride{}, fmt.Errorf("llmGateway: %w", err)
+			return resolved.ResolvedExecutionSelectionOverride{}, fmt.Errorf("llmGateway: %w", err)
 		}
 		gateway, ok := l.gateways[selector.String()]
 		if !ok {
-			return ResolvedExecutionSelectionOverride{}, fmt.Errorf(
+			return resolved.ResolvedExecutionSelectionOverride{}, fmt.Errorf(
 				"llmGateway selects unknown LLMGatewayConfig %q", selector,
 			)
 		}
-		resolved := gateway.Clone()
-		result.LLMGateway = &resolved
+		pinned := gateway.Clone()
+		result.LLMGateway = &pinned
 	}
-	if patch.credential.present {
-		credential := &ResolvedCredentialOverride{Clear: patch.credential.null}
-		if !patch.credential.null {
-			ref := llmgateway.LLMCredentialRef{CredentialID: patch.credential.value}
+	if patch.Credential.Present {
+		credential := &resolved.ResolvedCredentialOverride{Clear: patch.Credential.Null}
+		if !patch.Credential.Null {
+			ref := llmgateway.LLMCredentialRef{CredentialID: patch.Credential.Value}
 			if err := ref.Validate(); err != nil {
-				return ResolvedExecutionSelectionOverride{}, fmt.Errorf("credential is invalid: %w", err)
+				return resolved.ResolvedExecutionSelectionOverride{}, fmt.Errorf("credential is invalid: %w", err)
 			}
 			credential.Ref = &ref
 		}

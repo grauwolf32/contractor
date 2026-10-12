@@ -10,6 +10,7 @@ import (
 	"sort"
 
 	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
@@ -29,7 +30,7 @@ type liveModelSelection struct {
 
 type liveResolvedWorker struct {
 	evidence liveModelSelection
-	config   config.ResolvedConsumerExecutionConfig
+	config   resolved.ResolvedConsumerExecutionConfig
 }
 
 func liveAliasSHA256(model string) string {
@@ -127,9 +128,9 @@ func copyLiveConfiguration(repositoryRoot, target string, settings liveSettings)
 	return result, nil
 }
 
-func liveStageVariants(stage config.ResolvedStage) map[string]config.ResolvedStageExecutionConfig {
-	variants := map[string]config.ResolvedStageExecutionConfig{"base": stage.ExecutionConfig}
-	for outcome, action := range map[string]config.TransitionAction{
+func liveStageVariants(stage resolved.ResolvedStage) map[string]resolved.ResolvedStageExecutionConfig {
+	variants := map[string]resolved.ResolvedStageExecutionConfig{"base": stage.ExecutionConfig}
+	for outcome, action := range map[string]resolved.TransitionAction{
 		"failed": stage.On.Failed, "interrupted": stage.On.Interrupted,
 	} {
 		if action.Escalate != nil {

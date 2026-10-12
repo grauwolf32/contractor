@@ -1,6 +1,8 @@
-package config
+package auditprofile
 
-import "github.com/grauwolf32/contractor/internal/contracts"
+import (
+	"github.com/grauwolf32/contractor/internal/contracts"
+)
 
 // AuditInventoryOpenAPIScans selects a versioned inventory builder, independently
 // of the Workflow that consumes its tasks.

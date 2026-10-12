@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 )
 
 func TestWorkflowPresentationIsOptionalAndPinnedInSnapshots(t *testing.T) {
@@ -25,7 +27,7 @@ func TestWorkflowPresentationIsOptionalAndPinnedInSnapshots(t *testing.T) {
 	if strings.Contains(string(legacyJSON), `"presentation"`) {
 		t.Fatalf("legacy Workflow snapshot gained presentation: %s", legacyJSON)
 	}
-	decodedLegacy, err := DecodeResolvedWorkflowSnapshot(legacyJSON)
+	decodedLegacy, err := resolved.DecodeResolvedWorkflowSnapshot(legacyJSON)
 	if err != nil || decodedLegacy.Presentation != nil {
 		t.Fatalf("decode legacy Workflow = (%+v, %v)", decodedLegacy.Presentation, err)
 	}
@@ -38,7 +40,7 @@ func TestWorkflowPresentationIsOptionalAndPinnedInSnapshots(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := &WorkflowPresentation{
+	want := &resolved.WorkflowPresentation{
 		DisplayName: "Artifact Copier",
 		Description: "Copies one exact text artifact.",
 	}
@@ -49,7 +51,7 @@ func TestWorkflowPresentationIsOptionalAndPinnedInSnapshots(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	decoded, err := DecodeResolvedWorkflowSnapshot(encoded)
+	decoded, err := resolved.DecodeResolvedWorkflowSnapshot(encoded)
 	if err != nil || decoded.Presentation == nil || *decoded.Presentation != *want {
 		t.Fatalf("decoded Workflow presentation = (%+v, %v)", decoded.Presentation, err)
 	}

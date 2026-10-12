@@ -12,7 +12,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auth"
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runrepeat"
@@ -95,7 +95,7 @@ func TestPostgresRunRepeatRequiresRetainedAuthorityWithoutMutation(t *testing.T)
 						t.Fatal(err)
 					}
 					retained, err := runrepeat.Encode(runrepeat.Snapshot{
-						Workflow: config.WorkflowRef{Name: "artifact-copy", Version: "1"}, ProjectID: projectID,
+						Workflow: resolved.WorkflowRef{Name: "artifact-copy", Version: "1"}, ProjectID: projectID,
 						Inputs: map[string]contracts.ArtifactRef{"source": source.Ref},
 					})
 					if err != nil {

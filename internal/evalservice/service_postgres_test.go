@@ -18,6 +18,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
@@ -39,11 +40,11 @@ type testCredentials struct {
 	gateway llmgateway.LLMGatewayConfigRef
 }
 
-func (c testCredentials) LookupLLMCredential(_ context.Context, id string) (config.CredentialMetadata, error) {
+func (c testCredentials) LookupLLMCredential(_ context.Context, id string) (resolved.CredentialMetadata, error) {
 	if id != "development-worker" {
-		return config.CredentialMetadata{}, errors.New("unexpected fixture credential")
+		return resolved.CredentialMetadata{}, errors.New("unexpected fixture credential")
 	}
-	return config.CredentialMetadata{Ref: llmgateway.LLMCredentialRef{CredentialID: id}, LLMGateway: c.gateway, Unrestricted: true}, nil
+	return resolved.CredentialMetadata{Ref: llmgateway.LLMCredentialRef{CredentialID: id}, LLMGateway: c.gateway, Unrestricted: true}, nil
 }
 
 type testBarrier struct{}
@@ -146,7 +147,7 @@ func newHarness(t *testing.T) *serviceHarness {
 		t.Fatal(err)
 	}
 	credentialLookup := testCredentials{gateway: gateway.Ref}
-	credentials := runtimeconfig.TransactionLLMCredentialLookupFactoryFunc(func(pgx.Tx) (config.CredentialLookup, error) { return credentialLookup, nil })
+	credentials := runtimeconfig.TransactionLLMCredentialLookupFactoryFunc(func(pgx.Tx) (resolved.CredentialLookup, error) { return credentialLookup, nil })
 	audits, err := auditservice.New(auditservice.Options{Pool: pool, Profiles: catalog, TransactionLLMCredentials: credentials, CredentialGuard: testBarrier{}})
 	if err != nil {
 		t.Fatal(err)

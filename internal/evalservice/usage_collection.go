@@ -7,7 +7,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 	"github.com/grauwolf32/contractor/internal/evalstore"
@@ -29,7 +29,7 @@ type metricSnapshot struct {
 	} `json:"runtime"`
 }
 
-func attemptMetrics(run, stage string, raw []byte, expectedWorkers int, planner config.PlannerRef) (evaldomain.AttemptObservation, error) {
+func attemptMetrics(run, stage string, raw []byte, expectedWorkers int, planner resolved.PlannerRef) (evaldomain.AttemptObservation, error) {
 	out := evaldomain.AttemptObservation{RunID: run, StageExecutionID: stage, SourceSHA256: evaldomain.Digest(raw), Metrics: map[string]int64{}, ReportsComplete: true}
 	var snap metricSnapshot
 	if err := json.Unmarshal(raw, &snap); err != nil {

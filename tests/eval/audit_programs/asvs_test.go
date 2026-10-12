@@ -11,7 +11,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstandards"
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
@@ -66,7 +66,7 @@ func TestASVSPackageAndProfilePinExactSelectedDenominator(t *testing.T) {
 	if selection == nil || selection.Scope != "ASVS 5.0 Level 1 source and documentation pilot (5 requirements)" ||
 		!reflect.DeepEqual(selection.Levels, []string{"1"}) ||
 		!reflect.DeepEqual(selection.EntryIDs, asvsRequirementIDs) ||
-		profile.Mode != config.AuditModeRequirementsVerification ||
+		profile.Mode != auditprofile.AuditModeRequirementsVerification ||
 		!auditservice.ProfileCompatibility(profile).ServerCompatible {
 		t.Fatalf("ASVS exact profile selection = %+v", profile)
 	}

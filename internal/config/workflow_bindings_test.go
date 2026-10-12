@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
@@ -22,7 +23,7 @@ func TestWorkflowBindingIndexMatchesCatalogFingerprintAndDetachesPages(t *testin
 	}
 	raw, err := json.Marshal(struct {
 		Template  ConfigurationRef
-		Workflows []ResolvedWorkflow
+		Workflows []resolved.ResolvedWorkflow
 	}{template.Ref, snapshot.Workflows()})
 	if err != nil {
 		t.Fatal(err)

@@ -6,6 +6,9 @@ import (
 	"path/filepath"
 	"reflect"
 	"testing"
+
+	"github.com/grauwolf32/contractor/internal/config/auditprofile"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 )
 
 func TestRetiredWorkflowAndRebasedProfileKeepPinnedSnapshots(t *testing.T) {
@@ -39,7 +42,7 @@ func TestRetiredWorkflowAndRebasedProfileKeepPinnedSnapshots(t *testing.T) {
 	}
 	appendFile(t, filepath.Join(root, "instructions", "audit-source-checker-worker.md"), "\nRecord every checked file.\n")
 	current := mustLoad(t, root)
-	if _, err := current.ResolveRunWorkflow(t.Context(), "artifact-copy@1", ExecutionConfigPatch{}, nil); err == nil {
+	if _, err := current.ResolveRunWorkflow(t.Context(), "artifact-copy@1", resolved.ExecutionConfigPatch{}, nil); err == nil {
 		t.Fatal("new Run silently resolved retired Workflow")
 	}
 	rebased, err := current.AuditProfile("source-checklist@1")
@@ -47,11 +50,11 @@ func TestRetiredWorkflowAndRebasedProfileKeepPinnedSnapshots(t *testing.T) {
 		t.Fatalf("rebased profile kept the pinned digest: %v", err)
 	}
 
-	decodedWorkflow, err := DecodeResolvedWorkflowSnapshot(workflowJSON)
+	decodedWorkflow, err := resolved.DecodeResolvedWorkflowSnapshot(workflowJSON)
 	if err != nil || !reflect.DeepEqual(workflow, decodedWorkflow) {
 		t.Fatalf("pinned Workflow changed after catalog retirement: %v", err)
 	}
-	decodedProfile, err := DecodeResolvedAuditProfileSnapshot(profileJSON)
+	decodedProfile, err := auditprofile.DecodeResolvedAuditProfileSnapshot(profileJSON)
 	if err != nil || !reflect.DeepEqual(profile, decodedProfile) {
 		t.Fatalf("pinned AuditProfile changed after catalog rebase: %v", err)
 	}

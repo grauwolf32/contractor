@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	workflowconfig "github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/contracts/runlabels"
@@ -193,7 +193,7 @@ func TestPassthroughCompletionWriteWaitAndRetry(t *testing.T) {
 
 func TestRecoverCompletionRevalidatesRecordedOutcome(t *testing.T) {
 	revision := "result-r1"
-	contract := map[string]workflowconfig.ArtifactSlot{
+	contract := map[string]resolved.ArtifactSlot{
 		"report": {Required: true, MediaTypes: []string{"application/json"}},
 	}
 	recorded := contracts.StageContentResult{
@@ -456,7 +456,7 @@ func TestPassthroughFactoryRequiresOneMatchingWorker(t *testing.T) {
 	}
 
 	invocation = testInvocation()
-	invocation.Stage.Planner = workflowconfig.PlannerRef{PlannerID: "streamline", Version: "1"}
+	invocation.Stage.Planner = resolved.PlannerRef{PlannerID: "streamline", Version: "1"}
 	if _, err := factory.Create(invocation); err == nil {
 		t.Fatal("factory accepted a Stage configured for another PlannerFactory")
 	}
@@ -471,27 +471,27 @@ func testInvocation() Invocation {
 	return Invocation{
 		StageExecutionID: "stage-execution-1",
 		RunID:            "run-1",
-		Stage: workflowconfig.ResolvedStage{
+		Stage: resolved.ResolvedStage{
 			Objective: "Build a report",
 			Instructions: contracts.ResolvedInstructions{
 				Ref: "instructions/report.md", Digest: "sha256:" + repeat("b", 64),
 				Text: "Read the source and write the report.",
 			},
-			Planner: workflowconfig.PlannerRef{PlannerID: "passthrough", Version: "1"},
-			Agents: map[string]workflowconfig.ResolvedAgentBinding{
+			Planner: resolved.PlannerRef{PlannerID: "passthrough", Version: "1"},
+			Agents: map[string]resolved.ResolvedAgentBinding{
 				"builder": {
 					Template:  contracts.ResolvedAgentTemplate{Ref: templateRef, Runtime: runtimeRef},
 					Namespace: "builder",
 				},
 			},
-			Context: workflowconfig.StageContext{Artifacts: map[string]workflowconfig.ContextArtifact{
+			Context: resolved.StageContext{Artifacts: map[string]resolved.ContextArtifact{
 				"source": {Namespace: "inputs", Name: "source", Required: true},
 				"notes":  {Namespace: "inputs", Name: "notes", Required: false},
 			}},
-			Result: workflowconfig.StageResultContract{Artifacts: map[string]workflowconfig.ArtifactSlot{
+			Result: resolved.StageResultContract{Artifacts: map[string]resolved.ArtifactSlot{
 				"report": {
 					Required: true, MediaTypes: []string{"application/json"},
-					From: &workflowconfig.ArtifactBinding{Namespace: "builder", Name: "report"},
+					From: &resolved.ArtifactBinding{Namespace: "builder", Name: "report"},
 				},
 			}},
 		},

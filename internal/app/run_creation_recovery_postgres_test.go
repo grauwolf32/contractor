@@ -13,6 +13,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/credentials"
@@ -48,7 +49,7 @@ func TestPostgresPublicRunCreationRecoversFreshPinsAndRolledBackResults(t *testi
 			}
 			attempts := 0
 			transactionLookup := runtimeconfig.TransactionLLMCredentialLookupFactoryFunc(
-				func(tx pgx.Tx) (config.CredentialLookup, error) {
+				func(tx pgx.Tx) (resolved.CredentialLookup, error) {
 					attempts++
 					if name == "exhausted-deadlock" {
 						return nil, &pgconn.PgError{Code: persistencepostgres.SQLStateDeadlockDetected, Message: "injected deadlock"}

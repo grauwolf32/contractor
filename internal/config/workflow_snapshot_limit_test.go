@@ -7,6 +7,8 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 )
 
 const snapshotLimitInstruction = "instructions/copy-planner.md"
@@ -19,7 +21,7 @@ func TestCatalogRejectsAWorkflowWhoseSnapshotExceedsItsBound(t *testing.T) {
 	writeFile(t, filepath.Join(root, snapshotLimitInstruction), []byte(strings.Repeat("a", 2_300_000)))
 
 	_, err := Load(root)
-	if !errors.Is(err, ErrWorkflowSnapshotTooLarge) || !strings.Contains(err.Error(), "artifact-copy@1") {
+	if !errors.Is(err, resolved.ErrWorkflowSnapshotTooLarge) || !strings.Contains(err.Error(), "artifact-copy@1") {
 		t.Fatalf("load with a 2.3 MB instruction error = %v, want ErrWorkflowSnapshotTooLarge for artifact-copy@1", err)
 	}
 }
@@ -41,7 +43,7 @@ func TestWorkflowSnapshotBoundAppliesToTheSnapshotARunStores(t *testing.T) {
 	// The override selects a policy whose resolved selection encodes longer
 	// than the Workflow default, so it enlarges every snapshot by the same delta.
 	enlarging := decodeExecutionConfigPatch(t, `{"workers":{"modelPolicy":"test-domain-worker@1"}}`)
-	base := encodedRunWorkflowSize(t, snapshot, ExecutionConfigPatch{}, lookup)
+	base := encodedRunWorkflowSize(t, snapshot, resolved.ExecutionConfigPatch{}, lookup)
 	enlarged := encodedRunWorkflowSize(t, snapshot, enlarging, lookup)
 	if enlarged <= base {
 		t.Fatalf("override snapshot = %d bytes, base = %d bytes; the override must enlarge it", enlarged, base)
@@ -49,31 +51,31 @@ func TestWorkflowSnapshotBoundAppliesToTheSnapshotARunStores(t *testing.T) {
 
 	// The 1-byte instruction is ASCII and embedded once, so padding it adds
 	// exactly its new length to the encoding.
-	padded := loadWithSnapshotLimitInstruction(t, root, strings.Repeat("a", 1+MaxWorkflowSnapshotBytes-base))
+	padded := loadWithSnapshotLimitInstruction(t, root, strings.Repeat("a", 1+resolved.MaxWorkflowSnapshotBytes-base))
 	workflow, err := padded.Workflow("artifact-copy@1")
 	if err != nil {
 		t.Fatal(err)
 	}
-	encoded, err := EncodeResolvedWorkflowSnapshot(workflow)
-	if err != nil || len(encoded) != MaxWorkflowSnapshotBytes {
-		t.Fatalf("catalog snapshot at the bound = (%d bytes, %v), want exactly %d", len(encoded), err, MaxWorkflowSnapshotBytes)
+	encoded, err := resolved.EncodeResolvedWorkflowSnapshot(workflow)
+	if err != nil || len(encoded) != resolved.MaxWorkflowSnapshotBytes {
+		t.Fatalf("catalog snapshot at the bound = (%d bytes, %v), want exactly %d", len(encoded), err, resolved.MaxWorkflowSnapshotBytes)
 	}
-	if size := encodedRunWorkflowSize(t, padded, ExecutionConfigPatch{}, lookup); size != MaxWorkflowSnapshotBytes {
-		t.Fatalf("override-free Run snapshot = %d bytes, want exactly %d", size, MaxWorkflowSnapshotBytes)
+	if size := encodedRunWorkflowSize(t, padded, resolved.ExecutionConfigPatch{}, lookup); size != resolved.MaxWorkflowSnapshotBytes {
+		t.Fatalf("override-free Run snapshot = %d bytes, want exactly %d", size, resolved.MaxWorkflowSnapshotBytes)
 	}
 
 	lookups := lookup.calls.Load()
 	_, err = padded.ResolveRunWorkflow(t.Context(), "artifact-copy@1", enlarging, lookup)
-	if !errors.Is(err, ErrWorkflowSnapshotTooLarge) || errors.Is(err, ErrCredentialLookup) {
+	if !errors.Is(err, resolved.ErrWorkflowSnapshotTooLarge) || errors.Is(err, resolved.ErrCredentialLookup) {
 		t.Fatalf("enlarging Run override error = %v, want ErrWorkflowSnapshotTooLarge", err)
 	}
 	if lookup.calls.Load() != lookups {
 		t.Fatal("an oversized Run snapshot consulted the credential store before it was rejected")
 	}
-	if _, err := EncodeResolvedWorkflowSnapshot(ResolvedWorkflow{
-		Ref:        WorkflowRef{Name: "unbounded", Version: "1"},
-		EntryStage: strings.Repeat("s", MaxWorkflowSnapshotBytes),
-	}); !errors.Is(err, ErrWorkflowSnapshotTooLarge) {
+	if _, err := resolved.EncodeResolvedWorkflowSnapshot(resolved.ResolvedWorkflow{
+		Ref:        resolved.WorkflowRef{Name: "unbounded", Version: "1"},
+		EntryStage: strings.Repeat("s", resolved.MaxWorkflowSnapshotBytes),
+	}); !errors.Is(err, resolved.ErrWorkflowSnapshotTooLarge) {
 		t.Fatalf("EncodeResolvedWorkflowSnapshot over the bound error = %v", err)
 	}
 }
@@ -84,13 +86,13 @@ func loadWithSnapshotLimitInstruction(t *testing.T, root, text string) *Snapshot
 	return mustLoad(t, root)
 }
 
-func encodedRunWorkflowSize(t *testing.T, snapshot *Snapshot, patch ExecutionConfigPatch, lookup CredentialLookup) int {
+func encodedRunWorkflowSize(t *testing.T, snapshot *Snapshot, patch resolved.ExecutionConfigPatch, lookup resolved.CredentialLookup) int {
 	t.Helper()
 	workflow, err := snapshot.ResolveRunWorkflow(t.Context(), "artifact-copy@1", patch, lookup)
 	if err != nil {
 		t.Fatal(err)
 	}
-	encoded, err := EncodeResolvedWorkflowSnapshot(workflow)
+	encoded, err := resolved.EncodeResolvedWorkflowSnapshot(workflow)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -98,11 +100,11 @@ func encodedRunWorkflowSize(t *testing.T, snapshot *Snapshot, patch ExecutionCon
 }
 
 type countingCredentialLookup struct {
-	lookup CredentialLookup
+	lookup resolved.CredentialLookup
 	calls  atomic.Int64
 }
 
-func (l *countingCredentialLookup) LookupLLMCredential(ctx context.Context, id string) (CredentialMetadata, error) {
+func (l *countingCredentialLookup) LookupLLMCredential(ctx context.Context, id string) (resolved.CredentialMetadata, error) {
 	l.calls.Add(1)
 	return l.lookup.LookupLLMCredential(ctx, id)
 }

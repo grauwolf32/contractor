@@ -9,7 +9,7 @@ import (
 	"sort"
 	"strings"
 
-	workflowconfig "github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/control"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
@@ -40,7 +40,7 @@ type PlacementAllocatorOptions struct {
 	Pool                      *pgxpool.Pool
 	Registry                  *InMemoryRegistry
 	Gateways                  PlacementGatewayLookup
-	LLMCredentials            workflowconfig.CredentialLookup
+	LLMCredentials            resolved.CredentialLookup
 	TransactionLLMCredentials runtimeconfig.TransactionLLMCredentialLookupFactory
 	RuntimeCredentials        PlacementRuntimeCredentialLookup
 	CredentialGuard           PlacementCredentialGuard
@@ -54,7 +54,7 @@ type PlacementAllocator struct {
 	pool                      *pgxpool.Pool
 	registry                  *InMemoryRegistry
 	gateways                  PlacementGatewayLookup
-	llmCredentials            workflowconfig.CredentialLookup
+	llmCredentials            resolved.CredentialLookup
 	transactionLLMCredentials runtimeconfig.TransactionLLMCredentialLookupFactory
 	runtimeCredentials        PlacementRuntimeCredentialLookup
 	credentialGuard           PlacementCredentialGuard
@@ -170,7 +170,7 @@ func (a *PlacementAllocator) reserveAllContext(
 	}
 	edges := make([]CandidateEdge, 0, len(request.Bindings)*len(candidates))
 	for _, binding := range request.Bindings {
-		toolAdapters, err := workflowconfig.RequiredRuntimeAdaptersForTemplate(binding.AgentTemplate)
+		toolAdapters, err := resolved.RequiredRuntimeAdaptersForTemplate(binding.AgentTemplate)
 		if err != nil {
 			return nil, fmt.Errorf("%w: AgentTemplate infrastructure requirements are invalid", ErrInvalidRequest)
 		}
@@ -569,7 +569,7 @@ func loadPinnedRuntimeConfig(
 }
 
 func (a *PlacementAllocator) gatewayCatalog(
-	selection workflowconfig.ResolvedConsumerExecutionConfig,
+	selection resolved.ResolvedConsumerExecutionConfig,
 	configs []runtimeconfig.PinnedRuntimeConfig,
 ) (map[llmgateway.LLMGatewayConfigRef]llmgateway.ResolvedLLMGatewayConfig, error) {
 	refs := make(map[llmgateway.LLMGatewayConfigRef]struct{})
@@ -595,7 +595,7 @@ func (a *PlacementAllocator) gatewayCatalog(
 // Keep SQL-backed lookup ownership explicit. Optimistic resolution uses pool
 // readers; the recheck under the lifecycle barrier uses transaction readers.
 type placementCredentialLookups struct {
-	llm          workflowconfig.CredentialLookup
+	llm          resolved.CredentialLookup
 	runtime      PlacementRuntimeCredentialLookup
 	llmCache     map[string]placementCachedValue[runtimeconfig.LLMCredentialAuthorization]
 	runtimeCache map[string]placementCachedValue[contracts.RuntimeCredentialKind]
@@ -603,7 +603,7 @@ type placementCredentialLookups struct {
 
 func (lookups placementCredentialLookups) catalogs(
 	ctx context.Context,
-	selection workflowconfig.ResolvedConsumerExecutionConfig,
+	selection resolved.ResolvedConsumerExecutionConfig,
 	configs []runtimeconfig.PinnedRuntimeConfig,
 ) (
 	map[string]runtimeconfig.LLMCredentialAuthorization,
@@ -697,7 +697,7 @@ func collectSpecCredentialIDs(
 }
 
 func runtimeRoutePatches(
-	selection workflowconfig.ResolvedConsumerExecutionConfig,
+	selection resolved.ResolvedConsumerExecutionConfig,
 ) (runtimeconfig.WorkerRoutePatch, runtimeconfig.WorkerRoutePatch, runtimeconfig.WorkerRoutePatch, error) {
 	var workflow, run, escalation runtimeconfig.WorkerRoutePatch
 	patchFor := func(origin string) (*runtimeconfig.WorkerRoutePatch, error) {

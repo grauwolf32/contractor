@@ -8,6 +8,8 @@ import (
 	"maps"
 	"slices"
 	"sort"
+
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 )
 
 // WorkflowDiscovery is the Workflow discovery view of one immutable Snapshot:
@@ -17,7 +19,7 @@ import (
 type WorkflowDiscovery struct {
 	SourceFingerprint string
 	selectors         []string
-	workflows         []ResolvedWorkflow
+	workflows         []resolved.ResolvedWorkflow
 }
 
 // Page returns caller-owned copies of at most limit Workflows whose exact
@@ -25,20 +27,20 @@ type WorkflowDiscovery struct {
 // identity and the authored presentation of a candidate; an absent
 // presentation is the zero value.
 func (d WorkflowDiscovery) Page(
-	after string, limit int, matches func(WorkflowRef, WorkflowPresentation) bool,
-) []ResolvedWorkflow {
+	after string, limit int, matches func(resolved.WorkflowRef, resolved.WorkflowPresentation) bool,
+) []resolved.ResolvedWorkflow {
 	start := sort.Search(len(d.selectors), func(index int) bool { return d.selectors[index] > after })
-	result := make([]ResolvedWorkflow, 0, min(max(limit, 0), len(d.workflows)-start))
+	result := make([]resolved.ResolvedWorkflow, 0, min(max(limit, 0), len(d.workflows)-start))
 	for _, workflow := range d.workflows[start:] {
 		if len(result) >= limit {
 			break
 		}
-		var presentation WorkflowPresentation
+		var presentation resolved.WorkflowPresentation
 		if workflow.Presentation != nil {
 			presentation = *workflow.Presentation
 		}
 		if matches(workflow.Ref, presentation) {
-			result = append(result, cloneWorkflow(workflow))
+			result = append(result, workflow.Clone())
 		}
 	}
 	return result
@@ -85,7 +87,7 @@ func (f catalogFingerprint) get() (string, error) {
 // that the AgentTemplate usage index fingerprints too.
 func (s *Snapshot) buildDiscovery() ([]byte, error) {
 	selectors := slices.Sorted(maps.Keys(s.workflows))
-	workflows := make([]ResolvedWorkflow, 0, len(selectors))
+	workflows := make([]resolved.ResolvedWorkflow, 0, len(selectors))
 	for _, selector := range selectors {
 		workflows = append(workflows, s.workflows[selector])
 	}

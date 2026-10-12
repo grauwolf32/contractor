@@ -13,7 +13,7 @@ import (
 	"testing"
 
 	"github.com/google/jsonschema-go/jsonschema"
-	workflowconfig "github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/planner"
@@ -293,7 +293,7 @@ func TestRouterStateToolReadsOnlySelectedLogicalWorker(t *testing.T) {
 		"builder": stageResult("complete", map[string]contracts.ArtifactRef{}),
 	}}
 	invocation := stateToolInvocation("router", "builder", "reviewer")
-	invocation.Stage.Result.Artifacts = map[string]workflowconfig.ArtifactSlot{}
+	invocation.Stage.Result.Artifacts = map[string]resolved.ArtifactSlot{}
 	plannerValue := newStateTestPlanner(
 		t, routerProfile, invocation, reader, workers, modelValue,
 	)
@@ -419,10 +419,10 @@ func newStateTestPlanner(
 func stateToolInvocation(plannerID string, bindings ...string) planner.Invocation {
 	invocation := testInvocation(bindings...)
 	invocation.ModelAccess.ModelPolicy.MaxModelCalls = 12
-	invocation.Stage.Planner = workflowconfig.PlannerRef{PlannerID: plannerID, Version: "1"}
-	invocation.Stage.Context.Workspace = &workflowconfig.WorkspaceContext{
+	invocation.Stage.Planner = resolved.PlannerRef{PlannerID: plannerID, Version: "1"}
+	invocation.Stage.Context.Workspace = &resolved.WorkspaceContext{
 		Mode:    contracts.WorkspaceModeDirect,
-		Sources: []workflowconfig.WorkspaceSource{{Artifact: "source", Target: ""}},
+		Sources: []resolved.WorkspaceSource{{Artifact: "source", Target: ""}},
 	}
 	for _, name := range bindings {
 		binding := invocation.Stage.Agents[name]

@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/credentialerrors"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -197,7 +197,7 @@ func BuiltInRunSnapshot() RunSnapshot {
 }
 
 func validateRunLLMCredential(
-	ctx context.Context, spec Spec, lookup config.CredentialLookup,
+	ctx context.Context, spec Spec, lookup resolved.CredentialLookup,
 ) error {
 	patch := spec.Worker.LLMGateway
 	if !patch.Present || !patch.Credential.Present || patch.Credential.Clear {

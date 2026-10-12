@@ -8,7 +8,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditservice"
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
@@ -35,7 +35,7 @@ func TestAuditProgramsResolveAsRunnableMVPProfiles(t *testing.T) {
 		}
 		role := profile.Inventory.ItemWorkflowRole
 		binding := profile.Workflows[role]
-		if binding.Inputs["execution_manifest"].Source != config.AuditInputFromExecutionManifest ||
+		if binding.Inputs["execution_manifest"].Source != auditprofile.AuditInputFromExecutionManifest ||
 			binding.Outputs["result"] != "result" {
 			t.Fatalf("%s has no exact execution/result boundary: %+v", selector, binding)
 		}

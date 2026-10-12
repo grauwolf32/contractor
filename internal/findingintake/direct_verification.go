@@ -11,7 +11,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
-	workflowconfig "github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/jackc/pgx/v5"
@@ -37,7 +37,7 @@ type directVerificationContract struct {
 	Workflow        json.RawMessage                   `json:"workflow"`
 	ClosureDigest   string                            `json:"workflowClosureDigest"`
 	OutputName      string                            `json:"outputName"`
-	Output          workflowconfig.ArtifactSlot       `json:"output"`
+	Output          resolved.ArtifactSlot             `json:"output"`
 	Binding         directVerificationContractBinding `json:"binding"`
 }
 
@@ -198,7 +198,7 @@ func prepareDirectVerification(
 		run.RunID != input.RunID || auditdomain.DigestBytes(run.WorkflowSnapshot) != input.WorkflowClosureDigest {
 		return nil, artifacts.ErrArtifactIntegrity
 	}
-	workflow, err := workflowconfig.DecodeResolvedWorkflowSnapshot(run.WorkflowSnapshot)
+	workflow, err := resolved.DecodeResolvedWorkflowSnapshot(run.WorkflowSnapshot)
 	if err != nil || workflow.Ref.Name != run.WorkflowName || workflow.Ref.Version != run.WorkflowVersion {
 		return nil, artifacts.ErrArtifactIntegrity
 	}
@@ -263,15 +263,15 @@ func prepareDirectVerification(
 }
 
 func selectDirectVerificationOutput(
-	workflow workflowconfig.ResolvedWorkflow,
-) (string, workflowconfig.ArtifactSlot, bool) {
+	workflow resolved.ResolvedWorkflow,
+) (string, resolved.ArtifactSlot, bool) {
 	names := make([]string, 0, len(workflow.Outputs))
 	for name := range workflow.Outputs {
 		names = append(names, name)
 	}
 	sort.Strings(names)
 	var selectedName string
-	var selected workflowconfig.ArtifactSlot
+	var selected resolved.ArtifactSlot
 	for _, name := range names {
 		slot := workflow.Outputs[name]
 		if !slot.Required || !slot.Primary ||
@@ -279,7 +279,7 @@ func selectDirectVerificationOutput(
 			continue
 		}
 		if selectedName != "" {
-			return "", workflowconfig.ArtifactSlot{}, false
+			return "", resolved.ArtifactSlot{}, false
 		}
 		selectedName, selected = name, slot
 	}

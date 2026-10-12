@@ -5,7 +5,7 @@ import (
 	"crypto/sha256"
 	"sync"
 
-	workflowconfig "github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/settingsstore"
 )
@@ -15,7 +15,7 @@ import (
 // lane at the largest snapshot (LIM-CAT-4).
 const (
 	workflowSnapshotCacheRuns  = 2 * settingsstore.MaximumConcurrentRuns
-	workflowSnapshotCacheBytes = settingsstore.MaximumConcurrentRuns * workflowconfig.MaxWorkflowSnapshotBytes
+	workflowSnapshotCacheBytes = settingsstore.MaximumConcurrentRuns * resolved.MaxWorkflowSnapshotBytes
 )
 
 // workflowSnapshotCache keeps decoded and validated Workflow snapshots by Run

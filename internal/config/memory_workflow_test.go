@@ -3,6 +3,8 @@ package config
 import (
 	"reflect"
 	"testing"
+
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 )
 
 // sharedMemoryFixtureRoot is a frozen catalog with one Streamline and one
@@ -20,10 +22,10 @@ func TestWorkflowMemoryNamespaceBindingsResolve(t *testing.T) {
 	coordinate := streamline.Stages["coordinate"]
 	confirm := streamline.Stages["confirm"]
 	if streamline.EntryStage != "coordinate" ||
-		coordinate.Planner != (PlannerRef{PlannerID: "streamline", Version: "1"}) ||
+		coordinate.Planner != (resolved.PlannerRef{PlannerID: "streamline", Version: "1"}) ||
 		coordinate.Agents["builder"].Namespace != "shared" ||
 		confirm.Agents["builder"].Namespace != "shared" ||
-		confirm.On.Succeeded.Kind != TransitionSucceed {
+		confirm.On.Succeeded.Kind != resolved.TransitionSucceed {
 		t.Fatalf("unexpected shared-memory Streamline graph: %+v", streamline)
 	}
 	assertNext(t, coordinate.On.Succeeded, "confirm")
@@ -42,7 +44,7 @@ func TestWorkflowMemoryNamespaceBindingsResolve(t *testing.T) {
 		t.Fatalf("resolve shared-memory Router Workflow: %v", err)
 	}
 	route := router.Stages[router.EntryStage]
-	if route.Planner != (PlannerRef{PlannerID: "router", Version: "1"}) ||
+	if route.Planner != (resolved.PlannerRef{PlannerID: "router", Version: "1"}) ||
 		route.Agents["builder"].Namespace != "builder_notes" ||
 		route.Agents["reviewer"].Namespace != "reviewer_notes" {
 		t.Fatalf("unexpected shared-memory Router bindings: %+v", route)

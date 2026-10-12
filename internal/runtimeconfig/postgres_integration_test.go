@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -21,9 +21,9 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-type llmCredentialLookupFunc func(context.Context, string) (config.CredentialMetadata, error)
+type llmCredentialLookupFunc func(context.Context, string) (resolved.CredentialMetadata, error)
 
-func (f llmCredentialLookupFunc) LookupLLMCredential(ctx context.Context, id string) (config.CredentialMetadata, error) {
+func (f llmCredentialLookupFunc) LookupLLMCredential(ctx context.Context, id string) (resolved.CredentialMetadata, error) {
 	return f(ctx, id)
 }
 
@@ -70,12 +70,12 @@ func TestPostgresRuntimeConfigBootstrapPublicationReplayAndBindingCAS(t *testing
 	publisher, err := NewPublisher(PublisherOptions{
 		Pool: pool, GatewayResolver: resolver,
 		RuntimeCredentials: allowRuntimeCredentialCatalog{},
-		TransactionLLMCredentials: TransactionLLMCredentialLookupFactoryFunc(func(pgx.Tx) (config.CredentialLookup, error) {
-			return llmCredentialLookupFunc(func(_ context.Context, id string) (config.CredentialMetadata, error) {
+		TransactionLLMCredentials: TransactionLLMCredentialLookupFactoryFunc(func(pgx.Tx) (resolved.CredentialLookup, error) {
+			return llmCredentialLookupFunc(func(_ context.Context, id string) (resolved.CredentialMetadata, error) {
 				if id != "worker-local" {
-					return config.CredentialMetadata{}, errors.New("test LLM credential not found")
+					return resolved.CredentialMetadata{}, errors.New("test LLM credential not found")
 				}
-				return config.CredentialMetadata{
+				return resolved.CredentialMetadata{
 					Ref: llmgateway.LLMCredentialRef{CredentialID: id},
 					LLMGateway: llmgateway.LLMGatewayConfigRef{
 						GatewayID: "local-litellm", Version: "1", Digest: "sha256:" + strings.Repeat("a", 64),

@@ -16,6 +16,8 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/auditprofile"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
@@ -67,7 +69,7 @@ func TestAuditCompletionPostgresAtomicCreationRestartAndAllocation(t *testing.T)
 		t.Fatal(err)
 	}
 	binding := profile.Workflows["check"]
-	binding.WorkerCompletion = &config.AuditWorkerCompletion{Kind: contracts.AuditCheckResultsV1, Stage: "check", Agent: "checker"}
+	binding.WorkerCompletion = &auditprofile.AuditWorkerCompletion{Kind: contracts.AuditCheckResultsV1, Stage: "check", Agent: "checker"}
 	stage := binding.Workflow.Stages["check"]
 	agent := stage.Agents["checker"]
 	for i := range agent.Template.Toolsets {
@@ -78,7 +80,7 @@ func TestAuditCompletionPostgresAtomicCreationRestartAndAllocation(t *testing.T)
 	agent.Template.Skills = nil
 	stage.Agents["checker"] = agent
 	binding.Workflow.Stages["check"] = stage
-	if err := config.ValidateAuditWorkerCompletion(binding); err != nil {
+	if err := auditprofile.ValidateAuditWorkerCompletion(binding); err != nil {
 		t.Fatal(err)
 	}
 	profileBytes, _ := json.Marshal(map[string]any{"workflows": map[string]any{"check": binding}})
@@ -116,7 +118,7 @@ func TestAuditCompletionPostgresAtomicCreationRestartAndAllocation(t *testing.T)
 	params := AuditCreateParams{Claim: claim, ExecutionID: execution.ExecutionID, Workflow: binding.Workflow, RuntimeConfig: runtimeconfig.BuiltInRunSnapshot(), Parameters: map[string]string{}, Inputs: map[string]auditstore.ExactArtifact{"source": source, "task": task, "execution_manifest": manifest}, ExecutionManifest: manifest, RequestDigest: execution.RequestDigest, NewRunID: func() (string, error) { return "run", nil }}
 	wrongWorkflow := params
 	encodedWorkflow, _ := json.Marshal(params.Workflow)
-	wrongWorkflow.Workflow, _ = config.DecodeResolvedWorkflowSnapshot(encodedWorkflow)
+	wrongWorkflow.Workflow, _ = resolved.DecodeResolvedWorkflowSnapshot(encodedWorkflow)
 	wrongWorkflow.Workflow.Ref.Version = "different-version"
 	if _, err := service.CreateAudit(ctx, wrongWorkflow); !errors.Is(err, ErrInvalid) {
 		t.Fatal("different Workflow accepted", err)

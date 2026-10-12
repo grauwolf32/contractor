@@ -10,7 +10,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditstore"
-	workflowconfig "github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
@@ -148,7 +148,7 @@ func TestAuditManagedRunSkipsGenericProjectOutputPublication(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		return publishProjectOutputs(ctx, tx, runID, map[string]workflowconfig.ArtifactSlot{
+		return publishProjectOutputs(ctx, tx, runID, map[string]resolved.ArtifactSlot{
 			"result": {Required: true, MediaTypes: []string{"text/plain"}},
 		}, 0)
 	}); err != nil {

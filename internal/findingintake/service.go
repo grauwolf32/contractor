@@ -10,7 +10,8 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
-	workflowconfig "github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/auditprofile"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -254,11 +255,11 @@ func verifyTrustedExecution(
 	if stage.RunID != run.RunID {
 		return Origin{}, "", nil, ErrAccessDenied
 	}
-	resolved, err := workflowconfig.DecodeResolvedStageSnapshot(stage.StageSpecSnapshot)
+	stageSpec, err := resolved.DecodeResolvedStageSnapshot(stage.StageSpecSnapshot)
 	if err != nil {
 		return Origin{}, "", nil, fmt.Errorf("decode selected Stage snapshot: %w", err)
 	}
-	binding, ok := resolved.Agents[grant.LogicalAgentName]
+	binding, ok := stageSpec.Agents[grant.LogicalAgentName]
 	if !ok || binding.Namespace != grant.Namespace || !selectsFindingTool(binding.Template.Toolsets) {
 		return Origin{}, "", nil, ErrToolNotSelected
 	}
@@ -277,13 +278,13 @@ func verifyTrustedExecution(
 		var findingPolicy string
 		err := tx.QueryRow(ctx, `
 SELECT execution.audit_id, execution.execution_id, execution.role,
-       audit.profile_snapshot #>> '`+workflowconfig.AuditProfileFindingConfirmationPath+`'
+       audit.profile_snapshot #>> '`+auditprofile.AuditProfileFindingConfirmationPath+`'
   FROM audit_executions AS execution
   JOIN audits AS audit USING (audit_id)
  WHERE execution.execution_id = $1 AND execution.run_id = $2`,
 			*run.AuditExecutionID, run.RunID,
 		).Scan(&audit.AuditID, &audit.ExecutionID, &audit.Role, &findingPolicy)
-		if errors.Is(err, pgx.ErrNoRows) || err == nil && findingPolicy == string(workflowconfig.AuditFindingDisabled) {
+		if errors.Is(err, pgx.ErrNoRows) || err == nil && findingPolicy == string(auditprofile.AuditFindingDisabled) {
 			return Origin{}, "", nil, ErrToolNotSelected
 		}
 		if err != nil {
@@ -295,7 +296,7 @@ SELECT execution.audit_id, execution.execution_id, execution.role,
 }
 
 func selectsFindingTool(selections []contracts.ToolsetSelection) bool {
-	return slices.ContainsFunc(selections, workflowconfig.SelectsFindingProposalTool)
+	return slices.ContainsFunc(selections, resolved.SelectsFindingProposalTool)
 }
 
 func mustRunScope(runID string) artifacts.Scope {

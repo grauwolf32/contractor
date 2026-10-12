@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/control"
@@ -35,7 +36,7 @@ func TestWorkerSummarizerGoldenDigestMatchesGoCanonicalization(t *testing.T) {
 		template.ModelPolicy, template.Summarizer.ModelPolicy,
 	} {
 		got, err := modelPolicyDigest(
-			Selector{ID: policy.Ref.PolicyID, Version: policy.Ref.Version}, policy,
+			resolved.Selector{ID: policy.Ref.PolicyID, Version: policy.Ref.Version}, policy,
 		)
 		if err != nil {
 			t.Fatal(err)
@@ -45,7 +46,7 @@ func TestWorkerSummarizerGoldenDigestMatchesGoCanonicalization(t *testing.T) {
 		}
 	}
 	got, err := agentTemplateDigest(
-		Selector{ID: template.Ref.TemplateID, Version: template.Ref.Version}, template,
+		resolved.Selector{ID: template.Ref.TemplateID, Version: template.Ref.Version}, template,
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -80,7 +81,7 @@ func TestWorkerSummarizerResolvesPinsAndPublishesSafeConfiguration(t *testing.T)
 	}
 
 	workflow, err := snapshot.ResolveRunWorkflow(
-		t.Context(), "artifact-copy@1", ExecutionConfigPatch{}, developmentCredentialLookup(t, snapshot),
+		t.Context(), "artifact-copy@1", resolved.ExecutionConfigPatch{}, developmentCredentialLookup(t, snapshot),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -317,7 +318,7 @@ func TestExecutionConfigCannotOverrideWorkerSummarizer(t *testing.T) {
 		`{"workers":{"summarizer":"terminal_summarizer@1"}}`,
 		`{"stages":{"copy":{"agents":{"builder":{"summarizer":null}}}}}`,
 	} {
-		var patch ExecutionConfigPatch
+		var patch resolved.ExecutionConfigPatch
 		if err := json.Unmarshal([]byte(raw), &patch); err == nil {
 			t.Fatalf("executionConfig accepted summarizer override: %s", raw)
 		}

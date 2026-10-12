@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 )
 
 func TestAuditScanUsesContractsInsteadOfCatalogNames(t *testing.T) {
@@ -54,7 +54,7 @@ func TestAuditScanUsesContractsInsteadOfCatalogNames(t *testing.T) {
 			}
 			binding := profile.Workflows["verify"]
 			stage := binding.Workflow.Stages["probe"]
-			if profile.Inventory.Implementation != AuditInventoryOpenAPIScans ||
+			if profile.Inventory.Implementation != auditprofile.AuditInventoryOpenAPIScans ||
 				binding.Workflow.Ref.Name != "customer-check" ||
 				stage.Agents["backend"].Template.Ref.TemplateID != "customer-scanner" ||
 				binding.Inputs["openapi"].Name != "api_document" ||
@@ -65,7 +65,7 @@ func TestAuditScanUsesContractsInsteadOfCatalogNames(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			stored, err := DecodeResolvedAuditProfileSnapshot(data)
+			stored, err := auditprofile.DecodeResolvedAuditProfileSnapshot(data)
 			if err != nil || !reflect.DeepEqual(stored, profile) {
 				t.Fatalf("renamed scan profile cannot be restored: %v", err)
 			}
@@ -80,119 +80,40 @@ func TestAuditScanValidatesExecutionContract(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for name, change := range map[string]func(*ResolvedAuditProfile){
-		"missing executor declaration": func(p *ResolvedAuditProfile) {
+	for name, change := range map[string]func(*auditprofile.ResolvedAuditProfile){
+		"missing executor declaration": func(p *auditprofile.ResolvedAuditProfile) {
 			binding := p.Workflows["scan"]
 			binding.Workflow.AuditTask = nil
 			p.Workflows["scan"] = binding
 		},
-		"unsupported task version": func(p *ResolvedAuditProfile) { p.Workflows["scan"].Workflow.AuditTask.Contract = "openapi-scan@99" },
-		"different task producer":  func(p *ResolvedAuditProfile) { p.Inventory.Implementation = "openapi-operations@1" },
-		"missing executor Stage":   func(p *ResolvedAuditProfile) { p.Workflows["scan"].Workflow.AuditTask.Stage = "missing" },
-		"approval omitted":         func(p *ResolvedAuditProfile) { p.Interaction.ActiveChecks = AuditActiveChecksProhibited },
-		"multiple assigned items":  func(p *ResolvedAuditProfile) { p.Execution.BatchSize = 2 },
-		"settings substituted": func(p *ResolvedAuditProfile) {
-			p.Workflows["scan"].Inputs["settings"] = AuditWorkflowInputMapping{Source: AuditInputFromAudit, Name: "openapi"}
+		"unsupported task version": func(p *auditprofile.ResolvedAuditProfile) {
+			p.Workflows["scan"].Workflow.AuditTask.Contract = "openapi-scan@99"
 		},
-		"scanner differs from Worker": func(p *ResolvedAuditProfile) {
+		"different task producer": func(p *auditprofile.ResolvedAuditProfile) { p.Inventory.Implementation = "openapi-operations@1" },
+		"missing executor Stage":  func(p *auditprofile.ResolvedAuditProfile) { p.Workflows["scan"].Workflow.AuditTask.Stage = "missing" },
+		"approval omitted": func(p *auditprofile.ResolvedAuditProfile) {
+			p.Interaction.ActiveChecks = auditprofile.AuditActiveChecksProhibited
+		},
+		"multiple assigned items": func(p *auditprofile.ResolvedAuditProfile) { p.Execution.BatchSize = 2 },
+		"settings substituted": func(p *auditprofile.ResolvedAuditProfile) {
+			p.Workflows["scan"].Inputs["settings"] = auditprofile.AuditWorkflowInputMapping{Source: auditprofile.AuditInputFromAudit, Name: "openapi"}
+		},
+		"scanner differs from Worker": func(p *auditprofile.ResolvedAuditProfile) {
 			p.Workflows["scan"].Workflow.Stages["scan"].AuditScan.Scanner = "nuclei"
 		},
-		"unknown outcome redispatch": func(p *ResolvedAuditProfile) {
+		"unknown outcome redispatch": func(p *auditprofile.ResolvedAuditProfile) {
 			p.Workflows["scan"].Workflow.Stages["scan"].AuditScan.UnknownOutcome = "retry"
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
-			changed := cloneAuditProfile(profile)
+			changed := profile.Clone()
 			change(&changed)
-			if ValidateAuditTaskProfile(changed) == nil {
+			if auditprofile.ValidateAuditTaskProfile(changed) == nil {
 				t.Fatal("invalid scan execution contract accepted")
 			}
-			if err := ValidateAuditTaskProfile(profile); err != nil {
+			if err := auditprofile.ValidateAuditTaskProfile(profile); err != nil {
 				t.Fatalf("copy changed the original snapshot: %v", err)
 			}
 		})
-	}
-}
-
-func TestAuditTaskAllowsSurroundingStagesAndOtherRoles(t *testing.T) {
-	t.Parallel()
-	snapshot := mustLoad(t, copyCoreFixture(t, "audit-scan-catalog"))
-	profile, err := snapshot.AuditProfile("openapi-sqlmap-scan@1")
-	if err != nil {
-		t.Fatal(err)
-	}
-	ordinary, err := snapshot.Workflow("artifact-copy@1")
-	if err != nil {
-		t.Fatal(err)
-	}
-	binding := profile.Workflows["scan"]
-	workflow := &binding.Workflow
-	notes := ArtifactSlot{Required: true, MediaTypes: []string{"text/plain"}}
-	profile.Inputs["operator_notes"] = AuditProfileInput{Required: true, MediaTypes: notes.MediaTypes}
-	workflow.Inputs["notes"] = notes
-	binding.Inputs["notes"] = AuditWorkflowInputMapping{Source: AuditInputFromAudit, Name: "operator_notes"}
-	for _, name := range []string{"before", "after"} {
-		stage := cloneStage(ordinary.Stages[ordinary.EntryStage])
-		stage.Context = StageContext{Artifacts: map[string]ContextArtifact{
-			"notes": {Namespace: "inputs", Name: "notes", Required: true},
-		}}
-		stage.WorkflowOutputs = map[string]string{}
-		stage.Result.Artifacts["copied"].From.Name = name
-		workflow.Stages[name] = stage
-	}
-	before := workflow.Stages["before"]
-	before.On.Succeeded = TransitionAction{Kind: TransitionNext, NextStage: "scan"}
-	workflow.Stages["before"] = before
-	scan := workflow.Stages["scan"]
-	scan.On.Succeeded = TransitionAction{Kind: TransitionNext, NextStage: "after"}
-	workflow.Stages["scan"] = scan
-	workflow.EntryStage = "before"
-	profile.Workflows["scan"] = binding
-	// Other check roles declare their own consumer contracts; they do not
-	// become the inventory's default route merely by accepting the same type.
-	profile.Workflows["second-check"] = binding
-	// A separate existing Workflow role is unrelated to task execution.
-	profile.Workflows["assessment"] = ResolvedAuditWorkflowBinding{
-		Kind: AuditWorkflowAssessment, Workflow: ordinary,
-		Inputs: map[string]AuditWorkflowInputMapping{"source": {Source: AuditInputFromAudit, Name: "operator_notes"}}, Parameters: map[string]AuditWorkflowParameterMapping{},
-		Outputs: map[string]string{"report": "result"},
-	}
-	if err := ValidateWorkflowGraph(*workflow); err != nil {
-		t.Fatal(err)
-	}
-	if err := ValidateAuditTaskProfile(profile); err != nil {
-		t.Fatal(err)
-	}
-	profile.Ref.Digest, err = auditProfileDigest(Selector{ID: profile.Ref.Name, Version: profile.Ref.Version}, profile)
-	if err != nil {
-		t.Fatal(err)
-	}
-	encoded, err := json.Marshal(profile)
-	if err != nil {
-		t.Fatal(err)
-	}
-	restored, err := DecodeResolvedAuditProfileSnapshot(encoded)
-	if err != nil || restored.Workflows["scan"].Workflow.AuditTask.Contract != contracts.AuditTaskOpenAPIScanV1 {
-		t.Fatalf("composed Workflow cannot be restored: %v", err)
-	}
-	// Neither another result producer nor a success branch around the scan
-	// may turn the composition into a fabricated successful task result.
-	other := cloneStage(workflow.Stages["scan"])
-	other.AuditScan, other.ScanPlan = nil, nil
-	other.WorkflowOutputs = map[string]string{"result": "report"}
-	changed := cloneAuditProfile(profile)
-	changed.Workflows["scan"].Workflow.Stages["after"] = other
-	if ValidateAuditTaskProfile(changed) == nil {
-		t.Fatal("accepted a second canonical result producer")
-	}
-	changed = cloneAuditProfile(profile)
-	bypass := changed.Workflows["scan"].Workflow.Stages["before"]
-	bypass.On.Succeeded = TransitionAction{Kind: TransitionSucceed}
-	// Keep the executor reachable, so rejection must cover the successful
-	// bypass path rather than merely detect an unreachable Stage.
-	bypass.On.Failed = TransitionAction{Kind: TransitionNext, NextStage: "scan"}
-	changed.Workflows["scan"].Workflow.Stages["before"] = bypass
-	if ValidateWorkflowGraph(changed.Workflows["scan"].Workflow) == nil {
-		t.Fatal("accepted a successful path without the task result")
 	}
 }

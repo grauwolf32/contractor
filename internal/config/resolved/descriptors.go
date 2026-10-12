@@ -1,4 +1,4 @@
-package config
+package resolved
 
 import (
 	"fmt"
@@ -535,7 +535,7 @@ func normalizeWorkflowInputRequirements(
 		if _, exists := exported[tool]; !exists {
 			return nil, fmt.Errorf("Toolset descriptor %q requires a Workflow input for unknown tool %q", selector, tool)
 		}
-		if err := validateArtifactComponent("Toolset descriptor "+selector+" Workflow input", requirement.Input); err != nil {
+		if err := ValidateArtifactComponent("Toolset descriptor "+selector+" Workflow input", requirement.Input); err != nil {
 			return nil, err
 		}
 		if !contracts.ValidMediaType(requirement.MediaType) {

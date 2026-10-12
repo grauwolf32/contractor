@@ -1,6 +1,9 @@
-package config
+package resolved
 
-import "testing"
+import (
+	"slices"
+	"testing"
+)
 
 func TestScanToolsetDescriptor(t *testing.T) {
 	t.Parallel()
@@ -9,7 +12,7 @@ func TestScanToolsetDescriptor(t *testing.T) {
 		t.Fatal("scan@1 descriptor is missing")
 	}
 	want := []string{"scan_ffuf", "scan_katana", "scan_naabu", "scan_nuclei", "scan_sqlmap"}
-	if !equalStrings(descriptor.Tools, want) || !equalStrings(descriptor.ActiveCheckTools, want) {
+	if !slices.Equal(descriptor.Tools, want) || !slices.Equal(descriptor.ActiveCheckTools, want) {
 		t.Fatalf("scan@1 must classify each scanner as an active check: %+v", descriptor)
 	}
 	for _, name := range want {

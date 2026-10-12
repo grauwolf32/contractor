@@ -6,93 +6,35 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/grauwolf32/contractor/internal/contentdigest"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
 const maxJSONSafeInteger = 1<<53 - 1
 
-// ParseSelector validates and separates an exact <id>@<version> selector.
-func ParseSelector(raw string) (Selector, error) {
-	if strings.Count(raw, "@") != 1 {
-		return Selector{}, fmt.Errorf("selector %q must use exact <id>@<version> syntax", raw)
-	}
-	id, version, _ := strings.Cut(raw, "@")
-	if !contracts.ValidConfigID(id) {
-		return Selector{}, fmt.Errorf("selector %q has invalid id", raw)
-	}
-	if !contracts.ValidConfigVersion(version) {
-		return Selector{}, fmt.Errorf("selector %q has invalid version", raw)
-	}
-	return Selector{ID: id, Version: version}, nil
-}
-
-func validateMetadata(metadata *metadataSource) (Selector, error) {
+func validateMetadata(metadata *metadataSource) (resolved.Selector, error) {
 	if metadata == nil {
-		return Selector{}, fmt.Errorf("metadata is required")
+		return resolved.Selector{}, fmt.Errorf("metadata is required")
 	}
 	if !contracts.ValidConfigID(metadata.Name) {
-		return Selector{}, fmt.Errorf("metadata.name %q must match [a-z][a-z0-9_-]* and have at most %d characters",
+		return resolved.Selector{}, fmt.Errorf("metadata.name %q must match [a-z][a-z0-9_-]* and have at most %d characters",
 			metadata.Name, contracts.MaxConfigIDLength)
 	}
 	if !contracts.ValidConfigVersion(metadata.Version) {
-		return Selector{}, fmt.Errorf("metadata.version %q must match [A-Za-z0-9][A-Za-z0-9._+-]* and have at most %d characters",
+		return resolved.Selector{}, fmt.Errorf("metadata.version %q must match [A-Za-z0-9][A-Za-z0-9._+-]* and have at most %d characters",
 			metadata.Version, contracts.MaxConfigVersionLength)
 	}
-	return Selector{ID: metadata.Name, Version: metadata.Version}, nil
+	return resolved.Selector{ID: metadata.Name, Version: metadata.Version}, nil
 }
 
-func validateExecutionConfigRef(ref ExecutionConfigRef) error {
-	if _, err := ParseSelector(ref.ConfigID + "@" + ref.Version); err != nil {
-		return err
-	}
-	if !contentdigest.Valid(ref.Digest) {
-		return fmt.Errorf("digest %q must use sha256:<64 lowercase hex>", ref.Digest)
-	}
-	return nil
-}
-
-func validateEnvelope(apiVersion, kind, expectedKind string, metadata *metadataSource) (Selector, error) {
+func validateEnvelope(apiVersion, kind, expectedKind string, metadata *metadataSource) (resolved.Selector, error) {
 	if apiVersion != "contractor/v1alpha1" {
-		return Selector{}, fmt.Errorf("apiVersion must be %q", "contractor/v1alpha1")
+		return resolved.Selector{}, fmt.Errorf("apiVersion must be %q", "contractor/v1alpha1")
 	}
 	if kind != expectedKind {
-		return Selector{}, fmt.Errorf("kind %q does not match %s subtree", kind, expectedKind)
+		return resolved.Selector{}, fmt.Errorf("kind %q does not match %s subtree", kind, expectedKind)
 	}
 	return validateMetadata(metadata)
-}
-
-func validateIdentifier(field, value string) error {
-	if strings.TrimSpace(value) == "" {
-		return fmt.Errorf("%s must not be empty or whitespace-only", field)
-	}
-	return nil
-}
-
-// validateWorkflowName applies the shared name grammar of contracts.ValidName
-// to a Stage or logical Agent name, wherever a Workflow, ExecutionConfig or
-// persisted snapshot declares or references one. The public API and
-// Operations show both as ConfigId values (WFL-R84), so the catalog accepts
-// no name they could not show.
-func validateWorkflowName(field, value string) error {
-	if !contracts.ValidName(value) {
-		return fmt.Errorf(
-			"%s %q must be 1 to %d ASCII letters, digits, dots, underscores or hyphens, starting with a letter or digit",
-			field, value, contracts.MaxNameLength,
-		)
-	}
-	return nil
-}
-
-// validateStageAgentNames checks every logical Agent name of one resolved
-// Stage; field names the Stage in the error.
-func validateStageAgentNames(field string, agents map[string]ResolvedAgentBinding) error {
-	for logicalName := range agents {
-		if err := validateWorkflowName(field+" logical Agent name", logicalName); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 func validateInstructionRef(raw string) (string, error) {
@@ -119,43 +61,6 @@ func validateInstructionRef(raw string) (string, error) {
 		return "", fmt.Errorf("instruction ref %q must be below instructions/", raw)
 	}
 	return strings.Join(segments, "/"), nil
-}
-
-func validateMediaTypes(field string, values []string) ([]string, error) {
-	if len(values) == 0 {
-		return nil, fmt.Errorf("%s.mediaTypes must be a non-empty list", field)
-	}
-	seen := make(map[string]struct{}, len(values))
-	result := append([]string(nil), values...)
-	for _, value := range result {
-		if value != "*/*" && !contracts.ValidMediaType(value) {
-			return nil, fmt.Errorf("%s.mediaTypes contains non-canonical media type %q", field, value)
-		}
-		if _, exists := seen[value]; exists {
-			return nil, fmt.Errorf("%s.mediaTypes contains duplicate %q", field, value)
-		}
-		seen[value] = struct{}{}
-	}
-	if _, any := seen["*/*"]; any && len(seen) != 1 {
-		return nil, fmt.Errorf("%s.mediaTypes cannot combine */* with specific values", field)
-	}
-	return result, nil
-}
-
-func mediaTypesIntersect(left, right []string) bool {
-	if len(left) == 1 && left[0] == "*/*" || len(right) == 1 && right[0] == "*/*" {
-		return true
-	}
-	rightSet := make(map[string]struct{}, len(right))
-	for _, item := range right {
-		rightSet[item] = struct{}{}
-	}
-	for _, item := range left {
-		if _, ok := rightSet[item]; ok {
-			return true
-		}
-	}
-	return false
 }
 
 func validateModelPolicySpec(spec *modelPolicySpecSource) error {

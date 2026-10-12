@@ -1,58 +1,13 @@
-package config
+package auditprofile
 
 import (
 	"fmt"
 	"maps"
 	"slices"
 
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
-
-// AuditTaskExecution declares which task contract a Workflow accepts and which
-// Stage owns its execution/result. Surrounding Stages remain ordinary Workflow
-// graph nodes; the task Stage need not be the entry Stage.
-type AuditTaskExecution struct {
-	Contract contracts.AuditTaskContract `json:"contract" yaml:"contract"`
-	Stage    string                      `json:"stage" yaml:"stage"`
-}
-
-func cloneAuditTask(value *AuditTaskExecution) *AuditTaskExecution {
-	if value == nil {
-		return nil
-	}
-	copy := *value
-	return &copy
-}
-
-// ValidateAuditTaskWorkflow checks executor capabilities without consulting any
-// inventory or profile. A declaration alone cannot grant an unsupported one.
-func ValidateAuditTaskWorkflow(workflow ResolvedWorkflow) error {
-	execution := workflow.AuditTask
-	for name, stage := range workflow.Stages {
-		if stage.AuditScan != nil && (execution == nil || name != execution.Stage) {
-			return fmt.Errorf("Stage %q must be the declared auditTask executor", name)
-		}
-	}
-	if execution == nil {
-		return nil
-	}
-	stage, exists := workflow.Stages[execution.Stage]
-	if !exists {
-		return fmt.Errorf("auditTask.stage names an absent Stage")
-	}
-	switch execution.Contract {
-	case contracts.AuditTaskOpenAPIScanV1:
-		if stage.AuditScan == nil {
-			return fmt.Errorf("%s requires an auditScan executor", execution.Contract)
-		}
-		if err := ValidateScanPlanStage(stage); err != nil {
-			return err
-		}
-		return validateScanPlanInputMedia(workflow, stage)
-	default:
-		return fmt.Errorf("unsupported auditTask contract %q", execution.Contract)
-	}
-}
 
 // ValidateAuditTaskProfile connects a producer's output contract to a consumer's
 // accepted contract. Inventory identifiers never select Workflow graph shapes.
@@ -66,7 +21,7 @@ func ValidateAuditTaskProfile(profile ResolvedAuditProfile) error {
 	}
 	for _, role := range slices.Sorted(maps.Keys(profile.Workflows)) {
 		binding := profile.Workflows[role]
-		if err := ValidateAuditTaskWorkflow(binding.Workflow); err != nil {
+		if err := resolved.ValidateAuditTaskWorkflow(binding.Workflow); err != nil {
 			return fmt.Errorf("Workflow role %q: %w", role, err)
 		}
 		execution := binding.Workflow.AuditTask
@@ -106,4 +61,37 @@ func validateAuditTaskBinding(profile ResolvedAuditProfile, binding ResolvedAudi
 	default:
 		return fmt.Errorf("unsupported auditTask contract %q", execution.Contract)
 	}
+}
+
+func validateAuditScanMappings(profile ResolvedAuditProfile, binding ResolvedAuditWorkflowBinding, stage resolved.ResolvedStage) error {
+	if profile.Inventory.Source == nil || profile.Inventory.Settings == nil || *profile.Inventory.Source == *profile.Inventory.Settings {
+		return fmt.Errorf("scan task requires distinct source and settings")
+	}
+	checks := []struct {
+		slot    string
+		mapping AuditWorkflowInputMapping
+	}{
+		{stage.ScanPlan.InputArtifact, *profile.Inventory.Source},
+		{stage.AuditScan.SettingsArtifact, *profile.Inventory.Settings},
+		{stage.AuditScan.TaskArtifact, AuditWorkflowInputMapping{Source: AuditInputFromItemPackage}},
+		{stage.AuditScan.ManifestArtifact, AuditWorkflowInputMapping{Source: AuditInputFromExecutionManifest}},
+	}
+	for _, check := range checks {
+		mapping, exists := binding.Inputs[stage.Context.Artifacts[check.slot].Name]
+		if !exists || mapping != check.mapping {
+			return fmt.Errorf("auditScan input mapping differs from inventory authority")
+		}
+	}
+	if output, exists := binding.Outputs["result"]; !exists || stage.WorkflowOutputs[output] != "report" {
+		return fmt.Errorf("auditScan must publish its canonical result package")
+	}
+	output := binding.Outputs["result"]
+	for name, other := range binding.Workflow.Stages {
+		if name != binding.Workflow.AuditTask.Stage {
+			if _, publishes := other.WorkflowOutputs[output]; publishes {
+				return fmt.Errorf("auditTask canonical result has another Stage producer")
+			}
+		}
+	}
+	return nil
 }

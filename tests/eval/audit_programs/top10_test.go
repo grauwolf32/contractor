@@ -10,7 +10,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstandards"
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
@@ -115,17 +115,17 @@ func TestTop10ProfileUsesOrdinaryCompatibleRunBoundary(t *testing.T) {
 		t.Fatal(err)
 	}
 	compatibility := auditservice.ProfileCompatibility(profile)
-	if !compatibility.ServerCompatible || profile.Mode != config.AuditModeRiskAssessment ||
+	if !compatibility.ServerCompatible || profile.Mode != auditprofile.AuditModeRiskAssessment ||
 		profile.Inventory.Implementation != "standard-mappings@1" ||
 		profile.Inventory.Source != nil || profile.Execution.BatchSize != 1 ||
-		profile.Interaction.FindingConfirmation != config.AuditFindingHumanRequired {
+		profile.Interaction.FindingConfirmation != auditprofile.AuditFindingHumanRequired {
 		t.Fatalf("Top 10 profile is not runnable: profile=%+v compatibility=%+v", profile, compatibility)
 	}
 	binding := profile.Workflows["check"]
 	if binding.Workflow.Ref.Name != "audit-top10-source-risk" ||
-		binding.Inputs["task"].Source != config.AuditInputFromItemPackage ||
-		binding.Inputs["execution_manifest"].Source != config.AuditInputFromExecutionManifest ||
-		binding.Inputs["source"].Source != config.AuditInputFromAudit {
+		binding.Inputs["task"].Source != auditprofile.AuditInputFromItemPackage ||
+		binding.Inputs["execution_manifest"].Source != auditprofile.AuditInputFromExecutionManifest ||
+		binding.Inputs["source"].Source != auditprofile.AuditInputFromAudit {
 		t.Fatalf("Top 10 Workflow boundary = %+v", binding)
 	}
 	tools := []string{}

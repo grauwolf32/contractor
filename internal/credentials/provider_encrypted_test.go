@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	workflowconfig "github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 )
@@ -104,7 +104,7 @@ func TestCompositeProviderDetectsIdentityCollisionsBeforeResolution(t *testing.T
 	gateway := testPinnedGatewayRef("1", strings.Repeat("1", 64))
 	entry := func(token string) StaticEntry {
 		return StaticEntry{
-			Metadata: workflowconfig.CredentialMetadata{
+			Metadata: resolved.CredentialMetadata{
 				Ref: llmgateway.LLMCredentialRef{CredentialID: "shared"}, LLMGateway: gateway,
 			},
 			Token: contracts.NewSecretString(token),

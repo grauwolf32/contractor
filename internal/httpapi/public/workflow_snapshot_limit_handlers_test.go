@@ -10,7 +10,7 @@ import (
 
 	"github.com/getkin/kin-openapi/routers/gorillamux"
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/configtest"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -67,8 +67,8 @@ func TestCreateRunRejectsAnOversizedWorkflowSnapshotBeforeAcceptance(t *testing.
 	if accepted.Code != http.StatusAccepted {
 		t.Fatalf("Run at the snapshot bound = %d %s", accepted.Code, accepted.Body.String())
 	}
-	if stored := fixture.runs.runs["run_fixed"]; len(stored.WorkflowSnapshot) != config.MaxWorkflowSnapshotBytes {
-		t.Fatalf("stored snapshot = %d bytes, want exactly %d", len(stored.WorkflowSnapshot), config.MaxWorkflowSnapshotBytes)
+	if stored := fixture.runs.runs["run_fixed"]; len(stored.WorkflowSnapshot) != resolved.MaxWorkflowSnapshotBytes {
+		t.Fatalf("stored snapshot = %d bytes, want exactly %d", len(stored.WorkflowSnapshot), resolved.MaxWorkflowSnapshotBytes)
 	}
 }
 
@@ -90,15 +90,15 @@ func padArtifactCopySnapshotToBound(t *testing.T, root string) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		encoded, err := config.EncodeResolvedWorkflowSnapshot(workflow)
+		encoded, err := resolved.EncodeResolvedWorkflowSnapshot(workflow)
 		if err != nil {
 			t.Fatal(err)
 		}
 		return len(encoded)
 	}
 	// The ASCII instruction is embedded once, so its length adds exactly.
-	padded := strings.Repeat("a", 1+config.MaxWorkflowSnapshotBytes-encodedSize("a"))
-	if size := encodedSize(padded); size != config.MaxWorkflowSnapshotBytes {
-		t.Fatalf("padded snapshot = %d bytes, want exactly %d", size, config.MaxWorkflowSnapshotBytes)
+	padded := strings.Repeat("a", 1+resolved.MaxWorkflowSnapshotBytes-encodedSize("a"))
+	if size := encodedSize(padded); size != resolved.MaxWorkflowSnapshotBytes {
+		t.Fatalf("padded snapshot = %d bytes, want exactly %d", size, resolved.MaxWorkflowSnapshotBytes)
 	}
 }

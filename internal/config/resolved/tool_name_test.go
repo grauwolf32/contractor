@@ -1,4 +1,4 @@
-package config
+package resolved
 
 import (
 	"encoding/json"
@@ -13,7 +13,7 @@ import (
 // Operations apply, so every selectable tool can be advertised and shown.
 func TestToolsetDescriptorToolNamesGoldenCases(t *testing.T) {
 	t.Parallel()
-	data, err := os.ReadFile(filepath.Join("..", "..", "api", "testdata", "v1alpha1", "runtime-capability-cases.json"))
+	data, err := os.ReadFile(filepath.Join("..", "..", "..", "api", "testdata", "v1alpha1", "runtime-capability-cases.json"))
 	if err != nil {
 		t.Fatal(err)
 	}

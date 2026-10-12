@@ -4,7 +4,8 @@ import (
 	"slices"
 	"sort"
 
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/auditprofile"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 )
 
 var reasonOrder = []CompatibilityReason{
@@ -21,11 +22,11 @@ var reasonOrder = []CompatibilityReason{
 	ReasonManualItemUnsupported,
 }
 
-func ProfileCompatibility(profile config.ResolvedAuditProfile) Compatibility {
+func ProfileCompatibility(profile auditprofile.ResolvedAuditProfile) Compatibility {
 	reasons := make(map[CompatibilityReason]struct{})
 	for role, binding := range profile.Workflows {
 		// Preparation has no item whose exact approval could authorize tools.
-		if binding.Kind == config.AuditWorkflowPrepare && workflowRoleSelectsClassifiedTool(profile, role, true) {
+		if binding.Kind == auditprofile.AuditWorkflowPrepare && workflowRoleSelectsClassifiedTool(profile, role, true) {
 			reasons[ReasonAutomaticActiveChecksUnsupported] = struct{}{}
 		}
 	}
@@ -33,29 +34,29 @@ func ProfileCompatibility(profile config.ResolvedAuditProfile) Compatibility {
 		reasons[ReasonAssessmentUnsupported] = struct{}{}
 	}
 	switch profile.Interaction.ActiveChecks {
-	case config.AuditActiveChecksAutomatic:
+	case auditprofile.AuditActiveChecksAutomatic:
 		reasons[ReasonAutomaticActiveChecksUnsupported] = struct{}{}
-	case config.AuditActiveChecksApprovalRequired:
+	case auditprofile.AuditActiveChecksApprovalRequired:
 		// Exact action approval is enforced by the shared Audit review ledger
 		// and rechecked in CreateExecutionIntent.
-	case config.AuditActiveChecksProhibited:
+	case auditprofile.AuditActiveChecksProhibited:
 		if profileSelectsClassifiedTool(profile, true) {
 			reasons[ReasonAutomaticActiveChecksUnsupported] = struct{}{}
 		}
 	}
-	if profile.Interaction.FindingConfirmation == config.AuditFindingDisabled && profileCanEmitFindings(profile) {
+	if profile.Interaction.FindingConfirmation == auditprofile.AuditFindingDisabled && profileCanEmitFindings(profile) {
 		reasons[ReasonFindingConfirmationUnsupported] = struct{}{}
 	}
 	ordered := orderedReasons(reasons)
 	return Compatibility{
 		ServerCompatible: len(ordered) == 0,
 		RequiresInputValidation: profile.Inventory.Implementation == "checklist@1" ||
-			profile.Inventory.Implementation == "standard-mappings@1" || profile.Inventory.Implementation == config.AuditInventoryOpenAPIScans,
+			profile.Inventory.Implementation == "standard-mappings@1" || profile.Inventory.Implementation == auditprofile.AuditInventoryOpenAPIScans,
 		Reasons: ordered,
 	}
 }
 
-func profileSelectsClassifiedTool(profile config.ResolvedAuditProfile, active bool) bool {
+func profileSelectsClassifiedTool(profile auditprofile.ResolvedAuditProfile, active bool) bool {
 	for role := range profile.Workflows {
 		if workflowRoleSelectsClassifiedTool(profile, role, active) {
 			return true
@@ -65,15 +66,15 @@ func profileSelectsClassifiedTool(profile config.ResolvedAuditProfile, active bo
 }
 
 func workflowRoleSelectsClassifiedTool(
-	profile config.ResolvedAuditProfile, workflowRole string, active bool,
+	profile auditprofile.ResolvedAuditProfile, workflowRole string, active bool,
 ) bool {
 	binding, exists := profile.Workflows[workflowRole]
 	if !exists {
 		return false
 	}
-	classified := config.SelectsFindingProposalTool
+	classified := resolved.SelectsFindingProposalTool
 	if active {
-		classified = config.SelectsActiveCheckTool
+		classified = resolved.SelectsActiveCheckTool
 	}
 	for _, stage := range binding.Workflow.Stages {
 		for _, agent := range stage.Agents {
@@ -85,7 +86,7 @@ func workflowRoleSelectsClassifiedTool(
 	return false
 }
 
-func profileCanEmitFindings(profile config.ResolvedAuditProfile) bool {
+func profileCanEmitFindings(profile auditprofile.ResolvedAuditProfile) bool {
 	if profileSelectsClassifiedTool(profile, false) {
 		return true
 	}

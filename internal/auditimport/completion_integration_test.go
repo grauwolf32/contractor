@@ -32,6 +32,8 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/auditprofile"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/control"
@@ -146,7 +148,7 @@ type completionFixture struct {
 	audits                    *auditstore.PostgresStore
 	runs                      *runstore.PostgresStore
 	service                   *runservice.Service
-	profile                   config.ResolvedAuditProfile
+	profile                   auditprofile.ResolvedAuditProfile
 	claim                     auditstore.ControllerClaim
 	manifest, taskSet, source auditstore.ExactArtifact
 	tasks                     []auditstore.ExactArtifact
@@ -231,7 +233,7 @@ func newCompletionFixtureWithInteraction(t *testing.T, pool *pgxpool.Pool, accep
 	mustCompletion(t, err)
 	profileBytes, err := json.Marshal(f.profile)
 	mustCompletion(t, err)
-	_, err = config.DecodeResolvedAuditProfileSnapshot(profileBytes)
+	_, err = auditprofile.DecodeResolvedAuditProfileSnapshot(profileBytes)
 	mustCompletion(t, err)
 	draft, _, err := f.audits.CreateDraft(ctx, auditstore.CreateDraftParams{AuditID: f.id, OwnerID: "owner", ProjectID: f.id, Profile: auditstore.ProfileIdentity{Name: f.profile.Ref.Name, Version: f.profile.Ref.Version, Digest: f.profile.Ref.Digest}, ProfileSnapshot: profileBytes, InputSelection: json.RawMessage(`{}`), Limits: auditstore.Limits{MaxRounds: 1, BatchSize: 2, MaxItemsPerRound: 10, MaxItemsTotal: 10, MaxSubmittedRuns: 10, MaxItemRunAttempts: 2, MaxEvidenceBytes: 1 << 20}, IdempotencyKey: f.id, RequestDigest: completionDigest([]byte("audit"))})
 	mustCompletion(t, err)
@@ -616,8 +618,8 @@ func mustCompletion(t *testing.T, err error) {
 
 type completionCredentials struct{}
 
-func (completionCredentials) LookupLLMCredential(context.Context, string) (config.CredentialMetadata, error) {
-	return config.CredentialMetadata{}, errors.New("no live credentials in completion fixtures")
+func (completionCredentials) LookupLLMCredential(context.Context, string) (resolved.CredentialMetadata, error) {
+	return resolved.CredentialMetadata{}, errors.New("no live credentials in completion fixtures")
 }
 func (completionCredentials) WithRunCreation(_ context.Context, fn func() error) error { return fn() }
 func (completionCredentials) ValidateRuntimeCredentialUse(

@@ -17,6 +17,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auth"
 	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/configtest"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -731,7 +732,7 @@ func newHandlerFixtureWithAuth(
 	managedCredentials := newFakeManagedCredentials()
 	if gateway, gatewayErr := manager.LLMGateway("local-litellm@1"); gatewayErr == nil {
 		for _, id := range []string{"development-worker", "development-planner"} {
-			managedCredentials.lookups[id] = config.CredentialMetadata{
+			managedCredentials.lookups[id] = resolved.CredentialMetadata{
 				Ref: llmgateway.LLMCredentialRef{CredentialID: id}, LLMGateway: gateway.Ref,
 			}
 		}
@@ -1442,7 +1443,7 @@ func TestCreateRunReplayDoesNotResolveDeletedManagedCredential(t *testing.T) {
 		t.Fatal(err)
 	}
 	resolved, err := fixture.configs.ResolveRunWorkflow(
-		t.Context(), "artifact-copy@1", config.ExecutionConfigPatch{}, fixture.credentials,
+		t.Context(), "artifact-copy@1", resolved.ExecutionConfigPatch{}, fixture.credentials,
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -1500,7 +1501,7 @@ func TestCreateRunPinsExecutionConfigAndDetectsSelectorIdempotencyConflict(t *te
 		t.Fatalf("first create = %d %s", firstResponse.Code, firstResponse.Body.String())
 	}
 	stored := fixture.runs.runs["run_fixed"]
-	var workflow config.ResolvedWorkflow
+	var workflow resolved.ResolvedWorkflow
 	if err := json.Unmarshal(stored.WorkflowSnapshot, &workflow); err != nil {
 		t.Fatal(err)
 	}
@@ -1542,7 +1543,7 @@ func TestCreateRunPinsNamedEscalationVariant(t *testing.T) {
 		t.Fatalf("create = %d %s", response.Code, response.Body.String())
 	}
 	stored := fixture.runs.runs["run_fixed"]
-	var workflow config.ResolvedWorkflow
+	var workflow resolved.ResolvedWorkflow
 	if err := json.Unmarshal(stored.WorkflowSnapshot, &workflow); err != nil {
 		t.Fatal(err)
 	}
@@ -1588,7 +1589,7 @@ func TestCreateRunDigestNormalizesEquivalentEmptyMappings(t *testing.T) {
 	if err != nil || explicitLabels != omitted {
 		t.Fatalf("empty metadata label digest = %q, omitted = %q, error = %v", explicitLabels, omitted, err)
 	}
-	var emptyExecutionConfig config.ExecutionConfigPatch
+	var emptyExecutionConfig resolved.ExecutionConfigPatch
 	if err := json.Unmarshal([]byte(`{"stages":{}}`), &emptyExecutionConfig); err != nil {
 		t.Fatal(err)
 	}

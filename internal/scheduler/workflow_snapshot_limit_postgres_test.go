@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	workflowconfig "github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -27,9 +27,9 @@ func TestPostgresSchedulerDecodesAStoredSnapshotAtItsBound(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 	defer cancel()
 	workflow := schedulerWorkflowAtSnapshotBound(t)
-	encoded, err := workflowconfig.EncodeResolvedWorkflowSnapshot(workflow)
-	if err != nil || len(encoded) != workflowconfig.MaxWorkflowSnapshotBytes {
-		t.Fatalf("snapshot fixture = (%d bytes, %v), want exactly %d", len(encoded), err, workflowconfig.MaxWorkflowSnapshotBytes)
+	encoded, err := resolved.EncodeResolvedWorkflowSnapshot(workflow)
+	if err != nil || len(encoded) != resolved.MaxWorkflowSnapshotBytes {
+		t.Fatalf("snapshot fixture = (%d bytes, %v), want exactly %d", len(encoded), err, resolved.MaxWorkflowSnapshotBytes)
 	}
 	store := runstore.NewPostgresStore(isolatedSchedulerPool(t, ctx))
 	const runID = "run-snapshot-at-bound"
@@ -45,7 +45,7 @@ func TestPostgresSchedulerDecodesAStoredSnapshotAtItsBound(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(run.WorkflowSnapshot) <= workflowconfig.MaxWorkflowSnapshotBytes {
+	if len(run.WorkflowSnapshot) <= resolved.MaxWorkflowSnapshotBytes {
 		t.Fatalf("stored jsonb text = %d bytes; the fixture must show PostgreSQL returning longer text", len(run.WorkflowSnapshot))
 	}
 	executable, err := decodeExecutableWorkflow(run)
@@ -57,7 +57,7 @@ func TestPostgresSchedulerDecodesAStoredSnapshotAtItsBound(t *testing.T) {
 	}
 
 	// The read path still refuses a snapshot one byte over the bound.
-	over, err := workflowconfig.DecodeResolvedWorkflowSnapshot(encoded)
+	over, err := resolved.DecodeResolvedWorkflowSnapshot(encoded)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -66,25 +66,25 @@ func TestPostgresSchedulerDecodesAStoredSnapshotAtItsBound(t *testing.T) {
 	stage.Instructions.Digest = contentdigest.Bytes([]byte(stage.Instructions.Text))
 	over.Stages[over.EntryStage] = stage
 	encodedOver, err := json.Marshal(over)
-	if err != nil || len(encodedOver) != workflowconfig.MaxWorkflowSnapshotBytes+1 {
+	if err != nil || len(encodedOver) != resolved.MaxWorkflowSnapshotBytes+1 {
 		t.Fatalf("over-bound fixture = (%d bytes, %v)", len(encodedOver), err)
 	}
 	run.WorkflowSnapshot = encodedOver
 	if _, err := decodeExecutableWorkflow(run); !errors.Is(err, ErrUnsupportedWorkflow) ||
-		!strings.Contains(err.Error(), workflowconfig.ErrWorkflowSnapshotTooLarge.Error()) {
+		!strings.Contains(err.Error(), resolved.ErrWorkflowSnapshotTooLarge.Error()) {
 		t.Fatalf("over-bound snapshot error = %v, want ErrUnsupportedWorkflow for its size", err)
 	}
 }
 
 // schedulerWorkflowAtSnapshotBound pads the entry Stage instruction of
 // artifact-copy@1 until its snapshot has exactly MaxWorkflowSnapshotBytes.
-func schedulerWorkflowAtSnapshotBound(t *testing.T) workflowconfig.ResolvedWorkflow {
+func schedulerWorkflowAtSnapshotBound(t *testing.T) resolved.ResolvedWorkflow {
 	t.Helper()
 	root := filepath.Join(t.TempDir(), "configs")
 	if err := os.CopyFS(root, os.DirFS("../../testdata/configs")); err != nil {
 		t.Fatal(err)
 	}
-	load := func(instruction string) workflowconfig.ResolvedWorkflow {
+	load := func(instruction string) resolved.ResolvedWorkflow {
 		if err := os.WriteFile(filepath.Join(root, "instructions", "copy-planner.md"), []byte(instruction), 0o644); err != nil {
 			t.Fatal(err)
 		}
@@ -98,10 +98,10 @@ func schedulerWorkflowAtSnapshotBound(t *testing.T) workflowconfig.ResolvedWorkf
 		}
 		return workflow
 	}
-	base, err := workflowconfig.EncodeResolvedWorkflowSnapshot(load("a"))
+	base, err := resolved.EncodeResolvedWorkflowSnapshot(load("a"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	// The ASCII instruction is embedded once, so its length adds exactly.
-	return load(strings.Repeat("a", 1+workflowconfig.MaxWorkflowSnapshotBytes-len(base)))
+	return load(strings.Repeat("a", 1+resolved.MaxWorkflowSnapshotBytes-len(base)))
 }

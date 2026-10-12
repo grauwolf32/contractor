@@ -17,6 +17,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/credentials"
@@ -239,8 +240,8 @@ func TestPostgresTrustedAuditRunIsAtomicReplayableAndPinsExactSkill(t *testing.T
 
 type emptyCredentialLookup struct{}
 
-func (emptyCredentialLookup) LookupLLMCredential(context.Context, string) (config.CredentialMetadata, error) {
-	return config.CredentialMetadata{}, errors.New("credential unavailable")
+func (emptyCredentialLookup) LookupLLMCredential(context.Context, string) (resolved.CredentialMetadata, error) {
+	return resolved.CredentialMetadata{}, errors.New("credential unavailable")
 }
 
 type openCredentialGuard struct{}
@@ -266,7 +267,7 @@ func postgresPublicTransaction(pool *pgxpool.Pool) PublicTransaction {
 			lookup, err := runtimeconfig.BindTransactionLLMCredentialLookup(
 				tx,
 				runtimeconfig.TransactionLLMCredentialLookupFactoryFunc(
-					func(pgx.Tx) (config.CredentialLookup, error) { return emptyCredentialLookup{}, nil },
+					func(pgx.Tx) (resolved.CredentialLookup, error) { return emptyCredentialLookup{}, nil },
 				),
 			)
 			if err != nil {
@@ -339,7 +340,7 @@ func writeAuditExact(
 	return contracts.ExactContent(written.Ref, written.MediaType, payload)
 }
 
-func addWorkflowSkill(workflow *config.ResolvedWorkflow, skill contracts.ArtifactRef) {
+func addWorkflowSkill(workflow *resolved.ResolvedWorkflow, skill contracts.ArtifactRef) {
 	for stageName, stage := range workflow.Stages {
 		for agentName, binding := range stage.Agents {
 			binding.Template.Skills = []contracts.ArtifactRef{skill}

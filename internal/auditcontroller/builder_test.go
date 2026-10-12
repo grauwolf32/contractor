@@ -12,7 +12,8 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/auditprofile"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
@@ -113,12 +114,12 @@ func TestResolveInputsForksTrustedExecutionManifestWithoutSelfReference(t *testi
 	source := builderExact("source", "source-r1")
 	task := builderExact("task", "task-r1")
 	execution := builderExact("execution-manifest", "execution-r1")
-	binding := config.ResolvedAuditWorkflowBinding{
-		Kind: config.AuditWorkflowCheck,
-		Inputs: map[string]config.AuditWorkflowInputMapping{
-			"source":             {Source: config.AuditInputFromAudit, Name: "source"},
-			"task":               {Source: config.AuditInputFromItemPackage},
-			"execution_manifest": {Source: config.AuditInputFromExecutionManifest},
+	binding := auditprofile.ResolvedAuditWorkflowBinding{
+		Kind: auditprofile.AuditWorkflowCheck,
+		Inputs: map[string]auditprofile.AuditWorkflowInputMapping{
+			"source":             {Source: auditprofile.AuditInputFromAudit, Name: "source"},
+			"task":               {Source: auditprofile.AuditInputFromItemPackage},
+			"execution_manifest": {Source: auditprofile.AuditInputFromExecutionManifest},
 		},
 	}
 	baseline := auditservice.BaselineSnapshot{
@@ -150,13 +151,13 @@ func TestResolveRoleInputsPinsRetainedDependencyByRoundAndLogicalName(t *testing
 	execution := builderExact("role-manifest", "manifest-r1")
 	lookup := &fakeRoleOutputLookup{link: auditstore.ArtifactLink{Artifact: retained}}
 	builder := &PinnedSubmissionBuilder{outputs: lookup}
-	binding := config.ResolvedAuditWorkflowBinding{
-		Inputs: map[string]config.AuditWorkflowInputMapping{
-			"source":   {Source: config.AuditInputFromAudit, Name: "source"},
-			"manifest": {Source: config.AuditInputFromExecutionManifest},
-			"context":  {Source: config.AuditInputFromRetainedOutput, Role: "discover", Name: "inventory"},
+	binding := auditprofile.ResolvedAuditWorkflowBinding{
+		Inputs: map[string]auditprofile.AuditWorkflowInputMapping{
+			"source":   {Source: auditprofile.AuditInputFromAudit, Name: "source"},
+			"manifest": {Source: auditprofile.AuditInputFromExecutionManifest},
+			"context":  {Source: auditprofile.AuditInputFromRetainedOutput, Role: "discover", Name: "inventory"},
 		},
-		Workflow: config.ResolvedWorkflow{Inputs: map[string]config.ArtifactSlot{
+		Workflow: resolved.ResolvedWorkflow{Inputs: map[string]resolved.ArtifactSlot{
 			"source": {Required: true}, "manifest": {Required: true}, "context": {Required: true},
 		}},
 	}

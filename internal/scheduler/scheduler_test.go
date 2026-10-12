@@ -19,7 +19,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/clone"
-	workflowconfig "github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/configtest"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -58,16 +58,16 @@ func TestDecodeExecutableWorkflowAllowsMultiWorkerRouterOnly(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	plannerConfig := workflowconfig.ResolvedConsumerExecutionConfig{
+	plannerConfig := resolved.ResolvedConsumerExecutionConfig{
 		ModelPolicy: plannerPolicy,
 		LLMGateway:  &gateway,
-		Origins: workflowconfig.ExecutionConfigOrigins{
+		Origins: resolved.ExecutionConfigOrigins{
 			ModelPolicy: "test",
 			LLMGateway:  "test",
 		},
 	}
 
-	decode := func(value workflowconfig.ResolvedWorkflow) error {
+	decode := func(value resolved.ResolvedWorkflow) error {
 		encoded, marshalErr := json.Marshal(value)
 		if marshalErr != nil {
 			t.Fatal(marshalErr)
@@ -79,7 +79,7 @@ func TestDecodeExecutableWorkflowAllowsMultiWorkerRouterOnly(t *testing.T) {
 		return decodeErr
 	}
 	for _, plannerID := range []string{"streamline", "passthrough"} {
-		stage.Planner = workflowconfig.PlannerRef{PlannerID: plannerID, Version: "1"}
+		stage.Planner = resolved.PlannerRef{PlannerID: plannerID, Version: "1"}
 		stage.ExecutionConfig.Planner = &plannerConfig
 		if plannerID == "passthrough" {
 			stage.ExecutionConfig.Planner = nil
@@ -89,7 +89,7 @@ func TestDecodeExecutableWorkflowAllowsMultiWorkerRouterOnly(t *testing.T) {
 			t.Fatalf("multi-Worker %s error = %v", plannerID, err)
 		}
 	}
-	stage.Planner = workflowconfig.PlannerRef{PlannerID: "router", Version: "1"}
+	stage.Planner = resolved.PlannerRef{PlannerID: "router", Version: "1"}
 	stage.ExecutionConfig.Planner = &plannerConfig
 	workflow.Stages[workflow.EntryStage] = stage
 	if err := decode(workflow); err != nil {
@@ -98,7 +98,7 @@ func TestDecodeExecutableWorkflowAllowsMultiWorkerRouterOnly(t *testing.T) {
 	// The snapshot decoder checks every Stage against the registered
 	// PlannerFactory descriptors, so a Planner the Server does not register
 	// never reaches a Planner factory.
-	stage.Planner = workflowconfig.PlannerRef{PlannerID: "router", Version: "2"}
+	stage.Planner = resolved.PlannerRef{PlannerID: "router", Version: "2"}
 	workflow.Stages[workflow.EntryStage] = stage
 	if err := decode(workflow); !errors.Is(err, ErrUnsupportedWorkflow) ||
 		!strings.Contains(err.Error(), `unknown PlannerFactory "router@2"`) {
@@ -116,7 +116,7 @@ func TestDecodeExecutableWorkflowRejectsLegacySnapshotWithoutExecutionConfig(t *
 		t.Fatal(err)
 	}
 	stage := workflow.Stages[workflow.EntryStage]
-	stage.ExecutionConfig = workflowconfig.ResolvedStageExecutionConfig{}
+	stage.ExecutionConfig = resolved.ResolvedStageExecutionConfig{}
 	workflow.Stages[workflow.EntryStage] = stage
 	encoded, err := json.Marshal(workflow)
 	if err != nil {
@@ -228,15 +228,15 @@ func TestBindingRequirementsProjectExactWorkspacePinsForEveryWorker(t *testing.T
 		t.Fatal(err)
 	}
 	stage := workflow.Stages[workflow.EntryStage]
-	stage.Context.Artifacts = map[string]workflowconfig.ContextArtifact{
+	stage.Context.Artifacts = map[string]resolved.ContextArtifact{
 		"source": {Namespace: "inputs", Name: "source", Required: true},
 		"state":  {Namespace: "builder", Name: "workspace_state", Required: false},
 	}
-	stage.Context.Workspace = &workflowconfig.WorkspaceContext{
+	stage.Context.Workspace = &resolved.WorkspaceContext{
 		Mode:    contracts.WorkspaceModeOverlay,
-		Sources: []workflowconfig.WorkspaceSource{{Artifact: "source", Target: "project"}},
-		State:   &workflowconfig.WorkspaceStateInput{Artifact: "state"},
-		Export:  &workflowconfig.WorkspaceExport{State: "next_state", Diff: "changes"},
+		Sources: []resolved.WorkspaceSource{{Artifact: "source", Target: "project"}},
+		State:   &resolved.WorkspaceStateInput{Artifact: "state"},
+		Export:  &resolved.WorkspaceExport{State: "next_state", Diff: "changes"},
 	}
 	second := stage.Agents["builder"]
 	second.Namespace = "reviewer"
@@ -277,9 +277,9 @@ func TestBindingRequirementsProjectExactWorkspacePinsForEveryWorker(t *testing.T
 
 func TestProjectAllocationWorkspaceRejectsMissingRequiredSource(t *testing.T) {
 	t.Parallel()
-	workspace := &workflowconfig.WorkspaceContext{
+	workspace := &resolved.WorkspaceContext{
 		Mode:    contracts.WorkspaceModeDirect,
-		Sources: []workflowconfig.WorkspaceSource{{Artifact: "source", Target: ""}},
+		Sources: []resolved.WorkspaceSource{{Artifact: "source", Target: ""}},
 	}
 	_, err := projectAllocationWorkspace(workspace, runstore.StageContextSnapshot{
 		Artifacts: map[string]runstore.PinnedContextArtifact{"source": {Required: true}},
@@ -410,13 +410,13 @@ func TestSchedulerBuildsIndependentPinnedPlannerAndWorkerModelAccess(t *testing.
 	workerCredential := llmgateway.LLMCredentialRef{CredentialID: "worker-credential"}
 	provider, err := credentials.NewStaticProvider([]credentials.StaticEntry{
 		{
-			Metadata: workflowconfig.CredentialMetadata{
+			Metadata: resolved.CredentialMetadata{
 				Ref: plannerCredential, LLMGateway: plannerGateway.Ref,
 			},
 			Token: contracts.NewSecretString("planner-secret"),
 		},
 		{
-			Metadata: workflowconfig.CredentialMetadata{
+			Metadata: resolved.CredentialMetadata{
 				Ref: workerCredential, LLMGateway: workerGateway.Ref,
 			},
 			Token: contracts.NewSecretString("worker-secret"),
@@ -427,9 +427,9 @@ func TestSchedulerBuildsIndependentPinnedPlannerAndWorkerModelAccess(t *testing.
 	}
 	harness.scheduler.options.Credentials = provider
 	stage := harness.workflow.Stages[harness.workflow.EntryStage]
-	stage.ExecutionConfig.Planner = &workflowconfig.ResolvedConsumerExecutionConfig{
+	stage.ExecutionConfig.Planner = &resolved.ResolvedConsumerExecutionConfig{
 		ModelPolicy: plannerPolicy, LLMGateway: &plannerGateway, Credential: &plannerCredential,
-		Origins: workflowconfig.ExecutionConfigOrigins{ModelPolicy: "test", LLMGateway: "test", Credential: "test"},
+		Origins: resolved.ExecutionConfigOrigins{ModelPolicy: "test", LLMGateway: "test", Credential: "test"},
 	}
 	workerSelection := stage.ExecutionConfig.Agents["builder"]
 	workerSelection.ModelPolicy = workerPolicy
@@ -1733,11 +1733,11 @@ func TestSchedulerRecoversPendingRunSkillInitializationBeforeStageCreation(t *te
 func configureRetryWorkflow(t *testing.T, harness *schedulerHarness, maxAttempts int) {
 	t.Helper()
 	stage := harness.workflow.Stages[harness.workflow.EntryStage]
-	retry := workflowconfig.TransitionAction{
-		Kind: workflowconfig.TransitionRetry,
-		Retry: &workflowconfig.RetryTransition{
+	retry := resolved.TransitionAction{
+		Kind: resolved.TransitionRetry,
+		Retry: &resolved.RetryTransition{
 			MaxAttempts: maxAttempts,
-			Then:        workflowconfig.TransitionAction{Kind: workflowconfig.TransitionFail},
+			Then:        resolved.TransitionAction{Kind: resolved.TransitionFail},
 		},
 	}
 	stage.On.Failed = retry
@@ -1764,7 +1764,7 @@ func configureEscalationWorkflow(
 	stageName := harness.workflow.EntryStage
 	stage := harness.workflow.Stages[stageName]
 	effective := stage.ExecutionConfig
-	effective.Agents = make(map[string]workflowconfig.ResolvedConsumerExecutionConfig, len(stage.ExecutionConfig.Agents))
+	effective.Agents = make(map[string]resolved.ResolvedConsumerExecutionConfig, len(stage.ExecutionConfig.Agents))
 	for logicalName, selection := range stage.ExecutionConfig.Agents {
 		effective.Agents[logicalName] = selection
 	}
@@ -1775,19 +1775,19 @@ func configureEscalationWorkflow(
 	)
 	effective.Agents["builder"] = selection
 	policyOverride := strongPolicy
-	escalate := workflowconfig.TransitionAction{
-		Kind: workflowconfig.TransitionEscalate,
-		Escalate: &workflowconfig.EscalateTransition{
+	escalate := resolved.TransitionAction{
+		Kind: resolved.TransitionEscalate,
+		Escalate: &resolved.EscalateTransition{
 			MaxAttempts: maxAttempts,
-			ExecutionConfig: workflowconfig.ResolvedEscalationExecutionConfig{
-				Override: workflowconfig.ResolvedStageExecutionConfigOverride{
-					Agents: map[string]workflowconfig.ResolvedExecutionSelectionOverride{
+			ExecutionConfig: resolved.ResolvedEscalationExecutionConfig{
+				Override: resolved.ResolvedStageExecutionConfigOverride{
+					Agents: map[string]resolved.ResolvedExecutionSelectionOverride{
 						"builder": {ModelPolicy: &policyOverride},
 					},
 				},
 				Effective: effective,
 			},
-			Then: workflowconfig.TransitionAction{Kind: workflowconfig.TransitionFail},
+			Then: resolved.TransitionAction{Kind: resolved.TransitionFail},
 		},
 	}
 	switch outcome {
@@ -1821,8 +1821,8 @@ func configureMultiStageWorkflow(t *testing.T, harness *schedulerHarness) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var build workflowconfig.ResolvedStage
-	var review workflowconfig.ResolvedStage
+	var build resolved.ResolvedStage
+	var review resolved.ResolvedStage
 	if err := json.Unmarshal(encodedStage, &build); err != nil {
 		t.Fatal(err)
 	}
@@ -1830,18 +1830,18 @@ func configureMultiStageWorkflow(t *testing.T, harness *schedulerHarness) {
 		t.Fatal(err)
 	}
 	build.WorkflowOutputs = map[string]string{}
-	build.On.Succeeded = workflowconfig.TransitionAction{Kind: workflowconfig.TransitionNext, NextStage: "review"}
-	review.Context.Artifacts = map[string]workflowconfig.ContextArtifact{
+	build.On.Succeeded = resolved.TransitionAction{Kind: resolved.TransitionNext, NextStage: "review"}
+	review.Context.Artifacts = map[string]resolved.ContextArtifact{
 		"draft": {Namespace: "builder", Name: "copied", Required: true},
 	}
 	harness.workflow.EntryStage = "build"
-	harness.workflow.Stages = map[string]workflowconfig.ResolvedStage{"build": build, "review": review}
+	harness.workflow.Stages = map[string]resolved.ResolvedStage{"build": build, "review": review}
 	installHarnessWorkflow(t, harness)
 }
 
 func installHarnessWorkflow(t *testing.T, harness *schedulerHarness) {
 	t.Helper()
-	if err := workflowconfig.ValidateWorkflowGraph(harness.workflow); err != nil {
+	if err := resolved.ValidateWorkflowGraph(harness.workflow); err != nil {
 		t.Fatalf("test Workflow graph: %v", err)
 	}
 	encoded, err := json.Marshal(harness.workflow)
@@ -1854,7 +1854,7 @@ func installHarnessWorkflow(t *testing.T, harness *schedulerHarness) {
 
 type schedulerHarness struct {
 	t           *testing.T
-	workflow    workflowconfig.ResolvedWorkflow
+	workflow    resolved.ResolvedWorkflow
 	clock       staticClock
 	events      *eventRecorder
 	store       *memorySchedulerStore
@@ -2687,7 +2687,7 @@ func (r *memoryArtifactResolver) Resolve(
 	return result, nil
 }
 
-func schedulerTestResolvedWorkerConfig(selection workflowconfig.ResolvedConsumerExecutionConfig, modelFree bool) (runtimeconfig.ResolvedRuntimeConfig, error) {
+func schedulerTestResolvedWorkerConfig(selection resolved.ResolvedConsumerExecutionConfig, modelFree bool) (runtimeconfig.ResolvedRuntimeConfig, error) {
 	input := runtimeconfig.ResolveRuntimeConfigInput{
 		ModelFree: modelFree, ModelPolicy: selection.ModelPolicy,
 		Default: runtimeconfig.PinnedRuntimeConfig{
@@ -2712,7 +2712,7 @@ func schedulerTestResolvedWorkerConfig(selection workflowconfig.ResolvedConsumer
 	return runtimeconfig.ResolveRuntimeConfig(input)
 }
 
-func schedulerTestReservations(t *testing.T, stage workflowconfig.ResolvedStage) []controlplane.Reservation {
+func schedulerTestReservations(t *testing.T, stage resolved.ResolvedStage) []controlplane.Reservation {
 	t.Helper()
 	reservations := make([]controlplane.Reservation, 0, len(stage.Agents))
 	for name, binding := range stage.Agents {
@@ -2728,7 +2728,7 @@ func schedulerTestReservations(t *testing.T, stage workflowconfig.ResolvedStage)
 }
 
 type memoryAllocator struct {
-	workflow              workflowconfig.ResolvedWorkflow
+	workflow              resolved.ResolvedWorkflow
 	clock                 staticClock
 	events                *eventRecorder
 	grants                map[string]controlplane.AllocationGrant
@@ -2921,7 +2921,7 @@ func (a *memoryAllocator) PollAllocationLosses() []controlplane.AllocationLoss {
 
 type memoryWorkers struct {
 	allocator            *memoryAllocator
-	workflow             workflowconfig.ResolvedWorkflow
+	workflow             resolved.ResolvedWorkflow
 	clock                staticClock
 	events               *eventRecorder
 	prepareCalls         int

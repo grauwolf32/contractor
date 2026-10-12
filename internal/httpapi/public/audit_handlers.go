@@ -10,7 +10,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/pagelimit"
 )
 
@@ -68,7 +68,7 @@ func (h *handler) getAuditProfile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	selector := auditservice.ProfileSelector{Name: r.PathValue("name"), Version: r.PathValue("version")}
-	if _, err := config.ParseSelector(selector.Name + "@" + selector.Version); err != nil {
+	if _, err := resolved.ParseSelector(selector.Name + "@" + selector.Version); err != nil {
 		h.handleError(w, errInvalidRequest)
 		return
 	}
@@ -173,7 +173,7 @@ func (h *handler) listProjectAudits(w http.ResponseWriter, r *http.Request) {
 	var profileName, profileVersion *string
 	profileSelector := ""
 	if values, ok := query["profile"]; ok {
-		selector, parseErr := config.ParseSelector(values[0])
+		selector, parseErr := resolved.ParseSelector(values[0])
 		if parseErr != nil {
 			h.handleError(w, errInvalidRequest)
 			return

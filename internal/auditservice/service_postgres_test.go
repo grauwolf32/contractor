@@ -17,6 +17,8 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/auditprofile"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
@@ -49,7 +51,7 @@ func TestAuditDraftStartReplayAndAtomicUnsupportedRollback(t *testing.T) {
 	service, err := New(Options{
 		Pool: pool, Profiles: profiles,
 		TransactionLLMCredentials: runtimeconfig.TransactionLLMCredentialLookupFactoryFunc(
-			func(pgx.Tx) (config.CredentialLookup, error) { return credentials, nil },
+			func(pgx.Tx) (resolved.CredentialLookup, error) { return credentials, nil },
 		),
 		CredentialGuard: guard,
 		Now:             time.Now,
@@ -572,7 +574,7 @@ func TestAuditStartUsesOwningTransactionWithSaturatedPool(t *testing.T) {
 		t.Fatal(err)
 	}
 	development, err := managedcredentials.NewStaticProvider([]managedcredentials.StaticEntry{{
-		Metadata: config.CredentialMetadata{
+		Metadata: resolved.CredentialMetadata{
 			Ref:        llmgateway.LLMCredentialRef{CredentialID: "development-worker"},
 			LLMGateway: gateway.Ref, Unrestricted: true,
 		},
@@ -665,7 +667,7 @@ func TestAuditStartRechecksProjectHTTPTargetCredentialUse(t *testing.T) {
 	service, err := New(Options{
 		Pool: pool, Profiles: profiles,
 		TransactionLLMCredentials: runtimeconfig.TransactionLLMCredentialLookupFactoryFunc(
-			func(pgx.Tx) (config.CredentialLookup, error) { return lookup, nil },
+			func(pgx.Tx) (resolved.CredentialLookup, error) { return lookup, nil },
 		),
 		CredentialGuard: &countingCredentialGuard{},
 	})
@@ -1522,16 +1524,16 @@ type switchableProfileCatalog struct {
 	available bool
 }
 
-func (c *switchableProfileCatalog) AuditProfile(selector string) (config.ResolvedAuditProfile, error) {
+func (c *switchableProfileCatalog) AuditProfile(selector string) (auditprofile.ResolvedAuditProfile, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if !c.available {
-		return config.ResolvedAuditProfile{}, config.ErrConfigurationNotFound
+		return auditprofile.ResolvedAuditProfile{}, config.ErrConfigurationNotFound
 	}
 	return c.snapshot.AuditProfile(selector)
 }
 
-func (c *switchableProfileCatalog) AuditProfiles() []config.ResolvedAuditProfile {
+func (c *switchableProfileCatalog) AuditProfiles() []auditprofile.ResolvedAuditProfile {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if !c.available {
@@ -1554,13 +1556,13 @@ type switchableCredentialLookup struct {
 
 func (l *switchableCredentialLookup) LookupLLMCredential(
 	_ context.Context, id string,
-) (config.CredentialMetadata, error) {
+) (resolved.CredentialMetadata, error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	if !l.available || id != "development-worker" {
-		return config.CredentialMetadata{}, errors.New("credential unavailable")
+		return resolved.CredentialMetadata{}, errors.New("credential unavailable")
 	}
-	return config.CredentialMetadata{
+	return resolved.CredentialMetadata{
 		Ref:          llmgateway.LLMCredentialRef{CredentialID: id},
 		LLMGateway:   l.gateway,
 		Unrestricted: true,

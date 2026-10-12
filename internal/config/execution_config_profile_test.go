@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/configtest"
 )
 
@@ -18,7 +19,7 @@ const openAPIValidationEscalationYAML = `        failed:
               fail: {}
 `
 
-func resolvedExecutionConfigForTest(t *testing.T, snapshot *Snapshot, ref string) ResolvedExecutionConfigProfile {
+func resolvedExecutionConfigForTest(t *testing.T, snapshot *Snapshot, ref string) resolved.ResolvedExecutionConfigProfile {
 	t.Helper()
 	profile, ok := snapshot.executionConfigs[ref]
 	if !ok {
@@ -74,7 +75,7 @@ func TestExecutionConfigProfileAndRunSnapshotSurviveCatalogChange(t *testing.T) 
 	root := copyEscalationConfigTree(t)
 	first := mustLoad(t, root)
 	stored, err := first.ResolveRunWorkflow(
-		t.Context(), "openapi-from-workspace@5", ExecutionConfigPatch{}, developmentCredentialLookup(t, first),
+		t.Context(), "openapi-from-workspace@5", resolved.ExecutionConfigPatch{}, developmentCredentialLookup(t, first),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -85,7 +86,7 @@ func TestExecutionConfigProfileAndRunSnapshotSurviveCatalogChange(t *testing.T) 
 	replaceFile(t, profilePath, "modelPolicy: test-strong-worker@1", "modelPolicy: test-domain-worker@1")
 	second := mustLoad(t, root)
 	newWorkflow, err := second.ResolveRunWorkflow(
-		t.Context(), "openapi-from-workspace@5", ExecutionConfigPatch{}, developmentCredentialLookup(t, second),
+		t.Context(), "openapi-from-workspace@5", resolved.ExecutionConfigPatch{}, developmentCredentialLookup(t, second),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -102,7 +103,7 @@ func TestExecutionConfigProfileAndRunSnapshotSurviveCatalogChange(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	var durable ResolvedWorkflow
+	var durable resolved.ResolvedWorkflow
 	if err := json.Unmarshal(encoded, &durable); err != nil {
 		t.Fatal(err)
 	}
@@ -155,7 +156,7 @@ func TestInlineEscalationResolvesWithoutProfileRef(t *testing.T) {
 	replaceEscalation(t, root, inline)
 	snapshot := mustLoad(t, root)
 	workflow, err := snapshot.ResolveRunWorkflow(
-		t.Context(), "openapi-from-workspace@5", ExecutionConfigPatch{}, developmentCredentialLookup(t, snapshot),
+		t.Context(), "openapi-from-workspace@5", resolved.ExecutionConfigPatch{}, developmentCredentialLookup(t, snapshot),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -181,7 +182,7 @@ func TestRunCreationValidatesCredentialsInEveryEscalationVariant(t *testing.T) {
 	snapshot := mustLoad(t, root)
 	lookup := developmentCredentialLookup(t, snapshot)
 	_, err := snapshot.ResolveRunWorkflow(
-		t.Context(), "openapi-from-workspace@5", ExecutionConfigPatch{}, lookup,
+		t.Context(), "openapi-from-workspace@5", resolved.ExecutionConfigPatch{}, lookup,
 	)
 	if err == nil || !strings.Contains(err.Error(), "failed escalation") ||
 		!strings.Contains(err.Error(), "credential is unavailable") {
@@ -190,7 +191,7 @@ func TestRunCreationValidatesCredentialsInEveryEscalationVariant(t *testing.T) {
 	localGateway, _ := snapshot.LLMGateway("local-litellm@1")
 	lookup["escalation-credential"] = credentialMetadata("escalation-credential", localGateway.Ref)
 	if _, err := snapshot.ResolveRunWorkflow(
-		t.Context(), "openapi-from-workspace@5", ExecutionConfigPatch{}, lookup,
+		t.Context(), "openapi-from-workspace@5", resolved.ExecutionConfigPatch{}, lookup,
 	); err != nil {
 		t.Fatalf("matching escalation credential was rejected: %v", err)
 	}
@@ -344,7 +345,7 @@ func TestValidateWorkflowGraphRejectsTamperedEscalationVariant(t *testing.T) {
 	stage.On.Failed.Escalate.ExecutionConfig.Effective.Agents["validator"] =
 		stage.ExecutionConfig.Agents["validator"]
 	workflow.Stages["openapi_validate"] = stage
-	if err := ValidateWorkflowGraph(workflow); err == nil ||
+	if err := resolved.ValidateWorkflowGraph(workflow); err == nil ||
 		!strings.Contains(err.Error(), "does not match its pinned override") {
 		t.Fatalf("ValidateWorkflowGraph() error = %v", err)
 	}
@@ -356,10 +357,10 @@ func replaceEscalation(t *testing.T, root, replacement string) {
 	replaceFile(t, path, openAPIValidationEscalationYAML, replacement)
 }
 
-func assertPinnedStrongValidationVariant(t *testing.T, workflow ResolvedWorkflow, digest string) {
+func assertPinnedStrongValidationVariant(t *testing.T, workflow resolved.ResolvedWorkflow, digest string) {
 	t.Helper()
 	action := workflow.Stages["openapi_validate"].On.Failed
-	if action.Kind != TransitionEscalate || action.Escalate == nil {
+	if action.Kind != resolved.TransitionEscalate || action.Escalate == nil {
 		t.Fatalf("validation failure action = %+v", action)
 	}
 	variant := action.Escalate.ExecutionConfig

@@ -6,7 +6,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
@@ -23,7 +23,7 @@ const maximumReportedUnschedulable = 8
 func newNextRoundBudget(
 	auditID, namespace string,
 	roundOrdinal, capacity int,
-	profile config.ResolvedAuditProfile,
+	profile auditprofile.ResolvedAuditProfile,
 	baseline BaselineSnapshot,
 	selection DraftSelection,
 	approval auditdomain.ApprovalRequirement,
@@ -46,7 +46,7 @@ func newNextRoundBudget(
 
 func nextRoundInventoryOptions(
 	roundOrdinal int,
-	profile config.ResolvedAuditProfile,
+	profile auditprofile.ResolvedAuditProfile,
 	baseline BaselineSnapshot,
 	approval auditdomain.ApprovalRequirement,
 	sourceRef contracts.ArtifactRef,
@@ -58,8 +58,8 @@ func nextRoundInventoryOptions(
 	}
 }
 
-func nextRoundApproval(profile config.ResolvedAuditProfile) auditdomain.ApprovalRequirement {
-	if profile.Interaction.ActiveChecks == config.AuditActiveChecksApprovalRequired &&
+func nextRoundApproval(profile auditprofile.ResolvedAuditProfile) auditdomain.ApprovalRequirement {
+	if profile.Interaction.ActiveChecks == auditprofile.AuditActiveChecksApprovalRequired &&
 		workflowRoleSelectsClassifiedTool(profile, profile.Inventory.ItemWorkflowRole, true) {
 		// Proposed-check methods are operator/model data, not a safe classifier.
 		// Requiring approval for the whole later-round set is conservative and

@@ -1,6 +1,10 @@
 package config
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/grauwolf32/contractor/internal/config/resolved"
+)
 
 // retryRunPolicyFixtureRoot is a frozen catalog whose single Stage retries a
 // failed attempt and fails an interrupted one.
@@ -11,13 +15,13 @@ func TestResolveRunWorkflowKeepsRunWorkerPolicyOnRetryingStage(t *testing.T) {
 	snapshot := mustLoad(t, retryRunPolicyFixtureRoot)
 	credentials := developmentCredentialLookup(t, snapshot)
 
-	base, err := snapshot.ResolveRunWorkflow(t.Context(), "artifact-copy-retry@1", ExecutionConfigPatch{}, credentials)
+	base, err := snapshot.ResolveRunWorkflow(t.Context(), "artifact-copy-retry@1", resolved.ExecutionConfigPatch{}, credentials)
 	if err != nil {
 		t.Fatal(err)
 	}
 	baseStage := base.Stages["copy"]
 	assertBoundedRetry(t, baseStage.On.Failed, 2)
-	if baseStage.On.Interrupted.Kind != TransitionFail || baseStage.On.Interrupted.Retry != nil {
+	if baseStage.On.Interrupted.Kind != resolved.TransitionFail || baseStage.On.Interrupted.Retry != nil {
 		t.Fatalf("interrupted transition = %+v, want fail", baseStage.On.Interrupted)
 	}
 	if selection := baseStage.ExecutionConfig.Agents["builder"]; selection.ModelPolicy.Ref.PolicyID != "test-worker" ||

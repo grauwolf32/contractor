@@ -4,17 +4,15 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
-	"maps"
 	"os"
 	"path/filepath"
 	"reflect"
-	"slices"
 	"strings"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/configtest"
 	"github.com/grauwolf32/contractor/internal/contracts"
-	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 	"github.com/grauwolf32/contractor/internal/securefile"
 )
 
@@ -58,17 +56,17 @@ func TestLoadResolvesAndPinsCatalogReferences(t *testing.T) {
 		t.Fatalf("resolve Workflow: %v", err)
 	}
 	stage := workflow.Stages[workflow.EntryStage]
-	if stage.Planner != (PlannerRef{PlannerID: "passthrough", Version: "1"}) {
+	if stage.Planner != (resolved.PlannerRef{PlannerID: "passthrough", Version: "1"}) {
 		t.Fatalf("planner = %+v", stage.Planner)
 	}
 	if stage.Agents["builder"].Template.Ref != template.Ref {
 		t.Fatalf("Workflow did not pin exact AgentTemplate: %+v", stage.Agents["builder"].Template.Ref)
 	}
-	if stage.WorkflowOutputs["result"] != "copied" || stage.On.Succeeded.Kind != TransitionSucceed {
+	if stage.WorkflowOutputs["result"] != "copied" || stage.On.Succeeded.Kind != resolved.TransitionSucceed {
 		t.Fatalf("unexpected resolved Stage: %+v", stage)
 	}
 	from := stage.Result.Artifacts["copied"].From
-	if from == nil || *from != (ArtifactBinding{Namespace: "builder", Name: "copied"}) {
+	if from == nil || *from != (resolved.ArtifactBinding{Namespace: "builder", Name: "copied"}) {
 		t.Fatalf("Stage result binding = %+v", from)
 	}
 
@@ -185,115 +183,6 @@ spec:
   sandboxProfile: local-workdir@1
 `
 
-// TestRequiredRuntimeAdaptersFollowToolChannels checks how the channels the
-// descriptors declare become placement requirements: every http-tools@1 tool
-// uses the direct or optionally proxied HTTP client and needs no adapter,
-// while every Caido tool needs the typed Caido client. The tool lists and
-// their channels are the ones TestSharedToolsetDescriptorParity pins.
-func TestRequiredRuntimeAdaptersFollowToolChannels(t *testing.T) {
-	t.Parallel()
-	for ref, want := range map[contracts.ToolsetRef][]contracts.RuntimeAdapterRef{
-		{ToolsetID: "http-tools", Version: "1"}: nil,
-		{ToolsetID: "caido", Version: "1"}:      {contracts.RuntimeAdapterCaidoGraphQL},
-	} {
-		tools := registeredDescriptors().Toolsets[ref.ToolsetID+"@"+ref.Version].Tools
-		if len(tools) == 0 {
-			t.Fatalf("Toolset %s has no tools", ref.ToolsetID)
-		}
-		for _, tool := range tools {
-			selected := contracts.ResolvedAgentTemplate{Toolsets: []contracts.ToolsetSelection{{Ref: ref, Tools: []string{tool}}}}
-			adapters, err := RequiredRuntimeAdaptersForTemplate(selected)
-			if err != nil || !slices.Equal(adapters, want) {
-				t.Errorf("%s adapter requirements = (%v, %v), want %v", tool, adapters, err, want)
-			}
-		}
-	}
-}
-
-func TestToolsetDescriptorRejectsInvalidInfrastructureChannels(t *testing.T) {
-	t.Parallel()
-
-	for name, channels := range map[string]map[string][]infrastructureChannel{
-		"unknown tool": {"missing": {channelRuntimeHTTPClient}},
-		"empty":        {"read_artifact": {}},
-		"unknown channel": {
-			"read_artifact": {infrastructureChannel("ambient-network")},
-		},
-		"duplicate": {"read_artifact": {channelRuntimeHTTPClient, channelRuntimeHTTPClient}},
-	} {
-		t.Run(name, func(t *testing.T) {
-			descriptors := builtInDescriptors()
-			descriptor := descriptors.Toolsets["run-artifacts@1"]
-			descriptor.InfrastructureChannels = channels
-			descriptors.Toolsets["run-artifacts@1"] = descriptor
-			if _, err := normalizeDescriptors(descriptors); err == nil {
-				t.Fatal("normalizeDescriptors accepted invalid infrastructure channels")
-			}
-		})
-	}
-}
-
-// toolsetDescriptorFixture is one Toolset of api/testdata/toolset-descriptors.json.
-type toolsetDescriptorFixture struct {
-	Tools                  []string                           `json:"tools"`
-	InfrastructureChannels map[string][]infrastructureChannel `json:"infrastructureChannels"`
-	RequiresWorkspace      bool                               `json:"requiresWorkspace"`
-	RequiredSandboxProfile *string                            `json:"requiredSandboxProfile"`
-	ActiveCheckTools       []string                           `json:"activeCheckTools"`
-	FindingProposalTools   []string                           `json:"findingProposalTools"`
-	RequiredWorkflowInputs map[string]struct {
-		Input     string `json:"input"`
-		MediaType string `json:"mediaType"`
-	} `json:"requiredWorkflowInputs"`
-}
-
-// TestSharedToolsetDescriptorParity holds every Server Toolset descriptor to
-// api/testdata/toolset-descriptors.json, which the Runtime's factories are
-// held to as well (runtime/tests/test_capabilities.py), so a tool or Toolset
-// added on one side only fails.
-func TestSharedToolsetDescriptorParity(t *testing.T) {
-	t.Parallel()
-	var fixture struct {
-		Description string                              `json:"description"`
-		Toolsets    map[string]toolsetDescriptorFixture `json:"toolsets"`
-	}
-	decoder := json.NewDecoder(bytes.NewReader(contractstest.ReadFile(t, "api", "testdata", "toolset-descriptors.json")))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&fixture); err != nil {
-		t.Fatal(err)
-	}
-	normalized := registeredDescriptors()
-	if got, want := slices.Sorted(maps.Keys(normalized.Toolsets)), slices.Sorted(maps.Keys(fixture.Toolsets)); !slices.Equal(got, want) {
-		t.Fatalf("Toolset descriptors = %v, shared fixture = %v", got, want)
-	}
-	for ref, shared := range fixture.Toolsets {
-		profile := ""
-		if shared.RequiredSandboxProfile != nil {
-			profile = *shared.RequiredSandboxProfile
-		}
-		// The fixture spells an absent collection as an empty one.
-		want := toolsetDescriptor{
-			RequiredSandboxProfile: profile, RequiresWorkspace: shared.RequiresWorkspace,
-			Tools: shared.Tools, InfrastructureChannels: shared.InfrastructureChannels,
-		}
-		if len(shared.ActiveCheckTools) > 0 {
-			want.ActiveCheckTools = shared.ActiveCheckTools
-		}
-		if len(shared.FindingProposalTools) > 0 {
-			want.FindingProposalTools = shared.FindingProposalTools
-		}
-		for tool, input := range shared.RequiredWorkflowInputs {
-			if want.RequiredWorkflowInputs == nil {
-				want.RequiredWorkflowInputs = map[string]workflowInputRequirement{}
-			}
-			want.RequiredWorkflowInputs[tool] = workflowInputRequirement{Input: input.Input, MediaType: input.MediaType}
-		}
-		if got := normalized.Toolsets[ref]; !reflect.DeepEqual(got, want) {
-			t.Errorf("Toolset %s descriptor = %+v, shared fixture = %+v", ref, got, want)
-		}
-	}
-}
-
 func TestStreamlineRequiresExactlyOneLogicalAgent(t *testing.T) {
 	root := copyCoreFixture(t, "workflow-examples")
 	path := filepath.Join(root, "workflows", "streamline_review_workflow.yaml")
@@ -306,7 +195,7 @@ func TestStreamlineRequiresExactlyOneLogicalAgent(t *testing.T) {
 	stage := workflow.Stages[workflow.EntryStage]
 	stage.Agents["second"] = stage.Agents["reviewer"]
 	workflow.Stages[workflow.EntryStage] = stage
-	if err := ValidateWorkflowGraph(workflow); err == nil ||
+	if err := resolved.ValidateWorkflowGraph(workflow); err == nil ||
 		!strings.Contains(err.Error(), "streamline@1 requires exactly one logical Agent binding") {
 		t.Fatalf("ValidateWorkflowGraph error = %v", err)
 	}
@@ -331,9 +220,9 @@ func TestRouterRequiresAtLeastOneLogicalAgent(t *testing.T) {
 		t.Fatal(err)
 	}
 	stage := workflow.Stages[workflow.EntryStage]
-	stage.Agents = map[string]ResolvedAgentBinding{}
+	stage.Agents = map[string]resolved.ResolvedAgentBinding{}
 	workflow.Stages[workflow.EntryStage] = stage
-	if err := ValidateWorkflowGraph(workflow); err == nil ||
+	if err := resolved.ValidateWorkflowGraph(workflow); err == nil ||
 		!strings.Contains(err.Error(), "router@1 requires at least one logical Agent binding") {
 		t.Fatalf("ValidateWorkflowGraph error = %v", err)
 	}
@@ -623,33 +512,33 @@ func TestDecodeResolvedWorkflowSnapshotChecksTheWholeGraph(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if decoded, err := DecodeResolvedWorkflowSnapshot(encoded); err != nil || !reflect.DeepEqual(decoded, workflow) {
+	if decoded, err := resolved.DecodeResolvedWorkflowSnapshot(encoded); err != nil || !reflect.DeepEqual(decoded, workflow) {
 		t.Fatalf("valid snapshot = (%+v, %v)", decoded, err)
 	}
-	for name, tamper := range map[string]func(*ResolvedWorkflow){
-		"missing entry Stage": func(workflow *ResolvedWorkflow) { workflow.EntryStage = "missing" },
-		"undeclared Workflow output": func(workflow *ResolvedWorkflow) {
+	for name, tamper := range map[string]func(*resolved.ResolvedWorkflow){
+		"missing entry Stage": func(workflow *resolved.ResolvedWorkflow) { workflow.EntryStage = "missing" },
+		"undeclared Workflow output": func(workflow *resolved.ResolvedWorkflow) {
 			workflow.Stages["copy"].WorkflowOutputs["undeclared"] = "copied"
 		},
-		"transition to a missing Stage": func(workflow *ResolvedWorkflow) {
+		"transition to a missing Stage": func(workflow *resolved.ResolvedWorkflow) {
 			stage := workflow.Stages["copy"]
-			stage.On.Succeeded = TransitionAction{Kind: TransitionNext, NextStage: "missing"}
+			stage.On.Succeeded = resolved.TransitionAction{Kind: resolved.TransitionNext, NextStage: "missing"}
 			workflow.Stages["copy"] = stage
 		},
-		"unregistered Planner": func(workflow *ResolvedWorkflow) {
+		"unregistered Planner": func(workflow *resolved.ResolvedWorkflow) {
 			stage := workflow.Stages["copy"]
-			stage.Planner = PlannerRef{PlannerID: "passthrough", Version: "2"}
+			stage.Planner = resolved.PlannerRef{PlannerID: "passthrough", Version: "2"}
 			workflow.Stages["copy"] = stage
 		},
 	} {
-		tampered := cloneWorkflow(workflow)
+		tampered := workflow.Clone()
 		tamper(&tampered)
 		encoded, err := json.Marshal(tampered)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if decoded, err := DecodeResolvedWorkflowSnapshot(encoded); err == nil ||
-			!strings.HasPrefix(err.Error(), "persisted Workflow: ") || !reflect.DeepEqual(decoded, ResolvedWorkflow{}) {
+		if decoded, err := resolved.DecodeResolvedWorkflowSnapshot(encoded); err == nil ||
+			!strings.HasPrefix(err.Error(), "persisted Workflow: ") || !reflect.DeepEqual(decoded, resolved.ResolvedWorkflow{}) {
 			t.Errorf("%s: DecodeResolvedWorkflowSnapshot = (%+v, %v)", name, decoded, err)
 		}
 	}
@@ -684,7 +573,7 @@ func TestWorkflowGraphLoadsMultiStageAndBoundedRetry(t *testing.T) {
 	}
 	retry := workflow.Stages["build"].On.Failed.Retry
 	if len(workflow.Stages) != 2 || retry == nil || retry.MaxAttempts != 3 ||
-		retry.Then.Kind != TransitionNext || retry.Then.NextStage != "review" {
+		retry.Then.Kind != resolved.TransitionNext || retry.Then.NextStage != "review" {
 		t.Fatalf("resolved multi-Stage Workflow = %+v", workflow)
 	}
 }

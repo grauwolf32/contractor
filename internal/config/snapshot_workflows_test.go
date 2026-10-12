@@ -3,6 +3,8 @@ package config
 import (
 	"sort"
 	"testing"
+
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 )
 
 func TestSnapshotWorkflowsAreSortedDeepCopies(t *testing.T) {
@@ -20,8 +22,8 @@ func TestSnapshotWorkflowsAreSortedDeepCopies(t *testing.T) {
 	}
 
 	selected := workflows[0]
-	selected.Parameters["tampered"] = ParameterSlot{Required: true}
-	selected.Stages[selected.EntryStage] = ResolvedStage{Objective: "tampered"}
+	selected.Parameters["tampered"] = resolved.ParameterSlot{Required: true}
+	selected.Stages[selected.EntryStage] = resolved.ResolvedStage{Objective: "tampered"}
 	loaded, err := snapshot.Workflow(selectors[0])
 	if err != nil {
 		t.Fatal(err)

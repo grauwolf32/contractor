@@ -3,61 +3,60 @@ package config
 import (
 	"errors"
 	"fmt"
-	"maps"
-	"slices"
-	"sort"
 	"strings"
 	"unicode/utf8"
 
 	"github.com/grauwolf32/contractor/internal/artifactpolicy"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"go.yaml.in/yaml/v4"
 )
 
-func (l *loader) resolveWorkflow(selector Selector, spec *workflowSpecSource) (ResolvedWorkflow, error) {
+func (l *loader) resolveWorkflow(selector resolved.Selector, spec *workflowSpecSource) (resolved.ResolvedWorkflow, error) {
 	if spec == nil {
-		return ResolvedWorkflow{}, fmt.Errorf("spec is required")
+		return resolved.ResolvedWorkflow{}, fmt.Errorf("spec is required")
 	}
 	presentation, err := resolveWorkflowPresentation(spec.Presentation)
 	if err != nil {
-		return ResolvedWorkflow{}, err
+		return resolved.ResolvedWorkflow{}, err
 	}
 	parameters, err := resolveParameters(spec.Parameters)
 	if err != nil {
-		return ResolvedWorkflow{}, err
+		return resolved.ResolvedWorkflow{}, err
 	}
 	inputs, err := resolveArtifactSlots("spec.inputs", spec.Inputs, false)
 	if err != nil {
-		return ResolvedWorkflow{}, err
+		return resolved.ResolvedWorkflow{}, err
 	}
 	outputs, err := resolveArtifactSlots("spec.outputs", spec.Outputs, true)
 	if err != nil {
-		return ResolvedWorkflow{}, err
+		return resolved.ResolvedWorkflow{}, err
 	}
 	if spec.Stages == nil || len(*spec.Stages) == 0 {
-		return ResolvedWorkflow{}, fmt.Errorf("spec.stages must be a non-empty mapping")
+		return resolved.ResolvedWorkflow{}, fmt.Errorf("spec.stages must be a non-empty mapping")
 	}
-	if err := validateWorkflowName("spec.entryStage", spec.EntryStage); err != nil {
-		return ResolvedWorkflow{}, err
+	if err := resolved.ValidateWorkflowName("spec.entryStage", spec.EntryStage); err != nil {
+		return resolved.ResolvedWorkflow{}, err
 	}
 	if _, ok := (*spec.Stages)[spec.EntryStage]; !ok {
-		return ResolvedWorkflow{}, fmt.Errorf("spec.entryStage %q does not name a Stage", spec.EntryStage)
+		return resolved.ResolvedWorkflow{}, fmt.Errorf("spec.entryStage %q does not name a Stage", spec.EntryStage)
 	}
 
-	stages := make(map[string]ResolvedStage, len(*spec.Stages))
+	stages := make(map[string]resolved.ResolvedStage, len(*spec.Stages))
 	for name, source := range *spec.Stages {
-		if err := validateWorkflowName("Stage name", name); err != nil {
-			return ResolvedWorkflow{}, err
+		if err := resolved.ValidateWorkflowName("Stage name", name); err != nil {
+			return resolved.ResolvedWorkflow{}, err
 		}
 		stage, stageErr := l.resolveStage(name, source, outputs, *spec.Stages)
 		if stageErr != nil {
-			return ResolvedWorkflow{}, fmt.Errorf("spec.stages.%s: %w", name, stageErr)
+			return resolved.ResolvedWorkflow{}, fmt.Errorf("spec.stages.%s: %w", name, stageErr)
 		}
 		stages[name] = stage
 	}
-	workflow := ResolvedWorkflow{
-		Ref:          WorkflowRef{Name: selector.ID, Version: selector.Version},
-		AuditTask:    cloneAuditTask(spec.AuditTask),
+	// As for Stages, the decoded auditTask belongs to this load alone.
+	workflow := resolved.ResolvedWorkflow{
+		Ref:          resolved.WorkflowRef{Name: selector.ID, Version: selector.Version},
+		AuditTask:    spec.AuditTask,
 		Presentation: presentation,
 		Parameters:   parameters,
 		Inputs:       inputs,
@@ -66,23 +65,23 @@ func (l *loader) resolveWorkflow(selector Selector, spec *workflowSpecSource) (R
 		Stages:       stages,
 	}
 	if err := l.resolveWorkflowExecutionConfig(&workflow, spec.ExecutionConfig); err != nil {
-		return ResolvedWorkflow{}, err
+		return resolved.ResolvedWorkflow{}, err
 	}
-	if err := ValidateWorkflowGraph(workflow); err != nil {
-		return ResolvedWorkflow{}, err
+	if err := resolved.ValidateWorkflowGraph(workflow); err != nil {
+		return resolved.ResolvedWorkflow{}, err
 	}
-	if _, err := WorkflowSkillRefs(workflow); err != nil {
-		return ResolvedWorkflow{}, err
+	if _, err := resolved.WorkflowSkillRefs(workflow); err != nil {
+		return resolved.ResolvedWorkflow{}, err
 	}
 	// A Run without execution overrides stores exactly this snapshot, so it
 	// must fit its bound (CAT-R76); ResolveRunWorkflow measures overrides.
-	if _, err := EncodeResolvedWorkflowSnapshot(workflow); err != nil {
-		return ResolvedWorkflow{}, err
+	if _, err := resolved.EncodeResolvedWorkflowSnapshot(workflow); err != nil {
+		return resolved.ResolvedWorkflow{}, err
 	}
 	return workflow, nil
 }
 
-func resolveWorkflowPresentation(source *workflowPresentationSource) (*WorkflowPresentation, error) {
+func resolveWorkflowPresentation(source *workflowPresentationSource) (*resolved.WorkflowPresentation, error) {
 	if source == nil {
 		return nil, nil
 	}
@@ -104,86 +103,25 @@ func resolveWorkflowPresentation(source *workflowPresentationSource) (*WorkflowP
 			)
 		}
 	}
-	return &WorkflowPresentation{
+	return &resolved.WorkflowPresentation{
 		DisplayName: source.DisplayName,
 		Description: source.Description,
 	}, nil
 }
 
-// WorkflowSkillRefs returns the sorted logical union retained by a Run
-// snapshot, including templates used only by later Stages.
-func WorkflowSkillRefs(workflow ResolvedWorkflow) ([]contracts.ArtifactRef, error) {
-	union := make(map[string]contracts.ArtifactRef)
-	for _, stage := range workflow.Stages {
-		for _, binding := range stage.Agents {
-			if err := binding.Template.Validate(); err != nil {
-				return nil, fmt.Errorf("invalid AgentTemplate %s@%s: %w", binding.Template.Ref.TemplateID, binding.Template.Ref.Version, err)
-			}
-			for _, skill := range binding.Template.Skills {
-				union[skill.Name] = skill
-			}
-		}
-	}
-	if len(union) > contracts.MaxWorkflowRunSkills {
-		return nil, fmt.Errorf("WorkflowRun may retain at most %d distinct skills", contracts.MaxWorkflowRunSkills)
-	}
-	names := make([]string, 0, len(union))
-	for name := range union {
-		names = append(names, name)
-	}
-	sort.Strings(names)
-	result := make([]contracts.ArtifactRef, 0, len(names))
-	for _, name := range names {
-		result = append(result, union[name])
-	}
-	return result, nil
-}
-
-// WorkflowSkillSets returns one sorted name set per distinct retained
-// AgentTemplate. It is used only for per-template package byte limits.
-func WorkflowSkillSets(workflow ResolvedWorkflow) [][]string {
-	templates := make(map[string][]string)
-	for _, stage := range workflow.Stages {
-		for _, binding := range stage.Agents {
-			if len(binding.Template.Skills) == 0 {
-				continue
-			}
-			key := binding.Template.Ref.TemplateID + "@" + binding.Template.Ref.Version + ":" + binding.Template.Ref.Digest
-			if _, exists := templates[key]; exists {
-				continue
-			}
-			names := make([]string, len(binding.Template.Skills))
-			for index, skill := range binding.Template.Skills {
-				names[index] = skill.Name
-			}
-			templates[key] = names
-		}
-	}
-	keys := make([]string, 0, len(templates))
-	for key := range templates {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-	result := make([][]string, 0, len(keys))
-	for _, key := range keys {
-		result = append(result, append([]string(nil), templates[key]...))
-	}
-	return result
-}
-
-func resolveParameters(source *map[string]parameterSlotSource) (map[string]ParameterSlot, error) {
+func resolveParameters(source *map[string]parameterSlotSource) (map[string]resolved.ParameterSlot, error) {
 	if source == nil {
 		return nil, fmt.Errorf("spec.parameters is required (use {} for none)")
 	}
-	result := make(map[string]ParameterSlot, len(*source))
+	result := make(map[string]resolved.ParameterSlot, len(*source))
 	for name, slot := range *source {
-		if err := validateMapKey("parameter name", name); err != nil {
+		if err := resolved.ValidateMapKey("parameter name", name); err != nil {
 			return nil, err
 		}
 		if slot.Required == nil {
 			return nil, fmt.Errorf("spec.parameters.%s.required is required", name)
 		}
-		result[name] = ParameterSlot{Required: *slot.Required}
+		result[name] = resolved.ParameterSlot{Required: *slot.Required}
 	}
 	return result, nil
 }
@@ -192,7 +130,7 @@ func resolveArtifactSlots(
 	field string,
 	source *map[string]artifactSlotSource,
 	allowPrimary bool,
-) (map[string]ArtifactSlot, error) {
+) (map[string]resolved.ArtifactSlot, error) {
 	if source == nil {
 		return nil, fmt.Errorf("%s is required (use {} for none)", field)
 	}
@@ -204,16 +142,16 @@ func resolveArtifactSlotMap(
 	source map[string]artifactSlotSource,
 	allowFrom bool,
 	allowPrimary bool,
-) (map[string]ArtifactSlot, error) {
-	result := make(map[string]ArtifactSlot, len(source))
+) (map[string]resolved.ArtifactSlot, error) {
+	result := make(map[string]resolved.ArtifactSlot, len(source))
 	for name, slot := range source {
-		if err := validateArtifactComponent(field+" slot name", name); err != nil {
+		if err := resolved.ValidateArtifactComponent(field+" slot name", name); err != nil {
 			return nil, err
 		}
 		if slot.Required == nil {
 			return nil, fmt.Errorf("%s.%s.required is required", field, name)
 		}
-		mediaTypes, err := validateMediaTypes(field+"."+name, slot.MediaTypes)
+		mediaTypes, err := resolved.ValidateMediaTypes(field+"."+name, slot.MediaTypes)
 		if err != nil {
 			return nil, err
 		}
@@ -223,25 +161,25 @@ func resolveArtifactSlotMap(
 		if slot.Primary != nil && !allowPrimary {
 			return nil, fmt.Errorf("%s.%s.primary is allowed only for Workflow outputs", field, name)
 		}
-		var from *ArtifactBinding
+		var from *resolved.ArtifactBinding
 		if slot.From != nil {
-			if err := validateArtifactComponent(field+"."+name+".from.namespace", slot.From.Namespace); err != nil {
+			if err := resolved.ValidateArtifactComponent(field+"."+name+".from.namespace", slot.From.Namespace); err != nil {
 				return nil, err
 			}
-			if err := validateArtifactComponent(field+"."+name+".from.name", slot.From.Name); err != nil {
+			if err := resolved.ValidateArtifactComponent(field+"."+name+".from.name", slot.From.Name); err != nil {
 				return nil, err
 			}
 			if artifactpolicy.IsPurposeReservedNamespace(slot.From.Namespace) ||
 				artifactpolicy.IsReservedMemoryBinding(slot.From.Namespace, slot.From.Name) {
 				return nil, fmt.Errorf("%s.%s.from identifies a Runtime-reserved binding", field, name)
 			}
-			from = &ArtifactBinding{Namespace: slot.From.Namespace, Name: slot.From.Name}
+			from = &resolved.ArtifactBinding{Namespace: slot.From.Namespace, Name: slot.From.Name}
 		}
 		primary := false
 		if slot.Primary != nil {
 			primary = *slot.Primary
 		}
-		result[name] = ArtifactSlot{
+		result[name] = resolved.ArtifactSlot{
 			Required: *slot.Required, MediaTypes: mediaTypes, From: from, Primary: primary,
 		}
 	}
@@ -251,66 +189,68 @@ func resolveArtifactSlotMap(
 func (l *loader) resolveStage(
 	stageName string,
 	source stageSource,
-	workflowOutputs map[string]ArtifactSlot,
+	workflowOutputs map[string]resolved.ArtifactSlot,
 	allStages map[string]stageSource,
-) (ResolvedStage, error) {
+) (resolved.ResolvedStage, error) {
 	if strings.TrimSpace(source.Objective) == "" {
-		return ResolvedStage{}, fmt.Errorf("objective must not be empty or whitespace-only")
+		return resolved.ResolvedStage{}, fmt.Errorf("objective must not be empty or whitespace-only")
 	}
 	session, err := resolveWorkerSessionMode(source.Session)
 	if err != nil {
-		return ResolvedStage{}, fmt.Errorf("session: %w", err)
+		return resolved.ResolvedStage{}, fmt.Errorf("session: %w", err)
 	}
 	instructions, err := l.resolveInstructions(source.Instructions)
 	if err != nil {
-		return ResolvedStage{}, fmt.Errorf("instructions: %w", err)
+		return resolved.ResolvedStage{}, fmt.Errorf("instructions: %w", err)
 	}
-	planner, err := ParseSelector(source.Planner)
+	planner, err := resolved.ParseSelector(source.Planner)
 	if err != nil {
-		return ResolvedStage{}, fmt.Errorf("planner: %w", err)
+		return resolved.ResolvedStage{}, fmt.Errorf("planner: %w", err)
 	}
-	plannerRef := PlannerRef{PlannerID: planner.ID, Version: planner.Version}
-	if !KnownPlanner(plannerRef) {
-		return ResolvedStage{}, fmt.Errorf("planner selects unknown PlannerFactory %q", planner)
+	plannerRef := resolved.PlannerRef{PlannerID: planner.ID, Version: planner.Version}
+	if !resolved.KnownPlanner(plannerRef) {
+		return resolved.ResolvedStage{}, fmt.Errorf("planner selects unknown PlannerFactory %q", planner)
 	}
 	agents, err := l.resolveAgentBindings(source.Agents)
 	if err != nil {
-		return ResolvedStage{}, err
+		return resolved.ResolvedStage{}, err
 	}
-	if err := ValidatePlannerAgents(plannerRef, len(agents)); err != nil {
-		return ResolvedStage{}, err
+	if err := resolved.ValidatePlannerAgents(plannerRef, len(agents)); err != nil {
+		return resolved.ResolvedStage{}, err
 	}
 	context, err := resolveStageContext(source.Context)
 	if err != nil {
-		return ResolvedStage{}, err
+		return resolved.ResolvedStage{}, err
 	}
 	result, err := resolveStageResult(source.Result)
 	if err != nil {
-		return ResolvedStage{}, err
+		return resolved.ResolvedStage{}, err
 	}
-	if err := validateStageWorkspace(context, result, agents); err != nil {
-		return ResolvedStage{}, err
+	if err := resolved.ValidateStageWorkspace(context, result, agents); err != nil {
+		return resolved.ResolvedStage{}, err
 	}
-	if plannerRef != (PlannerRef{PlannerID: "scan-plan", Version: "1"}) {
+	if plannerRef != (resolved.PlannerRef{PlannerID: "scan-plan", Version: "1"}) {
 		if err := validateStageResultBindings(result, context.Workspace, agents); err != nil {
-			return ResolvedStage{}, err
+			return resolved.ResolvedStage{}, err
 		}
 	}
 	mappings, err := resolveWorkflowOutputMappings(stageName, source.WorkflowOutputs, workflowOutputs, result.Artifacts)
 	if err != nil {
-		return ResolvedStage{}, err
+		return resolved.ResolvedStage{}, err
 	}
 	transitions, err := l.resolveTransitions(source.On, allStages)
 	if err != nil {
-		return ResolvedStage{}, err
+		return resolved.ResolvedStage{}, err
 	}
 
-	stage := ResolvedStage{
+	// The decoded source belongs to this load alone and the Snapshot keeps
+	// deep copies, so the Stage takes the scan policies without copying them.
+	stage := resolved.ResolvedStage{
 		Objective:       source.Objective,
 		Instructions:    instructions,
 		Planner:         plannerRef,
-		ScanPlan:        cloneScanPlanPolicy(source.ScanPlan),
-		AuditScan:       cloneAuditScan(source.AuditScan),
+		ScanPlan:        source.ScanPlan,
+		AuditScan:       source.AuditScan,
 		Session:         session,
 		Agents:          agents,
 		Context:         context,
@@ -318,8 +258,8 @@ func (l *loader) resolveStage(
 		WorkflowOutputs: mappings,
 		On:              transitions,
 	}
-	if err := ValidateScanPlanStage(stage); err != nil {
-		return ResolvedStage{}, err
+	if err := resolved.ValidateScanPlanStage(stage); err != nil {
+		return resolved.ResolvedStage{}, err
 	}
 	return stage, nil
 }
@@ -338,16 +278,16 @@ func resolveWorkerSessionMode(source yaml.Node) (contracts.WorkerSessionMode, er
 	return mode, nil
 }
 
-func (l *loader) resolveAgentBindings(source map[string]agentBindingSource) (map[string]ResolvedAgentBinding, error) {
+func (l *loader) resolveAgentBindings(source map[string]agentBindingSource) (map[string]resolved.ResolvedAgentBinding, error) {
 	if len(source) == 0 {
 		return nil, fmt.Errorf("agents must be a non-empty mapping")
 	}
-	result := make(map[string]ResolvedAgentBinding, len(source))
+	result := make(map[string]resolved.ResolvedAgentBinding, len(source))
 	for logicalName, binding := range source {
-		if err := validateWorkflowName("logical Agent name", logicalName); err != nil {
+		if err := resolved.ValidateWorkflowName("logical Agent name", logicalName); err != nil {
 			return nil, err
 		}
-		selector, err := ParseSelector(binding.Template)
+		selector, err := resolved.ParseSelector(binding.Template)
 		if err != nil {
 			return nil, fmt.Errorf("agents.%s.template: %w", logicalName, err)
 		}
@@ -359,13 +299,13 @@ func (l *loader) resolveAgentBindings(source map[string]agentBindingSource) (map
 		if binding.Namespace != nil {
 			namespace = *binding.Namespace
 		}
-		if err := validateArtifactComponent("agents."+logicalName+".namespace", namespace); err != nil {
+		if err := resolved.ValidateArtifactComponent("agents."+logicalName+".namespace", namespace); err != nil {
 			return nil, err
 		}
 		if artifactpolicy.IsPurposeReservedNamespace(namespace) {
 			return nil, fmt.Errorf("agents.%s.namespace %q is reserved", logicalName, namespace)
 		}
-		result[logicalName] = ResolvedAgentBinding{
+		result[logicalName] = resolved.ResolvedAgentBinding{
 			Template:  template.Clone(),
 			Namespace: namespace,
 		}
@@ -373,33 +313,33 @@ func (l *loader) resolveAgentBindings(source map[string]agentBindingSource) (map
 	return result, nil
 }
 
-func resolveStageContext(source *stageContextSource) (StageContext, error) {
-	result := StageContext{Artifacts: make(map[string]ContextArtifact)}
+func resolveStageContext(source *stageContextSource) (resolved.StageContext, error) {
+	result := resolved.StageContext{Artifacts: make(map[string]resolved.ContextArtifact)}
 	if source == nil {
 		return result, nil
 	}
 	if source.Artifacts == nil {
-		return StageContext{}, fmt.Errorf("context.artifacts is required when context is present")
+		return resolved.StageContext{}, fmt.Errorf("context.artifacts is required when context is present")
 	}
 	for localName, artifact := range *source.Artifacts {
-		if err := validateMapKey("context artifact name", localName); err != nil {
-			return StageContext{}, err
+		if err := resolved.ValidateMapKey("context artifact name", localName); err != nil {
+			return resolved.StageContext{}, err
 		}
-		if err := validateArtifactComponent("context.artifacts."+localName+".namespace", artifact.Namespace); err != nil {
-			return StageContext{}, err
+		if err := resolved.ValidateArtifactComponent("context.artifacts."+localName+".namespace", artifact.Namespace); err != nil {
+			return resolved.StageContext{}, err
 		}
-		if err := validateArtifactComponent("context.artifacts."+localName+".name", artifact.Name); err != nil {
-			return StageContext{}, err
+		if err := resolved.ValidateArtifactComponent("context.artifacts."+localName+".name", artifact.Name); err != nil {
+			return resolved.StageContext{}, err
 		}
 		if artifactpolicy.IsReservedMemoryBinding(artifact.Namespace, artifact.Name) {
-			return StageContext{}, fmt.Errorf(
+			return resolved.StageContext{}, fmt.Errorf(
 				"context.artifacts.%s identifies a reserved Memory binding", localName,
 			)
 		}
 		if artifact.Required == nil {
-			return StageContext{}, fmt.Errorf("context.artifacts.%s.required is required", localName)
+			return resolved.StageContext{}, fmt.Errorf("context.artifacts.%s.required is required", localName)
 		}
-		result.Artifacts[localName] = ContextArtifact{
+		result.Artifacts[localName] = resolved.ContextArtifact{
 			Namespace: artifact.Namespace,
 			Name:      artifact.Name,
 			Required:  *artifact.Required,
@@ -407,7 +347,7 @@ func resolveStageContext(source *stageContextSource) (StageContext, error) {
 	}
 	workspace, err := resolveWorkspaceContext(source.Workspace, result.Artifacts)
 	if err != nil {
-		return StageContext{}, err
+		return resolved.StageContext{}, err
 	}
 	result.Workspace = workspace
 	return result, nil
@@ -415,8 +355,8 @@ func resolveStageContext(source *stageContextSource) (StageContext, error) {
 
 func resolveWorkspaceContext(
 	source *workspaceContextSource,
-	artifacts map[string]ContextArtifact,
-) (*WorkspaceContext, error) {
+	artifacts map[string]resolved.ContextArtifact,
+) (*resolved.WorkspaceContext, error) {
 	if source == nil {
 		return nil, nil
 	}
@@ -427,9 +367,9 @@ func resolveWorkspaceContext(
 	if len(source.Sources) == 0 || len(source.Sources) > 32 {
 		return nil, fmt.Errorf("context.workspace.sources must contain from 1 through 32 entries")
 	}
-	result := &WorkspaceContext{Mode: mode, Sources: make([]WorkspaceSource, len(source.Sources))}
+	result := &resolved.WorkspaceContext{Mode: mode, Sources: make([]resolved.WorkspaceSource, len(source.Sources))}
 	for index, candidate := range source.Sources {
-		if err := validateMapKey("context.workspace.sources artifact alias", candidate.Artifact); err != nil {
+		if err := resolved.ValidateMapKey("context.workspace.sources artifact alias", candidate.Artifact); err != nil {
 			return nil, err
 		}
 		artifact, exists := artifacts[candidate.Artifact]
@@ -442,7 +382,7 @@ func resolveWorkspaceContext(
 		if err := validateWorkspaceTarget(candidate.Target); err != nil {
 			return nil, fmt.Errorf("context.workspace.sources[%d].target: %w", index, err)
 		}
-		result.Sources[index] = WorkspaceSource{Artifact: candidate.Artifact, Target: candidate.Target}
+		result.Sources[index] = resolved.WorkspaceSource{Artifact: candidate.Artifact, Target: candidate.Target}
 	}
 	for index, candidate := range result.Sources {
 		for otherIndex, other := range result.Sources {
@@ -455,28 +395,28 @@ func resolveWorkspaceContext(
 		}
 	}
 	if source.State != nil {
-		if err := validateMapKey("context.workspace.state.artifact", source.State.Artifact); err != nil {
+		if err := resolved.ValidateMapKey("context.workspace.state.artifact", source.State.Artifact); err != nil {
 			return nil, err
 		}
 		if _, exists := artifacts[source.State.Artifact]; !exists {
 			return nil, fmt.Errorf("context.workspace.state.artifact names unknown context artifact %q", source.State.Artifact)
 		}
-		result.State = &WorkspaceStateInput{Artifact: source.State.Artifact}
+		result.State = &resolved.WorkspaceStateInput{Artifact: source.State.Artifact}
 	}
 	if source.Export != nil {
 		if mode != contracts.WorkspaceModeOverlay {
 			return nil, fmt.Errorf("context.workspace.export requires overlay mode")
 		}
-		if err := validateMapKey("context.workspace.export.state", source.Export.State); err != nil {
+		if err := resolved.ValidateMapKey("context.workspace.export.state", source.Export.State); err != nil {
 			return nil, err
 		}
-		if err := validateMapKey("context.workspace.export.diff", source.Export.Diff); err != nil {
+		if err := resolved.ValidateMapKey("context.workspace.export.diff", source.Export.Diff); err != nil {
 			return nil, err
 		}
 		if source.Export.State == source.Export.Diff {
 			return nil, fmt.Errorf("context.workspace export slots must be distinct")
 		}
-		result.Export = &WorkspaceExport{State: source.Export.State, Diff: source.Export.Diff}
+		result.Export = &resolved.WorkspaceExport{State: source.Export.State, Diff: source.Export.Diff}
 	}
 	return result, nil
 }
@@ -496,74 +436,26 @@ func validateWorkspaceTarget(value string) error {
 	return nil
 }
 
-func validateStageWorkspace(
-	context StageContext,
-	result StageResultContract,
-	agents map[string]ResolvedAgentBinding,
-) error {
-	registered := registeredDescriptors()
-	workspaceToolsets := false
-	changesToolset := false
-	for _, agent := range agents {
-		if err := sandboxToolCompatibility(registered, agent.Template); err != nil {
-			return err
-		}
-		profile := agent.Template.SandboxProfile.SandboxProfileID + "@" + agent.Template.SandboxProfile.Version
-		required := registered.SandboxProfiles[profile]
-		if required.WorkspaceMode != "" && (context.Workspace == nil || context.Workspace.Mode != required.WorkspaceMode) {
-			return fmt.Errorf("SandboxProfile %s requires context.workspace.mode %s", profile, required.WorkspaceMode)
-		}
-		for _, selection := range agent.Template.Toolsets {
-			ref := selection.Ref.ToolsetID + "@" + selection.Ref.Version
-			if registered.Toolsets[ref].RequiresWorkspace {
-				workspaceToolsets = true
-			}
-			if ref == "workspace-changes@1" {
-				changesToolset = true
-			}
-		}
-	}
-	if workspaceToolsets && context.Workspace == nil {
-		return fmt.Errorf("workspace-dependent Toolsets require context.workspace")
-	}
-	if changesToolset && context.Workspace != nil && context.Workspace.Mode != contracts.WorkspaceModeOverlay {
-		return fmt.Errorf("workspace-changes@1 requires context.workspace.mode overlay")
-	}
-	if context.Workspace == nil || context.Workspace.Export == nil {
-		return nil
-	}
-	export := context.Workspace.Export
-	state, stateExists := result.Artifacts[export.State]
-	diff, diffExists := result.Artifacts[export.Diff]
-	if !stateExists || len(state.MediaTypes) != 1 || state.MediaTypes[0] != "application/vnd.contractor.workspace-overlay+json" {
-		return fmt.Errorf("context.workspace.export.state must name a result slot with exact workspace overlay media type")
-	}
-	if !diffExists || len(diff.MediaTypes) != 1 || diff.MediaTypes[0] != "text/x-diff" {
-		return fmt.Errorf("context.workspace.export.diff must name a result slot with exact text/x-diff media type")
-	}
-	return nil
-}
-
-func resolveStageResult(source *stageResultSource) (StageResultContract, error) {
-	result := StageResultContract{Artifacts: make(map[string]ArtifactSlot)}
+func resolveStageResult(source *stageResultSource) (resolved.StageResultContract, error) {
+	result := resolved.StageResultContract{Artifacts: make(map[string]resolved.ArtifactSlot)}
 	if source == nil {
 		return result, nil
 	}
 	if source.Artifacts == nil {
-		return StageResultContract{}, fmt.Errorf("result.artifacts is required when result is present")
+		return resolved.StageResultContract{}, fmt.Errorf("result.artifacts is required when result is present")
 	}
 	artifacts, err := resolveArtifactSlotMap("result.artifacts", *source.Artifacts, true, false)
 	if err != nil {
-		return StageResultContract{}, err
+		return resolved.StageResultContract{}, err
 	}
 	result.Artifacts = artifacts
 	return result, nil
 }
 
 func validateStageResultBindings(
-	result StageResultContract,
-	workspace *WorkspaceContext,
-	agents map[string]ResolvedAgentBinding,
+	result resolved.StageResultContract,
+	workspace *resolved.WorkspaceContext,
+	agents map[string]resolved.ResolvedAgentBinding,
 ) error {
 	exports := map[string]struct{}{}
 	if workspace != nil && workspace.Export != nil {
@@ -598,8 +490,8 @@ func validateStageResultBindings(
 func resolveWorkflowOutputMappings(
 	stageName string,
 	source map[string]string,
-	workflowOutputs map[string]ArtifactSlot,
-	stageResults map[string]ArtifactSlot,
+	workflowOutputs map[string]resolved.ArtifactSlot,
+	stageResults map[string]resolved.ArtifactSlot,
 ) (map[string]string, error) {
 	result := make(map[string]string, len(source))
 	for outputName, resultName := range source {
@@ -611,7 +503,7 @@ func resolveWorkflowOutputMappings(
 		if !ok {
 			return nil, fmt.Errorf("workflowOutputs.%s value %q is not a result artifact of Stage %q", outputName, resultName, stageName)
 		}
-		if !mediaTypesIntersect(outputSlot.MediaTypes, resultSlot.MediaTypes) {
+		if !resolved.MediaTypesIntersect(outputSlot.MediaTypes, resultSlot.MediaTypes) {
 			return nil, fmt.Errorf("workflowOutputs.%s maps incompatible result and output media types", outputName)
 		}
 		result[outputName] = resultName
@@ -619,39 +511,39 @@ func resolveWorkflowOutputMappings(
 	return result, nil
 }
 
-func (l *loader) resolveTransitions(source *stageTransitionsSource, stages map[string]stageSource) (StageTransitions, error) {
+func (l *loader) resolveTransitions(source *stageTransitionsSource, stages map[string]stageSource) (resolved.StageTransitions, error) {
 	if source == nil || source.Succeeded == nil || source.Failed == nil || source.Interrupted == nil {
-		return StageTransitions{}, fmt.Errorf("on must contain succeeded, failed, and interrupted")
+		return resolved.StageTransitions{}, fmt.Errorf("on must contain succeeded, failed, and interrupted")
 	}
-	succeeded, err := l.resolveTransitionAction("on.succeeded", source.Succeeded, stages, map[TransitionKind]bool{
-		TransitionNext: true, TransitionSucceed: true,
+	succeeded, err := l.resolveTransitionAction("on.succeeded", source.Succeeded, stages, map[resolved.TransitionKind]bool{
+		resolved.TransitionNext: true, resolved.TransitionSucceed: true,
 	})
 	if err != nil {
-		return StageTransitions{}, err
+		return resolved.StageTransitions{}, err
 	}
-	failed, err := l.resolveTransitionAction("on.failed", source.Failed, stages, map[TransitionKind]bool{
-		TransitionNext: true, TransitionRetry: true, TransitionEscalate: true, TransitionFail: true,
+	failed, err := l.resolveTransitionAction("on.failed", source.Failed, stages, map[resolved.TransitionKind]bool{
+		resolved.TransitionNext: true, resolved.TransitionRetry: true, resolved.TransitionEscalate: true, resolved.TransitionFail: true,
 	})
 	if err != nil {
-		return StageTransitions{}, err
+		return resolved.StageTransitions{}, err
 	}
-	interrupted, err := l.resolveTransitionAction("on.interrupted", source.Interrupted, stages, map[TransitionKind]bool{
-		TransitionNext: true, TransitionRetry: true, TransitionEscalate: true, TransitionFail: true,
+	interrupted, err := l.resolveTransitionAction("on.interrupted", source.Interrupted, stages, map[resolved.TransitionKind]bool{
+		resolved.TransitionNext: true, resolved.TransitionRetry: true, resolved.TransitionEscalate: true, resolved.TransitionFail: true,
 	})
 	if err != nil {
-		return StageTransitions{}, err
+		return resolved.StageTransitions{}, err
 	}
-	return StageTransitions{Succeeded: succeeded, Failed: failed, Interrupted: interrupted}, nil
+	return resolved.StageTransitions{Succeeded: succeeded, Failed: failed, Interrupted: interrupted}, nil
 }
 
 func (l *loader) resolveTransitionAction(
 	field string,
 	source *transitionActionSource,
 	stages map[string]stageSource,
-	allowed map[TransitionKind]bool,
-) (TransitionAction, error) {
+	allowed map[resolved.TransitionKind]bool,
+) (resolved.TransitionAction, error) {
 	if source == nil {
-		return TransitionAction{}, fmt.Errorf("%s is required", field)
+		return resolved.TransitionAction{}, fmt.Errorf("%s is required", field)
 	}
 	count := 0
 	if source.Next != nil {
@@ -670,62 +562,62 @@ func (l *loader) resolveTransitionAction(
 		count++
 	}
 	if count != 1 {
-		return TransitionAction{}, fmt.Errorf("%s must select exactly one of next, retry, escalate, succeed, or fail", field)
+		return resolved.TransitionAction{}, fmt.Errorf("%s must select exactly one of next, retry, escalate, succeed, or fail", field)
 	}
 
-	var action TransitionAction
+	var action resolved.TransitionAction
 	switch {
 	case source.Next != nil:
-		action = TransitionAction{Kind: TransitionNext, NextStage: *source.Next}
-		if err := validateWorkflowName(field+".next", action.NextStage); err != nil {
-			return TransitionAction{}, err
+		action = resolved.TransitionAction{Kind: resolved.TransitionNext, NextStage: *source.Next}
+		if err := resolved.ValidateWorkflowName(field+".next", action.NextStage); err != nil {
+			return resolved.TransitionAction{}, err
 		}
 		if _, ok := stages[action.NextStage]; !ok {
-			return TransitionAction{}, fmt.Errorf("%s.next names unknown Stage %q", field, action.NextStage)
+			return resolved.TransitionAction{}, fmt.Errorf("%s.next names unknown Stage %q", field, action.NextStage)
 		}
 	case source.Retry != nil:
 		if source.Retry.MaxAttempts < 2 {
-			return TransitionAction{}, fmt.Errorf("%s.retry.maxAttempts must be at least 2", field)
+			return resolved.TransitionAction{}, fmt.Errorf("%s.retry.maxAttempts must be at least 2", field)
 		}
-		then, err := l.resolveTransitionAction(field+".retry.then", source.Retry.Then, stages, map[TransitionKind]bool{
-			TransitionNext: true, TransitionFail: true,
+		then, err := l.resolveTransitionAction(field+".retry.then", source.Retry.Then, stages, map[resolved.TransitionKind]bool{
+			resolved.TransitionNext: true, resolved.TransitionFail: true,
 		})
 		if err != nil {
-			return TransitionAction{}, err
+			return resolved.TransitionAction{}, err
 		}
-		action = TransitionAction{Kind: TransitionRetry, Retry: &RetryTransition{MaxAttempts: source.Retry.MaxAttempts, Then: then}}
+		action = resolved.TransitionAction{Kind: resolved.TransitionRetry, Retry: &resolved.RetryTransition{MaxAttempts: source.Retry.MaxAttempts, Then: then}}
 	case source.Escalate != nil:
 		if source.Escalate.MaxAttempts < 1 {
-			return TransitionAction{}, fmt.Errorf("%s.escalate.maxAttempts must be at least 1", field)
+			return resolved.TransitionAction{}, fmt.Errorf("%s.escalate.maxAttempts must be at least 1", field)
 		}
 		executionConfig, err := l.resolveEscalationExecutionConfig(
 			field+".escalate.executionConfig", source.Escalate.ExecutionConfig,
 		)
 		if err != nil {
-			return TransitionAction{}, err
+			return resolved.TransitionAction{}, err
 		}
 		then, err := l.resolveTransitionAction(
 			field+".escalate.then", source.Escalate.Then, stages,
-			map[TransitionKind]bool{TransitionNext: true, TransitionFail: true},
+			map[resolved.TransitionKind]bool{resolved.TransitionNext: true, resolved.TransitionFail: true},
 		)
 		if err != nil {
-			return TransitionAction{}, err
+			return resolved.TransitionAction{}, err
 		}
-		action = TransitionAction{
-			Kind: TransitionEscalate,
-			Escalate: &EscalateTransition{
+		action = resolved.TransitionAction{
+			Kind: resolved.TransitionEscalate,
+			Escalate: &resolved.EscalateTransition{
 				MaxAttempts:     source.Escalate.MaxAttempts,
 				ExecutionConfig: executionConfig,
 				Then:            then,
 			},
 		}
 	case source.Succeed != nil:
-		action = TransitionAction{Kind: TransitionSucceed}
+		action = resolved.TransitionAction{Kind: resolved.TransitionSucceed}
 	case source.Fail != nil:
-		action = TransitionAction{Kind: TransitionFail}
+		action = resolved.TransitionAction{Kind: resolved.TransitionFail}
 	}
 	if !allowed[action.Kind] {
-		return TransitionAction{}, fmt.Errorf("%s action %q is not allowed", field, action.Kind)
+		return resolved.TransitionAction{}, fmt.Errorf("%s action %q is not allowed", field, action.Kind)
 	}
 	return action, nil
 }
@@ -733,375 +625,45 @@ func (l *loader) resolveTransitionAction(
 func (l *loader) resolveEscalationExecutionConfig(
 	field string,
 	source *escalationExecutionConfigSource,
-) (ResolvedEscalationExecutionConfig, error) {
+) (resolved.ResolvedEscalationExecutionConfig, error) {
 	if source == nil {
-		return ResolvedEscalationExecutionConfig{}, fmt.Errorf("%s is required", field)
+		return resolved.ResolvedEscalationExecutionConfig{}, fmt.Errorf("%s is required", field)
 	}
 	refPresent := source.refPresent
 	inlinePresent := source.plannerPresent || source.agentsPresent
 	if refPresent == inlinePresent {
-		return ResolvedEscalationExecutionConfig{}, fmt.Errorf(
+		return resolved.ResolvedEscalationExecutionConfig{}, fmt.Errorf(
 			"%s must contain exactly ref or inline planner/agents", field,
 		)
 	}
 	if refPresent {
 		value, err := optionalStringFromYAML(source.Ref, false, field+".ref")
 		if err != nil {
-			return ResolvedEscalationExecutionConfig{}, err
+			return resolved.ResolvedEscalationExecutionConfig{}, err
 		}
-		selector, err := ParseSelector(value.value)
+		selector, err := resolved.ParseSelector(value.Value)
 		if err != nil {
-			return ResolvedEscalationExecutionConfig{}, fmt.Errorf("%s.ref: %w", field, err)
+			return resolved.ResolvedEscalationExecutionConfig{}, fmt.Errorf("%s.ref: %w", field, err)
 		}
 		profile, ok := l.executionConfigs[selector.String()]
 		if !ok {
-			return ResolvedEscalationExecutionConfig{}, fmt.Errorf(
+			return resolved.ResolvedEscalationExecutionConfig{}, fmt.Errorf(
 				"%s.ref selects unknown ExecutionConfig %q", field, selector,
 			)
 		}
 		ref := profile.Ref
-		return ResolvedEscalationExecutionConfig{
-			Ref: &ref, Override: cloneStageExecutionConfigOverride(profile.Override),
+		return resolved.ResolvedEscalationExecutionConfig{
+			Ref: &ref, Override: profile.Override.Clone(),
 		}, nil
 	}
 
 	patch, err := stageExecutionConfigPatchFromEscalationSource(source, field)
 	if err != nil {
-		return ResolvedEscalationExecutionConfig{}, err
+		return resolved.ResolvedEscalationExecutionConfig{}, err
 	}
 	override, err := l.resolveStageExecutionConfigOverride(patch)
 	if err != nil {
-		return ResolvedEscalationExecutionConfig{}, fmt.Errorf("%s: %w", field, err)
+		return resolved.ResolvedEscalationExecutionConfig{}, fmt.Errorf("%s: %w", field, err)
 	}
-	return ResolvedEscalationExecutionConfig{Override: override}, nil
-}
-
-// ValidateWorkflowGraph verifies the resolved serial control-flow contract.
-// It is exported so the Scheduler can distrust and revalidate a durable JSON
-// snapshot without consulting the mutable configuration directory.
-func ValidateWorkflowGraph(workflow ResolvedWorkflow) error {
-	if err := ValidateAuditTaskWorkflow(workflow); err != nil {
-		return err
-	}
-	if len(workflow.Stages) == 0 {
-		return fmt.Errorf("Workflow Graph must contain at least one Stage")
-	}
-	if _, ok := workflow.Stages[workflow.EntryStage]; !ok {
-		return fmt.Errorf("Workflow Graph entry Stage %q does not exist", workflow.EntryStage)
-	}
-	names := make([]string, 0, len(workflow.Stages))
-	adjacency := make(map[string]map[string]struct{}, len(workflow.Stages))
-	for name := range workflow.Stages {
-		names = append(names, name)
-		adjacency[name] = make(map[string]struct{})
-	}
-	sort.Strings(names)
-	for _, name := range names {
-		stage := workflow.Stages[name]
-		if err := validateWorkflowName("Stage name", name); err != nil {
-			return err
-		}
-		if err := validateStageAgentNames(fmt.Sprintf("Stage %q", name), stage.Agents); err != nil {
-			return err
-		}
-		if err := stage.Session.Validate(); err != nil {
-			return fmt.Errorf("Stage %q: %w", name, err)
-		}
-		if err := ValidatePlannerAgents(stage.Planner, len(stage.Agents)); err != nil {
-			return fmt.Errorf("Stage %q: %w", name, err)
-		}
-		if err := validateResolvedStageMappings(name, stage, workflow.Outputs); err != nil {
-			return err
-		}
-		checks := []struct {
-			field   string
-			action  TransitionAction
-			allowed map[TransitionKind]bool
-		}{
-			{"succeeded", stage.On.Succeeded, map[TransitionKind]bool{TransitionNext: true, TransitionSucceed: true}},
-			{"failed", stage.On.Failed, map[TransitionKind]bool{TransitionNext: true, TransitionRetry: true, TransitionEscalate: true, TransitionFail: true}},
-			{"interrupted", stage.On.Interrupted, map[TransitionKind]bool{TransitionNext: true, TransitionRetry: true, TransitionEscalate: true, TransitionFail: true}},
-		}
-		for _, check := range checks {
-			field := "Stage " + name + " on." + check.field
-			if err := validateResolvedTransition(field, check.action, workflow.Stages, check.allowed); err != nil {
-				return err
-			}
-			if err := validateStageEscalationVariant(name, check.field, stage, check.action); err != nil {
-				return err
-			}
-			continuation := transitionContinuation(check.action)
-			if continuation.Kind == TransitionNext {
-				adjacency[name][continuation.NextStage] = struct{}{}
-			}
-		}
-	}
-	if err := validateWorkflowExecutionConfigs(workflow); err != nil {
-		return err
-	}
-	if err := validateToolWorkflowInputs(workflow, registeredDescriptors().Toolsets); err != nil {
-		return err
-	}
-
-	reachable := make(map[string]bool, len(workflow.Stages))
-	var visit func(string)
-	visit = func(name string) {
-		if reachable[name] {
-			return
-		}
-		reachable[name] = true
-		targets := slices.Sorted(maps.Keys(adjacency[name]))
-		for _, target := range targets {
-			visit(target)
-		}
-	}
-	visit(workflow.EntryStage)
-	for _, name := range names {
-		if !reachable[name] {
-			return fmt.Errorf("Workflow Graph Stage %q is unreachable from entry Stage %q", name, workflow.EntryStage)
-		}
-	}
-
-	order, err := topologicalStageOrder(names, adjacency)
-	if err != nil {
-		return err
-	}
-	flows := make(map[string]workflowOutputFlow, len(workflow.Stages))
-	flows[workflow.EntryStage] = newWorkflowOutputFlow()
-	for _, name := range order {
-		incoming := flows[name]
-		if !incoming.initialized {
-			return fmt.Errorf("Workflow Graph Stage %q has no executable predecessor", name)
-		}
-		stage := workflow.Stages[name]
-		for outputName := range stage.WorkflowOutputs {
-			if _, alreadyBound := incoming.may[outputName]; alreadyBound {
-				return fmt.Errorf("Workflow output %q may be mapped more than once on one Graph path", outputName)
-			}
-		}
-		succeeded := incoming.clone()
-		for outputName, resultName := range stage.WorkflowOutputs {
-			if stage.Result.Artifacts[resultName].Required {
-				succeeded.must[outputName] = struct{}{}
-			}
-			succeeded.may[outputName] = struct{}{}
-		}
-		if err := applyWorkflowTransition(
-			name, stage.On.Succeeded, succeeded, workflow.Outputs, flows,
-		); err != nil {
-			return err
-		}
-		for _, action := range []TransitionAction{stage.On.Failed, stage.On.Interrupted} {
-			if err := applyWorkflowTransition(
-				name, action, incoming, workflow.Outputs, flows,
-			); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
-}
-
-func validateResolvedStageMappings(
-	stageName string,
-	stage ResolvedStage,
-	workflowOutputs map[string]ArtifactSlot,
-) error {
-	for outputName, resultName := range stage.WorkflowOutputs {
-		output, ok := workflowOutputs[outputName]
-		if !ok {
-			return fmt.Errorf("Stage %q maps undeclared Workflow output %q", stageName, outputName)
-		}
-		result, ok := stage.Result.Artifacts[resultName]
-		if !ok {
-			return fmt.Errorf("Stage %q maps output %q from undeclared result %q", stageName, outputName, resultName)
-		}
-		if !mediaTypesIntersect(output.MediaTypes, result.MediaTypes) {
-			return fmt.Errorf("Stage %q maps output %q with incompatible media types", stageName, outputName)
-		}
-	}
-	return nil
-}
-
-func validateResolvedTransition(
-	field string,
-	action TransitionAction,
-	stages map[string]ResolvedStage,
-	allowed map[TransitionKind]bool,
-) error {
-	if !allowed[action.Kind] {
-		return fmt.Errorf("%s Transition action %q is not allowed", field, action.Kind)
-	}
-	switch action.Kind {
-	case TransitionNext:
-		if action.Retry != nil || action.Escalate != nil || action.NextStage == "" {
-			return fmt.Errorf("%s next Transition has an invalid payload", field)
-		}
-		if _, ok := stages[action.NextStage]; !ok {
-			return fmt.Errorf("%s next Transition names unknown Stage %q", field, action.NextStage)
-		}
-	case TransitionRetry:
-		if action.NextStage != "" || action.Escalate != nil || action.Retry == nil || action.Retry.MaxAttempts < 2 {
-			return fmt.Errorf("%s retry Transition requires bounded maxAttempts >= 2", field)
-		}
-		if err := validateResolvedTransition(
-			field+".retry.then",
-			action.Retry.Then,
-			stages,
-			map[TransitionKind]bool{TransitionNext: true, TransitionFail: true},
-		); err != nil {
-			return err
-		}
-	case TransitionEscalate:
-		if action.NextStage != "" || action.Retry != nil || action.Escalate == nil || action.Escalate.MaxAttempts < 1 {
-			return fmt.Errorf("%s escalate Transition requires bounded maxAttempts >= 1", field)
-		}
-		if err := validateResolvedTransition(
-			field+".escalate.then",
-			action.Escalate.Then,
-			stages,
-			map[TransitionKind]bool{TransitionNext: true, TransitionFail: true},
-		); err != nil {
-			return err
-		}
-	case TransitionSucceed, TransitionFail:
-		if action.NextStage != "" || action.Retry != nil || action.Escalate != nil {
-			return fmt.Errorf("%s terminal Transition has an invalid payload", field)
-		}
-	default:
-		return fmt.Errorf("%s has unknown Transition action %q", field, action.Kind)
-	}
-	return nil
-}
-
-func transitionContinuation(action TransitionAction) TransitionAction {
-	if action.Kind == TransitionRetry && action.Retry != nil {
-		return action.Retry.Then
-	}
-	if action.Kind == TransitionEscalate && action.Escalate != nil {
-		return action.Escalate.Then
-	}
-	return action
-}
-
-func topologicalStageOrder(
-	names []string,
-	adjacency map[string]map[string]struct{},
-) ([]string, error) {
-	indegree := make(map[string]int, len(names))
-	for _, name := range names {
-		for target := range adjacency[name] {
-			indegree[target]++
-		}
-	}
-	ready := make([]string, 0, len(names))
-	for _, name := range names {
-		if indegree[name] == 0 {
-			ready = append(ready, name)
-		}
-	}
-	order := make([]string, 0, len(names))
-	for len(ready) > 0 {
-		sort.Strings(ready)
-		name := ready[0]
-		ready = ready[1:]
-		order = append(order, name)
-		for _, target := range slices.Sorted(maps.Keys(adjacency[name])) {
-			indegree[target]--
-			if indegree[target] == 0 {
-				ready = append(ready, target)
-			}
-		}
-	}
-	if len(order) != len(names) {
-		return nil, fmt.Errorf("Workflow Graph contains a next Transition Cycle")
-	}
-	return order, nil
-}
-
-type workflowOutputFlow struct {
-	initialized bool
-	must        map[string]struct{}
-	may         map[string]struct{}
-}
-
-func newWorkflowOutputFlow() workflowOutputFlow {
-	return workflowOutputFlow{
-		initialized: true,
-		must:        make(map[string]struct{}),
-		may:         make(map[string]struct{}),
-	}
-}
-
-func (f workflowOutputFlow) clone() workflowOutputFlow {
-	result := newWorkflowOutputFlow()
-	for name := range f.must {
-		result.must[name] = struct{}{}
-	}
-	for name := range f.may {
-		result.may[name] = struct{}{}
-	}
-	return result
-}
-
-func mergeWorkflowOutputFlow(current, incoming workflowOutputFlow) workflowOutputFlow {
-	if !current.initialized {
-		return incoming.clone()
-	}
-	result := current.clone()
-	for name := range result.must {
-		if _, present := incoming.must[name]; !present {
-			delete(result.must, name)
-		}
-	}
-	for name := range incoming.may {
-		result.may[name] = struct{}{}
-	}
-	return result
-}
-
-func applyWorkflowTransition(
-	stageName string,
-	action TransitionAction,
-	flow workflowOutputFlow,
-	outputs map[string]ArtifactSlot,
-	flows map[string]workflowOutputFlow,
-) error {
-	action = transitionContinuation(action)
-	switch action.Kind {
-	case TransitionNext:
-		flows[action.NextStage] = mergeWorkflowOutputFlow(flows[action.NextStage], flow)
-	case TransitionSucceed:
-		for outputName, slot := range outputs {
-			if _, bound := flow.must[outputName]; slot.Required && !bound {
-				return fmt.Errorf(
-					"Workflow Graph may succeed at Stage %q without required output %q",
-					stageName,
-					outputName,
-				)
-			}
-		}
-	case TransitionFail:
-		return nil
-	default:
-		return fmt.Errorf("Workflow Graph has unresolved Transition action %q", action.Kind)
-	}
-	return nil
-}
-
-func validateMapKey(field, value string) error {
-	if err := validateIdentifier(field, value); err != nil {
-		return err
-	}
-	if strings.Contains(value, "/") {
-		return fmt.Errorf("%s %q must not contain slash", field, value)
-	}
-	return nil
-}
-
-func validateArtifactComponent(field, value string) error {
-	if err := contracts.ValidateArtifactName(value); err != nil {
-		return fmt.Errorf("%s: %w", field, err)
-	}
-	return nil
+	return resolved.ResolvedEscalationExecutionConfig{Override: override}, nil
 }

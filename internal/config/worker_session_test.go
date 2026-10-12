@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/config/auditprofile"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
@@ -43,27 +45,27 @@ func TestWorkflowStageSessionAuthoringIsStrictAndDefaultsToIsolated(t *testing.T
 			root := copyCoreFixture(t)
 			setWorkflowSession(t, root, string(mode))
 			snapshot := mustLoad(t, root)
-			resolved, err := snapshot.Workflow("artifact-copy@1")
+			loaded, err := snapshot.Workflow("artifact-copy@1")
 			if err != nil {
 				t.Fatal(err)
 			}
-			if got := resolved.Stages["copy"].Session; got != mode {
+			if got := loaded.Stages["copy"].Session; got != mode {
 				t.Fatalf("Stage session = %q, want %q", got, mode)
 			}
-			workflowJSON, err := json.Marshal(resolved)
+			workflowJSON, err := json.Marshal(loaded)
 			if err != nil {
 				t.Fatal(err)
 			}
-			decodedWorkflow, err := DecodeResolvedWorkflowSnapshot(workflowJSON)
-			if err != nil || !reflect.DeepEqual(decodedWorkflow, resolved) {
+			decodedWorkflow, err := resolved.DecodeResolvedWorkflowSnapshot(workflowJSON)
+			if err != nil || !reflect.DeepEqual(decodedWorkflow, loaded) {
 				t.Fatalf("persisted Workflow changed %s session: %v", mode, err)
 			}
-			stage := resolved.Stages["copy"]
+			stage := loaded.Stages["copy"]
 			stageJSON, err := json.Marshal(stage)
 			if err != nil {
 				t.Fatal(err)
 			}
-			decodedStage, err := DecodeResolvedStageSnapshot(stageJSON)
+			decodedStage, err := resolved.DecodeResolvedStageSnapshot(stageJSON)
 			if err != nil || !reflect.DeepEqual(decodedStage, stage) {
 				t.Fatalf("persisted Stage changed %s session: %v", mode, err)
 			}
@@ -129,15 +131,15 @@ func TestPersistedSessionRequiresAnExplicitValidMode(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			invalidWorkflow := mutateWorkflowStageSession(t, workflowJSON, test.value, test.remove)
-			decodedWorkflow, err := DecodeResolvedWorkflowSnapshot(invalidWorkflow)
+			decodedWorkflow, err := resolved.DecodeResolvedWorkflowSnapshot(invalidWorkflow)
 			if err == nil || !strings.Contains(strings.ToLower(err.Error()), "session") ||
-				!reflect.DeepEqual(decodedWorkflow, ResolvedWorkflow{}) {
+				!reflect.DeepEqual(decodedWorkflow, resolved.ResolvedWorkflow{}) {
 				t.Fatalf("invalid persisted Workflow = (%+v, %v)", decodedWorkflow, err)
 			}
 			invalidStage := mutateStageSession(t, stageJSON, test.value, test.remove)
-			decodedStage, err := DecodeResolvedStageSnapshot(invalidStage)
+			decodedStage, err := resolved.DecodeResolvedStageSnapshot(invalidStage)
 			if err == nil || !strings.Contains(strings.ToLower(err.Error()), "session") ||
-				!reflect.DeepEqual(decodedStage, ResolvedStage{}) {
+				!reflect.DeepEqual(decodedStage, resolved.ResolvedStage{}) {
 				t.Fatalf("invalid persisted Stage = (%+v, %v)", decodedStage, err)
 			}
 		})
@@ -167,9 +169,9 @@ func TestPersistedAuditProfileRejectsMissingStageSession(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	decoded, err := DecodeResolvedAuditProfileSnapshot(invalid)
+	decoded, err := auditprofile.DecodeResolvedAuditProfileSnapshot(invalid)
 	if err == nil || !strings.Contains(err.Error(), "workerSessionMode") ||
-		!reflect.DeepEqual(decoded, ResolvedAuditProfile{}) {
+		!reflect.DeepEqual(decoded, auditprofile.ResolvedAuditProfile{}) {
 		t.Fatalf("invalid persisted AuditProfile = (%+v, %v)", decoded, err)
 	}
 }

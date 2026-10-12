@@ -17,6 +17,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
@@ -351,7 +352,7 @@ func TestPostgresPublicRunInitializationAndFrozenOutput(t *testing.T) {
 
 type integrationUnitOfWork struct {
 	pool        *pgxpool.Pool
-	credentials config.CredentialLookup
+	credentials resolved.CredentialLookup
 }
 
 func (u integrationUnitOfWork) Do(ctx context.Context, fn func(RunWriter, *artifacts.Service) error) error {
@@ -359,7 +360,7 @@ func (u integrationUnitOfWork) Do(ctx context.Context, fn func(RunWriter, *artif
 		lookup, err := runtimeconfig.BindTransactionLLMCredentialLookup(
 			tx,
 			runtimeconfig.TransactionLLMCredentialLookupFactoryFunc(
-				func(pgx.Tx) (config.CredentialLookup, error) { return u.credentials, nil },
+				func(pgx.Tx) (resolved.CredentialLookup, error) { return u.credentials, nil },
 			),
 		)
 		if err != nil {
