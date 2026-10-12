@@ -273,6 +273,21 @@ in a REPEATABLE READ transaction sees only that transaction's snapshot, so a
 concurrent winner that committed after it began is found by the caller's
 replay after rollback (FAIL-AUD-4), not inside the transaction.
 
+### Indexes of foreign keys
+
+**PER-R20.** Every foreign key has a valid index on its referencing table
+whose leading keys are all of the key's columns, in any order; a partial
+index counts when it holds every row whose key is set. PostgreSQL checks or
+cascades a foreign key for each deleted or re-keyed referenced row by
+querying the referencing table on the key columns, so without that index each
+probe reads the whole table, or the whole of an index that holds the key in a
+later column, and a purge costs as much as the table instead of the rows it
+removes. A foreign key without that index is listed by the schema test with
+its reason and with the schema object that bounds its probe: a usable index
+led by some of the key's columns that selects few rows, or a trigger of the
+referenced table that rejects every deletion and key change, so the probe
+never runs.
+
 ## Limits, failures and errors
 
 Limits ([registry](limits.md)):
@@ -377,6 +392,15 @@ outlasts its retries is the retryable `503 storage_transaction_conflict`
     [`internal/artifacts/audit_preparation_transaction_postgres_test.go`](../../../internal/artifacts/audit_preparation_transaction_postgres_test.go)
     and `TestPostgresSavepointQueryRowKeepsTheCallerTransactionUsable` in
     [`internal/persistence/postgres/savepoint_postgres_test.go`](../../../internal/persistence/postgres/savepoint_postgres_test.go).
+15. Every foreign key of the migrated schema has an index led by all of its
+    columns, or a listed index or trigger that bounds its probe (PER-R20);
+    test `TestForeignKeysHaveProbeIndexes` in
+    [`internal/persistence/postgres/foreign_key_indexes_postgres_test.go`](../../../internal/persistence/postgres/foreign_key_indexes_postgres_test.go).
+    The purge of an Audit with 100,000 executions, beside another Audit's
+    executions and findings, scans none of those tables sequentially and
+    reads no large index whole; test
+    `TestPostgresAuditPurgeAtScaleProbesForeignKeysThroughIndexes` in
+    [`internal/auditstore/purge_scale_postgres_test.go`](../../../internal/auditstore/purge_scale_postgres_test.go).
 
 ## Non-goals
 
