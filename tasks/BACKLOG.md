@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-84 open tasks: 3 in progress, 67 pending, 14 deferred. 812 finished: 809 completed, 3 archived.
+83 open tasks: 3 in progress, 66 pending, 14 deferred. 813 finished: 810 completed, 3 archived.
 
 ## In progress
 
@@ -136,7 +136,6 @@ the epics are in [epics.yml](epics.yml).
 | [V369-005](v369-005-sql-placement-concatenation.yml) | chore | P2 | — | Make the SQL placement check see concatenated statements |
 | [V370-002](v370-002-cross-context-writes.yml) | chore | P2 | V369-001 | Move the remaining cross-context table writes behind their owners |
 | [V370-007](v370-007-one-receipt-and-claim-mechanism.yml) | chore | P2 | — | Use one receipt and claim mechanism |
-| [V370-023](v370-023-audit-purge-fk-indexes.yml) | defect | P2 | — | Index the foreign keys Audit purge checks and test all of them |
 | [V370-028](v370-028-run-event-trigger-cost.yml) | defect | P3 | — | Skip trigger work for Run event appends |
 
 ### Quality, CI and process (`quality`)
@@ -193,5 +192,5 @@ tasks in `introduced_by`.
 | Web UI (`ui`) | 0 | 19 | 51 | 10 | 47 |
 | Operations, authentication, CLI and deployment (`operations`) | 1 | 8 | 30 | 4 | 6 |
 | Public API and wire contracts (`api-contracts`) | 10 | 1 | 24 | 16 | 6 |
-| PostgreSQL persistence and schema (`persistence`) | 8 | 0 | 17 | 29 | 3 |
+| PostgreSQL persistence and schema (`persistence`) | 7 | 0 | 17 | 29 | 4 |
 | Quality, CI and process (`quality`) | 7 | 1 | 15 | 65 | 15 |

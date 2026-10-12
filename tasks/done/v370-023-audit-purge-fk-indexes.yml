@@ -1,0 +1,82 @@
+schema_version: "1.0"
+id: V370-023
+title: "Index the foreign keys Audit purge checks and test all of them"
+milestone: hub-audit-structure-2026-10
+epic: persistence
+kind: defect
+introduced_by: V68-001
+priority: P2
+status: completed
+implementation_commit: 7cee7e90de8c73bc887f45a21e4236365951311a
+depends_on: []
+languages: [sql, go]
+goal: "A purge of an Audit with 100,000 executions does no sequential scan on the FK tables."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq; raw reports in docs/research/2026-10-11-hub-audit/), persistence I1, F2, D 3.5; file:line as of 02bbdcbf, re-verify on current main"
+  finding: >-
+    DELETE FROM audits (auditstore/lifecycle.go:153) cascades over FKs
+    without a non-partial leading index: audit_executions(audit_id) and
+    (round_id, audit_id), audit_findings.current_assessment_id and
+    current_decision_id, eval_commands(experiment_id), gateway route_key and
+    others; TestLifecycleForeignKeyProbeIndexes checks only three parents
+    (lifecycle_fk_indexes_test.go:28-34).
+  siblings: >-
+    Every foreign key of the migrated schema, not only the Audit purge path.
+    Thirteen had no usable index led by all their columns:
+    audit_executions(audit_id) and (round_id, audit_id),
+    audit_finding_assessments(finding_id, audit_id),
+    audit_findings.current_assessment_id, current_decision_id and
+    duplicate_target_id, audit_review_decisions.duplicate_target_id,
+    audit_review_requests.finding_id and report_round_id,
+    eval_commands.experiment_id, the eval_experiments dataset revision, and
+    both Gateway route_key keys. Ruled out: 25 keys whose probe is bounded
+    by a unique or small-group prefix index, or whose referenced
+    finding_proposal_receipts rows a trigger never lets be deleted or
+    re-keyed; each is listed in the test with that object and a reason.
+  decision: >-
+    Guarantee (PER-R20): every foreign key has a valid index whose leading
+    keys are all of its columns in any order, partial only with a
+    "<column> IS NOT NULL" predicate, or an entry in
+    foreignKeyProbeAllowances naming exactly one usable prefix index or
+    BEFORE DELETE OR UPDATE trigger of the parent plus a reason;
+    TestForeignKeysHaveProbeIndexes fails on an uncovered key, an entry for
+    a covered or missing key, and an entry whose object no longer qualifies.
+    Migration 000030 adds twelve indexes (one covers both audit_executions
+    keys). Alternatives: indexing the 25 allowlisted keys too adds write
+    cost on hot tables (stage_executions, audit_items) for probes a unique
+    or bounded prefix already confines; checking only the purge's parents,
+    as before, lets new keys escape. Evidence: without the migration the
+    catalog test lists the thirteen keys, and
+    TestPostgresAuditPurgeAtScaleProbesForeignKeysThroughIndexes reports
+    2,001 sequential scans of audit_findings and whole reads of
+    audit_executions_audit_identity (4,872 blocks of 2,460 in two scans) and
+    audit_executions_identity; without only audit_executions_audit_round_idx
+    it still fails on those two reads, which a seq_scan count alone missed
+    because the planner reads a narrow index whole instead of the heap. With
+    the migration the largest read is 82 of 124 blocks per scan of
+    audit_executions_audit_round_idx, the purged Audit's two thirds. The
+    test keeps statistics absent (default selectivity, as in a database of
+    many Audits), counts per-transaction differences because counters of
+    earlier transactions on the connection may be unflushed, and runs the
+    deferred checks with SET CONSTRAINTS ALL IMMEDIATE inside the measured
+    transaction. Verified: go test -tags integration ./internal/persistence/...
+    and the auditstore purge tests (-run 'TestPostgresPurge|TestPostgresAuditPurgeAtScale');
+    the whole auditstore suite was left to the release gate. Reversal
+    condition: an allowlisted prefix whose groups grow unbounded needs a
+    full index, an immutable-parent entry reopens when receipts become
+    deletable, and the scale test's nine-tenths bound must be re-derived if
+    the background Audit's share of executions changes. introduced_by:
+    V68-001 added the catalog test limited to three parents.
+scope:
+  in:
+    - "Indexes in a migration; the test checks every FK against an explicit allowlist."
+  out:
+    - "Schema semantics."
+acceptance_criteria:
+  - id: A1
+    text: "A purge of an Audit with 100,000 executions does no sequential scan on the FK tables."
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "go test -tags integration ./internal/persistence/postgres ./internal/auditstore"
+    covers: [A1]
