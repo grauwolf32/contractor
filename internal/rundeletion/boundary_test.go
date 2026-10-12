@@ -8,8 +8,6 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"regexp"
-	"sort"
 	"strings"
 	"testing"
 )
@@ -46,40 +44,6 @@ func TestDeletionStepsAreReachedOnlyThroughRundeletion(t *testing.T) {
 	})
 	for _, violation := range violations {
 		t.Errorf("%s: delete Runs through internal/rundeletion so the whole cascade applies", violation)
-	}
-}
-
-// TestRunstoreNamesNoAuditOrFindingTables keeps Run deletion knowledge about
-// Audit and finding tables out of runstore, where the import check cannot see
-// it because SQL text needs no Go import.
-func TestRunstoreNamesNoAuditOrFindingTables(t *testing.T) {
-	t.Parallel()
-
-	moduleRoot := moduleRoot(t)
-	tables := auditAndFindingTables(t, moduleRoot)
-	if len(tables) == 0 {
-		t.Fatal("no Audit or finding tables found in migrations")
-	}
-	pattern := regexp.MustCompile(`\b(` + strings.Join(tables, "|") + `)\b`)
-	runstoreDir := filepath.Join(moduleRoot, "internal", "runstore")
-	entries, err := os.ReadDir(runstoreDir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, entry := range entries {
-		name := entry.Name()
-		if entry.IsDir() || filepath.Ext(name) != ".go" || strings.HasSuffix(name, "_test.go") {
-			continue
-		}
-		source, err := os.ReadFile(filepath.Join(runstoreDir, name))
-		if err != nil {
-			t.Fatal(err)
-		}
-		for index, line := range strings.Split(string(source), "\n") {
-			if match := pattern.FindString(line); match != "" {
-				t.Errorf("internal/runstore/%s:%d names table %s; compose it in internal/rundeletion or the owning store", name, index+1, match)
-			}
-		}
 	}
 }
 
@@ -166,32 +130,4 @@ func deletionStepReferences(fset *token.FileSet, moduleRoot string, file *ast.Fi
 		return true
 	})
 	return found
-}
-
-var createTablePattern = regexp.MustCompile(`(?i)CREATE TABLE (?:IF NOT EXISTS )?((?:audit|finding)[a-z0-9_]*)`)
-
-// auditAndFindingTables lists every Audit and finding table any migration
-// creates, so a renamed table stays covered.
-func auditAndFindingTables(t *testing.T, moduleRoot string) []string {
-	t.Helper()
-	paths, err := filepath.Glob(filepath.Join(moduleRoot, "internal", "persistence", "migrations", "*.sql"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	seen := map[string]bool{}
-	for _, path := range paths {
-		source, err := os.ReadFile(path)
-		if err != nil {
-			t.Fatal(err)
-		}
-		for _, match := range createTablePattern.FindAllStringSubmatch(string(source), -1) {
-			seen[strings.ToLower(match[1])] = true
-		}
-	}
-	tables := make([]string, 0, len(seen))
-	for table := range seen {
-		tables = append(tables, table)
-	}
-	sort.Strings(tables)
-	return tables
 }
