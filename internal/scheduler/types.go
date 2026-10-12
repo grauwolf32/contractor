@@ -139,6 +139,11 @@ type AtomicPersistence interface {
 		string,
 		runstore.EnterAbortingParams,
 	) error
+	// CommitResultProgression accepts a finalizing candidate, applies its
+	// Workflow output mapping and commits the progression. Workflow outputs
+	// that the Run's durable state rules out, such as a mapping onto an
+	// output already bound at another revision, fail with
+	// errOutputStateInvalid and commit nothing.
 	CommitResultProgression(context.Context, ResultProgression) error
 	AcceptResultDuringCancellation(
 		context.Context,

@@ -168,7 +168,9 @@ func (p *PostgresPersistence) CommitResultProgression(
 				ref, present := value.Result.Artifacts[resultName]
 				if !present {
 					if value.OutputContracts[outputName].Required {
-						return fmt.Errorf("required Workflow output %q has no Stage result", outputName)
+						return fmt.Errorf(
+							"%w: required Workflow output %q has no Stage result", errOutputStateInvalid, outputName,
+						)
 					}
 					continue
 				}
@@ -177,7 +179,9 @@ func (p *PostgresPersistence) CommitResultProgression(
 					return fmt.Errorf("bind Workflow output %q: %w", outputName, err)
 				}
 				if !contracts.AcceptsMediaType(value.OutputContracts[outputName].MediaTypes, bound.MediaType) {
-					return fmt.Errorf("Workflow output %q has incompatible media type", outputName)
+					return fmt.Errorf(
+						"%w: Workflow output %q has incompatible media type", errOutputStateInvalid, outputName,
+					)
 				}
 			}
 		}
@@ -378,13 +382,15 @@ func validateResultProgression(value ResultProgression) error {
 			resultName, mapped := value.WorkflowOutputs[outputName]
 			if mapped {
 				if _, exists := value.Result.Artifacts[resultName]; slot.Required && !exists {
-					return fmt.Errorf("required Workflow output %q has no Stage result", outputName)
+					return fmt.Errorf(
+						"%w: required Workflow output %q has no Stage result", errOutputStateInvalid, outputName,
+					)
 				}
 			}
 		}
 		for outputName := range value.WorkflowOutputs {
 			if _, declared := value.OutputContracts[outputName]; !declared {
-				return fmt.Errorf("undeclared Workflow output %q is mapped", outputName)
+				return fmt.Errorf("%w: undeclared Workflow output %q is mapped", errOutputStateInvalid, outputName)
 			}
 		}
 	}
@@ -730,8 +736,8 @@ func projectOutputPublicationFailure(err error) (string, string) {
 
 // verifyRequiredWorkflowOutputs checks, in tx, that every required Workflow
 // output of Run runID is bound and that every bound output's current revision
-// has a media type its slot accepts. It reads the bindings through the
-// ArtifactStore.
+// has a media type its slot accepts; a failed check is errOutputStateInvalid.
+// It reads the bindings through the ArtifactStore.
 func verifyRequiredWorkflowOutputs(
 	ctx context.Context,
 	tx pgx.Tx,
@@ -755,13 +761,13 @@ func verifyRequiredWorkflowOutputs(
 			continue
 		}
 		if errors.Is(err, artifacts.ErrArtifactNotFound) {
-			return fmt.Errorf("required Workflow output %q is not bound", name)
+			return fmt.Errorf("%w: required Workflow output %q is not bound", errOutputStateInvalid, name)
 		}
 		if err != nil {
 			return fmt.Errorf("verify Workflow output %q: %w", name, err)
 		}
 		if !contracts.AcceptsMediaType(slot.MediaTypes, metadata.MediaType) {
-			return fmt.Errorf("Workflow output %q has incompatible media type", name)
+			return fmt.Errorf("%w: Workflow output %q has incompatible media type", errOutputStateInvalid, name)
 		}
 	}
 	return nil

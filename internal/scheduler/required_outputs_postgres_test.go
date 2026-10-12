@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -16,7 +17,8 @@ import (
 // verification of a succeeding Run on the real store, where it reads the
 // current revision of each output binding through the ArtifactStore: a bound
 // output with an accepted media type passes, a missing optional one is
-// skipped, and a missing required one or an incompatible media type fails.
+// skipped, and a missing required one or an incompatible media type fails as
+// invalid output state, which no replay changes.
 func TestPostgresRequiredWorkflowOutputsReadTheArtifactStore(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -55,7 +57,8 @@ func TestPostgresRequiredWorkflowOutputsReadTheArtifactStore(t *testing.T) {
 			}); err != nil {
 				t.Fatal(err)
 			}
-			if test.want == "" && verified != nil || test.want != "" && (verified == nil || verified.Error() != test.want) {
+			if test.want == "" && verified != nil || test.want != "" &&
+				(!errors.Is(verified, errOutputStateInvalid) || !strings.HasSuffix(verified.Error(), ": "+test.want)) {
 				t.Fatalf("verification = %v, want %q", verified, test.want)
 			}
 		})

@@ -416,7 +416,7 @@ Terms used across the specification. Each entry names the document that owns the
 
 **Frame** — One 15-second in-memory record of Server performance measurements. Owner: [Operations](operations/operations.md).
 
-**Frozen binding** — A binding that can no longer advance: for example a Run `outputs` binding once the Run is terminal (except through manual continuation of an eligible failed Run), or an Audit-managed `audit-*` Project binding, which is created frozen. Owner: [Artifact store](artifacts/artifact-store.md).
+**Frozen binding** — A binding that can no longer advance: for example a Run `outputs` binding once the Run is terminal (manual continuation of an eligible failed Run unfreezes it without changing its revision), or an Audit-managed `audit-*` Project binding, which is created frozen. Owner: [Artifact store](artifacts/artifact-store.md).
 
 **Frozen contract artifact** — The Audit artifact created on acceptance of a direct verification that freezes the ResolvedWorkflow snapshot, its closure digest, the selected output declaration, the result schema and the identity/evidence binding rule. Owner: [Review and reports](audits/review-and-reports.md).
 

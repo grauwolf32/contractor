@@ -51,7 +51,9 @@ func forkInput(
 }
 
 // BindOutput binds the exact revision source of runID to outputs/<slot>, as
-// the Scheduler does when it accepts a successful StageResult.
+// the Scheduler does when it accepts a successful StageResult. It only
+// creates: unlike the Scheduler, which replays a binding of the same source
+// (ART-R90), it reports every existing binding as a conflict.
 func BindOutput(
 	ctx context.Context, service *artifacts.Service, runID, slot string, source contracts.ArtifactRef,
 ) (artifacts.ForkResult, error) {

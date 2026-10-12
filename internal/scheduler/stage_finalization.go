@@ -208,6 +208,12 @@ func (s *Scheduler) resumeFinalizing(
 		})
 	}
 	cancelCommit()
+	if errors.Is(err, errOutputStateInvalid) {
+		// No replay can commit these Workflow outputs, such as a mapping onto
+		// an output the Run already bound at another revision (ART-R90): end
+		// the Run as durable state the Scheduler cannot progress (SCH-R102).
+		return s.failInvalidRunState(ctx, run.RunID, err)
+	}
 	if errors.Is(err, errTransientOutputPublication) {
 		err = errors.Join(err, s.countTransientOutputPublication(ctx, execution))
 	}

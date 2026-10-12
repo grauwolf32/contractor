@@ -494,8 +494,7 @@ Planner session.
 **RUN-R47.** One transaction changes the Run from `failed` to
 `pending`, clears its finish time, creates a new `preparing` attempt of the
 same Stage, records a durable manual-continuation receipt and unfreezes the
-Run's `outputs` bindings without changing their current revisions, so later
-Scheduler publication may advance them
+Run's `outputs` bindings without changing their current revisions
 ([ART-R97](../artifacts/artifact-store.md)).
 
 **RUN-R48.** The new attempt increments `attempt`, links

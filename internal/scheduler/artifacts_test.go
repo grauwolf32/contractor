@@ -3,10 +3,12 @@ package scheduler
 import (
 	"context"
 	"errors"
+	"reflect"
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/runstore"
 )
 
 // recordingForkRepository records the forks that reach storage; any other
@@ -23,7 +25,8 @@ func (r *recordingForkRepository) Fork(_ context.Context, fork artifacts.Fork) (
 
 // The Scheduler binds and publishes only exact Run output revisions
 // (ART-R90, ART-R99): a versionless source or a publication of another slot
-// never reaches the store, and the forks that do carry the output rules.
+// never reaches the store, and the forks that do carry the output rules. Only
+// the output binding replays an identical source; publication only creates.
 func TestOutputForksBindAndPublishOnlyExactOutputs(t *testing.T) {
 	ctx := context.Background()
 	repository := &recordingForkRepository{}
@@ -62,7 +65,7 @@ func TestOutputForksBindAndPublishOnlyExactOutputs(t *testing.T) {
 	bound, published := repository.forks[0], repository.forks[1]
 	if bound.Kind != artifacts.LineageOutputBind || bound.Source != run || bound.Target != run ||
 		!bound.SourceRef.SameExact(result) || bound.TargetRef != (contracts.ArtifactRef{Namespace: "outputs", Name: "result"}) ||
-		bound.Frozen || bound.SourceFrozen || bound.Replay {
+		bound.Frozen || bound.SourceFrozen || !bound.Replay {
 		t.Fatalf("output binding fork = %+v", bound)
 	}
 	if published.Kind != artifacts.LineageProjectOutputPublish || published.Source != run || published.Target != project ||
@@ -70,5 +73,40 @@ func TestOutputForksBindAndPublishOnlyExactOutputs(t *testing.T) {
 		published.TargetRef != (contracts.ArtifactRef{Namespace: "outputs", Name: "openapi"}) ||
 		published.Frozen || published.Replay {
 		t.Fatalf("Project publication fork = %+v", published)
+	}
+}
+
+// The memory double of the result commit binds each Workflow output once, as
+// the store does (ART-R90): the binding of the candidate's own source is
+// replayed, and one of another revision refuses the acceptance as invalid
+// output state, which ends the Run without replacing the binding.
+func TestMemoryResultCommitBindsEachOutputOnce(t *testing.T) {
+	for _, test := range []struct {
+		name     string
+		existing string
+		state    runstore.WorkflowRunState
+		reason   string
+	}{
+		{"candidate source", "output-result-r1", runstore.RunSucceeded, "workflow_succeeded"},
+		{"another revision", "output-earlier", runstore.RunFailed, "scheduler_state_invalid"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			h := newSchedulerHarness(t)
+			existing := exactRef("outputs", "result", test.existing)
+			h.persistence.outputs["result"] = existing
+			if worked, err := h.scheduler.RunOnce(t.Context()); err != nil || !worked {
+				t.Fatalf("RunOnce = (%v, %v)", worked, err)
+			}
+			if h.store.run.State != test.state || h.store.run.StateReason.Code != test.reason {
+				t.Fatalf("Run = %s (%+v), want %s (%s)", h.store.run.State, h.store.run.StateReason, test.state, test.reason)
+			}
+			if len(h.store.stages) != 1 || h.store.stages[0].State != runstore.StageSucceeded ||
+				h.store.stages[0].AcceptedResult == nil {
+				t.Fatalf("StageExecutions = %+v, want the candidate accepted", h.store.stages)
+			}
+			if !reflect.DeepEqual(h.persistence.outputs, map[string]contracts.ArtifactRef{"result": existing}) {
+				t.Fatalf("outputs = %+v, want only %+v", h.persistence.outputs, existing)
+			}
+		})
 	}
 }

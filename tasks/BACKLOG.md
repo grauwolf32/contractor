@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-84 open tasks: 3 in progress, 67 pending, 14 deferred. 870 finished: 867 completed, 3 archived.
+83 open tasks: 3 in progress, 66 pending, 14 deferred. 871 finished: 868 completed, 3 archived.
 
 ## In progress
 
@@ -70,7 +70,6 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V371-019](v371-019-audit-namespace-prefix-rule.yml) | chore | P3 | — | Use artifactpolicy's Audit namespace rule in the Audit namespace purge |
-| [V372-017](v372-017-workflow-output-create-or-advance.yml) | defect | P2 | — | Decide whether the Scheduler only creates Workflow output bindings or also advances them, and make spec and code agree |
 
 ### Audits (`audits`)
 
@@ -186,7 +185,7 @@ tasks in `introduced_by`.
 | Scanner tool Workers and scan planning (`scan-tools`) | 1 | 10 | 4 | 1 | 7 |
 | Findings tools and collections (`findings`) | 4 | 7 | 5 | 4 | 7 |
 | Workflow catalog and document workflows (`workflows`) | 3 | 13 | 13 | 11 | 12 |
-| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 2 | 27 | 32 | 4 | 34 |
+| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 1 | 27 | 32 | 4 | 34 |
 | Audits (`audits`) | 21 | 49 | 68 | 12 | 76 |
 | Evaluations (`evals`) | 4 | 21 | 28 | 5 | 33 |
 | Podman sandbox (`sandbox`) | 0 | 8 | 1 | 1 | 2 |

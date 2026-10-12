@@ -701,6 +701,30 @@ func TestWorkflowTransitionRejectsOptionalResultAsRequiredOutput(t *testing.T) {
 	}
 }
 
+// A Run binds each Workflow output once and refuses a second mapping
+// (ART-R90); that never happens to a valid Workflow because the graph cannot
+// map one output in two Stages of one path (WFL-R85).
+func TestWorkflowGraphRejectsOutputMappedTwiceOnOnePath(t *testing.T) {
+	t.Parallel()
+	root := copyCoreFixture(t)
+	workflow := strings.Replace(
+		multiStageWorkflowYAML,
+		"      on:\n        succeeded: {next: review}\n",
+		"      workflowOutputs:\n        result: copied\n      on:\n        succeeded: {next: review}\n",
+		1,
+	)
+	if workflow == multiStageWorkflowYAML {
+		t.Fatal("the build Stage of the fixture did not gain an output mapping")
+	}
+	writeFile(t, filepath.Join(root, "workflows/artifact_copy.yaml"), []byte(workflow))
+
+	snapshot, err := Load(root)
+	if err == nil || snapshot != nil ||
+		!strings.Contains(err.Error(), `Workflow output "result" may be mapped more than once on one Graph path`) {
+		t.Fatalf("Load(output mapped twice) = (%v, %v)", snapshot, err)
+	}
+}
+
 func TestWorkflowResultBindingsAreTrustedAndVersionless(t *testing.T) {
 	t.Parallel()
 
