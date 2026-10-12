@@ -461,10 +461,16 @@ func TestPostgresAuditPreparationRetentionAndLifecycleWithoutRound(t *testing.T)
 		if err != nil || auditdomain.DigestBytes(read.Payload.Data) != output.Retained.Digest {
 			t.Fatalf("retained content: %v", err)
 		}
+		// The generic Project store refuses every write under audit-*
+		// (ART-R26), and the retained binding itself is frozen.
 		project, _ := f.artifacts.Project(f.audit.ProjectID)
 		mutable := output.Retained.Ref
 		mutable.Revision = nil
-		if _, err := project.Write(f.ctx, mutable, Payload{MediaType: "application/json", Data: []byte("changed")}, output.Retained.Ref.Revision); !errors.Is(err, ErrArtifactFrozen) {
+		changed := Payload{MediaType: "application/json", Data: []byte("changed")}
+		if _, err := project.Write(f.ctx, mutable, changed, output.Retained.Ref.Revision); !errors.Is(err, ErrReservedNamespace) {
+			t.Fatalf("generic write of a retained binding: %v", err)
+		}
+		if _, err := NewPostgresRepository(f.pool).Write(f.ctx, mustProjectScope(t, f.audit.ProjectID), mutable, changed, output.Retained.Ref.Revision); !errors.Is(err, ErrArtifactFrozen) {
 			t.Fatalf("retained binding was mutable: %v", err)
 		}
 	}
