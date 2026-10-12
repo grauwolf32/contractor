@@ -57,11 +57,7 @@ var sharedFiles = []string{
 }
 
 // compositionFiles assemble the contexts and register their routes.
-var compositionFiles = []string{
-	"router.go", "routes_artifact.go", "routes_audit.go", "routes_catalog.go", "routes_eval.go",
-	"routes_operations.go", "routes_project.go", "routes_queue.go", "routes_run.go",
-	"routes_session.go", "routes_settings.go",
-}
+var compositionFiles = []string{"router.go", "routes.go"}
 
 // TestContextFilesReachOnlyTheirOwnDependencies keeps every context on its own
 // handler struct: a context file declares methods only on its own struct and

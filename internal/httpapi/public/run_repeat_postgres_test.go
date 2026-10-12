@@ -138,7 +138,7 @@ func TestPostgresRunRepeatRequiresRetainedAuthorityWithoutMutation(t *testing.T)
 					var first []byte
 					for range 2 {
 						request := httptest.NewRequest(http.MethodGet, "/v1/runs/"+runID+"/repeat-draft", nil).WithContext(auth.WithPrincipal(ctx, auth.Principal{UserID: "user-1"}))
-						request.SetPathValue("runID", runID)
+						request.SetPathValue("runId", runID)
 						response := httptest.NewRecorder()
 						h.getRunRepeatDraft(response, request)
 						var repeat runRepeatDraftResponse

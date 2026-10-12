@@ -23,54 +23,66 @@ type gitKeyHandlers struct {
 	GitKeyDependencies
 }
 
-func (h *gitKeyHandlers) gitKeySettings(w http.ResponseWriter, r *http.Request) {
-	if rejectHead(w, r) {
+func (h *gitKeyHandlers) getGitKey(w http.ResponseWriter, r *http.Request) {
+	if rejectHead(w, r) || !acceptGitKeyRequest(w, r) {
 		return
 	}
-	w.Header().Set("Cache-Control", "no-store")
-	if _, err := exactQuery(r.URL.RawQuery); err != nil {
+	m, err := h.GitKeys.Metadata(r.Context(), principalUserID(r.Context()))
+	if err != nil {
 		gitKeyError(w, err)
 		return
 	}
-	owner := principalUserID(r.Context())
-	switch r.Method {
-	case http.MethodGet:
-		m, err := h.GitKeys.Metadata(r.Context(), owner)
-		if err != nil {
-			gitKeyError(w, err)
-			return
-		}
-		writeJSON(w, http.StatusOK, m)
-	case http.MethodPut:
-		mt, err := requestMediaType(r)
-		if err != nil || mt != "application/json" {
-			handleError(w, errInvalidRequest)
-			return
-		}
-		var body struct {
-			PrivateKey string `json:"privateKey"`
-		}
-		if err := decodeJSONBounded(w, r, &body, 64<<10); err != nil {
-			if !errors.Is(err, errRequestTooLarge) {
-				err = credentials.ErrGitKeyInvalid
-			}
-			handleError(w, err)
-			return
-		}
-		key := []byte(body.PrivateKey)
-		body.PrivateKey = ""
-		defer clear(key)
-		m, err := h.GitKeys.Replace(r.Context(), owner, key)
-		if err != nil {
-			gitKeyError(w, err)
-			return
-		}
-		writeJSON(w, http.StatusOK, m)
-	case http.MethodDelete:
-		if err := h.GitKeys.Delete(r.Context(), owner); err != nil {
-			gitKeyError(w, err)
-			return
-		}
-		w.WriteHeader(http.StatusNoContent)
+	writeJSON(w, http.StatusOK, m)
+}
+
+func (h *gitKeyHandlers) replaceGitKey(w http.ResponseWriter, r *http.Request) {
+	if !acceptGitKeyRequest(w, r) {
+		return
 	}
+	mt, err := requestMediaType(r)
+	if err != nil || mt != "application/json" {
+		handleError(w, errInvalidRequest)
+		return
+	}
+	var body struct {
+		PrivateKey string `json:"privateKey"`
+	}
+	if err := decodeJSONBounded(w, r, &body, 64<<10); err != nil {
+		if !errors.Is(err, errRequestTooLarge) {
+			err = credentials.ErrGitKeyInvalid
+		}
+		handleError(w, err)
+		return
+	}
+	key := []byte(body.PrivateKey)
+	body.PrivateKey = ""
+	defer clear(key)
+	m, err := h.GitKeys.Replace(r.Context(), principalUserID(r.Context()), key)
+	if err != nil {
+		gitKeyError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, m)
+}
+
+func (h *gitKeyHandlers) deleteGitKey(w http.ResponseWriter, r *http.Request) {
+	if !acceptGitKeyRequest(w, r) {
+		return
+	}
+	if err := h.GitKeys.Delete(r.Context(), principalUserID(r.Context())); err != nil {
+		gitKeyError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// acceptGitKeyRequest keeps every Git key response out of caches and refuses
+// a query string.
+func acceptGitKeyRequest(w http.ResponseWriter, r *http.Request) bool {
+	w.Header().Set("Cache-Control", "no-store")
+	if _, err := exactQuery(r.URL.RawQuery); err != nil {
+		gitKeyError(w, err)
+		return false
+	}
+	return true
 }

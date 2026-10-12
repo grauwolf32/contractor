@@ -396,7 +396,7 @@ func (h *runHandlers) deleteRun(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.RunDeletion.DeleteReleasedTerminalRun(
-		r.Context(), principalUserID(r.Context()), r.PathValue("runID"),
+		r.Context(), principalUserID(r.Context()), r.PathValue("runId"),
 	); err != nil {
 		handleError(w, err)
 		return
@@ -414,7 +414,7 @@ func (h *runHandlers) getRun(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	detail, err := h.RunDetails.Read(
-		r.Context(), principalUserID(r.Context()), r.PathValue("runID"),
+		r.Context(), principalUserID(r.Context()), r.PathValue("runId"),
 	)
 	if err != nil {
 		handleError(w, err)

@@ -112,17 +112,7 @@ func NewHandler(dependencies Dependencies) (http.Handler, error) {
 	}
 
 	mux := http.NewServeMux()
-	contexts.registerSettingsRoutes(mux)
-	contexts.registerSessionRoutes(mux)
-	contexts.registerCatalogRoutes(mux)
-	contexts.registerProjectRoutes(mux)
-	contexts.registerAuditRoutes(mux)
-	contexts.registerEvalRoutes(mux)
-	contexts.registerOperationsRoutes(mux)
-	contexts.registerArtifactRoutes(mux)
-	contexts.registerRunRoutes(mux)
-	contexts.registerQueueRoutes(mux)
-	mux.HandleFunc("/", notFound)
+	contexts.register(mux)
 
 	// Incoming requests pass API version, request ID, origin policy,
 	// authentication, Operations authorization and error diagnostics in that

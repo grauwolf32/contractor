@@ -158,7 +158,7 @@ func TestSchedulerSettingsRequireOperationsCapability(t *testing.T) {
 	mux := http.NewServeMux()
 	contextHandlers{operations: &operationsHandlers{
 		OperationsDependencies: OperationsDependencies{SchedulerSettings: settings},
-	}}.registerOperationsRoutes(mux)
+	}}.register(mux)
 	protected := requireOperationsRoutes(mux)
 	tests := []struct {
 		name       string

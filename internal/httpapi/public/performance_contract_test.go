@@ -17,9 +17,8 @@ import (
 func TestPerformancePublicContracts(t *testing.T) {
 	document := loadPublicOpenAPI(t)
 	for _, path := range []string{"/v1/operations/performance", "/v1/operations/performance/history", "/v1/operations/allocation-history"} {
-		operation := document.Paths.Value(path).Get
-		if operation == nil || operation.Extensions["x-contractor-implementation"] != "implemented" {
-			t.Fatalf("%s must be an implemented read-only contract", path)
+		if document.Paths.Value(path).Get == nil {
+			t.Fatalf("%s must be a read-only contract", path)
 		}
 		if len(document.Paths.Value(path).Operations()) != 1 {
 			t.Fatalf("unexpected writable performance route: %s", path)

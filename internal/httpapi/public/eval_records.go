@@ -115,7 +115,7 @@ func (h *evalHandlers) reviewEvalMember(w http.ResponseWriter, r *http.Request) 
 
 func mustEvalJSON(value string) []byte { raw, _ := json.Marshal(value); return raw }
 
-func (h *evalHandlers) evalMemberExecutions(w http.ResponseWriter, r *http.Request) {
+func (h *evalHandlers) listEvalMemberExecutions(w http.ResponseWriter, r *http.Request) {
 	q, limit, err := evalQuery(r)
 	if err != nil {
 		evalError(w, err)

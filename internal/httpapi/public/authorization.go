@@ -75,7 +75,7 @@ func runtimeCredentialUser(ctx context.Context) credentials.RuntimeCredentialUse
 // ownedRun reads the Run of the route and hides another owner's Run as
 // missing (API-R25).
 func ownedRun(r *http.Request, runs RunGetter) (runstore.WorkflowRun, error) {
-	run, err := runs.GetRun(r.Context(), r.PathValue("runID"))
+	run, err := runs.GetRun(r.Context(), r.PathValue("runId"))
 	if err != nil {
 		return runstore.WorkflowRun{}, err
 	}

@@ -60,7 +60,7 @@ type handlerFixture struct {
 	metrics             *fakeMetricsReader
 	plans               *fakePlannerPlanReader
 	allocationResources *fakeAllocationResourceReader
-	// detailStores are the readers GET /v1/runs/{runID} uses; a test may
+	// detailStores are the readers GET /v1/runs/{runId} uses; a test may
 	// replace one before it sends a request.
 	detailStores       *runservice.RunDetailStores
 	credentials        *fakeManagedCredentials

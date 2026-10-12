@@ -31,17 +31,28 @@ type artifactArchiveFileResponse struct {
 
 type archiveStoreResolver func(http.ResponseWriter, *http.Request) (artifacts.ScopedStore, bool)
 
-func (h *artifactHandlers) registerArchiveRoutes(mux *http.ServeMux, prefix string, resolve archiveStoreResolver) {
-	for _, file := range []bool{false, true} {
-		path := prefix + "/archive"
-		if file {
-			path += "/file"
-		}
-		mux.HandleFunc("GET "+path, func(w http.ResponseWriter, r *http.Request) {
-			h.getArtifactArchive(w, r, resolve, file)
-		})
-		mux.HandleFunc(path, methodNotAllowed)
-	}
+func (h *artifactHandlers) getArtifactArchive(w http.ResponseWriter, r *http.Request) {
+	h.serveArchive(w, r, h.userArchiveStore, false)
+}
+
+func (h *artifactHandlers) getArtifactArchiveFile(w http.ResponseWriter, r *http.Request) {
+	h.serveArchive(w, r, h.userArchiveStore, true)
+}
+
+func (h *artifactHandlers) getProjectArtifactArchive(w http.ResponseWriter, r *http.Request) {
+	h.serveArchive(w, r, h.projectArchiveStore, false)
+}
+
+func (h *artifactHandlers) getProjectArtifactArchiveFile(w http.ResponseWriter, r *http.Request) {
+	h.serveArchive(w, r, h.projectArchiveStore, true)
+}
+
+func (h *artifactHandlers) getRunArtifactArchive(w http.ResponseWriter, r *http.Request) {
+	h.serveArchive(w, r, h.runArchiveStore, false)
+}
+
+func (h *artifactHandlers) getRunArtifactArchiveFile(w http.ResponseWriter, r *http.Request) {
+	h.serveArchive(w, r, h.runArchiveStore, true)
 }
 
 func (h *artifactHandlers) userArchiveStore(w http.ResponseWriter, r *http.Request) (artifacts.ScopedStore, bool) {
@@ -74,7 +85,7 @@ func (h *artifactHandlers) runArchiveStore(w http.ResponseWriter, r *http.Reques
 	return store, !h.rejectRunSystemArtifactRoute(w, r)
 }
 
-func (h *artifactHandlers) getArtifactArchive(w http.ResponseWriter, r *http.Request, resolve archiveStoreResolver, file bool) {
+func (h *artifactHandlers) serveArchive(w http.ResponseWriter, r *http.Request, resolve archiveStoreResolver, file bool) {
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	if rejectHead(w, r) {
