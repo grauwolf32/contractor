@@ -1,0 +1,90 @@
+schema_version: "1.0"
+id: V372-017
+title: "Decide whether the Scheduler only creates Workflow output bindings or also advances them, and make spec and code agree"
+milestone: hub-audit-defects-2026-10
+epic: projects-artifacts
+kind: defect
+priority: P2
+status: pending
+depends_on: []
+languages: [go, sql, markdown]
+goal: "ART-R90, ART-R97, RUN-R47 and the Scheduler's output binding state the same rule for an outputs/<slot> binding that already exists, chosen with the user and recorded with its evidence and reversal condition."
+context:
+  review: "Out-of-scope finding of the hub audit fix batch, wave 2 (group w2g: V370-016), marked DECISION NEEDED, recorded 2026-10-12; file:line verified on b2b09ea"
+  specification: "docs/spec/artifacts/artifact-store.md#ART-R90"
+  severity: medium
+  finding: >-
+    ART-R90 (docs/spec/artifacts/artifact-store.md:835-842) says the
+    Scheduler "creates or advances" each outputs/<workflow output name>
+    binding when it applies a Stage's workflowOutputs mapping, and ART-R97
+    (:874-883) with RUN-R47 (docs/spec/execution/runs.md:494-499) says that
+    manual continuation unfreezes the outputs bindings without changing their
+    revisions "so later Scheduler publication may advance them". The code
+    only creates: bindOutput (internal/scheduler/artifacts.go:46-64) forks
+    the exact StageResult revision into the RunScope without a target
+    revision or replay flag, forkSQL creates the target only when it does
+    not exist (internal/artifacts/postgres_fork_sql.go:14-17, ON CONFLICT DO
+    NOTHING), and Fork answers an existing target with ConflictError unless
+    a replay names the same source revision
+    (internal/artifacts/postgres_fork.go:50-55). A Stage that maps an output
+    that is already bound therefore fails its acceptance with a conflict
+    instead of advancing the binding. Before V370-016 the Service took an
+    expected output revision that its only production caller always passed
+    as nil (scheduler/postgres.go:189-195 at 6349621); V370-016 removed the
+    unused parameter. Whether any path can map an already-bound output is
+    part of the question: the Workflow graph check rejects mapping one output
+    twice on one path (internal/config/resolved/workflow.go:224-228), ART-R90
+    applies a mapping only for a successful StageResult, and a continuation
+    re-runs a failed Stage, which bound nothing.
+  siblings: >-
+    Other writers of RunScope outputs: freezeOutputs and ThawOutputs
+    (scheduler/artifacts.go:66-75, artifacts/postgres_fork.go:89-105) keep
+    revisions; Project output publication (publishRunOutput,
+    scheduler/artifacts.go:77-99, ART-R99) is create-only by design and is
+    not part of this decision. WFL-R71 (docs/spec/configuration/workflows.md)
+    restates the binding rule and must follow the decision.
+  decision_needed: >-
+    Option A, create-only: ART-R90 says the Scheduler creates each output
+    binding once per Run, ART-R97 and RUN-R47 drop "may advance them", and
+    the specification states why no path needs more (the graph rule above,
+    successful results only, continuation of a failed Stage) and how a
+    mapping onto an existing binding fails anyway: a classified permanent
+    failure of that Stage's acceptance, never an endless retry. The code
+    keeps its binding statement; the work is the specification, the failure
+    classification and a test. A future Workflow shape that maps an output
+    again (loops, remapping after continuation) would need a new decision.
+    Option B, advance: bindOutput passes the current revision of an existing
+    outputs/<slot> binding as a compare-and-set precondition, or replays an
+    identical source, and the artifact store gains an advance path beside the
+    create-only fork, with an output_bind lineage edge for every revision;
+    frozen bindings still refuse. The specification stays as written; the
+    work is a new repository operation and tests for the precondition, a
+    replay after a lost commit, a frozen binding and concurrent acceptance,
+    for a case that may not be reachable today. Either way the choice, its
+    evidence and its reversal condition go into ART-R90.
+scope:
+  in:
+    - "Record the decision with the user (A1) before any other change."
+    - "Make ART-R90, ART-R97, RUN-R47 and WFL-R71 and the Scheduler's binding agree with the decision, including the classified outcome of a mapping onto an existing binding."
+    - "A PostgreSQL test of the case the decision covers: a Stage acceptance whose mapping meets an existing outputs/<slot> binding, reached through a continuation if a reachable path exists, otherwise through the store directly."
+  out:
+    - "Project output publication (ART-R99), which stays create-only."
+failure_outcomes:
+  - operation: "Applying a workflowOutputs mapping onto an existing outputs/<slot> binding"
+    permanent: "Option A: a classified permanent failure of the Stage acceptance, never retried. Option B: a frozen binding refuses as today."
+    retryable: "A transaction conflict uses the existing bounded transaction retry of the acceptance."
+    ambiguous: "A replay after a lost commit finds the identical source revision and succeeds without a second revision."
+    cancelled: "The acceptance transaction rolls back with its context; nothing is bound."
+    timeout: "The Scheduler's acceptance budget owns it, as today."
+acceptance_criteria:
+  - id: A1
+    text: "The decision (Option A or B), its evidence, the alternative and the reversal condition are recorded in ART-R90 and in this task after the user chose it."
+  - id: A2
+    text: "The specification and the code give the same outcome for a mapping onto an existing outputs/<slot> binding, and the PostgreSQL test pins it."
+  - id: A3
+    text: "Ordinary first bindings, freezing at Run end and Project output publication behave as before."
+tests:
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/scheduler ./internal/artifacts ./internal/runstore"
+    covers: [A2, A3]
+  - command: make lint
+    covers: [A1, A2, A3]

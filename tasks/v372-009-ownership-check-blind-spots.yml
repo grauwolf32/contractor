@@ -1,0 +1,73 @@
+schema_version: "1.0"
+id: V372-009
+title: "Close the blind spots of the table ownership check"
+milestone: hub-audit-defects-2026-10
+epic: persistence
+kind: chore
+introduced_by: V369-001
+priority: P3
+status: pending
+depends_on: []
+languages: [go, sql]
+goal: "The table ownership check sees relations that reach SQL through a helper argument, lock clauses appended apart from FROM, and the writes that migration triggers and functions make to another owner's tables."
+context:
+  review: "Out-of-scope findings of the hub audit fix batch, wave 2 (group w2a: V369-001), recorded 2026-10-12; file:line verified on b2b09ea"
+  specification: "docs/spec/platform/persistence.md#PER-R23"
+  finding: >-
+    The SQL scan behind TestSQLAccessFollowsTableOwnership documents two
+    limits (internal/persistence/sql_access_test.go:35-37), and production
+    code uses both. auditEventsFrom
+    (internal/auditstore/internal/pgstore/event_allocation.go:50-59) takes the
+    relation it reads as a function argument (callers collection_sql.go:8,
+    lifecycle_sql.go:10 and report_review_sql.go:29 of the same package), and
+    two statements append their lock clause apart from FROM: Store.project
+    (internal/evalstore/store.go:114-119, query += FOR SHARE on projects) and
+    Repository.lockBindings (internal/runtimeconfig/repository.go:364-389,
+    which appends FOR SHARE or FOR UPDATE passed in as mode). None breaks the
+    rule today, but a foreign relation or an exclusive lock written in these
+    forms would pass unseen. Separately, PER-R23 leaves the triggers and
+    functions that migrations define outside the rule, and several write
+    across owners: contractor_admit_audit_finding
+    (internal/persistence/migrations/000001_baseline.sql:35, replaced in
+    000003_audit_event_allocator.sql:66-110),
+    fired by findingintake's insert into finding_proposal_audit_holds
+    (trigger at 000001_baseline.sql:3601), writes audit_findings,
+    audit_finding_contributions and audits, owned by
+    internal/auditstore/internal/pgstore, and calls
+    contractor_append_audit_events, which inserts into audit_events; the Eval
+    projection triggers on workflow_runs, stage_executions, stage_metrics,
+    artifact_bindings, artifact_binding_revisions, audits, audit_executions
+    and audit_artifact_links (000001_baseline.sql:2164, 2189, 2341, 2384,
+    2407, 2965, 3156 and 3388) write evalstore's eval_member_projections and
+    eval_projection_queue. The scan and its documented limits came with
+    V369-001 (404854167).
+  siblings: >-
+    contractor_eval_retain_deleted_execution (redefined in
+    000013_mutation_receipts.sql:146-178), fired when a Run or an Audit is
+    deleted, inserts evalstore's eval_execution_tombstones and updates
+    eval_experiments; check every other trigger function that writes a table
+    of another owner than the one it is attached to. Other SQL builders that
+    take relation names or clauses as string arguments: the scan already
+    marks their operands as unknown SQL, so a list of such declarations is a
+    starting point. V371-012 changes the lock order of the Eval projection
+    triggers; this task only makes their writes visible to the check.
+scope:
+  in:
+    - "The scan resolves the relation arguments of package-level SQL helpers and lock clauses appended with += or passed as arguments, or a source check forbids those forms and the three sites are rewritten; the limits paragraph of sql_access_test.go shrinks to what is still unseen."
+    - "A registry section for cross-owner writes by migration triggers and functions, each with its reason, checked on PostgreSQL against the migrated schema's triggers and function bodies, and PER-R23 updated to cover them."
+  out:
+    - "Moving the trigger writes behind the owners' Go APIs, and the Eval projection lock order (V371-012)."
+acceptance_criteria:
+  - id: A1
+    text: "A probe that writes another owner's table through a helper argument, or locks it with an appended FOR UPDATE, fails the ownership test."
+  - id: A2
+    text: "A probe migration that adds a trigger writing another owner's table without a registry entry fails the PostgreSQL ownership test."
+  - id: A3
+    text: "The registry, with the new entries, passes on the current code and schema."
+tests:
+  - command: "go test ./internal/persistence"
+    covers: [A1, A3]
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/persistence/postgres"
+    covers: [A2, A3]
+  - command: make lint
+    covers: [A1, A2, A3]

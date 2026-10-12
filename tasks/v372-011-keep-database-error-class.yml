@@ -1,0 +1,76 @@
+schema_version: "1.0"
+id: V372-011
+title: "Keep the database error class on store paths that replace the error"
+milestone: hub-audit-defects-2026-10
+epic: persistence
+kind: defect
+priority: P2
+status: pending
+depends_on: []
+languages: [go]
+goal: "Every failed database call keeps its PER-R13 outcome class up to the caller, so a transaction conflict is retried or answered as 503 storage_transaction_conflict and a cancelled context stays cancelled, instead of becoming an unclassified internal error."
+context:
+  review: "Out-of-scope finding of the hub audit fix batch, wave 2 (group w2h: V370-001), recorded 2026-10-12; file:line verified on b2b09ea"
+  specification: "docs/spec/platform/persistence.md#PER-R13"
+  severity: medium
+  finding: >-
+    After placement locks the StageExecution through
+    runstore.LockStageState, an error other than ErrNotFound and ErrConflict
+    is replaced by errors.New("lock StageExecution for allocation placement")
+    (internal/controlplane/placement.go:356-368, line 366). A serialization
+    failure, a lock timeout or a cancelled context loses its class there:
+    the bounded transaction retry (PER-R16) no longer sees a conflict and
+    the caller sees an internal error. PER-R13 requires every component to
+    derive its retry decision from the one classification. The replacement
+    predates the shallow history (boundary 6349621; the earlier inline query
+    did the same) and V370-001 kept it when it moved the lock into runstore.
+    The same pattern sits on many other database paths: agentprincipal
+    (repository.go:66, 78, 94, 114, 126 and 261, the last one the scan of
+    the FOR UPDATE principal lock), the Runtime credential repository
+    (credentials/runtime_repository.go:33, 45, 117, 124, 129, 151, 185, 198,
+    205, 210, 219, 225, 230, 234, 240, 245, 249, 255 and 260; the write
+    classifier classifyRuntimeCredentialWrite at :350-355, which keeps only
+    constraint errors; and the default branch of
+    safeRuntimeCredentialStoreError at :387-401), the credential lifecycle
+    (credentials/lifecycle.go:371, 584 and 633) and runstore's credential
+    reference read (runstore/store.go:86, 93 and 101).
+  siblings: >-
+    Already correct after V370-007: the Runtime management receipts
+    (runtimeconfig/management_receipts.go) now return the database error as
+    it is. To check and fix or rule out: placement.go:275 (an error of the
+    in-memory Registry commit) and controlplane/runtime_client.go:217 and
+    784 (Runtime response body reads, where a deadline or cancellation loses
+    its class). V368-003 made Classify the one classification but checked
+    only SQLSTATE comparisons, not paths that drop the error. A source check
+    that finds an error built with errors.New in the branch of a failed
+    pgx call keeps the class from coming back.
+scope:
+  in:
+    - "Wrap the cause (fmt.Errorf with %w) or return the classified error on every path listed, keeping the safe messages the public and private APIs show."
+    - "A source check over production Go that rejects replacing the error of a failed database call with a new error, with an allowlist that states each reason."
+    - "Tests that drive a transaction conflict and a cancelled context through placement, a principal label replacement and a Runtime credential usage read on PostgreSQL."
+  out:
+    - "The classification table itself (PER-R13) and the public error codes."
+failure_outcomes:
+  - operation: "Each listed database read, lock or write"
+    permanent: "A constraint or invalid-input class keeps its domain error as today."
+    retryable: "A transaction conflict reaches the caller's bounded retry (PER-R16) and, once exhausted, the public answer 503 storage_transaction_conflict."
+    ambiguous: "Unchanged: reads and locks have no ambiguous outcome; writes keep their existing receipts."
+    cancelled: "context.Canceled and context.DeadlineExceeded stay detectable with errors.Is, and nothing is retried after cancellation."
+    timeout: "The operation budget that owns the call reports it, as PER-R19 assigns."
+acceptance_criteria:
+  - id: A1
+    given: "A serialization failure injected into the StageExecution lock of placement"
+    when: "Placement runs inside its retrying transaction"
+    then: "The conflict is retried and, when retries are exhausted, reported as a transaction conflict, not as an internal error."
+  - id: A2
+    text: "Each listed path returns an error for which IsTransactionConflict, errors.Is(err, context.Canceled) and the public error mapping give the same answer as for the unwrapped database error."
+  - id: A3
+    text: "The source check fails on a probe that replaces a pgx error with errors.New, and the new tests fail on b2b09ea."
+tests:
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/controlplane ./internal/agentprincipal ./internal/credentials ./internal/runstore"
+    covers: [A1, A2, A3]
+  - command: "go test ./internal/persistence ./internal/httpapi/public"
+    covers: [A2, A3]
+  - command: make lint
+    covers: [A1, A2, A3]

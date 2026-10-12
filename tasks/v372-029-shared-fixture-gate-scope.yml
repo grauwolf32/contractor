@@ -1,0 +1,63 @@
+schema_version: "1.0"
+id: V372-029
+title: "Extend the shared fixture gate to every cross-language fixture and keep slow store suites out of it"
+milestone: hub-audit-defects-2026-10
+epic: quality
+kind: chore
+priority: P3
+status: pending
+depends_on: []
+languages: [python, go]
+goal: "Every fixture that Go, the Runtime or the UI read together falls under the shared fixture gate's naming and reader checks wherever it lives, and the gate checks cross-language agreement without running the PostgreSQL Eval suites a second time inside release-verify-families."
+context:
+  review: "Out-of-scope findings of the hub audit fix batch, wave 2 (group w2b: V370-017, V369-002, V370-005), recorded 2026-10-12; file:line verified on b2b09ea"
+  finding: >-
+    scripts/shared_fixture_gate.py, added by V369-002, enforces TestShared*
+    and test_shared_* naming, contractstest reads and declared readers only
+    for fixtures under api/testdata (FIXTURES and MANIFEST,
+    shared_fixture_gate.py:38-39). Fixtures read by more than one side
+    elsewhere escape it: testdata/memory (internal/memory codec and
+    projection tests, runtime/tests/test_memory_toolset.py),
+    testdata/agent-skills (internal/agentskills and internal/config tests,
+    runtime/tests/test_agent_skill_package.py:30-31),
+    testdata/source_member_paths.json (internal/sourcebundle tests,
+    runtime/tests/test_source_analysis_toolset.py), the finding fixtures of
+    internal/auditdomain/testdata (Runtime finding tests, the UI
+    finding-locations test, tests/e2e) and api/scan/v1/testdata (the Runtime
+    scan error code test and the UI scan report summary test, pinned to the
+    Server's table in internal/planner/scan/report.go:176). Separately, the
+    gate runs every discovered shared test, including the PostgreSQL Eval
+    store tests seeded from api/testdata/evals (TestSharedPostgresEval*,
+    internal/evalstore/postgres_test.go), which made it take 4 to 8 minutes
+    on the wave-2 machine; make test-wire-cross-language is a prerequisite
+    of test-worker-session-modes-hardening (make/toolsets.mk:77), which
+    release-verify-families reaches through test-worker-session-modes-e2e
+    (make/release.mk:29-37), and the prerequisite runs in full there while
+    the same Eval store tests run again in the race stages.
+  siblings: >-
+    testdata/configs and testdata/configs-scan are Go-only configuration
+    fixtures and stay outside. V371-021 and V372-016 own the time budgets of
+    individual PostgreSQL tests; this task only changes where the gate runs
+    them.
+scope:
+  in:
+    - "The gate covers the fixture directories above (moved under api/testdata or declared as extra roots in readers.json), with the same naming and reader rules."
+    - "Inside release-verify the wire gate runs once and leaves to the race and integration stages the store tests they already run, or the Eval store tests stop reading shared fixtures they only use as seed data; record which in the Makefile comment."
+  out:
+    - "The content of the fixtures and the cross-language verdicts."
+acceptance_criteria:
+  - id: A1
+    text: "A fixture outside api/testdata read by two sides without a declared readers entry fails the gate."
+  - id: A2
+    text: "make release-verify-families no longer runs the PostgreSQL Eval store tests through the wire gate, and every shared test still runs in exactly one stage of release-verify."
+tests:
+  - command: "python3 scripts/shared_fixture_gate.py --sources-only"
+    covers: [A1]
+  - command: "python3 -m unittest discover -s scripts -p 'test_*.py'"
+    covers: [A1, A2]
+  - command: "python3 scripts/check_release_verify_graph.py"
+    covers: [A2]
+  - command: "make test-wire-cross-language"
+    covers: [A1, A2]
+  - command: make lint
+    covers: [A1, A2]
