@@ -1,0 +1,54 @@
+schema_version: "1.0"
+id: V372-028
+title: "Decode persisted Run, Stage and allocation snapshots strictly in runstore"
+milestone: hub-audit-defects-2026-10
+epic: execution-core
+kind: chore
+priority: P3
+status: pending
+depends_on: []
+languages: [go]
+goal: "runstore decodes every persisted JSON snapshot it reads with strictjson, so a stored document with an unknown member or a member spelled in another case is invalid on read instead of being silently accepted or dropped."
+context:
+  review: "Out-of-scope finding of the hub audit fix batch, wave 2 (group w2b: V370-017, V369-002, V370-005), recorded 2026-10-12; file:line verified on b2b09ea"
+  specification: "docs/spec/configuration/catalog.md#CAT-R78"
+  finding: >-
+    scanStageExecution decodes the stored StageContext, the candidate and
+    accepted StageResults and the StageTermination with json.Unmarshal
+    (internal/runstore/stage_scan.go:61, 69, 79 and 89) before validating
+    them. encoding/json ignores unknown members and matches member names
+    without regard to case, so a stored document that a newer or broken
+    writer shaped differently is read as if it were valid; AGENTS.md
+    sections 2 and 6 ask for strict validation on read with strictjson, as
+    CAT-R78 already does for persisted Workflow snapshots. The columns are
+    jsonb, so PostgreSQL has already collapsed duplicate members; the gap is
+    unknown and case-variant members. Predates the shallow history (boundary
+    6349621).
+  siblings: >-
+    The other persisted documents runstore reads the same way: the Run scan
+    (internal/runstore/scan.go:54, 75, 84, 87, 95, 103 and 114: Audit
+    completion, cancellation, parameters, Runtime configuration, Project HTTP
+    target, Skill snapshot and metadata labels), the allocation scan
+    (allocation_store.go:240, 247, 250 and 264), the queue page
+    (queue_store.go:69), the Run metadata labels (store.go:442) and the
+    object check of types.go:638. The stage spec snapshot is only checked to
+    be an object (stage_scan.go:57-60) and is decoded where the Workflow
+    snapshot rules apply. Other stores reading jsonb with encoding/json are
+    the same class and can follow; this task covers runstore. The
+    executionConfig patch decoder is V372-014.
+scope:
+  in:
+    - "Every persisted JSON read in runstore decodes with strictjson (or a strict decoder of the type) and returns the store's integrity error on failure."
+    - "PostgreSQL tests that store a snapshot with an unknown member and with a case-variant member through a raw update and expect the read to fail."
+  out:
+    - "The stored formats and write paths."
+acceptance_criteria:
+  - id: A1
+    text: "A StageExecution, Run or allocation row whose stored JSON has an unknown member or a case-variant member fails to read with the integrity error."
+  - id: A2
+    text: "Every existing runstore, Scheduler and public Run test passes unchanged."
+tests:
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/runstore ./internal/scheduler ./internal/httpapi/public"
+    covers: [A1, A2]
+  - command: make lint
+    covers: [A1, A2]

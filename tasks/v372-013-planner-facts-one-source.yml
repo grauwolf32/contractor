@@ -1,0 +1,66 @@
+schema_version: "1.0"
+id: V372-013
+title: "Take Planner refs and facts from the descriptor registry in Go, the composition and Studio"
+milestone: hub-audit-defects-2026-10
+epic: workflows
+kind: chore
+priority: P3
+status: pending
+depends_on: []
+languages: [go, typescript]
+goal: "Planner identities, the single-Agent fact and the model-free fact come from the one descriptor registry (CAT-R79): Go compares descriptor facts or shared constants instead of string literals, the composed PlannerFactories are checked against the registry, and Studio validation is held to the same facts by a shared case list."
+context:
+  review: "Out-of-scope findings of the hub audit fix batch, wave 2 (group w2e: V370-006), recorded 2026-10-12; file:line verified on b2b09ea"
+  specification: "docs/spec/configuration/catalog.md#CAT-R79"
+  finding: >-
+    V370-006 made the descriptor registry the source of the Planner facts
+    (internal/config/resolved/descriptors.go:22-32 and 103-108: SingleAgent
+    and ModelFree for passthrough@1, streamline@1, router@1 and
+    scan-plan@1). Copies remain. (1) Studio validation
+    (ui/src/routes/studio/validation.ts:136-144) requires exactly one Agent
+    for the literal list passthrough@1 and streamline@1, and :163 exempts the
+    literal scan-plan@1 from the result-source rule. (2) Nothing checks the
+    composed PlannerFactories against the registry: planner.NewRegistry
+    (internal/planner/registry.go:12-27) accepts any factories, and
+    internal/app/composition_execution.go:106 passes four of them, so a
+    descriptor without a factory loads in the catalog and fails only at
+    Planner creation ("unknown PlannerFactory"); the refs are repeated as
+    string constants in internal/planner/types.go:16-21. (3) Go compares
+    Planner identities as literals: internal/config/workflow.go:232 and
+    internal/config/resolved/scan_plan.go:29 (scan-plan, 1) and
+    internal/scheduler/audit_completion.go:26 (passthrough, 1), so a renamed
+    or new version is missed silently (AGENTS.md 3.1). The UI and string
+    copies predate the shallow history (boundary 6349621).
+  siblings: >-
+    Further passthrough literals with the same shape:
+    internal/config/auditprofile/audit_completion.go:71 and
+    internal/evalservice/usage_collection.go:43. The Studio default Planner
+    of a new Stage (ui/src/routes/studio/document.ts:230) is a default value,
+    not a rule, and stays. The Planner implementations already name their
+    refs through the planner constants (planner/passthrough.go:35 and 338,
+    planner/streamline/config.go:19, planner/router/factory.go:12,
+    planner/scan/factory.go:27); those constants and the registry keys are
+    the two definitions to join. The workspace observation descriptor of
+    V371-006 is a separate fact with its own task.
+scope:
+  in:
+    - "Go reads Planner facts through resolved accessors (for example a single-Agent and a scan-plan or model-free predicate) and names Planner refs through one set of constants shared by the registry and the planner package."
+    - "A test that the PlannerFactories composed in internal/app match the descriptor registry exactly."
+    - "A shared case list of Planner facts under api/testdata that the registry test and the Studio validation test both read, and Studio derives its single-Agent and result-source rules from it or from one module tested against it."
+  out:
+    - "Which Planners exist and what each one accepts: behaviour stays as on b2b09ea."
+    - "The workspace observation classification (V371-006)."
+acceptance_criteria:
+  - id: A1
+    text: "A descriptor added without a composed factory, or a factory without a descriptor, fails a test."
+  - id: A2
+    text: "No Go file outside internal/config/resolved and internal/planner compares a Planner identity with a string literal."
+  - id: A3
+    text: "Studio and the Go registry give every shared Planner case the same verdict, and every Workflow that validated on b2b09ea still validates."
+tests:
+  - command: "go test ./internal/config/... ./internal/planner/... ./internal/app ./internal/scheduler ./internal/evalservice"
+    covers: [A1, A2, A3]
+  - command: "cd ui && corepack pnpm test --run src/routes/studio"
+    covers: [A3]
+  - command: make lint
+    covers: [A1, A2, A3]

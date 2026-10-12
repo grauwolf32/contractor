@@ -1,0 +1,90 @@
+schema_version: "1.0"
+id: V372-016
+title: "Replace wall-clock budgets in the finding intake, Audit, Eval and persistence tests and the result publication test"
+milestone: hub-audit-defects-2026-10
+epic: quality
+kind: chore
+priority: P3
+status: pending
+depends_on: []
+languages: [go, python]
+goal: "The tests listed here end attempts, seed fixtures and prove budgets through hooks, injected clocks and database settings rather than elapsed wall time, so machine load cannot fail them while each still fails when the behaviour it checks breaks."
+context:
+  review: "Out-of-scope findings of the hub audit fix batch, wave 2 (groups w2e: V370-006, w2i: V370-002, w2d: V370-004, V370-007 and V372-004, and w2d final after the integration merges), recorded 2026-10-12; file:line verified on b2b09ea. The same class as V371-021 and V371-022; this task lists only the sites they do not."
+  finding: >-
+    Each test below failed or timed out under machine load during wave 2.
+    (1) Finding intake: collectAcrossAttempts
+    (internal/findingintake/collection_batch_integration_test.go:270-298)
+    runs every attempt under collectionAttemptTimeout, 10 s of wall time
+    (collection_budget_test.go:9), and fails with "committed no progress"
+    (:290) when an attempt that hit its deadline committed nothing; it
+    drives TestPostgresLargeDirectCollectionFinishesWithinDefaultTimeout
+    (:143, call at :154), TestPostgresLargeDirectCollectionFinishesAfterTimedOutAttempt
+    (:169, call at :200) and TestPostgresEvidenceHeavyCollectionPageCommitsBoundedTransactions
+    (:224, call at :250, 4-minute test budget at :227), and the 2,000-proposal
+    fixtures run under 2-minute budgets (:45 and :98). (2) Audit store:
+    TestPostgresAuditPurgeAtScaleProbesForeignKeysThroughIndexes
+    (internal/auditstore/internal/pgstore/purge_scale_postgres_test.go:53)
+    failed while copying the 50,000 background executions (:105) under its
+    5-minute budget (:55), after a fixture built under a 45 s context
+    (collection_postgres_test.go:398). (3) Eval store: the test pool sets a
+    10 s statement_timeout for every statement
+    (internal/evalstore/postgres_test.go:51), and 20,000-row fixture
+    statements exceed it under load:
+    TestPostgresBulkExperimentWritesBumpCollectionsOncePerStatement
+    (collections_postgres_test.go:9; insert at :40-45, updates at :55 and
+    :67) and TestPostgresClaimPlanSkipsRetainedTerminalExperiments
+    (claims_postgres_test.go:91; insert at :95-99, claim rows at :109). (4)
+    Persistence budgets (internal/persistence/postgres/budgets_postgres_test.go):
+    TestPostgresOrdinaryWaitBudgetsAndRecovery (:59) bounds the test by 20 s
+    (:60) and asserts that each operation ends within 2 s of wall time
+    (:75-80); TestPostgresMaintenanceBudgetsRestorePoolSettings (:209) runs
+    under 20 s (:210); TestPostgresMigrationLockCancellationLeavesCapacityReusable
+    (:266) must apply every migration after the cancelled attempt
+    (:288-290) inside its 10 s budget (:267). (5) Runtime:
+    test_deadline_bounds_each_io_and_reconciliation
+    (runtime/tests/test_audit_result_publication.py:471-483) sets the
+    deadline 10 ms ahead (:476), and the write and, in the read phase, the
+    reconciliation read must both start before it passes. AGENTS.md 3.5
+    asks for injected clocks and deterministic budgets.
+  siblings: >-
+    Already owned elsewhere: the Scheduler cancellation, claim-loss and
+    supervisor tests and the runstore listener test (V371-021, including
+    internal/scheduler/cancellation_claim_postgres_test.go:75, which wave 2
+    reported again), and the capability probe tests (V371-022). Same pattern,
+    in scope: test_each_publication_attempt_has_its_own_request_timeout
+    (test_audit_result_publication.py:486-498: a 10 ms request timeout and an
+    elapsed-time bound of 0.5 s) and the 10 s statement_timeout of the
+    evalservice test pool (internal/evalservice/service_postgres_test.go:1258).
+    TestPostgresLargeDirectCollectionFinishesAfterTimedOutAttempt already
+    ends its first attempt through a transaction hook (:169-190); the
+    attempt loop can do the same.
+scope:
+  in:
+    - "Attempts end through a hook after a counted number of committed transactions, or under an injected budget, instead of a 10 s timer; progress is still asserted per attempt."
+    - "Large fixtures are seeded without the per-statement test timeout (a setup connection or SET LOCAL for the seeding transaction, or batches), while the statements under test keep their budgets."
+    - "Budget tests prove a budget through the session settings and the SQLSTATE it raises, not through elapsed wall time, and outer test deadlines become generous safety nets."
+    - "The Runtime publication tests use an injected loop clock or a scripted transport that blocks until the test releases it."
+  out:
+    - "The production timeouts and budgets the tests assert."
+    - "The sites owned by V371-021 and V371-022."
+acceptance_criteria:
+  - id: A1
+    given: "A CPU-saturated host (each listed test repeated 20 times with parallel CPU load)"
+    when: "The tests run against PostgreSQL and the Runtime test suite"
+    then: "None fails on a time budget."
+  - id: A2
+    text: "Each test still fails when the behaviour it checks is broken: a collection attempt that commits nothing, a purge that scans a table, a collection bump per row, a claim plan that reads retained experiments, a budget that does not apply, a deadline that does not bound an I/O."
+tests:
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=20 -tags integration -run 'TestPostgresLargeDirectCollection|TestPostgresEvidenceHeavyCollectionPage|TestPostgresRunProposalPages' ./internal/findingintake"
+    covers: [A1, A2]
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=5 -run 'TestPostgresAuditPurgeAtScale' ./internal/auditstore/..."
+    covers: [A1, A2]
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=20 -run 'TestPostgresBulkExperimentWrites|TestPostgresClaimPlan' ./internal/evalstore"
+    covers: [A1, A2]
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=20 -run 'TestPostgresOrdinaryWaitBudgets|TestPostgresMaintenanceBudgets|TestPostgresMigrationLockCancellation' ./internal/persistence/postgres"
+    covers: [A1, A2]
+  - command: "cd runtime && uv run pytest tests/test_audit_result_publication.py"
+    covers: [A1, A2]
+  - command: make lint
+    covers: [A1, A2]

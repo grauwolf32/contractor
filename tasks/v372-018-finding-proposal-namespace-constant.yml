@@ -1,0 +1,51 @@
+schema_version: "1.0"
+id: V372-018
+title: "Name the finding-proposals Namespace through artifactpolicy in finding intake"
+milestone: hub-audit-defects-2026-10
+epic: findings
+kind: chore
+priority: P3
+status: pending
+depends_on: []
+languages: [go, python]
+goal: "Go code names the reserved finding-proposals Namespace only through artifactpolicy.FindingProposalNamespace, and the Runtime's comparisons use its one reserved-Namespace definition."
+context:
+  review: "Out-of-scope finding of the hub audit fix batch, wave 2 (group w2g: V370-016), recorded 2026-10-12; file:line verified on b2b09ea"
+  specification: "docs/spec/artifacts/artifact-store.md#ART-R114"
+  finding: >-
+    canonicalSubmission rejects evidence refs in the proposal Namespace with
+    the literal ref.Namespace == "finding-proposals"
+    (internal/findingintake/types.go:187), while
+    artifactpolicy.FindingProposalNamespace
+    (internal/artifactpolicy/visibility.go:16) defines the reserved name and
+    the same package already uses it for the proposal ref
+    (internal/findingintake/service.go:180). A rename of the Namespace would
+    miss the literal and let evidence point into the proposal Namespace
+    (AGENTS.md 3.1). Predates the shallow history (boundary 6349621).
+  siblings: >-
+    Runtime: runtime/src/contractor_runtime/finding_proposals.py:102
+    compares the proposal API's answer with the literal "finding-proposals",
+    while runtime/src/contractor_runtime/contracts/artifacts.py:27-29
+    (PURPOSE_RESERVED_NAMESPACES) lists the
+    reserved Namespaces that api/testdata/v1alpha1/memory-reservation-cases.json
+    pins to artifactpolicy; the comparison should name one constant of that
+    module. The public route paths .../finding-proposals are URL segments,
+    another rule, and stay. V371-019 does the same for the audit- prefix.
+scope:
+  in:
+    - "findingintake uses artifactpolicy.FindingProposalNamespace; the Runtime names the Namespace through one constant next to PURPOSE_RESERVED_NAMESPACES."
+    - "A source scan (or extending an existing one) that finds the literal outside artifactpolicy and the Runtime contracts module."
+  out:
+    - "The evidence rules and the Namespace name."
+acceptance_criteria:
+  - id: A1
+    text: "No Go file outside artifactpolicy and no Runtime module outside contracts spells finding-proposals as a Namespace, and the scan fails on a new copy."
+  - id: A2
+    text: "Finding submission and proposal tests pass unchanged."
+tests:
+  - command: "go test ./internal/findingintake ./internal/artifactpolicy"
+    covers: [A1, A2]
+  - command: "cd runtime && uv run pytest tests/test_security_findings_toolset.py tests/test_contracts.py"
+    covers: [A1, A2]
+  - command: make lint
+    covers: [A1, A2]

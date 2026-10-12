@@ -1,0 +1,86 @@
+schema_version: "1.0"
+id: V372-020
+title: "Hold every vocabulary that carries error code names to the registry"
+milestone: hub-audit-defects-2026-10
+epic: api-contracts
+kind: chore
+priority: P3
+status: pending
+depends_on: []
+languages: [go, typescript, json, yaml]
+goal: "The event schema and the browser client accept only the error frame codes the Server sends, the UI test fixtures answer only registered codes, the Run recovery cause vocabulary is declared apart from the error codes it shares a name with, and the private API codes that are also public codes are checked against the registry."
+context:
+  review: "Out-of-scope findings of the hub audit fix batch, wave 2 (group w2c: V370-009, V369-004, V370-010), recorded 2026-10-12; file:line verified on b2b09ea"
+  specification: "docs/spec/platform/errors.md#ERR-R14"
+  finding: >-
+    Four places keep code names outside what the registry
+    (internal/apierror/registry.go, ERR-R14) checks. (1) The ErrorFrame code
+    enum of api/events/contractor-events-v1.schema.json:531 and the browser
+    parser (ui/src/events/run-events.ts:839-848) accept unauthorized, and the
+    registry marks Unauthorized as a frame code (defineFrame,
+    registry.go:58) so that TestEventSchemaErrorFrameCodesAreTheFrameCodes
+    passes, but no Server path sends that frame: the events package sends
+    invalid_frame, subscription_limit, not_found and overloaded only
+    (internal/httpapi/public/events/connection.go:79, 167, 172 and 202;
+    subscriptions.go:32-46 and 104; run_poller.go:140), and an unauthorized
+    subscription is answered as not_found. (2) The Eval UI fixture answers
+    eval_unavailable with 503 (ui/src/test/evals-fixture.ts:316-319, used by
+    ui/src/routes/evals-setup.test.tsx:317 and 412); V370-009 removed the
+    Server's only eval_unavailable answer, so the tests exercise a code no
+    Server sends. TestBrowserClientComparesOnlyRegisteredCodes reads
+    production sources only. (3) RunRecovery.code
+    (api/openapi/contractor-public-v1.yaml:13227) uses gateway_unavailable
+    for an unavailable model gateway route, the vocabulary of
+    gatewayrecovery.ValidFailure (internal/gatewayrecovery/policy.go:60-67)
+    and the Runtime's GatewayFailure, while the public error code
+    gateway_unavailable (registry.go:292, docs/spec/platform/errors.md:355,
+    502) means that the bound Gateway credential manager failed; the UI maps
+    the recovery cause in ui/src/routes/runs/recovery.tsx:13 and
+    ui/src/routes/inbox/present.ts:282-288, and ui/src/routes/runs/triage.ts:13
+    lists gateway_unavailable among attempt diagnostic codes. (4) The private
+    Artifact API (internal/httpapi/privateartifacts/errors.go:30-71,
+    gateway_recovery.go:23-41, handler.go:84-161) and the Control Plane API
+    (internal/controlplane/http.go:86-173) write codes with their own status
+    and retryable flags; artifact_too_large, artifact_transfer_capacity,
+    artifact_content_corrupt, artifact_content_missing, artifact_frozen,
+    invalid_request, conflict, not_found, method_not_allowed,
+    storage_transaction_conflict and internal_error are also public codes.
+    V370-010 found them consistent and left the private APIs out of the
+    registry, without a check. Items (1) and (3) predate the shallow history
+    (boundary 6349621); (2) dates from V370-009 and (4) from V370-010's
+    decision.
+  siblings: >-
+    Other UI test fixtures and mocks that answer error codes (ui/src/test,
+    the route tests' fetch doubles) are in scope for the fixture check. The
+    Runtime reads private API codes and retryable flags
+    (runtime/src/contractor_runtime); its comparisons stay with the private
+    vocabulary. Renaming RunRecovery.code or the public gateway_unavailable
+    is an incompatible change within /v1 (API-R3) and is not part of this
+    task.
+scope:
+  in:
+    - "Unauthorized becomes a plain error code; the ErrorFrame enum and the browser parser drop unauthorized; a test derives the frame codes from the events package's error frame calls and requires them to equal the registry's frame codes."
+    - "The Eval fixture answers the code the Server sends for that case, and a UI test rejects any fixture or test double that answers an unregistered code."
+    - "The RunRecovery.code description and errors.md state that its values are model gateway failure causes, a vocabulary of their own; one test holds the OpenAPI enum, gatewayrecovery.ValidFailure, the Runtime causes and the UI maps to one list."
+    - "A test that every code the private APIs write which is also a public code has the registry's status and retryable flag."
+  out:
+    - "Moving the private APIs into the public registry (V370-010's reversal condition)."
+    - "Renaming any code (API-R3)."
+acceptance_criteria:
+  - id: A1
+    text: "A frame code that the registry, the event schema or the browser parser declares but no Server path sends fails a test, and so does a sent code they do not declare."
+  - id: A2
+    text: "A UI fixture answering an unregistered code fails a test."
+  - id: A3
+    text: "The recovery cause list is pinned once across OpenAPI, Go, the Runtime and the UI, and its documentation separates it from the error code of the same name."
+  - id: A4
+    text: "Changing the status or retryable flag of a shared code on one side only fails a test."
+tests:
+  - command: "go test ./internal/apierror ./internal/httpapi/... ./internal/controlplane ./internal/gatewayrecovery"
+    covers: [A1, A3, A4]
+  - command: "cd ui && corepack pnpm test --run src/events src/test src/routes/runs src/routes/inbox"
+    covers: [A1, A2, A3]
+  - command: "make verify-public-api"
+    covers: [A1, A3]
+  - command: make lint
+    covers: [A1, A2, A3, A4]

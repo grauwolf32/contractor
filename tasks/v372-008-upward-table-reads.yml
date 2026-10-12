@@ -1,0 +1,68 @@
+schema_version: "1.0"
+id: V372-008
+title: "Remove the table reads that point up the layer stack or name who owns each one"
+milestone: hub-audit-defects-2026-10
+epic: persistence
+kind: chore
+priority: P3
+status: pending
+depends_on: []
+languages: [go, sql]
+goal: "No package reads a table whose owner sits above it in the layer stack unless its registry entry names the open task that removes the read or a recorded acceptance with its reversal condition, and each known upward read is either removed or so recorded."
+context:
+  review: "Out-of-scope finding of the hub audit fix batch, wave 2 (group w2a: V369-001), recorded 2026-10-12; file:line verified on b2b09ea"
+  specification: "docs/spec/platform/persistence.md#PER-R23"
+  finding: >-
+    V369-001 kept the reads that point up the layer stack
+    (internal/archtest/layers_test.go: platform below execution below
+    product) as ordinary [reads] grants of
+    internal/persistence/table_ownership.txt, and no task removes them:
+    internal/artifacts (platform) reads runstore's workflow_runs in forkSQL,
+    the Run-belongs-to-Project check of input forks, output publication and
+    Audit import (artifacts/postgres_fork_sql.go:36-39; registry line 115);
+    internal/telemetry (platform) reads workflow_runs, stage_executions and
+    stage_allocations for the resource history
+    (telemetry/allocation_resources_sql.go:16-18 and 64-66) and
+    stage_executions for report retention (telemetry/repository.go:363-387;
+    registry lines 204-207); internal/credentials (execution) reads
+    projectstore's projects for the Runtime credential usage
+    (credentials/runtime_repository.go:212-219; registry line 125);
+    internal/runstore (execution) reads projects for the queue page
+    (runstore/queue_store_sql.go:18) and in Run resumption, which also fences
+    the Project FOR SHARE (runstore/resume_store.go:55,
+    runstore/resume_store_sql.go:23; registry line 198). The import-based
+    layer check cannot see SQL, so these dependencies stay invisible to it,
+    and an accepted dependency without an owner or a reversal condition is
+    the pattern AGENTS.md 3.9 warns about. The reads predate the shallow
+    history (boundary 6349621); V369-001 recorded them as grants.
+  siblings: >-
+    Not named in the finding but of the same kind: internal/gatewayrecovery
+    (platform) reads workflow_runs in admission (gatewayrecovery/admission.go:93),
+    the unchanged-update read (requests.go:227) and waiting
+    (waiting.go:106 and 125; registry line 175), while it already moves Runs
+    through runstore's RunStates port (runs.go:9-31). Every other [reads]
+    entry points sideways or down. V369-001 rejected deriving read
+    permissions from the archtest layer table because that table is test
+    code of another package, so the new check may live in
+    internal/archtest or read one layer list that both tests share.
+scope:
+  in:
+    - "For each upward read: invert it (the owner answers through a port the composition wires, as RunStates does for gatewayrecovery's writes, or the caller passes a fact it already holds), or record the guarantee that needs the read, the alternatives and the reversal condition with PER-R23 and name that record in the registry entry."
+    - "A check that fails on a [reads] entry whose package sits below the relation's owner in the layer stack unless the entry names an open task or a recorded acceptance."
+  out:
+    - "Writes and exclusive locks, which PER-R23 already forbids across owners."
+    - "Reads that point sideways or down the stack."
+acceptance_criteria:
+  - id: A1
+    text: "Every upward [reads] entry of table_ownership.txt is gone or names its open task or recorded acceptance."
+  - id: A2
+    text: "A new upward read granted by an ordinary [reads] entry fails the check."
+  - id: A3
+    text: "Fork, resource history, retention, credential usage, queue, resumption and gateway admission tests pass on PostgreSQL."
+tests:
+  - command: "go test ./internal/persistence ./internal/archtest"
+    covers: [A1, A2]
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/artifacts ./internal/telemetry ./internal/credentials ./internal/runstore ./internal/gatewayrecovery"
+    covers: [A3]
+  - command: make lint
+    covers: [A1, A2, A3]

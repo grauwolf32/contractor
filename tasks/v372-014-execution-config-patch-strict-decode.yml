@@ -1,0 +1,62 @@
+schema_version: "1.0"
+id: V372-014
+title: "Decode executionConfig patch members with strictjson"
+milestone: hub-audit-defects-2026-10
+epic: workflows
+kind: chore
+priority: P3
+status: pending
+depends_on: []
+languages: [go]
+goal: "ExecutionConfigPatch and its member types decode their members with strictjson, as AGENTS.md section 6 requires of a type with its own UnmarshalJSON, so they reject duplicate members by themselves instead of relying on every caller's outer decoder."
+context:
+  review: "Out-of-scope finding of the hub audit fix batch, wave 2 (group w2e: V370-006), recorded 2026-10-12; file:line verified on b2b09ea"
+  specification: "docs/spec/api/public-api.md#API-R71"
+  finding: >-
+    ExecutionConfigPatch.UnmarshalJSON
+    (internal/config/resolved/execution_config_patch.go:45) and the Stage and
+    selection patches decode each object through decodePatchObject
+    (:146-157), which uses json.NewDecoder with DisallowUnknownFields into a
+    map[string]json.RawMessage (line 151): a repeated member silently keeps
+    the last value, and DisallowUnknownFields has no effect on a map.
+    decodeOptionalString (:159-171) reads string members with json.Unmarshal
+    (line 167). Unknown members are still rejected by the explicit switches,
+    and today every caller decodes the enclosing value strictly (the public
+    request decoder; runrepeat.Decode, internal/runrepeat/snapshot.go:64;
+    evaldomain.Validate before DecodeInto, internal/evaldomain/schema.go:74-114),
+    so no duplicate reaches the patch now. AGENTS.md section 6 states that
+    strictjson checks a type with its own UnmarshalJSON for duplicate keys
+    only through the outer decoder and that such a method must decode its
+    members with strictjson itself; a future caller that decodes a patch
+    with encoding/json would accept {"modelPolicy":"a","modelPolicy":"b"}.
+    The decoder predates the shallow history (boundary 6349621).
+  siblings: >-
+    Other UnmarshalJSON methods that decode object members with
+    encoding/json: contracts.ToolArgumentBinding
+    (internal/contracts/tool_execution.go:41-55) decodes into a struct, which
+    matches member names without regard to case, and into a map; its exact
+    member count and key checks make it strict in effect, so the task
+    converts it or records why it stays. Ruled out: methods that decode only
+    a scalar or an array (SecretString, PerformanceMetricsVersions,
+    runRuntimeLabels) or only test the presence of a member after a strict
+    decode (AllocationSpec runtimeSettings, createCredentialRequest
+    gatewayPolicy); runMetadataLabels walks tokens and rejects duplicates
+    itself. Persisted Run and Stage snapshot reads are V372-028.
+scope:
+  in:
+    - "decodePatchObject and decodeOptionalString decode with strictjson, so duplicate members and data after the value are rejected by the patch types themselves; ToolArgumentBinding is converted or its exception recorded."
+    - "Tests that decode a patch with a repeated member through plain json.Unmarshal and expect a rejection."
+  out:
+    - "The patch grammar, its merge rules and its digests."
+acceptance_criteria:
+  - id: A1
+    text: "json.Unmarshal of an ExecutionConfigPatch, a Stage patch or a selection patch with a repeated member fails."
+  - id: A2
+    text: "Run creation, repeat drafts and Eval documents with valid patches decode as before, and their digests are unchanged."
+tests:
+  - command: "go test ./internal/config/... ./internal/runrepeat ./internal/evaldomain ./internal/contracts/..."
+    covers: [A1, A2]
+  - command: "go test ./internal/httpapi/public"
+    covers: [A2]
+  - command: make lint
+    covers: [A1, A2]

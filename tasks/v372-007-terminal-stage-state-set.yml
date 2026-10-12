@@ -1,0 +1,63 @@
+schema_version: "1.0"
+id: V372-007
+title: "Define the terminal StageExecution states once and hold SQL and the UI to them"
+milestone: hub-audit-defects-2026-10
+epic: execution-core
+kind: chore
+priority: P3
+status: pending
+depends_on: []
+languages: [go, sql, typescript]
+goal: "The terminal StageExecution states (succeeded, failed, interrupted, cancelled) have one Go definition that every Go switch uses, and a test holds every SQL literal of the set and the UI copy to it, as V367-003 did for the Run state sets."
+context:
+  review: "Out-of-scope finding of the hub audit fix batch, wave 2 (group w2f: V370-011, V370-012), recorded 2026-10-12; file:line verified on b2b09ea"
+  specification: "docs/spec/execution/scheduler.md#SCH-R42"
+  finding: >-
+    Telemetry retention (Repository.CleanupExpired,
+    internal/telemetry/repository.go:350-399) writes the terminal
+    StageExecution states as the SQL literal
+    e.state IN ('succeeded', 'failed', 'interrupted', 'cancelled') three
+    times, once per retention statement (lines 367, 376 and 385), and
+    internal/runstore/stage_store_sql.go:19 writes it a fourth time. In Go the
+    same set is a switch in four places: planner/session/scan_history.go:82,
+    scheduler/allocation_release.go:213-220 (terminalStageExecution),
+    scheduler/run_execution.go:106 and httpapi/public/run_handlers.go:599-606
+    (terminalStageState), while runstore/types.go:87-97 declares the states
+    without a terminal predicate. A state added to SCH-R42 would have to be
+    found in every copy (AGENTS.md 3.1). V367-003 gave the Run state sets one
+    definition and a literal scan (TestRunStateSetsMatchOpenAPIAndGoSQL);
+    the StageExecution states have no such check. Predates the shallow
+    history (boundary 6349621).
+  siblings: >-
+    UI: TERMINAL_STAGE_STATES (ui/src/api/performance.ts:43-48). OpenAPI:
+    the StageExecutionState enum (api/openapi/contractor-public-v1.yaml:12595)
+    has no terminal subset. Schema: the stage_execution_state_shape CHECK
+    (internal/persistence/migrations/000001_baseline.sql:2128) sets
+    terminal_at exactly for the four terminal states, so a predicate on
+    terminal_at is an alternative to the literal list in SQL; whichever form
+    is chosen, the scan accepts only that form. The telemetry statements
+    also read runstore's stage_executions from below in the layer stack;
+    V372-008 may move them, and this task follows wherever they live.
+scope:
+  in:
+    - "A terminal predicate on runstore.StageExecutionState (and an exported set if SQL needs one) that every Go switch above uses."
+    - "A test like TestRunStateSetsMatchOpenAPIAndGoSQL that finds every StageExecution state list in production Go SQL and accepts only sets derived from the definition, and a UI test that holds TERMINAL_STAGE_STATES to the generated StageExecutionState enum and the shared list."
+  out:
+    - "StageExecution lifecycle semantics and the retention rules."
+    - "Removing telemetry's upward read of stage_executions (V372-008)."
+acceptance_criteria:
+  - id: A1
+    text: "No Go file outside runstore spells the terminal StageExecution states in a switch or a list."
+  - id: A2
+    text: "Adding a state to the Go definition without updating an SQL literal or the UI copy fails a test."
+  - id: A3
+    text: "Telemetry retention, allocation release, scan history and Run detail tests pass unchanged."
+tests:
+  - command: "go test ./internal/runstore ./internal/scheduler ./internal/telemetry ./internal/planner/session ./internal/httpapi/public"
+    covers: [A1, A2, A3]
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/telemetry ./internal/runstore"
+    covers: [A3]
+  - command: "cd ui && corepack pnpm test --run src/api"
+    covers: [A2]
+  - command: make lint
+    covers: [A1, A2, A3]

@@ -1,0 +1,73 @@
+schema_version: "1.0"
+id: V372-012
+title: "Keep a late model-recovery update of an ended Stage from moving its Run back to waiting"
+milestone: hub-audit-defects-2026-10
+epic: execution-core
+kind: defect
+priority: P2
+status: pending
+depends_on: []
+languages: [go]
+goal: "A failed or acquire update from a participant whose Stage has already ended cannot create a recovery wait or move its Run to waiting; a PostgreSQL race test shows this for allocation and Planner participants, or the task records why the race cannot occur."
+context:
+  review: "Out-of-scope finding of the hub audit fix batch, wave 2 (group w2h: V370-001), recorded 2026-10-12; the hub audit's suspected race (exec-state 3.2, docs/research/2026-10-11-hub-audit/exec-state.md:158-166), not reproduced yet; code path verified on b2b09ea"
+  specification: "docs/spec/execution/scheduler.md#SCH-R108"
+  severity: medium
+  finding: >-
+    gatewayrecovery's running and waiting transitions are not fenced by the
+    participant or its Stage. Service.update
+    (internal/gatewayrecovery/requests.go:96-216) locks the Run through
+    lockRun (runs.go:37-45), which checks only the Run state (acceptsUpdate,
+    store.go:73-82: pending, running and waiting accept every update), and
+    then a failed (line 144) or a blocked acquire (line 151) calls setWaiting
+    (waiting.go:13-20), which inserts a gateway_recovery_waits row for the
+    participant and calls RunStates.EnterWaiting. EndStage (waiting.go:52-64)
+    deletes the Stage's waits inside the transaction that ends it (SCH-R107),
+    but nothing stops a later update of that Stage's participant from
+    inserting a new wait: if it commits after EndStage while the Run runs a
+    later Stage, the Run moves to waiting on a wait that no participant will
+    clear until that later Stage ends. Allocation participants are fenced by
+    the private handler, which refuses acquire and failed from a
+    write-fenced allocation (internal/httpapi/privateartifacts/gateway_recovery.go:36-52)
+    while it holds the allocation's write grant; whether the fence always
+    precedes the transaction that ends the Stage, also across a Server
+    restart, is unproven. Planner participants (Participant.Update,
+    requests.go:86-92, created per Stage in
+    internal/scheduler/planner_invocation.go:23-27) have no fence at all, and
+    SCH-R108 re-delivers their abandoned updates on a detached context. The
+    hub audit marked this SUSPECTED and asked for a race test. The code
+    predates the shallow history (boundary 6349621).
+  siblings: >-
+    Terminal updates (succeeded, finished, released) clear waits and must
+    stay accepted after the Stage began to end (SCH-R108, FAIL-SCH-14). The
+    unchanged-update fast path (Service.unchanged, requests.go:218-256,
+    SCH-R165) decides without locks and must keep its answers. Admission
+    (admission.go) and manual retry (waiting.go:119) move Runs too and are
+    in scope for the same check.
+scope:
+  in:
+    - "A PostgreSQL test for each participant kind: the Stage ends (EndStage commits) and the Run moves on, then a delayed failed or acquire update of the ended Stage's participant is applied."
+    - "If it reproduces: the update transaction refuses non-terminal updates of a participant whose Stage is no longer active (for example by checking the participant's StageExecution through the RunStates port, which runstore owns), and the refusal is the existing non-retryable unavailable answer. If it cannot happen, record the reason in this task and in SCH-R107."
+  out:
+    - "The recovery policy (windows, probes and delays) and the terminal-update rules of SCH-R108."
+failure_outcomes:
+  - operation: "A failed or acquire update from the participant of an ended Stage"
+    permanent: "gatewayrecovery.ErrUnavailable, answered 409 recovery_unavailable with retryable false on the private API; no wait is written and the Run state is unchanged."
+    retryable: "A transaction conflict uses the existing bounded transaction retry."
+    ambiguous: "Not applicable: a refused update writes nothing."
+    cancelled: "The transaction rolls back with the request context."
+    timeout: "The existing private request budget owns it."
+acceptance_criteria:
+  - id: A1
+    given: "A Run whose Stage N ended while its Planner or Worker model call was in flight, and whose Stage N+1 is running"
+    when: "The Stage N participant then reports failed or acquire"
+    then: "No recovery wait is recorded and the Run stays running."
+  - id: A2
+    text: "Terminal updates of the ended Stage still relinquish its probe, and updates of the active Stage behave as before."
+  - id: A3
+    text: "The race test fails on b2b09ea, or the task records why the race cannot occur."
+tests:
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/gatewayrecovery ./internal/scheduler ./internal/httpapi/privateartifacts"
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A1, A2, A3]

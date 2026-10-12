@@ -1,0 +1,59 @@
+schema_version: "1.0"
+id: V372-015
+title: "Stop locals from shadowing the resolved package and drop config's copy of clone.Map"
+milestone: hub-audit-defects-2026-10
+epic: workflows
+kind: chore
+introduced_by: V370-006
+priority: P3
+status: pending
+depends_on: []
+languages: [go]
+goal: "No file that imports internal/config/resolved declares a local named resolved, a check keeps it that way, and internal/config uses clone.Map instead of its own cloneMap."
+context:
+  review: "Out-of-scope findings of the hub audit fix batch, wave 2 (group w2e: V370-006), recorded 2026-10-12; file:line verified on b2b09ea"
+  finding: >-
+    V370-006 (c8cbf2e) moved the resolved Workflow model into the package
+    internal/config/resolved, and files that import it still declare locals
+    named resolved, which hide the package for the rest of their scope: in
+    production code internal/controlplane/placement.go:183, 226, 262, 340 and
+    370, controlplane/registry.go:542, controlplane/registry_clone.go:71,
+    scheduler/execution_preparation.go:45, scheduler/gateway_recovery.go:17,
+    scheduler/stage_preparation.go:62, scheduler/stage_finalization.go:103,
+    scheduler/workflow.go:193, evalservice/preflight_binding.go:78,
+    auditcontroller/builder.go:561, planner/streamline/factory.go:345 (a
+    range variable), config/loader.go:172 and config/manager.go:239, 253 and
+    700; in tests credentials/provider_encrypted_test.go:42,
+    config/summarizer_test.go:305, controlplane/tool_placement_postgres_test.go:36,
+    scheduler/scheduler_test.go:490, 644, 1121, 2716, 2803 and 2825, and
+    httpapi/public/handler_test.go:1481 and query_handlers_test.go:75 and
+    103. A later edit that needs the package inside such a scope fails to
+    compile or, worse, reads the local. Separately, cloneMap
+    (internal/config/manager.go:596-602) repeats clone.Map
+    (internal/clone/clone.go:15-21) apart from one spare slot of capacity;
+    it predates the shallow history (boundary 6349621).
+  siblings: >-
+    auditdomain.copyStringMap (internal/auditdomain/canonical.go:226-235)
+    returns nil for an empty map where clone.Map returns an empty one, and
+    auditdomain's cloneMap (inventory.go:400-409) copies JSON values deeply;
+    both differ in meaning and stay unless a caller shows they should not.
+    Other packages whose name is a common local name (for example clone) can
+    be covered by the same check.
+scope:
+  in:
+    - "Rename the locals listed above and add a source check (in internal/archtest or as a vet analyzer in make lint) that rejects a local identifier equal to the name of a package the file imports."
+    - "Replace config's cloneMap with clone.Map."
+  out:
+    - "Behaviour of the touched code."
+acceptance_criteria:
+  - id: A1
+    text: "No Go file declares a local with the name of a package it imports, and a probe that does fails the check."
+  - id: A2
+    text: "internal/config has no map copy helper of its own."
+  - id: A3
+    text: "Existing tests pass unchanged; tests are edited only to follow renamed locals."
+tests:
+  - command: "go test ./internal/archtest ./internal/config/... ./internal/controlplane ./internal/scheduler ./internal/evalservice ./internal/auditcontroller ./internal/planner/..."
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A1, A2, A3]

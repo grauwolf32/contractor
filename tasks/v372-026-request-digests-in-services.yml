@@ -1,0 +1,52 @@
+schema_version: "1.0"
+id: V372-026
+title: "Move the Project, Audit and review request digests out of the public handlers"
+milestone: hub-audit-defects-2026-10
+epic: api-contracts
+kind: chore
+priority: P3
+status: pending
+depends_on: []
+languages: [go]
+goal: "The idempotency request digests of Project creation, Audit creation and lifecycle actions and Audit review mutations are computed by the packages that own those requests, as runservice.PublicRequestDigest does for Runs, with their pinned values unchanged."
+context:
+  review: "Out-of-scope finding of the hub audit fix batch, wave 2 (group w2c: V370-009, V369-004, V370-010), recorded 2026-10-12; first noted in V370-009; file:line verified on b2b09ea"
+  specification: "docs/spec/api/public-api.md#API-R69"
+  finding: >-
+    V370-009 moved the Run creation digest into runservice
+    (internal/runservice/digest.go:16, PublicRequestDigest) and left the
+    others in the edge: projectRequestDigest
+    (internal/httpapi/public/project_handlers.go:273-283),
+    createAuditRequestDigest and auditRequestDigest
+    (internal/httpapi/public/audit_models.go:139-158 and 161-170) and
+    reviewRequestDigest (internal/httpapi/public/audit_review_handlers.go:387-394).
+    The digest decides whether a repeated Idempotency-Key replays or is the
+    idempotency conflict (API-R69, PER-R24), so its canonical form is part
+    of the owning context's rule: another caller of the same service, such
+    as an Eval creating Audits, cannot reproduce it without copying edge
+    code, and a change to a request shape has to be mirrored by hand. V370-009
+    noted that projectstore has no service layer and auditservice could own
+    the Audit digests. Predates the shallow history (boundary 6349621).
+  siblings: >-
+    Run creation (runservice, done) and the Eval mutation digests, which
+    evaldomain computes from the document (evaldomain.Digest, used by
+    internal/evalservice/audit_adapter.go). The keyed mutations that store
+    these digests since V370-007 (mutation_receipts) only compare them. The
+    Idempotency-Key grammar is V371-016.
+scope:
+  in:
+    - "Each digest moves next to the request type of its owner (projectstore or a Project service for Project creation, auditservice for Audit creation, lifecycle actions and reviews) with tests that pin today's digest values."
+  out:
+    - "The digest values, replay and conflict behaviour, and the Idempotency-Key grammar (V371-016)."
+acceptance_criteria:
+  - id: A1
+    text: "internal/httpapi/public computes no request digest itself, and a test fails if a context file defines one."
+  - id: A2
+    text: "The pinned digest values of every moved function are unchanged, so stored receipts keep replaying."
+tests:
+  - command: "go test ./internal/httpapi/public ./internal/auditservice ./internal/projectstore ./internal/runservice"
+    covers: [A1, A2]
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/httpapi/public"
+    covers: [A2]
+  - command: make lint
+    covers: [A1, A2]
