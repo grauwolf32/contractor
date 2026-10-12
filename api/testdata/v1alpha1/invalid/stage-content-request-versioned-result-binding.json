@@ -1,1 +1,1 @@
-{"apiVersion":"contractor/v1alpha1","artifacts":{},"instructions":"Use the exact input.","objective":"Copy the source artifact","parameters":{},"resultArtifacts":{"report":{"name":"report","namespace":"builder","revision":"invented-revision"}},"subtaskId":"0"}
+{"apiVersion":"contractor/v1alpha1","artifacts":{},"deadline":"2026-10-03T01:00:00Z","instructions":"Use the exact input.","objective":"Copy the source artifact","parameters":{},"resultArtifacts":{"report":{"name":"report","namespace":"builder","revision":"invented-revision"}},"subtaskId":"0"}

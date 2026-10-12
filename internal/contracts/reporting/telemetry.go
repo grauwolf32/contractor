@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/strictjson"
 )
 
@@ -86,19 +88,19 @@ type ExecutionReport struct {
 }
 
 type RuntimeReport struct {
-	Complete       bool                                                  `json:"complete" strictjson:"required"`
-	DurationMS     *int64                                                `json:"durationMs,omitempty"`
-	StopReason     *string                                               `json:"stopReason,omitempty"`
-	Adapters       map[contracts.RuntimeAdapterRef]RuntimeAdapterMetrics `json:"adapters" strictjson:"required"`
-	Resources      *RuntimeResources                                     `json:"resources,omitempty"`
-	ResourcesError *ResourceReason                                       `json:"-"`
+	Complete       bool                                                        `json:"complete" strictjson:"required"`
+	DurationMS     *int64                                                      `json:"durationMs,omitempty"`
+	StopReason     *string                                                     `json:"stopReason,omitempty"`
+	Adapters       map[runtimesettings.RuntimeAdapterRef]RuntimeAdapterMetrics `json:"adapters" strictjson:"required"`
+	Resources      *RuntimeResources                                           `json:"resources,omitempty"`
+	ResourcesError *ResourceReason                                             `json:"-"`
 }
 
 func (r RuntimeReport) MarshalJSON() ([]byte, error) {
 	type wireRuntimeReport RuntimeReport
 	copy := wireRuntimeReport(r)
 	if copy.Adapters == nil {
-		copy.Adapters = map[contracts.RuntimeAdapterRef]RuntimeAdapterMetrics{}
+		copy.Adapters = map[runtimesettings.RuntimeAdapterRef]RuntimeAdapterMetrics{}
 	}
 	return json.Marshal(copy)
 }
@@ -123,11 +125,11 @@ func (r *RuntimeReport) UnmarshalJSON(data []byte) error {
 	}
 	*r = RuntimeReport{
 		Complete: wire.Complete, DurationMS: wire.DurationMS, StopReason: wire.StopReason,
-		Adapters: map[contracts.RuntimeAdapterRef]RuntimeAdapterMetrics{},
+		Adapters: map[runtimesettings.RuntimeAdapterRef]RuntimeAdapterMetrics{},
 	}
 	r.Resources, r.ResourcesError = decodeOptionalResources(wire.Resources)
 	for rawRef, rawMetrics := range wire.Adapters {
-		ref := contracts.RuntimeAdapterRef(rawRef)
+		ref := runtimesettings.RuntimeAdapterRef(rawRef)
 		metrics, err := decodeRuntimeAdapterMetrics(rawMetrics)
 		if err != nil || ref.Validate() != nil {
 			r.Complete = false

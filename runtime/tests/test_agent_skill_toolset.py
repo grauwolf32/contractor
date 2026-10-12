@@ -722,6 +722,7 @@ def runtime_settings() -> RuntimeSettings:
 def stage_request() -> StageContentRequest:
     return StageContentRequest(
         apiVersion=API_VERSION,
+        deadline=datetime.now(UTC) + timedelta(hours=1),
         subtaskId="0",
         objective="Use the selected skill",
         instructions="Complete the task.",

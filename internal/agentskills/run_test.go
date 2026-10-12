@@ -118,13 +118,13 @@ func TestCatalogRunInitializationRejectsWrongMediaType(t *testing.T) {
 }
 
 func TestRunSkillAggregateLimitsAreDeterministic(t *testing.T) {
-	selected := make([]contracts.RunSkillSnapshot, 17)
+	selected := make([]RunSkillSnapshot, 17)
 	names := make([]string, len(selected))
 	for index := range selected {
 		name := fmt.Sprintf("skill-%02d", index)
 		revision := fmt.Sprintf("revision-%02d", index)
 		digest := fmt.Sprintf("sha256:%064x", index+1)
-		selected[index] = contracts.RunSkillSnapshot{
+		selected[index] = RunSkillSnapshot{
 			Name: name,
 			Source: &contracts.ArtifactRef{
 				Namespace: SkillNamespace, Name: name, Revision: &revision,

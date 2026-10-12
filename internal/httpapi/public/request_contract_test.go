@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"os"
 	"strings"
 	"testing"
 	"time"
@@ -14,6 +13,7 @@ import (
 	"github.com/getkin/kin-openapi/routers/gorillamux"
 	"github.com/grauwolf32/contractor/internal/auth"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
+	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	"github.com/grauwolf32/contractor/internal/gitimport"
 	"github.com/grauwolf32/contractor/internal/projectstore"
@@ -21,7 +21,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 )
 
-func TestPublicRequestAndHistoryContracts(t *testing.T) {
+func TestSharedPublicRequestAndHistoryContracts(t *testing.T) {
 	document := loadPublicOpenAPI(t)
 	router, err := gorillamux.NewRouter(document)
 	if err != nil {
@@ -29,10 +29,7 @@ func TestPublicRequestAndHistoryContracts(t *testing.T) {
 	}
 
 	t.Run("finding-decision-conditions", func(t *testing.T) {
-		data, err := os.ReadFile("../../../api/testdata/public/finding-decision-cases.json")
-		if err != nil {
-			t.Fatal(err)
-		}
+		data := contractstest.ReadFile(t, "api", "testdata", "public", "finding-decision-cases.json")
 		var cases []struct {
 			Name    string
 			Valid   bool

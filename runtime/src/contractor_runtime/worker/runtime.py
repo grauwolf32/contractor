@@ -622,8 +622,6 @@ class AdkWorkerRuntime:
         deadline = (
             asyncio.get_running_loop().time()
             + (request.deadline - datetime.now(UTC)).total_seconds()
-            if request.deadline is not None
-            else None
         )
         try:
             if completion is not None:
@@ -694,7 +692,7 @@ class AdkWorkerRuntime:
                         request=request,
                         candidate=candidate,
                         invocation_id=invocation_id,
-                        deadline=deadline if deadline is not None else float("inf"),
+                        deadline=deadline,
                     )
                     if not isinstance(outcome, ContinueCompletion):
                         return outcome, exportable

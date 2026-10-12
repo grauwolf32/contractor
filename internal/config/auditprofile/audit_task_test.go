@@ -6,7 +6,6 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
-	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
 func TestAuditTaskAllowsSurroundingStagesAndOtherRoles(t *testing.T) {
@@ -64,7 +63,7 @@ func TestAuditTaskAllowsSurroundingStagesAndOtherRoles(t *testing.T) {
 		t.Fatal(err)
 	}
 	restored, err := auditprofile.DecodeResolvedAuditProfileSnapshot(encoded)
-	if err != nil || restored.Workflows["scan"].Workflow.AuditTask.Contract != contracts.AuditTaskOpenAPIScanV1 {
+	if err != nil || restored.Workflows["scan"].Workflow.AuditTask.Contract != resolved.AuditTaskOpenAPIScanV1 {
 		t.Fatalf("composed Workflow cannot be restored: %v", err)
 	}
 	// Neither another result producer nor a success branch around the scan

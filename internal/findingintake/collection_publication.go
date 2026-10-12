@@ -11,6 +11,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	postgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
@@ -77,7 +78,7 @@ func (p *CollectionPublisher) PublishCollection(ctx context.Context, params Publ
 			return err
 		}
 		written, err := user.Write(ctx, contracts.ArtifactRef{Namespace: CollectionNamespace, Name: request.ClientKey},
-			artifacts.Payload{MediaType: contracts.FindingCollectionMediaType, Data: payload}, nil)
+			artifacts.Payload{MediaType: resolved.FindingCollectionMediaType, Data: payload}, nil)
 		if err != nil {
 			return err
 		}
@@ -130,7 +131,7 @@ func readCollectionReplay(ctx context.Context, user artifacts.ScopedStore, key, 
 	var receipt collectionPublication
 	if read.Payload.MediaType != "application/json" || len(read.Payload.Data) > 4096 || json.Unmarshal(read.Payload.Data, &receipt) != nil ||
 		receipt.Schema != collectionPublicationSchema || receipt.Artifact.Ref.ValidateExact() != nil ||
-		receipt.Artifact.Ref.Namespace != CollectionNamespace || receipt.Artifact.Ref.Name != key || receipt.Artifact.MediaType != contracts.FindingCollectionMediaType ||
+		receipt.Artifact.Ref.Namespace != CollectionNamespace || receipt.Artifact.Ref.Name != key || receipt.Artifact.MediaType != resolved.FindingCollectionMediaType ||
 		receipt.Artifact.SizeBytes <= 0 || receipt.Artifact.SizeBytes > auditdomain.MaximumArchiveBytes {
 		return PublishedCollection{}, false, ErrConflict
 	}

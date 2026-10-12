@@ -53,10 +53,10 @@ func TestFindingsReaderRequiresDeclaredCollectionInputInWorkflowSnapshot(t *test
 	}{
 		{"writer", []string{"finding"}, nil, true},
 		{"missing", []string{"list_findings"}, nil, false},
-		{"optional", []string{"list_findings"}, &resolved.ArtifactSlot{MediaTypes: []string{contracts.FindingCollectionMediaType}}, false},
+		{"optional", []string{"list_findings"}, &resolved.ArtifactSlot{MediaTypes: []string{resolved.FindingCollectionMediaType}}, false},
 		{"wrong-media", []string{"list_findings"}, &resolved.ArtifactSlot{Required: true, MediaTypes: []string{"application/json"}}, false},
-		{"reader", []string{"list_findings"}, &resolved.ArtifactSlot{Required: true, MediaTypes: []string{contracts.FindingCollectionMediaType}}, true},
-		{"both", []string{"finding", "list_findings"}, &resolved.ArtifactSlot{Required: true, MediaTypes: []string{contracts.FindingCollectionMediaType}}, true},
+		{"reader", []string{"list_findings"}, &resolved.ArtifactSlot{Required: true, MediaTypes: []string{resolved.FindingCollectionMediaType}}, true},
+		{"both", []string{"finding", "list_findings"}, &resolved.ArtifactSlot{Required: true, MediaTypes: []string{resolved.FindingCollectionMediaType}}, true},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			workflow, err := snapshot.Workflow("artifact-copy@1")

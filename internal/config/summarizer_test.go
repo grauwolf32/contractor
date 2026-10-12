@@ -9,16 +9,15 @@ import (
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 	"github.com/grauwolf32/contractor/internal/contracts/control"
 )
 
-func TestWorkerSummarizerGoldenDigestMatchesGoCanonicalization(t *testing.T) {
+func TestSharedWorkerSummarizerGoldenDigestMatchesGoCanonicalization(t *testing.T) {
 	t.Parallel()
 
 	var allocation control.AllocationSpec
-	encoded := readFile(
-		t, filepath.Join("..", "..", "api", "testdata", "v1alpha1", "valid", "allocation-spec-summarizer.json"),
-	)
+	encoded := contractstest.ReadFile(t, "api", "testdata", "v1alpha1", "valid", "allocation-spec-summarizer.json")
 	if err := json.Unmarshal(encoded, &allocation); err != nil {
 		t.Fatal(err)
 	}

@@ -139,6 +139,7 @@ make release-verify
 
 | Area | Entry point |
 | --- | --- |
+| Server/Runtime wire contracts and every shared fixture under `api/testdata` | `make test-wire-cross-language` (test database and locked Runtime environment); [private contracts](../../api/v1alpha1/README.md) |
 | Project workspaces, artifact handoffs and output publication | `make test-project-workspaces-release`; [Project guide](../guides/project-workflows.md) |
 | Heterogeneous Runtime capability placement | `make test-capability-e2e`; [Runtime configuration](../operations/runtime-configuration.md) |
 | Runtime configuration, labels, browser stack, lifecycle, Scheduler, Memory and HTTP/Caido | [Release gates and diagnosis](release-gates.md) |
@@ -154,6 +155,19 @@ make release-verify
 
 Podman, Git, backup/restore and blob-backend checks have their own host/image requirements;
 consult their guides before running those targets.
+
+A test that reads a fixture under `api/testdata` is named `TestShared*` in Go,
+where it reads through `internal/contracts/contractstest`, and
+`test_shared_*` in the Runtime, where a test module that reads one while it is
+imported (to parametrize its tests) holds only such tests; any other test or
+module that reads one fails. A Runtime helper module may read one at import to
+build test inputs only when `runtime/tests/shared_fixtures.py` lists it with
+its reason.
+`api/testdata/readers.json` declares the sides that read each fixture, and
+`make test-wire-cross-language` runs every shared test and holds the observed
+readers to it ([`scripts/shared_fixture_gate.py`](../../scripts/shared_fixture_gate.py)).
+`make lint` runs only the gate's source checks: no other Go path into
+`api/testdata`, and no `TestShared*` test behind a build constraint.
 
 ## Live-model and research evaluations
 

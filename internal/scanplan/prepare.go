@@ -10,6 +10,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/scan"
+	"github.com/grauwolf32/contractor/internal/strictjson"
 )
 
 type preparer struct {
@@ -65,7 +66,7 @@ func prepare(data []byte, mediaType string, source contracts.ArtifactRef, option
 		Source:        scan.RequestSetSource{Artifact: source, ContentDigest: contentdigest.Bytes(data)},
 		Requests:      []scan.RequestSetEntry{},
 	}
-	basis, err := contracts.MarshalPrivateCanonical(struct {
+	basis, err := strictjson.Canonical(struct {
 		PolicyVersion int                   `json:"policyVersion"`
 		Source        scan.RequestSetSource `json:"source"`
 		MediaType     string                `json:"mediaType"`
@@ -77,7 +78,7 @@ func prepare(data []byte, mediaType string, source contracts.ArtifactRef, option
 	set.PreparationDigest = contentdigest.Bytes(basis)
 	// The operation and mode digest preserves the identity of existing Audit
 	// preparations while separating request sets from URL-only targets.
-	basis, err = contracts.MarshalPrivateCanonical(struct {
+	basis, err = strictjson.Canonical(struct {
 		PolicyVersion int    `json:"policyVersion"`
 		BaseDigest    string `json:"baseDigest"`
 		Operation     string `json:"operation"`

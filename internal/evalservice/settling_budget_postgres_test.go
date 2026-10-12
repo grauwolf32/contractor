@@ -9,7 +9,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/evalstore"
 )
 
-func TestPostgresEvalSettlingEnforcesBudgetUntilAcceptedWorkDrains(t *testing.T) {
+func TestSharedPostgresEvalSettlingEnforcesBudgetUntilAcceptedWorkDrains(t *testing.T) {
 	for _, kind := range []string{"workflow", "audit"} {
 		for _, budget := range []string{"deadline", "tokens"} {
 			t.Run(kind+"/"+budget, func(t *testing.T) {

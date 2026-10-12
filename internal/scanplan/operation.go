@@ -8,8 +8,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/scan"
+	"github.com/grauwolf32/contractor/internal/strictjson"
 )
 
 var variablePattern = regexp.MustCompile(`\{([^{}]+)\}`)
@@ -385,7 +385,7 @@ func serializeBody(value any, mediaType string) (string, string, string) {
 	if mediaType != "application/json" {
 		return "", "", "unsupported_body_media_type"
 	}
-	encoded, err := contracts.MarshalPrivateCanonical(value)
+	encoded, err := strictjson.Canonical(value)
 	if err != nil || len(encoded) > scan.MaxHTTPRequestBodyBytes {
 		return "", "", "invalid_body_value"
 	}

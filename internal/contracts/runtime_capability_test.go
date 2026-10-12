@@ -61,10 +61,10 @@ func wireCase(t *testing.T, fixture string) map[string]any {
 	return value
 }
 
-// TestRuntimeCapabilityGoldenCases holds Go registration and heartbeat
+// TestSharedRuntimeCapabilityGoldenCases holds Go registration and heartbeat
 // validation and the private JSON Schemas to the shared Runtime capability
 // cases: both must accept or reject every case alike.
-func TestRuntimeCapabilityGoldenCases(t *testing.T) {
+func TestSharedRuntimeCapabilityGoldenCases(t *testing.T) {
 	t.Parallel()
 	cases := readRuntimeCapabilityCases(t)
 	compiler, ids := privateSchemaCompiler(t)

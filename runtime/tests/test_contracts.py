@@ -10,6 +10,7 @@ from typing import Any
 import pytest
 from fakes.private_codec import encode_private
 from jsonschema import Draft202012Validator
+from private_schemas import private_validator
 from pydantic import BaseModel, ValidationError
 from referencing import Registry, Resource
 
@@ -38,7 +39,6 @@ from contractor_runtime.contracts import (
     RuntimeReport,
     RuntimeSettings,
     StageContentRequest,
-    StageContentResult,
     WorkerCompletion,
     WorkerModelResult,
     WorkerSessionMode,
@@ -74,7 +74,6 @@ MODELS: dict[str, type[BaseModel]] = {
         RuntimeReport,
         RuntimeSettings,
         StageContentRequest,
-        StageContentResult,
         WorkerCompletion,
         WorkspaceCapabilities,
     )
@@ -107,7 +106,7 @@ INVALID_MODELS: dict[str, type[BaseModel]] = {
 }
 
 
-def test_stage_content_request_does_not_expose_session_controls() -> None:
+def test_shared_stage_content_request_does_not_expose_session_controls() -> None:
     assert {
         "session",
         "session_id",
@@ -125,17 +124,17 @@ FIXTURE_SCHEMAS = {
 
 
 @pytest.mark.parametrize(("filename", "model"), VALID_MODELS.items())
-def test_valid_golden_fixture_round_trip(filename: str, model: type[BaseModel]) -> None:
+def test_shared_valid_golden_fixture_round_trip(filename: str, model: type[BaseModel]) -> None:
     raw = (FIXTURES / "valid" / filename).read_text(encoding="utf-8")
     value = model.model_validate_json(raw)
     encoded = value.model_dump_json(by_alias=True, exclude_none=True)
     assert json.loads(encoded) == json.loads(raw)
-    if filename == "stage-content-request-deadline.json":
+    if filename == "stage-content-request.json":
         assert StageContentRequest.model_validate(json.loads(raw)).deadline == value.deadline
 
 
 @pytest.mark.parametrize("owner", ["httpProxy", "caido"])
-def test_runtime_settings_ca_bundle_count_and_field_parity(owner: str) -> None:
+def test_shared_runtime_settings_ca_bundle_count_and_field_parity(owner: str) -> None:
     base = json.loads(
         (FIXTURES / "valid" / "runtime-settings-combined.json").read_text(encoding="utf-8")
     )
@@ -163,7 +162,7 @@ def test_runtime_settings_ca_bundle_count_and_field_parity(owner: str) -> None:
 
 
 @pytest.mark.parametrize(("filename", "model"), INVALID_MODELS.items())
-def test_invalid_golden_fixture_is_rejected(filename: str, model: type[BaseModel]) -> None:
+def test_shared_invalid_golden_fixture_is_rejected(filename: str, model: type[BaseModel]) -> None:
     raw = (FIXTURES / "invalid" / filename).read_text(encoding="utf-8")
     with pytest.raises(ValidationError):
         model.model_validate_json(raw)
@@ -172,7 +171,7 @@ def test_invalid_golden_fixture_is_rejected(filename: str, model: type[BaseModel
             StageContentRequest.model_validate(json.loads(raw))
 
 
-def test_worker_model_result_is_strict_and_runtime_internal() -> None:
+def test_shared_worker_model_result_is_strict_and_runtime_internal() -> None:
     result = WorkerModelResult.model_validate(
         {"subtaskId": "1.1", "result": "Completed the assigned analysis."}
     )
@@ -191,7 +190,7 @@ def test_worker_model_result_is_strict_and_runtime_internal() -> None:
             WorkerModelResult.model_validate(invalid)
 
 
-def test_worker_completion_rejects_nested_authority_and_inconsistent_observations() -> None:
+def test_shared_worker_completion_rejects_nested_authority_and_inconsistent_observations() -> None:
     baseline = json.loads(
         (FIXTURES / "valid" / "worker-completion-success.json").read_text(encoding="utf-8")
     )
@@ -242,7 +241,7 @@ def test_worker_completion_rejects_nested_authority_and_inconsistent_observation
         ("a" * 1024, "a" * 1025),
     ],
 )
-def test_worker_completion_read_path_bounds_and_omitted_detail(
+def test_shared_worker_completion_read_path_bounds_and_omitted_detail(
     valid_path: str, invalid_path: str
 ) -> None:
     baseline = json.loads(
@@ -272,7 +271,7 @@ def test_worker_completion_read_path_bounds_and_omitted_detail(
     Draft202012Validator(worker_schema, registry=registry).validate(baseline)
 
 
-def test_agent_state_snapshot_rejects_missing_or_untyped_nested_state() -> None:
+def test_shared_agent_state_snapshot_rejects_missing_or_untyped_nested_state() -> None:
     baseline = json.loads(
         (FIXTURES / "valid" / "agent-state-snapshot.json").read_text(encoding="utf-8")
     )
@@ -306,7 +305,7 @@ def test_agent_state_snapshot_rejects_missing_or_untyped_nested_state() -> None:
 
 
 @pytest.mark.parametrize(("filename", "model"), VALID_MODELS.items())
-def test_private_valid_fixture_is_shared_canonical_json(
+def test_shared_private_valid_fixture_is_shared_canonical_json(
     filename: str, model: type[BaseModel]
 ) -> None:
     raw = (FIXTURES / "valid" / filename).read_bytes().strip()
@@ -315,7 +314,7 @@ def test_private_valid_fixture_is_shared_canonical_json(
 
 
 @pytest.mark.parametrize(("filename", "case"), DECODE_ERROR_CASES.items())
-def test_private_invalid_fixture_has_safe_reason(
+def test_shared_private_invalid_fixture_has_safe_reason(
     filename: str, case: tuple[type[BaseModel], str]
 ) -> None:
     model, reason = case
@@ -335,7 +334,7 @@ def test_private_invalid_fixture_has_safe_reason(
         assert canary not in rendered
 
 
-def test_private_allocation_composes_and_redacts_settings() -> None:
+def test_shared_private_allocation_composes_and_redacts_settings() -> None:
     value = json.loads((FIXTURES / "valid" / "allocation-spec.json").read_text())
     value["runtimeSettings"] = json.loads(
         (FIXTURES / "valid" / "runtime-settings-combined.json").read_text()
@@ -357,7 +356,7 @@ def test_private_allocation_composes_and_redacts_settings() -> None:
         assert secret.encode() in canonical
 
 
-def test_runtime_settings_repr_is_redacted_but_json_is_wire_usable() -> None:
+def test_shared_runtime_settings_repr_is_redacted_but_json_is_wire_usable() -> None:
     token = "recognizable-secret-token"
     settings = RuntimeSettings.model_validate(
         {
@@ -372,16 +371,15 @@ def test_runtime_settings_repr_is_redacted_but_json_is_wire_usable() -> None:
     assert json.loads(settings.model_dump_json(by_alias=True))["llmGatewayToken"] == token
 
 
-def test_runtime_settings_accepts_explicit_unauthenticated_gateway() -> None:
-    settings = RuntimeSettings.model_validate(
-        {
-            "llmGatewayUrl": "http://127.0.0.1:4000/v1",
-            "llmGatewayToken": "",
-            "artifactApiUrl": "https://server.example/private/v1",
-            "requestTimeoutSeconds": 30,
-        }
-    )
-    assert settings.llm_gateway_token.get_secret_value() == ""
+def test_shared_runtime_settings_unauthenticated_gateway_omits_the_token() -> None:
+    unauthenticated = {
+        "llmGatewayUrl": "http://127.0.0.1:4000/v1",
+        "artifactApiUrl": "https://server.example/private/v1",
+        "requestTimeoutSeconds": 30,
+    }
+    assert RuntimeSettings.model_validate(unauthenticated).llm_gateway_token is None
+    with pytest.raises(ValidationError, match="unauthenticated Gateway omits llmGatewayToken"):
+        RuntimeSettings.model_validate({**unauthenticated, "llmGatewayToken": ""})
 
 
 @pytest.mark.parametrize(
@@ -396,7 +394,7 @@ def test_runtime_settings_accepts_explicit_unauthenticated_gateway() -> None:
         ("\u0378", True),
     ],
 )
-def test_gateway_failure_signature_unicode_categories(char: str, valid: bool) -> None:
+def test_shared_gateway_failure_signature_unicode_categories(char: str, valid: bool) -> None:
     data = {"status": 400, "messageEquals": "Model" + char + " unavailable"}
     if valid:
         assert GatewayFailureSignature.model_validate(data).message_equals == data["messageEquals"]
@@ -405,7 +403,7 @@ def test_gateway_failure_signature_unicode_categories(char: str, valid: bool) ->
             GatewayFailureSignature.model_validate(data)
 
 
-def test_runtime_settings_failure_signatures_require_gateway_url() -> None:
+def test_shared_runtime_settings_failure_signatures_require_gateway_url() -> None:
     signatures = {"modelUnavailable": [{"status": 404, "messageEquals": "gone"}]}
     settings = RuntimeSettings.model_validate(
         {
@@ -439,7 +437,9 @@ def test_runtime_settings_failure_signatures_require_gateway_url() -> None:
         ("maxTotalTokens", 100000001),
     ],
 )
-def test_worker_budget_wire_fields_are_required_and_bounded(field: str, invalid: int) -> None:
+def test_shared_worker_budget_wire_fields_are_required_and_bounded(
+    field: str, invalid: int
+) -> None:
     raw = json.loads((FIXTURES / "valid" / "allocation-spec.json").read_text())
     for policy_path in (("agentTemplate", "modelPolicy"), ("modelPolicy",)):
         missing = json.loads(json.dumps(raw))
@@ -459,14 +459,14 @@ def test_worker_budget_wire_fields_are_required_and_bounded(field: str, invalid:
             AllocationSpec.model_validate_json(json.dumps(invalid_value))
 
 
-def test_worker_policy_rejects_planner_only_limit() -> None:
+def test_shared_worker_policy_rejects_planner_only_limit() -> None:
     raw = json.loads((FIXTURES / "valid" / "allocation-spec.json").read_text())
     raw["modelPolicy"]["maxWorkerCalls"] = 1
     with pytest.raises(ValidationError, match="incompatible with adk@1 Worker"):
         AllocationSpec.model_validate_json(json.dumps(raw))
 
 
-def test_agent_template_skill_refs_are_strict_and_empty_wire_is_compatible() -> None:
+def test_shared_agent_template_skill_refs_are_strict_and_empty_wire_is_compatible() -> None:
     allocation = json.loads((FIXTURES / "valid" / "allocation-spec.json").read_text())
     raw = allocation["agentTemplate"]
 
@@ -503,7 +503,7 @@ def test_agent_template_skill_refs_are_strict_and_empty_wire_is_compatible() -> 
             ResolvedAgentTemplate.model_validate({**raw, "skills": skills})
 
 
-def test_nonempty_agent_template_skill_digest_matches_go() -> None:
+def test_shared_nonempty_agent_template_skill_digest_matches_go() -> None:
     allocation = AllocationSpec.model_validate_json(
         (FIXTURES / "valid" / "allocation-spec-skills.json").read_text()
     )
@@ -513,7 +513,7 @@ def test_nonempty_agent_template_skill_digest_matches_go() -> None:
     )
 
 
-def test_agent_template_skills_reserve_native_names_and_require_tool_budget() -> None:
+def test_shared_agent_template_skills_reserve_native_names_and_require_tool_budget() -> None:
     allocation = json.loads((FIXTURES / "valid" / "allocation-spec.json").read_text())
     raw = allocation["agentTemplate"]
     skill = [{"namespace": "skills", "name": "review"}]
@@ -571,14 +571,14 @@ def test_shared_ca_bundle_cases_match_server_grammar(
         lambda value: value["resolvedSkills"][0].__setitem__("packageDigest", "sha256:ABC"),
     ],
 )
-def test_allocation_resolved_skills_rejects_every_manifest_mismatch(mutation: Any) -> None:
+def test_shared_allocation_resolved_skills_rejects_every_manifest_mismatch(mutation: Any) -> None:
     value = json.loads((FIXTURES / "valid" / "allocation-spec-skills.json").read_text())
     mutation(value)
     with pytest.raises(ValidationError):
         AllocationSpec.model_validate(value)
 
 
-def test_all_golden_files_have_an_assigned_model() -> None:
+def test_shared_all_golden_files_have_an_assigned_model() -> None:
     valid_files = {path.name for path in (FIXTURES / "valid").glob("*.json")}
     invalid_files = {path.name for path in (FIXTURES / "invalid").glob("*.json")}
     assert valid_files == INDEX["valid"].keys()
@@ -587,14 +587,14 @@ def test_all_golden_files_have_an_assigned_model() -> None:
         assert entry.keys() & {"schema", "strict", "reason"}
 
 
-def test_every_index_type_has_a_runtime_model_or_a_go_only_reason() -> None:
+def test_shared_every_index_type_has_a_runtime_model_or_a_go_only_reason() -> None:
     types = {entry["type"] for kind in ("valid", "invalid") for entry in INDEX[kind].values()}
     assert types - MODELS.keys() == GO_ONLY_TYPES.keys()
     assert MODELS.keys().isdisjoint(GO_ONLY_TYPES)
     assert all(reason.strip() for reason in GO_ONLY_TYPES.values())
 
 
-def test_gateway_failure_signatures_reject_a_permanent_code_with_a_trailing_newline() -> None:
+def test_shared_gateway_failure_signatures_reject_permanent_code_with_trailing_newline() -> None:
     assert GatewayFailureSignatures.model_validate(
         {"permanentCodes": ["insufficient_quota"]}
     ).permanent_codes == ["insufficient_quota"]
@@ -602,15 +602,23 @@ def test_gateway_failure_signatures_reject_a_permanent_code_with_a_trailing_newl
         GatewayFailureSignatures.model_validate({"permanentCodes": ["insufficient_quota\n"]})
 
 
-def test_gateway_failure_signatures_reject_the_shared_newline_fixture() -> None:
-    # The Go-only Gateway fixture carries the same signature body that
+@pytest.mark.parametrize(
+    ("filename", "message"),
+    [
+        ("llm-gateway-config-permanent-code-newline.json", "snake_case provider codes"),
+        ("llm-gateway-config-signature-format-char.json", "text is invalid"),
+        ("llm-gateway-config-signature-private-use.json", "text is invalid"),
+        ("llm-gateway-config-signature-retryable-status.json", "status must be"),
+        ("llm-gateway-config-signature-two-matchers.json", "exactly one of"),
+    ],
+)
+def test_shared_gateway_failure_signatures_reject_the_shared_gateway_fixtures(
+    filename: str, message: str
+) -> None:
+    # The Go-only Gateway fixtures carry the same signature body that
     # RuntimeSettings.llmGatewayFailureSignatures receives.
-    fixture = json.loads(
-        (FIXTURES / "invalid" / "llm-gateway-config-permanent-code-newline.json").read_text(
-            encoding="utf-8"
-        )
-    )
-    with pytest.raises(ValidationError, match="snake_case provider codes"):
+    fixture = json.loads((FIXTURES / "invalid" / filename).read_text(encoding="utf-8"))
+    with pytest.raises(ValidationError, match=message):
         GatewayFailureSignatures.model_validate(fixture["failureSignatures"])
 
 
@@ -773,7 +781,7 @@ def test_shared_config_identity_cases_match_runtime_and_schemas() -> None:
     assert not manifest_accepts("a", longest_version + "1")
 
 
-def test_golden_runtime_capability_cases_match_models_and_schemas() -> None:
+def test_shared_golden_runtime_capability_cases_match_models_and_schemas() -> None:
     # Registration and heartbeat values the Server shows in Operations: the
     # Runtime models and the private schemas accept or reject each case alike.
     cases = json.loads((FIXTURES / "runtime-capability-cases.json").read_text(encoding="utf-8"))
@@ -891,11 +899,10 @@ def test_golden_runtime_capability_cases_match_models_and_schemas() -> None:
             )
 
 
-def test_run_metadata_labels_exist_only_on_allocation_telemetry_input() -> None:
+def test_shared_run_metadata_labels_exist_only_on_allocation_telemetry_input() -> None:
     assert "run_metadata_labels" in AllocationSpec.model_fields
     for model in (
         StageContentRequest,
-        StageContentResult,
         WorkerCompletion,
         AgentStateSnapshot,
         RuntimeReport,
@@ -903,7 +910,7 @@ def test_run_metadata_labels_exist_only_on_allocation_telemetry_input() -> None:
         assert "run_metadata_labels" not in model.model_fields
 
 
-def test_schema_files_are_json_objects() -> None:
+def test_shared_schema_files_are_json_objects() -> None:
     schema_root = Path(__file__).parents[2] / "api" / "v1alpha1"
     schemas: list[dict[str, Any]] = [
         json.loads(path.read_text(encoding="utf-8")) for path in schema_root.glob("*.schema.json")
@@ -913,7 +920,7 @@ def test_schema_files_are_json_objects() -> None:
     assert all(schema.get("$schema") == expected_draft for schema in schemas)
 
 
-def test_schema_ids_are_unique_across_the_api_catalog() -> None:
+def test_shared_schema_ids_are_unique_across_the_api_catalog() -> None:
     owners: dict[str, Path] = {}
     for path in (Path(__file__).parents[2] / "api").rglob("*.schema.json"):
         schema = json.loads(path.read_bytes())
@@ -922,15 +929,7 @@ def test_schema_ids_are_unique_across_the_api_catalog() -> None:
         owners[schema_id] = path
 
 
-def test_json_schemas_accept_and_reject_the_golden_fixtures() -> None:
-    schema_root = Path(__file__).parents[2] / "api" / "v1alpha1"
-    schemas = {
-        path.name: json.loads(path.read_text(encoding="utf-8"))
-        for path in schema_root.glob("*.schema.json")
-    }
-    resources = [(schema["$id"], Resource.from_contents(schema)) for schema in schemas.values()]
-    registry = Registry().with_resources(resources)
-
+def test_shared_json_schemas_accept_and_reject_the_golden_fixtures() -> None:
     for kind, expected_valid in (("valid", True), ("invalid", False)):
         for path in (FIXTURES / kind).glob("*.json"):
             if path.stem not in FIXTURE_SCHEMAS:
@@ -938,10 +937,7 @@ def test_json_schemas_accept_and_reject_the_golden_fixtures() -> None:
                 # in the applicable codecs, which JSON Schema cannot express.
                 assert "reason" in INDEX[kind][path.name]
                 continue
-            schema_name = FIXTURE_SCHEMAS[path.stem]
-            filename, _, fragment = schema_name.partition("#")
-            reference = schemas[filename]["$id"] + (f"#{fragment}" if fragment else "")
-            validator = Draft202012Validator({"$ref": reference}, registry=registry)
+            validator = private_validator(FIXTURE_SCHEMAS[path.stem])
             errors = list(validator.iter_errors(json.loads(path.read_text(encoding="utf-8"))))
             assert bool(errors) is not expected_valid, (path.name, errors)
 
@@ -951,7 +947,7 @@ def test_json_schemas_accept_and_reject_the_golden_fixtures() -> None:
     json.loads((FIXTURES / "worker-result-size-cases.json").read_text()),
     ids=lambda case: case["name"],
 )
-def test_worker_result_size_shared_golden_cases(case: dict[str, Any]) -> None:
+def test_shared_worker_result_size_shared_golden_cases(case: dict[str, Any]) -> None:
     value = json.loads((FIXTURES / "valid/worker-completion-empty-observations.json").read_text())
     value["result"]["result"] = case["prefix"] + case["unit"] * case["repeat"]
     if case["padding"]:
@@ -1008,23 +1004,13 @@ def test_shared_required_member_cases_are_rejected() -> None:
     test of the same purpose; recomputing it here holds both schema validators
     to the same cases.
     """
-    schema_root = Path(__file__).parents[2] / "api" / "v1alpha1"
-    schemas = {
-        path.name: json.loads(path.read_text(encoding="utf-8"))
-        for path in schema_root.glob("*.schema.json")
-    }
-    registry = Registry().with_resources(
-        [(schema["$id"], Resource.from_contents(schema)) for schema in schemas.values()]
-    )
     committed = json.loads((FIXTURES / "required-member-cases.json").read_text(encoding="utf-8"))
     computed: dict[str, dict[str, list[str]]] = {}
     for name, entry in sorted(INDEX["valid"].items()):
         raw = (FIXTURES / "valid" / name).read_text(encoding="utf-8")
-        filename, _, fragment = entry["schema"].partition("#")
-        reference = schemas[filename]["$id"] + (f"#{fragment}" if fragment else "")
-        validator = Draft202012Validator({"$ref": reference}, registry=registry)
+        validator = private_validator(entry["schema"])
 
-        def rejects(document: Any, validator: Draft202012Validator = validator) -> bool:
+        def rejects(document: Any, validator: Any = validator) -> bool:
             return any(True for _ in validator.iter_errors(document))
 
         omit = sorted(

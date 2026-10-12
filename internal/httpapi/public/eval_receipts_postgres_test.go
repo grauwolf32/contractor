@@ -10,7 +10,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/evalstore"
 )
 
-func TestEvalPostgresRejectsLegacyReceiptReplayWithoutNewEffects(t *testing.T) {
+func TestSharedEvalPostgresRejectsLegacyReceiptReplayWithoutNewEffects(t *testing.T) {
 	for _, kind := range []string{"dataset", "experiment", "command", "submission"} {
 		t.Run(kind, func(t *testing.T) {
 			h := newEvalAPIHarness(t)

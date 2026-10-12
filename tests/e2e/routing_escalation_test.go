@@ -19,8 +19,8 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/config/resolved"
-	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/localpki"
+	"github.com/grauwolf32/contractor/internal/planner/stageresult"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -648,7 +648,7 @@ func assertSucceededExecution(t *testing.T, execution runstore.StageExecution, a
 	if execution.Attempt != attempt || execution.State != runstore.StageSucceeded ||
 		execution.PlannerSessionID == nil || execution.PlannerInvocationID == nil ||
 		execution.CandidateResult == nil || execution.AcceptedResult == nil ||
-		execution.AcceptedResult.Outcome != contracts.StageSucceeded ||
+		execution.AcceptedResult.Outcome != stageresult.StageSucceeded ||
 		execution.FinalizationID == nil || execution.TerminalAt == nil {
 		t.Fatalf("incomplete successful StageExecution: %+v", execution)
 	}

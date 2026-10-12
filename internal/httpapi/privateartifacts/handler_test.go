@@ -23,6 +23,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/control"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/findingintake"
 	"github.com/grauwolf32/contractor/internal/mtls"
@@ -670,7 +671,7 @@ func newProductionGrantHandler(
 			SupportedToolsets: []control.ToolsetCapability{{
 				Ref: "run-artifacts@1", Tools: []string{"list_artifacts", "read_artifact", "write_artifact"},
 			}},
-			SupportedSandboxProfiles: []string{"local-workdir@1"}, SupportedRuntimeAdapters: []contracts.RuntimeAdapterRef{},
+			SupportedSandboxProfiles: []string{"local-workdir@1"}, SupportedRuntimeAdapters: []runtimesettings.RuntimeAdapterRef{},
 			ObservedState: control.AgentIdle,
 		}
 		if _, err := registry.RegisterAuthenticated(principal, registration); err != nil {

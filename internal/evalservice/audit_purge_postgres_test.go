@@ -15,10 +15,10 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// TestPostgresEvalAuditWithDecidedHistoryPurges drains an Eval-managed Audit
+// TestSharedPostgresEvalAuditWithDecidedHistoryPurges drains an Eval-managed Audit
 // that holds an owner decision and a collected finding assessment through the
 // ordinary purge, which must also record the Eval execution tombstone.
-func TestPostgresEvalAuditWithDecidedHistoryPurges(t *testing.T) {
+func TestSharedPostgresEvalAuditWithDecidedHistoryPurges(t *testing.T) {
 	h := newHarness(t)
 	e := h.prepared(t, "audit")
 	h.command(t, e, "start")

@@ -316,7 +316,7 @@ SHARED_LIST_CASES = (
 )
 
 
-def test_model_hidden_bindings_match_the_shared_cases() -> None:
+def test_shared_model_hidden_bindings_match_the_shared_cases() -> None:
     cases = json.loads(SHARED_LIST_CASES.read_text(encoding="utf-8"))["bindings"]
     assert cases
     for case in cases:

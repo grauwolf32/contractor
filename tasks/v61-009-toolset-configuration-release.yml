@@ -96,7 +96,7 @@ acceptance_criteria:
 tests:
   - command: make test-toolset-runtime-configuration-release
     covers: [A1, A2, A3, A4, A5]
-  - command: make verify-wire-contracts test-wire-cross-language verify-public-api test-config
+  - command: make test-wire-cross-language verify-public-api test-config
     covers: [A1, A5]
   - command: make ui-generate-check ui-typecheck ui-test ui-build
     covers: [A4, A5]

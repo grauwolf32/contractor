@@ -109,6 +109,7 @@ def test_source_abort_and_release_join_file_work_before_reusing_slot(
             context.worker.invoke(
                 StageContentRequest(
                     apiVersion=API_VERSION,
+                    deadline=datetime.now(UTC) + timedelta(hours=1),
                     subtaskId="0",
                     objective="Read source",
                     instructions="Open source",

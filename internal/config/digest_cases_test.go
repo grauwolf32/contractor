@@ -2,13 +2,12 @@ package config
 
 import (
 	"encoding/json"
-	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 )
 
@@ -16,10 +15,7 @@ import (
 // runtime/tests/test_digest_cases.py.
 func TestSharedDigestCases(t *testing.T) {
 	t.Parallel()
-	data, err := os.ReadFile(filepath.Join("..", "..", "api", "testdata", "v1alpha1", "digest-cases.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	data := contractstest.ReadFile(t, "api", "testdata", "v1alpha1", "digest-cases.json")
 	var cases struct {
 		ModelPolicies     []contracts.ResolvedModelPolicy       `json:"modelPolicies"`
 		LLMGatewayConfigs []llmgateway.ResolvedLLMGatewayConfig `json:"llmGatewayConfigs"`

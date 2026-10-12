@@ -13,6 +13,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/planner"
+	"github.com/grauwolf32/contractor/internal/planner/stageresult"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"google.golang.org/adk/model"
 	adksession "google.golang.org/adk/session"
@@ -70,8 +71,8 @@ func TestServiceCreatesOneInvocationAndRecoversCompletion(t *testing.T) {
 		t.Fatalf("idempotent RecordRequest: %v", err)
 	}
 	resultRevision := "result-r1"
-	result := contracts.StageContentResult{
-		APIVersion: contracts.APIVersion, Outcome: contracts.StageSucceeded, Summary: "done",
+	result := stageresult.StageContentResult{
+		APIVersion: contracts.APIVersion, Outcome: stageresult.StageSucceeded, Summary: "done",
 		Artifacts: map[string]contracts.ArtifactRef{
 			"report": {Namespace: "builder", Name: "report", Revision: &resultRevision},
 		},
@@ -243,7 +244,7 @@ func TestServicePersistsDeterministicTypedPlanAndFacts(t *testing.T) {
 	recordPlan(t, service, identity, before, started, planner.PlannerEventDispatchStarted)
 
 	before = controller.Snapshot()
-	completed, planErr := controller.CompleteDispatch(claim.CallID, contracts.StageSucceeded)
+	completed, planErr := controller.CompleteDispatch(claim.CallID, stageresult.StageSucceeded)
 	if planErr != nil {
 		t.Fatal(planErr)
 	}

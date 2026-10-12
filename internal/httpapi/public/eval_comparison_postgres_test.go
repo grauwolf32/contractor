@@ -73,7 +73,7 @@ func ownerEvalReview(t *testing.T, h *evalAPIHarness, path string) evalservice.R
 	return apiDecode[evalservice.ReviewContext](t, response)
 }
 
-func TestEvalPostgresReviewSelectionReplayAndObservedResultAuthority(t *testing.T) {
+func TestSharedEvalPostgresReviewSelectionReplayAndObservedResultAuthority(t *testing.T) {
 	h, e, members := completedEvalFixture(t)
 	member := members[0]
 	base := "/v1/eval-experiments/" + e.ID
@@ -145,7 +145,7 @@ func TestEvalPostgresReviewSelectionReplayAndObservedResultAuthority(t *testing.
 	}
 }
 
-func TestEvalPostgresChartsPairPagesAndBoundBinTokens(t *testing.T) {
+func TestSharedEvalPostgresChartsPairPagesAndBoundBinTokens(t *testing.T) {
 	h, e, members := completedEvalFixture(t)
 	base := "/v1/eval-experiments/" + e.ID
 	snapshot := url.QueryEscape(*e.ViewSnapshot)
@@ -214,7 +214,7 @@ func TestEvalPostgresChartsPairPagesAndBoundBinTokens(t *testing.T) {
 	h.request(t, "GET", base+"/charts/duration?viewSnapshot="+snapshot, nil, "", "", 409)
 }
 
-func TestEvalPostgresDeletedEvidenceInvalidatesSelectedAssessment(t *testing.T) {
+func TestSharedEvalPostgresDeletedEvidenceInvalidatesSelectedAssessment(t *testing.T) {
 	h, e, members := completedEvalFixture(t)
 	member := members[0]
 	base := "/v1/eval-experiments/" + e.ID

@@ -74,19 +74,19 @@ cases:
     acceptance: [A2]
     faults: [F09, F10]
     expected: Timeout oversize invalid cache metadata and false 304 responses normalize to bounded safe errors.
-    test: {source: internal/controlplane/runtime_client_test.go, symbol: TestRuntimeControlClientWorkerStateFailuresAreBoundedAndSafe}
+    test: {source: internal/controlplane/runtime_client_test.go, symbol: TestSharedRuntimeControlClientWorkerStateFailuresAreBoundedAndSafe}
   - id: etag_revalidation
     category: transport
     acceptance: [A1]
     faults: [F11]
     expected: A valid snapshot and matching 304 cross the authenticated Runtime client boundary without changing identity.
-    test: {source: internal/controlplane/runtime_client_test.go, symbol: TestRuntimeControlClientReadsWorkerStateAndRevalidatesETag}
+    test: {source: internal/controlplane/runtime_client_test.go, symbol: TestSharedRuntimeControlClientReadsWorkerStateAndRevalidatesETag}
   - id: stale_state_and_cursor
     category: planner
     acceptance: [A2]
     faults: [F12, F13]
     expected: Replaced completion incomplete workspace and cursor misuse fail closed without exposing another dispatch.
-    test: {source: internal/planner/stateview/service_test.go, symbol: TestServiceRejectsStaleStateIncompleteCoverageAndCursorMisuse}
+    test: {source: internal/planner/stateview/service_test.go, symbol: TestSharedServiceRejectsStaleStateIncompleteCoverageAndCursorMisuse}
   - id: advisory_state_failure
     category: planner
     acceptance: [A2]

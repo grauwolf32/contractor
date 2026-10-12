@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/config/resolved"
-	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/pagelimit"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/runservice"
@@ -565,7 +565,7 @@ func stageRuntimeConfigurationReadModel(
 		projected = append(projected, stageRuntimeAllocationResponse{
 			LogicalAgent: allocation.LogicalAgentName,
 			AgentLabels:  agentLabels,
-			RuntimeAdapters: append([]contracts.RuntimeAdapterRef{},
+			RuntimeAdapters: append([]runtimesettings.RuntimeAdapterRef{},
 				configuration.Provenance.RuntimeAdapters...),
 			Origins: configuration.Origins,
 			Status:  status,

@@ -2,23 +2,22 @@ package config
 
 import (
 	"encoding/json"
-	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/config/auditprofile"
+	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 )
 
-func TestAuditPreparationAuthoringFixtures(t *testing.T) {
-	fixture := "../../api/testdata/audit-composition"
-	profileYAML := string(readFile(t, filepath.Join(fixture, "prepared-openapi-scan.yaml")))
+func TestSharedAuditPreparationAuthoringFixtures(t *testing.T) {
+	profileYAML := string(contractstest.ReadFile(t, "api", "testdata", "audit-composition", "prepared-openapi-scan.yaml"))
 	var cases []struct {
 		Name         string      `json:"name"`
 		Valid        bool        `json:"valid"`
 		Replacements [][2]string `json:"replacements"`
 	}
-	if err := json.Unmarshal(readFile(t, filepath.Join(fixture, "profile-cases.json")), &cases); err != nil {
+	if err := json.Unmarshal(contractstest.ReadFile(t, "api", "testdata", "audit-composition", "profile-cases.json"), &cases); err != nil {
 		t.Fatal(err)
 	}
 	for _, tc := range cases {

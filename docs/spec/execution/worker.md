@@ -259,8 +259,8 @@ How the semantic task is rendered for the Worker model, and which transport,
 allocation and lifecycle facts the rendered task never contains, is owned by
 [Planners](planners.md).
 
-**WRK-R6.** The private `StageContentRequest.deadline` carries the
-Planner's effective Worker-call deadline: the Stage deadline for passthrough,
+**WRK-R6.** The private `StageContentRequest.deadline` is required and
+carries the Planner's effective Worker-call deadline: the Stage deadline for passthrough,
 the smaller of the Stage and Planner wall-clock deadlines for streamline and
 router, and the smaller of the Stage and scan-job deadlines for scan workers.
 

@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
@@ -190,7 +192,7 @@ func TestPlacementRuntimeCredentialsDoNotBorrowAnotherConnection(t *testing.T) {
 				t.Fatal(err)
 			}
 			fixture.registerCandidateWithLabels(t, ctx, "runtime-authenticated", "1",
-				[]contracts.RuntimeAdapterRef{contracts.RuntimeAdapterOTLPHTTP}, []string{"authenticated"})
+				[]runtimesettings.RuntimeAdapterRef{runtimesettings.RuntimeAdapterOTLPHTTP}, []string{"authenticated"})
 			fixture.allocator.pool = limited
 			fixture.allocator.runtimeCredentials = service
 			fixture.allocator.credentialGuard = placementGuardFunc(barrier.WithCredentialReferences)

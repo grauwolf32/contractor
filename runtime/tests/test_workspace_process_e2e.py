@@ -409,6 +409,7 @@ def read_only_model(path: str, prefix: str) -> object:
 def stage_request() -> StageContentRequest:
     return StageContentRequest(
         apiVersion=API_VERSION,
+        deadline=datetime.now(UTC) + timedelta(hours=1),
         subtaskId="0",
         objective="Exercise the private workspace",
         instructions="Use only selected tools and return a strict result.",

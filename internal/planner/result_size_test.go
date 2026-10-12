@@ -6,6 +6,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/planner/stageresult"
 )
 
 func TestPassthroughResultSizeUsesCompactUTF8(t *testing.T) {
@@ -17,8 +18,8 @@ func TestPassthroughResultSizeUsesCompactUTF8(t *testing.T) {
 		{"required control escaping", "x" + strings.Repeat("\x01", 65000), false},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			candidate := contracts.StageContentResult{
-				APIVersion: contracts.APIVersion, Outcome: contracts.StageSucceeded,
+			candidate := stageresult.StageContentResult{
+				APIVersion: contracts.APIVersion, Outcome: stageresult.StageSucceeded,
 				Summary: test.text, Artifacts: map[string]contracts.ArtifactRef{},
 			}
 			sessions := &memorySessions{}

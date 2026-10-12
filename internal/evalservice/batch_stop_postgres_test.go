@@ -34,7 +34,7 @@ SELECT EXISTS (SELECT 1 FROM pg_stat_activity WHERE $1 = ANY(pg_blocking_pids(pi
 
 // A stop commits after a native batch chose its members from the running
 // experiment but before the batch locks the experiment to admit them.
-func TestPostgresStopDuringBatchAdmitsNothingAfterTransition(t *testing.T) {
+func TestSharedPostgresStopDuringBatchAdmitsNothingAfterTransition(t *testing.T) {
 	for _, stop := range []struct {
 		kind evaldomain.CommandKind
 		want evaldomain.State

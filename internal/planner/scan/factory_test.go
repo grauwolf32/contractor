@@ -20,6 +20,7 @@ import (
 	contractscan "github.com/grauwolf32/contractor/internal/contracts/scan"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/planner"
+	"github.com/grauwolf32/contractor/internal/planner/stageresult"
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
@@ -59,7 +60,7 @@ func TestFactoryValidatesExactMetadataWithTransferSlotsSaturated(t *testing.T) {
 		t.Fatal(err)
 	}
 	result, err := h.instance(t).Run(ctx)
-	if err != nil || result.Outcome != contracts.StageSucceeded || queries == 0 || len(h.invoker.calls) != 2 {
+	if err != nil || result.Outcome != stageresult.StageSucceeded || queries == 0 || len(h.invoker.calls) != 2 {
 		t.Fatalf("scan with saturated transfer gate = (%+v, %v), metadata queries=%d, calls=%d", result, err, queries, len(h.invoker.calls))
 	}
 }
@@ -67,7 +68,7 @@ func TestFactoryValidatesExactMetadataWithTransferSlotsSaturated(t *testing.T) {
 func TestFactoryFreezesAllInputsBeforeDispatchAndProducesDeterministicReport(t *testing.T) {
 	first := newFactoryHarness(t, 3)
 	result := first.run(t)
-	if result.Outcome != contracts.StageSucceeded || len(first.invoker.calls) != 3 {
+	if result.Outcome != stageresult.StageSucceeded || len(first.invoker.calls) != 3 {
 		t.Fatalf("result=%+v calls=%d", result, len(first.invoker.calls))
 	}
 	report := first.report(t, result)
@@ -98,8 +99,8 @@ func TestFactoryFreezesAllInputsBeforeDispatchAndProducesDeterministicReport(t *
 	other := second.run(t)
 	firstCalls, secondCalls := append([]factoryCall(nil), first.invoker.calls...), append([]factoryCall(nil), second.invoker.calls...)
 	for index := range firstCalls {
-		firstCalls[index].request.Deadline = nil
-		secondCalls[index].request.Deadline = nil
+		firstCalls[index].request.Deadline = time.Time{}
+		secondCalls[index].request.Deadline = time.Time{}
 	}
 	if !reflect.DeepEqual(firstCalls, secondCalls) ||
 		!bytes.Equal(first.artifacts.payload(result.Artifacts["report"]).Data, second.artifacts.payload(other.Artifacts["report"]).Data) {
@@ -196,7 +197,7 @@ func TestFactoryRecoveryKeepsExactInputsWhenBindingHeadChanges(t *testing.T) {
 		h.artifacts.put(ref, artifacts.Payload{MediaType: "application/json", Data: []byte(`{"changed":true}`)})
 	}
 	result := h.run(t)
-	if result.Outcome != contracts.StageSucceeded || len(h.invoker.calls) != 2 {
+	if result.Outcome != stageresult.StageSucceeded || len(h.invoker.calls) != 2 {
 		t.Fatalf("exact revision recovery failed: %+v", result)
 	}
 	for i, call := range h.invoker.calls {
@@ -211,7 +212,7 @@ func TestFactoryTransportFailureMarksUnknownAndUnstartedIncomplete(t *testing.T)
 	h.invoker.invokeErr = errors.New("transport lost after dispatch, private token must not escape")
 	result := h.run(t)
 	report := h.report(t, result)
-	if result.Outcome != contracts.StageFailed || len(h.invoker.calls) != 1 || report.Coverage.Unknown != 1 || report.Coverage.Incomplete != 2 || report.Coverage.Complete {
+	if result.Outcome != stageresult.StageFailed || len(h.invoker.calls) != 1 || report.Coverage.Unknown != 1 || report.Coverage.Incomplete != 2 || report.Coverage.Complete {
 		t.Fatalf("uncertain transport = outcome:%s calls:%d coverage:%+v", result.Outcome, len(h.invoker.calls), report.Coverage)
 	}
 	encoded, _ := json.Marshal(report)
@@ -231,7 +232,7 @@ func TestFactorySuccessfulTruncatedOutputRemainsIncomplete(t *testing.T) {
 			}
 			result := h.run(t)
 			report := h.report(t, result)
-			if result.Outcome != contracts.StageFailed || report.Coverage.Completed != 0 || report.Coverage.Incomplete != 1 || report.Coverage.Complete || report.Jobs[0].Report == nil {
+			if result.Outcome != stageresult.StageFailed || report.Coverage.Completed != 0 || report.Coverage.Incomplete != 1 || report.Coverage.Complete || report.Jobs[0].Report == nil {
 				t.Fatalf("truncated success = %+v", report)
 			}
 		})
@@ -243,7 +244,7 @@ func TestFactoryExpiredDeadlineSkipsEveryWorkerButPersistsCoverage(t *testing.T)
 	h.invocation.Deadline = time.Now().Add(-time.Second)
 	result := h.run(t)
 	report := h.report(t, result)
-	if len(h.invoker.calls) != 0 || len(h.sessions.claimed) != 0 || report.Coverage.Incomplete != 2 || result.Outcome != contracts.StageFailed {
+	if len(h.invoker.calls) != 0 || len(h.sessions.claimed) != 0 || report.Coverage.Incomplete != 2 || result.Outcome != stageresult.StageFailed {
 		t.Fatalf("deadline handling = calls:%d claims:%d coverage:%+v", len(h.invoker.calls), len(h.sessions.claimed), report.Coverage)
 	}
 }
@@ -267,7 +268,7 @@ func TestFactoryRetainsFailedToolReportWithoutRepeatingScanner(t *testing.T) {
 			h.invoker.observation = map[string]any{"status": "failed", "exitCode": 1, "errorCode": test.code}
 			result := h.run(t)
 			report := h.report(t, result)
-			if len(h.invoker.calls) != 1 || report.Jobs[0].Status != test.status || report.Coverage.Complete || result.Outcome != contracts.StageFailed {
+			if len(h.invoker.calls) != 1 || report.Jobs[0].Status != test.status || report.Coverage.Complete || result.Outcome != stageresult.StageFailed {
 				t.Fatalf("failed tool result = calls:%d report:%+v result:%s", len(h.invoker.calls), report, result.Outcome)
 			}
 			if (report.Jobs[0].Report == nil) != test.omitReport {
@@ -291,7 +292,7 @@ func TestFactoryRetriesTransientCompletionWriteBeyondResultBuildingBudget(t *tes
 			h.sessions.completionTimeout = time.Hour
 			h.sessions.completeErrs = []error{&pgconn.PgError{Code: persistencepostgres.SQLStateLockNotAvailable}}
 			result := h.run(t)
-			if result.Outcome != contracts.StageSucceeded || h.sessions.completeCalls != 2 ||
+			if result.Outcome != stageresult.StageSucceeded || h.sessions.completeCalls != 2 ||
 				h.sessions.completion == nil || h.sessions.completion.Result == nil {
 				t.Fatalf("result=%+v completion calls=%d", result, h.sessions.completeCalls)
 			}
@@ -379,7 +380,7 @@ func (h *factoryHarness) instance(t *testing.T) planner.Planner {
 	return instance
 }
 
-func (h *factoryHarness) run(t *testing.T) contracts.StageContentResult {
+func (h *factoryHarness) run(t *testing.T) stageresult.StageContentResult {
 	t.Helper()
 	result, err := h.instance(t).Run(t.Context())
 	if err != nil {
@@ -398,7 +399,7 @@ func (h *factoryHarness) freeze(t *testing.T) {
 	h.sessions.claimed = nil
 }
 
-func (h *factoryHarness) report(t *testing.T, result contracts.StageContentResult) Report {
+func (h *factoryHarness) report(t *testing.T, result stageresult.StageContentResult) Report {
 	t.Helper()
 	var report Report
 	if err := json.Unmarshal(h.artifacts.payload(result.Artifacts["report"]).Data, &report); err != nil {
@@ -591,7 +592,7 @@ type factoryInvoker struct {
 func (w *factoryInvoker) Invoke(ctx context.Context, binding string, _ contracts.WorkerHandle, request contracts.StageContentRequest) (contracts.WorkerCompletion, error) {
 	w.sessions.assertAllInputsPersisted()
 	ctxDeadline, ok := ctx.Deadline()
-	if !ok || request.Deadline == nil || !request.Deadline.Equal(ctxDeadline) {
+	if !ok || !request.Deadline.Equal(ctxDeadline) {
 		w.t.Fatalf("Worker request deadline does not match call context: request=%v context=%v", request.Deadline, ctxDeadline)
 	}
 	if err := request.Validate(); err != nil {
@@ -606,7 +607,7 @@ func (w *factoryInvoker) Invoke(ctx context.Context, binding string, _ contracts
 	if !found {
 		w.t.Fatal("Worker invoked before durable started intent")
 	}
-	w.calls = append(w.calls, factoryCall{binding: binding, request: planner.CloneStageRequest(request)})
+	w.calls = append(w.calls, factoryCall{binding: binding, request: request.Clone()})
 	if w.invokeErr != nil {
 		return contracts.WorkerCompletion{}, w.invokeErr
 	}

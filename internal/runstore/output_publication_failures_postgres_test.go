@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/planner/stageresult"
 )
 
 // The transient publication failure count belongs to one finalizing
@@ -54,8 +55,8 @@ func TestPostgresStageOutputPublicationFailuresCountOnlyWhileFinalizing(t *testi
 		t.Fatal(err)
 	}
 	revision := "revision-publication-failures"
-	candidate := contracts.StageContentResult{
-		APIVersion: contracts.APIVersion, Outcome: contracts.StageSucceeded, Summary: "copied",
+	candidate := stageresult.StageContentResult{
+		APIVersion: contracts.APIVersion, Outcome: stageresult.StageSucceeded, Summary: "copied",
 		Artifacts: map[string]contracts.ArtifactRef{
 			"copied": {Namespace: "builder", Name: "result", Revision: &revision},
 		},

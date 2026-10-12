@@ -336,6 +336,20 @@ and the Runtime's checks of Audit result text, finding proposals and Skill
 manifests that the Server repeats use it as well, so text one side accepts is
 never refused by the other as blank.
 
+**CTL-R153.** A private wire string that the Server and the Runtime bound in
+UTF-8 bytes states that bound in its schema as `x-maxBytes` beside the
+character bound `maxLength`, so the schema and both implementations reach one
+verdict on the same document. The generated cases in
+[`mutation-cases.json`](../../../api/testdata/v1alpha1/mutation-cases.json)
+replace each `enum` or `const` member of every valid fixture with a value
+outside it, lengthen each bounded string one character past `maxLength`, add a
+member to each closed object and repeat a key of each object. The Server and
+the Runtime reject every such case, and the schema every case but the repeated
+key, which a JSON parser does not report; the isolated parts of a
+`RuntimeReport` named in CTL-R149 are the only exceptions. A string of
+`maxLength` characters that is one UTF-8 byte too long receives the same
+verdict from all three.
+
 **CTL-R9.** The document version does not collapse
 independently versioned Toolsets, completion contracts, workspace packages,
 Audit package formats or A2A envelopes; their own versions remain explicit.

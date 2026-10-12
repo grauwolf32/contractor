@@ -35,7 +35,7 @@ EXPECTED_PROCESS_TESTS = {
     "TestRoutingAndEscalationProductionBoundaries",
     "TestRunMetadataLabelsAcrossProcesses",
     "TestSchedulerConcurrencyAcrossProductionProcesses",
-    "TestSharedMemoryMVPProcesses",
+    "TestMemoryMVPProcesses",
     "TestTaintAnnotationsAcrossRealRuntimeProcess",
     "TestWorkerSessionModesAcrossProductionProcesses",
     "TestWorkerSummarizerProductionBoundaries",

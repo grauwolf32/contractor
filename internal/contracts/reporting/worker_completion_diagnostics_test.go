@@ -3,7 +3,6 @@ package reporting
 import (
 	"encoding/json"
 	"errors"
-	"os"
 	"strings"
 	"testing"
 
@@ -16,10 +15,7 @@ import (
 // is kept exactly, and any invalid one, including an unknown kind or phase
 // (AWC-R115), rejects the whole report or live Worker State.
 func TestSharedWorkerCompletionDiagnostics(t *testing.T) {
-	data, err := os.ReadFile(contractstest.Path(t, "api", "testdata", "audit-completion", "diagnostics.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	data := contractstest.ReadFile(t, "api", "testdata", "audit-completion", "diagnostics.json")
 	var cases []struct {
 		Name         string
 		Value        json.RawMessage

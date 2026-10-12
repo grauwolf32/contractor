@@ -1674,34 +1674,6 @@
         "/telemetry/headers"
       ]
     },
-    "stage-content-request-deadline.json": {
-      "omit": [
-        "/apiVersion",
-        "/artifacts",
-        "/artifacts/source/name",
-        "/artifacts/source/namespace",
-        "/artifacts/source/revision",
-        "/instructions",
-        "/objective",
-        "/parameters",
-        "/resultArtifacts/report/name",
-        "/resultArtifacts/report/namespace",
-        "/subtaskId"
-      ],
-      "null": [
-        "/apiVersion",
-        "/artifacts",
-        "/artifacts/source/name",
-        "/artifacts/source/namespace",
-        "/artifacts/source/revision",
-        "/instructions",
-        "/objective",
-        "/parameters",
-        "/resultArtifacts/report/name",
-        "/resultArtifacts/report/namespace",
-        "/subtaskId"
-      ]
-    },
     "stage-content-request.json": {
       "omit": [
         "/apiVersion",
@@ -1709,6 +1681,7 @@
         "/artifacts/source/name",
         "/artifacts/source/namespace",
         "/artifacts/source/revision",
+        "/deadline",
         "/instructions",
         "/objective",
         "/parameters",
@@ -1722,54 +1695,13 @@
         "/artifacts/source/name",
         "/artifacts/source/namespace",
         "/artifacts/source/revision",
+        "/deadline",
         "/instructions",
         "/objective",
         "/parameters",
         "/resultArtifacts/report/name",
         "/resultArtifacts/report/namespace",
         "/subtaskId"
-      ]
-    },
-    "stage-content-result-failure.json": {
-      "omit": [
-        "/apiVersion",
-        "/artifacts",
-        "/error",
-        "/error/code",
-        "/error/message",
-        "/error/retryable",
-        "/outcome",
-        "/summary"
-      ],
-      "null": [
-        "/apiVersion",
-        "/artifacts",
-        "/error",
-        "/error/code",
-        "/error/message",
-        "/error/retryable",
-        "/outcome",
-        "/summary"
-      ]
-    },
-    "stage-content-result-success.json": {
-      "omit": [
-        "/apiVersion",
-        "/artifacts",
-        "/artifacts/copied/name",
-        "/artifacts/copied/namespace",
-        "/artifacts/copied/revision",
-        "/outcome",
-        "/summary"
-      ],
-      "null": [
-        "/apiVersion",
-        "/artifacts",
-        "/artifacts/copied/name",
-        "/artifacts/copied/namespace",
-        "/artifacts/copied/revision",
-        "/outcome",
-        "/summary"
       ]
     },
     "worker-completion-empty-observations.json": {

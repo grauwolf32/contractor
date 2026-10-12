@@ -15,7 +15,7 @@ import (
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 )
 
-func TestEvalPostgresExternalResultsRevisionsAndExplicitSelection(t *testing.T) {
+func TestSharedEvalPostgresExternalResultsRevisionsAndExplicitSelection(t *testing.T) {
 	h := newEvalAPIHarness(t)
 	e, manifest, checks := h.registerExternal(t, "workflow")
 	memberID := manifest.Members[0].MemberID
@@ -114,7 +114,7 @@ func TestEvalPostgresExternalResultsRevisionsAndExplicitSelection(t *testing.T) 
 
 // Two identical result requests take their REPEATABLE READ snapshots before
 // either commits; the second must replay the first's receipt, not conflict.
-func TestEvalPostgresConcurrentResultRetryReplaysReceipt(t *testing.T) {
+func TestSharedEvalPostgresConcurrentResultRetryReplaysReceipt(t *testing.T) {
 	h := newEvalAPIHarness(t)
 	e, manifest, _ := h.registerExternal(t, "workflow")
 	memberID := manifest.Members[0].MemberID

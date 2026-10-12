@@ -24,9 +24,9 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/auth"
-	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/gatewayrecovery"
 	"github.com/grauwolf32/contractor/internal/localpki"
+	"github.com/grauwolf32/contractor/internal/planner/stageresult"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/telemetry"
 	"github.com/jackc/pgx/v5"
@@ -266,7 +266,7 @@ func TestLocalGoToPythonArtifactCopy(t *testing.T) {
 			budgetStatus.Attempts, budgetStatus.Attempts[0].Metrics,
 		)
 	}
-	var budgetResult contracts.StageContentResult
+	var budgetResult stageresult.StageContentResult
 	if err := json.Unmarshal(budgetStatus.Attempts[0].Result, &budgetResult); err != nil ||
 		budgetResult.Error == nil || budgetResult.Error.Code != "worker_budget_exhausted" ||
 		!budgetResult.Error.Retryable {
@@ -443,7 +443,7 @@ func assertDurableExecution(
 		t.Fatalf("incomplete terminal StageExecution: %+v", execution)
 	}
 	acceptedCopied := execution.AcceptedResult.Artifacts["copied"]
-	if execution.AcceptedResult.Outcome != contracts.StageSucceeded || acceptedCopied.Revision == nil {
+	if execution.AcceptedResult.Outcome != stageresult.StageSucceeded || acceptedCopied.Revision == nil {
 		t.Fatalf("accepted result/output mismatch: %+v / %+v", execution.AcceptedResult, output)
 	}
 	runEvents, err := store.ListRunEvents(ctx, execution.RunID, 0, 1000)
@@ -561,7 +561,7 @@ func assertBudgetExecution(
 	}
 	execution := executions[0]
 	if execution.State != runstore.StageFailed || execution.AcceptedResult == nil ||
-		execution.AcceptedResult.Outcome != contracts.StageFailed ||
+		execution.AcceptedResult.Outcome != stageresult.StageFailed ||
 		execution.AcceptedResult.Error == nil ||
 		execution.AcceptedResult.Error.Code != "worker_budget_exhausted" ||
 		!execution.AcceptedResult.Error.Retryable || execution.Termination != nil {

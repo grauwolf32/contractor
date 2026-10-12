@@ -7,9 +7,10 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditscan"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/planner"
+	"github.com/grauwolf32/contractor/internal/planner/stageresult"
 )
 
-func (p *execution) finishAudit(ctx context.Context, identity planner.ScanSessionIdentity, history []planner.ScanAttempt) (contracts.StageContentResult, error) {
+func (p *execution) finishAudit(ctx context.Context, identity planner.ScanSessionIdentity, history []planner.ScanAttempt) (stageresult.StageContentResult, error) {
 	// Building the candidate has its own storage budget; recording it gets the
 	// shared completion budget and transient retry.
 	buildCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), journalIOTimeout)
@@ -21,24 +22,24 @@ func (p *execution) finishAudit(ctx context.Context, identity planner.ScanSessio
 			return p.factory.artifacts.Read(ctx, p.invocation.RunID, ref, limit)
 		})
 	if err != nil {
-		return contracts.StageContentResult{}, scanError("audit_scan_result_invalid", err)
+		return stageresult.StageContentResult{}, scanError("audit_scan_result_invalid", err)
 	}
 	slot := p.invocation.Stage.Result.Artifacts["report"].From
 	target := contracts.ArtifactRef{Namespace: slot.Namespace, Name: slot.Name + "." + stableHash(p.invocation.StageExecutionID)}
 	ref, err := p.factory.artifacts.Create(buildCtx, p.invocation.RunID, target, artifacts.Payload{MediaType: "application/zip", Data: assembled.Package})
 	if err != nil {
-		return contracts.StageContentResult{}, scanError("audit_scan_result_write_failed", err)
+		return stageresult.StageContentResult{}, scanError("audit_scan_result_write_failed", err)
 	}
-	result := contracts.StageContentResult{APIVersion: contracts.APIVersion, Outcome: contracts.StageSucceeded, Summary: assembled.Summary, Artifacts: map[string]contracts.ArtifactRef{"report": ref}}
+	result := stageresult.StageContentResult{APIVersion: contracts.APIVersion, Outcome: stageresult.StageSucceeded, Summary: assembled.Summary, Artifacts: map[string]contracts.ArtifactRef{"report": ref}}
 	if assembled.Retryable {
-		result.Outcome = contracts.StageFailed
+		result.Outcome = stageresult.StageFailed
 		result.Error = &contracts.TerminationError{Code: "scan_failed", Message: "The scanner failed with a known outcome", Retryable: true}
 	}
 	if err := planner.ValidateCandidate(buildCtx, p.invocation.RunID, p.invocation.Stage.Result.Artifacts, result, p.factory.inspector); err != nil {
-		return contracts.StageContentResult{}, err
+		return stageresult.StageContentResult{}, err
 	}
 	if err := planner.CompleteScanSession(ctx, p.factory.sessions, identity, planner.Completion{Result: &result}); err != nil {
-		return contracts.StageContentResult{}, scanError("scan_completion_write_failed", err)
+		return stageresult.StageContentResult{}, scanError("scan_completion_write_failed", err)
 	}
 	return result, nil
 }

@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/jackc/pgx/v5"
@@ -235,8 +237,8 @@ func (s *RuntimeCredentialService) Use(
 func (s *RuntimeCredentialService) UsePlaintext(
 	ctx context.Context,
 	credentialID string,
-	allowedKinds []contracts.RuntimeCredentialKind,
-	consumer func(contracts.RuntimeCredentialKind, []byte) error,
+	allowedKinds []runtimesettings.RuntimeCredentialKind,
+	consumer func(runtimesettings.RuntimeCredentialKind, []byte) error,
 ) error {
 	if consumer == nil {
 		return runtimeInvalid("Runtime credential consumer is invalid")
@@ -250,7 +252,7 @@ func (s *RuntimeCredentialService) UsePlaintext(
 	}
 	return s.Use(ctx, credentialID, allowed, func(material *RuntimeCredentialMaterial) error {
 		return material.WithPlaintext(func(kind RuntimeCredentialKind, plaintext []byte) error {
-			return consumer(contracts.RuntimeCredentialKind(kind), plaintext)
+			return consumer(runtimesettings.RuntimeCredentialKind(kind), plaintext)
 		})
 	})
 }

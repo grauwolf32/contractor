@@ -2,7 +2,6 @@ package planner
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
@@ -12,6 +11,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
+	"github.com/grauwolf32/contractor/internal/planner/stageresult"
 	"github.com/grauwolf32/contractor/internal/telemetry"
 )
 
@@ -69,7 +69,7 @@ type passthroughPlanner struct {
 
 func (p *passthroughPlanner) Run(
 	ctx context.Context,
-) (candidate contracts.StageContentResult, runErr error) {
+) (candidate stageresult.StageContentResult, runErr error) {
 	reportStarted := time.Now()
 	var identity SessionIdentity
 	var invoked bool
@@ -83,7 +83,7 @@ func (p *passthroughPlanner) Run(
 	started, err := StartSession(ctx, p.sessions, instrumentation, p.invocation.StageExecutionID)
 	identity = started.Identity
 	if err != nil {
-		return contracts.StageContentResult{}, err
+		return stageresult.StageContentResult{}, err
 	}
 	if started.Completion != nil {
 		return RecoverCompletion(
@@ -93,11 +93,11 @@ func (p *passthroughPlanner) Run(
 
 	facts := RequestFactsFor([]string{p.binding}, p.request)
 	if err := RecordSessionRequest(ctx, p.sessions, instrumentation, started.Identity, facts); err != nil {
-		return contracts.StageContentResult{}, err
+		return stageresult.StageContentResult{}, err
 	}
 	deadline := p.invocation.Deadline
 	if !deadline.After(time.Now()) {
-		return contracts.StageContentResult{}, p.fail(
+		return stageresult.StageContentResult{}, p.fail(
 			ctx,
 			started.Identity,
 			NewError(
@@ -116,7 +116,7 @@ func (p *passthroughPlanner) Run(
 		telemetry.PlannerSpanAttributes{Operation: "a2a.invoke", WorkerName: p.binding},
 	)
 	workerCompletion, err := p.invoker.Invoke(
-		invokeContext, p.binding, cloneWorkerHandle(p.handle), cloneStageRequest(p.request),
+		invokeContext, p.binding, p.handle.Clone(), p.request.Clone(),
 	)
 	telemetry.CapturePlannerInput(workerSpan, func() any { return p.request })
 	if err == nil {
@@ -127,7 +127,7 @@ func (p *passthroughPlanner) Run(
 		failure := FailureFrom(err)
 		invokeFailure = &failure
 		workerSpan.End("failed", telemetry.PlannerSpanAttributes{ErrorCode: failure.Code})
-		return contracts.StageContentResult{}, p.fail(
+		return stageresult.StageContentResult{}, p.fail(
 			ctx, started.Identity, NewErrorFromFailure(FailureFrom(err), err),
 		)
 	}
@@ -135,7 +135,7 @@ func (p *passthroughPlanner) Run(
 		failure := FailureFrom(validation)
 		invokeFailure = &failure
 		workerSpan.End("rejected", telemetry.PlannerSpanAttributes{ErrorCode: failure.Code})
-		return contracts.StageContentResult{}, p.fail(ctx, started.Identity, validation)
+		return stageresult.StageContentResult{}, p.fail(ctx, started.Identity, validation)
 	}
 	result, err := StageCandidateFromWorkerCompletion(workerCompletion)
 	if err != nil {
@@ -145,14 +145,14 @@ func (p *passthroughPlanner) Run(
 		failure := FailureFrom(validation)
 		invokeFailure = &failure
 		workerSpan.End("rejected", telemetry.PlannerSpanAttributes{ErrorCode: failure.Code})
-		return contracts.StageContentResult{}, p.fail(ctx, started.Identity, validation)
+		return stageresult.StageContentResult{}, p.fail(ctx, started.Identity, validation)
 	}
 	if err := validateCandidate(
 		invokeContext, p.invocation.RunID, p.invocation.Stage.Result.Artifacts, result, p.inspector,
 	); err != nil {
 		failure := FailureFrom(err)
 		workerSpan.End("rejected", telemetry.PlannerSpanAttributes{ErrorCode: failure.Code})
-		return contracts.StageContentResult{}, p.fail(ctx, started.Identity, err)
+		return stageresult.StageContentResult{}, p.fail(ctx, started.Identity, err)
 	}
 	if workerCompletion.Failure != nil {
 		failure := Failure{
@@ -164,9 +164,10 @@ func (p *passthroughPlanner) Run(
 	} else {
 		workerSpan.End("succeeded", telemetry.PlannerSpanAttributes{})
 	}
-	completion := Completion{Result: pointerToResult(result.Clone())}
+	recorded := result.Clone()
+	completion := Completion{Result: &recorded}
 	if err := CompleteSession(ctx, p.sessions, started.Identity, completion); err != nil {
-		return contracts.StageContentResult{}, SessionError("record completion", err)
+		return stageresult.StageContentResult{}, SessionError("record completion", err)
 	}
 	return result.Clone(), nil
 }
@@ -309,7 +310,7 @@ func stageRequest(invocation Invocation) (contracts.StageContentRequest, error) 
 	request := contracts.StageContentRequest{
 		APIVersion: contracts.APIVersion, SubtaskID: "0", Objective: invocation.Stage.Objective,
 		Instructions: invocation.Stage.Instructions.Text, Parameters: parameters, Artifacts: artifacts,
-		ResultArtifacts: resultArtifacts, Deadline: &invocation.Deadline,
+		ResultArtifacts: resultArtifacts, Deadline: invocation.Deadline,
 	}
 	if err := request.Validate(); err != nil {
 		return contracts.StageContentRequest{}, fmt.Errorf("invalid StageContentRequest: %w", err)
@@ -368,49 +369,5 @@ func validateInvocation(invocation Invocation) (string, contracts.WorkerHandle, 
 			}
 		}
 	}
-	return binding, cloneWorkerHandle(handle), nil
-}
-
-func cloneStageRequest(request contracts.StageContentRequest) contracts.StageContentRequest {
-	result := request
-	if request.Deadline != nil {
-		deadline := *request.Deadline
-		result.Deadline = &deadline
-	}
-	result.Parameters = make(map[string]string, len(request.Parameters))
-	for name, value := range request.Parameters {
-		result.Parameters[name] = value
-	}
-	result.Artifacts = contracts.CloneArtifactRefs(request.Artifacts)
-	result.ResultArtifacts = contracts.CloneArtifactRefs(request.ResultArtifacts)
-	return result
-}
-
-// CloneStageRequest detaches all mutable request maps.
-func CloneStageRequest(request contracts.StageContentRequest) contracts.StageContentRequest {
-	return cloneStageRequest(request)
-}
-
-func pointerToResult(result contracts.StageContentResult) *contracts.StageContentResult {
-	return &result
-}
-
-func cloneWorkerHandle(handle contracts.WorkerHandle) contracts.WorkerHandle {
-	result := handle
-	// Decoding into a non-nil map reuses it. Clear the destination before the
-	// round trip so cloning neither mutates nor shares the original card.
-	// A non-JSON card is unusable by A2A; omit it instead of retaining aliases.
-	result.AgentCard = nil
-	encoded, err := json.Marshal(handle.AgentCard)
-	if err == nil {
-		_ = json.Unmarshal(encoded, &result.AgentCard)
-	}
-	return result
-}
-
-// CloneWorkerHandle detaches mutable Agent Card data before crossing a Planner
-// adapter boundary. Cards containing non-JSON values are omitted, so invalid
-// in-process inputs cannot bypass the copy boundary by failing serialization.
-func CloneWorkerHandle(handle contracts.WorkerHandle) contracts.WorkerHandle {
-	return cloneWorkerHandle(handle)
+	return binding, handle.Clone(), nil
 }

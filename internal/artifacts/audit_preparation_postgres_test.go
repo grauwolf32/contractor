@@ -20,6 +20,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/configtest"
+	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/rundeletion"
@@ -53,10 +54,7 @@ func newPreparationFixture(t *testing.T, dependency bool) preparationFixture {
 			t.Fatal(err)
 		}
 	}
-	data, err := os.ReadFile("../../api/testdata/audit-composition/prepared-openapi-scan.yaml")
-	if err != nil {
-		t.Fatal(err)
-	}
+	data := contractstest.ReadFile(t, "api", "testdata", "audit-composition", "prepared-openapi-scan.yaml")
 	if dependency {
 		data = []byte(strings.Replace(string(data), "    scan:\n", `    refine-api:
       kind: prepare
@@ -233,7 +231,7 @@ func (f preparationFixture) collection(execution auditstore.Execution, outputs [
 	return p
 }
 
-func TestPostgresAuditPreparationIdentityAndReplay(t *testing.T) {
+func TestSharedPostgresAuditPreparationIdentityAndReplay(t *testing.T) {
 	f := newPreparationFixture(t, false)
 	if roles, err := f.store.ListPreparationRoles(f.ctx, f.audit.AuditID); err != nil || len(roles) != 1 || roles[0].Status != auditdomain.PreparationPending || roles[0].Attempts != 0 {
 		t.Fatalf("pending preparation projection: %+v %v", roles, err)
@@ -336,7 +334,7 @@ SELECT count(*), COALESCE(min(sequence_number), 0), COALESCE(max(sequence_number
 	}
 }
 
-func TestPostgresAuditPreparationConcurrentIntentAndReceipt(t *testing.T) {
+func TestSharedPostgresAuditPreparationConcurrentIntentAndReceipt(t *testing.T) {
 	f := newPreparationFixture(t, false)
 	p := f.intent("generate-api", 1)
 	var wg sync.WaitGroup
@@ -392,7 +390,7 @@ func TestPostgresAuditPreparationConcurrentIntentAndReceipt(t *testing.T) {
 	}
 }
 
-func TestPostgresAuditPreparationDependenciesAndRetryBounds(t *testing.T) {
+func TestSharedPostgresAuditPreparationDependenciesAndRetryBounds(t *testing.T) {
 	f := newPreparationFixture(t, true)
 	dependent := f.intent("refine-api", 1)
 	if _, _, err := f.store.CreateExecutionIntent(f.ctx, dependent); !errors.Is(err, auditstore.ErrPrecondition) {
@@ -429,7 +427,7 @@ func TestPostgresAuditPreparationDependenciesAndRetryBounds(t *testing.T) {
 	}
 }
 
-func TestPostgresAuditPreparationRetentionAndLifecycleWithoutRound(t *testing.T) {
+func TestSharedPostgresAuditPreparationRetentionAndLifecycleWithoutRound(t *testing.T) {
 	f := newPreparationFixture(t, false)
 	execution, outputs := f.collecting(t, f.intent("generate-api", 1), "succeeded")
 	audit := f.current(t)
@@ -516,7 +514,7 @@ func TestPostgresAuditPreparationRetentionAndLifecycleWithoutRound(t *testing.T)
 	}
 }
 
-func TestPostgresAuditPreparationDeleteFencesAnUndispatchedIntent(t *testing.T) {
+func TestSharedPostgresAuditPreparationDeleteFencesAnUndispatchedIntent(t *testing.T) {
 	f := newPreparationFixture(t, false)
 	execution, _, err := f.store.CreateExecutionIntent(f.ctx, f.intent("generate-api", 1))
 	if err != nil {
@@ -556,7 +554,7 @@ func TestPostgresAuditPreparationDeleteFencesAnUndispatchedIntent(t *testing.T) 
 	}
 }
 
-func TestPostgresAuditPreparationRejectsObsoleteSnapshotsAndInventoryBaseline(t *testing.T) {
+func TestSharedPostgresAuditPreparationRejectsObsoleteSnapshotsAndInventoryBaseline(t *testing.T) {
 	f := newPreparationFixture(t, false)
 	current, err := os.ReadFile("../persistence/postgres/testdata/audit-profile-current.json")
 	if err != nil {

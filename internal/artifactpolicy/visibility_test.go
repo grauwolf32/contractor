@@ -2,8 +2,9 @@ package artifactpolicy
 
 import (
 	"encoding/json"
-	"os"
 	"testing"
+
+	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 )
 
 func TestReservedMemoryBindingExcludesPurposeNamespaces(t *testing.T) {
@@ -56,11 +57,8 @@ func TestPurposeReservedNamespaceIsClosed(t *testing.T) {
 	}
 }
 
-func TestModelHiddenBindingMatchesSharedCases(t *testing.T) {
-	data, err := os.ReadFile("../../api/testdata/v1alpha1/artifact-list-cases.json")
-	if err != nil {
-		t.Fatal(err)
-	}
+func TestSharedModelHiddenBindingMatchesSharedCases(t *testing.T) {
+	data := contractstest.ReadFile(t, "api", "testdata", "v1alpha1", "artifact-list-cases.json")
 	var cases struct {
 		Bindings []struct {
 			Namespace string `json:"namespace"`

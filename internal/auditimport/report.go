@@ -302,7 +302,7 @@ func (i *Importer) publishReport(
 		},
 		Baseline: reportBaseline{
 			Digest: auditdomain.DigestBytes(snapshot.Audit.BaselineSnapshot),
-			Inputs: cloneExactArtifactMap(baseline.Inputs), Scope: clone.Map(baseline.Scope),
+			Inputs: contracts.CloneExactArtifacts(baseline.Inputs), Scope: clone.Map(baseline.Scope),
 			SourceContentDigest:      baseline.Inventory.SourceContentDigest,
 			CanonicalInventoryDigest: baseline.Inventory.CanonicalInventoryDigest,
 			Worklist:                 baseline.Inventory.Worklist,
@@ -519,14 +519,6 @@ func markdownText(value string) string {
 		"`", "\\`", "*", "\\*", "_", "\\_", "[", "\\[", "]", "\\]",
 		"#", "\\#", "|", "\\|", "\r", " ", "\n", " ",
 	).Replace(value)
-}
-
-func cloneExactArtifactMap(values map[string]auditstore.ExactArtifact) map[string]auditstore.ExactArtifact {
-	result := make(map[string]auditstore.ExactArtifact, len(values))
-	for key, value := range values {
-		result[key] = value
-	}
-	return result
 }
 
 func cloneReportStandardSelection(

@@ -13,6 +13,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/scan"
+	"github.com/grauwolf32/contractor/internal/strictjson"
 )
 
 type planSourceInput struct {
@@ -286,7 +287,7 @@ func planJob(source planSourceInput, p scan.ScanToolPolicy, b ToolBinding, wordl
 }
 
 func semanticID(prefix string, value any) string {
-	raw, err := contracts.MarshalPrivateCanonical(value)
+	raw, err := strictjson.Canonical(value)
 	if err != nil {
 		return ""
 	}

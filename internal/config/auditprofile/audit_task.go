@@ -6,7 +6,6 @@ import (
 	"slices"
 
 	"github.com/grauwolf32/contractor/internal/config/resolved"
-	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
 // ValidateAuditTaskProfile connects a producer's output contract to a consumer's
@@ -48,7 +47,7 @@ func validateAuditTaskBinding(profile ResolvedAuditProfile, binding ResolvedAudi
 	execution := binding.Workflow.AuditTask
 	stage := binding.Workflow.Stages[execution.Stage]
 	switch execution.Contract {
-	case contracts.AuditTaskOpenAPIScanV1:
+	case resolved.AuditTaskOpenAPIScanV1:
 		// This executor handles one item and one scanner invocation. The
 		// restriction belongs to the consumer, not to its inventory producer.
 		if profile.Execution.BatchSize != 1 {

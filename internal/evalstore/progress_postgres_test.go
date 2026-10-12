@@ -7,7 +7,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 )
 
-func TestPostgresEvalProgressBucketsRetainRealObservationsAndGaps(t *testing.T) {
+func TestSharedPostgresEvalProgressBucketsRetainRealObservationsAndGaps(t *testing.T) {
 	pool := testPool(t)
 	scope := setupProject(t, pool, "owner", "eval")
 	e := createExperiment(t, pool, scope, "progress", "trace-1", "external-workflow")

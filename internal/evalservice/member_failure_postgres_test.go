@@ -81,7 +81,7 @@ func publishedTerminal(t *testing.T, h *serviceHarness, e evalstore.Experiment) 
 	return n
 }
 
-func TestPostgresFailingMemberDoesNotBlockAdmissionOrPublication(t *testing.T) {
+func TestSharedPostgresFailingMemberDoesNotBlockAdmissionOrPublication(t *testing.T) {
 	h, e, failing := startedWithFailingMember(t)
 	c := h.coordinator(t, "controller")
 	for n := 0; n < 40 && terminalSubmissions(t, h, e.ID) < 7; n++ {
@@ -110,7 +110,7 @@ func TestPostgresFailingMemberDoesNotBlockAdmissionOrPublication(t *testing.T) {
 	}
 }
 
-func TestPostgresFailingMemberStillDrainsAtWallDeadline(t *testing.T) {
+func TestSharedPostgresFailingMemberStillDrainsAtWallDeadline(t *testing.T) {
 	h, e, _ := startedWithFailingMember(t)
 	c := h.coordinator(t, "controller")
 	for n := 0; n < 3; n++ {

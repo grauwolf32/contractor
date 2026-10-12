@@ -12,6 +12,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/planner"
+	"github.com/grauwolf32/contractor/internal/planner/stageresult"
 	"github.com/grauwolf32/contractor/internal/runstore"
 )
 
@@ -347,8 +348,8 @@ func scanTestPlan(ids ...string) planner.ScanState {
 }
 
 func scanTestCompletion() planner.Completion {
-	return planner.Completion{Result: &contracts.StageContentResult{
-		APIVersion: contracts.APIVersion, Outcome: contracts.StageFailed, Summary: "Scan coverage is incomplete",
+	return planner.Completion{Result: &stageresult.StageContentResult{
+		APIVersion: contracts.APIVersion, Outcome: stageresult.StageFailed, Summary: "Scan coverage is incomplete",
 		Error:     &contracts.TerminationError{Code: "scan_incomplete", Message: "Scan coverage is incomplete", Retryable: false},
 		Artifacts: map[string]contracts.ArtifactRef{"report": *scanTestRef("aggregate")},
 	}}

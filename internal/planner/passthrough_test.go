@@ -16,15 +16,16 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/contracts/runlabels"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
+	"github.com/grauwolf32/contractor/internal/planner/stageresult"
 	"github.com/grauwolf32/contractor/internal/telemetry"
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
 func TestPassthroughPlannerInvokesOnceAndRecoversRecordedResult(t *testing.T) {
 	revision := "result-r1"
-	candidate := contracts.StageContentResult{
+	candidate := stageresult.StageContentResult{
 		APIVersion: contracts.APIVersion,
-		Outcome:    contracts.StageSucceeded,
+		Outcome:    stageresult.StageSucceeded,
 		Summary:    "report created",
 		Artifacts: map[string]contracts.ArtifactRef{
 			"report": {Namespace: "builder", Name: "report", Revision: &revision},
@@ -74,7 +75,7 @@ func TestPassthroughPlannerInvokesOnceAndRecoversRecordedResult(t *testing.T) {
 	if worker.binding != "builder" || worker.handle.AllocationID != "allocation-1" {
 		t.Fatalf("Worker address = (%q, %q)", worker.binding, worker.handle.AllocationID)
 	}
-	if !worker.deadline.Equal(invocation.Deadline) || worker.request.Deadline == nil || !worker.request.Deadline.Equal(invocation.Deadline) {
+	if !worker.deadline.Equal(invocation.Deadline) || !worker.request.Deadline.Equal(invocation.Deadline) {
 		t.Fatalf("Worker deadline = %s, want Stage deadline %s", worker.deadline, invocation.Deadline)
 	}
 	if worker.request.SubtaskID != "0" ||
@@ -160,8 +161,8 @@ func TestPassthroughCompletionWriteWaitAndRetry(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			revision := "result-r1"
-			candidate := contracts.StageContentResult{
-				APIVersion: contracts.APIVersion, Outcome: contracts.StageSucceeded, Summary: "report created",
+			candidate := stageresult.StageContentResult{
+				APIVersion: contracts.APIVersion, Outcome: stageresult.StageSucceeded, Summary: "report created",
 				Artifacts: map[string]contracts.ArtifactRef{
 					"report": {Namespace: "builder", Name: "report", Revision: &revision},
 				},
@@ -196,8 +197,8 @@ func TestRecoverCompletionRevalidatesRecordedOutcome(t *testing.T) {
 	contract := map[string]resolved.ArtifactSlot{
 		"report": {Required: true, MediaTypes: []string{"application/json"}},
 	}
-	recorded := contracts.StageContentResult{
-		APIVersion: contracts.APIVersion, Outcome: contracts.StageSucceeded, Summary: "report created",
+	recorded := stageresult.StageContentResult{
+		APIVersion: contracts.APIVersion, Outcome: stageresult.StageSucceeded, Summary: "report created",
 		Artifacts: map[string]contracts.ArtifactRef{
 			"report": {Namespace: "builder", Name: "report", Revision: &revision},
 		},
@@ -286,13 +287,13 @@ func passthroughTestTelemetry(
 func TestPassthroughPlannerRejectsInvalidArtifactResults(t *testing.T) {
 	tests := []struct {
 		name       string
-		mutate     func(*contracts.StageContentResult)
+		mutate     func(*stageresult.StageContentResult)
 		mediaTypes map[string]string
 		wantCode   string
 	}{
 		{
 			name: "unversioned",
-			mutate: func(result *contracts.StageContentResult) {
+			mutate: func(result *stageresult.StageContentResult) {
 				ref := result.Artifacts["report"]
 				ref.Revision = nil
 				result.Artifacts["report"] = ref
@@ -301,7 +302,7 @@ func TestPassthroughPlannerRejectsInvalidArtifactResults(t *testing.T) {
 		},
 		{
 			name: "unknown slot",
-			mutate: func(result *contracts.StageContentResult) {
+			mutate: func(result *stageresult.StageContentResult) {
 				result.Artifacts["unknown"] = result.Artifacts["report"]
 				delete(result.Artifacts, "report")
 			},
@@ -309,14 +310,14 @@ func TestPassthroughPlannerRejectsInvalidArtifactResults(t *testing.T) {
 		},
 		{
 			name: "missing required slot",
-			mutate: func(result *contracts.StageContentResult) {
+			mutate: func(result *stageresult.StageContentResult) {
 				delete(result.Artifacts, "report")
 			},
 			wantCode: "result_contract_violation",
 		},
 		{
 			name:   "incompatible media type",
-			mutate: func(*contracts.StageContentResult) {},
+			mutate: func(*stageresult.StageContentResult) {},
 			mediaTypes: map[string]string{
 				"builder/report/result-r1": "text/plain",
 			},
@@ -324,7 +325,7 @@ func TestPassthroughPlannerRejectsInvalidArtifactResults(t *testing.T) {
 		},
 		{
 			name: "reserved Memory binding",
-			mutate: func(result *contracts.StageContentResult) {
+			mutate: func(result *stageresult.StageContentResult) {
 				ref := result.Artifacts["report"]
 				ref.Name = "memory.report"
 				result.Artifacts["report"] = ref
@@ -338,9 +339,9 @@ func TestPassthroughPlannerRejectsInvalidArtifactResults(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			revision := "result-r1"
-			candidate := contracts.StageContentResult{
+			candidate := stageresult.StageContentResult{
 				APIVersion: contracts.APIVersion,
-				Outcome:    contracts.StageSucceeded, Summary: "result",
+				Outcome:    stageresult.StageSucceeded, Summary: "result",
 				Artifacts: map[string]contracts.ArtifactRef{
 					"report": {Namespace: "builder", Name: "report", Revision: &revision},
 				},
@@ -409,7 +410,7 @@ func TestPassthroughPlannerMapsWorkerFailureToFailedCandidate(t *testing.T) {
 	instance, _ := factory.Create(testInvocation())
 
 	result, err := instance.Run(context.Background())
-	if err != nil || result.Outcome != contracts.StageFailed || result.Error == nil ||
+	if err != nil || result.Outcome != stageresult.StageFailed || result.Error == nil ||
 		result.Error.Code != "worker_budget_exhausted" || !result.Error.Retryable {
 		t.Fatalf("Run = (%+v, %v)", result, err)
 	}
@@ -581,7 +582,7 @@ func (w *recordingWorker) Invoke(
 	return w.result, w.err
 }
 
-func workerCompletionFromCandidate(candidate contracts.StageContentResult) contracts.WorkerCompletion {
+func workerCompletionFromCandidate(candidate stageresult.StageContentResult) contracts.WorkerCompletion {
 	return contracts.WorkerCompletion{
 		APIVersion: contracts.APIVersion,
 		Result: &contracts.WorkerResult{

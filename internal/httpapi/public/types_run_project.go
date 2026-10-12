@@ -16,6 +16,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/gatewayrecovery"
 	"github.com/grauwolf32/contractor/internal/planner"
+	"github.com/grauwolf32/contractor/internal/planner/stageresult"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
@@ -318,7 +319,7 @@ type stageAttemptResponse struct {
 	PreviousExecutionID  *string                               `json:"previousExecutionId,omitempty"`
 	ExecutionConfig      stageExecutionConfigResponse          `json:"executionConfig"`
 	State                runstore.StageExecutionState          `json:"state"`
-	Result               *contracts.StageContentResult         `json:"result,omitempty"`
+	Result               *stageresult.StageContentResult       `json:"result,omitempty"`
 	Termination          *runstore.StageTermination            `json:"termination,omitempty"`
 	Metrics              *telemetry.Summary                    `json:"metrics,omitempty"`
 	Diagnostics          *telemetry.AttemptDiagnostics         `json:"diagnostics,omitempty"`
@@ -343,7 +344,7 @@ type stageRuntimeConfigurationResponse struct {
 type stageRuntimeAllocationResponse struct {
 	LogicalAgent    string                                     `json:"logicalAgent"`
 	AgentLabels     []pinnedRuntimeConfigResponse              `json:"agentLabels"`
-	RuntimeAdapters []contracts.RuntimeAdapterRef              `json:"runtimeAdapters"`
+	RuntimeAdapters []runtimesettings.RuntimeAdapterRef        `json:"runtimeAdapters"`
 	Origins         runtimeconfig.ResolvedRuntimeConfigOrigins `json:"origins"`
 	Status          string                                     `json:"status"`
 }

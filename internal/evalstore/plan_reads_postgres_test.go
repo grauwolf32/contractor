@@ -32,7 +32,7 @@ func (q *queryCounter) take() int {
 	return count
 }
 
-func TestPostgresNextMembersReadsBatchInOneQuery(t *testing.T) {
+func TestSharedPostgresNextMembersReadsBatchInOneQuery(t *testing.T) {
 	pool := testPool(t)
 	ctx := t.Context()
 	scope := setupProject(t, pool, "owner", "eval")
@@ -67,7 +67,7 @@ func TestPostgresNextMembersReadsBatchInOneQuery(t *testing.T) {
 	}
 }
 
-func TestPostgresFrozenPlanRestoresStoredDocumentWithoutRevalidation(t *testing.T) {
+func TestSharedPostgresFrozenPlanRestoresStoredDocumentWithoutRevalidation(t *testing.T) {
 	pool := testPool(t)
 	ctx := t.Context()
 	scope := setupProject(t, pool, "owner", "eval")

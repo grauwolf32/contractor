@@ -47,7 +47,7 @@ func (f *Factory) Create(invocation planner.Invocation) (planner.Planner, error)
 		if !ok || handle.AllocationID == "" || len(handle.AgentCard) == 0 || handle.LeaseExpiresAt.IsZero() || handle.AgentTemplateRef != binding.Template.Ref || handle.WorkerRuntimeRef != binding.Template.Runtime {
 			return nil, fmt.Errorf("scan Worker does not match its pinned template")
 		}
-		workers[name] = planner.CloneWorkerHandle(handle)
+		workers[name] = handle.Clone()
 	}
 	if len(invocation.Context.Artifacts) != len(invocation.Stage.Context.Artifacts) {
 		return nil, fmt.Errorf("scan Stage context artifact set differs")

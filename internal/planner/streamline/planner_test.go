@@ -23,6 +23,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts/runlabels"
 	"github.com/grauwolf32/contractor/internal/planner"
 	plannersession "github.com/grauwolf32/contractor/internal/planner/session"
+	"github.com/grauwolf32/contractor/internal/planner/stageresult"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/telemetry"
 	"google.golang.org/adk/model"
@@ -70,11 +71,11 @@ func TestStreamlineDispatchAndFinishInspectMetadataWithTransferSlotsSaturated(t 
 		addSubtaskStep("Analyze the input", "Produce the final report"),
 		functionStep(executeCurrentSubtaskToolName, map[string]any{"subtask_id": "0"}),
 		functionStep(finishToolName, map[string]any{
-			"outcome": string(contracts.StageSucceeded), "summary": "complete",
+			"outcome": string(stageresult.StageSucceeded), "summary": "complete",
 			"artifacts": map[string]any{"report": artifactArgs("review", "report", revision)},
 		}),
 	}}
-	workers := &fakeWorkerInvoker{results: map[string]contracts.StageContentResult{
+	workers := &fakeWorkerInvoker{results: map[string]stageresult.StageContentResult{
 		"builder": stageResult("report ready", map[string]contracts.ArtifactRef{"report": report}),
 	}}
 	sessions := newFakeSessions()
@@ -87,7 +88,7 @@ func TestStreamlineDispatchAndFinishInspectMetadataWithTransferSlotsSaturated(t 
 		t.Fatal(err)
 	}
 	result, err := instance.Run(ctx)
-	if err != nil || result.Outcome != contracts.StageSucceeded {
+	if err != nil || result.Outcome != stageresult.StageSucceeded {
 		t.Fatalf("Streamline under saturated transfer gate = (%+v, %v)", result, err)
 	}
 	if inspected[refKey(source)] == 0 || inspected[refKey(report)] == 0 || len(workers.calls) != 1 {
@@ -101,12 +102,12 @@ func TestStreamlineCallsSingleWorkerWithStoredSubtaskAndCompleteContext(t *testi
 		addSubtaskStep("Analyze the input", "Produce the final report"),
 		functionStep(executeCurrentSubtaskToolName, map[string]any{"subtask_id": "0"}),
 		functionStep(finishToolName, map[string]any{
-			"outcome": string(contracts.StageSucceeded), "summary": "complete", "artifacts": map[string]any{
+			"outcome": string(stageresult.StageSucceeded), "summary": "complete", "artifacts": map[string]any{
 				"report": artifactArgs("review", "report", reportRevision),
 			},
 		}),
 	}}
-	workers := &fakeWorkerInvoker{results: map[string]contracts.StageContentResult{
+	workers := &fakeWorkerInvoker{results: map[string]stageresult.StageContentResult{
 		"builder": stageResult("report ready", map[string]contracts.ArtifactRef{
 			"report": exactRef("review", "report", reportRevision),
 		}),
@@ -129,7 +130,7 @@ func TestStreamlineCallsSingleWorkerWithStoredSubtaskAndCompleteContext(t *testi
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result.Outcome != contracts.StageSucceeded || result.Artifacts["report"].Revision == nil ||
+	if result.Outcome != stageresult.StageSucceeded || result.Artifacts["report"].Revision == nil ||
 		*result.Artifacts["report"].Revision != reportRevision {
 		t.Fatalf("result = %+v", result)
 	}
@@ -145,7 +146,7 @@ func TestStreamlineCallsSingleWorkerWithStoredSubtaskAndCompleteContext(t *testi
 		t.Fatalf("Worker requests did not preserve structured context: %+v", workers.calls)
 	}
 	for _, call := range workers.calls {
-		if !call.deadline.Equal(instance.(*streamlinePlanner).invocation.Deadline) || call.request.Deadline == nil || !call.request.Deadline.Equal(call.deadline) {
+		if !call.deadline.Equal(instance.(*streamlinePlanner).invocation.Deadline) || !call.request.Deadline.Equal(call.deadline) {
 			t.Fatalf("Worker %q deadline = %s, want Stage deadline %s",
 				call.binding, call.deadline, instance.(*streamlinePlanner).invocation.Deadline)
 		}
@@ -238,17 +239,17 @@ func TestStreamlineRejectsUnknownToolAndInvalidFinishThenCorrects(t *testing.T) 
 		addSubtaskStep("Build the report", "Produce the declared report"),
 		functionStep(executeCurrentSubtaskToolName, map[string]any{"subtask_id": "0"}),
 		functionStep(finishToolName, map[string]any{
-			"outcome": string(contracts.StageSucceeded), "summary": "invalid", "artifacts": map[string]any{
+			"outcome": string(stageresult.StageSucceeded), "summary": "invalid", "artifacts": map[string]any{
 				"undeclared": artifactArgs("builder", "report", revision),
 			},
 		}),
 		functionStep(finishToolName, map[string]any{
-			"outcome": string(contracts.StageSucceeded), "summary": "valid", "artifacts": map[string]any{
+			"outcome": string(stageresult.StageSucceeded), "summary": "valid", "artifacts": map[string]any{
 				"report": artifactArgs("builder", "report", revision),
 			},
 		}),
 	}}
-	workers := &fakeWorkerInvoker{results: map[string]contracts.StageContentResult{
+	workers := &fakeWorkerInvoker{results: map[string]stageresult.StageContentResult{
 		"builder": stageResult("report prepared", map[string]contracts.ArtifactRef{}),
 	}}
 	sessions := newFakeSessions()
@@ -276,7 +277,7 @@ func TestStreamlineRejectsUnknownToolAndInvalidFinishThenCorrects(t *testing.T) 
 
 func TestStreamlineFinishesWithFailedCandidate(t *testing.T) {
 	model := &scriptedModel{steps: []modelStep{functionStep(finishToolName, map[string]any{
-		"outcome": string(contracts.StageFailed), "summary": "analysis could not be completed",
+		"outcome": string(stageresult.StageFailed), "summary": "analysis could not be completed",
 		"artifacts": map[string]any{},
 		"error": map[string]any{
 			"code": "insufficient_evidence", "message": "required evidence was unavailable", "retryable": false,
@@ -293,19 +294,19 @@ func TestStreamlineFinishesWithFailedCandidate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result.Outcome != contracts.StageFailed || result.Error == nil ||
+	if result.Outcome != stageresult.StageFailed || result.Error == nil ||
 		result.Error.Code != "insufficient_evidence" || result.Error.Retryable {
 		t.Fatalf("failed result = %+v", result)
 	}
 	if sessions.completion == nil || sessions.completion.Result == nil ||
-		sessions.completion.Result.Outcome != contracts.StageFailed {
+		sessions.completion.Result.Outcome != stageresult.StageFailed {
 		t.Fatalf("completion = %+v", sessions.completion)
 	}
 }
 
 func TestStreamlineCompletionWriteSurvivesTransientErrorAndDatabaseWait(t *testing.T) {
 	model := &scriptedModel{steps: []modelStep{functionStep(finishToolName, map[string]any{
-		"outcome": string(contracts.StageFailed), "summary": "analysis could not be completed",
+		"outcome": string(stageresult.StageFailed), "summary": "analysis could not be completed",
 		"artifacts": map[string]any{},
 		"error": map[string]any{
 			"code": "insufficient_evidence", "message": "required evidence was unavailable", "retryable": false,
@@ -330,7 +331,7 @@ func TestStreamlineCompletionWriteSurvivesTransientErrorAndDatabaseWait(t *testi
 		t.Fatal(err)
 	}
 	result, err := instance.Run(t.Context())
-	if err != nil || result.Outcome != contracts.StageFailed || sessions.completeCalls != 2 ||
+	if err != nil || result.Outcome != stageresult.StageFailed || sessions.completeCalls != 2 ||
 		sessions.completion == nil || sessions.completion.Result == nil {
 		t.Fatalf("Run = (%+v, %v), completion calls = %d", result, err, sessions.completeCalls)
 	}
@@ -356,7 +357,7 @@ func TestStreamlineWorkerFailureFailsDispatchButPlannerStillOwnsFinish(t *testin
 		addSubtaskStep("Analyze the source", "Return the bounded finding"),
 		functionStep(executeCurrentSubtaskToolName, map[string]any{"subtask_id": "0"}),
 		functionStep(finishToolName, map[string]any{
-			"outcome": string(contracts.StageFailed), "summary": "analysis could not be completed",
+			"outcome": string(stageresult.StageFailed), "summary": "analysis could not be completed",
 			"artifacts": map[string]any{},
 			"error": map[string]any{
 				"code": "insufficient_evidence", "message": "required evidence was unavailable",
@@ -381,7 +382,7 @@ func TestStreamlineWorkerFailureFailsDispatchButPlannerStillOwnsFinish(t *testin
 		t.Fatal(err)
 	}
 	result, err := instance.Run(t.Context())
-	if err != nil || result.Outcome != contracts.StageFailed || result.Error == nil ||
+	if err != nil || result.Outcome != stageresult.StageFailed || result.Error == nil ||
 		result.Error.Code != "insufficient_evidence" {
 		t.Fatalf("Run = (%+v, %v)", result, err)
 	}
@@ -403,18 +404,18 @@ func TestStreamlineWorkerFailureFailsDispatchButPlannerStillOwnsFinish(t *testin
 func TestStreamlineRejectsInvalidFinishShapesThenAcceptsCorrection(t *testing.T) {
 	model := &scriptedModel{steps: []modelStep{
 		functionStep(finishToolName, map[string]any{
-			"outcome": string(contracts.StageSucceeded), "summary": "invalid success",
+			"outcome": string(stageresult.StageSucceeded), "summary": "invalid success",
 			"artifacts": map[string]any{},
 			"error":     map[string]any{"code": "unexpected", "message": "must be rejected", "retryable": false},
 		}),
 		functionStep(finishToolName, map[string]any{
-			"outcome": string(contracts.StageFailed), "summary": "missing error", "artifacts": map[string]any{},
+			"outcome": string(stageresult.StageFailed), "summary": "missing error", "artifacts": map[string]any{},
 		}),
 		functionStep(finishToolName, map[string]any{
 			"outcome": "unknown", "summary": "unknown outcome", "artifacts": map[string]any{},
 		}),
 		functionStep(finishToolName, map[string]any{
-			"outcome": string(contracts.StageFailed), "summary": "valid failure", "artifacts": map[string]any{},
+			"outcome": string(stageresult.StageFailed), "summary": "valid failure", "artifacts": map[string]any{},
 			"error": map[string]any{"code": "not_completed", "message": "work remains", "retryable": true},
 		}),
 	}}
@@ -425,7 +426,7 @@ func TestStreamlineRejectsInvalidFinishShapesThenAcceptsCorrection(t *testing.T)
 		t.Fatal(err)
 	}
 	result, err := instance.Run(t.Context())
-	if err != nil || result.Outcome != contracts.StageFailed || result.Summary != "valid failure" {
+	if err != nil || result.Outcome != stageresult.StageFailed || result.Summary != "valid failure" {
 		t.Fatalf("Run = (%+v, %v)", result, err)
 	}
 	report, _ := instance.(planner.ReportProvider).ExecutionReport()
@@ -545,11 +546,11 @@ func TestStreamlineRejectsModelSelectedContextBeforeWorkerCall(t *testing.T) {
 		}),
 		functionStep(executeCurrentSubtaskToolName, map[string]any{"subtask_id": "0"}),
 		functionStep(finishToolName, map[string]any{
-			"outcome": string(contracts.StageSucceeded), "summary": "complete",
+			"outcome": string(stageresult.StageSucceeded), "summary": "complete",
 			"artifacts": map[string]any{"report": artifactArgs("builder", "report", revision)},
 		}),
 	}}
-	workers := &fakeWorkerInvoker{results: map[string]contracts.StageContentResult{
+	workers := &fakeWorkerInvoker{results: map[string]stageresult.StageContentResult{
 		"builder": stageResult("complete", map[string]contracts.ArtifactRef{}),
 	}}
 	inspector := &fakeInspector{mediaTypes: map[string]string{
@@ -561,7 +562,7 @@ func TestStreamlineRejectsModelSelectedContextBeforeWorkerCall(t *testing.T) {
 		t.Fatal(err)
 	}
 	result, err := instance.Run(t.Context())
-	if err != nil || result.Outcome != contracts.StageSucceeded {
+	if err != nil || result.Outcome != stageresult.StageSucceeded {
 		t.Fatalf("Run = (%+v, %v)", result, err)
 	}
 	if len(workers.calls) != 1 {
@@ -696,16 +697,16 @@ func TestStreamlineRejectsPendingSuccessfulFinishThenCompletesSubtask(t *testing
 	model := &scriptedModel{steps: []modelStep{
 		addSubtaskStep("Build the report", "Produce the declared output"),
 		functionStep(finishToolName, map[string]any{
-			"outcome": string(contracts.StageSucceeded), "summary": "premature",
+			"outcome": string(stageresult.StageSucceeded), "summary": "premature",
 			"artifacts": map[string]any{"report": artifactArgs("builder", "report", revision)},
 		}),
 		functionStep(executeCurrentSubtaskToolName, map[string]any{"subtask_id": "0"}),
 		functionStep(finishToolName, map[string]any{
-			"outcome": string(contracts.StageSucceeded), "summary": "complete",
+			"outcome": string(stageresult.StageSucceeded), "summary": "complete",
 			"artifacts": map[string]any{"report": artifactArgs("builder", "report", revision)},
 		}),
 	}}
-	workers := &fakeWorkerInvoker{results: map[string]contracts.StageContentResult{
+	workers := &fakeWorkerInvoker{results: map[string]stageresult.StageContentResult{
 		"builder": stageResult("work complete", map[string]contracts.ArtifactRef{}),
 	}}
 	inspector := &fakeInspector{mediaTypes: map[string]string{
@@ -739,11 +740,11 @@ func TestStreamlineRejectsStaleSubtaskBeforeWorkerSideEffect(t *testing.T) {
 		functionStep(executeCurrentSubtaskToolName, map[string]any{"subtask_id": "0"}),
 		functionStep(executeCurrentSubtaskToolName, map[string]any{"subtask_id": "1"}),
 		functionStep(finishToolName, map[string]any{
-			"outcome": string(contracts.StageSucceeded), "summary": "complete",
+			"outcome": string(stageresult.StageSucceeded), "summary": "complete",
 			"artifacts": map[string]any{"report": artifactArgs("builder", "report", revision)},
 		}),
 	}}
-	workers := &fakeWorkerInvoker{results: map[string]contracts.StageContentResult{
+	workers := &fakeWorkerInvoker{results: map[string]stageresult.StageContentResult{
 		"builder": stageResult("work complete", map[string]contracts.ArtifactRef{}),
 	}}
 	inspector := &fakeInspector{mediaTypes: map[string]string{
@@ -755,7 +756,7 @@ func TestStreamlineRejectsStaleSubtaskBeforeWorkerSideEffect(t *testing.T) {
 		t.Fatal(err)
 	}
 	result, err := instance.Run(t.Context())
-	if err != nil || result.Outcome != contracts.StageSucceeded {
+	if err != nil || result.Outcome != stageresult.StageSucceeded {
 		t.Fatalf("Run = (%+v, %v)", result, err)
 	}
 	if got := workers.bindingCalls(); !reflect.DeepEqual(got, []string{"builder", "builder"}) {
@@ -787,13 +788,13 @@ func TestStreamlineWorkerErrorClearsClaimAndAllowsNextSubtask(t *testing.T) {
 		functionStep(executeCurrentSubtaskToolName, map[string]any{"subtask_id": "0"}),
 		functionStep(executeCurrentSubtaskToolName, map[string]any{"subtask_id": "1"}),
 		functionStep(finishToolName, map[string]any{
-			"outcome": string(contracts.StageSucceeded), "summary": "recovered",
+			"outcome": string(stageresult.StageSucceeded), "summary": "recovered",
 			"artifacts": map[string]any{"report": artifactArgs("builder", "report", revision)},
 		}),
 	}}
 	workers := &fakeWorkerInvoker{
 		failures: map[string][]error{"builder": {errors.New("temporary Worker failure")}},
-		results: map[string]contracts.StageContentResult{
+		results: map[string]stageresult.StageContentResult{
 			"builder": stageResult("report complete", map[string]contracts.ArtifactRef{}),
 		},
 	}
@@ -806,7 +807,7 @@ func TestStreamlineWorkerErrorClearsClaimAndAllowsNextSubtask(t *testing.T) {
 		t.Fatal(err)
 	}
 	result, err := instance.Run(t.Context())
-	if err != nil || result.Outcome != contracts.StageSucceeded || len(workers.calls) != 2 {
+	if err != nil || result.Outcome != stageresult.StageSucceeded || len(workers.calls) != 2 {
 		t.Fatalf("Run=(%+v,%v) Worker calls=%d", result, err, len(workers.calls))
 	}
 	plan := instance.(*streamlinePlanner).plan.Snapshot()
@@ -874,7 +875,7 @@ func TestStreamlineStopsBeforeWorkerCallBeyondBudget(t *testing.T) {
 		functionStep(executeCurrentSubtaskToolName, map[string]any{"subtask_id": "0"}),
 		functionStep(executeCurrentSubtaskToolName, map[string]any{"subtask_id": "1"}),
 	}}
-	workers := &fakeWorkerInvoker{results: map[string]contracts.StageContentResult{
+	workers := &fakeWorkerInvoker{results: map[string]stageresult.StageContentResult{
 		"builder": stageResult("intermediate", map[string]contracts.ArtifactRef{}),
 	}}
 	factory := mustFactory(
@@ -903,11 +904,11 @@ func TestStreamlineFinishesAfterWorkerBudgetAndTextTurn(t *testing.T) {
 		functionStep(executeCurrentSubtaskToolName, map[string]any{"subtask_id": "0"}),
 		textStep("The report is ready."),
 		functionStep(finishToolName, map[string]any{
-			"outcome": string(contracts.StageSucceeded), "summary": "complete",
+			"outcome": string(stageresult.StageSucceeded), "summary": "complete",
 			"artifacts": map[string]any{"report": artifactArgs("builder", "report", revision)},
 		}),
 	}}
-	workers := &fakeWorkerInvoker{results: map[string]contracts.StageContentResult{
+	workers := &fakeWorkerInvoker{results: map[string]stageresult.StageContentResult{
 		"builder": stageResult("report ready", map[string]contracts.ArtifactRef{}),
 	}}
 	inspector := &fakeInspector{mediaTypes: map[string]string{
@@ -920,7 +921,7 @@ func TestStreamlineFinishesAfterWorkerBudgetAndTextTurn(t *testing.T) {
 		t.Fatal(err)
 	}
 	result, err := instance.Run(t.Context())
-	if err != nil || result.Outcome != contracts.StageSucceeded || len(workers.calls) != 1 || model.callCount() != 4 {
+	if err != nil || result.Outcome != stageresult.StageSucceeded || len(workers.calls) != 1 || model.callCount() != 4 {
 		t.Fatalf("Run = (%+v, %v); Worker calls = %d; model calls = %d", result, err, len(workers.calls), model.callCount())
 	}
 }
@@ -1194,7 +1195,7 @@ type workerInvocation struct {
 
 type fakeWorkerInvoker struct {
 	mu          sync.Mutex
-	results     map[string]contracts.StageContentResult
+	results     map[string]stageresult.StageContentResult
 	completions map[string]contracts.WorkerCompletion
 	failures    map[string][]error
 	calls       []workerInvocation
@@ -1343,9 +1344,9 @@ func testInvocation(bindings ...string) planner.Invocation {
 	}
 }
 
-func stageResult(summary string, artifacts map[string]contracts.ArtifactRef) contracts.StageContentResult {
-	return contracts.StageContentResult{
-		APIVersion: contracts.APIVersion, Outcome: contracts.StageSucceeded,
+func stageResult(summary string, artifacts map[string]contracts.ArtifactRef) stageresult.StageContentResult {
+	return stageresult.StageContentResult{
+		APIVersion: contracts.APIVersion, Outcome: stageresult.StageSucceeded,
 		Summary: summary, Artifacts: artifacts,
 	}
 }

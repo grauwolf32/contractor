@@ -4,11 +4,11 @@ import (
 	"context"
 	"errors"
 
+	"github.com/grauwolf32/contractor/internal/agentskills"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditstandards"
 	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
-	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 	pg "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
@@ -36,7 +36,7 @@ type BindingSnapshot struct {
 	Workflow  *resolved.ResolvedWorkflow         `json:"workflow,omitempty"`
 	Audit     *auditprofile.ResolvedAuditProfile `json:"audit,omitempty"`
 	Runtime   runtimeconfig.RunSnapshot          `json:"runtime"`
-	Skills    []contracts.RunSkillSnapshot       `json:"skills"`
+	Skills    []agentskills.RunSkillSnapshot     `json:"skills"`
 	Standards []auditstandards.ExactPackage      `json:"standards"`
 }
 

@@ -18,6 +18,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts/control"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/contracts/runlabels"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/randomid"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 )
@@ -713,7 +714,7 @@ func validateCandidateEdges(bindings []BindingRequirement, edges []CandidateEdge
 			return fmt.Errorf("%w: candidate edge is duplicated", ErrInvalidRequest)
 		}
 		seen[key] = struct{}{}
-		previous := contracts.RuntimeAdapterRef("")
+		previous := runtimesettings.RuntimeAdapterRef("")
 		for _, adapter := range edge.RequiredRuntimeAdapters {
 			if adapter.Validate() != nil || adapter <= previous {
 				return fmt.Errorf("%w: candidate adapter requirements are invalid", ErrInvalidRequest)
@@ -725,8 +726,8 @@ func validateCandidateEdges(bindings []BindingRequirement, edges []CandidateEdge
 }
 
 func containsRuntimeAdapters(
-	available []contracts.RuntimeAdapterRef,
-	required []contracts.RuntimeAdapterRef,
+	available []runtimesettings.RuntimeAdapterRef,
+	required []runtimesettings.RuntimeAdapterRef,
 ) bool {
 	availableIndex := 0
 	for _, expected := range required {
@@ -1137,7 +1138,7 @@ func isPlacementEligible(entry *agentEntry, monotonicNow time.Duration) bool {
 }
 
 func isBindingCompatible(registration control.AgentRegistration, binding BindingRequirement) bool {
-	return contracts.ValidateWorkerCompletionSelection(binding.CompletionContract, binding.Namespace, binding.AgentTemplate) == nil &&
+	return resolved.ValidateWorkerCompletionSelection(binding.CompletionContract, binding.Namespace, binding.AgentTemplate) == nil &&
 		contracts.SupportsWorkerCompletion(registration.Capabilities, binding.CompletionContract) &&
 		isCompatible(registration, binding.AgentTemplate, binding.Workspace)
 }
@@ -1223,7 +1224,7 @@ func normalizeReservationRequest(request ReservationRequest) (string, []BindingR
 		if binding.Namespace == "inputs" || binding.Namespace == "outputs" {
 			return "", nil, fmt.Errorf("%w: Agent binding cannot use a Run-reserved namespace", ErrInvalidRequest)
 		}
-		if err := contracts.ValidateWorkerCompletionSelection(binding.CompletionContract, binding.Namespace, binding.AgentTemplate); err != nil {
+		if err := resolved.ValidateWorkerCompletionSelection(binding.CompletionContract, binding.Namespace, binding.AgentTemplate); err != nil {
 			return "", nil, fmt.Errorf("%w: %v", ErrInvalidRequest, err)
 		}
 		if err := binding.AgentTemplate.Validate(); err != nil {

@@ -16,6 +16,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/scanplan"
+	"github.com/grauwolf32/contractor/internal/strictjson"
 )
 
 // Assert the public artifact shape independently of the preparer's Go structs.
@@ -86,7 +87,7 @@ func mustPrepare(t *testing.T, data []byte, media string, ref contracts.Artifact
 	if err != nil {
 		t.Fatal(err)
 	}
-	wire, err := contracts.MarshalPrivateCanonical(result)
+	wire, err := strictjson.Canonical(result)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -103,7 +104,7 @@ func mustPrepare(t *testing.T, data []byte, media string, ref contracts.Artifact
 		t.Fatalf("unaccounted coverage: %+v", view.Coverage)
 	}
 	for i, entry := range view.Requests {
-		canonical, err := contracts.MarshalPrivateCanonical(entry.Request)
+		canonical, err := strictjson.Canonical(entry.Request)
 		if err != nil {
 			t.Fatal(err)
 		}

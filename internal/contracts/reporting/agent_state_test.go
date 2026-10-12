@@ -8,7 +8,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 )
 
-func TestAgentStateRejectsMissingNestedRequiredFields(t *testing.T) {
+func TestSharedAgentStateRejectsMissingNestedRequiredFields(t *testing.T) {
 	var baseline map[string]any
 	if err := json.Unmarshal(contractstest.ReadFixture(t, "valid", "agent-state-snapshot.json"), &baseline); err != nil {
 		t.Fatal(err)
@@ -72,7 +72,7 @@ func TestAgentStateRejectsMissingNestedRequiredFields(t *testing.T) {
 	}
 }
 
-func TestAgentStateRejectsInconsistentSummarizerState(t *testing.T) {
+func TestSharedAgentStateRejectsInconsistentSummarizerState(t *testing.T) {
 	var baseline map[string]any
 	if err := json.Unmarshal(contractstest.ReadFixture(t, "valid", "agent-state-snapshot.json"), &baseline); err != nil {
 		t.Fatal(err)

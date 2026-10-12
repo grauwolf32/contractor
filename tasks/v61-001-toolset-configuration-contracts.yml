@@ -89,7 +89,7 @@ acceptance_criteria:
   - id: A4
     text: Public schema/client/strict parser changes pass contract checks; current catalogs and native static registrations remain valid and MCP is not advertised prematurely.
 tests:
-  - command: make verify-wire-contracts test-wire-cross-language verify-public-api ui-generate-check
+  - command: make test-wire-cross-language verify-public-api ui-generate-check
     covers: [A2, A4]
   - command: go test ./internal/config ./internal/contracts ./internal/runtimeconfig
     covers: [A1, A2, A4]

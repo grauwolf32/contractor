@@ -125,7 +125,7 @@ func TestAuditCompletionPostgresAtomicCreationRestartAndAllocation(t *testing.T)
 		t.Fatal("different Workflow accepted", err)
 	}
 	wrongTask := params
-	wrongTask.Inputs = cloneExactArtifacts(params.Inputs)
+	wrongTask.Inputs = contracts.CloneExactArtifacts(params.Inputs)
 	wrongTask.Inputs["task"] = source
 	if _, err := service.CreateAudit(ctx, wrongTask); !errors.Is(err, ErrInvalid) {
 		t.Fatal("foreign task accepted", err)
@@ -211,7 +211,7 @@ func TestAuditCompletionPostgresAtomicCreationRestartAndAllocation(t *testing.T)
 		t.Fatal(err)
 	}
 	gateway := stage.ExecutionConfig.Agents["checker"].LLMGateway.Ref
-	allocation := runstore.StageAllocation{AllocationID: "allocation", StageExecutionID: executionStage.StageExecutionID, LogicalAgentName: "checker", Namespace: "audit-check", AgentTemplateRef: agent.Template.Ref, WorkerRuntimeRef: agent.Template.Runtime, RuntimeAgentID: strings.Repeat("1", 64), RuntimeAgentInstanceID: "runtime", RuntimeAgentLabelRevision: 1, RuntimeConfigurationSchemaVersion: runstore.AllocationRuntimeConfigurationSchemaVersion, PerformanceCollectionPolicy: reporting.PerformanceCollectionDisabled, RuntimeConfiguration: &runstore.AllocationRuntimeConfiguration{ModelPolicy: stage.ExecutionConfig.Agents["checker"].ModelPolicy.Ref, Origins: runtimeconfig.ResolvedRuntimeConfigOrigins{}, Provenance: runtimesettings.ResolvedRuntimeConfigProvenance{Default: runtimesettings.RuntimeLabelBindingProvenance{Label: "default", BindingRevision: 1, Config: runtimesettings.RuntimeConfigRef{Name: runtimeconfig.BuiltInName, Version: runtimeconfig.BuiltInVersion, Digest: runtimeconfig.BuiltInDigest}}, RunLabels: []runtimesettings.RuntimeLabelBindingProvenance{}, AgentLabels: []runtimesettings.RuntimeLabelBindingProvenance{}, RuntimeAdapters: []contracts.RuntimeAdapterRef{}, RuntimeCredentialRefs: []runtimesettings.RuntimeCredentialRef{}, LLMGatewayConfig: &gateway}}}
+	allocation := runstore.StageAllocation{AllocationID: "allocation", StageExecutionID: executionStage.StageExecutionID, LogicalAgentName: "checker", Namespace: "audit-check", AgentTemplateRef: agent.Template.Ref, WorkerRuntimeRef: agent.Template.Runtime, RuntimeAgentID: strings.Repeat("1", 64), RuntimeAgentInstanceID: "runtime", RuntimeAgentLabelRevision: 1, RuntimeConfigurationSchemaVersion: runstore.AllocationRuntimeConfigurationSchemaVersion, PerformanceCollectionPolicy: reporting.PerformanceCollectionDisabled, RuntimeConfiguration: &runstore.AllocationRuntimeConfiguration{ModelPolicy: stage.ExecutionConfig.Agents["checker"].ModelPolicy.Ref, Origins: runtimeconfig.ResolvedRuntimeConfigOrigins{}, Provenance: runtimesettings.ResolvedRuntimeConfigProvenance{Default: runtimesettings.RuntimeLabelBindingProvenance{Label: "default", BindingRevision: 1, Config: runtimesettings.RuntimeConfigRef{Name: runtimeconfig.BuiltInName, Version: runtimeconfig.BuiltInVersion, Digest: runtimeconfig.BuiltInDigest}}, RunLabels: []runtimesettings.RuntimeLabelBindingProvenance{}, AgentLabels: []runtimesettings.RuntimeLabelBindingProvenance{}, RuntimeAdapters: []runtimesettings.RuntimeAdapterRef{}, RuntimeCredentialRefs: []runtimesettings.RuntimeCredentialRef{}, LLMGatewayConfig: &gateway}}}
 	if err := runs.RecordStageAllocation(ctx, allocation); persistencepostgres.SQLState(err) != persistencepostgres.SQLStateCheckViolation {
 		t.Fatal("allocation downgrade accepted", err)
 	}

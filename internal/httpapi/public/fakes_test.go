@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/agentskills"
 	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/clone"
@@ -1174,7 +1175,7 @@ func (f *fakeRunStore) CreateRunIdempotent(
 func (f *fakeRunStore) SetRunSkillSelections(
 	_ context.Context,
 	runID string,
-	skills []contracts.RunSkillSnapshot,
+	skills []agentskills.RunSkillSnapshot,
 ) error {
 	run, ok := f.runs[runID]
 	if !ok {
@@ -1183,7 +1184,7 @@ func (f *fakeRunStore) SetRunSkillSelections(
 	if run.State != runstore.RunInitializing || len(run.SkillSnapshot) != 0 {
 		return runstore.ErrConflict
 	}
-	run.SkillSnapshot = append([]contracts.RunSkillSnapshot(nil), skills...)
+	run.SkillSnapshot = append([]agentskills.RunSkillSnapshot(nil), skills...)
 	run.StateReason = runstore.Reason{Code: runstore.SkillInitializationPendingReason}
 	f.runs[runID] = run
 	return nil

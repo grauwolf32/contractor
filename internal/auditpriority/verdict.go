@@ -3,7 +3,6 @@ package auditpriority
 import (
 	"unicode/utf8"
 
-	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/strictjson"
 )
 
@@ -106,7 +105,7 @@ func MarshalVerdict(verdict Verdict) ([]byte, error) {
 		}
 		seen[missing] = true
 	}
-	data, err := contracts.MarshalPrivateCanonical(verdict)
+	data, err := strictjson.Canonical(verdict)
 	if err != nil || len(data) > MaxVerdictBytes {
 		return nil, invalid(CodeInvalidVerdict)
 	}

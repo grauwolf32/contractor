@@ -68,7 +68,7 @@ func TestToolsetDescriptorWorkflowInputRequirementsAreValidated(t *testing.T) {
 			}
 		})
 	}
-	want := workflowInputRequirement{Input: "findings", MediaType: contracts.FindingCollectionMediaType}
+	want := workflowInputRequirement{Input: "findings", MediaType: FindingCollectionMediaType}
 	if got := registeredDescriptors().Toolsets["security-findings@1"].RequiredWorkflowInputs; len(got) != 1 || got["list_findings"] != want {
 		t.Fatalf("security-findings@1 Workflow input requirements = %+v", got)
 	}

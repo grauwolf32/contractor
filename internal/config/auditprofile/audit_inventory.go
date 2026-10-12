@@ -1,7 +1,7 @@
 package auditprofile
 
 import (
-	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 )
 
 // AuditInventoryOpenAPIScans selects a versioned inventory builder, independently
@@ -10,7 +10,7 @@ const AuditInventoryOpenAPIScans = "openapi-scans@1"
 
 type auditInventoryDescriptor struct {
 	mediaTypes       []string
-	taskContract     contracts.AuditTaskContract
+	taskContract     resolved.AuditTaskContract
 	requiresSettings bool
 }
 
@@ -19,7 +19,7 @@ type auditInventoryDescriptor struct {
 var auditInventories = map[string]auditInventoryDescriptor{
 	AuditInventoryOpenAPIScans: {
 		mediaTypes:       []string{"application/json", "application/yaml"},
-		taskContract:     contracts.AuditTaskOpenAPIScanV1,
+		taskContract:     resolved.AuditTaskOpenAPIScanV1,
 		requiresSettings: true,
 	},
 	"openapi-operations@1": {mediaTypes: []string{"application/json", "application/yaml", "application/zip"}},

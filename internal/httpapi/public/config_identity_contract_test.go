@@ -2,20 +2,17 @@ package public
 
 import (
 	"encoding/json"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 )
 
-func TestPublicConfigIdentitySchemasMatchSharedCases(t *testing.T) {
+func TestSharedPublicConfigIdentitySchemasMatchSharedCases(t *testing.T) {
 	t.Parallel()
 	schemas := loadPublicOpenAPI(t).Components.Schemas
 	name, version, selector := schemas["ConfigurationName"].Value, schemas["ConfigVersion"].Value, schemas["Selector"].Value
-	data, err := os.ReadFile(filepath.Join("..", "..", "..", "api", "testdata", "v1alpha1", "config-identity-cases.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	data := contractstest.ReadFile(t, "api", "testdata", "v1alpha1", "config-identity-cases.json")
 	type caseGroup struct {
 		MaxLength int      `json:"maxLength"`
 		Valid     []string `json:"valid"`

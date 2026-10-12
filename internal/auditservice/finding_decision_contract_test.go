@@ -2,19 +2,16 @@ package auditservice
 
 import (
 	"encoding/json"
-	"os"
 	"strings"
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 )
 
 // The same wire cases are checked against the OpenAPI request union in public.
-func TestFindingDecisionPublicContractCases(t *testing.T) {
-	data, err := os.ReadFile("../../api/testdata/public/finding-decision-cases.json")
-	if err != nil {
-		t.Fatal(err)
-	}
+func TestSharedFindingDecisionPublicContractCases(t *testing.T) {
+	data := contractstest.ReadFile(t, "api", "testdata", "public", "finding-decision-cases.json")
 	var cases []struct {
 		Name    string `json:"name"`
 		Valid   bool   `json:"valid"`

@@ -13,6 +13,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/control"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 )
 
@@ -248,7 +249,7 @@ func registerRuntime(
 	t.Helper()
 	_, err := registry.RegisterAuthenticated(runtime.principal, control.AgentRegistration{
 		InitialLabels:            []string{},
-		SupportedRuntimeAdapters: []contracts.RuntimeAdapterRef{},
+		SupportedRuntimeAdapters: []runtimesettings.RuntimeAdapterRef{},
 		APIVersion:               contracts.APIVersion, InstanceID: runtime.instanceID, SoftwareVersion: "0.1.0",
 		StartedAt: clock.Now(), ControlURL: runtime.controlURL, A2AURL: runtime.a2aURL,
 		SupportedRuntimes: []string{"adk@1"},

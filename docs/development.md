@@ -132,5 +132,14 @@ factories declare, from its build context. Runtime imports under
   `No matches for ignored import` in Python). The violation was fixed: delete
   the entry, so the list only shrinks.
 
+The Go wire kernel `internal/contracts` holds the private Server/Runtime
+contracts and the vocabulary they share; domain rules live with their owners.
+`contractsImporters` in
+[internal/archtest/contracts_importers_test.go](../internal/archtest/contracts_importers_test.go)
+lists every package that imports the kernel with wire symbols it uses. A new
+importer adds an entry for the wire symbols it needs; a package that needs
+only a domain rule imports the rule's owner instead. An entry whose package or
+symbols no longer use the kernel fails until it is updated.
+
 Continue with [deployment](deployment.md), the [user guides](guides/README.md)
 or [testing](testing/README.md).
