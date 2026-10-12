@@ -165,7 +165,7 @@ happens on each outcome and test it:
 Reuse the receipt, lease and idempotency mechanism the subsystem already has.
 The 2026-10-11 hub audit counted at least 16 such mechanisms, not the nine an
 earlier review found. V370-007 folded three receipt tables and two claim
-implementations; ten remain, and none may be added:
+implementations; ten remain. Do not add an eleventh:
 
 - receipts: a keyed mutation records its receipt in `mutation_receipts`
   through `persistencepostgres.KeyedMutation` (lock, replay, claim;
@@ -180,7 +180,8 @@ implementations; ten remain, and none may be added:
   (PER-R24), the Scheduler's Run claim, the Project deletion claim, the
   Gateway recovery probe and the active Server's session lease.
 
-Every advisory lock key comes from `persistencepostgres.NewAdvisoryKey`.
+Every advisory lock key comes from `persistencepostgres.NewAdvisoryKey`,
+except the session lease and the per-schema migration lock.
 Leases, claims and the single-active-Server assumption are recurring sources
 of races (V107, V111, V114, V168, V288): read
 `docs/spec/execution/scheduler.md` and `docs/spec/platform/persistence.md`
