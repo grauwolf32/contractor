@@ -38,7 +38,7 @@ func TestRuntimeCredentialPostgresLifecycleReplayAndSecretBoundary(t *testing.T)
 		t.Fatal(err)
 	}
 	service, err := NewRuntimeCredentialService(RuntimeCredentialServiceOptions{
-		Pool: pool, Cipher: cipher, Usage: repository, Barrier: barrier,
+		Pool: pool, Cipher: cipher, Usage: repository, Audits: staticAuditDispatchHolds{}, Barrier: barrier,
 		Now: func() time.Time { return time.Date(2026, 8, 31, 18, 0, 0, 0, time.UTC) },
 	})
 	if err != nil {
@@ -249,7 +249,8 @@ func TestRuntimeCredentialDeleteSerializesWithRuntimeConfigBindings(t *testing.T
 	cipher, _ := NewTokenCipher(bytes.Repeat([]byte{0x73}, 32))
 	now := time.Date(2026, 8, 31, 19, 0, 0, 0, time.UTC)
 	service, err := NewRuntimeCredentialService(RuntimeCredentialServiceOptions{
-		Pool: pool, Cipher: cipher, Usage: repository, Barrier: barrier, Now: func() time.Time { return now },
+		Pool: pool, Cipher: cipher, Usage: repository, Audits: staticAuditDispatchHolds{}, Barrier: barrier,
+		Now: func() time.Time { return now },
 	})
 	if err != nil {
 		t.Fatal(err)

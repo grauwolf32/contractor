@@ -678,7 +678,7 @@ func TestAuditStartRechecksProjectHTTPTargetCredentialUse(t *testing.T) {
 	}
 	runtimeCredentials, err := managedcredentials.NewRuntimeCredentialService(managedcredentials.RuntimeCredentialServiceOptions{
 		Pool: pool, Cipher: cipher, Usage: managedcredentials.NewRuntimeCredentialRepository(pool),
-		Barrier: managedcredentials.NewLifecycleBarrier(),
+		Audits: auditstore.NewPostgresStore(pool), Barrier: managedcredentials.NewLifecycleBarrier(),
 	})
 	if err != nil {
 		t.Fatal(err)

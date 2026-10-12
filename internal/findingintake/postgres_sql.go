@@ -5,10 +5,11 @@ import workflowconfig "github.com/grauwolf32/contractor/internal/config"
 // SQL statements for postgres.go.
 
 // importIntoAuditWithTxSQL locks owner $1's retained proposal receipt for Run
-// $3 and exact proposal ref $4, with its retention state, and destination Audit $2 in
-// the Run's Project. The Audit must be in one of states $5, require human
-// finding confirmation and have no pending report review. Returns the receipt's
-// proposal and evidence data. Used by Service.importIntoAuditWithTx.
+// $3 and exact proposal ref $4, with its retention state. Destination Audit
+// $2, which the caller holds locked, must be in the Run's Project and one of
+// states $5, require human finding confirmation and have no pending report
+// review. Returns the receipt's proposal and evidence data.
+// Used by Service.importIntoAuditWithTx.
 var importIntoAuditWithTxSQL = `
 SELECT receipt.receipt_id, audit.project_id, receipt.proposal_ref, receipt.evidence,
        receipt.invocation_id, receipt.client_key, receipt.workflow_closure_digest,
@@ -29,4 +30,4 @@ SELECT receipt.receipt_id, audit.project_id, receipt.proposal_ref, receipt.evide
    )
    AND audit.profile_snapshot #>> '` + workflowconfig.AuditProfileFindingConfirmationPath + `' = '` +
 	string(workflowconfig.AuditFindingHumanRequired) + `'
- FOR UPDATE OF receipt, audit`
+ FOR UPDATE OF receipt`

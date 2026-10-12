@@ -244,7 +244,7 @@ INSERT INTO audit_review_requests (
 		}); err != nil {
 			t.Fatal(err)
 		}
-		if err := f.store.RecordDirectFindingAssessment(f.ctx, DirectFindingAssessmentParams{
+		if err := f.store.recordDirectFindingAssessment(f.ctx, directFindingAssessmentEvent{
 			AuditID: f.audit.AuditID, FindingID: findingID, FindingRevision: 1,
 			AssessmentID: "assessment-direct-dense", RetainedBytes: 1,
 		}); err != nil {
@@ -438,8 +438,9 @@ UPDATE projects
 RETURNING deletion_phase`, f.project.ProjectID).Scan(&phase); err != nil {
 			t.Fatal(err)
 		}
-		if changed, err := f.store.RequestProjectOwnedDeletion(f.ctx, ProjectDeletionClaim{
-			ProjectID: f.project.ProjectID, OwnerID: f.project.OwnerID, ClaimID: "claim-dense", Phase: phase,
+		if changed, err := f.store.RequestProjectOwnedDeletion(f.ctx, projectstore.DeletionClaim{
+			ProjectID: f.project.ProjectID, OwnerID: f.project.OwnerID, ClaimID: "claim-dense",
+			Phase: projectstore.DeletionPhase(phase),
 		}); err != nil || !changed {
 			t.Fatalf("Project-owned Audit deletion = (%t, %v)", changed, err)
 		}

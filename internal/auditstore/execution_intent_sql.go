@@ -16,9 +16,11 @@ var executionIntentEvents = auditEvents(auditEvent(
 // createExecutionIntentSQL keeps reservation and complete-batch submission in
 // one statement. live_claim, claim_gate and round_gate preserve authority and
 // lock order; eligible_members validates exact tasks, approval and attempts.
-// reserved gates budgets and round state before inserted_execution, members,
-// item transitions and the event can become durable. Replay is checked on both
-// sides of this statement by CreateExecutionIntent.
+// reserved gates budgets and round state, with the dispatch window $15 that
+// the caller read from the Scheduler settings row it holds locked, before
+// inserted_execution, members, item transitions and the event can become
+// durable. Replay is checked on both sides of this statement by
+// CreateExecutionIntent.
 var createExecutionIntentSQL = `
 WITH member_input AS MATERIALIZED (
     SELECT * FROM jsonb_to_recordset($12::jsonb) AS member(
@@ -34,18 +36,16 @@ WITH member_input AS MATERIALIZED (
 ), claim_gate AS MATERIALIZED (
     SELECT audit.audit_id, audit.current_round_id, audit.batch_size,
            audit.reserved_run_count, audit.outstanding_run_count,
-           audit.max_submitted_runs, settings.max_concurrent_runs,
+           audit.max_submitted_runs, $15::integer AS max_concurrent_runs,
 	       audit.profile_snapshot,
            contractor_require_active_audit_project(audit.project_id, audit.owner_id)
       FROM audits AS audit
       JOIN live_claim USING (audit_id)
-      CROSS JOIN scheduler_settings AS settings
      WHERE audit.audit_id = $1
-       AND settings.singleton = true
        AND audit.state = 'active' AND audit.dispatch_state = 'open'
        AND (audit.deadline_at IS NULL OR audit.deadline_at > clock_timestamp())
 	   AND ` + profileRoleSQL("#>>", "$13::text", config.AuditWorkflowKindMember) + ` = $5
-     FOR UPDATE OF audit, settings
+     FOR UPDATE OF audit
 ), round_gate AS MATERIALIZED (
     SELECT round.round_id, round.state
       FROM audit_rounds AS round

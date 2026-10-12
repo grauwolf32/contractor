@@ -170,3 +170,21 @@ SELECT EXISTS(SELECT 1 FROM workflow_runs WHERE run_id = $2)`, scope.kind, scope
 	}
 	return nil
 }
+
+// ThawOutputs reopens the outputs bindings of a RunScope, which FreezeOutputs
+// froze when the Run ended, for a continued attempt of that Run. The database
+// permits it only in the transaction that records the Run's continuation
+// receipt, while the Run is pending and its new attempt preparing; anywhere
+// else the thaw fails with a check violation and changes nothing.
+func (r *PostgresTxRepository) ThawOutputs(ctx context.Context, scope Scope) error {
+	if err := validateScope(scope); err != nil || scope.kind != ScopeRun {
+		return ErrInvalidScope
+	}
+	if _, err := r.tx.Exec(ctx, `
+UPDATE artifact_bindings
+SET frozen = false, updated_at = clock_timestamp()
+WHERE scope_kind = $1 AND scope_id = $2 AND namespace = 'outputs'`, scope.kind, scope.id); err != nil {
+		return fmt.Errorf("thaw Run outputs: %w", err)
+	}
+	return nil
+}

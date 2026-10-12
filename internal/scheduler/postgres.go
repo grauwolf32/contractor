@@ -815,12 +815,21 @@ func projectOutputPublicationFailure(err error) (string, string) {
 	}
 }
 
+// verifyRequiredWorkflowOutputs checks, in tx, that every required Workflow
+// output of Run runID is bound and that every bound output's current revision
+// has a media type its slot accepts. It reads the bindings through the
+// ArtifactStore.
 func verifyRequiredWorkflowOutputs(
 	ctx context.Context,
 	tx pgx.Tx,
 	runID string,
 	contractsByName map[string]workflowconfig.ArtifactSlot,
 ) error {
+	scope, err := artifacts.RunScope(runID)
+	if err != nil {
+		return err
+	}
+	repository := artifacts.NewPostgresRepository(tx)
 	names := make([]string, 0, len(contractsByName))
 	for name := range contractsByName {
 		names = append(names, name)
@@ -828,18 +837,17 @@ func verifyRequiredWorkflowOutputs(
 	sort.Strings(names)
 	for _, name := range names {
 		slot := contractsByName[name]
-		var mediaType string
-		err := tx.QueryRow(ctx, verifyRequiredWorkflowOutputsSQL, runID, name).Scan(&mediaType)
-		if errors.Is(err, pgx.ErrNoRows) && !slot.Required {
+		metadata, err := repository.Metadata(ctx, scope, artifacts.ArtifactRef{Namespace: "outputs", Name: name})
+		if errors.Is(err, artifacts.ErrArtifactNotFound) && !slot.Required {
 			continue
 		}
-		if errors.Is(err, pgx.ErrNoRows) {
+		if errors.Is(err, artifacts.ErrArtifactNotFound) {
 			return fmt.Errorf("required Workflow output %q is not bound", name)
 		}
 		if err != nil {
 			return fmt.Errorf("verify Workflow output %q: %w", name, err)
 		}
-		if !contracts.AcceptsMediaType(slot.MediaTypes, mediaType) {
+		if !contracts.AcceptsMediaType(slot.MediaTypes, metadata.MediaType) {
 			return fmt.Errorf("Workflow output %q has incompatible media type", name)
 		}
 	}

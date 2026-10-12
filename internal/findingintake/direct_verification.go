@@ -356,8 +356,6 @@ func commitDirectVerification(
 	result, contract ExactArtifact,
 	retainedBytes int64,
 ) error {
-	resultRef, _ := json.Marshal(result.Ref)
-	contractRef, _ := json.Marshal(contract.Ref)
 	resultProvenance, _ := json.Marshal(map[string]any{
 		"schema":                "contractor.audit.direct-verification-provenance.v1",
 		"kind":                  "result",
@@ -374,44 +372,17 @@ func commitDirectVerification(
 		"runId":                 input.RunID,
 		"workflowClosureDigest": input.WorkflowClosureDigest,
 	})
-	logicalResult := "finding/" + input.ReceiptID + "/direct-result"
-	logicalContract := "finding/" + input.ReceiptID + "/direct-contract"
-	if _, err := tx.Exec(ctx, `
-INSERT INTO audit_artifact_links (
-    audit_id, logical_key, artifact_ref, artifact_digest,
-    media_type, size_bytes, source_provenance, display_ref
-) VALUES
-    ($1, $2, $3::jsonb, $4, $5, $6, $7::jsonb, 'direct verification result'),
-    ($1, $8, $9::jsonb, $10, $11, $12, $13::jsonb, 'direct verification contract')`,
-		input.AuditID,
-		logicalResult, resultRef, result.Digest, result.MediaType, result.SizeBytes, resultProvenance,
-		logicalContract, contractRef, contract.Digest, contract.MediaType, contract.SizeBytes, contractProvenance,
-	); err != nil {
-		return err
-	}
-	var findingID string
-	err := tx.QueryRow(ctx, commitDirectVerificationSQL,
-		assessmentID, verification.Assessment, resultRef, result.Digest,
-		contractRef, contract.Digest, input.AuditID, input.ReceiptID,
-	).Scan(&findingID)
-	if err != nil {
-		return err
-	}
-	var findingRevision int64
-	if err := tx.QueryRow(ctx, `
-UPDATE audit_findings
-   SET current_assessment_id = $1, current_decision_id = NULL,
-       state = 'proposed', rejection_reason = NULL, duplicate_target_id = NULL,
-       revision = revision + 1,
-       updated_at = GREATEST(clock_timestamp(), updated_at + interval '1 microsecond')
- WHERE audit_id = $2 AND finding_id = $3
-RETURNING revision`, assessmentID, input.AuditID, findingID).Scan(&findingRevision); err != nil {
-		return err
-	}
-	return auditstore.NewPostgresStore(tx).RecordDirectFindingAssessment(ctx,
-		auditstore.DirectFindingAssessmentParams{
-			AuditID: input.AuditID, FindingID: findingID,
-			FindingRevision: findingRevision, AssessmentID: assessmentID,
-			RetainedBytes: retainedBytes,
-		})
+	return auditstore.NewPostgresTxStore(tx).CommitDirectFindingAssessment(ctx, auditstore.DirectFindingAssessment{
+		AuditID: input.AuditID, ReceiptID: input.ReceiptID, AssessmentID: assessmentID,
+		SemanticAssessment: verification.Assessment,
+		Result: auditstore.ArtifactLink{
+			LogicalKey: "finding/" + input.ReceiptID + "/direct-result", Artifact: result,
+			SourceProvenance: resultProvenance, DisplayRef: "direct verification result",
+		},
+		Contract: auditstore.ArtifactLink{
+			LogicalKey: "finding/" + input.ReceiptID + "/direct-contract", Artifact: contract,
+			SourceProvenance: contractProvenance, DisplayRef: "direct verification contract",
+		},
+		RetainedBytes: retainedBytes,
+	})
 }

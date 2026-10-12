@@ -44,7 +44,8 @@ func TestRuntimeCredentialRebindDoesNotBorrowAnotherConnection(t *testing.T) {
 				t.Fatal(err)
 			}
 			service, err := NewRuntimeCredentialService(RuntimeCredentialServiceOptions{
-				Pool: limited, Cipher: cipher, Usage: NewRuntimeCredentialRepository(limited), Barrier: NewLifecycleBarrier(),
+				Pool: limited, Cipher: cipher, Usage: NewRuntimeCredentialRepository(limited),
+				Audits: staticAuditDispatchHolds{}, Barrier: NewLifecycleBarrier(),
 			})
 			if err != nil {
 				t.Fatal(err)

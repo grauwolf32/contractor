@@ -27,7 +27,6 @@ import (
 	"github.com/grauwolf32/contractor/internal/pagelimit"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
-	"github.com/grauwolf32/contractor/internal/rundeletion"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/jackc/pgx/v5"
@@ -556,7 +555,7 @@ WHERE audit_id=$1 AND receipt_id=$2 AND direct_verification`, otherAuditID, firs
 	if otherRetainedBefore != otherRetainedAfter || assessmentCount != 2 || otherLinks != 2 {
 		t.Fatalf("independent replay retention: bytes=%d/%d assessments=%d links=%d", otherRetainedBefore, otherRetainedAfter, assessmentCount, otherLinks)
 	}
-	if err := rundeletion.New(pool).DeleteReleasedTerminalRun(ctx, ownerID, runID); err != nil {
+	if err := deleteRun(ctx, pool, ownerID, runID); err != nil {
 		t.Fatal(err)
 	}
 	// The first receipt is held by both Audits; each inbox names only its own hold.
