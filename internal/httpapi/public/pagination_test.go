@@ -6,7 +6,7 @@ import (
 )
 
 func TestPaginateTrimsTheExtraRowAndSignsTheLastKeptRow(t *testing.T) {
-	h := pinnedCursorHandler()
+	h := pinnedCursorHandler().cursors
 	position := func(last string) []string { return []string{last} }
 
 	rows, page, err := paginate(h, []string{"a", "b"}, 2, "letters", position)

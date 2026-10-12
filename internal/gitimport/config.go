@@ -1,14 +1,15 @@
 package gitimport
 
 import (
-	"errors"
 	"net"
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	"github.com/grauwolf32/contractor/internal/apierror"
 )
 
-var ErrConfiguration = errors.New("invalid Git remote allowlist or known_hosts path")
+var ErrConfiguration = apierror.New(apierror.GitImportUnavailable, "invalid Git remote allowlist or known_hosts path")
 
 type Config struct {
 	AllowedRemotes []string

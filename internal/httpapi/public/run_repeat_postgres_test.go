@@ -30,7 +30,7 @@ func TestPostgresRunRepeatRequiresRetainedAuthorityWithoutMutation(t *testing.T)
 	service := artifacts.NewService(repository)
 	runs := runstore.NewPostgresStore(pool)
 	projects := projectstore.NewPostgresStore(pool)
-	h := &handler{dependencies: Dependencies{
+	h := &runRepeatHandlers{RunRepeatDependencies: RunRepeatDependencies{
 		Runs: runs, Artifacts: service, Projects: projects,
 		Config: fixture.configs, Credentials: fixture.credentials, RuntimeConfigs: fixture.runtimeConfigs,
 	}}
@@ -139,7 +139,7 @@ func TestPostgresRunRepeatRequiresRetainedAuthorityWithoutMutation(t *testing.T)
 					var first []byte
 					for range 2 {
 						request := httptest.NewRequest(http.MethodGet, "/v1/runs/"+runID+"/repeat-draft", nil).WithContext(auth.WithPrincipal(ctx, auth.Principal{UserID: "user-1"}))
-						request.SetPathValue("runID", runID)
+						request.SetPathValue("runId", runID)
 						response := httptest.NewRecorder()
 						h.getRunRepeatDraft(response, request)
 						var repeat runRepeatDraftResponse

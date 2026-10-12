@@ -21,6 +21,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/grauwolf32/contractor/internal/apierror"
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/strictjson"
 )
@@ -46,14 +47,15 @@ const MaxResourceIDLength = 256
 var (
 	// ErrValidation identifies a syntactically valid JSON value that violates a
 	// Contractor wire invariant.
-	ErrValidation = errors.New("contract validation failed")
+	ErrValidation = apierror.New(apierror.InvalidRequest, "contract validation failed")
 	// ErrIdempotencyConflict identifies a request idempotency key that is
 	// already bound to a different request. It is permanent: the original
 	// result is unchanged, and repeating this request with this key can never
 	// succeed. Every store with request idempotency reports this outcome with
 	// it, never with its optimistic-revision or identity conflict, and the
 	// public API maps it to 409 idempotency_conflict with retryable false.
-	ErrIdempotencyConflict = errors.New("idempotency key is already bound to a different request")
+	ErrIdempotencyConflict = apierror.New(apierror.IdempotencyConflict,
+		"idempotency key is already bound to a different request")
 	// idPattern and versionPattern are the only Go definitions of the
 	// identifier and opaque version grammars. The shared cases in
 	// api/testdata/v1alpha1/config-identity-cases.json hold Go, the schemas,

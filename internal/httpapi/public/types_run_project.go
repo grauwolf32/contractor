@@ -416,3 +416,23 @@ type consumerExecutionConfigRefsResponse struct {
 	Credential  *llmgateway.LLMCredentialRef    `json:"credential,omitempty"`
 	Origins     resolved.ExecutionConfigOrigins `json:"origins"`
 }
+
+// consumerExecutionConfigRefs projects the execution configuration one
+// Planner or Worker resolved to, for a Workflow and for a StageExecution.
+func consumerExecutionConfigRefs(
+	selection resolved.ResolvedConsumerExecutionConfig,
+) consumerExecutionConfigRefsResponse {
+	result := consumerExecutionConfigRefsResponse{
+		ModelPolicy: selection.ModelPolicy.Ref,
+		Origins:     selection.Origins,
+	}
+	if selection.LLMGateway != nil {
+		gateway := selection.LLMGateway.Ref
+		result.LLMGateway = &gateway
+	}
+	if selection.Credential != nil {
+		credential := *selection.Credential
+		result.Credential = &credential
+	}
+	return result
+}

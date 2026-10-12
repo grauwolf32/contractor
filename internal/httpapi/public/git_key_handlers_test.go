@@ -33,7 +33,7 @@ func newGitKeyFixture(t *testing.T, keys GitKeySettings) handlerFixture {
 	t.Helper()
 	return newHandlerFixtureWithAuth(
 		t, "../../config/testdata/valid", newTestAuthentication(t), mustTestOrigins(t), false, nil,
-		func(d *Dependencies) { d.GitKeys = keys },
+		func(d *testServices) { d.GitKeys = keys },
 	)
 }
 
@@ -70,7 +70,7 @@ func TestGitKeyPublicAPIUsesAuthenticatedOwnerAndNeverReturnsSecrets(t *testing.
 	pool := isolatedPublicPool(t, t.Context())
 	cipher, _ := credentials.NewTokenCipher(bytes.Repeat([]byte{1}, 32))
 	keys := credentials.NewGitKeys(pool, cipher)
-	fixture := newHandlerFixtureWithAuth(t, "../../config/testdata/valid", newTestAuthentication(t), mustTestOrigins(t), false, nil, func(d *Dependencies) { d.GitKeys = keys })
+	fixture := newHandlerFixtureWithAuth(t, "../../config/testdata/valid", newTestAuthentication(t), mustTestOrigins(t), false, nil, func(d *testServices) { d.GitKeys = keys })
 	_, privateKey, _ := ed25519.GenerateKey(rand.Reader)
 	encoded, _ := x509.MarshalPKCS8PrivateKey(privateKey)
 	secret := pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: encoded})

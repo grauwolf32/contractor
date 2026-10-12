@@ -49,7 +49,6 @@ paths:
         "Evals"
       ],
       "summary": "getEvalCapabilities",
-      "x-contractor-implementation": "implemented",
       "parameters": [
         {
           "name": "limit",
@@ -175,7 +174,6 @@ paths:
         "Evals"
       ],
       "summary": "listEvalDatasets",
-      "x-contractor-implementation": "implemented",
       "parameters": [
         {
           "name": "projectId",
@@ -292,7 +290,6 @@ paths:
         "Evals"
       ],
       "summary": "importEvalDataset",
-      "x-contractor-implementation": "implemented",
       "parameters": [
         {
           "name": "projectId",
@@ -408,7 +405,6 @@ paths:
         "Evals"
       ],
       "summary": "listEvalCases",
-      "x-contractor-implementation": "implemented",
       "parameters": [
         {
           "name": "projectId",
@@ -543,7 +539,6 @@ paths:
         "Evals"
       ],
       "summary": "createEvalExperiment",
-      "x-contractor-implementation": "implemented",
       "parameters": [
         {
           "name": "projectId",
@@ -659,7 +654,6 @@ paths:
         "Evals"
       ],
       "summary": "listEvalExperiments",
-      "x-contractor-implementation": "implemented",
       "parameters": [
         {
           "name": "limit",
@@ -834,7 +828,6 @@ paths:
         "Evals"
       ],
       "summary": "getEvalExperiment",
-      "x-contractor-implementation": "implemented",
       "parameters": [
         {
           "name": "id",
@@ -935,7 +928,6 @@ paths:
         "Evals"
       ],
       "summary": "updateEvalDraft",
-      "x-contractor-implementation": "implemented",
       "parameters": [
         {
           "name": "id",
@@ -1052,7 +1044,6 @@ paths:
         "Evals"
       ],
       "summary": "deleteEvalExperiment",
-      "x-contractor-implementation": "implemented",
       "parameters": [
         {
           "name": "id",
@@ -1171,7 +1162,6 @@ paths:
         "Evals"
       ],
       "summary": "commandEvalExperiment",
-      "x-contractor-implementation": "implemented",
       "parameters": [
         {
           "name": "id",
@@ -1317,7 +1307,6 @@ paths:
         "Evals"
       ],
       "summary": "getEvalCommand",
-      "x-contractor-implementation": "implemented",
       "parameters": [
         {
           "name": "id",
@@ -1425,7 +1414,6 @@ paths:
         "Evals"
       ],
       "summary": "listEvalMembers",
-      "x-contractor-implementation": "implemented",
       "parameters": [
         {
           "name": "id",
@@ -1620,7 +1608,6 @@ paths:
         "Evals"
       ],
       "summary": "submitEvalMember",
-      "x-contractor-implementation": "implemented",
       "parameters": [
         {
           "name": "id",
@@ -1741,7 +1728,6 @@ paths:
         "Evals"
       ],
       "summary": "ingestEvalResult",
-      "x-contractor-implementation": "implemented",
       "parameters": [
         {
           "name": "id",
@@ -1862,7 +1848,6 @@ paths:
         "Evals"
       ],
       "summary": "assessEvalMember",
-      "x-contractor-implementation": "implemented",
       "parameters": [
         {
           "name": "id",
@@ -1983,7 +1968,6 @@ paths:
         "Evals"
       ],
       "summary": "reviewEvalMember",
-      "x-contractor-implementation": "implemented",
       "parameters": [
         {
           "name": "id",
@@ -2102,7 +2086,6 @@ paths:
         "Evals"
       ],
       "summary": "listEvalMemberExecutions",
-      "x-contractor-implementation": "implemented",
       "parameters": [
         {
           "name": "id",
@@ -2229,7 +2212,6 @@ paths:
         "Evals"
       ],
       "summary": "selectEvalRecords",
-      "x-contractor-implementation": "implemented",
       "parameters": [
         {
           "name": "id",
@@ -2348,7 +2330,6 @@ paths:
         "Evals"
       ],
       "summary": "listEvalPairs",
-      "x-contractor-implementation": "implemented",
       "parameters": [
         {
           "name": "id",
@@ -2526,7 +2507,6 @@ paths:
         "Evals"
       ],
       "summary": "getEvalPair",
-      "x-contractor-implementation": "implemented",
       "parameters": [
         {
           "name": "id",
@@ -2643,7 +2623,6 @@ paths:
         "Evals"
       ],
       "summary": "getEvalChart",
-      "x-contractor-implementation": "implemented",
       "parameters": [
         {
           "name": "id",
@@ -2832,7 +2811,6 @@ paths:
         "Evals"
       ],
       "summary": "getEvalReport",
-      "x-contractor-implementation": "implemented",
       "parameters": [
         {
           "name": "id",
@@ -2968,7 +2946,6 @@ paths:
         The same clientKey and normalized selection replay the original exact
         artifact even after source deletion; changed selection conflicts.
         Publication creates no Audit finding, decision or verification worklist.
-      x-contractor-implementation: implemented
       x-max-request-body-bytes: 1048576
       parameters:
         - $ref: '#/components/parameters/OptionalOrigin'
@@ -3009,7 +2986,6 @@ paths:
       operationId: getGitKey
       tags: [Settings]
       summary: Read configured state and public fingerprint of the owner's Git SSH key
-      x-contractor-implementation: implemented
       responses:
         '200': {$ref: '#/components/responses/GitKeyState'}
         '400': {$ref: '#/components/responses/BadRequest'}
@@ -3020,7 +2996,6 @@ paths:
       operationId: replaceGitKey
       tags: [Settings]
       summary: Validate and replace the owner's encrypted Git SSH private key
-      x-contractor-implementation: implemented
       parameters:
         - $ref: '#/components/parameters/OptionalOrigin'
         - $ref: '#/components/parameters/OptionalCSRFToken'
@@ -3046,7 +3021,6 @@ paths:
       operationId: deleteGitKey
       tags: [Settings]
       summary: Remove the owner's configured Git key without changing imported artifacts
-      x-contractor-implementation: implemented
       parameters:
         - $ref: '#/components/parameters/OptionalOrigin'
         - $ref: '#/components/parameters/OptionalCSRFToken'
@@ -3074,7 +3048,6 @@ paths:
         existing binding requires one strong quoted `If-Match` revision;
         supplying both headers is invalid. No automatic refresh or mutation
         retry. The whole operation is bounded to 120 seconds.
-      x-contractor-implementation: implemented
       parameters:
         - $ref: '#/components/parameters/OptionalOrigin'
         - $ref: '#/components/parameters/OptionalCSRFToken'
@@ -3125,7 +3098,6 @@ paths:
         existing binding requires one strong quoted `If-Match` revision;
         supplying both headers is invalid. No automatic refresh or mutation
         retry. The whole operation is bounded to 120 seconds.
-      x-contractor-implementation: implemented
       parameters:
         - $ref: '#/components/parameters/OptionalOrigin'
         - $ref: '#/components/parameters/OptionalCSRFToken'
@@ -3166,7 +3138,6 @@ paths:
       operationId: login
       tags: [Auth]
       summary: Create a local browser session
-      x-contractor-implementation: implemented
       x-max-request-body-bytes: 2048
       security: []
       parameters:
@@ -3190,7 +3161,6 @@ paths:
       operationId: getSession
       tags: [Auth]
       summary: Recover the safe principal and session-bound CSRF token
-      x-contractor-implementation: implemented
       security: [{sessionCookie: []}]
       responses:
         '200': {$ref: '#/components/responses/CurrentSession'}
@@ -3203,7 +3173,6 @@ paths:
       operationId: logout
       tags: [Auth]
       summary: Destroy the current browser session
-      x-contractor-implementation: implemented
       security: [{sessionCookie: []}]
       parameters:
         - $ref: '#/components/parameters/Origin'
@@ -3220,7 +3189,6 @@ paths:
       operationId: listWorkflows
       tags: [Workflows]
       summary: List published Workflow versions
-      x-contractor-implementation: implemented
       parameters:
         - $ref: '#/components/parameters/Limit'
         - $ref: '#/components/parameters/Cursor'
@@ -3246,7 +3214,6 @@ paths:
       operationId: getWorkflow
       tags: [Workflows]
       summary: Get one exact Workflow contract
-      x-contractor-implementation: implemented
       responses:
         '200':
           description: Exact Workflow contract
@@ -3265,7 +3232,6 @@ paths:
       operationId: createProject
       tags: [Projects]
       summary: Create an idempotent owner-scoped Project
-      x-contractor-implementation: implemented
       x-max-request-body-bytes: 1048576
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -3303,7 +3269,6 @@ paths:
         Excludes managed Eval Audit execution Projects by their registered
         experiment/member association before pagination. These Projects remain
         accessible by ID for experiment evidence navigation.
-      x-contractor-implementation: implemented
       parameters:
         - $ref: '#/components/parameters/Limit'
         - $ref: '#/components/parameters/Cursor'
@@ -3330,7 +3295,6 @@ paths:
       operationId: getProject
       tags: [Projects]
       summary: Get one owned Project
-      x-contractor-implementation: implemented
       responses:
         '200':
           description: Current Project metadata
@@ -3350,7 +3314,6 @@ paths:
       operationId: updateProject
       tags: [Projects]
       summary: CAS-update Project display metadata
-      x-contractor-implementation: implemented
       parameters:
         - $ref: '#/components/parameters/RequiredIfMatch'
         - $ref: '#/components/parameters/OptionalOrigin'
@@ -3388,7 +3351,6 @@ paths:
         Project representation exposes cleanup progress until it becomes 404.
         A retry after a lost accepted response returns the current deleting
         representation.
-      x-contractor-implementation: implemented
       parameters:
         - $ref: '#/components/parameters/RequiredIfMatch'
         - $ref: '#/components/parameters/OptionalOrigin'
@@ -3418,7 +3380,6 @@ paths:
       operationId: listProjectArtifacts
       tags: [Projects, Artifacts]
       summary: List current Artifact bindings in one owned ProjectScope
-      x-contractor-implementation: implemented
       parameters:
         - name: namespace
           in: query
@@ -3451,7 +3412,6 @@ paths:
       description: |
         `If-None-Match: *` creates a new binding. One strong quoted `If-Match`
         revision updates an existing binding. Supplying both is invalid.
-      x-contractor-implementation: implemented
       x-max-request-body-bytes: 67108864
       parameters:
         - $ref: '#/components/parameters/ArtifactIfMatch'
@@ -3478,7 +3438,6 @@ paths:
       operationId: downloadProjectArtifact
       tags: [Projects, Artifacts]
       summary: Download the current or one exact ProjectScope Artifact revision
-      x-contractor-implementation: implemented
       parameters:
         - name: revision
           in: query
@@ -3502,7 +3461,6 @@ paths:
       tags: [Artifacts]
       summary: List a bounded ZIP directory at an exact artifact revision
       description: Read-only inspection with the same owner and namespace restrictions as artifact downloads. ZIP and Skill packages are never extracted to disk. Unsupported archives remain downloadable.
-      x-contractor-implementation: implemented
       parameters:
         - name: revision
           in: query
@@ -3536,7 +3494,6 @@ paths:
       tags: [Artifacts]
       summary: Read one bounded UTF-8 archive file at an exact artifact revision
       description: Read-only inspection with the same owner and namespace restrictions as artifact downloads. ZIP and Skill packages are never extracted to disk. Unsupported archives remain downloadable.
-      x-contractor-implementation: implemented
       parameters:
         - name: revision
           in: query
@@ -3573,7 +3530,6 @@ paths:
       operationId: getProjectArtifactMetadata
       tags: [Projects, Artifacts]
       summary: Get current or exact ProjectScope Artifact metadata
-      x-contractor-implementation: implemented
       parameters:
         - name: revision
           in: query
@@ -3601,7 +3557,6 @@ paths:
       operationId: listProjectArtifactVersions
       tags: [Projects, Artifacts]
       summary: List immutable versions of one ProjectScope Artifact binding
-      x-contractor-implementation: implemented
       parameters:
         - $ref: '#/components/parameters/Limit'
         - $ref: '#/components/parameters/Cursor'
@@ -3627,7 +3582,6 @@ paths:
       operationId: getProjectArtifactLineage
       tags: [Projects, Artifacts]
       summary: List bounded provenance edges for one ProjectScope Artifact binding
-      x-contractor-implementation: implemented
       parameters:
         - name: revision
           in: query
@@ -3655,7 +3609,6 @@ paths:
       operationId: createProjectRun
       tags: [Projects, Runs]
       summary: Create an idempotent WorkflowRun from exact ProjectScope inputs
-      x-contractor-implementation: implemented
       x-max-request-body-bytes: 1048576
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -3687,7 +3640,6 @@ paths:
       operationId: listProjectRuns
       tags: [Projects, Runs]
       summary: List Runs that were launched from one owned Project
-      x-contractor-implementation: implemented
       parameters:
         - $ref: '#/components/parameters/Limit'
         - $ref: '#/components/parameters/Cursor'
@@ -3727,7 +3679,6 @@ paths:
       operationId: listAuditProfiles
       tags: [Audits]
       summary: List exact read-only AuditProfile versions and current Server compatibility
-      x-contractor-implementation: implemented
       parameters:
         - $ref: '#/components/parameters/Limit'
         - $ref: '#/components/parameters/Cursor'
@@ -3750,7 +3701,6 @@ paths:
       operationId: getAuditProfile
       tags: [Audits]
       summary: Get one exact AuditProfile and its current Server compatibility
-      x-contractor-implementation: implemented
       responses:
         '200':
           description: Exact read-only AuditProfile projection
@@ -3771,7 +3721,6 @@ paths:
       tags: [Audits]
       summary: List exact immutable Audit standard package metadata
       description: Package bodies are omitted; source, license policy, counts, digest, and exact catalog revision are returned.
-      x-contractor-implementation: implemented
       responses:
         '200':
           description: Bounded standard package catalog
@@ -3799,7 +3748,6 @@ paths:
       tags: [Audits]
       summary: Get one exact Audit standard package projection
       description: Entry and evidence bodies are disclosed only as permitted by the package license policy; raw package bytes are never returned.
-      x-contractor-implementation: implemented
       responses:
         '200':
           description: Exact license-aware package projection
@@ -3820,7 +3768,6 @@ paths:
       operationId: createAudit
       tags: [Projects, Audits]
       summary: Create an idempotent Audit draft from exact ProjectScope inputs
-      x-contractor-implementation: implemented
       x-max-request-body-bytes: 1048576
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -3854,7 +3801,6 @@ paths:
       operationId: listProjectAudits
       tags: [Projects, Audits]
       summary: List Audits belonging to one owned Project
-      x-contractor-implementation: implemented
       parameters:
         - $ref: '#/components/parameters/Limit'
         - $ref: '#/components/parameters/Cursor'
@@ -3891,7 +3837,6 @@ paths:
         the authenticated owner's active regular Projects are included; evaluation
         workspaces are excluded. Cursors bind the owner, endpoint and filters.
         These are live lists, not a revision-pinned cross-project snapshot.
-      x-contractor-implementation: implemented
       parameters:
         - $ref: '#/components/parameters/Limit'
         - $ref: '#/components/parameters/Cursor'
@@ -3917,7 +3862,6 @@ paths:
         the authenticated owner's active regular Projects are included; evaluation
         workspaces are excluded. Cursors bind the owner, endpoint and filters.
         These are live lists, not a revision-pinned cross-project snapshot.
-      x-contractor-implementation: implemented
       parameters:
         - $ref: '#/components/parameters/Limit'
         - $ref: '#/components/parameters/Cursor'
@@ -3945,7 +3889,6 @@ paths:
         the authenticated owner's active regular Projects are included; evaluation
         workspaces are excluded. Cursors bind the owner, endpoint and filters.
         These are live lists, not a revision-pinned cross-project snapshot.
-      x-contractor-implementation: implemented
       parameters:
         - $ref: '#/components/parameters/Limit'
         - $ref: '#/components/parameters/Cursor'
@@ -3968,7 +3911,6 @@ paths:
       operationId: getAudit
       tags: [Audits]
       summary: Get one authoritative owned Audit projection
-      x-contractor-implementation: implemented
       responses:
         '200':
           description: Current Audit projection
@@ -3988,7 +3930,6 @@ paths:
       operationId: deleteAudit
       tags: [Audits]
       summary: Begin or replay durable Audit deletion
-      x-contractor-implementation: implemented
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
         - $ref: '#/components/parameters/RequiredIfMatch'
@@ -4021,7 +3962,6 @@ paths:
       operationId: startAudit
       tags: [Audits]
       summary: Atomically pin an Audit baseline and accept its first deterministic Round
-      x-contractor-implementation: implemented
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
         - $ref: '#/components/parameters/RequiredIfMatch'
@@ -4061,7 +4001,6 @@ paths:
       operationId: pauseAudit
       tags: [Audits]
       summary: Pause admission of new child Runs while existing work drains
-      x-contractor-implementation: implemented
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
         - $ref: '#/components/parameters/RequiredIfMatch'
@@ -4094,7 +4033,6 @@ paths:
       operationId: resumeAudit
       tags: [Audits]
       summary: Resume a paused Audit with retained results and an optional time-limit override
-      x-contractor-implementation: implemented
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
         - $ref: '#/components/parameters/RequiredIfMatch'
@@ -4133,7 +4071,6 @@ paths:
       operationId: cancelAudit
       tags: [Audits]
       summary: Close Audit dispatch and begin bounded child Run cancellation
-      x-contractor-implementation: implemented
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
         - $ref: '#/components/parameters/RequiredIfMatch'
@@ -4166,7 +4103,6 @@ paths:
       operationId: listAuditItems
       tags: [Audits]
       summary: List immutable Audit items and their current settlement state
-      x-contractor-implementation: implemented
       parameters:
         - $ref: '#/components/parameters/Limit'
         - $ref: '#/components/parameters/Cursor'
@@ -4204,7 +4140,6 @@ paths:
       operationId: listAuditCoverage
       tags: [Audits]
       summary: List truthful coverage rows for one exact or current Round
-      x-contractor-implementation: implemented
       parameters:
         - $ref: '#/components/parameters/Limit'
         - $ref: '#/components/parameters/Cursor'
@@ -4236,7 +4171,6 @@ paths:
       operationId: getAuditReport
       tags: [Audits]
       summary: Read the exact proposed or accepted Audit report or its generation state
-      x-contractor-implementation: implemented
       responses:
         '200':
           description: Report state with exact artifacts and content when proposed or ready; proposed reports include their review request
@@ -4260,7 +4194,6 @@ paths:
       operationId: listAuditFindingProposals
       tags: [Audits]
       summary: List unconfirmed candidate finding receipts in one owned Audit inbox
-      x-contractor-implementation: implemented
       parameters:
         - $ref: '#/components/parameters/Limit'
         - $ref: '#/components/parameters/Cursor'
@@ -4286,7 +4219,6 @@ paths:
       operationId: importAuditFindingProposal
       tags: [Audits]
       summary: Retain one exact ordinary-Run proposal in a compatible owned Audit
-      x-contractor-implementation: implemented
       x-max-request-body-bytes: 1048576
       parameters:
         - $ref: '#/components/parameters/OptionalOrigin'
@@ -4337,7 +4269,6 @@ paths:
         retained until Audit purge. Summaries expose only bounded structured
         fields; free-form messages, rationale and nested stored data are omitted.
         This HTTP history uses polling; it does not extend the Run WebSocket.
-      x-contractor-implementation: implemented
       parameters:
         - $ref: '#/components/parameters/Limit'
         - $ref: '#/components/parameters/Cursor'
@@ -4359,7 +4290,6 @@ paths:
       operationId: getAuditWorkspace
       tags: [Audits]
       summary: Read consistent current-round progress and whole-Audit decision counts
-      x-contractor-implementation: implemented
       responses:
         '200':
           description: Owner-scoped snapshot
@@ -4379,7 +4309,6 @@ paths:
       operationId: getAuditReview
       tags: [Audits]
       summary: Read the exact owned review subject and revision
-      x-contractor-implementation: implemented
       responses:
         '200':
           description: Owner-scoped snapshot
@@ -4398,7 +4327,6 @@ paths:
       operationId: listAuditFindings
       tags: [Audits]
       summary: List candidate and analyst-reviewed findings for one owned Audit
-      x-contractor-implementation: implemented
       parameters:
         - $ref: '#/components/parameters/Limit'
         - $ref: '#/components/parameters/Cursor'
@@ -4426,7 +4354,6 @@ paths:
       operationId: getAuditFinding
       tags: [Audits]
       summary: Get one exact finding revision and its current assessment and analyst rating
-      x-contractor-implementation: implemented
       responses:
         '200':
           description: Exact finding projection
@@ -4446,7 +4373,6 @@ paths:
       operationId: listAuditFindingProvenance
       tags: [Audits]
       summary: List revision-bound exact proposal and verification provenance
-      x-contractor-implementation: implemented
       parameters:
         - $ref: '#/components/parameters/Limit'
         - $ref: '#/components/parameters/Cursor'
@@ -4472,7 +4398,6 @@ paths:
       operationId: createAuditFindingReview
       tags: [Audits]
       summary: Create or reuse a pending review bound to the exact finding revision
-      x-contractor-implementation: implemented
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
         - $ref: '#/components/parameters/RequiredIfMatch'
@@ -4503,7 +4428,6 @@ paths:
       operationId: listAuditReviews
       tags: [Audits]
       summary: List exact finding review requests and immutable decisions
-      x-contractor-implementation: implemented
       parameters:
         - $ref: '#/components/parameters/Limit'
         - $ref: '#/components/parameters/Cursor'
@@ -4530,7 +4454,6 @@ paths:
       operationId: decideAuditReview
       tags: [Audits]
       summary: Append one owner decision for an exact unexpired review subject
-      x-contractor-implementation: implemented
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
         - $ref: '#/components/parameters/RequiredIfMatch'
@@ -4562,7 +4485,6 @@ paths:
       description: >-
         Stable oldest-created-first display projection. This order is not a
         Scheduler rank, execution priority, estimated start time, or claim.
-      x-contractor-implementation: implemented
       parameters:
         - $ref: '#/components/parameters/Limit'
         - $ref: '#/components/parameters/Cursor'
@@ -4595,7 +4517,6 @@ paths:
         Absence of a persisted control row is represented as paused=false with
         revision 0. Pausing does not stop an already admitted Stage or any
         cancellation, recovery, finalization, publication, or release work.
-      x-contractor-implementation: implemented
       responses:
         '200':
           description: Effective owner Queue admission control
@@ -4618,7 +4539,6 @@ paths:
         Exact CAS over the effective representation. The update serializes with
         every normal Stage admission; setting the current value is an
         idempotent no-op that retains its revision.
-      x-contractor-implementation: implemented
       parameters:
         - $ref: '#/components/parameters/RequiredQueueControlIfMatch'
         - $ref: '#/components/parameters/OptionalOrigin'
@@ -4651,7 +4571,6 @@ paths:
       operationId: createRun
       tags: [Runs]
       summary: Create an idempotent WorkflowRun
-      x-contractor-implementation: implemented
       x-max-request-body-bytes: 1048576
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -4702,7 +4621,6 @@ paths:
       operationId: listRuns
       tags: [Runs]
       summary: List Runs owned by the authenticated principal
-      x-contractor-implementation: implemented
       parameters:
         - $ref: '#/components/parameters/Limit'
         - $ref: '#/components/parameters/Cursor'
@@ -4748,7 +4666,6 @@ paths:
       operationId: getRun
       tags: [Runs]
       summary: Get authoritative Run state and ordered attempts
-      x-contractor-implementation: implemented
       responses:
         '200':
           description: Authoritative Run read model
@@ -4770,7 +4687,6 @@ paths:
         Only terminal Runs whose Runtime allocations are fully released are
         deletable. UserScope and ProjectScope source Artifacts and independently
         published ProjectScope outputs are retained.
-      x-contractor-implementation: implemented
       parameters:
         - $ref: '#/components/parameters/OptionalOrigin'
         - $ref: '#/components/parameters/OptionalCSRFToken'
@@ -4799,7 +4715,6 @@ paths:
         owning Audit context without a draft. Historical requests that predate
         executionConfig retention remain explicitly unavailable instead of
         inheriting current defaults silently.
-      x-contractor-implementation: implemented
       responses:
         '200':
           description: Sanitized repeat context and any required reviews
@@ -4822,7 +4737,6 @@ paths:
     post:
       operationId: retryRunGateway
       tags: [Runs]
-      x-contractor-implementation: implemented
       x-max-request-body-bytes: 1048576
       parameters:
         - $ref: '#/components/parameters/OptionalOrigin'
@@ -4860,7 +4774,6 @@ paths:
     post:
       operationId: resumeRun
       tags: [Runs]
-      x-contractor-implementation: implemented
       x-max-request-body-bytes: 1048576
       parameters:
         - $ref: '#/components/parameters/OptionalOrigin'
@@ -4909,7 +4822,6 @@ paths:
       operationId: cancelRun
       tags: [Runs]
       summary: Request cancellation of a non-terminal Run
-      x-contractor-implementation: implemented
       x-max-request-body-bytes: 1048576
       parameters:
         - $ref: '#/components/parameters/OptionalOrigin'
@@ -4952,7 +4864,6 @@ paths:
       operationId: downloadRunOutput
       tags: [Runs, Artifacts]
       summary: Download one frozen Workflow output
-      x-contractor-implementation: implemented
       responses:
         '200': {$ref: '#/components/responses/ArtifactBytes'}
         '400': {$ref: '#/components/responses/BadRequest'}
@@ -4968,7 +4879,6 @@ paths:
       operationId: listRunArtifacts
       tags: [Runs, Artifacts]
       summary: List exact input, intermediate, and output bindings in one owned RunScope
-      x-contractor-implementation: implemented
       parameters:
         - name: namespace
           in: query
@@ -4997,7 +4907,6 @@ paths:
       operationId: listRunFindingProposals
       tags: [Runs]
       summary: List unconfirmed candidate finding receipts emitted by one owned Run
-      x-contractor-implementation: implemented
       parameters:
         - $ref: '#/components/parameters/Limit'
         - $ref: '#/components/parameters/Cursor'
@@ -5025,7 +4934,6 @@ paths:
       operationId: downloadRunArtifact
       tags: [Runs, Artifacts]
       summary: Download the current or one exact Artifact revision from an owned RunScope
-      x-contractor-implementation: implemented
       parameters:
         - name: revision
           in: query
@@ -5049,7 +4957,6 @@ paths:
       tags: [Artifacts]
       summary: List a bounded ZIP directory at an exact artifact revision
       description: Read-only inspection with the same owner and namespace restrictions as artifact downloads. ZIP and Skill packages are never extracted to disk. Unsupported archives remain downloadable.
-      x-contractor-implementation: implemented
       parameters:
         - name: revision
           in: query
@@ -5083,7 +4990,6 @@ paths:
       tags: [Artifacts]
       summary: Read one bounded UTF-8 archive file at an exact artifact revision
       description: Read-only inspection with the same owner and namespace restrictions as artifact downloads. ZIP and Skill packages are never extracted to disk. Unsupported archives remain downloadable.
-      x-contractor-implementation: implemented
       parameters:
         - name: revision
           in: query
@@ -5120,7 +5026,6 @@ paths:
       operationId: getRunArtifactMetadata
       tags: [Runs, Artifacts]
       summary: Get metadata for the current or one exact Artifact revision in an owned RunScope
-      x-contractor-implementation: implemented
       parameters:
         - name: revision
           in: query
@@ -5149,7 +5054,6 @@ paths:
       operationId: listRunArtifactVersions
       tags: [Runs, Artifacts]
       summary: List immutable versions of one Artifact binding in an owned RunScope
-      x-contractor-implementation: implemented
       parameters:
         - $ref: '#/components/parameters/Limit'
         - $ref: '#/components/parameters/Cursor'
@@ -5176,7 +5080,6 @@ paths:
       operationId: getRunArtifactLineage
       tags: [Runs, Artifacts]
       summary: List bounded provenance edges for one Artifact binding in an owned RunScope
-      x-contractor-implementation: implemented
       parameters:
         - name: revision
           in: query
@@ -5203,7 +5106,6 @@ paths:
       operationId: listArtifacts
       tags: [Artifacts]
       summary: List UserScope artifact bindings
-      x-contractor-implementation: implemented
       parameters:
         - $ref: '#/components/parameters/Limit'
         - $ref: '#/components/parameters/Cursor'
@@ -5238,7 +5140,6 @@ paths:
       description: |
         `If-None-Match: *` creates a new binding. One strong quoted `If-Match`
         revision updates an existing binding. Supplying both is invalid.
-      x-contractor-implementation: implemented
       x-max-request-body-bytes: 67108864
       parameters:
         - $ref: '#/components/parameters/ArtifactIfMatch'
@@ -5264,7 +5165,6 @@ paths:
       operationId: downloadArtifact
       tags: [Artifacts]
       summary: Download the current or one exact UserScope Artifact revision
-      x-contractor-implementation: implemented
       parameters:
         - name: revision
           in: query
@@ -5287,7 +5187,6 @@ paths:
       tags: [Artifacts]
       summary: List a bounded ZIP directory at an exact artifact revision
       description: Read-only inspection with the same owner and namespace restrictions as artifact downloads. ZIP and Skill packages are never extracted to disk. Unsupported archives remain downloadable.
-      x-contractor-implementation: implemented
       parameters:
         - name: revision
           in: query
@@ -5320,7 +5219,6 @@ paths:
       tags: [Artifacts]
       summary: Read one bounded UTF-8 archive file at an exact artifact revision
       description: Read-only inspection with the same owner and namespace restrictions as artifact downloads. ZIP and Skill packages are never extracted to disk. Unsupported archives remain downloadable.
-      x-contractor-implementation: implemented
       parameters:
         - name: revision
           in: query
@@ -5356,7 +5254,6 @@ paths:
       operationId: getArtifactMetadata
       tags: [Artifacts]
       summary: Get metadata for the current or one exact artifact revision
-      x-contractor-implementation: implemented
       parameters:
         - name: revision
           in: query
@@ -5383,7 +5280,6 @@ paths:
       operationId: listArtifactVersions
       tags: [Artifacts]
       summary: List immutable versions of one UserScope Artifact binding
-      x-contractor-implementation: implemented
       parameters:
         - $ref: '#/components/parameters/Limit'
         - $ref: '#/components/parameters/Cursor'
@@ -5409,7 +5305,6 @@ paths:
       operationId: getArtifactLineage
       tags: [Artifacts]
       summary: List bounded provenance edges for one artifact binding
-      x-contractor-implementation: implemented
       parameters:
         - name: revision
           in: query
@@ -5437,7 +5332,6 @@ paths:
       operationId: listConfigurations
       tags: [Configuration]
       summary: List one safe published configuration resource kind
-      x-contractor-implementation: implemented
       parameters:
         - $ref: '#/components/parameters/Limit'
         - $ref: '#/components/parameters/Cursor'
@@ -5458,7 +5352,6 @@ paths:
       operationId: publishConfiguration
       tags: [Configuration]
       summary: Publish a create-only ModelPolicy or LLMGatewayConfig version
-      x-contractor-implementation: implemented
       x-max-request-body-bytes: 1048576
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -5495,7 +5388,6 @@ paths:
       operationId: getConfiguration
       tags: [Configuration]
       summary: Get one exact safe published configuration resource
-      x-contractor-implementation: implemented
       responses:
         '200':
           description: Exact immutable resource
@@ -5519,7 +5411,6 @@ paths:
       tags: [Configuration]
       summary: Read the loaded base instructions of an exact AgentTemplate
       description: Authenticated catalog read; excludes invocation context and performs no filesystem lookup.
-      x-contractor-implementation: implemented
       responses:
         '200':
           description: Exact template identity and base instruction text
@@ -5544,7 +5435,6 @@ paths:
       tags: [Configuration]
       summary: List Workflow bindings that use one exact AgentTemplate
       description: Returns safe Workflow, Stage and logical Worker identities; instruction and prompt bodies are excluded.
-      x-contractor-implementation: implemented
       parameters:
         - $ref: '#/components/parameters/Limit'
         - $ref: '#/components/parameters/Cursor'
@@ -5566,7 +5456,6 @@ paths:
       operationId: listRuntimeConfigs
       tags: [Operations]
       summary: List immutable RuntimeConfig versions
-      x-contractor-implementation: implemented
       parameters:
         - $ref: '#/components/parameters/Limit'
         - $ref: '#/components/parameters/Cursor'
@@ -5587,7 +5476,6 @@ paths:
       operationId: publishRuntimeConfig
       tags: [Operations]
       summary: Publish one immutable typed RuntimeConfig version
-      x-contractor-implementation: implemented
       x-max-request-body-bytes: 131072
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -5625,7 +5513,6 @@ paths:
       operationId: getRuntimeConfig
       tags: [Operations]
       summary: Get one exact immutable RuntimeConfig version
-      x-contractor-implementation: implemented
       responses:
         '200':
           description: Exact secret-free RuntimeConfig resource
@@ -5647,7 +5534,6 @@ paths:
       operationId: listRuntimeLabels
       tags: [Operations]
       summary: List current revisioned Runtime label bindings
-      x-contractor-implementation: implemented
       parameters:
         - $ref: '#/components/parameters/Limit'
         - $ref: '#/components/parameters/Cursor'
@@ -5672,7 +5558,6 @@ paths:
       operationId: getRuntimeLabel
       tags: [Operations]
       summary: Get one current Runtime label binding
-      x-contractor-implementation: implemented
       responses:
         '200':
           description: Current exact binding and revision
@@ -5693,7 +5578,6 @@ paths:
       tags: [Operations]
       summary: Create or CAS-rebind one Runtime label
       description: Initial creation requires If-None-Match:*; rebind requires one strong quoted decimal If-Match.
-      x-contractor-implementation: implemented
       x-max-request-body-bytes: 1048576
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -5722,7 +5606,6 @@ paths:
       operationId: deleteRuntimeLabel
       tags: [Operations]
       summary: CAS-delete one non-default Runtime label binding
-      x-contractor-implementation: implemented
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
         - $ref: '#/components/parameters/RequiredIfMatch'
@@ -5744,7 +5627,6 @@ paths:
       operationId: listRuntimeCredentials
       tags: [Operations]
       summary: List active Runtime adapter credential metadata
-      x-contractor-implementation: implemented
       parameters:
         - $ref: '#/components/parameters/Limit'
         - $ref: '#/components/parameters/Cursor'
@@ -5765,7 +5647,6 @@ paths:
       operationId: createRuntimeCredential
       tags: [Operations]
       summary: Store one encrypted write-only Runtime adapter credential
-      x-contractor-implementation: implemented
       x-max-request-body-bytes: 1048576
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -5801,7 +5682,6 @@ paths:
       operationId: getRuntimeCredential
       tags: [Operations]
       summary: Get one active Runtime adapter credential's safe metadata
-      x-contractor-implementation: implemented
       responses:
         '200':
           description: Secret-free credential metadata
@@ -5825,7 +5705,6 @@ paths:
         it is idempotent without an Idempotency-Key and answers 204 with
         `Idempotency-Replayed: true`. A supplied key is validated but not bound
         to the request.
-      x-contractor-implementation: implemented
       parameters:
         - $ref: '#/components/parameters/OptionalIdempotencyKey'
         - $ref: '#/components/parameters/OptionalOrigin'
@@ -5845,7 +5724,6 @@ paths:
       operationId: listRuntimeAgentPrincipals
       tags: [Operations]
       summary: List durable Runtime Agent certificate principals and current live observations
-      x-contractor-implementation: implemented
       parameters:
         - $ref: '#/components/parameters/Limit'
         - $ref: '#/components/parameters/Cursor'
@@ -5870,7 +5748,6 @@ paths:
       operationId: getRuntimeAgentPrincipal
       tags: [Operations]
       summary: Get one durable Runtime Agent principal and its current live observation
-      x-contractor-implementation: implemented
       responses:
         '200':
           description: Exact principal revision and safe current observation
@@ -5890,7 +5767,6 @@ paths:
       operationId: deleteRuntimeAgentPrincipal
       tags: [Operations]
       summary: Delete one offline empty unreferenced Runtime Agent principal
-      x-contractor-implementation: implemented
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
         - $ref: '#/components/parameters/RequiredIfMatch'
@@ -5914,7 +5790,6 @@ paths:
       operationId: replaceRuntimeAgentPrincipalLabels
       tags: [Operations]
       summary: CAS-replace the complete authoritative label set of one principal
-      x-contractor-implementation: implemented
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
         - $ref: '#/components/parameters/RequiredIfMatch'
@@ -5951,7 +5826,6 @@ paths:
       operationId: listCredentials
       tags: [Credentials]
       summary: List active secret-free credential records
-      x-contractor-implementation: implemented
       parameters:
         - $ref: '#/components/parameters/Limit'
         - $ref: '#/components/parameters/Cursor'
@@ -5971,7 +5845,6 @@ paths:
       operationId: createCredential
       tags: [Credentials]
       summary: Create one Gateway-managed credential without accepting token bytes
-      x-contractor-implementation: implemented
       x-max-request-body-bytes: 1048576
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -6007,7 +5880,6 @@ paths:
       operationId: getCredential
       tags: [Credentials]
       summary: Get one active secret-free credential record
-      x-contractor-implementation: implemented
       responses:
         '200':
           description: Active credential metadata
@@ -6025,7 +5897,6 @@ paths:
       operationId: deleteCredential
       tags: [Credentials]
       summary: Delete an unpinned active credential and its remote virtual key
-      x-contractor-implementation: implemented
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
         - $ref: '#/components/parameters/OptionalOrigin'
@@ -6050,7 +5921,6 @@ paths:
         Returns the singleton desired admission limit used by every Scheduler
         process. The resource is never a live allocation or Runtime capacity
         projection.
-      x-contractor-implementation: implemented
       responses:
         '200':
           description: Current durable Scheduler settings
@@ -6075,7 +5945,6 @@ paths:
         decimal revision. A replacement with the current value is an exact
         no-op. This changes only future Run admission and never mutates active
         Runs, Stages or allocations.
-      x-contractor-implementation: implemented
       x-max-request-body-bytes: 1048576
       parameters:
         - $ref: '#/components/parameters/RequiredIfMatch'
@@ -6110,7 +5979,6 @@ paths:
       operationId: getOperationsSnapshot
       tags: [Operations]
       summary: Get one coherent Runtime Agent and allocation observation snapshot
-      x-contractor-implementation: implemented
       responses:
         '200':
           description: Process-generation-bound Operations snapshot
@@ -6129,7 +5997,6 @@ paths:
       operationId: listRuntimeAgents
       tags: [Operations]
       summary: List Runtime Agent observations from one coherent snapshot
-      x-contractor-implementation: implemented
       parameters:
         - $ref: '#/components/parameters/Limit'
         - $ref: '#/components/parameters/Cursor'
@@ -6152,7 +6019,6 @@ paths:
       tags: [Operations]
       summary: Read bounded in-memory Server performance
       description: Independent of registry revisions; no SQL or sampling is triggered by this read. Disabled collection returns enabled false without current measurements.
-      x-contractor-implementation: implemented
       responses:
         '200':
           description: Current collection policy, freshness and bounded diagnostics
@@ -6172,7 +6038,6 @@ paths:
       tags: [Operations]
       summary: Read bounded performance history with generation boundaries
       description: Requires from before to. The 15s step covers at most the current process's last hour; durable steps cover at most seven days. Ranges yielding more than 1000 points are rejected, not silently truncated. Retained history remains readable when collection is disabled.
-      x-contractor-implementation: implemented
       parameters:
         - name: from
           in: query
@@ -6206,7 +6071,6 @@ paths:
       tags: [Operations]
       summary: Read terminal allocation resource summaries
       description: Owner-authorized history, including missing reports. Descending finishedAt and allocationId keyset pagination pins an upper boundary. finishedAt is the StageExecution terminal timestamp, not a late report arrival time. Historical collection policy is independent of current switches.
-      x-contractor-implementation: implemented
       parameters:
         - name: runId
           in: query
@@ -6237,7 +6101,6 @@ paths:
       operationId: listAllocations
       tags: [Operations]
       summary: List authoritative and observed allocation state
-      x-contractor-implementation: implemented
       parameters:
         - $ref: '#/components/parameters/Limit'
         - $ref: '#/components/parameters/Cursor'
@@ -6268,7 +6131,6 @@ paths:
       externalDocs:
         description: Exact closed client and Server frame schema
         url: ../events/contractor-events-v1.schema.json
-      x-contractor-implementation: implemented
       x-websocket-subprotocol: contractor.events.v1
       x-websocket-message-schema: ../events/contractor-events-v1.schema.json
       x-max-client-frame-bytes: 16384

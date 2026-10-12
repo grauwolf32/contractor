@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -76,15 +77,21 @@ func TestPostgresPublicRunInitializationAndFrozenOutput(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	dependencies := Dependencies{
+	services := testServices{
 		Authentication: authentication, BrowserOrigins: origins,
 		Config: configurationManager, ConfigurationPublisher: configurationManager,
 		Credentials: managedCredentials, ManagedCredentials: managedCredentials,
 		RuntimeConfigs: runtimeConfigs, RuntimeCredentials: runtimeCredentials,
-		RuntimeAgentPrincipals: runtimePrincipals,
-		Projects:               projectstore.NewPostgresStore(pool),
-		Audits:                 &fakeAuditManagement{},
-		Runs:                   runs, RunDetails: runDetails, RunQueue: runs, RunLifecycle: runs, RunDeletion: rundeletion.New(pool), Artifacts: service,
+		RuntimeAgentPrincipals:  runtimePrincipals,
+		Projects:                projectstore.NewPostgresStore(pool),
+		ProjectDeletionNotifier: &countingWaker{},
+		Audits:                  &fakeAuditManagement{},
+		FindingProposals:        missingFindingProposals{},
+		FindingCollections:      missingFindingCollections{},
+		Evals:                   unservedEvals{}, EvalNotifier: &countingWaker{},
+		GitImports: unavailableGitImports{}, GitKeys: unavailableGitKeys{},
+		GatewayRecovery: noGatewayWait{}, RunNotifier: &recordingRunNotifier{},
+		Runs: runs, RunDetails: runDetails, RunQueue: runs, RunLifecycle: runs, RunDeletion: rundeletion.New(pool), Artifacts: service,
 		Operations: operations, OperationsInvalidator: operations,
 		Performance: performance.NewReadService(
 			false, nil, nil, performance.NewHistoryRepository(pool, time.Now), time.Now,
@@ -94,9 +101,10 @@ func TestPostgresPublicRunInitializationAndFrozenOutput(t *testing.T) {
 		BearerToken:  contracts.NewSecretString(testBearerToken),
 		NewID:        func(string) (string, error) { return nextRunID, nil },
 		NewRequestID: func() (string, error) { return "request-integration", nil },
+		Logger:       slog.New(slog.DiscardHandler), Now: time.Now,
 	}
-	dependencies.RunCreator = newTestRunCreator(t, dependencies, runs, integrationUnitOfWork{pool: pool, credentials: managedCredentials}, false)
-	handler, err := NewHandler(dependencies)
+	services.RunCreator = newTestRunCreator(t, services, runs, integrationUnitOfWork{pool: pool, credentials: managedCredentials}, false)
+	handler, err := NewHandler(services.dependencies())
 	if err != nil {
 		t.Fatal(err)
 	}

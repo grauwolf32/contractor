@@ -420,7 +420,6 @@ for method, path, operation, body, result, status, cas in routes:
         "operationId": operation,
         "tags": ["Evals"],
         "summary": operation,
-        "x-contractor-implementation": "implemented",
         "parameters": parameters,
         "responses": responses,
     }

@@ -31,11 +31,16 @@ func Retain(ctx context.Context, service *artifacts.Service, runID string, encod
 	return err
 }
 
+// RunScopes opens the RunScope of a Run; *artifacts.Service implements it.
+type RunScopes interface {
+	Run(runID string) (artifacts.ScopedStore, error)
+}
+
 // Load reads and decodes the repeat-request record of runID. A Run without a
 // record is artifacts.ErrArtifactNotFound, and a record of another media type
 // is artifacts.ErrArtifactIntegrity.
-func Load(ctx context.Context, service *artifacts.Service, runID string) (Snapshot, error) {
-	run, err := service.Run(runID)
+func Load(ctx context.Context, scopes RunScopes, runID string) (Snapshot, error) {
+	run, err := scopes.Run(runID)
 	if err != nil {
 		return Snapshot{}, err
 	}

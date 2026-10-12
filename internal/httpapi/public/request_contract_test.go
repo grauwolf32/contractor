@@ -126,7 +126,7 @@ func TestPublicRequestAndHistoryContracts(t *testing.T) {
 
 	t.Run("git-cookie-and-bearer-mutations", func(t *testing.T) {
 		git := &requestContractGit{}
-		fixture := newHandlerFixtureWithAuth(t, "../../config/testdata/valid", newTestAuthentication(t), mustTestOrigins(t), false, nil, func(d *Dependencies) { d.GitKeys = git; d.GitImports = git })
+		fixture := newHandlerFixtureWithAuth(t, "../../config/testdata/valid", newTestAuthentication(t), mustTestOrigins(t), false, nil, func(d *testServices) { d.GitKeys = git; d.GitImports = git })
 		login := loginBrowser(t, fixture.handler, "admin", testAuthPassword, testBrowserOrigin)
 		if login.response.Code != http.StatusOK {
 			t.Fatal("fixture login failed")

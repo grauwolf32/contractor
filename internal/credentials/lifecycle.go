@@ -12,6 +12,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/grauwolf32/contractor/internal/apierror"
 	"github.com/grauwolf32/contractor/internal/clone"
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -27,8 +28,8 @@ import (
 const maximumCredentialRunReferences = 128
 
 var (
-	ErrGatewayUnavailable = errors.New("Gateway credential operation is unavailable")
-	ErrRecoveryRequired   = errors.New("credential operation recovery is required")
+	ErrGatewayUnavailable = apierror.New(apierror.GatewayUnavailable, "Gateway credential operation is unavailable")
+	ErrRecoveryRequired   = apierror.New(apierror.CredentialRecoveryRequired, "credential operation recovery is required")
 	// ErrCreateAbandoned reports a create whose idempotency key belongs to an
 	// operation that recovery abandoned: its remote alias was confirmed absent
 	// and its stored request no longer validates. The credential ID stays
@@ -49,6 +50,10 @@ type CredentialInUseError struct {
 func (e *CredentialInUseError) Error() string {
 	return "LLM credential is referenced by a non-terminal WorkflowRun, Audit dispatch hold or active RuntimeConfig label"
 }
+
+// ErrorKind answers the error with credential_in_use; its references are the
+// details.
+func (e *CredentialInUseError) ErrorKind() apierror.Kind { return apierror.CredentialInUse }
 
 type GatewayLookup interface {
 	LLMGateway(string) (llmgateway.ResolvedLLMGatewayConfig, error)

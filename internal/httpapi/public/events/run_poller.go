@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/grauwolf32/contractor/internal/apierror"
 	"github.com/grauwolf32/contractor/internal/runstore"
 )
 
@@ -136,7 +137,7 @@ func (p *runPoller) catchUp() {
 		events, err := p.hub.runs.ListRunEvents(p.ctx, p.runID, from, runReplayPageSize)
 		if err != nil {
 			if p.ctx.Err() == nil {
-				p.endAll("overloaded", "Run stream is temporarily unavailable")
+				p.endAll(apierror.Overloaded, "Run stream is temporarily unavailable")
 			}
 			return
 		}
@@ -212,7 +213,7 @@ func (p *runPoller) resync(subscriber *runSubscriber, reason string) resyncRequi
 
 // endAll ends every subscription after a failed read with a retryable error,
 // and a subscription that is already being cancelled without one.
-func (p *runPoller) endAll(code, message string) {
+func (p *runPoller) endAll(kind apierror.Kind, message string) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	for subscriber := range p.subscribers {
@@ -220,10 +221,7 @@ func (p *runPoller) endAll(code, message string) {
 			p.endLocked(subscriber, nil)
 			continue
 		}
-		p.endLocked(subscriber, errorFrame{
-			Version: ProtocolVersion, Type: "error", SubscriptionID: subscriber.subscription.id,
-			Code: code, Message: message, Retryable: true,
-		})
+		p.endLocked(subscriber, newErrorFrame(subscriber.subscription.id, kind, message))
 	}
 }
 

@@ -79,7 +79,7 @@ func TestAuditPostgresPublicCreateStartAndQuery(t *testing.T) {
 	}
 
 	h := auditTestHandler(audits)
-	h.dependencies.Projects = projects
+	h.Projects = projects
 	requestBody, err := json.Marshal(createAuditRequest{
 		Profile: auditProfileSelectorRequest{Name: "public-checklist", Version: "1"},
 		Inputs: map[string]contracts.ArtifactRef{

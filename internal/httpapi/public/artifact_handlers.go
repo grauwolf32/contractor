@@ -13,13 +13,34 @@ import (
 	"github.com/grauwolf32/contractor/internal/pagelimit"
 )
 
-func (h *handler) listArtifacts(w http.ResponseWriter, r *http.Request) {
-	if h.rejectHead(w, r) {
+// ArtifactScopes opens the Artifact store of one scope.
+type ArtifactScopes interface {
+	User(string) (artifacts.ScopedStore, error)
+	Project(string) (artifacts.ScopedStore, error)
+	Run(string) (artifacts.ScopedStore, error)
+}
+
+// ArtifactDependencies serve the UserScope, ProjectScope and RunScope
+// Artifact routes, Run outputs, archive previews and Git import.
+type ArtifactDependencies struct {
+	Artifacts  ArtifactScopes
+	Projects   ProjectReader
+	Runs       RunGetter
+	GitImports GitImportService
+}
+
+type artifactHandlers struct {
+	ArtifactDependencies
+	cursors pageCursors
+}
+
+func (h *artifactHandlers) listArtifacts(w http.ResponseWriter, r *http.Request) {
+	if rejectHead(w, r) {
 		return
 	}
-	store, err := h.dependencies.Artifacts.User(principalUserID(r.Context()))
+	store, err := h.Artifacts.User(principalUserID(r.Context()))
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	h.listArtifactBindings(
@@ -28,61 +49,61 @@ func (h *handler) listArtifacts(w http.ResponseWriter, r *http.Request) {
 	)
 }
 
-func (h *handler) getArtifactMetadata(w http.ResponseWriter, r *http.Request) {
-	if h.rejectHead(w, r) {
+func (h *artifactHandlers) getArtifactMetadata(w http.ResponseWriter, r *http.Request) {
+	if rejectHead(w, r) {
 		return
 	}
 	if err := validateUserArtifactReadRoute(r); err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
-	store, err := h.dependencies.Artifacts.User(principalUserID(r.Context()))
+	store, err := h.Artifacts.User(principalUserID(r.Context()))
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	h.getArtifactMetadataFromStore(w, r, store)
 }
 
-func (h *handler) listArtifactVersions(w http.ResponseWriter, r *http.Request) {
-	if h.rejectHead(w, r) {
+func (h *artifactHandlers) listArtifactVersions(w http.ResponseWriter, r *http.Request) {
+	if rejectHead(w, r) {
 		return
 	}
 	if err := validateUserArtifactReadRoute(r); err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
-	store, err := h.dependencies.Artifacts.User(principalUserID(r.Context()))
+	store, err := h.Artifacts.User(principalUserID(r.Context()))
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	h.listArtifactVersionsFromStore(w, r, store, "user-artifact-versions")
 }
 
-func (h *handler) listArtifactLineage(w http.ResponseWriter, r *http.Request) {
-	if h.rejectHead(w, r) {
+func (h *artifactHandlers) listArtifactLineage(w http.ResponseWriter, r *http.Request) {
+	if rejectHead(w, r) {
 		return
 	}
 	if err := validateUserArtifactReadRoute(r); err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
-	store, err := h.dependencies.Artifacts.User(principalUserID(r.Context()))
+	store, err := h.Artifacts.User(principalUserID(r.Context()))
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	h.listArtifactLineageFromStore(w, r, store, "user-artifact-lineage")
 }
 
-func (h *handler) listRunArtifacts(w http.ResponseWriter, r *http.Request) {
-	if h.rejectHead(w, r) {
+func (h *artifactHandlers) listRunArtifacts(w http.ResponseWriter, r *http.Request) {
+	if rejectHead(w, r) {
 		return
 	}
 	store, runID, err := h.ownedRunArtifactStore(r)
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	h.listArtifactBindings(
@@ -91,14 +112,14 @@ func (h *handler) listRunArtifacts(w http.ResponseWriter, r *http.Request) {
 	)
 }
 
-func (h *handler) getRunArtifact(w http.ResponseWriter, r *http.Request) {
+func (h *artifactHandlers) getRunArtifact(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodHead {
-		h.methodNotAllowed(w, r)
+		methodNotAllowed(w, r)
 		return
 	}
 	store, _, err := h.ownedRunArtifactStore(r)
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	if h.rejectRunSystemArtifactRoute(w, r) {
@@ -106,19 +127,19 @@ func (h *handler) getRunArtifact(w http.ResponseWriter, r *http.Request) {
 	}
 	ref, err := artifactRouteRef(r)
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	h.writeArtifactRead(w, r, store, ref)
 }
 
-func (h *handler) getRunArtifactMetadata(w http.ResponseWriter, r *http.Request) {
-	if h.rejectHead(w, r) {
+func (h *artifactHandlers) getRunArtifactMetadata(w http.ResponseWriter, r *http.Request) {
+	if rejectHead(w, r) {
 		return
 	}
 	store, _, err := h.ownedRunArtifactStore(r)
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	if h.rejectRunSystemArtifactRoute(w, r) {
@@ -127,13 +148,13 @@ func (h *handler) getRunArtifactMetadata(w http.ResponseWriter, r *http.Request)
 	h.getArtifactMetadataFromStore(w, r, store)
 }
 
-func (h *handler) listRunArtifactVersions(w http.ResponseWriter, r *http.Request) {
-	if h.rejectHead(w, r) {
+func (h *artifactHandlers) listRunArtifactVersions(w http.ResponseWriter, r *http.Request) {
+	if rejectHead(w, r) {
 		return
 	}
 	store, runID, err := h.ownedRunArtifactStore(r)
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	if h.rejectRunSystemArtifactRoute(w, r) {
@@ -142,13 +163,13 @@ func (h *handler) listRunArtifactVersions(w http.ResponseWriter, r *http.Request
 	h.listArtifactVersionsFromStore(w, r, store, "run-artifact-versions:"+runID)
 }
 
-func (h *handler) listRunArtifactLineage(w http.ResponseWriter, r *http.Request) {
-	if h.rejectHead(w, r) {
+func (h *artifactHandlers) listRunArtifactLineage(w http.ResponseWriter, r *http.Request) {
+	if rejectHead(w, r) {
 		return
 	}
 	store, runID, err := h.ownedRunArtifactStore(r)
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	if h.rejectRunSystemArtifactRoute(w, r) {
@@ -157,26 +178,26 @@ func (h *handler) listRunArtifactLineage(w http.ResponseWriter, r *http.Request)
 	h.listArtifactLineageFromStore(w, r, store, "run-artifact-lineage:"+runID)
 }
 
-func (h *handler) rejectRunSystemArtifactRoute(w http.ResponseWriter, r *http.Request) bool {
+func (h *artifactHandlers) rejectRunSystemArtifactRoute(w http.ResponseWriter, r *http.Request) bool {
 	if !artifactpolicy.IsRunSystemNamespace(r.PathValue("namespace")) {
 		return false
 	}
 	// The owner-facing repeat projection exposes a validated, sanitized view;
 	// raw system bindings remain indistinguishable from absent Artifacts.
-	h.handleError(w, artifacts.ErrArtifactNotFound)
+	handleError(w, artifacts.ErrArtifactNotFound)
 	return true
 }
 
-func (h *handler) ownedRunArtifactStore(r *http.Request) (artifacts.ScopedStore, string, error) {
-	run, err := h.ownedRun(r)
+func (h *artifactHandlers) ownedRunArtifactStore(r *http.Request) (artifacts.ScopedStore, string, error) {
+	run, err := ownedRun(r, h.Runs)
 	if err != nil {
 		return artifacts.ScopedStore{}, "", err
 	}
-	store, err := h.dependencies.Artifacts.Run(run.RunID)
+	store, err := h.Artifacts.Run(run.RunID)
 	return store, run.RunID, err
 }
 
-func (h *handler) listArtifactBindings(
+func (h *artifactHandlers) listArtifactBindings(
 	w http.ResponseWriter,
 	r *http.Request,
 	store artifacts.ScopedStore,
@@ -191,14 +212,14 @@ func (h *handler) listArtifactBindings(
 	}
 	query, limit, encodedCursor, err := pageQuery(r.URL.RawQuery, allowedQuery...)
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	var namespace *string
 	if values, present := query["namespace"]; present {
 		value := values[0]
 		if err := validatePublicArtifactName(value); err != nil {
-			h.handleError(w, err)
+			handleError(w, err)
 			return
 		}
 		namespace = &value
@@ -211,7 +232,7 @@ func (h *handler) listArtifactBindings(
 	if values, present := query["excludeNamespace"]; present {
 		value := values[0]
 		if err := validatePublicArtifactName(value); err != nil {
-			h.handleError(w, err)
+			handleError(w, err)
 			return
 		}
 		excludeNamespace = &value
@@ -220,9 +241,9 @@ func (h *handler) listArtifactBindings(
 	if hardExcludeNamespace != "" {
 		cursorKind += ":hidden:" + hardExcludeNamespace
 	}
-	cursor, err := h.decodePageCursor(encodedCursor, cursorKind, 2)
+	cursor, err := h.cursors.decodePageCursor(encodedCursor, cursorKind, 2)
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	pageQuery := artifacts.BindingPageQuery{
@@ -234,59 +255,59 @@ func (h *handler) listArtifactBindings(
 	}
 	items, err := store.ListMetadata(r.Context(), pageQuery)
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
-	items, page, err := paginate(h, items, limit, cursorKind, func(last artifacts.Metadata) []string {
+	items, page, err := paginate(h.cursors, items, limit, cursorKind, func(last artifacts.Metadata) []string {
 		return []string{last.Ref.Namespace, last.Ref.Name}
 	})
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, artifactPageResponse{Items: items, Page: page})
 }
 
-func (h *handler) getArtifactMetadataFromStore(
+func (h *artifactHandlers) getArtifactMetadataFromStore(
 	w http.ResponseWriter, r *http.Request, store artifacts.ScopedStore,
 ) {
 	ref, err := artifactRouteRef(r)
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	metadata, err := store.Metadata(r.Context(), ref)
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, metadata)
 }
 
-func (h *handler) listArtifactVersionsFromStore(
+func (h *artifactHandlers) listArtifactVersionsFromStore(
 	w http.ResponseWriter, r *http.Request, store artifacts.ScopedStore, cursorPrefix string,
 ) {
 	_, limit, encodedCursor, err := pageQuery(r.URL.RawQuery)
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	ref := contracts.ArtifactRef{Namespace: r.PathValue("namespace"), Name: r.PathValue("name")}
 	if err := validateArtifactRouteNames(r); err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	cursorKind := cursorPrefix + ":" + ref.Namespace + ":" + ref.Name
-	cursor, err := h.decodePageCursor(encodedCursor, cursorKind, 2)
+	cursor, err := h.cursors.decodePageCursor(encodedCursor, cursorKind, 2)
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	pageQuery := artifacts.VersionPageQuery{Limit: pagelimit.FetchRows(limit)}
 	if len(cursor) != 0 {
 		before, parseErr := time.Parse(time.RFC3339Nano, cursor[0])
 		if parseErr != nil {
-			h.handleError(w, fmt.Errorf("%w: invalid Artifact cursor", errInvalidRequest))
+			handleError(w, fmt.Errorf("%w: invalid Artifact cursor", errInvalidRequest))
 			return
 		}
 		pageQuery.BeforeCreatedAt = &before
@@ -294,35 +315,35 @@ func (h *handler) listArtifactVersionsFromStore(
 	}
 	items, err := store.ListVersions(r.Context(), ref, pageQuery)
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
-	items, page, err := paginate(h, items, limit, cursorKind, func(last artifacts.Metadata) []string {
+	items, page, err := paginate(h.cursors, items, limit, cursorKind, func(last artifacts.Metadata) []string {
 		return []string{last.CreatedAt.UTC().Format(time.RFC3339Nano), *last.Ref.Revision}
 	})
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, artifactPageResponse{Items: items, Page: page})
 }
 
-func (h *handler) listArtifactLineageFromStore(
+func (h *artifactHandlers) listArtifactLineageFromStore(
 	w http.ResponseWriter, r *http.Request, store artifacts.ScopedStore, cursorPrefix string,
 ) {
 	query, limit, encodedCursor, err := pageQuery(r.URL.RawQuery, "revision")
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	ref := contracts.ArtifactRef{Namespace: r.PathValue("namespace"), Name: r.PathValue("name")}
 	if err := validateArtifactRouteNames(r); err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	if values, present := query["revision"]; present {
 		if err := validatePublicRevision(values[0]); err != nil {
-			h.handleError(w, err)
+			handleError(w, err)
 			return
 		}
 		ref.Revision = &values[0]
@@ -331,23 +352,23 @@ func (h *handler) listArtifactLineageFromStore(
 	if ref.Revision != nil {
 		cursorKind += ":" + *ref.Revision
 	}
-	cursor, err := h.decodePageCursor(encodedCursor, cursorKind, 5)
+	cursor, err := h.cursors.decodePageCursor(encodedCursor, cursorKind, 5)
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	selectedRevision := ""
 	if len(cursor) != 0 {
 		selectedRevision = cursor[0]
 		if ref.Revision != nil && *ref.Revision != selectedRevision {
-			h.handleError(w, fmt.Errorf("%w: Artifact cursor selects another revision", errInvalidRequest))
+			handleError(w, fmt.Errorf("%w: Artifact cursor selects another revision", errInvalidRequest))
 			return
 		}
 		ref.Revision = &selectedRevision
 	} else {
 		metadata, metadataErr := store.Metadata(r.Context(), ref)
 		if metadataErr != nil {
-			h.handleError(w, metadataErr)
+			handleError(w, metadataErr)
 			return
 		}
 		selectedRevision = *metadata.Ref.Revision
@@ -360,7 +381,7 @@ func (h *handler) listArtifactLineageFromStore(
 	if len(cursor) != 0 {
 		before, parseErr := time.Parse(time.RFC3339Nano, cursor[1])
 		if parseErr != nil {
-			h.handleError(w, fmt.Errorf("%w: invalid Artifact cursor", errInvalidRequest))
+			handleError(w, fmt.Errorf("%w: invalid Artifact cursor", errInvalidRequest))
 			return
 		}
 		pageQuery.BeforeCreatedAt = &before
@@ -370,10 +391,10 @@ func (h *handler) listArtifactLineageFromStore(
 	}
 	items, err := store.ListLineage(r.Context(), ref, pageQuery)
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
-	items, page, err := paginate(h, items, limit, cursorKind, func(last artifacts.LineageEdge) []string {
+	items, page, err := paginate(h.cursors, items, limit, cursorKind, func(last artifacts.LineageEdge) []string {
 		return []string{
 			selectedRevision,
 			last.CreatedAt.UTC().Format(time.RFC3339Nano),
@@ -383,7 +404,7 @@ func (h *handler) listArtifactLineageFromStore(
 		}
 	})
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, artifactLineagePageResponse{Items: items, Page: page})
@@ -429,32 +450,32 @@ func writeArtifactBytes(w http.ResponseWriter, result artifacts.ReadResult) {
 	_, _ = w.Write(result.Payload.Data)
 }
 
-func (h *handler) putArtifact(w http.ResponseWriter, r *http.Request) {
+func (h *artifactHandlers) putArtifact(w http.ResponseWriter, r *http.Request) {
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	if err := validateArtifactRouteNames(r); err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	if artifactpolicy.IsAuditStandardCatalogNamespace(r.PathValue("namespace")) {
-		h.handleError(w, artifacts.ErrReservedNamespace)
+		handleError(w, artifacts.ErrReservedNamespace)
 		return
 	}
 	mediaType, err := requestMediaType(r)
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	expectedRevision, err := artifactWritePrecondition(r)
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
-	store, err := h.dependencies.Artifacts.User(principalUserID(r.Context()))
+	store, err := h.Artifacts.User(principalUserID(r.Context()))
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	h.writeArtifactUpload(w, r, store, mediaType, expectedRevision)
@@ -464,19 +485,19 @@ func (h *handler) putArtifact(w http.ResponseWriter, r *http.Request) {
 // before the body is buffered until the payload is stored. Requests rejected
 // by validation or ownership never take one, and the small result is written
 // after the slot is released.
-func (h *handler) writeArtifactUpload(
+func (h *artifactHandlers) writeArtifactUpload(
 	w http.ResponseWriter, r *http.Request, store artifacts.ScopedStore, mediaType string, expectedRevision *string,
 ) {
 	r, transfer, err := artifacttransfer.Acquire(w, r)
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	defer transfer.Close()
 	payload, err := readArtifactBody(r, transfer)
 	if err != nil {
 		transfer.ReleaseBeforeWrite(0)
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	ctx, cancel := artifacttransfer.StorageContext(r.Context())
@@ -486,7 +507,7 @@ func (h *handler) writeArtifactUpload(
 	}, artifacts.Payload{MediaType: mediaType, Data: payload}, expectedRevision)
 	transfer.ReleaseBeforeWrite(0)
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	status := http.StatusCreated
@@ -499,23 +520,23 @@ func (h *handler) writeArtifactUpload(
 	})
 }
 
-func (h *handler) getArtifact(w http.ResponseWriter, r *http.Request) {
+func (h *artifactHandlers) getArtifact(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodHead {
-		h.methodNotAllowed(w, r)
+		methodNotAllowed(w, r)
 		return
 	}
 	if err := validateUserArtifactReadRoute(r); err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	ref, err := artifactRouteRef(r)
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
-	store, err := h.dependencies.Artifacts.User(principalUserID(r.Context()))
+	store, err := h.Artifacts.User(principalUserID(r.Context()))
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	h.writeArtifactRead(w, r, store, ref)
@@ -524,12 +545,12 @@ func (h *handler) getArtifact(w http.ResponseWriter, r *http.Request) {
 // writeArtifactRead holds one of the four per-process transfer slots only while the
 // payload is read and written, after method, ownership and route checks have
 // passed, so rejected requests cannot exhaust transfer capacity.
-func (h *handler) writeArtifactRead(
+func (h *artifactHandlers) writeArtifactRead(
 	w http.ResponseWriter, r *http.Request, store artifacts.ScopedStore, ref contracts.ArtifactRef,
 ) {
 	r, transfer, err := artifacttransfer.Acquire(w, r)
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	defer transfer.Close()
@@ -538,7 +559,7 @@ func (h *handler) writeArtifactRead(
 	result, err := store.Read(ctx, ref)
 	if err != nil {
 		transfer.ReleaseBeforeWrite(0)
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	transfer.BoundWrite(int64(len(result.Payload.Data)))
@@ -553,4 +574,26 @@ func validateUserArtifactReadRoute(r *http.Request) error {
 		return artifacts.ErrArtifactNotFound
 	}
 	return nil
+}
+
+func (h *artifactHandlers) getRunOutput(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodHead {
+		methodNotAllowed(w, r)
+		return
+	}
+	if _, err := exactQuery(r.URL.RawQuery); err != nil {
+		handleError(w, err)
+		return
+	}
+	run, err := ownedRun(r, h.Runs)
+	if err != nil {
+		handleError(w, err)
+		return
+	}
+	store, err := h.Artifacts.Run(run.RunID)
+	if err != nil {
+		handleError(w, err)
+		return
+	}
+	h.writeArtifactRead(w, r, store, contracts.ArtifactRef{Namespace: "outputs", Name: r.PathValue("slot")})
 }

@@ -832,8 +832,10 @@ func (f *fakeRunStore) PinRuntimeLabels(
 	if f.pinRuntimeLabels != nil {
 		return f.pinRuntimeLabels(ctx, labels)
 	}
+	// Like runtimeconfig.PinRunSnapshot, a selected label without a binding
+	// is a request error.
 	if len(labels) != 0 {
-		return runtimeconfig.RunSnapshot{}, runtimeconfig.ErrNotFound
+		return runtimeconfig.RunSnapshot{}, runtimeconfig.ErrUnknownLabel
 	}
 	return runtimeconfig.BuiltInRunSnapshot(), nil
 }

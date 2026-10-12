@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-70 open tasks: 3 in progress, 53 pending, 14 deferred. 855 finished: 852 completed, 3 archived.
+67 open tasks: 3 in progress, 50 pending, 14 deferred. 858 finished: 855 completed, 3 archived.
 
 ## In progress
 
@@ -94,10 +94,7 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V369-002](v369-002-wire-gate-all-fixtures.yml) | chore | P1 | — | Run every shared fixture on both sides and mutate the schemas |
-| [V369-004](v369-004-route-table-and-operation-coverage.yml) | chore | P2 | — | Register routes from one table and validate every operation |
 | [V370-005](v370-005-contracts-kernel-domain.yml) | chore | P2 | — | Move domain logic out of the contracts kernel |
-| [V370-009](v370-009-context-handlers.yml) | chore | P2 | — | Split the public API handler by context with required dependencies |
-| [V370-010](v370-010-domain-error-kinds.yml) | chore | P2 | — | Classify domain errors through one error kind and a code registry |
 | [V370-017](v370-017-simplify-contracts.yml) | chore | P3 | — | Remove orphan schemas and lenient paths in the wire contracts |
 | [V371-003](v371-003-reject-optional-member-null.yml) | defect | P3 | V371-002 | Reject explicit null for optional private-wire members and null map values |
 | [V371-016](v371-016-idempotency-key-grammar.yml) | defect | P3 | — | Give the Idempotency-Key grammar one Go definition |
@@ -168,6 +165,6 @@ tasks in `introduced_by`.
 | Podman sandbox (`sandbox`) | 0 | 8 | 1 | 1 | 2 |
 | Web UI (`ui`) | 2 | 19 | 53 | 10 | 48 |
 | Operations, authentication, CLI and deployment (`operations`) | 0 | 8 | 30 | 4 | 6 |
-| Public API and wire contracts (`api-contracts`) | 10 | 1 | 27 | 17 | 7 |
+| Public API and wire contracts (`api-contracts`) | 7 | 1 | 27 | 17 | 7 |
 | PostgreSQL persistence and schema (`persistence`) | 3 | 0 | 17 | 29 | 4 |
 | Quality, CI and process (`quality`) | 11 | 1 | 18 | 71 | 15 |

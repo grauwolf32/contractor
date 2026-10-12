@@ -6,13 +6,14 @@ import (
 	"archive/zip"
 	"bytes"
 	"context"
-	"errors"
 	"io"
 	"io/fs"
 	"sort"
 	"strings"
 	"unicode"
 	"unicode/utf8"
+
+	"github.com/grauwolf32/contractor/internal/apierror"
 )
 
 const (
@@ -26,10 +27,10 @@ const (
 )
 
 var (
-	ErrInvalid  = errors.New("archive is invalid or contains unsafe entries")
-	ErrLimit    = errors.New("archive preview limit exceeded")
-	ErrNotFound = errors.New("archive file not found")
-	ErrNotText  = errors.New("archive file is not supported UTF-8 text")
+	ErrInvalid  = apierror.New(apierror.ArchiveInvalid, "archive is invalid or contains unsafe entries")
+	ErrLimit    = apierror.New(apierror.ArchivePreviewLimit, "archive preview limit exceeded")
+	ErrNotFound = apierror.New(apierror.NotFound, "archive file not found")
+	ErrNotText  = apierror.New(apierror.ArchiveFileNotText, "archive file is not supported UTF-8 text")
 )
 
 func SupportsMediaType(mediaType string) bool {

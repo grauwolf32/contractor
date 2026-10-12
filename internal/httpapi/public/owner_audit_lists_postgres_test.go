@@ -52,7 +52,7 @@ func TestPublicOwnerAuditLists(t *testing.T) {
 	var service *auditservice.Service
 	fixture := newHandlerFixtureWithAuth(t, "../../config/testdata/valid",
 		newTestAuthentication(t), mustTestOrigins(t), false, nil,
-		func(dependencies *Dependencies) {
+		func(dependencies *testServices) {
 			credentials := newFakeManagedCredentials()
 			service, err = auditservice.New(auditservice.Options{
 				Pool: pool, Profiles: dependencies.Config.(*config.Manager), CredentialGuard: credentials,
@@ -193,7 +193,7 @@ func TestPublicOwnerAuditLists(t *testing.T) {
 	}
 
 	// A different owner cannot consume a cursor even with the same signing key.
-	h := &handler{}
+	h := pageCursors{}
 	cursor, err := h.encodePageCursor("owner-audits:"+owner+"::", time.Now().UTC().Format(time.RFC3339Nano), "audit-owner-00")
 	if err != nil {
 		t.Fatal(err)

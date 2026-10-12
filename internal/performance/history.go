@@ -4,17 +4,17 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"math"
 	"sort"
 	"strings"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/apierror"
 	"github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
 )
 
-var ErrHistoryRange = errors.New("performance history range exceeds its bounds")
+var ErrHistoryRange = apierror.New(apierror.InvalidRequest, "performance history range exceeds its bounds")
 
 func (m Minute) Validate() error {
 	if m.Version != 1 || strings.TrimSpace(m.Generation) == "" || len(m.Generation) > 128 || m.MinuteStart.IsZero() || !m.MinuteStart.Equal(m.MinuteStart.Truncate(time.Minute)) || m.CoverageSeconds < 0 || m.CoverageSeconds > 60 || math.IsNaN(m.CoverageSeconds) || math.IsInf(m.CoverageSeconds, 0) {

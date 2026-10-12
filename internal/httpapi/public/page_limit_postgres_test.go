@@ -124,7 +124,7 @@ func TestPostgresPublicPagedListsAcceptTheLargestPage(t *testing.T) {
 	}
 	fixture := newHandlerFixtureWithAuth(t, "../../config/testdata/valid",
 		newTestAuthentication(t), mustTestOrigins(t), false, nil,
-		func(dependencies *Dependencies) {
+		func(dependencies *testServices) {
 			managed := newFakeManagedCredentials()
 			audits, err := auditservice.New(auditservice.Options{
 				Pool: pool, Profiles: dependencies.Config.(*config.Manager), CredentialGuard: managed,

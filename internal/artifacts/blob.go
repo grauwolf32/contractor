@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"github.com/grauwolf32/contractor/internal/apierror"
 	postgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
 )
@@ -22,7 +23,7 @@ const (
 var (
 	ErrBlobBackend         = errors.New("invalid or unsupported artifact blob backend")
 	ErrBlobBackendMismatch = errors.New("artifact blob backend does not match the installation")
-	ErrBlobMissing         = errors.New("artifact blob content is missing")
+	ErrBlobMissing         = apierror.New(apierror.ArtifactContentMissing, "artifact blob content is missing")
 	// ErrBlobIO reports a failed blob storage operation. Unlike
 	// ErrArtifactIntegrity it proves nothing about the stored bytes, and the
 	// same operation may succeed on retry.

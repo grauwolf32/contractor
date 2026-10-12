@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/apierror"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
@@ -26,13 +27,20 @@ const (
 	proposalMediaType = "application/json"
 )
 
+// The public API answers these errors with the Kind each one reports
+// (apierror); the private API keeps its own finding codes for the Runtime.
 var (
-	ErrInvalid         = errors.New("finding proposal request is invalid")
-	ErrNotFound        = errors.New("finding proposal receipt was not found")
-	ErrConflict        = errors.New("finding proposal submission conflicts with its receipt")
+	ErrInvalid         = apierror.New(apierror.InvalidRequest, "finding proposal request is invalid")
+	ErrNotFound        = apierror.New(apierror.NotFound, "finding proposal receipt was not found")
+	ErrConflict        = apierror.New(apierror.Conflict, "finding proposal submission conflicts with its receipt")
 	ErrAccessDenied    = errors.New("finding proposal access is denied")
 	ErrToolNotSelected = errors.New("security finding tool is not selected")
 	ErrAuditClosed     = errors.New("finding proposal destination Audit is closed")
+	// ErrCollectionKeyConflict reports a finding collection clientKey that is
+	// already bound to another selection. Like a reused Idempotency-Key it is
+	// permanent: only a new clientKey can publish the changed selection.
+	ErrCollectionKeyConflict = apierror.Narrow(ErrConflict, apierror.IdempotencyConflict,
+		"finding collection clientKey is bound to another selection")
 )
 
 var identityPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$`)
