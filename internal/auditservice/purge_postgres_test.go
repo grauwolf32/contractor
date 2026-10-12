@@ -9,6 +9,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/findingintake"
 	"github.com/grauwolf32/contractor/internal/projectstore"
@@ -36,7 +37,7 @@ func TestAuditPurgeRemovesDecidedReviews(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			store := auditstore.NewPostgresStore(pool)
+			store := auditstoretest.NewStore(pool)
 			audit, _, err := store.CreateDraft(ctx, auditstore.CreateDraftParams{
 				AuditID: "audit-purge-" + subject, OwnerID: project.OwnerID, ProjectID: project.ProjectID,
 				Profile: auditstore.ProfileIdentity{
@@ -64,7 +65,7 @@ func TestAuditPurgeRemovesDecidedReviews(t *testing.T) {
 			case "finding":
 				findingID := seedAuditFinding(t, ctx, pool, project.ProjectID, project.OwnerID, audit.AuditID, "purge")
 				decideFindingForTest(t, ctx, service, project.OwnerID, audit.AuditID, findingID, 1,
-					"purge", VerdictTruePositive, reviewStringPointer(string(SeverityHigh)), nil)
+					"purge", auditstore.VerdictTruePositive, reviewStringPointer(string(auditstore.SeverityHigh)), nil)
 				seedAuditFindingAttemptHistory(t, ctx, pool, audit.AuditID, findingID, "receipt-purge")
 			case "report":
 				rejectReportForPurge(t, ctx, pool, store, service, audit)
@@ -113,7 +114,7 @@ func TestAuditPurgeRemovesDecidedReviews(t *testing.T) {
 // rejectItemActionForPurge starts the Audit with one item awaiting active-check
 // approval and rejects that exact action through the review API.
 func rejectItemActionForPurge(
-	t *testing.T, ctx context.Context, store *auditstore.PostgresStore, service *Service, audit auditstore.Audit,
+	t *testing.T, ctx context.Context, store *auditstoretest.Store, service *Service, audit auditstore.Audit,
 ) {
 	t.Helper()
 	revision := "r1"
@@ -151,11 +152,11 @@ func rejectItemActionForPurge(
 	}
 	decision, err := service.DecideActionReview(ctx, DecideActionReviewParams{
 		OwnerID: audit.OwnerID, AuditID: audit.AuditID, RequestID: "review-" + item.ItemID,
-		ExpectedRequestRevision: 1, DecisionID: "decision-purge-reject", Action: ReviewReject,
+		ExpectedRequestRevision: 1, DecisionID: "decision-purge-reject", Action: auditstore.ReviewReject,
 		Rationale:      "The exact active check is outside this assessment.",
 		IdempotencyKey: "decision-purge-reject", RequestDigest: serviceTestDigest("reject"),
 	})
-	if err != nil || decision.Request.State != ReviewDecided {
+	if err != nil || decision.Request.State != auditstore.ReviewDecided {
 		t.Fatalf("reject item action = (%+v, %v)", decision, err)
 	}
 }
@@ -164,17 +165,17 @@ func rejectItemActionForPurge(
 // rejects the frozen candidate, which fails the Audit.
 func rejectReportForPurge(
 	t *testing.T, ctx context.Context, pool *pgxpool.Pool,
-	store *auditstore.PostgresStore, service *Service, audit auditstore.Audit,
+	store *auditstoretest.Store, service *Service, audit auditstore.Audit,
 ) {
 	t.Helper()
 	waiting, candidate, claim := proposeReportForTest(t, ctx, pool, store, audit, "purge")
 	decision, err := service.DecideActionReview(ctx, DecideActionReviewParams{
 		OwnerID: audit.OwnerID, AuditID: audit.AuditID, RequestID: candidate.RequestID,
-		ExpectedRequestRevision: 1, DecisionID: "decision-purge-report", Action: ReviewReject,
+		ExpectedRequestRevision: 1, DecisionID: "decision-purge-report", Action: auditstore.ReviewReject,
 		Rationale:      "The proposed report is incomplete.",
 		IdempotencyKey: "decision-purge-report", RequestDigest: serviceTestDigest("report"),
 	})
-	if err != nil || decision.Request.State != ReviewDecided {
+	if err != nil || decision.Request.State != auditstore.ReviewDecided {
 		t.Fatalf("reject report candidate = (%+v, %v)", decision, err)
 	}
 	failed, err := store.Get(ctx, audit.OwnerID, audit.AuditID)
@@ -187,7 +188,7 @@ func rejectReportForPurge(
 }
 
 func claimAuditForPurge(
-	t *testing.T, ctx context.Context, store *auditstore.PostgresStore, auditID string,
+	t *testing.T, ctx context.Context, store *auditstoretest.Store, auditID string,
 ) auditstore.ControllerClaim {
 	t.Helper()
 	claims, err := store.Claim(ctx, auditstore.ClaimParams{

@@ -17,6 +17,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/configload"
@@ -381,7 +382,7 @@ func (h *serviceHarness) finishRuns(t *testing.T) {
 }
 func (h *serviceHarness) finishAudits(t *testing.T) {
 	t.Helper()
-	store := auditstore.NewPostgresStore(h.pool)
+	store := auditstoretest.NewStore(h.pool)
 	claims, err := store.Claim(t.Context(), auditstore.ClaimParams{HolderID: "fixture-audit-controller", Lease: time.Minute, Limit: 100})
 	if err != nil {
 		t.Fatal(err)
@@ -873,8 +874,9 @@ func TestSharedPostgresRecoveryAfterTransitionBeforeCommandAcknowledgement(t *te
 	if err = h.service.prepare(t.Context(), e, claims[0]); err != nil {
 		t.Fatal(err)
 	}
-	// Simulate process death after its commit and lease expiry without acknowledgement.
-	if _, err = h.pool.Exec(t.Context(), `UPDATE eval_controller_claims SET expires_at=clock_timestamp()-interval '1 second' WHERE experiment_id=$1`, e.ID); err != nil {
+	// Simulate process death after its commit and lease expiry without
+	// acknowledgement. A held claim's lease ends after it starts, so both move.
+	if _, err = h.pool.Exec(t.Context(), `UPDATE eval_controller_claims SET claimed_at=clock_timestamp()-interval '2 seconds', expires_at=clock_timestamp()-interval '1 second' WHERE experiment_id=$1`, e.ID); err != nil {
 		t.Fatal(err)
 	}
 	tick(t, h.coordinator(t, "restarted"))
@@ -900,7 +902,7 @@ func TestSharedPostgresCancelAfterAuditCreateBeforeStartDrainsThroughOrdinaryDel
 	e = h.get(t, e.ID)
 	h.command(t, e, "cancel")
 	tick(t, c)
-	store := auditstore.NewPostgresStore(h.pool)
+	store := auditstoretest.NewStore(h.pool)
 	claims, err := store.Claim(t.Context(), auditstore.ClaimParams{HolderID: "audit-controller", Lease: time.Minute, Limit: 10})
 	if err != nil || len(claims) != 1 {
 		t.Fatal(claims, err)
@@ -1085,7 +1087,7 @@ func (h *serviceHarness) preparedWithRuntimeLabel(t *testing.T, kind string) eva
 
 func (h *serviceHarness) purgeDeletingAuditDrafts(t *testing.T) {
 	t.Helper()
-	store := auditstore.NewPostgresStore(h.pool)
+	store := auditstoretest.NewStore(h.pool)
 	claims, err := store.Claim(t.Context(), auditstore.ClaimParams{
 		HolderID: "fixture-draft-purge", Lease: time.Minute, Limit: 100,
 	})

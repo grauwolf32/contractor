@@ -214,9 +214,7 @@ SELECT e.owner_id
 FROM eval_experiments e
 JOIN eval_controller_claims c USING(experiment_id)
 WHERE c.experiment_id=$1
-    AND c.holder_id=$2
-    AND c.epoch=$3
-    AND c.expires_at>clock_timestamp()
+    AND `+evalClaims.LiveCondition("c", "$2", "$3")+`
 `, claim.ExperimentID, claim.HolderID, claim.Epoch).Scan(&owner)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Experiment{}, ErrClaimLost

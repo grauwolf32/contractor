@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/findingintake"
 	"github.com/grauwolf32/contractor/internal/pagelimit"
@@ -46,7 +47,7 @@ func TestAuditReportReviewExpiresOnCancelOrDelete(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			store := auditstore.NewPostgresStore(pool)
+			store := auditstoretest.NewStore(pool)
 			audit, _, err := store.CreateDraft(ctx, auditstore.CreateDraftParams{
 				AuditID: "audit-report-close-" + action,
 				OwnerID: project.OwnerID, ProjectID: project.ProjectID,
@@ -100,7 +101,7 @@ func TestAuditReportReviewExpiresOnCancelOrDelete(t *testing.T) {
 				t.Fatalf("%s report review = (%+v, %v)", action, result, err)
 			}
 			review, err := service.GetReview(ctx, audit.OwnerID, audit.AuditID, requestID)
-			if err != nil || review.State != ReviewExpired || review.Revision != 2 {
+			if err != nil || review.State != auditstore.ReviewExpired || review.Revision != 2 {
 				t.Fatalf("expired report review = (%+v, %v)", review, err)
 			}
 			events, err := store.ListEvents(ctx, audit.AuditID, waiting.EventSequence, pagelimit.MaxRows)
@@ -148,7 +149,7 @@ func TestAuditReportReviewExpiresOnCancelOrDelete(t *testing.T) {
 					OwnerID: audit.OwnerID, AuditID: audit.AuditID,
 					RequestID:               created.Request.RequestID,
 					ExpectedRequestRevision: created.Request.Revision,
-					DecisionID:              "decision-finding-after-cancel", Verdict: VerdictNeedsEvidence,
+					DecisionID:              "decision-finding-after-cancel", Verdict: auditstore.VerdictNeedsEvidence,
 					Rationale:      "More evidence is needed.",
 					IdempotencyKey: "decision-finding-after-cancel",
 					RequestDigest:  serviceTestDigest("finding-decision"),
@@ -163,7 +164,7 @@ func TestAuditReportReviewExpiresOnCancelOrDelete(t *testing.T) {
 // proposeReportForTest finalizes a draft Audit through an empty Round into a
 // human report review of a frozen candidate. The returned claim stays live.
 func proposeReportForTest(
-	t *testing.T, ctx context.Context, pool *pgxpool.Pool, store *auditstore.PostgresStore,
+	t *testing.T, ctx context.Context, pool *pgxpool.Pool, store *auditstoretest.Store,
 	audit auditstore.Audit, suffix string,
 ) (auditstore.Audit, auditstore.ReportCandidate, auditstore.ControllerClaim) {
 	t.Helper()
@@ -251,7 +252,7 @@ INSERT INTO audit_review_requests (
 // and applies the deletion claim's Audit fence as the Project lifecycle
 // controller does.
 func requestProjectOwnedDeletionForTest(
-	t *testing.T, ctx context.Context, pool *pgxpool.Pool, store *auditstore.PostgresStore,
+	t *testing.T, ctx context.Context, pool *pgxpool.Pool, store *auditstoretest.Store,
 	project projectstore.Project, auditID string,
 ) (auditstore.Audit, error) {
 	t.Helper()

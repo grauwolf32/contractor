@@ -15,8 +15,8 @@ import (
 
 // One receipt helper records and replays every Runtime management mutation:
 // a key replays only its own request, operation and resource, any other use
-// of the key is the permanent idempotency conflict, and a recorded key cannot
-// be recorded twice.
+// of the key is the permanent idempotency conflict, a repeated mutation
+// replays without running again, and a failed mutation records nothing.
 func TestPostgresManagementReceiptsReplayOnlyTheirOwnRequest(t *testing.T) {
 	databaseURL := os.Getenv("CONTRACTOR_TEST_DATABASE_URL")
 	if databaseURL == "" {
@@ -35,19 +35,23 @@ func TestPostgresManagementReceiptsReplayOnlyTheirOwnRequest(t *testing.T) {
 	receipt := ManagementReceipt{
 		KeyDigest: digest("a"), RequestDigest: digest("b"), Kind: "runtime-label.create", ResourceID: "receipt-label",
 	}
-	at := time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)
+	mutate := func(ran *int, value string) func() (any, error) {
+		return func() (any, error) {
+			*ran++
+			return result{Value: value}, nil
+		}
+	}
 	var replay result
 	if found, err := ReadManagementReplay(ctx, pool, receipt, &replay); err != nil || found {
 		t.Fatalf("unused key replay = (%t, %v)", found, err)
 	}
+	ran := 0
 	if err := persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		if found, err := LockManagementReplay(ctx, tx, receipt, &replay); err != nil || found {
-			t.Fatalf("locked unused key replay = (%t, %v)", found, err)
+		replayed, err := KeyedManagementMutation(ctx, tx, receipt, &replay, mutate(&ran, "first"))
+		if err != nil || replayed {
+			t.Fatalf("first mutation = (%t, %v)", replayed, err)
 		}
-		if err := RecordManagementResult(ctx, tx, receipt, result{Value: "first"}, " ", at); !errors.Is(err, ErrInvalid) {
-			t.Fatalf("blank actor = %v, want ErrInvalid", err)
-		}
-		return RecordManagementResult(ctx, tx, receipt, result{Value: "first"}, "operator", at)
+		return nil
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -64,13 +68,37 @@ func TestPostgresManagementReceiptsReplayOnlyTheirOwnRequest(t *testing.T) {
 			!errors.Is(err, contracts.ErrIdempotencyConflict) || errors.Is(err, ErrConflict) {
 			t.Fatalf("key reused with another %s = (%t, %v), want only the idempotency conflict", name, found, err)
 		}
+		if err := persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+			_, err := KeyedManagementMutation(ctx, tx, other, &ignored, mutate(&ran, "other"))
+			return err
+		}); !errors.Is(err, contracts.ErrIdempotencyConflict) {
+			t.Fatalf("mutation under a key of another %s = %v, want the idempotency conflict", name, err)
+		}
 	}
-	tx, err := pool.Begin(ctx)
-	if err != nil {
+	var repeated result
+	if err := persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+		replayed, err := KeyedManagementMutation(ctx, tx, receipt, &repeated, mutate(&ran, "second"))
+		if err != nil || !replayed {
+			t.Fatalf("repeated mutation = (%t, %v)", replayed, err)
+		}
+		return nil
+	}); err != nil {
 		t.Fatal(err)
 	}
-	defer func() { _ = tx.Rollback(ctx) }()
-	if err := RecordManagementResult(ctx, tx, receipt, result{Value: "second"}, "operator", at); !errors.Is(err, ErrConflict) {
-		t.Fatalf("second record of a key = %v, want ErrConflict", err)
+	if repeated.Value != "first" || ran != 1 {
+		t.Fatalf("repeated mutation replayed %+v after %d runs, want the first outcome after one run", repeated, ran)
+	}
+	failing := ManagementReceipt{
+		KeyDigest: digest("d"), RequestDigest: digest("e"), Kind: "runtime-label.delete", ResourceID: "failing-label",
+	}
+	refused := errors.New("refused")
+	if err := persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+		_, err := KeyedManagementMutation(ctx, tx, failing, &replay, func() (any, error) { return nil, refused })
+		return err
+	}); !errors.Is(err, refused) {
+		t.Fatalf("failed mutation = %v, want its own error", err)
+	}
+	if found, err := ReadManagementReplay(ctx, pool, failing, &replay); err != nil || found {
+		t.Fatalf("failed mutation recorded a receipt: (%t, %v)", found, err)
 	}
 }

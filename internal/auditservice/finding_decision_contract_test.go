@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 )
 
@@ -15,10 +16,10 @@ func TestSharedFindingDecisionPublicContractCases(t *testing.T) {
 		Name    string `json:"name"`
 		Valid   bool   `json:"valid"`
 		Request struct {
-			Verdict           AnalystVerdict   `json:"verdict"`
-			Severity          *FindingSeverity `json:"severity"`
-			Rationale         string           `json:"rationale"`
-			DuplicateTargetID *string          `json:"duplicateTargetId"`
+			Verdict           auditstore.AnalystVerdict   `json:"verdict"`
+			Severity          *auditstore.FindingSeverity `json:"severity"`
+			Rationale         string                      `json:"rationale"`
+			DuplicateTargetID *string                     `json:"duplicateTargetId"`
 		} `json:"request"`
 	}
 	if err := json.Unmarshal(data, &cases); err != nil {

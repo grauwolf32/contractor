@@ -135,7 +135,7 @@ test-artifact-filesystem: require-database
 
 test-artifact-blob-backends: require-database
 	@command -v podman >/dev/null || (echo "podman is required" >&2; exit 1)
-	go test -race -tags=integration -count=1 ./internal/artifacts ./internal/app ./internal/persistence/postgres ./internal/httpapi/public ./internal/httpapi/privateartifacts ./internal/auditstore ./internal/findingintake ./internal/projectlifecycle
+	go test -race -tags=integration -count=1 ./internal/artifacts ./internal/app ./internal/persistence/postgres ./internal/httpapi/public ./internal/httpapi/privateartifacts ./internal/auditstore/internal/pgstore ./internal/findingintake ./internal/projectlifecycle
 	CONTRACTOR_TEST_ARTIFACT_BACKEND=filesystem go test -race -tags=integration -count=1 $(ARTIFACT_BACKEND_PACKAGES)
 	cd runtime && uv run pytest -q tests/test_artifacts.py tests/test_workspace_auto_export.py tests/test_projectfs_overlay.py
 	go test -tags=e2e -count=1 -timeout=8m ./tests/e2e -run '^TestArtifactBlobBackendsContainers$$' -v

@@ -189,12 +189,12 @@ type auditCoveragePageResponse struct {
 }
 
 type auditReportResponse struct {
-	Status          auditservice.ReportStatus   `json:"status"`
-	Review          *auditservice.ReviewRequest `json:"review,omitempty"`
-	MachineArtifact *auditstore.ExactArtifact   `json:"machineArtifact,omitempty"`
-	SummaryArtifact *auditstore.ExactArtifact   `json:"summaryArtifact,omitempty"`
-	Machine         json.RawMessage             `json:"machine,omitempty"`
-	Summary         string                      `json:"summary,omitempty"`
+	Status          auditservice.ReportStatus `json:"status"`
+	Review          *auditstore.ReviewRequest `json:"review,omitempty"`
+	MachineArtifact *auditstore.ExactArtifact `json:"machineArtifact,omitempty"`
+	SummaryArtifact *auditstore.ExactArtifact `json:"summaryArtifact,omitempty"`
+	Machine         json.RawMessage           `json:"machine,omitempty"`
+	Summary         string                    `json:"summary,omitempty"`
 }
 
 type auditStartResponse struct {

@@ -27,7 +27,7 @@ func TestPostgresControllerDispatchesOnlyAfterApprovingReviewRenewedByResume(t *
 			harness := newPostgresControllerReviewHarness(t, ctx, 1, 0)
 			auditID, ownerID := harness.started.Audit.AuditID, harness.started.Audit.OwnerID
 			controller := harness.controller(t)
-			reviews, err := harness.service.ListReviews(ctx, auditservice.ReviewListParams{
+			reviews, err := harness.service.ListReviews(ctx, auditstore.ReviewListParams{
 				OwnerID: ownerID, AuditID: auditID, Limit: 10,
 			})
 			if err != nil || len(reviews) != 1 {
@@ -38,7 +38,7 @@ func TestPostgresControllerDispatchesOnlyAfterApprovingReviewRenewedByResume(t *
 				if _, err := harness.service.DecideActionReview(ctx, auditservice.DecideActionReviewParams{
 					OwnerID: ownerID, AuditID: auditID, RequestID: original.RequestID,
 					ExpectedRequestRevision: original.Revision, DecisionID: "original-decision",
-					Action: auditservice.ReviewApprove, Rationale: "Approve the original exact task.",
+					Action: auditstore.ReviewApprove, Rationale: "Approve the original exact task.",
 					IdempotencyKey: "original-decision", RequestDigest: postgresDigest("original-decision"),
 				}); err != nil {
 					t.Fatal(err)
@@ -78,23 +78,23 @@ SET expires_at=clock_timestamp()-interval '1 second' WHERE request_id=$1`, origi
 				t.Fatalf("Resume did not record one revision per renewal event: revision %d, sequence %d, paused at %d",
 					resumed.Audit.Revision, resumed.Audit.EventSequence, paused.Audit.Revision)
 			}
-			reviews, err = harness.service.ListReviews(ctx, auditservice.ReviewListParams{
+			reviews, err = harness.service.ListReviews(ctx, auditstore.ReviewListParams{
 				OwnerID: ownerID, AuditID: auditID, Limit: 10,
 			})
 			if err != nil || len(reviews) != 2 {
 				t.Fatalf("renewed reviews = (%+v, %v)", reviews, err)
 			}
-			var renewed auditservice.ReviewRequest
+			var renewed auditstore.ReviewRequest
 			for _, review := range reviews {
 				if review.RequestID == original.RequestID {
-					if review.State != auditservice.ReviewExpired {
+					if review.State != auditstore.ReviewExpired {
 						t.Fatalf("original review after Resume = %+v", review)
 					}
 				} else {
 					renewed = review
 				}
 			}
-			if renewed.State != auditservice.ReviewPending || renewed.ExpiresAt != nil {
+			if renewed.State != auditstore.ReviewPending || renewed.ExpiresAt != nil {
 				t.Fatalf("renewed review = %+v", renewed)
 			}
 			for step := 0; step < 4; step++ {
@@ -113,7 +113,7 @@ SET expires_at=clock_timestamp()-interval '1 second' WHERE request_id=$1`, origi
 			if _, err := harness.service.DecideActionReview(ctx, auditservice.DecideActionReviewParams{
 				OwnerID: ownerID, AuditID: auditID, RequestID: renewed.RequestID,
 				ExpectedRequestRevision: renewed.Revision, DecisionID: "renewed-decision",
-				Action: auditservice.ReviewApprove, Rationale: "Approve the fresh exact task.",
+				Action: auditstore.ReviewApprove, Rationale: "Approve the fresh exact task.",
 				IdempotencyKey: "renewed-decision", RequestDigest: postgresDigest("renewed-decision"),
 			}); err != nil {
 				t.Fatalf("decide renewed review: %v", err)

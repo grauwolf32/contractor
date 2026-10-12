@@ -57,7 +57,7 @@ acceptance_criteria:
 tests:
   - command: go test -race ./internal/planner/auditpriority ./internal/auditpriority ./internal/scheduler
     covers: [A1, A2, A3, A4, A5]
-  - command: go test -tags=integration -count=1 ./internal/auditstore ./internal/runstore ./internal/scheduler
+  - command: go test -tags=integration -count=1 ./internal/auditstore/... ./internal/runstore ./internal/scheduler
     covers: [A2, A3, A4]
 test_prerequisites:
   - The planner/context packages are deliverables of V64-003 and V64-004; use a controlled scripted local gateway and disposable PostgreSQL.

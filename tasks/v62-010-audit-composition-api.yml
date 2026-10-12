@@ -42,7 +42,7 @@ acceptance_criteria:
   - id: A4
     text: OpenAPI, Go/UI clients and strict parsers implement the same current schema; obsolete fields and profile snapshots are rejected without compatibility readers, and current API/client checks pass.
 tests:
-  - command: go test -tags=integration -count=1 ./internal/httpapi/public ./internal/auditservice ./internal/auditstore
+  - command: go test -tags=integration -count=1 ./internal/httpapi/public ./internal/auditservice ./internal/auditstore/...
     covers: [A1, A2, A3, A4]
   - command: make verify-public-api verify-public-api-postgres ui-generate-check ui-typecheck
     covers: [A1, A2, A3, A4]

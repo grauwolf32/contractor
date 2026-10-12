@@ -12,7 +12,7 @@
 test-audits-matrix: test-hardening-matrices
 
 test-audits-hardening: test-audits-matrix require-database
-	CONTRACTOR_TEST_DATABASE_URL="$$CONTRACTOR_TEST_DATABASE_URL" go test -tags=integration -race -count=1 ./internal/auditdomain ./internal/auditstore ./internal/auditservice ./internal/auditcontroller ./internal/auditimport ./internal/findingintake ./internal/scheduler ./internal/httpapi/public -run '^(Test.*Audit.*|TestController.*|TestPostgresController.*|TestPostgresControllers.*|TestPostgresDispatch.*|TestPostgresFindingReceipt.*|TestOpenAPI.*|TestChecklist.*|TestImporter.*|TestRoleDispositionRetryabilityIsExplicit|TestReadRoundExecutionManifestUsesExactValidatedWorklistPackage)$$'
+	CONTRACTOR_TEST_DATABASE_URL="$$CONTRACTOR_TEST_DATABASE_URL" go test -tags=integration -race -count=1 ./internal/auditdomain ./internal/auditstore/internal/pgstore ./internal/auditservice ./internal/auditcontroller ./internal/auditimport ./internal/findingintake ./internal/scheduler ./internal/httpapi/public -run '^(Test.*Audit.*|TestController.*|TestPostgresController.*|TestPostgresControllers.*|TestPostgresDispatch.*|TestPostgresFindingReceipt.*|TestOpenAPI.*|TestChecklist.*|TestImporter.*|TestRoleDispositionRetryabilityIsExplicit|TestReadRoundExecutionManifestUsesExactValidatedWorklistPackage)$$'
 	cd ui && corepack pnpm test --run src/api/audits.test.ts src/api/audit-report.test.ts src/routes/projects/audits/audits.test.tsx
 
 test-audits-process: require-database runtime-venv

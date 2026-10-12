@@ -65,14 +65,14 @@ func (h *auditHandlers) listOwnerFindings(w http.ResponseWriter, r *http.Request
 		handleError(w, err)
 		return
 	}
-	params := auditservice.OwnerFindingListParams{OwnerID: principalUserID(r.Context()), Limit: pagelimit.FetchRows(limit)}
+	params := auditstore.OwnerFindingListParams{OwnerID: principalUserID(r.Context()), Limit: pagelimit.FetchRows(limit)}
 	params.AuditStates, err = parseAuditStates(query.Get("auditState"))
 	if err != nil {
 		handleError(w, err)
 		return
 	}
 	if values, ok := query["state"]; ok {
-		state := auditservice.FindingState(values[0])
+		state := auditstore.FindingState(values[0])
 		if !state.Valid() {
 			handleError(w, errInvalidRequest)
 			return
@@ -83,8 +83,8 @@ func (h *auditHandlers) listOwnerFindings(w http.ResponseWriter, r *http.Request
 		if values[0] == "unreviewed" {
 			params.Unreviewed = true
 		} else {
-			verdict := auditservice.AnalystVerdict(values[0])
-			if verdict != auditservice.VerdictTruePositive && verdict != auditservice.VerdictFalsePositive {
+			verdict := auditstore.AnalystVerdict(values[0])
+			if verdict != auditstore.VerdictTruePositive && verdict != auditstore.VerdictFalsePositive {
 				handleError(w, errInvalidRequest)
 				return
 			}
@@ -92,7 +92,7 @@ func (h *auditHandlers) listOwnerFindings(w http.ResponseWriter, r *http.Request
 		}
 	}
 	if values, ok := query["severity"]; ok {
-		severity := auditservice.FindingSeverity(values[0])
+		severity := auditstore.FindingSeverity(values[0])
 		if !severity.Valid() || params.Unreviewed {
 			handleError(w, errInvalidRequest)
 			return
@@ -136,14 +136,14 @@ func (h *auditHandlers) listOwnerReviews(w http.ResponseWriter, r *http.Request)
 		handleError(w, err)
 		return
 	}
-	params := auditservice.OwnerReviewListParams{OwnerID: principalUserID(r.Context()), Limit: pagelimit.FetchRows(limit)}
+	params := auditstore.OwnerReviewListParams{OwnerID: principalUserID(r.Context()), Limit: pagelimit.FetchRows(limit)}
 	params.AuditStates, err = parseAuditStates(query.Get("auditState"))
 	if err != nil {
 		handleError(w, err)
 		return
 	}
 	if values, ok := query["state"]; ok {
-		state := auditservice.ReviewState(values[0])
+		state := auditstore.ReviewState(values[0])
 		if !state.Valid() {
 			handleError(w, errInvalidRequest)
 			return
@@ -161,7 +161,7 @@ func (h *auditHandlers) listOwnerReviews(w http.ResponseWriter, r *http.Request)
 		handleError(w, err)
 		return
 	}
-	items, page, err := paginate(h.cursors, items, limit, kind, func(last auditservice.ReviewRequest) []string {
+	items, page, err := paginate(h.cursors, items, limit, kind, func(last auditstore.ReviewRequest) []string {
 		return []string{last.CreatedAt.UTC().Format(time.RFC3339Nano), last.RequestID}
 	})
 	if err != nil {
@@ -169,10 +169,10 @@ func (h *auditHandlers) listOwnerReviews(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	if items == nil {
-		items = []auditservice.ReviewRequest{}
+		items = []auditstore.ReviewRequest{}
 	}
 	writeJSON(w, http.StatusOK, struct {
-		Items []auditservice.ReviewRequest `json:"items"`
-		Page  pageInfoResponse             `json:"page"`
+		Items []auditstore.ReviewRequest `json:"items"`
+		Page  pageInfoResponse           `json:"page"`
 	}{items, page})
 }

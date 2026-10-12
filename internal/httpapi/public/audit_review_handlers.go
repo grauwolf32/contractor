@@ -14,15 +14,15 @@ import (
 )
 
 type findingPageResponse struct {
-	auditservice.PageBasis
+	auditstore.PageBasis
 	Items []auditservice.Finding `json:"items"`
 	Page  pageInfoResponse       `json:"page"`
 }
 
 type reviewPageResponse struct {
-	auditservice.PageBasis
-	Items []auditservice.ReviewRequest `json:"items"`
-	Page  pageInfoResponse             `json:"page"`
+	auditstore.PageBasis
+	Items []auditstore.ReviewRequest `json:"items"`
+	Page  pageInfoResponse           `json:"page"`
 }
 
 type findingProvenancePageResponse struct {
@@ -37,11 +37,11 @@ type createFindingReviewRequest struct {
 }
 
 type decideFindingRequest struct {
-	Action            *auditservice.ReviewAction    `json:"action,omitempty"`
-	Verdict           *auditservice.AnalystVerdict  `json:"verdict,omitempty"`
-	Severity          *auditservice.FindingSeverity `json:"severity,omitempty"`
-	Rationale         string                        `json:"rationale"`
-	DuplicateTargetID *string                       `json:"duplicateTargetId,omitempty"`
+	Action            *auditstore.ReviewAction    `json:"action,omitempty"`
+	Verdict           *auditstore.AnalystVerdict  `json:"verdict,omitempty"`
+	Severity          *auditstore.FindingSeverity `json:"severity,omitempty"`
+	Rationale         string                      `json:"rationale"`
+	DuplicateTargetID *string                     `json:"duplicateTargetId,omitempty"`
 }
 
 func (h *auditHandlers) listAuditFindings(w http.ResponseWriter, r *http.Request) {
@@ -51,12 +51,12 @@ func (h *auditHandlers) listAuditFindings(w http.ResponseWriter, r *http.Request
 		handleError(w, err)
 		return
 	}
-	params := auditservice.FindingListParams{
+	params := auditstore.FindingListParams{
 		OwnerID: principalUserID(r.Context()), AuditID: r.PathValue("auditId"), Limit: pagelimit.FetchRows(limit),
 	}
 	stateValue, verdictValue, severityValue := "", "", ""
 	if values, ok := query["state"]; ok {
-		value := auditservice.FindingState(values[0])
+		value := auditstore.FindingState(values[0])
 		if !value.Valid() {
 			handleError(w, errInvalidRequest)
 			return
@@ -68,8 +68,8 @@ func (h *auditHandlers) listAuditFindings(w http.ResponseWriter, r *http.Request
 		if values[0] == "unreviewed" {
 			params.Unreviewed = true
 		} else {
-			value := auditservice.AnalystVerdict(values[0])
-			if value != auditservice.VerdictTruePositive && value != auditservice.VerdictFalsePositive {
+			value := auditstore.AnalystVerdict(values[0])
+			if value != auditstore.VerdictTruePositive && value != auditstore.VerdictFalsePositive {
 				handleError(w, errInvalidRequest)
 				return
 			}
@@ -77,7 +77,7 @@ func (h *auditHandlers) listAuditFindings(w http.ResponseWriter, r *http.Request
 		}
 	}
 	if values, ok := query["severity"]; ok {
-		value := auditservice.FindingSeverity(values[0])
+		value := auditstore.FindingSeverity(values[0])
 		if !value.Valid() {
 			handleError(w, errInvalidRequest)
 			return
@@ -182,7 +182,7 @@ func (h *auditHandlers) listAuditReviews(w http.ResponseWriter, r *http.Request)
 		handleError(w, err)
 		return
 	}
-	params := auditservice.ReviewListParams{
+	params := auditstore.ReviewListParams{
 		OwnerID: principalUserID(r.Context()), AuditID: r.PathValue("auditId"), Limit: pagelimit.FetchRows(limit),
 	}
 	findingValue, stateValue := "", ""
@@ -190,7 +190,7 @@ func (h *auditHandlers) listAuditReviews(w http.ResponseWriter, r *http.Request)
 		params.FindingID, findingValue = &values[0], values[0]
 	}
 	if values, ok := query["state"]; ok {
-		value := auditservice.ReviewState(values[0])
+		value := auditstore.ReviewState(values[0])
 		if !value.Valid() {
 			handleError(w, errInvalidRequest)
 			return
@@ -218,7 +218,7 @@ func (h *auditHandlers) listAuditReviews(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	reviews := result.Items
-	reviews, page, err := paginate(h.cursors, reviews, limit, cursorKind, func(last auditservice.ReviewRequest) []string {
+	reviews, page, err := paginate(h.cursors, reviews, limit, cursorKind, func(last auditstore.ReviewRequest) []string {
 		return []string{
 			last.CreatedAt.UTC().Format(time.RFC3339Nano),
 			last.RequestID,
@@ -335,7 +335,7 @@ func (h *auditHandlers) listAuditFindingProvenance(w http.ResponseWriter, r *htt
 		handleError(w, err)
 		return
 	}
-	params := auditservice.ProvenanceListParams{
+	params := auditstore.ProvenanceListParams{
 		OwnerID: ownerID, AuditID: auditID, FindingID: findingID, Limit: pagelimit.FetchRows(limit),
 		AuditRevision: &audit.Revision, FindingRevision: &finding.Revision,
 	}

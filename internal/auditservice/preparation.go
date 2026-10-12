@@ -17,16 +17,15 @@ type PreparationRoleProjection struct {
 // Preparation projects the bounded pinned roles, independently of item pages
 // and Round history. Source Run deletion never removes accepted descriptors.
 func (s *Service) Preparation(ctx context.Context, ownerID, auditID string) (map[string]PreparationRoleProjection, error) {
-	store := auditstore.NewPostgresStore(s.pool)
-	audit, err := store.Get(ctx, ownerID, auditID)
+	audit, err := s.reads().Get(ctx, ownerID, auditID)
 	if err != nil {
 		return nil, err
 	}
-	roles, err := store.ListPreparationRoles(ctx, auditID)
+	roles, err := s.reads().ListPreparationRoles(ctx, auditID)
 	if err != nil {
 		return nil, err
 	}
-	executions, err := store.ListPreparationExecutions(ctx, auditID)
+	executions, err := s.reads().ListPreparationExecutions(ctx, auditID)
 	if err != nil {
 		return nil, err
 	}

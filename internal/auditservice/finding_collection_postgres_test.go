@@ -16,6 +16,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/findingintake"
@@ -274,7 +275,7 @@ func TestFindingCollectionAuditContributionsAndPinnedReview(t *testing.T) {
 	if _, _, err := projectstore.NewPostgresStore(pool).Create(ctx, projectstore.CreateParams{ProjectID: projectID, OwnerID: owner, Kind: projectstore.KindProject, Name: "Collection", IdempotencyKey: "project", RequestDigest: serviceTestDigest("project")}); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := auditstore.NewPostgresStore(pool).CreateDraft(ctx, auditstore.CreateDraftParams{
+	if _, _, err := auditstoretest.NewStore(pool).CreateDraft(ctx, auditstore.CreateDraftParams{
 		AuditID: auditID, OwnerID: owner, ProjectID: projectID, Profile: auditstore.ProfileIdentity{Name: "review", Version: "1", Digest: serviceTestDigest("profile")},
 		ProfileSnapshot: json.RawMessage(`{"interaction":{"findingConfirmation":"human-required"}}`), InputSelection: json.RawMessage(`{}`),
 		Limits:         auditstore.Limits{MaxRounds: 1, BatchSize: 1, MaxItemsPerRound: 2, MaxItemsTotal: 2, MaxSubmittedRuns: 2, MaxItemRunAttempts: 1, MaxEvidenceBytes: 1 << 20},

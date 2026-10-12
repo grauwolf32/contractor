@@ -11,6 +11,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/auditstore/hookstore"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -376,7 +377,7 @@ func commitDirectVerification(
 		"runId":                 input.RunID,
 		"workflowClosureDigest": input.WorkflowClosureDigest,
 	})
-	return auditstore.NewPostgresTxStore(tx).CommitDirectFindingAssessment(ctx, auditstore.DirectFindingAssessment{
+	return hookstore.NewFindingEventsTx(tx).CommitDirectFindingAssessment(ctx, auditstore.DirectFindingAssessment{
 		AuditID: input.AuditID, ReceiptID: input.ReceiptID, AssessmentID: assessmentID,
 		SemanticAssessment: verification.Assessment,
 		Result: auditstore.ArtifactLink{

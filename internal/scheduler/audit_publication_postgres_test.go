@@ -10,6 +10,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -34,7 +35,7 @@ func TestAuditManagedRunSkipsGenericProjectOutputPublication(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	store := auditstore.NewPostgresStore(pool)
+	store := auditstoretest.NewStore(pool)
 	audit, _, err := store.CreateDraft(ctx, auditstore.CreateDraftParams{
 		AuditID: "audit-publication", OwnerID: project.OwnerID, ProjectID: project.ProjectID,
 		Profile:         auditstore.ProfileIdentity{Name: "test", Version: "1", Digest: schedulerAuditDigest("2")},
@@ -112,7 +113,7 @@ func TestAuditManagedRunSkipsGenericProjectOutputPublication(t *testing.T) {
 		}); err != nil {
 			return err
 		}
-		if _, err := auditstore.NewPostgresStore(tx).BindRun(ctx, auditstore.BindRunParams{
+		if _, err := auditstoretest.NewStore(tx).BindRun(ctx, auditstore.BindRunParams{
 			Claim: claim, ExecutionID: execution.ExecutionID, RunID: runID,
 		}); err != nil {
 			return err

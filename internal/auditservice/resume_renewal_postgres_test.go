@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
 )
 
 // TestAuditResumeRecordsRenewedReviewEvents resumes an Audit whose item
@@ -20,10 +21,10 @@ func TestAuditResumeRecordsRenewedReviewEvents(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	reviews, err := service.ListReviews(ctx, ReviewListParams{
+	reviews, err := service.ListReviews(ctx, auditstore.ReviewListParams{
 		OwnerID: started.Audit.OwnerID, AuditID: started.Audit.AuditID, Limit: 10,
 	})
-	if err != nil || len(reviews) != 1 || reviews[0].State != ReviewPending {
+	if err != nil || len(reviews) != 1 || reviews[0].State != auditstore.ReviewPending {
 		t.Fatalf("paused reviews = (%+v, %v)", reviews, err)
 	}
 	expired := reviews[0]
@@ -46,13 +47,13 @@ SET expires_at=clock_timestamp()-interval '1 minute' WHERE request_id=$1`, expir
 			resumed.Audit.State, resumed.Audit.Revision, resumed.Audit.EventSequence, resumed.Audit.DeadlineAt,
 			paused.Audit.Revision)
 	}
-	reviews, err = service.ListReviews(ctx, ReviewListParams{
+	reviews, err = service.ListReviews(ctx, auditstore.ReviewListParams{
 		OwnerID: started.Audit.OwnerID, AuditID: started.Audit.AuditID, Limit: 10,
 	})
 	if err != nil || len(reviews) != 2 {
 		t.Fatalf("renewed reviews = (%+v, %v)", reviews, err)
 	}
-	var renewed, stale ReviewRequest
+	var renewed, stale auditstore.ReviewRequest
 	for _, review := range reviews {
 		if review.RequestID == expired.RequestID {
 			stale = review
@@ -60,14 +61,14 @@ SET expires_at=clock_timestamp()-interval '1 minute' WHERE request_id=$1`, expir
 			renewed = review
 		}
 	}
-	if stale.State != ReviewExpired || stale.Revision != expired.Revision+1 {
+	if stale.State != auditstore.ReviewExpired || stale.Revision != expired.Revision+1 {
 		t.Fatalf("expired review = %+v", stale)
 	}
-	if renewed.State != ReviewPending || renewed.SubjectID != expired.SubjectID || renewed.ExpiresAt == nil ||
+	if renewed.State != auditstore.ReviewPending || renewed.SubjectID != expired.SubjectID || renewed.ExpiresAt == nil ||
 		!renewed.ExpiresAt.Equal(*resumed.Audit.DeadlineAt) {
 		t.Fatalf("renewed review = %+v, deadline %v", renewed, resumed.Audit.DeadlineAt)
 	}
-	events, err := auditstore.NewPostgresStore(pool).ListEvents(ctx, paused.Audit.AuditID, paused.Audit.EventSequence, 10)
+	events, err := auditstoretest.NewStore(pool).ListEvents(ctx, paused.Audit.AuditID, paused.Audit.EventSequence, 10)
 	if err != nil || len(events) != 3 {
 		t.Fatalf("Resume events = (%+v, %v)", events, err)
 	}
@@ -90,10 +91,10 @@ SET expires_at=clock_timestamp()-interval '1 minute' WHERE request_id=$1`, expir
 		t.Fatalf("Resume replay = (%+v, %v)", replayed, err)
 	}
 
-	decide := func(request ReviewRequest, key string) error {
+	decide := func(request auditstore.ReviewRequest, key string) error {
 		_, err := service.DecideActionReview(ctx, DecideActionReviewParams{
 			OwnerID: started.Audit.OwnerID, AuditID: started.Audit.AuditID, RequestID: request.RequestID,
-			ExpectedRequestRevision: request.Revision, DecisionID: key, Action: ReviewApprove,
+			ExpectedRequestRevision: request.Revision, DecisionID: key, Action: auditstore.ReviewApprove,
 			Rationale: "Approve the exact task.", IdempotencyKey: key, RequestDigest: serviceTestDigest(key),
 		})
 		return err

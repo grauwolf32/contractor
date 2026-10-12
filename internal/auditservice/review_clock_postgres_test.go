@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
 )
 
 // Review expiry follows the PostgreSQL clock that the Controller and
@@ -14,10 +15,10 @@ func TestAuditReviewExpiryFollowsDatabaseClock(t *testing.T) {
 	ctx, pool, service, started, now := newTimeControlAudit(t, 7200)
 	base := *now
 	audit := started.Audit
-	reviews, err := service.ListReviews(ctx, ReviewListParams{
+	reviews, err := service.ListReviews(ctx, auditstore.ReviewListParams{
 		OwnerID: audit.OwnerID, AuditID: audit.AuditID, Limit: 10,
 	})
-	if err != nil || len(reviews) != 1 || reviews[0].SubjectKind != ReviewSubjectItemAction ||
+	if err != nil || len(reviews) != 1 || reviews[0].SubjectKind != auditstore.ReviewSubjectItemAction ||
 		reviews[0].ExpiresAt == nil || !reviews[0].ExpiresAt.After(time.Now()) {
 		t.Fatalf("item review = (%+v, %v)", reviews, err)
 	}
@@ -51,7 +52,7 @@ SELECT count(*), count(*) FILTER (WHERE state = 'pending')
 	if _, err := service.DecideActionReview(ctx, DecideActionReviewParams{
 		OwnerID: audit.OwnerID, AuditID: audit.AuditID, RequestID: itemReview.RequestID,
 		ExpectedRequestRevision: itemReview.Revision, DecisionID: "decision-clock-item",
-		Action: ReviewApprove, Rationale: "Approved before the database expiry.",
+		Action: auditstore.ReviewApprove, Rationale: "Approved before the database expiry.",
 		IdempotencyKey: "decision-clock-item", RequestDigest: serviceTestDigest("decision-clock-item"),
 	}); err != nil {
 		t.Fatalf("decide unexpired item review with a skewed clock: %v", err)
@@ -78,13 +79,13 @@ UPDATE audit_review_requests SET expires_at = clock_timestamp() - interval '1 se
 	if _, err := service.DecideFinding(ctx, DecideFindingParams{
 		OwnerID: audit.OwnerID, AuditID: audit.AuditID, RequestID: review.Request.RequestID,
 		ExpectedRequestRevision: review.Request.Revision, DecisionID: "decision-clock-finding",
-		Verdict: VerdictNeedsEvidence, Rationale: "Decided after the database expiry.",
+		Verdict: auditstore.VerdictNeedsEvidence, Rationale: "Decided after the database expiry.",
 		IdempotencyKey: "decision-clock-finding", RequestDigest: serviceTestDigest("decision-clock-finding"),
 	}); !errors.Is(err, auditstore.ErrPrecondition) {
 		t.Fatalf("decide expired finding review with a lagging clock = %v", err)
 	}
 	expired, err := service.GetReview(ctx, audit.OwnerID, audit.AuditID, review.Request.RequestID)
-	if err != nil || expired.State != ReviewExpired {
+	if err != nil || expired.State != auditstore.ReviewExpired {
 		t.Fatalf("expired finding review = (%+v, %v)", expired, err)
 	}
 }
@@ -110,18 +111,18 @@ UPDATE audit_review_requests
  WHERE request_id=$1 RETURNING updated_at`, old.Request.RequestID).Scan(&oldUpdated); err != nil {
 		t.Fatal(err)
 	}
-	store := auditstore.NewPostgresStore(pool)
+	store := auditstoretest.NewStore(pool)
 	before, err := store.Get(ctx, audit.OwnerID, audit.AuditID)
 	if err != nil {
 		t.Fatal(err)
 	}
 	params.RequestID, params.IdempotencyKey, params.RequestDigest = "review-new", "review-new", serviceTestDigest("review-new")
 	fresh, err := service.CreateFindingReview(ctx, params)
-	if err != nil || fresh.Replayed || fresh.Request.State != ReviewPending {
+	if err != nil || fresh.Replayed || fresh.Request.State != auditstore.ReviewPending {
 		t.Fatalf("replacement = (%+v, %v)", fresh, err)
 	}
 	expired, err := service.GetReview(ctx, audit.OwnerID, audit.AuditID, old.Request.RequestID)
-	if err != nil || expired.State != ReviewExpired || expired.Revision != old.Request.Revision+1 || !expired.UpdatedAt.After(oldUpdated) {
+	if err != nil || expired.State != auditstore.ReviewExpired || expired.Revision != old.Request.Revision+1 || !expired.UpdatedAt.After(oldUpdated) {
 		t.Fatalf("expired request = (%+v, %v)", expired, err)
 	}
 	events, err := store.ListEvents(ctx, audit.AuditID, before.EventSequence, 3)
@@ -139,16 +140,16 @@ UPDATE audit_review_requests
 func TestOwnerPendingReviewsLeaveOutRequestsPastExpiry(t *testing.T) {
 	ctx, pool, service, started, now := newTimeControlAudit(t, 7200)
 	audit := started.Audit
-	reviews, err := service.ListReviews(ctx, ReviewListParams{
+	reviews, err := service.ListReviews(ctx, auditstore.ReviewListParams{
 		OwnerID: audit.OwnerID, AuditID: audit.AuditID, Limit: 10,
 	})
-	if err != nil || len(reviews) != 1 || reviews[0].State != ReviewPending {
+	if err != nil || len(reviews) != 1 || reviews[0].State != auditstore.ReviewPending {
 		t.Fatalf("item review = (%+v, %v)", reviews, err)
 	}
 	requestID := reviews[0].RequestID
-	listed := func(state *ReviewState) []string {
+	listed := func(state *auditstore.ReviewState) []string {
 		t.Helper()
-		requests, err := service.ListOwnerReviews(ctx, OwnerReviewListParams{
+		requests, err := service.ListOwnerReviews(ctx, auditstore.OwnerReviewListParams{
 			OwnerID: audit.OwnerID, State: state, Limit: 50,
 		})
 		if err != nil {
@@ -160,7 +161,7 @@ func TestOwnerPendingReviewsLeaveOutRequestsPastExpiry(t *testing.T) {
 		}
 		return ids
 	}
-	pending, expired := ReviewPending, ReviewExpired
+	pending, expired := auditstore.ReviewPending, auditstore.ReviewExpired
 	setExpiry := func(expiry string) {
 		t.Helper()
 		if _, err := pool.Exec(ctx, `UPDATE audit_review_requests SET expires_at = `+expiry+`
@@ -200,7 +201,7 @@ func TestOwnerPendingReviewsLeaveOutRequestsPastExpiry(t *testing.T) {
 	}
 	var state string
 	if err := pool.QueryRow(ctx, `SELECT state FROM audit_review_requests WHERE request_id = $1`,
-		requestID).Scan(&state); err != nil || state != string(ReviewPending) {
+		requestID).Scan(&state); err != nil || state != string(auditstore.ReviewPending) {
 		t.Fatalf("listing changed the stored request: state=%q err=%v", state, err)
 	}
 }

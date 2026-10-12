@@ -44,8 +44,8 @@ func TestSharedEvalPostgresRejectsLegacyReceiptReplayWithoutNewEffects(t *testin
 			accepted := h.request(t, "POST", path, body, key, etag, status)
 			var current []byte
 			if err := h.pool.QueryRow(t.Context(), `
-SELECT response FROM eval_mutation_receipts
-WHERE owner_id='user-1' AND project_id='evaluation' AND operation_key=$1`, key).Scan(&current); err != nil {
+SELECT response FROM mutation_receipts
+WHERE owner_id='user-1' AND project_id='evaluation' AND idempotency_key=$1`, key).Scan(&current); err != nil {
 				t.Fatal(err)
 			}
 			var fields map[string]any
@@ -74,10 +74,10 @@ WHERE owner_id='user-1' AND project_id='evaluation' AND operation_key=$1`, key).
 					// Seed historical bytes under a retained key without updating an immutable receipt.
 					retainedKey := key + "-" + shape
 					inserted, err := h.pool.Exec(t.Context(), `
-INSERT INTO eval_mutation_receipts(owner_id,project_id,resource_id,operation,operation_key,request_sha256,expected_revision,response)
-SELECT owner_id,project_id,resource_id,operation,$2,request_sha256,expected_revision,$3
-FROM eval_mutation_receipts
-WHERE owner_id='user-1' AND project_id='evaluation' AND operation_key=$1`, key, retainedKey, stored)
+INSERT INTO mutation_receipts(key_scope,idempotency_key,operation,request_digest,resource_id,response,owner_id,project_id)
+SELECT key_scope,$2,operation,request_digest,resource_id,$3,owner_id,project_id
+FROM mutation_receipts
+WHERE owner_id='user-1' AND project_id='evaluation' AND idempotency_key=$1`, key, retainedKey, stored)
 					if err != nil || inserted.RowsAffected() != 1 {
 						t.Fatalf("seed retained receipt: %v %v", inserted, err)
 					}
@@ -104,7 +104,7 @@ func evalReceiptEffects(t *testing.T, h *evalAPIHarness) []byte {
 	// Compare exact receipts and affected authority rows, including revision and clocks.
 	var snapshot []byte
 	if err := h.pool.QueryRow(t.Context(), `SELECT jsonb_build_object(
-    'receipts', (SELECT jsonb_agg(to_jsonb(r) ORDER BY operation_key) FROM eval_mutation_receipts r),
+    'receipts', (SELECT jsonb_agg(to_jsonb(r) ORDER BY idempotency_key) FROM mutation_receipts r),
     'datasets', (SELECT jsonb_agg(to_jsonb(d) ORDER BY dataset_id,revision) FROM eval_dataset_revisions d),
     'experiments', (SELECT jsonb_agg(to_jsonb(e) ORDER BY experiment_id) FROM eval_experiments e),
     'commands', (SELECT jsonb_agg(to_jsonb(c) ORDER BY command_id) FROM eval_commands c),

@@ -95,24 +95,18 @@ func (s *ManagementService) CreateBinding(
 	var result BindingMutationResult
 	err = s.bindings.credentials.WithCredentialReferences(ctx, func() error {
 		return persistencepostgres.InTx(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-			repository := NewRepository(tx)
-			replayed, found, replayErr := lockBindingReplay(ctx, tx, receipt)
-			if replayErr != nil {
-				return replayErr
-			}
-			if found {
-				result = replayed
-				return nil
-			}
-			if err := s.bindings.validateTargetInTransaction(ctx, tx, ref); err != nil {
-				return err
-			}
-			binding, err := repository.CreateBinding(ctx, label, ref, actor, at)
-			if err != nil {
-				return err
-			}
-			result = BindingMutationResult{Binding: &binding}
-			return recordBindingResult(ctx, tx, receipt, result, actor, at)
+			var err error
+			result, err = keyedBindingMutation(ctx, tx, receipt, actor, at, func() (BindingMutationResult, error) {
+				if err := s.bindings.validateTargetInTransaction(ctx, tx, ref); err != nil {
+					return BindingMutationResult{}, err
+				}
+				binding, err := NewRepository(tx).CreateBinding(ctx, label, ref, actor, at)
+				if err != nil {
+					return BindingMutationResult{}, err
+				}
+				return BindingMutationResult{Binding: &binding}, nil
+			})
+			return err
 		})
 	})
 	return result, err
@@ -148,69 +142,73 @@ func (s *ManagementService) Rebind(
 	var result BindingMutationResult
 	err = s.bindings.credentials.WithCredentialReferences(ctx, func() error {
 		return persistencepostgres.InTx(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-			replayed, found, replayErr := lockBindingReplay(ctx, tx, receipt)
-			if replayErr != nil {
-				return replayErr
-			}
-			if found {
-				result = replayed
-				return nil
-			}
-			repository := NewRepository(tx)
-			if _, err := repository.LockBindingsForUpdate(ctx, labelsToLock); err != nil {
-				if errors.Is(err, ErrNotFound) {
-					if _, pathErr := repository.GetBinding(ctx, label); errors.Is(pathErr, ErrNotFound) {
-						return ErrLabelNotFound
-					} else if pathErr != nil {
-						return pathErr
-					}
-					// The rebind target still exists, so the missing label is
-					// one of the other labels held by an optimistically listed
-					// principal that was removed concurrently. The snapshot is
-					// stale; report a precondition failure rather than an
-					// unknown label the request never selected.
-					return ErrPrecondition
-				}
-				return err
-			}
-			current, err := s.holders.ListLabelHolders(ctx, tx, label)
-			if err != nil {
-				return err
-			}
-			if !sameLabelHolders(optimistic, current) {
-				return ErrPrecondition
-			}
-			holderIDs := make([]string, len(current))
-			for index := range current {
-				holderIDs[index] = current[index].RuntimeAgentID
-			}
-			locked, err := s.holders.LockLabelHolders(ctx, tx, holderIDs)
-			if err != nil {
-				return err
-			}
-			if !sameLabelHolders(current, locked) {
-				return ErrPrecondition
-			}
-			if err := s.bindings.validateTargetInTransaction(ctx, tx, ref); err != nil {
-				return err
-			}
-			binding, err := repository.Rebind(ctx, label, expectedRevision, ref, actor, at)
-			if err != nil {
-				if errors.Is(err, ErrNotFound) {
-					return ErrLabelNotFound
-				}
-				return err
-			}
-			for _, holder := range locked {
-				if err := ValidateLockedAgentLabels(ctx, tx, holder.Labels); err != nil {
-					return err
-				}
-			}
-			result = BindingMutationResult{Binding: &binding}
-			return recordBindingResult(ctx, tx, receipt, result, actor, at)
+			var err error
+			result, err = keyedBindingMutation(ctx, tx, receipt, actor, at, func() (BindingMutationResult, error) {
+				return s.rebindInTransaction(ctx, tx, label, expectedRevision, ref, labelsToLock, optimistic, actor, at)
+			})
+			return err
 		})
 	})
 	return result, err
+}
+
+// rebindInTransaction rebinds label in tx once the label and every label of
+// its holders are locked and the holders are still those the caller listed.
+func (s *ManagementService) rebindInTransaction(
+	ctx context.Context, tx pgx.Tx, label string, expectedRevision uint64, ref Ref,
+	labelsToLock []string, optimistic []LabelHolder, actor string, at time.Time,
+) (BindingMutationResult, error) {
+	repository := NewRepository(tx)
+	if _, err := repository.LockBindingsForUpdate(ctx, labelsToLock); err != nil {
+		if errors.Is(err, ErrNotFound) {
+			if _, pathErr := repository.GetBinding(ctx, label); errors.Is(pathErr, ErrNotFound) {
+				return BindingMutationResult{}, ErrLabelNotFound
+			} else if pathErr != nil {
+				return BindingMutationResult{}, pathErr
+			}
+			// The rebind target still exists, so the missing label is one of
+			// the other labels held by an optimistically listed principal that
+			// was removed concurrently. The snapshot is stale; report a
+			// precondition failure rather than an unknown label the request
+			// never selected.
+			return BindingMutationResult{}, ErrPrecondition
+		}
+		return BindingMutationResult{}, err
+	}
+	current, err := s.holders.ListLabelHolders(ctx, tx, label)
+	if err != nil {
+		return BindingMutationResult{}, err
+	}
+	if !sameLabelHolders(optimistic, current) {
+		return BindingMutationResult{}, ErrPrecondition
+	}
+	holderIDs := make([]string, len(current))
+	for index := range current {
+		holderIDs[index] = current[index].RuntimeAgentID
+	}
+	locked, err := s.holders.LockLabelHolders(ctx, tx, holderIDs)
+	if err != nil {
+		return BindingMutationResult{}, err
+	}
+	if !sameLabelHolders(current, locked) {
+		return BindingMutationResult{}, ErrPrecondition
+	}
+	if err := s.bindings.validateTargetInTransaction(ctx, tx, ref); err != nil {
+		return BindingMutationResult{}, err
+	}
+	binding, err := repository.Rebind(ctx, label, expectedRevision, ref, actor, at)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return BindingMutationResult{}, ErrLabelNotFound
+		}
+		return BindingMutationResult{}, err
+	}
+	for _, holder := range locked {
+		if err := ValidateLockedAgentLabels(ctx, tx, holder.Labels); err != nil {
+			return BindingMutationResult{}, err
+		}
+	}
+	return BindingMutationResult{Binding: &binding}, nil
 }
 
 func (s *ManagementService) DeleteBinding(
@@ -228,36 +226,31 @@ func (s *ManagementService) DeleteBinding(
 	var result BindingMutationResult
 	err = s.bindings.credentials.WithCredentialReferences(ctx, func() error {
 		return persistencepostgres.InTx(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-			replayed, found, replayErr := lockBindingReplay(ctx, tx, receipt)
-			if replayErr != nil {
-				return replayErr
-			}
-			if found {
-				result = replayed
-				return nil
-			}
-			repository := NewRepository(tx)
-			if _, err := repository.LockBindingsForUpdate(ctx, []string{label}); err != nil {
-				if errors.Is(err, ErrNotFound) {
-					return ErrLabelNotFound
+			var err error
+			result, err = keyedBindingMutation(ctx, tx, receipt, actor, at, func() (BindingMutationResult, error) {
+				repository := NewRepository(tx)
+				if _, err := repository.LockBindingsForUpdate(ctx, []string{label}); err != nil {
+					if errors.Is(err, ErrNotFound) {
+						return BindingMutationResult{}, ErrLabelNotFound
+					}
+					return BindingMutationResult{}, err
 				}
-				return err
-			}
-			holders, err := s.holders.ListLabelHolders(ctx, tx, label)
-			if err != nil {
-				return err
-			}
-			if len(holders) != 0 {
-				return labelInUseError(holders)
-			}
-			if err := repository.DeleteBinding(ctx, label, expectedRevision); err != nil {
-				if errors.Is(err, ErrNotFound) {
-					return ErrLabelNotFound
+				holders, err := s.holders.ListLabelHolders(ctx, tx, label)
+				if err != nil {
+					return BindingMutationResult{}, err
 				}
-				return err
-			}
-			result = BindingMutationResult{Deleted: true}
-			return recordBindingResult(ctx, tx, receipt, result, actor, at)
+				if len(holders) != 0 {
+					return BindingMutationResult{}, labelInUseError(holders)
+				}
+				if err := repository.DeleteBinding(ctx, label, expectedRevision); err != nil {
+					if errors.Is(err, ErrNotFound) {
+						return BindingMutationResult{}, ErrLabelNotFound
+					}
+					return BindingMutationResult{}, err
+				}
+				return BindingMutationResult{Deleted: true}, nil
+			})
+			return err
 		})
 	})
 	return result, err
@@ -301,14 +294,6 @@ func readBindingReplay(
 	return bindingReplay(wire, found, err)
 }
 
-func lockBindingReplay(
-	ctx context.Context, tx pgx.Tx, receipt ManagementReceipt,
-) (BindingMutationResult, bool, error) {
-	var wire bindingMutationResultWire
-	found, err := LockManagementReplay(ctx, tx, receipt, &wire)
-	return bindingReplay(wire, found, err)
-}
-
 func bindingReplay(wire bindingMutationResultWire, found bool, err error) (BindingMutationResult, bool, error) {
 	if err != nil || !found {
 		return BindingMutationResult{}, false, err
@@ -319,14 +304,32 @@ func bindingReplay(wire bindingMutationResultWire, found bool, err error) (Bindi
 	return BindingMutationResult{Binding: wire.Binding, Deleted: wire.Deleted, Replayed: true}, true, nil
 }
 
-func recordBindingResult(
-	ctx context.Context, tx pgx.Tx, receipt ManagementReceipt,
-	result BindingMutationResult, actor string, at time.Time,
-) error {
-	if (result.Binding == nil) == !result.Deleted {
-		return invalid("Runtime management audit is invalid")
+// keyedBindingMutation runs one label binding mutation in tx as a Runtime
+// management keyed mutation (PER-R24): a recorded outcome under the key
+// replays without running mutate. The actor and time are recorded on the
+// binding, not in the receipt, and checked before the mutation runs.
+func keyedBindingMutation(
+	ctx context.Context, tx pgx.Tx, receipt ManagementReceipt, actor string, at time.Time,
+	mutate func() (BindingMutationResult, error),
+) (BindingMutationResult, error) {
+	var wire bindingMutationResultWire
+	var changed BindingMutationResult
+	replayed, err := KeyedManagementMutation(ctx, tx, receipt, &wire, func() (any, error) {
+		if !ValidActor(actor) || at.IsZero() {
+			return nil, invalid("Runtime management audit is invalid")
+		}
+		var err error
+		if changed, err = mutate(); err != nil {
+			return nil, err
+		}
+		if (changed.Binding == nil) == !changed.Deleted {
+			return nil, invalid("Runtime management audit is invalid")
+		}
+		return bindingMutationResultWire{Binding: changed.Binding, Deleted: changed.Deleted}, nil
+	})
+	if err != nil || !replayed {
+		return changed, err
 	}
-	return RecordManagementResult(
-		ctx, tx, receipt, bindingMutationResultWire{Binding: result.Binding, Deleted: result.Deleted}, actor, at,
-	)
+	result, _, err := bindingReplay(wire, true, nil)
+	return result, err
 }

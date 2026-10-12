@@ -11,6 +11,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/findingintake"
 	"github.com/grauwolf32/contractor/internal/projectstore"
@@ -32,7 +33,7 @@ func TestFindingProvenanceIncludesUnassessedProposalAttempts(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := auditstore.NewPostgresStore(pool).CreateDraft(ctx, auditstore.CreateDraftParams{
+	if _, _, err := auditstoretest.NewStore(pool).CreateDraft(ctx, auditstore.CreateDraftParams{
 		AuditID: auditID, OwnerID: owner, ProjectID: projectID,
 		Profile:         auditstore.ProfileIdentity{Name: "profile", Version: "1", Digest: serviceTestDigest("profile")},
 		ProfileSnapshot: json.RawMessage(`{"interaction":{"findingConfirmation":"human-required"}}`),
@@ -175,12 +176,12 @@ UPDATE audit_items SET last_execution_item_id = $2 WHERE item_id = $1`, itemID, 
 		t.Fatal(err)
 	}
 	service := &Service{pool: pool, findings: intake, now: time.Now}
-	params := ProvenanceListParams{OwnerID: owner, AuditID: auditID, FindingID: findingID, Limit: 10}
+	params := auditstore.ProvenanceListParams{OwnerID: owner, AuditID: auditID, FindingID: findingID, Limit: 10}
 	records, err := service.ListFindingProvenance(ctx, params)
 	if err != nil || len(records) != 6 {
 		t.Fatalf("unassessed provenance = (%+v, %v), want proposal and five attempts", records, err)
 	}
-	if records[0].Kind != ProvenanceSourceProposal || records[0].RecordID != "proposal:receipt-unassessed" {
+	if records[0].Kind != auditstore.ProvenanceSourceProposal || records[0].RecordID != "proposal:receipt-unassessed" {
 		t.Fatalf("proposal provenance = %+v", records[0])
 	}
 	expected := make(map[string]attemptCase, len(attempts))
@@ -196,7 +197,7 @@ UPDATE audit_items SET last_execution_item_id = $2 WHERE item_id = $1`, itemID, 
 		delete(expected, record.RecordID)
 		key := fmt.Sprintf("%s-%d", want.item, want.attempt)
 		got := record.Attempt
-		if record.Kind != ProvenanceCheckAttempt || record.ReceiptID != "receipt-unassessed" ||
+		if record.Kind != auditstore.ProvenanceCheckAttempt || record.ReceiptID != "receipt-unassessed" ||
 			record.Relation != "verification" || record.Assessment != nil || record.SupportsCurrent ||
 			got == nil || got.ItemID != "item-unassessed-"+want.item ||
 			got.ExecutionID != "execution-"+key || got.ExecutionItemID != "member-"+key ||
@@ -210,11 +211,11 @@ UPDATE audit_items SET last_execution_item_id = $2 WHERE item_id = $1`, itemID, 
 	if len(expected) != 0 {
 		t.Fatalf("missing attempts: %+v", expected)
 	}
-	revisions, err := service.readProvenanceRevisions(ctx, params)
+	auditRevision, findingRevision, err := service.reads().ReadProvenanceRevisions(ctx, params)
 	if err != nil {
 		t.Fatal(err)
 	}
-	params.AuditRevision, params.FindingRevision = &revisions.audit, &revisions.finding
+	params.AuditRevision, params.FindingRevision = &auditRevision, &findingRevision
 	params.Limit = 2
 	var paged []FindingProvenance
 	for range 3 {

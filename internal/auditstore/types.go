@@ -312,12 +312,6 @@ const (
 	MutationDelete     MutationOperation = "audit.delete"
 )
 
-// sqlLiteral quotes the operation for a statement that records it, so the
-// stored operation names come from these constants only.
-func (operation MutationOperation) sqlLiteral() string {
-	return "'" + string(operation) + "'"
-}
-
 type TransitionParams struct {
 	OwnerID          string
 	AuditID          string

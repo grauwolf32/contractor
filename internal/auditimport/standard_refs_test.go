@@ -315,7 +315,7 @@ func TestCollectionLoadsPinnedStandardsOncePerAttempt(t *testing.T) {
 		findings.resolved = append(findings.resolved, findingintake.ResolvedProposal{ReceiptID: name, Proposal: proposal, Document: document, Origin: origin})
 		selections = append(selections, auditdomain.ProposalSelection{InvocationID: "worker-invocation", ClientKey: name})
 	}
-	harness.importer, err = New(harness.store, harness.importer.runs, counter, findings)
+	harness.importer, err = New(harness.store, harness.store, harness.importer.runs, counter, findings)
 	if err != nil {
 		t.Fatal(err)
 	}

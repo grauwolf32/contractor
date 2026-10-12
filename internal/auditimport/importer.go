@@ -74,7 +74,7 @@ func (i *Importer) collect(
 	loadStandards := sync.OnceValues(func() (retainedStandardIndex, error) {
 		return i.loadPinnedStandards(ctx, snapshot)
 	})
-	members, err := i.store.ListExecutionItems(ctx, execution.ExecutionID)
+	members, err := i.reads.ListExecutionItems(ctx, execution.ExecutionID)
 	if err != nil {
 		return false, err
 	}
@@ -391,7 +391,7 @@ func (i *Importer) collectContractInvalid(
 	claim auditstore.ControllerClaim,
 	execution auditstore.Execution,
 ) (bool, error) {
-	members, err := i.store.ListExecutionItems(ctx, execution.ExecutionID)
+	members, err := i.reads.ListExecutionItems(ctx, execution.ExecutionID)
 	if err != nil {
 		return false, err
 	}
@@ -426,7 +426,7 @@ func (i *Importer) prepareMembers(
 	for index, member := range members {
 		itemIDs[index] = member.ItemID
 	}
-	items, err := i.store.ListItemsByIDs(ctx, snapshot.Audit.AuditID, itemIDs)
+	items, err := i.reads.ListItemsByIDs(ctx, snapshot.Audit.AuditID, itemIDs)
 	if err != nil {
 		return nil, err
 	}

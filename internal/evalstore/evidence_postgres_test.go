@@ -9,6 +9,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/auditstore/ownerstore"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 	"github.com/grauwolf32/contractor/internal/projectstore"
@@ -129,7 +130,7 @@ func TestSharedPostgresEvalBindsOnlyTheAuditItsMemberCreated(t *testing.T) {
 	})
 	create := Suboperation{Kind: "audit-create", Key: m.SubmissionKey, Request: json.RawMessage(`{"audit":"member"}`)}
 	mustTx(t, pool, func(s *Store) error { return s.PutSuboperation(ctx, scope, e.ID, m.MemberID, claim, create) })
-	audits := auditstore.NewPostgresStore(pool)
+	audits := ownerstore.New(pool)
 	createAudit := func(auditID, key string) {
 		t.Helper()
 		if _, _, err := audits.CreateDraft(ctx, auditstore.CreateDraftParams{

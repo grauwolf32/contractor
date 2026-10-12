@@ -6,6 +6,7 @@ import (
 	"errors"
 
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/auditstore/hookstore"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 	"github.com/jackc/pgx/v5"
@@ -311,13 +312,11 @@ WHERE experiment_id=$1
 // auditCreatedInWorkspace reports whether owner's Audit auditID was created
 // under the member's audit-create suboperation key and request digest and
 // lives in the workspace Project registered on the member's submission.
-// auditstore resolves the Audit that the creation key made.
+// The Audit store resolves the Audit that the creation key made.
 func (s *Store) auditCreatedInWorkspace(
 	ctx context.Context, owner, id, member, auditID, key, digest string,
 ) (bool, error) {
-	audit, found, err := auditstore.NewPostgresStore(s.db).LookupMutationReplay(
-		ctx, owner, auditstore.MutationCreate, key, digest,
-	)
+	audit, found, err := hookstore.NewAuditCreations(s.db).LookupCreation(ctx, owner, key, digest)
 	switch {
 	case errors.Is(err, auditstore.ErrInvalid), errors.Is(err, contracts.ErrIdempotencyConflict),
 		errors.Is(err, auditstore.ErrNotFound):

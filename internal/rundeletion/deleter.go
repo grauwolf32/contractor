@@ -11,7 +11,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/apierror"
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/auditstore/hookstore"
 	"github.com/grauwolf32/contractor/internal/findingintake"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -79,7 +79,7 @@ func deleteReleasedTerminalRun(ctx context.Context, tx pgx.Tx, ownerID, runID st
 	// destination hold. Our Run lock makes this destination set stable. Take
 	// Audit locks before execution, retention and Artifact locks, matching
 	// import and Audit purge rather than adding an Audit lock at the end.
-	audits := auditstore.NewPostgresTxStore(tx)
+	audits := hookstore.NewRunDeletionTx(tx)
 	auditIDs, err := audits.LockRunDeletionAudits(ctx, ownerID, runID)
 	if err != nil {
 		return err
@@ -187,7 +187,7 @@ func (d *Deleter) blockers(ctx context.Context, ownerID string, runIDs []string)
 			runByExecution[*gate.AuditExecutionID] = runID
 		}
 	}
-	collected, err := auditstore.NewPostgresStore(d.db).CollectedExecutionRuns(ctx, runByExecution)
+	collected, err := hookstore.NewRunDeletion(d.db).CollectedExecutionRuns(ctx, runByExecution)
 	if err != nil {
 		return nil, err
 	}

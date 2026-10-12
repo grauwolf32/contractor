@@ -257,38 +257,33 @@ func (s *Service) ReplaceLabelsIdempotent(
 	lockLabels := slices.Sorted(maps.Keys(setOf(optimistic.Labels, labels)))
 	var result MutationResult
 	err = persistencepostgres.InTx(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		replayed, found, replayErr := lockReplay(ctx, tx, receipt)
-		if replayErr != nil {
-			return replayErr
-		}
-		if found {
-			result = replayed
-			return nil
-		}
-		if _, err := runtimeconfig.NewRepository(tx).LockBindings(ctx, lockLabels); err != nil {
-			if errors.Is(err, runtimeconfig.ErrNotFound) {
-				return runtimeconfig.ErrUnknownLabel
+		var err error
+		result, err = keyedMutation(ctx, tx, receipt, func() (MutationResult, error) {
+			if _, err := runtimeconfig.NewRepository(tx).LockBindings(ctx, lockLabels); err != nil {
+				if errors.Is(err, runtimeconfig.ErrNotFound) {
+					return MutationResult{}, runtimeconfig.ErrUnknownLabel
+				}
+				return MutationResult{}, err
 			}
-			return err
-		}
-		repository := NewRepository(tx)
-		locked, err := repository.Lock(ctx, runtimeAgentID)
-		if err != nil {
-			return err
-		}
-		if locked.LabelRevision != expectedRevision ||
-			locked.LabelRevision != optimistic.LabelRevision || !slices.Equal(locked.Labels, optimistic.Labels) {
-			return runtimeconfig.ErrPrecondition
-		}
-		if err := runtimeconfig.ValidateLockedAgentLabels(ctx, tx, labels); err != nil {
-			return err
-		}
-		updated, err := repository.ReplaceLabels(ctx, runtimeAgentID, expectedRevision, labels, actor, at)
-		if err != nil {
-			return err
-		}
-		result = MutationResult{Principal: &updated}
-		return recordResult(ctx, tx, receipt, result, actor, at)
+			repository := NewRepository(tx)
+			locked, err := repository.Lock(ctx, runtimeAgentID)
+			if err != nil {
+				return MutationResult{}, err
+			}
+			if locked.LabelRevision != expectedRevision ||
+				locked.LabelRevision != optimistic.LabelRevision || !slices.Equal(locked.Labels, optimistic.Labels) {
+				return MutationResult{}, runtimeconfig.ErrPrecondition
+			}
+			if err := runtimeconfig.ValidateLockedAgentLabels(ctx, tx, labels); err != nil {
+				return MutationResult{}, err
+			}
+			updated, err := repository.ReplaceLabels(ctx, runtimeAgentID, expectedRevision, labels, actor, at)
+			if err != nil {
+				return MutationResult{}, err
+			}
+			return MutationResult{Principal: &updated}, nil
+		})
+		return err
 	})
 	return result, err
 }
@@ -321,37 +316,32 @@ func (s *Service) DeleteIdempotent(
 	defer release()
 	var result MutationResult
 	err = persistencepostgres.InTx(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		replayed, found, replayErr := lockReplay(ctx, tx, receipt)
-		if replayErr != nil {
-			return replayErr
-		}
-		if found {
-			result = replayed
-			return nil
-		}
-		repository := NewRepository(tx)
-		principal, err := repository.Lock(ctx, runtimeAgentID)
-		if err != nil {
-			return err
-		}
-		if principal.LabelRevision != expectedRevision {
-			return runtimeconfig.ErrPrecondition
-		}
-		if len(principal.Labels) != 0 {
-			return ErrInUse
-		}
-		inUse, err := repository.HasLiveAllocation(ctx, runtimeAgentID)
-		if err != nil {
-			return err
-		}
-		if inUse {
-			return ErrInUse
-		}
-		if err := repository.Delete(ctx, runtimeAgentID, expectedRevision); err != nil {
-			return err
-		}
-		result = MutationResult{Deleted: true}
-		return recordResult(ctx, tx, receipt, result, actor, at)
+		var err error
+		result, err = keyedMutation(ctx, tx, receipt, func() (MutationResult, error) {
+			repository := NewRepository(tx)
+			principal, err := repository.Lock(ctx, runtimeAgentID)
+			if err != nil {
+				return MutationResult{}, err
+			}
+			if principal.LabelRevision != expectedRevision {
+				return MutationResult{}, runtimeconfig.ErrPrecondition
+			}
+			if len(principal.Labels) != 0 {
+				return MutationResult{}, ErrInUse
+			}
+			inUse, err := repository.HasLiveAllocation(ctx, runtimeAgentID)
+			if err != nil {
+				return MutationResult{}, err
+			}
+			if inUse {
+				return MutationResult{}, ErrInUse
+			}
+			if err := repository.Delete(ctx, runtimeAgentID, expectedRevision); err != nil {
+				return MutationResult{}, err
+			}
+			return MutationResult{Deleted: true}, nil
+		})
+		return err
 	})
 	return result, err
 }
@@ -393,14 +383,6 @@ func readReplay(
 	return replayed(wire, found, err)
 }
 
-func lockReplay(
-	ctx context.Context, tx pgx.Tx, receipt runtimeconfig.ManagementReceipt,
-) (MutationResult, bool, error) {
-	var wire mutationResultWire
-	found, err := runtimeconfig.LockManagementReplay(ctx, tx, receipt, &wire)
-	return replayed(wire, found, err)
-}
-
 func replayed(wire mutationResultWire, found bool, err error) (MutationResult, bool, error) {
 	if err != nil || !found {
 		return MutationResult{}, false, err
@@ -411,16 +393,31 @@ func replayed(wire mutationResultWire, found bool, err error) (MutationResult, b
 	return MutationResult{Principal: wire.Principal, Deleted: wire.Deleted, Replayed: true}, true, nil
 }
 
-func recordResult(
+// keyedMutation runs one Runtime Agent principal mutation in tx as a Runtime
+// management keyed mutation (PER-R24): a recorded outcome under the key
+// replays without running mutate. The actor and time are recorded on the
+// principal, not in the receipt.
+func keyedMutation(
 	ctx context.Context, tx pgx.Tx, receipt runtimeconfig.ManagementReceipt,
-	result MutationResult, actor string, at time.Time,
-) error {
-	if (result.Principal == nil) == !result.Deleted {
-		return invalid("Runtime Agent management audit is invalid")
+	mutate func() (MutationResult, error),
+) (MutationResult, error) {
+	var wire mutationResultWire
+	var changed MutationResult
+	replay, err := runtimeconfig.KeyedManagementMutation(ctx, tx, receipt, &wire, func() (any, error) {
+		var err error
+		if changed, err = mutate(); err != nil {
+			return nil, err
+		}
+		if (changed.Principal == nil) == !changed.Deleted {
+			return nil, invalid("Runtime Agent management audit is invalid")
+		}
+		return mutationResultWire{Principal: changed.Principal, Deleted: changed.Deleted}, nil
+	})
+	if err != nil || !replay {
+		return changed, err
 	}
-	return runtimeconfig.RecordManagementResult(
-		ctx, tx, receipt, mutationResultWire{Principal: result.Principal, Deleted: result.Deleted}, actor, at,
-	)
+	result, _, err := replayed(wire, true, nil)
+	return result, err
 }
 
 func setOf(groups ...[]string) map[string]struct{} {

@@ -11,6 +11,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -23,7 +24,7 @@ func testLegacyReportWriteRejection(t *testing.T, ctx context.Context, pool *pgx
 	t.Helper()
 	legacy := current
 	legacy.Summary.Artifact.MediaType = "text/plain"
-	store := auditstore.NewPostgresStore(pool)
+	store := auditstoretest.NewStore(pool)
 	for name, operation := range map[string]func() error{
 		"propose-plain-summary": func() error { _, _, err := store.ProposeReport(ctx, legacy); return err },
 		"commit-plain-summary":  func() error { _, err := store.CommitReport(ctx, auditstore.CommitReportParams(legacy)); return err },
@@ -52,7 +53,7 @@ func testLegacyReportCandidateRejection(t *testing.T, ctx context.Context, pool 
 			t.Fatal(err)
 		}
 	}()
-	store := auditstore.NewPostgresStore(pool)
+	store := auditstoretest.NewStore(pool)
 	for name, operation := range map[string]func() error{
 		"read-plain-candidate":    func() error { _, err := store.GetReportCandidate(ctx, current.Claim.AuditID); return err },
 		"project-plain-candidate": func() error { _, err := service.GetReport(ctx, owner, current.Claim.AuditID); return err },
@@ -60,7 +61,7 @@ func testLegacyReportCandidateRejection(t *testing.T, ctx context.Context, pool 
 		"approve-plain-candidate": func() error {
 			_, err := service.DecideActionReview(ctx, DecideActionReviewParams{
 				OwnerID: owner, AuditID: current.Claim.AuditID, RequestID: candidate.RequestID,
-				ExpectedRequestRevision: 1, DecisionID: "legacy-approval", Action: ReviewApprove,
+				ExpectedRequestRevision: 1, DecisionID: "legacy-approval", Action: auditstore.ReviewApprove,
 				Rationale:      "Historical candidate must not be published.",
 				IdempotencyKey: "legacy-approval", RequestDigest: serviceTestDigest("legacy-approval"),
 			})
@@ -137,7 +138,7 @@ func assertReportOperationReadOnly(t *testing.T, ctx context.Context, pool *pgxp
 		state := map[string]string{}
 		for _, table := range []string{
 			"audits", "audit_rounds", "audit_items", "audit_artifact_links",
-			"audit_review_requests", "audit_review_decisions", "audit_events", "audit_idempotency",
+			"audit_review_requests", "audit_review_decisions", "audit_events", "mutation_receipts",
 			"artifact_scopes", "artifact_blobs", "artifact_versions", "artifact_binding_revisions", "artifact_bindings",
 		} {
 			var data string

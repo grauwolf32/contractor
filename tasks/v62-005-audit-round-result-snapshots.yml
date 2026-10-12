@@ -49,7 +49,7 @@ acceptance_criteria:
   - id: A4
     text: Snapshot replay and allowed source Run deletion preserve readable provenance without bypassing Audit deletion or protected-artifact rules.
 tests:
-  - command: go test -tags=integration -count=1 ./internal/auditdomain ./internal/auditservice ./internal/auditstore ./internal/auditcontroller ./internal/auditimport
+  - command: go test -tags=integration -count=1 ./internal/auditdomain ./internal/auditservice ./internal/auditstore/... ./internal/auditcontroller ./internal/auditimport
     covers: [A1, A2, A3, A4]
 test_prerequisites:
   - Disposable PostgreSQL for mandatory snapshot isolation, review race, retention and restart verification.

@@ -14,6 +14,7 @@ import (
 	"github.com/getkin/kin-openapi/routers/gorillamux"
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -35,7 +36,7 @@ func TestPublicOwnerAuditLists(t *testing.T) {
 		}
 		revision := "r1"
 		selection, _ := json.Marshal(auditservice.DraftSelection{Schema: auditservice.DraftSelectionSchema, Inputs: map[string]auditstore.ExactArtifact{"source": {Ref: contracts.ArtifactRef{Namespace: "source", Name: "input", Revision: &revision}, Digest: auditHandlerDigest("input"), MediaType: "text/plain", SizeBytes: 1}}, RuntimeLabels: []string{}})
-		_, _, err = auditstore.NewPostgresStore(pool).CreateDraft(ctx, auditstore.CreateDraftParams{AuditID: auditID, OwnerID: ownerID, ProjectID: projectID, Profile: auditstore.ProfileIdentity{Name: "page-profile", Version: "1", Digest: auditHandlerDigest("profile")}, ProfileSnapshot: json.RawMessage(`{"interaction":{"findingConfirmation":"human-required"}}`), InputSelection: selection, Limits: auditstore.Limits{MaxRounds: 1, BatchSize: 1, MaxItemsPerRound: 100, MaxItemsTotal: 100, MaxSubmittedRuns: 100, MaxItemRunAttempts: 1, MaxEvidenceBytes: 1 << 20}, IdempotencyKey: auditID, RequestDigest: auditHandlerDigest(auditID)})
+		_, _, err = auditstoretest.NewStore(pool).CreateDraft(ctx, auditstore.CreateDraftParams{AuditID: auditID, OwnerID: ownerID, ProjectID: projectID, Profile: auditstore.ProfileIdentity{Name: "page-profile", Version: "1", Digest: auditHandlerDigest("profile")}, ProfileSnapshot: json.RawMessage(`{"interaction":{"findingConfirmation":"human-required"}}`), InputSelection: selection, Limits: auditstore.Limits{MaxRounds: 1, BatchSize: 1, MaxItemsPerRound: 100, MaxItemsTotal: 100, MaxSubmittedRuns: 100, MaxItemRunAttempts: 1, MaxEvidenceBytes: 1 << 20}, IdempotencyKey: auditID, RequestDigest: auditHandlerDigest(auditID)})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -183,11 +184,11 @@ func TestPublicOwnerAuditLists(t *testing.T) {
 			t.Fatalf("missing full-page sentinel: %d %+v", len(page.Items), page.Page)
 		}
 	}
-	foreignFindings, err := service.ListOwnerFindings(ctx, auditservice.OwnerFindingListParams{OwnerID: "user-foreign", Limit: 200})
+	foreignFindings, err := service.ListOwnerFindings(ctx, auditstore.OwnerFindingListParams{OwnerID: "user-foreign", Limit: 200})
 	if err != nil || len(foreignFindings) != 1 || foreignFindings[0].AuditID != "audit-foreign" {
 		t.Fatalf("foreign owner's list: %+v %v", foreignFindings, err)
 	}
-	foreignReviews, err := service.ListOwnerReviews(ctx, auditservice.OwnerReviewListParams{OwnerID: "user-foreign", Limit: 200})
+	foreignReviews, err := service.ListOwnerReviews(ctx, auditstore.OwnerReviewListParams{OwnerID: "user-foreign", Limit: 200})
 	if err != nil || len(foreignReviews) != 1 || foreignReviews[0].AuditID != "audit-foreign" {
 		t.Fatalf("foreign owner's reviews: %+v %v", foreignReviews, err)
 	}

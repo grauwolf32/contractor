@@ -18,6 +18,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -334,7 +335,7 @@ func testPostgresFindingReceiptAuditImportDirectVerificationAndRunDeletion(t *te
 	}
 
 	const auditID = "finding-audit"
-	if _, _, err := auditstore.NewPostgresStore(pool).CreateDraft(ctx, auditstore.CreateDraftParams{
+	if _, _, err := auditstoretest.NewStore(pool).CreateDraft(ctx, auditstore.CreateDraftParams{
 		AuditID: auditID, OwnerID: ownerID, ProjectID: projectID,
 		Profile:         auditstore.ProfileIdentity{Name: "finding-review", Version: "1", Digest: auditdomain.DigestBytes([]byte("profile"))},
 		ProfileSnapshot: json.RawMessage(`{"interaction":{"findingConfirmation":"human-required"}}`),
@@ -441,7 +442,7 @@ SELECT assessment_id, result_ref, result_digest, contract_ref, contract_digest
 		t.Fatalf("direct verification refs = (%s, %+v, %s, %+v, %s)",
 			directAssessmentID, directResultRef, directResultDigest, directContractRef, directContractDigest)
 	}
-	audits := auditstore.NewPostgresStore(pool)
+	audits := auditstoretest.NewStore(pool)
 	beforeReplay, err := audits.Get(ctx, ownerID, auditID)
 	if err != nil {
 		t.Fatal(err)
@@ -501,7 +502,7 @@ SELECT count(*) FROM audit_artifact_links
 	// Import the same exact successful source into another compatible Audit.
 	// Its assessment and retained bytes must be independent of the first Audit.
 	const otherAuditID = "finding-audit-other"
-	if _, _, err := auditstore.NewPostgresStore(pool).CreateDraft(ctx, auditstore.CreateDraftParams{
+	if _, _, err := auditstoretest.NewStore(pool).CreateDraft(ctx, auditstore.CreateDraftParams{
 		AuditID: otherAuditID, OwnerID: ownerID, ProjectID: projectID,
 		Profile:         auditstore.ProfileIdentity{Name: "finding-review", Version: "1", Digest: auditdomain.DigestBytes([]byte("profile"))},
 		ProfileSnapshot: json.RawMessage(`{"interaction":{"findingConfirmation":"human-required"}}`),

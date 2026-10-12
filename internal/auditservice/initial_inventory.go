@@ -11,6 +11,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstandards"
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/auditstore/querystore"
 	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
@@ -24,12 +25,12 @@ func preparationInputKey(mapping auditprofile.AuditWorkflowInputMapping) string 
 	return mapping.Role + "/" + mapping.Name
 }
 
-func acceptedPreparationInputs(ctx context.Context, store *auditstore.PostgresStore, auditID string, profile auditprofile.ResolvedAuditProfile) (map[string]auditstore.ExactArtifact, error) {
+func acceptedPreparationInputs(ctx context.Context, reads *querystore.Store, auditID string, profile auditprofile.ResolvedAuditProfile) (map[string]auditstore.ExactArtifact, error) {
 	result := map[string]auditstore.ExactArtifact{}
 	if !profile.HasPreparation() {
 		return result, nil
 	}
-	executions, err := store.ListPreparationExecutions(ctx, auditID)
+	executions, err := reads.ListPreparationExecutions(ctx, auditID)
 	if err != nil {
 		return nil, err
 	}
@@ -95,8 +96,7 @@ func (s *Service) prepareInitialInventory(ctx context.Context, claim auditstore.
 	if err != nil {
 		return auditstore.AcceptInitialRoundParams{}, err
 	}
-	store := auditstore.NewPostgresStore(s.pool)
-	prepared, err := acceptedPreparationInputs(ctx, store, audit.AuditID, profile)
+	prepared, err := acceptedPreparationInputs(ctx, s.reads(), audit.AuditID, profile)
 	if err != nil {
 		return auditstore.AcceptInitialRoundParams{}, err
 	}

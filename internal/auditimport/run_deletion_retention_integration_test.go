@@ -76,7 +76,7 @@ INSERT INTO finding_proposal_receipts (
 	mustCompletion(t, err)
 	intake, err := findingintake.New(f.pool)
 	mustCompletion(t, err)
-	importer, err := New(f.audits, f.runs,
+	importer, err := New(f.audits, f.audits, f.runs,
 		invalidTaskArtifactAccess{ArtifactAccess: access, task: f.tasks[0].Ref}, intake)
 	mustCompletion(t, err)
 	changed, err := importer.Collect(f.ctx, f.claim, snapshot, execution)
@@ -140,7 +140,7 @@ INSERT INTO finding_proposal_receipts (
 	}
 	access, err := NewArtifactAccess(f.artifacts)
 	mustCompletion(t, err)
-	importer, err := New(f.audits, f.runs, access)
+	importer, err := New(f.audits, f.audits, f.runs, access)
 	mustCompletion(t, err)
 	if worked, err := importer.Finalize(f.ctx, f.claim, snapshot); err != nil || !worked {
 		t.Fatalf("complete Audit before source deletion: worked=%t err=%v", worked, err)

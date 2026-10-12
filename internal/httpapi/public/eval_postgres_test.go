@@ -21,6 +21,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
@@ -261,7 +262,7 @@ func (h *evalAPIHarness) finish(t *testing.T, kind string) {
 			}
 		}
 	} else {
-		store := auditstore.NewPostgresStore(h.pool)
+		store := auditstoretest.NewStore(h.pool)
 		claims, err := store.Claim(t.Context(), auditstore.ClaimParams{HolderID: "api-fixture", Lease: time.Minute, Limit: 100})
 		if err != nil {
 			t.Fatal(err)

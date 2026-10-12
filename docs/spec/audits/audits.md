@@ -1486,9 +1486,9 @@ raw provider responses, package content or model transcripts
    only the database allocator `contractor_append_audit_events` inserts them
    (AUD-R223); tests `TestPostgresAuditEventSequencesStayDense` and
    `TestPostgresAuditEventAllocatorRejectsBrokenReservations` in
-   [`internal/auditstore/event_allocation_postgres_test.go`](../../../internal/auditstore/event_allocation_postgres_test.go)
+   [`internal/auditstore/internal/pgstore/event_allocation_postgres_test.go`](../../../internal/auditstore/internal/pgstore/event_allocation_postgres_test.go)
    and `TestAuditEventsHaveOneWriter` in
-   [`internal/auditstore/event_allocation_test.go`](../../../internal/auditstore/event_allocation_test.go).
+   [`internal/auditstore/internal/pgstore/event_allocation_test.go`](../../../internal/auditstore/internal/pgstore/event_allocation_test.go).
 
 ## Examples
 

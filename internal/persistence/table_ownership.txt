@@ -44,6 +44,7 @@ artifact_scopes                      internal/artifacts               artifacts
 artifact_versions                    internal/artifacts               artifacts
 workflow_run_output_publications     internal/runstore                artifacts
 
+mutation_receipts                    internal/persistence/postgres    projects
 owner_queue_controls                 internal/runstore                projects
 projects                             internal/projectstore            projects
 scheduler_settings                   internal/settingsstore           projects
@@ -61,24 +62,22 @@ gateway_run_routes                   internal/gatewayrecovery         runtime
 runtime_agent_principals             internal/agentprincipal          runtime
 runtime_config_versions              internal/runtimeconfig           runtime
 runtime_label_bindings               internal/runtimeconfig           runtime
-runtime_management_operations        internal/runtimeconfig           runtime
 
-audit_artifact_links                 internal/auditstore              audits
-audit_controller_claims              internal/auditstore              audits
-audit_events                         internal/auditstore              audits
-audit_execution_items                internal/auditstore              audits
-audit_executions                     internal/auditstore              audits
-audit_idempotency                    internal/auditstore              audits
-audit_items                          internal/auditstore              audits
-audit_report_pages                   internal/auditstore              audits
-audit_rounds                         internal/auditstore              audits
-audits                               internal/auditstore              audits
+audit_artifact_links                 internal/auditstore/internal/pgstore audits
+audit_controller_claims              internal/auditstore/internal/pgstore audits
+audit_events                         internal/auditstore/internal/pgstore audits
+audit_execution_items                internal/auditstore/internal/pgstore audits
+audit_executions                     internal/auditstore/internal/pgstore audits
+audit_items                          internal/auditstore/internal/pgstore audits
+audit_report_pages                   internal/auditstore/internal/pgstore audits
+audit_rounds                         internal/auditstore/internal/pgstore audits
+audits                               internal/auditstore/internal/pgstore audits
 
-audit_finding_assessments            internal/auditstore              findings
-audit_finding_contributions          internal/auditstore              findings
-audit_findings                       internal/auditstore              findings
-audit_review_decisions               internal/auditstore              findings
-audit_review_requests                internal/auditstore              findings
+audit_finding_assessments            internal/auditstore/internal/pgstore findings
+audit_finding_contributions          internal/auditstore/internal/pgstore findings
+audit_findings                       internal/auditstore/internal/pgstore findings
+audit_review_decisions               internal/auditstore/internal/pgstore findings
+audit_review_requests                internal/auditstore/internal/pgstore findings
 finding_proposal_audit_holds         internal/findingintake           findings
 finding_proposal_receipts            internal/findingintake           findings
 
@@ -92,7 +91,6 @@ eval_experiments                     internal/evalstore               evals
 eval_frozen_plans                    internal/evalstore               evals
 eval_member_projections              internal/evalstore               evals
 eval_members                         internal/evalstore               evals
-eval_mutation_receipts               internal/evalstore               evals
 eval_plan_resources                  internal/evalstore               evals
 eval_progress_observations           internal/evalstore               evals
 eval_projection_queue                internal/evalstore               evals
@@ -103,7 +101,7 @@ eval_suboperations                   internal/evalstore               evals
 eval_view_charts                     internal/evalstore               evals
 eval_view_pairs                      internal/evalstore               evals
 
-audit_live_item_reviews              internal/auditstore              -
+audit_live_item_reviews              internal/auditstore/internal/pgstore -
 contractor_schema_migrations         internal/persistence/postgres    -
 
 [reads]
@@ -117,11 +115,11 @@ internal/agentprincipal      stage_allocations              Principal deletion r
 internal/artifacts           workflow_runs                  Output freezing checks that the Run exists; Project input
     forks, output publication and Audit import check that the Run belongs to the Project.
 
-internal/auditstore          finding_proposal_audit_holds   Round acceptance carries proposal holds into the next round;
+internal/auditstore/internal/pgstore finding_proposal_audit_holds   Round acceptance carries proposal holds into the next round;
     Run deletion finds the Audits that hold a Run's proposals.
-internal/auditstore          finding_proposal_receipts      Reports read each finding's first receipt; Run deletion finds
+internal/auditstore/internal/pgstore finding_proposal_receipts      Reports read each finding's first receipt; Run deletion finds
     the Audits that a Run's receipts name.
-internal/auditstore          workflow_runs                  Audit executions bind, observe and delete their child Runs and
+internal/auditstore/internal/pgstore workflow_runs                  Audit executions bind, observe and delete their child Runs and
     show their state.
 
 internal/credentials         projects                       Runtime credential usage lists the Projects whose HTTP target
@@ -215,24 +213,3 @@ internal/telemetry           workflow_runs                  Resource history sco
 # without a task.
 #
 # package                    access  relation                          task      reason
-internal/auditservice        read    audit_events                      V370-004  The Audit event list reads the events
-    directly.
-internal/auditservice        read    audit_execution_items             V370-004  Finding review reads the execution items
-    behind a finding.
-internal/auditservice        read    audit_executions                  V370-004  Finding review reads the executions
-    behind a finding.
-internal/auditservice        read    audit_finding_assessments         V370-004  Finding reads and reviews query
-    assessments directly.
-internal/auditservice        read    audit_finding_contributions       V370-004  Finding collection and review query
-    contributions directly.
-internal/auditservice        read    audit_items                       V370-004  Workspace, next-round selection and
-    finding review query items directly.
-internal/auditservice        read    audit_review_decisions            V370-004  Review, finding and owner lists query
-    decisions directly.
-internal/auditservice        write   audit_findings                    V370-004  Finding review decisions lock the
-    finding row FOR UPDATE.
-internal/auditservice        write   audit_review_requests             V370-004  Review decisions lock the review request
-    row FOR UPDATE.
-internal/auditservice        write   audits                            V370-004  Review decisions and Audit resume lock
-    the Audit row FOR UPDATE.
-

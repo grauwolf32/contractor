@@ -49,7 +49,7 @@ acceptance_criteria:
   - id: A4
     text: Current-schema default routing, standard mappings and existing review/approval behavior remain unchanged; obsolete schemas are rejected and decisions and deferrals are included in consistent report inputs.
 tests:
-  - command: go test -tags=integration -count=1 ./internal/config ./internal/auditdomain ./internal/auditservice ./internal/auditstore ./internal/auditcontroller
+  - command: go test -tags=integration -count=1 ./internal/config ./internal/auditdomain ./internal/auditservice ./internal/auditstore/... ./internal/auditcontroller
     covers: [A1, A2, A3, A4]
 test_prerequisites:
   - Disposable PostgreSQL for mandatory admission concurrency, consume-once, review and restart cases.

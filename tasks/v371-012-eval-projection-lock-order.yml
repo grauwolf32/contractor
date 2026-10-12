@@ -30,7 +30,7 @@ context:
     2965, 3156 and 3388), which updates the member row and then the
     experiment's eval_projection_queue row inside the Audit transaction,
     after collectAuditExecutionSQL locked the claim, the Audit and the
-    execution FOR UPDATE (internal/auditstore/collection_sql.go:23-50). The
+    execution FOR UPDATE (internal/auditstore/internal/pgstore/collection_sql.go:23-47). The
     lock orders differ. Outcomes today: a conflict fails collectMember, and
     CollectView rotates the member as if it were damaged
     (collection.go:37-43, RotateProjectionFailure at projections.go:112-124)

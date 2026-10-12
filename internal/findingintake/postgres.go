@@ -12,6 +12,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/auditstore/hookstore"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/pagelimit"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -575,7 +576,7 @@ SELECT project_id FROM workflow_runs
 // auditstore, which owns the Audit row, and returns the Audit's state. An
 // empty projectID admits an Audit of any Project.
 func lockFindingAudit(ctx context.Context, tx pgx.Tx, ownerID, auditID, projectID string) (string, error) {
-	state, err := auditstore.NewPostgresTxStore(tx).LockFindingIntakeAudit(ctx, ownerID, auditID, projectID)
+	state, err := hookstore.NewFindingEventsTx(tx).LockFindingIntakeAudit(ctx, ownerID, auditID, projectID)
 	if errors.Is(err, auditstore.ErrNotFound) {
 		return "", ErrNotFound
 	}
@@ -753,7 +754,7 @@ SELECT receipt.receipt_id, EXISTS (
 	if err != nil || recorded {
 		return err
 	}
-	return auditstore.NewPostgresStore(tx).RecordRejectedFindingProposal(ctx,
+	return hookstore.NewFindingEvents(tx).RecordRejectedFindingProposal(ctx,
 		auditstore.RejectedFindingProposalParams{
 			AuditID: request.AuditID, ReceiptID: receiptID,
 			RunID: request.RunID, Reason: reason,

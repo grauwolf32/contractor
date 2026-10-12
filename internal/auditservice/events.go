@@ -8,17 +8,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/contracts"
-	"github.com/grauwolf32/contractor/internal/pagelimit"
-	"github.com/jackc/pgx/v5"
 )
-
-type EventListParams struct {
-	OwnerID, AuditID string
-	// A continuation freezes the immutable prefix; new events appear on refresh.
-	ThroughSequence *uint64
-	BeforeSequence  *uint64
-	Limit           int
-}
 
 type Event struct {
 	AuditID        string         `json:"auditId"`
@@ -38,67 +28,24 @@ type EventPage struct {
 
 // ListEventsPage reads an owner-fenced immutable prefix in one short read-only
 // snapshot. Unlike mutable finding pages, continuations survive new revisions.
-// A page reads at most p.Limit events and no count.
-func (s *Service) ListEventsPage(ctx context.Context, p EventListParams) (EventPage, error) {
-	var result EventPage
-	if !validReviewIdentity(p.OwnerID, 256) || !validReviewIdentity(p.AuditID, 256) ||
-		!pagelimit.ValidFetch(p.Limit) ||
-		(p.ThroughSequence == nil) != (p.BeforeSequence == nil) ||
-		(p.ThroughSequence != nil && (*p.ThroughSequence > math.MaxInt64 ||
-			*p.BeforeSequence == 0 || *p.BeforeSequence > *p.ThroughSequence)) {
-		return result, auditstore.ErrInvalid
-	}
-	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
+// A page reads at most p.Limit events and no count: events are numbered 1, 2,
+// 3 and so on without gaps (AUD-R223), so the prefix through ThroughSequence
+// holds exactly that many events, and counting them on every page would make
+// reading N events cost O(N^2/limit).
+func (s *Service) ListEventsPage(ctx context.Context, p auditstore.EventListParams) (EventPage, error) {
+	through, events, err := s.reads().ListEventsPage(ctx, p)
 	if err != nil {
-		return result, err
+		return EventPage{}, err
 	}
-	defer func() { _ = tx.Rollback(ctx) }()
-	audit, err := auditstore.NewPostgresStore(tx).Get(ctx, p.OwnerID, p.AuditID)
-	if err != nil {
-		return result, err
+	result := EventPage{ThroughSequence: through, Total: int(through), Items: make([]Event, 0, len(events))}
+	for _, event := range events {
+		result.Items = append(result.Items, Event{
+			AuditID: event.AuditID, Sequence: event.Sequence, Kind: event.Kind, EntityID: event.EntityID,
+			EntityRevision: event.EntityRevision, Summary: safeEventSummary(event.Summary),
+			CreatedAt: event.CreatedAt,
+		})
 	}
-	result.ThroughSequence = audit.EventSequence
-	if p.ThroughSequence != nil {
-		if *p.ThroughSequence > audit.EventSequence {
-			return result, auditstore.ErrInvalid
-		}
-		result.ThroughSequence = *p.ThroughSequence
-	}
-	// Events are numbered 1, 2, 3 and so on without gaps (AUD-R223), so the
-	// prefix through ThroughSequence holds exactly that many events. Counting
-	// them on every page would make reading N events cost O(N^2/limit).
-	result.Total = int(result.ThroughSequence)
-	var before *int64
-	if p.BeforeSequence != nil {
-		value := int64(*p.BeforeSequence)
-		before = &value
-	}
-	rows, err := tx.Query(ctx, `
-SELECT audit_id, sequence_number, kind, entity_id, entity_revision, summary, created_at
- FROM audit_events WHERE audit_id=$1 AND sequence_number <= $2
- AND ($3::bigint IS NULL OR sequence_number < $3)
- ORDER BY sequence_number DESC LIMIT $4`, p.AuditID, int64(result.ThroughSequence), before, p.Limit)
-	if err != nil {
-		return result, err
-	}
-	result.Items = make([]Event, 0, p.Limit)
-	for rows.Next() {
-		var event Event
-		var summary json.RawMessage
-		if err := rows.Scan(&event.AuditID, &event.Sequence, &event.Kind, &event.EntityID,
-			&event.EntityRevision, &summary, &event.CreatedAt); err != nil {
-			rows.Close()
-			return result, err
-		}
-		event.Summary = safeEventSummary(summary)
-		result.Items = append(result.Items, event)
-	}
-	err = rows.Err()
-	rows.Close()
-	if err != nil {
-		return result, err
-	}
-	return result, tx.Commit(ctx)
+	return result, nil
 }
 
 // Event summaries are a public projection, not arbitrary stored JSON. Never
@@ -142,13 +89,13 @@ func eventSummaryEnum(key, value string) bool {
 	case "disposition":
 		return auditstore.CollectionDisposition(value).Valid()
 	case "subjectKind":
-		return ReviewSubjectKind(value).Valid()
+		return auditstore.ReviewSubjectKind(value).Valid()
 	case "kind":
-		return value == FindingReviewKind || value == ReportAcceptanceReviewKind || auditstore.ItemApprovalKind(value).Valid()
+		return value == auditstore.FindingReviewKind || value == auditstore.ReportAcceptanceReviewKind || auditstore.ItemApprovalKind(value).Valid()
 	case "verdict":
-		return AnalystVerdict(value).Valid()
+		return auditstore.AnalystVerdict(value).Valid()
 	case "action":
-		return ReviewAction(value).Valid()
+		return auditstore.ReviewAction(value).Valid()
 	}
 	return false
 }

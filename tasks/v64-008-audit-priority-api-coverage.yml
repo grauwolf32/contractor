@@ -52,7 +52,7 @@ acceptance_criteria:
 tests:
   - command: go test ./internal/auditservice ./internal/auditimport ./internal/httpapi/public
     covers: [A1, A2, A3, A4]
-  - command: go test -tags=integration -count=1 ./internal/auditservice ./internal/auditstore ./internal/auditimport ./internal/httpapi/public
+  - command: go test -tags=integration -count=1 ./internal/auditservice ./internal/auditstore/... ./internal/auditimport ./internal/httpapi/public
     covers: [A1, A2, A3, A4]
   - command: make verify-public-api ui-generate-check ui-typecheck
     covers: [A2, A4]

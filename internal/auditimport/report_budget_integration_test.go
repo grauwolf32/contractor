@@ -14,14 +14,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgxpool"
-
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runstore"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 const (
@@ -50,8 +50,8 @@ func TestImporterFinalizesLargeAuditUnderPageBudgetAndResumes(t *testing.T) {
 	seed := seedLargeReportAudit(t, ctx, pool)
 	access, err := NewArtifactAccess(artifacts.NewService(artifacts.NewPostgresRepository(pool)))
 	mustCompletion(t, err)
-	store := &budgetedReportStore{PostgresStore: auditstore.NewPostgresStore(pool), reads: map[string]int{}}
-	importer, err := New(store, runstore.NewPostgresStore(pool), access)
+	store := &budgetedReportStore{Store: auditstoretest.NewStore(pool), reads: map[string]int{}}
+	importer, err := New(store, store, runstore.NewPostgresStore(pool), access)
 	mustCompletion(t, err)
 	importer.budget = reportBudget{pageRows: 500, pageBytes: 256 << 10, pagesPerAttempt: 4}
 	const totalPages = largeReportItems/500 + 1 + 3 + 1 + 1 + 1
@@ -136,7 +136,7 @@ func seedLargeReportAudit(t *testing.T, ctx context.Context, pool *pgxpool.Pool)
 	profile := loadResultProfile(t)
 	profileSnapshot, err := json.Marshal(profile)
 	mustCompletion(t, err)
-	audits := auditstore.NewPostgresStore(pool)
+	audits := auditstoretest.NewStore(pool)
 	draft, _, err := audits.CreateDraft(ctx, auditstore.CreateDraftParams{
 		AuditID: id, OwnerID: owner, ProjectID: id,
 		Profile:         auditstore.ProfileIdentity{Name: profile.Ref.Name, Version: profile.Ref.Version, Digest: profile.Ref.Digest},
@@ -413,7 +413,7 @@ func assertLargeReport(
 // budgetedReportStore records every report page read and can expire an
 // attempt's context once a given number of pages is recorded.
 type budgetedReportStore struct {
-	*auditstore.PostgresStore
+	*auditstoretest.Store
 	mu          sync.Mutex
 	reads       map[string]int
 	failedReads int
@@ -425,7 +425,7 @@ type budgetedReportStore struct {
 func (s *budgetedReportStore) ListReportItems(
 	ctx context.Context, auditID, roundID string, after, limit int,
 ) ([]auditstore.ReportItem, error) {
-	rows, err := s.PostgresStore.ListReportItems(ctx, auditID, roundID, after, limit)
+	rows, err := s.Store.ListReportItems(ctx, auditID, roundID, after, limit)
 	s.noteRead(fmt.Sprintf("items/%s/%d", roundID, after), err)
 	return rows, err
 }
@@ -433,7 +433,7 @@ func (s *budgetedReportStore) ListReportItems(
 func (s *budgetedReportStore) ListReportFindings(
 	ctx context.Context, params auditstore.ReportFindingPageParams,
 ) ([]auditstore.ReportFinding, bool, error) {
-	rows, more, err := s.PostgresStore.ListReportFindings(ctx, params)
+	rows, more, err := s.Store.ListReportFindings(ctx, params)
 	cursor := "start"
 	if params.After != nil {
 		cursor = params.After.FindingID
@@ -443,7 +443,7 @@ func (s *budgetedReportStore) ListReportFindings(
 }
 
 func (s *budgetedReportStore) RecordReportPage(ctx context.Context, params auditstore.RecordReportPageParams) error {
-	err := s.PostgresStore.RecordReportPage(ctx, params)
+	err := s.Store.RecordReportPage(ctx, params)
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if err == nil {

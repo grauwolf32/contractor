@@ -123,9 +123,13 @@ func (s *Store) project(ctx context.Context, scope Scope, lock bool) (bool, erro
 	return state == "active", normalize(err)
 }
 
-// mutate serializes a key within its owner/resource scope. Replay precedes both
-// revision and deletion rejection, but ownership is always verified first.
-
+// mutateJSON runs one managed Eval mutation as a keyed mutation (PER-R24):
+// a key is unique within its owner, Project, resource and operation. Replay
+// precedes both revision and deletion rejection, but ownership is always
+// verified first. The advisory lock does not refresh a REPEATABLE READ
+// snapshot taken before it was granted; there, a receipt committed after the
+// snapshot fails the claim as a serialization failure, which the caller
+// retries into a replay, rather than as a member conflict.
 func (s *Store) mutateJSON(ctx context.Context, scope Scope, resource, operation string, id evaldomain.MutationIdentity, fn func() (json.RawMessage, error)) (Receipt, error) {
 	if err := s.requireTx(); err != nil {
 		return Receipt{}, err
@@ -137,53 +141,34 @@ func (s *Store) mutateJSON(ctx context.Context, scope Scope, resource, operation
 	if err != nil {
 		return Receipt{}, err
 	}
-	key, _ := json.Marshal([]string{scope.OwnerID, scope.ProjectID, resource, operation, id.Key})
-	if _, err = s.db.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1,0))`, string(key)); err != nil {
-		return Receipt{}, err
-	}
-	var digest string
-	var response []byte
-	err = s.db.QueryRow(ctx, `
-SELECT request_sha256, response
-FROM eval_mutation_receipts
-WHERE owner_id=$1
-    AND project_id=$2
-    AND resource_id=$3
-    AND operation=$4
-    AND operation_key=$5
-`, scope.OwnerID, scope.ProjectID, resource, operation, id.Key).Scan(&digest, &response)
-	if err == nil {
-		if digest != id.RequestSHA256 {
-			return Receipt{}, evaldomain.Failure("eval_idempotency_conflict")
+	key := pg.EvalReceiptKey(scope.OwnerID, scope.ProjectID, resource, operation, id.Key)
+	var mutationErr error
+	receipt, replayed, err := pg.KeyedMutation(ctx, s.tx, key, id.RequestSHA256, func() (pg.Receipt, error) {
+		if !active {
+			mutationErr = evaldomain.Failure("eval_project_deleting")
+			return pg.Receipt{}, mutationErr
 		}
-		return Receipt{Response: response, Replayed: true}, nil
-	}
-	if !errors.Is(err, pgx.ErrNoRows) {
-		return Receipt{}, err
-	}
-	if !active {
-		return Receipt{}, evaldomain.Failure("eval_project_deleting")
-	}
-	response, err = fn()
-	if err != nil {
-		return Receipt{}, err
-	}
-	// The advisory lock does not refresh a REPEATABLE READ snapshot taken
-	// before it was granted. There, DO NOTHING turns a receipt committed after
-	// the snapshot into a serialization failure, which the caller retries into
-	// a replay, rather than a unique violation reported as a member conflict.
-	tag, err := s.db.Exec(ctx, `
-INSERT INTO eval_mutation_receipts(owner_id, project_id, resource_id, operation, operation_key, request_sha256, expected_revision, response)
-VALUES($1, $2, $3, $4, $5, $6, $7, $8)
-ON CONFLICT DO NOTHING
-`, scope.OwnerID, scope.ProjectID, resource, operation, id.Key, id.RequestSHA256, id.ExpectedRevision, response)
-	if err != nil {
+		response, err := fn()
+		if err != nil {
+			mutationErr = err
+			return pg.Receipt{}, err
+		}
+		return pg.Receipt{
+			Operation: operation, ResourceID: resource, Response: response,
+			OwnerID: scope.OwnerID, ProjectID: scope.ProjectID,
+		}, nil
+	})
+	switch {
+	case mutationErr != nil:
+		return Receipt{}, mutationErr
+	case errors.Is(err, pg.ErrReceiptMismatch):
+		return Receipt{}, evaldomain.Failure("eval_idempotency_conflict")
+	case errors.Is(err, pg.ErrReceiptClaimed):
+		return Receipt{}, evaldomain.Failure("eval_member_conflict")
+	case err != nil:
 		return Receipt{}, normalize(err)
 	}
-	if tag.RowsAffected() != 1 {
-		return Receipt{}, evaldomain.Failure("eval_member_conflict")
-	}
-	return Receipt{Response: response}, nil
+	return Receipt{Response: receipt.Response, Replayed: replayed}, nil
 }
 
 func (s *Store) Get(ctx context.Context, owner, id string) (Experiment, error) {

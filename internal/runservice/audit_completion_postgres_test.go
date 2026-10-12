@@ -15,6 +15,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
@@ -84,7 +85,7 @@ func TestAuditCompletionPostgresAtomicCreationRestartAndAllocation(t *testing.T)
 		t.Fatal(err)
 	}
 	profileBytes, _ := json.Marshal(map[string]any{"workflows": map[string]any{"check": binding}})
-	audits := auditstore.NewPostgresStore(pool)
+	audits := auditstoretest.NewStore(pool)
 	draft, _, err := audits.CreateDraft(ctx, auditstore.CreateDraftParams{AuditID: "audit", OwnerID: project.OwnerID, ProjectID: project.ProjectID, Profile: auditstore.ProfileIdentity{Name: "test", Version: "1", Digest: testDigest("2")}, ProfileSnapshot: profileBytes, InputSelection: json.RawMessage(`{}`), Limits: auditstore.Limits{MaxRounds: 1, BatchSize: 1, MaxItemsPerRound: 10, MaxItemsTotal: 10, MaxSubmittedRuns: 10, MaxItemRunAttempts: 2, MaxEvidenceBytes: 1 << 20}, IdempotencyKey: "audit", RequestDigest: testDigest("3")})
 	if err != nil {
 		t.Fatal(err)

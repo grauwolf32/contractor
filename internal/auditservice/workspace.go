@@ -2,67 +2,21 @@ package auditservice
 
 import (
 	"context"
-	"errors"
-	"time"
 
-	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
-	"github.com/jackc/pgx/v5"
 )
-
-// WorkspaceSummary is one database statement's owner-scoped snapshot. Work is
-// scoped to the current round; findings and reviews span the entire Audit.
-// CompletedChecks, Gaps and Unchecked partition TotalChecks by the coverage
-// buckets of auditdomain, the classification the Audit report concludes
-// with; Issues is the part of CompletedChecks with an issue found.
-// PendingReviews counts only requests that can still be decided.
-type WorkspaceSummary struct {
-	AuditID            string    `json:"auditId"`
-	AuditRevision      uint64    `json:"auditRevision"`
-	AsOf               time.Time `json:"asOf"`
-	RoundID            *string   `json:"roundId,omitempty"`
-	ExecutionState     string    `json:"executionState"`
-	OutstandingRuns    int       `json:"outstandingRuns"`
-	TotalChecks        int       `json:"totalChecks"`
-	CompletedChecks    int       `json:"completedChecks"`
-	Issues             int       `json:"issues"`
-	Gaps               int       `json:"gaps"`
-	Unchecked          int       `json:"unchecked"`
-	Findings           int       `json:"findings"`
-	UnreviewedFindings int       `json:"unreviewedFindings"`
-	PendingReviews     int       `json:"pendingReviews"`
-}
-
-type PageBasis struct {
-	AuditRevision uint64    `json:"auditRevision"`
-	AsOf          time.Time `json:"asOf"`
-	Total         int       `json:"total"`
-}
 
 type FindingPage struct {
 	Items []Finding
-	PageBasis
+	auditstore.PageBasis
 }
 type ReviewPage struct {
-	Items []ReviewRequest
-	PageBasis
+	Items []auditstore.ReviewRequest
+	auditstore.PageBasis
 }
 
-func (s *Service) GetWorkspace(ctx context.Context, ownerID, auditID string) (WorkspaceSummary, error) {
-	if !validReviewIdentity(ownerID, 256) || !validReviewIdentity(auditID, 256) {
-		return WorkspaceSummary{}, auditstore.ErrInvalid
-	}
-	var result WorkspaceSummary
-	err := s.pool.QueryRow(ctx, getWorkspaceSQL, ownerID, auditID,
-		auditdomain.CoverageStatusesIn(auditdomain.CoverageBucketCompleted), auditdomain.CoverageIssueStatuses(),
-		auditdomain.CoverageStatusesIn(auditdomain.CoverageBucketGap), auditdomain.CoverageStatusesIn(auditdomain.CoverageBucketUnchecked),
-	).Scan(
-		&result.AuditID, &result.AuditRevision, &result.AsOf, &result.RoundID, &result.ExecutionState, &result.OutstandingRuns,
-		&result.TotalChecks, &result.CompletedChecks, &result.Issues, &result.Gaps, &result.Unchecked, &result.Findings, &result.UnreviewedFindings, &result.PendingReviews)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return WorkspaceSummary{}, auditstore.ErrNotFound
-	}
-	return result, err
+func (s *Service) GetWorkspace(ctx context.Context, ownerID, auditID string) (auditstore.WorkspaceSummary, error) {
+	return s.reads().GetWorkspace(ctx, ownerID, auditID)
 }
 
 // A revision fence includes hydration and the whole-filter count. Audit mutations
@@ -80,20 +34,13 @@ func (s *Service) checkPageRevision(ctx context.Context, ownerID, auditID string
 	return nil
 }
 
-func (s *Service) ListFindingsPage(ctx context.Context, params FindingListParams) (FindingPage, error) {
+func (s *Service) ListFindingsPage(ctx context.Context, params auditstore.FindingListParams) (FindingPage, error) {
 	var result FindingPage
-	if err := validateFindingList(params); err != nil {
-		return result, err
-	}
-	err := s.pool.QueryRow(ctx, `SELECT audit.revision, statement_timestamp(),
- (SELECT count(*) `+findingFilterSQL+`) FROM audits audit WHERE audit.owner_id=$1 AND audit.audit_id=$2`,
-		params.OwnerID, params.AuditID, params.State, params.Verdict, params.Unreviewed, params.Severity).Scan(&result.AuditRevision, &result.AsOf, &result.Total)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return result, auditstore.ErrNotFound
-	}
+	basis, err := s.reads().FindingPageBasis(ctx, params)
 	if err != nil {
 		return result, err
 	}
+	result.PageBasis = basis
 	if params.AuditRevision != nil && *params.AuditRevision != result.AuditRevision {
 		return result, auditstore.ErrConflict
 	}
@@ -104,21 +51,13 @@ func (s *Service) ListFindingsPage(ctx context.Context, params FindingListParams
 	return result, s.checkPageRevision(ctx, params.OwnerID, params.AuditID, result.AuditRevision)
 }
 
-func (s *Service) ListReviewsPage(ctx context.Context, params ReviewListParams) (ReviewPage, error) {
+func (s *Service) ListReviewsPage(ctx context.Context, params auditstore.ReviewListParams) (ReviewPage, error) {
 	var result ReviewPage
-	if err := validateReviewList(params); err != nil {
-		return result, err
-	}
-	err := s.pool.QueryRow(ctx, `SELECT audit.revision, statement_timestamp(),
- (SELECT count(*) FROM audit_review_requests request WHERE request.audit_id=audit.audit_id
- AND ($3::text IS NULL OR request.finding_id=$3) AND ($4::text IS NULL OR request.state=$4))
- FROM audits audit WHERE audit.owner_id=$1 AND audit.audit_id=$2`, params.OwnerID, params.AuditID, params.FindingID, params.State).Scan(&result.AuditRevision, &result.AsOf, &result.Total)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return result, auditstore.ErrNotFound
-	}
+	basis, err := s.reads().ReviewPageBasis(ctx, params)
 	if err != nil {
 		return result, err
 	}
+	result.PageBasis = basis
 	if params.AuditRevision != nil && *params.AuditRevision != result.AuditRevision {
 		return result, auditstore.ErrConflict
 	}

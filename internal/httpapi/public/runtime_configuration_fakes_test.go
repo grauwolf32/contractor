@@ -20,7 +20,7 @@ type fakeRuntimeAgentPrincipalManagement struct {
 	principals map[string]controlplane.RuntimeAgentPrincipalProjection
 	replaceErr error
 	// mutations remembers each key's request and committed result, as the
-	// real manager's runtime_management_operations rows do.
+	// real manager's Runtime management receipts do.
 	mutations map[string]fakePrincipalMutation
 }
 

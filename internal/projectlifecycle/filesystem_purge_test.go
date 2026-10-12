@@ -15,6 +15,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runstore"
 )
@@ -41,7 +42,7 @@ func TestProjectAndAuditPurgesUnlinkOnlyUnreferencedFilesystemBlobs(t *testing.T
 
 	projects := projectstore.NewPostgresStore(pool)
 	runs := runstore.NewPostgresStore(pool)
-	audits := auditstore.NewPostgresStore(pool)
+	audits := auditstoretest.NewStore(pool)
 	service := artifacts.NewService(artifacts.NewPostgresRepository(pool))
 	project, _, err := projects.Create(ctx, projectstore.CreateParams{
 		ProjectID: "project-files", OwnerID: "user-1", Kind: projectstore.KindProject,

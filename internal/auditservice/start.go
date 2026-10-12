@@ -14,6 +14,8 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstandards"
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/auditstore/ownerstore"
+	"github.com/grauwolf32/contractor/internal/auditstore/querystore"
 	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contentdigest"
@@ -34,8 +36,7 @@ func (s *Service) Start(ctx context.Context, params StartParams) (StartedAudit, 
 	if err := validateDeadlineSeconds(params.DeadlineSeconds); err != nil {
 		return StartedAudit{}, err
 	}
-	store := auditstore.NewPostgresStore(s.pool)
-	if replay, found, err := store.LookupMutationReplay(
+	if replay, found, err := s.owners().LookupMutationReplay(
 		ctx, params.OwnerID, auditstore.MutationStart,
 		params.IdempotencyKey, params.RequestDigest,
 	); err != nil {
@@ -49,7 +50,7 @@ func (s *Service) Start(ctx context.Context, params StartParams) (StartedAudit, 
 		// A concurrent start with this key may have committed after the
 		// replay lookup, leaving the draft no longer a draft.
 		if errors.Is(err, auditstore.ErrPrecondition) {
-			if replay, found, replayErr := store.LookupMutationReplay(
+			if replay, found, replayErr := s.owners().LookupMutationReplay(
 				ctx, params.OwnerID, auditstore.MutationStart,
 				params.IdempotencyKey, params.RequestDigest,
 			); replayErr == nil && found {
@@ -79,7 +80,7 @@ func (s *Service) Start(ctx context.Context, params StartParams) (StartedAudit, 
 	// still never consulted by this recovery path.
 	if errors.Is(err, auditstore.ErrConflict) || errors.Is(err, artifacts.ErrArtifactConflict) ||
 		persistencepostgres.IsTransactionConflict(err) {
-		if replay, found, replayErr := store.LookupMutationReplay(
+		if replay, found, replayErr := s.owners().LookupMutationReplay(
 			ctx, params.OwnerID, auditstore.MutationStart,
 			params.IdempotencyKey, params.RequestDigest,
 		); replayErr == nil && found {
@@ -131,7 +132,7 @@ func (s *Service) stageStart(ctx context.Context, params StartParams) (startPlan
 }
 
 func stageStartInTransaction(ctx context.Context, tx pgx.Tx, params StartParams) (startPlan, error) {
-	audit, err := auditstore.NewPostgresStore(tx).LockForStartStaging(ctx, params.OwnerID, params.AuditID)
+	audit, err := ownerstore.NewTx(tx).LockForStartStaging(ctx, params.OwnerID, params.AuditID)
 	if err != nil {
 		return startPlan{}, err
 	}
@@ -228,16 +229,16 @@ func stageStartInTransaction(ctx context.Context, tx pgx.Tx, params StartParams)
 func (s *Service) startInTransaction(
 	ctx context.Context, tx pgx.Tx, params StartParams, plan startPlan,
 ) (StartedAudit, error) {
-	store := auditstore.NewPostgresStore(tx)
-	if replay, found, err := store.LookupMutationReplay(
+	owners, reads := ownerstore.New(tx), querystore.New(tx)
+	if replay, found, err := owners.LookupMutationReplay(
 		ctx, params.OwnerID, auditstore.MutationStart,
 		params.IdempotencyKey, params.RequestDigest,
 	); err != nil {
 		return StartedAudit{}, err
 	} else if found {
-		return s.startedProjectionWithStore(ctx, store, replay, true)
+		return startedProjectionWithStore(ctx, reads, replay, true)
 	}
-	audit, err := store.Get(ctx, params.OwnerID, params.AuditID)
+	audit, err := reads.Get(ctx, params.OwnerID, params.AuditID)
 	if err != nil {
 		return StartedAudit{}, err
 	}
@@ -336,7 +337,7 @@ func (s *Service) startInTransaction(
 		if err != nil {
 			return StartedAudit{}, err
 		}
-		started, created, err := store.StartPreparation(ctx, auditstore.StartPreparationParams{
+		started, created, err := owners.StartPreparation(ctx, auditstore.StartPreparationParams{
 			OwnerID: params.OwnerID, AuditID: audit.AuditID, ExpectedRevision: params.ExpectedRevision,
 			BaselineSnapshot: baselineJSON, DeadlineAt: deadline, InitialRetained: standardLinks,
 			IdempotencyKey: params.IdempotencyKey, RequestDigest: params.RequestDigest,
@@ -344,7 +345,7 @@ func (s *Service) startInTransaction(
 		if err != nil {
 			return StartedAudit{}, err
 		}
-		return s.startedProjectionWithStore(ctx, store, started, !created)
+		return startedProjectionWithStore(ctx, reads, started, !created)
 	}
 	round := plan.round
 	if round == nil {
@@ -366,7 +367,7 @@ func (s *Service) startInTransaction(
 		return StartedAudit{}, err
 	}
 	roundID := auditdomain.DeterministicID("round", audit.AuditID, "1")
-	started, created, err := store.MaterializeRound(ctx, auditstore.MaterializeRoundParams{
+	started, created, err := owners.MaterializeRound(ctx, auditstore.MaterializeRoundParams{
 		OwnerID: params.OwnerID, AuditID: audit.AuditID,
 		ExpectedRevision: params.ExpectedRevision,
 		RoundID:          roundID, RoundOrdinal: 1, Manifest: round.worklist,
@@ -378,7 +379,7 @@ func (s *Service) startInTransaction(
 	if err != nil {
 		return StartedAudit{}, err
 	}
-	return s.startedProjectionWithStore(ctx, store, started, !created)
+	return startedProjectionWithStore(ctx, reads, started, !created)
 }
 
 // materializeInventoryItems is shared by direct start and prepared initial
@@ -796,12 +797,12 @@ func (w auditArtifactWriter) write(
 func (s *Service) startedProjection(
 	ctx context.Context, audit auditstore.Audit, replayed bool,
 ) (StartedAudit, error) {
-	return s.startedProjectionWithStore(ctx, auditstore.NewPostgresStore(s.pool), audit, replayed)
+	return startedProjectionWithStore(ctx, s.reads(), audit, replayed)
 }
 
-func (s *Service) startedProjectionWithStore(
+func startedProjectionWithStore(
 	ctx context.Context,
-	store *auditstore.PostgresStore,
+	reads *querystore.Store,
 	audit auditstore.Audit,
 	replayed bool,
 ) (StartedAudit, error) {
@@ -811,13 +812,13 @@ func (s *Service) startedProjectionWithStore(
 		}
 		return StartedAudit{Audit: audit, Items: []auditstore.Item{}, Replayed: replayed}, nil
 	}
-	round, err := store.GetRound(ctx, audit.AuditID, *audit.CurrentRoundID)
+	round, err := reads.GetRound(ctx, audit.AuditID, *audit.CurrentRoundID)
 	if err != nil {
 		return StartedAudit{}, err
 	}
 	// The response carries the current Round and only its items, at most
 	// LIM-AUD-26, however many items earlier Rounds hold.
-	items, err := store.ListRoundItems(ctx, audit.AuditID, round.RoundID)
+	items, err := reads.ListRoundItems(ctx, audit.AuditID, round.RoundID)
 	if err != nil {
 		return StartedAudit{}, err
 	}

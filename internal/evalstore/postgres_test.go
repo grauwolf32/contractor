@@ -533,7 +533,7 @@ func TestSharedPostgresEvalBoundedPagesPinnedPurgeAndReceiptRetention(t *testing
 	}
 	beginProjectDeletion(t, pool, scope)
 	mustTx(t, pool, func(s *Store) error { return s.PurgeProject(ctx, scope) })
-	for _, table := range []string{"eval_experiments", "eval_dataset_revisions", "eval_mutation_receipts"} {
+	for _, table := range []string{"eval_experiments", "eval_dataset_revisions", "mutation_receipts"} {
 		var n int
 		if err = pool.QueryRow(ctx, `SELECT count(*) FROM `+table+` WHERE project_id=$1`, scope.ProjectID).Scan(&n); err != nil || n != 0 {
 			t.Fatal(table, n, err)

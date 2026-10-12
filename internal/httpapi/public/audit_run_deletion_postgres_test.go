@@ -20,6 +20,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/configload"
@@ -89,7 +90,7 @@ func TestPublicAuditSourceRunDeletionInvalidatesReadContexts(t *testing.T) {
 		if auditOwner != owner {
 			destination = "other-project"
 		}
-		if _, _, err := auditstore.NewPostgresStore(pool).CreateDraft(ctx, auditstore.CreateDraftParams{
+		if _, _, err := auditstoretest.NewStore(pool).CreateDraft(ctx, auditstore.CreateDraftParams{
 			AuditID: auditID, OwnerID: auditOwner, ProjectID: destination,
 			Profile:         auditstore.ProfileIdentity{Name: "profile", Version: "1", Digest: auditHandlerDigest("profile")},
 			ProfileSnapshot: json.RawMessage(`{"interaction":{"findingConfirmation":"human-required"}}`), InputSelection: selection,

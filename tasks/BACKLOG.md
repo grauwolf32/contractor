@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-64 open tasks: 3 in progress, 47 pending, 14 deferred. 861 finished: 858 completed, 3 archived.
+62 open tasks: 3 in progress, 45 pending, 14 deferred. 864 finished: 861 completed, 3 archived.
 
 ## In progress
 
@@ -69,7 +69,6 @@ the epics are in [epics.yml](epics.yml).
 | [V64-009](v64-009-audit-priority-ui.yml) | feature | P1 | V64-008 | Show Audit ranking progress, top-N selection and deferred checklist reasons |
 | [V64-010](v64-010-audit-priority-profile.yml) | feature | P1 | V64-008 | Publish a runnable prioritized custom-checklist Audit profile and guide |
 | [V64-011](v64-011-audit-priority-release.yml) | feature | P1 | V64-009, V64-010 | Verify contextual checklist prioritization across process and browser boundaries |
-| [V370-004](v370-004-split-auditstore.yml) | chore | P2 | — | Split auditstore along its seams |
 | [V371-007](v371-007-fence-audit-artifact-writes.yml) | defect | P2 | — | Fence the Audit Controller's artifact writes against a purge by a newer claim |
 | [V371-008](v371-008-bounded-audit-deletion-steps.yml) | defect | P2 | — | Run the Audit deletion phase in bounded steps under its own budget |
 | [V371-009](v371-009-audit-list-preparation-batch.yml) | defect | P3 | — | Read the preparation state of a whole Audit page in bounded statements |
@@ -103,7 +102,6 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V369-005](v369-005-sql-placement-concatenation.yml) | chore | P2 | — | Make the SQL placement check see concatenated statements |
-| [V370-007](v370-007-one-receipt-and-claim-mechanism.yml) | chore | P2 | — | Use one receipt and claim mechanism |
 
 ### Quality, CI and process (`quality`)
 
@@ -157,11 +155,11 @@ tasks in `introduced_by`.
 | Findings tools and collections (`findings`) | 2 | 7 | 5 | 2 | 7 |
 | Workflow catalog and document workflows (`workflows`) | 0 | 13 | 13 | 8 | 11 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 1 | 27 | 31 | 4 | 34 |
-| Audits (`audits`) | 22 | 49 | 67 | 12 | 75 |
+| Audits (`audits`) | 21 | 49 | 68 | 12 | 76 |
 | Evaluations (`evals`) | 4 | 21 | 28 | 5 | 33 |
 | Podman sandbox (`sandbox`) | 0 | 8 | 1 | 1 | 2 |
 | Web UI (`ui`) | 2 | 19 | 53 | 10 | 48 |
 | Operations, authentication, CLI and deployment (`operations`) | 0 | 8 | 30 | 4 | 6 |
 | Public API and wire contracts (`api-contracts`) | 4 | 1 | 27 | 17 | 7 |
-| PostgreSQL persistence and schema (`persistence`) | 3 | 0 | 17 | 29 | 4 |
+| PostgreSQL persistence and schema (`persistence`) | 2 | 0 | 17 | 29 | 4 |
 | Quality, CI and process (`quality`) | 11 | 1 | 18 | 71 | 15 |
