@@ -529,8 +529,9 @@ func assertForeignAgentCannotBorrowAllocation(
 	allocation runstore.StageAllocation,
 ) {
 	t.Helper()
+	// A valid list query (ART-R47), so the allocation identity check decides.
 	target := privateBaseURL + "/private/v1/allocations/" +
-		url.PathEscape(allocation.AllocationID) + "/artifacts"
+		url.PathEscape(allocation.AllocationID) + "/artifacts?limit=1"
 	request, err := http.NewRequest(http.MethodGet, target, nil)
 	if err != nil {
 		t.Fatal(err)
