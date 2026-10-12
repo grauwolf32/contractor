@@ -14,7 +14,7 @@ the epics are in [epics.yml](epics.yml).
 | [V40-002](v40-002-agent-instruction-paired-runner.yml) | evals | feature | P1 | Prepare instruction experiment bindings and a frozen plan after format readiness |
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
-| [V373-007](v373-007-go-1-26-9-and-multidict-advisories.yml) | quality | defect | P1 | Build with go1.26.9 and multidict 6.9.1 to clear published advisories |
+| [V373-007](v373-007-go-1-26-9-and-multidict-advisories.yml) | quality | defect | P1 | Build with go1.26.9, golang.org/x/net 0.60.0 and multidict 6.9.1 to clear published advisories |
 
 ## Pending
 
