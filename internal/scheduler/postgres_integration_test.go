@@ -287,9 +287,20 @@ func testPostgresSchedulerPublication(t *testing.T, scenario schedulerPublicatio
 	if err != nil || string(output.Payload.Data) != "copied\n" || output.Payload.MediaType != "text/plain" {
 		t.Fatalf("output = (%+v, %v)", output, err)
 	}
-	// The terminal Run's output stays frozen at its bound revision.
-	if _, err := bindOutput(ctx, artifactService, "run-1", "result", workerWrite.Ref); !errors.Is(err, artifacts.ErrArtifactConflict) {
+	// The terminal Run's output stays frozen at its bound revision: a binding
+	// from another revision is refused, and the bound source replays it
+	// without a second revision (ART-R90).
+	input, err := runStore.Metadata(ctx, contracts.ArtifactRef{Namespace: "inputs", Name: "source"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := bindOutput(ctx, artifactService, "run-1", "result", input.Ref); !errors.Is(err, artifacts.ErrArtifactConflict) ||
+		!errors.Is(err, errOutputStateInvalid) {
 		t.Fatalf("frozen output rebind error = %v", err)
+	}
+	if replayed, err := bindOutput(ctx, artifactService, "run-1", "result", workerWrite.Ref); err != nil ||
+		!replayed.TargetRef.SameExact(output.Ref) {
+		t.Fatalf("frozen output replay = (%+v, %v), want %+v", replayed.TargetRef, err, output.Ref)
 	}
 	if metadata, err := runStore.Metadata(ctx, contracts.ArtifactRef{Namespace: "outputs", Name: "result"}); err != nil ||
 		!metadata.Frozen || !metadata.Ref.SameExact(output.Ref) {

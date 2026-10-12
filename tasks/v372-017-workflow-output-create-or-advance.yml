@@ -5,7 +5,7 @@ milestone: hub-audit-defects-2026-10
 epic: projects-artifacts
 kind: defect
 priority: P2
-status: pending
+status: in_progress
 depends_on: []
 languages: [go, sql, markdown]
 goal: "ART-R90, ART-R97, RUN-R47 and the Scheduler's output binding state the same rule for an outputs/<slot> binding that already exists, chosen with the user and recorded with its evidence and reversal condition."
@@ -43,25 +43,74 @@ context:
     scheduler/artifacts.go:77-99, ART-R99) is create-only by design and is
     not part of this decision. WFL-R71 (docs/spec/configuration/workflows.md)
     restates the binding rule and must follow the decision.
-  decision_needed: >-
-    Option A, create-only: ART-R90 says the Scheduler creates each output
-    binding once per Run, ART-R97 and RUN-R47 drop "may advance them", and
-    the specification states why no path needs more (the graph rule above,
-    successful results only, continuation of a failed Stage) and how a
-    mapping onto an existing binding fails anyway: a classified permanent
-    failure of that Stage's acceptance, never an endless retry. The code
-    keeps its binding statement; the work is the specification, the failure
-    classification and a test. A future Workflow shape that maps an output
-    again (loops, remapping after continuation) would need a new decision.
-    Option B, advance: bindOutput passes the current revision of an existing
-    outputs/<slot> binding as a compare-and-set precondition, or replays an
-    identical source, and the artifact store gains an advance path beside the
-    create-only fork, with an output_bind lineage edge for every revision;
-    frozen bindings still refuse. The specification stays as written; the
-    work is a new repository operation and tests for the precondition, a
-    replay after a lost commit, a frozen binding and concurrent acceptance,
-    for a case that may not be reachable today. Either way the choice, its
-    evidence and its reversal condition go into ART-R90.
+  decision: >-
+    Decided by the user on 2026-10-12: Option A, create-only. A Run binds
+    each outputs/<workflow output name> at most once: the Scheduler creates
+    the binding at the exact validated StageResult revision and never
+    advances or replaces it (ART-R90, WFL-R71). A mapping that meets an
+    existing binding forked by output_bind from the same exact source
+    revision is a replay and succeeds without a second revision; one that
+    meets a binding of any other revision is a classified permanent failure:
+    it binds nothing and the Run ends through FAIL-SCH-13 with
+    scheduler_state_invalid (SCH-R102), never retrying the acceptance.
+    Evidence that no valid Workflow reaches a second mapping: catalog load
+    rejects a graph in which a Stage maps an output that an earlier
+    successful Stage on the same path maps
+    (internal/config/resolved/workflow.go:224-228, now stated as WFL-R85 and
+    pinned by TestWorkflowGraphRejectsOutputMappedTwiceOnOnePath, which had
+    no test) and every next cycle (WFL-R44); on.succeeded allows only next
+    or succeed (WFL-R40), so a successful Stage never runs again in its Run;
+    a mapping applies only to a successful StageResult (ART-R90); manual
+    continuation re-runs only the latest failed or interrupted
+    StageExecution (RUN-R46, runstore/resume_store_sql.go), which bound
+    nothing; and the binding commits in the acceptance transaction, so a
+    lost commit leaves the Stage accepted and recovery does not repeat the
+    mapping. Alternative, Option B, advance: bindOutput passes the current
+    revision of an existing outputs/<slot> binding as a compare-and-set
+    precondition or replays an identical source, the artifact store gains an
+    advance path beside the create-only fork with an output_bind lineage
+    edge for every revision, and frozen bindings still refuse; it would add
+    a repository operation and its tests for a case no valid Workflow
+    reaches. Reversal condition: a Workflow shape that can map one output
+    twice in one Run, such as loops or remapping after continuation, needs a
+    new decision. Iterating on one artifact across different Workflows is a
+    Project-level concern, designed separately in
+    docs/proposals/0035-fast-forward-project-outputs.md (on the integration
+    branch claude/nice-gates-xce4d2); it does not need Run-internal advance.
+  implementation: >-
+    Re-verified on f625e86. bindOutput did not set Fork.Replay, so a mapping
+    of the identical source was a ConflictError too, not the replay that the
+    ambiguous outcome below expects; it now sets Replay and maps only Fork's
+    conflict to the new sentinel errOutputStateInvalid (a transient database
+    error is no conflict and stays ordinary). CommitResultProgression
+    returned the conflict as "bind Workflow output %q: %w", resumeFinalizing
+    returned it, and the released claim made every pass replay the same
+    rolled-back transaction: an endless retry of the V280 class.
+    resumeFinalizing now ends the Run through failInvalidRunState
+    (FAIL-SCH-13) on errOutputStateInvalid; errTransientOutputPublication
+    and transient database failures stay retryable. Siblings classified the
+    same way, because each reads only the durable candidate, the pinned
+    Workflow snapshot and immutable versions: a required Workflow output
+    without a Stage result (validateResultProgression and the
+    in-transaction check), an undeclared mapped output, a mapped media type
+    the output slot rejects, and at Run success a required output that is
+    not bound or a bound output whose media type its slot rejects
+    (verifyRequiredWorkflowOutputs). None is reachable for a candidate the
+    Scheduler stored: validateCandidate (stage_finalization.go) rejects such
+    a candidate before finalizing (TestMappedWorkflowOutputRejectsIncompatibleResultBeforeFinalizing)
+    and EnterFinalizingWithResult has no other production caller; the
+    classification keeps an inconsistent durable state from looping. Ruled
+    out: Fork's ErrArtifactNotFound and ErrArtifactIntegrity for a source
+    revision that entering finalizing verified and that no purge removes
+    while the Run is active. The memory double of CommitResultProgression
+    overwrote outputs/<slot>; it now replays the same source and refuses
+    another revision before changing anything, as the store does.
+    artifactstest.BindOutput stays create-only for the store refusal tests
+    of other packages, and its comment says so. SCH-R102 and FAIL-SCH-13 do
+    not enumerate causes and are unchanged; FAIL-ART-4 now states the
+    permanent, ambiguous and retryable outcomes. introduced_by is not
+    knowable: the "creates or advances" wording and the create-only binding
+    both come from the squashed initial import (63496210).
 scope:
   in:
     - "Record the decision with the user (A1) before any other change."
@@ -71,11 +120,11 @@ scope:
     - "Project output publication (ART-R99), which stays create-only."
 failure_outcomes:
   - operation: "Applying a workflowOutputs mapping onto an existing outputs/<slot> binding"
-    permanent: "Option A: a classified permanent failure of the Stage acceptance, never retried. Option B: a frozen binding refuses as today."
-    retryable: "A transaction conflict uses the existing bounded transaction retry of the acceptance."
-    ambiguous: "A replay after a lost commit finds the identical source revision and succeeds without a second revision."
-    cancelled: "The acceptance transaction rolls back with its context; nothing is bound."
-    timeout: "The Scheduler's acceptance budget owns it, as today."
+    permanent: "A binding of another revision binds nothing: errOutputStateInvalid ends the Run through FAIL-SCH-13 with scheduler_state_invalid, and the acceptance is not retried."
+    retryable: "A transient database failure is no conflict: the acceptance rolls back and finalization recovery replays it."
+    ambiguous: "A replay after a lost commit finds the binding forked by output_bind from the identical source revision and succeeds without a second revision."
+    cancelled: "The acceptance transaction rolls back with its context; nothing is bound. A cancellation that commits before the acceptance takes the cancellation path (ART-R91); one that commits before the FAIL-SCH-13 transaction makes it end the Run cancelled."
+    timeout: "The Scheduler's acceptance budget owns it, as before."
 acceptance_criteria:
   - id: A1
     text: "The decision (Option A or B), its evidence, the alternative and the reversal condition are recorded in ART-R90 and in this task after the user chose it."
@@ -86,5 +135,7 @@ acceptance_criteria:
 tests:
   - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/scheduler ./internal/artifacts ./internal/runstore"
     covers: [A2, A3]
+  - command: "go test -count=1 -run TestWorkflowGraphRejectsOutputMappedTwiceOnOnePath ./internal/config"
+    covers: [A1, A2]
   - command: make lint
     covers: [A1, A2, A3]

@@ -578,8 +578,9 @@ output, and its value must name a result artifact declared by the same Stage.
 successful StageResult while the WorkflowRun is still `running`. The
 StageResult value is an exact versioned ArtifactRef; Scheduler binds that
 version to `outputs/<output slot>` without resolving the source's current
-binding again. The transaction and lineage of that binding are owned by
-[ART-R90](../artifacts/artifact-store.md).
+binding again, and creates that binding at most once per Run. The transaction,
+the lineage and the outcome of a mapping that meets an existing binding are
+owned by [ART-R90](../artifacts/artifact-store.md).
 
 **WFL-R72.** There is no implicit output mapping based on artifact
 Namespace, name, list position or matching slot names.
@@ -598,6 +599,11 @@ accepted through the mapping.
 **WFL-R76.** A mapping whose Stage result slot and Workflow output
 slot declare media-type sets that cannot intersect is rejected at catalog
 load.
+
+**WFL-R85.** A Workflow graph in which a Stage maps a Workflow output that an
+earlier successful Stage on the same path from `entryStage` already maps is
+rejected at catalog load. With WFL-R40 and WFL-R44, a Run therefore maps each
+Workflow output at most once ([ART-R90](../artifacts/artifact-store.md)).
 
 ### Built-in workspace Workflows
 
@@ -659,7 +665,7 @@ Stage fields:
 | `context.artifacts` | Stage-local name to `{namespace, name, required}` | WFL-R59, WFL-R60 |
 | `context.workspace` | Workspace hydration | [Workspace](../tools/workspace.md) |
 | `result.artifacts` | Stage-local result name to slot contract plus `from` (omitted only by a workspace export slot) | WFL-R61 to WFL-R65 |
-| `workflowOutputs` | Workflow output slot to result name | WFL-R70 to WFL-R76 |
+| `workflowOutputs` | Workflow output slot to result name | WFL-R70 to WFL-R76, WFL-R85 |
 | `on` | `succeeded`, `failed`, `interrupted` actions | WFL-R36 to WFL-R51, WFL-R81, WFL-R82 |
 
 The strict WorkflowCatalog loader is the one validator of the authored `on`
@@ -725,6 +731,7 @@ workflow-bindings endpoint are owned by [AgentTemplates](agent-templates.md).
   (WFL-R43, WFL-R44).
 - A Stage attempt is never reopened: retry and escalation always create a new
   StageExecution (WFL-R42).
+- A Run maps each Workflow output at most once (WFL-R40, WFL-R44, WFL-R85).
 - Every persisted Stage carries an explicit session mode (WFL-R33).
 - `presentation` and `primary` never change execution behavior
   (WFL-R10, WFL-R67).
