@@ -1,7 +1,7 @@
 # Platform families: Runtime configuration and labels, project
 # workspaces, lifecycle controls, scheduling and performance.
 
-.PHONY: test-runtime-wire test-runtime-principals test-runtime-label-placement \
+.PHONY: test-runtime-principals test-runtime-label-placement \
 	test-runtime-configuration-matrix test-runtime-configuration-hardening \
 	test-runtime-configuration-e2e test-run-metadata-labels-matrix \
 	test-run-metadata-labels-hardening test-run-metadata-labels-e2e \
@@ -17,10 +17,6 @@
 	test-performance-postgres test-performance-browser \
 	test-performance-metrics benchmark-performance test-git-artifacts \
 	test-artifact-filesystem test-artifact-blob-backends
-
-test-runtime-wire:
-	go test ./internal/contracts/... ./internal/controlplane/...
-	cd runtime && uv run pytest tests/test_contracts.py tests/test_capabilities.py tests/test_settings.py tests/test_state.py tests/test_control_client.py
 
 test-runtime-principals: require-database
 	go test -count=1 ./internal/runtimeconfig ./internal/persistence/postgres

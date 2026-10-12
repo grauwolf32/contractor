@@ -2,7 +2,7 @@
 # languages share, and the Postgres-backed integration tests.
 
 .PHONY: test-go test-runtime test-runtime-hardening test-hardening-matrices \
-	test-contracts verify-wire-contracts test-wire-cross-language \
+	test-wire-cross-language \
 	test-config test-postgres test-runtime-config-postgres \
 	test-runtime-credentials test-litellm-contract test-mtls \
 	test-control-integration test-artifact-integration test-backup-restore \
@@ -22,17 +22,12 @@ test-hardening-matrices: runtime-venv
 	go test -count=1 ./tests/e2e
 	go test -tags=e2e -v -count=1 ./tests/e2e -run '^(TestAuditProgramsE2EConfigurationLoads|TestCodeAnalysisE2EConfigurationLoads|TestProductionMemoryConfigurationStaging|TestProjectWorkerBudgetMatchesPinnedPolicy|TestDomainGatewayFindsNamedInputAfterParameterBlock|TestDomainGatewayScriptedModelFailureAdvancesWithoutFixtureFailure|TestRuntimeWorkRootEmptyAllowsPersistentOwnerLock)$$'
 
-test-contracts:
-	go test ./internal/contracts/...
-	cd runtime && uv run pytest tests/test_contracts.py
-
-verify-wire-contracts:
+# The one wire contract gate: the whole contracts packages and Runtime contract
+# models, and every shared fixture on both sides.
+test-wire-cross-language:
 	go test ./internal/contracts/...
 	cd runtime && uv run pytest tests/test_contracts.py tests/test_performance_contracts.py
-
-test-wire-cross-language:
-	go test ./internal/contracts/... ./internal/config/... -run 'Golden|SharedPython|ResolvedSkills'
-	cd runtime && uv run pytest tests/test_contracts.py tests/test_performance_contracts.py -k 'golden or digest or resolved_skills'
+	go test ./internal/config/... -run 'Golden|SharedPython'
 	go test ./internal/contracts/reporting ./internal/controlplane -run '^TestShared(WorkerCompletionDiagnostics|CompletionDiagnosticsDecideRuntimeResponses)$$'
 	cd runtime && uv run pytest tests/test_audit_completion_diagnostics.py -k 'test_shared'
 	go test ./internal/contracts -run '^TestSharedRequiredMember(sMatchSchemas|CasesAreRejected)$$'

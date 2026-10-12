@@ -84,7 +84,7 @@ tests:
     covers: [A1, A2, A4]
   - command: cd runtime && uv run --frozen pytest -W error tests/test_capabilities.py tests/test_contracts.py tests/test_allocation.py tests/test_allocation_contracts.py tests/test_tool_worker.py
     covers: [A1, A2, A3, A5]
-  - command: make verify-wire-contracts test-wire-cross-language verify-public-api
+  - command: make test-wire-cross-language verify-public-api
     covers: [A2, A4]
 verification_requirements:
   - Use injectable fake dynamic factories for this task; enabling the real MCP factory is owned by V61-006 after lifecycle and ADK integration pass.

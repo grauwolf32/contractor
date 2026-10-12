@@ -74,7 +74,7 @@ test-worker-summarizer-e2e: test-worker-summarizer-hardening require-database ru
 test-worker-session-modes-runtime:
 	cd runtime && uv run pytest -W error tests/test_session_lifecycle.py tests/test_contracts.py tests/test_a2a_server.py tests/test_adk_runtime.py tests/test_allocation.py
 
-test-worker-session-modes-hardening: verify-wire-contracts test-wire-cross-language test-worker-session-modes-runtime
+test-worker-session-modes-hardening: test-wire-cross-language test-worker-session-modes-runtime
 	$(call run-family-test,go test -race -count=1 ./internal/config/... ./internal/contracts/... ./internal/controlplane/... ./internal/scheduler/... ./internal/httpapi/public/...)
 
 test-worker-session-modes-e2e: test-worker-session-modes-hardening require-database runtime-venv

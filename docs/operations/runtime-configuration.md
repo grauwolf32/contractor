@@ -166,7 +166,6 @@ Run the focused verification before release:
 ```shell
 go test -race ./internal/config/... ./internal/scheduler/... \
   ./internal/controlplane/... ./internal/httpapi/public/...
-make verify-wire-contracts
 make test-wire-cross-language
 make test-worker-session-modes-e2e
 ```
