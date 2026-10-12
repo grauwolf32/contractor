@@ -1184,6 +1184,7 @@ model {
   server.orchestration.stagePlanner -> server.runtimeOperations.gatewayRecovery 'Retry only the interrupted Planner model request with the same serialized input'
   runtimeAgent.allocationCapabilities.modelClient -> server.runtimeOperations.gatewayRecovery 'Private gateway-recovery route: classified failure reports and reopen decisions'
   server.runtimeOperations.gatewayRecovery -> artifactDatabase.gatewayRecoveryState 'Route gates, probe leases and route deadlines on the database clock'
+  server.runtimeOperations.gatewayRecovery -> server.workspaceLifecycle.runStore 'Lock the Run row and move the Run between running and waiting through the RunStore port'
   server.runtimeOperations.gatewayRecovery -> llmGateway 'One leased probe per blocked route; stale successes cannot reopen it'
   server.productSurface.publicApi -> server.runtimeOperations.gatewayRecovery 'POST /v1/runs/{runId}/retry-gateway reopens the bounded window; RunStatus.recovery'
 

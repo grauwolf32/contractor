@@ -714,6 +714,9 @@ const (
 	// ResumeFailedRun records the continuation receipt and the new attempt
 	// with the one transition out of failed (RUN-R46).
 	transitionByContinuation runTransitionOperation = "ResumeFailedRun"
+	// EnterWaiting and LeaveWaiting move an admitted Run between running and
+	// waiting for model-availability recovery (RUN-R30).
+	transitionByGatewayWait runTransitionOperation = "EnterWaiting and LeaveWaiting"
 )
 
 // runLifecycle is the WorkflowRun lifecycle of docs/spec/execution/runs.md,
@@ -724,8 +727,8 @@ const (
 var runLifecycle = map[[2]WorkflowRunState]runTransitionOperation{
 	{RunInitializing, RunPending}:    transitionByTransitionRun,
 	{RunPending, RunRunning}:         transitionByTransitionRun,
-	{RunRunning, RunWaiting}:         transitionByTransitionRun,
-	{RunWaiting, RunRunning}:         transitionByTransitionRun,
+	{RunRunning, RunWaiting}:         transitionByGatewayWait,
+	{RunWaiting, RunRunning}:         transitionByGatewayWait,
 	{RunRunning, RunSucceeded}:       transitionByTransitionRun,
 	{RunInitializing, RunFailed}:     transitionByTransitionRun,
 	{RunPending, RunFailed}:          transitionByTransitionRun,
@@ -742,8 +745,9 @@ var runLifecycle = map[[2]WorkflowRunState]runTransitionOperation{
 // ValidateRunTransition is the transition rule TransitionRun applies before
 // its compare-and-set: it returns ErrInvalid for an edge TransitionRun must
 // not perform, either because the lifecycle has no such edge or because
-// cancellation or manual continuation owns it. Test doubles of TransitionRun
-// apply it too, so they reject what the store rejects.
+// cancellation, manual continuation or the waiting operations own it. Test
+// doubles of TransitionRun apply it too, so they reject what the store
+// rejects.
 func ValidateRunTransition(expected, next WorkflowRunState) error {
 	if runLifecycle[[2]WorkflowRunState{expected, next}] != transitionByTransitionRun {
 		return invalidf("illegal WorkflowRun transition %s -> %s", expected, next)

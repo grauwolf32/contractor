@@ -5,7 +5,7 @@ milestone: hub-audit-structure-2026-10
 epic: execution-core
 kind: chore
 priority: P1
-status: pending
+status: in_progress
 depends_on: [V369-001]
 languages: [go]
 goal: "Only runstore issues UPDATE workflow_runs/stage_executions state (ownership test)."
@@ -18,6 +18,77 @@ context:
     (waiting.go:17-33, admission.go:64-67, a platform package writing an
     execution table) besides runstore; Run FOR UPDATE with a state check
     exists three times.
+  current_code: >-
+    Re-verified on 9032a2a (V369-001 and wave 1 merged): the scheduler no
+    longer writes the gateway tables (it calls gatewayrecovery.EndStage and
+    ReleaseAdmission), and its own waiting -> running UPDATE is gone
+    (EndStage returns the Run to running). The foreign writes and exclusive
+    locks left were the seven [known] entries of
+    internal/persistence/table_ownership.txt that named V370-001: scheduler
+    lockRunState and lockStageForRun (postgres.go:411-452), the three Stage
+    UPDATEs of FailRunWithActiveStages (postgres_sql.go:10-21,
+    postgres.go:353-381), and the admitted_at UPDATE, unadmitted check and
+    allocation DELETE of admission.go:37-77; gatewayrecovery lockRun
+    (store.go:65-77), setWaiting and resumeRun (waiting.go:11-40) and the
+    reason of a pending Run whose admission waits (admission.go:100-103);
+    the Planner Memory write fence (memory postgres.go:189-226); and the
+    Stage lock of allocation placement (controlplane placement.go:355-367).
+  siblings: >-
+    No Run or Stage write or exclusive lock remains outside runstore;
+    TestSQLAccessFollowsTableOwnership checks the whole repository. Reads that
+    stay are [reads] grants with their reason: gatewayrecovery (admission's
+    live-waiter check, the SCH-R165 fast path, recovery status and Retry's
+    owner check), memory (the read-only authority check of Planner Memory
+    reads) and scheduler (the Project and publication mode read of output
+    publication). The memory and public test doubles of TransitionRun follow
+    ValidateRunTransition, so they refuse running <-> waiting with the store;
+    the parity helpers in scheduler and httpapi/public reach waiting through
+    EnterWaiting, as recovery does. Out of scope and untouched: the
+    scheduler's and evalstore's copies of the artifact metadata query and
+    the other cross-context writes (V370-002), and the Run creation paths
+    (V370-012).
+  decision: >-
+    Guarantee (RUN-R106, PER-R23): runstore alone changes Run and Stage
+    state and takes their exclusive row locks, and each edge of the Run
+    lifecycle has one operation. New runstore operations, bound to the
+    caller's transaction (PostgresTxStore, PER-R18): LockRunState and
+    LockStageState (row lock, Run check, optional expected states; the
+    scheduler, Planner Memory and placement copies call them);
+    EnterWaiting, LeaveWaiting and RecordAdmissionWait (compare-and-set on
+    the Run state; a Run in another state is left as it is, as before);
+    FailRunWithActiveStages (Run lock, the three Stage statements and the
+    Run transition; NextState must be failed or cancelled, SCH-R102); and
+    DiscardUnadmittedAllocations. PostgresStore.MarkStageAdmitted replaces
+    the admitted_at UPDATE and the re-read that followed it. runLifecycle
+    gives running <-> waiting to the waiting operations, so TransitionRun
+    refuses those two edges; no production code used them. gatewayrecovery
+    (platform) cannot import runstore (execution), so it names a port,
+    gatewayrecovery.RunStates (LockRun, EnterWaiting, LeaveWaiting,
+    RecordAdmissionWait, each in the caller's pgx.Tx), which
+    runstore.GatewayRecoveryRuns implements without importing
+    gatewayrecovery; New and EndStage take it, and the app and the
+    scheduler pass it. LockRun reports a missing Run as "", which
+    acceptsUpdate refuses with ErrUnavailable, as pgx.ErrNoRows was before.
+    clearWaiting checks for the Run's remaining waits before LeaveWaiting
+    instead of a NOT EXISTS inside the Run UPDATE: every wait is inserted
+    and deleted under the Run row lock its caller holds, so none can appear
+    in between. Alternatives rejected: moving gatewayrecovery into the
+    execution layer (the audit's other option; it would put a platform
+    service in execution for one dependency); runstore implementing the
+    port by importing gatewayrecovery for ErrUnavailable (an import cycle
+    with gatewayrecovery's internal tests, which import runstore); a
+    LeaveWaiting call after EndStage in the scheduler (it would split the
+    SCH-R107 rule that ending a Stage ends its wait over five call sites).
+    Reversal: when recovery needs a Run change the port cannot express in its
+    transaction, extend RunStates and its runstore implementation instead of
+    writing workflow_runs in gatewayrecovery. introduced_by is not set: the
+    copies come from several earlier tasks whose commits lie outside this
+    shallow clone.
+  specification:
+    - docs/spec/platform/persistence.md#PER-R23
+    - docs/spec/execution/runs.md#RUN-R29
+    - docs/spec/execution/runs.md#RUN-R30
+    - docs/spec/execution/runs.md#RUN-R106
 scope:
   in:
     - "runstore methods with CAS for every transition (EnterWaiting/LeaveWaiting, FailRunWithActiveStages, LockRunState); gatewayrecovery reaches them through a port; the V369-001 allowlist loses these entries."

@@ -351,21 +351,19 @@ func (a *PlacementAllocator) pinReservations(
 		policies[reservation.Grant.AllocationID] = a.collectionPolicy(candidate.Registration)
 	}
 
-	var state, runID string
-	if err := tx.QueryRow(ctx, `
-SELECT state, run_id
-FROM stage_executions
-WHERE stage_execution_id = $1
-FOR UPDATE`, request.StageExecutionID).Scan(&state, &runID); err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
+	store := runstore.NewPostgresTxStore(tx)
+	if _, err := store.LockStageState(
+		ctx, request.RunID, request.StageExecutionID, runstore.StagePreparing,
+	); err != nil {
+		switch {
+		case errors.Is(err, runstore.ErrNotFound):
 			return runstore.ErrNotFound
+		case errors.Is(err, runstore.ErrConflict):
+			return runstore.ErrConflict
+		default:
+			return errors.New("lock StageExecution for allocation placement")
 		}
-		return errors.New("lock StageExecution for allocation placement")
 	}
-	if state != string(runstore.StagePreparing) || runID != request.RunID {
-		return runstore.ErrConflict
-	}
-	store := runstore.NewPostgresStore(tx)
 	for _, reservation := range reservations {
 		resolved := result[reservation.Grant.AllocationID]
 		configuration := &runstore.AllocationRuntimeConfiguration{
