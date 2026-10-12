@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-62 open tasks: 4 in progress, 44 pending, 14 deferred. 864 finished: 861 completed, 3 archived.
+62 open tasks: 3 in progress, 45 pending, 14 deferred. 865 finished: 862 completed, 3 archived.
 
 ## In progress
 
@@ -14,7 +14,6 @@ the epics are in [epics.yml](epics.yml).
 | [V40-002](v40-002-agent-instruction-paired-runner.yml) | evals | feature | P1 | Prepare instruction experiment bindings and a frozen plan after format readiness |
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
-| [V370-008](v370-008-remove-test-only-exports.yml) | quality | chore | P3 | Remove exported surface that only tests use |
 
 ## Pending
 
@@ -109,13 +108,14 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V347-001](v347-001-protect-main-branch.yml) | chore | P1 | — | Protect main with a required check |
-| [V369-007](v369-007-unused-export-lint.yml) | chore | P3 | V370-008 | Fail lint on exported identifiers used only by tests |
+| [V369-007](v369-007-unused-export-lint.yml) | chore | P3 | — | Fail lint on exported identifiers used only by tests |
 | [V371-015](v371-015-memory-claim-paused-skip.yml) | chore | P3 | — | Model the paused-owner claim skip in the Scheduler's memory store doubles |
 | [V371-021](v371-021-postgres-test-wall-clock.yml) | chore | P3 | — | Replace wall-clock budgets in the Scheduler and runstore PostgreSQL tests |
 | [V371-022](v371-022-capability-probe-test-budget.yml) | chore | P3 | — | Remove the 10 ms probe budget from the capability discovery tests |
 | [V371-023](v371-023-audit-route-test-timeouts.yml) | chore | P3 | — | Keep the Audit route UI tests within their timeout under load |
 | [V371-024](v371-024-browser-gate-ci-artifacts.yml) | chore | P3 | — | Keep browser gate screenshots and traces where CI uploads them |
 | [V371-025](v371-025-pnpm-root-invocation.yml) | chore | P3 | — | Document a pnpm invocation that works from the repository root |
+| [V372-030](v372-030-shrink-test-only-export-baseline.yml) | chore | P3 | V369-007 | Resolve the exported identifiers that only tests use and empty the test-only export baseline |
 
 ## Deferred
 
@@ -162,4 +162,4 @@ tasks in `introduced_by`.
 | Operations, authentication, CLI and deployment (`operations`) | 0 | 8 | 30 | 4 | 6 |
 | Public API and wire contracts (`api-contracts`) | 4 | 1 | 27 | 17 | 7 |
 | PostgreSQL persistence and schema (`persistence`) | 2 | 0 | 17 | 29 | 4 |
-| Quality, CI and process (`quality`) | 11 | 1 | 18 | 71 | 15 |
+| Quality, CI and process (`quality`) | 11 | 1 | 18 | 72 | 15 |
