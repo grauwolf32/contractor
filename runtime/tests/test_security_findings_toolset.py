@@ -14,6 +14,7 @@ from contractor_runtime.artifacts import (
 )
 from contractor_runtime.contracts import RuntimeSettings
 from contractor_runtime.core.input_errors import ToolInputError
+from contractor_runtime.finding_proposals import FindingProposalClient
 from contractor_runtime.toolsets.common.cwe import (
     CWEReferenceError,
     check_cwe_reference,
@@ -97,7 +98,9 @@ def test_finding_uses_runtime_identity_and_exact_evidence() -> None:
     async def scenario() -> None:
         client = FakeFindingClient()
         state = WorkerState()
-        factory = GeneralFindingsToolsetFactory(lambda _allocation, _settings: client)
+        factory = GeneralFindingsToolsetFactory(
+            lambda _allocation, _settings: ArtifactClient("allocation-1", client)
+        )
         tools = await factory.create_selected(
             selected=["finding"],
             allocation_id="allocation-1",
@@ -147,7 +150,7 @@ def test_finding_rejects_non_exact_and_duplicate_evidence() -> None:
         client = FakeFindingClient()
         state = WorkerState()
         tools = await GeneralFindingsToolsetFactory(
-            lambda _allocation, _settings: client  # type: ignore[arg-type]
+            lambda _allocation, _settings: ArtifactClient("allocation-1", client)
         ).create_selected(
             selected=["finding"],
             allocation_id="allocation-1",
@@ -176,8 +179,8 @@ def test_finding_rejects_non_exact_and_duplicate_evidence() -> None:
 def test_finding_transport_loss_retries_byte_identical_submission() -> None:
     async def scenario() -> None:
         transport = LossyFindingTransport()
-        client = ArtifactClient("allocation-1", transport)  # type: ignore[arg-type]
-        response = await client.submit_finding_proposal(
+        client = FindingProposalClient("allocation-1", transport)  # type: ignore[arg-type]
+        response = await client.submit(
             {
                 "apiVersion": "contractor/v1alpha1",
                 "invocationId": "worker-invocation-1",
@@ -200,24 +203,35 @@ class FakeToolContext:
 
 
 class FakeFindingClient:
+    """Fakes the finding submissions of one allocation.
+
+    A test that builds a FindingPublisher uses it as the FindingProposalClient
+    (``submit``); a test that builds a finding toolset uses it as the private
+    API transport of the allocation's ArtifactClient (``request``). Both record
+    the submitted requests.
+    """
+
     def __init__(self) -> None:
         self.requests: list[dict[str, object]] = []
 
-    async def submit_finding_proposal(self, request: dict[str, object]) -> dict[str, object]:
+    async def submit(self, request: dict[str, object]) -> dict[str, object]:
         self.requests.append(request)
-        return {
-            "apiVersion": "contractor/v1alpha1",
-            "proposalId": "proposal-1",
-            "receiptId": "receipt-1",
-            "proposal": {
-                "ref": {
-                    "namespace": "finding-proposals",
-                    "name": "proposal-1",
-                    "revision": "rev-1",
-                }
-            },
-            "replayed": False,
-        }
+        return json.loads(_receipt_response(201, replayed=False).body)
+
+    async def request(
+        self,
+        method: str,
+        path: str,
+        *,
+        headers: dict[str, str],
+        body: bytes,
+        max_response_bytes: int,
+    ) -> ArtifactHTTPResponse:
+        del headers, max_response_bytes
+        assert method == "POST"
+        assert path.startswith("/allocations/") and path.endswith("/finding-proposals")
+        self.requests.append(json.loads(body))
+        return _receipt_response(201, replayed=False)
 
 
 class LossyFindingTransport:
@@ -239,30 +253,34 @@ class LossyFindingTransport:
         self.bodies.append(body)
         if len(self.bodies) == 1:
             raise ArtifactTransportError("response lost")
-        payload = json.dumps(
-            {
-                "apiVersion": "contractor/v1alpha1",
-                "proposalId": "proposal-1",
-                "receiptId": "receipt-1",
-                "proposal": {
-                    "ref": {
-                        "namespace": "finding-proposals",
-                        "name": "proposal-1",
-                        "revision": "revision-1",
-                    },
-                    "digest": "sha256:" + "a" * 64,
-                    "mediaType": "application/json",
-                    "sizeBytes": 2,
+        return _receipt_response(200, replayed=True)
+
+
+def _receipt_response(status: int, *, replayed: bool) -> ArtifactHTTPResponse:
+    payload = json.dumps(
+        {
+            "apiVersion": "contractor/v1alpha1",
+            "proposalId": "proposal-1",
+            "receiptId": "receipt-1",
+            "proposal": {
+                "ref": {
+                    "namespace": "finding-proposals",
+                    "name": "proposal-1",
+                    "revision": "revision-1",
                 },
-                "replayed": True,
+                "digest": "sha256:" + "a" * 64,
+                "mediaType": "application/json",
+                "sizeBytes": 2,
             },
-            separators=(",", ":"),
-        ).encode()
-        return ArtifactHTTPResponse(
-            200,
-            {"content-type": "application/json", "content-length": str(len(payload))},
-            payload,
-        )
+            "replayed": replayed,
+        },
+        separators=(",", ":"),
+    ).encode()
+    return ArtifactHTTPResponse(
+        status,
+        {"content-type": "application/json", "content-length": str(len(payload))},
+        payload,
+    )
 
 
 def _settings() -> RuntimeSettings:

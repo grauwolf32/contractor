@@ -10,6 +10,7 @@ from contractor_runtime.adapters import AdapterHandles
 from contractor_runtime.adapters.host import EMPTY_ADAPTER_HANDLES
 from contractor_runtime.artifacts import ArtifactClient
 from contractor_runtime.contracts import RuntimeSettings
+from contractor_runtime.finding_proposals import FindingProposalClient
 from contractor_runtime.redaction import runtime_secrets
 from contractor_runtime.toolsets.common.artifacts import ArtifactClientFactory
 from contractor_runtime.toolsets.common.factory import require_metrics, require_selected_tools
@@ -203,7 +204,7 @@ class GeneralFindingsToolsetFactory:
         metrics = require_metrics(state, "finding toolset")
         client = self._client_factory(allocation_id, runtime_settings)
         publisher = FindingPublisher(
-            client,
+            FindingProposalClient(client.allocation_id, client.transport),
             metrics,
             runtime_secrets(runtime_settings),
             state,
