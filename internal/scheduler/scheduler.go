@@ -14,15 +14,6 @@ import (
 	"github.com/grauwolf32/contractor/internal/randomid"
 )
 
-// The process budgets (poll and lease-scan intervals, claim lease, operation,
-// planner, finalization and abort timeouts) have no package defaults: the
-// resolved ServerConfig owns them (OPS-R15) and New rejects missing values.
-const (
-	defaultMetricsCleanupInterval = 24 * time.Hour
-	defaultMetricsCleanupBatch    = 500
-	metricsCleanupDrainPause      = time.Second
-)
-
 type Scheduler struct {
 	store       Store
 	persistence AtomicPersistence
@@ -43,6 +34,10 @@ type Scheduler struct {
 	workflows   *workflowSnapshotCache
 }
 
+// New requires every dependency. The process budgets (poll and lease-scan
+// intervals, claim lease, operation, planner, finalization and abort
+// timeouts) have no package defaults: the resolved ServerConfig owns them
+// (OPS-R15) and New rejects missing values.
 func New(
 	store Store,
 	persistence AtomicPersistence,
@@ -53,16 +48,15 @@ func New(
 	options Options,
 ) (*Scheduler, error) {
 	if store == nil || persistence == nil || artifactResolver == nil || allocator == nil ||
-		workers == nil || planners == nil || options.Settings == nil {
+		workers == nil || planners == nil || options.Reports == nil || options.Settings == nil {
 		return nil, fmt.Errorf("Scheduler dependencies are incomplete")
 	}
 	applyOptionDefaults(&options)
 	// RunStore leases are stored with microsecond precision.
 	if options.PollInterval <= 0 || options.ClaimDuration.Microseconds() <= 0 || options.OperationTimeout <= 0 ||
 		options.PlannerTimeout <= 0 || options.FinalizationTimeout <= 0 || options.AbortTimeout <= 0 ||
-		options.LeaseScanInterval <= 0 || options.MetricsCleanupInterval <= 0 ||
-		options.MetricsCleanupBatch <= 0 || options.MetricsCleanupBatch > 10_000 {
-		return nil, fmt.Errorf("Scheduler durations are required and must be positive, and cleanup batch must be at most 10000")
+		options.LeaseScanInterval <= 0 {
+		return nil, fmt.Errorf("Scheduler durations are required and must be positive")
 	}
 	if err := validateRuntimeTransport(options.RuntimeTransport); err != nil {
 		return nil, err
@@ -79,12 +73,6 @@ func New(
 }
 
 func applyOptionDefaults(options *Options) {
-	if options.MetricsCleanupInterval == 0 {
-		options.MetricsCleanupInterval = defaultMetricsCleanupInterval
-	}
-	if options.MetricsCleanupBatch == 0 {
-		options.MetricsCleanupBatch = defaultMetricsCleanupBatch
-	}
 	if options.Clock == nil {
 		options.Clock = realClock{}
 	}

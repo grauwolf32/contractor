@@ -80,7 +80,7 @@ func (s *Scheduler) persistReports(
 			cancelResolution()
 		}
 		operationContext, cancel := s.terminalOperationContext(ctx)
-		err := s.store.RecordStageExecutionReport(operationContext, runstore.RecordStageExecutionReportParams{
+		err := s.options.Reports.RecordAllocationReport(operationContext, telemetry.AllocationReportEnvelope{
 			StageExecutionID: execution.StageExecutionID, AllocationID: allocation.AllocationID,
 			LogicalAgentName: allocation.LogicalAgentName, ReportSchemaVersion: contracts.APIVersion,
 			Report: report, PerformanceCollectionPolicy: allocation.PerformanceCollectionPolicy,
@@ -132,7 +132,7 @@ func (s *Scheduler) persistPlannerReport(
 	if report.Metrics.DurationMS != nil {
 		finishedAt = startedAt.Add(time.Duration(*report.Metrics.DurationMS) * time.Millisecond)
 	}
-	err := s.store.RecordPlannerExecutionReport(operationContext, runstore.RecordPlannerExecutionReportParams{
+	err := s.options.Reports.RecordPlannerReport(operationContext, telemetry.PlannerReportEnvelope{
 		StageExecutionID: execution.StageExecutionID,
 		SessionID:        *execution.PlannerSessionID, InvocationID: *execution.PlannerInvocationID,
 		StartedAt: startedAt, FinishedAt: finishedAt,
@@ -187,7 +187,7 @@ func applyPlannerTelemetryResult(
 
 func (s *Scheduler) rebuildStageMetrics(ctx context.Context, stageExecutionID string) {
 	operationContext, cancel := s.terminalOperationContext(ctx)
-	err := s.store.RebuildStageMetrics(operationContext, stageExecutionID, contracts.APIVersion)
+	_, err := s.options.Reports.RebuildStageMetrics(operationContext, stageExecutionID, contracts.APIVersion)
 	cancel()
 	if err != nil {
 		s.options.Logger.Warn(

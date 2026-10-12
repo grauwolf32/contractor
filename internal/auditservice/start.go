@@ -265,7 +265,8 @@ func (s *Service) startInTransaction(
 	if err != nil {
 		return StartedAudit{}, err
 	}
-	runs := runstore.NewRunCreationPostgresStore(tx, txLLMCredentials)
+	runtimeCredentials := credentials.NewRuntimeCredentialRepository(tx)
+	runs := runstore.NewRunCreationPostgresStore(tx, txLLMCredentials, runtimeCredentials)
 	runtimeSnapshot, err := runs.PinRuntimeLabels(ctx, selection.RuntimeLabels)
 	if err != nil {
 		return StartedAudit{}, err
@@ -276,7 +277,7 @@ func (s *Service) startInTransaction(
 	projectTarget := project.HTTPTarget.Clone()
 	projectRuntimeCredentialIDs := []string{}
 	if projectTarget != nil && projectTarget.Credential != nil {
-		if err := credentials.NewRuntimeCredentialRepository(tx).ValidateRuntimeCredentialUse(
+		if err := runtimeCredentials.ValidateRuntimeCredentialUse(
 			ctx, credentials.RuntimeCredentialUser{UserID: params.OwnerID, Operations: params.OperationsPrincipal},
 			projectTarget.Credential.CredentialID, string(projectTarget.Credential.Kind),
 		); err != nil {

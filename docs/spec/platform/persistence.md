@@ -123,6 +123,7 @@ own the rules of particular state are indexed in the next section.
 
 | Owner package | Tables and views |
 | --- | --- |
+| `internal/agentprincipal` | `runtime_agent_principals` |
 | `internal/artifacts` | `artifact_binding_revisions`, `artifact_bindings`, `artifact_blob_settings`, `artifact_blobs`, `artifact_lineage`, `artifact_scopes`, `artifact_versions` |
 | `internal/auditstore` | `audit_artifact_links`, `audit_controller_claims`, `audit_events`, `audit_execution_items`, `audit_executions`, `audit_finding_assessments`, `audit_finding_contributions`, `audit_findings`, `audit_idempotency`, `audit_items`, `audit_live_item_reviews` (view), `audit_report_pages`, `audit_review_decisions`, `audit_review_requests`, `audit_rounds`, `audits` |
 | `internal/credentials` | `credential_operations`, `git_ssh_keys`, `llm_credentials`, `runtime_credentials` |
@@ -133,7 +134,7 @@ own the rules of particular state are indexed in the next section.
 | `internal/persistence/postgres` | `contractor_schema_migrations` (the migration ledger) |
 | `internal/projectstore` | `projects` |
 | `internal/runstore` | `owner_queue_controls`, `planner_sessions`, `run_stage_resumptions`, `stage_allocations`, `stage_executions`, `stage_transition_decisions`, `workflow_run_events`, `workflow_run_output_publications`, `workflow_runs` |
-| `internal/runtimeconfig` | `runtime_agent_principals`, `runtime_config_versions`, `runtime_label_bindings`, `runtime_management_operations` |
+| `internal/runtimeconfig` | `runtime_config_versions`, `runtime_label_bindings`, `runtime_management_operations` |
 | `internal/settingsstore` | `scheduler_settings` |
 | `internal/telemetry` | `allocation_execution_reports`, `planner_execution_reports`, `stage_metrics` |
 

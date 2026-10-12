@@ -3,7 +3,6 @@ package runtimeconfig
 import (
 	"context"
 	"errors"
-	"slices"
 
 	"github.com/jackc/pgx/v5"
 )
@@ -46,18 +45,4 @@ func (s *BindingService) validateTargetInTransaction(ctx context.Context, tx pgx
 		return err
 	}
 	return validateSpecLLMCredentialInTransaction(ctx, tx, version.Spec, s.llmCredentials)
-}
-
-func samePrincipalSnapshots(left, right []RuntimeAgentPrincipal) bool {
-	if len(left) != len(right) {
-		return false
-	}
-	for index := range left {
-		if left[index].RuntimeAgentID != right[index].RuntimeAgentID ||
-			left[index].LabelRevision != right[index].LabelRevision ||
-			!slices.Equal(left[index].Labels, right[index].Labels) {
-			return false
-		}
-	}
-	return true
 }

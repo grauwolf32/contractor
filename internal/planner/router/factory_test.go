@@ -18,6 +18,7 @@ import (
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/contracts/runlabels"
 	"github.com/grauwolf32/contractor/internal/planner"
 	plannersession "github.com/grauwolf32/contractor/internal/planner/session"
@@ -628,8 +629,8 @@ func (unavailableWorkerStateReader) ReadWorkerState(
 	context.Context,
 	contracts.WorkerHandle,
 	string,
-) (planner.WorkerStateReadResult, error) {
-	return planner.WorkerStateReadResult{}, &planner.WorkerStateReadError{
+) (reporting.WorkerStateReadResult, error) {
+	return reporting.WorkerStateReadResult{}, &reporting.WorkerStateReadError{
 		Code: "runtime_unavailable", Retryable: true,
 	}
 }

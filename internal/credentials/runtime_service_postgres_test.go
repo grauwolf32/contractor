@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/agentprincipal"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
@@ -266,7 +267,7 @@ func TestRuntimeCredentialDeleteSerializesWithRuntimeConfigBindings(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
-	management, err := runtimeconfig.NewManagementService(pool, publisher, bindings)
+	management, err := runtimeconfig.NewManagementService(pool, publisher, bindings, agentprincipal.LabelHolders{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -391,7 +392,7 @@ func TestRuntimeCredentialDeleteSerializesWithRuntimeConfigBindings(t *testing.T
 		if providerErr != nil {
 			return providerErr
 		}
-		store := runstore.NewRunCreationPostgresStore(tx, lookup)
+		store := runstore.NewRunCreationPostgresStore(tx, lookup, NewRuntimeCredentialRepository(tx))
 		pinned, pinErr := store.PinRuntimeLabels(ctx, []string{"run-debug"})
 		if pinErr != nil {
 			return pinErr

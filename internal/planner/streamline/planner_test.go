@@ -1279,8 +1279,8 @@ func (unavailableWorkerStateReader) ReadWorkerState(
 	context.Context,
 	contracts.WorkerHandle,
 	string,
-) (planner.WorkerStateReadResult, error) {
-	return planner.WorkerStateReadResult{}, &planner.WorkerStateReadError{
+) (reporting.WorkerStateReadResult, error) {
+	return reporting.WorkerStateReadResult{}, &reporting.WorkerStateReadError{
 		Code: "runtime_unavailable", Retryable: true,
 	}
 }
