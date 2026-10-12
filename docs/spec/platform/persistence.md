@@ -399,6 +399,7 @@ Failure outcomes ([failure model](failure-model.md)):
 Lifecycle ([lifecycle](lifecycle.md)):
 
 - LIFE-PER-1 — the advisory lease (PER-R2, PER-R4, PER-R6, PER-R10).
+- LIFE-PER-2 — the receipt of a keyed mutation (PER-R23).
 
 Errors ([registry](errors.md)): `/readyz` returns `503` on a standby Server
 until it acquires the advisory lease (PER-R3). The `/readyz` `503` for an
