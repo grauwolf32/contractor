@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-85 open tasks: 3 in progress, 68 pending, 14 deferred. 866 finished: 863 completed, 3 archived.
+86 open tasks: 4 in progress, 68 pending, 14 deferred. 866 finished: 863 completed, 3 archived.
 
 ## In progress
 
@@ -14,6 +14,7 @@ the epics are in [epics.yml](epics.yml).
 | [V40-002](v40-002-agent-instruction-paired-runner.yml) | evals | feature | P1 | Prepare instruction experiment bindings and a frozen plan after format readiness |
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
+| [V373-002](v373-002-erd-schema-reductions-text.yml) | persistence | chore | P3 | Describe every schema reduction truthfully in the database ERD |
 
 ## Pending
 
@@ -194,5 +195,5 @@ tasks in `introduced_by`.
 | Web UI (`ui`) | 2 | 19 | 53 | 10 | 48 |
 | Operations, authentication, CLI and deployment (`operations`) | 0 | 8 | 30 | 4 | 6 |
 | Public API and wire contracts (`api-contracts`) | 9 | 1 | 29 | 20 | 8 |
-| PostgreSQL persistence and schema (`persistence`) | 5 | 0 | 19 | 32 | 7 |
+| PostgreSQL persistence and schema (`persistence`) | 6 | 0 | 19 | 33 | 8 |
 | Quality, CI and process (`quality`) | 15 | 1 | 18 | 75 | 15 |

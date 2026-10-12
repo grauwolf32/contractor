@@ -1,0 +1,40 @@
+schema_version: "1.0"
+id: V373-002
+title: "Describe every schema reduction truthfully in the database ERD"
+milestone: hub-audit-defects-2026-10
+epic: persistence
+kind: chore
+introduced_by: V370-007
+priority: P3
+status: in_progress
+depends_on: []
+languages: [javascript, json, markdown]
+goal: "The ERD's summary, removed-table list and fold flags describe both schema reductions without false arithmetic: V365's removals and V370-007's fold of three receipt tables into mutation_receipts."
+context:
+  review: "Coordinator review of docs/spec/database-erd.html while updating the published ERD artifact after wave 2 (main @ f86ec83)"
+  finding: >-
+    V370-007 added audit_idempotency, eval_mutation_receipts and
+    runtime_management_operations to scripts/erd/meta.json `removed`, which
+    the page lists under "Удалено в V365" (scripts/erd/template.html:313).
+    The summary (template.html:398) says "Сокращение V365 убрало 23 таблицы:
+    93 → 70": it attributes all 23 removals to V365 and computes the earlier
+    count as removed + current, which is wrong once a reduction adds a table
+    (mutation_receipts) or other tables were added meanwhile
+    (audit_report_pages). mutation_receipts also has no "вобрала" flag, so
+    the page does not say where the three tables went except in the removed
+    list, and the fold legend says columns moved "в V365".
+scope:
+  in:
+    - "A neutral section title for removed tables, a summary without the derived earlier count, and a fold legend that is not tied to V365."
+    - "A fold flag for mutation_receipts naming the three tables it absorbed."
+    - "The generator README and the regenerated docs/spec/database-erd.html."
+  out:
+    - "The schema, the table descriptions and the remaining candidate verdicts."
+acceptance_criteria:
+  - id: A1
+    text: "The regenerated page names 23 removed tables and 70 current tables without an earlier total, lists the removed tables under a section that names no single task, and flags mutation_receipts as having absorbed the three receipt tables."
+tests:
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> make docs-erd"
+    covers: [A1]
+  - command: make lint
+    covers: [A1]
