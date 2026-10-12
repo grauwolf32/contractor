@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config"
@@ -840,8 +841,9 @@ func TestAuditReportAcceptanceUsesFrozenCandidate(t *testing.T) {
 		t.Fatal(err)
 	}
 	artifact := func(name, media, content string) auditstore.ExactArtifact {
-		written, err := artifacts.NewService(artifacts.NewPostgresRepository(pool)).WriteAuditArtifact(
-			ctx, project.ProjectID, contracts.ArtifactRef{Namespace: "audit-report-review", Name: name},
+		written, err := artifactstest.WriteAuditArtifact(
+			ctx, artifacts.NewService(artifacts.NewPostgresRepository(pool)), project.ProjectID,
+			contracts.ArtifactRef{Namespace: "audit-report-review", Name: name},
 			artifacts.Payload{MediaType: media, Data: []byte(content)},
 		)
 		if err != nil {
@@ -1426,7 +1428,7 @@ func seedAuditFindingDocument(
 	if err != nil {
 		t.Fatal(err)
 	}
-	written, err := artifacts.NewService(artifacts.NewPostgresRepository(pool)).WriteAuditArtifact(ctx, projectID,
+	written, err := artifactstest.WriteAuditArtifact(ctx, artifacts.NewService(artifacts.NewPostgresRepository(pool)), projectID,
 		contracts.ArtifactRef{Namespace: "audit-finding-proposals", Name: "candidate-" + suffix},
 		artifacts.Payload{MediaType: "application/json", Data: payload})
 	if err != nil {

@@ -160,8 +160,12 @@ SELECT retained_evidence_bytes + $2 <= max_evidence_bytes
 	if err != nil {
 		return err
 	}
-	contractWrite, err := artifactService.WriteAuditArtifact(
-		ctx, input.ProjectID,
+	project, err := artifacts.ProjectScope(input.ProjectID)
+	if err != nil {
+		return err
+	}
+	contractWrite, err := artifactService.CreateFrozen(
+		ctx, project,
 		contracts.ArtifactRef{
 			Namespace: namespace,
 			Name:      deterministicID("direct-contract", input.ReceiptID),

@@ -168,6 +168,7 @@ type LineageEdge struct {
 	CreatedAt     time.Time   `json:"createdAt"`
 }
 
+// Lineage kinds name how a fork related its target to its source (ART-R77).
 const (
 	LineageInputFork            = "input_fork"
 	LineageOutputBind           = "output_bind"
@@ -175,34 +176,68 @@ const (
 	LineageAuditImport          = "audit_import"
 )
 
-// Repository is implemented by PostgreSQL and can be bound either to a pool
-// or to a caller-owned transaction.
-type Repository interface {
-	Write(context.Context, Scope, ArtifactRef, Payload, *string) (WriteResult, error)
-	Read(context.Context, Scope, ArtifactRef) (ReadResult, error)
-	ListRefs(context.Context, Scope, RefPageQuery) (RefPage, error)
-	ForkInput(context.Context, Scope, ArtifactRef, Scope, string) (ForkResult, error)
-	BindOutputExact(context.Context, Scope, string, ArtifactRef, *string) (ForkResult, error)
-	RequireExact(context.Context, Scope, ArtifactRef) error
-	FreezeOutputs(context.Context, Scope) error
+// Fork describes one trusted fork: a new target binding whose first revision
+// reuses the immutable version of a source revision, without copying bytes,
+// and a lineage edge of Kind from that source revision to it (ART-R77). The
+// purpose-specific Server flow that performs a fork owns its Namespaces, names
+// and authorization (ART-R72); Service.Fork enforces only the rules every fork
+// shares.
+type Fork struct {
+	// Kind is one of the Lineage kinds.
+	Kind string
+	// Source is the scope SourceRef is resolved in. A fork reads a UserScope
+	// or ProjectScope source into a RunScope, a RunScope source into a
+	// ProjectScope that owns the Run, or one Run binding into another of the
+	// same RunScope.
+	Source Scope
+	// SourceRef is exact, or versionless to fork the current revision.
+	SourceRef ArtifactRef
+	// SourceFrozen admits only the frozen current revision of the source
+	// binding.
+	SourceFrozen bool
+	Target       Scope
+	// TargetRef is versionless. A fork only creates: an existing target
+	// binding is a *ConflictError.
+	TargetRef ArtifactRef
+	// Frozen creates the target binding frozen.
+	Frozen bool
+	// Replay returns an existing target binding instead of a conflict when its
+	// current revision was forked with Kind from the same exact source
+	// revision, so a retried fork succeeds.
+	Replay bool
 }
 
-// QueryRepository is a read-only extension so simple write-path fakes do not
-// need to implement UI query semantics. Production PostgreSQL implements both
-// interfaces over the same transaction or pool.
-type QueryRepository interface {
+// Repository is the one storage port of Service. PostgresRepository is its
+// only production implementation; the port exists so that the handler and
+// catalog unit suites run on in-memory doubles without a database. Service
+// validates every request before it reaches the port, so implementations
+// trust their arguments.
+type Repository interface {
+	// Write creates target when expectedRevision is nil and otherwise advances
+	// the unfrozen binding whose current revision it is (WritePrecondition).
+	Write(context.Context, Scope, ArtifactRef, Payload, *string) (WriteResult, error)
+	// CreateFrozen creates target frozen. An existing binding is a
+	// *ConflictError or ErrArtifactFrozen, as for a Write that only creates.
+	CreateFrozen(context.Context, Scope, ArtifactRef, Payload) (WriteResult, error)
+	Read(context.Context, Scope, ArtifactRef) (ReadResult, error)
 	Metadata(context.Context, Scope, ArtifactRef) (Metadata, error)
+	ListRefs(context.Context, Scope, RefPageQuery) (RefPage, error)
 	ListMetadata(context.Context, Scope, BindingPageQuery) ([]Metadata, error)
 	ListVersions(context.Context, Scope, ArtifactRef, VersionPageQuery) ([]Metadata, error)
 	ListLineage(context.Context, Scope, ArtifactRef, LineagePageQuery) ([]LineageEdge, error)
+	ListPrefix(ctx context.Context, scope Scope, namespace, prefix string, limit int) ([]ArtifactRef, error)
+	ReadPrefixBatch(ctx context.Context, scope Scope, namespace, prefix string, limit int) ([]ReadResult, error)
+	Fork(context.Context, Fork) (ForkResult, error)
+	// Freeze freezes every binding of namespace in scope.
+	Freeze(ctx context.Context, scope Scope, namespace string) error
+	RequireExact(context.Context, Scope, ArtifactRef) error
 }
 
+// validateScope rejects a Scope that its constructors would not return, such
+// as the zero value.
 func validateScope(scope Scope) error {
-	if scope.kind != ScopeUser && scope.kind != ScopeProject && scope.kind != ScopeRun ||
-		strings.TrimSpace(scope.id) == "" || strings.ContainsRune(scope.id, 0) {
-		return ErrInvalidScope
-	}
-	return nil
+	_, err := newScope(scope.kind, scope.id)
+	return err
 }
 
 func validateComponent(value string) error {
@@ -223,6 +258,17 @@ func validateRef(ref ArtifactRef) error {
 		if err := validateRevision(*ref.Revision); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+// validateTarget validates a versionless write or fork target.
+func validateTarget(ref ArtifactRef) error {
+	if err := validateRef(ref); err != nil {
+		return err
+	}
+	if ref.Revision != nil {
+		return ErrVersionedWriteTarget
 	}
 	return nil
 }
@@ -251,12 +297,12 @@ func validatePayload(payload Payload) error {
 	return nil
 }
 
-func exactRevision(ref ArtifactRef) (string, error) {
+func validateExact(ref ArtifactRef) error {
 	if err := validateRef(ref); err != nil {
-		return "", err
+		return err
 	}
 	if ref.Revision == nil {
-		return "", ErrExactRevisionRequired
+		return ErrExactRevisionRequired
 	}
-	return *ref.Revision, nil
+	return nil
 }

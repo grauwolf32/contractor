@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
 	"github.com/grauwolf32/contractor/internal/auth"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/configload"
@@ -2004,7 +2005,7 @@ func TestRunOutputDownloadRequiresOwnerAndReturnsExactMetadata(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	bound, err := fixture.artifacts.BindOutputExact(t.Context(), "run-owned", "result", source.Ref, nil)
+	bound, err := artifactstest.BindOutput(t.Context(), fixture.artifacts, "run-owned", "result", source.Ref)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2053,7 +2054,7 @@ func TestRawArtifactBytesAreNeverRenderedInAPIOrigin(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := fixture.artifacts.BindOutputExact(t.Context(), "run-owned", "result", source.Ref, nil); err != nil {
+	if _, err := artifactstest.BindOutput(t.Context(), fixture.artifacts, "run-owned", "result", source.Ref); err != nil {
 		t.Fatal(err)
 	}
 	for _, path := range []string{

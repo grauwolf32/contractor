@@ -63,15 +63,19 @@ func NewProjectArtifactAccess(service *artifacts.Service) (*ProjectArtifactAcces
 
 // PutImmutableProject writes a content-named manifest or task package as a
 // frozen Audit artifact. A crash after the write but before intent creation
-// is recovered by WriteAuditArtifact, which returns the identical binding
-// without staging another blob.
+// is recovered by CreateFrozen, which returns the identical binding without
+// staging another blob.
 func (a *ProjectArtifactAccess) PutImmutableProject(
 	ctx context.Context,
 	projectID string,
 	target contracts.ArtifactRef,
 	payload artifacts.Payload,
 ) (auditstore.ExactArtifact, error) {
-	written, err := a.service.WriteAuditArtifact(ctx, projectID, target, payload)
+	project, err := artifacts.ProjectScope(projectID)
+	if err != nil {
+		return auditstore.ExactArtifact{}, err
+	}
+	written, err := a.service.CreateFrozen(ctx, project, target, payload)
 	if errors.Is(err, artifacts.ErrAuditArtifactCollision) {
 		return auditstore.ExactArtifact{}, fmt.Errorf("%w: immutable Audit artifact binding collision: %v", ErrInvalidSubmission, err)
 	}

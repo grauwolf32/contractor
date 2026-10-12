@@ -175,11 +175,7 @@ func (h *handler) getRunRepeatDraft(w http.ResponseWriter, r *http.Request) {
 func (h *handler) loadRunRepeatSnapshot(
 	ctx context.Context, run runstore.WorkflowRun,
 ) (runrepeat.Snapshot, error) {
-	retained, err := h.dependencies.Artifacts.ReadRunRepeatRequest(ctx, run.RunID)
-	if err != nil {
-		return runrepeat.Snapshot{}, err
-	}
-	snapshot, err := runrepeat.Decode(retained.Payload.Data)
+	snapshot, err := runrepeat.Load(ctx, h.dependencies.Artifacts, run.RunID)
 	if err != nil {
 		return runrepeat.Snapshot{}, err
 	}

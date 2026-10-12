@@ -13,6 +13,7 @@ import (
 	"time"
 
 	. "github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config"
@@ -185,18 +186,18 @@ func (f preparationFixture) collecting(t *testing.T, intent auditstore.CreateExe
 			if err != nil {
 				t.Fatal(err)
 			}
-			bound, err := f.artifacts.BindOutputExact(f.ctx, runID, names[1], written.Ref, nil)
+			bound, err := artifactstest.BindOutput(f.ctx, f.artifacts, runID, names[1], written.Ref)
 			if err != nil {
 				t.Fatal(err)
 			}
 			outputs = append(outputs, auditstore.PreparationOutput{LogicalName: names[0], WorkflowOutput: names[1],
 				Source: auditstore.ExactArtifact{Ref: bound.TargetRef, Digest: auditdomain.DigestBytes(payload), MediaType: media, SizeBytes: int64(len(payload))}})
 		}
-		if err := f.artifacts.FreezeRunOutputs(f.ctx, runID); err != nil {
+		if err := artifactstest.FreezeOutputs(f.ctx, f.artifacts, runID); err != nil {
 			t.Fatal(err)
 		}
 		for i := range outputs {
-			retained, err := f.artifacts.ImportAuditArtifact(f.ctx, runID, outputs[i].Source.Ref, f.audit.ProjectID,
+			retained, err := importAuditArtifact(f.ctx, f.artifacts, runID, outputs[i].Source.Ref, f.audit.ProjectID,
 				ArtifactRef{Namespace: auditdomain.ArtifactNamespace(f.audit.AuditID), Name: execution.ExecutionID + "-" + outputs[i].LogicalName})
 			if err != nil {
 				t.Fatal(err)

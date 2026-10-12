@@ -123,9 +123,7 @@ func (s *Service) CreateAudit(ctx context.Context, params AuditCreateParams) (Cr
 				); metadataErr != nil {
 					return metadataErr
 				}
-				fork, forkErr := artifactService.ForkProjectInput(
-					ctx, intent.ProjectID, descriptor.Ref, runID, slot,
-				)
+				fork, forkErr := forkInput(ctx, artifactService, projectScope, descriptor.Ref, runID, slot)
 				if forkErr != nil {
 					return forkErr
 				}

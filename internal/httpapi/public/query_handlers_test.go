@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -483,7 +484,7 @@ func TestRunDetailJoinsImmutableObjectiveTypedPlanInputsAndCursor(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := fixture.artifacts.ForkInput(t.Context(), "user-1", source.Ref, "run-detail", "source"); err != nil {
+	if _, err := artifactstest.ForkInput(t.Context(), fixture.artifacts, "user-1", source.Ref, "run-detail", "source"); err != nil {
 		t.Fatal(err)
 	}
 	sessionID, invocationID := "session-detail", "invocation-detail"
@@ -565,9 +566,7 @@ func TestArtifactQueriesPreserveExactHistoryLineageAndRunOwnership(t *testing.T)
 		"run-artifacts", "user-1", runstore.RunRunning,
 		time.Date(2026, 8, 30, 12, 0, 0, 0, time.UTC),
 	)
-	if _, err := fixture.artifacts.ForkInput(
-		t.Context(), "user-1", first.Ref, "run-artifacts", "source",
-	); err != nil {
+	if _, err := artifactstest.ForkInput(t.Context(), fixture.artifacts, "user-1", first.Ref, "run-artifacts", "source"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -628,9 +627,7 @@ func TestArtifactQueriesPreserveExactHistoryLineageAndRunOwnership(t *testing.T)
 		t.Fatalf("RunScope download = %d, headers %v, body %q", download.Code, download.Header(), download.Body.String())
 	}
 	for _, runID := range []string{"lineage-a", "lineage-b"} {
-		if _, err := fixture.artifacts.ForkInput(
-			t.Context(), "user-1", second.Ref, runID, "source",
-		); err != nil {
+		if _, err := artifactstest.ForkInput(t.Context(), fixture.artifacts, "user-1", second.Ref, runID, "source"); err != nil {
 			t.Fatal(err)
 		}
 	}

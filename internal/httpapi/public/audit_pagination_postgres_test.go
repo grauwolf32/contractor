@@ -13,6 +13,7 @@ import (
 
 	"github.com/getkin/kin-openapi/routers/gorillamux"
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
@@ -275,7 +276,7 @@ func seedPublicPaginationFinding(t *testing.T, ctx context.Context, pool *pgxpoo
 	if err != nil {
 		t.Fatal(err)
 	}
-	written, err := artifacts.NewService(artifacts.NewPostgresRepository(pool)).WriteAuditArtifact(ctx, projectID,
+	written, err := artifactstest.WriteAuditArtifact(ctx, artifacts.NewService(artifacts.NewPostgresRepository(pool)), projectID,
 		contracts.ArtifactRef{Namespace: "audit-proposals", Name: document.ClientKey},
 		artifacts.Payload{MediaType: "application/json", Data: payload})
 	if err != nil {

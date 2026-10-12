@@ -11,6 +11,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
 	"github.com/grauwolf32/contractor/internal/auth"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -87,9 +88,9 @@ func TestPostgresRunRepeatRequiresRetainedAuthorityWithoutMutation(t *testing.T)
 						t.Fatal(err)
 					}
 					if projectID == nil {
-						_, err = service.ForkInput(ctx, "user-1", source.Ref, runID, "source")
+						_, err = artifactstest.ForkInput(ctx, service, "user-1", source.Ref, runID, "source")
 					} else {
-						_, err = service.ForkProjectInput(ctx, *projectID, source.Ref, runID, "source")
+						_, err = artifactstest.ForkProjectInput(ctx, service, *projectID, source.Ref, runID, "source")
 					}
 					if err != nil {
 						t.Fatal(err)
@@ -126,7 +127,7 @@ func TestPostgresRunRepeatRequiresRetainedAuthorityWithoutMutation(t *testing.T)
 						runScope, _ := artifacts.RunScope(runID)
 						_, err = repository.Write(ctx, runScope, contracts.ArtifactRef{Namespace: artifactpolicy.RunSystemNamespace, Name: artifactpolicy.RunRepeatRequestName}, artifacts.Payload{MediaType: "text/plain", Data: retained}, nil)
 					} else if variant != "missing" {
-						_, err = service.WriteRunRepeatRequest(ctx, runID, retained)
+						err = runrepeat.Retain(ctx, service, runID, retained)
 					}
 					if err != nil {
 						t.Fatal(err)

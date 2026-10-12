@@ -15,7 +15,6 @@ import (
 
 type metadataOnlyRepository struct {
 	artifacts.Repository
-	artifacts.QueryRepository
 	readCalls int
 	ref       contracts.ArtifactRef
 }

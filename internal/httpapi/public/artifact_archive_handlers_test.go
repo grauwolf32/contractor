@@ -13,6 +13,7 @@ import (
 	"github.com/getkin/kin-openapi/routers/gorillamux"
 	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/httpapi/httpx"
 	"github.com/grauwolf32/contractor/internal/projectstore"
@@ -68,7 +69,7 @@ func TestArtifactArchiveScopesAndExactRevision(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				fork, err := fixture.artifacts.ForkInput(t.Context(), "user-1", source.Ref, "run-one", "package")
+				fork, err := artifactstest.ForkInput(t.Context(), fixture.artifacts, "user-1", source.Ref, "run-one", "package")
 				if err != nil {
 					t.Fatal(err)
 				}

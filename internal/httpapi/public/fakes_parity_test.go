@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -123,9 +124,10 @@ func createParityRunInState(
 }
 
 // TestFakeArtifactRepositoryWritesMatchPostgres refuses the same binding
-// writes in the fake and the PostgreSQL repository: a frozen Run output takes
-// no write whatever revision the write expects, and an open binding takes
-// only the write that expects its current revision.
+// writes in the fake and the PostgreSQL repository: a frozen binding takes no
+// write whatever revision the write expects, a Run output is only created,
+// whether frozen or open, and an open binding takes only the write that
+// expects its current revision.
 func TestFakeArtifactRepositoryWritesMatchPostgres(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
@@ -157,9 +159,9 @@ func TestFakeArtifactRepositoryWritesMatchPostgres(t *testing.T) {
 }
 
 // bindingWriteRefusals binds an output of run-frozen-outputs and freezes it,
-// binds an open output of run-open-outputs and writes a user artifact, then
-// returns how each write in the table was refused, in order. The Runs exist
-// wherever the repository needs them.
+// binds an open output of run-open-outputs, writes a user artifact and a
+// user artifact it freezes, then returns how each write in the table was
+// refused, in order. The Runs exist wherever the repository needs them.
 func bindingWriteRefusals(t *testing.T, ctx context.Context, repository artifacts.Repository) []error {
 	t.Helper()
 	service := artifacts.NewService(repository)
@@ -177,14 +179,13 @@ func bindingWriteRefusals(t *testing.T, ctx context.Context, repository artifact
 		return written.Ref
 	}
 	frozenSource, openSource := source("run-frozen-outputs"), source("run-open-outputs")
-	frozen, err := service.BindOutputExact(ctx, "run-frozen-outputs", "result", frozenSource, nil)
-	if err != nil {
+	if _, err := artifactstest.BindOutput(ctx, service, "run-frozen-outputs", "result", frozenSource); err != nil {
 		t.Fatal(err)
 	}
-	if err := service.FreezeRunOutputs(ctx, "run-frozen-outputs"); err != nil {
+	if err := artifactstest.FreezeOutputs(ctx, service, "run-frozen-outputs"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := service.BindOutputExact(ctx, "run-open-outputs", "result", openSource, nil); err != nil {
+	if _, err := artifactstest.BindOutput(ctx, service, "run-open-outputs", "result", openSource); err != nil {
 		t.Fatal(err)
 	}
 	user, err := service.User("user-parity")
@@ -195,10 +196,22 @@ func bindingWriteRefusals(t *testing.T, ctx context.Context, repository artifact
 	if _, err := user.Write(ctx, draft, payload, nil); err != nil {
 		t.Fatal(err)
 	}
+	archived := contracts.ArtifactRef{Namespace: "archive", Name: "report"}
+	frozen, err := user.Write(ctx, archived, payload, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	userScope, err := artifacts.UserScope("user-parity")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := service.Freeze(ctx, userScope, archived.Namespace); err != nil {
+		t.Fatal(err)
+	}
 	stale := "rev-stale"
-	bind := func(runID string, source artifacts.ArtifactRef, expected *string) func() error {
+	bind := func(runID string, source artifacts.ArtifactRef) func() error {
 		return func() error {
-			_, err := service.BindOutputExact(ctx, runID, "result", source, expected)
+			_, err := artifactstest.BindOutput(ctx, service, runID, "result", source)
 			return err
 		}
 	}
@@ -210,11 +223,11 @@ func bindingWriteRefusals(t *testing.T, ctx context.Context, repository artifact
 	}
 	refusals := make([]error, 0, 8)
 	for _, refused := range []func() error{
-		bind("run-frozen-outputs", frozenSource, frozen.TargetRef.Revision),
-		bind("run-frozen-outputs", frozenSource, nil),
-		bind("run-frozen-outputs", frozenSource, &stale),
-		bind("run-open-outputs", openSource, nil),
-		bind("run-open-outputs", openSource, &stale),
+		write(archived, frozen.Ref.Revision),
+		write(archived, nil),
+		write(archived, &stale),
+		bind("run-frozen-outputs", frozenSource),
+		bind("run-open-outputs", openSource),
 		write(draft, nil),
 		write(draft, &stale),
 		write(contracts.ArtifactRef{Namespace: "notes", Name: "absent"}, &stale),

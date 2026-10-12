@@ -10,6 +10,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/configtest"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -104,11 +105,11 @@ func TestRunRepeatDraftBlocksMissingOrInvalidAuthorityDespiteLineage(t *testing.
 			run.PublicationMode = runstore.PublicationOrdinary
 			run.RuntimeConfig = runtimeconfig.BuiltInRunSnapshot()
 			fixture.runs.runs[run.RunID] = run
-			if _, err := fixture.artifacts.ForkInput(t.Context(), run.OwnerID, source.Ref, run.RunID, "source"); err != nil {
+			if _, err := artifactstest.ForkInput(t.Context(), fixture.artifacts, run.OwnerID, source.Ref, run.RunID, "source"); err != nil {
 				t.Fatal(err)
 			}
 			if test.snapshot != "" {
-				if _, err := fixture.artifacts.WriteRunRepeatRequest(t.Context(), run.RunID, []byte(test.snapshot)); err != nil {
+				if err := runrepeat.Retain(t.Context(), fixture.artifacts, run.RunID, []byte(test.snapshot)); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -211,7 +212,7 @@ func TestRunRepeatDraftReportsChangedRuntimeBinding(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := fixture.artifacts.WriteRunRepeatRequest(t.Context(), run.RunID, retained); err != nil {
+	if err := runrepeat.Retain(t.Context(), fixture.artifacts, run.RunID, retained); err != nil {
 		t.Fatal(err)
 	}
 	fixture.runtimeConfigs.mu.Lock()

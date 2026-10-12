@@ -164,17 +164,11 @@ func (s *Service) CreatePublic(ctx context.Context, params PublicCreateParams) (
 				}
 				exactSources := make(map[string]contracts.ArtifactRef, len(normalized.Inputs))
 				for _, slot := range sortedInputSlots(normalized.Inputs) {
-					var fork artifacts.ForkResult
-					var forkErr error
-					if normalized.ProjectID == nil {
-						fork, forkErr = artifactService.ForkInput(
-							ctx, normalized.OwnerID, normalized.Inputs[slot], runID, slot,
-						)
-					} else {
-						fork, forkErr = artifactService.ForkProjectInput(
-							ctx, *normalized.ProjectID, normalized.Inputs[slot], runID, slot,
-						)
+					sourceScope, scopeErr := inputSourceScope(normalized.OwnerID, normalized.ProjectID)
+					if scopeErr != nil {
+						return scopeErr
 					}
+					fork, forkErr := forkInput(ctx, artifactService, sourceScope, normalized.Inputs[slot], runID, slot)
 					if forkErr != nil {
 						return forkErr
 					}
@@ -190,7 +184,7 @@ func (s *Service) CreatePublic(ctx context.Context, params PublicCreateParams) (
 				if encodeErr != nil {
 					return encodeErr
 				}
-				if _, err := artifactService.WriteRunRepeatRequest(ctx, runID, repeatRequest); err != nil {
+				if err := runrepeat.Retain(ctx, artifactService, runID, repeatRequest); err != nil {
 					return err
 				}
 				if len(selectedSkills) == 0 {
@@ -280,6 +274,38 @@ func validateWorkflowInputs(
 		}
 	}
 	return nil
+}
+
+// forkInput forks the Workflow input source, an exact revision or the current
+// one, from the source scope the caller authorized into inputs/<slot> of runID,
+// with input_fork lineage and without copying bytes (ART-R75 to ART-R77).
+// Only these forks create inputs/<slot>; a Project source must belong to the
+// Run's Project.
+func forkInput(
+	ctx context.Context,
+	service *artifacts.Service,
+	sourceScope artifacts.Scope,
+	source contracts.ArtifactRef,
+	runID string,
+	slot string,
+) (artifacts.ForkResult, error) {
+	run, err := artifacts.RunScope(runID)
+	if err != nil {
+		return artifacts.ForkResult{}, err
+	}
+	return service.Fork(ctx, artifacts.Fork{
+		Kind: artifacts.LineageInputFork, Source: sourceScope, SourceRef: source,
+		Target: run, TargetRef: contracts.ArtifactRef{Namespace: "inputs", Name: slot},
+	})
+}
+
+// inputSourceScope is the scope public Run creation forks inputs from: the
+// owner's UserScope for a standalone Run, the ProjectScope for a Project Run.
+func inputSourceScope(ownerID string, projectID *string) (artifacts.Scope, error) {
+	if projectID == nil {
+		return artifacts.UserScope(ownerID)
+	}
+	return artifacts.ProjectScope(*projectID)
 }
 
 func sortedInputSlots[T any](source map[string]T) []string {

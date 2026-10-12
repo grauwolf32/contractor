@@ -141,10 +141,10 @@ func TestAuditManagedRunSkipsGenericProjectOutputPublication(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := artifactService.BindOutputExact(ctx, runID, "result", workerResult.Ref, nil); err != nil {
+	if _, err := bindOutput(ctx, artifactService, runID, "result", workerResult.Ref); err != nil {
 		t.Fatal(err)
 	}
-	if err := artifactService.FreezeRunOutputs(ctx, runID); err != nil {
+	if err := freezeOutputs(ctx, artifactService, runID); err != nil {
 		t.Fatal(err)
 	}
 	if err := persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
