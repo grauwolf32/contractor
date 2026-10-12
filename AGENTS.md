@@ -173,9 +173,10 @@ implementations; ten remain. Do not add an eleventh:
   RuntimeConfig versions, Runtime credentials, Audit executions, Eval
   members, Audit review requests and decisions); natural keys make proposal
   receipts, Stage resumptions, transition decisions, output publications,
-  recovery failures and collection receipts idempotent; the LLM credential
-  journal (`credential_operations`) guards outbound calls; a finding
-  collection's receipt is an Artifact binding;
+  recovery failures and collection receipts idempotent; journals of
+  outbound calls (`credential_operations`, `eval_suboperations`) record a
+  call's key before the call; a finding collection's receipt is an Artifact
+  binding;
 - leases: controller claims through `persistencepostgres.ControllerClaims`
   (PER-R24), the Scheduler's Run claim, the Project deletion claim, the
   Gateway recovery probe and the active Server's session lease.

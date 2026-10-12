@@ -354,7 +354,8 @@ deleted. A request whose key is a column of the row it creates (a Run, a
 Project, a RuntimeConfig version, a Runtime credential, an Audit execution,
 an Eval member or an Audit review request or decision) keeps the key on that
 row, and an operation that journals an outbound call keeps its journal
-(`credential_operations`); neither is a keyed mutation here.
+(`credential_operations`, `eval_suboperations`); neither is a keyed mutation
+here.
 
 Every transaction advisory lock key, of a keyed mutation or of any other
 serialization, is built from a namespace and parts by one builder that writes
