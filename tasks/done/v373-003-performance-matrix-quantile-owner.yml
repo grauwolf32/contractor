@@ -6,7 +6,8 @@ epic: operations
 kind: defect
 introduced_by: V370-008
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: "149e9b96d80d6b1d30ca32143dc73d30ccda27d6"
 depends_on: []
 languages: [yaml]
 goal: "The bounded_histogram_quantiles case of the performance metrics matrix names a test that exists and covers the production read-time quantile derivation, so TestPerformanceMetricsMatrixIsComplete passes."
