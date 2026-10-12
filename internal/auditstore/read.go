@@ -12,7 +12,6 @@ import (
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 func (s *PostgresStore) GetRound(ctx context.Context, auditID, roundID string) (Round, error) {
@@ -631,16 +630,19 @@ SELECT count(*) FILTER (WHERE collection_disposition = 'accepted-result'),
 }
 
 // snapshotTransaction reads every part of a reconcile snapshot from one
-// commit. A read-only REPEATABLE READ transaction takes no row locks and
-// cannot fail with a serialization conflict, so it is never retried.
+// commit. On a pool, persistencepostgres.Within replays a transaction
+// conflict, but a read-only REPEATABLE READ transaction takes no row locks
+// and cannot fail with a serialization conflict, so that retry never
+// triggers and the snapshot is never read twice.
 var snapshotTransaction = pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly}
 
 // GetReconcileSnapshot reads the claimed Audit's reconcile snapshot. A
 // pool-backed store reads all of it in one read-only REPEATABLE READ
 // transaction, so an owner mutation or child Run transition is visible in
-// every part of the snapshot or in none; a transaction-backed store reads it
-// in the caller's transaction. The number of statements does not depend on
-// the Audit's items, executions or child Runs.
+// every part of the snapshot or in none (AUX-R95); a transaction-backed store
+// reads it in the caller's transaction, whose isolation level the caller
+// owns (PER-R18). The number of statements does not depend on the Audit's
+// items, executions or child Runs.
 func (s *PostgresStore) GetReconcileSnapshot(
 	ctx context.Context,
 	claim ControllerClaim,
@@ -648,12 +650,8 @@ func (s *PostgresStore) GetReconcileSnapshot(
 	if err := validateClaimIdentity(claim); err != nil {
 		return ReconcileSnapshot{}, err
 	}
-	pool, ok := s.db.(*pgxpool.Pool)
-	if !ok {
-		return s.readReconcileSnapshot(ctx, claim)
-	}
 	var result ReconcileSnapshot
-	err := persistencepostgres.InTx(ctx, pool, snapshotTransaction, func(tx pgx.Tx) error {
+	err := persistencepostgres.Within(ctx, s.db, snapshotTransaction, func(tx pgx.Tx) error {
 		var err error
 		result, err = NewPostgresStore(tx).readReconcileSnapshot(ctx, claim)
 		return err

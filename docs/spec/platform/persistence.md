@@ -415,6 +415,13 @@ outlasts its retries is the retryable `503 storage_transaction_conflict`
     The Run deletion locks exist only on transaction-bound stores; test
     `TestDeletionLocksRequireTransaction` in
     [`internal/rundeletion/deleter_postgres_test.go`](../../../internal/rundeletion/deleter_postgres_test.go).
+    So do the Audit start staging lock and resume renewal; test
+    `TestStartStagingLockRequiresTransaction` in
+    [`internal/auditstore/transaction_bound_test.go`](../../../internal/auditstore/transaction_bound_test.go).
+    The Audit reconcile snapshot is one commit on a pool and runs inside a
+    caller's transaction; test
+    `TestPostgresReconcileSnapshotReadsOneCommitOnAPoolAndInACallerTransaction`
+    in [`internal/auditstore/reconcile_snapshot_postgres_test.go`](../../../internal/auditstore/reconcile_snapshot_postgres_test.go).
 14. A transaction begun outside InTx keeps the operation budget (PER-R19);
     tests `TestPostgresBeginTxAppliesTheOperationBudget` in
     [`internal/persistence/postgres/within_postgres_test.go`](../../../internal/persistence/postgres/within_postgres_test.go)

@@ -130,7 +130,7 @@ func (s *Service) stageStart(ctx context.Context, params StartParams) (startPlan
 }
 
 func stageStartInTransaction(ctx context.Context, tx pgx.Tx, params StartParams) (startPlan, error) {
-	audit, err := auditstore.NewPostgresStore(tx).LockForStartStaging(ctx, params.OwnerID, params.AuditID)
+	audit, err := auditstore.NewPostgresTxStore(tx).LockForStartStaging(ctx, params.OwnerID, params.AuditID)
 	if err != nil {
 		return startPlan{}, err
 	}
