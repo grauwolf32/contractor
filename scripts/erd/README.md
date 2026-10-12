@@ -22,7 +22,12 @@ drops the database. It needs `psql`, Go and Node.js.
 
 After a migration adds, drops or renames a table, update `meta.json`; the
 build fails and names every table it cannot describe, and every flag or
-description that no longer matches the schema.
+description that no longer matches the schema. Give the table its owner
+package and the same group in the table ownership registry
+[`internal/persistence/table_ownership.txt`](../../internal/persistence/table_ownership.txt)
+too: `TestTableOwnershipMatchesTheSchemaDocuments` fails while `meta.json`
+and the registry name different tables or groups (PER-R18 in
+[persistence.md](../../docs/spec/platform/persistence.md)).
 
 Regenerate the page with every migration. `make lint` runs
 [`scripts/check_database_erd.py`](../check_database_erd.py), which needs no
