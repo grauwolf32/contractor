@@ -6,7 +6,8 @@ epic: execution-core
 kind: defect
 introduced_by: V3-008
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: "d0a719b059d1bafa3c38f119c1bfef2eaefcbe67"
 depends_on: []
 languages: [go, markdown]
 goal: "A Stage progression that meets durable state the Scheduler cannot progress, such as an invalid escalation history or an unbounded Transition policy, ends the Run once through FAIL-SCH-13 instead of failing the same commit on every Scheduler pass; transient store errors stay retryable."
