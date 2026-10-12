@@ -82,11 +82,16 @@ func TestPostgresAuditPurgeAtScaleProbesForeignKeysThroughIndexes(t *testing.T) 
 		t.Fatal(err)
 	}
 	defer func() { _ = setup.Rollback(context.WithoutCancel(ctx)) }()
-	// The copies only need to satisfy the table constraints; the triggers
-	// guard the store's own writes.
-	if _, err := setup.Exec(ctx, `SET LOCAL session_replication_role = replica`); err != nil {
-		t.Fatal(err)
+	// The copies satisfy every constraint and foreign key, but not the
+	// triggers that guard the store's own execution writes, such as the Run
+	// each execution must match. The test owns its schema, so it switches
+	// them off for the copies; no other copied table has an insert trigger.
+	toggleExecutionTriggers := func(action string) {
+		if _, err := setup.Exec(ctx, `ALTER TABLE audit_executions `+action+` TRIGGER USER`); err != nil {
+			t.Fatal(err)
+		}
 	}
+	toggleExecutionTriggers("DISABLE")
 	backgroundID := `'` + background.AuditID + `'`
 	cloneRows(t, ctx, setup, "audit_executions", "execution_id", f.execution.ExecutionID, purgeScaleExecutions, map[string]string{
 		"execution_id":          `src.execution_id || '-scale-' || n`,
@@ -104,6 +109,7 @@ func TestPostgresAuditPurgeAtScaleProbesForeignKeysThroughIndexes(t *testing.T) 
 		"run_provenance":        `jsonb_set(src.run_provenance, '{runId}', to_jsonb('background-run-' || n))`,
 		"collection_receipt_id": `'background-collection-' || n`,
 	})
+	toggleExecutionTriggers("ENABLE")
 	cloneRows(t, ctx, setup, "audit_finding_assessments", "assessment_id", "assessment-receipt-purge-scale", purgeScaleAssessments, map[string]string{
 		"assessment_id": `src.assessment_id || '-scale-' || n`,
 		"result_digest": `'sha256:' || lpad(to_hex(n), 64, '0')`,
