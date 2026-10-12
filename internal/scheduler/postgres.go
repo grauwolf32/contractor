@@ -7,7 +7,7 @@ import (
 	"sort"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	workflowconfig "github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/gatewayrecovery"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -521,7 +521,7 @@ func commitTerminalRun(
 	tx pgx.Tx,
 	store *runstore.PostgresStore,
 	runID string,
-	outputContracts map[string]workflowconfig.ArtifactSlot,
+	outputContracts map[string]resolved.ArtifactSlot,
 	progression StageProgression,
 	publicationFailures int,
 ) error {
@@ -571,7 +571,7 @@ func publishProjectOutputs(
 	ctx context.Context,
 	tx pgx.Tx,
 	runID string,
-	outputContracts map[string]workflowconfig.ArtifactSlot,
+	outputContracts map[string]resolved.ArtifactSlot,
 	publicationFailures int,
 ) error {
 	var projectID *string
@@ -739,7 +739,7 @@ func verifyRequiredWorkflowOutputs(
 	ctx context.Context,
 	tx pgx.Tx,
 	runID string,
-	contractsByName map[string]workflowconfig.ArtifactSlot,
+	contractsByName map[string]resolved.ArtifactSlot,
 ) error {
 	names := make([]string, 0, len(contractsByName))
 	for name := range contractsByName {

@@ -12,6 +12,7 @@ import (
 	"sort"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/configtest"
 )
 
@@ -57,7 +58,7 @@ func TestSnapshotAccessorResultsShareNoMemoryWithSnapshot(t *testing.T) {
 	writeFile(t, filepath.Join(root, "execution-configs/detached_override.yaml"), []byte(detachedOverrideProfile))
 	replaceFile(t, filepath.Join(root, "workflows/openapi_from_workspace_v5.yaml"), "ref: strong-oas-review@1",
 		"agents: {validator: {llmGateway: local-litellm@1, credential: development-worker}}")
-	snapshot := mustLoad(t, root, MVPDescriptors())
+	snapshot := mustLoad(t, root)
 	owned := newSpanIndex(mutableSpans(reflect.ValueOf(snapshot).Elem(), "Snapshot"))
 
 	type accessorResult struct {
@@ -116,7 +117,7 @@ func TestSnapshotAccessorResultsShareNoMemoryWithSnapshot(t *testing.T) {
 	// callers read them only through Page, which must return detached copies.
 	workflowDiscovery, err := snapshot.WorkflowDiscovery()
 	record("WorkflowDiscovery", "", workflowDiscovery.Page("", math.MaxInt,
-		func(WorkflowRef, WorkflowPresentation) bool { return true }), err)
+		func(resolved.WorkflowRef, resolved.WorkflowPresentation) bool { return true }), err)
 	credentials := developmentCredentialLookup(t, snapshot)
 	workflows := snapshot.Workflows()
 	record("Workflows", "", workflows, nil)
@@ -124,8 +125,8 @@ func TestSnapshotAccessorResultsShareNoMemoryWithSnapshot(t *testing.T) {
 		selector := listed.Ref.Name + "@" + listed.Ref.Version
 		workflow, err := snapshot.Workflow(selector)
 		record("Workflow", selector, workflow, err)
-		resolved, err := snapshot.ResolveRunWorkflow(t.Context(), selector, ExecutionConfigPatch{}, credentials)
-		record("ResolveRunWorkflow", selector, resolved, err)
+		runWorkflow, err := snapshot.ResolveRunWorkflow(t.Context(), selector, resolved.ExecutionConfigPatch{}, credentials)
+		record("ResolveRunWorkflow", selector, runWorkflow, err)
 		for _, stage := range workflow.Stages {
 			instructionRefs[stage.Instructions.Ref] = struct{}{}
 		}
@@ -275,7 +276,7 @@ func (x spanIndex) overlap(span memorySpan) (memorySpan, bool) {
 func TestSnapshotAccessorsReturnDeepCopies(t *testing.T) {
 	t.Parallel()
 
-	snapshot := mustLoad(t, copyCoreFixture(t), MVPDescriptors())
+	snapshot := mustLoad(t, copyCoreFixture(t))
 
 	policy, _ := snapshot.ModelPolicy("test-worker@1")
 	*policy.Temperature = 99
@@ -300,9 +301,9 @@ func TestSnapshotAccessorsReturnDeepCopies(t *testing.T) {
 	}
 
 	workflow, _ := snapshot.Workflow("artifact-copy@1")
-	workflow.Inputs["source"] = ArtifactSlot{Required: false, MediaTypes: []string{"corrupted/type"}}
+	workflow.Inputs["source"] = resolved.ArtifactSlot{Required: false, MediaTypes: []string{"corrupted/type"}}
 	stage := workflow.Stages["copy"]
-	stage.Result.Artifacts["copied"] = ArtifactSlot{MediaTypes: []string{"corrupted/type"}}
+	stage.Result.Artifacts["copied"] = resolved.ArtifactSlot{MediaTypes: []string{"corrupted/type"}}
 	binding := stage.Agents["builder"]
 	binding.Template.Toolsets[0].Tools[0] = "corrupted"
 	stage.Agents["builder"] = binding

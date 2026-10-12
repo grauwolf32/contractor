@@ -5,26 +5,26 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 )
 
 func TestEvalLegacyPassthroughCountersPreserveWorkerCompleteness(t *testing.T) {
 	for _, tc := range []struct {
 		name             string
-		planner          config.PlannerRef
+		planner          resolved.PlannerRef
 		missingWorker    bool
 		unavailableUsage int
 		incompleteReport bool
 		wantIncomplete   bool
 	}{
-		{name: "legacy passthrough", planner: config.PlannerRef{PlannerID: "passthrough", Version: "1"}},
+		{name: "legacy passthrough", planner: resolved.PlannerRef{PlannerID: "passthrough", Version: "1"}},
 		{name: "unknown planner", wantIncomplete: true},
-		{name: "model planner", planner: config.PlannerRef{PlannerID: "streamline", Version: "1"}, wantIncomplete: true},
-		{name: "unknown passthrough version", planner: config.PlannerRef{PlannerID: "passthrough", Version: "2"}, wantIncomplete: true},
-		{name: "missing Worker counter", planner: config.PlannerRef{PlannerID: "passthrough", Version: "1"}, missingWorker: true, wantIncomplete: true},
-		{name: "unavailable Worker usage", planner: config.PlannerRef{PlannerID: "passthrough", Version: "1"}, unavailableUsage: 1, wantIncomplete: true},
-		{name: "incomplete report", planner: config.PlannerRef{PlannerID: "passthrough", Version: "1"}, incompleteReport: true},
+		{name: "model planner", planner: resolved.PlannerRef{PlannerID: "streamline", Version: "1"}, wantIncomplete: true},
+		{name: "unknown passthrough version", planner: resolved.PlannerRef{PlannerID: "passthrough", Version: "2"}, wantIncomplete: true},
+		{name: "missing Worker counter", planner: resolved.PlannerRef{PlannerID: "passthrough", Version: "1"}, missingWorker: true, wantIncomplete: true},
+		{name: "unavailable Worker usage", planner: resolved.PlannerRef{PlannerID: "passthrough", Version: "1"}, unavailableUsage: 1, wantIncomplete: true},
+		{name: "incomplete report", planner: resolved.PlannerRef{PlannerID: "passthrough", Version: "1"}, incompleteReport: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			calls, input, output, total := int64(3), int64(100), int64(20), int64(120)

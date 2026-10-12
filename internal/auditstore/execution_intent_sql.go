@@ -1,6 +1,6 @@
 package auditstore
 
-import "github.com/grauwolf32/contractor/internal/config"
+import "github.com/grauwolf32/contractor/internal/config/auditprofile"
 
 // executionIntentEvents record execution intent $4 of role $5 for workflow
 // role $13 with the members $12.
@@ -44,7 +44,7 @@ WITH member_input AS MATERIALIZED (
        AND settings.singleton = true
        AND audit.state = 'active' AND audit.dispatch_state = 'open'
        AND (audit.deadline_at IS NULL OR audit.deadline_at > clock_timestamp())
-	   AND ` + profileRoleSQL("#>>", "$13::text", config.AuditWorkflowKindMember) + ` = $5
+	   AND ` + profileRoleSQL("#>>", "$13::text", auditprofile.AuditWorkflowKindMember) + ` = $5
      FOR UPDATE OF audit, settings
 ), round_gate AS MATERIALIZED (
     SELECT round.round_id, round.state
@@ -93,7 +93,7 @@ WITH member_input AS MATERIALIZED (
 	       AND (
            ($5 = 'prepare' AND $6::text IS NULL AND audit.current_round_id IS NULL
              AND audit.phase = 'preparing' AND jsonb_array_length($12::jsonb) = 0
-             AND $7::integer BETWEEN 1 AND (` + profileRoleSQL("#>>", "$13::text", config.AuditWorkflowMaxRunAttemptsMember) + `)::integer
+             AND $7::integer BETWEEN 1 AND (` + profileRoleSQL("#>>", "$13::text", auditprofile.AuditWorkflowMaxRunAttemptsMember) + `)::integer
              AND $7::integer = COALESCE((SELECT max(previous.role_attempt) + 1 FROM audit_executions AS previous
                  WHERE previous.audit_id = audit.audit_id AND previous.role = 'prepare' AND previous.workflow_role = $13), 1)
              AND NOT EXISTS (SELECT 1 FROM audit_executions AS previous

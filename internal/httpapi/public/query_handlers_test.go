@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/planner"
@@ -117,9 +117,9 @@ func TestWorkflowDetailProjectsSafeSkillRequirements(t *testing.T) {
 // projection, Repeat, Audit and Eval tests; expectations come from its files.
 const publicCatalogFixture = "testdata/catalog"
 
-func catalogWorkflow(t *testing.T, selector string) config.ResolvedWorkflow {
+func catalogWorkflow(t *testing.T, selector string) resolved.ResolvedWorkflow {
 	t.Helper()
-	snapshot, err := configload.Load(publicCatalogFixture, config.MVPDescriptors())
+	snapshot, err := configload.Load(publicCatalogFixture)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -130,7 +130,7 @@ func catalogWorkflow(t *testing.T, selector string) config.ResolvedWorkflow {
 	return workflow
 }
 
-func workflowDetailTarget(workflow config.ResolvedWorkflow) string {
+func workflowDetailTarget(workflow resolved.ResolvedWorkflow) string {
 	return "/v1/workflows/" + url.PathEscape(workflow.Ref.Name) +
 		"/versions/" + url.PathEscape(workflow.Ref.Version)
 }
@@ -454,7 +454,7 @@ func TestOwnerQueueControlIsDurableCASAndIdempotent(t *testing.T) {
 
 func TestRunDetailJoinsImmutableObjectiveTypedPlanInputsAndCursor(t *testing.T) {
 	fixture := newHandlerFixture(t)
-	snapshot, err := configload.Load("../../config/testdata/valid", config.MVPDescriptors())
+	snapshot, err := configload.Load("../../config/testdata/valid")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -14,7 +14,8 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstandards"
 	"github.com/grauwolf32/contractor/internal/auditstore"
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/auditprofile"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/credentials"
@@ -95,7 +96,7 @@ func (s *Service) Start(ctx context.Context, params StartParams) (StartedAudit, 
 // which proves the profile snapshot and the input selection unchanged.
 type startPlan struct {
 	revision  uint64
-	profile   config.ResolvedAuditProfile
+	profile   auditprofile.ResolvedAuditProfile
 	selection DraftSelection
 	standards []auditstandards.PinnedPackage
 	round     *startRound
@@ -137,7 +138,7 @@ func stageStartInTransaction(ctx context.Context, tx pgx.Tx, params StartParams)
 	if audit.State != auditstore.AuditDraft || audit.Revision != params.ExpectedRevision {
 		return startPlan{}, auditstore.ErrPrecondition
 	}
-	profile, err := config.DecodeResolvedAuditProfileSnapshot(audit.ProfileSnapshot)
+	profile, err := auditprofile.DecodeResolvedAuditProfileSnapshot(audit.ProfileSnapshot)
 	if err != nil || profile.Ref.Name != audit.Profile.Name ||
 		profile.Ref.Version != audit.Profile.Version || profile.Ref.Digest != audit.Profile.Digest {
 		return startPlan{}, fmt.Errorf("stored AuditProfile snapshot failed validation")
@@ -382,7 +383,7 @@ func (s *Service) startInTransaction(
 
 // materializeInventoryItems is shared by direct start and prepared initial
 // inventory. Workers never supply item identity, approval or coverage authority.
-func materializeInventoryItems(auditID string, profile config.ResolvedAuditProfile, inventory auditdomain.Inventory, taskArtifacts []auditstore.ExactArtifact) ([]auditstore.MaterializedItem, error) {
+func materializeInventoryItems(auditID string, profile auditprofile.ResolvedAuditProfile, inventory auditdomain.Inventory, taskArtifacts []auditstore.ExactArtifact) ([]auditstore.MaterializedItem, error) {
 	items := make([]auditstore.MaterializedItem, len(inventory.Worklist.Items))
 	for index, item := range inventory.Worklist.Items {
 		coverage := inventory.Coverage.Rows[index]
@@ -450,7 +451,7 @@ func auditStandardLinks(pinned []auditstandards.PinnedPackage) ([]auditstore.Art
 
 func materializedItemApproval(
 	auditID string,
-	profile config.ResolvedAuditProfile,
+	profile auditprofile.ResolvedAuditProfile,
 	itemID string,
 	item auditdomain.WorklistItem,
 	task auditstore.ExactArtifact,
@@ -490,8 +491,8 @@ func materializedItemApproval(
 
 func (s *Service) validateProfileDependencies(
 	ctx context.Context,
-	profile config.ResolvedAuditProfile,
-	llmCredentials config.CredentialLookup,
+	profile auditprofile.ResolvedAuditProfile,
+	llmCredentials resolved.CredentialLookup,
 ) ([]string, []contracts.ArtifactRef, [][]string, error) {
 	credentialSets := make([][]string, 0, len(profile.Workflows))
 	skillsByName := make(map[string]contracts.ArtifactRef)
@@ -503,25 +504,25 @@ func (s *Service) validateProfileDependencies(
 	sort.Strings(roles)
 	for _, role := range roles {
 		workflow := profile.Workflows[role].Workflow
-		if err := config.ValidateResolvedWorkflowCredentials(ctx, workflow, llmCredentials); err != nil {
+		if err := resolved.ValidateResolvedWorkflowCredentials(ctx, workflow, llmCredentials); err != nil {
 			// A lookup outage keeps its cause: recovery and transaction
 			// conflicts stay retryable and reach the start replay check.
-			if errors.Is(err, config.ErrCredentialLookup) {
+			if errors.Is(err, resolved.ErrCredentialLookup) {
 				return nil, nil, nil, err
 			}
 			return nil, nil, nil, fmt.Errorf(
 				"%w: Audit Workflow role %q credential selection is not runnable: %v", ErrInvalid, role, err,
 			)
 		}
-		credentialSets = append(credentialSets, config.ResolvedWorkflowCredentialIDs(workflow))
-		refs, err := config.WorkflowSkillRefs(workflow)
+		credentialSets = append(credentialSets, resolved.ResolvedWorkflowCredentialIDs(workflow))
+		refs, err := resolved.WorkflowSkillRefs(workflow)
 		if err != nil {
 			return nil, nil, nil, err
 		}
 		for _, ref := range refs {
 			skillsByName[ref.Name] = ref
 		}
-		sets = append(sets, config.WorkflowSkillSets(workflow)...)
+		sets = append(sets, resolved.WorkflowSkillSets(workflow)...)
 	}
 	credentials := mergeIDs(credentialSets...)
 	names := make([]string, 0, len(skillsByName))
@@ -540,7 +541,7 @@ func readAndVerifyInputs(
 	ctx context.Context,
 	service *artifacts.Service,
 	projectID string,
-	profile config.ResolvedAuditProfile,
+	profile auditprofile.ResolvedAuditProfile,
 	selection DraftSelection,
 ) (map[string]artifacts.ReadResult, error) {
 	store, err := service.Project(projectID)
@@ -574,13 +575,13 @@ func readAndVerifyInputs(
 }
 
 func buildInventory(
-	profile config.ResolvedAuditProfile,
+	profile auditprofile.ResolvedAuditProfile,
 	selection DraftSelection,
 	inputs map[string]artifacts.ReadResult,
 	standards []auditstandards.ResolvedPackage,
 ) (auditdomain.Inventory, error) {
 	approval := auditdomain.ApprovalNone
-	if profile.Interaction.ActiveChecks == config.AuditActiveChecksApprovalRequired &&
+	if profile.Interaction.ActiveChecks == auditprofile.AuditActiveChecksApprovalRequired &&
 		workflowRoleSelectsClassifiedTool(profile, profile.Inventory.ItemWorkflowRole, true) {
 		approval = auditdomain.ApprovalActiveCheck
 	}
@@ -617,14 +618,14 @@ func buildInventory(
 	return buildInventoryFromSources(profile, selection, source, settings, approval)
 }
 
-func buildInventoryFromSources(profile config.ResolvedAuditProfile, selection DraftSelection, source, settings artifacts.ReadResult, approval auditdomain.ApprovalRequirement) (auditdomain.Inventory, error) {
+func buildInventoryFromSources(profile auditprofile.ResolvedAuditProfile, selection DraftSelection, source, settings artifacts.ReadResult, approval auditdomain.ApprovalRequirement) (auditdomain.Inventory, error) {
 	options := auditdomain.InventoryOptions{
 		Round: 1, ProfileMode: string(profile.Mode), WorkflowRole: profile.Inventory.ItemWorkflowRole,
 		SourceInputName: profile.Inventory.Source.Name, SourceRef: source.Ref,
 		ApprovalRequirement: approval, Scope: selection.Scope.Values(),
 	}
 	switch profile.Inventory.Implementation {
-	case config.AuditInventoryOpenAPIScans:
+	case auditprofile.AuditInventoryOpenAPIScans:
 		if settings.Ref.Revision == nil || settings.Payload.MediaType != "application/json" {
 			return auditdomain.Inventory{}, fmt.Errorf("%w: scan settings input is missing or invalid", ErrInvalid)
 		}
@@ -649,7 +650,7 @@ func writeTaskPackages(
 	ctx context.Context,
 	writer auditArtifactWriter,
 	namespace string,
-	profile config.ResolvedAuditProfile,
+	profile auditprofile.ResolvedAuditProfile,
 	selection DraftSelection,
 	inventory auditdomain.Inventory,
 	prepared ...map[string]auditstore.ExactArtifact,
@@ -686,7 +687,7 @@ func writeTaskPackages(
 }
 
 func workflowInputs(
-	binding config.ResolvedAuditWorkflowBinding,
+	binding auditprofile.ResolvedAuditWorkflowBinding,
 	selection DraftSelection,
 	prepared ...map[string]auditstore.ExactArtifact,
 ) []auditdomain.ExactInput {
@@ -701,9 +702,9 @@ func workflowInputs(
 		var selected auditstore.ExactArtifact
 		var exists bool
 		switch mapping.Source {
-		case config.AuditInputFromAudit:
+		case auditprofile.AuditInputFromAudit:
 			selected, exists = selection.Inputs[mapping.Name]
-		case config.AuditInputFromPreparation:
+		case auditprofile.AuditInputFromPreparation:
 			if len(prepared) == 1 {
 				selected, exists = prepared[0][preparationInputKey(mapping)]
 			}

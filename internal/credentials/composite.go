@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -34,8 +34,8 @@ func NewCompositeProvider(providers ...Resolver) (*CompositeProvider, error) {
 
 func (p *CompositeProvider) LookupLLMCredential(
 	ctx context.Context, id string,
-) (config.CredentialMetadata, error) {
-	var result config.CredentialMetadata
+) (resolved.CredentialMetadata, error) {
+	var result resolved.CredentialMetadata
 	found := false
 	for _, provider := range p.providers {
 		metadata, err := provider.LookupLLMCredential(ctx, id)
@@ -43,19 +43,19 @@ func (p *CompositeProvider) LookupLLMCredential(
 			continue
 		}
 		if errors.Is(err, ErrRecoveryRequired) {
-			return config.CredentialMetadata{}, ErrRecoveryRequired
+			return resolved.CredentialMetadata{}, ErrRecoveryRequired
 		}
 		if err != nil {
-			return config.CredentialMetadata{}, persistencepostgres.WrapError("lookup LLM credential", err)
+			return resolved.CredentialMetadata{}, persistencepostgres.WrapError("lookup LLM credential", err)
 		}
 		if found {
-			return config.CredentialMetadata{}, ErrConflict
+			return resolved.CredentialMetadata{}, ErrConflict
 		}
 		result = metadata
 		found = true
 	}
 	if !found {
-		return config.CredentialMetadata{}, ErrNotFound
+		return resolved.CredentialMetadata{}, ErrNotFound
 	}
 	return result, nil
 }

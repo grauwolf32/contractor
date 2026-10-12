@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-72 open tasks: 3 in progress, 55 pending, 14 deferred. 852 finished: 849 completed, 3 archived.
+71 open tasks: 3 in progress, 54 pending, 14 deferred. 853 finished: 850 completed, 3 archived.
 
 ## In progress
 
@@ -44,12 +44,6 @@ the epics are in [epics.yml](epics.yml).
 | --- | --- | --- | --- | --- |
 | [V371-010](v371-010-discarded-receipt-projection.yml) | defect | P2 | — | Drop the report projection of a proposal receipt discarded by Run deletion |
 | [V371-011](v371-011-proposal-quota-limits.yml) | chore | P3 | — | Register the per-Run proposal and per-proposal evidence quotas in the specification |
-
-### Workflow catalog and document workflows (`workflows`)
-
-| Task | Kind | Priority | Waiting for | Title |
-| --- | --- | --- | --- | --- |
-| [V370-006](v370-006-config-model-split.yml) | chore | P2 | — | Separate the configuration data model from the catalog loader |
 
 ### Projects, artifacts and lifecycle controls (`projects-artifacts`)
 
@@ -168,7 +162,7 @@ tasks in `introduced_by`.
 | HTTP and Caido tools (`http-tools`) | 0 | 8 | 11 | 1 | 10 |
 | Scanner tool Workers and scan planning (`scan-tools`) | 1 | 10 | 4 | 1 | 7 |
 | Findings tools and collections (`findings`) | 2 | 7 | 5 | 2 | 7 |
-| Workflow catalog and document workflows (`workflows`) | 1 | 13 | 13 | 8 | 11 |
+| Workflow catalog and document workflows (`workflows`) | 0 | 13 | 13 | 8 | 11 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 2 | 27 | 31 | 4 | 34 |
 | Audits (`audits`) | 22 | 49 | 67 | 12 | 75 |
 | Evaluations (`evals`) | 4 | 21 | 28 | 5 | 33 |

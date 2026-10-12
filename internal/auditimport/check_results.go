@@ -8,7 +8,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/findingintake"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -37,7 +37,7 @@ func (i *Importer) collectSucceeded(
 	if execution.RunID == nil {
 		return false, fmt.Errorf("%w: succeeded execution has no Run", ErrPermanent)
 	}
-	profile, err := config.DecodeResolvedAuditProfileSnapshot(snapshot.Audit.ProfileSnapshot)
+	profile, err := auditprofile.DecodeResolvedAuditProfileSnapshot(snapshot.Audit.ProfileSnapshot)
 	if err != nil || profile.Ref.Name != snapshot.Audit.Profile.Name || profile.Ref.Version != snapshot.Audit.Profile.Version ||
 		profile.Ref.Digest != snapshot.Audit.Profile.Digest {
 		return false, fmt.Errorf("%w: pinned AuditProfile is invalid", ErrPermanent)
@@ -116,7 +116,7 @@ func (i *Importer) prepareCheckResults(
 	ctx context.Context,
 	snapshot auditstore.ReconcileSnapshot,
 	execution auditstore.Execution,
-	profile config.ResolvedAuditProfile,
+	profile auditprofile.ResolvedAuditProfile,
 	resultPackage auditdomain.CheckResultPackage,
 	members []preparedMember,
 	loadStandards retainedStandardLoader,

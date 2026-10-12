@@ -85,7 +85,14 @@ var layers = []layerSpec{
 		packages: []string{
 			"internal/agentskills",
 			"internal/auditstandards",
+			// The catalog loader; only the packages that load or publish the
+			// catalog import it.
 			"internal/config",
+			// The AuditProfile model and its rules, read back from Audit snapshots.
+			"internal/config/auditprofile",
+			// The resolved Workflow model (the Run and Stage snapshot format), its
+			// rules and the one code descriptor registry.
+			"internal/config/resolved",
 			// Loads catalogs together with the bundled skill and Audit standard checks.
 			"internal/configload",
 		},

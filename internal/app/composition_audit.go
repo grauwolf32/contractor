@@ -11,6 +11,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
@@ -92,7 +93,7 @@ func configureAudits(
 }
 
 type runCreationCredentials struct {
-	provider          workflowconfig.CredentialLookup
+	provider          resolved.CredentialLookup
 	guard             runservice.CredentialGuard
 	runtime           runservice.RuntimeCredentialValidator
 	transactionLookup runtimeconfig.TransactionLLMCredentialLookupFactory

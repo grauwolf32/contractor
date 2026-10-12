@@ -11,7 +11,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstandards"
 	"github.com/grauwolf32/contractor/internal/auditstore"
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
@@ -21,7 +21,7 @@ func auditProfileReadModel(source auditservice.ProfileProjection, detail bool) a
 	profile := source.Profile
 	result := auditProfileResponse{
 		Ref: profile.Ref, Mode: profile.Mode,
-		Standards: append([]config.AuditStandardRef{}, profile.Standards...),
+		Standards: append([]auditprofile.AuditStandardRef{}, profile.Standards...),
 		Inputs:    profile.Inputs, Inventory: profile.Inventory,
 		Execution: profile.Execution, Interaction: profile.Interaction,
 		ServerCompatible:        source.Compatibility.ServerCompatible,
@@ -222,8 +222,8 @@ func readAuditTimeLimit(w http.ResponseWriter, r *http.Request) (*int, error) {
 	if fields == nil || fields.null("deadlineSeconds") {
 		return nil, errInvalidRequest
 	}
-	if request.DeadlineSeconds != nil && (*request.DeadlineSeconds < 0 || *request.DeadlineSeconds > config.MaxAuditDeadlineSeconds) {
-		return nil, fmt.Errorf("%w: Audit time limit must be 0 (unlimited) or at most %d seconds", errInvalidRequest, config.MaxAuditDeadlineSeconds)
+	if request.DeadlineSeconds != nil && (*request.DeadlineSeconds < 0 || *request.DeadlineSeconds > auditprofile.MaxAuditDeadlineSeconds) {
+		return nil, fmt.Errorf("%w: Audit time limit must be 0 (unlimited) or at most %d seconds", errInvalidRequest, auditprofile.MaxAuditDeadlineSeconds)
 	}
 	return request.DeadlineSeconds, nil
 }

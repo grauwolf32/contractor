@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -30,7 +30,7 @@ func (s *scanHistoryTestStore) ListStageExecutions(context.Context, string) ([]r
 
 func newScanHistoryFixture(t *testing.T) *scanHistoryTestStore {
 	t.Helper()
-	snapshot, err := configload.Load("../../../testdata/configs-scan", config.MVPDescriptors())
+	snapshot, err := configload.Load("../../../testdata/configs-scan")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -44,16 +44,16 @@ func newScanHistoryFixture(t *testing.T) *scanHistoryTestStore {
 		t.Fatal(err)
 	}
 	before := ordinary.Stages[ordinary.EntryStage]
-	before.Context = config.StageContext{Artifacts: map[string]config.ContextArtifact{}}
+	before.Context = resolved.StageContext{Artifacts: map[string]resolved.ContextArtifact{}}
 	before.WorkflowOutputs = map[string]string{}
-	before.On.Succeeded = config.TransitionAction{Kind: config.TransitionNext, NextStage: "check-request"}
+	before.On.Succeeded = resolved.TransitionAction{Kind: resolved.TransitionNext, NextStage: "check-request"}
 	scan := workflow.Stages["scan"]
-	workflow.Stages = map[string]config.ResolvedStage{"prepare": before, "check-request": scan}
+	workflow.Stages = map[string]resolved.ResolvedStage{"prepare": before, "check-request": scan}
 	// The composed Workflow declares the parameter its ordinary Stage consumes.
 	workflow.Parameters = ordinary.Parameters
 	workflow.EntryStage = "prepare"
 	workflow.AuditTask.Stage = "check-request"
-	if err := config.ValidateWorkflowGraph(workflow); err != nil {
+	if err := resolved.ValidateWorkflowGraph(workflow); err != nil {
 		t.Fatal(err)
 	}
 	encode := func(value any) []byte {

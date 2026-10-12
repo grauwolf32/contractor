@@ -6,7 +6,10 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"strings"
+
+	"github.com/grauwolf32/contractor/internal/strictjson"
 )
 
 // Bytes returns the "sha256:<lowercase hex>" digest of data.
@@ -23,6 +26,18 @@ func JSON(value any) (string, error) {
 		return "", err
 	}
 	return Bytes(encoded), nil
+}
+
+// CanonicalJSON returns the Bytes digest of the RFC 8785 canonical JSON of
+// value, after encoding/json has reduced it to the I-JSON data model, so two
+// values with the same JSON meaning have one digest. Configuration manifest
+// digests use it.
+func CanonicalJSON(value any) (string, error) {
+	canonical, err := strictjson.Canonical(value)
+	if err != nil {
+		return "", fmt.Errorf("canonicalize digest input: %w", err)
+	}
+	return Bytes(canonical), nil
 }
 
 // Valid reports whether value is a "sha256:<64 lowercase hex>" digest, the

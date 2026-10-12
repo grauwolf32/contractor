@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"sort"
 
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/pagelimit"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -47,7 +47,7 @@ func (h *handler) listWorkflows(w http.ResponseWriter, r *http.Request) {
 	}
 
 	workflows := discovery.Page(after, pagelimit.FetchRows(limit), func(
-		ref config.WorkflowRef, presentation config.WorkflowPresentation,
+		ref resolved.WorkflowRef, presentation resolved.WorkflowPresentation,
 	) bool {
 		return catalogMatches(query, ref.Name, ref.Version, presentation.DisplayName, presentation.Description)
 	})
@@ -74,7 +74,7 @@ func (h *handler) getWorkflow(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	selector := r.PathValue("name") + "@" + r.PathValue("version")
-	if _, err := config.ParseSelector(selector); err != nil {
+	if _, err := resolved.ParseSelector(selector); err != nil {
 		h.handleError(w, fmt.Errorf("%w: invalid Workflow selector", errInvalidRequest))
 		return
 	}
@@ -86,14 +86,14 @@ func (h *handler) getWorkflow(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, workflowResourceReadModel(workflow))
 }
 
-func workflowSummaryReadModel(workflow config.ResolvedWorkflow) workflowSummaryResponse {
+func workflowSummaryReadModel(workflow resolved.ResolvedWorkflow) workflowSummaryResponse {
 	return workflowSummaryResponse{
 		Ref: workflow.Ref, Presentation: workflow.Presentation, EntryStage: workflow.EntryStage,
 		Parameters: workflow.Parameters, Inputs: workflow.Inputs, Outputs: workflow.Outputs,
 	}
 }
 
-func workflowResourceReadModel(workflow config.ResolvedWorkflow) workflowResourceResponse {
+func workflowResourceReadModel(workflow resolved.ResolvedWorkflow) workflowResourceResponse {
 	result := workflowResourceResponse{
 		workflowSummaryResponse: workflowSummaryReadModel(workflow),
 		Stages:                  make(map[string]workflowStageResponse, len(workflow.Stages)),
@@ -135,7 +135,7 @@ func workflowResourceReadModel(workflow config.ResolvedWorkflow) workflowResourc
 }
 
 func resolvedStageExecutionConfigReadModel(
-	selection config.ResolvedStageExecutionConfig,
+	selection resolved.ResolvedStageExecutionConfig,
 ) resolvedStageExecutionConfigResponse {
 	result := resolvedStageExecutionConfigResponse{
 		Agents: make(map[string]consumerExecutionConfigRefsResponse, len(selection.Agents)),
@@ -150,7 +150,7 @@ func resolvedStageExecutionConfigReadModel(
 	return result
 }
 
-func workflowTransitionReadModel(action config.TransitionAction) workflowTransitionResponse {
+func workflowTransitionReadModel(action resolved.TransitionAction) workflowTransitionResponse {
 	result := workflowTransitionResponse{Kind: action.Kind, NextStage: action.NextStage}
 	if action.Retry != nil {
 		result.MaxAttempts = action.Retry.MaxAttempts

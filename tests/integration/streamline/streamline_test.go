@@ -15,7 +15,7 @@ import (
 	"testing"
 	"time"
 
-	workflowconfig "github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
@@ -333,7 +333,7 @@ func testInvocation() planner.Invocation {
 		TemplateID: name, Version: "1", Digest: "sha256:" + strings.Repeat("a", 64),
 	}
 	runtime := contracts.WorkerRuntimeRef{RuntimeID: "adk", Version: "1"}
-	agents := map[string]workflowconfig.ResolvedAgentBinding{name: {
+	agents := map[string]resolved.ResolvedAgentBinding{name: {
 		Namespace: name,
 		Template: contracts.ResolvedAgentTemplate{
 			Ref: template, Runtime: runtime, Description: name + " Worker",
@@ -349,12 +349,12 @@ func testInvocation() planner.Invocation {
 	return planner.Invocation{
 		StageExecutionID: "stage-streamline", RunID: "run-streamline",
 		Deadline: time.Now().Add(time.Minute),
-		Stage: workflowconfig.ResolvedStage{
+		Stage: resolved.ResolvedStage{
 			Objective:    "sensitive objective",
 			Instructions: contracts.ResolvedInstructions{Text: "sensitive planner guidance"},
-			Planner:      workflowconfig.PlannerRef{PlannerID: "streamline", Version: "1"},
-			Agents:       agents, Context: workflowconfig.StageContext{Artifacts: map[string]workflowconfig.ContextArtifact{}},
-			Result: workflowconfig.StageResultContract{Artifacts: map[string]workflowconfig.ArtifactSlot{
+			Planner:      resolved.PlannerRef{PlannerID: "streamline", Version: "1"},
+			Agents:       agents, Context: resolved.StageContext{Artifacts: map[string]resolved.ContextArtifact{}},
+			Result: resolved.StageResultContract{Artifacts: map[string]resolved.ArtifactSlot{
 				"report": {Required: true, MediaTypes: []string{"application/json"}},
 			}},
 		},

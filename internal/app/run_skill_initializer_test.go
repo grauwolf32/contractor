@@ -15,7 +15,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/agentskills"
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -50,7 +50,7 @@ func TestPostgresRunSkillInitializerUsesCommittedExactSelection(t *testing.T) {
 		store := runstore.NewPostgresStore(tx)
 		txService := artifacts.NewService(artifacts.NewPostgresRepository(tx))
 		catalog, _ := agentskills.NewCatalog(txService)
-		refs, err := config.WorkflowSkillRefs(workflow)
+		refs, err := resolved.WorkflowSkillRefs(workflow)
 		if err != nil {
 			return err
 		}
@@ -171,11 +171,11 @@ WHERE scope_kind = 'run' AND scope_id = 'run-invalid-skills'
 	}
 }
 
-func appSkillWorkflow(t *testing.T) config.ResolvedWorkflow {
+func appSkillWorkflow(t *testing.T) resolved.ResolvedWorkflow {
 	return appSkillWorkflowWithNames(t, "review")
 }
 
-func appSkillWorkflowWithNames(t *testing.T, names ...string) config.ResolvedWorkflow {
+func appSkillWorkflowWithNames(t *testing.T, names ...string) resolved.ResolvedWorkflow {
 	t.Helper()
 	root := copyAppConfigTree(t)
 	path := filepath.Join(root, "agent-templates", "artifact_builder.yaml")
@@ -200,7 +200,7 @@ func appSkillWorkflowWithNames(t *testing.T, names ...string) config.ResolvedWor
 	if err := os.WriteFile(path, data, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	snapshot, err := configload.Load(root, config.MVPDescriptors())
+	snapshot, err := configload.Load(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -236,7 +236,7 @@ func createAppSkillRunSelection(
 	t *testing.T,
 	ctx context.Context,
 	pool *pgxpool.Pool,
-	workflow config.ResolvedWorkflow,
+	workflow resolved.ResolvedWorkflow,
 	runID string,
 ) {
 	t.Helper()
@@ -252,7 +252,7 @@ func createAppSkillRunSelection(
 		if err != nil {
 			return err
 		}
-		refs, err := config.WorkflowSkillRefs(workflow)
+		refs, err := resolved.WorkflowSkillRefs(workflow)
 		if err != nil {
 			return err
 		}

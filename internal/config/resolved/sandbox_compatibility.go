@@ -1,4 +1,4 @@
-package config
+package resolved
 
 import (
 	"fmt"
@@ -6,17 +6,17 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
-// Private immutable lookup on the per-candidate placement hot path. Do not
-// rebuild all registered descriptor maps for every Worker/Runtime pairing.
-var sandboxPlacementDescriptors = MVPDescriptors()
-
 // ValidateSandboxToolCompatibility enforces registered profile requirements
 // without consulting fleet state or granting an execution capability.
-func (d Descriptors) ValidateSandboxToolCompatibility(template contracts.ResolvedAgentTemplate) error {
+func ValidateSandboxToolCompatibility(template contracts.ResolvedAgentTemplate) error {
+	return sandboxToolCompatibility(registeredDescriptors(), template)
+}
+
+func sandboxToolCompatibility(registered descriptorTable, template contracts.ResolvedAgentTemplate) error {
 	profile := template.SandboxProfile.SandboxProfileID + "@" + template.SandboxProfile.Version
 	for _, selected := range template.Toolsets {
 		ref := selected.Ref.ToolsetID + "@" + selected.Ref.Version
-		required := d.Toolsets[ref].RequiredSandboxProfile
+		required := registered.Toolsets[ref].RequiredSandboxProfile
 		if required != "" && profile != required {
 			return fmt.Errorf("Toolset %s requires SandboxProfile %s", ref, required)
 		}
@@ -25,14 +25,15 @@ func (d Descriptors) ValidateSandboxToolCompatibility(template contracts.Resolve
 }
 
 // SandboxWorkspaceCompatible is binding-specific: other Workers retain their
-// usual storage-independent workspace placement.
+// usual storage-independent workspace placement. It runs for every Worker and
+// Runtime pairing during placement, so it reads the registry without copying.
 func SandboxWorkspaceCompatible(template contracts.ResolvedAgentTemplate, workspace *contracts.AllocationWorkspaceSpec, capability *contracts.WorkspaceCapabilities) bool {
-	d := sandboxPlacementDescriptors
-	if d.ValidateSandboxToolCompatibility(template) != nil {
+	registered := registeredDescriptors()
+	if sandboxToolCompatibility(registered, template) != nil {
 		return false
 	}
 	profile := template.SandboxProfile.SandboxProfileID + "@" + template.SandboxProfile.Version
-	required := d.SandboxProfiles[profile]
+	required := registered.SandboxProfiles[profile]
 	if required.WorkspaceMode != "" && (workspace == nil || workspace.Mode != required.WorkspaceMode) {
 		return false
 	}

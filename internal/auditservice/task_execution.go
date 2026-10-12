@@ -4,13 +4,13 @@ import (
 	"fmt"
 
 	"github.com/grauwolf32/contractor/internal/auditdomain"
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
 // Validate actual task requirements after inventory construction and before any
 // task is retained or dispatched. Builders do not inspect executor topology.
-func validateInventoryTaskExecution(profile config.ResolvedAuditProfile, inventory auditdomain.Inventory) error {
+func validateInventoryTaskExecution(profile auditprofile.ResolvedAuditProfile, inventory auditdomain.Inventory) error {
 	for _, generated := range inventory.Tasks {
 		task := generated.Document
 		binding, exists := profile.Workflows[task.WorkflowRole]

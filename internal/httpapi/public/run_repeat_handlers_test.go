@@ -10,7 +10,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/configtest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/projectstore"
@@ -205,7 +205,7 @@ func TestRunRepeatDraftReportsChangedRuntimeBinding(t *testing.T) {
 	run.RuntimeConfig = runtimeconfig.BuiltInRunSnapshot()
 	fixture.runs.runs[run.RunID] = run
 	retained, err := runrepeat.Encode(runrepeat.Snapshot{
-		Workflow: config.WorkflowRef{Name: run.WorkflowName, Version: run.WorkflowVersion},
+		Workflow: resolved.WorkflowRef{Name: run.WorkflowName, Version: run.WorkflowVersion},
 		Inputs:   map[string]contracts.ArtifactRef{},
 	})
 	if err != nil {

@@ -10,7 +10,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstandards"
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	"github.com/grauwolf32/contractor/internal/evaldomain"
@@ -28,16 +28,16 @@ const (
 
 type preflightBinding struct {
 	snapshot  BindingSnapshot
-	workflows map[string]config.ResolvedWorkflow
-	inputs    map[string]config.ArtifactSlot
+	workflows map[string]resolved.ResolvedWorkflow
+	inputs    map[string]resolved.ArtifactSlot
 	standards []auditstandards.ResolvedPackage
 }
 
-func (r *Resolver) resolveBinding(ctx context.Context, owner string, v evaldomain.Variant, lookup config.CredentialLookup, service *artifacts.Service) (preflightBinding, error) {
+func (r *Resolver) resolveBinding(ctx context.Context, owner string, v evaldomain.Variant, lookup resolved.CredentialLookup, service *artifacts.Service) (preflightBinding, error) {
 	b := preflightBinding{
 		snapshot:  BindingSnapshot{Skills: []contracts.RunSkillSnapshot{}, Standards: []auditstandards.ExactPackage{}},
-		workflows: map[string]config.ResolvedWorkflow{},
-		inputs:    map[string]config.ArtifactSlot{},
+		workflows: map[string]resolved.ResolvedWorkflow{},
+		inputs:    map[string]resolved.ArtifactSlot{},
 	}
 	if v.Kind == "workflow" {
 		workflow, err := r.Catalog.ResolveRunWorkflow(ctx, v.Selector, v.ExecutionConfig, lookup)
@@ -65,7 +65,7 @@ func (r *Resolver) resolveBinding(ctx context.Context, owner string, v evaldomai
 	}
 	b.snapshot.Audit = &profile
 	for name, slot := range profile.Inputs {
-		b.inputs[name] = config.ArtifactSlot{Required: slot.Required, MediaTypes: slot.MediaTypes}
+		b.inputs[name] = resolved.ArtifactSlot{Required: slot.Required, MediaTypes: slot.MediaTypes}
 	}
 	for role, binding := range profile.Workflows {
 		b.workflows[role] = binding.Workflow
@@ -90,17 +90,17 @@ func (b *preflightBinding) pinDependencies(ctx context.Context, tx pgx.Tx, servi
 	var skillSets [][]string
 	modelFree := b.snapshot.Audit == nil
 	for _, workflow := range b.workflows {
-		if err := config.ValidateResolvedWorkflowCredentials(ctx, workflow, lookup); err != nil {
+		if err := resolved.ValidateResolvedWorkflowCredentials(ctx, workflow, lookup); err != nil {
 			return workflowSelectionError(err)
 		}
-		refs, err := config.WorkflowSkillRefs(workflow)
+		refs, err := resolved.WorkflowSkillRefs(workflow)
 		if err != nil {
 			return errors.Join(evaldomain.Failure("eval_not_ready"), err)
 		}
 		for _, ref := range refs {
 			skillRefs[ref.Name] = ref
 		}
-		skillSets = append(skillSets, config.WorkflowSkillSets(workflow)...)
+		skillSets = append(skillSets, resolved.WorkflowSkillSets(workflow)...)
 		modelFree = modelFree && workflowModelFree(workflow)
 	}
 	runtime, err := runtimeconfig.PinRunSnapshot(
@@ -137,7 +137,7 @@ func (b *preflightBinding) pinDependencies(ctx context.Context, tx pgx.Tx, servi
 	return nil
 }
 
-func workflowModelFree(workflow config.ResolvedWorkflow) bool {
+func workflowModelFree(workflow resolved.ResolvedWorkflow) bool {
 	for _, stage := range workflow.Stages {
 		for _, agent := range stage.Agents {
 			if !agent.Template.IsToolWorker() {

@@ -9,7 +9,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/agentskills"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/clone"
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/credentials"
@@ -52,7 +52,7 @@ func (s *Service) CreatePublic(ctx context.Context, params PublicCreateParams) (
 			if resolveErr != nil {
 				// A credential lookup outage keeps its cause so the caller can
 				// answer the retryable recovery or storage outcome.
-				if errors.Is(resolveErr, config.ErrCredentialLookup) {
+				if errors.Is(resolveErr, resolved.ErrCredentialLookup) {
 					return resolveErr
 				}
 				return fmt.Errorf("%w: invalid Workflow or executionConfig selection: %v", ErrInvalid, resolveErr)
@@ -63,7 +63,7 @@ func (s *Service) CreatePublic(ctx context.Context, params PublicCreateParams) (
 			if validationErr := validateWorkflowInputs(workflow, normalized.Parameters, normalized.Inputs); validationErr != nil {
 				return validationErr
 			}
-			skillRefs, resolveErr := config.WorkflowSkillRefs(workflow)
+			skillRefs, resolveErr := resolved.WorkflowSkillRefs(workflow)
 			if resolveErr != nil {
 				return fmt.Errorf("%w: invalid Workflow Skill selection: %v", ErrInvalid, resolveErr)
 			}
@@ -73,8 +73,8 @@ func (s *Service) CreatePublic(ctx context.Context, params PublicCreateParams) (
 			// The stored snapshot is the bounded encoding the Scheduler
 			// measures again; an oversized one is rejected before acceptance
 			// (CAT-R76).
-			workflowSnapshot, encodeErr := config.EncodeResolvedWorkflowSnapshot(workflow)
-			if errors.Is(encodeErr, config.ErrWorkflowSnapshotTooLarge) {
+			workflowSnapshot, encodeErr := resolved.EncodeResolvedWorkflowSnapshot(workflow)
+			if errors.Is(encodeErr, resolved.ErrWorkflowSnapshotTooLarge) {
 				return fmt.Errorf("%w: %v", ErrInvalid, encodeErr)
 			}
 			if encodeErr != nil {
@@ -133,7 +133,7 @@ func (s *Service) CreatePublic(ctx context.Context, params PublicCreateParams) (
 						return catalogErr
 					}
 					if catalogErr = agentskills.ValidateSelectedLimits(
-						selectedSkills, config.WorkflowSkillSets(workflow),
+						selectedSkills, resolved.WorkflowSkillSets(workflow),
 					); catalogErr != nil {
 						return catalogErr
 					}
@@ -252,7 +252,7 @@ func normalizePublicCreate(params PublicCreateParams) (PublicCreateParams, error
 }
 
 func validateWorkflowInputs(
-	workflow config.ResolvedWorkflow,
+	workflow resolved.ResolvedWorkflow,
 	parameters map[string]string,
 	inputs map[string]contracts.ArtifactRef,
 ) error {

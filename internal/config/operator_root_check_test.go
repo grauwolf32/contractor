@@ -32,10 +32,10 @@ func TestOperatorRootChecksRunOnlyOnTheResolvedOperatorRoot(t *testing.T) {
 		t.Fatal(err)
 	}
 	recorded := &recordedRootCheck{}
-	if _, err := LoadUnionReadOnly(operator, managed, MVPDescriptors(), recorded.check("bundle")); err != nil {
+	if _, err := LoadUnionReadOnly(operator, managed, recorded.check("bundle")); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := Load(operator, MVPDescriptors(), recorded.check("bundle")); err != nil {
+	if _, err := Load(operator, recorded.check("bundle")); err != nil {
 		t.Fatal(err)
 	}
 	if want := []string{resolved, resolved}; !slices.Equal(recorded.roots, want) {
@@ -49,11 +49,11 @@ func TestOperatorRootCheckFailureRejectsLoadBeforeManifests(t *testing.T) {
 		t.Fatal(err)
 	}
 	failing := &recordedRootCheck{fail: errors.New("package_invalid")}
-	_, err := Load(operator, MVPDescriptors(), failing.check("bundled things"))
+	_, err := Load(operator, failing.check("bundled things"))
 	if err == nil || err.Error() != "bundled things: package_invalid" {
 		t.Fatalf("load error = %v", err)
 	}
-	if _, err := Load(operator, MVPDescriptors()); err == nil || strings.Contains(err.Error(), "bundled things") {
+	if _, err := Load(operator); err == nil || strings.Contains(err.Error(), "bundled things") {
 		t.Fatalf("catalog error without checks = %v", err)
 	}
 }
@@ -78,7 +78,7 @@ func TestManagerRunsOperatorRootChecksOnStartupAndReload(t *testing.T) {
 		t.Fatalf("rejected publication wrote a manifest: %v", statErr)
 	}
 	if _, err := NewManager(ManagerOptions{
-		OperatorRoot: operator, ManagedRoot: managed, Descriptors: MVPDescriptors(),
+		OperatorRoot: operator, ManagedRoot: managed,
 		OperatorRootChecks: []OperatorRootCheck{recorded.check("bundle")},
 	}); err == nil || err.Error() != "bundle: package_invalid" {
 		t.Fatalf("startup error = %v", err)

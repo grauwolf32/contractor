@@ -1,4 +1,4 @@
-package config
+package resolved
 
 import (
 	"fmt"
@@ -9,13 +9,6 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/scan"
 )
-
-// IsModelFreePlanner classifies exact implementations, independently of any
-// authored model selection. Workflow-wide defaults skip these implementations.
-func IsModelFreePlanner(ref PlannerRef) bool {
-	return ref == (PlannerRef{PlannerID: "passthrough", Version: "1"}) ||
-		ref == (PlannerRef{PlannerID: "scan-plan", Version: "1"})
-}
 
 func cloneScanPlanPolicy(source *scan.ScanPlanPolicy) *scan.ScanPlanPolicy {
 	if source == nil {
@@ -62,14 +55,14 @@ func ValidateScanPlanStage(stage ResolvedStage) error {
 	}
 	seenTools := map[string]bool{}
 	for _, tool := range stage.ScanPlan.Tools {
-		if err := validateWorkflowName("scanPlan Worker", tool.Worker); err != nil {
+		if err := ValidateWorkflowName("scanPlan Worker", tool.Worker); err != nil {
 			return err
 		}
 		binding, exists := stage.Agents[tool.Worker]
 		if !exists || !binding.Template.IsToolWorker() {
 			return fmt.Errorf("scanPlan.tools must select existing tool@1 Workers")
 		}
-		if err := validateArtifactComponent("scanPlan Worker namespace", binding.Namespace); err != nil {
+		if err := ValidateArtifactComponent("scanPlan Worker namespace", binding.Namespace); err != nil {
 			return err
 		}
 		if artifactpolicy.IsPurposeReservedNamespace(binding.Namespace) {
@@ -141,10 +134,10 @@ func ValidateScanPlanStage(stage ResolvedStage) error {
 	if !exists || !report.Required || report.From == nil || len(report.MediaTypes) != 1 || report.MediaTypes[0] != reportMedia {
 		return fmt.Errorf("scan-plan@1 requires a bound application/json aggregate report")
 	}
-	if err := validateArtifactComponent("scanPlan report namespace", report.From.Namespace); err != nil {
+	if err := ValidateArtifactComponent("scanPlan report namespace", report.From.Namespace); err != nil {
 		return err
 	}
-	if err := validateArtifactComponent("scanPlan report name", report.From.Name); err != nil {
+	if err := ValidateArtifactComponent("scanPlan report name", report.From.Name); err != nil {
 		return err
 	}
 	if len(report.From.Name) > 100 {
@@ -162,17 +155,17 @@ func ValidateScanPlanStage(stage ResolvedStage) error {
 }
 
 func scanPlanContextArtifact(stage ResolvedStage, name string) error {
-	if err := validateMapKey("scanPlan context artifact", name); err != nil {
+	if err := ValidateMapKey("scanPlan context artifact", name); err != nil {
 		return err
 	}
 	artifact, exists := stage.Context.Artifacts[name]
 	if !exists || !artifact.Required {
 		return fmt.Errorf("scanPlan requires a declared required context artifact")
 	}
-	if err := validateArtifactComponent("scanPlan context namespace", artifact.Namespace); err != nil {
+	if err := ValidateArtifactComponent("scanPlan context namespace", artifact.Namespace); err != nil {
 		return err
 	}
-	if err := validateArtifactComponent("scanPlan context name", artifact.Name); err != nil {
+	if err := ValidateArtifactComponent("scanPlan context name", artifact.Name); err != nil {
 		return err
 	}
 	if artifactpolicy.IsReservedMemoryBinding(artifact.Namespace, artifact.Name) {

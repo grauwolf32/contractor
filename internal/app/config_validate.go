@@ -10,7 +10,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auth"
-	workflowconfig "github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/gitimport"
 )
 
@@ -81,7 +81,7 @@ func (c *serveConfigInputs) effectiveConfig() (Config, error) {
 	if _, err := auth.NewPeerPolicy(c.trustedProxies.values); err != nil {
 		return Config{}, fmt.Errorf("invalid trusted proxies: %w", err)
 	}
-	if _, err := workflowconfig.ParseSelector(c.developmentLLMGateway); err != nil {
+	if _, err := resolved.ParseSelector(c.developmentLLMGateway); err != nil {
 		return Config{}, errors.New("development-llm-gateway must be an exact name@version selector")
 	}
 	if c.developmentPlannerToken.Reveal() == "" {

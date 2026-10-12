@@ -8,10 +8,12 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/config/auditprofile"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
-func auditCompletionConfig(t *testing.T) (string, ResolvedAuditProfile) {
+func auditCompletionConfig(t *testing.T) (string, auditprofile.ResolvedAuditProfile) {
 	t.Helper()
 	root := copyCoreFixture(t, "audit-completion-catalog")
 	path := filepath.Join(root, "audit-profiles/source_checklist.yaml")
@@ -23,7 +25,7 @@ func auditCompletionConfig(t *testing.T) (string, ResolvedAuditProfile) {
 	// to prove that the trusted binding contributes to the immutable digest.
 	without := strings.Replace(string(raw), "      workerCompletion: {kind: audit-check-results@1, stage: check, agent: checker}\n", "", 1)
 	writeFile(t, path, []byte(without))
-	before, err := mustLoad(t, root, MVPDescriptors()).AuditProfile("source-checklist@1")
+	before, err := mustLoad(t, root).AuditProfile("source-checklist@1")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -33,7 +35,7 @@ func auditCompletionConfig(t *testing.T) (string, ResolvedAuditProfile) {
 
 func TestAuditCompletionOptInDigestSnapshotAndClone(t *testing.T) {
 	root, before := auditCompletionConfig(t)
-	snapshot := mustLoad(t, root, MVPDescriptors())
+	snapshot := mustLoad(t, root)
 	profile, err := snapshot.AuditProfile("source-checklist@1")
 	if err != nil {
 		t.Fatal(err)
@@ -45,7 +47,7 @@ func TestAuditCompletionOptInDigestSnapshotAndClone(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	decoded, err := DecodeResolvedAuditProfileSnapshot(raw)
+	decoded, err := auditprofile.DecodeResolvedAuditProfileSnapshot(raw)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -68,110 +70,33 @@ func TestAuditCompletionOptInDigestSnapshotAndClone(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := DecodeResolvedAuditProfileSnapshot(raw); err == nil {
+	if _, err := auditprofile.DecodeResolvedAuditProfileSnapshot(raw); err == nil {
 		t.Fatal("snapshot accepted a removed completion choice without a matching digest")
-	}
-}
-
-func TestAuditCompletionRejectsInvalidTargetsAndTrustedMappings(t *testing.T) {
-	root, _ := auditCompletionConfig(t)
-	profile, err := mustLoad(t, root, MVPDescriptors()).AuditProfile("source-checklist@1")
-	if err != nil {
-		t.Fatal(err)
-	}
-	cases := map[string]func(*ResolvedAuditWorkflowBinding){
-		"unknown-kind":     func(b *ResolvedAuditWorkflowBinding) { b.WorkerCompletion.Kind = "unknown@1" },
-		"non-check":        func(b *ResolvedAuditWorkflowBinding) { b.Kind = AuditWorkflowDiscovery },
-		"missing-stage":    func(b *ResolvedAuditWorkflowBinding) { b.WorkerCompletion.Stage = "absent" },
-		"missing-agent":    func(b *ResolvedAuditWorkflowBinding) { b.WorkerCompletion.Agent = "absent" },
-		"wrong-output":     func(b *ResolvedAuditWorkflowBinding) { delete(b.Outputs, "result") },
-		"missing-task":     func(b *ResolvedAuditWorkflowBinding) { delete(b.Inputs, "task") },
-		"missing-manifest": func(b *ResolvedAuditWorkflowBinding) { delete(b.Inputs, "execution_manifest") },
-		"router": func(b *ResolvedAuditWorkflowBinding) {
-			s := b.Workflow.Stages["check"]
-			s.Planner = PlannerRef{PlannerID: "router", Version: "1"}
-			b.Workflow.Stages["check"] = s
-		},
-		"two-workers": func(b *ResolvedAuditWorkflowBinding) {
-			s := b.Workflow.Stages["check"]
-			s.Agents["other"] = s.Agents["checker"]
-		},
-		"legacy-tool": func(b *ResolvedAuditWorkflowBinding) {
-			s := b.Workflow.Stages["check"]
-			a := s.Agents["checker"]
-			for i := range a.Template.Toolsets {
-				if a.Template.Toolsets[i].Ref.ToolsetID == "audit-results" {
-					a.Template.Toolsets[i].Ref.Version = "1"
-				}
-			}
-			s.Agents["checker"] = a
-		},
-		"summarizer": func(b *ResolvedAuditWorkflowBinding) {
-			s := b.Workflow.Stages["check"]
-			a := s.Agents["checker"]
-			a.Template.Summarizer = &contracts.WorkerSummarizerConfig{}
-			s.Agents["checker"] = a
-		},
-		"foreign-result": func(b *ResolvedAuditWorkflowBinding) {
-			s := b.Workflow.Stages["check"]
-			r := s.Result.Artifacts["result"]
-			r.From.Namespace = "foreign"
-			s.Result.Artifacts["result"] = r
-		},
-		"duplicate-required-input": func(b *ResolvedAuditWorkflowBinding) {
-			s := b.Workflow.Stages["check"]
-			s.Context.Artifacts["duplicate_task"] = s.Context.Artifacts["task"]
-		},
-
-		"optional-input": func(b *ResolvedAuditWorkflowBinding) {
-			s := b.Workflow.Stages["check"]
-			v := s.Context.Artifacts["task"]
-			v.Required = false
-			s.Context.Artifacts["task"] = v
-		},
-	}
-	for name, mutate := range cases {
-		t.Run(name, func(t *testing.T) {
-			copy := cloneAuditProfile(profile)
-			binding := copy.Workflows["check"]
-			mutate(&binding)
-			if err := ValidateAuditWorkerCompletion(binding); err == nil {
-				t.Fatal("invalid completion binding accepted")
-			}
-			copy.Workflows["check"] = binding
-			copy.Ref.Digest, _ = auditProfileDigest(Selector{ID: copy.Ref.Name, Version: copy.Ref.Version}, copy)
-			raw, _ := json.Marshal(copy)
-			if _, err := DecodeResolvedAuditProfileSnapshot(raw); err == nil {
-				t.Fatal("invalid immutable completion closure accepted")
-			}
-		})
 	}
 }
 
 func TestAuditCompletionValidatesReachableEscalationConfiguration(t *testing.T) {
 	root, _ := auditCompletionConfig(t)
-	profile, err := mustLoad(t, root, MVPDescriptors()).AuditProfile("source-checklist@1")
+	profile, err := mustLoad(t, root).AuditProfile("source-checklist@1")
 	if err != nil {
 		t.Fatal(err)
 	}
 	b := profile.Workflows["check"]
 	s := b.Workflow.Stages["check"]
 	policy := s.ExecutionConfig.Agents["checker"].ModelPolicy.Clone()
-	variant := ResolvedEscalationExecutionConfig{Override: ResolvedStageExecutionConfigOverride{Agents: map[string]ResolvedExecutionSelectionOverride{"checker": {ModelPolicy: &policy}}}}
-	effective := s
-	effective.ExecutionConfig = cloneStageExecutionConfig(s.ExecutionConfig)
-	if err := applyResolvedStageExecutionConfigOverride(&effective, variant.Override, escalationExecutionConfigOrigin("check", "failed", variant)); err != nil {
+	variant := resolved.ResolvedEscalationExecutionConfig{Override: resolved.ResolvedStageExecutionConfigOverride{Agents: map[string]resolved.ResolvedExecutionSelectionOverride{"checker": {ModelPolicy: &policy}}}}
+	s.On.Failed = resolved.TransitionAction{Kind: resolved.TransitionEscalate, Escalate: &resolved.EscalateTransition{MaxAttempts: 1, ExecutionConfig: variant, Then: resolved.TransitionAction{Kind: resolved.TransitionFail}}}
+	b.Workflow.Stages["check"] = s
+	// The escalation's effective configuration is the one a load pins.
+	if err := resolved.ResolveEscalationVariants(&b.Workflow); err != nil {
 		t.Fatal(err)
 	}
-	variant.Effective = effective.ExecutionConfig
-	action := TransitionAction{Kind: TransitionEscalate, Escalate: &EscalateTransition{MaxAttempts: 1, ExecutionConfig: variant, Then: TransitionAction{Kind: TransitionFail}}}
-	s.On.Failed = action
-	b.Workflow.Stages["check"] = s
-	if err := ValidateAuditWorkerCompletion(b); err != nil {
+	action := b.Workflow.Stages["check"].On.Failed
+	if err := auditprofile.ValidateAuditWorkerCompletion(b); err != nil {
 		t.Fatal(err)
 	}
 	delete(action.Escalate.ExecutionConfig.Effective.Agents, "checker")
-	if err := ValidateAuditWorkerCompletion(b); err == nil {
+	if err := auditprofile.ValidateAuditWorkerCompletion(b); err == nil {
 		t.Fatal("escalated target lost its effective Worker configuration")
 	}
 }
@@ -184,7 +109,7 @@ func TestAuditCompletionAuthoringIsClosed(t *testing.T) {
 		t.Fatal(err)
 	}
 	writeFile(t, path, []byte(strings.Replace(string(raw), "agent: checker}", "agent: checker, model_override: true}", 1)))
-	if _, err := Load(root, MVPDescriptors()); err == nil {
+	if _, err := Load(root); err == nil {
 		t.Fatal("unknown completion authoring field accepted")
 	}
 }
@@ -206,11 +131,11 @@ func TestAuditCompletionLoadsAuthoredEscalationWithoutChangingOwnership(t *testi
             then:
               fail: {}`
 	writeFile(t, path, []byte(strings.Replace(string(raw), "        failed:\n          fail: {}", replacement, 1)))
-	profile, err := mustLoad(t, root, MVPDescriptors()).AuditProfile("source-checklist@1")
+	profile, err := mustLoad(t, root).AuditProfile("source-checklist@1")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := ValidateAuditWorkerCompletion(profile.Workflows["check"]); err != nil {
+	if err := auditprofile.ValidateAuditWorkerCompletion(profile.Workflows["check"]); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -223,7 +148,7 @@ func TestAuditCompletionRejectsRetiredToolset(t *testing.T) {
 		t.Fatal(err)
 	}
 	writeFile(t, path, []byte(strings.Replace(string(raw), "audit-results@2", "audit-results@1", 1)))
-	if _, err := Load(root, MVPDescriptors()); err == nil || !strings.Contains(err.Error(), `unknown Toolset "audit-results@1"`) {
+	if _, err := Load(root); err == nil || !strings.Contains(err.Error(), `unknown Toolset "audit-results@1"`) {
 		t.Fatalf("retired Audit toolset must be rejected during catalog loading: %v", err)
 	}
 }
@@ -232,7 +157,7 @@ func TestAuditCompletionRejectsRetiredToolset(t *testing.T) {
 // production profiles. Keep their native completion tools and exact binding
 // executable in the mandatory release gate.
 func TestAuditCompletionFixturesPinNativeWorkerTools(t *testing.T) {
-	snapshot := mustLoad(t, copyCoreFixture(t, "audit-completion-catalog"), MVPDescriptors())
+	snapshot := mustLoad(t, copyCoreFixture(t, "audit-completion-catalog"))
 	checked := 0
 	for _, profile := range snapshot.AuditProfiles() {
 		for role, binding := range profile.Workflows {
@@ -240,7 +165,7 @@ func TestAuditCompletionFixturesPinNativeWorkerTools(t *testing.T) {
 				continue
 			}
 			checked++
-			if err := ValidateAuditWorkerCompletion(binding); err != nil {
+			if err := auditprofile.ValidateAuditWorkerCompletion(binding); err != nil {
 				t.Fatalf("%s/%s: %v", profile.Ref.Name, role, err)
 			}
 			completion := binding.WorkerCompletion

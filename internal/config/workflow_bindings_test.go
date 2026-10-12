@@ -7,11 +7,12 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
 func TestWorkflowBindingIndexMatchesCatalogFingerprintAndDetachesPages(t *testing.T) {
-	snapshot := mustLoad(t, "testdata/valid", MVPDescriptors())
+	snapshot := mustLoad(t, "testdata/valid")
 	index, err := snapshot.AgentTemplateWorkflowBindings("artifact_builder@1")
 	if err != nil {
 		t.Fatal(err)
@@ -22,7 +23,7 @@ func TestWorkflowBindingIndexMatchesCatalogFingerprintAndDetachesPages(t *testin
 	}
 	raw, err := json.Marshal(struct {
 		Template  ConfigurationRef
-		Workflows []ResolvedWorkflow
+		Workflows []resolved.ResolvedWorkflow
 	}{template.Ref, snapshot.Workflows()})
 	if err != nil {
 		t.Fatal(err)

@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	workflowconfig "github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/credentials"
@@ -88,7 +88,7 @@ type deferredPlacementHarness struct {
 	pool      *pgxpool.Pool
 	store     *runstore.PostgresStore
 	scheduler *Scheduler
-	workflow  workflowconfig.ResolvedWorkflow
+	workflow  resolved.ResolvedWorkflow
 	invoker   *postgresTestWorkerInvoker
 	workers   *memoryWorkers
 }
@@ -131,7 +131,7 @@ func TestPostgresPlannerMetadataInspectionWithTransferSlotsSaturated(t *testing.
 
 // newDeferredPlacementHarness pins allocation rows during placement, as
 // production placement does, so a deferral cannot hide lost durable state.
-func newDeferredPlacementHarness(t *testing.T, ctx context.Context, wrap func(AtomicPersistence) AtomicPersistence, configure ...func(*workflowconfig.ResolvedWorkflow)) deferredPlacementHarness {
+func newDeferredPlacementHarness(t *testing.T, ctx context.Context, wrap func(AtomicPersistence) AtomicPersistence, configure ...func(*resolved.ResolvedWorkflow)) deferredPlacementHarness {
 	t.Helper()
 	pool := isolatedSchedulerPool(t, ctx)
 	workflow := loadSchedulerWorkflow(t)
@@ -185,7 +185,7 @@ func newDeferredPlacementHarness(t *testing.T, ctx context.Context, wrap func(At
 	}
 	workerSelection := workflow.Stages[workflow.EntryStage].ExecutionConfig.Agents["builder"]
 	credentialProvider, err := credentials.NewStaticProvider([]credentials.StaticEntry{{
-		Metadata: workflowconfig.CredentialMetadata{
+		Metadata: resolved.CredentialMetadata{
 			Ref: *workerSelection.Credential, LLMGateway: workerSelection.LLMGateway.Ref, Unrestricted: true,
 		},
 		Token: contracts.NewSecretString("scheduler-test-token"),
@@ -237,18 +237,18 @@ func (p *pauseBeforeResultProgression) CommitResultProgression(ctx context.Conte
 func TestPostgresPausedFinalizingRunYieldsToPendingOtherOwner(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
-	h := newDeferredPlacementHarness(t, ctx, nil, func(workflow *workflowconfig.ResolvedWorkflow) {
+	h := newDeferredPlacementHarness(t, ctx, nil, func(workflow *resolved.ResolvedWorkflow) {
 		stage := workflow.Stages[workflow.EntryStage]
 		build, review := stage, stage
 		build.WorkflowOutputs = map[string]string{}
-		build.On.Succeeded = workflowconfig.TransitionAction{Kind: workflowconfig.TransitionNext, NextStage: "review"}
-		review.Context.Artifacts = map[string]workflowconfig.ContextArtifact{
+		build.On.Succeeded = resolved.TransitionAction{Kind: resolved.TransitionNext, NextStage: "review"}
+		review.Context.Artifacts = map[string]resolved.ContextArtifact{
 			"draft": {Namespace: "builder", Name: "copied", Required: true},
 		}
 		workflow.EntryStage = "build"
-		workflow.Stages = map[string]workflowconfig.ResolvedStage{"build": build, "review": review}
+		workflow.Stages = map[string]resolved.ResolvedStage{"build": build, "review": review}
 	})
-	if err := workflowconfig.ValidateWorkflowGraph(h.workflow); err != nil {
+	if err := resolved.ValidateWorkflowGraph(h.workflow); err != nil {
 		t.Fatal(err)
 	}
 	pausing := &pauseBeforeResultProgression{AtomicPersistence: h.scheduler.persistence, store: h.store}

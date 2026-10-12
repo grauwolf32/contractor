@@ -14,8 +14,8 @@ func TestSemanticDigestsIgnoreYAMLPresentationAndToolOrder(t *testing.T) {
 	variantRoot := copyCoreFixture(t)
 	writePresentationVariant(t, variantRoot)
 
-	baseline := mustLoad(t, baselineRoot, MVPDescriptors())
-	variant := mustLoad(t, variantRoot, MVPDescriptors())
+	baseline := mustLoad(t, baselineRoot)
+	variant := mustLoad(t, variantRoot)
 	baselinePolicy, _ := baseline.ModelPolicy("test-worker@1")
 	variantPolicy, _ := variant.ModelPolicy("test-worker@1")
 	if baselinePolicy.Ref.Digest != variantPolicy.Ref.Digest {
@@ -40,9 +40,9 @@ func TestSemanticAndInstructionChangesAlterDigests(t *testing.T) {
 	writePresentationVariant(t, instructionRoot)
 	appendFile(t, filepath.Join(instructionRoot, "instructions/artifact-builder.md"), "\n")
 
-	baseline := mustLoad(t, baselineRoot, MVPDescriptors())
-	semantic := mustLoad(t, semanticRoot, MVPDescriptors())
-	instruction := mustLoad(t, instructionRoot, MVPDescriptors())
+	baseline := mustLoad(t, baselineRoot)
+	semantic := mustLoad(t, semanticRoot)
+	instruction := mustLoad(t, instructionRoot)
 	baselinePolicy, _ := baseline.ModelPolicy("test-worker@1")
 	semanticPolicy, _ := semantic.ModelPolicy("test-worker@1")
 	instructionPolicy, _ := instruction.ModelPolicy("test-worker@1")
@@ -70,7 +70,7 @@ func TestSemanticAndInstructionChangesAlterDigests(t *testing.T) {
 func TestEachWorkerBudgetChangesPolicyAndTemplateDigests(t *testing.T) {
 	t.Parallel()
 
-	baseline := mustLoad(t, copyCoreFixture(t), MVPDescriptors())
+	baseline := mustLoad(t, copyCoreFixture(t))
 	baselinePolicy, _ := baseline.ModelPolicy("test-worker@1")
 	baselineTemplate, _ := baseline.AgentTemplate("artifact_builder@1")
 	for _, test := range []struct{ field, from, to string }{
@@ -81,7 +81,7 @@ func TestEachWorkerBudgetChangesPolicyAndTemplateDigests(t *testing.T) {
 		t.Run(test.field, func(t *testing.T) {
 			root := copyCoreFixture(t)
 			replaceFile(t, filepath.Join(root, "model-policies/test-worker.yaml"), test.from, test.to)
-			variant := mustLoad(t, root, MVPDescriptors())
+			variant := mustLoad(t, root)
 			policy, _ := variant.ModelPolicy("test-worker@1")
 			template, _ := variant.AgentTemplate("artifact_builder@1")
 			if policy.Ref.Digest == baselinePolicy.Ref.Digest ||

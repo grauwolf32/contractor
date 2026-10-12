@@ -1,4 +1,4 @@
-package config
+package resolved
 
 import (
 	"encoding/json"
@@ -9,7 +9,7 @@ import (
 
 func TestSlotMediaTypesMatchSharedCases(t *testing.T) {
 	t.Parallel()
-	data, err := os.ReadFile(filepath.Join("..", "..", "api", "testdata", "v1alpha1", "media-type-cases.json"))
+	data, err := os.ReadFile(filepath.Join("..", "..", "..", "api", "testdata", "v1alpha1", "media-type-cases.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -21,13 +21,13 @@ func TestSlotMediaTypesMatchSharedCases(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, value := range cases.Valid {
-		if _, err := validateMediaTypes("slot", []string{value}); err != nil {
+		if _, err := ValidateMediaTypes("slot", []string{value}); err != nil {
 			t.Errorf("valid media type %q rejected: %v", value, err)
 		}
 	}
 	for _, value := range cases.Invalid {
 		// A slot may accept any media type with the explicit */* wildcard.
-		if _, err := validateMediaTypes("slot", []string{value}); (err == nil) != (value == "*/*") {
+		if _, err := ValidateMediaTypes("slot", []string{value}); (err == nil) != (value == "*/*") {
 			t.Errorf("media type %q: error=%v", value, err)
 		}
 	}

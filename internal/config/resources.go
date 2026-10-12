@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sort"
 
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 )
@@ -83,7 +84,7 @@ func (s *Snapshot) configurations(kind ConfigurationKind) ([]ConfigurationResour
 func (s *Snapshot) Configuration(
 	kind ConfigurationKind, raw string,
 ) (ConfigurationResource, error) {
-	selector, err := ParseSelector(raw)
+	selector, err := resolved.ParseSelector(raw)
 	if err != nil {
 		return ConfigurationResource{}, fmt.Errorf("%w: invalid selector", ErrInvalidPublication)
 	}
@@ -244,7 +245,7 @@ func agentTemplateResourceBody(template contracts.ResolvedAgentTemplate) map[str
 	return result
 }
 
-func executionConfigResourceBody(profile ResolvedExecutionConfigProfile) map[string]any {
+func executionConfigResourceBody(profile resolved.ResolvedExecutionConfigProfile) map[string]any {
 	result := make(map[string]any, 2)
 	if profile.Override.Planner != nil {
 		result["planner"] = executionSelectionResourceBody(*profile.Override.Planner)
@@ -259,7 +260,7 @@ func executionConfigResourceBody(profile ResolvedExecutionConfigProfile) map[str
 	return result
 }
 
-func executionSelectionResourceBody(selection ResolvedExecutionSelectionOverride) map[string]any {
+func executionSelectionResourceBody(selection resolved.ResolvedExecutionSelectionOverride) map[string]any {
 	result := make(map[string]any, 3)
 	if selection.ModelPolicy != nil {
 		result["modelPolicy"] = selection.ModelPolicy.Ref

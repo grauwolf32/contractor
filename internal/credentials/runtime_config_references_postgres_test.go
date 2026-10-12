@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/agentprincipal"
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
@@ -39,7 +39,7 @@ func TestRuntimeConfigLLMCredentialReferencesValidateAndFenceDeletion(t *testing
 	mismatch := fixture.gateway.Ref
 	mismatch.Digest = "sha256:" + strings.Repeat("e", 64)
 	static, err := NewStaticProvider([]StaticEntry{{
-		Metadata: config.CredentialMetadata{
+		Metadata: resolved.CredentialMetadata{
 			Ref: llmgateway.LLMCredentialRef{CredentialID: "wrong-gateway"}, LLMGateway: mismatch,
 		},
 		Token: contracts.NewSecretString("static-test-token"),

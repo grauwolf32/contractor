@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -35,7 +35,7 @@ func ReadAuditScanHistory(ctx context.Context, store ScanHistoryStore, runID str
 	if run.RunID != runID || run.PublicationMode != runstore.PublicationAuditManaged || run.AuditExecutionID == nil {
 		return nil, fmt.Errorf("Audit scan requires an Audit-managed Run")
 	}
-	workflow, err := config.DecodeResolvedWorkflowSnapshot(run.WorkflowSnapshot)
+	workflow, err := resolved.DecodeResolvedWorkflowSnapshot(run.WorkflowSnapshot)
 	if err != nil {
 		return nil, err
 	}
@@ -70,7 +70,7 @@ func ReadAuditScanHistory(ctx context.Context, store ScanHistoryStore, runID str
 	}
 	result := []planner.ScanAttempt{}
 	for _, stage := range executors {
-		spec, err := config.DecodeResolvedStageSnapshot(stage.StageSpecSnapshot)
+		spec, err := resolved.DecodeResolvedStageSnapshot(stage.StageSpecSnapshot)
 		if err != nil {
 			return nil, err
 		}

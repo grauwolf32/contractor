@@ -9,7 +9,7 @@ import (
 	"sync/atomic"
 	"testing"
 
-	workflowconfig "github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/runstore"
 )
@@ -66,9 +66,9 @@ func TestWorkflowSnapshotCacheKeysByRunAndDigestAndHandsOutCopies(t *testing.T) 
 	if err != nil || !reflect.DeepEqual(first, want) {
 		t.Fatalf("first read = (%+v, %v), want the decoded snapshot", first, err)
 	}
-	first.workflow.Parameters["intruder"] = workflowconfig.ParameterSlot{Required: true}
+	first.workflow.Parameters["intruder"] = resolved.ParameterSlot{Required: true}
 	first.stage.Agents["intruder"] = first.stage.Agents["builder"]
-	first.stage.Context.Artifacts["intruder"] = workflowconfig.ContextArtifact{Namespace: "inputs", Name: "intruder"}
+	first.stage.Context.Artifacts["intruder"] = resolved.ContextArtifact{Namespace: "inputs", Name: "intruder"}
 	second, err := cache.executableWorkflow(run)
 	if err != nil || !reflect.DeepEqual(second, want) || decodes.Load() != 1 {
 		t.Fatalf("second read = (%+v, %v) after %d decodes, want the unchanged snapshot from one decode",
@@ -130,7 +130,7 @@ func TestWorkflowSnapshotCacheServesConcurrentLanes(t *testing.T) {
 					return
 				}
 				got.stage.Agents["intruder"] = got.stage.Agents["builder"]
-				got.workflow.Parameters["intruder"] = workflowconfig.ParameterSlot{}
+				got.workflow.Parameters["intruder"] = resolved.ParameterSlot{}
 			}
 		}()
 	}

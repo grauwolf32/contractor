@@ -15,7 +15,7 @@ import (
 	. "github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/configtest"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -34,7 +34,7 @@ type preparationFixture struct {
 	artifacts *Service
 	audit     auditstore.Audit
 	claim     auditstore.ControllerClaim
-	profile   config.ResolvedAuditProfile
+	profile   auditprofile.ResolvedAuditProfile
 	start     auditstore.StartPreparationParams
 	input     auditstore.ExactArtifact
 }
@@ -71,7 +71,7 @@ func newPreparationFixture(t *testing.T, dependency bool) preparationFixture {
 	if err := os.WriteFile(filepath.Join(root, "audit-profiles/prepared.yaml"), data, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	catalog, err := configload.Load(root, config.MVPDescriptors())
+	catalog, err := configload.Load(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -560,7 +560,7 @@ func TestPostgresAuditPreparationRejectsObsoleteSnapshotsAndInventoryBaseline(t 
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := config.DecodeResolvedAuditProfileSnapshot(current); err != nil {
+	if _, err := auditprofile.DecodeResolvedAuditProfileSnapshot(current); err != nil {
 		t.Fatalf("migration fixture is not a current-schema closure: %v", err)
 	}
 	for _, obsolete := range []bool{false, true} {

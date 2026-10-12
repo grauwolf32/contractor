@@ -6,12 +6,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 )
 
 type AgentTemplateWorkflowBinding struct {
-	Workflow      WorkflowRef `json:"workflow"`
-	Stage         string      `json:"stage"`
-	LogicalWorker string      `json:"logicalWorker"`
+	Workflow      resolved.WorkflowRef `json:"workflow"`
+	Stage         string               `json:"stage"`
+	LogicalWorker string               `json:"logicalWorker"`
 }
 
 func (left AgentTemplateWorkflowBinding) Less(right AgentTemplateWorkflowBinding) bool {
@@ -85,7 +87,7 @@ func (s *Snapshot) buildWorkflowBindingIndex(workflowJSON []byte, encodeErr erro
 }
 
 func (s *Snapshot) AgentTemplateWorkflowBindings(raw string) (AgentTemplateWorkflowBindings, error) {
-	selector, err := ParseSelector(raw)
+	selector, err := resolved.ParseSelector(raw)
 	if err != nil {
 		return AgentTemplateWorkflowBindings{}, fmt.Errorf("%w: invalid selector", ErrInvalidPublication)
 	}

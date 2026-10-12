@@ -14,7 +14,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
-	workflowconfig "github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
@@ -242,7 +242,7 @@ func newFindingImportFixture(t *testing.T, direct bool) deletionImportFixture {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	snapshot, err := configload.Load("../config/testdata/valid", workflowconfig.MVPDescriptors())
+	snapshot, err := configload.Load("../config/testdata/valid")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -251,7 +251,7 @@ func newFindingImportFixture(t *testing.T, direct bool) deletionImportFixture {
 		t.Fatal(err)
 	}
 	if direct {
-		workflow.Outputs["result"] = workflowconfig.ArtifactSlot{
+		workflow.Outputs["result"] = resolved.ArtifactSlot{
 			Required: true, Primary: true,
 			MediaTypes: []string{auditdomain.DirectVerificationsMediaType},
 		}

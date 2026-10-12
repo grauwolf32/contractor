@@ -1,9 +1,11 @@
-package config
+package auditprofile
 
 import (
 	"fmt"
 	"maps"
 	"slices"
+
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 )
 
 // Inventory artifacts and Workflow inputs use the same explicit reference.
@@ -16,7 +18,7 @@ func resolveAuditInventoryArtifact(
 	if source == nil {
 		return nil, fmt.Errorf("%s is required", field)
 	}
-	mapping, err := resolveAuditWorkflowInputMapping(field, *source, ArtifactSlot{Required: true, MediaTypes: mediaTypes}, inputs)
+	mapping, err := resolveAuditWorkflowInputMapping(field, *source, resolved.ArtifactSlot{Required: true, MediaTypes: mediaTypes}, inputs)
 	if err != nil {
 		return nil, err
 	}
@@ -29,7 +31,7 @@ func resolveAuditInventoryArtifact(
 		}
 		output, exists := producer.Outputs[mapping.Name]
 		slot, declared := producer.Workflow.Outputs[output]
-		if !exists || !declared || !slot.Required || !mediaTypesIntersect(slot.MediaTypes, mediaTypes) {
+		if !exists || !declared || !slot.Required || !resolved.MediaTypesIntersect(slot.MediaTypes, mediaTypes) {
 			return nil, fmt.Errorf("%s requires a declared, required output with compatible media types", field)
 		}
 	default:

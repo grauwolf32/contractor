@@ -21,6 +21,8 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/auditprofile"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/credentials"
@@ -1656,13 +1658,13 @@ func (*postgresNotifier) Cancel(string) {}
 
 type controllerCredentialLookup struct{}
 
-func (controllerCredentialLookup) LookupLLMCredential(context.Context, string) (config.CredentialMetadata, error) {
-	return config.CredentialMetadata{}, fmt.Errorf("credential is unavailable")
+func (controllerCredentialLookup) LookupLLMCredential(context.Context, string) (resolved.CredentialMetadata, error) {
+	return resolved.CredentialMetadata{}, fmt.Errorf("credential is unavailable")
 }
 
 func controllerTransactionCredentialLookup() runtimeconfig.TransactionLLMCredentialLookupFactory {
 	return runtimeconfig.TransactionLLMCredentialLookupFactoryFunc(
-		func(pgx.Tx) (config.CredentialLookup, error) { return controllerCredentialLookup{}, nil },
+		func(pgx.Tx) (resolved.CredentialLookup, error) { return controllerCredentialLookup{}, nil },
 	)
 }
 
@@ -1694,7 +1696,7 @@ func loadControllerConfigWithItemLimit(t *testing.T, maxItems int, batchSizes ..
 	if len(batchSizes) > 0 {
 		batchSize = batchSizes[0]
 	}
-	if len(batchSizes) > 1 || batchSize < 1 || batchSize > config.MaxAuditBatchSize {
+	if len(batchSizes) > 1 || batchSize < 1 || batchSize > auditprofile.MaxAuditBatchSize {
 		t.Fatalf("invalid test batch size %v", batchSizes)
 	}
 	return loadControllerConfigWithFindings(t, batchSize, maxItems, false)
@@ -1822,7 +1824,7 @@ spec:
 			t.Fatal(err)
 		}
 	}
-	snapshot, err := configload.Load(root, config.MVPDescriptors())
+	snapshot, err := configload.Load(root)
 	if err != nil {
 		t.Fatalf("load Audit Controller test configuration: %v", err)
 	}

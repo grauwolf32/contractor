@@ -1,4 +1,4 @@
-package config
+package resolved
 
 import (
 	"bytes"
@@ -14,21 +14,28 @@ type ExecutionConfigPatch struct {
 	Stages  map[string]StageExecutionConfigPatch
 }
 
+// StageExecutionConfigPatch is the planner and per-Agent part of one Stage's
+// patch, and the body of a named ExecutionConfig profile.
 type StageExecutionConfigPatch struct {
 	Planner *ExecutionSelectionPatch
 	Agents  map[string]ExecutionSelectionPatch
 }
 
+// ExecutionSelectionPatch selects, by reference, any of one consumer's
+// ModelPolicy, LLMGatewayConfig and credential. The catalog loader builds it
+// from YAML and resolves the references against its configuration set.
 type ExecutionSelectionPatch struct {
-	modelPolicy optionalString
-	llmGateway  optionalString
-	credential  optionalString
+	ModelPolicy OptionalString
+	LLMGateway  OptionalString
+	Credential  OptionalString
 }
 
-type optionalString struct {
-	present bool
-	null    bool
-	value   string
+// OptionalString is one member of a patch: absent, an explicit null (which
+// only a credential accepts, to clear it) or a string value.
+type OptionalString struct {
+	Present bool
+	Null    bool
+	Value   string
 }
 
 func (p ExecutionConfigPatch) MarshalJSON() ([]byte, error) {
@@ -118,11 +125,11 @@ func (p *ExecutionSelectionPatch) unmarshalJSON(data []byte, field string) error
 	for key, raw := range object {
 		switch key {
 		case "modelPolicy":
-			p.modelPolicy, err = decodeOptionalString(raw, false, field+".modelPolicy")
+			p.ModelPolicy, err = decodeOptionalString(raw, false, field+".modelPolicy")
 		case "llmGateway":
-			p.llmGateway, err = decodeOptionalString(raw, false, field+".llmGateway")
+			p.LLMGateway, err = decodeOptionalString(raw, false, field+".llmGateway")
 		case "credential":
-			p.credential, err = decodeOptionalString(raw, true, field+".credential")
+			p.Credential, err = decodeOptionalString(raw, true, field+".credential")
 		default:
 			return fmt.Errorf("%s contains unknown field %q", field, key)
 		}
@@ -130,7 +137,7 @@ func (p *ExecutionSelectionPatch) unmarshalJSON(data []byte, field string) error
 			return err
 		}
 	}
-	if !p.hasAny() {
+	if !p.HasAny() {
 		return fmt.Errorf("%s must select at least one field", field)
 	}
 	return nil
@@ -149,22 +156,23 @@ func decodePatchObject(data []byte, field string) (map[string]json.RawMessage, e
 	return result, nil
 }
 
-func decodeOptionalString(data []byte, allowNull bool, field string) (optionalString, error) {
+func decodeOptionalString(data []byte, allowNull bool, field string) (OptionalString, error) {
 	if bytes.Equal(bytes.TrimSpace(data), []byte("null")) {
 		if !allowNull {
-			return optionalString{}, fmt.Errorf("%s must not be null", field)
+			return OptionalString{}, fmt.Errorf("%s must not be null", field)
 		}
-		return optionalString{present: true, null: true}, nil
+		return OptionalString{Present: true, Null: true}, nil
 	}
 	var value string
 	if err := json.Unmarshal(data, &value); err != nil {
-		return optionalString{}, fmt.Errorf("%s must be a string", field)
+		return OptionalString{}, fmt.Errorf("%s must be a string", field)
 	}
-	return optionalString{present: true, value: value}, nil
+	return OptionalString{Present: true, Value: value}, nil
 }
 
-func (p ExecutionSelectionPatch) hasAny() bool {
-	return p.modelPolicy.present || p.llmGateway.present || p.credential.present
+// HasAny reports whether the patch selects at least one member.
+func (p ExecutionSelectionPatch) HasAny() bool {
+	return p.ModelPolicy.Present || p.LLMGateway.Present || p.Credential.Present
 }
 
 // canonicalValue is used by public request idempotency hashing. It preserves
@@ -181,7 +189,7 @@ func (p ExecutionConfigPatch) canonicalValue() map[string]any {
 	if len(p.Stages) > 0 {
 		stages := make(map[string]any, len(p.Stages))
 		for name, value := range p.Stages {
-			canonical := value.canonicalValue()
+			canonical := value.CanonicalValue()
 			if len(canonical) > 0 {
 				stages[name] = canonical
 			}
@@ -195,7 +203,9 @@ func (p ExecutionConfigPatch) canonicalValue() map[string]any {
 
 func (p ExecutionConfigPatch) CanonicalValue() map[string]any { return p.canonicalValue() }
 
-func (p StageExecutionConfigPatch) canonicalValue() map[string]any {
+// CanonicalValue is the JSON shape of the patch that an ExecutionConfig
+// profile digest covers; it preserves an explicit credential null.
+func (p StageExecutionConfigPatch) CanonicalValue() map[string]any {
 	result := make(map[string]any)
 	if p.Planner != nil {
 		result["planner"] = p.Planner.canonicalValue()
@@ -212,16 +222,16 @@ func (p StageExecutionConfigPatch) canonicalValue() map[string]any {
 
 func (p ExecutionSelectionPatch) canonicalValue() map[string]any {
 	result := make(map[string]any)
-	for name, value := range map[string]optionalString{
-		"modelPolicy": p.modelPolicy, "llmGateway": p.llmGateway, "credential": p.credential,
+	for name, value := range map[string]OptionalString{
+		"modelPolicy": p.ModelPolicy, "llmGateway": p.LLMGateway, "credential": p.Credential,
 	} {
-		if !value.present {
+		if !value.Present {
 			continue
 		}
-		if value.null {
+		if value.Null {
 			result[name] = nil
 		} else {
-			result[name] = value.value
+			result[name] = value.Value
 		}
 	}
 	return result

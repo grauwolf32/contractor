@@ -8,7 +8,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/planner"
 )
@@ -31,7 +31,7 @@ func (i *Importer) retainScanRecovery(
 	for _, item := range pkg.Evidence.Evidence {
 		evidence[item.ID] = validatedEvidence{value: item}
 	}
-	coverage, err := semanticCoverage(config.AuditModeRiskAssessment, member.task, pkg.Results.Results[0], evidence)
+	coverage, err := semanticCoverage(auditprofile.AuditModeRiskAssessment, member.task, pkg.Results.Results[0], evidence)
 	if err != nil {
 		return false, err
 	}

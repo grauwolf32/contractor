@@ -15,6 +15,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/agentprincipal"
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/control"
@@ -142,15 +143,15 @@ func (trace *placementQueryCounter) TraceQueryStart(ctx context.Context, _ *pgx.
 func (*placementQueryCounter) TraceQueryEnd(context.Context, *pgx.Conn, pgx.TraceQueryEndData) {}
 
 type placementCountingLLMLookup struct {
-	base  workflowconfig.CredentialLookup
+	base  resolved.CredentialLookup
 	count int
 	err   error
 }
 
-func (lookup *placementCountingLLMLookup) LookupLLMCredential(ctx context.Context, id string) (workflowconfig.CredentialMetadata, error) {
+func (lookup *placementCountingLLMLookup) LookupLLMCredential(ctx context.Context, id string) (resolved.CredentialMetadata, error) {
 	lookup.count++
 	if lookup.err != nil {
-		return workflowconfig.CredentialMetadata{}, lookup.err
+		return resolved.CredentialMetadata{}, lookup.err
 	}
 	return lookup.base.LookupLLMCredential(ctx, id)
 }
@@ -492,7 +493,7 @@ type placementFixture struct {
 	stageExecutionID string
 	runtimeSnapshot  runtimeconfig.RunSnapshot
 	template         contracts.ResolvedAgentTemplate
-	selection        workflowconfig.ResolvedConsumerExecutionConfig
+	selection        resolved.ResolvedConsumerExecutionConfig
 }
 
 func newPlacementFixture(
@@ -502,7 +503,7 @@ func newPlacementFixture(
 	runLabels []string,
 ) *placementFixture {
 	t.Helper()
-	configuration, err := configload.Load("../../testdata/configs", workflowconfig.MVPDescriptors())
+	configuration, err := configload.Load("../../testdata/configs")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -543,7 +544,7 @@ func newPlacementFixture(
 		t.Fatal("test Worker has no credential")
 	}
 	llmCredentials, err := credentials.NewStaticProvider([]credentials.StaticEntry{{
-		Metadata: workflowconfig.CredentialMetadata{
+		Metadata: resolved.CredentialMetadata{
 			Ref:          *selection.Credential,
 			LLMGateway:   selection.LLMGateway.Ref,
 			Unrestricted: true,
@@ -561,7 +562,7 @@ func newPlacementFixture(
 	txLookup, err := runtimeconfig.BindTransactionLLMCredentialLookup(
 		tx,
 		runtimeconfig.TransactionLLMCredentialLookupFactoryFunc(
-			func(pgx.Tx) (workflowconfig.CredentialLookup, error) { return llmCredentials, nil },
+			func(pgx.Tx) (resolved.CredentialLookup, error) { return llmCredentials, nil },
 		),
 	)
 	if err != nil {
@@ -615,7 +616,7 @@ func newPlacementFixture(
 		Gateways:       placementGatewayLookup{gateway: *selection.LLMGateway},
 		LLMCredentials: llmCredentials, RuntimeCredentials: placementRuntimeCredentialLookup{},
 		TransactionLLMCredentials: runtimeconfig.TransactionLLMCredentialLookupFactoryFunc(
-			func(pgx.Tx) (workflowconfig.CredentialLookup, error) { return llmCredentials, nil },
+			func(pgx.Tx) (resolved.CredentialLookup, error) { return llmCredentials, nil },
 		),
 		CredentialGuard: placementGuardFunc(func(_ context.Context, fn func() error) error { return fn() }),
 	})

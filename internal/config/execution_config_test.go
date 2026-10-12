@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/credentialerrors"
 )
@@ -33,7 +34,7 @@ func TestResolveRunWorkflowAppliesAllWorkerLayersAndPinsBodies(t *testing.T) {
             modelPolicy: test-worker@1
 `)
 
-	snapshot := mustLoad(t, root, MVPDescriptors())
+	snapshot := mustLoad(t, root)
 	localGateway, err := snapshot.LLMGateway("local-litellm@1")
 	if err != nil {
 		t.Fatal(err)
@@ -43,7 +44,7 @@ func TestResolveRunWorkflowAppliesAllWorkerLayersAndPinsBodies(t *testing.T) {
 		"run-worker":      credentialMetadata("run-worker", localGateway.Ref),
 	}
 
-	base, err := snapshot.ResolveRunWorkflow(t.Context(), "artifact-copy@1", ExecutionConfigPatch{}, credentials)
+	base, err := snapshot.ResolveRunWorkflow(t.Context(), "artifact-copy@1", resolved.ExecutionConfigPatch{}, credentials)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -80,11 +81,11 @@ func TestResolveRunWorkflowAppliesAllWorkerLayersAndPinsBodies(t *testing.T) {
     "credential": null
   }}}}
 }`)
-	resolved, err := snapshot.ResolveRunWorkflow(t.Context(), "artifact-copy@1", bindingPatch, credentials)
+	runWorkflow, err := snapshot.ResolveRunWorkflow(t.Context(), "artifact-copy@1", bindingPatch, credentials)
 	if err != nil {
 		t.Fatal(err)
 	}
-	selection := resolved.Stages["copy"].ExecutionConfig.Agents["builder"]
+	selection := runWorkflow.Stages["copy"].ExecutionConfig.Agents["builder"]
 	if selection.ModelPolicy.Ref.PolicyID != "test-worker" || selection.LLMGateway.Ref.GatewayID != "secondary" ||
 		selection.Credential != nil ||
 		selection.Origins.ModelPolicy != "run.executionConfig.stages.copy.agents.builder" ||
@@ -93,7 +94,7 @@ func TestResolveRunWorkflowAppliesAllWorkerLayersAndPinsBodies(t *testing.T) {
 		t.Fatalf("resolved binding override = %+v", selection)
 	}
 
-	pinned, err := json.Marshal(resolved)
+	pinned, err := json.Marshal(runWorkflow)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -104,14 +105,14 @@ func TestResolveRunWorkflowAppliesAllWorkerLayersAndPinsBodies(t *testing.T) {
 		t, filepath.Join(root, "model-policies/test-worker.yaml"),
 		"model: worker-model", "model: worker-model-v2",
 	)
-	reloaded := mustLoad(t, root, MVPDescriptors())
+	reloaded := mustLoad(t, root)
 	newResolution, err := reloaded.ResolveRunWorkflow(
 		t.Context(), "artifact-copy@1", bindingPatch, credentials,
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	var stored ResolvedWorkflow
+	var stored resolved.ResolvedWorkflow
 	if err := json.Unmarshal(pinned, &stored); err != nil {
 		t.Fatal(err)
 	}
@@ -131,12 +132,12 @@ func TestResolveRunWorkflowAllowsOnlyWorkerPhysicalGatewayToRemainAbsent(t *test
       credential: development-worker
 
 `, "")
-	snapshot, err := Load(root, MVPDescriptors())
+	snapshot, err := Load(root)
 	if err != nil {
 		t.Fatal(err)
 	}
 	workflow, err := snapshot.ResolveRunWorkflow(
-		t.Context(), "artifact-copy@1", ExecutionConfigPatch{}, metadataLookup{},
+		t.Context(), "artifact-copy@1", resolved.ExecutionConfigPatch{}, metadataLookup{},
 	)
 	if err != nil {
 		t.Fatalf("resolve label-routed Worker: %v", err)
@@ -152,7 +153,10 @@ func TestResolveRunWorkflowAllowsOnlyWorkerPhysicalGatewayToRemainAbsent(t *test
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := validateConsumerExecutionConfig(planner, true, false); err == nil ||
+	modeled := workflow.Stages[workflow.EntryStage]
+	modeled.Planner = resolved.PlannerRef{PlannerID: "streamline", Version: "1"}
+	modeled.ExecutionConfig.Planner = &planner
+	if err := resolved.ValidateStageExecutionConfig(workflow.EntryStage, modeled); err == nil ||
 		!strings.Contains(err.Error(), "Planner llmGateway is required") {
 		t.Fatalf("incomplete Planner validation error = %v", err)
 	}
@@ -178,7 +182,7 @@ func TestResolveRunWorkflowKeepsPlannerAndWorkerSelectionsIndependent(t *testing
       credential: worker-credential
 `)
 
-	snapshot := mustLoad(t, root, MVPDescriptors())
+	snapshot := mustLoad(t, root)
 	plannerGateway, _ := snapshot.LLMGateway("local-litellm@1")
 	workerGateway, _ := snapshot.LLMGateway("secondary@1")
 	lookup := metadataLookup{
@@ -186,7 +190,7 @@ func TestResolveRunWorkflowKeepsPlannerAndWorkerSelectionsIndependent(t *testing
 		"worker-credential":  credentialMetadata("worker-credential", workerGateway.Ref),
 	}
 	workflow, err := snapshot.ResolveRunWorkflow(
-		t.Context(), "artifact-copy@1", ExecutionConfigPatch{}, lookup,
+		t.Context(), "artifact-copy@1", resolved.ExecutionConfigPatch{}, lookup,
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -220,19 +224,19 @@ func TestWorkflowWidePlannerDefaultSkipsPassthroughStages(t *testing.T) {
 	workflow = strings.Replace(workflow, "      planner: streamline@1", "      planner: passthrough@1", 1)
 	writeFile(t, filepath.Join(root, "workflows/artifact_copy.yaml"), []byte(workflow))
 
-	snapshot := mustLoad(t, root, MVPDescriptors())
-	resolved, err := snapshot.ResolveRunWorkflow(
-		t.Context(), "artifact-copy@1", ExecutionConfigPatch{}, metadataLookup{},
+	snapshot := mustLoad(t, root)
+	runWorkflow, err := snapshot.ResolveRunWorkflow(
+		t.Context(), "artifact-copy@1", resolved.ExecutionConfigPatch{}, metadataLookup{},
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if resolved.Stages["build"].ExecutionConfig.Planner != nil ||
-		resolved.Stages["review"].ExecutionConfig.Planner == nil {
+	if runWorkflow.Stages["build"].ExecutionConfig.Planner != nil ||
+		runWorkflow.Stages["review"].ExecutionConfig.Planner == nil {
 		t.Fatalf(
 			"mixed Planner defaults = build:%+v review:%+v",
-			resolved.Stages["build"].ExecutionConfig.Planner,
-			resolved.Stages["review"].ExecutionConfig.Planner,
+			runWorkflow.Stages["build"].ExecutionConfig.Planner,
+			runWorkflow.Stages["review"].ExecutionConfig.Planner,
 		)
 	}
 }
@@ -285,7 +289,7 @@ func TestExecutionConfigRejectsConsumerIncompatibilityAndInvalidWorkflowPatches(
 		t.Run(test.name, func(t *testing.T) {
 			root := copyCoreFixture(t)
 			test.mutate(t, root)
-			snapshot, err := Load(root, MVPDescriptors())
+			snapshot, err := Load(root)
 			if err == nil || snapshot != nil || !strings.Contains(err.Error(), test.want) {
 				t.Fatalf("Load() = (%v, %v), want error containing %q", snapshot, err, test.want)
 			}
@@ -294,12 +298,12 @@ func TestExecutionConfigRejectsConsumerIncompatibilityAndInvalidWorkflowPatches(
 }
 
 func TestResolveRunWorkflowRejectsMissingOrMismatchedCredentialSafely(t *testing.T) {
-	snapshot := mustLoad(t, copyCoreFixture(t), MVPDescriptors())
+	snapshot := mustLoad(t, copyCoreFixture(t))
 	localGateway, _ := snapshot.LLMGateway("local-litellm@1")
 	patch := decodeExecutionConfigPatch(t, `{"workers":{"credential":"selected-credential"}}`)
 	tests := []struct {
 		name   string
-		lookup CredentialLookup
+		lookup resolved.CredentialLookup
 	}{
 		{"missing", metadataLookup{}},
 		{"wrong Gateway", metadataLookup{
@@ -329,10 +333,10 @@ func TestResolveRunWorkflowRejectsMissingOrMismatchedCredentialSafely(t *testing
 }
 
 func TestCredentialLookupFailuresKeepTheirClassAndCause(t *testing.T) {
-	snapshot := mustLoad(t, copyCoreFixture(t), MVPDescriptors())
+	snapshot := mustLoad(t, copyCoreFixture(t))
 	localGateway, _ := snapshot.LLMGateway("local-litellm@1")
 	patch := decodeExecutionConfigPatch(t, `{"workers":{"credential":"selected-credential"}}`)
-	resolved, err := snapshot.ResolveRunWorkflow(
+	runWorkflow, err := snapshot.ResolveRunWorkflow(
 		t.Context(), "artifact-copy@1", patch,
 		metadataLookup{"selected-credential": credentialMetadata("selected-credential", localGateway.Ref)},
 	)
@@ -346,7 +350,7 @@ func TestCredentialLookupFailuresKeepTheirClassAndCause(t *testing.T) {
 	for _, test := range []struct {
 		name   string
 		ctx    context.Context
-		lookup CredentialLookup
+		lookup resolved.CredentialLookup
 		cause  error
 	}{
 		{"recovery", t.Context(), failingCredentialLookup{recovery}, recovery},
@@ -355,21 +359,21 @@ func TestCredentialLookupFailuresKeepTheirClassAndCause(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			_, resolveErr := snapshot.ResolveRunWorkflow(test.ctx, "artifact-copy@1", patch, test.lookup)
-			validateErr := ValidateResolvedWorkflowCredentials(test.ctx, resolved, test.lookup)
+			validateErr := resolved.ValidateResolvedWorkflowCredentials(test.ctx, runWorkflow, test.lookup)
 			for name, err := range map[string]error{"resolve": resolveErr, "revalidate": validateErr} {
-				if !errors.Is(err, ErrCredentialLookup) || !errors.Is(err, test.cause) ||
+				if !errors.Is(err, resolved.ErrCredentialLookup) || !errors.Is(err, test.cause) ||
 					errors.Is(err, credentialerrors.LLMNotFound) || strings.Contains(err.Error(), "secret-value") {
 					t.Fatalf("%s lookup failure = %v; classified=%t cause=%t", name, err,
-						errors.Is(err, ErrCredentialLookup), errors.Is(err, test.cause))
+						errors.Is(err, resolved.ErrCredentialLookup), errors.Is(err, test.cause))
 				}
 			}
 		})
 	}
 	t.Run("confirmed absence", func(t *testing.T) {
 		_, resolveErr := snapshot.ResolveRunWorkflow(t.Context(), "artifact-copy@1", patch, metadataLookup{})
-		validateErr := ValidateResolvedWorkflowCredentials(t.Context(), resolved, metadataLookup{})
+		validateErr := resolved.ValidateResolvedWorkflowCredentials(t.Context(), runWorkflow, metadataLookup{})
 		for name, err := range map[string]error{"resolve": resolveErr, "revalidate": validateErr} {
-			if err == nil || errors.Is(err, ErrCredentialLookup) || errors.Is(err, credentialerrors.LLMNotFound) ||
+			if err == nil || errors.Is(err, resolved.ErrCredentialLookup) || errors.Is(err, credentialerrors.LLMNotFound) ||
 				!strings.Contains(err.Error(), "credential is unavailable") || strings.Contains(err.Error(), "secret-value") {
 				t.Fatalf("%s missing credential = %v", name, err)
 			}
@@ -379,8 +383,8 @@ func TestCredentialLookupFailuresKeepTheirClassAndCause(t *testing.T) {
 
 type failingCredentialLookup struct{ err error }
 
-func (l failingCredentialLookup) LookupLLMCredential(context.Context, string) (CredentialMetadata, error) {
-	return CredentialMetadata{}, l.err
+func (l failingCredentialLookup) LookupLLMCredential(context.Context, string) (resolved.CredentialMetadata, error) {
+	return resolved.CredentialMetadata{}, l.err
 }
 
 func TestExecutionConfigPatchJSONIsStrictAndPreservesCredentialNull(t *testing.T) {
@@ -395,7 +399,7 @@ func TestExecutionConfigPatchJSONIsStrictAndPreservesCredentialNull(t *testing.T
 		`{"stages":{"copy":{"agents":{"builder":null}}}}`,
 	}
 	for _, raw := range invalid {
-		var patch ExecutionConfigPatch
+		var patch resolved.ExecutionConfigPatch
 		if err := json.Unmarshal([]byte(raw), &patch); err == nil {
 			t.Fatalf("json.Unmarshal(%s) unexpectedly succeeded", raw)
 		}
@@ -413,18 +417,18 @@ func TestExecutionConfigPatchJSONIsStrictAndPreservesCredentialNull(t *testing.T
 	}
 }
 
-type metadataLookup map[string]CredentialMetadata
+type metadataLookup map[string]resolved.CredentialMetadata
 
-func (l metadataLookup) LookupLLMCredential(_ context.Context, id string) (CredentialMetadata, error) {
+func (l metadataLookup) LookupLLMCredential(_ context.Context, id string) (resolved.CredentialMetadata, error) {
 	metadata, ok := l[id]
 	if !ok {
-		return CredentialMetadata{}, fmt.Errorf("%w: secret-value must not escape", credentialerrors.LLMNotFound)
+		return resolved.CredentialMetadata{}, fmt.Errorf("%w: secret-value must not escape", credentialerrors.LLMNotFound)
 	}
 	return metadata, nil
 }
 
-func credentialMetadata(id string, gateway llmgateway.LLMGatewayConfigRef) CredentialMetadata {
-	return CredentialMetadata{
+func credentialMetadata(id string, gateway llmgateway.LLMGatewayConfigRef) resolved.CredentialMetadata {
+	return resolved.CredentialMetadata{
 		Ref: llmgateway.LLMCredentialRef{CredentialID: id}, LLMGateway: gateway,
 	}
 }
@@ -441,9 +445,9 @@ func developmentCredentialLookup(t *testing.T, snapshot *Snapshot) metadataLooku
 	}
 }
 
-func decodeExecutionConfigPatch(t *testing.T, raw string) ExecutionConfigPatch {
+func decodeExecutionConfigPatch(t *testing.T, raw string) resolved.ExecutionConfigPatch {
 	t.Helper()
-	var patch ExecutionConfigPatch
+	var patch resolved.ExecutionConfigPatch
 	if err := json.Unmarshal([]byte(raw), &patch); err != nil {
 		t.Fatalf("decode executionConfig patch: %v", err)
 	}
