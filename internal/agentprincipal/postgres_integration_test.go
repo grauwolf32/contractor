@@ -17,6 +17,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -37,7 +38,7 @@ func TestPostgresPrincipalAdapterPagesBatchAndPreserveSnapshot(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 45*time.Second)
 	defer cancel()
 	pool := isolatedPrincipalPool(t, ctx)
-	ref := runtimeconfig.BuiltInRunSnapshot().Default.Config
+	ref := runtimeconfigtest.BuiltInRunSnapshot().Default.Config
 	bindings := runtimeconfig.NewRepository(pool)
 	for _, label := range []string{"alpha", "beta", "gamma"} {
 		if _, err := bindings.CreateBinding(ctx, label, ref, "operator", time.Now().UTC()); err != nil {
@@ -357,7 +358,7 @@ func isolatedPrincipalPool(t *testing.T, ctx context.Context) *pgxpool.Pool {
 		}
 		admin.Close()
 	})
-	if _, err := persistencepostgres.ApplyMigrations(ctx, pool); err != nil {
+	if _, err := persistencepostgres.ApplyMigrations(ctx, pool, persistencepostgres.MigrationBudgets{}); err != nil {
 		t.Fatalf("apply migrations: %v", err)
 	}
 	return pool

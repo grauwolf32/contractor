@@ -213,7 +213,7 @@ func qualityComparisonMembers(scored, baselinePassed, candidatePassed int) []Sel
 	return rows
 }
 
-func TestSharedEvalChartsEmptySingletonEqualAndProgressGaps(t *testing.T) {
+func TestSharedEvalChartsEmptySingletonAndEqual(t *testing.T) {
 	rows, _ := traceComparison(t)
 	v, err := BuildComparison(rows[:2], Comparison{Baseline: "a", Candidate: "b"}, true)
 	if err != nil {
@@ -229,18 +229,5 @@ func TestSharedEvalChartsEmptySingletonEqualAndProgressGaps(t *testing.T) {
 	c = MeasurementCohort(v.Pairs, "absent", "tokens", "workflow", true)
 	if len(c.Bins) != 0 || c.Distributions["a"].Total != nil {
 		t.Fatal("empty cohort converted to zero")
-	}
-	start := time.Date(2026, 9, 19, 0, 0, 0, 0, time.UTC)
-	observations := []ProgressObservation{{start.Add(time.Minute), 1, 0}, {start.Add(20 * time.Minute), 2, 1}}
-	points, width := ProgressBuckets(start, observations)
-	if len(points) != 2 || !points[0].GapBefore || !points[1].GapBefore || width < 1 {
-		t.Fatal("unknown observed history interpolated")
-	}
-	for i := 0; i < 10000; i++ {
-		observations = append(observations, ProgressObservation{start.Add(time.Duration(i) * time.Second), i / 2, i / 2})
-	}
-	points, _ = ProgressBuckets(start, observations)
-	if len(points) > 200 {
-		t.Fatalf("unbounded progress %d", len(points))
 	}
 }

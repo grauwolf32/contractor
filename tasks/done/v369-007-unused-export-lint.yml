@@ -1,0 +1,96 @@
+schema_version: "1.0"
+id: V369-007
+title: "Fail lint on exported identifiers used only by tests"
+milestone: hub-audit-guards-2026-10
+epic: quality
+kind: chore
+priority: P3
+status: completed
+implementation_commit: 772195f0d851b068b211bf12719801fa182dc353
+depends_on: [V370-008]
+languages: [go]
+goal: "A new exported function used only by a test fails lint."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq; raw reports in docs/research/2026-10-11-hub-audit/), exec-state F3; dispatch F6; audits C6; file:line as of 02bbdcbf, re-verify on current main"
+  finding: >-
+    staticcheck U1000 covers only unexported code; exported test-only
+    surface keeps growing (runstore.Repository, controlplane
+    Register/Heartbeat/ReserveAll/GetAgent, auditstore.ListEvents, ...).
+  decision: >-
+    (1) The check is tools/testonlyexports, a module of its own so that
+    golang.org/x/tools v0.48.0 stays out of the Server's go.mod (as
+    tools/oapi-codegen.mod does for oapi-codegen). It loads every package of
+    the repository module with its tests through go/packages, including the
+    test files behind the integration and e2e tags, and reports each exported
+    package-level function, type, constant and variable, each exported method
+    of an exported type and each exported interface method that no production
+    code references, whether only tests use it or nothing does. Production
+    code is every file outside test code: cmd/ and tools/ are production, and
+    generated files are production code whose own declarations are not
+    reported. A reference from inside the declaration (a recursive call, a
+    method's receiver, a type's own methods) and a compile-time check
+    var _ I = (*T)(nil) are not uses. A method also counts as used when its
+    type, or a type that embeds it, implements an interface with a used
+    method of that name: any interface outside the module that production
+    code reaches, the error type, and every module interface whose method
+    production code calls, directly or through a wider interface; methods
+    named As, Is, Unwrap, Timeout or Temporary, which the standard library
+    finds through anonymous interfaces, are never reported. Struct fields are
+    not checked, since encoding/json and row scans use them without a
+    reference. (2) The one allowlist rule: a package whose name ends in
+    "test" is test code as a whole, like _test.go files and the process tests
+    under tests/. A test hook belongs in its package's export_test.go, a
+    helper that other packages' tests share in such a package. Production
+    code must not import one: the check fails on that import and no baseline
+    entry can excuse it, so the rule cannot hide a production use (none
+    exists today). (3) tools/testonlyexports/baseline.txt holds the 48
+    findings V370-008 left, one "<identifier> <task ID>" line each: 44 under
+    V372-030 and the four internal/auditpriority functions under V64-005 and
+    V64-006, whose callers give that package its first production importer.
+    The check fails on a finding the baseline does not list, on an entry that
+    no longer matches a finding and on an entry whose task is finished or has
+    no file, so the list only shrinks. (4) make lint runs gofmt over tools/
+    as well, the check's vet and tests (with -count=1, because the tests run
+    go list, whose reads the test cache does not see) and the check itself;
+    scripts/check_release_verify_graph.py requires release-verify-lint to
+    keep it. On a warm build cache the three steps take about 8 s (vet
+    0.2 s, tests 1.8 s, the check 6.2 s); after an edit low in the import
+    graph the check's go list rebuilds export data and took 40 s once.
+    make lint took 65 s with the check. (5) Limits: the check
+    counts references, not reachability from a main package, so an exported
+    identifier that only unreachable production code uses is not reported
+    (nothing imports internal/auditpriority, and only its leaf functions
+    show); removing one finding can expose another that only it used, which
+    the next run reports. The fixture's tagged test uses a fixture build tag
+    because scripts/release_integration_tests.py discovers
+    integration-tagged files under tools/, and its package is core because
+    the root .gitignore ignores lib/.
+scope:
+  in:
+    - "A go/packages check in make lint listing exported identifiers referenced only from _test.go files, with an allowlist for intended test helpers."
+  out:
+    - "Behaviour not named in the finding."
+acceptance_criteria:
+  - id: A1
+    text: "A new exported function used only by a test fails lint."
+    evidence: >-
+      TestRunFailsOnAnExportOnlyTestsUse holds it on the fixture module
+      tools/testonlyexports/testdata/fixture, whose cases cover every rule
+      above; TestRunFailsWhenProductionImportsATestHelper holds the
+      allowlist rule on testdata/helperimport. Manual probe before 772195f,
+      reverted: adding func ProbeOnlyTests() to
+      internal/contracts/runlabels with one call from a new test stopped
+      make lint at the check (make/dev.mk:20) with
+      "internal/contracts/runlabels/probe.go:4:6: func
+      internal/contracts/runlabels.ProbeOnlyTests is exported, but only
+      tests reference it (1 reference in
+      internal/contracts/runlabels/probe_test.go)". Ran go -C
+      tools/testonlyexports vet ./... and go -C tools/testonlyexports test
+      -count=1 ./...; python3 -m unittest discover -s scripts -p
+      'test_*.py' (95 tests); python3 scripts/check_tasks.py; make lint
+      (passes with the check).
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "make lint"
+    covers: [A1]

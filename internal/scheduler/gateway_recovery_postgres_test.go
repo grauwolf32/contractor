@@ -13,7 +13,8 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/gatewayrecovery"
 	"github.com/grauwolf32/contractor/internal/runstore"
-	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/grauwolf32/contractor/internal/runstore/runstoretest"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -35,7 +36,7 @@ func newRecoveryFixture(t *testing.T) recoveryFixture {
 }
 func (f recoveryFixture) run(t *testing.T, id string, routes ...gatewayrecovery.Route) *gatewayrecovery.Participant {
 	t.Helper()
-	if _, err := f.runs.CreateRun(t.Context(), runstore.CreateRunParams{RunID: id, OwnerID: "owner", WorkflowName: "test", WorkflowVersion: "1", WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: json.RawMessage(`{}`), RuntimeConfig: runtimeconfig.BuiltInRunSnapshot()}); err != nil {
+	if _, err := runstoretest.CreateRun(t.Context(), f.runs, runstore.CreateRunParams{RunID: id, OwnerID: "owner", WorkflowName: "test", WorkflowVersion: "1", WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: json.RawMessage(`{}`), RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot()}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := f.runs.TransitionRun(t.Context(), id, runstore.RunInitializing, runstore.RunPending, runstore.Reason{Code: "initialized"}); err != nil {

@@ -61,7 +61,7 @@ func testPool(t *testing.T) *pgxpool.Pool {
 			t.Error(err)
 		}
 	})
-	if _, err = pg.ApplyMigrations(ctx, pool); err != nil {
+	if _, err = pg.ApplyMigrations(ctx, pool, pg.MigrationBudgets{}); err != nil {
 		t.Fatal(err)
 	}
 	return pool

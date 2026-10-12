@@ -24,7 +24,9 @@ import (
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/rundeletion"
 	"github.com/grauwolf32/contractor/internal/runstore"
+	"github.com/grauwolf32/contractor/internal/runstore/runstoretest"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -52,11 +54,11 @@ func TestPostgresPublicPagedListsAcceptTheLargestPage(t *testing.T) {
 	}
 	runs := runstore.NewPostgresStore(pool)
 	project := projectID
-	if _, err := runs.CreateRun(ctx, runstore.CreateRunParams{
+	if _, err := runstoretest.CreateRun(ctx, runs, runstore.CreateRunParams{
 		RunID: runID, OwnerID: owner, ProjectID: &project,
 		WorkflowName: "artifact-copy", WorkflowVersion: "1", WorkflowSchemaVersion: contracts.APIVersion,
 		WorkflowSnapshot: json.RawMessage(`{"ref":{"name":"artifact-copy","version":"1"}}`),
-		Parameters:       map[string]string{}, RuntimeConfig: runtimeconfig.BuiltInRunSnapshot(),
+		Parameters:       map[string]string{}, RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot(),
 	}); err != nil {
 		t.Fatal(err)
 	}

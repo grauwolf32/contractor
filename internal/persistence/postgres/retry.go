@@ -8,7 +8,9 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-const MaxTransactionAttempts = 3
+// maxTransactionAttempts bounds the transactions InTxWithRetry starts for one
+// operation.
+const maxTransactionAttempts = 3
 
 // InTxWithRetry is opt-in, for database-only operations whose entire callback
 // can safely be replayed. Each attempt uses a fresh transaction and snapshot;
@@ -26,7 +28,7 @@ func retryTransaction(ctx context.Context, attempt func() error) error {
 			return err
 		}
 		err := attempt()
-		if err == nil || index+1 == MaxTransactionAttempts || !IsTransactionConflict(err) {
+		if err == nil || index+1 == maxTransactionAttempts || !IsTransactionConflict(err) {
 			return err
 		}
 		timer := time.NewTimer(time.Duration(index+1) * 10 * time.Millisecond)

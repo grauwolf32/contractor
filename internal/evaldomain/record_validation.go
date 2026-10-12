@@ -333,11 +333,3 @@ func checkMemberView(v MemberView) error {
 	}
 	return nil
 }
-
-// CheckOwner deliberately returns the same response for unknown/foreign owners.
-func CheckOwner(principal, owner string) error {
-	if principal == "" || owner == "" || principal != owner {
-		return Failure("eval_not_found")
-	}
-	return nil
-}

@@ -12,7 +12,8 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/runstore"
-	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/grauwolf32/contractor/internal/runstore/runstoretest"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -281,10 +282,10 @@ func createParityRun(
 ) {
 	t.Helper()
 	store := runstore.NewPostgresStore(pool)
-	if _, err := store.CreateRun(ctx, runstore.CreateRunParams{
+	if _, err := runstoretest.CreateRun(ctx, store, runstore.CreateRunParams{
 		RunID: runID, OwnerID: "user-parity", WorkflowName: "artifact-copy", WorkflowVersion: "1",
 		WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: json.RawMessage(`{}`),
-		RuntimeConfig: runtimeconfig.BuiltInRunSnapshot(),
+		RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot(),
 	}); err != nil {
 		t.Fatal(err)
 	}

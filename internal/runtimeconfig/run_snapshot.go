@@ -194,16 +194,6 @@ func (s RunSnapshot) Clone() RunSnapshot {
 	return result
 }
 
-func BuiltInRunSnapshot() RunSnapshot {
-	return RunSnapshot{
-		Default: PinnedLabel{
-			Label: DefaultLabel, BindingRevision: 1,
-			Config: Ref{Name: BuiltInName, Version: BuiltInVersion, Digest: BuiltInDigest},
-		},
-		Labels: []PinnedLabel{}, LLMCredentialIDs: []string{}, RuntimeCredentialIDs: []string{},
-	}
-}
-
 func validateRunLLMCredential(
 	ctx context.Context, spec Spec, lookup resolved.CredentialLookup,
 ) error {

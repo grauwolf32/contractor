@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -195,8 +196,11 @@ func TestPostgresResumeFailedStageIsAtomicAndIdempotent(t *testing.T) {
 	if next.State != StagePreparing || next.Attempt != 2 || next.PreviousExecutionID == nil || *next.PreviousExecutionID != *source || next.PlannerSessionID != nil || !reflect.DeepEqual(next.StageContext, previous.StageContext) || !reflect.DeepEqual(next.StageSpecSnapshot, previous.StageSpecSnapshot) {
 		t.Fatalf("new attempt: %+v", next)
 	}
-	decision, err := store.GetStageTransitionDecision(ctx, *source)
-	if err != nil || decision.Action != StageTransitionFail {
+	decisions, err := store.ListStageTransitionDecisions(ctx, before.RunID)
+	decision := slices.IndexFunc(decisions, func(decision StageTransitionDecision) bool {
+		return decision.SourceExecutionID == *source
+	})
+	if err != nil || decision < 0 || decisions[decision].Action != StageTransitionFail {
 		t.Fatal("original decision rewritten", err)
 	}
 	failResumeStage(t, ctx, store, before.RunID, target)

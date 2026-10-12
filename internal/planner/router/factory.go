@@ -15,8 +15,6 @@ type Limits = streamline.Limits
 type ADKSessionFactory = streamline.ADKSessionFactory
 type InvocationModelFactory = streamline.InvocationModelFactory
 
-func DefaultLimits() Limits { return streamline.DefaultLimits() }
-
 type Factory struct {
 	delegate *streamline.Factory
 }

@@ -52,7 +52,7 @@ func TestSharedAllocationRunMetadataLabelCasesAreStrict(t *testing.T) {
 		if marshalErr != nil {
 			return marshalErr
 		}
-		_, decodeErr := contracts.DecodeStrict[AllocationSpec](encoded)
+		_, decodeErr := contracts.DecodePrivateStrict[AllocationSpec](encoded)
 		return decodeErr
 	}
 	for _, candidate := range cases.Valid {
@@ -105,7 +105,7 @@ func TestSharedAllocationWorkerSessionModeCasesAreStrict(t *testing.T) {
 		if marshalErr != nil {
 			return marshalErr
 		}
-		_, decodeErr := contracts.DecodeStrict[AllocationSpec](encoded)
+		_, decodeErr := contracts.DecodePrivateStrict[AllocationSpec](encoded)
 		return decodeErr
 	}
 	for _, candidate := range cases.Valid {
@@ -167,7 +167,7 @@ func TestSharedAllocationResolvedSkillsRejectsEveryManifestMismatch(t *testing.T
 			_ = json.Unmarshal(encoded, &candidate)
 			mutate(candidate)
 			encoded, _ = json.Marshal(candidate)
-			if _, err := contracts.DecodeStrict[AllocationSpec](encoded); err == nil {
+			if _, err := contracts.DecodePrivateStrict[AllocationSpec](encoded); err == nil {
 				t.Fatal("invalid resolvedSkills manifest was accepted")
 			}
 		})
@@ -214,7 +214,7 @@ func TestSharedAllocationSpecRequiresBoundedWorkerBudgets(t *testing.T) {
 					policy[test.field] = test.value
 				}
 				encoded, _ = json.Marshal(candidate)
-				if _, err := contracts.DecodeStrict[AllocationSpec](encoded); err == nil {
+				if _, err := contracts.DecodePrivateStrict[AllocationSpec](encoded); err == nil {
 					t.Fatal("invalid Worker budget was accepted")
 				}
 			})
@@ -271,7 +271,7 @@ func TestSharedAllocationSpecRequiresValidWorkerSummarizer(t *testing.T) {
 			summarizer := candidate["agentTemplate"].(map[string]any)["summarizer"].(map[string]any)
 			mutate(summarizer)
 			encoded, _ = json.Marshal(candidate)
-			if _, err := contracts.DecodeStrict[AllocationSpec](encoded); err == nil {
+			if _, err := contracts.DecodePrivateStrict[AllocationSpec](encoded); err == nil {
 				t.Fatal("invalid Worker summarizer was accepted")
 			}
 		})
@@ -281,7 +281,7 @@ func TestSharedAllocationSpecRequiresValidWorkerSummarizer(t *testing.T) {
 	_ = json.Unmarshal(encoded, &effectiveBound)
 	effectiveBound["modelPolicy"].(map[string]any)["maxTotalTokens"] = float64(20000)
 	encoded, _ = json.Marshal(effectiveBound)
-	if _, err := contracts.DecodeStrict[AllocationSpec](encoded); err == nil {
+	if _, err := contracts.DecodePrivateStrict[AllocationSpec](encoded); err == nil {
 		t.Fatal("summarizer cumulative budget at effective Worker hard bound was accepted")
 	}
 
@@ -290,7 +290,7 @@ func TestSharedAllocationSpecRequiresValidWorkerSummarizer(t *testing.T) {
 	_ = json.Unmarshal(encoded, &missingWorkerContext)
 	delete(missingWorkerContext["modelPolicy"].(map[string]any), "contextWindowTokens")
 	encoded, _ = json.Marshal(missingWorkerContext)
-	if _, err := contracts.DecodeStrict[AllocationSpec](encoded); err == nil {
+	if _, err := contracts.DecodePrivateStrict[AllocationSpec](encoded); err == nil {
 		t.Fatal("summarized effective Worker without context window was accepted")
 	}
 }
@@ -298,7 +298,7 @@ func TestSharedAllocationSpecRequiresValidWorkerSummarizer(t *testing.T) {
 func TestSharedPrivateAllocationSpecComposesValidatedSettingsAndProvenance(t *testing.T) {
 	t.Parallel()
 
-	active, err := contracts.DecodeStrict[AllocationSpec](contractstest.ReadFixture(t, "valid", "allocation-spec.json"))
+	active, err := contracts.DecodePrivateStrict[AllocationSpec](contractstest.ReadFixture(t, "valid", "allocation-spec.json"))
 	if err != nil {
 		t.Fatal(err)
 	}

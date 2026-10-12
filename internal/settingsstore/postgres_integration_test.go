@@ -233,7 +233,7 @@ func isolatedSettingsPool(
 		return pool
 	}
 	pool := open(t, ctx)
-	if _, err := persistencepostgres.ApplyMigrations(ctx, pool); err != nil {
+	if _, err := persistencepostgres.ApplyMigrations(ctx, pool, persistencepostgres.MigrationBudgets{}); err != nil {
 		pool.Close()
 		admin.Close()
 		t.Fatal(err)

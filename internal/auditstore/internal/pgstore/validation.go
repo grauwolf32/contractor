@@ -17,10 +17,7 @@ import (
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 )
 
-var (
-	idempotencyKeyPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$`)
-	eventKindPattern      = regexp.MustCompile(`^[a-z][a-z0-9_.-]{0,127}$`)
-)
+var idempotencyKeyPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$`)
 
 func validateID(field, value string) error {
 	if !contracts.ValidResourceID(value) {
@@ -643,8 +640,6 @@ func validateClaimParams(params auditstore.ClaimParams) error {
 	}
 	return nil
 }
-
-func validEventKind(value string) bool { return eventKindPattern.MatchString(value) }
 
 func nonNilStrings(values []string) []string {
 	return append([]string{}, values...)

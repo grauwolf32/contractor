@@ -107,21 +107,13 @@ func (m MigrationBudgets) Validate() error {
 	return err
 }
 
-// WithMigrationBudget bounds the entire migrator, including the advisory-lock
-// polling wait, to at least 15 minutes. Statement and lock timeouts govern
-// DDL after leadership is acquired, not the overall advisory-lock wait. InTx
-// installs these server settings with SET LOCAL, so commit/rollback cannot
-// leak maintenance settings into the pool.
-func WithMigrationBudget(ctx context.Context) (context.Context, context.CancelFunc) {
-	ctx, cancel, err := WithMigrationBudgets(ctx, MigrationBudgets{})
-	if err != nil {
-		panic(err) // defaults are statically valid
-	}
-	return ctx, cancel
-}
-
-// WithMigrationBudgets is WithMigrationBudget with operator overrides. The
-// tracer query deadline follows the statement timeout plus a small margin.
+// WithMigrationBudgets bounds the entire migrator, including the
+// advisory-lock polling wait, to at least 15 minutes. Statement and lock
+// timeouts govern DDL after leadership is acquired, not the overall
+// advisory-lock wait; m overrides them, and its zero fields keep the
+// defaults. The tracer query deadline follows the statement timeout plus a
+// small margin. InTx installs these server settings with SET LOCAL, so
+// commit/rollback cannot leak maintenance settings into the pool.
 func WithMigrationBudgets(ctx context.Context, m MigrationBudgets) (context.Context, context.CancelFunc, error) {
 	b, total, err := m.normalized()
 	if err != nil {

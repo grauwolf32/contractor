@@ -20,7 +20,7 @@ func TestPostgresSchemaKeepsSecretsEncryptedAndLivenessInMemory(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 45*time.Second)
 	defer cancel()
 	pool, _ := isolatedPools(t, ctx, storageReviewDatabaseURL(t))
-	if _, err := ApplyMigrations(ctx, pool); err != nil {
+	if _, err := ApplyMigrations(ctx, pool, MigrationBudgets{}); err != nil {
 		t.Fatal(err)
 	}
 	columns := schemaColumns(t, ctx, pool)
@@ -97,7 +97,7 @@ func TestPostgresSchemaSeedsOneProtectedSchedulerSetting(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 45*time.Second)
 	defer cancel()
 	pool, _ := isolatedPools(t, ctx, storageReviewDatabaseURL(t))
-	if _, err := ApplyMigrations(ctx, pool); err != nil {
+	if _, err := ApplyMigrations(ctx, pool, MigrationBudgets{}); err != nil {
 		t.Fatal(err)
 	}
 	var rows, maxConcurrentRuns int
@@ -126,7 +126,7 @@ func TestPostgresRunMetadataLabelsAreBoundedIndexedAndImmutable(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 45*time.Second)
 	defer cancel()
 	pool, _ := isolatedPools(t, ctx, storageReviewDatabaseURL(t))
-	if _, err := ApplyMigrations(ctx, pool); err != nil {
+	if _, err := ApplyMigrations(ctx, pool, MigrationBudgets{}); err != nil {
 		t.Fatal(err)
 	}
 	insert := func(runID, labels string) error {

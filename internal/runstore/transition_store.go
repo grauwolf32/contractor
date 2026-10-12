@@ -2,11 +2,9 @@ package runstore
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
-	"github.com/jackc/pgx/v5"
 )
 
 const stageTransitionDecisionColumns = `
@@ -48,30 +46,6 @@ RETURNING `+stageTransitionDecisionColumns,
 				params.SourceExecutionID, err,
 			)
 		}
-	}
-	return decision, nil
-}
-
-func (s *PostgresStore) GetStageTransitionDecision(
-	ctx context.Context,
-	sourceExecutionID string,
-) (StageTransitionDecision, error) {
-	if err := validateOpaque("sourceExecutionID", sourceExecutionID); err != nil {
-		return StageTransitionDecision{}, err
-	}
-	decision, err := scanStageTransitionDecision(s.db.QueryRow(ctx, `
-SELECT `+stageTransitionDecisionColumns+`
-FROM stage_transition_decisions
-WHERE source_execution_id = $1`, sourceExecutionID))
-	if errors.Is(err, pgx.ErrNoRows) {
-		return StageTransitionDecision{}, fmt.Errorf(
-			"get transition decision for StageExecution %q: %w", sourceExecutionID, ErrNotFound,
-		)
-	}
-	if err != nil {
-		return StageTransitionDecision{}, fmt.Errorf(
-			"get transition decision for StageExecution %q: %w", sourceExecutionID, err,
-		)
 	}
 	return decision, nil
 }

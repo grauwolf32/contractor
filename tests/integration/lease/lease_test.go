@@ -15,6 +15,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts/control"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/controlplane"
+	"github.com/grauwolf32/contractor/internal/controlplane/controlplanetest"
 )
 
 const confirmedLease = 60 * time.Second
@@ -88,7 +89,7 @@ func TestRuntimeRestartIsWithheldUntilOldAuthorityIsReleased(t *testing.T) {
 	registerRuntime(t, registry, restarted, clock)
 
 	assertSingleLoss(t, registry.PollAllocationLosses(), allocationID)
-	if _, err := registry.ReserveAll(reservationRequest(t, "run-new", "stage-new")); !errors.Is(err, controlplane.ErrInsufficientCapacity) {
+	if _, err := controlplanetest.Reserve(registry, reservationRequest(t, "run-new", "stage-new")); !errors.Is(err, controlplane.ErrInsufficientCapacity) {
 		t.Fatalf("restarted slot was offered before old release: %v", err)
 	}
 	if err := registry.Release(allocationID); err != nil {
@@ -97,7 +98,7 @@ func TestRuntimeRestartIsWithheldUntilOldAuthorityIsReleased(t *testing.T) {
 	// Complete the new identity's registration round trip after unblocking.
 	sendHeartbeat(t, registry, restarted, 0, true)
 	sendHeartbeat(t, registry, restarted, restarted.echoedAck, true)
-	reservations, err := registry.ReserveAll(reservationRequest(t, "run-new", "stage-new-after-release"))
+	reservations, err := controlplanetest.Reserve(registry, reservationRequest(t, "run-new", "stage-new-after-release"))
 	if err != nil || reservations[0].Grant.RuntimeInstanceID != restarted.instanceID {
 		t.Fatalf("restarted slot was not reusable after release: (%+v, %v)", reservations, err)
 	}
@@ -228,7 +229,7 @@ func readyAllocation(
 	registerRuntime(t, registry, runtime, clock)
 	sendHeartbeat(t, registry, runtime, 0, true)
 	sendHeartbeat(t, registry, runtime, runtime.echoedAck, true)
-	reservations, err := registry.ReserveAll(reservationRequest(t, "run-"+suffix, "stage-"+suffix))
+	reservations, err := controlplanetest.Reserve(registry, reservationRequest(t, "run-"+suffix, "stage-"+suffix))
 	if err != nil {
 		t.Fatal(err)
 	}

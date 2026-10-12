@@ -18,7 +18,8 @@ import (
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runrepeat"
 	"github.com/grauwolf32/contractor/internal/runstore"
-	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/grauwolf32/contractor/internal/runstore/runstoretest"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -80,10 +81,10 @@ func TestPostgresRunRepeatRequiresRetainedAuthorityWithoutMutation(t *testing.T)
 			for _, variant := range []string{"current", "missing", "malformed", "missing-patch", "null-patch", "wrong-workflow", "wrong-project", "wrong-media-type"} {
 				t.Run(variant, func(t *testing.T) {
 					runID := "repeat-" + scope + "-" + variant
-					if _, err := runs.CreateRun(ctx, runstore.CreateRunParams{
+					if _, err := runstoretest.CreateRun(ctx, runs, runstore.CreateRunParams{
 						RunID: runID, OwnerID: "user-1", ProjectID: projectID, WorkflowName: "artifact-copy", WorkflowVersion: "1",
 						WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: json.RawMessage(`{}`),
-						Parameters: map[string]string{"objective": "original objective"}, RuntimeConfig: runtimeconfig.BuiltInRunSnapshot(),
+						Parameters: map[string]string{"objective": "original objective"}, RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot(),
 					}); err != nil {
 						t.Fatal(err)
 					}

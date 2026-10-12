@@ -25,6 +25,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/credentials"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/runstore"
+	"github.com/grauwolf32/contractor/internal/runstore/runstoretest"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -575,7 +576,7 @@ func newPlacementFixture(
 	}
 	store := runstore.NewPostgresStore(tx)
 	runID := "run-placement"
-	if _, err := store.CreateRun(ctx, runstore.CreateRunParams{
+	if _, err := runstoretest.CreateRun(ctx, store, runstore.CreateRunParams{
 		RunID: runID, OwnerID: "user-placement", WorkflowName: workflow.Ref.Name,
 		WorkflowVersion: workflow.Ref.Version, WorkflowSchemaVersion: contracts.APIVersion,
 		WorkflowSnapshot: json.RawMessage(`{}`), Parameters: map[string]string{}, RuntimeConfig: pinned,
@@ -782,7 +783,7 @@ func isolatedPlacementPool(t *testing.T, ctx context.Context) *pgxpool.Pool {
 		admin.Close()
 		t.Fatal(err)
 	}
-	if _, err := persistencepostgres.ApplyMigrations(ctx, pool); err != nil {
+	if _, err := persistencepostgres.ApplyMigrations(ctx, pool, persistencepostgres.MigrationBudgets{}); err != nil {
 		pool.Close()
 		admin.Close()
 		t.Fatal(err)

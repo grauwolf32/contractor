@@ -174,17 +174,6 @@ func (s *liveRouterSessions) RecordFact(
 	return nil
 }
 
-func (s *liveRouterSessions) LoadPlan(
-	context.Context, planner.SessionIdentity,
-) (planner.PlannerPlanProjection, bool, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.plan == nil {
-		return planner.PlannerPlanProjection{}, false, nil
-	}
-	return cloneLivePlan(*s.plan), true, nil
-}
-
 func (*liveRouterSessions) NewADKSession(
 	context.Context, planner.SessionIdentity, plannersession.ADKOptions,
 ) (adksession.Service, error) {

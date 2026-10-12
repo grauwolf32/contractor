@@ -26,7 +26,7 @@ func TestPostgresVerifyMigrationsRejectsMissingBehindAndDriftedLedgers(t *testin
 	if err := pool.QueryRow(ctx, `SELECT to_regclass('contractor_schema_migrations')::text`).Scan(&ledger); err != nil || ledger != nil {
 		t.Fatalf("read-only verification created a ledger: %v, %v", ledger, err)
 	}
-	if _, err := ApplyMigrations(ctx, pool); err != nil {
+	if _, err := ApplyMigrations(ctx, pool, MigrationBudgets{}); err != nil {
 		t.Fatal(err)
 	}
 	if err := VerifyMigrations(ctx, pool); err != nil {

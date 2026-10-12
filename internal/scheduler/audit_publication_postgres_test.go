@@ -16,7 +16,7 @@ import (
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runstore"
-	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -107,7 +107,7 @@ func TestAuditManagedRunSkipsGenericProjectOutputPublication(t *testing.T) {
 				WorkflowName: "audit-check", WorkflowVersion: "1",
 				WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: json.RawMessage(`{}`),
 				Parameters: map[string]string{}, MetadataLabels: runstore.RunMetadataLabels{},
-				RuntimeConfig: runtimeconfig.BuiltInRunSnapshot(),
+				RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot(),
 			},
 			AuditExecutionID: execution.ExecutionID, AuditSubmissionKey: execution.SubmissionKey,
 		}); err != nil {

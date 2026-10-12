@@ -15,7 +15,6 @@ package contracts
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/url"
 	"regexp"
@@ -120,23 +119,6 @@ func ValidConfigVersion(value string) bool {
 // Validatable is implemented by every top-level wire DTO.
 type Validatable interface {
 	Validate() error
-}
-
-// DecodeStrict decodes one JSON value with strictjson.Decode, so duplicate
-// keys, case aliases, unknown members, omitted or null required members and
-// trailing data are rejected, and runs its semantic validation. Its errors
-// keep their detail; private input uses DecodePrivateStrict instead.
-func DecodeStrict[T Validatable](data []byte) (T, error) {
-	var value T
-	if err := strictjson.Decode(data, &value); errors.Is(err, strictjson.ErrTrailingData) {
-		return value, Invalidf("multiple JSON values are not allowed")
-	} else if err != nil {
-		return value, fmt.Errorf("decode JSON: %w", err)
-	}
-	if err := value.Validate(); err != nil {
-		return value, err
-	}
-	return value, nil
 }
 
 // DecodeStrictObject decodes one JSON object into target with

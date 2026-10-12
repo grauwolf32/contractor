@@ -25,7 +25,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/rundeletion"
 	"github.com/grauwolf32/contractor/internal/runstore"
-	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -160,7 +160,7 @@ func (f preparationFixture) collecting(t *testing.T, intent auditstore.CreateExe
 		_, err := runstore.NewPostgresStore(tx).CreateAuditRun(f.ctx, runstore.CreateAuditRunParams{
 			CreateRunParams: runstore.CreateRunParams{RunID: runID, OwnerID: f.audit.OwnerID, ProjectID: &f.audit.ProjectID,
 				WorkflowName: binding.Workflow.Ref.Name, WorkflowVersion: binding.Workflow.Ref.Version, WorkflowSchemaVersion: "contractor/v1alpha1",
-				WorkflowSnapshot: workflow, Parameters: intent.Preparation.Parameters, RuntimeConfig: runtimeconfig.BuiltInRunSnapshot()},
+				WorkflowSnapshot: workflow, Parameters: intent.Preparation.Parameters, RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot()},
 			AuditExecutionID: execution.ExecutionID, AuditSubmissionKey: execution.SubmissionKey,
 		})
 		if err != nil {

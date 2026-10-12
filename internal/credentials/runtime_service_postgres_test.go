@@ -20,7 +20,9 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/runstore"
+	"github.com/grauwolf32/contractor/internal/runstore/runstoretest"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
@@ -397,7 +399,7 @@ func TestRuntimeCredentialDeleteSerializesWithRuntimeConfigBindings(t *testing.T
 		if pinErr != nil {
 			return pinErr
 		}
-		if _, createErr := store.CreateRun(ctx, runstore.CreateRunParams{
+		if _, createErr := runstoretest.CreateRun(ctx, store, runstore.CreateRunParams{
 			RunID: "run-runtime-credential", OwnerID: "user", WorkflowName: "workflow", WorkflowVersion: "1",
 			WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: json.RawMessage(`{}`),
 			Parameters: map[string]string{}, RuntimeConfig: pinned,
@@ -435,11 +437,12 @@ func TestRuntimeCredentialDeleteSerializesWithRuntimeConfigBindings(t *testing.T
 	createCredential("allocation-debug")
 	allocationRef := publishConfig("allocation-debug", "allocation-debug")
 	allocationStore := runstore.NewPostgresStore(pool)
-	allocationRun, err := allocationStore.CreateRun(ctx, runstore.CreateRunParams{
+	allocationRun, err := runstoretest.CreateRun(ctx, allocationStore, runstore.CreateRunParams{
 		RunID: "run-allocation-credential", OwnerID: "user", WorkflowName: "workflow", WorkflowVersion: "1",
 		WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: json.RawMessage(`{}`),
-		Parameters: map[string]string{}, RuntimeConfig: runtimeconfig.BuiltInRunSnapshot(),
+		Parameters: map[string]string{}, RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot(),
 	})
+
 	if err != nil {
 		t.Fatal(err)
 	}

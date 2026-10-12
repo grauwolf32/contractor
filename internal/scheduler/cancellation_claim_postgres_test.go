@@ -11,7 +11,8 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/runstore"
-	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/grauwolf32/contractor/internal/runstore/runstoretest"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
 )
 
 // Hold cancellation cleanup beyond the original lease. Another lane must not
@@ -33,11 +34,11 @@ func TestPostgresCancellationCleanupRetainsRunClaim(t *testing.T) {
 				t.Fatal(err)
 			}
 			const runID = "run-cancel-claim"
-			if _, err := postgresStore.CreateRun(ctx, runstore.CreateRunParams{
+			if _, err := runstoretest.CreateRun(ctx, postgresStore, runstore.CreateRunParams{
 				RunID: runID, OwnerID: "owner", WorkflowName: workflow.Ref.Name,
 				WorkflowVersion: workflow.Ref.Version, WorkflowSchemaVersion: contracts.APIVersion,
 				WorkflowSnapshot: encoded, Parameters: map[string]string{"objective": "cancel"},
-				RuntimeConfig: runtimeconfig.BuiltInRunSnapshot(),
+				RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot(),
 			}); err != nil {
 				t.Fatal(err)
 			}

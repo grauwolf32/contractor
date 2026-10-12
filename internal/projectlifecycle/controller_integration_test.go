@@ -21,7 +21,8 @@ import (
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/rundeletion"
 	"github.com/grauwolf32/contractor/internal/runstore"
-	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/grauwolf32/contractor/internal/runstore/runstoretest"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -184,7 +185,7 @@ INSERT INTO stage_allocations (
 	}, sharedPayload, nil); !errors.Is(err, artifacts.ErrScopeDeleting) {
 		t.Fatalf("Artifact fence error = %v", err)
 	}
-	if _, err := runs.CreateRun(ctx, projectRunParams("run-late", projectID)); !errors.Is(err, runstore.ErrProjectDeleting) {
+	if _, err := runstoretest.CreateRun(ctx, runs, projectRunParams("run-late", projectID)); !errors.Is(err, runstore.ErrProjectDeleting) {
 		t.Fatalf("Run fence error = %v", err)
 	}
 	if _, _, err := runs.CreateRunIdempotent(ctx, runstore.CreateRunIdempotentParams{
@@ -206,7 +207,7 @@ INSERT INTO stage_allocations (
 		deletingAudit.Revision != audit.Revision+1 || deletingAudit.EventSequence != audit.EventSequence+1 {
 		t.Fatalf("Project-owned Audit deletion intent = (%+v, %v)", deletingAudit, err)
 	}
-	deletionEvents, err := audits.ListEvents(ctx, audit.AuditID, audit.EventSequence, 1)
+	deletionEvents, err := audits.EventsAfter(ctx, audit.OwnerID, audit.AuditID, audit.EventSequence, 1)
 	if err != nil || len(deletionEvents) != 1 || deletionEvents[0].Kind != "audit.delete_requested" ||
 		deletionEvents[0].EntityID != audit.AuditID {
 		t.Fatalf("Project-owned Audit deletion event = (%+v, %v)", deletionEvents, err)
@@ -818,7 +819,7 @@ func createProjectRun(
 	projectID string,
 ) runstore.WorkflowRun {
 	t.Helper()
-	run, err := store.CreateRun(ctx, projectRunParams(runID, projectID))
+	run, err := runstoretest.CreateRun(ctx, store, projectRunParams(runID, projectID))
 	if err != nil {
 		t.Fatalf("create Project Run %q: %v", runID, err)
 	}
@@ -832,7 +833,7 @@ func projectRunParams(runID, projectID string) runstore.CreateRunParams {
 		WorkflowSchemaVersion: contracts.APIVersion,
 		WorkflowSnapshot:      json.RawMessage(`{"ref":{"name":"artifact-copy","version":"1"}}`),
 		Parameters:            map[string]string{},
-		RuntimeConfig:         runtimeconfig.BuiltInRunSnapshot(),
+		RuntimeConfig:         runtimeconfigtest.BuiltInRunSnapshot(),
 	}
 }
 
@@ -914,7 +915,7 @@ func isolatedPool(t *testing.T, ctx context.Context) *pgxpool.Pool {
 		admin.Close()
 		t.Fatal(err)
 	}
-	if _, err := persistencepostgres.ApplyMigrations(ctx, pool); err != nil {
+	if _, err := persistencepostgres.ApplyMigrations(ctx, pool, persistencepostgres.MigrationBudgets{}); err != nil {
 		pool.Close()
 		admin.Close()
 		t.Fatal(err)

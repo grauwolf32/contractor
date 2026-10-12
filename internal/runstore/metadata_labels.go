@@ -6,11 +6,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts/runlabels"
 )
 
-const (
-	MaxRunMetadataLabels     = runlabels.MaxRunMetadataLabels
-	MaxRunMetadataLabelKey   = runlabels.MaxRunMetadataLabelKey
-	MaxRunMetadataLabelValue = runlabels.MaxRunMetadataLabelValue
-)
+const MaxRunMetadataLabels = runlabels.MaxRunMetadataLabels
 
 // RunMetadataLabels is immutable descriptive metadata attached to one
 // WorkflowRun. Callers must clone it at repository boundaries because Go maps

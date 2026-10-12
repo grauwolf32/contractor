@@ -310,7 +310,7 @@ svg.focus .edge.dim { opacity: 0.08; }
       <ul class="audit" id="audit"></ul>
     </section>
     <section id="removedSection">
-      <h2>Удалено в V365</h2>
+      <h2>Удалённые таблицы</h2>
       <ul class="removed" id="removed"></ul>
     </section>
     <section>
@@ -361,7 +361,7 @@ svg.focus .edge.dim { opacity: 0.08; }
     remove: { cls: 'dead', label: 'убрать', title: 'Убрать', name: 'Убрать', note: 'Никто не читает, или точная копия другой таблицы' },
     merge: { cls: 'merge', label: 'слить', title: 'Слить в родителя', name: 'Слить', note: 'Пристройка один к одному: перенести колонками в родителя' },
     questionable: { cls: 'wo', label: 'спорная', title: 'Спорная', name: 'Спорные', note: 'Работает, но механизм можно заменить' },
-    fold: { cls: 'fold', label: 'вобрала', title: 'Вобрала удалённые таблицы', name: 'Вобрали', note: 'Сюда в V365 перенесены колонки удалённых таблиц' },
+    fold: { cls: 'fold', label: 'вобрала', title: 'Вобрала удалённые таблицы', name: 'Вобрали', note: 'Сюда перенесены данные удалённых таблиц' },
   };
   const DEL = { a: 'нет действия', r: 'запрет', c: 'каскадное удаление', n: 'SET NULL', d: 'SET DEFAULT' };
   const nCols = D.tables.reduce((s, t) => s + t.cols.length, 0);
@@ -395,7 +395,7 @@ svg.focus .edge.dim { opacity: 0.08; }
   const nKeep = D.tables.length - nRemove - nMerge - nQ;
   const nRemoved = Object.keys(D.removed).length, nFold = byKind('fold').length;
   const candidates = `${nRemove} можно убрать, ${nMerge} слить${nMerge ? ' (отложено)' : ''}, ${nQ} спорные`;
-  $('verdict').innerHTML = !nRemoved ? `Нужны <b>${nKeep}</b> ${plural(nKeep, 'таблица', 'таблицы', 'таблиц')}; кандидаты: ${candidates}. Разбор — docs/research/2026-10-03-database-schema-review.md.` : `Сокращение V365 убрало <b>${nRemoved}</b> ${plural(nRemoved, 'таблицу', 'таблицы', 'таблиц')}: ${nRemoved + D.tables.length} → <b>${D.tables.length}</b>. Мёртвые удалены, пристройки один к одному перенесены колонками в <b>${nFold}</b> ${plural(nFold, 'родителя', 'родителей', 'родителей')}. Из оставшихся кандидатов ${candidates}. Разбор — docs/research/2026-10-03-database-schema-review.md, план — docs/plans/2026-10-04-schema-reduction.md.`;
+  $('verdict').innerHTML = !nRemoved ? `Нужны <b>${nKeep}</b> ${plural(nKeep, 'таблица', 'таблицы', 'таблиц')}; кандидаты: ${candidates}. Разбор — docs/research/2026-10-03-database-schema-review.md.` : `Сокращения схемы убрали <b>${nRemoved}</b> ${plural(nRemoved, 'таблицу', 'таблицы', 'таблиц')}; сейчас их <b>${D.tables.length}</b>. Мёртвые удалены, остальные перенесены в <b>${nFold}</b> ${plural(nFold, 'таблицу', 'таблицы', 'таблиц')} с пометкой «вобрала». Из оставшихся кандидатов ${candidates}. Разбор — docs/research/2026-10-03-database-schema-review.md, план — docs/plans/2026-10-04-schema-reduction.md.`;
   $('removedSection').hidden = !nRemoved;
   $('removed').innerHTML = Object.entries(D.removed).map(([n, w]) => `<li><code>${n}</code><br><span>${esc(w)}</span></li>`).join('');
 

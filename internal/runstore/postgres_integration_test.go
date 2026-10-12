@@ -17,6 +17,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/agentskills"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
+	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
@@ -25,6 +26,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/planner/stageresult"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
 	"github.com/grauwolf32/contractor/internal/telemetry"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -151,7 +153,7 @@ WHERE allocation_id = 'allocation-1'`)
 	if err := telemetryReports.RecordAllocationReport(ctx, reportParams); err != nil {
 		t.Fatalf("idempotent execution report: %v", err)
 	}
-	reports, err := store.ListStageExecutionReports(ctx, execution.StageExecutionID)
+	reports, err := telemetryReports.ListAllocationReports(ctx, execution.StageExecutionID)
 	if err != nil || len(reports) != 1 || reports[0].Report.Worker.Metrics.ModelCalls == nil ||
 		*reports[0].Report.Worker.Metrics.ModelCalls != 3 {
 		t.Fatalf("execution reports = (%+v, %v)", reports, err)
@@ -398,7 +400,7 @@ func TestPostgresWorkflowRunMetadataLabelsAreAtomicImmutableAndProjected(t *test
 	params.MetadataLabels = RunMetadataLabels{
 		"purpose": "eval", "eval.id": "eval_01", "eval.leg": "a", "debug": "",
 	}
-	created, err := store.CreateRun(ctx, params)
+	created, err := createRun(ctx, store, params)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -478,12 +480,12 @@ func TestPostgresWorkflowRunProjectMembershipIsOwnedImmutableAndFilterable(t *te
 	projectParams.ProjectHTTPTarget = &runtimesettings.HTTPOriginTargetRef{
 		URL: "https://app.example.test/api",
 	}
-	projectRun, err := store.CreateRun(ctx, projectParams)
+	projectRun, err := createRun(ctx, store, projectParams)
 	if err != nil || projectRun.ProjectID == nil || *projectRun.ProjectID != projectID ||
 		projectRun.ProjectHTTPTarget == nil || projectRun.ProjectHTTPTarget.URL != "https://app.example.test/api" {
 		t.Fatalf("create Project Run = (%+v, %v)", projectRun, err)
 	}
-	if _, err := store.CreateRun(ctx, testRunParams("run-standalone")); err != nil {
+	if _, err := createRun(ctx, store, testRunParams("run-standalone")); err != nil {
 		t.Fatal(err)
 	}
 	page, err := store.ListRuns(ctx, ListRunsParams{
@@ -508,7 +510,7 @@ WHERE run_id = $1`, projectRun.RunID)
 	foreignParams := testRunParams("run-foreign-project-member")
 	foreignParams.OwnerID = "user-2"
 	foreignParams.ProjectID = &projectID
-	_, err = store.CreateRun(ctx, foreignParams)
+	_, err = createRun(ctx, store, foreignParams)
 	if persistencepostgres.SQLState(err) != persistencepostgres.SQLStateForeignKeyViolation {
 		t.Fatalf("foreign Project membership SQLSTATE = %q, error = %v", persistencepostgres.SQLState(err), err)
 	}
@@ -541,7 +543,7 @@ func TestPostgresWorkflowRunQueueIsOwnedOldestFirstAndTerminalAware(t *testing.T
 		params := testRunParams(runID)
 		params.ProjectID = projectID
 		params.MetadataLabels = labels
-		run, err := store.CreateRun(ctx, params)
+		run, err := createRun(ctx, store, params)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -559,7 +561,7 @@ func TestPostgresWorkflowRunQueueIsOwnedOldestFirstAndTerminalAware(t *testing.T
 	terminal := create("run-queue-terminal", nil, nil)
 	foreignParams := testRunParams("run-queue-foreign")
 	foreignParams.OwnerID = "user-2"
-	if _, err := store.CreateRun(ctx, foreignParams); err != nil {
+	if _, err := createRun(ctx, store, foreignParams); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := admitTestRun(ctx, store, standalone.RunID); err != nil {
@@ -637,7 +639,7 @@ func TestPostgresWorkflowRunMetadataLabelFilteringIsConjunctiveOwnedAndStable(t 
 		params.MetadataLabels = RunMetadataLabels{
 			"purpose": "eval", "eval.id": "eval_filter", "eval.leg": leg, "debug": "",
 		}
-		run, err := store.CreateRun(ctx, params)
+		run, err := createRun(ctx, store, params)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -646,7 +648,7 @@ func TestPostgresWorkflowRunMetadataLabelFilteringIsConjunctiveOwnedAndStable(t 
 	old := create("run-filter-old", "user-1", "a")
 	unrelatedParams := testRunParams("run-filter-unrelated")
 	unrelatedParams.MetadataLabels = RunMetadataLabels{"purpose": "manual"}
-	if _, err := store.CreateRun(ctx, unrelatedParams); err != nil {
+	if _, err := createRun(ctx, store, unrelatedParams); err != nil {
 		t.Fatal(err)
 	}
 	newer := create("run-filter-newer", "user-1", "b")
@@ -744,7 +746,7 @@ func TestPostgresWorkflowRunLifecycleFilteringIsOwnedIntersectedAndStable(t *tes
 	}
 	foreignParams := testRunParams("run-lifecycle-terminal-foreign")
 	foreignParams.OwnerID = "user-2"
-	foreign, err := store.CreateRun(ctx, foreignParams)
+	foreign, err := createRun(ctx, store, foreignParams)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -891,7 +893,7 @@ func TestPostgresIntegrationClaimsConflictsAndExplicitTransactions(t *testing.T)
 	rollback := errors.New("force rollback")
 	err := persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		txStore := NewPostgresStore(tx)
-		if _, err := txStore.CreateRun(ctx, testRunParams("run-rolled-back")); err != nil {
+		if _, err := createRun(ctx, txStore, testRunParams("run-rolled-back")); err != nil {
 			return err
 		}
 		return rollback
@@ -903,7 +905,7 @@ func TestPostgresIntegrationClaimsConflictsAndExplicitTransactions(t *testing.T)
 		t.Fatalf("rolled-back Run lookup error = %v", err)
 	}
 	err = persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		_, err := NewPostgresStore(tx).CreateRun(ctx, testRunParams("run-committed"))
+		_, err := createRun(ctx, NewPostgresStore(tx), testRunParams("run-committed"))
 		return err
 	})
 	if err != nil {
@@ -931,7 +933,7 @@ func TestPostgresStageAdmissionPreservesInitialQueueControlRevision(t *testing.T
 			runID := "run-initial-control-" + test.name
 			params := testRunParams(runID)
 			params.OwnerID = test.owner
-			if _, err := store.CreateRun(ctx, params); err != nil {
+			if _, err := createRun(ctx, store, params); err != nil {
 				t.Fatal(err)
 			}
 			if _, err := admitTestRun(ctx, store, runID); err != nil {
@@ -1144,7 +1146,7 @@ func TestPostgresClaimRunnableRunRotatesAfterDeferredRelease(t *testing.T) {
 
 	otherOwner := testRunParams("run-other-owner-pending")
 	otherOwner.OwnerID = "user-2"
-	second, err := store.CreateRun(ctx, otherOwner)
+	second, err := createRun(ctx, store, otherOwner)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1361,13 +1363,14 @@ func TestWorkflowRunEventNotificationIsVisibleOnlyAfterCommit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = NewPostgresStore(tx).CreateRun(ctx, CreateRunParams{
+	_, err = createRun(ctx, NewPostgresStore(tx), CreateRunParams{
 		RunID: runID, OwnerID: "user", WorkflowName: "workflow", WorkflowVersion: "1",
 		WorkflowSchemaVersion: contracts.APIVersion,
 		WorkflowSnapshot:      json.RawMessage(`{"name":"workflow"}`),
 		Parameters:            map[string]string{},
-		RuntimeConfig:         runtimeconfig.BuiltInRunSnapshot(),
+		RuntimeConfig:         runtimeconfigtest.BuiltInRunSnapshot(),
 	})
+
 	if err != nil {
 		_ = tx.Rollback(ctx)
 		t.Fatal(err)
@@ -1533,7 +1536,7 @@ func TestPostgresRunRuntimeLabelsPinExactBindingsAcrossConcurrentRebind(t *testi
 		t.Fatalf("binding rebind bypassed Run pin lock: %v", err)
 	case <-time.After(50 * time.Millisecond):
 	}
-	if _, err := txStore.CreateRun(ctx, CreateRunParams{
+	if _, err := createRun(ctx, txStore, CreateRunParams{
 		RunID: "run-runtime-label-old", OwnerID: "user", WorkflowName: "workflow", WorkflowVersion: "1",
 		WorkflowSchemaVersion: contracts.APIVersion,
 		WorkflowSnapshot:      json.RawMessage(`{"name":"workflow"}`),
@@ -1578,9 +1581,9 @@ func TestPostgresNonTerminalCredentialUsageIncludesRuntimeConfigSnapshot(t *test
 	defer cancel()
 	pool := isolatedRunStorePool(t, ctx)
 	store := NewPostgresStore(pool)
-	snapshot := runtimeconfig.BuiltInRunSnapshot()
+	snapshot := runtimeconfigtest.BuiltInRunSnapshot()
 	snapshot.LLMCredentialIDs = []string{"runtime-route"}
-	if _, err := store.CreateRun(ctx, CreateRunParams{
+	if _, err := createRun(ctx, store, CreateRunParams{
 		RunID: "run-runtime-route", OwnerID: "user", WorkflowName: "workflow", WorkflowVersion: "1",
 		WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: json.RawMessage(`{}`),
 		Parameters: map[string]string{}, RuntimeConfig: snapshot,
@@ -1689,11 +1692,31 @@ func newRunCreationTestStore(
 
 func createTestRun(t *testing.T, ctx context.Context, store *PostgresStore, runID string) WorkflowRun {
 	t.Helper()
-	run, err := store.CreateRun(ctx, testRunParams(runID))
+	run, err := createRun(ctx, store, testRunParams(runID))
 	if err != nil {
 		t.Fatalf("create test Run %q: %v", runID, err)
 	}
 	return run
+}
+
+// createRun stores params through the public create-Run path with an
+// idempotency key and a request digest derived from the Run ID, as
+// runstoretest.CreateRun does for other packages' tests. A Run ID that is
+// already stored is ErrConflict.
+func createRun(ctx context.Context, store *PostgresStore, params CreateRunParams) (WorkflowRun, error) {
+	digest := contentdigest.Bytes([]byte("runstoretest.CreateRun\x00" + params.RunID))
+	run, inserted, err := store.CreateRunIdempotent(ctx, CreateRunIdempotentParams{
+		CreateRunParams: params,
+		IdempotencyKey:  "test-" + strings.TrimPrefix(digest, "sha256:"),
+		RequestDigest:   digest,
+	})
+	if err != nil {
+		return WorkflowRun{}, err
+	}
+	if !inserted {
+		return WorkflowRun{}, fmt.Errorf("create WorkflowRun %q: %w", params.RunID, ErrConflict)
+	}
+	return run, nil
 }
 
 // admitTestRun moves a created Run through initialization, which commits
@@ -1711,7 +1734,7 @@ func testRunParams(runID string) CreateRunParams {
 		WorkflowSchemaVersion: "contractor/v1alpha1",
 		WorkflowSnapshot:      json.RawMessage(`{"ref":{"name":"artifact-copy","version":"1"}}`),
 		Parameters:            map[string]string{"mode": "strict"},
-		RuntimeConfig:         runtimeconfig.BuiltInRunSnapshot(),
+		RuntimeConfig:         runtimeconfigtest.BuiltInRunSnapshot(),
 	}
 }
 
@@ -1757,7 +1780,7 @@ func isolatedRunStorePool(t *testing.T, ctx context.Context) *pgxpool.Pool {
 		pool.Close()
 		t.Fatalf("ping isolated pool: %v", err)
 	}
-	if _, err := persistencepostgres.ApplyMigrations(ctx, pool); err != nil {
+	if _, err := persistencepostgres.ApplyMigrations(ctx, pool, persistencepostgres.MigrationBudgets{}); err != nil {
 		pool.Close()
 		t.Fatalf("apply migrations: %v", err)
 	}

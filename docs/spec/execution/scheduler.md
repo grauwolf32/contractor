@@ -1033,11 +1033,12 @@ when its state changed since the claim. Only a Run without an active
 StageExecution, whose first Stage is not yet created or whose state the
 Scheduler cannot progress, has its Stage history read.
 
-**SCH-R125.** `RunOnce` is a deterministic single-claim primitive for focused
-tests and recovery tools and may perform one maintenance tick before that
-claim. Production lanes use the claim and progression primitive directly; the
-supervisor owns maintenance, lane creation and resizing and never wraps
-concurrent calls around `RunOnce`.
+**SCH-R125.** Focused tests drive the Scheduler through `RunOnce`, a
+deterministic single-claim helper that only the Scheduler's tests compile and
+that may perform one maintenance tick before its claim. Production lanes use
+the claim and progression primitive directly; the supervisor owns
+maintenance, lane creation and resizing and never wraps concurrent calls
+around `RunOnce`.
 
 **SCH-R126.** All objects shared across lanes must be proven concurrency-safe.
 In particular, Planner factories, allocation coordination, Artifact and

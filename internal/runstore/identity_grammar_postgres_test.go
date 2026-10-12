@@ -10,7 +10,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
-	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
 )
 
 // TestPostgresStoreRejectsIdentitiesOutsideThePublicGrammars is the
@@ -24,7 +24,7 @@ func TestPostgresStoreRejectsIdentitiesOutsideThePublicGrammars(t *testing.T) {
 	defer cancel()
 	pool := isolatedRunStorePool(t, ctx)
 	store := NewPostgresStore(pool)
-	pinned := runtimeconfig.BuiltInRunSnapshot()
+	pinned := runtimeconfigtest.BuiltInRunSnapshot()
 	pinned.LLMCredentialIDs = []string{"grammar-route"}
 	runParams := func(runID string) CreateRunParams {
 		params := testRunParams(runID)
@@ -34,18 +34,18 @@ func TestPostgresStoreRejectsIdentitiesOutsideThePublicGrammars(t *testing.T) {
 
 	longestRunID := strings.Repeat("r", contracts.MaxResourceIDLength)
 	for _, runID := range []string{"run 1", "_run", ":run", "run/1", "run@1", "rün", longestRunID + "r"} {
-		if _, err := store.CreateRun(ctx, runParams(runID)); !errors.Is(err, ErrInvalid) {
+		if _, err := createRun(ctx, store, runParams(runID)); !errors.Is(err, ErrInvalid) {
 			t.Fatalf("CreateRun(%q) error = %v, want ErrInvalid", runID, err)
 		}
 	}
 	project := "project 1"
 	withProject := runParams("run-project-grammar")
 	withProject.ProjectID = &project
-	if _, err := store.CreateRun(ctx, withProject); !errors.Is(err, ErrInvalid) {
+	if _, err := createRun(ctx, store, withProject); !errors.Is(err, ErrInvalid) {
 		t.Fatalf("CreateRun with Project %q error = %v, want ErrInvalid", project, err)
 	}
 	for _, runID := range []string{longestRunID, "run-grammar.1:a_b"} {
-		if _, err := store.CreateRun(ctx, runParams(runID)); err != nil {
+		if _, err := createRun(ctx, store, runParams(runID)); err != nil {
 			t.Fatalf("CreateRun(%q): %v", runID, err)
 		}
 	}

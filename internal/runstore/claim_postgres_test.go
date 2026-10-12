@@ -11,7 +11,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
-	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -56,7 +56,7 @@ CROSS JOIN LATERAL (
 // as populateRunHistory does, and analyzes it.
 func populateClaimQueue(t *testing.T, ctx context.Context, pool *pgxpool.Pool) {
 	t.Helper()
-	snapshot, err := json.Marshal(runtimeconfig.BuiltInRunSnapshot())
+	snapshot, err := json.Marshal(runtimeconfigtest.BuiltInRunSnapshot())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -157,7 +157,7 @@ func TestPostgresClaimSkipsPendingRunsOfPausedOwners(t *testing.T) {
 		t.Helper()
 		params := testRunParams(runID)
 		params.OwnerID = ownerID
-		run, err := store.CreateRun(ctx, params)
+		run, err := createRun(ctx, store, params)
 		if err != nil {
 			t.Fatal(err)
 		}

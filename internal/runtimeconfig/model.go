@@ -109,11 +109,6 @@ type Spec struct {
 	Planner PlannerPatch
 }
 
-func (s Spec) Empty() bool {
-	return !s.Worker.LLMGateway.Present && !s.Worker.Telemetry.Present &&
-		!s.Worker.HTTPProxy.Present && !s.Worker.Caido.Present && !s.Planner.Telemetry.Present
-}
-
 type Version struct {
 	Ref               Ref
 	Spec              Spec

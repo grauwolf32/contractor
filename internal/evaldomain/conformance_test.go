@@ -163,7 +163,7 @@ func TestSharedEvalPrivateProjectionsAndOwnerErrors(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, value := range []any{safe, execution, projection, plan, CheckOwner("owner-1", "OTHER_OWNER_SENTINEL"), Failure("SECRET_CREDENTIAL_SENTINEL")} {
+	for _, value := range []any{safe, execution, projection, plan, Failure("SECRET_CREDENTIAL_SENTINEL")} {
 		raw, err := json.Marshal(value)
 		if err != nil {
 			t.Fatal(err)
@@ -184,9 +184,6 @@ func TestSharedEvalPrivateProjectionsAndOwnerErrors(t *testing.T) {
 	input.Cases[0].Task.Parameters["changed"] = "later"
 	if _, ok := execution.Task.Parameters["changed"]; ok {
 		t.Fatal("execution projection aliases mutable authoring input")
-	}
-	if CheckOwner("owner-1", "owner-1") != nil {
-		t.Fatal("owned resource rejected")
 	}
 }
 

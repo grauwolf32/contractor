@@ -10,11 +10,11 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 )
 
-func TestSharedDecodeStrictRejectsTrailingJSON(t *testing.T) {
+func TestSharedPrivateDecodeRejectsTrailingJSON(t *testing.T) {
 	t.Parallel()
 
 	input := append(contractstest.ReadFixture(t, "valid", "stage-content-request.json"), []byte(" {}")...)
-	if _, err := DecodeStrict[StageContentRequest](input); err == nil {
+	if _, err := DecodePrivateStrict[StageContentRequest](input); err == nil {
 		t.Fatal("trailing JSON value was accepted")
 	}
 }

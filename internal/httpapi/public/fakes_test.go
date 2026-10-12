@@ -22,6 +22,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/rundeletion"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
 	"github.com/grauwolf32/contractor/internal/settingsstore"
 	"github.com/grauwolf32/contractor/internal/telemetry"
 )
@@ -838,7 +839,7 @@ func (f *fakeRunStore) PinRuntimeLabels(
 	if len(labels) != 0 {
 		return runtimeconfig.RunSnapshot{}, runtimeconfig.ErrUnknownLabel
 	}
-	return runtimeconfig.BuiltInRunSnapshot(), nil
+	return runtimeconfigtest.BuiltInRunSnapshot(), nil
 }
 
 type fakePlannerPlanReader struct {

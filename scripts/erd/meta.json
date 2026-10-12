@@ -810,6 +810,10 @@
   "eval_view_pairs": {
    "kind": "fold",
    "text": "Вобрала eval_view_members. Полнота сбора сторон — complete_a и complete_b."
+  },
+  "mutation_receipts": {
+   "kind": "fold",
+   "text": "Вобрала audit_idempotency, eval_mutation_receipts, runtime_management_operations. Одна квитанция на ключ идемпотентности в области key_scope; пишется только через KeyedMutation (PER-R24)."
   }
  },
  "tags": {},

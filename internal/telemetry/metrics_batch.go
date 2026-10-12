@@ -7,8 +7,8 @@ import (
 )
 
 // GetStageMetricsBatch loads optional read-model diagnostics in one query.
-// Missing or undecodable records are omitted individually, matching Run detail's
-// best-effort GetStageMetrics behavior without suppressing healthy siblings.
+// Missing or undecodable records are omitted individually, so Run detail stays
+// best-effort without suppressing healthy siblings.
 func (r *Repository) GetStageMetricsBatch(ctx context.Context, ids []string) (map[string]StageMetricsRecord, error) {
 	result := make(map[string]StageMetricsRecord, len(ids))
 	for _, id := range ids {

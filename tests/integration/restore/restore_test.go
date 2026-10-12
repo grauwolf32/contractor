@@ -34,7 +34,7 @@ func TestBackupRestorePreservesExactArtifactsAndCAS(t *testing.T) {
 			admin, config := restoreAdmin(t, ctx)
 			source, sourceName := restoreDatabase(t, ctx, admin, config)
 			target, targetName := restoreDatabase(t, ctx, admin, config)
-			initial, err := postgres.ApplyMigrations(ctx, source)
+			initial, err := postgres.ApplyMigrations(ctx, source, postgres.MigrationBudgets{})
 			if err != nil || len(initial.AppliedVersions) == 0 {
 				t.Fatalf("fresh migration: %+v, %v", initial, err)
 			}
@@ -88,7 +88,7 @@ func TestBackupRestorePreservesExactArtifactsAndCAS(t *testing.T) {
 				t.Fatal(err)
 			}
 			runPostgresTool(t, ctx, config, targetName, "pg_restore", "--exit-on-error", "--no-owner", "--dbname", targetName, archive)
-			restored, err := postgres.ApplyMigrations(ctx, target)
+			restored, err := postgres.ApplyMigrations(ctx, target, postgres.MigrationBudgets{})
 			if err != nil || len(restored.AppliedVersions) != 0 || restored.CurrentVersion != initial.CurrentVersion {
 				t.Fatalf("restored migration ledger: %+v, %v", restored, err)
 			}

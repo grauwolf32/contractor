@@ -481,7 +481,7 @@ func taintSourceArchive(t *testing.T, files map[string]string) []byte {
 func assertTaintRun(
 	t *testing.T,
 	ctx context.Context,
-	store runstore.Repository,
+	store *runstore.PostgresStore,
 	client *http.Client,
 	baseURL string,
 	status runStatus,

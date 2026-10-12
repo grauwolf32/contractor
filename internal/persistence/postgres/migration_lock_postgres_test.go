@@ -44,7 +44,7 @@ func TestPostgresMigrationLeaderIsScopedToTargetSchema(t *testing.T) {
 	done := make(chan outcome, 2)
 	for _, pool := range []*pgxpool.Pool{other, otherFollower} {
 		go func(pool *pgxpool.Pool) {
-			result, err := ApplyMigrations(otherCtx, pool)
+			result, err := ApplyMigrations(otherCtx, pool, MigrationBudgets{})
 			done <- outcome{result, err}
 		}(pool)
 	}
@@ -61,7 +61,7 @@ func TestPostgresMigrationLeaderIsScopedToTargetSchema(t *testing.T) {
 	}
 
 	short, stop := context.WithTimeout(ctx, 500*time.Millisecond)
-	_, err = ApplyMigrations(short, heldFollower)
+	_, err = ApplyMigrations(short, heldFollower, MigrationBudgets{})
 	stop()
 	if !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("second migrator of the held schema = %v, want to wait for its leader", err)
@@ -69,7 +69,7 @@ func TestPostgresMigrationLeaderIsScopedToTargetSchema(t *testing.T) {
 	if err := locker.Rollback(ctx); err != nil {
 		t.Fatal(err)
 	}
-	result, err := ApplyMigrations(ctx, heldFollower)
+	result, err := ApplyMigrations(ctx, heldFollower, MigrationBudgets{})
 	if err != nil || len(result.AppliedVersions) != len(available) {
 		t.Fatalf("migration after the leader released its schema: %d versions, %v", len(result.AppliedVersions), err)
 	}
@@ -89,7 +89,7 @@ func TestPostgresMigrationRequiresAnExistingTargetSchema(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer pool.Close()
-	_, err = ApplyMigrations(ctx, pool)
+	_, err = ApplyMigrations(ctx, pool, MigrationBudgets{})
 	if err == nil || !strings.Contains(err.Error(), "no existing schema") || errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("migration without a target schema = %v, want an immediate schema error", err)
 	}

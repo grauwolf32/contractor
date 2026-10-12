@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-85 open tasks: 3 in progress, 68 pending, 14 deferred. 866 finished: 863 completed, 3 archived.
+84 open tasks: 3 in progress, 67 pending, 14 deferred. 870 finished: 867 completed, 3 archived.
 
 ## In progress
 
@@ -137,8 +137,6 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V347-001](v347-001-protect-main-branch.yml) | chore | P1 | — | Protect main with a required check |
-| [V369-007](v369-007-unused-export-lint.yml) | chore | P3 | V370-008 | Fail lint on exported identifiers used only by tests |
-| [V370-008](v370-008-remove-test-only-exports.yml) | chore | P3 | — | Remove exported surface that only tests use |
 | [V371-015](v371-015-memory-claim-paused-skip.yml) | chore | P3 | — | Model the paused-owner claim skip in the Scheduler's memory store doubles |
 | [V371-021](v371-021-postgres-test-wall-clock.yml) | chore | P3 | — | Replace wall-clock budgets in the Scheduler and runstore PostgreSQL tests |
 | [V371-022](v371-022-capability-probe-test-budget.yml) | chore | P3 | — | Remove the 10 ms probe budget from the capability discovery tests |
@@ -149,6 +147,7 @@ the epics are in [epics.yml](epics.yml).
 | [V372-019](v372-019-restore-rehearsal-pg-dump-version.yml) | chore | P3 | — | Check the pg_dump and pg_restore version before the backup and restore rehearsal |
 | [V372-024](v372-024-audit-item-attempts-fake.yml) | chore | P3 | — | Make the Audit item attempt fake answer like the store and keep the item list schema-valid without it |
 | [V372-029](v372-029-shared-fixture-gate-scope.yml) | chore | P3 | — | Extend the shared fixture gate to every cross-language fixture and keep slow store suites out of it |
+| [V372-030](v372-030-shrink-test-only-export-baseline.yml) | chore | P3 | — | Resolve the exported identifiers that only tests use and empty the test-only export baseline |
 
 ## Deferred
 
@@ -192,7 +191,7 @@ tasks in `introduced_by`.
 | Evaluations (`evals`) | 4 | 21 | 28 | 5 | 33 |
 | Podman sandbox (`sandbox`) | 0 | 8 | 1 | 1 | 2 |
 | Web UI (`ui`) | 2 | 19 | 53 | 10 | 48 |
-| Operations, authentication, CLI and deployment (`operations`) | 0 | 8 | 30 | 4 | 6 |
+| Operations, authentication, CLI and deployment (`operations`) | 0 | 8 | 31 | 4 | 6 |
 | Public API and wire contracts (`api-contracts`) | 9 | 1 | 29 | 20 | 8 |
-| PostgreSQL persistence and schema (`persistence`) | 5 | 0 | 19 | 32 | 7 |
-| Quality, CI and process (`quality`) | 15 | 1 | 18 | 75 | 15 |
+| PostgreSQL persistence and schema (`persistence`) | 5 | 0 | 19 | 33 | 8 |
+| Quality, CI and process (`quality`) | 14 | 1 | 18 | 76 | 16 |

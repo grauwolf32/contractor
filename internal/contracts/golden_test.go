@@ -48,7 +48,7 @@ func TestSharedInvalidGoldenFixtures(t *testing.T) {
 }
 
 func roundTrip[T contracts.Validatable](data []byte) ([]byte, error) {
-	value, err := contracts.DecodeStrict[T](data)
+	value, err := contracts.DecodePrivateStrict[T](data)
 	if err != nil {
 		return nil, err
 	}
@@ -56,7 +56,7 @@ func roundTrip[T contracts.Validatable](data []byte) ([]byte, error) {
 }
 
 func reject[T contracts.Validatable](data []byte) error {
-	_, err := contracts.DecodeStrict[T](data)
+	_, err := contracts.DecodePrivateStrict[T](data)
 	return err
 }
 

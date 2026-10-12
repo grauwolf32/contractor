@@ -27,6 +27,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -157,7 +158,7 @@ func TestPostgresTrustedAuditRunIsAtomicReplayableAndPinsExactSkill(t *testing.T
 			WorkflowName: workflow.Ref.Name, WorkflowVersion: workflow.Ref.Version,
 			WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: workflowSnapshot,
 			Parameters: map[string]string{"objective": "check"}, MetadataLabels: runstore.RunMetadataLabels{},
-			RuntimeConfig: runtimeconfig.BuiltInRunSnapshot(),
+			RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot(),
 		},
 		AuditExecutionID: execution.ExecutionID, AuditSubmissionKey: execution.SubmissionKey,
 	}); persistencepostgres.SQLState(err) != persistencepostgres.SQLStateCheckViolation {
@@ -190,7 +191,7 @@ func TestPostgresTrustedAuditRunIsAtomicReplayableAndPinsExactSkill(t *testing.T
 	}
 	params := AuditCreateParams{
 		Claim: claim, ExecutionID: execution.ExecutionID, Workflow: workflow,
-		RuntimeConfig: runtimeconfig.BuiltInRunSnapshot(), Skills: []agentskills.RunSkillSnapshot{skillSnapshot},
+		RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot(), Skills: []agentskills.RunSkillSnapshot{skillSnapshot},
 		Parameters: map[string]string{"objective": "check"}, Inputs: map[string]auditstore.ExactArtifact{"source": source},
 		ExecutionManifest: manifest, RequestDigest: execution.RequestDigest,
 	}
@@ -422,7 +423,7 @@ func isolatedRunServicePool(
 		t.Fatal(err)
 	}
 	t.Cleanup(pool.Close)
-	if _, err := persistencepostgres.ApplyMigrations(ctx, pool); err != nil {
+	if _, err := persistencepostgres.ApplyMigrations(ctx, pool, persistencepostgres.MigrationBudgets{}); err != nil {
 		t.Fatal(err)
 	}
 	return pool

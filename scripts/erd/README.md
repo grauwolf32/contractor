@@ -15,7 +15,7 @@ drops the database. It needs `psql`, Go and Node.js.
 
 | File | Contents |
 | --- | --- |
-| `meta.json` | Subsystems, and per table: subsystem, short description, why it exists and the processes that use it; verdict flags; tables removed by V365 |
+| `meta.json` | Subsystems, and per table: subsystem, short description, why it exists and the processes that use it; verdict flags; tables removed by the schema reductions and where their data went |
 | `template.html` | The page: styles, renderer and the `__DATA__` slot |
 | `layout.cjs` | ELK layout of both views (keys and all columns) |
 | `build_erd.py` | Orchestration, catalog queries and per-package table usage |

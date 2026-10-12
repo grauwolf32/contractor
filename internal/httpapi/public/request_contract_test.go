@@ -18,7 +18,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/gitimport"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runstore"
-	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
 )
 
 func TestSharedPublicRequestAndHistoryContracts(t *testing.T) {
@@ -199,7 +199,7 @@ func TestSharedPublicRequestAndHistoryContracts(t *testing.T) {
 			t.Fatal(err)
 		}
 		now := time.Now().UTC()
-		fixture.runs.runs["run-history"] = runstore.WorkflowRun{RunID: "run-history", OwnerID: "user-1", WorkflowName: "artifact-copy", WorkflowVersion: "1", State: runstore.RunFailed, RuntimeConfig: runtimeconfig.BuiltInRunSnapshot()}
+		fixture.runs.runs["run-history"] = runstore.WorkflowRun{RunID: "run-history", OwnerID: "user-1", WorkflowName: "artifact-copy", WorkflowVersion: "1", State: runstore.RunFailed, RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot()}
 		for i := 1; i <= count; i++ {
 			id := fmt.Sprintf("attempt-%d", i)
 			fixture.runs.executions["run-history"] = append(fixture.runs.executions["run-history"], runstore.StageExecution{StageExecutionID: id, RunID: "run-history", StageName: "copy", Attempt: i, StageSpecSnapshot: stage, State: runstore.StageFailed, CreatedAt: now, UpdatedAt: now})

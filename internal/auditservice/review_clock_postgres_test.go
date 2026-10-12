@@ -125,7 +125,7 @@ UPDATE audit_review_requests
 	if err != nil || expired.State != auditstore.ReviewExpired || expired.Revision != old.Request.Revision+1 || !expired.UpdatedAt.After(oldUpdated) {
 		t.Fatalf("expired request = (%+v, %v)", expired, err)
 	}
-	events, err := store.ListEvents(ctx, audit.AuditID, before.EventSequence, 3)
+	events, err := store.EventsAfter(ctx, audit.OwnerID, audit.AuditID, before.EventSequence, 3)
 	if err != nil || len(events) != 2 || events[0].Kind != "review.expired" || events[0].EntityID != old.Request.RequestID ||
 		events[1].Kind != "review.requested" || events[1].EntityID != fresh.Request.RequestID || events[1].Sequence != events[0].Sequence+1 {
 		t.Fatalf("replacement events = (%+v, %v)", events, err)

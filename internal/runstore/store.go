@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/grauwolf32/contractor/internal/agentskills"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -16,57 +15,9 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/pagelimit"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
-	"github.com/grauwolf32/contractor/internal/planner/stageresult"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/jackc/pgx/v5"
 )
-
-// Repository groups the broad RunStore operations used by e2e test helpers.
-// Production consumers declare narrower interfaces at their use sites.
-// PostgresStore implements it for both a pool and an explicit pgx transaction.
-type Repository interface {
-	PinRuntimeLabels(context.Context, []string, ...bool) (runtimeconfig.RunSnapshot, error)
-	CreateRun(context.Context, CreateRunParams) (WorkflowRun, error)
-	CreateRunIdempotent(context.Context, CreateRunIdempotentParams) (WorkflowRun, bool, error)
-	CreateAuditRun(context.Context, CreateAuditRunParams) (WorkflowRun, error)
-	SetRunSkillSelections(context.Context, string, []agentskills.RunSkillSnapshot) error
-	CompleteRunSkillInitialization(context.Context, string, []agentskills.RunSkillSnapshot) error
-	LookupRunIdempotency(context.Context, string, string, string) (WorkflowRun, bool, error)
-	GetRun(context.Context, string) (WorkflowRun, error)
-	ListRuns(context.Context, ListRunsParams) ([]WorkflowRunSummary, error)
-	ListRunQueue(context.Context, ListRunQueueParams) ([]WorkflowRunQueueItem, error)
-	GetOwnerQueueControl(context.Context, string) (OwnerQueueControl, error)
-	UpdateOwnerQueueControl(context.Context, UpdateOwnerQueueControlParams) (OwnerQueueControl, error)
-	RecordRunOutputPublication(context.Context, RecordRunOutputPublicationParams) (RunOutputPublication, bool, error)
-	ListRunOutputPublications(context.Context, string) ([]RunOutputPublication, error)
-	ListNonTerminalRunIDsByCredential(context.Context, string, int) ([]string, error)
-	TransitionRun(context.Context, string, WorkflowRunState, WorkflowRunState, Reason) (WorkflowRun, error)
-	RequestRunCancellation(context.Context, string, WorkflowRunCancellation) (WorkflowRun, error)
-	ClaimRunnableRun(context.Context, string, time.Duration) (WorkflowRun, error)
-	RenewRunClaim(context.Context, string, string, time.Duration) (WorkflowRunState, error)
-	ReleaseRunClaim(context.Context, string, string) error
-	CreateStageExecution(context.Context, CreateStageExecutionParams) (StageExecution, error)
-	GetStageExecution(context.Context, string) (StageExecution, error)
-	ListStageExecutions(context.Context, string) ([]StageExecution, error)
-	RecordStageTransitionDecision(context.Context, RecordStageTransitionDecisionParams) (StageTransitionDecision, error)
-	GetStageTransitionDecision(context.Context, string) (StageTransitionDecision, error)
-	ListStageTransitionDecisions(context.Context, string) ([]StageTransitionDecision, error)
-	ListTerminalStageExecutionsWithAllocations(context.Context) ([]StageExecution, error)
-	StartPlanner(context.Context, StartPlannerParams) error
-	EnterFinalizing(context.Context, EnterFinalizingParams) error
-	CompleteStageResult(context.Context, string, string, stageresult.StageContentResult) error
-	EnterAborting(context.Context, EnterAbortingParams) error
-	CompleteStageTermination(context.Context, string) error
-	AppendPlannerEvent(context.Context, AppendPlannerEventParams) error
-	GetPlannerSession(context.Context, string) (PlannerSession, error)
-	GetRunEventCursor(context.Context, string) (WorkflowRunEventCursor, error)
-	ListRunEvents(context.Context, string, int64, int) ([]WorkflowRunEvent, error)
-	RecordStageAllocation(context.Context, StageAllocation) error
-	ListStageAllocations(context.Context, string) ([]StageAllocation, error)
-	MarkStageAllocationReleaseAttempt(context.Context, string) error
-	MarkStageAllocationReleased(context.Context, string) error
-	ListStageExecutionReports(context.Context, string) ([]StageExecutionReport, error)
-}
 
 // ListNonTerminalRunIDsByCredential returns a bounded deterministic set of
 // immutable Run snapshots that pin the exact non-secret credential ID.
@@ -114,8 +65,6 @@ type PostgresStore struct {
 	runLLMCredentials     runtimeconfig.TransactionLLMCredentialLookup
 	runRuntimeCredentials runtimeconfig.RuntimeCredentialValidator
 }
-
-var _ Repository = (*PostgresStore)(nil)
 
 func NewPostgresStore(db persistencepostgres.DBTX) *PostgresStore {
 	return &PostgresStore{db: db}
@@ -222,20 +171,6 @@ FROM inserted_run`,
 	default:
 		return WorkflowRun{}, false, fmt.Errorf("%s %q: %w", operation, record.RunID, err)
 	}
-}
-
-func (s *PostgresStore) CreateRun(ctx context.Context, params CreateRunParams) (WorkflowRun, error) {
-	if err := validateCreateRun(params); err != nil {
-		return WorkflowRun{}, err
-	}
-	run, inserted, err := s.insertRun(ctx, "create WorkflowRun", runRecord{CreateRunParams: params})
-	if err != nil {
-		return WorkflowRun{}, err
-	}
-	if !inserted {
-		return WorkflowRun{}, fmt.Errorf("create WorkflowRun %q: %w", params.RunID, ErrConflict)
-	}
-	return run, nil
 }
 
 // CreateRunIdempotent atomically claims one public create-Run key. The bool is

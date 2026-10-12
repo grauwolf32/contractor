@@ -32,7 +32,9 @@ import (
 	"github.com/grauwolf32/contractor/internal/rundeletion"
 	"github.com/grauwolf32/contractor/internal/runservice"
 	"github.com/grauwolf32/contractor/internal/runstore"
+	"github.com/grauwolf32/contractor/internal/runstore/runstoretest"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
 	"github.com/grauwolf32/contractor/internal/settingsstore"
 	"github.com/grauwolf32/contractor/internal/telemetry"
 	"github.com/jackc/pgx/v5"
@@ -256,11 +258,11 @@ func TestPostgresPublicRunInitializationAndFrozenOutput(t *testing.T) {
 		repeat.Draft.Inputs["source"].Metadata == nil || repeat.Draft.Inputs["source"].Metadata.Current {
 		t.Fatalf("PostgreSQL repeat draft = %d %s", repeatResponse.Code, repeatResponse.Body.String())
 	}
-	if _, err := runs.CreateRun(ctx, runstore.CreateRunParams{
+	if _, err := runstoretest.CreateRun(ctx, runs, runstore.CreateRunParams{
 		RunID: "run-lineage-two", OwnerID: "user-1", WorkflowName: "artifact-copy", WorkflowVersion: "1",
 		WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: json.RawMessage(`{}`),
 		Parameters:    map[string]string{},
-		RuntimeConfig: runtimeconfig.BuiltInRunSnapshot(),
+		RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot(),
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -340,11 +342,11 @@ func TestPostgresPublicRunInitializationAndFrozenOutput(t *testing.T) {
 		t.Fatalf("second PostgreSQL Artifact history page = %d: %s", nextVersionsResponse.Code, nextVersionsResponse.Body.String())
 	}
 
-	if _, err := runs.CreateRun(ctx, runstore.CreateRunParams{
+	if _, err := runstoretest.CreateRun(ctx, runs, runstore.CreateRunParams{
 		RunID: "run-foreign", OwnerID: "user-2", WorkflowName: "artifact-copy", WorkflowVersion: "1",
 		WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: json.RawMessage(`{}`),
 		Parameters:    map[string]string{},
-		RuntimeConfig: runtimeconfig.BuiltInRunSnapshot(),
+		RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot(),
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -421,7 +423,7 @@ func isolatedPublicPool(t *testing.T, ctx context.Context) *pgxpool.Pool {
 		admin.Close()
 		t.Fatal(err)
 	}
-	if _, err := persistencepostgres.ApplyMigrations(ctx, pool); err != nil {
+	if _, err := persistencepostgres.ApplyMigrations(ctx, pool, persistencepostgres.MigrationBudgets{}); err != nil {
 		pool.Close()
 		admin.Close()
 		t.Fatal(err)

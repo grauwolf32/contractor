@@ -295,9 +295,10 @@ class ArtifactBackendMatrixTest(unittest.TestCase):
 
 class LintStageTest(unittest.TestCase):
     COMMANDS = [
-        "test -z \"$(gofmt -l cmd internal tests)\"",
+        "test -z \"$(gofmt -l cmd internal tests tools)\"",
         "python3 scripts/check_database_erd.py",
         "go run ./cmd/contractor-server config validate --root ./configs",
+        "go -C tools/testonlyexports run . -tags=integration,e2e -baseline tools/testonlyexports/baseline.txt /repo",
     ]
 
     def test_complete_lint_stage_passes(self) -> None:
@@ -305,9 +306,13 @@ class LintStageTest(unittest.TestCase):
 
     def test_lost_catalog_or_erd_check_is_rejected(self) -> None:
         with self.assertRaisesRegex(SystemExit, "shipped configuration catalog"):
-            guard.check_lint_stage(self.COMMANDS[:2])
+            guard.check_lint_stage(self.COMMANDS[:2] + self.COMMANDS[3:])
         with self.assertRaisesRegex(SystemExit, "database ERD"):
-            guard.check_lint_stage([self.COMMANDS[0], self.COMMANDS[2]])
+            guard.check_lint_stage([self.COMMANDS[0], self.COMMANDS[2], self.COMMANDS[3]])
+
+    def test_lost_test_only_export_check_is_rejected(self) -> None:
+        with self.assertRaisesRegex(SystemExit, "exported identifiers that only tests use"):
+            guard.check_lint_stage(self.COMMANDS[:3])
 
 
 M = guard.MODULE

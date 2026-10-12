@@ -33,6 +33,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/runservice"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -1057,7 +1058,7 @@ func (h *serviceHarness) preparedWithRuntimeLabel(t *testing.T, kind string) eva
 	t.Helper()
 	repository := runtimeconfig.NewRepository(h.pool)
 	if _, err := repository.CreateBinding(t.Context(), "gpu",
-		runtimeconfig.BuiltInRunSnapshot().Default.Config, "operator", time.Now()); err != nil {
+		runtimeconfigtest.BuiltInRunSnapshot().Default.Config, "operator", time.Now()); err != nil {
 		t.Fatal(err)
 	}
 	draft, _ := h.dataset(t, kind)
@@ -1268,7 +1269,7 @@ func serviceTestPool(t *testing.T) *pgxpool.Pool {
 			t.Error(err)
 		}
 	})
-	if _, err = pg.ApplyMigrations(ctx, pool); err != nil {
+	if _, err = pg.ApplyMigrations(ctx, pool, pg.MigrationBudgets{}); err != nil {
 		t.Fatal(err)
 	}
 	return pool

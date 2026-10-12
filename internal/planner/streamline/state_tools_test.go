@@ -443,7 +443,7 @@ func plannerStateSnapshot(
 ) reporting.AgentStateSnapshot {
 	t.Helper()
 	payload := contractstest.ReadFile(t, "api", "testdata", "v1alpha1", "valid", "agent-state-snapshot.json")
-	snapshot, err := contracts.DecodeStrict[reporting.AgentStateSnapshot](payload)
+	snapshot, err := contracts.DecodePrivateStrict[reporting.AgentStateSnapshot](payload)
 	if err != nil {
 		t.Fatal(err)
 	}

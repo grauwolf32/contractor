@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/config/resolved"
+	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	"github.com/grauwolf32/contractor/internal/evaldomain"
@@ -54,7 +55,11 @@ func TestSharedPostgresEvalRuntimeCredentialDatabaseFailureRetries(t *testing.T)
 	}
 	version.ActorID, version.CreatedAt = "review", time.Now()
 	repo := runtimeconfig.NewRepository(h.pool)
-	if _, err = repo.InsertVersion(ctx, version); err != nil {
+	if _, err = repo.InsertPublishedVersion(ctx, version, runtimeconfig.Publication{
+		IdempotencyKeyDigest: contentdigest.Bytes([]byte("publish-review-runtime")),
+		RequestDigest:        prepared.RequestDigest(), Ref: version.Ref,
+		ActorID: version.ActorID, PublishedAt: version.CreatedAt,
+	}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err = repo.Rebind(ctx, runtimeconfig.DefaultLabel, 1, version.Ref, "review", time.Now()); err != nil {
@@ -130,7 +135,11 @@ func TestSharedPostgresEvalPinnedLLMCredentialFailureClassification(t *testing.T
 			}
 			version.ActorID, version.CreatedAt = "review", time.Now()
 			repo := runtimeconfig.NewRepository(h.pool)
-			if _, err = repo.InsertVersion(ctx, version); err != nil {
+			if _, err = repo.InsertPublishedVersion(ctx, version, runtimeconfig.Publication{
+				IdempotencyKeyDigest: contentdigest.Bytes([]byte("publish-credential-probe")),
+				RequestDigest:        publication.RequestDigest(), Ref: version.Ref,
+				ActorID: version.ActorID, PublishedAt: version.CreatedAt,
+			}); err != nil {
 				t.Fatal(err)
 			}
 			if _, err = repo.Rebind(ctx, runtimeconfig.DefaultLabel, 1, version.Ref, "review", time.Now()); err != nil {

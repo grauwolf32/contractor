@@ -123,7 +123,7 @@ func TestPostgresControllerDispatchesOrdinaryRunsThroughDerivedWindow(t *testing
 	if err != nil || len(executions) != 3 {
 		t.Fatalf("refilled executions = (%+v, %v)", executions, err)
 	}
-	items, err := harness.audits.ListItems(ctx, harness.started.Audit.AuditID)
+	items, err := harness.audits.Items(ctx, harness.started.Audit.OwnerID, harness.started.Audit.AuditID)
 	if err != nil || items[0].State != auditstore.ItemCollecting || items[0].FinalDisposition != nil {
 		t.Fatalf("terminal observation prematurely settled item = (%+v, %v)", items, err)
 	}
@@ -199,7 +199,7 @@ func TestPostgresControllerDispatchesReadyItemsBehindReviewWindow(t *testing.T) 
 	if err != nil || len(members) != 1 {
 		t.Fatalf("dispatched members = (%+v, %v)", members, err)
 	}
-	items, err := harness.audits.ListItems(ctx, harness.started.Audit.AuditID)
+	items, err := harness.audits.Items(ctx, harness.started.Audit.OwnerID, harness.started.Audit.AuditID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -423,7 +423,7 @@ SELECT count(*), max(sequence_number),
 		t.Fatalf("review event ledger count=%d last=%d next=%d expired=%d requested=%d",
 			eventCount, lastSequence, nextSequence, expiredEvents, requestedEvents)
 	}
-	items, err := harness.audits.ListItems(ctx, auditID)
+	items, err := harness.audits.Items(ctx, ownerID, auditID)
 	if err != nil || len(items) != 1 || items[0].State != auditstore.ItemAwaitingReview {
 		t.Fatalf("renewed item = (%+v, %v)", items, err)
 	}
@@ -494,7 +494,7 @@ SET expires_at=clock_timestamp()-interval '1 second' WHERE request_id=$1`, appro
 	if worked, err := controller.RunOnce(ctx); err != nil || !worked {
 		t.Fatalf("renew expired approved item = (%t, %v)", worked, err)
 	}
-	items, err := harness.audits.ListItems(ctx, auditID)
+	items, err := harness.audits.Items(ctx, ownerID, auditID)
 	if err != nil || len(items) != 2 || items[0].State != auditstore.ItemAwaitingReview ||
 		items[1].State != auditstore.ItemReady {
 		t.Fatalf("renewed first item and later ready item = (%+v, %v)", items, err)
@@ -1296,7 +1296,7 @@ func TestPostgresControllerCollectsAndPublishesExactAuditReport(t *testing.T) {
 		attempt.RunProvenance.Workflow.Name != "audit-check" {
 		t.Fatalf("Audit attempt Run provenance = %+v", attempt)
 	}
-	retainedItems, err := harness.audits.ListItems(ctx, completed.AuditID)
+	retainedItems, err := harness.audits.Items(ctx, completed.OwnerID, completed.AuditID)
 	if err != nil || len(retainedItems) != 1 {
 		t.Fatalf("retained Audit items = (%+v, %v)", retainedItems, err)
 	}
@@ -1871,7 +1871,7 @@ func isolatedControllerPool(
 		admin.Close()
 		t.Fatal(err)
 	}
-	if _, err := persistencepostgres.ApplyMigrations(ctx, pool); err != nil {
+	if _, err := persistencepostgres.ApplyMigrations(ctx, pool, persistencepostgres.MigrationBudgets{}); err != nil {
 		pool.Close()
 		admin.Close()
 		t.Fatal(err)

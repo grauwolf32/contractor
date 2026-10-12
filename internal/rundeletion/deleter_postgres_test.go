@@ -19,7 +19,8 @@ import (
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runstore"
-	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/grauwolf32/contractor/internal/runstore/runstoretest"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -146,13 +147,13 @@ func createDeletionRun(
 		t.Fatal(err)
 	}
 	runs := runstore.NewPostgresStore(pool)
-	if _, err := runs.CreateRun(ctx, runstore.CreateRunParams{
+	if _, err := runstoretest.CreateRun(ctx, runs, runstore.CreateRunParams{
 		RunID: runID, OwnerID: ownerID, ProjectID: &projectID,
 		WorkflowName: "artifact-copy", WorkflowVersion: "1",
 		WorkflowSchemaVersion: contracts.APIVersion,
 		WorkflowSnapshot:      json.RawMessage(`{"ref":{"name":"artifact-copy","version":"1"}}`),
 		Parameters:            map[string]string{},
-		RuntimeConfig:         runtimeconfig.BuiltInRunSnapshot(),
+		RuntimeConfig:         runtimeconfigtest.BuiltInRunSnapshot(),
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -216,7 +217,7 @@ func isolatedDeletionPool(t *testing.T, ctx context.Context) *pgxpool.Pool {
 		_, _ = admin.Exec(cleanupContext, `DROP SCHEMA `+identifier+` CASCADE`)
 		admin.Close()
 	})
-	if _, err := persistencepostgres.ApplyMigrations(ctx, pool); err != nil {
+	if _, err := persistencepostgres.ApplyMigrations(ctx, pool, persistencepostgres.MigrationBudgets{}); err != nil {
 		t.Fatal(err)
 	}
 	return pool

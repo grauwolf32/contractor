@@ -26,6 +26,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/localpki"
 	"github.com/grauwolf32/contractor/internal/runstore"
+	"github.com/grauwolf32/contractor/internal/telemetry"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"go.yaml.in/yaml/v4"
 )
@@ -1203,7 +1204,7 @@ func assertProjectRunDurable(
 		}
 		runtimeInstanceByStage[execution.StageName] = allocation.RuntimeAgentInstanceID
 		lastAllocationID = allocation.AllocationID
-		reports, reportErr := store.ListStageExecutionReports(ctx, execution.StageExecutionID)
+		reports, reportErr := telemetry.NewRepository(pool).ListAllocationReports(ctx, execution.StageExecutionID)
 		if reportErr != nil || len(reports) != 1 ||
 			!reports[0].Report.Worker.Complete || !reports[0].Report.Runtime.Complete {
 			t.Fatalf("reports for %s = (%+v, %v), want one complete envelope",

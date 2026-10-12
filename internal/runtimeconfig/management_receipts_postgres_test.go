@@ -25,7 +25,7 @@ func TestPostgresManagementReceiptsReplayOnlyTheirOwnRequest(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	pool := isolatedRuntimeConfigPool(t, ctx, databaseURL)
-	if _, err := persistencepostgres.ApplyMigrations(ctx, pool); err != nil {
+	if _, err := persistencepostgres.ApplyMigrations(ctx, pool, persistencepostgres.MigrationBudgets{}); err != nil {
 		t.Fatal(err)
 	}
 	type result struct {

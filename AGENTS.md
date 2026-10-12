@@ -243,8 +243,11 @@ Many tasks only removed exports, states, API operations and tables that no
 production code used, or merged tables that duplicated a mechanism (91 → 70
 tables). Every new export, state, endpoint and table needs a production caller
 or reader in the same change. `staticcheck -checks U1000` with the `e2e` and
-`integration` tags runs in `make lint`. Prefer column-scoped immutability
-triggers over 1:1 side tables.
+`integration` tags runs in `make lint`, and so does `tools/testonlyexports`,
+which fails on an exported identifier that only tests reference: put a test
+hook in the package's `export_test.go` and a helper that other packages' tests
+share in a test helper package named `*test`; its baseline only shrinks.
+Prefer column-scoped immutability triggers over 1:1 side tables.
 
 ### 3.8 UI must tell the truth (~45 tasks)
 

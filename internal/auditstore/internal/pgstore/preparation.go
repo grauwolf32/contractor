@@ -39,6 +39,9 @@ func (s *QueryStore) ListPreparationRoles(ctx context.Context, auditID string) (
 		if err := rows.Scan(&role.WorkflowRole, &role.Attempts, &role.MaxRunAttempts, &role.ExecutionID, &role.Status); err != nil {
 			return nil, err
 		}
+		if !role.Status.Valid() {
+			return nil, errors.New("derived Audit preparation status is invalid")
+		}
 		result = append(result, role)
 	}
 	return result, rows.Err()

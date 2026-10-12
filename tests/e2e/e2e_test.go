@@ -466,7 +466,7 @@ func assertDurableExecution(
 	if err != nil || len(allocations) != 1 || allocations[0].RuntimeAgentInstanceID == "" {
 		t.Fatalf("Stage allocations = (%+v, %v), want one registered Runtime Agent", allocations, err)
 	}
-	reports, err := store.ListStageExecutionReports(ctx, execution.StageExecutionID)
+	reports, err := telemetry.NewRepository(pool).ListAllocationReports(ctx, execution.StageExecutionID)
 	if err != nil || len(reports) != 1 {
 		t.Fatalf("execution reports = (%+v, %v), want one", reports, err)
 	}
@@ -571,7 +571,7 @@ func assertBudgetExecution(
 	if err != nil || len(allocations) != 1 {
 		t.Fatalf("bounded Stage allocations = (%+v, %v), want one", allocations, err)
 	}
-	reports, err := store.ListStageExecutionReports(ctx, execution.StageExecutionID)
+	reports, err := telemetry.NewRepository(pool).ListAllocationReports(ctx, execution.StageExecutionID)
 	if err != nil || len(reports) != 1 {
 		t.Fatalf("bounded execution reports = (%+v, %v), want one", reports, err)
 	}

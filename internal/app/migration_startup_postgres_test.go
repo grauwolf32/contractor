@@ -61,7 +61,7 @@ func TestPostgresServerStartupRequiresMatchingMigrationLedger(t *testing.T) {
 	if _, err := pool.Exec(ctx, `SELECT 1 FROM contractor_schema_migrations`); err == nil {
 		t.Fatal("serve against an empty database created the migration ledger")
 	}
-	if _, err := persistencepostgres.ApplyMigrations(ctx, pool); err != nil {
+	if _, err := persistencepostgres.ApplyMigrations(ctx, pool, persistencepostgres.MigrationBudgets{}); err != nil {
 		t.Fatal(err)
 	}
 	var latestVersion int64

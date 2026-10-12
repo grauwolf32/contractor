@@ -104,7 +104,7 @@ func TestAuditReportReviewExpiresOnCancelOrDelete(t *testing.T) {
 			if err != nil || review.State != auditstore.ReviewExpired || review.Revision != 2 {
 				t.Fatalf("expired report review = (%+v, %v)", review, err)
 			}
-			events, err := store.ListEvents(ctx, audit.AuditID, waiting.EventSequence, pagelimit.MaxRows)
+			events, err := store.EventsAfter(ctx, audit.OwnerID, audit.AuditID, waiting.EventSequence, pagelimit.MaxRows)
 			if err != nil || len(events) != 2 {
 				t.Fatalf("events after closing report review = (%+v, %v)", events, err)
 			}

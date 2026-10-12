@@ -20,7 +20,8 @@ import (
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/runstore"
-	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/grauwolf32/contractor/internal/runstore/runstoretest"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -208,10 +209,10 @@ func admittedPlannerParticipant(
 		t.Fatal(err)
 	}
 	runs := runstore.NewPostgresStore(pool)
-	if _, err := runs.CreateRun(ctx, runstore.CreateRunParams{
+	if _, err := runstoretest.CreateRun(ctx, runs, runstore.CreateRunParams{
 		RunID: runID, OwnerID: "owner", WorkflowName: "test", WorkflowVersion: "1",
 		WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: json.RawMessage(`{}`),
-		RuntimeConfig: runtimeconfig.BuiltInRunSnapshot(),
+		RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot(),
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -288,7 +289,7 @@ func isolatedStreamlinePool(t *testing.T, ctx context.Context) *pgxpool.Pool {
 		t.Fatal(err)
 	}
 	t.Cleanup(pool.Close)
-	if _, err := persistencepostgres.ApplyMigrations(ctx, pool); err != nil {
+	if _, err := persistencepostgres.ApplyMigrations(ctx, pool, persistencepostgres.MigrationBudgets{}); err != nil {
 		t.Fatal(err)
 	}
 	return pool
