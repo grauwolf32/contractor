@@ -5,7 +5,7 @@ milestone: hub-audit-structure-2026-10
 epic: quality
 kind: chore
 priority: P3
-status: pending
+status: in_progress
 depends_on: []
 languages: [go]
 goal: "None of the listed identifiers is exported for tests only."
