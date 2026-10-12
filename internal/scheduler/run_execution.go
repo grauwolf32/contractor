@@ -160,13 +160,8 @@ func (s *Scheduler) executeCancelling(ctx context.Context, run runstore.Workflow
 func (s *Scheduler) finishCancelledRun(ctx context.Context, runID string) error {
 	operationContext, cancel := s.terminalOperationContext(ctx)
 	defer cancel()
-	_, err := s.store.TransitionRun(
-		operationContext,
-		runID,
-		runstore.RunCancelling,
-		runstore.RunCancelled,
-		runstore.Reason{Code: runstore.CancellationUserRequested},
-	)
+	// The commit freezes the outputs that earlier Stages bound (ART-R94).
+	err := s.persistence.FinishCancelledRun(operationContext, runID)
 	if errors.Is(err, runstore.ErrConflict) {
 		state, loadErr := s.store.GetRunState(operationContext, runID)
 		if loadErr == nil && state == runstore.RunCancelled {

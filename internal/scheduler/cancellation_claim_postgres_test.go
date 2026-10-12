@@ -58,6 +58,13 @@ func TestPostgresCancellationCleanupRetainsRunClaim(t *testing.T) {
 			}
 			s := newLaneTestScheduler(t, newLaneTestStore(), newMutableSchedulerSettings(2, time.Second), 20*time.Millisecond)
 			s.store = store
+			// The Run has no Stage, so the cleanup ends with the commit that
+			// finishes a cancelled Run.
+			persistence, err := NewPostgresPersistence(pool)
+			if err != nil {
+				t.Fatal(err)
+			}
+			s.persistence = persistence
 			s.options.ClaimDuration = 200 * time.Millisecond
 			done := make(chan error, 1)
 			go func() {

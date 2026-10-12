@@ -84,6 +84,8 @@ func TestPostgresOutputMappingOntoAnotherRevisionEndsRunOnce(t *testing.T) {
 	}
 	requireRunEndedAsInvalidState(t, ctx, h)
 	requireOutputBinding(t, ctx, h.pool, runArtifacts, existing.TargetRef, "earlier\n")
+	// The failed Run froze the output it had bound (ART-R94).
+	requireFrozenOutput(t, ctx, runArtifacts, existing.TargetRef)
 	// Terminal release recovery released what the ended Stage held.
 	executions, err := h.store.ListStageExecutions(ctx, "run-1")
 	if err != nil {

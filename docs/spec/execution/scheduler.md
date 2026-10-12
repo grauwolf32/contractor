@@ -837,7 +837,9 @@ remains fenced with the allocation ID until release is acknowledged.
 every active StageExecution: `preparing` and `running` become `interrupted`
 with that code, `aborting` commits its stored StageTermination, and
 `finalizing` accepts its durable candidate without Workflow progression or
-output binding, exactly as during cancellation. Every Stage is then terminal,
+output binding, exactly as during cancellation. The same transaction freezes
+the output bindings that earlier Stages created
+([ART-R94](../artifacts/artifact-store.md)). Every Stage is then terminal,
 so terminal release recovery drains and releases its allocations and the Run
 can later be deleted (FAIL-SCH-13).
 
@@ -1408,6 +1410,10 @@ These properties follow from the cited requirements, which are authoritative.
     (SCH-R145, SCH-R148).
 14. Cancellation, Project deletion, terminal release, allocation-loss recovery
     and cleanup converge at every valid limit (SCH-R160).
+15. Every commit that makes a Run `succeeded`, `failed` or `cancelled`
+    freezes the Run's output bindings in the same transaction, including the
+    end of an unprogressable Run (SCH-R102) and of a cancelling Run without
+    an active StageExecution ([ART-R92, ART-R94](../artifacts/artifact-store.md)).
 
 ## Examples
 
