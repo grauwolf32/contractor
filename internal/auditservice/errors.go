@@ -6,11 +6,13 @@ package auditservice
 import (
 	"errors"
 	"fmt"
+
+	"github.com/grauwolf32/contractor/internal/apierror"
 )
 
 var (
-	ErrInvalid         = errors.New("audit service invalid request")
-	ErrProfileNotFound = errors.New("AuditProfile was not found")
+	ErrInvalid         = apierror.New(apierror.InvalidRequest, "audit service invalid request")
+	ErrProfileNotFound = apierror.New(apierror.NotFound, "AuditProfile was not found")
 	ErrUnsupported     = errors.New("AuditProfile is unsupported by this Server")
 )
 
@@ -39,6 +41,10 @@ func (e *UnsupportedError) Error() string {
 }
 
 func (e *UnsupportedError) Unwrap() error { return ErrUnsupported }
+
+// ErrorKind answers the error with audit_profile_unsupported; its reasons
+// are the details.
+func (e *UnsupportedError) ErrorKind() apierror.Kind { return apierror.AuditProfileUnsupported }
 
 func unsupported(reasons []CompatibilityReason) error {
 	return &UnsupportedError{Reasons: append([]CompatibilityReason(nil), reasons...)}

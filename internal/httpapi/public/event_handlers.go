@@ -5,33 +5,34 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/grauwolf32/contractor/internal/apierror"
 	publicevents "github.com/grauwolf32/contractor/internal/httpapi/public/events"
 )
 
-func (h *handler) connectEventsWebSocket(w http.ResponseWriter, r *http.Request) {
+func (h *sessionHandlers) connectEventsWebSocket(w http.ResponseWriter, r *http.Request) {
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	session, ok := browserSessionFromContext(r.Context())
 	if !ok {
-		h.writeSessionUnauthorized(w)
+		writeSessionUnauthorized(w)
 		return
 	}
-	err := h.dependencies.Events.Serve(w, r, session)
+	err := h.Events.Serve(w, r, session)
 	switch {
 	case err == nil:
 		return
 	case errors.Is(err, publicevents.ErrInvalidOrigin):
-		h.writeError(w, http.StatusForbidden, "forbidden", "browser origin is not allowed", false)
+		writeError(w, apierror.Forbidden, "browser origin is not allowed")
 	case errors.Is(err, publicevents.ErrSession):
-		h.writeSessionUnauthorized(w)
+		writeSessionUnauthorized(w)
 	case errors.Is(err, publicevents.ErrSocketLimit):
 		w.Header().Set("Retry-After", strconv.Itoa(1))
-		h.writeError(w, http.StatusTooManyRequests, "rate_limited", "browser session socket limit reached", true)
+		writeError(w, apierror.RateLimited, "browser session socket limit reached")
 	case errors.Is(err, publicevents.ErrInvalidHandshake):
-		h.writeError(w, http.StatusBadRequest, "invalid_request", "WebSocket handshake is invalid", false)
+		writeError(w, apierror.InvalidRequest, "WebSocket handshake is invalid")
 	default:
-		h.handleError(w, err)
+		handleError(w, err)
 	}
 }

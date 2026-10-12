@@ -16,6 +16,7 @@ import (
 	publicevents "github.com/grauwolf32/contractor/internal/httpapi/public/events"
 	"github.com/grauwolf32/contractor/internal/performance"
 	"github.com/grauwolf32/contractor/internal/projectstore"
+	"github.com/grauwolf32/contractor/internal/randomid"
 	"github.com/grauwolf32/contractor/internal/rundeletion"
 	"github.com/grauwolf32/contractor/internal/runservice"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -74,33 +75,61 @@ func configureHTTP(
 	if err != nil {
 		return serverHandlers{}, fmt.Errorf("configure Run detail reader: %w", err)
 	}
+	projects := projectstore.NewPostgresStore(pool)
 	publicHandler, err := publicapi.NewHandler(publicapi.Dependencies{
-		GatewayRecovery: workflows.gatewayRecovery,
-		Authentication:  authentication, BrowserOrigins: browserOrigins,
-		InsecureLoopbackCookie: cfg.InsecureLoopbackCookie,
-		TrustedPeers:           trustedPeers,
-		Config:                 configurationManager, ConfigurationPublisher: configurationManager,
-		Runs: runStore, RunDetails: runDetails, RunQueue: runStore, RunLifecycle: runStore, RunDeletion: rundeletion.New(pool), RunCreator: audits.runs, Artifacts: catalogs.artifacts,
-		Credentials: credentialSet.provider, ManagedCredentials: credentialSet.lifecycle,
-		RuntimeConfigs: control.runtimeConfigurations, RuntimeCredentials: credentialSet.runtime,
-		GitKeys:                credentialSet.gitKeys,
-		GitImports:             gitImporter,
-		RuntimeAgentPrincipals: control.principalOperations,
-		Projects:               projectstore.NewPostgresStore(pool),
-		Audits:                 audits.service,
-		Evals:                  evals.service,
-		EvalNotifier:           evals.coordinator,
-		FindingProposals:       catalogs.findings,
-		FindingCollections:     collectionPublisher,
-		Operations:             control.registry,
-		Performance:            performanceReader,
-		AllocationResources:    telemetry.NewRepository(pool),
-		OperationsInvalidator:  control.registry,
-		SchedulerSettings:      workflows.settings,
-		Events:                 eventHub,
-		BearerToken:            cfg.PublicBearerToken,
-		RunNotifier:            workflows.scheduler, Logger: logger,
-		ProjectDeletionNotifier: workflows.projectDeletion,
+		BearerToken:  cfg.PublicBearerToken,
+		NewRequestID: func() (string, error) { return randomid.New("request_") },
+		Logger:       logger,
+		Session: publicapi.SessionDependencies{
+			Authentication: authentication, BrowserOrigins: browserOrigins, TrustedPeers: trustedPeers,
+			InsecureLoopbackCookie: cfg.InsecureLoopbackCookie, Events: eventHub,
+		},
+		Catalog: publicapi.CatalogDependencies{
+			Config: configurationManager, ConfigurationPublisher: configurationManager,
+			OperationsInvalidator: control.registry,
+		},
+		Projects: publicapi.ProjectDependencies{
+			Projects: projects, RuntimeCredentials: credentialSet.runtime,
+			ProjectDeletionNotifier: workflows.projectDeletion, NewID: randomid.New,
+		},
+		Runs: publicapi.RunDependencies{
+			Runs: runStore, RunDetails: runDetails, RunLifecycle: runStore,
+			RunDeletion: rundeletion.New(pool), RunCreator: audits.runs,
+			RunNotifier: workflows.scheduler, GatewayRecovery: workflows.gatewayRecovery,
+			Projects: projects, NewID: randomid.New, Now: time.Now,
+		},
+		RunRepeat: publicapi.RunRepeatDependencies{
+			Runs: runStore, Projects: projects, Config: configurationManager,
+			Credentials: credentialSet.provider, Artifacts: catalogs.artifacts,
+			RuntimeConfigs: control.runtimeConfigurations,
+		},
+		Queue: publicapi.QueueDependencies{RunQueue: runStore, RunNotifier: workflows.scheduler},
+		Artifacts: publicapi.ArtifactDependencies{
+			Artifacts: catalogs.artifacts, Projects: projects, Runs: runStore, GitImports: gitImporter,
+		},
+		Audits: publicapi.AuditDependencies{Audits: audits.service, Projects: projects, NewID: randomid.New},
+		Findings: publicapi.FindingDependencies{
+			FindingProposals: catalogs.findings, FindingCollections: collectionPublisher,
+			Audits: audits.service, Runs: runStore,
+		},
+		Evals: publicapi.EvalDependencies{
+			Evals: evals.service, EvalNotifier: evals.coordinator,
+			Config: configurationManager, Audits: audits.service,
+		},
+		Operations: publicapi.OperationsDependencies{
+			Operations: control.registry, Performance: performanceReader,
+			AllocationResources: telemetry.NewRepository(pool), SchedulerSettings: workflows.settings,
+			OperationsInvalidator: control.registry, RunNotifier: workflows.scheduler, Logger: logger,
+		},
+		Credentials: publicapi.CredentialDependencies{
+			ManagedCredentials: credentialSet.lifecycle, OperationsInvalidator: control.registry,
+		},
+		RuntimeConfiguration: publicapi.RuntimeConfigurationDependencies{
+			RuntimeConfigs: control.runtimeConfigurations, RuntimeCredentials: credentialSet.runtime,
+			RuntimeAgentPrincipals: control.principalOperations, OperationsInvalidator: control.registry,
+			Logger: logger, Now: time.Now,
+		},
+		GitKeys: publicapi.GitKeyDependencies{GitKeys: credentialSet.gitKeys},
 	})
 	if err != nil {
 		return serverHandlers{}, fmt.Errorf("configure public API: %w", err)

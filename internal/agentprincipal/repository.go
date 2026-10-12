@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/apierror"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/pagelimit"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -17,8 +18,10 @@ import (
 )
 
 // ErrInUse refuses to delete a principal that still holds labels, has a live
-// allocation or is registered with this process.
-var ErrInUse = fmt.Errorf("%w: Runtime Agent principal is in use", runtimeconfig.ErrConflict)
+// allocation or is registered with this process. It still matches
+// runtimeconfig.ErrConflict, but the public API answers its own narrower
+// runtime_agent_in_use.
+var ErrInUse = apierror.Narrow(runtimeconfig.ErrConflict, apierror.RuntimeAgentInUse, "Runtime Agent principal is in use")
 
 // Principal is one Runtime Agent identity and the labels assigned to it.
 type Principal struct {

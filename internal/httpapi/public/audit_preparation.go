@@ -9,7 +9,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
-func (h *handler) auditDetailReadModel(r *http.Request, audit auditstore.Audit) (auditResponse, error) {
+func (h *auditHandlers) auditDetailReadModel(r *http.Request, audit auditstore.Audit) (auditResponse, error) {
 	response, err := auditReadModel(audit)
 	if err != nil {
 		return auditResponse{}, err
@@ -21,7 +21,7 @@ func (h *handler) auditDetailReadModel(r *http.Request, audit auditstore.Audit) 
 	if err != nil || !profile.HasPreparation() {
 		return response, nil
 	}
-	roles, err := h.dependencies.Audits.Preparation(r.Context(), principalUserID(r.Context()), audit.AuditID)
+	roles, err := h.Audits.Preparation(r.Context(), principalUserID(r.Context()), audit.AuditID)
 	if err != nil {
 		return auditResponse{}, err
 	}

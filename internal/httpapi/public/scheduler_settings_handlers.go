@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/grauwolf32/contractor/internal/apierror"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/requestid"
 	"github.com/grauwolf32/contractor/internal/settingsstore"
@@ -12,71 +13,66 @@ import (
 
 // Both Scheduler settings routes are authorized by requireOperationsRoutes.
 
-func (h *handler) getSchedulerSettings(w http.ResponseWriter, r *http.Request) {
+func (h *operationsHandlers) getSchedulerSettings(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
-	if h.rejectHead(w, r) {
+	if rejectHead(w, r) {
 		return
 	}
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
-	settings, err := h.dependencies.SchedulerSettings.GetSchedulerSettings(r.Context())
+	settings, err := h.SchedulerSettings.GetSchedulerSettings(r.Context())
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	h.writeSchedulerSettings(w, settings)
 }
 
-func (h *handler) putSchedulerSettings(w http.ResponseWriter, r *http.Request) {
+func (h *operationsHandlers) putSchedulerSettings(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	mediaType, err := requestMediaType(r)
 	if err != nil || mediaType != "application/json" {
-		h.writeError(
-			w, http.StatusUnsupportedMediaType, "unsupported_media_type",
-			"Content-Type must be application/json", false,
-		)
+		writeError(w, apierror.UnsupportedMediaType, "")
 		return
 	}
 	expectedRevision, err := schedulerSettingsPrecondition(r)
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	var request updateSchedulerSettingsRequest
 	if err := decodeJSON(w, r, &request); err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	if request.MaxConcurrentRuns < settingsstore.MinimumConcurrentRuns ||
 		request.MaxConcurrentRuns > settingsstore.MaximumConcurrentRuns {
-		h.handleError(w, settingsstore.ErrInvalid)
+		handleError(w, settingsstore.ErrInvalid)
 		return
 	}
-	settings, err := h.dependencies.SchedulerSettings.UpdateSchedulerSettings(
+	settings, err := h.SchedulerSettings.UpdateSchedulerSettings(
 		r.Context(), settingsstore.UpdateSchedulerSettingsParams{
 			MaxConcurrentRuns: request.MaxConcurrentRuns,
 			ExpectedRevision:  expectedRevision,
 		},
 	)
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	changed := settings.Revision != expectedRevision
 	if changed {
-		if h.dependencies.RunNotifier != nil {
-			h.dependencies.RunNotifier.Wake()
-		}
-		if err := h.dependencies.OperationsInvalidator.InvalidateOperations(
+		h.RunNotifier.Wake()
+		if err := h.OperationsInvalidator.InvalidateOperations(
 			controlplane.OperationsSchedulerSettings, "",
 		); err != nil {
-			h.handleError(w, err)
+			handleError(w, err)
 			return
 		}
 		h.auditSchedulerSettingsMutation(r, settings)
@@ -84,7 +80,7 @@ func (h *handler) putSchedulerSettings(w http.ResponseWriter, r *http.Request) {
 	h.writeSchedulerSettings(w, settings)
 }
 
-func (h *handler) writeSchedulerSettings(w http.ResponseWriter, settings settingsstore.SchedulerSettings) {
+func (h *operationsHandlers) writeSchedulerSettings(w http.ResponseWriter, settings settingsstore.SchedulerSettings) {
 	revision := strconv.FormatUint(settings.Revision, 10)
 	w.Header().Set("ETag", strconv.Quote(revision))
 	writeJSON(w, http.StatusOK, schedulerSettingsResponse{
@@ -101,14 +97,11 @@ func schedulerSettingsPrecondition(r *http.Request) (uint64, error) {
 	return parseRuntimeRevisionETag(r.Header.Values("If-Match")[0])
 }
 
-func (h *handler) auditSchedulerSettingsMutation(
+func (h *operationsHandlers) auditSchedulerSettingsMutation(
 	r *http.Request,
 	settings settingsstore.SchedulerSettings,
 ) {
-	if h.dependencies.Logger == nil {
-		return
-	}
-	h.dependencies.Logger.InfoContext(
+	h.Logger.InfoContext(
 		r.Context(), "Scheduler Operations mutation",
 		"audit_action", "scheduler_settings.replace",
 		"actor_id", principalUserID(r.Context()),

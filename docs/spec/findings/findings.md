@@ -783,7 +783,9 @@ second finding store or review authority.
 
 **FND-R114.** The same key and normalized request replay the original
 exact ZIP before sources or current reviews are looked up. A changed request
-conflicts. A pre-existing ZIP without the paired receipt conflicts, and
+conflicts permanently with `idempotency_conflict` (409, not retryable), like
+an Idempotency-Key bound to another request: only a new key can publish the
+changed selection. A pre-existing ZIP without the paired receipt conflicts, and
 missing or inconsistent retained ZIP bytes fail explicitly (FAIL-FND-3).
 
 **FND-R115.** The existing Artifact-plane lifecycle rules apply to

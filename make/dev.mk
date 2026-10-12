@@ -1,8 +1,8 @@
 # Formatting, linting, code generation and the checks that hold the
 # public API and the architecture model to the specifications.
 
-.PHONY: fmt lint generate-public-client generate-public-client-check verify-architecture docs-erd verify-public-api \
-	verify-public-api-postgres run-local tasks-backlog
+.PHONY: fmt lint generate-public-client generate-public-client-check verify-architecture docs-erd \
+	docs-error-registry verify-public-api verify-public-api-postgres run-local tasks-backlog
 
 fmt:
 	gofmt -w cmd internal tests
@@ -57,8 +57,19 @@ docs-erd:
 	npm ci --prefix scripts/erd --no-audit --no-fund
 	python3 scripts/erd/build_erd.py
 
+# Regenerates the public error code table of docs/spec/platform/errors.md from
+# the Server's error registry in internal/apierror; its tests fail while the
+# table lags the registry.
+docs-error-registry:
+	go test -count=1 ./internal/apierror -run '^TestRegistryTableIsCurrent$$' -update
+
+# verify-public-api checks the error registry against errors.md, the public
+# contracts and the browser client, and validates a response of every public
+# operation without a database: the selected tests must cover each operation,
+# or TestMain fails.
 verify-public-api:
-	go test -count=1 ./internal/httpapi/public -run '^(TestPublicOpenAPIContractIsValidAndPolicySafe|TestPublicEventSchemaIsClosedAndExamplesValidate|TestImplementedPublicHandlersConformToOpenAPI|TestProjectRunHandlersConformToOpenAPI|TestPublicOpenAPIPathsAreRepositoryRelative|TestPerformancePublicContracts|TestPublicAuditReportPreservesProposedReview|TestSharedPublicAuditPreparationContracts|TestPublicConfigurationProjectionContracts|TestPublicRuntimeConfigAuthorAndReadContracts|TestPublicRuntimeConfigPublicationResolvesGatewayAndPreservesClears|TestSharedPublicRequestAndHistoryContracts)$$'
+	go test -count=1 ./internal/apierror
+	CONTRACTOR_TEST_DATABASE_URL= CONTRACTOR_REQUIRE_OPERATION_COVERAGE=1 go test -count=1 ./internal/httpapi/public -run '^(TestErrorEnvelopesComeFromTheRegistry|TestPublicOpenAPIContractIsValidAndPolicySafe|TestPublicEventSchemaIsClosedAndExamplesValidate|TestRouteTableMatchesOpenAPI|TestImplementedPublicHandlersConformToOpenAPI|TestProjectRunHandlersConformToOpenAPI|TestPublicOperationsConformToOpenAPI|TestPublicOpenAPIPathsAreRepositoryRelative|TestPerformancePublicContracts|TestPublicAuditReportPreservesProposedReview|TestSharedPublicAuditPreparationContracts|TestPublicConfigurationProjectionContracts|TestPublicRuntimeConfigAuthorAndReadContracts|TestPublicRuntimeConfigPublicationResolvesGatewayAndPreservesClears|TestSharedPublicRequestAndHistoryContracts|TestAgentInstructionsAuthenticatedExactCatalogRead|TestArtifactArchiveScopesAndExactRevision|TestTransactionConflictResponsesConformToOpenAPI|TestRunCreateKeepsWorkflowCredentialLookupClass|TestRunRepeatDraftDoesNotReportLookupOutageAsUnavailableSelection|TestCreateRunRejectsAnOversizedWorkflowSnapshotBeforeAcceptance)$$'
 
 verify-public-api-postgres: require-database
 	$(call run-family-test,go test -race -count=1 ./internal/httpapi/public -run '^TestPublicAuditPaginationBoundary$$')

@@ -186,7 +186,7 @@ func TestLoginRateLimitFollowsForwardedClientBehindTrustedProxies(t *testing.T) 
 	}
 	fixture := newHandlerFixtureWithAuth(
 		t, "../../config/testdata/valid", newTestAuthentication(t), mustTestOrigins(t), false, nil,
-		func(dependencies *Dependencies) { dependencies.TrustedPeers = trustedPeers },
+		func(dependencies *testServices) { dependencies.TrustedPeers = trustedPeers },
 	)
 	attempt := func(remote, forwardedFor string) *httptest.ResponseRecorder {
 		t.Helper()

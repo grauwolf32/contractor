@@ -15,26 +15,26 @@ import (
 func evalScope(r *http.Request) evalstore.Scope {
 	return evalstore.Scope{OwnerID: principalUserID(r.Context()), ProjectID: r.PathValue("projectId")}
 }
-func (h *handler) evalExactQuery(w http.ResponseWriter, r *http.Request) bool {
+func evalExactQuery(w http.ResponseWriter, r *http.Request) bool {
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
-		h.evalError(w, evaldomain.Failure("eval_invalid"))
+		handleError(w, evaldomain.Failure("eval_invalid"))
 		return false
 	}
 	return true
 }
-func (h *handler) evalCapabilities(w http.ResponseWriter, r *http.Request) {
+func (h *evalHandlers) evalCapabilities(w http.ResponseWriter, r *http.Request) {
 	q, limit, err := evalQuery(r, "kind")
 	if err != nil {
-		h.evalError(w, err)
+		handleError(w, err)
 		return
 	}
 	if q.Has("kind") && !evalStringIn(q.Get("kind"), "workflow", "audit") {
-		h.evalError(w, evaldomain.Failure("eval_invalid"))
+		handleError(w, evaldomain.Failure("eval_invalid"))
 		return
 	}
 	cursor, err := h.readEvalCursor(r, q, 1)
 	if err != nil {
-		h.evalError(w, err)
+		handleError(w, err)
 		return
 	}
 	type binding struct {
@@ -45,12 +45,12 @@ func (h *handler) evalCapabilities(w http.ResponseWriter, r *http.Request) {
 	}
 	bindings := []binding{}
 	if q.Get("kind") != "audit" {
-		for _, workflow := range h.dependencies.Config.Workflows() {
+		for _, workflow := range h.Config.Workflows() {
 			bindings = append(bindings, binding{Kind: "workflow", Selector: workflow.Ref.Name + "@" + workflow.Ref.Version, Available: true})
 		}
 	}
 	if q.Get("kind") != "workflow" {
-		for _, profile := range h.dependencies.Audits.Profiles() {
+		for _, profile := range h.Audits.Profiles() {
 			var reason *string
 			if !profile.Compatibility.ServerCompatible {
 				message := "This AuditProfile requires unsupported Server capabilities."
@@ -69,12 +69,12 @@ func (h *handler) evalCapabilities(w http.ResponseWriter, r *http.Request) {
 	})
 	raw, err := json.Marshal(bindings)
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	snapshot := evaldomain.Digest(raw)
 	if cursor.Snapshot != "" && cursor.Snapshot != snapshot {
-		h.evalError(w, evaldomain.Failure("eval_view_changed"))
+		handleError(w, evaldomain.Failure("eval_view_changed"))
 		return
 	}
 	after := ""
@@ -98,10 +98,10 @@ func (h *handler) evalCapabilities(w http.ResponseWriter, r *http.Request) {
 	}
 	page, err := h.evalPage(r, q, more, snapshot, last)
 	if err != nil {
-		h.evalError(w, err)
+		handleError(w, err)
 		return
 	}
-	h.evalJSON(w, http.StatusOK, "Capabilities", map[string]any{
+	evalJSON(w, http.StatusOK, "Capabilities", map[string]any{
 		"controlModes":   []string{"server", "external"},
 		"executionKinds": []string{"workflow", "audit"},
 		"checks":         evalCheckCapabilities(),
@@ -111,41 +111,41 @@ func (h *handler) evalCapabilities(w http.ResponseWriter, r *http.Request) {
 		"page":           page,
 	})
 }
-func (h *handler) importEvalDataset(w http.ResponseWriter, r *http.Request) {
-	doc, m, ok := h.evalBody(w, r, "DatasetInput", false)
+func (h *evalHandlers) importEvalDataset(w http.ResponseWriter, r *http.Request) {
+	doc, m, ok := evalBody(w, r, "DatasetInput", false)
 	if !ok {
 		return
 	}
-	receipt, err := h.dependencies.Evals.PutDataset(r.Context(), evalScope(r), doc, m)
+	receipt, err := h.Evals.PutDataset(r.Context(), evalScope(r), doc, m)
 	if err != nil {
-		h.evalError(w, err)
+		handleError(w, err)
 		return
 	}
 	ref, err := receipt.Dataset()
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
-	data, err := h.dependencies.Evals.Dataset(r.Context(), evalScope(r), ref.DatasetID, ref.DatasetRevision)
+	data, err := h.Evals.Dataset(r.Context(), evalScope(r), ref.DatasetID, ref.DatasetRevision)
 	if err != nil {
-		h.evalError(w, err)
+		handleError(w, err)
 		return
 	}
 	if receipt.Replayed {
 		w.Header().Set("Idempotency-Replayed", "true")
 	}
 	w.Header().Set("ETag", strconv.Quote(data.Metadata.Revision))
-	h.evalJSON(w, http.StatusCreated, "Dataset", data.Metadata)
+	evalJSON(w, http.StatusCreated, "Dataset", data.Metadata)
 }
-func (h *handler) listEvalDatasets(w http.ResponseWriter, r *http.Request) {
+func (h *evalHandlers) listEvalDatasets(w http.ResponseWriter, r *http.Request) {
 	q, limit, err := evalQuery(r)
 	if err != nil {
-		h.evalError(w, err)
+		handleError(w, err)
 		return
 	}
 	cursor, err := h.readEvalCursor(r, q, 2)
 	if err != nil {
-		h.evalError(w, err)
+		handleError(w, err)
 		return
 	}
 	afterID, afterRevision := "", ""
@@ -154,12 +154,12 @@ func (h *handler) listEvalDatasets(w http.ResponseWriter, r *http.Request) {
 	}
 	revision, err := cursorRevision(cursor)
 	if err != nil {
-		h.evalError(w, err)
+		handleError(w, err)
 		return
 	}
-	data, err := h.dependencies.Evals.Datasets(r.Context(), evalScope(r), afterID, afterRevision, limit, revision)
+	data, err := h.Evals.Datasets(r.Context(), evalScope(r), afterID, afterRevision, limit, revision)
 	if err != nil {
-		h.evalError(w, err)
+		handleError(w, err)
 		return
 	}
 	if len(data.Items) > 0 {
@@ -168,41 +168,41 @@ func (h *handler) listEvalDatasets(w http.ResponseWriter, r *http.Request) {
 	}
 	page, err := h.evalPage(r, q, data.HasMore, strconv.FormatInt(data.Revision, 10), afterID, afterRevision)
 	if err != nil {
-		h.evalError(w, err)
+		handleError(w, err)
 		return
 	}
-	h.evalJSON(w, http.StatusOK, "DatasetPage", map[string]any{"items": data.Items, "page": page})
+	evalJSON(w, http.StatusOK, "DatasetPage", map[string]any{"items": data.Items, "page": page})
 }
-func (h *handler) listEvalCases(w http.ResponseWriter, r *http.Request) {
+func (h *evalHandlers) listEvalCases(w http.ResponseWriter, r *http.Request) {
 	q, limit, err := evalQuery(r)
 	if err != nil {
-		h.evalError(w, err)
+		handleError(w, err)
 		return
 	}
 	cursor, err := h.readEvalCursor(r, q, 1)
 	if err != nil {
-		h.evalError(w, err)
+		handleError(w, err)
 		return
 	}
-	data, err := h.dependencies.Evals.Dataset(r.Context(), evalScope(r), r.PathValue("datasetId"), r.PathValue("revision"))
+	data, err := h.Evals.Dataset(r.Context(), evalScope(r), r.PathValue("datasetId"), r.PathValue("revision"))
 	if err != nil {
-		h.evalError(w, err)
+		handleError(w, err)
 		return
 	}
 	if cursor.Snapshot != "" && cursor.Snapshot != data.Metadata.VisibleSHA256 {
-		h.evalError(w, evaldomain.Failure("eval_view_changed"))
+		handleError(w, evaldomain.Failure("eval_view_changed"))
 		return
 	}
 	var input evaldomain.DatasetInput
 	if err = evaldomain.DecodeInto("DatasetInput", data.Document.Bytes(), &input); err != nil {
-		h.evalError(w, err)
+		handleError(w, err)
 		return
 	}
 	offset := 0
 	if len(cursor.Position) > 0 {
 		offset, err = strconv.Atoi(cursor.Position[0])
 		if err != nil || offset < 0 || offset > len(input.Cases) {
-			h.evalError(w, evaldomain.Failure("eval_invalid"))
+			handleError(w, evaldomain.Failure("eval_invalid"))
 			return
 		}
 	}
@@ -210,56 +210,56 @@ func (h *handler) listEvalCases(w http.ResponseWriter, r *http.Request) {
 	items := input.Cases[offset:end]
 	page, err := h.evalPage(r, q, end < len(input.Cases), data.Metadata.VisibleSHA256, strconv.Itoa(end))
 	if err != nil {
-		h.evalError(w, err)
+		handleError(w, err)
 		return
 	}
-	h.evalJSON(w, http.StatusOK, "CasePage", map[string]any{"items": items, "page": page})
+	evalJSON(w, http.StatusOK, "CasePage", map[string]any{"items": items, "page": page})
 }
-func (h *handler) createEvalExperiment(w http.ResponseWriter, r *http.Request) {
-	doc, m, ok := h.evalBody(w, r, "CreateExperiment", false)
+func (h *evalHandlers) createEvalExperiment(w http.ResponseWriter, r *http.Request) {
+	doc, m, ok := evalBody(w, r, "CreateExperiment", false)
 	if !ok {
 		return
 	}
-	receipt, err := h.dependencies.Evals.Create(r.Context(), evalScope(r), doc, m)
+	receipt, err := h.Evals.Create(r.Context(), evalScope(r), doc, m)
 	if err != nil {
-		h.evalError(w, err)
+		handleError(w, err)
 		return
 	}
 	h.evalReceipt(w, http.StatusCreated, receipt)
 }
-func (h *handler) getEvalExperiment(w http.ResponseWriter, r *http.Request) {
-	if !h.evalExactQuery(w, r) {
+func (h *evalHandlers) getEvalExperiment(w http.ResponseWriter, r *http.Request) {
+	if !evalExactQuery(w, r) {
 		return
 	}
-	e, err := h.dependencies.Evals.Get(r.Context(), principalUserID(r.Context()), r.PathValue("id"))
+	e, err := h.Evals.Get(r.Context(), principalUserID(r.Context()), r.PathValue("id"))
 	if err != nil {
-		h.evalError(w, err)
+		handleError(w, err)
 		return
 	}
 	w.Header().Set("ETag", strconv.Quote(strconv.FormatInt(e.Revision, 10)))
-	h.evalJSON(w, http.StatusOK, "Experiment", e)
+	evalJSON(w, http.StatusOK, "Experiment", e)
 }
-func (h *handler) listEvalExperiments(w http.ResponseWriter, r *http.Request) {
+func (h *evalHandlers) listEvalExperiments(w http.ResponseWriter, r *http.Request) {
 	const evalExperimentCursorKey = "created"
 	q, limit, err := evalQuery(r, "projectId", "state", "datasetId", "controlMode")
 	if err != nil {
-		h.evalError(w, err)
+		handleError(w, err)
 		return
 	}
 	if (q.Has("state") && !evalStringIn(q.Get("state"), "draft", "preparing", "ready", "running", "settling", "finished", "pausing", "paused", "cancelling", "cancelled")) || (q.Has("controlMode") && !evalStringIn(q.Get("controlMode"), "server", "external")) || q.Has("projectId") && q.Get("projectId") == "" || q.Has("datasetId") && q.Get("datasetId") == "" {
-		h.evalError(w, evaldomain.Failure("eval_invalid"))
+		handleError(w, evaldomain.Failure("eval_invalid"))
 		return
 	}
 	// Positions are (key tag, created_at, experiment_id). The tag rejects
 	// cursors minted when this list was keyed by the mutable updated_at.
 	cursor, err := h.readEvalCursor(r, q, 3)
 	if err != nil {
-		h.evalError(w, err)
+		handleError(w, err)
 		return
 	}
 	revision, err := cursorRevision(cursor)
 	if err != nil {
-		h.evalError(w, err)
+		handleError(w, err)
 		return
 	}
 	p := evalstore.SummaryPageParams{ListParams: evalstore.ListParams{
@@ -274,15 +274,15 @@ func (h *handler) listEvalExperiments(w http.ResponseWriter, r *http.Request) {
 	if len(cursor.Position) > 0 {
 		at, err := time.Parse(time.RFC3339Nano, cursor.Position[1])
 		if cursor.Position[0] != evalExperimentCursorKey || err != nil {
-			h.evalError(w, evaldomain.Failure("eval_invalid"))
+			handleError(w, evaldomain.Failure("eval_invalid"))
 			return
 		}
 		p.AfterCreatedAt = &at
 		p.AfterID = cursor.Position[2]
 	}
-	data, err := h.dependencies.Evals.List(r.Context(), p)
+	data, err := h.Evals.List(r.Context(), p)
 	if err != nil {
-		h.evalError(w, err)
+		handleError(w, err)
 		return
 	}
 	lastTime, lastID := "", ""
@@ -291,10 +291,10 @@ func (h *handler) listEvalExperiments(w http.ResponseWriter, r *http.Request) {
 	}
 	page, err := h.evalPage(r, q, data.HasMore, strconv.FormatInt(data.Revision, 10), evalExperimentCursorKey, lastTime, lastID)
 	if err != nil {
-		h.evalError(w, err)
+		handleError(w, err)
 		return
 	}
-	h.evalJSON(w, http.StatusOK, "ExperimentPage", map[string]any{"items": data.Items, "page": page})
+	evalJSON(w, http.StatusOK, "ExperimentPage", map[string]any{"items": data.Items, "page": page})
 }
 func evalStringIn(value string, options ...string) bool {
 	for _, option := range options {
@@ -304,58 +304,58 @@ func evalStringIn(value string, options ...string) bool {
 	}
 	return false
 }
-func (h *handler) updateEvalDraft(w http.ResponseWriter, r *http.Request) {
-	doc, m, ok := h.evalBody(w, r, "DraftUpdate", true)
+func (h *evalHandlers) updateEvalDraft(w http.ResponseWriter, r *http.Request) {
+	doc, m, ok := evalBody(w, r, "DraftUpdate", true)
 	if !ok {
 		return
 	}
-	scope, err := h.dependencies.Evals.ScopeForMutation(r.Context(), principalUserID(r.Context()), r.PathValue("id"), "draft-update", m.Key)
+	scope, err := h.Evals.ScopeForMutation(r.Context(), principalUserID(r.Context()), r.PathValue("id"), "draft-update", m.Key)
 	if err != nil {
-		h.evalError(w, err)
+		handleError(w, err)
 		return
 	}
-	receipt, err := h.dependencies.Evals.UpdateDraft(r.Context(), scope, r.PathValue("id"), doc, m)
+	receipt, err := h.Evals.UpdateDraft(r.Context(), scope, r.PathValue("id"), doc, m)
 	if err != nil {
-		h.evalError(w, err)
+		handleError(w, err)
 		return
 	}
 	h.evalReceipt(w, http.StatusOK, receipt)
 }
-func (h *handler) deleteEvalExperiment(w http.ResponseWriter, r *http.Request) {
-	_, m, ok := h.evalBody(w, r, "Delete", true)
+func (h *evalHandlers) deleteEvalExperiment(w http.ResponseWriter, r *http.Request) {
+	_, m, ok := evalBody(w, r, "Delete", true)
 	if !ok {
 		return
 	}
-	scope, err := h.dependencies.Evals.ScopeForMutation(r.Context(), principalUserID(r.Context()), r.PathValue("id"), "delete", m.Key)
+	scope, err := h.Evals.ScopeForMutation(r.Context(), principalUserID(r.Context()), r.PathValue("id"), "delete", m.Key)
 	if err != nil {
-		h.evalError(w, err)
+		handleError(w, err)
 		return
 	}
-	receipt, err := h.dependencies.Evals.Delete(r.Context(), scope, r.PathValue("id"), m)
+	receipt, err := h.Evals.Delete(r.Context(), scope, r.PathValue("id"), m)
 	if err != nil {
-		h.evalError(w, err)
+		handleError(w, err)
 		return
 	}
 	h.evalReceipt(w, http.StatusAccepted, receipt)
 }
-func (h *handler) commandEvalExperiment(w http.ResponseWriter, r *http.Request) {
-	doc, m, ok := h.evalBody(w, r, "Command", true)
+func (h *evalHandlers) commandEvalExperiment(w http.ResponseWriter, r *http.Request) {
+	doc, m, ok := evalBody(w, r, "Command", true)
 	if !ok {
 		return
 	}
 	var command evaldomain.Command
 	if err := json.Unmarshal(doc.Bytes(), &command); err != nil {
-		h.evalError(w, err)
+		handleError(w, err)
 		return
 	}
-	scope, err := h.dependencies.Evals.ScopeForMutation(r.Context(), principalUserID(r.Context()), r.PathValue("id"), "command", m.Key)
+	scope, err := h.Evals.ScopeForMutation(r.Context(), principalUserID(r.Context()), r.PathValue("id"), "command", m.Key)
 	if err != nil {
-		h.evalError(w, err)
+		handleError(w, err)
 		return
 	}
-	receipt, err := h.dependencies.Evals.Command(r.Context(), scope, r.PathValue("id"), command, m)
+	receipt, err := h.Evals.Command(r.Context(), scope, r.PathValue("id"), command, m)
 	if err != nil {
-		h.evalError(w, err)
+		handleError(w, err)
 		return
 	}
 	if command.Kind == "duplicate" {
@@ -364,7 +364,7 @@ func (h *handler) commandEvalExperiment(w http.ResponseWriter, r *http.Request) 
 	}
 	ref, err := receipt.Command()
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	if receipt.Replayed {
@@ -375,7 +375,7 @@ func (h *handler) commandEvalExperiment(w http.ResponseWriter, r *http.Request) 
 	if command.PlanSHA256 != "" {
 		digest = &command.PlanSHA256
 	}
-	h.evalJSON(w, http.StatusAccepted, "CommandReceipt", map[string]any{
+	evalJSON(w, http.StatusAccepted, "CommandReceipt", map[string]any{
 		"commandId":          ref.CommandID,
 		"experimentId":       r.PathValue("id"),
 		"kind":               command.Kind,
@@ -384,17 +384,15 @@ func (h *handler) commandEvalExperiment(w http.ResponseWriter, r *http.Request) 
 		"planSha256":         digest,
 		"diagnostics":        []any{},
 	})
-	if h.dependencies.EvalNotifier != nil {
-		h.dependencies.EvalNotifier.Wake()
-	}
+	h.EvalNotifier.Wake()
 }
-func (h *handler) getEvalCommand(w http.ResponseWriter, r *http.Request) {
-	if !h.evalExactQuery(w, r) {
+func (h *evalHandlers) getEvalCommand(w http.ResponseWriter, r *http.Request) {
+	if !evalExactQuery(w, r) {
 		return
 	}
-	record, digest, err := h.dependencies.Evals.GetCommand(r.Context(), principalUserID(r.Context()), r.PathValue("id"), r.PathValue("commandId"))
+	record, digest, err := h.Evals.GetCommand(r.Context(), principalUserID(r.Context()), r.PathValue("id"), r.PathValue("commandId"))
 	if err != nil {
-		h.evalError(w, err)
+		handleError(w, err)
 		return
 	}
 	state := record.State
@@ -405,7 +403,7 @@ func (h *handler) getEvalCommand(w http.ResponseWriter, r *http.Request) {
 	if len(record.Diagnostic) > 0 {
 		diagnostics = append(diagnostics, record.Diagnostic)
 	}
-	h.evalJSON(w, http.StatusOK, "CommandReceipt", map[string]any{
+	evalJSON(w, http.StatusOK, "CommandReceipt", map[string]any{
 		"commandId":          record.ID,
 		"experimentId":       record.ExperimentID,
 		"kind":               record.Kind,
@@ -415,29 +413,29 @@ func (h *handler) getEvalCommand(w http.ResponseWriter, r *http.Request) {
 		"diagnostics":        diagnostics,
 	})
 }
-func (h *handler) submitEvalMember(w http.ResponseWriter, r *http.Request) {
-	doc, m, ok := h.evalBody(w, r, "Submission", false)
+func (h *evalHandlers) submitEvalMember(w http.ResponseWriter, r *http.Request) {
+	doc, m, ok := evalBody(w, r, "Submission", false)
 	if !ok {
 		return
 	}
 	var request evaldomain.Submission
 	if err := json.Unmarshal(doc.Bytes(), &request); err != nil {
-		h.evalError(w, err)
+		handleError(w, err)
 		return
 	}
-	scope, err := h.dependencies.Evals.ScopeForMutation(r.Context(), principalUserID(r.Context()), r.PathValue("id")+":"+r.PathValue("memberId"), "submission", m.Key)
+	scope, err := h.Evals.ScopeForMutation(r.Context(), principalUserID(r.Context()), r.PathValue("id")+":"+r.PathValue("memberId"), "submission", m.Key)
 	if err != nil {
-		h.evalError(w, err)
+		handleError(w, err)
 		return
 	}
-	receipt, err := h.dependencies.Evals.Submit(r.Context(), scope, r.PathValue("id"), r.PathValue("memberId"), request, m)
+	receipt, err := h.Evals.Submit(r.Context(), scope, r.PathValue("id"), r.PathValue("memberId"), request, m)
 	if err != nil {
-		h.evalError(w, err)
+		handleError(w, err)
 		return
 	}
 	ref, err := receipt.Submission()
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	state := "accepted"
@@ -447,29 +445,27 @@ func (h *handler) submitEvalMember(w http.ResponseWriter, r *http.Request) {
 	if receipt.Replayed {
 		w.Header().Set("Idempotency-Replayed", "true")
 	}
-	h.evalJSON(w, http.StatusAccepted, "SubmissionReceipt", map[string]any{"memberId": r.PathValue("memberId"), "planSha256": request.PlanSHA256, "state": state, "execution": nil})
-	if h.dependencies.EvalNotifier != nil {
-		h.dependencies.EvalNotifier.Wake()
-	}
+	evalJSON(w, http.StatusAccepted, "SubmissionReceipt", map[string]any{"memberId": r.PathValue("memberId"), "planSha256": request.PlanSHA256, "state": state, "execution": nil})
+	h.EvalNotifier.Wake()
 }
-func (h *handler) listEvalMembers(w http.ResponseWriter, r *http.Request) {
+func (h *evalHandlers) listEvalMembers(w http.ResponseWriter, r *http.Request) {
 	p, q, err := h.evalSelectedPageRequest(r)
 	if err != nil {
-		h.evalError(w, err)
+		handleError(w, err)
 		return
 	}
 
-	data, err := h.dependencies.Evals.Members(r.Context(), p)
+	data, err := h.Evals.Members(r.Context(), p)
 	if err != nil {
-		h.evalError(w, err)
+		handleError(w, err)
 		return
 	}
 	page, err := h.evalPage(r, q, data.HasMore, data.Snapshot, strconv.Itoa(data.LastOrdinal))
 	if err != nil {
-		h.evalError(w, err)
+		handleError(w, err)
 		return
 	}
-	h.evalJSON(w, http.StatusOK, "MemberPage", map[string]any{
+	evalJSON(w, http.StatusOK, "MemberPage", map[string]any{
 		"viewSnapshot":      data.Snapshot,
 		"freshness":         data.Freshness,
 		"experimentSummary": data.Summary,

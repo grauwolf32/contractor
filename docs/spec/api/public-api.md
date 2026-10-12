@@ -171,6 +171,19 @@ the live event protocol and the stores apply. A store rejects an identity
 outside its grammar as invalid when it is written, so no stored identity can
 fail a later strict read.
 
+**API-R73.** The Server serves exactly the operations of the contract: another
+method on an operation's path is `405 method_not_allowed`, and any other path
+is the non-disclosing `404 not_found`. It answers a failure with the error kind
+that its domain error reports, as that kind's registered code, HTTP status and
+`retryable` flag ([ERR-R14](../platform/errors.md)). A definite database
+transaction conflict that no kind classifies is `503
+storage_transaction_conflict`, and any other failure is `500 internal_error`,
+retryable because the Server cannot tell a transient failure from a defect. An
+archive preview refuses an Artifact that is not a ZIP or Skill package with
+`415 archive_media_type`, and an invalid, oversized or non-text archive or file
+with `422 archive_invalid`, `archive_preview_limit` or `archive_file_not_text`;
+the original stays downloadable.
+
 The UI's supported-version check and the rule that additive changes within a
 supported version need no coordinated release are in UI
 ([UI-R5 to UI-R7](../ui/ui.md)). The public Runtime-label field name and the
@@ -628,6 +641,8 @@ Entity lifecycle ([lifecycle](../platform/lifecycle.md)):
 Errors ([registry](../platform/errors.md)): `request_too_large` (API-R4),
 `idempotency_conflict` (API-R69),
 `artifact_too_large` (API-R5), the non-disclosing `404` (API-R25),
+`method_not_allowed`, `storage_transaction_conflict`, `internal_error` and
+the archive preview codes (API-R73),
 `resync_required` (API-R58, API-R59) and WebSocket close status `1013`
 (API-R64). `eval_limit_exceeded` is owned by Managed Evals
 ([EVM-R63](../evals/managed-evals.md)); `401` and `403` by Security

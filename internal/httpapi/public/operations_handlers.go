@@ -1,27 +1,74 @@
 package public
 
 import (
+	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"sort"
 	"strconv"
+	"time"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/pagelimit"
+	"github.com/grauwolf32/contractor/internal/performance"
+	"github.com/grauwolf32/contractor/internal/settingsstore"
+	"github.com/grauwolf32/contractor/internal/telemetry"
 )
 
-func (h *handler) getOperationsSnapshot(w http.ResponseWriter, r *http.Request) {
-	if h.rejectHead(w, r) {
+type OperationsReader interface {
+	SnapshotOperations() controlplane.OperationsSnapshot
+}
+
+type PerformanceReader interface {
+	Snapshot() performance.SnapshotResponse
+	History(context.Context, time.Time, time.Time, string) (performance.HistoryResponse, error)
+}
+
+type AllocationResourceReader interface {
+	ListAllocationResourceHistory(
+		context.Context, telemetry.AllocationResourceHistoryParams,
+	) ([]telemetry.AllocationResourceSummary, error)
+}
+
+type SchedulerSettingsManagement interface {
+	GetSchedulerSettings(context.Context) (settingsstore.SchedulerSettings, error)
+	UpdateSchedulerSettings(
+		context.Context, settingsstore.UpdateSchedulerSettingsParams,
+	) (settingsstore.SchedulerSettings, error)
+}
+
+// OperationsDependencies serve the Operations snapshot, Runtime Agent and
+// allocation pages, performance and allocation history, and the Scheduler
+// settings.
+type OperationsDependencies struct {
+	Operations            OperationsReader
+	Performance           PerformanceReader
+	AllocationResources   AllocationResourceReader
+	SchedulerSettings     SchedulerSettingsManagement
+	OperationsInvalidator OperationsInvalidator
+	// RunNotifier wakes the Scheduler after its settings changed.
+	RunNotifier Waker
+	Logger      *slog.Logger
+}
+
+type operationsHandlers struct {
+	OperationsDependencies
+	cursors pageCursors
+}
+
+func (h *operationsHandlers) getOperationsSnapshot(w http.ResponseWriter, r *http.Request) {
+	if rejectHead(w, r) {
 		return
 	}
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	snapshot, err := h.operationsSnapshot()
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, operationsSnapshotResponse{
@@ -31,23 +78,23 @@ func (h *handler) getOperationsSnapshot(w http.ResponseWriter, r *http.Request) 
 	})
 }
 
-func (h *handler) listRuntimeAgents(w http.ResponseWriter, r *http.Request) {
-	if h.rejectHead(w, r) {
+func (h *operationsHandlers) listRuntimeAgents(w http.ResponseWriter, r *http.Request) {
+	if rejectHead(w, r) {
 		return
 	}
 	_, limit, encodedCursor, err := pageQuery(r.URL.RawQuery)
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	snapshot, err := h.operationsSnapshot()
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	after, err := h.operationsPageAfter(encodedCursor, "operations:runtime-agents", snapshot.Cursor)
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	items := make([]controlplane.RuntimeAgentObservation, 0, min(pagelimit.FetchRows(limit), len(snapshot.RuntimeAgents)))
@@ -60,11 +107,11 @@ func (h *handler) listRuntimeAgents(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 	}
-	items, page, err := paginate(h, items, limit, "operations:runtime-agents", func(last controlplane.RuntimeAgentObservation) []string {
+	items, page, err := paginate(h.cursors, items, limit, "operations:runtime-agents", func(last controlplane.RuntimeAgentObservation) []string {
 		return operationsPagePosition(snapshot.Cursor, last.InstanceID)
 	})
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, runtimeAgentPageResponse{
@@ -72,23 +119,23 @@ func (h *handler) listRuntimeAgents(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (h *handler) listAllocations(w http.ResponseWriter, r *http.Request) {
-	if h.rejectHead(w, r) {
+func (h *operationsHandlers) listAllocations(w http.ResponseWriter, r *http.Request) {
+	if rejectHead(w, r) {
 		return
 	}
 	_, limit, encodedCursor, err := pageQuery(r.URL.RawQuery)
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	snapshot, err := h.operationsSnapshot()
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	after, err := h.operationsPageAfter(encodedCursor, "operations:allocations", snapshot.Cursor)
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	items := make([]controlplane.AllocationObservation, 0, min(pagelimit.FetchRows(limit), len(snapshot.Allocations)))
@@ -101,11 +148,11 @@ func (h *handler) listAllocations(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 	}
-	items, page, err := paginate(h, items, limit, "operations:allocations", func(last controlplane.AllocationObservation) []string {
+	items, page, err := paginate(h.cursors, items, limit, "operations:allocations", func(last controlplane.AllocationObservation) []string {
 		return operationsPagePosition(snapshot.Cursor, last.AllocationID)
 	})
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, allocationPageResponse{
@@ -113,8 +160,8 @@ func (h *handler) listAllocations(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (h *handler) operationsSnapshot() (controlplane.OperationsSnapshot, error) {
-	snapshot := h.dependencies.Operations.SnapshotOperations()
+func (h *operationsHandlers) operationsSnapshot() (controlplane.OperationsSnapshot, error) {
+	snapshot := h.Operations.SnapshotOperations()
 	if err := snapshot.Validate(); err != nil {
 		return controlplane.OperationsSnapshot{}, fmt.Errorf("invalid Operations snapshot: %w", err)
 	}
@@ -166,12 +213,12 @@ func cloneRuntimeAgentObservation(
 	return result
 }
 
-func (h *handler) operationsPageAfter(
+func (h *operationsHandlers) operationsPageAfter(
 	encoded string,
 	kind string,
 	cursor controlplane.OperationsCursor,
 ) (string, error) {
-	values, err := h.decodePageCursor(encoded, kind, 3)
+	values, err := h.cursors.decodePageCursor(encoded, kind, 3)
 	if err != nil || len(values) == 0 {
 		return "", err
 	}

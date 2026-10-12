@@ -6,6 +6,7 @@ import (
 	"slices"
 	"sort"
 
+	"github.com/grauwolf32/contractor/internal/apierror"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
 )
@@ -13,7 +14,8 @@ import (
 // maxAgentLabels bounds the Runtime labels one Runtime Agent principal holds.
 const maxAgentLabels = 32
 
-var ErrAgentLabelNotApplicable = errors.New("RuntimeConfig label is not applicable to a Runtime Agent")
+var ErrAgentLabelNotApplicable = apierror.New(apierror.RuntimeAgentLabelNotApplicable,
+	"RuntimeConfig label is not applicable to a Runtime Agent")
 
 // LabelHolder is the label state of one Runtime Agent principal.
 type LabelHolder struct {

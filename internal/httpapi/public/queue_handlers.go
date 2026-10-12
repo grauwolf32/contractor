@@ -1,6 +1,7 @@
 package public
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -12,55 +13,73 @@ import (
 	"github.com/grauwolf32/contractor/internal/runstore"
 )
 
-func (h *handler) getOwnerQueueControl(w http.ResponseWriter, r *http.Request) {
+type RunQueue interface {
+	ListRunQueue(context.Context, runstore.ListRunQueueParams) ([]runstore.WorkflowRunQueueItem, error)
+	GetOwnerQueueControl(context.Context, string) (runstore.OwnerQueueControl, error)
+	UpdateOwnerQueueControl(context.Context, runstore.UpdateOwnerQueueControlParams) (runstore.OwnerQueueControl, error)
+}
+
+// QueueDependencies serve the owner's Run Queue and its pause control.
+type QueueDependencies struct {
+	RunQueue RunQueue
+	// RunNotifier wakes the Scheduler after the pause control changed.
+	RunNotifier Waker
+}
+
+type queueHandlers struct {
+	QueueDependencies
+	cursors pageCursors
+}
+
+func (h *queueHandlers) getOwnerQueueControl(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
-	if h.rejectHead(w, r) {
+	if rejectHead(w, r) {
 		return
 	}
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
-	control, err := h.dependencies.RunQueue.GetOwnerQueueControl(
+	control, err := h.RunQueue.GetOwnerQueueControl(
 		r.Context(), principalUserID(r.Context()),
 	)
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	writeOwnerQueueControl(w, http.StatusOK, control)
 }
 
-func (h *handler) putOwnerQueueControl(w http.ResponseWriter, r *http.Request) {
+func (h *queueHandlers) putOwnerQueueControl(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	mediaType, err := requestMediaType(r)
 	if err != nil || mediaType != "application/json" {
-		h.handleError(w, fmt.Errorf("%w: Queue control requires application/json", errInvalidRequest))
+		handleError(w, fmt.Errorf("%w: Queue control requires application/json", errInvalidRequest))
 		return
 	}
 	if len(r.Header.Values("If-None-Match")) != 0 || len(r.Header.Values("If-Match")) != 1 {
-		h.handleError(w, fmt.Errorf("%w: Queue control requires one If-Match", errInvalidRequest))
+		handleError(w, fmt.Errorf("%w: Queue control requires one If-Match", errInvalidRequest))
 		return
 	}
 	revision, err := parseOwnerQueueControlETag(r.Header.Values("If-Match")[0])
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	var request updateOwnerQueueControlRequest
 	if err := decodeJSON(w, r, &request); err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	if request.Paused == nil {
-		h.handleError(w, fmt.Errorf("%w: Queue control paused is required", errInvalidRequest))
+		handleError(w, fmt.Errorf("%w: Queue control paused is required", errInvalidRequest))
 		return
 	}
-	control, err := h.dependencies.RunQueue.UpdateOwnerQueueControl(
+	control, err := h.RunQueue.UpdateOwnerQueueControl(
 		r.Context(),
 		runstore.UpdateOwnerQueueControlParams{
 			OwnerID: principalUserID(r.Context()), ExpectedRevision: revision,
@@ -68,12 +87,10 @@ func (h *handler) putOwnerQueueControl(w http.ResponseWriter, r *http.Request) {
 		},
 	)
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
-	if h.dependencies.RunNotifier != nil {
-		h.dependencies.RunNotifier.Wake()
-	}
+	h.RunNotifier.Wake()
 	writeOwnerQueueControl(w, http.StatusOK, control)
 }
 
@@ -104,20 +121,20 @@ func writeOwnerQueueControl(w http.ResponseWriter, status int, control runstore.
 	writeJSON(w, status, response)
 }
 
-func (h *handler) listRunQueue(w http.ResponseWriter, r *http.Request) {
-	if h.rejectHead(w, r) {
+func (h *queueHandlers) listRunQueue(w http.ResponseWriter, r *http.Request) {
+	if rejectHead(w, r) {
 		return
 	}
 	query, limit, encodedCursor, err := pageQuery(r.URL.RawQuery, "state", "membership")
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	var state *runstore.WorkflowRunState
 	if values, present := query["state"]; present {
 		candidate := runstore.WorkflowRunState(values[0])
 		if !runstore.RunLifecycleActive.Includes(candidate) {
-			h.handleError(w, fmt.Errorf("%w: Queue state must be non-terminal", errInvalidRequest))
+			handleError(w, fmt.Errorf("%w: Queue state must be non-terminal", errInvalidRequest))
 			return
 		}
 		state = &candidate
@@ -126,15 +143,15 @@ func (h *handler) listRunQueue(w http.ResponseWriter, r *http.Request) {
 	if values, present := query["membership"]; present {
 		candidate := runstore.RunQueueMembership(values[0])
 		if !candidate.Valid() {
-			h.handleError(w, fmt.Errorf("%w: Queue membership is invalid", errInvalidRequest))
+			handleError(w, fmt.Errorf("%w: Queue membership is invalid", errInvalidRequest))
 			return
 		}
 		membership = &candidate
 	}
 	cursorKind := runQueueCursorKind(state, membership)
-	cursor, err := h.decodePageCursor(encodedCursor, cursorKind, 2)
+	cursor, err := h.cursors.decodePageCursor(encodedCursor, cursorKind, 2)
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	params := runstore.ListRunQueueParams{
@@ -144,22 +161,22 @@ func (h *handler) listRunQueue(w http.ResponseWriter, r *http.Request) {
 	if len(cursor) != 0 {
 		after, parseErr := time.Parse(time.RFC3339Nano, cursor[0])
 		if parseErr != nil {
-			h.handleError(w, fmt.Errorf("%w: invalid Queue cursor", errInvalidRequest))
+			handleError(w, fmt.Errorf("%w: invalid Queue cursor", errInvalidRequest))
 			return
 		}
 		params.AfterCreatedAt = &after
 		params.AfterRunID = cursor[1]
 	}
-	runs, err := h.dependencies.RunQueue.ListRunQueue(r.Context(), params)
+	runs, err := h.RunQueue.ListRunQueue(r.Context(), params)
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
-	runs, page, err := paginate(h, runs, limit, cursorKind, func(last runstore.WorkflowRunQueueItem) []string {
+	runs, page, err := paginate(h.cursors, runs, limit, cursorKind, func(last runstore.WorkflowRunQueueItem) []string {
 		return []string{last.CreatedAt.UTC().Format(time.RFC3339Nano), last.RunID}
 	})
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	items := make([]queueItemResponse, 0, len(runs))

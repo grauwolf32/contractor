@@ -23,7 +23,7 @@ func evalBinContext(r *http.Request) string {
 
 const evalBinTokenDomain = "eval-bin/v1\n"
 
-func (h *handler) evalBinToken(r *http.Request, chart evalservice.ChartView, bin evaldomain.Bin) (string, error) {
+func (h *evalHandlers) evalBinToken(r *http.Request, chart evalservice.ChartView, bin evaldomain.Bin) (string, error) {
 	suite := ""
 	if chart.SuiteID != nil {
 		suite = *chart.SuiteID
@@ -32,14 +32,14 @@ func (h *handler) evalBinToken(r *http.Request, chart evalservice.ChartView, bin
 	if err != nil {
 		return "", err
 	}
-	return h.sealCursor(evalBinTokenDomain, raw), nil
+	return h.cursors.seal(evalBinTokenDomain, raw), nil
 }
 
-func (h *handler) readEvalBin(r *http.Request, q url.Values, p *evalservice.MemberPageParams) error {
+func (h *evalHandlers) readEvalBin(r *http.Request, q url.Values, p *evalservice.MemberPageParams) error {
 	if len(q.Get("binFilter")) > maxEvalCursorBytes {
 		return evaldomain.Failure("eval_invalid")
 	}
-	raw, ok := h.openCursor(evalBinTokenDomain, q.Get("binFilter"))
+	raw, ok := h.cursors.open(evalBinTokenDomain, q.Get("binFilter"))
 	var token evalBin
 	if !ok || json.Unmarshal(raw, &token) != nil || token.Context != evalBinContext(r) || token.Suite != p.SuiteID || p.Filter != "" || p.VariantID != "" || p.MeasurementScope != "" && p.MeasurementScope != token.Bin.Scope {
 		return evaldomain.Failure("eval_invalid")

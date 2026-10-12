@@ -321,8 +321,9 @@ Projects (LIFE-DEL-9).
 inferred from labels; their ownership and deletion eligibility are rechecked.
 
 **DEL-R43.** An external producer returning after the fence receives `409`
-and cannot recreate deleted attempts (FAIL-DEL-5). The error code it receives
-is specified in [managed-evals](../evals/managed-evals.md).
+with the not retryable `eval_project_deleting` of
+[managed-evals](../evals/managed-evals.md) (EVM-R227) and cannot recreate
+deleted attempts (FAIL-DEL-5).
 
 **DEL-R44.** A restart-safe controller repeatedly performs these phases:
 

@@ -6,6 +6,8 @@ package settingsstore
 import (
 	"errors"
 	"time"
+
+	"github.com/grauwolf32/contractor/internal/apierror"
 )
 
 const (
@@ -14,8 +16,8 @@ const (
 )
 
 var (
-	ErrInvalid      = errors.New("Scheduler settings request is invalid")
-	ErrPrecondition = errors.New("Scheduler settings revision precondition failed")
+	ErrInvalid      = apierror.New(apierror.InvalidRequest, "Scheduler settings request is invalid")
+	ErrPrecondition = apierror.New(apierror.PreconditionFailed, "Scheduler settings revision precondition failed")
 	ErrInvariant    = errors.New("Scheduler settings storage invariant failed")
 )
 

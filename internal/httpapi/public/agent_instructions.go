@@ -8,22 +8,22 @@ import (
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 )
 
-func (h *handler) getAgentInstructions(w http.ResponseWriter, r *http.Request) {
-	if h.rejectHead(w, r) {
+func (h *catalogHandlers) getAgentInstructions(w http.ResponseWriter, r *http.Request) {
+	if rejectHead(w, r) {
 		return
 	}
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	selector := r.PathValue("name") + "@" + r.PathValue("version")
 	if _, err := resolved.ParseSelector(selector); err != nil {
-		h.handleError(w, fmt.Errorf("%w: invalid AgentTemplate selector", errInvalidRequest))
+		handleError(w, fmt.Errorf("%w: invalid AgentTemplate selector", errInvalidRequest))
 		return
 	}
-	resource, err := h.dependencies.Config.AgentInstructions(selector)
+	resource, err := h.Config.AgentInstructions(selector)
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	w.Header().Set("ETag", strconv.Quote(resource.Template.Digest))

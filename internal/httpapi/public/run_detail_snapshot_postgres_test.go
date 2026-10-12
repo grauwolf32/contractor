@@ -92,9 +92,9 @@ func TestPostgresRunDetailResponseKeepsStateWithItsCursor(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	h := &handler{dependencies: Dependencies{RunDetails: details}}
+	h := &runHandlers{RunDependencies: RunDependencies{RunDetails: details}}
 	request := httptest.NewRequest(http.MethodGet, "/v1/runs/"+runID, nil)
-	request.SetPathValue("runID", runID)
+	request.SetPathValue("runId", runID)
 	request = request.WithContext(auth.WithPrincipal(ctx, auth.Principal{UserID: "user-1"}))
 	response := httptest.NewRecorder()
 	h.getRun(response, request)
