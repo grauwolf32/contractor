@@ -60,7 +60,7 @@ func testLegacyReportCandidateRejection(t *testing.T, ctx context.Context, pool 
 		"approve-plain-candidate": func() error {
 			_, err := service.DecideActionReview(ctx, DecideActionReviewParams{
 				OwnerID: owner, AuditID: current.Claim.AuditID, RequestID: candidate.RequestID,
-				ExpectedRequestRevision: 1, DecisionID: "legacy-approval", Action: ReviewApprove,
+				ExpectedRequestRevision: 1, DecisionID: "legacy-approval", Action: auditstore.ReviewApprove,
 				Rationale:      "Historical candidate must not be published.",
 				IdempotencyKey: "legacy-approval", RequestDigest: serviceTestDigest("legacy-approval"),
 			})

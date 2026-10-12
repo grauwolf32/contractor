@@ -17,7 +17,7 @@ func TestActionReviewDecisionUsesTheIdempotencyKeyGrammar(t *testing.T) {
 	t.Parallel()
 	valid := DecideActionReviewParams{
 		OwnerID: "owner", AuditID: "audit", RequestID: "request", DecisionID: "decision",
-		ExpectedRequestRevision: 1, Action: ReviewApprove, Rationale: "The exact action is approved.",
+		ExpectedRequestRevision: 1, Action: auditstore.ReviewApprove, Rationale: "The exact action is approved.",
 		IdempotencyKey: "decision-key_1.2:3", RequestDigest: contentdigest.Bytes([]byte("decision")),
 	}
 	if err := validateActionDecision(valid); err != nil {

@@ -630,11 +630,11 @@ SELECT count(*) FILTER (WHERE collection_disposition = 'accepted-result'),
 	return result, nil
 }
 
-// snapshotTransaction reads every part of a reconcile snapshot from one
-// commit. On a pool, persistencepostgres.Within replays a transaction
-// conflict, but a read-only REPEATABLE READ transaction takes no row locks
-// and cannot fail with a serialization conflict, so that retry never
-// triggers and the snapshot is never read twice.
+// snapshotTransaction reads every part of a reconcile snapshot, or of an
+// event page, from one commit. On a pool, persistencepostgres.Within replays
+// a transaction conflict, but a read-only REPEATABLE READ transaction takes
+// no row locks and cannot fail with a serialization conflict, so that retry
+// never triggers and the snapshot is never read twice.
 var snapshotTransaction = pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly}
 
 // GetReconcileSnapshot reads the claimed Audit's reconcile snapshot. A

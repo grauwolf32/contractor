@@ -46,9 +46,9 @@ func (s *Service) Resume(ctx context.Context, params MutationParams) (MutationRe
 }
 
 func (s *Service) resumeInTransaction(ctx context.Context, tx pgx.Tx, params MutationParams) (MutationResult, error) {
-	owners, reads := ownerstore.New(tx), querystore.New(tx)
+	owners, reads := ownerstore.NewTx(tx), querystore.New(tx)
 	// Serialize retries before any mutable dependency checks.
-	if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`, "audit-resume:"+params.OwnerID+":"+params.IdempotencyKey); err != nil {
+	if err := owners.LockResume(ctx, params.OwnerID, params.IdempotencyKey); err != nil {
 		return MutationResult{}, err
 	}
 	if replay, found, err := owners.LookupMutationReplay(ctx, params.OwnerID, auditstore.MutationTransition, params.IdempotencyKey, params.RequestDigest); err != nil || found {
@@ -61,7 +61,7 @@ func (s *Service) resumeInTransaction(ctx context.Context, tx pgx.Tx, params Mut
 	if _, err := projectstore.NewPostgresStore(tx).LockActiveAuditProject(ctx, params.OwnerID, audit.ProjectID); err != nil {
 		return MutationResult{}, err
 	}
-	if _, err := tx.Exec(ctx, `SELECT audit_id FROM audits WHERE audit_id=$1 AND owner_id=$2 FOR UPDATE`, params.AuditID, params.OwnerID); err != nil {
+	if err := owners.LockAuditForResume(ctx, params.OwnerID, params.AuditID); err != nil {
 		return MutationResult{}, err
 	}
 	audit, err = reads.Get(ctx, params.OwnerID, params.AuditID)
@@ -71,8 +71,8 @@ func (s *Service) resumeInTransaction(ctx context.Context, tx pgx.Tx, params Mut
 	if audit.Revision != params.ExpectedRevision || audit.State != auditstore.AuditPaused || len(audit.BaselineSnapshot) == 0 {
 		return MutationResult{}, auditstore.ErrPrecondition
 	}
-	var candidate bool
-	if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM audit_review_requests WHERE audit_id=$1 AND subject_kind='audit-report')`, audit.AuditID).Scan(&candidate); err != nil {
+	candidate, err := owners.HasReportReview(ctx, audit.AuditID)
+	if err != nil {
 		return MutationResult{}, err
 	}
 	if candidate {

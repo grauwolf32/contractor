@@ -1,4 +1,4 @@
-package auditservice
+package pgstore
 
 // SQL statements for finding_collection.go.
 
@@ -6,8 +6,8 @@ package auditservice
 // or first created, within Audits of owner $1, returning each finding's
 // revision, state and current decision, assessment and duplicate target
 // (empty strings when unset). Ordered by receipt and capped at $3 rows.
-// Used by Service.ReadCollectionReviews.
-var readCollectionReviewsSQL = `
+// Used by QueryStore.CollectionReviews.
+const readCollectionReviewsSQL = `
 WITH membership AS (
     SELECT c.receipt_id, c.finding_id, c.audit_id FROM audit_finding_contributions AS c WHERE c.receipt_id=ANY($2::text[])
     UNION

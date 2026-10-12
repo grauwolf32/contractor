@@ -262,13 +262,13 @@ func TestPostgresControllerDispatchesApprovedItemWhileOtherReviewsWait(t *testin
 	if err != nil || audit.State != auditstore.AuditWaitingReview {
 		t.Fatalf("Audit awaiting every review = (%q, %v), want waiting_review", audit.State, err)
 	}
-	reviews, err := harness.service.ListReviews(ctx, auditservice.ReviewListParams{
+	reviews, err := harness.service.ListReviews(ctx, auditstore.ReviewListParams{
 		OwnerID: ownerID, AuditID: auditID, Limit: 10,
 	})
 	if err != nil || len(reviews) != 3 {
 		t.Fatalf("pending item reviews = (%+v, %v)", reviews, err)
 	}
-	decide := func(index int, action auditservice.ReviewAction) {
+	decide := func(index int, action auditstore.ReviewAction) {
 		t.Helper()
 		key := fmt.Sprintf("decision-%d", index)
 		if _, err := harness.service.DecideActionReview(ctx, auditservice.DecideActionReviewParams{
@@ -281,12 +281,12 @@ func TestPostgresControllerDispatchesApprovedItemWhileOtherReviewsWait(t *testin
 		}
 	}
 
-	decide(0, auditservice.ReviewReject)
+	decide(0, auditstore.ReviewReject)
 	audit, err = harness.audits.Get(ctx, ownerID, auditID)
 	if err != nil || audit.State != auditstore.AuditWaitingReview {
 		t.Fatalf("Audit after rejection with reviews left = (%q, %v), want waiting_review", audit.State, err)
 	}
-	decide(1, auditservice.ReviewApprove)
+	decide(1, auditstore.ReviewApprove)
 	audit, err = harness.audits.Get(ctx, ownerID, auditID)
 	if err != nil || audit.State != auditstore.AuditActive {
 		t.Fatalf("Audit after approval with a review left = (%q, %v), want active", audit.State, err)
@@ -327,7 +327,7 @@ func TestPostgresControllerRenewsPendingItemReviewExpiredAfterResume(t *testing.
 	if err != nil || audit.State != auditstore.AuditWaitingReview {
 		t.Fatalf("initial waiting review = (%+v, %v)", audit, err)
 	}
-	reviews, err := harness.service.ListReviews(ctx, auditservice.ReviewListParams{
+	reviews, err := harness.service.ListReviews(ctx, auditstore.ReviewListParams{
 		OwnerID: ownerID, AuditID: auditID, Limit: 10,
 	})
 	if err != nil || len(reviews) != 1 {
@@ -382,23 +382,23 @@ SET expires_at=clock_timestamp()-interval '1 second' WHERE request_id=$1`, oldRe
 	if worked, err := controller.RunOnce(ctx); err != nil || !worked {
 		t.Fatalf("renew expired waiting-review item = (%t, %v)", worked, err)
 	}
-	reviews, err = harness.service.ListReviews(ctx, auditservice.ReviewListParams{
+	reviews, err = harness.service.ListReviews(ctx, auditstore.ReviewListParams{
 		OwnerID: ownerID, AuditID: auditID, Limit: 10,
 	})
 	if err != nil || len(reviews) != 2 {
 		t.Fatalf("renewed reviews = (%+v, %v)", reviews, err)
 	}
-	var renewed auditservice.ReviewRequest
+	var renewed auditstore.ReviewRequest
 	for _, review := range reviews {
 		if review.RequestID == oldRequestID {
-			if review.State != auditservice.ReviewExpired {
+			if review.State != auditstore.ReviewExpired {
 				t.Fatalf("old review state = %q", review.State)
 			}
 		} else {
 			renewed = review
 		}
 	}
-	if renewed.State != auditservice.ReviewPending || renewed.ExpiresAt != nil ||
+	if renewed.State != auditstore.ReviewPending || renewed.ExpiresAt != nil ||
 		renewed.SubjectID != reviews[0].SubjectID {
 		t.Fatalf("fresh exact-subject review = %+v", renewed)
 	}
@@ -430,7 +430,7 @@ SELECT count(*), max(sequence_number),
 	if _, err := harness.service.DecideActionReview(ctx, auditservice.DecideActionReviewParams{
 		OwnerID: ownerID, AuditID: auditID, RequestID: renewed.RequestID,
 		ExpectedRequestRevision: renewed.Revision, DecisionID: "renewed-decision",
-		Action: auditservice.ReviewApprove, Rationale: "Approve the fresh exact task.",
+		Action: auditstore.ReviewApprove, Rationale: "Approve the fresh exact task.",
 		IdempotencyKey: "renewed-decision", RequestDigest: postgresDigest("renewed-decision"),
 	}); err != nil {
 		t.Fatalf("decide renewed request: %v", err)
@@ -449,7 +449,7 @@ func TestPostgresControllerRenewsApprovedItemAndDispatchesLaterReadyItem(t *test
 	defer cancel()
 	harness := newPostgresControllerReviewHarness(t, ctx, 1, 1)
 	auditID, ownerID := harness.started.Audit.AuditID, harness.started.Audit.OwnerID
-	reviews, err := harness.service.ListReviews(ctx, auditservice.ReviewListParams{
+	reviews, err := harness.service.ListReviews(ctx, auditstore.ReviewListParams{
 		OwnerID: ownerID, AuditID: auditID, Limit: 10,
 	})
 	if err != nil || len(reviews) != 1 {
@@ -459,7 +459,7 @@ func TestPostgresControllerRenewsApprovedItemAndDispatchesLaterReadyItem(t *test
 	if _, err := harness.service.DecideActionReview(ctx, auditservice.DecideActionReviewParams{
 		OwnerID: ownerID, AuditID: auditID, RequestID: approved.RequestID,
 		ExpectedRequestRevision: approved.Revision, DecisionID: "first-decision",
-		Action: auditservice.ReviewApprove, Rationale: "Approve the original exact task.",
+		Action: auditstore.ReviewApprove, Rationale: "Approve the original exact task.",
 		IdempotencyKey: "first-decision", RequestDigest: postgresDigest("first-decision"),
 	}); err != nil {
 		t.Fatal(err)
@@ -496,7 +496,7 @@ SET expires_at=clock_timestamp()-interval '1 second' WHERE request_id=$1`, appro
 		items[1].State != auditstore.ItemReady {
 		t.Fatalf("renewed first item and later ready item = (%+v, %v)", items, err)
 	}
-	reviews, err = harness.service.ListReviews(ctx, auditservice.ReviewListParams{
+	reviews, err = harness.service.ListReviews(ctx, auditstore.ReviewListParams{
 		OwnerID: ownerID, AuditID: auditID, Limit: 10,
 	})
 	if err != nil || len(reviews) != 2 {
@@ -532,7 +532,7 @@ func TestPostgresControllerRenewsAlreadyExpiredItemReview(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	reviews, err := harness.service.ListReviews(ctx, auditservice.ReviewListParams{
+	reviews, err := harness.service.ListReviews(ctx, auditstore.ReviewListParams{
 		OwnerID: ownerID, AuditID: auditID, Limit: 10,
 	})
 	if err != nil || len(reviews) != 1 {
@@ -546,7 +546,7 @@ SET expires_at=clock_timestamp()-interval '1 second' WHERE request_id=$1`, old.R
 	_, err = harness.service.DecideActionReview(ctx, auditservice.DecideActionReviewParams{
 		OwnerID: ownerID, AuditID: auditID, RequestID: old.RequestID,
 		ExpectedRequestRevision: old.Revision, DecisionID: "late-decision",
-		Action: auditservice.ReviewApprove, Rationale: "This decision arrived too late.",
+		Action: auditstore.ReviewApprove, Rationale: "This decision arrived too late.",
 		IdempotencyKey: "late-decision", RequestDigest: postgresDigest("late-decision"),
 	})
 	if !errors.Is(err, auditstore.ErrPrecondition) {

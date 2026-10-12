@@ -65,7 +65,7 @@ func TestAuditPurgeRemovesDecidedReviews(t *testing.T) {
 			case "finding":
 				findingID := seedAuditFinding(t, ctx, pool, project.ProjectID, project.OwnerID, audit.AuditID, "purge")
 				decideFindingForTest(t, ctx, service, project.OwnerID, audit.AuditID, findingID, 1,
-					"purge", VerdictTruePositive, reviewStringPointer(string(SeverityHigh)), nil)
+					"purge", auditstore.VerdictTruePositive, reviewStringPointer(string(auditstore.SeverityHigh)), nil)
 				seedAuditFindingAttemptHistory(t, ctx, pool, audit.AuditID, findingID, "receipt-purge")
 			case "report":
 				rejectReportForPurge(t, ctx, pool, store, service, audit)
@@ -152,11 +152,11 @@ func rejectItemActionForPurge(
 	}
 	decision, err := service.DecideActionReview(ctx, DecideActionReviewParams{
 		OwnerID: audit.OwnerID, AuditID: audit.AuditID, RequestID: "review-" + item.ItemID,
-		ExpectedRequestRevision: 1, DecisionID: "decision-purge-reject", Action: ReviewReject,
+		ExpectedRequestRevision: 1, DecisionID: "decision-purge-reject", Action: auditstore.ReviewReject,
 		Rationale:      "The exact active check is outside this assessment.",
 		IdempotencyKey: "decision-purge-reject", RequestDigest: serviceTestDigest("reject"),
 	})
-	if err != nil || decision.Request.State != ReviewDecided {
+	if err != nil || decision.Request.State != auditstore.ReviewDecided {
 		t.Fatalf("reject item action = (%+v, %v)", decision, err)
 	}
 }
@@ -171,11 +171,11 @@ func rejectReportForPurge(
 	waiting, candidate, claim := proposeReportForTest(t, ctx, pool, store, audit, "purge")
 	decision, err := service.DecideActionReview(ctx, DecideActionReviewParams{
 		OwnerID: audit.OwnerID, AuditID: audit.AuditID, RequestID: candidate.RequestID,
-		ExpectedRequestRevision: 1, DecisionID: "decision-purge-report", Action: ReviewReject,
+		ExpectedRequestRevision: 1, DecisionID: "decision-purge-report", Action: auditstore.ReviewReject,
 		Rationale:      "The proposed report is incomplete.",
 		IdempotencyKey: "decision-purge-report", RequestDigest: serviceTestDigest("report"),
 	})
-	if err != nil || decision.Request.State != ReviewDecided {
+	if err != nil || decision.Request.State != auditstore.ReviewDecided {
 		t.Fatalf("reject report candidate = (%+v, %v)", decision, err)
 	}
 	failed, err := store.Get(ctx, audit.OwnerID, audit.AuditID)

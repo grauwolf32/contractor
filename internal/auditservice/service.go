@@ -225,7 +225,7 @@ func (s *Service) GetReport(
 	machine, machineErr := s.reads().GetArtifactLink(ctx, auditID, auditstore.ReportMachineLogicalKey)
 	summary, summaryErr := s.reads().GetArtifactLink(ctx, auditID, auditstore.ReportSummaryLogicalKey)
 	status := ReportReady
-	var review *ReviewRequest
+	var review *auditstore.ReviewRequest
 	if audit.State == auditstore.AuditWaitingReview &&
 		errors.Is(machineErr, auditstore.ErrNotFound) && errors.Is(summaryErr, auditstore.ErrNotFound) {
 		candidate, candidateErr := s.reads().GetReportCandidate(ctx, auditID)

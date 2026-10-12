@@ -105,7 +105,7 @@ func TestPublicAuditEventHistory(t *testing.T) {
 	if refreshed.Items[0].Sequence != 202 || refreshed.Total != 202 || refreshed.Through != 202 {
 		t.Fatalf("fresh head=%+v", refreshed)
 	}
-	if _, err := service.ListEventsPage(ctx, auditservice.EventListParams{OwnerID: "foreign", AuditID: "audit-events", Limit: 1}); !errors.Is(err, auditstore.ErrNotFound) {
+	if _, err := service.ListEventsPage(ctx, auditstore.EventListParams{OwnerID: "foreign", AuditID: "audit-events", Limit: 1}); !errors.Is(err, auditstore.ErrNotFound) {
 		t.Fatalf("foreign owner=%v", err)
 	}
 	for _, path := range []string{"/v1/audits/missing/events", "/v1/audits/audit-other/events?cursor=" + cursor} {

@@ -149,7 +149,7 @@ const (
 )
 
 type ReportProjection struct {
-	Review          *ReviewRequest            `json:"review,omitempty"`
+	Review          *auditstore.ReviewRequest `json:"review,omitempty"`
 	Status          ReportStatus              `json:"status"`
 	MachineArtifact *auditstore.ExactArtifact `json:"machineArtifact,omitempty"`
 	SummaryArtifact *auditstore.ExactArtifact `json:"summaryArtifact,omitempty"`

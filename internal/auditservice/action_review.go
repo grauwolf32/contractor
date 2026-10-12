@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/reviewstore"
@@ -28,78 +27,45 @@ func (s *Service) DecideActionReview(
 	var decisionID, requestID string
 	var replayed, expired bool
 	err := persistencepostgres.InTx(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`,
-			"audit-action-review:"+params.AuditID); err != nil {
+		reviews := reviewstore.NewTx(tx)
+		if err := reviews.LockActionReviews(ctx, params.AuditID); err != nil {
 			return err
 		}
-		var storedDigest string
-		err := tx.QueryRow(ctx, `
-SELECT decision_id, request_id, request_digest
-  FROM audit_review_decisions
- WHERE audit_id = $1 AND idempotency_key = $2`,
-			params.AuditID, params.IdempotencyKey,
-		).Scan(&decisionID, &requestID, &storedDigest)
-		if err == nil {
-			if storedDigest != params.RequestDigest || requestID != params.RequestID {
+		replay, found, err := reviews.FindReviewDecisionReplay(ctx, params.AuditID, params.IdempotencyKey)
+		if err != nil {
+			return err
+		}
+		if found {
+			decisionID, requestID = replay.DecisionID, replay.RequestID
+			if replay.RequestDigest != params.RequestDigest || replay.RequestID != params.RequestID {
 				return fmt.Errorf("%w: review decision key", contracts.ErrIdempotencyConflict)
 			}
 			replayed = true
 			return nil
 		}
-		if !errors.Is(err, pgx.ErrNoRows) {
-			return err
-		}
 		// Match the controller's audit -> review -> item lock order. A decision
 		// must not hold an item review while waiting for its Audit row.
-		var lockedAuditID string
-		if err := tx.QueryRow(ctx, `
-SELECT audit_id FROM audits
- WHERE owner_id=$1 AND audit_id=$2 FOR UPDATE`, params.OwnerID, params.AuditID).
-			Scan(&lockedAuditID); err != nil {
-			if errors.Is(err, pgx.ErrNoRows) {
-				return auditstore.ErrNotFound
-			}
+		if err := reviews.LockAuditForDecision(ctx, params.OwnerID, params.AuditID); err != nil {
 			return err
 		}
-
-		var auditState auditstore.AuditState
-		var subjectKind ReviewSubjectKind
-		var subjectID, kind, subjectDigest string
-		var auditRevision uint64
-		var subjectRevision, requestRevision int64
-		var requestState ReviewState
-		var expiresAt *time.Time
-		var requestedJSON []byte
-		err = tx.QueryRow(ctx, `
-SELECT audit.state, audit.revision, request.subject_kind, request.subject_id, request.kind,
-       request.subject_revision, request.subject_digest,
-       request.requested_actions, request.state, request.expires_at,
-       request.revision
-  FROM audit_review_requests AS request
-  JOIN audits AS audit USING (audit_id)
- WHERE audit.owner_id = $1 AND request.audit_id = $2
-   AND request.request_id = $3
- FOR UPDATE OF audit, request`,
-			params.OwnerID, params.AuditID, params.RequestID,
-		).Scan(&auditState, &auditRevision, &subjectKind, &subjectID, &kind, &subjectRevision,
-			&subjectDigest, &requestedJSON, &requestState, &expiresAt, &requestRevision)
-		if errors.Is(err, pgx.ErrNoRows) {
-			return auditstore.ErrNotFound
-		}
+		locked, err := reviews.LockActionReview(ctx, params.OwnerID, params.AuditID, params.RequestID)
 		if err != nil {
 			return err
 		}
-		if requestState != ReviewPending || requestRevision != int64(params.ExpectedRequestRevision) ||
+		auditState, auditRevision := locked.AuditState, locked.AuditRevision
+		subjectKind, subjectID, kind := locked.SubjectKind, locked.SubjectID, locked.Kind
+		subjectRevision, subjectDigest := locked.SubjectRevision, locked.SubjectDigest
+		if locked.State != auditstore.ReviewPending || locked.Revision != int64(params.ExpectedRequestRevision) ||
 			subjectRevision < 1 || auditState == auditstore.AuditDeleting ||
 			auditState == auditstore.AuditFinalizing {
 			return auditstore.ErrPrecondition
 		}
-		var requested []ReviewAction
-		if json.Unmarshal(requestedJSON, &requested) != nil || !containsReviewAction(requested, params.Action) {
+		var requested []auditstore.ReviewAction
+		if json.Unmarshal(locked.RequestedActions, &requested) != nil || !containsReviewAction(requested, params.Action) {
 			return auditstore.ErrPrecondition
 		}
-		if expiresAt != nil {
-			if expired, err = reviewstore.New(tx).ExpireReviewAtDatabaseTime(ctx, params.RequestID); err != nil {
+		if locked.ExpiresAt != nil {
+			if expired, err = reviews.ExpireReviewAtDatabaseTime(ctx, params.RequestID); err != nil {
 				return err
 			}
 		}
@@ -113,23 +79,23 @@ SELECT audit.state, audit.revision, request.subject_kind, request.subject_id, re
 		}
 
 		switch subjectKind {
-		case ReviewSubjectItemAction:
+		case auditstore.ReviewSubjectItemAction:
 			if auditState != auditstore.AuditActive && auditState != auditstore.AuditWaitingReview &&
 				auditState != auditstore.AuditPaused {
 				return auditstore.ErrPrecondition
 			}
-			if err := reviewstore.New(tx).ApplyItemReviewDecision(
+			if err := reviews.ApplyItemReviewDecision(
 				ctx, params.AuditID, subjectID, kind, subjectDigest,
 				string(params.Action), params.Rationale,
 			); err != nil {
 				return err
 			}
-		case ReviewSubjectReport:
-			if auditState != auditstore.AuditWaitingReview || kind != ReportAcceptanceReviewKind {
+		case auditstore.ReviewSubjectReport:
+			if auditState != auditstore.AuditWaitingReview || kind != auditstore.ReportAcceptanceReviewKind {
 				return auditstore.ErrPrecondition
 			}
 			if err := validateAndApplyReportDecision(
-				ctx, tx, params.AuditID, auditRevision, params.RequestID, subjectID,
+				ctx, reviews, params.AuditID, auditRevision, params.RequestID, subjectID,
 				subjectRevision, subjectDigest, params.Action,
 			); err != nil {
 				return err
@@ -139,15 +105,15 @@ SELECT audit.state, audit.revision, request.subject_kind, request.subject_id, re
 		}
 
 		decisionID, requestID = params.DecisionID, params.RequestID
-		if err := reviewstore.New(tx).RecordReviewDecision(ctx, auditstore.ReviewDecisionWriteParams{
+		if err := reviews.RecordReviewDecision(ctx, auditstore.ReviewDecisionWriteParams{
 			DecisionID: decisionID, RequestID: requestID, AuditID: params.AuditID, ActorID: params.OwnerID,
 			Action: string(params.Action), Rationale: params.Rationale, SubjectRevision: uint64(subjectRevision),
 			SubjectDigest: subjectDigest, IdempotencyKey: params.IdempotencyKey, RequestDigest: params.RequestDigest,
 		}); err != nil {
 			return err
 		}
-		if subjectKind == ReviewSubjectItemAction && auditState == auditstore.AuditWaitingReview {
-			if _, _, err := reviewstore.New(tx).ActivateAfterItemReview(
+		if subjectKind == auditstore.ReviewSubjectItemAction && auditState == auditstore.AuditWaitingReview {
+			if _, _, err := reviews.ActivateAfterItemReview(
 				ctx, params.AuditID, auditRevision,
 			); err != nil {
 				return err
@@ -181,9 +147,9 @@ SELECT audit.state, audit.revision, request.subject_kind, request.subject_id, re
 // frozen report candidate through the store transitions, which record the
 // same Audit events as the Controller's report commit and terminal paths.
 func validateAndApplyReportDecision(
-	ctx context.Context, tx pgx.Tx, auditID string, auditRevision uint64,
+	ctx context.Context, reviews *reviewstore.TxStore, auditID string, auditRevision uint64,
 	requestID, subjectID string, subjectRevision int64, subjectDigest string,
-	action ReviewAction,
+	action auditstore.ReviewAction,
 ) error {
 	if subjectID != auditID || subjectRevision < 1 {
 		return auditstore.ErrPrecondition
@@ -192,12 +158,11 @@ func validateAndApplyReportDecision(
 		AuditID: auditID, ExpectedAuditRevision: auditRevision, RequestID: requestID,
 		SubjectRevision: uint64(subjectRevision), SubjectDigest: subjectDigest,
 	}
-	reviews := reviewstore.New(tx)
 	var err error
 	switch action {
-	case ReviewApprove:
+	case auditstore.ReviewApprove:
 		_, err = reviews.AcceptReportCandidate(ctx, decision)
-	case ReviewReject:
+	case auditstore.ReviewReject:
 		_, err = reviews.RejectReportCandidate(ctx, decision)
 	default:
 		return auditstore.ErrInvalid
@@ -205,7 +170,7 @@ func validateAndApplyReportDecision(
 	return err
 }
 
-func containsReviewAction(values []ReviewAction, target ReviewAction) bool {
+func containsReviewAction(values []auditstore.ReviewAction, target auditstore.ReviewAction) bool {
 	for _, value := range values {
 		if value == target {
 			return true
@@ -215,8 +180,8 @@ func containsReviewAction(values []ReviewAction, target ReviewAction) bool {
 }
 
 func validateActionDecision(params DecideActionReviewParams) error {
-	if !validReviewIdentity(params.OwnerID, 256) || !validReviewIdentity(params.AuditID, 256) ||
-		!validReviewIdentity(params.RequestID, 256) || !validReviewIdentity(params.DecisionID, 256) ||
+	if !auditstore.ValidReviewIdentity(params.OwnerID, 256) || !auditstore.ValidReviewIdentity(params.AuditID, 256) ||
+		!auditstore.ValidReviewIdentity(params.RequestID, 256) || !auditstore.ValidReviewIdentity(params.DecisionID, 256) ||
 		params.ExpectedRequestRevision == 0 || !params.Action.Valid() ||
 		!validIdempotencyKey(params.IdempotencyKey) || !contentdigest.Valid(params.RequestDigest) ||
 		!validRationale(params.Rationale) {

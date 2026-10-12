@@ -1,13 +1,6 @@
-package auditservice
+package pgstore
 
 // SQL statements for workspace.go.
-
-// reviewUnexpiredSQL holds when the review request aliased "request" is not
-// past its expiry at the statement's PostgreSQL time (REV-R43). Together
-// with state 'pending' it is the one rule for a request that can still be
-// decided, before anything has stored its expiry: the workspace's pending
-// count and the owner-wide pending review list (ListOwnerReviews) use it.
-const reviewUnexpiredSQL = `(request.expires_at IS NULL OR request.expires_at > statement_timestamp())`
 
 // getWorkspaceSQL reads the workspace summary of owner $1's Audit $2:
 // revision, statement time, current round, state, outstanding Runs,
@@ -16,7 +9,7 @@ const reviewUnexpiredSQL = `(request.expires_at IS NULL OR request.expires_at > 
 // one pass over the round's items), finding and unreviewed-finding counts,
 // and the review requests that can still be decided: pending and not past
 // their expiry at the statement time the snapshot reports as asOf.
-// Used by Service.GetWorkspace.
+// Used by QueryStore.GetWorkspace.
 var getWorkspaceSQL = `
 SELECT audit.audit_id, audit.revision, statement_timestamp(), audit.current_round_id,
        audit.state, audit.outstanding_run_count,
@@ -37,3 +30,12 @@ SELECT audit.audit_id, audit.revision, statement_timestamp(), audit.current_roun
         WHERE item.audit_id = audit.audit_id AND item.round_id = audit.current_round_id
        ) AS coverage
  WHERE audit.owner_id = $1 AND audit.audit_id = $2`
+
+// listEventsBeforeSQL reads up to $4 events of Audit $1 numbered at most $2
+// and, when $3 is set, below $3, newest first.
+// Used by QueryStore.ListEventsPage.
+const listEventsBeforeSQL = `
+SELECT audit_id, sequence_number, kind, entity_id, entity_revision, summary, created_at
+ FROM audit_events WHERE audit_id=$1 AND sequence_number <= $2
+ AND ($3::bigint IS NULL OR sequence_number < $3)
+ ORDER BY sequence_number DESC LIMIT $4`

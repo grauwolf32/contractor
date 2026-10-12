@@ -48,10 +48,9 @@ func (s *Service) PrepareNextRound(
 	if err != nil {
 		return auditstore.AcceptRoundParams{}, nil, inconsistentRound("the pinned Audit input selection is invalid", err)
 	}
-	var totalItems int
-	if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM audit_items WHERE audit_id = $1`,
-		snapshot.Audit.AuditID).Scan(&totalItems); err != nil {
-		return auditstore.AcceptRoundParams{}, nil, fmt.Errorf("count Audit items: %w", err)
+	totalItems, err := s.reads().CountItems(ctx, snapshot.Audit.AuditID)
+	if err != nil {
+		return auditstore.AcceptRoundParams{}, nil, err
 	}
 	capacity := roundItemCapacity(
 		snapshot.Audit.Limits.MaxItemsPerRound, snapshot.Audit.Limits.MaxItemsTotal, totalItems,

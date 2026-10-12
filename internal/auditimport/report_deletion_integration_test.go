@@ -107,7 +107,7 @@ func TestImporterReportFinalizationSurvivesRunDeletion(t *testing.T) {
 
 func TestImporterPendingReportReviewSurvivesRunDeletion(t *testing.T) {
 	pool := completionPool(t)
-	for _, action := range []auditservice.ReviewAction{auditservice.ReviewApprove, auditservice.ReviewReject} {
+	for _, action := range []auditstore.ReviewAction{auditstore.ReviewApprove, auditstore.ReviewReject} {
 		t.Run(string(action), func(t *testing.T) {
 			f, snapshot := newReportDeletionFixture(t, pool, "human-required")
 			access, err := NewArtifactAccess(f.artifacts)
@@ -158,7 +158,7 @@ func TestImporterPendingReportReviewSurvivesRunDeletion(t *testing.T) {
 			}
 			terminal, err := f.audits.Get(f.ctx, "owner", f.id)
 			mustCompletion(t, err)
-			if action == auditservice.ReviewApprove {
+			if action == auditstore.ReviewApprove {
 				if terminal.State != auditstore.AuditCompleted {
 					t.Fatal("approved report did not complete")
 				}

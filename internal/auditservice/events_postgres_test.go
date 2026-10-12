@@ -69,7 +69,7 @@ func TestAuditEventPagesReadOnlyTheirEvents(t *testing.T) {
 	defer traced.Close()
 	service := &Service{pool: traced, now: time.Now}
 
-	params := EventListParams{OwnerID: "owner-events", AuditID: "audit-events", Limit: 101}
+	params := auditstore.EventListParams{OwnerID: "owner-events", AuditID: "audit-events", Limit: 101}
 	read := 0
 	for {
 		page, err := service.ListEventsPage(ctx, params)

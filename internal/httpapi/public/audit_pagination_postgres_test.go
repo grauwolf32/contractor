@@ -187,17 +187,17 @@ FROM generate_series(1, 200) AS index`, firstFinding, auditID, auditHandlerDiges
 		})
 	}
 	// The new internal allowance must not bypass owner or revision fences.
-	if _, err := service.ListFindingsPage(ctx, auditservice.FindingListParams{
+	if _, err := service.ListFindingsPage(ctx, auditstore.FindingListParams{
 		OwnerID: "other-owner", AuditID: auditID, Limit: 201,
 	}); !errors.Is(err, auditstore.ErrNotFound) {
 		t.Fatalf("foreign findings = %v", err)
 	}
-	if _, err := service.ListReviewsPage(ctx, auditservice.ReviewListParams{
+	if _, err := service.ListReviewsPage(ctx, auditstore.ReviewListParams{
 		OwnerID: "other-owner", AuditID: auditID, Limit: 201,
 	}); !errors.Is(err, auditstore.ErrNotFound) {
 		t.Fatalf("foreign reviews = %v", err)
 	}
-	if _, err := service.ListFindingProvenance(ctx, auditservice.ProvenanceListParams{
+	if _, err := service.ListFindingProvenance(ctx, auditstore.ProvenanceListParams{
 		OwnerID: "other-owner", AuditID: auditID, FindingID: firstFinding, Limit: 201,
 	}); !errors.Is(err, auditstore.ErrNotFound) {
 		t.Fatalf("foreign provenance = %v", err)
@@ -243,7 +243,7 @@ type provenanceInterleavingService struct {
 	before func(context.Context) error
 }
 
-func (s *provenanceInterleavingService) ListFindingProvenance(ctx context.Context, params auditservice.ProvenanceListParams) ([]auditservice.FindingProvenance, error) {
+func (s *provenanceInterleavingService) ListFindingProvenance(ctx context.Context, params auditstore.ProvenanceListParams) ([]auditservice.FindingProvenance, error) {
 	if before := s.before; before != nil {
 		s.before = nil
 		if err := before(ctx); err != nil {

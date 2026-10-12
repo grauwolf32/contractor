@@ -17,6 +17,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
+	"github.com/grauwolf32/contractor/internal/auditstore/reviewstore"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -298,30 +299,30 @@ func TestAuditDraftStartReplayAndAtomicUnsupportedRollback(t *testing.T) {
 		storedManual.Hold != auditstore.HoldHeld {
 		t.Fatalf("manual Audit state = (%+v, %v)", storedManual, err)
 	}
-	reviews, err := service.ListReviews(ctx, ReviewListParams{
+	reviews, err := service.ListReviews(ctx, auditstore.ReviewListParams{
 		OwnerID: project.OwnerID, AuditID: manualDraft.AuditID, Limit: 10,
 	})
 	if err != nil || len(reviews) != 1 || reviews[0].Kind != string(auditstore.ItemApprovalApplicability) ||
-		reviews[0].SubjectKind != ReviewSubjectItemAction ||
+		reviews[0].SubjectKind != auditstore.ReviewSubjectItemAction ||
 		reviews[0].SubjectID != manualStarted.Items[0].ItemID {
 		t.Fatalf("manual item reviews = (%+v, %v)", reviews, err)
 	}
 	approved, err := service.DecideActionReview(ctx, DecideActionReviewParams{
 		OwnerID: project.OwnerID, AuditID: manualDraft.AuditID,
 		RequestID: reviews[0].RequestID, ExpectedRequestRevision: reviews[0].Revision,
-		DecisionID: "decision-manual-approve", Action: ReviewApprove,
+		DecisionID: "decision-manual-approve", Action: auditstore.ReviewApprove,
 		Rationale:      "The owner approved this exact checklist action.",
 		IdempotencyKey: "decision-manual-approve",
 		RequestDigest:  serviceTestDigest("decision-manual-approve"),
 	})
-	if err != nil || approved.Decision.Action != ReviewApprove ||
-		approved.Request.State != ReviewDecided {
+	if err != nil || approved.Decision.Action != auditstore.ReviewApprove ||
+		approved.Request.State != auditstore.ReviewDecided {
 		t.Fatalf("approve manual item = (%+v, %v)", approved, err)
 	}
 	if _, err := service.DecideActionReview(ctx, DecideActionReviewParams{
 		OwnerID: project.OwnerID, AuditID: manualDraft.AuditID,
 		RequestID: reviews[0].RequestID, ExpectedRequestRevision: reviews[0].Revision,
-		DecisionID: "decision-manual-approve", Action: ReviewApprove,
+		DecisionID: "decision-manual-approve", Action: auditstore.ReviewApprove,
 		Rationale:      "The owner approved this exact checklist action.",
 		IdempotencyKey: "decision-manual-approve",
 		RequestDigest:  serviceTestDigest("decision-manual-approve-changed"),
@@ -405,7 +406,7 @@ UPDATE audit_review_requests SET expires_at = clock_timestamp() - interval '1 se
 	if err != nil {
 		t.Fatal(err)
 	}
-	rejectedReviews, err := service.ListReviews(ctx, ReviewListParams{
+	rejectedReviews, err := service.ListReviews(ctx, auditstore.ReviewListParams{
 		OwnerID: project.OwnerID, AuditID: rejectedDraft.AuditID, Limit: 10,
 	})
 	if err != nil || len(rejectedReviews) != 1 {
@@ -445,7 +446,7 @@ UPDATE audit_review_requests SET expires_at = clock_timestamp() - interval '1 se
 		OwnerID: project.OwnerID, AuditID: rejectedDraft.AuditID,
 		RequestID:               rejectedReviews[0].RequestID,
 		ExpectedRequestRevision: rejectedReviews[0].Revision,
-		DecisionID:              "decision-manual-reject", Action: ReviewReject,
+		DecisionID:              "decision-manual-reject", Action: auditstore.ReviewReject,
 		Rationale:      "The exact manual action is outside this assessment.",
 		IdempotencyKey: "decision-manual-reject",
 		RequestDigest:  serviceTestDigest("decision-manual-reject"),
@@ -509,11 +510,11 @@ SELECT count(*)
 	if err != nil {
 		t.Fatal(err)
 	}
-	notApplicableReviews, err := service.ListReviews(ctx, ReviewListParams{
+	notApplicableReviews, err := service.ListReviews(ctx, auditstore.ReviewListParams{
 		OwnerID: project.OwnerID, AuditID: notApplicableDraft.AuditID, Limit: 10,
 	})
 	if err != nil || len(notApplicableReviews) != 1 ||
-		!containsRequestedReviewAction(notApplicableReviews[0].RequestedActions, ReviewNotApplicable) {
+		!containsRequestedReviewAction(notApplicableReviews[0].RequestedActions, auditstore.ReviewNotApplicable) {
 		t.Fatalf("not-applicable review authority = (%+v, %v)", notApplicableReviews, err)
 	}
 	rationale := "This exact documentation requirement is outside the approved application scope."
@@ -522,11 +523,11 @@ SELECT count(*)
 		RequestID:               notApplicableReviews[0].RequestID,
 		ExpectedRequestRevision: notApplicableReviews[0].Revision,
 		DecisionID:              "decision-manual-not-applicable",
-		Action:                  ReviewNotApplicable, Rationale: rationale,
+		Action:                  auditstore.ReviewNotApplicable, Rationale: rationale,
 		IdempotencyKey: "decision-manual-not-applicable",
 		RequestDigest:  serviceTestDigest("decision-manual-not-applicable"),
 	})
-	if err != nil || decision.Decision.Action != ReviewNotApplicable {
+	if err != nil || decision.Decision.Action != auditstore.ReviewNotApplicable {
 		t.Fatalf("not-applicable decision = (%+v, %v)", decision, err)
 	}
 	notApplicableItems, err := service.ListItems(ctx, auditstore.ListItemsParams{
@@ -550,9 +551,9 @@ SELECT count(*)
 	}
 }
 
-func containsRequestedReviewAction(values []ReviewRequestedAction, action ReviewAction) bool {
+func containsRequestedReviewAction(values []auditstore.ReviewRequestedAction, action auditstore.ReviewAction) bool {
 	for _, value := range values {
-		if value == ReviewRequestedAction(action) {
+		if value == auditstore.ReviewRequestedAction(action) {
 			return true
 		}
 	}
@@ -917,8 +918,8 @@ UPDATE audit_review_requests
 		t.Fatal(err)
 	}
 	if err := validateAndApplyReportDecision(
-		ctx, rejectTx, audit.AuditID, waiting.Revision, candidate.RequestID, audit.AuditID,
-		int64(candidate.SubjectRevision), candidate.SubjectDigest, ReviewReject,
+		ctx, reviewstore.NewTx(rejectTx), audit.AuditID, waiting.Revision, candidate.RequestID, audit.AuditID,
+		int64(candidate.SubjectRevision), candidate.SubjectDigest, auditstore.ReviewReject,
 	); err != nil {
 		_ = rejectTx.Rollback(ctx)
 		t.Fatalf("reject exact report candidate: %v", err)
@@ -970,17 +971,17 @@ UPDATE audit_review_requests
 	review, err := reviewService.GetReview(
 		ctx, project.OwnerID, audit.AuditID, candidate.RequestID,
 	)
-	if err != nil || review.Kind != ReportAcceptanceReviewKind ||
-		review.SubjectKind != ReviewSubjectReport {
+	if err != nil || review.Kind != auditstore.ReportAcceptanceReviewKind ||
+		review.SubjectKind != auditstore.ReviewSubjectReport {
 		t.Fatalf("report review = (%+v, %v)", review, err)
 	}
 	decision, err := reviewService.DecideActionReview(ctx, DecideActionReviewParams{
 		OwnerID: project.OwnerID, AuditID: audit.AuditID, RequestID: review.RequestID,
 		ExpectedRequestRevision: review.Revision, DecisionID: "decision-report-approve",
-		Action: ReviewApprove, Rationale: "The owner accepts this exact report.",
+		Action: auditstore.ReviewApprove, Rationale: "The owner accepts this exact report.",
 		IdempotencyKey: "decision-report-approve", RequestDigest: serviceTestDigest("report-approve"),
 	})
-	if err != nil || decision.Decision.Action != ReviewApprove {
+	if err != nil || decision.Decision.Action != auditstore.ReviewApprove {
 		t.Fatalf("approve report = (%+v, %v)", decision, err)
 	}
 	completed, err := store.Get(ctx, project.OwnerID, audit.AuditID)
@@ -1053,7 +1054,7 @@ func TestAuditFindingReviewHistoryAndDeletedRunProvenance(t *testing.T) {
 	now := time.Date(2026, 9, 6, 3, 0, 0, 0, time.UTC)
 	service := &Service{pool: pool, findings: intake, now: func() time.Time { return now }}
 
-	listed, err := service.ListFindings(ctx, FindingListParams{OwnerID: ownerID, AuditID: auditID, Limit: 10})
+	listed, err := service.ListFindings(ctx, auditstore.FindingListParams{OwnerID: ownerID, AuditID: auditID, Limit: 10})
 	if err != nil || len(listed) != 2 || listed[0].AnalystVerdict != nil ||
 		listed[0].FirstProposal.Origin.RunDeleted != true {
 		t.Fatalf("initial findings = (%+v, %v)", listed, err)
@@ -1064,7 +1065,7 @@ func TestAuditFindingReviewHistoryAndDeletedRunProvenance(t *testing.T) {
 		RequestDigest: serviceTestDigest("review-first-1"),
 	})
 	if err != nil || request.Replayed || request.Request.SubjectRevision != 1 ||
-		request.Request.State != ReviewPending {
+		request.Request.State != auditstore.ReviewPending {
 		t.Fatalf("create finding review = (%+v, %v)", request, err)
 	}
 	if _, err := service.CreateFindingReview(ctx, CreateFindingReviewParams{
@@ -1074,17 +1075,17 @@ func TestAuditFindingReviewHistoryAndDeletedRunProvenance(t *testing.T) {
 	}); !errors.Is(err, contracts.ErrIdempotencyConflict) || errors.Is(err, auditstore.ErrConflict) {
 		t.Fatalf("finding review key reused with another request = %v", err)
 	}
-	severity := SeverityHigh
+	severity := auditstore.SeverityHigh
 	decisionParams := DecideFindingParams{
 		OwnerID: ownerID, AuditID: auditID, RequestID: request.Request.RequestID,
 		ExpectedRequestRevision: request.Request.Revision, DecisionID: "decision-first-1",
-		Verdict: VerdictTruePositive, Severity: &severity, Rationale: "Confirmed by exact evidence.",
+		Verdict: auditstore.VerdictTruePositive, Severity: &severity, Rationale: "Confirmed by exact evidence.",
 		IdempotencyKey: "decision-first-1", RequestDigest: serviceTestDigest("decision-first-1"),
 	}
 	decided, err := service.DecideFinding(ctx, decisionParams)
-	if err != nil || decided.Finding.State != FindingConfirmed || decided.Finding.Revision != 2 ||
-		decided.Finding.AnalystVerdict == nil || *decided.Finding.AnalystVerdict != VerdictTruePositive ||
-		decided.Finding.AnalystSeverity == nil || *decided.Finding.AnalystSeverity != SeverityHigh {
+	if err != nil || decided.Finding.State != auditstore.FindingConfirmed || decided.Finding.Revision != 2 ||
+		decided.Finding.AnalystVerdict == nil || *decided.Finding.AnalystVerdict != auditstore.VerdictTruePositive ||
+		decided.Finding.AnalystSeverity == nil || *decided.Finding.AnalystSeverity != auditstore.SeverityHigh {
 		t.Fatalf("true-positive decision = (%+v, %v)", decided, err)
 	}
 	reportFindings, more, err := auditstoretest.NewStore(pool).ListReportFindings(ctx, auditstore.ReportFindingPageParams{
@@ -1097,8 +1098,8 @@ func TestAuditFindingReviewHistoryAndDeletedRunProvenance(t *testing.T) {
 		}
 	}
 	if err != nil || more || len(reportFindings) != 1 || reportFinding == nil ||
-		reportFinding.Decision == nil || reportFinding.Decision.Verdict != string(VerdictTruePositive) ||
-		reportFinding.Decision.Severity == nil || *reportFinding.Decision.Severity != string(SeverityHigh) {
+		reportFinding.Decision == nil || reportFinding.Decision.Verdict != string(auditstore.VerdictTruePositive) ||
+		reportFinding.Decision.Severity == nil || *reportFinding.Decision.Severity != string(auditstore.SeverityHigh) {
 		t.Fatalf("report finding snapshot = (%+v, %v)", reportFindings, err)
 	}
 	decisionParams.DecisionID = "ignored-replay-id"
@@ -1121,20 +1122,20 @@ func TestAuditFindingReviewHistoryAndDeletedRunProvenance(t *testing.T) {
 	}
 
 	corrected := decideFindingForTest(t, ctx, service, ownerID, auditID, firstID, 2,
-		"correction", VerdictTruePositive, reviewStringPointer(string(SeverityMedium)), nil)
-	if corrected.State != FindingConfirmed || corrected.AnalystSeverity == nil ||
-		*corrected.AnalystSeverity != SeverityMedium || corrected.Revision != 3 {
+		"correction", auditstore.VerdictTruePositive, reviewStringPointer(string(auditstore.SeverityMedium)), nil)
+	if corrected.State != auditstore.FindingConfirmed || corrected.AnalystSeverity == nil ||
+		*corrected.AnalystSeverity != auditstore.SeverityMedium || corrected.Revision != 3 {
 		t.Fatalf("corrected finding = %+v", corrected)
 	}
 	falsePositive := decideFindingForTest(t, ctx, service, ownerID, auditID, firstID, 3,
-		"false-positive", VerdictFalsePositive, nil, nil)
-	if falsePositive.State != FindingRejected || falsePositive.AnalystVerdict == nil ||
-		*falsePositive.AnalystVerdict != VerdictFalsePositive || falsePositive.RejectionReason == nil {
+		"false-positive", auditstore.VerdictFalsePositive, nil, nil)
+	if falsePositive.State != auditstore.FindingRejected || falsePositive.AnalystVerdict == nil ||
+		*falsePositive.AnalystVerdict != auditstore.VerdictFalsePositive || falsePositive.RejectionReason == nil {
 		t.Fatalf("false-positive finding = %+v", falsePositive)
 	}
 	reopened := decideFindingForTest(t, ctx, service, ownerID, auditID, firstID, 4,
-		"reopen", VerdictReopen, nil, nil)
-	if reopened.State != FindingProposed || reopened.AnalystVerdict != nil || reopened.Revision != 5 {
+		"reopen", auditstore.VerdictReopen, nil, nil)
+	if reopened.State != auditstore.FindingProposed || reopened.AnalystVerdict != nil || reopened.Revision != 5 {
 		t.Fatalf("reopened finding = %+v", reopened)
 	}
 
@@ -1147,15 +1148,15 @@ func TestAuditFindingReviewHistoryAndDeletedRunProvenance(t *testing.T) {
 		t.Fatal(err)
 	}
 	duplicate := decideFindingForTest(t, ctx, service, ownerID, auditID, firstID, 5,
-		"duplicate", VerdictDuplicate, nil, &secondID)
-	if duplicate.State != FindingDuplicate || duplicate.DuplicateTargetID == nil ||
+		"duplicate", auditstore.VerdictDuplicate, nil, &secondID)
+	if duplicate.State != auditstore.FindingDuplicate || duplicate.DuplicateTargetID == nil ||
 		*duplicate.DuplicateTargetID != secondID {
 		t.Fatalf("duplicate finding = %+v", duplicate)
 	}
 	_, err = service.DecideFinding(ctx, DecideFindingParams{
 		OwnerID: ownerID, AuditID: auditID, RequestID: secondReview.Request.RequestID,
 		ExpectedRequestRevision: secondReview.Request.Revision, DecisionID: "decision-second-cycle",
-		Verdict: VerdictDuplicate, DuplicateTargetID: &firstID, Rationale: "Would form a cycle.",
+		Verdict: auditstore.VerdictDuplicate, DuplicateTargetID: &firstID, Rationale: "Would form a cycle.",
 		IdempotencyKey: "decision-second-cycle", RequestDigest: serviceTestDigest("decision-second-cycle"),
 	})
 	if !errors.Is(err, auditstore.ErrConflict) {
@@ -1169,28 +1170,28 @@ UPDATE audit_review_requests SET expires_at = clock_timestamp() - interval '1 se
 	_, err = service.DecideFinding(ctx, DecideFindingParams{
 		OwnerID: ownerID, AuditID: auditID, RequestID: secondReview.Request.RequestID,
 		ExpectedRequestRevision: secondReview.Request.Revision, DecisionID: "decision-second-expired",
-		Verdict: VerdictNeedsEvidence, Rationale: "This request has expired.",
+		Verdict: auditstore.VerdictNeedsEvidence, Rationale: "This request has expired.",
 		IdempotencyKey: "decision-second-expired", RequestDigest: serviceTestDigest("decision-second-expired"),
 	})
 	if !errors.Is(err, auditstore.ErrPrecondition) {
 		t.Fatalf("expired review decision error = %v", err)
 	}
 	expiredReview, err := service.GetReview(ctx, ownerID, auditID, secondReview.Request.RequestID)
-	if err != nil || expiredReview.State != ReviewExpired || expiredReview.Revision != 2 {
+	if err != nil || expiredReview.State != auditstore.ReviewExpired || expiredReview.Revision != 2 {
 		t.Fatalf("persisted expired review = (%+v, %v)", expiredReview, err)
 	}
 
-	history, err := service.ListReviews(ctx, ReviewListParams{
+	history, err := service.ListReviews(ctx, auditstore.ReviewListParams{
 		OwnerID: ownerID, AuditID: auditID, FindingID: &firstID, Limit: 10,
 	})
 	if err != nil || len(history) != 5 || history[0].Decision == nil || history[4].Decision == nil {
 		t.Fatalf("finding decision history = (%+v, %v)", history, err)
 	}
 	seedAuditFindingAttemptHistory(t, ctx, pool, auditID, firstID, "receipt-first")
-	provenance, err := service.ListFindingProvenance(ctx, ProvenanceListParams{
+	provenance, err := service.ListFindingProvenance(ctx, auditstore.ProvenanceListParams{
 		OwnerID: ownerID, AuditID: auditID, FindingID: firstID, Limit: 10,
 	})
-	if err != nil || len(provenance) != 4 || provenance[0].Kind != ProvenanceSourceProposal ||
+	if err != nil || len(provenance) != 4 || provenance[0].Kind != auditstore.ProvenanceSourceProposal ||
 		!provenance[0].Origin.RunDeleted || provenance[1].Attempt == nil ||
 		provenance[1].Attempt.ItemAttempt != 1 ||
 		provenance[1].Attempt.CollectionDisposition == nil ||
@@ -1201,7 +1202,7 @@ UPDATE audit_review_requests SET expires_at = clock_timestamp() - interval '1 se
 		provenance[2].Attempt.Result == nil || !provenance[2].Attempt.RunDeleted ||
 		provenance[2].Attempt.RunProvenance == nil ||
 		provenance[2].Attempt.RunProvenance.RunID != "deleted-run-attempt-two" ||
-		provenance[3].Kind != ProvenanceDirect || provenance[3].Attempt != nil ||
+		provenance[3].Kind != auditstore.ProvenanceDirect || provenance[3].Attempt != nil ||
 		provenance[3].Assessment == nil || !provenance[3].Assessment.DirectVerification ||
 		provenance[3].Assessment.Contract == nil ||
 		provenance[3].Assessment.SemanticAssessment != "supported" ||
@@ -1241,7 +1242,7 @@ UPDATE audits
 	if _, err := service.DecideFinding(ctx, DecideFindingParams{
 		OwnerID: ownerID, AuditID: auditID, RequestID: finalizingReview.Request.RequestID,
 		ExpectedRequestRevision: finalizingReview.Request.Revision,
-		DecisionID:              "decision-during-finalizing", Verdict: VerdictReopen,
+		DecisionID:              "decision-during-finalizing", Verdict: auditstore.VerdictReopen,
 		Rationale: "Must wait for report commit.", IdempotencyKey: "decision-during-finalizing",
 		RequestDigest: serviceTestDigest("decision-during-finalizing"),
 	}); !errors.Is(err, auditstore.ErrPrecondition) {
@@ -1486,7 +1487,7 @@ WHERE audit_id = $1 AND first_receipt_id = $2`, auditID, receiptID).Scan(&findin
 func decideFindingForTest(
 	t *testing.T, ctx context.Context, service *Service,
 	ownerID, auditID, findingID string, findingRevision uint64, key string,
-	verdict AnalystVerdict, severityValue *string, duplicateTarget *string,
+	verdict auditstore.AnalystVerdict, severityValue *string, duplicateTarget *string,
 ) Finding {
 	t.Helper()
 	request, err := service.CreateFindingReview(ctx, CreateFindingReviewParams{
@@ -1497,9 +1498,9 @@ func decideFindingForTest(
 	if err != nil {
 		t.Fatal(err)
 	}
-	var severity *FindingSeverity
+	var severity *auditstore.FindingSeverity
 	if severityValue != nil {
-		value := FindingSeverity(*severityValue)
+		value := auditstore.FindingSeverity(*severityValue)
 		severity = &value
 	}
 	result, err := service.DecideFinding(ctx, DecideFindingParams{

@@ -11,7 +11,6 @@ import (
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/credentials"
@@ -89,7 +88,7 @@ func TestPublicListFakesRejectReadsBeyondThePageFetchBound(t *testing.T) {
 			return err
 		}},
 		{"audit events", pagelimit.MaxFetchRows, auditstore.ErrInvalid, func(rows int) error {
-			_, err := audits.ListEventsPage(ctx, auditservice.EventListParams{Limit: rows})
+			_, err := audits.ListEventsPage(ctx, auditstore.EventListParams{Limit: rows})
 			return err
 		}},
 		{"audit items", pagelimit.MaxFetchRows, auditstore.ErrInvalid, func(rows int) error {
@@ -105,23 +104,23 @@ func TestPublicListFakesRejectReadsBeyondThePageFetchBound(t *testing.T) {
 			return err
 		}},
 		{"audit findings", pagelimit.MaxFetchRows, auditstore.ErrInvalid, func(rows int) error {
-			_, err := audits.ListFindingsPage(ctx, auditservice.FindingListParams{Limit: rows})
+			_, err := audits.ListFindingsPage(ctx, auditstore.FindingListParams{Limit: rows})
 			return err
 		}},
 		{"audit reviews", pagelimit.MaxFetchRows, auditstore.ErrInvalid, func(rows int) error {
-			_, err := audits.ListReviewsPage(ctx, auditservice.ReviewListParams{Limit: rows})
+			_, err := audits.ListReviewsPage(ctx, auditstore.ReviewListParams{Limit: rows})
 			return err
 		}},
 		{"audit finding provenance", pagelimit.MaxFetchRows, auditstore.ErrInvalid, func(rows int) error {
-			_, err := audits.ListFindingProvenance(ctx, auditservice.ProvenanceListParams{Limit: rows})
+			_, err := audits.ListFindingProvenance(ctx, auditstore.ProvenanceListParams{Limit: rows})
 			return err
 		}},
 		{"owner findings", pagelimit.MaxFetchRows, auditstore.ErrInvalid, func(rows int) error {
-			_, err := audits.ListOwnerFindings(ctx, auditservice.OwnerFindingListParams{Limit: rows})
+			_, err := audits.ListOwnerFindings(ctx, auditstore.OwnerFindingListParams{Limit: rows})
 			return err
 		}},
 		{"owner reviews", pagelimit.MaxFetchRows, auditstore.ErrInvalid, func(rows int) error {
-			_, err := audits.ListOwnerReviews(ctx, auditservice.OwnerReviewListParams{Limit: rows})
+			_, err := audits.ListOwnerReviews(ctx, auditstore.OwnerReviewListParams{Limit: rows})
 			return err
 		}},
 		{"run finding proposals", pagelimit.MaxFetchRows, findingintake.ErrInvalid, func(rows int) error {

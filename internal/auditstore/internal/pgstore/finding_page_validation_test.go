@@ -1,4 +1,4 @@
-package auditservice
+package pgstore
 
 import (
 	"errors"
@@ -11,13 +11,13 @@ import (
 func TestFindingPageValidatorsAllowOnlyOneCursorSentinel(t *testing.T) {
 	validators := map[string]func(int) error{
 		"findings": func(limit int) error {
-			return validateFindingList(FindingListParams{OwnerID: "owner", AuditID: "audit", Limit: limit})
+			return validateFindingList(auditstore.FindingListParams{OwnerID: "owner", AuditID: "audit", Limit: limit})
 		},
 		"reviews": func(limit int) error {
-			return validateReviewList(ReviewListParams{OwnerID: "owner", AuditID: "audit", Limit: limit})
+			return validateReviewList(auditstore.ReviewListParams{OwnerID: "owner", AuditID: "audit", Limit: limit})
 		},
 		"provenance": func(limit int) error {
-			return validateProvenanceList(ProvenanceListParams{OwnerID: "owner", AuditID: "audit", FindingID: "finding", Limit: limit})
+			return validateProvenanceList(auditstore.ProvenanceListParams{OwnerID: "owner", AuditID: "audit", FindingID: "finding", Limit: limit})
 		},
 	}
 	for name, validate := range validators {

@@ -183,11 +183,11 @@ func TestPublicOwnerAuditLists(t *testing.T) {
 			t.Fatalf("missing full-page sentinel: %d %+v", len(page.Items), page.Page)
 		}
 	}
-	foreignFindings, err := service.ListOwnerFindings(ctx, auditservice.OwnerFindingListParams{OwnerID: "user-foreign", Limit: 200})
+	foreignFindings, err := service.ListOwnerFindings(ctx, auditstore.OwnerFindingListParams{OwnerID: "user-foreign", Limit: 200})
 	if err != nil || len(foreignFindings) != 1 || foreignFindings[0].AuditID != "audit-foreign" {
 		t.Fatalf("foreign owner's list: %+v %v", foreignFindings, err)
 	}
-	foreignReviews, err := service.ListOwnerReviews(ctx, auditservice.OwnerReviewListParams{OwnerID: "user-foreign", Limit: 200})
+	foreignReviews, err := service.ListOwnerReviews(ctx, auditstore.OwnerReviewListParams{OwnerID: "user-foreign", Limit: 200})
 	if err != nil || len(foreignReviews) != 1 || foreignReviews[0].AuditID != "audit-foreign" {
 		t.Fatalf("foreign owner's reviews: %+v %v", foreignReviews, err)
 	}

@@ -101,7 +101,7 @@ func TestAuditReportReviewExpiresOnCancelOrDelete(t *testing.T) {
 				t.Fatalf("%s report review = (%+v, %v)", action, result, err)
 			}
 			review, err := service.GetReview(ctx, audit.OwnerID, audit.AuditID, requestID)
-			if err != nil || review.State != ReviewExpired || review.Revision != 2 {
+			if err != nil || review.State != auditstore.ReviewExpired || review.Revision != 2 {
 				t.Fatalf("expired report review = (%+v, %v)", review, err)
 			}
 			events, err := store.ListEvents(ctx, audit.AuditID, waiting.EventSequence, pagelimit.MaxRows)
@@ -149,7 +149,7 @@ func TestAuditReportReviewExpiresOnCancelOrDelete(t *testing.T) {
 					OwnerID: audit.OwnerID, AuditID: audit.AuditID,
 					RequestID:               created.Request.RequestID,
 					ExpectedRequestRevision: created.Request.Revision,
-					DecisionID:              "decision-finding-after-cancel", Verdict: VerdictNeedsEvidence,
+					DecisionID:              "decision-finding-after-cancel", Verdict: auditstore.VerdictNeedsEvidence,
 					Rationale:      "More evidence is needed.",
 					IdempotencyKey: "decision-finding-after-cancel",
 					RequestDigest:  serviceTestDigest("finding-decision"),
