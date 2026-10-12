@@ -1,0 +1,53 @@
+schema_version: "1.0"
+id: V373-006
+title: "End a Run whose escalation history is invalid instead of retrying it forever"
+milestone: hub-audit-defects-2026-10
+epic: execution-core
+kind: defect
+priority: P2
+status: pending
+depends_on: []
+languages: [go, markdown]
+goal: "A Stage progression that meets durable state the Scheduler cannot progress, such as an invalid escalation history or an unbounded Transition policy, ends the Run once through FAIL-SCH-13 instead of failing the same commit on every Scheduler pass; transient store errors stay retryable."
+context:
+  review: "Out-of-scope finding of V372-017 (merged in 120c353), verified on aabaa49"
+  specification: "docs/spec/execution/scheduler.md#SCH-R102"
+  severity: medium
+  finding: >-
+    escalationAttempts (internal/scheduler/stage_finalization.go:381)
+    validates the persisted escalation history and returns plain errors for
+    an invalid ordinal, invalid manual-continuation lineage, a duplicate
+    ordinal and a non-contiguous ordinal (around :400-:430). buildProgression
+    (:241) returns them, and so do its other durable-state checks ("retry
+    Transition has no bounded policy", "escalate Transition has no bounded
+    policy or outcome identity", selectStage errors). Its callers
+    finalizeResult (stage_finalization.go:198) and the termination
+    progression (stage_termination.go:194) return the error, the Run keeps
+    its finalizing or aborting Stage, and every Scheduler pass repeats the
+    same failing progression: the endless-retry class of V280 that V372-017
+    fixed for output mappings.
+  siblings: >-
+    Every deterministic durable-state error that buildProgression and the
+    resume paths return must go to FAIL-SCH-13 or be ruled out with
+    evidence; store errors (transient database failures, ErrConflict,
+    ErrQueuePaused) keep their current handling. Reuse or generalise the
+    errOutputStateInvalid sentinel that V372-017 added rather than adding a
+    parallel mechanism.
+scope:
+  in:
+    - "Classify the durable-state errors of buildProgression, including escalationAttempts, so finalization and termination end the Run through failInvalidRunState."
+    - "PostgreSQL regression tests: a finalizing and an aborting Stage whose escalation history is invalid end the Run once with scheduler_state_invalid and a second Scheduler pass does not retry; a transient store error during the same read stays retryable; each test fails on the unfixed code where it guards behaviour."
+  out:
+    - "The escalation budget rules themselves."
+acceptance_criteria:
+  - id: A1
+    text: "Given a finalizing or aborting Stage whose persisted escalation history is invalid, when the Scheduler progresses it, then the Run ends once through FAIL-SCH-13 and is not retried."
+  - id: A2
+    text: "Transient store errors on the same path remain retryable."
+  - id: A3
+    text: "The regression tests fail on the unfixed code."
+tests:
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/scheduler/..."
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A1, A2, A3]
