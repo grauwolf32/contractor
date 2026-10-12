@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"maps"
 	"slices"
@@ -11,7 +12,6 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"go.yaml.in/yaml/v4"
-	"golang.org/x/text/unicode/norm"
 )
 
 func (l *loader) resolveWorkflow(selector Selector, spec *workflowSpecSource) (ResolvedWorkflow, error) {
@@ -481,31 +481,17 @@ func resolveWorkspaceContext(
 	return result, nil
 }
 
+// validateWorkspaceTarget accepts "" (the workspace root) or a relative
+// directory of the workspace target grammar (WSP-R13) that allocation
+// validation applies again.
 func validateWorkspaceTarget(value string) error {
 	if value == "" {
 		return nil
 	}
-	if value != norm.NFC.String(value) || len([]byte(value)) > 1024 || strings.HasPrefix(value, "/") ||
-		strings.ContainsAny(value, "\\\x00") || strings.Contains(value, "://") {
-		return fmt.Errorf("must be a normalized relative POSIX directory")
-	}
-	parts := strings.Split(value, "/")
-	if len(parts) > 32 {
-		return fmt.Errorf("must contain at most 32 components")
-	}
-	for _, part := range parts {
-		if part == "" || part == "." || part == ".." {
-			return fmt.Errorf("contains an invalid component")
-		}
-		for _, character := range part {
-			if character < 0x20 || character == 0x7f {
-				return fmt.Errorf("contains a control character")
-			}
-		}
-	}
-	first := parts[0]
-	if len(first) >= 2 && ((first[0] >= 'A' && first[0] <= 'Z') || (first[0] >= 'a' && first[0] <= 'z')) && first[1] == ':' {
-		return fmt.Errorf("must not use Windows drive syntax")
+	if problem := contracts.RelativePathProblem(
+		value, contracts.MaxWorkspaceTargetBytes, contracts.MaxWorkspaceTargetComponents,
+	); problem != "" {
+		return errors.New(problem)
 	}
 	return nil
 }
@@ -533,11 +519,10 @@ func validateStageWorkspace(
 		}
 		for _, selection := range agent.Template.Toolsets {
 			ref := selection.Ref.ToolsetID + "@" + selection.Ref.Version
-			switch ref {
-			case "filesystem@1", "edit-files@1", "code-analysis@1", "taint-annotations@1":
+			if descriptors.Toolsets[ref].RequiresWorkspace {
 				workspaceToolsets = true
-			case "workspace-changes@1":
-				workspaceToolsets = true
+			}
+			if ref == "workspace-changes@1" {
 				changesToolset = true
 			}
 		}

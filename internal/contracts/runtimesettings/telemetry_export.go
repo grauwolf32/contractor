@@ -13,6 +13,48 @@ type TelemetryExportSettings struct {
 	Retry           *TelemetryRetrySettings `json:"retry,omitempty"`
 }
 
+// TelemetryExport is the export block of an allocation's RuntimeSettings. The
+// Server pins every value (RCF-R102), so unlike a RuntimeConfig's
+// TelemetryExportSettings, whose retry object may be omitted, it always
+// carries one; the Runtime has no defaults of its own.
+type TelemetryExport struct {
+	BatchSizeBytes  int                    `json:"batchSizeBytes" strictjson:"required"`
+	MaxAttempts     int                    `json:"maxAttempts" strictjson:"required"`
+	MaxPendingSpans int                    `json:"maxPendingSpans" strictjson:"required"`
+	MaxPendingBytes int                    `json:"maxPendingBytes" strictjson:"required"`
+	Retry           TelemetryRetrySettings `json:"retry" strictjson:"required"`
+}
+
+// PinTelemetryExport returns the export block the Server sends for a Worker
+// RuntimeConfig's export settings: the configured values, or the defaults of
+// RCF-R99 and RCF-R103 for an omitted export or retry block. The result is a
+// copy that never aliases configured.
+func PinTelemetryExport(configured *TelemetryExportSettings) TelemetryExport {
+	settings := DefaultTelemetryExportSettings()
+	if configured != nil {
+		settings = *configured
+	}
+	retry := DefaultTelemetryRetrySettings()
+	if settings.Retry != nil {
+		retry = *settings.Retry
+	}
+	return TelemetryExport{
+		BatchSizeBytes: settings.BatchSizeBytes, MaxAttempts: settings.MaxAttempts,
+		MaxPendingSpans: settings.MaxPendingSpans, MaxPendingBytes: settings.MaxPendingBytes,
+		Retry: retry,
+	}
+}
+
+// Validate applies the bounds TelemetryExportSettings defines for both forms.
+func (e TelemetryExport) Validate() error {
+	retry := e.Retry
+	return TelemetryExportSettings{
+		BatchSizeBytes: e.BatchSizeBytes, MaxAttempts: e.MaxAttempts,
+		MaxPendingSpans: e.MaxPendingSpans, MaxPendingBytes: e.MaxPendingBytes,
+		Retry: &retry,
+	}.Validate()
+}
+
 func DefaultTelemetryExportSettings() TelemetryExportSettings {
 	return TelemetryExportSettings{
 		BatchSizeBytes: 8 * 1024 * 1024, MaxAttempts: 2,

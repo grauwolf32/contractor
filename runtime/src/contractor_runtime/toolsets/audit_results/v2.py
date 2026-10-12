@@ -9,6 +9,7 @@ from typing import Any
 from google.adk.tools.tool_context import ToolContext
 
 from contractor_runtime.contracts import ArtifactRef
+from contractor_runtime.contracts.base import is_blank
 from contractor_runtime.core.tool_metrics import ToolCallCancelled, ToolMetrics, elapsed_ms
 from contractor_runtime.toolsets.audit_results.arguments import (
     AuditArgumentError,
@@ -38,7 +39,7 @@ def _text(value, field, key):
     try:
         valid = (
             isinstance(value, str)
-            and value.strip()
+            and not is_blank(value)
             and "\x00" not in value
             and len(value.encode()) <= MAX_SUMMARY_BYTES
         )

@@ -1,0 +1,176 @@
+{
+  "description": "Every built-in Toolset (TLS-R38): the Server's Toolset descriptor (internal/config MVPDescriptors) and the Runtime's ToolsetFactory (contractor_runtime built_in_factories, plus the registered code-execution@1 contract) must both match it. tools are the exported model-visible tool names, infrastructureChannels the fixed channels per tool (TLS-R22), requiresWorkspace whether a Stage that selects the Toolset needs context.workspace, and requiredSandboxProfile the SandboxProfile it needs or null. activeCheckTools, findingProposalTools and requiredWorkflowInputs are Server-side classifications that only the Server reads (Audit compatibility, finding intake, Workflow inputs). A tool or Toolset added on one side only fails the parity tests of both.",
+  "toolsets": {
+    "audit-results@2": {
+      "tools": ["read_audit_task", "submit_check_result"],
+      "infrastructureChannels": {},
+      "requiresWorkspace": false,
+      "requiredSandboxProfile": null,
+      "activeCheckTools": [],
+      "findingProposalTools": [],
+      "requiredWorkflowInputs": {}
+    },
+    "caido@1": {
+      "tools": ["caido_automate_results", "caido_automate_run", "caido_history", "caido_replay", "caido_request_detail", "caido_scope", "caido_sitemap", "caido_workflow_findings", "caido_workflow_list", "caido_workflow_run"],
+      "infrastructureChannels": {"caido_automate_results": ["caido-graphql-client"], "caido_automate_run": ["caido-graphql-client"], "caido_history": ["caido-graphql-client"], "caido_replay": ["caido-graphql-client"], "caido_request_detail": ["caido-graphql-client"], "caido_scope": ["caido-graphql-client"], "caido_sitemap": ["caido-graphql-client"], "caido_workflow_findings": ["caido-graphql-client"], "caido_workflow_list": ["caido-graphql-client"], "caido_workflow_run": ["caido-graphql-client"]},
+      "requiresWorkspace": false,
+      "requiredSandboxProfile": null,
+      "activeCheckTools": ["caido_automate_run", "caido_replay", "caido_workflow_run"],
+      "findingProposalTools": [],
+      "requiredWorkflowInputs": {}
+    },
+    "code-analysis@1": {
+      "tools": ["attack_surface", "complexity_hotspots", "entrypoint_paths_to", "find_callees", "find_callers", "find_symbol", "functions_that_raise", "graph_summary", "list_symbols", "paths_between", "search_def"],
+      "infrastructureChannels": {},
+      "requiresWorkspace": true,
+      "requiredSandboxProfile": null,
+      "activeCheckTools": [],
+      "findingProposalTools": [],
+      "requiredWorkflowInputs": {}
+    },
+    "code-execution@1": {
+      "tools": ["exec_command"],
+      "infrastructureChannels": {"exec_command": ["sandbox-execution"]},
+      "requiresWorkspace": true,
+      "requiredSandboxProfile": "podman@1",
+      "activeCheckTools": [],
+      "findingProposalTools": [],
+      "requiredWorkflowInputs": {}
+    },
+    "edit-files@1": {
+      "tools": ["append_file", "cp", "edit", "insert_line", "mkdir", "mv", "replace_range", "rm", "write_file"],
+      "infrastructureChannels": {},
+      "requiresWorkspace": true,
+      "requiredSandboxProfile": null,
+      "activeCheckTools": [],
+      "findingProposalTools": [],
+      "requiredWorkflowInputs": {}
+    },
+    "filesystem@1": {
+      "tools": ["glob", "grep", "ls", "read_file"],
+      "infrastructureChannels": {},
+      "requiresWorkspace": true,
+      "requiredSandboxProfile": null,
+      "activeCheckTools": [],
+      "findingProposalTools": [],
+      "requiredWorkflowInputs": {}
+    },
+    "http-tools@1": {
+      "tools": ["http_history", "http_read_body", "http_request", "http_session_clear", "http_session_get", "http_session_set"],
+      "infrastructureChannels": {"http_request": ["runtime-http-client"]},
+      "requiresWorkspace": false,
+      "requiredSandboxProfile": null,
+      "activeCheckTools": ["http_request"],
+      "findingProposalTools": [],
+      "requiredWorkflowInputs": {}
+    },
+    "likec4@1": {
+      "tools": ["append_likec4", "load_likec4", "read_likec4", "replace_likec4", "validate_likec4", "write_likec4"],
+      "infrastructureChannels": {"validate_likec4": ["runtime-subprocess-launcher"]},
+      "requiresWorkspace": false,
+      "requiredSandboxProfile": null,
+      "activeCheckTools": [],
+      "findingProposalTools": [],
+      "requiredWorkflowInputs": {}
+    },
+    "memory-tools@1": {
+      "tools": ["append_memory", "list_memories", "list_memory_tags", "read_memory", "search_memory", "write_memory"],
+      "infrastructureChannels": {},
+      "requiresWorkspace": false,
+      "requiredSandboxProfile": null,
+      "activeCheckTools": [],
+      "findingProposalTools": [],
+      "requiredWorkflowInputs": {}
+    },
+    "openapi@1": {
+      "tools": ["get_openapi_component", "get_openapi_info", "get_openapi_path", "initialize_openapi", "list_openapi_components", "list_openapi_paths", "list_openapi_servers", "list_openapi_tags", "load_openapi", "read_openapi_document", "remove_openapi_component", "remove_openapi_path", "set_openapi_info", "set_openapi_servers", "set_openapi_tags", "upsert_openapi_component", "upsert_openapi_path", "validate_openapi"],
+      "infrastructureChannels": {"validate_openapi": ["runtime-subprocess-launcher"]},
+      "requiresWorkspace": false,
+      "requiredSandboxProfile": null,
+      "activeCheckTools": [],
+      "findingProposalTools": [],
+      "requiredWorkflowInputs": {}
+    },
+    "run-artifacts@1": {
+      "tools": ["list_artifacts", "read_artifact", "write_artifact"],
+      "infrastructureChannels": {},
+      "requiresWorkspace": false,
+      "requiredSandboxProfile": null,
+      "activeCheckTools": [],
+      "findingProposalTools": [],
+      "requiredWorkflowInputs": {}
+    },
+    "scan@1": {
+      "tools": ["scan_ffuf", "scan_katana", "scan_naabu", "scan_nuclei", "scan_sqlmap"],
+      "infrastructureChannels": {"scan_ffuf": ["runtime-subprocess-launcher"], "scan_katana": ["runtime-subprocess-launcher"], "scan_naabu": ["runtime-subprocess-launcher"], "scan_nuclei": ["runtime-subprocess-launcher"], "scan_sqlmap": ["runtime-subprocess-launcher"]},
+      "requiresWorkspace": false,
+      "requiredSandboxProfile": null,
+      "activeCheckTools": ["scan_ffuf", "scan_katana", "scan_naabu", "scan_nuclei", "scan_sqlmap"],
+      "findingProposalTools": [],
+      "requiredWorkflowInputs": {}
+    },
+    "security-findings-code@1": {
+      "tools": ["finding"],
+      "infrastructureChannels": {},
+      "requiresWorkspace": false,
+      "requiredSandboxProfile": null,
+      "activeCheckTools": [],
+      "findingProposalTools": ["finding"],
+      "requiredWorkflowInputs": {}
+    },
+    "security-findings-http@1": {
+      "tools": ["finding"],
+      "infrastructureChannels": {},
+      "requiresWorkspace": false,
+      "requiredSandboxProfile": null,
+      "activeCheckTools": [],
+      "findingProposalTools": ["finding"],
+      "requiredWorkflowInputs": {}
+    },
+    "security-findings@1": {
+      "tools": ["finding", "list_findings"],
+      "infrastructureChannels": {},
+      "requiresWorkspace": false,
+      "requiredSandboxProfile": null,
+      "activeCheckTools": [],
+      "findingProposalTools": ["finding"],
+      "requiredWorkflowInputs": {"list_findings": {"input": "findings", "mediaType": "application/vnd.contractor.findings-collection+zip"}}
+    },
+    "source-analysis@1": {
+      "tools": ["list_source_files", "open_source_archive", "read_source", "search_source"],
+      "infrastructureChannels": {},
+      "requiresWorkspace": false,
+      "requiredSandboxProfile": null,
+      "activeCheckTools": [],
+      "findingProposalTools": [],
+      "requiredWorkflowInputs": {}
+    },
+    "taint-annotations@1": {
+      "tools": ["annotate_sink", "annotate_trace", "annotate_validate"],
+      "infrastructureChannels": {},
+      "requiresWorkspace": true,
+      "requiredSandboxProfile": null,
+      "activeCheckTools": [],
+      "findingProposalTools": [],
+      "requiredWorkflowInputs": {}
+    },
+    "text-artifacts@1": {
+      "tools": ["read_text_artifact", "write_text_artifact"],
+      "infrastructureChannels": {},
+      "requiresWorkspace": false,
+      "requiredSandboxProfile": null,
+      "activeCheckTools": [],
+      "findingProposalTools": [],
+      "requiredWorkflowInputs": {}
+    },
+    "workspace-changes@1": {
+      "tools": ["changed_paths", "diff", "rollback_changes"],
+      "infrastructureChannels": {},
+      "requiresWorkspace": true,
+      "requiredSandboxProfile": null,
+      "activeCheckTools": [],
+      "findingProposalTools": [],
+      "requiredWorkflowInputs": {}
+    }
+  }
+}

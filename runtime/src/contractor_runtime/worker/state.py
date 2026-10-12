@@ -14,6 +14,7 @@ from contractor_runtime.contracts import (
     MAX_AGENT_STATE_SNAPSHOT_BYTES,
     AgentStateSnapshot,
 )
+from contractor_runtime.contracts.base import json_byte_size
 from contractor_runtime.telemetry.metrics import MetricsState
 from contractor_runtime.worker.execution import WorkerExecutionState
 from contractor_runtime.worker.observations import validate_workspace_observation
@@ -458,14 +459,8 @@ def _largest_fitting_prefix(
 
 
 def _envelope_size(state: Mapping[str, Any]) -> int:
-    return len(
-        json.dumps(
-            {"apiVersion": API_VERSION, "state": state},
-            ensure_ascii=False,
-            separators=(",", ":"),
-            allow_nan=False,
-        ).encode("utf-8")
-    )
+    # The Server measures the snapshot bound with the same rule (WRK-R165).
+    return json_byte_size({"apiVersion": API_VERSION, "state": state})
 
 
 def _agent_state_snapshot(state: Mapping[str, Any]) -> AgentStateSnapshot:

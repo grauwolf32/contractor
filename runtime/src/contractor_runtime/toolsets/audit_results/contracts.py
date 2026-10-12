@@ -11,6 +11,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Literal
 
+from contractor_runtime.contracts.base import is_blank
 from contractor_runtime.digests import sha256_digest
 
 MAX_ITEMS = 64
@@ -44,7 +45,7 @@ def _tuple(values, maximum):
 def _text(value: str) -> None:
     if (
         not isinstance(value, str)
-        or not value.strip()
+        or is_blank(value)
         or "\x00" in value
         or len(value.encode()) > MAX_SUMMARY_BYTES
     ):

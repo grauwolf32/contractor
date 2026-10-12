@@ -12,6 +12,7 @@ import yaml
 from yaml.nodes import MappingNode, Node, ScalarNode
 from yaml.tokens import AliasToken, AnchorToken, ScalarToken, TagToken
 
+from contractor_runtime.contracts.base import is_blank
 from contractor_runtime.digests import sha256_digest
 
 MEDIA_TYPE = "application/vnd.contractor.agent-skill+zip"
@@ -244,7 +245,9 @@ def _parse_manifest(data: bytes, expected_name: str) -> Manifest:
     body = data[closing + 5 :]
     if len(frontmatter) > MAXIMUM_FRONTMATTER_BYTES:
         raise SkillPackageError(CODE_LIMIT_EXCEEDED, "SKILL.md")
-    if not body.strip():
+    # data is valid UTF-8 and the body follows an ASCII delimiter. The Server's
+    # agentskills manifest check trims the same Unicode whitespace.
+    if is_blank(body.decode("utf-8")):
         raise SkillPackageError(CODE_MANIFEST_INVALID, "SKILL.md")
 
     try:
@@ -319,7 +322,7 @@ def _construct_manifest(root: MappingNode) -> Manifest:
         raise SkillPackageError(CODE_LIMIT_EXCEEDED, "SKILL.md")
     if not _SKILL_NAME.fullmatch(name):
         raise SkillPackageError(CODE_MANIFEST_INVALID, "SKILL.md")
-    if description is None or not description.strip():
+    if description is None or is_blank(description):
         raise SkillPackageError(CODE_MANIFEST_INVALID, "SKILL.md")
     if len(description.encode()) > MAXIMUM_DESCRIPTION_BYTES:
         raise SkillPackageError(CODE_LIMIT_EXCEEDED, "SKILL.md")

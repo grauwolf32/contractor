@@ -24,6 +24,7 @@ from contractor_runtime.contracts import (
     ArtifactRef,
     ArtifactWriteResult,
 )
+from contractor_runtime.contracts.base import is_blank, trim_whitespace
 from contractor_runtime.mtls import verify_control_plane_peer
 
 MAX_ARTIFACT_BYTES = 64 * 1024 * 1024
@@ -372,7 +373,7 @@ class ArtifactClient:
         if expected_revision is None:
             headers["If-None-Match"] = "*"
         else:
-            if not expected_revision.strip() or any(char in expected_revision for char in '\r\n",'):
+            if is_blank(expected_revision) or any(char in expected_revision for char in '\r\n",'):
                 raise ValueError("expected revision is not a valid strong ETag value")
             headers["If-Match"] = json.dumps(expected_revision)
             expected_status = 200
@@ -463,8 +464,8 @@ class MTLSArtifactTransport:
         if timeout_seconds <= 0:
             raise ValueError("Artifact API timeout must be positive")
         if (
-            not runtime_instance_id.strip()
-            or runtime_instance_id != runtime_instance_id.strip()
+            is_blank(runtime_instance_id)
+            or runtime_instance_id != trim_whitespace(runtime_instance_id)
             or len(runtime_instance_id) > 256
         ):
             raise ValueError("Runtime Agent instance ID is invalid")
@@ -525,7 +526,7 @@ class MTLSArtifactTransport:
 def _validate_ref(ref: ArtifactRef) -> None:
     _validate_component("namespace", ref.namespace)
     _validate_component("name", ref.name)
-    if ref.revision is not None and not ref.revision.strip():
+    if ref.revision is not None and is_blank(ref.revision):
         raise ValueError("artifact revision must not be empty")
 
 

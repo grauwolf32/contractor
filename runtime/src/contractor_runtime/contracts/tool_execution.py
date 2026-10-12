@@ -8,7 +8,7 @@ from typing import Any, Literal, Self
 
 from pydantic import Field, model_validator
 
-from contractor_runtime.contracts.base import WireModel
+from contractor_runtime.contracts.base import WireModel, trim_whitespace
 
 ARGUMENT_NAME = r"^[A-Za-z_][A-Za-z0-9_]{0,63}$"
 
@@ -16,7 +16,7 @@ ARGUMENT_NAME = r"^[A-Za-z_][A-Za-z0-9_]{0,63}$"
 def binding_name(value: str) -> bool:
     return (
         0 < len(value.encode("utf-8")) <= 128
-        and value == value.strip()
+        and value == trim_whitespace(value)
         and not any(char in value for char in "\r\n\t\x00")
     )
 

@@ -13,6 +13,32 @@ const bindingName = (value: unknown): value is string =>
   value.trim() === value &&
   ![...value].some((char) => [0, 9, 10, 13].includes(char.charCodeAt(0)));
 
+/**
+ * The workspace target rule (WSP-R13): "" for the workspace root or an NFC
+ * relative POSIX directory of at most 1024 UTF-8 bytes and 32 components
+ * without empty, ".", ".." or control-character components, backslash, URI or
+ * Windows drive (an ASCII letter and a colon). The Server and the Runtime
+ * apply the same rule; api/testdata/v1alpha1/workspace-path-cases.json pins
+ * all three.
+ */
+export function isWorkspaceTarget(target: string): boolean {
+  if (target === "") return true;
+  const parts = target.split("/");
+  return (
+    target === target.normalize("NFC") &&
+    bytes(target) <= 1024 &&
+    !target.startsWith("/") &&
+    !target.includes("\\") &&
+    ![...target].some(
+      (char) => char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127,
+    ) &&
+    !target.includes("://") &&
+    !/^[A-Za-z]:/.test(target) &&
+    parts.length <= 32 &&
+    !parts.some((part) => ["", ".", ".."].includes(part))
+  );
+}
+
 /** Authored checks only; installed templates, tools and credentials require CLI resolution. */
 export function validateAdvanced(draft: Draft): Problem[] {
   const problems: Problem[] = [];
@@ -179,24 +205,7 @@ export function validateAdvanced(draft: Draft): Problem[] {
           )
             error([...sp, "artifact"], "Choose a required stage input alias.");
           const target = s.target;
-          if (
-            typeof target !== "string" ||
-            (target !== "" &&
-              (target !== target.normalize("NFC") ||
-                bytes(target) > 1024 ||
-                target.startsWith("/") ||
-                target.includes("\\") ||
-                [...target].some(
-                  (char) =>
-                    char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127,
-                ) ||
-                target.includes("://") ||
-                /^[A-Za-z]:/.test(target) ||
-                target.split("/").length > 32 ||
-                target
-                  .split("/")
-                  .some((part) => ["", ".", ".."].includes(part))))
-          )
+          if (typeof target !== "string" || !isWorkspaceTarget(target))
             error(
               [...sp, "target"],
               "Use a normalized relative POSIX directory, or an empty root target.",

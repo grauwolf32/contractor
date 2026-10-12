@@ -43,6 +43,43 @@ Operations shows: the tool-name and identity grammars and the capability
 bounds that Go registration, the registration and heartbeat schemas, the
 Runtime models and the public `RuntimeAgentObservation` schema share.
 
+Three text rules hold for every field that applies them, with one definition
+per language. `workspace-path-cases.json` pins the relative workspace path
+grammar (WSP-R13) of workspace targets, the files a Worker reports reading and
+Worker State paths (`contracts.RelativePathProblem`,
+`contracts.base.relative_path_problem`, which the Runtime's project path
+normalizer applies to the NFC form it records, and Studio's
+`isWorkspaceTarget`): a Windows drive is an ASCII letter and a colon, so
+`ж:docs` is an ordinary directory. `blank-text-cases.json` pins blank text
+(CTL-R152): a text field that must not be blank holds more than the Unicode
+White_Space characters Go's `strings.TrimSpace` trims; the information
+separators U+001C..U+001F are text, although Python's `str.isspace` counts
+them, so the Runtime uses `WHITESPACE`, `is_blank` and `trim_whitespace`
+instead of `str.strip`. `json-byte-size-cases.json` pins the compact UTF-8
+JSON size that byte bounds measure (WRK-R37, WRK-R165;
+`contracts.ResultJSONSize`, `json_byte_size`): U+2028 and U+2029 count three
+bytes and `<`, `>` and `&` one.
+
+`memory-reservation-cases.json` holds the purpose-reserved Run Namespaces and,
+per binding, whether it is a reserved Memory binding and whether a Stage or
+Worker result may name it (ART-R114). Go `artifactpolicy` and the Worker
+result check in `contracts`, and the Runtime's `contracts.artifacts`, which the
+Worker, MemoryTools and allocation admission use, read it.
+
+`runtime-settings-bounds-cases.json` holds every numeric `RuntimeSettings`
+bound, the required `telemetry.export` and `export.retry` objects, and the
+export values the Server sends when a Worker RuntimeConfig omits them
+(RCF-R102); Go decoding, the Runtime model and this schema are checked against
+it.
+
+`gateway-recovery-participant-cases.json` holds the model recovery participant
+protocol of `POST /private/v1/allocations/{allocationID}/gateway-recovery`
+(SCH-R168): the updates and which are terminal, the codes a `failed` update may
+carry, the update grammar, the update each attempt outcome produces and the
+update re-delivered after cancellation. The Server's `gatewayrecovery`, used by
+the private API and the Server-side Planner, and the Runtime's recovery client
+are checked against it.
+
 `ArtifactListResult` is one page of versionless refs from the private
 allocation listing. Its optional `nextCursor` (1 to 512 unpadded base64url
 characters, never on an empty page) continues a paged listing and is absent on

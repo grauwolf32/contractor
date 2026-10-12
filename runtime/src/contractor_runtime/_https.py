@@ -17,6 +17,7 @@ import uuid
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 
+from contractor_runtime.contracts.base import is_blank
 from contractor_runtime.strict_json import strict_json_loads
 
 MAX_RESPONSE_HEADERS = 64
@@ -80,7 +81,7 @@ def decode_private_error(body: bytes) -> PrivateError | None:
         or not isinstance(value["code"], str)
         or _PRIVATE_ERROR_CODE.fullmatch(value["code"]) is None
         or not isinstance(value["message"], str)
-        or not value["message"].strip()
+        or is_blank(value["message"])
         or not isinstance(value["retryable"], bool)
         or not isinstance(value["requestId"], str)
         or REQUEST_ID_PATTERN.fullmatch(value["requestId"]) is None

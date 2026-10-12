@@ -1,0 +1,67 @@
+schema_version: "1.0"
+id: V368-018
+title: "Use one reserved-Memory-binding rule in Go and Python"
+milestone: hub-audit-defects-2026-10
+epic: memory
+kind: defect
+priority: P1
+status: completed
+implementation_commit: "462f07b24eef0ca8c39623aeb236bfb601f22d81"
+depends_on: []
+languages: [go, python]
+goal: "make test-wire-cross-language runs the shared Memory reservation cases on both sides."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq; raw reports in docs/research/2026-10-11-hub-audit/), V367-010 follow-up; file:line as of 02bbdcbf, re-verify on current main"
+  finding: >-
+    Go IsReservedMemoryBinding exempts finding-proposals and contractor-
+    system; Python is_reserved_memory_binding does not. Stage results and
+    configuration differ by language.
+  specification:
+    - docs/spec/artifacts/artifact-store.md#ART-R114
+    - docs/spec/artifacts/artifact-store.md#ART-R22
+    - docs/spec/tools/memory.md#MEM-R92
+  siblings: >-
+    Every use of the purpose-reserved list and the memory. prefix was
+    checked. Go: config, scan plans, the Scheduler, the Planner and Memory
+    sessions already used artifactpolicy; contracts.isReservedWorkerResultBinding
+    kept its own three-Namespace list and now uses artifactpolicy, and
+    memory.ArtifactNamePrefix now is artifactpolicy.MemoryArtifactPrefix.
+    Python: the list was copied in allocation admission, the Worker result
+    slot check (worker/runtime.py), MemoryTools and the WorkerResult model
+    (contracts/worker.py, three Namespaces); all now use
+    contracts.artifacts, as do the Memory codec prefix and the tool
+    Worker's additional-output check. Ruled out: the model-visibility
+    lists (ART-R17, ART-R24), a different rule already pinned by
+    artifact-list-cases.json, and the finding proposal client check of the
+    finding-proposals Namespace in artifacts.py (a response check, not a
+    reservation).
+  decision: >-
+    Guarantee: one purpose-reserved list and one reserved Memory binding
+    rule per language, pinned by memory-reservation-cases.json with the
+    exact list and per-binding memoryReserved and resultReserved verdicts
+    that make test-wire-cross-language checks on both sides, including
+    through WorkerCompletion decoding. Go's five-Namespace list wins: the
+    Server already writes finding-proposals only through finding intake
+    and contractor-system only through trusted services, so neither can be
+    an Agent, MemoryTools or result Namespace, and a Worker result naming
+    one is now refused on the wire in both languages (no production flow
+    produces one). The Python rule moved to contracts.artifacts because the
+    kernel WorkerResult model needs it and may not import toolsets.common.
+    ART-R114 records the list without rewriting ART-R16, which V368-022
+    revisits. Alternative rejected: keeping the narrower wire check, which
+    would leave a third list to drift. Reversal: a new purpose-reserved
+    Namespace is added to the fixture first, which fails both sides until
+    each list follows.
+scope:
+  in:
+    - "One rule, a shared fixture read by both sides."
+  out:
+    - "Memory listing (V48-002)."
+acceptance_criteria:
+  - id: A1
+    text: "make test-wire-cross-language runs the shared Memory reservation cases on both sides."
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "make test-wire-cross-language"
+    covers: [A1]

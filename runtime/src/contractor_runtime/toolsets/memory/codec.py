@@ -10,11 +10,13 @@ from typing import Final
 
 import jcs
 
+from contractor_runtime.contracts.artifacts import MEMORY_ARTIFACT_PREFIX
 from contractor_runtime.strict_json import DuplicateJSONKey, unique_json_object
 
 SCHEMA_VERSION: Final = "contractor.memory-note/v1"
 MEDIA_TYPE: Final = "application/vnd.contractor.memory-note+json"
-ARTIFACT_NAME_PREFIX: Final = "memory."
+# A note's binding is a reserved Memory binding (ART-R19), so it uses that prefix.
+ARTIFACT_NAME_PREFIX: Final = MEMORY_ARTIFACT_PREFIX
 MAXIMUM_ARTIFACT_NAME_BYTES: Final = 128
 MAXIMUM_PAYLOAD_BYTES: Final = 32 * 1024
 MAXIMUM_NAME_BYTES: Final = MAXIMUM_ARTIFACT_NAME_BYTES - len(ARTIFACT_NAME_PREFIX.encode("ascii"))

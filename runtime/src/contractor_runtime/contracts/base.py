@@ -59,8 +59,23 @@ MAX_WORKER_COMPLETION_BYTES = 256 * 1024
 MAX_AGENT_STATE_SNAPSHOT_BYTES = 4 * 1024 * 1024
 MAX_STATE_WORKSPACE_PATHS = 10_000
 MAX_STATE_WORKSPACE_PATH_BYTES = 2 * 1024 * 1024
+# The relative workspace path grammar (WSP-R13): workspace targets and the
+# files a Worker reports reading, and the larger Worker State paths.
+MAX_WORKSPACE_TARGET_BYTES = 1024
+MAX_WORKSPACE_TARGET_COMPONENTS = 32
+MAX_WORKER_STATE_PATH_BYTES = 4096
+MAX_WORKER_STATE_PATH_COMPONENTS = 128
 MAX_UINT64 = 2**64 - 1
 _STATE_METRIC_NAME_PATTERN = re.compile(r"^[a-z0-9_]+(?:\.[a-z0-9_]+)*$")
+# Whitespace of the private wire's text checks: the Unicode White_Space
+# characters, which the Server's strings.TrimSpace (unicode.IsSpace) trims.
+# str.strip() and str.isspace() also treat the information separators
+# U+001C..U+001F as whitespace, which the Server accepts as text.
+# api/testdata/v1alpha1/blank-text-cases.json pins the set for both sides.
+WHITESPACE = (
+    "\t\n\v\f\r \x85\xa0\u1680\u2000\u2001\u2002\u2003\u2004\u2005"
+    "\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000"
+)
 
 
 def _to_camel(value: str) -> str:
@@ -68,8 +83,76 @@ def _to_camel(value: str) -> str:
     return first + "".join(part.capitalize() for part in rest)
 
 
+def trim_whitespace(value: str) -> str:
+    """Remove leading and trailing WHITESPACE, as the Server's strings.TrimSpace does."""
+
+    return value.strip(WHITESPACE)
+
+
+def is_blank(value: str) -> bool:
+    """Return whether value is empty or consists only of WHITESPACE."""
+
+    return not trim_whitespace(value)
+
+
+def json_byte_size(value: object) -> int:
+    """Count compact UTF-8 JSON bytes, the measure of every private-wire byte bound.
+
+    The Server measures the same with contracts.ResultJSONSize (WRK-R37): U+2028,
+    U+2029 and other non-ASCII characters count their UTF-8 bytes, and only the
+    escapes JSON requires count extra. api/testdata/v1alpha1/json-byte-size-cases.json
+    pins the rule for both sides. NaN, infinities, unsupported types and lone
+    surrogates raise ValueError or TypeError.
+    """
+
+    return len(
+        json.dumps(value, ensure_ascii=False, separators=(",", ":"), allow_nan=False).encode(
+            "utf-8"
+        )
+    )
+
+
+def relative_path_problem(value: str, *, max_bytes: int, max_components: int) -> str | None:
+    """Return why value is not a relative workspace path, or None when it is one (WSP-R13).
+
+    A relative path is non-empty NFC UTF-8 of at most ``max_bytes`` bytes without a
+    leading slash, backslash, NUL or URI; it has at most ``max_components``
+    components, none empty, "." or ".." or holding a control character, and its
+    first component is not a Windows drive (an ASCII letter and a colon). This is the
+    one Python definition of the rule; the Server's contracts.RelativePathProblem
+    applies it with the same problem texts, and
+    api/testdata/v1alpha1/workspace-path-cases.json pins both. The byte bound is
+    checked first, so the work is bounded by ``max_bytes``.
+    """
+
+    if not value:
+        return "must not be empty"
+    try:
+        size = len(value.encode("utf-8"))
+    except UnicodeEncodeError:
+        return "must be valid UTF-8"
+    if size > max_bytes:
+        return f"exceeds the byte bound of {max_bytes} UTF-8 bytes"
+    if value != unicodedata.normalize("NFC", value):
+        return "must be NFC-normalized"
+    if value.startswith("/") or "\\" in value or "\x00" in value or "://" in value:
+        return "must be a relative POSIX path without a backslash, NUL or URI"
+    parts = value.split("/")
+    if len(parts) > max_components:
+        return f"exceeds the depth bound of {max_components} components"
+    for part in parts:
+        if part in {"", ".", ".."}:
+            return "contains an invalid component: empty, '.' or '..'"
+        if any(ord(character) < 0x20 or ord(character) == 0x7F for character in part):
+            return "contains a control character"
+    first = parts[0]
+    if len(first) >= 2 and first[0].isascii() and first[0].isalpha() and first[1] == ":":
+        return "must not start with a Windows drive"
+    return None
+
+
 def _require_text(field: str, value: str) -> str:
-    if not value.strip():
+    if is_blank(value):
         raise ValueError(f"{field} must not be empty")
     return value
 
@@ -125,35 +208,15 @@ def _bounded_completion(value):
 
 def _require_state_workspace_path(value: str) -> str:
     if (
-        not value
-        or value != unicodedata.normalize("NFC", value)
-        or len(value.encode("utf-8")) > 4096
-        or value.startswith("/")
-        or "\\" in value
-        or "\x00" in value
-        or "://" in value
-    ):
-        raise ValueError("Worker State workspace path is invalid")
-    parts = value.split("/")
-    if len(parts) > 128:
-        raise ValueError("Worker State workspace path is invalid")
-    for part in parts:
-        if part in {"", ".", ".."} or any(
-            ord(character) < 0x20 or ord(character) == 0x7F for character in part
-        ):
-            raise ValueError("Worker State workspace path is invalid")
-    if (
-        len(parts[0]) >= 2
-        and parts[0][0].isascii()
-        and parts[0][0].isalpha()
-        and parts[0][1] == ":"
+        relative_path_problem(
+            value,
+            max_bytes=MAX_WORKER_STATE_PATH_BYTES,
+            max_components=MAX_WORKER_STATE_PATH_COMPONENTS,
+        )
+        is not None
     ):
         raise ValueError("Worker State workspace path is invalid")
     return value
-
-
-def _encoded_state_path_list_size(paths: list[str]) -> int:
-    return len(json.dumps(paths, ensure_ascii=False, separators=(",", ":")).encode("utf-8"))
 
 
 RUNTIME_ADAPTER_REFS = frozenset({"caido-graphql@1", "http-proxy@1", "otlp-http@1"})
@@ -218,7 +281,7 @@ def _require_sorted_unique(field: str, values: list[str], *, maximum: int) -> No
 def _require_runtime_endpoint(field: str, value: str) -> str:
     parsed = urlsplit(value)
     if (
-        value != value.strip()
+        value != trim_whitespace(value)
         or not 1 <= len(value.encode("utf-8")) <= 2048
         or parsed.scheme not in {"http", "https"}
         or not parsed.netloc
@@ -237,27 +300,17 @@ def _require_runtime_endpoint(field: str, value: str) -> str:
 
 
 def _require_workspace_target(value: str) -> str:
+    """Accept "" (the workspace root) or a relative path of the target grammar."""
+
     if value == "":
         return value
-    if (
-        value != unicodedata.normalize("NFC", value)
-        or len(value.encode("utf-8")) > 1024
-        or value.startswith("/")
-        or "\\" in value
-        or "\x00" in value
-        or "://" in value
-    ):
-        raise ValueError("workspace target is invalid")
-    parts = value.split("/")
-    if len(parts) > 32:
-        raise ValueError("workspace target is invalid")
-    for part in parts:
-        if part in {"", ".", ".."} or any(
-            ord(character) < 0x20 or ord(character) == 0x7F for character in part
-        ):
-            raise ValueError("workspace target is invalid")
-    if len(parts[0]) >= 2 and parts[0][0].isalpha() and parts[0][1] == ":":
-        raise ValueError("workspace target is invalid")
+    problem = relative_path_problem(
+        value,
+        max_bytes=MAX_WORKSPACE_TARGET_BYTES,
+        max_components=MAX_WORKSPACE_TARGET_COMPONENTS,
+    )
+    if problem is not None:
+        raise ValueError(f"workspace target {problem}")
     return value
 
 
@@ -332,7 +385,7 @@ def normalize_run_metadata_labels(value: dict[str, str]) -> dict[str, str]:
 
 
 def _require_worker_result_text(value: str) -> str:
-    if not value.strip() or len(value.encode("utf-8")) > MAX_WORKER_RESULT_BYTES:
+    if is_blank(value) or len(value.encode("utf-8")) > MAX_WORKER_RESULT_BYTES:
         raise ValueError("Worker result must contain 1..65536 UTF-8 bytes")
     return value
 

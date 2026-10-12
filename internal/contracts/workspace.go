@@ -6,8 +6,6 @@ package contracts
 
 import (
 	"strings"
-
-	"golang.org/x/text/unicode/norm"
 )
 
 type WorkspaceMode string
@@ -169,31 +167,14 @@ func (s AllocationWorkspaceSpec) Validate() error {
 	return nil
 }
 
+// validateWorkspaceTarget accepts "" (the workspace root) or a relative path
+// of the workspace target grammar (WSP-R13).
 func validateWorkspaceTarget(value string) error {
 	if value == "" {
 		return nil
 	}
-	if value != norm.NFC.String(value) || len([]byte(value)) > 1024 || strings.HasPrefix(value, "/") ||
-		strings.ContainsAny(value, "\\\x00") || strings.Contains(value, "://") {
-		return Invalidf("workspace target is invalid")
-	}
-	parts := strings.Split(value, "/")
-	if len(parts) > 32 {
-		return Invalidf("workspace target is invalid")
-	}
-	for _, part := range parts {
-		if part == "" || part == "." || part == ".." || strings.ContainsAny(part, "\r\n\t") {
-			return Invalidf("workspace target is invalid")
-		}
-		for _, character := range part {
-			if character < 0x20 || character == 0x7f {
-				return Invalidf("workspace target is invalid")
-			}
-		}
-	}
-	first := parts[0]
-	if len(first) >= 2 && ((first[0] >= 'A' && first[0] <= 'Z') || (first[0] >= 'a' && first[0] <= 'z')) && first[1] == ':' {
-		return Invalidf("workspace target is invalid")
+	if problem := RelativePathProblem(value, MaxWorkspaceTargetBytes, MaxWorkspaceTargetComponents); problem != "" {
+		return Invalidf("workspace target %s", problem)
 	}
 	return nil
 }

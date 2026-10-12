@@ -882,7 +882,8 @@ granted attempt, through cancellation or an unexpected failure at any point
 before its terminal update is acknowledged (including while reporting the
 outcome), re-delivers that idempotent update as a bounded best effort, the
 Planner on a context detached from its cancelled invocation, so the leased
-probe is not held until it expires. An attempt abandoned before any outcome
+probe is not held until it expires. A `failed` report is re-delivered as
+`released`. An attempt abandoned before any outcome
 reports `released`, which relinquishes the probe without reopening the blocked
 route or resetting its retry window; a cancelled attempt is never reported as
 a Gateway failure. A terminal update (`succeeded`, `finished` or `released`)
@@ -909,6 +910,28 @@ expiry or the end of the Stage (FAIL-SCH-15).
 
 **SCH-R112.** A retryable failure must be recorded before its request is
 resent.
+
+**SCH-R168.** The participant protocol has one definition in the Server and
+one in the Runtime, pinned by
+[`gateway-recovery-participant-cases.json`](../../../api/testdata/v1alpha1/gateway-recovery-participant-cases.json):
+the updates `acquire`, `failed`, `succeeded`, `finished` and `released`, of
+which the last three are terminal; the codes a `failed` update may carry, which
+are exactly the retryable codes of the shared Gateway failure classification;
+the bounds of an update; the update that reports each attempt outcome, where
+only `failed` carries a code and retry hint and only `failed` resends the
+request; and the update re-delivered after cancellation (SCH-R108).
+
+**SCH-R169.** Recovery routes are retained. A route holds the shared gate of
+one owner model route (SCH-R105) and is keyed by that configuration, not by a
+Run, so the routes are bounded by the distinct Gateway, model, credential and
+transport combinations an owner has used, and an outage recorded on a route
+reaches the next Run that uses it. Ending a Stage drops only its waits, route
+membership and probe (SCH-R107); a probe holder is found through an index
+that holds only routes with a probe in flight or reserved. Failure receipts,
+which make repeated failure reports idempotent (SCH-R106), belong to their
+Run and are deleted with it (LIFE-SCH-4, LIFE-SCH-5). This retention is
+reopened if a route key gains a per-Run or per-allocation value, which a
+PostgreSQL test of two Runs on one configuration detects.
 
 **SCH-R113.** Model-availability recovery does not persist or restore an ADK
 session after Runtime process loss. Which model request is retried during

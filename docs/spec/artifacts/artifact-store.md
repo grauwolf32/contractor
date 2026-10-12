@@ -102,6 +102,7 @@ Reserved Namespaces and name prefixes:
 | `outputs` | Namespace | RunScope | Declared Workflow results, managed by Workflow Scheduler | ART-R14, ART-R90 |
 | `skills` | Namespace | RunScope | Exact read-only Agent Skill packages ([Skills](../tools/skills.md)) | ART-R14, ART-R39, ART-R108, ART-R109 |
 | `contractor-system` | Namespace, hidden | RunScope | Bounded Control Plane records coupled to a Run | ART-R17, ART-R18 |
+| `finding-proposals` | Namespace | RunScope | Finding proposals that Server finding intake writes ([Findings](../findings/findings.md)) | ART-R114 |
 | `memory.` | Name prefix | Non-reserved RunScope Namespaces | Memory notes ([Memory](../tools/memory.md)) | ART-R19 to ART-R22 |
 | `tool-invocation.` | Name prefix | RunScope | Runtime-owned receipts of model-free tool Workers ([Scanners](../tools/scanners.md)) | ART-R23 |
 | `http.body.` | Name prefix | The allocation's logical Namespace | HTTP response bodies ([HTTP and Caido](../tools/http-caido.md)) | ART-R24 |
@@ -270,6 +271,15 @@ key/value store. Owner access is only through the validated repeat-draft
 projection owned by [Runs](../execution/runs.md), which rechecks authorization
 and source scopes.
 
+**ART-R114.** The purpose-reserved RunScope Namespaces are `inputs`,
+`outputs`, `skills`, `finding-proposals` and `contractor-system`. A trusted
+purpose-specific flow owns each one: none can be a Stage Agent Namespace or a
+MemoryTools Namespace, and no Stage result slot or Worker result binds into
+one. The Server and the Runtime apply one list and one reserved Memory binding
+rule (ART-R19 to ART-R22), pinned by
+[`memory-reservation-cases.json`](../../../api/testdata/v1alpha1/memory-reservation-cases.json),
+so a binding one side reserves is reserved by the other.
+
 **ART-R19.** The `memory.` artifact-name prefix is reserved at the
 model-visible Toolset layer in every non-reserved RunScope Namespace.
 `run-artifacts@1` and every other model-visible artifact-backed Toolset,
@@ -295,9 +305,9 @@ bounds, hidden CAS and response-loss reconciliation are owned by
 Rationale: this keeps revisions out of model context without adding another
 network service or Artifact authorization mode.
 
-**ART-R22.** An ordinary artifact named `memory.*` in the
-purpose-reserved `inputs`, `outputs` or `skills` Namespace is governed by that
-Namespace's own contract and is not a Memory note.
+**ART-R22.** An ordinary artifact named `memory.*` in a purpose-reserved
+Namespace (ART-R114) is governed by that Namespace's own contract and is not a
+Memory note.
 
 **ART-R23.** The `tool-invocation.` name prefix in RunScope is
 reserved for the Runtime-owned receipts of model-free tool Workers

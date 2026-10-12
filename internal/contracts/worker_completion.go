@@ -4,6 +4,8 @@ import (
 	"regexp"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 )
 
 const (
@@ -234,11 +236,10 @@ func ValidBoundedOpaqueWorkerID(value string) bool {
 		!strings.ContainsAny(value, "\r\n\t\x00")
 }
 
+// isReservedWorkerResultBinding reports whether a Worker result may not name a
+// binding: one in a purpose-reserved Namespace or a reserved Memory binding
+// (ART-R114, ART-R20), the rule Stage results and the Runtime apply too.
 func isReservedWorkerResultBinding(namespace, name string) bool {
-	switch namespace {
-	case "inputs", "outputs", "skills":
-		return true
-	default:
-		return strings.HasPrefix(name, "memory.")
-	}
+	return artifactpolicy.IsPurposeReservedNamespace(namespace) ||
+		artifactpolicy.IsReservedMemoryBinding(namespace, name)
 }

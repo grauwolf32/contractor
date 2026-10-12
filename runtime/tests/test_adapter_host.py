@@ -10,6 +10,7 @@ from typing import Any
 
 import pytest
 from fakes.spec import allocation_spec
+from fakes.telemetry import SERVER_EXPORT
 from fakes.worker_runtime import StubADKWorkerRuntimeFactory, StubWorkerRuntime
 from pydantic import SecretStr
 
@@ -672,6 +673,7 @@ def configured_spec(
             headers={"Authorization": TELEMETRY_SECRET},
             captureContent=False,
             flushTimeoutSeconds=1,
+            export=SERVER_EXPORT,
         )
         if telemetry
         else None

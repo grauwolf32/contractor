@@ -38,6 +38,16 @@ test-wire-cross-language:
 	go test ./internal/contracts -run '^TestSharedRequiredMember(sMatchSchemas|CasesAreRejected)$$'
 	cd runtime && uv run pytest tests/test_contracts.py -k 'test_shared_required_member_cases_are_rejected'
 	go test ./internal/planner/a2a -run '^TestSharedWorkerResultCasesPassTheA2ADecodePath$$'
+	go test ./internal/contracts ./internal/contracts/reporting ./internal/config -run '^TestShared(WorkspacePathCases|BlankTextCases|JSONByteSizeCases|WorkerStatePathCases|WorkerStateBoundsCountCompactUTF8|WorkspaceTargetCases)$$'
+	cd runtime && uv run pytest tests/test_shared_text_rules.py
+	go test ./internal/artifactpolicy ./internal/contracts -run '^TestShared(MemoryReservationCases|WorkerResultReservedBindings)$$'
+	cd runtime && uv run pytest tests/test_shared_memory_reservation.py
+	go test ./internal/contracts/runtimesettings -run '^TestSharedRuntimeSettingsBoundsCases$$'
+	cd runtime && uv run pytest tests/test_shared_runtime_settings_bounds.py
+	go test ./internal/gatewayrecovery -run '^TestSharedGatewayRecoveryParticipantCases$$'
+	cd runtime && uv run pytest tests/test_shared_gateway_recovery_participant.py
+	go test ./internal/config -run '^TestSharedToolsetDescriptorParity$$'
+	cd runtime && uv run pytest tests/test_capabilities.py -k 'test_shared'
 
 test-config:
 	go test ./internal/config/... ./internal/configload/...

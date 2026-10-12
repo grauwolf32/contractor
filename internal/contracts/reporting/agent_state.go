@@ -1,15 +1,9 @@
 package reporting
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
 	"regexp"
 	"sort"
-	"strings"
-	"unicode/utf8"
-
-	"golang.org/x/text/unicode/norm"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
@@ -137,8 +131,8 @@ func (s AgentStateSnapshot) Validate() error {
 	if err := s.State.validate(); err != nil {
 		return err
 	}
-	encoded, err := marshalAgentStateJSON(s)
-	if err != nil || len(encoded) > MaxAgentStateSnapshotBytes {
+	size, err := contracts.ResultJSONSize(s)
+	if err != nil || size > MaxAgentStateSnapshotBytes {
 		return contracts.Invalidf("AgentStateSnapshot exceeds its bounded contract")
 	}
 	return nil
@@ -275,8 +269,8 @@ func validateStateToolCall(call WorkerStateToolCall) error {
 		return contracts.Invalidf("absent Worker State arguments cannot be marked truncated")
 	}
 	if call.Arguments != nil {
-		encoded, err := marshalAgentStateJSON(call.Arguments)
-		if err != nil || len(encoded) > 4096 {
+		size, err := contracts.ResultJSONSize(call.Arguments)
+		if err != nil || size > 4096 {
 			return contracts.Invalidf("Worker State tool arguments exceed their bound")
 		}
 	}
@@ -357,7 +351,7 @@ func (s WorkerStateWorkspace) validate() error {
 			return contracts.Invalidf("Worker State workspace scope paths must be unique")
 		}
 	}
-	if encoded, err := marshalAgentStateJSON(s.ScopePaths); err != nil || len(encoded) > maxStateWorkspacePathBytes {
+	if size, err := contracts.ResultJSONSize(s.ScopePaths); err != nil || size > maxStateWorkspacePathBytes {
 		return contracts.Invalidf("Worker State workspace scope paths exceed their bound")
 	}
 	interactionPaths := make([]string, 0, len(s.Interactions))
@@ -379,7 +373,7 @@ func (s WorkerStateWorkspace) validate() error {
 		previous = item
 		interactionPaths = append(interactionPaths, item.Path)
 	}
-	if encoded, err := marshalAgentStateJSON(interactionPaths); err != nil || len(encoded) > maxStateWorkspacePathBytes {
+	if size, err := contracts.ResultJSONSize(interactionPaths); err != nil || size > maxStateWorkspacePathBytes {
 		return contracts.Invalidf("Worker State workspace interaction paths exceed their bound")
 	}
 	return nil
@@ -397,39 +391,10 @@ func (i WorkerStateWorkspaceInteraction) validate() error {
 }
 
 func validateStateWorkspacePath(value string) error {
-	if value == "" || !utf8.ValidString(value) || value != norm.NFC.String(value) ||
-		len([]byte(value)) > 4096 || strings.HasPrefix(value, "/") ||
-		strings.ContainsAny(value, "\\\x00") || strings.Contains(value, "://") {
-		return contracts.Invalidf("Worker State workspace path is invalid")
-	}
-	parts := strings.Split(value, "/")
-	if len(parts) > 128 {
-		return contracts.Invalidf("Worker State workspace path is invalid")
-	}
-	for _, part := range parts {
-		if part == "" || part == "." || part == ".." {
-			return contracts.Invalidf("Worker State workspace path is invalid")
-		}
-		for _, character := range part {
-			if character < 0x20 || character == 0x7f {
-				return contracts.Invalidf("Worker State workspace path is invalid")
-			}
-		}
-	}
-	first := parts[0]
-	if len(first) >= 2 && ((first[0] >= 'A' && first[0] <= 'Z') ||
-		(first[0] >= 'a' && first[0] <= 'z')) && first[1] == ':' {
+	if contracts.RelativePathProblem(
+		value, contracts.MaxWorkerStatePathBytes, contracts.MaxWorkerStatePathComponents,
+	) != "" {
 		return contracts.Invalidf("Worker State workspace path is invalid")
 	}
 	return nil
-}
-
-func marshalAgentStateJSON(value any) ([]byte, error) {
-	var buffer bytes.Buffer
-	encoder := json.NewEncoder(&buffer)
-	encoder.SetEscapeHTML(false)
-	if err := encoder.Encode(value); err != nil {
-		return nil, err
-	}
-	return bytes.TrimSuffix(buffer.Bytes(), []byte("\n")), nil
 }

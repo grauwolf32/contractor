@@ -6,6 +6,7 @@ from pathlib import Path
 
 import httpx
 import pytest
+from fakes.telemetry import SERVER_EXPORT
 from opentelemetry.proto.collector.trace.v1.trace_service_pb2 import (
     ExportTraceServiceRequest,
 )
@@ -32,9 +33,7 @@ from contractor_runtime.state import ProcessState
 def _settings(batch_size_bytes: int = 8 * 1024 * 1024) -> TelemetrySettings:
     # Tiny batches keep transport race tests cheap; public validation is tested
     # separately with the supported 1 MiB minimum.
-    export = TelemetryExportSettings.defaults().model_copy(
-        update={"batch_size_bytes": batch_size_bytes}
-    )
+    export = SERVER_EXPORT.model_copy(update={"batch_size_bytes": batch_size_bytes})
     return telemetry_settings().model_copy(update={"capture_content": True, "export": export})
 
 
@@ -69,7 +68,8 @@ def test_configured_export_limits_and_attempts_control_background_delivery() -> 
             '{"adapter":"otlp-http@1","endpoint":"https://collector.example/v1/traces",'
             '"headers":{},"captureContent":true,"flushTimeoutSeconds":10,'
             '"export":{"batchSizeBytes":1048576,"maxAttempts":3,'
-            '"maxPendingSpans":16,"maxPendingBytes":2097152}}'
+            '"maxPendingSpans":16,"maxPendingBytes":2097152,'
+            '"retry":{"initialBackoffMilliseconds":100,"maxBackoffMilliseconds":1000}}}'
         )
         adapter = await OTLPHTTPAdapterFactory(httpx.MockTransport(collector)).create(
             adapter_context(), settings
@@ -103,7 +103,11 @@ def test_byte_capacity_flushes_even_when_next_span_cannot_fit() -> None:
             return httpx.Response(200)
 
         export = TelemetryExportSettings(
-            batchSizeBytes=1048576, maxPendingBytes=1048576, maxPendingSpans=16, maxAttempts=1
+            batchSizeBytes=1048576,
+            maxPendingBytes=1048576,
+            maxPendingSpans=16,
+            maxAttempts=1,
+            retry=SERVER_EXPORT.retry,
         )
         settings = telemetry_settings().model_copy(
             update={"capture_content": True, "export": export}
@@ -129,7 +133,7 @@ def test_byte_capacity_flushes_even_when_next_span_cannot_fit() -> None:
 
 
 def test_eight_mib_triggers_background_batches_and_final_flush_preserves_new_spans() -> None:
-    assert TelemetryExportSettings.defaults().batch_size_bytes == 8 * 1024 * 1024
+    assert SERVER_EXPORT.batch_size_bytes == 8 * 1024 * 1024
 
     async def scenario() -> None:
         entered = asyncio.Event()
@@ -178,18 +182,13 @@ def test_eight_mib_triggers_background_batches_and_final_flush_preserves_new_spa
             assert await asyncio.wait_for(adapter._export_task, timeout=2)
             assert len(payloads) >= 2  # Several batches before finalization.
             assert 0 < instrumentation.pending_spans < 31
-            assert (
-                instrumentation.pending_bytes < TelemetryExportSettings.defaults().batch_size_bytes
-            )
+            assert instrumentation.pending_bytes < SERVER_EXPORT.batch_size_bytes
 
             await adapter.flush()
             assert instrumentation.pending_spans == 0
             assert _span_ids(payloads) == expected
             assert maximum_active == 1
-            assert all(
-                len(payload) <= TelemetryExportSettings.defaults().batch_size_bytes
-                for payload in payloads
-            )
+            assert all(len(payload) <= SERVER_EXPORT.batch_size_bytes for payload in payloads)
             assert adapter.metrics.failed_operations == 0
         finally:
             proceed.set()
@@ -413,14 +412,12 @@ def test_metadata_only_spans_export_when_count_limit_is_reached() -> None:
         instrumentation = adapter.handles.instrumentation
         assert isinstance(instrumentation, OTLPInstrumentation)
         try:
-            for number in range(TelemetryExportSettings.defaults().max_pending_spans):
+            for number in range(SERVER_EXPORT.max_pending_spans):
                 _span(instrumentation, number)
-            assert (
-                instrumentation.pending_bytes < TelemetryExportSettings.defaults().batch_size_bytes
-            )
+            assert instrumentation.pending_bytes < SERVER_EXPORT.batch_size_bytes
             assert adapter._export_task is not None
             assert await asyncio.wait_for(adapter._export_task, timeout=1)
-            assert len(_span_ids(payloads)) == TelemetryExportSettings.defaults().max_pending_spans
+            assert len(_span_ids(payloads)) == SERVER_EXPORT.max_pending_spans
             assert instrumentation.pending_spans == 0
             assert adapter.metrics.failed_operations == 0
         finally:

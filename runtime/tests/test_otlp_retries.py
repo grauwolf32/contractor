@@ -10,6 +10,7 @@ from pathlib import Path
 
 import httpx
 import pytest
+from fakes.telemetry import SERVER_EXPORT
 from jsonschema import Draft202012Validator
 from opentelemetry.proto.collector.trace.v1.trace_service_pb2 import ExportTraceServiceResponse
 from referencing import Registry, Resource
@@ -27,7 +28,7 @@ from contractor_runtime.contracts import (
 
 
 def settings(*, attempts: int = 3, initial: int = 10, maximum: int = 40):
-    export = TelemetryExportSettings.defaults().model_copy(
+    export = SERVER_EXPORT.model_copy(
         update={
             "max_attempts": attempts,
             "retry": TelemetryRetrySettings(
