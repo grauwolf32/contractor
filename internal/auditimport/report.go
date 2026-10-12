@@ -197,7 +197,7 @@ func (i *Importer) Finalize(
 	if !profile.HasPreparation() && baseline.Inventory.Gaps == nil {
 		return false, fmt.Errorf("%w: report inventory gaps are absent", ErrPermanent)
 	}
-	rounds, err := i.store.ListRounds(ctx, snapshot.Audit.AuditID)
+	rounds, err := i.reads.ListRounds(ctx, snapshot.Audit.AuditID)
 	if err != nil {
 		return false, err
 	}
@@ -221,7 +221,7 @@ func (i *Importer) Finalize(
 		}
 	}
 	if profile.HasPreparation() {
-		link, err := i.store.GetArtifactLink(ctx, snapshot.Audit.AuditID, auditstore.InitialInventoryLogicalKey)
+		link, err := i.reads.GetArtifactLink(ctx, snapshot.Audit.AuditID, auditstore.InitialInventoryLogicalKey)
 		if err != nil {
 			return false, err
 		}
@@ -250,7 +250,7 @@ func (i *Importer) Finalize(
 // revision, so the candidate pinned to the snapshot revision is this
 // attempt's candidate. Any other precondition failure is returned.
 func (i *Importer) replayedProposal(ctx context.Context, audit auditstore.Audit, cause error) (bool, error) {
-	candidate, err := i.store.GetReportCandidate(ctx, audit.AuditID)
+	candidate, err := i.reads.GetReportCandidate(ctx, audit.AuditID)
 	if errors.Is(err, auditstore.ErrNotFound) {
 		return false, cause
 	}
@@ -277,7 +277,7 @@ func (i *Importer) publishReport(
 	if err != nil {
 		return false, err
 	}
-	attempts, err := i.store.CollectionDispositionCounts(ctx, snapshot.Audit.AuditID)
+	attempts, err := i.reads.CollectionDispositionCounts(ctx, snapshot.Audit.AuditID)
 	if err != nil {
 		return false, err
 	}

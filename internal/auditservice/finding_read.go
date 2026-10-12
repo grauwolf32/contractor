@@ -65,7 +65,7 @@ SELECT `+findingRowColumns+`
 	}
 	rows.Close()
 	if len(base) == 0 {
-		if _, err := auditstore.NewPostgresStore(s.pool).Get(ctx, params.OwnerID, params.AuditID); err != nil {
+		if _, err := s.reads().Get(ctx, params.OwnerID, params.AuditID); err != nil {
 			return nil, err
 		}
 	}

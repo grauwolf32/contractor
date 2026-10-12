@@ -78,8 +78,7 @@ func (s *Service) CreateDraft(
 	if err := validateCreateParams(params); err != nil {
 		return auditstore.Audit{}, false, err
 	}
-	store := auditstore.NewPostgresStore(s.pool)
-	if replay, found, err := store.LookupMutationReplay(
+	if replay, found, err := s.owners().LookupMutationReplay(
 		ctx, params.OwnerID, auditstore.MutationCreate,
 		params.IdempotencyKey, params.RequestDigest,
 	); err != nil || found {
@@ -126,7 +125,7 @@ func (s *Service) CreateDraft(
 	if err != nil {
 		return auditstore.Audit{}, false, err
 	}
-	return store.CreateDraft(ctx, auditstore.CreateDraftParams{
+	return s.owners().CreateDraft(ctx, auditstore.CreateDraftParams{
 		AuditID: params.AuditID, OwnerID: params.OwnerID, ProjectID: params.ProjectID,
 		Profile: auditstore.ProfileIdentity{
 			Name: profile.Ref.Name, Version: profile.Ref.Version, Digest: profile.Ref.Digest,
@@ -147,35 +146,34 @@ func (s *Service) CreateDraft(
 func (s *Service) Get(
 	ctx context.Context, ownerID, auditID string,
 ) (auditstore.Audit, error) {
-	return auditstore.NewPostgresStore(s.pool).Get(ctx, ownerID, auditID)
+	return s.reads().Get(ctx, ownerID, auditID)
 }
 
 func (s *Service) List(
 	ctx context.Context, params auditstore.ListParams,
 ) ([]auditstore.Audit, error) {
-	return auditstore.NewPostgresStore(s.pool).List(ctx, params)
+	return s.reads().List(ctx, params)
 }
 
 func (s *Service) ListItems(
 	ctx context.Context, params auditstore.ListItemsParams,
 ) ([]auditstore.Item, error) {
-	return auditstore.NewPostgresStore(s.pool).ListItemsPage(ctx, params)
+	return s.reads().ListItemsPage(ctx, params)
 }
 
 func (s *Service) ListItemAttempts(
 	ctx context.Context, ownerID, auditID string, itemIDs []string,
 ) (map[string][]auditstore.ItemAttempt, error) {
-	return auditstore.NewPostgresStore(s.pool).ListItemAttempts(ctx, ownerID, auditID, itemIDs)
+	return s.reads().ListItemAttempts(ctx, ownerID, auditID, itemIDs)
 }
 
 func (s *Service) GetRound(
 	ctx context.Context, ownerID, auditID, roundID string,
 ) (auditstore.Round, error) {
-	store := auditstore.NewPostgresStore(s.pool)
-	if _, err := store.Get(ctx, ownerID, auditID); err != nil {
+	if _, err := s.reads().Get(ctx, ownerID, auditID); err != nil {
 		return auditstore.Round{}, err
 	}
-	return store.GetRound(ctx, auditID, roundID)
+	return s.reads().GetRound(ctx, auditID, roundID)
 }
 
 // CoveragePage is one page of a Round's coverage rows, all read at
@@ -195,15 +193,14 @@ func (s *Service) ListCoverage(
 	afterOrdinal, limit int,
 	auditRevision *uint64,
 ) (CoveragePage, error) {
-	store := auditstore.NewPostgresStore(s.pool)
-	audit, err := store.Get(ctx, ownerID, auditID)
+	audit, err := s.reads().Get(ctx, ownerID, auditID)
 	if err != nil {
 		return CoveragePage{}, err
 	}
 	if auditRevision != nil && *auditRevision != audit.Revision {
 		return CoveragePage{}, auditstore.ErrConflict
 	}
-	rows, err := store.ListCoverage(ctx, auditID, roundID, afterOrdinal, limit)
+	rows, err := s.reads().ListCoverage(ctx, auditID, roundID, afterOrdinal, limit)
 	if err != nil {
 		return CoveragePage{}, err
 	}
@@ -221,18 +218,17 @@ func (s *Service) ListCoverage(
 func (s *Service) GetReport(
 	ctx context.Context, ownerID, auditID string,
 ) (ReportProjection, error) {
-	store := auditstore.NewPostgresStore(s.pool)
-	audit, err := store.Get(ctx, ownerID, auditID)
+	audit, err := s.reads().Get(ctx, ownerID, auditID)
 	if err != nil {
 		return ReportProjection{}, err
 	}
-	machine, machineErr := store.GetArtifactLink(ctx, auditID, auditstore.ReportMachineLogicalKey)
-	summary, summaryErr := store.GetArtifactLink(ctx, auditID, auditstore.ReportSummaryLogicalKey)
+	machine, machineErr := s.reads().GetArtifactLink(ctx, auditID, auditstore.ReportMachineLogicalKey)
+	summary, summaryErr := s.reads().GetArtifactLink(ctx, auditID, auditstore.ReportSummaryLogicalKey)
 	status := ReportReady
 	var review *ReviewRequest
 	if audit.State == auditstore.AuditWaitingReview &&
 		errors.Is(machineErr, auditstore.ErrNotFound) && errors.Is(summaryErr, auditstore.ErrNotFound) {
-		candidate, candidateErr := store.GetReportCandidate(ctx, auditID)
+		candidate, candidateErr := s.reads().GetReportCandidate(ctx, auditID)
 		if candidateErr == nil {
 			machine, summary = candidate.Machine, candidate.Summary
 			machineErr, summaryErr, status = nil, nil, ReportProposed

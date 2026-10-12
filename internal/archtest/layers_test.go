@@ -129,7 +129,9 @@ var layers = []layerSpec{
 			"internal/auditimport",
 			"internal/auditscan",
 			"internal/auditservice",
-			"internal/auditstore",
+			// The Audit store vocabulary, its PostgreSQL implementation and
+			// the seam packages that export it.
+			"internal/auditstore/...",
 			"internal/evalcoordinator",
 			"internal/evalservice",
 			"internal/evalstore",
@@ -170,3 +172,20 @@ var layers = []layerSpec{
 // why the import exists and how it should be removed. Do not add an entry to
 // silence a new violation without both.
 var knownViolations = []knownViolation{}
+
+// forbiddenImports are imports the layers allow but a boundary inside a layer
+// does not. TestForbiddenImports (check_test.go) fails when a package that
+// from matches imports to. from is a package path, a "dir/..." pattern, or
+// "..." for every package; each rule says why.
+var forbiddenImports = []forbiddenImport{
+	{
+		from: "internal/auditservice/...", to: "internal/auditstore/claimstore",
+		reason: "the owner-facing Audit service must not hold the commands the Audit controller " +
+			"runs under its claim; it reaches Audits through the owner, review and query seams",
+	},
+	{
+		from: "...", to: "internal/auditstore/auditstoretest",
+		reason: "test support joins every Audit store seam, so production code would hold " +
+			"the seams it must not, such as the claim-bound commands",
+	},
+}

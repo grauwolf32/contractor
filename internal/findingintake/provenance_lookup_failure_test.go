@@ -12,6 +12,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -153,7 +154,7 @@ func auditSubmissionGrant(
 			Digest: digest(name),
 		}
 	}
-	audits := auditstore.NewPostgresStore(pool)
+	audits := auditstoretest.NewStore(pool)
 	audit, _, err := audits.CreateDraft(ctx, auditstore.CreateDraftParams{
 		AuditID: runID + "-audit", OwnerID: ownerID, ProjectID: projectID,
 		Profile: auditstore.ProfileIdentity{Name: "profile", Version: "1", Digest: digest("profile")},
@@ -228,7 +229,7 @@ func auditSubmissionGrant(
 		}); err != nil {
 			return err
 		}
-		if _, err := auditstore.NewPostgresStore(tx).BindRun(ctx, auditstore.BindRunParams{
+		if _, err := auditstoretest.NewStore(tx).BindRun(ctx, auditstore.BindRunParams{
 			Claim: claim, ExecutionID: execution.ExecutionID, RunID: runID,
 		}); err != nil {
 			return err

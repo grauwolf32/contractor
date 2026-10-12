@@ -16,6 +16,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -133,7 +134,7 @@ func TestAuditDraftStartReplayAndAtomicUnsupportedRollback(t *testing.T) {
 			}
 		})
 	}
-	holds, err := auditstore.NewPostgresStore(pool).ListHeldAuditIDsByLLMCredential(ctx, "development-worker", 10)
+	holds, err := auditstoretest.NewStore(pool).ListHeldAuditIDsByLLMCredential(ctx, "development-worker", 10)
 	if err != nil || len(holds) != 1 || holds[0] != draft.AuditID {
 		t.Fatalf("credential holds = (%v, %v)", holds, err)
 	}
@@ -333,7 +334,7 @@ func TestAuditDraftStartReplayAndAtomicUnsupportedRollback(t *testing.T) {
 	if err != nil || len(approvedItems) != 1 || approvedItems[0].State != auditstore.ItemReady {
 		t.Fatalf("approved manual item state = (%+v, %v)", approvedItems, err)
 	}
-	claims, err := auditstore.NewPostgresStore(pool).Claim(ctx, auditstore.ClaimParams{
+	claims, err := auditstoretest.NewStore(pool).Claim(ctx, auditstore.ClaimParams{
 		HolderID: "controller-manual-approval", Lease: 20 * time.Second, Limit: 10,
 	})
 	if err != nil {
@@ -344,19 +345,19 @@ func TestAuditDraftStartReplayAndAtomicUnsupportedRollback(t *testing.T) {
 		if claim.AuditID == manualDraft.AuditID {
 			manualClaim = claim
 		} else {
-			_ = auditstore.NewPostgresStore(pool).ReleaseClaim(ctx, claim)
+			_ = auditstoretest.NewStore(pool).ReleaseClaim(ctx, claim)
 		}
 	}
 	if manualClaim.AuditID == "" {
 		t.Fatal("manual Audit was not claimable after approval")
 	}
-	if _, err := auditstore.NewPostgresStore(pool).TransitionRound(ctx, auditstore.RoundTransitionParams{
+	if _, err := auditstoretest.NewStore(pool).TransitionRound(ctx, auditstore.RoundTransitionParams{
 		Claim: manualClaim, RoundID: manualStarted.Round.RoundID,
 		ExpectedRevision: manualStarted.Round.Revision,
 		ExpectedState:    auditstore.RoundAccepted, TargetState: auditstore.RoundExecuting,
 	}); err != nil {
-		currentAudit, auditErr := auditstore.NewPostgresStore(pool).Get(ctx, project.OwnerID, manualDraft.AuditID)
-		currentRound, roundErr := auditstore.NewPostgresStore(pool).GetRound(
+		currentAudit, auditErr := auditstoretest.NewStore(pool).Get(ctx, project.OwnerID, manualDraft.AuditID)
+		currentRound, roundErr := auditstoretest.NewStore(pool).GetRound(
 			ctx, manualDraft.AuditID, manualStarted.Round.RoundID,
 		)
 		t.Fatalf("transition approved manual Round: %v; audit=(state=%s revision=%d deadline=%v, %v); round=(state=%s revision=%d, %v)",
@@ -369,7 +370,7 @@ UPDATE audit_review_requests SET expires_at = clock_timestamp() - interval '1 se
 		t.Fatal(err)
 	}
 	roundID := manualStarted.Round.RoundID
-	_, inserted, err := auditstore.NewPostgresStore(pool).CreateExecutionIntent(ctx,
+	_, inserted, err := auditstoretest.NewStore(pool).CreateExecutionIntent(ctx,
 		auditstore.CreateExecutionIntentParams{
 			Claim: manualClaim, ExecutionID: "execution-expired-approval",
 			RoundID: &roundID, Role: auditstore.ExecutionCheck, WorkflowRole: "check",
@@ -384,7 +385,7 @@ UPDATE audit_review_requests SET expires_at = clock_timestamp() - interval '1 se
 	if !errors.Is(err, auditstore.ErrPrecondition) || inserted {
 		t.Fatalf("expired exact approval execution = (%t, %v)", inserted, err)
 	}
-	_ = auditstore.NewPostgresStore(pool).ReleaseClaim(ctx, manualClaim)
+	_ = auditstoretest.NewStore(pool).ReleaseClaim(ctx, manualClaim)
 
 	rejectedDraft, _, err := service.CreateDraft(ctx, CreateDraftParams{
 		AuditID: "audit-api-manual-rejected", OwnerID: project.OwnerID, ProjectID: project.ProjectID,
@@ -763,7 +764,7 @@ func TestAuditReportAcceptanceUsesFrozenCandidate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	store := auditstore.NewPostgresStore(pool)
+	store := auditstoretest.NewStore(pool)
 	audit, _, err := store.CreateDraft(ctx, auditstore.CreateDraftParams{
 		AuditID: "audit-report-review", OwnerID: project.OwnerID, ProjectID: project.ProjectID,
 		Profile:         auditstore.ProfileIdentity{Name: "report-review", Version: "1", Digest: serviceTestDigest("profile")},
@@ -893,14 +894,14 @@ UPDATE audit_review_requests
 		_ = expiryTx.Rollback(ctx)
 		t.Fatal(err)
 	}
-	changed, err := auditstore.NewPostgresStore(expiryTx).ExpireReportReview(
+	changed, err := auditstoretest.NewStore(expiryTx).ExpireReportReview(
 		ctx, claim, waiting.Revision,
 	)
 	if err != nil || !changed {
 		_ = expiryTx.Rollback(ctx)
 		t.Fatalf("expire exact report review = (%t, %v)", changed, err)
 	}
-	expiredAudit, err := auditstore.NewPostgresStore(expiryTx).Get(
+	expiredAudit, err := auditstoretest.NewStore(expiryTx).Get(
 		ctx, project.OwnerID, audit.AuditID,
 	)
 	if err != nil || expiredAudit.State != auditstore.AuditFailed ||
@@ -922,14 +923,14 @@ UPDATE audit_review_requests
 		_ = rejectTx.Rollback(ctx)
 		t.Fatalf("reject exact report candidate: %v", err)
 	}
-	rejected, err := auditstore.NewPostgresStore(rejectTx).Get(ctx, project.OwnerID, audit.AuditID)
+	rejected, err := auditstoretest.NewStore(rejectTx).Get(ctx, project.OwnerID, audit.AuditID)
 	if err != nil || rejected.State != auditstore.AuditFailed || rejected.StopReason == nil ||
 		rejected.StopReason.Code != "report_rejected" || rejected.Revision != waiting.Revision+1 ||
 		rejected.Revision != rejected.EventSequence {
 		_ = rejectTx.Rollback(ctx)
 		t.Fatalf("rejected report transaction = (%+v, %v)", rejected, err)
 	}
-	rejectEvents, err := auditstore.NewPostgresStore(rejectTx).ListEvents(
+	rejectEvents, err := auditstoretest.NewStore(rejectTx).ListEvents(
 		ctx, audit.AuditID, rejected.EventSequence-1, 1,
 	)
 	if err != nil || len(rejectEvents) != 1 || rejectEvents[0].Kind != "audit.state_changed" ||
@@ -1028,7 +1029,7 @@ func TestAuditFindingReviewHistoryAndDeletedRunProvenance(t *testing.T) {
 		t.Fatal(err)
 	}
 	const auditID = "audit-finding-review"
-	if _, _, err := auditstore.NewPostgresStore(pool).CreateDraft(ctx, auditstore.CreateDraftParams{
+	if _, _, err := auditstoretest.NewStore(pool).CreateDraft(ctx, auditstore.CreateDraftParams{
 		AuditID: auditID, OwnerID: ownerID, ProjectID: project.ProjectID,
 		Profile: auditstore.ProfileIdentity{
 			Name: "finding-review", Version: "1", Digest: serviceTestDigest("finding-profile"),
@@ -1086,7 +1087,7 @@ func TestAuditFindingReviewHistoryAndDeletedRunProvenance(t *testing.T) {
 		decided.Finding.AnalystSeverity == nil || *decided.Finding.AnalystSeverity != SeverityHigh {
 		t.Fatalf("true-positive decision = (%+v, %v)", decided, err)
 	}
-	reportFindings, more, err := auditstore.NewPostgresStore(pool).ListReportFindings(ctx, auditstore.ReportFindingPageParams{
+	reportFindings, more, err := auditstoretest.NewStore(pool).ListReportFindings(ctx, auditstore.ReportFindingPageParams{
 		AuditID: auditID, Section: auditstore.ReportSectionConfirmed, Limit: 10, ProjectionBytes: 1 << 20,
 	})
 	var reportFinding *auditstore.ReportFinding

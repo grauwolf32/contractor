@@ -5,11 +5,12 @@ import (
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
 )
 
 func TestAuditReadsRejectHistoricalProvenanceWithoutRewritingIt(t *testing.T) {
 	ctx, pool, _, started, _ := newTimeControlAudit(t, 7200)
-	store := auditstore.NewPostgresStore(pool)
+	store := auditstoretest.NewStore(pool)
 	items, err := store.ListItems(ctx, started.Audit.AuditID)
 	if err != nil || len(items) == 0 {
 		t.Fatalf("current items = %+v, %v", items, err)
@@ -88,7 +89,7 @@ clock_timestamp(),$1::jsonb,clock_timestamp() FROM audit_items WHERE item_id=$2`
 				if err := tx.QueryRow(ctx, snapshot).Scan(&before); err != nil {
 					t.Fatal(err)
 				}
-				reader := auditstore.NewPostgresStore(tx)
+				reader := auditstoretest.NewStore(tx)
 				for range 2 {
 					if kind == "item" {
 						rows, readErr := reader.ListItems(ctx, started.Audit.AuditID)

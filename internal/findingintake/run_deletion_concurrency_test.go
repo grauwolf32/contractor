@@ -14,6 +14,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -63,7 +64,7 @@ func TestPostgresFindingImportSerializesWithRunDeletion(t *testing.T) {
 			len(receipt.AuditHolds) != 1 || receipt.Document.ClientKey != "candidate" || !receipt.Proposal.Ref.SameExact(f.request.Proposal) {
 			t.Fatalf("retained import after deletion = %+v, %v", receipt, err)
 		}
-		audit, err := auditstore.NewPostgresStore(f.pool).Get(f.ctx, f.request.OwnerID, f.request.AuditID)
+		audit, err := auditstoretest.NewStore(f.pool).Get(f.ctx, f.request.OwnerID, f.request.AuditID)
 		if err != nil || audit.Revision != 3 {
 			t.Fatalf("draft + import + deletion revision = %d, %v", audit.Revision, err)
 		}
@@ -110,7 +111,7 @@ func TestPostgresFindingImportSerializesWithRunDeletion(t *testing.T) {
 				if err := f.pool.QueryRow(f.ctx, `SELECT count(*) FROM finding_proposal_audit_holds`).Scan(&holds); err != nil || holds != 0 {
 					t.Fatalf("late import created %d holds: %v", holds, err)
 				}
-				audit, err := auditstore.NewPostgresStore(f.pool).Get(f.ctx, f.request.OwnerID, f.request.AuditID)
+				audit, err := auditstoretest.NewStore(f.pool).Get(f.ctx, f.request.OwnerID, f.request.AuditID)
 				if err != nil || audit.Revision != 1 {
 					t.Fatalf("unaffected Audit revision = %d, %v", audit.Revision, err)
 				}
@@ -130,7 +131,7 @@ func TestPostgresFindingImportSerializesWithRunDeletion(t *testing.T) {
 			if err != nil || receipt.Origin.RunDeleted || receipt.Retention != RetentionAuditHeld || len(receipt.AuditHolds) != 1 {
 				t.Fatalf("import after rollback = %+v, %v", receipt, err)
 			}
-			audit, err := auditstore.NewPostgresStore(f.pool).Get(f.ctx, f.request.OwnerID, f.request.AuditID)
+			audit, err := auditstoretest.NewStore(f.pool).Get(f.ctx, f.request.OwnerID, f.request.AuditID)
 			if err != nil || audit.Revision != 2 {
 				t.Fatalf("rollback retained a deletion revision: %d, %v", audit.Revision, err)
 			}
@@ -145,7 +146,7 @@ func TestPostgresFindingRunDeletionSerializesWithAuditPurge(t *testing.T) {
 			if _, _, err := f.intake.ImportIntoAudit(f.ctx, f.request); err != nil {
 				t.Fatal(err)
 			}
-			audits := auditstore.NewPostgresStore(f.pool)
+			audits := auditstoretest.NewStore(f.pool)
 			if _, _, err := audits.RequestDelete(f.ctx, auditstore.DeleteParams{
 				OwnerID: f.request.OwnerID, AuditID: f.request.AuditID, ExpectedRevision: 2,
 				IdempotencyKey: "delete-audit", RequestDigest: auditdomain.DigestBytes([]byte("delete-audit")),
@@ -169,9 +170,9 @@ func TestPostgresFindingRunDeletionSerializesWithAuditPurge(t *testing.T) {
 				if err := rundeletion.New(tx).DeleteReleasedTerminalRun(f.ctx, f.request.OwnerID, f.request.RunID); err != nil {
 					t.Fatal(err)
 				}
-				go func() { finished <- auditstore.NewPostgresStore(actorPool).PurgeClaimed(f.ctx, claim, namespace) }()
+				go func() { finished <- auditstoretest.NewStore(actorPool).PurgeClaimed(f.ctx, claim, namespace) }()
 			} else {
-				if err := auditstore.NewPostgresStore(tx).PurgeClaimed(f.ctx, claim, namespace); err != nil {
+				if err := auditstoretest.NewStore(tx).PurgeClaimed(f.ctx, claim, namespace); err != nil {
 					t.Fatal(err)
 				}
 				go func() {
@@ -232,7 +233,7 @@ func newFindingImportFixture(t *testing.T, direct bool) deletionImportFixture {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := auditstore.NewPostgresStore(pool).CreateDraft(ctx, auditstore.CreateDraftParams{
+	if _, _, err := auditstoretest.NewStore(pool).CreateDraft(ctx, auditstore.CreateDraftParams{
 		AuditID: auditID, OwnerID: owner, ProjectID: projectID,
 		Profile:         auditstore.ProfileIdentity{Name: "profile", Version: "1", Digest: auditdomain.DigestBytes([]byte("profile"))},
 		ProfileSnapshot: json.RawMessage(`{"interaction":{"findingConfirmation":"human-required"}}`), InputSelection: json.RawMessage(`{}`),

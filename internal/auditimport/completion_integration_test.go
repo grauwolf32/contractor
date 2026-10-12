@@ -25,12 +25,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
-
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -45,6 +43,8 @@ import (
 	"github.com/grauwolf32/contractor/internal/runservice"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // The bridge runs the pinned ADK Runner in a separate Python process. Inputs,
@@ -143,7 +143,7 @@ type completionFixture struct {
 	pool                      *pgxpool.Pool
 	id                        string
 	artifacts                 *artifacts.Service
-	audits                    *auditstore.PostgresStore
+	audits                    *auditstoretest.Store
 	runs                      *runstore.PostgresStore
 	service                   *runservice.Service
 	profile                   config.ResolvedAuditProfile
@@ -167,7 +167,7 @@ func newCompletionFixtureWithInteraction(t *testing.T, pool *pgxpool.Pool, accep
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	t.Cleanup(cancel)
-	f := &completionFixture{ctx: ctx, pool: pool, id: fmt.Sprintf("fixture-%d", time.Now().UnixNano()), artifacts: artifacts.NewService(artifacts.NewPostgresRepository(pool)), audits: auditstore.NewPostgresStore(pool), runs: runstore.NewPostgresStore(pool), keys: []string{"first", "second"}}
+	f := &completionFixture{ctx: ctx, pool: pool, id: fmt.Sprintf("fixture-%d", time.Now().UnixNano()), artifacts: artifacts.NewService(artifacts.NewPostgresRepository(pool)), audits: auditstoretest.NewStore(pool), runs: runstore.NewPostgresStore(pool), keys: []string{"first", "second"}}
 	projects := projectstore.NewPostgresStore(pool)
 	_, _, err := projects.Create(ctx, projectstore.CreateParams{ProjectID: f.id, OwnerID: "owner", Kind: projectstore.KindProject, Name: "Completion gate", IdempotencyKey: f.id, RequestDigest: completionDigest([]byte(f.id))})
 	mustCompletion(t, err)
@@ -257,7 +257,7 @@ func newCompletionFixtureWithInteraction(t *testing.T, pool *pgxpool.Pool, accep
 		},
 		AuditTransaction: func(ctx context.Context, fn func(runservice.AuditRunWriter, *artifacts.Service, runservice.AuditExecutionWriter) error) error {
 			return persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-				return fn(runstore.NewPostgresStore(tx), artifacts.NewService(artifacts.NewPostgresRepository(tx)), auditstore.NewPostgresStore(tx))
+				return fn(runstore.NewPostgresStore(tx), artifacts.NewService(artifacts.NewPostgresRepository(tx)), auditstoretest.NewStore(tx))
 			})
 		},
 	})
@@ -324,7 +324,7 @@ func (f *completionFixture) collect(t *testing.T, outcome runstore.WorkflowRunSt
 	mustCompletion(t, err)
 	access, err := NewArtifactAccess(f.artifacts)
 	mustCompletion(t, err)
-	importer, err := New(f.audits, f.runs, access)
+	importer, err := New(f.audits, f.audits, f.runs, access)
 	mustCompletion(t, err)
 	changed, err := importer.Collect(f.ctx, f.claim, snapshot, execution)
 	mustCompletion(t, err)

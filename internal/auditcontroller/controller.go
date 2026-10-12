@@ -474,7 +474,7 @@ func (c *Controller) resumeOneIntent(
 		if execution.State != auditstore.ExecutionIntent || execution.RunID != nil {
 			continue
 		}
-		members, err := c.store.ListExecutionItems(ctx, execution.ExecutionID)
+		members, err := c.reads.ListExecutionItems(ctx, execution.ExecutionID)
 		if err != nil {
 			return false, err
 		}
@@ -487,7 +487,7 @@ func (c *Controller) resumeOneIntent(
 			for index, member := range members {
 				itemIDs[index] = member.ItemID
 			}
-			items, readErr := c.store.ListItemsByIDs(ctx, snapshot.Audit.AuditID, itemIDs)
+			items, readErr := c.reads.ListItemsByIDs(ctx, snapshot.Audit.AuditID, itemIDs)
 			if readErr != nil {
 				return false, readErr
 			}

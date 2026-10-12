@@ -417,11 +417,11 @@ outlasts its retries is the retryable `503 storage_transaction_conflict`
     [`internal/rundeletion/deleter_postgres_test.go`](../../../internal/rundeletion/deleter_postgres_test.go).
     So do the Audit start staging lock and resume renewal; test
     `TestStartStagingLockRequiresTransaction` in
-    [`internal/auditstore/transaction_bound_test.go`](../../../internal/auditstore/transaction_bound_test.go).
+    [`internal/auditstore/internal/pgstore/transaction_bound_test.go`](../../../internal/auditstore/internal/pgstore/transaction_bound_test.go).
     The Audit reconcile snapshot is one commit on a pool and runs inside a
     caller's transaction; test
     `TestPostgresReconcileSnapshotReadsOneCommitOnAPoolAndInACallerTransaction`
-    in [`internal/auditstore/reconcile_snapshot_postgres_test.go`](../../../internal/auditstore/reconcile_snapshot_postgres_test.go).
+    in [`internal/auditstore/internal/pgstore/reconcile_snapshot_postgres_test.go`](../../../internal/auditstore/internal/pgstore/reconcile_snapshot_postgres_test.go).
 14. A transaction begun outside InTx keeps the operation budget (PER-R19);
     tests `TestPostgresBeginTxAppliesTheOperationBudget` in
     [`internal/persistence/postgres/within_postgres_test.go`](../../../internal/persistence/postgres/within_postgres_test.go)
@@ -431,7 +431,7 @@ outlasts its retries is the retryable `503 storage_transaction_conflict`
     caller's transaction, and a concurrent create is replayed there (PER-R20);
     tests `TestPostgresRecoveryPathsRunInsideACallerTransaction` and
     `TestPostgresCreateDraftReplaysAConcurrentWinnerInsideATransaction` in
-    [`internal/auditstore/transaction_recovery_postgres_test.go`](../../../internal/auditstore/transaction_recovery_postgres_test.go),
+    [`internal/auditstore/internal/pgstore/transaction_recovery_postgres_test.go`](../../../internal/auditstore/internal/pgstore/transaction_recovery_postgres_test.go),
     `TestPostgresAuditPreparationStartRecoversInsideACallerTransaction` in
     [`internal/artifacts/audit_preparation_transaction_postgres_test.go`](../../../internal/artifacts/audit_preparation_transaction_postgres_test.go)
     and `TestPostgresSavepointQueryRowKeepsTheCallerTransactionUsable` in
@@ -444,7 +444,7 @@ outlasts its retries is the retryable `503 storage_transaction_conflict`
     executions and findings, scans none of those tables sequentially and
     reads no large index whole; test
     `TestPostgresAuditPurgeAtScaleProbesForeignKeysThroughIndexes` in
-    [`internal/auditstore/purge_scale_postgres_test.go`](../../../internal/auditstore/purge_scale_postgres_test.go).
+    [`internal/auditstore/internal/pgstore/purge_scale_postgres_test.go`](../../../internal/auditstore/internal/pgstore/purge_scale_postgres_test.go).
 17. The Planner's Run event appends fire no trigger of `workflow_runs`, a
     state change fires the lifecycle capture and an assigned guarded column
     its guard (PER-R22); test `TestPostgresRunEventAppendsFireNoWorkflowRunTrigger`

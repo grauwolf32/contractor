@@ -13,6 +13,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/auditstore/hookstore"
 	"github.com/grauwolf32/contractor/internal/evalstore"
 	"github.com/grauwolf32/contractor/internal/findingintake"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -270,7 +271,7 @@ func (c *Controller) advance(
 func (c *Controller) requestOneAuditDeletion(
 	ctx context.Context, claim deletionClaim,
 ) (bool, error) {
-	changed, err := auditstore.NewPostgresStore(c.pool).RequestProjectOwnedDeletion(ctx,
+	changed, err := hookstore.NewProjectDeletion(c.pool).RequestProjectOwnedDeletion(ctx,
 		auditstore.ProjectDeletionClaim{
 			ProjectID: claim.ProjectID, OwnerID: claim.OwnerID,
 			ClaimID: claim.ClaimID, Phase: string(claim.Phase),

@@ -14,7 +14,19 @@ import (
 
 var ErrPermanent = errors.New("Audit import cannot be completed")
 
+// Store is what the importer commits under the Controller's claim: collection
+// receipts, report pages and the report itself. It is the claim seam of the
+// Audit store.
 type Store interface {
+	Collect(context.Context, auditstore.CollectParams) (auditstore.CollectionReceipt, bool, error)
+	RecordReportPage(context.Context, auditstore.RecordReportPageParams) error
+	CommitReport(context.Context, auditstore.CommitReportParams) (auditstore.Audit, error)
+	ProposeReport(context.Context, auditstore.ProposeReportParams) (auditstore.Audit, bool, error)
+}
+
+// Reader is what the importer reads of an Audit while it collects and
+// assembles a report. It is the read seam of the Audit store.
+type Reader interface {
 	GetArtifactLink(context.Context, string, string) (auditstore.ArtifactLink, error)
 	ListExecutionItems(context.Context, string) ([]auditstore.ExecutionItem, error)
 	ListItemsByIDs(context.Context, string, []string) ([]auditstore.Item, error)
@@ -22,13 +34,9 @@ type Store interface {
 	ListReportItems(context.Context, string, string, int, int) ([]auditstore.ReportItem, error)
 	ListReportFindings(context.Context, auditstore.ReportFindingPageParams) ([]auditstore.ReportFinding, bool, error)
 	ListReportPages(context.Context, string, uint64) ([]auditstore.ReportPage, error)
-	RecordReportPage(context.Context, auditstore.RecordReportPageParams) error
 	ReadReportSections(context.Context, string, uint64) (map[auditstore.ReportSection]auditstore.ReportSectionContent, error)
 	CollectionDispositionCounts(context.Context, string) (auditstore.CollectionDispositionCounts, error)
-	Collect(context.Context, auditstore.CollectParams) (auditstore.CollectionReceipt, bool, error)
-	CommitReport(context.Context, auditstore.CommitReportParams) (auditstore.Audit, error)
 	GetReportCandidate(context.Context, string) (auditstore.ReportCandidate, error)
-	ProposeReport(context.Context, auditstore.ProposeReportParams) (auditstore.Audit, bool, error)
 }
 
 type RunReader interface {
@@ -50,6 +58,7 @@ type FindingRetention interface {
 
 type Importer struct {
 	store     Store
+	reads     Reader
 	runs      RunReader
 	artifacts ArtifactAccess
 	findings  FindingRetention
@@ -58,17 +67,18 @@ type Importer struct {
 
 func New(
 	store Store,
+	reads Reader,
 	runs RunReader,
 	artifactAccess ArtifactAccess,
 	findings ...FindingRetention,
 ) (*Importer, error) {
-	if store == nil || runs == nil || artifactAccess == nil {
+	if store == nil || reads == nil || runs == nil || artifactAccess == nil {
 		return nil, errors.New("Audit importer dependencies are incomplete")
 	}
 	if len(findings) > 1 {
 		return nil, errors.New("Audit importer accepts at most one finding intake")
 	}
-	result := &Importer{store: store, runs: runs, artifacts: artifactAccess, budget: defaultReportBudget}
+	result := &Importer{store: store, reads: reads, runs: runs, artifacts: artifactAccess, budget: defaultReportBudget}
 	if len(findings) == 1 {
 		if findings[0] == nil {
 			return nil, errors.New("Audit importer finding intake is nil")

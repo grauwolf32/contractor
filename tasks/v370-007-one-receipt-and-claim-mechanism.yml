@@ -28,5 +28,5 @@ acceptance_criteria:
 tests:
   - command: make lint
     covers: [A1]
-  - command: "go test -tags integration ./internal/auditstore ./internal/evalstore ./internal/runtimeconfig"
+  - command: "go test -tags integration ./internal/auditstore/... ./internal/evalstore ./internal/runtimeconfig"
     covers: [A1]

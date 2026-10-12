@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
 )
 
 // Review expiry follows the PostgreSQL clock that the Controller and
@@ -110,7 +111,7 @@ UPDATE audit_review_requests
  WHERE request_id=$1 RETURNING updated_at`, old.Request.RequestID).Scan(&oldUpdated); err != nil {
 		t.Fatal(err)
 	}
-	store := auditstore.NewPostgresStore(pool)
+	store := auditstoretest.NewStore(pool)
 	before, err := store.Get(ctx, audit.OwnerID, audit.AuditID)
 	if err != nil {
 		t.Fatal(err)

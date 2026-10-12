@@ -10,7 +10,7 @@ import (
 )
 
 // claimedTransitionRefusal is one claimed transition that both
-// fakeControllerStore and auditstore.PostgresStore must refuse, applied to an
+// fakeControllerStore and claimstore.Store must refuse, applied to an
 // active Audit at revision with a live claim (V368-010).
 type claimedTransitionRefusal struct {
 	name   string

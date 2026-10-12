@@ -8,6 +8,8 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditbaseline"
 	"github.com/grauwolf32/contractor/internal/auditstandards"
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/auditstore/ownerstore"
+	"github.com/grauwolf32/contractor/internal/auditstore/querystore"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/findingintake"
@@ -51,6 +53,12 @@ type Service struct {
 	standards                 *auditstandards.Catalog
 	now                       func() time.Time
 }
+
+// owners and reads are the owner and query seams of the Audit store on the
+// service's pool; a transaction builds the seams it uses from itself.
+func (s *Service) owners() *ownerstore.Store { return ownerstore.New(s.pool) }
+
+func (s *Service) reads() *querystore.Store { return querystore.New(s.pool) }
 
 type ProfileSelector struct {
 	Name    string `json:"name"`

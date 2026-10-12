@@ -12,6 +12,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/auditstore/hookstore"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/pagelimit"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -752,7 +753,7 @@ SELECT receipt.receipt_id, EXISTS (
 	if err != nil || recorded {
 		return err
 	}
-	return auditstore.NewPostgresStore(tx).RecordRejectedFindingProposal(ctx,
+	return hookstore.NewFindingEvents(tx).RecordRejectedFindingProposal(ctx,
 		auditstore.RejectedFindingProposalParams{
 			AuditID: request.AuditID, ReceiptID: receiptID,
 			RunID: request.RunID, Reason: reason,

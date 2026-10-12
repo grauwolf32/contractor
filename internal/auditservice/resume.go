@@ -6,6 +6,9 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/auditstore/ownerstore"
+	"github.com/grauwolf32/contractor/internal/auditstore/querystore"
+	"github.com/grauwolf32/contractor/internal/auditstore/reviewstore"
 	"github.com/grauwolf32/contractor/internal/config"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
@@ -28,8 +31,7 @@ func (s *Service) Resume(ctx context.Context, params MutationParams) (MutationRe
 	if err := validateDeadlineSeconds(params.DeadlineSeconds); err != nil {
 		return MutationResult{}, err
 	}
-	store := auditstore.NewPostgresStore(s.pool)
-	if replay, found, err := store.LookupMutationReplay(ctx, params.OwnerID, auditstore.MutationTransition, params.IdempotencyKey, params.RequestDigest); err != nil || found {
+	if replay, found, err := s.owners().LookupMutationReplay(ctx, params.OwnerID, auditstore.MutationTransition, params.IdempotencyKey, params.RequestDigest); err != nil || found {
 		return MutationResult{Audit: replay, Replayed: found}, err
 	}
 	var result MutationResult
@@ -44,15 +46,15 @@ func (s *Service) Resume(ctx context.Context, params MutationParams) (MutationRe
 }
 
 func (s *Service) resumeInTransaction(ctx context.Context, tx pgx.Tx, params MutationParams) (MutationResult, error) {
-	store := auditstore.NewPostgresTxStore(tx)
+	owners, reads := ownerstore.New(tx), querystore.New(tx)
 	// Serialize retries before any mutable dependency checks.
 	if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`, "audit-resume:"+params.OwnerID+":"+params.IdempotencyKey); err != nil {
 		return MutationResult{}, err
 	}
-	if replay, found, err := store.LookupMutationReplay(ctx, params.OwnerID, auditstore.MutationTransition, params.IdempotencyKey, params.RequestDigest); err != nil || found {
+	if replay, found, err := owners.LookupMutationReplay(ctx, params.OwnerID, auditstore.MutationTransition, params.IdempotencyKey, params.RequestDigest); err != nil || found {
 		return MutationResult{Audit: replay, Replayed: found}, err
 	}
-	audit, err := store.Get(ctx, params.OwnerID, params.AuditID)
+	audit, err := reads.Get(ctx, params.OwnerID, params.AuditID)
 	if err != nil {
 		return MutationResult{}, err
 	}
@@ -62,7 +64,7 @@ func (s *Service) resumeInTransaction(ctx context.Context, tx pgx.Tx, params Mut
 	if _, err := tx.Exec(ctx, `SELECT audit_id FROM audits WHERE audit_id=$1 AND owner_id=$2 FOR UPDATE`, params.AuditID, params.OwnerID); err != nil {
 		return MutationResult{}, err
 	}
-	audit, err = store.Get(ctx, params.OwnerID, params.AuditID)
+	audit, err = reads.Get(ctx, params.OwnerID, params.AuditID)
 	if err != nil {
 		return MutationResult{}, err
 	}
@@ -85,13 +87,13 @@ func (s *Service) resumeInTransaction(ctx context.Context, tx pgx.Tx, params Mut
 	// Audit. Each needs a fresh decision for the same exact task before
 	// another submission; the PostgreSQL clock judges expiry, and the fresh
 	// requests expire with the new deadline.
-	revision, err := store.RenewItemReviewsForResume(ctx, auditstore.ResumeRenewalParams{
+	revision, err := reviewstore.NewTx(tx).RenewItemReviewsForResume(ctx, auditstore.ResumeRenewalParams{
 		OwnerID: params.OwnerID, AuditID: audit.AuditID, ExpectedRevision: audit.Revision, DeadlineAt: deadline,
 	})
 	if err != nil {
 		return MutationResult{}, err
 	}
-	resumed, inserted, err := store.Resume(ctx, auditstore.ResumeParams{
+	resumed, inserted, err := owners.Resume(ctx, auditstore.ResumeParams{
 		OwnerID: params.OwnerID, AuditID: audit.AuditID, ExpectedRevision: revision,
 		DeadlineAt: deadline, IdempotencyKey: params.IdempotencyKey, RequestDigest: params.RequestDigest,
 	})

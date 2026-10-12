@@ -1,5 +1,12 @@
-// Package auditstore owns the durable Audit controller state. It deliberately
-// does not create WorkflowRuns, parse Worker result packages, or expose HTTP.
+// Package auditstore is the vocabulary of the durable Audit state: Audits,
+// Rounds, items, executions, receipts, reviews and reports, their states and
+// limits, the parameters of each store operation and the errors it returns.
+// The store itself is split by seam, and a caller imports only the seam it
+// works in: claimstore (the commands the Audit controller runs under its
+// claim), ownerstore (the owner's lifecycle commands), reviewstore (the review
+// journal), querystore (the reads) and hookstore (the entry points of other
+// contexts). The Audit store deliberately does not create WorkflowRuns, parse
+// Worker result packages, or expose HTTP.
 package auditstore
 
 import (
@@ -21,7 +28,3 @@ var (
 	// collection request can never succeed and needs a terminal receipt.
 	ErrEvidenceBudgetExhausted = fmt.Errorf("%w: Audit evidence budget is exhausted", ErrPrecondition)
 )
-
-func invalidf(format string, arguments ...any) error {
-	return fmt.Errorf("%w: %s", ErrInvalid, fmt.Sprintf(format, arguments...))
-}

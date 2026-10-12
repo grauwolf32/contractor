@@ -11,6 +11,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/auditstore/hookstore"
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -408,7 +409,7 @@ UPDATE audit_findings
 RETURNING revision`, assessmentID, input.AuditID, findingID).Scan(&findingRevision); err != nil {
 		return err
 	}
-	return auditstore.NewPostgresStore(tx).RecordDirectFindingAssessment(ctx,
+	return hookstore.NewFindingEvents(tx).RecordDirectFindingAssessment(ctx,
 		auditstore.DirectFindingAssessmentParams{
 			AuditID: input.AuditID, FindingID: findingID,
 			FindingRevision: findingRevision, AssessmentID: assessmentID,

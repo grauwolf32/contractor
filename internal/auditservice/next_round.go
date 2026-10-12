@@ -115,7 +115,7 @@ func (s *Service) PrepareNextRound(
 		}
 		return auditstore.AcceptRoundParams{}, nil, err
 	}
-	prepared, err := acceptedPreparationInputs(ctx, auditstore.NewPostgresStore(s.pool), snapshot.Audit.AuditID, profile)
+	prepared, err := acceptedPreparationInputs(ctx, s.reads(), snapshot.Audit.AuditID, profile)
 	if err != nil {
 		return auditstore.AcceptRoundParams{}, nil, err
 	}

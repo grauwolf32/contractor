@@ -20,6 +20,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditimport"
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -1418,7 +1419,7 @@ type postgresControllerHarness struct {
 	pool       *pgxpool.Pool
 	snapshot   *config.Snapshot
 	artifacts  *artifacts.Service
-	audits     *auditstore.PostgresStore
+	audits     *auditstoretest.Store
 	runs       *runstore.PostgresStore
 	runService *runservice.Service
 	service    *auditservice.Service
@@ -1529,7 +1530,7 @@ func newPostgresControllerHarnessWithConfig(
 		t.Fatal(err)
 	}
 	runs := runstore.NewPostgresStore(pool)
-	audits := auditstore.NewPostgresStore(pool)
+	audits := auditstoretest.NewStore(pool)
 	runCreation, err := runservice.New(runservice.Options{
 		Runs: runs, Workflows: snapshot, LLMCredentials: controllerCredentialLookup{},
 		CredentialGuard: guard, RuntimeCredentials: controllerRuntimeCredentials{}, Projects: projects,
@@ -1552,7 +1553,7 @@ func newPostgresControllerHarnessWithConfig(
 			return persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 				return fn(
 					runstore.NewPostgresStore(tx), artifacts.NewService(artifacts.NewPostgresRepository(tx)),
-					auditstore.NewPostgresStore(tx),
+					auditstoretest.NewStore(tx),
 				)
 			})
 		},
@@ -1583,7 +1584,7 @@ func (h *postgresControllerHarness) controller(t *testing.T) *Controller {
 	t.Helper()
 	var ids int
 	controller, err := New(
-		h.audits, h.runs, rundeletion.New(h.pool), h.runService, h.builder(t), &postgresNotifier{},
+		h.audits, h.audits, h.runs, rundeletion.New(h.pool), h.runService, h.builder(t), &postgresNotifier{},
 		Options{
 			HolderID: "postgres-audit-controller", ClaimLease: 5 * time.Second,
 			OperationTimeout: time.Second, ClaimBatch: 1,
@@ -1603,7 +1604,7 @@ func (h *postgresControllerHarness) controllerForHolder(t *testing.T, holderID s
 	t.Helper()
 	var ids int
 	controller, err := New(
-		h.audits, h.runs, rundeletion.New(h.pool), h.runService, h.builder(t), &postgresNotifier{},
+		h.audits, h.audits, h.runs, rundeletion.New(h.pool), h.runService, h.builder(t), &postgresNotifier{},
 		Options{
 			HolderID: holderID, ClaimLease: 5 * time.Second,
 			OperationTimeout: time.Second, ClaimBatch: 1,
@@ -1627,13 +1628,13 @@ func (h *postgresControllerHarness) controllerWithCollector(
 	if err != nil {
 		t.Fatal(err)
 	}
-	collector, err := auditimport.New(h.audits, h.runs, access, findings...)
+	collector, err := auditimport.New(h.audits, h.audits, h.runs, access, findings...)
 	if err != nil {
 		t.Fatal(err)
 	}
 	var ids int
 	controller, err := New(
-		h.audits, h.runs, rundeletion.New(h.pool), h.runService, h.builder(t), &postgresNotifier{},
+		h.audits, h.audits, h.runs, rundeletion.New(h.pool), h.runService, h.builder(t), &postgresNotifier{},
 		Options{
 			HolderID: "postgres-audit-collection-controller", ClaimLease: 5 * time.Second,
 			OperationTimeout: 2 * time.Second, ClaimBatch: 1, Collector: collector,

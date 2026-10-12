@@ -15,6 +15,7 @@ import (
 	. "github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/configtest"
@@ -30,7 +31,7 @@ import (
 type preparationFixture struct {
 	ctx       context.Context
 	pool      *pgxpool.Pool
-	store     *auditstore.PostgresStore
+	store     *auditstoretest.Store
 	artifacts *Service
 	audit     auditstore.Audit
 	claim     auditstore.ControllerClaim
@@ -97,7 +98,7 @@ func newPreparationFixture(t *testing.T, dependency bool) preparationFixture {
 		}
 		inputs[name] = auditstore.ExactArtifact{Ref: written.Ref, Digest: auditdomain.DigestBytes(payload), MediaType: media, SizeBytes: int64(len(payload))}
 	}
-	store := auditstore.NewPostgresStore(pool)
+	store := auditstoretest.NewStore(pool)
 	raw, _ := json.Marshal(profile)
 	audit, _, err := store.CreateDraft(ctx, auditstore.CreateDraftParams{
 		AuditID: "preparation-audit", OwnerID: project.OwnerID, ProjectID: project.ProjectID,
@@ -166,7 +167,7 @@ func (f preparationFixture) collecting(t *testing.T, intent auditstore.CreateExe
 		if err != nil {
 			return err
 		}
-		execution, err = auditstore.NewPostgresStore(tx).BindRun(f.ctx, auditstore.BindRunParams{Claim: f.claim, ExecutionID: execution.ExecutionID, RunID: runID})
+		execution, err = auditstoretest.NewStore(tx).BindRun(f.ctx, auditstore.BindRunParams{Claim: f.claim, ExecutionID: execution.ExecutionID, RunID: runID})
 		return err
 	})
 	if err != nil {

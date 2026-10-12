@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/auditstore/querystore"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/pagelimit"
 	"github.com/jackc/pgx/v5"
@@ -53,7 +54,7 @@ func (s *Service) ListEventsPage(ctx context.Context, p EventListParams) (EventP
 		return result, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
-	audit, err := auditstore.NewPostgresStore(tx).Get(ctx, p.OwnerID, p.AuditID)
+	audit, err := querystore.New(tx).Get(ctx, p.OwnerID, p.AuditID)
 	if err != nil {
 		return result, err
 	}

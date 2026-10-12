@@ -49,7 +49,7 @@ acceptance_criteria:
 tests:
   - command: go test -race ./internal/auditpriority ./internal/auditservice
     covers: [A1, A2, A3, A4]
-  - command: go test -tags=integration -count=1 ./internal/auditstore
+  - command: go test -tags=integration -count=1 ./internal/auditstore/...
     covers: [A3, A4, A5]
 test_prerequisites:
   - Reuse internal/auditpriority from V64-000; pure calculation tests do not satisfy receipt/journal or persisted admission acceptance criteria.

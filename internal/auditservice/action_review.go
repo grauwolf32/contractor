@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/auditstore/reviewstore"
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -98,7 +99,7 @@ SELECT audit.state, audit.revision, request.subject_kind, request.subject_id, re
 			return auditstore.ErrPrecondition
 		}
 		if expiresAt != nil {
-			if expired, err = auditstore.NewPostgresStore(tx).ExpireReviewAtDatabaseTime(ctx, params.RequestID); err != nil {
+			if expired, err = reviewstore.New(tx).ExpireReviewAtDatabaseTime(ctx, params.RequestID); err != nil {
 				return err
 			}
 		}
@@ -117,7 +118,7 @@ SELECT audit.state, audit.revision, request.subject_kind, request.subject_id, re
 				auditState != auditstore.AuditPaused {
 				return auditstore.ErrPrecondition
 			}
-			if err := auditstore.NewPostgresStore(tx).ApplyItemReviewDecision(
+			if err := reviewstore.New(tx).ApplyItemReviewDecision(
 				ctx, params.AuditID, subjectID, kind, subjectDigest,
 				string(params.Action), params.Rationale,
 			); err != nil {
@@ -138,7 +139,7 @@ SELECT audit.state, audit.revision, request.subject_kind, request.subject_id, re
 		}
 
 		decisionID, requestID = params.DecisionID, params.RequestID
-		if err := auditstore.NewPostgresStore(tx).RecordReviewDecision(ctx, auditstore.ReviewDecisionWriteParams{
+		if err := reviewstore.New(tx).RecordReviewDecision(ctx, auditstore.ReviewDecisionWriteParams{
 			DecisionID: decisionID, RequestID: requestID, AuditID: params.AuditID, ActorID: params.OwnerID,
 			Action: string(params.Action), Rationale: params.Rationale, SubjectRevision: uint64(subjectRevision),
 			SubjectDigest: subjectDigest, IdempotencyKey: params.IdempotencyKey, RequestDigest: params.RequestDigest,
@@ -146,7 +147,7 @@ SELECT audit.state, audit.revision, request.subject_kind, request.subject_id, re
 			return err
 		}
 		if subjectKind == ReviewSubjectItemAction && auditState == auditstore.AuditWaitingReview {
-			if _, _, err := auditstore.NewPostgresStore(tx).ActivateAfterItemReview(
+			if _, _, err := reviewstore.New(tx).ActivateAfterItemReview(
 				ctx, params.AuditID, auditRevision,
 			); err != nil {
 				return err
@@ -191,13 +192,13 @@ func validateAndApplyReportDecision(
 		AuditID: auditID, ExpectedAuditRevision: auditRevision, RequestID: requestID,
 		SubjectRevision: uint64(subjectRevision), SubjectDigest: subjectDigest,
 	}
-	store := auditstore.NewPostgresStore(tx)
+	reviews := reviewstore.New(tx)
 	var err error
 	switch action {
 	case ReviewApprove:
-		_, err = store.AcceptReportCandidate(ctx, decision)
+		_, err = reviews.AcceptReportCandidate(ctx, decision)
 	case ReviewReject:
-		_, err = store.RejectReportCandidate(ctx, decision)
+		_, err = reviews.RejectReportCandidate(ctx, decision)
 	default:
 		return auditstore.ErrInvalid
 	}

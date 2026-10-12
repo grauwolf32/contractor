@@ -10,6 +10,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/auditstore/reviewstore"
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/findingintake"
@@ -84,7 +85,7 @@ SELECT request_id, request_digest
 			row.revision != params.ExpectedRevision {
 			return auditstore.ErrPrecondition
 		}
-		if err := auditstore.NewPostgresStore(tx).ExpireFindingReviews(ctx, params.AuditID, params.FindingID); err != nil {
+		if err := reviewstore.New(tx).ExpireFindingReviews(ctx, params.AuditID, params.FindingID); err != nil {
 			return err
 		}
 		subjectDigest := findingSubjectDigest(row)
@@ -113,7 +114,7 @@ SELECT request_id
 		requestID = params.RequestID
 		// The default window starts at the PostgreSQL clock that later decides
 		// whether the request has expired.
-		if err := auditstore.NewPostgresStore(tx).InsertFindingReviewRequest(ctx, auditstore.FindingReviewRequestParams{
+		if err := reviewstore.New(tx).InsertFindingReviewRequest(ctx, auditstore.FindingReviewRequestParams{
 			RequestID: requestID, AuditID: params.AuditID, FindingID: params.FindingID, SubjectRevision: row.revision,
 			SubjectDigest: subjectDigest, RequestedActions: actions, ExpiresAt: expiresAt,
 			IdempotencyKey: params.IdempotencyKey, RequestDigest: params.RequestDigest,
@@ -213,7 +214,7 @@ SELECT audit.state,
 			return auditstore.ErrPrecondition
 		}
 		if request.ExpiresAt != nil {
-			if expired, err = auditstore.NewPostgresStore(tx).ExpireReviewAtDatabaseTime(ctx, request.RequestID); err != nil {
+			if expired, err = reviewstore.New(tx).ExpireReviewAtDatabaseTime(ctx, request.RequestID); err != nil {
 				return err
 			}
 		}
@@ -246,7 +247,7 @@ SELECT audit.state,
 			target = params.DuplicateTargetID
 		}
 		verdict := string(params.Verdict)
-		if err := auditstore.NewPostgresStore(tx).RecordReviewDecision(ctx, auditstore.ReviewDecisionWriteParams{
+		if err := reviewstore.New(tx).RecordReviewDecision(ctx, auditstore.ReviewDecisionWriteParams{
 			DecisionID: decisionID, RequestID: requestID, AuditID: params.AuditID, FindingID: &findingID,
 			ActorID: params.OwnerID, Action: verdict, Verdict: &verdict, Severity: severity, Rationale: params.Rationale,
 			DuplicateTargetID: target, SubjectRevision: request.SubjectRevision, SubjectDigest: request.SubjectDigest,
@@ -255,7 +256,7 @@ SELECT audit.state,
 			return err
 		}
 		state, rejection, duplicate, effectiveDecision := decisionProjection(params.Verdict, decisionID, target)
-		if err := auditstore.NewPostgresStore(tx).ProjectFindingDecision(ctx, findingID, state, rejection, duplicate, effectiveDecision); err != nil {
+		if err := reviewstore.New(tx).ProjectFindingDecision(ctx, findingID, state, rejection, duplicate, effectiveDecision); err != nil {
 			return err
 		}
 		return appendAuditReviewEvent(ctx, tx, params.AuditID, "review.decided", decisionID,
@@ -353,7 +354,7 @@ func (s *Service) ListReviews(
 		return nil, err
 	}
 	if len(result) == 0 {
-		if _, err := auditstore.NewPostgresStore(s.pool).Get(ctx, params.OwnerID, params.AuditID); err != nil {
+		if _, err := s.reads().Get(ctx, params.OwnerID, params.AuditID); err != nil {
 			return nil, err
 		}
 	}
@@ -797,7 +798,7 @@ func validateDuplicateTarget(
 func appendAuditReviewEvent(
 	ctx context.Context, tx pgx.Tx, auditID, kind, entityID string, summary map[string]any,
 ) error {
-	return auditstore.NewPostgresStore(tx).AppendReviewEvent(ctx, auditstore.ReviewEventParams{
+	return reviewstore.New(tx).AppendReviewEvent(ctx, auditstore.ReviewEventParams{
 		AuditID: auditID, Kind: kind, EntityID: entityID, Summary: summary,
 	})
 }

@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/auditstore/hookstore"
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
@@ -116,7 +116,7 @@ func configureCredentials(
 	credentialBarrier := credentials.NewLifecycleBarrier()
 	credentialLifecycle, err := credentials.NewService(credentials.ServiceOptions{
 		Pool: pool, Gateways: configurationManager, Managers: credentialManagers,
-		Runs: runstore.NewPostgresStore(pool), Audits: auditstore.NewPostgresStore(pool),
+		Runs: runstore.NewPostgresStore(pool), Audits: hookstore.NewCredentialHolds(pool),
 		Cipher: tokenCipher, Barrier: credentialBarrier,
 	})
 	if err != nil {

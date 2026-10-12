@@ -52,7 +52,7 @@ cases:
     acceptance: [A1, A3]
     faults: [F06, F07, F08, F09]
     expected: Concurrent start and claims, terminal replay, retry collection, exhausted settlement, stale epochs and deletion fences converge to one receipt and one logical outcome per attempt.
-    test: {source: internal/auditstore/postgres_integration_test.go, kind: go_test, name: TestPostgresAuditLifecycleClaimsReceiptsAndProjectFence, gate: hardening}
+    test: {source: internal/auditstore/internal/pgstore/postgres_integration_test.go, kind: go_test, name: TestPostgresAuditLifecycleClaimsReceiptsAndProjectFence, gate: hardening}
   - id: two_controllers_do_not_duplicate_attempts
     category: concurrency
     acceptance: [A1]

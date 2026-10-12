@@ -29,7 +29,7 @@ func TestDeletionStepsAreReachedOnlyThroughRundeletion(t *testing.T) {
 
 	moduleRoot := moduleRoot(t)
 	allowed := map[string]bool{}
-	for _, dir := range []string{"internal/rundeletion", "internal/runstore", "internal/auditstore"} {
+	for _, dir := range []string{"internal/rundeletion", "internal/runstore", "internal/auditstore/internal/pgstore"} {
 		allowed[filepath.Join(moduleRoot, filepath.FromSlash(dir))] = true
 	}
 	fset := token.NewFileSet()

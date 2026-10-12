@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
 )
 
 // TestAuditResumeRecordsRenewedReviewEvents resumes an Audit whose item
@@ -67,7 +68,7 @@ SET expires_at=clock_timestamp()-interval '1 minute' WHERE request_id=$1`, expir
 		!renewed.ExpiresAt.Equal(*resumed.Audit.DeadlineAt) {
 		t.Fatalf("renewed review = %+v, deadline %v", renewed, resumed.Audit.DeadlineAt)
 	}
-	events, err := auditstore.NewPostgresStore(pool).ListEvents(ctx, paused.Audit.AuditID, paused.Audit.EventSequence, 10)
+	events, err := auditstoretest.NewStore(pool).ListEvents(ctx, paused.Audit.AuditID, paused.Audit.EventSequence, 10)
 	if err != nil || len(events) != 3 {
 		t.Fatalf("Resume events = (%+v, %v)", events, err)
 	}

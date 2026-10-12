@@ -14,7 +14,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
-	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/jackc/pgx/v5"
 )
@@ -494,14 +494,14 @@ SELECT entity_id, summary ->> 'reason' FROM audit_events
 		}
 	}
 	// A replay over the settled page changes nothing.
-	audit, err := auditstore.NewPostgresStore(f.pool).Get(f.ctx, f.request.OwnerID, f.request.AuditID)
+	audit, err := auditstoretest.NewStore(f.pool).Get(f.ctx, f.request.OwnerID, f.request.AuditID)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if err := collectFixtureProposals(f.ctx, f, false); err != nil {
 		t.Fatal(err)
 	}
-	replayed, err := auditstore.NewPostgresStore(f.pool).Get(f.ctx, f.request.OwnerID, f.request.AuditID)
+	replayed, err := auditstoretest.NewStore(f.pool).Get(f.ctx, f.request.OwnerID, f.request.AuditID)
 	if err != nil || replayed.Revision != audit.Revision {
 		t.Fatalf("collection replay changed the Audit: %+v, %v", replayed, err)
 	}

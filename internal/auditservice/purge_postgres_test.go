@@ -9,6 +9,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/findingintake"
 	"github.com/grauwolf32/contractor/internal/projectstore"
@@ -36,7 +37,7 @@ func TestAuditPurgeRemovesDecidedReviews(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			store := auditstore.NewPostgresStore(pool)
+			store := auditstoretest.NewStore(pool)
 			audit, _, err := store.CreateDraft(ctx, auditstore.CreateDraftParams{
 				AuditID: "audit-purge-" + subject, OwnerID: project.OwnerID, ProjectID: project.ProjectID,
 				Profile: auditstore.ProfileIdentity{
@@ -113,7 +114,7 @@ func TestAuditPurgeRemovesDecidedReviews(t *testing.T) {
 // rejectItemActionForPurge starts the Audit with one item awaiting active-check
 // approval and rejects that exact action through the review API.
 func rejectItemActionForPurge(
-	t *testing.T, ctx context.Context, store *auditstore.PostgresStore, service *Service, audit auditstore.Audit,
+	t *testing.T, ctx context.Context, store *auditstoretest.Store, service *Service, audit auditstore.Audit,
 ) {
 	t.Helper()
 	revision := "r1"
@@ -164,7 +165,7 @@ func rejectItemActionForPurge(
 // rejects the frozen candidate, which fails the Audit.
 func rejectReportForPurge(
 	t *testing.T, ctx context.Context, pool *pgxpool.Pool,
-	store *auditstore.PostgresStore, service *Service, audit auditstore.Audit,
+	store *auditstoretest.Store, service *Service, audit auditstore.Audit,
 ) {
 	t.Helper()
 	waiting, candidate, claim := proposeReportForTest(t, ctx, pool, store, audit, "purge")
@@ -187,7 +188,7 @@ func rejectReportForPurge(
 }
 
 func claimAuditForPurge(
-	t *testing.T, ctx context.Context, store *auditstore.PostgresStore, auditID string,
+	t *testing.T, ctx context.Context, store *auditstoretest.Store, auditID string,
 ) auditstore.ControllerClaim {
 	t.Helper()
 	claims, err := store.Claim(ctx, auditstore.ClaimParams{

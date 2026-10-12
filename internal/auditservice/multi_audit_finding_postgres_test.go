@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
 	"github.com/grauwolf32/contractor/internal/findingintake"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 )
@@ -29,7 +30,7 @@ func TestAuditSameReceiptHasIndependentAnalystDecisions(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, auditID := range []string{firstAudit, secondAudit} {
-		if _, _, err := auditstore.NewPostgresStore(pool).CreateDraft(ctx, auditstore.CreateDraftParams{
+		if _, _, err := auditstoretest.NewStore(pool).CreateDraft(ctx, auditstore.CreateDraftParams{
 			AuditID: auditID, OwnerID: ownerID, ProjectID: projectID,
 			Profile:         auditstore.ProfileIdentity{Name: "finding-review", Version: "1", Digest: serviceTestDigest("profile")},
 			ProfileSnapshot: json.RawMessage(`{"interaction":{"findingConfirmation":"human-required"}}`), InputSelection: json.RawMessage(`{}`),

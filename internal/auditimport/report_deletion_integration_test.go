@@ -12,19 +12,19 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
-
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/rundeletion"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 func TestImporterReportFinalizationSurvivesRunDeletion(t *testing.T) {
@@ -42,7 +42,7 @@ func TestImporterReportFinalizationSurvivesRunDeletion(t *testing.T) {
 						deleted = true
 					}
 				}}
-				importer, err := New(f.audits, f.runs, hooked)
+				importer, err := New(f.audits, f.audits, f.runs, hooked)
 				mustCompletion(t, err)
 				worked, err := importer.Finalize(f.ctx, f.claim, snapshot)
 				if !deleted || worked || !errors.Is(err, auditstore.ErrPrecondition) || len(hooked.writes) != 2 {
@@ -62,7 +62,7 @@ func TestImporterReportFinalizationSurvivesRunDeletion(t *testing.T) {
 				}
 				// Reconstruct the importer as after a process restart. Artifact writes
 				// and report CAS remain real; the retry may only reuse identical bytes.
-				importer, err = New(auditstore.NewPostgresStore(pool), runstore.NewPostgresStore(pool), access)
+				importer, err = New(auditstoretest.NewStore(pool), auditstoretest.NewStore(pool), runstore.NewPostgresStore(pool), access)
 				mustCompletion(t, err)
 				worked, err = importer.Finalize(f.ctx, f.claim, fresh)
 				if err != nil || !worked {
@@ -112,7 +112,7 @@ func TestImporterPendingReportReviewSurvivesRunDeletion(t *testing.T) {
 			f, snapshot := newReportDeletionFixture(t, pool, "human-required")
 			access, err := NewArtifactAccess(f.artifacts)
 			mustCompletion(t, err)
-			importer, err := New(f.audits, f.runs, access)
+			importer, err := New(f.audits, f.audits, f.runs, access)
 			mustCompletion(t, err)
 			if worked, err := importer.Finalize(f.ctx, f.claim, snapshot); err != nil || !worked {
 				t.Fatalf("initial report proposal: worked=%t error=%v", worked, err)
@@ -195,14 +195,14 @@ func TestImporterReportRetryRejectsChangedFinalizationTimestamp(t *testing.T) {
 			mustCompletion(t, err)
 		}
 	}}
-	importer, err := New(f.audits, f.runs, hooked)
+	importer, err := New(f.audits, f.audits, f.runs, hooked)
 	mustCompletion(t, err)
 	if worked, err := importer.Finalize(f.ctx, f.claim, snapshot); worked || !errors.Is(err, auditstore.ErrPrecondition) {
 		t.Fatalf("stale finalization: worked=%t error=%v", worked, err)
 	}
 	fresh, err := f.audits.GetReconcileSnapshot(f.ctx, f.claim)
 	mustCompletion(t, err)
-	importer, err = New(f.audits, f.runs, access)
+	importer, err = New(f.audits, f.audits, f.runs, access)
 	mustCompletion(t, err)
 	if worked, err := importer.Finalize(f.ctx, f.claim, fresh); worked || !errors.Is(err, artifacts.ErrArtifactIntegrity) {
 		t.Fatalf("timestamp mutation must not overwrite immutable report: worked=%t error=%v", worked, err)
@@ -218,7 +218,7 @@ func TestImporterManagedRunDeletionRollbackAndRejection(t *testing.T) {
 		mustCompletion(t, err)
 		defer tx.Rollback(context.Background())
 		mustCompletion(t, rundeletion.New(tx).DeleteReleasedTerminalRun(f.ctx, "owner", f.run.RunID))
-		changed, err := auditstore.NewPostgresStore(tx).Get(f.ctx, "owner", f.id)
+		changed, err := auditstoretest.NewStore(tx).Get(f.ctx, "owner", f.id)
 		mustCompletion(t, err)
 		if changed.Revision != snapshot.Audit.Revision+1 || !changed.UpdatedAt.Equal(snapshot.Audit.UpdatedAt) {
 			t.Fatal("transaction-backed deletion did not invalidate exactly one managed Audit")

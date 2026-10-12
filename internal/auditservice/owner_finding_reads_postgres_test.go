@@ -11,6 +11,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
 	"github.com/grauwolf32/contractor/internal/findingintake"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -46,7 +47,7 @@ func TestOwnerFindingPageQueriesAreConstantInAudits(t *testing.T) {
 	}
 	createAudit := func(ownerID, projectID, auditID string) {
 		t.Helper()
-		if _, _, err := auditstore.NewPostgresStore(pool).CreateDraft(ctx, auditstore.CreateDraftParams{
+		if _, _, err := auditstoretest.NewStore(pool).CreateDraft(ctx, auditstore.CreateDraftParams{
 			AuditID: auditID, OwnerID: ownerID, ProjectID: projectID,
 			Profile:         auditstore.ProfileIdentity{Name: "owner-page", Version: "1", Digest: serviceTestDigest("owner-page")},
 			ProfileSnapshot: json.RawMessage(`{"interaction":{"findingConfirmation":"human-required"}}`),
