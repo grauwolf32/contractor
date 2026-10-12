@@ -288,6 +288,21 @@ led by some of the key's columns that selects few rows, or a trigger of the
 referenced table that rejects every deletion and key change, so the probe
 never runs.
 
+### Row triggers
+
+**PER-R21.** A row trigger fires only when what it guards or checks can
+change. A guard that rejects changes to some columns fires on `UPDATE OF`
+exactly the columns its function compares, and no BEFORE UPDATE trigger of its
+table assigns a column, so only an UPDATE that lists a guarded column runs it;
+an after-row or deferred trigger states in its WHEN condition the change it
+reacts to, and fires on every INSERT when its function checks new rows. A Run
+event append, which only advances the Run's event sequence, therefore fires no
+trigger of `workflow_runs` except the deferred binding check of an
+audit-managed Run. The deferred Audit completion check runs when a Run is
+inserted and when its completion changes, not on later updates that keep it:
+the completion cannot change once set, and the profile binding it is checked
+against is immutable ([AWC-R7](../audits/worker-completion.md)).
+
 ## Limits, failures and errors
 
 Limits ([registry](limits.md)):
@@ -401,6 +416,16 @@ outlasts its retries is the retryable `503 storage_transaction_conflict`
     reads no large index whole; test
     `TestPostgresAuditPurgeAtScaleProbesForeignKeysThroughIndexes` in
     [`internal/auditstore/purge_scale_postgres_test.go`](../../../internal/auditstore/purge_scale_postgres_test.go).
+16. The Planner's Run event appends fire no trigger of `workflow_runs`, a
+    state change fires the lifecycle capture and an assigned guarded column
+    its guard (PER-R21); test `TestPostgresRunEventAppendsFireNoWorkflowRunTrigger`
+    in [`internal/runstore/run_event_triggers_postgres_test.go`](../../../internal/runstore/run_event_triggers_postgres_test.go).
+    An append to a Run with an Audit completion fires only the binding
+    check; test `TestAuditCompletionPostgresAtomicCreationRestartAndAllocation`
+    in [`internal/runservice/audit_completion_postgres_test.go`](../../../internal/runservice/audit_completion_postgres_test.go).
+    Each column-scoped guard of `workflow_runs` lists exactly the columns its
+    function compares; test `TestWorkflowRunGuardsFireOnTheColumnsTheyCompare`
+    in [`internal/persistence/postgres/workflow_run_triggers_postgres_test.go`](../../../internal/persistence/postgres/workflow_run_triggers_postgres_test.go).
 
 ## Non-goals
 
