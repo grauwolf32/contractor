@@ -14,12 +14,12 @@ type UnitOfWork interface {
 	Do(context.Context, func(RunWriter, *artifacts.Service) error) error
 }
 
-func newTestRunCreator(t *testing.T, dependencies Dependencies, runs runservice.RunReader, transaction UnitOfWork, skillsAvailable bool) *runservice.Service {
+func newTestRunCreator(t *testing.T, services testServices, runs runservice.RunReader, transaction UnitOfWork, skillsAvailable bool) *runservice.Service {
 	t.Helper()
 	creator, err := runservice.New(runservice.Options{
-		Runs: runs, Workflows: dependencies.Config,
-		LLMCredentials: dependencies.Credentials, CredentialGuard: dependencies.ManagedCredentials,
-		RuntimeCredentials: dependencies.RuntimeCredentials, Projects: dependencies.Projects,
+		Runs: runs, Workflows: services.Config,
+		LLMCredentials: services.Credentials, CredentialGuard: services.ManagedCredentials,
+		RuntimeCredentials: services.RuntimeCredentials, Projects: services.Projects,
 		SkillInitializationAvailable: skillsAvailable, PublicTransaction: transaction.Do,
 	})
 	if err != nil {

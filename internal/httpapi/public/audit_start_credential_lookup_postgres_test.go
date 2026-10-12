@@ -86,7 +86,7 @@ func TestAuditPostgresStartKeepsWorkflowCredentialLookupClass(t *testing.T) {
 	}
 
 	h := auditTestHandler(audits)
-	h.dependencies.Projects = projects
+	h.Projects = projects
 	start := func() *httptest.ResponseRecorder {
 		request := auditAuthenticatedRequest(http.MethodPost, "/v1/audits/"+draft.AuditID+"/start", nil)
 		request.SetPathValue("auditId", draft.AuditID)

@@ -17,7 +17,7 @@ type GitImportService interface {
 	DoImport(context.Context, gitimport.ImportRequest, func(gitimport.ImportResult)) error
 }
 
-func (h *handler) importGitArtifact(w http.ResponseWriter, r *http.Request) {
+func (h *artifactHandlers) importGitArtifact(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), gitimport.Deadline)
 	defer cancel()
 	r = r.WithContext(ctx)
@@ -28,21 +28,21 @@ func (h *handler) importGitArtifact(w http.ResponseWriter, r *http.Request) {
 	defer func() { _ = controller.SetReadDeadline(time.Time{}); _ = controller.SetWriteDeadline(time.Time{}) }()
 	w.Header().Set("Cache-Control", "no-store")
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	if err := validateArtifactRouteNames(r); err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	mt, err := requestMediaType(r)
 	if err != nil || mt != "application/json" {
-		h.handleError(w, errInvalidRequest)
+		handleError(w, errInvalidRequest)
 		return
 	}
 	expected, err := artifactWritePrecondition(r)
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	var body struct {
@@ -50,21 +50,17 @@ func (h *handler) importGitArtifact(w http.ResponseWriter, r *http.Request) {
 		Ref           json.RawMessage `json:"ref"`
 	}
 	if err := decodeJSONBounded(w, r, &body, 64<<10); err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	ref := ""
 	if len(body.Ref) != 0 {
 		if json.Unmarshal(body.Ref, &ref) != nil || ref == "" {
-			h.gitImportError(w, gitimport.ErrRef)
+			gitImportError(w, gitimport.ErrRef)
 			return
 		}
 	}
-	if h.dependencies.GitImports == nil {
-		h.gitImportError(w, gitimport.ErrConfiguration)
-		return
-	}
-	err = h.dependencies.GitImports.DoImport(r.Context(), gitimport.ImportRequest{
+	err = h.GitImports.DoImport(r.Context(), gitimport.ImportRequest{
 		OwnerID: principalUserID(r.Context()), ProjectID: r.PathValue("projectId"), Target: artifacts.ArtifactRef{Namespace: r.PathValue("namespace"), Name: r.PathValue("name")}, ExpectedRevision: expected, RepositoryURL: body.RepositoryURL, Ref: ref,
 	}, func(result gitimport.ImportResult) {
 		// Import admission is still held here; bound this write from now, not
@@ -78,13 +74,13 @@ func (h *handler) importGitArtifact(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, status, result)
 	})
 	if err != nil {
-		h.gitImportError(w, err)
+		gitImportError(w, err)
 	}
 }
-func (h *handler) gitImportError(w http.ResponseWriter, err error) {
+func gitImportError(w http.ResponseWriter, err error) {
 	var unsupported *gitimport.UnsupportedEntryError
 	if errors.As(err, &unsupported) {
-		h.writeError(w, http.StatusUnprocessableEntity, "git_content_unsupported", unsupported.Error(), false)
+		writeError(w, http.StatusUnprocessableEntity, "git_content_unsupported", unsupported.Error(), false)
 		return
 	}
 	for _, item := range []struct {
@@ -105,9 +101,9 @@ func (h *handler) gitImportError(w http.ResponseWriter, err error) {
 		{context.Canceled, 408, "git_import_cancelled", "Git import was interrupted; inspect artifact metadata before retrying"},
 	} {
 		if errors.Is(err, item.err) {
-			h.writeError(w, item.status, item.code, item.message, false)
+			writeError(w, item.status, item.code, item.message, false)
 			return
 		}
 	}
-	h.gitKeyError(w, err)
+	gitKeyError(w, err)
 }

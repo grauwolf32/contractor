@@ -2,10 +2,10 @@ package public
 
 import "net/http"
 
-func (h *handler) registerQueueRoutes(mux *http.ServeMux) {
-	mux.HandleFunc("GET /v1/queue", h.listRunQueue)
-	mux.HandleFunc("GET /v1/queue/control", h.getOwnerQueueControl)
-	mux.HandleFunc("PUT /v1/queue/control", h.putOwnerQueueControl)
-	mux.HandleFunc("/v1/queue", h.methodNotAllowed)
-	mux.HandleFunc("/v1/queue/control", h.methodNotAllowed)
+func (c contextHandlers) registerQueueRoutes(mux *http.ServeMux) {
+	mux.HandleFunc("GET /v1/queue", c.queue.listRunQueue)
+	mux.HandleFunc("GET /v1/queue/control", c.queue.getOwnerQueueControl)
+	mux.HandleFunc("PUT /v1/queue/control", c.queue.putOwnerQueueControl)
+	mux.HandleFunc("/v1/queue", methodNotAllowed)
+	mux.HandleFunc("/v1/queue/control", methodNotAllowed)
 }

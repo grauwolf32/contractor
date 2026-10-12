@@ -99,8 +99,8 @@ func TestPostgresRunDetailFixedBatchQueries(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	batch := &handler{dependencies: Dependencies{RunDetails: tracedDetails}}
-	get := func(h *handler, runID, owner string) *httptest.ResponseRecorder {
+	batch := &runHandlers{RunDependencies: RunDependencies{RunDetails: tracedDetails}}
+	get := func(h *runHandlers, runID, owner string) *httptest.ResponseRecorder {
 		r := httptest.NewRequest(http.MethodGet, "/v1/runs/"+runID, nil)
 		r.SetPathValue("runID", runID)
 		r = r.WithContext(auth.WithPrincipal(ctx, auth.Principal{UserID: owner}))

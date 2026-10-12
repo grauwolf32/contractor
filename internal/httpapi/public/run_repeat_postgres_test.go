@@ -29,7 +29,7 @@ func TestPostgresRunRepeatRequiresRetainedAuthorityWithoutMutation(t *testing.T)
 	service := artifacts.NewService(repository)
 	runs := runstore.NewPostgresStore(pool)
 	projects := projectstore.NewPostgresStore(pool)
-	h := &handler{dependencies: Dependencies{
+	h := &runRepeatHandlers{RunRepeatDependencies: RunRepeatDependencies{
 		Runs: runs, Artifacts: service, Projects: projects,
 		Config: fixture.configs, Credentials: fixture.credentials, RuntimeConfigs: fixture.runtimeConfigs,
 	}}

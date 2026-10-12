@@ -94,7 +94,7 @@ func newWorkflowCredentialLookupFixture(t *testing.T) (handlerFixture, *scripted
 	lookup := &scriptedLLMCredentialLookup{}
 	fixture := newHandlerFixtureWithAuth(
 		t, "../../config/testdata/valid", newTestAuthentication(t), mustTestOrigins(t), false, nil,
-		func(dependencies *Dependencies) { dependencies.Credentials = lookup },
+		func(dependencies *testServices) { dependencies.Credentials = lookup },
 	)
 	gateway, err := fixture.configs.Snapshot().LLMGateway("local-litellm@1")
 	if err != nil {

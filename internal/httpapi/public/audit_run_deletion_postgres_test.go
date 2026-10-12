@@ -107,7 +107,7 @@ func TestPublicAuditSourceRunDeletionInvalidatesReadContexts(t *testing.T) {
 	}
 	defer readerPool.Close()
 	var audits *auditservice.Service
-	fixture := newHandlerFixtureWithAuth(t, "../../config/testdata/valid", newTestAuthentication(t), mustTestOrigins(t), false, nil, func(deps *Dependencies) {
+	fixture := newHandlerFixtureWithAuth(t, "../../config/testdata/valid", newTestAuthentication(t), mustTestOrigins(t), false, nil, func(deps *testServices) {
 		credentials := newFakeManagedCredentials()
 		audits, err = auditservice.New(auditservice.Options{
 			Pool: readerPool, Profiles: deps.Config.(*config.Manager), CredentialGuard: credentials,

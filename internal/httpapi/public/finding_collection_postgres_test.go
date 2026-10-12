@@ -48,7 +48,7 @@ func TestFindingCollectionHTTPPublicationAndOrdinaryRunInput(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	fixture := newHandlerFixtureWithAuth(t, root, newTestAuthentication(t), mustTestOrigins(t), false, nil, func(d *Dependencies) {
+	fixture := newHandlerFixtureWithAuth(t, root, newTestAuthentication(t), mustTestOrigins(t), false, nil, func(d *testServices) {
 		d.Runs, d.Artifacts, d.Projects = runs, artifactService, projectstore.NewPostgresStore(pool)
 		d.RunQueue, d.RunLifecycle = runs, runs
 		d.RunCreator = newTestRunCreator(t, *d, runs, integrationUnitOfWork{pool: pool, credentials: d.Credentials}, true)

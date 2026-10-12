@@ -252,8 +252,7 @@ func TestAuditFindingProposalHandlersExposeInboxAndExactImport(t *testing.T) {
 		Retention:  findingintake.RetentionSourceHeld,
 		AuditHolds: []findingintake.AuditHold{}, CreatedAt: time.Now().UTC(),
 	}}}
-	h := auditTestHandler(&fakeAuditManagement{audit: auditstore.Audit{AuditID: "audit-fixed"}})
-	h.dependencies.FindingProposals = findings
+	h := findingTestHandler(&fakeAuditManagement{audit: auditstore.Audit{AuditID: "audit-fixed"}}, findings)
 
 	list := auditAuthenticatedRequest(http.MethodGet, "/v1/audits/audit-fixed/finding-proposals?limit=10", nil)
 	list.SetPathValue("auditId", "audit-fixed")
@@ -843,10 +842,18 @@ func (f *fakeAuditManagement) ListFindingProvenance(
 	return append([]auditservice.FindingProvenance(nil), f.provenance...), f.err
 }
 
-func auditTestHandler(audits AuditManagement) *handler {
-	return &handler{dependencies: Dependencies{
-		Audits: audits,
-		NewID:  func(string) (string, error) { return "audit-fixed", nil },
+func auditTestHandler(audits AuditManagement) *auditHandlers {
+	return &auditHandlers{AuditDependencies: AuditDependencies{
+		Audits: audits, Projects: newFakeProjectStore(),
+		NewID: func(string) (string, error) { return "audit-fixed", nil },
+	}}
+}
+
+// findingTestHandler serves the finding proposals of the Audits of audits.
+func findingTestHandler(audits AuditReader, proposals FindingProposalManagement) *findingHandlers {
+	return &findingHandlers{FindingDependencies: FindingDependencies{
+		FindingProposals: proposals, FindingCollections: missingFindingCollections{},
+		Audits: audits, Runs: newFakeRunStore(),
 	}}
 }
 

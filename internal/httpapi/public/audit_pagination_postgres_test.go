@@ -53,7 +53,7 @@ func TestPublicAuditPaginationBoundary(t *testing.T) {
 	var interleaving *provenanceInterleavingService
 	fixture := newHandlerFixtureWithAuth(t, "../../config/testdata/valid",
 		newTestAuthentication(t), mustTestOrigins(t), false, nil,
-		func(dependencies *Dependencies) {
+		func(dependencies *testServices) {
 			credentials := newFakeManagedCredentials()
 			service, err = auditservice.New(auditservice.Options{
 				Pool: pool, Profiles: dependencies.Config.(*config.Manager), CredentialGuard: credentials,

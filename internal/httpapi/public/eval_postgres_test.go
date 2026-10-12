@@ -67,7 +67,7 @@ func newEvalAPIHarness(t *testing.T) *evalAPIHarness {
 	}
 	resolver := &evalservice.Resolver{Pool: pool, Catalog: catalog, Credentials: credentials, Barrier: credentialLookup}
 	h := &evalAPIHarness{pool: pool, resolver: resolver}
-	fixture := newHandlerFixtureWithAuth(t, publicCatalogFixture, newTestAuthentication(t), mustTestOrigins(t), false, nil, func(d *Dependencies) {
+	fixture := newHandlerFixtureWithAuth(t, publicCatalogFixture, newTestAuthentication(t), mustTestOrigins(t), false, nil, func(d *testServices) {
 		d.Config = catalog
 		d.Audits = audits
 		d.Projects = projectstore.NewPostgresStore(pool)

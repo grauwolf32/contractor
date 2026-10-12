@@ -34,7 +34,7 @@ func TestTransactionConflictResponsesConformToOpenAPI(t *testing.T) {
 		conflict := &pgconn.PgError{Code: code}
 		fixture := newHandlerFixtureWithAuth(t, "../../config/testdata/valid",
 			newTestAuthentication(t), mustTestOrigins(t), false, nil,
-			func(dependencies *Dependencies) {
+			func(dependencies *testServices) {
 				dependencies.SchedulerSettings = conflictingSchedulerSettings{err: conflict}
 				dependencies.Audits = &fakeAuditManagement{err: conflict}
 			},

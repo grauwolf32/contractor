@@ -334,7 +334,7 @@ func TestProjectHTTPTargetRejectsAnotherOwnersCredential(t *testing.T) {
 				ProjectID: "project-target", OwnerID: "user-2", Kind: projectstore.KindProject,
 				Lifecycle: projectstore.LifecycleActive, Name: "Target", Revision: 1, CreatedAt: now, UpdatedAt: now,
 			}
-			current := &handler{dependencies: Dependencies{
+			current := &projectHandlers{ProjectDependencies: ProjectDependencies{
 				Projects: fixture.projects, RuntimeCredentials: fixture.runtimeCredentials,
 			}}
 			request := httptest.NewRequest(http.MethodPatch, "/v1/projects/project-target", bytes.NewReader([]byte(
@@ -401,13 +401,15 @@ func TestProjectRunRechecksHTTPTargetCredentialUse(t *testing.T) {
 			); err != nil {
 				t.Fatal(err)
 			}
-			dependencies := Dependencies{
+			services := testServices{
 				Config: fixture.configs, Credentials: fixture.credentials, ManagedCredentials: fixture.credentials,
 				RuntimeCredentials: fixture.runtimeCredentials, Projects: fixture.projects,
-				NewID: func(prefix string) (string, error) { return prefix + "fixed", nil },
 			}
-			dependencies.RunCreator = newTestRunCreator(t, dependencies, fixture.runs, fixture.unit, true)
-			current := &handler{dependencies: dependencies}
+			current := &runHandlers{RunDependencies: RunDependencies{
+				Projects: fixture.projects, RunNotifier: fixture.notifier,
+				RunCreator: newTestRunCreator(t, services, fixture.runs, fixture.unit, true),
+				NewID:      func(prefix string) (string, error) { return prefix + "fixed", nil },
+			}}
 			request := httptest.NewRequest(http.MethodPost, "/v1/projects/project-two/runs", bytes.NewReader([]byte(
 				`{"workflow":"artifact-copy@1","parameters":{"objective":"copy"},"artifacts":{"source":{"namespace":"sources","name":"service"}}}`,
 			)))
@@ -680,15 +682,38 @@ func TestProjectRunRejectsForeignProjectAndCannotReplayStandaloneKey(t *testing.
 		t.Fatalf("foreign Project Run = %d transactions=%d body=%s", response.Code, fixture.unit.calls, response.Body.String())
 	}
 
-	standalone := createRunRequest{Workflow: "artifact-copy@1"}
-	standaloneDigest, err := createRunRequestDigestForProject(standalone, nil)
+	// The key of a standalone Run is bound to its source scope: the same body
+	// sent with that key to a Project is another request, not a replay.
+	if _, _, err := fixture.projects.Create(t.Context(), projectstore.CreateParams{
+		ProjectID: "own", OwnerID: "user-1", Kind: projectstore.KindProject,
+		Name: "Own", IdempotencyKey: "own", RequestDigest: "sha256:own",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	userArtifacts, err := fixture.artifacts.User("user-1")
 	if err != nil {
 		t.Fatal(err)
 	}
-	projectID := "project-one"
-	projectDigest, err := createRunRequestDigestForProject(standalone, &projectID)
-	if err != nil || projectDigest == standaloneDigest {
-		t.Fatalf("source-scoped request digests = %q and %q (%v)", standaloneDigest, projectDigest, err)
+	if _, err := userArtifacts.Write(
+		t.Context(), contracts.ArtifactRef{Namespace: "projects", Name: "source"},
+		artifacts.Payload{MediaType: "text/plain", Data: []byte("source")}, nil,
+	); err != nil {
+		t.Fatal(err)
+	}
+	body := `{"workflow":"artifact-copy@1","parameters":{"objective":"copy"},"artifacts":{"source":{"namespace":"projects","name":"source"}}}`
+	standalone := authenticatedRequest(http.MethodPost, "/v1/runs", bytes.NewReader([]byte(body)))
+	standalone.Header.Set(idempotencyKeyHeader, "shared-run-key")
+	created := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(created, standalone)
+	if created.Code != http.StatusAccepted {
+		t.Fatalf("standalone Run = %d %s", created.Code, created.Body.String())
+	}
+	captured := authenticatedRequest(http.MethodPost, "/v1/projects/own/runs", bytes.NewReader([]byte(body)))
+	captured.Header.Set(idempotencyKeyHeader, "shared-run-key")
+	conflict := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(conflict, captured)
+	if conflict.Code != http.StatusConflict || !strings.Contains(conflict.Body.String(), `"idempotency_conflict"`) {
+		t.Fatalf("Project Run with a standalone key = %d %s", conflict.Code, conflict.Body.String())
 	}
 }
 
@@ -710,7 +735,7 @@ func newHandlerFixtureWithAuth(
 	origins auth.OriginPolicy,
 	insecureLoopbackCookie bool,
 	logger *slog.Logger,
-	configure ...func(*Dependencies),
+	configure ...func(*testServices),
 ) handlerFixture {
 	t.Helper()
 	manager, _, err := configload.NewManager(config.ManagerOptions{
@@ -771,7 +796,10 @@ func newHandlerFixtureWithAuth(
 		t.Fatalf("create public event Hub: %v", err)
 	}
 	t.Cleanup(eventHub.Close)
-	dependencies := Dependencies{
+	if logger == nil {
+		logger = slog.New(slog.DiscardHandler)
+	}
+	services := testServices{
 		Authentication: authentication, BrowserOrigins: origins,
 		InsecureLoopbackCookie: insecureLoopbackCookie,
 		Config:                 manager, ConfigurationPublisher: manager,
@@ -780,6 +808,13 @@ func newHandlerFixtureWithAuth(
 		RuntimeAgentPrincipals: runtimePrincipals,
 		Projects:               projects,
 		Audits:                 &fakeAuditManagement{},
+		FindingProposals:       missingFindingProposals{},
+		FindingCollections:     missingFindingCollections{},
+		Evals:                  unservedEvals{},
+		EvalNotifier:           &countingWaker{},
+		GitImports:             unavailableGitImports{},
+		GitKeys:                unavailableGitKeys{},
+		GatewayRecovery:        noGatewayWait{},
 		Runs:                   runs, RunDetails: runDetails, RunQueue: runs, RunLifecycle: runs, RunDeletion: runs, Artifacts: service,
 		Operations: operations, OperationsInvalidator: operations, SchedulerSettings: settings, Events: eventHub,
 		Performance: performance.NewReadService(false, nil, nil, nil, func() time.Time {
@@ -797,12 +832,12 @@ func newHandlerFixtureWithAuth(
 		},
 	}
 	for _, apply := range configure {
-		apply(&dependencies)
+		apply(&services)
 	}
-	if dependencies.RunCreator == nil {
-		dependencies.RunCreator = newTestRunCreator(t, dependencies, runs, unit, true)
+	if services.RunCreator == nil {
+		services.RunCreator = newTestRunCreator(t, services, runs, unit, true)
 	}
-	handler, err := NewHandler(dependencies)
+	handler, err := NewHandler(services.dependencies())
 	if err != nil {
 		t.Fatalf("NewHandler: %v", err)
 	}
@@ -1568,63 +1603,6 @@ func TestCreateRunRequiresValidIdempotencyKey(t *testing.T) {
 		if response.Code != http.StatusBadRequest {
 			t.Fatalf("key %q status = %d %s", key, response.Code, response.Body.String())
 		}
-	}
-}
-
-func TestCreateRunDigestNormalizesEquivalentEmptyMappings(t *testing.T) {
-	omitted, err := createRunRequestDigest(createRunRequest{Workflow: "empty@1"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	explicit, err := createRunRequestDigest(createRunRequest{
-		Workflow: "empty@1", Parameters: map[string]string{},
-		Artifacts: map[string]contracts.ArtifactRef{},
-	})
-	if err != nil || explicit != omitted {
-		t.Fatalf("semantic request digests = omitted:%q explicit:%q error:%v", omitted, explicit, err)
-	}
-	explicitLabels, err := createRunRequestDigest(createRunRequest{
-		Workflow: "empty@1", Labels: runMetadataLabels{},
-	})
-	if err != nil || explicitLabels != omitted {
-		t.Fatalf("empty metadata label digest = %q, omitted = %q, error = %v", explicitLabels, omitted, err)
-	}
-	var emptyExecutionConfig config.ExecutionConfigPatch
-	if err := json.Unmarshal([]byte(`{"stages":{}}`), &emptyExecutionConfig); err != nil {
-		t.Fatal(err)
-	}
-	withEmptyExecutionConfig, err := createRunRequestDigest(createRunRequest{
-		Workflow: "empty@1", ExecutionConfig: emptyExecutionConfig,
-	})
-	if err != nil || withEmptyExecutionConfig != omitted {
-		t.Fatalf(
-			"empty executionConfig digest = %q, omitted = %q, error = %v",
-			withEmptyExecutionConfig, omitted, err,
-		)
-	}
-	ordered, err := createRunRequestDigest(createRunRequest{
-		Workflow: "empty@1", RuntimeLabels: runRuntimeLabels{"debug", "trace"},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	reversed, err := createRunRequestDigest(createRunRequest{
-		Workflow: "empty@1", RuntimeLabels: runRuntimeLabels{"trace", "debug"},
-	})
-	if err != nil || reversed != ordered || reversed == omitted {
-		t.Fatalf("label request digests = ordered:%q reversed:%q omitted:%q error:%v", ordered, reversed, omitted, err)
-	}
-	metadataOrdered, err := createRunRequestDigest(createRunRequest{
-		Workflow: "empty@1", Labels: runMetadataLabels{"purpose": "eval", "eval.leg": "a"},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	metadataReversed, err := createRunRequestDigest(createRunRequest{
-		Workflow: "empty@1", Labels: runMetadataLabels{"eval.leg": "a", "purpose": "eval"},
-	})
-	if err != nil || metadataReversed != metadataOrdered || metadataReversed == omitted {
-		t.Fatalf("metadata label digests = ordered:%q reversed:%q omitted:%q error:%v", metadataOrdered, metadataReversed, omitted, err)
 	}
 }
 

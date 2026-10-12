@@ -17,32 +17,32 @@ type agentTemplateWorkflowBindingPageResponse struct {
 	Page  pageInfoResponse                       `json:"page"`
 }
 
-func (h *handler) listAgentTemplateWorkflowBindings(w http.ResponseWriter, r *http.Request) {
-	if h.rejectHead(w, r) {
+func (h *catalogHandlers) listAgentTemplateWorkflowBindings(w http.ResponseWriter, r *http.Request) {
+	if rejectHead(w, r) {
 		return
 	}
 	_, limit, encodedCursor, err := pageQuery(r.URL.RawQuery)
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	selector := r.PathValue("name") + "@" + r.PathValue("version")
 	if _, err := config.ParseSelector(selector); err != nil {
-		h.handleError(w, fmt.Errorf("%w: invalid AgentTemplate selector", errInvalidRequest))
+		handleError(w, fmt.Errorf("%w: invalid AgentTemplate selector", errInvalidRequest))
 		return
 	}
-	index, err := h.dependencies.Config.AgentTemplateWorkflowBindings(selector)
+	index, err := h.Config.AgentTemplateWorkflowBindings(selector)
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	cursorKind := catalogPageCursorKind(
 		agentTemplateWorkflowBindingsCursorKind+":"+selector,
 		catalogQuery{}, index.SourceFingerprint,
 	)
-	cursor, err := h.decodePageCursor(encodedCursor, cursorKind, 3)
+	cursor, err := h.cursors.decodePageCursor(encodedCursor, cursorKind, 3)
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 
@@ -50,7 +50,7 @@ func (h *handler) listAgentTemplateWorkflowBindings(w http.ResponseWriter, r *ht
 	if len(cursor) != 0 {
 		name, version, ok := splitWorkflowSelector(cursor[0])
 		if !ok {
-			h.handleError(w, fmt.Errorf("%w: invalid cursor", errInvalidRequest))
+			handleError(w, fmt.Errorf("%w: invalid cursor", errInvalidRequest))
 			return
 		}
 		after = agentTemplateWorkflowBindingResponse{
@@ -63,7 +63,7 @@ func (h *handler) listAgentTemplateWorkflowBindings(w http.ResponseWriter, r *ht
 		afterBinding = &after
 	}
 	pageItems := index.Page(afterBinding, pagelimit.FetchRows(limit))
-	pageItems, page, err := paginate(h, pageItems, limit, cursorKind, func(last config.AgentTemplateWorkflowBinding) []string {
+	pageItems, page, err := paginate(h.cursors, pageItems, limit, cursorKind, func(last config.AgentTemplateWorkflowBinding) []string {
 		return []string{
 			last.Workflow.Name + "@" + last.Workflow.Version,
 			last.Stage,
@@ -71,7 +71,7 @@ func (h *handler) listAgentTemplateWorkflowBindings(w http.ResponseWriter, r *ht
 		}
 	})
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, agentTemplateWorkflowBindingPageResponse{

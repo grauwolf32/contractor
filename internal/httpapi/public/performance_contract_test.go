@@ -108,7 +108,7 @@ func TestPerformanceReadHandlersAndAllocationHistoryCursor(t *testing.T) {
 	finished := time.Date(2026, 8, 29, 11, 0, 0, 0, time.UTC)
 	fixture := newHandlerFixtureWithAuth(
 		t, "../../config/testdata/valid", newTestAuthentication(t), mustTestOrigins(t), false, nil,
-		func(dependencies *Dependencies) {
+		func(dependencies *testServices) {
 			dependencies.AllocationResources = &fakeAllocationResourceReader{
 				byStage: map[string][]telemetry.AllocationResourceSummary{},
 				items: []telemetry.AllocationResourceSummary{

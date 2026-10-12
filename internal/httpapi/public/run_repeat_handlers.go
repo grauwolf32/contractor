@@ -25,23 +25,58 @@ const (
 	repeatStatusUnavailable = "unavailable"
 )
 
-func (h *handler) getRunRepeatDraft(w http.ResponseWriter, r *http.Request) {
+// RepeatWorkflowResolver checks that a retained Workflow selection still
+// resolves.
+type RepeatWorkflowResolver interface {
+	Workflow(string) (config.ResolvedWorkflow, error)
+	ResolveRunWorkflow(
+		context.Context, string, config.ExecutionConfigPatch, config.CredentialLookup,
+	) (config.ResolvedWorkflow, error)
+}
+
+// RepeatArtifacts reads the retained request of a Run and its exact inputs.
+type RepeatArtifacts interface {
+	ReadRunRepeatRequest(context.Context, string) (artifacts.ReadResult, error)
+	User(string) (artifacts.ScopedStore, error)
+	Project(string) (artifacts.ScopedStore, error)
+}
+
+// RuntimeBindingReader reads the current binding of a Runtime label.
+type RuntimeBindingReader interface {
+	GetBinding(context.Context, string) (runtimeconfig.Binding, error)
+}
+
+// RunRepeatDependencies serve the repeat draft of a terminal Run.
+type RunRepeatDependencies struct {
+	Runs           RunGetter
+	Projects       ProjectReader
+	Config         RepeatWorkflowResolver
+	Credentials    config.CredentialLookup
+	Artifacts      RepeatArtifacts
+	RuntimeConfigs RuntimeBindingReader
+}
+
+type runRepeatHandlers struct {
+	RunRepeatDependencies
+}
+
+func (h *runRepeatHandlers) getRunRepeatDraft(w http.ResponseWriter, r *http.Request) {
 	// The draft carries retained request provenance; no response is cached.
 	w.Header().Set("Cache-Control", "no-store")
-	if h.rejectHead(w, r) {
+	if rejectHead(w, r) {
 		return
 	}
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
-	run, err := h.ownedRun(r)
+	run, err := ownedRun(r, h.Runs)
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	if !runstore.RunLifecycleTerminal.Includes(run.State) {
-		h.handleError(w, fmt.Errorf("%w: only terminal Runs have a repeat draft", runstore.ErrConflict))
+		handleError(w, fmt.Errorf("%w: only terminal Runs have a repeat draft", runstore.ErrConflict))
 		return
 	}
 	response := runRepeatDraftResponse{
@@ -66,7 +101,7 @@ func (h *handler) getRunRepeatDraft(w http.ResponseWriter, r *http.Request) {
 	}
 	response.Authority = repeatAuthorityOrdinary
 	if run.ProjectID != nil {
-		project, projectErr := h.dependencies.Projects.Get(
+		project, projectErr := h.Projects.Get(
 			r.Context(), run.OwnerID, *run.ProjectID,
 		)
 		if errors.Is(projectErr, projectstore.ErrNotFound) {
@@ -75,7 +110,7 @@ func (h *handler) getRunRepeatDraft(w http.ResponseWriter, r *http.Request) {
 				Message: "The owning Project is no longer available. Its ProjectScope inputs cannot be used for another Run.",
 			})
 		} else if projectErr != nil {
-			h.handleError(w, projectErr)
+			handleError(w, projectErr)
 			return
 		} else if project.Lifecycle == projectstore.LifecycleDeleting {
 			response.Notices = append(response.Notices, runRepeatDraftNotice{
@@ -86,7 +121,7 @@ func (h *handler) getRunRepeatDraft(w http.ResponseWriter, r *http.Request) {
 	}
 	selector := run.WorkflowName + "@" + run.WorkflowVersion
 	workflowAvailable := true
-	if _, workflowErr := h.dependencies.Config.Workflow(selector); workflowErr != nil {
+	if _, workflowErr := h.Config.Workflow(selector); workflowErr != nil {
 		workflowAvailable = false
 		response.Notices = append(response.Notices, runRepeatDraftNotice{
 			Code: "workflow_unavailable", Severity: "blocking", Field: "workflow",
@@ -109,7 +144,7 @@ func (h *handler) getRunRepeatDraft(w http.ResponseWriter, r *http.Request) {
 				Message: "The saved Run request could not be verified. Configure a new Run from the Workflow.",
 			}
 		default:
-			h.handleError(w, snapshotErr)
+			handleError(w, snapshotErr)
 			return
 		}
 		response.Notices = append(response.Notices, notice)
@@ -127,15 +162,15 @@ func (h *handler) getRunRepeatDraft(w http.ResponseWriter, r *http.Request) {
 	response.Draft = draft
 	draft.Inputs, err = h.repeatInputsFromSnapshot(r.Context(), run, snapshot)
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	if workflowAvailable {
-		if _, resolveErr := h.dependencies.Config.ResolveRunWorkflow(
-			r.Context(), selector, snapshot.ExecutionConfig, h.dependencies.Credentials,
+		if _, resolveErr := h.Config.ResolveRunWorkflow(
+			r.Context(), selector, snapshot.ExecutionConfig, h.Credentials,
 		); errors.Is(resolveErr, config.ErrCredentialLookup) {
 			// An outage is not an unavailable selection; let the client retry.
-			h.handleError(w, resolveErr)
+			handleError(w, resolveErr)
 			return
 		} else if resolveErr != nil {
 			response.Notices = append(response.Notices, runRepeatDraftNotice{
@@ -160,7 +195,7 @@ func (h *handler) getRunRepeatDraft(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 	if err := h.appendRuntimeBindingNotices(r.Context(), run, &response.Notices); err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	sort.SliceStable(response.Notices, func(left, right int) bool {
@@ -172,10 +207,10 @@ func (h *handler) getRunRepeatDraft(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, response)
 }
 
-func (h *handler) loadRunRepeatSnapshot(
+func (h *runRepeatHandlers) loadRunRepeatSnapshot(
 	ctx context.Context, run runstore.WorkflowRun,
 ) (runrepeat.Snapshot, error) {
-	retained, err := h.dependencies.Artifacts.ReadRunRepeatRequest(ctx, run.RunID)
+	retained, err := h.Artifacts.ReadRunRepeatRequest(ctx, run.RunID)
 	if err != nil {
 		return runrepeat.Snapshot{}, err
 	}
@@ -190,7 +225,7 @@ func (h *handler) loadRunRepeatSnapshot(
 	return snapshot, nil
 }
 
-func (h *handler) repeatInputsFromSnapshot(
+func (h *runRepeatHandlers) repeatInputsFromSnapshot(
 	ctx context.Context, run runstore.WorkflowRun, snapshot runrepeat.Snapshot,
 ) (map[string]runRepeatInputSelection, error) {
 	result := make(map[string]runRepeatInputSelection, len(snapshot.Inputs))
@@ -204,7 +239,7 @@ func (h *handler) repeatInputsFromSnapshot(
 	return result, nil
 }
 
-func (h *handler) resolveRepeatSource(
+func (h *runRepeatHandlers) resolveRepeatSource(
 	ctx context.Context, run runstore.WorkflowRun, ref contracts.ArtifactRef,
 ) (runRepeatInputSelection, error) {
 	copy := ref.Clone()
@@ -215,10 +250,10 @@ func (h *handler) resolveRepeatSource(
 	)
 	if run.ProjectID == nil {
 		kind = artifacts.ScopeUser
-		store, err = h.dependencies.Artifacts.User(run.OwnerID)
+		store, err = h.Artifacts.User(run.OwnerID)
 	} else {
 		kind = artifacts.ScopeProject
-		store, err = h.dependencies.Artifacts.Project(*run.ProjectID)
+		store, err = h.Artifacts.Project(*run.ProjectID)
 	}
 	if err != nil {
 		return runRepeatInputSelection{}, err
@@ -250,12 +285,12 @@ func unavailableRepeatInput(
 	}
 }
 
-func (h *handler) appendRuntimeBindingNotices(
+func (h *runRepeatHandlers) appendRuntimeBindingNotices(
 	ctx context.Context, run runstore.WorkflowRun, notices *[]runRepeatDraftNotice,
 ) error {
 	pins := append([]runtimeconfig.PinnedLabel{run.RuntimeConfig.Default}, run.RuntimeConfig.Labels...)
 	for _, pin := range pins {
-		binding, err := h.dependencies.RuntimeConfigs.GetBinding(ctx, pin.Label)
+		binding, err := h.RuntimeConfigs.GetBinding(ctx, pin.Label)
 		field := "runtimeLabels." + pin.Label
 		if errors.Is(err, runtimeconfig.ErrNotFound) {
 			*notices = append(*notices, runRepeatDraftNotice{
@@ -275,6 +310,15 @@ func (h *handler) appendRuntimeBindingNotices(
 		}
 	}
 	return nil
+}
+
+func sortedArtifactSlots(source map[string]contracts.ArtifactRef) []string {
+	result := make([]string, 0, len(source))
+	for slot := range source {
+		result = append(result, slot)
+	}
+	sort.Strings(result)
+	return result
 }
 
 func hasEvaluationLabels(labels runstore.RunMetadataLabels) bool {

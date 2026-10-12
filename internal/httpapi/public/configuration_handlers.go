@@ -10,38 +10,38 @@ import (
 	"github.com/grauwolf32/contractor/internal/pagelimit"
 )
 
-func (h *handler) listConfigurations(w http.ResponseWriter, r *http.Request) {
-	if h.rejectHead(w, r) {
+func (h *catalogHandlers) listConfigurations(w http.ResponseWriter, r *http.Request) {
+	if rejectHead(w, r) {
 		return
 	}
 	kind, err := config.ParseConfigurationKind(r.PathValue("kind"))
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	values, limit, encodedCursor, err := pageQuery(r.URL.RawQuery, "q", "name")
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	_, namePresent := values["name"]
 	query, err := parseCatalogQuery(values.Get("q"), values.Get("name"), namePresent)
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	// Resources and their fingerprint come from one snapshot, which encoded
 	// them once (CAT-R67).
-	discovery, err := h.dependencies.Config.ConfigurationDiscovery(kind)
+	discovery, err := h.Config.ConfigurationDiscovery(kind)
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	resources := discovery.Resources
 	cursorKind := catalogPageCursorKind("configurations:"+string(kind), query, discovery.SourceFingerprint)
-	cursor, err := h.decodePageCursor(encodedCursor, cursorKind, 1)
+	cursor, err := h.cursors.decodePageCursor(encodedCursor, cursorKind, 1)
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	after := ""
@@ -64,82 +64,82 @@ func (h *handler) listConfigurations(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 	}
-	items, page, err := paginate(h, items, limit, cursorKind, func(last config.ConfigurationResource) []string {
+	items, page, err := paginate(h.cursors, items, limit, cursorKind, func(last config.ConfigurationResource) []string {
 		return []string{last.Ref.Name + "@" + last.Ref.Version}
 	})
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, configurationPageResponse{Items: items, Page: page})
 }
 
-func (h *handler) getConfiguration(w http.ResponseWriter, r *http.Request) {
-	if h.rejectHead(w, r) {
+func (h *catalogHandlers) getConfiguration(w http.ResponseWriter, r *http.Request) {
+	if rejectHead(w, r) {
 		return
 	}
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	kind, err := config.ParseConfigurationKind(r.PathValue("kind"))
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	selector := r.PathValue("name") + "@" + r.PathValue("version")
 	if _, err := config.ParseSelector(selector); err != nil {
-		h.handleError(w, fmt.Errorf("%w: invalid configuration selector", errInvalidRequest))
+		handleError(w, fmt.Errorf("%w: invalid configuration selector", errInvalidRequest))
 		return
 	}
-	resource, err := h.dependencies.Config.Configuration(kind, selector)
+	resource, err := h.Config.Configuration(kind, selector)
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	w.Header().Set("ETag", strconv.Quote(resource.Ref.Digest))
 	writeJSON(w, http.StatusOK, resource)
 }
 
-func (h *handler) publishConfiguration(w http.ResponseWriter, r *http.Request) {
+func (h *catalogHandlers) publishConfiguration(w http.ResponseWriter, r *http.Request) {
 	mediaType, err := requestMediaType(r)
 	if err != nil || mediaType != "application/json" {
-		h.handleError(w, fmt.Errorf("%w: Content-Type must be application/json", errInvalidRequest))
+		handleError(w, fmt.Errorf("%w: Content-Type must be application/json", errInvalidRequest))
 		return
 	}
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	kind, err := config.ParseConfigurationKind(r.PathValue("kind"))
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	var request publishConfigurationRequest
 	if err := decodeJSON(w, r, &request); err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	idempotencyKey, err := requireIdempotencyKey(r)
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
-	result, err := h.dependencies.ConfigurationPublisher.Publish(r.Context(), config.PublicationRequest{
+	result, err := h.ConfigurationPublisher.Publish(r.Context(), config.PublicationRequest{
 		Kind: kind, Name: request.Name, Version: request.Version,
 		ModelPolicy: request.ModelPolicy, LLMGateway: request.LLMGateway,
 		IdempotencyKey: idempotencyKey, ActorID: principalUserID(r.Context()),
 	})
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	if !result.Replayed {
-		if err := h.dependencies.OperationsInvalidator.InvalidateOperations(
+		if err := h.OperationsInvalidator.InvalidateOperations(
 			controlplane.OperationsConfiguration, "",
 		); err != nil {
-			h.handleError(w, err)
+			handleError(w, err)
 			return
 		}
 	}

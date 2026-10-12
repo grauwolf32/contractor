@@ -15,7 +15,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/evalservice"
 )
 
-func (h *handler) evalSelectedPageRequest(r *http.Request) (evalservice.MemberPageParams, url.Values, error) {
+func (h *evalHandlers) evalSelectedPageRequest(r *http.Request) (evalservice.MemberPageParams, url.Values, error) {
 	q, limit, err := evalQuery(r, "viewSnapshot", "filter", "variantId", "suiteId", "measurementScope", "binFilter")
 	p := evalservice.MemberPageParams{OwnerID: principalUserID(r.Context()), ExperimentID: r.PathValue("id"), AfterOrdinal: -1, Limit: limit}
 	if err != nil {
@@ -39,23 +39,23 @@ func (h *handler) evalSelectedPageRequest(r *http.Request) (evalservice.MemberPa
 	return p, q, err
 }
 
-func (h *handler) listEvalPairs(w http.ResponseWriter, r *http.Request) {
+func (h *evalHandlers) listEvalPairs(w http.ResponseWriter, r *http.Request) {
 	p, q, err := h.evalSelectedPageRequest(r)
 	if err != nil {
-		h.evalError(w, err)
+		evalError(w, err)
 		return
 	}
-	data, err := h.dependencies.Evals.Pairs(r.Context(), evalservice.PairPageParams{MemberPageParams: p})
+	data, err := h.Evals.Pairs(r.Context(), evalservice.PairPageParams{MemberPageParams: p})
 	if err != nil {
-		h.evalError(w, err)
+		evalError(w, err)
 		return
 	}
 	page, err := h.evalPage(r, q, data.HasMore, data.Snapshot, strconv.Itoa(data.LastOrdinal))
 	if err != nil {
-		h.evalError(w, err)
+		evalError(w, err)
 		return
 	}
-	h.evalJSON(w, http.StatusOK, "PairPage", map[string]any{
+	evalJSON(w, http.StatusOK, "PairPage", map[string]any{
 		"viewSnapshot":      data.Snapshot,
 		"freshness":         data.Freshness,
 		"experimentSummary": data.Summary,
@@ -74,29 +74,29 @@ func evalDetailRequest(r *http.Request, extra ...string) (evalservice.MemberPage
 	return p, q, nil
 }
 
-func (h *handler) getEvalPair(w http.ResponseWriter, r *http.Request) {
+func (h *evalHandlers) getEvalPair(w http.ResponseWriter, r *http.Request) {
 	p, _, err := evalDetailRequest(r)
 	if err != nil {
-		h.evalError(w, err)
+		evalError(w, err)
 		return
 	}
-	data, err := h.dependencies.Evals.Pair(r.Context(), p, r.PathValue("pairId"))
+	data, err := h.Evals.Pair(r.Context(), p, r.PathValue("pairId"))
 	if err != nil {
-		h.evalError(w, err)
+		evalError(w, err)
 		return
 	}
-	h.evalJSON(w, http.StatusOK, "PairDetail", data)
+	evalJSON(w, http.StatusOK, "PairDetail", data)
 }
 
-func (h *handler) getEvalChart(w http.ResponseWriter, r *http.Request) {
+func (h *evalHandlers) getEvalChart(w http.ResponseWriter, r *http.Request) {
 	q, limit, err := evalQuery(r, "viewSnapshot", "suiteId", "measurementScope", "metric", "sort")
 	if err != nil {
-		h.evalError(w, err)
+		evalError(w, err)
 		return
 	}
 	chart := r.PathValue("chart")
 	if chart != "pair-deltas" && (q.Has("limit") || q.Has("cursor") || q.Has("metric") || q.Has("sort")) || q.Has("sort") && !evalStringIn(q.Get("sort"), "frozen", "absolute") {
-		h.evalError(w, evaldomain.Failure("eval_invalid"))
+		evalError(w, evaldomain.Failure("eval_invalid"))
 		return
 	}
 	p := evalservice.ChartParams{Chart: chart, PairPageParams: evalservice.PairPageParams{
@@ -114,23 +114,23 @@ func (h *handler) getEvalChart(w http.ResponseWriter, r *http.Request) {
 	if chart == "pair-deltas" {
 		cursor, err := h.readEvalCursor(r, q, 2)
 		if err != nil {
-			h.evalError(w, err)
+			evalError(w, err)
 			return
 		}
 		if len(cursor.Position) > 0 {
 			p.AfterOrdinal, err = strconv.Atoi(cursor.Position[0])
 			difference, parseErr := strconv.ParseFloat(cursor.Position[1], 64)
 			if err != nil || parseErr != nil || math.IsNaN(difference) || math.IsInf(difference, 0) || p.Snapshot != "" && p.Snapshot != cursor.Snapshot {
-				h.evalError(w, evaldomain.Failure("eval_invalid"))
+				evalError(w, evaldomain.Failure("eval_invalid"))
 				return
 			}
 			p.AfterDifference = &difference
 			p.Snapshot = cursor.Snapshot
 		}
 	}
-	data, err := h.dependencies.Evals.Chart(r.Context(), p)
+	data, err := h.Evals.Chart(r.Context(), p)
 	if err != nil {
-		h.evalError(w, err)
+		evalError(w, err)
 		return
 	}
 	if data.Bins != nil {
@@ -138,7 +138,7 @@ func (h *handler) getEvalChart(w http.ResponseWriter, r *http.Request) {
 			bin := &(*data.Bins)[i]
 			bin.FilterToken, err = h.evalBinToken(r, data, *bin)
 			if err != nil {
-				h.evalError(w, err)
+				evalError(w, err)
 				return
 			}
 		}
@@ -155,37 +155,37 @@ func (h *handler) getEvalChart(w http.ResponseWriter, r *http.Request) {
 		}
 		page, err := h.evalPage(r, q, data.HasMore, data.Snapshot, strconv.Itoa(data.LastOrdinal), difference)
 		if err != nil {
-			h.evalError(w, err)
+			evalError(w, err)
 			return
 		}
 		response.Page = &page
 	}
-	h.evalJSON(w, http.StatusOK, "Chart", response)
+	evalJSON(w, http.StatusOK, "Chart", response)
 }
 
-func (h *handler) getEvalReport(w http.ResponseWriter, r *http.Request) {
+func (h *evalHandlers) getEvalReport(w http.ResponseWriter, r *http.Request) {
 	p, q, err := evalDetailRequest(r, "format")
 	if err != nil {
-		h.evalError(w, err)
+		evalError(w, err)
 		return
 	}
 	format := q.Get("format")
 	if format != "" && !evalStringIn(format, "json", "markdown") {
-		h.evalError(w, evaldomain.Failure("eval_invalid"))
+		evalError(w, evaldomain.Failure("eval_invalid"))
 		return
 	}
-	data, err := h.dependencies.Evals.Report(r.Context(), p)
+	data, err := h.Evals.Report(r.Context(), p)
 	if err != nil {
-		h.evalError(w, err)
+		evalError(w, err)
 		return
 	}
 	if format != "markdown" {
-		h.evalJSON(w, http.StatusOK, "Report", data)
+		evalJSON(w, http.StatusOK, "Report", data)
 		return
 	}
 	raw, err := json.Marshal(data)
 	if err != nil || evaldomain.Validate("Report", raw) != nil {
-		h.evalError(w, evaldomain.Failure("eval_invalid"))
+		evalError(w, evaldomain.Failure("eval_invalid"))
 		return
 	}
 	w.Header().Set("Content-Type", "text/markdown; charset=utf-8")

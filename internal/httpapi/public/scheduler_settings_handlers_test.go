@@ -155,10 +155,11 @@ func TestSchedulerSettingsReplaceRejectsInvalidRequestsWithoutMutation(t *testin
 // Operations authorization in front of their registered routes.
 func TestSchedulerSettingsRequireOperationsCapability(t *testing.T) {
 	settings := newFakeSchedulerSettings()
-	current := &handler{dependencies: Dependencies{SchedulerSettings: settings}}
 	mux := http.NewServeMux()
-	current.registerOperationsRoutes(mux)
-	protected := current.requireOperationsRoutes(mux)
+	contextHandlers{operations: &operationsHandlers{
+		OperationsDependencies: OperationsDependencies{SchedulerSettings: settings},
+	}}.registerOperationsRoutes(mux)
+	protected := requireOperationsRoutes(mux)
 	tests := []struct {
 		name       string
 		principal  *auth.Principal

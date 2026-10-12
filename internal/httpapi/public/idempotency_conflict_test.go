@@ -38,7 +38,7 @@ func TestEveryKeyedOperationReportsKeyReuseAsPermanent(t *testing.T) {
 	var fixture handlerFixture
 	fixture = newHandlerFixtureWithAuth(t, "../../config/testdata/valid",
 		newTestAuthentication(t), mustTestOrigins(t), false, nil,
-		func(dependencies *Dependencies) {
+		func(dependencies *testServices) {
 			dependencies.Audits = audits
 			dependencies.RunCreator = reusedKeyRuns{err: reused}
 			dependencies.Projects = reusedKeyProjects{ProjectManagement: dependencies.Projects, err: reused}
@@ -152,7 +152,7 @@ func TestEveryKeyedOperationReportsKeyReuseAsPermanent(t *testing.T) {
 		})
 	}
 	evalResponse := httptest.NewRecorder()
-	(&handler{}).evalError(evalResponse, evaldomain.Failure("eval_idempotency_conflict"))
+	evalError(evalResponse, evaldomain.Failure("eval_idempotency_conflict"))
 	var evalBody errorResponse
 	if err := json.Unmarshal(evalResponse.Body.Bytes(), &evalBody); err != nil || evalResponse.Code != http.StatusConflict ||
 		evalBody.Code != "eval_idempotency_conflict" || evalBody.Retryable {

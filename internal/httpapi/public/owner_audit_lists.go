@@ -43,8 +43,8 @@ func auditStateKey(states []auditstore.AuditState) string {
 	return strings.Join(parts, ",")
 }
 
-func (h *handler) ownerListPosition(cursorValue, kind string) (*time.Time, string, error) {
-	cursor, err := h.decodePageCursor(cursorValue, kind, 2)
+func (h *auditHandlers) ownerListPosition(cursorValue, kind string) (*time.Time, string, error) {
+	cursor, err := h.cursors.decodePageCursor(cursorValue, kind, 2)
 	if err != nil || len(cursor) == 0 {
 		return nil, "", err
 	}
@@ -55,26 +55,26 @@ func (h *handler) ownerListPosition(cursorValue, kind string) (*time.Time, strin
 	return &createdAt, cursor[1], nil
 }
 
-func (h *handler) listOwnerFindings(w http.ResponseWriter, r *http.Request) {
+func (h *auditHandlers) listOwnerFindings(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
-	if h.rejectHead(w, r) {
+	if rejectHead(w, r) {
 		return
 	}
 	query, limit, cursor, err := pageQuery(r.URL.RawQuery, "state", "verdict", "severity", "auditState")
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	params := auditservice.OwnerFindingListParams{OwnerID: principalUserID(r.Context()), Limit: pagelimit.FetchRows(limit)}
 	params.AuditStates, err = parseAuditStates(query.Get("auditState"))
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	if values, ok := query["state"]; ok {
 		state := auditservice.FindingState(values[0])
 		if !state.Valid() {
-			h.handleError(w, errInvalidRequest)
+			handleError(w, errInvalidRequest)
 			return
 		}
 		params.State = &state
@@ -85,7 +85,7 @@ func (h *handler) listOwnerFindings(w http.ResponseWriter, r *http.Request) {
 		} else {
 			verdict := auditservice.AnalystVerdict(values[0])
 			if verdict != auditservice.VerdictTruePositive && verdict != auditservice.VerdictFalsePositive {
-				h.handleError(w, errInvalidRequest)
+				handleError(w, errInvalidRequest)
 				return
 			}
 			params.Verdict = &verdict
@@ -94,7 +94,7 @@ func (h *handler) listOwnerFindings(w http.ResponseWriter, r *http.Request) {
 	if values, ok := query["severity"]; ok {
 		severity := auditservice.FindingSeverity(values[0])
 		if !severity.Valid() || params.Unreviewed {
-			h.handleError(w, errInvalidRequest)
+			handleError(w, errInvalidRequest)
 			return
 		}
 		params.Severity = &severity
@@ -102,19 +102,19 @@ func (h *handler) listOwnerFindings(w http.ResponseWriter, r *http.Request) {
 	kind := "owner-findings:" + params.OwnerID + ":" + query.Get("state") + ":" + query.Get("verdict") + ":" + query.Get("severity") + ":" + auditStateKey(params.AuditStates)
 	params.BeforeCreatedAt, params.BeforeFindingID, err = h.ownerListPosition(cursor, kind)
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
-	items, err := h.dependencies.Audits.ListOwnerFindings(r.Context(), params)
+	items, err := h.Audits.ListOwnerFindings(r.Context(), params)
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
-	items, page, err := paginate(h, items, limit, kind, func(last auditservice.Finding) []string {
+	items, page, err := paginate(h.cursors, items, limit, kind, func(last auditservice.Finding) []string {
 		return []string{last.CreatedAt.UTC().Format(time.RFC3339Nano), last.FindingID}
 	})
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	if items == nil {
@@ -126,26 +126,26 @@ func (h *handler) listOwnerFindings(w http.ResponseWriter, r *http.Request) {
 	}{items, page})
 }
 
-func (h *handler) listOwnerReviews(w http.ResponseWriter, r *http.Request) {
+func (h *auditHandlers) listOwnerReviews(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
-	if h.rejectHead(w, r) {
+	if rejectHead(w, r) {
 		return
 	}
 	query, limit, cursor, err := pageQuery(r.URL.RawQuery, "state", "auditState")
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	params := auditservice.OwnerReviewListParams{OwnerID: principalUserID(r.Context()), Limit: pagelimit.FetchRows(limit)}
 	params.AuditStates, err = parseAuditStates(query.Get("auditState"))
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	if values, ok := query["state"]; ok {
 		state := auditservice.ReviewState(values[0])
 		if !state.Valid() {
-			h.handleError(w, errInvalidRequest)
+			handleError(w, errInvalidRequest)
 			return
 		}
 		params.State = &state
@@ -153,19 +153,19 @@ func (h *handler) listOwnerReviews(w http.ResponseWriter, r *http.Request) {
 	kind := "owner-reviews:" + params.OwnerID + ":" + query.Get("state") + ":" + auditStateKey(params.AuditStates)
 	params.BeforeCreatedAt, params.BeforeRequestID, err = h.ownerListPosition(cursor, kind)
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
-	items, err := h.dependencies.Audits.ListOwnerReviews(r.Context(), params)
+	items, err := h.Audits.ListOwnerReviews(r.Context(), params)
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
-	items, page, err := paginate(h, items, limit, kind, func(last auditservice.ReviewRequest) []string {
+	items, page, err := paginate(h.cursors, items, limit, kind, func(last auditservice.ReviewRequest) []string {
 		return []string{last.CreatedAt.UTC().Format(time.RFC3339Nano), last.RequestID}
 	})
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	if items == nil {

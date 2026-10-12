@@ -25,8 +25,8 @@ const (
 	pinnedEvalCursorPath = "/v1/evals/experiments/exp-1/members"
 )
 
-func pinnedCursorHandler() *handler {
-	return &handler{tokenDigest: sha256.Sum256([]byte(pinnedCursorBearer))}
+func pinnedCursorHandler() *evalHandlers {
+	return &evalHandlers{cursors: pageCursors{key: sha256.Sum256([]byte(pinnedCursorBearer))}}
 }
 
 func pinnedEvalRequest(rawQuery string) (*http.Request, url.Values) {
@@ -37,21 +37,21 @@ func pinnedEvalRequest(rawQuery string) (*http.Request, url.Values) {
 
 func TestPageCursorEncodingIsPinned(t *testing.T) {
 	h := pinnedCursorHandler()
-	encoded, err := h.encodePageCursor("runs:state=all", "2026-01-02T03:04:05.000000006Z", "run-1")
+	encoded, err := h.cursors.encodePageCursor("runs:state=all", "2026-01-02T03:04:05.000000006Z", "run-1")
 	if err != nil {
 		t.Fatalf("encodePageCursor: %v", err)
 	}
 	if encoded != pinnedPageCursor {
 		t.Fatalf("encodePageCursor = %q, want pinned %q", encoded, pinnedPageCursor)
 	}
-	values, err := h.decodePageCursor(pinnedPageCursor, "runs:state=all", 2)
+	values, err := h.cursors.decodePageCursor(pinnedPageCursor, "runs:state=all", 2)
 	if err != nil || !reflect.DeepEqual(values, []string{"2026-01-02T03:04:05.000000006Z", "run-1"}) {
 		t.Fatalf("decodePageCursor(pinned) = %v, %v", values, err)
 	}
-	if _, err := h.decodePageCursor(pinnedPageCursor, "runs:state=active", 2); err == nil {
+	if _, err := h.cursors.decodePageCursor(pinnedPageCursor, "runs:state=active", 2); err == nil {
 		t.Fatal("decodePageCursor accepted a cursor of another kind")
 	}
-	other := &handler{tokenDigest: sha256.Sum256([]byte("another-bearer"))}
+	other := pageCursors{key: sha256.Sum256([]byte("another-bearer"))}
 	if _, err := other.decodePageCursor(pinnedPageCursor, "runs:state=all", 2); err == nil {
 		t.Fatal("decodePageCursor accepted a cursor signed with another key")
 	}

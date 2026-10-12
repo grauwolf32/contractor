@@ -2,7 +2,8 @@ package public
 
 import "net/http"
 
-func (h *handler) registerEvalRoutes(mux *http.ServeMux) {
+func (c contextHandlers) registerEvalRoutes(mux *http.ServeMux) {
+	h := c.evals
 	routes := []struct {
 		method, path string
 		handler      http.HandlerFunc
@@ -34,11 +35,7 @@ func (h *handler) registerEvalRoutes(mux *http.ServeMux) {
 	for _, route := range routes {
 		mux.HandleFunc(route.method+" "+route.path, func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Cache-Control", "no-store")
-			if h.rejectHead(w, r) {
-				return
-			}
-			if h.dependencies.Evals == nil {
-				h.writeError(w, http.StatusServiceUnavailable, "eval_unavailable", "Evaluation service is unavailable", true)
+			if rejectHead(w, r) {
 				return
 			}
 			route.handler(w, r)
@@ -46,6 +43,6 @@ func (h *handler) registerEvalRoutes(mux *http.ServeMux) {
 		paths[route.path] = true
 	}
 	for path := range paths {
-		mux.HandleFunc(path, h.methodNotAllowed)
+		mux.HandleFunc(path, methodNotAllowed)
 	}
 }

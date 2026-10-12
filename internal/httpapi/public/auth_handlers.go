@@ -7,13 +7,12 @@ import (
 	"errors"
 	"math"
 	"net/http"
-	"slices"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/auth"
-	"github.com/grauwolf32/contractor/internal/credentials"
+	publicevents "github.com/grauwolf32/contractor/internal/httpapi/public/events"
 )
 
 // A supported 1024-byte password can expand to 6144 JSON bytes. With a
@@ -31,15 +30,41 @@ var (
 
 type browserSessionContextKey struct{}
 
-func (h *handler) login(w http.ResponseWriter, r *http.Request) {
+// SessionDependencies serve browser login, the session cookie, bearer and
+// cookie authentication, CORS and the live event socket.
+type SessionDependencies struct {
+	Authentication *auth.Service
+	BrowserOrigins auth.OriginPolicy
+	// TrustedPeers resolves the login rate-limit client behind reverse proxies;
+	// its zero value attributes every failure to the socket peer.
+	TrustedPeers           auth.PeerPolicy
+	InsecureLoopbackCookie bool
+	Events                 *publicevents.Hub
+}
+
+type sessionHandlers struct {
+	SessionDependencies
+	tokenDigest [sha256.Size]byte
+}
+
+// cookieName names the session cookie: the __Host- cookie, or the
+// separately named insecure cookie of loopback development (API-R18).
+func (h *sessionHandlers) cookieName() string {
+	if h.InsecureLoopbackCookie {
+		return auth.LoopbackCookieName
+	}
+	return auth.SecureCookieName
+}
+
+func (h *sessionHandlers) login(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	mediaType, err := requestMediaType(r)
 	if err != nil || mediaType != "application/json" {
-		h.handleError(w, errInvalidRequest)
+		handleError(w, errInvalidRequest)
 		return
 	}
 	controller := http.NewResponseController(w)
@@ -48,18 +73,18 @@ func (h *handler) login(w http.ResponseWriter, r *http.Request) {
 	decodeErr := decodeJSONBounded(w, r, &request, maximumLoginBodyBytes)
 	_ = controller.SetReadDeadline(time.Time{})
 	if decodeErr != nil {
-		h.handleError(w, decodeErr)
+		handleError(w, decodeErr)
 		return
 	}
-	peerIP, err := h.dependencies.TrustedPeers.ClientIP(r.RemoteAddr, r.Header.Values("X-Forwarded-For"))
+	peerIP, err := h.TrustedPeers.ClientIP(r.RemoteAddr, r.Header.Values("X-Forwarded-For"))
 	if err != nil {
-		h.handleError(w, errInvalidRequest)
+		handleError(w, errInvalidRequest)
 		return
 	}
 	password := []byte(request.Password)
 	request.Password = ""
 	defer clear(password)
-	result, err := h.dependencies.Authentication.Login(request.Username, password, peerIP)
+	result, err := h.Authentication.Login(request.Username, password, peerIP)
 	if err != nil {
 		if limited, ok := auth.IsRateLimited(err); ok {
 			retryAfter := int(math.Ceil(limited.RetryAfter.Seconds()))
@@ -70,15 +95,15 @@ func (h *handler) login(w http.ResponseWriter, r *http.Request) {
 				retryAfter = 60
 			}
 			w.Header().Set("Retry-After", strconv.Itoa(retryAfter))
-			h.writeError(w, http.StatusTooManyRequests, "rate_limited", "authentication attempts are temporarily limited", true)
+			writeError(w, http.StatusTooManyRequests, "rate_limited", "authentication attempts are temporarily limited", true)
 			return
 		}
 		if errors.Is(err, auth.ErrInvalidCredentials) {
 			w.Header().Set("WWW-Authenticate", "Session")
-			h.writeError(w, http.StatusUnauthorized, "unauthorized", "credentials are invalid", false)
+			writeError(w, http.StatusUnauthorized, "unauthorized", "credentials are invalid", false)
 			return
 		}
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	h.setSessionCookie(w, result.CookieValue, result.Session.AbsoluteExpiresAt)
@@ -86,40 +111,40 @@ func (h *handler) login(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, authSession(result.Session))
 }
 
-func (h *handler) getSession(w http.ResponseWriter, r *http.Request) {
+func (h *sessionHandlers) getSession(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
-	if h.rejectHead(w, r) {
+	if rejectHead(w, r) {
 		return
 	}
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	session, ok := browserSessionFromContext(r.Context())
 	if !ok {
-		h.writeSessionUnauthorized(w)
+		writeSessionUnauthorized(w)
 		return
 	}
 	writeJSON(w, http.StatusOK, authSession(session))
 }
 
-func (h *handler) logout(w http.ResponseWriter, r *http.Request) {
+func (h *sessionHandlers) logout(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	if _, err := exactQuery(r.URL.RawQuery); err != nil || r.ContentLength > 0 || len(r.TransferEncoding) != 0 {
-		h.handleError(w, errInvalidRequest)
+		handleError(w, errInvalidRequest)
 		return
 	}
 	session, ok := browserSessionFromContext(r.Context())
 	if !ok {
-		h.writeSessionUnauthorized(w)
+		writeSessionUnauthorized(w)
 		return
 	}
-	h.dependencies.Authentication.Destroy(session.Handle)
+	h.Authentication.Destroy(session.Handle)
 	h.clearSessionCookie(w)
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (h *handler) authenticate(next http.Handler) http.Handler {
+func (h *sessionHandlers) authenticate(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasPrefix(r.URL.Path, "/v1/auth/") {
 			w.Header().Set("Cache-Control", "no-store")
@@ -131,42 +156,42 @@ func (h *handler) authenticate(next http.Handler) http.Handler {
 		authorization := r.Header.Values("Authorization")
 		if len(authorization) != 0 {
 			if len(authorization) != 1 || !strings.HasPrefix(authorization[0], "Bearer ") {
-				h.writeBearerUnauthorized(w)
+				writeBearerUnauthorized(w)
 				return
 			}
 			candidate := strings.TrimPrefix(authorization[0], "Bearer ")
 			candidateDigest := sha256.Sum256([]byte(candidate))
 			if candidate == "" || len(candidate) > 4096 ||
 				subtle.ConstantTimeCompare(candidateDigest[:], h.tokenDigest[:]) != 1 {
-				h.writeBearerUnauthorized(w)
+				writeBearerUnauthorized(w)
 				return
 			}
-			principal := h.dependencies.Authentication.Principal()
+			principal := h.Authentication.Principal()
 			next.ServeHTTP(w, r.WithContext(auth.WithPrincipal(r.Context(), principal)))
 			return
 		}
 		cookieValue, err := h.sessionCookie(r)
 		if err != nil {
-			h.writeSessionUnauthorized(w)
+			writeSessionUnauthorized(w)
 			return
 		}
-		session, err := h.dependencies.Authentication.Lookup(cookieValue)
+		session, err := h.Authentication.Lookup(cookieValue)
 		if err != nil {
-			h.writeSessionUnauthorized(w)
+			writeSessionUnauthorized(w)
 			return
 		}
 		if requestIsUnsafe(r.Method) {
 			origins := r.Header.Values("Origin")
 			csrf := r.Header.Values("X-CSRF-Token")
-			if len(origins) != 1 || !h.dependencies.BrowserOrigins.Allows(origins[0]) || len(csrf) != 1 ||
-				h.dependencies.Authentication.ValidateCSRF(session, csrf[0]) != nil {
-				h.writeError(w, http.StatusForbidden, "forbidden", "request origin or CSRF token is invalid", false)
+			if len(origins) != 1 || !h.BrowserOrigins.Allows(origins[0]) || len(csrf) != 1 ||
+				h.Authentication.ValidateCSRF(session, csrf[0]) != nil {
+				writeError(w, http.StatusForbidden, "forbidden", "request origin or CSRF token is invalid", false)
 				return
 			}
 		}
-		session, err = h.dependencies.Authentication.Accept(session.Handle)
+		session, err = h.Authentication.Accept(session.Handle)
 		if err != nil {
-			h.writeSessionUnauthorized(w)
+			writeSessionUnauthorized(w)
 			return
 		}
 		ctx := auth.WithPrincipal(r.Context(), session.Principal)
@@ -175,7 +200,7 @@ func (h *handler) authenticate(next http.Handler) http.Handler {
 	})
 }
 
-func (h *handler) cors(next http.Handler, routes *http.ServeMux) http.Handler {
+func (h *sessionHandlers) cors(next http.Handler, routes *http.ServeMux) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasPrefix(r.URL.Path, "/v1/auth/") {
 			w.Header().Set("Cache-Control", "no-store")
@@ -184,13 +209,13 @@ func (h *handler) cors(next http.Handler, routes *http.ServeMux) http.Handler {
 		if len(origins) != 0 {
 			setVary(w.Header(), "Origin")
 		}
-		if len(origins) > 1 || len(origins) == 1 && !h.dependencies.BrowserOrigins.Allows(origins[0]) {
-			h.writeError(w, http.StatusForbidden, "forbidden", "browser origin is not allowed", false)
+		if len(origins) > 1 || len(origins) == 1 && !h.BrowserOrigins.Allows(origins[0]) {
+			writeError(w, http.StatusForbidden, "forbidden", "browser origin is not allowed", false)
 			return
 		}
 		if len(origins) == 0 {
 			if r.Method == http.MethodOptions || len(r.Header.Values("Access-Control-Request-Method")) != 0 {
-				h.writeError(w, http.StatusForbidden, "forbidden", "browser origin is not allowed", false)
+				writeError(w, http.StatusForbidden, "forbidden", "browser origin is not allowed", false)
 				return
 			}
 			next.ServeHTTP(w, r)
@@ -208,7 +233,7 @@ func (h *handler) cors(next http.Handler, routes *http.ServeMux) http.Handler {
 			return
 		}
 		if !validPreflight(r, routes) {
-			h.writeError(w, http.StatusForbidden, "forbidden", "CORS preflight is not allowed", false)
+			writeError(w, http.StatusForbidden, "forbidden", "CORS preflight is not allowed", false)
 			return
 		}
 		setVary(w.Header(), "Access-Control-Request-Method")
@@ -271,36 +296,31 @@ func requestIsUnsafe(method string) bool {
 	return method != http.MethodGet && method != http.MethodHead && method != http.MethodOptions
 }
 
-func (h *handler) sessionCookie(r *http.Request) (string, error) {
-	configured := r.CookiesNamed(h.cookieName)
+func (h *sessionHandlers) sessionCookie(r *http.Request) (string, error) {
+	configured := r.CookiesNamed(h.cookieName())
 	if len(configured) != 1 || configured[0].Value == "" {
 		return "", auth.ErrInvalidSession
 	}
 	return configured[0].Value, nil
 }
 
-func (h *handler) setSessionCookie(w http.ResponseWriter, value string, absoluteExpiresAt time.Time) {
+func (h *sessionHandlers) setSessionCookie(w http.ResponseWriter, value string, absoluteExpiresAt time.Time) {
 	http.SetCookie(w, &http.Cookie{
-		Name: h.cookieName, Value: value, Path: "/", Expires: absoluteExpiresAt,
-		HttpOnly: true, Secure: h.secureCookie, SameSite: http.SameSiteLaxMode,
+		Name: h.cookieName(), Value: value, Path: "/", Expires: absoluteExpiresAt,
+		HttpOnly: true, Secure: !h.InsecureLoopbackCookie, SameSite: http.SameSiteLaxMode,
 	})
 }
 
-func (h *handler) clearSessionCookie(w http.ResponseWriter) {
+func (h *sessionHandlers) clearSessionCookie(w http.ResponseWriter) {
 	http.SetCookie(w, &http.Cookie{
-		Name: h.cookieName, Value: "", Path: "/", Expires: time.Unix(1, 0).UTC(), MaxAge: -1,
-		HttpOnly: true, Secure: h.secureCookie, SameSite: http.SameSiteLaxMode,
+		Name: h.cookieName(), Value: "", Path: "/", Expires: time.Unix(1, 0).UTC(), MaxAge: -1,
+		HttpOnly: true, Secure: !h.InsecureLoopbackCookie, SameSite: http.SameSiteLaxMode,
 	})
 }
 
-func (h *handler) writeBearerUnauthorized(w http.ResponseWriter) {
-	w.Header().Set("WWW-Authenticate", "Bearer")
-	h.writeError(w, http.StatusUnauthorized, "unauthorized", "valid authentication is required", false)
-}
-
-func (h *handler) writeSessionUnauthorized(w http.ResponseWriter) {
+func writeSessionUnauthorized(w http.ResponseWriter) {
 	w.Header().Set("WWW-Authenticate", "Session")
-	h.writeError(w, http.StatusUnauthorized, "unauthorized", "valid authentication is required", false)
+	writeError(w, http.StatusUnauthorized, "unauthorized", "valid authentication is required", false)
 }
 
 func authSession(source auth.Session) authSessionResponse {
@@ -313,25 +333,4 @@ func authSession(source auth.Session) authSessionResponse {
 func browserSessionFromContext(ctx context.Context) (auth.Session, bool) {
 	session, ok := ctx.Value(browserSessionContextKey{}).(auth.Session)
 	return session, ok
-}
-
-func principalUserID(ctx context.Context) string {
-	principal, ok := auth.PrincipalFromContext(ctx)
-	if !ok {
-		return ""
-	}
-	return principal.UserID
-}
-
-// runtimeCredentialUser describes the authenticated principal's authority to
-// reference Runtime credentials from its owner-scoped configuration.
-func runtimeCredentialUser(ctx context.Context) credentials.RuntimeCredentialUser {
-	principal, ok := auth.PrincipalFromContext(ctx)
-	if !ok {
-		return credentials.RuntimeCredentialUser{}
-	}
-	return credentials.RuntimeCredentialUser{
-		UserID:     principal.UserID,
-		Operations: slices.Contains(principal.Capabilities, auth.CapabilityOperations),
-	}
 }

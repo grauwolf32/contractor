@@ -9,9 +9,8 @@ import (
 )
 
 func TestOperationsCapabilityMiddlewareCoversManagementSubtree(t *testing.T) {
-	current := &handler{}
 	called := 0
-	protected := current.requireOperationsRoutes(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	protected := requireOperationsRoutes(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		called++
 		w.WriteHeader(http.StatusNoContent)
 	}))
@@ -69,9 +68,8 @@ func TestOperationsCapabilityMiddlewareCoversManagementSubtree(t *testing.T) {
 }
 
 func TestConfigurationPublicationRequiresOperationsCapability(t *testing.T) {
-	current := &handler{}
 	mux := http.NewServeMux()
-	current.registerCatalogRoutes(mux)
+	contextHandlers{catalog: &catalogHandlers{}}.registerCatalogRoutes(mux)
 	for _, test := range []struct {
 		name         string
 		capabilities []string

@@ -24,7 +24,8 @@ import (
 	"github.com/grauwolf32/contractor/internal/settingsstore"
 )
 
-func (h *handler) handleError(w http.ResponseWriter, err error) {
+// handleError answers err with the public error envelope of its class.
+func handleError(w http.ResponseWriter, err error) {
 	requestid.AnnotateFailure(w, "", diagnosticCause(err))
 	var credentialInUse *credentials.CredentialInUseError
 	var runtimeCredentialInUse *credentials.RuntimeCredentialInUseError
@@ -35,12 +36,12 @@ func (h *handler) handleError(w http.ResponseWriter, err error) {
 	case errors.Is(err, contracts.ErrIdempotencyConflict):
 		// Permanent (FAIL-RUN-1): the key keeps its original result, so only a
 		// new key can carry the changed request.
-		h.writeError(w, http.StatusConflict, "idempotency_conflict",
+		writeError(w, http.StatusConflict, "idempotency_conflict",
 			"Idempotency-Key is already bound to a different request; use a new key for a new request", false)
 	case errors.Is(err, settingsstore.ErrPrecondition), errors.Is(err, auditstore.ErrPrecondition),
 		errors.Is(err, runstore.ErrPrecondition), errors.Is(err, projectstore.ErrPrecondition),
 		errors.Is(err, runtimeconfig.ErrPrecondition):
-		h.writeError(w, http.StatusPreconditionFailed, "precondition_failed", "resource revision precondition failed", false)
+		writeError(w, http.StatusPreconditionFailed, "precondition_failed", "resource revision precondition failed", false)
 	case errors.As(err, &auditUnsupported):
 		writeJSON(w, http.StatusUnprocessableEntity, errorResponse{
 			Code: "audit_profile_unsupported", Message: "AuditProfile requires unsupported Server capabilities",
@@ -51,11 +52,11 @@ func (h *handler) handleError(w http.ResponseWriter, err error) {
 			},
 		})
 	case auditdomain.ErrorCode(err) != "":
-		h.writeError(w, http.StatusUnprocessableEntity, auditdomain.ErrorCode(err), "Audit input could not be processed", false)
+		writeError(w, http.StatusUnprocessableEntity, auditdomain.ErrorCode(err), "Audit input could not be processed", false)
 	case errors.Is(err, runtimeconfig.ErrAgentLabelNotApplicable):
-		h.writeError(w, http.StatusBadRequest, "runtime_agent_label_not_applicable", "Runtime label has no Worker-applicable setting", false)
+		writeError(w, http.StatusBadRequest, "runtime_agent_label_not_applicable", "Runtime label has no Worker-applicable setting", false)
 	case errors.Is(err, runtimeconfig.ErrPrincipalInUse):
-		h.writeError(w, http.StatusConflict, "runtime_agent_in_use", "Runtime Agent principal is live, labeled, or allocation-referenced", false)
+		writeError(w, http.StatusConflict, "runtime_agent_in_use", "Runtime Agent principal is live, labeled, or allocation-referenced", false)
 	case errors.As(err, &runtimeLabelInUse):
 		writeJSON(w, http.StatusConflict, errorResponse{
 			Code: "runtime_label_in_use", Message: "Runtime label is assigned to a Runtime Agent",
@@ -65,17 +66,17 @@ func (h *handler) handleError(w http.ResponseWriter, err error) {
 			},
 		})
 	case errors.Is(err, runtimeconfig.ErrReserved):
-		h.writeError(w, http.StatusConflict, "runtime_label_in_use", "reserved Runtime label cannot be removed", false)
+		writeError(w, http.StatusConflict, "runtime_label_in_use", "reserved Runtime label cannot be removed", false)
 	case errors.Is(err, runtimeconfig.ErrLabelNotFound):
-		h.writeError(w, http.StatusNotFound, "not_found", "resource was not found", false)
+		writeError(w, http.StatusNotFound, "not_found", "resource was not found", false)
 	case errors.Is(err, runtimeconfig.ErrVersionNotFound):
-		h.writeError(w, http.StatusBadRequest, "runtime_config_invalid", "selected RuntimeConfig version is unavailable", false)
+		writeError(w, http.StatusBadRequest, "runtime_config_invalid", "selected RuntimeConfig version is unavailable", false)
 	case errors.Is(err, runtimeconfig.ErrNotFound):
-		h.writeError(w, http.StatusBadRequest, "runtime_label_unknown", "a selected Runtime label is unavailable", false)
+		writeError(w, http.StatusBadRequest, "runtime_label_unknown", "a selected Runtime label is unavailable", false)
 	case errors.Is(err, runtimeconfig.ErrConflict):
-		h.writeError(w, http.StatusConflict, "runtime_config_conflict", "selected Runtime labels conflict", false)
+		writeError(w, http.StatusConflict, "runtime_config_conflict", "selected Runtime labels conflict", false)
 	case errors.Is(err, runtimeconfig.ErrInvalid):
-		h.writeError(w, http.StatusBadRequest, "runtime_config_invalid", "Runtime label configuration is invalid", false)
+		writeError(w, http.StatusBadRequest, "runtime_config_invalid", "Runtime label configuration is invalid", false)
 	case errors.As(err, &runtimeCredentialInUse):
 		writeJSON(w, http.StatusConflict, errorResponse{
 			Code: "runtime_credential_in_use", Message: "Runtime credential is referenced by active configuration",
@@ -90,15 +91,15 @@ func (h *handler) handleError(w http.ResponseWriter, err error) {
 			},
 		})
 	case errors.Is(err, credentials.ErrGitKeyInvalid):
-		h.writeError(w, http.StatusBadRequest, "git_key_invalid", "Git SSH key must be a supported unencrypted private key of at most 32 KiB", false)
+		writeError(w, http.StatusBadRequest, "git_key_invalid", "Git SSH key must be a supported unencrypted private key of at most 32 KiB", false)
 	case errors.Is(err, credentials.ErrGitKeyMissing):
-		h.writeError(w, http.StatusUnprocessableEntity, "git_key_missing", "Git SSH key is not configured", false)
+		writeError(w, http.StatusUnprocessableEntity, "git_key_missing", "Git SSH key is not configured", false)
 	case errors.Is(err, credentials.ErrRuntimeCredentialNotFound):
-		h.writeError(w, http.StatusNotFound, "not_found", "resource was not found", false)
+		writeError(w, http.StatusNotFound, "not_found", "resource was not found", false)
 	case errors.Is(err, credentials.ErrRuntimeCredentialConflict):
-		h.writeError(w, http.StatusConflict, "runtime_config_conflict", "Runtime credential identity or idempotency key conflicts", false)
+		writeError(w, http.StatusConflict, "runtime_config_conflict", "Runtime credential identity or idempotency key conflicts", false)
 	case errors.Is(err, credentials.ErrRuntimeCredentialInvalid):
-		h.writeError(w, http.StatusBadRequest, "runtime_config_invalid", "Runtime credential request is invalid", false)
+		writeError(w, http.StatusBadRequest, "runtime_config_invalid", "Runtime credential request is invalid", false)
 	case errors.As(err, &credentialInUse):
 		writeJSON(w, http.StatusConflict, errorResponse{
 			Code: "credential_in_use", Message: "credential is referenced by an active Run, Audit or RuntimeConfig label",
@@ -110,29 +111,29 @@ func (h *handler) handleError(w http.ResponseWriter, err error) {
 			},
 		})
 	case errors.Is(err, credentials.ErrGatewayUnavailable), errors.Is(err, credentials.ErrManagerUnavailable):
-		h.writeError(w, http.StatusBadGateway, "gateway_unavailable", "managed Gateway operation is unavailable", true)
+		writeError(w, http.StatusBadGateway, "gateway_unavailable", "managed Gateway operation is unavailable", true)
 	case errors.Is(err, credentials.ErrRecoveryRequired):
-		h.writeError(w, http.StatusServiceUnavailable, "credential_recovery_required", "credential operation recovery is in progress", true)
+		writeError(w, http.StatusServiceUnavailable, "credential_recovery_required", "credential operation recovery is in progress", true)
 	case errors.Is(err, credentials.ErrConflict):
-		h.writeError(w, http.StatusConflict, "credential_conflict", "credential identity or idempotency key conflicts", false)
+		writeError(w, http.StatusConflict, "credential_conflict", "credential identity or idempotency key conflicts", false)
 	case errors.Is(err, credentials.ErrNotFound):
-		h.writeError(w, http.StatusNotFound, "not_found", "resource was not found", false)
+		writeError(w, http.StatusNotFound, "not_found", "resource was not found", false)
 	case errors.Is(err, config.ErrPublicationConflict):
-		h.writeError(w, http.StatusConflict, "configuration_conflict", "immutable configuration identity or idempotency key conflicts", false)
+		writeError(w, http.StatusConflict, "configuration_conflict", "immutable configuration identity or idempotency key conflicts", false)
 	case errors.Is(err, config.ErrConfigurationDrift):
 		// Permanent until an operator restores the roots or restarts (CAT-R75).
-		h.writeError(w, http.StatusConflict, "configuration_drift",
+		writeError(w, http.StatusConflict, "configuration_drift",
 			"configuration roots changed outside the publication manager; restore them or restart the Server", false)
 	case errors.Is(err, artifacts.ErrPayloadTooLarge):
-		h.writeError(w, http.StatusRequestEntityTooLarge, "artifact_too_large", "artifact exceeds the 64 MiB limit", false)
+		writeError(w, http.StatusRequestEntityTooLarge, "artifact_too_large", "artifact exceeds the 64 MiB limit", false)
 	case errors.Is(err, errRequestTooLarge):
-		h.writeError(w, http.StatusRequestEntityTooLarge, "request_too_large", "request body exceeds its size limit", false)
+		writeError(w, http.StatusRequestEntityTooLarge, "request_too_large", "request body exceeds its size limit", false)
 	case errors.Is(err, artifacts.ErrTransferCapacity):
-		h.writeError(w, http.StatusServiceUnavailable, "artifact_transfer_capacity", "artifact transfer capacity is exhausted", true)
+		writeError(w, http.StatusServiceUnavailable, "artifact_transfer_capacity", "artifact transfer capacity is exhausted", true)
 	case errors.Is(err, artifacts.ErrArtifactIntegrity):
-		h.writeError(w, http.StatusServiceUnavailable, "artifact_content_corrupt", "artifact content failed integrity verification", false)
+		writeError(w, http.StatusServiceUnavailable, "artifact_content_corrupt", "artifact content failed integrity verification", false)
 	case errors.Is(err, artifacts.ErrBlobMissing):
-		h.writeError(w, http.StatusServiceUnavailable, "artifact_content_missing", "artifact content is unavailable", false)
+		writeError(w, http.StatusServiceUnavailable, "artifact_content_missing", "artifact content is unavailable", false)
 	case errors.As(err, &runNotDeletable):
 		writeJSON(w, http.StatusConflict, errorResponse{
 			Code: "run_not_deletable", Message: "Run cannot be deleted yet",
@@ -144,21 +145,21 @@ func (h *handler) handleError(w http.ResponseWriter, err error) {
 	case errors.Is(err, projectstore.ErrDeleting), errors.Is(err, runstore.ErrProjectDeleting),
 		errors.Is(err, auditstore.ErrProjectDeleting),
 		errors.Is(err, artifacts.ErrScopeDeleting):
-		h.writeError(w, http.StatusConflict, "project_deleting", "Project deletion is in progress", false)
+		writeError(w, http.StatusConflict, "project_deleting", "Project deletion is in progress", false)
 	case errors.Is(err, artifacts.ErrArtifactFrozen):
 		// A frozen binding never advances, so no re-read can make a retry succeed.
-		h.writeError(w, http.StatusConflict, "artifact_frozen", "artifact binding is frozen and cannot change", false)
+		writeError(w, http.StatusConflict, "artifact_frozen", "artifact binding is frozen and cannot change", false)
 	case errors.Is(err, artifacts.ErrArtifactConflict),
 		errors.Is(err, projectstore.ErrConflict),
 		errors.Is(err, runstore.ErrConflict), errors.Is(err, auditstore.ErrConflict),
 		errors.Is(err, findingintake.ErrConflict):
-		h.writeError(w, http.StatusConflict, "conflict", "resource state changed; retry with the current revision", true)
+		writeError(w, http.StatusConflict, "conflict", "resource state changed; retry with the current revision", true)
 	case errors.Is(err, artifacts.ErrArtifactNotFound), errors.Is(err, projectstore.ErrNotFound),
 		errors.Is(err, runstore.ErrNotFound),
 		errors.Is(err, auditstore.ErrNotFound), errors.Is(err, auditservice.ErrProfileNotFound),
 		errors.Is(err, auditstandards.ErrNotFound),
 		errors.Is(err, config.ErrConfigurationNotFound), errors.Is(err, findingintake.ErrNotFound):
-		h.writeError(w, http.StatusNotFound, "not_found", "resource was not found", false)
+		writeError(w, http.StatusNotFound, "not_found", "resource was not found", false)
 	case errors.Is(err, errInvalidRequest), errors.Is(err, artifacts.ErrInvalidScope),
 		errors.Is(err, artifacts.ErrInvalidName), errors.Is(err, artifacts.ErrInvalidMediaType),
 		errors.Is(err, artifacts.ErrVersionedWriteTarget), errors.Is(err, artifacts.ErrExactRevisionRequired),
@@ -171,15 +172,15 @@ func (h *handler) handleError(w http.ResponseWriter, err error) {
 		errors.Is(err, settingsstore.ErrInvalid),
 		errors.Is(err, config.ErrInvalidConfigurationKind),
 		errors.Is(err, config.ErrInvalidPublication), errors.Is(err, credentials.ErrInvalid):
-		h.writeError(w, http.StatusBadRequest, "invalid_request", "request does not satisfy the API contract", false)
+		writeError(w, http.StatusBadRequest, "invalid_request", "request does not satisfy the API contract", false)
 	case persistencepostgres.IsTransactionConflict(err):
-		h.writeError(w, http.StatusServiceUnavailable, "storage_transaction_conflict", "database transaction conflicted; retry the request", true)
+		writeError(w, http.StatusServiceUnavailable, "storage_transaction_conflict", "database transaction conflicted; retry the request", true)
 	default:
-		h.writeError(w, http.StatusInternalServerError, "internal_error", "request could not be processed", true)
+		writeError(w, http.StatusInternalServerError, "internal_error", "request could not be processed", true)
 	}
 }
 
-func (h *handler) writeError(
+func writeError(
 	w http.ResponseWriter,
 	status int,
 	code string,
@@ -196,4 +197,30 @@ func writeJSON(w http.ResponseWriter, status int, value any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(value)
+}
+
+// gitKeyError answers the owner Git key and Git import routes, which both
+// need the key encryption key.
+func gitKeyError(w http.ResponseWriter, err error) {
+	if errors.Is(err, credentials.ErrKeyUnavailable) {
+		writeError(w, http.StatusServiceUnavailable, "git_key_unavailable", "Git key encryption is not configured", false)
+		return
+	}
+	handleError(w, err)
+}
+
+func methodNotAllowed(w http.ResponseWriter, _ *http.Request) {
+	writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "method is not allowed", false)
+}
+
+func rejectHead(w http.ResponseWriter, r *http.Request) bool {
+	if r.Method != http.MethodHead {
+		return false
+	}
+	methodNotAllowed(w, r)
+	return true
+}
+
+func notFound(w http.ResponseWriter, _ *http.Request) {
+	writeError(w, http.StatusNotFound, "not_found", "resource was not found", false)
 }

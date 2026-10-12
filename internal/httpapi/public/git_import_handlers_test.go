@@ -32,7 +32,7 @@ func (c *snapshotClientFixture) Fetch(ctx context.Context, remote gitimport.Remo
 
 func TestGitImportErrorNamesUnsupportedEntry(t *testing.T) {
 	response := httptest.NewRecorder()
-	(&handler{}).gitImportError(response, &gitimport.UnsupportedEntryError{Kind: "submodule", Path: "vendor/module"})
+	gitImportError(response, &gitimport.UnsupportedEntryError{Kind: "submodule", Path: "vendor/module"})
 	var body errorResponse
 	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
 		t.Fatal(err)
@@ -42,7 +42,7 @@ func TestGitImportErrorNamesUnsupportedEntry(t *testing.T) {
 		t.Fatalf("unsupported entry = %d %+v", response.Code, body)
 	}
 	response = httptest.NewRecorder()
-	(&handler{}).gitImportError(response, gitimport.ErrContent)
+	gitImportError(response, gitimport.ErrContent)
 	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
 		t.Fatal(err)
 	}
@@ -50,7 +50,7 @@ func TestGitImportErrorNamesUnsupportedEntry(t *testing.T) {
 		t.Fatalf("generic content error = %d %+v", response.Code, body)
 	}
 	response = httptest.NewRecorder()
-	(&handler{}).gitImportError(response, gitimport.ErrBudget)
+	gitImportError(response, gitimport.ErrBudget)
 	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
 		t.Fatal(err)
 	}
@@ -95,7 +95,7 @@ func (w *writeDeadlineRecorder) Write(data []byte) (int, error) {
 // from the write itself, not by the remainder of the 120-second import.
 func TestGitImportResponseWriteHasItsOwnDeadline(t *testing.T) {
 	fixture := newHandlerFixtureWithAuth(t, "../../config/testdata/valid", newTestAuthentication(t), mustTestOrigins(t), false, nil,
-		func(d *Dependencies) { d.GitImports = respondingGitImports{} })
+		func(d *testServices) { d.GitImports = respondingGitImports{} })
 	body, _ := json.Marshal(map[string]string{"repositoryUrl": "https://example.test/first.git"})
 	request := authenticatedRequest(http.MethodPost, "/v1/artifacts/source/repository/git-import", bytes.NewReader(body))
 	request.Header.Set("Content-Type", "application/json")
@@ -144,7 +144,7 @@ func TestGitImportPublicationAndAdmission(t *testing.T) {
 			}
 			service := artifacts.NewService(artifacts.NewPostgresRepository(pool))
 			projects := projectstore.NewPostgresStore(pool)
-			fixture := newHandlerFixtureWithAuth(t, "../../config/testdata/valid", newTestAuthentication(t), mustTestOrigins(t), false, nil, func(d *Dependencies) { d.GitImports = importer; d.Artifacts = service; d.Projects = projects })
+			fixture := newHandlerFixtureWithAuth(t, "../../config/testdata/valid", newTestAuthentication(t), mustTestOrigins(t), false, nil, func(d *testServices) { d.GitImports = importer; d.Artifacts = service; d.Projects = projects })
 			call := func(path, repository string, expected *string) *httptest.ResponseRecorder {
 				body, _ := json.Marshal(map[string]string{"repositoryUrl": repository})
 				request := authenticatedRequest(http.MethodPost, path, bytes.NewReader(body)).WithContext(ctx)

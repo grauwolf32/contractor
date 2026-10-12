@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
@@ -18,6 +19,23 @@ import (
 )
 
 const maxJSONRequestSize = 1 << 20
+
+const idempotencyKeyHeader = "Idempotency-Key"
+
+func requireIdempotencyKey(r *http.Request) (string, error) {
+	values := r.Header.Values(idempotencyKeyHeader)
+	if len(values) != 1 || len(values[0]) == 0 || len(values[0]) > 128 {
+		return "", fmt.Errorf("%w: exactly one bounded Idempotency-Key is required", errInvalidRequest)
+	}
+	for index, character := range values[0] {
+		valid := character >= 'a' && character <= 'z' || character >= 'A' && character <= 'Z' ||
+			character >= '0' && character <= '9' || index > 0 && strings.ContainsRune("._:-", character)
+		if !valid {
+			return "", fmt.Errorf("%w: Idempotency-Key contains an invalid character", errInvalidRequest)
+		}
+	}
+	return values[0], nil
+}
 
 func decodeJSON(w http.ResponseWriter, r *http.Request, target any) error {
 	return decodeJSONBounded(w, r, target, maxJSONRequestSize)
@@ -132,6 +150,23 @@ func artifactWritePrecondition(r *http.Request) (*string, error) {
 		return nil, fmt.Errorf("%w: If-Match requires one quoted Artifact revision", errInvalidRequest)
 	}
 	return &revision, nil
+}
+
+// parseRuntimeRevisionETag reads the one strong If-Match of a resource whose
+// revision is a positive decimal counter.
+func parseRuntimeRevisionETag(raw string) (uint64, error) {
+	revision, err := httpx.ParseStrongETag(raw)
+	switch {
+	case errors.Is(err, httpx.ErrWeakETag):
+		return 0, fmt.Errorf("%w: binding revision requires one strong ETag", errInvalidRequest)
+	case err != nil:
+		return 0, fmt.Errorf("%w: binding revision must be quoted", errInvalidRequest)
+	}
+	parsed, err := strconv.ParseUint(revision, 10, 64)
+	if err != nil || parsed == 0 || strconv.FormatUint(parsed, 10) != revision {
+		return 0, fmt.Errorf("%w: binding revision is invalid", errInvalidRequest)
+	}
+	return parsed, nil
 }
 
 func exactQuery(raw string, allowed ...string) (url.Values, error) {
