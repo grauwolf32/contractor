@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-69 open tasks: 3 in progress, 52 pending, 14 deferred. 855 finished: 852 completed, 3 archived.
+70 open tasks: 3 in progress, 53 pending, 14 deferred. 855 finished: 852 completed, 3 archived.
 
 ## In progress
 
@@ -87,6 +87,7 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V371-020](v371-020-ui-resource-id-grammar.yml) | defect | P3 | — | Give the UI one ResourceId and Revision grammar and check revisions before If-Match |
+| [V372-005](v372-005-issues-decision-focus-race.yml) | defect | P2 | — | Move focus to the next possible issue reliably after a decision |
 
 ### Public API and wire contracts (`api-contracts`)
 
@@ -165,7 +166,7 @@ tasks in `introduced_by`.
 | Audits (`audits`) | 22 | 49 | 67 | 12 | 75 |
 | Evaluations (`evals`) | 4 | 21 | 28 | 5 | 33 |
 | Podman sandbox (`sandbox`) | 0 | 8 | 1 | 1 | 2 |
-| Web UI (`ui`) | 1 | 19 | 52 | 10 | 48 |
+| Web UI (`ui`) | 2 | 19 | 53 | 10 | 48 |
 | Operations, authentication, CLI and deployment (`operations`) | 0 | 8 | 30 | 4 | 6 |
 | Public API and wire contracts (`api-contracts`) | 10 | 1 | 27 | 17 | 7 |
 | PostgreSQL persistence and schema (`persistence`) | 3 | 0 | 17 | 29 | 4 |
