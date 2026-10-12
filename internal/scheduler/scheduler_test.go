@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -2480,18 +2481,27 @@ func (p *memoryAtomicPersistence) CommitResultProgression(
 			continue
 		}
 		result := value.Result.Clone()
+		// Like bindOutput, each output binding is created once per Run: the
+		// binding of the same source replays, and one of another revision
+		// refuses the whole acceptance before anything changes.
+		bound := map[string]contracts.ArtifactRef{}
+		if result.Outcome == stageresult.StageSucceeded {
+			for output, resultName := range value.WorkflowOutputs {
+				if source, ok := result.Artifacts[resultName]; ok {
+					target := exactRef("outputs", output, "output-"+*source.Revision)
+					if existing, exists := p.outputs[output]; exists && !existing.SameExact(target) {
+						conflict := &artifacts.ConflictError{Ref: contracts.ArtifactRef{Namespace: "outputs", Name: output}}
+						return fmt.Errorf("bind Workflow output %q: %w: %w", output, errInvalidRunState, conflict)
+					}
+					bound[output] = target
+				}
+			}
+		}
 		p.store.stages[index].State = runstore.StageExecutionState(result.Outcome)
 		p.store.stages[index].AcceptedResult = &result
 		p.store.stages[index].AcceptedResultSchemaVersion = stringPointer(contracts.APIVersion)
 		p.stageStates = append(p.stageStates, p.store.stages[index].State)
-		if result.Outcome == stageresult.StageSucceeded {
-			for output, resultName := range value.WorkflowOutputs {
-				if source, ok := result.Artifacts[resultName]; ok {
-					revision := "output-" + *source.Revision
-					p.outputs[output] = exactRef("outputs", output, revision)
-				}
-			}
-		}
+		maps.Copy(p.outputs, bound)
 		p.endStage()
 		p.commitProgression(value.Progression)
 		p.events.add("accept")
@@ -2657,6 +2667,18 @@ func (p *memoryAtomicPersistence) FailRunWithActiveStages(
 		}
 	}
 	p.store.run.State, p.store.run.StateReason = nextRunState, reason
+	p.store.claimID = ""
+	return nil
+}
+
+// FinishCancelledRun ends a cancelling Run, as the store's compare-and-set on
+// the locked Run row does.
+func (p *memoryAtomicPersistence) FinishCancelledRun(_ context.Context, runID string) error {
+	if !p.runIn(runID, []runstore.WorkflowRunState{runstore.RunCancelling}) {
+		return runstore.ErrConflict
+	}
+	p.store.run.State = runstore.RunCancelled
+	p.store.run.StateReason = runstore.Reason{Code: runstore.CancellationUserRequested}
 	p.store.claimID = ""
 	return nil
 }

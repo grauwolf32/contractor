@@ -208,6 +208,13 @@ func (s *Scheduler) resumeFinalizing(
 		})
 	}
 	cancelCommit()
+	if errors.Is(err, errInvalidRunState) {
+		// No replay can progress this candidate, such as an escalation
+		// history that the budget cannot count or a mapping onto an output
+		// the Run already bound at another revision (ART-R90): end the Run
+		// as durable state the Scheduler cannot progress (SCH-R102).
+		return s.failInvalidRunState(ctx, run.RunID, err)
+	}
 	if errors.Is(err, errTransientOutputPublication) {
 		err = errors.Join(err, s.countTransientOutputPublication(ctx, execution))
 	}
@@ -245,6 +252,12 @@ func (s *Scheduler) countTransientOutputPublication(ctx context.Context, executi
 	return err
 }
 
+// buildProgression decides the progression of execution's outcome under
+// action, the Transition the Run's pinned Workflow declares for it. A check
+// of that durable state, the Transition policy, the Stages it names or the
+// escalation history its budget counts, fails as errInvalidRunState, which no
+// replay changes; a store failure, such as reading the history, stays an
+// ordinary error that a later pass retries.
 func (s *Scheduler) buildProgression(
 	ctx context.Context,
 	run runstore.WorkflowRun,
@@ -260,7 +273,7 @@ func (s *Scheduler) buildProgression(
 	var exhaustedEscalationOrdinal *int
 	if action.Kind == resolved.TransitionRetry {
 		if action.Retry == nil {
-			return StageProgression{}, fmt.Errorf("retry Transition has no bounded policy")
+			return StageProgression{}, fmt.Errorf("%w: retry Transition has no bounded policy", errInvalidRunState)
 		}
 		if !retryable || execution.Attempt >= action.Retry.MaxAttempts {
 			selected = action.Retry.Then
@@ -270,7 +283,9 @@ func (s *Scheduler) buildProgression(
 		if action.Escalate == nil ||
 			(escalationVariant != runstore.StageExecutionConfigFailedEscalation &&
 				escalationVariant != runstore.StageExecutionConfigInterruptedEscalation) {
-			return StageProgression{}, fmt.Errorf("escalate Transition has no bounded policy or outcome identity")
+			return StageProgression{}, fmt.Errorf(
+				"%w: escalate Transition has no bounded policy or outcome identity", errInvalidRunState,
+			)
 		}
 		used, err := s.escalationAttempts(ctx, run.RunID, execution.StageName, escalationVariant)
 		if err != nil {
@@ -295,7 +310,7 @@ func (s *Scheduler) buildProgression(
 	case resolved.TransitionRetry:
 		targetWorkflow, err := workflow.selectStage(execution.StageName)
 		if err != nil {
-			return StageProgression{}, err
+			return StageProgression{}, fmt.Errorf("%w: %w", errInvalidRunState, err)
 		}
 		previous := execution.StageExecutionID
 		creation, err := s.buildStageCreation(
@@ -312,11 +327,11 @@ func (s *Scheduler) buildProgression(
 		return StageProgression{Decision: decision, NextStage: &creation}, nil
 	case resolved.TransitionEscalate:
 		if action.Escalate == nil || nextEscalationOrdinal == nil {
-			return StageProgression{}, fmt.Errorf("escalate Transition selection is incomplete")
+			return StageProgression{}, fmt.Errorf("%w: escalate Transition selection is incomplete", errInvalidRunState)
 		}
 		targetWorkflow, err := workflow.selectStage(execution.StageName)
 		if err != nil {
-			return StageProgression{}, err
+			return StageProgression{}, fmt.Errorf("%w: %w", errInvalidRunState, err)
 		}
 		previous := execution.StageExecutionID
 		effective := action.Escalate.ExecutionConfig.Effective
@@ -338,7 +353,7 @@ func (s *Scheduler) buildProgression(
 	case resolved.TransitionNext:
 		targetWorkflow, err := workflow.selectStage(selected.NextStage)
 		if err != nil {
-			return StageProgression{}, err
+			return StageProgression{}, fmt.Errorf("%w: %w", errInvalidRunState, err)
 		}
 		creation, err := s.buildStageCreation(
 			ctx, run, targetWorkflow, 1, nil,
@@ -368,10 +383,16 @@ func (s *Scheduler) buildProgression(
 			RunReason: runstore.Reason{Code: reasonCode},
 		}, nil
 	default:
-		return StageProgression{}, fmt.Errorf("unknown Workflow Transition action %q", selected.Kind)
+		return StageProgression{}, fmt.Errorf("%w: unknown Workflow Transition action %q", errInvalidRunState, selected.Kind)
 	}
 }
 
+// escalationAttempts counts the automatic escalation attempts of stageName's
+// variant branch in the Run's Stage history (SCH-R89). A history the
+// Scheduler cannot have written, such as an ordinal that is missing,
+// duplicated or not contiguous or a manual continuation that does not repeat
+// its source, is errInvalidRunState; a failed read of the history is a store
+// error and stays retryable.
 func (s *Scheduler) escalationAttempts(
 	ctx context.Context,
 	runID string,
@@ -393,7 +414,7 @@ func (s *Scheduler) escalationAttempts(
 			continue
 		}
 		if current.EscalationOrdinal == nil || *current.EscalationOrdinal <= 0 {
-			return 0, fmt.Errorf("persisted escalation attempt has an invalid ordinal")
+			return 0, fmt.Errorf("%w: persisted escalation attempt has an invalid ordinal", errInvalidRunState)
 		}
 		if current.ResumeSourceExecutionID != nil {
 			previous, exists := byID[*current.ResumeSourceExecutionID]
@@ -404,7 +425,9 @@ func (s *Scheduler) escalationAttempts(
 				previous.ExecutionConfigVariant != current.ExecutionConfigVariant ||
 				previous.EscalationOrdinal == nil || *previous.EscalationOrdinal != *current.EscalationOrdinal ||
 				(previous.State != runstore.StageFailed && previous.State != runstore.StageInterrupted) {
-				return 0, fmt.Errorf("persisted manual escalation continuation has invalid lineage")
+				return 0, fmt.Errorf(
+					"%w: persisted manual escalation continuation has invalid lineage", errInvalidRunState,
+				)
 			}
 			// A manual continuation repeats the pinned configuration; only the
 			// original automatic attempt consumes an escalation budget position.
@@ -412,7 +435,9 @@ func (s *Scheduler) escalationAttempts(
 		}
 		ordinal := *current.EscalationOrdinal
 		if _, duplicate := seen[ordinal]; duplicate {
-			return 0, fmt.Errorf("persisted escalation attempts have duplicate ordinal %d", ordinal)
+			return 0, fmt.Errorf(
+				"%w: persisted escalation attempts have duplicate ordinal %d", errInvalidRunState, ordinal,
+			)
 		}
 		seen[ordinal] = struct{}{}
 		if ordinal > maxOrdinal {
@@ -421,7 +446,7 @@ func (s *Scheduler) escalationAttempts(
 	}
 	for ordinal := 1; ordinal <= maxOrdinal; ordinal++ {
 		if _, present := seen[ordinal]; !present {
-			return 0, fmt.Errorf("persisted escalation attempts have a non-contiguous ordinal")
+			return 0, fmt.Errorf("%w: persisted escalation attempts have a non-contiguous ordinal", errInvalidRunState)
 		}
 	}
 	return maxOrdinal, nil

@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
@@ -44,10 +45,14 @@ func (r *ArtifactServiceResolver) Resolve(
 // binds (ART-R89).
 const outputsNamespace = "outputs"
 
-// bindOutput binds the exact StageResult revision source to the Workflow
-// output slot of runID, a metadata fork inside the RunScope with lineage
+// bindOutput creates the Workflow output slot of runID at the exact StageResult
+// revision source, a metadata fork inside the RunScope with lineage
 // output_bind (ART-R90). Pass a Service bound to the transaction that accepts
-// the StageResult, so the binding commits with it.
+// the StageResult, so the binding commits with it. A Run creates each output
+// binding once: one already forked from the same exact source revision is a
+// replay and is returned unchanged, and one of any other revision is never
+// replaced, which errInvalidRunState reports: no replay of the acceptance
+// changes the existing binding.
 func bindOutput(
 	ctx context.Context, service *artifacts.Service, runID, slot string, source contracts.ArtifactRef,
 ) (artifacts.ForkResult, error) {
@@ -58,10 +63,18 @@ func bindOutput(
 	if source.Revision == nil {
 		return artifacts.ForkResult{}, artifacts.ErrExactRevisionRequired
 	}
-	return service.Fork(ctx, artifacts.Fork{
+	bound, err := service.Fork(ctx, artifacts.Fork{
 		Kind: artifacts.LineageOutputBind, Source: run, SourceRef: source,
 		Target: run, TargetRef: contracts.ArtifactRef{Namespace: outputsNamespace, Name: slot},
+		Replay: true,
 	})
+	// A conflict means the target exists, which no replay changes; a
+	// transient database failure is no conflict and stays an ordinary error
+	// for finalization recovery to retry.
+	if errors.Is(err, artifacts.ErrArtifactConflict) {
+		return artifacts.ForkResult{}, fmt.Errorf("%w: %w", errInvalidRunState, err)
+	}
+	return bound, err
 }
 
 // freezeOutputs freezes the output bindings of runID as its Run becomes

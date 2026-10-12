@@ -1,0 +1,102 @@
+schema_version: "1.0"
+id: V373-005
+title: "Record why the Scheduler ended a Run it could not progress"
+milestone: hub-audit-defects-2026-10
+epic: execution-core
+kind: defect
+priority: P3
+status: completed
+implementation_commit: "fa0c056686ea055e47c8b601447956de695147e0"
+depends_on: []
+languages: [go, markdown]
+goal: "When the Scheduler ends a Run through FAIL-SCH-13, the cause is observable: a structured log entry names the Run, the code and a bounded, redacted cause, so an operator can tell why a Run became scheduler_state_invalid or unsupported_workflow_shape."
+context:
+  review: "Out-of-scope finding of V372-017 (merged in 120c353), verified on aabaa49"
+  specification: "docs/spec/execution/scheduler.md#SCH-R102"
+  severity: low
+  finding: >-
+    failActiveRun (internal/scheduler/run_execution.go:185) receives the
+    cause of an unprogressable Run, commits the failed or cancelled
+    transition with a fixed StageTermination message ("Scheduler could not
+    progress the WorkflowRun") and returns nil at :213 when the commit
+    succeeds, so the cause is neither logged nor stored. Callers are
+    failInvalidRunState and failUnsupportedRun, used by every FAIL-SCH-13
+    ending (run_execution.go:46-110, stage_finalization.go:153,
+    stage_termination.go:143 and the output-state ending of V372-017).
+  siblings: >-
+    Check the Scheduler's other terminal paths that swallow a cause on
+    success the same way (for example failUnsupportedRun and any
+    s.options.Logger use near terminal transitions) and the observability
+    rules in docs/spec/platform/observability.md and the Scheduler's
+    Observability section. Telemetry and logs must stay redacted (AGENTS.md
+    section 2): log the error text, which carries no secret, never request
+    bodies or environment values.
+  implementation: >-
+    Verified on da97b32 and implemented after V373-004 (bcedc64). Once
+    FailRunWithActiveStages commits, failActiveRun
+    (internal/scheduler/run_execution.go) writes one entry at error level,
+    "Scheduler ended a WorkflowRun it could not progress", with run_id, code
+    (scheduler_state_invalid or unsupported_workflow_shape), run_state (failed,
+    or cancelled once cancellation owns the Run) and cause. A failed commit
+    writes nothing and returns errors.Join(cause, err) as before, which the
+    lane logs. The cause is the error text of the failed check, passed through
+    telemetry.Policy.RedactMessage with the Scheduler's TelemetrySecrets: the
+    rule every execution-report error message already followed in
+    normalizeError (OBS-R30, LIM-OBS-6), now exported so the log reuses it
+    instead of a second copy; it removes the Server's deployment secrets and
+    credential-bearing URLs and bounds the text to 4,096 bytes. Every cause
+    that reaches failActiveRun was read for secrets: Workflow snapshot decode
+    and shape errors, Stage selection and persisted-identity checks, the
+    multiple-active-Stage sentinel, incomplete finalizing or aborting Stages,
+    and the invalid output state of V372-017 name only Stages, outputs,
+    artifacts, fields and fixed phrases of durable state. Decision on the
+    StageTermination, recorded with its evidence and reversal condition as
+    SCH-R170: the cause stays out of durable state. The StageTermination
+    message is public in GET /v1/runs/{runId} attempts and stays owner-facing
+    (UI language rules, AGENTS.md 3.8), the stable code already classifies
+    the failure (RUN-R37), and a termination could not carry the cause of
+    every ending: a finalizing Stage accepts its candidate, an aborting Stage
+    keeps its stored termination, and a Run without an active Stage has none.
+    The Run's reason message has no reader (no public field, event or other
+    package reads state_reason_message), so storing the cause there would add
+    text nobody sees. Siblings: failUnsupportedRun reaches the same log; the
+    warning for a cancelling Run with an unreadable Workflow snapshot
+    (executeCancelling) dropped its cause the same way and now carries it
+    under the same rule; the other terminal paths do not swallow a cause
+    (Workflow fail decisions keep the Stage's own error or termination and
+    its code durably, cancellation commits keep the cancellation, and the Run
+    Skill initializer stores its RunSkillError code and skill name, all it
+    has); the "bounded allocation abort/finalization was incomplete" warnings
+    deliberately omit Runtime transport errors and are not Run causes.
+    Observability rules: docs/spec/platform/observability.md has no Scheduler
+    log events; the Scheduler spec's Observability section now lists the
+    entry, and LIM-OBS-6 names the Scheduler log as an enforcement point.
+    Tests with a capturing slog.Handler: TestPostgresUnprogressableRunLogsItsCauseOnce
+    ends run-1 through the refused output mapping and requires exactly one
+    entry over two passes; TestFailActiveRunLogsItsCauseOnce covers
+    unsupported_workflow_shape, a cancelling Run, and redaction plus the
+    bound; TestFailActiveRunLogsNothingWhenItsCommitFails pins the failed
+    commit. With bcedc64's run_execution.go and telemetry/policy.go restored,
+    the PostgreSQL test and all three memory cases fail with no entry; the
+    failed-commit test passes on both, as it guards the order of commit and
+    log. TestPostgresFailActiveRunEndsCancellingRunAsCancelled builds its
+    Scheduler without New and now sets a Logger. introduced_by is not
+    knowable: failActiveRun comes from the squashed initial import
+    (63496210).
+scope:
+  in:
+    - "Log the cause with run_id and the reason code when failActiveRun commits, and on a failed commit return the joined error as today."
+    - "State in the Scheduler spec where the cause of a FAIL-SCH-13 ending is observable; decide with evidence whether a bounded safe message also belongs in the Run's StageTermination."
+    - "A test with a capturing logger that a FAIL-SCH-13 ending logs its cause once, and that fails on the unfixed code."
+  out:
+    - "New public API fields or error codes."
+acceptance_criteria:
+  - id: A1
+    text: "Given a Run the Scheduler cannot progress, when failActiveRun ends it, then exactly one structured log entry names the Run, the code and the cause."
+  - id: A2
+    text: "The test fails on the unfixed code."
+tests:
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/scheduler/..."
+    covers: [A1, A2]
+  - command: make lint
+    covers: [A1, A2]

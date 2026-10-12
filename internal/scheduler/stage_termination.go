@@ -207,6 +207,13 @@ func (s *Scheduler) resumeAborting(
 		})
 	}
 	cancelCommit()
+	if errors.Is(err, errInvalidRunState) {
+		// No replay can progress this termination, such as an escalation
+		// history that the budget cannot count: end the Run as durable state
+		// the Scheduler cannot progress (SCH-R102), which commits the stored
+		// termination without a transition decision.
+		return s.failInvalidRunState(ctx, run.RunID, err)
+	}
 	if errors.Is(err, runstore.ErrConflict) {
 		stateContext, cancelState := s.terminalOperationContext(ctx)
 		state, loadErr := s.store.GetRunState(stateContext, run.RunID)

@@ -57,7 +57,7 @@ Terms are defined once in the [glossary](../glossary.md).
 | Publication | A controlled fork of an exact Run output version into UserScope (explicit, on request) or ProjectScope (on Project Run success). |
 | Write fence | The Server-side rejection of an allocation's Artifact writes once its StageExecution enters `finalizing` or `aborting`. |
 | Allocation grant | The Server-side record that authorizes one Runtime Agent process to use the private Artifact API for one allocation. |
-| Frozen binding | A binding that can no longer advance: for example a Run `outputs` binding once the Run is terminal (except through manual continuation of an eligible failed Run, ART-R97), or an Audit-managed `audit-*` Project binding, which is created frozen ([Review and reports](../audits/review-and-reports.md)). |
+| Frozen binding | A binding that can no longer advance: for example a Run `outputs` binding once the Run is terminal (manual continuation of an eligible failed Run unfreezes it without changing its revision, ART-R97), or an Audit-managed `audit-*` Project binding, which is created frozen ([Review and reports](../audits/review-and-reports.md)). |
 
 ## Model
 
@@ -834,12 +834,31 @@ position or matching slot names.
 
 **ART-R90.** Scheduler applies the `workflowOutputs` mapping only
 for an accepted terminal successful StageResult while the WorkflowRun is still
-`running`. In the same database transaction it creates or advances each
-`outputs/<workflow output name>` binding to the exact version already validated
-for the StageResult, without resolving the source's current binding again, and
-validates the destination Workflow output slot. The binding is a metadata fork
-inside the same RunScope with lineage edge kind `output_bind` and does not copy
-bytes.
+`running`. In the same database transaction it creates each
+`outputs/<workflow output name>` binding, once per Run, at the exact version
+already validated for the StageResult, without resolving the source's current
+binding again, and validates the destination Workflow output slot. The binding
+is a metadata fork inside the same RunScope with lineage edge kind
+`output_bind` and does not copy bytes; Scheduler never advances or replaces
+it. A mapping that finds the binding already forked by `output_bind` from the
+same exact source revision, as a replay of a lost acceptance would, succeeds
+without a second revision. A mapping that meets a binding of any other
+revision is a permanent failure: it binds nothing, and the Run ends through
+FAIL-SCH-13 with `scheduler_state_invalid`
+([SCH-R102](../execution/scheduler.md)) instead of retrying the acceptance.
+
+Rationale: no valid Workflow maps one output twice in one Run. Catalog load
+rejects a graph in which a Stage maps an output that an earlier successful
+Stage on the same path maps ([WFL-R85](../configuration/workflows.md)) and
+every `next` cycle ([WFL-R44](../configuration/workflows.md)); `succeeded`
+allows only `next` or `succeed` ([WFL-R40](../configuration/workflows.md)), so
+a successful Stage never runs again in its Run; a mapping applies only to a
+successful StageResult; and manual continuation re-runs only a failed or
+interrupted StageExecution ([RUN-R46](../execution/runs.md)), which bound
+nothing. Advancing an existing binding under a revision compare-and-set would
+serve no reachable case, so the binding stays create-only. A Workflow shape
+that can map one output twice in one Run, such as a loop or remapping after
+continuation, needs a new decision before it is admitted.
 
 **ART-R91.** If Run cancellation committed first, the StageResult
 may still be accepted for audit, but its Workflow-output mapping is not applied
@@ -875,10 +894,10 @@ cannot prevent a terminal WorkflowRun transition.
 ([Runs](../execution/runs.md)) is the explicit exception to output-binding
 freezing. The same transaction records the continuation receipt, creates the
 new attempt and unfreezes that Run's `outputs` bindings without changing their
-current revisions; later Scheduler publication may advance them normally.
-Immutable artifact revisions, terminal Stage facts and other frozen bindings
-remain protected, and Workers gain no output-write authority. Cancelled,
-succeeded and already-published Runs cannot use this exception (LIFE-ART-2).
+current revisions. Immutable artifact revisions, terminal Stage facts and other
+frozen bindings remain protected, and Workers gain no output-write authority.
+Cancelled, succeeded and already-published Runs cannot use this exception
+(LIFE-ART-2).
 
 ### Publication
 
@@ -1090,8 +1109,8 @@ Failure outcomes ([failure model](../platform/failure-model.md)):
   (ART-R78, ART-R79).
 - FAIL-ART-3 — allocation Artifact write after the write fence (ART-R86,
   ART-R87).
-- FAIL-ART-4 — Workflow-output mapping after Run cancellation committed
-  (ART-R91).
+- FAIL-ART-4 — Workflow-output mapping onto an existing binding or after Run
+  cancellation committed (ART-R90, ART-R91).
 - FAIL-ART-5 — concurrent first writes and identical-content writes
   (ART-R61).
 - FAIL-ART-6 — StageResult acceptance, output mapping and terminal transition
@@ -1154,8 +1173,8 @@ These properties follow from the cited requirements, which are authoritative.
 11. Every candidate StageResult ref is versioned before `finalizing`, and
     Scheduler verifies that exact revision rather than resolving current
     (ART-R84, ART-R85).
-12. Declared Run outputs are Scheduler-managed bindings to accepted versions
-    (ART-R89).
+12. Declared Run outputs are Scheduler-managed bindings to accepted versions,
+    each created at most once per Run (ART-R89, ART-R90).
 13. Final required-output binding and freezing and `running -> succeeded` are
     one transaction; a StageResult accepted after Run cancellation creates no
     Workflow output binding (ART-R91, ART-R92).
