@@ -14,8 +14,11 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
+	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // The fakes of this package's handler tests must refuse what the PostgreSQL
@@ -68,7 +71,7 @@ func TestFakeRunStoreTransitionsMatchPostgres(t *testing.T) {
 	for _, from := range parityRunStates {
 		for _, to := range parityRunStates {
 			runID := fmt.Sprintf("run-parity-%s-%s", from, to)
-			createParityRunInState(t, ctx, store, runID, from)
+			createParityRunInState(t, ctx, pool, runID, from)
 			err := transition(store, runID, from, to)
 			want := fakeErrors[[2]runstore.WorkflowRunState{from, to}]
 			if (err == nil) != (want == nil) || err != nil && !errors.Is(err, runstore.ErrInvalid) {
@@ -81,9 +84,10 @@ func TestFakeRunStoreTransitionsMatchPostgres(t *testing.T) {
 // createParityRunInState moves a new Run into state through the store's own
 // operations, so the Run is exactly what a transition from state finds.
 func createParityRunInState(
-	t *testing.T, ctx context.Context, store *runstore.PostgresStore, runID string, state runstore.WorkflowRunState,
+	t *testing.T, ctx context.Context, pool *pgxpool.Pool, runID string, state runstore.WorkflowRunState,
 ) {
 	t.Helper()
+	store := runstore.NewPostgresStore(pool)
 	if _, err := store.CreateRun(ctx, runstore.CreateRunParams{
 		RunID: runID, OwnerID: "user-parity", WorkflowName: "artifact-copy", WorkflowVersion: "1",
 		WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: json.RawMessage(`{}`),
@@ -112,7 +116,17 @@ func createParityRunInState(
 		}
 	}
 	for _, next := range steps[state] {
-		if _, err := store.TransitionRun(ctx, runID, current, next, runstore.Reason{Code: "parity"}); err != nil {
+		var err error
+		if next == runstore.RunWaiting {
+			// Only the waiting operation moves a Run into waiting, under the
+			// Run row lock that model-availability recovery holds.
+			err = persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+				return runstore.NewPostgresTxStore(tx).EnterWaiting(ctx, runID, "parity")
+			})
+		} else {
+			_, err = store.TransitionRun(ctx, runID, current, next, runstore.Reason{Code: "parity"})
+		}
+		if err != nil {
 			t.Fatalf("move Run %s from %s to %s: %v", runID, current, next, err)
 		}
 		current = next
@@ -150,9 +164,8 @@ func TestFakeArtifactRepositoryWritesMatchPostgres(t *testing.T) {
 	check("fake", bindingWriteRefusals(t, ctx, newFakeArtifactRepository()))
 
 	pool := isolatedPublicPool(t, ctx)
-	store := runstore.NewPostgresStore(pool)
 	for _, runID := range []string{"run-frozen-outputs", "run-open-outputs"} {
-		createParityRunInState(t, ctx, store, runID, runstore.RunRunning)
+		createParityRunInState(t, ctx, pool, runID, runstore.RunRunning)
 	}
 	check("PostgreSQL", bindingWriteRefusals(t, ctx, artifacts.NewPostgresRepository(pool)))
 }

@@ -169,8 +169,17 @@ internal/findingintake       stage_executions               Trusted execution ch
 internal/findingintake       workflow_runs                  Receipts join their source Run; import fences that Run FOR KEY
     SHARE.
 
+internal/gatewayrecovery     workflow_runs                  Admission waits while a running or waiting Run waits on the
+    route, an update that changes nothing is decided from one read without locks (SCH-R165), recovery status shows
+    only active Runs and manual retry checks the Run's owner. Recovery locks and moves Runs through the Run store.
+
 internal/gitimport           projects                       Git import checks that the Project is active and fences its
     deletion FOR SHARE.
+
+internal/memory              stage_executions               Planner Memory reads check in their read-only snapshot that the
+    Stage is running; writes lock it through the Run store.
+internal/memory              workflow_runs                  Planner Memory reads check in their read-only snapshot that the
+    Run is running or waiting; writes lock it through the Run store.
 
 internal/projectlifecycle    audits                         Project deletion waits for the Project's Audits to request
     deletion and to be purged.
@@ -186,7 +195,10 @@ internal/projectstore        eval_submissions               Project lists leave 
 internal/runstore            projects                       The Run queue shows the Project of each Run; resumption checks
     that it is active and fences its deletion FOR SHARE.
 
-internal/telemetry           stage_allocations              Resource history reads the allocations of terminal Stages.
+internal/scheduler           workflow_runs                  The terminal commit of a succeeded Run reads its Project and
+    output publication mode to publish its outputs.
+
+internal/telemetry          stage_allocations              Resource history reads the allocations of terminal Stages.
 internal/telemetry           stage_executions               Resource history reads terminal Stages; report and metric
     retention deletes only those of terminal Stages.
 internal/telemetry           workflow_runs                  Resource history scopes allocations to the owner's Runs.
@@ -218,24 +230,6 @@ internal/auditservice        write   audit_review_requests             V370-004 
     row FOR UPDATE.
 internal/auditservice        write   audits                            V370-004  Review decisions and Audit resume lock
     the Audit row FOR UPDATE.
-
-internal/controlplane        write   stage_executions                  V370-001  Allocation placement locks the Stage row
-    FOR UPDATE and checks that it is preparing.
-
-internal/gatewayrecovery     write   workflow_runs                     V370-001  Moves Runs between running and waiting,
-    sets the reason of a pending Run that waits and locks the Run row FOR UPDATE.
-
-internal/memory              write   stage_executions                  V370-001  The Planner Memory write fence locks the
-    Stage row FOR UPDATE and checks its state.
-internal/memory              write   workflow_runs                     V370-001  The Planner Memory write fence locks the
-    Run row FOR UPDATE and checks its state.
-
-internal/scheduler           write   stage_allocations                 V370-001  Discarding an unadmitted placement
-    deletes the Stage's allocation rows.
-internal/scheduler           write   stage_executions                  V370-001  Admission, FailRunWithActiveStages and
-    termination update Stage state; lockStageForRun locks the Stage row FOR UPDATE.
-internal/scheduler           write   workflow_runs                     V370-001  lockRunState locks the Run row FOR
-    UPDATE and checks its state at every commit point.
 
 internal/artifacts           write   workflow_run_output_publications  V370-002  PurgeRun and PurgeProject delete the
     Run output publication receipts.

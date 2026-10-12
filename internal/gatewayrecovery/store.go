@@ -10,7 +10,10 @@ import (
 )
 
 type Service struct {
-	pool   *pgxpool.Pool
+	pool *pgxpool.Pool
+	// runs locks Runs and moves them between running and waiting; recovery
+	// writes no Run row itself (PER-R23).
+	runs   RunStates
 	policy Policy
 	// A probe lease must outlast its holder's own model request, or a slow
 	// probe would admit a second one. Runtime Workers bound each request by
@@ -19,15 +22,17 @@ type Service struct {
 	workerRequestTimeout, plannerRequestTimeout time.Duration
 }
 
-func New(pool *pgxpool.Pool, policy Policy, workerRequestTimeout, plannerRequestTimeout time.Duration) (*Service, error) {
-	if pool == nil || workerRequestTimeout < time.Second || plannerRequestTimeout < time.Second {
+func New(
+	pool *pgxpool.Pool, runs RunStates, policy Policy, workerRequestTimeout, plannerRequestTimeout time.Duration,
+) (*Service, error) {
+	if pool == nil || runs == nil || workerRequestTimeout < time.Second || plannerRequestTimeout < time.Second {
 		return nil, ErrInvalid
 	}
 	if err := policy.Validate(); err != nil {
 		return nil, err
 	}
 	return &Service{
-		pool: pool, policy: policy,
+		pool: pool, runs: runs, policy: policy,
 		workerRequestTimeout: workerRequestTimeout, plannerRequestTimeout: plannerRequestTimeout,
 	}, nil
 }
@@ -60,19 +65,6 @@ func transactionNow(ctx context.Context, tx pgx.Tx) (time.Time, error) {
 		return time.Time{}, err
 	}
 	return now, nil
-}
-
-// lockRun locks an active Run. A cancelling Run still accepts the terminal
-// update of a granted attempt, so that cancellation relinquishes its probe.
-func lockRun(ctx context.Context, tx pgx.Tx, runID string, terminalUpdate bool) error {
-	var state string
-	if err := tx.QueryRow(ctx, `SELECT state FROM workflow_runs WHERE run_id=$1 FOR UPDATE`, runID).Scan(&state); err != nil {
-		return err
-	}
-	if !acceptsUpdate(state, terminalUpdate) {
-		return ErrUnavailable
-	}
-	return nil
 }
 
 // acceptsUpdate reports whether a Run in state takes a recovery update: a

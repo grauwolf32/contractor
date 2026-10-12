@@ -393,7 +393,7 @@ func TestPostgresProjectOutputPublicationRaceKeepsBothRunsSucceeded(t *testing.T
 			defer wait.Done()
 			<-start
 			errorsFound <- persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-				if err := lockRunState(ctx, tx, runID, runstore.RunRunning); err != nil {
+				if _, err := runstore.NewPostgresTxStore(tx).LockRunState(ctx, runID, runstore.RunRunning); err != nil {
 					return err
 				}
 				return commitTerminalRun(
@@ -467,7 +467,7 @@ func TestPostgresProjectOutputPublicationRollsBackWithTerminalTransactionAndRetr
 	}
 	simulatedCrash := errors.New("simulated crash before terminal commit acknowledgement")
 	err = persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		if err := lockRunState(ctx, tx, runID, runstore.RunRunning); err != nil {
+		if _, err := runstore.NewPostgresTxStore(tx).LockRunState(ctx, runID, runstore.RunRunning); err != nil {
 			return err
 		}
 		if err := commitTerminalRun(
@@ -493,7 +493,7 @@ func TestPostgresProjectOutputPublicationRollsBackWithTerminalTransactionAndRetr
 	}
 
 	err = persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		if err := lockRunState(ctx, tx, runID, runstore.RunRunning); err != nil {
+		if _, err := runstore.NewPostgresTxStore(tx).LockRunState(ctx, runID, runstore.RunRunning); err != nil {
 			return err
 		}
 		return commitTerminalRun(
@@ -554,7 +554,7 @@ FOR EACH ROW EXECUTE FUNCTION reject_test_project_output_publication()`); err !=
 		"result": {Required: true, MediaTypes: []string{"text/plain"}},
 	}
 	err = persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		if err := lockRunState(ctx, tx, runID, runstore.RunRunning); err != nil {
+		if _, err := runstore.NewPostgresTxStore(tx).LockRunState(ctx, runID, runstore.RunRunning); err != nil {
 			return err
 		}
 		return commitTerminalRun(
@@ -633,7 +633,7 @@ func TestPostgresProjectOutputPublicationRecordsPermanentFailureOnce(t *testing.
 		t.Fatal(err)
 	}
 	err := persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		if err := lockRunState(ctx, tx, "run-publication-deleting", runstore.RunRunning); err != nil {
+		if _, err := runstore.NewPostgresTxStore(tx).LockRunState(ctx, "run-publication-deleting", runstore.RunRunning); err != nil {
 			return err
 		}
 		return commitTerminalRun(

@@ -121,7 +121,10 @@ func configureWorkflows(
 ) (workflowServices, error) {
 	// Workers bound each model request by workerRequestTimeout and modeled
 	// planners by plannerTimeout; a recovery probe lease outlasts its holder's.
-	recovery, err := gatewayrecovery.New(pool, cfg.Operations.LLMRecovery, cfg.WorkerRequestTimeout, cfg.PlannerTimeout)
+	// Recovery locks and moves Runs only through the Run store.
+	recovery, err := gatewayrecovery.New(
+		pool, runstore.GatewayRecoveryRuns{}, cfg.Operations.LLMRecovery, cfg.WorkerRequestTimeout, cfg.PlannerTimeout,
+	)
 	if err != nil {
 		return workflowServices{}, err
 	}
