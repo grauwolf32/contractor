@@ -843,6 +843,31 @@ the output bindings that earlier Stages created
 so terminal release recovery drains and releases its allocations and the Run
 can later be deleted (FAIL-SCH-13).
 
+**SCH-R170.** The durable record of a SCH-R102 ending holds at most its stable
+code: a `preparing` or `running` Stage it ends carries the code with the fixed
+message `Scheduler could not progress the WorkflowRun`, and the Run's reason
+has no message. The cause is observable in the Server log. Once the ending
+commits, the Scheduler writes exactly one error entry with `run_id`, `code`,
+the Run's resulting `run_state` and `cause`, the error text of the check that
+failed. That text names Stages, outputs, artifacts and fields of durable
+Scheduler state, never request bodies, artifact bytes or environment values,
+and the Scheduler applies the rule of an execution-report error message to
+it: known deployment secrets are removed and it is bounded (OBS-R30,
+LIM-OBS-6). An ending whose commit fails writes no such entry; the cause
+returns joined with the commit error, which the lane logs. The warning for a
+cancelling Run whose Workflow snapshot is unreadable carries its cause under
+the same rule.
+
+Rationale: the cause is Scheduler vocabulary for an operator, not something an
+owner can act on, and the stable code already classifies the failure for the
+owner ([RUN-R37](runs.md)). The StageTermination message is public in the Run's
+attempts, so it keeps owner-facing text, and it could not carry the cause of
+every ending anyway: a `finalizing` Stage accepts its candidate, an `aborting`
+Stage keeps its stored termination, and a Run without an active Stage has
+none. Recording the cause in the Run's reason would store text that no reader
+shows. If owners need the cause, it needs a public field agreed with the
+OpenAPI document and the UI, and this requirement is reopened.
+
 **SCH-R103.** Retry after recovery always creates a fresh StageExecution and,
 if preparation succeeds, a fresh Planner Session. Planner Session persistence
 does not imply Planner resume: a Planner session still running after process
@@ -1297,8 +1322,10 @@ Limits ([registry](../platform/limits.md)):
   ([LIM-CTL-6](../platform/limits.md), SCH-R10), slots per Runtime Agent
   process ([LIM-CTL-4](../platform/limits.md), SCH-R139), the
   `maxConcurrentRuns` range and default ([LIM-OPS-7](../platform/limits.md),
-  SCH-R131, SCH-R137) and retry `maxAttempts`
-  ([LIM-WFL-5](../platform/limits.md), SCH-R80).
+  SCH-R131, SCH-R137), retry `maxAttempts`
+  ([LIM-WFL-5](../platform/limits.md), SCH-R80) and the bound of the logged
+  cause of an unprogressable Run ([LIM-OBS-6](../platform/limits.md),
+  SCH-R170).
 
 Errors ([registry](../platform/errors.md)):
 
@@ -1370,6 +1397,9 @@ Lifecycle ([registry](../platform/lifecycle.md)):
   aborting; missing telemetry never invalidates a terminal fact (SCH-R51).
 - Memory content never enters durable session facts or execution telemetry
   (SCH-R61).
+- The cause of a Run the Scheduler could not progress is observable in one
+  Server log entry per ending, redacted and bounded like an execution-report
+  error message (SCH-R170).
 - Report shapes, completeness and idempotent report delivery are specified in
   [Observability](../platform/observability.md).
 

@@ -458,7 +458,7 @@ its owning requirement.
 | `LIM-OBS-3` | 16 UTF-8 bytes | secret length from which a secret matches anywhere in text; shorter secrets match only a complete string | Worker redaction and Server persistence boundary | [OBS-R31](observability.md) |
 | `LIM-OBS-4` | at most 1,000 tool-call records per participant | ExecutionReport tool_calls | Planner and Worker report producers; Server report persistence | [OBS-R40](observability.md) |
 | `LIM-OBS-5` | at most 100 errors per participant | ExecutionReport errors | Planner and Worker report producers; Server report persistence | [OBS-R40](observability.md) |
-| `LIM-OBS-6` | at most 4,096 UTF-8/JSON bytes | each tool argument summary or error message in an execution report | Worker before reporting and Server persistence boundary | [OBS-R40](observability.md) |
+| `LIM-OBS-6` | at most 4,096 UTF-8/JSON bytes | each tool argument summary or error message in an execution report, and the cause in the Scheduler's log entry of a Run it could not progress | Worker before reporting, Server persistence boundary and the Workflow Scheduler log (SCH-R170) | [OBS-R40](observability.md) |
 | `LIM-OBS-7` | at most 1 MiB | one final allocation report (AllocationFinalReport) | Runtime Agent report producer and Server report ingestion | [OBS-R40](observability.md) |
 | `LIM-OBS-8` | 30 days | retention of durable execution telemetry of terminal StageExecutions | Server telemetry retention cleanup | [OBS-R43](observability.md) |
 | `LIM-OBS-9` | at most 64 attributes per span | exported OTLP spans | otlp-http@1 Planner (Server) and Worker (Runtime) exporters | [OBS-R49](observability.md) |

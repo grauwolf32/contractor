@@ -8,6 +8,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/runstore"
+	"github.com/grauwolf32/contractor/internal/telemetry"
 )
 
 // executeRun performs one progression attempt of the claimed run. It reads
@@ -113,7 +114,10 @@ func (s *Scheduler) executeRun(ctx context.Context, run runstore.WorkflowRun, cl
 func (s *Scheduler) executeCancelling(ctx context.Context, run runstore.WorkflowRun, claimID string) error {
 	workflow, workflowErr := s.workflows.executableWorkflow(run)
 	if workflowErr != nil {
-		s.options.Logger.Warn("cancelling Run has an unreadable Workflow snapshot", "run_id", run.RunID)
+		s.options.Logger.Warn(
+			"cancelling Run has an unreadable Workflow snapshot",
+			"run_id", run.RunID, "cause", s.loggedCause(workflowErr),
+		)
 	}
 	execution, err := s.store.GetActiveStageExecution(ctx, run.RunID)
 	if errors.Is(err, runstore.ErrNotFound) {
@@ -205,7 +209,26 @@ func (s *Scheduler) failActiveRun(ctx context.Context, runID, code string, cause
 	if err != nil {
 		return errors.Join(cause, err)
 	}
+	// The Run keeps only the stable code and the fixed, owner-facing
+	// StageTermination message; the operator finds the cause here, once per
+	// ending (SCH-R170).
+	s.options.Logger.Error(
+		"Scheduler ended a WorkflowRun it could not progress",
+		"run_id", runID, "code", code, "run_state", string(next), "cause", s.loggedCause(cause),
+	)
 	return nil
+}
+
+// loggedCause is the text of the cause of an unprogressable Run as the
+// Scheduler logs it, under the rule of an execution-report error message:
+// the Server's deployment secrets are removed and the text is bounded
+// (OBS-R30, LIM-OBS-6). The causes name Stages, outputs and fields of durable
+// Scheduler state, never request bodies, artifact bytes or environment values.
+func (s *Scheduler) loggedCause(cause error) string {
+	if cause == nil {
+		return ""
+	}
+	return telemetry.NewPolicy(s.options.TelemetrySecrets...).RedactMessage(cause.Error())
 }
 
 func infrastructureFailure(code, message string, cause error) planner.Failure {

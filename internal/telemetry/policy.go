@@ -165,8 +165,16 @@ func cloneWorkerSummarizer(
 func (p Policy) normalizeError(source reporting.ExecutionError) reporting.ExecutionError {
 	result := source
 	result.Code = p.redactText(source.Code)
-	result.Message = truncateUTF8(p.redactText(source.Message), MaxErrorMessageBytes)
+	result.Message = p.RedactMessage(source.Message)
 	return result
+}
+
+// RedactMessage applies the rule of an execution-report error message to
+// text: known secrets and credential-bearing URLs are removed (OBS-R30) and
+// the result is at most MaxErrorMessageBytes long (LIM-OBS-6). The Scheduler
+// logs the cause of a Run it could not progress through it (SCH-R170).
+func (p Policy) RedactMessage(text string) string {
+	return truncateUTF8(p.redactText(text), MaxErrorMessageBytes)
 }
 
 func (p Policy) sanitizeMap(source map[string]any) (map[string]any, bool) {
