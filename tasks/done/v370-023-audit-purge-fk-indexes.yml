@@ -7,7 +7,7 @@ kind: defect
 introduced_by: V68-001
 priority: P2
 status: completed
-implementation_commit: 7cee7e90de8c73bc887f45a21e4236365951311a
+implementation_commit: 42277c61c37d0c63ca525f28d928ffc2a5aee8c2
 depends_on: []
 languages: [sql, go]
 goal: "A purge of an Audit with 100,000 executions does no sequential scan on the FK tables."
@@ -59,9 +59,15 @@ context:
     many Audits), counts per-transaction differences because counters of
     earlier transactions on the connection may be unflushed, and runs the
     deferred checks with SET CONSTRAINTS ALL IMMEDIATE inside the measured
-    transaction. Verified: go test -tags integration ./internal/persistence/...
-    and the auditstore purge tests (-run 'TestPostgresPurge|TestPostgresAuditPurgeAtScale');
-    the whole auditstore suite was left to the release gate. Reversal
+    transaction. Its copies keep every foreign key checked and switch off
+    only the audit_executions user triggers, which the schema-owning test
+    role may do; the first version used session_replication_role, which
+    needs a superuser, and was fixed in the implementation commit after
+    7cee7e90. Verified: go test -tags integration ./internal/persistence/...
+    and the auditstore purge tests (-run
+    'TestPostgresPurge|TestPostgresAuditPurgeAtScale'), the latter and
+    TestForeignKeysHaveProbeIndexes also as a role without superuser or
+    CREATEDB; the whole auditstore suite was left to the release gate. Reversal
     condition: an allowlisted prefix whose groups grow unbounded needs a
     full index, an immutable-parent entry reopens when receipts become
     deletable, and the scale test's nine-tenths bound must be re-derived if
