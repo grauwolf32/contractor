@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/agentprincipal"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -81,7 +82,7 @@ func TestRuntimeCredentialRebindDoesNotBorrowAnotherConnection(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			management, err := runtimeconfig.NewManagementService(limited, publisher, bindings)
+			management, err := runtimeconfig.NewManagementService(limited, publisher, bindings, agentprincipal.LabelHolders{})
 			if err != nil {
 				t.Fatal(err)
 			}

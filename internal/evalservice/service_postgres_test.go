@@ -146,18 +146,18 @@ func newHarness(t *testing.T) *serviceHarness {
 		t.Fatal(err)
 	}
 	credentialLookup := testCredentials{gateway: gateway.Ref}
-	credentials := runtimeconfig.TransactionLLMCredentialLookupFactoryFunc(func(pgx.Tx) (config.CredentialLookup, error) { return credentialLookup, nil })
-	audits, err := auditservice.New(auditservice.Options{Pool: pool, Profiles: catalog, TransactionLLMCredentials: credentials, CredentialGuard: testBarrier{}})
+	transactionLLMCredentials := runtimeconfig.TransactionLLMCredentialLookupFactoryFunc(func(pgx.Tx) (config.CredentialLookup, error) { return credentialLookup, nil })
+	audits, err := auditservice.New(auditservice.Options{Pool: pool, Profiles: catalog, TransactionLLMCredentials: transactionLLMCredentials, CredentialGuard: testBarrier{}})
 	if err != nil {
 		t.Fatal(err)
 	}
 	runs, err := runservice.New(runservice.Options{Runs: runstore.NewPostgresStore(pool), Workflows: catalog, LLMCredentials: credentialLookup, CredentialGuard: testBarrier{}, RuntimeCredentials: testBarrier{}, Projects: projectstore.NewPostgresStore(pool), SkillInitializationAvailable: true, PublicTransaction: func(ctx context.Context, fn func(runservice.PublicRunWriter, *artifacts.Service) error) error {
 		return pg.InTx(ctx, pool, pgx.TxOptions{IsoLevel: pgx.RepeatableRead}, func(tx pgx.Tx) error {
-			lookup, err := runtimeconfig.BindTransactionLLMCredentialLookup(tx, credentials)
+			lookup, err := runtimeconfig.BindTransactionLLMCredentialLookup(tx, transactionLLMCredentials)
 			if err != nil {
 				return err
 			}
-			return fn(runstore.NewRunCreationPostgresStore(tx, lookup), artifacts.NewService(artifacts.NewPostgresRepository(tx)))
+			return fn(runstore.NewRunCreationPostgresStore(tx, lookup, credentials.NewRuntimeCredentialRepository(tx)), artifacts.NewService(artifacts.NewPostgresRepository(tx)))
 		})
 	}})
 	if err != nil {
@@ -165,7 +165,7 @@ func newHarness(t *testing.T) *serviceHarness {
 	}
 	run := &lostRunResponse{RunCreator: runs, lost: map[string]bool{}, pool: pool}
 	audit := &lostAuditResponse{AuditExecutor: audits, lost: map[string]bool{}}
-	resolver := &Resolver{Pool: pool, Catalog: catalog, Credentials: credentials, Barrier: testBarrier{}}
+	resolver := &Resolver{Pool: pool, Catalog: catalog, Credentials: transactionLLMCredentials, Barrier: testBarrier{}}
 	driver := &Driver{Pool: pool, Runs: run, Audits: audit}
 	service, err := New(Options{Pool: pool, Resolver: resolver, Driver: driver})
 	if err != nil {

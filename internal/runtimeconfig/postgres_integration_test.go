@@ -250,7 +250,7 @@ func TestPostgresRuntimeManagementBindingMutationIsCASAndReplaySafe(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
-	management, err := NewManagementService(pool, publisher, bindings)
+	management, err := NewManagementService(pool, publisher, bindings, noLabelHolders{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -410,6 +410,22 @@ func assertRuntimeConfigSQLState(t *testing.T, err error, want string) {
 	if !errors.As(err, &postgresError) || postgresError.Code != want {
 		t.Fatalf("PostgreSQL error = %v, want SQLSTATE %s", err, want)
 	}
+}
+
+// noLabelHolders is the principal registry of a test that registers no
+// Runtime Agent principal: no label has holders and none can be locked.
+// internal/agentprincipal tests label management with real holders.
+type noLabelHolders struct{}
+
+func (noLabelHolders) ListLabelHolders(context.Context, persistencepostgres.DBTX, string) ([]LabelHolder, error) {
+	return []LabelHolder{}, nil
+}
+
+func (noLabelHolders) LockLabelHolders(_ context.Context, _ pgx.Tx, runtimeAgentIDs []string) ([]LabelHolder, error) {
+	if len(runtimeAgentIDs) != 0 {
+		return nil, ErrNotFound
+	}
+	return []LabelHolder{}, nil
 }
 
 type allowRuntimeCredentialCatalog struct{}

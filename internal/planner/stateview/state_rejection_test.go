@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/grauwolf32/contractor/internal/planner"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 )
 
 // TestServiceKeepsRejectedStateReadNonRetryable pins the Planner side of
@@ -13,7 +13,7 @@ import (
 // completion diagnostics carry an unknown kind or phase, is a non-retryable
 // unavailable projection rather than a retry loop or a partial State.
 func TestServiceKeepsRejectedStateReadNonRetryable(t *testing.T) {
-	reader := &recordingReader{err: &planner.WorkerStateReadError{
+	reader := &recordingReader{err: &reporting.WorkerStateReadError{
 		StatusCode: http.StatusOK, Code: "worker_state_response_invalid", Retryable: false,
 	}}
 	service := testService(t, reader, Binding{

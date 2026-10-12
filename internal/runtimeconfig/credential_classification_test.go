@@ -35,7 +35,9 @@ func TestRuntimeCredentialLookupErrorsOnlyMarkConfirmedInvalidConfiguration(t *t
 	}{
 		{"missing", credentialerrors.RuntimeNotFound, true},
 		{"wrong-kind", credentialerrors.RuntimeInvalid, true},
-		{"no-row", pgx.ErrNoRows, true},
+		// A validator classifies its own miss; a raw database outcome is an
+		// infrastructure failure, never a confirmed invalid configuration.
+		{"unclassified-no-row", pgx.ErrNoRows, false},
 		{"statement-timeout", &pgconn.PgError{Code: persistencepostgres.SQLStateQueryCanceled, Message: "private-canary"}, false},
 		{"connection-closed", errors.New("private-canary"), false},
 	} {
@@ -63,7 +65,7 @@ func TestLLMCredentialLookupErrorsOnlyMarkConfirmedInvalidConfiguration(t *testi
 		invalid bool
 	}{
 		{"missing", credentialerrors.LLMNotFound, true},
-		{"no-row", pgx.ErrNoRows, true},
+		{"unclassified-no-row", pgx.ErrNoRows, false},
 		{"recovery-required", errors.New("private-canary"), false},
 		{"statement-timeout", &pgconn.PgError{Code: persistencepostgres.SQLStateQueryCanceled, Message: "private-canary"}, false},
 	} {

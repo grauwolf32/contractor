@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/agentprincipal"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
@@ -236,7 +237,7 @@ func TestFakeRuntimeAgentPrincipalKeysMatchPostgres(t *testing.T) {
 	principalID := strings.Repeat("c", 64)
 	fake := newFakeRuntimeAgentPrincipalManagement()
 	fake.principals[principalID] = controlplane.RuntimeAgentPrincipalProjection{
-		Principal: runtimeconfig.RuntimeAgentPrincipal{RuntimeAgentID: principalID, Labels: []string{}, LabelRevision: 1},
+		Principal: agentprincipal.Principal{RuntimeAgentID: principalID, Labels: []string{}, LabelRevision: 1},
 	}
 	checkPrincipalKeyMemory(t, ctx, "fake", fake, principalID)
 
@@ -263,7 +264,7 @@ func TestFakeRuntimeAgentPrincipalKeysMatchPostgres(t *testing.T) {
 	); err != nil {
 		t.Fatal(err)
 	}
-	if inserted, err := runtimeconfig.NewPrincipalRepository(pool).Insert(ctx, runtimeconfig.RuntimeAgentPrincipal{
+	if inserted, err := agentprincipal.NewRepository(pool).Insert(ctx, agentprincipal.Principal{
 		RuntimeAgentID: principalID, Labels: []string{}, LabelRevision: 1,
 		CreatedBy: "operator-parity", CreatedAt: at, UpdatedBy: "operator-parity", UpdatedAt: at,
 	}); err != nil || !inserted {
@@ -273,7 +274,7 @@ func TestFakeRuntimeAgentPrincipalKeysMatchPostgres(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	service, err := runtimeconfig.NewPrincipalService(runtimeconfig.PrincipalServiceOptions{
+	service, err := agentprincipal.NewService(agentprincipal.ServiceOptions{
 		Pool: pool, DeletionGuard: registry,
 	})
 	if err != nil {
@@ -334,7 +335,7 @@ func checkPrincipalKeyMemory(
 		{"reuse the key for a deletion", func() outcome { return remove(2, "label") },
 			outcome{err: contracts.ErrIdempotencyConflict}},
 		{"delete the labelled principal", func() outcome { return remove(2, "delete") },
-			outcome{err: runtimeconfig.ErrPrincipalInUse}},
+			outcome{err: agentprincipal.ErrInUse}},
 		{"clear the labels", func() outcome { return replace(2, unlabelled, "clear") },
 			outcome{revision: 3, labels: unlabelled}},
 		{"repeat the labelling after a newer change", func() outcome { return replace(1, labelled, "label") },

@@ -28,6 +28,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/grauwolf32/contractor/internal/settingsstore"
+	"github.com/grauwolf32/contractor/internal/telemetry"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -192,7 +193,7 @@ func testPostgresSchedulerPublication(t *testing.T, scenario schedulerPublicatio
 		PollInterval: time.Second, LeaseScanInterval: time.Second, ClaimDuration: time.Minute, OperationTimeout: 5 * time.Second,
 		PlannerTimeout: 20 * time.Second, FinalizationTimeout: 5 * time.Second, AbortTimeout: 5 * time.Second,
 		RuntimeTransport: testSchedulerRuntimeTransport(), Credentials: credentialProvider, Clock: clock,
-		Settings: settingsstore.NewPostgresStore(pool),
+		Settings: settingsstore.NewPostgresStore(pool), Reports: telemetry.NewRepository(pool),
 		NewID: func(prefix string) (string, error) {
 			sequence++
 			return prefix + strings.Repeat("x", sequence), nil

@@ -54,7 +54,7 @@ test-config:
 	go run ./cmd/contractor-server config validate --root ./configs
 
 test-postgres: require-database
-	go test -count=1 ./internal/persistence/postgres ./internal/credentials ./internal/runtimeconfig ./internal/runstore ./internal/artifacts ./internal/httpapi/public ./internal/planner/session ./internal/scheduler ./internal/telemetry
+	go test -count=1 ./internal/persistence/postgres ./internal/credentials ./internal/agentprincipal ./internal/runtimeconfig ./internal/runstore ./internal/artifacts ./internal/httpapi/public ./internal/planner/session ./internal/scheduler ./internal/telemetry
 
 test-runtime-config-postgres: require-database
 	go test -count=1 ./internal/runtimeconfig ./internal/persistence/postgres

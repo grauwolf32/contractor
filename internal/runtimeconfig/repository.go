@@ -226,7 +226,7 @@ ON CONFLICT DO NOTHING`, label, ref.Name, ref.Version, ref.Digest, actor, persis
 }
 
 func (r *Repository) GetBinding(ctx context.Context, label string) (Binding, error) {
-	if err := validateLabel(label); err != nil {
+	if err := ValidateLabel(label); err != nil {
 		return Binding{}, err
 	}
 	return scanBinding(r.db.QueryRow(ctx, bindingSelect+` WHERE label = $1`, label))
@@ -240,7 +240,7 @@ func (r *Repository) GetBindingsByLabels(ctx context.Context, labels []string) (
 	}
 	requested := make(map[string]struct{}, len(labels))
 	for _, label := range labels {
-		if err := validateLabel(label); err != nil {
+		if err := ValidateLabel(label); err != nil {
 			return nil, err
 		}
 		requested[label] = struct{}{}
@@ -267,7 +267,7 @@ func (r *Repository) GetBindingsByLabels(ctx context.Context, labels []string) (
 }
 
 func (r *Repository) ListBindings(ctx context.Context, afterLabel string, limit int) ([]Binding, error) {
-	if !pagelimit.ValidFetch(limit) || (afterLabel != "" && validateLabel(afterLabel) != nil) {
+	if !pagelimit.ValidFetch(limit) || (afterLabel != "" && ValidateLabel(afterLabel) != nil) {
 		return nil, invalid("RuntimeConfig binding page is invalid")
 	}
 	rows, err := r.db.Query(ctx, bindingSelect+` WHERE label > $1 ORDER BY label LIMIT $2`, afterLabel, limit)
@@ -329,7 +329,7 @@ WHERE label = $1 AND revision = $2::numeric
 }
 
 func (r *Repository) DeleteBinding(ctx context.Context, label string, expectedRevision uint64) error {
-	if err := validateLabel(label); err != nil || expectedRevision == 0 {
+	if err := ValidateLabel(label); err != nil || expectedRevision == 0 {
 		return invalid("RuntimeConfig binding delete is invalid")
 	}
 	if label == DefaultLabel {
@@ -374,7 +374,7 @@ func (r *Repository) LockBindingsForUpdate(ctx context.Context, labels []string)
 func (r *Repository) lockBindings(ctx context.Context, labels []string, mode string) ([]Binding, error) {
 	ordered := append([]string(nil), labels...)
 	for _, label := range ordered {
-		if err := validateLabel(label); err != nil {
+		if err := ValidateLabel(label); err != nil {
 			return nil, err
 		}
 	}
@@ -442,7 +442,7 @@ func scanBinding(row rowScanner) (Binding, error) {
 }
 
 func validateVersion(version Version) error {
-	if err := validateRef(version.Ref); err != nil || !validActor(version.ActorID) || version.CreatedAt.IsZero() {
+	if err := validateRef(version.Ref); err != nil || !ValidActor(version.ActorID) || version.CreatedAt.IsZero() {
 		return invalid("RuntimeConfig version metadata is invalid")
 	}
 	decoded, err := DecodeStoredDocument(version.CanonicalDocument)
@@ -456,13 +456,15 @@ func validateVersion(version Version) error {
 }
 
 func validateBindingMutation(label string, ref Ref, actor string, at time.Time) error {
-	if err := validateLabel(label); err != nil || validateRef(ref) != nil || !validActor(actor) || at.IsZero() {
+	if err := ValidateLabel(label); err != nil || validateRef(ref) != nil || !ValidActor(actor) || at.IsZero() {
 		return invalid("RuntimeConfig binding mutation is invalid")
 	}
 	return nil
 }
 
-func validActor(actor string) bool { return strings.TrimSpace(actor) != "" && len(actor) <= 256 }
+// ValidActor reports whether actor can be recorded as the author of a
+// RuntimeConfig, label binding or Runtime Agent principal mutation.
+func ValidActor(actor string) bool { return strings.TrimSpace(actor) != "" && len(actor) <= 256 }
 
 func specEqual(left, right Spec) bool { return reflect.DeepEqual(left, right) }
 

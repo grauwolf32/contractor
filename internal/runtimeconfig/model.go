@@ -33,7 +33,6 @@ var (
 	ErrConflict        = errors.New("RuntimeConfig conflict")
 	ErrPrecondition    = errors.New("RuntimeConfig revision precondition failed")
 	ErrReserved        = errors.New("reserved RuntimeConfig resource")
-	ErrPrincipalInUse  = fmt.Errorf("%w: Runtime Agent principal is in use", ErrConflict)
 )
 
 type Ref struct {
@@ -161,12 +160,12 @@ func (e *LabelInUseError) Error() string {
 }
 func (e *LabelInUseError) Unwrap() error { return ErrConflict }
 
-func labelInUseError(principals []RuntimeAgentPrincipal) error {
+func labelInUseError(holders []LabelHolder) error {
 	const maximumReferences = 128
-	count := min(len(principals), maximumReferences)
+	count := min(len(holders), maximumReferences)
 	ids := make([]string, count)
 	for index := 0; index < count; index++ {
-		ids[index] = principals[index].RuntimeAgentID
+		ids[index] = holders[index].RuntimeAgentID
 	}
 	return &LabelInUseError{RuntimeAgentIDs: ids}
 }
