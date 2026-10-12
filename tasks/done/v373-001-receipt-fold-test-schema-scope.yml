@@ -6,7 +6,8 @@ epic: persistence
 kind: defect
 introduced_by: V370-007
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: "b38fac62e1d7d241a455e8d9a0fe8ead4b460fb5"
 depends_on: []
 languages: [go]
 goal: "TestPostgresMutationReceiptsFoldMigration reads the Eval tombstone trigger function of its own isolated schema and passes while other test schemas of the shared database define the same function."
