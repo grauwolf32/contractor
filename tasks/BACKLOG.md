@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-60 open tasks: 3 in progress, 43 pending, 14 deferred. 837 finished: 834 completed, 3 archived.
+59 open tasks: 3 in progress, 42 pending, 14 deferred. 838 finished: 835 completed, 3 archived.
 
 ## In progress
 
@@ -21,7 +21,7 @@ the epics are in [epics.yml](epics.yml).
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
-| [V370-001](v370-001-run-stage-transition-owner.yml) | chore | P1 | V369-001 | Give Run and Stage state transitions one owner |
+| [V370-001](v370-001-run-stage-transition-owner.yml) | chore | P1 | — | Give Run and Stage state transitions one owner |
 | [V370-011](v370-011-scheduler-controlplane-surface.yml) | chore | P3 | — | Slim the Scheduler and Control Plane surfaces |
 | [V370-012](v370-012-runstore-runtimeconfig-cleanup.yml) | chore | P3 | — | Merge Run creation paths and split the Runtime principal registry |
 
@@ -94,9 +94,8 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V368-029](v368-029-dbtx-error-recovery.yml) | defect | P3 | — | Do not continue on a DBTX after a failed statement inside a transaction |
-| [V369-001](v369-001-table-ownership-test.yml) | chore | P1 | — | Assign every table an owner package and test SQL against it |
 | [V369-005](v369-005-sql-placement-concatenation.yml) | chore | P2 | — | Make the SQL placement check see concatenated statements |
-| [V370-002](v370-002-cross-context-writes.yml) | chore | P2 | V369-001 | Move the remaining cross-context table writes behind their owners |
+| [V370-002](v370-002-cross-context-writes.yml) | chore | P2 | — | Move the remaining cross-context table writes behind their owners |
 | [V370-007](v370-007-one-receipt-and-claim-mechanism.yml) | chore | P2 | — | Use one receipt and claim mechanism |
 | [V370-018](v370-018-simplify-persistence.yml) | chore | P3 | — | Remove duplicated transaction helpers in persistence callers |
 | [V370-023](v370-023-audit-purge-fk-indexes.yml) | defect | P2 | — | Index the foreign keys Audit purge checks and test all of them |
@@ -154,5 +153,5 @@ tasks in `introduced_by`.
 | Web UI (`ui`) | 0 | 19 | 51 | 10 | 48 |
 | Operations, authentication, CLI and deployment (`operations`) | 0 | 8 | 30 | 4 | 6 |
 | Public API and wire contracts (`api-contracts`) | 6 | 1 | 24 | 16 | 6 |
-| PostgreSQL persistence and schema (`persistence`) | 9 | 0 | 17 | 29 | 3 |
+| PostgreSQL persistence and schema (`persistence`) | 8 | 0 | 17 | 29 | 3 |
 | Quality, CI and process (`quality`) | 5 | 1 | 16 | 65 | 15 |

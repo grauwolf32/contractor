@@ -23,6 +23,7 @@ context:
 scope:
   in:
     - "Each access goes through the owner's store or a port; the dead PurgeProject delete is removed; the V369-001 allowlist shrinks accordingly."
+    - "The [known] entries of internal/persistence/table_ownership.txt that name V370-002, including the FOR UPDATE row locks PER-R18 counts as writes (findingintake on audits, auditstore on the deleting Project and on scheduler_settings) and rundeletion's update of finding_proposal_receipts with its read of the holds. Reads that stay become [reads] grants with their reason."
   out:
     - "Behaviour of each path."
 acceptance_criteria:

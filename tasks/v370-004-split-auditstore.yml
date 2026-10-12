@@ -20,6 +20,7 @@ context:
 scope:
   in:
     - "Store types per seam; auditservice read SQL moves into the read seam; archtest rule that auditservice does not import the claim package."
+    - "The [known] entries of internal/persistence/table_ownership.txt that name V370-004: auditservice reads of auditstore tables and its FOR UPDATE row locks of audits, audit_review_requests and audit_findings in review decisions and Audit resume, which PER-R18 counts as writes."
   out:
     - "Behaviour."
 acceptance_criteria:
