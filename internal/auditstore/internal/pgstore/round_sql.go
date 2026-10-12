@@ -1,9 +1,5 @@
 package pgstore
 
-import (
-	"github.com/grauwolf32/contractor/internal/auditstore"
-)
-
 // Round statements. Each is one atomic statement whose CTE order is the
 // lock order: the controller claim and the audit revision gate every write
 // that follows, so an incomplete batch leaves no partial durable effects.
@@ -39,14 +35,14 @@ WITH project_gate AS MATERIALIZED (
 ), round_input AS MATERIALIZED (
     SELECT $4::text AS round_id, $5::integer AS ordinal,
            $6::jsonb AS manifest_ref, $9::jsonb AS items,
-           $10::text AS manifest_digest, $14::jsonb AS links,
-           $16::text AS acceptance_digest
+           $10::text AS manifest_digest, $11::jsonb AS links,
+           $13::text AS acceptance_digest
 ), started AS (
     UPDATE audits AS audit
 	       SET baseline_snapshot = $7::jsonb,
 	           state = 'active', phase = 'rounds', current_round_id = $4,
 	           hold_state = 'held', deadline_at = $8,
-	           retained_evidence_bytes = $15,
+	           retained_evidence_bytes = $12,
 	           started_at = clock_timestamp(),
            ` + materializedRoundEvents.advance() + `,
            updated_at = GREATEST(clock_timestamp(), updated_at + interval '1 microsecond')
@@ -56,16 +52,9 @@ WITH project_gate AS MATERIALIZED (
        AND $5 <= audit.max_rounds
 	       AND jsonb_array_length($9::jsonb) <= audit.max_items_per_round
 	       AND jsonb_array_length($9::jsonb) <= audit.max_items_total
-	       AND $15 <= audit.max_evidence_bytes
+	       AND $12 <= audit.max_evidence_bytes
 	    RETURNING audit.*, ` + materializedRoundEvents.appended() + `
-` + initialRoundRowsSQL + `), idempotency_row AS (
-    INSERT INTO audit_idempotency (
-        owner_id, operation, idempotency_key, request_digest,
-        audit_id, resource_id, response_snapshot
-    )
-    SELECT $1, ` + operationLiteral(auditstore.MutationStart) + `, $11, $12, audit_id, $4, $13::jsonb
-      FROM started
-)
+` + initialRoundRowsSQL + `)
 SELECT ` + prefixedAuditColumns("started") + ` FROM started`
 
 // initialRoundRowsSQL atomically publishes the same items, reviews and exact
@@ -151,11 +140,7 @@ var nextRoundEvents = auditEvents(auditEvent(
 // under one controller claim, carrying proposal sources forward.
 var acceptNextRoundSQL = `
 WITH live_claim AS MATERIALIZED (
-    SELECT claim.audit_id
-      FROM audit_controller_claims AS claim
-     WHERE claim.audit_id = $1 AND claim.holder_id = $2 AND claim.epoch = $3
-       AND claim.expires_at > clock_timestamp()
-     FOR UPDATE OF claim
+    ` + auditClaims.LiveClaimSQL("$1", "$2", "$3") + `
 ), previous_round AS MATERIALIZED (
     SELECT round.round_id, round.audit_id, round.ordinal
       FROM audit_rounds AS round
@@ -286,11 +271,7 @@ var roundTransitionEvents = auditEvents(auditEvent(
 // claim and the expected round revision.
 var transitionRoundSQL = `
 	WITH live_claim AS MATERIALIZED (
-	    SELECT claim.audit_id
-	      FROM audit_controller_claims AS claim
-	     WHERE claim.audit_id = $1 AND claim.holder_id = $2 AND claim.epoch = $3
-	       AND claim.expires_at > clock_timestamp()
-	     FOR UPDATE OF claim
+	    ` + auditClaims.LiveClaimSQL("$1", "$2", "$3") + `
 	), claim_gate AS MATERIALIZED (
 	    SELECT audit.audit_id,
 	           CASE WHEN $7 IN ('accepted', 'executing', 'assessing')

@@ -147,7 +147,7 @@ DELETE FROM audits AS audit
  USING audit_controller_claims AS claim
  WHERE audit.audit_id = $1 AND audit.state = 'deleting'
    AND claim.audit_id = audit.audit_id
-   AND claim.holder_id = $2 AND claim.epoch = $3`,
+   AND `+auditClaims.HeldCondition("claim", "$2", "$3"),
 		claim.AuditID, claim.HolderID, claim.Epoch)
 	if err != nil {
 		return fmt.Errorf("delete drained Audit: %w", err)

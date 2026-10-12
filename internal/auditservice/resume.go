@@ -48,7 +48,7 @@ func (s *Service) Resume(ctx context.Context, params MutationParams) (MutationRe
 func (s *Service) resumeInTransaction(ctx context.Context, tx pgx.Tx, params MutationParams) (MutationResult, error) {
 	owners, reads := ownerstore.NewTx(tx), querystore.New(tx)
 	// Serialize retries before any mutable dependency checks.
-	if err := owners.LockResume(ctx, params.OwnerID, params.IdempotencyKey); err != nil {
+	if err := owners.LockMutation(ctx, params.OwnerID, auditstore.MutationTransition, params.IdempotencyKey); err != nil {
 		return MutationResult{}, err
 	}
 	if replay, found, err := owners.LookupMutationReplay(ctx, params.OwnerID, auditstore.MutationTransition, params.IdempotencyKey, params.RequestDigest); err != nil || found {

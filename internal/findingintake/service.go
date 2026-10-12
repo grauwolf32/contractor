@@ -95,10 +95,10 @@ func (s *Service) Submit(
 		// replays. A transaction advisory lock avoids a race in which two
 		// byte-identical requests both advance the proposal Artifact binding
 		// before either receipt becomes visible.
-		lockKey := deterministicID(
-			"submission-lock", grant.AllocationID, input.InvocationID, input.SubmissionID,
+		lockKey := persistencepostgres.NewAdvisoryKey(
+			"finding-proposal-submission", grant.AllocationID, input.InvocationID, input.SubmissionID,
 		)
-		if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`, lockKey); err != nil {
+		if err := persistencepostgres.LockAdvisory(ctx, tx, lockKey); err != nil {
 			return fmt.Errorf("lock finding proposal submission: %w", err)
 		}
 		existing, readErr := readReceiptBySubmission(
@@ -125,8 +125,8 @@ func (s *Service) Submit(
 		origin.InvocationID = canonical.request.InvocationID
 		// The quota counts every submission of the Run, so distinct
 		// submissions must also serialize their count and insert.
-		runLockKey := deterministicID("run-proposal-quota-lock", grant.RunID)
-		if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`, runLockKey); err != nil {
+		runLockKey := persistencepostgres.NewAdvisoryKey("run-proposal-quota", grant.RunID)
+		if err := persistencepostgres.LockAdvisory(ctx, tx, runLockKey); err != nil {
 			return fmt.Errorf("lock Run finding proposal quota: %w", err)
 		}
 		var count int

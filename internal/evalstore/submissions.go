@@ -5,6 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 
+	"github.com/grauwolf32/contractor/internal/auditstore"
+	pg "github.com/grauwolf32/contractor/internal/persistence/postgres"
+
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 	"github.com/jackc/pgx/v5"
@@ -285,7 +288,7 @@ SELECT EXISTS(SELECT 1
         AND publication_mode='ordinary')
 `, executionID, scope.OwnerID, scope.ProjectID, key, digest).Scan(&verified)
 	} else {
-		err = s.db.QueryRow(ctx, bindExecutionSQL, executionID, scope.OwnerID, id, member, key, digest).Scan(&verified)
+		verified, err = s.auditCreatedBy(ctx, scope, id, member, executionID, key, digest)
 	}
 	if err != nil {
 		return err
@@ -388,4 +391,22 @@ WHERE owner_id=$1
 	}
 	_, err = s.db.Exec(ctx, `UPDATE eval_experiments SET outstanding_count=outstanding_count-1,`+observe+` WHERE experiment_id=$1`, id)
 	return err
+}
+
+// auditCreatedBy reports whether Audit auditID is the one the member's
+// suboperation created: the owner's audit.create receipt under the
+// suboperation's key and request digest names it, and it lives in the
+// workspace Project registered on the member's submission.
+func (s *Store) auditCreatedBy(ctx context.Context, scope Scope, id, member, auditID, key, digest string) (bool, error) {
+	receipt, found, err := pg.FindReceipt(ctx, s.db,
+		pg.AuditReceiptKey(scope.OwnerID, string(auditstore.MutationCreate), key), digest)
+	if errors.Is(err, pg.ErrReceiptMismatch) {
+		return false, nil
+	}
+	if err != nil || !found || receipt.AuditID != auditID {
+		return false, err
+	}
+	var verified bool
+	err = s.db.QueryRow(ctx, bindExecutionSQL, auditID, scope.OwnerID, id, member).Scan(&verified)
+	return verified, err
 }

@@ -668,8 +668,7 @@ func (s *ClaimStore) readReconcileSnapshot(
 SELECT `+prefixedAuditColumns("audit")+`
   FROM audits AS audit
   JOIN audit_controller_claims AS claim USING (audit_id)
- WHERE audit.audit_id = $1 AND claim.holder_id = $2 AND claim.epoch = $3
-   AND claim.expires_at > clock_timestamp()`, claim.AuditID, claim.HolderID, claim.Epoch))
+ WHERE audit.audit_id = $1 AND `+auditClaims.LiveCondition("claim", "$2", "$3")+``, claim.AuditID, claim.HolderID, claim.Epoch))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return auditstore.ReconcileSnapshot{}, auditstore.ErrClaimLost
 	}

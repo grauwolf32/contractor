@@ -2,7 +2,6 @@ package pgstore
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -21,36 +20,24 @@ func (s *OwnerStore) RequestDelete(
 	if err := validateDelete(params); err != nil {
 		return auditstore.Audit{}, false, err
 	}
-	if replay, found, err := s.lookupAuditReplay(
-		ctx, params.OwnerID, auditstore.MutationDelete, params.IdempotencyKey, params.RequestDigest,
-	); err != nil || found {
-		return replay, false, err
-	}
-	response, _ := json.Marshal(map[string]string{"auditId": params.AuditID})
-	audit, err := scanAudit(persistencepostgres.SavepointQueryRow(ctx, s.db, requestDeleteSQL,
-		params.OwnerID, params.AuditID, params.ExpectedRevision,
-		params.IdempotencyKey, params.RequestDigest, response,
-	))
-	if err == nil {
-		return audit, true, nil
-	}
-	if persistencepostgres.Classify(err) == persistencepostgres.ClassDuplicate {
-		return s.replayAudit(ctx, params.OwnerID, auditstore.MutationDelete, params.IdempotencyKey, params.RequestDigest)
-	}
-	if !errors.Is(err, pgx.ErrNoRows) {
-		return auditstore.Audit{}, false, fmt.Errorf("request Audit deletion: %w", err)
-	}
-	if replay, found, replayErr := s.lookupAuditReplay(
-		ctx, params.OwnerID, auditstore.MutationDelete, params.IdempotencyKey, params.RequestDigest,
-	); replayErr != nil || found {
-		return replay, false, replayErr
-	}
-	if _, getErr := s.get(ctx, params.OwnerID, params.AuditID); errors.Is(getErr, auditstore.ErrNotFound) {
-		return auditstore.Audit{}, false, auditstore.ErrNotFound
-	} else if getErr != nil {
-		return auditstore.Audit{}, false, getErr
-	}
-	return auditstore.Audit{}, false, auditstore.ErrPrecondition
+	return s.keyedAuditMutation(ctx, params.OwnerID, auditstore.MutationDelete, params.IdempotencyKey, params.RequestDigest,
+		func(tx pgx.Tx) (auditMutationResult, error) {
+			audit, err := scanAudit(persistencepostgres.SavepointQueryRow(ctx, tx, requestDeleteSQL,
+				params.OwnerID, params.AuditID, params.ExpectedRevision,
+			))
+			if err == nil {
+				return auditMutationResult{
+					audit: audit, resourceID: audit.AuditID, response: map[string]string{"auditId": params.AuditID},
+				}, nil
+			}
+			if persistencepostgres.Classify(err) == persistencepostgres.ClassDuplicate {
+				return auditMutationResult{}, auditstore.ErrConflict
+			}
+			if !errors.Is(err, pgx.ErrNoRows) {
+				return auditMutationResult{}, fmt.Errorf("request Audit deletion: %w", err)
+			}
+			return auditMutationResult{}, ownerMutationRefusal(ctx, tx, params.OwnerID, params.AuditID)
+		})
 }
 
 // auditDeletionSource is who requested an Audit deletion: its owner or the

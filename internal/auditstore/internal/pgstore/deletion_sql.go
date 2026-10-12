@@ -1,16 +1,11 @@
 package pgstore
 
-import (
-	"github.com/grauwolf32/contractor/internal/auditstore"
-)
-
 // SQL statements for deletion.go and project_deletion.go.
 
 // requestDeleteSQL records owner $1's deletion request for Audit $2 at
-// revision $3 through deletionRequestCTEs and stores the audit.delete
-// idempotency record ($4-$6). An Audit that is already deleting is returned
-// unchanged with the new record. Returns the Audit columns.
-// Used by OwnerStore.RequestDelete.
+// revision $3 through deletionRequestCTEs. An Audit that is already deleting
+// is returned unchanged, so the caller still claims the request's receipt.
+// Returns the Audit columns. Used by OwnerStore.RequestDelete.
 var requestDeleteSQL = `
 WITH candidate AS MATERIALIZED (
     SELECT audit.*
@@ -22,13 +17,6 @@ WITH candidate AS MATERIALIZED (
     UNION ALL
     SELECT ` + prefixedAuditColumns("candidate") + `
       FROM candidate WHERE candidate.state = 'deleting'
-), idempotency_row AS (
-    INSERT INTO audit_idempotency (
-        owner_id, operation, idempotency_key, request_digest,
-        audit_id, resource_id, response_snapshot
-    )
-    SELECT $1, ` + operationLiteral(auditstore.MutationDelete) + `, $4, $5, audit_id, audit_id, $6::jsonb
-      FROM selected
 )
 SELECT * FROM selected`
 

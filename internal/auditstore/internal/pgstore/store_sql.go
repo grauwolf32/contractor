@@ -1,7 +1,6 @@
 package pgstore
 
 import (
-	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 )
 
@@ -15,10 +14,10 @@ var auditCreatedEvents = auditEvents(auditEvent(
 var auditCreatedRevision, auditCreatedNextEventSequence = auditCreatedEvents.created()
 
 // createDraftSQL inserts draft Audit $1 of owner $2 in Project $3 (raising if
-// the Project is missing or deleting) with its empty controller claim row, the
-// audit.create idempotency record ($16-$18) and the audit.created event.
-// ON CONFLICT DO NOTHING leaves replay to the caller, which completes the
-// trailing SELECT with the inserted Audit. Used by OwnerStore.CreateDraft.
+// the Project is missing or deleting) with its empty controller claim row and
+// the audit.created event. An Audit ID that exists already inserts nothing;
+// the caller completes the trailing SELECT with the inserted Audit and claims
+// the request's receipt. Used by OwnerStore.CreateDraft.
 var createDraftSQL = `
 WITH project_gate AS MATERIALIZED (
     SELECT contractor_require_active_audit_project($3, $2)
@@ -39,13 +38,6 @@ WITH project_gate AS MATERIALIZED (
 ), claim_row AS (
     INSERT INTO audit_controller_claims (audit_id)
     SELECT audit_id FROM inserted
-), idempotency_row AS (
-    INSERT INTO audit_idempotency (
-        owner_id, operation, idempotency_key, request_digest,
-        audit_id, resource_id, response_snapshot
-    )
-    SELECT $2, ` + operationLiteral(auditstore.MutationCreate) + `, $16, $17, audit_id, audit_id, $18::jsonb
-      FROM inserted
 )
 SELECT `
 

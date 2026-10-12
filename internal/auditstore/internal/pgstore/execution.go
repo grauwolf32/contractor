@@ -78,13 +78,7 @@ SELECT `+prefixedExecutionColumns("audit_executions")+` FROM audit_executions
 }
 
 func (s *ClaimStore) claimLive(ctx context.Context, claim auditstore.ControllerClaim) (bool, error) {
-	var live bool
-	err := s.db.QueryRow(ctx, `
-SELECT EXISTS (
-    SELECT 1 FROM audit_controller_claims
-     WHERE audit_id = $1 AND holder_id = $2 AND epoch = $3
-       AND expires_at > clock_timestamp()
-)`, claim.AuditID, claim.HolderID, claim.Epoch).Scan(&live)
+	live, err := auditClaims.Live(ctx, s.db, claim.AuditID, claim.HolderID, int64(claim.Epoch))
 	if err != nil {
 		return false, fmt.Errorf("check Audit claim: %w", err)
 	}
@@ -148,8 +142,7 @@ SELECT audit.owner_id, audit.project_id, `+profileRoleSQL("#>", "execution.workf
   JOIN audits AS audit USING (audit_id)
   JOIN audit_controller_claims AS claim USING (audit_id)
  WHERE execution.audit_id = $1 AND execution.execution_id = $4
-   AND claim.holder_id = $2 AND claim.epoch = $3
-   AND claim.expires_at > clock_timestamp()
+   AND `+auditClaims.LiveCondition("claim", "$2", "$3")+`
  FOR UPDATE OF claim, audit, execution`,
 		claim.AuditID, claim.HolderID, claim.Epoch, executionID,
 	), before: []any{&result.OwnerID, &result.ProjectID, &result.WorkflowBinding}})

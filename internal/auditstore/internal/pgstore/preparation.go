@@ -64,17 +64,31 @@ func (s *OwnerStore) StartPreparation(ctx context.Context, p auditstore.StartPre
 	if err != nil {
 		return auditstore.Audit{}, false, err
 	}
-	if replay, found, err := s.lookupAuditReplay(ctx, p.OwnerID, auditstore.MutationStart, p.IdempotencyKey, p.RequestDigest); err != nil || found {
-		return replay, false, err
-	}
-	audit, err := s.get(ctx, p.OwnerID, p.AuditID)
+	return s.keyedAuditMutation(ctx, p.OwnerID, auditstore.MutationStart, p.IdempotencyKey, p.RequestDigest,
+		func(tx pgx.Tx) (auditMutationResult, error) {
+			started, err := startPreparation(ctx, tx, p, retainedBytes)
+			if err != nil {
+				return auditMutationResult{}, err
+			}
+			return auditMutationResult{
+				audit: started, resourceID: started.AuditID, response: map[string]string{"auditId": started.AuditID},
+			}, nil
+		})
+}
+
+// startPreparation checks the draft's pinned profile against the start's
+// baseline and enters preparation in tx.
+func startPreparation(
+	ctx context.Context, tx pgx.Tx, p auditstore.StartPreparationParams, retainedBytes int64,
+) (auditstore.Audit, error) {
+	audit, err := (&store{db: tx}).get(ctx, p.OwnerID, p.AuditID)
 	if err != nil {
-		return auditstore.Audit{}, false, err
+		return auditstore.Audit{}, err
 	}
 	profile, err := config.DecodeResolvedAuditProfileSnapshot(audit.ProfileSnapshot)
 	if err != nil || !profile.HasPreparation() || profile.Ref.Name != audit.Profile.Name ||
 		profile.Ref.Version != audit.Profile.Version || profile.Ref.Digest != audit.Profile.Digest {
-		return auditstore.Audit{}, false, invalidf("preparation requires a valid pinned current-schema profile")
+		return auditstore.Audit{}, invalidf("preparation requires a valid pinned current-schema profile")
 	}
 	var baseline struct {
 		Schema    string                              `json:"schema"`
@@ -83,40 +97,37 @@ func (s *OwnerStore) StartPreparation(ctx context.Context, p auditstore.StartPre
 	}
 	if json.Unmarshal(p.BaselineSnapshot, &baseline) != nil || baseline.Schema != "contractor.audit.baseline.v1" ||
 		baseline.Inputs == nil || baseline.Inventory != nil {
-		return auditstore.Audit{}, false, invalidf("preparation baseline requires original inputs and forbids inventory")
+		return auditstore.Audit{}, invalidf("preparation baseline requires original inputs and forbids inventory")
 	}
 	for name, input := range profile.Inputs {
 		artifact, exists := baseline.Inputs[name]
 		if input.Required && !exists {
-			return auditstore.Audit{}, false, invalidf("preparation baseline is missing input %s", name)
+			return auditstore.Audit{}, invalidf("preparation baseline is missing input %s", name)
 		}
 		if exists && (validateExactArtifact("baseline input", artifact, true) != nil || !contracts.AcceptsMediaType(input.MediaTypes, artifact.MediaType)) {
-			return auditstore.Audit{}, false, invalidf("preparation baseline input %s is invalid", name)
+			return auditstore.Audit{}, invalidf("preparation baseline input %s is invalid", name)
 		}
 	}
 	for name := range baseline.Inputs {
 		if _, exists := profile.Inputs[name]; !exists {
-			return auditstore.Audit{}, false, invalidf("preparation baseline names an undeclared input")
+			return auditstore.Audit{}, invalidf("preparation baseline names an undeclared input")
 		}
 	}
 	links, _ := prepareRetainedLinks(auditstore.CollectParams{Retained: p.InitialRetained})
-	result, err := scanAudit(persistencepostgres.SavepointQueryRow(ctx, s.db, startPreparationSQL,
+	result, err := scanAudit(persistencepostgres.SavepointQueryRow(ctx, tx, startPreparationSQL,
 		p.OwnerID, p.AuditID, p.ExpectedRevision, []byte(p.BaselineSnapshot), optionalDeadline(p.DeadlineAt),
-		links, retainedBytes, p.IdempotencyKey, p.RequestDigest,
+		links, retainedBytes,
 	))
 	if err == nil {
-		return result, true, nil
+		return result, nil
 	}
 	if persistencepostgres.Classify(err) == persistencepostgres.ClassDeleting {
-		return auditstore.Audit{}, false, auditstore.ErrProjectDeleting
+		return auditstore.Audit{}, auditstore.ErrProjectDeleting
 	}
 	if errors.Is(err, pgx.ErrNoRows) || persistencepostgres.Classify(err) == persistencepostgres.ClassDuplicate {
-		if replay, found, replayErr := s.lookupAuditReplay(ctx, p.OwnerID, auditstore.MutationStart, p.IdempotencyKey, p.RequestDigest); replayErr != nil || found {
-			return replay, false, replayErr
-		}
-		return auditstore.Audit{}, false, auditstore.ErrPrecondition
+		return auditstore.Audit{}, auditstore.ErrPrecondition
 	}
-	return auditstore.Audit{}, false, fmt.Errorf("start Audit preparation: %w", err)
+	return auditstore.Audit{}, fmt.Errorf("start Audit preparation: %w", err)
 }
 
 // CompletePreparation advances only after every prepare role has an accepted

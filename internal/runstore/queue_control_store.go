@@ -7,6 +7,8 @@ import (
 	"math"
 	"strings"
 
+	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
+
 	"github.com/jackc/pgx/v5"
 )
 
@@ -40,7 +42,8 @@ func (s *PostgresStore) UpdateOwnerQueueControl(
 	if params.ExpectedRevision > math.MaxInt64 {
 		return OwnerQueueControl{}, invalidf("owner Queue control revision is invalid")
 	}
-	control, err := scanOwnerQueueControl(s.db.QueryRow(ctx, updateOwnerQueueControlSQL, params.OwnerID, params.Paused, int64(params.ExpectedRevision)))
+	control, err := scanOwnerQueueControl(s.db.QueryRow(ctx, updateOwnerQueueControlSQL,
+		params.OwnerID, params.Paused, int64(params.ExpectedRevision), string(ownerQueueControlLock(params.OwnerID))))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return OwnerQueueControl{}, ErrPrecondition
 	}
@@ -59,19 +62,14 @@ func (s *PostgresStore) LockRunQueueAdmission(ctx context.Context, runID string)
 		return err
 	}
 	var ownerID string
-	err := s.db.QueryRow(ctx, `
-WITH run_owner AS MATERIALIZED (
-    SELECT owner_id FROM workflow_runs WHERE run_id = $1
-), owner_lock AS MATERIALIZED (
-    SELECT pg_advisory_xact_lock_shared(
-        hashtextextended('owner-queue-control:' || owner_id, 0)
-    ) FROM run_owner
-)
-SELECT run_owner.owner_id FROM run_owner CROSS JOIN owner_lock`, runID).Scan(&ownerID)
+	err := s.db.QueryRow(ctx, `SELECT owner_id FROM workflow_runs WHERE run_id = $1`, runID).Scan(&ownerID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return ErrNotFound
 	}
 	if err != nil {
+		return fmt.Errorf("lock owner Queue admission: %w", err)
+	}
+	if err := persistencepostgres.LockAdvisoryShared(ctx, s.db, ownerQueueControlLock(ownerID)); err != nil {
 		return fmt.Errorf("lock owner Queue admission: %w", err)
 	}
 	var paused bool
@@ -86,6 +84,12 @@ SELECT COALESCE(
 		return ErrQueuePaused
 	}
 	return nil
+}
+
+// ownerQueueControlLock is the advisory key that orders an owner's Queue
+// pause and resume, held exclusively, with Stage admission, held shared.
+func ownerQueueControlLock(ownerID string) persistencepostgres.AdvisoryKey {
+	return persistencepostgres.NewAdvisoryKey("owner-queue-control", ownerID)
 }
 
 type queueControlScanner interface{ Scan(...any) error }

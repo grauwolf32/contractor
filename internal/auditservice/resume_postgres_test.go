@@ -235,7 +235,7 @@ func auditTimeControlSnapshot(t *testing.T, ctx context.Context, pool *pgxpool.P
 'reviews', (SELECT jsonb_agg(to_jsonb(r) ORDER BY request_id) FROM audit_review_requests r WHERE audit_id='audit-time'),
 'links', (SELECT jsonb_agg(to_jsonb(l) ORDER BY logical_key) FROM audit_artifact_links l WHERE audit_id='audit-time'),
 'events', (SELECT jsonb_agg(to_jsonb(e) ORDER BY sequence_number) FROM audit_events e WHERE audit_id='audit-time'),
-'receipts', (SELECT jsonb_agg(to_jsonb(i) ORDER BY idempotency_key) FROM audit_idempotency i WHERE audit_id='audit-time')
+'receipts', (SELECT jsonb_agg(to_jsonb(i) ORDER BY idempotency_key) FROM mutation_receipts i WHERE audit_id='audit-time')
 )`).Scan(&data); err != nil {
 		t.Fatal(err)
 	}

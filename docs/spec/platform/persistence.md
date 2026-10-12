@@ -11,7 +11,9 @@ its time bounds, the connection pooling that the lease needs, and what must
 not stand in for that lease: an unfenced shared `runtime_agents` table or a
 durable Runtime Agent principal. It owns the one classification of a failed
 PostgreSQL call into an outcome class and how SQL names the members of
-`jsonb` documents the Server encodes from Go types. It also indexes the
+`jsonb` documents the Server encodes from Go types. It owns the one flow and
+the one receipt table of keyed mutations, how advisory lock keys are built,
+and the shape and lease rule of controller claims. It also indexes the
 PostgreSQL state and the transaction and serialization rules that domain
 documents own, so each can be found from here while it is stated only in its
 owner.
@@ -120,6 +122,8 @@ flowchart LR
 | `llm_credentials` and the `credential_operations` internal recovery journal | [Runtime config, LLM credential record](../configuration/runtime-config.md#llm-credential-record) (RCF-R33, RCF-R71) |
 | WorkflowRun metadata labels | [Runs](../execution/runs.md) (RUN-R72, RUN-R73) |
 | The `scheduler_settings` singleton and its seed row | [Operations](../operations/operations.md) (OPS-R48, OPS-R49, OPS-R50) |
+| `mutation_receipts`, the receipt of every keyed mutation, and the advisory lock keys | This document ([PER-R23](#keyed-mutations-and-controller-claims)) |
+| The shape and lease rule of `audit_controller_claims` and `eval_controller_claims` | This document ([PER-R24](#keyed-mutations-and-controller-claims)) |
 | `performance_minutes` | [Operations](../operations/operations.md) (OPS-R150, OPS-R151, OPS-R152) |
 | Not PostgreSQL state: the live Runtime Agent Registry | [Control plane](../execution/control-plane.md) (CTL-R62) |
 
@@ -321,6 +325,55 @@ inserted and when its completion changes, not on later updates that keep it:
 the completion cannot change once set, and the profile binding it is checked
 against is immutable ([AWC-R7](../audits/worker-completion.md)).
 
+### Keyed mutations and controller claims
+
+**PER-R23.** A keyed mutation is a request its caller may repeat under an
+idempotency key and whose receipt is kept apart from the entity it changes:
+an owner's Audit mutation (create, start, pause, cancel, resume and delete),
+a managed Eval mutation, and a Runtime label binding or Agent label set
+operation. Each records one receipt in `mutation_receipts`, in the
+transaction of its effect, through one flow:
+
+1. it takes the transaction advisory lock of its key, so the requests under
+   one key run one at a time;
+2. it reads the receipt stored under the key: a receipt of the same request
+   replays, and a receipt of another request is the idempotency conflict
+   ([API-R69](../api/public-api.md)); neither runs the mutation again;
+3. otherwise it runs the mutation and claims the key with the new receipt.
+
+A key is unique within the scope of its family: an Audit key per owner and
+operation, an Eval key per owner, Project, resource and operation, and a
+Runtime management key across every operation, held only as the digest of the
+operator's key. A family that also compares the stored operation or resource
+on replay, as Runtime management does, reports a difference as the same
+conflict. No receipt changes once claimed. An Audit receipt is deleted with
+its Audit, an Eval receipt only in its Project's purge, so it stays
+replayable after its experiment's purge
+([LIFE-EVM-7](lifecycle.md)), and a Runtime management receipt is never
+deleted. A request whose key is a column of the row it creates (a Run, a
+Project, a RuntimeConfig version, a Runtime credential, an Audit execution,
+an Eval member or an Audit review request or decision) keeps the key on that
+row, and an operation that journals an outbound call keeps its journal
+(`credential_operations`); neither is a keyed mutation here.
+
+Every transaction advisory lock key, of a keyed mutation or of any other
+serialization, is built from a namespace and parts by one builder that writes
+each value after its byte length, so two different part lists never share a
+key. Two locks keep their own keys: the advisory lease of the active Server
+(PER-R2), whose fixed key every Server version shares, and the migration
+lock, which is scoped to the schema being migrated.
+
+**PER-R24.** A controller that leases the subjects it reconciles, the Audit
+controller ([AUX-R74](../audits/execution.md)) and the Eval coordinator
+([EVM-R108](../evals/managed-evals.md)), keeps one claim row per subject in
+its own claim table, and every claim table has one shape: the subject, an
+epoch, and the holder with the start and the end of its lease, all three set
+or none. Both controllers lease, prove and release claims through one helper.
+A lease advances the epoch. A write proves that its holder still holds the
+claim at its epoch and that the lease has not ended; only a release or a
+purge by the holder accepts its holder's ended lease, because no other holder
+can have leased the subject without advancing the epoch.
+
 ## Limits, failures and errors
 
 Limits ([registry](limits.md)):
@@ -455,6 +508,28 @@ outlasts its retries is the retryable `503 storage_transaction_conflict`
     Each column-scoped guard of `workflow_runs` lists exactly the columns its
     function compares; test `TestWorkflowRunGuardsFireOnTheColumnsTheyCompare`
     in [`internal/persistence/postgres/workflow_run_triggers_postgres_test.go`](../../../internal/persistence/postgres/workflow_run_triggers_postgres_test.go).
+18. Every keyed mutation of each family locks its key, replays the same
+    request without running again, refuses another request under the key and
+    claims nothing when its mutation fails; a second request under a key
+    waits for the first and replays it (PER-R23); tests
+    `TestPostgresKeyedMutationReplaysAndRefusesUnderEveryFamily` and
+    `TestPostgresKeyedMutationSerializesOneKey` in
+    [`internal/persistence/postgres/receipts_postgres_test.go`](../../../internal/persistence/postgres/receipts_postgres_test.go).
+    The receipt table keeps each family's key scope and retention, and no
+    receipt changes; test
+    `TestPostgresMutationReceiptsKeepTheirShapeAndRetention` in the same
+    file. No other production code reads or writes the receipt table, and no
+    other code builds an advisory lock key; test
+    `TestKeyedMutationsUseTheSharedHelpers` in
+    [`internal/persistence/keyed_mutation_test.go`](../../../internal/persistence/keyed_mutation_test.go).
+    Two different part lists never share an advisory key; test
+    `TestNewAdvisoryKeyNeverJoinsTwoPartListsIntoOneKey` in
+    [`internal/persistence/postgres/advisory_test.go`](../../../internal/persistence/postgres/advisory_test.go).
+19. Both controller claim tables lease, prove and release through one helper:
+    a lease advances the epoch, a stale holder or epoch and an ended lease
+    are lost, and a release accepts its holder's ended lease (PER-R24); test
+    `TestPostgresControllerClaimsLeaseProveAndRelease` in
+    [`internal/persistence/postgres/receipts_postgres_test.go`](../../../internal/persistence/postgres/receipts_postgres_test.go).
 
 ## Non-goals
 

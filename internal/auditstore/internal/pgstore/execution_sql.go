@@ -16,11 +16,7 @@ var runBoundEvents = auditEvents(auditEvent(
 // Used by ClaimStore.BindRun.
 var bindRunSQL = `
 WITH live_claim AS MATERIALIZED (
-    SELECT claim.audit_id
-      FROM audit_controller_claims AS claim
-     WHERE claim.audit_id = $1 AND claim.holder_id = $2 AND claim.epoch = $3
-       AND claim.expires_at > clock_timestamp()
-     FOR UPDATE OF claim
+    ` + auditClaims.LiveClaimSQL("$1", "$2", "$3") + `
 ), eligible AS MATERIALIZED (
     SELECT execution.execution_id, execution.audit_id,
            jsonb_build_object(
@@ -92,11 +88,7 @@ var terminalObservedEvents = auditEvents(auditEvent(
 // Used by ClaimStore.ObserveTerminal.
 var observeTerminalSQL = `
 WITH live_claim AS MATERIALIZED (
-    SELECT claim.audit_id
-      FROM audit_controller_claims AS claim
-     WHERE claim.audit_id = $1 AND claim.holder_id = $2 AND claim.epoch = $3
-       AND claim.expires_at > clock_timestamp()
-     FOR UPDATE OF claim
+    ` + auditClaims.LiveClaimSQL("$1", "$2", "$3") + `
 ), observation_gate AS MATERIALIZED (
     SELECT execution.execution_id, execution.audit_id,
            run.state AS terminal_outcome,
@@ -162,11 +154,7 @@ var submissionFailedEvents = auditEvents(auditEvent(
 // Used by ClaimStore.ObserveSubmissionFailure.
 var observeSubmissionFailureSQL = `
 WITH live_claim AS MATERIALIZED (
-    SELECT claim.audit_id
-      FROM audit_controller_claims AS claim
-     WHERE claim.audit_id = $1 AND claim.holder_id = $2 AND claim.epoch = $3
-       AND claim.expires_at > clock_timestamp()
-     FOR UPDATE OF claim
+    ` + auditClaims.LiveClaimSQL("$1", "$2", "$3") + `
 ), observation_gate AS MATERIALIZED (
     SELECT execution.execution_id, execution.audit_id
       FROM audit_executions AS execution

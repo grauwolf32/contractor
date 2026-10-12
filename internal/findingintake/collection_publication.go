@@ -51,8 +51,8 @@ func (p *CollectionPublisher) PublishCollection(ctx context.Context, params Publ
 		result = PublishedCollection{}
 		// A competing transaction may have taken its snapshot before this
 		// lock was released; InTxWithRetry replays PostgreSQL's serialization error.
-		key := deterministicID("collection-lock", params.OwnerID, request.ClientKey)
-		if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`, key); err != nil {
+		key := postgres.NewAdvisoryKey("finding-collection", params.OwnerID, request.ClientKey)
+		if err := postgres.LockAdvisory(ctx, tx, key); err != nil {
 			return err
 		}
 		service := artifacts.NewService(artifacts.NewPostgresRepository(tx))

@@ -21,41 +21,29 @@ func (s *OwnerStore) Transition(
 	if err := validateTransition(params); err != nil {
 		return auditstore.Audit{}, false, err
 	}
-	if replay, found, err := s.lookupAuditReplay(
-		ctx, params.OwnerID, auditstore.MutationTransition, params.IdempotencyKey, params.RequestDigest,
-	); err != nil || found {
-		return replay, false, err
-	}
 	var reasonCode, reasonMessage *string
 	if params.Reason != nil {
 		reasonCode, reasonMessage = &params.Reason.Code, &params.Reason.Message
 	}
-	response, _ := json.Marshal(map[string]string{"auditId": params.AuditID})
-	audit, err := scanAudit(persistencepostgres.SavepointQueryRow(ctx, s.db, transitionSQL+prefixedAuditColumns("changed")+` FROM changed`,
-		params.OwnerID, params.AuditID, params.ExpectedRevision,
-		string(params.ExpectedState), string(params.TargetState), reasonCode, reasonMessage,
-		params.IdempotencyKey, params.RequestDigest, response,
-	))
-	if err == nil {
-		return audit, true, nil
-	}
-	if persistencepostgres.Classify(err) == persistencepostgres.ClassDuplicate {
-		return s.replayAudit(ctx, params.OwnerID, auditstore.MutationTransition, params.IdempotencyKey, params.RequestDigest)
-	}
-	if !errors.Is(err, pgx.ErrNoRows) {
-		return auditstore.Audit{}, false, fmt.Errorf("transition Audit: %w", err)
-	}
-	if replay, found, replayErr := s.lookupAuditReplay(
-		ctx, params.OwnerID, auditstore.MutationTransition, params.IdempotencyKey, params.RequestDigest,
-	); replayErr != nil || found {
-		return replay, false, replayErr
-	}
-	if _, getErr := s.get(ctx, params.OwnerID, params.AuditID); errors.Is(getErr, auditstore.ErrNotFound) {
-		return auditstore.Audit{}, false, auditstore.ErrNotFound
-	} else if getErr != nil {
-		return auditstore.Audit{}, false, getErr
-	}
-	return auditstore.Audit{}, false, auditstore.ErrPrecondition
+	return s.keyedAuditMutation(ctx, params.OwnerID, auditstore.MutationTransition, params.IdempotencyKey, params.RequestDigest,
+		func(tx pgx.Tx) (auditMutationResult, error) {
+			audit, err := scanAudit(persistencepostgres.SavepointQueryRow(ctx, tx, transitionSQL+prefixedAuditColumns("changed")+` FROM changed`,
+				params.OwnerID, params.AuditID, params.ExpectedRevision,
+				string(params.ExpectedState), string(params.TargetState), reasonCode, reasonMessage,
+			))
+			if err == nil {
+				return auditMutationResult{
+					audit: audit, resourceID: audit.AuditID, response: map[string]string{"auditId": params.AuditID},
+				}, nil
+			}
+			if persistencepostgres.Classify(err) == persistencepostgres.ClassDuplicate {
+				return auditMutationResult{}, auditstore.ErrConflict
+			}
+			if !errors.Is(err, pgx.ErrNoRows) {
+				return auditMutationResult{}, fmt.Errorf("transition Audit: %w", err)
+			}
+			return auditMutationResult{}, ownerMutationRefusal(ctx, tx, params.OwnerID, params.AuditID)
+		})
 }
 
 func (s *ClaimStore) TransitionClaimed(
@@ -99,44 +87,44 @@ func (s *ClaimStore) TransitionClaimed(
 }
 
 // Resume reopens dispatch for a paused Audit with a fresh hold and deadline.
-// It records the owner idempotency row and an audit.resumed event carrying
-// the cleared stop reason, behind the same active-Project gate.
+// It records the owner's receipt and an audit.resumed event carrying the
+// cleared stop reason, behind the same active-Project gate.
 func (s *OwnerStore) Resume(ctx context.Context, params auditstore.ResumeParams) (auditstore.Audit, bool, error) {
 	if err := validateResume(params); err != nil {
 		return auditstore.Audit{}, false, err
 	}
-	if replay, found, err := s.lookupAuditReplay(
-		ctx, params.OwnerID, auditstore.MutationTransition, params.IdempotencyKey, params.RequestDigest,
-	); err != nil || found {
-		return replay, false, err
-	}
 	deadline, _ := json.Marshal(params.DeadlineAt)
-	response, _ := json.Marshal(map[string]string{"auditId": params.AuditID})
-	audit, err := scanAudit(persistencepostgres.SavepointQueryRow(ctx, s.db, resumeSQL+prefixedAuditColumns("changed")+` FROM changed`,
-		params.OwnerID, params.AuditID, params.ExpectedRevision, params.DeadlineAt, deadline,
-		params.IdempotencyKey, params.RequestDigest, response,
-	))
-	if err == nil {
-		return audit, true, nil
+	return s.keyedAuditMutation(ctx, params.OwnerID, auditstore.MutationTransition, params.IdempotencyKey, params.RequestDigest,
+		func(tx pgx.Tx) (auditMutationResult, error) {
+			audit, err := scanAudit(persistencepostgres.SavepointQueryRow(ctx, tx, resumeSQL+prefixedAuditColumns("changed")+` FROM changed`,
+				params.OwnerID, params.AuditID, params.ExpectedRevision, params.DeadlineAt, deadline,
+			))
+			if err == nil {
+				return auditMutationResult{
+					audit: audit, resourceID: audit.AuditID, response: map[string]string{"auditId": params.AuditID},
+				}, nil
+			}
+			switch persistencepostgres.Classify(err) {
+			case persistencepostgres.ClassDeleting:
+				return auditMutationResult{}, auditstore.ErrProjectDeleting
+			case persistencepostgres.ClassDuplicate:
+				return auditMutationResult{}, auditstore.ErrConflict
+			}
+			if !errors.Is(err, pgx.ErrNoRows) {
+				return auditMutationResult{}, fmt.Errorf("resume Audit: %w", err)
+			}
+			return auditMutationResult{}, ownerMutationRefusal(ctx, tx, params.OwnerID, params.AuditID)
+		})
+}
+
+// ownerMutationRefusal reports why an owner mutation changed no Audit: the
+// Audit is missing or not the owner's, or it is not at the revision and state
+// the mutation requires.
+func ownerMutationRefusal(ctx context.Context, tx pgx.Tx, ownerID, auditID string) error {
+	if _, err := (&store{db: tx}).get(ctx, ownerID, auditID); err != nil {
+		return err
 	}
-	if persistencepostgres.Classify(err) == persistencepostgres.ClassDeleting {
-		return auditstore.Audit{}, false, auditstore.ErrProjectDeleting
-	}
-	if persistencepostgres.Classify(err) == persistencepostgres.ClassDuplicate {
-		return s.replayAudit(ctx, params.OwnerID, auditstore.MutationTransition, params.IdempotencyKey, params.RequestDigest)
-	}
-	if !errors.Is(err, pgx.ErrNoRows) {
-		return auditstore.Audit{}, false, fmt.Errorf("resume Audit: %w", err)
-	}
-	if replay, found, replayErr := s.lookupAuditReplay(
-		ctx, params.OwnerID, auditstore.MutationTransition, params.IdempotencyKey, params.RequestDigest,
-	); replayErr != nil || found {
-		return replay, false, replayErr
-	}
-	if _, getErr := s.get(ctx, params.OwnerID, params.AuditID); getErr != nil {
-		return auditstore.Audit{}, false, getErr
-	}
-	return auditstore.Audit{}, false, auditstore.ErrPrecondition
+	return auditstore.ErrPrecondition
 }
 
 // transitionTrusted applies a service-authorized transition with the same

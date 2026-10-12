@@ -37,18 +37,14 @@ func (s *ClaimStore) RenewExpiredItemReview(
 func renewExpiredItemReview(
 	ctx context.Context, tx pgx.Tx, claim auditstore.ControllerClaim, expectedAuditRevision uint64,
 ) (bool, error) {
-	var auditID string
-	err := tx.QueryRow(ctx, `
-SELECT audit_id FROM audit_controller_claims
- WHERE audit_id=$1 AND holder_id=$2 AND epoch=$3
-   AND expires_at > clock_timestamp()
- FOR UPDATE`, claim.AuditID, claim.HolderID, claim.Epoch).Scan(&auditID)
-	if errors.Is(err, pgx.ErrNoRows) {
+	err := auditClaims.Lock(ctx, tx, claim.AuditID, claim.HolderID, int64(claim.Epoch))
+	if errors.Is(err, persistencepostgres.ErrControllerClaimLost) {
 		return false, auditstore.ErrClaimLost
 	}
 	if err != nil {
 		return false, fmt.Errorf("lock Audit claim for review renewal: %w", err)
 	}
+	auditID := claim.AuditID
 
 	var deadline *time.Time
 	err = tx.QueryRow(ctx, `

@@ -69,7 +69,6 @@ SELECT item.item_id, COALESCE(max(member.item_attempt), 0) + 1
   FROM audit_items AS item
   JOIN audit_controller_claims AS claim USING (audit_id)
   LEFT JOIN audit_execution_items AS member ON member.item_id = item.item_id
- WHERE item.audit_id = $1 AND claim.holder_id = $2 AND claim.epoch = $3
-   AND claim.expires_at > clock_timestamp()
+ WHERE item.audit_id = $1 AND ` + auditClaims.LiveCondition("claim", "$2", "$3") + `
    AND item.item_id = ANY($4::text[]) AND item.state = 'ready'
  GROUP BY item.item_id`

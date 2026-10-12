@@ -5,8 +5,14 @@ import (
 	"errors"
 	"fmt"
 
+	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
+
 	"github.com/grauwolf32/contractor/internal/auditstore"
 )
+
+// auditClaims is the Audit controller's claim table, leased and checked
+// through the shared controller claim helper (PER-R24).
+var auditClaims = persistencepostgres.NewControllerClaims("audit_controller_claims", "audit_id")
 
 // Claim leases a bounded set of Audits with reconcilable work. A paused Audit
 // only observes and collects the Runs it already submitted, so it is claimed
@@ -39,33 +45,23 @@ func (s *ClaimStore) ReleaseClaim(ctx context.Context, claim auditstore.Controll
 	if err := validateClaimIdentity(claim); err != nil {
 		return err
 	}
-	tag, err := s.db.Exec(ctx, `
-UPDATE audit_controller_claims
-   SET holder_id = NULL, claimed_at = NULL, expires_at = NULL
- WHERE audit_id = $1 AND holder_id = $2 AND epoch = $3`,
-		claim.AuditID, claim.HolderID, claim.Epoch,
-	)
+	err := auditClaims.Release(ctx, s.db, claim.AuditID, claim.HolderID, int64(claim.Epoch))
+	if errors.Is(err, persistencepostgres.ErrControllerClaimLost) {
+		return auditstore.ErrClaimLost
+	}
 	if err != nil {
 		return fmt.Errorf("release Audit claim: %w", err)
-	}
-	if tag.RowsAffected() != 1 {
-		return auditstore.ErrClaimLost
 	}
 	return nil
 }
 
 func scanClaim(row scanner) (auditstore.ControllerClaim, error) {
-	var result auditstore.ControllerClaim
-	var epoch int64
-	if err := row.Scan(
-		&result.AuditID, &result.HolderID, &epoch,
-		&result.ClaimedAt, &result.ExpiresAt,
-	); err != nil {
+	claim, err := persistencepostgres.ScanControllerClaim(row)
+	if err != nil {
 		return auditstore.ControllerClaim{}, err
 	}
-	if epoch <= 0 || !result.ExpiresAt.After(result.ClaimedAt) {
-		return auditstore.ControllerClaim{}, errors.New("stored Audit claim is invalid")
-	}
-	result.Epoch = uint64(epoch)
-	return result, nil
+	return auditstore.ControllerClaim{
+		AuditID: claim.SubjectID, HolderID: claim.HolderID, Epoch: uint64(claim.Epoch),
+		ClaimedAt: claim.ClaimedAt, ExpiresAt: claim.ExpiresAt,
+	}, nil
 }

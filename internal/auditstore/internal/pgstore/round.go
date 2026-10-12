@@ -48,11 +48,6 @@ func (s *OwnerStore) MaterializeRound(
 	if err := validateMaterialize(params); err != nil {
 		return auditstore.Audit{}, false, err
 	}
-	if replay, found, err := s.lookupAuditReplay(
-		ctx, params.OwnerID, auditstore.MutationStart, params.IdempotencyKey, params.RequestDigest,
-	); err != nil || found {
-		return replay, false, err
-	}
 	encodedManifestRef, _ := json.Marshal(params.Manifest.Ref)
 	items := make([]materializedItemJSON, len(params.Items))
 	for index, item := range params.Items {
@@ -86,37 +81,31 @@ func (s *OwnerStore) MaterializeRound(
 	}
 	encodedLinks, _ := json.Marshal(links)
 	retainedBytes, _ := validateArtifactLinks(params.InitialRetained)
-	response, _ := json.Marshal(map[string]string{"auditId": params.AuditID, "roundId": params.RoundID})
-	audit, err := scanAudit(persistencepostgres.SavepointQueryRow(ctx, s.db, materializeRoundSQL,
-		params.OwnerID, params.AuditID, params.ExpectedRevision,
-		params.RoundID, params.RoundOrdinal, encodedManifestRef,
-		[]byte(params.BaselineSnapshot), optionalDeadline(params.DeadlineAt), encodedItems,
-		params.Manifest.Digest, params.IdempotencyKey, params.RequestDigest, response,
-		encodedLinks, retainedBytes, nil,
-	))
-	if err == nil {
-		return audit, true, nil
-	}
-	switch persistencepostgres.Classify(err) {
-	case persistencepostgres.ClassDeleting:
-		return auditstore.Audit{}, false, auditstore.ErrProjectDeleting
-	case persistencepostgres.ClassDuplicate:
-		return s.replayAudit(ctx, params.OwnerID, auditstore.MutationStart, params.IdempotencyKey, params.RequestDigest)
-	}
-	if !errors.Is(err, pgx.ErrNoRows) {
-		return auditstore.Audit{}, false, fmt.Errorf("materialize Audit round: %w", err)
-	}
-	if replay, found, replayErr := s.lookupAuditReplay(
-		ctx, params.OwnerID, auditstore.MutationStart, params.IdempotencyKey, params.RequestDigest,
-	); replayErr != nil || found {
-		return replay, false, replayErr
-	}
-	if _, getErr := s.get(ctx, params.OwnerID, params.AuditID); errors.Is(getErr, auditstore.ErrNotFound) {
-		return auditstore.Audit{}, false, auditstore.ErrNotFound
-	} else if getErr != nil {
-		return auditstore.Audit{}, false, getErr
-	}
-	return auditstore.Audit{}, false, auditstore.ErrPrecondition
+	return s.keyedAuditMutation(ctx, params.OwnerID, auditstore.MutationStart, params.IdempotencyKey, params.RequestDigest,
+		func(tx pgx.Tx) (auditMutationResult, error) {
+			audit, err := scanAudit(persistencepostgres.SavepointQueryRow(ctx, tx, materializeRoundSQL,
+				params.OwnerID, params.AuditID, params.ExpectedRevision,
+				params.RoundID, params.RoundOrdinal, encodedManifestRef,
+				[]byte(params.BaselineSnapshot), optionalDeadline(params.DeadlineAt), encodedItems,
+				params.Manifest.Digest, encodedLinks, retainedBytes, nil,
+			))
+			if err == nil {
+				return auditMutationResult{
+					audit: audit, resourceID: params.RoundID,
+					response: map[string]string{"auditId": params.AuditID, "roundId": params.RoundID},
+				}, nil
+			}
+			switch persistencepostgres.Classify(err) {
+			case persistencepostgres.ClassDeleting:
+				return auditMutationResult{}, auditstore.ErrProjectDeleting
+			case persistencepostgres.ClassDuplicate:
+				return auditMutationResult{}, auditstore.ErrConflict
+			}
+			if !errors.Is(err, pgx.ErrNoRows) {
+				return auditMutationResult{}, fmt.Errorf("materialize Audit round: %w", err)
+			}
+			return auditMutationResult{}, ownerMutationRefusal(ctx, tx, params.OwnerID, params.AuditID)
+		})
 }
 
 func (s *ClaimStore) AcceptNextRound(

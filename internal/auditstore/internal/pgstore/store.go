@@ -7,7 +7,6 @@ import (
 	"fmt"
 
 	"github.com/grauwolf32/contractor/internal/auditstore"
-	"github.com/grauwolf32/contractor/internal/contracts"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/jackc/pgx/v5"
@@ -49,96 +48,39 @@ SELECT audit_id
 	return result, nil
 }
 
-// LookupMutationReplay is the owner-safe pre-resolution boundary used by the
-// public API. A matching replay can be returned even when a mutable profile,
-// credential, Runtime label binding, or Skill binding has since disappeared.
-func (s *OwnerStore) LookupMutationReplay(
-	ctx context.Context,
-	ownerID string,
-	operation auditstore.MutationOperation,
-	key string,
-	digest string,
-) (auditstore.Audit, bool, error) {
-	if err := validateMutationReplay(ownerID, operation, key, digest); err != nil {
-		return auditstore.Audit{}, false, err
-	}
-	return s.lookupAuditReplay(ctx, ownerID, operation, key, digest)
-}
-
 func (s *OwnerStore) CreateDraft(ctx context.Context, params auditstore.CreateDraftParams) (auditstore.Audit, bool, error) {
 	if err := validateCreate(params); err != nil {
 		return auditstore.Audit{}, false, err
 	}
-	if replay, found, err := s.lookupAuditReplay(
-		ctx, params.OwnerID, auditstore.MutationCreate, params.IdempotencyKey, params.RequestDigest,
-	); err != nil || found {
-		return replay, false, err
-	}
-	response, _ := json.Marshal(map[string]string{"auditId": params.AuditID})
-	audit, err := scanAudit(persistencepostgres.SavepointQueryRow(ctx, s.db, createDraftSQL+prefixedAuditColumns("inserted")+` FROM inserted`,
-		params.AuditID, params.OwnerID, params.ProjectID,
-		params.Profile.Name, params.Profile.Version, params.Profile.Digest,
-		[]byte(params.ProfileSnapshot), []byte(params.InputSelection),
-		params.Limits.MaxRounds, params.Limits.BatchSize,
-		params.Limits.MaxItemsPerRound, params.Limits.MaxItemsTotal,
-		params.Limits.MaxSubmittedRuns, params.Limits.MaxItemRunAttempts, params.Limits.MaxEvidenceBytes,
-		params.IdempotencyKey, params.RequestDigest, response,
-	))
-	if err == nil {
-		return audit, true, nil
-	}
-	switch persistencepostgres.Classify(err) {
-	case persistencepostgres.ClassDeleting:
-		return auditstore.Audit{}, false, auditstore.ErrProjectDeleting
-	case persistencepostgres.ClassReferenceViolation:
-		return auditstore.Audit{}, false, auditstore.ErrNotFound
-	}
-	if !errors.Is(err, pgx.ErrNoRows) && persistencepostgres.Classify(err) != persistencepostgres.ClassDuplicate {
-		return auditstore.Audit{}, false, fmt.Errorf("create Audit: %w", err)
-	}
-	return s.replayAudit(ctx, params.OwnerID, auditstore.MutationCreate, params.IdempotencyKey, params.RequestDigest)
-}
-
-func (s *OwnerStore) replayAudit(
-	ctx context.Context, ownerID string, operation auditstore.MutationOperation, key, digest string,
-) (auditstore.Audit, bool, error) {
-	audit, found, err := s.lookupAuditReplay(ctx, ownerID, operation, key, digest)
-	if err != nil {
-		return auditstore.Audit{}, false, err
-	}
-	if !found {
-		return auditstore.Audit{}, false, auditstore.ErrConflict
-	}
-	return audit, false, nil
-}
-
-// operationLiteral quotes an owner mutation for a statement that records it,
-// so the stored operation names come from the auditstore constants only.
-func operationLiteral(operation auditstore.MutationOperation) string {
-	return "'" + string(operation) + "'"
-}
-
-func (s *OwnerStore) lookupAuditReplay(
-	ctx context.Context, ownerID string, operation auditstore.MutationOperation, key, digest string,
-) (auditstore.Audit, bool, error) {
-	var auditID, storedDigest string
-	err := s.db.QueryRow(ctx, `
-SELECT audit_id, request_digest
-  FROM audit_idempotency
- WHERE owner_id = $1 AND operation = $2 AND idempotency_key = $3`,
-		ownerID, operation, key,
-	).Scan(&auditID, &storedDigest)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return auditstore.Audit{}, false, nil
-	}
-	if err != nil {
-		return auditstore.Audit{}, false, fmt.Errorf("resolve Audit idempotency: %w", err)
-	}
-	if storedDigest != digest {
-		return auditstore.Audit{}, true, fmt.Errorf("%w: Audit %s key", contracts.ErrIdempotencyConflict, operation)
-	}
-	audit, err := s.get(ctx, ownerID, auditID)
-	return audit, true, err
+	return s.keyedAuditMutation(ctx, params.OwnerID, auditstore.MutationCreate, params.IdempotencyKey, params.RequestDigest,
+		func(tx pgx.Tx) (auditMutationResult, error) {
+			audit, err := scanAudit(persistencepostgres.SavepointQueryRow(ctx, tx, createDraftSQL+prefixedAuditColumns("inserted")+` FROM inserted`,
+				params.AuditID, params.OwnerID, params.ProjectID,
+				params.Profile.Name, params.Profile.Version, params.Profile.Digest,
+				[]byte(params.ProfileSnapshot), []byte(params.InputSelection),
+				params.Limits.MaxRounds, params.Limits.BatchSize,
+				params.Limits.MaxItemsPerRound, params.Limits.MaxItemsTotal,
+				params.Limits.MaxSubmittedRuns, params.Limits.MaxItemRunAttempts, params.Limits.MaxEvidenceBytes,
+			))
+			if err == nil {
+				return auditMutationResult{
+					audit: audit, resourceID: audit.AuditID, response: map[string]string{"auditId": audit.AuditID},
+				}, nil
+			}
+			switch persistencepostgres.Classify(err) {
+			case persistencepostgres.ClassDeleting:
+				return auditMutationResult{}, auditstore.ErrProjectDeleting
+			case persistencepostgres.ClassReferenceViolation:
+				return auditMutationResult{}, auditstore.ErrNotFound
+			case persistencepostgres.ClassDuplicate:
+				return auditMutationResult{}, auditstore.ErrConflict
+			}
+			if errors.Is(err, pgx.ErrNoRows) {
+				// The Audit ID belongs to an Audit of another request.
+				return auditMutationResult{}, auditstore.ErrConflict
+			}
+			return auditMutationResult{}, fmt.Errorf("create Audit: %w", err)
+		})
 }
 
 func (s *store) get(ctx context.Context, ownerID, auditID string) (auditstore.Audit, error) {

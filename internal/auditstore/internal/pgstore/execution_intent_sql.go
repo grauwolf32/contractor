@@ -28,11 +28,7 @@ WITH member_input AS MATERIALIZED (
         item_attempt integer, task_ref jsonb, task_digest text, inputs jsonb
     )
 ), live_claim AS MATERIALIZED (
-    SELECT claim.audit_id
-      FROM audit_controller_claims AS claim
-     WHERE claim.audit_id = $1 AND claim.holder_id = $2 AND claim.epoch = $3
-       AND claim.expires_at > clock_timestamp()
-     FOR UPDATE OF claim
+    ` + auditClaims.LiveClaimSQL("$1", "$2", "$3") + `
 ), claim_gate AS MATERIALIZED (
     SELECT audit.audit_id, audit.current_round_id, audit.batch_size,
            audit.reserved_run_count, audit.outstanding_run_count,

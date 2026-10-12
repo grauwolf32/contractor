@@ -6,13 +6,14 @@ package pgstore
 // active, finalizing, cancelling or deleting; paused with a submitted or
 // collecting execution; or waiting_review past the deadline with no report, or
 // with an expired report review or item approval lacking a live replacement.
-// Free or expired claim rows are taken FOR UPDATE SKIP LOCKED, their epoch is
-// bumped, and the new claims are returned. Used by ClaimStore.Claim.
+// Free or expired claim rows are taken FOR UPDATE SKIP LOCKED and leased
+// through the shared claim helper, which advances their epoch and returns the
+// new claims. Used by ClaimStore.Claim.
 // OFFSET 0 keeps the live-authority probe correlated to an exact item, rather
 // than expanding its volatile view into repeated scans of all pending reviews.
 var claimAuditSQL = `
 WITH candidates AS (
-    SELECT claim.audit_id
+    SELECT claim.ctid AS claim_tid
       FROM audit_controller_claims AS claim
       JOIN audits AS audit USING (audit_id)
      WHERE (
@@ -81,17 +82,4 @@ WITH candidates AS (
      ORDER BY claim.epoch, audit.updated_at, audit.audit_id
      FOR UPDATE OF claim SKIP LOCKED
      LIMIT $3
-), claimed AS (
-    UPDATE audit_controller_claims AS claim
-       SET epoch = epoch + 1,
-           holder_id = $1,
-           claimed_at = clock_timestamp(),
-           expires_at = clock_timestamp() + $2::bigint * interval '1 millisecond'
-      FROM candidates
-     WHERE claim.audit_id = candidates.audit_id
-    RETURNING claim.audit_id, claim.holder_id, claim.epoch,
-              claim.claimed_at, claim.expires_at
-)
-SELECT audit_id, holder_id, epoch, claimed_at, expires_at
-  FROM claimed
- ORDER BY claimed_at, audit_id`
+)` + auditClaims.LeaseSQL()

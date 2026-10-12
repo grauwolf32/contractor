@@ -23,11 +23,7 @@ var settledUndispatchedEvents = auditEvents(
 // Used by ClaimStore.SettleUndispatched.
 var settleUndispatchedSQL = `
 WITH live_claim AS MATERIALIZED (
-    SELECT claim.audit_id
-      FROM audit_controller_claims AS claim
-     WHERE claim.audit_id = $1 AND claim.holder_id = $2 AND claim.epoch = $3
-       AND claim.expires_at > clock_timestamp()
-     FOR UPDATE OF claim
+    ` + auditClaims.LiveClaimSQL("$1", "$2", "$3") + `
 ), target_audit AS MATERIALIZED (
     SELECT audit.audit_id, audit.state
       FROM audits AS audit JOIN live_claim USING (audit_id)
@@ -117,11 +113,7 @@ var dispatchHoldReleasedEvents = auditEvents(auditEvent(
 // Used by ClaimStore.ReleaseDispatchHold.
 var releaseDispatchHoldSQL = `
 WITH live_claim AS MATERIALIZED (
-    SELECT claim.audit_id
-      FROM audit_controller_claims AS claim
-     WHERE claim.audit_id = $1 AND claim.holder_id = $2 AND claim.epoch = $3
-       AND claim.expires_at > clock_timestamp()
-     FOR UPDATE OF claim
+    ` + auditClaims.LiveClaimSQL("$1", "$2", "$3") + `
 ), changed AS (
     UPDATE audits AS audit
        SET hold_state = 'released',
@@ -149,8 +141,7 @@ SELECT run.run_id
   JOIN audit_executions AS execution USING (audit_id)
   JOIN workflow_runs AS run ON run.run_id = execution.run_id
  WHERE audit.audit_id = $1 AND audit.state = 'deleting'
-   AND claim.holder_id = $2 AND claim.epoch = $3
-   AND claim.expires_at > clock_timestamp()
+   AND ` + auditClaims.LiveCondition("claim", "$2", "$3") + `
  ORDER BY execution.created_at, execution.execution_id
  LIMIT 1`
 
@@ -166,8 +157,7 @@ SELECT audit.project_id
  WHERE audit.audit_id = $1 AND audit.state = 'deleting'
    AND audit.dispatch_state = 'closed' AND audit.hold_state <> 'held'
    AND audit.deletion_requested_at IS NOT NULL
-   AND claim.holder_id = $2 AND claim.epoch = $3
-   AND claim.expires_at > clock_timestamp()
+   AND ` + auditClaims.LiveCondition("claim", "$2", "$3") + `
    AND NOT EXISTS (
        SELECT 1 FROM audit_items AS item
         WHERE item.audit_id = audit.audit_id AND item.state <> 'settled'

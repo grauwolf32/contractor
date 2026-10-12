@@ -21,11 +21,7 @@ WITH link_input AS MATERIALIZED (
         media_type text, size_bytes bigint, source_provenance jsonb, display_ref text
     )
 ), live_claim AS MATERIALIZED (
-    SELECT claim.audit_id
-      FROM audit_controller_claims AS claim
-     WHERE claim.audit_id = $1 AND claim.holder_id = $2 AND claim.epoch = $3
-       AND claim.expires_at > clock_timestamp()
-     FOR UPDATE OF claim
+    ` + auditClaims.LiveClaimSQL("$1", "$2", "$3") + `
 ), finalization_gate AS MATERIALIZED (
     SELECT audit.audit_id
       FROM audits AS audit

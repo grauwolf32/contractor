@@ -351,8 +351,11 @@ func TestPostgresRuntimeManagementBindingMutationIsCASAndReplaySafe(t *testing.T
 	if err != nil || !deletedReplay.Deleted || !deletedReplay.Replayed {
 		t.Fatalf("managed delete replay = (%+v, %v)", deletedReplay, err)
 	}
-	if _, err := pool.Exec(ctx, `UPDATE runtime_management_operations SET actor_id = 'changed'`); err == nil {
-		t.Fatal("immutable Runtime management operation was updated")
+	if _, err := pool.Exec(ctx, `UPDATE mutation_receipts SET resource_id = 'changed'`); err == nil {
+		t.Fatal("immutable Runtime management receipt was updated")
+	}
+	if _, err := pool.Exec(ctx, `DELETE FROM mutation_receipts`); err == nil {
+		t.Fatal("immutable Runtime management receipt was deleted")
 	}
 }
 

@@ -1,18 +1,18 @@
 package runstore
 
+import persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
+
 // SQL statements for queue_control_store.go.
 
 // updateOwnerQueueControlSQL sets an owner's queue paused flag while holding
-// the owner's transaction-scoped advisory lock (queue admission takes it
+// the owner's transaction-scoped advisory lock $4 (queue admission takes it
 // shared). Expected revision $3 = 0 creates the row at revision 1; $3 > 0 is a
 // revision CAS that bumps it only when paused changes, else returns the row
 // as is. No row means a failed precondition.
 // Used by PostgresStore.UpdateOwnerQueueControl.
 var updateOwnerQueueControlSQL = `
 WITH queue_lock AS MATERIALIZED (
-    SELECT pg_advisory_xact_lock(
-        hashtextextended('owner-queue-control:' || $1::text, 0)
-    )
+    SELECT ` + persistencepostgres.AdvisoryLockSQL("$4") + `
 ), inserted AS (
     INSERT INTO owner_queue_controls (owner_id, paused, revision)
     SELECT $1, $2, 1

@@ -137,7 +137,7 @@ func assertReportOperationReadOnly(t *testing.T, ctx context.Context, pool *pgxp
 		state := map[string]string{}
 		for _, table := range []string{
 			"audits", "audit_rounds", "audit_items", "audit_artifact_links",
-			"audit_review_requests", "audit_review_decisions", "audit_events", "audit_idempotency",
+			"audit_review_requests", "audit_review_decisions", "audit_events", "mutation_receipts",
 			"artifact_scopes", "artifact_blobs", "artifact_versions", "artifact_binding_revisions", "artifact_bindings",
 		} {
 			var data string

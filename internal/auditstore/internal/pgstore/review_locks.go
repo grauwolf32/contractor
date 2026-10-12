@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 
+	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
+
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/jackc/pgx/v5"
 )
@@ -15,17 +17,13 @@ import (
 // LockFindingReviews serializes the finding triage requests and decisions of
 // one Audit until the caller commits.
 func (s *ReviewTxStore) LockFindingReviews(ctx context.Context, auditID string) error {
-	_, err := s.tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`,
-		"audit-finding-review:"+auditID)
-	return err
+	return persistencepostgres.LockAdvisory(ctx, s.tx, persistencepostgres.NewAdvisoryKey("audit-finding-review", auditID))
 }
 
 // LockActionReviews serializes the item action and report decisions of one
 // Audit until the caller commits.
 func (s *ReviewTxStore) LockActionReviews(ctx context.Context, auditID string) error {
-	_, err := s.tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`,
-		"audit-action-review:"+auditID)
-	return err
+	return persistencepostgres.LockAdvisory(ctx, s.tx, persistencepostgres.NewAdvisoryKey("audit-action-review", auditID))
 }
 
 // FindReviewRequestReplay reads the review request an Audit stored under an

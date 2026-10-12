@@ -6,14 +6,6 @@ import "context"
 // lasts until the caller commits, so these steps exist only on the
 // transaction-bound OwnerTxStore (PER-R18).
 
-// LockResume serializes the retries of one owner's resume key until the
-// caller commits, before any mutable dependency is checked.
-func (s *OwnerTxStore) LockResume(ctx context.Context, ownerID, idempotencyKey string) error {
-	_, err := s.tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`,
-		"audit-resume:"+ownerID+":"+idempotencyKey)
-	return err
-}
-
 // LockAuditForResume locks an owner's Audit row until the caller commits. A
 // missing Audit locks nothing; the caller's next read reports it.
 func (s *OwnerTxStore) LockAuditForResume(ctx context.Context, ownerID, auditID string) error {

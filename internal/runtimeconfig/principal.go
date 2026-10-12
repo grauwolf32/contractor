@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"slices"
 	"sort"
 	"strconv"
@@ -537,43 +536,34 @@ func (s *PrincipalService) ReplaceLabelsIdempotent(
 	lockLabels := sortedUnion(optimistic.Labels, labels)
 	var result PrincipalMutationResult
 	err = persistencepostgres.InTx(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		replayed, found, replayErr := lookupPrincipalManagementReplay(
-			ctx, tx, keyDigest, requestDigest, principalLabelsReplaceOperation, runtimeAgentID,
-		)
-		if replayErr != nil {
-			return replayErr
-		}
-		if found {
-			result = replayed
-			return nil
-		}
-		if _, err := NewRepository(tx).LockBindings(ctx, lockLabels); err != nil {
-			if errors.Is(err, ErrNotFound) {
-				return ErrUnknownLabel
-			}
-			return err
-		}
-		repository := NewPrincipalRepository(tx)
-		locked, err := repository.Lock(ctx, runtimeAgentID)
-		if err != nil {
-			return err
-		}
-		if locked.LabelRevision != expectedRevision ||
-			locked.LabelRevision != optimistic.LabelRevision || !slices.Equal(locked.Labels, optimistic.Labels) {
-			return ErrPrecondition
-		}
-		if _, err := validateAgentLabelSetFromLocked(ctx, tx, labels); err != nil {
-			return err
-		}
-		updated, err := repository.ReplaceLabels(ctx, runtimeAgentID, expectedRevision, labels, actor, at)
-		if err != nil {
-			return err
-		}
-		result = PrincipalMutationResult{Principal: &updated}
-		return insertPrincipalManagementResult(
-			ctx, tx, keyDigest, requestDigest, principalLabelsReplaceOperation,
-			runtimeAgentID, result, actor, at,
-		)
+		var err error
+		result, err = keyedPrincipalOperation(ctx, tx, keyDigest, requestDigest, principalLabelsReplaceOperation,
+			runtimeAgentID, func() (PrincipalMutationResult, error) {
+				if _, err := NewRepository(tx).LockBindings(ctx, lockLabels); err != nil {
+					if errors.Is(err, ErrNotFound) {
+						return PrincipalMutationResult{}, ErrUnknownLabel
+					}
+					return PrincipalMutationResult{}, err
+				}
+				repository := NewPrincipalRepository(tx)
+				locked, err := repository.Lock(ctx, runtimeAgentID)
+				if err != nil {
+					return PrincipalMutationResult{}, err
+				}
+				if locked.LabelRevision != expectedRevision ||
+					locked.LabelRevision != optimistic.LabelRevision || !slices.Equal(locked.Labels, optimistic.Labels) {
+					return PrincipalMutationResult{}, ErrPrecondition
+				}
+				if _, err := validateAgentLabelSetFromLocked(ctx, tx, labels); err != nil {
+					return PrincipalMutationResult{}, err
+				}
+				updated, err := repository.ReplaceLabels(ctx, runtimeAgentID, expectedRevision, labels, actor, at)
+				if err != nil {
+					return PrincipalMutationResult{}, err
+				}
+				return PrincipalMutationResult{Principal: &updated}, nil
+			})
+		return err
 	})
 	return result, err
 }
@@ -610,42 +600,33 @@ func (s *PrincipalService) DeleteIdempotent(
 	defer release()
 	var result PrincipalMutationResult
 	err = persistencepostgres.InTx(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		replayed, found, replayErr := lookupPrincipalManagementReplay(
-			ctx, tx, keyDigest, requestDigest, principalDeleteOperation, runtimeAgentID,
-		)
-		if replayErr != nil {
-			return replayErr
-		}
-		if found {
-			result = replayed
-			return nil
-		}
-		repository := NewPrincipalRepository(tx)
-		principal, err := repository.Lock(ctx, runtimeAgentID)
-		if err != nil {
-			return err
-		}
-		if principal.LabelRevision != expectedRevision {
-			return ErrPrecondition
-		}
-		if len(principal.Labels) != 0 {
-			return ErrPrincipalInUse
-		}
-		inUse, err := repository.HasLiveAllocation(ctx, runtimeAgentID)
-		if err != nil {
-			return err
-		}
-		if inUse {
-			return ErrPrincipalInUse
-		}
-		if err := repository.Delete(ctx, runtimeAgentID, expectedRevision); err != nil {
-			return err
-		}
-		result = PrincipalMutationResult{Deleted: true}
-		return insertPrincipalManagementResult(
-			ctx, tx, keyDigest, requestDigest, principalDeleteOperation,
-			runtimeAgentID, result, actor, at,
-		)
+		var err error
+		result, err = keyedPrincipalOperation(ctx, tx, keyDigest, requestDigest, principalDeleteOperation,
+			runtimeAgentID, func() (PrincipalMutationResult, error) {
+				repository := NewPrincipalRepository(tx)
+				principal, err := repository.Lock(ctx, runtimeAgentID)
+				if err != nil {
+					return PrincipalMutationResult{}, err
+				}
+				if principal.LabelRevision != expectedRevision {
+					return PrincipalMutationResult{}, ErrPrecondition
+				}
+				if len(principal.Labels) != 0 {
+					return PrincipalMutationResult{}, ErrPrincipalInUse
+				}
+				inUse, err := repository.HasLiveAllocation(ctx, runtimeAgentID)
+				if err != nil {
+					return PrincipalMutationResult{}, err
+				}
+				if inUse {
+					return PrincipalMutationResult{}, ErrPrincipalInUse
+				}
+				if err := repository.Delete(ctx, runtimeAgentID, expectedRevision); err != nil {
+					return PrincipalMutationResult{}, err
+				}
+				return PrincipalMutationResult{Deleted: true}, nil
+			})
+		return err
 	})
 	return result, err
 }
@@ -677,70 +658,55 @@ func preparePrincipalMutation(
 	return contentdigest.Bytes(request), keyDigest, nil
 }
 
-func lookupPrincipalManagementReplay(
-	ctx context.Context, tx pgx.Tx,
-	keyDigest, requestDigest, kind, runtimeAgentID string,
-) (PrincipalMutationResult, bool, error) {
-	if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`, keyDigest); err != nil {
-		return PrincipalMutationResult{}, false, errors.New("lock Runtime Agent management idempotency key")
+// keyedPrincipalOperation runs one Runtime Agent principal operation in tx as
+// a Runtime management keyed mutation.
+func keyedPrincipalOperation(
+	ctx context.Context, tx pgx.Tx, keyDigest, requestDigest, kind, runtimeAgentID string,
+	mutate func() (PrincipalMutationResult, error),
+) (PrincipalMutationResult, error) {
+	var changed PrincipalMutationResult
+	response, replayed, err := keyedManagementOperation(ctx, tx, keyDigest, requestDigest, kind, runtimeAgentID,
+		"Runtime Agent management key", func() ([]byte, error) {
+			var err error
+			if changed, err = mutate(); err != nil {
+				return nil, err
+			}
+			if (changed.Principal == nil) == !changed.Deleted {
+				return nil, invalid("Runtime Agent management audit is invalid")
+			}
+			encoded, err := json.Marshal(principalMutationResultWire{Principal: changed.Principal, Deleted: changed.Deleted})
+			if err != nil {
+				return nil, invalid("Runtime Agent management result cannot be encoded")
+			}
+			return encoded, nil
+		})
+	if err != nil || !replayed {
+		return changed, err
 	}
-	return readPrincipalManagementReplay(ctx, tx, keyDigest, requestDigest, kind, runtimeAgentID)
+	return decodePrincipalReplay(response)
 }
 
+// readPrincipalManagementReplay reads a principal operation's replay outside
+// its transaction.
 func readPrincipalManagementReplay(
 	ctx context.Context, db persistencepostgres.DBTX,
 	keyDigest, requestDigest, kind, runtimeAgentID string,
 ) (PrincipalMutationResult, bool, error) {
-	var storedRequest, storedKind, storedResource, resultText string
-	err := db.QueryRow(ctx, `
-SELECT request_digest, operation_kind, resource_id, result::text
-FROM runtime_management_operations
-WHERE idempotency_key_digest = $1`, keyDigest).Scan(
-		&storedRequest, &storedKind, &storedResource, &resultText,
-	)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return PrincipalMutationResult{}, false, nil
+	response, found, err := findManagementReceipt(ctx, db, keyDigest, requestDigest, kind, runtimeAgentID,
+		"Runtime Agent management key")
+	if err != nil || !found {
+		return PrincipalMutationResult{}, false, err
 	}
-	if err != nil {
-		return PrincipalMutationResult{}, false, errors.New("get Runtime Agent management replay")
-	}
-	if storedRequest != requestDigest || storedKind != kind || storedResource != runtimeAgentID {
-		return PrincipalMutationResult{}, false, fmt.Errorf("%w: Runtime Agent management key", contracts.ErrIdempotencyConflict)
-	}
-	var wire principalMutationResultWire
-	if err := json.Unmarshal([]byte(resultText), &wire); err != nil || (wire.Principal == nil) == !wire.Deleted {
-		return PrincipalMutationResult{}, false, errors.New("invalid Runtime Agent management replay")
-	}
-	return PrincipalMutationResult{Principal: wire.Principal, Deleted: wire.Deleted, Replayed: true}, true, nil
+	result, err := decodePrincipalReplay(response)
+	return result, err == nil, err
 }
 
-func insertPrincipalManagementResult(
-	ctx context.Context, tx pgx.Tx,
-	keyDigest, requestDigest, kind, runtimeAgentID string,
-	result PrincipalMutationResult,
-	actor string,
-	at time.Time,
-) error {
-	if !validActor(actor) || at.IsZero() || (result.Principal == nil) == !result.Deleted {
-		return invalid("Runtime Agent management audit is invalid")
+func decodePrincipalReplay(response []byte) (PrincipalMutationResult, error) {
+	var wire principalMutationResultWire
+	if err := json.Unmarshal(response, &wire); err != nil || (wire.Principal == nil) == !wire.Deleted {
+		return PrincipalMutationResult{}, errors.New("invalid Runtime Agent management replay")
 	}
-	encoded, err := json.Marshal(principalMutationResultWire{Principal: result.Principal, Deleted: result.Deleted})
-	if err != nil {
-		return invalid("Runtime Agent management result cannot be encoded")
-	}
-	command, err := tx.Exec(ctx, `
-INSERT INTO runtime_management_operations (
-    idempotency_key_digest, request_digest, operation_kind, resource_id,
-    result, actor_id, performed_at
-) VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7)
-ON CONFLICT DO NOTHING`, keyDigest, requestDigest, kind, runtimeAgentID, string(encoded), actor, persistencepostgres.Timestamp(at))
-	if err != nil {
-		return errors.New("store Runtime Agent management audit")
-	}
-	if command.RowsAffected() != 1 {
-		return ErrConflict
-	}
-	return nil
+	return PrincipalMutationResult{Principal: wire.Principal, Deleted: wire.Deleted, Replayed: true}, nil
 }
 
 func validateAgentLabelSet(

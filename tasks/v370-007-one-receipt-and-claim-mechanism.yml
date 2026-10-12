@@ -5,7 +5,7 @@ milestone: hub-audit-structure-2026-10
 epic: persistence
 kind: chore
 priority: P2
-status: pending
+status: in_progress
 depends_on: []
 languages: [go]
 goal: "Every keyed mutation uses the shared helper."

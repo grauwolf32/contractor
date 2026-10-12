@@ -3,8 +3,12 @@ package evalstore
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 	"time"
+
+	pg "github.com/grauwolf32/contractor/internal/persistence/postgres"
+	"github.com/jackc/pgx/v5"
 
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 )
@@ -21,10 +25,15 @@ func (s *Store) ScopeForMutation(ctx context.Context, owner, id, operation, key 
 		}
 		lookupID = id[:separator]
 	}
-	err := s.db.QueryRow(ctx, `
-SELECT project_id FROM eval_experiments WHERE owner_id=$1 AND experiment_id=$2
-UNION SELECT project_id FROM eval_mutation_receipts WHERE owner_id=$1 AND resource_id=$5 AND operation=$3 AND operation_key=$4 LIMIT 1
-`, owner, lookupID, operation, key, id).Scan(&project)
+	err := s.db.QueryRow(ctx, `SELECT project_id FROM eval_experiments WHERE owner_id=$1 AND experiment_id=$2`,
+		owner, lookupID).Scan(&project)
+	if errors.Is(err, pgx.ErrNoRows) {
+		var found bool
+		project, found, err = pg.EvalReceiptProject(ctx, s.db, owner, id, operation, key)
+		if err == nil && !found {
+			err = pgx.ErrNoRows
+		}
+	}
 	return Scope{OwnerID: owner, ProjectID: project}, normalize(err)
 }
 

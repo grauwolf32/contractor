@@ -76,11 +76,7 @@ var reportRejectedEvents = auditEvents(auditEvent(
 // completes the trailing SELECT. Used by ClaimStore.ProposeReport.
 var proposeReportSQL = `
 WITH live_claim AS MATERIALIZED (
-    SELECT claim.audit_id
-      FROM audit_controller_claims AS claim
-     WHERE claim.audit_id = $1 AND claim.holder_id = $2 AND claim.epoch = $3
-       AND claim.expires_at > clock_timestamp()
-     FOR UPDATE OF claim
+    ` + auditClaims.LiveClaimSQL("$1", "$2", "$3") + `
 ), gate AS MATERIALIZED (
     SELECT audit.*, round.revision AS round_revision
       FROM audits AS audit
@@ -138,11 +134,7 @@ SELECT `
 // Audit changed. Used by ClaimStore.ExpireReportReview.
 var expireReportReviewSQL = `
 WITH live_claim AS MATERIALIZED (
-    SELECT claim.audit_id
-      FROM audit_controller_claims AS claim
-     WHERE claim.audit_id = $1 AND claim.holder_id = $2 AND claim.epoch = $3
-       AND claim.expires_at > clock_timestamp()
-     FOR UPDATE OF claim
+    ` + auditClaims.LiveClaimSQL("$1", "$2", "$3") + `
 ), gate AS MATERIALIZED (
     SELECT audit.audit_id, review.request_id,
            review.state AS review_state

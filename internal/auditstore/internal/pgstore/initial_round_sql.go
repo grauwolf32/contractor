@@ -12,10 +12,7 @@ var initialRoundEvents = auditEvents(auditEvent(
 // pausing or reaching the deadline fences acceptance after package publication.
 var acceptInitialRoundSQL = `
 WITH live_claim AS MATERIALIZED (
-    SELECT audit_id FROM audit_controller_claims
-     WHERE audit_id = $1 AND holder_id = $2 AND epoch = $3
-       AND expires_at > clock_timestamp()
-     FOR UPDATE
+    ` + auditClaims.LiveClaimSQL("$1", "$2", "$3") + `
 ), round_input AS MATERIALIZED (
     SELECT $5::text AS round_id, 1 AS ordinal, $6::jsonb AS manifest_ref,
            $7::jsonb AS items, $8::text AS manifest_digest,

@@ -1,9 +1,5 @@
 package pgstore
 
-import (
-	"github.com/grauwolf32/contractor/internal/auditstore"
-)
-
 // SQL statements for transition.go.
 
 // transitionEvents record an owner transition and expire a pending report
@@ -17,9 +13,9 @@ var transitionEvents = auditEvents(
 // transitionSQL applies owner $1's pause or cancellation of Audit $2 from
 // state $4 at revision $3 to $5 with stop reason $6/$7; cancelling closes
 // dispatch. Leaving waiting_review expires the pending report review in the
-// same revision step. It stores the audit.transition idempotency record
-// ($8-$10) and records audit.state_changed before the review.expired events.
-// The caller completes the trailing SELECT. Used by OwnerStore.Transition.
+// same revision step. It records audit.state_changed before the
+// review.expired events. The caller completes the trailing SELECT and claims
+// the request's receipt. Used by OwnerStore.Transition.
 var transitionSQL = `
 WITH target AS MATERIALIZED (
     SELECT audit.audit_id, audit.state
@@ -39,14 +35,7 @@ WITH target AS MATERIALIZED (
      WHERE audit.audit_id = target.audit_id
        AND audit.revision = $3 AND audit.state = $4
     RETURNING audit.*, ` + transitionEvents.appended() + `
-), ` + reportReviewClosureCTE + `, idempotency_row AS (
-    INSERT INTO audit_idempotency (
-        owner_id, operation, idempotency_key, request_digest,
-        audit_id, resource_id, response_snapshot
-    )
-    SELECT $1, ` + operationLiteral(auditstore.MutationTransition) + `, $8, $9, audit_id, audit_id, $10::jsonb
-      FROM changed
-)
+), ` + reportReviewClosureCTE + `
 SELECT `
 
 // claimedTransitionEvents record a controller transition.
@@ -63,11 +52,7 @@ var claimedTransitionEvents = auditEvents(auditEvent(
 // Used by ClaimStore.TransitionClaimed.
 var transitionClaimedSQL = `
 	WITH live_claim AS MATERIALIZED (
-	    SELECT claim.audit_id
-	      FROM audit_controller_claims AS claim
-	     WHERE claim.audit_id = $1 AND claim.holder_id = $2 AND claim.epoch = $3
-	       AND claim.expires_at > clock_timestamp()
-	     FOR UPDATE OF claim
+	    ` + auditClaims.LiveClaimSQL("$1", "$2", "$3") + `
 	), claim_gate AS MATERIALIZED (
 	    SELECT audit.audit_id,
 	           CASE WHEN $6 = 'active'
@@ -119,9 +104,9 @@ var resumeEvents = auditEvents(auditEvent(
 
 // resumeSQL reactivates owner $1's paused Audit $2 at revision $3 behind the
 // active-Project gate: dispatch reopens with a fresh hold and deadline $4, the
-// stop reason is cleared, the audit.transition idempotency record ($6-$8) is
-// stored and audit.resumed carries the previous stop reason and deadline JSON
-// $5. The caller completes the trailing SELECT. Used by OwnerStore.Resume.
+// stop reason is cleared and audit.resumed carries the previous stop reason
+// and deadline JSON $5. The caller completes the trailing SELECT and claims
+// the request's receipt. Used by OwnerStore.Resume.
 var resumeSQL = `
 WITH previous AS MATERIALIZED (
     SELECT audit.audit_id, audit.stop_reason_code, audit.stop_reason_message,
@@ -140,13 +125,6 @@ WITH previous AS MATERIALIZED (
      WHERE audit.audit_id = previous.audit_id
        AND audit.revision = $3 AND audit.state = 'paused'
     RETURNING audit.*, ` + resumeEvents.appended() + `
-), idempotency_row AS (
-    INSERT INTO audit_idempotency (
-        owner_id, operation, idempotency_key, request_digest,
-        audit_id, resource_id, response_snapshot
-    )
-    SELECT $1, ` + operationLiteral(auditstore.MutationTransition) + `, $6, $7, audit_id, audit_id, $8::jsonb
-      FROM changed
 )
 SELECT `
 

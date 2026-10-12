@@ -14,8 +14,7 @@ WITH gate AS MATERIALIZED (
     SELECT audit.audit_id
       FROM audits AS audit
       JOIN audit_controller_claims AS claim USING (audit_id)
-     WHERE audit.audit_id = $1 AND claim.holder_id = $2 AND claim.epoch = $3
-       AND claim.expires_at > clock_timestamp()
+     WHERE audit.audit_id = $1 AND ` + auditClaims.LiveCondition("claim", "$2", "$3") + `
        AND audit.revision = $4 AND audit.state = 'finalizing'
        AND $5 = (
            SELECT count(*) FROM audit_report_pages AS recorded

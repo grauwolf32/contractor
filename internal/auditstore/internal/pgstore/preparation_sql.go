@@ -1,15 +1,13 @@
 package pgstore
 
-import (
-	"github.com/grauwolf32/contractor/internal/auditstore"
-)
-
 // preparationStartedEvents record the start of preparation.
 var preparationStartedEvents = auditEvents(auditEvent(
 	"'audit.preparation_started'", "audit.audit_id", "audit.revision", "'{}'::jsonb",
 ))
 
-// startPreparationSQL pins the baseline, holds, links and start replay without a Round.
+// startPreparationSQL pins the baseline, holds and links of owner $1's draft
+// Audit $2 at revision $3 and enters preparation without a Round. The caller
+// claims the request's receipt. Used by OwnerStore.StartPreparation.
 var startPreparationSQL = `
 WITH project_gate AS MATERIALIZED (
     SELECT contractor_require_active_audit_project(project_id, owner_id)
@@ -36,9 +34,6 @@ WITH project_gate AS MATERIALIZED (
     INSERT INTO audit_artifact_links (audit_id, logical_key, artifact_ref, artifact_digest, media_type, size_bytes, source_provenance, display_ref)
     SELECT started.audit_id, link.logical_key, link.artifact_ref, link.artifact_digest, link.media_type, link.size_bytes, link.source_provenance, link.display_ref
       FROM started CROSS JOIN link_input AS link
-), idempotency_row AS (
-    INSERT INTO audit_idempotency (owner_id, operation, idempotency_key, request_digest, audit_id, resource_id, response_snapshot)
-    SELECT $1, ` + operationLiteral(auditstore.MutationStart) + `, $8, $9, audit_id, audit_id, jsonb_build_object('auditId', audit_id) FROM started
 )
 SELECT ` + prefixedAuditColumns("started") + ` FROM started`
 
@@ -51,9 +46,7 @@ var preparationCompletedEvents = auditEvents(auditEvent(
 // only after every pinned prepare role has an immutable accepted receipt.
 var completePreparationSQL = `
 WITH live_claim AS MATERIALIZED (
-    SELECT audit_id FROM audit_controller_claims
-     WHERE audit_id = $1 AND holder_id = $2 AND epoch = $3 AND expires_at > clock_timestamp()
-     FOR UPDATE
+    ` + auditClaims.LiveClaimSQL("$1", "$2", "$3") + `
 ), project_gate AS MATERIALIZED (
     SELECT contractor_require_active_audit_project(project_id, owner_id)
       FROM audits JOIN live_claim USING (audit_id)

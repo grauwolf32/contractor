@@ -29,11 +29,7 @@ WITH collection_input AS MATERIALIZED (
         finding_associations jsonb
     )
 ), live_claim AS MATERIALIZED (
-    SELECT claim.audit_id
-      FROM audit_controller_claims AS claim
-     WHERE claim.audit_id = $1 AND claim.holder_id = $2 AND claim.epoch = $3
-       AND claim.expires_at > clock_timestamp()
-     FOR UPDATE OF claim
+    ` + auditClaims.LiveClaimSQL("$1", "$2", "$3") + `
 ), execution_gate AS MATERIALIZED (
     SELECT execution.*, audit.max_item_run_attempts
       FROM audit_executions AS execution

@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
+
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 	"github.com/grauwolf32/contractor/internal/evalservice"
 	"github.com/grauwolf32/contractor/internal/evalstore"
@@ -153,16 +155,14 @@ func TestEvalPostgresConcurrentResultRetryReplaysReceipt(t *testing.T) {
 		t.Fatal(err)
 	}
 	scope := evalstore.Scope{OwnerID: "user-1", ProjectID: "evaluation"}
-	lockKey, err := json.Marshal([]string{scope.OwnerID, scope.ProjectID, e.ID + ":" + memberID, "result", mutation.Key})
-	if err != nil {
-		t.Fatal(err)
-	}
+	receiptKey := persistencepostgres.EvalReceiptKey(scope.OwnerID, scope.ProjectID, e.ID+":"+memberID, "result", mutation.Key)
+	lockKey := receiptKey.AdvisoryKey()
 	holder, err := h.pool.Begin(t.Context())
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer holder.Rollback(context.Background())
-	if _, err = holder.Exec(t.Context(), `SELECT pg_advisory_xact_lock(hashtextextended($1,0))`, string(lockKey)); err != nil {
+	if err = persistencepostgres.LockReceipt(t.Context(), holder, receiptKey); err != nil {
 		t.Fatal(err)
 	}
 	type outcome struct {

@@ -6,12 +6,13 @@ package evalstore
 // state, a paused deadline that has passed, an accepted or running command, or
 // an unpublished projection revision) to holder $1 for $2 milliseconds. Only
 // free or expired eval_controller_claims rows qualify; they are locked FOR
-// UPDATE SKIP LOCKED and their epoch is bumped as the fencing token. Returns
-// the new claims. Parameterized lookups avoid scanning retained terminal
-// populations. A materialized ordered stream feeds the locking lookup, so
-// LIMIT stops locking after the requested batch (including SKIP LOCKED rows).
+// UPDATE SKIP LOCKED and leased through the shared claim helper, which
+// advances their epoch as the fencing token and returns the new claims.
+// Parameterized lookups avoid scanning retained terminal populations. A
+// materialized ordered stream feeds the locking lookup, so LIMIT stops
+// locking after the requested batch (including SKIP LOCKED rows).
 // Used by Store.Claim.
-const claimStatement = `
+var claimStatement = `
 WITH actionable AS (
     SELECT experiment_id FROM eval_experiments
     WHERE state IN ('preparing', 'running', 'settling', 'pausing', 'cancelling')
@@ -47,11 +48,4 @@ WITH actionable AS (
         FOR UPDATE SKIP LOCKED
     ) locked ON true
     LIMIT $3
-)
-UPDATE eval_controller_claims c
-SET epoch = epoch + 1, holder_id = $1,
-    expires_at = clock_timestamp() + $2::bigint * interval '1 millisecond'
-FROM candidates x
-WHERE c.ctid = x.claim_tid
-RETURNING c.experiment_id, c.holder_id, c.epoch, c.expires_at
-`
+)` + evalClaims.LeaseSQL()
