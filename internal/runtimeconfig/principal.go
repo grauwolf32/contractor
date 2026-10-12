@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/apierror"
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/pagelimit"
@@ -23,7 +24,8 @@ const (
 	principalDeleteOperation        = "runtime-agent.delete"
 )
 
-var ErrAgentLabelNotApplicable = errors.New("RuntimeConfig label is not applicable to a Runtime Agent")
+var ErrAgentLabelNotApplicable = apierror.New(apierror.RuntimeAgentLabelNotApplicable,
+	"RuntimeConfig label is not applicable to a Runtime Agent")
 
 type RuntimeAgentPrincipal struct {
 	RuntimeAgentID string

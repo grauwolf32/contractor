@@ -12,8 +12,8 @@ package public
 
 import (
 	"context"
-	"errors"
 
+	"github.com/grauwolf32/contractor/internal/apierror"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -40,8 +40,8 @@ type OperationsInvalidator interface {
 }
 
 var (
-	errInvalidRequest = errors.New("invalid public API request")
+	errInvalidRequest = apierror.New(apierror.InvalidRequest, "invalid public API request")
 	// errRequestTooLarge reports a JSON request body beyond its declared
 	// bound. It is 413 like an oversized artifact, not a malformed request.
-	errRequestTooLarge = errors.New("public API request body is too large")
+	errRequestTooLarge = apierror.New(apierror.RequestTooLarge, "public API request body is too large")
 )

@@ -1427,7 +1427,7 @@ func TestCreateRunPinsCanonicalLabelsAndReplaySkipsCurrentBindings(t *testing.T)
 		context.Context, []string,
 	) (runtimeconfig.RunSnapshot, error) {
 		pinCalls++
-		return runtimeconfig.RunSnapshot{}, runtimeconfig.ErrNotFound
+		return runtimeconfig.RunSnapshot{}, runtimeconfig.ErrUnknownLabel
 	}
 	retry := authenticatedRequest(http.MethodPost, "/v1/runs", bytes.NewReader(requestBody(`["debug","trace"]`)))
 	retry.Header.Set(idempotencyKeyHeader, "label-replay")

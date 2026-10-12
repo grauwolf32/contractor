@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/grauwolf32/contractor/internal/apierror"
 	"github.com/grauwolf32/contractor/internal/auth"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -42,13 +43,13 @@ func requireOperationsCapability(w http.ResponseWriter, r *http.Request) bool {
 			return true
 		}
 	}
-	writeError(w, http.StatusForbidden, "forbidden", "Operations capability is required", false)
+	writeError(w, apierror.Forbidden, "Operations capability is required")
 	return false
 }
 
 func writeBearerUnauthorized(w http.ResponseWriter) {
 	w.Header().Set("WWW-Authenticate", "Bearer")
-	writeError(w, http.StatusUnauthorized, "unauthorized", "valid authentication is required", false)
+	writeError(w, apierror.Unauthorized, "")
 }
 
 func principalUserID(ctx context.Context) string {

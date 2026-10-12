@@ -2,11 +2,13 @@ package runtimeconfig
 
 import (
 	"context"
+	"errors"
 	"os"
 	"reflect"
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/apierror"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
 )
@@ -76,6 +78,39 @@ func TestPostgresBindingPinsShareLocksAndExcludeWriters(t *testing.T) {
 	}
 	if err := repository.DeleteBinding(ctx, "alpha", 1); err != nil {
 		t.Fatalf("writer did not resume after both readers committed: %v", err)
+	}
+}
+
+// A Run, Audit or Eval names its labels, so a label without a binding is a
+// request error (runtime_label_unknown, 400), not a missing addressed
+// resource (not_found, 404).
+func TestPostgresRunPinReportsAnUnboundLabelAsUnknown(t *testing.T) {
+	url := os.Getenv("CONTRACTOR_TEST_DATABASE_URL")
+	if url == "" {
+		t.Skip("CONTRACTOR_TEST_DATABASE_URL is not set")
+	}
+	ctx, cancel := context.WithTimeout(t.Context(), 15*time.Second)
+	defer cancel()
+	pool := isolatedRuntimeConfigPool(t, ctx, url)
+	if _, err := persistencepostgres.ApplyMigrations(ctx, pool); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := NewRepository(pool).CreateBinding(ctx, "alpha", BuiltInRunSnapshot().Default.Config, "operator", time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	for _, labels := range [][]string{{"missing"}, {"alpha", "missing"}} {
+		tx, err := pool.Begin(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = PinRunSnapshot(ctx, tx, labels, allowRuntimeCredentialCatalog{}, TransactionLLMCredentialLookup{})
+		if rollbackErr := tx.Rollback(ctx); rollbackErr != nil {
+			t.Fatal(rollbackErr)
+		}
+		classified, ok := apierror.Of(err)
+		if !errors.Is(err, ErrUnknownLabel) || !ok || classified.ErrorKind() != apierror.RuntimeLabelUnknown {
+			t.Fatalf("pin %v = %v, want the runtime_label_unknown ErrUnknownLabel", labels, err)
+		}
 	}
 }
 

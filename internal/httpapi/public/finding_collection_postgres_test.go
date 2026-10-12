@@ -101,6 +101,13 @@ func TestFindingCollectionHTTPPublicationAndOrdinaryRunInput(t *testing.T) {
 	if response := publish(body, true, true); response.Code != http.StatusOK {
 		t.Fatalf("replay = %d %s", response.Code, response.Body.String())
 	}
+	// The clientKey is bound to its first selection before any source is
+	// looked up, so another selection is the permanent idempotency_conflict.
+	changed := publish(bytes.Replace(body, []byte(`"id":"source-run"`), []byte(`"id":"other-run"`), 1), true, true)
+	if changed.Code != http.StatusConflict || !strings.Contains(changed.Body.String(), `"retryable":false`) {
+		t.Fatalf("changed selection = %d %s", changed.Code, changed.Body.String())
+	}
+	assertErrorCode(t, changed, "idempotency_conflict")
 	createBody, _ := json.Marshal(map[string]any{"workflow": "artifact-copy@1", "parameters": map[string]string{}, "artifacts": map[string]contracts.ArtifactRef{"source": publication.Artifact.Ref}})
 	request := newPublicContractRequest(http.MethodPost, "/v1/runs", createBody)
 	request.Header.Set("Idempotency-Key", "collection-consumer")

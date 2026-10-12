@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 
+	"github.com/grauwolf32/contractor/internal/apierror"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config"
@@ -20,7 +21,7 @@ import (
 )
 
 var (
-	ErrInvalid       = errors.New("Run creation request is invalid")
+	ErrInvalid       = apierror.New(apierror.InvalidRequest, "Run creation request is invalid")
 	ErrNotConfigured = errors.New("Run creation capability is not configured")
 )
 

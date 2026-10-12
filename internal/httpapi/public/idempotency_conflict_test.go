@@ -122,7 +122,7 @@ func TestEveryKeyedOperationReportsKeyReuseAsPermanent(t *testing.T) {
 		"deleteCredential": {http.MethodDelete, "/v1/operations/credentials/managed-keyed", "", nil},
 	}
 	// Eval mutations validate frozen documents before the service, and report
-	// a reused key as eval_idempotency_conflict through evalError (checked
+	// a reused key as eval_idempotency_conflict through handleError (checked
 	// below); TestEvalPostgresAuthorizationCSRFStrictBodiesAndCAS reuses a
 	// command key against PostgreSQL.
 	evalKeyed := map[string]bool{
@@ -152,7 +152,7 @@ func TestEveryKeyedOperationReportsKeyReuseAsPermanent(t *testing.T) {
 		})
 	}
 	evalResponse := httptest.NewRecorder()
-	evalError(evalResponse, evaldomain.Failure("eval_idempotency_conflict"))
+	handleError(evalResponse, evaldomain.Failure("eval_idempotency_conflict"))
 	var evalBody errorResponse
 	if err := json.Unmarshal(evalResponse.Body.Bytes(), &evalBody); err != nil || evalResponse.Code != http.StatusConflict ||
 		evalBody.Code != "eval_idempotency_conflict" || evalBody.Retryable {

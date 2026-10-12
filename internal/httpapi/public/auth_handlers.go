@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/apierror"
 	"github.com/grauwolf32/contractor/internal/auth"
 	publicevents "github.com/grauwolf32/contractor/internal/httpapi/public/events"
 )
@@ -95,12 +96,12 @@ func (h *sessionHandlers) login(w http.ResponseWriter, r *http.Request) {
 				retryAfter = 60
 			}
 			w.Header().Set("Retry-After", strconv.Itoa(retryAfter))
-			writeError(w, http.StatusTooManyRequests, "rate_limited", "authentication attempts are temporarily limited", true)
+			writeError(w, apierror.RateLimited, "authentication attempts are temporarily limited")
 			return
 		}
 		if errors.Is(err, auth.ErrInvalidCredentials) {
 			w.Header().Set("WWW-Authenticate", "Session")
-			writeError(w, http.StatusUnauthorized, "unauthorized", "credentials are invalid", false)
+			writeError(w, apierror.Unauthorized, "credentials are invalid")
 			return
 		}
 		handleError(w, err)
@@ -185,7 +186,7 @@ func (h *sessionHandlers) authenticate(next http.Handler) http.Handler {
 			csrf := r.Header.Values("X-CSRF-Token")
 			if len(origins) != 1 || !h.BrowserOrigins.Allows(origins[0]) || len(csrf) != 1 ||
 				h.Authentication.ValidateCSRF(session, csrf[0]) != nil {
-				writeError(w, http.StatusForbidden, "forbidden", "request origin or CSRF token is invalid", false)
+				writeError(w, apierror.Forbidden, "request origin or CSRF token is invalid")
 				return
 			}
 		}
@@ -210,12 +211,12 @@ func (h *sessionHandlers) cors(next http.Handler, routes *http.ServeMux) http.Ha
 			setVary(w.Header(), "Origin")
 		}
 		if len(origins) > 1 || len(origins) == 1 && !h.BrowserOrigins.Allows(origins[0]) {
-			writeError(w, http.StatusForbidden, "forbidden", "browser origin is not allowed", false)
+			writeError(w, apierror.Forbidden, "browser origin is not allowed")
 			return
 		}
 		if len(origins) == 0 {
 			if r.Method == http.MethodOptions || len(r.Header.Values("Access-Control-Request-Method")) != 0 {
-				writeError(w, http.StatusForbidden, "forbidden", "browser origin is not allowed", false)
+				writeError(w, apierror.Forbidden, "browser origin is not allowed")
 				return
 			}
 			next.ServeHTTP(w, r)
@@ -233,7 +234,7 @@ func (h *sessionHandlers) cors(next http.Handler, routes *http.ServeMux) http.Ha
 			return
 		}
 		if !validPreflight(r, routes) {
-			writeError(w, http.StatusForbidden, "forbidden", "CORS preflight is not allowed", false)
+			writeError(w, apierror.Forbidden, "CORS preflight is not allowed")
 			return
 		}
 		setVary(w.Header(), "Access-Control-Request-Method")
@@ -320,7 +321,7 @@ func (h *sessionHandlers) clearSessionCookie(w http.ResponseWriter) {
 
 func writeSessionUnauthorized(w http.ResponseWriter) {
 	w.Header().Set("WWW-Authenticate", "Session")
-	writeError(w, http.StatusUnauthorized, "unauthorized", "valid authentication is required", false)
+	writeError(w, apierror.Unauthorized, "")
 }
 
 func authSession(source auth.Session) authSessionResponse {

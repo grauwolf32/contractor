@@ -132,10 +132,6 @@ func (h *runtimeConfigurationHandlers) getRuntimeConfig(w http.ResponseWriter, r
 	}
 	resource, err := h.RuntimeConfigs.GetVersion(r.Context(), name, version)
 	if err != nil {
-		if errors.Is(err, runtimeconfig.ErrNotFound) {
-			writeError(w, http.StatusNotFound, "not_found", "resource was not found", false)
-			return
-		}
 		handleError(w, err)
 		return
 	}
@@ -242,10 +238,6 @@ func (h *runtimeConfigurationHandlers) getRuntimeLabel(w http.ResponseWriter, r 
 	}
 	binding, err := h.RuntimeConfigs.GetBinding(r.Context(), label)
 	if err != nil {
-		if errors.Is(err, runtimeconfig.ErrNotFound) {
-			writeError(w, http.StatusNotFound, "not_found", "resource was not found", false)
-			return
-		}
 		handleError(w, err)
 		return
 	}

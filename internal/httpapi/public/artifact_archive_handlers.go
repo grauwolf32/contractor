@@ -3,11 +3,11 @@ package public
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"net/http"
 	"strconv"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/apierror"
 	"github.com/grauwolf32/contractor/internal/artifactpreview"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -15,7 +15,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/httpapi/httpx"
 )
 
-var errArchiveMediaType = errors.New("archive preview requires a ZIP or Skill package")
+var errArchiveMediaType = apierror.New(apierror.ArchiveMediaType, "archive preview requires a ZIP or Skill package")
 
 type artifactArchiveResponse struct {
 	Artifact contracts.ArtifactRef   `json:"artifact"`
@@ -134,7 +134,7 @@ func (h *artifactHandlers) serveArchive(w http.ResponseWriter, r *http.Request, 
 	// the response must not keep the transfer slot.
 	transfer.ReleaseBeforeWrite(int64(len(body)))
 	if err != nil {
-		handleArchiveError(w, err)
+		handleError(w, err)
 		return
 	}
 	w.Header().Set("ETag", etag)
@@ -173,21 +173,4 @@ func archivePreview(
 		return "", nil, err
 	}
 	return httpx.QuotedETag(result.Ref.Revision), append(body, '\n'), nil
-}
-
-func handleArchiveError(w http.ResponseWriter, err error) {
-	switch {
-	case errors.Is(err, errArchiveMediaType):
-		writeError(w, http.StatusUnsupportedMediaType, "archive_media_type", "Archive preview requires a ZIP or Skill package", false)
-	case errors.Is(err, artifactpreview.ErrInvalid):
-		writeError(w, http.StatusUnprocessableEntity, "archive_invalid", "Archive is invalid, unsupported or contains unsafe entries. Download the original to inspect it separately.", false)
-	case errors.Is(err, artifactpreview.ErrLimit):
-		writeError(w, http.StatusUnprocessableEntity, "archive_preview_limit", "Archive preview limit exceeded. Text files must fit 256 KiB; the original archive remains downloadable.", false)
-	case errors.Is(err, artifactpreview.ErrNotText):
-		writeError(w, http.StatusUnprocessableEntity, "archive_file_not_text", "This file is not supported UTF-8 text. Download the original archive to view it separately.", false)
-	case errors.Is(err, artifactpreview.ErrNotFound):
-		handleError(w, artifacts.ErrArtifactNotFound)
-	default:
-		handleError(w, err)
-	}
 }

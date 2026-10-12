@@ -160,15 +160,15 @@ func (unavailableGitImports) DoImport(context.Context, gitimport.ImportRequest, 
 type unavailableGitKeys struct{}
 
 func (unavailableGitKeys) Metadata(context.Context, string) (credentials.GitKeyMetadata, error) {
-	return credentials.GitKeyMetadata{}, credentials.ErrKeyUnavailable
+	return credentials.GitKeyMetadata{}, credentials.ErrGitKeyUnavailable
 }
 
 func (unavailableGitKeys) Replace(context.Context, string, []byte) (credentials.GitKeyMetadata, error) {
-	return credentials.GitKeyMetadata{}, credentials.ErrKeyUnavailable
+	return credentials.GitKeyMetadata{}, credentials.ErrGitKeyUnavailable
 }
 
 func (unavailableGitKeys) Delete(context.Context, string) error {
-	return credentials.ErrKeyUnavailable
+	return credentials.ErrGitKeyUnavailable
 }
 
 // missingFindingProposals holds no finding proposal of any Run or Audit.

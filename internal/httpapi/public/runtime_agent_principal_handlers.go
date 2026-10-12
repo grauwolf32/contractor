@@ -74,10 +74,6 @@ func (h *runtimeConfigurationHandlers) getRuntimeAgentPrincipal(w http.ResponseW
 		return
 	}
 	principal, err := h.RuntimeAgentPrincipals.Get(r.Context(), id)
-	if errors.Is(err, runtimeconfig.ErrNotFound) {
-		writeError(w, http.StatusNotFound, "not_found", "resource was not found", false)
-		return
-	}
 	if err != nil {
 		handleError(w, err)
 		return
@@ -128,14 +124,6 @@ func (h *runtimeConfigurationHandlers) putRuntimeAgentLabels(w http.ResponseWrit
 	principal, replayed, err := h.RuntimeAgentPrincipals.ReplaceLabels(
 		r.Context(), id, revision, labels, key, principalUserID(r.Context()), h.Now(),
 	)
-	if errors.Is(err, runtimeconfig.ErrUnknownLabel) {
-		handleError(w, err)
-		return
-	}
-	if errors.Is(err, runtimeconfig.ErrNotFound) {
-		writeError(w, http.StatusNotFound, "not_found", "resource was not found", false)
-		return
-	}
 	if err != nil {
 		handleError(w, err)
 		return
@@ -184,10 +172,6 @@ func (h *runtimeConfigurationHandlers) deleteRuntimeAgentPrincipal(w http.Respon
 	replayed, err := h.RuntimeAgentPrincipals.Delete(
 		r.Context(), id, revision, key, principalUserID(r.Context()), h.Now(),
 	)
-	if errors.Is(err, runtimeconfig.ErrNotFound) {
-		writeError(w, http.StatusNotFound, "not_found", "resource was not found", false)
-		return
-	}
 	if err != nil {
 		handleError(w, err)
 		return

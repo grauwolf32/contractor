@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/apierror"
 	postgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/randomid"
 	"github.com/jackc/pgx/v5"
@@ -17,8 +18,13 @@ import (
 const MaximumGitKeyBytes = 32 << 10
 const gitKeySchema = "git-ssh-key@1"
 
-var ErrGitKeyInvalid = errors.New("Git SSH key must be a supported unencrypted private key of at most 32 KiB")
-var ErrGitKeyMissing = errors.New("Git SSH key is not configured")
+var ErrGitKeyInvalid = apierror.New(apierror.GitKeyInvalid,
+	"Git SSH key must be a supported unencrypted private key of at most 32 KiB")
+var ErrGitKeyMissing = apierror.New(apierror.GitKeyMissing, "Git SSH key is not configured")
+
+// ErrGitKeyUnavailable reports a Server without a credential master key, which
+// can neither store nor use an owner Git key.
+var ErrGitKeyUnavailable = apierror.Narrow(ErrKeyUnavailable, apierror.GitKeyUnavailable, "Git key encryption")
 
 type GitKeyMetadata struct {
 	Configured  bool       `json:"configured"`
@@ -162,7 +168,7 @@ func gitKeyAAD(owner, generation string) []byte {
 }
 func (c *TokenCipher) sealGitKey(owner, generation string, key []byte) (EncryptedEnvelope, error) {
 	if c == nil || c.aead == nil {
-		return EncryptedEnvelope{}, ErrKeyUnavailable
+		return EncryptedEnvelope{}, ErrGitKeyUnavailable
 	}
 	nonce := make([]byte, c.aead.NonceSize())
 	if _, err := io.ReadFull(c.random, nonce); err != nil {
@@ -172,7 +178,7 @@ func (c *TokenCipher) sealGitKey(owner, generation string, key []byte) (Encrypte
 }
 func (c *TokenCipher) openGitKey(owner, generation string, e EncryptedEnvelope) ([]byte, error) {
 	if c == nil || c.aead == nil {
-		return nil, ErrKeyUnavailable
+		return nil, ErrGitKeyUnavailable
 	}
 	if e.SchemaVersion != gitKeySchema || e.KeyID != c.keyID || len(e.Nonce) != c.aead.NonceSize() || len(e.Ciphertext) < 17 || len(e.Ciphertext) > MaximumGitKeyBytes+16 {
 		return nil, ErrCrypto

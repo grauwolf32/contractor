@@ -564,8 +564,8 @@ name left by a crash between link and unlink is ignored by that loader
 
 **CAT-R59.** Publication requires an `Idempotency-Key`. Retrying an
 identical identity and body returns that published version; the same identity
-with different normalized content conflicts
-([FAIL-CAT-2](../platform/failure-model.md)).
+with different normalized content conflicts with `409 configuration_conflict`,
+which is not retryable ([FAIL-CAT-2](../platform/failure-model.md)).
 
 **CAT-R75.** Before each publication the Server reloads both roots and
 compares the union with its current snapshot. The union may differ only by
@@ -623,7 +623,8 @@ publication, and takes a page's resources from that same snapshot; a page read
 neither copies nor encodes the whole catalog.
 
 **CAT-R68.** Reusing a cursor with another query, kind or catalog
-snapshot is a bounded `400`; the client restarts from the first page.
+snapshot is a bounded `400 invalid_request`; the client restarts from the
+first page.
 
 **CAT-R69.** Versions remain opaque strings ordered by the
 existing exact selector order.

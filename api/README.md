@@ -49,6 +49,16 @@ deadlock aborts exhaust their retries. The contract test lists the few
 process-local operations that cannot return it, so a new operation must either
 document the response or be added there with its reason.
 
+Every error code of the HTTP error envelope and of a WebSocket error frame is
+an entry of the Server's error registry (`internal/apierror`), with its status
+and `retryable` flag; a domain error reports its entry, and the public handler
+answers only with registered entries. A new code is added there, then
+`make docs-error-registry` regenerates its table in
+`docs/spec/platform/errors.md`. `make verify-public-api` checks the registry
+against that table, the Eval error code enum, the error details kinds and the
+error statuses of this contract, the error frame codes of the event schema, and
+the error codes the browser client compares.
+
 `make verify-public-api-postgres` requires an explicit disposable
 `CONTRACTOR_TEST_DATABASE_URL` and checks Audit pagination at its maximum page
 size, including receipt hydration, next cursors and owner/revision fences. It

@@ -26,7 +26,7 @@ func (h *evalHandlers) ingestEvalRecord(w http.ResponseWriter, r *http.Request, 
 			SchemaVersion string `json:"schemaVersion"`
 		}
 		if err := json.Unmarshal(doc.Bytes(), &discriminator); err != nil {
-			evalError(w, err)
+			handleError(w, err)
 			return
 		}
 		kind = "AssessmentInput"
@@ -36,19 +36,19 @@ func (h *evalHandlers) ingestEvalRecord(w http.ResponseWriter, r *http.Request, 
 		var err error
 		doc, err = evaldomain.Freeze(kind, doc.Bytes())
 		if err != nil {
-			evalError(w, err)
+			handleError(w, err)
 			return
 		}
 	}
 	id, member := r.PathValue("id"), r.PathValue("memberId")
 	scope, err := h.Evals.ScopeForMutation(r.Context(), principalUserID(r.Context()), id+":"+member, operation, mutation.Key)
 	if err != nil {
-		evalError(w, err)
+		handleError(w, err)
 		return
 	}
 	receipt, err := h.Evals.PutRecord(r.Context(), scope, id, member, doc, mutation)
 	if err != nil {
-		evalError(w, err)
+		handleError(w, err)
 		return
 	}
 	h.evalRecordReceipt(w, "RecordReceipt", receipt)
@@ -69,25 +69,25 @@ func (h *evalHandlers) selectEvalRecords(w http.ResponseWriter, r *http.Request)
 	}
 	var input evaldomain.SelectionInput
 	if err := evaldomain.DecodeInto(doc.Kind(), doc.Bytes(), &input); err != nil {
-		evalError(w, err)
+		handleError(w, err)
 		return
 	}
 	id := r.PathValue("id")
 	scope, err := h.Evals.ScopeForMutation(r.Context(), principalUserID(r.Context()), id, "selection", mutation.Key)
 	if err != nil {
-		evalError(w, err)
+		handleError(w, err)
 		return
 	}
 	receipt, err := h.Evals.Select(r.Context(), scope, id, input, mutation)
 	if err != nil {
-		evalError(w, err)
+		handleError(w, err)
 		return
 	}
 	var data struct {
 		Revision int64 `json:"revision"`
 	}
 	if err = json.Unmarshal(receipt.Response, &data); err != nil {
-		evalError(w, err)
+		handleError(w, err)
 		return
 	}
 	w.Header().Set("ETag", strconv.Quote(strconv.FormatInt(data.Revision, 10)))
@@ -97,16 +97,16 @@ func (h *evalHandlers) selectEvalRecords(w http.ResponseWriter, r *http.Request)
 func (h *evalHandlers) reviewEvalMember(w http.ResponseWriter, r *http.Request) {
 	q, err := exactQuery(r.URL.RawQuery, "resultSha256")
 	if err != nil {
-		evalError(w, evaldomain.Failure("eval_invalid"))
+		handleError(w, evaldomain.Failure("eval_invalid"))
 		return
 	}
 	if q.Has("resultSha256") && evaldomain.Validate("Digest", mustEvalJSON(q.Get("resultSha256"))) != nil {
-		evalError(w, evaldomain.Failure("eval_invalid"))
+		handleError(w, evaldomain.Failure("eval_invalid"))
 		return
 	}
 	data, err := h.Evals.Review(r.Context(), principalUserID(r.Context()), r.PathValue("id"), r.PathValue("memberId"), q.Get("resultSha256"))
 	if err != nil {
-		evalError(w, err)
+		handleError(w, err)
 		return
 	}
 	w.Header().Set("ETag", strconv.Quote(strconv.FormatInt(data.Revision, 10)))
@@ -118,17 +118,17 @@ func mustEvalJSON(value string) []byte { raw, _ := json.Marshal(value); return r
 func (h *evalHandlers) listEvalMemberExecutions(w http.ResponseWriter, r *http.Request) {
 	q, limit, err := evalQuery(r)
 	if err != nil {
-		evalError(w, err)
+		handleError(w, err)
 		return
 	}
 	cursor, err := h.readEvalCursor(r, q, 1)
 	if err != nil {
-		evalError(w, err)
+		handleError(w, err)
 		return
 	}
 	revision, err := cursorRevision(cursor)
 	if err != nil {
-		evalError(w, err)
+		handleError(w, err)
 		return
 	}
 	after := ""
@@ -137,12 +137,12 @@ func (h *evalHandlers) listEvalMemberExecutions(w http.ResponseWriter, r *http.R
 	}
 	data, err := h.Evals.Executions(r.Context(), principalUserID(r.Context()), r.PathValue("id"), r.PathValue("memberId"), after, limit, revision)
 	if err != nil {
-		evalError(w, err)
+		handleError(w, err)
 		return
 	}
 	page, err := h.evalPage(r, q, data.HasMore, strconv.FormatInt(data.Revision, 10), data.LastKey)
 	if err != nil {
-		evalError(w, err)
+		handleError(w, err)
 		return
 	}
 	evalJSON(w, http.StatusOK, "ExecutionPage", map[string]any{"inventoryRevision": data.Revision, "inventoryComplete": data.Complete, "items": data.Items, "gaps": data.Gaps, "page": page})

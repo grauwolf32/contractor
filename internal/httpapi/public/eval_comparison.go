@@ -42,17 +42,17 @@ func (h *evalHandlers) evalSelectedPageRequest(r *http.Request) (evalservice.Mem
 func (h *evalHandlers) listEvalPairs(w http.ResponseWriter, r *http.Request) {
 	p, q, err := h.evalSelectedPageRequest(r)
 	if err != nil {
-		evalError(w, err)
+		handleError(w, err)
 		return
 	}
 	data, err := h.Evals.Pairs(r.Context(), evalservice.PairPageParams{MemberPageParams: p})
 	if err != nil {
-		evalError(w, err)
+		handleError(w, err)
 		return
 	}
 	page, err := h.evalPage(r, q, data.HasMore, data.Snapshot, strconv.Itoa(data.LastOrdinal))
 	if err != nil {
-		evalError(w, err)
+		handleError(w, err)
 		return
 	}
 	evalJSON(w, http.StatusOK, "PairPage", map[string]any{
@@ -77,12 +77,12 @@ func evalDetailRequest(r *http.Request, extra ...string) (evalservice.MemberPage
 func (h *evalHandlers) getEvalPair(w http.ResponseWriter, r *http.Request) {
 	p, _, err := evalDetailRequest(r)
 	if err != nil {
-		evalError(w, err)
+		handleError(w, err)
 		return
 	}
 	data, err := h.Evals.Pair(r.Context(), p, r.PathValue("pairId"))
 	if err != nil {
-		evalError(w, err)
+		handleError(w, err)
 		return
 	}
 	evalJSON(w, http.StatusOK, "PairDetail", data)
@@ -91,12 +91,12 @@ func (h *evalHandlers) getEvalPair(w http.ResponseWriter, r *http.Request) {
 func (h *evalHandlers) getEvalChart(w http.ResponseWriter, r *http.Request) {
 	q, limit, err := evalQuery(r, "viewSnapshot", "suiteId", "measurementScope", "metric", "sort")
 	if err != nil {
-		evalError(w, err)
+		handleError(w, err)
 		return
 	}
 	chart := r.PathValue("chart")
 	if chart != "pair-deltas" && (q.Has("limit") || q.Has("cursor") || q.Has("metric") || q.Has("sort")) || q.Has("sort") && !evalStringIn(q.Get("sort"), "frozen", "absolute") {
-		evalError(w, evaldomain.Failure("eval_invalid"))
+		handleError(w, evaldomain.Failure("eval_invalid"))
 		return
 	}
 	p := evalservice.ChartParams{Chart: chart, PairPageParams: evalservice.PairPageParams{
@@ -114,14 +114,14 @@ func (h *evalHandlers) getEvalChart(w http.ResponseWriter, r *http.Request) {
 	if chart == "pair-deltas" {
 		cursor, err := h.readEvalCursor(r, q, 2)
 		if err != nil {
-			evalError(w, err)
+			handleError(w, err)
 			return
 		}
 		if len(cursor.Position) > 0 {
 			p.AfterOrdinal, err = strconv.Atoi(cursor.Position[0])
 			difference, parseErr := strconv.ParseFloat(cursor.Position[1], 64)
 			if err != nil || parseErr != nil || math.IsNaN(difference) || math.IsInf(difference, 0) || p.Snapshot != "" && p.Snapshot != cursor.Snapshot {
-				evalError(w, evaldomain.Failure("eval_invalid"))
+				handleError(w, evaldomain.Failure("eval_invalid"))
 				return
 			}
 			p.AfterDifference = &difference
@@ -130,7 +130,7 @@ func (h *evalHandlers) getEvalChart(w http.ResponseWriter, r *http.Request) {
 	}
 	data, err := h.Evals.Chart(r.Context(), p)
 	if err != nil {
-		evalError(w, err)
+		handleError(w, err)
 		return
 	}
 	if data.Bins != nil {
@@ -138,7 +138,7 @@ func (h *evalHandlers) getEvalChart(w http.ResponseWriter, r *http.Request) {
 			bin := &(*data.Bins)[i]
 			bin.FilterToken, err = h.evalBinToken(r, data, *bin)
 			if err != nil {
-				evalError(w, err)
+				handleError(w, err)
 				return
 			}
 		}
@@ -155,7 +155,7 @@ func (h *evalHandlers) getEvalChart(w http.ResponseWriter, r *http.Request) {
 		}
 		page, err := h.evalPage(r, q, data.HasMore, data.Snapshot, strconv.Itoa(data.LastOrdinal), difference)
 		if err != nil {
-			evalError(w, err)
+			handleError(w, err)
 			return
 		}
 		response.Page = &page
@@ -166,17 +166,17 @@ func (h *evalHandlers) getEvalChart(w http.ResponseWriter, r *http.Request) {
 func (h *evalHandlers) getEvalReport(w http.ResponseWriter, r *http.Request) {
 	p, q, err := evalDetailRequest(r, "format")
 	if err != nil {
-		evalError(w, err)
+		handleError(w, err)
 		return
 	}
 	format := q.Get("format")
 	if format != "" && !evalStringIn(format, "json", "markdown") {
-		evalError(w, evaldomain.Failure("eval_invalid"))
+		handleError(w, evaldomain.Failure("eval_invalid"))
 		return
 	}
 	data, err := h.Evals.Report(r.Context(), p)
 	if err != nil {
-		evalError(w, err)
+		handleError(w, err)
 		return
 	}
 	if format != "markdown" {
@@ -185,7 +185,7 @@ func (h *evalHandlers) getEvalReport(w http.ResponseWriter, r *http.Request) {
 	}
 	raw, err := json.Marshal(data)
 	if err != nil || evaldomain.Validate("Report", raw) != nil {
-		evalError(w, evaldomain.Failure("eval_invalid"))
+		handleError(w, evaldomain.Failure("eval_invalid"))
 		return
 	}
 	w.Header().Set("Content-Type", "text/markdown; charset=utf-8")

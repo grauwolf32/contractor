@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/apierror"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
@@ -194,8 +195,13 @@ func TestFindingCollectionPublicationRunRetentionAndReplay(t *testing.T) {
 	if err != nil || !replay.Replayed || replay.Artifact.Digest != result.Artifact.Digest || replay.EntryCount != 2 {
 		t.Fatalf("replay after deletion: %+v %v", replay, err)
 	}
+	// The clientKey stays bound to its first selection, so a changed
+	// selection is the permanent idempotency_conflict (FND-R114), not a
+	// retryable resource conflict.
 	params.Request.Sources = params.Request.Sources[:1]
-	if _, err := publisher.PublishCollection(ctx, params); !errors.Is(err, findingintake.ErrConflict) {
+	_, err = publisher.PublishCollection(ctx, params)
+	if classified, ok := apierror.Of(err); !errors.Is(err, findingintake.ErrCollectionKeyConflict) ||
+		!ok || classified.ErrorKind() != apierror.IdempotencyConflict || classified.ErrorKind().Retryable() {
 		t.Fatalf("changed selection = %v", err)
 	}
 }
@@ -320,8 +326,12 @@ SELECT $1,$2,receipt_id,'contributing',proposal_ref FROM finding_proposal_audit_
 	if err != nil || !replay.Replayed || replay.Artifact.Digest != result.Artifact.Digest {
 		t.Fatalf("review change refreshed snapshot: %+v %v", replay, err)
 	}
+	// A stale finding revision is the retryable conflict: the same clientKey
+	// succeeds once the request names the current revision.
 	params.Request.ClientKey = "stale-review"
-	if _, err := publisher.PublishCollection(ctx, params); !errors.Is(err, findingintake.ErrConflict) {
+	_, err = publisher.PublishCollection(ctx, params)
+	if classified, ok := apierror.Of(err); !errors.Is(err, findingintake.ErrConflict) ||
+		errors.Is(err, findingintake.ErrCollectionKeyConflict) || !ok || classified.ErrorKind() != apierror.Conflict {
 		t.Fatalf("stale finding revision = %v", err)
 	}
 	params.Request.Sources[0].Findings[0].Revision = 2

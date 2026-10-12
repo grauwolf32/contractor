@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/grauwolf32/contractor/internal/apierror"
 	publicevents "github.com/grauwolf32/contractor/internal/httpapi/public/events"
 )
 
@@ -23,14 +24,14 @@ func (h *sessionHandlers) connectEventsWebSocket(w http.ResponseWriter, r *http.
 	case err == nil:
 		return
 	case errors.Is(err, publicevents.ErrInvalidOrigin):
-		writeError(w, http.StatusForbidden, "forbidden", "browser origin is not allowed", false)
+		writeError(w, apierror.Forbidden, "browser origin is not allowed")
 	case errors.Is(err, publicevents.ErrSession):
 		writeSessionUnauthorized(w)
 	case errors.Is(err, publicevents.ErrSocketLimit):
 		w.Header().Set("Retry-After", strconv.Itoa(1))
-		writeError(w, http.StatusTooManyRequests, "rate_limited", "browser session socket limit reached", true)
+		writeError(w, apierror.RateLimited, "browser session socket limit reached")
 	case errors.Is(err, publicevents.ErrInvalidHandshake):
-		writeError(w, http.StatusBadRequest, "invalid_request", "WebSocket handshake is invalid", false)
+		writeError(w, apierror.InvalidRequest, "WebSocket handshake is invalid")
 	default:
 		handleError(w, err)
 	}

@@ -32,7 +32,7 @@ func (c *snapshotClientFixture) Fetch(ctx context.Context, remote gitimport.Remo
 
 func TestGitImportErrorNamesUnsupportedEntry(t *testing.T) {
 	response := httptest.NewRecorder()
-	gitImportError(response, &gitimport.UnsupportedEntryError{Kind: "submodule", Path: "vendor/module"})
+	handleError(response, &gitimport.UnsupportedEntryError{Kind: "submodule", Path: "vendor/module"})
 	var body errorResponse
 	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
 		t.Fatal(err)
@@ -42,7 +42,7 @@ func TestGitImportErrorNamesUnsupportedEntry(t *testing.T) {
 		t.Fatalf("unsupported entry = %d %+v", response.Code, body)
 	}
 	response = httptest.NewRecorder()
-	gitImportError(response, gitimport.ErrContent)
+	handleError(response, gitimport.ErrContent)
 	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
 		t.Fatal(err)
 	}
@@ -50,7 +50,7 @@ func TestGitImportErrorNamesUnsupportedEntry(t *testing.T) {
 		t.Fatalf("generic content error = %d %+v", response.Code, body)
 	}
 	response = httptest.NewRecorder()
-	gitImportError(response, gitimport.ErrBudget)
+	handleError(response, gitimport.ErrBudget)
 	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
 		t.Fatal(err)
 	}
@@ -243,12 +243,23 @@ func TestGitImportPublicationAndAdmission(t *testing.T) {
 			client.fetch = func(context.Context, gitimport.Remote, string, ssh.Signer) (gitimport.Snapshot, error) {
 				return gitimport.Snapshot{}, context.Canceled
 			}
-			if response := call(strings.Replace(path, "/repository/", "/cancelled/", 1), "https://example.test/first.git", nil); response.Code != 408 {
+			response = call(strings.Replace(path, "/repository/", "/cancelled/", 1), "https://example.test/first.git", nil)
+			if response.Code != 408 {
 				t.Fatalf("cancelled: %d %s", response.Code, response.Body)
 			}
+			assertErrorCode(t, response, "git_import_cancelled")
 			if _, err := user.Metadata(ctx, artifacts.ArtifactRef{Namespace: "source", Name: "cancelled"}); !errors.Is(err, artifacts.ErrArtifactNotFound) {
 				t.Fatalf("partial artifact: %v", err)
 			}
+			// The importer classifies an expired import deadline as its timeout.
+			client.fetch = func(context.Context, gitimport.Remote, string, ssh.Signer) (gitimport.Snapshot, error) {
+				return gitimport.Snapshot{}, context.DeadlineExceeded
+			}
+			response = call(strings.Replace(path, "/repository/", "/timed-out/", 1), "https://example.test/first.git", nil)
+			if response.Code != 504 {
+				t.Fatalf("timed out: %d %s", response.Code, response.Body)
+			}
+			assertErrorCode(t, response, "git_import_timeout")
 			client.fetch = originalFetch
 			if response := call(strings.Replace(path, "/repository/", "/cancelled/", 1), "https://example.test/first.git", nil); response.Code != 201 {
 				t.Fatalf("released admission: %d %s", response.Code, response.Body)

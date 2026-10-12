@@ -3,11 +3,13 @@ package auditstandards
 import (
 	"errors"
 	"fmt"
+
+	"github.com/grauwolf32/contractor/internal/apierror"
 )
 
 var (
-	ErrNotFound = errors.New("Audit standard package not found")
-	ErrInvalid  = errors.New("invalid Audit standard package")
+	ErrNotFound = apierror.New(apierror.NotFound, "Audit standard package not found")
+	ErrInvalid  = apierror.New(apierror.InvalidRequest, "invalid Audit standard package")
 	ErrDrift    = errors.New("Audit standard package drift")
 )
 

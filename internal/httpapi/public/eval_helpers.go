@@ -2,15 +2,14 @@ package public
 
 import (
 	"encoding/json"
-	"errors"
 	"io"
 	"net/http"
 	"net/url"
 	"strconv"
 
+	"github.com/grauwolf32/contractor/internal/apierror"
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 	"github.com/grauwolf32/contractor/internal/evalstore"
-	"github.com/grauwolf32/contractor/internal/requestid"
 )
 
 const (
@@ -18,41 +17,24 @@ const (
 	maxEvalCursorBytes  = 8 * 1024
 )
 
-func evalError(w http.ResponseWriter, err error) {
-	var d *evaldomain.Error
-	if errors.As(err, &d) {
-		// No Eval failure is retryable as sent. eval_idempotency_conflict is
-		// permanent for its key: its recovery is to resend the request the
-		// key is bound to, not this one (FAIL-RUN-1, idempotency_conflict).
-		writeJSON(w, d.Status, errorResponse{
-			Code:      d.Code,
-			Message:   d.Message,
-			Retryable: false,
-			RequestID: requestid.FromResponse(w),
-			Details:   map[string]string{"kind": "eval", "recovery": d.Recovery},
-		})
-		return
-	}
-	handleError(w, err)
-}
 func evalJSON(w http.ResponseWriter, status int, kind string, v any) {
 	raw, err := json.Marshal(v)
 	if err == nil && len(raw) > evaldomain.MaxDocumentBytes {
-		evalError(w, evaldomain.Failure("eval_limit_exceeded"))
+		handleError(w, evaldomain.Failure("eval_limit_exceeded"))
 		return
 	}
 	if err == nil {
 		err = evaldomain.Validate(kind, raw)
 	}
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "internal_error", "Evaluation response could not be rendered", false)
+		writeError(w, apierror.InternalError, "Evaluation response could not be rendered")
 		return
 	}
 	writeJSON(w, status, json.RawMessage(raw))
 }
 func evalBody(w http.ResponseWriter, r *http.Request, kind string, cas bool) (evaldomain.Frozen, evaldomain.MutationIdentity, bool) {
 	fail := func() (evaldomain.Frozen, evaldomain.MutationIdentity, bool) {
-		evalError(w, evaldomain.Failure("eval_invalid"))
+		handleError(w, evaldomain.Failure("eval_invalid"))
 		return evaldomain.Frozen{}, evaldomain.MutationIdentity{}, false
 	}
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
@@ -71,12 +53,12 @@ func evalBody(w http.ResponseWriter, r *http.Request, kind string, cas bool) (ev
 	}
 	doc, err := evaldomain.Freeze(kind, body)
 	if err != nil {
-		evalError(w, err)
+		handleError(w, err)
 		return doc, evaldomain.MutationIdentity{}, false
 	}
 	mutation, err := evaldomain.IdentifyMutation(r.Header.Get("Idempotency-Key"), r.Header.Get("If-Match"), cas, kind, body)
 	if err != nil {
-		evalError(w, err)
+		handleError(w, err)
 		return doc, mutation, false
 	}
 	return doc, mutation, true

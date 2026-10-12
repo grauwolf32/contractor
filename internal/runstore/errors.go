@@ -5,16 +5,18 @@ package runstore
 import (
 	"errors"
 	"fmt"
+
+	"github.com/grauwolf32/contractor/internal/apierror"
 )
 
 var (
-	ErrInvalid         = errors.New("runstore invalid argument")
-	ErrNotFound        = errors.New("runstore resource not found")
-	ErrConflict        = errors.New("runstore optimistic state conflict")
+	ErrInvalid         = apierror.New(apierror.InvalidRequest, "runstore invalid argument")
+	ErrNotFound        = apierror.New(apierror.NotFound, "runstore resource not found")
+	ErrConflict        = apierror.New(apierror.Conflict, "runstore optimistic state conflict")
 	ErrNoWork          = errors.New("runstore has no claimable work")
-	ErrPrecondition    = errors.New("runstore revision precondition failed")
+	ErrPrecondition    = apierror.New(apierror.PreconditionFailed, "runstore revision precondition failed")
 	ErrQueuePaused     = errors.New("owner WorkflowRun queue is paused")
-	ErrProjectDeleting = errors.New("WorkflowRun Project is deleting")
+	ErrProjectDeleting = apierror.New(apierror.ProjectDeleting, "WorkflowRun Project is deleting")
 	// ErrMultipleActiveStages reports a Run with more than one active
 	// StageExecution, which SCH-R114 forbids: durable state the Scheduler
 	// cannot progress.

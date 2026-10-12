@@ -206,13 +206,6 @@ specification says now.
   document), and the first sentence of RUN-R24 restates CAT-R34 (the durable
   Run snapshot is the execution authority); both link the catalog but remain
   separate requirements. Sources: 00#9, 00#47, 00#80.
-- **Gap.** Two catalog errors have no code. Sources: 06#11, 06#72. Reusing a
-  catalog cursor with another query is only "a bounded 400" (CAT-R68), and a
-  managed publication that reuses an identity with different content only
-  "conflicts", with no HTTP status (CAT-R59);
-  [platform/errors.md](../spec/platform/errors.md) lists them as
-  `(unnamed) catalog cursor mismatch` and
-  `(unnamed) configuration identity conflict`.
 
 ### [configuration/runtime-config.md](../spec/configuration/runtime-config.md)
 
@@ -262,14 +255,6 @@ specification says now.
   Create example returns `experimentId`, `portableExperimentId`,
   `state: draft`, `revision: 1`, `expectedMembers: 8`, `controlMode: server`
   and the ETag.
-- **Gap.** Which error code does an external producer receive after the Project
-  deletion fence? Sources: 30#69, 30#70. DEL-R43 gives `409` and says the code
-  is specified in managed-evals.md, but managed-evals.md only lists
-  `eval_project_deleting` (EVM-R227), and the errors registry marks its status
-  and that mapping "not specified". The code returns `eval_project_deleting`
-  with `409` (`internal/evaldomain/errors.go:59`). Either state "409
-  `eval_project_deleting` (FAIL-DEL-5)" here and set the registry row to `409`,
-  not retryable, or delete the pointer sentence from DEL-R43.
 
 ### [execution/control-plane.md](../spec/execution/control-plane.md)
 

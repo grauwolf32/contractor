@@ -11,6 +11,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/grauwolf32/contractor/internal/apierror"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 )
@@ -23,11 +24,14 @@ const (
 )
 
 var (
-	ErrInvalid            = errors.New("invalid LLM credential")
-	ErrConflict           = errors.New("LLM credential conflict")
-	ErrCrypto             = errors.New("LLM credential cryptographic failure")
+	ErrInvalid  = apierror.New(apierror.InvalidRequest, "invalid LLM credential")
+	ErrConflict = apierror.New(apierror.CredentialConflict, "LLM credential conflict")
+	ErrCrypto   = errors.New("LLM credential cryptographic failure")
+	// ErrKeyUnavailable has no public Kind: an LLM or Runtime credential
+	// operation without the master key is an internal error, while the Git key
+	// reports its narrower ErrGitKeyUnavailable.
 	ErrKeyUnavailable     = errors.New("LLM credential master key is unavailable")
-	ErrManagerUnavailable = errors.New("Gateway credential manager is unavailable")
+	ErrManagerUnavailable = apierror.New(apierror.GatewayUnavailable, "Gateway credential manager is unavailable")
 	budgetDurationPattern = regexp.MustCompile(`^[1-9][0-9]*(s|m|h|d|mo)$`)
 )
 

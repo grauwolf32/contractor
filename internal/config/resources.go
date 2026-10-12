@@ -1,10 +1,10 @@
 package config
 
 import (
-	"errors"
 	"fmt"
 	"sort"
 
+	"github.com/grauwolf32/contractor/internal/apierror"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 )
@@ -26,14 +26,15 @@ const (
 )
 
 var (
-	ErrInvalidConfigurationKind = errors.New("invalid configuration kind")
-	ErrConfigurationNotFound    = errors.New("configuration not found")
-	ErrInvalidPublication       = errors.New("invalid configuration publication")
-	ErrPublicationConflict      = errors.New("configuration publication conflict")
+	ErrInvalidConfigurationKind = apierror.New(apierror.InvalidRequest, "invalid configuration kind")
+	ErrConfigurationNotFound    = apierror.New(apierror.NotFound, "configuration not found")
+	ErrInvalidPublication       = apierror.New(apierror.InvalidRequest, "invalid configuration publication")
+	ErrPublicationConflict      = apierror.New(apierror.ConfigurationConflict, "configuration publication conflict")
 	// ErrConfigurationDrift reports that the reloaded configuration roots differ
 	// from the Server's loaded snapshot by a change the publication manager did
 	// not make. Retrying cannot succeed until the roots match again (CAT-R75).
-	ErrConfigurationDrift = errors.New("configuration roots changed outside the publication manager")
+	ErrConfigurationDrift = apierror.New(apierror.ConfigurationDrift,
+		"configuration roots changed outside the publication manager")
 )
 
 type ConfigurationRef struct {

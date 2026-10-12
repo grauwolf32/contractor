@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/grauwolf32/contractor/internal/apierror"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/requestid"
 	"github.com/grauwolf32/contractor/internal/settingsstore"
@@ -37,10 +38,7 @@ func (h *operationsHandlers) putSchedulerSettings(w http.ResponseWriter, r *http
 	}
 	mediaType, err := requestMediaType(r)
 	if err != nil || mediaType != "application/json" {
-		writeError(
-			w, http.StatusUnsupportedMediaType, "unsupported_media_type",
-			"Content-Type must be application/json", false,
-		)
+		writeError(w, apierror.UnsupportedMediaType, "")
 		return
 	}
 	expectedRevision, err := schedulerSettingsPrecondition(r)

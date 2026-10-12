@@ -29,7 +29,7 @@ func (h *gitKeyHandlers) getGitKey(w http.ResponseWriter, r *http.Request) {
 	}
 	m, err := h.GitKeys.Metadata(r.Context(), principalUserID(r.Context()))
 	if err != nil {
-		gitKeyError(w, err)
+		handleError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, m)
@@ -59,7 +59,7 @@ func (h *gitKeyHandlers) replaceGitKey(w http.ResponseWriter, r *http.Request) {
 	defer clear(key)
 	m, err := h.GitKeys.Replace(r.Context(), principalUserID(r.Context()), key)
 	if err != nil {
-		gitKeyError(w, err)
+		handleError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, m)
@@ -70,7 +70,7 @@ func (h *gitKeyHandlers) deleteGitKey(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.GitKeys.Delete(r.Context(), principalUserID(r.Context())); err != nil {
-		gitKeyError(w, err)
+		handleError(w, err)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -81,7 +81,7 @@ func (h *gitKeyHandlers) deleteGitKey(w http.ResponseWriter, r *http.Request) {
 func acceptGitKeyRequest(w http.ResponseWriter, r *http.Request) bool {
 	w.Header().Set("Cache-Control", "no-store")
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
-		gitKeyError(w, err)
+		handleError(w, err)
 		return false
 	}
 	return true

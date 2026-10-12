@@ -3,7 +3,6 @@ package public
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"net/http"
 	"time"
 
@@ -56,7 +55,7 @@ func (h *artifactHandlers) importGitArtifact(w http.ResponseWriter, r *http.Requ
 	ref := ""
 	if len(body.Ref) != 0 {
 		if json.Unmarshal(body.Ref, &ref) != nil || ref == "" {
-			gitImportError(w, gitimport.ErrRef)
+			handleError(w, gitimport.ErrRef)
 			return
 		}
 	}
@@ -74,36 +73,6 @@ func (h *artifactHandlers) importGitArtifact(w http.ResponseWriter, r *http.Requ
 		writeJSON(w, status, result)
 	})
 	if err != nil {
-		gitImportError(w, err)
+		handleError(w, err)
 	}
-}
-func gitImportError(w http.ResponseWriter, err error) {
-	var unsupported *gitimport.UnsupportedEntryError
-	if errors.As(err, &unsupported) {
-		writeError(w, http.StatusUnprocessableEntity, "git_content_unsupported", unsupported.Error(), false)
-		return
-	}
-	for _, item := range []struct {
-		err           error
-		status        int
-		code, message string
-	}{
-		{gitimport.ErrURL, 400, "git_url_invalid", "Git repository URL is invalid"},
-		{gitimport.ErrRef, 422, "git_ref_unavailable", "Git branch or tag is missing or ambiguous"},
-		{gitimport.ErrDestination, 422, "git_destination_refused", "Git remote destination is not allowed"},
-		{gitimport.ErrTrust, 422, "git_host_untrusted", "Git SSH host trust is unavailable or verification failed"},
-		{gitimport.ErrRemote, 422, "git_remote_unavailable", "Git repository is unavailable or access was refused"},
-		{gitimport.ErrContent, 422, "git_content_unsupported", "Git snapshot contains unsupported or invalid content"},
-		{gitimport.ErrBudget, 413, "git_import_limit", "Git import exceeds a resource limit"},
-		{gitimport.ErrCapacity, 503, "git_import_capacity", "Another Git import is active"},
-		{gitimport.ErrConfiguration, 503, "git_import_unavailable", "Git import is unavailable"},
-		{context.DeadlineExceeded, 504, "git_import_timeout", "Git import timed out; inspect artifact metadata before retrying"},
-		{context.Canceled, 408, "git_import_cancelled", "Git import was interrupted; inspect artifact metadata before retrying"},
-	} {
-		if errors.Is(err, item.err) {
-			writeError(w, item.status, item.code, item.message, false)
-			return
-		}
-	}
-	gitKeyError(w, err)
 }
