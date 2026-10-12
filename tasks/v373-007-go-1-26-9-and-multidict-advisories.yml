@@ -1,0 +1,44 @@
+schema_version: "1.0"
+id: V373-007
+title: "Build with go1.26.9 and multidict 6.9.1 to clear published advisories"
+milestone: hub-audit-defects-2026-10
+epic: quality
+kind: defect
+priority: P1
+status: in_progress
+depends_on: []
+languages: [go, python, markdown]
+goal: "make advisories passes: the Server and its tools build with a Go toolchain that has no reachable published standard-library vulnerability, and the production Runtime lock has no published advisory."
+context:
+  review: "Advisory job of the manual release-gate run 38287909767 on grauwolf32/contractor#547 (head daef588), reported on that PR"
+  severity: high
+  finding: >-
+    make test-go-vulnerabilities (govulncheck v1.8.0 over ./cmd/...) reports
+    12 reachable Go standard-library vulnerabilities in toolchain go1.26.8,
+    all fixed in go1.26.9, among them GO-2026-6600 and GO-2026-6599
+    (html/template, reached from app.ServeSystem) and several net/http ones.
+    make test-runtime-dependencies-audit reports CVE-2026-104874 for
+    multidict 6.7.1 in runtime/uv.lock. Both pins come from main, not from
+    a code change: the advisories were published after the pins.
+  siblings: >-
+    The toolchain is pinned in go.mod, tools/oapi-codegen.mod and
+    tools/testonlyexports/go.mod; no container image pins a Go version.
+    docs/development.md and docs/testing/evals-release-gate.md name the
+    toolchain to use. docs/guides/git-artifacts.md:125 records a measurement
+    taken with go1.26.8 and stays as history.
+scope:
+  in:
+    - "toolchain go1.26.9 in the three Go module files and the two documents that name the toolchain to use."
+    - "uv lock --upgrade-package multidict in runtime/ (6.7.1 -> 6.9.1, no other package changes)."
+  out:
+    - "Other dependency upgrades."
+acceptance_criteria:
+  - id: A1
+    text: "make advisories passes on the change in CI (govulncheck needs vuln.go.dev, which the development sandbox cannot reach), and the Runtime audit passes locally."
+  - id: A2
+    text: "The deterministic release gate stays green with the new toolchain and lock."
+tests:
+  - command: make advisories
+    covers: [A1]
+  - command: make lint
+    covers: [A2]
