@@ -5,7 +5,8 @@ milestone: hub-audit-defects-2026-10
 epic: quality
 kind: defect
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: "0a3e09c7b7dc3c6bb5c44461a7c75c5889b4d6c6"
 depends_on: []
 languages: [go, python, markdown]
 goal: "make advisories passes: the Server builds with a Go toolchain and golang.org/x/net that have no reachable published vulnerability, and the production Runtime lock has no published advisory."

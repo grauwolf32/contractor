@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-84 open tasks: 4 in progress, 66 pending, 14 deferred. 874 finished: 871 completed, 3 archived.
+83 open tasks: 3 in progress, 66 pending, 14 deferred. 875 finished: 872 completed, 3 archived.
 
 ## In progress
 
@@ -14,7 +14,6 @@ the epics are in [epics.yml](epics.yml).
 | [V40-002](v40-002-agent-instruction-paired-runner.yml) | evals | feature | P1 | Prepare instruction experiment bindings and a frozen plan after format readiness |
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
-| [V373-007](v373-007-go-1-26-9-and-multidict-advisories.yml) | quality | defect | P1 | Build with go1.26.9, golang.org/x/net 0.60.0 and multidict 6.9.1 to clear published advisories |
 
 ## Pending
 
@@ -194,4 +193,4 @@ tasks in `introduced_by`.
 | Operations, authentication, CLI and deployment (`operations`) | 0 | 8 | 31 | 4 | 6 |
 | Public API and wire contracts (`api-contracts`) | 9 | 1 | 29 | 20 | 8 |
 | PostgreSQL persistence and schema (`persistence`) | 5 | 0 | 19 | 33 | 8 |
-| Quality, CI and process (`quality`) | 15 | 1 | 19 | 76 | 16 |
+| Quality, CI and process (`quality`) | 14 | 1 | 19 | 76 | 16 |
