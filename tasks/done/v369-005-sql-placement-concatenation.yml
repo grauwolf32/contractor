@@ -1,0 +1,90 @@
+schema_version: "1.0"
+id: V369-005
+title: "Make the SQL placement check see concatenated statements"
+milestone: hub-audit-guards-2026-10
+epic: persistence
+kind: chore
+introduced_by: V365-004
+priority: P2
+status: completed
+implementation_commit: "27e1e0992727604b9a4236d4b7aa841b759ddd18"
+depends_on: []
+languages: [go]
+goal: "A probe file with a concatenated 12-line statement fails the check."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq; raw reports in docs/research/2026-10-11-hub-audit/), audits G8; artifacts D 3.5; file:line as of 02bbdcbf, re-verify on current main"
+  finding: >-
+    internal/persistence/sql_placement_test.go:78-99 checks only a single
+    literal that starts with a keyword; 13 long statements built with +
+    escape it (auditstore/transition.go:33 with 37 lines, deletion.go:29,
+    store.go:195, artifacts/postgres_query.go:22, 62, 112 and others).
+  current_code: >-
+    Re-verified on b2b09ea. The auditstore statements the finding names
+    moved into internal/auditstore/internal/pgstore/*_sql.go with V370-004;
+    their call sites append only a column list and a one-line FROM clause
+    to the named statement. artifacts/postgres_query.go:62 (ListMetadata)
+    is listMetadataSQL. The folding check found 17 inline statements of 10
+    to 23 lines, and all of them moved, so the scope's "13 statements" is
+    17: artifacts postgres_query.go:17 and :86; auditstore pgstore
+    read.go:120; evalstore observed_usage.go:43 and reconcile.go:77;
+    findingintake collection_publication.go:407 and postgres.go:44, :52,
+    :174, :202 and :227; runstore run_skills.go:25,
+    stage_admission_store.go:20 and stage_store.go:39, :72, :124 and :159.
+    Most of them are short frames around a column list declared next to
+    its scanner (receiptProjection, workflowRunColumns,
+    stageExecutionColumns); those lists stay where they are, and the
+    statements that use them now live in *_sql.go.
+  siblings: >-
+    Other ways to assemble SQL outside *_sql.go, ruled out on b2b09ea: +=
+    appends to a statement once (evalstore/store.go:119 adds " FOR SHARE"
+    to a one-line SELECT); fmt.Sprintf builds SQL only in
+    evalstore/comparison_pages.go, where it fills in pairPageSQL and
+    selectedMemberPageSQL of comparison_pages_sql.go and a one-line page
+    clause; strings.Join and strings.Builder build no SQL. The check now
+    walks the same source roots as the table ownership scanner (api, cmd,
+    internal, tools) through the shared eachSourcePackage, so the two
+    checks read the same files.
+  decision: >-
+    Guarantee: no production Go file outside *_sql.go holds an SQL
+    statement of more than nine lines, where a statement is a string
+    literal or a + chain folded into one text (the rule is written down at
+    the top of internal/persistence/sql_placement_test.go). A literal
+    contributes its value; an identifier of a constant or variable declared
+    once at package level in the same package contributes the fold of its
+    value; any other operand (a call, a method call, a local variable, a
+    parameter, another package's constant) is unknown text that stands for
+    part of one line and does not break the chain; adjacent operands on
+    different source lines break the line. The chain is a statement when
+    its fully resolved fold starts with an SQL keyword after any leading
+    unknown text; its length counts constants and variables declared in
+    *_sql.go files as unknown text, because they are already named and
+    commented. Evidence: with that rule the check reports the 17 inline
+    statements above and nothing else on b2b09ea, and removing any one of
+    these rules from the check makes a case of
+    TestSQLPlacementFoldsConcatenatedStatements fail. Alternatives rejected: counting the text of *_sql.go constants
+    too (38 reports; the 21 extra are named statements completed with a
+    projection at their call site, such as
+    transitionSQL+prefixedAuditColumns("changed")+` FROM changed`, which
+    would all move without becoming easier to read); treating every
+    identifier as unknown text (a statement split into package constants
+    outside *_sql.go would escape, and a keyword kept in a named head would
+    hide a long inline body); resolving local names through the parser's
+    object resolution (deprecated, the repository parses with
+    SkipObjectResolution, and no current statement needs it, so a local
+    name that shadows a package-level one reads as the package-level one).
+    Reversal: when production code builds a statement longer than a short
+    clause with +=, fmt.Sprintf, strings.Join or a strings.Builder, extend
+    the fold to that form instead of exempting it.
+scope:
+  in:
+    - "Unfold + chains of constants in the check; move the 13 statements into *_sql.go."
+  out:
+    - "SQL text."
+acceptance_criteria:
+  - id: A1
+    text: "A probe file with a concatenated 12-line statement fails the check."
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "go test ./internal/persistence"
+    covers: [A1]

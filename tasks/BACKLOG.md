@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-62 open tasks: 3 in progress, 45 pending, 14 deferred. 864 finished: 861 completed, 3 archived.
+61 open tasks: 3 in progress, 44 pending, 14 deferred. 865 finished: 862 completed, 3 archived.
 
 ## In progress
 
@@ -97,12 +97,6 @@ the epics are in [epics.yml](epics.yml).
 | [V371-017](v371-017-strong-etag-grammar.yml) | defect | P3 | — | Accept only RFC 9110 strong entity tags in If-Match |
 | [V371-018](v371-018-repeat-draft-description.yml) | chore | P3 | — | Remove the historical-request sentence from the repeat-draft OpenAPI description |
 
-### PostgreSQL persistence and schema (`persistence`)
-
-| Task | Kind | Priority | Waiting for | Title |
-| --- | --- | --- | --- | --- |
-| [V369-005](v369-005-sql-placement-concatenation.yml) | chore | P2 | — | Make the SQL placement check see concatenated statements |
-
 ### Quality, CI and process (`quality`)
 
 | Task | Kind | Priority | Waiting for | Title |
@@ -161,5 +155,5 @@ tasks in `introduced_by`.
 | Web UI (`ui`) | 2 | 19 | 53 | 10 | 48 |
 | Operations, authentication, CLI and deployment (`operations`) | 0 | 8 | 30 | 4 | 6 |
 | Public API and wire contracts (`api-contracts`) | 4 | 1 | 27 | 17 | 7 |
-| PostgreSQL persistence and schema (`persistence`) | 2 | 0 | 17 | 29 | 4 |
+| PostgreSQL persistence and schema (`persistence`) | 1 | 0 | 17 | 29 | 5 |
 | Quality, CI and process (`quality`) | 11 | 1 | 18 | 71 | 15 |
