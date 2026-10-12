@@ -1,0 +1,50 @@
+schema_version: "1.0"
+id: V371-005
+title: "Guard the Worker State read cost with a deterministic bound and re-measure it"
+milestone: hub-audit-defects-2026-10
+epic: planner-worker
+kind: chore
+introduced_by: V370-026
+priority: P3
+status: pending
+depends_on: []
+languages: [go]
+goal: "A regression in the cost of reading a changed Worker State at the contract maximum fails a deterministic test, and the 60 ms target of V370-026 is confirmed on a quiet host or CI, or replaced by a measured one."
+context:
+  review: "Out-of-scope finding of the hub audit fix batch (group G1), recorded 2026-10-12; verified on a07f5e9"
+  specification: "docs/spec/execution/planners.md#PLN-R115"
+  finding: >-
+    V370-026 was completed with its acceptance criterion ("a benchmark at
+    10,000 paths stays under 60 ms") met only by calibration:
+    BenchmarkWorkerStateChangedRevision
+    (internal/planner/stateview/read_cost_test.go:73-100) took a median of
+    71 ms (67-83 ms) on the loaded 4-CPU build host (770 ms before), which
+    the task scaled to about 24 ms on the audit's machine. The benchmark only
+    reports ns/op, allocations and cpu-ms/op; nothing fails when the cost
+    regresses, and the figure was never taken on CI or an idle host. The
+    13 MB and 40k allocations per call it recorded are machine-independent,
+    but no test holds them.
+  siblings: >-
+    No other completed acceptance in internal/planner rests on a wall-clock
+    benchmark without a gate. V341-001 (in progress) owns the CI measurements
+    of the Runtime probe timeouts.
+scope:
+  in:
+    - "A test (not only a benchmark) that reads the maximum State once per changed revision and fails above a recorded allocation count and allocated-byte bound, with its headroom stated in the test."
+    - "Record BenchmarkWorkerStateChangedRevision on CI or an idle host (median of repeated runs, CPU model and load); if it stays above 60 ms, record the measured target and its reason with PLN-R115 instead of the calibrated one."
+  out:
+    - "Validation strength and the decoder (V370-026's decision)."
+acceptance_criteria:
+  - id: A1
+    given: "The read path with the snapshot clone or a second strict decode restored"
+    when: "The new test runs"
+    then: "It fails on the allocation or byte bound."
+  - id: A2
+    text: "The quiet-host or CI measurement is recorded with its method, and the 60 ms target is either met or replaced by the measured figure with its rationale."
+tests:
+  - command: "go test ./internal/planner/stateview"
+    covers: [A1]
+  - command: "go test -run '^$' -bench WorkerStateChangedRevision -count 10 ./internal/planner/stateview"
+    covers: [A2]
+  - command: make lint
+    covers: [A1, A2]

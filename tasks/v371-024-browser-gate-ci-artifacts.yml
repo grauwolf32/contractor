@@ -1,0 +1,46 @@
+schema_version: "1.0"
+id: V371-024
+title: "Keep browser gate screenshots and traces where CI uploads them"
+milestone: hub-audit-defects-2026-10
+epic: quality
+kind: chore
+priority: P3
+status: pending
+depends_on: []
+languages: [javascript, yaml]
+goal: "A failing mocked or Git-artifacts browser gate leaves its Playwright screenshots and traces in a path the CI artifact upload includes."
+context:
+  review: "Out-of-scope finding of the hub audit fix batch: CI run 38171124353 (PR #544 at 4146eea), recorded 2026-10-12; verified on a07f5e9"
+  finding: >-
+    runBrowserGate (ui/server/browser-gate.mjs:75-140) builds each gate in
+    mkdtemp(tmpdir(), "contractor-ui-browser-") (line 78), points
+    Playwright's output at <work>/results through
+    CONTRACTOR_UI_E2E_OUTPUT_DIR (line 114) and removes the whole directory
+    in its finally block (line 138), on failure too. The CI upload
+    (.github/workflows/ci.yml:118-127) takes reports/, ui/test-results/ and
+    .local/audit-completion-gate/, so a failing Studio spec
+    (e2e/studio.spec.ts and e2e/studio-catalog.spec.ts of the mocked gate,
+    ui/server/mocked-browser-gate.mjs:8-55) leaves no screenshot or trace to
+    inspect. Predates the shallow history (boundary 6349621).
+  siblings: >-
+    Both callers of runBrowserGate: mocked-browser-gate.mjs and
+    git-artifacts-gate.mjs. The ui-stack process tests write to
+    test-results/ui-stack by default (ui/playwright.config.ts:5-6), which CI
+    already uploads.
+scope:
+  in:
+    - "Write gate results under ui/test-results/<gate> (or another uploaded path), keep them when the gate fails and remove only the temporary build."
+  out:
+    - "Gate selection and the report validation."
+acceptance_criteria:
+  - id: A1
+    given: "A mocked browser gate run with one failing spec"
+    when: "The gate exits"
+    then: "Its screenshots and traces remain under the uploaded path and the gate still fails."
+  - id: A2
+    text: "A passing run leaves no results a later run could mistake for its own."
+tests:
+  - command: "make ui-browser-mocked"
+    covers: [A1, A2]
+  - command: make lint
+    covers: [A1, A2]

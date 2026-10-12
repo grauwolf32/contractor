@@ -1,0 +1,60 @@
+schema_version: "1.0"
+id: V371-014
+title: "Read only the Stage history fields escalation counting and cancellation cleanup use"
+milestone: hub-audit-defects-2026-10
+epic: execution-core
+kind: defect
+priority: P3
+status: pending
+depends_on: []
+languages: [go]
+goal: "Escalation counting and the no-active-Stage paths read bounded projections of the Stage history instead of every StageExecution with its snapshots, and cancellation cleanup reads the allocations of all executions in one batched query."
+context:
+  review: "Out-of-scope finding of the hub audit fix batch (group G6), recorded 2026-10-12; verified on a07f5e9"
+  specification: "docs/spec/execution/scheduler.md#SCH-R164"
+  severity: low
+  finding: >-
+    escalationAttempts (internal/scheduler/stage_finalization.go:374-380,
+    called at :274 for every escalate decision) lists every StageExecution
+    of the Run with all columns (internal/runstore/stage_scan.go:11-22: the
+    Stage spec, context, candidate and accepted results and termination
+    snapshots) to count the attempts of one Stage and variant, although
+    SCH-R164 says a progression attempt does not read the Run's Stage
+    history. The no-active-Stage first tick (run_execution.go:57-71) lists
+    the whole history only to check that it is empty, and the
+    no-active-Stage cancellation path (run_execution.go:118-134) lists it and
+    then calls ListStageAllocations twice per execution
+    (fenceRecordedAllocations, stage_termination.go:97-112;
+    existingLiveReservations, allocation_reservations.go:229-239). With up to
+    1,024 attempts per Run (LIM-RUN-2) that is up to 2,049 statements and
+    every snapshot in one tick. V370-020 ruled these reads out because they
+    happen once per decision or once per Run; it did not bound their bytes
+    or the per-execution reads (AGENTS.md 3.3). Predates the shallow history
+    (boundary 6349621).
+  siblings: >-
+    Production ListStageExecutions callers: run_execution.go:61 and :123 and
+    stage_finalization.go:380, all in scope. Public Run detail and Stage
+    lists already page their reads (V367-010, V368-013).
+scope:
+  in:
+    - "Narrow runstore reads: an existence check for the first tick, the identity, variant, ordinal and resume-chain columns for escalation counting, and the execution IDs plus one batched allocation read for cancellation cleanup."
+    - "SCH-R164 states the bound of each remaining Stage history read."
+  out:
+    - "Escalation, cancellation and fencing semantics."
+cardinality:
+  - collection: "StageExecutions of one Run and their recorded allocations"
+    expected: "a few"
+    maximum: "1,024 attempts per Run (LIM-RUN-2)"
+    bound: "no snapshot column read on these paths; a fixed number of statements per tick"
+acceptance_criteria:
+  - id: A1
+    given: "A Run with 1,024 StageExecutions carrying maximum-size snapshots"
+    when: "An escalate decision is made, the first-tick check runs and a cancellation without an active Stage is cleaned up"
+    then: "No read selects a snapshot column, and cleanup issues a fixed number of allocation statements."
+  - id: A2
+    text: "The existing escalation, cancellation and fencing tests pass unchanged."
+tests:
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 -tags integration ./internal/scheduler ./internal/runstore"
+    covers: [A1, A2]
+  - command: make lint
+    covers: [A1, A2]

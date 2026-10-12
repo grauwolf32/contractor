@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-60 open tasks: 3 in progress, 43 pending, 14 deferred. 837 finished: 834 completed, 3 archived.
+84 open tasks: 3 in progress, 67 pending, 14 deferred. 837 finished: 834 completed, 3 archived.
 
 ## In progress
 
@@ -24,6 +24,16 @@ the epics are in [epics.yml](epics.yml).
 | [V370-001](v370-001-run-stage-transition-owner.yml) | chore | P1 | V369-001 | Give Run and Stage state transitions one owner |
 | [V370-011](v370-011-scheduler-controlplane-surface.yml) | chore | P3 | — | Slim the Scheduler and Control Plane surfaces |
 | [V370-012](v370-012-runstore-runtimeconfig-cleanup.yml) | chore | P3 | — | Merge Run creation paths and split the Runtime principal registry |
+| [V371-014](v371-014-scheduler-stage-history-reads.yml) | defect | P3 | — | Read only the Stage history fields escalation counting and cancellation cleanup use |
+
+### Planners and the Worker model boundary (`planner-worker`)
+
+| Task | Kind | Priority | Waiting for | Title |
+| --- | --- | --- | --- | --- |
+| [V371-002](v371-002-worker-state-endpoint-contract.yml) | defect | P2 | — | Serve a schema-valid Worker State and classify its failures like the Server |
+| [V371-004](v371-004-worker-completion-exact-integers.yml) | defect | P3 | — | Bound WorkerCompletion integers to the range A2A carries exactly |
+| [V371-005](v371-005-worker-state-read-cost-guard.yml) | chore | P3 | — | Guard the Worker State read cost with a deterministic bound and re-measure it |
+| [V371-006](v371-006-workspace-observation-descriptor.yml) | chore | P3 | — | Take the Worker tools that observe the workspace from the shared Toolset descriptor |
 
 ### Scanner tool Workers and scan planning (`scan-tools`)
 
@@ -37,6 +47,8 @@ the epics are in [epics.yml](epics.yml).
 | --- | --- | --- | --- | --- |
 | [V368-009](v368-009-finding-receipt-retention.yml) | defect | P1 | — | Delete finding proposal receipts with their Project |
 | [V370-029](v370-029-collection-publication-batches.yml) | defect | P3 | — | Batch the finding collection publication reads |
+| [V371-010](v371-010-discarded-receipt-projection.yml) | defect | P2 | — | Drop the report projection of a proposal receipt discarded by Run deletion |
+| [V371-011](v371-011-proposal-quota-limits.yml) | chore | P3 | — | Register the per-Run proposal and per-proposal evidence quotas in the specification |
 
 ### Workflow catalog and document workflows (`workflows`)
 
@@ -51,6 +63,7 @@ the epics are in [epics.yml](epics.yml).
 | [V370-016](v370-016-simplify-artifacts.yml) | chore | P3 | — | Simplify the Artifact service and Runtime client |
 | [V370-024](v370-024-artifact-purge-bound.yml) | defect | P2 | — | Bound Artifact purge and the number of bindings per Run |
 | [V370-025](v370-025-artifact-read-efficiency.yml) | defect | P3 | — | Avoid full Artifact materialization and unindexed listing filters |
+| [V371-019](v371-019-audit-namespace-prefix-rule.yml) | chore | P3 | — | Use artifactpolicy's Audit namespace rule in the Audit namespace purge |
 
 ### Audits (`audits`)
 
@@ -71,12 +84,23 @@ the epics are in [epics.yml](epics.yml).
 | [V64-010](v64-010-audit-priority-profile.yml) | feature | P1 | V64-008 | Publish a runnable prioritized custom-checklist Audit profile and guide |
 | [V64-011](v64-011-audit-priority-release.yml) | feature | P1 | V64-009, V64-010 | Verify contextual checklist prioritization across process and browser boundaries |
 | [V370-004](v370-004-split-auditstore.yml) | chore | P2 | — | Split auditstore along its seams |
+| [V371-007](v371-007-fence-audit-artifact-writes.yml) | defect | P2 | — | Fence the Audit Controller's artifact writes against a purge by a newer claim |
+| [V371-008](v371-008-bounded-audit-deletion-steps.yml) | defect | P2 | V370-024 | Run the Audit deletion phase in bounded steps under its own budget |
+| [V371-009](v371-009-audit-list-preparation-batch.yml) | defect | P3 | — | Read the preparation state of a whole Audit page in bounded statements |
 
 ### Evaluations (`evals`)
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V40-003](v40-003-agent-instruction-eval-decision.yml) | feature | P1 | V40-002 | Evaluate instruction candidates and record evidence-based adoption decisions |
+| [V371-012](v371-012-eval-projection-lock-order.yml) | defect | P2 | — | Stop Eval member collection and Audit collection from deadlocking |
+| [V371-013](v371-013-eval-bounded-json-walker.yml) | chore | P3 | — | Read Eval JSON documents with strictjson.DecodeBounded |
+
+### Web UI (`ui`)
+
+| Task | Kind | Priority | Waiting for | Title |
+| --- | --- | --- | --- | --- |
+| [V371-020](v371-020-ui-resource-id-grammar.yml) | defect | P3 | — | Give the UI one ResourceId and Revision grammar and check revisions before If-Match |
 
 ### Public API and wire contracts (`api-contracts`)
 
@@ -88,6 +112,10 @@ the epics are in [epics.yml](epics.yml).
 | [V370-009](v370-009-context-handlers.yml) | chore | P2 | — | Split the public API handler by context with required dependencies |
 | [V370-010](v370-010-domain-error-kinds.yml) | chore | P2 | — | Classify domain errors through one error kind and a code registry |
 | [V370-017](v370-017-simplify-contracts.yml) | chore | P3 | — | Remove orphan schemas and lenient paths in the wire contracts |
+| [V371-003](v371-003-reject-optional-member-null.yml) | defect | P3 | V371-002 | Reject explicit null for optional private-wire members and null map values |
+| [V371-016](v371-016-idempotency-key-grammar.yml) | defect | P3 | — | Give the Idempotency-Key grammar one Go definition |
+| [V371-017](v371-017-strong-etag-grammar.yml) | defect | P3 | — | Accept only RFC 9110 strong entity tags in If-Match |
+| [V371-018](v371-018-repeat-draft-description.yml) | chore | P3 | — | Remove the historical-request sentence from the repeat-draft OpenAPI description |
 
 ### PostgreSQL persistence and schema (`persistence`)
 
@@ -109,6 +137,12 @@ the epics are in [epics.yml](epics.yml).
 | [V347-001](v347-001-protect-main-branch.yml) | chore | P1 | — | Protect main with a required check |
 | [V369-007](v369-007-unused-export-lint.yml) | chore | P3 | V370-008 | Fail lint on exported identifiers used only by tests |
 | [V370-008](v370-008-remove-test-only-exports.yml) | chore | P3 | — | Remove exported surface that only tests use |
+| [V371-015](v371-015-memory-claim-paused-skip.yml) | chore | P3 | — | Model the paused-owner claim skip in the Scheduler's memory store doubles |
+| [V371-021](v371-021-postgres-test-wall-clock.yml) | chore | P3 | — | Replace wall-clock budgets in the Scheduler and runstore PostgreSQL tests |
+| [V371-022](v371-022-capability-probe-test-budget.yml) | chore | P3 | — | Remove the 10 ms probe budget from the capability discovery tests |
+| [V371-023](v371-023-audit-route-test-timeouts.yml) | chore | P3 | — | Keep the Audit route UI tests within their timeout under load |
+| [V371-024](v371-024-browser-gate-ci-artifacts.yml) | chore | P3 | — | Keep browser gate screenshots and traces where CI uploads them |
+| [V371-025](v371-025-pnpm-root-invocation.yml) | chore | P3 | — | Document a pnpm invocation that works from the repository root |
 
 ## Deferred
 
@@ -136,8 +170,8 @@ tasks in `introduced_by`.
 
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Run execution core (`execution-core`) | 3 | 36 | 44 | 9 | 62 |
-| Planners and the Worker model boundary (`planner-worker`) | 0 | 23 | 34 | 7 | 42 |
+| Run execution core (`execution-core`) | 4 | 36 | 45 | 9 | 63 |
+| Planners and the Worker model boundary (`planner-worker`) | 4 | 23 | 36 | 9 | 44 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 9 | 25 | 11 | 2 | 37 |
 | Shared Memory tools (`memory`) | 0 | 6 | 8 | 1 | 11 |
 | Agent Skills (`agent-skills`) | 0 | 10 | 2 | 1 | 1 |
@@ -145,14 +179,14 @@ tasks in `introduced_by`.
 | Code analysis and taint annotations (`code-analysis`) | 0 | 13 | 12 | 2 | 17 |
 | HTTP and Caido tools (`http-tools`) | 0 | 8 | 11 | 1 | 10 |
 | Scanner tool Workers and scan planning (`scan-tools`) | 1 | 10 | 4 | 1 | 7 |
-| Findings tools and collections (`findings`) | 2 | 7 | 4 | 1 | 6 |
+| Findings tools and collections (`findings`) | 4 | 7 | 5 | 2 | 6 |
 | Workflow catalog and document workflows (`workflows`) | 1 | 13 | 13 | 8 | 11 |
-| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 3 | 27 | 31 | 3 | 33 |
-| Audits (`audits`) | 19 | 49 | 64 | 12 | 71 |
-| Evaluations (`evals`) | 2 | 21 | 26 | 4 | 33 |
+| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 4 | 27 | 31 | 4 | 33 |
+| Audits (`audits`) | 22 | 49 | 67 | 12 | 73 |
+| Evaluations (`evals`) | 4 | 21 | 27 | 5 | 33 |
 | Podman sandbox (`sandbox`) | 0 | 8 | 1 | 1 | 2 |
-| Web UI (`ui`) | 0 | 19 | 51 | 10 | 48 |
+| Web UI (`ui`) | 1 | 19 | 52 | 10 | 48 |
 | Operations, authentication, CLI and deployment (`operations`) | 0 | 8 | 30 | 4 | 6 |
-| Public API and wire contracts (`api-contracts`) | 6 | 1 | 24 | 16 | 6 |
+| Public API and wire contracts (`api-contracts`) | 10 | 1 | 27 | 17 | 6 |
 | PostgreSQL persistence and schema (`persistence`) | 9 | 0 | 17 | 29 | 3 |
-| Quality, CI and process (`quality`) | 5 | 1 | 16 | 65 | 15 |
+| Quality, CI and process (`quality`) | 11 | 1 | 16 | 71 | 15 |
