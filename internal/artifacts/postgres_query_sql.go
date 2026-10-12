@@ -30,6 +30,29 @@ ORDER BY lineage.created_at DESC, lineage.target_revision DESC,
          lineage.source_revision DESC, lineage.lineage_kind DESC
 LIMIT $11`
 
+// metadataSQL returns the metadata of one revision of binding $3/$4 in scope
+// ($1, $2): the binding's current revision when $5 is NULL, revision $5
+// otherwise. A row holds the revision, its media type, size and digest,
+// whether it is the current revision, the binding's frozen flag, the
+// revision's creation time and the version's Git source; no row means the
+// binding or revision does not exist. Used by PostgresRepository.Metadata.
+var metadataSQL = `
+SELECT revision.revision, version.media_type, blob.size_bytes,
+       'sha256:' || encode(blob.sha256, 'hex'),
+       revision.revision = binding.current_revision, binding.frozen, revision.created_at, ` + gitSourceProjection + `
+FROM artifact_bindings AS binding
+JOIN artifact_binding_revisions AS revision
+  ON revision.scope_kind = binding.scope_kind
+ AND revision.scope_id = binding.scope_id
+ AND revision.namespace = binding.namespace
+ AND revision.name = binding.name
+JOIN artifact_versions AS version ON version.version_id = revision.version_id
+JOIN artifact_blobs AS blob ON blob.sha256 = version.blob_sha256
+WHERE binding.scope_kind = $1 AND binding.scope_id = $2
+  AND binding.namespace = $3 AND binding.name = $4
+  AND (($5::text IS NULL AND revision.revision = binding.current_revision)
+       OR ($5::text IS NOT NULL AND revision.revision = $5))`
+
 // listMetadataSQL returns one keyset page of the current bindings of scope
 // ($1, $2) with their current revision metadata, in namespace and name order:
 // only namespace $3 when it is not NULL, without namespace $4 when it is not
@@ -85,3 +108,26 @@ WHERE binding.scope_kind = 'project' AND binding.scope_id = $1
   AND ($7::text = '' OR binding.namespace <> $7)
 ORDER BY binding.namespace, binding.name
 LIMIT $6`
+
+// listVersionsSQL returns one page of the revisions of binding $3/$4 in scope
+// ($1, $2), newest first, each with its namespace and name and the metadata
+// metadataSQL returns, except the digest. ($5, $6) is the (created_at,
+// revision) keyset cursor of the previous page; a NULL $5 starts at the first
+// page. At most $7 rows. Used by PostgresRepository.ListVersions.
+var listVersionsSQL = `
+SELECT revision.namespace, revision.name, revision.revision,
+       version.media_type, blob.size_bytes,
+       revision.revision = binding.current_revision, binding.frozen, revision.created_at, ` + gitSourceProjection + `
+FROM artifact_binding_revisions AS revision
+JOIN artifact_bindings AS binding
+  ON binding.scope_kind = revision.scope_kind
+ AND binding.scope_id = revision.scope_id
+ AND binding.namespace = revision.namespace
+ AND binding.name = revision.name
+JOIN artifact_versions AS version ON version.version_id = revision.version_id
+JOIN artifact_blobs AS blob ON blob.sha256 = version.blob_sha256
+WHERE revision.scope_kind = $1 AND revision.scope_id = $2
+  AND revision.namespace = $3 AND revision.name = $4
+  AND ($5::timestamptz IS NULL OR (revision.created_at, revision.revision) < ($5, $6))
+ORDER BY revision.created_at DESC, revision.revision DESC
+LIMIT $7`

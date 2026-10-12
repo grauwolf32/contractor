@@ -41,18 +41,11 @@ func readReceiptBySubmission(
 	db querier,
 	allocationID, invocationID, submissionID string,
 ) (Receipt, error) {
-	return scanReceipt(ctx, db, db.QueryRow(ctx, `
-SELECT `+receiptProjection+`
-  FROM finding_proposal_receipts AS receipt
- WHERE receipt.allocation_id = $1 AND receipt.invocation_id = $2
-   AND receipt.submission_id = $3`, allocationID, invocationID, submissionID))
+	return scanReceipt(ctx, db, db.QueryRow(ctx, readReceiptBySubmissionSQL, allocationID, invocationID, submissionID))
 }
 
 func readReceiptByID(ctx context.Context, db querier, receiptID string) (Receipt, error) {
-	return scanReceipt(ctx, db, db.QueryRow(ctx, `
-SELECT `+receiptProjection+`
-  FROM finding_proposal_receipts AS receipt
- WHERE receipt.receipt_id = $1`, receiptID))
+	return scanReceipt(ctx, db, db.QueryRow(ctx, readReceiptByIDSQL, receiptID))
 }
 
 func scanReceipt(ctx context.Context, db querier, row pgx.Row) (Receipt, error) {
@@ -171,14 +164,7 @@ func (s *Service) listRunReceiptRows(
 	if ownerID == "" || runID == "" || !validListQuery(query) {
 		return nil, ErrInvalid
 	}
-	rows, err := s.pool.Query(ctx, `
-SELECT `+receiptProjection+`
-  FROM finding_proposal_receipts AS receipt
-  JOIN workflow_runs AS run ON run.run_id = receipt.run_id
- WHERE receipt.owner_id = $1 AND receipt.run_id = $2 AND run.owner_id = $1
-   AND ($3::timestamptz IS NULL OR (receipt.created_at, receipt.receipt_id) > ($3, $4))
- ORDER BY receipt.created_at, receipt.receipt_id
- LIMIT $5`, ownerID, runID, query.AfterCreatedAt, query.AfterReceiptID, query.Limit)
+	rows, err := s.pool.Query(ctx, listRunReceiptRowsSQL, ownerID, runID, query.AfterCreatedAt, query.AfterReceiptID, query.Limit)
 	if err != nil {
 		return nil, fmt.Errorf("list Run finding proposals: %w", err)
 	}
@@ -199,20 +185,7 @@ func (s *Service) ListAuditInbox(
 	ownerID, auditID string,
 	query ListQuery,
 ) ([]Receipt, error) {
-	return s.listAuditInbox(ctx, ownerID, auditID, query, `
-SELECT `+receiptProjection+`
-  FROM finding_proposal_receipts AS receipt
- WHERE receipt.owner_id = $1
-   AND ((receipt.audit_id = $2 AND receipt.source_run_deleted_at IS NULL) OR EXISTS (
-       SELECT 1 FROM finding_proposal_audit_holds AS hold
-        JOIN audits AS audit
-          ON audit.audit_id = hold.audit_id AND audit.project_id = hold.project_id
-       WHERE hold.receipt_id = receipt.receipt_id
-         AND hold.audit_id = $2 AND audit.owner_id = $1
-   ))
-   AND ($3::timestamptz IS NULL OR (receipt.created_at, receipt.receipt_id) > ($3, $4))
- ORDER BY receipt.created_at, receipt.receipt_id
- LIMIT $5`)
+	return s.listAuditInbox(ctx, ownerID, auditID, query, listAuditInboxSQL)
 }
 
 // ListAuditHeldInbox lists only receipts with an exact hold in the Audit. A
@@ -224,17 +197,7 @@ func (s *Service) ListAuditHeldInbox(
 	ownerID, auditID string,
 	query ListQuery,
 ) ([]Receipt, error) {
-	return s.listAuditInbox(ctx, ownerID, auditID, query, `
-SELECT `+receiptProjection+`
-  FROM finding_proposal_receipts AS receipt
-  JOIN finding_proposal_audit_holds AS hold
-    ON hold.receipt_id = receipt.receipt_id AND hold.audit_id = $2
-  JOIN audits AS audit
-    ON audit.audit_id = hold.audit_id AND audit.project_id = hold.project_id
- WHERE receipt.owner_id = $1 AND audit.owner_id = $1
-   AND ($3::timestamptz IS NULL OR (receipt.created_at, receipt.receipt_id) > ($3, $4))
- ORDER BY receipt.created_at, receipt.receipt_id
- LIMIT $5`)
+	return s.listAuditInbox(ctx, ownerID, auditID, query, listAuditHeldInboxSQL)
 }
 
 // listAuditInbox filters in the statement, so a page is never short because a

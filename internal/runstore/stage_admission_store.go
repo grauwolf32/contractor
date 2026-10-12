@@ -17,11 +17,7 @@ func (s *PostgresStore) MarkStageAdmitted(ctx context.Context, stageExecutionID 
 	if err := validateOpaque("stageExecutionID", stageExecutionID); err != nil {
 		return StageExecution{}, err
 	}
-	result, err := scanStageExecution(s.db.QueryRow(ctx, `
-UPDATE stage_executions
-SET admitted_at = COALESCE(admitted_at, clock_timestamp())
-WHERE stage_execution_id = $1
-RETURNING `+stageExecutionColumns, stageExecutionID))
+	result, err := scanStageExecution(s.db.QueryRow(ctx, markStageAdmittedSQL, stageExecutionID))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return StageExecution{}, fmt.Errorf("admit StageExecution %q: %w", stageExecutionID, ErrNotFound)
 	}

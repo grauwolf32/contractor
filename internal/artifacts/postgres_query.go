@@ -14,22 +14,7 @@ func (r *PostgresRepository) Metadata(
 ) (Metadata, error) {
 	var result Metadata
 	var revision string
-	err := r.db.QueryRow(ctx, `
-SELECT revision.revision, version.media_type, blob.size_bytes,
-       'sha256:' || encode(blob.sha256, 'hex'),
-       revision.revision = binding.current_revision, binding.frozen, revision.created_at, `+gitSourceProjection+`
-FROM artifact_bindings AS binding
-JOIN artifact_binding_revisions AS revision
-  ON revision.scope_kind = binding.scope_kind
- AND revision.scope_id = binding.scope_id
- AND revision.namespace = binding.namespace
- AND revision.name = binding.name
-JOIN artifact_versions AS version ON version.version_id = revision.version_id
-JOIN artifact_blobs AS blob ON blob.sha256 = version.blob_sha256
-WHERE binding.scope_kind = $1 AND binding.scope_id = $2
-  AND binding.namespace = $3 AND binding.name = $4
-  AND (($5::text IS NULL AND revision.revision = binding.current_revision)
-       OR ($5::text IS NOT NULL AND revision.revision = $5))`,
+	err := r.db.QueryRow(ctx, metadataSQL,
 		scope.kind, scope.id, ref.Namespace, ref.Name, ref.Revision,
 	).Scan(
 		&revision, &result.MediaType, &result.Size, &result.Digest, &result.Current,
@@ -83,23 +68,7 @@ func (r *PostgresRepository) ListMetadata(
 func (r *PostgresRepository) ListVersions(
 	ctx context.Context, scope Scope, ref ArtifactRef, query VersionPageQuery,
 ) ([]Metadata, error) {
-	rows, err := r.db.Query(ctx, `
-SELECT revision.namespace, revision.name, revision.revision,
-       version.media_type, blob.size_bytes,
-       revision.revision = binding.current_revision, binding.frozen, revision.created_at, `+gitSourceProjection+`
-FROM artifact_binding_revisions AS revision
-JOIN artifact_bindings AS binding
-  ON binding.scope_kind = revision.scope_kind
- AND binding.scope_id = revision.scope_id
- AND binding.namespace = revision.namespace
- AND binding.name = revision.name
-JOIN artifact_versions AS version ON version.version_id = revision.version_id
-JOIN artifact_blobs AS blob ON blob.sha256 = version.blob_sha256
-WHERE revision.scope_kind = $1 AND revision.scope_id = $2
-  AND revision.namespace = $3 AND revision.name = $4
-  AND ($5::timestamptz IS NULL OR (revision.created_at, revision.revision) < ($5, $6))
-ORDER BY revision.created_at DESC, revision.revision DESC
-LIMIT $7`, scope.kind, scope.id, ref.Namespace, ref.Name,
+	rows, err := r.db.Query(ctx, listVersionsSQL, scope.kind, scope.id, ref.Namespace, ref.Name,
 		query.BeforeCreatedAt, query.BeforeRevision, query.Limit)
 	if err != nil {
 		return nil, fmt.Errorf("list artifact versions: %w", err)

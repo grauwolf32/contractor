@@ -2,6 +2,23 @@ package evalstore
 
 // SQL statements for reconcile.go.
 
+// nextMembersSQL returns up to $3 eligible members of owner $1's experiment
+// $2 that have no submission yet, in their frozen ordinal order.
+// Used by Store.NextMembers.
+var nextMembersSQL = `
+SELECT ` + memberColumns + `
+FROM eval_members m
+JOIN eval_experiments e USING(experiment_id)
+WHERE e.owner_id=$1
+    AND e.experiment_id=$2
+    AND m.eligibility='eligible'
+    AND NOT EXISTS(SELECT 1
+    FROM eval_submissions s
+    WHERE s.experiment_id=m.experiment_id
+        AND s.member_id=m.member_id)
+ORDER BY m.ordinal LIMIT $3
+`
+
 // reconciliationCandidatesSQL returns up to $3 'intent' and up to $3 'accepted'
 // submission member IDs of the owner's experiment, each lane least recently
 // updated first (member_id breaks ties), with all intents ahead of accepted
