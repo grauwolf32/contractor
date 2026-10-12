@@ -4,8 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"os"
-	"path/filepath"
 	"reflect"
 	"strconv"
 	"strings"
@@ -15,6 +13,7 @@ import (
 	"github.com/google/jsonschema-go/jsonschema"
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/planner/stateview"
@@ -77,7 +76,7 @@ func TestStateToolsExposeExactProfileSpecificSchemas(t *testing.T) {
 	}
 }
 
-func TestStreamlineStateToolsProjectNewestCompletionWithoutDurablePaths(t *testing.T) {
+func TestSharedStreamlineStateToolsProjectNewestCompletionWithoutDurablePaths(t *testing.T) {
 	const (
 		firstPath  = "src/main.py"
 		secondPath = "README.md"
@@ -270,7 +269,7 @@ func TestStateProjectionFailureUsesClosedCodes(t *testing.T) {
 	}
 }
 
-func TestRouterStateToolReadsOnlySelectedLogicalWorker(t *testing.T) {
+func TestSharedRouterStateToolReadsOnlySelectedLogicalWorker(t *testing.T) {
 	reader := &plannerStateTestReader{states: map[string]reporting.AgentStateSnapshot{
 		"allocation-builder":  plannerStateSnapshot(t, "worker-invocation-1", "0", 2),
 		"allocation-reviewer": plannerStateSnapshot(t, "worker-invocation-1", "0", 2),
@@ -442,12 +441,7 @@ func plannerStateSnapshot(
 	revision uint64,
 ) reporting.AgentStateSnapshot {
 	t.Helper()
-	payload, err := os.ReadFile(filepath.Join(
-		"..", "..", "..", "api", "testdata", "v1alpha1", "valid", "agent-state-snapshot.json",
-	))
-	if err != nil {
-		t.Fatal(err)
-	}
+	payload := contractstest.ReadFile(t, "api", "testdata", "v1alpha1", "valid", "agent-state-snapshot.json")
 	snapshot, err := contracts.DecodeStrict[reporting.AgentStateSnapshot](payload)
 	if err != nil {
 		t.Fatal(err)

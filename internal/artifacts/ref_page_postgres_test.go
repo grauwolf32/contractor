@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
 	"strings"
 	"testing"
 	"time"
@@ -12,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	. "github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 )
 
 type sharedListCases struct {
@@ -25,10 +25,7 @@ type sharedListCases struct {
 
 func readSharedListCases(t *testing.T) sharedListCases {
 	t.Helper()
-	data, err := os.ReadFile("../../api/testdata/v1alpha1/artifact-list-cases.json")
-	if err != nil {
-		t.Fatal(err)
-	}
+	data := contractstest.ReadFile(t, "api", "testdata", "v1alpha1", "artifact-list-cases.json")
 	var cases sharedListCases
 	if err := json.Unmarshal(data, &cases); err != nil {
 		t.Fatal(err)
@@ -92,7 +89,7 @@ func pageAll(t *testing.T, ctx context.Context, store ScopedStore, query RefPage
 	}
 }
 
-func TestPostgresRefPagesExcludeModelHiddenBindingsBeforeTheLimit(t *testing.T) {
+func TestSharedPostgresRefPagesExcludeModelHiddenBindingsBeforeTheLimit(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 	pool := isolatedArtifactPool(t, ctx)

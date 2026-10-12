@@ -2,18 +2,15 @@ package contracts_test
 
 import (
 	"encoding/json"
-	"os"
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 	"github.com/grauwolf32/contractor/internal/contracts/control"
 )
 
-func TestAuditCompletionSharedPythonFixtures(t *testing.T) {
-	raw, err := os.ReadFile("../../api/testdata/v1alpha1/audit-completion-cases.json")
-	if err != nil {
-		t.Fatal(err)
-	}
+func TestSharedAuditCompletionSharedPythonFixtures(t *testing.T) {
+	raw := contractstest.ReadFile(t, "api", "testdata", "v1alpha1", "audit-completion-cases.json")
 	var cases []struct {
 		Name  string          `json:"name"`
 		Model string          `json:"model"`

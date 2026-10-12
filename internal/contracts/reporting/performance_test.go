@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"math"
-	"os"
 	"reflect"
 	"strings"
 	"testing"
@@ -27,10 +26,7 @@ type performanceCases struct {
 
 func readPerformanceCases(t *testing.T) performanceCases {
 	t.Helper()
-	raw, err := os.ReadFile(contractstest.Path(t, "api", "testdata", "v1alpha1", "performance-cases.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	raw := contractstest.ReadFile(t, "api", "testdata", "v1alpha1", "performance-cases.json")
 	var cases performanceCases
 	if err := json.Unmarshal(raw, &cases); err != nil {
 		t.Fatal(err)
@@ -38,7 +34,7 @@ func readPerformanceCases(t *testing.T) performanceCases {
 	return cases
 }
 
-func TestPerformanceGoldenResources(t *testing.T) {
+func TestSharedPerformanceGoldenResources(t *testing.T) {
 	cases := readPerformanceCases(t)
 	for _, valid := range []bool{true, false} {
 		entries := cases.InvalidResources
@@ -80,7 +76,7 @@ func TestPerformanceGoldenResources(t *testing.T) {
 	}
 }
 
-func TestPerformanceGoldenRequests(t *testing.T) {
+func TestSharedPerformanceGoldenRequests(t *testing.T) {
 	cases := readPerformanceCases(t)
 	for _, valid := range []bool{true, false} {
 		requests := cases.InvalidRequests
@@ -120,7 +116,7 @@ func TestPerformanceCollectionPolicyPinsOnlyAllocationDecisions(t *testing.T) {
 	}
 }
 
-func TestPerformanceGoldenInvalidResourcesDoNotPoisonFinalReports(t *testing.T) {
+func TestSharedPerformanceGoldenInvalidResourcesDoNotPoisonFinalReports(t *testing.T) {
 	base, err := contracts.DecodePrivateStrict[AllocationFinalResponse](contractstest.ReadFixture(t, "valid", "allocation-final-response.json"))
 	if err != nil {
 		t.Fatal(err)
@@ -156,7 +152,7 @@ func TestPerformanceGoldenInvalidResourcesDoNotPoisonFinalReports(t *testing.T) 
 	}
 }
 
-func TestPerformanceResourceIsolationKeepsEnvelopeStrict(t *testing.T) {
+func TestSharedPerformanceResourceIsolationKeepsEnvelopeStrict(t *testing.T) {
 	for _, raw := range []string{
 		`{"complete":true,"adapters":{},"resources":{"version":1,"version":2}}`,
 		`{"complete":true,"adapters":{},"resources":{"cpuUserSeconds":NaN}}`,

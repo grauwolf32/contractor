@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 	"github.com/grauwolf32/contractor/internal/contracts/control"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
@@ -412,15 +413,10 @@ type agentCardSecretScanCases struct {
 }
 
 // The trusted path table and the leak cases are shared with the Python Runtime.
-func TestWorkerHandleSecretScanSharedCases(t *testing.T) {
+func TestSharedWorkerHandleSecretScanSharedCases(t *testing.T) {
 	t.Parallel()
 
-	data, err := os.ReadFile(filepath.Join(
-		"..", "..", "api", "testdata", "v1alpha1", "agent-card-secret-scan-cases.json",
-	))
-	if err != nil {
-		t.Fatal(err)
-	}
+	data := contractstest.ReadFile(t, "api", "testdata", "v1alpha1", "agent-card-secret-scan-cases.json")
 	var fixture agentCardSecretScanCases
 	if err := json.Unmarshal(data, &fixture); err != nil {
 		t.Fatal(err)
@@ -545,13 +541,8 @@ func setAgentCardValue(t *testing.T, card map[string]any, path []string, value a
 	}
 }
 
-func TestRuntimeControlClientReadsWorkerStateAndRevalidatesETag(t *testing.T) {
-	fixture, err := os.ReadFile(filepath.Join(
-		"..", "..", "api", "testdata", "v1alpha1", "valid", "agent-state-snapshot.json",
-	))
-	if err != nil {
-		t.Fatal(err)
-	}
+func TestSharedRuntimeControlClientReadsWorkerStateAndRevalidatesETag(t *testing.T) {
+	fixture := contractstest.ReadFile(t, "api", "testdata", "v1alpha1", "valid", "agent-state-snapshot.json")
 	const etag = `"contractor-agent-state-v1-7"`
 	var requests atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
@@ -594,13 +585,8 @@ func TestRuntimeControlClientReadsWorkerStateAndRevalidatesETag(t *testing.T) {
 	}
 }
 
-func TestRuntimeControlClientWorkerStateFailuresAreBoundedAndSafe(t *testing.T) {
-	valid, err := os.ReadFile(filepath.Join(
-		"..", "..", "api", "testdata", "v1alpha1", "valid", "agent-state-snapshot.json",
-	))
-	if err != nil {
-		t.Fatal(err)
-	}
+func TestSharedRuntimeControlClientWorkerStateFailuresAreBoundedAndSafe(t *testing.T) {
+	valid := contractstest.ReadFile(t, "api", "testdata", "v1alpha1", "valid", "agent-state-snapshot.json")
 	tests := []struct {
 		name        string
 		status      int
@@ -644,7 +630,7 @@ func TestRuntimeControlClientWorkerStateFailuresAreBoundedAndSafe(t *testing.T) 
 	}
 
 	client, _ := NewRuntimeControlClient(&http.Client{})
-	_, err = client.ReadWorkerState(
+	_, err := client.ReadWorkerState(
 		context.Background(), stateWorkerHandle("http://127.0.0.1:1", "allocation_1"), "",
 	)
 	var typed *WorkerStateReadError
@@ -657,13 +643,8 @@ func TestRuntimeControlClientWorkerStateFailuresAreBoundedAndSafe(t *testing.T) 
 // A Runtime response with a case alias or a duplicate key is invalid, at the
 // top level and inside nested report and State objects (API-R71 applies the
 // same strict decoding to the private wire).
-func TestRuntimeControlClientRejectsCaseAliasesAndDuplicateKeys(t *testing.T) {
-	state, err := os.ReadFile(filepath.Join(
-		"..", "..", "api", "testdata", "v1alpha1", "valid", "agent-state-snapshot.json",
-	))
-	if err != nil {
-		t.Fatal(err)
-	}
+func TestSharedRuntimeControlClientRejectsCaseAliasesAndDuplicateKeys(t *testing.T) {
+	state := contractstest.ReadFile(t, "api", "testdata", "v1alpha1", "valid", "agent-state-snapshot.json")
 	for name, body := range map[string]string{
 		"valid":            string(state),
 		"nested alias":     strings.Replace(string(state), `"schemaVersion"`, `"SchemaVersion"`, 1),

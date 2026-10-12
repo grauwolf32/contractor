@@ -52,7 +52,8 @@
           "items": {
             "type": "string",
             "minLength": 1,
-            "maxLength": 1024
+            "maxLength": 1024,
+            "x-maxBytes": 1024
           }
         },
         "filesReadTruncated": {"type": "boolean"}
@@ -96,7 +97,7 @@
       "required": ["subtaskId", "result", "observations", "artifacts", "summarized"],
       "properties": {
         "subtaskId": {"$ref": "#/$defs/subtaskId"},
-        "result": {"type": "string", "minLength": 1, "maxLength": 65536},
+        "result": {"type": "string", "minLength": 1, "maxLength": 65536, "x-maxBytes": 65536},
         "observations": {"$ref": "#/$defs/workerObservations"},
         "artifacts": {
           "type": "object",
@@ -117,7 +118,7 @@
           "maxLength": 64,
           "pattern": "^[a-z][a-z0-9_]{0,63}$"
         },
-        "message": {"type": "string", "minLength": 1, "maxLength": 4096},
+        "message": {"type": "string", "minLength": 1, "maxLength": 4096, "x-maxBytes": 4096},
         "retryable": {"type": "boolean"}
       }
     }
@@ -133,6 +134,7 @@
       "type": "string",
       "minLength": 1,
       "maxLength": 128,
+      "x-maxBytes": 128,
       "pattern": "^(?!\\s)(?!.*\\s$)[^\\u0000\\r\\n\\t]{1,128}$"
     },
     "stateRevision": {

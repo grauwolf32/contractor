@@ -408,6 +408,7 @@
         "type": "string",
         "minLength": 0,
         "maxLength": 256,
+        "x-maxBytes": 256,
         "pattern": "^[^\\u0000]*$"
       }
     },
@@ -1056,12 +1057,12 @@
       "properties": {
         "status": {"enum": [400, 404, 409, 422], "title": "Status", "type": "integer"},
         "messageEquals": {
-          "anyOf": [{"maxLength": 512, "minLength": 1, "type": "string"}, {"type": "null"}],
+          "anyOf": [{"maxLength": 512, "minLength": 1, "type": "string", "x-maxBytes": 512}, {"type": "null"}],
           "default": null,
           "title": "Messageequals"
         },
         "litellmWrapped": {
-          "anyOf": [{"maxLength": 512, "minLength": 1, "type": "string"}, {"type": "null"}],
+          "anyOf": [{"maxLength": 512, "minLength": 1, "type": "string", "x-maxBytes": 512}, {"type": "null"}],
           "default": null,
           "title": "Litellmwrapped"
         }

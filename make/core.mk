@@ -23,26 +23,14 @@ test-hardening-matrices: runtime-venv
 	go test -tags=e2e -v -count=1 ./tests/e2e -run '^(TestAuditProgramsE2EConfigurationLoads|TestCodeAnalysisE2EConfigurationLoads|TestProductionMemoryConfigurationStaging|TestProjectWorkerBudgetMatchesPinnedPolicy|TestDomainGatewayFindsNamedInputAfterParameterBlock|TestDomainGatewayScriptedModelFailureAdvancesWithoutFixtureFailure|TestRuntimeWorkRootEmptyAllowsPersistentOwnerLock)$$'
 
 # The one wire contract gate: the whole contracts packages and Runtime contract
-# models, and every shared fixture on both sides.
-test-wire-cross-language:
+# models, then every TestShared*/test_shared_* test, which are the tests that
+# read api/testdata, with each fixture held to the sides its readers manifest
+# declares (scripts/shared_fixture_gate.py). Some shared tests use PostgreSQL;
+# a skipped one fails the gate.
+test-wire-cross-language: require-database runtime-venv
 	go test ./internal/contracts/...
 	cd runtime && uv run pytest tests/test_contracts.py tests/test_performance_contracts.py
-	go test ./internal/config/... -run 'Golden|SharedPython'
-	go test ./internal/contracts/reporting ./internal/controlplane -run '^TestShared(WorkerCompletionDiagnostics|CompletionDiagnosticsDecideRuntimeResponses)$$'
-	cd runtime && uv run pytest tests/test_audit_completion_diagnostics.py -k 'test_shared'
-	go test ./internal/contracts -run '^TestSharedRequiredMember(sMatchSchemas|CasesAreRejected)$$'
-	cd runtime && uv run pytest tests/test_contracts.py -k 'test_shared_required_member_cases_are_rejected'
-	go test ./internal/planner/a2a -run '^TestSharedWorkerResultCasesPassTheA2ADecodePath$$'
-	go test ./internal/contracts ./internal/contracts/reporting ./internal/config -run '^TestShared(WorkspacePathCases|BlankTextCases|JSONByteSizeCases|WorkerStatePathCases|WorkerStateBoundsCountCompactUTF8|WorkspaceTargetCases)$$'
-	cd runtime && uv run pytest tests/test_shared_text_rules.py
-	go test ./internal/artifactpolicy ./internal/contracts -run '^TestShared(MemoryReservationCases|WorkerResultReservedBindings)$$'
-	cd runtime && uv run pytest tests/test_shared_memory_reservation.py
-	go test ./internal/contracts/runtimesettings -run '^TestSharedRuntimeSettingsBoundsCases$$'
-	cd runtime && uv run pytest tests/test_shared_runtime_settings_bounds.py
-	go test ./internal/gatewayrecovery -run '^TestSharedGatewayRecoveryParticipantCases$$'
-	cd runtime && uv run pytest tests/test_shared_gateway_recovery_participant.py
-	go test ./internal/config -run '^TestSharedToolsetDescriptorParity$$'
-	cd runtime && uv run pytest tests/test_capabilities.py -k 'test_shared'
+	python3 scripts/shared_fixture_gate.py
 
 test-config:
 	go test ./internal/config/... ./internal/configload/...

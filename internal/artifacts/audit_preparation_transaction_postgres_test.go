@@ -9,11 +9,11 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditstore"
 )
 
-// TestPostgresAuditPreparationStartRecoversInsideACallerTransaction drives
+// TestSharedPostgresAuditPreparationStartRecoversInsideACallerTransaction drives
 // StartPreparation into the recovery behind its failed statement on a store
 // backed by the caller's transaction: the recovery reads must run and return
 // the method's own outcome, and the transaction must stay usable (V368-029).
-func TestPostgresAuditPreparationStartRecoversInsideACallerTransaction(t *testing.T) {
+func TestSharedPostgresAuditPreparationStartRecoversInsideACallerTransaction(t *testing.T) {
 	f := newPreparationFixture(t, false)
 	snapshot, err := json.Marshal(f.profile)
 	if err != nil {

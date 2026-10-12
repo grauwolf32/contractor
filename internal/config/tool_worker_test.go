@@ -3,12 +3,11 @@ package config
 import (
 	"context"
 	"encoding/json"
-	"os"
-	"path/filepath"
 	"reflect"
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 	"github.com/grauwolf32/contractor/internal/contracts/control"
 )
 
@@ -76,12 +75,9 @@ func TestSQLMapWorkerBindsPreparedRequestArtifact(t *testing.T) {
 	}
 }
 
-func TestToolWorkerGoldenDigest(t *testing.T) {
+func TestSharedToolWorkerGoldenDigest(t *testing.T) {
 	var spec control.AllocationSpec
-	data, err := os.ReadFile(filepath.Join("..", "..", "api", "testdata", "v1alpha1", "valid", "allocation-spec-tool.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	data := contractstest.ReadFile(t, "api", "testdata", "v1alpha1", "valid", "allocation-spec-tool.json")
 	if err := json.Unmarshal(data, &spec); err != nil {
 		t.Fatal(err)
 	}

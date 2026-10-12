@@ -105,7 +105,7 @@ test-agent-skills-hardening: test-agent-skills-matrix test-agent-skill-contract 
 # former migration-only test names were removed when those fixtures moved.
 test-agent-skills-packaging:
 	go test -count=1 ./internal/agentskills/... -run '^(TestPseudoSkill|TestBundledDiscoveryPackagesEveryPseudoSkill)'
-	go test -count=1 ./internal/config/... ./internal/configload/... -run '^(TestLoadValidatesBundledSkills|TestAgentTemplateSkill|TestWorkflowSkillUnion)'
+	go test -count=1 ./internal/config/... ./internal/configload/... -run '^(TestLoadValidatesBundledSkills|TestAgentTemplateSkill|TestSharedAgentTemplateSkill|TestWorkflowSkillUnion)'
 
 test-shared-memory-matrix: test-hardening-matrices
 
@@ -125,7 +125,7 @@ test-http-caido-architecture: verify-architecture
 test-http-caido-hardening: test-http-caido-matrix test-http-caido-runtime test-http-caido-architecture test-http-caido-e2e
 
 test-shared-memory-e2e: require-database runtime-venv
-	$(call run-family-test,go test -tags=e2e -count=1 -timeout=5m ./tests/e2e -run '^TestSharedMemoryMVPProcesses$$')
+	$(call run-family-test,go test -tags=e2e -count=1 -timeout=5m ./tests/e2e -run '^TestMemoryMVPProcesses$$')
 
 test-production-memory-e2e: require-database runtime-venv
 	$(call run-family-test,go test -tags=e2e -count=1 -timeout=6m ./tests/e2e -run '^TestProductionMemoryTemplatesAcrossProcesses$$')

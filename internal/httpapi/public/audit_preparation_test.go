@@ -18,15 +18,13 @@ import (
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/configtest"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 )
 
-func TestAuditPreparationHandlersWithoutRound(t *testing.T) {
+func TestSharedAuditPreparationHandlersWithoutRound(t *testing.T) {
 	root := configtest.CopyWithPolicies(t, "../../auditservice/testdata/catalog")
-	profileYAML, err := os.ReadFile("../../../api/testdata/audit-composition/prepared-openapi-scan.yaml")
-	if err != nil {
-		t.Fatal(err)
-	}
+	profileYAML := contractstest.ReadFile(t, "api", "testdata", "audit-composition", "prepared-openapi-scan.yaml")
 	if err := os.WriteFile(filepath.Join(root, "audit-profiles/prepared.yaml"), profileYAML, 0o600); err != nil {
 		t.Fatal(err)
 	}

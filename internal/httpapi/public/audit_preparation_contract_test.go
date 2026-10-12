@@ -2,7 +2,6 @@ package public
 
 import (
 	"encoding/json"
-	"os"
 	"testing"
 	"time"
 
@@ -13,9 +12,10 @@ import (
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 )
 
-func TestPublicAuditPreparationContracts(t *testing.T) {
+func TestSharedPublicAuditPreparationContracts(t *testing.T) {
 	document := loadPublicOpenAPI(t)
 	validate := func(schema string, value any, valid bool) {
 		t.Helper()
@@ -31,10 +31,7 @@ func TestPublicAuditPreparationContracts(t *testing.T) {
 			t.Fatalf("%s valid=%t: %v", schema, valid, err)
 		}
 	}
-	fixture, err := os.ReadFile("../../../api/testdata/audit-composition/public-cases.json")
-	if err != nil {
-		t.Fatal(err)
-	}
+	fixture := contractstest.ReadFile(t, "api", "testdata", "audit-composition", "public-cases.json")
 	var cases []struct {
 		Name   string `json:"name"`
 		Schema string `json:"schema"`

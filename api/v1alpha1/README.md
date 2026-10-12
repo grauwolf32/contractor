@@ -40,6 +40,25 @@ Python and the schema reject every case. Go DTO fields declare such members
 with `strictjson:"required"` (or `strictjson:"required,nullable"` where the
 schema allows `null`), which `strictjson.Decode` enforces, and a test pins the
 tags to the `required` lists; Python models declare them without defaults.
+`mutation-cases.json` is generated the same way (`go test ./internal/contracts
+-run TestSharedMutationCasesAreRejected -args -update-mutation-cases`): for
+every valid fixture it lists the members whose value outside an `enum` or
+`const`, the strings one character over `maxLength`, and the objects whose
+added member or repeated key the schema, Go and Python must all reject.
+`maxLength` counts characters. Where Go and Python bound a string in UTF-8
+bytes, the schema also states the byte bound as `x-maxBytes`, which the Go and
+Python schema tests enforce, and the cases record the verdict all three reach
+on a string of `maxLength` characters that is one byte too long.
+
+A test that reads anything under `api/testdata` is named `TestShared*` (Go,
+reading through `internal/contracts/contractstest`) or `test_shared_*`
+(Runtime; see [Testing](../../docs/testing/README.md#focused-checks) for
+fixtures read at import), and [`readers.json`](../testdata/readers.json)
+declares which sides read each fixture. `make test-wire-cross-language` runs
+every such test on both sides and fails when a side has no shared test, when
+one did not run and pass, when a fixture is read by a side it does not declare
+or not read by one it declares, or when a fixture has one reader and no
+recorded reason.
 `runtime-capability-cases.json` holds the registration and heartbeat values
 Operations shows: the tool-name and identity grammars and the capability
 bounds that Go registration, the registration and heartbeat schemas, the

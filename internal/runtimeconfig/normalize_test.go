@@ -4,14 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 )
 
@@ -235,13 +234,9 @@ func TestPrepareRejectsPrivateKeyPEM(t *testing.T) {
 	}
 }
 
-func TestPublicationCABundleMatchesRuntimeGrammar(t *testing.T) {
+func TestSharedPublicationCABundleMatchesRuntimeGrammar(t *testing.T) {
 	t.Parallel()
-	fixturePath := filepath.Join("..", "..", "api", "testdata", "v1alpha1", "valid", "runtime-settings-ca-bundle.json")
-	encodedFixture, err := os.ReadFile(fixturePath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	encodedFixture := contractstest.ReadFile(t, "api", "testdata", "v1alpha1", "valid", "runtime-settings-ca-bundle.json")
 	var fixture struct {
 		HTTPProxy struct {
 			CABundlePEM string `json:"caBundlePem"`

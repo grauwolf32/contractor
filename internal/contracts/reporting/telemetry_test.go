@@ -8,7 +8,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 )
 
-func TestAllocationRuntimeAdapterMetricsAreTypedAndBounded(t *testing.T) {
+func TestSharedAllocationRuntimeAdapterMetricsAreTypedAndBounded(t *testing.T) {
 	t.Parallel()
 
 	value, err := contracts.DecodeStrict[AllocationFinalResponse](
@@ -79,7 +79,7 @@ func TestExecutionReportValidatesWorkerSummarizerMetrics(t *testing.T) {
 	}
 }
 
-func TestMalformedRuntimeAdapterMetricsBecomeIncompleteInsteadOfBlockingReport(t *testing.T) {
+func TestSharedMalformedRuntimeAdapterMetricsBecomeIncompleteInsteadOfBlockingReport(t *testing.T) {
 	t.Parallel()
 
 	var wire map[string]any

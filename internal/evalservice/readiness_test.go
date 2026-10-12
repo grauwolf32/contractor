@@ -10,7 +10,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/evalstore"
 )
 
-func TestEvalReadinessRetainsEligibilityAndReportsObservedEqualityWithoutPrivateMaterial(t *testing.T) {
+func TestSharedEvalReadinessRetainsEligibilityAndReportsObservedEqualityWithoutPrivateMaterial(t *testing.T) {
 	draft, dataset, preflight := planInputs(t)
 	preflight["a"].Cases[draft.CaseIDs[0]] = unavailable("Missing supported input")
 	preflight["a"].Pins["instructions"] = observedPin(evaldomain.Digest([]byte("A instructions")))

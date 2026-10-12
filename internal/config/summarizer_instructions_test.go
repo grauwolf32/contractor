@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/contentdigest"
+	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 	"github.com/grauwolf32/contractor/internal/contracts/control"
 )
 
@@ -84,9 +85,9 @@ func TestSummaryInstructionsRejectInvalidConfig(t *testing.T) {
 	}
 }
 
-func TestSummaryInstructionGoldenDigest(t *testing.T) {
+func TestSharedSummaryInstructionGoldenDigest(t *testing.T) {
 	var allocation control.AllocationSpec
-	encoded := readFile(t, filepath.Join("..", "..", "api", "testdata", "v1alpha1", "valid", "allocation-spec-summarizer-instructions.json"))
+	encoded := contractstest.ReadFile(t, "api", "testdata", "v1alpha1", "valid", "allocation-spec-summarizer-instructions.json")
 	if err := json.Unmarshal(encoded, &allocation); err != nil {
 		t.Fatal(err)
 	}

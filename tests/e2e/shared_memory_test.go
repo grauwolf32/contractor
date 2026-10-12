@@ -30,7 +30,7 @@ import (
 
 const memoryTelemetryLabel = "memory-release-audit"
 
-func TestSharedMemoryMVPProcesses(t *testing.T) {
+func TestMemoryMVPProcesses(t *testing.T) {
 	runSharedMemoryProcesses(t, false)
 }
 

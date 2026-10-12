@@ -3,10 +3,10 @@ package cabundle
 import (
 	"encoding/json"
 	"errors"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 )
 
 // TestSharedGrammarCases runs the case table that Runtime contract tests also
@@ -14,10 +14,7 @@ import (
 func TestSharedGrammarCases(t *testing.T) {
 	t.Parallel()
 
-	data, err := os.ReadFile(filepath.Join("..", "..", "api", "testdata", "v1alpha1", "ca-bundle-cases.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	data := contractstest.ReadFile(t, "api", "testdata", "v1alpha1", "ca-bundle-cases.json")
 	type grammarCase struct {
 		Name  string `json:"name"`
 		Value string `json:"value"`

@@ -9,7 +9,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 )
 
-func TestPrivateRegistrationNormalizationFingerprintAndProjection(t *testing.T) {
+func TestSharedPrivateRegistrationNormalizationFingerprintAndProjection(t *testing.T) {
 	t.Parallel()
 
 	registration, err := contracts.DecodePrivateStrict[AgentRegistration](
@@ -84,7 +84,7 @@ func TestCompletionCapabilityCloneDoesNotGrantOrShareSupport(t *testing.T) {
 	}
 }
 
-func TestPerformanceGoldenCapabilities(t *testing.T) {
+func TestSharedPerformanceGoldenCapabilities(t *testing.T) {
 	var cases struct {
 		ValidCapabilities   []json.RawMessage `json:"validCapabilities"`
 		InvalidCapabilities []json.RawMessage `json:"invalidCapabilities"`

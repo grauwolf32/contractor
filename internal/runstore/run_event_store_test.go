@@ -2,12 +2,11 @@ package runstore
 
 import (
 	"encoding/json"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 )
 
 func TestRunEventClosedSchemasAcceptEveryFixedKind(t *testing.T) {
@@ -169,15 +168,12 @@ func TestPlannerRunEventAllowsFailedFinishBeforeFirstSubtask(t *testing.T) {
 	}
 }
 
-// TestPlannerRunEventWorkerNamesUseTheLogicalAgentNameGrammar holds every
+// TestSharedPlannerRunEventWorkerNamesUseTheLogicalAgentNameGrammar holds every
 // Planner dispatch event to the logical Agent name grammar (WFL-R84) that the
 // public PlannerDispatch.workerName schema shows. It reads the shared name
 // cases that the catalog, placement and Operations apply as well.
-func TestPlannerRunEventWorkerNamesUseTheLogicalAgentNameGrammar(t *testing.T) {
-	raw, err := os.ReadFile(filepath.Join("..", "..", "api", "testdata", "v1alpha1", "runtime-capability-cases.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
+func TestSharedPlannerRunEventWorkerNamesUseTheLogicalAgentNameGrammar(t *testing.T) {
+	raw := contractstest.ReadFile(t, "api", "testdata", "v1alpha1", "runtime-capability-cases.json")
 	var cases struct {
 		ToolName struct {
 			MaxLength int      `json:"maxLength"`

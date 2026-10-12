@@ -2,18 +2,16 @@ package auditdomain
 
 import (
 	"encoding/json"
-	"os"
 	"slices"
 	"testing"
+
+	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 )
 
-// TestCoverageBucketsMatchSharedFixture holds the one coverage classification
+// TestSharedCoverageBucketsMatchSharedFixture holds the one coverage classification
 // to the fixture the UI result groups are tested against.
-func TestCoverageBucketsMatchSharedFixture(t *testing.T) {
-	data, err := os.ReadFile("../../api/testdata/public/audit-coverage-buckets.json")
-	if err != nil {
-		t.Fatal(err)
-	}
+func TestSharedCoverageBucketsMatchSharedFixture(t *testing.T) {
+	data := contractstest.ReadFile(t, "api", "testdata", "public", "audit-coverage-buckets.json")
 	var fixture struct {
 		Description string   `json:"description"`
 		Completed   []string `json:"completed"`

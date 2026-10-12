@@ -73,7 +73,7 @@ cases:
     requirements: [A2]
     faults: [F10]
     expected: Unconfirmed close keeps the allocation fenced and requests process termination.
-    test: {source: runtime/tests/test_adapter_host.py, symbol: test_unconfirmed_adapter_close_fences_slot_and_requests_process_exit}
+    test: {source: runtime/tests/test_adapter_host.py, symbol: test_shared_unconfirmed_adapter_close_fences_slot_and_requests_process_exit}
   - id: http_retention
     category: redaction
     requirements: [A3]

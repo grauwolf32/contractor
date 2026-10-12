@@ -19,7 +19,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
-func TestPostgresEvalRuntimeCredentialDatabaseFailureRetries(t *testing.T) {
+func TestSharedPostgresEvalRuntimeCredentialDatabaseFailureRetries(t *testing.T) {
 	h := newHarness(t)
 	ctx := t.Context()
 	cipher, err := credentials.NewTokenCipher(bytes.Repeat([]byte{0x31}, 32))
@@ -106,7 +106,7 @@ func (f credentialLookupFunc) LookupLLMCredential(ctx context.Context, id string
 	return f(ctx, id)
 }
 
-func TestPostgresEvalPinnedLLMCredentialFailureClassification(t *testing.T) {
+func TestSharedPostgresEvalPinnedLLMCredentialFailureClassification(t *testing.T) {
 	transient := errors.New("fixture: credential service temporarily unavailable")
 	for _, test := range []struct {
 		name     string
@@ -188,7 +188,7 @@ func TestPostgresEvalPinnedLLMCredentialFailureClassification(t *testing.T) {
 // pinned-snapshot revalidation for an Audit variant) keeps the lookup class:
 // an outage or credential recovery keeps Prepare pending, a confirmed missing
 // credential returns the experiment to draft.
-func TestPostgresEvalWorkflowCredentialLookupFailureClassification(t *testing.T) {
+func TestSharedPostgresEvalWorkflowCredentialLookupFailureClassification(t *testing.T) {
 	transient := errors.New("fixture: credential store temporarily unavailable")
 	for _, kind := range []string{"workflow", "audit"} {
 		for _, test := range []struct {

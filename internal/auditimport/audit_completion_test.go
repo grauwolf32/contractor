@@ -3,22 +3,18 @@ package auditimport
 import (
 	"encoding/json"
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 )
 
 // The Python collector consumes this same data through its production tool and
 // canonical encoder. These are task-local acceptance checks, not DB integration.
-func TestAuditCompletionSharedTaskLocalValidation(t *testing.T) {
-	data, err := os.ReadFile(filepath.Join("..", "..", "api", "testdata", "audit-completion", "task-local-validation.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
+func TestSharedAuditCompletionSharedTaskLocalValidation(t *testing.T) {
+	data := contractstest.ReadFile(t, "api", "testdata", "audit-completion", "task-local-validation.json")
 	var fixtures struct {
 		Tasks map[string]auditdomain.ItemTask `json:"tasks"`
 		Cases []struct {

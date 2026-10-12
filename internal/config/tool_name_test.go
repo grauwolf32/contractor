@@ -2,21 +2,18 @@ package config
 
 import (
 	"encoding/json"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 )
 
-// TestToolsetDescriptorToolNamesGoldenCases holds the Server's Toolset
+// TestSharedToolsetDescriptorToolNamesGoldenCases holds the Server's Toolset
 // descriptor registry to the tool-name grammar Runtime registration and
 // Operations apply, so every selectable tool can be advertised and shown.
-func TestToolsetDescriptorToolNamesGoldenCases(t *testing.T) {
+func TestSharedToolsetDescriptorToolNamesGoldenCases(t *testing.T) {
 	t.Parallel()
-	data, err := os.ReadFile(filepath.Join("..", "..", "api", "testdata", "v1alpha1", "runtime-capability-cases.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	data := contractstest.ReadFile(t, "api", "testdata", "v1alpha1", "runtime-capability-cases.json")
 	var cases struct {
 		ToolName struct {
 			MaxLength int      `json:"maxLength"`

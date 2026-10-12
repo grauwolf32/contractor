@@ -45,7 +45,7 @@ def schema_validator(name: str, definition: str | None = None) -> Draft202012Val
 
 
 @pytest.mark.parametrize("case", CASES["validResources"], ids=lambda case: case["name"])
-def test_performance_golden_valid_resources_round_trip(case: dict) -> None:
+def test_shared_performance_golden_valid_resources_round_trip(case: dict) -> None:
     value = decode_private(RuntimeResources, json.dumps(case["value"]))
     assert json.loads(encode_private(value)) == case["value"]
     schema_validator("v1alpha1/performance", "runtimeResources").validate(case["value"])
@@ -60,7 +60,7 @@ def test_performance_golden_valid_resources_round_trip(case: dict) -> None:
 
 
 @pytest.mark.parametrize("case", CASES["invalidResources"], ids=lambda case: case["name"])
-def test_performance_golden_resource_errors_are_isolated(case: dict) -> None:
+def test_shared_performance_golden_resource_errors_are_isolated(case: dict) -> None:
     with pytest.raises(PrivateProtocolDecodeError) as caught:
         decode_private(RuntimeResources, json.dumps(case["value"]))
     assert "secret-canary" not in str(caught.value)
@@ -87,7 +87,7 @@ def test_performance_golden_resource_errors_are_isolated(case: dict) -> None:
 
 
 @pytest.mark.parametrize("value", [math.nan, math.inf, -math.inf, -1.0, True])
-def test_non_finite_negative_and_boolean_measurements_are_rejected(value: float) -> None:
+def test_shared_non_finite_negative_and_boolean_measurements_are_rejected(value: float) -> None:
     with pytest.raises(ValidationError):
         RuntimeResources.model_validate(
             {"version": 1, "scope": "runtime_process", "status": "partial", "cpuUserSeconds": value}
@@ -95,7 +95,7 @@ def test_non_finite_negative_and_boolean_measurements_are_rejected(value: float)
 
 
 @pytest.mark.parametrize("valid", [True, False])
-def test_performance_golden_requests_and_capabilities(valid: bool) -> None:
+def test_shared_performance_golden_requests_and_capabilities(valid: bool) -> None:
     prefix = "valid" if valid else "invalid"
     for value in CASES[f"{prefix}Requests"]:
         validator = schema_validator("v1alpha1/performance", "performanceMetricsRequest")
@@ -122,7 +122,7 @@ def test_performance_golden_requests_and_capabilities(valid: bool) -> None:
                 decode_private(AgentRegistration, json.dumps(registration))
 
 
-def test_performance_old_new_allocation_and_registration_contracts() -> None:
+def test_shared_performance_old_new_allocation_and_registration_contracts() -> None:
     raw = (FIXTURES / "valid/agent-registration.json").read_bytes().strip()
     registration = decode_private(AgentRegistration, raw)
     assert registration.supported_performance_metrics_versions == []
@@ -149,13 +149,13 @@ def test_performance_old_new_allocation_and_registration_contracts() -> None:
         '{"complete":true,"adapters":{},"resources":{}} {}',
     ],
 )
-def test_resource_isolation_preserves_envelope_syntax(raw: str) -> None:
+def test_shared_resource_isolation_preserves_envelope_syntax(raw: str) -> None:
     with pytest.raises(PrivateProtocolDecodeError) as caught:
         decode_private(RuntimeReport, raw)
     assert "secret-canary" not in str(caught.value)
 
 
-def test_resource_isolation_preserves_original_final_report_size_limit() -> None:
+def test_shared_resource_isolation_preserves_original_final_report_size_limit() -> None:
     report = json.loads(FINAL.read_text())
     report["report"]["runtime"]["resources"] = {"unknown": "x" * 1024 * 1024}
     with pytest.raises(PrivateProtocolDecodeError):

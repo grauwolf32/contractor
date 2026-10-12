@@ -4,11 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 	pg "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
@@ -28,7 +28,7 @@ func (db *evalQueryCounter) QueryRow(ctx context.Context, sql string, args ...an
 	return db.DBTX.QueryRow(ctx, sql, args...)
 }
 
-func TestPostgresEvalTenThousandSelectedMembersBoundedPages(t *testing.T) {
+func TestSharedPostgresEvalTenThousandSelectedMembersBoundedPages(t *testing.T) {
 	pool := testPool(t)
 	ctx := t.Context()
 	scope := setupProject(t, pool, "owner", "evaluation")
@@ -36,11 +36,8 @@ func TestPostgresEvalTenThousandSelectedMembersBoundedPages(t *testing.T) {
 	var trace struct {
 		Items []evaldomain.Pair `json:"items"`
 	}
-	raw, err := os.ReadFile("../../api/testdata/evals/valid/pair-page.json")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err = json.Unmarshal(raw, &trace); err != nil {
+	raw := contractstest.ReadFile(t, "api", "testdata", "evals", "valid", "pair-page.json")
+	if err := json.Unmarshal(raw, &trace); err != nil {
 		t.Fatal(err)
 	}
 	// Seed the persistence boundary directly: this measures complete-view
@@ -57,7 +54,7 @@ func TestPostgresEvalTenThousandSelectedMembersBoundedPages(t *testing.T) {
 		}
 		// Avoid sharing fixture pointer fields across samples.
 		var cloned evaldomain.MemberView
-		if err = json.Unmarshal(bytesOf(v), &cloned); err != nil {
+		if err := json.Unmarshal(bytesOf(v), &cloned); err != nil {
 			t.Fatal(err)
 		}
 		v = cloned

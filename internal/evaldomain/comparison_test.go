@@ -3,23 +3,21 @@ package evaldomain
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 	"reflect"
 	"testing"
 	"time"
+
+	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 )
 
 func traceComparison(t *testing.T) ([]SelectedMember, Summary) {
 	t.Helper()
-	raw, err := os.ReadFile("../../api/testdata/evals/valid/pair-page.json")
-	if err != nil {
-		t.Fatal(err)
-	}
+	raw := contractstest.ReadFile(t, "api", "testdata", "evals", "valid", "pair-page.json")
 	var f struct {
 		Items   []Pair  `json:"items"`
 		Summary Summary `json:"experimentSummary"`
 	}
-	if err = json.Unmarshal(raw, &f); err != nil {
+	if err := json.Unmarshal(raw, &f); err != nil {
 		t.Fatal(err)
 	}
 	rows := []SelectedMember{}
@@ -30,7 +28,7 @@ func traceComparison(t *testing.T) ([]SelectedMember, Summary) {
 	}
 	return rows, f.Summary
 }
-func TestEvalComparisonTraceSmallTruthfulCoverage(t *testing.T) {
+func TestSharedEvalComparisonTraceSmallTruthfulCoverage(t *testing.T) {
 	rows, want := traceComparison(t)
 	c := Comparison{Baseline: "a", Candidate: "b", Gates: Gates{MinCandidateEndToEndPass: 1}}
 	v, err := BuildComparison(rows, c, true)
@@ -98,7 +96,7 @@ func TestEvalAssessmentRequiredPrecedenceAndMissingEvidence(t *testing.T) {
 		t.Fatal("unpinned evaluator passed")
 	}
 }
-func TestEvalComparisonDeclaredGatesAndEvidenceInvalidation(t *testing.T) {
+func TestSharedEvalComparisonDeclaredGatesAndEvidenceInvalidation(t *testing.T) {
 	rows, _ := traceComparison(t)
 	rows = rows[:2]
 	c := Comparison{Baseline: "a", Candidate: "b", Gates: Gates{MinCandidateEndToEndPass: 1}}
@@ -215,7 +213,7 @@ func qualityComparisonMembers(scored, baselinePassed, candidatePassed int) []Sel
 	return rows
 }
 
-func TestEvalChartsEmptySingletonEqualAndProgressGaps(t *testing.T) {
+func TestSharedEvalChartsEmptySingletonEqualAndProgressGaps(t *testing.T) {
 	rows, _ := traceComparison(t)
 	v, err := BuildComparison(rows[:2], Comparison{Baseline: "a", Candidate: "b"}, true)
 	if err != nil {

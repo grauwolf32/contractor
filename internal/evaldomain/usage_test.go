@@ -3,16 +3,13 @@ package evaldomain
 import (
 	"encoding/json"
 	"fmt"
-	"os"
-	"path/filepath"
 	"testing"
+
+	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 )
 
-func TestEvalAuditAccountingFixture(t *testing.T) {
-	data, err := os.ReadFile(filepath.Join(fixtureDir, "audit-accounting.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
+func TestSharedEvalAuditAccountingFixture(t *testing.T) {
+	data := contractstest.ReadFile(t, "api", "testdata", "evals", "audit-accounting.json")
 	var fixture struct {
 		Observation UsageObservation                                             `json:"observation"`
 		Expected    struct{ TotalTokens, ModelCalls, WallMS, MemberCount int64 } `json:"expected"`
@@ -73,7 +70,7 @@ func TestEvalAuditAccountingFixture(t *testing.T) {
 	}
 }
 
-func TestEvalTraceExampleAgreesWithAllSelectedMembers(t *testing.T) {
+func TestSharedEvalTraceExampleAgreesWithAllSelectedMembers(t *testing.T) {
 	v := objectFixture(t, "member-page")
 	summary := asObject(v["experimentSummary"])
 	type counts struct {

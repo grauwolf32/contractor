@@ -19,7 +19,7 @@ SCHEMA = json.loads((ROOT / "api/v1alpha1/common.schema.json").read_text())["$de
     "valid,value",
     [(True, value) for value in CASES["valid"]] + [(False, value) for value in CASES["invalid"]],
 )
-def test_media_type_cases_match_runtime_and_schema(valid: bool, value: str) -> None:
+def test_shared_media_type_cases_match_runtime_and_schema(valid: bool, value: str) -> None:
     assert (MEDIA_TYPE_PATTERN.fullmatch(value) is not None) == valid
     assert Draft202012Validator(SCHEMA).is_valid(value) == valid
     result = {

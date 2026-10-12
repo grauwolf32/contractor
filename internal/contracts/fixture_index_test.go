@@ -12,6 +12,7 @@ import (
 
 	"github.com/dlclark/regexp2"
 	jsonschema "github.com/santhosh-tekuri/jsonschema/v6"
+	"golang.org/x/text/message"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
@@ -101,10 +102,7 @@ var fixtureCodecs = map[string]fixtureCodec{
 
 func readFixtureIndex(t *testing.T) fixtureIndex {
 	t.Helper()
-	data, err := os.ReadFile(filepath.Join("..", "..", "api", "testdata", "v1alpha1", "index.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	data := contractstest.ReadFile(t, "api", "testdata", "v1alpha1", "index.json")
 	var index fixtureIndex
 	if err := json.Unmarshal(data, &index); err != nil {
 		t.Fatal(err)
@@ -121,11 +119,11 @@ func sortedFixtureNames(entries map[string]fixtureIndexEntry) []string {
 	return names
 }
 
-func TestFixtureIndexListsEveryGoldenFixture(t *testing.T) {
+func TestSharedFixtureIndexListsEveryGoldenFixture(t *testing.T) {
 	t.Parallel()
 	index := readFixtureIndex(t)
 	for kind, entries := range map[string]map[string]fixtureIndexEntry{"valid": index.Valid, "invalid": index.Invalid} {
-		paths, err := filepath.Glob(filepath.Join("..", "..", "api", "testdata", "v1alpha1", kind, "*.json"))
+		paths, err := filepath.Glob(filepath.Join(contractstest.Path(t, "api", "testdata", "v1alpha1", kind), "*.json"))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -164,12 +162,70 @@ func compileECMAPattern(pattern string) (jsonschema.Regexp, error) {
 	return ecmaRegexp{compiled}, nil
 }
 
+// maxBytesKeyword bounds a string's UTF-8 length where Go and the Runtime
+// count bytes: JSON Schema's maxLength counts characters, so it alone would
+// accept what both implementations reject. The Python schema tests enforce
+// the same keyword (runtime/tests/private_schemas.py).
+const maxBytesKeyword = "x-maxBytes"
+
+type maxBytes struct{ bound int }
+
+func (m maxBytes) Validate(ctx *jsonschema.ValidatorContext, value any) {
+	if text, ok := value.(string); ok && len(text) > m.bound {
+		ctx.AddError(&maxBytesError{Got: len(text), Want: m.bound})
+	}
+}
+
+type maxBytesError struct{ Got, Want int }
+
+func (*maxBytesError) KeywordPath() []string { return []string{maxBytesKeyword} }
+
+func (e *maxBytesError) LocalizedString(printer *message.Printer) string {
+	return printer.Sprintf("%s: got %d bytes, want at most %d", maxBytesKeyword, e.Got, e.Want)
+}
+
+func maxBytesVocabulary(t *testing.T) *jsonschema.Vocabulary {
+	t.Helper()
+	const url = "https://contractor.local/schema/vocabulary/max-bytes"
+	meta, err := jsonschema.UnmarshalJSON(strings.NewReader(
+		`{"properties": {"` + maxBytesKeyword + `": {"type": "integer", "minimum": 1}}}`,
+	))
+	if err != nil {
+		t.Fatal(err)
+	}
+	compiler := jsonschema.NewCompiler()
+	if err := compiler.AddResource(url, meta); err != nil {
+		t.Fatal(err)
+	}
+	schema, err := compiler.Compile(url)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return &jsonschema.Vocabulary{
+		URL: url, Schema: schema,
+		Compile: func(_ *jsonschema.CompilerContext, object map[string]any) (jsonschema.SchemaExt, error) {
+			bound, ok := object[maxBytesKeyword].(json.Number)
+			if !ok {
+				return nil, nil
+			}
+			value, err := bound.Int64()
+			if err != nil {
+				return nil, err
+			}
+			return maxBytes{bound: int(value)}, nil
+		},
+	}
+}
+
 // privateSchemaCompiler loads every api/v1alpha1 schema with ECMA-262
-// patterns and returns the compiler and each file's $id.
+// patterns and the x-maxBytes keyword and returns the compiler and each
+// file's $id.
 func privateSchemaCompiler(t *testing.T) (*jsonschema.Compiler, map[string]string) {
 	t.Helper()
 	compiler := jsonschema.NewCompiler()
 	compiler.UseRegexpEngine(compileECMAPattern)
+	compiler.AssertVocabs()
+	compiler.RegisterVocabulary(maxBytesVocabulary(t))
 	paths, err := filepath.Glob(filepath.Join("..", "..", "api", "v1alpha1", "*.schema.json"))
 	if err != nil {
 		t.Fatal(err)
@@ -193,7 +249,7 @@ func privateSchemaCompiler(t *testing.T) (*jsonschema.Compiler, map[string]strin
 	return compiler, ids
 }
 
-func TestPrivateSchemasAcceptAndRejectGoldenFixtures(t *testing.T) {
+func TestSharedPrivateSchemasAcceptAndRejectGoldenFixtures(t *testing.T) {
 	t.Parallel()
 	compiler, ids := privateSchemaCompiler(t)
 	index := readFixtureIndex(t)

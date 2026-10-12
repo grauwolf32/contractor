@@ -2,15 +2,13 @@ package scanplan
 
 import (
 	"encoding/json"
-	"os"
 	"testing"
+
+	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 )
 
-func TestHostSyntaxMatchesRuntimeCases(t *testing.T) {
-	data, err := os.ReadFile("../../api/testdata/scan-host-syntax.json")
-	if err != nil {
-		t.Fatal(err)
-	}
+func TestSharedHostSyntaxMatchesRuntimeCases(t *testing.T) {
+	data := contractstest.ReadFile(t, "api", "testdata", "scan-host-syntax.json")
 	var cases []struct {
 		Host     string `json:"host"`
 		Accepted bool   `json:"accepted"`

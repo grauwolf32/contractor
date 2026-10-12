@@ -2,16 +2,14 @@ package contracts
 
 import (
 	"encoding/json"
-	"os"
 	"strings"
 	"testing"
+
+	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 )
 
-func TestWorkerResultSizeSharedPythonCases(t *testing.T) {
-	raw, err := os.ReadFile("../../api/testdata/v1alpha1/worker-result-size-cases.json")
-	if err != nil {
-		t.Fatal(err)
-	}
+func TestSharedWorkerResultSizeSharedPythonCases(t *testing.T) {
+	raw := contractstest.ReadFile(t, "api", "testdata", "v1alpha1", "worker-result-size-cases.json")
 	var cases []struct {
 		Name      string `json:"name"`
 		Unit      string `json:"unit"`
@@ -25,10 +23,7 @@ func TestWorkerResultSizeSharedPythonCases(t *testing.T) {
 	if err := json.Unmarshal(raw, &cases); err != nil {
 		t.Fatal(err)
 	}
-	base, err := os.ReadFile("../../api/testdata/v1alpha1/valid/worker-completion-empty-observations.json")
-	if err != nil {
-		t.Fatal(err)
-	}
+	base := contractstest.ReadFile(t, "api", "testdata", "v1alpha1", "valid", "worker-completion-empty-observations.json")
 	for _, test := range cases {
 		t.Run(test.Name, func(t *testing.T) {
 			var value WorkerCompletion

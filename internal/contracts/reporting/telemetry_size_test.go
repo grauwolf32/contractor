@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"os"
 	"strings"
 	"testing"
 	"time"
@@ -23,10 +22,7 @@ type telemetrySizeCase struct {
 
 func telemetrySizeCases(t *testing.T) []telemetrySizeCase {
 	t.Helper()
-	raw, err := os.ReadFile(contractstest.Path(t, "api", "testdata", "v1alpha1", "telemetry-json-size-cases.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	raw := contractstest.ReadFile(t, "api", "testdata", "v1alpha1", "telemetry-json-size-cases.json")
 	var cases []telemetrySizeCase
 	if err := json.Unmarshal(raw, &cases); err != nil {
 		t.Fatal(err)
@@ -49,7 +45,7 @@ func telemetrySizeReport(arguments map[string]any, count int) ExecutionReport {
 	return report
 }
 
-func TestTelemetryArgumentSizeMatchesRuntimeCases(t *testing.T) {
+func TestSharedTelemetryArgumentSizeMatchesRuntimeCases(t *testing.T) {
 	for _, test := range telemetrySizeCases(t) {
 		t.Run(test.Name, func(t *testing.T) {
 			arguments := map[string]any{"path": strings.Repeat(test.Unit, test.Repeat)}
@@ -65,7 +61,7 @@ func TestTelemetryArgumentSizeMatchesRuntimeCases(t *testing.T) {
 	}
 }
 
-func TestTelemetryAggregatesUseCompactUTF8Size(t *testing.T) {
+func TestSharedTelemetryAggregatesUseCompactUTF8Size(t *testing.T) {
 	test := telemetrySizeCases(t)[0]
 	arguments := map[string]any{"path": strings.Repeat(test.Unit, test.Repeat)}
 	worker := telemetrySizeReport(arguments, 150)

@@ -4,20 +4,17 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"os"
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 )
 
 func readFixture(t *testing.T, name string, out any) {
 	t.Helper()
-	b, err := os.ReadFile("../../api/testdata/evals/valid/" + name + ".json")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err = json.Unmarshal(b, out); err != nil {
+	b := contractstest.ReadFile(t, "api", "testdata", "evals", "valid", name+".json")
+	if err := json.Unmarshal(b, out); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -37,7 +34,7 @@ func planInputs(t *testing.T) (evaldomain.Draft, evaldomain.DatasetInput, map[st
 	}
 	return d, data, pre
 }
-func TestPlanBuildsPrivatePortableClosureAndStableMatrix(t *testing.T) {
+func TestSharedPlanBuildsPrivatePortableClosureAndStableMatrix(t *testing.T) {
 	draft, data, pre := planInputs(t)
 	original, _ := json.Marshal(draft)
 	now := time.Date(2026, 9, 19, 10, 0, 0, 0, time.UTC)
@@ -61,7 +58,7 @@ func TestPlanBuildsPrivatePortableClosureAndStableMatrix(t *testing.T) {
 		t.Fatal("private truth leaked")
 	}
 	var plan map[string]any
-	if err = json.Unmarshal(b.Plan.Bytes(), &plan); err != nil {
+	if err := json.Unmarshal(b.Plan.Bytes(), &plan); err != nil {
 		t.Fatal(err)
 	}
 	resources := map[string]string{}
@@ -116,7 +113,7 @@ func TestPlanBuildsPrivatePortableClosureAndStableMatrix(t *testing.T) {
 	}
 }
 
-func TestPlanFreezesAtNativeMemberCeiling(t *testing.T) {
+func TestSharedPlanFreezesAtNativeMemberCeiling(t *testing.T) {
 	draft, data, pre := planInputs(t)
 	caseTemplate := data.Cases[0]
 	draft.CaseIDs = make([]string, evaldomain.MaxNativeMembers/2)
@@ -152,7 +149,7 @@ func TestPlanFreezesAtNativeMemberCeiling(t *testing.T) {
 		t.Fatal("accepted draft produced oversized plan")
 	}
 }
-func TestPlanPinsAndUnsupportedMembersRemainExplicit(t *testing.T) {
+func TestSharedPlanPinsAndUnsupportedMembersRemainExplicit(t *testing.T) {
 	d, data, pre := planInputs(t)
 	reason := "Required capability unavailable."
 	pre["b"].Cases[d.CaseIDs[0]] = Eligibility{"unsupported", &reason}
@@ -183,7 +180,7 @@ func TestPlanPinsAndUnsupportedMembersRemainExplicit(t *testing.T) {
 		t.Fatal("producer claim treated as observation")
 	}
 }
-func TestPlanSeededOrderIsRetainedAndRepeatable(t *testing.T) {
+func TestSharedPlanSeededOrderIsRetainedAndRepeatable(t *testing.T) {
 	d, data, pre := planInputs(t)
 	seed := int64(23)
 	d.Order = evaldomain.Order{Kind: "seeded_shuffle", Seed: &seed}

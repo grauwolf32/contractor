@@ -21,7 +21,7 @@ func (r failingResolver) Resolve(context.Context, string, evaldomain.Variant, []
 	return Preflight{}, r.cause
 }
 
-func TestPostgresEvalPreparationFailurePreservesCauseAndRetry(t *testing.T) {
+func TestSharedPostgresEvalPreparationFailurePreservesCauseAndRetry(t *testing.T) {
 	for _, configuration := range []bool{false, true} {
 		name := "infrastructure"
 		if configuration {
@@ -76,7 +76,7 @@ func TestPostgresEvalPreparationFailurePreservesCauseAndRetry(t *testing.T) {
 }
 
 // Exercise the actual SQL/resolver path, rather than only a stubbed prepare error.
-func TestPostgresEvalPreparationDatabaseFailureIsRetryable(t *testing.T) {
+func TestSharedPostgresEvalPreparationDatabaseFailureIsRetryable(t *testing.T) {
 	h := newHarness(t)
 	e := h.create(t, "workflow")
 	h.command(t, e, "prepare")

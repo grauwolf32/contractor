@@ -313,8 +313,7 @@ func (t HTTPOriginTargetRef) Validate() error {
 	if t.Credential == nil {
 		return nil
 	}
-	if len(t.Credential.CredentialID) == 0 || len(t.Credential.CredentialID) > 128 ||
-		!contracts.ValidIdentifier(t.Credential.CredentialID) {
+	if !contracts.ValidConfigID(t.Credential.CredentialID) {
 		return contracts.Invalidf("HTTP origin target credential ID is invalid")
 	}
 	if t.Credential.Kind != contracts.RuntimeCredentialOriginBasic && t.Credential.Kind != contracts.RuntimeCredentialOriginBearer {
@@ -436,7 +435,7 @@ func (p ResolvedRuntimeConfigProvenance) Validate() error {
 	}
 	previous := ""
 	for _, ref := range p.RuntimeCredentialRefs {
-		if len(ref.CredentialID) == 0 || len(ref.CredentialID) > 128 || !contracts.ValidIdentifier(ref.CredentialID) {
+		if !contracts.ValidConfigID(ref.CredentialID) {
 			return contracts.Invalidf("Runtime credential provenance ID is invalid")
 		}
 		if err := ref.Kind.Validate(); err != nil {

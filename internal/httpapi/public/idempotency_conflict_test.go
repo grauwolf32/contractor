@@ -123,7 +123,7 @@ func TestEveryKeyedOperationReportsKeyReuseAsPermanent(t *testing.T) {
 	}
 	// Eval mutations validate frozen documents before the service, and report
 	// a reused key as eval_idempotency_conflict through evalError (checked
-	// below); TestEvalPostgresAuthorizationCSRFStrictBodiesAndCAS reuses a
+	// below); TestSharedEvalPostgresAuthorizationCSRFStrictBodiesAndCAS reuses a
 	// command key against PostgreSQL.
 	evalKeyed := map[string]bool{
 		"createEvalExperiment": true, "updateEvalDraft": true, "commandEvalExperiment": true,

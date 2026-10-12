@@ -10,6 +10,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 	"go.yaml.in/yaml/v4"
 )
 
@@ -21,10 +22,7 @@ type configIdentityCaseGroup struct {
 
 func loadConfigIdentityCases(t *testing.T) (ids, versions configIdentityCaseGroup) {
 	t.Helper()
-	data, err := os.ReadFile(filepath.Join("..", "..", "api", "testdata", "v1alpha1", "config-identity-cases.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	data := contractstest.ReadFile(t, "api", "testdata", "v1alpha1", "config-identity-cases.json")
 	var cases struct {
 		ID      configIdentityCaseGroup `json:"id"`
 		Version configIdentityCaseGroup `json:"version"`
@@ -46,7 +44,7 @@ func identityAcceptance(id, version string) [3]bool {
 	return [3]bool{selectorErr == nil, metadataErr == nil, publicationErr == nil}
 }
 
-func TestConfigIdentityMatchesSharedCases(t *testing.T) {
+func TestSharedConfigIdentityMatchesSharedCases(t *testing.T) {
 	t.Parallel()
 	ids, versions := loadConfigIdentityCases(t)
 	check := func(kind, id, version string, valid bool) {

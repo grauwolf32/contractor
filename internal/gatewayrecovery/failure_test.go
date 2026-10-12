@@ -3,11 +3,10 @@ package gatewayrecovery
 import (
 	"encoding/json"
 	"net/http"
-	"os"
-	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 )
 
@@ -27,11 +26,8 @@ type classificationFixture struct {
 	} `json:"cases"`
 }
 
-func TestClassifyGatewayFailureMatchesSharedFixture(t *testing.T) {
-	raw, err := os.ReadFile(filepath.Join("..", "..", "api", "testdata", "v1alpha1", "gateway-failure-classification-cases.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
+func TestSharedClassifyGatewayFailureMatchesSharedFixture(t *testing.T) {
+	raw := contractstest.ReadFile(t, "api", "testdata", "v1alpha1", "gateway-failure-classification-cases.json")
 	var fixture classificationFixture
 	if err := json.Unmarshal(raw, &fixture); err != nil {
 		t.Fatal(err)

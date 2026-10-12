@@ -21,7 +21,7 @@ import (
 
 var updateRequiredMemberCases = flag.Bool(
 	"update-required-member-cases", false,
-	"rewrite api/testdata/v1alpha1/required-member-cases.json from the schemas and valid fixtures",
+	"rewrite the shared fixture v1alpha1/required-member-cases.json from the schemas and valid fixtures",
 )
 
 const requiredMemberCasesDescription = "Generated from api/v1alpha1 and the valid golden fixtures; do not edit. " +

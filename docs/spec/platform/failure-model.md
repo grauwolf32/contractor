@@ -247,9 +247,9 @@ These properties follow from the cited requirements, which are authoritative.
 
 1. The Server-side Planner and Runtime Worker classifiers return the same
    classification for every case of the shared fixture (FAIL-R8, FAIL-R9);
-   tests `TestClassifyGatewayFailureMatchesSharedFixture` in
+   tests `TestSharedClassifyGatewayFailureMatchesSharedFixture` in
    [`internal/gatewayrecovery/failure_test.go`](../../../internal/gatewayrecovery/failure_test.go)
-   and `test_classification_matches_shared_fixture` in
+   and `test_shared_classification_matches_shared_fixture` in
    [`runtime/tests/test_gateway_error_classification.py`](../../../runtime/tests/test_gateway_error_classification.py).
 2. Provider text becomes `model_unavailable` only through an exact
    `modelUnavailable` match (FAIL-R5, FAIL-R7).

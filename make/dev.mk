@@ -16,6 +16,7 @@ lint: generate-public-client-check
 	python3 scripts/check_release_verify_graph.py
 	cd runtime && uv run python ../scripts/check_tasks.py
 	python3 scripts/check_spec.py
+	python3 scripts/shared_fixture_gate.py --sources-only
 	python3 scripts/check_database_erd.py
 	cd runtime && uv run ruff check .
 	cd runtime && uv run ruff format --check .
@@ -57,7 +58,7 @@ docs-erd:
 	python3 scripts/erd/build_erd.py
 
 verify-public-api:
-	go test -count=1 ./internal/httpapi/public -run '^(TestPublicOpenAPIContractIsValidAndPolicySafe|TestPublicEventSchemaIsClosedAndExamplesValidate|TestImplementedPublicHandlersConformToOpenAPI|TestProjectRunHandlersConformToOpenAPI|TestPublicOpenAPIPathsAreRepositoryRelative|TestPerformancePublicContracts|TestPublicAuditReportPreservesProposedReview|TestPublicAuditPreparationContracts|TestPublicConfigurationProjectionContracts|TestPublicRuntimeConfigAuthorAndReadContracts|TestPublicRuntimeConfigPublicationResolvesGatewayAndPreservesClears|TestPublicRequestAndHistoryContracts)$$'
+	go test -count=1 ./internal/httpapi/public -run '^(TestPublicOpenAPIContractIsValidAndPolicySafe|TestPublicEventSchemaIsClosedAndExamplesValidate|TestImplementedPublicHandlersConformToOpenAPI|TestProjectRunHandlersConformToOpenAPI|TestPublicOpenAPIPathsAreRepositoryRelative|TestPerformancePublicContracts|TestPublicAuditReportPreservesProposedReview|TestSharedPublicAuditPreparationContracts|TestPublicConfigurationProjectionContracts|TestPublicRuntimeConfigAuthorAndReadContracts|TestPublicRuntimeConfigPublicationResolvesGatewayAndPreservesClears|TestSharedPublicRequestAndHistoryContracts)$$'
 
 verify-public-api-postgres: require-database
 	$(call run-family-test,go test -race -count=1 ./internal/httpapi/public -run '^TestPublicAuditPaginationBoundary$$')

@@ -2,17 +2,14 @@ package auditdomain
 
 import (
 	"encoding/json"
-	"os"
-	"path/filepath"
 	"testing"
+
+	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 )
 
-func TestCanonicalPackageMediaTypesMatchSharedCases(t *testing.T) {
+func TestSharedCanonicalPackageMediaTypesMatchSharedCases(t *testing.T) {
 	t.Parallel()
-	data, err := os.ReadFile(filepath.Join("..", "..", "api", "testdata", "v1alpha1", "media-type-cases.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	data := contractstest.ReadFile(t, "api", "testdata", "v1alpha1", "media-type-cases.json")
 	var cases struct {
 		Valid   []string `json:"valid"`
 		Invalid []string `json:"invalid"`

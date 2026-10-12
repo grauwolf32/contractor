@@ -13,7 +13,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 )
 
-func TestAllocationRunMetadataLabelCasesAreStrict(t *testing.T) {
+func TestSharedAllocationRunMetadataLabelCasesAreStrict(t *testing.T) {
 	t.Parallel()
 
 	type labelCase struct {
@@ -66,7 +66,7 @@ func TestAllocationRunMetadataLabelCasesAreStrict(t *testing.T) {
 	}
 }
 
-func TestAllocationWorkerSessionModeCasesAreStrict(t *testing.T) {
+func TestSharedAllocationWorkerSessionModeCasesAreStrict(t *testing.T) {
 	t.Parallel()
 
 	type modeCase struct {
@@ -119,7 +119,7 @@ func TestAllocationWorkerSessionModeCasesAreStrict(t *testing.T) {
 	}
 }
 
-func TestAllocationResolvedSkillsRejectsEveryManifestMismatch(t *testing.T) {
+func TestSharedAllocationResolvedSkillsRejectsEveryManifestMismatch(t *testing.T) {
 	t.Parallel()
 
 	var baseline map[string]any
@@ -173,7 +173,7 @@ func TestAllocationResolvedSkillsRejectsEveryManifestMismatch(t *testing.T) {
 	}
 }
 
-func TestAllocationSpecRequiresBoundedWorkerBudgets(t *testing.T) {
+func TestSharedAllocationSpecRequiresBoundedWorkerBudgets(t *testing.T) {
 	t.Parallel()
 
 	var baseline map[string]any
@@ -221,7 +221,7 @@ func TestAllocationSpecRequiresBoundedWorkerBudgets(t *testing.T) {
 	}
 }
 
-func TestAllocationSpecRequiresValidWorkerSummarizer(t *testing.T) {
+func TestSharedAllocationSpecRequiresValidWorkerSummarizer(t *testing.T) {
 	t.Parallel()
 
 	var baseline map[string]any
@@ -294,7 +294,7 @@ func TestAllocationSpecRequiresValidWorkerSummarizer(t *testing.T) {
 	}
 }
 
-func TestPrivateAllocationSpecComposesValidatedSettingsAndProvenance(t *testing.T) {
+func TestSharedPrivateAllocationSpecComposesValidatedSettingsAndProvenance(t *testing.T) {
 	t.Parallel()
 
 	active, err := contracts.DecodeStrict[AllocationSpec](contractstest.ReadFixture(t, "valid", "allocation-spec.json"))
@@ -377,7 +377,7 @@ func TestPrivateAllocationSpecComposesValidatedSettingsAndProvenance(t *testing.
 	}
 }
 
-func TestToolWorkerRejectsNullModelFields(t *testing.T) {
+func TestSharedToolWorkerRejectsNullModelFields(t *testing.T) {
 	for _, path := range [][]string{
 		{"modelPolicy"}, {"agentTemplate", "modelPolicy"},
 		{"agentTemplate", "instructions"}, {"agentTemplate", "summarizer"},
@@ -404,7 +404,7 @@ func TestToolWorkerRejectsNullModelFields(t *testing.T) {
 	}
 }
 
-func TestPerformanceGoldenAllocationRequestIsOptional(t *testing.T) {
+func TestSharedPerformanceGoldenAllocationRequestIsOptional(t *testing.T) {
 	var spec map[string]json.RawMessage
 	if err := json.Unmarshal(contractstest.ReadFixture(t, "valid", "allocation-spec.json"), &spec); err != nil {
 		t.Fatal(err)

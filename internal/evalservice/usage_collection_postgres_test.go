@@ -3,12 +3,12 @@ package evalservice
 import (
 	"bytes"
 	"encoding/json"
-	"os"
 	"reflect"
 	"testing"
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 	"github.com/grauwolf32/contractor/internal/evalstore"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -74,16 +74,14 @@ VALUES($1,$2,'{"planner":{"complete":true,"metrics":{"tools":{}}},"workers":{},"
 
 // The inventory authority/pagination journey is covered at the public boundary.
 // This test exercises real metric SQL and normalization over its all-role fixture.
-func TestEvalObservedAuditUsageCountsStagesOnceAndKeepsParentDuration(t *testing.T) {
+func TestSharedEvalObservedAuditUsageCountsStagesOnceAndKeepsParentDuration(t *testing.T) {
 	pool := serviceTestPool(t)
-	raw, err := os.ReadFile("../../api/testdata/evals/audit-accounting.json")
-	if err != nil {
-		t.Fatal(err)
-	}
+	raw := contractstest.ReadFile(t, "api", "testdata", "evals", "audit-accounting.json")
 	var fixture struct {
 		Observation evaldomain.UsageObservation `json:"observation"`
 	}
-	if err = json.Unmarshal(raw, &fixture); err != nil {
+	err := json.Unmarshal(raw, &fixture)
+	if err != nil {
 		t.Fatal(err)
 	}
 	input := fixture.Observation

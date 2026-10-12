@@ -3,10 +3,11 @@ package config
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 )
 
 // sharedNameCases reads the public ConfigId name grammar cases of
@@ -14,10 +15,7 @@ import (
 // and the Runtime share, with the length bound turned into cases.
 func sharedNameCases(t *testing.T) (valid, invalid []string) {
 	t.Helper()
-	data, err := os.ReadFile(filepath.Join("..", "..", "api", "testdata", "v1alpha1", "runtime-capability-cases.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	data := contractstest.ReadFile(t, "api", "testdata", "v1alpha1", "runtime-capability-cases.json")
 	var cases struct {
 		ToolName struct {
 			MaxLength int      `json:"maxLength"`
@@ -122,12 +120,12 @@ func loadNames(t *testing.T, files map[string]string) (*Snapshot, error) {
 	return Load(root, MVPDescriptors())
 }
 
-// TestWorkflowNamesUseTheOperationsNameGrammar is the regression for a
+// TestSharedWorkflowNamesUseTheOperationsNameGrammar is the regression for a
 // logical Agent name such as "my worker" that loaded because the catalog only
 // rejected blank names and slashes, while the public API and Operations show
 // Stage and logical Agent names as ConfigId values: one such allocation failed
 // the whole Operations allocation list (WFL-R84).
-func TestWorkflowNamesUseTheOperationsNameGrammar(t *testing.T) {
+func TestSharedWorkflowNamesUseTheOperationsNameGrammar(t *testing.T) {
 	t.Parallel()
 	valid, invalid := sharedNameCases(t)
 	base := namesDocument{entry: "copy", stage: "copy", agent: "builder"}
@@ -196,10 +194,10 @@ func TestWorkflowNamesUseTheOperationsNameGrammar(t *testing.T) {
 	}
 }
 
-// TestPersistedSnapshotsRejectNamesOperationsCannotShow holds the strict
+// TestSharedPersistedSnapshotsRejectNamesOperationsCannotShow holds the strict
 // snapshot readers and the graph check to the same grammar, so a persisted Run
 // cannot carry a Stage or logical Agent name the catalog would reject.
-func TestPersistedSnapshotsRejectNamesOperationsCannotShow(t *testing.T) {
+func TestSharedPersistedSnapshotsRejectNamesOperationsCannotShow(t *testing.T) {
 	t.Parallel()
 	snapshot := mustLoad(t, copyCoreFixture(t), MVPDescriptors())
 	workflow, err := snapshot.Workflow("artifact-copy@1")

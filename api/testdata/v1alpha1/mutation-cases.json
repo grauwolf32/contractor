@@ -1,0 +1,1877 @@
+{
+  "description": "Generated from api/v1alpha1 and the valid golden fixtures; do not edit. For every valid fixture: enum lists the members whose value, replaced by enumSentinels, fails an enum or const of the fixture's JSON Schema; maxLength lists the strings the schema bounds, which as maxLength+1 repetitions of \"a\" the schema rejects; unknownMember lists the objects that reject an added member \"contractorUnknownMember\": true; duplicateKey lists every object with a member, whose first member (in key order) is written twice. Go, Python and the schema reject every such case. maxBytes holds the same strings as maxLength-1 repetitions of \"a\" followed by U+00E9, maxLength characters in maxLength+1 UTF-8 bytes, with the verdict the schema (x-maxBytes), Go and Python all reach. Regenerate with: go test ./internal/contracts -run TestSharedMutationCasesAreRejected -args -update-mutation-cases",
+  "enumSentinels": {
+    "number": 987654321,
+    "string": "contractor-mutation-probe"
+  },
+  "cases": {
+    "abort-allocation.json": {
+      "enum": [
+        "/apiVersion"
+      ],
+      "maxLength": [],
+      "maxBytes": [],
+      "unknownMember": [
+        "",
+        "/reason"
+      ],
+      "duplicateKey": [
+        "",
+        "/reason"
+      ]
+    },
+    "agent-heartbeat.json": {
+      "enum": [
+        "/apiVersion",
+        "/observedState"
+      ],
+      "maxLength": [
+        {
+          "pointer": "/allocationId",
+          "maxLength": 256
+        },
+        {
+          "pointer": "/instanceId",
+          "maxLength": 256
+        }
+      ],
+      "maxBytes": [
+        {
+          "pointer": "/allocationId",
+          "maxLength": 256,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/instanceId",
+          "maxLength": 256,
+          "verdict": "reject"
+        }
+      ],
+      "unknownMember": [
+        ""
+      ],
+      "duplicateKey": [
+        ""
+      ]
+    },
+    "agent-registration-response.json": {
+      "enum": [
+        "/apiVersion"
+      ],
+      "maxLength": [],
+      "maxBytes": [],
+      "unknownMember": [
+        ""
+      ],
+      "duplicateKey": [
+        ""
+      ]
+    },
+    "agent-registration.json": {
+      "enum": [
+        "/apiVersion",
+        "/observedState"
+      ],
+      "maxLength": [
+        {
+          "pointer": "/instanceId",
+          "maxLength": 256
+        },
+        {
+          "pointer": "/softwareVersion",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/supportedRuntimes/0",
+          "maxLength": 256
+        },
+        {
+          "pointer": "/supportedSandboxProfiles/0",
+          "maxLength": 256
+        },
+        {
+          "pointer": "/supportedToolsets/0/ref",
+          "maxLength": 256
+        },
+        {
+          "pointer": "/supportedToolsets/0/tools/0",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/supportedToolsets/0/tools/1",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/supportedToolsets/0/tools/2",
+          "maxLength": 128
+        }
+      ],
+      "maxBytes": [
+        {
+          "pointer": "/instanceId",
+          "maxLength": 256,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/softwareVersion",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/supportedRuntimes/0",
+          "maxLength": 256,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/supportedSandboxProfiles/0",
+          "maxLength": 256,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/supportedToolsets/0/ref",
+          "maxLength": 256,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/supportedToolsets/0/tools/0",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/supportedToolsets/0/tools/1",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/supportedToolsets/0/tools/2",
+          "maxLength": 128,
+          "verdict": "reject"
+        }
+      ],
+      "unknownMember": [
+        "",
+        "/supportedToolsets/0"
+      ],
+      "duplicateKey": [
+        "",
+        "/supportedToolsets/0"
+      ]
+    },
+    "agent-state-snapshot.json": {
+      "enum": [
+        "/apiVersion",
+        "/state/currentInvocation/phase",
+        "/state/currentInvocation/summarizer/phase",
+        "/state/lastCompletedInvocation/phase",
+        "/state/lastCompletedInvocation/summarizer/phase",
+        "/state/metrics/toolCalls/0/outcome",
+        "/state/schemaVersion"
+      ],
+      "maxLength": [
+        {
+          "pointer": "/state/currentInvocation/invocationId",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/state/currentInvocation/subtaskId",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/state/currentInvocation/workspace/scopePaths/0",
+          "maxLength": 4096
+        },
+        {
+          "pointer": "/state/currentInvocation/workspace/scopePaths/1",
+          "maxLength": 4096
+        },
+        {
+          "pointer": "/state/lastCompletedInvocation/invocationId",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/state/lastCompletedInvocation/subtaskId",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/state/lastCompletedInvocation/workspace/interactions/0/path",
+          "maxLength": 4096
+        },
+        {
+          "pointer": "/state/lastCompletedInvocation/workspace/scopePaths/0",
+          "maxLength": 4096
+        },
+        {
+          "pointer": "/state/lastCompletedInvocation/workspace/scopePaths/1",
+          "maxLength": 4096
+        },
+        {
+          "pointer": "/state/metrics/finalOutcome",
+          "maxLength": 64
+        }
+      ],
+      "maxBytes": [
+        {
+          "pointer": "/state/currentInvocation/invocationId",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/state/currentInvocation/subtaskId",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/state/currentInvocation/workspace/scopePaths/0",
+          "maxLength": 4096,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/state/currentInvocation/workspace/scopePaths/1",
+          "maxLength": 4096,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/state/lastCompletedInvocation/invocationId",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/state/lastCompletedInvocation/subtaskId",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/state/lastCompletedInvocation/workspace/interactions/0/path",
+          "maxLength": 4096,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/state/lastCompletedInvocation/workspace/scopePaths/0",
+          "maxLength": 4096,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/state/lastCompletedInvocation/workspace/scopePaths/1",
+          "maxLength": 4096,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/state/metrics/finalOutcome",
+          "maxLength": 64,
+          "verdict": "reject"
+        }
+      ],
+      "unknownMember": [
+        "",
+        "/state",
+        "/state/currentInvocation",
+        "/state/currentInvocation/metrics",
+        "/state/currentInvocation/summarizer",
+        "/state/currentInvocation/workspace",
+        "/state/lastCompletedInvocation",
+        "/state/lastCompletedInvocation/metrics",
+        "/state/lastCompletedInvocation/metrics/tools/read_file",
+        "/state/lastCompletedInvocation/summarizer",
+        "/state/lastCompletedInvocation/workspace",
+        "/state/lastCompletedInvocation/workspace/interactions/0",
+        "/state/metrics",
+        "/state/metrics/toolCalls/0",
+        "/state/metrics/workerBudget"
+      ],
+      "duplicateKey": [
+        "",
+        "/state",
+        "/state/currentInvocation",
+        "/state/currentInvocation/metrics",
+        "/state/currentInvocation/summarizer",
+        "/state/currentInvocation/workspace",
+        "/state/lastCompletedInvocation",
+        "/state/lastCompletedInvocation/metrics",
+        "/state/lastCompletedInvocation/metrics/tools",
+        "/state/lastCompletedInvocation/metrics/tools/read_file",
+        "/state/lastCompletedInvocation/summarizer",
+        "/state/lastCompletedInvocation/workspace",
+        "/state/lastCompletedInvocation/workspace/interactions/0",
+        "/state/metrics",
+        "/state/metrics/counters",
+        "/state/metrics/toolCalls/0",
+        "/state/metrics/toolCalls/0/arguments",
+        "/state/metrics/workerBudget"
+      ]
+    },
+    "allocation-final-response.json": {
+      "enum": [
+        "/apiVersion"
+      ],
+      "maxLength": [],
+      "maxBytes": [],
+      "unknownMember": [
+        "",
+        "/report",
+        "/report/runtime",
+        "/report/worker",
+        "/report/worker/metrics",
+        "/report/worker/metrics/summarizer"
+      ],
+      "duplicateKey": [
+        "",
+        "/report",
+        "/report/runtime",
+        "/report/worker",
+        "/report/worker/metrics",
+        "/report/worker/metrics/summarizer"
+      ]
+    },
+    "allocation-spec-skills.json": {
+      "enum": [
+        "/agentTemplate/skills/0/namespace",
+        "/agentTemplate/skills/1/namespace",
+        "/apiVersion",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/0/kind",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/1/kind",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/2/kind",
+        "/resolvedSkills/0/artifact/namespace",
+        "/resolvedSkills/1/artifact/namespace",
+        "/workerSessionMode"
+      ],
+      "maxLength": [
+        {
+          "pointer": "/agentTemplate/skills/0/name",
+          "maxLength": 64
+        },
+        {
+          "pointer": "/agentTemplate/skills/1/name",
+          "maxLength": 64
+        },
+        {
+          "pointer": "/logicalAgentName",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/namespace",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/resolvedRuntimeConfigProvenance/llmCredential/credentialId",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/0/credentialId",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/1/credentialId",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/2/credentialId",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/resolvedSkills/0/artifact/name",
+          "maxLength": 64
+        },
+        {
+          "pointer": "/resolvedSkills/0/name",
+          "maxLength": 64
+        },
+        {
+          "pointer": "/resolvedSkills/1/artifact/name",
+          "maxLength": 64
+        },
+        {
+          "pointer": "/resolvedSkills/1/name",
+          "maxLength": 64
+        }
+      ],
+      "maxBytes": [
+        {
+          "pointer": "/agentTemplate/skills/0/name",
+          "maxLength": 64,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/agentTemplate/skills/1/name",
+          "maxLength": 64,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/logicalAgentName",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/namespace",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/resolvedRuntimeConfigProvenance/llmCredential/credentialId",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/0/credentialId",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/1/credentialId",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/2/credentialId",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/resolvedSkills/0/artifact/name",
+          "maxLength": 64,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/resolvedSkills/0/name",
+          "maxLength": 64,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/resolvedSkills/1/artifact/name",
+          "maxLength": 64,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/resolvedSkills/1/name",
+          "maxLength": 64,
+          "verdict": "reject"
+        }
+      ],
+      "unknownMember": [
+        "",
+        "/agentTemplate",
+        "/agentTemplate/instructions",
+        "/agentTemplate/modelPolicy",
+        "/agentTemplate/modelPolicy/ref",
+        "/agentTemplate/ref",
+        "/agentTemplate/runtime",
+        "/agentTemplate/sandboxProfile",
+        "/agentTemplate/skills/0",
+        "/agentTemplate/skills/1",
+        "/modelPolicy",
+        "/modelPolicy/ref",
+        "/resolvedRuntimeConfigProvenance",
+        "/resolvedRuntimeConfigProvenance/agentLabels/0",
+        "/resolvedRuntimeConfigProvenance/agentLabels/0/config",
+        "/resolvedRuntimeConfigProvenance/default",
+        "/resolvedRuntimeConfigProvenance/default/config",
+        "/resolvedRuntimeConfigProvenance/llmCredential",
+        "/resolvedRuntimeConfigProvenance/llmGatewayConfig",
+        "/resolvedRuntimeConfigProvenance/runLabels/0",
+        "/resolvedRuntimeConfigProvenance/runLabels/0/config",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/0",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/1",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/2",
+        "/resolvedSkills/0",
+        "/resolvedSkills/0/artifact",
+        "/resolvedSkills/1",
+        "/resolvedSkills/1/artifact",
+        "/runtimeSettings"
+      ],
+      "duplicateKey": [
+        "",
+        "/agentTemplate",
+        "/agentTemplate/instructions",
+        "/agentTemplate/modelPolicy",
+        "/agentTemplate/modelPolicy/ref",
+        "/agentTemplate/ref",
+        "/agentTemplate/runtime",
+        "/agentTemplate/sandboxProfile",
+        "/agentTemplate/skills/0",
+        "/agentTemplate/skills/1",
+        "/modelPolicy",
+        "/modelPolicy/ref",
+        "/resolvedRuntimeConfigProvenance",
+        "/resolvedRuntimeConfigProvenance/agentLabels/0",
+        "/resolvedRuntimeConfigProvenance/agentLabels/0/config",
+        "/resolvedRuntimeConfigProvenance/default",
+        "/resolvedRuntimeConfigProvenance/default/config",
+        "/resolvedRuntimeConfigProvenance/llmCredential",
+        "/resolvedRuntimeConfigProvenance/llmGatewayConfig",
+        "/resolvedRuntimeConfigProvenance/runLabels/0",
+        "/resolvedRuntimeConfigProvenance/runLabels/0/config",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/0",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/1",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/2",
+        "/resolvedSkills/0",
+        "/resolvedSkills/0/artifact",
+        "/resolvedSkills/1",
+        "/resolvedSkills/1/artifact",
+        "/runtimeSettings"
+      ]
+    },
+    "allocation-spec-summarizer-instructions.json": {
+      "enum": [
+        "/agentTemplate/summarizer/modelPolicy/maxModelCalls",
+        "/apiVersion",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/0/kind",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/1/kind",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/2/kind",
+        "/workerSessionMode"
+      ],
+      "maxLength": [
+        {
+          "pointer": "/agentTemplate/summarizer/instructions/text",
+          "maxLength": 8000
+        },
+        {
+          "pointer": "/logicalAgentName",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/namespace",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/resolvedRuntimeConfigProvenance/llmCredential/credentialId",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/0/credentialId",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/1/credentialId",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/2/credentialId",
+          "maxLength": 128
+        }
+      ],
+      "maxBytes": [
+        {
+          "pointer": "/agentTemplate/summarizer/instructions/text",
+          "maxLength": 8000,
+          "verdict": "accept"
+        },
+        {
+          "pointer": "/logicalAgentName",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/namespace",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/resolvedRuntimeConfigProvenance/llmCredential/credentialId",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/0/credentialId",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/1/credentialId",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/2/credentialId",
+          "maxLength": 128,
+          "verdict": "reject"
+        }
+      ],
+      "unknownMember": [
+        "",
+        "/agentTemplate",
+        "/agentTemplate/instructions",
+        "/agentTemplate/modelPolicy",
+        "/agentTemplate/modelPolicy/ref",
+        "/agentTemplate/ref",
+        "/agentTemplate/runtime",
+        "/agentTemplate/sandboxProfile",
+        "/agentTemplate/summarizer",
+        "/agentTemplate/summarizer/instructions",
+        "/agentTemplate/summarizer/modelPolicy",
+        "/agentTemplate/summarizer/modelPolicy/ref",
+        "/agentTemplate/toolsets/0",
+        "/agentTemplate/toolsets/0/ref",
+        "/modelPolicy",
+        "/modelPolicy/ref",
+        "/resolvedRuntimeConfigProvenance",
+        "/resolvedRuntimeConfigProvenance/agentLabels/0",
+        "/resolvedRuntimeConfigProvenance/agentLabels/0/config",
+        "/resolvedRuntimeConfigProvenance/default",
+        "/resolvedRuntimeConfigProvenance/default/config",
+        "/resolvedRuntimeConfigProvenance/llmCredential",
+        "/resolvedRuntimeConfigProvenance/llmGatewayConfig",
+        "/resolvedRuntimeConfigProvenance/runLabels/0",
+        "/resolvedRuntimeConfigProvenance/runLabels/0/config",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/0",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/1",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/2",
+        "/runtimeSettings"
+      ],
+      "duplicateKey": [
+        "",
+        "/agentTemplate",
+        "/agentTemplate/instructions",
+        "/agentTemplate/modelPolicy",
+        "/agentTemplate/modelPolicy/ref",
+        "/agentTemplate/ref",
+        "/agentTemplate/runtime",
+        "/agentTemplate/sandboxProfile",
+        "/agentTemplate/summarizer",
+        "/agentTemplate/summarizer/instructions",
+        "/agentTemplate/summarizer/modelPolicy",
+        "/agentTemplate/summarizer/modelPolicy/ref",
+        "/agentTemplate/toolsets/0",
+        "/agentTemplate/toolsets/0/ref",
+        "/modelPolicy",
+        "/modelPolicy/ref",
+        "/resolvedRuntimeConfigProvenance",
+        "/resolvedRuntimeConfigProvenance/agentLabels/0",
+        "/resolvedRuntimeConfigProvenance/agentLabels/0/config",
+        "/resolvedRuntimeConfigProvenance/default",
+        "/resolvedRuntimeConfigProvenance/default/config",
+        "/resolvedRuntimeConfigProvenance/llmCredential",
+        "/resolvedRuntimeConfigProvenance/llmGatewayConfig",
+        "/resolvedRuntimeConfigProvenance/runLabels/0",
+        "/resolvedRuntimeConfigProvenance/runLabels/0/config",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/0",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/1",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/2",
+        "/runtimeSettings"
+      ]
+    },
+    "allocation-spec-summarizer.json": {
+      "enum": [
+        "/agentTemplate/summarizer/modelPolicy/maxModelCalls",
+        "/apiVersion",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/0/kind",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/1/kind",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/2/kind",
+        "/workerSessionMode"
+      ],
+      "maxLength": [
+        {
+          "pointer": "/logicalAgentName",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/namespace",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/resolvedRuntimeConfigProvenance/llmCredential/credentialId",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/0/credentialId",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/1/credentialId",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/2/credentialId",
+          "maxLength": 128
+        }
+      ],
+      "maxBytes": [
+        {
+          "pointer": "/logicalAgentName",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/namespace",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/resolvedRuntimeConfigProvenance/llmCredential/credentialId",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/0/credentialId",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/1/credentialId",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/2/credentialId",
+          "maxLength": 128,
+          "verdict": "reject"
+        }
+      ],
+      "unknownMember": [
+        "",
+        "/agentTemplate",
+        "/agentTemplate/instructions",
+        "/agentTemplate/modelPolicy",
+        "/agentTemplate/modelPolicy/ref",
+        "/agentTemplate/ref",
+        "/agentTemplate/runtime",
+        "/agentTemplate/sandboxProfile",
+        "/agentTemplate/summarizer",
+        "/agentTemplate/summarizer/modelPolicy",
+        "/agentTemplate/summarizer/modelPolicy/ref",
+        "/agentTemplate/toolsets/0",
+        "/agentTemplate/toolsets/0/ref",
+        "/modelPolicy",
+        "/modelPolicy/ref",
+        "/resolvedRuntimeConfigProvenance",
+        "/resolvedRuntimeConfigProvenance/agentLabels/0",
+        "/resolvedRuntimeConfigProvenance/agentLabels/0/config",
+        "/resolvedRuntimeConfigProvenance/default",
+        "/resolvedRuntimeConfigProvenance/default/config",
+        "/resolvedRuntimeConfigProvenance/llmCredential",
+        "/resolvedRuntimeConfigProvenance/llmGatewayConfig",
+        "/resolvedRuntimeConfigProvenance/runLabels/0",
+        "/resolvedRuntimeConfigProvenance/runLabels/0/config",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/0",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/1",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/2",
+        "/runtimeSettings"
+      ],
+      "duplicateKey": [
+        "",
+        "/agentTemplate",
+        "/agentTemplate/instructions",
+        "/agentTemplate/modelPolicy",
+        "/agentTemplate/modelPolicy/ref",
+        "/agentTemplate/ref",
+        "/agentTemplate/runtime",
+        "/agentTemplate/sandboxProfile",
+        "/agentTemplate/summarizer",
+        "/agentTemplate/summarizer/modelPolicy",
+        "/agentTemplate/summarizer/modelPolicy/ref",
+        "/agentTemplate/toolsets/0",
+        "/agentTemplate/toolsets/0/ref",
+        "/modelPolicy",
+        "/modelPolicy/ref",
+        "/resolvedRuntimeConfigProvenance",
+        "/resolvedRuntimeConfigProvenance/agentLabels/0",
+        "/resolvedRuntimeConfigProvenance/agentLabels/0/config",
+        "/resolvedRuntimeConfigProvenance/default",
+        "/resolvedRuntimeConfigProvenance/default/config",
+        "/resolvedRuntimeConfigProvenance/llmCredential",
+        "/resolvedRuntimeConfigProvenance/llmGatewayConfig",
+        "/resolvedRuntimeConfigProvenance/runLabels/0",
+        "/resolvedRuntimeConfigProvenance/runLabels/0/config",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/0",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/1",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/2",
+        "/runtimeSettings"
+      ]
+    },
+    "allocation-spec-tool.json": {
+      "enum": [
+        "/agentTemplate/execution/arguments/rate_limit/source",
+        "/agentTemplate/execution/arguments/url/source",
+        "/agentTemplate/sandboxProfile/sandboxProfileId",
+        "/agentTemplate/sandboxProfile/version",
+        "/apiVersion",
+        "/workerSessionMode"
+      ],
+      "maxLength": [
+        {
+          "pointer": "/agentTemplate/execution/arguments/url/name",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/agentTemplate/execution/resultArtifact",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/logicalAgentName",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/namespace",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/runMetadataLabels/eval.id",
+          "maxLength": 256
+        },
+        {
+          "pointer": "/runMetadataLabels/purpose",
+          "maxLength": 256
+        }
+      ],
+      "maxBytes": [
+        {
+          "pointer": "/agentTemplate/execution/arguments/url/name",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/agentTemplate/execution/resultArtifact",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/logicalAgentName",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/namespace",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/runMetadataLabels/eval.id",
+          "maxLength": 256,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/runMetadataLabels/purpose",
+          "maxLength": 256,
+          "verdict": "reject"
+        }
+      ],
+      "unknownMember": [
+        "",
+        "/agentTemplate",
+        "/agentTemplate/execution",
+        "/agentTemplate/execution/arguments/rate_limit",
+        "/agentTemplate/execution/arguments/url",
+        "/agentTemplate/ref",
+        "/agentTemplate/runtime",
+        "/agentTemplate/sandboxProfile",
+        "/agentTemplate/toolsets/0",
+        "/agentTemplate/toolsets/0/ref",
+        "/resolvedRuntimeConfigProvenance",
+        "/resolvedRuntimeConfigProvenance/default",
+        "/resolvedRuntimeConfigProvenance/default/config",
+        "/runtimeSettings"
+      ],
+      "duplicateKey": [
+        "",
+        "/agentTemplate",
+        "/agentTemplate/execution",
+        "/agentTemplate/execution/arguments",
+        "/agentTemplate/execution/arguments/rate_limit",
+        "/agentTemplate/execution/arguments/url",
+        "/agentTemplate/ref",
+        "/agentTemplate/runtime",
+        "/agentTemplate/sandboxProfile",
+        "/agentTemplate/toolsets/0",
+        "/agentTemplate/toolsets/0/ref",
+        "/resolvedRuntimeConfigProvenance",
+        "/resolvedRuntimeConfigProvenance/default",
+        "/resolvedRuntimeConfigProvenance/default/config",
+        "/runMetadataLabels",
+        "/runtimeSettings"
+      ]
+    },
+    "allocation-spec.json": {
+      "enum": [
+        "/apiVersion",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/0/kind",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/1/kind",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/2/kind",
+        "/workerSessionMode"
+      ],
+      "maxLength": [
+        {
+          "pointer": "/logicalAgentName",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/namespace",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/resolvedRuntimeConfigProvenance/llmCredential/credentialId",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/0/credentialId",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/1/credentialId",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/2/credentialId",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/runMetadataLabels/eval.id",
+          "maxLength": 256
+        },
+        {
+          "pointer": "/runMetadataLabels/purpose",
+          "maxLength": 256
+        }
+      ],
+      "maxBytes": [
+        {
+          "pointer": "/logicalAgentName",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/namespace",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/resolvedRuntimeConfigProvenance/llmCredential/credentialId",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/0/credentialId",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/1/credentialId",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/2/credentialId",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/runMetadataLabels/eval.id",
+          "maxLength": 256,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/runMetadataLabels/purpose",
+          "maxLength": 256,
+          "verdict": "reject"
+        }
+      ],
+      "unknownMember": [
+        "",
+        "/agentTemplate",
+        "/agentTemplate/instructions",
+        "/agentTemplate/modelPolicy",
+        "/agentTemplate/modelPolicy/ref",
+        "/agentTemplate/ref",
+        "/agentTemplate/runtime",
+        "/agentTemplate/sandboxProfile",
+        "/agentTemplate/toolsets/0",
+        "/agentTemplate/toolsets/0/ref",
+        "/modelPolicy",
+        "/modelPolicy/ref",
+        "/resolvedRuntimeConfigProvenance",
+        "/resolvedRuntimeConfigProvenance/agentLabels/0",
+        "/resolvedRuntimeConfigProvenance/agentLabels/0/config",
+        "/resolvedRuntimeConfigProvenance/default",
+        "/resolvedRuntimeConfigProvenance/default/config",
+        "/resolvedRuntimeConfigProvenance/llmCredential",
+        "/resolvedRuntimeConfigProvenance/llmGatewayConfig",
+        "/resolvedRuntimeConfigProvenance/runLabels/0",
+        "/resolvedRuntimeConfigProvenance/runLabels/0/config",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/0",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/1",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/2",
+        "/runtimeSettings"
+      ],
+      "duplicateKey": [
+        "",
+        "/agentTemplate",
+        "/agentTemplate/instructions",
+        "/agentTemplate/modelPolicy",
+        "/agentTemplate/modelPolicy/ref",
+        "/agentTemplate/ref",
+        "/agentTemplate/runtime",
+        "/agentTemplate/sandboxProfile",
+        "/agentTemplate/toolsets/0",
+        "/agentTemplate/toolsets/0/ref",
+        "/modelPolicy",
+        "/modelPolicy/ref",
+        "/resolvedRuntimeConfigProvenance",
+        "/resolvedRuntimeConfigProvenance/agentLabels/0",
+        "/resolvedRuntimeConfigProvenance/agentLabels/0/config",
+        "/resolvedRuntimeConfigProvenance/default",
+        "/resolvedRuntimeConfigProvenance/default/config",
+        "/resolvedRuntimeConfigProvenance/llmCredential",
+        "/resolvedRuntimeConfigProvenance/llmGatewayConfig",
+        "/resolvedRuntimeConfigProvenance/runLabels/0",
+        "/resolvedRuntimeConfigProvenance/runLabels/0/config",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/0",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/1",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/2",
+        "/runMetadataLabels",
+        "/runtimeSettings"
+      ]
+    },
+    "allocation-workspace-overlay.json": {
+      "enum": [
+        "/mode"
+      ],
+      "maxLength": [
+        {
+          "pointer": "/sources/0/artifact/name",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/sources/0/artifact/namespace",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/sources/1/artifact/name",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/sources/1/artifact/namespace",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/state/artifact/name",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/state/artifact/namespace",
+          "maxLength": 128
+        }
+      ],
+      "maxBytes": [
+        {
+          "pointer": "/sources/0/artifact/name",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/sources/0/artifact/namespace",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/sources/1/artifact/name",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/sources/1/artifact/namespace",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/state/artifact/name",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/state/artifact/namespace",
+          "maxLength": 128,
+          "verdict": "reject"
+        }
+      ],
+      "unknownMember": [
+        "",
+        "/export",
+        "/sources/0",
+        "/sources/0/artifact",
+        "/sources/1",
+        "/sources/1/artifact",
+        "/state",
+        "/state/artifact"
+      ],
+      "duplicateKey": [
+        "",
+        "/export",
+        "/sources/0",
+        "/sources/0/artifact",
+        "/sources/1",
+        "/sources/1/artifact",
+        "/state",
+        "/state/artifact"
+      ]
+    },
+    "artifact-list-page.json": {
+      "enum": [
+        "/apiVersion"
+      ],
+      "maxLength": [
+        {
+          "pointer": "/artifacts/0/name",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/artifacts/0/namespace",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/artifacts/1/name",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/artifacts/1/namespace",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/nextCursor",
+          "maxLength": 512
+        }
+      ],
+      "maxBytes": [
+        {
+          "pointer": "/artifacts/0/name",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/artifacts/0/namespace",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/artifacts/1/name",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/artifacts/1/namespace",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/nextCursor",
+          "maxLength": 512,
+          "verdict": "reject"
+        }
+      ],
+      "unknownMember": [
+        "",
+        "/artifacts/0",
+        "/artifacts/1"
+      ],
+      "duplicateKey": [
+        "",
+        "/artifacts/0",
+        "/artifacts/1"
+      ]
+    },
+    "artifact-list-result.json": {
+      "enum": [
+        "/apiVersion"
+      ],
+      "maxLength": [
+        {
+          "pointer": "/artifacts/0/name",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/artifacts/0/namespace",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/artifacts/1/name",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/artifacts/1/namespace",
+          "maxLength": 128
+        }
+      ],
+      "maxBytes": [
+        {
+          "pointer": "/artifacts/0/name",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/artifacts/0/namespace",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/artifacts/1/name",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/artifacts/1/namespace",
+          "maxLength": 128,
+          "verdict": "reject"
+        }
+      ],
+      "unknownMember": [
+        "",
+        "/artifacts/0",
+        "/artifacts/1"
+      ],
+      "duplicateKey": [
+        "",
+        "/artifacts/0",
+        "/artifacts/1"
+      ]
+    },
+    "artifact-read-result.json": {
+      "enum": [
+        "/apiVersion"
+      ],
+      "maxLength": [
+        {
+          "pointer": "/artifact/name",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/artifact/namespace",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/mediaType",
+          "maxLength": 255
+        }
+      ],
+      "maxBytes": [
+        {
+          "pointer": "/artifact/name",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/artifact/namespace",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/mediaType",
+          "maxLength": 255,
+          "verdict": "reject"
+        }
+      ],
+      "unknownMember": [
+        "",
+        "/artifact"
+      ],
+      "duplicateKey": [
+        "",
+        "/artifact"
+      ]
+    },
+    "finalize-allocation.json": {
+      "enum": [
+        "/apiVersion"
+      ],
+      "maxLength": [],
+      "maxBytes": [],
+      "unknownMember": [
+        ""
+      ],
+      "duplicateKey": [
+        ""
+      ]
+    },
+    "heartbeat-response.json": {
+      "enum": [
+        "/action",
+        "/apiVersion"
+      ],
+      "maxLength": [],
+      "maxBytes": [],
+      "unknownMember": [
+        ""
+      ],
+      "duplicateKey": [
+        ""
+      ]
+    },
+    "llm-gateway-config-signatures.json": {
+      "enum": [
+        "/credentialManager/implementation",
+        "/failureSignatures/modelUnavailable/0/status",
+        "/failureSignatures/modelUnavailable/1/status",
+        "/protocol"
+      ],
+      "maxLength": [
+        {
+          "pointer": "/failureSignatures/modelUnavailable/0/messageEquals",
+          "maxLength": 512
+        },
+        {
+          "pointer": "/failureSignatures/modelUnavailable/1/litellmWrapped",
+          "maxLength": 512
+        }
+      ],
+      "maxBytes": [
+        {
+          "pointer": "/failureSignatures/modelUnavailable/0/messageEquals",
+          "maxLength": 512,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/failureSignatures/modelUnavailable/1/litellmWrapped",
+          "maxLength": 512,
+          "verdict": "reject"
+        }
+      ],
+      "unknownMember": [
+        "",
+        "/credentialManager",
+        "/failureSignatures",
+        "/failureSignatures/modelUnavailable/0",
+        "/failureSignatures/modelUnavailable/1",
+        "/ref"
+      ],
+      "duplicateKey": [
+        "",
+        "/credentialManager",
+        "/failureSignatures",
+        "/failureSignatures/modelUnavailable/0",
+        "/failureSignatures/modelUnavailable/1",
+        "/ref"
+      ]
+    },
+    "llm-gateway-config.json": {
+      "enum": [
+        "/credentialManager/implementation",
+        "/protocol"
+      ],
+      "maxLength": [],
+      "maxBytes": [],
+      "unknownMember": [
+        "",
+        "/credentialManager",
+        "/ref"
+      ],
+      "duplicateKey": [
+        "",
+        "/credentialManager",
+        "/ref"
+      ]
+    },
+    "release-allocation.json": {
+      "enum": [
+        "/apiVersion"
+      ],
+      "maxLength": [],
+      "maxBytes": [],
+      "unknownMember": [
+        ""
+      ],
+      "duplicateKey": [
+        ""
+      ]
+    },
+    "runtime-provenance-empty.json": {
+      "enum": [],
+      "maxLength": [],
+      "maxBytes": [],
+      "unknownMember": [
+        "",
+        "/default",
+        "/default/config",
+        "/llmGatewayConfig"
+      ],
+      "duplicateKey": [
+        "",
+        "/default",
+        "/default/config",
+        "/llmGatewayConfig"
+      ]
+    },
+    "runtime-provenance.json": {
+      "enum": [
+        "/runtimeCredentialRefs/0/kind",
+        "/runtimeCredentialRefs/1/kind",
+        "/runtimeCredentialRefs/2/kind"
+      ],
+      "maxLength": [
+        {
+          "pointer": "/llmCredential/credentialId",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/runtimeCredentialRefs/0/credentialId",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/runtimeCredentialRefs/1/credentialId",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/runtimeCredentialRefs/2/credentialId",
+          "maxLength": 128
+        }
+      ],
+      "maxBytes": [
+        {
+          "pointer": "/llmCredential/credentialId",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/runtimeCredentialRefs/0/credentialId",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/runtimeCredentialRefs/1/credentialId",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/runtimeCredentialRefs/2/credentialId",
+          "maxLength": 128,
+          "verdict": "reject"
+        }
+      ],
+      "unknownMember": [
+        "",
+        "/agentLabels/0",
+        "/agentLabels/0/config",
+        "/default",
+        "/default/config",
+        "/llmCredential",
+        "/llmGatewayConfig",
+        "/runLabels/0",
+        "/runLabels/0/config",
+        "/runtimeCredentialRefs/0",
+        "/runtimeCredentialRefs/1",
+        "/runtimeCredentialRefs/2"
+      ],
+      "duplicateKey": [
+        "",
+        "/agentLabels/0",
+        "/agentLabels/0/config",
+        "/default",
+        "/default/config",
+        "/llmCredential",
+        "/llmGatewayConfig",
+        "/runLabels/0",
+        "/runLabels/0/config",
+        "/runtimeCredentialRefs/0",
+        "/runtimeCredentialRefs/1",
+        "/runtimeCredentialRefs/2"
+      ]
+    },
+    "runtime-report.json": {
+      "enum": [],
+      "maxLength": [],
+      "maxBytes": [],
+      "unknownMember": [
+        "",
+        "/adapters/http-proxy@1",
+        "/adapters/otlp-http@1"
+      ],
+      "duplicateKey": [
+        "",
+        "/adapters",
+        "/adapters/http-proxy@1",
+        "/adapters/otlp-http@1"
+      ]
+    },
+    "runtime-settings-ca-bundle-crlf.json": {
+      "enum": [
+        "/httpProxy/targets/0",
+        "/httpProxy/targets/1",
+        "/httpProxy/targets/2"
+      ],
+      "maxLength": [],
+      "maxBytes": [],
+      "unknownMember": [
+        "",
+        "/httpProxy",
+        "/httpProxy/basicAuth"
+      ],
+      "duplicateKey": [
+        "",
+        "/httpProxy",
+        "/httpProxy/basicAuth"
+      ]
+    },
+    "runtime-settings-ca-bundle.json": {
+      "enum": [
+        "/httpProxy/targets/0",
+        "/httpProxy/targets/1",
+        "/httpProxy/targets/2"
+      ],
+      "maxLength": [],
+      "maxBytes": [],
+      "unknownMember": [
+        "",
+        "/httpProxy",
+        "/httpProxy/basicAuth"
+      ],
+      "duplicateKey": [
+        "",
+        "/httpProxy",
+        "/httpProxy/basicAuth"
+      ]
+    },
+    "runtime-settings-combined.json": {
+      "enum": [
+        "/httpProxy/targets/0",
+        "/httpProxy/targets/1"
+      ],
+      "maxLength": [],
+      "maxBytes": [],
+      "unknownMember": [
+        "",
+        "/caido",
+        "/httpProxy",
+        "/telemetry",
+        "/telemetry/export",
+        "/telemetry/export/retry"
+      ],
+      "duplicateKey": [
+        "",
+        "/caido",
+        "/httpProxy",
+        "/telemetry",
+        "/telemetry/export",
+        "/telemetry/export/retry",
+        "/telemetry/headers"
+      ]
+    },
+    "runtime-settings-empty.json": {
+      "enum": [],
+      "maxLength": [],
+      "maxBytes": [],
+      "unknownMember": [
+        ""
+      ],
+      "duplicateKey": [
+        ""
+      ]
+    },
+    "runtime-settings-proxy.json": {
+      "enum": [
+        "/httpProxy/targets/0",
+        "/httpProxy/targets/1",
+        "/httpProxy/targets/2"
+      ],
+      "maxLength": [],
+      "maxBytes": [],
+      "unknownMember": [
+        "",
+        "/httpProxy",
+        "/httpProxy/basicAuth"
+      ],
+      "duplicateKey": [
+        "",
+        "/httpProxy",
+        "/httpProxy/basicAuth"
+      ]
+    },
+    "runtime-settings-telemetry-export.json": {
+      "enum": [],
+      "maxLength": [],
+      "maxBytes": [],
+      "unknownMember": [
+        "",
+        "/telemetry",
+        "/telemetry/export",
+        "/telemetry/export/retry"
+      ],
+      "duplicateKey": [
+        "",
+        "/telemetry",
+        "/telemetry/export",
+        "/telemetry/export/retry",
+        "/telemetry/headers"
+      ]
+    },
+    "runtime-settings-telemetry.json": {
+      "enum": [],
+      "maxLength": [],
+      "maxBytes": [],
+      "unknownMember": [
+        "",
+        "/telemetry",
+        "/telemetry/export",
+        "/telemetry/export/retry"
+      ],
+      "duplicateKey": [
+        "",
+        "/telemetry",
+        "/telemetry/export",
+        "/telemetry/export/retry",
+        "/telemetry/headers"
+      ]
+    },
+    "stage-content-request.json": {
+      "enum": [
+        "/apiVersion"
+      ],
+      "maxLength": [
+        {
+          "pointer": "/artifacts/source/name",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/artifacts/source/namespace",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/resultArtifacts/report/name",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/resultArtifacts/report/namespace",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/subtaskId",
+          "maxLength": 128
+        }
+      ],
+      "maxBytes": [
+        {
+          "pointer": "/artifacts/source/name",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/artifacts/source/namespace",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/resultArtifacts/report/name",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/resultArtifacts/report/namespace",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/subtaskId",
+          "maxLength": 128,
+          "verdict": "reject"
+        }
+      ],
+      "unknownMember": [
+        "",
+        "/artifacts/source",
+        "/resultArtifacts/report"
+      ],
+      "duplicateKey": [
+        "",
+        "/artifacts",
+        "/artifacts/source",
+        "/parameters",
+        "/resultArtifacts",
+        "/resultArtifacts/report"
+      ]
+    },
+    "worker-completion-empty-observations.json": {
+      "enum": [
+        "/apiVersion",
+        "/result/observations/profile"
+      ],
+      "maxLength": [
+        {
+          "pointer": "/invocationId",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/result/result",
+          "maxLength": 65536
+        },
+        {
+          "pointer": "/result/subtaskId",
+          "maxLength": 128
+        }
+      ],
+      "maxBytes": [
+        {
+          "pointer": "/invocationId",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/result/result",
+          "maxLength": 65536,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/result/subtaskId",
+          "maxLength": 128,
+          "verdict": "reject"
+        }
+      ],
+      "unknownMember": [
+        "",
+        "/result",
+        "/result/observations"
+      ],
+      "duplicateKey": [
+        "",
+        "/result",
+        "/result/observations"
+      ]
+    },
+    "worker-completion-failure.json": {
+      "enum": [
+        "/apiVersion"
+      ],
+      "maxLength": [
+        {
+          "pointer": "/failure/code",
+          "maxLength": 64
+        },
+        {
+          "pointer": "/failure/message",
+          "maxLength": 4096
+        },
+        {
+          "pointer": "/invocationId",
+          "maxLength": 128
+        }
+      ],
+      "maxBytes": [
+        {
+          "pointer": "/failure/code",
+          "maxLength": 64,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/failure/message",
+          "maxLength": 4096,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/invocationId",
+          "maxLength": 128,
+          "verdict": "reject"
+        }
+      ],
+      "unknownMember": [
+        "",
+        "/failure"
+      ],
+      "duplicateKey": [
+        "",
+        "/failure"
+      ]
+    },
+    "worker-completion-success.json": {
+      "enum": [
+        "/apiVersion",
+        "/result/observations/profile"
+      ],
+      "maxLength": [
+        {
+          "pointer": "/invocationId",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/result/artifacts/report/name",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/result/artifacts/report/namespace",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/result/observations/workspace/filesRead/0",
+          "maxLength": 1024
+        },
+        {
+          "pointer": "/result/observations/workspace/filesRead/1",
+          "maxLength": 1024
+        },
+        {
+          "pointer": "/result/result",
+          "maxLength": 65536
+        },
+        {
+          "pointer": "/result/subtaskId",
+          "maxLength": 128
+        }
+      ],
+      "maxBytes": [
+        {
+          "pointer": "/invocationId",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/result/artifacts/report/name",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/result/artifacts/report/namespace",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/result/observations/workspace/filesRead/0",
+          "maxLength": 1024,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/result/observations/workspace/filesRead/1",
+          "maxLength": 1024,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/result/result",
+          "maxLength": 65536,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/result/subtaskId",
+          "maxLength": 128,
+          "verdict": "reject"
+        }
+      ],
+      "unknownMember": [
+        "",
+        "/result",
+        "/result/artifacts/report",
+        "/result/observations",
+        "/result/observations/tools/grep",
+        "/result/observations/tools/read_file",
+        "/result/observations/workspace"
+      ],
+      "duplicateKey": [
+        "",
+        "/result",
+        "/result/artifacts",
+        "/result/artifacts/report",
+        "/result/observations",
+        "/result/observations/tools",
+        "/result/observations/tools/grep",
+        "/result/observations/tools/read_file",
+        "/result/observations/workspace"
+      ]
+    },
+    "workspace-capabilities.json": {
+      "enum": [
+        "/modes/0",
+        "/modes/1",
+        "/storage"
+      ],
+      "maxLength": [],
+      "maxBytes": [],
+      "unknownMember": [
+        "",
+        "/limits"
+      ],
+      "duplicateKey": [
+        "",
+        "/limits"
+      ]
+    }
+  }
+}
