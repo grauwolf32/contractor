@@ -78,7 +78,7 @@ WITH candidates AS (
                    )
                )
            )
-       AND (claim.holder_id IS NULL OR claim.expires_at <= clock_timestamp())
+       AND ` + auditClaims.AvailableCondition("claim") + `
      ORDER BY claim.epoch, audit.updated_at, audit.audit_id
      FOR UPDATE OF claim SKIP LOCKED
      LIMIT $3

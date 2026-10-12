@@ -33,7 +33,7 @@ WITH actionable AS (
         FROM eval_controller_claims claim
         JOIN eval_experiments experiment USING (experiment_id)
         WHERE claim.experiment_id = a.experiment_id
-          AND (claim.holder_id IS NULL OR claim.expires_at <= clock_timestamp())
+          AND ` + evalClaims.AvailableCondition("claim") + `
         OFFSET 0
     ) eligible ON true
     ORDER BY eligible.epoch, eligible.updated_at, a.experiment_id
@@ -44,7 +44,7 @@ WITH actionable AS (
         SELECT claim.ctid AS claim_tid
         FROM eval_controller_claims claim
         WHERE claim.experiment_id = ordered.experiment_id
-          AND (claim.holder_id IS NULL OR claim.expires_at <= clock_timestamp())
+          AND ` + evalClaims.AvailableCondition("claim") + `
         FOR UPDATE SKIP LOCKED
     ) locked ON true
     LIMIT $3

@@ -20,8 +20,8 @@ import (
 
 // The bounds of a controller lease.
 const (
-	MinControllerLease = time.Second
-	MaxControllerLease = 5 * time.Minute
+	minControllerLease = time.Second
+	maxControllerLease = 5 * time.Minute
 )
 
 // ErrControllerClaimLost reports that the holder no longer holds the claim at
@@ -52,12 +52,12 @@ type ControllerClaim struct {
 // ValidControllerLease reports whether lease is within the bounds of a
 // controller lease.
 func ValidControllerLease(lease time.Duration) bool {
-	return lease >= MinControllerLease && lease <= MaxControllerLease
+	return lease >= minControllerLease && lease <= maxControllerLease
 }
 
 // LeaseSQL completes a statement whose WITH list ends with a CTE named
-// candidates that selects the ctid, as claim_tid, of free or expired claim
-// rows locked FOR UPDATE SKIP LOCKED. It leases them to holder $1 for $2
+// candidates that selects the ctid, as claim_tid, of claim rows that meet
+// AvailableCondition, locked FOR UPDATE SKIP LOCKED. It leases them to holder $1 for $2
 // milliseconds, advancing each epoch, and returns the new claims in lease
 // order for ScanControllerClaim.
 func (c ControllerClaims) LeaseSQL() string {
@@ -75,6 +75,12 @@ func (c ControllerClaims) LeaseSQL() string {
 SELECT subject_id, holder_id, epoch, claimed_at, expires_at
   FROM leased
  ORDER BY claimed_at, subject_id`
+}
+
+// AvailableCondition is the condition under which the claim row named alias
+// can be leased: it has no holder, or its lease has ended.
+func (c ControllerClaims) AvailableCondition(alias string) string {
+	return `(` + alias + `.holder_id IS NULL OR ` + alias + `.expires_at <= clock_timestamp())`
 }
 
 // LiveClaimSQL is a query, for a MATERIALIZED CTE, that locks the claim row

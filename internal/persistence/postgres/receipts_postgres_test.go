@@ -304,7 +304,7 @@ INSERT INTO eval_controller_claims (experiment_id) VALUES ('keyed-experiment')`)
 WITH candidates AS (
     SELECT claim.ctid AS claim_tid
       FROM `+table.name+` AS claim
-     WHERE claim.holder_id IS NULL OR claim.expires_at <= clock_timestamp()
+     WHERE `+claims.AvailableCondition("claim")+`
      FOR UPDATE SKIP LOCKED
      LIMIT $3
 )`+claims.LeaseSQL(), holder, time.Minute.Milliseconds(), 10)

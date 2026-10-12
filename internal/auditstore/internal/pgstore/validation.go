@@ -7,8 +7,9 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"time"
 	"unicode/utf8"
+
+	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
@@ -638,7 +639,7 @@ func validateClaimParams(params auditstore.ClaimParams) error {
 	if err := validateText("claim holder", params.HolderID, 256, true); err != nil {
 		return err
 	}
-	if params.Lease < time.Second || params.Lease > 5*time.Minute || params.Limit < 1 || params.Limit > auditstore.MaxClaimBatch {
+	if !persistencepostgres.ValidControllerLease(params.Lease) || params.Limit < 1 || params.Limit > auditstore.MaxClaimBatch {
 		return invalidf("claim bounds are invalid")
 	}
 	return nil
