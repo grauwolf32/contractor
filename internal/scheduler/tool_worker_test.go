@@ -4,13 +4,12 @@ import (
 	"context"
 	"testing"
 
-	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/runstore"
 )
 
 func TestToolWorkerMaterializesSettingsWithoutGatewayOrCredentialServices(t *testing.T) {
-	snapshot, err := configload.Load("../../testdata/configs-scan", config.MVPDescriptors())
+	snapshot, err := configload.Load("../../testdata/configs-scan")
 	if err != nil {
 		t.Fatal(err)
 	}

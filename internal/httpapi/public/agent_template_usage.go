@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/pagelimit"
 )
 
@@ -27,7 +28,7 @@ func (h *catalogHandlers) listAgentTemplateWorkflowBindings(w http.ResponseWrite
 		return
 	}
 	selector := r.PathValue("name") + "@" + r.PathValue("version")
-	if _, err := config.ParseSelector(selector); err != nil {
+	if _, err := resolved.ParseSelector(selector); err != nil {
 		handleError(w, fmt.Errorf("%w: invalid AgentTemplate selector", errInvalidRequest))
 		return
 	}
@@ -54,7 +55,7 @@ func (h *catalogHandlers) listAgentTemplateWorkflowBindings(w http.ResponseWrite
 			return
 		}
 		after = agentTemplateWorkflowBindingResponse{
-			Workflow: config.WorkflowRef{Name: name, Version: version},
+			Workflow: resolved.WorkflowRef{Name: name, Version: version},
 			Stage:    cursor[1], LogicalWorker: cursor[2],
 		}
 	}
@@ -80,7 +81,7 @@ func (h *catalogHandlers) listAgentTemplateWorkflowBindings(w http.ResponseWrite
 }
 
 func splitWorkflowSelector(selector string) (string, string, bool) {
-	parsed, err := config.ParseSelector(selector)
+	parsed, err := resolved.ParseSelector(selector)
 	if err != nil {
 		return "", "", false
 	}

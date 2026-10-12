@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/runstore"
 )
@@ -49,7 +49,7 @@ func TestPublicRequestDigestNormalizesEquivalentRequests(t *testing.T) {
 	if explicit := digest(PublicCreateParams{Workflow: "empty@1", MetadataLabels: runstore.RunMetadataLabels{}}); explicit != omitted {
 		t.Fatalf("empty metadata label digest = %q, omitted = %q", explicit, omitted)
 	}
-	var emptyExecutionConfig config.ExecutionConfigPatch
+	var emptyExecutionConfig resolved.ExecutionConfigPatch
 	if err := json.Unmarshal([]byte(`{"stages":{}}`), &emptyExecutionConfig); err != nil {
 		t.Fatal(err)
 	}

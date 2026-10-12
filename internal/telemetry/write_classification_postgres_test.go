@@ -31,15 +31,6 @@ ADD CONSTRAINT planner_report_rejected_by_test CHECK (report_schema_version <> '
 	if !errors.Is(err, telemetry.ErrInvalid) || errors.Is(err, telemetry.ErrConflict) {
 		t.Fatalf("CHECK-rejected report error = %v, want permanent ErrInvalid", err)
 	}
-	err = runs.RecordPlannerExecutionReport(ctx, runstore.RecordPlannerExecutionReportParams{
-		StageExecutionID: rejected.StageExecutionID, SessionID: rejected.SessionID,
-		InvocationID: rejected.InvocationID, StartedAt: rejected.StartedAt, FinishedAt: rejected.FinishedAt,
-		ReportSchemaVersion: rejected.ReportSchemaVersion, Report: rejected.Report, Secrets: rejected.Secrets,
-	})
-	if !errors.Is(err, runstore.ErrInvalid) || errors.Is(err, runstore.ErrConflict) {
-		t.Fatalf("Run store CHECK-rejected report error = %v, want permanent ErrInvalid", err)
-	}
-
 	orphan := plannerEnvelope("stage-missing", "session-missing", time.Now().UTC())
 	if err := reports.RecordPlannerReport(ctx, orphan); !errors.Is(err, telemetry.ErrNotFound) {
 		t.Fatalf("report for a missing StageExecution error = %v, want ErrNotFound", err)

@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
@@ -132,10 +133,10 @@ func TestShippedCatalogInPlaceChangeIsVisibleInRunSnapshots(t *testing.T) {
 	}
 }
 
-func resolveShippedRun(t *testing.T, manager *Manager) ResolvedWorkflow {
+func resolveShippedRun(t *testing.T, manager *Manager) resolved.ResolvedWorkflow {
 	t.Helper()
 	workflow, err := manager.ResolveRunWorkflow(
-		t.Context(), "artifact-copy@1", ExecutionConfigPatch{},
+		t.Context(), "artifact-copy@1", resolved.ExecutionConfigPatch{},
 		developmentCredentialLookup(t, manager.Snapshot()),
 	)
 	if err != nil {

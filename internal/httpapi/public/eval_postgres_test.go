@@ -22,9 +22,10 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
+	"github.com/grauwolf32/contractor/internal/credentials"
 	"github.com/grauwolf32/contractor/internal/evalcoordinator"
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 	"github.com/grauwolf32/contractor/internal/evalservice"
@@ -58,14 +59,14 @@ func newEvalAPIHarness(t *testing.T) *evalAPIHarness {
 		t.Fatal(err)
 	}
 	for _, id := range []string{"development-worker", "development-planner"} {
-		credentialLookup.lookups[id] = config.CredentialMetadata{Ref: llmgateway.LLMCredentialRef{CredentialID: id}, LLMGateway: gateway.Ref, Unrestricted: true}
+		credentialLookup.lookups[id] = resolved.CredentialMetadata{Ref: llmgateway.LLMCredentialRef{CredentialID: id}, LLMGateway: gateway.Ref, Unrestricted: true}
 	}
-	credentials := runtimeconfig.TransactionLLMCredentialLookupFactoryFunc(func(pgx.Tx) (config.CredentialLookup, error) { return credentialLookup, nil })
-	audits, err := auditservice.New(auditservice.Options{Pool: pool, Profiles: catalog, TransactionLLMCredentials: credentials, CredentialGuard: credentialLookup})
+	transactionLLMCredentials := runtimeconfig.TransactionLLMCredentialLookupFactoryFunc(func(pgx.Tx) (resolved.CredentialLookup, error) { return credentialLookup, nil })
+	audits, err := auditservice.New(auditservice.Options{Pool: pool, Profiles: catalog, TransactionLLMCredentials: transactionLLMCredentials, CredentialGuard: credentialLookup})
 	if err != nil {
 		t.Fatal(err)
 	}
-	resolver := &evalservice.Resolver{Pool: pool, Catalog: catalog, Credentials: credentials, Barrier: credentialLookup}
+	resolver := &evalservice.Resolver{Pool: pool, Catalog: catalog, Credentials: transactionLLMCredentials, Barrier: credentialLookup}
 	h := &evalAPIHarness{pool: pool, resolver: resolver}
 	fixture := newHandlerFixtureWithAuth(t, publicCatalogFixture, newTestAuthentication(t), mustTestOrigins(t), false, nil, func(d *testServices) {
 		d.Config = catalog
@@ -74,11 +75,11 @@ func newEvalAPIHarness(t *testing.T) *evalAPIHarness {
 		d.Artifacts = artifacts.NewService(artifacts.NewPostgresRepository(pool))
 		runs, err := runservice.New(runservice.Options{Runs: runstore.NewPostgresStore(pool), Workflows: catalog, LLMCredentials: credentialLookup, CredentialGuard: credentialLookup, RuntimeCredentials: d.RuntimeCredentials, Projects: d.Projects, SkillInitializationAvailable: true, PublicTransaction: func(ctx context.Context, fn func(runservice.PublicRunWriter, *artifacts.Service) error) error {
 			return pg.InTx(ctx, pool, pgx.TxOptions{IsoLevel: pgx.RepeatableRead}, func(tx pgx.Tx) error {
-				lookup, err := runtimeconfig.BindTransactionLLMCredentialLookup(tx, credentials)
+				lookup, err := runtimeconfig.BindTransactionLLMCredentialLookup(tx, transactionLLMCredentials)
 				if err != nil {
 					return err
 				}
-				return fn(runstore.NewRunCreationPostgresStore(tx, lookup), artifacts.NewService(artifacts.NewPostgresRepository(tx)))
+				return fn(runstore.NewRunCreationPostgresStore(tx, lookup, credentials.NewRuntimeCredentialRepository(tx)), artifacts.NewService(artifacts.NewPostgresRepository(tx)))
 			})
 		}})
 		if err != nil {

@@ -10,7 +10,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
@@ -28,7 +28,7 @@ type createRunRequest struct {
 	Labels          runMetadataLabels                `json:"labels,omitempty"`
 	Parameters      map[string]string                `json:"parameters"`
 	Artifacts       map[string]contracts.ArtifactRef `json:"artifacts"`
-	ExecutionConfig config.ExecutionConfigPatch      `json:"executionConfig"`
+	ExecutionConfig resolved.ExecutionConfigPatch    `json:"executionConfig"`
 }
 
 type runRuntimeLabels []string
@@ -253,7 +253,7 @@ type runStatusResponse struct {
 type runRepeatDraftResponse struct {
 	SourceRunID string                 `json:"sourceRunId"`
 	Authority   string                 `json:"authority"`
-	Workflow    config.WorkflowRef     `json:"workflow"`
+	Workflow    resolved.WorkflowRef   `json:"workflow"`
 	ProjectID   *string                `json:"projectId,omitempty"`
 	AuditID     *string                `json:"auditId,omitempty"`
 	Draft       *runRepeatDraft        `json:"draft,omitempty"`
@@ -269,8 +269,8 @@ type runRepeatDraft struct {
 }
 
 type runRepeatExecutionConfig struct {
-	Status string                      `json:"status"`
-	Value  config.ExecutionConfigPatch `json:"value"`
+	Status string                        `json:"status"`
+	Value  resolved.ExecutionConfigPatch `json:"value"`
 }
 
 type runRepeatInputSelection struct {
@@ -405,7 +405,7 @@ type updateOwnerQueueControlRequest struct {
 type stageExecutionConfigResponse struct {
 	Variant           runstore.StageExecutionConfigVariant           `json:"variant"`
 	EscalationOrdinal *int                                           `json:"escalationOrdinal,omitempty"`
-	Ref               *config.ExecutionConfigRef                     `json:"ref,omitempty"`
+	Ref               *resolved.ExecutionConfigRef                   `json:"ref,omitempty"`
 	Planner           *consumerExecutionConfigRefsResponse           `json:"planner,omitempty"`
 	Agents            map[string]consumerExecutionConfigRefsResponse `json:"agents"`
 }
@@ -414,13 +414,13 @@ type consumerExecutionConfigRefsResponse struct {
 	ModelPolicy contracts.ModelPolicyRef        `json:"modelPolicy,omitzero"`
 	LLMGateway  *llmgateway.LLMGatewayConfigRef `json:"llmGateway,omitempty"`
 	Credential  *llmgateway.LLMCredentialRef    `json:"credential,omitempty"`
-	Origins     config.ExecutionConfigOrigins   `json:"origins"`
+	Origins     resolved.ExecutionConfigOrigins `json:"origins"`
 }
 
 // consumerExecutionConfigRefs projects the execution configuration one
 // Planner or Worker resolved to, for a Workflow and for a StageExecution.
 func consumerExecutionConfigRefs(
-	selection config.ResolvedConsumerExecutionConfig,
+	selection resolved.ResolvedConsumerExecutionConfig,
 ) consumerExecutionConfigRefsResponse {
 	result := consumerExecutionConfigRefsResponse{
 		ModelPolicy: selection.ModelPolicy.Ref,

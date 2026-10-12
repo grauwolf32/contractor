@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -152,7 +152,7 @@ func TestTransactionLookupPinsRuntimeConfigWithoutAnotherPoolConnection(t *testi
 		_ = tx.Rollback(ctx)
 		t.Fatal(err)
 	}
-	store := runstore.NewRunCreationPostgresStore(tx, bound)
+	store := runstore.NewRunCreationPostgresStore(tx, bound, NewRuntimeCredentialRepository(tx))
 	pinned, err := store.PinRuntimeLabels(ctx, []string{"valid"})
 	if err != nil {
 		_ = tx.Rollback(ctx)
@@ -189,14 +189,14 @@ func TestTransactionLookupPinsRuntimeConfigWithoutAnotherPoolConnection(t *testi
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = runstore.NewRunCreationPostgresStore(missingTx, missingLookup).
+	_, err = runstore.NewRunCreationPostgresStore(missingTx, missingLookup, NewRuntimeCredentialRepository(missingTx)).
 		PinRuntimeLabels(missingCtx, []string{"missing"})
 	if !errors.Is(err, runtimeconfig.ErrInvalid) || errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("missing transaction credential error = %v", err)
 	}
 
 	duplicateDevelopment, err := NewStaticProvider([]StaticEntry{{
-		Metadata: config.CredentialMetadata{
+		Metadata: resolved.CredentialMetadata{
 			Ref: recordCredentialRef(record), LLMGateway: record.LLMGateway, Unrestricted: true,
 		},
 		Token: contracts.NewSecretString("development-duplicate"),

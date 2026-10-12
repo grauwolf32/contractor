@@ -615,9 +615,17 @@ func newLifecycleFixtureWithCipher(
 	return lifecycleFixture{service: service, cipher: cipher, gateway: gateway}
 }
 
+// staticAuditDispatchHolds is an Audit dispatch-hold lookup whose Audits hold
+// every credential.
 type staticAuditDispatchHolds struct{ auditIDs []string }
 
 func (h staticAuditDispatchHolds) ListHeldAuditIDsByLLMCredential(
+	context.Context, string, int,
+) ([]string, error) {
+	return append([]string(nil), h.auditIDs...), nil
+}
+
+func (h staticAuditDispatchHolds) ListHeldAuditIDsByRuntimeCredential(
 	context.Context, string, int,
 ) ([]string, error) {
 	return append([]string(nil), h.auditIDs...), nil

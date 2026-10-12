@@ -15,6 +15,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
@@ -51,7 +52,7 @@ func TestPublicAuditEventHistory(t *testing.T) {
 	fixture := newHandlerFixtureWithAuth(t, "../../config/testdata/valid", newTestAuthentication(t), mustTestOrigins(t), false, nil, func(d *testServices) {
 		credentials := newFakeManagedCredentials()
 		var err error
-		service, err = auditservice.New(auditservice.Options{Pool: pool, Profiles: d.Config.(*config.Manager), CredentialGuard: credentials, TransactionLLMCredentials: runtimeconfig.TransactionLLMCredentialLookupFactoryFunc(func(pgx.Tx) (config.CredentialLookup, error) { return credentials, nil })})
+		service, err = auditservice.New(auditservice.Options{Pool: pool, Profiles: d.Config.(*config.Manager), CredentialGuard: credentials, TransactionLLMCredentials: runtimeconfig.TransactionLLMCredentialLookupFactoryFunc(func(pgx.Tx) (resolved.CredentialLookup, error) { return credentials, nil })})
 		if err != nil {
 			t.Fatal(err)
 		}

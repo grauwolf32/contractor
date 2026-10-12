@@ -7,7 +7,7 @@ import (
 	"encoding/json"
 	"slices"
 
-	workflowconfig "github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/gatewayrecovery"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -34,7 +34,7 @@ func reservationModelRoutes(ownerID string, reservation controlplane.Reservation
 	}
 	return routes
 }
-func (s *Scheduler) admitModelRoutes(ctx context.Context, run runstore.WorkflowRun, stage workflowconfig.ResolvedStage, reservations []controlplane.Reservation) (bool, error) {
+func (s *Scheduler) admitModelRoutes(ctx context.Context, run runstore.WorkflowRun, stage resolved.ResolvedStage, reservations []controlplane.Reservation) (bool, error) {
 	if s.options.GatewayRecovery == nil {
 		return true, nil
 	}
@@ -61,7 +61,7 @@ func (s *Scheduler) bindModelRoutes(ctx context.Context, run runstore.WorkflowRu
 	return nil
 }
 
-func plannerModelRoute(ownerID string, stage workflowconfig.ResolvedStage) *gatewayrecovery.Route {
+func plannerModelRoute(ownerID string, stage resolved.ResolvedStage) *gatewayrecovery.Route {
 	selection := stage.ExecutionConfig.Planner
 	if selection == nil || selection.LLMGateway == nil {
 		return nil

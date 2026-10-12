@@ -29,7 +29,7 @@ func (s *Scheduler) Run(ctx context.Context) error {
 	}
 	monitorContext, cancelMonitor := context.WithCancel(context.WithoutCancel(ctx))
 	var monitor sync.WaitGroup
-	monitor.Add(3)
+	monitor.Add(2)
 	go func() {
 		defer monitor.Done()
 		s.monitorAllocationLosses(monitorContext)
@@ -37,10 +37,6 @@ func (s *Scheduler) Run(ctx context.Context) error {
 	go func() {
 		defer monitor.Done()
 		s.monitorTerminalRelease(monitorContext)
-	}()
-	go func() {
-		defer monitor.Done()
-		s.monitorMetricsRetention(monitorContext)
 	}()
 
 	type laneResult struct {
@@ -271,35 +267,6 @@ func (s *Scheduler) monitorTerminalRelease(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-s.after(s.options.PollInterval):
-		}
-	}
-}
-
-func (s *Scheduler) monitorMetricsRetention(ctx context.Context) {
-	for {
-		if ctx.Err() != nil {
-			return
-		}
-		cleanupContext, cancel := context.WithTimeout(ctx, s.options.OperationTimeout)
-		deleted, err := s.store.CleanupExpiredTelemetry(
-			cleanupContext, s.now(), s.options.MetricsCleanupBatch,
-		)
-		cancel()
-		if err != nil && ctx.Err() == nil {
-			s.options.Logger.Warn("telemetry retention cleanup failed", "error", err)
-		} else if deleted > 0 {
-			s.options.Logger.Info("expired telemetry removed", "rows", deleted)
-		}
-		wait := s.options.MetricsCleanupInterval
-		if err == nil && deleted >= int64(s.options.MetricsCleanupBatch) {
-			// A full batch means expired rows may remain. Yield briefly, then
-			// continue draining instead of waiting for the next daily pass.
-			wait = metricsCleanupDrainPause
-		}
-		select {
-		case <-ctx.Done():
-			return
-		case <-s.after(wait):
 		}
 	}
 }

@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/credentialerrors"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -53,7 +53,7 @@ func NormalizeRunLabels(source []string) ([]string, error) {
 	seen := make(map[string]struct{}, len(source))
 	result := append([]string{}, source...)
 	for _, label := range result {
-		if validateLabel(label) != nil || label == DefaultLabel {
+		if ValidateLabel(label) != nil || label == DefaultLabel {
 			return nil, invalid("Run Runtime label is invalid or reserved")
 		}
 		if _, duplicate := seen[label]; duplicate {
@@ -167,7 +167,7 @@ func (s RunSnapshot) Validate() error {
 	previous := ""
 	for _, pin := range s.Labels {
 		if !pin.Explicit || pin.Label == DefaultLabel || pin.Label <= previous ||
-			validateLabel(pin.Label) != nil || pin.BindingRevision == 0 || validateRef(pin.Config) != nil {
+			ValidateLabel(pin.Label) != nil || pin.BindingRevision == 0 || validateRef(pin.Config) != nil {
 			return invalid("Run RuntimeConfig label snapshot is invalid")
 		}
 		previous = pin.Label
@@ -205,7 +205,7 @@ func BuiltInRunSnapshot() RunSnapshot {
 }
 
 func validateRunLLMCredential(
-	ctx context.Context, spec Spec, lookup config.CredentialLookup,
+	ctx context.Context, spec Spec, lookup resolved.CredentialLookup,
 ) error {
 	patch := spec.Worker.LLMGateway
 	if !patch.Present || !patch.Credential.Present || patch.Credential.Clear {
@@ -219,7 +219,7 @@ func validateRunLLMCredential(
 		if contextError := ctx.Err(); contextError != nil {
 			return contextError
 		}
-		if errors.Is(err, credentialerrors.LLMNotFound) || errors.Is(err, pgx.ErrNoRows) {
+		if errors.Is(err, credentialerrors.LLMNotFound) {
 			return persistencepostgres.WrapError(
 				"invalid RuntimeConfig: LLM credential is unavailable", errors.Join(ErrInvalid, err),
 			)

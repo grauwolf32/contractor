@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -14,7 +14,7 @@ import (
 type ScanHistoryStore interface {
 	GetRun(context.Context, string) (runstore.WorkflowRun, error)
 	ListStageExecutions(context.Context, string) ([]runstore.StageExecution, error)
-	GetPlannerSession(context.Context, string) (runstore.PlannerSession, error)
+	GetPlannerSessions(context.Context, []string) (map[string]runstore.PlannerSession, error)
 }
 
 func (s *Service) ReadAuditScanHistory(ctx context.Context, runID string) ([]planner.ScanAttempt, error) {
@@ -35,7 +35,7 @@ func ReadAuditScanHistory(ctx context.Context, store ScanHistoryStore, runID str
 	if run.RunID != runID || run.PublicationMode != runstore.PublicationAuditManaged || run.AuditExecutionID == nil {
 		return nil, fmt.Errorf("Audit scan requires an Audit-managed Run")
 	}
-	workflow, err := config.DecodeResolvedWorkflowSnapshot(run.WorkflowSnapshot)
+	workflow, err := resolved.DecodeResolvedWorkflowSnapshot(run.WorkflowSnapshot)
 	if err != nil {
 		return nil, err
 	}
@@ -46,7 +46,8 @@ func ReadAuditScanHistory(ctx context.Context, store ScanHistoryStore, runID str
 	if err != nil {
 		return nil, err
 	}
-	result := []planner.ScanAttempt{}
+	executors := make([]runstore.StageExecution, 0, len(stages))
+	sessionIDs := make([]string, 0, len(stages))
 	for _, stage := range stages {
 		if stage.RunID != runID {
 			return nil, fmt.Errorf("scan history Run identity differs")
@@ -56,7 +57,20 @@ func ReadAuditScanHistory(ctx context.Context, store ScanHistoryStore, runID str
 		if stage.StageName != workflow.AuditTask.Stage {
 			continue
 		}
-		spec, err := config.DecodeResolvedStageSnapshot(stage.StageSpecSnapshot)
+		executors = append(executors, stage)
+		if stage.PlannerSessionID != nil {
+			sessionIDs = append(sessionIDs, *stage.PlannerSessionID)
+		}
+	}
+	// Every attempt's session comes from one read, whatever the number of
+	// attempts in the Run's bounded Stage history.
+	sessions, err := store.GetPlannerSessions(ctx, sessionIDs)
+	if err != nil {
+		return nil, err
+	}
+	result := []planner.ScanAttempt{}
+	for _, stage := range executors {
+		spec, err := resolved.DecodeResolvedStageSnapshot(stage.StageSpecSnapshot)
 		if err != nil {
 			return nil, err
 		}
@@ -69,9 +83,9 @@ func ReadAuditScanHistory(ctx context.Context, store ScanHistoryStore, runID str
 			attempt.Terminal = true
 		}
 		if stage.PlannerSessionID != nil {
-			stored, err := store.GetPlannerSession(ctx, *stage.PlannerSessionID)
-			if err != nil {
-				return nil, err
+			stored, found := sessions[*stage.PlannerSessionID]
+			if !found {
+				return nil, fmt.Errorf("load scan Planner session: %w", runstore.ErrNotFound)
 			}
 			if stored.SessionID != *stage.PlannerSessionID || stored.StageExecutionID != stage.StageExecutionID || stored.StateSchemaVersion != contracts.APIVersion ||
 				stage.PlannerInvocationID == nil || stored.InvocationID != *stage.PlannerInvocationID {

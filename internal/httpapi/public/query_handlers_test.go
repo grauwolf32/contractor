@@ -12,7 +12,8 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/planner"
@@ -117,9 +118,9 @@ func TestWorkflowDetailProjectsSafeSkillRequirements(t *testing.T) {
 // projection, Repeat, Audit and Eval tests; expectations come from its files.
 const publicCatalogFixture = "testdata/catalog"
 
-func catalogWorkflow(t *testing.T, selector string) config.ResolvedWorkflow {
+func catalogWorkflow(t *testing.T, selector string) resolved.ResolvedWorkflow {
 	t.Helper()
-	snapshot, err := configload.Load(publicCatalogFixture, config.MVPDescriptors())
+	snapshot, err := configload.Load(publicCatalogFixture)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -130,7 +131,7 @@ func catalogWorkflow(t *testing.T, selector string) config.ResolvedWorkflow {
 	return workflow
 }
 
-func workflowDetailTarget(workflow config.ResolvedWorkflow) string {
+func workflowDetailTarget(workflow resolved.ResolvedWorkflow) string {
 	return "/v1/workflows/" + url.PathEscape(workflow.Ref.Name) +
 		"/versions/" + url.PathEscape(workflow.Ref.Version)
 }
@@ -454,7 +455,7 @@ func TestOwnerQueueControlIsDurableCASAndIdempotent(t *testing.T) {
 
 func TestRunDetailJoinsImmutableObjectiveTypedPlanInputsAndCursor(t *testing.T) {
 	fixture := newHandlerFixture(t)
-	snapshot, err := configload.Load("../../config/testdata/valid", config.MVPDescriptors())
+	snapshot, err := configload.Load("../../config/testdata/valid")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -483,7 +484,7 @@ func TestRunDetailJoinsImmutableObjectiveTypedPlanInputsAndCursor(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := fixture.artifacts.ForkInput(t.Context(), "user-1", source.Ref, "run-detail", "source"); err != nil {
+	if _, err := artifactstest.ForkInput(t.Context(), fixture.artifacts, "user-1", source.Ref, "run-detail", "source"); err != nil {
 		t.Fatal(err)
 	}
 	sessionID, invocationID := "session-detail", "invocation-detail"
@@ -565,9 +566,7 @@ func TestArtifactQueriesPreserveExactHistoryLineageAndRunOwnership(t *testing.T)
 		"run-artifacts", "user-1", runstore.RunRunning,
 		time.Date(2026, 8, 30, 12, 0, 0, 0, time.UTC),
 	)
-	if _, err := fixture.artifacts.ForkInput(
-		t.Context(), "user-1", first.Ref, "run-artifacts", "source",
-	); err != nil {
+	if _, err := artifactstest.ForkInput(t.Context(), fixture.artifacts, "user-1", first.Ref, "run-artifacts", "source"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -628,9 +627,7 @@ func TestArtifactQueriesPreserveExactHistoryLineageAndRunOwnership(t *testing.T)
 		t.Fatalf("RunScope download = %d, headers %v, body %q", download.Code, download.Header(), download.Body.String())
 	}
 	for _, runID := range []string{"lineage-a", "lineage-b"} {
-		if _, err := fixture.artifacts.ForkInput(
-			t.Context(), "user-1", second.Ref, runID, "source",
-		); err != nil {
+		if _, err := artifactstest.ForkInput(t.Context(), fixture.artifacts, "user-1", second.Ref, runID, "source"); err != nil {
 			t.Fatal(err)
 		}
 	}

@@ -10,7 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/agentprincipal"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
@@ -38,7 +39,7 @@ func TestRuntimeConfigLLMCredentialReferencesValidateAndFenceDeletion(t *testing
 	mismatch := fixture.gateway.Ref
 	mismatch.Digest = "sha256:" + strings.Repeat("e", 64)
 	static, err := NewStaticProvider([]StaticEntry{{
-		Metadata: config.CredentialMetadata{
+		Metadata: resolved.CredentialMetadata{
 			Ref: llmgateway.LLMCredentialRef{CredentialID: "wrong-gateway"}, LLMGateway: mismatch,
 		},
 		Token: contracts.NewSecretString("static-test-token"),
@@ -52,7 +53,7 @@ func TestRuntimeConfigLLMCredentialReferencesValidateAndFenceDeletion(t *testing
 	}
 	publisher, bindings, resolver := newReferenceTestServices(t, pool, fixture.gateway, factory, fixture.service.barrier)
 	repository := runtimeconfig.NewRepository(pool)
-	management, err := runtimeconfig.NewManagementService(pool, publisher, bindings)
+	management, err := runtimeconfig.NewManagementService(pool, publisher, bindings, agentprincipal.LabelHolders{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -156,7 +157,7 @@ func TestRuntimeConfigBindingAndCredentialDeleteSerializeAcrossBarriers(t *testi
 		t.Fatal(err)
 	}
 	publisher, bindings, _ := newReferenceTestServices(t, pool, fixture.gateway, factory, fixture.service.barrier)
-	management, err := runtimeconfig.NewManagementService(pool, publisher, bindings)
+	management, err := runtimeconfig.NewManagementService(pool, publisher, bindings, agentprincipal.LabelHolders{})
 	if err != nil {
 		t.Fatal(err)
 	}

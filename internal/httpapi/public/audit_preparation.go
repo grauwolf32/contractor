@@ -5,7 +5,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
@@ -17,7 +17,7 @@ func (h *auditHandlers) auditDetailReadModel(r *http.Request, audit auditstore.A
 	if response.Phase == auditdomain.AuditPhaseNotStarted {
 		return response, nil
 	}
-	profile, err := config.DecodeResolvedAuditProfileSnapshot(audit.ProfileSnapshot)
+	profile, err := auditprofile.DecodeResolvedAuditProfileSnapshot(audit.ProfileSnapshot)
 	if err != nil || !profile.HasPreparation() {
 		return response, nil
 	}

@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/credentialerrors"
@@ -17,7 +17,7 @@ import (
 var ErrNotFound = credentialerrors.LLMNotFound
 
 type Resolver interface {
-	config.CredentialLookup
+	resolved.CredentialLookup
 	ResolveLLMCredential(
 		context.Context,
 		llmgateway.LLMCredentialRef,
@@ -26,7 +26,7 @@ type Resolver interface {
 }
 
 type StaticEntry struct {
-	Metadata config.CredentialMetadata
+	Metadata resolved.CredentialMetadata
 	Token    contracts.SecretString
 }
 
@@ -62,20 +62,20 @@ func NewStaticProvider(entries []StaticEntry) (*StaticProvider, error) {
 func (p *StaticProvider) LookupLLMCredential(
 	_ context.Context,
 	id string,
-) (config.CredentialMetadata, error) {
+) (resolved.CredentialMetadata, error) {
 	if p == nil {
-		return config.CredentialMetadata{}, ErrNotFound
+		return resolved.CredentialMetadata{}, ErrNotFound
 	}
 	p.mu.RLock()
 	entry, ok := p.entries[id]
 	p.mu.RUnlock()
 	if !ok {
-		return config.CredentialMetadata{}, ErrNotFound
+		return resolved.CredentialMetadata{}, ErrNotFound
 	}
 	return cloneCredentialMetadata(entry.Metadata), nil
 }
 
-func cloneCredentialMetadata(source config.CredentialMetadata) config.CredentialMetadata {
+func cloneCredentialMetadata(source resolved.CredentialMetadata) resolved.CredentialMetadata {
 	result := source
 	result.ModelPolicies = append([]contracts.ModelPolicyRef(nil), source.ModelPolicies...)
 	result.Models = append([]string(nil), source.Models...)

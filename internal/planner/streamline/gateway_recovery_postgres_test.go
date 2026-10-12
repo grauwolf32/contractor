@@ -201,7 +201,7 @@ func admittedPlannerParticipant(
 	t *testing.T, ctx context.Context, pool *pgxpool.Pool, runID string,
 ) *gatewayrecovery.Participant {
 	t.Helper()
-	service, err := gatewayrecovery.New(pool, gatewayrecovery.Policy{
+	service, err := gatewayrecovery.New(pool, runstore.GatewayRecoveryRuns{}, gatewayrecovery.Policy{
 		InitialDelay: time.Second, MaxDelay: time.Second, AutomaticWindow: time.Minute,
 	}, time.Minute, time.Minute)
 	if err != nil {

@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
+	"github.com/grauwolf32/contractor/internal/settingsstore"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -22,13 +23,24 @@ func (s *PostgresStore) CreateExecutionIntent(
 		return replay, false, err
 	}
 	prepared := prepareExecutionIntentWrite(params)
-	execution, err := scanExecution(persistencepostgres.SavepointQueryRow(ctx, s.db, createExecutionIntentSQL,
-		params.Claim.AuditID, params.Claim.HolderID, params.Claim.Epoch,
-		params.ExecutionID, string(params.Role), prepared.roundID, prepared.roleAttempt,
-		prepared.manifestRef, params.Manifest.Digest, params.SubmissionKey,
-		params.RequestDigest, prepared.members,
-		params.WorkflowRole, prepared.preparation,
-	))
+	var execution Execution
+	err := persistencepostgres.Within(ctx, s.db, pgx.TxOptions{}, func(tx pgx.Tx) error {
+		// The reservation holds the Scheduler settings row until it commits,
+		// so a settings change is ordered before or after it (AUX-R6), and
+		// takes that lock before its claim, Audit and Round locks.
+		settings, err := settingsstore.NewPostgresTxStore(tx).LockSchedulerSettings(ctx)
+		if err != nil {
+			return fmt.Errorf("lock Audit dispatch window: %w", err)
+		}
+		execution, err = scanExecution(persistencepostgres.SavepointQueryRow(ctx, tx, createExecutionIntentSQL,
+			params.Claim.AuditID, params.Claim.HolderID, params.Claim.Epoch,
+			params.ExecutionID, string(params.Role), prepared.roundID, prepared.roleAttempt,
+			prepared.manifestRef, params.Manifest.Digest, params.SubmissionKey,
+			params.RequestDigest, prepared.members,
+			params.WorkflowRole, prepared.preparation, settings.MaxConcurrentRuns,
+		))
+		return err
+	})
 	if err == nil {
 		return execution, true, nil
 	}

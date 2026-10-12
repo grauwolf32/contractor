@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/grauwolf32/contractor/internal/auditservice"
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 	"github.com/grauwolf32/contractor/internal/evalservice"
 	"github.com/grauwolf32/contractor/internal/evalstore"
@@ -36,7 +36,7 @@ type EvalManagement interface {
 
 // WorkflowLister lists the published Workflows an Eval can bind.
 type WorkflowLister interface {
-	Workflows() []config.ResolvedWorkflow
+	Workflows() []resolved.ResolvedWorkflow
 }
 
 // AuditProfileLister lists the AuditProfiles an Eval can bind.

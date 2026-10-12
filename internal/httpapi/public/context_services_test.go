@@ -8,7 +8,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auth"
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	"github.com/grauwolf32/contractor/internal/evaldomain"
@@ -61,7 +61,7 @@ type testServices struct {
 
 	Config                 testCatalog
 	ConfigurationPublisher ConfigurationPublisher
-	Credentials            config.CredentialLookup
+	Credentials            resolved.CredentialLookup
 	ManagedCredentials     testManagedCredentials
 	RuntimeConfigs         RuntimeConfigManagement
 	RuntimeCredentials     testRuntimeCredentials

@@ -322,7 +322,10 @@ type missingReadBarrier struct {
 	release chan struct{}
 }
 
+// memoryArtifactRepository implements the storage the Skill catalog uses; any
+// other Repository method panics on the nil embedded interface.
 type memoryArtifactRepository struct {
+	artifacts.Repository
 	mu                        sync.Mutex
 	bindings                  map[string]memoryArtifact
 	history                   map[string]map[string]memoryArtifact
@@ -402,15 +405,6 @@ func (r *memoryArtifactRepository) Write(_ context.Context, scope artifacts.Scop
 	return artifacts.WriteResult{Ref: read.Ref, MediaType: payload.MediaType, Size: int64(len(payload.Data)), BindingCreatedAt: now, RevisionCreatedAt: now}, nil
 }
 
-func (r *memoryArtifactRepository) ListRefs(context.Context, artifacts.Scope, artifacts.RefPageQuery) (artifacts.RefPage, error) {
-	return artifacts.RefPage{}, artifacts.ErrQueryUnsupported
-}
-func (r *memoryArtifactRepository) ForkInput(context.Context, artifacts.Scope, artifacts.ArtifactRef, artifacts.Scope, string) (artifacts.ForkResult, error) {
-	return artifacts.ForkResult{}, artifacts.ErrQueryUnsupported
-}
-func (r *memoryArtifactRepository) BindOutputExact(context.Context, artifacts.Scope, string, artifacts.ArtifactRef, *string) (artifacts.ForkResult, error) {
-	return artifacts.ForkResult{}, artifacts.ErrQueryUnsupported
-}
 func (r *memoryArtifactRepository) RequireExact(_ context.Context, scope artifacts.Scope, ref artifacts.ArtifactRef) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -422,10 +416,6 @@ func (r *memoryArtifactRepository) RequireExact(_ context.Context, scope artifac
 	}
 	return nil
 }
-func (r *memoryArtifactRepository) FreezeOutputs(context.Context, artifacts.Scope) error {
-	return artifacts.ErrQueryUnsupported
-}
-
 func (r *memoryArtifactRepository) Metadata(_ context.Context, scope artifacts.Scope, ref artifacts.ArtifactRef) (artifacts.Metadata, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -445,38 +435,22 @@ func (r *memoryArtifactRepository) Metadata(_ context.Context, scope artifacts.S
 	}, nil
 }
 
-func (*memoryArtifactRepository) ListMetadata(context.Context, artifacts.Scope, artifacts.BindingPageQuery) ([]artifacts.Metadata, error) {
-	return nil, artifacts.ErrQueryUnsupported
-}
-
-func (*memoryArtifactRepository) ListVersions(context.Context, artifacts.Scope, artifacts.ArtifactRef, artifacts.VersionPageQuery) ([]artifacts.Metadata, error) {
-	return nil, artifacts.ErrQueryUnsupported
-}
-
-func (*memoryArtifactRepository) ListLineage(context.Context, artifacts.Scope, artifacts.ArtifactRef, artifacts.LineagePageQuery) ([]artifacts.LineageEdge, error) {
-	return nil, artifacts.ErrQueryUnsupported
-}
-
-func (r *memoryArtifactRepository) ForkSkill(
-	_ context.Context,
-	sourceScope artifacts.Scope,
-	sourceRef artifacts.ArtifactRef,
-	targetScope artifacts.Scope,
-	name string,
-) (artifacts.ForkResult, error) {
+// Fork supports the exact Skill forks of Run initialization.
+func (r *memoryArtifactRepository) Fork(_ context.Context, fork artifacts.Fork) (artifacts.ForkResult, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	sourceRef, name := fork.SourceRef, fork.TargetRef.Name
 	if sourceRef.Revision == nil {
 		return artifacts.ForkResult{}, artifacts.ErrExactRevisionRequired
 	}
-	source, ok := r.history[artifactKey(sourceScope, sourceRef)][*sourceRef.Revision]
+	source, ok := r.history[artifactKey(fork.Source, sourceRef)][*sourceRef.Revision]
 	if !ok {
 		return artifacts.ForkResult{}, artifacts.ErrArtifactNotFound
 	}
-	targetKey := artifactKey(targetScope, artifacts.ArtifactRef{Namespace: SkillNamespace, Name: name})
+	targetKey := artifactKey(fork.Target, artifacts.ArtifactRef{Namespace: SkillNamespace, Name: name})
 	if existing, exists := r.bindings[targetKey]; exists {
 		previous := r.forkSources[targetKey]
-		if previous.Revision == nil || *previous.Revision != *sourceRef.Revision {
+		if !fork.Replay || previous.Revision == nil || *previous.Revision != *sourceRef.Revision {
 			return artifacts.ForkResult{}, artifacts.ErrArtifactConflict
 		}
 		return artifacts.ForkResult{

@@ -8,7 +8,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditbaseline"
 	"github.com/grauwolf32/contractor/internal/auditstandards"
 	"github.com/grauwolf32/contractor/internal/auditstore"
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/findingintake"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
@@ -22,8 +22,8 @@ const (
 )
 
 type ProfileCatalog interface {
-	AuditProfile(string) (config.ResolvedAuditProfile, error)
-	AuditProfiles() []config.ResolvedAuditProfile
+	AuditProfile(string) (auditprofile.ResolvedAuditProfile, error)
+	AuditProfiles() []auditprofile.ResolvedAuditProfile
 }
 
 // CredentialReferenceGuard must fence both managed LLM and Runtime credential
@@ -76,7 +76,7 @@ type Compatibility struct {
 }
 
 type ProfileProjection struct {
-	Profile       config.ResolvedAuditProfile
+	Profile       auditprofile.ResolvedAuditProfile
 	Compatibility Compatibility
 }
 

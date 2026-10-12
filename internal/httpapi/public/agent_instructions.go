@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 )
 
 func (h *catalogHandlers) getAgentInstructions(w http.ResponseWriter, r *http.Request) {
@@ -17,7 +17,7 @@ func (h *catalogHandlers) getAgentInstructions(w http.ResponseWriter, r *http.Re
 		return
 	}
 	selector := r.PathValue("name") + "@" + r.PathValue("version")
-	if _, err := config.ParseSelector(selector); err != nil {
+	if _, err := resolved.ParseSelector(selector); err != nil {
 		handleError(w, fmt.Errorf("%w: invalid AgentTemplate selector", errInvalidRequest))
 		return
 	}

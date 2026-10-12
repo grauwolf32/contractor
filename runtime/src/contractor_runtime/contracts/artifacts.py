@@ -49,6 +49,28 @@ def is_reserved_result_binding(namespace: object, name: object) -> bool:
     ) or is_reserved_memory_binding(namespace, name)
 
 
+def validate_artifact_name(field_name: str, value: object) -> str:
+    """Return ``value`` when it is a portable Artifact name.
+
+    The one Runtime check of the grammar that artifact-name-cases.json pins,
+    for namespaces, names and name prefixes alike.
+    """
+
+    if type(value) is not str or ARTIFACT_NAME_PATTERN.fullmatch(value) is None:
+        raise ValueError(
+            f"{field_name} must be a portable ASCII Artifact name of 1 through 128 characters"
+        )
+    return value
+
+
+def validate_media_type(value: object) -> str:
+    """Return ``value`` when it is a media type that media-type-cases.json admits."""
+
+    if type(value) is not str or MEDIA_TYPE_PATTERN.fullmatch(value) is None:
+        raise ValueError("artifact media type is invalid: use lowercase type/subtype only")
+    return value
+
+
 class ArtifactRef(WireModel):
     namespace: str
     name: str
@@ -56,14 +78,8 @@ class ArtifactRef(WireModel):
 
     @model_validator(mode="after")
     def validate_ref(self) -> Self:
-        if ARTIFACT_NAME_PATTERN.fullmatch(self.namespace) is None:
-            raise ValueError(
-                "namespace must be a portable ASCII Artifact name of 1 through 128 characters"
-            )
-        if ARTIFACT_NAME_PATTERN.fullmatch(self.name) is None:
-            raise ValueError(
-                "name must be a portable ASCII Artifact name of 1 through 128 characters"
-            )
+        validate_artifact_name("namespace", self.namespace)
+        validate_artifact_name("name", self.name)
         if self.revision is not None:
             _require_text("revision", self.revision)
         return self
@@ -72,11 +88,6 @@ class ArtifactRef(WireModel):
         if self.revision is None:
             raise ValueError("artifact revision is required")
         return self
-
-
-def _validate_media_type(value: str) -> None:
-    if MEDIA_TYPE_PATTERN.fullmatch(value) is None:
-        raise ValueError("mediaType must be lowercase type/subtype without parameters")
 
 
 class ArtifactListResult(VersionedWireModel):
@@ -108,7 +119,7 @@ class ArtifactReadResult(VersionedWireModel):
     @model_validator(mode="after")
     def validate_result(self) -> Self:
         self.artifact.require_exact()
-        _validate_media_type(self.media_type)
+        validate_media_type(self.media_type)
         return self
 
 

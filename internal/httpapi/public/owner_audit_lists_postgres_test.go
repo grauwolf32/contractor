@@ -15,6 +15,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
@@ -56,7 +57,7 @@ func TestPublicOwnerAuditLists(t *testing.T) {
 			service, err = auditservice.New(auditservice.Options{
 				Pool: pool, Profiles: dependencies.Config.(*config.Manager), CredentialGuard: credentials,
 				TransactionLLMCredentials: runtimeconfig.TransactionLLMCredentialLookupFactoryFunc(
-					func(pgx.Tx) (config.CredentialLookup, error) { return credentials, nil },
+					func(pgx.Tx) (resolved.CredentialLookup, error) { return credentials, nil },
 				),
 			})
 			if err != nil {

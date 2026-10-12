@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/configtest"
 )
 
@@ -18,7 +19,7 @@ const openAPIValidationEscalationYAML = `        failed:
               fail: {}
 `
 
-func resolvedExecutionConfigForTest(t *testing.T, snapshot *Snapshot, ref string) ResolvedExecutionConfigProfile {
+func resolvedExecutionConfigForTest(t *testing.T, snapshot *Snapshot, ref string) resolved.ResolvedExecutionConfigProfile {
 	t.Helper()
 	profile, ok := snapshot.executionConfigs[ref]
 	if !ok {
@@ -30,7 +31,7 @@ func resolvedExecutionConfigForTest(t *testing.T, snapshot *Snapshot, ref string
 func TestExecutionConfigProfilePinsResolvedStageVariant(t *testing.T) {
 	t.Parallel()
 
-	snapshot := mustLoad(t, copyEscalationConfigTree(t), MVPDescriptors())
+	snapshot := mustLoad(t, copyEscalationConfigTree(t))
 	profile := resolvedExecutionConfigForTest(t, snapshot, "strong-oas-review@1")
 	assertDigest(t, profile.Ref.Digest)
 	validatorOverride, ok := profile.Override.Agents["validator"]
@@ -72,9 +73,9 @@ func TestExecutionConfigProfilePinsResolvedStageVariant(t *testing.T) {
 
 func TestExecutionConfigProfileAndRunSnapshotSurviveCatalogChange(t *testing.T) {
 	root := copyEscalationConfigTree(t)
-	first := mustLoad(t, root, MVPDescriptors())
+	first := mustLoad(t, root)
 	stored, err := first.ResolveRunWorkflow(
-		t.Context(), "openapi-from-workspace@5", ExecutionConfigPatch{}, developmentCredentialLookup(t, first),
+		t.Context(), "openapi-from-workspace@5", resolved.ExecutionConfigPatch{}, developmentCredentialLookup(t, first),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -83,9 +84,9 @@ func TestExecutionConfigProfileAndRunSnapshotSurviveCatalogChange(t *testing.T) 
 
 	profilePath := filepath.Join(root, "execution-configs/strong_oas_review.yaml")
 	replaceFile(t, profilePath, "modelPolicy: test-strong-worker@1", "modelPolicy: test-domain-worker@1")
-	second := mustLoad(t, root, MVPDescriptors())
+	second := mustLoad(t, root)
 	newWorkflow, err := second.ResolveRunWorkflow(
-		t.Context(), "openapi-from-workspace@5", ExecutionConfigPatch{}, developmentCredentialLookup(t, second),
+		t.Context(), "openapi-from-workspace@5", resolved.ExecutionConfigPatch{}, developmentCredentialLookup(t, second),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -102,7 +103,7 @@ func TestExecutionConfigProfileAndRunSnapshotSurviveCatalogChange(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	var durable ResolvedWorkflow
+	var durable resolved.ResolvedWorkflow
 	if err := json.Unmarshal(encoded, &durable); err != nil {
 		t.Fatal(err)
 	}
@@ -111,7 +112,7 @@ func TestExecutionConfigProfileAndRunSnapshotSurviveCatalogChange(t *testing.T) 
 
 func TestExecutionConfigDigestNormalizesPresentation(t *testing.T) {
 	baselineRoot := copyEscalationConfigTree(t)
-	baseline := mustLoad(t, baselineRoot, MVPDescriptors())
+	baseline := mustLoad(t, baselineRoot)
 	baselineProfile := resolvedExecutionConfigForTest(t, baseline, "strong-oas-review@1")
 
 	variantRoot := copyEscalationConfigTree(t)
@@ -122,7 +123,7 @@ spec:
   agents:
     validator: {modelPolicy: 'test-strong-worker@1'}
 `))
-	variant := mustLoad(t, variantRoot, MVPDescriptors())
+	variant := mustLoad(t, variantRoot)
 	variantProfile := resolvedExecutionConfigForTest(t, variant, "strong-oas-review@1")
 	if baselineProfile.Ref.Digest != variantProfile.Ref.Digest {
 		t.Fatalf("presentation changed digest: %s != %s", baselineProfile.Ref.Digest, variantProfile.Ref.Digest)
@@ -137,7 +138,7 @@ func TestExecutionConfigProfileSupportsCredentialClear(t *testing.T) {
 		"      modelPolicy: test-strong-worker@1",
 		"      modelPolicy: test-strong-worker@1\n      credential: null",
 	)
-	snapshot := mustLoad(t, root, MVPDescriptors())
+	snapshot := mustLoad(t, root)
 	profile := resolvedExecutionConfigForTest(t, snapshot, "strong-oas-review@1")
 	credential := profile.Override.Agents["validator"].Credential
 	if credential == nil || !credential.Clear || credential.Ref != nil {
@@ -153,9 +154,9 @@ func TestInlineEscalationResolvesWithoutProfileRef(t *testing.T) {
 		"            executionConfig:\n              agents:\n                validator: {modelPolicy: test-worker@1}", 1,
 	)
 	replaceEscalation(t, root, inline)
-	snapshot := mustLoad(t, root, MVPDescriptors())
+	snapshot := mustLoad(t, root)
 	workflow, err := snapshot.ResolveRunWorkflow(
-		t.Context(), "openapi-from-workspace@5", ExecutionConfigPatch{}, developmentCredentialLookup(t, snapshot),
+		t.Context(), "openapi-from-workspace@5", resolved.ExecutionConfigPatch{}, developmentCredentialLookup(t, snapshot),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -178,10 +179,10 @@ func TestRunCreationValidatesCredentialsInEveryEscalationVariant(t *testing.T) {
 		"      modelPolicy: test-strong-worker@1",
 		"      modelPolicy: test-strong-worker@1\n      credential: escalation-credential",
 	)
-	snapshot := mustLoad(t, root, MVPDescriptors())
+	snapshot := mustLoad(t, root)
 	lookup := developmentCredentialLookup(t, snapshot)
 	_, err := snapshot.ResolveRunWorkflow(
-		t.Context(), "openapi-from-workspace@5", ExecutionConfigPatch{}, lookup,
+		t.Context(), "openapi-from-workspace@5", resolved.ExecutionConfigPatch{}, lookup,
 	)
 	if err == nil || !strings.Contains(err.Error(), "failed escalation") ||
 		!strings.Contains(err.Error(), "credential is unavailable") {
@@ -190,7 +191,7 @@ func TestRunCreationValidatesCredentialsInEveryEscalationVariant(t *testing.T) {
 	localGateway, _ := snapshot.LLMGateway("local-litellm@1")
 	lookup["escalation-credential"] = credentialMetadata("escalation-credential", localGateway.Ref)
 	if _, err := snapshot.ResolveRunWorkflow(
-		t.Context(), "openapi-from-workspace@5", ExecutionConfigPatch{}, lookup,
+		t.Context(), "openapi-from-workspace@5", resolved.ExecutionConfigPatch{}, lookup,
 	); err != nil {
 		t.Fatalf("matching escalation credential was rejected: %v", err)
 	}
@@ -324,7 +325,7 @@ spec:
 		t.Run(test.name, func(t *testing.T) {
 			root := copyEscalationConfigTree(t)
 			test.mutate(t, root)
-			snapshot, err := Load(root, MVPDescriptors())
+			snapshot, err := Load(root)
 			if err == nil || snapshot != nil || !strings.Contains(err.Error(), test.want) {
 				t.Fatalf("Load() = (%v, %v), want error containing %q", snapshot, err, test.want)
 			}
@@ -335,7 +336,7 @@ spec:
 func TestValidateWorkflowGraphRejectsTamperedEscalationVariant(t *testing.T) {
 	t.Parallel()
 
-	snapshot := mustLoad(t, copyEscalationConfigTree(t), MVPDescriptors())
+	snapshot := mustLoad(t, copyEscalationConfigTree(t))
 	workflow, err := snapshot.Workflow("openapi-from-workspace@5")
 	if err != nil {
 		t.Fatal(err)
@@ -344,7 +345,7 @@ func TestValidateWorkflowGraphRejectsTamperedEscalationVariant(t *testing.T) {
 	stage.On.Failed.Escalate.ExecutionConfig.Effective.Agents["validator"] =
 		stage.ExecutionConfig.Agents["validator"]
 	workflow.Stages["openapi_validate"] = stage
-	if err := ValidateWorkflowGraph(workflow); err == nil ||
+	if err := resolved.ValidateWorkflowGraph(workflow); err == nil ||
 		!strings.Contains(err.Error(), "does not match its pinned override") {
 		t.Fatalf("ValidateWorkflowGraph() error = %v", err)
 	}
@@ -356,10 +357,10 @@ func replaceEscalation(t *testing.T, root, replacement string) {
 	replaceFile(t, path, openAPIValidationEscalationYAML, replacement)
 }
 
-func assertPinnedStrongValidationVariant(t *testing.T, workflow ResolvedWorkflow, digest string) {
+func assertPinnedStrongValidationVariant(t *testing.T, workflow resolved.ResolvedWorkflow, digest string) {
 	t.Helper()
 	action := workflow.Stages["openapi_validate"].On.Failed
-	if action.Kind != TransitionEscalate || action.Escalate == nil {
+	if action.Kind != resolved.TransitionEscalate || action.Escalate == nil {
 		t.Fatalf("validation failure action = %+v", action)
 	}
 	variant := action.Escalate.ExecutionConfig

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	. "github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
 	"github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
 )
@@ -52,7 +53,7 @@ func TestPostgresGitProvenanceRetainsExactRunInputAndRollsBack(t *testing.T) {
 	if err := write("original", source, false); err != nil {
 		t.Fatal(err)
 	}
-	fork, err := service.ForkInput(ctx, "user-1", first.Ref, "run-git", "source")
+	fork, err := artifactstest.ForkInput(ctx, service, "user-1", first.Ref, "run-git", "source")
 	if err != nil {
 		t.Fatal(err)
 	}

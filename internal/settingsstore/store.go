@@ -19,6 +19,19 @@ func NewPostgresStore(db persistencepostgres.DBTX) *PostgresStore {
 	return &PostgresStore{db: db}
 }
 
+// PostgresTxStore is a PostgresStore bound to the caller's transaction. Its
+// own methods take row locks that must last until the caller commits, so they
+// exist only on a store that cannot be backed by a pool.
+type PostgresTxStore struct {
+	*PostgresStore
+	tx pgx.Tx
+}
+
+// NewPostgresTxStore binds a PostgresStore to the caller's transaction tx.
+func NewPostgresTxStore(tx pgx.Tx) *PostgresTxStore {
+	return &PostgresTxStore{PostgresStore: NewPostgresStore(tx), tx: tx}
+}
+
 func (s *PostgresStore) GetSchedulerSettings(ctx context.Context) (SchedulerSettings, error) {
 	if s == nil || s.db == nil {
 		return SchedulerSettings{}, ErrInvariant
@@ -32,6 +45,29 @@ WHERE singleton = true`))
 	}
 	if err != nil {
 		return SchedulerSettings{}, fmt.Errorf("read Scheduler settings: %w", err)
+	}
+	return settings, nil
+}
+
+// LockSchedulerSettings locks the settings row FOR UPDATE until the caller's
+// transaction ends and returns it. A settings change then commits either
+// before the transaction reads the row, which returns the changed value, or
+// after the transaction ends: an Audit dispatch reservation and the setting it
+// reads are ordered this way (AUX-R6).
+func (s *PostgresTxStore) LockSchedulerSettings(ctx context.Context) (SchedulerSettings, error) {
+	if s == nil || s.tx == nil {
+		return SchedulerSettings{}, ErrInvariant
+	}
+	settings, err := scanSchedulerSettings(s.tx.QueryRow(ctx, `
+SELECT max_concurrent_runs, revision::text, updated_at
+FROM scheduler_settings
+WHERE singleton = true
+FOR UPDATE`))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return SchedulerSettings{}, fmt.Errorf("%w: singleton row is missing", ErrInvariant)
+	}
+	if err != nil {
+		return SchedulerSettings{}, fmt.Errorf("lock Scheduler settings: %w", err)
 	}
 	return settings, nil
 }

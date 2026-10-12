@@ -10,7 +10,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/clone"
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runrepeat"
@@ -28,15 +28,16 @@ const (
 // RepeatWorkflowResolver checks that a retained Workflow selection still
 // resolves.
 type RepeatWorkflowResolver interface {
-	Workflow(string) (config.ResolvedWorkflow, error)
+	Workflow(string) (resolved.ResolvedWorkflow, error)
 	ResolveRunWorkflow(
-		context.Context, string, config.ExecutionConfigPatch, config.CredentialLookup,
-	) (config.ResolvedWorkflow, error)
+		context.Context, string, resolved.ExecutionConfigPatch, resolved.CredentialLookup,
+	) (resolved.ResolvedWorkflow, error)
 }
 
-// RepeatArtifacts reads the retained request of a Run and its exact inputs.
+// RepeatArtifacts reads the retained request of a Run (runrepeat.Load) and
+// its exact inputs.
 type RepeatArtifacts interface {
-	ReadRunRepeatRequest(context.Context, string) (artifacts.ReadResult, error)
+	Run(string) (artifacts.ScopedStore, error)
 	User(string) (artifacts.ScopedStore, error)
 	Project(string) (artifacts.ScopedStore, error)
 }
@@ -51,7 +52,7 @@ type RunRepeatDependencies struct {
 	Runs           RunGetter
 	Projects       ProjectReader
 	Config         RepeatWorkflowResolver
-	Credentials    config.CredentialLookup
+	Credentials    resolved.CredentialLookup
 	Artifacts      RepeatArtifacts
 	RuntimeConfigs RuntimeBindingReader
 }
@@ -81,7 +82,7 @@ func (h *runRepeatHandlers) getRunRepeatDraft(w http.ResponseWriter, r *http.Req
 	}
 	response := runRepeatDraftResponse{
 		SourceRunID: run.RunID,
-		Workflow: config.WorkflowRef{
+		Workflow: resolved.WorkflowRef{
 			Name: run.WorkflowName, Version: run.WorkflowVersion,
 		},
 		ProjectID: clone.Pointer(run.ProjectID),
@@ -168,7 +169,7 @@ func (h *runRepeatHandlers) getRunRepeatDraft(w http.ResponseWriter, r *http.Req
 	if workflowAvailable {
 		if _, resolveErr := h.Config.ResolveRunWorkflow(
 			r.Context(), selector, snapshot.ExecutionConfig, h.Credentials,
-		); errors.Is(resolveErr, config.ErrCredentialLookup) {
+		); errors.Is(resolveErr, resolved.ErrCredentialLookup) {
 			// An outage is not an unavailable selection; let the client retry.
 			handleError(w, resolveErr)
 			return
@@ -210,11 +211,7 @@ func (h *runRepeatHandlers) getRunRepeatDraft(w http.ResponseWriter, r *http.Req
 func (h *runRepeatHandlers) loadRunRepeatSnapshot(
 	ctx context.Context, run runstore.WorkflowRun,
 ) (runrepeat.Snapshot, error) {
-	retained, err := h.Artifacts.ReadRunRepeatRequest(ctx, run.RunID)
-	if err != nil {
-		return runrepeat.Snapshot{}, err
-	}
-	snapshot, err := runrepeat.Decode(retained.Payload.Data)
+	snapshot, err := runrepeat.Load(ctx, h.Artifacts, run.RunID)
 	if err != nil {
 		return runrepeat.Snapshot{}, err
 	}

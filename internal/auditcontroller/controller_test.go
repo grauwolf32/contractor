@@ -14,7 +14,6 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
-	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/rundeletion"
@@ -700,7 +699,7 @@ type fakeControllerStore struct {
 
 func newFakeControllerStore(t *testing.T, itemCount, window int) *fakeControllerStore {
 	t.Helper()
-	snapshot, err := configload.Load("../../testdata/configs", config.MVPDescriptors())
+	snapshot, err := configload.Load("../../testdata/configs")
 	if err != nil {
 		t.Fatal(err)
 	}

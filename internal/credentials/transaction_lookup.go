@@ -3,7 +3,7 @@ package credentials
 import (
 	"errors"
 
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/jackc/pgx/v5"
 )
@@ -27,7 +27,7 @@ func NewTransactionLookupFactory(development *StaticProvider) (*TransactionLooku
 
 func (f *TransactionLookupFactory) ForTransaction(
 	tx pgx.Tx,
-) (config.CredentialLookup, error) {
+) (resolved.CredentialLookup, error) {
 	if f == nil || f.development == nil || tx == nil {
 		return nil, errors.New("transaction credential lookup is not configured")
 	}

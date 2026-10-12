@@ -11,7 +11,6 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
-	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	contractscan "github.com/grauwolf32/contractor/internal/contracts/scan"
@@ -37,7 +36,7 @@ func (s *auditFactoryHistory) ReadAuditScanHistory(context.Context, string) ([]p
 func newAuditFactoryHarness(t *testing.T, scanner string) (*factoryHarness, *auditFactoryHistory) {
 	t.Helper()
 	h := newFactoryHarness(t, 1)
-	snapshot, err := configload.Load("../../../testdata/configs-scan", config.MVPDescriptors())
+	snapshot, err := configload.Load("../../../testdata/configs-scan")
 	if err != nil {
 		t.Fatal(err)
 	}

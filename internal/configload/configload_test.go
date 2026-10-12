@@ -27,7 +27,7 @@ func TestLoadValidatesBundledSkillsWithoutReadingManagedRoot(t *testing.T) {
 	root := configtest.CopyWithPolicies(t, catalogFixture)
 	skill := filepath.Join(root, "skills", "review", "SKILL.md")
 	writeFile(t, skill, "---\nname: review\ndescription: Review guidance.\n---\n# Review\n")
-	if _, err := Load(root, config.MVPDescriptors()); err != nil {
+	if _, err := Load(root); err != nil {
 		t.Fatalf("valid bundled skill rejected: %v", err)
 	}
 
@@ -35,16 +35,16 @@ func TestLoadValidatesBundledSkillsWithoutReadingManagedRoot(t *testing.T) {
 	// not a bundle and never reaches the validators.
 	managed := filepath.Join(t.TempDir(), "managed")
 	writeFile(t, filepath.Join(managed, "skills", "review", "SKILL.md"), "not a skill")
-	if _, _, err := LoadUnionReadOnly(root, managed, config.MVPDescriptors()); err != nil {
+	if _, _, err := LoadUnionReadOnly(root, managed); err != nil {
 		t.Fatalf("managed skills directory was validated as a bundle: %v", err)
 	}
 
 	secret := "PRIVATE-SKILL-INSTRUCTION"
 	writeFile(t, skill, secret)
 	for name, load := range map[string]func() error{
-		"Load": func() error { _, err := Load(root, config.MVPDescriptors()); return err },
+		"Load": func() error { _, err := Load(root); return err },
 		"LoadUnionReadOnly": func() error {
-			_, _, err := LoadUnionReadOnly(root, managed, config.MVPDescriptors())
+			_, _, err := LoadUnionReadOnly(root, managed)
 			return err
 		},
 	} {
@@ -60,7 +60,7 @@ func TestLoadValidatesBundledSkillsWithoutReadingManagedRoot(t *testing.T) {
 func TestLoadValidatesBundledAuditStandards(t *testing.T) {
 	root := configtest.CopyWithPolicies(t, catalogFixture)
 	writeFile(t, filepath.Join(root, "audit-standards", "broken", "standard.json"), "{}")
-	_, err := Load(root, config.MVPDescriptors())
+	_, err := Load(root)
 	if err == nil || !strings.HasPrefix(err.Error(), "bundled Audit standards: ") {
 		t.Fatalf("invalid bundled Audit standard error = %v", err)
 	}
@@ -72,12 +72,12 @@ func TestLoadsReturnTheBundlesTheyValidated(t *testing.T) {
 	root := configtest.CopyWithPolicies(t, catalogFixture)
 	writeFile(t, filepath.Join(root, "skills", "review", "SKILL.md"), "---\nname: review\ndescription: Review guidance.\n---\n# Review\n")
 	managed := filepath.Join(t.TempDir(), "managed")
-	_, offline, err := LoadUnionReadOnly(root, managed, config.MVPDescriptors())
+	_, offline, err := LoadUnionReadOnly(root, managed)
 	if err != nil {
 		t.Fatal(err)
 	}
 	_, startup, err := NewManager(config.ManagerOptions{
-		OperatorRoot: root, ManagedRoot: managed, Descriptors: config.MVPDescriptors(),
+		OperatorRoot: root, ManagedRoot: managed,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -118,7 +118,7 @@ func TestManagerRechecksBundlesBeforePublication(t *testing.T) {
 	root := configtest.CopyWithPolicies(t, catalogFixture)
 	managed := filepath.Join(t.TempDir(), "managed")
 	manager, _, err := NewManager(config.ManagerOptions{
-		OperatorRoot: root, ManagedRoot: managed, Descriptors: config.MVPDescriptors(),
+		OperatorRoot: root, ManagedRoot: managed,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -136,7 +136,7 @@ func TestManagerRechecksBundlesBeforePublication(t *testing.T) {
 		t.Fatalf("rejected publication wrote a manifest: %v", statErr)
 	}
 	if _, _, err := NewManager(config.ManagerOptions{
-		OperatorRoot: root, ManagedRoot: managed, Descriptors: config.MVPDescriptors(),
+		OperatorRoot: root, ManagedRoot: managed,
 	}); err == nil || !strings.HasPrefix(err.Error(), "bundled skills: ") {
 		t.Fatalf("restart with an invalid bundle: %v", err)
 	}

@@ -8,52 +8,39 @@ import (
 	"strings"
 
 	"github.com/grauwolf32/contractor/internal/artifactpolicy"
-	workflowconfig "github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
-	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/runstore"
 )
 
 type executableWorkflow struct {
-	workflow  workflowconfig.ResolvedWorkflow
+	workflow  resolved.ResolvedWorkflow
 	stageName string
-	stage     workflowconfig.ResolvedStage
+	stage     resolved.ResolvedStage
 }
 
 func decodeExecutableWorkflow(run runstore.WorkflowRun) (executableWorkflow, error) {
 	if run.WorkflowSchemaVersion != contracts.APIVersion || len(run.WorkflowSnapshot) == 0 {
 		return executableWorkflow{}, fmt.Errorf("%w: Workflow snapshot version is invalid or the snapshot is empty", ErrUnsupportedWorkflow)
 	}
-	workflow, err := workflowconfig.DecodeResolvedWorkflowSnapshot(run.WorkflowSnapshot)
+	workflow, err := resolved.DecodeResolvedWorkflowSnapshot(run.WorkflowSnapshot)
 	if err != nil {
 		return executableWorkflow{}, fmt.Errorf("%w: decode Workflow snapshot: %v", ErrUnsupportedWorkflow, err)
 	}
 	// PostgreSQL returns jsonb text with its own spacing and number format,
 	// so the bound is measured on the snapshot's encoding, exactly as Run
 	// creation measured it (CAT-R76).
-	if _, err := workflowconfig.EncodeResolvedWorkflowSnapshot(workflow); err != nil {
+	if _, err := resolved.EncodeResolvedWorkflowSnapshot(workflow); err != nil {
 		return executableWorkflow{}, fmt.Errorf("%w: %v", ErrUnsupportedWorkflow, err)
 	}
 	if workflow.Ref.Name != run.WorkflowName || workflow.Ref.Version != run.WorkflowVersion ||
 		strings.TrimSpace(workflow.EntryStage) == "" {
 		return executableWorkflow{}, fmt.Errorf("%w: Workflow identity or entry Stage is invalid", ErrUnsupportedWorkflow)
 	}
+	// The decoder has checked every Stage's Planner and logical Agent count
+	// against the registered PlannerFactory descriptors.
 	for stageName, stage := range workflow.Stages {
-		plannerRef := stage.Planner.PlannerID + "@" + stage.Planner.Version
-		validShape := false
-		switch plannerRef {
-		case planner.PassthroughRef, planner.StreamlineRef:
-			validShape = len(stage.Agents) == 1
-		case planner.RouterRef, planner.ScanPlanRef:
-			validShape = len(stage.Agents) > 0
-		}
-		if !validShape {
-			return executableWorkflow{}, fmt.Errorf(
-				"%w: Stage %q has an unsupported Planner/Agent shape",
-				ErrUnsupportedWorkflow, stageName,
-			)
-		}
 		if strings.TrimSpace(stage.Objective) == "" || strings.TrimSpace(stage.Instructions.Text) == "" {
 			return executableWorkflow{}, fmt.Errorf("%w: Stage %q semantic input is incomplete", ErrUnsupportedWorkflow, stageName)
 		}
@@ -97,14 +84,14 @@ func (w executableWorkflow) selectExecution(
 		}
 	case runstore.StageExecutionConfigFailedEscalation:
 		if execution.EscalationOrdinal == nil || *execution.EscalationOrdinal <= 0 ||
-			stage.On.Failed.Kind != workflowconfig.TransitionEscalate || stage.On.Failed.Escalate == nil ||
+			stage.On.Failed.Kind != resolved.TransitionEscalate || stage.On.Failed.Escalate == nil ||
 			*execution.EscalationOrdinal > stage.On.Failed.Escalate.MaxAttempts {
 			return executableWorkflow{}, fmt.Errorf("failed-escalation StageExecution identity is invalid")
 		}
 		stage.ExecutionConfig = stage.On.Failed.Escalate.ExecutionConfig.Effective
 	case runstore.StageExecutionConfigInterruptedEscalation:
 		if execution.EscalationOrdinal == nil || *execution.EscalationOrdinal <= 0 ||
-			stage.On.Interrupted.Kind != workflowconfig.TransitionEscalate || stage.On.Interrupted.Escalate == nil ||
+			stage.On.Interrupted.Kind != resolved.TransitionEscalate || stage.On.Interrupted.Escalate == nil ||
 			*execution.EscalationOrdinal > stage.On.Interrupted.Escalate.MaxAttempts {
 			return executableWorkflow{}, fmt.Errorf("interrupted-escalation StageExecution identity is invalid")
 		}
@@ -132,7 +119,7 @@ func validatePersistedExecution(
 		execution.StageContextSchemaVersion != contracts.APIVersion {
 		return fmt.Errorf("persisted StageExecution identity differs from the Workflow snapshot")
 	}
-	persisted, err := workflowconfig.DecodeResolvedStageSnapshot(execution.StageSpecSnapshot)
+	persisted, err := resolved.DecodeResolvedStageSnapshot(execution.StageSpecSnapshot)
 	if err != nil {
 		return fmt.Errorf("decode persisted Stage spec: %w", err)
 	}
@@ -159,7 +146,7 @@ func validatePersistedExecution(
 	return nil
 }
 
-func stageSnapshot(stage workflowconfig.ResolvedStage) (json.RawMessage, error) {
+func stageSnapshot(stage resolved.ResolvedStage) (json.RawMessage, error) {
 	encoded, err := json.Marshal(stage)
 	if err != nil {
 		return nil, fmt.Errorf("encode resolved Stage snapshot: %w", err)
@@ -168,7 +155,7 @@ func stageSnapshot(stage workflowconfig.ResolvedStage) (json.RawMessage, error) 
 }
 
 func bindingRequirements(
-	stage workflowconfig.ResolvedStage,
+	stage resolved.ResolvedStage,
 	snapshot []contracts.RunSkillSnapshot,
 	context runstore.StageContextSnapshot,
 ) ([]controlplane.BindingRequirement, error) {
@@ -226,7 +213,7 @@ func bindingRequirements(
 }
 
 func projectAllocationWorkspace(
-	workspace *workflowconfig.WorkspaceContext,
+	workspace *resolved.WorkspaceContext,
 	context runstore.StageContextSnapshot,
 ) (*contracts.AllocationWorkspaceSpec, error) {
 	if workspace == nil {
@@ -268,7 +255,7 @@ func projectAllocationWorkspace(
 }
 
 func allocationExecutionConfig(
-	stage workflowconfig.ResolvedStage,
+	stage resolved.ResolvedStage,
 	logicalAgentName string,
 ) controlplane.AllocationExecutionConfig {
 	selection := stage.ExecutionConfig.Agents[logicalAgentName]

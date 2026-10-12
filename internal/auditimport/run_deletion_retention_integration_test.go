@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -33,8 +34,8 @@ func TestPostgresContractInvalidCollectionRetainsProposalAfterRunDeletion(t *tes
 	mustCompletion(t, err)
 	projection, err := auditdomain.EncodeFindingReportProjection(auditdomain.ProjectFindingReport(decoded))
 	mustCompletion(t, err)
-	written, err := f.artifacts.WriteFindingProposal(f.ctx, f.run.RunID,
-		"candidate", artifacts.Payload{MediaType: "application/json", Data: proposal})
+	written, err := artifactstest.WriteFindingProposal(f.ctx, f.artifacts, f.run.RunID, "candidate",
+		artifacts.Payload{MediaType: "application/json", Data: proposal})
 	mustCompletion(t, err)
 	proposalRef, err := json.Marshal(written.Ref)
 	mustCompletion(t, err)
@@ -58,7 +59,7 @@ INSERT INTO finding_proposal_receipts (
 		string(proposalRef), len(proposal), string(projection))
 	mustCompletion(t, err)
 
-	mustCompletion(t, f.artifacts.FreezeRunOutputs(f.ctx, f.run.RunID))
+	mustCompletion(t, artifactstest.FreezeOutputs(f.ctx, f.artifacts, f.run.RunID))
 	_, err = f.runs.TransitionRun(f.ctx, f.run.RunID, runstore.RunRunning,
 		runstore.RunFailed, runstore.Reason{Code: "fixture-terminal"})
 	mustCompletion(t, err)

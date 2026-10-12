@@ -11,7 +11,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/apierror"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditstore"
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/credentials"
@@ -54,7 +54,7 @@ type PublicTransaction func(context.Context, func(PublicRunWriter, *artifacts.Se
 type AuditTransaction func(context.Context, func(AuditRunWriter, *artifacts.Service, AuditExecutionWriter) error) error
 
 type WorkflowResolver interface {
-	ResolveRunWorkflow(context.Context, string, config.ExecutionConfigPatch, config.CredentialLookup) (config.ResolvedWorkflow, error)
+	ResolveRunWorkflow(context.Context, string, resolved.ExecutionConfigPatch, resolved.CredentialLookup) (resolved.ResolvedWorkflow, error)
 }
 
 type CredentialGuard interface {
@@ -79,7 +79,7 @@ type ProjectReader interface {
 type Options struct {
 	Runs                         RunReader
 	Workflows                    WorkflowResolver
-	LLMCredentials               config.CredentialLookup
+	LLMCredentials               resolved.CredentialLookup
 	CredentialGuard              CredentialGuard
 	RuntimeCredentials           RuntimeCredentialValidator
 	Projects                     ProjectReader
@@ -91,7 +91,7 @@ type Options struct {
 type Service struct {
 	runs                         RunReader
 	workflows                    WorkflowResolver
-	llmCredentials               config.CredentialLookup
+	llmCredentials               resolved.CredentialLookup
 	credentialGuard              CredentialGuard
 	runtimeCredentials           RuntimeCredentialValidator
 	projects                     ProjectReader
@@ -108,7 +108,7 @@ type PublicCreateParams struct {
 	OwnerID                string
 	ProjectID              *string
 	Workflow               string
-	ExecutionConfig        config.ExecutionConfigPatch
+	ExecutionConfig        resolved.ExecutionConfigPatch
 	RuntimeLabels          []string
 	MetadataLabels         runstore.RunMetadataLabels
 	Parameters             map[string]string
@@ -130,7 +130,7 @@ type PublicCreateParams struct {
 type AuditCreateParams struct {
 	Claim             auditstore.ControllerClaim
 	ExecutionID       string
-	Workflow          config.ResolvedWorkflow
+	Workflow          resolved.ResolvedWorkflow
 	RuntimeConfig     runtimeconfig.RunSnapshot
 	Skills            []contracts.RunSkillSnapshot
 	ProjectHTTPTarget *runtimesettings.HTTPOriginTargetRef

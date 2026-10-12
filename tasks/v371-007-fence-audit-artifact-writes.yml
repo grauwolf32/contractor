@@ -1,0 +1,80 @@
+schema_version: "1.0"
+id: V371-007
+title: "Fence the Audit Controller's artifact writes against a purge by a newer claim"
+milestone: hub-audit-defects-2026-10
+epic: audits
+kind: defect
+priority: P2
+status: pending
+depends_on: []
+languages: [go]
+goal: "A controller whose claim was taken over cannot write an Audit-managed artifact after the new holder purged the Audit; a PostgreSQL reproduction shows the write refused and no binding left behind, or records why the race cannot happen."
+context:
+  review: "Out-of-scope finding of the hub audit fix batch (group G4, 'possible defect; needs a reproduction'), recorded 2026-10-12; code path verified on a07f5e9, race not reproduced yet"
+  specification: "docs/spec/audits/review-and-reports.md#REV-R159"
+  severity: medium
+  finding: >-
+    Every auditstore write of the controller is fenced by its claim: the SQL
+    joins audit_controller_claims on holder_id, epoch and expires_at (for
+    example live_claim in auditstore/collection_sql.go:23-50 and the purge
+    DELETE in auditstore/lifecycle.go:153-158), and the purge deletes the
+    claim row with the Audit (audit_controller_claims_audit_id_fkey ON DELETE
+    CASCADE, 000001_baseline.sql:4213), so a stale holder's next auditstore
+    write fails with ErrClaimLost. Its artifact writes are not fenced:
+    builder.go:105, 366 and 505 call ProjectArtifactAccess.PutImmutableProject
+    (internal/auditcontroller/artifacts.go:68-83), which calls
+    artifacts.Service.WriteAuditArtifact (internal/artifacts/service.go:616-651)
+    in its own transaction with no claim or Audit check, and the binding
+    admission trigger contractor_guard_project_artifact_binding_admission
+    (000001_baseline.sql:611-640) checks Audits only while the Project is
+    deleting. A controller that read its snapshot under epoch N, lost the
+    claim (expiry under load) and resumed after the epoch N+1 holder purged
+    the deleted Audit can therefore write a frozen binding into the purged
+    audit-<id> namespace of an active Project. Nothing purges it again until
+    Project deletion, and the generic routes hide the prefix (ART-R26), so
+    the owner cannot see or remove it. The Audit start path holds the draft
+    row against purge for the same reason (AUD-R225); the controller path
+    has no equivalent. The unfenced write predates the shallow history
+    (boundary 6349621); V368-006 kept it when it routed the writes through
+    WriteAuditArtifact.
+  siblings: >-
+    Callers of WriteAuditArtifact: auditcontroller/artifacts.go:74 (round
+    manifest, task packages, preparation descriptor; in scope),
+    auditimport/artifacts.go:143 (result import before the claim-fenced
+    collection statement; in scope), findingintake/direct_verification.go:163
+    (check its fence), auditservice/start.go:783 and
+    auditstandards/catalog.go:345 (start staging, held by the draft row per
+    AUD-R225; ruled out unless the reproduction shows otherwise). Ruled out:
+    Audit-managed Run creation (runstore.CreateAuditRun needs a claim-fenced
+    audit_executions row through a deferred constraint,
+    runstore/audit_run.go:11-14) and DeleteReleasedTerminalRun
+    (auditcontroller/settlement.go:83), which only removes rows.
+scope:
+  in:
+    - "A PostgreSQL test that reproduces the race: claim at epoch N, takeover at N+1, purge, then the epoch-N controller's artifact write."
+    - "If it reproduces: refuse the write in the transaction that inserts the binding when the claim is no longer held or the Audit is gone or deleting, through an auditstore port rather than artifacts reading Audit tables (V369-001), and map the refusal to ErrClaimLost. If it cannot happen, record the reason in this task and in REV-R159."
+  out:
+    - "The purge itself and its batching (V371-008, V370-024)."
+failure_outcomes:
+  - operation: "WriteAuditArtifact under a controller claim"
+    permanent: "Claim lost, or Audit purged or deleting: ErrClaimLost, no binding written, and the controller ends the pass."
+    retryable: "A transaction conflict: the existing bounded transaction retry (PER-R16)."
+    ambiguous: "A commit whose response is lost replays as the identical content-named binding, as today, only while the claim is still held."
+    cancelled: "The write's transaction rolls back with the context; nothing is written."
+    timeout: "The existing artifact write budget owns it."
+acceptance_criteria:
+  - id: A1
+    given: "An Audit purged by the holder of epoch N+1"
+    when: "The controller still holding epoch N writes a round manifest, a task package or a preparation descriptor"
+    then: "The write fails with ErrClaimLost and no binding exists in the purged Audit namespace."
+  - id: A2
+    given: "A controller that still holds its claim"
+    when: "It writes or replays the same content-named artifact"
+    then: "Behaviour is unchanged."
+  - id: A3
+    text: "The reproduction test fails on a07f5e9, or the task records why the race cannot occur."
+tests:
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 -tags integration ./internal/auditcontroller ./internal/auditstore ./internal/artifacts ./internal/auditimport"
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A1, A2, A3]

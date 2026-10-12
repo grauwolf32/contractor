@@ -46,7 +46,7 @@ test-wire-cross-language:
 	cd runtime && uv run pytest tests/test_shared_runtime_settings_bounds.py
 	go test ./internal/gatewayrecovery -run '^TestSharedGatewayRecoveryParticipantCases$$'
 	cd runtime && uv run pytest tests/test_shared_gateway_recovery_participant.py
-	go test ./internal/config -run '^TestSharedToolsetDescriptorParity$$'
+	go test ./internal/config/resolved -run '^TestSharedToolsetDescriptorParity$$'
 	cd runtime && uv run pytest tests/test_capabilities.py -k 'test_shared'
 
 test-config:
@@ -54,7 +54,7 @@ test-config:
 	go run ./cmd/contractor-server config validate --root ./configs
 
 test-postgres: require-database
-	go test -count=1 ./internal/persistence/postgres ./internal/credentials ./internal/runtimeconfig ./internal/runstore ./internal/artifacts ./internal/httpapi/public ./internal/planner/session ./internal/scheduler ./internal/telemetry
+	go test -count=1 ./internal/persistence/postgres ./internal/credentials ./internal/agentprincipal ./internal/runtimeconfig ./internal/runstore ./internal/artifacts ./internal/httpapi/public ./internal/planner/session ./internal/scheduler ./internal/telemetry
 
 test-runtime-config-postgres: require-database
 	go test -count=1 ./internal/runtimeconfig ./internal/persistence/postgres
@@ -88,7 +88,7 @@ test-streamline: require-database
 	go test -count=1 ./internal/planner/streamline ./internal/planner/session ./tests/integration/streamline
 
 test-faults: require-database
-	go test -race -count=1 ./tests/faults ./tests/integration/lease ./internal/requestid ./internal/controlplane ./internal/httpapi/privateartifacts ./internal/mtls ./internal/config ./internal/planner/...
+	go test -race -count=1 ./tests/faults ./tests/integration/lease ./internal/requestid ./internal/controlplane ./internal/httpapi/privateartifacts ./internal/mtls ./internal/config/... ./internal/planner/...
 	CONTRACTOR_TEST_DATABASE_URL="$$CONTRACTOR_TEST_DATABASE_URL" go test -race -count=1 ./internal/artifacts ./internal/httpapi/public ./internal/runstore ./internal/scheduler ./internal/telemetry
 	cd runtime && uv run pytest -W error tests
 

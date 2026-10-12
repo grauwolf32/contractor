@@ -73,6 +73,8 @@ var layers = []layerSpec{
 		packages: []string{
 			"internal/artifactpreview",
 			"internal/artifacts",
+			// Test setup of the Artifact state other packages' flows create.
+			"internal/artifacts/artifactstest",
 			"internal/gatewayrecovery",
 			"internal/httpapi/artifacttransfer",
 			"internal/performance",
@@ -87,7 +89,14 @@ var layers = []layerSpec{
 		packages: []string{
 			"internal/agentskills",
 			"internal/auditstandards",
+			// The catalog loader; only the packages that load or publish the
+			// catalog import it.
 			"internal/config",
+			// The AuditProfile model and its rules, read back from Audit snapshots.
+			"internal/config/auditprofile",
+			// The resolved Workflow model (the Run and Stage snapshot format), its
+			// rules and the one code descriptor registry.
+			"internal/config/resolved",
 			// Loads catalogs together with the bundled skill and Audit standard checks.
 			"internal/configload",
 		},
@@ -106,6 +115,8 @@ var layers = []layerSpec{
 		name: "execution",
 		role: "run execution: run store, runtime configuration, credentials, memory, planner, scheduler, control plane",
 		packages: []string{
+			// The Runtime Agent principal registry; a client of runtimeconfig labels.
+			"internal/agentprincipal",
 			"internal/controlplane",
 			"internal/credentials",
 			"internal/credentials/litellm",

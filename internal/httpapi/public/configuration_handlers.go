@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/pagelimit"
 )
@@ -88,7 +89,7 @@ func (h *catalogHandlers) getConfiguration(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	selector := r.PathValue("name") + "@" + r.PathValue("version")
-	if _, err := config.ParseSelector(selector); err != nil {
+	if _, err := resolved.ParseSelector(selector); err != nil {
 		handleError(w, fmt.Errorf("%w: invalid configuration selector", errInvalidRequest))
 		return
 	}

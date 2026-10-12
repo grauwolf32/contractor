@@ -29,9 +29,12 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/auditprofile"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/control"
@@ -146,7 +149,7 @@ type completionFixture struct {
 	audits                    *auditstore.PostgresStore
 	runs                      *runstore.PostgresStore
 	service                   *runservice.Service
-	profile                   config.ResolvedAuditProfile
+	profile                   auditprofile.ResolvedAuditProfile
 	claim                     auditstore.ControllerClaim
 	manifest, taskSet, source auditstore.ExactArtifact
 	tasks                     []auditstore.ExactArtifact
@@ -225,13 +228,13 @@ func newCompletionFixtureWithInteraction(t *testing.T, pool *pgxpool.Pool, accep
 		}
 		mustCompletion(t, os.WriteFile(path, data, 0600))
 	}
-	catalog, err := configload.Load(catalogRoot, config.MVPDescriptors())
+	catalog, err := configload.Load(catalogRoot)
 	mustCompletion(t, err)
 	f.profile, err = catalog.AuditProfile("source-checklist@1")
 	mustCompletion(t, err)
 	profileBytes, err := json.Marshal(f.profile)
 	mustCompletion(t, err)
-	_, err = config.DecodeResolvedAuditProfileSnapshot(profileBytes)
+	_, err = auditprofile.DecodeResolvedAuditProfileSnapshot(profileBytes)
 	mustCompletion(t, err)
 	draft, _, err := f.audits.CreateDraft(ctx, auditstore.CreateDraftParams{AuditID: f.id, OwnerID: "owner", ProjectID: f.id, Profile: auditstore.ProfileIdentity{Name: f.profile.Ref.Name, Version: f.profile.Ref.Version, Digest: f.profile.Ref.Digest}, ProfileSnapshot: profileBytes, InputSelection: json.RawMessage(`{}`), Limits: auditstore.Limits{MaxRounds: 1, BatchSize: 2, MaxItemsPerRound: 10, MaxItemsTotal: 10, MaxSubmittedRuns: 10, MaxItemRunAttempts: 2, MaxEvidenceBytes: 1 << 20}, IdempotencyKey: f.id, RequestDigest: completionDigest([]byte("audit"))})
 	mustCompletion(t, err)
@@ -249,7 +252,7 @@ func newCompletionFixtureWithInteraction(t *testing.T, pool *pgxpool.Pool, accep
 	}
 	_, err = f.audits.TransitionRound(ctx, auditstore.RoundTransitionParams{Claim: f.claim, RoundID: f.id, ExpectedRevision: 1, ExpectedState: auditstore.RoundAccepted, TargetState: auditstore.RoundExecuting})
 	mustCompletion(t, err)
-	manager, _, err := configload.NewManager(config.ManagerOptions{OperatorRoot: "../config/testdata/valid", ManagedRoot: filepath.Join(t.TempDir(), "managed"), Descriptors: config.MVPDescriptors()})
+	manager, _, err := configload.NewManager(config.ManagerOptions{OperatorRoot: "../config/testdata/valid", ManagedRoot: filepath.Join(t.TempDir(), "managed")})
 	mustCompletion(t, err)
 	f.service, err = runservice.New(runservice.Options{Runs: f.runs, Workflows: manager, LLMCredentials: completionCredentials{}, CredentialGuard: completionCredentials{}, RuntimeCredentials: completionCredentials{}, Projects: projects,
 		PublicTransaction: func(context.Context, func(runservice.PublicRunWriter, *artifacts.Service) error) error {
@@ -304,10 +307,10 @@ func (f *completionFixture) collect(t *testing.T, outcome runstore.WorkflowRunSt
 	if outcome == runstore.RunSucceeded {
 		value, err := f.output()
 		mustCompletion(t, err)
-		_, err = f.artifacts.BindOutputExact(f.ctx, f.run.RunID, f.profile.Workflows["check"].Outputs["result"], value.Ref, nil)
+		_, err = artifactstest.BindOutput(f.ctx, f.artifacts, f.run.RunID, f.profile.Workflows["check"].Outputs["result"], value.Ref)
 		mustCompletion(t, err)
 	}
-	mustCompletion(t, f.artifacts.FreezeRunOutputs(f.ctx, f.run.RunID))
+	mustCompletion(t, artifactstest.FreezeOutputs(f.ctx, f.artifacts, f.run.RunID))
 	expected := runstore.RunRunning
 	if outcome == runstore.RunCancelled {
 		_, err := f.runs.RequestRunCancellation(f.ctx, f.run.RunID, runstore.WorkflowRunCancellation{Code: runstore.CancellationUserRequested, RequestedAt: time.Now().UTC()})
@@ -616,8 +619,8 @@ func mustCompletion(t *testing.T, err error) {
 
 type completionCredentials struct{}
 
-func (completionCredentials) LookupLLMCredential(context.Context, string) (config.CredentialMetadata, error) {
-	return config.CredentialMetadata{}, errors.New("no live credentials in completion fixtures")
+func (completionCredentials) LookupLLMCredential(context.Context, string) (resolved.CredentialMetadata, error) {
+	return resolved.CredentialMetadata{}, errors.New("no live credentials in completion fixtures")
 }
 func (completionCredentials) WithRunCreation(_ context.Context, fn func() error) error { return fn() }
 func (completionCredentials) ValidateRuntimeCredentialUse(

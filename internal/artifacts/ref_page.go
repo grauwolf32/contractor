@@ -12,9 +12,6 @@ import (
 // excludes, and every binding present for the whole traversal is returned
 // exactly once across the pages.
 func (s ScopedStore) ListRefs(ctx context.Context, query RefPageQuery) (RefPage, error) {
-	if err := validateScope(s.scope); err != nil {
-		return RefPage{}, err
-	}
 	if err := validateRefPageQuery(query); err != nil {
 		return RefPage{}, err
 	}
@@ -47,12 +44,6 @@ func validateRefPageQuery(query RefPageQuery) error {
 }
 
 func (r *PostgresRepository) ListRefs(ctx context.Context, scope Scope, query RefPageQuery) (RefPage, error) {
-	if err := validateScope(scope); err != nil {
-		return RefPage{}, err
-	}
-	if err := validateRefPageQuery(query); err != nil {
-		return RefPage{}, err
-	}
 	hiddenNamespaces, exemptNamespaces, hiddenPrefixes := []string{}, []string{}, []string{}
 	if query.ModelVisible {
 		hiddenNamespaces = artifactpolicy.ModelHiddenNamespaces()

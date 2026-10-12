@@ -11,7 +11,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/findingintake"
 )
@@ -226,9 +226,9 @@ func testNextRoundBudget(t *testing.T, capacity int) *auditdomain.FindingRoundBu
 	t.Helper()
 	namespace := auditdomain.ArtifactNamespace("audit")
 	budget, err := auditdomain.NewFindingRoundBudget(capacity, auditdomain.FindingRoundShape{
-		Inventory: nextRoundInventoryOptions(2, config.ResolvedAuditProfile{
-			Mode:      config.AuditModeFindingVerification,
-			Inventory: config.AuditInventory{ItemWorkflowRole: "verify"},
+		Inventory: nextRoundInventoryOptions(2, auditprofile.ResolvedAuditProfile{
+			Mode:      auditprofile.AuditModeFindingVerification,
+			Inventory: auditprofile.AuditInventory{ItemWorkflowRole: "verify"},
 		}, BaselineSnapshot{}, auditdomain.ApprovalNone, contracts.ArtifactRef{
 			Namespace: namespace, Name: auditdomain.DeterministicID("proposal-inventory", "audit"),
 			Revision: &provisionalRevision,

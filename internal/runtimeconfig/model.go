@@ -40,7 +40,6 @@ var (
 	ErrPrecondition = apierror.New(apierror.PreconditionFailed, "RuntimeConfig revision precondition failed")
 	ErrReserved     = apierror.New(apierror.RuntimeLabelInUse, "reserved RuntimeConfig resource",
 		apierror.WithMessage("reserved Runtime label cannot be removed"))
-	ErrPrincipalInUse = apierror.Narrow(ErrConflict, apierror.RuntimeAgentInUse, "Runtime Agent principal is in use")
 )
 
 type Ref struct {
@@ -177,12 +176,12 @@ func (e *LabelInUseError) PublicMessage() string {
 	return "Runtime label is assigned to a Runtime Agent"
 }
 
-func labelInUseError(principals []RuntimeAgentPrincipal) error {
+func labelInUseError(holders []LabelHolder) error {
 	const maximumReferences = 128
-	count := min(len(principals), maximumReferences)
+	count := min(len(holders), maximumReferences)
 	ids := make([]string, count)
 	for index := 0; index < count; index++ {
-		ids[index] = principals[index].RuntimeAgentID
+		ids[index] = holders[index].RuntimeAgentID
 	}
 	return &LabelInUseError{RuntimeAgentIDs: ids}
 }

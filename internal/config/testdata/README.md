@@ -30,6 +30,11 @@ copies, not to the shipped catalog.
 - `workflow-examples/`: the Streamline and Router examples retargeted to the
   core fixture's builder and Planner policy.
 
+`audit-profile-template.yaml` is not a catalog slice: it is the custom-checklist
+AuditProfile manifest with a `PROFILE_NAME` placeholder that AuditProfile tests
+install under a name of their own beside `audit-profile-catalog/`. The tests of
+`../auditprofile` load these fixtures too, through `configload`.
+
 `scan-catalog/` is a standalone, model-free root with the Nuclei, Naabu and
 SQLMap tool AgentTemplates, their single-tool Workflows and the scan-plan
 Workflows that bind them.

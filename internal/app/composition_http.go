@@ -152,7 +152,9 @@ func configureHTTP(
 		cfg.PerformanceMetrics, NewReadyHandler(pool.Ping, publicHandler), privateHandler,
 		func() *performance.Collector { return performanceCollector },
 	)
-	runners := backgroundRunnerGroup{workflows.scheduler, audits.controller, workflows.projectDeletion}
+	runners := backgroundRunnerGroup{
+		workflows.scheduler, workflows.telemetryRetention, audits.controller, workflows.projectDeletion,
+	}
 	if performanceCollector != nil {
 		runners = append(runners, performanceCollector)
 	}

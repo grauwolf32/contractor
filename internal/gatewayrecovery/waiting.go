@@ -8,35 +8,33 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-func setWaiting(ctx context.Context, tx pgx.Tx, participantID, model, runID, key, code string) error {
+// setWaiting records that a participant waits for its blocked route and moves
+// its Run to waiting. The caller holds the Run row lock (lockRun).
+func setWaiting(ctx context.Context, tx pgx.Tx, runs RunStates, participantID, model, runID, key, code string) error {
 	if _, err := tx.Exec(ctx, `
 INSERT INTO gateway_recovery_waits(participant_id,model,run_id,route_key)
 VALUES($1,$2,$3,$4) ON CONFLICT DO NOTHING`, participantID, model, runID, key); err != nil {
 		return err
 	}
-	_, err := tx.Exec(ctx, `
-UPDATE workflow_runs SET state='waiting',state_reason_code=$2,
- state_reason_message='Waiting for the model gateway',updated_at=clock_timestamp()
-WHERE run_id=$1 AND state IN ('running','waiting')
- AND (state<>'waiting' OR state_reason_code IS DISTINCT FROM $2)`, runID, code)
-	return err
+	return runs.EnterWaiting(ctx, tx, runID, code)
 }
 
-func clearWaiting(ctx context.Context, tx pgx.Tx, participantID, model, runID string) error {
+// clearWaiting drops a participant's wait and returns its Run to running once
+// no participant of the Run waits. The caller holds the Run row lock, under
+// which every wait of the Run is inserted and deleted, so no wait can appear
+// between the check and the transition.
+func clearWaiting(ctx context.Context, tx pgx.Tx, runs RunStates, participantID, model, runID string) error {
 	if _, err := tx.Exec(ctx, `DELETE FROM gateway_recovery_waits WHERE participant_id=$1 AND model=$2`, participantID, model); err != nil {
 		return err
 	}
-	return resumeRun(ctx, tx, runID)
-}
-
-// resumeRun returns a waiting Run to running once no participant of it waits.
-func resumeRun(ctx context.Context, tx pgx.Tx, runID string) error {
-	_, err := tx.Exec(ctx, `
-UPDATE workflow_runs SET state='running',state_reason_code='gateway_recovered',
- state_reason_message='',updated_at=clock_timestamp()
-WHERE run_id=$1 AND state='waiting'
- AND NOT EXISTS(SELECT 1 FROM gateway_recovery_waits WHERE run_id=$1)`, runID)
-	return err
+	var waits bool
+	if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM gateway_recovery_waits WHERE run_id=$1)`, runID).Scan(&waits); err != nil {
+		return err
+	}
+	if waits {
+		return nil
+	}
+	return runs.LeaveWaiting(ctx, tx, runID)
 }
 
 // EndStage drops the model recovery state of a Run's ending Stage inside the
@@ -44,13 +42,14 @@ WHERE run_id=$1 AND state='waiting'
 // Stage's waits and route membership go, and any probe the Run holds or
 // reserved is relinquished without reopening the route or resetting its
 // retry window, so another Run can probe at once instead of after the lease
-// (SCH-R107, SCH-R108). A waiting Run returns to running.
+// (SCH-R107, SCH-R108). With no wait left, a waiting Run returns to running
+// through runs.
 //
 // Route rows are locked in key order, like Admit and Retry, so a Run holding
 // probes on several routes cannot deadlock with them. gateway_recovery_routes
 // holds one row per distinct owner model route, so the probe scan is bounded
 // by that catalog, not by Runs or Stages.
-func EndStage(ctx context.Context, tx pgx.Tx, runID string) error {
+func EndStage(ctx context.Context, tx pgx.Tx, runs RunStates, runID string) error {
 	if _, err := tx.Exec(ctx, `DELETE FROM gateway_recovery_waits WHERE run_id=$1`, runID); err != nil {
 		return err
 	}
@@ -60,7 +59,7 @@ func EndStage(ctx context.Context, tx pgx.Tx, runID string) error {
 	if err := relinquishProbes(ctx, tx, runID, false); err != nil {
 		return err
 	}
-	return resumeRun(ctx, tx, runID)
+	return runs.LeaveWaiting(ctx, tx, runID)
 }
 
 // ReleaseAdmission relinquishes the probes that admission reserved for a Run
@@ -119,7 +118,7 @@ LIMIT 1`, runID).Scan(&status.Code, &status.Since, &status.NextRetryAt, &status.
 
 func (s *Service) Retry(ctx context.Context, ownerID, runID string) error {
 	return persistencepostgres.InTx(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		if err := lockRun(ctx, tx, runID, false); err != nil {
+		if err := lockRun(ctx, tx, s.runs, runID, false); err != nil {
 			return err
 		}
 		var owner string

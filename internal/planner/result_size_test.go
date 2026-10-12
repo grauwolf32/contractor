@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	workflowconfig "github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
@@ -28,7 +28,7 @@ func TestPassthroughResultSizeUsesCompactUTF8(t *testing.T) {
 				t.Fatal(err)
 			}
 			invocation := testInvocation()
-			invocation.Stage.Result.Artifacts = map[string]workflowconfig.ArtifactSlot{}
+			invocation.Stage.Result.Artifacts = map[string]resolved.ArtifactSlot{}
 			instance, err := factory.Create(invocation)
 			if err != nil {
 				t.Fatal(err)

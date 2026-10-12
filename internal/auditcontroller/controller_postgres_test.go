@@ -16,11 +16,14 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditimport"
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/auditprofile"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/credentials"
@@ -716,11 +719,11 @@ type countingProjectArtifactRepository struct {
 	writes int
 }
 
-func (r *countingProjectArtifactRepository) WriteAuditArtifact(
+func (r *countingProjectArtifactRepository) CreateFrozen(
 	ctx context.Context, scope artifacts.Scope, target artifacts.ArtifactRef, payload artifacts.Payload,
 ) (artifacts.WriteResult, error) {
 	r.writes++
-	return r.PostgresRepository.WriteAuditArtifact(ctx, scope, target, payload)
+	return r.PostgresRepository.CreateFrozen(ctx, scope, target, payload)
 }
 
 func TestPostgresDispatchReservationOrdersWithSettingsDecrease(t *testing.T) {
@@ -1043,10 +1046,10 @@ UPDATE audit_items SET state = 'collecting'
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := harness.artifacts.BindOutputExact(ctx, runID, "result", workerResult.Ref, nil); err != nil {
+	if _, err := artifactstest.BindOutput(ctx, harness.artifacts, runID, "result", workerResult.Ref); err != nil {
 		t.Fatal(err)
 	}
-	if err := harness.artifacts.FreezeRunOutputs(ctx, runID); err != nil {
+	if err := artifactstest.FreezeOutputs(ctx, harness.artifacts, runID); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := harness.runs.TransitionRun(ctx, runID, runstore.RunPending, runstore.RunRunning,
@@ -1161,11 +1164,11 @@ func TestPostgresControllerCollectsAndPublishesExactAuditReport(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	bound, err := harness.artifacts.BindOutputExact(ctx, runID, "result", workerResult.Ref, nil)
+	bound, err := artifactstest.BindOutput(ctx, harness.artifacts, runID, "result", workerResult.Ref)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := harness.artifacts.FreezeRunOutputs(ctx, runID); err != nil {
+	if err := artifactstest.FreezeOutputs(ctx, harness.artifacts, runID); err != nil {
 		t.Fatal(err)
 	}
 	run, err := harness.runs.GetRun(ctx, runID)
@@ -1543,7 +1546,7 @@ func newPostgresControllerHarnessWithConfig(
 					return bindErr
 				}
 				return fn(
-					runstore.NewRunCreationPostgresStore(tx, lookup),
+					runstore.NewRunCreationPostgresStore(tx, lookup, credentials.NewRuntimeCredentialRepository(tx)),
 					artifacts.NewService(artifacts.NewPostgresRepository(tx)),
 				)
 			})
@@ -1656,13 +1659,13 @@ func (*postgresNotifier) Cancel(string) {}
 
 type controllerCredentialLookup struct{}
 
-func (controllerCredentialLookup) LookupLLMCredential(context.Context, string) (config.CredentialMetadata, error) {
-	return config.CredentialMetadata{}, fmt.Errorf("credential is unavailable")
+func (controllerCredentialLookup) LookupLLMCredential(context.Context, string) (resolved.CredentialMetadata, error) {
+	return resolved.CredentialMetadata{}, fmt.Errorf("credential is unavailable")
 }
 
 func controllerTransactionCredentialLookup() runtimeconfig.TransactionLLMCredentialLookupFactory {
 	return runtimeconfig.TransactionLLMCredentialLookupFactoryFunc(
-		func(pgx.Tx) (config.CredentialLookup, error) { return controllerCredentialLookup{}, nil },
+		func(pgx.Tx) (resolved.CredentialLookup, error) { return controllerCredentialLookup{}, nil },
 	)
 }
 
@@ -1694,7 +1697,7 @@ func loadControllerConfigWithItemLimit(t *testing.T, maxItems int, batchSizes ..
 	if len(batchSizes) > 0 {
 		batchSize = batchSizes[0]
 	}
-	if len(batchSizes) > 1 || batchSize < 1 || batchSize > config.MaxAuditBatchSize {
+	if len(batchSizes) > 1 || batchSize < 1 || batchSize > auditprofile.MaxAuditBatchSize {
 		t.Fatalf("invalid test batch size %v", batchSizes)
 	}
 	return loadControllerConfigWithFindings(t, batchSize, maxItems, false)
@@ -1822,7 +1825,7 @@ spec:
 			t.Fatal(err)
 		}
 	}
-	snapshot, err := configload.Load(root, config.MVPDescriptors())
+	snapshot, err := configload.Load(root)
 	if err != nil {
 		t.Fatalf("load Audit Controller test configuration: %v", err)
 	}

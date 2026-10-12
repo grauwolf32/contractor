@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -39,11 +39,11 @@ func TestEncryptedProviderPreservesSafeDatabaseAndContextCauses(t *testing.T) {
 // resolutionFailingProvider reports metadata but fails secret resolution, so
 // the composite reaches its selected-provider branch.
 type resolutionFailingProvider struct {
-	metadata config.CredentialMetadata
+	metadata resolved.CredentialMetadata
 	err      error
 }
 
-func (p resolutionFailingProvider) LookupLLMCredential(context.Context, string) (config.CredentialMetadata, error) {
+func (p resolutionFailingProvider) LookupLLMCredential(context.Context, string) (resolved.CredentialMetadata, error) {
 	return p.metadata, nil
 }
 
@@ -79,7 +79,7 @@ func TestCompositeProviderPreservesSafeProviderCauses(t *testing.T) {
 		_, resolveErr := composite.ResolveLLMCredential(t.Context(), ref, gateway)
 
 		selected := resolutionFailingProvider{
-			metadata: config.CredentialMetadata{Ref: ref, LLMGateway: gateway},
+			metadata: resolved.CredentialMetadata{Ref: ref, LLMGateway: gateway},
 			err:      fmt.Errorf("%s: %w", private, cause),
 		}
 		composite, err = NewCompositeProvider(development, selected)

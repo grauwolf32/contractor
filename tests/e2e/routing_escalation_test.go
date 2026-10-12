@@ -18,7 +18,7 @@ import (
 	"testing"
 	"time"
 
-	workflowconfig "github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/localpki"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -792,7 +792,7 @@ func assertEscalatedExecution(
 		strong.EscalationOrdinal == nil || *strong.EscalationOrdinal != 1 {
 		t.Fatalf("strong escalation linkage = %+v", strong)
 	}
-	var stage workflowconfig.ResolvedStage
+	var stage resolved.ResolvedStage
 	if err := json.Unmarshal(strong.StageSpecSnapshot, &stage); err != nil {
 		t.Fatalf("decode escalated Stage snapshot: %v", err)
 	}

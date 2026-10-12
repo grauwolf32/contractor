@@ -6,6 +6,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/configload"
 )
 
@@ -19,7 +20,7 @@ const (
 
 func loadAuditServiceCatalog(t *testing.T) *config.Snapshot {
 	t.Helper()
-	snapshot, err := configload.Load(auditServiceCatalogFixture, config.MVPDescriptors())
+	snapshot, err := configload.Load(auditServiceCatalogFixture)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -36,13 +37,13 @@ func TestPreparationPreviewValidatesOriginalInputsBeforeGeneratedInventory(t *te
 	if err != nil {
 		t.Fatal(err)
 	}
-	profile.Inputs["source"] = config.AuditProfileInput{Required: true, MediaTypes: []string{"application/zip"}}
-	profile.Workflows["arbitrary-role"] = config.ResolvedAuditWorkflowBinding{
-		Kind: config.AuditWorkflowPrepare, MaxRunAttempts: 2, Workflow: workflow,
-		Inputs:     map[string]config.AuditWorkflowInputMapping{"source": {Source: config.AuditInputFromAudit, Name: "source"}},
-		Parameters: map[string]config.AuditWorkflowParameterMapping{}, Outputs: map[string]string{"api": "openapi"},
+	profile.Inputs["source"] = auditprofile.AuditProfileInput{Required: true, MediaTypes: []string{"application/zip"}}
+	profile.Workflows["arbitrary-role"] = auditprofile.ResolvedAuditWorkflowBinding{
+		Kind: auditprofile.AuditWorkflowPrepare, MaxRunAttempts: 2, Workflow: workflow,
+		Inputs:     map[string]auditprofile.AuditWorkflowInputMapping{"source": {Source: auditprofile.AuditInputFromAudit, Name: "source"}},
+		Parameters: map[string]auditprofile.AuditWorkflowParameterMapping{}, Outputs: map[string]string{"api": "openapi"},
 	}
-	if err := config.ValidateAuditPreparationProfile(profile); err != nil {
+	if err := auditprofile.ValidateAuditPreparationProfile(profile); err != nil {
 		t.Fatal(err)
 	}
 	compatibility := ProfileCompatibility(profile)
@@ -69,7 +70,7 @@ func TestPreparationCannotUseClassifiedToolsBeforeItemApproval(t *testing.T) {
 		t.Fatal(err)
 	}
 	prepare := profile.Workflows["scan"]
-	prepare.Kind, prepare.MaxRunAttempts = config.AuditWorkflowPrepare, 1
+	prepare.Kind, prepare.MaxRunAttempts = auditprofile.AuditWorkflowPrepare, 1
 	profile.Workflows["prepare-scan"] = prepare
 	compatibility := ProfileCompatibility(profile)
 	if compatibility.ServerCompatible || len(compatibility.Reasons) != 1 || compatibility.Reasons[0] != ReasonAutomaticActiveChecksUnsupported {

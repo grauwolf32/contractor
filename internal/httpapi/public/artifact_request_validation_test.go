@@ -29,9 +29,13 @@ func TestPostgresUserArtifactsReserveOnlyTheExactCatalogNamespace(t *testing.T) 
 	service := artifacts.NewService(artifacts.NewPostgresRepository(pool))
 	fixture := newHandlerFixtureWithAuth(t, "../../config/testdata/valid", newTestAuthentication(t),
 		mustTestOrigins(t), false, nil, func(dependencies *testServices) { dependencies.Artifacts = service })
-	if _, err := service.WriteAuditStandardPackage(ctx, "user-1",
+	user, err := artifacts.UserScope("user-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.Create(ctx, user,
 		contracts.ArtifactRef{Namespace: artifactpolicy.AuditStandardCatalogNamespace, Name: "catalog"},
-		artifacts.Payload{MediaType: "application/zip", Data: []byte("catalog")}, nil); err != nil {
+		artifacts.Payload{MediaType: "application/zip", Data: []byte("catalog")}); err != nil {
 		t.Fatal(err)
 	}
 	for _, ref := range [][2]string{{"audit-standards-notes", "draft"}, {"docs", "readme"}, {"skills", "package"}} {

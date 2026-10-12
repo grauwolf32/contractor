@@ -13,10 +13,12 @@ import (
 
 	"github.com/getkin/kin-openapi/routers/gorillamux"
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/findingintake"
 	"github.com/grauwolf32/contractor/internal/projectstore"
@@ -58,7 +60,7 @@ func TestPublicAuditPaginationBoundary(t *testing.T) {
 			service, err = auditservice.New(auditservice.Options{
 				Pool: pool, Profiles: dependencies.Config.(*config.Manager), CredentialGuard: credentials,
 				TransactionLLMCredentials: runtimeconfig.TransactionLLMCredentialLookupFactoryFunc(
-					func(pgx.Tx) (config.CredentialLookup, error) { return credentials, nil },
+					func(pgx.Tx) (resolved.CredentialLookup, error) { return credentials, nil },
 				),
 			})
 			if err != nil {
@@ -275,7 +277,7 @@ func seedPublicPaginationFinding(t *testing.T, ctx context.Context, pool *pgxpoo
 	if err != nil {
 		t.Fatal(err)
 	}
-	written, err := artifacts.NewService(artifacts.NewPostgresRepository(pool)).WriteAuditArtifact(ctx, projectID,
+	written, err := artifactstest.WriteAuditArtifact(ctx, artifacts.NewService(artifacts.NewPostgresRepository(pool)), projectID,
 		contracts.ArtifactRef{Namespace: "audit-proposals", Name: document.ClientKey},
 		artifacts.Payload{MediaType: "application/json", Data: payload})
 	if err != nil {

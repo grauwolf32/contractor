@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	workflowconfig "github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	plannermemory "github.com/grauwolf32/contractor/internal/memory"
 	"github.com/grauwolf32/contractor/internal/planner"
@@ -376,9 +376,9 @@ func validateInvocation(profile plannerProfile, invocation planner.Invocation) (
 }
 
 func cloneResultContract(
-	input map[string]workflowconfig.ArtifactSlot,
-) map[string]workflowconfig.ArtifactSlot {
-	result := make(map[string]workflowconfig.ArtifactSlot, len(input))
+	input map[string]resolved.ArtifactSlot,
+) map[string]resolved.ArtifactSlot {
+	result := make(map[string]resolved.ArtifactSlot, len(input))
 	for name, slot := range input {
 		slot.MediaTypes = append([]string(nil), slot.MediaTypes...)
 		result[name] = slot

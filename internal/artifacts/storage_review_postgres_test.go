@@ -9,6 +9,7 @@ import (
 	"time"
 
 	. "github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/rundeletion"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -107,7 +108,7 @@ func TestStorageReviewProjectDeletionAdmission(t *testing.T) {
 					mutate := func(tx pgx.Tx) error {
 						service := NewService(NewPostgresRepository(tx))
 						if operation == "publication" {
-							_, err := service.PublishRunOutput(ctx, "review-run", project.ProjectID, "result", source)
+							_, err := publishOutput(ctx, service, "review-run", project.ProjectID, "result", source)
 							return err
 						}
 						p, _ := service.Project(project.ProjectID)
@@ -200,11 +201,11 @@ func storageReviewProject(t *testing.T, ctx context.Context, pool *pgxpool.Pool)
 	if err != nil {
 		t.Fatal(err)
 	}
-	bound, err := s.BindOutputExact(ctx, "review-run", "result", written.Ref, nil)
+	bound, err := artifactstest.BindOutput(ctx, s, "review-run", "result", written.Ref)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := s.FreezeRunOutputs(ctx, "review-run"); err != nil {
+	if err := artifactstest.FreezeOutputs(ctx, s, "review-run"); err != nil {
 		t.Fatal(err)
 	}
 	return p, bound.TargetRef
