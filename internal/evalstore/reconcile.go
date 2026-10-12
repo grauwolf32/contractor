@@ -74,19 +74,7 @@ func (s *Store) NextMembers(ctx context.Context, owner, id string, limit int) ([
 	if limit < 1 || limit > evaldomain.MaxPageSize {
 		return nil, evaldomain.Failure("eval_invalid")
 	}
-	rows, err := s.db.Query(ctx, `
-SELECT `+memberColumns+`
-FROM eval_members m
-JOIN eval_experiments e USING(experiment_id)
-WHERE e.owner_id=$1
-    AND e.experiment_id=$2
-    AND m.eligibility='eligible'
-    AND NOT EXISTS(SELECT 1
-    FROM eval_submissions s
-    WHERE s.experiment_id=m.experiment_id
-        AND s.member_id=m.member_id)
-ORDER BY m.ordinal LIMIT $3
-`, owner, id, limit)
+	rows, err := s.db.Query(ctx, nextMembersSQL, owner, id, limit)
 	if err != nil {
 		return nil, err
 	}

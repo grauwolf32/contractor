@@ -55,6 +55,23 @@ type sqlAccess struct {
 // scanModuleSQL returns the relation accesses of every non-test Go file under
 // the source roots of the module at root, and how many files it parsed.
 func scanModuleSQL(root string, relations map[string]bool) ([]sqlAccess, int, error) {
+	var accesses []sqlAccess
+	parsed, err := eachSourcePackage(root, func(pkg string, sources map[string][]byte) error {
+		found, err := scanPackageSQL(pkg, sources, relations)
+		accesses = append(accesses, found...)
+		return err
+	})
+	if err != nil {
+		return nil, 0, err
+	}
+	return accesses, parsed, nil
+}
+
+// eachSourcePackage calls visit, in package order, with the directory of each
+// package under the source roots of the module at root and the source of each
+// of its non-test Go files, both as slash paths relative to root. It returns
+// how many files it read.
+func eachSourcePackage(root string, visit func(pkg string, sources map[string][]byte) error) (int, error) {
 	packages := map[string][]string{}
 	for _, sourceRoot := range sourceRoots {
 		start := filepath.Join(root, sourceRoot)
@@ -76,36 +93,33 @@ func scanModuleSQL(root string, relations map[string]bool) ([]sqlAccess, int, er
 			return nil
 		})
 		if err != nil && !os.IsNotExist(err) {
-			return nil, 0, err
+			return 0, err
 		}
 	}
-	var accesses []sqlAccess
-	parsed := 0
+	read := 0
 	for _, dir := range slices.Sorted(maps.Keys(packages)) {
 		relative, err := filepath.Rel(root, dir)
 		if err != nil {
-			return nil, 0, err
+			return 0, err
 		}
 		sources := map[string][]byte{}
 		for _, path := range packages[dir] {
 			source, err := os.ReadFile(path)
 			if err != nil {
-				return nil, 0, err
+				return 0, err
 			}
 			name, err := filepath.Rel(root, path)
 			if err != nil {
-				return nil, 0, err
+				return 0, err
 			}
 			sources[filepath.ToSlash(name)] = source
 		}
-		found, err := scanPackageSQL(filepath.ToSlash(relative), sources, relations)
-		if err != nil {
-			return nil, 0, err
+		if err := visit(filepath.ToSlash(relative), sources); err != nil {
+			return 0, err
 		}
-		accesses = append(accesses, found...)
-		parsed += len(sources)
+		read += len(sources)
 	}
-	return accesses, parsed, nil
+	return read, nil
 }
 
 // scanPackageSQL returns the relation accesses of one package, given the

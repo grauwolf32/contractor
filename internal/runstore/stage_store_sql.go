@@ -2,6 +2,26 @@ package runstore
 
 // SQL statements for stage_store.go.
 
+// createStageExecutionSQL inserts StageExecution $1 of Run $2, attempt $4 of
+// Stage $3 after previous execution $5, with execution configuration variant
+// $6, escalation ordinal $7 and resume source $8, StageSpec $10 of schema
+// version $9 and StageContext $12 of schema version $11, in state preparing
+// with reason created, and returns it.
+// Used by PostgresStore.CreateStageExecution.
+var createStageExecutionSQL = `
+INSERT INTO stage_executions (
+    stage_execution_id, run_id, stage_name, attempt, previous_execution_id,
+    execution_config_variant, escalation_ordinal, resume_source_execution_id,
+    stage_spec_schema_version, stage_spec_snapshot,
+    stage_context_schema_version, stage_context_snapshot,
+    state, state_reason_code, state_reason_message
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11, $12::jsonb, 'preparing', 'created', '')
+RETURNING ` + stageExecutionColumns
+
+// getStageExecutionSQL reads StageExecution $1.
+// Used by PostgresStore.GetStageExecution.
+var getStageExecutionSQL = `SELECT ` + stageExecutionColumns + ` FROM stage_executions WHERE stage_execution_id = $1`
+
 // listTerminalStageExecutionsWithAllocationsSQL selects up to $1 terminal
 // StageExecutions that still have unreleased allocations, ordered by their
 // oldest release attempt (never attempted first) so retries rotate fairly.
@@ -22,6 +42,25 @@ WITH pending AS (
     LIMIT $1
 )
 SELECT `
+
+// getActiveStageExecutionSQL returns, oldest first, up to two StageExecutions
+// of Run $1 that are preparing, running, finalizing or aborting; a second row
+// means the Run has more than the one active Stage it may have.
+// Used by PostgresStore.GetActiveStageExecution.
+var getActiveStageExecutionSQL = `
+SELECT ` + stageExecutionColumns + `
+FROM stage_executions
+WHERE run_id = $1 AND state IN ('preparing', 'running', 'finalizing', 'aborting')
+ORDER BY created_at, stage_execution_id
+LIMIT 2`
+
+// listStageExecutionsSQL returns every StageExecution of Run $1, oldest
+// first. Used by PostgresStore.ListStageExecutions.
+var listStageExecutionsSQL = `
+SELECT ` + stageExecutionColumns + `
+FROM stage_executions
+WHERE run_id = $1
+ORDER BY created_at, stage_execution_id`
 
 // startPlannerSQL moves StageExecution $1 from preparing to running (state
 // CAS) and creates planner session $2. It reserves two Run event sequence

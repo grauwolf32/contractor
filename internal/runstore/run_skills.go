@@ -22,11 +22,7 @@ func (s *PostgresStore) LockRunSkillInitialization(
 	if err := validateOpaque("runID", runID); err != nil {
 		return WorkflowRun{}, err
 	}
-	run, err := scanWorkflowRun(s.db.QueryRow(ctx, `
-SELECT `+workflowRunColumns+`
-FROM workflow_runs
-WHERE run_id = $1
-	FOR UPDATE`, runID))
+	run, err := scanWorkflowRun(s.db.QueryRow(ctx, lockRunSkillInitializationSQL, runID))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return WorkflowRun{}, ErrNotFound
 	}

@@ -2,6 +2,25 @@ package pgstore
 
 // SQL statements for read.go.
 
+// listItemsPageSQL returns one page of the items of owner $1's Audit $2 in
+// round ordinal, item ordinal and item ID order. It filters before the
+// keyset: only round $3, state $4 and subject key $5, each when it is not
+// NULL. ($6, $7, $8) is the (round ordinal, item ordinal, item ID) cursor of
+// the previous page; a NULL $6 starts at the first page. At most $9 rows.
+// Used by QueryStore.ListItemsPage.
+var listItemsPageSQL = `
+SELECT ` + prefixedItemColumns("item") + `
+  FROM audit_items AS item
+  JOIN audit_rounds AS round USING (round_id, audit_id)
+  JOIN audits AS audit USING (audit_id)
+ WHERE audit.owner_id = $1 AND item.audit_id = $2
+   AND ($3::text IS NULL OR item.round_id = $3)
+   AND ($4::text IS NULL OR item.state = $4)
+   AND ($5::text IS NULL OR item.subject_key = $5)
+   AND ($6::integer IS NULL OR (round.ordinal, item.ordinal, item.item_id) > ($6, $7, $8))
+ ORDER BY round.ordinal, item.ordinal, item.item_id
+ LIMIT $9`
+
 // listItemAttemptsSQL lists the execution attempts of items $3 in owner $1's
 // Audit $2, each with its execution's role, terminal outcome, Run provenance
 // and Run-deleted flag, ordered by item and attempt. $4 is one more than the

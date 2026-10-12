@@ -404,10 +404,7 @@ func readCollectionReceipts(ctx context.Context, tx pgx.Tx, ownerID string, ids 
 	if len(ids) == 0 {
 		return receipts, nil
 	}
-	rows, err := tx.Query(ctx, `
-SELECT `+receiptProjection+`
-  FROM finding_proposal_receipts AS receipt
- WHERE receipt.receipt_id = ANY($1::text[]) AND receipt.owner_id = $2`, ids, ownerID)
+	rows, err := tx.Query(ctx, readCollectionReceiptsSQL, ids, ownerID)
 	if err != nil {
 		return nil, fmt.Errorf("read selected finding receipts: %w", err)
 	}

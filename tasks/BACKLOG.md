@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-86 open tasks: 3 in progress, 69 pending, 14 deferred. 865 finished: 862 completed, 3 archived.
+85 open tasks: 3 in progress, 68 pending, 14 deferred. 866 finished: 863 completed, 3 archived.
 
 ## In progress
 
@@ -127,7 +127,6 @@ the epics are in [epics.yml](epics.yml).
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
-| [V369-005](v369-005-sql-placement-concatenation.yml) | chore | P2 | — | Make the SQL placement check see concatenated statements |
 | [V372-008](v372-008-upward-table-reads.yml) | chore | P3 | — | Remove the table reads that point up the layer stack or name who owns each one |
 | [V372-009](v372-009-ownership-check-blind-spots.yml) | chore | P3 | — | Close the blind spots of the table ownership check |
 | [V372-010](v372-010-erd-usage-from-ownership-scan.yml) | chore | P3 | — | Take the ERD's code-usage lists from the ownership scan and document the new-table workflow |
@@ -195,5 +194,5 @@ tasks in `introduced_by`.
 | Web UI (`ui`) | 2 | 19 | 53 | 10 | 48 |
 | Operations, authentication, CLI and deployment (`operations`) | 0 | 8 | 30 | 4 | 6 |
 | Public API and wire contracts (`api-contracts`) | 9 | 1 | 29 | 20 | 8 |
-| PostgreSQL persistence and schema (`persistence`) | 6 | 0 | 19 | 32 | 6 |
+| PostgreSQL persistence and schema (`persistence`) | 5 | 0 | 19 | 32 | 7 |
 | Quality, CI and process (`quality`) | 15 | 1 | 18 | 75 | 15 |

@@ -33,6 +33,13 @@ SELECT receipt.receipt_id
                     WHERE contribution.receipt_id = receipt.receipt_id
                       AND contribution.audit_id = $4))))`
 
+// readCollectionReceiptsSQL reads owner $2's proposal receipts among $1.
+// Used by readCollectionReceipts.
+var readCollectionReceiptsSQL = `
+SELECT ` + receiptProjection + `
+  FROM finding_proposal_receipts AS receipt
+ WHERE receipt.receipt_id = ANY($1::text[]) AND receipt.owner_id = $2`
+
 // collectionHoldAuditsSQL returns the Project of every Audit among $1 that
 // owner $2 owns in a Project it also owns. A hold whose Audit and Project
 // match a returned row is one the owner may publish. Used by
