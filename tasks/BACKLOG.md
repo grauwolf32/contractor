@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-62 open tasks: 3 in progress, 45 pending, 14 deferred. 865 finished: 862 completed, 3 archived.
+62 open tasks: 4 in progress, 44 pending, 14 deferred. 865 finished: 862 completed, 3 archived.
 
 ## In progress
 
@@ -14,6 +14,7 @@ the epics are in [epics.yml](epics.yml).
 | [V40-002](v40-002-agent-instruction-paired-runner.yml) | evals | feature | P1 | Prepare instruction experiment bindings and a frozen plan after format readiness |
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
+| [V369-007](v369-007-unused-export-lint.yml) | quality | chore | P3 | Fail lint on exported identifiers used only by tests |
 
 ## Pending
 
@@ -108,7 +109,6 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V347-001](v347-001-protect-main-branch.yml) | chore | P1 | — | Protect main with a required check |
-| [V369-007](v369-007-unused-export-lint.yml) | chore | P3 | — | Fail lint on exported identifiers used only by tests |
 | [V371-015](v371-015-memory-claim-paused-skip.yml) | chore | P3 | — | Model the paused-owner claim skip in the Scheduler's memory store doubles |
 | [V371-021](v371-021-postgres-test-wall-clock.yml) | chore | P3 | — | Replace wall-clock budgets in the Scheduler and runstore PostgreSQL tests |
 | [V371-022](v371-022-capability-probe-test-budget.yml) | chore | P3 | — | Remove the 10 ms probe budget from the capability discovery tests |

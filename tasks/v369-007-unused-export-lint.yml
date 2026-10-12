@@ -5,7 +5,7 @@ milestone: hub-audit-guards-2026-10
 epic: quality
 kind: chore
 priority: P3
-status: pending
+status: in_progress
 depends_on: [V370-008]
 languages: [go]
 goal: "A new exported function used only by a test fails lint."
