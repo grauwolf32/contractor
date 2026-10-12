@@ -36,6 +36,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/runservice"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
 	"github.com/grauwolf32/contractor/internal/telemetry"
 )
 
@@ -1398,7 +1399,7 @@ func TestCreateRunPinsCanonicalLabelsAndReplaySkipsCurrentBindings(t *testing.T)
 		if strings.Join(labels, ",") != "debug,trace" {
 			t.Fatalf("canonical labels = %v", labels)
 		}
-		result := runtimeconfig.BuiltInRunSnapshot()
+		result := runtimeconfigtest.BuiltInRunSnapshot()
 		result.Labels = []runtimeconfig.PinnedLabel{
 			{Label: "debug", Explicit: true, BindingRevision: 7, Config: result.Default.Config},
 			{Label: "trace", Explicit: true, BindingRevision: 9, Config: result.Default.Config},

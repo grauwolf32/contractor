@@ -52,7 +52,7 @@ available through a tag or a manual full-gate run before a PR is merged.
 
 | Stage | Runs |
 | --- | --- |
-| `release-verify-lint` | `make lint build test-config`: the generated Go public client check, gofmt, vet, staticcheck, the release-graph guard and its tests, the database ERD freshness check, Ruff, the Runtime import-layer contracts, the command builds, the configuration package tests and validation of the shipped catalog (`config validate --root ./configs`) |
+| `release-verify-lint` | `make lint build test-config`: the generated Go public client check, gofmt, vet, staticcheck, the test-only export check (`tools/testonlyexports`, with its vet and tests), the release-graph guard and its tests, the database ERD freshness check, Ruff, the Runtime import-layer contracts, the command builds, the configuration package tests and validation of the shipped catalog (`config validate --root ./configs`) |
 | `release-verify-unit` | `make test`: the hardening matrices, every Go package (PostgreSQL-backed tests included when the test URL is set) and the Runtime suite |
 | `release-verify-ui` | `make ui-verify`: generated-type check, lint, typecheck, unit and server tests, and the production build |
 | `release-verify-families` | The feature families' Runtime, UI and matrix checks, and the Audit completion and findings process gates |
@@ -82,9 +82,9 @@ integration commands continue to run their focused untagged race checks.
 Makefile, the race coverage of every package with tests, and the release graph
 against the original process-test inventory, and discovers every
 integration-tagged test. It also requires the lint stage to keep the shipped
-catalog validation and the ERD check, and every package whose tests read
-`CONTRACTOR_TEST_ARTIFACT_BACKEND` to run whole on the filesystem backend in
-some stage. New names
+catalog validation, the ERD check and the test-only export check, and every
+package whose tests read `CONTRACTOR_TEST_ARTIFACT_BACKEND` to run whole on
+the filesystem backend in some stage. New names
 enter the release pass automatically; tool-dependent exceptions must name an
 opt-in gate and reason in
 [`scripts/release_integration_tests.py`](../../scripts/release_integration_tests.py).

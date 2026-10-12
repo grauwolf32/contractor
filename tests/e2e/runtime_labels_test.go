@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/telemetry"
 
 	"github.com/grauwolf32/contractor/internal/contracts/control"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
@@ -286,7 +287,7 @@ func TestLabelDrivenRuntimeConfigurationAcrossProcesses(t *testing.T) {
 	if failedExportStatus.State != "succeeded" || runCollector.requests() == 0 {
 		t.Fatalf("OTLP delivery failure changed semantic outcome: status=%+v requests=%d", failedExportStatus, runCollector.requests())
 	}
-	failedExportMetrics := onlyRuntimeAdapterMetrics(t, ctx, store, failedExport.RunID, "otlp-http@1")
+	failedExportMetrics := onlyRuntimeAdapterMetrics(t, ctx, store, telemetry.NewRepository(pool), failedExport.RunID, "otlp-http@1")
 	if failedExportMetrics.FailedOperations == 0 || failedExportMetrics.FlushAttempted == nil ||
 		!*failedExportMetrics.FlushAttempted || failedExportMetrics.FlushSucceeded == nil ||
 		*failedExportMetrics.FlushSucceeded || failedExportMetrics.LastErrorCode == nil ||
@@ -874,7 +875,7 @@ func waitForRunTerminalAcross(
 func onlyRunAllocation(
 	t *testing.T,
 	ctx context.Context,
-	store runstore.Repository,
+	store *runstore.PostgresStore,
 	runID string,
 ) runstore.StageAllocation {
 	t.Helper()
@@ -892,7 +893,8 @@ func onlyRunAllocation(
 func onlyRuntimeAdapterMetrics(
 	t *testing.T,
 	ctx context.Context,
-	store runstore.Repository,
+	store *runstore.PostgresStore,
+	telemetryReports *telemetry.Repository,
 	runID, adapter string,
 ) reporting.RuntimeAdapterMetrics {
 	t.Helper()
@@ -900,7 +902,7 @@ func onlyRuntimeAdapterMetrics(
 	if err != nil || len(executions) != 1 {
 		t.Fatalf("Run StageExecutions = (%+v, %v), want one", executions, err)
 	}
-	reports, err := store.ListStageExecutionReports(ctx, executions[0].StageExecutionID)
+	reports, err := telemetryReports.ListAllocationReports(ctx, executions[0].StageExecutionID)
 	if err != nil || len(reports) != 1 {
 		t.Fatalf("Run execution reports = (%+v, %v), want one", reports, err)
 	}

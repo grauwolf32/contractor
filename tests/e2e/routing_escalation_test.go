@@ -22,6 +22,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/localpki"
 	"github.com/grauwolf32/contractor/internal/planner/stageresult"
 	"github.com/grauwolf32/contractor/internal/runstore"
+	"github.com/grauwolf32/contractor/internal/telemetry"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -160,6 +161,7 @@ func TestRoutingAndEscalationProductionBoundaries(t *testing.T) {
 	}
 	t.Cleanup(pool.Close)
 	store := runstore.NewPostgresStore(pool)
+	telemetryReports := telemetry.NewRepository(pool)
 	uploaded := uploadInput(t, publicClient, publicBaseURL)
 
 	streamlineRunID := createWorkflowRunWithParameters(
@@ -173,7 +175,7 @@ func TestRoutingAndEscalationProductionBoundaries(t *testing.T) {
 	assertRoutingOutput(t, ctx, pool, publicClient, publicBaseURL, streamlineRunID, streamline)
 	streamlineExecutions := requireExecutions(t, ctx, store, streamlineRunID, 1)
 	assertSucceededExecution(t, streamlineExecutions[0], 1)
-	assertCompleteAllocations(t, ctx, store, streamlineExecutions[0], 1, "builder")
+	assertCompleteAllocations(t, ctx, store, telemetryReports, streamlineExecutions[0], 1, "builder")
 	assertModeledPlanEvents(t, ctx, store, streamlineExecutions[0], "builder", nil, runtimeURLs)
 
 	builderCallsBeforeRouter := gateway.ModelCalls("worker-model")
@@ -189,7 +191,7 @@ func TestRoutingAndEscalationProductionBoundaries(t *testing.T) {
 	routerExecutions := requireExecutions(t, ctx, store, routerRunID, 1)
 	assertSucceededExecution(t, routerExecutions[0], 1)
 	routerAllocations := assertCompleteAllocations(
-		t, ctx, store, routerExecutions[0], 2, "builder", "reviewer",
+		t, ctx, store, telemetryReports, routerExecutions[0], 2, "builder", "reviewer",
 	)
 	if gateway.ModelCalls("worker-model") != builderCallsBeforeRouter ||
 		gateway.ModelCalls("reviewer-worker-model") != 4 {
@@ -209,7 +211,7 @@ func TestRoutingAndEscalationProductionBoundaries(t *testing.T) {
 	)
 	assertPublicAttemptMetrics(t, escalatedStatus, [][2]int64{{1, 1}, {7, 5}})
 	assertRoutingOutput(t, ctx, pool, publicClient, publicBaseURL, escalationRunID, escalatedStatus)
-	assertEscalatedExecution(t, ctx, store, escalationRunID)
+	assertEscalatedExecution(t, ctx, store, telemetryReports, escalationRunID)
 
 	wantModelCalls := map[string]int{
 		"planner-model": 7, "strong-planner-model": 3, "worker-model": 4,
@@ -222,7 +224,7 @@ func TestRoutingAndEscalationProductionBoundaries(t *testing.T) {
 		}
 	}
 	runWorkerObservationsProcessGate(
-		t, ctx, pool, store, gateway, server, runtimes, controlClient,
+		t, ctx, pool, store, telemetryReports, gateway, server, runtimes, controlClient,
 		publicClient, publicBaseURL, runtimeURLs, runtimeInstanceIDs, workRoots, workspaceRoots,
 	)
 	if failures := gateway.Failures(); len(failures) != 0 {
@@ -248,6 +250,7 @@ func runWorkerObservationsProcessGate(
 	ctx context.Context,
 	pool *pgxpool.Pool,
 	store *runstore.PostgresStore,
+	telemetryReports *telemetry.Repository,
 	gateway *routingGateway,
 	server *childProcess,
 	runtimes []*childProcess,
@@ -275,7 +278,7 @@ func runWorkerObservationsProcessGate(
 		t, ctx, server, runtimes, gateway, publicClient, publicBaseURL, streamlineRunID,
 	)
 	streamlineAllocations := assertWorkerObservationExecution(
-		t, ctx, store, gateway, publicClient, publicBaseURL, streamlineStatus,
+		t, ctx, store, telemetryReports, gateway, publicClient, publicBaseURL, streamlineStatus,
 		"observation-streamline-initial-planner", map[string]string{
 			"report": initialFixture.BuilderReport,
 		},
@@ -294,7 +297,7 @@ func runWorkerObservationsProcessGate(
 		t, ctx, server, runtimes, gateway, publicClient, publicBaseURL, routerRunID,
 	)
 	routerAllocations := assertWorkerObservationExecution(
-		t, ctx, store, gateway, publicClient, publicBaseURL, routerStatus,
+		t, ctx, store, telemetryReports, gateway, publicClient, publicBaseURL, routerStatus,
 		"observation-router-initial-planner", map[string]string{
 			"builder_report":  initialFixture.BuilderReport,
 			"reviewer_report": initialFixture.ReviewerReport,
@@ -327,7 +330,7 @@ func runWorkerObservationsProcessGate(
 		t, ctx, server, runtimes, gateway, publicClient, publicBaseURL, reuseRunID,
 	)
 	reuseAllocations := assertWorkerObservationExecution(
-		t, ctx, store, gateway, publicClient, publicBaseURL, reuseStatus,
+		t, ctx, store, telemetryReports, gateway, publicClient, publicBaseURL, reuseStatus,
 		"observation-router-reuse-planner", map[string]string{
 			"builder_report":  reuseFixture.BuilderReport,
 			"reviewer_report": reuseFixture.ReviewerReport,
@@ -404,6 +407,7 @@ func assertWorkerObservationExecution(
 	t *testing.T,
 	ctx context.Context,
 	store *runstore.PostgresStore,
+	telemetryReports *telemetry.Repository,
 	gateway *routingGateway,
 	client *http.Client,
 	baseURL string,
@@ -436,7 +440,7 @@ func assertWorkerObservationExecution(
 	if err != nil || len(allocations) != len(wantOutputs) {
 		t.Fatalf("Worker observation allocations = (%+v, %v), want %d", allocations, err, len(wantOutputs))
 	}
-	reports, err := store.ListStageExecutionReports(ctx, executions[0].StageExecutionID)
+	reports, err := telemetryReports.ListAllocationReports(ctx, executions[0].StageExecutionID)
 	if err != nil || len(reports) != len(allocations) {
 		t.Fatalf("Worker observation reports = (%+v, %v), want %d", reports, err, len(allocations))
 	}
@@ -454,7 +458,7 @@ func assertWorkerObservationExecution(
 
 func assertWorkerReportMatchesLiveUsage(
 	t *testing.T,
-	report runstore.StageExecutionReport,
+	report telemetry.StoredAllocationReport,
 	usage workerObservationUsage,
 ) {
 	t.Helper()
@@ -658,6 +662,7 @@ func assertCompleteAllocations(
 	t *testing.T,
 	ctx context.Context,
 	store *runstore.PostgresStore,
+	telemetryReports *telemetry.Repository,
 	execution runstore.StageExecution,
 	want int,
 	logicalNames ...string,
@@ -667,7 +672,7 @@ func assertCompleteAllocations(
 	if err != nil || len(allocations) != want {
 		t.Fatalf("Stage %s allocations = (%+v, %v), want %d", execution.StageExecutionID, allocations, err, want)
 	}
-	reports, err := store.ListStageExecutionReports(ctx, execution.StageExecutionID)
+	reports, err := telemetryReports.ListAllocationReports(ctx, execution.StageExecutionID)
 	if err != nil || len(reports) != want {
 		t.Fatalf("Stage %s reports = (%+v, %v), want %d", execution.StageExecutionID, reports, err, want)
 	}
@@ -776,7 +781,8 @@ WHERE scope_kind = 'run' AND scope_id = $1 AND namespace = 'outputs' AND name = 
 }
 
 func assertEscalatedExecution(
-	t *testing.T, ctx context.Context, store *runstore.PostgresStore, runID string,
+	t *testing.T, ctx context.Context, store *runstore.PostgresStore,
+	telemetryReports *telemetry.Repository, runID string,
 ) {
 	t.Helper()
 	executions := requireExecutions(t, ctx, store, runID, 2)
@@ -811,8 +817,8 @@ func assertEscalatedExecution(
 		decisions[0].EscalationExhausted || decisions[1].Action != runstore.StageTransitionSucceed {
 		t.Fatalf("escalation decisions = (%+v, %v)", decisions, err)
 	}
-	assertCompleteAllocations(t, ctx, store, base, 1, "builder")
-	allocations := assertCompleteAllocations(t, ctx, store, strong, 1, "builder")
+	assertCompleteAllocations(t, ctx, store, telemetryReports, base, 1, "builder")
+	allocations := assertCompleteAllocations(t, ctx, store, telemetryReports, strong, 1, "builder")
 	assertModeledPlanEvents(t, ctx, store, strong, "builder", allocations, nil)
 }
 

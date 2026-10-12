@@ -25,6 +25,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/localpki"
 	"github.com/grauwolf32/contractor/internal/planner/stageresult"
 	"github.com/grauwolf32/contractor/internal/runstore"
+	"github.com/grauwolf32/contractor/internal/telemetry"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -588,7 +589,7 @@ func (h *scanProcessHarness) assertExecution(t *testing.T, status runStatus, too
 	if err != nil || len(allocations) != 1 || allocations[0].RuntimeAgentInstanceID == "" {
 		t.Fatalf("scan bypassed real allocation: %+v %v", allocations, err)
 	}
-	reports, err := store.ListStageExecutionReports(h.ctx, attempt.StageExecutionID)
+	reports, err := telemetry.NewRepository(h.pool).ListAllocationReports(h.ctx, attempt.StageExecutionID)
 	if err != nil || len(reports) != 1 {
 		t.Fatalf("trusted scan execution reports = %+v %v", reports, err)
 	}

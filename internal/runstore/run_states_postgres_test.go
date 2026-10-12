@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -121,7 +121,7 @@ CROSS JOIN LATERAL (
 // one per Run would dominate the test's run time.
 func populateRunHistory(t *testing.T, ctx context.Context, pool *pgxpool.Pool) {
 	t.Helper()
-	snapshot, err := json.Marshal(runtimeconfig.BuiltInRunSnapshot())
+	snapshot, err := json.Marshal(runtimeconfigtest.BuiltInRunSnapshot())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -517,7 +517,7 @@ func TestPostgresWorkflowCredentialMatchKeepsItsExactSemantics(t *testing.T) {
 	} {
 		params := testRunParams(fmt.Sprintf("run-shape-%d", index))
 		params.WorkflowSnapshot = json.RawMessage(shape.snapshot)
-		if _, err := store.CreateRun(ctx, params); err != nil {
+		if _, err := createRun(ctx, store, params); err != nil {
 			t.Fatal(err)
 		}
 		if shape.match {

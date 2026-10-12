@@ -28,6 +28,7 @@ import (
 	publicevents "github.com/grauwolf32/contractor/internal/httpapi/public/events"
 	"github.com/grauwolf32/contractor/internal/localpki"
 	"github.com/grauwolf32/contractor/internal/runstore"
+	"github.com/grauwolf32/contractor/internal/telemetry"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -289,11 +290,11 @@ func TestAgentSkillsMVPProcesses(t *testing.T) {
 	)
 	assertAgentSkillAttemptSequence(t, newStatus, false)
 	oldEvidence := assertAgentSkillRunEvidence(
-		t, ctx, store, publicClient, publicBaseURL, oldRunID,
+		t, ctx, store, telemetry.NewRepository(pool), publicClient, publicBaseURL, oldRunID,
 		*seedA.Ref.Revision, packageA, fixture,
 	)
 	newEvidence := assertAgentSkillRunEvidence(
-		t, ctx, store, publicClient, publicBaseURL, newRunID,
+		t, ctx, store, telemetry.NewRepository(pool), publicClient, publicBaseURL, newRunID,
 		*updatedB.Revision, packageB, fixture,
 	)
 	if oldEvidence.runtimeInstanceID != newEvidence.runtimeInstanceID {
@@ -662,6 +663,7 @@ func assertAgentSkillRunEvidence(
 	t *testing.T,
 	ctx context.Context,
 	store *runstore.PostgresStore,
+	telemetryReports *telemetry.Repository,
 	client *http.Client,
 	baseURL, runID, sourceRevision string,
 	pkg agentSkillPackageVariant,
@@ -728,7 +730,7 @@ func assertAgentSkillRunEvidence(
 				allocation.RuntimeAgentInstanceID, evidence.runtimeInstanceID)
 		}
 		evidence.lastAllocationID = allocation.AllocationID
-		reports, reportErr := store.ListStageExecutionReports(ctx, execution.StageExecutionID)
+		reports, reportErr := telemetryReports.ListAllocationReports(ctx, execution.StageExecutionID)
 		if reportErr != nil || len(reports) != 1 || !reports[0].Report.Worker.Complete ||
 			!reports[0].Report.Runtime.Complete {
 			t.Fatalf("reports for %s/%d = (%+v, %v)",

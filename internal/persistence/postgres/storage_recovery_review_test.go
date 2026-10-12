@@ -14,7 +14,7 @@ func TestStorageReviewMigrationRejectsNewerAndDrift(t *testing.T) {
 			ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 			defer cancel()
 			pool, _ := isolatedPools(t, ctx, storageReviewDatabaseURL(t))
-			result, err := ApplyMigrations(ctx, pool)
+			result, err := ApplyMigrations(ctx, pool, MigrationBudgets{})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -26,7 +26,7 @@ func TestStorageReviewMigrationRejectsNewerAndDrift(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if _, err := ApplyMigrations(ctx, pool); !errors.Is(err, ErrMigrationDrift) {
+			if _, err := ApplyMigrations(ctx, pool, MigrationBudgets{}); !errors.Is(err, ErrMigrationDrift) {
 				t.Fatalf("unsupported migration ledger: %v", err)
 			}
 			var count int

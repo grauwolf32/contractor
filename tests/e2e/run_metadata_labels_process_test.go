@@ -25,6 +25,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/localpki"
 	"github.com/grauwolf32/contractor/internal/planner/stageresult"
 	"github.com/grauwolf32/contractor/internal/runstore"
+	"github.com/grauwolf32/contractor/internal/telemetry"
 	"github.com/jackc/pgx/v5/pgxpool"
 	collectortracev1 "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 	commonv1 "go.opentelemetry.io/proto/otlp/common/v1"
@@ -221,7 +222,7 @@ func TestRunMetadataLabelsAcrossProcesses(t *testing.T) {
 	)
 	assertMetadataRunResult(t, publicClient, publicBaseURL, statusB, labelsB)
 	allocationB := onlyRunAllocation(t, ctx, store, runB.RunID)
-	failedExportMetrics := onlyRuntimeAdapterMetrics(t, ctx, store, runB.RunID, "otlp-http@1")
+	failedExportMetrics := onlyRuntimeAdapterMetrics(t, ctx, store, telemetry.NewRepository(pool), runB.RunID, "otlp-http@1")
 	if failedExportMetrics.FailedOperations == 0 || failedExportMetrics.FlushSucceeded == nil ||
 		*failedExportMetrics.FlushSucceeded {
 		t.Fatalf("metadata Run exporter failure was not retained as supplementary metrics: %+v", failedExportMetrics)

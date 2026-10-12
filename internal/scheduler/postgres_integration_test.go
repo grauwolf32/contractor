@@ -10,6 +10,7 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -27,7 +28,8 @@ import (
 	"github.com/grauwolf32/contractor/internal/planner/stageresult"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runstore"
-	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/grauwolf32/contractor/internal/runstore/runstoretest"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
 	"github.com/grauwolf32/contractor/internal/settingsstore"
 	"github.com/grauwolf32/contractor/internal/telemetry"
 	"github.com/jackc/pgx/v5"
@@ -1024,10 +1026,13 @@ func TestPostgresRetryProgressionAtomicallyCreatesFreshAttempt(t *testing.T) {
 		*first.Revision == *second.Revision || *second.Revision != *advanced.Ref.Revision {
 		t.Fatalf("retry context revisions = first:%+v second:%+v", first, second)
 	}
-	decision, err := store.GetStageTransitionDecision(ctx, sourceID)
-	if err != nil || decision.Action != runstore.StageTransitionRetry ||
-		decision.TargetExecutionID == nil || *decision.TargetExecutionID != targetID {
-		t.Fatalf("retry decision = (%+v, %v)", decision, err)
+	decisions, err := store.ListStageTransitionDecisions(ctx, "run-1")
+	decision := slices.IndexFunc(decisions, func(decision runstore.StageTransitionDecision) bool {
+		return decision.SourceExecutionID == sourceID
+	})
+	if err != nil || decision < 0 || decisions[decision].Action != runstore.StageTransitionRetry ||
+		decisions[decision].TargetExecutionID == nil || *decisions[decision].TargetExecutionID != targetID {
+		t.Fatalf("retry decisions = (%+v, %v)", decisions, err)
 	}
 	run, err := store.GetRun(ctx, "run-1")
 	if err != nil || run.State != runstore.RunRunning {
@@ -1294,12 +1299,12 @@ func createSchedulerRunInProject(
 ) artifacts.ScopedStore {
 	t.Helper()
 	workflowJSON, _ := json.Marshal(workflow)
-	if _, err := store.CreateRun(ctx, runstore.CreateRunParams{
+	if _, err := runstoretest.CreateRun(ctx, store, runstore.CreateRunParams{
 		RunID: "run-1", OwnerID: "user-1", WorkflowName: workflow.Ref.Name,
 		ProjectID:       projectID,
 		WorkflowVersion: workflow.Ref.Version, WorkflowSchemaVersion: contracts.APIVersion,
 		WorkflowSnapshot: workflowJSON, Parameters: map[string]string{"objective": "copy exactly"},
-		RuntimeConfig: runtimeconfig.BuiltInRunSnapshot(),
+		RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot(),
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -1377,12 +1382,12 @@ func createBoundProjectRunOutput(
 		t.Fatal(err)
 	}
 	store := runstore.NewPostgresStore(pool)
-	if _, err := store.CreateRun(ctx, runstore.CreateRunParams{
+	if _, err := runstoretest.CreateRun(ctx, store, runstore.CreateRunParams{
 		RunID: runID, OwnerID: "user-1", ProjectID: &projectID,
 		WorkflowName: workflow.Ref.Name, WorkflowVersion: workflow.Ref.Version,
 		WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: workflowJSON,
 		Parameters:    map[string]string{"objective": "copy exactly"},
-		RuntimeConfig: runtimeconfig.BuiltInRunSnapshot(),
+		RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot(),
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -1509,7 +1514,7 @@ func isolatedSchedulerPool(t *testing.T, ctx context.Context) *pgxpool.Pool {
 		admin.Close()
 		t.Fatal(err)
 	}
-	if _, err := persistencepostgres.ApplyMigrations(ctx, pool); err != nil {
+	if _, err := persistencepostgres.ApplyMigrations(ctx, pool, persistencepostgres.MigrationBudgets{}); err != nil {
 		pool.Close()
 		admin.Close()
 		t.Fatal(err)

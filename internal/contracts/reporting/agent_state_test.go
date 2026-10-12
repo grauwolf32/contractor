@@ -65,7 +65,7 @@ func TestSharedAgentStateRejectsMissingNestedRequiredFields(t *testing.T) {
 			_ = json.Unmarshal(encoded, &candidate)
 			mutate(candidate)
 			encoded, _ = json.Marshal(candidate)
-			if _, err := contracts.DecodeStrict[AgentStateSnapshot](encoded); err == nil {
+			if _, err := contracts.DecodePrivateStrict[AgentStateSnapshot](encoded); err == nil {
 				t.Fatal("Agent State with a missing nested field was accepted")
 			}
 		})
@@ -110,7 +110,7 @@ func TestSharedAgentStateRejectsInconsistentSummarizerState(t *testing.T) {
 			current := state["currentInvocation"].(map[string]any)
 			mutate(current["summarizer"].(map[string]any))
 			encoded, _ = json.Marshal(candidate)
-			if _, err := contracts.DecodeStrict[AgentStateSnapshot](encoded); err == nil {
+			if _, err := contracts.DecodePrivateStrict[AgentStateSnapshot](encoded); err == nil {
 				t.Fatal("Agent State with inconsistent summarizer state was accepted")
 			}
 		})

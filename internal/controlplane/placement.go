@@ -797,10 +797,6 @@ func (a *PlacementAllocator) DiscardUnprepared(stageExecutionID string) error {
 	return a.registry.DiscardUnpreparedReservations(stageExecutionID)
 }
 
-func (a *PlacementAllocator) Release(allocationID string) error {
-	return a.registry.Release(allocationID)
-}
-
 func (a *PlacementAllocator) PollAllocationLosses() []AllocationLoss {
 	return a.registry.PollAllocationLosses()
 }

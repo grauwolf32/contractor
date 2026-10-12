@@ -64,12 +64,6 @@ type Invoker struct {
 	wait func(context.Context, time.Duration) error
 }
 
-// New accepts an injected HTTP client for tests and local composition. Private
-// production traffic must use NewMTLS.
-func New(httpClient *http.Client, options Options) (*Invoker, error) {
-	return newInvoker(httpClient, options, false)
-}
-
 func NewMTLS(files mtls.Files, timeout time.Duration, options Options) (*Invoker, error) {
 	if timeout <= 0 {
 		return nil, fmt.Errorf("A2A request timeout must be positive")
@@ -84,22 +78,6 @@ func NewMTLS(files mtls.Files, timeout time.Duration, options Options) (*Invoker
 	}
 	return &Invoker{
 		pollInterval: pollInterval, requireHTTPS: true, tlsConfig: tlsConfig, timeout: timeout,
-	}, nil
-}
-
-func newInvoker(
-	httpClient *http.Client, options Options, requireHTTPS bool,
-) (*Invoker, error) {
-	if httpClient == nil {
-		return nil, fmt.Errorf("A2A HTTP client is required")
-	}
-	pollInterval, err := validatedPollInterval(options)
-	if err != nil {
-		return nil, err
-	}
-	builder := sdkClientBuilder(cloneBoundedHTTPClient(httpClient))
-	return &Invoker{
-		build: builder, pollInterval: pollInterval, requireHTTPS: requireHTTPS,
 	}, nil
 }
 

@@ -365,24 +365,6 @@ func (s *Service) RecordFact(
 	return fmt.Errorf("append Planner fact: %w", runstore.ErrConflict)
 }
 
-func (s *Service) LoadPlan(
-	ctx context.Context,
-	identity planner.SessionIdentity,
-) (planner.PlannerPlanProjection, bool, error) {
-	_, state, err := s.load(ctx, identity)
-	if err != nil {
-		return planner.PlannerPlanProjection{}, false, err
-	}
-	if state.Plan == nil {
-		return planner.PlannerPlanProjection{}, false, nil
-	}
-	projection := clonePlanProjection(*state.Plan)
-	if err := projection.Validate(); err != nil {
-		return planner.PlannerPlanProjection{}, false, fmt.Errorf("persisted Planner plan is invalid: %w", err)
-	}
-	return projection, true, nil
-}
-
 func (s *Service) existing(
 	ctx context.Context, execution runstore.StageExecution,
 ) (planner.SessionStart, error) {

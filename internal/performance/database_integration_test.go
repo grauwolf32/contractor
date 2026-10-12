@@ -62,7 +62,7 @@ func databaseFixture(t *testing.T) (*pgxpool.Pool, *DatabaseStore, string) {
 		t.Fatal(err)
 	}
 	t.Cleanup(working.Close)
-	if _, err = postgres.ApplyMigrations(ctx, working); err != nil {
+	if _, err = postgres.ApplyMigrations(ctx, working, postgres.MigrationBudgets{}); err != nil {
 		t.Fatal(err)
 	}
 	pool, err := NewDiagnosticPool(ctx, scoped)

@@ -14,11 +14,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/runstore"
-	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/grauwolf32/contractor/internal/runstore/runstoretest"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -393,7 +395,7 @@ func TestCredentialFailedDeleteFencesOnlyItsOwnCredential(t *testing.T) {
 		if err := lookupManagedCredential(ctx, pool, unrelated.CredentialID); err != nil {
 			return err
 		}
-		_, err := runs.CreateRun(ctx, pinnedRunParams("run-unrelated", unrelated.CredentialID))
+		_, err := runstoretest.CreateRun(ctx, runs, pinnedRunParams("run-unrelated", unrelated.CredentialID))
 		return err
 	}); err != nil {
 		t.Fatalf("Run pinning an unrelated credential was fenced: %v", err)
@@ -474,7 +476,7 @@ func TestCredentialDeleteSerializesAgainstRunSnapshotCommit(t *testing.T) {
 		runResult <- fixture.service.WithRunCreation(ctx, func() error {
 			close(entered)
 			<-release
-			_, err := runs.CreateRun(ctx, pinnedRunParams("run-race", create.CredentialID))
+			_, err := runstoretest.CreateRun(ctx, runs, pinnedRunParams("run-race", create.CredentialID))
 			return err
 		})
 	}()
@@ -509,7 +511,7 @@ func TestCredentialRunReferenceQueryRejectsUnsafePublicRunIDs(t *testing.T) {
 	runs := runstore.NewPostgresStore(pool)
 	// The store refuses an unsafe Run ID on write (API-R70), so the row that
 	// the read path must still refuse is copied in below the store.
-	if _, err := runs.CreateRun(ctx, pinnedRunParams("unsafe run id", "managed-worker")); !errors.Is(err, runstore.ErrInvalid) {
+	if _, err := runstoretest.CreateRun(ctx, runs, pinnedRunParams("unsafe run id", "managed-worker")); !errors.Is(err, runstore.ErrInvalid) {
 		t.Fatalf("unsafe Run ID write error = %v, want ErrInvalid", err)
 	}
 	createPinnedRun(t, ctx, runs, "run-unsafe-source", "managed-worker")
@@ -769,7 +771,7 @@ func pinnedRunParams(runID, credentialID string) runstore.CreateRunParams {
 			`{"stages":{"build":{"executionConfig":{"agents":{"worker":{"credential":{"credentialId":%q}}}}}}}`,
 			credentialID,
 		)),
-		RuntimeConfig: runtimeconfig.BuiltInRunSnapshot(),
+		RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot(),
 		Parameters:    map[string]string{},
 	}
 }
@@ -825,14 +827,19 @@ ORDER BY ordinal_position`)
 	selected := make([]string, len(columns))
 	for i, column := range columns {
 		selected[i] = pgx.Identifier{column}.Sanitize()
-		if column == "run_id" {
+		switch column {
+		case "run_id":
 			selected[i] = "$1"
+		case "request_idempotency_key":
+			// The copy is another create-Run request of the same owner.
+			selected[i] = "$3"
 		}
 		columns[i] = pgx.Identifier{column}.Sanitize()
 	}
 	statement := "INSERT INTO workflow_runs (" + strings.Join(columns, ", ") + ") SELECT " +
 		strings.Join(selected, ", ") + " FROM workflow_runs WHERE run_id = $2"
-	if _, err := pool.Exec(ctx, statement, runID, sourceRunID); err != nil {
+	copyKey := "copy-" + strings.TrimPrefix(contentdigest.Bytes([]byte(runID)), "sha256:")
+	if _, err := pool.Exec(ctx, statement, runID, sourceRunID, copyKey); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -841,7 +848,7 @@ func createPinnedRun(
 	t *testing.T, ctx context.Context, store *runstore.PostgresStore, runID, credentialID string,
 ) {
 	t.Helper()
-	if _, err := store.CreateRun(ctx, pinnedRunParams(runID, credentialID)); err != nil {
+	if _, err := runstoretest.CreateRun(ctx, store, pinnedRunParams(runID, credentialID)); err != nil {
 		t.Fatal(err)
 	}
 }

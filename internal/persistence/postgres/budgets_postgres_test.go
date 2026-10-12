@@ -224,14 +224,18 @@ func TestPostgresMaintenanceBudgetsRestorePoolSettings(t *testing.T) {
 		}
 	}
 	check(ctx, pool, smallDatabaseBudgets())
-	configuredMigration := func(ctx context.Context) (context.Context, context.CancelFunc) {
-		ctx, cancel, err := WithMigrationBudgets(ctx, MigrationBudgets{StatementTimeout: 3 * time.Minute, LockTimeout: 20 * time.Second})
-		if err != nil {
-			t.Fatal(err)
+	migration := func(budgets MigrationBudgets) func(context.Context) (context.Context, context.CancelFunc) {
+		return func(ctx context.Context) (context.Context, context.CancelFunc) {
+			ctx, cancel, err := WithMigrationBudgets(ctx, budgets)
+			if err != nil {
+				t.Fatal(err)
+			}
+			return ctx, cancel
 		}
-		return ctx, cancel
 	}
-	for _, budget := range []func(context.Context) (context.Context, context.CancelFunc){WithMigrationBudget, configuredMigration, WithCleanupBudget} {
+	defaultMigration := migration(MigrationBudgets{})
+	configuredMigration := migration(MigrationBudgets{StatementTimeout: 3 * time.Minute, LockTimeout: 20 * time.Second})
+	for _, budget := range []func(context.Context) (context.Context, context.CancelFunc){defaultMigration, configuredMigration, WithCleanupBudget} {
 		for _, rollback := range []bool{false, true} {
 			maintenance, done := budget(ctx)
 			err := InTx(maintenance, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
@@ -251,13 +255,13 @@ func TestPostgresMaintenanceBudgetsRestorePoolSettings(t *testing.T) {
 			check(ctx, pool, smallDatabaseBudgets())
 		}
 	}
-	if _, err := ApplyMigrations(ctx, pool); err != nil {
+	if _, err := ApplyMigrations(ctx, pool, MigrationBudgets{}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := ApplyMigrationsWithBudgets(ctx, pool, MigrationBudgets{StatementTimeout: time.Second, LockTimeout: time.Second}); err == nil {
+	if _, err := ApplyMigrations(ctx, pool, MigrationBudgets{StatementTimeout: time.Second, LockTimeout: time.Second}); err == nil {
 		t.Fatal("invalid migration budgets were accepted")
 	}
-	if result, err := ApplyMigrationsWithBudgets(ctx, pool, MigrationBudgets{StatementTimeout: 3 * time.Minute, LockTimeout: 20 * time.Second}); err != nil || len(result.AppliedVersions) != 0 {
+	if result, err := ApplyMigrations(ctx, pool, MigrationBudgets{StatementTimeout: 3 * time.Minute, LockTimeout: 20 * time.Second}); err != nil || len(result.AppliedVersions) != 0 {
 		t.Fatalf("migration replay: %+v %v", result, err)
 	}
 	check(ctx, pool, smallDatabaseBudgets())
@@ -277,7 +281,7 @@ func TestPostgresMigrationLockCancellationLeavesCapacityReusable(t *testing.T) {
 		t.Fatal(err)
 	}
 	short, stop := context.WithTimeout(ctx, 100*time.Millisecond)
-	_, err = ApplyMigrations(short, pool)
+	_, err = ApplyMigrations(short, pool, MigrationBudgets{})
 	stop()
 	if !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("migration lock cancellation: %v", err)
@@ -285,7 +289,7 @@ func TestPostgresMigrationLockCancellationLeavesCapacityReusable(t *testing.T) {
 	if err := locker.Rollback(ctx); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := ApplyMigrations(ctx, pool); err != nil {
+	if _, err := ApplyMigrations(ctx, pool, MigrationBudgets{}); err != nil {
 		t.Fatalf("migration after cancellation: %v", err)
 	}
 }
@@ -294,7 +298,7 @@ func TestPostgresMigrationLeaderWaitOutlivesDDLLockTimeout(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 25*time.Second)
 	defer cancel()
 	leader, follower := isolatedPools(t, ctx, budgetTestDatabaseURL(t))
-	if _, err := ApplyMigrations(ctx, leader); err != nil {
+	if _, err := ApplyMigrations(ctx, leader, MigrationBudgets{}); err != nil {
 		t.Fatal(err)
 	}
 	locker, err := leader.Begin(ctx)
@@ -311,7 +315,7 @@ func TestPostgresMigrationLeaderWaitOutlivesDDLLockTimeout(t *testing.T) {
 	}
 	done := make(chan outcome, 1)
 	go func() {
-		result, err := ApplyMigrations(ctx, follower)
+		result, err := ApplyMigrations(ctx, follower, MigrationBudgets{})
 		done <- outcome{result, err}
 	}()
 	// The default migration DDL lock_timeout is 10s. A follower must still

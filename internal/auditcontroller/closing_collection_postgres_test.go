@@ -4,6 +4,8 @@ package auditcontroller
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"strings"
 	"testing"
@@ -327,6 +329,14 @@ func childFindingGrant(
 	}
 }
 
+// runtimeSubmissionID is the submission ID a Runtime derives for a finding
+// proposal (runtime/src/contractor_runtime/toolsets/security_findings/
+// submission.py); findingintake rejects a submission that carries another.
+func runtimeSubmissionID(invocationID, clientKey string) string {
+	digest := sha256.Sum256([]byte("contractor.finding.submission.v1\x00" + invocationID + "\x00" + clientKey))
+	return "finding-" + hex.EncodeToString(digest[:])
+}
+
 func submitChildFindingProposal(
 	t *testing.T, ctx context.Context, intake *findingintake.Service,
 	grant controlplane.AllocationGrant, clientKey string,
@@ -339,7 +349,7 @@ func submitChildFindingProposal(
 	invocationID := clientKey + "-invocation"
 	receipt, _, err := intake.Submit(ctx, grant, findingintake.Submission{
 		APIVersion: findingintake.APIVersion, InvocationID: invocationID,
-		SubmissionID: findingintake.StableSubmissionID(invocationID, clientKey),
+		SubmissionID: runtimeSubmissionID(invocationID, clientKey),
 		Proposal: auditdomain.FindingProposal{
 			Schema: auditdomain.FindingProposalSchema, ClientKey: clientKey,
 			Title: "Late candidate", Description: "A candidate found before the Audit closed.",

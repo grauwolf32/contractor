@@ -1,0 +1,113 @@
+schema_version: "1.0"
+id: V370-008
+title: "Remove exported surface that only tests use"
+milestone: hub-audit-structure-2026-10
+epic: quality
+kind: chore
+priority: P3
+status: completed
+implementation_commit: 8c30a0f3c5c51cc5ab8e5564725e1675304d6164
+depends_on: []
+languages: [go]
+goal: "None of the listed identifiers is exported for tests only."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq; raw reports in docs/research/2026-10-11-hub-audit/), exec-state C5, H; dispatch C4, H; audits C6; artifacts C5; persistence C8; file:line as of 02bbdcbf, re-verify on current main"
+  finding: >-
+    Exported only for tests: runstore.Repository (23 of 44 store.go edits
+    changed it), PostgresStore.CreateRun, GetStageTransitionDecision,
+    ListStageExecutionReports, MaxRunMetadataLabelKey/Value, runtimeconfig
+    InsertVersion and BuiltInRunSnapshot; controlplane Register, Heartbeat,
+    ReserveAll, GetAgent; auditstore ListEvents, ListExecutions;
+    findingintake Retention*, StableSubmissionID; artifacts Scope.ID/Kind,
+    ErrQueryUnsupported; persistence WithMigrationBudget,
+    MaxTransactionAttempts and others.
+  decision: >-
+    Reproduced on b2b09ea. (1) The listed identifiers go the way the scope
+    allows. runstore: Repository had no consumer; CreateRun inserted Runs
+    without the idempotency key every production creation stores, so runstore
+    tests create Runs through CreateRunIdempotent and other packages through
+    the new runstoretest.CreateRun; GetStageTransitionDecision and
+    ListStageExecutionReports (with report_store.go and StageExecutionReport)
+    had no reader; MaxRunMetadataLabelKey/Value give way to the runlabels
+    limits. runtimeconfig: InsertVersion stored versions without the
+    publication receipt, so tests publish through InsertPublishedVersion;
+    BuiltInRunSnapshot moves to the new runtimeconfigtest. controlplane:
+    Register, Heartbeat, ReserveAll, GetAgent and ErrAgentNotFound move to
+    export_test.go, and other packages reserve through the new
+    controlplanetest.Reserve, which commits candidate reservations as the
+    Scheduler does. auditstore: ListEvents and ListItems move to
+    pgstore/export_test.go; other packages read through auditstoretest
+    EventsAfter and Items, which page ListEventsPage and ListItemsPage.
+    findingintake: StableSubmissionID goes; RetentionState is documented and a
+    stored receipt's retention state is validated on read. contracts:
+    DecodeStrict goes (tests use DecodePrivateStrict). persistence:
+    ApplyMigrations takes the budgets (ApplyMigrationsWithBudgets folds into
+    it), WithMigrationBudget folds into WithMigrationBudgets and
+    MaxTransactionAttempts is unexported. ErrQueryUnsupported already went
+    with V370-016. (2) "And others": the check written for V369-007
+    (tools/testonlyexports) found 123 exported identifiers without a
+    production reference on b2b09ea. Besides the listed ones this task
+    removed the cheap ones: dead code (scheduler.Allocator.Release and
+    PlacementAllocator.Release, PlanSessionService.LoadPlan and
+    session.Service.LoadPlan, runtimeconfig Spec.Empty,
+    sourcebundle.MaxArchiveBytes, runlabels SortedKeys, evaldomain
+    ProgressBuckets, a second implementation of the PostgreSQL progress read,
+    and CheckOwner, performance Histogram.Quantile and HTTPStatusClasses,
+    auditdomain Package.Member, telemetry GetStageMetrics); production
+    callers where production repeated the rule (evalservice asks
+    AuditState.Terminal instead of listing the terminal states;
+    ListPreparationRoles validates the derived PreparationStatus); helpers
+    that only their own package's tests use move to export_test.go
+    (agentskills Member.Data and Package.Members/Member, config
+    Snapshot.Instructions, controlplane NewRuntimeControlClient, a2a New,
+    scheduler RunOnce, which SCH-R125 now calls a test helper);
+    router.DefaultLimits goes; the claim store's validators for test doubles
+    move to auditstoretest. The scheduler's fake worker controller now
+    tombstones a released Stage like the Registry, so the paused-admission
+    tests' no-tombstone check can fail again (only the removed
+    Allocator.Release set it). (3) Two listed identifiers stay exported, and
+    V372-030 owns them: artifacts Scope.Kind and Scope.ID are read only by the
+    in-memory Repository doubles that V368-010 keeps (V370-016 decision (4));
+    keying the doubles by Scope value removes most uses, but the public fake
+    builds lineage edges, whose kinds the handler returns, from the fork's
+    scopes. pgstore ListExecutions is the Audit controller and service tests'
+    only full read of an Audit's executions (25 call sites); production reads
+    only the reconcile window and the preparation roles, so removing it needs
+    a production read with a caller or a second scanner of executions.
+    Reopen (3) with V372-030, or when those suites move to PostgreSQL. The
+    48 remaining findings are in V369-007's baseline under V372-030, V64-005
+    and V64-006.
+scope:
+  in:
+    - "Remove or move to export_test.go; tests use production paths."
+  out:
+    - "Production behaviour."
+acceptance_criteria:
+  - id: A1
+    text: "None of the listed identifiers is exported for tests only."
+    evidence: >-
+      Every listed identifier except artifacts Scope.Kind/ID and pgstore
+      ListExecutions is unexported, deleted, moved to an export_test.go or to
+      a test helper package (runstoretest, runtimeconfigtest,
+      controlplanetest, auditstoretest; internal/archtest classifies the new
+      ones), or has a production caller; decision (3) hands those two to
+      V372-030. Verified: go build ./... and go vet -tags integration,e2e
+      ./... on 8c30a0f; staticcheck -checks U1000 -tests on the touched
+      packages; go test -count=1 -tags integration with PostgreSQL, after
+      each package's last change, for every package whose code or tests
+      changed (agentskills, agentprincipal, app,
+      artifacts, auditcontroller, auditdomain, auditimport, auditservice,
+      auditstandards, auditstore/..., config, contracts/..., controlplane,
+      credentials, evaldomain, evalservice, evalstore, findingintake,
+      gatewayrecovery, httpapi/privateartifacts, httpapi/public, memory,
+      performance, persistence/postgres, planner/..., projectlifecycle,
+      projectstore, rundeletion, runservice, runstore, runtimeconfig,
+      scheduler, settingsstore, sourcebundle, telemetry, tests/e2e (vet
+      only), tests/integration/lease and streamline); make lint. The restore
+      test (tests/integration/restore) fails here as on b2b09ea, because the
+      local pg_dump 16 is older than the PostgreSQL 17 server.
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "go test ./internal/..."
+    covers: [A1]

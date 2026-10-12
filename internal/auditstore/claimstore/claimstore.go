@@ -8,7 +8,6 @@
 package claimstore
 
 import (
-	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/internal/pgstore"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 )
@@ -21,21 +20,4 @@ type Store = pgstore.ClaimStore
 // transaction.
 func New(db persistencepostgres.DBTX) *Store {
 	return pgstore.NewClaimStore(db)
-}
-
-// ValidateClaimedTransition applies the checks of Store.TransitionClaimed
-// that need no database, so a test double refuses what the store refuses.
-func ValidateClaimedTransition(params auditstore.ClaimedTransitionParams) error {
-	return pgstore.ValidateClaimedTransition(params)
-}
-
-// ValidateCollect applies the checks of Store.Collect that need no database.
-func ValidateCollect(params auditstore.CollectParams) error {
-	return pgstore.ValidateCollect(params)
-}
-
-// ValidateRecordReportPage applies the page contract of
-// Store.RecordReportPage that needs no database.
-func ValidateRecordReportPage(params auditstore.RecordReportPageParams) error {
-	return pgstore.ValidateRecordReportPage(params)
 }

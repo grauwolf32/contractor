@@ -12,6 +12,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/agentprincipal"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
+	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
@@ -87,7 +88,11 @@ func TestRuntimeConfigLLMCredentialReferencesValidateAndFenceDeletion(t *testing
 			t.Fatal(err)
 		}
 		version.ActorID, version.CreatedAt = "operator", time.Now().UTC()
-		if _, err := repository.InsertVersion(ctx, version); err != nil {
+		if _, err := repository.InsertPublishedVersion(ctx, version, runtimeconfig.Publication{
+			IdempotencyKeyDigest: contentdigest.Bytes([]byte("publish-" + name)),
+			RequestDigest:        prepared.RequestDigest(), Ref: version.Ref,
+			ActorID: version.ActorID, PublishedAt: version.CreatedAt,
+		}); err != nil {
 			t.Fatal(err)
 		}
 		if _, err := management.CreateBinding(ctx, "label-"+id, version.Ref, "create-label-"+id, "operator", time.Now().UTC()); !errors.Is(err, runtimeconfig.ErrInvalid) {

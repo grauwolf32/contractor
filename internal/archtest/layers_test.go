@@ -118,6 +118,8 @@ var layers = []layerSpec{
 			// The Runtime Agent principal registry; a client of runtimeconfig labels.
 			"internal/agentprincipal",
 			"internal/controlplane",
+			// Committed Registry reservations for other packages' tests.
+			"internal/controlplane/controlplanetest",
 			"internal/credentials",
 			"internal/credentials/litellm",
 			"internal/memory",
@@ -130,7 +132,11 @@ var layers = []layerSpec{
 			"internal/planner/streamline",
 			"internal/runrepeat",
 			"internal/runstore",
+			// Test setup of the Runs other packages' tests store.
+			"internal/runstore/runstoretest",
 			"internal/runtimeconfig",
+			// RuntimeConfig fixtures of other packages' tests.
+			"internal/runtimeconfig/runtimeconfigtest",
 			"internal/scheduler",
 		},
 	},

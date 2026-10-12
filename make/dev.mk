@@ -5,13 +5,19 @@
 	docs-error-registry verify-public-api verify-public-api-postgres run-local tasks-backlog
 
 fmt:
-	gofmt -w cmd internal tests
+	gofmt -w cmd internal tests tools
 	cd runtime && uv run ruff format .
 
+# tools/testonlyexports is its own module (it pins golang.org/x/tools), so the
+# root go vet does not reach it; it fails on an exported identifier that only
+# tests reference, beyond the entries of its baseline (AGENTS.md 3.7).
 lint: generate-public-client-check
-	test -z "$$(gofmt -l cmd internal tests)"
+	test -z "$$(gofmt -l cmd internal tests tools)"
 	go vet ./...
 	go run honnef.co/go/tools/cmd/staticcheck@v0.8.1 -checks U1000 -tests -tags=e2e,integration ./...
+	go -C tools/testonlyexports vet ./...
+	go -C tools/testonlyexports test -count=1 ./...
+	go -C tools/testonlyexports run . -tags=integration,e2e -baseline tools/testonlyexports/baseline.txt "$(CURDIR)"
 	python3 -m unittest discover -s scripts -p 'test_*.py'
 	python3 scripts/check_release_verify_graph.py
 	cd runtime && uv run python ../scripts/check_tasks.py

@@ -297,7 +297,7 @@ func TestPostgresAuditInboxOmitsUnretainedChildReceiptAfterRunDeletion(t *testin
 		afterRejection.EventSequence != beforeRejection.EventSequence+1 {
 		t.Fatalf("rejected proposal Audit revision = (%+v, %v)", afterRejection, err)
 	}
-	rejectionEvents, err := audits.ListEvents(f.ctx, request.AuditID, beforeRejection.EventSequence, 1)
+	rejectionEvents, err := audits.EventsAfter(f.ctx, request.OwnerID, request.AuditID, beforeRejection.EventSequence, 1)
 	if err != nil || len(rejectionEvents) != 1 ||
 		rejectionEvents[0].Kind != "finding.proposal_rejected" ||
 		rejectionEvents[0].EntityID != rejected.ReceiptID {

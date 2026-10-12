@@ -12,18 +12,20 @@ import (
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 	"github.com/grauwolf32/contractor/internal/evalstore"
 	"github.com/grauwolf32/contractor/internal/runstore"
-	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/grauwolf32/contractor/internal/runstore/runstoretest"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
 )
 
 func TestEvalObservedLegacyPlannerCountersUseImmutableStageIdentity(t *testing.T) {
 	pool := serviceTestPool(t)
 	runs := runstore.NewPostgresStore(pool)
 	for _, planner := range []string{"passthrough", "streamline"} {
-		_, err := runs.CreateRun(t.Context(), runstore.CreateRunParams{
+		_, err := runstoretest.CreateRun(t.Context(), runs, runstore.CreateRunParams{
 			RunID: planner, OwnerID: "owner", WorkflowName: "fixture", WorkflowVersion: "1",
 			WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: json.RawMessage(`{"name":"fixture"}`),
-			Parameters: map[string]string{}, RuntimeConfig: runtimeconfig.BuiltInRunSnapshot(),
+			Parameters: map[string]string{}, RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot(),
 		})
+
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -92,11 +94,12 @@ func TestSharedEvalObservedAuditUsageCountsStagesOnceAndKeepsParentDuration(t *t
 		if ref.Kind != "run" {
 			continue
 		}
-		_, err = runs.CreateRun(t.Context(), runstore.CreateRunParams{
+		_, err = runstoretest.CreateRun(t.Context(), runs, runstore.CreateRunParams{
 			RunID: ref.ID, OwnerID: "owner", WorkflowName: "fixture", WorkflowVersion: "1",
 			WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: json.RawMessage(`{"name":"fixture"}`),
-			Parameters: map[string]string{}, RuntimeConfig: runtimeconfig.BuiltInRunSnapshot(),
+			Parameters: map[string]string{}, RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot(),
 		})
+
 		if err != nil {
 			t.Fatal(err)
 		}

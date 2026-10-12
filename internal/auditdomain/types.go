@@ -83,15 +83,6 @@ func (p *Package) Members() []Member {
 	return result
 }
 
-func (p *Package) Member(path string) (Member, bool) {
-	for _, member := range p.members {
-		if member.metadata.Path == path {
-			return member, true
-		}
-	}
-	return Member{}, false
-}
-
 func (p *Package) MemberByID(id string) (Member, bool) {
 	for _, member := range p.members {
 		if member.metadata.ID == id {

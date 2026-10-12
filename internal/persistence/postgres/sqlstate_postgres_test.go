@@ -16,7 +16,7 @@ func TestClassifyPostgreSQLConditionsOnTheMigratedSchema(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 45*time.Second)
 	defer cancel()
 	pool, other := isolatedPools(t, ctx, storageReviewDatabaseURL(t))
-	if _, err := ApplyMigrations(ctx, pool); err != nil {
+	if _, err := ApplyMigrations(ctx, pool, MigrationBudgets{}); err != nil {
 		t.Fatal(err)
 	}
 	const insertProject = `INSERT INTO projects (project_id, owner_id, kind, name, request_idempotency_key, request_digest)

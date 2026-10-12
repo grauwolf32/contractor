@@ -25,6 +25,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts/control"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/controlplane"
+	"github.com/grauwolf32/contractor/internal/controlplane/controlplanetest"
 	"github.com/grauwolf32/contractor/internal/findingintake"
 	"github.com/grauwolf32/contractor/internal/mtls"
 )
@@ -705,7 +706,7 @@ func newProductionGrantHandler(
 			ModelPolicy: template.ModelPolicy.Ref, LLMGateway: gateway.Ref,
 		},
 	}
-	reservations, err := registry.ReserveAll(controlplane.ReservationRequest{
+	reservations, err := controlplanetest.Reserve(registry, controlplane.ReservationRequest{
 		RunID: "run-production-race", StageExecutionID: "stage-production-race",
 		Bindings: []controlplane.BindingRequirement{binding},
 	})
@@ -745,7 +746,7 @@ func assertProductionFaultSlotsReusable(
 	reviewer := binding
 	reviewer.LogicalAgentName = "reviewer"
 	reviewer.Namespace = "reviewer"
-	reservations, err := registry.ReserveAll(controlplane.ReservationRequest{
+	reservations, err := controlplanetest.Reserve(registry, controlplane.ReservationRequest{
 		RunID: "run-after-memory-fault", StageExecutionID: "stage-after-memory-fault",
 		Bindings: []controlplane.BindingRequirement{binding, reviewer},
 	})
@@ -863,10 +864,11 @@ func (f *fakeFindingIntake) Submit(
 
 func postFinding(t *testing.T, handler http.Handler, clientKey string) *httptest.ResponseRecorder {
 	t.Helper()
-	invocationID := "worker-invocation-1"
+	// The fake intake keys receipts by the submission ID and, unlike
+	// findingintake, does not recompute the Runtime's derivation of it.
 	input := findingintake.Submission{
-		APIVersion: findingintake.APIVersion, InvocationID: invocationID,
-		SubmissionID: findingintake.StableSubmissionID(invocationID, clientKey),
+		APIVersion: findingintake.APIVersion, InvocationID: "worker-invocation-1",
+		SubmissionID: "finding-submission-" + clientKey,
 		Proposal: auditdomain.FindingProposal{
 			Schema: auditdomain.FindingProposalSchema, ClientKey: clientKey,
 			Title: "Candidate", Description: "Candidate description",

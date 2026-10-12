@@ -23,7 +23,8 @@ import (
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/rundeletion"
 	"github.com/grauwolf32/contractor/internal/runstore"
-	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/grauwolf32/contractor/internal/runstore/runstoretest"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -61,10 +62,11 @@ func seedCollectionRun(t *testing.T, ctx context.Context, pool *pgxpool.Pool, ow
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = runstore.NewPostgresStore(pool).CreateRun(ctx, runstore.CreateRunParams{
+	_, err = runstoretest.CreateRun(ctx, runstore.NewPostgresStore(pool), runstore.CreateRunParams{
 		RunID: runID, OwnerID: owner, WorkflowName: workflow.Ref.Name, WorkflowVersion: workflow.Ref.Version,
-		WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: encoded, Parameters: map[string]string{}, RuntimeConfig: runtimeconfig.BuiltInRunSnapshot(),
+		WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: encoded, Parameters: map[string]string{}, RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot(),
 	})
+
 	if err != nil {
 		t.Fatal(err)
 	}

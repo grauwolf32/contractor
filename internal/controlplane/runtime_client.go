@@ -65,19 +65,6 @@ func NewMTLSRuntimeControlClient(files mtls.Files, timeout time.Duration) (*Runt
 	}, nil
 }
 
-// NewRuntimeControlClient accepts an injected client for focused protocol
-// tests. Production code must use NewMTLSRuntimeControlClient.
-func NewRuntimeControlClient(client *http.Client) (*RuntimeControlClient, error) {
-	if client == nil {
-		return nil, errors.New("HTTP client is required")
-	}
-	clone := *client
-	clone.CheckRedirect = func(_ *http.Request, _ []*http.Request) error {
-		return errors.New("Runtime Agent redirects are not allowed")
-	}
-	return &RuntimeControlClient{client: &clone}, nil
-}
-
 func (c *RuntimeControlClient) Prepare(
 	ctx context.Context,
 	reservation Reservation,

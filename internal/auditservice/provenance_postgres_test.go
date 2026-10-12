@@ -11,7 +11,7 @@ import (
 func TestAuditReadsRejectHistoricalProvenanceWithoutRewritingIt(t *testing.T) {
 	ctx, pool, _, started, _ := newTimeControlAudit(t, 7200)
 	store := auditstoretest.NewStore(pool)
-	items, err := store.ListItems(ctx, started.Audit.AuditID)
+	items, err := store.Items(ctx, started.Audit.OwnerID, started.Audit.AuditID)
 	if err != nil || len(items) == 0 {
 		t.Fatalf("current items = %+v, %v", items, err)
 	}
@@ -92,7 +92,7 @@ clock_timestamp(),$1::jsonb,clock_timestamp() FROM audit_items WHERE item_id=$2`
 				reader := auditstoretest.NewStore(tx)
 				for range 2 {
 					if kind == "item" {
-						rows, readErr := reader.ListItems(ctx, started.Audit.AuditID)
+						rows, readErr := reader.Items(ctx, started.Audit.OwnerID, started.Audit.AuditID)
 						if shape == "current" {
 							if readErr != nil || len(rows) != len(items)+1 {
 								t.Fatalf("current origin read = %+v, %v", rows, readErr)

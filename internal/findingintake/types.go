@@ -85,6 +85,8 @@ type Origin struct {
 	RunDeleted       bool           `json:"runDeleted"`
 }
 
+// RetentionState is what keeps a stored receipt's proposal: its source Run,
+// an Audit hold after that Run's deletion, or nothing.
 type RetentionState string
 
 const (
@@ -92,6 +94,10 @@ const (
 	RetentionAuditHeld  RetentionState = "audit-held"
 	RetentionDiscarded  RetentionState = "discarded"
 )
+
+func (r RetentionState) valid() bool {
+	return r == RetentionSourceHeld || r == RetentionAuditHeld || r == RetentionDiscarded
+}
 
 type AuditHold struct {
 	AuditID   string          `json:"auditId"`
@@ -227,10 +233,6 @@ func canonicalize(input Submission) (canonicalSubmission, error) {
 		request: input, proposalBytes: proposalBytes, reportProjection: reportProjection,
 		digest: auditdomain.DigestBytes(encoded),
 	}, nil
-}
-
-func StableSubmissionID(invocationID, clientKey string) string {
-	return stableSubmissionID(invocationID, clientKey)
 }
 
 func stableSubmissionID(invocationID, clientKey string) string {

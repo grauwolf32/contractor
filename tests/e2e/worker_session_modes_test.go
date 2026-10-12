@@ -18,6 +18,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/localpki"
 	"github.com/grauwolf32/contractor/internal/runstore"
+	"github.com/grauwolf32/contractor/internal/telemetry"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -137,6 +138,7 @@ func TestWorkerSessionModesAcrossProductionProcesses(t *testing.T) {
 	}
 	t.Cleanup(pool.Close)
 	store := runstore.NewPostgresStore(pool)
+	telemetryReports := telemetry.NewRepository(pool)
 
 	streamlineRunID := createEmptyWorkflowRun(
 		t, publicClient, publicBaseURL, "worker-session-streamline@1", "worker-session-streamline",
@@ -145,7 +147,7 @@ func TestWorkerSessionModesAcrossProductionProcesses(t *testing.T) {
 		t, ctx, server, runtimes, gateway, publicClient, publicBaseURL, streamlineRunID,
 	)
 	assertWorkerSessionExecutions(
-		t, ctx, store, streamlineRunID,
+		t, ctx, store, telemetryReports, streamlineRunID,
 		map[string]workerSessionStageExpectation{
 			"isolated": {mode: contracts.WorkerSessionIsolated, workers: []string{"builder"}},
 			"after":    {mode: contracts.WorkerSessionIsolated, workers: []string{"builder"}},
@@ -159,7 +161,7 @@ func TestWorkerSessionModesAcrossProductionProcesses(t *testing.T) {
 		t, ctx, server, runtimes, gateway, publicClient, publicBaseURL, routerRunID,
 	)
 	routerAllocations := assertWorkerSessionExecutions(
-		t, ctx, store, routerRunID,
+		t, ctx, store, telemetryReports, routerRunID,
 		map[string]workerSessionStageExpectation{
 			"shared": {mode: contracts.WorkerSessionShared, workers: []string{"builder", "reviewer"}},
 			"after":  {mode: contracts.WorkerSessionIsolated, workers: []string{"builder"}},
@@ -203,6 +205,7 @@ func assertWorkerSessionExecutions(
 	t *testing.T,
 	ctx context.Context,
 	store *runstore.PostgresStore,
+	telemetryReports *telemetry.Repository,
 	runID string,
 	expected map[string]workerSessionStageExpectation,
 ) map[string][]runstore.StageAllocation {
@@ -223,7 +226,7 @@ func assertWorkerSessionExecutions(
 			t.Fatalf("Stage %s persisted session mode = %q, want %q", execution.StageName, stage.Session, want.mode)
 		}
 		allocations[execution.StageName] = assertCompleteAllocations(
-			t, ctx, store, execution, len(want.workers), want.workers...,
+			t, ctx, store, telemetryReports, execution, len(want.workers), want.workers...,
 		)
 	}
 	return allocations

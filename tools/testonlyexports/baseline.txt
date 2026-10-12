@@ -1,0 +1,72 @@
+# Exported identifiers that make lint tolerates without a production
+# reference, each until the open task it names resolves it. A line is
+# "<identifier> <task ID>"; the rules are in main.go. The check fails when an
+# entry has a production reference again or no longer exists, and when its
+# task is finished or missing, so the list only shrinks.
+
+# Error kinds the registry defines but code names only by their string code
+# (evaldomain.Failure("eval_not_found") and the Audit package errors).
+internal/apierror.AuditDigestMismatch V372-030
+internal/apierror.AuditInventoryInvalid V372-030
+internal/apierror.AuditLimitExceeded V372-030
+internal/apierror.AuditPackageInvalid V372-030
+internal/apierror.AuditPackageMemberForbidden V372-030
+internal/apierror.AuditPackagePathInvalid V372-030
+internal/apierror.AuditReferenceInvalid V372-030
+internal/apierror.AuditRemoteReference V372-030
+internal/apierror.AuditResultSetInvalid V372-030
+internal/apierror.AuditSchemaUnsupported V372-030
+internal/apierror.EvalBudgetExhausted V372-030
+internal/apierror.EvalEvidenceUnavailable V372-030
+internal/apierror.EvalExternalControl V372-030
+internal/apierror.EvalIdempotencyConflict V372-030
+internal/apierror.EvalLimitExceeded V372-030
+internal/apierror.EvalMemberConflict V372-030
+internal/apierror.EvalNotFound V372-030
+internal/apierror.EvalNotReady V372-030
+internal/apierror.EvalPinMismatch V372-030
+internal/apierror.EvalPreconditionRequired V372-030
+internal/apierror.EvalPreparationUnavailable V372-030
+internal/apierror.EvalProducerStale V372-030
+internal/apierror.EvalProjectDeleting V372-030
+internal/apierror.EvalRevisionMismatch V372-030
+internal/apierror.EvalViewChanged V372-030
+
+# Accessors that only in-memory test doubles read (V368-010 keeps the doubles).
+internal/artifacts.Scope.ID V372-030
+internal/artifacts.Scope.Kind V372-030
+internal/credentials.RuntimeCredentialMaterial.Kind V372-030
+internal/runtimeconfig.PreparedPublication.Name V372-030
+internal/runtimeconfig.PreparedPublication.Version V372-030
+
+# Audit store reads and writes that only tests use to inspect or seed state.
+internal/auditstore/internal/pgstore.QueryStore.ListExecutions V372-030
+internal/auditstore/internal/pgstore.ReviewStore.AppendReviewEvents V372-030
+
+# Documents and rules the Runtime produces in production; Go tests build them.
+internal/auditdomain.EncodeDirectVerificationSet V372-030
+internal/auditdomain.FindingCollectionTargets V372-030
+
+# Configuration loading that tests use instead of the production entry points.
+internal/agentskills.SeedPlan.Packages V372-030
+internal/auditstandards.SeedPlan.Packages V372-030
+internal/config.Snapshot.AgentTemplate V372-030
+internal/configload.Load V372-030
+
+# Planner construction that tests use instead of the composition's.
+internal/planner.CloneWorkerCompletion V372-030
+internal/planner.NewRunArtifactInspector V372-030
+internal/planner/router.NewConfiguredFactory V372-030
+internal/planner/streamline.NewConfiguredFactory V372-030
+
+# Function adapters of interfaces that only tests use; production passes the
+# concrete implementations.
+internal/runtimeconfig.PlannerTelemetryAdapterCatalogFunc V372-030
+internal/runtimeconfig.TransactionLLMCredentialLookupFactoryFunc V372-030
+
+# The Audit priority library has no production importer yet; its callers
+# arrive with the priority verdict and selection tasks.
+internal/auditpriority.BindVerdict V64-005
+internal/auditpriority.DecodeVerdict V64-005
+internal/auditpriority.ResolveTopN V64-006
+internal/auditpriority.SelectionDigest V64-006

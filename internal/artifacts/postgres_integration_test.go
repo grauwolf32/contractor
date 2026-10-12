@@ -22,7 +22,8 @@ import (
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/rundeletion"
 	"github.com/grauwolf32/contractor/internal/runstore"
-	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/grauwolf32/contractor/internal/runstore/runstoretest"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -223,13 +224,14 @@ func TestPostgresIntegrationProjectInputForkPinsExactAndCurrentRevisions(t *test
 		t.Fatalf("create Project: %v", err)
 	}
 	for _, runID := range []string{"run-project-exact", "run-project-current"} {
-		_, err := runstore.NewPostgresStore(pool).CreateRun(ctx, runstore.CreateRunParams{
+		_, err := runstoretest.CreateRun(ctx, runstore.NewPostgresStore(pool), runstore.CreateRunParams{
 			RunID: runID, OwnerID: "user-1", ProjectID: &projectID,
 			WorkflowName: "artifact-copy", WorkflowVersion: "1",
 			WorkflowSchemaVersion: "contractor/v1alpha1",
 			WorkflowSnapshot:      json.RawMessage(`{"ref":{"name":"artifact-copy","version":"1"}}`),
-			RuntimeConfig:         runtimeconfig.BuiltInRunSnapshot(),
+			RuntimeConfig:         runtimeconfigtest.BuiltInRunSnapshot(),
 		})
+
 		if err != nil {
 			t.Fatalf("create Project Run %q: %v", runID, err)
 		}
@@ -377,13 +379,14 @@ func TestPostgresIntegrationPublishesExactFrozenRunOutputToOwningProject(t *test
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = runstore.NewPostgresStore(pool).CreateRun(ctx, runstore.CreateRunParams{
+	_, err = runstoretest.CreateRun(ctx, runstore.NewPostgresStore(pool), runstore.CreateRunParams{
 		RunID: "run-project-output", OwnerID: "user-1", ProjectID: &projectID,
 		WorkflowName: "artifact-copy", WorkflowVersion: "1",
 		WorkflowSchemaVersion: "contractor/v1alpha1",
 		WorkflowSnapshot:      json.RawMessage(`{"ref":{"name":"artifact-copy","version":"1"}}`),
-		RuntimeConfig:         runtimeconfig.BuiltInRunSnapshot(),
+		RuntimeConfig:         runtimeconfigtest.BuiltInRunSnapshot(),
 	})
+
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -451,7 +454,7 @@ func TestPostgresIntegrationDeletesReleasedTerminalRunWithoutSharedArtifacts(t *
 			WorkflowName: "artifact-copy", WorkflowVersion: "1",
 			WorkflowSchemaVersion: contracts.APIVersion,
 			WorkflowSnapshot:      json.RawMessage(`{"ref":{"name":"artifact-copy","version":"1"}}`),
-			RuntimeConfig:         runtimeconfig.BuiltInRunSnapshot(),
+			RuntimeConfig:         runtimeconfigtest.BuiltInRunSnapshot(),
 		},
 		IdempotencyKey: "create-run-delete", RequestDigest: "sha256:" + strings.Repeat("b", 64),
 	}
@@ -1070,12 +1073,13 @@ func createArtifactRun(
 ) {
 	t.Helper()
 	store := runstore.NewPostgresStore(pool)
-	_, err := store.CreateRun(ctx, runstore.CreateRunParams{
+	_, err := runstoretest.CreateRun(ctx, store, runstore.CreateRunParams{
 		RunID: runID, OwnerID: "user-1", WorkflowName: "artifact-copy", WorkflowVersion: "1",
 		WorkflowSchemaVersion: "contractor/v1alpha1",
 		WorkflowSnapshot:      json.RawMessage(`{"ref":{"name":"artifact-copy","version":"1"}}`),
-		RuntimeConfig:         runtimeconfig.BuiltInRunSnapshot(),
+		RuntimeConfig:         runtimeconfigtest.BuiltInRunSnapshot(),
 	})
+
 	if err != nil {
 		t.Fatalf("create WorkflowRun: %v", err)
 	}
@@ -1135,7 +1139,7 @@ func isolatedArtifactPool(t *testing.T, ctx context.Context) *pgxpool.Pool {
 		pool.Close()
 		t.Fatalf("ping isolated pool: %v", err)
 	}
-	if _, err := persistencepostgres.ApplyMigrations(ctx, pool); err != nil {
+	if _, err := persistencepostgres.ApplyMigrations(ctx, pool, persistencepostgres.MigrationBudgets{}); err != nil {
 		pool.Close()
 		t.Fatalf("apply migrations: %v", err)
 	}

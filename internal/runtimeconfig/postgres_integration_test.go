@@ -35,7 +35,7 @@ func TestPostgresRuntimeConfigBootstrapPublicationReplayAndBindingCAS(t *testing
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	pool := isolatedRuntimeConfigPool(t, ctx, databaseURL)
-	if _, err := persistencepostgres.ApplyMigrations(ctx, pool); err != nil {
+	if _, err := persistencepostgres.ApplyMigrations(ctx, pool, persistencepostgres.MigrationBudgets{}); err != nil {
 		t.Fatalf("apply migrations: %v", err)
 	}
 	repository := NewRepository(pool)
@@ -47,7 +47,7 @@ func TestPostgresRuntimeConfigBootstrapPublicationReplayAndBindingCAS(t *testing
 	if err != nil || defaultBinding.Revision != 1 || defaultBinding.Ref != builtIn.Ref {
 		t.Fatalf("default binding = (%+v, %v)", defaultBinding, err)
 	}
-	if _, err := persistencepostgres.ApplyMigrations(ctx, pool); err != nil {
+	if _, err := persistencepostgres.ApplyMigrations(ctx, pool, persistencepostgres.MigrationBudgets{}); err != nil {
 		t.Fatalf("reapply migrations: %v", err)
 	}
 	defaultAgain, err := repository.GetBinding(ctx, DefaultLabel)
@@ -235,7 +235,7 @@ func TestPostgresRuntimeManagementBindingMutationIsCASAndReplaySafe(t *testing.T
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	pool := isolatedRuntimeConfigPool(t, ctx, databaseURL)
-	if _, err := persistencepostgres.ApplyMigrations(ctx, pool); err != nil {
+	if _, err := persistencepostgres.ApplyMigrations(ctx, pool, persistencepostgres.MigrationBudgets{}); err != nil {
 		t.Fatal(err)
 	}
 	now := time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)

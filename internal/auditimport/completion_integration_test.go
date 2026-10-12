@@ -38,6 +38,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts/control"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/controlplane"
+	"github.com/grauwolf32/contractor/internal/controlplane/controlplanetest"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	"github.com/grauwolf32/contractor/internal/httpapi/privateartifacts"
 	"github.com/grauwolf32/contractor/internal/localpki"
@@ -46,7 +47,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runservice"
 	"github.com/grauwolf32/contractor/internal/runstore"
-	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -279,7 +280,7 @@ func (f *completionFixture) createRun(t *testing.T, attempt int) {
 	}
 	execution, _, err := f.audits.CreateExecutionIntent(f.ctx, auditstore.CreateExecutionIntentParams{Claim: f.claim, ExecutionID: id, RoundID: &f.id, Role: auditstore.ExecutionCheck, WorkflowRole: "check", Manifest: f.manifest, SubmissionKey: id, RequestDigest: completionDigest([]byte(id)), Members: members})
 	mustCompletion(t, err)
-	created, err := f.service.CreateAudit(f.ctx, runservice.AuditCreateParams{Claim: f.claim, ExecutionID: id, Workflow: f.profile.Workflows["check"].Workflow, RuntimeConfig: runtimeconfig.BuiltInRunSnapshot(), Parameters: map[string]string{}, Inputs: map[string]auditstore.ExactArtifact{"source": f.source, "task": f.taskSet, "execution_manifest": f.manifest}, ExecutionManifest: f.manifest, RequestDigest: execution.RequestDigest, NewRunID: func() (string, error) { return id, nil }})
+	created, err := f.service.CreateAudit(f.ctx, runservice.AuditCreateParams{Claim: f.claim, ExecutionID: id, Workflow: f.profile.Workflows["check"].Workflow, RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot(), Parameters: map[string]string{}, Inputs: map[string]auditstore.ExactArtifact{"source": f.source, "task": f.taskSet, "execution_manifest": f.manifest}, ExecutionManifest: f.manifest, RequestDigest: execution.RequestDigest, NewRunID: func() (string, error) { return id, nil }})
 	mustCompletion(t, err)
 	// This fixture drives execution directly, including Scheduler admission.
 	created.Run, err = f.runs.TransitionRun(f.ctx, created.Run.RunID, runstore.RunPending, runstore.RunRunning, runstore.Reason{Code: "fixture-admitted"})
@@ -384,7 +385,7 @@ func (f *completionFixture) injectInvalid(t *testing.T, value artifacts.ReadResu
 		if removedContent[member.ID] {
 			continue
 		}
-		value, ok := pkg.Member(member.Path)
+		value, ok := pkg.MemberByID(member.ID)
 		if !ok {
 			t.Fatal("missing package member")
 		}
@@ -470,7 +471,7 @@ func (f *completionFixture) bridge(t *testing.T) *completionBridge {
 		_, err = registry.HeartbeatAuthenticated(principal, control.AgentHeartbeat{APIVersion: contracts.APIVersion, InstanceID: "runtime-1", HeartbeatSeq: seq, EchoedAckSeq: seq - 1, ObservedState: control.AgentIdle})
 		mustCompletion(t, err)
 	}
-	reservation, err := registry.ReserveAll(controlplane.ReservationRequest{RunID: f.run.RunID, StageExecutionID: f.run.RunID + "-stage", Bindings: []controlplane.BindingRequirement{{LogicalAgentName: "checker", Namespace: f.run.AuditCompletion.Contract.ResultArtifact.Namespace, WorkerSessionMode: contracts.WorkerSessionShared, AgentTemplate: template, CompletionContract: &f.run.AuditCompletion.Contract, ExecutionConfig: controlplane.AllocationExecutionConfig{ModelPolicy: template.ModelPolicy.Ref, LLMGateway: stage.ExecutionConfig.Agents["checker"].LLMGateway.Ref}}}})
+	reservation, err := controlplanetest.Reserve(registry, controlplane.ReservationRequest{RunID: f.run.RunID, StageExecutionID: f.run.RunID + "-stage", Bindings: []controlplane.BindingRequirement{{LogicalAgentName: "checker", Namespace: f.run.AuditCompletion.Contract.ResultArtifact.Namespace, WorkerSessionMode: contracts.WorkerSessionShared, AgentTemplate: template, CompletionContract: &f.run.AuditCompletion.Contract, ExecutionConfig: controlplane.AllocationExecutionConfig{ModelPolicy: template.ModelPolicy.Ref, LLMGateway: stage.ExecutionConfig.Agents["checker"].LLMGateway.Ref}}}})
 	mustCompletion(t, err)
 	if len(reservation) != 1 {
 		t.Fatal("missing reservation")
@@ -481,9 +482,7 @@ func (f *completionFixture) bridge(t *testing.T) *completionBridge {
 		released.Do(func() {
 			mustCompletion(t, registry.SetWriteFence(id))
 			mustCompletion(t, registry.Release(id))
-			agent, err := registry.GetAgent("runtime-1")
-			mustCompletion(t, err)
-			if agent.AuthoritativeAllocationID != nil {
+			if agent, live := registry.PrincipalRuntimeObservation(principal); live && agent.AuthoritativeAllocationID != nil {
 				t.Error("allocation slot leaked")
 			}
 		})
@@ -602,7 +601,7 @@ func completionPool(t *testing.T) *pgxpool.Pool {
 	pool, err := pgxpool.NewWithConfig(ctx, configuration)
 	mustCompletion(t, err)
 	t.Cleanup(pool.Close)
-	_, err = persistencepostgres.ApplyMigrations(ctx, pool)
+	_, err = persistencepostgres.ApplyMigrations(ctx, pool, persistencepostgres.MigrationBudgets{})
 	mustCompletion(t, err)
 	return pool
 }

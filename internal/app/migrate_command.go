@@ -27,7 +27,7 @@ func runMigrateCLI(
 		return fmt.Errorf("open migration database: %w", err)
 	}
 	defer pool.Close()
-	result, err := persistencepostgres.ApplyMigrationsWithBudgets(ctx, pool, inputs.budgets)
+	result, err := persistencepostgres.ApplyMigrations(ctx, pool, inputs.budgets)
 	if err != nil {
 		return fmt.Errorf("migrate database: %w", err)
 	}

@@ -702,9 +702,10 @@ func liveAttemptEvidenceFrom(stack *liveStack, attempts []liveRunAttempt) []live
 			current.ToolFailures = attempt.Metrics.ToolFailures
 			current.TotalTokens = attempt.Metrics.TotalTokens
 		}
-		if metrics, err := repository.GetStageMetrics(
-			context.Background(), attempt.StageExecutionID,
-		); err == nil {
+		stageMetrics, err := repository.GetStageMetricsBatch(
+			context.Background(), []string{attempt.StageExecutionID},
+		)
+		if metrics, ok := stageMetrics[attempt.StageExecutionID]; err == nil && ok {
 			workerNames := make([]string, 0, len(metrics.Metrics.Workers))
 			for name := range metrics.Metrics.Workers {
 				workerNames = append(workerNames, name)

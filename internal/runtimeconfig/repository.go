@@ -25,32 +25,6 @@ type Repository struct {
 
 func NewRepository(db persistencepostgres.DBTX) *Repository { return &Repository{db: db} }
 
-func (r *Repository) InsertVersion(ctx context.Context, version Version) (bool, error) {
-	if err := validateVersion(version); err != nil {
-		return false, err
-	}
-	command, err := r.db.Exec(ctx, `
-INSERT INTO runtime_config_versions (
-    name, version, digest, canonical_document, built_in, actor_id, created_at
-) VALUES ($1, $2, $3, $4, $5, $6, $7)
-ON CONFLICT DO NOTHING`,
-		version.Ref.Name, version.Ref.Version, version.Ref.Digest, string(version.CanonicalDocument),
-		version.BuiltIn, version.ActorID, persistencepostgres.Timestamp(version.CreatedAt),
-	)
-	if err != nil {
-		return false, classifyWrite(err)
-	}
-	if command.RowsAffected() != 1 {
-		existing, getErr := r.GetVersion(ctx, version.Ref.Name, version.Ref.Version)
-		if getErr == nil && existing.Ref == version.Ref && existing.BuiltIn == version.BuiltIn &&
-			bytes.Equal(existing.CanonicalDocument, version.CanonicalDocument) {
-			return false, nil
-		}
-		return false, ErrConflict
-	}
-	return true, nil
-}
-
 // InsertPublishedVersion stores a published version together with its
 // idempotency receipt. It reports false, without error, when the version or
 // the idempotency key already exists; the caller resolves that by replay.

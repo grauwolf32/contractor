@@ -57,7 +57,7 @@ VALUES ('upgrade-experiment', 4, 'old-holder', clock_timestamp() + interval '1 m
 		t.Fatal(err)
 	}
 
-	result, err := ApplyMigrations(ctx, pool)
+	result, err := ApplyMigrations(ctx, pool, MigrationBudgets{})
 	if err != nil || !slices.Contains(result.AppliedVersions, 13) || !slices.Contains(result.AppliedVersions, 14) {
 		t.Fatalf("fold receipts and align claims = %+v, %v", result, err)
 	}

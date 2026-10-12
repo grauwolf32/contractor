@@ -172,7 +172,6 @@ type PlanSessionService interface {
 	SessionService
 	RecordPlan(context.Context, SessionIdentity, PlannerPlanTransition) error
 	RecordFact(context.Context, SessionIdentity, PlannerFact) error
-	LoadPlan(context.Context, SessionIdentity) (PlannerPlanProjection, bool, error)
 }
 
 type Planner interface {

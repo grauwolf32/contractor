@@ -42,7 +42,7 @@ func TestSharedWorkerStateBoundsCountCompactUTF8(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		_, err = contracts.DecodeStrict[AgentStateSnapshot](data)
+		_, err = contracts.DecodePrivateStrict[AgentStateSnapshot](data)
 		return err
 	}
 	for _, test := range []struct {

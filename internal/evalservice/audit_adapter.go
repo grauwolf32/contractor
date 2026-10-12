@@ -187,7 +187,7 @@ func (d *auditAdapter) Cancel(ctx context.Context, e evalstore.Experiment, m eva
 	if err != nil {
 		return err
 	}
-	if audit.State != auditstore.AuditCancelling && audit.State != auditstore.AuditCompleted && audit.State != auditstore.AuditCancelled && audit.State != auditstore.AuditFailed && audit.State != auditstore.AuditDeleting {
+	if !audit.State.Terminal() && audit.State != auditstore.AuditCancelling && audit.State != auditstore.AuditDeleting {
 		// Each CAS attempt has a deterministic revision-scoped domain key. The
 		// immutable outer intent is cancellation of this exact owned Audit.
 		revision := strconv.FormatUint(audit.Revision, 10)

@@ -256,7 +256,7 @@ func testService(t testing.TB, reader planner.WorkerStateReader, bindings ...Bin
 func stateFixture(t testing.TB) reporting.AgentStateSnapshot {
 	t.Helper()
 	data := contractstest.ReadFile(t, "api", "testdata", "v1alpha1", "valid", "agent-state-snapshot.json")
-	result, err := contracts.DecodeStrict[reporting.AgentStateSnapshot](data)
+	result, err := contracts.DecodePrivateStrict[reporting.AgentStateSnapshot](data)
 	if err != nil {
 		t.Fatal(err)
 	}

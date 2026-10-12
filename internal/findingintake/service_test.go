@@ -19,7 +19,7 @@ func TestCanonicalSubmissionPinsStableIdentityAndOptionalHypothesis(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
-	if canonical.request.SubmissionID != StableSubmissionID(input.InvocationID, input.Proposal.ClientKey) ||
+	if canonical.request.SubmissionID != stableSubmissionID(input.InvocationID, input.Proposal.ClientKey) ||
 		canonical.digest == "" || string(canonical.proposalBytes) == "" {
 		t.Fatalf("canonical finding submission = %+v", canonical)
 	}
@@ -82,7 +82,7 @@ func testSubmission(
 	}
 	return Submission{
 		APIVersion: APIVersion, InvocationID: invocationID,
-		SubmissionID: StableSubmissionID(invocationID, clientKey),
+		SubmissionID: stableSubmissionID(invocationID, clientKey),
 		Proposal: auditdomain.FindingProposal{
 			Schema: auditdomain.FindingProposalSchema, ClientKey: clientKey,
 			Title: "Candidate", Description: "Candidate description",

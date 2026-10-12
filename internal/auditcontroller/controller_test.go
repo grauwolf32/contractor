@@ -14,7 +14,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
-	"github.com/grauwolf32/contractor/internal/auditstore/claimstore"
+	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/rundeletion"
@@ -860,7 +860,7 @@ func (s *fakeControllerStore) TransitionRound(_ context.Context, params auditsto
 // invalid transition is ErrInvalid, a claim that is no longer held is
 // ErrClaimLost, and a stale state or revision is ErrPrecondition.
 func (s *fakeControllerStore) TransitionClaimed(_ context.Context, params auditstore.ClaimedTransitionParams) (auditstore.Audit, error) {
-	if err := claimstore.ValidateClaimedTransition(params); err != nil {
+	if err := auditstoretest.ValidateClaimedTransition(params); err != nil {
 		return auditstore.Audit{}, err
 	}
 	s.mu.Lock()

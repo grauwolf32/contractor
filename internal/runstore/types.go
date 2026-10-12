@@ -587,19 +587,6 @@ type AllocationRuntimeConfiguration struct {
 // internal/persistence pins both.
 const AllocationProvenanceMember = "provenance"
 
-// StageExecutionReport is the trusted Server envelope around one bounded
-// Runtime Agent report. Identity comes from the allocation record, never from
-// model-visible data.
-type StageExecutionReport struct {
-	StageExecutionID    string
-	AllocationID        string
-	LogicalAgentName    string
-	ReportSchemaVersion string
-	Report              reporting.AllocationFinalReport
-	ReceivedAt          time.Time
-	ExpiresAt           time.Time
-}
-
 func validateReason(reason Reason) error {
 	if strings.TrimSpace(reason.Code) == "" {
 		return invalidf("state reason code is required")
