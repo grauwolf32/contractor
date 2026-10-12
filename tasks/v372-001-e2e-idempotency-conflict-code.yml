@@ -1,0 +1,44 @@
+schema_version: "1.0"
+id: V372-001
+title: "Expect idempotency_conflict for a reused Run creation key in the process test"
+milestone: hub-audit-defects-2026-10
+epic: quality
+kind: defect
+introduced_by: V367-012
+priority: P1
+status: in_progress
+depends_on: []
+languages: [go]
+goal: "TestRunMetadataLabelsAcrossProcesses expects the permanent 409 idempotency_conflict that API-R69 defines when a changed Run creation request reuses an Idempotency-Key."
+context:
+  review: "CI run 38177979932 of PR grauwolf32/contractor#544 (head 81cacf9), job release-verify-process-b"
+  severity: medium
+  finding: >-
+    tests/e2e/run_metadata_labels_process_test.go:366
+    (assertChangedMetadataReplayConflicts) still requires the code
+    "conflict" for a changed request sent with a used Idempotency-Key. V367-012
+    (10a3bf7, already on main) made the public API answer such a request with
+    409 idempotency_conflict, retryable false (API-R69,
+    internal/httpapi/public/errors.go:35), and its implementation did not run
+    the process gate, which is the only gate that runs this test
+    (release-verify-process-b; CI does not run on pushes to main). The test
+    fails deterministically: "changed metadata replay response =
+    ({Code:idempotency_conflict}, <nil>)".
+  siblings: >-
+    No other Go process test or browser test expects "conflict" for a reused
+    key: tests/e2e/audit_backtrace_script_test.go only serves a fake
+    "conflict", and ui/e2e/operations-forms.spec.ts and ui/e2e/audits.spec.ts
+    mock revision conflicts, which keep that code (API-R69).
+scope:
+  in:
+    - "Expect idempotency_conflict with retryable false in assertChangedMetadataReplayConflicts."
+  out:
+    - "The public API behaviour, which is correct."
+acceptance_criteria:
+  - id: A1
+    text: "Given a created metadata Run, when the changed request is sent with the same Idempotency-Key, then the test requires 409 idempotency_conflict with retryable false and passes against the real processes."
+tests:
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -tags=e2e -count=1 ./tests/e2e -run '^TestRunMetadataLabelsAcrossProcesses$'"
+    covers: [A1]
+  - command: make lint
+    covers: [A1]
