@@ -6,7 +6,8 @@ epic: persistence
 kind: chore
 introduced_by: V370-007
 priority: P3
-status: in_progress
+status: completed
+implementation_commit: "00b65f766907d836c181e4ac73f29bbe7eb177f8"
 depends_on: []
 languages: [javascript, json, markdown]
 goal: "The ERD's summary, removed-table list and fold flags describe both schema reductions without false arithmetic: V365's removals and V370-007's fold of three receipt tables into mutation_receipts."
