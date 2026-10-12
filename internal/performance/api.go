@@ -6,9 +6,11 @@ import (
 	"errors"
 	"math"
 	"time"
+
+	"github.com/grauwolf32/contractor/internal/apierror"
 )
 
-var ErrHistoryStep = errors.New("unsupported performance history step")
+var ErrHistoryStep = apierror.New(apierror.InvalidRequest, "unsupported performance history step")
 
 type APIDiagnostics struct {
 	SkippedSamples  uint64  `json:"skippedSamples"`

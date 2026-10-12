@@ -28,7 +28,7 @@ func TestPostgresUserArtifactsReserveOnlyTheExactCatalogNamespace(t *testing.T) 
 	pool := isolatedPublicPool(t, ctx)
 	service := artifacts.NewService(artifacts.NewPostgresRepository(pool))
 	fixture := newHandlerFixtureWithAuth(t, "../../config/testdata/valid", newTestAuthentication(t),
-		mustTestOrigins(t), false, nil, func(dependencies *Dependencies) { dependencies.Artifacts = service })
+		mustTestOrigins(t), false, nil, func(dependencies *testServices) { dependencies.Artifacts = service })
 	user, err := artifacts.UserScope("user-1")
 	if err != nil {
 		t.Fatal(err)

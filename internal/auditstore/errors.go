@@ -12,16 +12,18 @@ package auditstore
 import (
 	"errors"
 	"fmt"
+
+	"github.com/grauwolf32/contractor/internal/apierror"
 )
 
 var (
-	ErrInvalid  = errors.New("auditstore invalid argument")
-	ErrNotFound = errors.New("auditstore resource not found")
+	ErrInvalid  = apierror.New(apierror.InvalidRequest, "auditstore invalid argument")
+	ErrNotFound = apierror.New(apierror.NotFound, "auditstore resource not found")
 	// ErrConflict is an identity, state or internal submission-replay conflict;
 	// a reused public Idempotency-Key is contracts.ErrIdempotencyConflict.
-	ErrConflict        = errors.New("auditstore identity or submission conflict")
-	ErrPrecondition    = errors.New("auditstore revision or state precondition failed")
-	ErrProjectDeleting = errors.New("auditstore Project is deleting")
+	ErrConflict        = apierror.New(apierror.Conflict, "auditstore identity or submission conflict")
+	ErrPrecondition    = apierror.New(apierror.PreconditionFailed, "auditstore revision or state precondition failed")
+	ErrProjectDeleting = apierror.New(apierror.ProjectDeleting, "auditstore Project is deleting")
 	ErrClaimLost       = errors.New("auditstore Controller claim is stale")
 	// ErrEvidenceBudgetExhausted is the collection precondition failure caused
 	// by the retained evidence budget. The budget only grows, so the same

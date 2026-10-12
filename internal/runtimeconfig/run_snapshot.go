@@ -90,13 +90,18 @@ func PinRunSnapshot(
 	if tx == nil {
 		return RunSnapshot{}, invalid("Run RuntimeConfig pinning requires a PostgreSQL transaction")
 	}
+	// A selected label without a binding is a request error: the Run, Audit
+	// or Eval names it, so the request reports ErrUnknownLabel.
 	repository := NewRepository(tx)
 	bindings, err := repository.LockBindings(ctx, allLabels)
+	if errors.Is(err, ErrNotFound) {
+		return RunSnapshot{}, ErrUnknownLabel
+	}
 	if err != nil {
 		return RunSnapshot{}, err
 	}
 	if len(bindings) != len(allLabels) {
-		return RunSnapshot{}, ErrNotFound
+		return RunSnapshot{}, ErrUnknownLabel
 	}
 
 	byLabel := make(map[string]Binding, len(bindings))
@@ -111,9 +116,12 @@ func PinRunSnapshot(
 	for _, label := range allLabels {
 		binding, ok := byLabel[label]
 		if !ok {
-			return RunSnapshot{}, ErrNotFound
+			return RunSnapshot{}, ErrUnknownLabel
 		}
 		version, getErr := repository.GetVersionByRef(ctx, binding.Ref)
+		if errors.Is(getErr, ErrNotFound) {
+			return RunSnapshot{}, ErrUnknownLabel
+		}
 		if getErr != nil {
 			return RunSnapshot{}, getErr
 		}

@@ -252,8 +252,7 @@ func TestAuditFindingProposalHandlersExposeInboxAndExactImport(t *testing.T) {
 		Retention:  findingintake.RetentionSourceHeld,
 		AuditHolds: []findingintake.AuditHold{}, CreatedAt: time.Now().UTC(),
 	}}}
-	h := auditTestHandler(&fakeAuditManagement{audit: auditstore.Audit{AuditID: "audit-fixed"}})
-	h.dependencies.FindingProposals = findings
+	h := findingTestHandler(&fakeAuditManagement{audit: auditstore.Audit{AuditID: "audit-fixed"}}, findings)
 
 	list := auditAuthenticatedRequest(http.MethodGet, "/v1/audits/audit-fixed/finding-proposals?limit=10", nil)
 	list.SetPathValue("auditId", "audit-fixed")
@@ -568,6 +567,8 @@ type fakeAuditManagement struct {
 	standards           []auditstandards.PackageProjection
 	audit               auditstore.Audit
 	started             auditservice.StartedAudit
+	attempts            map[string][]auditstore.ItemAttempt
+	coverage            auditservice.CoveragePage
 	preparation         map[string]auditservice.PreparationRoleProjection
 	preparationOwner    string
 	created             auditservice.CreateDraftParams
@@ -737,7 +738,14 @@ func (f *fakeAuditManagement) ListItemAttempts(
 	if len(itemIDs) == 0 || len(itemIDs) > pagelimit.MaxRows {
 		return nil, fmt.Errorf("%w: fake attempt selection of %d items", auditstore.ErrInvalid, len(itemIDs))
 	}
-	return map[string][]auditstore.ItemAttempt{}, f.err
+	// Like the store, the result holds only the items that have attempts.
+	attempts := map[string][]auditstore.ItemAttempt{}
+	for _, itemID := range itemIDs {
+		if itemAttempts, ok := f.attempts[itemID]; ok {
+			attempts[itemID] = itemAttempts
+		}
+	}
+	return attempts, f.err
 }
 
 func (f *fakeAuditManagement) GetRound(context.Context, string, string, string) (auditstore.Round, error) {
@@ -750,7 +758,7 @@ func (f *fakeAuditManagement) ListCoverage(
 	if err := fakePageFetch(limit, auditstore.ErrInvalid); err != nil {
 		return auditservice.CoveragePage{}, err
 	}
-	return auditservice.CoveragePage{}, f.err
+	return f.coverage, f.err
 }
 
 func (f *fakeAuditManagement) GetReport(
@@ -843,10 +851,18 @@ func (f *fakeAuditManagement) ListFindingProvenance(
 	return append([]auditservice.FindingProvenance(nil), f.provenance...), f.err
 }
 
-func auditTestHandler(audits AuditManagement) *handler {
-	return &handler{dependencies: Dependencies{
-		Audits: audits,
-		NewID:  func(string) (string, error) { return "audit-fixed", nil },
+func auditTestHandler(audits AuditManagement) *auditHandlers {
+	return &auditHandlers{AuditDependencies: AuditDependencies{
+		Audits: audits, Projects: newFakeProjectStore(),
+		NewID: func(string) (string, error) { return "audit-fixed", nil },
+	}}
+}
+
+// findingTestHandler serves the finding proposals of the Audits of audits.
+func findingTestHandler(audits AuditReader, proposals FindingProposalManagement) *findingHandlers {
+	return &findingHandlers{FindingDependencies: FindingDependencies{
+		FindingProposals: proposals, FindingCollections: missingFindingCollections{},
+		Audits: audits, Runs: newFakeRunStore(),
 	}}
 }
 

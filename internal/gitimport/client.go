@@ -22,6 +22,8 @@ import (
 	"github.com/go-git/go-git/v5/plumbing/protocol/packp/capability"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/knownhosts"
+
+	"github.com/grauwolf32/contractor/internal/apierror"
 )
 
 const Deadline = 120 * time.Second
@@ -31,13 +33,13 @@ const maxAdvertisementBytes = 4 << 20
 const maxReferences = 10000
 
 var (
-	ErrURL         = errors.New("invalid Git repository URL")
-	ErrRemote      = errors.New("Git repository is unavailable")
-	ErrRef         = errors.New("Git branch or tag is missing or ambiguous")
-	ErrTrust       = errors.New("Git SSH host trust is unavailable or verification failed")
-	ErrDestination = errors.New("Git remote destination is not allowed")
-	ErrBudget      = errors.New("Git import exceeds a resource limit")
-	ErrContent     = errors.New("Git snapshot contains unsupported or invalid content")
+	ErrURL         = apierror.New(apierror.GitURLInvalid, "invalid Git repository URL")
+	ErrRemote      = apierror.New(apierror.GitRemoteUnavailable, "Git repository is unavailable")
+	ErrRef         = apierror.New(apierror.GitRefUnavailable, "Git branch or tag is missing or ambiguous")
+	ErrTrust       = apierror.New(apierror.GitHostUntrusted, "Git SSH host trust is unavailable or verification failed")
+	ErrDestination = apierror.New(apierror.GitDestinationRefused, "Git remote destination is not allowed")
+	ErrBudget      = apierror.New(apierror.GitImportLimit, "Git import exceeds a resource limit")
+	ErrContent     = apierror.New(apierror.GitContentUnsupported, "Git snapshot contains unsupported or invalid content")
 )
 
 // UnsupportedEntryError names a tracked entry that Git import rejects rather
@@ -53,6 +55,12 @@ func (e *UnsupportedEntryError) Error() string {
 }
 
 func (e *UnsupportedEntryError) Is(target error) bool { return target == ErrContent }
+
+// ErrorKind answers the error with git_content_unsupported.
+func (e *UnsupportedEntryError) ErrorKind() apierror.Kind { return apierror.GitContentUnsupported }
+
+// PublicMessage names the unsupported entry kind and its tree path (GIT-R25).
+func (e *UnsupportedEntryError) PublicMessage() string { return e.Error() }
 
 type Remote struct {
 	URL     string

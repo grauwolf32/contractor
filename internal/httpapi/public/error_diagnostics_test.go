@@ -55,10 +55,10 @@ func TestPublicErrorDiagnosticsAreCorrelatedRedactedAndDoNotChangeEnvelopes(t *t
 		t.Run(test.name, func(t *testing.T) {
 			var logs bytes.Buffer
 			logger := slog.New(slog.NewJSONHandler(&logs, nil))
-			h := &handler{}
+
 			mux := http.NewServeMux()
 			mux.HandleFunc("POST /v1/diagnostics/{resource}", func(w http.ResponseWriter, _ *http.Request) {
-				h.handleError(w, fmt.Errorf("%s: %w", secret, test.err))
+				handleError(w, fmt.Errorf("%s: %w", secret, test.err))
 			})
 			boundary := withAPIVersion(requestid.Middleware(withErrorDiagnostics(mux), requestid.Options{
 				Generator: func() (string, error) { return "request-diagnostic", nil },
@@ -114,10 +114,10 @@ func TestPublicExpectedErrorsKeepContractsWithoutFailureLogs(t *testing.T) {
 	} {
 		t.Run(test.code, func(t *testing.T) {
 			var logs bytes.Buffer
-			h := &handler{}
+
 			mux := http.NewServeMux()
 			mux.HandleFunc("GET /v1/diagnostics", func(w http.ResponseWriter, _ *http.Request) {
-				h.handleError(w, fmt.Errorf("private request payload: %w", test.err))
+				handleError(w, fmt.Errorf("private request payload: %w", test.err))
 			})
 			boundary := requestid.Middleware(withErrorDiagnostics(mux), requestid.Options{
 				Logger:    slog.New(slog.NewJSONHandler(&logs, nil)),

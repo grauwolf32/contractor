@@ -129,10 +129,13 @@ func readCollectionReplay(ctx context.Context, user artifacts.ScopedStore, key, 
 	}
 	var receipt collectionPublication
 	if read.Payload.MediaType != "application/json" || len(read.Payload.Data) > 4096 || json.Unmarshal(read.Payload.Data, &receipt) != nil ||
-		receipt.Schema != collectionPublicationSchema || receipt.RequestDigest != requestDigest || receipt.Artifact.Ref.ValidateExact() != nil ||
+		receipt.Schema != collectionPublicationSchema || receipt.Artifact.Ref.ValidateExact() != nil ||
 		receipt.Artifact.Ref.Namespace != CollectionNamespace || receipt.Artifact.Ref.Name != key || receipt.Artifact.MediaType != contracts.FindingCollectionMediaType ||
 		receipt.Artifact.SizeBytes <= 0 || receipt.Artifact.SizeBytes > auditdomain.MaximumArchiveBytes {
 		return PublishedCollection{}, false, ErrConflict
+	}
+	if receipt.RequestDigest != requestDigest {
+		return PublishedCollection{}, false, ErrCollectionKeyConflict
 	}
 	metadata, err := user.Metadata(ctx, receipt.Artifact.Ref)
 	if err != nil {

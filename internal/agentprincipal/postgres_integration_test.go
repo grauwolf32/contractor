@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/apierror"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -187,10 +188,14 @@ func TestPostgresRuntimeAgentPrincipalSeedCASAndDelete(t *testing.T) {
 	if err != nil || replayed.LabelRevision != 1 || !slices.Equal(replayed.Labels, created.Labels) {
 		t.Fatalf("replayed principal = (%+v, %v)", replayed, err)
 	}
+	// The refusal still matches runtimeconfig.ErrConflict, but the public API
+	// answers its own 409 runtime_agent_in_use.
 	if _, err := service.DeleteIdempotent(
 		ctx, principalID, 1, "principal-delete-labeled", "operator", now.Add(time.Minute),
 	); !errors.Is(err, ErrInUse) || !errors.Is(err, runtimeconfig.ErrConflict) {
 		t.Fatalf("delete labeled principal error = %v", err)
+	} else if classified, ok := apierror.Of(err); !ok || classified.ErrorKind() != apierror.RuntimeAgentInUse {
+		t.Fatalf("delete labeled principal answers %v, want runtime_agent_in_use", err)
 	}
 	if _, err := service.ReplaceLabelsIdempotent(
 		ctx, principalID, 1, []string{"missing"}, "principal-unknown-label", "operator", now.Add(time.Minute),

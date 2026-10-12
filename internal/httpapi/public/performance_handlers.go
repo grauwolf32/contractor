@@ -13,35 +13,35 @@ import (
 
 // The Operations routes below are authorized by requireOperationsRoutes.
 
-func (h *handler) getPerformance(w http.ResponseWriter, r *http.Request) {
+func (h *operationsHandlers) getPerformance(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
-	if h.rejectHead(w, r) {
+	if rejectHead(w, r) {
 		return
 	}
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, h.dependencies.Performance.Snapshot())
+	writeJSON(w, http.StatusOK, h.Performance.Snapshot())
 }
 
-func (h *handler) listAllocationResourceHistory(w http.ResponseWriter, r *http.Request) {
+func (h *operationsHandlers) listAllocationResourceHistory(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
-	if h.rejectHead(w, r) {
+	if rejectHead(w, r) {
 		return
 	}
 	query, limit, encodedCursor, err := pageQuery(r.URL.RawQuery, "runId")
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	if limit > 100 {
-		h.handleError(w, fmt.Errorf("%w: allocation history limit must be at most 100", errInvalidRequest))
+		handleError(w, fmt.Errorf("%w: allocation history limit must be at most 100", errInvalidRequest))
 		return
 	}
 	runID := query.Get("runId")
 	if _, present := query["runId"]; present && runID == "" {
-		h.handleError(w, fmt.Errorf("%w: runId cannot be empty", errInvalidRequest))
+		handleError(w, fmt.Errorf("%w: runId cannot be empty", errInvalidRequest))
 		return
 	}
 	params := telemetry.AllocationResourceHistoryParams{
@@ -54,44 +54,44 @@ func (h *handler) listAllocationResourceHistory(w http.ResponseWriter, r *http.R
 	var upperAt time.Time
 	var upperAllocationID string
 	if encodedCursor != "" {
-		values, decodeErr := h.decodePageCursor(encodedCursor, "operations:allocation-history", 5)
+		values, decodeErr := h.cursors.decodePageCursor(encodedCursor, "operations:allocation-history", 5)
 		if decodeErr != nil {
-			h.handleError(w, decodeErr)
+			handleError(w, decodeErr)
 			return
 		}
 		if values[0] != filter {
-			h.handleError(w, fmt.Errorf("%w: cursor does not match the Run filter", errInvalidRequest))
+			handleError(w, fmt.Errorf("%w: cursor does not match the Run filter", errInvalidRequest))
 			return
 		}
 		upperAt, err = time.Parse(time.RFC3339Nano, values[1])
 		if err != nil {
-			h.handleError(w, fmt.Errorf("%w: invalid allocation history cursor", errInvalidRequest))
+			handleError(w, fmt.Errorf("%w: invalid allocation history cursor", errInvalidRequest))
 			return
 		}
 		afterAt, parseErr := time.Parse(time.RFC3339Nano, values[3])
 		if parseErr != nil {
-			h.handleError(w, fmt.Errorf("%w: invalid allocation history cursor", errInvalidRequest))
+			handleError(w, fmt.Errorf("%w: invalid allocation history cursor", errInvalidRequest))
 			return
 		}
 		upperAllocationID = values[2]
 		if afterAt.After(upperAt) ||
 			(afterAt.Equal(upperAt) && values[4] > upperAllocationID) {
-			h.handleError(w, fmt.Errorf("%w: invalid allocation history cursor bounds", errInvalidRequest))
+			handleError(w, fmt.Errorf("%w: invalid allocation history cursor bounds", errInvalidRequest))
 			return
 		}
 		params.UpperFinishedAt, params.UpperAllocationID = &upperAt, upperAllocationID
 		params.AfterFinishedAt, params.AfterAllocationID = &afterAt, values[4]
 	}
-	items, err := h.dependencies.AllocationResources.ListAllocationResourceHistory(r.Context(), params)
+	items, err := h.AllocationResources.ListAllocationResourceHistory(r.Context(), params)
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	if encodedCursor == "" && len(items) != 0 {
 		// The first page pins the upper boundary that later pages keep.
 		upperAt, upperAllocationID = items[0].FinishedAt, items[0].AllocationID
 	}
-	items, page, err := paginate(h, items, limit, "operations:allocation-history",
+	items, page, err := paginate(h.cursors, items, limit, "operations:allocation-history",
 		func(last telemetry.AllocationResourceSummary) []string {
 			return []string{
 				filter, upperAt.UTC().Format(time.RFC3339Nano), upperAllocationID,
@@ -99,38 +99,38 @@ func (h *handler) listAllocationResourceHistory(w http.ResponseWriter, r *http.R
 			}
 		})
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, allocationResourcePageResponse{Items: items, Page: page})
 }
 
-func (h *handler) getPerformanceHistory(w http.ResponseWriter, r *http.Request) {
+func (h *operationsHandlers) getPerformanceHistory(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
-	if h.rejectHead(w, r) {
+	if rejectHead(w, r) {
 		return
 	}
 	query, err := exactQuery(r.URL.RawQuery, "from", "to", "step")
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	if query.Get("from") == "" || query.Get("to") == "" || query.Get("step") == "" {
-		h.handleError(w, fmt.Errorf("%w: from, to and step are required", errInvalidRequest))
+		handleError(w, fmt.Errorf("%w: from, to and step are required", errInvalidRequest))
 		return
 	}
 	from, fromErr := time.Parse(time.RFC3339Nano, query.Get("from"))
 	to, toErr := time.Parse(time.RFC3339Nano, query.Get("to"))
 	if fromErr != nil || toErr != nil {
-		h.handleError(w, fmt.Errorf("%w: from and to must be RFC3339 timestamps", errInvalidRequest))
+		handleError(w, fmt.Errorf("%w: from and to must be RFC3339 timestamps", errInvalidRequest))
 		return
 	}
-	result, err := h.dependencies.Performance.History(r.Context(), from, to, query.Get("step"))
+	result, err := h.Performance.History(r.Context(), from, to, query.Get("step"))
 	if errors.Is(err, performance.ErrHistoryRange) || errors.Is(err, performance.ErrHistoryStep) {
 		err = fmt.Errorf("%w: performance history range or step is invalid", errInvalidRequest)
 	}
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, result)

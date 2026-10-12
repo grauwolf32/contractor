@@ -23,6 +23,8 @@ var layers = []layerSpec{
 		role: "dependency-free helpers, embedded API schemas and test support",
 		packages: []string{
 			"api/...",
+			// The public error code registry that domain errors report.
+			"internal/apierror",
 			"internal/artifactpolicy",
 			"internal/cabundle",
 			"internal/clone",

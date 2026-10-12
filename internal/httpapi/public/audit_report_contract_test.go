@@ -32,7 +32,7 @@ func TestPublicAuditReportPreservesProposedReview(t *testing.T) {
 	management := &fakeAuditManagement{}
 	fixture := newHandlerFixtureWithAuth(t, "../../config/testdata/valid",
 		newTestAuthentication(t), mustTestOrigins(t), false, nil,
-		func(dependencies *Dependencies) { dependencies.Audits = management },
+		func(dependencies *testServices) { dependencies.Audits = management },
 	)
 	for _, status := range []auditservice.ReportStatus{
 		auditservice.ReportPending, auditservice.ReportProposed,

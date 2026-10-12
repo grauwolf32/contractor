@@ -8,13 +8,13 @@ import (
 	"github.com/grauwolf32/contractor/internal/projectstore"
 )
 
-func (h *handler) listProjectArtifacts(w http.ResponseWriter, r *http.Request) {
-	if h.rejectHead(w, r) {
+func (h *artifactHandlers) listProjectArtifacts(w http.ResponseWriter, r *http.Request) {
+	if rejectHead(w, r) {
 		return
 	}
 	store, projectID, err := h.ownedProjectArtifactStore(r)
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	h.listArtifactBindings(
@@ -23,14 +23,14 @@ func (h *handler) listProjectArtifacts(w http.ResponseWriter, r *http.Request) {
 	)
 }
 
-func (h *handler) getProjectArtifact(w http.ResponseWriter, r *http.Request) {
+func (h *artifactHandlers) getProjectArtifact(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodHead {
-		h.methodNotAllowed(w, r)
+		methodNotAllowed(w, r)
 		return
 	}
 	store, _, err := h.ownedProjectArtifactStore(r)
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	if h.rejectAuditManagedProjectArtifact(w, r) {
@@ -38,47 +38,47 @@ func (h *handler) getProjectArtifact(w http.ResponseWriter, r *http.Request) {
 	}
 	ref, err := artifactRouteRef(r)
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	h.writeArtifactRead(w, r, store, ref)
 }
 
-func (h *handler) putProjectArtifact(w http.ResponseWriter, r *http.Request) {
+func (h *artifactHandlers) putProjectArtifact(w http.ResponseWriter, r *http.Request) {
 	store, _, err := h.ownedActiveProjectArtifactStore(r)
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	if h.rejectAuditManagedProjectArtifact(w, r) {
 		return
 	}
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	if err := validateArtifactRouteNames(r); err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	mediaType, err := requestMediaType(r)
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	expectedRevision, err := artifactWritePrecondition(r)
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	h.writeArtifactUpload(w, r, store, mediaType, expectedRevision)
 }
 
-func (h *handler) ownedActiveProjectArtifactStore(
+func (h *artifactHandlers) ownedActiveProjectArtifactStore(
 	r *http.Request,
 ) (artifacts.ScopedStore, string, error) {
 	projectID := r.PathValue("projectId")
-	project, err := h.dependencies.Projects.Get(
+	project, err := h.Projects.Get(
 		r.Context(), principalUserID(r.Context()), projectID,
 	)
 	if err != nil {
@@ -87,17 +87,17 @@ func (h *handler) ownedActiveProjectArtifactStore(
 	if project.Lifecycle == projectstore.LifecycleDeleting {
 		return artifacts.ScopedStore{}, "", projectstore.ErrDeleting
 	}
-	store, err := h.dependencies.Artifacts.Project(project.ProjectID)
+	store, err := h.Artifacts.Project(project.ProjectID)
 	return store, project.ProjectID, err
 }
 
-func (h *handler) getProjectArtifactMetadata(w http.ResponseWriter, r *http.Request) {
-	if h.rejectHead(w, r) {
+func (h *artifactHandlers) getProjectArtifactMetadata(w http.ResponseWriter, r *http.Request) {
+	if rejectHead(w, r) {
 		return
 	}
 	store, _, err := h.ownedProjectArtifactStore(r)
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	if h.rejectAuditManagedProjectArtifact(w, r) {
@@ -106,13 +106,13 @@ func (h *handler) getProjectArtifactMetadata(w http.ResponseWriter, r *http.Requ
 	h.getArtifactMetadataFromStore(w, r, store)
 }
 
-func (h *handler) listProjectArtifactVersions(w http.ResponseWriter, r *http.Request) {
-	if h.rejectHead(w, r) {
+func (h *artifactHandlers) listProjectArtifactVersions(w http.ResponseWriter, r *http.Request) {
+	if rejectHead(w, r) {
 		return
 	}
 	store, projectID, err := h.ownedProjectArtifactStore(r)
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	if h.rejectAuditManagedProjectArtifact(w, r) {
@@ -121,13 +121,13 @@ func (h *handler) listProjectArtifactVersions(w http.ResponseWriter, r *http.Req
 	h.listArtifactVersionsFromStore(w, r, store, "project-artifact-versions:"+projectID)
 }
 
-func (h *handler) listProjectArtifactLineage(w http.ResponseWriter, r *http.Request) {
-	if h.rejectHead(w, r) {
+func (h *artifactHandlers) listProjectArtifactLineage(w http.ResponseWriter, r *http.Request) {
+	if rejectHead(w, r) {
 		return
 	}
 	store, projectID, err := h.ownedProjectArtifactStore(r)
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	if h.rejectAuditManagedProjectArtifact(w, r) {
@@ -136,26 +136,26 @@ func (h *handler) listProjectArtifactLineage(w http.ResponseWriter, r *http.Requ
 	h.listArtifactLineageFromStore(w, r, store, "project-artifact-lineage:"+projectID)
 }
 
-func (h *handler) ownedProjectArtifactStore(
+func (h *artifactHandlers) ownedProjectArtifactStore(
 	r *http.Request,
 ) (artifacts.ScopedStore, string, error) {
 	projectID := r.PathValue("projectId")
-	project, err := h.dependencies.Projects.Get(
+	project, err := h.Projects.Get(
 		r.Context(), principalUserID(r.Context()), projectID,
 	)
 	if err != nil {
 		return artifacts.ScopedStore{}, "", err
 	}
-	store, err := h.dependencies.Artifacts.Project(project.ProjectID)
+	store, err := h.Artifacts.Project(project.ProjectID)
 	return store, project.ProjectID, err
 }
 
-func (h *handler) rejectAuditManagedProjectArtifact(w http.ResponseWriter, r *http.Request) bool {
+func (h *artifactHandlers) rejectAuditManagedProjectArtifact(w http.ResponseWriter, r *http.Request) bool {
 	if !artifactpolicy.IsAuditManagedProjectNamespace(r.PathValue("namespace")) {
 		return false
 	}
 	// The binding may be staged but not yet accepted. Exposing even its
 	// existence would violate the Audit receipt boundary.
-	h.handleError(w, artifacts.ErrArtifactNotFound)
+	handleError(w, artifacts.ErrArtifactNotFound)
 	return true
 }

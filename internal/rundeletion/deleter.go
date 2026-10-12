@@ -9,6 +9,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/grauwolf32/contractor/internal/apierror"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditstore/hookstore"
 	"github.com/grauwolf32/contractor/internal/findingintake"
@@ -39,6 +40,10 @@ func (e *NotDeletableError) Error() string {
 }
 
 func (e *NotDeletableError) Unwrap() error { return runstore.ErrConflict }
+
+// ErrorKind answers the error with run_not_deletable; its reason is the
+// details.
+func (e *NotDeletableError) ErrorKind() apierror.Kind { return apierror.RunNotDeletable }
 
 // Deleter deletes Runs on a pool, in its own retrying transaction, or inside
 // a caller's pgx.Tx so Project deletion can compose it atomically.

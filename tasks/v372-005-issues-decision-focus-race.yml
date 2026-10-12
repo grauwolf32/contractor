@@ -1,0 +1,54 @@
+schema_version: "1.0"
+id: V372-005
+title: "Move focus to the next possible issue reliably after a decision"
+milestone: hub-audit-defects-2026-10
+epic: ui
+kind: defect
+priority: P2
+status: pending
+depends_on: []
+languages: [typescript]
+goal: "After a recorded decision, focus lands on the next possible issue's detail header whatever order the navigation, the list refetch and the detail reads complete in, and the component test checks that without depending on timing."
+context:
+  review: "CI run 38201219561 of PR grauwolf32/contractor#545 (head 5339207), job release-verify-ui"
+  severity: medium
+  finding: >-
+    ui/src/routes/issues/issues.test.tsx:369-373 ("records a decision,
+    announces it and moves on when the possible issue leaves the list")
+    failed once in the full vitest run: the decision was recorded, the route
+    moved to the next possible issue, the announcement showed and the list
+    re-read to "1 of 1", but document.activeElement was <body> instead of the
+    detail header. The header takes focus only in an effect keyed on
+    focusRequest when the next IssueDetail mounts
+    (ui/src/routes/issues/issue-detail.tsx:162-164), after onDecided calls
+    open(target, {focus: true}) (ui/src/routes/issues/index.tsx:313) and the
+    detail remounts under key={selectedKey} (index.tsx:566-593); the Record
+    decision button that had focus is unmounted with the previous detail.
+    Something in the following list refetch or detail reads can leave focus
+    on <body> (a keyboard and screen reader user then loses their place),
+    and the test asserts focus once instead of waiting for the settled
+    state. It passed in 8 isolated local runs and on earlier CI runs of the
+    same code; PR #545 changes nothing under ui/. The code predates the
+    shallow history (6349621), so introduced_by is unknown.
+  siblings: >-
+    The last-issue path focuses the list title after navigating back to
+    /issues (index.tsx focusListTitle); PaneLayout moves focus only when the
+    pane switches (ui/src/ui/panes.tsx). Other review pages that move focus
+    after a mutation (Audit reviews, Eval decisions) use the same
+    focus-on-mount pattern and need the same check.
+scope:
+  in:
+    - "Find which render takes focus away from the header (or why the effect runs before the header can take focus) and make the focus move survive it."
+    - "Make the component test wait for the settled focus and add a case that delays the list refetch and the detail read in both orders."
+  out:
+    - "Changes to the decision API or the list polling cadence."
+acceptance_criteria:
+  - id: A1
+    text: "Given a recorded decision with a next possible issue, when the list refetch completes before or after the next detail's reads, then the next detail header has focus."
+  - id: A2
+    text: "The component test fails on the previous code with the delayed-order case and passes reliably in the full suite."
+tests:
+  - command: "cd ui && corepack pnpm exec vitest run src/routes/issues"
+    covers: [A1, A2]
+  - command: "cd ui && corepack pnpm exec eslint src/routes/issues && corepack pnpm exec tsc --noEmit -p ."
+    covers: [A1]

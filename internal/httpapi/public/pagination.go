@@ -68,18 +68,26 @@ func parsePageQuery(values url.Values) (url.Values, int, string, error) {
 	return values, limit, cursor, nil
 }
 
+// pageCursors seals and opens the continuation tokens of every paged
+// collection. Each context that pages holds one; the key is the bearer token
+// digest, so a token minted by one Server instance verifies on another with
+// the same bearer token.
+type pageCursors struct {
+	key [sha256.Size]byte
+}
+
 // paginate trims rows fetched with pagelimit.FetchRows(limit) to one page. When the fetch
 // returned a row beyond limit, the page reports hasMore with a cursor of the
 // given kind positioned at the last kept row.
 func paginate[T any](
-	h *handler, rows []T, limit int, kind string, position func(last T) []string,
+	cursors pageCursors, rows []T, limit int, kind string, position func(last T) []string,
 ) ([]T, pageInfoResponse, error) {
 	page := pageInfoResponse{}
 	if len(rows) <= limit {
 		return rows, page, nil
 	}
 	rows = rows[:limit]
-	next, err := h.encodePageCursor(kind, position(rows[len(rows)-1])...)
+	next, err := cursors.encodePageCursor(kind, position(rows[len(rows)-1])...)
 	if err != nil {
 		return nil, page, err
 	}
@@ -88,25 +96,25 @@ func paginate[T any](
 	return rows, page, nil
 }
 
-func (h *handler) encodePageCursor(kind string, values ...string) (string, error) {
+func (c pageCursors) encodePageCursor(kind string, values ...string) (string, error) {
 	payload, err := json.Marshal(pageCursor{
 		Version: pageCursorV1, Kind: pageCursorKind(kind), Values: values,
 	})
 	if err != nil {
 		return "", fmt.Errorf("encode page cursor: %w", err)
 	}
-	encoded := h.sealCursor("", payload)
+	encoded := c.seal("", payload)
 	if len(encoded) > maxCursorBytes {
 		return "", fmt.Errorf("encode page cursor: result is too large")
 	}
 	return encoded, nil
 }
 
-func (h *handler) decodePageCursor(encoded, kind string, valueCount int) ([]string, error) {
+func (c pageCursors) decodePageCursor(encoded, kind string, valueCount int) ([]string, error) {
 	if encoded == "" {
 		return nil, nil
 	}
-	payload, ok := h.openCursor("", encoded)
+	payload, ok := c.open("", encoded)
 	if !ok {
 		return nil, fmt.Errorf("%w: invalid cursor", errInvalidRequest)
 	}
@@ -123,28 +131,28 @@ func (h *handler) decodePageCursor(encoded, kind string, valueCount int) ([]stri
 	return cursor.Values, nil
 }
 
-// sealCursor renders payload followed by its MAC as unpadded base64url. Page
+// seal renders payload followed by its MAC as unpadded base64url. Page
 // cursors, eval cursors and eval bin tokens share this framing; domain
 // separates token families (page and eval cursors use the empty domain).
-func (h *handler) sealCursor(domain string, payload []byte) string {
-	signed := append(payload, h.cursorMAC(domain, payload)...)
+func (c pageCursors) seal(domain string, payload []byte) string {
+	signed := append(payload, c.mac(domain, payload)...)
 	return base64.RawURLEncoding.EncodeToString(signed)
 }
 
-// openCursor reverses sealCursor and reports whether the MAC verified.
-func (h *handler) openCursor(domain, encoded string) ([]byte, bool) {
+// open reverses seal and reports whether the MAC verified.
+func (c pageCursors) open(domain, encoded string) ([]byte, bool) {
 	signed, err := base64.RawURLEncoding.DecodeString(encoded)
 	if err != nil || len(signed) <= sha256.Size {
 		return nil, false
 	}
 	payload, signature := signed[:len(signed)-sha256.Size], signed[len(signed)-sha256.Size:]
-	return payload, hmac.Equal(signature, h.cursorMAC(domain, payload))
+	return payload, hmac.Equal(signature, c.mac(domain, payload))
 }
 
-// cursorMAC is HMAC-SHA256 over domain||payload keyed by the bearer token
-// digest; an empty domain adds no bytes.
-func (h *handler) cursorMAC(domain string, payload []byte) []byte {
-	mac := hmac.New(sha256.New, h.tokenDigest[:])
+// mac is HMAC-SHA256 over domain||payload keyed by the bearer token digest;
+// an empty domain adds no bytes.
+func (c pageCursors) mac(domain string, payload []byte) []byte {
+	mac := hmac.New(sha256.New, c.key[:])
 	_, _ = mac.Write([]byte(domain))
 	_, _ = mac.Write(payload)
 	return mac.Sum(nil)

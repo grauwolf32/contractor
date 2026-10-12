@@ -8,11 +8,12 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/apierror"
 	postgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
 )
 
-var ErrTransferCapacity = errors.New("artifact transfer capacity is exhausted")
+var ErrTransferCapacity = apierror.New(apierror.ArtifactTransferCapacity, "artifact transfer capacity is exhausted")
 
 // errBlobRuntimeMissing reports a Server composition defect: an operation
 // reached a filesystem payload through a context that does not carry the

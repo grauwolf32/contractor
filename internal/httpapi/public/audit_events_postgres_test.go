@@ -50,7 +50,7 @@ func TestPublicAuditEventHistory(t *testing.T) {
 		appendEvent(i)
 	}
 	var service *auditservice.Service
-	fixture := newHandlerFixtureWithAuth(t, "../../config/testdata/valid", newTestAuthentication(t), mustTestOrigins(t), false, nil, func(d *Dependencies) {
+	fixture := newHandlerFixtureWithAuth(t, "../../config/testdata/valid", newTestAuthentication(t), mustTestOrigins(t), false, nil, func(d *testServices) {
 		credentials := newFakeManagedCredentials()
 		var err error
 		service, err = auditservice.New(auditservice.Options{Pool: pool, Profiles: d.Config.(*config.Manager), CredentialGuard: credentials, TransactionLLMCredentials: runtimeconfig.TransactionLLMCredentialLookupFactoryFunc(func(pgx.Tx) (resolved.CredentialLookup, error) { return credentials, nil })})

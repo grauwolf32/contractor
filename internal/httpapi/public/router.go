@@ -5,113 +5,143 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"time"
+	"reflect"
 
-	"github.com/grauwolf32/contractor/internal/auth"
 	"github.com/grauwolf32/contractor/internal/contracts"
-	"github.com/grauwolf32/contractor/internal/randomid"
 	"github.com/grauwolf32/contractor/internal/requestid"
 )
 
-type handler struct {
-	dependencies Dependencies
-	tokenDigest  [sha256.Size]byte
-	cookieName   string
-	secureCookie bool
+// Dependencies groups the services of the public API by the context that
+// uses them. NewHandler rejects a missing service; a service that several
+// contexts use is passed to each of them.
+type Dependencies struct {
+	// BearerToken authenticates non-browser clients and keys the HMAC of
+	// every continuation cursor.
+	BearerToken  contracts.SecretString
+	NewRequestID func() (string, error)
+	Logger       *slog.Logger
+
+	Session              SessionDependencies
+	Catalog              CatalogDependencies
+	Projects             ProjectDependencies
+	Runs                 RunDependencies
+	RunRepeat            RunRepeatDependencies
+	Queue                QueueDependencies
+	Artifacts            ArtifactDependencies
+	Audits               AuditDependencies
+	Findings             FindingDependencies
+	Evals                EvalDependencies
+	Operations           OperationsDependencies
+	Credentials          CredentialDependencies
+	RuntimeConfiguration RuntimeConfigurationDependencies
+	GitKeys              GitKeyDependencies
+}
+
+// contextHandlers holds the handler struct of every context. Only NewHandler
+// and the route registration see more than one context.
+type contextHandlers struct {
+	session              *sessionHandlers
+	catalog              *catalogHandlers
+	projects             *projectHandlers
+	runs                 *runHandlers
+	runRepeat            *runRepeatHandlers
+	queue                *queueHandlers
+	artifacts            *artifactHandlers
+	audits               *auditHandlers
+	findings             *findingHandlers
+	evals                *evalHandlers
+	operations           *operationsHandlers
+	credentials          *credentialHandlers
+	runtimeConfiguration *runtimeConfigurationHandlers
+	gitKeys              *gitKeyHandlers
 }
 
 func NewHandler(dependencies Dependencies) (http.Handler, error) {
-	if dependencies.ConfigurationPublisher == nil {
-		if publisher, ok := dependencies.Config.(ConfigurationPublisher); ok {
-			dependencies.ConfigurationPublisher = publisher
+	if dependencies.NewRequestID == nil || dependencies.Logger == nil {
+		return nil, fmt.Errorf("public API request identity dependencies are missing")
+	}
+	for _, group := range []struct {
+		name         string
+		dependencies any
+	}{
+		{"session", dependencies.Session},
+		{"catalog", dependencies.Catalog},
+		{"Project", dependencies.Projects},
+		{"Run", dependencies.Runs},
+		{"Run repeat", dependencies.RunRepeat},
+		{"Run Queue", dependencies.Queue},
+		{"Artifact", dependencies.Artifacts},
+		{"Audit", dependencies.Audits},
+		{"finding", dependencies.Findings},
+		{"Eval", dependencies.Evals},
+		{"Operations", dependencies.Operations},
+		{"credential", dependencies.Credentials},
+		{"Runtime configuration", dependencies.RuntimeConfiguration},
+		{"Git key", dependencies.GitKeys},
+	} {
+		if err := requireServices(group.name, group.dependencies); err != nil {
+			return nil, err
 		}
 	}
-	if dependencies.Config == nil || dependencies.ConfigurationPublisher == nil ||
-		dependencies.Credentials == nil || dependencies.ManagedCredentials == nil ||
-		dependencies.Runs == nil || dependencies.RunDetails == nil || dependencies.RunQueue == nil ||
-		dependencies.RunLifecycle == nil || dependencies.RunDeletion == nil || dependencies.RunCreator == nil ||
-		dependencies.RuntimeConfigs == nil || dependencies.RuntimeCredentials == nil ||
-		dependencies.RuntimeAgentPrincipals == nil ||
-		dependencies.Projects == nil || dependencies.Audits == nil ||
-		dependencies.Artifacts == nil || dependencies.Operations == nil ||
-		dependencies.Performance == nil || dependencies.AllocationResources == nil ||
-		dependencies.OperationsInvalidator == nil || dependencies.SchedulerSettings == nil || dependencies.Events == nil ||
-		dependencies.Authentication == nil || len(dependencies.BrowserOrigins.Values()) == 0 {
-		return nil, fmt.Errorf("public API dependencies are incomplete")
+	if len(dependencies.Session.BrowserOrigins.Values()) == 0 {
+		return nil, fmt.Errorf("public API session dependency BrowserOrigins is empty")
 	}
 	bearerToken := dependencies.BearerToken.Reveal()
 	if bearerToken == "" || len(bearerToken) > 4096 {
 		return nil, fmt.Errorf("public API bearer token must contain 1 through 4096 bytes")
 	}
-	if dependencies.NewID == nil {
-		dependencies.NewID = randomid.New
-	}
-	if dependencies.NewRequestID == nil {
-		dependencies.NewRequestID = func() (string, error) { return randomid.New("request_") }
-	}
-	if dependencies.Now == nil {
-		dependencies.Now = time.Now
-	}
-	if dependencies.Logger == nil {
-		dependencies.Logger = slog.Default()
-	}
 	tokenDigest := sha256.Sum256([]byte(bearerToken))
 	bearerToken = ""
-	dependencies.BearerToken = contracts.NewSecretString("")
-	current := &handler{
-		dependencies: dependencies,
-		tokenDigest:  tokenDigest,
-		cookieName:   auth.SecureCookieName,
-		secureCookie: true,
-	}
-	if dependencies.InsecureLoopbackCookie {
-		current.cookieName = auth.LoopbackCookieName
-		current.secureCookie = false
+	cursors := pageCursors{key: tokenDigest}
+	session := &sessionHandlers{SessionDependencies: dependencies.Session, tokenDigest: tokenDigest}
+	contexts := contextHandlers{
+		session:              session,
+		catalog:              &catalogHandlers{CatalogDependencies: dependencies.Catalog, cursors: cursors},
+		projects:             &projectHandlers{ProjectDependencies: dependencies.Projects, cursors: cursors},
+		runs:                 &runHandlers{RunDependencies: dependencies.Runs, cursors: cursors},
+		runRepeat:            &runRepeatHandlers{RunRepeatDependencies: dependencies.RunRepeat},
+		queue:                &queueHandlers{QueueDependencies: dependencies.Queue, cursors: cursors},
+		artifacts:            &artifactHandlers{ArtifactDependencies: dependencies.Artifacts, cursors: cursors},
+		audits:               &auditHandlers{AuditDependencies: dependencies.Audits, cursors: cursors},
+		findings:             &findingHandlers{FindingDependencies: dependencies.Findings, cursors: cursors},
+		evals:                &evalHandlers{EvalDependencies: dependencies.Evals, cursors: cursors},
+		operations:           &operationsHandlers{OperationsDependencies: dependencies.Operations, cursors: cursors},
+		credentials:          &credentialHandlers{CredentialDependencies: dependencies.Credentials, cursors: cursors},
+		runtimeConfiguration: &runtimeConfigurationHandlers{RuntimeConfigurationDependencies: dependencies.RuntimeConfiguration, cursors: cursors},
+		gitKeys:              &gitKeyHandlers{GitKeyDependencies: dependencies.GitKeys},
 	}
 
 	mux := http.NewServeMux()
-	current.registerSettingsRoutes(mux)
-	current.registerSessionRoutes(mux)
-	current.registerCatalogRoutes(mux)
-	current.registerProjectRoutes(mux)
-	current.registerAuditRoutes(mux)
-	current.registerEvalRoutes(mux)
-	current.registerOperationsRoutes(mux)
-	current.registerArtifactRoutes(mux)
-	current.registerRunRoutes(mux)
-	current.registerQueueRoutes(mux)
-	mux.HandleFunc("/", current.notFound)
-	return current.withMiddleware(mux), nil
-}
+	contexts.register(mux)
 
-// Incoming requests pass API version, request ID, origin policy,
-// authentication, Operations authorization and error diagnostics in that order.
-func (h *handler) withMiddleware(mux *http.ServeMux) http.Handler {
+	// Incoming requests pass API version, request ID, origin policy,
+	// authentication, Operations authorization and error diagnostics in that
+	// order.
 	diagnostics := withErrorDiagnostics(mux)
-	authenticated := h.authenticate(h.requireOperationsRoutes(diagnostics))
-	originChecked := h.cors(authenticated, mux)
-	return withAPIVersion(h.withRequestID(originChecked))
+	authenticated := session.authenticate(requireOperationsRoutes(diagnostics))
+	originChecked := session.cors(authenticated, mux)
+	return withAPIVersion(requestid.Middleware(originChecked, requestid.Options{
+		Generator: dependencies.NewRequestID,
+		Logger:    dependencies.Logger, Boundary: "public-api",
+	})), nil
 }
 
-func (h *handler) withRequestID(next http.Handler) http.Handler {
-	return requestid.Middleware(next, requestid.Options{
-		Generator: h.dependencies.NewRequestID,
-		Logger:    h.dependencies.Logger, Boundary: "public-api",
-	})
-}
-
-func (h *handler) methodNotAllowed(w http.ResponseWriter, _ *http.Request) {
-	h.writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "method is not allowed", false)
-}
-
-func (h *handler) rejectHead(w http.ResponseWriter, r *http.Request) bool {
-	if r.Method != http.MethodHead {
-		return false
+// requireServices reports the first missing service of a context. Every
+// interface, pointer, function, map, slice and channel field of a context's
+// dependencies is a required service; a value field is a setting whose zero
+// value is valid unless NewHandler checks it.
+func requireServices(context string, dependencies any) error {
+	value := reflect.ValueOf(dependencies)
+	for index := range value.NumField() {
+		field := value.Field(index)
+		switch field.Kind() {
+		case reflect.Interface, reflect.Pointer, reflect.Func, reflect.Map, reflect.Slice, reflect.Chan:
+			if field.IsNil() {
+				return fmt.Errorf(
+					"public API %s dependency %s is missing", context, value.Type().Field(index).Name,
+				)
+			}
+		}
 	}
-	h.methodNotAllowed(w, r)
-	return true
-}
-
-func (h *handler) notFound(w http.ResponseWriter, _ *http.Request) {
-	h.writeError(w, http.StatusNotFound, "not_found", "resource was not found", false)
+	return nil
 }

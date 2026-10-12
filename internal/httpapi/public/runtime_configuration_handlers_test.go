@@ -129,6 +129,17 @@ func TestRuntimeMutationErrorsIdentifyTheMissingResource(t *testing.T) {
 			assertErrorCode(t, response, test.code)
 		})
 	}
+
+	// A principal that still holds labels cannot be deleted; the refusal
+	// answers its own permanent 409, not the label conflict it wraps.
+	fixture.runtimePrincipals.principals[principalID] = controlplane.RuntimeAgentPrincipalProjection{
+		Principal: agentprincipal.Principal{RuntimeAgentID: principalID, Labels: []string{"debug"}, LabelRevision: 1},
+	}
+	inUse := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(inUse, runtimeMutationRequest(
+		t, http.MethodDelete, "/v1/operations/runtime-agent-principals/"+principalID, "", "principal-in-use", `"1"`, "",
+	))
+	assertErrorEnvelope(t, inUse, http.StatusConflict, "runtime_agent_in_use", false)
 }
 
 func TestRuntimeOperationsCreateBindAndKeepCredentialMaterialWriteOnly(t *testing.T) {

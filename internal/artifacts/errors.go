@@ -4,22 +4,25 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/grauwolf32/contractor/internal/apierror"
 	"github.com/grauwolf32/contractor/internal/clone"
 )
 
+// The public API answers these errors with the Kind each one reports
+// (apierror); the private Artifact API keeps its own codes for the Runtime.
 var (
-	ErrInvalidScope          = errors.New("invalid artifact scope")
-	ErrInvalidName           = errors.New("invalid artifact namespace or name")
-	ErrInvalidMediaType      = errors.New("invalid artifact media type")
-	ErrPayloadTooLarge       = errors.New("artifact payload exceeds size limit")
-	ErrVersionedWriteTarget  = errors.New("artifact write target must be versionless")
-	ErrExactRevisionRequired = errors.New("exact artifact revision is required")
-	ErrArtifactConflict      = errors.New("artifact binding compare-and-swap conflict")
-	ErrArtifactNotFound      = errors.New("artifact not found")
-	ErrReservedNamespace     = errors.New("artifact namespace is reserved")
-	ErrArtifactFrozen        = errors.New("artifact binding is frozen")
-	ErrArtifactIntegrity     = errors.New("artifact payload integrity failure")
-	ErrScopeDeleting         = errors.New("artifact Project scope is deleting")
+	ErrInvalidScope          = apierror.New(apierror.InvalidRequest, "invalid artifact scope")
+	ErrInvalidName           = apierror.New(apierror.InvalidRequest, "invalid artifact namespace or name")
+	ErrInvalidMediaType      = apierror.New(apierror.InvalidRequest, "invalid artifact media type")
+	ErrPayloadTooLarge       = apierror.New(apierror.ArtifactTooLarge, "artifact payload exceeds size limit")
+	ErrVersionedWriteTarget  = apierror.New(apierror.InvalidRequest, "artifact write target must be versionless")
+	ErrExactRevisionRequired = apierror.New(apierror.InvalidRequest, "exact artifact revision is required")
+	ErrArtifactConflict      = apierror.New(apierror.Conflict, "artifact binding compare-and-swap conflict")
+	ErrArtifactNotFound      = apierror.New(apierror.NotFound, "artifact not found")
+	ErrReservedNamespace     = apierror.New(apierror.InvalidRequest, "artifact namespace is reserved")
+	ErrArtifactFrozen        = apierror.New(apierror.ArtifactFrozen, "artifact binding is frozen")
+	ErrArtifactIntegrity     = apierror.New(apierror.ArtifactContentCorrupt, "artifact payload integrity failure")
+	ErrScopeDeleting         = apierror.New(apierror.ProjectDeleting, "artifact Project scope is deleting")
 	// ErrRunRevisionLimit reports that a RunScope already holds the most
 	// binding revisions one Run may create (LIM-ART-6). It is permanent for
 	// that Run.
