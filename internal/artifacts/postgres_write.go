@@ -100,6 +100,10 @@ ON CONFLICT DO NOTHING`, scope.kind, scope.id); err != nil {
 		return WriteResult{}, r.writeConflict(ctx, scope, target, expectedRevision)
 	}
 	if err != nil {
+		if isRunRevisionLimit(err) {
+			discardFreshCandidate()
+			return WriteResult{}, fmt.Errorf("write artifact: %w", ErrRunRevisionLimit)
+		}
 		switch persistencepostgres.Classify(err) {
 		case persistencepostgres.ClassDeleting:
 			discardFreshCandidate()

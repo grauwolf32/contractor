@@ -25,6 +25,7 @@ from contractor_runtime.contracts import (
 from contractor_runtime.core.input_errors import ToolInputError
 from contractor_runtime.core.tool_metrics import ToolMetrics
 from contractor_runtime.redaction import runtime_secrets
+from contractor_runtime.toolsets.common.artifact_media import is_binary_media_type
 from contractor_runtime.toolsets.common.artifact_read_cache import (
     ExactArtifactReadCache,
     allocation_artifact_read_cache,
@@ -138,7 +139,8 @@ class ReadArtifactTool(ArtifactTool):
 
     Only UTF-8 text artifacts are returned; a binary artifact such as a source
     archive is rejected, so read source code with the filesystem or source
-    tools. Each call returns at most 256 KiB of decoded bytes. When hasMore is true,
+    tools. A binary media type is rejected before the artifact is downloaded.
+    Each call returns at most 256 KiB of decoded bytes. When hasMore is true,
     call again with offset set to nextOffset and the same exact revision. Use
     read_text_artifact for a bounded UTF-8 text preview.
 
@@ -194,17 +196,14 @@ class ReadArtifactTool(ArtifactTool):
                 raise ToolInputError(f"length must be between 1 and {MAX_READ_CHUNK_BYTES}")
             # The Artifact API has no range reads, so page a cached exact revision.
             value = await self._cache.read(
-                self._client, ArtifactRef(namespace=namespace, name=name, revision=revision)
+                self._client,
+                ArtifactRef(namespace=namespace, name=name, revision=revision),
+                accept=_refuse_binary_media_type,
             )
             try:
                 value.data.decode("utf-8", errors="strict")
             except UnicodeDecodeError:
-                # Base64 of binary bytes is unreadable to the model and floods
-                # its context: a 70 KB source ZIP became about 68k prompt tokens.
-                raise ToolInputError(
-                    f"artifact is binary ({value.media_type}) and is not returned; "
-                    "read source code with the filesystem or source tools instead"
-                ) from None
+                raise _binary_artifact(value.media_type) from None
             size = len(value.data)
             if offset > size:
                 raise ToolInputError("offset exceeds the artifact size")
@@ -294,6 +293,20 @@ class WriteArtifactTool(ArtifactTool):
                 }
             )
             return serialized
+
+
+def _refuse_binary_media_type(media_type: str) -> None:
+    if is_binary_media_type(media_type):
+        raise _binary_artifact(media_type)
+
+
+def _binary_artifact(media_type: str) -> ToolInputError:
+    # Base64 of binary bytes is unreadable to the model and floods its
+    # context: a 70 KB source ZIP became about 68k prompt tokens.
+    return ToolInputError(
+        f"artifact is binary ({media_type}) and is not returned; "
+        "read source code with the filesystem or source tools instead"
+    )
 
 
 def _matches(pattern: re.Pattern[str], value: object) -> bool:

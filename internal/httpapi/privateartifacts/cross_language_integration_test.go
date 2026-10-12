@@ -44,6 +44,17 @@ func TestCrossLanguagePrivateArtifactLifecycle(t *testing.T) {
 	if _, exists := repository.current("run-a", "inputs", "invented"); exists {
 		t.Fatal("Worker-created input reached the repository")
 	}
+	// The metadata read resolves the current and an exact revision through the
+	// same route, without the payload (ART-R116).
+	metadata, _ := result["metadata"].(map[string]any)
+	exactMetadata, _ := result["exactMetadata"].(map[string]any)
+	currentRef, _ := metadata["artifact"].(map[string]any)
+	exactRef, _ := exactMetadata["artifact"].(map[string]any)
+	if currentRef["revision"] != updated || metadata["mediaType"] != "text/plain" ||
+		metadata["size"] != float64(len("second payload")) || exactRef["revision"] != created ||
+		exactMetadata["size"] != float64(len("first payload")) {
+		t.Fatalf("unexpected cross-language metadata: %+v %+v", metadata, exactMetadata)
+	}
 
 	registry.mu.Lock()
 	registry.grant.WriteFenced = true

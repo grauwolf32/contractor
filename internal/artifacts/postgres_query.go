@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -59,27 +60,20 @@ func (r *PostgresRepository) ListMetadata(
 	if err := validateBindingPageQuery(query); err != nil {
 		return nil, err
 	}
-	rows, err := r.db.Query(ctx, `
-SELECT binding.namespace, binding.name, revision.revision,
-       version.media_type, blob.size_bytes, true, binding.frozen, revision.created_at, `+gitSourceProjection+`
-FROM artifact_bindings AS binding
-JOIN artifact_binding_revisions AS revision
-  ON revision.scope_kind = binding.scope_kind
- AND revision.scope_id = binding.scope_id
- AND revision.namespace = binding.namespace
- AND revision.name = binding.name
- AND revision.revision = binding.current_revision
-JOIN artifact_versions AS version ON version.version_id = revision.version_id
-JOIN artifact_blobs AS blob ON blob.sha256 = version.blob_sha256
-WHERE binding.scope_kind = $1 AND binding.scope_id = $2
-  AND ($3::text IS NULL OR binding.namespace = $3)
-  AND ($4::text IS NULL OR binding.namespace <> $4)
-  AND ($5::text = '' OR left(binding.namespace, length($5)) <> $5)
-  AND ($6::text = '' OR (binding.namespace, binding.name) > ($6, $7))
-  AND ($9::text = '' OR binding.namespace <> $9)
-ORDER BY binding.namespace, binding.name
-LIMIT $8`, scope.kind, scope.id, query.Namespace, query.ExcludeNamespace,
-		query.ExcludeNamespacePrefix, query.AfterNamespace, query.AfterName, query.Limit, query.HiddenNamespace)
+	var rows pgx.Rows
+	var err error
+	if scope.kind == ScopeProject &&
+		query.ExcludeNamespacePrefix == artifactpolicy.AuditManagedProjectNamespacePrefix {
+		// The generic Project listing skips the Audit-managed namespaces by
+		// index; a prefix filter would read every Audit binding (ART-R115).
+		rows, err = r.db.Query(ctx, listProjectMetadataSQL, scope.id, query.Namespace,
+			query.ExcludeNamespace, query.AfterNamespace, query.AfterName, query.Limit,
+			query.HiddenNamespace)
+	} else {
+		rows, err = r.db.Query(ctx, listMetadataSQL, scope.kind, scope.id, query.Namespace,
+			query.ExcludeNamespace, query.ExcludeNamespacePrefix, query.AfterNamespace,
+			query.AfterName, query.Limit, query.HiddenNamespace)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("list artifact metadata: %w", err)
 	}

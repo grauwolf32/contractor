@@ -20,9 +20,10 @@ func TestLifecycleForeignKeyProbeIndexes(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// A deleted Run cascades through these tables. PostgreSQL probes each
-	// referencing key, so its columns must lead a usable index. The two named
-	// partial indexes exclude only null run_id rows, which a probe cannot match.
+	// A deleted Run cascades through these tables, and the Project purge
+	// deletes finding proposal receipts in batches (DEL-R61). PostgreSQL probes
+	// each referencing key, so its columns must lead a usable index. The named
+	// partial index excludes only null run_id rows, which a probe cannot match.
 	rows, err := pool.Query(ctx, `
 SELECT constraint_name, referencing_table FROM (
     SELECT con.conname AS constraint_name, con.conrelid::regclass::text AS referencing_table
@@ -30,7 +31,7 @@ SELECT constraint_name, referencing_table FROM (
     WHERE con.contype = 'f'
       AND con.confrelid IN (
           'workflow_runs'::regclass, 'workflow_run_events'::regclass,
-          'planner_sessions'::regclass
+          'planner_sessions'::regclass, 'finding_proposal_receipts'::regclass
       )
       -- These probes use an existing index on their first referencing key:
       -- stage_execution_id is unique, while output rows are scoped by run_id.

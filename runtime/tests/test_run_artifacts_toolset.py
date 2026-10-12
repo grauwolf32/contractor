@@ -21,6 +21,7 @@ from contractor_runtime.artifacts import (
 from contractor_runtime.contracts import (
     API_VERSION,
     ArtifactListResult,
+    ArtifactReadResult,
     ArtifactRef,
     ArtifactWriteResult,
     RuntimeSettings,
@@ -107,11 +108,37 @@ def test_read_artifact_pages_large_payloads() -> None:
         assert window["hasMore"]
         assert client.read_calls == 1
 
+        # A versionless read resolves the current revision from metadata and
+        # pages the cached payload instead of downloading it again.
+        again = await tools["read_artifact"]("inputs", "source", offset=chunk)
+        assert again["artifact"]["revision"] == revision and again["offset"] == chunk
+        assert client.read_calls == 1 and client.metadata_calls == 2
+
         for arguments in ({"length": 0}, {"length": chunk + 1}, {"offset": -1}):
             with pytest.raises(ToolInputError):
                 await tools["read_artifact"]("inputs", "source", **arguments)
         with pytest.raises(ToolInputError, match="offset exceeds"):
             await tools["read_artifact"]("inputs", "source", offset=len(client.read_data) + 1)
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize(
+    "media_type",
+    ["application/zip", "application/vnd.contractor.agent-skill+zip", "image/png", "font/woff2"],
+)
+def test_read_artifact_rejects_binary_media_types_before_download(media_type: str) -> None:
+    async def scenario() -> None:
+        client = FakeArtifactClient()
+        client.read_media_type = media_type
+        state = WorkerState()
+        factory = RunArtifactsToolsetFactory(lambda _allocation, _settings: client)
+        tools = await create_tools(factory, state, ["read_artifact"])
+
+        with pytest.raises(ToolInputError, match="binary") as caught:
+            await tools["read_artifact"]("inputs", "source")
+        assert media_type in str(caught.value)
+        assert client.metadata_calls == 1 and client.read_calls == 0
 
     asyncio.run(scenario())
 
@@ -429,7 +456,9 @@ class FakeArtifactClient:
     def __init__(self, *, write_error: Exception | None = None) -> None:
         self.write_error = write_error
         self.read_data = b"payload"
+        self.read_media_type = "text/plain"
         self.write_expected_revision: str | None = None
+        self.metadata_calls = 0
         self.read_calls = 0
         self.write_calls = 0
         self.list_calls = 0
@@ -462,13 +491,24 @@ class FakeArtifactClient:
             raise AssertionError(f"unexpected namespace {namespace!r}")
         return ArtifactListResult(api_version=API_VERSION, artifacts=refs)
 
+    async def read_artifact_metadata(self, ref: ArtifactRef) -> ArtifactReadResult:
+        self.metadata_calls += 1
+        assert ref.namespace == "inputs" and ref.name == "source"
+        assert ref.revision in {None, "revision-read"}
+        return ArtifactReadResult(
+            apiVersion=API_VERSION,
+            artifact=ArtifactRef(namespace="inputs", name="source", revision="revision-read"),
+            mediaType=self.read_media_type,
+            size=len(self.read_data),
+        )
+
     async def read_artifact(self, ref: ArtifactRef) -> ArtifactValue:
         self.read_calls += 1
         assert ref.namespace == "inputs" and ref.name == "source"
-        assert ref.revision in {None, "revision-read"}
+        assert ref.revision == "revision-read"
         return ArtifactValue(
             artifact=ArtifactRef(namespace="inputs", name="source", revision="revision-read"),
-            media_type="text/plain",
+            media_type=self.read_media_type,
             data=self.read_data,
             binding_created_at=datetime.now(UTC),
             revision_created_at=datetime.now(UTC),

@@ -63,10 +63,12 @@ func NewHandler(dependencies Dependencies) (http.Handler, error) {
 	mux.HandleFunc("POST /private/v1/allocations/{allocationID}/gateway-recovery", current.gatewayRecovery)
 	mux.HandleFunc("GET /private/v1/allocations/{allocationID}/artifacts", current.listArtifacts)
 	mux.HandleFunc("GET /private/v1/allocations/{allocationID}/artifacts/{namespace}/{name}", current.getArtifact)
+	mux.HandleFunc("GET /private/v1/allocations/{allocationID}/artifacts/{namespace}/{name}/metadata", current.getArtifactMetadata)
 	mux.HandleFunc("PUT /private/v1/allocations/{allocationID}/artifacts/{namespace}/{name}", current.putArtifact)
 	mux.HandleFunc("POST /private/v1/allocations/{allocationID}/finding-proposals", current.postFindingProposal)
 	mux.HandleFunc("/private/v1/allocations/{allocationID}/finding-proposals", current.methodNotAllowed)
 	mux.HandleFunc("/private/v1/allocations/{allocationID}/artifacts/{namespace}/{name}", current.methodNotAllowed)
+	mux.HandleFunc("/private/v1/allocations/{allocationID}/artifacts/{namespace}/{name}/metadata", current.methodNotAllowed)
 	mux.HandleFunc("/private/v1/allocations/{allocationID}/artifacts", current.methodNotAllowed)
 	mux.HandleFunc("/", current.notFound)
 	return requestid.Middleware(current.requireMTLS(mux), requestid.Options{

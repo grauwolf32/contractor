@@ -67,7 +67,8 @@ func diagnosticCause(err error) string {
 		}
 		switch persistencepostgres.Classify(err) {
 		case persistencepostgres.ClassDuplicate, persistencepostgres.ClassReferenceViolation,
-			persistencepostgres.ClassInvalid, persistencepostgres.ClassRejected:
+			persistencepostgres.ClassInvalid, persistencepostgres.ClassRejected,
+			persistencepostgres.ClassLimitExceeded:
 			return "storage_constraint_failed"
 		case persistencepostgres.ClassUnavailable:
 			return "storage_unavailable"

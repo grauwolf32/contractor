@@ -97,7 +97,10 @@ The public representation names `http_target` as `httpTarget`.
 
 `lifecycle_state` is `active` or `deleting`.
 [Retention and deletion](retention-and-deletion.md) owns the transitions, the
-durable deletion contract and its state diagram (DEL-R36, DEL-R37).
+durable deletion contract and its state diagram (DEL-R36, DEL-R37), and what
+the deletion removes and retains (LIFE-DEL-2): with its Runs, Audits and
+ProjectScope, a Project takes the finding proposal receipts of its Runs
+(DEL-R61).
 
 ### ProjectScope
 

@@ -10,6 +10,7 @@ from pathlib import Path
 from contractor_runtime.allocation import WorkerState
 from contractor_runtime.artifacts import ArtifactAPIError, ArtifactClient, MTLSArtifactTransport
 from contractor_runtime.contracts import ArtifactRef, RuntimeSettings
+from contractor_runtime.core.input_errors import ToolInputError
 from contractor_runtime.mtls import runtime_agent_client_context
 from contractor_runtime.toolsets.run_artifacts.tools import RunArtifactsToolsetFactory
 from contractor_runtime.workspace import AllocationWorkspace
@@ -29,6 +30,8 @@ async def run(args: argparse.Namespace) -> dict[str, object]:
     )
     if args.mode == "page":
         return await page_through(client, args.limit)
+    if args.mode == "binary-read":
+        return await read_binary(client)
     if args.mode == "fenced":
         try:
             await client.write_artifact(
@@ -56,6 +59,8 @@ async def run(args: argparse.Namespace) -> dict[str, object]:
         media_type="text/plain",
         expected_revision=created.artifact.revision,
     )
+    metadata = await client.read_artifact_metadata(ArtifactRef(namespace="inputs", name="source"))
+    exact_metadata = await client.read_artifact_metadata(created.artifact)
     try:
         await client.write_artifact(
             ArtifactRef(namespace="inputs", name="invented"),
@@ -92,10 +97,45 @@ async def run(args: argparse.Namespace) -> dict[str, object]:
         "exactBindingAt": exact.binding_created_at.isoformat(),
         "exactRevisionAt": exact.revision_created_at.isoformat(),
         "payload": current.data.decode(),
+        "metadata": metadata.model_dump(by_alias=True),
+        "exactMetadata": exact_metadata.model_dump(by_alias=True),
         "listed": [ref.model_dump(by_alias=True, exclude_none=True) for ref in listed],
         "outputError": output_error,
         "inputError": input_error,
     }
+
+
+async def read_binary(client: ArtifactClient) -> dict[str, object]:
+    """Read an archive through the read_artifact tool, which refuses its media
+    type from metadata before the payload is downloaded."""
+
+    await client.write_artifact(
+        ArtifactRef(namespace="builder", name="archive"),
+        data=b"PK\x03\x04 archive bytes",
+        media_type="application/zip",
+        expected_revision=None,
+    )
+    tools = await RunArtifactsToolsetFactory(lambda _allocation, _settings: client).create_selected(
+        selected=["read_artifact"],
+        allocation_id="allocation-1",
+        run_id="run-a",
+        namespace="builder",
+        runtime_settings=RuntimeSettings(
+            llmGatewayUrl="https://llm.invalid/v1",
+            artifactApiUrl="https://control.invalid/private/v1",
+            requestTimeoutSeconds=30,
+        ),
+        workspace=AllocationWorkspace(
+            root=Path("/nonexistent/contractor-probe"),
+            path=Path("/nonexistent/contractor-probe/allocation-1"),
+        ),
+        state=WorkerState(),
+    )
+    try:
+        await tools["read_artifact"]("builder", "archive")
+    except ToolInputError as error:
+        return {"error": str(error)}
+    raise RuntimeError("binary read unexpectedly succeeded")
 
 
 async def page_through(client: ArtifactClient, limit: int) -> dict[str, object]:
@@ -154,7 +194,9 @@ def main() -> None:
     parser.add_argument("--ca", type=Path, required=True)
     parser.add_argument("--certificate", type=Path, required=True)
     parser.add_argument("--private-key", type=Path, required=True)
-    parser.add_argument("--mode", choices=("normal", "fenced", "page"), default="normal")
+    parser.add_argument(
+        "--mode", choices=("normal", "fenced", "page", "binary-read"), default="normal"
+    )
     parser.add_argument("--expected-revision")
     parser.add_argument("--limit", type=int, default=256)
     print(json.dumps(asyncio.run(run(parser.parse_args())), separators=(",", ":")))

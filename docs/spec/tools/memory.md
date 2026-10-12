@@ -398,6 +398,11 @@ as unique tags in lexical order.
 
 **MEM-R94.** MemoryTools never evicts an older note to make room.
 
+**MEM-R98.** Every note write also stores an Artifact revision in the Run, so
+once the Run has used up its Artifact revision limit (LIM-ART-6) both
+MemoryTools adapters return `memory_namespace_full` for any further write,
+create or not; no retry can succeed in that Run.
+
 **MEM-R46.** Old immutable note revisions remain ordinary Run
 artifacts under ArtifactStore retention but do not count as active notes
 (LIFE-MEM-2).
@@ -696,7 +701,8 @@ holds each code's meaning and its retryability without changing input
 - `memory_too_large` — resulting canonical note over 32 KiB
   (MEM-R25).
 - `memory_namespace_full` — a create beyond 128 active notes
-  (MEM-R45).
+  (MEM-R45), or any write after the Run used up its Artifact revision limit
+  (MEM-R98).
 - `memory_changed` — hidden CAS conflict or ambiguous newer value, retryable
   only after a re-read (MEM-R67, MEM-R68, MEM-R70).
 - `memory_forbidden` — capability or write-fence rejection

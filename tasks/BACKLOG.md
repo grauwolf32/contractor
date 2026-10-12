@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-60 open tasks: 3 in progress, 43 pending, 14 deferred. 837 finished: 834 completed, 3 archived.
+56 open tasks: 3 in progress, 39 pending, 14 deferred. 841 finished: 838 completed, 3 archived.
 
 ## In progress
 
@@ -31,13 +31,6 @@ the epics are in [epics.yml](epics.yml).
 | --- | --- | --- | --- | --- |
 | [V55-009](v55-009-scan-candidate-ranking.yml) | feature | P2 | — | Optionally rank existing scan candidates with an LLM |
 
-### Findings tools and collections (`findings`)
-
-| Task | Kind | Priority | Waiting for | Title |
-| --- | --- | --- | --- | --- |
-| [V368-009](v368-009-finding-receipt-retention.yml) | defect | P1 | — | Delete finding proposal receipts with their Project |
-| [V370-029](v370-029-collection-publication-batches.yml) | defect | P3 | — | Batch the finding collection publication reads |
-
 ### Workflow catalog and document workflows (`workflows`)
 
 | Task | Kind | Priority | Waiting for | Title |
@@ -49,8 +42,6 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V370-016](v370-016-simplify-artifacts.yml) | chore | P3 | — | Simplify the Artifact service and Runtime client |
-| [V370-024](v370-024-artifact-purge-bound.yml) | defect | P2 | — | Bound Artifact purge and the number of bindings per Run |
-| [V370-025](v370-025-artifact-read-efficiency.yml) | defect | P3 | — | Avoid full Artifact materialization and unindexed listing filters |
 
 ### Audits (`audits`)
 
@@ -145,10 +136,10 @@ tasks in `introduced_by`.
 | Code analysis and taint annotations (`code-analysis`) | 0 | 13 | 12 | 2 | 17 |
 | HTTP and Caido tools (`http-tools`) | 0 | 8 | 11 | 1 | 10 |
 | Scanner tool Workers and scan planning (`scan-tools`) | 1 | 10 | 4 | 1 | 7 |
-| Findings tools and collections (`findings`) | 2 | 7 | 4 | 1 | 6 |
+| Findings tools and collections (`findings`) | 0 | 7 | 4 | 1 | 7 |
 | Workflow catalog and document workflows (`workflows`) | 1 | 13 | 13 | 8 | 11 |
-| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 3 | 27 | 31 | 3 | 33 |
-| Audits (`audits`) | 19 | 49 | 64 | 12 | 71 |
+| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 1 | 27 | 31 | 3 | 33 |
+| Audits (`audits`) | 19 | 49 | 64 | 12 | 72 |
 | Evaluations (`evals`) | 2 | 21 | 26 | 4 | 33 |
 | Podman sandbox (`sandbox`) | 0 | 8 | 1 | 1 | 2 |
 | Web UI (`ui`) | 0 | 19 | 51 | 10 | 48 |

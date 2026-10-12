@@ -231,13 +231,14 @@ maps to one class:
 | Foreign-key violation, also raised by a trigger that requires a parent row | 23503 | reference violation | permanent |
 | Not-null violation, a violation of a named CHECK constraint, any other integrity constraint violation or data exception | 23502, 23514 naming a constraint, other class 23, class 22 | invalid | permanent |
 | Business-rule rejection raised by a trigger | 23514 naming no constraint | rejected | permanent for the state the statement observed |
+| A stored bound exceeded, raised by a trigger that names the bound, such as the Run artifact revision limit | 54000 naming a constraint | limit exceeded | permanent for the state the statement observed |
 | Write to a Project that is being deleted, rejected by a deletion fence | 55000 | deleting | permanent |
 | Missing database privilege | 42501 | permission denied | permanent |
 | Serialization failure or deadlock | 40001, 40P01 | transaction conflict | retryable: nothing committed, and the whole transaction may be replayed |
 | Lock wait or statement timeout, statement cancellation, expired caller deadline | 55P03, 57014 | timeout | retryable by an idempotent callee; ambiguous at commit |
 | Connection exception, insufficient resources, operator intervention, system error, any other transaction rollback, a lost or refused connection | classes 08, 53, 58, other class 57, other class 40 | unavailable | retryable by an idempotent callee; ambiguous at commit |
 | Cancelled caller context | — | cancelled | not retried |
-| Any other SQLSTATE, such as a syntax, undefined-object, PL/pgSQL or internal error | all other classes | internal | permanent |
+| Any other SQLSTATE, such as a syntax, undefined-object, PL/pgSQL or internal error, or one of PostgreSQL's own program limits | all other classes, including 54000 naming no constraint | internal | permanent |
 
 A transient database failure (FAIL-PRJ-4, FAIL-SCH-15) is a transaction
 conflict, a timeout or an unavailable database in this table.

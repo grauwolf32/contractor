@@ -15,6 +15,7 @@ from contractor_runtime.core.input_errors import ToolInputError
 from contractor_runtime.core.lines import split_lines
 from contractor_runtime.core.tool_metrics import ToolMetrics
 from contractor_runtime.redaction import runtime_secrets
+from contractor_runtime.toolsets.common.artifact_media import is_binary_media_type
 from contractor_runtime.toolsets.common.artifact_read_cache import (
     ExactArtifactReadCache,
     allocation_artifact_read_cache,
@@ -101,7 +102,8 @@ class ReadTextArtifactTool(ArtifactTool):
     Returns:
         Exact artifact metadata, text, startLine, endLine, totalLines, truncated,
         partialLine, and nextStartLine/nextLineOffset (null when the artifact
-        has been read to its end). Non-UTF-8 content is rejected.
+        has been read to its end). Non-UTF-8 content is rejected, a binary
+        media type before the artifact is downloaded.
     """
 
     def __init__(
@@ -142,7 +144,9 @@ class ReadTextArtifactTool(ArtifactTool):
             if isinstance(line_offset, bool) or not isinstance(line_offset, int) or line_offset < 0:
                 raise ToolInputError("line_offset must be a non-negative integer")
             value = await self._cache.read(
-                self._client, ArtifactRef(namespace=namespace, name=name, revision=revision)
+                self._client,
+                ArtifactRef(namespace=namespace, name=name, revision=revision),
+                accept=_refuse_binary_media_type,
             )
             try:
                 content = value.data.decode("utf-8", errors="strict")
@@ -185,6 +189,11 @@ class ReadTextArtifactTool(ArtifactTool):
                 }
             )
             return result
+
+
+def _refuse_binary_media_type(media_type: str) -> None:
+    if is_binary_media_type(media_type):
+        raise ToolInputError(f"artifact is binary ({media_type}) and is not valid UTF-8")
 
 
 class WriteTextArtifactTool(ArtifactTool):

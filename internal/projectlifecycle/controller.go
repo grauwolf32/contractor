@@ -14,6 +14,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/evalstore"
+	"github.com/grauwolf32/contractor/internal/findingintake"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/randomid"
@@ -253,10 +254,11 @@ func (c *Controller) advance(
 	case projectstore.DeletionPurgingRuns:
 		return c.purgeOneRun(ctx, claim)
 	case projectstore.DeletionPurgingArtifacts:
-		if err := c.purgeProject(ctx, claim); err != nil {
+		deleted, err := c.purgeProject(ctx, claim)
+		if err != nil {
 			return false, false, err
 		}
-		return true, true, nil
+		return true, deleted, nil
 	default:
 		return false, false, errors.New("Project deletion phase is invalid")
 	}
@@ -428,8 +430,17 @@ WHERE project_id = $1 AND owner_id = $2 AND deletion_claim_id = $3`,
 	return nil
 }
 
-func (c *Controller) purgeProject(ctx context.Context, claim deletionClaim) error {
-	return persistencepostgres.InTxWithRetry(ctx, c.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+// purgeProject advances the Project purge by one bounded transaction
+// (LIM-DEL-3, LIM-DEL-2). Every transaction first purges the Project's private
+// eval storage, a no-op once done, so no Artifact is removed while eval work
+// could still need it. It then deletes one batch of the Project's finding
+// proposal receipts (DEL-R61) and, once none is left, removes one ProjectScope
+// purge batch, or, when the scope is already empty, the scope and the Project
+// row. It reports whether the Project is gone.
+func (c *Controller) purgeProject(ctx context.Context, claim deletionClaim) (bool, error) {
+	var deleted bool
+	err := persistencepostgres.InTxWithRetry(ctx, c.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+		deleted = false
 		var locked bool
 		err := tx.QueryRow(ctx, `
 SELECT true
@@ -442,7 +453,7 @@ FOR UPDATE`, claim.ProjectID, claim.OwnerID, claim.ClaimID).Scan(&locked)
 			return errors.New("Project deletion claim was lost")
 		}
 		if err != nil {
-			return fmt.Errorf("lock Project for final purge: %w", err)
+			return fmt.Errorf("lock Project for Artifact purge: %w", err)
 		}
 		var runsRemain, auditsRemain bool
 		if err := tx.QueryRow(ctx, `
@@ -453,20 +464,31 @@ SELECT EXISTS (SELECT 1 FROM workflow_runs WHERE project_id = $1),
 			return fmt.Errorf("verify Project Run purge: %w", err)
 		}
 		if runsRemain {
-			return errors.New("Project still has WorkflowRuns during final purge")
+			return errors.New("Project still has WorkflowRuns during Artifact purge")
 		}
 		if auditsRemain {
-			return errors.New("Project still has Audits during final purge")
+			return errors.New("Project still has Audits during Artifact purge")
 		}
 		if err := evalstore.NewTxStore(tx).PurgeProject(ctx, evalstore.Scope{OwnerID: claim.OwnerID, ProjectID: claim.ProjectID}); err != nil {
 			return err
+		}
+		receiptsGone, err := findingintake.PurgeProjectReceipts(ctx, tx, claim.ProjectID)
+		if err != nil {
+			return err
+		}
+		if !receiptsGone {
+			return nil
 		}
 		purger, err := artifacts.NewPostgresPurger(tx)
 		if err != nil {
 			return err
 		}
-		if err := purger.PurgeProject(ctx, claim.ProjectID); err != nil {
+		scopeGone, err := purger.PurgeProject(ctx, claim.ProjectID)
+		if err != nil {
 			return fmt.Errorf("purge Project Artifacts: %w", err)
+		}
+		if !scopeGone {
+			return nil
 		}
 		tag, err := tx.Exec(ctx, `DELETE FROM projects WHERE project_id = $1 AND owner_id = $2`,
 			claim.ProjectID, claim.OwnerID,
@@ -477,8 +499,10 @@ SELECT EXISTS (SELECT 1 FROM workflow_runs WHERE project_id = $1),
 		if tag.RowsAffected() != 1 {
 			return errors.New("Project deletion claim was lost")
 		}
+		deleted = true
 		return nil
 	})
+	return deleted, err
 }
 
 type realClock struct{}

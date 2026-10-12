@@ -24,6 +24,10 @@ const (
 	SQLStateUndefinedColumn       = "42703"
 	SQLStateUndefinedTable        = "42P01"
 	SQLStateTooManyConnections    = "53300"
+	// SQLStateProgramLimitExceeded is what the schema's bound triggers, such
+	// as the Run artifact revision limit, raise with the bound's name as the
+	// constraint when a write would exceed a stored limit.
+	SQLStateProgramLimitExceeded = "54000"
 	// SQLStateObjectNotInPrerequisiteState is what the schema's deletion
 	// fences raise when a write targets a Project that is being deleted.
 	SQLStateObjectNotInPrerequisiteState = "55000"
@@ -59,6 +63,11 @@ const (
 	// what separates them from a CHECK constraint. Permanent for the state
 	// the statement observed.
 	ClassRejected
+	// ClassLimitExceeded: a trigger rejected a write that would exceed a stored
+	// bound, such as the Run artifact revision limit, and named the bound as
+	// the constraint. Permanent for the state the statement observed. Any
+	// other program-limit condition is ClassInternal.
+	ClassLimitExceeded
 	// ClassDeleting: a deletion fence rejected a write because the owning
 	// Project is being deleted. Permanent.
 	ClassDeleting
@@ -98,7 +107,8 @@ var sqlStateClasses = map[string]Class{
 
 // sqlStateCodes is the outcome of every code named above, whether or not it
 // differs from its class's outcome; a code that is not named takes its
-// class's. A check_violation is resolved by classifySQLState, not here.
+// class's. A check_violation and a program_limit_exceeded are resolved by
+// classifySQLState, not here.
 var sqlStateCodes = map[string]Class{
 	SQLStateConnectionFailure:            ClassUnavailable,
 	SQLStateUniqueViolation:              ClassDuplicate,
@@ -142,11 +152,17 @@ func Classify(err error) Class {
 }
 
 func classifySQLState(code, constraint string) Class {
-	if code == SQLStateCheckViolation {
+	switch code {
+	case SQLStateCheckViolation:
 		if constraint == "" {
 			return ClassRejected
 		}
 		return ClassInvalid
+	case SQLStateProgramLimitExceeded:
+		if constraint == "" {
+			return ClassInternal
+		}
+		return ClassLimitExceeded
 	}
 	if class, ok := sqlStateCodes[code]; ok {
 		return class

@@ -21,6 +21,10 @@ var (
 	ErrArtifactIntegrity     = errors.New("artifact payload integrity failure")
 	ErrQueryUnsupported      = errors.New("artifact query repository is unavailable")
 	ErrScopeDeleting         = errors.New("artifact Project scope is deleting")
+	// ErrRunRevisionLimit reports that a RunScope already holds the most
+	// binding revisions one Run may create (LIM-ART-6). It is permanent for
+	// that Run.
+	ErrRunRevisionLimit = errors.New("Run artifact revision limit is exhausted")
 )
 
 // ErrAuditArtifactCollision means a content-named Audit artifact binding

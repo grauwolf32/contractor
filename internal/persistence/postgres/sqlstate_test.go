@@ -56,19 +56,22 @@ func TestClassifyMapsEverySQLStateClassToOneOutcome(t *testing.T) {
 		}
 	}
 	// Every named constant spells its code and has an explicit outcome; only
-	// check_violation is resolved by its constraint name instead.
+	// check_violation and program_limit_exceeded are resolved by their
+	// constraint name instead.
 	for constant, code := range map[string]string{
 		SQLStateConnectionFailure: "08006", SQLStateForeignKeyViolation: "23503", SQLStateUniqueViolation: "23505",
 		SQLStateCheckViolation: "23514", SQLStateExclusionViolation: "23P01",
 		SQLStateSerializationFailure: "40001", SQLStateDeadlockDetected: "40P01",
 		SQLStateInsufficientPrivilege: "42501", SQLStateUndefinedColumn: "42703", SQLStateUndefinedTable: "42P01",
-		SQLStateTooManyConnections: "53300", SQLStateObjectNotInPrerequisiteState: "55000",
-		SQLStateLockNotAvailable: "55P03", SQLStateQueryCanceled: "57014", SQLStateAssertFailure: "P0004",
+		SQLStateTooManyConnections: "53300", SQLStateProgramLimitExceeded: "54000",
+		SQLStateObjectNotInPrerequisiteState: "55000", SQLStateLockNotAvailable: "55P03",
+		SQLStateQueryCanceled: "57014", SQLStateAssertFailure: "P0004",
 	} {
 		if constant != code {
 			t.Errorf("SQLSTATE constant %q, want %q", constant, code)
 		}
-		if _, named := sqlStateCodes[constant]; named == (constant == SQLStateCheckViolation) {
+		byConstraint := constant == SQLStateCheckViolation || constant == SQLStateProgramLimitExceeded
+		if _, named := sqlStateCodes[constant]; named == byConstraint {
 			t.Errorf("SQLSTATE constant %q: explicit outcome = %t", constant, named)
 		}
 	}
@@ -85,6 +88,18 @@ func TestClassifySeparatesCheckConstraintsFromTriggerRejections(t *testing.T) {
 	}
 	if got := Classify(&pgconn.PgError{Code: "23514"}); got != ClassRejected {
 		t.Fatalf("trigger check violation = %d, want ClassRejected", got)
+	}
+}
+
+// A bound trigger names the bound it enforces; PostgreSQL's own program
+// limits, such as an oversized index row, name none and stay internal.
+func TestClassifySeparatesStoredBoundsFromProgramLimits(t *testing.T) {
+	bound := &pgconn.PgError{Code: "54000", ConstraintName: "artifact_scopes_run_revision_limit"}
+	if got := Classify(bound); got != ClassLimitExceeded {
+		t.Fatalf("named program limit = %d, want ClassLimitExceeded", got)
+	}
+	if got := Classify(&pgconn.PgError{Code: "54000"}); got != ClassInternal {
+		t.Fatalf("unnamed program limit = %d, want ClassInternal", got)
 	}
 }
 
