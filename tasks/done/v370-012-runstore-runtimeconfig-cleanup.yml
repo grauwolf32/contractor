@@ -1,0 +1,105 @@
+schema_version: "1.0"
+id: V370-012
+title: "Merge Run creation paths and split the Runtime principal registry"
+milestone: hub-audit-structure-2026-10
+epic: execution-core
+kind: chore
+priority: P3
+status: completed
+implementation_commit: 3ecd3f2f4bf99f3a42ec009381df732d59e1a41d
+depends_on: []
+languages: [go]
+goal: "No duplicated creation SQL; runtimeconfig no longer owns principals."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq; raw reports in docs/research/2026-10-11-hub-audit/), exec-state B, F5, F6, H; file:line as of 02bbdcbf, re-verify on current main"
+  finding: >-
+    Three Run creation encoders (store.go:169-296, audit_run.go:15-69,
+    store_sql.go:41-74; 7 commits edited two at once); a second runtime-
+    credential validator (store.go:148-167) that returns raw pgx.ErrNoRows;
+    the Runtime Agent principal registry (runtimeconfig/principal.go, 848
+    lines) lives in runtimeconfig; duplicate management replay
+    (management.go:323-405 vs principal.go:677-742); planner-event
+    validation inside runstore.
+  siblings: >-
+    Re-verified on fc25b5d plus V370-011: the three INSERT statements were
+    createRunSQL, createRunIdempotentSQL (store_sql.go) and
+    createAuditRunSQL (audit_run_sql.go), and no other code inserts into
+    workflow_runs. The raw-row validator had one caller, PinRuntimeLabels;
+    its sibling, the runtimeconfig branch that read a raw pgx.ErrNoRows as
+    an invalid configuration, existed for LLM credential lookups too
+    (run_snapshot.go), and every LLM lookup (EncryptedProvider,
+    StaticProvider, CompositeProvider, the transaction wrapper) already
+    returns credentialerrors.LLMNotFound, so both branches went. The
+    principal registry had one more consumer than the report names:
+    placement locks principals; it, the private registration handler, the
+    principal Operations, the public error mapping and the composition
+    root now use agentprincipal. PrincipalService.List had no caller at all
+    and was not carried over. The replay copies shared one table and one
+    rule; their messages differed only in naming. Ruled out: the
+    planner-event validation in run_event_store.go stays in runstore by
+    V368-024's recorded decision (the Planner session applies the store's
+    exported ValidPlannerSubtaskID and ValidPlannerDispatchCallID), and the
+    scope does not list it. PostgresStore.CreateRun, which only tests call,
+    stays for V370-008 but now goes through the one encoder.
+  decision: >-
+    Creation: insertRun encodes every new Run (runRecord carries the common
+    parameters plus the optional create-Run key and digest or the Audit
+    execution and submission key) and createRunSQL is the single INSERT,
+    with publication mode derived from the Audit association and ON
+    CONFLICT DO NOTHING on every path. Guarantee: a unique conflict stores
+    nothing on any path; a keyed create replays the Run holding its key or
+    reports ErrConflict when another identity collided, and CreateRun and
+    CreateAuditRun report ErrConflict as their duplicate-key errors did; a
+    conflict no longer aborts the caller's transaction, and every caller
+    returns the error. Alternative: one statement template with an
+    optional ON CONFLICT suffix keeps two texts and was rejected. Evidence:
+    TestPostgresRunCreationPathsShareOneInsert (ordinary and keyed Runs
+    differ only in their columns; a duplicate Run ID is ErrConflict on all
+    three paths and stores nothing), plus the existing idempotency,
+    snapshot-bound, project-deletion and Audit-run tests. Credentials:
+    NewRunCreationPostgresStore takes the transaction's
+    credentials.RuntimeCredentialRepository, which keeps the outcome of the
+    removed query (missing or wrong kind is RuntimeNotFound) and adds the
+    ID grammar and record integrity checks; the classification tests now
+    pin that an unclassified raw no-row is not an invalid configuration.
+    Principals: internal/agentprincipal (execution layer) owns the type,
+    repository, service, idempotent mutations and the adapter projection;
+    it reports the RuntimeConfig error classes its consumers already map,
+    and ErrInUse wraps runtimeconfig.ErrConflict as ErrPrincipalInUse did.
+    runtimeconfig keeps the label rules (ValidateLabel,
+    ValidateAgentLabels, LockAgentLabels, ValidateLockedAgentLabels,
+    ErrAgentLabelNotApplicable) and reads label holders through the
+    LabelHolders port; agentprincipal.LabelHolders implements it and the
+    composition root injects it into NewManagementService. Alternatives:
+    keeping a principal reader inside runtimeconfig leaves its SQL and row
+    locks on the registry's table; moving the label validation behind a
+    port into agentprincipal inverts the rule's owner; both were rejected.
+    Receipts: ManagementReceipt with ReadManagementReplay,
+    LockManagementReplay and RecordManagementResult hold the lock, the
+    request/kind/resource check, strict decoding and the immutable insert
+    once; each registry keeps only its result shape check
+    (TestPostgresManagementReceiptsReplayOnlyTheirOwnRequest). The
+    principal tests moved with the registry (TestPostgresRuntimeAgent*,
+    the adapter page test and the two label management tests with real
+    holders); the runtimeconfig CAS and replay test uses an empty-registry
+    double, the runtime configuration matrix points at the new source, and
+    the family targets test-runtime-principals,
+    test-runtime-label-placement, test-runtime-configuration-hardening and
+    test-postgres include internal/agentprincipal (release-verify discovers
+    it). Reversal condition: if label management must change principals
+    rather than read them, that mutation belongs in agentprincipal behind
+    a port of its own. introduced_by is not recorded: the paths predate
+    this shallow clone's history.
+scope:
+  in:
+    - "One creation encoder and SQL; the credentials repository validator; principals in their own package; one replay helper."
+  out:
+    - "Behaviour."
+acceptance_criteria:
+  - id: A1
+    text: "No duplicated creation SQL; runtimeconfig no longer owns principals."
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "go test -tags integration ./internal/runstore ./internal/runtimeconfig ./internal/credentials"
+    covers: [A1]
