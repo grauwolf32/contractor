@@ -5,19 +5,19 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
 func TestSnapshotRoundTripPreservesExactInputsAndExecutionPatch(t *testing.T) {
-	var patch config.ExecutionConfigPatch
+	var patch resolved.ExecutionConfigPatch
 	if err := patch.UnmarshalJSON([]byte(`{"workers":{"credential":null,"modelPolicy":"strong@1"}}`)); err != nil {
 		t.Fatal(err)
 	}
 	revision := "revision-1"
 	projectID := "project-1"
 	encoded, err := Encode(Snapshot{
-		Workflow: config.WorkflowRef{Name: "review", Version: "1"}, ProjectID: &projectID,
+		Workflow: resolved.WorkflowRef{Name: "review", Version: "1"}, ProjectID: &projectID,
 		Inputs: map[string]contracts.ArtifactRef{
 			"source": {Namespace: "sources", Name: "service", Revision: &revision},
 		},
@@ -41,7 +41,7 @@ func TestSnapshotRoundTripPreservesExactInputsAndExecutionPatch(t *testing.T) {
 
 func TestSnapshotRejectsVersionlessAndUnknownData(t *testing.T) {
 	_, err := Encode(Snapshot{
-		Workflow: config.WorkflowRef{Name: "review", Version: "1"},
+		Workflow: resolved.WorkflowRef{Name: "review", Version: "1"},
 		Inputs: map[string]contracts.ArtifactRef{
 			"source": {Namespace: "sources", Name: "service"},
 		},

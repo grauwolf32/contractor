@@ -169,7 +169,7 @@ implementations; ten remain. Do not add an eleventh:
 
 - receipts: a keyed mutation records its receipt in `mutation_receipts`
   through `persistencepostgres.KeyedMutation` (lock, replay, claim;
-  PER-R23); a request keeps its key on the row it creates (Runs, Projects,
+  PER-R24); a request keeps its key on the row it creates (Runs, Projects,
   RuntimeConfig versions, Runtime credentials, Audit executions, Eval
   members, Audit review requests and decisions); natural keys make proposal
   receipts, Stage resumptions, transition decisions, output publications,
@@ -178,7 +178,7 @@ implementations; ten remain. Do not add an eleventh:
   call's key before the call; a finding collection's receipt is an Artifact
   binding;
 - leases: controller claims through `persistencepostgres.ControllerClaims`
-  (PER-R24), the Scheduler's Run claim, the Project deletion claim, the
+  (PER-R25), the Scheduler's Run claim, the Project deletion claim, the
   Gateway recovery probe and the active Server's session lease.
 
 Every advisory lock key comes from `persistencepostgres.NewAdvisoryKey`,

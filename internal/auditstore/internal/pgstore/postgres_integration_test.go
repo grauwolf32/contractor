@@ -1117,8 +1117,12 @@ func supersedeBlockedClaim(
 	if err := connection.QueryRow(ctx, `SELECT pg_backend_pid()`).Scan(&backendPID); err != nil {
 		t.Fatal(err)
 	}
+	// The stale holder's mutation runs in a transaction of its own, as on a
+	// pool, but on this connection, so the test can watch its backend wait.
 	done := make(chan error, 1)
-	go func() { done <- mutate(newTestStore(connection)) }()
+	go func() {
+		done <- pgx.BeginFunc(ctx, connection, func(tx pgx.Tx) error { return mutate(newTestStore(tx)) })
+	}()
 	waitForPostgresLock(t, ctx, pool, backendPID, done)
 
 	newClaim, err := scanClaim(blocker.QueryRow(ctx, `

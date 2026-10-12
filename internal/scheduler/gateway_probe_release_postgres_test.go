@@ -29,7 +29,8 @@ const (
 func newProbeTestRecovery(t *testing.T, pool *pgxpool.Pool) *gatewayrecovery.Service {
 	t.Helper()
 	service, err := gatewayrecovery.New(
-		pool, gatewayrecovery.DefaultPolicy(), probeTestWorkerRequestTimeout, probeTestPlannerRequestTimeout,
+		pool, runstore.GatewayRecoveryRuns{}, gatewayrecovery.DefaultPolicy(),
+		probeTestWorkerRequestTimeout, probeTestPlannerRequestTimeout,
 	)
 	if err != nil {
 		t.Fatal(err)

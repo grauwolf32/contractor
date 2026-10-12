@@ -9,7 +9,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
@@ -85,7 +85,7 @@ func startPreparation(
 	if err != nil {
 		return auditstore.Audit{}, err
 	}
-	profile, err := config.DecodeResolvedAuditProfileSnapshot(audit.ProfileSnapshot)
+	profile, err := auditprofile.DecodeResolvedAuditProfileSnapshot(audit.ProfileSnapshot)
 	if err != nil || !profile.HasPreparation() || profile.Ref.Name != audit.Profile.Name ||
 		profile.Ref.Version != audit.Profile.Version || profile.Ref.Digest != audit.Profile.Digest {
 		return auditstore.Audit{}, invalidf("preparation requires a valid pinned current-schema profile")
@@ -201,7 +201,7 @@ func decodePreparation(execution *auditstore.Execution, snapshot, outputs []byte
 
 func validatePreparationSnapshot(snapshot *auditstore.PreparationSnapshot) error {
 	if snapshot == nil || snapshot.Inputs == nil || snapshot.Parameters == nil ||
-		len(snapshot.Inputs) > config.MaxAuditWorkflowMappings || len(snapshot.Parameters) > config.MaxAuditWorkflowMappings {
+		len(snapshot.Inputs) > auditprofile.MaxAuditWorkflowMappings || len(snapshot.Parameters) > auditprofile.MaxAuditWorkflowMappings {
 		return invalidf("preparation inputs and parameters are required and bounded")
 	}
 	for name, artifact := range snapshot.Inputs {
@@ -210,7 +210,7 @@ func validatePreparationSnapshot(snapshot *auditstore.PreparationSnapshot) error
 		}
 	}
 	for name, value := range snapshot.Parameters {
-		if validateText("parameter name", name, 128, true) != nil || validateText("parameter value", value, config.MaxAuditLiteralParamBytes, false) != nil {
+		if validateText("parameter name", name, 128, true) != nil || validateText("parameter value", value, auditprofile.MaxAuditLiteralParamBytes, false) != nil {
 			return invalidf("preparation parameter is invalid")
 		}
 	}
@@ -224,7 +224,7 @@ func validatePreparationSnapshot(snapshot *auditstore.PreparationSnapshot) error
 // Outputs become ordinary immutable Audit links in the same receipt write.
 // The DB additionally proves their frozen Project binding and import lineage.
 func withPreparationLinks(p auditstore.CollectParams) (auditstore.CollectParams, error) {
-	if len(p.PreparationOutputs) > config.MaxAuditWorkflowMappings ||
+	if len(p.PreparationOutputs) > auditprofile.MaxAuditWorkflowMappings ||
 		(len(p.PreparationOutputs) != 0 && (p.Disposition != auditstore.CollectionAccepted || len(p.Items) != 0)) {
 		return p, invalidf("preparation output collection shape is invalid")
 	}

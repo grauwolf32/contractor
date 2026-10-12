@@ -5,12 +5,14 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 )
 
 func TestWorkflowPresentationIsOptionalAndPinnedInSnapshots(t *testing.T) {
 	t.Parallel()
 
-	legacy := mustLoad(t, filepath.Join("testdata", "valid"), MVPDescriptors())
+	legacy := mustLoad(t, filepath.Join("testdata", "valid"))
 	legacyWorkflow, err := legacy.Workflow("artifact-copy@1")
 	if err != nil {
 		t.Fatal(err)
@@ -25,7 +27,7 @@ func TestWorkflowPresentationIsOptionalAndPinnedInSnapshots(t *testing.T) {
 	if strings.Contains(string(legacyJSON), `"presentation"`) {
 		t.Fatalf("legacy Workflow snapshot gained presentation: %s", legacyJSON)
 	}
-	decodedLegacy, err := DecodeResolvedWorkflowSnapshot(legacyJSON)
+	decodedLegacy, err := resolved.DecodeResolvedWorkflowSnapshot(legacyJSON)
 	if err != nil || decodedLegacy.Presentation != nil {
 		t.Fatalf("decode legacy Workflow = (%+v, %v)", decodedLegacy.Presentation, err)
 	}
@@ -33,12 +35,12 @@ func TestWorkflowPresentationIsOptionalAndPinnedInSnapshots(t *testing.T) {
 	root := copyCoreFixture(t)
 	path := filepath.Join(root, "workflows", "artifact_copy.yaml")
 	replaceFile(t, path, "spec:\n", "spec:\n  presentation:\n    displayName: Artifact Copier\n    description: Copies one exact text artifact.\n")
-	snapshot := mustLoad(t, root, MVPDescriptors())
+	snapshot := mustLoad(t, root)
 	workflow, err := snapshot.Workflow("artifact-copy@1")
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := &WorkflowPresentation{
+	want := &resolved.WorkflowPresentation{
 		DisplayName: "Artifact Copier",
 		Description: "Copies one exact text artifact.",
 	}
@@ -49,7 +51,7 @@ func TestWorkflowPresentationIsOptionalAndPinnedInSnapshots(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	decoded, err := DecodeResolvedWorkflowSnapshot(encoded)
+	decoded, err := resolved.DecodeResolvedWorkflowSnapshot(encoded)
 	if err != nil || decoded.Presentation == nil || *decoded.Presentation != *want {
 		t.Fatalf("decoded Workflow presentation = (%+v, %v)", decoded.Presentation, err)
 	}
@@ -82,7 +84,7 @@ func TestWorkflowPresentationValidationIsStrictAndUnicodeBounded(t *testing.T) {
 			root := copyCoreFixture(t)
 			path := filepath.Join(root, "workflows", "artifact_copy.yaml")
 			replaceFile(t, path, "spec:\n", "spec:\n  presentation:\n    "+test.presentation+"\n")
-			if snapshot, err := Load(root, MVPDescriptors()); err == nil || snapshot != nil ||
+			if snapshot, err := Load(root); err == nil || snapshot != nil ||
 				!strings.Contains(err.Error(), test.want) {
 				t.Fatalf("Load() = (%v, %v), want %q", snapshot, err, test.want)
 			}

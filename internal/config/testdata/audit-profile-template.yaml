@@ -1,0 +1,43 @@
+apiVersion: contractor/v1alpha1
+kind: AuditProfile
+metadata:
+  name: PROFILE_NAME
+  version: "1"
+spec:
+  mode: custom-checklist
+  standards:
+    - {scheme: owasp-web-top10, version: "2025"}
+    - {scheme: owasp-asvs, version: "5.0.0"}
+  inputs:
+    source: {required: true, mediaTypes: [application/zip]}
+    checklist: {required: true, mediaTypes: [application/yaml, application/json]}
+  inventory:
+    implementation: checklist@1
+    source: {source: audit-input, name: checklist}
+    itemWorkflowRole: check
+  workflows:
+    check:
+      kind: check
+      ref: taint-trace-from-workspace@4
+      inputs:
+        source: {source: audit-input, name: source}
+      parameters:
+        target: {source: item-field, name: subjectKey}
+      outputs:
+        result: taint_report
+  execution:
+    roundMode: fixed-barrier
+    maxRounds: 3
+    batchSize: 1
+    maxItemsPerRound: 100
+    maxItemsTotal: 250
+    maxSubmittedRuns: 500
+    maxItemRunAttempts: 2
+    deadlineSeconds: 86400
+    maxEvidenceBytes: 67108864
+    incompleteRound: assess-with-gaps
+  interaction:
+    activeChecks: prohibited
+    findingConfirmation: disabled
+    notApplicable: profile-rule
+    reportAcceptance: automatic

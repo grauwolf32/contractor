@@ -173,17 +173,109 @@ func TestProjectScopeIsDistinctAndDoesNotUseRunReservedNamespaces(t *testing.T) 
 	}
 }
 
-func TestTrustedOperationsRequireExactRefs(t *testing.T) {
+// The trusted primitives keep the rules every purpose-specific flow shares
+// and reject the rest before storage: Run outputs are bound only by forks,
+// Audit-managed Project bindings are created frozen, and forks connect only
+// the scopes of ART-R72 and ART-R90.
+func TestTrustedPrimitivesValidateBeforeRepository(t *testing.T) {
 	t.Parallel()
+	ctx := context.Background()
+	run, otherRun := mustScope(t)(RunScope("run-1")), mustScope(t)(RunScope("run-2"))
+	project, user := mustScope(t)(ProjectScope("project-1")), mustScope(t)(UserScope("user-1"))
+	payload := Payload{MediaType: "application/json", Data: []byte("{}")}
+	source := exactRef("builder", "report", "revision-1")
+	notes := ArtifactRef{Namespace: "docs", Name: "notes"}
+	input := ArtifactRef{Namespace: "inputs", Name: "spec"}
+	output := ArtifactRef{Namespace: "outputs", Name: "report"}
+	audit := ArtifactRef{Namespace: "audit-example", Name: "task"}
+	create := func(scope Scope, target ArtifactRef, payload Payload, frozen bool) func(*Service) error {
+		return func(s *Service) error {
+			if frozen {
+				_, err := s.CreateFrozen(ctx, scope, target, payload)
+				return err
+			}
+			_, err := s.Create(ctx, scope, target, payload)
+			return err
+		}
+	}
+	fork := func(kind string, from, to Scope, target ArtifactRef) Fork {
+		return Fork{Kind: kind, Source: from, SourceRef: source, Target: to, TargetRef: target}
+	}
+	forkCall := func(fork Fork) func(*Service) error {
+		return func(s *Service) error {
+			_, err := s.Fork(ctx, fork)
+			return err
+		}
+	}
+	frozenImport := fork(LineageAuditImport, project, project, audit)
+	frozenImport.Frozen = true
+	tests := map[string]struct {
+		call func(*Service) error
+		want error
+	}{
+		"create in Run outputs":                 {create(run, output, payload, false), ErrReservedNamespace},
+		"frozen create in Run outputs":          {create(run, output, payload, true), ErrReservedNamespace},
+		"unfrozen create in an Audit Namespace": {create(project, audit, payload, false), ErrReservedNamespace},
+		"versioned create target":               {create(user, exactRef("docs", "notes", "revision-1"), payload, false), ErrVersionedWriteTarget},
+		"create without a scope":                {create(Scope{}, notes, payload, false), ErrInvalidScope},
+		"create with an invalid media type":     {create(user, notes, Payload{MediaType: "*/*"}, false), ErrInvalidMediaType},
+		"fork of an unknown kind":               {forkCall(fork("copy", run, run, output)), ErrInvalidName},
+		"fork across Runs":                      {forkCall(fork(LineageOutputBind, otherRun, run, output)), ErrInvalidScope},
+		"fork into a UserScope":                 {forkCall(fork(LineageInputFork, run, user, input)), ErrInvalidScope},
+		"fork between Projects":                 {forkCall(frozenImport), ErrInvalidScope},
+		"versioned fork target":                 {forkCall(fork(LineageOutputBind, run, run, source)), ErrVersionedWriteTarget},
+		"unfrozen fork into an Audit Namespace": {forkCall(fork(LineageAuditImport, run, project, audit)), ErrReservedNamespace},
+		"freeze of an invalid Namespace": {func(s *Service) error {
+			return s.Freeze(ctx, run, "outputs/all")
+		}, ErrInvalidName},
+		"versionless exact requirement": {func(s *Service) error {
+			return s.RequireExact(ctx, run, notes)
+		}, ErrExactRevisionRequired},
+	}
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			repository := &fakeRepository{}
+			if err := test.call(NewService(repository)); !errors.Is(err, test.want) {
+				t.Fatalf("error = %v, want %v", err, test.want)
+			}
+			if repository.calls() != 0 {
+				t.Fatalf("invalid request reached the repository %d times", repository.calls())
+			}
+		})
+	}
 
+	versionless := fork(LineageInputFork, user, run, input)
+	versionless.SourceRef = ArtifactRef{Namespace: "docs", Name: "spec"}
+	published := fork(LineageProjectOutputPublish, run, project, output)
+	published.SourceFrozen = true
+	imported := fork(LineageAuditImport, run, project, audit)
+	imported.Frozen = true
 	repository := &fakeRepository{}
 	service := NewService(repository)
-	_, err := service.BindOutputExact(
-		context.Background(), "run-1", "result",
-		ArtifactRef{Namespace: "builder", Name: "result"}, nil,
-	)
-	if !errors.Is(err, ErrExactRevisionRequired) || repository.bindCalls != 0 {
-		t.Fatalf("BindOutputExact = (%v, calls=%d)", err, repository.bindCalls)
+	for _, valid := range []Fork{
+		versionless, fork(LineageInputFork, project, run, input), fork(LineageOutputBind, run, run, output),
+		published, imported,
+	} {
+		if _, err := service.Fork(ctx, valid); err != nil {
+			t.Errorf("valid fork %+v: %v", valid, err)
+		}
+	}
+	if err := create(project, audit, payload, true)(service); err != nil {
+		t.Errorf("frozen create in an Audit Namespace: %v", err)
+	}
+	if repository.forkCalls != 5 || repository.createFrozenCalls != 1 {
+		t.Fatalf("valid trusted requests reached the repository %d and %d times",
+			repository.forkCalls, repository.createFrozenCalls)
+	}
+}
+
+func mustScope(t *testing.T) func(Scope, error) Scope {
+	return func(scope Scope, err error) Scope {
+		t.Helper()
+		if err != nil {
+			t.Fatal(err)
+		}
+		return scope
 	}
 }
 
@@ -212,44 +304,24 @@ func TestBindingPageQueryValidatesExcludedNamespace(t *testing.T) {
 	}
 }
 
-func TestProjectOutputPublicationRequiresMatchingExactRunOutput(t *testing.T) {
-	t.Parallel()
-
-	repository := &fakeRepository{}
-	service := NewService(repository)
-	invalid := []ArtifactRef{
-		{Namespace: "outputs", Name: "openapi"},
-		exactRef("builder", "openapi", "revision-1"),
-		exactRef("outputs", "other", "revision-1"),
-	}
-	for _, source := range invalid {
-		if _, err := service.PublishRunOutput(
-			context.Background(), "run-1", "project-1", "openapi", source,
-		); err == nil {
-			t.Errorf("PublishRunOutput accepted %+v", source)
-		}
-	}
-	if repository.publishCalls != 0 {
-		t.Fatalf("invalid publications reached repository %d times", repository.publishCalls)
-	}
-	source := exactRef("outputs", "openapi", "revision-1")
-	if _, err := service.PublishRunOutput(
-		context.Background(), "run-1", "project-1", "openapi", source,
-	); err != nil || repository.publishCalls != 1 {
-		t.Fatalf("valid PublishRunOutput = (%v, calls=%d)", err, repository.publishCalls)
-	}
-}
-
 func exactRef(namespace, name, revision string) ArtifactRef {
 	return ArtifactRef{Namespace: namespace, Name: name, Revision: &revision}
 }
 
+// fakeRepository counts the requests that reach storage; a test that calls a
+// method it does not override panics on the nil Repository.
 type fakeRepository struct {
-	listCalls    int
-	writeCalls   int
-	bindCalls    int
-	publishCalls int
-	writeErr     error
+	Repository
+	listCalls         int
+	writeCalls        int
+	forkCalls         int
+	createFrozenCalls int
+	otherCalls        int
+	writeErr          error
+}
+
+func (f *fakeRepository) calls() int {
+	return f.listCalls + f.writeCalls + f.forkCalls + f.createFrozenCalls + f.otherCalls
 }
 
 func (f *fakeRepository) Write(
@@ -259,8 +331,13 @@ func (f *fakeRepository) Write(
 	return WriteResult{}, f.writeErr
 }
 
-func (f *fakeRepository) Read(context.Context, Scope, ArtifactRef) (ReadResult, error) {
-	return ReadResult{}, nil
+func (f *fakeRepository) CreateFrozen(context.Context, Scope, ArtifactRef, Payload) (WriteResult, error) {
+	f.createFrozenCalls++
+	return WriteResult{}, nil
+}
+
+func (f *fakeRepository) Metadata(context.Context, Scope, ArtifactRef) (Metadata, error) {
+	return Metadata{}, ErrArtifactNotFound
 }
 
 func (f *fakeRepository) ListRefs(context.Context, Scope, RefPageQuery) (RefPage, error) {
@@ -268,29 +345,20 @@ func (f *fakeRepository) ListRefs(context.Context, Scope, RefPageQuery) (RefPage
 	return RefPage{}, nil
 }
 
-func (f *fakeRepository) ForkInput(context.Context, Scope, ArtifactRef, Scope, string) (ForkResult, error) {
+func (f *fakeRepository) Fork(context.Context, Fork) (ForkResult, error) {
+	f.forkCalls++
 	return ForkResult{}, nil
 }
 
-func (f *fakeRepository) BindOutputExact(
-	context.Context, Scope, string, ArtifactRef, *string,
-) (ForkResult, error) {
-	f.bindCalls++
-	return ForkResult{}, nil
-}
-
-func (f *fakeRepository) PublishRunOutput(
-	context.Context, Scope, ArtifactRef, Scope, string,
-) (ForkResult, error) {
-	f.publishCalls++
-	return ForkResult{}, nil
-}
-
-func (f *fakeRepository) RequireExact(context.Context, Scope, ArtifactRef) error {
+func (f *fakeRepository) Freeze(context.Context, Scope, string) error {
+	f.otherCalls++
 	return nil
 }
 
-func (f *fakeRepository) FreezeOutputs(context.Context, Scope) error { return nil }
+func (f *fakeRepository) RequireExact(context.Context, Scope, ArtifactRef) error {
+	f.otherCalls++
+	return nil
+}
 
 func TestListRefsValidatesThePageBeforeStorage(t *testing.T) {
 	repository := &fakeRepository{}

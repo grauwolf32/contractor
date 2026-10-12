@@ -15,10 +15,11 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
-	workflowconfig "github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
@@ -28,7 +29,6 @@ import (
 	"github.com/grauwolf32/contractor/internal/pagelimit"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
-	"github.com/grauwolf32/contractor/internal/rundeletion"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/jackc/pgx/v5"
@@ -76,7 +76,7 @@ func testPostgresFindingReceiptAuditImportDirectVerificationAndRunDeletion(t *te
 		t.Fatal(err)
 	}
 
-	snapshot, err := configload.Load("../config/testdata/valid", workflowconfig.MVPDescriptors())
+	snapshot, err := configload.Load("../config/testdata/valid")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -97,7 +97,7 @@ func testPostgresFindingReceiptAuditImportDirectVerificationAndRunDeletion(t *te
 	copied.MediaTypes = []string{auditdomain.DirectVerificationsMediaType}
 	stage.Result.Artifacts["copied"] = copied
 	workflow.Stages[workflow.EntryStage] = stage
-	workflow.Outputs["result"] = workflowconfig.ArtifactSlot{
+	workflow.Outputs["result"] = resolved.ArtifactSlot{
 		Required: true, Primary: true,
 		MediaTypes: []string{auditdomain.DirectVerificationsMediaType},
 	}
@@ -330,9 +330,7 @@ func testPostgresFindingReceiptAuditImportDirectVerificationAndRunDeletion(t *te
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := artifactService.BindOutputExact(
-		ctx, runID, "result", directSource.Ref, nil,
-	); err != nil {
+	if _, err := artifactstest.BindOutput(ctx, artifactService, runID, "result", directSource.Ref); err != nil {
 		t.Fatal(err)
 	}
 
@@ -385,7 +383,7 @@ SELECT count(*) FROM audit_finding_assessments
 	if err := runs.MarkStageAllocationReleased(ctx, allocationID); err != nil {
 		t.Fatal(err)
 	}
-	if err := artifactService.FreezeRunOutputs(ctx, runID); err != nil {
+	if err := artifactstest.FreezeOutputs(ctx, artifactService, runID); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := runs.TransitionRun(ctx, runID, runstore.RunRunning, runstore.RunSucceeded,
@@ -557,7 +555,7 @@ WHERE audit_id=$1 AND receipt_id=$2 AND direct_verification`, otherAuditID, firs
 	if otherRetainedBefore != otherRetainedAfter || assessmentCount != 2 || otherLinks != 2 {
 		t.Fatalf("independent replay retention: bytes=%d/%d assessments=%d links=%d", otherRetainedBefore, otherRetainedAfter, assessmentCount, otherLinks)
 	}
-	if err := rundeletion.New(pool).DeleteReleasedTerminalRun(ctx, ownerID, runID); err != nil {
+	if err := deleteRun(ctx, pool, ownerID, runID); err != nil {
 		t.Fatal(err)
 	}
 	// The first receipt is held by both Audits; each inbox names only its own hold.

@@ -8,6 +8,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/auditstore/hookstore"
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/credentials"
@@ -128,7 +129,7 @@ func configureCredentials(
 	runtimeCredentialLifecycle, err := credentials.NewRuntimeCredentialService(
 		credentials.RuntimeCredentialServiceOptions{
 			Pool: pool, Cipher: tokenCipher, Usage: runtimeCredentialRepository,
-			Barrier: credentialBarrier,
+			Audits: hookstore.NewCredentialHolds(pool), Barrier: credentialBarrier,
 		},
 	)
 	if err != nil {
@@ -167,7 +168,7 @@ func developmentCredentials(
 			return
 		}
 		entries = append(entries, credentials.StaticEntry{
-			Metadata: workflowconfig.CredentialMetadata{
+			Metadata: resolved.CredentialMetadata{
 				Ref: llmgateway.LLMCredentialRef{CredentialID: id}, LLMGateway: gateway.Ref,
 				Unrestricted: true,
 			},

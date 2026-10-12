@@ -12,7 +12,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
@@ -44,7 +44,7 @@ func TestPostgresNextRoundSpreadsLargeProposalsAndReportsUnschedulable(t *testin
 		Pool: pool, Profiles: &switchableProfileCatalog{snapshot: snapshot, available: true},
 		CredentialGuard: &countingCredentialGuard{},
 		TransactionLLMCredentials: runtimeconfig.TransactionLLMCredentialLookupFactoryFunc(
-			func(pgx.Tx) (config.CredentialLookup, error) { return credentials, nil },
+			func(pgx.Tx) (resolved.CredentialLookup, error) { return credentials, nil },
 		),
 	})
 	if err != nil {
@@ -156,7 +156,7 @@ func TestPostgresNextRoundPreparesNineNearLimitProposals(t *testing.T) {
 		Pool: pool, Profiles: &switchableProfileCatalog{snapshot: snapshot, available: true},
 		CredentialGuard: &countingCredentialGuard{},
 		TransactionLLMCredentials: runtimeconfig.TransactionLLMCredentialLookupFactoryFunc(
-			func(pgx.Tx) (config.CredentialLookup, error) { return credentials, nil },
+			func(pgx.Tx) (resolved.CredentialLookup, error) { return credentials, nil },
 		),
 	})
 	if err != nil {

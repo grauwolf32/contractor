@@ -10,7 +10,7 @@ import (
 )
 
 // auditClaims is the Audit controller's claim table, leased and checked
-// through the shared controller claim helper (PER-R24).
+// through the shared controller claim helper (PER-R25).
 var auditClaims = persistencepostgres.NewControllerClaims("audit_controller_claims", "audit_id")
 
 // Claim leases a bounded set of Audits with reconcilable work. A paused Audit

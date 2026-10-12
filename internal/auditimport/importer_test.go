@@ -18,7 +18,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/claimstore"
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/findingintake"
@@ -1129,24 +1129,24 @@ func TestOperationCoverageKeepsTraceStateSeparateFromAssessment(t *testing.T) {
 			Completed: []string{"operation-resolution"}, Gaps: []string{},
 		},
 	}
-	coverage, err := semanticCoverage(config.AuditModeOperationTracing, task, result, map[string]validatedEvidence{})
+	coverage, err := semanticCoverage(auditprofile.AuditModeOperationTracing, task, result, map[string]validatedEvidence{})
 	if err != nil || coverage.Status != auditstore.CoverageTracedComplete {
 		t.Fatalf("complete operation coverage = (%+v, %v)", coverage, err)
 	}
 
 	task.Operation.Gaps = []string{"callback-not-selected"}
-	coverage, err = semanticCoverage(config.AuditModeOperationTracing, task, result, map[string]validatedEvidence{})
+	coverage, err = semanticCoverage(auditprofile.AuditModeOperationTracing, task, result, map[string]validatedEvidence{})
 	if err != nil || coverage.Status != auditstore.CoverageTracedPartial {
 		t.Fatalf("partial operation coverage = (%+v, %v)", coverage, err)
 	}
 	result.Coverage.Completed = []string{}
-	coverage, err = semanticCoverage(config.AuditModeOperationTracing, task, result, map[string]validatedEvidence{})
+	coverage, err = semanticCoverage(auditprofile.AuditModeOperationTracing, task, result, map[string]validatedEvidence{})
 	if err != nil || coverage.Status != auditstore.CoverageUnmapped {
 		t.Fatalf("unmapped operation coverage = (%+v, %v)", coverage, err)
 	}
 	result.Assessment = "not-tested"
 	result.Coverage.Completed = []string{"operation-resolution"}
-	if _, err := semanticCoverage(config.AuditModeOperationTracing, task, result, map[string]validatedEvidence{}); err == nil {
+	if _, err := semanticCoverage(auditprofile.AuditModeOperationTracing, task, result, map[string]validatedEvidence{}); err == nil {
 		t.Fatal("not-tested operation accepted completed trace coverage")
 	}
 }
@@ -1165,7 +1165,7 @@ func TestChecklistCoverageDoesNotClaimConclusiveViolationAcrossGaps(t *testing.T
 	evidence := map[string]validatedEvidence{
 		"evidence": {value: auditdomain.Evidence{ID: "evidence", Kind: "source"}},
 	}
-	coverage, err := semanticCoverage(config.AuditModeCustomChecklist, task, result, evidence)
+	coverage, err := semanticCoverage(auditprofile.AuditModeCustomChecklist, task, result, evidence)
 	if err != nil || coverage.Status != auditstore.CoverageInconclusive {
 		t.Fatalf("gapped violation coverage = (%+v, %v)", coverage, err)
 	}
@@ -2100,18 +2100,18 @@ func (f *fakeImportArtifacts) PutImmutableProject(_ context.Context, _ string, t
 	}, nil
 }
 
-func loadResultProfile(t *testing.T) config.ResolvedAuditProfile {
+func loadResultProfile(t *testing.T) auditprofile.ResolvedAuditProfile {
 	return loadResultProfileWithFindingConfirmation(t, "disabled")
 }
 
 func loadResultProfileWithFindingConfirmation(
 	t *testing.T,
 	policy string,
-) config.ResolvedAuditProfile {
+) auditprofile.ResolvedAuditProfile {
 	return loadResultProfileFixture(t, policy, false)
 }
 
-func loadResultProfileWithDiscovery(t *testing.T) config.ResolvedAuditProfile {
+func loadResultProfileWithDiscovery(t *testing.T) auditprofile.ResolvedAuditProfile {
 	return loadResultProfileFixture(t, "disabled", true)
 }
 
@@ -2120,7 +2120,7 @@ func loadResultProfileFixture(
 	policy string,
 	withDiscovery bool,
 	reportAcceptance ...string,
-) config.ResolvedAuditProfile {
+) auditprofile.ResolvedAuditProfile {
 	t.Helper()
 	root := t.TempDir()
 	for _, directory := range []string{
@@ -2231,7 +2231,7 @@ spec:
 			t.Fatal(err)
 		}
 	}
-	snapshot, err := configload.Load(root, config.MVPDescriptors())
+	snapshot, err := configload.Load(root)
 	if err != nil {
 		t.Fatal(err)
 	}

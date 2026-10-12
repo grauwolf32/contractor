@@ -123,7 +123,7 @@ func (s *Store) project(ctx context.Context, scope Scope, lock bool) (bool, erro
 	return state == "active", normalize(err)
 }
 
-// mutateJSON runs one managed Eval mutation as a keyed mutation (PER-R23):
+// mutateJSON runs one managed Eval mutation as a keyed mutation (PER-R24):
 // a key is unique within its owner, Project, resource and operation. Replay
 // precedes both revision and deletion rejection, but ownership is always
 // verified first. The advisory lock does not refresh a REPEATABLE READ

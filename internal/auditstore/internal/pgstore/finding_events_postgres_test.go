@@ -40,11 +40,11 @@ func TestPostgresFindingAuditEventsPreserveQuotaAndSequence(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	assessment := auditstore.DirectFindingAssessmentParams{
+	assessment := directFindingAssessmentEvent{
 		AuditID: audit.AuditID, FindingID: "finding-one", FindingRevision: 2,
 		AssessmentID: "assessment-one", RetainedBytes: 1025,
 	}
-	if err := store.RecordDirectFindingAssessment(ctx, assessment); !errors.Is(err, pgx.ErrNoRows) {
+	if err := store.recordDirectFindingAssessment(ctx, assessment); !errors.Is(err, pgx.ErrNoRows) {
 		t.Fatalf("over-quota assessment error = %v", err)
 	}
 	current, err := store.Get(ctx, project.OwnerID, audit.AuditID)
@@ -53,7 +53,7 @@ func TestPostgresFindingAuditEventsPreserveQuotaAndSequence(t *testing.T) {
 		t.Fatalf("Audit after rejected assessment = (%+v, %v)", current, err)
 	}
 	assessment.RetainedBytes = 2
-	if err := store.RecordDirectFindingAssessment(ctx, assessment); err != nil {
+	if err := store.recordDirectFindingAssessment(ctx, assessment); err != nil {
 		t.Fatal(err)
 	}
 	badProposal := auditstore.RejectedFindingProposalParams{

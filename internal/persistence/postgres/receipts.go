@@ -10,7 +10,7 @@ import (
 // A keyed mutation is a request its caller may repeat under an idempotency
 // key: an owner's Audit mutation, a managed Eval mutation or a Runtime
 // management operation. Each records one receipt in mutation_receipts in the
-// transaction of its effect, through KeyedMutation (PER-R23): the key's
+// transaction of its effect, through KeyedMutation (PER-R24): the key's
 // advisory lock first, then the replay of a stored receipt, then the effect
 // and the claim of the key with the new receipt.
 

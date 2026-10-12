@@ -15,6 +15,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
@@ -33,14 +34,14 @@ func TestAuditPostgresPublicCreateStartAndQuery(t *testing.T) {
 		t.Fatal(err)
 	}
 	managedCredentials := newFakeManagedCredentials()
-	managedCredentials.lookups["development-worker"] = config.CredentialMetadata{
+	managedCredentials.lookups["development-worker"] = resolved.CredentialMetadata{
 		Ref:        llmgateway.LLMCredentialRef{CredentialID: "development-worker"},
 		LLMGateway: gateway.Ref, Unrestricted: true,
 	}
 	audits, err := auditservice.New(auditservice.Options{
 		Pool: pool, Profiles: configuration,
 		TransactionLLMCredentials: runtimeconfig.TransactionLLMCredentialLookupFactoryFunc(
-			func(pgx.Tx) (config.CredentialLookup, error) { return managedCredentials, nil },
+			func(pgx.Tx) (resolved.CredentialLookup, error) { return managedCredentials, nil },
 		),
 		CredentialGuard: managedCredentials,
 		Now:             func() time.Time { return time.Date(2026, 9, 5, 20, 0, 0, 0, time.UTC) },
@@ -277,7 +278,7 @@ spec:
 	if err := os.WriteFile(filepath.Join(targetRoot, "audit-profiles", "public_checklist.yaml"), profile, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	snapshot, err := configload.Load(targetRoot, config.MVPDescriptors())
+	snapshot, err := configload.Load(targetRoot)
 	if err != nil {
 		t.Fatalf("load public Audit configuration: %v", err)
 	}

@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	"github.com/grauwolf32/contractor/internal/evaldomain"
@@ -100,9 +100,9 @@ func TestPostgresEvalRuntimeCredentialDatabaseFailureRetries(t *testing.T) {
 	}
 }
 
-type credentialLookupFunc func(context.Context, string) (config.CredentialMetadata, error)
+type credentialLookupFunc func(context.Context, string) (resolved.CredentialMetadata, error)
 
-func (f credentialLookupFunc) LookupLLMCredential(ctx context.Context, id string) (config.CredentialMetadata, error) {
+func (f credentialLookupFunc) LookupLLMCredential(ctx context.Context, id string) (resolved.CredentialMetadata, error) {
 	return f(ctx, id)
 }
 
@@ -139,19 +139,19 @@ func TestPostgresEvalPinnedLLMCredentialFailureClassification(t *testing.T) {
 
 			factory := h.resolver.Credentials
 			failure := test.cause
-			h.resolver.Credentials = runtimeconfig.TransactionLLMCredentialLookupFactoryFunc(func(tx pgx.Tx) (config.CredentialLookup, error) {
+			h.resolver.Credentials = runtimeconfig.TransactionLLMCredentialLookupFactoryFunc(func(tx pgx.Tx) (resolved.CredentialLookup, error) {
 				original, err := factory.ForTransaction(tx)
 				if err != nil {
 					return nil, err
 				}
-				return credentialLookupFunc(func(ctx context.Context, id string) (config.CredentialMetadata, error) {
+				return credentialLookupFunc(func(ctx context.Context, id string) (resolved.CredentialMetadata, error) {
 					if id != "runtime-probe" {
 						return original.LookupLLMCredential(ctx, id)
 					}
 					if test.mismatch {
 						id = "wrong-identity"
 					}
-					return config.CredentialMetadata{Ref: llmgateway.LLMCredentialRef{CredentialID: id}}, failure
+					return resolved.CredentialMetadata{Ref: llmgateway.LLMCredentialRef{CredentialID: id}}, failure
 				}), nil
 			})
 			e := h.create(t, "audit")
@@ -205,14 +205,14 @@ func TestPostgresEvalWorkflowCredentialLookupFailureClassification(t *testing.T)
 				ctx := t.Context()
 				factory := h.resolver.Credentials
 				failure := test.cause
-				h.resolver.Credentials = runtimeconfig.TransactionLLMCredentialLookupFactoryFunc(func(tx pgx.Tx) (config.CredentialLookup, error) {
+				h.resolver.Credentials = runtimeconfig.TransactionLLMCredentialLookupFactoryFunc(func(tx pgx.Tx) (resolved.CredentialLookup, error) {
 					original, err := factory.ForTransaction(tx)
 					if err != nil {
 						return nil, err
 					}
-					return credentialLookupFunc(func(ctx context.Context, id string) (config.CredentialMetadata, error) {
+					return credentialLookupFunc(func(ctx context.Context, id string) (resolved.CredentialMetadata, error) {
 						if id == "development-worker" && failure != nil {
-							return config.CredentialMetadata{}, failure
+							return resolved.CredentialMetadata{}, failure
 						}
 						return original.LookupLLMCredential(ctx, id)
 					}), nil

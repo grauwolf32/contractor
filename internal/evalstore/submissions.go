@@ -6,9 +6,9 @@ import (
 	"errors"
 
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/auditstore/hookstore"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/evaldomain"
-	pg "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -287,7 +287,7 @@ SELECT EXISTS(SELECT 1
         AND publication_mode='ordinary')
 `, executionID, scope.OwnerID, scope.ProjectID, key, digest).Scan(&verified)
 	} else {
-		verified, err = s.auditCreatedBy(ctx, scope, id, member, executionID, key, digest)
+		verified, err = s.auditCreatedInWorkspace(ctx, scope.OwnerID, id, member, executionID, key, digest)
 	}
 	if err != nil {
 		return err
@@ -307,6 +307,34 @@ WHERE experiment_id=$1
 		return evaldomain.Failure("eval_member_conflict")
 	}
 	return normalize(err)
+}
+
+// auditCreatedInWorkspace reports whether owner's Audit auditID was created
+// under the member's audit-create suboperation key and request digest and
+// lives in the workspace Project registered on the member's submission.
+// The Audit store resolves the Audit that the creation key made.
+func (s *Store) auditCreatedInWorkspace(
+	ctx context.Context, owner, id, member, auditID, key, digest string,
+) (bool, error) {
+	audit, found, err := hookstore.NewAuditCreations(s.db).LookupCreation(ctx, owner, key, digest)
+	switch {
+	case errors.Is(err, auditstore.ErrInvalid), errors.Is(err, contracts.ErrIdempotencyConflict),
+		errors.Is(err, auditstore.ErrNotFound):
+		return false, nil
+	case err != nil:
+		return false, err
+	case !found || audit.AuditID != auditID:
+		return false, nil
+	}
+	var inWorkspace bool
+	err = s.db.QueryRow(ctx, `
+SELECT EXISTS(SELECT 1
+    FROM eval_submissions
+    WHERE experiment_id=$1
+        AND member_id=$2
+        AND execution_project_id=$3)
+`, id, member, audit.ProjectID).Scan(&inWorkspace)
+	return inWorkspace, err
 }
 
 // Settle decreases outstanding once, only after an authoritative terminal
@@ -390,22 +418,4 @@ WHERE owner_id=$1
 	}
 	_, err = s.db.Exec(ctx, `UPDATE eval_experiments SET outstanding_count=outstanding_count-1,`+observe+` WHERE experiment_id=$1`, id)
 	return err
-}
-
-// auditCreatedBy reports whether Audit auditID is the one the member's
-// suboperation created: the owner's audit.create receipt under the
-// suboperation's key and request digest names it, and it lives in the
-// workspace Project registered on the member's submission.
-func (s *Store) auditCreatedBy(ctx context.Context, scope Scope, id, member, auditID, key, digest string) (bool, error) {
-	receipt, found, err := pg.FindReceipt(ctx, s.db,
-		pg.AuditReceiptKey(scope.OwnerID, string(auditstore.MutationCreate), key), digest)
-	if errors.Is(err, pg.ErrReceiptMismatch) {
-		return false, nil
-	}
-	if err != nil || !found || receipt.AuditID != auditID {
-		return false, err
-	}
-	var verified bool
-	err = s.db.QueryRow(ctx, bindExecutionSQL, auditID, scope.OwnerID, id, member).Scan(&verified)
-	return verified, err
 }

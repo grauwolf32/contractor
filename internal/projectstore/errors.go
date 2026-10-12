@@ -12,4 +12,8 @@ var (
 	ErrConflict     = errors.New("projectstore identity conflict")
 	ErrPrecondition = errors.New("projectstore revision precondition failed")
 	ErrDeleting     = errors.New("projectstore Project is deleting")
+	// ErrDeletionClaimLost reports that a Project no longer holds a deletion
+	// claim in the claim's phase: the claim expired and another controller
+	// took it, or the Project moved on.
+	ErrDeletionClaimLost = errors.New("projectstore Project deletion claim was lost")
 )

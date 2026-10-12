@@ -7,6 +7,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstandards"
 	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
@@ -37,7 +38,7 @@ func validateBundledCatalogStandards(plan *auditstandards.SeedPlan, snapshot *co
 	return nil
 }
 
-func validateProfileStandardSelection(profile config.ResolvedAuditProfile, pkg auditstandards.Package, source contracts.ArtifactRef) error {
+func validateProfileStandardSelection(profile auditprofile.ResolvedAuditProfile, pkg auditstandards.Package, source contracts.ArtifactRef) error {
 	if profile.Inventory.Implementation != "standard-mappings@1" {
 		return nil
 	}

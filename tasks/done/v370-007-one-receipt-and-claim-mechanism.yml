@@ -19,8 +19,8 @@ context:
     built five ways; audit_controller_claims and eval_controller_claims are
     near copies.
   specification:
-    - docs/spec/platform/persistence.md#PER-R23
     - docs/spec/platform/persistence.md#PER-R24
+    - docs/spec/platform/persistence.md#PER-R25
   decision: >-
     Guarantee: a keyed mutation is a request repeated under an idempotency
     key whose receipt is kept apart from the entity it changes: the owner's
@@ -29,7 +29,7 @@ context:
     operations. All of them run persistencepostgres.KeyedMutation in the
     transaction of their effect (the key's advisory lock, the replay of a
     stored receipt, then the mutation and the claim) and record one row in
-    mutation_receipts (migration 000140), keyed by (key_scope,
+    mutation_receipts (migration 000013), keyed by (key_scope,
     idempotency_key). The scope keeps each family's key space: ['audit',
     owner, operation], ['eval', owner, Project, resource, operation] and
     ['runtime-management'] for the digest of the operator's key; a CHECK
@@ -46,7 +46,7 @@ context:
     lease and the per-schema migration lock keep their keys, because every
     Server version must agree on the lease and the migration lock is scoped
     by the schema it migrates. Both controller claim tables have one shape
-    (migration 000141 gives eval_controller_claims a lease start and the
+    (migration 000014 gives eval_controller_claims a lease start and the
     holder bound, and releases held Eval leases with their epochs) and are
     leased, proven and released through persistencepostgres.ControllerClaims.
     Out of the receipt table on purpose: keys stored on the row a request

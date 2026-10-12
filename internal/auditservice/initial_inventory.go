@@ -12,7 +12,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditstandards"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/querystore"
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
@@ -21,11 +21,11 @@ var (
 	errInitialInventoryEvidenceBudget = errors.New("prepared inventory exceeds the remaining evidence budget")
 )
 
-func preparationInputKey(mapping config.AuditWorkflowInputMapping) string {
+func preparationInputKey(mapping auditprofile.AuditWorkflowInputMapping) string {
 	return mapping.Role + "/" + mapping.Name
 }
 
-func acceptedPreparationInputs(ctx context.Context, reads *querystore.Store, auditID string, profile config.ResolvedAuditProfile) (map[string]auditstore.ExactArtifact, error) {
+func acceptedPreparationInputs(ctx context.Context, reads *querystore.Store, auditID string, profile auditprofile.ResolvedAuditProfile) (map[string]auditstore.ExactArtifact, error) {
 	result := map[string]auditstore.ExactArtifact{}
 	if !profile.HasPreparation() {
 		return result, nil
@@ -41,7 +41,7 @@ func acceptedPreparationInputs(ctx context.Context, reads *querystore.Store, aud
 		}
 	}
 	for role, binding := range profile.Workflows {
-		if binding.Kind != config.AuditWorkflowPrepare {
+		if binding.Kind != auditprofile.AuditWorkflowPrepare {
 			continue
 		}
 		for name := range binding.Outputs {
@@ -82,7 +82,7 @@ func (s *Service) PrepareInitialRound(ctx context.Context, claim auditstore.Cont
 
 func (s *Service) prepareInitialInventory(ctx context.Context, claim auditstore.ControllerClaim, snapshot auditstore.ReconcileSnapshot) (auditstore.AcceptInitialRoundParams, error) {
 	audit := snapshot.Audit
-	profile, err := config.DecodeResolvedAuditProfileSnapshot(audit.ProfileSnapshot)
+	profile, err := auditprofile.DecodeResolvedAuditProfileSnapshot(audit.ProfileSnapshot)
 	if err != nil || !profile.HasPreparation() || profile.Ref.Name != audit.Profile.Name || profile.Ref.Version != audit.Profile.Version || profile.Ref.Digest != audit.Profile.Digest {
 		return auditstore.AcceptInitialRoundParams{}, inconsistentRound("the pinned preparation profile is invalid", err)
 	}
@@ -105,11 +105,11 @@ func (s *Service) prepareInitialInventory(ctx context.Context, claim auditstore.
 		return auditstore.AcceptInitialRoundParams{}, err
 	}
 	sources := map[string]auditstore.ExactArtifact{}
-	resolve := func(name string, mapping *config.AuditWorkflowInputMapping) (artifacts.ReadResult, error) {
+	resolve := func(name string, mapping *auditprofile.AuditWorkflowInputMapping) (artifacts.ReadResult, error) {
 		if mapping == nil {
 			return artifacts.ReadResult{}, nil
 		}
-		if mapping.Source == config.AuditInputFromAudit {
+		if mapping.Source == auditprofile.AuditInputFromAudit {
 			read, exists := original[mapping.Name]
 			if !exists {
 				return artifacts.ReadResult{}, fmt.Errorf("%w: inventory %s is missing", ErrInvalid, name)
@@ -117,7 +117,7 @@ func (s *Service) prepareInitialInventory(ctx context.Context, claim auditstore.
 			sources[name] = baseline.Inputs[mapping.Name]
 			return read, nil
 		}
-		if mapping.Source != config.AuditInputFromPreparation {
+		if mapping.Source != auditprofile.AuditInputFromPreparation {
 			return artifacts.ReadResult{}, fmt.Errorf("%w: inventory %s source is invalid", ErrInvalid, name)
 		}
 		exact, exists := prepared[preparationInputKey(*mapping)]
@@ -158,7 +158,7 @@ func (s *Service) prepareInitialInventory(ctx context.Context, claim auditstore.
 		inventory, err = buildInventory(profile, selection, original, standards)
 	} else {
 		approval := auditdomain.ApprovalNone
-		if profile.Interaction.ActiveChecks == config.AuditActiveChecksApprovalRequired && workflowRoleSelectsClassifiedTool(profile, profile.Inventory.ItemWorkflowRole, true) {
+		if profile.Interaction.ActiveChecks == auditprofile.AuditActiveChecksApprovalRequired && workflowRoleSelectsClassifiedTool(profile, profile.Inventory.ItemWorkflowRole, true) {
 			approval = auditdomain.ApprovalActiveCheck
 		}
 		inventory, err = buildInventoryFromSources(profile, selection, source, settings, approval)

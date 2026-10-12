@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 )
 
@@ -15,7 +15,7 @@ type MetricSnapshot struct {
 	StageExecutionID string
 	Document         json.RawMessage
 	ExpectedWorkers  int
-	Planner          config.PlannerRef
+	Planner          resolved.PlannerRef
 }
 
 // The caller supplies the Run IDs from its authoritative member inventory.

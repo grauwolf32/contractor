@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/credentialerrors"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
@@ -27,7 +27,7 @@ type RuntimeCredentialValidator interface {
 // Implementations may also include process-local providers, but must not
 // acquire another pooled PostgreSQL connection.
 type TransactionLLMCredentialLookupFactory interface {
-	ForTransaction(pgx.Tx) (config.CredentialLookup, error)
+	ForTransaction(pgx.Tx) (resolved.CredentialLookup, error)
 }
 
 // TransactionLLMCredentialLookup is deliberately constructible only through
@@ -35,7 +35,7 @@ type TransactionLLMCredentialLookupFactory interface {
 // wrapper so a caller cannot accidentally pass the process-wide, pool-backed
 // credential provider while already holding a transaction connection.
 type TransactionLLMCredentialLookup struct {
-	lookup config.CredentialLookup
+	lookup resolved.CredentialLookup
 }
 
 func BindTransactionLLMCredentialLookup(
@@ -58,20 +58,20 @@ func BindTransactionLLMCredentialLookup(
 func (l TransactionLLMCredentialLookup) LookupLLMCredential(
 	ctx context.Context,
 	credentialID string,
-) (config.CredentialMetadata, error) {
+) (resolved.CredentialMetadata, error) {
 	if l.lookup == nil {
-		return config.CredentialMetadata{}, errors.New("transaction LLM credential lookup is not bound")
+		return resolved.CredentialMetadata{}, errors.New("transaction LLM credential lookup is not bound")
 	}
 	return l.lookup.LookupLLMCredential(ctx, credentialID)
 }
 
 // TransactionLLMCredentialLookupFactoryFunc keeps tests and non-PostgreSQL
 // composition explicit without weakening the production transaction boundary.
-type TransactionLLMCredentialLookupFactoryFunc func(pgx.Tx) (config.CredentialLookup, error)
+type TransactionLLMCredentialLookupFactoryFunc func(pgx.Tx) (resolved.CredentialLookup, error)
 
 func (f TransactionLLMCredentialLookupFactoryFunc) ForTransaction(
 	tx pgx.Tx,
-) (config.CredentialLookup, error) {
+) (resolved.CredentialLookup, error) {
 	if f == nil {
 		return nil, errors.New("transaction LLM credential lookup factory is nil")
 	}
@@ -141,7 +141,7 @@ func validateSpecRuntimeCredentials(
 			if contextError := ctx.Err(); contextError != nil {
 				return contextError
 			}
-			if errors.Is(err, credentialerrors.RuntimeNotFound) || errors.Is(err, credentialerrors.RuntimeInvalid) || errors.Is(err, pgx.ErrNoRows) {
+			if errors.Is(err, credentialerrors.RuntimeNotFound) || errors.Is(err, credentialerrors.RuntimeInvalid) {
 				return persistencepostgres.WrapError(
 					"invalid RuntimeConfig: Runtime credential is unavailable or incompatible",
 					errors.Join(ErrInvalid, err),

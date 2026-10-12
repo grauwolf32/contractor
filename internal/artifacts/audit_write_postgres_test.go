@@ -38,10 +38,11 @@ func TestPostgresAuditArtifactWriterIsTheOnlyFrozenPath(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			scope := mustProjectScope(t, "audit-writer")
 			target := ArtifactRef{Namespace: "audit-writer-test", Name: "task-package"}
 			payload := Payload{MediaType: "application/zip", Data: []byte("task package")}
 
-			first, err := service.WriteAuditArtifact(ctx, "audit-writer", target, payload)
+			first, err := service.CreateFrozen(ctx, scope, target, payload)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -49,7 +50,7 @@ func TestPostgresAuditArtifactWriterIsTheOnlyFrozenPath(t *testing.T) {
 			if err != nil || !metadata.Frozen || !metadata.Ref.SameExact(first.Ref) {
 				t.Fatalf("written Audit binding = (%+v, %v), want frozen %+v", metadata, err, first.Ref)
 			}
-			replayed, err := service.WriteAuditArtifact(ctx, "audit-writer", target, payload)
+			replayed, err := service.CreateFrozen(ctx, scope, target, payload)
 			if err != nil || !replayed.Ref.SameExact(first.Ref) || replayed.Size != first.Size ||
 				replayed.MediaType != first.MediaType {
 				t.Fatalf("Audit write replay = (%+v, %v), want %+v", replayed, err, first)
@@ -58,7 +59,7 @@ func TestPostgresAuditArtifactWriterIsTheOnlyFrozenPath(t *testing.T) {
 				{MediaType: "application/zip", Data: []byte("other package")},
 				{MediaType: "application/json", Data: payload.Data},
 			} {
-				if _, err := service.WriteAuditArtifact(ctx, "audit-writer", target, other); !errors.Is(err, ErrAuditArtifactCollision) ||
+				if _, err := service.CreateFrozen(ctx, scope, target, other); !errors.Is(err, ErrAuditArtifactCollision) ||
 					!errors.Is(err, ErrArtifactIntegrity) {
 					t.Fatalf("Audit write collision = %v", err)
 				}
@@ -73,7 +74,7 @@ func TestPostgresAuditArtifactWriterIsTheOnlyFrozenPath(t *testing.T) {
 				wait.Add(1)
 				go func() {
 					defer wait.Done()
-					results[index], failures[index] = service.WriteAuditArtifact(ctx, "audit-writer", concurrent,
+					results[index], failures[index] = service.CreateFrozen(ctx, scope, concurrent,
 						Payload{MediaType: "application/zip", Data: []byte("shared worklist")})
 				}()
 			}

@@ -2,12 +2,13 @@ package artifacts
 
 // SQL statements for postgres_write.go.
 
-// writeSQL stores revision $5 of a mutable artifact binding while holding FOR
-// KEY SHARE on its artifact_scopes row. It advances an unfrozen binding whose
-// current_revision equals $6 (CAS), or creates the binding when $6 is NULL,
-// then upserts the sha256-keyed blob ($14: verified reusable file key), version
-// and revision. Returns revision, media type, size, timestamps and the stored
-// object key; no row is a conflict. Used by PostgresRepository.Write.
+// writeSQL stores revision $5 of an artifact binding while holding FOR KEY
+// SHARE on its artifact_scopes row. It advances an unfrozen binding whose
+// current_revision equals $6 (CAS), or creates the binding, frozen when $15,
+// when $6 is NULL, then upserts the sha256-keyed blob ($14: verified reusable
+// file key), version and revision. Returns revision, media type, size,
+// timestamps and the stored object key; no row is a conflict. Used by
+// PostgresRepository.write.
 var writeSQL = `
 WITH scope_ready AS (
     SELECT 1 FROM artifact_scopes WHERE scope_kind = $1 AND scope_id = $2 FOR KEY SHARE
@@ -20,9 +21,9 @@ WITH scope_ready AS (
     RETURNING created_at
 ), created_binding AS (
     INSERT INTO artifact_bindings (
-        scope_kind, scope_id, namespace, name, current_revision
+        scope_kind, scope_id, namespace, name, current_revision, frozen
     )
-    SELECT $1, $2, $3, $4, $5 FROM scope_ready
+    SELECT $1, $2, $3, $4, $5, $15::boolean FROM scope_ready
     WHERE $6::text IS NULL
     ON CONFLICT DO NOTHING
     RETURNING created_at

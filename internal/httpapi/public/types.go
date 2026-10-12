@@ -15,6 +15,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auth"
 	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/credentials"
@@ -101,15 +102,15 @@ type RunCancellationNotifier interface {
 type ConfigurationCatalog interface {
 	AgentTemplateWorkflowBindings(string) (config.AgentTemplateWorkflowBindings, error)
 	AgentInstructions(string) (config.AgentInstructions, error)
-	Workflow(string) (config.ResolvedWorkflow, error)
-	Workflows() []config.ResolvedWorkflow
+	Workflow(string) (resolved.ResolvedWorkflow, error)
+	Workflows() []resolved.ResolvedWorkflow
 	WorkflowDiscovery() (config.WorkflowDiscovery, error)
 	ResolveRunWorkflow(
 		context.Context,
 		string,
-		config.ExecutionConfigPatch,
-		config.CredentialLookup,
-	) (config.ResolvedWorkflow, error)
+		resolved.ExecutionConfigPatch,
+		resolved.CredentialLookup,
+	) (resolved.ResolvedWorkflow, error)
 	ConfigurationDiscovery(config.ConfigurationKind) (config.ConfigurationDiscovery, error)
 	Configuration(config.ConfigurationKind, string) (config.ConfigurationResource, error)
 }
@@ -214,7 +215,7 @@ type Dependencies struct {
 	TrustedPeers            auth.PeerPolicy
 	Config                  ConfigurationCatalog
 	ConfigurationPublisher  ConfigurationPublisher
-	Credentials             config.CredentialLookup
+	Credentials             resolved.CredentialLookup
 	ManagedCredentials      ManagedCredentialLifecycle
 	RuntimeConfigs          RuntimeConfigManagement
 	RuntimeCredentials      RuntimeCredentialManagement

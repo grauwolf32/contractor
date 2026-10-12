@@ -12,6 +12,8 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditstore/claimstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/querystore"
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
+	"github.com/grauwolf32/contractor/internal/credentials"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/rundeletion"
@@ -94,7 +96,7 @@ func configureAudits(
 }
 
 type runCreationCredentials struct {
-	provider          workflowconfig.CredentialLookup
+	provider          resolved.CredentialLookup
 	guard             runservice.CredentialGuard
 	runtime           runservice.RuntimeCredentialValidator
 	transactionLookup runtimeconfig.TransactionLLMCredentialLookupFactory
@@ -148,7 +150,7 @@ func (u postgresPublicUnitOfWork) Do(
 			return err
 		}
 		return fn(
-			runstore.NewRunCreationPostgresStore(tx, txLookup),
+			runstore.NewRunCreationPostgresStore(tx, txLookup, credentials.NewRuntimeCredentialRepository(tx)),
 			artifacts.NewService(artifacts.NewPostgresRepository(tx)),
 		)
 	})

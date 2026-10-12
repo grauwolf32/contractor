@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/grauwolf32/contractor/internal/clone"
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/strictjson"
 )
@@ -26,10 +26,10 @@ var ErrInvalidSnapshot = errors.New("Run repeat request snapshot is invalid")
 // Inputs are the original source-scope refs, not RunScope forks.
 type Snapshot struct {
 	SchemaVersion   string                           `json:"schemaVersion"`
-	Workflow        config.WorkflowRef               `json:"workflow"`
+	Workflow        resolved.WorkflowRef             `json:"workflow"`
 	ProjectID       *string                          `json:"projectId,omitempty"`
 	Inputs          map[string]contracts.ArtifactRef `json:"inputs"`
-	ExecutionConfig config.ExecutionConfigPatch      `json:"executionConfig"`
+	ExecutionConfig resolved.ExecutionConfigPatch    `json:"executionConfig"`
 }
 
 func Encode(snapshot Snapshot) ([]byte, error) {
@@ -56,10 +56,10 @@ func Decode(encoded []byte) (Snapshot, error) {
 	// A missing patch is not an explicitly retained empty patch.
 	var stored struct {
 		SchemaVersion   string                           `json:"schemaVersion"`
-		Workflow        config.WorkflowRef               `json:"workflow"`
+		Workflow        resolved.WorkflowRef             `json:"workflow"`
 		ProjectID       *string                          `json:"projectId,omitempty"`
 		Inputs          map[string]contracts.ArtifactRef `json:"inputs"`
-		ExecutionConfig *config.ExecutionConfigPatch     `json:"executionConfig"`
+		ExecutionConfig *resolved.ExecutionConfigPatch   `json:"executionConfig"`
 	}
 	if err := strictjson.Decode(encoded, &stored); errors.Is(err, strictjson.ErrTrailingData) {
 		return Snapshot{}, fmt.Errorf("%w: trailing JSON value", ErrInvalidSnapshot)

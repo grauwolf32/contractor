@@ -6,7 +6,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditservice"
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 	pg "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -82,8 +82,8 @@ func caseEligibility(c evaldomain.Case, v evaldomain.Variant, s BindingSnapshot,
 	if err != nil {
 		return unavailable("The input mapping is incompatible with this case.")
 	}
-	slots := map[string]config.ArtifactSlot{}
-	outputs := map[string]config.ArtifactSlot{}
+	slots := map[string]resolved.ArtifactSlot{}
+	outputs := map[string]resolved.ArtifactSlot{}
 	if s.Workflow != nil {
 		slots = s.Workflow.Inputs
 		outputs = s.Workflow.Outputs
@@ -100,10 +100,10 @@ func caseEligibility(c evaldomain.Case, v evaldomain.Variant, s BindingSnapshot,
 		}
 	} else {
 		for name, slot := range s.Audit.Inputs {
-			slots[name] = config.ArtifactSlot{Required: slot.Required, MediaTypes: slot.MediaTypes}
+			slots[name] = resolved.ArtifactSlot{Required: slot.Required, MediaTypes: slot.MediaTypes}
 		}
 		for name, output := range auditOutputContracts {
-			outputs[name] = config.ArtifactSlot{MediaTypes: []string{output.mediaType}}
+			outputs[name] = resolved.ArtifactSlot{MediaTypes: []string{output.mediaType}}
 		}
 		for name := range MapParameters(c, v) {
 			if name != "objective" && name != "target" && name != "authorizationScope" {

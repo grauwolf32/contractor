@@ -19,6 +19,22 @@ import (
 func (s *CredentialHolds) ListHeldAuditIDsByLLMCredential(
 	ctx context.Context, credentialID string, limit int,
 ) ([]string, error) {
+	return s.listHeldAuditIDsByCredential(ctx, runtimeconfig.LLMCredentialIDsMember, "LLM", credentialID, limit)
+}
+
+// ListHeldAuditIDsByRuntimeCredential is ListHeldAuditIDsByLLMCredential for
+// a Runtime credential, which Runtime credential deletion checks (AUD-R16).
+func (s *CredentialHolds) ListHeldAuditIDsByRuntimeCredential(
+	ctx context.Context, credentialID string, limit int,
+) ([]string, error) {
+	return s.listHeldAuditIDsByCredential(ctx, runtimeconfig.RuntimeCredentialIDsMember, "Runtime", credentialID, limit)
+}
+
+// listHeldAuditIDsByCredential lists, oldest first, at most limit held
+// Audits whose baseline names credentialID in its credential list member.
+func (s *CredentialHolds) listHeldAuditIDsByCredential(
+	ctx context.Context, member, kind, credentialID string, limit int,
+) ([]string, error) {
 	if err := validateText("credentialID", credentialID, 128, true); err != nil || limit < 1 || limit > 128 {
 		return nil, invalidf("Audit credential hold query is invalid")
 	}
@@ -27,23 +43,23 @@ func (s *CredentialHolds) ListHeldAuditIDsByLLMCredential(
 SELECT audit_id
   FROM audits
  WHERE hold_state = 'held'
-   AND (baseline_snapshot->'`+runtimeconfig.LLMCredentialIDsMember+`') ? $1
+   AND (baseline_snapshot->'`+member+`') ? $1
  ORDER BY created_at, audit_id
  LIMIT $2`, credentialID, limit)
 	if err != nil {
-		return nil, fmt.Errorf("inspect Audit LLM credential holds: %w", err)
+		return nil, fmt.Errorf("inspect Audit %s credential holds: %w", kind, err)
 	}
 	defer rows.Close()
 	result := make([]string, 0, limit)
 	for rows.Next() {
 		var auditID string
 		if err := rows.Scan(&auditID); err != nil {
-			return nil, fmt.Errorf("read Audit LLM credential hold: %w", err)
+			return nil, fmt.Errorf("read Audit %s credential hold: %w", kind, err)
 		}
 		result = append(result, auditID)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate Audit LLM credential holds: %w", err)
+		return nil, fmt.Errorf("iterate Audit %s credential holds: %w", kind, err)
 	}
 	return result, nil
 }

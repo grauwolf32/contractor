@@ -14,7 +14,8 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstandards"
 	"github.com/grauwolf32/contractor/internal/auditstore"
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/auditprofile"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/findingintake"
@@ -294,11 +295,11 @@ func (s *Service) GetReport(
 
 func (s *Service) selectDraftInputs(
 	ctx context.Context,
-	profile config.ResolvedAuditProfile,
+	profile auditprofile.ResolvedAuditProfile,
 	projectID string,
 	selected map[string]contracts.ArtifactRef,
 ) (map[string]auditstore.ExactArtifact, error) {
-	if selected == nil || len(selected) > config.MaxAuditProfileInputs {
+	if selected == nil || len(selected) > auditprofile.MaxAuditProfileInputs {
 		return nil, fmt.Errorf("%w: Audit inputs are invalid", ErrInvalid)
 	}
 	for name := range selected {
@@ -354,7 +355,7 @@ func validateCreateParams(params CreateDraftParams) error {
 }
 
 func normalizeProfileSelector(value ProfileSelector) (string, error) {
-	selector, err := config.ParseSelector(value.Name + "@" + value.Version)
+	selector, err := resolved.ParseSelector(value.Name + "@" + value.Version)
 	if err != nil || selector.ID != value.Name || selector.Version != value.Version {
 		return "", fmt.Errorf("%w: AuditProfile selector is invalid", ErrInvalid)
 	}

@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
@@ -13,7 +13,7 @@ func TestFindingsReaderDoesNotRequireEmissionPolicy(t *testing.T) {
 	for _, selected := range [][]string{{"list_findings"}, {"finding"}, {"finding", "list_findings"}} {
 		t.Run(strings.Join(selected, "+"), func(t *testing.T) {
 			profile := mustAuditServiceProfile(t)
-			profile.Interaction.FindingConfirmation = config.AuditFindingDisabled
+			profile.Interaction.FindingConfirmation = auditprofile.AuditFindingDisabled
 			binding := profile.Workflows["check"]
 			stage := binding.Workflow.Stages["check"]
 			agent := stage.Agents["worker"]

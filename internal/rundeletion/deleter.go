@@ -1,8 +1,8 @@
 // Package rundeletion permanently deletes a released terminal WorkflowRun
 // together with the Audit, finding and Artifact state that refers to it, in
-// one transaction. It composes steps owned by runstore, auditstore and
-// artifacts, so none of those stores depends on another, and owns the one
-// step no store needs: tombstoning the Run's finding proposal receipts.
+// one transaction. It composes steps owned by runstore, auditstore,
+// findingintake and artifacts, each changing only its own tables, so none of
+// those stores depends on another for a Run deletion.
 package rundeletion
 
 import (
@@ -11,6 +11,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditstore/hookstore"
+	"github.com/grauwolf32/contractor/internal/findingintake"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/jackc/pgx/v5"
@@ -94,8 +95,13 @@ func deleteReleasedTerminalRun(ctx context.Context, tx pgx.Tx, ownerID, runID st
 	// Run. Imported proposals already have destination-Audit bindings; every
 	// other proposal becomes a durable discarded tombstone before Run-owned
 	// pins and bindings are purged below.
-	if _, err := tx.Exec(ctx, markProposalSourceRunDeletedSQL, runID); err != nil {
+	if err := findingintake.MarkSourceRunDeleted(ctx, tx, runID); err != nil {
 		return fmt.Errorf("dispose WorkflowRun %q finding proposals: %w", runID, err)
+	}
+	// The Project output publication receipts name the Run's output
+	// revisions, so they go before the purge; the published outputs stay.
+	if err := runs.DeleteLockedRunOutputPublications(ctx, runID); err != nil {
+		return err
 	}
 	purger, err := artifacts.NewPostgresPurger(tx)
 	if err != nil {

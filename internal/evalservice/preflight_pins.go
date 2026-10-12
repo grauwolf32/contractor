@@ -1,6 +1,6 @@
 package evalservice
 
-import "github.com/grauwolf32/contractor/internal/config"
+import "github.com/grauwolf32/contractor/internal/config/resolved"
 
 type workflowPins struct {
 	instructions map[string]any
@@ -9,7 +9,7 @@ type workflowPins struct {
 	execution    map[string]any
 }
 
-func bindingPinValues(s BindingSnapshot, workflows map[string]config.ResolvedWorkflow) map[string]any {
+func bindingPinValues(s BindingSnapshot, workflows map[string]resolved.ResolvedWorkflow) map[string]any {
 	pins := workflowPins{
 		instructions: map[string]any{},
 		tools:        map[string]any{},
@@ -39,7 +39,7 @@ func bindingPinValues(s BindingSnapshot, workflows map[string]config.ResolvedWor
 	return out
 }
 
-func (p workflowPins) addStage(key string, stage config.ResolvedStage) {
+func (p workflowPins) addStage(key string, stage resolved.ResolvedStage) {
 	p.instructions[key] = map[string]any{
 		"instructions": stage.Instructions,
 		"objective":    stage.Objective,

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts/control"
 )
@@ -24,7 +25,7 @@ func TestSummaryInstructionsResolvePinAndPublish(t *testing.T) {
 	root := copyCoreFixture(t)
 	text := "Составь итог. Preserve {subtaskId} and JSON: {\"result\": \"text\"}.\n"
 	installSummaryInstructions(t, root, text)
-	snapshot := mustLoad(t, root, MVPDescriptors())
+	snapshot := mustLoad(t, root)
 	template, err := snapshot.AgentTemplate("artifact_builder@1")
 	if err != nil {
 		t.Fatal(err)
@@ -46,7 +47,7 @@ func TestSummaryInstructionsResolvePinAndPublish(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(root, "instructions/test-summary.md"), []byte(text+"Updated."), 0600); err != nil {
 		t.Fatal(err)
 	}
-	updated, _ := mustLoad(t, root, MVPDescriptors()).AgentTemplate("artifact_builder@1")
+	updated, _ := mustLoad(t, root).AgentTemplate("artifact_builder@1")
 	if updated.Ref.Digest == originalDigest {
 		t.Fatal("instruction change did not affect template digest")
 	}
@@ -70,7 +71,7 @@ func TestSummaryInstructionsRejectInvalidConfig(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			_, err := Load(root, MVPDescriptors())
+			_, err := Load(root)
 			if tc.want == "" {
 				if err != nil {
 					t.Fatal(err)
@@ -98,7 +99,7 @@ func TestSummaryInstructionGoldenDigest(t *testing.T) {
 	if instruction == nil || instruction.Digest != contentdigest.Bytes([]byte(instruction.Text)) {
 		t.Fatal("incorrect instruction digest")
 	}
-	got, err := agentTemplateDigest(Selector{ID: template.Ref.TemplateID, Version: template.Ref.Version}, template)
+	got, err := agentTemplateDigest(resolved.Selector{ID: template.Ref.TemplateID, Version: template.Ref.Version}, template)
 	if err != nil {
 		t.Fatal(err)
 	}

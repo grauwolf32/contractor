@@ -268,9 +268,9 @@ UPDATE projects
  WHERE project_id = $1`, project.ProjectID); err != nil {
 		t.Fatal(err)
 	}
-	changed, err := store.RequestProjectOwnedDeletion(ctx, auditstore.ProjectDeletionClaim{
+	changed, err := store.RequestProjectOwnedDeletion(ctx, projectstore.DeletionClaim{
 		ProjectID: project.ProjectID, OwnerID: project.OwnerID,
-		ClaimID: "claim-report-close", Phase: string(projectstore.DeletionCancelling),
+		ClaimID: "claim-report-close", Phase: projectstore.DeletionCancelling,
 	})
 	if err != nil || !changed {
 		t.Fatalf("Project-owned Audit deletion = (%t, %v)", changed, err)

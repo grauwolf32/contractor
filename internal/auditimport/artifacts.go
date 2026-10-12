@@ -83,6 +83,12 @@ func (a *ServiceArtifactAccess) ReadRunExact(
 	return metadata.Exact(), append([]byte(nil), read.Payload.Data...), nil
 }
 
+// RetainRunExact retains the exact revision source of the Audit child Run
+// runID as the create-only, frozen Audit-managed binding target of projectID,
+// with audit_import lineage and without copying bytes. The binding stays out
+// of public Project projections until the Audit receipt that names it
+// commits. A retry after a lost acknowledgement finds the binding retained
+// from the same source and returns it.
 func (a *ServiceArtifactAccess) RetainRunExact(
 	ctx context.Context,
 	runID string,
@@ -90,7 +96,21 @@ func (a *ServiceArtifactAccess) RetainRunExact(
 	projectID string,
 	target contracts.ArtifactRef,
 ) (auditstore.ExactArtifact, error) {
-	result, err := a.service.ImportAuditArtifact(ctx, runID, source.Ref, projectID, target)
+	run, err := artifacts.RunScope(runID)
+	if err != nil {
+		return auditstore.ExactArtifact{}, err
+	}
+	project, err := artifacts.ProjectScope(projectID)
+	if err != nil {
+		return auditstore.ExactArtifact{}, err
+	}
+	if source.Ref.Revision == nil {
+		return auditstore.ExactArtifact{}, artifacts.ErrExactRevisionRequired
+	}
+	result, err := a.service.Fork(ctx, artifacts.Fork{
+		Kind: artifacts.LineageAuditImport, Source: run, SourceRef: source.Ref,
+		Target: project, TargetRef: target, Frozen: true,
+	})
 	if err == nil {
 		retained := auditstore.ExactArtifact{
 			Ref: result.TargetRef, Digest: source.Digest,
@@ -132,15 +152,19 @@ func (a *ServiceArtifactAccess) RetainRunExact(
 }
 
 // PutImmutableProject writes a content-named report or retained scan package
-// as a frozen Audit artifact. WriteAuditArtifact recovers a lost
-// acknowledgement; another payload under the name is an integrity failure.
+// as a frozen Audit artifact. CreateFrozen recovers a lost acknowledgement;
+// another payload under the name is an integrity failure.
 func (a *ServiceArtifactAccess) PutImmutableProject(
 	ctx context.Context,
 	projectID string,
 	target contracts.ArtifactRef,
 	payload artifacts.Payload,
 ) (auditstore.ExactArtifact, error) {
-	written, err := a.service.WriteAuditArtifact(ctx, projectID, target, payload)
+	project, err := artifacts.ProjectScope(projectID)
+	if err != nil {
+		return auditstore.ExactArtifact{}, err
+	}
+	written, err := a.service.CreateFrozen(ctx, project, target, payload)
 	if err != nil {
 		return auditstore.ExactArtifact{}, err
 	}

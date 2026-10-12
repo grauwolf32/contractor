@@ -14,7 +14,6 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstandards"
 	"github.com/grauwolf32/contractor/internal/auditstore"
-	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/configtest"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -30,7 +29,7 @@ func TestAuditPreparationHandlersWithoutRound(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(root, "audit-profiles/prepared.yaml"), profileYAML, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	catalog, err := configload.Load(root, config.MVPDescriptors())
+	catalog, err := configload.Load(root)
 	if err != nil {
 		t.Fatal(err)
 	}

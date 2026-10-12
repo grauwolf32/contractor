@@ -23,20 +23,6 @@ WHERE owner_id=$1
 FOR SHARE
 `
 
-// bindExecutionSQL reports whether Audit $1 belongs to owner $2 and lives in
-// the workspace Project registered on the submission of experiment $3's
-// member $4. Used by Store.auditCreatedBy, which first finds the Audit's
-// create receipt.
-var bindExecutionSQL = `
-SELECT EXISTS(SELECT 1
-    FROM audits a
-    JOIN eval_submissions s ON s.execution_project_id=a.project_id
-    WHERE a.audit_id=$1
-        AND a.owner_id=$2
-        AND s.experiment_id=$3
-        AND s.member_id=$4)
-`
-
 // settleSubmissionSQL decides whether a member's unaccepted intent can settle
 // as rejected: true when a never-started execution tombstone exists, or when
 // no run/audit-create suboperation is pending or succeeded and either the

@@ -10,7 +10,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"go.yaml.in/yaml/v4"
 )
@@ -161,7 +160,7 @@ func stageProductionMemoryConfiguration(t *testing.T, repositoryRoot, target str
 			t.Fatal(err)
 		}
 	}
-	if _, err := configload.Load(target, config.MVPDescriptors()); err != nil {
+	if _, err := configload.Load(target); err != nil {
 		t.Fatal(err)
 	}
 	return workflow

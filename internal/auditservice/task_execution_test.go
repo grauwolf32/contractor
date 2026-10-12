@@ -8,7 +8,8 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/auditprofile"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
@@ -31,16 +32,16 @@ func TestInventoryConstructionDoesNotChooseScanExecutor(t *testing.T) {
 	}
 	before := ordinary.Stages[ordinary.EntryStage]
 	before.WorkflowOutputs = map[string]string{}
-	before.On.Succeeded = config.TransitionAction{Kind: config.TransitionNext, NextStage: "custom-executor"}
-	before.Context = config.StageContext{Artifacts: map[string]config.ContextArtifact{
+	before.On.Succeeded = resolved.TransitionAction{Kind: resolved.TransitionNext, NextStage: "custom-executor"}
+	before.Context = resolved.StageContext{Artifacts: map[string]resolved.ContextArtifact{
 		"openapi": {Namespace: "inputs", Name: "openapi", Required: true},
 	}}
 	binding.Workflow.Stages["prepare-context"] = before
 	profile.Workflows["scan"] = binding
-	if err := config.ValidateWorkflowGraph(binding.Workflow); err != nil {
+	if err := resolved.ValidateWorkflowGraph(binding.Workflow); err != nil {
 		t.Fatal(err)
 	}
-	if err := config.ValidateAuditTaskProfile(profile); err != nil {
+	if err := auditprofile.ValidateAuditTaskProfile(profile); err != nil {
 		t.Fatal(err)
 	}
 	for _, scanner := range []string{"sqlmap", "nuclei"} {

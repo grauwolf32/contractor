@@ -17,7 +17,7 @@ type Claim struct {
 }
 
 // evalClaims is the Eval controller's claim table, leased and checked through
-// the shared controller claim helper (PER-R24).
+// the shared controller claim helper (PER-R25).
 var evalClaims = pg.NewControllerClaims("eval_controller_claims", "experiment_id")
 
 // Claim polls only work that can advance an Eval. A paused Eval with no

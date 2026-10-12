@@ -3,8 +3,8 @@
 // of the seam it works in: the claim-bound Controller commands (ClaimStore),
 // the owner's lifecycle and start commands (OwnerStore), the review journal
 // (ReviewStore), the reads (QueryStore), and the narrow entry points other
-// contexts use (FindingEvents, RunDeletion, ProjectDeletion,
-// CredentialHolds). A step whose row locks must last until the caller commits
+// contexts use (FindingEvents, RunDeletion, ProjectDeletion, CredentialHolds,
+// AuditCreations). A step whose row locks must last until the caller commits
 // exists only on a seam's transaction-bound type (PER-R18). The package is
 // internal: callers reach a seam through the auditstore subpackage that
 // exports it.
@@ -89,6 +89,18 @@ func NewFindingEvents(db persistencepostgres.DBTX) *FindingEvents {
 	return &FindingEvents{store{db: db}}
 }
 
+// FindingEventsTx is a FindingEvents bound to finding intake's transaction,
+// with the Audit lock finding intake holds until it commits and the direct
+// verification it commits under that lock.
+type FindingEventsTx struct {
+	*FindingEvents
+	tx pgx.Tx
+}
+
+func NewFindingEventsTx(tx pgx.Tx) *FindingEventsTx {
+	return &FindingEventsTx{FindingEvents: NewFindingEvents(tx), tx: tx}
+}
+
 // RunDeletion is what Run deletion reads and changes of the Audits whose
 // executions bound the Run.
 type RunDeletion struct{ store }
@@ -122,6 +134,14 @@ type CredentialHolds struct{ store }
 
 func NewCredentialHolds(db persistencepostgres.DBTX) *CredentialHolds {
 	return &CredentialHolds{store{db: db}}
+}
+
+// AuditCreations lets the Eval store match an Audit it created for an owner to
+// the creation key and request that made it.
+type AuditCreations struct{ store }
+
+func NewAuditCreations(db persistencepostgres.DBTX) *AuditCreations {
+	return &AuditCreations{store{db: db}}
 }
 
 // Get reads ownerID's Audit.

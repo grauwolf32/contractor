@@ -9,7 +9,7 @@ import (
 )
 
 // A controller claim leases one subject of a controller, such as an Audit or
-// an Eval experiment, to one controller instance (PER-R24). Each controller
+// an Eval experiment, to one controller instance (PER-R25). Each controller
 // keeps one claim row per subject in its own table, with the shape every
 // claim table shares: the subject, a growing epoch, and the holder with the
 // start and end of its lease. The controller leases subjects through

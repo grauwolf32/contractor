@@ -19,7 +19,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditstandards"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auth"
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/findingintake"
@@ -28,20 +28,20 @@ import (
 
 func TestAuditProfileHandlersExposeCompatibilityAndExactDetail(t *testing.T) {
 	profiles := &fakeAuditManagement{profiles: []auditservice.ProfileProjection{{
-		Profile: config.ResolvedAuditProfile{
-			Ref:  config.AuditProfileRef{Name: "checklist", Version: "1", Digest: auditHandlerDigest("profile")},
-			Mode: config.AuditModeCustomChecklist, Standards: []config.AuditStandardRef{},
-			Inputs: map[string]config.AuditProfileInput{
+		Profile: auditprofile.ResolvedAuditProfile{
+			Ref:  auditprofile.AuditProfileRef{Name: "checklist", Version: "1", Digest: auditHandlerDigest("profile")},
+			Mode: auditprofile.AuditModeCustomChecklist, Standards: []auditprofile.AuditStandardRef{},
+			Inputs: map[string]auditprofile.AuditProfileInput{
 				"checklist": {Required: true, MediaTypes: []string{"application/json"}},
 			},
-			Inventory: config.AuditInventory{Implementation: "checklist@1", Source: &config.AuditWorkflowInputMapping{Source: config.AuditInputFromAudit, Name: "checklist"}, ItemWorkflowRole: "check"},
-			Workflows: map[string]config.ResolvedAuditWorkflowBinding{},
-			Execution: config.AuditExecutionPolicy{MaxRounds: 1, BatchSize: 1},
-			Interaction: config.AuditInteractionPolicy{
-				ActiveChecks:        config.AuditActiveChecksProhibited,
-				FindingConfirmation: config.AuditFindingDisabled,
-				NotApplicable:       config.AuditNotApplicableProfileRule,
-				ReportAcceptance:    config.AuditReportAutomatic,
+			Inventory: auditprofile.AuditInventory{Implementation: "checklist@1", Source: &auditprofile.AuditWorkflowInputMapping{Source: auditprofile.AuditInputFromAudit, Name: "checklist"}, ItemWorkflowRole: "check"},
+			Workflows: map[string]auditprofile.ResolvedAuditWorkflowBinding{},
+			Execution: auditprofile.AuditExecutionPolicy{MaxRounds: 1, BatchSize: 1},
+			Interaction: auditprofile.AuditInteractionPolicy{
+				ActiveChecks:        auditprofile.AuditActiveChecksProhibited,
+				FindingConfirmation: auditprofile.AuditFindingDisabled,
+				NotApplicable:       auditprofile.AuditNotApplicableProfileRule,
+				ReportAcceptance:    auditprofile.AuditReportAutomatic,
 			},
 		},
 		Compatibility: auditservice.Compatibility{

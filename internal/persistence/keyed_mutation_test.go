@@ -11,7 +11,7 @@ import (
 
 // advisoryLockFiles may take a PostgreSQL advisory lock or hash its key
 // directly, each for the reason given. Every other lock is taken through
-// persistencepostgres.NewAdvisoryKey and LockAdvisory (PER-R23).
+// persistencepostgres.NewAdvisoryKey and LockAdvisory (PER-R24).
 var advisoryLockFiles = map[string]string{
 	"internal/persistence/postgres/advisory.go":                      "the one advisory key builder and lock",
 	"internal/persistence/postgres/migrate.go":                       "the migration lock, scoped to the schema it migrates",
@@ -23,7 +23,7 @@ var advisoryLockFiles = map[string]string{
 
 // receiptHelperFiles are the only production Go files whose SQL reads or
 // writes mutation_receipts: the shared receipt helper. Every keyed mutation
-// records and replays its receipt through it (PER-R23).
+// records and replays its receipt through it (PER-R24).
 var receiptHelperFiles = map[string]bool{
 	"internal/persistence/postgres/receipts.go": true,
 }

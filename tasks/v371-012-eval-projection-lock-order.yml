@@ -1,0 +1,86 @@
+schema_version: "1.0"
+id: V371-012
+title: "Stop Eval member collection and Audit collection from deadlocking"
+milestone: hub-audit-defects-2026-10
+epic: evals
+kind: defect
+priority: P2
+status: pending
+depends_on: []
+languages: [go, sql]
+goal: "Concurrent Audit collection and Eval member projection take their shared row locks in one order, and a transaction conflict in member collection is retried as a conflict instead of rotating the member as damaged."
+context:
+  review: "Out-of-scope finding of the hub audit fix batch: PostgreSQL log of CI run 38171124353 (PR #544 at 4146eea) while TestManagedEvalsNativeStack ran, recorded 2026-10-12; code paths verified on a07f5e9"
+  specification: "docs/spec/platform/persistence.md#PER-R16"
+  severity: medium
+  finding: >-
+    TestManagedEvalsNativeStack passed, but its PostgreSQL log shows six
+    serialization failures on UPDATE eval_member_projections and one deadlock
+    between that UPDATE and the Audit collection statement that locks
+    audit_controller_claims. Two writers meet on one member's projection
+    row. The Eval member collection (internal/evalservice/collection.go:71-146,
+    REPEATABLE READ through pg.InTx without retry) locks the projects row
+    FOR SHARE and the experiment FOR UPDATE and ends with ProjectMember's
+    UPDATE eval_member_projections ... AND revision = $3
+    (internal/evalstore/projections.go:72-109). Every Audit or Run write of an
+    Eval-owned Audit fires contractor_eval_dirty through the
+    eval_audit_children_projection, eval_audit_outputs_projection,
+    eval_audits_projection and eval_runs_projection triggers
+    (000001_baseline.sql:200-215, 289-300 and 321-350; triggers at 2341,
+    2965, 3156 and 3388), which updates the member row and then the
+    experiment's eval_projection_queue row inside the Audit transaction,
+    after collectAuditExecutionSQL locked the claim, the Audit and the
+    execution FOR UPDATE (internal/auditstore/internal/pgstore/collection_sql.go:23-47). The
+    lock orders differ. Outcomes today: a conflict fails collectMember, and
+    CollectView rotates the member as if it were damaged
+    (collection.go:37-43, RotateProjectionFailure at projections.go:112-124)
+    and returns the joined error; a deadlock that aborts the Audit side fails
+    the controller pass (auditstore/collection.go:32-75 returns it wrapped),
+    which a later pass replays through the receipt. Both recover, later than
+    necessary, and nothing records that the conflicts are expected. The
+    triggers and the collector predate the shallow history (boundary
+    6349621).
+  siblings: >-
+    Other transactions that fire contractor_eval_dirty: Run state changes
+    (eval_runs_projection), Stage and metric changes (eval_stages_projection,
+    eval_metrics_projection), artifact bindings (eval_outputs_projection),
+    Eval selections and submissions. Other REPEATABLE READ Eval writers:
+    record ingestion (evalservice/record_ingestion.go:26, already
+    InTxWithRetry), preflight (preflight.go:57) and the view publication at
+    the end of CollectView.
+scope:
+  in:
+    - "Reproduce on PostgreSQL: concurrent collection of an Eval-owned Audit execution and member collection of the same member, showing the deadlock and the serialization failure."
+    - "One lock order for the claim, Audit, member projection and projection queue rows (for example the triggers mark only the queue and the member row is updated under the experiment lock, or the collector takes the trigger's order), recorded in managed-evals.md and persistence.md."
+    - "Member collection retries a definite transaction conflict within the bounded transaction retry (PER-R16) and rotates a member only for other failures."
+  out:
+    - "Projection content and the Audit collection receipt semantics."
+failure_outcomes:
+  - operation: "Eval member collection transaction"
+    permanent: "A failure other than a transaction conflict rotates the member as today."
+    retryable: "40001 and 40P01 are retried by the bounded transaction retry, then reported as a transaction conflict without rotation."
+    ambiguous: "The projection UPDATE is a revision CAS; after a lost commit the next collection sees an unchanged revision."
+    cancelled: "The transaction rolls back with the coordinator's context."
+    timeout: "The coordinator's operation budget owns it."
+  - operation: "Audit collection statement (collectAuditExecutionSQL)"
+    permanent: "Unchanged."
+    retryable: "A deadlock with Eval projection no longer occurs; any remaining transaction conflict replays through the receipt on the next pass, as today."
+    ambiguous: "Unchanged: receipt replay."
+    cancelled: "Unchanged."
+    timeout: "Unchanged."
+acceptance_criteria:
+  - id: A1
+    given: "An Eval-owned Audit execution collected while its member is projected, repeated 100 times"
+    when: "Both transactions run concurrently on PostgreSQL"
+    then: "No deadlock is reported and every collection completes."
+  - id: A2
+    given: "A member whose projection row changes during its collection"
+    when: "collectMember commits"
+    then: "It retries within the bounded retry and the member is not rotated as damaged."
+  - id: A3
+    text: "The reproduction fails on a07f5e9."
+tests:
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 -tags integration ./internal/evalservice ./internal/evalstore ./internal/auditstore"
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A1, A2, A3]

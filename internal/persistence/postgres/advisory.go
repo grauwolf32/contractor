@@ -7,7 +7,7 @@ import (
 )
 
 // AdvisoryKey names one transaction-scoped advisory lock. NewAdvisoryKey is
-// the only way the Server builds one (PER-R23): a namespace, which says what
+// the only way the Server builds one (PER-R24): a namespace, which says what
 // the lock serializes, and the parts that name one instance of it, such as
 // an owner and an idempotency key. Every value is written after its byte
 // length, so two different part lists never share a key, whatever

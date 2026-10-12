@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
@@ -186,43 +187,33 @@ func withActiveStage[T any](
 	return result, nil
 }
 
+// plannerRunStates are the Run states in which a Planner may use Memory: an
+// admitted Run whose invocation runs or waits for its model route. Its
+// StageExecution must be running.
+var plannerRunStates = []runstore.WorkflowRunState{runstore.RunRunning, runstore.RunWaiting}
+
 func lockActiveStage(ctx context.Context, tx pgx.Tx, binding Binding) error {
 	// Match Scheduler's lifecycle transaction lock order. Holding both rows
-	// through the Artifact call is the durable Planner write fence.
-	var runState runstore.WorkflowRunState
-	err := tx.QueryRow(ctx, `
-SELECT state
-FROM workflow_runs
-WHERE run_id = $1
-FOR UPDATE`, binding.RunID).Scan(&runState)
-	if errors.Is(err, pgx.ErrNoRows) || err == nil && (runState != runstore.RunRunning && runState != runstore.RunWaiting) {
-		return ErrAccessForbidden
+	// through the Artifact call is the durable Planner write fence; the Run
+	// store takes and checks both locks.
+	store := runstore.NewPostgresTxStore(tx)
+	if _, err := store.LockRunState(ctx, binding.RunID, plannerRunStates...); err != nil {
+		return fenceError(ctx, "lock Planner Memory WorkflowRun", err)
 	}
-	if err != nil {
-		if ctx.Err() != nil {
-			return ErrAccessForbidden
-		}
-		return fmt.Errorf("lock Planner Memory WorkflowRun: %w", err)
-	}
-
-	var stageRunID string
-	var stageState runstore.StageExecutionState
-	err = tx.QueryRow(ctx, `
-SELECT run_id, state
-FROM stage_executions
-WHERE stage_execution_id = $1
-FOR UPDATE`, binding.StageExecutionID).Scan(&stageRunID, &stageState)
-	if errors.Is(err, pgx.ErrNoRows) ||
-		err == nil && (stageRunID != binding.RunID || stageState != runstore.StageRunning) {
-		return ErrAccessForbidden
-	}
-	if err != nil {
-		if ctx.Err() != nil {
-			return ErrAccessForbidden
-		}
-		return fmt.Errorf("lock Planner Memory StageExecution: %w", err)
+	if _, err := store.LockStageState(ctx, binding.RunID, binding.StageExecutionID, runstore.StageRunning); err != nil {
+		return fenceError(ctx, "lock Planner Memory StageExecution", err)
 	}
 	return nil
+}
+
+// fenceError reports a write fence that refused the Planner, a missing or
+// no longer active Run or Stage, as ErrAccessForbidden, and any other
+// failure with its cause.
+func fenceError(ctx context.Context, operation string, err error) error {
+	if errors.Is(err, runstore.ErrNotFound) || errors.Is(err, runstore.ErrConflict) || ctx.Err() != nil {
+		return ErrAccessForbidden
+	}
+	return fmt.Errorf("%s: %w", operation, err)
 }
 
 func readActiveStage(ctx context.Context, tx pgx.Tx, binding Binding) error {
@@ -234,8 +225,7 @@ FROM workflow_runs AS run
 JOIN stage_executions AS stage ON stage.run_id = run.run_id
 WHERE run.run_id = $1 AND stage.stage_execution_id = $2`, binding.RunID, binding.StageExecutionID).Scan(&runState, &stageState)
 	if errors.Is(err, pgx.ErrNoRows) || err == nil &&
-		((runState != runstore.RunRunning && runState != runstore.RunWaiting) ||
-			stageState != runstore.StageRunning) {
+		(!slices.Contains(plannerRunStates, runState) || stageState != runstore.StageRunning) {
 		return ErrAccessForbidden
 	}
 	if err != nil {

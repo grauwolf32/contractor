@@ -18,15 +18,27 @@ func (s *FindingEvents) RecordRejectedFindingProposal(
 	).Scan(&sequence)
 }
 
-// RecordDirectFindingAssessment charges the Audit evidence quota and records
-// the finding assessment in the caller's transaction. A failed quota check
-// returns pgx.ErrNoRows without changing the Audit or reserving a sequence.
-func (s *FindingEvents) RecordDirectFindingAssessment(
-	ctx context.Context, params auditstore.DirectFindingAssessmentParams,
+// directFindingAssessmentEvent is the finding.assessed event of a direct
+// verification at the finding revision the assessment produced, with the
+// evidence bytes it charges to the Audit.
+type directFindingAssessmentEvent struct {
+	AuditID         string
+	FindingID       string
+	FindingRevision int64
+	AssessmentID    string
+	RetainedBytes   int64
+}
+
+// recordDirectFindingAssessment charges the Audit evidence quota and records
+// the finding assessment for CommitDirectFindingAssessment. A failed quota
+// check returns pgx.ErrNoRows without changing the Audit or reserving a
+// sequence.
+func (s *FindingEvents) recordDirectFindingAssessment(
+	ctx context.Context, event directFindingAssessmentEvent,
 ) error {
 	var sequence int64
 	return s.db.QueryRow(ctx, recordDirectFindingAssessmentSQL,
-		params.AuditID, params.RetainedBytes, params.FindingID,
-		params.FindingRevision, params.AssessmentID,
+		event.AuditID, event.RetainedBytes, event.FindingID,
+		event.FindingRevision, event.AssessmentID,
 	).Scan(&sequence)
 }

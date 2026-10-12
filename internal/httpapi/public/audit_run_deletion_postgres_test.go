@@ -16,11 +16,13 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
 	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/findingintake"
@@ -112,14 +114,14 @@ func TestPublicAuditSourceRunDeletionInvalidatesReadContexts(t *testing.T) {
 		credentials := newFakeManagedCredentials()
 		audits, err = auditservice.New(auditservice.Options{
 			Pool: readerPool, Profiles: deps.Config.(*config.Manager), CredentialGuard: credentials,
-			TransactionLLMCredentials: runtimeconfig.TransactionLLMCredentialLookupFactoryFunc(func(pgx.Tx) (config.CredentialLookup, error) { return credentials, nil }),
+			TransactionLLMCredentials: runtimeconfig.TransactionLLMCredentialLookupFactoryFunc(func(pgx.Tx) (resolved.CredentialLookup, error) { return credentials, nil }),
 		})
 		if err != nil {
 			t.Fatal(err)
 		}
 		deps.Audits = audits
 	})
-	snapshot, err := configload.Load("../../config/testdata/valid", config.MVPDescriptors())
+	snapshot, err := configload.Load("../../config/testdata/valid")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -310,7 +312,8 @@ func seedPublicDeletionRunReceipt(t *testing.T, ctx context.Context, pool *pgxpo
 	if err != nil {
 		t.Fatal(err)
 	}
-	written, err := service.WriteFindingProposal(ctx, runID, suffix, artifacts.Payload{MediaType: "application/json", Data: body})
+	written, err := artifactstest.WriteFindingProposal(ctx, service, runID, suffix,
+		artifacts.Payload{MediaType: "application/json", Data: body})
 	if err != nil {
 		t.Fatal(err)
 	}

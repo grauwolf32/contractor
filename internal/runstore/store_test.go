@@ -18,8 +18,7 @@ func TestWorkflowRunTransitionValidation(t *testing.T) {
 	t.Parallel()
 
 	valid := [][2]WorkflowRunState{
-		{RunInitializing, RunPending}, {RunPending, RunRunning},
-		{RunRunning, RunWaiting}, {RunWaiting, RunRunning}, {RunRunning, RunSucceeded},
+		{RunInitializing, RunPending}, {RunPending, RunRunning}, {RunRunning, RunSucceeded},
 		{RunInitializing, RunFailed}, {RunPending, RunFailed}, {RunRunning, RunFailed}, {RunWaiting, RunFailed},
 		{RunCancelling, RunCancelled},
 	}
@@ -32,8 +31,10 @@ func TestWorkflowRunTransitionValidation(t *testing.T) {
 		// Initialization commits pending and only admission sets running
 		// (RUN-R28); success is committed from running (RUN-R35).
 		{RunInitializing, RunRunning}, {RunWaiting, RunSucceeded}, {RunPending, RunSucceeded},
-		// Cancellation and manual continuation record their own evidence.
+		// Cancellation and manual continuation record their own evidence,
+		// and only the waiting operations move a Run in and out of waiting.
 		{RunInitializing, RunCancelling}, {RunRunning, RunCancelling}, {RunFailed, RunPending},
+		{RunRunning, RunWaiting}, {RunWaiting, RunRunning},
 		{RunRunning, RunCancelled}, {RunSucceeded, RunRunning},
 		{RunCancelling, RunSucceeded}, {"unknown", RunRunning},
 	} {

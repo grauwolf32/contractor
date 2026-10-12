@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/credentialerrors"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -20,9 +20,9 @@ func (f classificationRuntimeValidator) ValidateRuntimeCredential(ctx context.Co
 	return f(ctx, id, kinds...)
 }
 
-type classificationLLMLookup func(context.Context, string) (config.CredentialMetadata, error)
+type classificationLLMLookup func(context.Context, string) (resolved.CredentialMetadata, error)
 
-func (f classificationLLMLookup) LookupLLMCredential(ctx context.Context, id string) (config.CredentialMetadata, error) {
+func (f classificationLLMLookup) LookupLLMCredential(ctx context.Context, id string) (resolved.CredentialMetadata, error) {
 	return f(ctx, id)
 }
 
@@ -35,7 +35,9 @@ func TestRuntimeCredentialLookupErrorsOnlyMarkConfirmedInvalidConfiguration(t *t
 	}{
 		{"missing", credentialerrors.RuntimeNotFound, true},
 		{"wrong-kind", credentialerrors.RuntimeInvalid, true},
-		{"no-row", pgx.ErrNoRows, true},
+		// A validator classifies its own miss; a raw database outcome is an
+		// infrastructure failure, never a confirmed invalid configuration.
+		{"unclassified-no-row", pgx.ErrNoRows, false},
 		{"statement-timeout", &pgconn.PgError{Code: persistencepostgres.SQLStateQueryCanceled, Message: "private-canary"}, false},
 		{"connection-closed", errors.New("private-canary"), false},
 	} {
@@ -63,14 +65,14 @@ func TestLLMCredentialLookupErrorsOnlyMarkConfirmedInvalidConfiguration(t *testi
 		invalid bool
 	}{
 		{"missing", credentialerrors.LLMNotFound, true},
-		{"no-row", pgx.ErrNoRows, true},
+		{"unclassified-no-row", pgx.ErrNoRows, false},
 		{"recovery-required", errors.New("private-canary"), false},
 		{"statement-timeout", &pgconn.PgError{Code: persistencepostgres.SQLStateQueryCanceled, Message: "private-canary"}, false},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			err := validateRunLLMCredential(t.Context(), spec, classificationLLMLookup(
-				func(context.Context, string) (config.CredentialMetadata, error) {
-					return config.CredentialMetadata{}, test.cause
+				func(context.Context, string) (resolved.CredentialMetadata, error) {
+					return resolved.CredentialMetadata{}, test.cause
 				},
 			))
 			if !errors.Is(err, test.cause) || errors.Is(err, ErrInvalid) != test.invalid {
@@ -83,10 +85,10 @@ func TestLLMCredentialLookupErrorsOnlyMarkConfirmedInvalidConfiguration(t *testi
 	}
 	for _, test := range []struct {
 		name     string
-		metadata config.CredentialMetadata
+		metadata resolved.CredentialMetadata
 	}{
-		{"identity", config.CredentialMetadata{Ref: llmgateway.LLMCredentialRef{CredentialID: "other"}}},
-		{"gateway", config.CredentialMetadata{Ref: llmgateway.LLMCredentialRef{CredentialID: "llm-key"}}},
+		{"identity", resolved.CredentialMetadata{Ref: llmgateway.LLMCredentialRef{CredentialID: "other"}}},
+		{"gateway", resolved.CredentialMetadata{Ref: llmgateway.LLMCredentialRef{CredentialID: "llm-key"}}},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			withGateway := spec
@@ -94,7 +96,7 @@ func TestLLMCredentialLookupErrorsOnlyMarkConfirmedInvalidConfiguration(t *testi
 				withGateway.Worker.LLMGateway.Gateway = gatewayField(testGatewayRef("primary", "1"))
 			}
 			err := validateRunLLMCredential(t.Context(), withGateway, classificationLLMLookup(
-				func(context.Context, string) (config.CredentialMetadata, error) {
+				func(context.Context, string) (resolved.CredentialMetadata, error) {
 					return test.metadata, nil
 				},
 			))

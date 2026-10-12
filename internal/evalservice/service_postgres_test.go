@@ -19,6 +19,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
 	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
@@ -40,11 +41,11 @@ type testCredentials struct {
 	gateway llmgateway.LLMGatewayConfigRef
 }
 
-func (c testCredentials) LookupLLMCredential(_ context.Context, id string) (config.CredentialMetadata, error) {
+func (c testCredentials) LookupLLMCredential(_ context.Context, id string) (resolved.CredentialMetadata, error) {
 	if id != "development-worker" {
-		return config.CredentialMetadata{}, errors.New("unexpected fixture credential")
+		return resolved.CredentialMetadata{}, errors.New("unexpected fixture credential")
 	}
-	return config.CredentialMetadata{Ref: llmgateway.LLMCredentialRef{CredentialID: id}, LLMGateway: c.gateway, Unrestricted: true}, nil
+	return resolved.CredentialMetadata{Ref: llmgateway.LLMCredentialRef{CredentialID: id}, LLMGateway: c.gateway, Unrestricted: true}, nil
 }
 
 type testBarrier struct{}
@@ -147,18 +148,18 @@ func newHarness(t *testing.T) *serviceHarness {
 		t.Fatal(err)
 	}
 	credentialLookup := testCredentials{gateway: gateway.Ref}
-	credentials := runtimeconfig.TransactionLLMCredentialLookupFactoryFunc(func(pgx.Tx) (config.CredentialLookup, error) { return credentialLookup, nil })
-	audits, err := auditservice.New(auditservice.Options{Pool: pool, Profiles: catalog, TransactionLLMCredentials: credentials, CredentialGuard: testBarrier{}})
+	transactionLLMCredentials := runtimeconfig.TransactionLLMCredentialLookupFactoryFunc(func(pgx.Tx) (resolved.CredentialLookup, error) { return credentialLookup, nil })
+	audits, err := auditservice.New(auditservice.Options{Pool: pool, Profiles: catalog, TransactionLLMCredentials: transactionLLMCredentials, CredentialGuard: testBarrier{}})
 	if err != nil {
 		t.Fatal(err)
 	}
 	runs, err := runservice.New(runservice.Options{Runs: runstore.NewPostgresStore(pool), Workflows: catalog, LLMCredentials: credentialLookup, CredentialGuard: testBarrier{}, RuntimeCredentials: testBarrier{}, Projects: projectstore.NewPostgresStore(pool), SkillInitializationAvailable: true, PublicTransaction: func(ctx context.Context, fn func(runservice.PublicRunWriter, *artifacts.Service) error) error {
 		return pg.InTx(ctx, pool, pgx.TxOptions{IsoLevel: pgx.RepeatableRead}, func(tx pgx.Tx) error {
-			lookup, err := runtimeconfig.BindTransactionLLMCredentialLookup(tx, credentials)
+			lookup, err := runtimeconfig.BindTransactionLLMCredentialLookup(tx, transactionLLMCredentials)
 			if err != nil {
 				return err
 			}
-			return fn(runstore.NewRunCreationPostgresStore(tx, lookup), artifacts.NewService(artifacts.NewPostgresRepository(tx)))
+			return fn(runstore.NewRunCreationPostgresStore(tx, lookup, credentials.NewRuntimeCredentialRepository(tx)), artifacts.NewService(artifacts.NewPostgresRepository(tx)))
 		})
 	}})
 	if err != nil {
@@ -166,7 +167,7 @@ func newHarness(t *testing.T) *serviceHarness {
 	}
 	run := &lostRunResponse{RunCreator: runs, lost: map[string]bool{}, pool: pool}
 	audit := &lostAuditResponse{AuditExecutor: audits, lost: map[string]bool{}}
-	resolver := &Resolver{Pool: pool, Catalog: catalog, Credentials: credentials, Barrier: testBarrier{}}
+	resolver := &Resolver{Pool: pool, Catalog: catalog, Credentials: transactionLLMCredentials, Barrier: testBarrier{}}
 	driver := &Driver{Pool: pool, Runs: run, Audits: audit}
 	service, err := New(Options{Pool: pool, Resolver: resolver, Driver: driver})
 	if err != nil {
@@ -1393,7 +1394,7 @@ spec:
 			t.Fatal(err)
 		}
 	}
-	snapshot, err := configload.Load(root, config.MVPDescriptors())
+	snapshot, err := configload.Load(root)
 	if err != nil {
 		t.Fatalf("load Audit service config: %v", err)
 	}

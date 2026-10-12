@@ -10,7 +10,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/clone"
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runrepeat"
@@ -46,7 +46,7 @@ func (h *handler) getRunRepeatDraft(w http.ResponseWriter, r *http.Request) {
 	}
 	response := runRepeatDraftResponse{
 		SourceRunID: run.RunID,
-		Workflow: config.WorkflowRef{
+		Workflow: resolved.WorkflowRef{
 			Name: run.WorkflowName, Version: run.WorkflowVersion,
 		},
 		ProjectID: clone.Pointer(run.ProjectID),
@@ -133,7 +133,7 @@ func (h *handler) getRunRepeatDraft(w http.ResponseWriter, r *http.Request) {
 	if workflowAvailable {
 		if _, resolveErr := h.dependencies.Config.ResolveRunWorkflow(
 			r.Context(), selector, snapshot.ExecutionConfig, h.dependencies.Credentials,
-		); errors.Is(resolveErr, config.ErrCredentialLookup) {
+		); errors.Is(resolveErr, resolved.ErrCredentialLookup) {
 			// An outage is not an unavailable selection; let the client retry.
 			h.handleError(w, resolveErr)
 			return
@@ -175,11 +175,7 @@ func (h *handler) getRunRepeatDraft(w http.ResponseWriter, r *http.Request) {
 func (h *handler) loadRunRepeatSnapshot(
 	ctx context.Context, run runstore.WorkflowRun,
 ) (runrepeat.Snapshot, error) {
-	retained, err := h.dependencies.Artifacts.ReadRunRepeatRequest(ctx, run.RunID)
-	if err != nil {
-		return runrepeat.Snapshot{}, err
-	}
-	snapshot, err := runrepeat.Decode(retained.Payload.Data)
+	snapshot, err := runrepeat.Load(ctx, h.dependencies.Artifacts, run.RunID)
 	if err != nil {
 		return runrepeat.Snapshot{}, err
 	}

@@ -13,7 +13,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
@@ -57,7 +56,7 @@ func TestProjectWorkflowModelSelection(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	snapshot, err := configload.Load(target, config.MVPDescriptors())
+	snapshot, err := configload.Load(target)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -87,7 +86,7 @@ func TestProjectWorkflowModelSelection(t *testing.T) {
 			t.Fatalf("unrelated catalog bytes changed: %s", path)
 		}
 	}
-	base, err := configload.Load(filepath.Join(fixture, "configs"), config.MVPDescriptors())
+	base, err := configload.Load(filepath.Join(fixture, "configs"))
 	if err != nil {
 		t.Fatal(err)
 	}

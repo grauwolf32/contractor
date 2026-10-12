@@ -1,0 +1,59 @@
+schema_version: "1.0"
+id: V371-009
+title: "Read the preparation state of a whole Audit page in bounded statements"
+milestone: hub-audit-defects-2026-10
+epic: audits
+kind: defect
+introduced_by: V62-003
+priority: P3
+status: pending
+depends_on: []
+languages: [go]
+goal: "GET /v1/audits issues a fixed number of statements per page, whatever the number of preparing or inventory Audits on it, and every item's preparation belongs to the list's snapshot."
+context:
+  review: "Out-of-scope finding of the hub audit fix batch (group G5), recorded 2026-10-12; verified on a07f5e9"
+  specification: "docs/spec/api/public-api.md#API-R67"
+  severity: low
+  finding: >-
+    listAudits (internal/httpapi/public/audit_handlers.go:220-232) builds each
+    item with auditReadModel and, for every Audit in the preparing or
+    inventory phase, builds it again with auditDetailReadModel
+    (internal/httpapi/public/audit_preparation.go:12-42), which decodes the
+    profile snapshot and calls auditservice.Service.Preparation
+    (internal/auditservice/preparation.go:19-32): store.Get,
+    ListPreparationRoles and ListPreparationExecutions, three statements per
+    Audit on separate pool connections and outside the list's read. A page
+    holds up to 200 Audits (LIM-API-18), so one list request can issue 600
+    extra statements, and an item's preparation can be newer than its row in
+    the page (AGENTS.md 3.3). Added with the public preparation projection
+    by V62-003 (commit 1147164).
+  siblings: >-
+    GET /v1/audits/{auditId} (getAudit) uses the same auditDetailReadModel
+    for one Audit and keeps it. The owner-wide and Project-scoped lists both
+    go through listAudits. The UI Audit list reads the field; the response
+    shape does not change.
+scope:
+  in:
+    - "Read preparation roles and executions for every preparing or inventory Audit of a page with batched ANY($1) reads in the list's snapshot, without reading each Audit again."
+    - "A PostgreSQL test with a full page of preparing Audits that counts statements."
+  out:
+    - "The response shape and the Audit detail endpoint."
+cardinality:
+  - collection: "Preparing or inventory Audits on one list page, with their preparation roles and executions"
+    expected: "a few"
+    maximum: "200 Audits per page (LIM-API-18), each with its profile's preparation roles and bounded attempts"
+    bound: "a fixed number of statements per page"
+acceptance_criteria:
+  - id: A1
+    given: "A page of 200 preparing Audits"
+    when: "GET /v1/audits is served"
+    then: "It issues as many statements as for a page with one preparing Audit, and every item shows the preparation GET /v1/audits/{auditId} shows."
+  - id: A2
+    text: "The statement-count test fails on a07f5e9."
+tests:
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/httpapi/public ./internal/auditservice"
+    covers: [A1, A2]
+  - command: "make verify-public-api"
+    covers: [A1]
+  - command: make lint
+    covers: [A1, A2]

@@ -12,7 +12,7 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// The owner's Audit mutations are keyed mutations (PER-R23): each records its
+// The owner's Audit mutations are keyed mutations (PER-R24): each records its
 // receipt through persistencepostgres.KeyedMutation, and a repeated request
 // replays with the Audit as it is now.
 
@@ -85,6 +85,25 @@ func (s *OwnerStore) LookupMutationReplay(
 	operation auditstore.MutationOperation,
 	key string,
 	digest string,
+) (auditstore.Audit, bool, error) {
+	return s.lookupMutationReplay(ctx, ownerID, operation, key, digest)
+}
+
+// LookupCreation resolves the Audit that ownerID's create request under key
+// with request digest digest made, as LookupMutationReplay does for
+// MutationCreate. The Eval store binds an Audit it created for a member this
+// way.
+func (s *AuditCreations) LookupCreation(
+	ctx context.Context, ownerID, key, digest string,
+) (auditstore.Audit, bool, error) {
+	return s.lookupMutationReplay(ctx, ownerID, auditstore.MutationCreate, key, digest)
+}
+
+// lookupMutationReplay reads the receipt of ownerID's operation under key and
+// the Audit it names. A receipt of another request is the idempotency
+// conflict.
+func (s *store) lookupMutationReplay(
+	ctx context.Context, ownerID string, operation auditstore.MutationOperation, key, digest string,
 ) (auditstore.Audit, bool, error) {
 	if err := validateMutationReplay(ownerID, operation, key, digest); err != nil {
 		return auditstore.Audit{}, false, err

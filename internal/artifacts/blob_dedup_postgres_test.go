@@ -153,7 +153,8 @@ func TestFilesystemDedupAuditWriteRepairsMissingContent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	written, err := NewPostgresRepository(f.pool).WriteAuditArtifact(f.ctx, mustProjectScope(t, "dedup-audit"), ArtifactRef{Namespace: "audit-test", Name: "repaired"}, f.payload)
+	written, err := NewPostgresRepository(f.pool).CreateFrozen(f.ctx, mustProjectScope(t, "dedup-audit"),
+		ArtifactRef{Namespace: "audit-test", Name: "repaired"}, f.payload)
 	if err != nil {
 		t.Fatal(err)
 	}

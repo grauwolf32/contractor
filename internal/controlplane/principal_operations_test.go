@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/agentprincipal"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 )
@@ -16,7 +17,7 @@ func TestPrincipalOperationsAppliesCommittedLabelsBeforeFollowupRead(t *testing.
 		t.Run(scenario, func(t *testing.T) {
 			clock := newTestClock()
 			registry := newTestRegistry(t, clock)
-			principal := runtimeconfig.RuntimeAgentPrincipal{
+			principal := agentprincipal.Principal{
 				RuntimeAgentID: strings.Repeat("f", 64), Labels: []string{"old"}, LabelRevision: 1,
 				CreatedBy: "runtime-registration", CreatedAt: clock.Now(),
 				UpdatedBy: "runtime-registration", UpdatedAt: clock.Now(),
@@ -57,7 +58,7 @@ func TestPrincipalOperationsAppliesCommittedLabelsBeforeFollowupRead(t *testing.
 func TestPrincipalOperationsSeparatesOfflineBusyAndAdapterMismatch(t *testing.T) {
 	clock := newTestClock()
 	registry := newTestRegistry(t, clock)
-	principal := runtimeconfig.RuntimeAgentPrincipal{
+	principal := agentprincipal.Principal{
 		RuntimeAgentID: strings.Repeat("e", 64), Labels: []string{"debug"}, LabelRevision: 1,
 		CreatedBy: "runtime-registration", CreatedAt: clock.Now(),
 		UpdatedBy: "runtime-registration", UpdatedAt: clock.Now(),
@@ -115,7 +116,7 @@ func TestPrincipalOperationsSeparatesOfflineBusyAndAdapterMismatch(t *testing.T)
 }
 
 func TestPrincipalOperationsListUsesBatchedAdapterFacts(t *testing.T) {
-	principal := runtimeconfig.RuntimeAgentPrincipal{
+	principal := agentprincipal.Principal{
 		RuntimeAgentID: strings.Repeat("a", 64), Labels: []string{"debug"}, LabelRevision: 1,
 	}
 	catalog := &principalOperationsCatalogFake{
@@ -134,7 +135,7 @@ func TestPrincipalOperationsListUsesBatchedAdapterFacts(t *testing.T) {
 }
 
 type principalOperationsCatalogFake struct {
-	principal    runtimeconfig.RuntimeAgentPrincipal
+	principal    agentprincipal.Principal
 	required     []string
 	hasMore      bool
 	batchCalls   int
@@ -145,21 +146,21 @@ type principalOperationsCatalogFake struct {
 
 func (f *principalOperationsCatalogFake) Get(
 	ctx context.Context, _ string,
-) (runtimeconfig.RuntimeAgentPrincipal, error) {
+) (agentprincipal.Principal, error) {
 	if err := ctx.Err(); err != nil {
-		return runtimeconfig.RuntimeAgentPrincipal{}, err
+		return agentprincipal.Principal{}, err
 	}
 	if f.getErr != nil {
-		return runtimeconfig.RuntimeAgentPrincipal{}, f.getErr
+		return agentprincipal.Principal{}, f.getErr
 	}
 	return f.principal, nil
 }
 
 func (f *principalOperationsCatalogFake) ListWithRequiredRuntimeAdapters(
 	context.Context, string, int,
-) ([]runtimeconfig.PrincipalAdapterRow, bool, error) {
+) ([]agentprincipal.AdapterRow, bool, error) {
 	f.batchCalls++
-	return []runtimeconfig.PrincipalAdapterRow{{
+	return []agentprincipal.AdapterRow{{
 		Principal: f.principal, RequiredRuntimeAdapters: append([]string{}, f.required...),
 	}}, f.hasMore, nil
 }
@@ -173,9 +174,9 @@ func (f *principalOperationsCatalogFake) RequiredRuntimeAdapters(
 
 func (f *principalOperationsCatalogFake) ReplaceLabelsIdempotent(
 	_ context.Context, _ string, expected uint64, labels []string, _ string, actor string, at time.Time,
-) (runtimeconfig.PrincipalMutationResult, error) {
+) (agentprincipal.MutationResult, error) {
 	if f.principal.LabelRevision != expected {
-		return runtimeconfig.PrincipalMutationResult{}, runtimeconfig.ErrPrecondition
+		return agentprincipal.MutationResult{}, runtimeconfig.ErrPrecondition
 	}
 	f.principal.Labels = append([]string{}, labels...)
 	f.principal.LabelRevision++
@@ -185,13 +186,13 @@ func (f *principalOperationsCatalogFake) ReplaceLabelsIdempotent(
 	if f.afterReplace != nil {
 		f.afterReplace()
 	}
-	return runtimeconfig.PrincipalMutationResult{Principal: &result}, nil
+	return agentprincipal.MutationResult{Principal: &result}, nil
 }
 
 func (f *principalOperationsCatalogFake) DeleteIdempotent(
 	context.Context, string, uint64, string, string, time.Time,
-) (runtimeconfig.PrincipalMutationResult, error) {
-	return runtimeconfig.PrincipalMutationResult{Deleted: true}, nil
+) (agentprincipal.MutationResult, error) {
+	return agentprincipal.MutationResult{Deleted: true}, nil
 }
 
 func TestOfflinePrincipalProjectionRejectsLiveFacts(t *testing.T) {

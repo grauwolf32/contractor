@@ -10,7 +10,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/clone"
-	workflowconfig "github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/planner"
@@ -113,7 +113,7 @@ func (s *Scheduler) buildStageCreation(
 type stageExecutionConfiguration struct {
 	variant   runstore.StageExecutionConfigVariant
 	ordinal   *int
-	effective *workflowconfig.ResolvedStageExecutionConfig
+	effective *resolved.ResolvedStageExecutionConfig
 }
 
 func missingRequiredContext(execution runstore.StageExecution) string {

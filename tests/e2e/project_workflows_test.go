@@ -22,7 +22,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifactpolicy"
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/localpki"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -1445,7 +1445,7 @@ func assertValidatorInvocations(t *testing.T, path string, vacuum, likeC4 int) {
 // of later edits to the authoring catalog. Observed counters remain script-owned.
 func validateProjectWorkerBudget(stageSnapshot json.RawMessage, logicalAgent string,
 	budget *reporting.WorkerBudgetMetrics, modelCalls, toolCalls int64) error {
-	stage, err := config.DecodeResolvedStageSnapshot(stageSnapshot)
+	stage, err := resolved.DecodeResolvedStageSnapshot(stageSnapshot)
 	if err != nil {
 		return fmt.Errorf("decode pinned Stage: %w", err)
 	}

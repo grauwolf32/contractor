@@ -19,7 +19,7 @@ func TestManagedPublicationRecoversRenameBeforeSnapshotSwap(t *testing.T) {
 	managed := filepath.Join(t.TempDir(), "managed")
 	simulatedCrash := errors.New("simulated process crash")
 	manager, _, err := configload.NewManager(config.ManagerOptions{
-		OperatorRoot: operator, ManagedRoot: managed, Descriptors: config.MVPDescriptors(),
+		OperatorRoot: operator, ManagedRoot: managed,
 		AfterDurablePublish: func(config.ConfigurationResource) error { return simulatedCrash },
 	})
 	if err != nil {
@@ -38,7 +38,7 @@ func TestManagedPublicationRecoversRenameBeforeSnapshotSwap(t *testing.T) {
 	}
 
 	restarted, _, err := configload.NewManager(config.ManagerOptions{
-		OperatorRoot: operator, ManagedRoot: managed, Descriptors: config.MVPDescriptors(),
+		OperatorRoot: operator, ManagedRoot: managed,
 	})
 	if err != nil {
 		t.Fatal(err)

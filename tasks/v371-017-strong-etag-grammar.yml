@@ -1,0 +1,52 @@
+schema_version: "1.0"
+id: V371-017
+title: "Accept only RFC 9110 strong entity tags in If-Match"
+milestone: hub-audit-defects-2026-10
+epic: api-contracts
+kind: defect
+priority: P3
+status: pending
+depends_on: []
+languages: [go]
+goal: "httpx.ParseStrongETag accepts exactly one strong opaque-tag (DQUOTE *etagc DQUOTE) and no escaped, single-quoted or back-quoted spelling, for every caller."
+context:
+  review: "Out-of-scope finding of the hub audit fix batch (group G8), recorded 2026-10-12; verified on a07f5e9"
+  specification: "docs/spec/api/public-api.md#API-R70"
+  severity: low
+  finding: >-
+    ParseStrongETag (internal/httpapi/httpx/request.go:75-85) unquotes the
+    header with strconv.Unquote, which also accepts Go escapes ("\x61bc"
+    becomes abc), single-quoted rune literals ('a') and back-quoted raw
+    strings; RFC 9110 allows none of them in an entity-tag. The public
+    Artifact precondition compensates by comparing the header with the
+    re-quoted revision (internal/httpapi/public/request.go:121-133). The
+    private Artifact API (internal/httpapi/privateartifacts/request.go:71)
+    and the Runtime label binding revision of the public API
+    (internal/httpapi/public/runtime_configuration_handlers.go:520-531,
+    parseRuntimeRevisionETag) do not, so If-Match '1' or "\x31" is accepted
+    there as revision 1. Predates the shallow history (boundary 6349621).
+  siblings: >-
+    Callers: public/request.go:121, privateartifacts/request.go:71 and
+    public/runtime_configuration_handlers.go:521. ETag readers outside httpx:
+    the Control Plane agent-state ETag (controlplane/runtime_client.go:33,
+    a regular expression) and the Runtime's exact If-None-Match comparison
+    (runtime/src/contractor_runtime/server.py:228-233) are strict. The UI and
+    the CLI send only ETags they built.
+scope:
+  in:
+    - "ParseStrongETag validates the opaque-tag grammar itself; the compensating comparison in public/request.go goes."
+    - "Table tests with escaped, single-quoted, back-quoted, empty, weak and list values for every caller."
+  out:
+    - "Revision grammars and CAS semantics."
+acceptance_criteria:
+  - id: A1
+    given: "If-Match values written with a backslash escape, in single quotes or in back quotes"
+    when: "They reach the public Artifact, private Artifact and Runtime label binding preconditions"
+    then: "Each answers invalid_request, and a plain quoted revision still works."
+  - id: A2
+    text: "The new cases fail on a07f5e9 for the private Artifact and label binding paths."
+tests:
+  - command: "go test ./internal/httpapi/httpx ./internal/httpapi/public ./internal/httpapi/privateartifacts"
+    covers: [A1, A2]
+  - command: make lint
+    covers: [A1, A2]

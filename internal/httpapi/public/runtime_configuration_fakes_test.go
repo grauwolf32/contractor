@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/agentprincipal"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/credentials"
@@ -38,7 +39,7 @@ func newFakeRuntimeAgentPrincipalManagement() *fakeRuntimeAgentPrincipalManageme
 }
 
 // replayMutation answers a key already used by a committed mutation, before
-// any other check, as runtimeconfig.PrincipalService does: the same request
+// any other check, as agentprincipal.Service does: the same request
 // replays its stored result, another request with the key is a permanent
 // idempotency conflict. Refused mutations are not remembered.
 func (f *fakeRuntimeAgentPrincipalManagement) replayMutation(
@@ -147,7 +148,7 @@ func (f *fakeRuntimeAgentPrincipalManagement) Delete(
 		return false, runtimeconfig.ErrPrecondition
 	}
 	if len(value.Principal.Labels) != 0 || value.Live != nil {
-		return false, runtimeconfig.ErrPrincipalInUse
+		return false, agentprincipal.ErrInUse
 	}
 	delete(f.principals, id)
 	f.mutations[key] = fakePrincipalMutation{request: request}

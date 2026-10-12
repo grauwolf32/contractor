@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditimport"
 	"github.com/grauwolf32/contractor/internal/auditservice"
@@ -158,11 +159,11 @@ func finishPreparationRun(t *testing.T, ctx context.Context, h *postgresControll
 			if err != nil {
 				t.Fatal(err)
 			}
-			if _, err := h.artifacts.BindOutputExact(ctx, runID, name, written.Ref, nil); err != nil {
+			if _, err := artifactstest.BindOutput(ctx, h.artifacts, runID, name, written.Ref); err != nil {
 				t.Fatal(err)
 			}
 		}
-		if err := h.artifacts.FreezeRunOutputs(ctx, runID); err != nil {
+		if err := artifactstest.FreezeOutputs(ctx, h.artifacts, runID); err != nil {
 			t.Fatal(err)
 		}
 	}

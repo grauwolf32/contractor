@@ -33,7 +33,7 @@ type testTxStore struct {
 	*OwnerTxStore
 	*ReviewTxStore
 	*QueryStore
-	*FindingEvents
+	*FindingEventsTx
 	*RunDeletionTx
 	*ProjectDeletion
 	*CredentialHolds
@@ -42,7 +42,7 @@ type testTxStore struct {
 func newTestTxStore(tx pgx.Tx) *testTxStore {
 	return &testTxStore{
 		ClaimStore: NewClaimStore(tx), OwnerTxStore: NewOwnerTxStore(tx), ReviewTxStore: NewReviewTxStore(tx),
-		QueryStore: NewQueryStore(tx), FindingEvents: NewFindingEvents(tx), RunDeletionTx: NewRunDeletionTx(tx),
+		QueryStore: NewQueryStore(tx), FindingEventsTx: NewFindingEventsTx(tx), RunDeletionTx: NewRunDeletionTx(tx),
 		ProjectDeletion: NewProjectDeletion(tx), CredentialHolds: NewCredentialHolds(tx),
 	}
 }

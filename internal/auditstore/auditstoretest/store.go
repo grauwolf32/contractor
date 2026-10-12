@@ -39,7 +39,7 @@ type TxStore struct {
 	*pgstore.OwnerTxStore
 	*pgstore.ReviewTxStore
 	*pgstore.QueryStore
-	*pgstore.FindingEvents
+	*pgstore.FindingEventsTx
 	*pgstore.RunDeletionTx
 	*pgstore.ProjectDeletion
 	*pgstore.CredentialHolds
@@ -50,7 +50,7 @@ func NewTxStore(tx pgx.Tx) *TxStore {
 	return &TxStore{
 		ClaimStore: pgstore.NewClaimStore(tx), OwnerTxStore: pgstore.NewOwnerTxStore(tx),
 		ReviewTxStore: pgstore.NewReviewTxStore(tx), QueryStore: pgstore.NewQueryStore(tx),
-		FindingEvents: pgstore.NewFindingEvents(tx), RunDeletionTx: pgstore.NewRunDeletionTx(tx),
+		FindingEventsTx: pgstore.NewFindingEventsTx(tx), RunDeletionTx: pgstore.NewRunDeletionTx(tx),
 		ProjectDeletion: pgstore.NewProjectDeletion(tx), CredentialHolds: pgstore.NewCredentialHolds(tx),
 	}
 }

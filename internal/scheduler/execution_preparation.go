@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	workflowconfig "github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/controlplane"
@@ -22,7 +22,7 @@ import (
 func (s *Scheduler) workerExecutionSettingsForRun(
 	ctx context.Context,
 	run runstore.WorkflowRun,
-	stage workflowconfig.ResolvedStage,
+	stage resolved.ResolvedStage,
 	reservationSet []controlplane.Reservation,
 ) (map[string]runtimesettings.WorkerExecutionSettings, error) {
 	if len(reservationSet) != len(stage.ExecutionConfig.Agents) {
@@ -320,7 +320,7 @@ func clearWorkerExecutionSettings(settings map[string]runtimesettings.WorkerExec
 
 func (s *Scheduler) plannerModelAccess(
 	ctx context.Context,
-	stage workflowconfig.ResolvedStage,
+	stage resolved.ResolvedStage,
 ) (*planner.ModelAccess, error) {
 	if stage.ExecutionConfig.Planner == nil {
 		return nil, nil
@@ -347,7 +347,7 @@ func (s *Scheduler) plannerModelAccess(
 
 func (s *Scheduler) resolveCredential(
 	ctx context.Context,
-	selection workflowconfig.ResolvedConsumerExecutionConfig,
+	selection resolved.ResolvedConsumerExecutionConfig,
 ) (contracts.SecretString, error) {
 	if selection.Credential == nil {
 		return contracts.NewSecretString(""), nil

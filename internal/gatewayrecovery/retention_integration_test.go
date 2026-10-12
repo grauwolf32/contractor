@@ -119,7 +119,7 @@ func TestProbeHolderLookupUsesItsIndex(t *testing.T) {
 func TestRecoveryRoutesOutliveRunsAndReceiptsDoNot(t *testing.T) {
 	ctx := t.Context()
 	pool := recoveryTestPool(t)
-	service, err := New(pool, DefaultPolicy(), time.Minute, time.Minute)
+	service, err := New(pool, runstore.GatewayRecoveryRuns{}, DefaultPolicy(), time.Minute, time.Minute)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -160,7 +160,7 @@ func TestRecoveryRoutesOutliveRunsAndReceiptsDoNot(t *testing.T) {
 		if _, err := tx.Exec(ctx, `SELECT 1 FROM workflow_runs WHERE run_id='run-1' FOR UPDATE`); err != nil {
 			return err
 		}
-		return EndStage(ctx, tx, "run-1")
+		return EndStage(ctx, tx, runstore.GatewayRecoveryRuns{}, "run-1")
 	}); err != nil {
 		t.Fatal(err)
 	}

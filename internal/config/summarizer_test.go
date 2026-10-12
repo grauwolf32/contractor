@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/control"
@@ -35,7 +36,7 @@ func TestWorkerSummarizerGoldenDigestMatchesGoCanonicalization(t *testing.T) {
 		template.ModelPolicy, template.Summarizer.ModelPolicy,
 	} {
 		got, err := modelPolicyDigest(
-			Selector{ID: policy.Ref.PolicyID, Version: policy.Ref.Version}, policy,
+			resolved.Selector{ID: policy.Ref.PolicyID, Version: policy.Ref.Version}, policy,
 		)
 		if err != nil {
 			t.Fatal(err)
@@ -45,7 +46,7 @@ func TestWorkerSummarizerGoldenDigestMatchesGoCanonicalization(t *testing.T) {
 		}
 	}
 	got, err := agentTemplateDigest(
-		Selector{ID: template.Ref.TemplateID, Version: template.Ref.Version}, template,
+		resolved.Selector{ID: template.Ref.TemplateID, Version: template.Ref.Version}, template,
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -60,7 +61,7 @@ func TestWorkerSummarizerResolvesPinsAndPublishesSafeConfiguration(t *testing.T)
 
 	root := copyCoreFixture(t)
 	installWorkerSummarizer(t, root)
-	snapshot := mustLoad(t, root, MVPDescriptors())
+	snapshot := mustLoad(t, root)
 
 	template, err := snapshot.AgentTemplate("artifact_builder@1")
 	if err != nil {
@@ -80,7 +81,7 @@ func TestWorkerSummarizerResolvesPinsAndPublishesSafeConfiguration(t *testing.T)
 	}
 
 	workflow, err := snapshot.ResolveRunWorkflow(
-		t.Context(), "artifact-copy@1", ExecutionConfigPatch{}, developmentCredentialLookup(t, snapshot),
+		t.Context(), "artifact-copy@1", resolved.ExecutionConfigPatch{}, developmentCredentialLookup(t, snapshot),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -117,7 +118,7 @@ func TestWorkerSummarizerDigestCoversExactPolicyAndThresholds(t *testing.T) {
 
 	baselineRoot := copyCoreFixture(t)
 	installWorkerSummarizer(t, baselineRoot)
-	baseline := mustLoad(t, baselineRoot, MVPDescriptors())
+	baseline := mustLoad(t, baselineRoot)
 	baselineTemplate, _ := baseline.AgentTemplate("artifact_builder@1")
 	baselineWorker, _ := baseline.ModelPolicy("test-worker@1")
 	baselineSummary, _ := baseline.ModelPolicy("terminal_summarizer@1")
@@ -128,7 +129,7 @@ func TestWorkerSummarizerDigestCoversExactPolicyAndThresholds(t *testing.T) {
 		t, filepath.Join(thresholdRoot, "agent-templates/artifact_builder.yaml"),
 		"contextWindowRatio: 0.9", "contextWindowRatio: 0.85",
 	)
-	threshold := mustLoad(t, thresholdRoot, MVPDescriptors())
+	threshold := mustLoad(t, thresholdRoot)
 	thresholdTemplate, _ := threshold.AgentTemplate("artifact_builder@1")
 	thresholdSummary, _ := threshold.ModelPolicy("terminal_summarizer@1")
 	if thresholdTemplate.Ref.Digest == baselineTemplate.Ref.Digest {
@@ -144,7 +145,7 @@ func TestWorkerSummarizerDigestCoversExactPolicyAndThresholds(t *testing.T) {
 		t, filepath.Join(policyRoot, "model-policies/terminal_summarizer.yaml"),
 		"model: worker-summarizer-model", "model: worker-summarizer-model-v2",
 	)
-	policyVariant := mustLoad(t, policyRoot, MVPDescriptors())
+	policyVariant := mustLoad(t, policyRoot)
 	policyTemplate, _ := policyVariant.AgentTemplate("artifact_builder@1")
 	policySummary, _ := policyVariant.ModelPolicy("terminal_summarizer@1")
 	policyWorker, _ := policyVariant.ModelPolicy("test-worker@1")
@@ -158,9 +159,9 @@ func TestWorkerSummarizerDigestCoversExactPolicyAndThresholds(t *testing.T) {
 
 	omittedRoot := copyCoreFixture(t)
 	writeWorkerSummarizerPolicy(t, omittedRoot)
-	omitted := mustLoad(t, omittedRoot, MVPDescriptors())
+	omitted := mustLoad(t, omittedRoot)
 	omittedTemplate, _ := omitted.AgentTemplate("artifact_builder@1")
-	original := mustLoad(t, copyCoreFixture(t), MVPDescriptors())
+	original := mustLoad(t, copyCoreFixture(t))
 	originalTemplate, _ := original.AgentTemplate("artifact_builder@1")
 	if omittedTemplate.Summarizer != nil || omittedTemplate.Ref.Digest != originalTemplate.Ref.Digest {
 		t.Fatalf("unreferenced summarizer changed omitted template: %+v", omittedTemplate.Summarizer)
@@ -172,13 +173,13 @@ func TestWorkerSummarizerDefaultsContextWindowRatioBeforeDigesting(t *testing.T)
 
 	explicitRoot := copyCoreFixture(t)
 	installWorkerSummarizer(t, explicitRoot)
-	explicitSnapshot := mustLoad(t, explicitRoot, MVPDescriptors())
+	explicitSnapshot := mustLoad(t, explicitRoot)
 	explicitTemplate, _ := explicitSnapshot.AgentTemplate("artifact_builder@1")
 
 	defaultedRoot := copyCoreFixture(t)
 	installWorkerSummarizer(t, defaultedRoot)
 	replaceFile(t, templatePath(defaultedRoot), "    contextWindowRatio: 0.9\n", "")
-	defaultedSnapshot := mustLoad(t, defaultedRoot, MVPDescriptors())
+	defaultedSnapshot := mustLoad(t, defaultedRoot)
 	defaultedTemplate, _ := defaultedSnapshot.AgentTemplate("artifact_builder@1")
 
 	if defaultedTemplate.Summarizer == nil ||
@@ -193,7 +194,7 @@ func TestWorkerSummarizerSnapshotIsDeepAndRemainsPinnedAcrossReload(t *testing.T
 
 	root := copyCoreFixture(t)
 	installWorkerSummarizer(t, root)
-	first := mustLoad(t, root, MVPDescriptors())
+	first := mustLoad(t, root)
 	template, _ := first.AgentTemplate("artifact_builder@1")
 	oldDigest := template.Ref.Digest
 	*template.Summarizer.CumulativeBudget = 1
@@ -211,7 +212,7 @@ func TestWorkerSummarizerSnapshotIsDeepAndRemainsPinnedAcrossReload(t *testing.T
 		t, filepath.Join(root, "model-policies/terminal_summarizer.yaml"),
 		"model: worker-summarizer-model", "model: worker-summarizer-model-v2",
 	)
-	second := mustLoad(t, root, MVPDescriptors())
+	second := mustLoad(t, root)
 	pinnedAgain, _ := first.AgentTemplate("artifact_builder@1")
 	newTemplate, _ := second.AgentTemplate("artifact_builder@1")
 	if pinnedAgain.Ref.Digest != oldDigest ||
@@ -286,7 +287,7 @@ func TestWorkerSummarizerRejectsInvalidAuthoring(t *testing.T) {
 			root := copyCoreFixture(t)
 			installWorkerSummarizer(t, root)
 			test.mutate(t, root)
-			snapshot, err := Load(root, MVPDescriptors())
+			snapshot, err := Load(root)
 			if err == nil || snapshot != nil || !strings.Contains(err.Error(), test.want) {
 				t.Fatalf("Load() = (%v, %v), want error containing %q", snapshot, err, test.want)
 			}
@@ -300,7 +301,7 @@ func TestWorkerSummarizerRejectsEffectiveRunPolicyBelowSoftThreshold(t *testing.
 	root := copyCoreFixture(t)
 	installWorkerSummarizer(t, root)
 	writeFile(t, filepath.Join(root, "model-policies/test-low-worker.yaml"), []byte(lowWorkerPolicyYAML))
-	snapshot := mustLoad(t, root, MVPDescriptors())
+	snapshot := mustLoad(t, root)
 	patch := decodeExecutionConfigPatch(t, `{"workers":{"modelPolicy":"test-low-worker@1"}}`)
 	resolved, err := snapshot.ResolveRunWorkflow(
 		t.Context(), "artifact-copy@1", patch, developmentCredentialLookup(t, snapshot),
@@ -317,7 +318,7 @@ func TestExecutionConfigCannotOverrideWorkerSummarizer(t *testing.T) {
 		`{"workers":{"summarizer":"terminal_summarizer@1"}}`,
 		`{"stages":{"copy":{"agents":{"builder":{"summarizer":null}}}}}`,
 	} {
-		var patch ExecutionConfigPatch
+		var patch resolved.ExecutionConfigPatch
 		if err := json.Unmarshal([]byte(raw), &patch); err == nil {
 			t.Fatalf("executionConfig accepted summarizer override: %s", raw)
 		}

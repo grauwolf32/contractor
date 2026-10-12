@@ -1,0 +1,49 @@
+schema_version: "1.0"
+id: V371-015
+title: "Model the paused-owner claim skip in the Scheduler's memory store doubles"
+milestone: hub-audit-defects-2026-10
+epic: quality
+kind: chore
+introduced_by: V370-020
+priority: P3
+status: pending
+depends_on: []
+languages: [go]
+goal: "The memory claim doubles skip pending Runs of paused owners as the PostgreSQL claim does, and the race in which a pause commits after the claim is covered by an explicit hook instead of by the divergence."
+context:
+  review: "Out-of-scope finding of the hub audit fix batch (group G6), recorded 2026-10-12; verified on a07f5e9"
+  specification: "docs/spec/execution/scheduler.md#SCH-R163"
+  finding: >-
+    Since V370-020 the PostgreSQL claim (runstore ClaimRunnableRun,
+    internal/runstore/store.go:516 and its SQL) skips a pending Run whose
+    owner's Queue is paused unless one of its active Stages is aborting or
+    holds an unreleased allocation (SCH-R163). memorySchedulerStore.ClaimRunnableRun
+    (internal/scheduler/scheduler_test.go:2065-2077) still claims such a Run.
+    V370-020 kept the divergence on purpose, so that memory tests keep
+    covering the in-lane pause gate (a pause that commits after the claim),
+    but a double that accepts what the store refuses lets a test pass on a
+    path production cannot reach (AGENTS.md 3.5).
+  siblings: >-
+    Other claim doubles: laneTestStore (supervisor_test.go:367) and
+    scanClaimStore (scan_planner_test.go:116). postgresLaneBlockingStore
+    (supervisor_postgres_test.go:233) wraps the real store and is correct.
+scope:
+  in:
+    - "The memory doubles apply SCH-R163's skip, with its aborting and unreleased-allocation exceptions."
+    - "The post-claim pause race is driven by a hook that commits the pause after the claim, in memory and against PostgreSQL."
+  out:
+    - "The claim SQL and the pause gate."
+acceptance_criteria:
+  - id: A1
+    given: "A pending Run of a paused owner without release work"
+    when: "A memory double is asked for a claim"
+    then: "It answers ErrNoWork, as PostgreSQL does."
+  - id: A2
+    text: "The in-lane pause gate tests still fail when the gate is removed."
+tests:
+  - command: "go test ./internal/scheduler"
+    covers: [A1, A2]
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 -run 'Pause' ./internal/scheduler"
+    covers: [A2]
+  - command: make lint
+    covers: [A1, A2]

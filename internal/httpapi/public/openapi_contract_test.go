@@ -19,13 +19,14 @@ import (
 	"github.com/getkin/kin-openapi/openapi3filter"
 	"github.com/getkin/kin-openapi/routers"
 	"github.com/getkin/kin-openapi/routers/gorillamux"
+	"github.com/grauwolf32/contractor/internal/agentprincipal"
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/control"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	"github.com/grauwolf32/contractor/internal/runstore"
-	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"go.yaml.in/yaml/v4"
 )
 
@@ -699,7 +700,7 @@ func TestImplementedPublicHandlersConformToOpenAPI(t *testing.T) {
 	}
 	principalID := strings.Repeat("a", 64)
 	fixture.runtimePrincipals.principals[principalID] = controlplane.RuntimeAgentPrincipalProjection{
-		Principal: runtimeconfig.RuntimeAgentPrincipal{
+		Principal: agentprincipal.Principal{
 			RuntimeAgentID: principalID, Labels: []string{"contract-debug"}, LabelRevision: 1,
 			CreatedBy: "runtime-registration", CreatedAt: operationsNow,
 			UpdatedBy: "runtime-registration", UpdatedAt: operationsNow,
@@ -911,7 +912,7 @@ func TestImplementedPublicHandlersConformToOpenAPI(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := fixture.artifacts.BindOutputExact(t.Context(), "run_fixed", "result", output.Ref, nil); err != nil {
+	if _, err := artifactstest.BindOutput(t.Context(), fixture.artifacts, "run_fixed", "result", output.Ref); err != nil {
 		t.Fatal(err)
 	}
 	getOutput := newPublicContractRequest(http.MethodGet, "/v1/runs/run_fixed/outputs/result", nil)
