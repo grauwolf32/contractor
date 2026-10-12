@@ -307,6 +307,7 @@ def worker_model() -> object:
 def stage_request() -> StageContentRequest:
     return StageContentRequest(
         apiVersion=API_VERSION,
+        deadline=datetime.now(UTC) + timedelta(hours=1),
         subtaskId="0",
         objective="Collect bounded HTTP and Caido evidence",
         instructions="Use only selected tools and publish one report.",

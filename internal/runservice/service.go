@@ -1,10 +1,6 @@
 package runservice
 
-import (
-	"fmt"
-
-	"github.com/grauwolf32/contractor/internal/contracts"
-)
+import "fmt"
 
 func New(options Options) (*Service, error) {
 	if options.Runs == nil || options.Workflows == nil || options.LLMCredentials == nil ||
@@ -19,16 +15,4 @@ func New(options Options) (*Service, error) {
 		publicTransaction: options.PublicTransaction, auditTransaction: options.AuditTransaction,
 		skillInitializationAvailable: options.SkillInitializationAvailable,
 	}, nil
-}
-
-func cloneRefs(source map[string]contracts.ArtifactRef) map[string]contracts.ArtifactRef {
-	result := make(map[string]contracts.ArtifactRef, len(source))
-	for name, ref := range source {
-		if ref.Revision != nil {
-			revision := *ref.Revision
-			ref.Revision = &revision
-		}
-		result[name] = ref
-	}
-	return result
 }

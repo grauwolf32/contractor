@@ -191,7 +191,7 @@ func (f *Factory) Create(invocation planner.Invocation) (planner.Planner, error)
 		}
 		workspaceState := invocation.Stage.Context.Workspace != nil &&
 			selectedWorkspaceObservation(binding.Template)
-		handle := planner.CloneWorkerHandle(invocation.Workers[logicalName])
+		handle := invocation.Workers[logicalName].Clone()
 		workers = append(workers, workerBinding{
 			logicalName:    logicalName,
 			description:    binding.Template.Description,

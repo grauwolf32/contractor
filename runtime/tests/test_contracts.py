@@ -38,7 +38,6 @@ from contractor_runtime.contracts import (
     RuntimeReport,
     RuntimeSettings,
     StageContentRequest,
-    StageContentResult,
     WorkerCompletion,
     WorkerModelResult,
     WorkerSessionMode,
@@ -74,7 +73,6 @@ MODELS: dict[str, type[BaseModel]] = {
         RuntimeReport,
         RuntimeSettings,
         StageContentRequest,
-        StageContentResult,
         WorkerCompletion,
         WorkspaceCapabilities,
     )
@@ -130,7 +128,7 @@ def test_valid_golden_fixture_round_trip(filename: str, model: type[BaseModel]) 
     value = model.model_validate_json(raw)
     encoded = value.model_dump_json(by_alias=True, exclude_none=True)
     assert json.loads(encoded) == json.loads(raw)
-    if filename == "stage-content-request-deadline.json":
+    if filename == "stage-content-request.json":
         assert StageContentRequest.model_validate(json.loads(raw)).deadline == value.deadline
 
 
@@ -372,16 +370,15 @@ def test_runtime_settings_repr_is_redacted_but_json_is_wire_usable() -> None:
     assert json.loads(settings.model_dump_json(by_alias=True))["llmGatewayToken"] == token
 
 
-def test_runtime_settings_accepts_explicit_unauthenticated_gateway() -> None:
-    settings = RuntimeSettings.model_validate(
-        {
-            "llmGatewayUrl": "http://127.0.0.1:4000/v1",
-            "llmGatewayToken": "",
-            "artifactApiUrl": "https://server.example/private/v1",
-            "requestTimeoutSeconds": 30,
-        }
-    )
-    assert settings.llm_gateway_token.get_secret_value() == ""
+def test_runtime_settings_unauthenticated_gateway_omits_the_token() -> None:
+    unauthenticated = {
+        "llmGatewayUrl": "http://127.0.0.1:4000/v1",
+        "artifactApiUrl": "https://server.example/private/v1",
+        "requestTimeoutSeconds": 30,
+    }
+    assert RuntimeSettings.model_validate(unauthenticated).llm_gateway_token is None
+    with pytest.raises(ValidationError, match="unauthenticated Gateway omits llmGatewayToken"):
+        RuntimeSettings.model_validate({**unauthenticated, "llmGatewayToken": ""})
 
 
 @pytest.mark.parametrize(
@@ -895,7 +892,6 @@ def test_run_metadata_labels_exist_only_on_allocation_telemetry_input() -> None:
     assert "run_metadata_labels" in AllocationSpec.model_fields
     for model in (
         StageContentRequest,
-        StageContentResult,
         WorkerCompletion,
         AgentStateSnapshot,
         RuntimeReport,

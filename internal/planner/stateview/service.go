@@ -124,7 +124,7 @@ func New(
 			return nil, errors.New("Worker State binding is duplicated")
 		}
 		resolved[binding.LogicalName] = boundWorker{
-			handle:            planner.CloneWorkerHandle(binding.Handle),
+			handle:            binding.Handle.Clone(),
 			workspaceEligible: binding.WorkspaceEligible,
 		}
 	}
@@ -375,7 +375,7 @@ func (s *Service) load(
 	if hasCache {
 		etag = cached.etag
 	}
-	read, readErr := s.reader.ReadWorkerState(ctx, planner.CloneWorkerHandle(binding.handle), etag)
+	read, readErr := s.reader.ReadWorkerState(ctx, binding.handle.Clone(), etag)
 	if readErr != nil {
 		retryable := true
 		var typed *planner.WorkerStateReadError

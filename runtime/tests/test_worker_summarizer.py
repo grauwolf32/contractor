@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime, timedelta
 
 from google.adk.events import Event
 from google.genai import types
@@ -150,6 +151,7 @@ def _request(
 ) -> StageContentRequest:
     return StageContentRequest(
         apiVersion=API_VERSION,
+        deadline=datetime.now(UTC) + timedelta(hours=1),
         subtaskId="1.2",
         objective=objective,
         instructions=instructions,

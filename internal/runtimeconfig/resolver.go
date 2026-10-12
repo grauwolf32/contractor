@@ -305,7 +305,7 @@ func ResolveRuntimeConfig(input ResolveRuntimeConfigInput) (ResolvedRuntimeConfi
 		RunLabels:             bindingProvenanceList(runPins),
 		AgentLabels:           bindingProvenanceList(agentPins),
 		RuntimeAdapters:       append([]contracts.RuntimeAdapterRef{}, adapters...),
-		LLMGatewayConfig:      cloneGatewayRef(gatewayRef),
+		LLMGatewayConfig:      clone.Pointer(gatewayRef),
 		LLMCredential:         clone.Pointer(effective.credential),
 		RuntimeCredentialRefs: workerCredentials,
 	}
@@ -319,7 +319,7 @@ func ResolveRuntimeConfig(input ResolveRuntimeConfigInput) (ResolvedRuntimeConfi
 		LLMCredential:            clone.Pointer(effective.credential),
 		WorkerTelemetry:          cloneTelemetry(effective.workerTelemetry),
 		HTTPProxy:                cloneHTTPProxy(effective.httpProxy),
-		Caido:                    cloneCaido(effective.caido),
+		Caido:                    clone.Pointer(effective.caido),
 		PlannerTelemetry:         cloneTelemetry(effective.plannerTelemetry),
 		PlannerRuntimeCredential: plannerCredential,
 		RequiredRuntimeAdapters:  append([]contracts.RuntimeAdapterRef{}, adapters...),
@@ -764,14 +764,6 @@ func resolutionError(code ResolutionErrorCode, path string, cause error) error {
 	return &ResolutionError{Code: code, Path: path, cause: cause}
 }
 
-func cloneGatewayRef(value *llmgateway.LLMGatewayConfigRef) *llmgateway.LLMGatewayConfigRef {
-	if value == nil {
-		return nil
-	}
-	result := *value
-	return &result
-}
-
 func sameCredentialRef(left, right *llmgateway.LLMCredentialRef) bool {
 	return left == nil && right == nil ||
 		left != nil && right != nil && *left == *right
@@ -814,14 +806,6 @@ func cloneHTTPProxy(value *HTTPProxyConfig) *HTTPProxyConfig {
 	return &result
 }
 
-func cloneCaido(value *CaidoConfig) *CaidoConfig {
-	if value == nil {
-		return nil
-	}
-	result := *value
-	return &result
-}
-
 func cloneOrigin(value *RuntimeFieldOrigin) *RuntimeFieldOrigin {
 	if value == nil {
 		return nil
@@ -852,12 +836,9 @@ func (r ResolvedRuntimeConfig) Clone() ResolvedRuntimeConfig {
 	result.LLMCredential = clone.Pointer(r.LLMCredential)
 	result.WorkerTelemetry = cloneTelemetry(r.WorkerTelemetry)
 	result.HTTPProxy = cloneHTTPProxy(r.HTTPProxy)
-	result.Caido = cloneCaido(r.Caido)
+	result.Caido = clone.Pointer(r.Caido)
 	result.PlannerTelemetry = cloneTelemetry(r.PlannerTelemetry)
-	if r.PlannerRuntimeCredential != nil {
-		credential := *r.PlannerRuntimeCredential
-		result.PlannerRuntimeCredential = &credential
-	}
+	result.PlannerRuntimeCredential = clone.Pointer(r.PlannerRuntimeCredential)
 	result.RequiredRuntimeAdapters = append([]contracts.RuntimeAdapterRef{}, r.RequiredRuntimeAdapters...)
 	result.Origins = cloneOrigins(r.Origins)
 	result.Provenance.RunLabels = append(
@@ -869,7 +850,7 @@ func (r ResolvedRuntimeConfig) Clone() ResolvedRuntimeConfig {
 	result.Provenance.RuntimeAdapters = append(
 		[]contracts.RuntimeAdapterRef{}, r.Provenance.RuntimeAdapters...,
 	)
-	result.Provenance.LLMGatewayConfig = cloneGatewayRef(r.Provenance.LLMGatewayConfig)
+	result.Provenance.LLMGatewayConfig = clone.Pointer(r.Provenance.LLMGatewayConfig)
 	result.Provenance.LLMCredential = clone.Pointer(r.Provenance.LLMCredential)
 	result.Provenance.RuntimeCredentialRefs = append(
 		[]runtimesettings.RuntimeCredentialRef{}, r.Provenance.RuntimeCredentialRefs...,

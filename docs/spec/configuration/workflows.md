@@ -662,9 +662,11 @@ Stage fields:
 | `workflowOutputs` | Workflow output slot to result name | WFL-R70 to WFL-R76 |
 | `on` | `succeeded`, `failed`, `interrupted` actions | WFL-R36 to WFL-R51, WFL-R81, WFL-R82 |
 
-The `on` actions and the escalation `executionConfig` union are encoded in
-[workflow-transition.schema.json](../../../api/v1alpha1/workflow-transition.schema.json)
-(WFL-R36, WFL-R40, WFL-R45, WFL-R46, WFL-R50, WFL-R81).
+The strict WorkflowCatalog loader is the one validator of the authored `on`
+actions and the escalation `executionConfig` union (WFL-R36, WFL-R40, WFL-R45,
+WFL-R46, WFL-R50, WFL-R81). No JSON Schema describes the authored block: the
+private schemas under `api/v1alpha1` cover only messages between the Server and
+the Runtime, and the read model below carries the resolved transitions.
 
 The public read model is `GET /v1/workflows` and
 `GET /v1/workflows/{name}/versions/{version}` in

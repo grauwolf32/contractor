@@ -121,6 +121,32 @@ func (s RunSkillSnapshot) Validate() error {
 
 func (s RunSkillSnapshot) Initialized() bool { return s.Artifact != nil }
 
+// Clone returns a copy that shares no ref or revision with s.
+func (s RunSkillSnapshot) Clone() RunSkillSnapshot {
+	if s.Source != nil {
+		source := s.Source.Clone()
+		s.Source = &source
+	}
+	if s.Artifact != nil {
+		artifact := s.Artifact.Clone()
+		s.Artifact = &artifact
+	}
+	return s
+}
+
+// CloneRunSkills returns a copy of skills that shares no ref or revision with
+// the source; nil stays nil.
+func CloneRunSkills(skills []RunSkillSnapshot) []RunSkillSnapshot {
+	if skills == nil {
+		return nil
+	}
+	result := make([]RunSkillSnapshot, len(skills))
+	for index, skill := range skills {
+		result[index] = skill.Clone()
+	}
+	return result
+}
+
 func validateExactRunSkillRef(ref ArtifactRef, name, field string) error {
 	if ref.Namespace != AgentSkillNamespace || ref.Name != name {
 		return Invalidf("Run Skill %s must identify skills/%s", field, name)

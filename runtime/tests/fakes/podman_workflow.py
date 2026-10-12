@@ -155,6 +155,7 @@ def sample_spec(peer):
     )
     request = StageContentRequest(
         apiVersion=API_VERSION,
+        deadline=datetime.now(UTC) + timedelta(hours=1),
         subtaskId="0",
         objective=stage["objective"],
         instructions=(FIXTURE / stage["instructions"]["ref"]).read_text(),

@@ -52,6 +52,7 @@ def tool_spec():
 def request(spec, *, target="http://fixture.invalid/?secret=canary"):
     return StageContentRequest(
         apiVersion="contractor/v1alpha1",
+        deadline=datetime.now(UTC) + timedelta(hours=1),
         subtaskId="0",
         objective="Scan",
         instructions="Scan",
@@ -669,7 +670,7 @@ def test_real_allocation_and_a2a_use_scanner_without_model(tmp_path, monkeypatch
             ).create(card)
             envelope = data_request(spec.allocation_id)
             ParseDict(
-                request(spec).model_dump(by_alias=True, exclude_none=True),
+                request(spec).model_dump(mode="json", by_alias=True, exclude_none=True),
                 envelope.message.parts[0].data,
             )
             if outcome == "completed":
@@ -767,6 +768,7 @@ def sqlmap_spec():
 def prepared_request(spec):
     return StageContentRequest(
         apiVersion="contractor/v1alpha1",
+        deadline=datetime.now(UTC) + timedelta(hours=1),
         subtaskId="0",
         objective="Check the prepared request",
         instructions="Check the prepared request",
@@ -970,6 +972,7 @@ def ffuf_spec():
 def ffuf_request(spec):
     return StageContentRequest(
         apiVersion="contractor/v1alpha1",
+        deadline=datetime.now(UTC) + timedelta(hours=1),
         subtaskId="0",
         objective="Fuzz the target with the uploaded wordlist",
         instructions="Fuzz the target with the uploaded wordlist",

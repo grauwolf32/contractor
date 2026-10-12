@@ -52,7 +52,7 @@ def gateway_authorization(settings: RuntimeSettings) -> str | None:
     """The Authorization value the LLM Gateway client sends, also when proxied."""
 
     token = settings.llm_gateway_token
-    if token is None or not token.get_secret_value():
+    if token is None:
         return None
     return f"Bearer {token.get_secret_value()}"
 

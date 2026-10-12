@@ -187,16 +187,27 @@ func TestRuntimeSettingsWireEncodingKeepsAbsentSecretsAbsent(t *testing.T) {
 	}
 }
 
-func TestRuntimeSettingsAllowsExplicitUnauthenticatedGateway(t *testing.T) {
+// An unauthenticated Gateway omits the token; an empty one is rejected like
+// any other malformed value, on the Server and in the Runtime.
+func TestRuntimeSettingsUnauthenticatedGatewayOmitsTheToken(t *testing.T) {
 	t.Parallel()
 	settings := RuntimeSettings{
 		LLMGatewayURL:         "http://127.0.0.1:4000/v1",
-		LLMGatewayToken:       nil,
 		ArtifactAPIURL:        "https://server.example/private/v1",
 		RequestTimeoutSeconds: 30,
 	}
 	if err := settings.Validate(); err != nil {
 		t.Fatalf("unauthenticated RuntimeSettings were rejected: %v", err)
+	}
+	empty := contracts.NewSecretString("")
+	settings.LLMGatewayToken = &empty
+	if err := settings.Validate(); err == nil {
+		t.Fatal("an empty llmGatewayToken was accepted")
+	}
+	const wire = `{"llmGatewayUrl":"http://127.0.0.1:4000/v1","llmGatewayToken":"",` +
+		`"artifactApiUrl":"https://server.example/private/v1","requestTimeoutSeconds":30}`
+	if _, err := contracts.DecodePrivateStrict[RuntimeSettings]([]byte(wire)); err == nil {
+		t.Fatal("an empty llmGatewayToken was decoded")
 	}
 }
 

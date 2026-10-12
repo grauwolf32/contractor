@@ -43,6 +43,39 @@ func TestResolvedAgentTemplateCloneCopiesSkillRevisions(t *testing.T) {
 	}
 }
 
+// Each Clone of a value that holds refs, maps or a revision pointer must not
+// alias its source: callers outside the hub rely on them instead of copies.
+func TestWireValueClonesDoNotAliasTheirSource(t *testing.T) {
+	revision := "r1"
+	ref := ArtifactRef{Namespace: "skills", Name: "review", Revision: &revision}
+
+	request := StageContentRequest{
+		Parameters: map[string]string{"mode": "strict"}, Artifacts: map[string]ArtifactRef{"source": ref},
+		ResultArtifacts: map[string]ArtifactRef{"report": {Namespace: "builder", Name: "report"}},
+	}
+	requestCopy := request.Clone()
+	requestCopy.Parameters["mode"] = "changed"
+	*requestCopy.Artifacts["source"].Revision = "changed"
+	delete(requestCopy.ResultArtifacts, "report")
+
+	skill := RunSkillSnapshot{Name: "review", Source: &ref, Artifact: &ref}
+	skillCopy := CloneRunSkills([]RunSkillSnapshot{skill})[0]
+	*skillCopy.Source.Revision = "changed"
+	skillCopy.Artifact.Name = "changed"
+
+	exact := ExactArtifact{Ref: ref, Digest: "sha256:" + strings.Repeat("0", 64)}
+	exactCopy := CloneExactArtifacts(map[string]ExactArtifact{"input": exact})["input"]
+	*exactCopy.Ref.Revision = "changed"
+
+	if request.Parameters["mode"] != "strict" || len(request.ResultArtifacts) != 1 ||
+		revision != "r1" || skill.Artifact.Name != "review" {
+		t.Fatalf("a clone aliases its source: request %+v, skill %+v, revision %q", request, skill, revision)
+	}
+	if CloneRunSkills(nil) != nil || CloneExactArtifacts(nil) == nil {
+		t.Fatal("CloneRunSkills keeps nil and CloneExactArtifacts never returns nil")
+	}
+}
+
 func TestCheckPinnedSelection(t *testing.T) {
 	value := map[string]string{"workflow": "copy@1"}
 	if err := CheckPinnedSelection("", value); err != nil {

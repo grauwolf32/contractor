@@ -122,7 +122,7 @@ func TestAuditCompletionPostgresAtomicCreationRestartAndAllocation(t *testing.T)
 		t.Fatal("different Workflow accepted", err)
 	}
 	wrongTask := params
-	wrongTask.Inputs = cloneExactArtifacts(params.Inputs)
+	wrongTask.Inputs = contracts.CloneExactArtifacts(params.Inputs)
 	wrongTask.Inputs["task"] = source
 	if _, err := service.CreateAudit(ctx, wrongTask); !errors.Is(err, ErrInvalid) {
 		t.Fatal("foreign task accepted", err)

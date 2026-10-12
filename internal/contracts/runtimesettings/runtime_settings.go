@@ -236,6 +236,9 @@ func (s RuntimeSettings) Validate() error {
 	} else if s.LLMGatewayToken != nil || s.LLMGatewayFailureSignatures != nil {
 		return contracts.Invalidf("LLM token and failure signatures require a Gateway URL")
 	}
+	if s.LLMGatewayToken != nil && s.LLMGatewayToken.Reveal() == "" {
+		return contracts.Invalidf("an unauthenticated Gateway omits llmGatewayToken")
+	}
 	if s.LLMGatewayFailureSignatures != nil {
 		if err := s.LLMGatewayFailureSignatures.Validate(); err != nil {
 			return err

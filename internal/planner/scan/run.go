@@ -84,7 +84,7 @@ func (p *execution) Run(ctx context.Context) (contracts.StageContentResult, erro
 				record.Status, record.Code = planner.ScanJobFailed, "scan_invalid_worker_result"
 			} else {
 				callCtx, cancel := context.WithDeadline(ctx, deadline)
-				completion, invokeErr := p.factory.invoker.Invoke(callCtx, job.Worker, planner.CloneWorkerHandle(p.invocation.Workers[job.Worker]), planner.CloneStageRequest(request))
+				completion, invokeErr := p.factory.invoker.Invoke(callCtx, job.Worker, p.invocation.Workers[job.Worker].Clone(), request.Clone())
 				cancel()
 				if invokeErr != nil {
 					record.Status, record.Code = planner.ScanJobUnknown, "scan_outcome_unknown"
@@ -237,7 +237,7 @@ func (p *execution) materialize(ctx context.Context, job scanplan.ScanJob) (map[
 }
 
 func (p *execution) request(job scanplan.ScanJob, record planner.ScanJobRecord, deadline time.Time) (contracts.StageContentRequest, error) {
-	request := contracts.StageContentRequest{APIVersion: contracts.APIVersion, SubtaskID: job.ID, Objective: p.invocation.Stage.Objective, Instructions: p.invocation.Stage.Instructions.Text, Parameters: job.Parameters, Artifacts: record.InputArtifacts, ResultArtifacts: map[string]contracts.ArtifactRef{job.Execution.ResultArtifact: p.jobOutput(job)}, Deadline: &deadline}
+	request := contracts.StageContentRequest{APIVersion: contracts.APIVersion, SubtaskID: job.ID, Objective: p.invocation.Stage.Objective, Instructions: p.invocation.Stage.Instructions.Text, Parameters: job.Parameters, Artifacts: record.InputArtifacts, ResultArtifacts: map[string]contracts.ArtifactRef{job.Execution.ResultArtifact: p.jobOutput(job)}, Deadline: deadline}
 	if err := request.Validate(); err != nil {
 		return contracts.StageContentRequest{}, err
 	}

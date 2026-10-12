@@ -240,7 +240,7 @@ func normalizePublicCreate(params PublicCreateParams) (PublicCreateParams, error
 	params.RuntimeLabels = labels
 	params.MetadataLabels = metadata
 	params.Parameters = clone.Map(params.Parameters)
-	params.Inputs = cloneRefs(params.Inputs)
+	params.Inputs = contracts.CloneArtifactRefs(params.Inputs)
 	if params.ProjectID != nil {
 		projectID := *params.ProjectID
 		if projectID == "" {

@@ -2,7 +2,6 @@ package planner
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
@@ -116,7 +115,7 @@ func (p *passthroughPlanner) Run(
 		telemetry.PlannerSpanAttributes{Operation: "a2a.invoke", WorkerName: p.binding},
 	)
 	workerCompletion, err := p.invoker.Invoke(
-		invokeContext, p.binding, cloneWorkerHandle(p.handle), cloneStageRequest(p.request),
+		invokeContext, p.binding, p.handle.Clone(), p.request.Clone(),
 	)
 	telemetry.CapturePlannerInput(workerSpan, func() any { return p.request })
 	if err == nil {
@@ -164,7 +163,8 @@ func (p *passthroughPlanner) Run(
 	} else {
 		workerSpan.End("succeeded", telemetry.PlannerSpanAttributes{})
 	}
-	completion := Completion{Result: pointerToResult(result.Clone())}
+	recorded := result.Clone()
+	completion := Completion{Result: &recorded}
 	if err := CompleteSession(ctx, p.sessions, started.Identity, completion); err != nil {
 		return contracts.StageContentResult{}, SessionError("record completion", err)
 	}
@@ -309,7 +309,7 @@ func stageRequest(invocation Invocation) (contracts.StageContentRequest, error) 
 	request := contracts.StageContentRequest{
 		APIVersion: contracts.APIVersion, SubtaskID: "0", Objective: invocation.Stage.Objective,
 		Instructions: invocation.Stage.Instructions.Text, Parameters: parameters, Artifacts: artifacts,
-		ResultArtifacts: resultArtifacts, Deadline: &invocation.Deadline,
+		ResultArtifacts: resultArtifacts, Deadline: invocation.Deadline,
 	}
 	if err := request.Validate(); err != nil {
 		return contracts.StageContentRequest{}, fmt.Errorf("invalid StageContentRequest: %w", err)
@@ -368,49 +368,5 @@ func validateInvocation(invocation Invocation) (string, contracts.WorkerHandle, 
 			}
 		}
 	}
-	return binding, cloneWorkerHandle(handle), nil
-}
-
-func cloneStageRequest(request contracts.StageContentRequest) contracts.StageContentRequest {
-	result := request
-	if request.Deadline != nil {
-		deadline := *request.Deadline
-		result.Deadline = &deadline
-	}
-	result.Parameters = make(map[string]string, len(request.Parameters))
-	for name, value := range request.Parameters {
-		result.Parameters[name] = value
-	}
-	result.Artifacts = contracts.CloneArtifactRefs(request.Artifacts)
-	result.ResultArtifacts = contracts.CloneArtifactRefs(request.ResultArtifacts)
-	return result
-}
-
-// CloneStageRequest detaches all mutable request maps.
-func CloneStageRequest(request contracts.StageContentRequest) contracts.StageContentRequest {
-	return cloneStageRequest(request)
-}
-
-func pointerToResult(result contracts.StageContentResult) *contracts.StageContentResult {
-	return &result
-}
-
-func cloneWorkerHandle(handle contracts.WorkerHandle) contracts.WorkerHandle {
-	result := handle
-	// Decoding into a non-nil map reuses it. Clear the destination before the
-	// round trip so cloning neither mutates nor shares the original card.
-	// A non-JSON card is unusable by A2A; omit it instead of retaining aliases.
-	result.AgentCard = nil
-	encoded, err := json.Marshal(handle.AgentCard)
-	if err == nil {
-		_ = json.Unmarshal(encoded, &result.AgentCard)
-	}
-	return result
-}
-
-// CloneWorkerHandle detaches mutable Agent Card data before crossing a Planner
-// adapter boundary. Cards containing non-JSON values are omitted, so invalid
-// in-process inputs cannot bypass the copy boundary by failing serialization.
-func CloneWorkerHandle(handle contracts.WorkerHandle) contracts.WorkerHandle {
-	return cloneWorkerHandle(handle)
+	return binding, handle.Clone(), nil
 }

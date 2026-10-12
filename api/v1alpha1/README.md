@@ -11,9 +11,11 @@ adapter receives `StageContentRequest` in an A2A DataPart with media type
 `application/vnd.contractor.stage-content+json` and returns the Runtime-owned
 `WorkerCompletion` with media type
 `application/vnd.contractor.worker-completion+json`.
-`StageContentRequest.deadline` is optional for older callers; production
-Planners set it to the effective Worker-call deadline. Runtime uses it as
-control data and does not include it in the model prompt.
+`StageContentRequest.deadline` is required: every Planner sets it to the
+effective Worker-call deadline. Runtime uses it as control data and does not
+include it in the model prompt. The Stage result a Planner returns to the
+Scheduler (`StageContentResult`) never crosses this boundary and is not part of
+this catalog.
 
 This is the single private contract catalog. There is no separate protocol
 number, alternate DTO family or conversion path. HTTP routes retain their
@@ -95,10 +97,9 @@ payload.
 default covered by the AgentTemplate digest. The separate required
 `AllocationSpec.modelPolicy` is the effective Worker policy pinned by the Run;
 Runtime validates its own digest and uses it without mutating or re-signing the
-AgentTemplate. `RuntimeSettings.llmGatewayToken` is normally omitted for an
-unauthenticated Gateway. The private wire validators also accept an explicit
-empty string, which Runtime treats like an omitted token. The Server does not
-emit empty resolved credentials.
+AgentTemplate. `RuntimeSettings.llmGatewayToken` is omitted for an
+unauthenticated Gateway; when present it is non-empty, and the Server, Runtime
+and schema reject an empty token.
 
 Every `AllocationSpec` also carries a required `runMetadataLabels` object. An
 unlabeled Run sends `{}`. Server and Runtime validate the shared 32-entry,
@@ -138,8 +139,7 @@ contains a closed summarizer phase/usage record. The HTTP ETag's existing
 manifest after YAML-to-JSON conversion. `llm-gateway-config.schema.json`
 describes its normalized, digest-bearing resolved value inside the Go Server.
 `execution-config-manifest.schema.json` describes immutable Stage-local
-escalation profiles, while `workflow-transition.schema.json` describes the
-strict `on` block including bounded retry and inline-or-ref escalation.
+escalation profiles.
 
 Registration requires `initialLabels` and `supportedRuntimeAdapters`, including
 empty arrays when nothing is selected. The response carries the durable

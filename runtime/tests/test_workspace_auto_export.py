@@ -475,6 +475,7 @@ def agent_template() -> ResolvedAgentTemplate:
 def stage_request() -> StageContentRequest:
     return StageContentRequest(
         apiVersion=API_VERSION,
+        deadline=datetime.now(UTC) + timedelta(hours=1),
         subtaskId="0",
         objective="Analyze source",
         instructions="Return a result.",

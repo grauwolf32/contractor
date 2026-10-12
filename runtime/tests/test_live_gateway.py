@@ -200,6 +200,7 @@ def test_live_worker_result_finalizer_separates_tools_and_schema(tmp_path: Path)
             completion = await runtime.invoke(
                 StageContentRequest(
                     apiVersion=API_VERSION,
+                    deadline=datetime.now(UTC) + timedelta(hours=1),
                     subtaskId="live-finalizer-1",
                     objective="Confirm the separated result-finalizer path",
                     instructions=(

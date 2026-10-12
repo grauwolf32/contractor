@@ -1102,6 +1102,7 @@
           "anyOf": [
             {
               "format": "password",
+              "minLength": 1,
               "type": "string",
               "writeOnly": true
             },

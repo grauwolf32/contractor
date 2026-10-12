@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/google/jsonschema-go/jsonschema"
+	"github.com/grauwolf32/contractor/internal/clone"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/telemetry"
@@ -284,7 +285,7 @@ func (p *streamlinePlanner) callWorker(
 		},
 	)
 	completion, err := p.invoker.Invoke(
-		workerContext, binding.logicalName, planner.CloneWorkerHandle(binding.handle), request,
+		workerContext, binding.logicalName, binding.handle.Clone(), request,
 	)
 	if err != nil {
 		failure := planner.FailureFrom(err)
@@ -396,9 +397,8 @@ func routerExecuteSchema(workers []workerBinding) (*jsonschema.Schema, error) {
 func (p *streamlinePlanner) workerRequest(
 	ctx context.Context, subtask planner.PlannerSubtask,
 ) (contracts.StageContentRequest, *planner.Failure) {
-	request := planner.CloneStageRequest(p.request)
-	deadline := p.deadline
-	request.Deadline = &deadline
+	request := p.request.Clone()
+	request.Deadline = p.deadline
 	request.SubtaskID = subtask.ID
 	request.Objective = subtask.Objective
 	request.Instructions = subtask.Instructions
@@ -460,7 +460,7 @@ func (p *streamlinePlanner) finish(
 	}
 	result := contracts.StageContentResult{
 		APIVersion: contracts.APIVersion, Outcome: args.Outcome,
-		Summary: args.Summary, Artifacts: contracts.CloneArtifactRefs(args.Artifacts), Error: cloneTerminationError(args.Error),
+		Summary: args.Summary, Artifacts: contracts.CloneArtifactRefs(args.Artifacts), Error: clone.Pointer(args.Error),
 	}
 	if err := planner.ValidateCandidate(
 		ctx, p.invocation.RunID, p.resultContract, result, p.inspector,
@@ -505,14 +505,6 @@ func (p *streamlinePlanner) finish(
 	state.recordTool(finishToolName, map[string]any{"outcome": safeOutcome}, true, time.Since(started), 0, nil)
 	span.End("succeeded", telemetry.PlannerSpanAttributes{PlanRevision: planRevision})
 	return completionToolOutput{Accepted: true}
-}
-
-func cloneTerminationError(input *contracts.TerminationError) *contracts.TerminationError {
-	if input == nil {
-		return nil
-	}
-	cloned := *input
-	return &cloned
 }
 
 func workerFailure(failure planner.Failure) workerCallOutput {

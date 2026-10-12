@@ -35,7 +35,7 @@ type Snapshot struct {
 func Encode(snapshot Snapshot) ([]byte, error) {
 	snapshot.SchemaVersion = SchemaVersion
 	snapshot.ProjectID = clone.Pointer(snapshot.ProjectID)
-	snapshot.Inputs = cloneInputs(snapshot.Inputs)
+	snapshot.Inputs = contracts.CloneArtifactRefs(snapshot.Inputs)
 	if err := validate(snapshot); err != nil {
 		return nil, err
 	}
@@ -77,7 +77,7 @@ func Decode(encoded []byte) (Snapshot, error) {
 		return Snapshot{}, err
 	}
 	snapshot.ProjectID = clone.Pointer(snapshot.ProjectID)
-	snapshot.Inputs = cloneInputs(snapshot.Inputs)
+	snapshot.Inputs = contracts.CloneArtifactRefs(snapshot.Inputs)
 	return snapshot, nil
 }
 
@@ -98,14 +98,4 @@ func validate(snapshot Snapshot) error {
 		}
 	}
 	return nil
-}
-
-func cloneInputs(source map[string]contracts.ArtifactRef) map[string]contracts.ArtifactRef {
-	result := make(map[string]contracts.ArtifactRef, len(source))
-	for slot, ref := range source {
-		copy := ref
-		copy.Revision = clone.Pointer(ref.Revision)
-		result[slot] = copy
-	}
-	return result
 }

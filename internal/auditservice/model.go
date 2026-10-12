@@ -13,6 +13,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contentdigest"
+	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/grauwolf32/contractor/internal/strictjson"
 )
@@ -193,34 +194,12 @@ func mergeIDs(sets ...[]string) []string {
 	return result
 }
 
-func cloneExactInputs(source map[string]auditstore.ExactArtifact) map[string]auditstore.ExactArtifact {
-	result := make(map[string]auditstore.ExactArtifact, len(source))
-	for name, value := range source {
-		if value.Ref.Revision != nil {
-			revision := *value.Ref.Revision
-			value.Ref.Revision = &revision
-		}
-		result[name] = value
-	}
-	return result
-}
-
 func cloneBaseline(source BaselineSnapshot) BaselineSnapshot {
 	result := source
-	result.Inputs = cloneExactInputs(source.Inputs)
+	result.Inputs = contracts.CloneExactArtifacts(source.Inputs)
 	result.RuntimeLabels = slices.Clone(source.RuntimeLabels)
 	result.RuntimeConfig = source.RuntimeConfig.Clone()
-	result.Skills = slices.Clone(source.Skills)
-	for index := range result.Skills {
-		if result.Skills[index].Source != nil {
-			ref := *result.Skills[index].Source
-			if ref.Revision != nil {
-				revision := *ref.Revision
-				ref.Revision = &revision
-			}
-			result.Skills[index].Source = &ref
-		}
-	}
+	result.Skills = contracts.CloneRunSkills(source.Skills)
 	result.LLMCredentialIDs = slices.Clone(source.LLMCredentialIDs)
 	result.RuntimeCredentialIDs = slices.Clone(source.RuntimeCredentialIDs)
 	result.Standards = slices.Clone(source.Standards)
@@ -228,14 +207,7 @@ func cloneBaseline(source BaselineSnapshot) BaselineSnapshot {
 		cloneExactPackageRef(&result.Standards[index].Catalog)
 		cloneExactPackageRef(&result.Standards[index].Retained)
 	}
-	if source.ProjectHTTPTarget != nil {
-		target := *source.ProjectHTTPTarget
-		if source.ProjectHTTPTarget.Credential != nil {
-			credential := *source.ProjectHTTPTarget.Credential
-			target.Credential = &credential
-		}
-		result.ProjectHTTPTarget = &target
-	}
+	result.ProjectHTTPTarget = source.ProjectHTTPTarget.Clone()
 	if source.Inventory == nil {
 		return result
 	}

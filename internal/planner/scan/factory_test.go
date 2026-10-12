@@ -98,8 +98,8 @@ func TestFactoryFreezesAllInputsBeforeDispatchAndProducesDeterministicReport(t *
 	other := second.run(t)
 	firstCalls, secondCalls := append([]factoryCall(nil), first.invoker.calls...), append([]factoryCall(nil), second.invoker.calls...)
 	for index := range firstCalls {
-		firstCalls[index].request.Deadline = nil
-		secondCalls[index].request.Deadline = nil
+		firstCalls[index].request.Deadline = time.Time{}
+		secondCalls[index].request.Deadline = time.Time{}
 	}
 	if !reflect.DeepEqual(firstCalls, secondCalls) ||
 		!bytes.Equal(first.artifacts.payload(result.Artifacts["report"]).Data, second.artifacts.payload(other.Artifacts["report"]).Data) {
@@ -591,7 +591,7 @@ type factoryInvoker struct {
 func (w *factoryInvoker) Invoke(ctx context.Context, binding string, _ contracts.WorkerHandle, request contracts.StageContentRequest) (contracts.WorkerCompletion, error) {
 	w.sessions.assertAllInputsPersisted()
 	ctxDeadline, ok := ctx.Deadline()
-	if !ok || request.Deadline == nil || !request.Deadline.Equal(ctxDeadline) {
+	if !ok || !request.Deadline.Equal(ctxDeadline) {
 		w.t.Fatalf("Worker request deadline does not match call context: request=%v context=%v", request.Deadline, ctxDeadline)
 	}
 	if err := request.Validate(); err != nil {
@@ -606,7 +606,7 @@ func (w *factoryInvoker) Invoke(ctx context.Context, binding string, _ contracts
 	if !found {
 		w.t.Fatal("Worker invoked before durable started intent")
 	}
-	w.calls = append(w.calls, factoryCall{binding: binding, request: planner.CloneStageRequest(request)})
+	w.calls = append(w.calls, factoryCall{binding: binding, request: request.Clone()})
 	if w.invokeErr != nil {
 		return contracts.WorkerCompletion{}, w.invokeErr
 	}

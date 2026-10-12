@@ -3,6 +3,8 @@ package contracts
 import (
 	"strings"
 	"time"
+
+	"github.com/grauwolf32/contractor/internal/clone"
 )
 
 type StageContentRequest struct {
@@ -13,7 +15,18 @@ type StageContentRequest struct {
 	Parameters      map[string]string      `json:"parameters" strictjson:"required"`
 	Artifacts       map[string]ArtifactRef `json:"artifacts" strictjson:"required"`
 	ResultArtifacts map[string]ArtifactRef `json:"resultArtifacts,omitempty"`
-	Deadline        *time.Time             `json:"deadline,omitempty"`
+	// Deadline is the Planner's effective Worker-call deadline (WRK-R6):
+	// Runtime control data that never enters the model prompt.
+	Deadline time.Time `json:"deadline" strictjson:"required"`
+}
+
+// Clone returns a copy that shares no map or revision with r.
+func (r StageContentRequest) Clone() StageContentRequest {
+	result := r
+	result.Parameters = clone.Map(r.Parameters)
+	result.Artifacts = CloneArtifactRefs(r.Artifacts)
+	result.ResultArtifacts = CloneArtifactRefs(r.ResultArtifacts)
+	return result
 }
 
 func (r StageContentRequest) Validate() error {
@@ -25,6 +38,9 @@ func (r StageContentRequest) Validate() error {
 	}
 	if strings.TrimSpace(r.Objective) == "" || strings.TrimSpace(r.Instructions) == "" {
 		return Invalidf("objective and instructions must not be empty")
+	}
+	if r.Deadline.IsZero() {
+		return Invalidf("StageContentRequest requires a deadline")
 	}
 	// The schema requires both maps, so Go never sends the null a nil map
 	// encodes to, which the Runtime would reject.

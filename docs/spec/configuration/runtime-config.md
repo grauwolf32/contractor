@@ -1157,7 +1157,8 @@ local Worker configuration, environment defaults or a mutable configuration
 alias.
 
 **RCF-R160.** RuntimeSettings permits an absent `llmGatewayUrl` and
-`llmGatewayToken`. Which Worker runtimes require or forbid them is owned by
+`llmGatewayToken`; a present `llmGatewayToken` is non-empty, since an
+unauthenticated Gateway omits it. Which Worker runtimes require or forbid them is owned by
 [Scanners](../tools/scanners.md).
 
 **RCF-R161.** `RuntimeSettings.requestTimeoutSeconds` is the allocation-local

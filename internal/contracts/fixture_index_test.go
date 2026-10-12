@@ -95,7 +95,6 @@ var fixtureCodecs = map[string]fixtureCodec{
 	"RuntimeReport":                   codecFor[reporting.RuntimeReport](),
 	"RuntimeSettings":                 revealingCodecFor(runtimesettings.RuntimeSettings.RevealJSON),
 	"StageContentRequest":             codecFor[contracts.StageContentRequest](),
-	"StageContentResult":              codecFor[contracts.StageContentResult](),
 	"WorkerCompletion":                codecFor[contracts.WorkerCompletion](),
 	"WorkspaceCapabilities":           codecFor[contracts.WorkspaceCapabilities](),
 }

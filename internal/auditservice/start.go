@@ -313,7 +313,7 @@ func (s *Service) startInTransaction(
 		return StartedAudit{}, err
 	}
 	baseline := BaselineSnapshot{
-		Schema: BaselineSchema, Inputs: cloneExactInputs(selection.Inputs), Scope: selection.Scope,
+		Schema: BaselineSchema, Inputs: contracts.CloneExactArtifacts(selection.Inputs), Scope: selection.Scope,
 		RuntimeLabels: append([]string{}, selection.RuntimeLabels...), RuntimeConfig: runtimeSnapshot,
 		Skills:               append([]contracts.RunSkillSnapshot{}, skills...),
 		LLMCredentialIDs:     mergeIDs(workflowCredentialIDs, runtimeSnapshot.LLMCredentialIDs),
