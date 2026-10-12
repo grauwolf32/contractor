@@ -13,7 +13,7 @@ import (
 func TestWorkflowStageSessionAuthoringIsStrictAndDefaultsToIsolated(t *testing.T) {
 	t.Parallel()
 
-	baseline := mustLoad(t, filepath.Join("testdata", "valid"), MVPDescriptors())
+	baseline := mustLoad(t, filepath.Join("testdata", "valid"))
 	workflow, err := baseline.Workflow("artifact-copy@1")
 	if err != nil {
 		t.Fatal(err)
@@ -42,7 +42,7 @@ func TestWorkflowStageSessionAuthoringIsStrictAndDefaultsToIsolated(t *testing.T
 		t.Run(string(mode), func(t *testing.T) {
 			root := copyCoreFixture(t)
 			setWorkflowSession(t, root, string(mode))
-			snapshot := mustLoad(t, root, MVPDescriptors())
+			snapshot := mustLoad(t, root)
 			resolved, err := snapshot.Workflow("artifact-copy@1")
 			if err != nil {
 				t.Fatal(err)
@@ -89,7 +89,7 @@ func TestWorkflowStageSessionRejectsEveryNonEnumAuthoringForm(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			root := copyCoreFixture(t)
 			setWorkflowSession(t, root, test.raw)
-			if snapshot, err := Load(root, MVPDescriptors()); err == nil || snapshot != nil ||
+			if snapshot, err := Load(root); err == nil || snapshot != nil ||
 				!strings.Contains(err.Error(), "session") {
 				t.Fatalf("Load() = (%v, %v), want session validation error", snapshot, err)
 			}
@@ -100,7 +100,7 @@ func TestWorkflowStageSessionRejectsEveryNonEnumAuthoringForm(t *testing.T) {
 func TestPersistedSessionRequiresAnExplicitValidMode(t *testing.T) {
 	t.Parallel()
 
-	snapshot := mustLoad(t, filepath.Join("testdata", "valid"), MVPDescriptors())
+	snapshot := mustLoad(t, filepath.Join("testdata", "valid"))
 	workflow, err := snapshot.Workflow("artifact-copy@1")
 	if err != nil {
 		t.Fatal(err)
@@ -146,7 +146,7 @@ func TestPersistedSessionRequiresAnExplicitValidMode(t *testing.T) {
 
 func TestPersistedAuditProfileRejectsMissingStageSession(t *testing.T) {
 	t.Parallel()
-	profile, err := mustLoad(t, filepath.Join("..", "..", "testdata", "configs"), MVPDescriptors()).AuditProfile("source-checklist@1")
+	profile, err := mustLoad(t, filepath.Join("..", "..", "testdata", "configs")).AuditProfile("source-checklist@1")
 	if err != nil {
 		t.Fatal(err)
 	}

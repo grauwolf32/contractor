@@ -47,7 +47,7 @@ func TestPublicAuditPreparationContracts(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.Name, func(t *testing.T) { validate(tc.Schema, tc.Value, tc.Valid) })
 	}
-	snapshot, err := configload.Load(publicCatalogFixture, config.MVPDescriptors())
+	snapshot, err := configload.Load(publicCatalogFixture)
 	if err != nil {
 		t.Fatal(err)
 	}

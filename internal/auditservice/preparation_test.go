@@ -19,7 +19,7 @@ const (
 
 func loadAuditServiceCatalog(t *testing.T) *config.Snapshot {
 	t.Helper()
-	snapshot, err := configload.Load(auditServiceCatalogFixture, config.MVPDescriptors())
+	snapshot, err := configload.Load(auditServiceCatalogFixture)
 	if err != nil {
 		t.Fatal(err)
 	}

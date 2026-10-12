@@ -119,7 +119,7 @@ func loadNames(t *testing.T, files map[string]string) (*Snapshot, error) {
 	for path, content := range files {
 		writeFile(t, filepath.Join(root, path), []byte(content))
 	}
-	return Load(root, MVPDescriptors())
+	return Load(root)
 }
 
 // TestWorkflowNamesUseTheOperationsNameGrammar is the regression for a
@@ -201,7 +201,7 @@ func TestWorkflowNamesUseTheOperationsNameGrammar(t *testing.T) {
 // cannot carry a Stage or logical Agent name the catalog would reject.
 func TestPersistedSnapshotsRejectNamesOperationsCannotShow(t *testing.T) {
 	t.Parallel()
-	snapshot := mustLoad(t, copyCoreFixture(t), MVPDescriptors())
+	snapshot := mustLoad(t, copyCoreFixture(t))
 	workflow, err := snapshot.Workflow("artifact-copy@1")
 	if err != nil {
 		t.Fatal(err)

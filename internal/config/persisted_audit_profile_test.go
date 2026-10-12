@@ -12,7 +12,7 @@ func TestDecodeResolvedAuditProfileSnapshotRequiresCurrentRolesAndDigest(t *test
 	t.Parallel()
 	root := copyAuditProfileConfigTree(t)
 	writeAuditProfile(t, root, "legacy-profile", validAuditProfileYAML("legacy-profile"))
-	profile, err := mustLoad(t, root, MVPDescriptors()).AuditProfile("legacy-profile@1")
+	profile, err := mustLoad(t, root).AuditProfile("legacy-profile@1")
 	if err != nil {
 		t.Fatal(err)
 	}

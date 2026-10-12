@@ -13,7 +13,7 @@ import (
 )
 
 func TestToolWorkersResolveWithoutModelCatalogs(t *testing.T) {
-	snapshot := mustLoad(t, scanFixtureRoot, MVPDescriptors())
+	snapshot := mustLoad(t, scanFixtureRoot)
 	if snapshot.Counts().ModelPolicies != 0 {
 		t.Fatal("scan fixtures must have no model policies")
 	}
@@ -54,7 +54,7 @@ func TestToolWorkersResolveWithoutModelCatalogs(t *testing.T) {
 }
 
 func TestSQLMapWorkerBindsPreparedRequestArtifact(t *testing.T) {
-	snapshot := mustLoad(t, scanFixtureRoot, MVPDescriptors())
+	snapshot := mustLoad(t, scanFixtureRoot)
 	workflow, err := snapshot.ResolveRunWorkflow(context.Background(), "sqlmap-request@1", ExecutionConfigPatch{}, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -95,7 +95,7 @@ func TestToolWorkerGoldenDigest(t *testing.T) {
 }
 
 func TestToolWorkerRejectsModelAndInvalidBindings(t *testing.T) {
-	snapshot := mustLoad(t, scanFixtureRoot, MVPDescriptors())
+	snapshot := mustLoad(t, scanFixtureRoot)
 	original, _ := snapshot.AgentTemplate("nuclei-scan@1")
 	for _, change := range []func(*contracts.ResolvedAgentTemplate){
 		func(t *contracts.ResolvedAgentTemplate) { t.Execution = nil },

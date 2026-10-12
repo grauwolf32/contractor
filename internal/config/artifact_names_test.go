@@ -17,7 +17,7 @@ func TestWorkflowRejectsNonportableArtifactBindings(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			root := copyCoreFixture(t)
 			replaceFile(t, filepath.Join(root, "workflows/artifact_copy.yaml"), test.old, test.replacement)
-			snapshot, err := Load(root, MVPDescriptors())
+			snapshot, err := Load(root)
 			if err == nil || snapshot != nil || !strings.Contains(err.Error(), "ASCII") {
 				t.Fatalf("Load = (%v, %v), want invalid Artifact identifier", snapshot, err)
 			}

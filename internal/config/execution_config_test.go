@@ -33,7 +33,7 @@ func TestResolveRunWorkflowAppliesAllWorkerLayersAndPinsBodies(t *testing.T) {
             modelPolicy: test-worker@1
 `)
 
-	snapshot := mustLoad(t, root, MVPDescriptors())
+	snapshot := mustLoad(t, root)
 	localGateway, err := snapshot.LLMGateway("local-litellm@1")
 	if err != nil {
 		t.Fatal(err)
@@ -104,7 +104,7 @@ func TestResolveRunWorkflowAppliesAllWorkerLayersAndPinsBodies(t *testing.T) {
 		t, filepath.Join(root, "model-policies/test-worker.yaml"),
 		"model: worker-model", "model: worker-model-v2",
 	)
-	reloaded := mustLoad(t, root, MVPDescriptors())
+	reloaded := mustLoad(t, root)
 	newResolution, err := reloaded.ResolveRunWorkflow(
 		t.Context(), "artifact-copy@1", bindingPatch, credentials,
 	)
@@ -131,7 +131,7 @@ func TestResolveRunWorkflowAllowsOnlyWorkerPhysicalGatewayToRemainAbsent(t *test
       credential: development-worker
 
 `, "")
-	snapshot, err := Load(root, MVPDescriptors())
+	snapshot, err := Load(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -178,7 +178,7 @@ func TestResolveRunWorkflowKeepsPlannerAndWorkerSelectionsIndependent(t *testing
       credential: worker-credential
 `)
 
-	snapshot := mustLoad(t, root, MVPDescriptors())
+	snapshot := mustLoad(t, root)
 	plannerGateway, _ := snapshot.LLMGateway("local-litellm@1")
 	workerGateway, _ := snapshot.LLMGateway("secondary@1")
 	lookup := metadataLookup{
@@ -220,7 +220,7 @@ func TestWorkflowWidePlannerDefaultSkipsPassthroughStages(t *testing.T) {
 	workflow = strings.Replace(workflow, "      planner: streamline@1", "      planner: passthrough@1", 1)
 	writeFile(t, filepath.Join(root, "workflows/artifact_copy.yaml"), []byte(workflow))
 
-	snapshot := mustLoad(t, root, MVPDescriptors())
+	snapshot := mustLoad(t, root)
 	resolved, err := snapshot.ResolveRunWorkflow(
 		t.Context(), "artifact-copy@1", ExecutionConfigPatch{}, metadataLookup{},
 	)
@@ -285,7 +285,7 @@ func TestExecutionConfigRejectsConsumerIncompatibilityAndInvalidWorkflowPatches(
 		t.Run(test.name, func(t *testing.T) {
 			root := copyCoreFixture(t)
 			test.mutate(t, root)
-			snapshot, err := Load(root, MVPDescriptors())
+			snapshot, err := Load(root)
 			if err == nil || snapshot != nil || !strings.Contains(err.Error(), test.want) {
 				t.Fatalf("Load() = (%v, %v), want error containing %q", snapshot, err, test.want)
 			}
@@ -294,7 +294,7 @@ func TestExecutionConfigRejectsConsumerIncompatibilityAndInvalidWorkflowPatches(
 }
 
 func TestResolveRunWorkflowRejectsMissingOrMismatchedCredentialSafely(t *testing.T) {
-	snapshot := mustLoad(t, copyCoreFixture(t), MVPDescriptors())
+	snapshot := mustLoad(t, copyCoreFixture(t))
 	localGateway, _ := snapshot.LLMGateway("local-litellm@1")
 	patch := decodeExecutionConfigPatch(t, `{"workers":{"credential":"selected-credential"}}`)
 	tests := []struct {
@@ -329,7 +329,7 @@ func TestResolveRunWorkflowRejectsMissingOrMismatchedCredentialSafely(t *testing
 }
 
 func TestCredentialLookupFailuresKeepTheirClassAndCause(t *testing.T) {
-	snapshot := mustLoad(t, copyCoreFixture(t), MVPDescriptors())
+	snapshot := mustLoad(t, copyCoreFixture(t))
 	localGateway, _ := snapshot.LLMGateway("local-litellm@1")
 	patch := decodeExecutionConfigPatch(t, `{"workers":{"credential":"selected-credential"}}`)
 	resolved, err := snapshot.ResolveRunWorkflow(

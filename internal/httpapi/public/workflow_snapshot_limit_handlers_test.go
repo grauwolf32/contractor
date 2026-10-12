@@ -82,7 +82,7 @@ func padArtifactCopySnapshotToBound(t *testing.T, root string) {
 		if err := os.WriteFile(instruction, []byte(text), 0o644); err != nil {
 			t.Fatal(err)
 		}
-		snapshot, err := configload.Load(root, config.MVPDescriptors())
+		snapshot, err := configload.Load(root)
 		if err != nil {
 			t.Fatal(err)
 		}

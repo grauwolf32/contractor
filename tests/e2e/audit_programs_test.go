@@ -18,7 +18,7 @@ const auditFixtureRevision = "audit-fixture-r1"
 func TestAuditProgramsResolveAsRunnableMVPProfiles(t *testing.T) {
 	t.Parallel()
 
-	snapshot, err := configload.Load("../../configs", config.MVPDescriptors())
+	snapshot, err := configload.Load("../../configs")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -5,7 +5,7 @@ milestone: hub-audit-structure-2026-10
 epic: workflows
 kind: chore
 priority: P2
-status: pending
+status: in_progress
 depends_on: []
 languages: [go]
 goal: "The loader's fan-in drops to the packages that load the catalog."

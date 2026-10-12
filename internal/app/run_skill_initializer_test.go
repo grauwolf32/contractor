@@ -200,7 +200,7 @@ func appSkillWorkflowWithNames(t *testing.T, names ...string) config.ResolvedWor
 	if err := os.WriteFile(path, data, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	snapshot, err := configload.Load(root, config.MVPDescriptors())
+	snapshot, err := configload.Load(root)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -71,7 +71,7 @@ func newPreparationFixture(t *testing.T, dependency bool) preparationFixture {
 	if err := os.WriteFile(filepath.Join(root, "audit-profiles/prepared.yaml"), data, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	catalog, err := configload.Load(root, config.MVPDescriptors())
+	catalog, err := configload.Load(root)
 	if err != nil {
 		t.Fatal(err)
 	}

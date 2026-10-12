@@ -19,7 +19,7 @@ const scanFixtureRoot = "testdata/scan-catalog"
 
 func scanPlanWorkflow(t *testing.T, name string) ResolvedWorkflow {
 	t.Helper()
-	workflow, err := mustLoad(t, scanFixtureRoot, MVPDescriptors()).ResolveRunWorkflow(context.Background(), name, ExecutionConfigPatch{}, nil)
+	workflow, err := mustLoad(t, scanFixtureRoot).ResolveRunWorkflow(context.Background(), name, ExecutionConfigPatch{}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -200,7 +200,7 @@ func TestScanPlanFFUFRequiresBoundWordlist(t *testing.T) {
 }
 
 func TestScanPlanPolicySnapshotIsDetachedAndRevalidated(t *testing.T) {
-	snapshot := mustLoad(t, scanFixtureRoot, MVPDescriptors())
+	snapshot := mustLoad(t, scanFixtureRoot)
 	workflow, _ := snapshot.Workflow("request-set-scan@1")
 	stage := workflow.Stages["scan"]
 	stage.ScanPlan.Tools[0].TestParameters[0] = "changed"

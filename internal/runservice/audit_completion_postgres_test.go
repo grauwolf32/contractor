@@ -58,7 +58,7 @@ func TestAuditCompletionPostgresAtomicCreationRestartAndAllocation(t *testing.T)
 		t.Fatal(err)
 	}
 	manifest := writeAuditExact(t, ctx, artifactService, project.ProjectID, "manifest", "application/json", manifestBytes)
-	catalog, err := configload.Load("../../testdata/configs", config.MVPDescriptors())
+	catalog, err := configload.Load("../../testdata/configs")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -104,7 +104,7 @@ func TestAuditCompletionPostgresAtomicCreationRestartAndAllocation(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	manager, _, err := configload.NewManager(config.ManagerOptions{OperatorRoot: filepath.Join("..", "config", "testdata", "valid"), ManagedRoot: filepath.Join(t.TempDir(), "managed"), Descriptors: config.MVPDescriptors()})
+	manager, _, err := configload.NewManager(config.ManagerOptions{OperatorRoot: filepath.Join("..", "config", "testdata", "valid"), ManagedRoot: filepath.Join(t.TempDir(), "managed")})
 	if err != nil {
 		t.Fatal(err)
 	}

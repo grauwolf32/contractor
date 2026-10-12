@@ -16,7 +16,7 @@ func TestPlacementPostgresToolWorkerWithoutModel(t *testing.T) {
 	defer cancel()
 	pool := isolatedPlacementPool(t, ctx)
 	fixture := newPlacementFixture(t, ctx, pool, nil)
-	catalog, err := configload.Load("../../testdata/configs-scan", workflowconfig.MVPDescriptors())
+	catalog, err := configload.Load("../../testdata/configs-scan")
 	if err != nil {
 		t.Fatal(err)
 	}

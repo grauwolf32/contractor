@@ -57,7 +57,7 @@ func TestSnapshotAccessorResultsShareNoMemoryWithSnapshot(t *testing.T) {
 	writeFile(t, filepath.Join(root, "execution-configs/detached_override.yaml"), []byte(detachedOverrideProfile))
 	replaceFile(t, filepath.Join(root, "workflows/openapi_from_workspace_v5.yaml"), "ref: strong-oas-review@1",
 		"agents: {validator: {llmGateway: local-litellm@1, credential: development-worker}}")
-	snapshot := mustLoad(t, root, MVPDescriptors())
+	snapshot := mustLoad(t, root)
 	owned := newSpanIndex(mutableSpans(reflect.ValueOf(snapshot).Elem(), "Snapshot"))
 
 	type accessorResult struct {
@@ -275,7 +275,7 @@ func (x spanIndex) overlap(span memorySpan) (memorySpan, bool) {
 func TestSnapshotAccessorsReturnDeepCopies(t *testing.T) {
 	t.Parallel()
 
-	snapshot := mustLoad(t, copyCoreFixture(t), MVPDescriptors())
+	snapshot := mustLoad(t, copyCoreFixture(t))
 
 	policy, _ := snapshot.ModelPolicy("test-worker@1")
 	*policy.Temperature = 99

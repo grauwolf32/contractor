@@ -11,7 +11,7 @@ import (
 )
 
 func TestWorkflowBindingIndexMatchesCatalogFingerprintAndDetachesPages(t *testing.T) {
-	snapshot := mustLoad(t, "testdata/valid", MVPDescriptors())
+	snapshot := mustLoad(t, "testdata/valid")
 	index, err := snapshot.AgentTemplateWorkflowBindings("artifact_builder@1")
 	if err != nil {
 		t.Fatal(err)

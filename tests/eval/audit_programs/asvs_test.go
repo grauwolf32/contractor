@@ -54,7 +54,7 @@ func TestASVSPackageAndProfilePinExactSelectedDenominator(t *testing.T) {
 		t.Fatalf("ASVS packaged entries = %v", entryIDs)
 	}
 
-	snapshot, err := configload.Load(configRoot(), config.MVPDescriptors())
+	snapshot, err := configload.Load(configRoot())
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -118,7 +118,7 @@ func TestPublicAuditSourceRunDeletionInvalidatesReadContexts(t *testing.T) {
 		}
 		deps.Audits = audits
 	})
-	snapshot, err := configload.Load("../../config/testdata/valid", config.MVPDescriptors())
+	snapshot, err := configload.Load("../../config/testdata/valid")
 	if err != nil {
 		t.Fatal(err)
 	}

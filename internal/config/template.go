@@ -24,7 +24,7 @@ func (l *loader) resolveAgentTemplate(
 	if err != nil {
 		return contracts.ResolvedAgentTemplate{}, fmt.Errorf("spec.runtime: %w", err)
 	}
-	if _, ok := l.descriptors.WorkerRuntimes[runtime.String()]; !ok {
+	if !KnownWorkerRuntime(runtime.String()) {
 		return contracts.ResolvedAgentTemplate{}, fmt.Errorf("spec.runtime selects unknown WorkerRuntime %q", runtime)
 	}
 
@@ -67,21 +67,12 @@ func (l *loader) resolveAgentTemplate(
 			return contracts.ResolvedAgentTemplate{}, fmt.Errorf("spec.modelPolicy: %w", err)
 		}
 	}
-	if len(skills) > 0 {
-		for _, toolset := range toolsets {
-			for _, tool := range toolset.Tools {
-				if contracts.IsNativeSkillToolName(tool) {
-					return contracts.ResolvedAgentTemplate{}, fmt.Errorf("model-visible tool %q is reserved by Agent Skills", tool)
-				}
-			}
-		}
-	}
 
 	sandbox, err := ParseSelector(spec.SandboxProfile)
 	if err != nil {
 		return contracts.ResolvedAgentTemplate{}, fmt.Errorf("spec.sandboxProfile: %w", err)
 	}
-	if _, ok := l.descriptors.SandboxProfiles[sandbox.String()]; !ok {
+	if !KnownSandboxProfile(sandbox.String()) {
 		return contracts.ResolvedAgentTemplate{}, fmt.Errorf("spec.sandboxProfile selects unknown SandboxProfile %q", sandbox)
 	}
 
@@ -106,7 +97,7 @@ func (l *loader) resolveAgentTemplate(
 	if err := result.ValidateToolExecution(); err != nil {
 		return contracts.ResolvedAgentTemplate{}, err
 	}
-	if err := l.descriptors.ValidateSandboxToolCompatibility(result); err != nil {
+	if err := ValidateSandboxToolCompatibility(result); err != nil {
 		return contracts.ResolvedAgentTemplate{}, err
 	}
 	digest, err := agentTemplateDigest(selector, result)
@@ -193,7 +184,7 @@ func (l *loader) resolveToolsets(source *[]toolsetSelectionSource) ([]contracts.
 			return nil, fmt.Errorf("spec.toolsets contains duplicate ref %q", selector)
 		}
 		seenRefs[selector.String()] = struct{}{}
-		descriptor, ok := l.descriptors.Toolsets[selector.String()]
+		exportedTools, ok := ToolsetTools(selector.String())
 		if !ok {
 			return nil, fmt.Errorf("spec.toolsets[%d] selects unknown Toolset %q", index, selector)
 		}
@@ -201,8 +192,8 @@ func (l *loader) resolveToolsets(source *[]toolsetSelectionSource) ([]contracts.
 			return nil, fmt.Errorf("spec.toolsets[%d].tools must be non-empty", index)
 		}
 
-		exported := make(map[string]struct{}, len(descriptor.Tools))
-		for _, tool := range descriptor.Tools {
+		exported := make(map[string]struct{}, len(exportedTools))
+		for _, tool := range exportedTools {
 			exported[tool] = struct{}{}
 		}
 		selected := make([]string, 0, len(item.Tools))

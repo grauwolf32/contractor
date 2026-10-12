@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/control"
@@ -1265,7 +1264,7 @@ func TestReleaseDoesNotReuseSlotFromStaleIdleHeartbeat(t *testing.T) {
 
 func testTemplate(t *testing.T) contracts.ResolvedAgentTemplate {
 	t.Helper()
-	snapshot, err := configload.Load("../config/testdata/valid", config.MVPDescriptors())
+	snapshot, err := configload.Load("../config/testdata/valid")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1303,7 +1302,7 @@ func testBinding(
 	template contracts.ResolvedAgentTemplate,
 ) BindingRequirement {
 	t.Helper()
-	snapshot, err := configload.Load("../config/testdata/valid", config.MVPDescriptors())
+	snapshot, err := configload.Load("../config/testdata/valid")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -45,7 +45,7 @@ func TestPostgresNextRoundStopsBeforeWritingUnsupportedScanTasks(t *testing.T) {
 	if err := os.WriteFile(profilePath, []byte(modified), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	snapshot, err := configload.Load(root, config.MVPDescriptors())
+	snapshot, err := configload.Load(root)
 	if err != nil {
 		t.Fatal(err)
 	}

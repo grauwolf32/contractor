@@ -22,7 +22,7 @@ func catalogSourceDigest(t *testing.T, source any) string {
 // discovery views to the fingerprint the cursor binding always used (CAT-R67)
 // while a page copies only the Workflows it returns.
 func TestDiscoveryFingerprintsTheCatalogOnceAndPagesDetachedCopies(t *testing.T) {
-	snapshot := mustLoad(t, copyCoreFixture(t, "workflow-examples"), MVPDescriptors())
+	snapshot := mustLoad(t, copyCoreFixture(t, "workflow-examples"))
 	workflows := snapshot.Workflows()
 	if len(workflows) < 3 {
 		t.Fatalf("fixture snapshot has only %d Workflows", len(workflows))

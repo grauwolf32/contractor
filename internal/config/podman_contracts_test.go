@@ -11,20 +11,18 @@ import (
 )
 
 func TestPodmanRegisteredDescriptorsAndIsolation(t *testing.T) {
-	d, err := normalizeDescriptors(MVPDescriptors())
-	if err != nil {
-		t.Fatal(err)
-	}
+	d := registeredDescriptors()
 	profile := d.SandboxProfiles["podman@1"]
 	if profile.WorkspaceMode != contracts.WorkspaceModeDirect || profile.WorkspaceStorage != contracts.WorkspaceStorageLocal {
 		t.Fatalf("incorrect Podman requirements: %+v", profile)
 	}
 	toolset := d.Toolsets["code-execution@1"]
-	if !reflect.DeepEqual(toolset.Tools, []string{"exec_command"}) || toolset.RequiredSandboxProfile != "podman@1" || !reflect.DeepEqual(toolset.InfrastructureChannels["exec_command"], []ToolInfrastructureChannel{SandboxExecution}) {
+	if !reflect.DeepEqual(toolset.Tools, []string{"exec_command"}) || toolset.RequiredSandboxProfile != "podman@1" || !reflect.DeepEqual(toolset.InfrastructureChannels["exec_command"], []infrastructureChannel{channelSandboxExecution}) {
 		t.Fatalf("incorrect execution descriptor: %+v", toolset)
 	}
-	toolset.InfrastructureChannels["exec_command"] = []ToolInfrastructureChannel{SandboxExecution, RuntimeSubprocessLauncher}
-	if _, err := normalizeDescriptors(d); err == nil {
+	mixed := builtInDescriptors()
+	mixed.Toolsets["code-execution@1"].InfrastructureChannels["exec_command"] = []infrastructureChannel{channelSandboxExecution, channelRuntimeSubprocessLauncher}
+	if _, err := normalizeDescriptors(mixed); err == nil {
 		t.Fatal("mixed host and sandbox authority accepted")
 	}
 }
@@ -54,7 +52,7 @@ func TestPodmanAuthoringChecksWithoutFleetLookup(t *testing.T) {
 				replaceFile(t, workflow, "      context:\n", "      context:\n        workspace:\n          mode: "+test.mode+"\n          sources: [{artifact: source, target: \"\"}]\n")
 				replaceFile(t, workflow, "source: {required: true, mediaTypes: [text/plain]}", "source: {required: true, mediaTypes: [application/zip]}")
 			}
-			snapshot, err := Load(root, MVPDescriptors())
+			snapshot, err := Load(root)
 			if test.want == "" {
 				if err != nil || snapshot == nil {
 					t.Fatalf("valid Podman authoring: %v", err)

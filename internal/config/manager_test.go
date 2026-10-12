@@ -330,7 +330,7 @@ func TestLoadUnionRejectsDuplicatesAndSymlinks(t *testing.T) {
 		t.Fatal(err)
 	}
 	writeFile(t, filepath.Join(managed, "model-policies", "duplicate.yaml"), readFile(t, filepath.Join(operator, "model-policies", "worker.yaml")))
-	if _, err := LoadUnion(operator, managed, MVPDescriptors()); err == nil {
+	if _, err := LoadUnion(operator, managed); err == nil {
 		t.Fatal("duplicate identity across roots was accepted")
 	}
 	if err := os.Remove(filepath.Join(managed, "model-policies", "duplicate.yaml")); err != nil {
@@ -339,7 +339,7 @@ func TestLoadUnionRejectsDuplicatesAndSymlinks(t *testing.T) {
 	if err := os.Symlink(filepath.Join(operator, "model-policies", "worker.yaml"), filepath.Join(managed, "model-policies", "linked.yaml")); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := LoadUnion(operator, managed, MVPDescriptors()); err == nil {
+	if _, err := LoadUnion(operator, managed); err == nil {
 		t.Fatal("symlink in union root was accepted")
 	}
 }
@@ -382,7 +382,7 @@ func TestManagerRejectsSymlinkRootAndSubtree(t *testing.T) {
 	if err := os.Symlink(realManaged, linkedManaged); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := NewManager(ManagerOptions{OperatorRoot: operator, ManagedRoot: linkedManaged, Descriptors: MVPDescriptors()}); err == nil {
+	if _, err := NewManager(ManagerOptions{OperatorRoot: operator, ManagedRoot: linkedManaged}); err == nil {
 		t.Fatal("symlink managed root was accepted")
 	}
 
@@ -401,7 +401,7 @@ func TestManagerRejectsSymlinkRootAndSubtree(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if _, err := NewManager(ManagerOptions{OperatorRoot: operator, ManagedRoot: other, Descriptors: MVPDescriptors()}); err == nil || !strings.Contains(err.Error(), "configuration subtree model-policies must be a real directory") {
+	if _, err := NewManager(ManagerOptions{OperatorRoot: operator, ManagedRoot: other}); err == nil || !strings.Contains(err.Error(), "configuration subtree model-policies must be a real directory") {
 		t.Fatalf("symlink managed subtree was accepted or misreported: %v", err)
 	}
 }
@@ -414,7 +414,7 @@ func TestManagerRejectsOverlappingManagedRootBeforeCreatingIt(t *testing.T) {
 		filepath.Join(operator, "nested", "managed-configs") + "/",
 		parent,
 	} {
-		_, err := NewManager(ManagerOptions{OperatorRoot: operator, ManagedRoot: managed, Descriptors: MVPDescriptors()})
+		_, err := NewManager(ManagerOptions{OperatorRoot: operator, ManagedRoot: managed})
 		if err == nil || !strings.Contains(err.Error(), "roots must not overlap") {
 			t.Fatalf("overlapping managed root %s = %v", managed, err)
 		}
@@ -662,7 +662,6 @@ func newTestManager(t *testing.T, operator, managed string, overrides ManagerOpt
 	t.Helper()
 	overrides.OperatorRoot = operator
 	overrides.ManagedRoot = managed
-	overrides.Descriptors = MVPDescriptors()
 	manager, err := NewManager(overrides)
 	if err != nil {
 		t.Fatalf("NewManager: %v", err)

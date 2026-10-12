@@ -42,7 +42,6 @@ func TestPostgresPublicRunInitializationAndFrozenOutput(t *testing.T) {
 	configurationManager, _, err := configload.NewManager(config.ManagerOptions{
 		OperatorRoot: "../../config/testdata/valid",
 		ManagedRoot:  filepath.Join(t.TempDir(), "managed-configs"),
-		Descriptors:  config.MVPDescriptors(),
 	})
 	if err != nil {
 		t.Fatal(err)

@@ -501,7 +501,7 @@ func newPlacementFixture(
 	runLabels []string,
 ) *placementFixture {
 	t.Helper()
-	configuration, err := configload.Load("../../testdata/configs", workflowconfig.MVPDescriptors())
+	configuration, err := configload.Load("../../testdata/configs")
 	if err != nil {
 		t.Fatal(err)
 	}

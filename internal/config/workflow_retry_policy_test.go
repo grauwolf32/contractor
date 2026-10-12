@@ -8,7 +8,7 @@ const retryRunPolicyFixtureRoot = "testdata/retry-run-policy"
 
 func TestResolveRunWorkflowKeepsRunWorkerPolicyOnRetryingStage(t *testing.T) {
 	t.Parallel()
-	snapshot := mustLoad(t, retryRunPolicyFixtureRoot, MVPDescriptors())
+	snapshot := mustLoad(t, retryRunPolicyFixtureRoot)
 	credentials := developmentCredentialLookup(t, snapshot)
 
 	base, err := snapshot.ResolveRunWorkflow(t.Context(), "artifact-copy-retry@1", ExecutionConfigPatch{}, credentials)

@@ -716,7 +716,6 @@ func newHandlerFixtureWithAuth(
 	manager, _, err := configload.NewManager(config.ManagerOptions{
 		OperatorRoot: configRoot,
 		ManagedRoot:  filepath.Join(t.TempDir(), "managed-configs"),
-		Descriptors:  config.MVPDescriptors(),
 	})
 	if err != nil {
 		t.Fatalf("load test config: %v", err)
@@ -1797,7 +1796,7 @@ func TestDeleteRunRequiresOwnedReleasedTerminalRun(t *testing.T) {
 
 func TestRunStatusExposesSafeMetricsAndAttemptDiagnostics(t *testing.T) {
 	fixture := newHandlerFixture(t)
-	snapshot, err := configload.Load("../../config/testdata/valid", config.MVPDescriptors())
+	snapshot, err := configload.Load("../../config/testdata/valid")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1907,7 +1906,7 @@ func TestRunStatusExposesSafeMetricsAndAttemptDiagnostics(t *testing.T) {
 
 func TestRunStatusExposesEscalationLineageAndSafeEffectiveRefs(t *testing.T) {
 	fixture := newHandlerFixture(t)
-	snapshot, err := configload.Load(configtest.CopyWithEscalation(t, "../../../testdata/configs"), config.MVPDescriptors())
+	snapshot, err := configload.Load(configtest.CopyWithEscalation(t, "../../../testdata/configs"))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -10,7 +10,7 @@ import (
 func TestWorkflowPresentationIsOptionalAndPinnedInSnapshots(t *testing.T) {
 	t.Parallel()
 
-	legacy := mustLoad(t, filepath.Join("testdata", "valid"), MVPDescriptors())
+	legacy := mustLoad(t, filepath.Join("testdata", "valid"))
 	legacyWorkflow, err := legacy.Workflow("artifact-copy@1")
 	if err != nil {
 		t.Fatal(err)
@@ -33,7 +33,7 @@ func TestWorkflowPresentationIsOptionalAndPinnedInSnapshots(t *testing.T) {
 	root := copyCoreFixture(t)
 	path := filepath.Join(root, "workflows", "artifact_copy.yaml")
 	replaceFile(t, path, "spec:\n", "spec:\n  presentation:\n    displayName: Artifact Copier\n    description: Copies one exact text artifact.\n")
-	snapshot := mustLoad(t, root, MVPDescriptors())
+	snapshot := mustLoad(t, root)
 	workflow, err := snapshot.Workflow("artifact-copy@1")
 	if err != nil {
 		t.Fatal(err)
@@ -82,7 +82,7 @@ func TestWorkflowPresentationValidationIsStrictAndUnicodeBounded(t *testing.T) {
 			root := copyCoreFixture(t)
 			path := filepath.Join(root, "workflows", "artifact_copy.yaml")
 			replaceFile(t, path, "spec:\n", "spec:\n  presentation:\n    "+test.presentation+"\n")
-			if snapshot, err := Load(root, MVPDescriptors()); err == nil || snapshot != nil ||
+			if snapshot, err := Load(root); err == nil || snapshot != nil ||
 				!strings.Contains(err.Error(), test.want) {
 				t.Fatalf("Load() = (%v, %v), want %q", snapshot, err, test.want)
 			}

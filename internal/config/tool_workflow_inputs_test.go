@@ -9,11 +9,7 @@ import (
 )
 
 func TestFindingFacadesAndOperationSelection(t *testing.T) {
-	descriptors, err := normalizeDescriptors(MVPDescriptors())
-	if err != nil {
-		t.Fatal(err)
-	}
-	current := &loader{descriptors: descriptors}
+	current := &loader{}
 	for _, test := range []struct {
 		ref   string
 		tools []string
@@ -47,7 +43,7 @@ func TestFindingFacadesAndOperationSelection(t *testing.T) {
 }
 
 func TestFindingsReaderRequiresDeclaredCollectionInputInWorkflowSnapshot(t *testing.T) {
-	snapshot := mustLoad(t, copyCoreFixture(t), MVPDescriptors())
+	snapshot := mustLoad(t, copyCoreFixture(t))
 	for _, test := range []struct {
 		name  string
 		tools []string
@@ -93,10 +89,10 @@ func TestFindingsReaderRequiresDeclaredCollectionInputInWorkflowSnapshot(t *test
 // The requirement is data on the Toolset descriptor; the check knows no
 // Toolset by name.
 func TestToolWorkflowInputRequirementComesFromDescriptor(t *testing.T) {
-	toolsets := map[string]ToolsetDescriptor{
+	toolsets := map[string]toolsetDescriptor{
 		"corpus-reader@3": {
 			Tools: []string{"index", "read_corpus"},
-			RequiredWorkflowInputs: map[string]WorkflowInputRequirement{
+			RequiredWorkflowInputs: map[string]workflowInputRequirement{
 				"read_corpus": {Input: "corpus", MediaType: "text/plain"},
 			},
 		},
@@ -135,15 +131,15 @@ func TestToolWorkflowInputRequirementComesFromDescriptor(t *testing.T) {
 func TestToolsetDescriptorWorkflowInputRequirementsAreValidated(t *testing.T) {
 	for _, test := range []struct {
 		name        string
-		requirement map[string]WorkflowInputRequirement
+		requirement map[string]workflowInputRequirement
 		want        string
 	}{
-		{"unknown tool", map[string]WorkflowInputRequirement{"write": {Input: "corpus", MediaType: "text/plain"}}, `requires a Workflow input for unknown tool "write"`},
-		{"invalid input", map[string]WorkflowInputRequirement{"read": {Input: "../corpus", MediaType: "text/plain"}}, "Workflow input"},
-		{"non-canonical media type", map[string]WorkflowInputRequirement{"read": {Input: "corpus", MediaType: "Text/Plain"}}, `non-canonical media type "Text/Plain"`},
+		{"unknown tool", map[string]workflowInputRequirement{"write": {Input: "corpus", MediaType: "text/plain"}}, `requires a Workflow input for unknown tool "write"`},
+		{"invalid input", map[string]workflowInputRequirement{"read": {Input: "../corpus", MediaType: "text/plain"}}, "Workflow input"},
+		{"non-canonical media type", map[string]workflowInputRequirement{"read": {Input: "corpus", MediaType: "Text/Plain"}}, `non-canonical media type "Text/Plain"`},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			_, err := normalizeDescriptors(Descriptors{Toolsets: map[string]ToolsetDescriptor{
+			_, err := normalizeDescriptors(descriptorTable{Toolsets: map[string]toolsetDescriptor{
 				"corpus-reader@3": {Tools: []string{"read"}, RequiredWorkflowInputs: test.requirement},
 			}})
 			if err == nil || !strings.Contains(err.Error(), test.want) {
@@ -151,12 +147,8 @@ func TestToolsetDescriptorWorkflowInputRequirementsAreValidated(t *testing.T) {
 			}
 		})
 	}
-	normalized, err := normalizeDescriptors(MVPDescriptors())
-	if err != nil {
-		t.Fatal(err)
-	}
-	want := WorkflowInputRequirement{Input: "findings", MediaType: contracts.FindingCollectionMediaType}
-	if got := normalized.Toolsets["security-findings@1"].RequiredWorkflowInputs; len(got) != 1 || got["list_findings"] != want {
+	want := workflowInputRequirement{Input: "findings", MediaType: contracts.FindingCollectionMediaType}
+	if got := registeredDescriptors().Toolsets["security-findings@1"].RequiredWorkflowInputs; len(got) != 1 || got["list_findings"] != want {
 		t.Fatalf("security-findings@1 Workflow input requirements = %+v", got)
 	}
 }

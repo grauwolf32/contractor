@@ -9,7 +9,7 @@ import (
 
 func TestAgentInstructionsUseLoadedSnapshot(t *testing.T) {
 	root := copyCoreFixture(t)
-	snapshot := mustLoad(t, root, MVPDescriptors())
+	snapshot := mustLoad(t, root)
 	before, err := snapshot.AgentInstructions("artifact_builder@1")
 	if err != nil {
 		t.Fatal(err)

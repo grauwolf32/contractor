@@ -1401,7 +1401,7 @@ func createBoundProjectRunOutput(
 
 func loadSchedulerWorkflow(t *testing.T) workflowconfig.ResolvedWorkflow {
 	t.Helper()
-	snapshot, err := configload.Load("../../testdata/configs", workflowconfig.MVPDescriptors())
+	snapshot, err := configload.Load("../../testdata/configs")
 	if err != nil {
 		t.Fatal(err)
 	}

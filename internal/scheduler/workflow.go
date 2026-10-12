@@ -11,7 +11,6 @@ import (
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
-	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/runstore"
 )
 
@@ -39,21 +38,9 @@ func decodeExecutableWorkflow(run runstore.WorkflowRun) (executableWorkflow, err
 		strings.TrimSpace(workflow.EntryStage) == "" {
 		return executableWorkflow{}, fmt.Errorf("%w: Workflow identity or entry Stage is invalid", ErrUnsupportedWorkflow)
 	}
+	// The decoder has checked every Stage's Planner and logical Agent count
+	// against the registered PlannerFactory descriptors.
 	for stageName, stage := range workflow.Stages {
-		plannerRef := stage.Planner.PlannerID + "@" + stage.Planner.Version
-		validShape := false
-		switch plannerRef {
-		case planner.PassthroughRef, planner.StreamlineRef:
-			validShape = len(stage.Agents) == 1
-		case planner.RouterRef, planner.ScanPlanRef:
-			validShape = len(stage.Agents) > 0
-		}
-		if !validShape {
-			return executableWorkflow{}, fmt.Errorf(
-				"%w: Stage %q has an unsupported Planner/Agent shape",
-				ErrUnsupportedWorkflow, stageName,
-			)
-		}
 		if strings.TrimSpace(stage.Objective) == "" || strings.TrimSpace(stage.Instructions.Text) == "" {
 			return executableWorkflow{}, fmt.Errorf("%w: Stage %q semantic input is incomplete", ErrUnsupportedWorkflow, stageName)
 		}

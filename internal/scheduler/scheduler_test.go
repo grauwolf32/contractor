@@ -37,7 +37,7 @@ import (
 )
 
 func TestDecodeExecutableWorkflowAllowsMultiWorkerRouterOnly(t *testing.T) {
-	snapshot, err := configload.Load(configtest.CopyWithPolicies(t, "../../testdata/configs"), workflowconfig.MVPDescriptors())
+	snapshot, err := configload.Load(configtest.CopyWithPolicies(t, "../../testdata/configs"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -95,10 +95,19 @@ func TestDecodeExecutableWorkflowAllowsMultiWorkerRouterOnly(t *testing.T) {
 	if err := decode(workflow); err != nil {
 		t.Fatalf("multi-Worker router Workflow was rejected: %v", err)
 	}
+	// The snapshot decoder checks every Stage against the registered
+	// PlannerFactory descriptors, so a Planner the Server does not register
+	// never reaches a Planner factory.
+	stage.Planner = workflowconfig.PlannerRef{PlannerID: "router", Version: "2"}
+	workflow.Stages[workflow.EntryStage] = stage
+	if err := decode(workflow); !errors.Is(err, ErrUnsupportedWorkflow) ||
+		!strings.Contains(err.Error(), `unknown PlannerFactory "router@2"`) {
+		t.Fatalf("unregistered Planner error = %v", err)
+	}
 }
 
 func TestDecodeExecutableWorkflowRejectsLegacySnapshotWithoutExecutionConfig(t *testing.T) {
-	snapshot, err := configload.Load(configtest.CopyWithPolicies(t, "../../testdata/configs"), workflowconfig.MVPDescriptors())
+	snapshot, err := configload.Load(configtest.CopyWithPolicies(t, "../../testdata/configs"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -123,7 +132,7 @@ func TestDecodeExecutableWorkflowRejectsLegacySnapshotWithoutExecutionConfig(t *
 }
 
 func TestDecodeExecutableWorkflowRejectsPurposeReservedAgentNamespace(t *testing.T) {
-	snapshot, err := configload.Load(configtest.CopyWithPolicies(t, "../../testdata/configs"), workflowconfig.MVPDescriptors())
+	snapshot, err := configload.Load(configtest.CopyWithPolicies(t, "../../testdata/configs"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -152,7 +161,7 @@ func TestDecodeExecutableWorkflowRejectsPurposeReservedAgentNamespace(t *testing
 func TestBindingRequirementsProjectOnlyEachTemplatesPinnedRunSkills(t *testing.T) {
 	t.Parallel()
 
-	snapshot, err := configload.Load(configtest.CopyWithPolicies(t, "../../testdata/configs"), workflowconfig.MVPDescriptors())
+	snapshot, err := configload.Load(configtest.CopyWithPolicies(t, "../../testdata/configs"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -210,7 +219,7 @@ func TestBindingRequirementsProjectOnlyEachTemplatesPinnedRunSkills(t *testing.T
 func TestBindingRequirementsProjectExactWorkspacePinsForEveryWorker(t *testing.T) {
 	t.Parallel()
 
-	snapshot, err := configload.Load(configtest.CopyWithPolicies(t, "../../testdata/configs"), workflowconfig.MVPDescriptors())
+	snapshot, err := configload.Load(configtest.CopyWithPolicies(t, "../../testdata/configs"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -383,7 +392,7 @@ func TestSchedulerFencesEveryRecordedAllocationBeforeFinalizing(t *testing.T) {
 
 func TestSchedulerBuildsIndependentPinnedPlannerAndWorkerModelAccess(t *testing.T) {
 	harness := newSchedulerHarness(t)
-	snapshot, err := configload.Load(configtest.CopyWithPolicies(t, "../../testdata/configs"), workflowconfig.MVPDescriptors())
+	snapshot, err := configload.Load(configtest.CopyWithPolicies(t, "../../testdata/configs"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1744,7 +1753,7 @@ func configureEscalationWorkflow(
 	maxAttempts int,
 ) contracts.ResolvedModelPolicy {
 	t.Helper()
-	snapshot, err := configload.Load(configtest.CopyWithPolicies(t, "../../testdata/configs"), workflowconfig.MVPDescriptors())
+	snapshot, err := configload.Load(configtest.CopyWithPolicies(t, "../../testdata/configs"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1859,7 +1868,7 @@ type schedulerHarness struct {
 
 func newSchedulerHarness(t *testing.T) *schedulerHarness {
 	t.Helper()
-	snapshot, err := configload.Load(configtest.CopyWithPolicies(t, "../../testdata/configs"), workflowconfig.MVPDescriptors())
+	snapshot, err := configload.Load(configtest.CopyWithPolicies(t, "../../testdata/configs"))
 	if err != nil {
 		t.Fatal(err)
 	}

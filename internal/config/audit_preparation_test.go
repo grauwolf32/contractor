@@ -30,7 +30,7 @@ func TestAuditPreparationAuthoringFixtures(t *testing.T) {
 				data = strings.ReplaceAll(data, replacement[0], replacement[1])
 			}
 			writeAuditProfile(t, root, "prepared-openapi-scan", data)
-			snapshot, err := Load(root, MVPDescriptors())
+			snapshot, err := Load(root)
 			if !tc.Valid {
 				if err == nil {
 					t.Fatal("invalid preparation profile accepted")
@@ -64,7 +64,7 @@ func TestAuditPreparationAuthoringFixtures(t *testing.T) {
 func TestAuditPreparationAttemptBudgetChangesDigestAndInvalidatesSnapshot(t *testing.T) {
 	root := copyAuditPreparationCatalog(t)
 	writeAuditProfile(t, root, "prepared-openapi-scan", string(readFile(t, "../../api/testdata/audit-composition/prepared-openapi-scan.yaml")))
-	profile, err := mustLoad(t, root, MVPDescriptors()).AuditProfile("prepared-openapi-scan@1")
+	profile, err := mustLoad(t, root).AuditProfile("prepared-openapi-scan@1")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -99,7 +99,7 @@ func TestAuditPreparationAttemptBudgetChangesDigestAndInvalidatesSnapshot(t *tes
 // a profile without a prepare role keeps its digest when preparation fields
 // join the algorithm.
 func TestAuditProfilesWithoutPreparationKeepDigests(t *testing.T) {
-	snapshot := mustLoad(t, copyCoreFixture(t, "audit-scan-catalog"), MVPDescriptors())
+	snapshot := mustLoad(t, copyCoreFixture(t, "audit-scan-catalog"))
 	for ref, digest := range map[string]string{
 		"openapi-sqlmap-scan@1": "sha256:a011789cffbe65cee70e2c8f4965e693a3c6593ac05e6a1cff65cf5a8b6da390",
 		"openapi-nuclei-scan@1": "sha256:eab2a7a3ea204906fe70d29b0887ec5d95b17b61e4ffc83ab8bbcd0f7478141b",
@@ -118,7 +118,7 @@ func TestAuditPreparationDependenciesAndSnapshotValidation(t *testing.T) {
 	root := copyAuditPreparationCatalog(t)
 	data := string(readFile(t, "../../api/testdata/audit-composition/prepared-openapi-scan.yaml"))
 	writeAuditProfile(t, root, "prepared-openapi-scan", data)
-	snapshot := mustLoad(t, root, MVPDescriptors())
+	snapshot := mustLoad(t, root)
 	profile, err := snapshot.AuditProfile("prepared-openapi-scan@1")
 	if err != nil {
 		t.Fatal(err)

@@ -11,7 +11,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/configload"
 )
 
@@ -144,7 +143,7 @@ func TestUIStackConfigurationClosure(t *testing.T) {
 			if managedEvals {
 				stageManagedEvalConfiguration(t, root, target)
 			}
-			snapshot, err := configload.Load(target, config.MVPDescriptors())
+			snapshot, err := configload.Load(target)
 			if err != nil {
 				t.Fatal(err)
 			}

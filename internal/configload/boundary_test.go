@@ -173,7 +173,7 @@ var load = workflowconfig.Load
 
 func f() {
 	_, _ = workflowconfig.NewManager(workflowconfig.ManagerOptions{})
-	_ = workflowconfig.MVPDescriptors()
+	_, _ = workflowconfig.ParseConfigurationKind("model-policies")
 	_, _ = agentskills.DiscoverBundled("configs")
 }
 `

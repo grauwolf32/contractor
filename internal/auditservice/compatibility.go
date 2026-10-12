@@ -1,6 +1,7 @@
 package auditservice
 
 import (
+	"slices"
 	"sort"
 
 	"github.com/grauwolf32/contractor/internal/config"
@@ -66,25 +67,18 @@ func profileSelectsClassifiedTool(profile config.ResolvedAuditProfile, active bo
 func workflowRoleSelectsClassifiedTool(
 	profile config.ResolvedAuditProfile, workflowRole string, active bool,
 ) bool {
-	descriptors := config.MVPDescriptors().Toolsets
 	binding, exists := profile.Workflows[workflowRole]
 	if !exists {
 		return false
 	}
+	classified := config.SelectsFindingProposalTool
+	if active {
+		classified = config.SelectsActiveCheckTool
+	}
 	for _, stage := range binding.Workflow.Stages {
 		for _, agent := range stage.Agents {
-			for _, selected := range agent.Template.Toolsets {
-				descriptor, ok := descriptors[selected.Ref.ToolsetID+"@"+selected.Ref.Version]
-				if !ok {
-					continue
-				}
-				classified := descriptor.FindingProposalTools
-				if active {
-					classified = descriptor.ActiveCheckTools
-				}
-				if intersects(selected.Tools, classified) {
-					return true
-				}
+			if slices.ContainsFunc(agent.Template.Toolsets, classified) {
+				return true
 			}
 		}
 	}
@@ -103,22 +97,6 @@ func profileCanEmitFindings(profile config.ResolvedAuditProfile) bool {
 			if logical == "proposals" {
 				return true
 			}
-		}
-	}
-	return false
-}
-
-func intersects(left, right []string) bool {
-	if len(left) == 0 || len(right) == 0 {
-		return false
-	}
-	set := make(map[string]struct{}, len(right))
-	for _, value := range right {
-		set[value] = struct{}{}
-	}
-	for _, value := range left {
-		if _, ok := set[value]; ok {
-			return true
 		}
 	}
 	return false

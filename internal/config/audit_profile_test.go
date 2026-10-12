@@ -13,7 +13,7 @@ func TestAuditProfileLoadsResolvedWorkflowAndReturnsDeepCopies(t *testing.T) {
 	writeAuditProfile(t, root, "z-security-review", validAuditProfileYAML("z-security-review"))
 	writeAuditProfile(t, root, "a-security-review", validAuditProfileYAML("a-security-review"))
 
-	snapshot := mustLoad(t, root, MVPDescriptors())
+	snapshot := mustLoad(t, root)
 	if got := snapshot.Counts().AuditProfiles; got != 2 {
 		t.Fatalf("AuditProfiles count = %d, want 2", got)
 	}
@@ -107,7 +107,7 @@ func TestAuditProfileCatalogAcceptsBoundedFuturePoliciesWithoutClaimingCompatibi
 	).Replace(validAuditProfileYAML("future-review"))
 	writeAuditProfile(t, root, "future-review", manifest)
 
-	profile, err := mustLoad(t, root, MVPDescriptors()).AuditProfile("future-review@1")
+	profile, err := mustLoad(t, root).AuditProfile("future-review@1")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -134,10 +134,10 @@ func TestAuditProfileDigestIsSemanticAndPinsWorkflowClosure(t *testing.T) {
 	changed := strings.Replace(validAuditProfileYAML("api-security-review"), "maxRounds: 3", "maxRounds: 4", 1)
 	writeAuditProfile(t, policyRoot, "api-security-review", changed)
 
-	baseline, _ := mustLoad(t, baselineRoot, MVPDescriptors()).AuditProfile("api-security-review@1")
-	presentation, _ := mustLoad(t, presentationRoot, MVPDescriptors()).AuditProfile("api-security-review@1")
-	closure, _ := mustLoad(t, closureRoot, MVPDescriptors()).AuditProfile("api-security-review@1")
-	policy, _ := mustLoad(t, policyRoot, MVPDescriptors()).AuditProfile("api-security-review@1")
+	baseline, _ := mustLoad(t, baselineRoot).AuditProfile("api-security-review@1")
+	presentation, _ := mustLoad(t, presentationRoot).AuditProfile("api-security-review@1")
+	closure, _ := mustLoad(t, closureRoot).AuditProfile("api-security-review@1")
+	policy, _ := mustLoad(t, policyRoot).AuditProfile("api-security-review@1")
 	if baseline.Ref.Digest != presentation.Ref.Digest {
 		t.Fatalf("presentation changed AuditProfile digest: %s != %s", baseline.Ref.Digest, presentation.Ref.Digest)
 	}
@@ -240,7 +240,7 @@ func TestAuditProfileRejectsInvalidDocumentsAtomically(t *testing.T) {
 			t.Parallel()
 			root := copyAuditProfileConfigTree(t)
 			writeAuditProfile(t, root, "api-security-review", test.manifest)
-			snapshot, err := Load(root, MVPDescriptors())
+			snapshot, err := Load(root)
 			if err == nil || snapshot != nil || !strings.Contains(err.Error(), "audit-profiles/api-security-review.yaml") ||
 				!strings.Contains(err.Error(), test.wantMessage) {
 				t.Fatalf("Load invalid AuditProfile = (%+v, %v), want path and %q", snapshot, err, test.wantMessage)
@@ -254,7 +254,7 @@ func TestAuditProfileRejectsRetainedOutputCycles(t *testing.T) {
 
 	root := copyAuditProfileConfigTree(t)
 	writeAuditProfile(t, root, "cycle-review", retainedCycleAuditProfileYAML)
-	_, err := Load(root, MVPDescriptors())
+	_, err := Load(root)
 	if err == nil || !strings.Contains(err.Error(), "output dependencies contain a cycle") {
 		t.Fatalf("retained-output cycle error = %v", err)
 	}
@@ -320,7 +320,7 @@ func TestAuditProfileRejectsManagedRootDocuments(t *testing.T) {
 		t.Fatal(err)
 	}
 	writeAuditProfile(t, managed, "managed-review", validAuditProfileYAML("managed-review"))
-	_, err := LoadUnion(operator, managed, MVPDescriptors())
+	_, err := LoadUnion(operator, managed)
 	if err == nil || !strings.Contains(err.Error(), "AuditProfile must be operator-authored") {
 		t.Fatalf("managed AuditProfile error = %v", err)
 	}

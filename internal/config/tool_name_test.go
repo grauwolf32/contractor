@@ -31,7 +31,7 @@ func TestToolsetDescriptorToolNamesGoldenCases(t *testing.T) {
 		t.Fatal("tool name cases are incomplete")
 	}
 	accepts := func(tool string) bool {
-		_, err := normalizeDescriptors(Descriptors{Toolsets: map[string]ToolsetDescriptor{
+		_, err := normalizeDescriptors(descriptorTable{Toolsets: map[string]toolsetDescriptor{
 			"named-tools@1": {Tools: []string{tool}},
 		}})
 		return err == nil
@@ -48,7 +48,7 @@ func TestToolsetDescriptorToolNamesGoldenCases(t *testing.T) {
 			t.Errorf("Toolset descriptor accepts invalid tool name %q", tool)
 		}
 	}
-	if _, err := normalizeDescriptors(MVPDescriptors()); err != nil {
+	if _, err := normalizeDescriptors(builtInDescriptors()); err != nil {
 		t.Fatalf("registered Toolset descriptors: %v", err)
 	}
 }

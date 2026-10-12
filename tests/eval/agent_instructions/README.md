@@ -26,15 +26,19 @@ unchanged. This is an opt-in evaluation overlay, not a published default catalog
   SHA-256 digests. The recorded Git commit does not imply a clean working tree.
 - `variants.json`: baseline/candidate paths, file digests, and explicit selectors.
 - `candidate/configs`: archived overlay with exact pinned variant bytes.
-- `overlay_test.go`: loads A and B through the real config loader with an
-  offline-only descriptors for historical Audit/Findings toolsets, and checks that
-  capabilities, policies, scope, retries, stages, and result contracts match.
+- `overlay_test.go`: loads A and B through the real config loader, after
+  moving the historical Audit/Findings toolset refs onto the registered
+  versions that export the same tools, and checks that capabilities, policies,
+  scope, retries, stages, and result contracts match.
 
 For the offline compatibility test, materialize `catalog-baseline.json` into a
 temporary root, then merge `candidate/configs/` into it. The snapshot preserves
 the original config closure and pinned bytes while the working catalog evolves.
-The test-only descriptors do not register executable toolsets or make this
-overlay loadable in a production Server.
+The loader checks every selection against the Server's one registered descriptor
+table, so the test rewrites only its temporary copy: `audit-results@1` becomes
+`audit-results@2` and `security-findings@2` becomes `security-findings@1`, in
+both arms alike. This does not make the pinned overlay loadable in a production
+Server.
 Its `capture_commit` records provenance; baseline hashes in `variants.json` remain
 unchanged. In A only, replace each candidate
 instruction with its mapped baseline text. Thus A and B use the **same evaluation

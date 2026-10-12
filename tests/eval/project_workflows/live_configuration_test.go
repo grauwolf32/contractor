@@ -65,7 +65,7 @@ func copyLiveConfiguration(repositoryRoot, target string, settings liveSettings)
 	}); err != nil {
 		return nil, errors.New("copy live configuration failed")
 	}
-	snapshot, err := configload.Load(target, config.MVPDescriptors())
+	snapshot, err := configload.Load(target)
 	if err != nil {
 		return nil, errors.New("live configuration cannot be resolved")
 	}
@@ -109,7 +109,7 @@ func copyLiveConfiguration(repositoryRoot, target string, settings liveSettings)
 		return nil, err
 	}
 	// Recompute all identities and effective selections with the same loader the Server uses.
-	snapshot, err = configload.Load(target, config.MVPDescriptors())
+	snapshot, err = configload.Load(target)
 	if err != nil {
 		return nil, errors.New("overridden live configuration cannot be resolved")
 	}

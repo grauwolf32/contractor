@@ -242,7 +242,7 @@ func newFindingImportFixture(t *testing.T, direct bool) deletionImportFixture {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	snapshot, err := configload.Load("../config/testdata/valid", workflowconfig.MVPDescriptors())
+	snapshot, err := configload.Load("../config/testdata/valid")
 	if err != nil {
 		t.Fatal(err)
 	}

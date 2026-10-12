@@ -269,15 +269,15 @@ func (l *loader) resolveStage(
 	if err != nil {
 		return ResolvedStage{}, fmt.Errorf("planner: %w", err)
 	}
-	if _, ok := l.descriptors.PlannerFactories[planner.String()]; !ok {
+	plannerRef := PlannerRef{PlannerID: planner.ID, Version: planner.Version}
+	if !KnownPlanner(plannerRef) {
 		return ResolvedStage{}, fmt.Errorf("planner selects unknown PlannerFactory %q", planner)
 	}
 	agents, err := l.resolveAgentBindings(source.Agents)
 	if err != nil {
 		return ResolvedStage{}, err
 	}
-	plannerRef := PlannerRef{PlannerID: planner.ID, Version: planner.Version}
-	if err := validatePlannerAgentCardinality(plannerRef, len(agents)); err != nil {
+	if err := ValidatePlannerAgents(plannerRef, len(agents)); err != nil {
 		return ResolvedStage{}, err
 	}
 	context, err := resolveStageContext(source.Context)
@@ -288,7 +288,7 @@ func (l *loader) resolveStage(
 	if err != nil {
 		return ResolvedStage{}, err
 	}
-	if err := validateStageWorkspace(context, result, agents, l.descriptors); err != nil {
+	if err := validateStageWorkspace(context, result, agents); err != nil {
 		return ResolvedStage{}, err
 	}
 	if plannerRef != (PlannerRef{PlannerID: "scan-plan", Version: "1"}) {
@@ -500,26 +500,22 @@ func validateStageWorkspace(
 	context StageContext,
 	result StageResultContract,
 	agents map[string]ResolvedAgentBinding,
-	registered ...Descriptors,
 ) error {
-	descriptors := MVPDescriptors()
-	if len(registered) > 0 {
-		descriptors = registered[0]
-	}
+	registered := registeredDescriptors()
 	workspaceToolsets := false
 	changesToolset := false
 	for _, agent := range agents {
-		if err := descriptors.ValidateSandboxToolCompatibility(agent.Template); err != nil {
+		if err := sandboxToolCompatibility(registered, agent.Template); err != nil {
 			return err
 		}
 		profile := agent.Template.SandboxProfile.SandboxProfileID + "@" + agent.Template.SandboxProfile.Version
-		required := descriptors.SandboxProfiles[profile]
+		required := registered.SandboxProfiles[profile]
 		if required.WorkspaceMode != "" && (context.Workspace == nil || context.Workspace.Mode != required.WorkspaceMode) {
 			return fmt.Errorf("SandboxProfile %s requires context.workspace.mode %s", profile, required.WorkspaceMode)
 		}
 		for _, selection := range agent.Template.Toolsets {
 			ref := selection.Ref.ToolsetID + "@" + selection.Ref.Version
-			if descriptors.Toolsets[ref].RequiresWorkspace {
+			if registered.Toolsets[ref].RequiresWorkspace {
 				workspaceToolsets = true
 			}
 			if ref == "workspace-changes@1" {
@@ -811,7 +807,7 @@ func ValidateWorkflowGraph(workflow ResolvedWorkflow) error {
 		if err := stage.Session.Validate(); err != nil {
 			return fmt.Errorf("Stage %q: %w", name, err)
 		}
-		if err := validatePlannerAgentCardinality(stage.Planner, len(stage.Agents)); err != nil {
+		if err := ValidatePlannerAgents(stage.Planner, len(stage.Agents)); err != nil {
 			return fmt.Errorf("Stage %q: %w", name, err)
 		}
 		if err := validateResolvedStageMappings(name, stage, workflow.Outputs); err != nil {
@@ -843,7 +839,7 @@ func ValidateWorkflowGraph(workflow ResolvedWorkflow) error {
 	if err := validateWorkflowExecutionConfigs(workflow); err != nil {
 		return err
 	}
-	if err := validateToolWorkflowInputs(workflow, registeredToolsets()); err != nil {
+	if err := validateToolWorkflowInputs(workflow, registeredDescriptors().Toolsets); err != nil {
 		return err
 	}
 
@@ -901,25 +897,6 @@ func ValidateWorkflowGraph(workflow ResolvedWorkflow) error {
 			); err != nil {
 				return err
 			}
-		}
-	}
-	return nil
-}
-
-func validatePlannerAgentCardinality(planner PlannerRef, agents int) error {
-	reference := planner.PlannerID + "@" + planner.Version
-	switch reference {
-	case "passthrough@1", "streamline@1":
-		if agents != 1 {
-			return fmt.Errorf("%s requires exactly one logical Agent binding; use router@1 for multiple bindings", reference)
-		}
-	case "router@1":
-		if agents < 1 {
-			return fmt.Errorf("router@1 requires at least one logical Agent binding")
-		}
-	default:
-		if agents < 1 {
-			return fmt.Errorf("%s requires at least one logical Agent binding", reference)
 		}
 	}
 	return nil

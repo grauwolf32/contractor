@@ -225,7 +225,7 @@ func newCompletionFixtureWithInteraction(t *testing.T, pool *pgxpool.Pool, accep
 		}
 		mustCompletion(t, os.WriteFile(path, data, 0600))
 	}
-	catalog, err := configload.Load(catalogRoot, config.MVPDescriptors())
+	catalog, err := configload.Load(catalogRoot)
 	mustCompletion(t, err)
 	f.profile, err = catalog.AuditProfile("source-checklist@1")
 	mustCompletion(t, err)
@@ -249,7 +249,7 @@ func newCompletionFixtureWithInteraction(t *testing.T, pool *pgxpool.Pool, accep
 	}
 	_, err = f.audits.TransitionRound(ctx, auditstore.RoundTransitionParams{Claim: f.claim, RoundID: f.id, ExpectedRevision: 1, ExpectedState: auditstore.RoundAccepted, TargetState: auditstore.RoundExecuting})
 	mustCompletion(t, err)
-	manager, _, err := configload.NewManager(config.ManagerOptions{OperatorRoot: "../config/testdata/valid", ManagedRoot: filepath.Join(t.TempDir(), "managed"), Descriptors: config.MVPDescriptors()})
+	manager, _, err := configload.NewManager(config.ManagerOptions{OperatorRoot: "../config/testdata/valid", ManagedRoot: filepath.Join(t.TempDir(), "managed")})
 	mustCompletion(t, err)
 	f.service, err = runservice.New(runservice.Options{Runs: f.runs, Workflows: manager, LLMCredentials: completionCredentials{}, CredentialGuard: completionCredentials{}, RuntimeCredentials: completionCredentials{}, Projects: projects,
 		PublicTransaction: func(context.Context, func(runservice.PublicRunWriter, *artifacts.Service) error) error {

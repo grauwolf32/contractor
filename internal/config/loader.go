@@ -25,7 +25,6 @@ const maximumCatalogFileBytes = 4 << 20
 type loader struct {
 	roots                       []configurationRoot
 	allowMissingManagedSubtrees bool
-	descriptors                 Descriptors
 	instructions                map[string]contracts.ResolvedInstructions
 	policies                    map[string]contracts.ResolvedModelPolicy
 	gateways                    map[string]llmgateway.ResolvedLLMGatewayConfig
@@ -71,10 +70,10 @@ type loadOptions struct {
 
 // Load validates the complete configuration root and publishes one immutable
 // snapshot. On any error the returned Snapshot is nil.
-func Load(root string, descriptors Descriptors, checks ...OperatorRootCheck) (*Snapshot, error) {
+func Load(root string, checks ...OperatorRootCheck) (*Snapshot, error) {
 	return loadConfigurationRoots(
 		[]configurationRoot{{path: root, source: ConfigurationSourceOperator}},
-		descriptors, loadOptions{operatorRootChecks: checks},
+		loadOptions{operatorRootChecks: checks},
 	)
 }
 
@@ -83,20 +82,14 @@ func Load(root string, descriptors Descriptors, checks ...OperatorRootCheck) (*S
 // reject the complete snapshot; neither root has precedence. Every managed
 // subtree must exist, so a reload after one is removed or unmounted fails and
 // the caller keeps its current snapshot.
-func LoadUnion(operatorRoot, managedRoot string, descriptors Descriptors, checks ...OperatorRootCheck) (*Snapshot, error) {
+func LoadUnion(operatorRoot, managedRoot string, checks ...OperatorRootCheck) (*Snapshot, error) {
 	return loadConfigurationRoots([]configurationRoot{
 		{path: operatorRoot, source: ConfigurationSourceOperator},
 		{path: managedRoot, source: ConfigurationSourceManaged},
-	}, descriptors, loadOptions{operatorRootChecks: checks})
+	}, loadOptions{operatorRootChecks: checks})
 }
 
-func loadConfigurationRoots(
-	roots []configurationRoot, descriptors Descriptors, options loadOptions,
-) (*Snapshot, error) {
-	normalizedDescriptors, err := normalizeDescriptors(descriptors)
-	if err != nil {
-		return nil, err
-	}
+func loadConfigurationRoots(roots []configurationRoot, options loadOptions) (*Snapshot, error) {
 	resolvedRoots := make([]configurationRoot, 0, len(roots))
 	for _, root := range roots {
 		absolute, absoluteErr := filepath.Abs(root.path)
@@ -130,7 +123,6 @@ func loadConfigurationRoots(
 	current := &loader{
 		roots:                       resolvedRoots,
 		allowMissingManagedSubtrees: options.allowMissingManagedSubtrees,
-		descriptors:                 normalizedDescriptors,
 		instructions:                make(map[string]contracts.ResolvedInstructions),
 		policies:                    make(map[string]contracts.ResolvedModelPolicy),
 		gateways:                    make(map[string]llmgateway.ResolvedLLMGatewayConfig),

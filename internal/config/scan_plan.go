@@ -10,13 +10,6 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts/scan"
 )
 
-// IsModelFreePlanner classifies exact implementations, independently of any
-// authored model selection. Workflow-wide defaults skip these implementations.
-func IsModelFreePlanner(ref PlannerRef) bool {
-	return ref == (PlannerRef{PlannerID: "passthrough", Version: "1"}) ||
-		ref == (PlannerRef{PlannerID: "scan-plan", Version: "1"})
-}
-
 func cloneScanPlanPolicy(source *scan.ScanPlanPolicy) *scan.ScanPlanPolicy {
 	if source == nil {
 		return nil

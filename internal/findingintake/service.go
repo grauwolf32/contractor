@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
@@ -294,21 +295,7 @@ SELECT execution.audit_id, execution.execution_id, execution.role,
 }
 
 func selectsFindingTool(selections []contracts.ToolsetSelection) bool {
-	descriptors := workflowconfig.MVPDescriptors().Toolsets
-	for _, selection := range selections {
-		descriptor, ok := descriptors[selection.Ref.ToolsetID+"@"+selection.Ref.Version]
-		if !ok {
-			continue
-		}
-		for _, tool := range selection.Tools {
-			for _, proposalTool := range descriptor.FindingProposalTools {
-				if tool == proposalTool {
-					return true
-				}
-			}
-		}
-	}
-	return false
+	return slices.ContainsFunc(selections, workflowconfig.SelectsFindingProposalTool)
 }
 
 func mustRunScope(runID string) artifacts.Scope {

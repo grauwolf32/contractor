@@ -29,7 +29,7 @@ func (s *scanHistoryTestStore) ListStageExecutions(context.Context, string) ([]r
 
 func newScanHistoryFixture(t *testing.T) *scanHistoryTestStore {
 	t.Helper()
-	snapshot, err := configload.Load("../../../testdata/configs-scan", config.MVPDescriptors())
+	snapshot, err := configload.Load("../../../testdata/configs-scan")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -119,7 +119,7 @@ const publicCatalogFixture = "testdata/catalog"
 
 func catalogWorkflow(t *testing.T, selector string) config.ResolvedWorkflow {
 	t.Helper()
-	snapshot, err := configload.Load(publicCatalogFixture, config.MVPDescriptors())
+	snapshot, err := configload.Load(publicCatalogFixture)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -454,7 +454,7 @@ func TestOwnerQueueControlIsDurableCASAndIdempotent(t *testing.T) {
 
 func TestRunDetailJoinsImmutableObjectiveTypedPlanInputsAndCursor(t *testing.T) {
 	fixture := newHandlerFixture(t)
-	snapshot, err := configload.Load("../../config/testdata/valid", config.MVPDescriptors())
+	snapshot, err := configload.Load("../../config/testdata/valid")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -88,7 +88,7 @@ func schedulerWorkflowAtSnapshotBound(t *testing.T) workflowconfig.ResolvedWorkf
 		if err := os.WriteFile(filepath.Join(root, "instructions", "copy-planner.md"), []byte(instruction), 0o644); err != nil {
 			t.Fatal(err)
 		}
-		snapshot, err := configload.Load(root, workflowconfig.MVPDescriptors())
+		snapshot, err := configload.Load(root)
 		if err != nil {
 			t.Fatal(err)
 		}

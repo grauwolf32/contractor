@@ -82,7 +82,6 @@ type PublicationResult struct {
 type ManagerOptions struct {
 	OperatorRoot string
 	ManagedRoot  string
-	Descriptors  Descriptors
 	// OperatorRootChecks apply at startup and on every reload before a
 	// publication. internal/configload supplies the production set.
 	OperatorRootChecks []OperatorRootCheck
@@ -116,7 +115,6 @@ type Manager struct {
 
 	operatorRoot string
 	managedRoot  string
-	descriptors  Descriptors
 	rootChecks   []OperatorRootCheck
 	logger       *slog.Logger
 	now          func() time.Time
@@ -146,7 +144,7 @@ func NewManager(options ManagerOptions) (*Manager, error) {
 		return nil, fmt.Errorf("operator and managed configuration roots must not overlap")
 	}
 	rootChecks := slices.Clone(options.OperatorRootChecks)
-	snapshot, err := LoadUnion(operatorRoot, managedRoot, options.Descriptors, rootChecks...)
+	snapshot, err := LoadUnion(operatorRoot, managedRoot, rootChecks...)
 	if err != nil {
 		return nil, err
 	}
@@ -161,7 +159,6 @@ func NewManager(options ManagerOptions) (*Manager, error) {
 	manager := &Manager{
 		operatorRoot: operatorRoot,
 		managedRoot:  managedRoot,
-		descriptors:  options.Descriptors,
 		rootChecks:   rootChecks,
 		logger:       logger,
 		now:          now,
@@ -177,7 +174,7 @@ func NewManager(options ManagerOptions) (*Manager, error) {
 // a missing managed root or its subtrees. Missing managed directories are
 // equivalent to the empty directories NewManager would create at startup.
 func LoadUnionReadOnly(
-	operatorPath, managedPath string, descriptors Descriptors, checks ...OperatorRootCheck,
+	operatorPath, managedPath string, checks ...OperatorRootCheck,
 ) (*Snapshot, error) {
 	operatorRoot, err := requireStrictRoot(operatorPath, false)
 	if err != nil {
@@ -213,7 +210,7 @@ func LoadUnionReadOnly(
 	if managedExists {
 		roots = append(roots, configurationRoot{path: managedRoot, source: ConfigurationSourceManaged})
 	}
-	return loadConfigurationRoots(roots, descriptors, loadOptions{
+	return loadConfigurationRoots(roots, loadOptions{
 		allowMissingManagedSubtrees: true, operatorRootChecks: checks,
 	})
 }
@@ -325,7 +322,7 @@ func (m *Manager) Publish(
 	m.publicationMu.Lock()
 	defer m.publicationMu.Unlock()
 
-	loaded, err := LoadUnion(m.operatorRoot, m.managedRoot, m.descriptors, m.rootChecks...)
+	loaded, err := LoadUnion(m.operatorRoot, m.managedRoot, m.rootChecks...)
 	if err != nil {
 		return PublicationResult{}, classifyReloadFailure(err)
 	}

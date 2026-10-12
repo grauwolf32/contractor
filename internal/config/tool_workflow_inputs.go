@@ -4,22 +4,15 @@ import (
 	"fmt"
 	"maps"
 	"slices"
-	"sync"
 )
-
-// registeredToolsets is the Toolset descriptor table that Workflow graph
-// validation consults. Persisted and Run-pinned Workflows are revalidated
-// without a loader, so the check reads the registered table, as
-// RequiredRuntimeAdaptersForTemplate does, rather than a per-load copy.
-var registeredToolsets = sync.OnceValue(func() map[string]ToolsetDescriptor {
-	return MVPDescriptors().Toolsets
-})
 
 // validateToolWorkflowInputs enforces each selected tool's declared Workflow
 // input requirement. The runtime resolves that ordinary Workflow input once
 // during allocation preparation, so it must be required and accept the
-// declared media type. Tools without a requirement add nothing.
-func validateToolWorkflowInputs(workflow ResolvedWorkflow, toolsets map[string]ToolsetDescriptor) error {
+// declared media type. Tools without a requirement add nothing. Persisted and
+// Run-pinned Workflows are checked against the same registry as a catalog
+// load; toolsets is that registry's table, or a test's table for the rule.
+func validateToolWorkflowInputs(workflow ResolvedWorkflow, toolsets map[string]toolsetDescriptor) error {
 	for _, stageName := range slices.Sorted(maps.Keys(workflow.Stages)) {
 		stage := workflow.Stages[stageName]
 		for _, agentName := range slices.Sorted(maps.Keys(stage.Agents)) {

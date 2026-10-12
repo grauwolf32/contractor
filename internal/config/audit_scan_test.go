@@ -48,7 +48,7 @@ func TestAuditScanUsesContractsInsteadOfCatalogNames(t *testing.T) {
 				path := filepath.Join(root, relative)
 				writeFile(t, path, []byte(replacements.Replace(string(readFile(t, path)))))
 			}
-			profile, err := mustLoad(t, root, MVPDescriptors()).AuditProfile("customer-api-review@1")
+			profile, err := mustLoad(t, root).AuditProfile("customer-api-review@1")
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -75,7 +75,7 @@ func TestAuditScanUsesContractsInsteadOfCatalogNames(t *testing.T) {
 
 func TestAuditScanValidatesExecutionContract(t *testing.T) {
 	t.Parallel()
-	snapshot := mustLoad(t, copyCoreFixture(t, "audit-scan-catalog"), MVPDescriptors())
+	snapshot := mustLoad(t, copyCoreFixture(t, "audit-scan-catalog"))
 	profile, err := snapshot.AuditProfile("openapi-sqlmap-scan@1")
 	if err != nil {
 		t.Fatal(err)
@@ -116,7 +116,7 @@ func TestAuditScanValidatesExecutionContract(t *testing.T) {
 
 func TestAuditTaskAllowsSurroundingStagesAndOtherRoles(t *testing.T) {
 	t.Parallel()
-	snapshot := mustLoad(t, copyCoreFixture(t, "audit-scan-catalog"), MVPDescriptors())
+	snapshot := mustLoad(t, copyCoreFixture(t, "audit-scan-catalog"))
 	profile, err := snapshot.AuditProfile("openapi-sqlmap-scan@1")
 	if err != nil {
 		t.Fatal(err)

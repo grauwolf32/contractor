@@ -13,7 +13,6 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auth"
-	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
@@ -83,7 +82,7 @@ func TestPostgresRunDetailFixedBatchQueries(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	catalog, err := configload.Load("../../config/testdata/valid", config.MVPDescriptors())
+	catalog, err := configload.Load("../../config/testdata/valid")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -14,7 +14,7 @@ func TestRetiredWorkflowAndRebasedProfileKeepPinnedSnapshots(t *testing.T) {
 	if err := os.CopyFS(root, os.DirFS(filepath.Join("..", "..", "testdata", "configs"))); err != nil {
 		t.Fatal(err)
 	}
-	pinned := mustLoad(t, root, MVPDescriptors())
+	pinned := mustLoad(t, root)
 	workflow, err := pinned.Workflow("artifact-copy@1")
 	if err != nil {
 		t.Fatal(err)
@@ -38,7 +38,7 @@ func TestRetiredWorkflowAndRebasedProfileKeepPinnedSnapshots(t *testing.T) {
 		t.Fatal(err)
 	}
 	appendFile(t, filepath.Join(root, "instructions", "audit-source-checker-worker.md"), "\nRecord every checked file.\n")
-	current := mustLoad(t, root, MVPDescriptors())
+	current := mustLoad(t, root)
 	if _, err := current.ResolveRunWorkflow(t.Context(), "artifact-copy@1", ExecutionConfigPatch{}, nil); err == nil {
 		t.Fatal("new Run silently resolved retired Workflow")
 	}

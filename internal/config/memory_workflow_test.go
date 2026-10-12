@@ -11,7 +11,7 @@ const sharedMemoryFixtureRoot = "testdata/shared-memory"
 
 func TestWorkflowMemoryNamespaceBindingsResolve(t *testing.T) {
 	t.Parallel()
-	snapshot := mustLoad(t, sharedMemoryFixtureRoot, MVPDescriptors())
+	snapshot := mustLoad(t, sharedMemoryFixtureRoot)
 
 	streamline, err := snapshot.Workflow("shared-memory-streamline@1")
 	if err != nil {

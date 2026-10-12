@@ -18,7 +18,7 @@ func TestCatalogRejectsAWorkflowWhoseSnapshotExceedsItsBound(t *testing.T) {
 	root := copyCoreFixture(t)
 	writeFile(t, filepath.Join(root, snapshotLimitInstruction), []byte(strings.Repeat("a", 2_300_000)))
 
-	_, err := Load(root, MVPDescriptors())
+	_, err := Load(root)
 	if !errors.Is(err, ErrWorkflowSnapshotTooLarge) || !strings.Contains(err.Error(), "artifact-copy@1") {
 		t.Fatalf("load with a 2.3 MB instruction error = %v, want ErrWorkflowSnapshotTooLarge for artifact-copy@1", err)
 	}
@@ -81,7 +81,7 @@ func TestWorkflowSnapshotBoundAppliesToTheSnapshotARunStores(t *testing.T) {
 func loadWithSnapshotLimitInstruction(t *testing.T, root, text string) *Snapshot {
 	t.Helper()
 	writeFile(t, filepath.Join(root, snapshotLimitInstruction), []byte(text))
-	return mustLoad(t, root, MVPDescriptors())
+	return mustLoad(t, root)
 }
 
 func encodedRunWorkflowSize(t *testing.T, snapshot *Snapshot, patch ExecutionConfigPatch, lookup CredentialLookup) int {

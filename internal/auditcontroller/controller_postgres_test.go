@@ -1822,7 +1822,7 @@ spec:
 			t.Fatal(err)
 		}
 	}
-	snapshot, err := configload.Load(root, config.MVPDescriptors())
+	snapshot, err := configload.Load(root)
 	if err != nil {
 		t.Fatalf("load Audit Controller test configuration: %v", err)
 	}

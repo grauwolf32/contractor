@@ -55,7 +55,8 @@ func TestEvaluationReleasePreservesPairedContracts(t *testing.T) {
 	for _, overlay := range []string{"candidate/configs", "evaluation-configs/configs"} {
 		copyArchivedExecutionConfigs(t, directory, overlay)
 	}
-	snapshot, err := configload.Load(directory, archivedExperimentDescriptors())
+	registerArchivedToolsets(t, directory)
+	snapshot, err := configload.Load(directory)
 	if err != nil {
 		t.Fatal(err)
 	}

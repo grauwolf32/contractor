@@ -323,7 +323,6 @@ func reportDeletionReviewService(t *testing.T, f *completionFixture) *auditservi
 	t.Helper()
 	manager, _, err := configload.NewManager(config.ManagerOptions{
 		OperatorRoot: "../config/testdata/valid", ManagedRoot: filepath.Join(t.TempDir(), "managed"),
-		Descriptors: config.MVPDescriptors(),
 	})
 	mustCompletion(t, err)
 	service, err := auditservice.New(auditservice.Options{
