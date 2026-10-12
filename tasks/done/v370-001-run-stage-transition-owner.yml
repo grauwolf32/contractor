@@ -5,7 +5,8 @@ milestone: hub-audit-structure-2026-10
 epic: execution-core
 kind: chore
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: "17336d0c3b8a824947e75d4b85919bfe9f91c3b2"
 depends_on: [V369-001]
 languages: [go]
 goal: "Only runstore issues UPDATE workflow_runs/stage_executions state (ownership test)."
