@@ -1682,7 +1682,7 @@ func newRunCreationTestStore(
 	if err != nil {
 		t.Fatal(err)
 	}
-	return NewRunCreationPostgresStore(tx, bound)
+	return NewRunCreationPostgresStore(tx, bound, pinTestRuntimeCredentials{})
 }
 
 func createTestRun(t *testing.T, ctx context.Context, store *PostgresStore, runID string) WorkflowRun {

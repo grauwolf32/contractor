@@ -104,6 +104,8 @@ var layers = []layerSpec{
 		name: "execution",
 		role: "run execution: run store, runtime configuration, credentials, memory, planner, scheduler, control plane",
 		packages: []string{
+			// The Runtime Agent principal registry; a client of runtimeconfig labels.
+			"internal/agentprincipal",
 			"internal/controlplane",
 			"internal/credentials",
 			"internal/credentials/litellm",

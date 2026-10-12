@@ -1,7 +1,9 @@
-package runtimeconfig
+package agentprincipal
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"os"
 	"slices"
@@ -13,7 +15,9 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type countingPrincipalQueryTx struct {
@@ -29,18 +33,11 @@ func (tx *countingPrincipalQueryTx) Query(ctx context.Context, sql string, args 
 }
 
 func TestPostgresPrincipalAdapterPagesBatchAndPreserveSnapshot(t *testing.T) {
-	databaseURL := os.Getenv("CONTRACTOR_TEST_DATABASE_URL")
-	if databaseURL == "" {
-		t.Skip("CONTRACTOR_TEST_DATABASE_URL is not set")
-	}
 	ctx, cancel := context.WithTimeout(t.Context(), 45*time.Second)
 	defer cancel()
-	pool := isolatedRuntimeConfigPool(t, ctx, databaseURL)
-	if _, err := persistencepostgres.ApplyMigrations(ctx, pool); err != nil {
-		t.Fatal(err)
-	}
-	ref := BuiltInRunSnapshot().Default.Config
-	bindings := NewRepository(pool)
+	pool := isolatedPrincipalPool(t, ctx)
+	ref := runtimeconfig.BuiltInRunSnapshot().Default.Config
+	bindings := runtimeconfig.NewRepository(pool)
 	for _, label := range []string{"alpha", "beta", "gamma"} {
 		if _, err := bindings.CreateBinding(ctx, label, ref, "operator", time.Now().UTC()); err != nil {
 			t.Fatal(err)
@@ -50,7 +47,7 @@ func TestPostgresPrincipalAdapterPagesBatchAndPreserveSnapshot(t *testing.T) {
 	labelSets := [][]string{{"alpha", "beta"}, {"beta"}, {"gamma"}, {}}
 	for index, id := range ids {
 		at := time.Now().UTC()
-		inserted, err := NewPrincipalRepository(pool).Insert(ctx, RuntimeAgentPrincipal{
+		inserted, err := NewRepository(pool).Insert(ctx, Principal{
 			RuntimeAgentID: id, Labels: labelSets[index], LabelRevision: 1,
 			CreatedBy: "operator", CreatedAt: at, UpdatedBy: "operator", UpdatedAt: at,
 		})
@@ -58,7 +55,7 @@ func TestPostgresPrincipalAdapterPagesBatchAndPreserveSnapshot(t *testing.T) {
 			t.Fatalf("insert principal %s: inserted=%v error=%v", id, inserted, err)
 		}
 	}
-	service, err := NewPrincipalService(PrincipalServiceOptions{Pool: pool})
+	service, err := NewService(ServiceOptions{Pool: pool})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -70,7 +67,7 @@ func TestPostgresPrincipalAdapterPagesBatchAndPreserveSnapshot(t *testing.T) {
 		t.Fatal(err)
 	}
 	counted := &countingPrincipalQueryTx{Tx: read}
-	page, hasMore, err := listPrincipalAdapterPage(ctx, counted, "", 2)
+	page, hasMore, err := listAdapterPage(ctx, counted, "", 2)
 	if err != nil || !hasMore || len(page) != 2 || page[0].Principal.RuntimeAgentID != ids[0] || page[1].Principal.RuntimeAgentID != ids[1] {
 		t.Fatalf("first page = (%+v, %v, %v)", page, hasMore, err)
 	}
@@ -90,7 +87,7 @@ func TestPostgresPrincipalAdapterPagesBatchAndPreserveSnapshot(t *testing.T) {
 		}
 	}
 	counted.queries, counted.args = nil, nil
-	fullPage, hasMore, err := listPrincipalAdapterPage(ctx, counted, "", 3)
+	fullPage, hasMore, err := listAdapterPage(ctx, counted, "", 3)
 	if err != nil || !hasMore || len(fullPage) != 3 || len(counted.queries) != 3 {
 		t.Fatalf("three-row page = (%+v, %v, %v), queries=%d", fullPage, hasMore, err, len(counted.queries))
 	}
@@ -101,7 +98,8 @@ func TestPostgresPrincipalAdapterPagesBatchAndPreserveSnapshot(t *testing.T) {
 		t.Fatal(err)
 	}
 	last, more, err := service.ListWithRequiredRuntimeAdapters(ctx, ids[2], 1)
-	if err != nil || more || len(last) != 1 || last[0].Principal.RuntimeAgentID != ids[3] || len(last[0].RequiredRuntimeAdapters) != 0 {
+	if err != nil || more || len(last) != 1 || last[0].Principal.RuntimeAgentID != ids[3] ||
+		last[0].RequiredRuntimeAdapters == nil || len(last[0].RequiredRuntimeAdapters) != 0 {
 		t.Fatalf("unlabeled final page = (%+v, %v, %v)", last, more, err)
 	}
 
@@ -122,7 +120,7 @@ func TestPostgresPrincipalAdapterPagesBatchAndPreserveSnapshot(t *testing.T) {
 	if _, err := pool.Exec(ctx, `DELETE FROM runtime_label_bindings WHERE label = 'gamma'`); err != nil {
 		t.Fatal(err)
 	}
-	oldPage, more, err := listPrincipalAdapterPage(ctx, snapshot, ids[1], 1)
+	oldPage, more, err := listAdapterPage(ctx, snapshot, ids[1], 1)
 	if err != nil || !more || len(oldPage) != 1 || !slices.Equal(oldPage[0].Principal.Labels, []string{"gamma"}) {
 		t.Fatalf("repeatable-read page after concurrent deletion = (%+v, %v, %v)", oldPage, more, err)
 	}
@@ -133,22 +131,15 @@ func TestPostgresPrincipalAdapterPagesBatchAndPreserveSnapshot(t *testing.T) {
 }
 
 func TestPostgresRuntimeAgentPrincipalSeedCASAndDelete(t *testing.T) {
-	databaseURL := os.Getenv("CONTRACTOR_TEST_DATABASE_URL")
-	if databaseURL == "" {
-		t.Skip("CONTRACTOR_TEST_DATABASE_URL is not set")
-	}
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
-	pool := isolatedRuntimeConfigPool(t, ctx, databaseURL)
-	if _, err := persistencepostgres.ApplyMigrations(ctx, pool); err != nil {
-		t.Fatalf("apply migrations: %v", err)
-	}
+	pool := isolatedPrincipalPool(t, ctx)
 
 	now := time.Date(2026, 9, 1, 1, 0, 0, 0, time.UTC)
-	publisher, err := NewPublisher(PublisherOptions{
+	publisher, err := runtimeconfig.NewPublisher(runtimeconfig.PublisherOptions{
 		Pool:                     pool,
-		PlannerTelemetryAdapters: PlannerTelemetryAdapterCatalogFunc(func(ref string) bool { return ref == "otlp-http@1" }),
-		GatewayResolver: GatewayResolverFunc(func(_ context.Context, selector string) (llmgateway.ResolvedLLMGatewayConfig, error) {
+		PlannerTelemetryAdapters: runtimeconfig.PlannerTelemetryAdapterCatalogFunc(func(ref string) bool { return ref == "otlp-http@1" }),
+		GatewayResolver: runtimeconfig.GatewayResolverFunc(func(_ context.Context, selector string) (llmgateway.ResolvedLLMGatewayConfig, error) {
 			gatewayID, version, _ := strings.Cut(selector, "@")
 			return llmgateway.ResolvedLLMGatewayConfig{
 				Ref: llmgateway.LLMGatewayConfigRef{
@@ -173,14 +164,14 @@ func TestPostgresRuntimeAgentPrincipalSeedCASAndDelete(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := NewRepository(pool).CreateBinding(
+	if _, err := runtimeconfig.NewRepository(pool).CreateBinding(
 		ctx, "agent-route", published.Version.Ref, "operator", now,
 	); err != nil {
 		t.Fatal(err)
 	}
 
 	guard := &recordingDeletionGuard{}
-	service, err := NewPrincipalService(PrincipalServiceOptions{
+	service, err := NewService(ServiceOptions{
 		Pool: pool, DeletionGuard: guard, Now: func() time.Time { return now },
 	})
 	if err != nil {
@@ -198,23 +189,23 @@ func TestPostgresRuntimeAgentPrincipalSeedCASAndDelete(t *testing.T) {
 	}
 	if _, err := service.DeleteIdempotent(
 		ctx, principalID, 1, "principal-delete-labeled", "operator", now.Add(time.Minute),
-	); !errors.Is(err, ErrConflict) {
+	); !errors.Is(err, ErrInUse) || !errors.Is(err, runtimeconfig.ErrConflict) {
 		t.Fatalf("delete labeled principal error = %v", err)
 	}
 	if _, err := service.ReplaceLabelsIdempotent(
 		ctx, principalID, 1, []string{"missing"}, "principal-unknown-label", "operator", now.Add(time.Minute),
-	); !errors.Is(err, ErrUnknownLabel) || !errors.Is(err, ErrNotFound) {
+	); !errors.Is(err, runtimeconfig.ErrUnknownLabel) || !errors.Is(err, runtimeconfig.ErrNotFound) {
 		t.Fatalf("unknown body label error = %v", err)
 	}
 	if _, err := service.ReplaceLabelsIdempotent(
 		ctx, strings.Repeat("b", 64), 1, []string{"missing"}, "principal-missing", "operator", now.Add(time.Minute),
-	); !errors.Is(err, ErrNotFound) || errors.Is(err, ErrUnknownLabel) {
+	); !errors.Is(err, runtimeconfig.ErrNotFound) || errors.Is(err, runtimeconfig.ErrUnknownLabel) {
 		t.Fatalf("missing principal error = %v", err)
 	}
 
 	type concurrentResult struct {
 		key    string
-		result PrincipalMutationResult
+		result MutationResult
 		err    error
 	}
 	results := make(chan concurrentResult, 2)
@@ -234,7 +225,7 @@ func TestPostgresRuntimeAgentPrincipalSeedCASAndDelete(t *testing.T) {
 		case result.err == nil:
 			successes++
 			successful = result
-		case errors.Is(result.err, ErrPrecondition):
+		case errors.Is(result.err, runtimeconfig.ErrPrecondition):
 			preconditions++
 		default:
 			t.Fatalf("concurrent label replacement error = %v", result.err)
@@ -255,12 +246,12 @@ func TestPostgresRuntimeAgentPrincipalSeedCASAndDelete(t *testing.T) {
 	// the replayed result stays the original one.
 	if _, err := service.ReplaceLabelsIdempotent(
 		ctx, principalID, 1, []string{"agent-route"}, successful.key, "operator", now.Add(time.Minute),
-	); !errors.Is(err, contracts.ErrIdempotencyConflict) || errors.Is(err, ErrConflict) {
+	); !errors.Is(err, contracts.ErrIdempotencyConflict) || errors.Is(err, runtimeconfig.ErrConflict) {
 		t.Fatalf("label key reused with another request error = %v", err)
 	}
 	if _, err := service.ReplaceLabelsIdempotent(
 		ctx, principalID, 1, []string{}, "principal-stale", "operator", now.Add(2*time.Minute),
-	); !errors.Is(err, ErrPrecondition) {
+	); !errors.Is(err, runtimeconfig.ErrPrecondition) {
 		t.Fatalf("stale principal CAS error = %v", err)
 	}
 	deleted, err := service.DeleteIdempotent(
@@ -275,106 +266,11 @@ func TestPostgresRuntimeAgentPrincipalSeedCASAndDelete(t *testing.T) {
 	if err != nil || !deleteReplay.Deleted || !deleteReplay.Replayed {
 		t.Fatalf("delete response-loss replay = (%+v, %v)", deleteReplay, err)
 	}
-	if _, err := NewPrincipalRepository(pool).Get(ctx, principalID); !errors.Is(err, ErrNotFound) {
+	if _, err := NewRepository(pool).Get(ctx, principalID); !errors.Is(err, runtimeconfig.ErrNotFound) {
 		t.Fatalf("deleted principal lookup error = %v", err)
 	}
 	if guard.begins != 2 || guard.releases != 2 {
 		t.Fatalf("deletion guard calls = begin %d release %d", guard.begins, guard.releases)
-	}
-}
-
-func TestPostgresLabelRebindCannotInvalidateAssignedPrincipalLayer(t *testing.T) {
-	databaseURL := os.Getenv("CONTRACTOR_TEST_DATABASE_URL")
-	if databaseURL == "" {
-		t.Skip("CONTRACTOR_TEST_DATABASE_URL is not set")
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
-	defer cancel()
-	pool := isolatedRuntimeConfigPool(t, ctx, databaseURL)
-	if _, err := persistencepostgres.ApplyMigrations(ctx, pool); err != nil {
-		t.Fatal(err)
-	}
-	now := time.Date(2026, 9, 1, 2, 0, 0, 0, time.UTC)
-	resolver := GatewayResolverFunc(func(_ context.Context, selector string) (llmgateway.ResolvedLLMGatewayConfig, error) {
-		gatewayID, version, _ := strings.Cut(selector, "@")
-		digit := "b"
-		if gatewayID == "other-litellm" {
-			digit = "c"
-		}
-		return llmgateway.ResolvedLLMGatewayConfig{
-			Ref: llmgateway.LLMGatewayConfigRef{
-				GatewayID: gatewayID, Version: version,
-				Digest: "sha256:" + strings.Repeat(digit, 64),
-			},
-			Protocol: llmgateway.OpenAICompatibleProtocol,
-			URL:      "http://127.0.0.1:4000/v1",
-		}, nil
-	})
-	publisher, err := NewPublisher(PublisherOptions{
-		Pool: pool, GatewayResolver: resolver,
-		RuntimeCredentials: allowRuntimeCredentialCatalog{}, Now: func() time.Time { return now },
-		PlannerTelemetryAdapters: PlannerTelemetryAdapterCatalogFunc(func(ref string) bool { return ref == "otlp-http@1" }),
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	publish := func(name, gateway string) Ref {
-		t.Helper()
-		document := []byte(`{"apiVersion":"contractor/v1alpha1","kind":"RuntimeConfig","metadata":{"name":"` +
-			name + `","version":"1"},"spec":{"worker":{"llmGateway":{"gateway":"` + gateway + `@1"}}}}`)
-		result, publishErr := publisher.Publish(ctx, document, "publish-"+name, "operator")
-		if publishErr != nil {
-			t.Fatal(publishErr)
-		}
-		return result.Version.Ref
-	}
-	firstRef := publish("route-one", "local-litellm")
-	identicalRef := publish("route-two", "local-litellm")
-	conflictingRef := publish("route-other", "other-litellm")
-	repository := NewRepository(pool)
-	for label, ref := range map[string]Ref{"route-one": firstRef, "route-two": identicalRef} {
-		if _, err := repository.CreateBinding(ctx, label, ref, "operator", now); err != nil {
-			t.Fatal(err)
-		}
-	}
-	principalService, err := NewPrincipalService(PrincipalServiceOptions{
-		Pool: pool, DeletionGuard: &recordingDeletionGuard{}, Now: func() time.Time { return now },
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	principalID := strings.Repeat("d", 64)
-	if _, err := principalService.Register(
-		ctx, principalID, []string{"route-one", "route-two"},
-	); err != nil {
-		t.Fatal(err)
-	}
-	bindingService, err := NewBindingService(allowRuntimeCredentialCatalog{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	management, err := NewManagementService(pool, publisher, bindingService)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := management.Rebind(
-		ctx, "route-two", 1, conflictingRef, "rebind-conflict", "operator", now.Add(time.Minute),
-	); err == nil {
-		t.Fatal("conflicting label rebind was accepted")
-	} else {
-		var conflict *MergeConflictError
-		if !errors.As(err, &conflict) || conflict.Path != "worker.llmGateway.gateway" {
-			t.Fatalf("conflicting rebind error = %v", err)
-		}
-	}
-	current, err := repository.GetBinding(ctx, "route-two")
-	if err != nil || current.Revision != 1 || current.Ref != identicalRef {
-		t.Fatalf("binding after rolled-back conflict = (%+v, %v)", current, err)
-	}
-	if _, err := management.DeleteBinding(
-		ctx, "route-one", 1, "delete-assigned", "operator", now.Add(2*time.Minute),
-	); !errors.Is(err, ErrConflict) {
-		t.Fatalf("delete assigned label error = %v", err)
 	}
 }
 
@@ -393,4 +289,71 @@ func (g *recordingDeletionGuard) BeginPrincipalDeletion(string) (func(), error) 
 		g.releases++
 		g.mu.Unlock()
 	}, nil
+}
+
+type allowRuntimeCredentialCatalog struct{}
+
+func (catalog allowRuntimeCredentialCatalog) ForRuntimeTransaction(pgx.Tx) (runtimeconfig.RuntimeCredentialValidator, error) {
+	return catalog, nil
+}
+
+func (allowRuntimeCredentialCatalog) ValidateRuntimeCredential(context.Context, string, ...string) error {
+	return nil
+}
+
+func (allowRuntimeCredentialCatalog) WithCredentialReferences(_ context.Context, fn func() error) error {
+	return fn()
+}
+
+// isolatedPrincipalPool opens a pool on a fresh, migrated schema that is
+// dropped after the test.
+func isolatedPrincipalPool(t *testing.T, ctx context.Context) *pgxpool.Pool {
+	t.Helper()
+	databaseURL := os.Getenv("CONTRACTOR_TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("CONTRACTOR_TEST_DATABASE_URL is not set")
+	}
+	admin, err := pgxpool.New(ctx, databaseURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := admin.Ping(ctx); err != nil {
+		admin.Close()
+		t.Fatal(err)
+	}
+	randomBytes := make([]byte, 8)
+	if _, err := rand.Read(randomBytes); err != nil {
+		admin.Close()
+		t.Fatal(err)
+	}
+	schema := "agent_principal_test_" + hex.EncodeToString(randomBytes)
+	identifier := pgx.Identifier{schema}.Sanitize()
+	if _, err := admin.Exec(ctx, `CREATE SCHEMA `+identifier); err != nil {
+		admin.Close()
+		t.Fatal(err)
+	}
+	config, err := pgxpool.ParseConfig(databaseURL)
+	if err != nil {
+		admin.Close()
+		t.Fatal(err)
+	}
+	config.ConnConfig.RuntimeParams["search_path"] = schema
+	pool, err := pgxpool.NewWithConfig(ctx, config)
+	if err != nil {
+		admin.Close()
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		pool.Close()
+		cleanupCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if _, err := admin.Exec(cleanupCtx, `DROP SCHEMA `+identifier+` CASCADE`); err != nil {
+			t.Logf("drop isolated schema: %v", err)
+		}
+		admin.Close()
+	})
+	if _, err := persistencepostgres.ApplyMigrations(ctx, pool); err != nil {
+		t.Fatalf("apply migrations: %v", err)
+	}
+	return pool
 }

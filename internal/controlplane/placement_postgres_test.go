@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/agentprincipal"
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -260,7 +261,7 @@ func TestPlacementPostgresDiscardsProvisionalBatchOnPrincipalRevisionChange(t *t
 	changed := false
 	fixture.allocator.credentialGuard = placementGuardFunc(func(ctx context.Context, fn func() error) error {
 		if !changed {
-			_, err := runtimeconfig.NewPrincipalRepository(pool).ReplaceLabels(
+			_, err := agentprincipal.NewRepository(pool).ReplaceLabels(
 				ctx, runtimeAgentID, 1, []string{}, "operator", time.Now().UTC(),
 			)
 			if err != nil {
@@ -292,7 +293,7 @@ func TestPlacementPostgresSkipsDeletedCachedPrincipal(t *testing.T) {
 	fixture := newPlacementFixture(t, ctx, pool, nil)
 	deletedID := fixture.registerCandidate(t, ctx, "runtime-a-deleted", "4", nil)
 	compatibleID := fixture.registerCandidate(t, ctx, "runtime-b-compatible", "5", nil)
-	if err := runtimeconfig.NewPrincipalRepository(pool).Delete(ctx, deletedID, 1); err != nil {
+	if err := agentprincipal.NewRepository(pool).Delete(ctx, deletedID, 1); err != nil {
 		t.Fatal(err)
 	}
 	reservations, err := fixture.allocator.ReserveAllContext(ctx, fixture.request())
@@ -313,7 +314,7 @@ func TestPlacementPostgresRefreshesLabelsThatBecomeCompatible(t *testing.T) {
 	fixture := newPlacementFixture(t, ctx, pool, []string{"debug"})
 	id := fixture.registerCandidateWithLabels(t, ctx, "runtime-new-label", "6",
 		[]contracts.RuntimeAdapterRef{contracts.RuntimeAdapterOTLPHTTP}, nil)
-	if _, err := runtimeconfig.NewPrincipalRepository(pool).ReplaceLabels(ctx, id, 1,
+	if _, err := agentprincipal.NewRepository(pool).ReplaceLabels(ctx, id, 1,
 		[]string{"debug"}, "operator", time.Now().UTC()); err != nil {
 		t.Fatal(err)
 	}
@@ -649,12 +650,12 @@ func (f *placementFixture) registerCandidateWithLabels(
 	t.Helper()
 	runtimeAgentID := strings.Repeat(idDigit, 64)
 	now := time.Now().UTC()
-	principal := runtimeconfig.RuntimeAgentPrincipal{
+	principal := agentprincipal.Principal{
 		RuntimeAgentID: runtimeAgentID, Labels: append([]string{}, labels...), LabelRevision: 1,
 		CreatedBy: "runtime-registration", CreatedAt: now,
 		UpdatedBy: "runtime-registration", UpdatedAt: now,
 	}
-	if _, err := runtimeconfig.NewPrincipalRepository(f.pool).Insert(ctx, principal); err != nil {
+	if _, err := agentprincipal.NewRepository(f.pool).Insert(ctx, principal); err != nil {
 		t.Fatal(err)
 	}
 	registration := control.AgentRegistration{

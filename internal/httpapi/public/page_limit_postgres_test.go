@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/agentprincipal"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
@@ -106,7 +107,7 @@ func TestPostgresPublicPagedListsAcceptTheLargestPage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	principalService, err := runtimeconfig.NewPrincipalService(runtimeconfig.PrincipalServiceOptions{
+	principalService, err := agentprincipal.NewService(agentprincipal.ServiceOptions{
 		Pool: pool, DeletionGuard: registry,
 	})
 	if err != nil {

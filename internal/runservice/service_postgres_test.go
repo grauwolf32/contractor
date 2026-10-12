@@ -273,7 +273,7 @@ func postgresPublicTransaction(pool *pgxpool.Pool) PublicTransaction {
 				return err
 			}
 			return fn(
-				runstore.NewRunCreationPostgresStore(tx, lookup),
+				runstore.NewRunCreationPostgresStore(tx, lookup, credentials.NewRuntimeCredentialRepository(tx)),
 				artifacts.NewService(artifacts.NewPostgresRepository(tx)),
 			)
 		})

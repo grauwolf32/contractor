@@ -10,6 +10,7 @@ import (
 	"mime"
 	"net/http"
 
+	"github.com/grauwolf32/contractor/internal/agentprincipal"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/control"
 	"github.com/grauwolf32/contractor/internal/mtls"
@@ -41,7 +42,7 @@ type Registry interface {
 }
 
 type PrincipalRegistrar interface {
-	Register(context.Context, string, []string) (runtimeconfig.RuntimeAgentPrincipal, error)
+	Register(context.Context, string, []string) (agentprincipal.Principal, error)
 }
 
 func NewHTTPHandler(registry Registry, supplied ...HTTPOptions) (http.Handler, error) {

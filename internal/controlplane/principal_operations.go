@@ -6,8 +6,8 @@ import (
 	"sort"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/agentprincipal"
 	"github.com/grauwolf32/contractor/internal/contracts/control"
-	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 )
 
 type RuntimeAgentPrincipalAvailability string
@@ -21,7 +21,7 @@ const (
 )
 
 type RuntimeAgentPrincipalProjection struct {
-	Principal               runtimeconfig.RuntimeAgentPrincipal
+	Principal               agentprincipal.Principal
 	RequiredRuntimeAdapters []string
 	MissingRuntimeAdapters  []string
 	Availability            RuntimeAgentPrincipalAvailability
@@ -78,11 +78,11 @@ func (p RuntimeAgentPrincipalProjection) Validate() error {
 }
 
 type PrincipalCatalog interface {
-	Get(context.Context, string) (runtimeconfig.RuntimeAgentPrincipal, error)
-	ListWithRequiredRuntimeAdapters(context.Context, string, int) ([]runtimeconfig.PrincipalAdapterRow, bool, error)
+	Get(context.Context, string) (agentprincipal.Principal, error)
+	ListWithRequiredRuntimeAdapters(context.Context, string, int) ([]agentprincipal.AdapterRow, bool, error)
 	RequiredRuntimeAdapters(context.Context, []string) ([]string, error)
-	ReplaceLabelsIdempotent(context.Context, string, uint64, []string, string, string, time.Time) (runtimeconfig.PrincipalMutationResult, error)
-	DeleteIdempotent(context.Context, string, uint64, string, string, time.Time) (runtimeconfig.PrincipalMutationResult, error)
+	ReplaceLabelsIdempotent(context.Context, string, uint64, []string, string, string, time.Time) (agentprincipal.MutationResult, error)
+	DeleteIdempotent(context.Context, string, uint64, string, string, time.Time) (agentprincipal.MutationResult, error)
 }
 
 type PrincipalRegistry interface {
@@ -185,7 +185,7 @@ func (s *PrincipalOperations) Delete(
 	)
 	if err != nil {
 		if errors.Is(err, ErrRegistrationConflict) {
-			return false, runtimeconfig.ErrPrincipalInUse
+			return false, agentprincipal.ErrInUse
 		}
 		return false, err
 	}
@@ -197,7 +197,7 @@ func (s *PrincipalOperations) Delete(
 
 func (s *PrincipalOperations) project(
 	ctx context.Context,
-	principal runtimeconfig.RuntimeAgentPrincipal,
+	principal agentprincipal.Principal,
 ) (RuntimeAgentPrincipalProjection, error) {
 	required, err := s.catalog.RequiredRuntimeAdapters(ctx, principal.Labels)
 	if err != nil {
@@ -207,7 +207,7 @@ func (s *PrincipalOperations) project(
 }
 
 func (s *PrincipalOperations) projectWithRequired(
-	principal runtimeconfig.RuntimeAgentPrincipal, required []string,
+	principal agentprincipal.Principal, required []string,
 ) (RuntimeAgentPrincipalProjection, error) {
 	result := RuntimeAgentPrincipalProjection{
 		Principal: principal, RequiredRuntimeAdapters: append([]string{}, required...),

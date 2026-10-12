@@ -141,7 +141,7 @@ func validateSpecRuntimeCredentials(
 			if contextError := ctx.Err(); contextError != nil {
 				return contextError
 			}
-			if errors.Is(err, credentialerrors.RuntimeNotFound) || errors.Is(err, credentialerrors.RuntimeInvalid) || errors.Is(err, pgx.ErrNoRows) {
+			if errors.Is(err, credentialerrors.RuntimeNotFound) || errors.Is(err, credentialerrors.RuntimeInvalid) {
 				return persistencepostgres.WrapError(
 					"invalid RuntimeConfig: Runtime credential is unavailable or incompatible",
 					errors.Join(ErrInvalid, err),

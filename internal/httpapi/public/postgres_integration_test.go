@@ -20,6 +20,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
+	"github.com/grauwolf32/contractor/internal/credentials"
 	"github.com/grauwolf32/contractor/internal/httpapi/httpx"
 	publicevents "github.com/grauwolf32/contractor/internal/httpapi/public/events"
 	"github.com/grauwolf32/contractor/internal/performance"
@@ -367,7 +368,7 @@ func (u integrationUnitOfWork) Do(ctx context.Context, fn func(RunWriter, *artif
 			return err
 		}
 		return fn(
-			runstore.NewRunCreationPostgresStore(tx, lookup),
+			runstore.NewRunCreationPostgresStore(tx, lookup, credentials.NewRuntimeCredentialRepository(tx)),
 			artifacts.NewService(artifacts.NewPostgresRepository(tx)),
 		)
 	})

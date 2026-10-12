@@ -1543,7 +1543,7 @@ func newPostgresControllerHarnessWithConfig(
 					return bindErr
 				}
 				return fn(
-					runstore.NewRunCreationPostgresStore(tx, lookup),
+					runstore.NewRunCreationPostgresStore(tx, lookup, credentials.NewRuntimeCredentialRepository(tx)),
 					artifacts.NewService(artifacts.NewPostgresRepository(tx)),
 				)
 			})
