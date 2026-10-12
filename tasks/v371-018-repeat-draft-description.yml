@@ -1,0 +1,48 @@
+schema_version: "1.0"
+id: V371-018
+title: "Remove the historical-request sentence from the repeat-draft OpenAPI description"
+milestone: hub-audit-defects-2026-10
+epic: api-contracts
+kind: chore
+priority: P3
+status: pending
+depends_on: []
+languages: [yaml, go, typescript]
+goal: "The getRunRepeatDraft description states only behaviour the Server has, and the generated clients repeat it."
+context:
+  review: "Out-of-scope finding of the hub audit fix batch (group G8), recorded 2026-10-12; verified on a07f5e9"
+  specification: "docs/spec/execution/runs.md#RUN-R101"
+  finding: >-
+    The getRunRepeatDraft description
+    (api/openapi/contractor-public-v1.yaml:4794-4801) says "Historical
+    requests that predate executionConfig retention remain explicitly
+    unavailable instead of inheriting current defaults silently". There are
+    no such requests (pre-production, AGENTS.md section 2):
+    RunRepeatExecutionConfig allows only the status available
+    (yaml:13432-13438), and a missing or invalid retained fragment is a
+    blocking notice without a draft (RUN-R101, FAIL-RUN-8). The sentence is
+    repeated in the generated Go client
+    (internal/publicclient/generated/public.gen.go, four comments) and the
+    generated UI types. Predates the shallow history (boundary 6349621).
+  siblings: >-
+    Other OpenAPI descriptions that mention historical data, the allocation
+    report history (yaml:6208) and the retained Markdown summary
+    (yaml:11920), describe retained records and stay; check every
+    description that says historical, legacy or predate the same way.
+scope:
+  in:
+    - "Replace the sentence with the RUN-R101 behaviour and regenerate the Go client and the UI types (make generate-public-client, make ui-generate)."
+  out:
+    - "Repeat-draft behaviour."
+acceptance_criteria:
+  - id: A1
+    text: "No OpenAPI description, generated Go client comment or generated UI type mentions requests that predate executionConfig retention."
+  - id: A2
+    text: "make verify-public-api passes and both generated files are fresh."
+tests:
+  - command: "make verify-public-api"
+    covers: [A1, A2]
+  - command: "make ui-verify"
+    covers: [A2]
+  - command: make lint
+    covers: [A1, A2]

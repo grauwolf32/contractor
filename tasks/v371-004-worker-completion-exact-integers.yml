@@ -1,0 +1,70 @@
+schema_version: "1.0"
+id: V371-004
+title: "Bound WorkerCompletion integers to the range A2A carries exactly"
+milestone: hub-audit-defects-2026-10
+epic: planner-worker
+kind: defect
+priority: P3
+status: pending
+depends_on: []
+languages: [go, python]
+goal: "A WorkerCompletion integer above 2^53-1 is rejected by the schema, Go and Python instead of being rounded on its way through the A2A DataPart."
+context:
+  review: "Out-of-scope finding of the hub audit fix batch (group G1, 'needs a decision'), recorded 2026-10-12; the contract change V368-025 left to a follow-up; re-verified on a07f5e9"
+  specification: "docs/spec/execution/worker.md#WRK-R164"
+  severity: low
+  finding: >-
+    The Runtime wraps the WorkerCompletion into the A2A DataPart with
+    ParseDict(payload, Value()) (runtime/src/contractor_runtime/a2a_server.py:258-263),
+    so every integer becomes a protobuf double and an integer above 2^53 is
+    rounded before it leaves the Runtime. The Planner maps integral doubles
+    back to integers (V368-025) and cannot tell a rounded value from the
+    original. The contract still allows stateRevision up to 2^64-1 and every
+    observation count ($defs/uint64: tool calls and failures, scoped,
+    discovered, read, matched, modified and unread files) up to 2^64-1 in
+    api/v1alpha1/worker-completion.schema.json, the Go types and the Python
+    models, and api/testdata/v1alpha1/worker-result-size-cases.json keeps a
+    valid uint64_max case. WRK-R164 states the limit as known, but nothing
+    enforces or detects it, so an out-of-range value is silently changed
+    instead of rejected (AGENTS.md 3.9). V368-025 named this follow-up:
+    bounding WorkerCompletion integers to 2^53-1 in the schema, Go and
+    Python, as MaxResourceInteger does for resources. The Runtime encoding
+    predates the shallow history (boundary 6349621).
+  siblings: >-
+    Other A2A payloads: StageContentRequest carries no numbers (V368-025).
+    reporting.MaxResourceInteger (internal/contracts/reporting/performance.go:14)
+    already bounds the Runtime report's resource integers to 2^53-1, and
+    LIM-MEM-6 bounds Memory ordinals the same way; reuse one definition per
+    language rather than adding a constant. Worker State and lifecycle
+    responses travel as JSON bodies, not through A2A, and keep their uint64
+    range.
+  decision_needed: >-
+    Accept the proposal (cap WorkerCompletion integers at 2^53-1) or change
+    the DataPart encoding so integers cross exactly; V368-025 rejected
+    replacing the SDK transport and a Raw part as out of scope. Record the
+    choice, its evidence and its reversal condition in WRK-R164.
+scope:
+  in:
+    - "Bound every WorkerCompletion integer to 0..2^53-1 (stateRevision 1..2^53-1) in the schema, Go and Python, with one shared constant per language."
+    - "Replace the WorkerCompletion uint64_max fixture case with a valid 2^53-1 case and an invalid 2^53 case that both sides and the real A2A path check; update WRK-R164 and the limits registry."
+    - "The Runtime rejects a WorkerCompletion with an out-of-range integer before it encodes it."
+  out:
+    - "Replacing the A2A SDK transport or the DataPart encoding."
+acceptance_criteria:
+  - id: A1
+    given: "A WorkerCompletion whose stateRevision or one observation count is 2^53"
+    when: "The Runtime builds it, and when the Planner decodes it from a real A2A response"
+    then: "Both reject it with the contract's validation error; nothing is rounded."
+  - id: A2
+    text: "The 2^53-1 case passes through the real A2A decode path unchanged."
+  - id: A3
+    text: "The schema, Go and Python give every new fixture case the same verdict."
+tests:
+  - command: "go test ./internal/planner/a2a ./internal/contracts/..."
+    covers: [A1, A2, A3]
+  - command: "cd runtime && uv run pytest tests/test_contracts.py"
+    covers: [A1, A3]
+  - command: "make test-wire-cross-language"
+    covers: [A3]
+  - command: make lint
+    covers: [A1, A2, A3]

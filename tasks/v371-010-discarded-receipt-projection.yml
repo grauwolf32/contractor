@@ -1,0 +1,62 @@
+schema_version: "1.0"
+id: V371-010
+title: "Drop the report projection of a proposal receipt discarded by Run deletion"
+milestone: hub-audit-defects-2026-10
+epic: findings
+kind: defect
+introduced_by: V368-001
+priority: P2
+status: pending
+depends_on: []
+languages: [go, sql]
+goal: "A discarded finding proposal receipt keeps only bounded tombstone provenance, as FND-R154 and DEL-R29 require, not the proposal's report projection of up to 8 MiB."
+context:
+  review: "Out-of-scope finding of the hub audit fix batch, sent by the coordinator on 2026-10-12; verified on a07f5e9"
+  specification: "docs/spec/findings/findings.md#FND-R154"
+  severity: medium
+  finding: >-
+    V368-001 (f6a874b; internal/persistence/migrations/000004_audit_report_pages.sql:18-24)
+    added report_projection, the canonical report fields of the proposal
+    (2 bytes to 8,388,608 bytes of text), to finding_proposal_receipts so
+    that report finalization need not read proposal artifacts. Run deletion
+    (internal/rundeletion/deleter.go:101-107 with markProposalSourceRunDeletedSQL,
+    deleter_sql.go:10-22) marks every unimported receipt discarded and purges
+    the proposal and evidence revisions with the RunScope, but the receipt
+    row keeps report_projection: the immutability trigger
+    contractor_protect_finding_proposal_receipt_retention
+    (000001_baseline.sql:924-936) lets an UPDATE change only the four
+    retention columns, and the column is NOT NULL with at least 2 bytes. The
+    proposal content therefore outlives its deleted source Run with no end
+    (receipts are never deleted; V368-009 covers Project purge), while
+    FND-R154, DEL-R28 and DEL-R29, LIFE-DEL-6 and LIFE-FND-1 allow only
+    bounded tombstone provenance for a discarded proposal.
+  siblings: >-
+    Other receipt columns that may hold proposal content rather than
+    provenance: evidence (jsonb, up to 1 MiB of evidence descriptors) and
+    proposal_ref; decide each and record it. Audit-held receipts keep the
+    projection, which report finalization reads (V368-001). Receipt deletion
+    on Project purge is V368-009. Public and UI receipt projections
+    (the Audit proposal inbox, REV-R142) must not show content of a discarded
+    receipt.
+scope:
+  in:
+    - "Clear or remove the report projection in the transaction that marks a receipt discarded (migration for the column and the trigger; the migration also clears receipts discarded before it)."
+    - "State in LIFE-FND-1 and DEL-R29 exactly which receipt fields a discarded tombstone keeps, with their bounds."
+    - "A PostgreSQL test that deletes a source Run with one imported and one unimported proposal."
+  out:
+    - "Receipt deletion on Project purge (V368-009)."
+    - "Audit-held receipts."
+acceptance_criteria:
+  - id: A1
+    given: "A source Run with one unimported and one imported proposal"
+    when: "The Run is deleted"
+    then: "The discarded receipt keeps no report projection or other proposal content, and the audit-held receipt keeps the projection report finalization needs."
+  - id: A2
+    text: "Report finalization of the destination Audit still renders the imported finding."
+  - id: A3
+    text: "The test fails on a07f5e9."
+tests:
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 -tags integration ./internal/rundeletion ./internal/findingintake ./internal/auditimport"
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A1, A2, A3]

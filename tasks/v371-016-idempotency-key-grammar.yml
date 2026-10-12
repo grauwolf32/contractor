@@ -1,0 +1,60 @@
+schema_version: "1.0"
+id: V371-016
+title: "Give the Idempotency-Key grammar one Go definition"
+milestone: hub-audit-defects-2026-10
+epic: api-contracts
+kind: defect
+priority: P3
+status: pending
+depends_on: []
+languages: [go, typescript]
+goal: "Every handler and store that accepts an Idempotency-Key applies the OpenAPI IdempotencyKey grammar from one definition, so no path accepts a key the public contract rejects."
+context:
+  review: "Out-of-scope finding of the hub audit fix batch (group G4), recorded 2026-10-12; verified on a07f5e9"
+  specification: "docs/spec/api/public-api.md#API-R69"
+  severity: low
+  finding: >-
+    The OpenAPI IdempotencyKey and OptionalIdempotencyKey parameters
+    (api/openapi/contractor-public-v1.yaml:6397-6416) allow 1 to 128
+    characters matching [A-Za-z0-9][A-Za-z0-9._:-]*. Go copies the grammar at
+    least six times: credentials/repository.go:33, projectstore/store.go:21,
+    auditstore/validation.go:20, auditservice/finding_review.go:886
+    (validIdempotencyKey), runstore/store.go:677 (validateIdempotencyKey) and
+    httpapi/public/run_handlers.go:255-267 (requireIdempotencyKey, called by
+    16 public handlers). Two paths apply a looser rule: evaldomain/mutation.go:17-25
+    (IdentifyMutation, used by the Eval operations through
+    httpapi/public/eval_helpers.go:65-77, which reference the same OpenAPI
+    parameter) accepts any visible ASCII, so an Eval mutation accepts a key
+    such as "a/b" that the contract rejects; runtimeconfig/normalize.go:701-706
+    (DigestIdempotencyKey, used by publisher.go:77, management.go:309 and
+    principal.go:664) accepts any non-blank text. V368-024 left these copies
+    alone because they are not the ResourceId grammar. All predate the
+    shallow history (boundary 6349621).
+  siblings: >-
+    UI: ui/src/mutations/idempotency.ts:1 (IDEMPOTENCY_KEY_PATTERN for the
+    keys it generates). CLI: internal/cli/root.go:344 passes an explicit key
+    unchecked; publicclient.NewIdempotencyKey generates one. Audit submission
+    keys (runstore/audit_run.go:28, auditstore/validation.go:698) reuse the
+    grammar and are in scope.
+scope:
+  in:
+    - "One exported Go definition of the key grammar (in contracts) used by every path above; the Eval and runtimeconfig paths reject keys outside it."
+    - "A shared case list checked against the OpenAPI pattern, the Go definition and the UI pattern, and the identifier source scan of V368-024 extended to this grammar."
+  out:
+    - "Replay and conflict semantics, and the receipt mechanisms (V370-007)."
+acceptance_criteria:
+  - id: A1
+    given: "An Idempotency-Key the OpenAPI pattern rejects, such as 'a/b' or '-a'"
+    when: "It is sent to a Run, Project, Audit, credential, configuration and Eval mutation"
+    then: "Each answers its invalid-request error and writes nothing."
+  - id: A2
+    text: "The source scan finds no second Go definition of the grammar."
+  - id: A3
+    text: "Every shared case gets the same verdict from Go, the UI and the OpenAPI schema."
+tests:
+  - command: "go test ./internal/contracts/... ./internal/httpapi/public ./internal/evaldomain ./internal/runtimeconfig"
+    covers: [A1, A2, A3]
+  - command: "cd ui && corepack pnpm test --run src/mutations"
+    covers: [A3]
+  - command: make lint
+    covers: [A1, A2, A3]
