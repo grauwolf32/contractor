@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/grauwolf32/contractor/internal/agentprincipal"
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/control"
@@ -113,7 +114,7 @@ func (a *PlacementAllocator) ReserveAllContext(
 }
 
 func (a *PlacementAllocator) refreshCandidatePrincipals(ctx context.Context, candidates []AgentSnapshot) (bool, error) {
-	repository := runtimeconfig.NewPrincipalRepository(a.pool)
+	repository := agentprincipal.NewRepository(a.pool)
 	seen := make(map[string]struct{}, len(candidates))
 	changed := false
 	for _, candidate := range candidates {
@@ -306,11 +307,11 @@ func (a *PlacementAllocator) pinReservations(
 			return placementCatalogError(err)
 		}
 	}
-	principals, err := runtimeconfig.NewPrincipalRepository(tx).LockMany(ctx, principalIDs)
+	principals, err := agentprincipal.NewRepository(tx).LockMany(ctx, principalIDs)
 	if err != nil {
 		return placementCatalogError(err)
 	}
-	principalsByID := make(map[string]runtimeconfig.RuntimeAgentPrincipal, len(principals))
+	principalsByID := make(map[string]agentprincipal.Principal, len(principals))
 	for _, principal := range principals {
 		principalsByID[principal.RuntimeAgentID] = principal
 	}

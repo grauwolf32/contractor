@@ -22,6 +22,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/grauwolf32/contractor/internal/settingsstore"
+	"github.com/grauwolf32/contractor/internal/telemetry"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -198,6 +199,7 @@ func newDeferredPlacementHarness(t *testing.T, ctx context.Context, wrap func(At
 		PlannerTimeout: 20 * time.Second, FinalizationTimeout: 5 * time.Second, AbortTimeout: 5 * time.Second,
 		RuntimeTransport: testSchedulerRuntimeTransport(), Credentials: credentialProvider, Clock: clock,
 		Settings: settingsstore.NewPostgresStore(pool), GatewayRecovery: recovery,
+		Reports: telemetry.NewRepository(pool),
 		NewID: func(prefix string) (string, error) {
 			sequence++
 			return prefix + strings.Repeat("x", sequence), nil

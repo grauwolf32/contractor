@@ -59,7 +59,7 @@ async def run(args: argparse.Namespace) -> dict[str, object]:
         media_type="text/plain",
         expected_revision=created.artifact.revision,
     )
-    metadata = await client.read_artifact_metadata(ArtifactRef(namespace="inputs", name="source"))
+    metadata = await client.read_artifact_metadata(ArtifactRef(namespace="builder", name="source"))
     exact_metadata = await client.read_artifact_metadata(created.artifact)
     try:
         await client.write_artifact(

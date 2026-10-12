@@ -27,24 +27,6 @@ const (
 	stageReservationTombstoneLimit = 1024
 )
 
-type Registry interface {
-	RegistrationResponse(AuthenticatedPrincipal) control.AgentRegistrationResponse
-	RegisterAuthenticated(AuthenticatedPrincipal, control.AgentRegistration) (AgentSnapshot, error)
-	HeartbeatAuthenticated(string, control.AgentHeartbeat) (control.HeartbeatResponse, error)
-	ReserveAll(ReservationRequest) ([]Reservation, error)
-	GetGrant(string) (AllocationGrant, error)
-	GetReservation(string) (Reservation, error)
-	PrepareReservation(Reservation) (Reservation, error)
-	WithWriteGrant(string, func(AllocationGrant) error) error
-	SetWriteFence(string) error
-	Release(string) error
-	GetAgent(string) (AgentSnapshot, error)
-	PollAllocationLosses() []AllocationLoss
-	SnapshotOperations() OperationsSnapshot
-	SetAllocationPhase(string, AllocationAuthoritativePhase, *SafeReason) error
-	RecordAllocationReport(string, reporting.AllocationFinalReport) error
-}
-
 type AuthenticatedPrincipal struct {
 	RuntimeAgentID string
 	Labels         []string

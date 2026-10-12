@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/runstore"
+	"github.com/grauwolf32/contractor/internal/telemetry"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -21,11 +22,13 @@ func TestPostgresClaimLossDuringFinalizationPreventsReportAndProgression(t *test
 	fixture := createFinalizingFixture(t, ctx, pool)
 	store := &claimLossReportStore{
 		PostgresStore: fixture.store,
+		reports:       telemetry.NewRepository(pool),
 		started:       make(chan context.Context, 1),
 		resume:        make(chan struct{}),
 	}
 	s := newLaneTestScheduler(t, newLaneTestStore(), newMutableSchedulerSettings(2, time.Second), 10*time.Millisecond)
 	s.store = store
+	s.options.Reports = store
 	s.persistence = fixture.persistence
 	// The lane renews every third of its lease, so the renewal that finds
 	// the stolen claim comes within 100 milliseconds.
@@ -104,6 +107,7 @@ WHERE run_id = $1`, runID); err != nil {
 
 type claimLossReportStore struct {
 	*runstore.PostgresStore
+	reports          *telemetry.Repository
 	mu               sync.Mutex
 	executionContext context.Context
 	reportCommitted  bool
@@ -123,15 +127,25 @@ func (s *claimLossReportStore) GetActiveStageExecution(ctx context.Context, runI
 	return s.PostgresStore.GetActiveStageExecution(ctx, runID)
 }
 
-func (s *claimLossReportStore) RecordPlannerExecutionReport(ctx context.Context, params runstore.RecordPlannerExecutionReportParams) error {
+func (s *claimLossReportStore) RecordAllocationReport(ctx context.Context, envelope telemetry.AllocationReportEnvelope) error {
+	return s.reports.RecordAllocationReport(ctx, envelope)
+}
+
+func (s *claimLossReportStore) RecordPlannerReport(ctx context.Context, envelope telemetry.PlannerReportEnvelope) error {
 	s.mu.Lock()
 	executionContext := s.executionContext
 	s.mu.Unlock()
 	s.started <- executionContext
 	<-s.resume
-	err := s.PostgresStore.RecordPlannerExecutionReport(ctx, params)
+	err := s.reports.RecordPlannerReport(ctx, envelope)
 	s.mu.Lock()
 	s.reportCommitted = err == nil
 	s.mu.Unlock()
 	return err
+}
+
+func (s *claimLossReportStore) RebuildStageMetrics(
+	ctx context.Context, stageExecutionID, schemaVersion string,
+) (telemetry.StageMetricsRecord, error) {
+	return s.reports.RebuildStageMetrics(ctx, stageExecutionID, schemaVersion)
 }

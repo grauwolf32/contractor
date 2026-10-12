@@ -10,7 +10,6 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
-	"github.com/grauwolf32/contractor/internal/planner"
 )
 
 // maximumStatePaths is the Worker State workspace bound: 10,000 scope paths
@@ -26,12 +25,12 @@ type decodingReader struct {
 
 func (r *decodingReader) ReadWorkerState(
 	context.Context, contracts.WorkerHandle, string,
-) (planner.WorkerStateReadResult, error) {
+) (reporting.WorkerStateReadResult, error) {
 	snapshot, err := contracts.DecodePrivateStrict[reporting.AgentStateSnapshot](r.body)
 	if err != nil {
-		return planner.WorkerStateReadResult{}, err
+		return reporting.WorkerStateReadResult{}, err
 	}
-	return planner.WorkerStateReadResult{Snapshot: &snapshot, ETag: r.etag}, nil
+	return reporting.WorkerStateReadResult{Snapshot: &snapshot, ETag: r.etag}, nil
 }
 
 // maximumStateBody encodes the fixture State with the workspace at its path

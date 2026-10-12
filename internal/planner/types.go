@@ -84,27 +84,10 @@ type WorkerInvoker interface {
 // callers supply a previously validated WorkerHandle and an optional strong
 // ETag, never a model-selected URL or allocation identity. A returned Snapshot
 // has passed AgentStateSnapshot.Validate and belongs to the caller: the reader
-// keeps no reference to it.
+// keeps no reference to it. A Runtime failure is a
+// *reporting.WorkerStateReadError.
 type WorkerStateReader interface {
-	ReadWorkerState(context.Context, contracts.WorkerHandle, string) (WorkerStateReadResult, error)
-}
-
-type WorkerStateReadResult struct {
-	Snapshot    *reporting.AgentStateSnapshot
-	ETag        string
-	NotModified bool
-}
-
-// WorkerStateReadError deliberately retains no wrapped transport error. It is
-// safe to normalize into a model-facing projection failure.
-type WorkerStateReadError struct {
-	StatusCode int
-	Code       string
-	Retryable  bool
-}
-
-func (e *WorkerStateReadError) Error() string {
-	return "Runtime Agent Worker State read failed (" + e.Code + ")"
+	ReadWorkerState(context.Context, contracts.WorkerHandle, string) (reporting.WorkerStateReadResult, error)
 }
 
 type SessionIdentity struct {

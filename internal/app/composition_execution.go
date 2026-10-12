@@ -32,10 +32,11 @@ type plannerServices struct {
 }
 
 type workflowServices struct {
-	gatewayRecovery *gatewayrecovery.Service
-	scheduler       *scheduler.Scheduler
-	projectDeletion *projectlifecycle.Controller
-	settings        *settingsstore.PostgresStore
+	gatewayRecovery    *gatewayrecovery.Service
+	scheduler          *scheduler.Scheduler
+	telemetryRetention *telemetry.Retention
+	projectDeletion    *projectlifecycle.Controller
+	settings           *settingsstore.PostgresStore
 }
 
 func configurePlanners(
@@ -144,6 +145,7 @@ func configureWorkflows(
 		RequestTimeoutSeconds: int(cfg.WorkerRequestTimeout / time.Second),
 	}
 	schedulerSettings := settingsstore.NewPostgresStore(pool)
+	telemetryReports := telemetry.NewRepository(pool)
 	workflowScheduler, err := scheduler.New(
 		runstore.NewPostgresStore(pool),
 		transactions,
@@ -164,6 +166,7 @@ func configureWorkflows(
 			Credentials:         credentialSet.provider,
 			RuntimeCredentials:  credentialSet.runtime,
 			PlannerTelemetry:    plannerTelemetryRegistry,
+			Reports:             telemetryReports,
 			RunSkills:           &runSkillInitializer{pool: pool},
 			Settings:            schedulerSettings,
 			TelemetrySecrets: []string{
@@ -175,6 +178,14 @@ func configureWorkflows(
 	)
 	if err != nil {
 		return workflowServices{}, fmt.Errorf("configure Workflow Scheduler: %w", err)
+	}
+	// Expired telemetry is removed by its own loop outside the Scheduler lanes;
+	// a cleanup pass keeps the Scheduler store-operation budget it ran under.
+	telemetryRetention, err := telemetry.NewRetention(
+		telemetryReports, cfg.Operations.Scheduler.OperationTimeout, logger,
+	)
+	if err != nil {
+		return workflowServices{}, fmt.Errorf("configure telemetry retention: %w", err)
 	}
 	projectDeletionController, err := projectlifecycle.New(
 		pool,
@@ -190,5 +201,8 @@ func configureWorkflows(
 	if err != nil {
 		return workflowServices{}, fmt.Errorf("configure Project deletion controller: %w", err)
 	}
-	return workflowServices{gatewayRecovery: recovery, scheduler: workflowScheduler, projectDeletion: projectDeletionController, settings: schedulerSettings}, nil
+	return workflowServices{
+		gatewayRecovery: recovery, scheduler: workflowScheduler, telemetryRetention: telemetryRetention,
+		projectDeletion: projectDeletionController, settings: schedulerSettings,
+	}, nil
 }

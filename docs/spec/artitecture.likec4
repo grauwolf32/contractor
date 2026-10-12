@@ -367,7 +367,7 @@ model {
         #contractor
       }
 
-      schedulerMaintenance = component 'Scheduler Maintenance — bounded loss polling, terminal release and cleanup outside Run lanes' {
+      schedulerMaintenance = component 'Scheduler Maintenance — bounded loss polling and terminal release recovery outside Run lanes' {
         #contractor
       }
 
@@ -609,7 +609,7 @@ model {
         #contractor
       }
 
-      telemetry = component 'Execution Report Collector / optional exporters' {
+      telemetry = component 'Execution Report Collector / own bounded retention loop outside Scheduler lanes / optional exporters' {
         #contractor
       }
 
@@ -659,7 +659,6 @@ model {
     orchestration.schedulerSupervisor -> orchestration.workflowScheduler 'At most maxConcurrentRuns bounded progression attempts; one claim and at most one active Stage per Run'
     orchestration.schedulerSupervisor -> orchestration.schedulerMaintenance 'Own dedicated bounded maintenance loops outside execution lanes'
     orchestration.schedulerMaintenance -> runtimeOperations.controlPlane 'Poll allocation loss and recover terminal releases independently of pause or lane capacity'
-    orchestration.schedulerMaintenance -> runtimeOperations.telemetry 'Clean expired telemetry independently of semantic execution'
     orchestration.runService -> orchestration.workflowScheduler 'Commit ordinary Run creation through existing lifecycle and wake runnable work'
     orchestration.runService -> workspaceLifecycle.runStore 'Atomic Run, immutable labels and idempotency; trusted AuditExecution association when present'
     orchestration.runService -> workspaceLifecycle.projectStore 'Serialize creation with ordinary Project deletion fence'
@@ -1074,7 +1073,7 @@ model {
   server.performanceMonitoring.performanceApi -> artifactDatabase.performanceMinutes 'Authorized request-pool reads: 7 days, at most 1000 points, filter expired data even when collection is off'
   server.runtimeOperations.controlPlane -> artifactDatabase.allocationPolicy 'Persist requested/disabled/unsupported once; duplicate prepare/restart retains original decision'
   server.performanceMonitoring.allocationResources -> artifactDatabase.allocationPolicy 'Require trusted pinned decision; missing reports remain visible as unknown resources'
-  server.runtimeOperations.telemetry -> artifactDatabase.executionReports 'Persist bounded Contractor reports'
+  server.runtimeOperations.telemetry -> artifactDatabase.executionReports 'Persist bounded Contractor reports; delete expired ones in bounded batches'
 
   runtimeAgent.workerExecution.executionCollector -> server.runtimeOperations.controlPlane 'Trusted allocation final report'
   runtimeAgent.allocationCapabilities.otlpExporter -> telemetryBackend 'Sequential whole-span batches; default 8 MiB and 2 attempts; final flush deadline caps retries'

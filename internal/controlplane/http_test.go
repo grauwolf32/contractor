@@ -17,6 +17,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/agentprincipal"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/control"
 	"github.com/grauwolf32/contractor/internal/localpki"
@@ -217,15 +218,15 @@ type testPrincipalRegistrar struct{}
 
 type failingPrincipalRegistrar struct{ err error }
 
-func (f failingPrincipalRegistrar) Register(context.Context, string, []string) (runtimeconfig.RuntimeAgentPrincipal, error) {
-	return runtimeconfig.RuntimeAgentPrincipal{}, f.err
+func (f failingPrincipalRegistrar) Register(context.Context, string, []string) (agentprincipal.Principal, error) {
+	return agentprincipal.Principal{}, f.err
 }
 
 func (testPrincipalRegistrar) Register(
 	_ context.Context, runtimeAgentID string, labels []string,
-) (runtimeconfig.RuntimeAgentPrincipal, error) {
+) (agentprincipal.Principal, error) {
 	now := time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)
-	return runtimeconfig.RuntimeAgentPrincipal{
+	return agentprincipal.Principal{
 		RuntimeAgentID: runtimeAgentID, Labels: append([]string{}, labels...),
 		LabelRevision: 1, CreatedBy: "test", CreatedAt: now, UpdatedBy: "test", UpdatedAt: now,
 	}, nil

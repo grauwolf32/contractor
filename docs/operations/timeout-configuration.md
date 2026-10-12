@@ -20,7 +20,7 @@ resolved durations and the Audit claim batch; it excludes URLs, paths and secret
 | `scheduler.pollInterval` | `1s` | Delay between Scheduler lane refills and terminal release recovery passes; retry delay after a failed claim renewal |
 | `scheduler.claimDuration` | `2m` | Run claim lease, renewed every third of it (LIM-SCH-15); at least 1us and at least twice `scheduler.operationTimeout` |
 | `scheduler.leaseScanInterval` | `1s` | Delay between scans for lost Runtime allocations |
-| `scheduler.operationTimeout` | `30s` | One Scheduler store operation: claim, renewal, read, transition, commit or release marker. Runtime batches use the `runtimeLifecycle` budgets |
+| `scheduler.operationTimeout` | `30s` | One Scheduler store operation: claim, renewal, read, transition, commit or release marker. Runtime batches use the `runtimeLifecycle` budgets. Also bounds one pass of the expired-telemetry cleanup, which runs in its own loop outside the Scheduler lanes |
 | `scheduler.finalizationTimeout` | `10s` | Absolute finalization deadline recorded with the Stage candidate |
 | `scheduler.abortTimeout` | `10s` | Absolute abort deadline recorded with the termination transition |
 | `runtimeLifecycle.prepareTimeout` | `30s` | One Stage prepare batch, every allocation in order; a failed batch is cleaned up under `runtimeLifecycle.cleanupTimeout` |

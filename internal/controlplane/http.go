@@ -10,6 +10,7 @@ import (
 	"mime"
 	"net/http"
 
+	"github.com/grauwolf32/contractor/internal/agentprincipal"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/control"
 	"github.com/grauwolf32/contractor/internal/mtls"
@@ -32,8 +33,16 @@ type HTTPOptions struct {
 	Principals   PrincipalRegistrar
 }
 
+// Registry is the Runtime Agent registration and heartbeat state the private
+// Control Plane API serves; InMemoryRegistry implements it.
+type Registry interface {
+	RegisterAuthenticated(AuthenticatedPrincipal, control.AgentRegistration) (AgentSnapshot, error)
+	RegistrationResponse(AuthenticatedPrincipal) control.AgentRegistrationResponse
+	HeartbeatAuthenticated(string, control.AgentHeartbeat) (control.HeartbeatResponse, error)
+}
+
 type PrincipalRegistrar interface {
-	Register(context.Context, string, []string) (runtimeconfig.RuntimeAgentPrincipal, error)
+	Register(context.Context, string, []string) (agentprincipal.Principal, error)
 }
 
 func NewHTTPHandler(registry Registry, supplied ...HTTPOptions) (http.Handler, error) {
