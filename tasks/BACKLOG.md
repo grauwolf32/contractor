@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-73 open tasks: 3 in progress, 56 pending, 14 deferred. 851 finished: 848 completed, 3 archived.
+72 open tasks: 3 in progress, 55 pending, 14 deferred. 852 finished: 849 completed, 3 archived.
 
 ## In progress
 
@@ -116,7 +116,6 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V369-005](v369-005-sql-placement-concatenation.yml) | chore | P2 | — | Make the SQL placement check see concatenated statements |
-| [V370-002](v370-002-cross-context-writes.yml) | chore | P2 | — | Move the remaining cross-context table writes behind their owners |
 | [V370-007](v370-007-one-receipt-and-claim-mechanism.yml) | chore | P2 | — | Use one receipt and claim mechanism |
 
 ### Quality, CI and process (`quality`)
@@ -177,5 +176,5 @@ tasks in `introduced_by`.
 | Web UI (`ui`) | 1 | 19 | 52 | 10 | 48 |
 | Operations, authentication, CLI and deployment (`operations`) | 0 | 8 | 30 | 4 | 6 |
 | Public API and wire contracts (`api-contracts`) | 10 | 1 | 27 | 17 | 7 |
-| PostgreSQL persistence and schema (`persistence`) | 4 | 0 | 17 | 29 | 4 |
+| PostgreSQL persistence and schema (`persistence`) | 3 | 0 | 17 | 29 | 4 |
 | Quality, CI and process (`quality`) | 11 | 1 | 18 | 71 | 15 |
