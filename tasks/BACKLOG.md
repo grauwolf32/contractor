@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-86 open tasks: 3 in progress, 69 pending, 14 deferred. 871 finished: 868 completed, 3 archived.
+86 open tasks: 4 in progress, 68 pending, 14 deferred. 871 finished: 868 completed, 3 archived.
 
 ## In progress
 
@@ -14,6 +14,7 @@ the epics are in [epics.yml](epics.yml).
 | [V40-002](v40-002-agent-instruction-paired-runner.yml) | evals | feature | P1 | Prepare instruction experiment bindings and a frozen plan after format readiness |
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
+| [V373-006](v373-006-escalation-state-ends-run.yml) | execution-core | defect | P2 | End a Run whose escalation history is invalid instead of retrying it forever |
 
 ## Pending
 
@@ -27,7 +28,6 @@ the epics are in [epics.yml](epics.yml).
 | [V372-028](v372-028-runstore-strict-snapshot-reads.yml) | chore | P3 | — | Decode persisted Run, Stage and allocation snapshots strictly in runstore |
 | [V373-004](v373-004-freeze-outputs-on-every-failed-run.yml) | defect | P2 | — | Freeze accepted Run outputs on every failed or cancelled Run transition |
 | [V373-005](v373-005-record-why-a-run-could-not-progress.yml) | defect | P3 | — | Record why the Scheduler ended a Run it could not progress |
-| [V373-006](v373-006-escalation-state-ends-run.yml) | defect | P2 | — | End a Run whose escalation history is invalid instead of retrying it forever |
 
 ### Planners and the Worker model boundary (`planner-worker`)
 
@@ -178,7 +178,7 @@ tasks in `introduced_by`.
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | Run execution core (`execution-core`) | 7 | 36 | 49 | 11 | 63 |
-| Planners and the Worker model boundary (`planner-worker`) | 4 | 23 | 36 | 9 | 44 |
+| Planners and the Worker model boundary (`planner-worker`) | 4 | 23 | 36 | 9 | 45 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 11 | 25 | 12 | 3 | 37 |
 | Shared Memory tools (`memory`) | 0 | 6 | 8 | 1 | 11 |
 | Agent Skills (`agent-skills`) | 0 | 10 | 2 | 1 | 1 |

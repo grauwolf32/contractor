@@ -2,8 +2,10 @@ package scheduler
 
 import (
 	"context"
+	"errors"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/runstore"
 )
@@ -97,10 +99,96 @@ func TestEscalationHistoryOnlyCountsValidatedAutomaticRoots(t *testing.T) {
 					if invalid == "" && (err != nil || used != 2) {
 						t.Fatalf("valid history: used=%d err=%v", used, err)
 					}
-					if invalid != "" && err == nil {
-						t.Fatalf("corrupt %s history accepted: used=%d", invalid, used)
+					// No replay repairs a corrupt history, so the Run ends
+					// instead of counting it again on every pass (SCH-R102).
+					if invalid != "" && !errors.Is(err, errInvalidRunState) {
+						t.Fatalf("corrupt %s history = (%d, %v), want durable state the Scheduler cannot progress", invalid, used, err)
 					}
 				})
+			}
+		})
+	}
+}
+
+// Every Transition check of a progression reads only the Run's pinned
+// Workflow snapshot and its Stage history, so a failed one is durable state
+// the Scheduler cannot progress and ends the Run (SCH-R102). A store failure
+// while reading the history is not: a later pass may read it.
+func TestBuildProgressionClassifiesUnprogressableTransitions(t *testing.T) {
+	escalate := &resolved.EscalateTransition{MaxAttempts: 1, Then: resolved.TransitionAction{Kind: resolved.TransitionFail}}
+	for _, test := range []struct {
+		name      string
+		action    resolved.TransitionAction
+		variant   runstore.StageExecutionConfigVariant
+		attempt   int
+		stageName string
+		runID     string
+		invalid   bool
+	}{
+		{name: "retry without policy", action: resolved.TransitionAction{Kind: resolved.TransitionRetry}, invalid: true},
+		{
+			name: "escalate without policy", action: resolved.TransitionAction{Kind: resolved.TransitionEscalate},
+			variant: runstore.StageExecutionConfigFailedEscalation, invalid: true,
+		},
+		{
+			name: "escalate without outcome identity", invalid: true,
+			action: resolved.TransitionAction{Kind: resolved.TransitionEscalate, Escalate: escalate},
+		},
+		{
+			// The exhausted retry selects its then action, which may only be
+			// next or fail.
+			name: "escalate after retry", attempt: 2, invalid: true,
+			action: resolved.TransitionAction{Kind: resolved.TransitionRetry, Retry: &resolved.RetryTransition{
+				MaxAttempts: 2, Then: resolved.TransitionAction{Kind: resolved.TransitionEscalate, Escalate: escalate},
+			}},
+		},
+		{
+			name: "next to a missing Stage", invalid: true,
+			action: resolved.TransitionAction{Kind: resolved.TransitionNext, NextStage: "missing"},
+		},
+		{
+			name: "retry of a missing Stage", stageName: "missing", invalid: true,
+			action: resolved.TransitionAction{Kind: resolved.TransitionRetry, Retry: &resolved.RetryTransition{
+				MaxAttempts: 2, Then: resolved.TransitionAction{Kind: resolved.TransitionFail},
+			}},
+		},
+		{name: "unknown action", action: resolved.TransitionAction{Kind: "loop"}, invalid: true},
+		{
+			name: "unreadable history", runID: "run-unreadable",
+			action:  resolved.TransitionAction{Kind: resolved.TransitionEscalate, Escalate: escalate},
+			variant: runstore.StageExecutionConfigFailedEscalation,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			h := newSchedulerHarness(t)
+			workflow, err := executableWorkflow{workflow: h.workflow}.selectStage(h.workflow.EntryStage)
+			if err != nil {
+				t.Fatal(err)
+			}
+			run := h.store.run
+			if test.runID != "" {
+				run.RunID = test.runID
+			}
+			stageName := workflow.stageName
+			if test.stageName != "" {
+				stageName = test.stageName
+			}
+			variant := test.variant
+			if variant == "" {
+				variant = runstore.StageExecutionConfigBase
+			}
+			execution := runstore.StageExecution{
+				StageExecutionID: "stage-1", RunID: run.RunID, StageName: stageName, Attempt: max(test.attempt, 1),
+				ExecutionConfigVariant: runstore.StageExecutionConfigBase, State: runstore.StageAborting,
+			}
+			_, err = h.scheduler.buildProgression(
+				context.Background(), run, workflow, execution, test.action, true, "stage_failed", variant,
+			)
+			if err == nil || errors.Is(err, errInvalidRunState) != test.invalid {
+				t.Fatalf("progression error = %v, want durable state the Scheduler cannot progress: %v", err, test.invalid)
+			}
+			if !test.invalid && !errors.Is(err, runstore.ErrNotFound) {
+				t.Fatalf("progression error = %v, want the store failure", err)
 			}
 		})
 	}

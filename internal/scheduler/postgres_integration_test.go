@@ -295,7 +295,7 @@ func testPostgresSchedulerPublication(t *testing.T, scenario schedulerPublicatio
 		t.Fatal(err)
 	}
 	if _, err := bindOutput(ctx, artifactService, "run-1", "result", input.Ref); !errors.Is(err, artifacts.ErrArtifactConflict) ||
-		!errors.Is(err, errOutputStateInvalid) {
+		!errors.Is(err, errInvalidRunState) {
 		t.Fatalf("frozen output rebind error = %v", err)
 	}
 	if replayed, err := bindOutput(ctx, artifactService, "run-1", "result", workerWrite.Ref); err != nil ||
