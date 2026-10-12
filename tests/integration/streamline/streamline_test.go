@@ -22,6 +22,7 @@ import (
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/planner"
 	plannersession "github.com/grauwolf32/contractor/internal/planner/session"
+	"github.com/grauwolf32/contractor/internal/planner/stageresult"
 	"github.com/grauwolf32/contractor/internal/planner/streamline"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
@@ -72,7 +73,7 @@ func TestPostgresGatewayWorkerFlowRecoversWithoutSemanticReplay(t *testing.T) {
 		t.Fatal(err)
 	}
 	result, err := first.Run(ctx)
-	if err != nil || result.Outcome != contracts.StageSucceeded || result.Summary != "final report accepted" {
+	if err != nil || result.Outcome != stageresult.StageSucceeded || result.Summary != "final report accepted" {
 		t.Fatalf("first run = (%+v, %v)", result, err)
 	}
 	if gateway.calls() != 5 || workers.calls() != 2 {

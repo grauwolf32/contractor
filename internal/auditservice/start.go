@@ -179,7 +179,7 @@ func stageStartInTransaction(ctx context.Context, tx pgx.Tx, params StartParams)
 	for _, standard := range pinnedStandards {
 		expectedStandards = append(expectedStandards, standard.Catalog)
 	}
-	if err := contracts.CheckPinnedSelection(params.ExpectedStandardsSHA256, expectedStandards); err != nil {
+	if err := contentdigest.CheckPinnedSelection(params.ExpectedStandardsSHA256, expectedStandards); err != nil {
 		return startPlan{}, err
 	}
 	inputPayloads, err := readAndVerifyInputs(ctx, artifactService, audit.ProjectID, profile, selection)
@@ -272,7 +272,7 @@ func (s *Service) startInTransaction(
 	if err != nil {
 		return StartedAudit{}, err
 	}
-	if err := contracts.CheckPinnedSelection(params.ExpectedRuntimeSHA256, runtimeSnapshot); err != nil {
+	if err := contentdigest.CheckPinnedSelection(params.ExpectedRuntimeSHA256, runtimeSnapshot); err != nil {
 		return StartedAudit{}, err
 	}
 	projectTarget := project.HTTPTarget.Clone()
@@ -311,13 +311,13 @@ func (s *Service) startInTransaction(
 		return StartedAudit{}, err
 	}
 
-	if err := contracts.CheckPinnedSelection(params.ExpectedSkillsSHA256, skills); err != nil {
+	if err := contentdigest.CheckPinnedSelection(params.ExpectedSkillsSHA256, skills); err != nil {
 		return StartedAudit{}, err
 	}
 	baseline := BaselineSnapshot{
-		Schema: BaselineSchema, Inputs: cloneExactInputs(selection.Inputs), Scope: selection.Scope,
+		Schema: BaselineSchema, Inputs: contracts.CloneExactArtifacts(selection.Inputs), Scope: selection.Scope,
 		RuntimeLabels: append([]string{}, selection.RuntimeLabels...), RuntimeConfig: runtimeSnapshot,
-		Skills:               append([]contracts.RunSkillSnapshot{}, skills...),
+		Skills:               append([]agentskills.RunSkillSnapshot{}, skills...),
 		LLMCredentialIDs:     mergeIDs(workflowCredentialIDs, runtimeSnapshot.LLMCredentialIDs),
 		RuntimeCredentialIDs: mergeIDs(runtimeSnapshot.RuntimeCredentialIDs, projectRuntimeCredentialIDs),
 		ProjectHTTPTarget:    projectTarget,

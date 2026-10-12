@@ -28,7 +28,7 @@ const (
 )
 
 type TelemetrySettings struct {
-	Adapter             contracts.RuntimeAdapterRef       `json:"adapter" strictjson:"required"`
+	Adapter             RuntimeAdapterRef                 `json:"adapter" strictjson:"required"`
 	Endpoint            string                            `json:"endpoint" strictjson:"required"`
 	Headers             map[string]contracts.SecretString `json:"headers" strictjson:"required"`
 	CaptureContent      bool                              `json:"captureContent" strictjson:"required"`
@@ -37,7 +37,7 @@ type TelemetrySettings struct {
 }
 
 func (s TelemetrySettings) Validate() error {
-	if s.Adapter != contracts.RuntimeAdapterOTLPHTTP {
+	if s.Adapter != RuntimeAdapterOTLPHTTP {
 		return contracts.Invalidf("telemetry adapter must be otlp-http@1")
 	}
 	if err := validateRuntimeEndpoint("telemetry.endpoint", s.Endpoint); err != nil {
@@ -85,27 +85,27 @@ type HTTPProxyBasicAuth struct {
 type HTTPProxyTarget string
 
 type HTTPProxySettings struct {
-	Adapter     contracts.RuntimeAdapterRef `json:"adapter" strictjson:"required"`
-	ProxyURL    string                      `json:"proxyUrl" strictjson:"required"`
-	BasicAuth   *HTTPProxyBasicAuth         `json:"basicAuth,omitempty"`
-	BearerToken *contracts.SecretString     `json:"bearerToken,omitempty"`
-	CABundlePEM *string                     `json:"caBundlePem,omitempty"`
-	Targets     []HTTPProxyTarget           `json:"targets" strictjson:"required"`
+	Adapter     RuntimeAdapterRef       `json:"adapter" strictjson:"required"`
+	ProxyURL    string                  `json:"proxyUrl" strictjson:"required"`
+	BasicAuth   *HTTPProxyBasicAuth     `json:"basicAuth,omitempty"`
+	BearerToken *contracts.SecretString `json:"bearerToken,omitempty"`
+	CABundlePEM *string                 `json:"caBundlePem,omitempty"`
+	Targets     []HTTPProxyTarget       `json:"targets" strictjson:"required"`
 }
 
 // MaxCaidoRequestTimeoutSeconds bounds the Caido GraphQL request contract.
 const MaxCaidoRequestTimeoutSeconds = 120
 
 type CaidoSettings struct {
-	Adapter               contracts.RuntimeAdapterRef `json:"adapter" strictjson:"required"`
-	Endpoint              string                      `json:"endpoint" strictjson:"required"`
-	BearerToken           *contracts.SecretString     `json:"bearerToken,omitempty"`
-	CABundlePEM           *string                     `json:"caBundlePem,omitempty"`
-	RequestTimeoutSeconds int                         `json:"requestTimeoutSeconds" strictjson:"required"`
+	Adapter               RuntimeAdapterRef       `json:"adapter" strictjson:"required"`
+	Endpoint              string                  `json:"endpoint" strictjson:"required"`
+	BearerToken           *contracts.SecretString `json:"bearerToken,omitempty"`
+	CABundlePEM           *string                 `json:"caBundlePem,omitempty"`
+	RequestTimeoutSeconds int                     `json:"requestTimeoutSeconds" strictjson:"required"`
 }
 
 func (s CaidoSettings) Validate() error {
-	if s.Adapter != contracts.RuntimeAdapterCaidoGraphQL {
+	if s.Adapter != RuntimeAdapterCaidoGraphQL {
 		return contracts.Invalidf("Caido adapter must be caido-graphql@1")
 	}
 	if err := validateRuntimeEndpoint("caido.endpoint", s.Endpoint); err != nil {
@@ -129,7 +129,7 @@ func (s CaidoSettings) Validate() error {
 }
 
 func (s HTTPProxySettings) Validate() error {
-	if s.Adapter != contracts.RuntimeAdapterHTTPProxy {
+	if s.Adapter != RuntimeAdapterHTTPProxy {
 		return contracts.Invalidf("HTTP proxy adapter must be http-proxy@1")
 	}
 	if err := validateRuntimeEndpoint("httpProxy.proxyUrl", s.ProxyURL); err != nil {
@@ -236,6 +236,9 @@ func (s RuntimeSettings) Validate() error {
 	} else if s.LLMGatewayToken != nil || s.LLMGatewayFailureSignatures != nil {
 		return contracts.Invalidf("LLM token and failure signatures require a Gateway URL")
 	}
+	if s.LLMGatewayToken != nil && s.LLMGatewayToken.Reveal() == "" {
+		return contracts.Invalidf("an unauthenticated Gateway omits llmGatewayToken")
+	}
 	if s.LLMGatewayFailureSignatures != nil {
 		if err := s.LLMGatewayFailureSignatures.Validate(); err != nil {
 			return err
@@ -310,11 +313,10 @@ func (t HTTPOriginTargetRef) Validate() error {
 	if t.Credential == nil {
 		return nil
 	}
-	if len(t.Credential.CredentialID) == 0 || len(t.Credential.CredentialID) > 128 ||
-		!contracts.ValidIdentifier(t.Credential.CredentialID) {
+	if !contracts.ValidConfigID(t.Credential.CredentialID) {
 		return contracts.Invalidf("HTTP origin target credential ID is invalid")
 	}
-	if t.Credential.Kind != contracts.RuntimeCredentialOriginBasic && t.Credential.Kind != contracts.RuntimeCredentialOriginBearer {
+	if t.Credential.Kind != RuntimeCredentialOriginBasic && t.Credential.Kind != RuntimeCredentialOriginBearer {
 		return contracts.Invalidf("HTTP origin target credential kind is invalid")
 	}
 	return nil
@@ -385,15 +387,15 @@ type RuntimeLabelBindingProvenance struct {
 }
 
 type RuntimeCredentialRef struct {
-	CredentialID string                          `json:"credentialId" strictjson:"required"`
-	Kind         contracts.RuntimeCredentialKind `json:"kind" strictjson:"required"`
+	CredentialID string                `json:"credentialId" strictjson:"required"`
+	Kind         RuntimeCredentialKind `json:"kind" strictjson:"required"`
 }
 
 type ResolvedRuntimeConfigProvenance struct {
 	Default               RuntimeLabelBindingProvenance   `json:"default" strictjson:"required"`
 	RunLabels             []RuntimeLabelBindingProvenance `json:"runLabels" strictjson:"required"`
 	AgentLabels           []RuntimeLabelBindingProvenance `json:"agentLabels" strictjson:"required"`
-	RuntimeAdapters       []contracts.RuntimeAdapterRef   `json:"runtimeAdapters" strictjson:"required"`
+	RuntimeAdapters       []RuntimeAdapterRef             `json:"runtimeAdapters" strictjson:"required"`
 	LLMGatewayConfig      *llmgateway.LLMGatewayConfigRef `json:"llmGatewayConfig,omitempty"`
 	LLMCredential         *llmgateway.LLMCredentialRef    `json:"llmCredential,omitempty"`
 	RuntimeCredentialRefs []RuntimeCredentialRef          `json:"runtimeCredentialRefs" strictjson:"required"`
@@ -412,7 +414,7 @@ func (p ResolvedRuntimeConfigProvenance) Validate() error {
 	if err := validateProvenanceBindings("agentLabels", p.AgentLabels); err != nil {
 		return err
 	}
-	if err := contracts.ValidateRuntimeAdapterRefs(p.RuntimeAdapters); err != nil {
+	if err := ValidateRuntimeAdapterRefs(p.RuntimeAdapters); err != nil {
 		return err
 	}
 	if p.LLMGatewayConfig != nil {
@@ -433,7 +435,7 @@ func (p ResolvedRuntimeConfigProvenance) Validate() error {
 	}
 	previous := ""
 	for _, ref := range p.RuntimeCredentialRefs {
-		if len(ref.CredentialID) == 0 || len(ref.CredentialID) > 128 || !contracts.ValidIdentifier(ref.CredentialID) {
+		if !contracts.ValidConfigID(ref.CredentialID) {
 			return contracts.Invalidf("Runtime credential provenance ID is invalid")
 		}
 		if err := ref.Kind.Validate(); err != nil {

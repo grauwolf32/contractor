@@ -17,9 +17,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/localpki"
 	contractormemory "github.com/grauwolf32/contractor/internal/memory"
+	"github.com/grauwolf32/contractor/internal/planner/stageresult"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -30,7 +30,7 @@ import (
 
 const memoryTelemetryLabel = "memory-release-audit"
 
-func TestSharedMemoryMVPProcesses(t *testing.T) {
+func TestMemoryMVPProcesses(t *testing.T) {
 	runSharedMemoryProcesses(t, false)
 }
 
@@ -377,7 +377,7 @@ func assertStreamlineMemoryRun(
 	executions := requireExecutions(t, ctx, store, runID, 3)
 	first, retry, confirm := executions[0], executions[1], executions[2]
 	if first.StageName != "coordinate" || first.Attempt != 1 || first.State != runstore.StageFailed ||
-		first.AcceptedResult == nil || first.AcceptedResult.Outcome != contracts.StageFailed ||
+		first.AcceptedResult == nil || first.AcceptedResult.Outcome != stageresult.StageFailed ||
 		first.AcceptedResult.Error == nil || first.AcceptedResult.Error.Code != "memory_retry_probe" ||
 		!first.AcceptedResult.Error.Retryable || first.FinalizationID == nil || first.TerminalAt == nil {
 		t.Fatalf("first shared-memory attempt = %+v", first)

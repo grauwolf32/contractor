@@ -16,6 +16,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/planner/router"
 	plannersession "github.com/grauwolf32/contractor/internal/planner/session"
+	"github.com/grauwolf32/contractor/internal/planner/stageresult"
 	"github.com/grauwolf32/contractor/internal/planner/streamline"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"google.golang.org/adk/model"
@@ -65,7 +66,7 @@ func TestLiveRouterWorkflow(t *testing.T) {
 		failure := planner.FailureFrom(err)
 		t.Fatalf("live Router contract failed: code=%s retryable=%t", failure.Code, failure.Retryable)
 	}
-	if result.Outcome != contracts.StageSucceeded {
+	if result.Outcome != stageresult.StageSucceeded {
 		code := "none"
 		if result.Error != nil {
 			code = result.Error.Code

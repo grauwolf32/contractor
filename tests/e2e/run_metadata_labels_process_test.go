@@ -23,6 +23,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/runlabels"
 	"github.com/grauwolf32/contractor/internal/localpki"
+	"github.com/grauwolf32/contractor/internal/planner/stageresult"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/jackc/pgx/v5/pgxpool"
 	collectortracev1 "go.opentelemetry.io/proto/otlp/collector/trace/v1"
@@ -431,9 +432,9 @@ func assertMetadataRunResult(
 		status.Attempts[0].State != "succeeded" || status.Attempts[0].Stage != "copy" {
 		t.Fatalf("metadata Run semantic result changed: %+v", status)
 	}
-	var result contracts.StageContentResult
+	var result stageresult.StageContentResult
 	if err := json.Unmarshal(status.Attempts[0].Result, &result); err != nil ||
-		result.Outcome != contracts.StageSucceeded || result.Summary != "Source artifact copied byte-for-byte" {
+		result.Outcome != stageresult.StageSucceeded || result.Summary != "Source artifact copied byte-for-byte" {
 		t.Fatalf("metadata Run Worker result = (%+v, %v)", result, err)
 	}
 	output, ok := status.Outputs["result"]

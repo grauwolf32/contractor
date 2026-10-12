@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strconv"
 
+	"github.com/grauwolf32/contractor/internal/agentskills"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditservice"
@@ -146,7 +147,7 @@ func (b *PinnedSubmissionBuilder) PrepareRole(
 		Parameters    map[string]string                    `json:"parameters"`
 		Inputs        map[string]auditstore.ExactArtifact  `json:"inputs"`
 		RuntimeConfig any                                  `json:"runtimeConfig"`
-		Skills        []contracts.RunSkillSnapshot         `json:"skills"`
+		Skills        []agentskills.RunSkillSnapshot       `json:"skills"`
 		ProjectTarget *runtimesettings.HTTPOriginTargetRef `json:"projectTarget,omitempty"`
 	}{
 		Schema: "contractor.audit.role-submission.v1", AuditID: audit.AuditID,
@@ -163,7 +164,7 @@ func (b *PinnedSubmissionBuilder) PrepareRole(
 	if kind == auditstore.ExecutionPrepare {
 		preparation = &auditstore.PreparationSnapshot{Inputs: maps.Clone(runInputs), Parameters: maps.Clone(parameters)}
 		for name, input := range preparation.Inputs {
-			preparation.Inputs[name] = cloneExact(input)
+			preparation.Inputs[name] = input.Clone()
 		}
 	}
 	return PreparedSubmission{
@@ -203,15 +204,15 @@ func (b *PinnedSubmissionBuilder) resolveRoleInputs(
 				}
 				continue
 			}
-			result[slot] = cloneExact(input)
+			result[slot] = input.Clone()
 		case auditprofile.AuditInputFromExecutionManifest:
-			result[slot] = cloneExact(executionManifest)
+			result[slot] = executionManifest.Clone()
 		case auditprofile.AuditInputFromPreparation:
 			output, err := b.preparationOutput(ctx, snapshot.Audit.AuditID, mapping)
 			if err != nil {
 				return nil, err
 			}
-			result[slot] = cloneExact(output)
+			result[slot] = output.Clone()
 		case auditprofile.AuditInputFromRetainedOutput:
 			link, err := b.outputs.GetArtifactLink(
 				ctx, snapshot.Audit.AuditID,
@@ -220,7 +221,7 @@ func (b *PinnedSubmissionBuilder) resolveRoleInputs(
 			if err != nil {
 				return nil, fmt.Errorf("resolve retained output for role %q: %w", workflowRole, err)
 			}
-			result[slot] = cloneExact(link.Artifact)
+			result[slot] = link.Artifact.Clone()
 		case auditprofile.AuditInputFromItemPackage:
 			return nil, invalidSubmission("non-check Audit role cannot receive an item package")
 		default:
@@ -399,7 +400,7 @@ func (b *PinnedSubmissionBuilder) PrepareBatch(
 			return PreparedSubmission{}, invalidSubmission("Audit batch members require different Workflow inputs or parameters")
 		}
 		if len(selected) > 1 {
-			memberInputs = append(memberInputs, cloneExact(taskInput))
+			memberInputs = append(memberInputs, taskInput.Clone())
 		}
 		members[index] = auditstore.ExecutionMemberIntent{
 			ItemID: member.Item.ItemID, BatchOrdinal: index, ItemAttempt: member.Attempt,
@@ -430,7 +431,7 @@ func (b *PinnedSubmissionBuilder) PrepareBatch(
 		Parameters    map[string]string                    `json:"parameters"`
 		Inputs        map[string]auditstore.ExactArtifact  `json:"inputs"`
 		RuntimeConfig any                                  `json:"runtimeConfig"`
-		Skills        []contracts.RunSkillSnapshot         `json:"skills"`
+		Skills        []agentskills.RunSkillSnapshot       `json:"skills"`
 		ProjectTarget *runtimesettings.HTTPOriginTargetRef `json:"projectTarget,omitempty"`
 	}{
 		Schema: "contractor.audit.submission.v1", AuditID: audit.AuditID,
@@ -474,7 +475,7 @@ func (b *PinnedSubmissionBuilder) buildTaskInput(
 	tasks []auditstore.ExactArtifact,
 ) (auditstore.ExactArtifact, error) {
 	if len(tasks) == 1 {
-		return cloneExact(tasks[0]), nil
+		return tasks[0].Clone(), nil
 	}
 	if len(tasks) < 2 || len(tasks) != len(manifestItems) || len(tasks) > auditstore.MaxCollectionItems {
 		return auditstore.ExactArtifact{}, invalidSubmission("Audit task set membership is invalid")
@@ -647,8 +648,8 @@ func (b *PinnedSubmissionBuilder) resolveInputs(
 			if !present || pinned.Digest != descriptor.Digest || !pinned.Ref.SameExact(descriptor.Ref) {
 				return nil, nil, invalidSubmission("baseline input differs from execution manifest")
 			}
-			runInputs[slot] = cloneExact(descriptor)
-			memberInputs = append(memberInputs, cloneExact(descriptor))
+			runInputs[slot] = descriptor.Clone()
+			memberInputs = append(memberInputs, descriptor.Clone())
 			consumed++
 		case auditprofile.AuditInputFromPreparation:
 			descriptor, err := b.preparationOutput(ctx, snapshot.Audit.AuditID, mapping)
@@ -659,8 +660,8 @@ func (b *PinnedSubmissionBuilder) resolveInputs(
 			if !present || pinned.Digest != descriptor.Digest || !pinned.Ref.SameExact(descriptor.Ref) {
 				return nil, nil, invalidSubmission("prepared input differs from execution manifest")
 			}
-			runInputs[slot] = cloneExact(descriptor)
-			memberInputs = append(memberInputs, cloneExact(descriptor))
+			runInputs[slot] = descriptor.Clone()
+			memberInputs = append(memberInputs, descriptor.Clone())
 			consumed++
 		case auditprofile.AuditInputFromRetainedOutput:
 			if b.outputs == nil || snapshot.Round == nil {
@@ -673,7 +674,7 @@ func (b *PinnedSubmissionBuilder) resolveInputs(
 			if err != nil {
 				return nil, nil, fmt.Errorf("resolve retained output for check role: %w", err)
 			}
-			runInputs[slot] = cloneExact(link.Artifact)
+			runInputs[slot] = link.Artifact.Clone()
 		default:
 			return nil, nil, invalidSubmission("Audit input mapping is invalid")
 		}
@@ -725,23 +726,23 @@ func resolveParameters(
 
 func selectSkills(
 	workflow resolved.ResolvedWorkflow,
-	baseline []contracts.RunSkillSnapshot,
-) ([]contracts.RunSkillSnapshot, error) {
+	baseline []agentskills.RunSkillSnapshot,
+) ([]agentskills.RunSkillSnapshot, error) {
 	refs, err := resolved.WorkflowSkillRefs(workflow)
 	if err != nil {
 		return nil, invalidSubmission("Workflow Skill references are invalid")
 	}
-	byName := make(map[string]contracts.RunSkillSnapshot, len(baseline))
+	byName := make(map[string]agentskills.RunSkillSnapshot, len(baseline))
 	for _, skill := range baseline {
 		byName[skill.Name] = skill
 	}
-	result := make([]contracts.RunSkillSnapshot, len(refs))
+	result := make([]agentskills.RunSkillSnapshot, len(refs))
 	for index, ref := range refs {
 		skill, exists := byName[ref.Name]
 		if !exists || skill.Source == nil || skill.Initialized() || skill.Validate() != nil {
 			return nil, invalidSubmission("Workflow Skill is absent from pinned baseline")
 		}
-		result[index] = cloneSkill(skill)
+		result[index] = skill.Clone()
 	}
 	return result, nil
 }
@@ -763,21 +764,4 @@ func stringsDigest(value string) string {
 
 func invalidSubmission(message string) error {
 	return fmt.Errorf("%w: %s", ErrInvalidSubmission, message)
-}
-
-func cloneExact(source auditstore.ExactArtifact) auditstore.ExactArtifact {
-	source.Ref = source.Ref.Clone()
-	return source
-}
-
-func cloneSkill(source contracts.RunSkillSnapshot) contracts.RunSkillSnapshot {
-	if source.Source != nil {
-		value := source.Source.Clone()
-		source.Source = &value
-	}
-	if source.Artifact != nil {
-		value := source.Artifact.Clone()
-		source.Artifact = &value
-	}
-	return source
 }

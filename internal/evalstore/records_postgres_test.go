@@ -14,7 +14,7 @@ import (
 // A REPEATABLE READ caller whose snapshot predates a concurrent receipt for the
 // same key must fail with a retryable serialization error, never a member
 // conflict, so that its retry observes and replays that receipt.
-func TestPostgresEvalRecordReceiptRaceIsRetryable(t *testing.T) {
+func TestSharedPostgresEvalRecordReceiptRaceIsRetryable(t *testing.T) {
 	pool := testPool(t)
 	ctx := context.Background()
 	scope := setupProject(t, pool, "owner", "eval")
@@ -62,7 +62,7 @@ func TestPostgresEvalRecordReceiptRaceIsRetryable(t *testing.T) {
 	}
 }
 
-func TestPostgresEvalRecordRevisionsSelectionCASAndRetainedReview(t *testing.T) {
+func TestSharedPostgresEvalRecordRevisionsSelectionCASAndRetainedReview(t *testing.T) {
 	pool := testPool(t)
 	ctx := context.Background()
 	scope := setupProject(t, pool, "owner", "eval")
@@ -166,7 +166,7 @@ func TestPostgresEvalRecordRevisionsSelectionCASAndRetainedReview(t *testing.T) 
 	}
 }
 
-func TestPostgresEvalCompleteViewPublicationAndInterruptedProjection(t *testing.T) {
+func TestSharedPostgresEvalCompleteViewPublicationAndInterruptedProjection(t *testing.T) {
 	pool := testPool(t)
 	ctx := context.Background()
 	scope := setupProject(t, pool, "owner", "eval")

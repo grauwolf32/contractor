@@ -6,7 +6,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
-	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 	"github.com/grauwolf32/contractor/internal/evalstore"
 	"github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -73,7 +73,7 @@ func (d *executionOperations) failDefinite(ctx context.Context, e evalstore.Expe
 		return resolveOperation(ctx, d, e, m, c, op, operationRejected{Reason: "eval_not_ready"}, true, "")
 	}
 	for _, definite := range []error{
-		runservice.ErrInvalid, auditservice.ErrInvalid, contracts.ErrPinnedSelectionChanged,
+		runservice.ErrInvalid, auditservice.ErrInvalid, contentdigest.ErrPinnedSelectionChanged,
 		auditservice.ErrProfileNotFound, auditservice.ErrUnsupported,
 		projectstore.ErrDeleting, auditstore.ErrProjectDeleting,
 	} {

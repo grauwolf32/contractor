@@ -9,6 +9,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/contracts"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
+	"github.com/grauwolf32/contractor/internal/planner/stageresult"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -30,14 +31,14 @@ func inRunStoreTx(ctx context.Context, pool *pgxpool.Pool, fn func(*PostgresTxSt
 // moves it into state through the store's own operations.
 func createStageInState(
 	t *testing.T, ctx context.Context, store *PostgresStore, runID, stageID string, state StageExecutionState,
-) contracts.StageContentResult {
+) stageresult.StageContentResult {
 	t.Helper()
 	if _, err := store.CreateStageExecution(ctx, testActiveStageParams(runID, stageID, stageID)); err != nil {
 		t.Fatal(err)
 	}
 	revision := "revision-" + stageID
-	candidate := contracts.StageContentResult{
-		APIVersion: contracts.APIVersion, Outcome: contracts.StageSucceeded, Summary: "copied",
+	candidate := stageresult.StageContentResult{
+		APIVersion: contracts.APIVersion, Outcome: stageresult.StageSucceeded, Summary: "copied",
 		Artifacts: map[string]contracts.ArtifactRef{
 			"copied": {Namespace: "builder", Name: "result", Revision: &revision},
 		},
@@ -320,7 +321,7 @@ func TestPostgresFailRunWithActiveStagesEndsEveryActiveStage(t *testing.T) {
 	if _, err := admitTestRun(ctx, store, "run-failing"); err != nil {
 		t.Fatal(err)
 	}
-	candidates := map[string]contracts.StageContentResult{}
+	candidates := map[string]stageresult.StageContentResult{}
 	for _, state := range []StageExecutionState{StagePreparing, StageRunning, StageAborting, StageFinalizing, StageSucceeded} {
 		stageID := "stage-" + string(state)
 		candidates[stageID] = createStageInState(t, ctx, store, "run-failing", stageID, state)

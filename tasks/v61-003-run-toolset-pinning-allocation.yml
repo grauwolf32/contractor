@@ -87,7 +87,7 @@ tests:
     covers: [A2, A3, A5]
   - command: cd runtime && uv run --frozen pytest -W error tests/test_contracts.py tests/test_allocation_contracts.py tests/test_tool_worker.py tests/test_http_caido_redaction.py tests/test_mcp_redaction.py
     covers: [A3, A4]
-  - command: make verify-wire-contracts test-wire-cross-language
+  - command: make test-wire-cross-language
     covers: [A3, A4]
 test_prerequisites:
   - Isolated CONTRACTOR_TEST_DATABASE_URL; mandatory Run/Audit/reference tests must execute rather than skip.

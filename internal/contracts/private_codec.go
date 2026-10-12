@@ -1,12 +1,14 @@
 package contracts
 
-// Strict decoding and RFC 8785 canonical encoding for private protocol
-// DTOs. Mirrors the Python runtime's contracts/codec.py.
+// Strict decoding for private protocol DTOs. Mirrors the Python runtime's
+// contracts/codec.py; their RFC 8785 canonical form is strictjson.Canonical,
+// which encodes SecretString redacted like any default JSON encoding
+// (SEC-R88): a fingerprint that must identify a secret passes its plaintext
+// explicitly, and such a result must never be logged.
 
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"reflect"
 	"strings"
 
@@ -82,16 +84,4 @@ func currentAPIVersion(data []byte) bool {
 	}
 	var version string
 	return json.Unmarshal(members["apiVersion"], &version) == nil && version == APIVersion
-}
-
-// MarshalPrivateCanonical uses RFC 8785 JCS for cross-language fixtures and
-// fingerprints. It encodes SecretString redacted, like any default JSON
-// encoding (SEC-R88); a fingerprint that must identify a secret passes its
-// plaintext explicitly, and such a result must never be logged.
-func MarshalPrivateCanonical(value any) ([]byte, error) {
-	canonical, err := strictjson.Canonical(value)
-	if err != nil {
-		return nil, fmt.Errorf("canonicalize private protocol value: %w", err)
-	}
-	return canonical, nil
 }

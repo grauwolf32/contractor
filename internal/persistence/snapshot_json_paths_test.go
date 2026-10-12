@@ -330,7 +330,7 @@ func runSnapshotDocument(*testing.T) any {
 func projectTargetDocument(*testing.T) any {
 	return runtimesettings.HTTPOriginTargetRef{
 		URL: "https://app.example", Credential: &runtimesettings.RuntimeCredentialRef{
-			CredentialID: "runtime-credential", Kind: contracts.RuntimeCredentialOriginBasic,
+			CredentialID: "runtime-credential", Kind: runtimesettings.RuntimeCredentialOriginBasic,
 		},
 	}
 }
@@ -340,7 +340,7 @@ func allocationDocument(*testing.T) any {
 		Provenance: runtimesettings.ResolvedRuntimeConfigProvenance{
 			LLMCredential: &llmgateway.LLMCredentialRef{CredentialID: "llm-credential"},
 			RuntimeCredentialRefs: []runtimesettings.RuntimeCredentialRef{{
-				CredentialID: "runtime-credential", Kind: contracts.RuntimeCredentialCaidoBearer,
+				CredentialID: "runtime-credential", Kind: runtimesettings.RuntimeCredentialCaidoBearer,
 			}},
 		},
 	}

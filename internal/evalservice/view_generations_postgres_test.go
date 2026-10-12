@@ -9,7 +9,7 @@ import (
 
 // Every visible change during a lifecycle publishes a new generation, but no
 // reader can reach a replaced one: retained view rows stay O(members).
-func TestPostgresNativeLifecycleRetainsOnlyCurrentViewGeneration(t *testing.T) {
+func TestSharedPostgresNativeLifecycleRetainsOnlyCurrentViewGeneration(t *testing.T) {
 	h := newHarness(t)
 	e := h.prepared(t, "workflow")
 	h.command(t, e, "start")

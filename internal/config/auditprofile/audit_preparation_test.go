@@ -18,7 +18,7 @@ func copyAuditPreparationCatalog(t *testing.T) string {
 	return root
 }
 
-func TestAuditPreparationAttemptBudgetChangesDigestAndInvalidatesSnapshot(t *testing.T) {
+func TestSharedAuditPreparationAttemptBudgetChangesDigestAndInvalidatesSnapshot(t *testing.T) {
 	profile := loadProfile(t, copyAuditPreparationCatalog(t), "prepared-openapi-scan@1")
 	if profile.Workflows["generate-api"].MaxRunAttempts != 2 {
 		t.Fatal("prepare fixture no longer has two attempts")
@@ -47,7 +47,7 @@ func TestAuditPreparationAttemptBudgetChangesDigestAndInvalidatesSnapshot(t *tes
 	}
 }
 
-func TestAuditPreparationDependenciesAndSnapshotValidation(t *testing.T) {
+func TestSharedAuditPreparationDependenciesAndSnapshotValidation(t *testing.T) {
 	profile := loadProfile(t, copyAuditPreparationCatalog(t), "prepared-openapi-scan@1")
 	second := profile.Workflows["generate-api"]
 	second.Inputs = clone.Map(second.Inputs)

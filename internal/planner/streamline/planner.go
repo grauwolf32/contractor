@@ -17,6 +17,7 @@ import (
 	plannermemory "github.com/grauwolf32/contractor/internal/memory"
 	"github.com/grauwolf32/contractor/internal/planner"
 	plannersession "github.com/grauwolf32/contractor/internal/planner/session"
+	"github.com/grauwolf32/contractor/internal/planner/stageresult"
 	"github.com/grauwolf32/contractor/internal/planner/stateview"
 	"github.com/grauwolf32/contractor/internal/telemetry"
 	"google.golang.org/adk/agent"
@@ -54,7 +55,7 @@ type streamlinePlanner struct {
 
 func (p *streamlinePlanner) Run(
 	ctx context.Context,
-) (candidate contracts.StageContentResult, runErr error) {
+) (candidate stageresult.StageContentResult, runErr error) {
 	startedAt := time.Now()
 	defer p.stateViews.Close()
 	state := newExecutionState(p.limits)
@@ -78,7 +79,7 @@ func (p *streamlinePlanner) Run(
 	started, err := planner.StartSession(ctx, p.sessions, instrumentation, p.invocation.StageExecutionID)
 	identity = started.Identity
 	if err != nil {
-		return contracts.StageContentResult{}, err
+		return stageresult.StageContentResult{}, err
 	}
 	if started.Completion != nil {
 		return planner.RecoverCompletion(
@@ -92,12 +93,12 @@ func (p *streamlinePlanner) Run(
 	if err := planner.RecordSessionRequest(
 		ctx, p.sessions, instrumentation, identity, planner.RequestFactsFor(bindings, p.request),
 	); err != nil {
-		return contracts.StageContentResult{}, err
+		return stageresult.StageContentResult{}, err
 	}
 
 	tools, allowed, err := p.buildTools(state, identity)
 	if err != nil {
-		return contracts.StageContentResult{}, p.fail(
+		return stageresult.StageContentResult{}, p.fail(
 			ctx, identity, state, planner.NewError(
 				"planner_initialization_failed", "Planner tools could not be initialized", false, err,
 			),
@@ -112,7 +113,7 @@ func (p *streamlinePlanner) Run(
 		AppName: p.profile.adkAppName, UserID: p.invocation.StageExecutionID, AllowedTools: allowedNames,
 	})
 	if err != nil {
-		return contracts.StageContentResult{}, p.fail(ctx, identity, state, planner.SessionError("create ADK session", err))
+		return stageresult.StageContentResult{}, p.fail(ctx, identity, state, planner.SessionError("create ADK session", err))
 	}
 	adkSessionSpan := instrumentation.StartSpan(
 		telemetry.PlannerSpanSession,
@@ -123,13 +124,13 @@ func (p *streamlinePlanner) Run(
 		SessionID: identity.SessionID, State: map[string]any{"metrics": map[string]any{}},
 	}); err != nil {
 		adkSessionSpan.End("unavailable", telemetry.PlannerSpanAttributes{ErrorCode: "planner_session_unavailable"})
-		return contracts.StageContentResult{}, p.fail(ctx, identity, state, planner.SessionError("initialize ADK session", err))
+		return stageresult.StageContentResult{}, p.fail(ctx, identity, state, planner.SessionError("initialize ADK session", err))
 	}
 	adkSessionSpan.End("succeeded", telemetry.PlannerSpanAttributes{})
 
 	root, err := p.newRootAgent(state, tools, allowed)
 	if err != nil {
-		return contracts.StageContentResult{}, p.fail(
+		return stageresult.StageContentResult{}, p.fail(
 			ctx, identity, state, planner.NewError(
 				"planner_initialization_failed", "Planner agent could not be initialized", false, err,
 			),
@@ -139,7 +140,7 @@ func (p *streamlinePlanner) Run(
 		AppName: p.profile.adkAppName, Agent: root, SessionService: adkSessions,
 	})
 	if err != nil {
-		return contracts.StageContentResult{}, p.fail(
+		return stageresult.StageContentResult{}, p.fail(
 			ctx, identity, state, planner.NewError(
 				"planner_initialization_failed", "Planner runner could not be initialized", false, err,
 			),
@@ -156,7 +157,7 @@ func (p *streamlinePlanner) Run(
 	defer cancel()
 	message, err := p.initialMessage()
 	if err != nil {
-		return contracts.StageContentResult{}, p.fail(
+		return stageresult.StageContentResult{}, p.fail(
 			ctx, identity, state, planner.NewError(
 				"planner_context_invalid", "Planner context could not be encoded", false, err,
 			),
@@ -180,11 +181,11 @@ func (p *streamlinePlanner) Run(
 		if result, failure := state.terminal(); result != nil {
 			completion := planner.Completion{Result: result}
 			if err := planner.CompleteSession(ctx, p.sessions, identity, completion); err != nil {
-				return contracts.StageContentResult{}, planner.SessionError("record completion", err)
+				return stageresult.StageContentResult{}, planner.SessionError("record completion", err)
 			}
 			return result.Clone(), nil
 		} else if failure != nil {
-			return contracts.StageContentResult{}, p.fail(ctx, identity, state, failure)
+			return stageresult.StageContentResult{}, p.fail(ctx, identity, state, failure)
 		}
 		if runContext.Err() != nil {
 			failure := planner.NewError(
@@ -196,21 +197,21 @@ func (p *streamlinePlanner) Run(
 					"planner_cancelled", "Planner invocation was cancelled", true, ctx.Err(),
 				)
 			}
-			return contracts.StageContentResult{}, p.fail(ctx, identity, state, failure)
+			return stageresult.StageContentResult{}, p.fail(ctx, identity, state, failure)
 		}
 		if iterationErr != nil {
 			var plannerError *planner.Error
 			if errors.As(iterationErr, &plannerError) {
-				return contracts.StageContentResult{}, p.fail(ctx, identity, state, plannerError)
+				return stageresult.StageContentResult{}, p.fail(ctx, identity, state, plannerError)
 			}
-			return contracts.StageContentResult{}, p.fail(
+			return stageresult.StageContentResult{}, p.fail(
 				ctx, identity, state, planner.NewError(
 					"planner_execution_failed", "Planner ADK execution failed", true, iterationErr,
 				),
 			)
 		}
 		if exhausted := state.exhaustedAfterTurn(); exhausted != nil {
-			return contracts.StageContentResult{}, p.fail(ctx, identity, state, exhausted)
+			return stageresult.StageContentResult{}, p.fail(ctx, identity, state, exhausted)
 		}
 		message = genai.NewContentFromText(
 			"Continue planning. Call exactly one declared planning, Worker, or finish tool; a text-only answer does not complete the Stage.",

@@ -35,7 +35,7 @@ type preflightBinding struct {
 
 func (r *Resolver) resolveBinding(ctx context.Context, owner string, v evaldomain.Variant, lookup resolved.CredentialLookup, service *artifacts.Service) (preflightBinding, error) {
 	b := preflightBinding{
-		snapshot:  BindingSnapshot{Skills: []contracts.RunSkillSnapshot{}, Standards: []auditstandards.ExactPackage{}},
+		snapshot:  BindingSnapshot{Skills: []agentskills.RunSkillSnapshot{}, Standards: []auditstandards.ExactPackage{}},
 		workflows: map[string]resolved.ResolvedWorkflow{},
 		inputs:    map[string]resolved.ArtifactSlot{},
 	}

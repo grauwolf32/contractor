@@ -3,23 +3,20 @@ package public
 import (
 	"encoding/json"
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 )
 
-// TestPublicRuntimeAgentObservationSchemaMatchesSharedCapabilityCases holds
+// TestSharedPublicRuntimeAgentObservationSchemaMatchesSharedCapabilityCases holds
 // the public RuntimeAgentObservation schema to the Runtime capability cases
 // that registration applies, so the Operations lists accept every
 // registration the Server accepts and nothing else.
-func TestPublicRuntimeAgentObservationSchemaMatchesSharedCapabilityCases(t *testing.T) {
+func TestSharedPublicRuntimeAgentObservationSchemaMatchesSharedCapabilityCases(t *testing.T) {
 	t.Parallel()
 	schema := loadPublicOpenAPI(t).Components.Schemas["RuntimeAgentObservation"].Value
-	data, err := os.ReadFile(filepath.Join("..", "..", "..", "api", "testdata", "v1alpha1", "runtime-capability-cases.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	data := contractstest.ReadFile(t, "api", "testdata", "v1alpha1", "runtime-capability-cases.json")
 	var cases struct {
 		ToolName struct {
 			MaxLength int      `json:"maxLength"`

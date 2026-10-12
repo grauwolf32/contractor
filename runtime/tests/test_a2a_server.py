@@ -319,6 +319,7 @@ def data_request(
         "instructions": "Follow the template instructions.",
         "parameters": {"mode": "test"},
         "artifacts": {},
+        "deadline": (datetime.now(UTC) + timedelta(hours=1)).isoformat(),
     }
     return SendMessageRequest(
         tenant=allocation_id,

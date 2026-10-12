@@ -36,7 +36,7 @@ def _response(case: dict) -> httpx.Response:
 
 
 @pytest.mark.parametrize("case", FIXTURE["cases"], ids=[case["name"] for case in FIXTURE["cases"]])
-def test_classification_matches_shared_fixture(case: dict) -> None:
+def test_shared_classification_matches_shared_fixture(case: dict) -> None:
     failure = classify_response(_response(case), SIGNATURE_SETS[case["signatures"]])
     assert (failure.code, failure.retryable, failure.status) == (
         case["code"],
@@ -45,14 +45,14 @@ def test_classification_matches_shared_fixture(case: dict) -> None:
     )
 
 
-def test_fixture_exercises_every_signature_set_and_both_verdicts() -> None:
+def test_shared_fixture_exercises_every_signature_set_and_both_verdicts() -> None:
     sets = {case["signatures"] for case in FIXTURE["cases"]}
     assert sets == set(SIGNATURE_SETS)
     verdicts = {(case["signatures"], case["retryable"]) for case in FIXTURE["cases"]}
     assert all((name, True) in verdicts and (name, False) in verdicts for name in SIGNATURE_SETS)
 
 
-def test_classification_reaches_adapter_and_metrics_without_provider_body():
+def test_shared_classification_reaches_adapter_and_metrics_without_provider_body():
     async def scenario():
         async def gateway(request):
             return httpx.Response(404, json={"error": "model 'worker' not found"})

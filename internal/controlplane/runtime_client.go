@@ -16,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/control"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
@@ -85,7 +86,7 @@ func (c *RuntimeControlClient) Prepare(
 	if !contracts.SupportsWorkerCompletion(reservation.CompletionCapabilities, reservation.CompletionContract) {
 		return contracts.WorkerHandle{}, fmt.Errorf("%w: Runtime does not support completion contract", ErrInvalidRequest)
 	}
-	if err := contracts.ValidateWorkerCompletionSelection(reservation.CompletionContract, reservation.Grant.Namespace, reservation.AgentTemplate); err != nil {
+	if err := resolved.ValidateWorkerCompletionSelection(reservation.CompletionContract, reservation.Grant.Namespace, reservation.AgentTemplate); err != nil {
 		return contracts.WorkerHandle{}, err
 	}
 	resolvedSkills := reservation.ResolvedSkills
@@ -364,14 +365,14 @@ func (c *RuntimeControlClient) postJSON(
 }
 
 func sanitizeRuntimeAdapterMetrics(report *reporting.RuntimeReport, reservation Reservation) {
-	expected := map[contracts.RuntimeAdapterRef]struct{}{}
+	expected := map[runtimesettings.RuntimeAdapterRef]struct{}{}
 	if reservation.ResolvedRuntimeConfig != nil {
 		for _, ref := range reservation.ResolvedRuntimeConfig.RequiredRuntimeAdapters {
 			expected[ref] = struct{}{}
 		}
 	}
 	if report.Adapters == nil {
-		report.Adapters = map[contracts.RuntimeAdapterRef]reporting.RuntimeAdapterMetrics{}
+		report.Adapters = map[runtimesettings.RuntimeAdapterRef]reporting.RuntimeAdapterMetrics{}
 	}
 	for ref, metrics := range report.Adapters {
 		_, selected := expected[ref]

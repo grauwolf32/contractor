@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 )
 
@@ -169,7 +170,7 @@ spec:
     permanentCodes: [insufficient_quota, context_length_exceeded]
 `
 
-func TestLLMGatewayFailureSignaturesAreExplicitDigestedAndDefaulted(t *testing.T) {
+func TestSharedLLMGatewayFailureSignaturesAreExplicitDigestedAndDefaulted(t *testing.T) {
 	baseline := mustLoad(t, coreFixtureRoot)
 	baselineGateway, _ := baseline.LLMGateway("local-litellm@1")
 	if baselineGateway.FailureSignatures != nil {
@@ -196,10 +197,7 @@ func TestLLMGatewayFailureSignaturesAreExplicitDigestedAndDefaulted(t *testing.T
 		t.Fatal("declared signatures did not change the LLMGatewayConfig digest")
 	}
 	// The cross-language fixture pins this Go digest for the Python verifier.
-	fixture, err := os.ReadFile(filepath.Join("..", "..", "api", "testdata", "v1alpha1", "valid", "llm-gateway-config-signatures.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	fixture := contractstest.ReadFile(t, "api", "testdata", "v1alpha1", "valid", "llm-gateway-config-signatures.json")
 	pinned, err := contracts.DecodeStrict[llmgateway.ResolvedLLMGatewayConfig](fixture)
 	if err != nil {
 		t.Fatal(err)

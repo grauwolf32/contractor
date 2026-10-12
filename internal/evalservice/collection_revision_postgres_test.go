@@ -37,7 +37,7 @@ func liveMember(t *testing.T) (*serviceHarness, evalstore.Experiment, evalstore.
 	return h, e, claims[0], members[0]
 }
 
-func TestPostgresEvalUsageTicksKeepListCursors(t *testing.T) {
+func TestSharedPostgresEvalUsageTicksKeepListCursors(t *testing.T) {
 	h, e, claim, member := liveMember(t)
 	store := evalstore.NewPostgresStore(h.pool)
 	page, err := store.SummaryPage(t.Context(), evalstore.SummaryPageParams{ListParams: evalstore.ListParams{
@@ -76,7 +76,7 @@ func TestPostgresEvalUsageTicksKeepListCursors(t *testing.T) {
 	}
 }
 
-func TestPostgresEvalIdleCoordinatorTicksKeepSelectedView(t *testing.T) {
+func TestSharedPostgresEvalIdleCoordinatorTicksKeepSelectedView(t *testing.T) {
 	h := newHarness(t)
 	e := h.create(t, "workflow")
 	var draft evaldomain.Draft
@@ -199,7 +199,7 @@ FROM eval_projection_queue WHERE experiment_id=$1`, e.ID).Scan(
 	}
 }
 
-func TestPostgresEvalSettleSurfacesTombstoneReadFailures(t *testing.T) {
+func TestSharedPostgresEvalSettleSurfacesTombstoneReadFailures(t *testing.T) {
 	h, e, claim, member := liveMember(t)
 	// A live execution without a tombstone drains; a failed tombstone read
 	// must abort instead of being committed as a drain.

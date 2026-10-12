@@ -16,6 +16,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 )
 
 // TestRegisteredDescriptorsNormalize reports a defect in the built-in table
@@ -124,9 +125,9 @@ func TestPlannerDescriptorsDecideAgentCountAndModelUse(t *testing.T) {
 // their channels are the ones TestSharedToolsetDescriptorParity pins.
 func TestRequiredRuntimeAdaptersFollowToolChannels(t *testing.T) {
 	t.Parallel()
-	for ref, want := range map[contracts.ToolsetRef][]contracts.RuntimeAdapterRef{
+	for ref, want := range map[contracts.ToolsetRef][]runtimesettings.RuntimeAdapterRef{
 		{ToolsetID: "http-tools", Version: "1"}: nil,
-		{ToolsetID: "caido", Version: "1"}:      {contracts.RuntimeAdapterCaidoGraphQL},
+		{ToolsetID: "caido", Version: "1"}:      {runtimesettings.RuntimeAdapterCaidoGraphQL},
 	} {
 		tools := registeredDescriptors().Toolsets[ref.ToolsetID+"@"+ref.Version].Tools
 		if len(tools) == 0 {

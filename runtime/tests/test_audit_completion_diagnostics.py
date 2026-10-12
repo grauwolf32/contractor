@@ -142,7 +142,7 @@ def test_shared_completion_diagnostics_gate_the_agent_state_endpoint(
 @pytest.mark.parametrize(
     "mode", ["missing", "partial", "invalid", "published", "forbidden", "transport", "conflict"]
 )
-def test_real_runtime_reports_counts_phases_and_no_fictitious_calls(tmp_path, mode):
+def test_shared_real_runtime_reports_counts_phases_and_no_fictitious_calls(tmp_path, mode):
     async def scenario():
         expected, _ = assigned(batch=True)
         items = [item.value for item in expected.items]
@@ -233,7 +233,7 @@ def test_real_runtime_reports_counts_phases_and_no_fictitious_calls(tmp_path, mo
     asyncio.run(scenario())
 
 
-def test_cancelled_collection_reports_partial_data_without_publication(tmp_path):
+def test_shared_cancelled_collection_reports_partial_data_without_publication(tmp_path):
     async def scenario():
         expected, _ = assigned(batch=True)
         runtime, model, client, state, _ = await runtime_for(
@@ -262,7 +262,7 @@ def test_cancelled_collection_reports_partial_data_without_publication(tmp_path)
     asyncio.run(scenario())
 
 
-def test_ordinary_reports_omit_completion_and_shared_reuse_resets_it(tmp_path):
+def test_shared_ordinary_reports_omit_completion_and_shared_reuse_resets_it(tmp_path):
     async def scenario():
         old = MetricsState().build_report(report_id="old", duration_ms=0)
         assert "completion" not in old.model_dump(by_alias=True)
@@ -287,7 +287,7 @@ def test_ordinary_reports_omit_completion_and_shared_reuse_resets_it(tmp_path):
 
 
 @pytest.mark.parametrize("boundary", ["state_sync", "session_release", "cancel_release"])
-def test_post_publication_cleanup_failure_overrides_completion_diagnostics(
+def test_shared_post_publication_cleanup_failure_overrides_completion_diagnostics(
     tmp_path, monkeypatch, boundary
 ):
     async def scenario():

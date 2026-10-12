@@ -139,7 +139,7 @@ func TestPostgresTrustedAuditRunIsAtomicReplayableAndPinsExactSkill(t *testing.T
 		t.Fatal(err)
 	}
 	addWorkflowSkill(&workflow, contracts.ArtifactRef{Namespace: contracts.AgentSkillNamespace, Name: "review"})
-	skillSnapshot := contracts.RunSkillSnapshot{
+	skillSnapshot := agentskills.RunSkillSnapshot{
 		Name: "review", Source: exactRefPointer(skillAMetadata.Ref),
 		SourceDigest: skillAMetadata.Digest, SourceSize: skillAMetadata.Size,
 	}
@@ -189,7 +189,7 @@ func TestPostgresTrustedAuditRunIsAtomicReplayableAndPinsExactSkill(t *testing.T
 	}
 	params := AuditCreateParams{
 		Claim: claim, ExecutionID: execution.ExecutionID, Workflow: workflow,
-		RuntimeConfig: runtimeconfig.BuiltInRunSnapshot(), Skills: []contracts.RunSkillSnapshot{skillSnapshot},
+		RuntimeConfig: runtimeconfig.BuiltInRunSnapshot(), Skills: []agentskills.RunSkillSnapshot{skillSnapshot},
 		Parameters: map[string]string{"objective": "check"}, Inputs: map[string]auditstore.ExactArtifact{"source": source},
 		ExecutionManifest: manifest, RequestDigest: execution.RequestDigest,
 	}

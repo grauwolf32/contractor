@@ -15,11 +15,12 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/planner"
+	"github.com/grauwolf32/contractor/internal/planner/stageresult"
 	"github.com/grauwolf32/contractor/internal/runstore"
 )
 
 // enterFinalizing validates and fences before the atomic candidate transition.
-func (s *Scheduler) enterFinalizing(ctx context.Context, run runstore.WorkflowRun, workflow executableWorkflow, execution runstore.StageExecution, reservations []controlplane.Reservation, candidate contracts.StageContentResult) error {
+func (s *Scheduler) enterFinalizing(ctx context.Context, run runstore.WorkflowRun, workflow executableWorkflow, execution runstore.StageExecution, reservations []controlplane.Reservation, candidate stageresult.StageContentResult) error {
 	if err := s.validateCandidate(ctx, run.RunID, workflow, candidate); err != nil {
 		failure := planner.Failure{
 			Code: "result_contract_violation", Message: "Planner candidate violates the Stage result contract", Retryable: false,
@@ -74,7 +75,7 @@ func (s *Scheduler) validateCandidate(
 	ctx context.Context,
 	runID string,
 	workflow executableWorkflow,
-	result contracts.StageContentResult,
+	result stageresult.StageContentResult,
 ) error {
 	stage := workflow.stage
 	if err := result.Validate(); err != nil {
@@ -85,7 +86,7 @@ func (s *Scheduler) validateCandidate(
 			return fmt.Errorf("undeclared Stage result artifact %q", name)
 		}
 	}
-	if result.Outcome == contracts.StageSucceeded {
+	if result.Outcome == stageresult.StageSucceeded {
 		for name, slot := range stage.Result.Artifacts {
 			if _, present := result.Artifacts[name]; slot.Required && !present {
 				return fmt.Errorf("required Stage result artifact %q is missing", name)
@@ -113,7 +114,7 @@ func (s *Scheduler) validateCandidate(
 		}
 		mediaTypes[name] = resolved.MediaType
 	}
-	if result.Outcome == contracts.StageSucceeded {
+	if result.Outcome == stageresult.StageSucceeded {
 		outputNames := make([]string, 0, len(stage.WorkflowOutputs))
 		for outputName := range stage.WorkflowOutputs {
 			outputNames = append(outputNames, outputName)
@@ -184,7 +185,7 @@ func (s *Scheduler) resumeFinalizing(
 	retryable := false
 	reasonCode := "workflow_succeeded"
 	escalationVariant := runstore.StageExecutionConfigBase
-	if execution.CandidateResult.Outcome == contracts.StageFailed {
+	if execution.CandidateResult.Outcome == stageresult.StageFailed {
 		action = workflow.stage.On.Failed
 		retryable = execution.CandidateResult.Error != nil && execution.CandidateResult.Error.Retryable
 		escalationVariant = runstore.StageExecutionConfigFailedEscalation

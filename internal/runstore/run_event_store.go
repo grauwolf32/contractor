@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/planner/stageresult"
 	"github.com/grauwolf32/contractor/internal/strictjson"
 	"github.com/jackc/pgx/v5"
 )
@@ -266,15 +267,15 @@ func validatePlannerRunEventData(kind RunEventKind, data plannerRunEventData) er
 		}
 	case RunEventPlannerFinishRequested:
 		if !noPlanOrActivity() || data.PlanRevision == nil ||
-			(*data.PlanRevision == 0 && data.Outcome != string(contracts.StageFailed)) || data.SubtaskID != "" ||
+			(*data.PlanRevision == 0 && data.Outcome != string(stageresult.StageFailed)) || data.SubtaskID != "" ||
 			data.CallID != "" || data.WorkerName != "" || data.Code != "" ||
-			(data.Outcome != string(contracts.StageSucceeded) && data.Outcome != string(contracts.StageFailed)) {
+			(data.Outcome != string(stageresult.StageSucceeded) && data.Outcome != string(stageresult.StageFailed)) {
 			return invalidf("WorkflowRun Planner finish-requested event has invalid fields")
 		}
 	case RunEventPlannerCompleted:
 		if data.Plan != nil || data.PlanRevision != nil || data.SubtaskID != "" ||
 			data.CallID != "" || data.WorkerName != "" || data.Code != "" || data.Activity != nil ||
-			(data.Outcome != string(contracts.StageSucceeded) && data.Outcome != string(contracts.StageFailed)) {
+			(data.Outcome != string(stageresult.StageSucceeded) && data.Outcome != string(stageresult.StageFailed)) {
 			return invalidf("WorkflowRun Planner completed event has invalid fields")
 		}
 	case RunEventPlannerFailed:

@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/agentskills"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -15,6 +16,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/pagelimit"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
+	"github.com/grauwolf32/contractor/internal/planner/stageresult"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/jackc/pgx/v5"
 )
@@ -27,8 +29,8 @@ type Repository interface {
 	CreateRun(context.Context, CreateRunParams) (WorkflowRun, error)
 	CreateRunIdempotent(context.Context, CreateRunIdempotentParams) (WorkflowRun, bool, error)
 	CreateAuditRun(context.Context, CreateAuditRunParams) (WorkflowRun, error)
-	SetRunSkillSelections(context.Context, string, []contracts.RunSkillSnapshot) error
-	CompleteRunSkillInitialization(context.Context, string, []contracts.RunSkillSnapshot) error
+	SetRunSkillSelections(context.Context, string, []agentskills.RunSkillSnapshot) error
+	CompleteRunSkillInitialization(context.Context, string, []agentskills.RunSkillSnapshot) error
 	LookupRunIdempotency(context.Context, string, string, string) (WorkflowRun, bool, error)
 	GetRun(context.Context, string) (WorkflowRun, error)
 	ListRuns(context.Context, ListRunsParams) ([]WorkflowRunSummary, error)
@@ -52,7 +54,7 @@ type Repository interface {
 	ListTerminalStageExecutionsWithAllocations(context.Context) ([]StageExecution, error)
 	StartPlanner(context.Context, StartPlannerParams) error
 	EnterFinalizing(context.Context, EnterFinalizingParams) error
-	CompleteStageResult(context.Context, string, string, contracts.StageContentResult) error
+	CompleteStageResult(context.Context, string, string, stageresult.StageContentResult) error
 	EnterAborting(context.Context, EnterAbortingParams) error
 	CompleteStageTermination(context.Context, string) error
 	AppendPlannerEvent(context.Context, AppendPlannerEventParams) error

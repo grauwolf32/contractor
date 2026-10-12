@@ -75,7 +75,7 @@ func validateAuditCompletionStage(binding ResolvedAuditWorkflowBinding, stageNam
 	if !ok {
 		return fmt.Errorf("workerCompletion names an absent Worker")
 	}
-	if err := contracts.ValidateAuditCompletionTemplate(agent.Template); err != nil {
+	if err := resolved.ValidateAuditCompletionTemplate(agent.Template); err != nil {
 		return err
 	}
 	if err := resolved.ValidateStageExecutionConfig(stageName, stage); err != nil {

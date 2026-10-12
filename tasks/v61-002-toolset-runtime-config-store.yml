@@ -79,7 +79,7 @@ tests:
     covers: [A1, A2, A3, A4]
   - command: make test-runtime-config-postgres test-runtime-credentials test-runtime-principals
     covers: [A1, A3, A4, A5]
-  - command: make verify-public-api verify-wire-contracts
+  - command: make verify-public-api test-wire-cross-language
     covers: [A1, A3]
 test_prerequisites:
   - Set CONTRACTOR_TEST_DATABASE_URL to a disposable isolated PostgreSQL instance; do not print connection credentials.

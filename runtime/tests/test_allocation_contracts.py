@@ -14,7 +14,7 @@ from contractor_runtime.digests import TemplateDigestMismatch, verify_template_d
 FIXTURES = Path(__file__).parents[2] / "api" / "testdata" / "v1alpha1" / "valid"
 
 
-def test_optional_summarizer_round_trips_on_both_allocation_contracts() -> None:
+def test_shared_optional_summarizer_round_trips_on_both_allocation_contracts() -> None:
     raw = (FIXTURES / "allocation-spec-summarizer.json").read_text(encoding="utf-8")
     legacy = AllocationSpec.model_validate_json(raw)
     assert legacy.agent_template.summarizer is not None
@@ -56,7 +56,7 @@ def test_omitted_summarizer_is_absent_and_behaviorally_disabled() -> None:
         lambda value: value.__setitem__("unknown", True),
     ],
 )
-def test_invalid_summarizer_wire_shape_is_rejected(mutation: Any) -> None:
+def test_shared_invalid_summarizer_wire_shape_is_rejected(mutation: Any) -> None:
     allocation = json.loads(
         (FIXTURES / "allocation-spec-summarizer.json").read_text(encoding="utf-8")
     )
@@ -99,7 +99,7 @@ def test_summarizer_policy_and_thresholds_are_covered_by_template_digests() -> N
         verify_template_digests(changed_policy)
 
 
-def test_summary_instruction_golden_and_digest_tampering() -> None:
+def test_shared_summary_instruction_golden_and_digest_tampering() -> None:
     from contractor_runtime.digests import _agent_template_digest
 
     raw = (FIXTURES / "allocation-spec-summarizer-instructions.json").read_text(encoding="utf-8")

@@ -15,12 +15,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/agentskills"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
+	"github.com/grauwolf32/contractor/internal/planner/stageresult"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/grauwolf32/contractor/internal/telemetry"
@@ -257,9 +259,9 @@ WHERE allocation_id = 'allocation-1'`); persistencepostgres.SQLState(err) != per
 	}
 
 	resultRevision := "revision-result-1"
-	candidate := contracts.StageContentResult{
+	candidate := stageresult.StageContentResult{
 		APIVersion: contracts.APIVersion,
-		Outcome:    contracts.StageSucceeded,
+		Outcome:    stageresult.StageSucceeded,
 		Summary:    "copied",
 		Artifacts: map[string]contracts.ArtifactRef{
 			"copied": {Namespace: "builder", Name: "result", Revision: &resultRevision},
@@ -809,7 +811,7 @@ func testAllocationRuntimeConfiguration() *AllocationRuntimeConfiguration {
 			},
 			RunLabels:       []runtimesettings.RuntimeLabelBindingProvenance{},
 			AgentLabels:     []runtimesettings.RuntimeLabelBindingProvenance{},
-			RuntimeAdapters: []contracts.RuntimeAdapterRef{}, LLMGatewayConfig: &gateway,
+			RuntimeAdapters: []runtimesettings.RuntimeAdapterRef{}, LLMGatewayConfig: &gateway,
 			RuntimeCredentialRefs: []runtimesettings.RuntimeCredentialRef{},
 		},
 	}
@@ -1270,7 +1272,7 @@ func TestPostgresIntegrationRunSkillSnapshotGatesRunnableClaim(t *testing.T) {
 	store := NewPostgresStore(pool)
 	run := createTestRun(t, ctx, store, "run-skill-pending")
 	revision := "owner-revision-1"
-	selection := []contracts.RunSkillSnapshot{{
+	selection := []agentskills.RunSkillSnapshot{{
 		Name: "review",
 		Source: &contracts.ArtifactRef{
 			Namespace: contracts.AgentSkillNamespace, Name: "review", Revision: &revision,
@@ -1292,7 +1294,7 @@ func TestPostgresIntegrationRunSkillSnapshotGatesRunnableClaim(t *testing.T) {
 	}
 
 	runRevision := "run-revision-1"
-	initialized := append([]contracts.RunSkillSnapshot(nil), selection...)
+	initialized := append([]agentskills.RunSkillSnapshot(nil), selection...)
 	initialized[0].Artifact = &contracts.ArtifactRef{
 		Namespace: contracts.AgentSkillNamespace, Name: "review", Revision: &runRevision,
 	}
@@ -1313,7 +1315,7 @@ func TestPostgresIntegrationRunSkillSnapshotGatesRunnableClaim(t *testing.T) {
 		t.Fatalf("terminal Skill snapshot rewrite SQLSTATE = %q, error = %v", persistencepostgres.SQLState(err), err)
 	}
 
-	mutated := append([]contracts.RunSkillSnapshot(nil), initialized...)
+	mutated := append([]agentskills.RunSkillSnapshot(nil), initialized...)
 	otherRevision := "owner-revision-2"
 	mutated[0].Source = &contracts.ArtifactRef{
 		Namespace: contracts.AgentSkillNamespace, Name: "review", Revision: &otherRevision,

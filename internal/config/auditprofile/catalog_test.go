@@ -10,6 +10,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/configtest"
+	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 )
 
 // The profiles these tests decode again are resolved from the configuration
@@ -69,14 +70,11 @@ func templateAuditProfileYAML(t *testing.T, name string) string {
 	return strings.Replace(string(data), "PROFILE_NAME", name, 1)
 }
 
-// sharedAuditProfileYAML is a profile of api/testdata/audit-composition.
+// sharedAuditProfileYAML is a profile of api/testdata/audit-composition, so
+// only a TestShared* test may call it.
 func sharedAuditProfileYAML(t *testing.T, name string) string {
 	t.Helper()
-	data, err := os.ReadFile(filepath.Join("..", "..", "..", "api", "testdata", "audit-composition", name+".yaml"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	return string(data)
+	return string(contractstest.ReadFile(t, "api", "testdata", "audit-composition", name+".yaml"))
 }
 
 // redigest pins profile's current content under a valid digest.

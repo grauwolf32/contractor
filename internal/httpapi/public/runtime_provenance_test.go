@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
@@ -27,7 +26,7 @@ func TestStageRuntimeConfigurationReadModelIsSafeAndHistorical(t *testing.T) {
 				Label: "debug", BindingRevision: 7,
 				Config: runtimesettings.RuntimeConfigRef{Name: "site-debug", Version: "2", Digest: digest},
 			}},
-			RuntimeAdapters: []contracts.RuntimeAdapterRef{contracts.RuntimeAdapterOTLPHTTP},
+			RuntimeAdapters: []runtimesettings.RuntimeAdapterRef{runtimesettings.RuntimeAdapterOTLPHTTP},
 		},
 	}
 	projection := stageRuntimeConfigurationReadModel([]runstore.StageAllocation{

@@ -1,9 +1,9 @@
 package contracts
 
 // ResolvedSkill is the allocation-local projection of an immutable Run Skill
-// snapshot. It deliberately carries no UserScope source authority or package
-// bytes: Runtime can read only this exact RunScope artifact through the
-// allocation-bound private Artifact API.
+// snapshot (agentskills.RunSkillSnapshot). It deliberately carries no
+// UserScope source authority or package bytes: Runtime can read only this
+// exact RunScope artifact through the allocation-bound private Artifact API.
 type ResolvedSkill struct {
 	Name          string      `json:"name" strictjson:"required"`
 	Artifact      ArtifactRef `json:"artifact" strictjson:"required"`
@@ -15,7 +15,7 @@ func (s ResolvedSkill) Validate() error {
 	if err := logical.ValidateAgentSkillRef(); err != nil {
 		return err
 	}
-	if err := validateExactRunSkillRef(s.Artifact, s.Name, "artifact"); err != nil {
+	if err := ValidateExactRunSkillRef(s.Artifact, s.Name, "artifact"); err != nil {
 		return err
 	}
 	return ValidateDigest("resolved Skill packageDigest", s.PackageDigest)
@@ -65,68 +65,12 @@ func CloneResolvedSkills(source []ResolvedSkill) []ResolvedSkill {
 	return result
 }
 
-// RunSkillSnapshot is immutable Run provenance. Source is nil only for the
-// durable missing marker selected during Run creation. Artifact remains nil
-// until the exact package has been validated and forked into RunScope.
-type RunSkillSnapshot struct {
-	Name          string       `json:"name"`
-	Source        *ArtifactRef `json:"source,omitempty"`
-	SourceDigest  string       `json:"sourceDigest,omitempty"`
-	SourceSize    int64        `json:"sourceSize,omitempty"`
-	Artifact      *ArtifactRef `json:"artifact,omitempty"`
-	PackageDigest string       `json:"packageDigest,omitempty"`
-	ExpandedBytes int64        `json:"expandedBytes,omitempty"`
-}
-
-func (s RunSkillSnapshot) Validate() error {
-	logical := ArtifactRef{Namespace: AgentSkillNamespace, Name: s.Name}
-	if err := logical.ValidateAgentSkillRef(); err != nil {
-		return err
-	}
-	if s.Source == nil {
-		if s.SourceDigest != "" || s.SourceSize != 0 || s.Artifact != nil || s.PackageDigest != "" || s.ExpandedBytes != 0 {
-			return Invalidf("missing Run Skill source marker has unexpected resolved fields")
-		}
-		return nil
-	}
-	if err := validateExactRunSkillRef(*s.Source, s.Name, "source"); err != nil {
-		return err
-	}
-	if err := ValidateDigest("Run Skill sourceDigest", s.SourceDigest); err != nil {
-		return err
-	}
-	if s.SourceSize < 1 || s.SourceSize > 16<<20 {
-		return Invalidf("Run Skill sourceSize must be between 1 and 16 MiB")
-	}
-	if s.Artifact == nil {
-		if s.PackageDigest != "" || s.ExpandedBytes != 0 {
-			return Invalidf("uninitialized Run Skill has package result fields")
-		}
-		return nil
-	}
-	if err := validateExactRunSkillRef(*s.Artifact, s.Name, "artifact"); err != nil {
-		return err
-	}
-	if err := ValidateDigest("Run Skill packageDigest", s.PackageDigest); err != nil {
-		return err
-	}
-	if s.PackageDigest != s.SourceDigest {
-		return Invalidf("Run Skill source and package digests differ")
-	}
-	if s.ExpandedBytes < 1 || s.ExpandedBytes > 32<<20 {
-		return Invalidf("Run Skill expandedBytes must be between 1 and 32 MiB")
-	}
-	return nil
-}
-
-func (s RunSkillSnapshot) Initialized() bool { return s.Artifact != nil }
-
-func validateExactRunSkillRef(ref ArtifactRef, name, field string) error {
+// ValidateExactRunSkillRef requires ref to be the exact skills/<name> revision
+// of a Run Skill, as a ResolvedSkill artifact and the source and artifact of
+// a Run Skill snapshot are; field names the member in the error.
+func ValidateExactRunSkillRef(ref ArtifactRef, name, field string) error {
 	if ref.Namespace != AgentSkillNamespace || ref.Name != name {
 		return Invalidf("Run Skill %s must identify skills/%s", field, name)
 	}
-	if err := ref.ValidateExact(); err != nil {
-		return err
-	}
-	return nil
+	return ref.ValidateExact()
 }

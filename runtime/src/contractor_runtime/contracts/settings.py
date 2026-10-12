@@ -535,6 +535,8 @@ class RuntimeSettings(WireModel):
             _require_runtime_endpoint("runtimeSettings.llmGatewayUrl", self.llm_gateway_url)
         elif self.llm_gateway_token is not None or self.llm_gateway_failure_signatures is not None:
             raise ValueError("LLM token and failure signatures require a Gateway URL")
+        if self.llm_gateway_token is not None and not self.llm_gateway_token.get_secret_value():
+            raise ValueError("an unauthenticated Gateway omits llmGatewayToken")
         if len(self.artifact_api_url.encode("utf-8")) > 2048:
             raise ValueError("runtimeSettings.artifactApiUrl exceeds 2048 bytes")
         _require_url("runtimeSettings.artifactApiUrl", self.artifact_api_url)

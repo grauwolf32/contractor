@@ -480,7 +480,7 @@ outlasts its retries is the retryable `503 storage_transaction_conflict`
     tests `TestPostgresRecoveryPathsRunInsideACallerTransaction` and
     `TestPostgresCreateDraftReplaysAConcurrentWinnerInsideATransaction` in
     [`internal/auditstore/transaction_recovery_postgres_test.go`](../../../internal/auditstore/transaction_recovery_postgres_test.go),
-    `TestPostgresAuditPreparationStartRecoversInsideACallerTransaction` in
+    `TestSharedPostgresAuditPreparationStartRecoversInsideACallerTransaction` in
     [`internal/artifacts/audit_preparation_transaction_postgres_test.go`](../../../internal/artifacts/audit_preparation_transaction_postgres_test.go)
     and `TestPostgresSavepointQueryRowKeepsTheCallerTransactionUsable` in
     [`internal/persistence/postgres/savepoint_postgres_test.go`](../../../internal/persistence/postgres/savepoint_postgres_test.go).

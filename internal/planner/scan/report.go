@@ -14,6 +14,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/planner"
+	"github.com/grauwolf32/contractor/internal/planner/stageresult"
 	"github.com/grauwolf32/contractor/internal/scanplan"
 	"github.com/grauwolf32/contractor/internal/strictjson"
 )
@@ -205,11 +206,11 @@ var outcomeCodes = map[string]string{
 	planner.ScanJobFailed:      "scan_failed",
 }
 
-func (p *execution) finish(ctx context.Context, identity planner.ScanSessionIdentity, plan scanplan.ScanPlan, state planner.ScanState) (contracts.StageContentResult, error) {
+func (p *execution) finish(ctx context.Context, identity planner.ScanSessionIdentity, plan scanplan.ScanPlan, state planner.ScanState) (stageresult.StageContentResult, error) {
 	if p.audit != nil {
 		history, err := p.auditHistory(ctx)
 		if err != nil {
-			return contracts.StageContentResult{}, err
+			return stageresult.StageContentResult{}, err
 		}
 		found := false
 		for index := range history {
@@ -219,11 +220,11 @@ func (p *execution) finish(ctx context.Context, identity planner.ScanSessionIden
 			}
 		}
 		if !found {
-			return contracts.StageContentResult{}, scanError("scan_history_invalid", nil)
+			return stageresult.StageContentResult{}, scanError("scan_history_invalid", nil)
 		}
 		return p.finishAudit(ctx, identity, history)
 	}
-	empty := contracts.StageContentResult{}
+	empty := stageresult.StageContentResult{}
 	coverage := Coverage{Candidates: len(plan.Candidates), Selected: len(plan.Jobs)}
 	for _, candidate := range plan.Candidates {
 		switch candidate.Selection {
@@ -254,7 +255,7 @@ func (p *execution) finish(ctx context.Context, identity planner.ScanSessionIden
 		return empty, scanError("scan_session_invalid", nil)
 	}
 	report := Report{SchemaVersion: 1, Plan: state.Plan.Clone(), PlanID: plan.ID, Jobs: state.Jobs, Coverage: coverage}
-	data, err := contracts.MarshalPrivateCanonical(report)
+	data, err := strictjson.Canonical(report)
 	if err != nil || len(data) > scanplan.MaxPlanBytes {
 		return empty, scanError("scan_report_invalid", err)
 	}
@@ -268,9 +269,9 @@ func (p *execution) finish(ctx context.Context, identity planner.ScanSessionIden
 	if err != nil {
 		return empty, scanError("scan_report_write_failed", err)
 	}
-	result := contracts.StageContentResult{APIVersion: contracts.APIVersion, Outcome: contracts.StageSucceeded, Summary: fmt.Sprintf("Scan jobs: %d completed, %d failed, %d incomplete, %d unknown, %d unavailable; %d candidates skipped. Inspect reports for evidence and coverage limits.", coverage.Completed, coverage.Failed, coverage.Incomplete, coverage.Unknown, coverage.Unavailable, coverage.Skipped), Artifacts: map[string]contracts.ArtifactRef{"report": ref}}
+	result := stageresult.StageContentResult{APIVersion: contracts.APIVersion, Outcome: stageresult.StageSucceeded, Summary: fmt.Sprintf("Scan jobs: %d completed, %d failed, %d incomplete, %d unknown, %d unavailable; %d candidates skipped. Inspect reports for evidence and coverage limits.", coverage.Completed, coverage.Failed, coverage.Incomplete, coverage.Unknown, coverage.Unavailable, coverage.Skipped), Artifacts: map[string]contracts.ArtifactRef{"report": ref}}
 	if coverage.Selected == 0 || coverage.Completed != coverage.Selected {
-		result.Outcome = contracts.StageFailed
+		result.Outcome = stageresult.StageFailed
 		result.Error = &contracts.TerminationError{Code: "scan_incomplete", Message: "The scan plan did not complete all selected jobs", Retryable: false}
 	}
 	if validation := planner.ValidateCandidate(buildCtx, p.invocation.RunID, p.invocation.Stage.Result.Artifacts, result, p.factory.inspector); validation != nil {

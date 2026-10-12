@@ -613,7 +613,7 @@ func findingRuntimeConfiguration() *runstore.AllocationRuntimeConfiguration {
 			},
 			RunLabels:       []runtimesettings.RuntimeLabelBindingProvenance{},
 			AgentLabels:     []runtimesettings.RuntimeLabelBindingProvenance{},
-			RuntimeAdapters: []contracts.RuntimeAdapterRef{}, LLMGatewayConfig: &gateway,
+			RuntimeAdapters: []runtimesettings.RuntimeAdapterRef{}, LLMGatewayConfig: &gateway,
 			RuntimeCredentialRefs: []runtimesettings.RuntimeCredentialRef{},
 		},
 	}

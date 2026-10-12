@@ -412,7 +412,7 @@ func (h *serviceHarness) finishAudits(t *testing.T) {
 	}
 }
 
-func TestPostgresNativeEightMembersRecoverLostResponsesAndRestart(t *testing.T) {
+func TestSharedPostgresNativeEightMembersRecoverLostResponsesAndRestart(t *testing.T) {
 	for _, kind := range []string{"workflow", "audit"} {
 		t.Run(kind, func(t *testing.T) {
 			h := newHarness(t)
@@ -476,7 +476,7 @@ func TestPostgresNativeEightMembersRecoverLostResponsesAndRestart(t *testing.T) 
 	}
 }
 
-func TestPostgresNativeBatchAdmissionFillsCapacityAndCreatesByNextTick(t *testing.T) {
+func TestSharedPostgresNativeBatchAdmissionFillsCapacityAndCreatesByNextTick(t *testing.T) {
 	for _, kind := range []string{"workflow", "audit"} {
 		t.Run(kind, func(t *testing.T) {
 			h := newHarness(t)
@@ -526,7 +526,7 @@ func TestPostgresNativeBatchAdmissionFillsCapacityAndCreatesByNextTick(t *testin
 	}
 }
 
-func TestPostgresNativeBatchAdmissionTwoCoordinatorsDoNotOverfill(t *testing.T) {
+func TestSharedPostgresNativeBatchAdmissionTwoCoordinatorsDoNotOverfill(t *testing.T) {
 	h := newHarness(t)
 	e := h.preparedWithCapacity(t, "workflow", 3)
 	h.command(t, e, "start")
@@ -569,7 +569,7 @@ SELECT count(*) FROM eval_submissions WHERE experiment_id = $1 AND state IN ('in
 	}
 }
 
-func TestPostgresPauseResumeKeepsClockAndDuplicateStartsFresh(t *testing.T) {
+func TestSharedPostgresPauseResumeKeepsClockAndDuplicateStartsFresh(t *testing.T) {
 	h := newHarness(t)
 	e := h.prepared(t, "workflow")
 	h.command(t, e, "start")
@@ -654,7 +654,7 @@ VALUES ('expired-pause',$1,$2,'expired-pause','external','expired pause','paused
 	}
 }
 
-func TestPostgresDeletedRunAfterResponseLossIsNeverRecreated(t *testing.T) {
+func TestSharedPostgresDeletedRunAfterResponseLossIsNeverRecreated(t *testing.T) {
 	h := newHarness(t)
 	e := h.prepared(t, "workflow")
 	h.run.remove = true
@@ -681,7 +681,7 @@ func TestPostgresDeletedRunAfterResponseLossIsNeverRecreated(t *testing.T) {
 	}
 }
 
-func TestPostgresPrepareFailureRetainsSchemaValidDiagnostic(t *testing.T) {
+func TestSharedPostgresPrepareFailureRetainsSchemaValidDiagnostic(t *testing.T) {
 	h := newHarness(t)
 	e := h.create(t, "workflow")
 	// The pinned source becomes unavailable before preparation, without execution.
@@ -701,7 +701,7 @@ func TestPostgresPrepareFailureRetainsSchemaValidDiagnostic(t *testing.T) {
 	}
 }
 
-func TestPostgresExternalDispatchRequiresExplicitSubmissionAndFinalizesMissingMembers(t *testing.T) {
+func TestSharedPostgresExternalDispatchRequiresExplicitSubmissionAndFinalizesMissingMembers(t *testing.T) {
 	h := newHarness(t)
 	draft, data := h.dataset(t, "workflow")
 	pre := map[string]Preflight{}
@@ -787,7 +787,7 @@ func TestPostgresExternalDispatchRequiresExplicitSubmissionAndFinalizesMissingMe
 	}
 }
 
-func TestPostgresDeadlineAndObservedTokenLimitsDrainWithoutNewAdmissions(t *testing.T) {
+func TestSharedPostgresDeadlineAndObservedTokenLimitsDrainWithoutNewAdmissions(t *testing.T) {
 	for _, budget := range []string{"deadline", "tokens"} {
 		t.Run(budget, func(t *testing.T) {
 			h := newHarness(t)
@@ -860,7 +860,7 @@ func TestPostgresDeadlineAndObservedTokenLimitsDrainWithoutNewAdmissions(t *test
 	}
 }
 
-func TestPostgresRecoveryAfterTransitionBeforeCommandAcknowledgement(t *testing.T) {
+func TestSharedPostgresRecoveryAfterTransitionBeforeCommandAcknowledgement(t *testing.T) {
 	h := newHarness(t)
 	e := h.create(t, "workflow")
 	h.command(t, e, "prepare")
@@ -887,7 +887,7 @@ func TestPostgresRecoveryAfterTransitionBeforeCommandAcknowledgement(t *testing.
 	}
 }
 
-func TestPostgresCancelAfterAuditCreateBeforeStartDrainsThroughOrdinaryDeletion(t *testing.T) {
+func TestSharedPostgresCancelAfterAuditCreateBeforeStartDrainsThroughOrdinaryDeletion(t *testing.T) {
 	h := newHarness(t)
 	e := h.prepared(t, "audit")
 	h.command(t, e, "start")
@@ -919,7 +919,7 @@ func TestPostgresCancelAfterAuditCreateBeforeStartDrainsThroughOrdinaryDeletion(
 	}
 }
 
-func TestPostgresPreparationArtifactLossRejectsBeforeExecution(t *testing.T) {
+func TestSharedPostgresPreparationArtifactLossRejectsBeforeExecution(t *testing.T) {
 	h := newHarness(t)
 	e := h.prepared(t, "workflow")
 	if _, err := h.pool.Exec(t.Context(), `DELETE FROM artifact_bindings WHERE scope_kind='user'`); err != nil {
@@ -939,7 +939,7 @@ func TestPostgresPreparationArtifactLossRejectsBeforeExecution(t *testing.T) {
 	}
 }
 
-func TestPostgresProjectDeletionWaitsForUncertainRunAndFencesRemainingMembers(t *testing.T) {
+func TestSharedPostgresProjectDeletionWaitsForUncertainRunAndFencesRemainingMembers(t *testing.T) {
 	h := newHarness(t)
 	e := h.prepared(t, "workflow")
 	h.command(t, e, "start")
@@ -1016,7 +1016,7 @@ func (s changedAuditPins) Start(ctx context.Context, p auditservice.StartParams)
 	}
 	return s.AuditExecutor.Start(ctx, p)
 }
-func TestPostgresPinnedSelectionsRejectBeforeOrdinaryEffects(t *testing.T) {
+func TestSharedPostgresPinnedSelectionsRejectBeforeOrdinaryEffects(t *testing.T) {
 	for _, kind := range []string{"workflow", "audit"} {
 		fields := []string{"workflow", "runtime", "skills"}
 		if kind == "audit" {
@@ -1107,7 +1107,7 @@ func (h *serviceHarness) purgeDeletingAuditDrafts(t *testing.T) {
 	}
 }
 
-func TestPostgresDeletedRuntimeLabelRejectsEvalCreateAndDrains(t *testing.T) {
+func TestSharedPostgresDeletedRuntimeLabelRejectsEvalCreateAndDrains(t *testing.T) {
 	for _, kind := range []string{"workflow", "audit"} {
 		for _, cancel := range []bool{false, true} {
 			name := kind + "/finish"
@@ -1199,7 +1199,7 @@ func (f failedRunCreate) CreatePublic(context.Context, runservice.PublicCreatePa
 	return runservice.CreateResult{}, f.cause
 }
 
-func TestPostgresUnknownEvalCreateErrorKeepsIntent(t *testing.T) {
+func TestSharedPostgresUnknownEvalCreateErrorKeepsIntent(t *testing.T) {
 	for _, test := range []struct {
 		name  string
 		cause error

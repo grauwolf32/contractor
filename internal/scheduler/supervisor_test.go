@@ -15,6 +15,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/planner"
+	"github.com/grauwolf32/contractor/internal/planner/stageresult"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/settingsstore"
 	"github.com/grauwolf32/contractor/internal/telemetry"
@@ -603,7 +604,7 @@ func (laneNoopPersistence) EnterAbortingWithTermination(context.Context, string,
 func (laneNoopPersistence) CommitResultProgression(context.Context, ResultProgression) error {
 	return errors.New("unexpected persistence call")
 }
-func (laneNoopPersistence) AcceptResultDuringCancellation(context.Context, string, string, contracts.StageContentResult) error {
+func (laneNoopPersistence) AcceptResultDuringCancellation(context.Context, string, string, stageresult.StageContentResult) error {
 	return errors.New("unexpected persistence call")
 }
 func (laneNoopPersistence) CommitTerminationProgression(context.Context, TerminationProgression) error {

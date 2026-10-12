@@ -141,7 +141,7 @@
       "required": ["tool", "arguments", "resultArtifact", "timeoutSeconds"],
       "properties": {
         "tool": {"type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]{0,63}$"},
-        "resultArtifact": {"type": "string", "minLength": 1, "maxLength": 128},
+        "resultArtifact": {"type": "string", "minLength": 1, "maxLength": 128, "x-maxBytes": 128},
         "timeoutSeconds": {"type": "integer", "minimum": 1, "maximum": 3600},
         "arguments": {
           "type": "object", "maxProperties": 32,
@@ -149,11 +149,11 @@
           "additionalProperties": {
             "oneOf": [
               {"type": "object", "additionalProperties": false, "required": ["source", "name"], "properties": {
-                "source": {"enum": ["parameter", "artifact"]}, "name": {"type": "string", "minLength": 1, "maxLength": 128}
+                "source": {"enum": ["parameter", "artifact"]}, "name": {"type": "string", "minLength": 1, "maxLength": 128, "x-maxBytes": 128}
               }},
               {"type": "object", "additionalProperties": false, "required": ["source", "value"], "properties": {
                 "source": {"const": "literal"}, "value": {"oneOf": [
-                  {"type": "string", "maxLength": 8192}, {"type": "boolean"},
+                  {"type": "string", "maxLength": 8192, "x-maxBytes": 8192}, {"type": "boolean"},
                   {"type": "number", "minimum": -9007199254740991, "maximum": 9007199254740991}
                 ]}
               }}

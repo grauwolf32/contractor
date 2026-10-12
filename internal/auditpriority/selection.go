@@ -5,7 +5,7 @@ import (
 	"sort"
 
 	"github.com/grauwolf32/contractor/internal/contentdigest"
-	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/strictjson"
 )
 
 // BindVerdict validates the assigned item and evidence whitelist then detaches
@@ -150,7 +150,7 @@ func MarshalSelection(selection Selection) ([]byte, error) {
 	if err := selection.Validate(); err != nil {
 		return nil, err
 	}
-	data, err := contracts.MarshalPrivateCanonical(selection)
+	data, err := strictjson.Canonical(selection)
 	if err != nil || len(data) > MaxSelectionBytes {
 		return nil, invalid(CodeInvalidSelection)
 	}

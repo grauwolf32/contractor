@@ -410,7 +410,7 @@ def test_close_counts_inflight_batch_and_new_tail_once() -> None:
     asyncio.run(scenario())
 
 
-def test_drop_counters_round_trip_in_runtime_report_and_published_schema() -> None:
+def test_shared_drop_counters_round_trip_in_runtime_report_and_published_schema() -> None:
     metrics = RuntimeAdapterMetricsState()
     metrics.record_dropped_spans("queue_overflow", 2**64 - 1)
     metrics.record_dropped_spans("collector_rejected", 3)

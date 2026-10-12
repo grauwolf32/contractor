@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/planner/stageresult"
 )
 
 func TestPlannerPlanUsesImmutableObjectiveOrderedIDsAndDeepSnapshots(t *testing.T) {
@@ -119,7 +120,7 @@ func TestPlannerPlanCompletesAndAdvancesWithLateResultFence(t *testing.T) {
 	if planErr != nil {
 		t.Fatal(planErr)
 	}
-	completed, planErr := controller.CompleteDispatch(claim.CallID, contracts.StageFailed)
+	completed, planErr := controller.CompleteDispatch(claim.CallID, stageresult.StageFailed)
 	if planErr != nil {
 		t.Fatal(planErr)
 	}
@@ -128,7 +129,7 @@ func TestPlannerPlanCompletesAndAdvancesWithLateResultFence(t *testing.T) {
 		t.Fatalf("completed = %+v", completed)
 	}
 	before := controller.Snapshot()
-	if _, planErr := controller.CompleteDispatch(claim.CallID, contracts.StageSucceeded); planErr == nil || planErr.Code != "planner_dispatch_stale" {
+	if _, planErr := controller.CompleteDispatch(claim.CallID, stageresult.StageSucceeded); planErr == nil || planErr.Code != "planner_dispatch_stale" {
 		t.Fatalf("late result error = %+v", planErr)
 	}
 	if after := controller.Snapshot(); !reflect.DeepEqual(before, after) {
@@ -141,29 +142,29 @@ func TestPlannerPlanFinishPreconditions(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if controller.CanFinish(contracts.StageFailed) != nil {
+	if controller.CanFinish(stageresult.StageFailed) != nil {
 		t.Fatal("failed finish must be allowed without a dispatch")
 	}
-	if finishErr := controller.CanFinish(contracts.StageSucceeded); finishErr == nil || finishErr.Code != "planner_finish_incomplete" {
+	if finishErr := controller.CanFinish(stageresult.StageSucceeded); finishErr == nil || finishErr.Code != "planner_finish_incomplete" {
 		t.Fatalf("empty successful finish error = %+v", finishErr)
 	}
 	if _, planErr := controller.AddSubtask("Inspect", "Inspect input"); planErr != nil {
 		t.Fatal(planErr)
 	}
-	if finishErr := controller.CanFinish(contracts.StageSucceeded); finishErr == nil || finishErr.Code != "planner_finish_incomplete" {
+	if finishErr := controller.CanFinish(stageresult.StageSucceeded); finishErr == nil || finishErr.Code != "planner_finish_incomplete" {
 		t.Fatalf("pending successful finish error = %+v", finishErr)
 	}
 	claim, planErr := controller.ClaimCurrentSubtask("0", "reviewer")
 	if planErr != nil {
 		t.Fatal(planErr)
 	}
-	if finishErr := controller.CanFinish(contracts.StageFailed); finishErr == nil || finishErr.Code != "planner_finish_dispatch_active" {
+	if finishErr := controller.CanFinish(stageresult.StageFailed); finishErr == nil || finishErr.Code != "planner_finish_dispatch_active" {
 		t.Fatalf("active failed finish error = %+v", finishErr)
 	}
-	if _, planErr := controller.CompleteDispatch(claim.CallID, contracts.StageSucceeded); planErr != nil {
+	if _, planErr := controller.CompleteDispatch(claim.CallID, stageresult.StageSucceeded); planErr != nil {
 		t.Fatal(planErr)
 	}
-	if finishErr := controller.CanFinish(contracts.StageSucceeded); finishErr != nil {
+	if finishErr := controller.CanFinish(stageresult.StageSucceeded); finishErr != nil {
 		t.Fatalf("completed successful finish error = %+v", finishErr)
 	}
 }
@@ -214,7 +215,7 @@ func TestPlannerPlanTransitionValidationRejectsHistoryTampering(t *testing.T) {
 		t.Fatalf("valid dispatch transition: %v", err)
 	}
 	beforeCompletion := clonePlannerPlanProjection(dispatched)
-	completed, planErr := controller.CompleteDispatch(claim.CallID, contracts.StageSucceeded)
+	completed, planErr := controller.CompleteDispatch(claim.CallID, stageresult.StageSucceeded)
 	if planErr != nil {
 		t.Fatal(planErr)
 	}

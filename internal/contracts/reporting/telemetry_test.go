@@ -5,10 +5,12 @@ import (
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+
 	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 )
 
-func TestAllocationRuntimeAdapterMetricsAreTypedAndBounded(t *testing.T) {
+func TestSharedAllocationRuntimeAdapterMetricsAreTypedAndBounded(t *testing.T) {
 	t.Parallel()
 
 	value, err := contracts.DecodeStrict[AllocationFinalResponse](
@@ -17,19 +19,19 @@ func TestAllocationRuntimeAdapterMetricsAreTypedAndBounded(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	value.Report.Runtime.Adapters = map[contracts.RuntimeAdapterRef]RuntimeAdapterMetrics{
-		contracts.RuntimeAdapterOTLPHTTP: {Operations: 2, FailedOperations: 1},
+	value.Report.Runtime.Adapters = map[runtimesettings.RuntimeAdapterRef]RuntimeAdapterMetrics{
+		runtimesettings.RuntimeAdapterOTLPHTTP: {Operations: 2, FailedOperations: 1},
 	}
 	if err := value.Validate(); err != nil {
 		t.Fatalf("valid adapter metrics were rejected: %v", err)
 	}
-	value.Report.Runtime.Adapters[contracts.RuntimeAdapterOTLPHTTP] = RuntimeAdapterMetrics{
+	value.Report.Runtime.Adapters[runtimesettings.RuntimeAdapterOTLPHTTP] = RuntimeAdapterMetrics{
 		Operations: 1, FailedOperations: 2,
 	}
 	if err := value.Validate(); err == nil {
 		t.Fatal("adapter metrics with failures above operations were accepted")
 	}
-	value.Report.Runtime.Adapters = map[contracts.RuntimeAdapterRef]RuntimeAdapterMetrics{
+	value.Report.Runtime.Adapters = map[runtimesettings.RuntimeAdapterRef]RuntimeAdapterMetrics{
 		"unknown@1": {Operations: 1},
 	}
 	if err := value.Validate(); err == nil {
@@ -79,7 +81,7 @@ func TestExecutionReportValidatesWorkerSummarizerMetrics(t *testing.T) {
 	}
 }
 
-func TestMalformedRuntimeAdapterMetricsBecomeIncompleteInsteadOfBlockingReport(t *testing.T) {
+func TestSharedMalformedRuntimeAdapterMetricsBecomeIncompleteInsteadOfBlockingReport(t *testing.T) {
 	t.Parallel()
 
 	var wire map[string]any

@@ -1,18 +1,16 @@
-package planner
+package contracts
 
 import (
 	"sync"
 	"testing"
-
-	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
-func TestCloneWorkerHandleDetachesAgentCard(t *testing.T) {
-	original := contracts.WorkerHandle{AgentCard: map[string]any{
+func TestWorkerHandleCloneDetachesAgentCard(t *testing.T) {
+	original := WorkerHandle{AgentCard: map[string]any{
 		"name":                "worker",
 		"supportedInterfaces": []any{map[string]any{"url": "https://original.example/a2a"}},
 	}}
-	cloned := CloneWorkerHandle(original)
+	cloned := original.Clone()
 	cloned.AgentCard["name"] = "changed"
 	cloned.AgentCard["supportedInterfaces"].([]any)[0].(map[string]any)["url"] = "https://changed.example/a2a"
 	if original.AgentCard["name"] != "worker" {
@@ -27,8 +25,8 @@ func TestCloneWorkerHandleDetachesAgentCard(t *testing.T) {
 	}
 }
 
-func TestCloneWorkerHandleConcurrentReads(t *testing.T) {
-	original := contracts.WorkerHandle{AgentCard: map[string]any{"name": "worker"}}
+func TestWorkerHandleCloneConcurrentReads(t *testing.T) {
+	original := WorkerHandle{AgentCard: map[string]any{"name": "worker"}}
 	var group sync.WaitGroup
 	start := make(chan struct{})
 	for range 2 {
@@ -37,7 +35,7 @@ func TestCloneWorkerHandleConcurrentReads(t *testing.T) {
 			defer group.Done()
 			<-start
 			for range 20 {
-				if copy := CloneWorkerHandle(original); copy.AgentCard["name"] != "worker" {
+				if copy := original.Clone(); copy.AgentCard["name"] != "worker" {
 					t.Error("cloned card differs")
 				}
 			}
@@ -47,12 +45,12 @@ func TestCloneWorkerHandleConcurrentReads(t *testing.T) {
 	group.Wait()
 }
 
-func TestCloneWorkerHandleRejectsNonJSONCardWithoutSharingIt(t *testing.T) {
-	original := contracts.WorkerHandle{
+func TestWorkerHandleCloneRejectsNonJSONCardWithoutSharingIt(t *testing.T) {
+	original := WorkerHandle{
 		AllocationID: "allocation-1",
 		AgentCard:    map[string]any{"unsupported": make(chan struct{})},
 	}
-	cloned := CloneWorkerHandle(original)
+	cloned := original.Clone()
 	if cloned.AgentCard != nil || cloned.AllocationID != original.AllocationID {
 		t.Fatalf("invalid card must be omitted while retaining handle identity: %+v", cloned)
 	}

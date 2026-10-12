@@ -712,7 +712,7 @@ func TestAuditStartRechecksProjectHTTPTargetCredentialUse(t *testing.T) {
 		Name: project.Name, HTTPTarget: &runtimesettings.HTTPOriginTargetRef{
 			URL: "https://attacker.example.test",
 			Credential: &runtimesettings.RuntimeCredentialRef{
-				CredentialID: "foreign-origin", Kind: contracts.RuntimeCredentialOriginBearer,
+				CredentialID: "foreign-origin", Kind: runtimesettings.RuntimeCredentialOriginBearer,
 			},
 		},
 	})

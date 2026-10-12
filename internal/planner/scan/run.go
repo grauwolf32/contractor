@@ -14,15 +14,17 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 	contractscan "github.com/grauwolf32/contractor/internal/contracts/scan"
 	"github.com/grauwolf32/contractor/internal/planner"
+	"github.com/grauwolf32/contractor/internal/planner/stageresult"
 	"github.com/grauwolf32/contractor/internal/scanplan"
+	"github.com/grauwolf32/contractor/internal/strictjson"
 )
 
 // Allow journal writes to finish after invocation cancellation, but never wait
 // indefinitely for storage during recovery. This is not a scanner time budget.
 const journalIOTimeout = 5 * time.Second
 
-func (p *execution) Run(ctx context.Context) (contracts.StageContentResult, error) {
-	empty := contracts.StageContentResult{}
+func (p *execution) Run(ctx context.Context) (stageresult.StageContentResult, error) {
+	empty := stageresult.StageContentResult{}
 	start, err := p.factory.sessions.BeginScan(ctx, p.invocation.StageExecutionID, p.invocation.SchedulerClaimID)
 	if err != nil {
 		return empty, scanError("scan_session_unavailable", err)
@@ -84,7 +86,7 @@ func (p *execution) Run(ctx context.Context) (contracts.StageContentResult, erro
 				record.Status, record.Code = planner.ScanJobFailed, "scan_invalid_worker_result"
 			} else {
 				callCtx, cancel := context.WithDeadline(ctx, deadline)
-				completion, invokeErr := p.factory.invoker.Invoke(callCtx, job.Worker, planner.CloneWorkerHandle(p.invocation.Workers[job.Worker]), planner.CloneStageRequest(request))
+				completion, invokeErr := p.factory.invoker.Invoke(callCtx, job.Worker, p.invocation.Workers[job.Worker].Clone(), request.Clone())
 				cancel()
 				if invokeErr != nil {
 					record.Status, record.Code = planner.ScanJobUnknown, "scan_outcome_unknown"
@@ -201,7 +203,7 @@ func (p *execution) validateSavedInputs(ctx context.Context, job scanplan.ScanJo
 		if err != nil {
 			return err
 		}
-		data, err := contracts.MarshalPrivateCanonical(job.Request)
+		data, err := strictjson.Canonical(job.Request)
 		if err != nil || payload.MediaType != "application/vnd.contractor.http-request+json" || !bytes.Equal(payload.Data, data) {
 			return fmt.Errorf("saved scan input content differs")
 		}
@@ -219,7 +221,7 @@ func (p *execution) materialize(ctx context.Context, job scanplan.ScanJob) (map[
 		inputs[name] = ref.Clone()
 	}
 	if job.Request != nil {
-		data, err := contracts.MarshalPrivateCanonical(job.Request)
+		data, err := strictjson.Canonical(job.Request)
 		if err != nil {
 			return nil, err
 		}
@@ -237,7 +239,7 @@ func (p *execution) materialize(ctx context.Context, job scanplan.ScanJob) (map[
 }
 
 func (p *execution) request(job scanplan.ScanJob, record planner.ScanJobRecord, deadline time.Time) (contracts.StageContentRequest, error) {
-	request := contracts.StageContentRequest{APIVersion: contracts.APIVersion, SubtaskID: job.ID, Objective: p.invocation.Stage.Objective, Instructions: p.invocation.Stage.Instructions.Text, Parameters: job.Parameters, Artifacts: record.InputArtifacts, ResultArtifacts: map[string]contracts.ArtifactRef{job.Execution.ResultArtifact: p.jobOutput(job)}, Deadline: &deadline}
+	request := contracts.StageContentRequest{APIVersion: contracts.APIVersion, SubtaskID: job.ID, Objective: p.invocation.Stage.Objective, Instructions: p.invocation.Stage.Instructions.Text, Parameters: job.Parameters, Artifacts: record.InputArtifacts, ResultArtifacts: map[string]contracts.ArtifactRef{job.Execution.ResultArtifact: p.jobOutput(job)}, Deadline: deadline}
 	if err := request.Validate(); err != nil {
 		return contracts.StageContentRequest{}, err
 	}

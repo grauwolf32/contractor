@@ -13,6 +13,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -47,7 +48,7 @@ func TestCredentialFailuresClassifyRetryabilityAndLogSafeCause(t *testing.T) {
 				Credentials: credentialResolverFunc(func(context.Context, llmgateway.LLMCredentialRef, llmgateway.LLMGatewayConfigRef) (contracts.SecretString, error) {
 					return contracts.SecretString{}, test.err
 				}),
-				RuntimeCredentials: runtimeCredentialResolverFunc(func(context.Context, string, []contracts.RuntimeCredentialKind, func(contracts.RuntimeCredentialKind, []byte) error) error {
+				RuntimeCredentials: runtimeCredentialResolverFunc(func(context.Context, string, []runtimesettings.RuntimeCredentialKind, func(runtimesettings.RuntimeCredentialKind, []byte) error) error {
 					return test.err
 				}),
 			}}

@@ -59,7 +59,7 @@ cases:
     invariants: [I10, I11]
     faults: [F09]
     expected: Two real Runtimes complete Streamline and Router Runs while all retained non-payload surfaces stay content-free and a later Run starts empty.
-    test: {source: tests/e2e/shared_memory_test.go, symbol: TestSharedMemoryMVPProcesses}
+    test: {source: tests/e2e/shared_memory_test.go, symbol: TestMemoryMVPProcesses}
   - id: worker_transport_ambiguity
     category: concurrency
     faults: [F01]
@@ -129,7 +129,7 @@ cases:
     category: inventory
     faults: [F14]
     expected: Migrations OpenAPI and routers contain no Memory-only persistence route token or credential surface.
-    test: {source: tests/e2e/shared_memory_matrix_test.go, symbol: TestSharedMemoryUsesOnlyArtifactPlaneInventories}
+    test: {source: tests/e2e/shared_memory_matrix_test.go, symbol: TestMemoryUsesOnlyArtifactPlaneInventories}
   - id: owner_authorization
     category: isolation
     faults: [F15]

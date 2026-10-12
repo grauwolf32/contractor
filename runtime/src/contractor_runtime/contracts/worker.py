@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import re
 from datetime import datetime
-from enum import StrEnum
 from typing import Any, Literal, Self
 
 from pydantic import (
@@ -28,7 +27,6 @@ from contractor_runtime.contracts.base import (
     MAX_WORKER_RESULT_ARTIFACTS,
     WORKER_FAILURE_CODE_PATTERN,
     WORKER_SUBTASK_ID_PATTERN,
-    TerminationError,
     VersionedWireModel,
     WireModel,
     _bounded_completion,
@@ -58,11 +56,11 @@ class StageContentRequest(VersionedWireModel):
     result_artifacts: dict[str, ArtifactRef] = Field(
         default_factory=dict, exclude_if=lambda value: not value
     )
-    deadline: datetime | None = Field(default=None, exclude_if=lambda value: value is None)
+    deadline: datetime
 
     @field_validator("deadline", mode="before")
     @classmethod
-    def parse_wire_deadline(cls, value: datetime | str | None) -> datetime | None:
+    def parse_wire_deadline(cls, value: object) -> object:
         if isinstance(value, str):
             if _WIRE_DEADLINE.fullmatch(value) is None:
                 raise ValueError("deadline must be an RFC 3339 timestamp with an offset")
@@ -77,9 +75,7 @@ class StageContentRequest(VersionedWireModel):
         _require_worker_subtask_id(self.subtask_id)
         _require_text("objective", self.objective)
         _require_text("instructions", self.instructions)
-        if self.deadline is not None and (
-            self.deadline.tzinfo is None or self.deadline.utcoffset() is None
-        ):
+        if self.deadline.tzinfo is None or self.deadline.utcoffset() is None:
             raise ValueError("deadline must be timezone-aware")
         for key in self.parameters:
             _require_text("parameter name", key)
@@ -248,11 +244,6 @@ class WorkerStateWorkspaceInteraction(WireModel):
         return self
 
 
-class StageOutcome(StrEnum):
-    SUCCEEDED = "succeeded"
-    FAILED = "failed"
-
-
 class WorkerObservations(WireModel):
     profile: Literal["lean@1"]
     tools: dict[str, ToolObservationCount]
@@ -364,25 +355,6 @@ class WorkerStateWorkspaceObservation(WireModel):
             > MAX_STATE_WORKSPACE_PATH_BYTES
         ):
             raise ValueError("Worker State workspace interaction paths exceed their bound")
-        return self
-
-
-class StageContentResult(VersionedWireModel):
-    outcome: StageOutcome
-    summary: str
-    artifacts: dict[str, ArtifactRef]
-    error: TerminationError | None = None
-
-    @model_validator(mode="after")
-    def validate_result(self) -> Self:
-        _require_text("summary", self.summary)
-        if self.outcome is StageOutcome.SUCCEEDED and self.error is not None:
-            raise ValueError("successful result must not contain error")
-        if self.outcome is StageOutcome.FAILED and self.error is None:
-            raise ValueError("failed result requires error")
-        for key, artifact in self.artifacts.items():
-            _require_text("result artifact slot", key)
-            artifact.require_exact()
         return self
 
 

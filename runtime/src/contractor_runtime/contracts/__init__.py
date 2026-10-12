@@ -168,8 +168,6 @@ from contractor_runtime.contracts.settings import WorkerSummarizerConfig as Work
 from contractor_runtime.contracts.worker import AgentStateSnapshot as AgentStateSnapshot
 from contractor_runtime.contracts.worker import ContractorWorkerState as ContractorWorkerState
 from contractor_runtime.contracts.worker import StageContentRequest as StageContentRequest
-from contractor_runtime.contracts.worker import StageContentResult as StageContentResult
-from contractor_runtime.contracts.worker import StageOutcome as StageOutcome
 from contractor_runtime.contracts.worker import ToolObservationCount as ToolObservationCount
 from contractor_runtime.contracts.worker import (
     WorkerAllocationMetricsState as WorkerAllocationMetricsState,

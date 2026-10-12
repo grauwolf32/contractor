@@ -35,7 +35,7 @@ class SkillDisclosureFailure(RuntimeError):
 
 
 @pytest.mark.parametrize("case", TELEMETRY_SIZE_CASES, ids=lambda case: case["name"])
-def test_argument_summary_uses_shared_compact_utf8_limit(case):
+def test_shared_argument_summary_uses_shared_compact_utf8_limit(case):
     arguments = {"path": case["unit"] * case["repeat"]}
     assert (
         len(json.dumps(arguments, ensure_ascii=False, separators=(",", ":")).encode())
@@ -57,7 +57,7 @@ def test_argument_summary_uses_shared_compact_utf8_limit(case):
 
 
 @pytest.mark.parametrize("error_type", [AuditArgumentError, AuditCollectionError])
-def test_input_error_diagnostics_keep_repair_reason_and_redact_secrets(error_type):
+def test_shared_input_error_diagnostics_keep_repair_reason_and_redact_secrets(error_type):
     state = MetricsState()
     error = error_type("completed", f"Use the requested coverage. {SECRET}")
     error.details["invalidValue"] = "untrusted-input-must-not-be-logged"
@@ -72,7 +72,7 @@ def test_input_error_diagnostics_keep_repair_reason_and_redact_secrets(error_typ
     assert "untrusted-input-must-not-be-logged" not in encoded
 
 
-def test_short_secrets_never_garble_tool_names_codes_or_messages() -> None:
+def test_shared_short_secrets_never_garble_tool_names_codes_or_messages() -> None:
     state = MetricsState()
     state.record_tool_call(
         "read_artifact",
@@ -98,7 +98,7 @@ def test_short_secrets_never_garble_tool_names_codes_or_messages() -> None:
     assert set(report.metrics.tools) == {"read_artifact"}
 
 
-def test_long_secrets_stay_redacted_in_arguments_messages_and_codes() -> None:
+def test_shared_long_secrets_stay_redacted_in_arguments_messages_and_codes() -> None:
     private = "private-canary-value-0f3a9"
 
     class PrivateCode(RuntimeError):
@@ -124,7 +124,7 @@ def test_long_secrets_stay_redacted_in_arguments_messages_and_codes() -> None:
     assert private not in report.model_dump_json()
 
 
-def test_report_keeps_exact_aggregates_while_dropping_oldest_bounded_detail() -> None:
+def test_shared_report_keeps_exact_aggregates_while_dropping_oldest_bounded_detail() -> None:
     state = MetricsState()
     for index in range(MAX_METRIC_TOOL_CALLS + 5):
         error = ToolFailure(f"provider leaked {SECRET}") if index % 5 == 0 else None
@@ -179,7 +179,7 @@ def test_report_keeps_exact_aggregates_while_dropping_oldest_bounded_detail() ->
     )
 
 
-def test_argument_summary_redacts_nested_secrets_urls_and_artifact_bytes() -> None:
+def test_shared_argument_summary_redacts_nested_secrets_urls_and_artifact_bytes() -> None:
     state = MetricsState()
     state.record_tool_call(
         "write_artifact",
@@ -218,7 +218,7 @@ def test_argument_summary_redacts_nested_secrets_urls_and_artifact_bytes() -> No
     assert SECRET not in encoded
 
 
-def test_skill_metric_projects_only_validated_identity_outcome_and_result_size() -> None:
+def test_shared_skill_metric_projects_only_validated_identity_outcome_and_result_size() -> None:
     state = MetricsState()
     state.record_tool_call(
         "load_skill_resource",
@@ -249,7 +249,7 @@ def test_skill_metric_projects_only_validated_identity_outcome_and_result_size()
     assert "content must not be retained" not in encoded
 
 
-def test_allocation_counters_saturate_at_the_state_wire_limit() -> None:
+def test_shared_allocation_counters_saturate_at_the_state_wire_limit() -> None:
     state = MetricsState()
     state.record_model_usage(
         SimpleNamespace(

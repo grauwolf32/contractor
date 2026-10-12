@@ -95,11 +95,11 @@ func TestPostgresEvalRunOutputAndEvidenceReadTheArtifactStore(t *testing.T) {
 	}
 }
 
-// TestPostgresEvalBindsOnlyTheAuditItsMemberCreated checks the Audit binding
+// TestSharedPostgresEvalBindsOnlyTheAuditItsMemberCreated checks the Audit binding
 // of a member: auditstore resolves the Audit that the member's audit-create
 // key created, and BindExecution accepts exactly that Audit in the member's
 // workspace, not one that another key created there.
-func TestPostgresEvalBindsOnlyTheAuditItsMemberCreated(t *testing.T) {
+func TestSharedPostgresEvalBindsOnlyTheAuditItsMemberCreated(t *testing.T) {
 	pool := testPool(t)
 	ctx := context.Background()
 	scope := setupProject(t, pool, "owner", "eval")

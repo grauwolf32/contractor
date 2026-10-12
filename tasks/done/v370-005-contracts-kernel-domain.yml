@@ -1,0 +1,102 @@
+schema_version: "1.0"
+id: V370-005
+title: "Move domain logic out of the contracts kernel"
+milestone: hub-audit-structure-2026-10
+epic: api-contracts
+kind: chore
+priority: P2
+status: completed
+implementation_commit: "ab46d91e27f026ce167ed58212b0d70170ffdf74"
+depends_on: []
+languages: [go]
+goal: "No importer of contracts uses it only for non-wire symbols."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq; raw reports in docs/research/2026-10-11-hub-audit/), contracts B, F6; file:line as of 02bbdcbf, re-verify on current main"
+  finding: >-
+    19 of 37 importers of internal/contracts use no wire symbol; the kernel
+    holds CheckPinnedSelection, AuditTaskOpenAPIScanV1,
+    FindingCollectionMediaType, ValidateForPlanner, the audit-results@2 tool
+    names and RunSkillSnapshot; StageContentResult is a Server type in the
+    private catalog.
+  siblings: >-
+    Re-verified on fc25b5d (with V370-017, which had already taken
+    StageContentResult out of the private catalog and added the hub clones of
+    RunSkillSnapshot). Every listed symbol was still in the kernel, plus the
+    Runtime adapter and credential kinds (private.go) that the audit's F6
+    assigns to runtimesettings and MarshalPrivateCanonical, a wrapper of
+    strictjson.Canonical that auditpriority, auditscan, scanplan and
+    planner/scan used for domain digests. Counting the shared vocabulary that
+    the private wire defines (artifact refs and names, media types,
+    identifier grammars, SecretString, validation errors) as wire, as the
+    audit's expected effect does, two importers used the kernel only for
+    domain symbols: auditbaseline (RunSkillSnapshot) and auditpriority
+    (MarshalPrivateCanonical); both no longer import it. Kept in the kernel
+    because each importer also uses wire symbols: ExactArtifact (the exact
+    content descriptor beside ArtifactRef), ErrIdempotencyConflict (the
+    domain error kinds of V370-010), MaxWorkflowRunSkills and
+    AcceptsMediaType.
+  decision: >-
+    Each domain symbol moved to the lowest package that owns it and that
+    every user may import under internal/archtest: the pinned selection check
+    to contentdigest (a digest comparison shared by the run, Audit and Eval
+    services, with no domain package below all three); RunSkillSnapshot and
+    CloneRunSkills to agentskills, bounded by its package limits instead of
+    literals, with contracts.ValidateExactRunSkillRef shared with
+    ResolvedSkill; the Runtime adapter and credential kinds to
+    contracts/runtimesettings; AuditTaskContract, FindingCollectionMediaType,
+    ValidatePlannerModelPolicy (formerly ResolvedModelPolicy.ValidateForPlanner)
+    and the audit-results@2 rules (ValidateAuditCompletionTemplate,
+    ValidateWorkerCompletionSelection) to config, whose descriptor now names
+    the Toolset and its tools through the same constants. Two owners differ
+    from the scope text. Audit task contracts and the finding collection media
+    type go to config, not auditdomain: config uses them and sits below
+    auditdomain in the layer table. The Stage result goes to a new leaf
+    package internal/planner/stageresult (execution layer), not the planner
+    root: RunStore persists Stage results, and runstore importing planner
+    closes an import cycle in gatewayrecovery's integration test (planner
+    imports gatewayrecovery); the leaf also keeps RunStore and the public API
+    off the Planner implementations. The wire check of a completion contract
+    in an AllocationSpec is now WorkerCompletionContract.ValidateAllocation
+    (exact inputs, output in the allocation namespace); the Server applies
+    the Toolset rule where it already did, in the Scheduler's binding
+    requirements and the Control Plane's placement and prepare, and the Go
+    side of audit-completion-cases.json applies the strict decoding and that
+    rule, so the cases still hold Go and the Runtime to one verdict.
+    MarshalPrivateCanonical is deleted and every caller, wire fingerprints
+    included, calls strictjson.Canonical; its SEC-R88 note moved to the
+    codec. JSON names are unchanged. The byte-limit rule
+    (TestContractByteLimitsAreNotComparedWithJSONMarshal) also covers the
+    Stage result bounds in their new package. internal/archtest's
+    contractsImporters lists every importer of the kernel with wire symbols
+    it uses; TestContractsKernelImportersUseWireSymbols fails on an unlisted
+    importer, a stale entry and a listed symbol the package no longer uses,
+    and a synthetic test proves each rule fails; docs/development.md
+    describes it. Reversal: a symbol returns to the kernel only when the
+    private wire starts carrying it. Merge note: config gains four small
+    files and the descriptor edit, so the V370-006 config split moves them
+    with the rest of the data model. Verified: go build ./... and go vet
+    ./... with and without the e2e and integration tags; go test of
+    contracts/..., archtest, contentdigest, agentskills, config/...,
+    planner/..., auditdomain, auditpriority, auditscan, scanplan,
+    controlplane, findingintake, credentials/..., projectstore,
+    runtimeconfig, auditbaseline, auditimport and app, and the affected
+    tests of runstore, scheduler, auditservice, runservice, evalservice,
+    httpapi/public, auditcontroller, memory and telemetry, with the test
+    database; go test ./internal/... -run Contract; make
+    test-wire-cross-language (with f357f2b's findings reader fake, as for
+    V369-002); make lint.
+scope:
+  in:
+    - "Move each to its domain owner (auditdomain, agentskills, planner, runtimesettings); MarshalPrivateCanonical callers use strictjson.Canonical; archtest allowlist of contracts importers."
+  out:
+    - "Wire format (JSON tags unchanged)."
+acceptance_criteria:
+  - id: A1
+    text: "No importer of contracts uses it only for non-wire symbols."
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "go test ./internal/... -run Contract"
+    covers: [A1]
+  - command: "make test-wire-cross-language"
+    covers: [A1]

@@ -2,16 +2,20 @@ package resolved
 
 import (
 	"fmt"
-
-	"github.com/grauwolf32/contractor/internal/contracts"
 )
+
+// AuditTaskContract identifies the task payload accepted by an executor. It is
+// independent of the inventory implementation that produced that payload.
+type AuditTaskContract string
+
+const AuditTaskOpenAPIScanV1 AuditTaskContract = "openapi-scan@1"
 
 // AuditTaskExecution declares which task contract a Workflow accepts and which
 // Stage owns its execution/result. Surrounding Stages remain ordinary Workflow
 // graph nodes; the task Stage need not be the entry Stage.
 type AuditTaskExecution struct {
-	Contract contracts.AuditTaskContract `json:"contract" yaml:"contract"`
-	Stage    string                      `json:"stage" yaml:"stage"`
+	Contract AuditTaskContract `json:"contract" yaml:"contract"`
+	Stage    string            `json:"stage" yaml:"stage"`
 }
 
 func cloneAuditTask(value *AuditTaskExecution) *AuditTaskExecution {
@@ -39,7 +43,7 @@ func ValidateAuditTaskWorkflow(workflow ResolvedWorkflow) error {
 		return fmt.Errorf("auditTask.stage names an absent Stage")
 	}
 	switch execution.Contract {
-	case contracts.AuditTaskOpenAPIScanV1:
+	case AuditTaskOpenAPIScanV1:
 		if stage.AuditScan == nil {
 			return fmt.Errorf("%s requires an auditScan executor", execution.Contract)
 		}

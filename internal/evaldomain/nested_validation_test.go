@@ -32,7 +32,7 @@ func TestEvalCheckParameterNamesPreserveEvaluatorSpelling(t *testing.T) {
 	}
 }
 
-func TestEvalDatasetOutputNamesDoNotSelectSemanticDTO(t *testing.T) {
+func TestSharedEvalDatasetOutputNamesDoNotSelectSemanticDTO(t *testing.T) {
 	var dataset DatasetInput
 	if err := DecodeInto("DatasetInput", fixture(t, "dataset"), &dataset); err != nil {
 		t.Fatal(err)

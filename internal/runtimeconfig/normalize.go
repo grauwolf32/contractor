@@ -578,7 +578,7 @@ func materializeCaido(source optional[caidoSource]) (AtomicPatch[CaidoConfig], a
 		return patch, nil, nil
 	}
 	value := source.value
-	if value.Adapter != string(contracts.RuntimeAdapterCaidoGraphQL) {
+	if value.Adapter != string(runtimesettings.RuntimeAdapterCaidoGraphQL) {
 		return AtomicPatch[CaidoConfig]{}, nil, invalid("spec.worker.caido.adapter must be caido-graphql@1")
 	}
 	endpoint, err := validateURL("spec.worker.caido.endpoint", value.Endpoint)

@@ -93,10 +93,10 @@ func (s *Scheduler) materializeHTTPOriginTarget(
 	}
 	err := s.useRuntimeCredential(
 		ctx, reference.Credential.CredentialID,
-		[]contracts.RuntimeCredentialKind{contracts.RuntimeCredentialOriginBasic, contracts.RuntimeCredentialOriginBearer},
-		func(kind contracts.RuntimeCredentialKind, plaintext []byte) error {
+		[]runtimesettings.RuntimeCredentialKind{runtimesettings.RuntimeCredentialOriginBasic, runtimesettings.RuntimeCredentialOriginBearer},
+		func(kind runtimesettings.RuntimeCredentialKind, plaintext []byte) error {
 			switch kind {
-			case contracts.RuntimeCredentialOriginBasic:
+			case runtimesettings.RuntimeCredentialOriginBasic:
 				var material struct {
 					Password string `json:"password"`
 					Username string `json:"username"`
@@ -108,7 +108,7 @@ func (s *Scheduler) materializeHTTPOriginTarget(
 					Username: contracts.NewSecretString(material.Username),
 					Password: contracts.NewSecretString(material.Password),
 				}
-			case contracts.RuntimeCredentialOriginBearer:
+			case runtimesettings.RuntimeCredentialOriginBearer:
 				var material struct {
 					Token string `json:"token"`
 				}
@@ -160,7 +160,7 @@ func (s *Scheduler) materializeRuntimeSettings(
 	}
 	if resolved.WorkerTelemetry != nil {
 		telemetry := &runtimesettings.TelemetrySettings{
-			Adapter: contracts.RuntimeAdapterOTLPHTTP, Endpoint: resolved.WorkerTelemetry.Endpoint,
+			Adapter: runtimesettings.RuntimeAdapterOTLPHTTP, Endpoint: resolved.WorkerTelemetry.Endpoint,
 			Headers: map[string]contracts.SecretString{}, CaptureContent: resolved.WorkerTelemetry.CaptureContent,
 			FlushTimeoutSeconds: resolved.WorkerTelemetry.FlushTimeoutSeconds,
 		}
@@ -171,12 +171,12 @@ func (s *Scheduler) materializeRuntimeSettings(
 		telemetry.Export = &export
 		if credentialID := resolved.WorkerTelemetry.Credential; credentialID != "" {
 			if err := s.useRuntimeCredential(
-				ctx, credentialID, []contracts.RuntimeCredentialKind{contracts.RuntimeCredentialOTLPHeaders},
-				func(kind contracts.RuntimeCredentialKind, plaintext []byte) error {
+				ctx, credentialID, []runtimesettings.RuntimeCredentialKind{runtimesettings.RuntimeCredentialOTLPHeaders},
+				func(kind runtimesettings.RuntimeCredentialKind, plaintext []byte) error {
 					var material struct {
 						Headers map[string]string `json:"headers"`
 					}
-					if kind != contracts.RuntimeCredentialOTLPHeaders || strictjson.Decode(plaintext, &material) != nil {
+					if kind != runtimesettings.RuntimeCredentialOTLPHeaders || strictjson.Decode(plaintext, &material) != nil {
 						return errors.New("invalid OTLP credential material")
 					}
 					for name, value := range material.Headers {
@@ -192,7 +192,7 @@ func (s *Scheduler) materializeRuntimeSettings(
 	}
 	if resolved.HTTPProxy != nil {
 		proxy := &runtimesettings.HTTPProxySettings{
-			Adapter: contracts.RuntimeAdapterHTTPProxy, ProxyURL: resolved.HTTPProxy.ProxyURL,
+			Adapter: runtimesettings.RuntimeAdapterHTTPProxy, ProxyURL: resolved.HTTPProxy.ProxyURL,
 			Targets: make([]runtimesettings.HTTPProxyTarget, len(resolved.HTTPProxy.Targets)),
 		}
 		for index, target := range resolved.HTTPProxy.Targets {
@@ -205,12 +205,12 @@ func (s *Scheduler) materializeRuntimeSettings(
 		if credentialID := resolved.HTTPProxy.Credential; credentialID != "" {
 			if err := s.useRuntimeCredential(
 				ctx, credentialID,
-				[]contracts.RuntimeCredentialKind{
-					contracts.RuntimeCredentialProxyBasic, contracts.RuntimeCredentialProxyBearer,
+				[]runtimesettings.RuntimeCredentialKind{
+					runtimesettings.RuntimeCredentialProxyBasic, runtimesettings.RuntimeCredentialProxyBearer,
 				},
-				func(kind contracts.RuntimeCredentialKind, plaintext []byte) error {
+				func(kind runtimesettings.RuntimeCredentialKind, plaintext []byte) error {
 					switch kind {
-					case contracts.RuntimeCredentialProxyBasic:
+					case runtimesettings.RuntimeCredentialProxyBasic:
 						var material struct {
 							Password string `json:"password"`
 							Username string `json:"username"`
@@ -222,7 +222,7 @@ func (s *Scheduler) materializeRuntimeSettings(
 							Username: contracts.NewSecretString(material.Username),
 							Password: contracts.NewSecretString(material.Password),
 						}
-					case contracts.RuntimeCredentialProxyBearer:
+					case runtimesettings.RuntimeCredentialProxyBearer:
 						var material struct {
 							Token string `json:"token"`
 						}
@@ -251,7 +251,7 @@ func (s *Scheduler) materializeRuntimeSettings(
 			timeout = runtimesettings.MaxCaidoRequestTimeoutSeconds
 		}
 		caido := &runtimesettings.CaidoSettings{
-			Adapter: contracts.RuntimeAdapterCaidoGraphQL, Endpoint: resolved.Caido.Endpoint,
+			Adapter: runtimesettings.RuntimeAdapterCaidoGraphQL, Endpoint: resolved.Caido.Endpoint,
 			RequestTimeoutSeconds: timeout,
 		}
 		if resolved.Caido.CABundlePEM != "" {
@@ -260,12 +260,12 @@ func (s *Scheduler) materializeRuntimeSettings(
 		}
 		if credentialID := resolved.Caido.Credential; credentialID != "" {
 			if err := s.useRuntimeCredential(
-				ctx, credentialID, []contracts.RuntimeCredentialKind{contracts.RuntimeCredentialCaidoBearer},
-				func(kind contracts.RuntimeCredentialKind, plaintext []byte) error {
+				ctx, credentialID, []runtimesettings.RuntimeCredentialKind{runtimesettings.RuntimeCredentialCaidoBearer},
+				func(kind runtimesettings.RuntimeCredentialKind, plaintext []byte) error {
 					var material struct {
 						Token string `json:"token"`
 					}
-					if kind != contracts.RuntimeCredentialCaidoBearer || strictjson.Decode(plaintext, &material) != nil {
+					if kind != runtimesettings.RuntimeCredentialCaidoBearer || strictjson.Decode(plaintext, &material) != nil {
 						return errors.New("invalid Caido credential material")
 					}
 					token := contracts.NewSecretString(material.Token)
@@ -287,8 +287,8 @@ func (s *Scheduler) materializeRuntimeSettings(
 func (s *Scheduler) useRuntimeCredential(
 	ctx context.Context,
 	credentialID string,
-	allowed []contracts.RuntimeCredentialKind,
-	consumer func(contracts.RuntimeCredentialKind, []byte) error,
+	allowed []runtimesettings.RuntimeCredentialKind,
+	consumer func(runtimesettings.RuntimeCredentialKind, []byte) error,
 ) error {
 	if s.options.RuntimeCredentials == nil {
 		return errors.New("Runtime credential service is unavailable")

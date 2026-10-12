@@ -74,7 +74,7 @@ ASCII_ONLY_ENTRY_POINTS = frozenset({"ffuf-url", "sqlmap-request"})
 
 
 @pytest.mark.parametrize(("host", "authority", "accepted"), CASES)
-def test_one_host_rule_for_http_caido_and_scanners(
+def test_shared_one_host_rule_for_http_caido_and_scanners(
     host: str, authority: str, accepted: bool
 ) -> None:
     del authority
@@ -91,7 +91,7 @@ def test_one_host_rule_for_http_caido_and_scanners(
 
 @pytest.mark.parametrize("entry_point", sorted(SCANNER_ENTRY_POINTS))
 @pytest.mark.parametrize(("host", "authority", "accepted"), CASES)
-def test_scanner_entry_points_apply_the_shared_host_rule(
+def test_shared_scanner_entry_points_apply_the_shared_host_rule(
     entry_point: str, host: str, authority: str, accepted: bool
 ) -> None:
     validate = SCANNER_ENTRY_POINTS[entry_point]
@@ -106,7 +106,7 @@ def test_scanner_entry_points_apply_the_shared_host_rule(
 
 @pytest.mark.parametrize("route", ["direct", "proxy"])
 @pytest.mark.parametrize(("host", "authority"), REJECTED_HOSTS)
-def test_http_request_shares_the_scanner_host_rule(
+def test_shared_http_request_shares_the_scanner_host_rule(
     tmp_path: Path, route: str, host: str, authority: str
 ) -> None:
     del host
@@ -146,7 +146,7 @@ def test_http_request_shares_the_scanner_host_rule(
 
 
 @pytest.mark.parametrize(("host", "authority", "accepted"), CASES)
-def test_caido_raw_replay_applies_the_shared_host_rule(
+def test_shared_caido_raw_replay_applies_the_shared_host_rule(
     tmp_path: Path, host: str, authority: str, accepted: bool
 ) -> None:
     del authority
@@ -207,7 +207,7 @@ def test_caido_raw_replay_applies_the_shared_host_rule(
     asyncio.run(scenario())
 
 
-def test_caido_connection_hosts_accept_only_bracketed_ipv6_literals(tmp_path: Path) -> None:
+def test_shared_caido_connection_hosts_accept_only_bracketed_ipv6_literals(tmp_path: Path) -> None:
     operations: list[str] = []
 
     async def handler(request: httpx.Request) -> httpx.Response:
@@ -251,7 +251,7 @@ def test_caido_connection_hosts_accept_only_bracketed_ipv6_literals(tmp_path: Pa
     asyncio.run(scenario())
 
 
-def test_scanners_launch_docker_compose_service_names(tmp_path: Path, monkeypatch) -> None:
+def test_shared_scanners_launch_docker_compose_service_names(tmp_path: Path, monkeypatch) -> None:
     install_echo_scanners(tmp_path, monkeypatch)
 
     async def scenario() -> None:
