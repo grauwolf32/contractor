@@ -5,7 +5,8 @@ milestone: hub-audit-defects-2026-10
 epic: projects-artifacts
 kind: defect
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: "d32f03cfd7efd421a61806cef50e0d8877448b27"
 depends_on: []
 languages: [go, sql, markdown]
 goal: "ART-R90, ART-R97, RUN-R47 and the Scheduler's output binding state the same rule for an outputs/<slot> binding that already exists, chosen with the user and recorded with its evidence and reversal condition."
