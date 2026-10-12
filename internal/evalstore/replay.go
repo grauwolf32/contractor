@@ -4,9 +4,8 @@ import (
 	"context"
 	"errors"
 
-	pg "github.com/grauwolf32/contractor/internal/persistence/postgres"
-
 	"github.com/grauwolf32/contractor/internal/evaldomain"
+	pg "github.com/grauwolf32/contractor/internal/persistence/postgres"
 )
 
 // Replay is an authenticated fast path before mutable catalog preflight. Create

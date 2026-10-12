@@ -5,10 +5,9 @@ import (
 	"errors"
 	"time"
 
-	pg "github.com/grauwolf32/contractor/internal/persistence/postgres"
-
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/evaldomain"
+	pg "github.com/grauwolf32/contractor/internal/persistence/postgres"
 )
 
 type Claim struct {

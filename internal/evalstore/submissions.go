@@ -6,10 +6,9 @@ import (
 	"errors"
 
 	"github.com/grauwolf32/contractor/internal/auditstore"
-	pg "github.com/grauwolf32/contractor/internal/persistence/postgres"
-
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/evaldomain"
+	pg "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
 )
 

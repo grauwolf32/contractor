@@ -3,9 +3,8 @@ package evalstore
 import (
 	"context"
 
-	pg "github.com/grauwolf32/contractor/internal/persistence/postgres"
-
 	"github.com/grauwolf32/contractor/internal/evaldomain"
+	pg "github.com/grauwolf32/contractor/internal/persistence/postgres"
 )
 
 func (s *Store) BeginDeletion(ctx context.Context, scope Scope, id string, mutation evaldomain.MutationIdentity) (Receipt, error) {

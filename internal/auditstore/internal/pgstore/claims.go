@@ -5,9 +5,8 @@ import (
 	"errors"
 	"fmt"
 
-	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
-
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 )
 
 // auditClaims is the Audit controller's claim table, leased and checked

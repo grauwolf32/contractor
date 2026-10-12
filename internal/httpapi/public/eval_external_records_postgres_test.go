@@ -9,11 +9,10 @@ import (
 	"testing"
 	"time"
 
-	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
-
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 	"github.com/grauwolf32/contractor/internal/evalservice"
 	"github.com/grauwolf32/contractor/internal/evalstore"
+	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 )
 
 func TestEvalPostgresExternalResultsRevisionsAndExplicitSelection(t *testing.T) {

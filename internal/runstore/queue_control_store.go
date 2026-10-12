@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
-
 	"github.com/jackc/pgx/v5"
 )
 

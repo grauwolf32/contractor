@@ -7,10 +7,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/evaldomain"
 	pg "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
-
-	"github.com/grauwolf32/contractor/internal/evaldomain"
 )
 
 // ScopeForMutation also finds retained receipts after experiment purge. It
