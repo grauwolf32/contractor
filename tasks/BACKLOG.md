@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-84 open tasks: 3 in progress, 67 pending, 14 deferred. 812 finished: 809 completed, 3 archived.
+83 open tasks: 3 in progress, 66 pending, 14 deferred. 813 finished: 810 completed, 3 archived.
 
 ## In progress
 
@@ -47,12 +47,6 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V55-009](v55-009-scan-candidate-ranking.yml) | feature | P2 | — | Optionally rank existing scan candidates with an LLM |
-
-### Findings tools and collections (`findings`)
-
-| Task | Kind | Priority | Waiting for | Title |
-| --- | --- | --- | --- | --- |
-| [V370-029](v370-029-collection-publication-batches.yml) | defect | P3 | — | Batch the finding collection publication reads |
 
 ### Workflow catalog and document workflows (`workflows`)
 
@@ -184,7 +178,7 @@ tasks in `introduced_by`.
 | Code analysis and taint annotations (`code-analysis`) | 0 | 13 | 12 | 2 | 17 |
 | HTTP and Caido tools (`http-tools`) | 0 | 8 | 11 | 1 | 10 |
 | Scanner tool Workers and scan planning (`scan-tools`) | 1 | 10 | 4 | 1 | 7 |
-| Findings tools and collections (`findings`) | 1 | 7 | 4 | 1 | 6 |
+| Findings tools and collections (`findings`) | 0 | 7 | 4 | 1 | 7 |
 | Workflow catalog and document workflows (`workflows`) | 6 | 13 | 13 | 8 | 11 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 2 | 27 | 31 | 3 | 33 |
 | Audits (`audits`) | 24 | 49 | 64 | 12 | 72 |
