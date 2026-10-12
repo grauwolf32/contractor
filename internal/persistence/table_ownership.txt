@@ -157,9 +157,14 @@ internal/findingintake       audit_events                   Collection listing a
     finding.proposal_rejected events.
 internal/findingintake       audit_executions               Trusted execution checks match a proposal to its Audit
     execution.
+internal/findingintake       audit_finding_assessments      Collection listing reports which receipts have a direct
+    verification assessment; direct verification replays its assessment by identity.
 internal/findingintake       audit_finding_contributions    Collection authorization and direct verification find the
     contribution of a receipt.
 internal/findingintake       audit_review_requests          Proposal import refuses an Audit with a pending report review.
+internal/findingintake       audits                         Receipt reads, inboxes and collection publication check the
+    Audit's owner and Project; finding provenance reads its confirmation policy; import checks its state and
+    policy and direct verification its evidence budget under the Audit lock that auditstore takes.
 internal/findingintake       projects                       Collection capture checks that the hold's Audit belongs to its
     Project.
 internal/findingintake       stage_allocations              Trusted execution checks match the proposal's grant to its live
@@ -230,45 +235,4 @@ internal/auditservice        write   audit_review_requests             V370-004 
     row FOR UPDATE.
 internal/auditservice        write   audits                            V370-004  Review decisions and Audit resume lock
     the Audit row FOR UPDATE.
-
-internal/artifacts           write   workflow_run_output_publications  V370-002  PurgeRun and PurgeProject delete the
-    Run output publication receipts.
-internal/auditstore          write   projects                          V370-002  Project-owned Audit deletion locks the
-    deleting Project row under its deletion claim.
-internal/auditstore          write   scheduler_settings                V370-002  Execution intents lock the scheduler
-    settings row FOR UPDATE with the Audit to read max_concurrent_runs.
-internal/credentials         read    audits                            V370-002  Runtime credential usage reads held
-    Audit baselines, where LLM credential usage asks auditstore.
-internal/evalstore           read    artifact_binding_revisions        V370-002  Run output and evidence metadata copy
-    the artifact metadata query.
-internal/evalstore           read    artifact_bindings                 V370-002  Run output metadata copies the artifact
-    metadata query.
-internal/evalstore           read    artifact_blobs                    V370-002  Run output and evidence metadata copy
-    the artifact metadata query.
-internal/evalstore           read    artifact_versions                 V370-002  Run output and evidence metadata copy
-    the artifact metadata query.
-internal/evalstore           read    audit_idempotency                 V370-002  Execution binding matches an Audit
-    through its create idempotency record.
-internal/findingintake       write   audit_artifact_links              V370-002  Direct verification links its result
-    Artifact to the Audit.
-internal/findingintake       write   audit_finding_assessments         V370-002  Direct verification inserts its
-    assessment.
-internal/findingintake       write   audit_findings                    V370-002  Direct verification recomputes the
-    current assessment of the finding.
-internal/findingintake       write   audits                            V370-002  Proposal import and collection
-    rejection lock the Audit row FOR UPDATE.
-internal/projectlifecycle    write   projects                          V370-002  The deletion controller claims deleting
-    Projects and advances their deletion phase.
-internal/rundeletion         read    finding_proposal_audit_holds      V370-002  Run deletion reads the holds of the
-    receipts it tombstones.
-internal/rundeletion         write   finding_proposal_receipts         V370-002  Run deletion tombstones the retention
-    state of the Run's proposal receipts.
-internal/runstore            write   artifact_bindings                 V370-002  ResumeFailedRun thaws the Run's output
-    bindings.
-internal/scheduler           read    artifact_binding_revisions        V370-002  Required output verification copies
-    the artifact metadata query.
-internal/scheduler           read    artifact_bindings                 V370-002  Required output verification copies
-    the artifact metadata query.
-internal/scheduler           read    artifact_versions                 V370-002  Required output verification copies
-    the artifact metadata query.
 

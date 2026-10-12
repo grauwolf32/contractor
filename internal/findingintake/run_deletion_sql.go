@@ -1,13 +1,13 @@
-package rundeletion
+package findingintake
 
-// SQL statements for deleter.go.
+// SQL statements for run_deletion.go.
 
-// markProposalSourceRunDeletedSQL tombstones the retention state of every
-// finding proposal received from Run $1: it sets source_run_deleted_at and
-// moves the state to 'audit-held' when an Audit hold exists, otherwise to
-// 'discarded' with discarded_at. Existing timestamps are kept.
-// Used by deleteReleasedTerminalRun.
-var markProposalSourceRunDeletedSQL = `
+// markSourceRunDeletedSQL tombstones the retention state of every finding
+// proposal received from Run $1: it sets source_run_deleted_at and moves the
+// state to 'audit-held' when an Audit hold exists, otherwise to 'discarded'
+// with discarded_at. Existing timestamps are kept.
+// Used by MarkSourceRunDeleted.
+var markSourceRunDeletedSQL = `
 UPDATE finding_proposal_receipts AS receipt
    SET source_run_deleted_at = COALESCE(receipt.source_run_deleted_at, clock_timestamp()),
        retention_state = CASE WHEN EXISTS (

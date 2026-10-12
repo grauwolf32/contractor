@@ -21,7 +21,6 @@ import (
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
-	"github.com/grauwolf32/contractor/internal/rundeletion"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/jackc/pgx/v5"
@@ -53,7 +52,7 @@ func TestPostgresFindingImportSerializesWithRunDeletion(t *testing.T) {
 		}
 		deleted := make(chan error, 1)
 		go func() {
-			deleted <- rundeletion.New(deletePool).DeleteReleasedTerminalRun(f.ctx, f.request.OwnerID, f.request.RunID)
+			deleted <- deleteRun(f.ctx, deletePool, f.request.OwnerID, f.request.RunID)
 		}()
 		awaitDeletionDatabaseWait(t, f, deletePID, importPID, "FROM workflow_runs")
 		gate.release()
@@ -78,7 +77,7 @@ func TestPostgresFindingImportSerializesWithRunDeletion(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer func() { _ = tx.Rollback(context.Background()) }()
-			if err := rundeletion.New(tx).DeleteReleasedTerminalRun(f.ctx, f.request.OwnerID, f.request.RunID); err != nil {
+			if err := deleteRun(f.ctx, tx, f.request.OwnerID, f.request.RunID); err != nil {
 				t.Fatal(err)
 			}
 			importPool, importPID := deletionActorPool(t, f, nil)
@@ -167,7 +166,7 @@ func TestPostgresFindingRunDeletionSerializesWithAuditPurge(t *testing.T) {
 			actorPool, actorPID := deletionActorPool(t, f, nil)
 			finished := make(chan error, 1)
 			if first == "run deletion" {
-				if err := rundeletion.New(tx).DeleteReleasedTerminalRun(f.ctx, f.request.OwnerID, f.request.RunID); err != nil {
+				if err := deleteRun(f.ctx, tx, f.request.OwnerID, f.request.RunID); err != nil {
 					t.Fatal(err)
 				}
 				go func() { finished <- auditstore.NewPostgresStore(actorPool).PurgeClaimed(f.ctx, claim, namespace) }()
@@ -176,7 +175,7 @@ func TestPostgresFindingRunDeletionSerializesWithAuditPurge(t *testing.T) {
 					t.Fatal(err)
 				}
 				go func() {
-					finished <- rundeletion.New(actorPool).DeleteReleasedTerminalRun(f.ctx, f.request.OwnerID, f.request.RunID)
+					finished <- deleteRun(f.ctx, actorPool, f.request.OwnerID, f.request.RunID)
 				}()
 			}
 			waitingQuery := "ORDER BY audit.audit_id"

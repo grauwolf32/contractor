@@ -11,6 +11,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/pagelimit"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/runstore"
+	"github.com/grauwolf32/contractor/internal/settingsstore"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -678,10 +679,11 @@ SELECT `+prefixedAuditColumns("audit")+`
 		return ReconcileSnapshot{}, fmt.Errorf("read claimed Audit: %w", err)
 	}
 	result := ReconcileSnapshot{Audit: audit}
-	if err := s.db.QueryRow(ctx, `
-SELECT max_concurrent_runs FROM scheduler_settings WHERE singleton = true`).Scan(&result.MaxConcurrentRuns); err != nil {
+	settings, err := settingsstore.NewPostgresStore(s.db).GetSchedulerSettings(ctx)
+	if err != nil {
 		return ReconcileSnapshot{}, fmt.Errorf("read Audit dispatch window: %w", err)
 	}
+	result.MaxConcurrentRuns = settings.MaxConcurrentRuns
 	if audit.CurrentRoundID != nil {
 		round, roundErr := s.GetRound(ctx, audit.AuditID, *audit.CurrentRoundID)
 		if roundErr != nil {

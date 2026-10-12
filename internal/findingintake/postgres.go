@@ -561,21 +561,25 @@ SELECT project_id FROM workflow_runs
 	if err != nil {
 		return fmt.Errorf("lock source Run for Audit finding import: %w", err)
 	}
-	var lockedAuditID, auditState string
-	err = tx.QueryRow(ctx, `
-SELECT audit_id, state FROM audits
- WHERE audit_id = $1 AND owner_id = $2 AND project_id = $3
- FOR UPDATE`, request.AuditID, request.OwnerID, sourceProjectID).Scan(&lockedAuditID, &auditState)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return ErrNotFound
-	}
+	auditState, err := lockFindingAudit(ctx, tx, request.OwnerID, request.AuditID, sourceProjectID)
 	if err != nil {
-		return fmt.Errorf("lock destination Audit for finding import: %w", err)
+		return err
 	}
 	if collection && !slices.Contains(collectionRetentionAuditStates, auditState) {
 		return ErrAuditClosed
 	}
 	return nil
+}
+
+// lockFindingAudit takes the destination-Audit lock of finding intake through
+// auditstore, which owns the Audit row, and returns the Audit's state. An
+// empty projectID admits an Audit of any Project.
+func lockFindingAudit(ctx context.Context, tx pgx.Tx, ownerID, auditID, projectID string) (string, error) {
+	state, err := auditstore.NewPostgresTxStore(tx).LockFindingIntakeAudit(ctx, ownerID, auditID, projectID)
+	if errors.Is(err, auditstore.ErrNotFound) {
+		return "", ErrNotFound
+	}
+	return string(state), err
 }
 
 // importIntoAuditWithTx creates or replays one Audit hold in tx, which already
@@ -714,16 +718,9 @@ func (s *Service) RejectAuditCollection(
 		return ErrInvalid
 	}
 	return persistencepostgres.InTx(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		var auditState string
-		err := tx.QueryRow(ctx, `
-SELECT state FROM audits
- WHERE audit_id = $1 AND owner_id = $2
- FOR UPDATE`, request.AuditID, request.OwnerID).Scan(&auditState)
-		if errors.Is(err, pgx.ErrNoRows) {
-			return ErrNotFound
-		}
+		auditState, err := lockFindingAudit(ctx, tx, request.OwnerID, request.AuditID, "")
 		if err != nil {
-			return fmt.Errorf("lock Audit for finding proposal rejection: %w", err)
+			return err
 		}
 		if !slices.Contains(collectionRetentionAuditStates, auditState) {
 			return ErrAuditClosed

@@ -21,6 +21,7 @@ type RuntimeCredentialServiceOptions struct {
 	Pool    *pgxpool.Pool
 	Cipher  *TokenCipher
 	Usage   RuntimeCredentialUsageChecker
+	Audits  RuntimeCredentialAuditHoldLookup
 	Barrier *LifecycleBarrier
 	Now     func() time.Time
 }
@@ -30,13 +31,14 @@ type RuntimeCredentialService struct {
 	repository *RuntimeCredentialRepository
 	cipher     *TokenCipher
 	usage      RuntimeCredentialUsageChecker
+	audits     RuntimeCredentialAuditHoldLookup
 	barrier    *LifecycleBarrier
 	now        func() time.Time
 	mu         sync.Mutex
 }
 
 func NewRuntimeCredentialService(options RuntimeCredentialServiceOptions) (*RuntimeCredentialService, error) {
-	if options.Pool == nil || options.Usage == nil || options.Barrier == nil {
+	if options.Pool == nil || options.Usage == nil || options.Audits == nil || options.Barrier == nil {
 		return nil, errors.New("Runtime credential lifecycle dependencies are incomplete")
 	}
 	if options.Now == nil {
@@ -44,7 +46,8 @@ func NewRuntimeCredentialService(options RuntimeCredentialServiceOptions) (*Runt
 	}
 	return &RuntimeCredentialService{
 		pool: options.Pool, repository: NewRuntimeCredentialRepository(options.Pool),
-		cipher: options.Cipher, usage: options.Usage, barrier: options.Barrier, now: options.Now,
+		cipher: options.Cipher, usage: options.Usage, audits: options.Audits,
+		barrier: options.Barrier, now: options.Now,
 	}, nil
 }
 
@@ -273,6 +276,11 @@ func (s *RuntimeCredentialService) Delete(
 			return getErr
 		}
 		usage, usageErr := s.usage.InspectRuntimeCredentialUsage(ctx, credentialID, maximumRuntimeCredentialReferences)
+		if usageErr == nil {
+			usage.AuditIDs, usageErr = s.audits.ListHeldAuditIDsByRuntimeCredential(
+				ctx, credentialID, maximumRuntimeCredentialReferences,
+			)
+		}
 		if usageErr != nil {
 			if contextError := ctx.Err(); contextError != nil {
 				return contextError

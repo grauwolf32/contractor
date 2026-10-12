@@ -209,35 +209,22 @@ func (c *Controller) purgeClaimDuration() time.Duration {
 	return c.options.ClaimDuration + extra
 }
 
-type deletionClaim struct {
-	ProjectID string
-	OwnerID   string
-	ClaimID   string
-	Phase     projectstore.DeletionPhase
-}
-
-func (c *Controller) claim(ctx context.Context, claimID string) (deletionClaim, error) {
-	var claim deletionClaim
-	claim.ClaimID = claimID
-	err := c.pool.QueryRow(ctx, claimProjectDeletionSQL,
-		claimID, c.options.ClaimDuration.Microseconds(), c.purgeClaimDuration().Microseconds(),
-		projectstore.DeletionPurgingRuns, projectstore.DeletionPurgingArtifacts,
-	).Scan(&claim.ProjectID, &claim.OwnerID, &claim.Phase)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return deletionClaim{}, errNoDeletion
-	}
+func (c *Controller) claim(ctx context.Context, claimID string) (projectstore.DeletionClaim, error) {
+	claim, found, err := projectstore.NewPostgresStore(c.pool).ClaimDeletion(ctx, projectstore.ClaimDeletionParams{
+		ClaimID: claimID, Duration: c.options.ClaimDuration, PurgeDuration: c.purgeClaimDuration(),
+	})
 	if err != nil {
-		return deletionClaim{}, fmt.Errorf("claim Project deletion: %w", err)
+		return projectstore.DeletionClaim{}, err
 	}
-	if !claim.Phase.Valid() {
-		return deletionClaim{}, errors.New("claimed Project deletion phase is invalid")
+	if !found {
+		return projectstore.DeletionClaim{}, errNoDeletion
 	}
 	return claim, nil
 }
 
 func (c *Controller) advance(
 	ctx context.Context,
-	claim deletionClaim,
+	claim projectstore.DeletionClaim,
 ) (worked bool, completed bool, err error) {
 	if claim.Phase == projectstore.DeletionCancelling || claim.Phase == projectstore.DeletionDraining {
 		// Recheck while draining so deletions already stranded by a skipped
@@ -268,13 +255,9 @@ func (c *Controller) advance(
 // before generic Run cancellation advances. The Audit controller remains the
 // sole owner of collection, hold release, child-Run deletion and Audit purge.
 func (c *Controller) requestOneAuditDeletion(
-	ctx context.Context, claim deletionClaim,
+	ctx context.Context, claim projectstore.DeletionClaim,
 ) (bool, error) {
-	changed, err := auditstore.NewPostgresStore(c.pool).RequestProjectOwnedDeletion(ctx,
-		auditstore.ProjectDeletionClaim{
-			ProjectID: claim.ProjectID, OwnerID: claim.OwnerID,
-			ClaimID: claim.ClaimID, Phase: string(claim.Phase),
-		})
+	changed, err := auditstore.NewPostgresStore(c.pool).RequestProjectOwnedDeletion(ctx, claim)
 	if err != nil {
 		return false, fmt.Errorf("request Project Audit deletion: %w", err)
 	}
@@ -283,7 +266,7 @@ func (c *Controller) requestOneAuditDeletion(
 
 func (c *Controller) cancelOneRun(
 	ctx context.Context,
-	claim deletionClaim,
+	claim projectstore.DeletionClaim,
 ) (bool, bool, error) {
 	var runID string
 	err := c.pool.QueryRow(ctx, `
@@ -330,7 +313,7 @@ SELECT EXISTS (
 
 func (c *Controller) waitForDrain(
 	ctx context.Context,
-	claim deletionClaim,
+	claim projectstore.DeletionClaim,
 ) (bool, bool, error) {
 	if blocked, err := evalstore.NewPostgresStore(c.pool).ProjectBlocked(ctx, claim.OwnerID, claim.ProjectID); err != nil || blocked {
 		return false, false, err
@@ -348,7 +331,7 @@ func (c *Controller) waitForDrain(
 
 func (c *Controller) purgeOneRun(
 	ctx context.Context,
-	claim deletionClaim,
+	claim projectstore.DeletionClaim,
 ) (bool, bool, error) {
 	var runID string
 	err := c.pool.QueryRow(ctx, `
@@ -371,63 +354,21 @@ LIMIT 1`, claim.ProjectID, claim.OwnerID).Scan(&runID)
 
 func (c *Controller) advancePhase(
 	ctx context.Context,
-	claim deletionClaim,
+	claim projectstore.DeletionClaim,
 	next projectstore.DeletionPhase,
 ) (bool, bool, error) {
-	tag, err := c.pool.Exec(ctx, `
-UPDATE projects
-SET deletion_phase = $4,
-    revision = revision + 1,
-    updated_at = GREATEST(clock_timestamp(), updated_at + interval '1 microsecond')
-WHERE project_id = $1 AND owner_id = $2
-  AND lifecycle_state = 'deleting' AND deletion_phase = $3
-  AND deletion_claim_id = $5`,
-		claim.ProjectID, claim.OwnerID, claim.Phase, next, claim.ClaimID,
-	)
-	if err != nil {
-		return false, false, fmt.Errorf("advance Project deletion phase: %w", err)
-	}
-	if tag.RowsAffected() != 1 {
-		return false, false, errors.New("Project deletion claim was lost")
+	if err := projectstore.NewPostgresStore(c.pool).AdvanceDeletion(ctx, claim, next); err != nil {
+		return false, false, err
 	}
 	return true, false, nil
 }
 
-func (c *Controller) releaseClaim(ctx context.Context, claim deletionClaim) error {
-	tag, err := c.pool.Exec(ctx, `
-UPDATE projects
-SET deletion_claim_id = NULL,
-    deletion_claimed_at = NULL,
-    deletion_claim_expires_at = NULL
-WHERE project_id = $1 AND owner_id = $2 AND deletion_claim_id = $3`,
-		claim.ProjectID, claim.OwnerID, claim.ClaimID,
-	)
-	if err != nil {
-		return fmt.Errorf("release Project deletion claim: %w", err)
-	}
-	if tag.RowsAffected() != 1 {
-		return errors.New("Project deletion claim was lost")
-	}
-	return nil
+func (c *Controller) releaseClaim(ctx context.Context, claim projectstore.DeletionClaim) error {
+	return projectstore.NewPostgresStore(c.pool).ReleaseDeletionClaim(ctx, claim)
 }
 
-func (c *Controller) deferClaim(ctx context.Context, claim deletionClaim) error {
-	tag, err := c.pool.Exec(ctx, `
-UPDATE projects
-SET deletion_claim_expires_at = GREATEST(
-        clock_timestamp() + ($4::bigint * interval '1 microsecond'),
-        deletion_claimed_at + interval '1 microsecond'
-    )
-WHERE project_id = $1 AND owner_id = $2 AND deletion_claim_id = $3`,
-		claim.ProjectID, claim.OwnerID, claim.ClaimID, c.options.PollInterval.Microseconds(),
-	)
-	if err != nil {
-		return fmt.Errorf("defer Project deletion claim: %w", err)
-	}
-	if tag.RowsAffected() != 1 {
-		return errors.New("Project deletion claim was lost")
-	}
-	return nil
+func (c *Controller) deferClaim(ctx context.Context, claim projectstore.DeletionClaim) error {
+	return projectstore.NewPostgresStore(c.pool).DeferDeletionClaim(ctx, claim, c.options.PollInterval)
 }
 
 // purgeProject advances the Project purge by one bounded transaction
@@ -437,22 +378,12 @@ WHERE project_id = $1 AND owner_id = $2 AND deletion_claim_id = $3`,
 // proposal receipts (DEL-R61) and, once none is left, removes one ProjectScope
 // purge batch, or, when the scope is already empty, the scope and the Project
 // row. It reports whether the Project is gone.
-func (c *Controller) purgeProject(ctx context.Context, claim deletionClaim) (bool, error) {
+func (c *Controller) purgeProject(ctx context.Context, claim projectstore.DeletionClaim) (bool, error) {
 	var deleted bool
 	err := persistencepostgres.InTxWithRetry(ctx, c.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		deleted = false
-		var locked bool
-		err := tx.QueryRow(ctx, `
-SELECT true
-FROM projects
-WHERE project_id = $1 AND owner_id = $2
-  AND lifecycle_state = 'deleting' AND deletion_phase = 'purging_artifacts'
-  AND deletion_claim_id = $3
-FOR UPDATE`, claim.ProjectID, claim.OwnerID, claim.ClaimID).Scan(&locked)
-		if errors.Is(err, pgx.ErrNoRows) {
-			return errors.New("Project deletion claim was lost")
-		}
-		if err != nil {
+		projects := projectstore.NewPostgresTxStore(tx)
+		if err := projects.LockDeletionClaim(ctx, claim); err != nil {
 			return fmt.Errorf("lock Project for Artifact purge: %w", err)
 		}
 		var runsRemain, auditsRemain bool
@@ -490,14 +421,8 @@ SELECT EXISTS (SELECT 1 FROM workflow_runs WHERE project_id = $1),
 		if !scopeGone {
 			return nil
 		}
-		tag, err := tx.Exec(ctx, `DELETE FROM projects WHERE project_id = $1 AND owner_id = $2`,
-			claim.ProjectID, claim.OwnerID,
-		)
-		if err != nil {
-			return fmt.Errorf("delete Project: %w", err)
-		}
-		if tag.RowsAffected() != 1 {
-			return errors.New("Project deletion claim was lost")
+		if err := projects.DeleteClaimedProject(ctx, claim); err != nil {
+			return err
 		}
 		deleted = true
 		return nil

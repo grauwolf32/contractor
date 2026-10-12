@@ -12,14 +12,14 @@ import (
 	"testing"
 )
 
-// deletionSteps are the store methods that lock or change state for a Run
-// deletion. Called outside this package, they would delete a Run without the
-// rest of the cascade, so only the stores that define them and this package
-// may name them.
+// deletionSteps are the store methods and functions that lock or change
+// state for a Run deletion. Called outside this package, they would delete a
+// Run without the rest of the cascade, so only the stores that define them
+// and this package may name them.
 var deletionSteps = map[string]bool{
-	"LockRunForDeletion": true, "DeleteLockedRun": true,
+	"LockRunForDeletion": true, "DeleteLockedRunOutputPublications": true, "DeleteLockedRun": true,
 	"LockRunDeletionAudits": true, "MarkExecutionRunDeleted": true,
-	"InvalidateDeletedRunProjections": true,
+	"InvalidateDeletedRunProjections": true, "MarkSourceRunDeleted": true,
 }
 
 func TestDeletionStepsAreReachedOnlyThroughRundeletion(t *testing.T) {
@@ -27,7 +27,9 @@ func TestDeletionStepsAreReachedOnlyThroughRundeletion(t *testing.T) {
 
 	moduleRoot := moduleRoot(t)
 	allowed := map[string]bool{}
-	for _, dir := range []string{"internal/rundeletion", "internal/runstore", "internal/auditstore"} {
+	for _, dir := range []string{
+		"internal/rundeletion", "internal/runstore", "internal/auditstore", "internal/findingintake",
+	} {
 		allowed[filepath.Join(moduleRoot, filepath.FromSlash(dir))] = true
 	}
 	fset := token.NewFileSet()

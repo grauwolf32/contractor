@@ -129,7 +129,7 @@ func configureCredentials(
 	runtimeCredentialLifecycle, err := credentials.NewRuntimeCredentialService(
 		credentials.RuntimeCredentialServiceOptions{
 			Pool: pool, Cipher: tokenCipher, Usage: runtimeCredentialRepository,
-			Barrier: credentialBarrier,
+			Audits: auditstore.NewPostgresStore(pool), Barrier: credentialBarrier,
 		},
 	)
 	if err != nil {
