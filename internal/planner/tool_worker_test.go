@@ -5,13 +5,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/planner/stageresult"
 )
 
 func TestPassthroughToolWorkflowBindsTargetAndExactReport(t *testing.T) {
-	snapshot, err := configload.Load("../../testdata/configs-scan", config.MVPDescriptors())
+	snapshot, err := configload.Load("../../testdata/configs-scan")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -23,8 +23,8 @@ func TestPassthroughToolWorkflowBindsTargetAndExactReport(t *testing.T) {
 	template := stage.Agents["scanner"].Template
 	revision := "scan-report-r1"
 	report := contracts.ArtifactRef{Namespace: "scanner", Name: "report", Revision: &revision}
-	worker := &recordingWorker{result: workerCompletionFromCandidate(contracts.StageContentResult{
-		APIVersion: contracts.APIVersion, Outcome: contracts.StageSucceeded, Summary: "Scan completed",
+	worker := &recordingWorker{result: workerCompletionFromCandidate(stageresult.StageContentResult{
+		APIVersion: contracts.APIVersion, Outcome: stageresult.StageSucceeded, Summary: "Scan completed",
 		Artifacts: map[string]contracts.ArtifactRef{"report": report},
 	})}
 	factory, err := NewPassthroughFactory(&memorySessions{}, worker, &fakeInspector{mediaTypes: map[string]string{
@@ -48,7 +48,7 @@ func TestPassthroughToolWorkflowBindsTargetAndExactReport(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result.Outcome != contracts.StageSucceeded || !reflect.DeepEqual(result.Artifacts["report"], report) || worker.calls != 1 || worker.binding != "scanner" || worker.request.Parameters["target"] != "https://fixture.invalid" || worker.request.ResultArtifacts["report"] != (contracts.ArtifactRef{Namespace: "scanner", Name: "report"}) {
+	if result.Outcome != stageresult.StageSucceeded || !reflect.DeepEqual(result.Artifacts["report"], report) || worker.calls != 1 || worker.binding != "scanner" || worker.request.Parameters["target"] != "https://fixture.invalid" || worker.request.ResultArtifacts["report"] != (contracts.ArtifactRef{Namespace: "scanner", Name: "report"}) {
 		t.Fatalf("tool passthrough: result=%+v request=%+v", result, worker.request)
 	}
 }

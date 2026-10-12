@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
 	"github.com/grauwolf32/contractor/internal/findingintake"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 )
@@ -29,7 +30,7 @@ func TestAuditSameReceiptHasIndependentAnalystDecisions(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, auditID := range []string{firstAudit, secondAudit} {
-		if _, _, err := auditstore.NewPostgresStore(pool).CreateDraft(ctx, auditstore.CreateDraftParams{
+		if _, _, err := auditstoretest.NewStore(pool).CreateDraft(ctx, auditstore.CreateDraftParams{
 			AuditID: auditID, OwnerID: ownerID, ProjectID: projectID,
 			Profile:         auditstore.ProfileIdentity{Name: "finding-review", Version: "1", Digest: serviceTestDigest("profile")},
 			ProfileSnapshot: json.RawMessage(`{"interaction":{"findingConfirmation":"human-required"}}`), InputSelection: json.RawMessage(`{}`),
@@ -59,14 +60,14 @@ func TestAuditSameReceiptHasIndependentAnalystDecisions(t *testing.T) {
 		t.Fatal(err)
 	}
 	service := &Service{pool: pool, findings: intake, now: time.Now}
-	first := decideFindingForTest(t, ctx, service, ownerID, firstAudit, firstFinding, 1, "first", VerdictTruePositive, reviewStringPointer("high"), nil)
+	first := decideFindingForTest(t, ctx, service, ownerID, firstAudit, firstFinding, 1, "first", auditstore.VerdictTruePositive, reviewStringPointer("high"), nil)
 	untouched, err := service.GetFinding(ctx, ownerID, secondAudit, secondFinding)
-	if err != nil || untouched.State != FindingProposed || untouched.Revision != 1 || untouched.AnalystVerdict != nil {
+	if err != nil || untouched.State != auditstore.FindingProposed || untouched.Revision != 1 || untouched.AnalystVerdict != nil {
 		t.Fatalf("first decision changed second Audit: %+v %v", untouched, err)
 	}
-	second := decideFindingForTest(t, ctx, service, ownerID, secondAudit, secondFinding, 1, "second", VerdictFalsePositive, nil, nil)
+	second := decideFindingForTest(t, ctx, service, ownerID, secondAudit, secondFinding, 1, "second", auditstore.VerdictFalsePositive, nil, nil)
 	after, err := service.GetFinding(ctx, ownerID, firstAudit, firstFinding)
-	if err != nil || after.State != FindingConfirmed || after.Revision != first.Revision || after.AnalystVerdict == nil || *after.AnalystVerdict != VerdictTruePositive || second.State != FindingRejected {
+	if err != nil || after.State != auditstore.FindingConfirmed || after.Revision != first.Revision || after.AnalystVerdict == nil || *after.AnalystVerdict != auditstore.VerdictTruePositive || second.State != auditstore.FindingRejected {
 		t.Fatalf("decisions are not independent: first=%+v second=%+v err=%v", after, second, err)
 	}
 	if _, err := service.GetFinding(ctx, ownerID, secondAudit, firstFinding); !errors.Is(err, auditstore.ErrNotFound) {

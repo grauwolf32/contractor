@@ -37,6 +37,22 @@ func ExactContent(ref ArtifactRef, mediaType string, data []byte) ExactArtifact 
 	}
 }
 
+// Clone returns a copy that does not share the revision pointer.
+func (e ExactArtifact) Clone() ExactArtifact {
+	e.Ref = e.Ref.Clone()
+	return e
+}
+
+// CloneExactArtifacts returns a never-nil copy of values whose descriptors
+// share no revision pointers with the source.
+func CloneExactArtifacts(values map[string]ExactArtifact) map[string]ExactArtifact {
+	result := make(map[string]ExactArtifact, len(values))
+	for name, value := range values {
+		result[name] = value.Clone()
+	}
+	return result
+}
+
 // HasMetadata reports whether the descriptor records media type and size.
 func (e ExactArtifact) HasMetadata() bool { return e.MediaType != "" }
 

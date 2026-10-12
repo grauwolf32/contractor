@@ -14,6 +14,10 @@ import (
 
 const contractsImportPath = "github.com/grauwolf32/contractor/internal/contracts"
 
+// stageResultImportPath holds the Stage result bounds, which count the same
+// compact encoding as the wire bounds.
+const stageResultImportPath = "github.com/grauwolf32/contractor/internal/planner/stageresult"
+
 var contractByteLimit = regexp.MustCompile(`^Max[A-Za-z0-9]*Bytes$`)
 
 // json.Marshal escapes <, > and & as six bytes each and U+2028/U+2029 as
@@ -74,11 +78,12 @@ import (
 	"encoding/json"
 	wire "github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
+	"github.com/grauwolf32/contractor/internal/planner/stageresult"
 )
 
 func rejected(value any) bool {
 	encoded, err := json.Marshal(value)
-	return err != nil || len(encoded) > wire.MaxStageResultBytes
+	return err != nil || len(encoded) > stageresult.MaxStageResultBytes
 }
 
 func nested(value any) bool {
@@ -92,7 +97,12 @@ func nested(value any) bool {
 func accepted(value any) bool {
 	size, err := wire.ResultJSONSize(value)
 	encoded, _ := json.Marshal(value)
-	return err != nil || size > wire.MaxStageResultBytes || len(encoded) > 1024
+	return err != nil || size > wire.MaxWorkerCompletionBytes || len(encoded) > 1024
+}
+
+func wireBound(value any) bool {
+	encoded, _ := json.Marshal(value)
+	return len(encoded) > wire.MaxStageRequestBytes
 }
 `
 	fset := token.NewFileSet()
@@ -101,34 +111,31 @@ func accepted(value any) bool {
 		t.Fatal(err)
 	}
 	got := marshalLimitViolations(fset, file, "internal/example/example.go")
-	want := []string{"internal/example/example.go:11", "internal/example/example.go:17"}
+	want := []string{"internal/example/example.go:12", "internal/example/example.go:18", "internal/example/example.go:31"}
 	if strings.Join(got, ",") != strings.Join(want, ",") {
 		t.Fatalf("violations = %v, want %v", got, want)
 	}
-	inPackage := `package contracts
-
-import "encoding/json"
-
-func bounded(value any) bool {
-	encoded, _ := json.Marshal(value)
-	return len(encoded) >= MaxWorkerCompletionBytes
-}
-`
-	file, err = parser.ParseFile(fset, "bounded.go", inPackage, parser.SkipObjectResolution)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got := marshalLimitViolations(fset, file, "internal/contracts/bounded.go"); len(got) != 1 {
-		t.Fatalf("in-package violations = %v, want one", got)
-	}
-	if got := marshalLimitViolations(fset, file, "internal/other/bounded.go"); len(got) != 0 {
-		t.Fatalf("unqualified limit outside contracts reported: %v", got)
+	for _, inPackage := range []struct{ source, path string }{
+		{"package contracts\n\nimport \"encoding/json\"\n\nfunc bounded(value any) bool {\n\tencoded, _ := json.Marshal(value)\n\treturn len(encoded) >= MaxWorkerCompletionBytes\n}\n", "internal/contracts/bounded.go"},
+		{"package stageresult\n\nimport \"encoding/json\"\n\nfunc bounded(value any) bool {\n\tencoded, _ := json.Marshal(value)\n\treturn len(encoded) >= MaxStageResultBytes\n}\n", "internal/planner/stageresult/bounded.go"},
+	} {
+		file, err = parser.ParseFile(fset, "bounded.go", inPackage.source, parser.SkipObjectResolution)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := marshalLimitViolations(fset, file, inPackage.path); len(got) != 1 {
+			t.Fatalf("%s: in-package violations = %v, want one", inPackage.path, got)
+		}
+		if got := marshalLimitViolations(fset, file, "internal/other/bounded.go"); len(got) != 0 {
+			t.Fatalf("unqualified limit outside a limit package reported: %v", got)
+		}
 	}
 }
 
 // marshalLimitViolations reports comparisons of len(x), where x was assigned
 // from json.Marshal in the same function, with a Max*Bytes constant of a
-// package under internal/contracts.
+// package under internal/contracts or of internal/planner/stageresult, which
+// holds the Stage result bounds.
 func marshalLimitViolations(fset *token.FileSet, file *ast.File, relative string) []string {
 	jsonName := ""
 	contractPackages := map[string]bool{}
@@ -144,14 +151,14 @@ func marshalLimitViolations(fset *token.FileSet, file *ast.File, relative string
 		switch {
 		case path == "encoding/json":
 			jsonName = name
-		case path == contractsImportPath || strings.HasPrefix(path, contractsImportPath+"/"):
+		case path == contractsImportPath || strings.HasPrefix(path, contractsImportPath+"/") || path == stageResultImportPath:
 			contractPackages[name] = true
 		}
 	}
 	if jsonName == "" {
 		return nil
 	}
-	inContracts := relative == "internal/contracts" || strings.HasPrefix(relative, "internal/contracts/")
+	inContracts := strings.HasPrefix(relative, "internal/contracts/") || strings.HasPrefix(relative, "internal/planner/stageresult/")
 	isLimit := func(expression ast.Expr) bool {
 		found := false
 		ast.Inspect(expression, func(node ast.Node) bool {

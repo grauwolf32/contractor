@@ -14,6 +14,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -59,7 +60,7 @@ INSERT INTO runtime_credentials (
 		HTTPTarget: &runtimesettings.HTTPOriginTargetRef{
 			URL: "https://app.example.test/api",
 			Credential: &runtimesettings.RuntimeCredentialRef{
-				CredentialID: "project-origin", Kind: contracts.RuntimeCredentialOriginBearer,
+				CredentialID: "project-origin", Kind: runtimesettings.RuntimeCredentialOriginBearer,
 			},
 		},
 	})
@@ -148,7 +149,7 @@ INSERT INTO stage_allocations (
 	}); err != nil {
 		t.Fatal(err)
 	}
-	audits := auditstore.NewPostgresStore(pool)
+	audits := auditstoretest.NewStore(pool)
 	audit, _, err := audits.CreateDraft(ctx, auditstore.CreateDraftParams{
 		AuditID: "audit-project-delete", OwnerID: project.OwnerID, ProjectID: project.ProjectID,
 		Profile: auditstore.ProfileIdentity{
@@ -338,7 +339,7 @@ func TestProjectDeletionWaitsForLockedAuditBeforeDraining(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			audits := auditstore.NewPostgresStore(pool)
+			audits := auditstoretest.NewStore(pool)
 			audit, _, err := audits.CreateDraft(ctx, auditstore.CreateDraftParams{
 				AuditID: "locked-audit", OwnerID: project.OwnerID, ProjectID: project.ProjectID,
 				Profile: auditstore.ProfileIdentity{
@@ -444,7 +445,7 @@ func TestProjectDeletionPurgesAuditWithDecidedReviewsAndAssessments(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
-	audits := auditstore.NewPostgresStore(pool)
+	audits := auditstoretest.NewStore(pool)
 	audit, _, err := audits.CreateDraft(ctx, auditstore.CreateDraftParams{
 		AuditID: "decided-audit", OwnerID: project.OwnerID, ProjectID: project.ProjectID,
 		Profile: auditstore.ProfileIdentity{

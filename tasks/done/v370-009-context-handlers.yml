@@ -1,0 +1,83 @@
+schema_version: "1.0"
+id: V370-009
+title: "Split the public API handler by context with required dependencies"
+milestone: hub-audit-structure-2026-10
+epic: api-contracts
+kind: chore
+priority: P2
+status: completed
+implementation_commit: db39126c679c09272cae8122d64ca7327c9d40c3
+depends_on: [V368-013]
+languages: [go]
+goal: "A test that context files reach only their own dependencies."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq; raw reports in docs/research/2026-10-11-hub-audit/), public API B, C1, C5, F6, H2; file:line as of 02bbdcbf, re-verify on current main"
+  finding: >-
+    One handler with 210 methods and a 41-field Dependencies;
+    AuditManagement mirrors 30 routes; Run and Project handlers call stores
+    while Audit and Eval call services; 13 optional dependencies with about
+    26 nil checks although production passes all; dead branch
+    project_handlers.go:195; Wake fallback run_handlers.go:366-368.
+  siblings: >-
+    Re-verified on fc25b5d: the Run detail read had already moved into
+    runservice.RunDetailReader with V368-013, and the legacy digest branch of
+    run_handlers.go was gone; what remained in the edge was the Run creation
+    digest, now runservice.PublicRequestDigest with its pinned values and
+    tests moved along. Removed with the optional services: the
+    ConfigurationPublisher taken from Config, the Wake fallback of Run
+    cancellation, the nil branches for Evals (its 503 eval_unavailable),
+    Git import, Git key, finding proposals and collections, gateway
+    recovery, the Run, Project deletion and Eval notifiers and the Logger,
+    the dead RuntimeCredentials check of Project updates, and the
+    NewID/NewRequestID/Now defaults, which the composition now passes. The
+    Queue test that asserted the optional notifier now asserts the wake-up.
+    The Run output read moved to the Artifact context, whose RunScope routes
+    it shares. AuditManagement keeps its 30 methods: the Audit context calls
+    every one, which the new test checks. Out of scope: the Project and
+    Audit request digests still live in the edge (projectRequestDigest in
+    project_handlers.go, createAuditRequestDigest and auditRequestDigest in
+    audit_models.go, reviewRequestDigest in audit_review_handlers.go);
+    projectstore has no service layer and auditservice could own them.
+  decision: >-
+    Guarantee: the public API has one struct per context (session, catalog,
+    Projects, Runs, Run repeat drafts, the Run Queue, Artifacts, Audits,
+    findings, Evals, Operations, LLM credentials, Runtime configuration,
+    Git key), each embedding a dependencies type declared in its own files
+    whose interfaces hold only the methods its routes call; Dependencies
+    groups them and NewHandler refuses any nil service by name.
+    TestContextFilesReachOnlyTheirOwnDependencies parses the package and
+    requires every production file to be classified as a context, shared
+    or composition file; a context file to declare methods only on its own
+    struct and to name no other context's struct, dependencies or
+    package-level declarations; every declared dependency to be used; and
+    every method of a package dependency interface to be called, directly
+    or through a package function whose parameter takes it.
+    TestNewHandlerRequiresEveryService removes each of the services in turn.
+    Evidence: a constant and a struct of the Run context used from an Audit
+    file, an unused Run dependency, and AuditManagement in place of the
+    Eval context's one-method AuditProfileLister each fail the test, and
+    dropping one group from NewHandler's check fails the second test.
+    Alternatives rejected: a flat Dependencies that NewHandler distributes
+    (a new Audit service would still touch the shared struct and nothing
+    would tie a service to its context), and type-checking the package with
+    go/types (contexts are separated by receiver types, so the syntax is
+    enough and the test needs no loader). Reversal: a service that may be
+    absent in some deployment gets a typed unavailable implementation in
+    the composition, never a nil service. Verified: go test
+    ./internal/httpapi/public ./internal/runservice ./internal/app with
+    PostgreSQL, the package also without it, go test ./internal/archtest,
+    go vet, staticcheck U1000 on the touched packages and make
+    verify-public-api.
+scope:
+  in:
+    - "Per-context handler structs with narrow dependencies, all required; Run reads and idempotency digests in runservice."
+  out:
+    - "Routes and responses."
+acceptance_criteria:
+  - id: A1
+    text: "A test that context files reach only their own dependencies."
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "go test ./internal/httpapi/public ./internal/runservice"
+    covers: [A1]

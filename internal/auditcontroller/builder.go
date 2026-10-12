@@ -11,11 +11,13 @@ import (
 	"sort"
 	"strconv"
 
+	"github.com/grauwolf32/contractor/internal/agentskills"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/auditprofile"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/runservice"
@@ -70,18 +72,18 @@ func (b *PinnedSubmissionBuilder) PrepareRole(
 	if attempt < 1 || b.outputs == nil {
 		return PreparedSubmission{}, invalidSubmission("Audit role attempt or output lookup is invalid")
 	}
-	profile, err := config.DecodeResolvedAuditProfileSnapshot(audit.ProfileSnapshot)
+	profile, err := auditprofile.DecodeResolvedAuditProfileSnapshot(audit.ProfileSnapshot)
 	if err != nil || profile.Ref.Name != audit.Profile.Name || profile.Ref.Version != audit.Profile.Version ||
 		profile.Ref.Digest != audit.Profile.Digest {
 		return PreparedSubmission{}, invalidSubmission("pinned AuditProfile cannot be decoded")
 	}
 	binding, exists := profile.Workflows[workflowRole]
-	if !exists || binding.Kind != config.AuditWorkflowPrepare && binding.Kind != config.AuditWorkflowDiscovery && binding.Kind != config.AuditWorkflowAssessment {
+	if !exists || binding.Kind != auditprofile.AuditWorkflowPrepare && binding.Kind != auditprofile.AuditWorkflowDiscovery && binding.Kind != auditprofile.AuditWorkflowAssessment {
 		return PreparedSubmission{}, invalidSubmission("Audit role binding is invalid")
 	}
 	var roundID *string
 	roundScope := ""
-	if binding.Kind == config.AuditWorkflowPrepare {
+	if binding.Kind == auditprofile.AuditWorkflowPrepare {
 		if audit.Phase != auditdomain.AuditPhasePreparing || snapshot.Round != nil || audit.CurrentRoundID != nil || attempt > binding.MaxRunAttempts {
 			return PreparedSubmission{}, invalidSubmission("preparation requires a bounded attempt before the first Round")
 		}
@@ -141,11 +143,11 @@ func (b *PinnedSubmissionBuilder) PrepareRole(
 		Attempt       int                                  `json:"attempt"`
 		ProfileDigest string                               `json:"profileDigest"`
 		Manifest      auditstore.ExactArtifact             `json:"manifest"`
-		Workflow      config.ResolvedWorkflow              `json:"workflow"`
+		Workflow      resolved.ResolvedWorkflow            `json:"workflow"`
 		Parameters    map[string]string                    `json:"parameters"`
 		Inputs        map[string]auditstore.ExactArtifact  `json:"inputs"`
 		RuntimeConfig any                                  `json:"runtimeConfig"`
-		Skills        []contracts.RunSkillSnapshot         `json:"skills"`
+		Skills        []agentskills.RunSkillSnapshot       `json:"skills"`
 		ProjectTarget *runtimesettings.HTTPOriginTargetRef `json:"projectTarget,omitempty"`
 	}{
 		Schema: "contractor.audit.role-submission.v1", AuditID: audit.AuditID,
@@ -162,7 +164,7 @@ func (b *PinnedSubmissionBuilder) PrepareRole(
 	if kind == auditstore.ExecutionPrepare {
 		preparation = &auditstore.PreparationSnapshot{Inputs: maps.Clone(runInputs), Parameters: maps.Clone(parameters)}
 		for name, input := range preparation.Inputs {
-			preparation.Inputs[name] = cloneExact(input)
+			preparation.Inputs[name] = input.Clone()
 		}
 	}
 	return PreparedSubmission{
@@ -186,7 +188,7 @@ func (b *PinnedSubmissionBuilder) resolveRoleInputs(
 	ctx context.Context,
 	snapshot auditstore.ReconcileSnapshot,
 	workflowRole string,
-	binding config.ResolvedAuditWorkflowBinding,
+	binding auditprofile.ResolvedAuditWorkflowBinding,
 	baseline auditservice.BaselineSnapshot,
 	executionManifest auditstore.ExactArtifact,
 ) (map[string]auditstore.ExactArtifact, error) {
@@ -194,7 +196,7 @@ func (b *PinnedSubmissionBuilder) resolveRoleInputs(
 	for _, slot := range slices.Sorted(maps.Keys(binding.Inputs)) {
 		mapping := binding.Inputs[slot]
 		switch mapping.Source {
-		case config.AuditInputFromAudit:
+		case auditprofile.AuditInputFromAudit:
 			input, exists := baseline.Inputs[mapping.Name]
 			if !exists {
 				if binding.Workflow.Inputs[slot].Required {
@@ -202,16 +204,16 @@ func (b *PinnedSubmissionBuilder) resolveRoleInputs(
 				}
 				continue
 			}
-			result[slot] = cloneExact(input)
-		case config.AuditInputFromExecutionManifest:
-			result[slot] = cloneExact(executionManifest)
-		case config.AuditInputFromPreparation:
+			result[slot] = input.Clone()
+		case auditprofile.AuditInputFromExecutionManifest:
+			result[slot] = executionManifest.Clone()
+		case auditprofile.AuditInputFromPreparation:
 			output, err := b.preparationOutput(ctx, snapshot.Audit.AuditID, mapping)
 			if err != nil {
 				return nil, err
 			}
-			result[slot] = cloneExact(output)
-		case config.AuditInputFromRetainedOutput:
+			result[slot] = output.Clone()
+		case auditprofile.AuditInputFromRetainedOutput:
 			link, err := b.outputs.GetArtifactLink(
 				ctx, snapshot.Audit.AuditID,
 				auditstore.RoleOutputLogicalKey(snapshot.Round.Ordinal, mapping.Role, mapping.Name),
@@ -219,8 +221,8 @@ func (b *PinnedSubmissionBuilder) resolveRoleInputs(
 			if err != nil {
 				return nil, fmt.Errorf("resolve retained output for role %q: %w", workflowRole, err)
 			}
-			result[slot] = cloneExact(link.Artifact)
-		case config.AuditInputFromItemPackage:
+			result[slot] = link.Artifact.Clone()
+		case auditprofile.AuditInputFromItemPackage:
 			return nil, invalidSubmission("non-check Audit role cannot receive an item package")
 		default:
 			return nil, invalidSubmission("Audit role input mapping is invalid")
@@ -229,7 +231,7 @@ func (b *PinnedSubmissionBuilder) resolveRoleInputs(
 	return result, nil
 }
 
-func (b *PinnedSubmissionBuilder) preparationOutput(ctx context.Context, auditID string, mapping config.AuditWorkflowInputMapping) (auditstore.ExactArtifact, error) {
+func (b *PinnedSubmissionBuilder) preparationOutput(ctx context.Context, auditID string, mapping auditprofile.AuditWorkflowInputMapping) (auditstore.ExactArtifact, error) {
 	lookup, ok := b.outputs.(PreparationOutputLookup)
 	if !ok {
 		return auditstore.ExactArtifact{}, invalidSubmission("accepted preparation output lookup is unavailable")
@@ -242,12 +244,12 @@ func (b *PinnedSubmissionBuilder) preparationOutput(ctx context.Context, auditID
 }
 
 func resolveRoleParameters(
-	binding config.ResolvedAuditWorkflowBinding,
+	binding auditprofile.ResolvedAuditWorkflowBinding,
 	scope auditservice.Scope,
 ) (map[string]string, error) {
 	result := make(map[string]string, len(binding.Parameters))
 	for name, mapping := range binding.Parameters {
-		if mapping.Source == config.AuditParameterItemField {
+		if mapping.Source == auditprofile.AuditParameterItemField {
 			return nil, invalidSubmission("non-check Audit role cannot receive item parameters")
 		}
 		value, err := resolveParameterWithoutItem(mapping, scope)
@@ -260,12 +262,12 @@ func resolveRoleParameters(
 }
 
 func resolveParameterWithoutItem(
-	mapping config.AuditWorkflowParameterMapping, scope auditservice.Scope,
+	mapping auditprofile.AuditWorkflowParameterMapping, scope auditservice.Scope,
 ) (string, error) {
 	switch mapping.Source {
-	case config.AuditParameterLiteral:
+	case auditprofile.AuditParameterLiteral:
 		return mapping.Value, nil
-	case config.AuditParameterScopeField:
+	case auditprofile.AuditParameterScopeField:
 		switch mapping.Name {
 		case "objective":
 			return scope.Objective, nil
@@ -293,7 +295,7 @@ func (b *PinnedSubmissionBuilder) PrepareBatch(
 		len(selected) > audit.Limits.BatchSize || len(selected) > auditstore.MaxCollectionItems {
 		return PreparedSubmission{}, invalidSubmission("Audit batch is outside the pinned round")
 	}
-	profile, err := config.DecodeResolvedAuditProfileSnapshot(audit.ProfileSnapshot)
+	profile, err := auditprofile.DecodeResolvedAuditProfileSnapshot(audit.ProfileSnapshot)
 	if err != nil || profile.Ref.Name != audit.Profile.Name || profile.Ref.Version != audit.Profile.Version ||
 		profile.Ref.Digest != audit.Profile.Digest || profile.Execution.BatchSize != audit.Limits.BatchSize {
 		return PreparedSubmission{}, invalidSubmission("pinned AuditProfile cannot be decoded")
@@ -304,7 +306,7 @@ func (b *PinnedSubmissionBuilder) PrepareBatch(
 	}
 	first := selected[0]
 	binding, exists := profile.Workflows[first.Item.WorkflowRole]
-	if !exists || binding.Kind != config.AuditWorkflowCheck {
+	if !exists || binding.Kind != auditprofile.AuditWorkflowCheck {
 		return PreparedSubmission{}, invalidSubmission("Audit item does not name a check Workflow role")
 	}
 	roundManifest, err := b.readRoundExecutionManifest(ctx, audit.ProjectID, snapshot.Round.Manifest)
@@ -398,7 +400,7 @@ func (b *PinnedSubmissionBuilder) PrepareBatch(
 			return PreparedSubmission{}, invalidSubmission("Audit batch members require different Workflow inputs or parameters")
 		}
 		if len(selected) > 1 {
-			memberInputs = append(memberInputs, cloneExact(taskInput))
+			memberInputs = append(memberInputs, taskInput.Clone())
 		}
 		members[index] = auditstore.ExecutionMemberIntent{
 			ItemID: member.Item.ItemID, BatchOrdinal: index, ItemAttempt: member.Attempt,
@@ -425,11 +427,11 @@ func (b *PinnedSubmissionBuilder) PrepareBatch(
 		Members       []auditstore.ExecutionMemberIntent   `json:"members"`
 		ProfileDigest string                               `json:"profileDigest"`
 		Manifest      auditstore.ExactArtifact             `json:"manifest"`
-		Workflow      config.ResolvedWorkflow              `json:"workflow"`
+		Workflow      resolved.ResolvedWorkflow            `json:"workflow"`
 		Parameters    map[string]string                    `json:"parameters"`
 		Inputs        map[string]auditstore.ExactArtifact  `json:"inputs"`
 		RuntimeConfig any                                  `json:"runtimeConfig"`
-		Skills        []contracts.RunSkillSnapshot         `json:"skills"`
+		Skills        []agentskills.RunSkillSnapshot       `json:"skills"`
 		ProjectTarget *runtimesettings.HTTPOriginTargetRef `json:"projectTarget,omitempty"`
 	}{
 		Schema: "contractor.audit.submission.v1", AuditID: audit.AuditID,
@@ -473,7 +475,7 @@ func (b *PinnedSubmissionBuilder) buildTaskInput(
 	tasks []auditstore.ExactArtifact,
 ) (auditstore.ExactArtifact, error) {
 	if len(tasks) == 1 {
-		return cloneExact(tasks[0]), nil
+		return tasks[0].Clone(), nil
 	}
 	if len(tasks) < 2 || len(tasks) != len(manifestItems) || len(tasks) > auditstore.MaxCollectionItems {
 		return auditstore.ExactArtifact{}, invalidSubmission("Audit task set membership is invalid")
@@ -609,7 +611,7 @@ func findManifestItem(
 func (b *PinnedSubmissionBuilder) resolveInputs(
 	ctx context.Context,
 	snapshot auditstore.ReconcileSnapshot,
-	binding config.ResolvedAuditWorkflowBinding,
+	binding auditprofile.ResolvedAuditWorkflowBinding,
 	baseline auditservice.BaselineSnapshot,
 	manifest auditdomain.ExecutionItem,
 	task auditstore.ExactArtifact,
@@ -630,11 +632,11 @@ func (b *PinnedSubmissionBuilder) resolveInputs(
 	for _, slot := range names {
 		mapping := binding.Inputs[slot]
 		switch mapping.Source {
-		case config.AuditInputFromItemPackage:
+		case auditprofile.AuditInputFromItemPackage:
 			runInputs[slot] = task
-		case config.AuditInputFromExecutionManifest:
+		case auditprofile.AuditInputFromExecutionManifest:
 			runInputs[slot] = executionManifest
-		case config.AuditInputFromAudit:
+		case auditprofile.AuditInputFromAudit:
 			descriptor, present := baseline.Inputs[mapping.Name]
 			if !present {
 				if binding.Workflow.Inputs[slot].Required {
@@ -646,10 +648,10 @@ func (b *PinnedSubmissionBuilder) resolveInputs(
 			if !present || pinned.Digest != descriptor.Digest || !pinned.Ref.SameExact(descriptor.Ref) {
 				return nil, nil, invalidSubmission("baseline input differs from execution manifest")
 			}
-			runInputs[slot] = cloneExact(descriptor)
-			memberInputs = append(memberInputs, cloneExact(descriptor))
+			runInputs[slot] = descriptor.Clone()
+			memberInputs = append(memberInputs, descriptor.Clone())
 			consumed++
-		case config.AuditInputFromPreparation:
+		case auditprofile.AuditInputFromPreparation:
 			descriptor, err := b.preparationOutput(ctx, snapshot.Audit.AuditID, mapping)
 			if err != nil {
 				return nil, nil, err
@@ -658,10 +660,10 @@ func (b *PinnedSubmissionBuilder) resolveInputs(
 			if !present || pinned.Digest != descriptor.Digest || !pinned.Ref.SameExact(descriptor.Ref) {
 				return nil, nil, invalidSubmission("prepared input differs from execution manifest")
 			}
-			runInputs[slot] = cloneExact(descriptor)
-			memberInputs = append(memberInputs, cloneExact(descriptor))
+			runInputs[slot] = descriptor.Clone()
+			memberInputs = append(memberInputs, descriptor.Clone())
 			consumed++
-		case config.AuditInputFromRetainedOutput:
+		case auditprofile.AuditInputFromRetainedOutput:
 			if b.outputs == nil || snapshot.Round == nil {
 				return nil, nil, invalidSubmission("retained-output lookup is unavailable")
 			}
@@ -672,7 +674,7 @@ func (b *PinnedSubmissionBuilder) resolveInputs(
 			if err != nil {
 				return nil, nil, fmt.Errorf("resolve retained output for check role: %w", err)
 			}
-			runInputs[slot] = cloneExact(link.Artifact)
+			runInputs[slot] = link.Artifact.Clone()
 		default:
 			return nil, nil, invalidSubmission("Audit input mapping is invalid")
 		}
@@ -684,16 +686,16 @@ func (b *PinnedSubmissionBuilder) resolveInputs(
 }
 
 func resolveParameters(
-	binding config.ResolvedAuditWorkflowBinding,
+	binding auditprofile.ResolvedAuditWorkflowBinding,
 	scope auditservice.Scope,
 	item auditstore.Item,
 ) (map[string]string, error) {
 	result := make(map[string]string, len(binding.Parameters))
 	for name, mapping := range binding.Parameters {
 		switch mapping.Source {
-		case config.AuditParameterLiteral:
+		case auditprofile.AuditParameterLiteral:
 			result[name] = mapping.Value
-		case config.AuditParameterItemField:
+		case auditprofile.AuditParameterItemField:
 			switch mapping.Name {
 			case "itemKey":
 				result[name] = item.ItemKey
@@ -704,7 +706,7 @@ func resolveParameters(
 			default:
 				return nil, invalidSubmission("Audit item parameter mapping is invalid")
 			}
-		case config.AuditParameterScopeField:
+		case auditprofile.AuditParameterScopeField:
 			switch mapping.Name {
 			case "objective":
 				result[name] = scope.Objective
@@ -723,24 +725,24 @@ func resolveParameters(
 }
 
 func selectSkills(
-	workflow config.ResolvedWorkflow,
-	baseline []contracts.RunSkillSnapshot,
-) ([]contracts.RunSkillSnapshot, error) {
-	refs, err := config.WorkflowSkillRefs(workflow)
+	workflow resolved.ResolvedWorkflow,
+	baseline []agentskills.RunSkillSnapshot,
+) ([]agentskills.RunSkillSnapshot, error) {
+	refs, err := resolved.WorkflowSkillRefs(workflow)
 	if err != nil {
 		return nil, invalidSubmission("Workflow Skill references are invalid")
 	}
-	byName := make(map[string]contracts.RunSkillSnapshot, len(baseline))
+	byName := make(map[string]agentskills.RunSkillSnapshot, len(baseline))
 	for _, skill := range baseline {
 		byName[skill.Name] = skill
 	}
-	result := make([]contracts.RunSkillSnapshot, len(refs))
+	result := make([]agentskills.RunSkillSnapshot, len(refs))
 	for index, ref := range refs {
 		skill, exists := byName[ref.Name]
 		if !exists || skill.Source == nil || skill.Initialized() || skill.Validate() != nil {
 			return nil, invalidSubmission("Workflow Skill is absent from pinned baseline")
 		}
-		result[index] = cloneSkill(skill)
+		result[index] = skill.Clone()
 	}
 	return result, nil
 }
@@ -762,21 +764,4 @@ func stringsDigest(value string) string {
 
 func invalidSubmission(message string) error {
 	return fmt.Errorf("%w: %s", ErrInvalidSubmission, message)
-}
-
-func cloneExact(source auditstore.ExactArtifact) auditstore.ExactArtifact {
-	source.Ref = source.Ref.Clone()
-	return source
-}
-
-func cloneSkill(source contracts.RunSkillSnapshot) contracts.RunSkillSnapshot {
-	if source.Source != nil {
-		value := source.Source.Clone()
-		source.Source = &value
-	}
-	if source.Artifact != nil {
-		value := source.Artifact.Clone()
-		source.Artifact = &value
-	}
-	return source
 }

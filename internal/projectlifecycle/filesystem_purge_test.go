@@ -12,8 +12,10 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runstore"
 )
@@ -40,7 +42,7 @@ func TestProjectAndAuditPurgesUnlinkOnlyUnreferencedFilesystemBlobs(t *testing.T
 
 	projects := projectstore.NewPostgresStore(pool)
 	runs := runstore.NewPostgresStore(pool)
-	audits := auditstore.NewPostgresStore(pool)
+	audits := auditstoretest.NewStore(pool)
 	service := artifacts.NewService(artifacts.NewPostgresRepository(pool))
 	project, _, err := projects.Create(ctx, projectstore.CreateParams{
 		ProjectID: "project-files", OwnerID: "user-1", Kind: projectstore.KindProject,
@@ -90,7 +92,7 @@ func TestProjectAndAuditPurgesUnlinkOnlyUnreferencedFilesystemBlobs(t *testing.T
 	write(service.Project, project.ProjectID, "sources", "audit-copy", auditProject)
 	namespace := auditdomain.ArtifactNamespace(audit.AuditID)
 	for name, content := range map[string]string{"report": auditOnly, "copy": auditProject} {
-		if _, err := service.WriteAuditArtifact(ctx, project.ProjectID,
+		if _, err := artifactstest.WriteAuditArtifact(ctx, service, project.ProjectID,
 			artifacts.ArtifactRef{Namespace: namespace, Name: name},
 			artifacts.Payload{MediaType: "text/plain", Data: []byte(content)}); err != nil {
 			t.Fatal(err)

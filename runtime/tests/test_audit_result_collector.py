@@ -95,7 +95,7 @@ def arguments(item):
     }
 
 
-def test_unknown_proposal_keys_and_ids_leave_the_collection_unchanged():
+def test_shared_unknown_proposal_keys_and_ids_leave_the_collection_unchanged():
     async def scenario():
         expected, inputs = assigned(batch=True)
         collector, tool, _ = tool_for(inputs)
@@ -138,7 +138,7 @@ def test_unknown_proposal_keys_and_ids_leave_the_collection_unchanged():
     asyncio.run(scenario())
 
 
-def test_standard_proposal_links_require_every_assigned_entry_and_valid_cwe():
+def test_shared_standard_proposal_links_require_every_assigned_entry_and_valid_cwe():
     async def scenario():
         collector, tool, _ = tool_for(fixture_assignment("standard", "requirements-verification"))
         result = next(
@@ -165,7 +165,7 @@ def test_standard_proposal_links_require_every_assigned_entry_and_valid_cwe():
     asyncio.run(scenario())
 
 
-def test_audit_finding_preflight_and_failed_submission_cannot_create_links():
+def test_shared_audit_finding_preflight_and_failed_submission_cannot_create_links():
     async def scenario():
         collector, tool, _ = tool_for(fixture_assignment("standard", "requirements-verification"))
         state = WorkerState()
@@ -193,7 +193,7 @@ def test_audit_finding_preflight_and_failed_submission_cannot_create_links():
         assert error.value.field == "standard_refs" and client.requests == []
 
         class FailingClient:
-            async def submit_finding_proposal(self, request):
+            async def submit(self, request):
                 raise RuntimeError("finding submission unavailable")
 
         failed = GeneralFindingTool(FindingPublisher(FailingClient(), state.metrics, (), state))
@@ -225,7 +225,7 @@ def test_audit_finding_preflight_and_failed_submission_cannot_create_links():
     asyncio.run(scenario())
 
 
-def test_proposals_are_invocation_local_and_cannot_cross_batch_items():
+def test_shared_proposals_are_invocation_local_and_cannot_cross_batch_items():
     async def scenario():
         expected, inputs = assigned(batch=True)
         collector, tool, _ = tool_for(inputs)
@@ -283,7 +283,7 @@ def test_shared_task_local_acceptance(case):
     asyncio.run(scenario())
 
 
-def test_nul_summaries_rejected_by_trusted_contracts():
+def test_shared_nul_summaries_rejected_by_trusted_contracts():
     with pytest.raises(ValueError):
         AuditEvidence("source-trace", "Guard\x00at app.py:12.")
     with pytest.raises(ValueError):
@@ -291,7 +291,7 @@ def test_nul_summaries_rejected_by_trusted_contracts():
 
 
 @pytest.mark.parametrize("field", ["summary", "evidence.summary"])
-def test_nul_summary_rejects_whole_batch_with_item_key(field):
+def test_shared_nul_summary_rejects_whole_batch_with_item_key(field):
     async def scenario():
         expected, inputs = assigned(batch=True)
         collector, tool, _ = tool_for(inputs)
@@ -310,7 +310,7 @@ def test_nul_summary_rejects_whole_batch_with_item_key(field):
     asyncio.run(scenario())
 
 
-def test_reordered_parallel_recording_and_truthful_content_free_receipts():
+def test_shared_reordered_parallel_recording_and_truthful_content_free_receipts():
     async def scenario():
         expected, inputs = assigned(batch=True)
         collector, tool, metrics = tool_for(inputs)
@@ -337,7 +337,7 @@ def test_reordered_parallel_recording_and_truthful_content_free_receipts():
     asyncio.run(scenario())
 
 
-def test_revision_updates_and_only_immediate_update_replay():
+def test_shared_revision_updates_and_only_immediate_update_replay():
     async def scenario():
         expected, inputs = assigned()
         collector = InvocationAuditCollector(inputs)
@@ -372,7 +372,7 @@ def test_revision_updates_and_only_immediate_update_replay():
     asyncio.run(scenario())
 
 
-def test_parallel_conflicting_updates_choose_one_winner():
+def test_shared_parallel_conflicting_updates_choose_one_winner():
     async def scenario():
         expected, inputs = assigned()
         collector = InvocationAuditCollector(inputs)
@@ -391,7 +391,7 @@ def test_parallel_conflicting_updates_choose_one_winner():
     asyncio.run(scenario())
 
 
-def test_atomic_batch_create_replay_conflict_and_scalar_mixing():
+def test_shared_atomic_batch_create_replay_conflict_and_scalar_mixing():
     async def scenario():
         expected, inputs = assigned(batch=True)
         collector, tool, _ = tool_for(inputs)
@@ -439,7 +439,7 @@ def test_atomic_batch_create_replay_conflict_and_scalar_mixing():
         ({"expected_revision": "secret-credential"}, "expected_revision"),
     ],
 )
-def test_invalid_fields_never_mutate_or_echo_payload(changes, field):
+def test_shared_invalid_fields_never_mutate_or_echo_payload(changes, field):
     async def scenario():
         expected, inputs = assigned()
         collector, tool, metrics = tool_for(inputs)
@@ -453,7 +453,7 @@ def test_invalid_fields_never_mutate_or_echo_payload(changes, field):
     asyncio.run(scenario())
 
 
-def test_absent_arguments_batch_item_key_and_missing_evidence():
+def test_shared_absent_arguments_batch_item_key_and_missing_evidence():
     async def scenario():
         for batch in (False, True):
             expected, inputs = assigned(batch=batch)
@@ -472,7 +472,7 @@ def test_absent_arguments_batch_item_key_and_missing_evidence():
     asyncio.run(scenario())
 
 
-def test_sealed_discarded_cancelled_and_reused_invocation():
+def test_shared_sealed_discarded_cancelled_and_reused_invocation():
     async def scenario():
         expected, inputs = assigned()
         collector, tool, _ = tool_for(inputs)
@@ -519,7 +519,7 @@ def test_sealed_discarded_cancelled_and_reused_invocation():
     asyncio.run(scenario())
 
 
-def test_read_and_submit_use_only_pinned_bytes_and_return_safe_copies(monkeypatch):
+def test_shared_read_and_submit_use_only_pinned_bytes_and_return_safe_copies(monkeypatch):
     async def scenario():
         expected, inputs = assigned()
         collector, submit, metrics = tool_for(inputs)
@@ -553,7 +553,7 @@ def test_read_and_submit_use_only_pinned_bytes_and_return_safe_copies(monkeypatc
 
 
 @pytest.mark.parametrize("limit", ["MAX_COLLECTED_BYTES", "MAX_MEMBER_BYTES", "MAX_PACKAGE_BYTES"])
-def test_real_encoder_prospective_replacement_bound_is_atomic(monkeypatch, limit):
+def test_shared_real_encoder_prospective_replacement_bound_is_atomic(monkeypatch, limit):
     async def scenario():
         expected, inputs = assigned()
         collector = InvocationAuditCollector(inputs)
@@ -582,7 +582,7 @@ def test_real_encoder_prospective_replacement_bound_is_atomic(monkeypatch, limit
     asyncio.run(scenario())
 
 
-def test_collection_evidence_budget_and_per_list_limits_are_distinct():
+def test_shared_collection_evidence_budget_and_per_list_limits_are_distinct():
     async def scenario():
         expected, inputs = assigned(batch=True)
         collector = InvocationAuditCollector(inputs)
@@ -617,7 +617,7 @@ def test_collection_evidence_budget_and_per_list_limits_are_distinct():
     asyncio.run(scenario())
 
 
-def test_actual_eight_mib_limit_rejects_large_replacement_and_preserves_revision():
+def test_shared_actual_eight_mib_limit_rejects_large_replacement_and_preserves_revision():
     async def scenario():
         expected, inputs = assigned()
         collector = InvocationAuditCollector(inputs)

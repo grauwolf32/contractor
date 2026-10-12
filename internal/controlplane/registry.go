@@ -12,12 +12,13 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/clone"
-	workflowconfig "github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/control"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/contracts/runlabels"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/randomid"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 )
@@ -26,24 +27,6 @@ const (
 	heartbeatHistoryLimit          = 128
 	stageReservationTombstoneLimit = 1024
 )
-
-type Registry interface {
-	RegistrationResponse(AuthenticatedPrincipal) control.AgentRegistrationResponse
-	RegisterAuthenticated(AuthenticatedPrincipal, control.AgentRegistration) (AgentSnapshot, error)
-	HeartbeatAuthenticated(string, control.AgentHeartbeat) (control.HeartbeatResponse, error)
-	ReserveAll(ReservationRequest) ([]Reservation, error)
-	GetGrant(string) (AllocationGrant, error)
-	GetReservation(string) (Reservation, error)
-	PrepareReservation(Reservation) (Reservation, error)
-	WithWriteGrant(string, func(AllocationGrant) error) error
-	SetWriteFence(string) error
-	Release(string) error
-	GetAgent(string) (AgentSnapshot, error)
-	PollAllocationLosses() []AllocationLoss
-	SnapshotOperations() OperationsSnapshot
-	SetAllocationPhase(string, AllocationAuthoritativePhase, *SafeReason) error
-	RecordAllocationReport(string, reporting.AllocationFinalReport) error
-}
 
 type AuthenticatedPrincipal struct {
 	RuntimeAgentID string
@@ -731,7 +714,7 @@ func validateCandidateEdges(bindings []BindingRequirement, edges []CandidateEdge
 			return fmt.Errorf("%w: candidate edge is duplicated", ErrInvalidRequest)
 		}
 		seen[key] = struct{}{}
-		previous := contracts.RuntimeAdapterRef("")
+		previous := runtimesettings.RuntimeAdapterRef("")
 		for _, adapter := range edge.RequiredRuntimeAdapters {
 			if adapter.Validate() != nil || adapter <= previous {
 				return fmt.Errorf("%w: candidate adapter requirements are invalid", ErrInvalidRequest)
@@ -743,8 +726,8 @@ func validateCandidateEdges(bindings []BindingRequirement, edges []CandidateEdge
 }
 
 func containsRuntimeAdapters(
-	available []contracts.RuntimeAdapterRef,
-	required []contracts.RuntimeAdapterRef,
+	available []runtimesettings.RuntimeAdapterRef,
+	required []runtimesettings.RuntimeAdapterRef,
 ) bool {
 	availableIndex := 0
 	for _, expected := range required {
@@ -1155,7 +1138,7 @@ func isPlacementEligible(entry *agentEntry, monotonicNow time.Duration) bool {
 }
 
 func isBindingCompatible(registration control.AgentRegistration, binding BindingRequirement) bool {
-	return contracts.ValidateWorkerCompletionSelection(binding.CompletionContract, binding.Namespace, binding.AgentTemplate) == nil &&
+	return resolved.ValidateWorkerCompletionSelection(binding.CompletionContract, binding.Namespace, binding.AgentTemplate) == nil &&
 		contracts.SupportsWorkerCompletion(registration.Capabilities, binding.CompletionContract) &&
 		isCompatible(registration, binding.AgentTemplate, binding.Workspace)
 }
@@ -1165,7 +1148,7 @@ func isCompatible(
 	template contracts.ResolvedAgentTemplate,
 	workspace *contracts.AllocationWorkspaceSpec,
 ) bool {
-	if !workflowconfig.SandboxWorkspaceCompatible(template, workspace, registration.WorkspaceCapabilities) {
+	if !resolved.SandboxWorkspaceCompatible(template, workspace, registration.WorkspaceCapabilities) {
 		return false
 	}
 	runtime := template.Runtime.RuntimeID + "@" + template.Runtime.Version
@@ -1241,7 +1224,7 @@ func normalizeReservationRequest(request ReservationRequest) (string, []BindingR
 		if binding.Namespace == "inputs" || binding.Namespace == "outputs" {
 			return "", nil, fmt.Errorf("%w: Agent binding cannot use a Run-reserved namespace", ErrInvalidRequest)
 		}
-		if err := contracts.ValidateWorkerCompletionSelection(binding.CompletionContract, binding.Namespace, binding.AgentTemplate); err != nil {
+		if err := resolved.ValidateWorkerCompletionSelection(binding.CompletionContract, binding.Namespace, binding.AgentTemplate); err != nil {
 			return "", nil, fmt.Errorf("%w: %v", ErrInvalidRequest, err)
 		}
 		if err := binding.AgentTemplate.Validate(); err != nil {
@@ -1553,9 +1536,9 @@ func validateAuthenticatedPrincipal(principal AuthenticatedPrincipal) error {
 	return nil
 }
 
-func validateRuntimeSelection(value workflowconfig.ResolvedConsumerExecutionConfig, toolWorker bool) error {
+func validateRuntimeSelection(value resolved.ResolvedConsumerExecutionConfig, toolWorker bool) error {
 	if toolWorker {
-		if !value.ModelPolicy.IsZero() || value.LLMGateway != nil || value.Credential != nil || value.Origins != (workflowconfig.ExecutionConfigOrigins{}) {
+		if !value.ModelPolicy.IsZero() || value.LLMGateway != nil || value.Credential != nil || value.Origins != (resolved.ExecutionConfigOrigins{}) {
 			return ErrInvalidRequest
 		}
 		return nil

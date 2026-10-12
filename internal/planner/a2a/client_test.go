@@ -501,7 +501,7 @@ func stageRequest() contracts.StageContentRequest {
 	return contracts.StageContentRequest{
 		APIVersion: contracts.APIVersion, SubtaskID: "0", Objective: "Build a report",
 		Instructions: "Use the source.", Parameters: map[string]string{"mode": "strict"},
-		Artifacts: map[string]contracts.ArtifactRef{},
+		Artifacts: map[string]contracts.ArtifactRef{}, Deadline: time.Date(2100, 1, 1, 0, 0, 0, 0, time.UTC),
 	}
 }
 

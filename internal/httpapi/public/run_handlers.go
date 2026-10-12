@@ -1,6 +1,7 @@
 package public
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -9,9 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/grauwolf32/contractor/internal/config"
-	"github.com/grauwolf32/contractor/internal/contentdigest"
-	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/pagelimit"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/runservice"
@@ -22,42 +22,97 @@ import (
 
 const maxCancellationReasonBytes = 4096
 
-const idempotencyKeyHeader = "Idempotency-Key"
+type RunReader interface {
+	GetRun(context.Context, string) (runstore.WorkflowRun, error)
+	ListRuns(context.Context, runstore.ListRunsParams) ([]runstore.WorkflowRunSummary, error)
+}
 
-func (h *handler) listRuns(w http.ResponseWriter, r *http.Request) {
-	if h.rejectHead(w, r) {
+// RunDetailReader reads a Run detail, its event cursor included, from one
+// snapshot (API-R48).
+type RunDetailReader interface {
+	Read(context.Context, string, string) (runservice.RunDetail, error)
+}
+
+type RunLifecycle interface {
+	ResumeFailedRun(context.Context, string, string, string, string) (runstore.ResumeRunResult, error)
+	RequestRunCancellation(context.Context, string, runstore.WorkflowRunCancellation) (runstore.WorkflowRun, error)
+}
+
+type RunDeletion interface {
+	DeletableRuns(context.Context, string, []string) (map[string]bool, error)
+	DeleteReleasedTerminalRun(context.Context, string, string) error
+}
+
+type RunCreationService interface {
+	CreatePublic(context.Context, runservice.PublicCreateParams) (runservice.CreateResult, error)
+}
+
+// RunNotifier is the Scheduler: Wake makes it look for admissible work and
+// Cancel makes it stop the active work of one cancelling Run now.
+type RunNotifier interface {
+	Wake()
+	Cancel(string)
+}
+
+// GatewayRecovery retries the gateway wait of one owner's Run.
+type GatewayRecovery interface {
+	Retry(context.Context, string, string) error
+}
+
+// RunDependencies serve Run creation, listing, detail, cancellation, resume,
+// gateway retry and deletion.
+type RunDependencies struct {
+	Runs            RunReader
+	RunDetails      RunDetailReader
+	RunLifecycle    RunLifecycle
+	RunDeletion     RunDeletion
+	RunCreator      RunCreationService
+	RunNotifier     RunNotifier
+	GatewayRecovery GatewayRecovery
+	Projects        ProjectReader
+	NewID           func(string) (string, error)
+	Now             func() time.Time
+}
+
+type runHandlers struct {
+	RunDependencies
+	cursors pageCursors
+}
+
+func (h *runHandlers) listRuns(w http.ResponseWriter, r *http.Request) {
+	if rejectHead(w, r) {
 		return
 	}
 	h.listRunsFromProject(w, r, nil)
 }
 
-func (h *handler) listProjectRuns(w http.ResponseWriter, r *http.Request) {
-	if h.rejectHead(w, r) {
+func (h *runHandlers) listProjectRuns(w http.ResponseWriter, r *http.Request) {
+	if rejectHead(w, r) {
 		return
 	}
 	projectID := r.PathValue("projectId")
-	if _, err := h.dependencies.Projects.Get(
+	if _, err := h.Projects.Get(
 		r.Context(), principalUserID(r.Context()), projectID,
 	); err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	h.listRunsFromProject(w, r, &projectID)
 }
 
-func (h *handler) listRunsFromProject(w http.ResponseWriter, r *http.Request, projectID *string) {
+func (h *runHandlers) listRunsFromProject(w http.ResponseWriter, r *http.Request, projectID *string) {
 	query, limit, encodedCursor, err := pageQueryWithRepeated(
 		r.URL.RawQuery, "label", runstore.MaxRunMetadataLabels, "state", "lifecycle",
 	)
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	var state *runstore.WorkflowRunState
 	if values, present := query["state"]; present {
 		candidate := runstore.WorkflowRunState(values[0])
 		if !candidate.Valid() {
-			h.handleError(w, fmt.Errorf("%w: unknown Run state", errInvalidRequest))
+			handleError(w, fmt.Errorf("%w: unknown Run state", errInvalidRequest))
 			return
 		}
 		state = &candidate
@@ -66,20 +121,20 @@ func (h *handler) listRunsFromProject(w http.ResponseWriter, r *http.Request, pr
 	if values, present := query["lifecycle"]; present {
 		candidate := runstore.WorkflowRunLifecycle(values[0])
 		if !candidate.Valid() {
-			h.handleError(w, fmt.Errorf("%w: unknown Run lifecycle", errInvalidRequest))
+			handleError(w, fmt.Errorf("%w: unknown Run lifecycle", errInvalidRequest))
 			return
 		}
 		lifecycle = &candidate
 	}
 	selectors, err := parseRunMetadataLabelSelectors(query["label"])
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	cursorKind := runListCursorKindForProject(state, lifecycle, selectors, projectID)
-	cursor, err := h.decodePageCursor(encodedCursor, cursorKind, 2)
+	cursor, err := h.cursors.decodePageCursor(encodedCursor, cursorKind, 2)
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	params := runstore.ListRunsParams{
@@ -89,31 +144,31 @@ func (h *handler) listRunsFromProject(w http.ResponseWriter, r *http.Request, pr
 	if len(cursor) != 0 {
 		before, parseErr := time.Parse(time.RFC3339Nano, cursor[0])
 		if parseErr != nil {
-			h.handleError(w, fmt.Errorf("%w: invalid Run cursor", errInvalidRequest))
+			handleError(w, fmt.Errorf("%w: invalid Run cursor", errInvalidRequest))
 			return
 		}
 		params.BeforeCreatedAt = &before
 		params.BeforeRunID = cursor[1]
 	}
-	runs, err := h.dependencies.Runs.ListRuns(r.Context(), params)
+	runs, err := h.Runs.ListRuns(r.Context(), params)
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
-	runs, page, err := paginate(h, runs, limit, cursorKind, func(last runstore.WorkflowRunSummary) []string {
+	runs, page, err := paginate(h.cursors, runs, limit, cursorKind, func(last runstore.WorkflowRunSummary) []string {
 		return []string{last.CreatedAt.UTC().Format(time.RFC3339Nano), last.RunID}
 	})
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	runIDs := make([]string, 0, len(runs))
 	for _, run := range runs {
 		runIDs = append(runIDs, run.RunID)
 	}
-	deletable, err := h.dependencies.RunDeletion.DeletableRuns(r.Context(), params.OwnerID, runIDs)
+	deletable, err := h.RunDeletion.DeletableRuns(r.Context(), params.OwnerID, runIDs)
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	items := make([]runSummaryResponse, 0, len(runs))
@@ -168,64 +223,63 @@ func runListCursorKindForProject(
 	return kind + ":labels:" + string(encoded)
 }
 
-func (h *handler) createRun(w http.ResponseWriter, r *http.Request) {
+func (h *runHandlers) createRun(w http.ResponseWriter, r *http.Request) {
 	h.createRunFromProject(w, r, nil)
 }
 
-func (h *handler) createProjectRun(w http.ResponseWriter, r *http.Request) {
+func (h *runHandlers) createProjectRun(w http.ResponseWriter, r *http.Request) {
 	projectID := r.PathValue("projectId")
-	if _, err := h.dependencies.Projects.Get(
+	if _, err := h.Projects.Get(
 		r.Context(), principalUserID(r.Context()), projectID,
 	); err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	h.createRunFromProject(w, r, &projectID)
 }
 
-func (h *handler) createRunFromProject(w http.ResponseWriter, r *http.Request, projectID *string) {
+func (h *runHandlers) createRunFromProject(w http.ResponseWriter, r *http.Request, projectID *string) {
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	var request createRunRequest
 	if err := decodeJSON(w, r, &request); err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	normalizedLabels, err := runtimeconfig.NormalizeRunLabels([]string(request.RuntimeLabels))
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
-	request.RuntimeLabels = runRuntimeLabels(normalizedLabels)
 	metadataLabels, err := runstore.NormalizeRunMetadataLabels(request.Labels)
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
-	request.Labels = runMetadataLabels(metadataLabels)
 	idempotencyKey, err := requireIdempotencyKey(r)
 	if err != nil {
-		h.handleError(w, err)
-		return
-	}
-	requestDigest, err := createRunRequestDigestForProject(request, projectID)
-	if err != nil {
-		h.handleError(w, fmt.Errorf("digest Run request: %w", err))
+		handleError(w, err)
 		return
 	}
 	credentialUser := runtimeCredentialUser(r.Context())
-	result, err := h.dependencies.RunCreator.CreatePublic(r.Context(), runservice.PublicCreateParams{
+	params := runservice.PublicCreateParams{
 		OwnerID: credentialUser.UserID, OperationsPrincipal: credentialUser.Operations,
 		ProjectID: projectID, Workflow: request.Workflow,
-		ExecutionConfig: request.ExecutionConfig, RuntimeLabels: []string(request.RuntimeLabels),
+		ExecutionConfig: request.ExecutionConfig, RuntimeLabels: normalizedLabels,
 		MetadataLabels: metadataLabels, Parameters: request.Parameters, Inputs: request.Artifacts,
-		IdempotencyKey: idempotencyKey, RequestDigest: requestDigest,
-		NewRunID: func() (string, error) { return h.dependencies.NewID("run_") },
-	})
+		IdempotencyKey: idempotencyKey,
+		NewRunID:       func() (string, error) { return h.NewID("run_") },
+	}
+	params.RequestDigest, err = runservice.PublicRequestDigest(params)
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, fmt.Errorf("digest Run request: %w", err))
+		return
+	}
+	result, err := h.RunCreator.CreatePublic(r.Context(), params)
+	if err != nil {
+		handleError(w, err)
 		return
 	}
 	// Skill package validation and RunScope forking are intentionally deferred
@@ -233,8 +287,8 @@ func (h *handler) createRunFromProject(w http.ResponseWriter, r *http.Request, p
 	// one complete exact owner-source outcome, so returning the initializing Run
 	// neither holds the HTTP request on bounded archive work nor permits a later
 	// owner binding update to change what recovery will read.
-	if result.Created && h.dependencies.RunNotifier != nil {
-		h.dependencies.RunNotifier.Wake()
+	if result.Created {
+		h.RunNotifier.Wake()
 	}
 	if result.Replayed {
 		w.Header().Set("Idempotency-Replayed", "true")
@@ -252,196 +306,123 @@ func createRunReadModel(run runstore.WorkflowRun) createRunResponse {
 	}
 }
 
-func requireIdempotencyKey(r *http.Request) (string, error) {
-	values := r.Header.Values(idempotencyKeyHeader)
-	if len(values) != 1 || len(values[0]) == 0 || len(values[0]) > 128 {
-		return "", fmt.Errorf("%w: exactly one bounded Idempotency-Key is required", errInvalidRequest)
-	}
-	for index, character := range values[0] {
-		valid := character >= 'a' && character <= 'z' || character >= 'A' && character <= 'Z' ||
-			character >= '0' && character <= '9' || index > 0 && strings.ContainsRune("._:-", character)
-		if !valid {
-			return "", fmt.Errorf("%w: Idempotency-Key contains an invalid character", errInvalidRequest)
-		}
-	}
-	return values[0], nil
-}
-
-func createRunRequestDigest(request createRunRequest) (string, error) {
-	labels, err := runtimeconfig.NormalizeRunLabels([]string(request.RuntimeLabels))
-	if err != nil {
-		return "", err
-	}
-	parameters := request.Parameters
-	if parameters == nil {
-		parameters = map[string]string{}
-	}
-	artifactRefs := request.Artifacts
-	if artifactRefs == nil {
-		artifactRefs = map[string]contracts.ArtifactRef{}
-	}
-	canonical := map[string]any{
-		"workflow": request.Workflow, "parameters": parameters, "artifacts": artifactRefs,
-		"executionConfig": request.ExecutionConfig.CanonicalValue(),
-	}
-	// An empty label set is omitted, as metadata labels are below.
-	if len(labels) != 0 {
-		canonical["runtimeLabels"] = labels
-	}
-	metadataLabels, err := runstore.NormalizeRunMetadataLabels(request.Labels)
-	if err != nil {
-		return "", err
-	}
-	if len(metadataLabels) != 0 {
-		canonical["labels"] = metadataLabels
-	}
-	return contentdigest.JSON(canonical)
-}
-
-func createRunRequestDigestForProject(request createRunRequest, projectID *string) (string, error) {
-	requestDigest, err := createRunRequestDigest(request)
-	if err != nil || projectID == nil {
-		return requestDigest, err
-	}
-	return contentdigest.JSON(map[string]string{
-		"sourceScope":      "project",
-		"projectId":        *projectID,
-		"runRequestDigest": requestDigest,
-	})
-}
-
-func (h *handler) cancelRun(w http.ResponseWriter, r *http.Request) {
+func (h *runHandlers) cancelRun(w http.ResponseWriter, r *http.Request) {
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	var request *cancelRunRequest
 	if err := decodeJSON(w, r, &request); err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	if request == nil {
-		h.handleError(w, fmt.Errorf("%w: cancellation request must be an object", errInvalidRequest))
+		handleError(w, fmt.Errorf("%w: cancellation request must be an object", errInvalidRequest))
 		return
 	}
 	if request.Reason != nil {
 		trimmed := strings.TrimSpace(*request.Reason)
 		if trimmed == "" || len([]byte(trimmed)) > maxCancellationReasonBytes {
-			h.handleError(w, fmt.Errorf("%w: cancellation reason is empty or too large", errInvalidRequest))
+			handleError(w, fmt.Errorf("%w: cancellation reason is empty or too large", errInvalidRequest))
 			return
 		}
 		request.Reason = &trimmed
 	}
-	run, err := h.ownedRun(r)
+	run, err := ownedRun(r, h.Runs)
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	requestedBy := principalUserID(r.Context())
-	run, err = h.dependencies.RunLifecycle.RequestRunCancellation(r.Context(), run.RunID, runstore.WorkflowRunCancellation{
+	run, err = h.RunLifecycle.RequestRunCancellation(r.Context(), run.RunID, runstore.WorkflowRunCancellation{
 		Code:        runstore.CancellationUserRequested,
-		RequestedAt: h.dependencies.Now().UTC().Round(0),
+		RequestedAt: h.Now().UTC().Round(0),
 		RequestedBy: &requestedBy,
 		Reason:      request.Reason,
 	})
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	status := http.StatusOK
 	if run.State == runstore.RunCancelling {
 		status = http.StatusAccepted
-		if notifier, ok := h.dependencies.RunNotifier.(RunCancellationNotifier); ok {
-			notifier.Cancel(run.RunID)
-		} else if h.dependencies.RunNotifier != nil {
-			h.dependencies.RunNotifier.Wake()
-		}
+		h.RunNotifier.Cancel(run.RunID)
 	}
 	writeJSON(w, status, cancelRunResponse{
 		RunID: run.RunID, State: run.State, Cancellation: run.Cancellation,
 	})
 }
 
-func (h *handler) resumeRun(w http.ResponseWriter, r *http.Request) {
+func (h *runHandlers) resumeRun(w http.ResponseWriter, r *http.Request) {
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	var request struct {
 		StageExecutionID string `json:"stageExecutionId"`
 	}
 	if err := decodeJSON(w, r, &request); err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	if request.StageExecutionID == "" {
-		h.handleError(w, fmt.Errorf("%w: stageExecutionId is required", errInvalidRequest))
+		handleError(w, fmt.Errorf("%w: stageExecutionId is required", errInvalidRequest))
 		return
 	}
-	run, err := h.ownedRun(r)
+	run, err := ownedRun(r, h.Runs)
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
-	targetID, err := h.dependencies.NewID("stage_execution_")
+	targetID, err := h.NewID("stage_execution_")
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
-	result, err := h.dependencies.RunLifecycle.ResumeFailedRun(r.Context(), principalUserID(r.Context()), run.RunID, request.StageExecutionID, targetID)
+	result, err := h.RunLifecycle.ResumeFailedRun(r.Context(), principalUserID(r.Context()), run.RunID, request.StageExecutionID, targetID)
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
-	if h.dependencies.RunNotifier != nil {
-		h.dependencies.RunNotifier.Wake()
-	}
+	h.RunNotifier.Wake()
 	writeJSON(w, http.StatusAccepted, result)
 }
 
-func (h *handler) deleteRun(w http.ResponseWriter, r *http.Request) {
+func (h *runHandlers) deleteRun(w http.ResponseWriter, r *http.Request) {
 	if _, err := exactQuery(r.URL.RawQuery); err != nil ||
 		r.ContentLength > 0 || len(r.TransferEncoding) != 0 {
-		h.handleError(w, errInvalidRequest)
+		handleError(w, errInvalidRequest)
 		return
 	}
-	if err := h.dependencies.RunDeletion.DeleteReleasedTerminalRun(
-		r.Context(), principalUserID(r.Context()), r.PathValue("runID"),
+	if err := h.RunDeletion.DeleteReleasedTerminalRun(
+		r.Context(), principalUserID(r.Context()), r.PathValue("runId"),
 	); err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func sortedArtifactSlots(source map[string]contracts.ArtifactRef) []string {
-	result := make([]string, 0, len(source))
-	for slot := range source {
-		result = append(result, slot)
-	}
-	sort.Strings(result)
-	return result
-}
-
-func (h *handler) getRun(w http.ResponseWriter, r *http.Request) {
+func (h *runHandlers) getRun(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodHead {
-		h.methodNotAllowed(w, r)
+		methodNotAllowed(w, r)
 		return
 	}
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
-	detail, err := h.dependencies.RunDetails.Read(
-		r.Context(), principalUserID(r.Context()), r.PathValue("runID"),
+	detail, err := h.RunDetails.Read(
+		r.Context(), principalUserID(r.Context()), r.PathValue("runId"),
 	)
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	attempts, activeExecutionID, err := stageAttemptsReadModel(detail)
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	run := detail.Run
@@ -475,7 +456,7 @@ func stageAttemptsReadModel(detail runservice.RunDetail) ([]stageAttemptResponse
 	attempts := make([]stageAttemptResponse, 0, len(detail.Executions))
 	var activeExecutionID *string
 	for _, execution := range detail.Executions {
-		stage, err := config.DecodeResolvedStageSnapshot(execution.StageSpecSnapshot)
+		stage, err := resolved.DecodeResolvedStageSnapshot(execution.StageSpecSnapshot)
 		if err != nil {
 			return nil, nil, fmt.Errorf("decode StageExecution read model: %w", err)
 		}
@@ -584,7 +565,7 @@ func stageRuntimeConfigurationReadModel(
 		projected = append(projected, stageRuntimeAllocationResponse{
 			LogicalAgent: allocation.LogicalAgentName,
 			AgentLabels:  agentLabels,
-			RuntimeAdapters: append([]contracts.RuntimeAdapterRef{},
+			RuntimeAdapters: append([]runtimesettings.RuntimeAdapterRef{},
 				configuration.Provenance.RuntimeAdapters...),
 			Origins: configuration.Origins,
 			Status:  status,
@@ -631,7 +612,7 @@ func stageExecutionConfigReadModel(
 	if variant == "" {
 		variant = runstore.StageExecutionConfigBase
 	}
-	stage, err := config.DecodeResolvedStageSnapshot(execution.StageSpecSnapshot)
+	stage, err := resolved.DecodeResolvedStageSnapshot(execution.StageSpecSnapshot)
 	if err != nil {
 		return stageExecutionConfigResponse{}, fmt.Errorf(
 			"decode StageExecution executionConfig read model: %w", err,
@@ -670,55 +651,4 @@ func stageExecutionConfigReadModel(
 		result.Agents[logicalName] = consumerExecutionConfigRefs(selection)
 	}
 	return result, nil
-}
-
-func consumerExecutionConfigRefs(
-	selection config.ResolvedConsumerExecutionConfig,
-) consumerExecutionConfigRefsResponse {
-	result := consumerExecutionConfigRefsResponse{
-		ModelPolicy: selection.ModelPolicy.Ref,
-		Origins:     selection.Origins,
-	}
-	if selection.LLMGateway != nil {
-		gateway := selection.LLMGateway.Ref
-		result.LLMGateway = &gateway
-	}
-	if selection.Credential != nil {
-		credential := *selection.Credential
-		result.Credential = &credential
-	}
-	return result
-}
-
-func (h *handler) ownedRun(r *http.Request) (runstore.WorkflowRun, error) {
-	run, err := h.dependencies.Runs.GetRun(r.Context(), r.PathValue("runID"))
-	if err != nil {
-		return runstore.WorkflowRun{}, err
-	}
-	if run.OwnerID != principalUserID(r.Context()) {
-		return runstore.WorkflowRun{}, runstore.ErrNotFound
-	}
-	return run, nil
-}
-
-func (h *handler) getRunOutput(w http.ResponseWriter, r *http.Request) {
-	if r.Method == http.MethodHead {
-		h.methodNotAllowed(w, r)
-		return
-	}
-	if _, err := exactQuery(r.URL.RawQuery); err != nil {
-		h.handleError(w, err)
-		return
-	}
-	run, err := h.ownedRun(r)
-	if err != nil {
-		h.handleError(w, err)
-		return
-	}
-	store, err := h.dependencies.Artifacts.Run(run.RunID)
-	if err != nil {
-		h.handleError(w, err)
-		return
-	}
-	h.writeArtifactRead(w, r, store, contracts.ArtifactRef{Namespace: "outputs", Name: r.PathValue("slot")})
 }

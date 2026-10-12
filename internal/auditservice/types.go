@@ -8,7 +8,9 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditbaseline"
 	"github.com/grauwolf32/contractor/internal/auditstandards"
 	"github.com/grauwolf32/contractor/internal/auditstore"
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/auditstore/ownerstore"
+	"github.com/grauwolf32/contractor/internal/auditstore/querystore"
+	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/findingintake"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
@@ -22,8 +24,8 @@ const (
 )
 
 type ProfileCatalog interface {
-	AuditProfile(string) (config.ResolvedAuditProfile, error)
-	AuditProfiles() []config.ResolvedAuditProfile
+	AuditProfile(string) (auditprofile.ResolvedAuditProfile, error)
+	AuditProfiles() []auditprofile.ResolvedAuditProfile
 }
 
 // CredentialReferenceGuard must fence both managed LLM and Runtime credential
@@ -52,6 +54,12 @@ type Service struct {
 	now                       func() time.Time
 }
 
+// owners and reads are the owner and query seams of the Audit store on the
+// service's pool; a transaction builds the seams it uses from itself.
+func (s *Service) owners() *ownerstore.Store { return ownerstore.New(s.pool) }
+
+func (s *Service) reads() *querystore.Store { return querystore.New(s.pool) }
+
 type ProfileSelector struct {
 	Name    string `json:"name"`
 	Version string `json:"version"`
@@ -76,7 +84,7 @@ type Compatibility struct {
 }
 
 type ProfileProjection struct {
-	Profile       config.ResolvedAuditProfile
+	Profile       auditprofile.ResolvedAuditProfile
 	Compatibility Compatibility
 }
 
@@ -141,7 +149,7 @@ const (
 )
 
 type ReportProjection struct {
-	Review          *ReviewRequest            `json:"review,omitempty"`
+	Review          *auditstore.ReviewRequest `json:"review,omitempty"`
 	Status          ReportStatus              `json:"status"`
 	MachineArtifact *auditstore.ExactArtifact `json:"machineArtifact,omitempty"`
 	SummaryArtifact *auditstore.ExactArtifact `json:"summaryArtifact,omitempty"`

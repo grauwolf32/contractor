@@ -12,8 +12,8 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
 	"github.com/grauwolf32/contractor/internal/auth"
-	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
@@ -21,6 +21,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/planner"
 	plannersession "github.com/grauwolf32/contractor/internal/planner/session"
+	"github.com/grauwolf32/contractor/internal/planner/stageresult"
 	"github.com/grauwolf32/contractor/internal/runservice"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
@@ -72,7 +73,7 @@ func TestPostgresRunDetailFixedBatchQueries(t *testing.T) {
 				Config: runtimesettings.RuntimeConfigRef{Name: runtimeconfig.BuiltInName, Version: runtimeconfig.BuiltInVersion, Digest: runtimeconfig.BuiltInDigest},
 			},
 			RunLabels: []runtimesettings.RuntimeLabelBindingProvenance{}, AgentLabels: []runtimesettings.RuntimeLabelBindingProvenance{},
-			RuntimeAdapters: []contracts.RuntimeAdapterRef{}, RuntimeCredentialRefs: []runtimesettings.RuntimeCredentialRef{},
+			RuntimeAdapters: []runtimesettings.RuntimeAdapterRef{}, RuntimeCredentialRefs: []runtimesettings.RuntimeCredentialRef{},
 			LLMGatewayConfig: &gateway,
 		},
 	}
@@ -83,7 +84,7 @@ func TestPostgresRunDetailFixedBatchQueries(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	catalog, err := configload.Load("../../config/testdata/valid", config.MVPDescriptors())
+	catalog, err := configload.Load("../../config/testdata/valid")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -99,10 +100,10 @@ func TestPostgresRunDetailFixedBatchQueries(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	batch := &handler{dependencies: Dependencies{RunDetails: tracedDetails}}
-	get := func(h *handler, runID, owner string) *httptest.ResponseRecorder {
+	batch := &runHandlers{RunDependencies: RunDependencies{RunDetails: tracedDetails}}
+	get := func(h *runHandlers, runID, owner string) *httptest.ResponseRecorder {
 		r := httptest.NewRequest(http.MethodGet, "/v1/runs/"+runID, nil)
-		r.SetPathValue("runID", runID)
+		r.SetPathValue("runId", runID)
 		r = r.WithContext(auth.WithPrincipal(ctx, auth.Principal{UserID: owner}))
 		w := httptest.NewRecorder()
 		h.getRun(w, r)
@@ -131,11 +132,11 @@ func TestPostgresRunDetailFixedBatchQueries(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			output, err := service.BindOutputExact(ctx, runID, "result", source.Ref, nil)
+			output, err := artifactstest.BindOutput(ctx, service, runID, "result", source.Ref)
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := service.FreezeRunOutputs(ctx, runID); err != nil {
+			if err := artifactstest.FreezeOutputs(ctx, service, runID); err != nil {
 				t.Fatal(err)
 			}
 			for i := 0; i < n; i++ {
@@ -168,7 +169,7 @@ func TestPostgresRunDetailFixedBatchQueries(t *testing.T) {
 					}
 				}
 				if i < n-1 {
-					result := contracts.StageContentResult{APIVersion: contracts.APIVersion, Outcome: contracts.StageSucceeded, Summary: "done", Artifacts: map[string]contracts.ArtifactRef{}}
+					result := stageresult.StageContentResult{APIVersion: contracts.APIVersion, Outcome: stageresult.StageSucceeded, Summary: "done", Artifacts: map[string]contracts.ArtifactRef{}}
 					if err := runs.EnterFinalizing(ctx, runstore.EnterFinalizingParams{StageExecutionID: id, ResultSchemaVersion: contracts.APIVersion, Candidate: result, FinalizationID: "finalize-" + id, Deadline: time.Now().Add(time.Minute), Reason: runstore.Reason{Code: "done"}}); err != nil {
 						t.Fatal(err)
 					}

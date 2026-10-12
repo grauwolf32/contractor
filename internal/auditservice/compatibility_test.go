@@ -9,7 +9,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstandards"
 	"github.com/grauwolf32/contractor/internal/auditstore"
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
@@ -72,14 +72,14 @@ func TestProfileCompatibilityAcceptsImplementedAdvancedPoliciesAndBatching(t *te
 	}
 	profile.Execution.MaxRounds = 2
 	profile.Execution.BatchSize = 2
-	profile.Interaction = config.AuditInteractionPolicy{
-		ActiveChecks:        config.AuditActiveChecksApprovalRequired,
-		FindingConfirmation: config.AuditFindingHumanRequired,
-		NotApplicable:       config.AuditNotApplicableHumanRequired,
-		ReportAcceptance:    config.AuditReportHumanRequired,
+	profile.Interaction = auditprofile.AuditInteractionPolicy{
+		ActiveChecks:        auditprofile.AuditActiveChecksApprovalRequired,
+		FindingConfirmation: auditprofile.AuditFindingHumanRequired,
+		NotApplicable:       auditprofile.AuditNotApplicableHumanRequired,
+		ReportAcceptance:    auditprofile.AuditReportHumanRequired,
 	}
 	binding := profile.Workflows["check"]
-	binding.Kind = config.AuditWorkflowDiscovery
+	binding.Kind = auditprofile.AuditWorkflowDiscovery
 	profile.Workflows["discovery"] = binding
 
 	got := ProfileCompatibility(profile).Reasons
@@ -119,7 +119,7 @@ func TestProfileCompatibilityUsesExplicitToolAndOutputClassifications(t *testing
 	if !workflowRoleSelectsClassifiedTool(profile, "check", true) {
 		t.Fatal("active tool was not attributed to its exact Workflow role")
 	}
-	profile.Interaction.ActiveChecks = config.AuditActiveChecksApprovalRequired
+	profile.Interaction.ActiveChecks = auditprofile.AuditActiveChecksApprovalRequired
 	revision := "checklist-r1"
 	inventory, err := buildInventory(profile, DraftSelection{Scope: Scope{}}, map[string]artifacts.ReadResult{
 		"checklist": {
@@ -145,7 +145,7 @@ func TestProfileCompatibilityUsesExplicitToolAndOutputClassifications(t *testing
 	}
 }
 
-func mustAuditServiceProfile(t *testing.T) config.ResolvedAuditProfile {
+func mustAuditServiceProfile(t *testing.T) auditprofile.ResolvedAuditProfile {
 	t.Helper()
 	profile, err := loadAuditServiceProfiles(t).AuditProfile("test-checklist@1")
 	if err != nil {

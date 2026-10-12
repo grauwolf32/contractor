@@ -14,7 +14,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditstandards"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/clone"
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
@@ -22,12 +22,12 @@ import (
 const ReportSchema = "contractor.audit.report.v1"
 
 type reportProfile struct {
-	Name              string                         `json:"name"`
-	Version           string                         `json:"version"`
-	Digest            string                         `json:"digest"`
-	Mode              config.AuditProfileMode        `json:"mode"`
-	Standards         []config.AuditStandardRef      `json:"standards"`
-	StandardSelection *config.AuditStandardSelection `json:"standardSelection,omitempty"`
+	Name              string                               `json:"name"`
+	Version           string                               `json:"version"`
+	Digest            string                               `json:"digest"`
+	Mode              auditprofile.AuditProfileMode        `json:"mode"`
+	Standards         []auditprofile.AuditStandardRef      `json:"standards"`
+	StandardSelection *auditprofile.AuditStandardSelection `json:"standardSelection,omitempty"`
 }
 
 type reportRound struct {
@@ -37,15 +37,15 @@ type reportRound struct {
 }
 
 type reportBaseline struct {
-	Digest                   string                              `json:"digest"`
-	Inputs                   map[string]auditstore.ExactArtifact `json:"inputs"`
-	Scope                    map[string]string                   `json:"scope"`
-	SourceContentDigest      string                              `json:"sourceContentDigest"`
-	CanonicalInventoryDigest string                              `json:"canonicalInventoryDigest"`
-	Worklist                 auditstore.ExactArtifact            `json:"worklist"`
-	InventoryGaps            []string                            `json:"inventoryGaps"`
-	Standards                []auditstandards.PinnedPackage      `json:"standards"`
-	StandardSelection        *config.AuditStandardSelection      `json:"standardSelection,omitempty"`
+	Digest                   string                               `json:"digest"`
+	Inputs                   map[string]auditstore.ExactArtifact  `json:"inputs"`
+	Scope                    map[string]string                    `json:"scope"`
+	SourceContentDigest      string                               `json:"sourceContentDigest"`
+	CanonicalInventoryDigest string                               `json:"canonicalInventoryDigest"`
+	Worklist                 auditstore.ExactArtifact             `json:"worklist"`
+	InventoryGaps            []string                             `json:"inventoryGaps"`
+	Standards                []auditstandards.PinnedPackage       `json:"standards"`
+	StandardSelection        *auditprofile.AuditStandardSelection `json:"standardSelection,omitempty"`
 }
 
 type reportStopReason struct {
@@ -181,7 +181,7 @@ func (i *Importer) Finalize(
 		snapshot.MoreItems || snapshot.MoreExecutions {
 		return false, nil
 	}
-	profile, err := config.DecodeResolvedAuditProfileSnapshot(snapshot.Audit.ProfileSnapshot)
+	profile, err := auditprofile.DecodeResolvedAuditProfileSnapshot(snapshot.Audit.ProfileSnapshot)
 	if err != nil || profile.Ref.Name != snapshot.Audit.Profile.Name ||
 		profile.Ref.Version != snapshot.Audit.Profile.Version || profile.Ref.Digest != snapshot.Audit.Profile.Digest {
 		return false, fmt.Errorf("%w: report profile snapshot is invalid", ErrPermanent)
@@ -197,7 +197,7 @@ func (i *Importer) Finalize(
 	if !profile.HasPreparation() && baseline.Inventory.Gaps == nil {
 		return false, fmt.Errorf("%w: report inventory gaps are absent", ErrPermanent)
 	}
-	rounds, err := i.store.ListRounds(ctx, snapshot.Audit.AuditID)
+	rounds, err := i.reads.ListRounds(ctx, snapshot.Audit.AuditID)
 	if err != nil {
 		return false, err
 	}
@@ -214,14 +214,14 @@ func (i *Importer) Finalize(
 		}
 		if err := i.recordNextPage(ctx, claim, snapshot.Audit, &build); err != nil {
 			if errors.Is(err, auditstore.ErrPrecondition) &&
-				profile.Interaction.ReportAcceptance == config.AuditReportHumanRequired {
+				profile.Interaction.ReportAcceptance == auditprofile.AuditReportHumanRequired {
 				return i.replayedProposal(ctx, snapshot.Audit, err)
 			}
 			return false, err
 		}
 	}
 	if profile.HasPreparation() {
-		link, err := i.store.GetArtifactLink(ctx, snapshot.Audit.AuditID, auditstore.InitialInventoryLogicalKey)
+		link, err := i.reads.GetArtifactLink(ctx, snapshot.Audit.AuditID, auditstore.InitialInventoryLogicalKey)
 		if err != nil {
 			return false, err
 		}
@@ -250,7 +250,7 @@ func (i *Importer) Finalize(
 // revision, so the candidate pinned to the snapshot revision is this
 // attempt's candidate. Any other precondition failure is returned.
 func (i *Importer) replayedProposal(ctx context.Context, audit auditstore.Audit, cause error) (bool, error) {
-	candidate, err := i.store.GetReportCandidate(ctx, audit.AuditID)
+	candidate, err := i.reads.GetReportCandidate(ctx, audit.AuditID)
 	if errors.Is(err, auditstore.ErrNotFound) {
 		return false, cause
 	}
@@ -269,7 +269,7 @@ func (i *Importer) publishReport(
 	ctx context.Context,
 	claim auditstore.ControllerClaim,
 	snapshot auditstore.ReconcileSnapshot,
-	profile config.ResolvedAuditProfile,
+	profile auditprofile.ResolvedAuditProfile,
 	baseline auditbaseline.ReportProjection,
 	build reportBuild,
 ) (bool, error) {
@@ -277,7 +277,7 @@ func (i *Importer) publishReport(
 	if err != nil {
 		return false, err
 	}
-	attempts, err := i.store.CollectionDispositionCounts(ctx, snapshot.Audit.AuditID)
+	attempts, err := i.reads.CollectionDispositionCounts(ctx, snapshot.Audit.AuditID)
 	if err != nil {
 		return false, err
 	}
@@ -297,12 +297,12 @@ func (i *Importer) publishReport(
 		Profile: reportProfile{
 			Name: snapshot.Audit.Profile.Name, Version: snapshot.Audit.Profile.Version,
 			Digest: snapshot.Audit.Profile.Digest, Mode: profile.Mode,
-			Standards:         append([]config.AuditStandardRef{}, profile.Standards...),
+			Standards:         append([]auditprofile.AuditStandardRef{}, profile.Standards...),
 			StandardSelection: cloneReportStandardSelection(profile.Inventory.StandardSelection),
 		},
 		Baseline: reportBaseline{
 			Digest: auditdomain.DigestBytes(snapshot.Audit.BaselineSnapshot),
-			Inputs: cloneExactArtifactMap(baseline.Inputs), Scope: clone.Map(baseline.Scope),
+			Inputs: contracts.CloneExactArtifacts(baseline.Inputs), Scope: clone.Map(baseline.Scope),
 			SourceContentDigest:      baseline.Inventory.SourceContentDigest,
 			CanonicalInventoryDigest: baseline.Inventory.CanonicalInventoryDigest,
 			Worklist:                 baseline.Inventory.Worklist,
@@ -385,7 +385,7 @@ func (i *Importer) publishReport(
 		RoundID: snapshot.Round.RoundID, ExpectedRoundRevision: snapshot.Round.Revision,
 		Machine: machineLink, Summary: summaryLink, RequestDigest: auditdomain.DigestBytes(identity),
 	}
-	if profile.Interaction.ReportAcceptance == config.AuditReportHumanRequired {
+	if profile.Interaction.ReportAcceptance == auditprofile.AuditReportHumanRequired {
 		_, _, err = i.store.ProposeReport(ctx, auditstore.ProposeReportParams(commit))
 		return err == nil, err
 	}
@@ -521,17 +521,9 @@ func markdownText(value string) string {
 	).Replace(value)
 }
 
-func cloneExactArtifactMap(values map[string]auditstore.ExactArtifact) map[string]auditstore.ExactArtifact {
-	result := make(map[string]auditstore.ExactArtifact, len(values))
-	for key, value := range values {
-		result[key] = value
-	}
-	return result
-}
-
 func cloneReportStandardSelection(
-	source *config.AuditStandardSelection,
-) *config.AuditStandardSelection {
+	source *auditprofile.AuditStandardSelection,
+) *auditprofile.AuditStandardSelection {
 	if source == nil {
 		return nil
 	}

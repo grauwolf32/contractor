@@ -8,7 +8,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/pagelimit"
 )
@@ -32,12 +32,12 @@ func (s *Service) PrepareNextRound(
 		*snapshot.Audit.CurrentRoundID != snapshot.Round.RoundID {
 		return auditstore.AcceptRoundParams{}, nil, inconsistentRound("the next-Round snapshot is not a closed current Round", nil)
 	}
-	profile, err := config.DecodeResolvedAuditProfileSnapshot(snapshot.Audit.ProfileSnapshot)
+	profile, err := auditprofile.DecodeResolvedAuditProfileSnapshot(snapshot.Audit.ProfileSnapshot)
 	if err != nil || profile.Ref.Name != snapshot.Audit.Profile.Name ||
 		profile.Ref.Version != snapshot.Audit.Profile.Version || profile.Ref.Digest != snapshot.Audit.Profile.Digest {
 		return auditstore.AcceptRoundParams{}, nil, inconsistentRound("the pinned AuditProfile snapshot is invalid", err)
 	}
-	if profile.Interaction.FindingConfirmation == config.AuditFindingDisabled {
+	if profile.Interaction.FindingConfirmation == auditprofile.AuditFindingDisabled {
 		return auditstore.AcceptRoundParams{}, nil, nil
 	}
 	baseline, err := DecodeBaseline(snapshot.Audit.BaselineSnapshot)
@@ -48,10 +48,9 @@ func (s *Service) PrepareNextRound(
 	if err != nil {
 		return auditstore.AcceptRoundParams{}, nil, inconsistentRound("the pinned Audit input selection is invalid", err)
 	}
-	var totalItems int
-	if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM audit_items WHERE audit_id = $1`,
-		snapshot.Audit.AuditID).Scan(&totalItems); err != nil {
-		return auditstore.AcceptRoundParams{}, nil, fmt.Errorf("count Audit items: %w", err)
+	totalItems, err := s.reads().CountItems(ctx, snapshot.Audit.AuditID)
+	if err != nil {
+		return auditstore.AcceptRoundParams{}, nil, err
 	}
 	capacity := roundItemCapacity(
 		snapshot.Audit.Limits.MaxItemsPerRound, snapshot.Audit.Limits.MaxItemsTotal, totalItems,
@@ -115,7 +114,7 @@ func (s *Service) PrepareNextRound(
 		}
 		return auditstore.AcceptRoundParams{}, nil, err
 	}
-	prepared, err := acceptedPreparationInputs(ctx, auditstore.NewPostgresStore(s.pool), snapshot.Audit.AuditID, profile)
+	prepared, err := acceptedPreparationInputs(ctx, s.reads(), snapshot.Audit.AuditID, profile)
 	if err != nil {
 		return auditstore.AcceptRoundParams{}, nil, err
 	}

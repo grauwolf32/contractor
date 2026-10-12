@@ -10,7 +10,6 @@ import (
 
 type preconditionStore struct {
 	artifacts.Repository
-	artifacts.QueryRepository
 	metadata artifacts.Metadata
 	err      error
 }

@@ -12,7 +12,7 @@ import (
 
 	"github.com/getkin/kin-openapi/routers/gorillamux"
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/credentials"
@@ -27,20 +27,20 @@ import (
 type scriptedLLMCredentialLookup struct {
 	mu       sync.Mutex
 	err      error
-	metadata map[string]config.CredentialMetadata
+	metadata map[string]resolved.CredentialMetadata
 }
 
 func (l *scriptedLLMCredentialLookup) LookupLLMCredential(
 	_ context.Context, id string,
-) (config.CredentialMetadata, error) {
+) (resolved.CredentialMetadata, error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	if l.err != nil {
-		return config.CredentialMetadata{}, l.err
+		return resolved.CredentialMetadata{}, l.err
 	}
 	metadata, ok := l.metadata[id]
 	if !ok {
-		return config.CredentialMetadata{}, credentials.ErrNotFound
+		return resolved.CredentialMetadata{}, credentials.ErrNotFound
 	}
 	return metadata, nil
 }
@@ -94,13 +94,13 @@ func newWorkflowCredentialLookupFixture(t *testing.T) (handlerFixture, *scripted
 	lookup := &scriptedLLMCredentialLookup{}
 	fixture := newHandlerFixtureWithAuth(
 		t, "../../config/testdata/valid", newTestAuthentication(t), mustTestOrigins(t), false, nil,
-		func(dependencies *Dependencies) { dependencies.Credentials = lookup },
+		func(dependencies *testServices) { dependencies.Credentials = lookup },
 	)
 	gateway, err := fixture.configs.Snapshot().LLMGateway("local-litellm@1")
 	if err != nil {
 		t.Fatal(err)
 	}
-	lookup.metadata = map[string]config.CredentialMetadata{"development-worker": {
+	lookup.metadata = map[string]resolved.CredentialMetadata{"development-worker": {
 		Ref: llmgateway.LLMCredentialRef{CredentialID: "development-worker"}, LLMGateway: gateway.Ref,
 	}}
 	user, err := fixture.artifacts.User("user-1")

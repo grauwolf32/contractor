@@ -10,27 +10,25 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/agentskills"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstandards"
 	"github.com/grauwolf32/contractor/internal/auditstore"
-	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/configtest"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 )
 
-func TestAuditPreparationHandlersWithoutRound(t *testing.T) {
+func TestSharedAuditPreparationHandlersWithoutRound(t *testing.T) {
 	root := configtest.CopyWithPolicies(t, "../../auditservice/testdata/catalog")
-	profileYAML, err := os.ReadFile("../../../api/testdata/audit-composition/prepared-openapi-scan.yaml")
-	if err != nil {
-		t.Fatal(err)
-	}
+	profileYAML := contractstest.ReadFile(t, "api", "testdata", "audit-composition", "prepared-openapi-scan.yaml")
 	if err := os.WriteFile(filepath.Join(root, "audit-profiles/prepared.yaml"), profileYAML, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	catalog, err := configload.Load(root, config.MVPDescriptors())
+	catalog, err := configload.Load(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -44,7 +42,7 @@ func TestAuditPreparationHandlersWithoutRound(t *testing.T) {
 		Inputs: map[string]auditstore.ExactArtifact{"source": {Ref: contracts.ArtifactRef{Namespace: "inputs", Name: "source", Revision: &inputRevision}, Digest: auditHandlerDigest("source"), MediaType: "application/zip", SizeBytes: 1}}, RuntimeLabels: []string{}})
 	selected, _ := auditservice.DecodeDraftSelection(selection)
 	baseline, err := auditservice.EncodeBaseline(auditservice.BaselineSnapshot{Schema: auditservice.BaselineSchema, Inputs: selected.Inputs,
-		RuntimeLabels: []string{}, RuntimeConfig: runtimeconfig.BuiltInRunSnapshot(), Skills: []contracts.RunSkillSnapshot{},
+		RuntimeLabels: []string{}, RuntimeConfig: runtimeconfig.BuiltInRunSnapshot(), Skills: []agentskills.RunSkillSnapshot{},
 		LLMCredentialIDs: []string{}, RuntimeCredentialIDs: []string{}, Standards: []auditstandards.PinnedPackage{}})
 	if err != nil {
 		t.Fatal(err)

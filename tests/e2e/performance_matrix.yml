@@ -160,7 +160,7 @@ cases:
     acceptance: [A1, A4]
     faults: [F23]
     expected: Old registrations and allocations remain valid while v1 capability and request negotiation are exact and forward-compatible.
-    test: {source: runtime/tests/test_performance_contracts.py, kind: pytest, name: test_performance_old_new_allocation_and_registration_contracts}
+    test: {source: runtime/tests/test_performance_contracts.py, kind: pytest, name: test_shared_performance_old_new_allocation_and_registration_contracts}
   - id: allocation_report_authority_isolated
     group: allocation_resources
     acceptance: [A2, A4]

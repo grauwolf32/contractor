@@ -3,10 +3,12 @@ package config
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/grauwolf32/contractor/internal/config/resolved"
+	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 )
 
 // sharedNameCases reads the public ConfigId name grammar cases of
@@ -14,10 +16,7 @@ import (
 // and the Runtime share, with the length bound turned into cases.
 func sharedNameCases(t *testing.T) (valid, invalid []string) {
 	t.Helper()
-	data, err := os.ReadFile(filepath.Join("..", "..", "api", "testdata", "v1alpha1", "runtime-capability-cases.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	data := contractstest.ReadFile(t, "api", "testdata", "v1alpha1", "runtime-capability-cases.json")
 	var cases struct {
 		ToolName struct {
 			MaxLength int      `json:"maxLength"`
@@ -119,15 +118,15 @@ func loadNames(t *testing.T, files map[string]string) (*Snapshot, error) {
 	for path, content := range files {
 		writeFile(t, filepath.Join(root, path), []byte(content))
 	}
-	return Load(root, MVPDescriptors())
+	return Load(root)
 }
 
-// TestWorkflowNamesUseTheOperationsNameGrammar is the regression for a
+// TestSharedWorkflowNamesUseTheOperationsNameGrammar is the regression for a
 // logical Agent name such as "my worker" that loaded because the catalog only
 // rejected blank names and slashes, while the public API and Operations show
 // Stage and logical Agent names as ConfigId values: one such allocation failed
 // the whole Operations allocation list (WFL-R84).
-func TestWorkflowNamesUseTheOperationsNameGrammar(t *testing.T) {
+func TestSharedWorkflowNamesUseTheOperationsNameGrammar(t *testing.T) {
 	t.Parallel()
 	valid, invalid := sharedNameCases(t)
 	base := namesDocument{entry: "copy", stage: "copy", agent: "builder"}
@@ -196,22 +195,22 @@ func TestWorkflowNamesUseTheOperationsNameGrammar(t *testing.T) {
 	}
 }
 
-// TestPersistedSnapshotsRejectNamesOperationsCannotShow holds the strict
+// TestSharedPersistedSnapshotsRejectNamesOperationsCannotShow holds the strict
 // snapshot readers and the graph check to the same grammar, so a persisted Run
 // cannot carry a Stage or logical Agent name the catalog would reject.
-func TestPersistedSnapshotsRejectNamesOperationsCannotShow(t *testing.T) {
+func TestSharedPersistedSnapshotsRejectNamesOperationsCannotShow(t *testing.T) {
 	t.Parallel()
-	snapshot := mustLoad(t, copyCoreFixture(t), MVPDescriptors())
+	snapshot := mustLoad(t, copyCoreFixture(t))
 	workflow, err := snapshot.Workflow("artifact-copy@1")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := ValidateWorkflowGraph(workflow); err != nil {
+	if err := resolved.ValidateWorkflowGraph(workflow); err != nil {
 		t.Fatal(err)
 	}
 	_, invalid := sharedNameCases(t)
 	for _, name := range invalid {
-		renamedAgent := cloneWorkflow(workflow)
+		renamedAgent := workflow.Clone()
 		stage := renamedAgent.Stages["copy"]
 		stage.Agents[name] = stage.Agents["builder"]
 		delete(stage.Agents, "builder")
@@ -219,20 +218,20 @@ func TestPersistedSnapshotsRejectNamesOperationsCannotShow(t *testing.T) {
 		delete(stage.ExecutionConfig.Agents, "builder")
 		renamedAgent.Stages["copy"] = stage
 
-		renamedStage := cloneWorkflow(workflow)
+		renamedStage := workflow.Clone()
 		renamedStage.Stages[name] = renamedStage.Stages["copy"]
 		delete(renamedStage.Stages, "copy")
 		renamedStage.EntryStage = name
 
-		for label, candidate := range map[string]ResolvedWorkflow{"logical Agent name": renamedAgent, "Stage name": renamedStage} {
-			if err := ValidateWorkflowGraph(candidate); err == nil || !strings.Contains(err.Error(), label) {
+		for label, candidate := range map[string]resolved.ResolvedWorkflow{"logical Agent name": renamedAgent, "Stage name": renamedStage} {
+			if err := resolved.ValidateWorkflowGraph(candidate); err == nil || !strings.Contains(err.Error(), label) {
 				t.Errorf("ValidateWorkflowGraph(%s %q) error = %v", label, name, err)
 			}
 			encoded, err := json.Marshal(candidate)
 			if err != nil {
 				t.Fatal(err)
 			}
-			if _, err := DecodeResolvedWorkflowSnapshot(encoded); err == nil || !strings.Contains(err.Error(), label) {
+			if _, err := resolved.DecodeResolvedWorkflowSnapshot(encoded); err == nil || !strings.Contains(err.Error(), label) {
 				t.Errorf("DecodeResolvedWorkflowSnapshot(%s %q) error = %v", label, name, err)
 			}
 		}
@@ -240,7 +239,7 @@ func TestPersistedSnapshotsRejectNamesOperationsCannotShow(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err := DecodeResolvedStageSnapshot(encodedStage); err == nil || !strings.Contains(err.Error(), "logical Agent name") {
+		if _, err := resolved.DecodeResolvedStageSnapshot(encodedStage); err == nil || !strings.Contains(err.Error(), "logical Agent name") {
 			t.Errorf("DecodeResolvedStageSnapshot(logical Agent name %q) error = %v", name, err)
 		}
 	}

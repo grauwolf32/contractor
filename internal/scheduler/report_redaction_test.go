@@ -20,19 +20,25 @@ import (
 
 type normalizingReportStore struct{ *memorySchedulerStore }
 
-func (s *normalizingReportStore) RecordStageExecutionReport(
-	ctx context.Context, params runstore.RecordStageExecutionReportParams,
+func (s *normalizingReportStore) RecordAllocationReport(
+	ctx context.Context, envelope telemetry.AllocationReportEnvelope,
 ) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	report, err := telemetry.NewPolicy(params.Secrets...).NormalizeAllocationReport(params.Report)
+	report, err := telemetry.NewPolicy(envelope.Secrets...).NormalizeAllocationReport(envelope.Report)
 	if err != nil {
 		return err
 	}
-	params.Report = report
-	params.Secrets = nil
-	return s.memorySchedulerStore.RecordStageExecutionReport(ctx, params)
+	envelope.Report = report
+	envelope.Secrets = nil
+	return s.memorySchedulerStore.RecordAllocationReport(ctx, envelope)
+}
+
+// withReports is a copy of the harness options that records reports in store.
+func withReports(options Options, store ReportStore) Options {
+	options.Reports = store
+	return options
 }
 
 func TestReportPersistenceReresolvesAllocationCredentialsAcrossSchedulers(t *testing.T) {
@@ -52,20 +58,20 @@ func TestReportPersistenceReresolvesAllocationCredentialsAcrossSchedulers(t *tes
 		return contracts.NewSecretString(llmSecret), nil
 	})
 	type runtimeMaterial struct {
-		kind     contracts.RuntimeCredentialKind
+		kind     runtimesettings.RuntimeCredentialKind
 		document string
 	}
 	materials := map[string]runtimeMaterial{
-		"otlp":   {contracts.RuntimeCredentialOTLPHeaders, `{"headers":{"x-otlp-token":"` + otlpSecret + `"}}`},
-		"proxy":  {contracts.RuntimeCredentialProxyBearer, `{"token":"` + proxySecret + `"}`},
-		"caido":  {contracts.RuntimeCredentialCaidoBearer, `{"token":"` + caidoSecret + `"}`},
-		"origin": {contracts.RuntimeCredentialOriginBasic, `{"username":"` + originUserSecret + `","password":"` + originPassSecret + `"}`},
+		"otlp":   {runtimesettings.RuntimeCredentialOTLPHeaders, `{"headers":{"x-otlp-token":"` + otlpSecret + `"}}`},
+		"proxy":  {runtimesettings.RuntimeCredentialProxyBearer, `{"token":"` + proxySecret + `"}`},
+		"caido":  {runtimesettings.RuntimeCredentialCaidoBearer, `{"token":"` + caidoSecret + `"}`},
+		"origin": {runtimesettings.RuntimeCredentialOriginBasic, `{"username":"` + originUserSecret + `","password":"` + originPassSecret + `"}`},
 	}
 	harness.scheduler.options.RuntimeCredentials = runtimeCredentialResolverFunc(func(
 		_ context.Context,
 		credentialID string,
-		_ []contracts.RuntimeCredentialKind,
-		consumer func(contracts.RuntimeCredentialKind, []byte) error,
+		_ []runtimesettings.RuntimeCredentialKind,
+		consumer func(runtimesettings.RuntimeCredentialKind, []byte) error,
 	) error {
 		material, ok := materials[credentialID]
 		if !ok {
@@ -89,22 +95,22 @@ func TestReportPersistenceReresolvesAllocationCredentialsAcrossSchedulers(t *tes
 	reservation.Grant.AllocationID = "allocation-report-redaction"
 	resolved := reservation.ResolvedRuntimeConfig
 	resolved.WorkerTelemetry = &runtimeconfig.TelemetryConfig{
-		Adapter: string(contracts.RuntimeAdapterOTLPHTTP), Endpoint: "https://otlp.example/v1/traces",
+		Adapter: string(runtimesettings.RuntimeAdapterOTLPHTTP), Endpoint: "https://otlp.example/v1/traces",
 		Credential: "otlp", FlushTimeoutSeconds: 1,
 	}
 	resolved.HTTPProxy = &runtimeconfig.HTTPProxyConfig{
-		Adapter: string(contracts.RuntimeAdapterHTTPProxy), ProxyURL: "https://proxy.example",
+		Adapter: string(runtimesettings.RuntimeAdapterHTTPProxy), ProxyURL: "https://proxy.example",
 		Credential: "proxy", Targets: []string{string(runtimesettings.ProxyTargetToolHTTP)},
 	}
 	resolved.Caido = &runtimeconfig.CaidoConfig{
-		Adapter: string(contracts.RuntimeAdapterCaidoGraphQL), Endpoint: "https://caido.example/api",
+		Adapter: string(runtimesettings.RuntimeAdapterCaidoGraphQL), Endpoint: "https://caido.example/api",
 		Credential: "caido", RequestTimeoutSeconds: 5,
 	}
 	run := harness.store.run
 	run.ProjectHTTPTarget = &runtimesettings.HTTPOriginTargetRef{
 		URL: "https://target.example/api",
 		Credential: &runtimesettings.RuntimeCredentialRef{
-			CredentialID: "origin", Kind: contracts.RuntimeCredentialOriginBasic,
+			CredentialID: "origin", Kind: runtimesettings.RuntimeCredentialOriginBasic,
 		},
 	}
 	prepared, err := harness.scheduler.materializeRuntimeSettings(t.Context(), resolved.Clone())
@@ -144,7 +150,7 @@ func TestReportPersistenceReresolvesAllocationCredentialsAcrossSchedulers(t *tes
 	store := &normalizingReportStore{harness.store}
 	other, err := New(
 		store, harness.persistence, harness.artifacts, harness.allocator, harness.workers,
-		harness.planners, harness.scheduler.options,
+		harness.planners, withReports(harness.scheduler.options, store),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -189,7 +195,7 @@ func TestReportPersistenceContinuesWhenCredentialResolutionFails(t *testing.T) {
 	})
 	store := &normalizingReportStore{harness.store}
 	other, err := New(store, harness.persistence, harness.artifacts, harness.allocator,
-		harness.workers, harness.planners, harness.scheduler.options)
+		harness.workers, harness.planners, withReports(harness.scheduler.options, store))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -20,6 +20,7 @@ from contractor_runtime.llm.factory import ModelFactory, gateway_model
 from contractor_runtime.llm.openai import (
     OpenAICompatibleGatewayLlm,
 )
+from contractor_runtime.llm.recovery import GatewayRecoveryClient
 from contractor_runtime.projectfs import (
     OverlayWorkspaceSession,
     WorkspaceAutoExporter,
@@ -52,11 +53,14 @@ class AdkWorkerRuntimeFactory:
         if context.runtime_settings.llm_recovery:
             if self._artifact_client_factory is None:
                 raise RuntimeError("Model recovery requires the allocation control transport")
+            # Model recovery shares the allocation's private API transport.
             control = self._artifact_client_factory(context.allocation_id, context.runtime_settings)
             context = replace(
                 context,
-                gateway_recovery=control.gateway_recovery_client(
-                    on_retry=context.state.metrics.record_recovery_authority_retry
+                gateway_recovery=GatewayRecoveryClient(
+                    control.allocation_id,
+                    control.transport,
+                    on_retry=context.state.metrics.record_recovery_authority_retry,
                 ),
             )
         prepared = await prepare_agent_skills(

@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/scan"
+	"github.com/grauwolf32/contractor/internal/strictjson"
 )
 
 func extractionJSON(t *testing.T, input string) any {
@@ -194,7 +194,7 @@ func TestConcreteCanonicalNegativeZeroSize(t *testing.T) {
 	for i := range values {
 		values[i] = math.Copysign(0, -1)
 	}
-	canonical, err := contracts.MarshalPrivateCanonical(values)
+	canonical, err := strictjson.Canonical(values)
 	if err != nil || len(canonical) != 44001 {
 		t.Fatalf("canonical negative-zero fixture length=%d err=%v", len(canonical), err)
 	}

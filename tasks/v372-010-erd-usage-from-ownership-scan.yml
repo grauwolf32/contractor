@@ -1,0 +1,59 @@
+schema_version: "1.0"
+id: V372-010
+title: "Take the ERD's code-usage lists from the ownership scan and document the new-table workflow"
+milestone: hub-audit-defects-2026-10
+epic: persistence
+kind: chore
+priority: P3
+status: pending
+depends_on: []
+languages: [python, go, markdown]
+goal: "The 'where in code' lists of docs/spec/database-erd.html come from the SQL scan the table ownership test uses, make lint fails while they are stale, and AGENTS.md section 6 names every step a new table needs."
+context:
+  review: "Out-of-scope findings of the hub audit fix batch, wave 2 (groups w2a: V369-001 and w2h: V370-001), recorded 2026-10-12; file:line verified on b2b09ea"
+  specification: "docs/spec/platform/persistence.md#PER-R23"
+  finding: >-
+    scripts/erd/build_erd.py:104-121 (table_usage) finds the packages that
+    use each table with its own regular expression over non-test Go files
+    and names each by its first directory under internal/ (relative[1]), so
+    it reports auditstore and persistence where the registry names
+    internal/auditstore/internal/pgstore and internal/persistence/postgres.
+    The lists are rewritten only when make docs-erd rebuilds the page, which
+    a migration forces, and scripts/check_database_erd.py checks the page's
+    tables but not the lists. They drift in between: on 4ea7f49 the page
+    still named controlplane among the users of stage_executions, although
+    V370-001 had moved its Stage lock into runstore, and runtimeconfig among
+    the users of stage_allocations, although V370-012 had moved that read
+    to agentprincipal, which the list omitted; the rebuild for migration
+    000014 on b2b09ea corrected both. V369-001 recorded the regular
+    expression as a reading aid that nothing checks. AGENTS.md section 6 (Go
+    server) does not mention the table ownership registry, so the workflow
+    for a new or renamed table (a [relations] line in
+    internal/persistence/table_ownership.txt, the Table owners row of
+    persistence.md, the scripts/erd/meta.json entry and make docs-erd) is
+    written down only in the registry header and in persistence.md.
+  siblings: >-
+    TestTableOwnershipMatchesTheSchemaDocuments already ties meta.json and
+    the Table owners index to the registry; V369-001 rejected generating
+    meta.json because it keeps the descriptions. The page's other data
+    (tables, keys, triggers) needs a database and stays with make docs-erd.
+scope:
+  in:
+    - "One source for the usage lists: build_erd.py takes them from the Go SQL access scan, printed per owner package (for example by a small command or test helper), and a check in make lint compares the page's lists with the scan without a database."
+    - "AGENTS.md section 6 names the registry and the steps a new or renamed table needs."
+  out:
+    - "The ERD layout and descriptions, and the scan's own rules (V372-009)."
+acceptance_criteria:
+  - id: A1
+    text: "make lint fails when a package starts or stops using a table and the page was not regenerated."
+  - id: A2
+    text: "The page names each user by its package path, as the registry does, and lists no package without SQL access to the table."
+  - id: A3
+    text: "AGENTS.md section 6 states the registry line, the persistence.md row, the meta.json entry and make docs-erd for a new table."
+tests:
+  - command: "python3 -m unittest discover -s scripts -p 'test_*.py'"
+    covers: [A1]
+  - command: "go test ./internal/persistence"
+    covers: [A1, A2]
+  - command: make lint
+    covers: [A1, A2, A3]

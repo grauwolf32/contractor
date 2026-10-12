@@ -8,16 +8,17 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	pg "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// TestPostgresEvalAuditWithDecidedHistoryPurges drains an Eval-managed Audit
+// TestSharedPostgresEvalAuditWithDecidedHistoryPurges drains an Eval-managed Audit
 // that holds an owner decision and a collected finding assessment through the
 // ordinary purge, which must also record the Eval execution tombstone.
-func TestPostgresEvalAuditWithDecidedHistoryPurges(t *testing.T) {
+func TestSharedPostgresEvalAuditWithDecidedHistoryPurges(t *testing.T) {
 	h := newHarness(t)
 	e := h.prepared(t, "audit")
 	h.command(t, e, "start")
@@ -36,7 +37,7 @@ func TestPostgresEvalAuditWithDecidedHistoryPurges(t *testing.T) {
 	e = h.get(t, e.ID)
 	h.command(t, e, "cancel")
 	tick(t, c)
-	store := auditstore.NewPostgresStore(h.pool)
+	store := auditstoretest.NewStore(h.pool)
 	claims, err := store.Claim(t.Context(), auditstore.ClaimParams{HolderID: "audit-controller", Lease: time.Minute, Limit: 10})
 	if err != nil || len(claims) != 1 || claims[0].AuditID != auditID {
 		t.Fatal(claims, err)

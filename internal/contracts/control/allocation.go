@@ -115,7 +115,7 @@ type AllocationSpec struct {
 
 func (s AllocationSpec) Validate() error {
 	if s.CompletionContract != nil {
-		if err := s.CompletionContract.ValidateAllocation(s.Namespace, s.AgentTemplate); err != nil {
+		if err := s.CompletionContract.ValidateAllocation(s.Namespace); err != nil {
 			return err
 		}
 	}

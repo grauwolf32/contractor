@@ -2,6 +2,9 @@ package public
 
 import (
 	"context"
+
+	"github.com/grauwolf32/contractor/internal/auditservice"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 	"github.com/grauwolf32/contractor/internal/evalservice"
 	"github.com/grauwolf32/contractor/internal/evalstore"
@@ -29,6 +32,31 @@ type EvalManagement interface {
 	Chart(context.Context, evalservice.ChartParams) (evalservice.ChartView, error)
 	Report(context.Context, evalservice.MemberPageParams) (evalservice.Report, error)
 	Executions(context.Context, string, string, string, string, int, *int64) (evalstore.InventoryPage, error)
+}
+
+// WorkflowLister lists the published Workflows an Eval can bind.
+type WorkflowLister interface {
+	Workflows() []resolved.ResolvedWorkflow
+}
+
+// AuditProfileLister lists the AuditProfiles an Eval can bind.
+type AuditProfileLister interface {
+	Profiles() []auditservice.ProfileProjection
+}
+
+// EvalDependencies serve managed Evals: capabilities, datasets, experiments,
+// their members, records, pairs, charts and reports.
+type EvalDependencies struct {
+	Evals EvalManagement
+	// EvalNotifier wakes the Eval coordinator after an accepted mutation.
+	EvalNotifier Waker
+	Config       WorkflowLister
+	Audits       AuditProfileLister
+}
+
+type evalHandlers struct {
+	EvalDependencies
+	cursors pageCursors
 }
 
 type evalPageInfo struct {

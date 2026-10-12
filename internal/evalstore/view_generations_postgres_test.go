@@ -26,7 +26,7 @@ SELECT (SELECT count(*) FROM eval_projection_queue WHERE experiment_id = $1 AND 
 	return r
 }
 
-func TestPostgresEvalViewPublicationSkipsUnchangedAndPrunesSuperseded(t *testing.T) {
+func TestSharedPostgresEvalViewPublicationSkipsUnchangedAndPrunesSuperseded(t *testing.T) {
 	pool := testPool(t)
 	ctx := context.Background()
 	scope := setupProject(t, pool, "owner", "eval")

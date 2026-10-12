@@ -16,17 +16,17 @@ type auditStandardResponse struct {
 	Standard   auditstandards.PackageProjection `json:"standard"`
 }
 
-func (h *handler) listAuditStandards(w http.ResponseWriter, r *http.Request) {
-	if h.rejectHead(w, r) {
+func (h *auditHandlers) listAuditStandards(w http.ResponseWriter, r *http.Request) {
+	if rejectHead(w, r) {
 		return
 	}
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
-	items, err := h.dependencies.Audits.Standards(r.Context(), principalUserID(r.Context()))
+	items, err := h.Audits.Standards(r.Context(), principalUserID(r.Context()))
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, auditStandardPageResponse{
@@ -34,21 +34,21 @@ func (h *handler) listAuditStandards(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (h *handler) getAuditStandard(w http.ResponseWriter, r *http.Request) {
-	if h.rejectHead(w, r) {
+func (h *auditHandlers) getAuditStandard(w http.ResponseWriter, r *http.Request) {
+	if rejectHead(w, r) {
 		return
 	}
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
-	standard, err := h.dependencies.Audits.Standard(
+	standard, err := h.Audits.Standard(
 		r.Context(), principalUserID(r.Context()), auditstandards.Reference{
 			Scheme: r.PathValue("scheme"), Version: r.PathValue("version"),
 		},
 	)
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, auditStandardResponse{

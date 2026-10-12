@@ -3,11 +3,11 @@
 package auditbaseline
 
 import (
+	"github.com/grauwolf32/contractor/internal/agentskills"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstandards"
 	"github.com/grauwolf32/contractor/internal/auditstore"
-	"github.com/grauwolf32/contractor/internal/config"
-	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 )
@@ -36,12 +36,12 @@ func (s Scope) Values() map[string]string {
 }
 
 type BaselineInventory struct {
-	SourceContentDigest      string                         `json:"sourceContentDigest"`
-	CanonicalInventoryDigest string                         `json:"canonicalInventoryDigest"`
-	StandardSelection        *config.AuditStandardSelection `json:"standardSelection,omitempty"`
-	Gaps                     []string                       `json:"gaps"`
-	Worklist                 auditstore.ExactArtifact       `json:"worklist"`
-	ExecutionManifest        auditdomain.ExecutionManifest  `json:"executionManifest"`
+	SourceContentDigest      string                               `json:"sourceContentDigest"`
+	CanonicalInventoryDigest string                               `json:"canonicalInventoryDigest"`
+	StandardSelection        *auditprofile.AuditStandardSelection `json:"standardSelection,omitempty"`
+	Gaps                     []string                             `json:"gaps"`
+	Worklist                 auditstore.ExactArtifact             `json:"worklist"`
+	ExecutionManifest        auditdomain.ExecutionManifest        `json:"executionManifest"`
 }
 
 const DerivedInventorySchema = "contractor.audit.derived-inventory.v1"
@@ -60,7 +60,7 @@ type BaselineSnapshot struct {
 	Scope                Scope                                `json:"scope"`
 	RuntimeLabels        []string                             `json:"runtimeLabels"`
 	RuntimeConfig        runtimeconfig.RunSnapshot            `json:"runtimeConfig"`
-	Skills               []contracts.RunSkillSnapshot         `json:"skills"`
+	Skills               []agentskills.RunSkillSnapshot       `json:"skills"`
 	LLMCredentialIDs     []string                             `json:"llmCredentialIds"`
 	RuntimeCredentialIDs []string                             `json:"runtimeCredentialIds"`
 	ProjectHTTPTarget    *runtimesettings.HTTPOriginTargetRef `json:"projectHttpTarget,omitempty"`

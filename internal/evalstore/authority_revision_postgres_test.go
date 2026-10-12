@@ -8,7 +8,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 )
 
-func TestPostgresEvalCoordinatorObservationsKeepAuthorityRevision(t *testing.T) {
+func TestSharedPostgresEvalCoordinatorObservationsKeepAuthorityRevision(t *testing.T) {
 	pool := testPool(t)
 	ctx := context.Background()
 	scope := setupProject(t, pool, "owner", "eval")
@@ -139,7 +139,7 @@ WHERE experiment_id=$1`, experiment.ID); err == nil {
 	}
 }
 
-func TestPostgresEvalExecutionTombstoneKeepsAuthorityRevision(t *testing.T) {
+func TestSharedPostgresEvalExecutionTombstoneKeepsAuthorityRevision(t *testing.T) {
 	pool := testPool(t)
 	ctx := context.Background()
 	scope := setupProject(t, pool, "owner", "eval")

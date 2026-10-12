@@ -9,8 +9,8 @@
       "oneOf": [{"required": ["messageEquals"]}, {"required": ["litellmWrapped"]}],
       "properties": {
         "status": {"type": "integer", "enum": [400, 404, 409, 422]},
-        "messageEquals": {"type": "string", "minLength": 1, "maxLength": 512},
-        "litellmWrapped": {"type": "string", "minLength": 1, "maxLength": 512}
+        "messageEquals": {"type": "string", "minLength": 1, "maxLength": 512, "x-maxBytes": 512},
+        "litellmWrapped": {"type": "string", "minLength": 1, "maxLength": 512, "x-maxBytes": 512}
       }
     },
     "failureSignatures": {

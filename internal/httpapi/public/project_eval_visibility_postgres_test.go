@@ -13,7 +13,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/projectstore"
 )
 
-func TestProjectCollectionExcludesEvalExecutionWorkspacesBeforePagination(t *testing.T) {
+func TestSharedProjectCollectionExcludesEvalExecutionWorkspacesBeforePagination(t *testing.T) {
 	h := newEvalAPIHarness(t)
 	projects := projectstore.NewPostgresStore(h.pool)
 	// A user-created Project with an Eval-looking ID and name must remain visible.

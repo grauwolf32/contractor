@@ -8,17 +8,17 @@ import (
 	"testing"
 	"time"
 
-	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/planner"
+	"github.com/grauwolf32/contractor/internal/planner/stageresult"
 	"github.com/grauwolf32/contractor/internal/runstore"
 )
 
 func TestSchedulerDispatchesFixedScanWorkersWithDurableClaimAndNoModelAccess(t *testing.T) {
-	snapshot, err := configload.Load("../../testdata/configs-scan", workflowconfig.MVPDescriptors())
+	snapshot, err := configload.Load("../../testdata/configs-scan")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -53,8 +53,8 @@ func TestSchedulerDispatchesFixedScanWorkersWithDurableClaimAndNoModelAccess(t *
 			outputBinding := stage.Result.Artifacts["report"].From
 			output := exactRef(outputBinding.Namespace, outputBinding.Name, "scan-report-r1")
 			h.artifacts.values["run-1/"+output.Namespace+"/"+output.Name+"/"+*output.Revision] = ResolvedArtifact{Ref: output, MediaType: "application/json"}
-			h.planners.result = contracts.StageContentResult{
-				APIVersion: contracts.APIVersion, Outcome: contracts.StageSucceeded, Summary: "Scan report persisted",
+			h.planners.result = stageresult.StageContentResult{
+				APIVersion: contracts.APIVersion, Outcome: stageresult.StageSucceeded, Summary: "Scan report persisted",
 				Artifacts: map[string]contracts.ArtifactRef{"report": output},
 			}
 			// The generic harness predates durable claim snapshots and only

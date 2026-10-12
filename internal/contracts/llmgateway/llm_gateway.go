@@ -45,8 +45,13 @@ type LLMCredentialRef struct {
 // renaming the tag must rename this constant; internal/persistence pins both.
 const CredentialIDMember = "credentialId"
 
+// Validate applies the bounded configuration identifier grammar that the
+// schema, the Runtime and every other credential ref apply.
 func (r LLMCredentialRef) Validate() error {
-	return contracts.ValidateSelector("llmCredentialRef", r.CredentialID+"@1")
+	if !contracts.ValidConfigID(r.CredentialID) {
+		return contracts.Invalidf("llmCredentialRef must be an identifier of at most %d characters", contracts.MaxConfigIDLength)
+	}
+	return nil
 }
 
 type LLMGatewayCredentialManager struct {

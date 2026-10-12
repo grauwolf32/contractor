@@ -16,6 +16,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/planner"
+	"github.com/grauwolf32/contractor/internal/planner/stageresult"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/jackc/pgx/v5"
@@ -81,8 +82,8 @@ func TestPostgresSessionPersistsCompletionForRecovery(t *testing.T) {
 		t.Fatal(err)
 	}
 	revision := "result-r1"
-	result := contracts.StageContentResult{
-		APIVersion: contracts.APIVersion, Outcome: contracts.StageSucceeded, Summary: "done",
+	result := stageresult.StageContentResult{
+		APIVersion: contracts.APIVersion, Outcome: stageresult.StageSucceeded, Summary: "done",
 		Artifacts: map[string]contracts.ArtifactRef{
 			"report": {Namespace: "builder", Name: "report", Revision: &revision},
 		},
@@ -187,7 +188,7 @@ func TestPostgresTypedPlanEventsAreOrderedAndCompareAppendIsAtomic(t *testing.T)
 	dispatched := controller.Snapshot()
 	recordPlan(t, service, started.Identity, before, dispatched, planner.PlannerEventDispatchStarted)
 	before = controller.Snapshot()
-	completed, planErr := controller.CompleteDispatch(claim.CallID, contracts.StageSucceeded)
+	completed, planErr := controller.CompleteDispatch(claim.CallID, stageresult.StageSucceeded)
 	if planErr != nil {
 		t.Fatal(planErr)
 	}

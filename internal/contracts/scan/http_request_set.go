@@ -97,7 +97,7 @@ func RequestContentDigest(request PreparedHTTPRequest) (string, error) {
 	if err := request.Validate(); err != nil {
 		return "", err
 	}
-	data, err := contracts.MarshalPrivateCanonical(request)
+	data, err := strictjson.Canonical(request)
 	if err != nil {
 		return "", err
 	}
@@ -267,7 +267,7 @@ func MarshalHTTPRequestSet(value HTTPRequestSet) ([]byte, error) {
 	if err := value.Validate(); err != nil {
 		return nil, err
 	}
-	data, err := contracts.MarshalPrivateCanonical(value)
+	data, err := strictjson.Canonical(value)
 	if err != nil {
 		return nil, err
 	}

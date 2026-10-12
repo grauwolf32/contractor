@@ -11,6 +11,8 @@ import (
 	"unicode/utf8"
 
 	"github.com/grauwolf32/contractor/internal/clone"
+	"github.com/grauwolf32/contractor/internal/config/auditprofile"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
@@ -25,14 +27,13 @@ const maximumCatalogFileBytes = 4 << 20
 type loader struct {
 	roots                       []configurationRoot
 	allowMissingManagedSubtrees bool
-	descriptors                 Descriptors
 	instructions                map[string]contracts.ResolvedInstructions
 	policies                    map[string]contracts.ResolvedModelPolicy
 	gateways                    map[string]llmgateway.ResolvedLLMGatewayConfig
-	executionConfigs            map[string]ResolvedExecutionConfigProfile
+	executionConfigs            map[string]resolved.ResolvedExecutionConfigProfile
 	templates                   map[string]contracts.ResolvedAgentTemplate
-	workflows                   map[string]ResolvedWorkflow
-	auditProfiles               map[string]ResolvedAuditProfile
+	workflows                   map[string]resolved.ResolvedWorkflow
+	auditProfiles               map[string]auditprofile.ResolvedAuditProfile
 	sources                     map[string]ConfigurationSource
 }
 
@@ -71,10 +72,10 @@ type loadOptions struct {
 
 // Load validates the complete configuration root and publishes one immutable
 // snapshot. On any error the returned Snapshot is nil.
-func Load(root string, descriptors Descriptors, checks ...OperatorRootCheck) (*Snapshot, error) {
+func Load(root string, checks ...OperatorRootCheck) (*Snapshot, error) {
 	return loadConfigurationRoots(
 		[]configurationRoot{{path: root, source: ConfigurationSourceOperator}},
-		descriptors, loadOptions{operatorRootChecks: checks},
+		loadOptions{operatorRootChecks: checks},
 	)
 }
 
@@ -83,20 +84,14 @@ func Load(root string, descriptors Descriptors, checks ...OperatorRootCheck) (*S
 // reject the complete snapshot; neither root has precedence. Every managed
 // subtree must exist, so a reload after one is removed or unmounted fails and
 // the caller keeps its current snapshot.
-func LoadUnion(operatorRoot, managedRoot string, descriptors Descriptors, checks ...OperatorRootCheck) (*Snapshot, error) {
+func LoadUnion(operatorRoot, managedRoot string, checks ...OperatorRootCheck) (*Snapshot, error) {
 	return loadConfigurationRoots([]configurationRoot{
 		{path: operatorRoot, source: ConfigurationSourceOperator},
 		{path: managedRoot, source: ConfigurationSourceManaged},
-	}, descriptors, loadOptions{operatorRootChecks: checks})
+	}, loadOptions{operatorRootChecks: checks})
 }
 
-func loadConfigurationRoots(
-	roots []configurationRoot, descriptors Descriptors, options loadOptions,
-) (*Snapshot, error) {
-	normalizedDescriptors, err := normalizeDescriptors(descriptors)
-	if err != nil {
-		return nil, err
-	}
+func loadConfigurationRoots(roots []configurationRoot, options loadOptions) (*Snapshot, error) {
 	resolvedRoots := make([]configurationRoot, 0, len(roots))
 	for _, root := range roots {
 		absolute, absoluteErr := filepath.Abs(root.path)
@@ -110,11 +105,11 @@ func loadConfigurationRoots(
 		if info.Mode()&os.ModeSymlink != 0 {
 			return nil, fmt.Errorf("%s root is a symlink", root.source)
 		}
-		resolved, resolveErr := resolveRoot(root.path)
+		rootPath, resolveErr := resolveRoot(root.path)
 		if resolveErr != nil {
 			return nil, fmt.Errorf("%s root: %w", root.source, resolveErr)
 		}
-		resolvedRoots = append(resolvedRoots, configurationRoot{path: resolved, source: root.source})
+		resolvedRoots = append(resolvedRoots, configurationRoot{path: rootPath, source: root.source})
 	}
 	for _, root := range resolvedRoots {
 		if root.source != ConfigurationSourceOperator {
@@ -130,14 +125,13 @@ func loadConfigurationRoots(
 	current := &loader{
 		roots:                       resolvedRoots,
 		allowMissingManagedSubtrees: options.allowMissingManagedSubtrees,
-		descriptors:                 normalizedDescriptors,
 		instructions:                make(map[string]contracts.ResolvedInstructions),
 		policies:                    make(map[string]contracts.ResolvedModelPolicy),
 		gateways:                    make(map[string]llmgateway.ResolvedLLMGatewayConfig),
-		executionConfigs:            make(map[string]ResolvedExecutionConfigProfile),
+		executionConfigs:            make(map[string]resolved.ResolvedExecutionConfigProfile),
 		templates:                   make(map[string]contracts.ResolvedAgentTemplate),
-		workflows:                   make(map[string]ResolvedWorkflow),
-		auditProfiles:               make(map[string]ResolvedAuditProfile),
+		workflows:                   make(map[string]resolved.ResolvedWorkflow),
+		auditProfiles:               make(map[string]auditprofile.ResolvedAuditProfile),
 		sources:                     make(map[string]ConfigurationSource),
 	}
 	if err := current.loadInstructionResources(); err != nil {

@@ -3,18 +3,15 @@ package evaldomain
 import (
 	"bytes"
 	"encoding/json"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 )
 
-func TestPlanSizeEstimateMatchesSharedCases(t *testing.T) {
+func TestSharedPlanSizeEstimateMatchesSharedCases(t *testing.T) {
 	t.Parallel()
-	data, err := os.ReadFile(filepath.Join(fixtureDir, "plan-size-cases.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	data := contractstest.ReadFile(t, "api", "testdata", "evals", "plan-size-cases.json")
 	var document struct {
 		MaxDocumentBytes int `json:"maxDocumentBytes"`
 		Cases            []struct {

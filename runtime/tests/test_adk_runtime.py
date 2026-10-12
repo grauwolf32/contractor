@@ -2877,6 +2877,7 @@ def runtime_settings() -> RuntimeSettings:
 def stage_request() -> StageContentRequest:
     return StageContentRequest(
         apiVersion=API_VERSION,
+        deadline=datetime.now(UTC) + timedelta(hours=1),
         subtaskId="0",
         objective="Build a report",
         instructions="Read the input and write the report.",

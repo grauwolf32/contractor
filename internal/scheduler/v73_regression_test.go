@@ -11,11 +11,11 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/runstore"
+	"github.com/grauwolf32/contractor/internal/telemetry"
 )
 
 type metadataOnlyRepository struct {
 	artifacts.Repository
-	artifacts.QueryRepository
 	readCalls int
 	ref       contracts.ArtifactRef
 }
@@ -186,13 +186,27 @@ func (s *cancellationAwareStageStore) GetStageExecution(ctx context.Context, id 
 	return s.Store.GetStageExecution(ctx, id)
 }
 
-func (s *cancellationAwareStageStore) RebuildStageMetrics(ctx context.Context, runID, stageID string) error {
+func (s *cancellationAwareStageStore) RecordAllocationReport(
+	ctx context.Context, envelope telemetry.AllocationReportEnvelope,
+) error {
+	return s.memory.RecordAllocationReport(ctx, envelope)
+}
+
+func (s *cancellationAwareStageStore) RecordPlannerReport(
+	ctx context.Context, envelope telemetry.PlannerReportEnvelope,
+) error {
+	return s.memory.RecordPlannerReport(ctx, envelope)
+}
+
+func (s *cancellationAwareStageStore) RebuildStageMetrics(
+	ctx context.Context, stageExecutionID, schemaVersion string,
+) (telemetry.StageMetricsRecord, error) {
 	for _, recorded := range s.memory.plannerReports {
 		if recorded.Report.Complete && recorded.Report.Metrics.TotalTokens != nil {
 			s.completeAtRebuild = true
 		}
 	}
-	return s.Store.RebuildStageMetrics(ctx, runID, stageID)
+	return s.memory.RebuildStageMetrics(ctx, stageExecutionID, schemaVersion)
 }
 
 func TestInterruptedPlannerKeepsCompleteUsageUnlessClaimIsLost(t *testing.T) {
@@ -201,6 +215,7 @@ func TestInterruptedPlannerKeepsCompleteUsageUnlessClaimIsLost(t *testing.T) {
 			h := newSchedulerHarness(t)
 			awareStore := &cancellationAwareStageStore{Store: h.store, memory: h.store}
 			h.scheduler.store = awareStore
+			h.scheduler.options.Reports = awareStore
 			modelCalls, inputTokens, outputTokens, totalTokens := int64(1), int64(12345), int64(55), int64(12400)
 			h.scheduler.planners = reportingPlannerRegistry{
 				PlannerRegistry: h.planners,

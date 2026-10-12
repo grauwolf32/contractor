@@ -11,7 +11,8 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/clone"
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/auditprofile"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -123,9 +124,7 @@ func (s *Service) CreateAudit(ctx context.Context, params AuditCreateParams) (Cr
 				); metadataErr != nil {
 					return metadataErr
 				}
-				fork, forkErr := artifactService.ForkProjectInput(
-					ctx, intent.ProjectID, descriptor.Ref, runID, slot,
-				)
+				fork, forkErr := forkInput(ctx, artifactService, projectScope, descriptor.Ref, runID, slot)
 				if forkErr != nil {
 					return forkErr
 				}
@@ -151,7 +150,7 @@ func (s *Service) CreateAudit(ctx context.Context, params AuditCreateParams) (Cr
 					return err
 				}
 			} else {
-				run.SkillSnapshot = cloneSkills(normalized.Skills)
+				run.SkillSnapshot = agentskills.CloneRunSkills(normalized.Skills)
 				run.StateReason = runstore.Reason{Code: runstore.SkillInitializationPendingReason}
 			}
 			result = CreateResult{Run: run, Created: true}
@@ -182,17 +181,17 @@ func normalizeAuditCreate(params AuditCreateParams) (AuditCreateParams, json.Raw
 			return AuditCreateParams{}, nil, fmt.Errorf("%w: pinned Project HTTP target is invalid", ErrInvalid)
 		}
 	}
-	workflowSnapshot, err := config.EncodeResolvedWorkflowSnapshot(params.Workflow)
+	workflowSnapshot, err := resolved.EncodeResolvedWorkflowSnapshot(params.Workflow)
 	if err != nil {
 		return AuditCreateParams{}, nil, fmt.Errorf("%w: pinned Workflow snapshot: %v", ErrInvalid, err)
 	}
-	workflow, err := config.DecodeResolvedWorkflowSnapshot(workflowSnapshot)
+	workflow, err := resolved.DecodeResolvedWorkflowSnapshot(workflowSnapshot)
 	if err != nil {
 		return AuditCreateParams{}, nil, fmt.Errorf("%w: pinned Workflow is invalid", ErrInvalid)
 	}
 	params.Workflow = workflow
 	refs := make(map[string]contracts.ArtifactRef, len(params.Inputs))
-	params.Inputs = cloneExactArtifacts(params.Inputs)
+	params.Inputs = contracts.CloneExactArtifacts(params.Inputs)
 	for slot, descriptor := range params.Inputs {
 		if descriptor.Ref.ValidateExact() != nil || !contentdigest.Valid(descriptor.Digest) ||
 			descriptor.MediaType == "" || descriptor.SizeBytes < 0 {
@@ -204,14 +203,14 @@ func normalizeAuditCreate(params AuditCreateParams) (AuditCreateParams, json.Raw
 	if err := validateWorkflowInputs(params.Workflow, params.Parameters, refs); err != nil {
 		return AuditCreateParams{}, nil, err
 	}
-	params.ExecutionManifest = cloneExactArtifact(params.ExecutionManifest)
+	params.ExecutionManifest = params.ExecutionManifest.Clone()
 	params.ProjectHTTPTarget = params.ProjectHTTPTarget.Clone()
-	params.Skills = cloneSkills(params.Skills)
-	workflowSkillRefs, err := config.WorkflowSkillRefs(params.Workflow)
+	params.Skills = agentskills.CloneRunSkills(params.Skills)
+	workflowSkillRefs, err := resolved.WorkflowSkillRefs(params.Workflow)
 	if err != nil || !matchingPinnedSkills(workflowSkillRefs, params.Skills) {
 		return AuditCreateParams{}, nil, fmt.Errorf("%w: pinned Skill set does not match Workflow", ErrInvalid)
 	}
-	if err := agentskills.ValidateSelectedLimits(params.Skills, config.WorkflowSkillSets(params.Workflow)); err != nil {
+	if err := agentskills.ValidateSelectedLimits(params.Skills, resolved.WorkflowSkillSets(params.Workflow)); err != nil {
 		return AuditCreateParams{}, nil, err
 	}
 	return params, workflowSnapshot, nil
@@ -225,9 +224,9 @@ func validateAuditIntent(intent auditstore.RunCreationIntent, params AuditCreate
 		return fmt.Errorf("%w: Audit execution intent does not match pinned submission", auditstore.ErrConflict)
 	}
 	if execution.Role == auditstore.ExecutionPrepare {
-		var binding config.ResolvedAuditWorkflowBinding
+		var binding auditprofile.ResolvedAuditWorkflowBinding
 		if execution.Preparation == nil || execution.RoundID != nil || len(intent.Items) != 0 ||
-			json.Unmarshal(intent.WorkflowBinding, &binding) != nil || binding.Kind != config.AuditWorkflowPrepare ||
+			json.Unmarshal(intent.WorkflowBinding, &binding) != nil || binding.Kind != auditprofile.AuditWorkflowPrepare ||
 			!maps.Equal(execution.Preparation.Parameters, params.Parameters) || len(execution.Preparation.Inputs) != len(params.Inputs) {
 			return fmt.Errorf("%w: preparation submission differs from its immutable intent", auditstore.ErrConflict)
 		}
@@ -301,7 +300,7 @@ func verifyExactProjectArtifact(
 	return metadata, nil
 }
 
-func matchingPinnedSkills(refs []contracts.ArtifactRef, skills []contracts.RunSkillSnapshot) bool {
+func matchingPinnedSkills(refs []contracts.ArtifactRef, skills []agentskills.RunSkillSnapshot) bool {
 	if len(refs) != len(skills) {
 		return false
 	}
@@ -312,45 +311,6 @@ func matchingPinnedSkills(refs []contracts.ArtifactRef, skills []contracts.RunSk
 		}
 	}
 	return true
-}
-
-func cloneSkills(source []contracts.RunSkillSnapshot) []contracts.RunSkillSnapshot {
-	result := append([]contracts.RunSkillSnapshot(nil), source...)
-	for index := range result {
-		if result[index].Source != nil {
-			ref := *result[index].Source
-			if ref.Revision != nil {
-				revision := *ref.Revision
-				ref.Revision = &revision
-			}
-			result[index].Source = &ref
-		}
-		if result[index].Artifact != nil {
-			ref := *result[index].Artifact
-			if ref.Revision != nil {
-				revision := *ref.Revision
-				ref.Revision = &revision
-			}
-			result[index].Artifact = &ref
-		}
-	}
-	return result
-}
-
-func cloneExactArtifacts(source map[string]auditstore.ExactArtifact) map[string]auditstore.ExactArtifact {
-	result := make(map[string]auditstore.ExactArtifact, len(source))
-	for name, value := range source {
-		result[name] = cloneExactArtifact(value)
-	}
-	return result
-}
-
-func cloneExactArtifact(source auditstore.ExactArtifact) auditstore.ExactArtifact {
-	if source.Ref.Revision != nil {
-		revision := *source.Ref.Revision
-		source.Ref.Revision = &revision
-	}
-	return source
 }
 
 func sameExactIdentity(left, right auditstore.ExactArtifact) bool {

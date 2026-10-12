@@ -7,7 +7,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/grauwolf32/contractor/internal/contentdigest"
-	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/strictjson"
 )
 
 var identifierPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:-]*$`)
@@ -26,7 +26,7 @@ func CandidateID(inventoryDigest, itemKey, itemVersion string) (string, error) {
 	if !contentdigest.Valid(inventoryDigest) || !validIdentifier(itemKey) || !validText(itemVersion, MaxItemVersionBytes) {
 		return "", invalid(CodeInvalidPool)
 	}
-	data, err := contracts.MarshalPrivateCanonical(struct {
+	data, err := strictjson.Canonical(struct {
 		Schema          string `json:"schema"`
 		InventoryDigest string `json:"inventory_digest"`
 		ItemKey         string `json:"item_key"`
@@ -79,7 +79,7 @@ func MarshalPool(pool Pool) ([]byte, error) {
 	if err := pool.Validate(); err != nil {
 		return nil, err
 	}
-	data, err := contracts.MarshalPrivateCanonical(pool)
+	data, err := strictjson.Canonical(pool)
 	if err != nil || len(data) > MaxSelectionBytes {
 		return nil, invalid(CodeInvalidPool)
 	}

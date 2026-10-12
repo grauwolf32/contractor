@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -34,29 +34,29 @@ func NewEncryptedProvider(records RecordReader, cipher *TokenCipher) (*Encrypted
 
 func (p *EncryptedProvider) LookupLLMCredential(
 	ctx context.Context, id string,
-) (config.CredentialMetadata, error) {
+) (resolved.CredentialMetadata, error) {
 	if p == nil || p.records == nil {
-		return config.CredentialMetadata{}, ErrNotFound
+		return resolved.CredentialMetadata{}, ErrNotFound
 	}
 	record, err := p.records.GetCredential(ctx, id)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
-			return config.CredentialMetadata{}, ErrNotFound
+			return resolved.CredentialMetadata{}, ErrNotFound
 		}
-		return config.CredentialMetadata{}, persistencepostgres.WrapError("lookup encrypted credential metadata", err)
+		return resolved.CredentialMetadata{}, persistencepostgres.WrapError("lookup encrypted credential metadata", err)
 	}
 	// A prepared delete may already have removed the remote key. New Run and
 	// allocation references must not pin it until the delete is recovered.
 	if deletions, ok := p.records.(PreparedDeleteReader); ok {
 		prepared, err := deletions.HasPreparedDelete(ctx, id)
 		if err != nil {
-			return config.CredentialMetadata{}, persistencepostgres.WrapError("lookup encrypted credential metadata", err)
+			return resolved.CredentialMetadata{}, persistencepostgres.WrapError("lookup encrypted credential metadata", err)
 		}
 		if prepared {
-			return config.CredentialMetadata{}, ErrRecoveryRequired
+			return resolved.CredentialMetadata{}, ErrRecoveryRequired
 		}
 	}
-	return config.CredentialMetadata{
+	return resolved.CredentialMetadata{
 		Ref:           llmgateway.LLMCredentialRef{CredentialID: record.CredentialID},
 		LLMGateway:    record.LLMGateway,
 		ModelPolicies: append([]contracts.ModelPolicyRef(nil), record.EffectivePolicy.ModelPolicies...),

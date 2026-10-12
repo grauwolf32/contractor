@@ -13,11 +13,14 @@ import (
 	"time"
 
 	. "github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
+	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/configtest"
+	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/rundeletion"
@@ -30,11 +33,11 @@ import (
 type preparationFixture struct {
 	ctx       context.Context
 	pool      *pgxpool.Pool
-	store     *auditstore.PostgresStore
+	store     *auditstoretest.Store
 	artifacts *Service
 	audit     auditstore.Audit
 	claim     auditstore.ControllerClaim
-	profile   config.ResolvedAuditProfile
+	profile   auditprofile.ResolvedAuditProfile
 	start     auditstore.StartPreparationParams
 	input     auditstore.ExactArtifact
 }
@@ -51,10 +54,7 @@ func newPreparationFixture(t *testing.T, dependency bool) preparationFixture {
 			t.Fatal(err)
 		}
 	}
-	data, err := os.ReadFile("../../api/testdata/audit-composition/prepared-openapi-scan.yaml")
-	if err != nil {
-		t.Fatal(err)
-	}
+	data := contractstest.ReadFile(t, "api", "testdata", "audit-composition", "prepared-openapi-scan.yaml")
 	if dependency {
 		data = []byte(strings.Replace(string(data), "    scan:\n", `    refine-api:
       kind: prepare
@@ -71,7 +71,7 @@ func newPreparationFixture(t *testing.T, dependency bool) preparationFixture {
 	if err := os.WriteFile(filepath.Join(root, "audit-profiles/prepared.yaml"), data, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	catalog, err := configload.Load(root, config.MVPDescriptors())
+	catalog, err := configload.Load(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -97,7 +97,7 @@ func newPreparationFixture(t *testing.T, dependency bool) preparationFixture {
 		}
 		inputs[name] = auditstore.ExactArtifact{Ref: written.Ref, Digest: auditdomain.DigestBytes(payload), MediaType: media, SizeBytes: int64(len(payload))}
 	}
-	store := auditstore.NewPostgresStore(pool)
+	store := auditstoretest.NewStore(pool)
 	raw, _ := json.Marshal(profile)
 	audit, _, err := store.CreateDraft(ctx, auditstore.CreateDraftParams{
 		AuditID: "preparation-audit", OwnerID: project.OwnerID, ProjectID: project.ProjectID,
@@ -166,7 +166,7 @@ func (f preparationFixture) collecting(t *testing.T, intent auditstore.CreateExe
 		if err != nil {
 			return err
 		}
-		execution, err = auditstore.NewPostgresStore(tx).BindRun(f.ctx, auditstore.BindRunParams{Claim: f.claim, ExecutionID: execution.ExecutionID, RunID: runID})
+		execution, err = auditstoretest.NewStore(tx).BindRun(f.ctx, auditstore.BindRunParams{Claim: f.claim, ExecutionID: execution.ExecutionID, RunID: runID})
 		return err
 	})
 	if err != nil {
@@ -185,18 +185,18 @@ func (f preparationFixture) collecting(t *testing.T, intent auditstore.CreateExe
 			if err != nil {
 				t.Fatal(err)
 			}
-			bound, err := f.artifacts.BindOutputExact(f.ctx, runID, names[1], written.Ref, nil)
+			bound, err := artifactstest.BindOutput(f.ctx, f.artifacts, runID, names[1], written.Ref)
 			if err != nil {
 				t.Fatal(err)
 			}
 			outputs = append(outputs, auditstore.PreparationOutput{LogicalName: names[0], WorkflowOutput: names[1],
 				Source: auditstore.ExactArtifact{Ref: bound.TargetRef, Digest: auditdomain.DigestBytes(payload), MediaType: media, SizeBytes: int64(len(payload))}})
 		}
-		if err := f.artifacts.FreezeRunOutputs(f.ctx, runID); err != nil {
+		if err := artifactstest.FreezeOutputs(f.ctx, f.artifacts, runID); err != nil {
 			t.Fatal(err)
 		}
 		for i := range outputs {
-			retained, err := f.artifacts.ImportAuditArtifact(f.ctx, runID, outputs[i].Source.Ref, f.audit.ProjectID,
+			retained, err := importAuditArtifact(f.ctx, f.artifacts, runID, outputs[i].Source.Ref, f.audit.ProjectID,
 				ArtifactRef{Namespace: auditdomain.ArtifactNamespace(f.audit.AuditID), Name: execution.ExecutionID + "-" + outputs[i].LogicalName})
 			if err != nil {
 				t.Fatal(err)
@@ -231,7 +231,7 @@ func (f preparationFixture) collection(execution auditstore.Execution, outputs [
 	return p
 }
 
-func TestPostgresAuditPreparationIdentityAndReplay(t *testing.T) {
+func TestSharedPostgresAuditPreparationIdentityAndReplay(t *testing.T) {
 	f := newPreparationFixture(t, false)
 	if roles, err := f.store.ListPreparationRoles(f.ctx, f.audit.AuditID); err != nil || len(roles) != 1 || roles[0].Status != auditdomain.PreparationPending || roles[0].Attempts != 0 {
 		t.Fatalf("pending preparation projection: %+v %v", roles, err)
@@ -334,7 +334,7 @@ SELECT count(*), COALESCE(min(sequence_number), 0), COALESCE(max(sequence_number
 	}
 }
 
-func TestPostgresAuditPreparationConcurrentIntentAndReceipt(t *testing.T) {
+func TestSharedPostgresAuditPreparationConcurrentIntentAndReceipt(t *testing.T) {
 	f := newPreparationFixture(t, false)
 	p := f.intent("generate-api", 1)
 	var wg sync.WaitGroup
@@ -390,7 +390,7 @@ func TestPostgresAuditPreparationConcurrentIntentAndReceipt(t *testing.T) {
 	}
 }
 
-func TestPostgresAuditPreparationDependenciesAndRetryBounds(t *testing.T) {
+func TestSharedPostgresAuditPreparationDependenciesAndRetryBounds(t *testing.T) {
 	f := newPreparationFixture(t, true)
 	dependent := f.intent("refine-api", 1)
 	if _, _, err := f.store.CreateExecutionIntent(f.ctx, dependent); !errors.Is(err, auditstore.ErrPrecondition) {
@@ -427,7 +427,7 @@ func TestPostgresAuditPreparationDependenciesAndRetryBounds(t *testing.T) {
 	}
 }
 
-func TestPostgresAuditPreparationRetentionAndLifecycleWithoutRound(t *testing.T) {
+func TestSharedPostgresAuditPreparationRetentionAndLifecycleWithoutRound(t *testing.T) {
 	f := newPreparationFixture(t, false)
 	execution, outputs := f.collecting(t, f.intent("generate-api", 1), "succeeded")
 	audit := f.current(t)
@@ -514,7 +514,7 @@ func TestPostgresAuditPreparationRetentionAndLifecycleWithoutRound(t *testing.T)
 	}
 }
 
-func TestPostgresAuditPreparationDeleteFencesAnUndispatchedIntent(t *testing.T) {
+func TestSharedPostgresAuditPreparationDeleteFencesAnUndispatchedIntent(t *testing.T) {
 	f := newPreparationFixture(t, false)
 	execution, _, err := f.store.CreateExecutionIntent(f.ctx, f.intent("generate-api", 1))
 	if err != nil {
@@ -554,13 +554,13 @@ func TestPostgresAuditPreparationDeleteFencesAnUndispatchedIntent(t *testing.T) 
 	}
 }
 
-func TestPostgresAuditPreparationRejectsObsoleteSnapshotsAndInventoryBaseline(t *testing.T) {
+func TestSharedPostgresAuditPreparationRejectsObsoleteSnapshotsAndInventoryBaseline(t *testing.T) {
 	f := newPreparationFixture(t, false)
 	current, err := os.ReadFile("../persistence/postgres/testdata/audit-profile-current.json")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := config.DecodeResolvedAuditProfileSnapshot(current); err != nil {
+	if _, err := auditprofile.DecodeResolvedAuditProfileSnapshot(current); err != nil {
 		t.Fatalf("migration fixture is not a current-schema closure: %v", err)
 	}
 	for _, obsolete := range []bool{false, true} {

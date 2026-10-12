@@ -67,7 +67,7 @@ func (p *Publisher) Publish(ctx context.Context, document []byte, idempotencyKey
 	if p == nil || p.pool == nil || p.credentials == nil {
 		return PublishResult{}, invalid("RuntimeConfig publisher is not configured")
 	}
-	if !validActor(actor) {
+	if !ValidActor(actor) {
 		return PublishResult{}, invalid("publication actor is invalid")
 	}
 	prepared, err := PreparePublication(document)

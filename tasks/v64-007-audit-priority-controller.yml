@@ -57,7 +57,7 @@ acceptance_criteria:
 tests:
   - command: go test -race ./internal/auditcontroller ./internal/auditservice ./internal/auditimport ./internal/runservice ./internal/scheduler
     covers: [A1, A2, A3, A4, A5]
-  - command: go test -tags=integration -count=1 ./internal/auditcontroller ./internal/auditservice ./internal/auditstore ./internal/auditimport ./internal/runservice
+  - command: go test -tags=integration -count=1 ./internal/auditcontroller ./internal/auditservice ./internal/auditstore/... ./internal/auditimport ./internal/runservice
     covers: [A1, A2, A3, A4, A5]
 test_prerequisites:
   - Disposable PostgreSQL, a controlled scripted local model gateway and bounded fake check completions for unit/integration lifecycle cases.

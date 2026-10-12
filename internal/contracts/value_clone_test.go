@@ -1,7 +1,6 @@
 package contracts
 
 import (
-	"errors"
 	"strings"
 	"testing"
 )
@@ -43,15 +42,29 @@ func TestResolvedAgentTemplateCloneCopiesSkillRevisions(t *testing.T) {
 	}
 }
 
-func TestCheckPinnedSelection(t *testing.T) {
-	value := map[string]string{"workflow": "copy@1"}
-	if err := CheckPinnedSelection("", value); err != nil {
-		t.Fatalf("empty expectation error = %v", err)
+// Each Clone of a value that holds refs, maps or a revision pointer must not
+// alias its source: callers outside the hub rely on them instead of copies.
+func TestWireValueClonesDoNotAliasTheirSource(t *testing.T) {
+	revision := "r1"
+	ref := ArtifactRef{Namespace: "skills", Name: "review", Revision: &revision}
+
+	request := StageContentRequest{
+		Parameters: map[string]string{"mode": "strict"}, Artifacts: map[string]ArtifactRef{"source": ref},
+		ResultArtifacts: map[string]ArtifactRef{"report": {Namespace: "builder", Name: "report"}},
 	}
-	if err := CheckPinnedSelection("sha256:"+strings.Repeat("0", 64), value); !errors.Is(err, ErrPinnedSelectionChanged) {
-		t.Fatalf("changed selection error = %v", err)
+	requestCopy := request.Clone()
+	requestCopy.Parameters["mode"] = "changed"
+	*requestCopy.Artifacts["source"].Revision = "changed"
+	delete(requestCopy.ResultArtifacts, "report")
+
+	exact := ExactArtifact{Ref: ref, Digest: "sha256:" + strings.Repeat("0", 64)}
+	exactCopy := CloneExactArtifacts(map[string]ExactArtifact{"input": exact})["input"]
+	*exactCopy.Ref.Revision = "changed"
+
+	if request.Parameters["mode"] != "strict" || len(request.ResultArtifacts) != 1 || revision != "r1" {
+		t.Fatalf("a clone aliases its source: request %+v, revision %q", request, revision)
 	}
-	if err := CheckPinnedSelection("sha256:a4d3a5e1b3ae8e4e3b5a4d1c11b1ee4d8a8a0fd09e0c08cb8b8f6f0c7d3cd5f2", func() {}); err == nil {
-		t.Fatal("unencodable selection was accepted")
+	if CloneExactArtifacts(nil) == nil {
+		t.Fatal("CloneExactArtifacts never returns nil")
 	}
 }

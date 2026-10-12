@@ -9,7 +9,8 @@ import (
 	"github.com/grauwolf32/contractor/internal/agentskills"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/clone"
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
+	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/credentials"
@@ -52,18 +53,18 @@ func (s *Service) CreatePublic(ctx context.Context, params PublicCreateParams) (
 			if resolveErr != nil {
 				// A credential lookup outage keeps its cause so the caller can
 				// answer the retryable recovery or storage outcome.
-				if errors.Is(resolveErr, config.ErrCredentialLookup) {
+				if errors.Is(resolveErr, resolved.ErrCredentialLookup) {
 					return resolveErr
 				}
 				return fmt.Errorf("%w: invalid Workflow or executionConfig selection: %v", ErrInvalid, resolveErr)
 			}
-			if err := contracts.CheckPinnedSelection(normalized.ExpectedWorkflowSHA256, workflow); err != nil {
+			if err := contentdigest.CheckPinnedSelection(normalized.ExpectedWorkflowSHA256, workflow); err != nil {
 				return err
 			}
 			if validationErr := validateWorkflowInputs(workflow, normalized.Parameters, normalized.Inputs); validationErr != nil {
 				return validationErr
 			}
-			skillRefs, resolveErr := config.WorkflowSkillRefs(workflow)
+			skillRefs, resolveErr := resolved.WorkflowSkillRefs(workflow)
 			if resolveErr != nil {
 				return fmt.Errorf("%w: invalid Workflow Skill selection: %v", ErrInvalid, resolveErr)
 			}
@@ -73,8 +74,8 @@ func (s *Service) CreatePublic(ctx context.Context, params PublicCreateParams) (
 			// The stored snapshot is the bounded encoding the Scheduler
 			// measures again; an oversized one is rejected before acceptance
 			// (CAT-R76).
-			workflowSnapshot, encodeErr := config.EncodeResolvedWorkflowSnapshot(workflow)
-			if errors.Is(encodeErr, config.ErrWorkflowSnapshotTooLarge) {
+			workflowSnapshot, encodeErr := resolved.EncodeResolvedWorkflowSnapshot(workflow)
+			if errors.Is(encodeErr, resolved.ErrWorkflowSnapshotTooLarge) {
 				return fmt.Errorf("%w: %v", ErrInvalid, encodeErr)
 			}
 			if encodeErr != nil {
@@ -123,22 +124,22 @@ func (s *Service) CreatePublic(ctx context.Context, params PublicCreateParams) (
 				if pinErr != nil {
 					return pinErr
 				}
-				if err := contracts.CheckPinnedSelection(normalized.ExpectedRuntimeSHA256, runtimeSnapshot); err != nil {
+				if err := contentdigest.CheckPinnedSelection(normalized.ExpectedRuntimeSHA256, runtimeSnapshot); err != nil {
 					return err
 				}
-				selectedSkills := []contracts.RunSkillSnapshot{}
+				selectedSkills := []agentskills.RunSkillSnapshot{}
 				if len(skillRefs) > 0 {
 					selectedSkills, catalogErr = catalog.SelectRunSources(ctx, normalized.OwnerID, skillRefs)
 					if catalogErr != nil {
 						return catalogErr
 					}
 					if catalogErr = agentskills.ValidateSelectedLimits(
-						selectedSkills, config.WorkflowSkillSets(workflow),
+						selectedSkills, resolved.WorkflowSkillSets(workflow),
 					); catalogErr != nil {
 						return catalogErr
 					}
 				}
-				if err := contracts.CheckPinnedSelection(normalized.ExpectedSkillsSHA256, selectedSkills); err != nil {
+				if err := contentdigest.CheckPinnedSelection(normalized.ExpectedSkillsSHA256, selectedSkills); err != nil {
 					return err
 				}
 				stored, created, err = runs.CreateRunIdempotent(ctx, runstore.CreateRunIdempotentParams{
@@ -164,17 +165,11 @@ func (s *Service) CreatePublic(ctx context.Context, params PublicCreateParams) (
 				}
 				exactSources := make(map[string]contracts.ArtifactRef, len(normalized.Inputs))
 				for _, slot := range sortedInputSlots(normalized.Inputs) {
-					var fork artifacts.ForkResult
-					var forkErr error
-					if normalized.ProjectID == nil {
-						fork, forkErr = artifactService.ForkInput(
-							ctx, normalized.OwnerID, normalized.Inputs[slot], runID, slot,
-						)
-					} else {
-						fork, forkErr = artifactService.ForkProjectInput(
-							ctx, *normalized.ProjectID, normalized.Inputs[slot], runID, slot,
-						)
+					sourceScope, scopeErr := inputSourceScope(normalized.OwnerID, normalized.ProjectID)
+					if scopeErr != nil {
+						return scopeErr
 					}
+					fork, forkErr := forkInput(ctx, artifactService, sourceScope, normalized.Inputs[slot], runID, slot)
 					if forkErr != nil {
 						return forkErr
 					}
@@ -190,7 +185,7 @@ func (s *Service) CreatePublic(ctx context.Context, params PublicCreateParams) (
 				if encodeErr != nil {
 					return encodeErr
 				}
-				if _, err := artifactService.WriteRunRepeatRequest(ctx, runID, repeatRequest); err != nil {
+				if err := runrepeat.Retain(ctx, artifactService, runID, repeatRequest); err != nil {
 					return err
 				}
 				if len(selectedSkills) == 0 {
@@ -200,7 +195,7 @@ func (s *Service) CreatePublic(ctx context.Context, params PublicCreateParams) (
 					)
 					return err
 				}
-				stored.SkillSnapshot = append([]contracts.RunSkillSnapshot(nil), selectedSkills...)
+				stored.SkillSnapshot = append([]agentskills.RunSkillSnapshot(nil), selectedSkills...)
 				stored.StateReason = runstore.Reason{Code: runstore.SkillInitializationPendingReason}
 				return nil
 			})
@@ -240,7 +235,7 @@ func normalizePublicCreate(params PublicCreateParams) (PublicCreateParams, error
 	params.RuntimeLabels = labels
 	params.MetadataLabels = metadata
 	params.Parameters = clone.Map(params.Parameters)
-	params.Inputs = cloneRefs(params.Inputs)
+	params.Inputs = contracts.CloneArtifactRefs(params.Inputs)
 	if params.ProjectID != nil {
 		projectID := *params.ProjectID
 		if projectID == "" {
@@ -252,7 +247,7 @@ func normalizePublicCreate(params PublicCreateParams) (PublicCreateParams, error
 }
 
 func validateWorkflowInputs(
-	workflow config.ResolvedWorkflow,
+	workflow resolved.ResolvedWorkflow,
 	parameters map[string]string,
 	inputs map[string]contracts.ArtifactRef,
 ) error {
@@ -280,6 +275,38 @@ func validateWorkflowInputs(
 		}
 	}
 	return nil
+}
+
+// forkInput forks the Workflow input source, an exact revision or the current
+// one, from the source scope the caller authorized into inputs/<slot> of runID,
+// with input_fork lineage and without copying bytes (ART-R75 to ART-R77).
+// Only these forks create inputs/<slot>; a Project source must belong to the
+// Run's Project.
+func forkInput(
+	ctx context.Context,
+	service *artifacts.Service,
+	sourceScope artifacts.Scope,
+	source contracts.ArtifactRef,
+	runID string,
+	slot string,
+) (artifacts.ForkResult, error) {
+	run, err := artifacts.RunScope(runID)
+	if err != nil {
+		return artifacts.ForkResult{}, err
+	}
+	return service.Fork(ctx, artifacts.Fork{
+		Kind: artifacts.LineageInputFork, Source: sourceScope, SourceRef: source,
+		Target: run, TargetRef: contracts.ArtifactRef{Namespace: "inputs", Name: slot},
+	})
+}
+
+// inputSourceScope is the scope public Run creation forks inputs from: the
+// owner's UserScope for a standalone Run, the ProjectScope for a Project Run.
+func inputSourceScope(ownerID string, projectID *string) (artifacts.Scope, error) {
+	if projectID == nil {
+		return artifacts.UserScope(ownerID)
+	}
+	return artifacts.ProjectScope(*projectID)
 }
 
 func sortedInputSlots[T any](source map[string]T) []string {

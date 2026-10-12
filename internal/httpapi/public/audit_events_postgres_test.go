@@ -14,7 +14,9 @@ import (
 	"github.com/getkin/kin-openapi/routers/gorillamux"
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
 	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
@@ -26,7 +28,7 @@ func TestPublicAuditEventHistory(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 45*time.Second)
 	defer cancel()
 	pool := isolatedPublicPool(t, ctx)
-	store := auditstore.NewPostgresStore(pool)
+	store := auditstoretest.NewStore(pool)
 	for _, auditID := range []string{"audit-events", "audit-other"} {
 		_, _, err := projectstore.NewPostgresStore(pool).Create(ctx, projectstore.CreateParams{ProjectID: "project-" + auditID, OwnerID: "user-1", Kind: projectstore.KindProject, Name: auditID, IdempotencyKey: auditID, RequestDigest: auditHandlerDigest(auditID)})
 		if err != nil {
@@ -48,10 +50,10 @@ func TestPublicAuditEventHistory(t *testing.T) {
 		appendEvent(i)
 	}
 	var service *auditservice.Service
-	fixture := newHandlerFixtureWithAuth(t, "../../config/testdata/valid", newTestAuthentication(t), mustTestOrigins(t), false, nil, func(d *Dependencies) {
+	fixture := newHandlerFixtureWithAuth(t, "../../config/testdata/valid", newTestAuthentication(t), mustTestOrigins(t), false, nil, func(d *testServices) {
 		credentials := newFakeManagedCredentials()
 		var err error
-		service, err = auditservice.New(auditservice.Options{Pool: pool, Profiles: d.Config.(*config.Manager), CredentialGuard: credentials, TransactionLLMCredentials: runtimeconfig.TransactionLLMCredentialLookupFactoryFunc(func(pgx.Tx) (config.CredentialLookup, error) { return credentials, nil })})
+		service, err = auditservice.New(auditservice.Options{Pool: pool, Profiles: d.Config.(*config.Manager), CredentialGuard: credentials, TransactionLLMCredentials: runtimeconfig.TransactionLLMCredentialLookupFactoryFunc(func(pgx.Tx) (resolved.CredentialLookup, error) { return credentials, nil })})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -104,7 +106,7 @@ func TestPublicAuditEventHistory(t *testing.T) {
 	if refreshed.Items[0].Sequence != 202 || refreshed.Total != 202 || refreshed.Through != 202 {
 		t.Fatalf("fresh head=%+v", refreshed)
 	}
-	if _, err := service.ListEventsPage(ctx, auditservice.EventListParams{OwnerID: "foreign", AuditID: "audit-events", Limit: 1}); !errors.Is(err, auditstore.ErrNotFound) {
+	if _, err := service.ListEventsPage(ctx, auditstore.EventListParams{OwnerID: "foreign", AuditID: "audit-events", Limit: 1}); !errors.Is(err, auditstore.ErrNotFound) {
 		t.Fatalf("foreign owner=%v", err)
 	}
 	for _, path := range []string{"/v1/audits/missing/events", "/v1/audits/audit-other/events?cursor=" + cursor} {

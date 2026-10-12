@@ -16,11 +16,15 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditimport"
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
 	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/auditprofile"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/credentials"
@@ -261,13 +265,13 @@ func TestPostgresControllerDispatchesApprovedItemWhileOtherReviewsWait(t *testin
 	if err != nil || audit.State != auditstore.AuditWaitingReview {
 		t.Fatalf("Audit awaiting every review = (%q, %v), want waiting_review", audit.State, err)
 	}
-	reviews, err := harness.service.ListReviews(ctx, auditservice.ReviewListParams{
+	reviews, err := harness.service.ListReviews(ctx, auditstore.ReviewListParams{
 		OwnerID: ownerID, AuditID: auditID, Limit: 10,
 	})
 	if err != nil || len(reviews) != 3 {
 		t.Fatalf("pending item reviews = (%+v, %v)", reviews, err)
 	}
-	decide := func(index int, action auditservice.ReviewAction) {
+	decide := func(index int, action auditstore.ReviewAction) {
 		t.Helper()
 		key := fmt.Sprintf("decision-%d", index)
 		if _, err := harness.service.DecideActionReview(ctx, auditservice.DecideActionReviewParams{
@@ -280,12 +284,12 @@ func TestPostgresControllerDispatchesApprovedItemWhileOtherReviewsWait(t *testin
 		}
 	}
 
-	decide(0, auditservice.ReviewReject)
+	decide(0, auditstore.ReviewReject)
 	audit, err = harness.audits.Get(ctx, ownerID, auditID)
 	if err != nil || audit.State != auditstore.AuditWaitingReview {
 		t.Fatalf("Audit after rejection with reviews left = (%q, %v), want waiting_review", audit.State, err)
 	}
-	decide(1, auditservice.ReviewApprove)
+	decide(1, auditstore.ReviewApprove)
 	audit, err = harness.audits.Get(ctx, ownerID, auditID)
 	if err != nil || audit.State != auditstore.AuditActive {
 		t.Fatalf("Audit after approval with a review left = (%q, %v), want active", audit.State, err)
@@ -326,7 +330,7 @@ func TestPostgresControllerRenewsPendingItemReviewExpiredAfterResume(t *testing.
 	if err != nil || audit.State != auditstore.AuditWaitingReview {
 		t.Fatalf("initial waiting review = (%+v, %v)", audit, err)
 	}
-	reviews, err := harness.service.ListReviews(ctx, auditservice.ReviewListParams{
+	reviews, err := harness.service.ListReviews(ctx, auditstore.ReviewListParams{
 		OwnerID: ownerID, AuditID: auditID, Limit: 10,
 	})
 	if err != nil || len(reviews) != 1 {
@@ -381,23 +385,23 @@ SET expires_at=clock_timestamp()-interval '1 second' WHERE request_id=$1`, oldRe
 	if worked, err := controller.RunOnce(ctx); err != nil || !worked {
 		t.Fatalf("renew expired waiting-review item = (%t, %v)", worked, err)
 	}
-	reviews, err = harness.service.ListReviews(ctx, auditservice.ReviewListParams{
+	reviews, err = harness.service.ListReviews(ctx, auditstore.ReviewListParams{
 		OwnerID: ownerID, AuditID: auditID, Limit: 10,
 	})
 	if err != nil || len(reviews) != 2 {
 		t.Fatalf("renewed reviews = (%+v, %v)", reviews, err)
 	}
-	var renewed auditservice.ReviewRequest
+	var renewed auditstore.ReviewRequest
 	for _, review := range reviews {
 		if review.RequestID == oldRequestID {
-			if review.State != auditservice.ReviewExpired {
+			if review.State != auditstore.ReviewExpired {
 				t.Fatalf("old review state = %q", review.State)
 			}
 		} else {
 			renewed = review
 		}
 	}
-	if renewed.State != auditservice.ReviewPending || renewed.ExpiresAt != nil ||
+	if renewed.State != auditstore.ReviewPending || renewed.ExpiresAt != nil ||
 		renewed.SubjectID != reviews[0].SubjectID {
 		t.Fatalf("fresh exact-subject review = %+v", renewed)
 	}
@@ -429,7 +433,7 @@ SELECT count(*), max(sequence_number),
 	if _, err := harness.service.DecideActionReview(ctx, auditservice.DecideActionReviewParams{
 		OwnerID: ownerID, AuditID: auditID, RequestID: renewed.RequestID,
 		ExpectedRequestRevision: renewed.Revision, DecisionID: "renewed-decision",
-		Action: auditservice.ReviewApprove, Rationale: "Approve the fresh exact task.",
+		Action: auditstore.ReviewApprove, Rationale: "Approve the fresh exact task.",
 		IdempotencyKey: "renewed-decision", RequestDigest: postgresDigest("renewed-decision"),
 	}); err != nil {
 		t.Fatalf("decide renewed request: %v", err)
@@ -448,7 +452,7 @@ func TestPostgresControllerRenewsApprovedItemAndDispatchesLaterReadyItem(t *test
 	defer cancel()
 	harness := newPostgresControllerReviewHarness(t, ctx, 1, 1)
 	auditID, ownerID := harness.started.Audit.AuditID, harness.started.Audit.OwnerID
-	reviews, err := harness.service.ListReviews(ctx, auditservice.ReviewListParams{
+	reviews, err := harness.service.ListReviews(ctx, auditstore.ReviewListParams{
 		OwnerID: ownerID, AuditID: auditID, Limit: 10,
 	})
 	if err != nil || len(reviews) != 1 {
@@ -458,7 +462,7 @@ func TestPostgresControllerRenewsApprovedItemAndDispatchesLaterReadyItem(t *test
 	if _, err := harness.service.DecideActionReview(ctx, auditservice.DecideActionReviewParams{
 		OwnerID: ownerID, AuditID: auditID, RequestID: approved.RequestID,
 		ExpectedRequestRevision: approved.Revision, DecisionID: "first-decision",
-		Action: auditservice.ReviewApprove, Rationale: "Approve the original exact task.",
+		Action: auditstore.ReviewApprove, Rationale: "Approve the original exact task.",
 		IdempotencyKey: "first-decision", RequestDigest: postgresDigest("first-decision"),
 	}); err != nil {
 		t.Fatal(err)
@@ -495,7 +499,7 @@ SET expires_at=clock_timestamp()-interval '1 second' WHERE request_id=$1`, appro
 		items[1].State != auditstore.ItemReady {
 		t.Fatalf("renewed first item and later ready item = (%+v, %v)", items, err)
 	}
-	reviews, err = harness.service.ListReviews(ctx, auditservice.ReviewListParams{
+	reviews, err = harness.service.ListReviews(ctx, auditstore.ReviewListParams{
 		OwnerID: ownerID, AuditID: auditID, Limit: 10,
 	})
 	if err != nil || len(reviews) != 2 {
@@ -531,7 +535,7 @@ func TestPostgresControllerRenewsAlreadyExpiredItemReview(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	reviews, err := harness.service.ListReviews(ctx, auditservice.ReviewListParams{
+	reviews, err := harness.service.ListReviews(ctx, auditstore.ReviewListParams{
 		OwnerID: ownerID, AuditID: auditID, Limit: 10,
 	})
 	if err != nil || len(reviews) != 1 {
@@ -545,7 +549,7 @@ SET expires_at=clock_timestamp()-interval '1 second' WHERE request_id=$1`, old.R
 	_, err = harness.service.DecideActionReview(ctx, auditservice.DecideActionReviewParams{
 		OwnerID: ownerID, AuditID: auditID, RequestID: old.RequestID,
 		ExpectedRequestRevision: old.Revision, DecisionID: "late-decision",
-		Action: auditservice.ReviewApprove, Rationale: "This decision arrived too late.",
+		Action: auditstore.ReviewApprove, Rationale: "This decision arrived too late.",
 		IdempotencyKey: "late-decision", RequestDigest: postgresDigest("late-decision"),
 	})
 	if !errors.Is(err, auditstore.ErrPrecondition) {
@@ -716,11 +720,11 @@ type countingProjectArtifactRepository struct {
 	writes int
 }
 
-func (r *countingProjectArtifactRepository) WriteAuditArtifact(
+func (r *countingProjectArtifactRepository) CreateFrozen(
 	ctx context.Context, scope artifacts.Scope, target artifacts.ArtifactRef, payload artifacts.Payload,
 ) (artifacts.WriteResult, error) {
 	r.writes++
-	return r.PostgresRepository.WriteAuditArtifact(ctx, scope, target, payload)
+	return r.PostgresRepository.CreateFrozen(ctx, scope, target, payload)
 }
 
 func TestPostgresDispatchReservationOrdersWithSettingsDecrease(t *testing.T) {
@@ -1043,10 +1047,10 @@ UPDATE audit_items SET state = 'collecting'
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := harness.artifacts.BindOutputExact(ctx, runID, "result", workerResult.Ref, nil); err != nil {
+	if _, err := artifactstest.BindOutput(ctx, harness.artifacts, runID, "result", workerResult.Ref); err != nil {
 		t.Fatal(err)
 	}
-	if err := harness.artifacts.FreezeRunOutputs(ctx, runID); err != nil {
+	if err := artifactstest.FreezeOutputs(ctx, harness.artifacts, runID); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := harness.runs.TransitionRun(ctx, runID, runstore.RunPending, runstore.RunRunning,
@@ -1161,11 +1165,11 @@ func TestPostgresControllerCollectsAndPublishesExactAuditReport(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	bound, err := harness.artifacts.BindOutputExact(ctx, runID, "result", workerResult.Ref, nil)
+	bound, err := artifactstest.BindOutput(ctx, harness.artifacts, runID, "result", workerResult.Ref)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := harness.artifacts.FreezeRunOutputs(ctx, runID); err != nil {
+	if err := artifactstest.FreezeOutputs(ctx, harness.artifacts, runID); err != nil {
 		t.Fatal(err)
 	}
 	run, err := harness.runs.GetRun(ctx, runID)
@@ -1418,7 +1422,7 @@ type postgresControllerHarness struct {
 	pool       *pgxpool.Pool
 	snapshot   *config.Snapshot
 	artifacts  *artifacts.Service
-	audits     *auditstore.PostgresStore
+	audits     *auditstoretest.Store
 	runs       *runstore.PostgresStore
 	runService *runservice.Service
 	service    *auditservice.Service
@@ -1529,7 +1533,7 @@ func newPostgresControllerHarnessWithConfig(
 		t.Fatal(err)
 	}
 	runs := runstore.NewPostgresStore(pool)
-	audits := auditstore.NewPostgresStore(pool)
+	audits := auditstoretest.NewStore(pool)
 	runCreation, err := runservice.New(runservice.Options{
 		Runs: runs, Workflows: snapshot, LLMCredentials: controllerCredentialLookup{},
 		CredentialGuard: guard, RuntimeCredentials: controllerRuntimeCredentials{}, Projects: projects,
@@ -1543,7 +1547,7 @@ func newPostgresControllerHarnessWithConfig(
 					return bindErr
 				}
 				return fn(
-					runstore.NewRunCreationPostgresStore(tx, lookup),
+					runstore.NewRunCreationPostgresStore(tx, lookup, credentials.NewRuntimeCredentialRepository(tx)),
 					artifacts.NewService(artifacts.NewPostgresRepository(tx)),
 				)
 			})
@@ -1552,7 +1556,7 @@ func newPostgresControllerHarnessWithConfig(
 			return persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 				return fn(
 					runstore.NewPostgresStore(tx), artifacts.NewService(artifacts.NewPostgresRepository(tx)),
-					auditstore.NewPostgresStore(tx),
+					auditstoretest.NewStore(tx),
 				)
 			})
 		},
@@ -1583,7 +1587,7 @@ func (h *postgresControllerHarness) controller(t *testing.T) *Controller {
 	t.Helper()
 	var ids int
 	controller, err := New(
-		h.audits, h.runs, rundeletion.New(h.pool), h.runService, h.builder(t), &postgresNotifier{},
+		h.audits, h.audits, h.runs, rundeletion.New(h.pool), h.runService, h.builder(t), &postgresNotifier{},
 		Options{
 			HolderID: "postgres-audit-controller", ClaimLease: 5 * time.Second,
 			OperationTimeout: time.Second, ClaimBatch: 1,
@@ -1603,7 +1607,7 @@ func (h *postgresControllerHarness) controllerForHolder(t *testing.T, holderID s
 	t.Helper()
 	var ids int
 	controller, err := New(
-		h.audits, h.runs, rundeletion.New(h.pool), h.runService, h.builder(t), &postgresNotifier{},
+		h.audits, h.audits, h.runs, rundeletion.New(h.pool), h.runService, h.builder(t), &postgresNotifier{},
 		Options{
 			HolderID: holderID, ClaimLease: 5 * time.Second,
 			OperationTimeout: time.Second, ClaimBatch: 1,
@@ -1627,13 +1631,13 @@ func (h *postgresControllerHarness) controllerWithCollector(
 	if err != nil {
 		t.Fatal(err)
 	}
-	collector, err := auditimport.New(h.audits, h.runs, access, findings...)
+	collector, err := auditimport.New(h.audits, h.audits, h.runs, access, findings...)
 	if err != nil {
 		t.Fatal(err)
 	}
 	var ids int
 	controller, err := New(
-		h.audits, h.runs, rundeletion.New(h.pool), h.runService, h.builder(t), &postgresNotifier{},
+		h.audits, h.audits, h.runs, rundeletion.New(h.pool), h.runService, h.builder(t), &postgresNotifier{},
 		Options{
 			HolderID: "postgres-audit-collection-controller", ClaimLease: 5 * time.Second,
 			OperationTimeout: 2 * time.Second, ClaimBatch: 1, Collector: collector,
@@ -1656,13 +1660,13 @@ func (*postgresNotifier) Cancel(string) {}
 
 type controllerCredentialLookup struct{}
 
-func (controllerCredentialLookup) LookupLLMCredential(context.Context, string) (config.CredentialMetadata, error) {
-	return config.CredentialMetadata{}, fmt.Errorf("credential is unavailable")
+func (controllerCredentialLookup) LookupLLMCredential(context.Context, string) (resolved.CredentialMetadata, error) {
+	return resolved.CredentialMetadata{}, fmt.Errorf("credential is unavailable")
 }
 
 func controllerTransactionCredentialLookup() runtimeconfig.TransactionLLMCredentialLookupFactory {
 	return runtimeconfig.TransactionLLMCredentialLookupFactoryFunc(
-		func(pgx.Tx) (config.CredentialLookup, error) { return controllerCredentialLookup{}, nil },
+		func(pgx.Tx) (resolved.CredentialLookup, error) { return controllerCredentialLookup{}, nil },
 	)
 }
 
@@ -1694,7 +1698,7 @@ func loadControllerConfigWithItemLimit(t *testing.T, maxItems int, batchSizes ..
 	if len(batchSizes) > 0 {
 		batchSize = batchSizes[0]
 	}
-	if len(batchSizes) > 1 || batchSize < 1 || batchSize > config.MaxAuditBatchSize {
+	if len(batchSizes) > 1 || batchSize < 1 || batchSize > auditprofile.MaxAuditBatchSize {
 		t.Fatalf("invalid test batch size %v", batchSizes)
 	}
 	return loadControllerConfigWithFindings(t, batchSize, maxItems, false)
@@ -1822,7 +1826,7 @@ spec:
 			t.Fatal(err)
 		}
 	}
-	snapshot, err := configload.Load(root, config.MVPDescriptors())
+	snapshot, err := configload.Load(root)
 	if err != nil {
 		t.Fatalf("load Audit Controller test configuration: %v", err)
 	}

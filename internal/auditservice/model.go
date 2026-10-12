@@ -8,11 +8,13 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/grauwolf32/contractor/internal/agentskills"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstandards"
 	"github.com/grauwolf32/contractor/internal/auditstore"
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/contentdigest"
+	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/grauwolf32/contractor/internal/strictjson"
 )
@@ -118,8 +120,8 @@ func ValidateBaseline(value BaselineSnapshot) error {
 	if selection := value.Inventory.StandardSelection; selection != nil {
 		if selection.Scope == "" || !utf8.ValidString(selection.Scope) || len([]byte(selection.Scope)) > 512 ||
 			strings.TrimSpace(selection.Scope) != selection.Scope || strings.ContainsRune(selection.Scope, 0) ||
-			len(selection.Levels) == 0 || len(selection.Levels) > config.MaxAuditStandardLevels ||
-			len(selection.EntryIDs) == 0 || len(selection.EntryIDs) > config.MaxAuditStandardEntries ||
+			len(selection.Levels) == 0 || len(selection.Levels) > auditprofile.MaxAuditStandardLevels ||
+			len(selection.EntryIDs) == 0 || len(selection.EntryIDs) > auditprofile.MaxAuditStandardEntries ||
 			!strictSortedAuditValues(selection.Levels) || !strictSortedAuditValues(selection.EntryIDs) {
 			return fmt.Errorf("%w: Audit baseline standard selection is invalid", ErrInvalid)
 		}
@@ -193,34 +195,12 @@ func mergeIDs(sets ...[]string) []string {
 	return result
 }
 
-func cloneExactInputs(source map[string]auditstore.ExactArtifact) map[string]auditstore.ExactArtifact {
-	result := make(map[string]auditstore.ExactArtifact, len(source))
-	for name, value := range source {
-		if value.Ref.Revision != nil {
-			revision := *value.Ref.Revision
-			value.Ref.Revision = &revision
-		}
-		result[name] = value
-	}
-	return result
-}
-
 func cloneBaseline(source BaselineSnapshot) BaselineSnapshot {
 	result := source
-	result.Inputs = cloneExactInputs(source.Inputs)
+	result.Inputs = contracts.CloneExactArtifacts(source.Inputs)
 	result.RuntimeLabels = slices.Clone(source.RuntimeLabels)
 	result.RuntimeConfig = source.RuntimeConfig.Clone()
-	result.Skills = slices.Clone(source.Skills)
-	for index := range result.Skills {
-		if result.Skills[index].Source != nil {
-			ref := *result.Skills[index].Source
-			if ref.Revision != nil {
-				revision := *ref.Revision
-				ref.Revision = &revision
-			}
-			result.Skills[index].Source = &ref
-		}
-	}
+	result.Skills = agentskills.CloneRunSkills(source.Skills)
 	result.LLMCredentialIDs = slices.Clone(source.LLMCredentialIDs)
 	result.RuntimeCredentialIDs = slices.Clone(source.RuntimeCredentialIDs)
 	result.Standards = slices.Clone(source.Standards)
@@ -228,14 +208,7 @@ func cloneBaseline(source BaselineSnapshot) BaselineSnapshot {
 		cloneExactPackageRef(&result.Standards[index].Catalog)
 		cloneExactPackageRef(&result.Standards[index].Retained)
 	}
-	if source.ProjectHTTPTarget != nil {
-		target := *source.ProjectHTTPTarget
-		if source.ProjectHTTPTarget.Credential != nil {
-			credential := *source.ProjectHTTPTarget.Credential
-			target.Credential = &credential
-		}
-		result.ProjectHTTPTarget = &target
-	}
+	result.ProjectHTTPTarget = source.ProjectHTTPTarget.Clone()
 	if source.Inventory == nil {
 		return result
 	}
@@ -261,8 +234,8 @@ func cloneBaseline(source BaselineSnapshot) BaselineSnapshot {
 }
 
 func cloneAuditStandardSelection(
-	source *config.AuditStandardSelection,
-) *config.AuditStandardSelection {
+	source *auditprofile.AuditStandardSelection,
+) *auditprofile.AuditStandardSelection {
 	if source == nil {
 		return nil
 	}

@@ -2,10 +2,10 @@ package contracts
 
 import (
 	"encoding/json"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 )
 
 type configIdentityCases struct {
@@ -21,10 +21,7 @@ type configIdentityCaseGroup struct {
 
 func loadConfigIdentityCases(t *testing.T) configIdentityCases {
 	t.Helper()
-	data, err := os.ReadFile(filepath.Join("..", "..", "api", "testdata", "v1alpha1", "config-identity-cases.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	data := contractstest.ReadFile(t, "api", "testdata", "v1alpha1", "config-identity-cases.json")
 	var cases configIdentityCases
 	if err := json.Unmarshal(data, &cases); err != nil {
 		t.Fatal(err)
@@ -32,7 +29,7 @@ func loadConfigIdentityCases(t *testing.T) configIdentityCases {
 	return cases
 }
 
-func TestConfigIdentityCases(t *testing.T) {
+func TestSharedConfigIdentityCases(t *testing.T) {
 	t.Parallel()
 	cases := loadConfigIdentityCases(t)
 	if cases.ID.MaxLength != MaxConfigIDLength || cases.Version.MaxLength != MaxConfigVersionLength {

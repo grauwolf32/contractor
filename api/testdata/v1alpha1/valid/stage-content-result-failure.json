@@ -1,1 +1,0 @@
-{"apiVersion":"contractor/v1alpha1","artifacts":{},"error":{"code":"invalid_input","message":"The source cannot produce the requested output","retryable":false},"outcome":"failed","summary":"The input was semantically invalid."}

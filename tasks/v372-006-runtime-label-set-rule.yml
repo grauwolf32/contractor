@@ -1,0 +1,68 @@
+schema_version: "1.0"
+id: V372-006
+title: "Give the Runtime label set rule one Go definition and hold the UI and the Runtime to it"
+milestone: hub-audit-defects-2026-10
+epic: runtime-config
+kind: chore
+priority: P3
+status: pending
+depends_on: []
+languages: [go, typescript, python]
+goal: "Run label selection, Runtime Agent principal labels and the public label replacement apply RCF-R118 to RCF-R120 and LIM-RCF-26 through one Go definition, and the UI and the Runtime registration models give the same verdict on one shared case list."
+context:
+  review: "Out-of-scope finding of the hub audit fix batch, wave 2 (group w2f: V370-011, V370-012), recorded 2026-10-12; file:line verified on b2b09ea"
+  specification: "docs/spec/configuration/runtime-config.md#RCF-R119"
+  finding: >-
+    normalizeRuntimeAgentLabels
+    (internal/httpapi/public/runtime_agent_principal_handlers.go:194-206,
+    called by putRuntimeAgentLabels at :119) repeats the Runtime Agent label
+    set rule: at most 32 labels, each valid under
+    validRuntimeInfrastructureID (runtime_configuration_handlers.go:69-71),
+    none equal to runtimeconfig.DefaultLabel, no duplicates, sorted.
+    runtimeconfig.ValidateAgentLabels (internal/runtimeconfig/agent_labels.go:43-55,
+    bound maxAgentLabels) owns the same rule, and agentprincipal applies it
+    again on every write (service.go:78, 193 and 357; repository.go:184 and
+    286). runtimeconfig keeps a second Go form of RCF-R118 to RCF-R120 for
+    Runs, NormalizeRunLabels with its own constant MaximumRunLabels
+    (run_snapshot.go:16 and 49-66), for the same LIM-RCF-26 bound. The copies
+    agree today, but nothing ties them together (AGENTS.md 3.1). Predates
+    the shallow history (boundary 6349621).
+  siblings: >-
+    UI: replaceRuntimeAgentPrincipalLabels (ui/src/api/operations.ts:966-984)
+    sorts and checks the bound, uniqueness and default itself, and the Run
+    label selections reject default in ui/src/api/runs.ts:210 and 328,
+    ui/src/api/workflows.ts:229 and ui/src/api/runtime-configuration.ts:128
+    and 214. Runtime: _require_runtime_label
+    (runtime/src/contractor_runtime/contracts/base.py:317-325, default
+    excluded) and _require_sorted_unique with maximum 32 for the
+    registration response labels and initialLabels
+    (contracts/registration.py:68-81 and 147-168). OpenAPI:
+    RuntimeAgentLabelsMutation (api/openapi/contractor-public-v1.yaml:14219-14228)
+    states maxItems 32 and uniqueItems but not the default exclusion. The
+    label grammar itself (contracts.ValidIdentifier with a 63-byte bound) has
+    its shared cases already and stays as it is.
+scope:
+  in:
+    - "One Go definition of the label set rule (count bound, label grammar, default exclusion, uniqueness and canonical order) in runtimeconfig, used by Run selection, agentprincipal and the public handler, which keeps only the request decoding."
+    - "A shared case list under api/testdata (declared in readers.json) to which the Go definition, the UI label checks and the Runtime registration models give one verdict; the OpenAPI description of RuntimeAgentLabelsMutation names the default exclusion."
+  out:
+    - "The label grammar and the 32-label bound (LIM-RCF-26) themselves."
+    - "Label binding, pinning and replacement semantics."
+acceptance_criteria:
+  - id: A1
+    text: "No Go code outside runtimeconfig counts, deduplicates or checks the default exclusion of a Runtime label set, and a source scan fails on a new copy."
+  - id: A2
+    text: "Every shared case gets the same verdict from Run selection and Agent labels in Go, from the UI and from the Runtime registration models."
+  - id: A3
+    text: "Existing label replacement, Run creation and registration tests pass unchanged."
+tests:
+  - command: "go test ./internal/runtimeconfig ./internal/agentprincipal ./internal/httpapi/public"
+    covers: [A1, A2, A3]
+  - command: "cd runtime && uv run pytest tests/test_contracts.py"
+    covers: [A2, A3]
+  - command: "cd ui && corepack pnpm test --run src/api"
+    covers: [A2]
+  - command: "make test-wire-cross-language"
+    covers: [A2]
+  - command: make lint
+    covers: [A1, A2, A3]

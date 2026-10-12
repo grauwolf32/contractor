@@ -9,6 +9,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/contracts"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
+	"github.com/grauwolf32/contractor/internal/planner/stageresult"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -35,15 +36,7 @@ func (s *PostgresStore) CreateStageExecution(
 	if err != nil {
 		return StageExecution{}, fmt.Errorf("create StageExecution: encode StageContext: %w", err)
 	}
-	result, err := scanStageExecution(s.db.QueryRow(ctx, `
-INSERT INTO stage_executions (
-    stage_execution_id, run_id, stage_name, attempt, previous_execution_id,
-    execution_config_variant, escalation_ordinal, resume_source_execution_id,
-    stage_spec_schema_version, stage_spec_snapshot,
-    stage_context_schema_version, stage_context_snapshot,
-    state, state_reason_code, state_reason_message
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11, $12::jsonb, 'preparing', 'created', '')
-RETURNING `+stageExecutionColumns,
+	result, err := scanStageExecution(s.db.QueryRow(ctx, createStageExecutionSQL,
 		params.StageExecutionID, params.RunID, params.StageName, params.Attempt,
 		params.PreviousExecutionID, params.ExecutionConfigVariant, params.EscalationOrdinal,
 		params.ResumeSourceExecutionID,
@@ -67,10 +60,7 @@ func (s *PostgresStore) GetStageExecution(ctx context.Context, stageExecutionID 
 	if err := validateOpaque("stageExecutionID", stageExecutionID); err != nil {
 		return StageExecution{}, err
 	}
-	result, err := scanStageExecution(s.db.QueryRow(ctx,
-		`SELECT `+stageExecutionColumns+` FROM stage_executions WHERE stage_execution_id = $1`,
-		stageExecutionID,
-	))
+	result, err := scanStageExecution(s.db.QueryRow(ctx, getStageExecutionSQL, stageExecutionID))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return StageExecution{}, fmt.Errorf("get StageExecution %q: %w", stageExecutionID, ErrNotFound)
 	}
@@ -120,12 +110,7 @@ func (s *PostgresStore) GetActiveStageExecution(ctx context.Context, runID strin
 	if err := validateOpaque("runID", runID); err != nil {
 		return StageExecution{}, err
 	}
-	rows, err := s.db.Query(ctx, `
-SELECT `+stageExecutionColumns+`
-FROM stage_executions
-WHERE run_id = $1 AND state IN ('preparing', 'running', 'finalizing', 'aborting')
-ORDER BY created_at, stage_execution_id
-LIMIT 2`, runID)
+	rows, err := s.db.Query(ctx, getActiveStageExecutionSQL, runID)
 	if err != nil {
 		return StageExecution{}, fmt.Errorf("get active StageExecution of WorkflowRun %q: %w", runID, err)
 	}
@@ -155,11 +140,7 @@ func (s *PostgresStore) ListStageExecutions(ctx context.Context, runID string) (
 	if err := validateOpaque("runID", runID); err != nil {
 		return nil, err
 	}
-	rows, err := s.db.Query(ctx, `
-SELECT `+stageExecutionColumns+`
-FROM stage_executions
-WHERE run_id = $1
-ORDER BY created_at, stage_execution_id`, runID)
+	rows, err := s.db.Query(ctx, listStageExecutionsSQL, runID)
 	if err != nil {
 		return nil, fmt.Errorf("list StageExecutions for WorkflowRun %q: %w", runID, err)
 	}
@@ -261,7 +242,7 @@ func (s *PostgresStore) CompleteStageResult(
 	ctx context.Context,
 	stageExecutionID string,
 	resultSchemaVersion string,
-	result contracts.StageContentResult,
+	result stageresult.StageContentResult,
 ) error {
 	if err := validateOpaque("stageExecutionID", stageExecutionID); err != nil {
 		return err

@@ -5,12 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"math/rand/v2"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 	"github.com/grauwolf32/contractor/internal/contracts/control"
 )
 
@@ -37,10 +36,7 @@ type runtimeCapabilityCases struct {
 
 func readRuntimeCapabilityCases(t *testing.T) runtimeCapabilityCases {
 	t.Helper()
-	data, err := os.ReadFile(filepath.Join("..", "..", "api", "testdata", "v1alpha1", "runtime-capability-cases.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	data := contractstest.ReadFile(t, "api", "testdata", "v1alpha1", "runtime-capability-cases.json")
 	var cases runtimeCapabilityCases
 	if err := json.Unmarshal(data, &cases); err != nil {
 		t.Fatal(err)
@@ -61,10 +57,10 @@ func numberedValues(count int, format string) []string {
 	return values
 }
 
-// TestRegistrationRejectsWhatOperationsCannotShow is the regression for a
+// TestSharedRegistrationRejectsWhatOperationsCannotShow is the regression for a
 // registration that passed validation while the Operations snapshot rejected
 // it, which failed every Operations list for every viewer.
-func TestRegistrationRejectsWhatOperationsCannotShow(t *testing.T) {
+func TestSharedRegistrationRejectsWhatOperationsCannotShow(t *testing.T) {
 	t.Parallel()
 	cases := readRuntimeCapabilityCases(t)
 	tests := map[string]func(*control.AgentRegistration){
@@ -111,10 +107,10 @@ func TestRegistrationRejectsWhatOperationsCannotShow(t *testing.T) {
 	}
 }
 
-// TestAcceptedRegistrationAlwaysYieldsValidOperationsSnapshot draws
+// TestSharedAcceptedRegistrationAlwaysYieldsValidOperationsSnapshot draws
 // registrations and heartbeats from the shared Runtime capability cases and
 // their bounds: whatever the Registry accepts, Operations can show.
-func TestAcceptedRegistrationAlwaysYieldsValidOperationsSnapshot(t *testing.T) {
+func TestSharedAcceptedRegistrationAlwaysYieldsValidOperationsSnapshot(t *testing.T) {
 	t.Parallel()
 	cases := readRuntimeCapabilityCases(t)
 	random := rand.New(rand.NewPCG(367, 7))
@@ -221,9 +217,9 @@ func TestAcceptedRegistrationAlwaysYieldsValidOperationsSnapshot(t *testing.T) {
 	}
 }
 
-// TestOperationsCapabilityRulesAreTheRegistrationRules pins the Operations read
+// TestSharedOperationsCapabilityRulesAreTheRegistrationRules pins the Operations read
 // model to the shared registration rules rather than a copy of them.
-func TestOperationsCapabilityRulesAreTheRegistrationRules(t *testing.T) {
+func TestSharedOperationsCapabilityRulesAreTheRegistrationRules(t *testing.T) {
 	t.Parallel()
 	cases := readRuntimeCapabilityCases(t)
 	valid := func() RuntimeAgentObservation {
@@ -293,12 +289,12 @@ func TestOperationsCapabilityRulesAreTheRegistrationRules(t *testing.T) {
 	}
 }
 
-// TestPlacementReservesExactlyTheLogicalWorkersOperationsShows is the
+// TestSharedPlacementReservesExactlyTheLogicalWorkersOperationsShows is the
 // regression for a logical Agent name such as "my worker": the catalog and
 // placement accepted it while the Operations snapshot rejected the allocation,
 // which failed every Operations allocation list. Placement now reserves
 // exactly the names the catalog accepts and Operations shows (WFL-R84).
-func TestPlacementReservesExactlyTheLogicalWorkersOperationsShows(t *testing.T) {
+func TestSharedPlacementReservesExactlyTheLogicalWorkersOperationsShows(t *testing.T) {
 	t.Parallel()
 	cases := readRuntimeCapabilityCases(t)
 	binding := testBinding(t, "builder", "builder", testTemplate(t))

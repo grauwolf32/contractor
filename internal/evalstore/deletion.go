@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/grauwolf32/contractor/internal/evaldomain"
+	pg "github.com/grauwolf32/contractor/internal/persistence/postgres"
 )
 
 func (s *Store) BeginDeletion(ctx context.Context, scope Scope, id string, mutation evaldomain.MutationIdentity) (Receipt, error) {
@@ -117,10 +118,10 @@ WHERE experiment_id IN (SELECT experiment_id
 `, scope.OwnerID, scope.ProjectID); err != nil {
 		return err
 	}
-	for _, table := range []string{"eval_experiments", "eval_dataset_revisions", "eval_mutation_receipts", "eval_collections"} {
+	for _, table := range []string{"eval_experiments", "eval_dataset_revisions", "eval_collections"} {
 		if _, err = s.db.Exec(ctx, `DELETE FROM `+table+` WHERE owner_id=$1 AND project_id=$2`, scope.OwnerID, scope.ProjectID); err != nil {
 			return err
 		}
 	}
-	return nil
+	return pg.PurgeEvalReceipts(ctx, s.db, scope.OwnerID, scope.ProjectID)
 }

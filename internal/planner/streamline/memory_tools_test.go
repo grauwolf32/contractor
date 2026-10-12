@@ -13,11 +13,12 @@ import (
 
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	workflowconfig "github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	plannermemory "github.com/grauwolf32/contractor/internal/memory"
 	"github.com/grauwolf32/contractor/internal/planner"
+	"github.com/grauwolf32/contractor/internal/planner/stageresult"
 	"google.golang.org/adk/model"
 	"google.golang.org/adk/tool"
 	"google.golang.org/genai"
@@ -124,7 +125,7 @@ func TestPlannerAndWorkerShareOneLogicalMemoryNamespace(t *testing.T) {
 				t, response, bodyCanary+"\nworker update", descriptionCanary, []string{tagCanary},
 			)
 			return functionStep(finishToolName, map[string]any{
-				"outcome": string(contracts.StageSucceeded), "summary": "shared Memory observed",
+				"outcome": string(stageresult.StageSucceeded), "summary": "shared Memory observed",
 				"artifacts": map[string]any{},
 			})(request)
 		},
@@ -142,7 +143,7 @@ func TestPlannerAndWorkerShareOneLogicalMemoryNamespace(t *testing.T) {
 		t.Fatal(err)
 	}
 	result, err := instance.Run(t.Context())
-	if err != nil || result.Outcome != contracts.StageSucceeded || !worker.updated {
+	if err != nil || result.Outcome != stageresult.StageSucceeded || !worker.updated {
 		t.Fatalf("Planner Run = (%+v, %v), Worker updated=%v", result, err, worker.updated)
 	}
 	report, ok := instance.(planner.ReportProvider).ExecutionReport()
@@ -240,7 +241,7 @@ func TestPlannerMemoryOwnsBoundedArgumentAndRoutingErrors(t *testing.T) {
 						t.Fatalf("Memory failure = %+v, want %s", response, test.wantCode)
 					}
 					return functionStep(finishToolName, map[string]any{
-						"outcome": string(contracts.StageFailed), "summary": "expected rejection",
+						"outcome": string(stageresult.StageFailed), "summary": "expected rejection",
 						"artifacts": map[string]any{},
 						"error": map[string]any{
 							"code": "expected_rejection", "message": "bounded test failure", "retryable": false,
@@ -250,7 +251,7 @@ func TestPlannerMemoryOwnsBoundedArgumentAndRoutingErrors(t *testing.T) {
 			}}
 			instance := newMemoryPlanner(t, test.profile, store, invocation, model)
 			result, err := instance.Run(t.Context())
-			if err != nil || result.Outcome != contracts.StageFailed {
+			if err != nil || result.Outcome != stageresult.StageFailed {
 				t.Fatalf("Planner Run = (%+v, %v)", result, err)
 			}
 			if store.semanticWrites != beforeWrites {
@@ -399,8 +400,8 @@ func memoryInvocation(plannerID string, selections map[string][]string) planner.
 	}
 	sort.Strings(names)
 	invocation := testInvocation(names...)
-	invocation.Stage.Planner = workflowconfig.PlannerRef{PlannerID: plannerID, Version: "1"}
-	invocation.Stage.Result.Artifacts = map[string]workflowconfig.ArtifactSlot{}
+	invocation.Stage.Planner = resolved.PlannerRef{PlannerID: plannerID, Version: "1"}
+	invocation.Stage.Result.Artifacts = map[string]resolved.ArtifactSlot{}
 	for _, name := range names {
 		binding := invocation.Stage.Agents[name]
 		binding.Template.Toolsets = []contracts.ToolsetSelection{{

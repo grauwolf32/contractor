@@ -118,9 +118,13 @@ def allocation_spec(
     )
 
 
+# Read once at import: tests use the shared fixture as input data, so no test
+# opens it (tests/shared_fixtures.py).
+_EMPTY_PROVENANCE = (
+    Path(__file__).resolve().parents[3]
+    / "api/testdata/v1alpha1/valid/runtime-provenance-empty.json"
+).read_bytes()
+
+
 def runtime_provenance() -> ResolvedRuntimeConfigProvenance:
-    fixture = (
-        Path(__file__).resolve().parents[3]
-        / "api/testdata/v1alpha1/valid/runtime-provenance-empty.json"
-    )
-    return ResolvedRuntimeConfigProvenance.model_validate_json(fixture.read_bytes())
+    return ResolvedRuntimeConfigProvenance.model_validate_json(_EMPTY_PROVENANCE)

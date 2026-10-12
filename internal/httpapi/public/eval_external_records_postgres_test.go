@@ -12,9 +12,10 @@ import (
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 	"github.com/grauwolf32/contractor/internal/evalservice"
 	"github.com/grauwolf32/contractor/internal/evalstore"
+	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 )
 
-func TestEvalPostgresExternalResultsRevisionsAndExplicitSelection(t *testing.T) {
+func TestSharedEvalPostgresExternalResultsRevisionsAndExplicitSelection(t *testing.T) {
 	h := newEvalAPIHarness(t)
 	e, manifest, checks := h.registerExternal(t, "workflow")
 	memberID := manifest.Members[0].MemberID
@@ -113,7 +114,7 @@ func TestEvalPostgresExternalResultsRevisionsAndExplicitSelection(t *testing.T) 
 
 // Two identical result requests take their REPEATABLE READ snapshots before
 // either commits; the second must replay the first's receipt, not conflict.
-func TestEvalPostgresConcurrentResultRetryReplaysReceipt(t *testing.T) {
+func TestSharedEvalPostgresConcurrentResultRetryReplaysReceipt(t *testing.T) {
 	h := newEvalAPIHarness(t)
 	e, manifest, _ := h.registerExternal(t, "workflow")
 	memberID := manifest.Members[0].MemberID
@@ -153,16 +154,14 @@ func TestEvalPostgresConcurrentResultRetryReplaysReceipt(t *testing.T) {
 		t.Fatal(err)
 	}
 	scope := evalstore.Scope{OwnerID: "user-1", ProjectID: "evaluation"}
-	lockKey, err := json.Marshal([]string{scope.OwnerID, scope.ProjectID, e.ID + ":" + memberID, "result", mutation.Key})
-	if err != nil {
-		t.Fatal(err)
-	}
+	receiptKey := persistencepostgres.EvalReceiptKey(scope.OwnerID, scope.ProjectID, e.ID+":"+memberID, "result", mutation.Key)
+	lockKey := receiptKey.AdvisoryKey()
 	holder, err := h.pool.Begin(t.Context())
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer holder.Rollback(context.Background())
-	if _, err = holder.Exec(t.Context(), `SELECT pg_advisory_xact_lock(hashtextextended($1,0))`, string(lockKey)); err != nil {
+	if err = persistencepostgres.LockReceipt(t.Context(), holder, receiptKey); err != nil {
 		t.Fatal(err)
 	}
 	type outcome struct {

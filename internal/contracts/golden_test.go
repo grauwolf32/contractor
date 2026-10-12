@@ -10,9 +10,10 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
+	"github.com/grauwolf32/contractor/internal/strictjson"
 )
 
-func TestValidGoldenFixtures(t *testing.T) {
+func TestSharedValidGoldenFixtures(t *testing.T) {
 	t.Parallel()
 
 	for filename, entry := range readFixtureIndex(t).Valid {
@@ -29,7 +30,7 @@ func TestValidGoldenFixtures(t *testing.T) {
 	}
 }
 
-func TestInvalidGoldenFixtures(t *testing.T) {
+func TestSharedInvalidGoldenFixtures(t *testing.T) {
 	t.Parallel()
 
 	for filename, entry := range readFixtureIndex(t).Invalid {
@@ -59,7 +60,7 @@ func reject[T contracts.Validatable](data []byte) error {
 	return err
 }
 
-func TestPrivateValidCanonicalFixtures(t *testing.T) {
+func TestSharedPrivateValidCanonicalFixtures(t *testing.T) {
 	t.Parallel()
 
 	for filename, entry := range readFixtureIndex(t).Valid {
@@ -78,7 +79,7 @@ func TestPrivateValidCanonicalFixtures(t *testing.T) {
 	}
 }
 
-func TestPrivateInvalidFixturesHaveSafeReasonClasses(t *testing.T) {
+func TestSharedPrivateInvalidFixturesHaveSafeReasonClasses(t *testing.T) {
 	t.Parallel()
 
 	for filename, entry := range readFixtureIndex(t).Invalid {
@@ -115,7 +116,7 @@ func privateRoundTrip[T contracts.Validatable](data []byte) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return contracts.MarshalPrivateCanonical(value)
+	return strictjson.Canonical(value)
 }
 
 func privateReject[T contracts.Validatable](data []byte) error {

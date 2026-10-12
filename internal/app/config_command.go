@@ -35,7 +35,7 @@ func runConfigCLI(args []string, logger *slog.Logger) error {
 	if managedRoot == "" {
 		managedRoot = defaultManagedConfigRoot(root)
 	}
-	snapshot, bundles, err := configload.LoadUnionReadOnly(root, managedRoot, contractorconfig.MVPDescriptors())
+	snapshot, bundles, err := configload.LoadUnionReadOnly(root, managedRoot)
 	if err != nil {
 		return fmt.Errorf("validate configuration: %w", err)
 	}
@@ -70,7 +70,6 @@ func loadServerConfiguration(
 	return configload.NewManager(contractorconfig.ManagerOptions{
 		OperatorRoot: operatorRoot,
 		ManagedRoot:  managedRoot,
-		Descriptors:  contractorconfig.MVPDescriptors(),
 		Logger:       logger,
 	})
 }

@@ -13,10 +13,13 @@ import (
 
 	"github.com/getkin/kin-openapi/routers/gorillamux"
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
 	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/findingintake"
 	"github.com/grauwolf32/contractor/internal/projectstore"
@@ -37,7 +40,7 @@ func TestPublicAuditPaginationBoundary(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, _, err = auditstore.NewPostgresStore(pool).CreateDraft(ctx, auditstore.CreateDraftParams{
+	_, _, err = auditstoretest.NewStore(pool).CreateDraft(ctx, auditstore.CreateDraftParams{
 		AuditID: auditID, OwnerID: owner, ProjectID: projectID,
 		Profile:         auditstore.ProfileIdentity{Name: "page-profile", Version: "1", Digest: auditHandlerDigest("page-profile")},
 		ProfileSnapshot: json.RawMessage(`{"interaction":{"findingConfirmation":"human-required"}}`),
@@ -53,12 +56,12 @@ func TestPublicAuditPaginationBoundary(t *testing.T) {
 	var interleaving *provenanceInterleavingService
 	fixture := newHandlerFixtureWithAuth(t, "../../config/testdata/valid",
 		newTestAuthentication(t), mustTestOrigins(t), false, nil,
-		func(dependencies *Dependencies) {
+		func(dependencies *testServices) {
 			credentials := newFakeManagedCredentials()
 			service, err = auditservice.New(auditservice.Options{
 				Pool: pool, Profiles: dependencies.Config.(*config.Manager), CredentialGuard: credentials,
 				TransactionLLMCredentials: runtimeconfig.TransactionLLMCredentialLookupFactoryFunc(
-					func(pgx.Tx) (config.CredentialLookup, error) { return credentials, nil },
+					func(pgx.Tx) (resolved.CredentialLookup, error) { return credentials, nil },
 				),
 			})
 			if err != nil {
@@ -186,17 +189,17 @@ FROM generate_series(1, 200) AS index`, firstFinding, auditID, auditHandlerDiges
 		})
 	}
 	// The new internal allowance must not bypass owner or revision fences.
-	if _, err := service.ListFindingsPage(ctx, auditservice.FindingListParams{
+	if _, err := service.ListFindingsPage(ctx, auditstore.FindingListParams{
 		OwnerID: "other-owner", AuditID: auditID, Limit: 201,
 	}); !errors.Is(err, auditstore.ErrNotFound) {
 		t.Fatalf("foreign findings = %v", err)
 	}
-	if _, err := service.ListReviewsPage(ctx, auditservice.ReviewListParams{
+	if _, err := service.ListReviewsPage(ctx, auditstore.ReviewListParams{
 		OwnerID: "other-owner", AuditID: auditID, Limit: 201,
 	}); !errors.Is(err, auditstore.ErrNotFound) {
 		t.Fatalf("foreign reviews = %v", err)
 	}
-	if _, err := service.ListFindingProvenance(ctx, auditservice.ProvenanceListParams{
+	if _, err := service.ListFindingProvenance(ctx, auditstore.ProvenanceListParams{
 		OwnerID: "other-owner", AuditID: auditID, FindingID: firstFinding, Limit: 201,
 	}); !errors.Is(err, auditstore.ErrNotFound) {
 		t.Fatalf("foreign provenance = %v", err)
@@ -242,7 +245,7 @@ type provenanceInterleavingService struct {
 	before func(context.Context) error
 }
 
-func (s *provenanceInterleavingService) ListFindingProvenance(ctx context.Context, params auditservice.ProvenanceListParams) ([]auditservice.FindingProvenance, error) {
+func (s *provenanceInterleavingService) ListFindingProvenance(ctx context.Context, params auditstore.ProvenanceListParams) ([]auditservice.FindingProvenance, error) {
 	if before := s.before; before != nil {
 		s.before = nil
 		if err := before(ctx); err != nil {
@@ -275,7 +278,7 @@ func seedPublicPaginationFinding(t *testing.T, ctx context.Context, pool *pgxpoo
 	if err != nil {
 		t.Fatal(err)
 	}
-	written, err := artifacts.NewService(artifacts.NewPostgresRepository(pool)).WriteAuditArtifact(ctx, projectID,
+	written, err := artifactstest.WriteAuditArtifact(ctx, artifacts.NewService(artifacts.NewPostgresRepository(pool)), projectID,
 		contracts.ArtifactRef{Namespace: "audit-proposals", Name: document.ClientKey},
 		artifacts.Payload{MediaType: "application/json", Data: payload})
 	if err != nil {

@@ -114,7 +114,7 @@ func (i *Importer) resumeReport(
 	ctx context.Context, audit auditstore.Audit, rounds []auditstore.Round,
 ) (reportBuild, error) {
 	build := newReportBuild(rounds)
-	pages, err := i.store.ListReportPages(ctx, audit.AuditID, audit.Revision)
+	pages, err := i.reads.ListReportPages(ctx, audit.AuditID, audit.Revision)
 	if err != nil {
 		return reportBuild{}, err
 	}
@@ -160,7 +160,7 @@ func (i *Importer) itemsPage(
 	ctx context.Context, audit auditstore.Audit, round *auditstore.Round,
 	build *reportBuild, page *auditstore.ReportPage,
 ) ([]byte, error) {
-	rows, err := i.store.ListReportItems(ctx, audit.AuditID, round.RoundID, build.afterItem, i.budget.pageRows+1)
+	rows, err := i.reads.ListReportItems(ctx, audit.AuditID, round.RoundID, build.afterItem, i.budget.pageRows+1)
 	if err != nil {
 		return nil, err
 	}
@@ -197,7 +197,7 @@ func (i *Importer) itemsPage(
 func (i *Importer) findingsPage(
 	ctx context.Context, audit auditstore.Audit, build *reportBuild, page *auditstore.ReportPage,
 ) ([]byte, error) {
-	rows, more, err := i.store.ListReportFindings(ctx, auditstore.ReportFindingPageParams{
+	rows, more, err := i.reads.ListReportFindings(ctx, auditstore.ReportFindingPageParams{
 		AuditID: audit.AuditID, Section: page.Section, After: build.afterFinding,
 		Limit: i.budget.pageRows, ProjectionBytes: i.budget.pageBytes,
 	})
@@ -268,7 +268,7 @@ func newReportFinding(row auditstore.ReportFinding) reportFinding {
 func (i *Importer) readReportSections(
 	ctx context.Context, audit auditstore.Audit, build reportBuild,
 ) (json.RawMessage, reportFindingSections, reportFindingCounts, error) {
-	sections, err := i.store.ReadReportSections(ctx, audit.AuditID, audit.Revision)
+	sections, err := i.reads.ReadReportSections(ctx, audit.AuditID, audit.Revision)
 	if err != nil {
 		return nil, reportFindingSections{}, reportFindingCounts{}, err
 	}

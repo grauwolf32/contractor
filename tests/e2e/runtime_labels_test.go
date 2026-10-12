@@ -21,8 +21,10 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+
 	"github.com/grauwolf32/contractor/internal/contracts/control"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/httpapi/privateartifacts"
 	"github.com/grauwolf32/contractor/internal/localpki"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -485,9 +487,9 @@ func assertDuplicatePrincipalRegistrationRejected(
 			Ref: capability.Ref, Tools: append([]string(nil), capability.Tools...),
 		}
 	}
-	adapters := make([]contracts.RuntimeAdapterRef, len(principal.Live.SupportedRuntimeAdapters))
+	adapters := make([]runtimesettings.RuntimeAdapterRef, len(principal.Live.SupportedRuntimeAdapters))
 	for index, adapter := range principal.Live.SupportedRuntimeAdapters {
-		adapters[index] = contracts.RuntimeAdapterRef(adapter)
+		adapters[index] = runtimesettings.RuntimeAdapterRef(adapter)
 	}
 	registration := control.AgentRegistration{
 		APIVersion: contracts.APIVersion, InstanceID: "duplicate-runtime-" + randomHex(t, 8), SoftwareVersion: "0.1.0",
@@ -902,7 +904,7 @@ func onlyRuntimeAdapterMetrics(
 	if err != nil || len(reports) != 1 {
 		t.Fatalf("Run execution reports = (%+v, %v), want one", reports, err)
 	}
-	metrics, ok := reports[0].Report.Runtime.Adapters[contracts.RuntimeAdapterRef(adapter)]
+	metrics, ok := reports[0].Report.Runtime.Adapters[runtimesettings.RuntimeAdapterRef(adapter)]
 	if !ok {
 		t.Fatalf("Run report has no %s adapter metrics: %+v", adapter, reports[0].Report.Runtime.Adapters)
 	}

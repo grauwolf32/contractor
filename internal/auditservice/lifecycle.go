@@ -28,13 +28,12 @@ func (s *Service) Delete(ctx context.Context, params MutationParams) (MutationRe
 	if err := validateMutationParams(params); err != nil {
 		return MutationResult{}, err
 	}
-	store := auditstore.NewPostgresStore(s.pool)
-	if replay, found, err := store.LookupMutationReplay(
+	if replay, found, err := s.owners().LookupMutationReplay(
 		ctx, params.OwnerID, auditstore.MutationDelete, params.IdempotencyKey, params.RequestDigest,
 	); err != nil || found {
 		return MutationResult{Audit: replay, Replayed: found}, err
 	}
-	audit, changed, err := store.RequestDelete(ctx, auditstore.DeleteParams{
+	audit, changed, err := s.owners().RequestDelete(ctx, auditstore.DeleteParams{
 		OwnerID: params.OwnerID, AuditID: params.AuditID,
 		ExpectedRevision: params.ExpectedRevision, IdempotencyKey: params.IdempotencyKey,
 		RequestDigest: params.RequestDigest,
@@ -48,13 +47,12 @@ func (s *Service) transition(
 	if err := validateMutationParams(params); err != nil {
 		return MutationResult{}, err
 	}
-	store := auditstore.NewPostgresStore(s.pool)
-	if replay, found, err := store.LookupMutationReplay(
+	if replay, found, err := s.owners().LookupMutationReplay(
 		ctx, params.OwnerID, auditstore.MutationTransition, params.IdempotencyKey, params.RequestDigest,
 	); err != nil || found {
 		return MutationResult{Audit: replay, Replayed: found}, err
 	}
-	audit, err := store.Get(ctx, params.OwnerID, params.AuditID)
+	audit, err := s.reads().Get(ctx, params.OwnerID, params.AuditID)
 	if err != nil {
 		return MutationResult{}, err
 	}
@@ -63,7 +61,7 @@ func (s *Service) transition(
 	// with a candidate created from an older Audit revision. Cancellation and
 	// deletion remain available, while accept/reject uses the review endpoint.
 	if action == lifecyclePause && audit.State == auditstore.AuditWaitingReview {
-		if _, candidateErr := store.GetReportCandidate(ctx, audit.AuditID); candidateErr == nil {
+		if _, candidateErr := s.reads().GetReportCandidate(ctx, audit.AuditID); candidateErr == nil {
 			return MutationResult{}, auditstore.ErrPrecondition
 		} else if !errors.Is(candidateErr, auditstore.ErrNotFound) {
 			return MutationResult{}, candidateErr
@@ -73,7 +71,7 @@ func (s *Service) transition(
 	if err != nil {
 		return MutationResult{}, err
 	}
-	changed, inserted, err := store.Transition(ctx, auditstore.TransitionParams{
+	changed, inserted, err := s.owners().Transition(ctx, auditstore.TransitionParams{
 		OwnerID: params.OwnerID, AuditID: params.AuditID,
 		ExpectedRevision: params.ExpectedRevision, ExpectedState: audit.State, TargetState: target,
 		Reason: reason, IdempotencyKey: params.IdempotencyKey, RequestDigest: params.RequestDigest,

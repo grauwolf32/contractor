@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"reflect"
 	"testing"
+
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 )
 
 func catalogSourceDigest(t *testing.T, source any) string {
@@ -22,7 +24,7 @@ func catalogSourceDigest(t *testing.T, source any) string {
 // discovery views to the fingerprint the cursor binding always used (CAT-R67)
 // while a page copies only the Workflows it returns.
 func TestDiscoveryFingerprintsTheCatalogOnceAndPagesDetachedCopies(t *testing.T) {
-	snapshot := mustLoad(t, copyCoreFixture(t, "workflow-examples"), MVPDescriptors())
+	snapshot := mustLoad(t, copyCoreFixture(t, "workflow-examples"))
 	workflows := snapshot.Workflows()
 	if len(workflows) < 3 {
 		t.Fatalf("fixture snapshot has only %d Workflows", len(workflows))
@@ -43,7 +45,7 @@ func TestDiscoveryFingerprintsTheCatalogOnceAndPagesDetachedCopies(t *testing.T)
 		t.Fatal("an unknown configuration kind was discovered")
 	}
 
-	all := func(WorkflowRef, WorkflowPresentation) bool { return true }
+	all := func(resolved.WorkflowRef, resolved.WorkflowPresentation) bool { return true }
 	first := discovery.Page("", 2, all)
 	if !reflect.DeepEqual(first, workflows[:2]) {
 		t.Fatalf("first page = %v, want the first two Workflows", workflowSelectors(first))
@@ -56,15 +58,15 @@ func TestDiscoveryFingerprintsTheCatalogOnceAndPagesDetachedCopies(t *testing.T)
 	if rest := discovery.Page(last.Ref.Name+"@"+last.Ref.Version, 5, all); len(rest) != 0 {
 		t.Fatalf("page after the last Workflow = %v", workflowSelectors(rest))
 	}
-	matched := discovery.Page("", len(workflows), func(ref WorkflowRef, _ WorkflowPresentation) bool {
+	matched := discovery.Page("", len(workflows), func(ref resolved.WorkflowRef, _ resolved.WorkflowPresentation) bool {
 		return ref == workflows[2].Ref
 	})
 	if !reflect.DeepEqual(matched, workflows[2:3]) {
 		t.Fatalf("filtered page = %v, want only %s", workflowSelectors(matched), workflows[2].Ref.Name)
 	}
 
-	first[0].Parameters["tampered"] = ParameterSlot{Required: true}
-	first[0].Stages[first[0].EntryStage] = ResolvedStage{Objective: "tampered"}
+	first[0].Parameters["tampered"] = resolved.ParameterSlot{Required: true}
+	first[0].Stages[first[0].EntryStage] = resolved.ResolvedStage{Objective: "tampered"}
 	again, err := snapshot.WorkflowDiscovery()
 	if err != nil {
 		t.Fatal(err)
@@ -74,7 +76,7 @@ func TestDiscoveryFingerprintsTheCatalogOnceAndPagesDetachedCopies(t *testing.T)
 	}
 }
 
-func workflowSelectors(workflows []ResolvedWorkflow) []string {
+func workflowSelectors(workflows []resolved.ResolvedWorkflow) []string {
 	selectors := make([]string, 0, len(workflows))
 	for _, workflow := range workflows {
 		selectors = append(selectors, workflow.Ref.Name+"@"+workflow.Ref.Version)

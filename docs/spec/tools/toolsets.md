@@ -394,7 +394,7 @@ channels follows from TLS-R28.
   tests:
   `test_prepare_is_single_slot_idempotent_and_constructs_only_selected_tools`
   in [runtime/tests/test_allocation.py](../../../runtime/tests/test_allocation.py)
-  and `test_unselected_tool_channels_are_not_injected` in
+  and `test_shared_unselected_tool_channels_are_not_injected` in
   [runtime/tests/test_adapter_host.py](../../../runtime/tests/test_adapter_host.py).
 - No two selected Toolsets contribute the same final model-visible tool name
   (TLS-R19). Owning test: `TestToolsetVisibleNameCollision` in
@@ -404,7 +404,7 @@ channels follows from TLS-R28.
   built-in Toolset agree on its tools, channels, workspace need and
   SandboxProfile (TLS-R22, TLS-R23, TLS-R38). Owning tests:
   `TestSharedToolsetDescriptorParity` in
-  [internal/config/config_test.go](../../../internal/config/config_test.go) and
+  [internal/config/resolved/descriptors_test.go](../../../internal/config/resolved/descriptors_test.go) and
   `test_shared_toolset_descriptor_parity` in
   [runtime/tests/test_capabilities.py](../../../runtime/tests/test_capabilities.py).
 

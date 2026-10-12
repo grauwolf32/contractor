@@ -162,27 +162,7 @@ func (selection *proposalCheckAccumulator) admit(
 func (s *Service) scheduledProposalChecks(
 	ctx context.Context, auditID string, receiptIDs []string,
 ) (map[string]bool, error) {
-	result := make(map[string]bool)
-	if len(receiptIDs) == 0 {
-		return result, nil
-	}
-	rows, err := s.pool.Query(ctx, `
-SELECT proposal_receipt_id, proposal_check_ordinal
-  FROM audit_items
- WHERE audit_id = $1 AND proposal_receipt_id = ANY($2::text[])`, auditID, receiptIDs)
-	if err != nil {
-		return nil, fmt.Errorf("list scheduled Audit proposal checks: %w", err)
-	}
-	defer rows.Close()
-	for rows.Next() {
-		var receiptID string
-		var ordinal int
-		if err := rows.Scan(&receiptID, &ordinal); err != nil {
-			return nil, err
-		}
-		result[auditdomain.ReceiptCheckIdentity(receiptID, ordinal)] = true
-	}
-	return result, rows.Err()
+	return s.reads().ScheduledProposalChecks(ctx, auditID, receiptIDs)
 }
 
 func exactAuditHold(receipt findingintake.Receipt, auditID, projectID string) (findingintake.AuditHold, bool) {

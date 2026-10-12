@@ -312,10 +312,6 @@ continuations do not reset it.
 **AWC-R28.** The Stage/Planner deadline, not `requestTimeoutSeconds`, bounds
 the whole Audit invocation and any coordinated model-recovery wait.
 
-**AWC-R29.** An older request without the optional `deadline` field relies on
-the existing Planner cancellation path and the finite publication budget
-(LIM-AWC-10).
-
 ### Result tools
 
 **AWC-R30.** `audit-results@2` keeps the read tool `read_audit_task` and

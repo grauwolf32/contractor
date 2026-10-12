@@ -147,7 +147,11 @@ func (c *Catalog) Initialize(ctx context.Context, ownerID string, plan *SeedPlan
 	if plan == nil {
 		return nil, errors.New("Audit standard seed plan is required")
 	}
-	store, err := c.service.User(ownerID)
+	owner, err := artifacts.UserScope(ownerID)
+	if err != nil {
+		return nil, err
+	}
+	store, err := c.service.Scoped(owner)
 	if err != nil {
 		return nil, err
 	}
@@ -159,8 +163,10 @@ func (c *Catalog) Initialize(ctx context.Context, ownerID string, plan *SeedPlan
 		}
 		current, readErr := store.Read(ctx, ref)
 		if errors.Is(readErr, artifacts.ErrArtifactNotFound) {
-			written, writeErr := c.service.WriteAuditStandardPackage(
-				ctx, ownerID, ref, artifacts.Payload{MediaType: MediaType, Data: bundled.payload}, nil,
+			// The catalog Namespace is reserved for this seed path (ART-R25):
+			// generic User writes can neither create nor advance it.
+			written, writeErr := c.service.Create(
+				ctx, owner, ref, artifacts.Payload{MediaType: MediaType, Data: bundled.payload},
 			)
 			if writeErr == nil {
 				if written.Ref.Revision == nil {
@@ -341,8 +347,12 @@ func (c *Catalog) writeRetained(
 	target contracts.ArtifactRef,
 	resolved ResolvedPackage,
 ) (ExactPackage, error) {
+	project, err := artifacts.ProjectScope(projectID)
+	if err != nil {
+		return ExactPackage{}, err
+	}
 	payload := artifacts.Payload{MediaType: MediaType, Data: resolved.Package.Payload()}
-	written, err := c.service.WriteAuditArtifact(ctx, projectID, target, payload)
+	written, err := c.service.CreateFrozen(ctx, project, target, payload)
 	if errors.Is(err, artifacts.ErrAuditArtifactCollision) {
 		return ExactPackage{}, fmt.Errorf("%w: retained Audit standard collision", ErrDrift)
 	}

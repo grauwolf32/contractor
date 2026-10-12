@@ -220,7 +220,8 @@ func TestRunStateSetsMatchOpenAPIAndGoSQL(t *testing.T) {
 // WorkflowRun state diagram of docs/spec/execution/runs.md edge by edge
 // (RUN-R26 to RUN-R46), so neither can gain or lose an edge alone. It also
 // holds ValidateRunTransition to exactly the edges TransitionRun performs,
-// and the operation-owned edges to the states RUN-R41 and RUN-R46 name.
+// and the operation-owned edges to the states RUN-R30, RUN-R41 and RUN-R46
+// name.
 func TestRunLifecycleMatchesSpecification(t *testing.T) {
 	root, err := filepath.Abs(filepath.Join("..", ".."))
 	if err != nil {
@@ -287,6 +288,7 @@ func TestRunLifecycleMatchesSpecification(t *testing.T) {
 		}
 	}
 	var cancellable []WorkflowRunState
+	waitingEdges := 0
 	for edge, operation := range runLifecycle {
 		switch operation {
 		case transitionByCancellation:
@@ -298,7 +300,16 @@ func TestRunLifecycleMatchesSpecification(t *testing.T) {
 			if edge != [2]WorkflowRunState{RunFailed, RunPending} {
 				t.Errorf("manual continuation performs %s -> %s", edge[0], edge[1])
 			}
+		case transitionByGatewayWait:
+			// Only an admitted Run's invocation waits for its model route.
+			if edge != [2]WorkflowRunState{RunRunning, RunWaiting} && edge != [2]WorkflowRunState{RunWaiting, RunRunning} {
+				t.Errorf("the waiting operations perform %s -> %s", edge[0], edge[1])
+			}
+			waitingEdges++
 		}
+	}
+	if waitingEdges != 2 {
+		t.Errorf("the waiting operations perform %d edges, want running -> waiting and waiting -> running", waitingEdges)
 	}
 	for _, set := range declaredRunStateSets() {
 		if set.name == "cancellable" && !sameRunStates(cancellable, set.states) {

@@ -4,19 +4,16 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
-	"os"
 	"reflect"
 	"strings"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 	publicapi "github.com/grauwolf32/contractor/internal/publicclient/generated"
 )
 
-func TestGeneratedFindingDecisionRequestsPreserveVerdictFields(t *testing.T) {
-	data, err := os.ReadFile("../../api/testdata/public/finding-decision-cases.json")
-	if err != nil {
-		t.Fatal(err)
-	}
+func TestSharedGeneratedFindingDecisionRequestsPreserveVerdictFields(t *testing.T) {
+	data := contractstest.ReadFile(t, "api", "testdata", "public", "finding-decision-cases.json")
 	var cases []struct {
 		Name    string
 		Valid   bool
@@ -35,6 +32,7 @@ func TestGeneratedFindingDecisionRequestsPreserveVerdictFields(t *testing.T) {
 				t.Fatal(err)
 			}
 			var finding publicapi.DecideAuditFindingRequest
+			var err error
 			switch fields["verdict"] {
 			case "true_positive":
 				err = finding.FromDecideAuditFindingTruePositiveRequest(publicapi.DecideAuditFindingTruePositiveRequest{Verdict: "true_positive", Severity: "high", Rationale: "Observed evidence"})

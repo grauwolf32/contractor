@@ -9,8 +9,11 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditcontroller"
 	"github.com/grauwolf32/contractor/internal/auditimport"
 	"github.com/grauwolf32/contractor/internal/auditservice"
-	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/auditstore/claimstore"
+	"github.com/grauwolf32/contractor/internal/auditstore/querystore"
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
+	"github.com/grauwolf32/contractor/internal/credentials"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/rundeletion"
@@ -55,9 +58,11 @@ func configureAudits(
 	if err != nil {
 		return auditServices{}, fmt.Errorf("configure Audit Controller artifacts: %w", err)
 	}
-	auditSubmissionStore := auditstore.NewPostgresStore(pool)
+	// The Controller side holds the claim-bound commands and the reads of the
+	// Audit store; the owner-facing service holds neither seam's handle.
+	auditClaims, auditReads := claimstore.New(pool), querystore.New(pool)
 	auditSubmissionBuilder, err := auditcontroller.NewPinnedSubmissionBuilder(
-		auditArtifactAccess, auditSubmissionStore,
+		auditArtifactAccess, auditReads,
 	)
 	if err != nil {
 		return auditServices{}, fmt.Errorf("configure Audit Controller submissions: %w", err)
@@ -67,14 +72,14 @@ func configureAudits(
 		return auditServices{}, fmt.Errorf("configure Audit import artifacts: %w", err)
 	}
 	auditImporter, err := auditimport.New(
-		auditstore.NewPostgresStore(pool), runstore.NewPostgresStore(pool), auditImportArtifacts,
+		auditClaims, auditReads, runstore.NewPostgresStore(pool), auditImportArtifacts,
 		catalogs.findings,
 	)
 	if err != nil {
 		return auditServices{}, fmt.Errorf("configure Audit importer: %w", err)
 	}
 	auditController, err := auditcontroller.New(
-		auditstore.NewPostgresStore(pool), runstore.NewPostgresStore(pool), rundeletion.New(pool),
+		auditClaims, auditReads, runstore.NewPostgresStore(pool), rundeletion.New(pool),
 		runCreationService, auditSubmissionBuilder, workflows.scheduler,
 		auditcontroller.Options{
 			PollInterval:     cfg.Operations.AuditController.PollInterval,
@@ -91,7 +96,7 @@ func configureAudits(
 }
 
 type runCreationCredentials struct {
-	provider          workflowconfig.CredentialLookup
+	provider          resolved.CredentialLookup
 	guard             runservice.CredentialGuard
 	runtime           runservice.RuntimeCredentialValidator
 	transactionLookup runtimeconfig.TransactionLLMCredentialLookupFactory
@@ -116,7 +121,7 @@ func configureRunCreation(pool *pgxpool.Pool, configurationManager *workflowconf
 					return fn(
 						runstore.NewPostgresStore(tx),
 						artifacts.NewService(artifacts.NewPostgresRepository(tx)),
-						auditstore.NewPostgresStore(tx),
+						claimstore.New(tx),
 					)
 				},
 			)
@@ -145,7 +150,7 @@ func (u postgresPublicUnitOfWork) Do(
 			return err
 		}
 		return fn(
-			runstore.NewRunCreationPostgresStore(tx, txLookup),
+			runstore.NewRunCreationPostgresStore(tx, txLookup, credentials.NewRuntimeCredentialRepository(tx)),
 			artifacts.NewService(artifacts.NewPostgresRepository(tx)),
 		)
 	})

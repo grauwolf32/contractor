@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contentdigest"
-	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
 // TestManagedPublicationNeverRebindsShippedIdentity pins the runtime half of
@@ -114,7 +114,7 @@ func TestShippedCatalogInPlaceChangeIsVisibleInRunSnapshots(t *testing.T) {
 				t.Fatalf("dependency digests: template %s -> %s, policy %s -> %s",
 					oldTemplate.Ref.Digest, newTemplate.Ref.Digest, oldPolicy.Digest, newPolicy.Digest)
 			}
-			if err := contracts.CheckPinnedSelection(pin, after); !errors.Is(err, contracts.ErrPinnedSelectionChanged) {
+			if err := contentdigest.CheckPinnedSelection(pin, after); !errors.Is(err, contentdigest.ErrPinnedSelectionChanged) {
 				t.Fatalf("pinned selection accepted changed shipped content: %v", err)
 			}
 			beforeSnapshot, err := json.Marshal(before)
@@ -132,10 +132,10 @@ func TestShippedCatalogInPlaceChangeIsVisibleInRunSnapshots(t *testing.T) {
 	}
 }
 
-func resolveShippedRun(t *testing.T, manager *Manager) ResolvedWorkflow {
+func resolveShippedRun(t *testing.T, manager *Manager) resolved.ResolvedWorkflow {
 	t.Helper()
 	workflow, err := manager.ResolveRunWorkflow(
-		t.Context(), "artifact-copy@1", ExecutionConfigPatch{},
+		t.Context(), "artifact-copy@1", resolved.ExecutionConfigPatch{},
 		developmentCredentialLookup(t, manager.Snapshot()),
 	)
 	if err != nil {

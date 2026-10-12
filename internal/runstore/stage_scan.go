@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/planner/stageresult"
 )
 
 const stageExecutionColumns = `
@@ -65,7 +65,7 @@ func scanStageExecution(row rowScanner) (StageExecution, error) {
 		return StageExecution{}, fmt.Errorf("decode persisted StageContext: %w", err)
 	}
 	if candidate != nil {
-		var decoded contracts.StageContentResult
+		var decoded stageresult.StageContentResult
 		if err := json.Unmarshal(candidate, &decoded); err != nil {
 			return StageExecution{}, fmt.Errorf("decode candidate StageResult: %w", err)
 		}
@@ -75,7 +75,7 @@ func scanStageExecution(row rowScanner) (StageExecution, error) {
 		result.CandidateResult = &decoded
 	}
 	if accepted != nil {
-		var decoded contracts.StageContentResult
+		var decoded stageresult.StageContentResult
 		if err := json.Unmarshal(accepted, &decoded); err != nil {
 			return StageExecution{}, fmt.Errorf("decode accepted StageResult: %w", err)
 		}

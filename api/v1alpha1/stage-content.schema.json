@@ -1,59 +1,35 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://contractor.local/schema/v1alpha1/stage-content.schema.json",
-  "oneOf": [
-    {
-      "title": "StageContentRequest",
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["apiVersion", "subtaskId", "objective", "instructions", "parameters", "artifacts"],
-      "properties": {
-        "apiVersion": {"$ref": "common.schema.json#/$defs/apiVersion"},
-        "subtaskId": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 128,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
-        },
-        "objective": {"type": "string", "minLength": 1},
-        "instructions": {"type": "string", "minLength": 1},
-        "deadline": {
-          "type": "string",
-          "format": "date-time",
-          "pattern": "(?:Z|[+-][0-9]{2}:[0-9]{2})$"
-        },
-        "parameters": {"type": "object", "additionalProperties": {"type": "string"}},
-        "artifacts": {"type": "object", "additionalProperties": {"$ref": "common.schema.json#/$defs/exactArtifactRef"}},
-        "resultArtifacts": {
-          "type": "object",
-          "additionalProperties": {
-            "allOf": [
-              {"$ref": "common.schema.json#/$defs/artifactRef"},
-              {"not": {"required": ["revision"]}}
-            ]
-          }
-        }
-      }
+  "title": "StageContentRequest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["apiVersion", "subtaskId", "objective", "instructions", "parameters", "artifacts", "deadline"],
+  "properties": {
+    "apiVersion": {"$ref": "common.schema.json#/$defs/apiVersion"},
+    "subtaskId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
     },
-    {
-      "title": "StageContentResult",
+    "objective": {"type": "string", "minLength": 1},
+    "instructions": {"type": "string", "minLength": 1},
+    "deadline": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "(?:Z|[+-][0-9]{2}:[0-9]{2})$"
+    },
+    "parameters": {"type": "object", "additionalProperties": {"type": "string"}},
+    "artifacts": {"type": "object", "additionalProperties": {"$ref": "common.schema.json#/$defs/exactArtifactRef"}},
+    "resultArtifacts": {
       "type": "object",
-      "additionalProperties": false,
-      "required": ["apiVersion", "outcome", "summary", "artifacts"],
-      "properties": {
-        "apiVersion": {"$ref": "common.schema.json#/$defs/apiVersion"},
-        "outcome": {"enum": ["succeeded", "failed"]},
-        "summary": {"type": "string", "minLength": 1},
-        "artifacts": {"type": "object", "additionalProperties": {"$ref": "common.schema.json#/$defs/exactArtifactRef"}},
-        "error": {"$ref": "common.schema.json#/$defs/terminationError"}
-      },
-      "allOf": [
-        {
-          "if": {"properties": {"outcome": {"const": "failed"}}},
-          "then": {"required": ["error"]},
-          "else": {"not": {"required": ["error"]}}
-        }
-      ]
+      "additionalProperties": {
+        "allOf": [
+          {"$ref": "common.schema.json#/$defs/artifactRef"},
+          {"not": {"required": ["revision"]}}
+        ]
+      }
     }
-  ]
+  }
 }

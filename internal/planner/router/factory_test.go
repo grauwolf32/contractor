@@ -15,12 +15,14 @@ import (
 	"testing"
 	"time"
 
-	workflowconfig "github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/contracts/runlabels"
 	"github.com/grauwolf32/contractor/internal/planner"
 	plannersession "github.com/grauwolf32/contractor/internal/planner/session"
+	"github.com/grauwolf32/contractor/internal/planner/stageresult"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/telemetry"
 	"google.golang.org/adk/model"
@@ -44,7 +46,7 @@ func TestRouterSelectsExactWorkerWithDeterministicPromptAndContext(t *testing.T)
 			},
 		}),
 	}}
-	workers := &fakeWorkerInvoker{results: map[string]contracts.StageContentResult{
+	workers := &fakeWorkerInvoker{results: map[string]stageresult.StageContentResult{
 		"reviewer": successfulResult("review complete"),
 	}}
 	invocation := testInvocation()
@@ -52,7 +54,7 @@ func TestRouterSelectsExactWorkerWithDeterministicPromptAndContext(t *testing.T)
 	invocation.Instrumentation = telemetryAdapter.Instrumentation()
 	instance := mustPlanner(t, llm, workers, invocation)
 	result, err := instance.Run(t.Context())
-	if err != nil || result.Outcome != contracts.StageSucceeded {
+	if err != nil || result.Outcome != stageresult.StageSucceeded {
 		t.Fatalf("Run = (%+v, %v)", result, err)
 	}
 	if got := workers.bindingCalls(); !reflect.DeepEqual(got, []string{"reviewer"}) {
@@ -147,14 +149,14 @@ func TestRouterFinishesAfterWorkerBudgetAndTextTurn(t *testing.T) {
 			"artifacts": map[string]any{"report": artifactArgs("review", "report", revision)},
 		}),
 	}}
-	workers := &fakeWorkerInvoker{results: map[string]contracts.StageContentResult{
+	workers := &fakeWorkerInvoker{results: map[string]stageresult.StageContentResult{
 		"builder": successfulResult("report ready"),
 	}}
 	invocation := testInvocation()
 	invocation.ModelAccess.ModelPolicy.MaxWorkerCalls = 1
 	instance := mustPlanner(t, llm, workers, invocation)
 	result, err := instance.Run(t.Context())
-	if err != nil || result.Outcome != contracts.StageSucceeded || len(workers.calls) != 1 || llm.callCount() != 4 {
+	if err != nil || result.Outcome != stageresult.StageSucceeded || len(workers.calls) != 1 || llm.callCount() != 4 {
 		t.Fatalf("Run = (%+v, %v); Worker calls = %d; model calls = %d", result, err, len(workers.calls), llm.callCount())
 	}
 }
@@ -208,7 +210,7 @@ func TestRouterPersistsTwoSubtasksAndOneLogicalDispatchWithoutWorkerPayload(t *t
 			},
 		}),
 	}}
-	workers := &fakeWorkerInvoker{results: map[string]contracts.StageContentResult{
+	workers := &fakeWorkerInvoker{results: map[string]stageresult.StageContentResult{
 		"reviewer": successfulResult(workerCanary),
 	}}
 	sessions := newFakeSessions()
@@ -223,7 +225,7 @@ func TestRouterPersistsTwoSubtasksAndOneLogicalDispatchWithoutWorkerPayload(t *t
 		t.Fatal(err)
 	}
 	result, err := instance.Run(t.Context())
-	if err != nil || result.Outcome != contracts.StageFailed {
+	if err != nil || result.Outcome != stageresult.StageFailed {
 		t.Fatalf("Run = (%+v, %v)", result, err)
 	}
 	if sessions.plan == nil || sessions.plan.Revision != 4 ||
@@ -278,12 +280,12 @@ func TestRouterRejectsUnknownAndStaleSelectionBeforeWorker(t *testing.T) {
 			},
 		}),
 	}}
-	workers := &fakeWorkerInvoker{results: map[string]contracts.StageContentResult{
+	workers := &fakeWorkerInvoker{results: map[string]stageresult.StageContentResult{
 		"builder": successfulResult("built"),
 	}}
 	instance := mustPlanner(t, llm, workers, testInvocation())
 	result, err := instance.Run(t.Context())
-	if err != nil || result.Outcome != contracts.StageSucceeded {
+	if err != nil || result.Outcome != stageresult.StageSucceeded {
 		t.Fatalf("Run = (%+v, %v)", result, err)
 	}
 	if got := workers.bindingCalls(); !reflect.DeepEqual(got, []string{"builder"}) {
@@ -314,12 +316,12 @@ func TestRouterRejectsParallelToolCalls(t *testing.T) {
 			},
 		}),
 	}}
-	workers := &fakeWorkerInvoker{results: map[string]contracts.StageContentResult{
+	workers := &fakeWorkerInvoker{results: map[string]stageresult.StageContentResult{
 		"builder": successfulResult("built"),
 	}}
 	instance := mustPlanner(t, llm, workers, testInvocation())
 	result, err := instance.Run(t.Context())
-	if err != nil || result.Outcome != contracts.StageSucceeded || len(workers.calls) != 1 {
+	if err != nil || result.Outcome != stageresult.StageSucceeded || len(workers.calls) != 1 {
 		t.Fatalf("Run=(%+v,%v) Worker calls=%d", result, err, len(workers.calls))
 	}
 	report, _ := instance.(planner.ReportProvider).ExecutionReport()
@@ -342,7 +344,7 @@ func TestRouterFactoryRejectsEmptyBindingsBeforeSideEffects(t *testing.T) {
 		t.Fatalf("Router factory ref = %q", factory.Ref())
 	}
 	invocation := testInvocation()
-	invocation.Stage.Agents = map[string]workflowconfig.ResolvedAgentBinding{}
+	invocation.Stage.Agents = map[string]resolved.ResolvedAgentBinding{}
 	invocation.Workers = map[string]contracts.WorkerHandle{}
 	if _, err := factory.Create(invocation); err == nil || !strings.Contains(err.Error(), "one or more matched") {
 		t.Fatalf("Create error = %v", err)
@@ -574,7 +576,7 @@ type workerInvocation struct {
 
 type fakeWorkerInvoker struct {
 	mu      sync.Mutex
-	results map[string]contracts.StageContentResult
+	results map[string]stageresult.StageContentResult
 	calls   []workerInvocation
 }
 
@@ -628,8 +630,8 @@ func (unavailableWorkerStateReader) ReadWorkerState(
 	context.Context,
 	contracts.WorkerHandle,
 	string,
-) (planner.WorkerStateReadResult, error) {
-	return planner.WorkerStateReadResult{}, &planner.WorkerStateReadError{
+) (reporting.WorkerStateReadResult, error) {
+	return reporting.WorkerStateReadResult{}, &reporting.WorkerStateReadError{
 		Code: "runtime_unavailable", Retryable: true,
 	}
 }
@@ -643,7 +645,7 @@ func testInvocation() planner.Invocation {
 		{name: "reviewer", description: "Reviews API descriptions"},
 		{name: "builder", description: "Builds exact API descriptions"},
 	}
-	agents := make(map[string]workflowconfig.ResolvedAgentBinding, len(bindings))
+	agents := make(map[string]resolved.ResolvedAgentBinding, len(bindings))
 	workers := make(map[string]contracts.WorkerHandle, len(bindings))
 	for index, binding := range bindings {
 		digestCharacter := "a"
@@ -654,7 +656,7 @@ func testInvocation() planner.Invocation {
 			TemplateID: binding.name, Version: "1", Digest: "sha256:" + strings.Repeat(digestCharacter, 64),
 		}
 		runtime := contracts.WorkerRuntimeRef{RuntimeID: "adk", Version: "1"}
-		agents[binding.name] = workflowconfig.ResolvedAgentBinding{
+		agents[binding.name] = resolved.ResolvedAgentBinding{
 			Namespace: binding.name,
 			Template: contracts.ResolvedAgentTemplate{
 				Ref: template, Runtime: runtime, Description: binding.description,
@@ -684,15 +686,15 @@ func testInvocation() planner.Invocation {
 				Protocol: llmgateway.OpenAICompatibleProtocol, URL: "https://gateway.example/v1",
 			},
 		},
-		Stage: workflowconfig.ResolvedStage{
+		Stage: resolved.ResolvedStage{
 			Objective:    "Build an API description",
 			Instructions: contracts.ResolvedInstructions{Text: "Route work by immutable capability."},
-			Planner:      workflowconfig.PlannerRef{PlannerID: "router", Version: "1"},
+			Planner:      resolved.PlannerRef{PlannerID: "router", Version: "1"},
 			Agents:       agents,
-			Context: workflowconfig.StageContext{Artifacts: map[string]workflowconfig.ContextArtifact{
+			Context: resolved.StageContext{Artifacts: map[string]resolved.ContextArtifact{
 				"source": {Namespace: "inputs", Name: "source", Required: true},
 			}},
-			Result: workflowconfig.StageResultContract{Artifacts: map[string]workflowconfig.ArtifactSlot{
+			Result: resolved.StageResultContract{Artifacts: map[string]resolved.ArtifactSlot{
 				"report": {Required: true, MediaTypes: []string{"application/json"}},
 			}},
 		},
@@ -706,9 +708,9 @@ func testInvocation() planner.Invocation {
 	}
 }
 
-func successfulResult(summary string) contracts.StageContentResult {
-	return contracts.StageContentResult{
-		APIVersion: contracts.APIVersion, Outcome: contracts.StageSucceeded,
+func successfulResult(summary string) stageresult.StageContentResult {
+	return stageresult.StageContentResult{
+		APIVersion: contracts.APIVersion, Outcome: stageresult.StageSucceeded,
 		Summary: summary, Artifacts: map[string]contracts.ArtifactRef{},
 	}
 }

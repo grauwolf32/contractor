@@ -49,37 +49,28 @@ FROM credential_runs
 ORDER BY created_at, run_id
 LIMIT $2`
 
-// createRunSQL inserts an 'initializing' WorkflowRun and its metadata labels
-// (from the $12 JSON object, ordinals in key order) in one statement. It is a
-// prefix: the caller appends the column list and "FROM inserted_run". A
-// Project-deletion trigger rejects the insert with SQLSTATE 55000.
-// Used by PostgresStore.CreateRun.
+// createRunSQL is the one statement that creates a WorkflowRun, for every
+// creation path. It inserts an 'initializing' Run with its metadata labels
+// (the $12 JSON object), the public create-Run key and request digest ($13,
+// $14, NULL on the other paths), its publication mode ($15) and, for an
+// Audit-managed Run, AuditExecution $16 and submission key $17; a deferred
+// constraint requires that AuditExecution to point back to the Run before
+// commit. A Project-deletion trigger rejects the insert with SQLSTATE 55000.
+// ON CONFLICT DO NOTHING turns any unique conflict into no row, which the
+// caller resolves: a keyed create looks up the Run that holds its key, the
+// other paths report a conflict. It is a prefix: the caller appends the
+// column list and "FROM inserted_run". Used by PostgresStore.insertRun.
 var createRunSQL = `
 WITH inserted_run AS (
 INSERT INTO workflow_runs (
     run_id, owner_id, project_id, workflow_name, workflow_version,
     workflow_schema_version, workflow_snapshot, parameters,
     runtime_labels, runtime_config_snapshot, project_http_target_snapshot, metadata_labels,
+    request_idempotency_key, request_digest,
+    publication_mode, audit_execution_id, audit_submission_key,
     state, state_reason_code, state_reason_message
-) VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb, $9, $10::jsonb, $11::jsonb, $12::jsonb, 'initializing', 'created', '')
-RETURNING *
-)
-SELECT `
-
-// createRunIdempotentSQL is createRunSQL plus the owner's idempotency key ($12)
-// and request digest ($13), with ON CONFLICT DO NOTHING: any unique conflict
-// yields no row, and the caller then resolves the existing Run by key and
-// digest. Labels come from $14; the caller appends the column list and
-// "FROM inserted_run". Used by PostgresStore.CreateRunIdempotent.
-var createRunIdempotentSQL = `
-WITH inserted_run AS (
-INSERT INTO workflow_runs (
-    run_id, owner_id, project_id, workflow_name, workflow_version,
-    workflow_schema_version, workflow_snapshot, parameters,
-    runtime_labels, runtime_config_snapshot, project_http_target_snapshot,
-    request_idempotency_key, request_digest, metadata_labels,
-    state, state_reason_code, state_reason_message
-) VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb, $9, $10::jsonb, $11::jsonb, $12, $13, $14::jsonb, 'initializing', 'created', '')
+) VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb, $9, $10::jsonb, $11::jsonb, $12::jsonb,
+          $13, $14, $15, $16, $17, 'initializing', 'created', '')
 ON CONFLICT DO NOTHING
 RETURNING *
 )

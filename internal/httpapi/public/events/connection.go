@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/grauwolf32/contractor/internal/apierror"
 	"github.com/grauwolf32/contractor/internal/auth"
 )
 
@@ -75,7 +76,7 @@ func (s *socket) readLoop() {
 		}
 		frame, err := decodeClientFrame(payload)
 		if err != nil {
-			s.sendError("", "invalid_frame", "frame does not satisfy the protocol", false)
+			s.sendError("", apierror.InvalidFrame, "")
 			continue
 		}
 		switch frame.typ {
@@ -163,12 +164,12 @@ func (s *socket) startSubscription(frame clientFrame) {
 	s.subMu.Lock()
 	if _, duplicate := s.subs[frame.subscriptionID]; duplicate {
 		s.subMu.Unlock()
-		s.sendError(frame.subscriptionID, "invalid_frame", "subscriptionId is already active", false)
+		s.sendError(frame.subscriptionID, apierror.InvalidFrame, "subscriptionId is already active")
 		return
 	}
 	if len(s.subs) >= maximumSubscriptions {
 		s.subMu.Unlock()
-		s.sendError(frame.subscriptionID, "subscription_limit", "subscription limit reached", false)
+		s.sendError(frame.subscriptionID, apierror.SubscriptionLimit, "")
 		return
 	}
 	ctx, cancel := context.WithCancel(s.ctx)
@@ -198,7 +199,7 @@ func (s *socket) unsubscribe(id string) {
 	current := s.subs[id]
 	s.subMu.Unlock()
 	if current == nil {
-		s.sendError(id, "not_found", "subscription was not found", false)
+		s.sendError(id, apierror.NotFound, "subscription was not found")
 		return
 	}
 	current.cancel()
@@ -256,11 +257,20 @@ func (s *socket) offer(encoded []byte) (queued, full bool) {
 	return false, s.ctx.Err() == nil
 }
 
-func (s *socket) sendError(subscriptionID, code, message string, retryable bool) bool {
-	return s.sendFrame(errorFrame{
+// sendError sends an error frame of kind, a registered code of the public
+// error registry, with message, or with the Kind's message when it is empty.
+func (s *socket) sendError(subscriptionID string, kind apierror.Kind, message string) bool {
+	return s.sendFrame(newErrorFrame(subscriptionID, kind, message))
+}
+
+func newErrorFrame(subscriptionID string, kind apierror.Kind, message string) errorFrame {
+	if message == "" {
+		message = kind.Message()
+	}
+	return errorFrame{
 		Version: ProtocolVersion, Type: "error", SubscriptionID: subscriptionID,
-		Code: code, Message: message, Retryable: retryable,
-	})
+		Code: kind.Code(), Message: message, Retryable: kind.Retryable(),
+	}
 }
 
 func (s *socket) sendResync(subscriptionID string, stream Stream, reason string) bool {

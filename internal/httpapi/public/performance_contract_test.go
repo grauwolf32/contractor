@@ -17,9 +17,8 @@ import (
 func TestPerformancePublicContracts(t *testing.T) {
 	document := loadPublicOpenAPI(t)
 	for _, path := range []string{"/v1/operations/performance", "/v1/operations/performance/history", "/v1/operations/allocation-history"} {
-		operation := document.Paths.Value(path).Get
-		if operation == nil || operation.Extensions["x-contractor-implementation"] != "implemented" {
-			t.Fatalf("%s must be an implemented read-only contract", path)
+		if document.Paths.Value(path).Get == nil {
+			t.Fatalf("%s must be a read-only contract", path)
 		}
 		if len(document.Paths.Value(path).Operations()) != 1 {
 			t.Fatalf("unexpected writable performance route: %s", path)
@@ -108,7 +107,7 @@ func TestPerformanceReadHandlersAndAllocationHistoryCursor(t *testing.T) {
 	finished := time.Date(2026, 8, 29, 11, 0, 0, 0, time.UTC)
 	fixture := newHandlerFixtureWithAuth(
 		t, "../../config/testdata/valid", newTestAuthentication(t), mustTestOrigins(t), false, nil,
-		func(dependencies *Dependencies) {
+		func(dependencies *testServices) {
 			dependencies.AllocationResources = &fakeAllocationResourceReader{
 				byStage: map[string][]telemetry.AllocationResourceSummary{},
 				items: []telemetry.AllocationResourceSummary{

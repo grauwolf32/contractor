@@ -11,6 +11,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	postgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
@@ -51,8 +52,8 @@ func (p *CollectionPublisher) PublishCollection(ctx context.Context, params Publ
 		result = PublishedCollection{}
 		// A competing transaction may have taken its snapshot before this
 		// lock was released; InTxWithRetry replays PostgreSQL's serialization error.
-		key := deterministicID("collection-lock", params.OwnerID, request.ClientKey)
-		if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`, key); err != nil {
+		key := postgres.NewAdvisoryKey("finding-collection", params.OwnerID, request.ClientKey)
+		if err := postgres.LockAdvisory(ctx, tx, key); err != nil {
 			return err
 		}
 		service := artifacts.NewService(artifacts.NewPostgresRepository(tx))
@@ -77,7 +78,7 @@ func (p *CollectionPublisher) PublishCollection(ctx context.Context, params Publ
 			return err
 		}
 		written, err := user.Write(ctx, contracts.ArtifactRef{Namespace: CollectionNamespace, Name: request.ClientKey},
-			artifacts.Payload{MediaType: contracts.FindingCollectionMediaType, Data: payload}, nil)
+			artifacts.Payload{MediaType: resolved.FindingCollectionMediaType, Data: payload}, nil)
 		if err != nil {
 			return err
 		}
@@ -129,10 +130,13 @@ func readCollectionReplay(ctx context.Context, user artifacts.ScopedStore, key, 
 	}
 	var receipt collectionPublication
 	if read.Payload.MediaType != "application/json" || len(read.Payload.Data) > 4096 || json.Unmarshal(read.Payload.Data, &receipt) != nil ||
-		receipt.Schema != collectionPublicationSchema || receipt.RequestDigest != requestDigest || receipt.Artifact.Ref.ValidateExact() != nil ||
-		receipt.Artifact.Ref.Namespace != CollectionNamespace || receipt.Artifact.Ref.Name != key || receipt.Artifact.MediaType != contracts.FindingCollectionMediaType ||
+		receipt.Schema != collectionPublicationSchema || receipt.Artifact.Ref.ValidateExact() != nil ||
+		receipt.Artifact.Ref.Namespace != CollectionNamespace || receipt.Artifact.Ref.Name != key || receipt.Artifact.MediaType != resolved.FindingCollectionMediaType ||
 		receipt.Artifact.SizeBytes <= 0 || receipt.Artifact.SizeBytes > auditdomain.MaximumArchiveBytes {
 		return PublishedCollection{}, false, ErrConflict
+	}
+	if receipt.RequestDigest != requestDigest {
+		return PublishedCollection{}, false, ErrCollectionKeyConflict
 	}
 	metadata, err := user.Metadata(ctx, receipt.Artifact.Ref)
 	if err != nil {
@@ -400,10 +404,7 @@ func readCollectionReceipts(ctx context.Context, tx pgx.Tx, ownerID string, ids 
 	if len(ids) == 0 {
 		return receipts, nil
 	}
-	rows, err := tx.Query(ctx, `
-SELECT `+receiptProjection+`
-  FROM finding_proposal_receipts AS receipt
- WHERE receipt.receipt_id = ANY($1::text[]) AND receipt.owner_id = $2`, ids, ownerID)
+	rows, err := tx.Query(ctx, readCollectionReceiptsSQL, ids, ownerID)
 	if err != nil {
 		return nil, fmt.Errorf("read selected finding receipts: %w", err)
 	}

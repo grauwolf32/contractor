@@ -4,19 +4,18 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
 	"reflect"
 	"strings"
 	"sync"
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/planner"
 )
 
-func TestServiceProjectsCorrelatedStateAndRevalidatesCache(t *testing.T) {
+func TestSharedServiceProjectsCorrelatedStateAndRevalidatesCache(t *testing.T) {
 	snapshot := stateFixture(t)
 	workspace := snapshot.State.LastCompletedInvocation.Workspace
 	workspace.ScopePaths = []string{"README.md", "docs/unread.md", "src/main.py"}
@@ -87,7 +86,7 @@ func TestServiceProjectsCorrelatedStateAndRevalidatesCache(t *testing.T) {
 	}
 }
 
-func TestServiceRejectsStaleStateIncompleteCoverageAndCursorMisuse(t *testing.T) {
+func TestSharedServiceRejectsStaleStateIncompleteCoverageAndCursorMisuse(t *testing.T) {
 	snapshot := stateFixture(t)
 	reader := &recordingReader{states: map[string]reporting.AgentStateSnapshot{"allocation-builder": snapshot}}
 	service := testService(t, reader, Binding{
@@ -134,7 +133,7 @@ func TestServiceRejectsStaleStateIncompleteCoverageAndCursorMisuse(t *testing.T)
 	}
 }
 
-func TestServiceCursorIsBoundToProjectionWorkerAndRevision(t *testing.T) {
+func TestSharedServiceCursorIsBoundToProjectionWorkerAndRevision(t *testing.T) {
 	builder := stateFixture(t)
 	builder.State.LastCompletedInvocation.Workspace.Interactions = append(
 		builder.State.LastCompletedInvocation.Workspace.Interactions,
@@ -212,24 +211,24 @@ func (r *recordingReader) ReadWorkerState(
 	_ context.Context,
 	handle contracts.WorkerHandle,
 	ifNoneMatch string,
-) (planner.WorkerStateReadResult, error) {
+) (reporting.WorkerStateReadResult, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.conditionals = append(r.conditionals, ifNoneMatch)
 	if r.err != nil {
-		return planner.WorkerStateReadResult{}, r.err
+		return reporting.WorkerStateReadResult{}, r.err
 	}
 	snapshot, exists := r.states[handle.AllocationID]
 	if !exists {
-		return planner.WorkerStateReadResult{}, &planner.WorkerStateReadError{
+		return reporting.WorkerStateReadResult{}, &reporting.WorkerStateReadError{
 			Code: CodeUnavailable, Retryable: true,
 		}
 	}
 	etag := stateETag(snapshot.State.StateRevision)
 	if ifNoneMatch == etag {
-		return planner.WorkerStateReadResult{ETag: etag, NotModified: true}, nil
+		return reporting.WorkerStateReadResult{ETag: etag, NotModified: true}, nil
 	}
-	return planner.WorkerStateReadResult{Snapshot: &snapshot, ETag: etag}, nil
+	return reporting.WorkerStateReadResult{Snapshot: &snapshot, ETag: etag}, nil
 }
 
 func (r *recordingReader) set(allocationID string, snapshot reporting.AgentStateSnapshot) {
@@ -256,12 +255,7 @@ func testService(t testing.TB, reader planner.WorkerStateReader, bindings ...Bin
 
 func stateFixture(t testing.TB) reporting.AgentStateSnapshot {
 	t.Helper()
-	data, err := os.ReadFile(filepath.Join(
-		"..", "..", "..", "api", "testdata", "v1alpha1", "valid", "agent-state-snapshot.json",
-	))
-	if err != nil {
-		t.Fatal(err)
-	}
+	data := contractstest.ReadFile(t, "api", "testdata", "v1alpha1", "valid", "agent-state-snapshot.json")
 	result, err := contracts.DecodeStrict[reporting.AgentStateSnapshot](data)
 	if err != nil {
 		t.Fatal(err)

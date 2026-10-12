@@ -48,7 +48,7 @@ var (
 	}
 )
 
-func TestSharedMemoryHardeningMatrixIsComplete(t *testing.T) {
+func TestMemoryHardeningMatrixIsComplete(t *testing.T) {
 	repositoryRoot := filepath.Join("..", "..")
 	data, err := os.ReadFile("shared_memory_matrix.yml")
 	if err != nil {
@@ -92,7 +92,7 @@ func TestSharedMemoryHardeningMatrixIsComplete(t *testing.T) {
 	})
 }
 
-func TestSharedMemoryUsesOnlyArtifactPlaneInventories(t *testing.T) {
+func TestMemoryUsesOnlyArtifactPlaneInventories(t *testing.T) {
 	repositoryRoot := filepath.Join("..", "..")
 	if err := checkArtifactPlaneRouteInventory(repositoryRoot, "/memory"); err != nil {
 		t.Fatal(err)

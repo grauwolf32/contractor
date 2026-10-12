@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 )
@@ -14,7 +14,7 @@ func TestStaticProviderResolvesOnlyExactCredentialGatewayBinding(t *testing.T) {
 	const secret = "recognizable-development-secret"
 	gateway := testGatewayRef("local")
 	provider, err := NewStaticProvider([]StaticEntry{{
-		Metadata: config.CredentialMetadata{
+		Metadata: resolved.CredentialMetadata{
 			Ref:        llmgateway.LLMCredentialRef{CredentialID: "development-worker"},
 			LLMGateway: gateway,
 			ModelPolicies: []contracts.ModelPolicyRef{{
@@ -70,7 +70,7 @@ func TestStaticProviderResolvesOnlyExactCredentialGatewayBinding(t *testing.T) {
 func TestStaticProviderRejectsInvalidDevelopmentEntries(t *testing.T) {
 	gateway := testGatewayRef("local")
 	valid := StaticEntry{
-		Metadata: config.CredentialMetadata{
+		Metadata: resolved.CredentialMetadata{
 			Ref: llmgateway.LLMCredentialRef{CredentialID: "development-worker"}, LLMGateway: gateway,
 		},
 		Token: contracts.NewSecretString("secret"),
@@ -80,13 +80,13 @@ func TestStaticProviderRejectsInvalidDevelopmentEntries(t *testing.T) {
 		entries []StaticEntry
 	}{
 		{"invalid ID", []StaticEntry{{
-			Metadata: config.CredentialMetadata{
+			Metadata: resolved.CredentialMetadata{
 				Ref: llmgateway.LLMCredentialRef{CredentialID: "two words"}, LLMGateway: gateway,
 			},
 			Token: contracts.NewSecretString("secret"),
 		}}},
 		{"invalid Gateway", []StaticEntry{{
-			Metadata: config.CredentialMetadata{
+			Metadata: resolved.CredentialMetadata{
 				Ref: llmgateway.LLMCredentialRef{CredentialID: "development-worker"},
 			},
 			Token: contracts.NewSecretString("secret"),

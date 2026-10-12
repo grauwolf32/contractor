@@ -63,11 +63,13 @@ func NewPostgresPurger(tx pgx.Tx) (*PostgresPurger, error) {
 }
 
 // PurgeRun removes every RunScope binding and every pin owned by runID. Exact
-// ProjectScope publications remain available, while their receipt and lineage
-// edge back to the deleted Run are removed. Versions and blobs are collected
-// only when no surviving binding revision references them. Run deletion is
-// one transaction (DEL-R22); the Run revision limit (LIM-ART-6) bounds its
-// work, and no statement handles more than one purge batch (LIM-DEL-2).
+// ProjectScope publications remain available, while their lineage edge back
+// to the deleted Run is removed; the caller deletes the Run's publication
+// receipts, which name the Run revisions, before this purge (runstore owns
+// them). Versions and blobs are collected only when no surviving binding
+// revision references them. Run deletion is one transaction (DEL-R22); the
+// Run revision limit (LIM-ART-6) bounds its work, and no statement handles
+// more than one purge batch (LIM-DEL-2).
 func (p *PostgresPurger) PurgeRun(ctx context.Context, runID string) error {
 	scope, err := RunScope(runID)
 	if err != nil {
@@ -83,11 +85,6 @@ func (p *PostgresPurger) PurgeRun(ctx context.Context, runID string) error {
 	); err != nil {
 		return fmt.Errorf("enable Run lifecycle purge: %w", err)
 	}
-	if _, err := p.tx.Exec(ctx, `
-DELETE FROM workflow_run_output_publications
-WHERE run_id = $1`, runID); err != nil {
-		return fmt.Errorf("delete WorkflowRun output publications: %w", err)
-	}
 	versionIDs, err := p.purgeAllRevisions(ctx, scope, "")
 	if err != nil {
 		return fmt.Errorf("purge WorkflowRun Artifacts: %w", err)
@@ -101,10 +98,11 @@ WHERE scope_kind = $1 AND scope_id = $2`, scope.kind, scope.id); err != nil {
 }
 
 // PurgeProject removes the ProjectScope of a deleting Project in bounded
-// steps, after every Project Run and Audit is gone. Each call deletes at most
-// one purge batch of binding revisions (LIM-DEL-2), with the lineage edges
-// into or out of them and the bindings whose current revision they include,
-// and collects the versions and blobs the batch leaves unreferenced. The call
+// steps, after every Project Run and Audit is gone; Run deletion removed the
+// Runs' output publication receipts with them. Each call deletes at most one
+// purge batch of binding revisions (LIM-DEL-2), with the lineage edges into
+// or out of them and the bindings whose current revision they include, and
+// collects the versions and blobs the batch leaves unreferenced. The call
 // that finds no revision left removes the scope itself and reports true.
 // Project deletion commits every call in its own transaction (DEL-R44); no
 // write can enter the scope of a deleting Project without Runs and Audits, so
@@ -131,11 +129,6 @@ func (p *PostgresPurger) PurgeProject(ctx context.Context, projectID string) (bo
 	}
 	if len(batch.versionIDs) > 0 {
 		return false, p.collectUnreferencedVersions(ctx, batch.versionIDs)
-	}
-	if _, err := p.tx.Exec(ctx, `
-DELETE FROM workflow_run_output_publications
-WHERE project_id = $1`, projectID); err != nil {
-		return false, fmt.Errorf("delete Project output publications: %w", err)
 	}
 	if _, err := p.tx.Exec(ctx, `
 DELETE FROM artifact_scopes

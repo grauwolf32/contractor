@@ -14,7 +14,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/auditstore/claimstore"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/rundeletion"
@@ -528,7 +528,7 @@ func newControllerHarness(t *testing.T, itemCount, window int) *controllerHarnes
 	creator := &fakeControllerCreator{store: store, runs: runs}
 	notifier := &fakeControllerNotifier{}
 	var ids atomic.Int64
-	controller, err := New(store, runs, runs, creator, fakeSubmissionBuilder{}, notifier, Options{
+	controller, err := New(store, store, runs, runs, creator, fakeSubmissionBuilder{}, notifier, Options{
 		HolderID: "controller-test", ClaimLease: time.Second,
 		OperationTimeout: 100 * time.Millisecond, ClaimBatch: 1,
 		NewID: func(prefix string) (string, error) {
@@ -700,7 +700,7 @@ type fakeControllerStore struct {
 
 func newFakeControllerStore(t *testing.T, itemCount, window int) *fakeControllerStore {
 	t.Helper()
-	snapshot, err := configload.Load("../../testdata/configs", config.MVPDescriptors())
+	snapshot, err := configload.Load("../../testdata/configs")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -860,7 +860,7 @@ func (s *fakeControllerStore) TransitionRound(_ context.Context, params auditsto
 // invalid transition is ErrInvalid, a claim that is no longer held is
 // ErrClaimLost, and a stale state or revision is ErrPrecondition.
 func (s *fakeControllerStore) TransitionClaimed(_ context.Context, params auditstore.ClaimedTransitionParams) (auditstore.Audit, error) {
-	if err := auditstore.ValidateClaimedTransition(params); err != nil {
+	if err := claimstore.ValidateClaimedTransition(params); err != nil {
 		return auditstore.Audit{}, err
 	}
 	s.mu.Lock()

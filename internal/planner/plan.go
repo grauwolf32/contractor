@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/planner/stageresult"
 )
 
 const (
@@ -186,12 +187,12 @@ func (c *PlannerPlanController) ClaimCurrentSubtask(
 }
 
 func (c *PlannerPlanController) CompleteDispatch(
-	callID string, outcome contracts.StageOutcome,
+	callID string, outcome stageresult.StageOutcome,
 ) (PlannerPlan, *PlanError) {
 	switch outcome {
-	case contracts.StageSucceeded:
+	case stageresult.StageSucceeded:
 		return c.resolveDispatch(callID, PlannerSubtaskSucceeded)
-	case contracts.StageFailed:
+	case stageresult.StageFailed:
 		return c.resolveDispatch(callID, PlannerSubtaskFailed)
 	default:
 		return c.Snapshot(), planError(
@@ -206,7 +207,7 @@ func (c *PlannerPlanController) FailDispatch(callID string) (PlannerPlan, *PlanE
 	return c.resolveDispatch(callID, PlannerSubtaskFailed)
 }
 
-func (c *PlannerPlanController) CanFinish(outcome contracts.StageOutcome) *PlanError {
+func (c *PlannerPlanController) CanFinish(outcome stageresult.StageOutcome) *PlanError {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.plan.ActiveDispatch != nil {
@@ -215,9 +216,9 @@ func (c *PlannerPlanController) CanFinish(outcome contracts.StageOutcome) *PlanE
 		)
 	}
 	switch outcome {
-	case contracts.StageFailed:
+	case stageresult.StageFailed:
 		return nil
-	case contracts.StageSucceeded:
+	case stageresult.StageSucceeded:
 		hasSucceeded := false
 		for _, subtask := range c.plan.Subtasks {
 			switch subtask.Status {

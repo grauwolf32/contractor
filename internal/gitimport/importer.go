@@ -3,8 +3,10 @@ package gitimport
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/apierror"
 	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/credentials"
@@ -15,7 +17,14 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-var ErrCapacity = errors.New("Git import capacity is exhausted")
+var (
+	ErrCapacity = apierror.New(apierror.GitImportCapacity, "Git import capacity is exhausted")
+	// ErrTimedOut and ErrInterrupted report an import that ended with its
+	// context: the whole-import deadline expired, or the request was
+	// cancelled. Nothing partial is published (GIT-R73).
+	ErrTimedOut    = apierror.New(apierror.GitImportTimeout, "Git import deadline expired")
+	ErrInterrupted = apierror.New(apierror.GitImportCancelled, "Git import was interrupted")
+)
 
 type SnapshotClient interface {
 	Allowed(Remote) bool
@@ -54,7 +63,8 @@ func NewImporter(pool *pgxpool.Pool, client SnapshotClient, keys KeyProvider) (*
 
 // DoImport keeps both admission leases through the caller's small metadata
 // response. The complete ZIP is never passed to the HTTP response callback.
-func (i *Importer) DoImport(ctx context.Context, request ImportRequest, respond func(ImportResult)) error {
+func (i *Importer) DoImport(ctx context.Context, request ImportRequest, respond func(ImportResult)) (err error) {
+	defer func() { err = importEnded(err) }()
 	if respond == nil {
 		return ErrConfiguration
 	}
@@ -153,6 +163,32 @@ func (i *Importer) DoImport(ctx context.Context, request ImportRequest, respond 
 	respond(ImportResult{Artifact: result.Ref, MediaType: result.MediaType, Size: result.Size, GitSource: source})
 	return nil
 }
+
+// importEnded classifies an import that ended because its context did as a
+// timeout or an interruption, unless one of the import's own errors already
+// explains it.
+func importEnded(err error) error {
+	var unsupported *UnsupportedEntryError
+	switch {
+	case err == nil, errors.As(err, &unsupported):
+		return err
+	}
+	for _, own := range []error{
+		ErrURL, ErrRef, ErrDestination, ErrTrust, ErrRemote, ErrContent, ErrBudget, ErrCapacity, ErrConfiguration,
+	} {
+		if errors.Is(err, own) {
+			return err
+		}
+	}
+	switch {
+	case errors.Is(err, context.DeadlineExceeded):
+		return fmt.Errorf("%w: %w", ErrTimedOut, err)
+	case errors.Is(err, context.Canceled):
+		return fmt.Errorf("%w: %w", ErrInterrupted, err)
+	}
+	return err
+}
+
 func importScope(service *artifacts.Service, request ImportRequest) (artifacts.ScopedStore, artifacts.Scope, error) {
 	if request.ProjectID != "" {
 		store, err := service.Project(request.ProjectID)

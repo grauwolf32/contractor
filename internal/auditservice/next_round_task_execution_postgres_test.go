@@ -11,7 +11,8 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/credentials"
@@ -45,7 +46,7 @@ func TestPostgresNextRoundStopsBeforeWritingUnsupportedScanTasks(t *testing.T) {
 	if err := os.WriteFile(profilePath, []byte(modified), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	snapshot, err := configload.Load(root, config.MVPDescriptors())
+	snapshot, err := configload.Load(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -61,7 +62,7 @@ func TestPostgresNextRoundStopsBeforeWritingUnsupportedScanTasks(t *testing.T) {
 		Pool: pool, Profiles: &switchableProfileCatalog{snapshot: snapshot, available: true},
 		CredentialGuard: &countingCredentialGuard{},
 		TransactionLLMCredentials: runtimeconfig.TransactionLLMCredentialLookupFactoryFunc(
-			func(pgx.Tx) (config.CredentialLookup, error) { return lookup, nil },
+			func(pgx.Tx) (resolved.CredentialLookup, error) { return lookup, nil },
 		),
 	})
 	if err != nil {
@@ -109,7 +110,7 @@ func TestPostgresNextRoundStopsBeforeWritingUnsupportedScanTasks(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	store := auditstore.NewPostgresStore(pool)
+	store := auditstoretest.NewStore(pool)
 	claims, err := store.Claim(ctx, auditstore.ClaimParams{HolderID: "scan-round-controller", Lease: time.Minute, Limit: 1})
 	if err != nil || len(claims) != 1 {
 		t.Fatalf("claim = (%+v, %v)", claims, err)

@@ -11,6 +11,7 @@ import (
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/getkin/kin-openapi/routers/gorillamux"
 	"github.com/grauwolf32/contractor/internal/auditservice"
+	"github.com/grauwolf32/contractor/internal/auditstore"
 )
 
 func TestPublicAuditReportPreservesProposedReview(t *testing.T) {
@@ -20,18 +21,18 @@ func TestPublicAuditReportPreservesProposedReview(t *testing.T) {
 		t.Fatal(err)
 	}
 	now := time.Date(2026, 9, 19, 12, 0, 0, 0, time.UTC)
-	review := &auditservice.ReviewRequest{
+	review := &auditstore.ReviewRequest{
 		RequestID: "review-report", AuditID: "audit-report",
-		SubjectKind: auditservice.ReviewSubjectReport, SubjectID: "audit-report",
-		Kind: auditservice.ReportAcceptanceReviewKind, SubjectRevision: 7,
+		SubjectKind: auditstore.ReviewSubjectReport, SubjectID: "audit-report",
+		Kind: auditstore.ReportAcceptanceReviewKind, SubjectRevision: 7,
 		SubjectDigest:    auditHandlerDigest("report-candidate"),
-		RequestedActions: []auditservice.ReviewRequestedAction{"approve", "reject"},
-		State:            auditservice.ReviewPending, Revision: 3, CreatedAt: now, UpdatedAt: now,
+		RequestedActions: []auditstore.ReviewRequestedAction{"approve", "reject"},
+		State:            auditstore.ReviewPending, Revision: 3, CreatedAt: now, UpdatedAt: now,
 	}
 	management := &fakeAuditManagement{}
 	fixture := newHandlerFixtureWithAuth(t, "../../config/testdata/valid",
 		newTestAuthentication(t), mustTestOrigins(t), false, nil,
-		func(dependencies *Dependencies) { dependencies.Audits = management },
+		func(dependencies *testServices) { dependencies.Audits = management },
 	)
 	for _, status := range []auditservice.ReportStatus{
 		auditservice.ReportPending, auditservice.ReportProposed,

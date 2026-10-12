@@ -1,0 +1,103 @@
+schema_version: "1.0"
+id: V369-002
+title: "Run every shared fixture on both sides and mutate the schemas"
+milestone: hub-audit-guards-2026-10
+epic: api-contracts
+kind: chore
+priority: P1
+status: completed
+implementation_commit: "22752c39a5c7940beed6a7215dd798a16931c9bf"
+depends_on: []
+languages: [go, python]
+goal: "The gate fails when a fixture is read by only one side or when a mutation is accepted by one side only."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq; raw reports in docs/research/2026-10-11-hub-audit/), contracts D 3.5, F3; file:line as of 02bbdcbf, re-verify on current main"
+  finding: >-
+    make test-wire-cross-language runs both sides for 3 of 15 shared
+    fixtures; audit-completion runs only in Go; llmgateway, runlabels,
+    runtimesettings, scan and contractstest select 0 tests and pass silently
+    (make/core.mk:33-35). No negative fixture removes a required field.
+  siblings: >-
+    Re-verified on fc25b5d: the target (make/core.mk:33-55 there) was a
+    hand-written list of go test -run and pytest -k selections that wave 1
+    had extended, V370-017 had already folded the other wire targets into it,
+    and wave 1 had added required-member-cases.json (the drop-required
+    mutation, Go, Python and schema). Readers of api/testdata outside the
+    list: 171 Go tests in 25 packages (most of them PostgreSQL Eval, Audit
+    preparation and Artifact tests that take evals/valid/draft.json or
+    another fixture as input) and 127 Runtime tests, among them modules that
+    read their cases at import and so escaped any per-test check
+    (test_host_syntax, test_media_type_cases, test_artifact_names,
+    test_digest_cases, test_gateway_error_classification, test_metrics,
+    test_adapter_host). Go code reached api/testdata through relative
+    os.ReadFile paths in 46 test files; all now use contractstest. The
+    e2e TestSharedMemory* tests (tests/e2e/shared_memory_test.go, behind the
+    e2e tag) carried the prefix without reading a shared fixture and are
+    renamed TestMemory*. Ruled out: the fixtures under testdata/ (memory,
+    agent-skills, source_member_paths.json), internal/auditdomain/testdata
+    and api/scan/v1/testdata are shared too but outside api/testdata and
+    this task; their TestShared*/test_shared_* tests run in the gate without
+    a coverage check.
+  decision: >-
+    One name per side marks a shared fixture reader and the name is enforced
+    where the read happens, so the gate selects tests by convention and
+    cannot miss one: contractstest.Path (ReadFile, ReadFixture) fails a Go
+    test not named TestShared*, and the audit hook in
+    runtime/tests/shared_fixtures.py fails a Runtime test not named
+    test_shared_*, fails collection when a test module that opens a fixture
+    while it is imported holds another test, and fails any other module's
+    import-time read unless HELPER_READS lists it with its reason (fakes/spec.py
+    builds every fake allocation from the empty provenance fixture,
+    fakes/telemetry.py takes the Server's telemetry export defaults from the
+    bounds cases; their many users consume the fixture and do not check it).
+    Both checks have their own tests (contractstest/fixtures_test.go,
+    test_fixture_convention.py). scripts/shared_fixture_gate.py discovers
+    every TestShared*/test_shared_* test, runs them (go test -json -run
+    ^TestShared over their packages, pytest with only the shared tests) and
+    fails when a side has no shared test, when a discovered test did not run
+    and pass (a skip fails, so PostgreSQL tests need the test database), or
+    when the observed readers of a fixture (recorded by contractstest and the
+    hook through CONTRACTOR_SHARED_FIXTURE_LOG, plus UI imports) differ from
+    api/testdata/readers.json, which declares each fixture's sides and the
+    reason when only one side reads it; make lint runs its source checks. The
+    generated mutation-cases.json adds the other mutations: a value outside
+    each enum or const, each bounded string one character past maxLength, a
+    member added to each closed object and a repeated key, which the schema,
+    Go and Python reject, and each bounded string one UTF-8 byte too long,
+    on which all three must agree. That found two drifts, fixed here: Go
+    LLMCredentialRef accepted ids over 128 characters (now ValidConfigID, as
+    in the Runtime and RuntimeSettings), and 23 strings that Go and Python
+    bound in bytes had only a character maxLength in their schema, which now
+    states x-maxBytes (enforced by both test validators; CTL-R153). The gate
+    also found two invalid Gateway signature fixtures read by Go only; the
+    Runtime test that checks the signature body of one Go-only Gateway
+    fixture now checks all five. Cost: the gate runs every shared test,
+    about 7 minutes with GOFLAGS=-p=2, most of it PostgreSQL Eval tests that
+    use the draft fixture as input; it also runs inside release-verify-families
+    through test-worker-session-modes-hardening. Accepted risk: a helper that
+    caches a fixture across tests (sync.Once, functools.cache) is checked
+    only in the test that first reads it, and a HELPER_READS entry is trusted
+    by review; reopen when a listed helper feeds a check rather than an
+    input, or when the gate time matters more than running every reader, by
+    building those inputs in code. Verified: make test-wire-cross-language
+    passes (226 fixtures, 194 Go and 160 Runtime shared tests) once
+    test_findings_reader_toolset.py carries f357f2b; on fc25b5d its
+    test_shared_go_python_fixture_and_exact_consumer_reads fails without this
+    change (V370-025 metadata read) and the gate reports it. Also run: go
+    build ./... and go vet of every changed package (with -tags=e2e for
+    tests/e2e); go test ./internal/contracts/... and ./tests/e2e; the gate's
+    and the scripts' unit tests; pytest of every changed Runtime module;
+    ruff check and format; check_spec and check_release_verify_graph.
+scope:
+  in:
+    - "Naming convention TestShared*/test_shared_* for every test reading api/testdata; the gate runs all of them and fails on 0 tests; generated mutations (drop required, enum, length+1 in bytes and characters, duplicate key, extra field) checked on schema, Go and Python."
+  out:
+    - "Fixture contents."
+acceptance_criteria:
+  - id: A1
+    text: "The gate fails when a fixture is read by only one side or when a mutation is accepted by one side only."
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "make test-wire-cross-language"
+    covers: [A1]

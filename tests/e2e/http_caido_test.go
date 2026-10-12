@@ -17,7 +17,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/localpki"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
@@ -244,7 +244,7 @@ func TestHTTPAndCaidoAcrossHeterogeneousRuntimeProcesses(t *testing.T) {
 	)
 	httpInitialAllocation := onlyRunAllocation(t, ctx, store, httpInitial.RunID)
 	assertHTTPCaidoAllocation(
-		t, httpInitialAllocation, httpPrincipal.RuntimeAgentID, contracts.RuntimeAdapterHTTPProxy,
+		t, httpInitialAllocation, httpPrincipal.RuntimeAgentID, runtimesettings.RuntimeAdapterHTTPProxy,
 	)
 	assertHTTPCaidoReport(
 		t, operations, publicClient, publicBaseURL, httpInitialStatus, "report", httpCaidoHTTPReport,
@@ -272,7 +272,7 @@ func TestHTTPAndCaidoAcrossHeterogeneousRuntimeProcesses(t *testing.T) {
 	}
 	oldAllocation := onlyRunAllocation(t, ctx, store, oldRun.RunID)
 	assertHTTPCaidoAllocation(
-		t, oldAllocation, caidoPrincipal.RuntimeAgentID, contracts.RuntimeAdapterCaidoGraphQL,
+		t, oldAllocation, caidoPrincipal.RuntimeAgentID, runtimesettings.RuntimeAdapterCaidoGraphQL,
 	)
 	assertAgentLabelPin(t, oldAllocation, "agent-caido", 1, oldConfig)
 	assertHTTPCaidoReport(
@@ -290,7 +290,7 @@ func TestHTTPAndCaidoAcrossHeterogeneousRuntimeProcesses(t *testing.T) {
 	)
 	httpUnrelatedAllocation := onlyRunAllocation(t, ctx, store, httpUnrelated.RunID)
 	assertHTTPCaidoAllocation(
-		t, httpUnrelatedAllocation, httpPrincipal.RuntimeAgentID, contracts.RuntimeAdapterHTTPProxy,
+		t, httpUnrelatedAllocation, httpPrincipal.RuntimeAgentID, runtimesettings.RuntimeAdapterHTTPProxy,
 	)
 	assertHTTPCaidoReport(
 		t, operations, publicClient, publicBaseURL, httpUnrelatedStatus, "report", httpCaidoHTTPReport,
@@ -323,7 +323,7 @@ func TestHTTPAndCaidoAcrossHeterogeneousRuntimeProcesses(t *testing.T) {
 	)
 	newAllocation := onlyRunAllocation(t, ctx, store, newRun.RunID)
 	assertHTTPCaidoAllocation(
-		t, newAllocation, caidoPrincipal.RuntimeAgentID, contracts.RuntimeAdapterCaidoGraphQL,
+		t, newAllocation, caidoPrincipal.RuntimeAgentID, runtimesettings.RuntimeAdapterCaidoGraphQL,
 	)
 	assertAgentLabelPin(t, newAllocation, "agent-caido", 2, newConfig)
 	assertHTTPCaidoReport(
@@ -419,13 +419,13 @@ func assertHTTPCaidoAllocation(
 	t *testing.T,
 	allocation runstore.StageAllocation,
 	wantRuntimeAgentID string,
-	wantAdapter contracts.RuntimeAdapterRef,
+	wantAdapter runtimesettings.RuntimeAdapterRef,
 ) {
 	t.Helper()
 	if allocation.RuntimeAgentID != wantRuntimeAgentID || allocation.RuntimeConfiguration == nil ||
 		!slices.Equal(
 			allocation.RuntimeConfiguration.Provenance.RuntimeAdapters,
-			[]contracts.RuntimeAdapterRef{wantAdapter},
+			[]runtimesettings.RuntimeAdapterRef{wantAdapter},
 		) {
 		t.Fatalf("allocation placement/configuration = %+v, want principal %s adapter %s",
 			allocation, wantRuntimeAgentID, wantAdapter)

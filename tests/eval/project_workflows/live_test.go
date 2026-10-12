@@ -22,6 +22,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auth"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/localpki"
+	"github.com/grauwolf32/contractor/internal/planner/stageresult"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/telemetry"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -79,23 +80,23 @@ type liveRunStatus struct {
 }
 
 type liveRunAttempt struct {
-	StageExecutionID     string                        `json:"stageExecutionId"`
-	Stage                string                        `json:"stage"`
-	Objective            string                        `json:"objective,omitempty"`
-	Attempt              int                           `json:"attempt"`
-	PreviousExecutionID  *string                       `json:"previousExecutionId,omitempty"`
-	ExecutionConfig      json.RawMessage               `json:"executionConfig"`
-	State                string                        `json:"state"`
-	Result               *contracts.StageContentResult `json:"result,omitempty"`
-	Termination          *runstore.StageTermination    `json:"termination,omitempty"`
-	Metrics              *telemetry.Summary            `json:"metrics,omitempty"`
-	Diagnostics          json.RawMessage               `json:"diagnostics,omitempty"`
-	Plan                 json.RawMessage               `json:"plan,omitempty"`
-	RuntimeConfiguration json.RawMessage               `json:"runtimeConfiguration,omitempty"`
-	CreatedAt            json.RawMessage               `json:"createdAt,omitempty"`
-	UpdatedAt            json.RawMessage               `json:"updatedAt,omitempty"`
-	PlannerStartedAt     json.RawMessage               `json:"plannerStartedAt,omitempty"`
-	TerminalAt           json.RawMessage               `json:"terminalAt,omitempty"`
+	StageExecutionID     string                          `json:"stageExecutionId"`
+	Stage                string                          `json:"stage"`
+	Objective            string                          `json:"objective,omitempty"`
+	Attempt              int                             `json:"attempt"`
+	PreviousExecutionID  *string                         `json:"previousExecutionId,omitempty"`
+	ExecutionConfig      json.RawMessage                 `json:"executionConfig"`
+	State                string                          `json:"state"`
+	Result               *stageresult.StageContentResult `json:"result,omitempty"`
+	Termination          *runstore.StageTermination      `json:"termination,omitempty"`
+	Metrics              *telemetry.Summary              `json:"metrics,omitempty"`
+	Diagnostics          json.RawMessage                 `json:"diagnostics,omitempty"`
+	Plan                 json.RawMessage                 `json:"plan,omitempty"`
+	RuntimeConfiguration json.RawMessage                 `json:"runtimeConfiguration,omitempty"`
+	CreatedAt            json.RawMessage                 `json:"createdAt,omitempty"`
+	UpdatedAt            json.RawMessage                 `json:"updatedAt,omitempty"`
+	PlannerStartedAt     json.RawMessage                 `json:"plannerStartedAt,omitempty"`
+	TerminalAt           json.RawMessage                 `json:"terminalAt,omitempty"`
 }
 
 type liveAttemptEvidence struct {

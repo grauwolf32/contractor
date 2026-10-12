@@ -10,11 +10,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/agentprincipal"
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
+	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // The fakes of this package's handler tests must refuse what the PostgreSQL
@@ -67,7 +72,7 @@ func TestFakeRunStoreTransitionsMatchPostgres(t *testing.T) {
 	for _, from := range parityRunStates {
 		for _, to := range parityRunStates {
 			runID := fmt.Sprintf("run-parity-%s-%s", from, to)
-			createParityRunInState(t, ctx, store, runID, from)
+			createParityRunInState(t, ctx, pool, runID, from)
 			err := transition(store, runID, from, to)
 			want := fakeErrors[[2]runstore.WorkflowRunState{from, to}]
 			if (err == nil) != (want == nil) || err != nil && !errors.Is(err, runstore.ErrInvalid) {
@@ -80,9 +85,10 @@ func TestFakeRunStoreTransitionsMatchPostgres(t *testing.T) {
 // createParityRunInState moves a new Run into state through the store's own
 // operations, so the Run is exactly what a transition from state finds.
 func createParityRunInState(
-	t *testing.T, ctx context.Context, store *runstore.PostgresStore, runID string, state runstore.WorkflowRunState,
+	t *testing.T, ctx context.Context, pool *pgxpool.Pool, runID string, state runstore.WorkflowRunState,
 ) {
 	t.Helper()
+	store := runstore.NewPostgresStore(pool)
 	if _, err := store.CreateRun(ctx, runstore.CreateRunParams{
 		RunID: runID, OwnerID: "user-parity", WorkflowName: "artifact-copy", WorkflowVersion: "1",
 		WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: json.RawMessage(`{}`),
@@ -111,7 +117,17 @@ func createParityRunInState(
 		}
 	}
 	for _, next := range steps[state] {
-		if _, err := store.TransitionRun(ctx, runID, current, next, runstore.Reason{Code: "parity"}); err != nil {
+		var err error
+		if next == runstore.RunWaiting {
+			// Only the waiting operation moves a Run into waiting, under the
+			// Run row lock that model-availability recovery holds.
+			err = persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+				return runstore.NewPostgresTxStore(tx).EnterWaiting(ctx, runID, "parity")
+			})
+		} else {
+			_, err = store.TransitionRun(ctx, runID, current, next, runstore.Reason{Code: "parity"})
+		}
+		if err != nil {
 			t.Fatalf("move Run %s from %s to %s: %v", runID, current, next, err)
 		}
 		current = next
@@ -123,9 +139,10 @@ func createParityRunInState(
 }
 
 // TestFakeArtifactRepositoryWritesMatchPostgres refuses the same binding
-// writes in the fake and the PostgreSQL repository: a frozen Run output takes
-// no write whatever revision the write expects, and an open binding takes
-// only the write that expects its current revision.
+// writes in the fake and the PostgreSQL repository: a frozen binding takes no
+// write whatever revision the write expects, a Run output is only created,
+// whether frozen or open, and an open binding takes only the write that
+// expects its current revision.
 func TestFakeArtifactRepositoryWritesMatchPostgres(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
@@ -149,17 +166,16 @@ func TestFakeArtifactRepositoryWritesMatchPostgres(t *testing.T) {
 	check("fake", bindingWriteRefusals(t, ctx, newFakeArtifactRepository()))
 
 	pool := isolatedPublicPool(t, ctx)
-	store := runstore.NewPostgresStore(pool)
 	for _, runID := range []string{"run-frozen-outputs", "run-open-outputs"} {
-		createParityRunInState(t, ctx, store, runID, runstore.RunRunning)
+		createParityRunInState(t, ctx, pool, runID, runstore.RunRunning)
 	}
 	check("PostgreSQL", bindingWriteRefusals(t, ctx, artifacts.NewPostgresRepository(pool)))
 }
 
 // bindingWriteRefusals binds an output of run-frozen-outputs and freezes it,
-// binds an open output of run-open-outputs and writes a user artifact, then
-// returns how each write in the table was refused, in order. The Runs exist
-// wherever the repository needs them.
+// binds an open output of run-open-outputs, writes a user artifact and a
+// user artifact it freezes, then returns how each write in the table was
+// refused, in order. The Runs exist wherever the repository needs them.
 func bindingWriteRefusals(t *testing.T, ctx context.Context, repository artifacts.Repository) []error {
 	t.Helper()
 	service := artifacts.NewService(repository)
@@ -177,14 +193,13 @@ func bindingWriteRefusals(t *testing.T, ctx context.Context, repository artifact
 		return written.Ref
 	}
 	frozenSource, openSource := source("run-frozen-outputs"), source("run-open-outputs")
-	frozen, err := service.BindOutputExact(ctx, "run-frozen-outputs", "result", frozenSource, nil)
-	if err != nil {
+	if _, err := artifactstest.BindOutput(ctx, service, "run-frozen-outputs", "result", frozenSource); err != nil {
 		t.Fatal(err)
 	}
-	if err := service.FreezeRunOutputs(ctx, "run-frozen-outputs"); err != nil {
+	if err := artifactstest.FreezeOutputs(ctx, service, "run-frozen-outputs"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := service.BindOutputExact(ctx, "run-open-outputs", "result", openSource, nil); err != nil {
+	if _, err := artifactstest.BindOutput(ctx, service, "run-open-outputs", "result", openSource); err != nil {
 		t.Fatal(err)
 	}
 	user, err := service.User("user-parity")
@@ -195,10 +210,22 @@ func bindingWriteRefusals(t *testing.T, ctx context.Context, repository artifact
 	if _, err := user.Write(ctx, draft, payload, nil); err != nil {
 		t.Fatal(err)
 	}
+	archived := contracts.ArtifactRef{Namespace: "archive", Name: "report"}
+	frozen, err := user.Write(ctx, archived, payload, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	userScope, err := artifacts.UserScope("user-parity")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := service.Freeze(ctx, userScope, archived.Namespace); err != nil {
+		t.Fatal(err)
+	}
 	stale := "rev-stale"
-	bind := func(runID string, source artifacts.ArtifactRef, expected *string) func() error {
+	bind := func(runID string, source artifacts.ArtifactRef) func() error {
 		return func() error {
-			_, err := service.BindOutputExact(ctx, runID, "result", source, expected)
+			_, err := artifactstest.BindOutput(ctx, service, runID, "result", source)
 			return err
 		}
 	}
@@ -210,11 +237,11 @@ func bindingWriteRefusals(t *testing.T, ctx context.Context, repository artifact
 	}
 	refusals := make([]error, 0, 8)
 	for _, refused := range []func() error{
-		bind("run-frozen-outputs", frozenSource, frozen.TargetRef.Revision),
-		bind("run-frozen-outputs", frozenSource, nil),
-		bind("run-frozen-outputs", frozenSource, &stale),
-		bind("run-open-outputs", openSource, nil),
-		bind("run-open-outputs", openSource, &stale),
+		write(archived, frozen.Ref.Revision),
+		write(archived, nil),
+		write(archived, &stale),
+		bind("run-frozen-outputs", frozenSource),
+		bind("run-open-outputs", openSource),
 		write(draft, nil),
 		write(draft, &stale),
 		write(contracts.ArtifactRef{Namespace: "notes", Name: "absent"}, &stale),
@@ -236,7 +263,7 @@ func TestFakeRuntimeAgentPrincipalKeysMatchPostgres(t *testing.T) {
 	principalID := strings.Repeat("c", 64)
 	fake := newFakeRuntimeAgentPrincipalManagement()
 	fake.principals[principalID] = controlplane.RuntimeAgentPrincipalProjection{
-		Principal: runtimeconfig.RuntimeAgentPrincipal{RuntimeAgentID: principalID, Labels: []string{}, LabelRevision: 1},
+		Principal: agentprincipal.Principal{RuntimeAgentID: principalID, Labels: []string{}, LabelRevision: 1},
 	}
 	checkPrincipalKeyMemory(t, ctx, "fake", fake, principalID)
 
@@ -263,7 +290,7 @@ func TestFakeRuntimeAgentPrincipalKeysMatchPostgres(t *testing.T) {
 	); err != nil {
 		t.Fatal(err)
 	}
-	if inserted, err := runtimeconfig.NewPrincipalRepository(pool).Insert(ctx, runtimeconfig.RuntimeAgentPrincipal{
+	if inserted, err := agentprincipal.NewRepository(pool).Insert(ctx, agentprincipal.Principal{
 		RuntimeAgentID: principalID, Labels: []string{}, LabelRevision: 1,
 		CreatedBy: "operator-parity", CreatedAt: at, UpdatedBy: "operator-parity", UpdatedAt: at,
 	}); err != nil || !inserted {
@@ -273,7 +300,7 @@ func TestFakeRuntimeAgentPrincipalKeysMatchPostgres(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	service, err := runtimeconfig.NewPrincipalService(runtimeconfig.PrincipalServiceOptions{
+	service, err := agentprincipal.NewService(agentprincipal.ServiceOptions{
 		Pool: pool, DeletionGuard: registry,
 	})
 	if err != nil {
@@ -334,7 +361,7 @@ func checkPrincipalKeyMemory(
 		{"reuse the key for a deletion", func() outcome { return remove(2, "label") },
 			outcome{err: contracts.ErrIdempotencyConflict}},
 		{"delete the labelled principal", func() outcome { return remove(2, "delete") },
-			outcome{err: runtimeconfig.ErrPrincipalInUse}},
+			outcome{err: agentprincipal.ErrInUse}},
 		{"clear the labels", func() outcome { return replace(2, unlabelled, "clear") },
 			outcome{revision: 3, labels: unlabelled}},
 		{"repeat the labelling after a newer change", func() outcome { return replace(1, labelled, "label") },

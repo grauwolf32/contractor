@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/credentialerrors"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
@@ -27,7 +27,7 @@ type RuntimeCredentialValidator interface {
 // Implementations may also include process-local providers, but must not
 // acquire another pooled PostgreSQL connection.
 type TransactionLLMCredentialLookupFactory interface {
-	ForTransaction(pgx.Tx) (config.CredentialLookup, error)
+	ForTransaction(pgx.Tx) (resolved.CredentialLookup, error)
 }
 
 // TransactionLLMCredentialLookup is deliberately constructible only through
@@ -35,7 +35,7 @@ type TransactionLLMCredentialLookupFactory interface {
 // wrapper so a caller cannot accidentally pass the process-wide, pool-backed
 // credential provider while already holding a transaction connection.
 type TransactionLLMCredentialLookup struct {
-	lookup config.CredentialLookup
+	lookup resolved.CredentialLookup
 }
 
 func BindTransactionLLMCredentialLookup(
@@ -58,20 +58,20 @@ func BindTransactionLLMCredentialLookup(
 func (l TransactionLLMCredentialLookup) LookupLLMCredential(
 	ctx context.Context,
 	credentialID string,
-) (config.CredentialMetadata, error) {
+) (resolved.CredentialMetadata, error) {
 	if l.lookup == nil {
-		return config.CredentialMetadata{}, errors.New("transaction LLM credential lookup is not bound")
+		return resolved.CredentialMetadata{}, errors.New("transaction LLM credential lookup is not bound")
 	}
 	return l.lookup.LookupLLMCredential(ctx, credentialID)
 }
 
 // TransactionLLMCredentialLookupFactoryFunc keeps tests and non-PostgreSQL
 // composition explicit without weakening the production transaction boundary.
-type TransactionLLMCredentialLookupFactoryFunc func(pgx.Tx) (config.CredentialLookup, error)
+type TransactionLLMCredentialLookupFactoryFunc func(pgx.Tx) (resolved.CredentialLookup, error)
 
 func (f TransactionLLMCredentialLookupFactoryFunc) ForTransaction(
 	tx pgx.Tx,
-) (config.CredentialLookup, error) {
+) (resolved.CredentialLookup, error) {
 	if f == nil {
 		return nil, errors.New("transaction LLM credential lookup factory is nil")
 	}
@@ -141,7 +141,7 @@ func validateSpecRuntimeCredentials(
 			if contextError := ctx.Err(); contextError != nil {
 				return contextError
 			}
-			if errors.Is(err, credentialerrors.RuntimeNotFound) || errors.Is(err, credentialerrors.RuntimeInvalid) || errors.Is(err, pgx.ErrNoRows) {
+			if errors.Is(err, credentialerrors.RuntimeNotFound) || errors.Is(err, credentialerrors.RuntimeInvalid) {
 				return persistencepostgres.WrapError(
 					"invalid RuntimeConfig: Runtime credential is unavailable or incompatible",
 					errors.Join(ErrInvalid, err),
@@ -153,17 +153,18 @@ func validateSpecRuntimeCredentials(
 	return nil
 }
 
-// The same PostgreSQL advisory key fences a transaction that introduces a
-// RuntimeConfig reference against preparation of a managed credential delete.
-// Hash collisions only cause extra serialization; they cannot admit a race.
-const llmCredentialReferenceLockNamespace = 731984
+// llmCredentialReferenceLock is the advisory key that fences a transaction
+// introducing a RuntimeConfig reference to an LLM credential against
+// preparation of the credential's managed delete.
+func llmCredentialReferenceLock(credentialID string) persistencepostgres.AdvisoryKey {
+	return persistencepostgres.NewAdvisoryKey("llm-credential-reference", credentialID)
+}
 
 func LockLLMCredentialDeletion(ctx context.Context, tx pgx.Tx, credentialID string) error {
 	if tx == nil || credentialID == "" {
 		return errors.New("LLM credential deletion lock is not configured")
 	}
-	_, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock($1::integer, hashtext($2))`, llmCredentialReferenceLockNamespace, credentialID)
-	if err != nil {
+	if err := persistencepostgres.LockAdvisory(ctx, tx, llmCredentialReferenceLock(credentialID)); err != nil {
 		return persistencepostgres.WrapError("lock LLM credential deletion", err)
 	}
 	return nil
@@ -179,8 +180,7 @@ func validateSpecLLMCredentialInTransaction(
 	if factory == nil {
 		return invalid("RuntimeConfig LLM credential validator is not configured")
 	}
-	if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock_shared($1::integer, hashtext($2))`,
-		llmCredentialReferenceLockNamespace, patch.Credential.Value); err != nil {
+	if err := persistencepostgres.LockAdvisoryShared(ctx, tx, llmCredentialReferenceLock(patch.Credential.Value)); err != nil {
 		return persistencepostgres.WrapError("lock LLM credential reference", err)
 	}
 	lookup, err := BindTransactionLLMCredentialLookup(tx, factory)

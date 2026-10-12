@@ -11,6 +11,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/agentprincipal"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
@@ -21,7 +22,7 @@ func TestRuntimeAgentPrincipalPageCursorUsesLastVisiblePrincipal(t *testing.T) {
 	ids := []string{strings.Repeat("a", 64), strings.Repeat("b", 64), strings.Repeat("c", 64)}
 	for _, id := range ids {
 		fixture.runtimePrincipals.principals[id] = controlplane.RuntimeAgentPrincipalProjection{
-			Principal:    runtimeconfig.RuntimeAgentPrincipal{RuntimeAgentID: id, LabelRevision: 1},
+			Principal:    agentprincipal.Principal{RuntimeAgentID: id, LabelRevision: 1},
 			Availability: controlplane.PrincipalOffline,
 		}
 	}
@@ -106,7 +107,7 @@ func TestRuntimeMutationErrorsIdentifyTheMissingResource(t *testing.T) {
 
 	principalID := strings.Repeat("a", 64)
 	fixture.runtimePrincipals.principals[principalID] = controlplane.RuntimeAgentPrincipalProjection{
-		Principal: runtimeconfig.RuntimeAgentPrincipal{RuntimeAgentID: principalID, LabelRevision: 1},
+		Principal: agentprincipal.Principal{RuntimeAgentID: principalID, LabelRevision: 1},
 	}
 	fixture.runtimePrincipals.replaceErr = runtimeconfig.ErrUnknownLabel
 	for _, test := range []struct {
@@ -128,6 +129,17 @@ func TestRuntimeMutationErrorsIdentifyTheMissingResource(t *testing.T) {
 			assertErrorCode(t, response, test.code)
 		})
 	}
+
+	// A principal that still holds labels cannot be deleted; the refusal
+	// answers its own permanent 409, not the label conflict it wraps.
+	fixture.runtimePrincipals.principals[principalID] = controlplane.RuntimeAgentPrincipalProjection{
+		Principal: agentprincipal.Principal{RuntimeAgentID: principalID, Labels: []string{"debug"}, LabelRevision: 1},
+	}
+	inUse := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(inUse, runtimeMutationRequest(
+		t, http.MethodDelete, "/v1/operations/runtime-agent-principals/"+principalID, "", "principal-in-use", `"1"`, "",
+	))
+	assertErrorEnvelope(t, inUse, http.StatusConflict, "runtime_agent_in_use", false)
 }
 
 func TestRuntimeOperationsCreateBindAndKeepCredentialMaterialWriteOnly(t *testing.T) {

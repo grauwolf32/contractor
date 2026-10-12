@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
 )
 
 // Only the trusted Workflow input fork creates inputs/<slot> (ART-R76). A
@@ -33,7 +34,7 @@ func TestPostgresPrivateWorkerAdvancesButNeverCreatesInputs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	fork, err := service.ForkInput(ctx, "user-1", source.Ref, "run-a", "source")
+	fork, err := artifactstest.ForkInput(ctx, service, "user-1", source.Ref, "run-a", "source")
 	if err != nil {
 		t.Fatal(err)
 	}

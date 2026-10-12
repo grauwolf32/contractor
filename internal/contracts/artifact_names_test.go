@@ -2,15 +2,13 @@ package contracts
 
 import (
 	"encoding/json"
-	"os"
 	"testing"
+
+	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 )
 
-func TestArtifactNameCases(t *testing.T) {
-	data, err := os.ReadFile("../../api/testdata/v1alpha1/artifact-name-cases.json")
-	if err != nil {
-		t.Fatal(err)
-	}
+func TestSharedArtifactNameCases(t *testing.T) {
+	data := contractstest.ReadFile(t, "api", "testdata", "v1alpha1", "artifact-name-cases.json")
 	var cases struct {
 		Valid   []string
 		Invalid []string
@@ -53,11 +51,8 @@ func TestAcceptsMediaType(t *testing.T) {
 	}
 }
 
-func TestArtifactListCursorCases(t *testing.T) {
-	data, err := os.ReadFile("../../api/testdata/v1alpha1/artifact-list-cases.json")
-	if err != nil {
-		t.Fatal(err)
-	}
+func TestSharedArtifactListCursorCases(t *testing.T) {
+	data := contractstest.ReadFile(t, "api", "testdata", "v1alpha1", "artifact-list-cases.json")
 	var cases struct {
 		MaxCursorLength int `json:"maxCursorLength"`
 		Cursors         struct {

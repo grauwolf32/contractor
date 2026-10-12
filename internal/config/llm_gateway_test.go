@@ -7,11 +7,12 @@ import (
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 )
 
 func TestLoadLLMGatewayConfig(t *testing.T) {
-	snapshot := mustLoad(t, coreFixtureRoot, MVPDescriptors())
+	snapshot := mustLoad(t, coreFixtureRoot)
 	gateway, err := snapshot.LLMGateway("local-litellm@1")
 	if err != nil {
 		t.Fatal(err)
@@ -30,7 +31,7 @@ func TestLoadLLMGatewayConfig(t *testing.T) {
 }
 
 func TestLLMGatewayDigestUsesNormalizedManifest(t *testing.T) {
-	baseline := mustLoad(t, coreFixtureRoot, MVPDescriptors())
+	baseline := mustLoad(t, coreFixtureRoot)
 	baselineGateway, _ := baseline.LLMGateway("local-litellm@1")
 	root := copyCoreFixture(t)
 	path := filepath.Join(root, "llm-gateways/local_litellm.yaml")
@@ -45,7 +46,7 @@ spec:
 metadata: {version: "1", name: local-litellm}
 apiVersion: contractor/v1alpha1
 `))
-	variant := mustLoad(t, root, MVPDescriptors())
+	variant := mustLoad(t, root)
 	variantGateway, _ := variant.LLMGateway("local-litellm@1")
 	if variantGateway.Ref.Digest != baselineGateway.Ref.Digest ||
 		variantGateway.CredentialManager.ManagementURL != "http://127.0.0.1:4000" {
@@ -55,7 +56,7 @@ apiVersion: contractor/v1alpha1
 	changedRoot := copyCoreFixture(t)
 	replaceFile(t, filepath.Join(changedRoot, "llm-gateways/local_litellm.yaml"),
 		"url: http://127.0.0.1:4000/v1", "url: http://127.0.0.1:4001/v1")
-	changed := mustLoad(t, changedRoot, MVPDescriptors())
+	changed := mustLoad(t, changedRoot)
 	changedGateway, _ := changed.LLMGateway("local-litellm@1")
 	if changedGateway.Ref.Digest == baselineGateway.Ref.Digest {
 		t.Fatal("semantic URL change did not change the LLMGatewayConfig digest")
@@ -72,7 +73,7 @@ func TestLLMGatewayIdentityComesFromManifest(t *testing.T) {
 	if err := os.Rename(oldPath, newPath); err != nil {
 		t.Fatal(err)
 	}
-	snapshot := mustLoad(t, root, MVPDescriptors())
+	snapshot := mustLoad(t, root)
 	if _, err := snapshot.LLMGateway("local-litellm@1"); err != nil {
 		t.Fatalf("metadata identity was not preserved: %v", err)
 	}
@@ -80,13 +81,13 @@ func TestLLMGatewayIdentityComesFromManifest(t *testing.T) {
 
 func TestLLMGatewayManagerOriginRules(t *testing.T) {
 	t.Run("loopback HTTP", func(t *testing.T) {
-		mustLoad(t, coreFixtureRoot, MVPDescriptors())
+		mustLoad(t, coreFixtureRoot)
 	})
 	t.Run("HTTPS", func(t *testing.T) {
 		root := copyCoreFixture(t)
 		replaceFile(t, filepath.Join(root, "llm-gateways/local_litellm.yaml"),
 			"http://127.0.0.1:4000\n", "https://gateway.example\n")
-		mustLoad(t, root, MVPDescriptors())
+		mustLoad(t, root)
 	})
 	for _, raw := range []string{
 		"http://gateway.example", "http://localhost:4000", "https://gateway.example/admin",
@@ -95,7 +96,7 @@ func TestLLMGatewayManagerOriginRules(t *testing.T) {
 			root := copyCoreFixture(t)
 			replaceFile(t, filepath.Join(root, "llm-gateways/local_litellm.yaml"),
 				"http://127.0.0.1:4000\n", raw+"\n")
-			if snapshot, err := Load(root, MVPDescriptors()); err == nil || snapshot != nil {
+			if snapshot, err := Load(root); err == nil || snapshot != nil {
 				t.Fatalf("Load(%q) = (%v, %v), want origin error", raw, snapshot, err)
 			}
 		})
@@ -125,7 +126,7 @@ func TestInvalidLLMGatewayPreventsSnapshotPublication(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			root := copyCoreFixture(t)
 			test.mutate(t, root)
-			snapshot, err := Load(root, MVPDescriptors())
+			snapshot, err := Load(root)
 			if err == nil || snapshot != nil || !strings.Contains(err.Error(), test.want) {
 				t.Fatalf("Load() = (%v, %v), want error containing %q", snapshot, err, test.want)
 			}
@@ -169,8 +170,8 @@ spec:
     permanentCodes: [insufficient_quota, context_length_exceeded]
 `
 
-func TestLLMGatewayFailureSignaturesAreExplicitDigestedAndDefaulted(t *testing.T) {
-	baseline := mustLoad(t, coreFixtureRoot, MVPDescriptors())
+func TestSharedLLMGatewayFailureSignaturesAreExplicitDigestedAndDefaulted(t *testing.T) {
+	baseline := mustLoad(t, coreFixtureRoot)
 	baselineGateway, _ := baseline.LLMGateway("local-litellm@1")
 	if baselineGateway.FailureSignatures != nil {
 		t.Fatalf("undeclared signatures were materialized on the body: %+v", baselineGateway.FailureSignatures)
@@ -181,7 +182,7 @@ func TestLLMGatewayFailureSignaturesAreExplicitDigestedAndDefaulted(t *testing.T
 
 	root := copyCoreFixture(t)
 	writeFile(t, filepath.Join(root, "llm-gateways/local_litellm.yaml"), []byte(signedGatewayManifest))
-	declared := mustLoad(t, root, MVPDescriptors())
+	declared := mustLoad(t, root)
 	gateway, err := declared.LLMGateway("local-litellm@1")
 	if err != nil {
 		t.Fatal(err)
@@ -196,10 +197,7 @@ func TestLLMGatewayFailureSignaturesAreExplicitDigestedAndDefaulted(t *testing.T
 		t.Fatal("declared signatures did not change the LLMGatewayConfig digest")
 	}
 	// The cross-language fixture pins this Go digest for the Python verifier.
-	fixture, err := os.ReadFile(filepath.Join("..", "..", "api", "testdata", "v1alpha1", "valid", "llm-gateway-config-signatures.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	fixture := contractstest.ReadFile(t, "api", "testdata", "v1alpha1", "valid", "llm-gateway-config-signatures.json")
 	pinned, err := contracts.DecodeStrict[llmgateway.ResolvedLLMGatewayConfig](fixture)
 	if err != nil {
 		t.Fatal(err)
@@ -219,7 +217,7 @@ func TestLLMGatewayFailureSignaturesAreExplicitDigestedAndDefaulted(t *testing.T
 	} {
 		invalidRoot := copyCoreFixture(t)
 		writeFile(t, filepath.Join(invalidRoot, "llm-gateways/local_litellm.yaml"), []byte(manifest))
-		if _, err := Load(invalidRoot, MVPDescriptors()); err == nil {
+		if _, err := Load(invalidRoot); err == nil {
 			t.Errorf("%s: invalid failure signature manifest was accepted", name)
 		}
 	}

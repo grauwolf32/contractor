@@ -12,6 +12,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/auditstore/hookstore"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/pagelimit"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -40,18 +41,11 @@ func readReceiptBySubmission(
 	db querier,
 	allocationID, invocationID, submissionID string,
 ) (Receipt, error) {
-	return scanReceipt(ctx, db, db.QueryRow(ctx, `
-SELECT `+receiptProjection+`
-  FROM finding_proposal_receipts AS receipt
- WHERE receipt.allocation_id = $1 AND receipt.invocation_id = $2
-   AND receipt.submission_id = $3`, allocationID, invocationID, submissionID))
+	return scanReceipt(ctx, db, db.QueryRow(ctx, readReceiptBySubmissionSQL, allocationID, invocationID, submissionID))
 }
 
 func readReceiptByID(ctx context.Context, db querier, receiptID string) (Receipt, error) {
-	return scanReceipt(ctx, db, db.QueryRow(ctx, `
-SELECT `+receiptProjection+`
-  FROM finding_proposal_receipts AS receipt
- WHERE receipt.receipt_id = $1`, receiptID))
+	return scanReceipt(ctx, db, db.QueryRow(ctx, readReceiptByIDSQL, receiptID))
 }
 
 func scanReceipt(ctx context.Context, db querier, row pgx.Row) (Receipt, error) {
@@ -170,14 +164,7 @@ func (s *Service) listRunReceiptRows(
 	if ownerID == "" || runID == "" || !validListQuery(query) {
 		return nil, ErrInvalid
 	}
-	rows, err := s.pool.Query(ctx, `
-SELECT `+receiptProjection+`
-  FROM finding_proposal_receipts AS receipt
-  JOIN workflow_runs AS run ON run.run_id = receipt.run_id
- WHERE receipt.owner_id = $1 AND receipt.run_id = $2 AND run.owner_id = $1
-   AND ($3::timestamptz IS NULL OR (receipt.created_at, receipt.receipt_id) > ($3, $4))
- ORDER BY receipt.created_at, receipt.receipt_id
- LIMIT $5`, ownerID, runID, query.AfterCreatedAt, query.AfterReceiptID, query.Limit)
+	rows, err := s.pool.Query(ctx, listRunReceiptRowsSQL, ownerID, runID, query.AfterCreatedAt, query.AfterReceiptID, query.Limit)
 	if err != nil {
 		return nil, fmt.Errorf("list Run finding proposals: %w", err)
 	}
@@ -198,20 +185,7 @@ func (s *Service) ListAuditInbox(
 	ownerID, auditID string,
 	query ListQuery,
 ) ([]Receipt, error) {
-	return s.listAuditInbox(ctx, ownerID, auditID, query, `
-SELECT `+receiptProjection+`
-  FROM finding_proposal_receipts AS receipt
- WHERE receipt.owner_id = $1
-   AND ((receipt.audit_id = $2 AND receipt.source_run_deleted_at IS NULL) OR EXISTS (
-       SELECT 1 FROM finding_proposal_audit_holds AS hold
-        JOIN audits AS audit
-          ON audit.audit_id = hold.audit_id AND audit.project_id = hold.project_id
-       WHERE hold.receipt_id = receipt.receipt_id
-         AND hold.audit_id = $2 AND audit.owner_id = $1
-   ))
-   AND ($3::timestamptz IS NULL OR (receipt.created_at, receipt.receipt_id) > ($3, $4))
- ORDER BY receipt.created_at, receipt.receipt_id
- LIMIT $5`)
+	return s.listAuditInbox(ctx, ownerID, auditID, query, listAuditInboxSQL)
 }
 
 // ListAuditHeldInbox lists only receipts with an exact hold in the Audit. A
@@ -223,17 +197,7 @@ func (s *Service) ListAuditHeldInbox(
 	ownerID, auditID string,
 	query ListQuery,
 ) ([]Receipt, error) {
-	return s.listAuditInbox(ctx, ownerID, auditID, query, `
-SELECT `+receiptProjection+`
-  FROM finding_proposal_receipts AS receipt
-  JOIN finding_proposal_audit_holds AS hold
-    ON hold.receipt_id = receipt.receipt_id AND hold.audit_id = $2
-  JOIN audits AS audit
-    ON audit.audit_id = hold.audit_id AND audit.project_id = hold.project_id
- WHERE receipt.owner_id = $1 AND audit.owner_id = $1
-   AND ($3::timestamptz IS NULL OR (receipt.created_at, receipt.receipt_id) > ($3, $4))
- ORDER BY receipt.created_at, receipt.receipt_id
- LIMIT $5`)
+	return s.listAuditInbox(ctx, ownerID, auditID, query, listAuditHeldInboxSQL)
 }
 
 // listAuditInbox filters in the statement, so a page is never short because a
@@ -345,14 +309,18 @@ SELECT receipt.receipt_id, hold.proposal_ref
 }
 
 func (s *Service) hydrateReceiptDocuments(ctx context.Context, receipts []Receipt) ([]Receipt, error) {
-	repository := artifacts.NewPostgresRepository(s.pool)
+	artifactService := artifacts.NewService(artifacts.NewPostgresRepository(s.pool))
 	for index := range receipts {
 		receipt := &receipts[index]
 		request, expected, err := receiptArtifact(*receipt)
 		if err != nil {
 			return nil, err
 		}
-		read, err := repository.Read(ctx, request.Scope, request.Ref)
+		store, err := artifactService.Scoped(request.Scope)
+		if err != nil {
+			return nil, err
+		}
+		read, err := store.Read(ctx, request.Ref)
 		if err != nil {
 			return nil, err
 		}
@@ -557,21 +525,25 @@ SELECT project_id FROM workflow_runs
 	if err != nil {
 		return fmt.Errorf("lock source Run for Audit finding import: %w", err)
 	}
-	var lockedAuditID, auditState string
-	err = tx.QueryRow(ctx, `
-SELECT audit_id, state FROM audits
- WHERE audit_id = $1 AND owner_id = $2 AND project_id = $3
- FOR UPDATE`, request.AuditID, request.OwnerID, sourceProjectID).Scan(&lockedAuditID, &auditState)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return ErrNotFound
-	}
+	auditState, err := lockFindingAudit(ctx, tx, request.OwnerID, request.AuditID, sourceProjectID)
 	if err != nil {
-		return fmt.Errorf("lock destination Audit for finding import: %w", err)
+		return err
 	}
 	if collection && !slices.Contains(collectionRetentionAuditStates, auditState) {
 		return ErrAuditClosed
 	}
 	return nil
+}
+
+// lockFindingAudit takes the destination-Audit lock of finding intake through
+// auditstore, which owns the Audit row, and returns the Audit's state. An
+// empty projectID admits an Audit of any Project.
+func lockFindingAudit(ctx context.Context, tx pgx.Tx, ownerID, auditID, projectID string) (string, error) {
+	state, err := hookstore.NewFindingEventsTx(tx).LockFindingIntakeAudit(ctx, ownerID, auditID, projectID)
+	if errors.Is(err, auditstore.ErrNotFound) {
+		return "", ErrNotFound
+	}
+	return string(state), err
 }
 
 // importIntoAuditWithTx creates or replays one Audit hold in tx, which already
@@ -710,16 +682,9 @@ func (s *Service) RejectAuditCollection(
 		return ErrInvalid
 	}
 	return persistencepostgres.InTx(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		var auditState string
-		err := tx.QueryRow(ctx, `
-SELECT state FROM audits
- WHERE audit_id = $1 AND owner_id = $2
- FOR UPDATE`, request.AuditID, request.OwnerID).Scan(&auditState)
-		if errors.Is(err, pgx.ErrNoRows) {
-			return ErrNotFound
-		}
+		auditState, err := lockFindingAudit(ctx, tx, request.OwnerID, request.AuditID, "")
 		if err != nil {
-			return fmt.Errorf("lock Audit for finding proposal rejection: %w", err)
+			return err
 		}
 		if !slices.Contains(collectionRetentionAuditStates, auditState) {
 			return ErrAuditClosed
@@ -752,7 +717,7 @@ SELECT receipt.receipt_id, EXISTS (
 	if err != nil || recorded {
 		return err
 	}
-	return auditstore.NewPostgresStore(tx).RecordRejectedFindingProposal(ctx,
+	return hookstore.NewFindingEvents(tx).RecordRejectedFindingProposal(ctx,
 		auditstore.RejectedFindingProposalParams{
 			AuditID: request.AuditID, ReceiptID: receiptID,
 			RunID: request.RunID, Reason: reason,
@@ -779,16 +744,31 @@ func exactArtifactFromRun(
 	}, nil
 }
 
+// retainFindingArtifact retains the exact revision source of runID as the
+// create-only, frozen Audit-managed binding namespace/name of projectID, with
+// audit_import lineage and without copying bytes. Authorization and the receipt
+// that names the retained copy belong to the finding service.
 func retainFindingArtifact(
 	ctx context.Context,
 	service *artifacts.Service,
 	runID, projectID, namespace, name string,
 	source ExactArtifact,
 ) (ExactArtifact, error) {
-	result, err := service.ImportFindingArtifact(
-		ctx, runID, source.Ref, projectID,
-		contracts.ArtifactRef{Namespace: namespace, Name: name},
-	)
+	run, err := artifacts.RunScope(runID)
+	if err != nil {
+		return ExactArtifact{}, err
+	}
+	project, err := artifacts.ProjectScope(projectID)
+	if err != nil {
+		return ExactArtifact{}, err
+	}
+	if source.Ref.Revision == nil {
+		return ExactArtifact{}, artifacts.ErrExactRevisionRequired
+	}
+	result, err := service.Fork(ctx, artifacts.Fork{
+		Kind: artifacts.LineageAuditImport, Source: run, SourceRef: source.Ref,
+		Target: project, TargetRef: contracts.ArtifactRef{Namespace: namespace, Name: name}, Frozen: true,
+	})
 	if err != nil {
 		return ExactArtifact{}, err
 	}

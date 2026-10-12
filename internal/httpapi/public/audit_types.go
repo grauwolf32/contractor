@@ -8,7 +8,8 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstandards"
 	"github.com/grauwolf32/contractor/internal/auditstore"
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/auditprofile"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
@@ -27,26 +28,26 @@ type auditProfileSelectorRequest struct {
 }
 
 type auditProfileResponse struct {
-	Ref                     config.AuditProfileRef                  `json:"ref"`
-	Mode                    config.AuditProfileMode                 `json:"mode"`
-	Standards               []config.AuditStandardRef               `json:"standards"`
-	Inputs                  map[string]config.AuditProfileInput     `json:"inputs"`
-	Inventory               config.AuditInventory                   `json:"inventory"`
-	Workflows               map[string]auditProfileWorkflowResponse `json:"workflows,omitempty"`
-	Execution               config.AuditExecutionPolicy             `json:"execution"`
-	Interaction             config.AuditInteractionPolicy           `json:"interaction"`
-	ServerCompatible        bool                                    `json:"serverCompatible"`
-	RequiresInputValidation bool                                    `json:"requiresInputValidation"`
-	CompatibilityReasons    []auditservice.CompatibilityReason      `json:"compatibilityReasons"`
+	Ref                     auditprofile.AuditProfileRef              `json:"ref"`
+	Mode                    auditprofile.AuditProfileMode             `json:"mode"`
+	Standards               []auditprofile.AuditStandardRef           `json:"standards"`
+	Inputs                  map[string]auditprofile.AuditProfileInput `json:"inputs"`
+	Inventory               auditprofile.AuditInventory               `json:"inventory"`
+	Workflows               map[string]auditProfileWorkflowResponse   `json:"workflows,omitempty"`
+	Execution               auditprofile.AuditExecutionPolicy         `json:"execution"`
+	Interaction             auditprofile.AuditInteractionPolicy       `json:"interaction"`
+	ServerCompatible        bool                                      `json:"serverCompatible"`
+	RequiresInputValidation bool                                      `json:"requiresInputValidation"`
+	CompatibilityReasons    []auditservice.CompatibilityReason        `json:"compatibilityReasons"`
 }
 
 type auditProfileWorkflowResponse struct {
-	MaxRunAttempts int                                             `json:"maxRunAttempts,omitempty"`
-	Kind           config.AuditWorkflowRoleKind                    `json:"kind"`
-	Workflow       config.WorkflowRef                              `json:"workflow"`
-	Inputs         map[string]config.AuditWorkflowInputMapping     `json:"inputs"`
-	Parameters     map[string]config.AuditWorkflowParameterMapping `json:"parameters"`
-	Outputs        map[string]string                               `json:"outputs"`
+	MaxRunAttempts int                                                   `json:"maxRunAttempts,omitempty"`
+	Kind           auditprofile.AuditWorkflowRoleKind                    `json:"kind"`
+	Workflow       resolved.WorkflowRef                                  `json:"workflow"`
+	Inputs         map[string]auditprofile.AuditWorkflowInputMapping     `json:"inputs"`
+	Parameters     map[string]auditprofile.AuditWorkflowParameterMapping `json:"parameters"`
+	Outputs        map[string]string                                     `json:"outputs"`
 }
 
 type auditProfilePageResponse struct {
@@ -78,11 +79,11 @@ type auditSkillResponse struct {
 }
 
 type auditBaselineInventoryResponse struct {
-	SourceContentDigest      string                         `json:"sourceContentDigest"`
-	CanonicalInventoryDigest string                         `json:"canonicalInventoryDigest"`
-	StandardSelection        *config.AuditStandardSelection `json:"standardSelection,omitempty"`
-	Gaps                     []string                       `json:"gaps"`
-	Worklist                 auditstore.ExactArtifact       `json:"worklist"`
+	SourceContentDigest      string                               `json:"sourceContentDigest"`
+	CanonicalInventoryDigest string                               `json:"canonicalInventoryDigest"`
+	StandardSelection        *auditprofile.AuditStandardSelection `json:"standardSelection,omitempty"`
+	Gaps                     []string                             `json:"gaps"`
+	Worklist                 auditstore.ExactArtifact             `json:"worklist"`
 }
 
 type auditProfileIdentityResponse struct {
@@ -188,12 +189,12 @@ type auditCoveragePageResponse struct {
 }
 
 type auditReportResponse struct {
-	Status          auditservice.ReportStatus   `json:"status"`
-	Review          *auditservice.ReviewRequest `json:"review,omitempty"`
-	MachineArtifact *auditstore.ExactArtifact   `json:"machineArtifact,omitempty"`
-	SummaryArtifact *auditstore.ExactArtifact   `json:"summaryArtifact,omitempty"`
-	Machine         json.RawMessage             `json:"machine,omitempty"`
-	Summary         string                      `json:"summary,omitempty"`
+	Status          auditservice.ReportStatus `json:"status"`
+	Review          *auditstore.ReviewRequest `json:"review,omitempty"`
+	MachineArtifact *auditstore.ExactArtifact `json:"machineArtifact,omitempty"`
+	SummaryArtifact *auditstore.ExactArtifact `json:"summaryArtifact,omitempty"`
+	Machine         json.RawMessage           `json:"machine,omitempty"`
+	Summary         string                    `json:"summary,omitempty"`
 }
 
 type auditStartResponse struct {

@@ -9,7 +9,9 @@ import (
 	"testing"
 	"unicode/utf8"
 
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 	"go.yaml.in/yaml/v4"
 )
 
@@ -21,10 +23,7 @@ type configIdentityCaseGroup struct {
 
 func loadConfigIdentityCases(t *testing.T) (ids, versions configIdentityCaseGroup) {
 	t.Helper()
-	data, err := os.ReadFile(filepath.Join("..", "..", "api", "testdata", "v1alpha1", "config-identity-cases.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	data := contractstest.ReadFile(t, "api", "testdata", "v1alpha1", "config-identity-cases.json")
 	var cases struct {
 		ID      configIdentityCaseGroup `json:"id"`
 		Version configIdentityCaseGroup `json:"version"`
@@ -38,7 +37,7 @@ func loadConfigIdentityCases(t *testing.T) (ids, versions configIdentityCaseGrou
 // identityAcceptance reports, in order, whether ParseSelector, file metadata
 // validation and publication accept one configuration identity.
 func identityAcceptance(id, version string) [3]bool {
-	_, selectorErr := ParseSelector(id + "@" + version)
+	_, selectorErr := resolved.ParseSelector(id + "@" + version)
 	_, metadataErr := validateMetadata(&metadataSource{Name: id, Version: version})
 	request := validPolicyPublication("identity-probe")
 	request.Name, request.Version = id, version
@@ -46,7 +45,7 @@ func identityAcceptance(id, version string) [3]bool {
 	return [3]bool{selectorErr == nil, metadataErr == nil, publicationErr == nil}
 }
 
-func TestConfigIdentityMatchesSharedCases(t *testing.T) {
+func TestSharedConfigIdentityMatchesSharedCases(t *testing.T) {
 	t.Parallel()
 	ids, versions := loadConfigIdentityCases(t)
 	check := func(kind, id, version string, valid bool) {

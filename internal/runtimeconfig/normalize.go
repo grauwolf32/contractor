@@ -12,7 +12,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/grauwolf32/contractor/internal/cabundle"
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
@@ -204,7 +204,7 @@ func (p PreparedPublication) Resolve(ctx context.Context, resolver GatewayResolv
 	if p.name == "" || len(p.authorCanonical) == 0 {
 		return Version{}, invalid("publication was not prepared")
 	}
-	resolved := make(map[string]llmgateway.LLMGatewayConfigRef, len(p.gatewaySelectors))
+	gatewayRefs := make(map[string]llmgateway.LLMGatewayConfigRef, len(p.gatewaySelectors))
 	paths := make([]string, 0, len(p.gatewaySelectors))
 	for path := range p.gatewaySelectors {
 		paths = append(paths, path)
@@ -222,9 +222,9 @@ func (p PreparedPublication) Resolve(ctx context.Context, resolver GatewayResolv
 		if err := gateway.Validate(); err != nil || gateway.Ref.GatewayID+"@"+gateway.Ref.Version != selector {
 			return Version{}, invalid("resolved %s does not match its exact selector", path)
 		}
-		resolved[path] = gateway.Ref
+		gatewayRefs[path] = gateway.Ref
 	}
-	spec, canonicalSpec, _, err := materializeSource(p.source.Spec, false, resolved)
+	spec, canonicalSpec, _, err := materializeSource(p.source.Spec, false, gatewayRefs)
 	if err != nil {
 		return Version{}, err
 	}
@@ -291,7 +291,7 @@ func validateSource(source specSource, author bool) (map[string]string, map[stri
 	return selectors, canonical, operations, err
 }
 
-func materializeSource(source specSource, author bool, resolved map[string]llmgateway.LLMGatewayConfigRef) (Spec, map[string]any, int, error) {
+func materializeSource(source specSource, author bool, gatewayRefs map[string]llmgateway.LLMGatewayConfigRef) (Spec, map[string]any, int, error) {
 	var result Spec
 	canonical := make(map[string]any)
 	operations := 0
@@ -299,7 +299,7 @@ func materializeSource(source specSource, author bool, resolved map[string]llmga
 		if source.Worker.null {
 			return Spec{}, nil, 0, invalid("spec.worker cannot be null")
 		}
-		worker, workerMap, count, err := materializeWorker(source.Worker.value, author, resolved)
+		worker, workerMap, count, err := materializeWorker(source.Worker.value, author, gatewayRefs)
 		if err != nil {
 			return Spec{}, nil, 0, err
 		}
@@ -332,7 +332,7 @@ func materializeSource(source specSource, author bool, resolved map[string]llmga
 	return result, canonical, operations, nil
 }
 
-func materializeWorker(source workerSource, author bool, resolved map[string]llmgateway.LLMGatewayConfigRef) (WorkerPatch, map[string]any, int, error) {
+func materializeWorker(source workerSource, author bool, gatewayRefs map[string]llmgateway.LLMGatewayConfigRef) (WorkerPatch, map[string]any, int, error) {
 	var result WorkerPatch
 	canonical := make(map[string]any)
 	operations := 0
@@ -351,7 +351,7 @@ func materializeWorker(source workerSource, author bool, resolved map[string]llm
 				var selector string
 				err := json.Unmarshal(source.LLMGateway.value.Gateway.value, &selector)
 				if err == nil {
-					_, err = config.ParseSelector(selector)
+					_, err = resolved.ParseSelector(selector)
 				}
 				if err != nil {
 					return WorkerPatch{}, nil, 0, invalid("%s must be an exact selector string", path)
@@ -359,8 +359,8 @@ func materializeWorker(source workerSource, author bool, resolved map[string]llm
 				value["gateway"] = selector
 			} else {
 				var ref llmgateway.LLMGatewayConfigRef
-				if resolved != nil {
-					ref = resolved[path]
+				if gatewayRefs != nil {
+					ref = gatewayRefs[path]
 				} else if err := strictjson.Decode(source.LLMGateway.value.Gateway.value, &ref); err != nil {
 					return WorkerPatch{}, nil, 0, invalid("%s must be an exact Gateway ref", path)
 				}
@@ -578,7 +578,7 @@ func materializeCaido(source optional[caidoSource]) (AtomicPatch[CaidoConfig], a
 		return patch, nil, nil
 	}
 	value := source.value
-	if value.Adapter != string(contracts.RuntimeAdapterCaidoGraphQL) {
+	if value.Adapter != string(runtimesettings.RuntimeAdapterCaidoGraphQL) {
 		return AtomicPatch[CaidoConfig]{}, nil, invalid("spec.worker.caido.adapter must be caido-graphql@1")
 	}
 	endpoint, err := validateURL("spec.worker.caido.endpoint", value.Endpoint)
@@ -653,7 +653,9 @@ func validateRef(ref Ref) error {
 	return nil
 }
 
-func validateLabel(label string) error { return validateID("RuntimeConfig label", label, 63) }
+// ValidateLabel checks the Runtime label grammar: an identifier of at most 63
+// characters.
+func ValidateLabel(label string) error { return validateID("RuntimeConfig label", label, 63) }
 
 func validateURL(field, raw string) (string, error) {
 	if raw == "" || len([]byte(raw)) > maxURLBytes || raw != strings.TrimSpace(raw) || !utf8.ValidString(raw) {

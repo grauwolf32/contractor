@@ -88,6 +88,29 @@ func (s *PostgresStore) ReadRunDeletionGates(
 	return result, nil
 }
 
+// DeleteLockedRunOutputPublications deletes the Project output publication
+// receipts of the Run locked by LockRunForDeletion in the same transaction.
+// The receipts name the Run's output revisions, so Run deletion removes them
+// before it purges the RunScope; the published ProjectScope outputs stay
+// (DEL-R22). The receipt trigger permits the delete only in the Run lifecycle
+// purge mode, which this enables for the rest of the transaction.
+func (s *PostgresTxStore) DeleteLockedRunOutputPublications(ctx context.Context, runID string) error {
+	if err := validateOpaque("runID", runID); err != nil {
+		return err
+	}
+	if _, err := s.tx.Exec(
+		ctx, `SELECT set_config('contractor.lifecycle_purge', 'run', true)`,
+	); err != nil {
+		return fmt.Errorf("enable Run lifecycle purge: %w", err)
+	}
+	if _, err := s.tx.Exec(ctx, `
+DELETE FROM workflow_run_output_publications
+WHERE run_id = $1`, runID); err != nil {
+		return fmt.Errorf("delete WorkflowRun %q output publications: %w", runID, err)
+	}
+	return nil
+}
+
 // DeleteLockedRun deletes the Run row locked by LockRunForDeletion in the
 // same transaction; Run-owned rows cascade through their foreign keys.
 func (s *PostgresTxStore) DeleteLockedRun(ctx context.Context, ownerID, runID string) error {

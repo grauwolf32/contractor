@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/auditstore/hookstore"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/pagelimit"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -119,8 +119,9 @@ func TestDeletionLocksRequireTransaction(t *testing.T) {
 		method   string
 	}{
 		{(*runstore.PostgresStore)(nil), (*runstore.PostgresTxStore)(nil), "LockRunForDeletion"},
+		{(*runstore.PostgresStore)(nil), (*runstore.PostgresTxStore)(nil), "DeleteLockedRunOutputPublications"},
 		{(*runstore.PostgresStore)(nil), (*runstore.PostgresTxStore)(nil), "DeleteLockedRun"},
-		{(*auditstore.PostgresStore)(nil), (*auditstore.PostgresTxStore)(nil), "LockRunDeletionAudits"},
+		{(*hookstore.RunDeletion)(nil), (*hookstore.RunDeletionTx)(nil), "LockRunDeletionAudits"},
 	} {
 		if _, found := reflect.TypeOf(step.pool).MethodByName(step.method); found {
 			t.Errorf("%T.%s is available outside a transaction", step.pool, step.method)

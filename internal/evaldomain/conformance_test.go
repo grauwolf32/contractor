@@ -6,23 +6,18 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
-	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
 
 	evalschema "github.com/grauwolf32/contractor/api/evals/v1"
+	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 )
-
-const fixtureDir = "../../api/testdata/evals"
 
 func fixture(t *testing.T, name string) []byte {
 	t.Helper()
-	data, err := os.ReadFile(filepath.Join(fixtureDir, "valid", name+".json"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	data := contractstest.ReadFile(t, "api", "testdata", "evals", "valid", name+".json")
 	return data
 }
 func objectFixture(t *testing.T, name string) map[string]any {
@@ -34,11 +29,8 @@ func objectFixture(t *testing.T, name string) map[string]any {
 	return asObject(data)
 }
 
-func TestEvalConformanceFixtures(t *testing.T) {
-	data, err := os.ReadFile(filepath.Join(fixtureDir, "cases.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
+func TestSharedEvalConformanceFixtures(t *testing.T) {
+	data := contractstest.ReadFile(t, "api", "testdata", "evals", "cases.json")
 	var cases []struct {
 		Name, Kind, File, ErrorCode string
 		Valid                       bool
@@ -48,11 +40,8 @@ func TestEvalConformanceFixtures(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.Name, func(t *testing.T) {
-			raw, err := os.ReadFile(filepath.Join(fixtureDir, c.File))
-			if err != nil {
-				t.Fatal(err)
-			}
-			err = Validate(c.Kind, raw)
+			raw := contractstest.ReadFile(t, "api", "testdata", "evals", c.File)
+			err := Validate(c.Kind, raw)
 			if !c.Valid {
 				var safe *Error
 				if !errors.As(err, &safe) || safe.Code != c.ErrorCode {
@@ -85,7 +74,7 @@ func TestEvalConformanceFixtures(t *testing.T) {
 	}
 }
 
-func TestEvalTypedAuthoringRoundTrips(t *testing.T) {
+func TestSharedEvalTypedAuthoringRoundTrips(t *testing.T) {
 	for _, name := range []string{"create-workflow", "create-media-type", "create-audit", "external-workflow", "external-audit"} {
 		t.Run(name, func(t *testing.T) {
 			var typed CreateExperiment
@@ -103,7 +92,7 @@ func TestEvalTypedAuthoringRoundTrips(t *testing.T) {
 	}
 }
 
-func TestNativeDraftRejectsPlanOverflowAtAuthoring(t *testing.T) {
+func TestSharedNativeDraftRejectsPlanOverflowAtAuthoring(t *testing.T) {
 	var input CreateExperiment
 	if err := DecodeInto("CreateExperiment", fixture(t, "create-workflow"), &input); err != nil {
 		t.Fatal(err)
@@ -153,7 +142,7 @@ func TestNativeDraftRejectsPlanOverflowAtAuthoring(t *testing.T) {
 	check(draft, "eval_limit_exceeded") // Same count, oversized plan estimate.
 }
 
-func TestEvalPrivateProjectionsAndOwnerErrors(t *testing.T) {
+func TestSharedEvalPrivateProjectionsAndOwnerErrors(t *testing.T) {
 	var input DatasetInput
 	if err := DecodeInto("DatasetInput", fixture(t, "dataset"), &input); err != nil {
 		t.Fatal(err)
@@ -222,11 +211,8 @@ func TestEvalStrictJSONBoundsAndAmbiguities(t *testing.T) {
 	}
 }
 
-func TestEvalHTTPMutationsAndReplay(t *testing.T) {
-	data, err := os.ReadFile(filepath.Join(fixtureDir, "http-mutations.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
+func TestSharedEvalHTTPMutationsAndReplay(t *testing.T) {
+	data := contractstest.ReadFile(t, "api", "testdata", "evals", "http-mutations.json")
 	var cases []struct {
 		Name, Kind, Method, Path string
 		Headers                  map[string]string
@@ -270,7 +256,7 @@ func TestEvalHTTPMutationsAndReplay(t *testing.T) {
 	}
 }
 
-func TestEvalPortableGatesAndIdentity(t *testing.T) {
+func TestSharedEvalPortableGatesAndIdentity(t *testing.T) {
 	var request CreateExperiment
 	if err := DecodeInto("CreateExperiment", fixture(t, "create-workflow"), &request); err != nil {
 		t.Fatal(err)
@@ -312,7 +298,7 @@ func TestEvalPortableGatesAndIdentity(t *testing.T) {
 	}
 }
 
-func TestEvalParameterNamesAreNotResponseSemantics(t *testing.T) {
+func TestSharedEvalParameterNamesAreNotResponseSemantics(t *testing.T) {
 	value := objectFixture(t, "dataset")
 	c := asObject(asRows(value["cases"])[0])
 	task := asObject(c["task"])
@@ -326,7 +312,7 @@ func TestEvalParameterNamesAreNotResponseSemantics(t *testing.T) {
 	}
 }
 
-func TestEvalFrozenBytesCannotBeChangedThroughCallerBuffers(t *testing.T) {
+func TestSharedEvalFrozenBytesCannotBeChangedThroughCallerBuffers(t *testing.T) {
 	raw := fixture(t, "portable-plan")
 	f, err := Freeze("playground.plan/v1", raw)
 	if err != nil {
@@ -341,7 +327,7 @@ func TestEvalFrozenBytesCannotBeChangedThroughCallerBuffers(t *testing.T) {
 	}
 }
 
-func TestEvalRegistrationCannotChangeBindingsOrDropSamples(t *testing.T) {
+func TestSharedEvalRegistrationCannotChangeBindingsOrDropSamples(t *testing.T) {
 	v := objectFixture(t, "registration")
 	manifest := asObject(v["manifest"])
 	members := asRows(manifest["members"])
@@ -364,7 +350,7 @@ func TestEvalRegistrationCannotChangeBindingsOrDropSamples(t *testing.T) {
 	}
 }
 
-func TestEvalPortableSchemaSnapshotMatchesProvenance(t *testing.T) {
+func TestSharedEvalPortableSchemaSnapshotMatchesProvenance(t *testing.T) {
 	raw, err := evalschema.Files.ReadFile("portable/provenance.json")
 	if err != nil {
 		t.Fatal(err)

@@ -4,17 +4,15 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
-	"maps"
 	"os"
 	"path/filepath"
 	"reflect"
-	"slices"
 	"strings"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/configtest"
 	"github.com/grauwolf32/contractor/internal/contracts"
-	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 	"github.com/grauwolf32/contractor/internal/securefile"
 )
 
@@ -26,7 +24,7 @@ const coreFixtureRoot = "testdata/valid"
 func TestLoadResolvesAndPinsCatalogReferences(t *testing.T) {
 	t.Parallel()
 
-	snapshot := mustLoad(t, coreFixtureRoot, MVPDescriptors())
+	snapshot := mustLoad(t, coreFixtureRoot)
 
 	policy, err := snapshot.ModelPolicy("worker@1")
 	if err != nil {
@@ -58,17 +56,17 @@ func TestLoadResolvesAndPinsCatalogReferences(t *testing.T) {
 		t.Fatalf("resolve Workflow: %v", err)
 	}
 	stage := workflow.Stages[workflow.EntryStage]
-	if stage.Planner != (PlannerRef{PlannerID: "passthrough", Version: "1"}) {
+	if stage.Planner != (resolved.PlannerRef{PlannerID: "passthrough", Version: "1"}) {
 		t.Fatalf("planner = %+v", stage.Planner)
 	}
 	if stage.Agents["builder"].Template.Ref != template.Ref {
 		t.Fatalf("Workflow did not pin exact AgentTemplate: %+v", stage.Agents["builder"].Template.Ref)
 	}
-	if stage.WorkflowOutputs["result"] != "copied" || stage.On.Succeeded.Kind != TransitionSucceed {
+	if stage.WorkflowOutputs["result"] != "copied" || stage.On.Succeeded.Kind != resolved.TransitionSucceed {
 		t.Fatalf("unexpected resolved Stage: %+v", stage)
 	}
 	from := stage.Result.Artifacts["copied"].From
-	if from == nil || *from != (ArtifactBinding{Namespace: "builder", Name: "copied"}) {
+	if from == nil || *from != (resolved.ArtifactBinding{Namespace: "builder", Name: "copied"}) {
 		t.Fatalf("Stage result binding = %+v", from)
 	}
 
@@ -81,14 +79,11 @@ func TestLoadResolvesAndPinsCatalogReferences(t *testing.T) {
 	}
 }
 
-func TestTaintAnnotationsToolSelectionIsStrictAndCollisionSafe(t *testing.T) {
+// Visible-name collisions between Toolsets are TestToolsetVisibleNameCollision.
+func TestTaintAnnotationsToolSelectionIsStrict(t *testing.T) {
 	t.Parallel()
 
-	descriptors, err := normalizeDescriptors(MVPDescriptors())
-	if err != nil {
-		t.Fatal(err)
-	}
-	current := &loader{descriptors: descriptors}
+	current := &loader{}
 	selected, err := current.resolveToolsets(&[]toolsetSelectionSource{{
 		Ref: "taint-annotations@1", Tools: []string{"annotate_validate", "annotate_trace"},
 	}})
@@ -104,25 +99,12 @@ func TestTaintAnnotationsToolSelectionIsStrictAndCollisionSafe(t *testing.T) {
 	}}); err == nil || !strings.Contains(err.Error(), "does not export selected tool") {
 		t.Fatalf("unknown taint annotation tool error = %v", err)
 	}
-
-	descriptors.Toolsets["alternate@1"] = ToolsetDescriptor{Tools: []string{"annotate_trace"}}
-	current.descriptors = descriptors
-	if _, err := current.resolveToolsets(&[]toolsetSelectionSource{
-		{Ref: "taint-annotations@1", Tools: []string{"annotate_trace"}},
-		{Ref: "alternate@1", Tools: []string{"annotate_trace"}},
-	}); err == nil || !strings.Contains(err.Error(), "collides between Toolsets") {
-		t.Fatalf("taint annotation visible-name collision error = %v", err)
-	}
 }
 
-func TestCodeAnalysisToolSelectionIsStrictAndCollisionSafe(t *testing.T) {
+func TestCodeAnalysisToolSelectionIsStrict(t *testing.T) {
 	t.Parallel()
 
-	descriptors, err := normalizeDescriptors(MVPDescriptors())
-	if err != nil {
-		t.Fatal(err)
-	}
-	current := &loader{descriptors: descriptors}
+	current := &loader{}
 	selected, err := current.resolveToolsets(&[]toolsetSelectionSource{{
 		Ref: "code-analysis@1", Tools: []string{"search_def", "find_callers"},
 	}})
@@ -138,15 +120,6 @@ func TestCodeAnalysisToolSelectionIsStrictAndCollisionSafe(t *testing.T) {
 	}}); err == nil || !strings.Contains(err.Error(), "does not export selected tool") {
 		t.Fatalf("unknown code-analysis tool error = %v", err)
 	}
-
-	descriptors.Toolsets["alternate@1"] = ToolsetDescriptor{Tools: []string{"search_def"}}
-	current.descriptors = descriptors
-	if _, err := current.resolveToolsets(&[]toolsetSelectionSource{
-		{Ref: "code-analysis@1", Tools: []string{"search_def"}},
-		{Ref: "alternate@1", Tools: []string{"search_def"}},
-	}); err == nil || !strings.Contains(err.Error(), "collides between Toolsets") {
-		t.Fatalf("code-analysis visible-name collision error = %v", err)
-	}
 }
 
 func TestCodeAnalysisSelectionLoadsAndDigestsInTemplate(t *testing.T) {
@@ -154,7 +127,7 @@ func TestCodeAnalysisSelectionLoadsAndDigestsInTemplate(t *testing.T) {
 
 	root := copyCoreFixture(t)
 	writeFile(t, filepath.Join(root, "agent-templates/source_graph_analyst.yaml"), []byte(codeAnalysisTemplateYAML))
-	snapshot := mustLoad(t, root, MVPDescriptors())
+	snapshot := mustLoad(t, root)
 	template, err := snapshot.AgentTemplate("source_graph_analyst@1")
 	if err != nil {
 		t.Fatal(err)
@@ -210,123 +183,11 @@ spec:
   sandboxProfile: local-workdir@1
 `
 
-// TestRequiredRuntimeAdaptersFollowToolChannels checks how the channels the
-// descriptors declare become placement requirements: every http-tools@1 tool
-// uses the direct or optionally proxied HTTP client and needs no adapter,
-// while every Caido tool needs the typed Caido client. The tool lists and
-// their channels are the ones TestSharedToolsetDescriptorParity pins.
-func TestRequiredRuntimeAdaptersFollowToolChannels(t *testing.T) {
-	t.Parallel()
-	for ref, want := range map[contracts.ToolsetRef][]contracts.RuntimeAdapterRef{
-		{ToolsetID: "http-tools", Version: "1"}: nil,
-		{ToolsetID: "caido", Version: "1"}:      {contracts.RuntimeAdapterCaidoGraphQL},
-	} {
-		tools := MVPDescriptors().Toolsets[ref.ToolsetID+"@"+ref.Version].Tools
-		if len(tools) == 0 {
-			t.Fatalf("Toolset %s has no tools", ref.ToolsetID)
-		}
-		for _, tool := range tools {
-			selected := contracts.ResolvedAgentTemplate{Toolsets: []contracts.ToolsetSelection{{Ref: ref, Tools: []string{tool}}}}
-			adapters, err := RequiredRuntimeAdaptersForTemplate(selected)
-			if err != nil || !slices.Equal(adapters, want) {
-				t.Errorf("%s adapter requirements = (%v, %v), want %v", tool, adapters, err, want)
-			}
-		}
-	}
-}
-
-func TestToolsetDescriptorRejectsInvalidInfrastructureChannels(t *testing.T) {
-	t.Parallel()
-
-	for name, channels := range map[string]map[string][]ToolInfrastructureChannel{
-		"unknown tool": {"missing": {RuntimeHTTPClient}},
-		"empty":        {"read_artifact": {}},
-		"unknown channel": {
-			"read_artifact": {ToolInfrastructureChannel("ambient-network")},
-		},
-		"duplicate": {"read_artifact": {RuntimeHTTPClient, RuntimeHTTPClient}},
-	} {
-		t.Run(name, func(t *testing.T) {
-			descriptors := MVPDescriptors()
-			descriptor := descriptors.Toolsets["run-artifacts@1"]
-			descriptor.InfrastructureChannels = channels
-			descriptors.Toolsets["run-artifacts@1"] = descriptor
-			if _, err := normalizeDescriptors(descriptors); err == nil {
-				t.Fatal("normalizeDescriptors accepted invalid infrastructure channels")
-			}
-		})
-	}
-}
-
-// toolsetDescriptorFixture is one Toolset of api/testdata/toolset-descriptors.json.
-type toolsetDescriptorFixture struct {
-	Tools                  []string                               `json:"tools"`
-	InfrastructureChannels map[string][]ToolInfrastructureChannel `json:"infrastructureChannels"`
-	RequiresWorkspace      bool                                   `json:"requiresWorkspace"`
-	RequiredSandboxProfile *string                                `json:"requiredSandboxProfile"`
-	ActiveCheckTools       []string                               `json:"activeCheckTools"`
-	FindingProposalTools   []string                               `json:"findingProposalTools"`
-	RequiredWorkflowInputs map[string]struct {
-		Input     string `json:"input"`
-		MediaType string `json:"mediaType"`
-	} `json:"requiredWorkflowInputs"`
-}
-
-// TestSharedToolsetDescriptorParity holds every Server Toolset descriptor to
-// api/testdata/toolset-descriptors.json, which the Runtime's factories are
-// held to as well (runtime/tests/test_capabilities.py), so a tool or Toolset
-// added on one side only fails.
-func TestSharedToolsetDescriptorParity(t *testing.T) {
-	t.Parallel()
-	var fixture struct {
-		Description string                              `json:"description"`
-		Toolsets    map[string]toolsetDescriptorFixture `json:"toolsets"`
-	}
-	decoder := json.NewDecoder(bytes.NewReader(contractstest.ReadFile(t, "api", "testdata", "toolset-descriptors.json")))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&fixture); err != nil {
-		t.Fatal(err)
-	}
-	normalized, err := normalizeDescriptors(MVPDescriptors())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got, want := slices.Sorted(maps.Keys(normalized.Toolsets)), slices.Sorted(maps.Keys(fixture.Toolsets)); !slices.Equal(got, want) {
-		t.Fatalf("Toolset descriptors = %v, shared fixture = %v", got, want)
-	}
-	for ref, shared := range fixture.Toolsets {
-		profile := ""
-		if shared.RequiredSandboxProfile != nil {
-			profile = *shared.RequiredSandboxProfile
-		}
-		// The fixture spells an absent collection as an empty one.
-		want := ToolsetDescriptor{
-			RequiredSandboxProfile: profile, RequiresWorkspace: shared.RequiresWorkspace,
-			Tools: shared.Tools, InfrastructureChannels: shared.InfrastructureChannels,
-		}
-		if len(shared.ActiveCheckTools) > 0 {
-			want.ActiveCheckTools = shared.ActiveCheckTools
-		}
-		if len(shared.FindingProposalTools) > 0 {
-			want.FindingProposalTools = shared.FindingProposalTools
-		}
-		for tool, input := range shared.RequiredWorkflowInputs {
-			if want.RequiredWorkflowInputs == nil {
-				want.RequiredWorkflowInputs = map[string]WorkflowInputRequirement{}
-			}
-			want.RequiredWorkflowInputs[tool] = WorkflowInputRequirement{Input: input.Input, MediaType: input.MediaType}
-		}
-		if got := normalized.Toolsets[ref]; !reflect.DeepEqual(got, want) {
-			t.Errorf("Toolset %s descriptor = %+v, shared fixture = %+v", ref, got, want)
-		}
-	}
-}
-
 func TestStreamlineRequiresExactlyOneLogicalAgent(t *testing.T) {
 	root := copyCoreFixture(t, "workflow-examples")
 	path := filepath.Join(root, "workflows", "streamline_review_workflow.yaml")
 	example := readFile(t, path)
-	snapshot := mustLoad(t, root, MVPDescriptors())
+	snapshot := mustLoad(t, root)
 	workflow, err := snapshot.Workflow("streamline-review@2")
 	if err != nil {
 		t.Fatal(err)
@@ -334,7 +195,7 @@ func TestStreamlineRequiresExactlyOneLogicalAgent(t *testing.T) {
 	stage := workflow.Stages[workflow.EntryStage]
 	stage.Agents["second"] = stage.Agents["reviewer"]
 	workflow.Stages[workflow.EntryStage] = stage
-	if err := ValidateWorkflowGraph(workflow); err == nil ||
+	if err := resolved.ValidateWorkflowGraph(workflow); err == nil ||
 		!strings.Contains(err.Error(), "streamline@1 requires exactly one logical Agent binding") {
 		t.Fatalf("ValidateWorkflowGraph error = %v", err)
 	}
@@ -345,7 +206,7 @@ func TestStreamlineRequiresExactlyOneLogicalAgent(t *testing.T) {
 `
 	invalid := strings.Replace(string(example), "      context:\n", secondBinding+"      context:\n", 1)
 	writeFile(t, path, []byte(invalid))
-	loaded, err := Load(root, MVPDescriptors())
+	loaded, err := Load(root)
 	if err == nil || loaded != nil ||
 		!strings.Contains(err.Error(), "streamline@1 requires exactly one logical Agent binding") {
 		t.Fatalf("Load() = (%v, %v), want Streamline cardinality error", loaded, err)
@@ -353,15 +214,15 @@ func TestStreamlineRequiresExactlyOneLogicalAgent(t *testing.T) {
 }
 
 func TestRouterRequiresAtLeastOneLogicalAgent(t *testing.T) {
-	snapshot := mustLoad(t, copyCoreFixture(t, "workflow-examples"), MVPDescriptors())
+	snapshot := mustLoad(t, copyCoreFixture(t, "workflow-examples"))
 	workflow, err := snapshot.Workflow("router-openapi@2")
 	if err != nil {
 		t.Fatal(err)
 	}
 	stage := workflow.Stages[workflow.EntryStage]
-	stage.Agents = map[string]ResolvedAgentBinding{}
+	stage.Agents = map[string]resolved.ResolvedAgentBinding{}
 	workflow.Stages[workflow.EntryStage] = stage
-	if err := ValidateWorkflowGraph(workflow); err == nil ||
+	if err := resolved.ValidateWorkflowGraph(workflow); err == nil ||
 		!strings.Contains(err.Error(), "router@1 requires at least one logical Agent binding") {
 		t.Fatalf("ValidateWorkflowGraph error = %v", err)
 	}
@@ -370,7 +231,7 @@ func TestRouterRequiresAtLeastOneLogicalAgent(t *testing.T) {
 func TestStoredFixtures(t *testing.T) {
 	t.Parallel()
 
-	valid := mustLoad(t, "testdata/valid", MVPDescriptors())
+	valid := mustLoad(t, "testdata/valid")
 	if got, want := valid.Counts(), (Counts{
 		Workflows: 1, AgentTemplates: 1, ModelPolicies: 1, LLMGateways: 1,
 		ExecutionConfigs: 1, AuditProfiles: 0, Instructions: 2,
@@ -389,7 +250,7 @@ func TestStoredFixtures(t *testing.T) {
 			root := copyCoreFixture(t)
 			fixture := readFile(t, filepath.Join("testdata/invalid", name))
 			writeFile(t, filepath.Join(root, "model-policies/test-worker.yaml"), fixture)
-			snapshot, err := Load(root, MVPDescriptors())
+			snapshot, err := Load(root)
 			if err == nil || snapshot != nil {
 				t.Fatalf("Load() = (%v, %v), want (nil, error)", snapshot, err)
 			}
@@ -420,7 +281,7 @@ func TestModelPolicyWorkerBudgetsAreRequiredAndBounded(t *testing.T) {
 			t.Parallel()
 			root := copyCoreFixture(t)
 			replaceFile(t, filepath.Join(root, "model-policies/test-worker.yaml"), test.old, test.replacement)
-			if snapshot, err := Load(root, MVPDescriptors()); err == nil || snapshot != nil ||
+			if snapshot, err := Load(root); err == nil || snapshot != nil ||
 				!strings.Contains(err.Error(), test.want) {
 				t.Fatalf("Load() = (%v, %v), want error containing %q", snapshot, err, test.want)
 			}
@@ -526,7 +387,7 @@ spec: {model: other, maxOutputTokens: 1}
 			t.Parallel()
 			root := copyCoreFixture(t)
 			test.mutate(t, root)
-			snapshot, err := Load(root, MVPDescriptors())
+			snapshot, err := Load(root)
 			if err == nil || snapshot != nil {
 				t.Fatalf("Load() = (%v, %v), want (nil, error)", snapshot, err)
 			}
@@ -566,7 +427,7 @@ func TestInstructionPathAndFilesystemContainment(t *testing.T) {
 		if err := os.Symlink(outside, target); err != nil {
 			t.Fatal(err)
 		}
-		snapshot, err := Load(root, MVPDescriptors())
+		snapshot, err := Load(root)
 		if err == nil || snapshot != nil || !strings.Contains(err.Error(), "is a symlink") {
 			t.Fatalf("Load() = (%v, %v), want strict symlink error", snapshot, err)
 		}
@@ -575,7 +436,7 @@ func TestInstructionPathAndFilesystemContainment(t *testing.T) {
 	t.Run("invalid utf8", func(t *testing.T) {
 		root := copyCoreFixture(t)
 		writeFile(t, filepath.Join(root, "instructions/artifact-builder.md"), []byte{0xff, 0xfe})
-		snapshot, err := Load(root, MVPDescriptors())
+		snapshot, err := Load(root)
 		if err == nil || snapshot != nil || !strings.Contains(err.Error(), "strict UTF-8") {
 			t.Fatalf("Load() = (%v, %v), want UTF-8 error", snapshot, err)
 		}
@@ -589,7 +450,7 @@ func TestManifestDiscoveryRejectsSymlinks(t *testing.T) {
 	if err := os.Symlink("test-worker.yaml", filepath.Join(root, "model-policies/link.yaml")); err != nil {
 		t.Fatal(err)
 	}
-	if snapshot, err := Load(root, MVPDescriptors()); err == nil || snapshot != nil ||
+	if snapshot, err := Load(root); err == nil || snapshot != nil ||
 		!strings.Contains(err.Error(), "is a symlink") {
 		t.Fatalf("Load() = (%v, %v), want strict symlink error", snapshot, err)
 	}
@@ -605,11 +466,11 @@ func TestCatalogFileReadsAreBounded(t *testing.T) {
 		root := copyCoreFixture(t)
 		path := filepath.Join(root, "instructions", "padding.md")
 		writeFile(t, path, bytes.Repeat([]byte("a"), maximumCatalogFileBytes))
-		if _, err := Load(root, MVPDescriptors()); err != nil {
+		if _, err := Load(root); err != nil {
 			t.Fatalf("instruction at the bound: %v", err)
 		}
 		writeFile(t, path, bytes.Repeat([]byte("a"), maximumCatalogFileBytes+1))
-		snapshot, err := Load(root, MVPDescriptors())
+		snapshot, err := Load(root)
 		if snapshot != nil || !errors.Is(err, securefile.ErrTooLarge) ||
 			!strings.Contains(err.Error(), `read instruction "instructions/padding.md"`) {
 			t.Fatalf("instruction over the bound = (%v, %v)", snapshot, err)
@@ -625,11 +486,11 @@ func TestCatalogFileReadsAreBounded(t *testing.T) {
 			return append(data, bytes.Repeat([]byte("x"), size-len(data))...)
 		}
 		writeFile(t, path, padded(maximumCatalogFileBytes))
-		if _, err := Load(root, MVPDescriptors()); err != nil {
+		if _, err := Load(root); err != nil {
 			t.Fatalf("manifest at the bound: %v", err)
 		}
 		writeFile(t, path, padded(maximumCatalogFileBytes+1))
-		snapshot, err := Load(root, MVPDescriptors())
+		snapshot, err := Load(root)
 		if snapshot != nil || !errors.Is(err, securefile.ErrTooLarge) ||
 			!strings.Contains(err.Error(), "model-policies/test-worker.yaml: read manifest") {
 			t.Fatalf("manifest over the bound = (%v, %v)", snapshot, err)
@@ -642,7 +503,7 @@ func TestCatalogFileReadsAreBounded(t *testing.T) {
 func TestDecodeResolvedWorkflowSnapshotChecksTheWholeGraph(t *testing.T) {
 	t.Parallel()
 
-	snapshot := mustLoad(t, copyCoreFixture(t), MVPDescriptors())
+	snapshot := mustLoad(t, copyCoreFixture(t))
 	workflow, err := snapshot.Workflow("artifact-copy@1")
 	if err != nil {
 		t.Fatal(err)
@@ -651,28 +512,33 @@ func TestDecodeResolvedWorkflowSnapshotChecksTheWholeGraph(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if decoded, err := DecodeResolvedWorkflowSnapshot(encoded); err != nil || !reflect.DeepEqual(decoded, workflow) {
+	if decoded, err := resolved.DecodeResolvedWorkflowSnapshot(encoded); err != nil || !reflect.DeepEqual(decoded, workflow) {
 		t.Fatalf("valid snapshot = (%+v, %v)", decoded, err)
 	}
-	for name, tamper := range map[string]func(*ResolvedWorkflow){
-		"missing entry Stage": func(workflow *ResolvedWorkflow) { workflow.EntryStage = "missing" },
-		"undeclared Workflow output": func(workflow *ResolvedWorkflow) {
+	for name, tamper := range map[string]func(*resolved.ResolvedWorkflow){
+		"missing entry Stage": func(workflow *resolved.ResolvedWorkflow) { workflow.EntryStage = "missing" },
+		"undeclared Workflow output": func(workflow *resolved.ResolvedWorkflow) {
 			workflow.Stages["copy"].WorkflowOutputs["undeclared"] = "copied"
 		},
-		"transition to a missing Stage": func(workflow *ResolvedWorkflow) {
+		"transition to a missing Stage": func(workflow *resolved.ResolvedWorkflow) {
 			stage := workflow.Stages["copy"]
-			stage.On.Succeeded = TransitionAction{Kind: TransitionNext, NextStage: "missing"}
+			stage.On.Succeeded = resolved.TransitionAction{Kind: resolved.TransitionNext, NextStage: "missing"}
+			workflow.Stages["copy"] = stage
+		},
+		"unregistered Planner": func(workflow *resolved.ResolvedWorkflow) {
+			stage := workflow.Stages["copy"]
+			stage.Planner = resolved.PlannerRef{PlannerID: "passthrough", Version: "2"}
 			workflow.Stages["copy"] = stage
 		},
 	} {
-		tampered := cloneWorkflow(workflow)
+		tampered := workflow.Clone()
 		tamper(&tampered)
 		encoded, err := json.Marshal(tampered)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if decoded, err := DecodeResolvedWorkflowSnapshot(encoded); err == nil ||
-			!strings.HasPrefix(err.Error(), "persisted Workflow: ") || !reflect.DeepEqual(decoded, ResolvedWorkflow{}) {
+		if decoded, err := resolved.DecodeResolvedWorkflowSnapshot(encoded); err == nil ||
+			!strings.HasPrefix(err.Error(), "persisted Workflow: ") || !reflect.DeepEqual(decoded, resolved.ResolvedWorkflow{}) {
 			t.Errorf("%s: DecodeResolvedWorkflowSnapshot = (%+v, %v)", name, decoded, err)
 		}
 	}
@@ -683,12 +549,13 @@ func TestToolsetVisibleNameCollision(t *testing.T) {
 
 	root := copyCoreFixture(t)
 	path := filepath.Join(root, "agent-templates/artifact_builder.yaml")
-	replaceFile(t, path, "  sandboxProfile: local-workdir@1", `    - ref: alternate@1
-      tools: [read_artifact]
+	// Both registered finding publishers export the model-visible "finding".
+	replaceFile(t, path, "  sandboxProfile: local-workdir@1", `    - ref: security-findings@1
+      tools: [finding]
+    - ref: security-findings-code@1
+      tools: [finding]
   sandboxProfile: local-workdir@1`)
-	descriptors := MVPDescriptors()
-	descriptors.Toolsets["alternate@1"] = ToolsetDescriptor{Tools: []string{"read_artifact"}}
-	snapshot, err := Load(root, descriptors)
+	snapshot, err := Load(root)
 	if err == nil || snapshot != nil || !strings.Contains(err.Error(), "collides between Toolsets") {
 		t.Fatalf("Load() = (%v, %v), want collision error", snapshot, err)
 	}
@@ -699,14 +566,14 @@ func TestWorkflowGraphLoadsMultiStageAndBoundedRetry(t *testing.T) {
 	root := copyCoreFixture(t)
 	writeFile(t, filepath.Join(root, "workflows/artifact_copy.yaml"), []byte(multiStageWorkflowYAML))
 
-	snapshot := mustLoad(t, root, MVPDescriptors())
+	snapshot := mustLoad(t, root)
 	workflow, err := snapshot.Workflow("artifact-copy@1")
 	if err != nil {
 		t.Fatal(err)
 	}
 	retry := workflow.Stages["build"].On.Failed.Retry
 	if len(workflow.Stages) != 2 || retry == nil || retry.MaxAttempts != 3 ||
-		retry.Then.Kind != TransitionNext || retry.Then.NextStage != "review" {
+		retry.Then.Kind != resolved.TransitionNext || retry.Then.NextStage != "review" {
 		t.Fatalf("resolved multi-Stage Workflow = %+v", workflow)
 	}
 }
@@ -716,7 +583,7 @@ func TestWorkflowAutomaticRetryMayExceed1024Attempts(t *testing.T) {
 	writeFile(t, filepath.Join(root, "workflows/artifact_copy.yaml"), []byte(strings.Replace(
 		multiStageWorkflowYAML, "maxAttempts: 3", "maxAttempts: 1025", 1,
 	)))
-	workflow, err := mustLoad(t, root, MVPDescriptors()).Workflow("artifact-copy@1")
+	workflow, err := mustLoad(t, root).Workflow("artifact-copy@1")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -733,7 +600,7 @@ func TestWorkflowPrimaryMarkerIsAcceptedOnlyOnWorkflowOutputs(t *testing.T) {
 			"  outputs:\n    result:\n      required: true\n      mediaTypes: [text/plain]",
 			"  outputs:\n    result:\n      required: true\n      primary: true\n      mediaTypes: [text/plain]",
 		)
-		workflow, err := mustLoad(t, root, MVPDescriptors()).Workflow("artifact-copy@1")
+		workflow, err := mustLoad(t, root).Workflow("artifact-copy@1")
 		if err != nil || !workflow.Outputs["result"].Primary || workflow.Inputs["source"].Primary ||
 			workflow.Stages["copy"].Result.Artifacts["copied"].Primary {
 			t.Fatalf("resolved primary output marker = (%+v, %v)", workflow, err)
@@ -762,7 +629,7 @@ func TestWorkflowPrimaryMarkerIsAcceptedOnlyOnWorkflowOutputs(t *testing.T) {
 			root := copyCoreFixture(t)
 			path := filepath.Join(root, "workflows/artifact_copy.yaml")
 			replaceFile(t, path, test.old, test.replacement)
-			snapshot, err := Load(root, MVPDescriptors())
+			snapshot, err := Load(root)
 			if err == nil || snapshot != nil || !strings.Contains(err.Error(), test.field) ||
 				!strings.Contains(err.Error(), "allowed only for Workflow outputs") {
 				t.Fatalf("Load() = (%v, %v), want output-only primary error", snapshot, err)
@@ -782,7 +649,7 @@ func TestWorkflowGraphRejectsNextCycle(t *testing.T) {
 	)
 	writeFile(t, filepath.Join(root, "workflows/artifact_copy.yaml"), []byte(cyclic))
 
-	snapshot, err := Load(root, MVPDescriptors())
+	snapshot, err := Load(root)
 	if err == nil || snapshot != nil || !strings.Contains(err.Error(), "Cycle") {
 		t.Fatalf("Load(cycle) = (%v, %v)", snapshot, err)
 	}
@@ -794,7 +661,7 @@ func TestWorkflowGraphRejectsUnreachableStage(t *testing.T) {
 	workflow := multiStageWorkflowYAML + "    orphan:\n" + reviewStageYAML
 	writeFile(t, filepath.Join(root, "workflows/artifact_copy.yaml"), []byte(workflow))
 
-	snapshot, err := Load(root, MVPDescriptors())
+	snapshot, err := Load(root)
 	if err == nil || snapshot != nil || !strings.Contains(err.Error(), "unreachable") {
 		t.Fatalf("Load(unreachable) = (%v, %v)", snapshot, err)
 	}
@@ -811,7 +678,7 @@ func TestWorkflowTransitionRejectsSuccessPathWithoutRequiredOutput(t *testing.T)
 	)
 	writeFile(t, filepath.Join(root, "workflows/artifact_copy.yaml"), []byte(workflow))
 
-	snapshot, err := Load(root, MVPDescriptors())
+	snapshot, err := Load(root)
 	if err == nil || snapshot != nil || !strings.Contains(err.Error(), "without required output") {
 		t.Fatalf("Load(missing output path) = (%v, %v)", snapshot, err)
 	}
@@ -828,7 +695,7 @@ func TestWorkflowTransitionRejectsOptionalResultAsRequiredOutput(t *testing.T) {
 		1,
 	)
 	writeFile(t, filepath.Join(root, "workflows/artifact_copy.yaml"), []byte(workflow))
-	if snapshot, err := Load(root, MVPDescriptors()); err == nil || snapshot != nil ||
+	if snapshot, err := Load(root); err == nil || snapshot != nil ||
 		!strings.Contains(err.Error(), "without required output") {
 		t.Fatalf("Load() = (%v, %v), want required output error", snapshot, err)
 	}
@@ -878,7 +745,7 @@ func TestWorkflowResultBindingsAreTrustedAndVersionless(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			root := copyCoreFixture(t)
 			replaceFile(t, filepath.Join(root, path), test.old, test.replacement)
-			snapshot, err := Load(root, MVPDescriptors())
+			snapshot, err := Load(root)
 			if err == nil || snapshot != nil || !strings.Contains(err.Error(), test.fragment) {
 				t.Fatalf("Load() = (%v, %v), want %q", snapshot, err, test.fragment)
 			}
@@ -942,9 +809,9 @@ const reviewStageYAML = `      objective: Review the candidate
         interrupted: {fail: {}}
 `
 
-func mustLoad(t *testing.T, root string, descriptors Descriptors) *Snapshot {
+func mustLoad(t *testing.T, root string) *Snapshot {
 	t.Helper()
-	snapshot, err := Load(root, descriptors)
+	snapshot, err := Load(root)
 	if err != nil {
 		t.Fatalf("Load(%q): %v", root, err)
 	}

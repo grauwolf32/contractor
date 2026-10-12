@@ -12,6 +12,8 @@ import (
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
+	"github.com/grauwolf32/contractor/internal/strictjson"
 )
 
 type AgentRegistration struct {
@@ -27,7 +29,7 @@ type AgentRegistration struct {
 	SupportedRuntimes                   []string                             `json:"supportedRuntimes" strictjson:"required"`
 	SupportedToolsets                   []ToolsetCapability                  `json:"supportedToolsets" strictjson:"required"`
 	SupportedSandboxProfiles            []string                             `json:"supportedSandboxProfiles" strictjson:"required"`
-	SupportedRuntimeAdapters            []contracts.RuntimeAdapterRef        `json:"supportedRuntimeAdapters" strictjson:"required"`
+	SupportedRuntimeAdapters            []runtimesettings.RuntimeAdapterRef  `json:"supportedRuntimeAdapters" strictjson:"required"`
 	SupportedPerformanceMetricsVersions reporting.PerformanceMetricsVersions `json:"supportedPerformanceMetricsVersions,omitempty"`
 	WorkspaceCapabilities               *contracts.WorkspaceCapabilities     `json:"workspaceCapabilities,omitempty"`
 	ObservedState                       AgentObservedState                   `json:"observedState" strictjson:"required"`
@@ -68,7 +70,7 @@ func (r AgentRegistration) Validate() error {
 	if err := validateSortedLabels("initialLabels", r.InitialLabels, 32, false); err != nil {
 		return err
 	}
-	if err := contracts.ValidateRuntimeAdapterRefs(r.SupportedRuntimeAdapters); err != nil {
+	if err := runtimesettings.ValidateRuntimeAdapterRefs(r.SupportedRuntimeAdapters); err != nil {
 		return err
 	}
 	if r.WorkspaceCapabilities != nil {
@@ -121,7 +123,7 @@ func NormalizeAgentRegistration(source AgentRegistration) AgentRegistration {
 	result.InitialLabels = append([]string{}, source.InitialLabels...)
 	result.SupportedRuntimes = append([]string{}, source.SupportedRuntimes...)
 	result.SupportedSandboxProfiles = append([]string{}, source.SupportedSandboxProfiles...)
-	result.SupportedRuntimeAdapters = append([]contracts.RuntimeAdapterRef{}, source.SupportedRuntimeAdapters...)
+	result.SupportedRuntimeAdapters = append([]runtimesettings.RuntimeAdapterRef{}, source.SupportedRuntimeAdapters...)
 	result.SupportedPerformanceMetricsVersions = append([]int(nil), source.SupportedPerformanceMetricsVersions...)
 	if source.WorkspaceCapabilities != nil {
 		capabilities := *source.WorkspaceCapabilities
@@ -153,7 +155,7 @@ func AgentRegistrationFingerprint(source AgentRegistration) (string, error) {
 	normalized.InitialLabels = nil
 	normalized.ObservedState = ""
 	normalized.AllocationID = nil
-	canonical, err := contracts.MarshalPrivateCanonical(normalized)
+	canonical, err := strictjson.Canonical(normalized)
 	if err != nil {
 		return "", err
 	}

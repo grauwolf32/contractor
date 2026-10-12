@@ -4,10 +4,10 @@
 package runtimeconfig
 
 import (
-	"errors"
 	"fmt"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/apierror"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 )
@@ -24,16 +24,22 @@ const (
 	BuiltInCanonicalDocument = `{"apiVersion":"contractor/v1alpha1","kind":"RuntimeConfig","metadata":{"name":"contractor-empty","version":"1"},"spec":{}}`
 )
 
+// ErrNotFound is the addressed resource that does not exist (404); a missing
+// label or version that a request selects is the narrower ErrUnknownLabel or
+// ErrVersionNotFound, which the public API answers as a request error.
 var (
-	ErrInvalid         = errors.New("invalid RuntimeConfig")
-	ErrNotFound        = errors.New("RuntimeConfig resource not found")
+	ErrInvalid = apierror.New(apierror.RuntimeConfigInvalid, "invalid RuntimeConfig",
+		apierror.WithMessage("Runtime label configuration is invalid"))
+	ErrNotFound        = apierror.New(apierror.NotFound, "RuntimeConfig resource not found")
 	ErrLabelNotFound   = fmt.Errorf("%w: Runtime label path binding", ErrNotFound)
-	ErrUnknownLabel    = fmt.Errorf("%w: selected Runtime label", ErrNotFound)
-	ErrVersionNotFound = fmt.Errorf("%w: selected RuntimeConfig version", ErrNotFound)
-	ErrConflict        = errors.New("RuntimeConfig conflict")
-	ErrPrecondition    = errors.New("RuntimeConfig revision precondition failed")
-	ErrReserved        = errors.New("reserved RuntimeConfig resource")
-	ErrPrincipalInUse  = fmt.Errorf("%w: Runtime Agent principal is in use", ErrConflict)
+	ErrUnknownLabel    = apierror.Narrow(ErrNotFound, apierror.RuntimeLabelUnknown, "selected Runtime label")
+	ErrVersionNotFound = apierror.Narrow(ErrNotFound, apierror.RuntimeConfigInvalid, "selected RuntimeConfig version",
+		apierror.WithMessage("selected RuntimeConfig version is unavailable"))
+	ErrConflict = apierror.New(apierror.RuntimeConfigConflict, "RuntimeConfig conflict",
+		apierror.WithMessage("selected Runtime labels conflict"))
+	ErrPrecondition = apierror.New(apierror.PreconditionFailed, "RuntimeConfig revision precondition failed")
+	ErrReserved     = apierror.New(apierror.RuntimeLabelInUse, "reserved RuntimeConfig resource",
+		apierror.WithMessage("reserved Runtime label cannot be removed"))
 )
 
 type Ref struct {
@@ -161,12 +167,21 @@ func (e *LabelInUseError) Error() string {
 }
 func (e *LabelInUseError) Unwrap() error { return ErrConflict }
 
-func labelInUseError(principals []RuntimeAgentPrincipal) error {
+// ErrorKind answers the error with runtime_label_in_use; its Runtime Agents
+// are the details.
+func (e *LabelInUseError) ErrorKind() apierror.Kind { return apierror.RuntimeLabelInUse }
+
+// PublicMessage tells the caller why the label cannot be removed.
+func (e *LabelInUseError) PublicMessage() string {
+	return "Runtime label is assigned to a Runtime Agent"
+}
+
+func labelInUseError(holders []LabelHolder) error {
 	const maximumReferences = 128
-	count := min(len(principals), maximumReferences)
+	count := min(len(holders), maximumReferences)
 	ids := make([]string, count)
 	for index := 0; index < count; index++ {
-		ids[index] = principals[index].RuntimeAgentID
+		ids[index] = holders[index].RuntimeAgentID
 	}
 	return &LabelInUseError{RuntimeAgentIDs: ids}
 }

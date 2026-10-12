@@ -1,0 +1,59 @@
+schema_version: "1.0"
+id: V372-023
+title: "Name the findings error codes the open question lists and register the findings tool codes"
+milestone: hub-audit-defects-2026-10
+epic: findings
+kind: chore
+priority: P3
+status: pending
+depends_on: []
+languages: [markdown, python]
+goal: "FND-R109, FND-R123 and FND-R135 name their codes, every findings_* code the Runtime findings tools return is in the errors.md registry with its retryability, a test holds the Runtime to that list, and the open question is deleted."
+context:
+  review: "Out-of-scope finding of the hub audit fix batch, wave 2 (group w2c: V370-009, V369-004, V370-010), recorded 2026-10-12; the open question in docs/decisions/open-questions.md:381-387 is still unresolved on b2b09ea"
+  specification: "docs/spec/findings/findings.md#FND-R123"
+  finding: >-
+    docs/decisions/open-questions.md:381-387 records that several findings
+    error codes are unnamed, and on b2b09ea they still are: FND-R109
+    (docs/spec/findings/findings.md:754-756) gives publication failures as
+    the statuses 404, 409, 400 and 422 without codes; FND-R123 (:845-850)
+    says a failed reader preparation reports "its bounded findings_* code";
+    FND-R135 (:922-924) calls the oversized-item answer "an explicit limit
+    error". The Runtime findings tools return findings_arguments_invalid,
+    findings_collection_invalid, findings_cursor_invalid,
+    findings_digest_mismatch, findings_limit_exceeded,
+    findings_reader_unavailable and findings_reference_invalid
+    (runtime/src/contractor_runtime/toolsets/security_findings/collection.py
+    and reader.py), none of which docs/spec/platform/errors.md registers; its
+    Other error and stop codes table holds only
+    findings_collection_unavailable, findings_document_conflict and
+    findings_document_unavailable (:450-452). The codes the model sees
+    cannot be held to one definition (AGENTS.md 3.1). Predates the shallow
+    history (boundary 6349621).
+  siblings: >-
+    The public publication codes of FND-R109 are registered public codes
+    since V370-010; the specification only has to name them. Other tool
+    vocabularies are closed lists in errors.md (ERR-R10 to ERR-R13); the
+    findings tools get the same treatment. The proposal quotas of V371-011
+    add their own codes to the same tables.
+scope:
+  in:
+    - "Name the codes in FND-R109, FND-R123 and FND-R135 and add a findings tool error list to errors.md with the retryability of each code."
+    - "A Runtime test that every findings_* code the findings toolsets can return is in that list."
+    - "Delete the open question from docs/decisions/open-questions.md."
+  out:
+    - "Changing any code or its retryability."
+acceptance_criteria:
+  - id: A1
+    text: "FND-R109, FND-R123 and FND-R135 name codes, errors.md lists every findings tool code, and scripts/check_spec.py passes."
+  - id: A2
+    text: "A findings_* code returned by the Runtime tools but missing from the registry fails a test."
+  - id: A3
+    text: "The open question about unnamed findings codes is gone from docs/decisions/open-questions.md."
+tests:
+  - command: "cd runtime && uv run pytest tests/test_security_findings_toolset.py tests/test_findings_reader_toolset.py"
+    covers: [A2]
+  - command: "python3 scripts/check_spec.py"
+    covers: [A1, A3]
+  - command: make lint
+    covers: [A1, A2, A3]

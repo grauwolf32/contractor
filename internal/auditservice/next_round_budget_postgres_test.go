@@ -11,7 +11,8 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
@@ -43,7 +44,7 @@ func TestPostgresNextRoundSpreadsLargeProposalsAndReportsUnschedulable(t *testin
 		Pool: pool, Profiles: &switchableProfileCatalog{snapshot: snapshot, available: true},
 		CredentialGuard: &countingCredentialGuard{},
 		TransactionLLMCredentials: runtimeconfig.TransactionLLMCredentialLookupFactoryFunc(
-			func(pgx.Tx) (config.CredentialLookup, error) { return credentials, nil },
+			func(pgx.Tx) (resolved.CredentialLookup, error) { return credentials, nil },
 		),
 	})
 	if err != nil {
@@ -77,7 +78,7 @@ func TestPostgresNextRoundSpreadsLargeProposalsAndReportsUnschedulable(t *testin
 	if err != nil {
 		t.Fatal(err)
 	}
-	store := auditstore.NewPostgresStore(pool)
+	store := auditstoretest.NewStore(pool)
 	claims, err := store.Claim(ctx, auditstore.ClaimParams{HolderID: "round-budget-controller", Lease: time.Minute, Limit: 1})
 	if err != nil || len(claims) != 1 {
 		t.Fatalf("claim = (%+v, %v)", claims, err)
@@ -155,7 +156,7 @@ func TestPostgresNextRoundPreparesNineNearLimitProposals(t *testing.T) {
 		Pool: pool, Profiles: &switchableProfileCatalog{snapshot: snapshot, available: true},
 		CredentialGuard: &countingCredentialGuard{},
 		TransactionLLMCredentials: runtimeconfig.TransactionLLMCredentialLookupFactoryFunc(
-			func(pgx.Tx) (config.CredentialLookup, error) { return credentials, nil },
+			func(pgx.Tx) (resolved.CredentialLookup, error) { return credentials, nil },
 		),
 	})
 	if err != nil {
@@ -189,7 +190,7 @@ func TestPostgresNextRoundPreparesNineNearLimitProposals(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	store := auditstore.NewPostgresStore(pool)
+	store := auditstoretest.NewStore(pool)
 	claims, err := store.Claim(ctx, auditstore.ClaimParams{HolderID: "round-budget-controller", Lease: time.Minute, Limit: 1})
 	if err != nil || len(claims) != 1 {
 		t.Fatalf("claim = (%+v, %v)", claims, err)
@@ -220,7 +221,7 @@ func TestPostgresNextRoundPreparesNineNearLimitProposals(t *testing.T) {
 }
 
 func closeRoundForTest(
-	t *testing.T, ctx context.Context, store *auditstore.PostgresStore,
+	t *testing.T, ctx context.Context, store *auditstoretest.Store,
 	claim auditstore.ControllerClaim, round auditstore.Round,
 ) auditstore.Round {
 	t.Helper()

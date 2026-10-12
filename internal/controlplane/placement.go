@@ -9,11 +9,13 @@ import (
 	"sort"
 	"strings"
 
-	workflowconfig "github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/agentprincipal"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/control"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -40,7 +42,7 @@ type PlacementAllocatorOptions struct {
 	Pool                      *pgxpool.Pool
 	Registry                  *InMemoryRegistry
 	Gateways                  PlacementGatewayLookup
-	LLMCredentials            workflowconfig.CredentialLookup
+	LLMCredentials            resolved.CredentialLookup
 	TransactionLLMCredentials runtimeconfig.TransactionLLMCredentialLookupFactory
 	RuntimeCredentials        PlacementRuntimeCredentialLookup
 	CredentialGuard           PlacementCredentialGuard
@@ -54,7 +56,7 @@ type PlacementAllocator struct {
 	pool                      *pgxpool.Pool
 	registry                  *InMemoryRegistry
 	gateways                  PlacementGatewayLookup
-	llmCredentials            workflowconfig.CredentialLookup
+	llmCredentials            resolved.CredentialLookup
 	transactionLLMCredentials runtimeconfig.TransactionLLMCredentialLookupFactory
 	runtimeCredentials        PlacementRuntimeCredentialLookup
 	credentialGuard           PlacementCredentialGuard
@@ -113,7 +115,7 @@ func (a *PlacementAllocator) ReserveAllContext(
 }
 
 func (a *PlacementAllocator) refreshCandidatePrincipals(ctx context.Context, candidates []AgentSnapshot) (bool, error) {
-	repository := runtimeconfig.NewPrincipalRepository(a.pool)
+	repository := agentprincipal.NewRepository(a.pool)
 	seen := make(map[string]struct{}, len(candidates))
 	changed := false
 	for _, candidate := range candidates {
@@ -166,11 +168,11 @@ func (a *PlacementAllocator) reserveAllContext(
 	lookups := placementCredentialLookups{
 		llm: a.llmCredentials, runtime: a.runtimeCredentials,
 		llmCache:     make(map[string]placementCachedValue[runtimeconfig.LLMCredentialAuthorization]),
-		runtimeCache: make(map[string]placementCachedValue[contracts.RuntimeCredentialKind]),
+		runtimeCache: make(map[string]placementCachedValue[runtimesettings.RuntimeCredentialKind]),
 	}
 	edges := make([]CandidateEdge, 0, len(request.Bindings)*len(candidates))
 	for _, binding := range request.Bindings {
-		toolAdapters, err := workflowconfig.RequiredRuntimeAdaptersForTemplate(binding.AgentTemplate)
+		toolAdapters, err := resolved.RequiredRuntimeAdaptersForTemplate(binding.AgentTemplate)
 		if err != nil {
 			return nil, fmt.Errorf("%w: AgentTemplate infrastructure requirements are invalid", ErrInvalidRequest)
 		}
@@ -200,7 +202,7 @@ func (a *PlacementAllocator) reserveAllContext(
 				LogicalAgentName: binding.LogicalAgentName, RuntimeAgentID: candidate.Principal.RuntimeAgentID,
 				RuntimeAgentInstanceID:    candidate.Registration.InstanceID,
 				RuntimeAgentLabelRevision: candidate.Principal.LabelRevision,
-				RequiredRuntimeAdapters:   append([]contracts.RuntimeAdapterRef{}, resolved.RequiredRuntimeAdapters...),
+				RequiredRuntimeAdapters:   append([]runtimesettings.RuntimeAdapterRef{}, resolved.RequiredRuntimeAdapters...),
 			})
 		}
 	}
@@ -306,11 +308,11 @@ func (a *PlacementAllocator) pinReservations(
 			return placementCatalogError(err)
 		}
 	}
-	principals, err := runtimeconfig.NewPrincipalRepository(tx).LockMany(ctx, principalIDs)
+	principals, err := agentprincipal.NewRepository(tx).LockMany(ctx, principalIDs)
 	if err != nil {
 		return placementCatalogError(err)
 	}
-	principalsByID := make(map[string]runtimeconfig.RuntimeAgentPrincipal, len(principals))
+	principalsByID := make(map[string]agentprincipal.Principal, len(principals))
 	for _, principal := range principals {
 		principalsByID[principal.RuntimeAgentID] = principal
 	}
@@ -351,21 +353,19 @@ func (a *PlacementAllocator) pinReservations(
 		policies[reservation.Grant.AllocationID] = a.collectionPolicy(candidate.Registration)
 	}
 
-	var state, runID string
-	if err := tx.QueryRow(ctx, `
-SELECT state, run_id
-FROM stage_executions
-WHERE stage_execution_id = $1
-FOR UPDATE`, request.StageExecutionID).Scan(&state, &runID); err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
+	store := runstore.NewPostgresTxStore(tx)
+	if _, err := store.LockStageState(
+		ctx, request.RunID, request.StageExecutionID, runstore.StagePreparing,
+	); err != nil {
+		switch {
+		case errors.Is(err, runstore.ErrNotFound):
 			return runstore.ErrNotFound
+		case errors.Is(err, runstore.ErrConflict):
+			return runstore.ErrConflict
+		default:
+			return errors.New("lock StageExecution for allocation placement")
 		}
-		return errors.New("lock StageExecution for allocation placement")
 	}
-	if state != string(runstore.StagePreparing) || runID != request.RunID {
-		return runstore.ErrConflict
-	}
-	store := runstore.NewPostgresStore(tx)
 	for _, reservation := range reservations {
 		resolved := result[reservation.Grant.AllocationID]
 		configuration := &runstore.AllocationRuntimeConfiguration{
@@ -569,7 +569,7 @@ func loadPinnedRuntimeConfig(
 }
 
 func (a *PlacementAllocator) gatewayCatalog(
-	selection workflowconfig.ResolvedConsumerExecutionConfig,
+	selection resolved.ResolvedConsumerExecutionConfig,
 	configs []runtimeconfig.PinnedRuntimeConfig,
 ) (map[llmgateway.LLMGatewayConfigRef]llmgateway.ResolvedLLMGatewayConfig, error) {
 	refs := make(map[llmgateway.LLMGatewayConfigRef]struct{})
@@ -595,19 +595,19 @@ func (a *PlacementAllocator) gatewayCatalog(
 // Keep SQL-backed lookup ownership explicit. Optimistic resolution uses pool
 // readers; the recheck under the lifecycle barrier uses transaction readers.
 type placementCredentialLookups struct {
-	llm          workflowconfig.CredentialLookup
+	llm          resolved.CredentialLookup
 	runtime      PlacementRuntimeCredentialLookup
 	llmCache     map[string]placementCachedValue[runtimeconfig.LLMCredentialAuthorization]
-	runtimeCache map[string]placementCachedValue[contracts.RuntimeCredentialKind]
+	runtimeCache map[string]placementCachedValue[runtimesettings.RuntimeCredentialKind]
 }
 
 func (lookups placementCredentialLookups) catalogs(
 	ctx context.Context,
-	selection workflowconfig.ResolvedConsumerExecutionConfig,
+	selection resolved.ResolvedConsumerExecutionConfig,
 	configs []runtimeconfig.PinnedRuntimeConfig,
 ) (
 	map[string]runtimeconfig.LLMCredentialAuthorization,
-	map[string]contracts.RuntimeCredentialKind,
+	map[string]runtimesettings.RuntimeCredentialKind,
 	error,
 ) {
 	llmIDs := make(map[string]struct{})
@@ -626,7 +626,7 @@ func (lookups placementCredentialLookups) catalogs(
 		}
 		llmResult[id] = authorization
 	}
-	runtimeResult := make(map[string]contracts.RuntimeCredentialKind, len(runtimeIDs))
+	runtimeResult := make(map[string]runtimesettings.RuntimeCredentialKind, len(runtimeIDs))
 	for id := range runtimeIDs {
 		kind, err := lookups.runtimeKind(ctx, id)
 		if err != nil {
@@ -662,14 +662,14 @@ func (lookups placementCredentialLookups) llmAuthorization(
 func (lookups placementCredentialLookups) runtimeKind(
 	ctx context.Context,
 	id string,
-) (contracts.RuntimeCredentialKind, error) {
+) (runtimesettings.RuntimeCredentialKind, error) {
 	if cached, ok := lookups.runtimeCache[id]; ok {
 		return cached.value, cached.err
 	}
 	metadata, err := lookups.runtime.Get(ctx, id)
-	kind := contracts.RuntimeCredentialKind(metadata.Kind)
+	kind := runtimesettings.RuntimeCredentialKind(metadata.Kind)
 	if lookups.runtimeCache != nil {
-		lookups.runtimeCache[id] = placementCachedValue[contracts.RuntimeCredentialKind]{value: kind, err: err}
+		lookups.runtimeCache[id] = placementCachedValue[runtimesettings.RuntimeCredentialKind]{value: kind, err: err}
 	}
 	return kind, err
 }
@@ -697,7 +697,7 @@ func collectSpecCredentialIDs(
 }
 
 func runtimeRoutePatches(
-	selection workflowconfig.ResolvedConsumerExecutionConfig,
+	selection resolved.ResolvedConsumerExecutionConfig,
 ) (runtimeconfig.WorkerRoutePatch, runtimeconfig.WorkerRoutePatch, runtimeconfig.WorkerRoutePatch, error) {
 	var workflow, run, escalation runtimeconfig.WorkerRoutePatch
 	patchFor := func(origin string) (*runtimeconfig.WorkerRoutePatch, error) {

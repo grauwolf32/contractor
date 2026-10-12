@@ -16,6 +16,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditservice"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/findingintake"
 	"github.com/grauwolf32/contractor/internal/projectstore"
@@ -38,7 +39,7 @@ func TestFindingCollectionHTTPPublicationAndOrdinaryRunInput(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	workflowBytes = bytes.Replace(workflowBytes, []byte("source: {required: true, mediaTypes: [text/plain]}"), []byte("source: {required: true, mediaTypes: ["+contracts.FindingCollectionMediaType+"]}"), 1)
+	workflowBytes = bytes.Replace(workflowBytes, []byte("source: {required: true, mediaTypes: [text/plain]}"), []byte("source: {required: true, mediaTypes: ["+resolved.FindingCollectionMediaType+"]}"), 1)
 	if err := os.WriteFile(workflowPath, workflowBytes, 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -48,7 +49,7 @@ func TestFindingCollectionHTTPPublicationAndOrdinaryRunInput(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	fixture := newHandlerFixtureWithAuth(t, root, newTestAuthentication(t), mustTestOrigins(t), false, nil, func(d *Dependencies) {
+	fixture := newHandlerFixtureWithAuth(t, root, newTestAuthentication(t), mustTestOrigins(t), false, nil, func(d *testServices) {
 		d.Runs, d.Artifacts, d.Projects = runs, artifactService, projectstore.NewPostgresStore(pool)
 		d.RunQueue, d.RunLifecycle = runs, runs
 		d.RunCreator = newTestRunCreator(t, *d, runs, integrationUnitOfWork{pool: pool, credentials: d.Credentials}, true)
@@ -101,6 +102,13 @@ func TestFindingCollectionHTTPPublicationAndOrdinaryRunInput(t *testing.T) {
 	if response := publish(body, true, true); response.Code != http.StatusOK {
 		t.Fatalf("replay = %d %s", response.Code, response.Body.String())
 	}
+	// The clientKey is bound to its first selection before any source is
+	// looked up, so another selection is the permanent idempotency_conflict.
+	changed := publish(bytes.Replace(body, []byte(`"id":"source-run"`), []byte(`"id":"other-run"`), 1), true, true)
+	if changed.Code != http.StatusConflict || !strings.Contains(changed.Body.String(), `"retryable":false`) {
+		t.Fatalf("changed selection = %d %s", changed.Code, changed.Body.String())
+	}
+	assertErrorCode(t, changed, "idempotency_conflict")
 	createBody, _ := json.Marshal(map[string]any{"workflow": "artifact-copy@1", "parameters": map[string]string{}, "artifacts": map[string]contracts.ArtifactRef{"source": publication.Artifact.Ref}})
 	request := newPublicContractRequest(http.MethodPost, "/v1/runs", createBody)
 	request.Header.Set("Idempotency-Key", "collection-consumer")

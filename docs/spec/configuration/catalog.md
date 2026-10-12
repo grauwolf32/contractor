@@ -211,6 +211,16 @@ population and their lifecycle are owned by [Skills](../tools/skills.md)
 factories and Planner factories are registered code plus Server-visible
 descriptors, not configuration subtrees.
 
+**CAT-R79.** The Server holds one registry of these descriptors, built into
+its binary. Loading the configuration set, decoding a persisted Workflow
+snapshot (CAT-R78) and Runtime Agent placement check a selection against that
+registry, and no caller supplies another. Each PlannerFactory descriptor
+states whether its Stage binds exactly one logical Agent or one or more
+([LIM-PLN-1](../platform/limits.md), [LIM-PLN-2](../platform/limits.md)) and
+whether the Planner runs without a model, so that its Stage has no Planner
+`executionConfig`. A persisted snapshot whose Stage selects a Planner the
+registry does not contain is invalid on read.
+
 ### Manifest files
 
 **CAT-R7.** The local loader recursively discovers regular files
@@ -564,8 +574,8 @@ name left by a crash between link and unlink is ignored by that loader
 
 **CAT-R59.** Publication requires an `Idempotency-Key`. Retrying an
 identical identity and body returns that published version; the same identity
-with different normalized content conflicts
-([FAIL-CAT-2](../platform/failure-model.md)).
+with different normalized content conflicts with `409 configuration_conflict`,
+which is not retryable ([FAIL-CAT-2](../platform/failure-model.md)).
 
 **CAT-R75.** Before each publication the Server reloads both roots and
 compares the union with its current snapshot. The union may differ only by
@@ -623,7 +633,8 @@ publication, and takes a page's resources from that same snapshot; a page read
 neither copies nor encodes the whole catalog.
 
 **CAT-R68.** Reusing a cursor with another query, kind or catalog
-snapshot is a bounded `400`; the client restarts from the first page.
+snapshot is a bounded `400 invalid_request`; the client restarts from the
+first page.
 
 **CAT-R69.** Versions remain opaque strings ordered by the
 existing exact selector order.

@@ -12,15 +12,15 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
+	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
-	"github.com/grauwolf32/contractor/internal/rundeletion"
 	"github.com/jackc/pgx/v5"
-
-	"github.com/grauwolf32/contractor/internal/auditstore"
 )
 
 func TestPostgresSameReceiptImportsIntoIndependentAudits(t *testing.T) {
@@ -50,7 +50,7 @@ WHERE audit_id=$1 AND first_receipt_id=$2`, auditID, f.receiptID).Scan(&findingI
 	if findingIDs[f.request.AuditID] == findingIDs[secondAudit] || holds[f.request.AuditID].Proposal.Ref.SameExact(holds[secondAudit].Proposal.Ref) {
 		t.Fatal("destination Audits shared finding identity or retained proposal")
 	}
-	if err := rundeletion.New(f.pool).DeleteReleasedTerminalRun(f.ctx, f.request.OwnerID, f.request.RunID); err != nil {
+	if err := deleteRun(f.ctx, f.pool, f.request.OwnerID, f.request.RunID); err != nil {
 		t.Fatal(err)
 	}
 	for auditID, hold := range holds {
@@ -77,7 +77,7 @@ WHERE audit_id=$1 AND first_receipt_id=$2`, auditID, f.receiptID).Scan(&findingI
 			}
 		}
 	}
-	audits := auditstore.NewPostgresStore(f.pool)
+	audits := auditstoretest.NewStore(f.pool)
 	first, err := audits.Get(f.ctx, f.request.OwnerID, f.request.AuditID)
 	if err != nil {
 		t.Fatal(err)
@@ -123,7 +123,7 @@ func TestPostgresAuditReceiptReadsRequireHoldInAuditProject(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := auditstore.NewPostgresStore(f.pool).CreateDraft(f.ctx, auditstore.CreateDraftParams{
+	if _, _, err := auditstoretest.NewStore(f.pool).CreateDraft(f.ctx, auditstore.CreateDraftParams{
 		AuditID: otherAudit, OwnerID: f.request.OwnerID, ProjectID: otherProject,
 		Profile:         auditstore.ProfileIdentity{Name: "profile", Version: "1", Digest: auditdomain.DigestBytes([]byte("profile"))},
 		ProfileSnapshot: json.RawMessage(`{"interaction":{"findingConfirmation":"human-required"}}`),
@@ -170,7 +170,7 @@ func TestPostgresCollectionPublicationReadsRequestingAuditHoldAfterRunDeletion(t
 			t.Fatalf("import into %s: %v", auditID, err)
 		}
 	}
-	if err := rundeletion.New(f.pool).DeleteReleasedTerminalRun(f.ctx, f.request.OwnerID, f.request.RunID); err != nil {
+	if err := deleteRun(f.ctx, f.pool, f.request.OwnerID, f.request.RunID); err != nil {
 		t.Fatal(err)
 	}
 	publisher, err := NewCollectionPublisher(f.pool, emptyCollectionReviews{})
@@ -244,7 +244,7 @@ func TestPostgresAuditInboxReadsOwnRetainedCopyAfterRunDeletion(t *testing.T) {
 		}
 		holds[auditID] = hold
 	}
-	if err := rundeletion.New(f.pool).DeleteReleasedTerminalRun(f.ctx, f.request.OwnerID, f.request.RunID); err != nil {
+	if err := deleteRun(f.ctx, f.pool, f.request.OwnerID, f.request.RunID); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := f.pool.Exec(f.ctx, `ALTER TABLE finding_proposal_audit_holds DISABLE TRIGGER finding_proposal_audit_holds_protect_update`); err != nil {
@@ -283,7 +283,7 @@ func TestPostgresAuditInboxOmitsUnretainedChildReceiptAfterRunDeletion(t *testin
 	if err := f.intake.RetainAuditCollectionBatch(f.ctx, []ImportRequest{request}); err != nil {
 		t.Fatal(err)
 	}
-	audits := auditstore.NewPostgresStore(f.pool)
+	audits := auditstoretest.NewStore(f.pool)
 	beforeRejection, err := audits.Get(f.ctx, request.OwnerID, request.AuditID)
 	if err != nil {
 		t.Fatal(err)
@@ -317,7 +317,7 @@ func TestPostgresAuditInboxOmitsUnretainedChildReceiptAfterRunDeletion(t *testin
 		live[1].ReceiptID != retained.ReceiptID || len(live[1].AuditHolds) != 1 {
 		t.Fatalf("Audit inbox while the source Run exists = (%+v, %v)", live, err)
 	}
-	if err := rundeletion.New(f.pool).DeleteReleasedTerminalRun(f.ctx, owner, f.request.RunID); err != nil {
+	if err := deleteRun(f.ctx, f.pool, owner, f.request.RunID); err != nil {
 		t.Fatal(err)
 	}
 	for name, list := range map[string]func(context.Context, string, string, ListQuery) ([]Receipt, error){
@@ -350,7 +350,7 @@ func TestPostgresAuditInboxOmitsUnretainedChildReceiptAfterRunDeletion(t *testin
 
 func createFixtureAudit(t *testing.T, f deletionImportFixture, auditID string) {
 	t.Helper()
-	if _, _, err := auditstore.NewPostgresStore(f.pool).CreateDraft(f.ctx, auditstore.CreateDraftParams{
+	if _, _, err := auditstoretest.NewStore(f.pool).CreateDraft(f.ctx, auditstore.CreateDraftParams{
 		AuditID: auditID, OwnerID: f.request.OwnerID, ProjectID: "delete-project",
 		Profile:         auditstore.ProfileIdentity{Name: "profile", Version: "1", Digest: auditdomain.DigestBytes([]byte("profile"))},
 		ProfileSnapshot: json.RawMessage(`{"interaction":{"findingConfirmation":"human-required"}}`),
@@ -392,8 +392,8 @@ func insertAuditChildReceiptWithEvidence(
 		canonical.proposalBytes = append(canonical.proposalBytes,
 			bytes.Repeat([]byte(" "), padding[0]-len(canonical.proposalBytes))...)
 	}
-	written, err := artifacts.NewService(artifacts.NewPostgresRepository(f.pool)).WriteFindingProposal(
-		f.ctx, f.request.RunID, clientKey+"-proposal",
+	written, err := artifactstest.WriteFindingProposal(
+		f.ctx, artifacts.NewService(artifacts.NewPostgresRepository(f.pool)), f.request.RunID, clientKey+"-proposal",
 		artifacts.Payload{MediaType: proposalMediaType, Data: canonical.proposalBytes},
 	)
 	if err != nil {

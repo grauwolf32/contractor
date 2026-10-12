@@ -761,6 +761,10 @@ Controller logs the full error (AUX-R67). Shared rules are in
 7. No work is silently dropped and no proposal is silently ignored (AUX-R87,
    AUX-R55).
 8. No network or model call runs under a database row lock (AUX-R75).
+9. A reconcile snapshot reflects one commit: a change committed while it is
+   read appears in none of it (AUX-R95); test
+   `TestPostgresReconcileSnapshotReadsOneCommitOnAPoolAndInACallerTransaction`
+   in [`internal/auditstore/internal/pgstore/reconcile_snapshot_postgres_test.go`](../../../internal/auditstore/internal/pgstore/reconcile_snapshot_postgres_test.go).
 
 ## Non-goals
 

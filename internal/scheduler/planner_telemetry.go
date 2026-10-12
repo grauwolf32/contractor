@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -56,7 +58,7 @@ func (s *Scheduler) newPlannerTelemetry(
 	if configuration.Credential != "" {
 		if selected.PlannerRuntimeCredential == nil ||
 			selected.PlannerRuntimeCredential.CredentialID != configuration.Credential ||
-			selected.PlannerRuntimeCredential.Kind != contracts.RuntimeCredentialOTLPHeaders {
+			selected.PlannerRuntimeCredential.Kind != runtimesettings.RuntimeCredentialOTLPHeaders {
 			s.options.Logger.Warn(
 				"Planner telemetry credential provenance is unavailable",
 				"stage_execution_id", execution.StageExecutionID,
@@ -65,12 +67,12 @@ func (s *Scheduler) newPlannerTelemetry(
 		}
 		err := s.useRuntimeCredential(
 			ctx, configuration.Credential,
-			[]contracts.RuntimeCredentialKind{contracts.RuntimeCredentialOTLPHeaders},
-			func(kind contracts.RuntimeCredentialKind, plaintext []byte) error {
+			[]runtimesettings.RuntimeCredentialKind{runtimesettings.RuntimeCredentialOTLPHeaders},
+			func(kind runtimesettings.RuntimeCredentialKind, plaintext []byte) error {
 				var material struct {
 					Headers map[string]string `json:"headers"`
 				}
-				if kind != contracts.RuntimeCredentialOTLPHeaders || strictjson.Decode(plaintext, &material) != nil {
+				if kind != runtimesettings.RuntimeCredentialOTLPHeaders || strictjson.Decode(plaintext, &material) != nil {
 					return errors.New("invalid OTLP credential material")
 				}
 				for name, value := range material.Headers {

@@ -17,7 +17,8 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/auditstore/claimstore"
+	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/findingintake"
@@ -126,7 +127,7 @@ func TestImporterBatchKeepsFindingProposalOnItsExactMember(t *testing.T) {
 		},
 	}
 	findings := &fakeFindingRetention{resolved: []findingintake.ResolvedProposal{proposal}}
-	harness.importer, err = New(harness.store, harness.importer.runs, harness.artifacts, findings)
+	harness.importer, err = New(harness.store, harness.store, harness.importer.runs, harness.artifacts, findings)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -168,7 +169,7 @@ func TestImporterBatchRejectsProposalAliasedAcrossMembers(t *testing.T) {
 			Digest: auditdomain.DigestBytes([]byte("proposal")), MediaType: "application/json", SizeBytes: 8,
 		},
 	}}}
-	harness.importer, err = New(harness.store, harness.importer.runs, harness.artifacts, findings)
+	harness.importer, err = New(harness.store, harness.store, harness.importer.runs, harness.artifacts, findings)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -403,7 +404,7 @@ func newFindingImportHarness(t *testing.T) (importHarness, *fakeFindingRetention
 			},
 		},
 	}}}
-	harness.importer, err = New(harness.store, harness.importer.runs, harness.artifacts, findings)
+	harness.importer, err = New(harness.store, harness.store, harness.importer.runs, harness.artifacts, findings)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -462,7 +463,7 @@ func TestImporterCollectsWhenClosedAuditCannotHoldFindingProposal(t *testing.T) 
 			},
 		}},
 	}
-	harness.importer, err = New(harness.store, harness.importer.runs, harness.artifacts, findings)
+	harness.importer, err = New(harness.store, harness.store, harness.importer.runs, harness.artifacts, findings)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -530,7 +531,7 @@ func TestImporterRejectsOnlyInvalidOrUnreadableFindingProposals(t *testing.T) {
 		}
 		findings.collection = append(findings.collection, candidate)
 	}
-	harness.importer, err = New(harness.store, harness.importer.runs, harness.artifacts, findings)
+	harness.importer, err = New(harness.store, harness.store, harness.importer.runs, harness.artifacts, findings)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -572,7 +573,7 @@ func TestImporterAssociatesOnlyExactInvocationLocalFindingProposal(t *testing.T)
 		},
 	}
 	findings := &fakeFindingRetention{resolved: []findingintake.ResolvedProposal{proposal}}
-	harness.importer, err = New(harness.store, harness.importer.runs, harness.artifacts, findings)
+	harness.importer, err = New(harness.store, harness.store, harness.importer.runs, harness.artifacts, findings)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -629,7 +630,7 @@ func TestImporterAssociatesLaterRoundResultWithExactTaskProposal(t *testing.T) {
 			Proposal: proposal, Evidence: []findingintake.ExactArtifact{},
 		}},
 	}}}
-	harness.importer, err = New(harness.store, harness.importer.runs, harness.artifacts, findings)
+	harness.importer, err = New(harness.store, harness.store, harness.importer.runs, harness.artifacts, findings)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -689,7 +690,7 @@ func TestImporterBatchAllowsDistinctTaskChecksFromOneProposalReceipt(t *testing.
 			Proposal: proposal, Evidence: []findingintake.ExactArtifact{},
 		}},
 	}}}
-	harness.importer, err = New(harness.store, harness.importer.runs, harness.artifacts, findings)
+	harness.importer, err = New(harness.store, harness.store, harness.importer.runs, harness.artifacts, findings)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -723,7 +724,7 @@ func TestImporterRejectsUnexpectedProposalWhenFindingsAreDisabled(t *testing.T) 
 	}}}
 	runs := harness.importer.runs
 	var err error
-	harness.importer, err = New(harness.store, runs, harness.artifacts, findings)
+	harness.importer, err = New(harness.store, harness.store, runs, harness.artifacts, findings)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -865,7 +866,7 @@ func TestImporterFinalizesTruthfulReportWithZeroDenominator(t *testing.T) {
 	// Report finalization reads the projection stored at intake, never the
 	// proposal artifact.
 	artifactAccess := &fakeImportArtifacts{project: map[string][]byte{}, writes: map[string][]byte{}}
-	importer, err := New(store, &fakeImportRuns{}, artifactAccess)
+	importer, err := New(store, store, &fakeImportRuns{}, artifactAccess)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -970,7 +971,7 @@ func TestImporterFinalizesReportAcrossEveryRound(t *testing.T) {
 	}
 	store := &fakeImportStore{rounds: rounds, reportItems: items}
 	artifactAccess := &fakeImportArtifacts{project: map[string][]byte{}, writes: map[string][]byte{}}
-	importer, err := New(store, &fakeImportRuns{}, artifactAccess)
+	importer, err := New(store, store, &fakeImportRuns{}, artifactAccess)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1078,7 +1079,7 @@ func TestImporterFinalizesLargeInventoryWithFullMachineGapList(t *testing.T) {
 	}
 	store := &fakeImportStore{rounds: []auditstore.Round{round}}
 	artifactAccess := &fakeImportArtifacts{writes: map[string][]byte{}}
-	importer, err := New(store, &fakeImportRuns{}, artifactAccess)
+	importer, err := New(store, store, &fakeImportRuns{}, artifactAccess)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1128,24 +1129,24 @@ func TestOperationCoverageKeepsTraceStateSeparateFromAssessment(t *testing.T) {
 			Completed: []string{"operation-resolution"}, Gaps: []string{},
 		},
 	}
-	coverage, err := semanticCoverage(config.AuditModeOperationTracing, task, result, map[string]validatedEvidence{})
+	coverage, err := semanticCoverage(auditprofile.AuditModeOperationTracing, task, result, map[string]validatedEvidence{})
 	if err != nil || coverage.Status != auditstore.CoverageTracedComplete {
 		t.Fatalf("complete operation coverage = (%+v, %v)", coverage, err)
 	}
 
 	task.Operation.Gaps = []string{"callback-not-selected"}
-	coverage, err = semanticCoverage(config.AuditModeOperationTracing, task, result, map[string]validatedEvidence{})
+	coverage, err = semanticCoverage(auditprofile.AuditModeOperationTracing, task, result, map[string]validatedEvidence{})
 	if err != nil || coverage.Status != auditstore.CoverageTracedPartial {
 		t.Fatalf("partial operation coverage = (%+v, %v)", coverage, err)
 	}
 	result.Coverage.Completed = []string{}
-	coverage, err = semanticCoverage(config.AuditModeOperationTracing, task, result, map[string]validatedEvidence{})
+	coverage, err = semanticCoverage(auditprofile.AuditModeOperationTracing, task, result, map[string]validatedEvidence{})
 	if err != nil || coverage.Status != auditstore.CoverageUnmapped {
 		t.Fatalf("unmapped operation coverage = (%+v, %v)", coverage, err)
 	}
 	result.Assessment = "not-tested"
 	result.Coverage.Completed = []string{"operation-resolution"}
-	if _, err := semanticCoverage(config.AuditModeOperationTracing, task, result, map[string]validatedEvidence{}); err == nil {
+	if _, err := semanticCoverage(auditprofile.AuditModeOperationTracing, task, result, map[string]validatedEvidence{}); err == nil {
 		t.Fatal("not-tested operation accepted completed trace coverage")
 	}
 }
@@ -1164,7 +1165,7 @@ func TestChecklistCoverageDoesNotClaimConclusiveViolationAcrossGaps(t *testing.T
 	evidence := map[string]validatedEvidence{
 		"evidence": {value: auditdomain.Evidence{ID: "evidence", Kind: "source"}},
 	}
-	coverage, err := semanticCoverage(config.AuditModeCustomChecklist, task, result, evidence)
+	coverage, err := semanticCoverage(auditprofile.AuditModeCustomChecklist, task, result, evidence)
 	if err != nil || coverage.Status != auditstore.CoverageInconclusive {
 		t.Fatalf("gapped violation coverage = (%+v, %v)", coverage, err)
 	}
@@ -1517,7 +1518,7 @@ func newImportHarness(t *testing.T) importHarness {
 		PublicationMode: runstore.PublicationAuditManaged, AuditExecutionID: stringPointer(execution.ExecutionID),
 		State: runstore.RunSucceeded,
 	}}
-	importer, err := New(store, runs, artifactAccess)
+	importer, err := New(store, store, runs, artifactAccess)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1589,7 +1590,7 @@ func (f *fakeImportStore) ListReportItems(_ context.Context, _, roundID string, 
 	return result[:min(len(result), limit)], nil
 }
 
-// ListReportFindings pages like PostgresStore: one state in creation order,
+// ListReportFindings pages like querystore.Store: one state in creation order,
 // at most Limit findings, and the first finding whose canonical projection
 // would take the page past ProjectionBytes starts the next page.
 func (f *fakeImportStore) ListReportFindings(
@@ -1628,10 +1629,10 @@ func (f *fakeImportStore) ListReportFindings(
 	return result, false, nil
 }
 
-// RecordReportPage keeps PostgresStore's page contract: the shared request
+// RecordReportPage keeps claimstore.Store's page contract: the shared request
 // validation, contiguous ordinals and discarding other revisions' pages.
 func (f *fakeImportStore) RecordReportPage(_ context.Context, params auditstore.RecordReportPageParams) error {
-	if err := auditstore.ValidateRecordReportPage(params); err != nil {
+	if err := claimstore.ValidateRecordReportPage(params); err != nil {
 		return err
 	}
 	kept := f.pages[:0]
@@ -1688,7 +1689,7 @@ func (f *fakeImportStore) CollectionDispositionCounts(context.Context, string) (
 // Collect enforces the production request contract, so a collection shape
 // the PostgreSQL store would reject cannot pass here.
 func (f *fakeImportStore) Collect(_ context.Context, params auditstore.CollectParams) (auditstore.CollectionReceipt, bool, error) {
-	if err := auditstore.ValidateCollect(params); err != nil {
+	if err := claimstore.ValidateCollect(params); err != nil {
 		return auditstore.CollectionReceipt{}, false, err
 	}
 	if f.collectErr != nil {
@@ -2099,18 +2100,18 @@ func (f *fakeImportArtifacts) PutImmutableProject(_ context.Context, _ string, t
 	}, nil
 }
 
-func loadResultProfile(t *testing.T) config.ResolvedAuditProfile {
+func loadResultProfile(t *testing.T) auditprofile.ResolvedAuditProfile {
 	return loadResultProfileWithFindingConfirmation(t, "disabled")
 }
 
 func loadResultProfileWithFindingConfirmation(
 	t *testing.T,
 	policy string,
-) config.ResolvedAuditProfile {
+) auditprofile.ResolvedAuditProfile {
 	return loadResultProfileFixture(t, policy, false)
 }
 
-func loadResultProfileWithDiscovery(t *testing.T) config.ResolvedAuditProfile {
+func loadResultProfileWithDiscovery(t *testing.T) auditprofile.ResolvedAuditProfile {
 	return loadResultProfileFixture(t, "disabled", true)
 }
 
@@ -2119,7 +2120,7 @@ func loadResultProfileFixture(
 	policy string,
 	withDiscovery bool,
 	reportAcceptance ...string,
-) config.ResolvedAuditProfile {
+) auditprofile.ResolvedAuditProfile {
 	t.Helper()
 	root := t.TempDir()
 	for _, directory := range []string{
@@ -2230,7 +2231,7 @@ spec:
 			t.Fatal(err)
 		}
 	}
-	snapshot, err := configload.Load(root, config.MVPDescriptors())
+	snapshot, err := configload.Load(root)
 	if err != nil {
 		t.Fatal(err)
 	}

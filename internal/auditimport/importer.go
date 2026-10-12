@@ -13,7 +13,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/findingintake"
 	"github.com/grauwolf32/contractor/internal/pagelimit"
@@ -74,7 +74,7 @@ func (i *Importer) collect(
 	loadStandards := sync.OnceValues(func() (retainedStandardIndex, error) {
 		return i.loadPinnedStandards(ctx, snapshot)
 	})
-	members, err := i.store.ListExecutionItems(ctx, execution.ExecutionID)
+	members, err := i.reads.ListExecutionItems(ctx, execution.ExecutionID)
 	if err != nil {
 		return false, err
 	}
@@ -148,7 +148,7 @@ func (i *Importer) collectSucceededRole(
 	if execution.RunID == nil {
 		return false, fmt.Errorf("%w: succeeded role execution has no Run", ErrPermanent)
 	}
-	profile, err := config.DecodeResolvedAuditProfileSnapshot(snapshot.Audit.ProfileSnapshot)
+	profile, err := auditprofile.DecodeResolvedAuditProfileSnapshot(snapshot.Audit.ProfileSnapshot)
 	if err != nil || profile.Ref.Name != snapshot.Audit.Profile.Name ||
 		profile.Ref.Version != snapshot.Audit.Profile.Version ||
 		profile.Ref.Digest != snapshot.Audit.Profile.Digest {
@@ -156,7 +156,7 @@ func (i *Importer) collectSucceededRole(
 	}
 	binding, exists := profile.Workflows[execution.WorkflowRole]
 	if !exists || auditstore.ExecutionRole(binding.Kind) != execution.Role ||
-		binding.Kind == config.AuditWorkflowCheck {
+		binding.Kind == auditprofile.AuditWorkflowCheck {
 		return false, fmt.Errorf("%w: role binding is inconsistent", ErrPermanent)
 	}
 	run, err := i.runs.GetRun(ctx, *execution.RunID)
@@ -308,7 +308,7 @@ func (i *Importer) retainFindingProposals(
 		return nil
 	}
 	ctx = findingintake.WithCollectionDirectVerificationCache(ctx)
-	profile, err := config.DecodeResolvedAuditProfileSnapshot(snapshot.Audit.ProfileSnapshot)
+	profile, err := auditprofile.DecodeResolvedAuditProfileSnapshot(snapshot.Audit.ProfileSnapshot)
 	if err != nil {
 		return fmt.Errorf("%w: pinned AuditProfile is invalid", ErrPermanent)
 	}
@@ -321,7 +321,7 @@ func (i *Importer) retainFindingProposals(
 		if err != nil {
 			return fmt.Errorf("list Audit child finding proposals: %w", err)
 		}
-		if profile.Interaction.FindingConfirmation == config.AuditFindingDisabled && len(receipts) != 0 {
+		if profile.Interaction.FindingConfirmation == auditprofile.AuditFindingDisabled && len(receipts) != 0 {
 			return fmt.Errorf("%w: findings-disabled Audit child produced a proposal", ErrPermanent)
 		}
 		pending := make([]findingintake.ImportRequest, 0, len(receipts))
@@ -391,7 +391,7 @@ func (i *Importer) collectContractInvalid(
 	claim auditstore.ControllerClaim,
 	execution auditstore.Execution,
 ) (bool, error) {
-	members, err := i.store.ListExecutionItems(ctx, execution.ExecutionID)
+	members, err := i.reads.ListExecutionItems(ctx, execution.ExecutionID)
 	if err != nil {
 		return false, err
 	}
@@ -426,7 +426,7 @@ func (i *Importer) prepareMembers(
 	for index, member := range members {
 		itemIDs[index] = member.ItemID
 	}
-	items, err := i.store.ListItemsByIDs(ctx, snapshot.Audit.AuditID, itemIDs)
+	items, err := i.reads.ListItemsByIDs(ctx, snapshot.Audit.AuditID, itemIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -599,7 +599,7 @@ func (i *Importer) commitCollection(
 	return err == nil, err
 }
 
-func resultOutputSlot(profile config.ResolvedAuditProfile, members []preparedMember) (string, bool) {
+func resultOutputSlot(profile auditprofile.ResolvedAuditProfile, members []preparedMember) (string, bool) {
 	if len(members) == 0 {
 		return "", false
 	}
@@ -648,7 +648,7 @@ func auditdomainError() error {
 }
 
 func semanticCoverage(
-	mode config.AuditProfileMode,
+	mode auditprofile.AuditProfileMode,
 	task auditdomain.ItemTask,
 	result auditdomain.CheckResult,
 	evidence map[string]validatedEvidence,
@@ -713,7 +713,7 @@ func semanticCoverage(
 			coverage.Status = auditstore.CoverageViolated
 		}
 	case "supported":
-		if mode != config.AuditModeRiskAssessment && task.Finding == nil {
+		if mode != auditprofile.AuditModeRiskAssessment && task.Finding == nil {
 			return auditstore.Coverage{}, fmt.Errorf("%s", auditdomain.CodeResultSetInvalid)
 		}
 		if len(completed) != len(requested) || len(gaps) != 0 {
@@ -722,7 +722,7 @@ func semanticCoverage(
 			coverage.Status = auditstore.CoverageViolated
 		}
 	case "refuted":
-		if mode != config.AuditModeRiskAssessment && task.Finding == nil || len(completed) != len(requested) || len(gaps) != 0 {
+		if mode != auditprofile.AuditModeRiskAssessment && task.Finding == nil || len(completed) != len(requested) || len(gaps) != 0 {
 			coverage.Status = auditstore.CoverageInconclusive
 		} else {
 			coverage.Status = auditstore.CoverageSatisfied

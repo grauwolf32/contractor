@@ -4,8 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"os"
-	"path/filepath"
 	"reflect"
 	"strconv"
 	"strings"
@@ -13,10 +11,12 @@ import (
 	"testing"
 
 	"github.com/google/jsonschema-go/jsonschema"
-	workflowconfig "github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/planner"
+	"github.com/grauwolf32/contractor/internal/planner/stageresult"
 	"github.com/grauwolf32/contractor/internal/planner/stateview"
 	"google.golang.org/adk/model"
 	"google.golang.org/adk/tool"
@@ -77,7 +77,7 @@ func TestStateToolsExposeExactProfileSpecificSchemas(t *testing.T) {
 	}
 }
 
-func TestStreamlineStateToolsProjectNewestCompletionWithoutDurablePaths(t *testing.T) {
+func TestSharedStreamlineStateToolsProjectNewestCompletionWithoutDurablePaths(t *testing.T) {
 	const (
 		firstPath  = "src/main.py"
 		secondPath = "README.md"
@@ -132,14 +132,14 @@ func TestStreamlineStateToolsProjectNewestCompletionWithoutDurablePaths(t *testi
 				t.Fatalf("tool usage projection = %+v", usage)
 			}
 			return functionStep(finishToolName, map[string]any{
-				"outcome": string(contracts.StageSucceeded), "summary": "complete",
+				"outcome": string(stageresult.StageSucceeded), "summary": "complete",
 				"artifacts": map[string]any{
 					"report": artifactArgs("builder", "report", revision),
 				},
 			})(request)
 		},
 	}}
-	workers := &fakeWorkerInvoker{results: map[string]contracts.StageContentResult{
+	workers := &fakeWorkerInvoker{results: map[string]stageresult.StageContentResult{
 		"builder": stageResult("complete", map[string]contracts.ArtifactRef{
 			"report": exactRef("builder", "report", revision),
 		}),
@@ -160,7 +160,7 @@ func TestStreamlineStateToolsProjectNewestCompletionWithoutDurablePaths(t *testi
 		t.Fatal(err)
 	}
 	result, err := instance.Run(t.Context())
-	if err != nil || result.Outcome != contracts.StageSucceeded {
+	if err != nil || result.Outcome != stageresult.StageSucceeded {
 		t.Fatalf("Run = (%+v, %v)", result, err)
 	}
 	calls := reader.callsSnapshot()
@@ -208,14 +208,14 @@ func TestStateProjectionFailureDoesNotRewriteCompletedSubtask(t *testing.T) {
 				t.Fatalf("closed State failure = %+v", response)
 			}
 			return functionStep(finishToolName, map[string]any{
-				"outcome": string(contracts.StageSucceeded), "summary": "complete",
+				"outcome": string(stageresult.StageSucceeded), "summary": "complete",
 				"artifacts": map[string]any{
 					"report": artifactArgs("builder", "report", revision),
 				},
 			})(request)
 		},
 	}}
-	workers := &fakeWorkerInvoker{results: map[string]contracts.StageContentResult{
+	workers := &fakeWorkerInvoker{results: map[string]stageresult.StageContentResult{
 		"builder": stageResult("complete", map[string]contracts.ArtifactRef{
 			"report": exactRef("builder", "report", revision),
 		}),
@@ -236,7 +236,7 @@ func TestStateProjectionFailureDoesNotRewriteCompletedSubtask(t *testing.T) {
 		t.Fatal(err)
 	}
 	result, err := instance.Run(t.Context())
-	if err != nil || result.Outcome != contracts.StageSucceeded || sessions.plan == nil ||
+	if err != nil || result.Outcome != stageresult.StageSucceeded || sessions.plan == nil ||
 		len(sessions.plan.Subtasks) != 1 ||
 		sessions.plan.Subtasks[0].Status != planner.PlannerSubtaskSucceeded {
 		t.Fatalf("State failure rewrote semantic execution: result=%+v err=%v plan=%+v", result, err, sessions.plan)
@@ -270,7 +270,7 @@ func TestStateProjectionFailureUsesClosedCodes(t *testing.T) {
 	}
 }
 
-func TestRouterStateToolReadsOnlySelectedLogicalWorker(t *testing.T) {
+func TestSharedRouterStateToolReadsOnlySelectedLogicalWorker(t *testing.T) {
 	reader := &plannerStateTestReader{states: map[string]reporting.AgentStateSnapshot{
 		"allocation-builder":  plannerStateSnapshot(t, "worker-invocation-1", "0", 2),
 		"allocation-reviewer": plannerStateSnapshot(t, "worker-invocation-1", "0", 2),
@@ -284,21 +284,21 @@ func TestRouterStateToolReadsOnlySelectedLogicalWorker(t *testing.T) {
 		func(request *model.LLMRequest) (*model.LLMResponse, error) {
 			_ = requireStateResult(t, request, getWorkerToolUsageToolName, "usage")
 			return functionStep(finishToolName, map[string]any{
-				"outcome": string(contracts.StageSucceeded), "summary": "complete",
+				"outcome": string(stageresult.StageSucceeded), "summary": "complete",
 				"artifacts": map[string]any{},
 			})(request)
 		},
 	}}
-	workers := &fakeWorkerInvoker{results: map[string]contracts.StageContentResult{
+	workers := &fakeWorkerInvoker{results: map[string]stageresult.StageContentResult{
 		"builder": stageResult("complete", map[string]contracts.ArtifactRef{}),
 	}}
 	invocation := stateToolInvocation("router", "builder", "reviewer")
-	invocation.Stage.Result.Artifacts = map[string]workflowconfig.ArtifactSlot{}
+	invocation.Stage.Result.Artifacts = map[string]resolved.ArtifactSlot{}
 	plannerValue := newStateTestPlanner(
 		t, routerProfile, invocation, reader, workers, modelValue,
 	)
 	result, err := plannerValue.Run(t.Context())
-	if err != nil || result.Outcome != contracts.StageSucceeded {
+	if err != nil || result.Outcome != stageresult.StageSucceeded {
 		t.Fatalf("Router Run = (%+v, %v)", result, err)
 	}
 	if calls := reader.callsSnapshot(); len(calls) != 1 || calls[0].allocationID != "allocation-builder" {
@@ -419,10 +419,10 @@ func newStateTestPlanner(
 func stateToolInvocation(plannerID string, bindings ...string) planner.Invocation {
 	invocation := testInvocation(bindings...)
 	invocation.ModelAccess.ModelPolicy.MaxModelCalls = 12
-	invocation.Stage.Planner = workflowconfig.PlannerRef{PlannerID: plannerID, Version: "1"}
-	invocation.Stage.Context.Workspace = &workflowconfig.WorkspaceContext{
+	invocation.Stage.Planner = resolved.PlannerRef{PlannerID: plannerID, Version: "1"}
+	invocation.Stage.Context.Workspace = &resolved.WorkspaceContext{
 		Mode:    contracts.WorkspaceModeDirect,
-		Sources: []workflowconfig.WorkspaceSource{{Artifact: "source", Target: ""}},
+		Sources: []resolved.WorkspaceSource{{Artifact: "source", Target: ""}},
 	}
 	for _, name := range bindings {
 		binding := invocation.Stage.Agents[name]
@@ -442,12 +442,7 @@ func plannerStateSnapshot(
 	revision uint64,
 ) reporting.AgentStateSnapshot {
 	t.Helper()
-	payload, err := os.ReadFile(filepath.Join(
-		"..", "..", "..", "api", "testdata", "v1alpha1", "valid", "agent-state-snapshot.json",
-	))
-	if err != nil {
-		t.Fatal(err)
-	}
+	payload := contractstest.ReadFile(t, "api", "testdata", "v1alpha1", "valid", "agent-state-snapshot.json")
 	snapshot, err := contracts.DecodeStrict[reporting.AgentStateSnapshot](payload)
 	if err != nil {
 		t.Fatal(err)
@@ -490,26 +485,26 @@ func (r *plannerStateTestReader) ReadWorkerState(
 	_ context.Context,
 	handle contracts.WorkerHandle,
 	ifNoneMatch string,
-) (planner.WorkerStateReadResult, error) {
+) (reporting.WorkerStateReadResult, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.calls = append(r.calls, plannerStateReadCall{
 		allocationID: handle.AllocationID, ifNoneMatch: ifNoneMatch,
 	})
 	if r.err != nil {
-		return planner.WorkerStateReadResult{}, r.err
+		return reporting.WorkerStateReadResult{}, r.err
 	}
 	snapshot, exists := r.states[handle.AllocationID]
 	if !exists {
-		return planner.WorkerStateReadResult{}, &planner.WorkerStateReadError{
+		return reporting.WorkerStateReadResult{}, &reporting.WorkerStateReadError{
 			Code: "runtime_unavailable", Retryable: true,
 		}
 	}
 	etag := stateTestETag(snapshot.State.StateRevision)
 	if ifNoneMatch == etag {
-		return planner.WorkerStateReadResult{ETag: etag, NotModified: true}, nil
+		return reporting.WorkerStateReadResult{ETag: etag, NotModified: true}, nil
 	}
-	return planner.WorkerStateReadResult{Snapshot: &snapshot, ETag: etag}, nil
+	return reporting.WorkerStateReadResult{Snapshot: &snapshot, ETag: etag}, nil
 }
 
 func (r *plannerStateTestReader) callsSnapshot() []plannerStateReadCall {

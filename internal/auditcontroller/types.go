@@ -30,8 +30,9 @@ var (
 )
 
 // Store is the claim-bound durable surface for controller claims, transitions,
-// intents, observations, round acceptance, settlement and deletion. Collection
-// and report finalization use the separate collector.
+// intents, observations, round acceptance, settlement and deletion: the claim
+// seam of the Audit store. Collection and report finalization use the
+// separate collector.
 type Store interface {
 	Claim(context.Context, auditstore.ClaimParams) ([]auditstore.ControllerClaim, error)
 	ReleaseClaim(context.Context, auditstore.ControllerClaim) error
@@ -44,8 +45,6 @@ type Store interface {
 	AcceptInitialRound(context.Context, auditstore.AcceptInitialRoundParams) (auditstore.Round, bool, error)
 	CreateExecutionIntent(context.Context, auditstore.CreateExecutionIntentParams) (auditstore.Execution, bool, error)
 	NextItemAttempts(context.Context, auditstore.ControllerClaim, []string) (map[string]int, error)
-	ListExecutionItems(context.Context, string) ([]auditstore.ExecutionItem, error)
-	ListItemsByIDs(context.Context, string, []string) ([]auditstore.Item, error)
 	ObserveTerminal(context.Context, auditstore.ObserveTerminalParams) (auditstore.Execution, error)
 	ObserveSubmissionFailure(context.Context, auditstore.ObserveSubmissionFailureParams) (auditstore.Execution, error)
 	AcceptNextRound(context.Context, auditstore.AcceptRoundParams) (auditstore.Round, bool, error)
@@ -53,6 +52,14 @@ type Store interface {
 	ReleaseDispatchHold(context.Context, auditstore.ControllerClaim) (auditstore.Audit, bool, error)
 	NextLiveRunForDeletion(context.Context, auditstore.ControllerClaim) (string, bool, error)
 	PurgeClaimed(context.Context, auditstore.ControllerClaim, string) error
+}
+
+// Reader is what the Controller reads of an Audit outside its reconcile
+// snapshot: the exact members of an execution it submits. It is the read seam
+// of the Audit store.
+type Reader interface {
+	ListExecutionItems(context.Context, string) ([]auditstore.ExecutionItem, error)
+	ListItemsByIDs(context.Context, string, []string) ([]auditstore.Item, error)
 }
 
 // RunStore is what the Controller reads and requests of its child Runs beyond
@@ -139,6 +146,7 @@ type Options struct {
 
 type Controller struct {
 	store               Store
+	reads               Reader
 	runs                RunStore
 	deleter             RunDeleter
 	creator             RunCreator
@@ -157,6 +165,7 @@ type Controller struct {
 
 func New(
 	store Store,
+	reads Reader,
 	runs RunStore,
 	deleter RunDeleter,
 	creator RunCreator,
@@ -164,7 +173,7 @@ func New(
 	notifier RunNotifier,
 	options Options,
 ) (*Controller, error) {
-	if store == nil || runs == nil || deleter == nil || creator == nil || builder == nil || notifier == nil {
+	if store == nil || reads == nil || runs == nil || deleter == nil || creator == nil || builder == nil || notifier == nil {
 		return nil, errors.New("Audit Controller dependencies are incomplete")
 	}
 	if options.PollInterval == 0 {
@@ -202,7 +211,7 @@ func New(
 		options.HolderID = value
 	}
 	return &Controller{
-		store: store, runs: runs, deleter: deleter, creator: creator, builder: builder,
+		store: store, reads: reads, runs: runs, deleter: deleter, creator: creator, builder: builder,
 		collector: options.Collector, roundBuilder: options.RoundBuilder, initialRoundBuilder: options.InitialRoundBuilder,
 		notifier: notifier, options: options,
 	}, nil

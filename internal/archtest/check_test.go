@@ -34,6 +34,11 @@ type knownViolation struct {
 	fix      string
 }
 
+type forbiddenImport struct {
+	from, to string
+	reason   string
+}
+
 // importGraph maps each package to the module packages it imports, with the
 // position of the first such import. Paths are relative to the module root.
 type importGraph map[string]map[string]string
@@ -57,6 +62,98 @@ func TestLayerDependencies(t *testing.T) {
 	if problems := checkLayers(layers, knownViolations, graph); len(problems) > 0 {
 		t.Fatal(report(problems))
 	}
+}
+
+func TestForbiddenImports(t *testing.T) {
+	root, err := filepath.Abs(filepath.Join("..", ".."))
+	if err != nil {
+		t.Fatal(err)
+	}
+	module, err := modulePath(filepath.Join(root, "go.mod"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	graph, err := loadImportGraph(root, module)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if problems := checkForbiddenImports(forbiddenImports, graph); len(problems) > 0 {
+		t.Fatal("Go import boundary check failed; the rules are forbiddenImports in " + tablePath + ".\n\n" +
+			strings.Join(problems, "\n"))
+	}
+}
+
+func TestForbiddenImportCheckReportsEachRule(t *testing.T) {
+	graph := importGraph{
+		"internal/service":      {"internal/store/claims": "internal/service/a.go:3"},
+		"internal/service/sub":  {"internal/store/claims": "internal/service/sub/b.go:4"},
+		"internal/store/claims": {},
+		"internal/other":        {"internal/store/claims": "internal/other/c.go:5"},
+	}
+	problems := checkForbiddenImports([]forbiddenImport{
+		{from: "internal/service/...", to: "internal/store/claims", reason: "owner side"},
+		{from: "internal/absent", to: "internal/store/claims", reason: "stale importer"},
+		{from: "internal/other", to: "internal/store/gone", reason: "stale target"},
+		{from: "...", to: "internal/store/claims"},
+	}, graph)
+	for _, want := range []string{
+		"internal/service imports internal/store/claims at internal/service/a.go:3: owner side",
+		"internal/service/sub imports internal/store/claims at internal/service/sub/b.go:4: owner side",
+		"forbidden import internal/absent -> internal/store/claims: internal/absent matches no package",
+		"forbidden import internal/other -> internal/store/gone: internal/store/gone is not a package",
+		"forbidden import ... -> internal/store/claims needs a reason",
+	} {
+		if !slices.ContainsFunc(problems, func(problem string) bool { return strings.Contains(problem, want) }) {
+			t.Errorf("no problem reports %q; got:\n%s", want, strings.Join(problems, "\n"))
+		}
+	}
+	for _, problem := range problems {
+		if strings.HasPrefix(problem, "internal/other imports") {
+			t.Errorf("an import outside every rule's importers was reported: %s", problem)
+		}
+	}
+}
+
+// checkForbiddenImports returns one message per forbidden import and per rule
+// that no longer names a package, in a stable order.
+func checkForbiddenImports(rules []forbiddenImport, graph importGraph) []string {
+	var problems []string
+	for _, rule := range rules {
+		name := "forbidden import " + rule.from + " -> " + rule.to
+		if rule.reason == "" {
+			problems = append(problems, name+" needs a reason")
+			continue
+		}
+		if _, ok := graph[rule.to]; !ok {
+			problems = append(problems, fmt.Sprintf("%s: %s is not a package; fix or delete the rule", name, rule.to))
+		}
+		matched := false
+		for _, pkg := range sortedKeys(graph) {
+			if !matchesPackagePattern(rule.from, pkg) {
+				continue
+			}
+			matched = true
+			if position := graph[pkg][rule.to]; position != "" {
+				problems = append(problems, fmt.Sprintf("%s imports %s at %s: %s", pkg, rule.to, position, rule.reason))
+			}
+		}
+		if !matched {
+			problems = append(problems, fmt.Sprintf("%s: %s matches no package; fix or delete the rule", name, rule.from))
+		}
+	}
+	return problems
+}
+
+// matchesPackagePattern reports whether pkg is pattern, lies under a
+// "dir/..." pattern, or pattern is "..." for every package.
+func matchesPackagePattern(pattern, pkg string) bool {
+	if pattern == "..." {
+		return true
+	}
+	if prefix, ok := strings.CutSuffix(pattern, "/..."); ok {
+		return pkg == prefix || strings.HasPrefix(pkg, prefix+"/")
+	}
+	return pkg == pattern
 }
 
 // The check itself is tested on a synthetic graph so each rule is known to

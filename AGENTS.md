@@ -163,9 +163,28 @@ happens on each outcome and test it:
 | Timeout | Which timeout owns it; do not reuse one timeout for unrelated operations (V49-001) |
 
 Reuse the receipt, lease and idempotency mechanism the subsystem already has.
-The schema review found nine different idempotency mechanisms; do not add a
-tenth. Leases, claims and the single-active-Server assumption are recurring
-sources of races (V107, V111, V114, V168, V288): read
+The 2026-10-11 hub audit counted at least 16 such mechanisms, not the nine an
+earlier review found. V370-007 folded three receipt tables and two claim
+implementations; ten remain. Do not add an eleventh:
+
+- receipts: a keyed mutation records its receipt in `mutation_receipts`
+  through `persistencepostgres.KeyedMutation` (lock, replay, claim;
+  PER-R24); a request keeps its key on the row it creates (Runs, Projects,
+  RuntimeConfig versions, Runtime credentials, Audit executions, Eval
+  members, Audit review requests and decisions); natural keys make proposal
+  receipts, Stage resumptions, transition decisions, output publications,
+  recovery failures and collection receipts idempotent; journals of
+  outbound calls (`credential_operations`, `eval_suboperations`) record a
+  call's key before the call; a finding collection's receipt is an Artifact
+  binding;
+- leases: controller claims through `persistencepostgres.ControllerClaims`
+  (PER-R25), the Scheduler's Run claim, the Project deletion claim, the
+  Gateway recovery probe and the active Server's session lease.
+
+Every advisory lock key comes from `persistencepostgres.NewAdvisoryKey`,
+except the session lease and the per-schema migration lock.
+Leases, claims and the single-active-Server assumption are recurring sources
+of races (V107, V111, V114, V168, V288): read
 `docs/spec/execution/scheduler.md` and `docs/spec/platform/persistence.md`
 before touching them.
 

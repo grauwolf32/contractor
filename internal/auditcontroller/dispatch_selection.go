@@ -5,7 +5,7 @@ import (
 	"errors"
 
 	"github.com/grauwolf32/contractor/internal/auditstore"
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 )
 
 func (c *Controller) dispatchReadyBatch(ctx context.Context, claim auditstore.ControllerClaim, snapshot auditstore.ReconcileSnapshot) (bool, error) {
@@ -70,8 +70,8 @@ func batchCandidates(snapshot auditstore.ReconcileSnapshot) []auditstore.Item {
 		return nil
 	}
 	candidates := make([]auditstore.Item, 0, limit)
-	var binding config.ResolvedAuditWorkflowBinding
-	profile, profileErr := config.DecodeResolvedAuditProfileSnapshot(audit.ProfileSnapshot)
+	var binding auditprofile.ResolvedAuditWorkflowBinding
+	profile, profileErr := auditprofile.DecodeResolvedAuditProfileSnapshot(audit.ProfileSnapshot)
 	for _, item := range snapshot.ReadyItems {
 		if item.State != auditstore.ItemReady || item.RoundID != snapshot.Round.RoundID {
 			continue
@@ -97,12 +97,12 @@ func sameBatchEnvelope(left, right auditstore.Item) bool {
 }
 
 func sameItemParameterEnvelope(
-	binding config.ResolvedAuditWorkflowBinding,
+	binding auditprofile.ResolvedAuditWorkflowBinding,
 	left auditstore.Item,
 	right auditstore.Item,
 ) bool {
 	for _, mapping := range binding.Parameters {
-		if mapping.Source != config.AuditParameterItemField {
+		if mapping.Source != auditprofile.AuditParameterItemField {
 			continue
 		}
 		switch mapping.Name {

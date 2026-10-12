@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/jackc/pgx/v5"
@@ -21,6 +23,7 @@ type RuntimeCredentialServiceOptions struct {
 	Pool    *pgxpool.Pool
 	Cipher  *TokenCipher
 	Usage   RuntimeCredentialUsageChecker
+	Audits  RuntimeCredentialAuditHoldLookup
 	Barrier *LifecycleBarrier
 	Now     func() time.Time
 }
@@ -30,13 +33,14 @@ type RuntimeCredentialService struct {
 	repository *RuntimeCredentialRepository
 	cipher     *TokenCipher
 	usage      RuntimeCredentialUsageChecker
+	audits     RuntimeCredentialAuditHoldLookup
 	barrier    *LifecycleBarrier
 	now        func() time.Time
 	mu         sync.Mutex
 }
 
 func NewRuntimeCredentialService(options RuntimeCredentialServiceOptions) (*RuntimeCredentialService, error) {
-	if options.Pool == nil || options.Usage == nil || options.Barrier == nil {
+	if options.Pool == nil || options.Usage == nil || options.Audits == nil || options.Barrier == nil {
 		return nil, errors.New("Runtime credential lifecycle dependencies are incomplete")
 	}
 	if options.Now == nil {
@@ -44,7 +48,8 @@ func NewRuntimeCredentialService(options RuntimeCredentialServiceOptions) (*Runt
 	}
 	return &RuntimeCredentialService{
 		pool: options.Pool, repository: NewRuntimeCredentialRepository(options.Pool),
-		cipher: options.Cipher, usage: options.Usage, barrier: options.Barrier, now: options.Now,
+		cipher: options.Cipher, usage: options.Usage, audits: options.Audits,
+		barrier: options.Barrier, now: options.Now,
 	}, nil
 }
 
@@ -232,8 +237,8 @@ func (s *RuntimeCredentialService) Use(
 func (s *RuntimeCredentialService) UsePlaintext(
 	ctx context.Context,
 	credentialID string,
-	allowedKinds []contracts.RuntimeCredentialKind,
-	consumer func(contracts.RuntimeCredentialKind, []byte) error,
+	allowedKinds []runtimesettings.RuntimeCredentialKind,
+	consumer func(runtimesettings.RuntimeCredentialKind, []byte) error,
 ) error {
 	if consumer == nil {
 		return runtimeInvalid("Runtime credential consumer is invalid")
@@ -247,7 +252,7 @@ func (s *RuntimeCredentialService) UsePlaintext(
 	}
 	return s.Use(ctx, credentialID, allowed, func(material *RuntimeCredentialMaterial) error {
 		return material.WithPlaintext(func(kind RuntimeCredentialKind, plaintext []byte) error {
-			return consumer(contracts.RuntimeCredentialKind(kind), plaintext)
+			return consumer(runtimesettings.RuntimeCredentialKind(kind), plaintext)
 		})
 	})
 }
@@ -273,6 +278,11 @@ func (s *RuntimeCredentialService) Delete(
 			return getErr
 		}
 		usage, usageErr := s.usage.InspectRuntimeCredentialUsage(ctx, credentialID, maximumRuntimeCredentialReferences)
+		if usageErr == nil {
+			usage.AuditIDs, usageErr = s.audits.ListHeldAuditIDsByRuntimeCredential(
+				ctx, credentialID, maximumRuntimeCredentialReferences,
+			)
+		}
 		if usageErr != nil {
 			if contextError := ctx.Err(); contextError != nil {
 				return contextError

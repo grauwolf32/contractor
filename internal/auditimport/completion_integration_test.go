@@ -25,16 +25,18 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
-
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
 	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/auditprofile"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/control"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	"github.com/grauwolf32/contractor/internal/httpapi/privateartifacts"
@@ -45,6 +47,8 @@ import (
 	"github.com/grauwolf32/contractor/internal/runservice"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // The bridge runs the pinned ADK Runner in a separate Python process. Inputs,
@@ -143,10 +147,10 @@ type completionFixture struct {
 	pool                      *pgxpool.Pool
 	id                        string
 	artifacts                 *artifacts.Service
-	audits                    *auditstore.PostgresStore
+	audits                    *auditstoretest.Store
 	runs                      *runstore.PostgresStore
 	service                   *runservice.Service
-	profile                   config.ResolvedAuditProfile
+	profile                   auditprofile.ResolvedAuditProfile
 	claim                     auditstore.ControllerClaim
 	manifest, taskSet, source auditstore.ExactArtifact
 	tasks                     []auditstore.ExactArtifact
@@ -167,7 +171,7 @@ func newCompletionFixtureWithInteraction(t *testing.T, pool *pgxpool.Pool, accep
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	t.Cleanup(cancel)
-	f := &completionFixture{ctx: ctx, pool: pool, id: fmt.Sprintf("fixture-%d", time.Now().UnixNano()), artifacts: artifacts.NewService(artifacts.NewPostgresRepository(pool)), audits: auditstore.NewPostgresStore(pool), runs: runstore.NewPostgresStore(pool), keys: []string{"first", "second"}}
+	f := &completionFixture{ctx: ctx, pool: pool, id: fmt.Sprintf("fixture-%d", time.Now().UnixNano()), artifacts: artifacts.NewService(artifacts.NewPostgresRepository(pool)), audits: auditstoretest.NewStore(pool), runs: runstore.NewPostgresStore(pool), keys: []string{"first", "second"}}
 	projects := projectstore.NewPostgresStore(pool)
 	_, _, err := projects.Create(ctx, projectstore.CreateParams{ProjectID: f.id, OwnerID: "owner", Kind: projectstore.KindProject, Name: "Completion gate", IdempotencyKey: f.id, RequestDigest: completionDigest([]byte(f.id))})
 	mustCompletion(t, err)
@@ -225,13 +229,13 @@ func newCompletionFixtureWithInteraction(t *testing.T, pool *pgxpool.Pool, accep
 		}
 		mustCompletion(t, os.WriteFile(path, data, 0600))
 	}
-	catalog, err := configload.Load(catalogRoot, config.MVPDescriptors())
+	catalog, err := configload.Load(catalogRoot)
 	mustCompletion(t, err)
 	f.profile, err = catalog.AuditProfile("source-checklist@1")
 	mustCompletion(t, err)
 	profileBytes, err := json.Marshal(f.profile)
 	mustCompletion(t, err)
-	_, err = config.DecodeResolvedAuditProfileSnapshot(profileBytes)
+	_, err = auditprofile.DecodeResolvedAuditProfileSnapshot(profileBytes)
 	mustCompletion(t, err)
 	draft, _, err := f.audits.CreateDraft(ctx, auditstore.CreateDraftParams{AuditID: f.id, OwnerID: "owner", ProjectID: f.id, Profile: auditstore.ProfileIdentity{Name: f.profile.Ref.Name, Version: f.profile.Ref.Version, Digest: f.profile.Ref.Digest}, ProfileSnapshot: profileBytes, InputSelection: json.RawMessage(`{}`), Limits: auditstore.Limits{MaxRounds: 1, BatchSize: 2, MaxItemsPerRound: 10, MaxItemsTotal: 10, MaxSubmittedRuns: 10, MaxItemRunAttempts: 2, MaxEvidenceBytes: 1 << 20}, IdempotencyKey: f.id, RequestDigest: completionDigest([]byte("audit"))})
 	mustCompletion(t, err)
@@ -249,7 +253,7 @@ func newCompletionFixtureWithInteraction(t *testing.T, pool *pgxpool.Pool, accep
 	}
 	_, err = f.audits.TransitionRound(ctx, auditstore.RoundTransitionParams{Claim: f.claim, RoundID: f.id, ExpectedRevision: 1, ExpectedState: auditstore.RoundAccepted, TargetState: auditstore.RoundExecuting})
 	mustCompletion(t, err)
-	manager, _, err := configload.NewManager(config.ManagerOptions{OperatorRoot: "../config/testdata/valid", ManagedRoot: filepath.Join(t.TempDir(), "managed"), Descriptors: config.MVPDescriptors()})
+	manager, _, err := configload.NewManager(config.ManagerOptions{OperatorRoot: "../config/testdata/valid", ManagedRoot: filepath.Join(t.TempDir(), "managed")})
 	mustCompletion(t, err)
 	f.service, err = runservice.New(runservice.Options{Runs: f.runs, Workflows: manager, LLMCredentials: completionCredentials{}, CredentialGuard: completionCredentials{}, RuntimeCredentials: completionCredentials{}, Projects: projects,
 		PublicTransaction: func(context.Context, func(runservice.PublicRunWriter, *artifacts.Service) error) error {
@@ -257,7 +261,7 @@ func newCompletionFixtureWithInteraction(t *testing.T, pool *pgxpool.Pool, accep
 		},
 		AuditTransaction: func(ctx context.Context, fn func(runservice.AuditRunWriter, *artifacts.Service, runservice.AuditExecutionWriter) error) error {
 			return persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-				return fn(runstore.NewPostgresStore(tx), artifacts.NewService(artifacts.NewPostgresRepository(tx)), auditstore.NewPostgresStore(tx))
+				return fn(runstore.NewPostgresStore(tx), artifacts.NewService(artifacts.NewPostgresRepository(tx)), auditstoretest.NewStore(tx))
 			})
 		},
 	})
@@ -304,10 +308,10 @@ func (f *completionFixture) collect(t *testing.T, outcome runstore.WorkflowRunSt
 	if outcome == runstore.RunSucceeded {
 		value, err := f.output()
 		mustCompletion(t, err)
-		_, err = f.artifacts.BindOutputExact(f.ctx, f.run.RunID, f.profile.Workflows["check"].Outputs["result"], value.Ref, nil)
+		_, err = artifactstest.BindOutput(f.ctx, f.artifacts, f.run.RunID, f.profile.Workflows["check"].Outputs["result"], value.Ref)
 		mustCompletion(t, err)
 	}
-	mustCompletion(t, f.artifacts.FreezeRunOutputs(f.ctx, f.run.RunID))
+	mustCompletion(t, artifactstest.FreezeOutputs(f.ctx, f.artifacts, f.run.RunID))
 	expected := runstore.RunRunning
 	if outcome == runstore.RunCancelled {
 		_, err := f.runs.RequestRunCancellation(f.ctx, f.run.RunID, runstore.WorkflowRunCancellation{Code: runstore.CancellationUserRequested, RequestedAt: time.Now().UTC()})
@@ -324,7 +328,7 @@ func (f *completionFixture) collect(t *testing.T, outcome runstore.WorkflowRunSt
 	mustCompletion(t, err)
 	access, err := NewArtifactAccess(f.artifacts)
 	mustCompletion(t, err)
-	importer, err := New(f.audits, f.runs, access)
+	importer, err := New(f.audits, f.audits, f.runs, access)
 	mustCompletion(t, err)
 	changed, err := importer.Collect(f.ctx, f.claim, snapshot, execution)
 	mustCompletion(t, err)
@@ -460,7 +464,7 @@ func (f *completionFixture) bridge(t *testing.T) *completionBridge {
 	for _, set := range template.Toolsets {
 		toolsets = append(toolsets, control.ToolsetCapability{Ref: set.Ref.ToolsetID + "@" + set.Ref.Version, Tools: set.Tools})
 	}
-	_, err = registry.RegisterAuthenticated(controlplane.AuthenticatedPrincipal{RuntimeAgentID: principal, Labels: []string{}, LabelRevision: 1}, control.AgentRegistration{APIVersion: contracts.APIVersion, InstanceID: "runtime-1", SoftwareVersion: "fixture", StartedAt: time.Now().UTC(), ControlURL: "https://localhost:9443", A2AURL: "https://localhost:9444", InitialLabels: []string{}, SupportedRuntimeAdapters: []contracts.RuntimeAdapterRef{}, SupportedRuntimes: []string{"adk@1"}, SupportedToolsets: toolsets, SupportedSandboxProfiles: []string{"local-workdir@1"}, ObservedState: control.AgentIdle, Capabilities: &contracts.RuntimeCompletionCapabilities{CompletionContracts: []string{contracts.AuditCheckResultsV1}}})
+	_, err = registry.RegisterAuthenticated(controlplane.AuthenticatedPrincipal{RuntimeAgentID: principal, Labels: []string{}, LabelRevision: 1}, control.AgentRegistration{APIVersion: contracts.APIVersion, InstanceID: "runtime-1", SoftwareVersion: "fixture", StartedAt: time.Now().UTC(), ControlURL: "https://localhost:9443", A2AURL: "https://localhost:9444", InitialLabels: []string{}, SupportedRuntimeAdapters: []runtimesettings.RuntimeAdapterRef{}, SupportedRuntimes: []string{"adk@1"}, SupportedToolsets: toolsets, SupportedSandboxProfiles: []string{"local-workdir@1"}, ObservedState: control.AgentIdle, Capabilities: &contracts.RuntimeCompletionCapabilities{CompletionContracts: []string{contracts.AuditCheckResultsV1}}})
 	mustCompletion(t, err)
 	for seq := uint64(1); seq <= 2; seq++ {
 		_, err = registry.HeartbeatAuthenticated(principal, control.AgentHeartbeat{APIVersion: contracts.APIVersion, InstanceID: "runtime-1", HeartbeatSeq: seq, EchoedAckSeq: seq - 1, ObservedState: control.AgentIdle})
@@ -616,8 +620,8 @@ func mustCompletion(t *testing.T, err error) {
 
 type completionCredentials struct{}
 
-func (completionCredentials) LookupLLMCredential(context.Context, string) (config.CredentialMetadata, error) {
-	return config.CredentialMetadata{}, errors.New("no live credentials in completion fixtures")
+func (completionCredentials) LookupLLMCredential(context.Context, string) (resolved.CredentialMetadata, error) {
+	return resolved.CredentialMetadata{}, errors.New("no live credentials in completion fixtures")
 }
 func (completionCredentials) WithRunCreation(_ context.Context, fn func() error) error { return fn() }
 func (completionCredentials) ValidateRuntimeCredentialUse(

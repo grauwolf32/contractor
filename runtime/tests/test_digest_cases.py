@@ -30,7 +30,7 @@ GO_ONLY_GROUPS: dict[str, str] = {
 RUNTIME_GROUPS = {"modelPolicies", "agentTemplates"}
 
 
-def test_every_case_group_is_checked_or_go_only() -> None:
+def test_shared_every_case_group_is_checked_or_go_only() -> None:
     assert CASES.keys() == RUNTIME_GROUPS | GO_ONLY_GROUPS.keys()
     assert RUNTIME_GROUPS.isdisjoint(GO_ONLY_GROUPS)
     assert all(reason.strip() for reason in GO_ONLY_GROUPS.values())
@@ -39,12 +39,12 @@ def test_every_case_group_is_checked_or_go_only() -> None:
 @pytest.mark.parametrize(
     "value", CASES["modelPolicies"], ids=lambda value: value["ref"]["policyId"]
 )
-def test_model_policy_digest_case(value: dict) -> None:
+def test_shared_model_policy_digest_case(value: dict) -> None:
     verify_model_policy_digest(ResolvedModelPolicy.model_validate(value))
 
 
 @pytest.mark.parametrize(
     "value", CASES["agentTemplates"], ids=lambda value: value["ref"]["templateId"]
 )
-def test_agent_template_digest_case(value: dict) -> None:
+def test_shared_agent_template_digest_case(value: dict) -> None:
     verify_template_digests(ResolvedAgentTemplate.model_validate(value))

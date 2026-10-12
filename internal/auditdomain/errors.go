@@ -5,6 +5,8 @@ package auditdomain
 import (
 	"errors"
 	"fmt"
+
+	"github.com/grauwolf32/contractor/internal/apierror"
 )
 
 const (
@@ -34,6 +36,15 @@ func (e *ValidationError) Error() string {
 		return e.Code
 	}
 	return fmt.Sprintf("%s: %s", e.Code, e.Field)
+}
+
+// ErrorKind answers the error with its registered code. Every Code constant
+// is registered; an unknown code is answered as audit_document_invalid.
+func (e *ValidationError) ErrorKind() apierror.Kind {
+	if kind, ok := apierror.Lookup(e.Code); ok {
+		return kind
+	}
+	return apierror.AuditDocumentInvalid
 }
 
 func invalid(code, field string) error {

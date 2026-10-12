@@ -11,11 +11,12 @@ import (
 	"testing"
 	"time"
 
-	workflowconfig "github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/planner/router"
 	plannersession "github.com/grauwolf32/contractor/internal/planner/session"
+	"github.com/grauwolf32/contractor/internal/planner/stageresult"
 	"github.com/grauwolf32/contractor/internal/planner/streamline"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"google.golang.org/adk/model"
@@ -65,7 +66,7 @@ func TestLiveRouterWorkflow(t *testing.T) {
 		failure := planner.FailureFrom(err)
 		t.Fatalf("live Router contract failed: code=%s retryable=%t", failure.Code, failure.Retryable)
 	}
-	if result.Outcome != contracts.StageSucceeded {
+	if result.Outcome != stageresult.StageSucceeded {
 		code := "none"
 		if result.Error != nil {
 			code = result.Error.Code
@@ -265,7 +266,7 @@ func (liveRouterInspector) Inspect(
 func liveRouterInvocation() planner.Invocation {
 	digest := "sha256:" + strings.Repeat("a", 64)
 	runtimeRef := contracts.WorkerRuntimeRef{RuntimeID: "adk", Version: "1"}
-	agents := map[string]workflowconfig.ResolvedAgentBinding{}
+	agents := map[string]resolved.ResolvedAgentBinding{}
 	workers := map[string]contracts.WorkerHandle{}
 	for _, binding := range []struct {
 		name        string
@@ -278,7 +279,7 @@ func liveRouterInvocation() planner.Invocation {
 		templateRef := contracts.AgentTemplateRef{
 			TemplateID: binding.name, Version: "1", Digest: digest,
 		}
-		agents[binding.name] = workflowconfig.ResolvedAgentBinding{
+		agents[binding.name] = resolved.ResolvedAgentBinding{
 			Namespace: binding.namespace,
 			Template: contracts.ResolvedAgentTemplate{
 				Ref: templateRef, Runtime: runtimeRef, Description: binding.description,
@@ -295,15 +296,15 @@ func liveRouterInvocation() planner.Invocation {
 	return planner.Invocation{
 		StageExecutionID: "live-router-stage", RunID: "live-router-run",
 		Deadline: time.Now().Add(90 * time.Second),
-		Stage: workflowconfig.ResolvedStage{
+		Stage: resolved.ResolvedStage{
 			Objective:    "Route one review of the exact source to reviewer and return its reviewed artifact.",
 			Instructions: contracts.ResolvedInstructions{Text: "Create exactly one subtask, execute it with reviewer, then finish succeeded using the exact artifact returned by reviewer. Never select builder."},
-			Planner:      workflowconfig.PlannerRef{PlannerID: "router", Version: "1"},
+			Planner:      resolved.PlannerRef{PlannerID: "router", Version: "1"},
 			Agents:       agents,
-			Context: workflowconfig.StageContext{Artifacts: map[string]workflowconfig.ContextArtifact{
+			Context: resolved.StageContext{Artifacts: map[string]resolved.ContextArtifact{
 				"source": {Namespace: "inputs", Name: "source", Required: true},
 			}},
-			Result: workflowconfig.StageResultContract{Artifacts: map[string]workflowconfig.ArtifactSlot{
+			Result: resolved.StageResultContract{Artifacts: map[string]resolved.ArtifactSlot{
 				"reviewed": {Required: true, MediaTypes: []string{"text/plain"}},
 			}},
 		},

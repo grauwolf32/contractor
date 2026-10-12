@@ -11,7 +11,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/projectstore"
@@ -31,7 +31,7 @@ func TestAuditPostgresStartKeepsWorkflowCredentialLookupClass(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	lookup := &scriptedLLMCredentialLookup{metadata: map[string]config.CredentialMetadata{
+	lookup := &scriptedLLMCredentialLookup{metadata: map[string]resolved.CredentialMetadata{
 		"development-worker": {
 			Ref:        llmgateway.LLMCredentialRef{CredentialID: "development-worker"},
 			LLMGateway: gateway.Ref, Unrestricted: true,
@@ -40,7 +40,7 @@ func TestAuditPostgresStartKeepsWorkflowCredentialLookupClass(t *testing.T) {
 	audits, err := auditservice.New(auditservice.Options{
 		Pool: pool, Profiles: configuration,
 		TransactionLLMCredentials: runtimeconfig.TransactionLLMCredentialLookupFactoryFunc(
-			func(pgx.Tx) (config.CredentialLookup, error) { return lookup, nil },
+			func(pgx.Tx) (resolved.CredentialLookup, error) { return lookup, nil },
 		),
 		CredentialGuard: newFakeManagedCredentials(),
 		Now:             func() time.Time { return time.Date(2026, 9, 5, 20, 0, 0, 0, time.UTC) },
@@ -86,7 +86,7 @@ func TestAuditPostgresStartKeepsWorkflowCredentialLookupClass(t *testing.T) {
 	}
 
 	h := auditTestHandler(audits)
-	h.dependencies.Projects = projects
+	h.Projects = projects
 	start := func() *httptest.ResponseRecorder {
 		request := auditAuthenticatedRequest(http.MethodPost, "/v1/audits/"+draft.AuditID+"/start", nil)
 		request.SetPathValue("auditId", draft.AuditID)

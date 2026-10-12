@@ -5,6 +5,7 @@ package findingintake
 import (
 	"context"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -13,8 +14,9 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
-	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/jackc/pgx/v5"
 )
@@ -122,10 +124,10 @@ func newLargeDirectCollectionFixture(t *testing.T) deletionImportFixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := artifactService.BindOutputExact(ctx, f.request.RunID, "result", output.Ref, nil); err != nil {
+	if _, err := artifactstest.BindOutput(ctx, artifactService, f.request.RunID, "result", output.Ref); err != nil {
 		t.Fatal(err)
 	}
-	if err := artifactService.FreezeRunOutputs(ctx, f.request.RunID); err != nil {
+	if err := artifactstest.FreezeOutputs(ctx, artifactService, f.request.RunID); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := runstore.NewPostgresStore(f.pool).TransitionRun(ctx, f.request.RunID,
@@ -355,7 +357,9 @@ func (c *collectionTransactionTracer) TraceQueryStart(ctx context.Context, _ *pg
 	switch {
 	case strings.HasPrefix(statement, "begin"), statement == "rollback":
 		c.imports = 0
-	case strings.Contains(statement, "'audit_import'"):
+	// The fork statement takes its lineage kind as an argument.
+	case strings.Contains(statement, "insert into artifact_lineage") &&
+		slices.Contains(data.Args, any(artifacts.LineageAuditImport)):
 		c.imports++
 	case statement == "commit":
 		return context.WithValue(ctx, collectionCommitKey{}, c.imports)
@@ -494,14 +498,14 @@ SELECT entity_id, summary ->> 'reason' FROM audit_events
 		}
 	}
 	// A replay over the settled page changes nothing.
-	audit, err := auditstore.NewPostgresStore(f.pool).Get(f.ctx, f.request.OwnerID, f.request.AuditID)
+	audit, err := auditstoretest.NewStore(f.pool).Get(f.ctx, f.request.OwnerID, f.request.AuditID)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if err := collectFixtureProposals(f.ctx, f, false); err != nil {
 		t.Fatal(err)
 	}
-	replayed, err := auditstore.NewPostgresStore(f.pool).Get(f.ctx, f.request.OwnerID, f.request.AuditID)
+	replayed, err := auditstoretest.NewStore(f.pool).Get(f.ctx, f.request.OwnerID, f.request.AuditID)
 	if err != nil || replayed.Revision != audit.Revision {
 		t.Fatalf("collection replay changed the Audit: %+v, %v", replayed, err)
 	}
@@ -551,10 +555,10 @@ func TestPostgresCollectionRejectionKeepsEarlierDirectAssessments(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := artifactService.BindOutputExact(f.ctx, f.request.RunID, "result", output.Ref, nil); err != nil {
+	if _, err := artifactstest.BindOutput(f.ctx, artifactService, f.request.RunID, "result", output.Ref); err != nil {
 		t.Fatal(err)
 	}
-	if err := artifactService.FreezeRunOutputs(f.ctx, f.request.RunID); err != nil {
+	if err := artifactstest.FreezeOutputs(f.ctx, artifactService, f.request.RunID); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := runstore.NewPostgresStore(f.pool).TransitionRun(f.ctx, f.request.RunID,

@@ -49,7 +49,7 @@ scope:
     - Connect to an endpoint, accept wildcard tools, trust MCP annotations as effect authority or automatically enable capabilities for an unfinished production factory.
     - Rework unrelated capability matching, permit arbitrary descriptor injection or add a new Audit approval workflow.
 deliverables:
-  - path: internal/config/descriptors.go
+  - path: internal/config/resolved/descriptors.go
     description: Trusted MCP contract and static/dynamic descriptor validation with exact selected names.
   - path: internal/controlplane/registry.go
     description: Allocation-discovery compatibility alongside existing static subset matching.
@@ -84,7 +84,7 @@ tests:
     covers: [A1, A2, A4]
   - command: cd runtime && uv run --frozen pytest -W error tests/test_capabilities.py tests/test_contracts.py tests/test_allocation.py tests/test_allocation_contracts.py tests/test_tool_worker.py
     covers: [A1, A2, A3, A5]
-  - command: make verify-wire-contracts test-wire-cross-language verify-public-api
+  - command: make test-wire-cross-language verify-public-api
     covers: [A2, A4]
 verification_requirements:
   - Use injectable fake dynamic factories for this task; enabling the real MCP factory is owned by V61-006 after lifecycle and ADK integration pass.

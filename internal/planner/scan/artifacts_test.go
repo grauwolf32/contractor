@@ -11,7 +11,6 @@ import (
 
 type adapterRepository struct {
 	artifacts.Repository
-	artifacts.QueryRepository
 	t             *testing.T
 	metadata      artifacts.Metadata
 	read          artifacts.ReadResult

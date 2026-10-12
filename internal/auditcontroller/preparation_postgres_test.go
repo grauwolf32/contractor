@@ -10,10 +10,12 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditimport"
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/randomid"
@@ -157,11 +159,11 @@ func finishPreparationRun(t *testing.T, ctx context.Context, h *postgresControll
 			if err != nil {
 				t.Fatal(err)
 			}
-			if _, err := h.artifacts.BindOutputExact(ctx, runID, name, written.Ref, nil); err != nil {
+			if _, err := artifactstest.BindOutput(ctx, h.artifacts, runID, name, written.Ref); err != nil {
 				t.Fatal(err)
 			}
 		}
-		if err := h.artifacts.FreezeRunOutputs(ctx, runID); err != nil {
+		if err := artifactstest.FreezeOutputs(ctx, h.artifacts, runID); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -306,10 +308,10 @@ func (l lostPreparationIntent) CreateExecutionIntent(ctx context.Context, params
 	return auditstore.Execution{}, false, context.DeadlineExceeded
 }
 
-type lostPreparationCollection struct{ *auditstore.PostgresStore }
+type lostPreparationCollection struct{ *auditstoretest.Store }
 
 func (l lostPreparationCollection) Collect(ctx context.Context, params auditstore.CollectParams) (auditstore.CollectionReceipt, bool, error) {
-	_, _, err := l.PostgresStore.Collect(ctx, params)
+	_, _, err := l.Store.Collect(ctx, params)
 	if err != nil {
 		return auditstore.CollectionReceipt{}, false, err
 	}
@@ -363,7 +365,7 @@ func TestPostgresPreparationRecoversLostCollectionResponse(t *testing.T) {
 	finishPreparationRun(t, ctx, h, preparationExecutions(t, ctx, h, 1)[0], runstore.RunSucceeded, false)
 	preparationStep(t, ctx, c)
 	access, _ := auditimport.NewArtifactAccess(h.artifacts)
-	c.collector, _ = auditimport.New(lostPreparationCollection{h.audits}, h.runs, access)
+	c.collector, _ = auditimport.New(lostPreparationCollection{h.audits}, h.audits, h.runs, access)
 	if _, err := c.RunOnce(ctx); !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("lost collection response: %v", err)
 	}

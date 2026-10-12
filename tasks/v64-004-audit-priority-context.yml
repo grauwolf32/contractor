@@ -47,7 +47,7 @@ acceptance_criteria:
 tests:
   - command: go test -race ./internal/auditpriority ./internal/auditservice ./internal/artifacts
     covers: [A1, A2, A3, A4]
-  - command: go test -tags=integration -count=1 ./internal/auditservice ./internal/auditstore ./internal/artifacts
+  - command: go test -tags=integration -count=1 ./internal/auditservice ./internal/auditstore/... ./internal/artifacts
     covers: [A2, A3, A4]
 test_prerequisites:
   - The new internal/auditpriority package is a deliverable of this task; required retention and revision cases use disposable PostgreSQL.

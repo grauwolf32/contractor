@@ -7,7 +7,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/agentskills"
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -42,11 +42,11 @@ func (i *runSkillInitializer) InitializeRunSkills(
 			return nil
 		}
 
-		workflow, err := config.DecodeResolvedWorkflowSnapshot(run.WorkflowSnapshot)
+		workflow, err := resolved.DecodeResolvedWorkflowSnapshot(run.WorkflowSnapshot)
 		if err != nil {
 			return invalidPinnedSkillSnapshot()
 		}
-		refs, err := config.WorkflowSkillRefs(workflow)
+		refs, err := resolved.WorkflowSkillRefs(workflow)
 		if err != nil || !sameSelectedSkillNames(refs, run.SkillSnapshot) {
 			return invalidPinnedSkillSnapshot()
 		}
@@ -56,7 +56,7 @@ func (i *runSkillInitializer) InitializeRunSkills(
 			return err
 		}
 		initialized, err := catalog.InitializeRun(
-			ctx, run.OwnerID, run.RunID, run.SkillSnapshot, config.WorkflowSkillSets(workflow),
+			ctx, run.OwnerID, run.RunID, run.SkillSnapshot, resolved.WorkflowSkillSets(workflow),
 		)
 		if err != nil {
 			return err
@@ -130,7 +130,7 @@ func invalidPinnedSkillSnapshot() error {
 
 func sameSelectedSkillNames(
 	refs []contracts.ArtifactRef,
-	selected []contracts.RunSkillSnapshot,
+	selected []agentskills.RunSkillSnapshot,
 ) bool {
 	if len(refs) != len(selected) {
 		return false

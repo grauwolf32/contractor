@@ -6,7 +6,8 @@ import (
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/auditstore"
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/auditprofile"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
@@ -18,8 +19,8 @@ func TestPreparationRunRequiresTheCompletePinnedSubmission(t *testing.T) {
 	revision := "r1"
 	input := auditstore.ExactArtifact{Ref: exactTestRef("sources", "source", revision), Digest: testDigest("1"), MediaType: "application/zip", SizeBytes: 100}
 	manifest := auditstore.ExactArtifact{Ref: exactTestRef("audit-manifests", "empty", revision), Digest: testDigest("2")}
-	workflow := config.ResolvedWorkflow{}
-	binding, _ := json.Marshal(config.ResolvedAuditWorkflowBinding{Kind: config.AuditWorkflowPrepare, Workflow: workflow})
+	workflow := resolved.ResolvedWorkflow{}
+	binding, _ := json.Marshal(auditprofile.ResolvedAuditWorkflowBinding{Kind: auditprofile.AuditWorkflowPrepare, Workflow: workflow})
 	intent := auditstore.RunCreationIntent{WorkflowBinding: binding, Execution: auditstore.Execution{
 		ExecutionID: "execution", AuditID: "audit", Role: auditstore.ExecutionPrepare, Manifest: manifest, RequestDigest: testDigest("3"),
 		Preparation: &auditstore.PreparationSnapshot{Inputs: map[string]auditstore.ExactArtifact{"source": input}, Parameters: map[string]string{"objective": "review"}},

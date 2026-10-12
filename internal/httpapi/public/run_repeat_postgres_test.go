@@ -11,8 +11,9 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
 	"github.com/grauwolf32/contractor/internal/auth"
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runrepeat"
@@ -29,7 +30,7 @@ func TestPostgresRunRepeatRequiresRetainedAuthorityWithoutMutation(t *testing.T)
 	service := artifacts.NewService(repository)
 	runs := runstore.NewPostgresStore(pool)
 	projects := projectstore.NewPostgresStore(pool)
-	h := &handler{dependencies: Dependencies{
+	h := &runRepeatHandlers{RunRepeatDependencies: RunRepeatDependencies{
 		Runs: runs, Artifacts: service, Projects: projects,
 		Config: fixture.configs, Credentials: fixture.credentials, RuntimeConfigs: fixture.runtimeConfigs,
 	}}
@@ -87,15 +88,15 @@ func TestPostgresRunRepeatRequiresRetainedAuthorityWithoutMutation(t *testing.T)
 						t.Fatal(err)
 					}
 					if projectID == nil {
-						_, err = service.ForkInput(ctx, "user-1", source.Ref, runID, "source")
+						_, err = artifactstest.ForkInput(ctx, service, "user-1", source.Ref, runID, "source")
 					} else {
-						_, err = service.ForkProjectInput(ctx, *projectID, source.Ref, runID, "source")
+						_, err = artifactstest.ForkProjectInput(ctx, service, *projectID, source.Ref, runID, "source")
 					}
 					if err != nil {
 						t.Fatal(err)
 					}
 					retained, err := runrepeat.Encode(runrepeat.Snapshot{
-						Workflow: config.WorkflowRef{Name: "artifact-copy", Version: "1"}, ProjectID: projectID,
+						Workflow: resolved.WorkflowRef{Name: "artifact-copy", Version: "1"}, ProjectID: projectID,
 						Inputs: map[string]contracts.ArtifactRef{"source": source.Ref},
 					})
 					if err != nil {
@@ -126,7 +127,7 @@ func TestPostgresRunRepeatRequiresRetainedAuthorityWithoutMutation(t *testing.T)
 						runScope, _ := artifacts.RunScope(runID)
 						_, err = repository.Write(ctx, runScope, contracts.ArtifactRef{Namespace: artifactpolicy.RunSystemNamespace, Name: artifactpolicy.RunRepeatRequestName}, artifacts.Payload{MediaType: "text/plain", Data: retained}, nil)
 					} else if variant != "missing" {
-						_, err = service.WriteRunRepeatRequest(ctx, runID, retained)
+						err = runrepeat.Retain(ctx, service, runID, retained)
 					}
 					if err != nil {
 						t.Fatal(err)
@@ -138,7 +139,7 @@ func TestPostgresRunRepeatRequiresRetainedAuthorityWithoutMutation(t *testing.T)
 					var first []byte
 					for range 2 {
 						request := httptest.NewRequest(http.MethodGet, "/v1/runs/"+runID+"/repeat-draft", nil).WithContext(auth.WithPrincipal(ctx, auth.Principal{UserID: "user-1"}))
-						request.SetPathValue("runID", runID)
+						request.SetPathValue("runId", runID)
 						response := httptest.NewRecorder()
 						h.getRunRepeatDraft(response, request)
 						var repeat runRepeatDraftResponse

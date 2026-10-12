@@ -7,13 +7,14 @@ import (
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
 )
 
-// TestPostgresAuditPreparationStartRecoversInsideACallerTransaction drives
+// TestSharedPostgresAuditPreparationStartRecoversInsideACallerTransaction drives
 // StartPreparation into the recovery behind its failed statement on a store
 // backed by the caller's transaction: the recovery reads must run and return
 // the method's own outcome, and the transaction must stay usable (V368-029).
-func TestPostgresAuditPreparationStartRecoversInsideACallerTransaction(t *testing.T) {
+func TestSharedPostgresAuditPreparationStartRecoversInsideACallerTransaction(t *testing.T) {
 	f := newPreparationFixture(t, false)
 	snapshot, err := json.Marshal(f.profile)
 	if err != nil {
@@ -52,7 +53,7 @@ FOR EACH STATEMENT EXECUTE FUNCTION contractor_test_inject_unique_violation()`);
 	start := f.start
 	start.AuditID, start.ExpectedRevision = draft.AuditID, draft.Revision
 	start.IdempotencyKey, start.RequestDigest = "start-transaction", prepDigest("start-transaction")
-	if _, _, err := auditstore.NewPostgresStore(tx).StartPreparation(f.ctx, start); !errors.Is(err, auditstore.ErrPrecondition) {
+	if _, _, err := auditstoretest.NewStore(tx).StartPreparation(f.ctx, start); !errors.Is(err, auditstore.ErrPrecondition) {
 		t.Fatalf("StartPreparation after a failed statement in a transaction = %v, want precondition", err)
 	}
 	var usable int

@@ -133,8 +133,7 @@ func (s *PostgresStore) ResumeFailedRun(ctx context.Context, ownerID, runID, sou
 			return err
 		}
 		// The database permits thawing only in this receipt's transaction.
-		_, err = tx.Exec(ctx, `UPDATE artifact_bindings SET frozen=false,updated_at=clock_timestamp()
-    WHERE scope_kind='run' AND scope_id=$1 AND namespace='outputs'`, runID)
+		err = artifacts.NewPostgresTxRepository(tx).ThawOutputs(ctx, scope)
 		result.StageExecutionID = next.StageExecutionID
 		return err
 	}

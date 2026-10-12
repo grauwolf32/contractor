@@ -1,0 +1,57 @@
+schema_version: "1.0"
+id: V372-025
+title: "Give every enum of the public OpenAPI document a type"
+milestone: hub-audit-defects-2026-10
+epic: api-contracts
+kind: chore
+priority: P3
+status: pending
+depends_on: []
+languages: [yaml, go, typescript]
+goal: "Every enum of contractor-public-v1.yaml declares its type, the generated Go client gets typed fields and parameters instead of interface{}, and a contract test rejects a new untyped enum."
+context:
+  review: "Out-of-scope finding of the hub audit fix batch, wave 2 (group w2c: V370-009, V369-004, V370-010), recorded 2026-10-12; file:line verified on b2b09ea"
+  specification: "docs/spec/api/public-api.md#API-R68"
+  finding: >-
+    The step query parameter of getPerformanceHistory is
+    schema: {enum: [15s, 1m, 5m, 1h]} without a type
+    (api/openapi/contractor-public-v1.yaml:6050-6053), and so is the verdict
+    filter of the Audit findings list (:4335). OpenAPI 3.1 allows an enum
+    without a type, but the generator of the Go client bundled with the CLI
+    (API-R68) then emits interface{}: GetPerformanceHistoryParams.Step and
+    ListAuditFindingsParams.Verdict
+    (internal/publicclient/generated/public.gen.go:7668 and 7296), so the
+    CLI can pass any value and the compiler checks nothing. The same holds
+    for schema properties: 111 enums of the document have no type, every one
+    with string values only, for example RunRecovery.code (:13227), which
+    the Go client exposes as Code interface{} (public.gen.go:6108). The UI
+    generator infers string unions and is not affected. Predates the
+    shallow history (boundary 6349621).
+  siblings: >-
+    The generated files are never edited by hand (AGENTS.md section 2): make
+    generate-public-client and make ui-generate rebuild them. CLI code that
+    fills the affected parameters (the performance history and Audit finding
+    commands under internal/cli) must compile against the typed fields.
+    TestPublicOpenAPIContractIsValidAndPolicySafe
+    (internal/httpapi/public/openapi_contract_test.go:36) is the natural
+    home of the new rule.
+scope:
+  in:
+    - "Add type: string to every untyped enum (all are string-valued), regenerate the Go client and the UI types, and adapt CLI callers to the typed fields."
+    - "A contract test that fails on an enum without a type."
+  out:
+    - "The enum values themselves; the change is additive within /v1."
+acceptance_criteria:
+  - id: A1
+    text: "No enum of the public OpenAPI document lacks a type, and a probe enum without one fails the contract test."
+  - id: A2
+    text: "The generated Go client has no interface{} field or parameter that comes from an enum, and make verify-public-api and make ui-verify pass with fresh generated files."
+tests:
+  - command: "go test ./internal/httpapi/public ./internal/publicclient/... ./internal/cli"
+    covers: [A1, A2]
+  - command: "make verify-public-api"
+    covers: [A1, A2]
+  - command: "make ui-verify"
+    covers: [A2]
+  - command: make lint
+    covers: [A1, A2]

@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	workflowconfig "github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/localpki"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -215,7 +215,7 @@ func assertWorkerSessionExecutions(
 			t.Fatalf("Run %s has unexpected StageExecution %+v", runID, execution)
 		}
 		assertSucceededExecution(t, execution, 1)
-		stage, err := workflowconfig.DecodeResolvedStageSnapshot(execution.StageSpecSnapshot)
+		stage, err := resolved.DecodeResolvedStageSnapshot(execution.StageSpecSnapshot)
 		if err != nil {
 			t.Fatalf("decode Stage %s snapshot: %v", execution.StageName, err)
 		}

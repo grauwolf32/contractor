@@ -10,11 +10,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/control"
 	"github.com/grauwolf32/contractor/internal/contracts/runlabels"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 )
 
 func TestConfirmedLeaseRequiresEchoOfIssuedAck(t *testing.T) {
@@ -270,7 +270,7 @@ func TestReserveCandidateEdgesFindsCompleteNonGreedyAssignment(t *testing.T) {
 			LogicalAgentName: logical, RuntimeAgentID: candidate.Principal.RuntimeAgentID,
 			RuntimeAgentInstanceID:    candidate.Registration.InstanceID,
 			RuntimeAgentLabelRevision: candidate.Principal.LabelRevision,
-			RequiredRuntimeAdapters:   []contracts.RuntimeAdapterRef{},
+			RequiredRuntimeAdapters:   []runtimesettings.RuntimeAdapterRef{},
 		}
 	}
 	reservations, err := registry.ReserveCandidateEdges(request, []CandidateEdge{
@@ -313,7 +313,7 @@ func TestReserveCandidateEdgesLeavesEverySlotFreeWithoutCompleteMatching(t *test
 			LogicalAgentName: logical, RuntimeAgentID: firstAgent.Principal.RuntimeAgentID,
 			RuntimeAgentInstanceID:    firstAgent.Registration.InstanceID,
 			RuntimeAgentLabelRevision: firstAgent.Principal.LabelRevision,
-			RequiredRuntimeAdapters:   []contracts.RuntimeAdapterRef{},
+			RequiredRuntimeAdapters:   []runtimesettings.RuntimeAdapterRef{},
 		}
 	}
 	if _, err := registry.ReserveCandidateEdges(request, []CandidateEdge{edge("first"), edge("second")}); !errors.Is(err, ErrInsufficientCapacity) {
@@ -1265,7 +1265,7 @@ func TestReleaseDoesNotReuseSlotFromStaleIdleHeartbeat(t *testing.T) {
 
 func testTemplate(t *testing.T) contracts.ResolvedAgentTemplate {
 	t.Helper()
-	snapshot, err := configload.Load("../config/testdata/valid", config.MVPDescriptors())
+	snapshot, err := configload.Load("../config/testdata/valid")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1303,7 +1303,7 @@ func testBinding(
 	template contracts.ResolvedAgentTemplate,
 ) BindingRequirement {
 	t.Helper()
-	snapshot, err := configload.Load("../config/testdata/valid", config.MVPDescriptors())
+	snapshot, err := configload.Load("../config/testdata/valid")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1326,7 +1326,7 @@ func testBinding(
 func testRegistration(instanceID string) control.AgentRegistration {
 	return control.AgentRegistration{
 		InitialLabels:            []string{},
-		SupportedRuntimeAdapters: []contracts.RuntimeAdapterRef{},
+		SupportedRuntimeAdapters: []runtimesettings.RuntimeAdapterRef{},
 		APIVersion:               contracts.APIVersion, InstanceID: instanceID, SoftwareVersion: "0.1.0",
 		StartedAt:         time.Date(2026, 8, 29, 12, 0, 0, 0, time.UTC),
 		ControlURL:        "https://" + instanceID + ".example:9443",

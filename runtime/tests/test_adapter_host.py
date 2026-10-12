@@ -52,7 +52,7 @@ CAIDO_SECRET = "recognizable-caido-bearer-secret"
 
 
 @pytest.mark.parametrize("with_proxy", [False, True])
-def test_invalid_last_adapter_is_rejected_and_closed_before_sandbox(
+def test_shared_invalid_last_adapter_is_rejected_and_closed_before_sandbox(
     tmp_path: Path, with_proxy: bool
 ) -> None:
     events: list[str] = []
@@ -87,7 +87,7 @@ def test_invalid_last_adapter_is_rejected_and_closed_before_sandbox(
     asyncio.run(scenario())
 
 
-def test_second_adapter_prepare_failure_rolls_back_first_before_sandbox(
+def test_shared_second_adapter_prepare_failure_rolls_back_first_before_sandbox(
     tmp_path: Path,
 ) -> None:
     events: list[str] = []
@@ -128,7 +128,7 @@ def test_second_adapter_prepare_failure_rolls_back_first_before_sandbox(
     assert PROXY_SECRET not in " ".join(events)
 
 
-def test_hanging_flush_is_metrics_only_and_replayed_lifecycle_is_idempotent(
+def test_shared_hanging_flush_is_metrics_only_and_replayed_lifecycle_is_idempotent(
     tmp_path: Path,
 ) -> None:
     events: list[str] = []
@@ -195,7 +195,7 @@ def test_hanging_flush_is_metrics_only_and_replayed_lifecycle_is_idempotent(
     asyncio.run(scenario())
 
 
-def test_handles_are_injected_explicitly_and_erased_on_confirmed_lease_loss(
+def test_shared_handles_are_injected_explicitly_and_erased_on_confirmed_lease_loss(
     tmp_path: Path,
 ) -> None:
     events: list[str] = []
@@ -244,7 +244,7 @@ def test_handles_are_injected_explicitly_and_erased_on_confirmed_lease_loss(
     asyncio.run(scenario())
 
 
-def test_unselected_tool_channels_are_not_injected(tmp_path: Path) -> None:
+def test_shared_unselected_tool_channels_are_not_injected(tmp_path: Path) -> None:
     events: list[str] = []
     tool_handle = object()
     proxy = FakeAdapterFactory(
@@ -287,7 +287,7 @@ def test_unselected_tool_channels_are_not_injected(tmp_path: Path) -> None:
     asyncio.run(scenario())
 
 
-def test_caido_handle_is_injected_only_into_selected_toolset_and_erased(
+def test_shared_caido_handle_is_injected_only_into_selected_toolset_and_erased(
     tmp_path: Path,
 ) -> None:
     events: list[str] = []
@@ -335,7 +335,7 @@ def test_caido_handle_is_injected_only_into_selected_toolset_and_erased(
     asyncio.run(scenario())
 
 
-def test_caido_channel_without_private_configuration_fails_before_resources(
+def test_shared_caido_channel_without_private_configuration_fails_before_resources(
     tmp_path: Path,
 ) -> None:
     toolset = CapturingToolset()
@@ -358,7 +358,7 @@ def test_caido_channel_without_private_configuration_fails_before_resources(
     asyncio.run(scenario())
 
 
-def test_unconfirmed_adapter_close_fences_slot_and_requests_process_exit(
+def test_shared_unconfirmed_adapter_close_fences_slot_and_requests_process_exit(
     tmp_path: Path,
 ) -> None:
     events: list[str] = []
@@ -398,7 +398,7 @@ def test_unconfirmed_adapter_close_fences_slot_and_requests_process_exit(
     asyncio.run(scenario())
 
 
-def test_adapter_secret_in_worker_handle_is_rejected_and_every_resource_rolls_back(
+def test_shared_adapter_secret_in_worker_handle_is_rejected_and_every_resource_rolls_back(
     tmp_path: Path,
 ) -> None:
     events: list[str] = []
@@ -441,7 +441,7 @@ def test_adapter_secret_in_worker_handle_is_rejected_and_every_resource_rolls_ba
         ("proxy", "adk"),
     ],
 )
-def test_short_credentials_matching_fixed_card_strings_allow_prepare(
+def test_shared_short_credentials_matching_fixed_card_strings_allow_prepare(
     tmp_path: Path, kind: str, value: str
 ) -> None:
     async def scenario() -> None:
@@ -481,7 +481,7 @@ def test_short_credentials_matching_fixed_card_strings_allow_prepare(
         (TELEMETRY_SECRET, f"prefix-{TELEMETRY_SECRET}-suffix"),
     ],
 )
-def test_runtime_chosen_card_text_still_rejects_private_values(
+def test_shared_runtime_chosen_card_text_still_rejects_private_values(
     tmp_path: Path, secret: str, card_text: str
 ) -> None:
     async def scenario() -> None:
@@ -504,7 +504,7 @@ def test_runtime_chosen_card_text_still_rejects_private_values(
     asyncio.run(scenario())
 
 
-def test_agent_card_scan_shares_the_trusted_table_and_production_card() -> None:
+def test_shared_agent_card_scan_shares_the_trusted_table_and_production_card() -> None:
     placeholders = card_placeholders(
         allocation_id="allocation-1",
         logical_agent_name="builder",
@@ -534,7 +534,9 @@ def test_agent_card_scan_shares_the_trusted_table_and_production_card() -> None:
 
 
 @pytest.mark.parametrize("case", AGENT_CARD_SCAN["cases"], ids=lambda case: case["name"])
-def test_worker_handle_secret_scan_shared_cases(tmp_path: Path, case: dict[str, Any]) -> None:
+def test_shared_worker_handle_secret_scan_shared_cases(
+    tmp_path: Path, case: dict[str, Any]
+) -> None:
     async def scenario() -> None:
         events: list[str] = []
         telemetry = FakeAdapterFactory(
@@ -606,7 +608,7 @@ def set_card_value(card: dict[str, Any], path: list[str], value: Any) -> None:
         current[path[-1]] = value
 
 
-def test_metrics_saturate_and_reject_unbounded_error_codes() -> None:
+def test_shared_metrics_saturate_and_reject_unbounded_error_codes() -> None:
     metrics = RuntimeAdapterMetricsState(
         operations=2**64 - 1,
         failed_operations=2**64 - 1,

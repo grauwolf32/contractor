@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/agentskills"
 	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/clone"
@@ -381,7 +382,12 @@ type artifactKey struct {
 	name      string
 }
 
+// fakeArtifactRepository applies the binding rules of PostgresRepository that
+// the public handlers depend on. It does not check that a Project and a Run
+// belong together, and any Repository method it does not implement panics on
+// the nil embedded interface.
 type fakeArtifactRepository struct {
+	artifacts.Repository
 	mu         sync.Mutex
 	current    map[artifactKey]artifacts.ReadResult
 	historical map[artifactKey]map[string]artifacts.ReadResult
@@ -417,10 +423,27 @@ func (f *fakeArtifactRepository) Write(
 	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	return f.writeLocked(scope, ref, payload, expected, false)
+}
+
+func (f *fakeArtifactRepository) CreateFrozen(
+	_ context.Context, scope artifacts.Scope, ref artifacts.ArtifactRef, payload artifacts.Payload,
+) (artifacts.WriteResult, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.writeLocked(scope, ref, payload, nil, true)
+}
+
+func (f *fakeArtifactRepository) writeLocked(
+	scope artifacts.Scope, ref artifacts.ArtifactRef, payload artifacts.Payload, expected *string, frozen bool,
+) (artifacts.WriteResult, error) {
 	f.writes++
 	key := artifactKey{scope.Kind(), scope.ID(), ref.Namespace, ref.Name}
 	if err := artifacts.WritePrecondition(ref, f.headLocked(key), expected); err != nil {
 		return artifacts.WriteResult{}, err
+	}
+	if expected == nil {
+		f.frozen[key] = frozen
 	}
 	f.next++
 	revision := fmt.Sprintf("revision-%d", f.next)
@@ -498,97 +521,63 @@ func (f *fakeArtifactRepository) ListRefs(
 	return artifacts.RefPage{Refs: result}, nil
 }
 
-func (f *fakeArtifactRepository) ForkInput(
-	ctx context.Context,
-	sourceScope artifacts.Scope,
-	source artifacts.ArtifactRef,
-	targetScope artifacts.Scope,
-	slot string,
-) (artifacts.ForkResult, error) {
-	read, err := f.Read(ctx, sourceScope, source)
+// Fork applies the fork rules of PostgresRepository.Fork: the source revision
+// (exact, or current; the frozen current one with SourceFrozen) must exist,
+// and an existing target is a conflict unless Replay returns the target the
+// same source and kind created.
+func (f *fakeArtifactRepository) Fork(ctx context.Context, fork artifacts.Fork) (artifacts.ForkResult, error) {
+	read, err := f.Read(ctx, fork.Source, fork.SourceRef)
 	if err != nil {
 		return artifacts.ForkResult{}, err
 	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	targetKey := artifactKey{targetScope.Kind(), targetScope.ID(), "inputs", slot}
-	if _, exists := f.current[targetKey]; exists {
-		return artifacts.ForkResult{}, artifacts.ErrArtifactConflict
+	sourceKey := artifactKey{fork.Source.Kind(), fork.Source.ID(), fork.SourceRef.Namespace, fork.SourceRef.Name}
+	if fork.SourceFrozen && (!f.frozen[sourceKey] || *f.current[sourceKey].Ref.Revision != *read.Ref.Revision) {
+		return artifacts.ForkResult{}, artifacts.ErrArtifactNotFound
+	}
+	result := artifacts.ForkResult{SourceRef: read.Ref, MediaType: read.Payload.MediaType, Size: int64(len(read.Payload.Data))}
+	key := artifactKey{fork.Target.Kind(), fork.Target.ID(), fork.TargetRef.Namespace, fork.TargetRef.Name}
+	if existing, exists := f.current[key]; exists {
+		for _, edge := range f.lineage {
+			if fork.Replay && edge.Kind == fork.Kind && sameExactArtifact(edge.Target, existing.Ref) &&
+				sameExactArtifact(edge.Source, read.Ref) {
+				result.TargetRef = existing.Ref
+				return result, nil
+			}
+		}
+		return artifacts.ForkResult{}, &artifacts.ConflictError{Ref: fork.TargetRef}
 	}
 	f.next++
 	revision := fmt.Sprintf("revision-%d", f.next)
-	target := artifacts.ArtifactRef{Namespace: "inputs", Name: slot, Revision: &revision}
-	targetRead := artifacts.ReadResult{Ref: target, Payload: read.Payload}
-	f.current[targetKey] = targetRead
-	f.historical[targetKey] = map[string]artifacts.ReadResult{revision: targetRead}
-	f.created[targetKey] = map[string]time.Time{revision: time.Unix(int64(f.next), 0).UTC()}
-	f.lineage = append(f.lineage, artifacts.LineageEdge{
-		Kind:          artifacts.LineageInputFork,
-		SourceScope:   sourceScope.Kind(),
-		SourceScopeID: sourceScope.ID(),
-		Source:        read.Ref,
-		TargetScope:   targetScope.Kind(),
-		TargetScopeID: targetScope.ID(),
-		Target:        target,
-		CreatedAt:     time.Unix(int64(f.next), 0).UTC(),
-	})
-	return artifacts.ForkResult{
-		SourceRef: read.Ref, TargetRef: target, MediaType: read.Payload.MediaType, Size: int64(len(read.Payload.Data)),
-	}, nil
-}
-
-func (f *fakeArtifactRepository) BindOutputExact(
-	ctx context.Context,
-	scope artifacts.Scope,
-	slot string,
-	source artifacts.ArtifactRef,
-	expected *string,
-) (artifacts.ForkResult, error) {
-	read, err := f.Read(ctx, scope, source)
-	if err != nil {
-		return artifacts.ForkResult{}, err
-	}
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	key := artifactKey{scope.Kind(), scope.ID(), "outputs", slot}
-	if err := artifacts.WritePrecondition(
-		artifacts.ArtifactRef{Namespace: "outputs", Name: slot}, f.headLocked(key), expected,
-	); err != nil {
-		return artifacts.ForkResult{}, err
-	}
-	f.next++
-	revision := fmt.Sprintf("revision-%d", f.next)
-	target := artifacts.ArtifactRef{Namespace: "outputs", Name: slot, Revision: &revision}
-	stored := artifacts.ReadResult{Ref: target, Payload: read.Payload}
+	result.TargetRef = artifacts.ArtifactRef{Namespace: fork.TargetRef.Namespace, Name: fork.TargetRef.Name, Revision: &revision}
+	stored := artifacts.ReadResult{Ref: result.TargetRef, Payload: read.Payload}
 	f.current[key] = stored
-	if f.historical[key] == nil {
-		f.historical[key] = make(map[string]artifacts.ReadResult)
-		f.created[key] = make(map[string]time.Time)
-	}
-	f.historical[key][revision] = stored
-	f.created[key][revision] = time.Unix(int64(f.next), 0).UTC()
+	f.historical[key] = map[string]artifacts.ReadResult{revision: stored}
+	f.created[key] = map[string]time.Time{revision: time.Unix(int64(f.next), 0).UTC()}
+	f.frozen[key] = fork.Frozen
 	f.lineage = append(f.lineage, artifacts.LineageEdge{
-		Kind:          artifacts.LineageOutputBind,
-		SourceScope:   scope.Kind(),
-		SourceScopeID: scope.ID(),
+		Kind:          fork.Kind,
+		SourceScope:   fork.Source.Kind(),
+		SourceScopeID: fork.Source.ID(),
 		Source:        read.Ref,
-		TargetScope:   scope.Kind(),
-		TargetScopeID: scope.ID(),
-		Target:        target,
+		TargetScope:   fork.Target.Kind(),
+		TargetScopeID: fork.Target.ID(),
+		Target:        result.TargetRef,
 		CreatedAt:     time.Unix(int64(f.next), 0).UTC(),
 	})
-	return artifacts.ForkResult{SourceRef: read.Ref, TargetRef: target, MediaType: read.Payload.MediaType, Size: int64(len(read.Payload.Data))}, nil
+	return result, nil
 }
 
 func (*fakeArtifactRepository) RequireExact(context.Context, artifacts.Scope, artifacts.ArtifactRef) error {
 	return nil
 }
 
-func (f *fakeArtifactRepository) FreezeOutputs(_ context.Context, scope artifacts.Scope) error {
+func (f *fakeArtifactRepository) Freeze(_ context.Context, scope artifacts.Scope, namespace string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	for key := range f.current {
-		if key.kind == scope.Kind() && key.id == scope.ID() && key.namespace == "outputs" {
+		if key.kind == scope.Kind() && key.id == scope.ID() && key.namespace == namespace {
 			f.frozen[key] = true
 		}
 	}
@@ -844,8 +833,10 @@ func (f *fakeRunStore) PinRuntimeLabels(
 	if f.pinRuntimeLabels != nil {
 		return f.pinRuntimeLabels(ctx, labels)
 	}
+	// Like runtimeconfig.PinRunSnapshot, a selected label without a binding
+	// is a request error.
 	if len(labels) != 0 {
-		return runtimeconfig.RunSnapshot{}, runtimeconfig.ErrNotFound
+		return runtimeconfig.RunSnapshot{}, runtimeconfig.ErrUnknownLabel
 	}
 	return runtimeconfig.BuiltInRunSnapshot(), nil
 }
@@ -1184,7 +1175,7 @@ func (f *fakeRunStore) CreateRunIdempotent(
 func (f *fakeRunStore) SetRunSkillSelections(
 	_ context.Context,
 	runID string,
-	skills []contracts.RunSkillSnapshot,
+	skills []agentskills.RunSkillSnapshot,
 ) error {
 	run, ok := f.runs[runID]
 	if !ok {
@@ -1193,7 +1184,7 @@ func (f *fakeRunStore) SetRunSkillSelections(
 	if run.State != runstore.RunInitializing || len(run.SkillSnapshot) != 0 {
 		return runstore.ErrConflict
 	}
-	run.SkillSnapshot = append([]contracts.RunSkillSnapshot(nil), skills...)
+	run.SkillSnapshot = append([]agentskills.RunSkillSnapshot(nil), skills...)
 	run.StateReason = runstore.Reason{Code: runstore.SkillInitializationPendingReason}
 	f.runs[runID] = run
 	return nil
@@ -1341,7 +1332,6 @@ func (f *fakeUnitOfWork) Do(ctx context.Context, fn func(RunWriter, *artifacts.S
 }
 
 var _ artifacts.Repository = (*fakeArtifactRepository)(nil)
-var _ artifacts.QueryRepository = (*fakeArtifactRepository)(nil)
 var _ RunReader = (*fakeRunStore)(nil)
 var _ RunWriter = (*fakeRunStore)(nil)
 var _ UnitOfWork = (*fakeUnitOfWork)(nil)

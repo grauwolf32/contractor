@@ -13,6 +13,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
 	"github.com/grauwolf32/contractor/internal/findingintake"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/jackc/pgx/v5"
@@ -55,7 +56,7 @@ func TestFindingProvenanceConsistentReadsWithSingleConnection(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, _, err = auditstore.NewPostgresStore(pool).CreateDraft(ctx, auditstore.CreateDraftParams{
+	_, _, err = auditstoretest.NewStore(pool).CreateDraft(ctx, auditstore.CreateDraftParams{
 		AuditID: auditID, OwnerID: owner, ProjectID: projectID,
 		Profile:         auditstore.ProfileIdentity{Name: "profile", Version: "1", Digest: serviceTestDigest("profile")},
 		ProfileSnapshot: json.RawMessage(`{"interaction":{"findingConfirmation":"human-required"}}`), InputSelection: json.RawMessage(`{}`),
@@ -103,7 +104,7 @@ UPDATE audit_items AS item
 		}
 		return &Service{pool: readerPool, findings: intake, now: time.Now}
 	}
-	params := ProvenanceListParams{OwnerID: owner, AuditID: auditID, FindingID: findingID, Limit: 201}
+	params := auditstore.ProvenanceListParams{OwnerID: owner, AuditID: auditID, FindingID: findingID, Limit: 201}
 	reader := newReader(t, nil)
 	var stable []FindingProvenance
 	t.Run("retained exact history and pagination", func(t *testing.T) {
@@ -127,8 +128,8 @@ UPDATE audit_items AS item
 				t.Fatalf("current assessment mismatch: %+v", item)
 			}
 		}
-		if stable[0].Kind != ProvenanceSourceProposal || stable[1].Attempt == nil || stable[1].Attempt.ItemAttempt != 1 ||
-			stable[2].Attempt == nil || stable[2].Attempt.ItemAttempt != 2 || stable[3].Kind != ProvenanceDirect || stable[3].Assessment.Contract == nil {
+		if stable[0].Kind != auditstore.ProvenanceSourceProposal || stable[1].Attempt == nil || stable[1].Attempt.ItemAttempt != 1 ||
+			stable[2].Attempt == nil || stable[2].Attempt.ItemAttempt != 2 || stable[3].Kind != auditstore.ProvenanceDirect || stable[3].Assessment.Contract == nil {
 			t.Fatalf("lost attempt/direct history: %+v", stable)
 		}
 		pageParams := params
@@ -152,13 +153,13 @@ UPDATE audit_items AS item
 		t.FailNow()
 	}
 	t.Run("owner finding and explicit revision pins", func(t *testing.T) {
-		revisions, err := reader.readProvenanceRevisions(ctx, params)
+		auditRevision, findingRevision, err := reader.reads().ReadProvenanceRevisions(ctx, params)
 		if err != nil {
 			t.Fatal(err)
 		}
 		pinned := params
-		pinned.AuditRevision = &revisions.audit
-		pinned.FindingRevision = &revisions.finding
+		pinned.AuditRevision = &auditRevision
+		pinned.FindingRevision = &findingRevision
 		if _, err := reader.ListFindingProvenance(ctx, pinned); err != nil {
 			t.Fatal(err)
 		}
@@ -247,7 +248,7 @@ SELECT $1,$2,receipt_id,'contributing',proposal_ref,'2000-01-01'::timestamptz
 			if index == 200 {
 				suffix = "provenance"
 			}
-			if item.Kind != ProvenanceSourceProposal || item.RecordID != "proposal:receipt-"+suffix || item.ReceiptID != "receipt-"+suffix ||
+			if item.Kind != auditstore.ProvenanceSourceProposal || item.RecordID != "proposal:receipt-"+suffix || item.ReceiptID != "receipt-"+suffix ||
 				item.Origin.RunID != "deleted-run-"+suffix || !item.Origin.RunDeleted || item.Proposal.Ref.Name != "candidate-"+suffix ||
 				item.Proposal.Ref.ValidateExact() != nil || item.Proposal.Digest == "" {
 				t.Fatalf("source %d identity/exact receipt mismatch: %+v", index, item)

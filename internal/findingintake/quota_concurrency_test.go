@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/auditdomain"
-	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
@@ -145,7 +144,7 @@ func quotaSubmissionGrant(
 	t *testing.T, ctx context.Context, pool *pgxpool.Pool, ownerID, projectID, runID string,
 ) controlplane.AllocationGrant {
 	t.Helper()
-	snapshot, err := configload.Load("../config/testdata/valid", workflowconfig.MVPDescriptors())
+	snapshot, err := configload.Load("../config/testdata/valid")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/grauwolf32/contractor/internal/clone"
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/strictjson"
 )
@@ -26,16 +26,16 @@ var ErrInvalidSnapshot = errors.New("Run repeat request snapshot is invalid")
 // Inputs are the original source-scope refs, not RunScope forks.
 type Snapshot struct {
 	SchemaVersion   string                           `json:"schemaVersion"`
-	Workflow        config.WorkflowRef               `json:"workflow"`
+	Workflow        resolved.WorkflowRef             `json:"workflow"`
 	ProjectID       *string                          `json:"projectId,omitempty"`
 	Inputs          map[string]contracts.ArtifactRef `json:"inputs"`
-	ExecutionConfig config.ExecutionConfigPatch      `json:"executionConfig"`
+	ExecutionConfig resolved.ExecutionConfigPatch    `json:"executionConfig"`
 }
 
 func Encode(snapshot Snapshot) ([]byte, error) {
 	snapshot.SchemaVersion = SchemaVersion
 	snapshot.ProjectID = clone.Pointer(snapshot.ProjectID)
-	snapshot.Inputs = cloneInputs(snapshot.Inputs)
+	snapshot.Inputs = contracts.CloneArtifactRefs(snapshot.Inputs)
 	if err := validate(snapshot); err != nil {
 		return nil, err
 	}
@@ -56,10 +56,10 @@ func Decode(encoded []byte) (Snapshot, error) {
 	// A missing patch is not an explicitly retained empty patch.
 	var stored struct {
 		SchemaVersion   string                           `json:"schemaVersion"`
-		Workflow        config.WorkflowRef               `json:"workflow"`
+		Workflow        resolved.WorkflowRef             `json:"workflow"`
 		ProjectID       *string                          `json:"projectId,omitempty"`
 		Inputs          map[string]contracts.ArtifactRef `json:"inputs"`
-		ExecutionConfig *config.ExecutionConfigPatch     `json:"executionConfig"`
+		ExecutionConfig *resolved.ExecutionConfigPatch   `json:"executionConfig"`
 	}
 	if err := strictjson.Decode(encoded, &stored); errors.Is(err, strictjson.ErrTrailingData) {
 		return Snapshot{}, fmt.Errorf("%w: trailing JSON value", ErrInvalidSnapshot)
@@ -77,7 +77,7 @@ func Decode(encoded []byte) (Snapshot, error) {
 		return Snapshot{}, err
 	}
 	snapshot.ProjectID = clone.Pointer(snapshot.ProjectID)
-	snapshot.Inputs = cloneInputs(snapshot.Inputs)
+	snapshot.Inputs = contracts.CloneArtifactRefs(snapshot.Inputs)
 	return snapshot, nil
 }
 
@@ -98,14 +98,4 @@ func validate(snapshot Snapshot) error {
 		}
 	}
 	return nil
-}
-
-func cloneInputs(source map[string]contracts.ArtifactRef) map[string]contracts.ArtifactRef {
-	result := make(map[string]contracts.ArtifactRef, len(source))
-	for slot, ref := range source {
-		copy := ref
-		copy.Revision = clone.Pointer(ref.Revision)
-		result[slot] = copy
-	}
-	return result
 }

@@ -15,14 +15,17 @@ import (
 	"testing"
 	"time"
 
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/agentskills"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
+	"github.com/grauwolf32/contractor/internal/planner/stageresult"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/grauwolf32/contractor/internal/telemetry"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -124,7 +127,8 @@ WHERE allocation_id = 'allocation-1'`)
 	}
 	reportFinished := time.Now().UTC()
 	modelCalls := int64(3)
-	reportParams := RecordStageExecutionReportParams{
+	telemetryReports := telemetry.NewRepository(pool)
+	reportParams := telemetry.AllocationReportEnvelope{
 		StageExecutionID: execution.StageExecutionID, AllocationID: allocation.AllocationID,
 		LogicalAgentName: allocation.LogicalAgentName, ReportSchemaVersion: contracts.APIVersion,
 		PerformanceCollectionPolicy: allocation.PerformanceCollectionPolicy,
@@ -141,10 +145,10 @@ WHERE allocation_id = 'allocation-1'`)
 			Runtime: reporting.RuntimeReport{Complete: true},
 		},
 	}
-	if err := store.RecordStageExecutionReport(ctx, reportParams); err != nil {
+	if err := telemetryReports.RecordAllocationReport(ctx, reportParams); err != nil {
 		t.Fatalf("record execution report: %v", err)
 	}
-	if err := store.RecordStageExecutionReport(ctx, reportParams); err != nil {
+	if err := telemetryReports.RecordAllocationReport(ctx, reportParams); err != nil {
 		t.Fatalf("idempotent execution report: %v", err)
 	}
 	reports, err := store.ListStageExecutionReports(ctx, execution.StageExecutionID)
@@ -155,7 +159,7 @@ WHERE allocation_id = 'allocation-1'`)
 	differentReport := reportParams
 	differentCalls := int64(4)
 	differentReport.Report.Worker.Metrics.ModelCalls = &differentCalls
-	if err := store.RecordStageExecutionReport(ctx, differentReport); !errors.Is(err, ErrConflict) {
+	if err := telemetryReports.RecordAllocationReport(ctx, differentReport); !errors.Is(err, telemetry.ErrConflict) {
 		t.Fatalf("mismatched execution report error = %v, want conflict", err)
 	}
 	if _, err := pool.Exec(ctx, `
@@ -255,9 +259,9 @@ WHERE allocation_id = 'allocation-1'`); persistencepostgres.SQLState(err) != per
 	}
 
 	resultRevision := "revision-result-1"
-	candidate := contracts.StageContentResult{
+	candidate := stageresult.StageContentResult{
 		APIVersion: contracts.APIVersion,
-		Outcome:    contracts.StageSucceeded,
+		Outcome:    stageresult.StageSucceeded,
 		Summary:    "copied",
 		Artifacts: map[string]contracts.ArtifactRef{
 			"copied": {Namespace: "builder", Name: "result", Revision: &resultRevision},
@@ -807,7 +811,7 @@ func testAllocationRuntimeConfiguration() *AllocationRuntimeConfiguration {
 			},
 			RunLabels:       []runtimesettings.RuntimeLabelBindingProvenance{},
 			AgentLabels:     []runtimesettings.RuntimeLabelBindingProvenance{},
-			RuntimeAdapters: []contracts.RuntimeAdapterRef{}, LLMGatewayConfig: &gateway,
+			RuntimeAdapters: []runtimesettings.RuntimeAdapterRef{}, LLMGatewayConfig: &gateway,
 			RuntimeCredentialRefs: []runtimesettings.RuntimeCredentialRef{},
 		},
 	}
@@ -1268,7 +1272,7 @@ func TestPostgresIntegrationRunSkillSnapshotGatesRunnableClaim(t *testing.T) {
 	store := NewPostgresStore(pool)
 	run := createTestRun(t, ctx, store, "run-skill-pending")
 	revision := "owner-revision-1"
-	selection := []contracts.RunSkillSnapshot{{
+	selection := []agentskills.RunSkillSnapshot{{
 		Name: "review",
 		Source: &contracts.ArtifactRef{
 			Namespace: contracts.AgentSkillNamespace, Name: "review", Revision: &revision,
@@ -1290,7 +1294,7 @@ func TestPostgresIntegrationRunSkillSnapshotGatesRunnableClaim(t *testing.T) {
 	}
 
 	runRevision := "run-revision-1"
-	initialized := append([]contracts.RunSkillSnapshot(nil), selection...)
+	initialized := append([]agentskills.RunSkillSnapshot(nil), selection...)
 	initialized[0].Artifact = &contracts.ArtifactRef{
 		Namespace: contracts.AgentSkillNamespace, Name: "review", Revision: &runRevision,
 	}
@@ -1311,7 +1315,7 @@ func TestPostgresIntegrationRunSkillSnapshotGatesRunnableClaim(t *testing.T) {
 		t.Fatalf("terminal Skill snapshot rewrite SQLSTATE = %q, error = %v", persistencepostgres.SQLState(err), err)
 	}
 
-	mutated := append([]contracts.RunSkillSnapshot(nil), initialized...)
+	mutated := append([]agentskills.RunSkillSnapshot(nil), initialized...)
 	otherRevision := "owner-revision-2"
 	mutated[0].Source = &contracts.ArtifactRef{
 		Namespace: contracts.AgentSkillNamespace, Name: "review", Revision: &otherRevision,
@@ -1661,26 +1665,26 @@ type pinTestLLMCredentials struct{}
 
 func (pinTestLLMCredentials) LookupLLMCredential(
 	context.Context, string,
-) (config.CredentialMetadata, error) {
-	return config.CredentialMetadata{}, errors.New("LLM credential unavailable")
+) (resolved.CredentialMetadata, error) {
+	return resolved.CredentialMetadata{}, errors.New("LLM credential unavailable")
 }
 
 func newRunCreationTestStore(
 	t *testing.T,
 	tx pgx.Tx,
-	lookup config.CredentialLookup,
+	lookup resolved.CredentialLookup,
 ) *PostgresStore {
 	t.Helper()
 	bound, err := runtimeconfig.BindTransactionLLMCredentialLookup(
 		tx,
 		runtimeconfig.TransactionLLMCredentialLookupFactoryFunc(
-			func(pgx.Tx) (config.CredentialLookup, error) { return lookup, nil },
+			func(pgx.Tx) (resolved.CredentialLookup, error) { return lookup, nil },
 		),
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	return NewRunCreationPostgresStore(tx, bound)
+	return NewRunCreationPostgresStore(tx, bound, pinTestRuntimeCredentials{})
 }
 
 func createTestRun(t *testing.T, ctx context.Context, store *PostgresStore, runID string) WorkflowRun {

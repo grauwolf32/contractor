@@ -87,7 +87,7 @@ cases:
     acceptance: [A2, A3]
     faults: [F13]
     expected: Runtime exposes the map only to telemetry input and excludes it from all model, State, tool, workspace and completion contracts.
-    test: {source: runtime/tests/test_contracts.py, kind: pytest, name: test_run_metadata_labels_exist_only_on_allocation_telemetry_input}
+    test: {source: runtime/tests/test_contracts.py, kind: pytest, name: test_shared_run_metadata_labels_exist_only_on_allocation_telemetry_input}
   - id: worker_otlp_bounds_and_resource_scope
     category: telemetry
     acceptance: [A2, A3]

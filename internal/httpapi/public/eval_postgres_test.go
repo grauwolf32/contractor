@@ -11,7 +11,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"os"
 	"strconv"
 	"strings"
 	"testing"
@@ -22,9 +21,12 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
+	"github.com/grauwolf32/contractor/internal/credentials"
 	"github.com/grauwolf32/contractor/internal/evalcoordinator"
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 	"github.com/grauwolf32/contractor/internal/evalservice"
@@ -58,27 +60,27 @@ func newEvalAPIHarness(t *testing.T) *evalAPIHarness {
 		t.Fatal(err)
 	}
 	for _, id := range []string{"development-worker", "development-planner"} {
-		credentialLookup.lookups[id] = config.CredentialMetadata{Ref: llmgateway.LLMCredentialRef{CredentialID: id}, LLMGateway: gateway.Ref, Unrestricted: true}
+		credentialLookup.lookups[id] = resolved.CredentialMetadata{Ref: llmgateway.LLMCredentialRef{CredentialID: id}, LLMGateway: gateway.Ref, Unrestricted: true}
 	}
-	credentials := runtimeconfig.TransactionLLMCredentialLookupFactoryFunc(func(pgx.Tx) (config.CredentialLookup, error) { return credentialLookup, nil })
-	audits, err := auditservice.New(auditservice.Options{Pool: pool, Profiles: catalog, TransactionLLMCredentials: credentials, CredentialGuard: credentialLookup})
+	transactionLLMCredentials := runtimeconfig.TransactionLLMCredentialLookupFactoryFunc(func(pgx.Tx) (resolved.CredentialLookup, error) { return credentialLookup, nil })
+	audits, err := auditservice.New(auditservice.Options{Pool: pool, Profiles: catalog, TransactionLLMCredentials: transactionLLMCredentials, CredentialGuard: credentialLookup})
 	if err != nil {
 		t.Fatal(err)
 	}
-	resolver := &evalservice.Resolver{Pool: pool, Catalog: catalog, Credentials: credentials, Barrier: credentialLookup}
+	resolver := &evalservice.Resolver{Pool: pool, Catalog: catalog, Credentials: transactionLLMCredentials, Barrier: credentialLookup}
 	h := &evalAPIHarness{pool: pool, resolver: resolver}
-	fixture := newHandlerFixtureWithAuth(t, publicCatalogFixture, newTestAuthentication(t), mustTestOrigins(t), false, nil, func(d *Dependencies) {
+	fixture := newHandlerFixtureWithAuth(t, publicCatalogFixture, newTestAuthentication(t), mustTestOrigins(t), false, nil, func(d *testServices) {
 		d.Config = catalog
 		d.Audits = audits
 		d.Projects = projectstore.NewPostgresStore(pool)
 		d.Artifacts = artifacts.NewService(artifacts.NewPostgresRepository(pool))
 		runs, err := runservice.New(runservice.Options{Runs: runstore.NewPostgresStore(pool), Workflows: catalog, LLMCredentials: credentialLookup, CredentialGuard: credentialLookup, RuntimeCredentials: d.RuntimeCredentials, Projects: d.Projects, SkillInitializationAvailable: true, PublicTransaction: func(ctx context.Context, fn func(runservice.PublicRunWriter, *artifacts.Service) error) error {
 			return pg.InTx(ctx, pool, pgx.TxOptions{IsoLevel: pgx.RepeatableRead}, func(tx pgx.Tx) error {
-				lookup, err := runtimeconfig.BindTransactionLLMCredentialLookup(tx, credentials)
+				lookup, err := runtimeconfig.BindTransactionLLMCredentialLookup(tx, transactionLLMCredentials)
 				if err != nil {
 					return err
 				}
-				return fn(runstore.NewRunCreationPostgresStore(tx, lookup), artifacts.NewService(artifacts.NewPostgresRepository(tx)))
+				return fn(runstore.NewRunCreationPostgresStore(tx, lookup, credentials.NewRuntimeCredentialRepository(tx)), artifacts.NewService(artifacts.NewPostgresRepository(tx)))
 			})
 		}})
 		if err != nil {
@@ -151,11 +153,8 @@ func apiDecode[T any](t *testing.T, r *httptest.ResponseRecorder) T {
 }
 func evalFixture(t *testing.T, name string, out any) {
 	t.Helper()
-	b, err := os.ReadFile("../../../api/testdata/evals/valid/" + name + ".json")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err = json.Unmarshal(b, out); err != nil {
+	b := contractstest.ReadFile(t, "api", "testdata", "evals", "valid", name+".json")
+	if err := json.Unmarshal(b, out); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -263,7 +262,7 @@ func (h *evalAPIHarness) finish(t *testing.T, kind string) {
 			}
 		}
 	} else {
-		store := auditstore.NewPostgresStore(h.pool)
+		store := auditstoretest.NewStore(h.pool)
 		claims, err := store.Claim(t.Context(), auditstore.ClaimParams{HolderID: "api-fixture", Lease: time.Minute, Limit: 100})
 		if err != nil {
 			t.Fatal(err)
@@ -312,7 +311,7 @@ func (h *evalAPIHarness) registerExternal(t *testing.T, kind string) (evalservic
 	var setup struct {
 		Checks []evaldomain.Check `json:"checks"`
 	}
-	if err = json.Unmarshal(bundle.Setup, &setup); err != nil {
+	if err := json.Unmarshal(bundle.Setup, &setup); err != nil {
 		t.Fatal(err)
 	}
 	recipes := []evaldomain.MemberRecipe{}
@@ -328,7 +327,7 @@ func (h *evalAPIHarness) registerExternal(t *testing.T, kind string) (evalservic
 	return h.get(t, ref.ID), manifest, setup.Checks
 }
 
-func TestEvalPostgresExternalWorkflowAndAuditSubmission(t *testing.T) {
+func TestSharedEvalPostgresExternalWorkflowAndAuditSubmission(t *testing.T) {
 	for _, kind := range []string{"workflow", "audit"} {
 		t.Run(kind, func(t *testing.T) {
 			h := newEvalAPIHarness(t)
@@ -375,7 +374,7 @@ func TestEvalPostgresExternalWorkflowAndAuditSubmission(t *testing.T) {
 	}
 }
 
-func TestEvalPostgresAuthorizationCSRFStrictBodiesAndCAS(t *testing.T) {
+func TestSharedEvalPostgresAuthorizationCSRFStrictBodiesAndCAS(t *testing.T) {
 	h := newEvalAPIHarness(t)
 	draft, data := h.dataset(t, "workflow")
 	create := evaldomain.CreateExperiment{Name: "Authorized", ControlMode: "server", Draft: &draft}
@@ -486,7 +485,7 @@ func TestEvalPostgresAuthorizationCSRFStrictBodiesAndCAS(t *testing.T) {
 	}
 }
 
-func TestEvalPostgresBoundedCollectionsRejectStaleAndForeignCursors(t *testing.T) {
+func TestSharedEvalPostgresBoundedCollectionsRejectStaleAndForeignCursors(t *testing.T) {
 	h := newEvalAPIHarness(t)
 	capsPath := "/v1/eval-capabilities?kind=workflow&limit=1"
 	caps := apiDecode[struct {
@@ -554,7 +553,7 @@ func TestEvalPostgresBoundedCollectionsRejectStaleAndForeignCursors(t *testing.T
 	h.request(t, "GET", datasetPath+"&cursor="+url.QueryEscape(*datasets.Page.NextCursor), nil, "", "", 409)
 }
 
-func TestEvalPostgresNativeAuthoringCommandsAndPublicViews(t *testing.T) {
+func TestSharedEvalPostgresNativeAuthoringCommandsAndPublicViews(t *testing.T) {
 	for _, kind := range []string{"workflow", "audit"} {
 		t.Run(kind, func(t *testing.T) {
 			h := newEvalAPIHarness(t)

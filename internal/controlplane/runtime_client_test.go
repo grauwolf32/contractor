@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 	"github.com/grauwolf32/contractor/internal/contracts/control"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
@@ -311,13 +312,13 @@ func TestWorkerHandleSecretScanIgnoresFixedCardAndReservationStrings(t *testing.
 		t.Run(value, func(t *testing.T) {
 			settings := testRuntimeSettings()
 			settings.Telemetry = &runtimesettings.TelemetrySettings{
-				Adapter:             contracts.RuntimeAdapterOTLPHTTP,
+				Adapter:             runtimesettings.RuntimeAdapterOTLPHTTP,
 				Endpoint:            "https://telemetry.example/v1/traces",
 				Headers:             map[string]contracts.SecretString{"X-Scope-OrgID": contracts.NewSecretString(value)},
 				FlushTimeoutSeconds: 1,
 			}
 			settings.HTTPProxy = &runtimesettings.HTTPProxySettings{
-				Adapter: contracts.RuntimeAdapterHTTPProxy, ProxyURL: "https://proxy.example",
+				Adapter: runtimesettings.RuntimeAdapterHTTPProxy, ProxyURL: "https://proxy.example",
 				BasicAuth: &runtimesettings.HTTPProxyBasicAuth{
 					Username: contracts.NewSecretString(value), Password: contracts.NewSecretString("safe-password"),
 				},
@@ -336,7 +337,7 @@ func TestWorkerHandleSecretScanIgnoresFixedCardAndReservationStrings(t *testing.
 	}
 	settings := testRuntimeSettings()
 	settings.Telemetry = &runtimesettings.TelemetrySettings{
-		Adapter: contracts.RuntimeAdapterOTLPHTTP, Endpoint: "https://telemetry.example/v1/traces",
+		Adapter: runtimesettings.RuntimeAdapterOTLPHTTP, Endpoint: "https://telemetry.example/v1/traces",
 		Headers:             map[string]contracts.SecretString{"X-Scope-OrgID": contracts.NewSecretString("stage")},
 		FlushTimeoutSeconds: 1,
 	}
@@ -374,7 +375,7 @@ func TestWorkerHandleSecretScanDoesNotMatchShortCredentialAgainstJSONKeys(t *tes
 	)
 	settings := testRuntimeSettings()
 	settings.HTTPProxy = &runtimesettings.HTTPProxySettings{
-		Adapter: contracts.RuntimeAdapterHTTPProxy, ProxyURL: "https://proxy.example",
+		Adapter: runtimesettings.RuntimeAdapterHTTPProxy, ProxyURL: "https://proxy.example",
 		BasicAuth: &runtimesettings.HTTPProxyBasicAuth{
 			Username: contracts.NewSecretString("worker"),
 			Password: contracts.NewSecretString("short"),
@@ -412,15 +413,10 @@ type agentCardSecretScanCases struct {
 }
 
 // The trusted path table and the leak cases are shared with the Python Runtime.
-func TestWorkerHandleSecretScanSharedCases(t *testing.T) {
+func TestSharedWorkerHandleSecretScanSharedCases(t *testing.T) {
 	t.Parallel()
 
-	data, err := os.ReadFile(filepath.Join(
-		"..", "..", "api", "testdata", "v1alpha1", "agent-card-secret-scan-cases.json",
-	))
-	if err != nil {
-		t.Fatal(err)
-	}
+	data := contractstest.ReadFile(t, "api", "testdata", "v1alpha1", "agent-card-secret-scan-cases.json")
 	var fixture agentCardSecretScanCases
 	if err := json.Unmarshal(data, &fixture); err != nil {
 		t.Fatal(err)
@@ -469,7 +465,7 @@ func TestWorkerHandleSecretScanSharedCases(t *testing.T) {
 			}
 			settings := testRuntimeSettings()
 			settings.Telemetry = &runtimesettings.TelemetrySettings{
-				Adapter: contracts.RuntimeAdapterOTLPHTTP, Endpoint: "https://telemetry.example/v1/traces",
+				Adapter: runtimesettings.RuntimeAdapterOTLPHTTP, Endpoint: "https://telemetry.example/v1/traces",
 				Headers: map[string]contracts.SecretString{
 					"X-Scope-OrgID": contracts.NewSecretString(render.Replace(test.Secret)),
 				},
@@ -545,13 +541,8 @@ func setAgentCardValue(t *testing.T, card map[string]any, path []string, value a
 	}
 }
 
-func TestRuntimeControlClientReadsWorkerStateAndRevalidatesETag(t *testing.T) {
-	fixture, err := os.ReadFile(filepath.Join(
-		"..", "..", "api", "testdata", "v1alpha1", "valid", "agent-state-snapshot.json",
-	))
-	if err != nil {
-		t.Fatal(err)
-	}
+func TestSharedRuntimeControlClientReadsWorkerStateAndRevalidatesETag(t *testing.T) {
+	fixture := contractstest.ReadFile(t, "api", "testdata", "v1alpha1", "valid", "agent-state-snapshot.json")
 	const etag = `"contractor-agent-state-v1-7"`
 	var requests atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
@@ -594,13 +585,8 @@ func TestRuntimeControlClientReadsWorkerStateAndRevalidatesETag(t *testing.T) {
 	}
 }
 
-func TestRuntimeControlClientWorkerStateFailuresAreBoundedAndSafe(t *testing.T) {
-	valid, err := os.ReadFile(filepath.Join(
-		"..", "..", "api", "testdata", "v1alpha1", "valid", "agent-state-snapshot.json",
-	))
-	if err != nil {
-		t.Fatal(err)
-	}
+func TestSharedRuntimeControlClientWorkerStateFailuresAreBoundedAndSafe(t *testing.T) {
+	valid := contractstest.ReadFile(t, "api", "testdata", "v1alpha1", "valid", "agent-state-snapshot.json")
 	tests := []struct {
 		name        string
 		status      int
@@ -635,7 +621,7 @@ func TestRuntimeControlClientWorkerStateFailuresAreBoundedAndSafe(t *testing.T) 
 			_, readErr := client.ReadWorkerState(
 				context.Background(), stateWorkerHandle(server.URL, "allocation_1"), test.conditional,
 			)
-			var typed *WorkerStateReadError
+			var typed *reporting.WorkerStateReadError
 			if !errors.As(readErr, &typed) || typed.Code != test.wantCode ||
 				strings.Contains(readErr.Error(), server.URL) {
 				t.Fatalf("Worker State failure = %#v", readErr)
@@ -644,10 +630,10 @@ func TestRuntimeControlClientWorkerStateFailuresAreBoundedAndSafe(t *testing.T) 
 	}
 
 	client, _ := NewRuntimeControlClient(&http.Client{})
-	_, err = client.ReadWorkerState(
+	_, err := client.ReadWorkerState(
 		context.Background(), stateWorkerHandle("http://127.0.0.1:1", "allocation_1"), "",
 	)
-	var typed *WorkerStateReadError
+	var typed *reporting.WorkerStateReadError
 	if !errors.As(err, &typed) || typed.Code != "worker_state_transport_failed" ||
 		strings.Contains(err.Error(), "127.0.0.1") {
 		t.Fatalf("safe transport failure = %#v", err)
@@ -657,13 +643,8 @@ func TestRuntimeControlClientWorkerStateFailuresAreBoundedAndSafe(t *testing.T) 
 // A Runtime response with a case alias or a duplicate key is invalid, at the
 // top level and inside nested report and State objects (API-R71 applies the
 // same strict decoding to the private wire).
-func TestRuntimeControlClientRejectsCaseAliasesAndDuplicateKeys(t *testing.T) {
-	state, err := os.ReadFile(filepath.Join(
-		"..", "..", "api", "testdata", "v1alpha1", "valid", "agent-state-snapshot.json",
-	))
-	if err != nil {
-		t.Fatal(err)
-	}
+func TestSharedRuntimeControlClientRejectsCaseAliasesAndDuplicateKeys(t *testing.T) {
+	state := contractstest.ReadFile(t, "api", "testdata", "v1alpha1", "valid", "agent-state-snapshot.json")
 	for name, body := range map[string]string{
 		"valid":            string(state),
 		"nested alias":     strings.Replace(string(state), `"schemaVersion"`, `"SchemaVersion"`, 1),
@@ -686,7 +667,7 @@ func TestRuntimeControlClientRejectsCaseAliasesAndDuplicateKeys(t *testing.T) {
 			_, readErr := client.ReadWorkerState(
 				context.Background(), stateWorkerHandle(server.URL, "allocation_1"), "",
 			)
-			var typed *WorkerStateReadError
+			var typed *reporting.WorkerStateReadError
 			if name == "valid" {
 				if readErr != nil {
 					t.Fatalf("valid Worker State rejected: %v", readErr)
@@ -745,7 +726,7 @@ func TestRuntimeControlClientRejectsMismatchedWorkerStateEndpointBeforeRequest(t
 	client, _ := NewRuntimeControlClient(server.Client())
 
 	_, err := client.ReadWorkerState(context.Background(), handle, "")
-	var typed *WorkerStateReadError
+	var typed *reporting.WorkerStateReadError
 	if !errors.As(err, &typed) || typed.Code != "worker_state_endpoint_invalid" ||
 		requests.Load() != 0 || strings.Contains(err.Error(), server.URL) {
 		t.Fatalf("mismatched Worker State endpoint = (%#v, requests %d)", err, requests.Load())
@@ -931,7 +912,7 @@ func testRuntimeProvenance() runtimesettings.ResolvedRuntimeConfigProvenance {
 		},
 		RunLabels:       []runtimesettings.RuntimeLabelBindingProvenance{},
 		AgentLabels:     []runtimesettings.RuntimeLabelBindingProvenance{},
-		RuntimeAdapters: []contracts.RuntimeAdapterRef{}, LLMGatewayConfig: &gateway,
+		RuntimeAdapters: []runtimesettings.RuntimeAdapterRef{}, LLMGatewayConfig: &gateway,
 		RuntimeCredentialRefs: []runtimesettings.RuntimeCredentialRef{},
 	}
 }
@@ -954,20 +935,20 @@ func TestRuntimeAdapterMetricsAreFilteredAgainstPinnedReservation(t *testing.T) 
 	t.Parallel()
 
 	reservation := Reservation{ResolvedRuntimeConfig: &runtimeconfig.ResolvedRuntimeConfig{
-		RequiredRuntimeAdapters: []contracts.RuntimeAdapterRef{contracts.RuntimeAdapterOTLPHTTP},
+		RequiredRuntimeAdapters: []runtimesettings.RuntimeAdapterRef{runtimesettings.RuntimeAdapterOTLPHTTP},
 	}}
 	report := reporting.RuntimeReport{
 		Complete: true,
-		Adapters: map[contracts.RuntimeAdapterRef]reporting.RuntimeAdapterMetrics{
-			contracts.RuntimeAdapterOTLPHTTP:  {Operations: 2},
-			contracts.RuntimeAdapterHTTPProxy: {Operations: 1},
+		Adapters: map[runtimesettings.RuntimeAdapterRef]reporting.RuntimeAdapterMetrics{
+			runtimesettings.RuntimeAdapterOTLPHTTP:  {Operations: 2},
+			runtimesettings.RuntimeAdapterHTTPProxy: {Operations: 1},
 		},
 	}
 	sanitizeRuntimeAdapterMetrics(&report, reservation)
 	if report.Complete {
 		t.Fatal("unexpected adapter attribution did not mark telemetry incomplete")
 	}
-	if len(report.Adapters) != 1 || report.Adapters[contracts.RuntimeAdapterOTLPHTTP].Operations != 2 {
+	if len(report.Adapters) != 1 || report.Adapters[runtimesettings.RuntimeAdapterOTLPHTTP].Operations != 2 {
 		t.Fatalf("trusted adapter metrics were not retained: %+v", report.Adapters)
 	}
 

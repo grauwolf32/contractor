@@ -10,33 +10,13 @@ import (
 	"unicode/utf8"
 
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/auditstore/reviewstore"
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/findingintake"
-	"github.com/grauwolf32/contractor/internal/pagelimit"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
 )
-
-type findingRow struct {
-	findingID           string
-	auditID             string
-	firstReceiptID      string
-	state               FindingState
-	rejectionReason     *string
-	duplicateTargetID   *string
-	currentAssessmentID *string
-	currentDecisionID   *string
-	revision            uint64
-	createdAt           time.Time
-	updatedAt           time.Time
-}
-
-const findingRowColumns = `
-finding.finding_id, finding.audit_id, finding.first_receipt_id, finding.state,
-finding.rejection_reason, finding.duplicate_target_id,
-finding.current_assessment_id, finding.current_decision_id,
-finding.revision, finding.created_at, finding.updated_at`
 
 func (s *Service) CreateFindingReview(
 	ctx context.Context, params CreateFindingReviewParams,
@@ -47,28 +27,23 @@ func (s *Service) CreateFindingReview(
 	var requestID string
 	var replayed bool
 	err := persistencepostgres.InTx(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`,
-			"audit-finding-review:"+params.AuditID); err != nil {
+		reviews := reviewstore.NewTx(tx)
+		if err := reviews.LockFindingReviews(ctx, params.AuditID); err != nil {
 			return err
 		}
-		var storedDigest string
-		err := tx.QueryRow(ctx, `
-SELECT request_id, request_digest
-  FROM audit_review_requests
- WHERE audit_id = $1 AND idempotency_key = $2`, params.AuditID, params.IdempotencyKey).Scan(
-			&requestID, &storedDigest,
-		)
-		if err == nil {
+		storedID, storedDigest, found, err := reviews.FindReviewRequestReplay(ctx, params.AuditID, params.IdempotencyKey)
+		if err != nil {
+			return err
+		}
+		if found {
+			requestID = storedID
 			if storedDigest != params.RequestDigest {
 				return fmt.Errorf("%w: finding review key", contracts.ErrIdempotencyConflict)
 			}
 			replayed = true
 			return nil
 		}
-		if !errors.Is(err, pgx.ErrNoRows) {
-			return err
-		}
-		row, state, err := lockFinding(ctx, tx, params.OwnerID, params.AuditID, params.FindingID)
+		row, state, err := reviews.LockFinding(ctx, params.OwnerID, params.AuditID, params.FindingID)
 		if err != nil {
 			return err
 		}
@@ -76,45 +51,41 @@ SELECT request_id, request_digest
 		// bytes. Freeze review mutations for this short phase so a report
 		// artifact cannot be stranded by a later CAS failure. Review remains
 		// available again after completion, as required by the public model.
-		reportFrozen, err := pendingReportReview(ctx, tx, params.AuditID)
+		reportFrozen, err := reviews.PendingReportReview(ctx, params.AuditID)
 		if err != nil {
 			return err
 		}
 		if state == auditstore.AuditDeleting || state == auditstore.AuditFinalizing || reportFrozen ||
-			row.revision != params.ExpectedRevision {
+			row.Revision != params.ExpectedRevision {
 			return auditstore.ErrPrecondition
 		}
-		if err := auditstore.NewPostgresStore(tx).ExpireFindingReviews(ctx, params.AuditID, params.FindingID); err != nil {
+		if err := reviews.ExpireFindingReviews(ctx, params.AuditID, params.FindingID); err != nil {
 			return err
 		}
 		subjectDigest := findingSubjectDigest(row)
-		err = tx.QueryRow(ctx, `
-SELECT request_id
-  FROM audit_review_requests
- WHERE audit_id = $1 AND finding_id = $2 AND kind = 'finding-triage'
-   AND subject_revision = $3 AND subject_digest = $4 AND state = 'pending'
- ORDER BY created_at LIMIT 1`, params.AuditID, params.FindingID, row.revision, subjectDigest).Scan(&requestID)
-		if err == nil {
+		pendingID, found, err := reviews.PendingFindingReview(ctx, params.AuditID, params.FindingID, row.Revision, subjectDigest)
+		if err != nil {
+			return err
+		}
+		if found {
+			requestID = pendingID
 			replayed = true
 			return nil
-		}
-		if !errors.Is(err, pgx.ErrNoRows) {
-			return err
 		}
 		var expiresAt *time.Time
 		if params.ExpiresAt != nil {
 			value := params.ExpiresAt.UTC()
 			expiresAt = &value
 		}
-		actions, _ := json.Marshal([]AnalystVerdict{
-			VerdictTruePositive, VerdictFalsePositive, VerdictDuplicate,
-			VerdictReopen, VerdictNeedsEvidence,
+		actions, _ := json.Marshal([]auditstore.AnalystVerdict{
+			auditstore.VerdictTruePositive, auditstore.VerdictFalsePositive, auditstore.VerdictDuplicate,
+			auditstore.VerdictReopen, auditstore.VerdictNeedsEvidence,
 		})
 		requestID = params.RequestID
 		// The default window starts at the PostgreSQL clock that later decides
 		// whether the request has expired.
-		if err := auditstore.NewPostgresStore(tx).InsertFindingReviewRequest(ctx, auditstore.FindingReviewRequestParams{
-			RequestID: requestID, AuditID: params.AuditID, FindingID: params.FindingID, SubjectRevision: row.revision,
+		if err := reviews.InsertFindingReviewRequest(ctx, auditstore.FindingReviewRequestParams{
+			RequestID: requestID, AuditID: params.AuditID, FindingID: params.FindingID, SubjectRevision: row.Revision,
 			SubjectDigest: subjectDigest, RequestedActions: actions, ExpiresAt: expiresAt,
 			IdempotencyKey: params.IdempotencyKey, RequestDigest: params.RequestDigest,
 			DefaultTTLSeconds: int64(defaultReviewTTL / time.Second),
@@ -123,10 +94,10 @@ SELECT request_id
 		}
 		return appendAuditReviewEvent(ctx, tx, params.AuditID, "review.requested", requestID,
 			map[string]any{
-				"subjectKind": ReviewSubjectFinding,
+				"subjectKind": auditstore.ReviewSubjectFinding,
 				"subjectId":   params.FindingID,
 				"findingId":   params.FindingID,
-				"kind":        FindingReviewKind,
+				"kind":        auditstore.FindingReviewKind,
 			})
 	})
 	if err != nil {
@@ -146,74 +117,38 @@ func (s *Service) DecideFinding(
 	var replayed bool
 	var expired bool
 	err := persistencepostgres.InTx(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`,
-			"audit-finding-review:"+params.AuditID); err != nil {
+		reviews := reviewstore.NewTx(tx)
+		if err := reviews.LockFindingReviews(ctx, params.AuditID); err != nil {
 			return err
 		}
-		var storedDigest string
-		err := tx.QueryRow(ctx, `
-SELECT decision_id, request_id, finding_id, request_digest
-  FROM audit_review_decisions
- WHERE audit_id = $1 AND idempotency_key = $2`, params.AuditID, params.IdempotencyKey).Scan(
-			&decisionID, &requestID, &findingID, &storedDigest,
-		)
-		if err == nil {
-			if storedDigest != params.RequestDigest || requestID != params.RequestID {
+		replay, found, err := reviews.FindReviewDecisionReplay(ctx, params.AuditID, params.IdempotencyKey)
+		if err != nil {
+			return err
+		}
+		if found {
+			decisionID, requestID, findingID = replay.DecisionID, replay.RequestID, replay.FindingID
+			if replay.RequestDigest != params.RequestDigest || replay.RequestID != params.RequestID {
 				return fmt.Errorf("%w: finding decision key", contracts.ErrIdempotencyConflict)
 			}
 			replayed = true
 			return nil
 		}
-		if !errors.Is(err, pgx.ErrNoRows) {
-			return err
-		}
-
-		var auditState auditstore.AuditState
-		var request ReviewRequest
-		var row findingRow
-		var requestedActionsJSON []byte
-		var requestRevision int64
-		var findingRevision int64
-		err = tx.QueryRow(ctx, `
-SELECT audit.state,
-       request.request_id, request.audit_id, request.finding_id, request.kind,
-       request.subject_revision, request.subject_digest, request.requested_actions,
-       request.state, request.expires_at, request.revision,
-       request.created_at, request.updated_at,
-       `+findingRowColumns+`
-  FROM audit_review_requests AS request
-  JOIN audit_findings AS finding
-    ON finding.finding_id = request.finding_id AND finding.audit_id = request.audit_id
-  JOIN audits AS audit ON audit.audit_id = request.audit_id
- WHERE audit.owner_id = $1 AND request.audit_id = $2 AND request.request_id = $3
- FOR UPDATE OF audit, request, finding`, params.OwnerID, params.AuditID, params.RequestID).Scan(
-			&auditState,
-			&request.RequestID, &request.AuditID, &request.FindingID, &request.Kind,
-			&request.SubjectRevision, &request.SubjectDigest, &requestedActionsJSON,
-			&request.State, &request.ExpiresAt, &requestRevision,
-			&request.CreatedAt, &request.UpdatedAt,
-			&row.findingID, &row.auditID, &row.firstReceiptID, &row.state,
-			&row.rejectionReason, &row.duplicateTargetID, &row.currentAssessmentID,
-			&row.currentDecisionID, &findingRevision, &row.createdAt, &row.updatedAt,
-		)
-		if errors.Is(err, pgx.ErrNoRows) {
-			return auditstore.ErrNotFound
-		}
+		locked, err := reviews.LockFindingReview(ctx, params.OwnerID, params.AuditID, params.RequestID)
 		if err != nil {
 			return err
 		}
-		request.Revision, row.revision = uint64(requestRevision), uint64(findingRevision)
-		reportFrozen, err := pendingReportReview(ctx, tx, params.AuditID)
+		auditState, request, row := locked.AuditState, locked.Request, locked.Finding
+		reportFrozen, err := reviews.PendingReportReview(ctx, params.AuditID)
 		if err != nil {
 			return err
 		}
 		if auditState == auditstore.AuditDeleting || auditState == auditstore.AuditFinalizing || reportFrozen ||
-			request.State != ReviewPending ||
-			request.Revision != params.ExpectedRequestRevision || request.Kind != FindingReviewKind {
+			request.State != auditstore.ReviewPending ||
+			request.Revision != params.ExpectedRequestRevision || request.Kind != auditstore.FindingReviewKind {
 			return auditstore.ErrPrecondition
 		}
 		if request.ExpiresAt != nil {
-			if expired, err = auditstore.NewPostgresStore(tx).ExpireReviewAtDatabaseTime(ctx, request.RequestID); err != nil {
+			if expired, err = reviews.ExpireReviewAtDatabaseTime(ctx, request.RequestID); err != nil {
 				return err
 			}
 		}
@@ -223,20 +158,20 @@ SELECT audit.state,
 			// update back and leave the request permanently pending.
 			return appendAuditReviewEvent(ctx, tx, params.AuditID, "review.expired",
 				request.RequestID, map[string]any{
-					"subjectKind": ReviewSubjectFinding,
-					"findingId":   row.findingID,
-					"kind":        FindingReviewKind,
+					"subjectKind": auditstore.ReviewSubjectFinding,
+					"findingId":   row.FindingID,
+					"kind":        auditstore.FindingReviewKind,
 				})
 		}
-		if request.SubjectRevision != row.revision || request.SubjectDigest != findingSubjectDigest(row) {
+		if request.SubjectRevision != row.Revision || request.SubjectDigest != findingSubjectDigest(row) {
 			return auditstore.ErrPrecondition
 		}
-		if params.Verdict == VerdictDuplicate {
-			if err := validateDuplicateTarget(ctx, tx, params.AuditID, row.findingID, *params.DuplicateTargetID); err != nil {
+		if params.Verdict == auditstore.VerdictDuplicate {
+			if err := validateDuplicateTarget(ctx, reviews, params.AuditID, row.FindingID, *params.DuplicateTargetID); err != nil {
 				return err
 			}
 		}
-		decisionID, requestID, findingID = params.DecisionID, request.RequestID, row.findingID
+		decisionID, requestID, findingID = params.DecisionID, request.RequestID, row.FindingID
 		var severity, target *string
 		if params.Severity != nil {
 			value := string(*params.Severity)
@@ -246,7 +181,7 @@ SELECT audit.state,
 			target = params.DuplicateTargetID
 		}
 		verdict := string(params.Verdict)
-		if err := auditstore.NewPostgresStore(tx).RecordReviewDecision(ctx, auditstore.ReviewDecisionWriteParams{
+		if err := reviews.RecordReviewDecision(ctx, auditstore.ReviewDecisionWriteParams{
 			DecisionID: decisionID, RequestID: requestID, AuditID: params.AuditID, FindingID: &findingID,
 			ActorID: params.OwnerID, Action: verdict, Verdict: &verdict, Severity: severity, Rationale: params.Rationale,
 			DuplicateTargetID: target, SubjectRevision: request.SubjectRevision, SubjectDigest: request.SubjectDigest,
@@ -255,7 +190,7 @@ SELECT audit.state,
 			return err
 		}
 		state, rejection, duplicate, effectiveDecision := decisionProjection(params.Verdict, decisionID, target)
-		if err := auditstore.NewPostgresStore(tx).ProjectFindingDecision(ctx, findingID, state, rejection, duplicate, effectiveDecision); err != nil {
+		if err := reviews.ProjectFindingDecision(ctx, findingID, state, rejection, duplicate, effectiveDecision); err != nil {
 			return err
 		}
 		return appendAuditReviewEvent(ctx, tx, params.AuditID, "review.decided", decisionID,
@@ -283,225 +218,48 @@ SELECT audit.state,
 	}, nil
 }
 
-// pendingReportReview is evaluated only after the caller has locked the Audit
-// row. Report proposal takes the same lock, so the check and the subsequent
-// finding mutation cannot cross the immutable report-snapshot boundary.
-func pendingReportReview(ctx context.Context, tx pgx.Tx, auditID string) (bool, error) {
-	var pending bool
-	err := tx.QueryRow(ctx, `
-SELECT EXISTS (
-    SELECT 1
-      FROM audit_review_requests AS request
-     WHERE request.audit_id = $1 AND request.subject_kind = 'audit-report'
-       AND request.state = 'pending'
-)`, auditID).Scan(&pending)
-	return pending, err
-}
-
 func (s *Service) GetReview(
 	ctx context.Context, ownerID, auditID, requestID string,
-) (ReviewRequest, error) {
-	if !validReviewIdentity(ownerID, 256) || !validReviewIdentity(auditID, 256) ||
-		!validReviewIdentity(requestID, 256) {
-		return ReviewRequest{}, auditstore.ErrInvalid
-	}
-	request, err := scanReviewRequest(s.pool.QueryRow(ctx, reviewSelect+`
- WHERE audit.owner_id = $1 AND request.audit_id = $2 AND request.request_id = $3`,
-		ownerID, auditID, requestID))
-	if errors.Is(err, pgx.ErrNoRows) {
-		return ReviewRequest{}, auditstore.ErrNotFound
-	}
-	if err != nil {
-		return ReviewRequest{}, err
-	}
-	return request, nil
+) (auditstore.ReviewRequest, error) {
+	return s.reads().GetReview(ctx, ownerID, auditID, requestID)
 }
 
 func (s *Service) ListReviews(
-	ctx context.Context, params ReviewListParams,
-) ([]ReviewRequest, error) {
-	if err := validateReviewList(params); err != nil {
-		return nil, err
-	}
-	var state *string
-	if params.State != nil {
-		value := string(*params.State)
-		state = &value
-	}
-	rows, err := s.pool.Query(ctx, reviewSelect+`
- WHERE audit.owner_id = $1 AND request.audit_id = $2
-   AND ($3::text IS NULL OR request.finding_id = $3)
-   AND ($4::text IS NULL OR request.state = $4)
-   AND ($5::timestamptz IS NULL OR
-        (request.created_at, request.request_id) > ($5, $6))
- ORDER BY request.created_at, request.request_id LIMIT $7`,
-		params.OwnerID, params.AuditID, params.FindingID, state,
-		params.AfterCreatedAt, params.AfterRequestID, params.Limit)
-	if err != nil {
-		return nil, fmt.Errorf("list Audit reviews: %w", err)
-	}
-	defer rows.Close()
-	result := make([]ReviewRequest, 0, params.Limit)
-	for rows.Next() {
-		request, scanErr := scanReviewRequest(rows)
-		if scanErr != nil {
-			return nil, scanErr
-		}
-		result = append(result, request)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	if len(result) == 0 {
-		if _, err := auditstore.NewPostgresStore(s.pool).Get(ctx, params.OwnerID, params.AuditID); err != nil {
-			return nil, err
-		}
-	}
-	return result, nil
+	ctx context.Context, params auditstore.ReviewListParams,
+) ([]auditstore.ReviewRequest, error) {
+	return s.reads().ListReviews(ctx, params)
 }
 
 func (s *Service) ListFindingProvenance(
-	ctx context.Context, params ProvenanceListParams,
+	ctx context.Context, params auditstore.ProvenanceListParams,
 ) ([]FindingProvenance, error) {
-	if err := validateProvenanceList(params); err != nil {
-		return nil, err
-	}
-	before, err := s.readProvenanceRevisions(ctx, params)
+	reads := s.reads()
+	beforeAudit, beforeFinding, err := reads.ReadProvenanceRevisions(ctx, params)
 	if err != nil {
 		return nil, err
 	}
-	if (params.AuditRevision != nil && *params.AuditRevision != before.audit) ||
-		(params.FindingRevision != nil && *params.FindingRevision != before.finding) {
+	if (params.AuditRevision != nil && *params.AuditRevision != beforeAudit) ||
+		(params.FindingRevision != nil && *params.FindingRevision != beforeFinding) {
 		return nil, auditstore.ErrConflict
 	}
 	finding, err := s.GetFinding(ctx, params.OwnerID, params.AuditID, params.FindingID)
 	if err != nil {
 		return nil, err
 	}
-	rows, err := s.pool.Query(ctx, listFindingProvenanceSQL, params.AuditID, params.FindingID,
-		params.AfterCreatedAt, params.AfterRecordID, params.Limit)
+	records, err := reads.ListFindingProvenance(ctx, params)
 	if err != nil {
-		return nil, fmt.Errorf("list finding provenance: %w", err)
-	}
-	defer rows.Close()
-	result := make([]FindingProvenance, 0, params.Limit)
-	for rows.Next() {
-		var value FindingProvenance
-		var kind string
-		var proposalJSON, resultJSON, contractJSON []byte
-		var assessmentID, semantic, resultDigest, itemID, executionItemID, collectionID, contractDigest *string
-		var executionID, executionRole, itemState, disposition, terminalOutcome, runID *string
-		var itemAttempt *int
-		var runProvenanceJSON, taskJSON, itemOriginJSON []byte
-		var taskDigest, workflowRole *string
-		var runDeleted bool
-		var collectedAt, assessmentAcceptedAt *time.Time
-		var direct bool
-		if err := rows.Scan(
-			&value.CreatedAt, &value.RecordID, &kind, &value.ReceiptID, &value.Relation,
-			&proposalJSON, &assessmentID, &semantic, &resultJSON, &resultDigest,
-			&itemID, &executionItemID, &collectionID, &direct, &contractJSON, &contractDigest,
-			&executionID, &executionRole, &itemAttempt, &itemState, &disposition,
-			&terminalOutcome, &runID, &runProvenanceJSON, &runDeleted,
-			&taskJSON, &taskDigest, &itemOriginJSON, &workflowRole, &collectedAt,
-			&assessmentAcceptedAt,
-		); err != nil {
-			return nil, fmt.Errorf("scan finding provenance: %w", err)
-		}
-		value.Kind = FindingProvenanceKind(kind)
-		if !value.Kind.Valid() {
-			return nil, errors.New("stored finding provenance kind is invalid")
-		}
-		if json.Unmarshal(proposalJSON, &value.Proposal) != nil || value.Proposal.Ref.ValidateExact() != nil {
-			return nil, errors.New("stored finding proposal provenance is invalid")
-		}
-		if assessmentID != nil {
-			if semantic == nil || assessmentAcceptedAt == nil {
-				return nil, errors.New("stored finding assessment provenance is incomplete")
-			}
-			assessment := &FindingAssessment{
-				AssessmentID: *assessmentID, SemanticAssessment: *semantic,
-				ReceiptID: value.ReceiptID, ItemID: itemID, ExecutionItemID: executionItemID,
-				CollectionReceiptID: collectionID, DirectVerification: direct,
-				AcceptedAt: *assessmentAcceptedAt,
-			}
-			if resultDigest == nil || json.Unmarshal(resultJSON, &assessment.Result.Ref) != nil {
-				return nil, errors.New("stored finding assessment provenance is invalid")
-			}
-			assessment.Result.Digest = *resultDigest
-			if contractJSON != nil {
-				if contractDigest == nil {
-					return nil, errors.New("stored direct verification contract is invalid")
-				}
-				assessment.Contract = &auditstore.ExactArtifact{Digest: *contractDigest}
-				if json.Unmarshal(contractJSON, &assessment.Contract.Ref) != nil {
-					return nil, errors.New("stored direct verification contract is invalid")
-				}
-			}
-			value.Assessment = assessment
-			value.SupportsCurrent = finding.CurrentAssessment != nil &&
-				finding.CurrentAssessment.AssessmentID == assessment.AssessmentID
-		}
-		if executionID != nil {
-			if executionRole == nil || itemAttempt == nil || itemState == nil || itemID == nil ||
-				executionItemID == nil || taskDigest == nil || workflowRole == nil {
-				return nil, errors.New("stored finding attempt provenance is incomplete")
-			}
-			attempt := &FindingAttempt{
-				ExecutionID: *executionID, ExecutionItemID: *executionItemID,
-				ItemID: *itemID, ItemAttempt: *itemAttempt,
-				Role: auditstore.ExecutionRole(*executionRole), WorkflowRole: *workflowRole,
-				State: auditstore.ItemState(*itemState), RunID: runID,
-				RunDeleted: runDeleted, CreatedAt: value.CreatedAt, CollectedAt: collectedAt,
-				Task: auditstore.ExactArtifact{Digest: *taskDigest},
-			}
-			if !attempt.Role.Valid() || !attempt.State.Valid() || attempt.ItemAttempt < 1 {
-				return nil, errors.New("stored finding attempt provenance is invalid")
-			}
-			if disposition != nil {
-				parsed := auditstore.CollectionDisposition(*disposition)
-				if !parsed.Valid() {
-					return nil, errors.New("stored finding attempt disposition is invalid")
-				}
-				attempt.CollectionDisposition = &parsed
-			}
-			if terminalOutcome != nil {
-				parsed := auditstore.TerminalOutcome(*terminalOutcome)
-				if !parsed.Valid() {
-					return nil, errors.New("stored finding attempt terminal outcome is invalid")
-				}
-				attempt.TerminalOutcome = &parsed
-			}
-			if len(runProvenanceJSON) != 0 {
-				attempt.RunProvenance = &auditstore.RunProvenance{}
-				if json.Unmarshal(runProvenanceJSON, attempt.RunProvenance) != nil {
-					return nil, errors.New("stored finding Run provenance is invalid")
-				}
-			}
-			if json.Unmarshal(taskJSON, &attempt.Task.Ref) != nil ||
-				attempt.Task.Ref.ValidateExact() != nil ||
-				json.Unmarshal(itemOriginJSON, &attempt.ItemOrigin) != nil ||
-				attempt.ItemOrigin.Schema != "contractor.audit.item-origin.v1" ||
-				attempt.ItemOrigin.EntryKey == "" {
-				return nil, errors.New("stored finding item provenance is invalid")
-			}
-			if resultDigest != nil && len(resultJSON) != 0 {
-				attempt.Result = &auditstore.ExactArtifact{Digest: *resultDigest}
-				if json.Unmarshal(resultJSON, &attempt.Result.Ref) != nil ||
-					attempt.Result.Ref.ValidateExact() != nil {
-					return nil, errors.New("stored finding attempt result is invalid")
-				}
-			}
-			value.Attempt = attempt
-		}
-		result = append(result, value)
-	}
-	if err := rows.Err(); err != nil {
 		return nil, err
 	}
-	// Receipt hydration acquires from the same pool. Release the provenance
-	// connection first, including for a one-connection pool.
-	rows.Close()
+	result := make([]FindingProvenance, len(records))
+	for index, record := range records {
+		result[index] = FindingProvenance{
+			RecordID: record.RecordID, Kind: record.Kind, ReceiptID: record.ReceiptID,
+			Relation: record.Relation, Proposal: record.Proposal, Assessment: record.Assessment,
+			Attempt: record.Attempt, CreatedAt: record.CreatedAt,
+			SupportsCurrent: record.Assessment != nil && finding.CurrentAssessment != nil &&
+				finding.CurrentAssessment.AssessmentID == record.Assessment.AssessmentID,
+		}
+	}
 	ids := make([]string, 0, len(result))
 	origins := make(map[string]findingintake.Origin, len(result))
 	for _, value := range result {
@@ -527,215 +285,17 @@ func (s *Service) ListFindingProvenance(
 	}
 	// The final joined snapshot covers rows, exact receipt hydration and the
 	// finding assessment used for SupportsCurrent, even without caller pins.
-	after, err := s.readProvenanceRevisions(ctx, params)
+	afterAudit, afterFinding, err := reads.ReadProvenanceRevisions(ctx, params)
 	if err != nil {
 		return nil, err
 	}
-	if after != before {
+	if afterAudit != beforeAudit || afterFinding != beforeFinding {
 		return nil, auditstore.ErrConflict
 	}
 	return result, nil
 }
 
-type provenanceRevisions struct {
-	audit   uint64
-	finding uint64
-}
-
-func (s *Service) readProvenanceRevisions(ctx context.Context, params ProvenanceListParams) (provenanceRevisions, error) {
-	var result provenanceRevisions
-	err := s.pool.QueryRow(ctx, `
-SELECT audit.revision, finding.revision
-  FROM audits AS audit
-  JOIN audit_findings AS finding USING (audit_id)
- WHERE audit.owner_id = $1 AND audit.audit_id = $2 AND finding.finding_id = $3`,
-		params.OwnerID, params.AuditID, params.FindingID).Scan(&result.audit, &result.finding)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return result, auditstore.ErrNotFound
-	}
-	if err != nil {
-		return result, fmt.Errorf("read finding provenance revisions: %w", err)
-	}
-	return result, nil
-}
-
-func lockFinding(
-	ctx context.Context, tx pgx.Tx, ownerID, auditID, findingID string,
-) (findingRow, auditstore.AuditState, error) {
-	var state auditstore.AuditState
-	var row findingRow
-	var revision int64
-	err := tx.QueryRow(ctx, `
-SELECT audit.state, `+findingRowColumns+`
-  FROM audit_findings AS finding
-  JOIN audits AS audit USING (audit_id)
- WHERE audit.owner_id = $1 AND finding.audit_id = $2 AND finding.finding_id = $3
- FOR UPDATE OF audit, finding`, ownerID, auditID, findingID).Scan(
-		&state, &row.findingID, &row.auditID, &row.firstReceiptID, &row.state,
-		&row.rejectionReason, &row.duplicateTargetID, &row.currentAssessmentID,
-		&row.currentDecisionID, &revision, &row.createdAt, &row.updatedAt,
-	)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return findingRow{}, "", auditstore.ErrNotFound
-	}
-	if err != nil {
-		return findingRow{}, "", err
-	}
-	row.revision = uint64(revision)
-	return row, state, nil
-}
-
-func scanFindingRow(row pgx.Row) (findingRow, error) {
-	var result findingRow
-	var revision int64
-	err := row.Scan(
-		&result.findingID, &result.auditID, &result.firstReceiptID, &result.state,
-		&result.rejectionReason, &result.duplicateTargetID, &result.currentAssessmentID,
-		&result.currentDecisionID, &revision, &result.createdAt, &result.updatedAt,
-	)
-	if err != nil {
-		return findingRow{}, err
-	}
-	if revision < 1 || !result.state.Valid() {
-		return findingRow{}, errors.New("stored Audit finding is invalid")
-	}
-	result.revision = uint64(revision)
-	return result, nil
-}
-
-func scanReviewRequest(row pgx.Row) (ReviewRequest, error) {
-	var result ReviewRequest
-	var actionsJSON []byte
-	var revision int64
-	var findingID *string
-	var decisionID, actor, action, verdict, severity, rationale, duplicate *string
-	var decisionAt *time.Time
-	err := row.Scan(
-		&result.RequestID, &result.AuditID, &findingID,
-		&result.SubjectKind, &result.SubjectID, &result.Kind,
-		&result.SubjectRevision, &result.SubjectDigest, &actionsJSON,
-		&result.State, &result.ExpiresAt, &revision, &result.CreatedAt, &result.UpdatedAt,
-		&decisionID, &actor, &action, &verdict, &severity, &rationale, &duplicate, &decisionAt,
-	)
-	if err != nil {
-		return ReviewRequest{}, err
-	}
-	if revision < 1 || !result.State.Valid() || !result.SubjectKind.Valid() || result.SubjectID == "" ||
-		(result.SubjectKind == ReviewSubjectFinding) != (findingID != nil) ||
-		json.Unmarshal(actionsJSON, &result.RequestedActions) != nil {
-		return ReviewRequest{}, errors.New("stored Audit review request is invalid")
-	}
-	if len(result.RequestedActions) == 0 {
-		return ReviewRequest{}, errors.New("stored Audit review request has no actions")
-	}
-	for _, action := range result.RequestedActions {
-		if !action.Valid() {
-			return ReviewRequest{}, errors.New("stored Audit review request action is invalid")
-		}
-	}
-	result.Revision = uint64(revision)
-	if findingID != nil {
-		result.FindingID = *findingID
-	}
-	if decisionID != nil {
-		if actor == nil || action == nil || rationale == nil || decisionAt == nil {
-			return ReviewRequest{}, errors.New("stored Audit review decision is incomplete")
-		}
-		decision := ReviewDecision{
-			DecisionID: *decisionID, RequestID: result.RequestID, AuditID: result.AuditID,
-			FindingID: result.FindingID, ActorID: *actor,
-			Rationale: *rationale, DuplicateTargetID: duplicate,
-			SubjectRevision: result.SubjectRevision, SubjectDigest: result.SubjectDigest,
-			CreatedAt: *decisionAt,
-		}
-		if verdict != nil {
-			decision.Verdict = AnalystVerdict(*verdict)
-		}
-		if findingID == nil {
-			decision.Action = ReviewAction(*action)
-			if !decision.Action.Valid() || decision.Verdict != "" {
-				return ReviewRequest{}, errors.New("stored Audit action review decision is invalid")
-			}
-		} else if !decision.Verdict.Valid() {
-			return ReviewRequest{}, errors.New("stored Audit finding review decision is invalid")
-		}
-		if severity != nil {
-			value := FindingSeverity(*severity)
-			decision.Severity = &value
-		}
-		result.Decision = &decision
-	}
-	return result, nil
-}
-
-const decisionSelect = `
-SELECT decision.decision_id, decision.request_id, decision.audit_id,
-       decision.finding_id, decision.actor_id, decision.action, decision.verdict,
-       decision.severity, decision.rationale, decision.duplicate_target_id,
-       decision.subject_revision, decision.subject_digest, decision.created_at
-  FROM audit_review_decisions AS decision`
-
-func readDecision(row pgx.Row) (ReviewDecision, error) {
-	var result ReviewDecision
-	var findingID, action, verdict, severity *string
-	err := row.Scan(&result.DecisionID, &result.RequestID, &result.AuditID,
-		&findingID, &result.ActorID, &action, &verdict, &severity,
-		&result.Rationale, &result.DuplicateTargetID, &result.SubjectRevision,
-		&result.SubjectDigest, &result.CreatedAt)
-	if err != nil {
-		return ReviewDecision{}, err
-	}
-	if findingID != nil {
-		result.FindingID = *findingID
-	}
-	if action != nil && findingID == nil {
-		result.Action = ReviewAction(*action)
-	}
-	if verdict != nil {
-		result.Verdict = AnalystVerdict(*verdict)
-	}
-	if severity != nil {
-		value := FindingSeverity(*severity)
-		result.Severity = &value
-	}
-	return result, nil
-}
-
-const assessmentSelect = `
-SELECT assessment.assessment_id, assessment.semantic_assessment,
-       assessment.result_ref, assessment.result_digest, assessment.receipt_id,
-       assessment.item_id, assessment.execution_item_id,
-       assessment.collection_receipt_id, assessment.direct_verification,
-       assessment.contract_ref, assessment.contract_digest, assessment.accepted_at
-  FROM audit_finding_assessments AS assessment`
-
-func readAssessment(row pgx.Row) (FindingAssessment, error) {
-	var result FindingAssessment
-	var resultRef, contractRef []byte
-	var contractDigest *string
-	err := row.Scan(&result.AssessmentID, &result.SemanticAssessment,
-		&resultRef, &result.Result.Digest, &result.ReceiptID,
-		&result.ItemID, &result.ExecutionItemID, &result.CollectionReceiptID,
-		&result.DirectVerification, &contractRef, &contractDigest, &result.AcceptedAt)
-	if err != nil {
-		return FindingAssessment{}, err
-	}
-	if json.Unmarshal(resultRef, &result.Result.Ref) != nil || result.Result.Ref.ValidateExact() != nil {
-		return FindingAssessment{}, errors.New("stored finding assessment is invalid")
-	}
-	if contractRef != nil {
-		if contractDigest == nil {
-			return FindingAssessment{}, errors.New("stored finding assessment contract is invalid")
-		}
-		result.Contract = &auditstore.ExactArtifact{Digest: *contractDigest}
-		if json.Unmarshal(contractRef, &result.Contract.Ref) != nil {
-			return FindingAssessment{}, errors.New("stored finding assessment contract is invalid")
-		}
-	}
-	return result, nil
-}
-
-func findingSubjectDigest(row findingRow) string {
+func findingSubjectDigest(row auditstore.FindingRecord) string {
 	value := struct {
 		Schema              string  `json:"schema"`
 		FindingID           string  `json:"findingId"`
@@ -747,41 +307,40 @@ func findingSubjectDigest(row findingRow) string {
 		CurrentDecisionID   *string `json:"currentDecisionId"`
 		DuplicateTargetID   *string `json:"duplicateTargetId"`
 	}{
-		Schema: "contractor.audit.finding-subject.v1", FindingID: row.findingID,
-		AuditID: row.auditID, Revision: row.revision, State: string(row.state),
-		FirstReceiptID: row.firstReceiptID, CurrentAssessmentID: row.currentAssessmentID,
-		CurrentDecisionID: row.currentDecisionID, DuplicateTargetID: row.duplicateTargetID,
+		Schema: "contractor.audit.finding-subject.v1", FindingID: row.FindingID,
+		AuditID: row.AuditID, Revision: row.Revision, State: string(row.State),
+		FirstReceiptID: row.FirstReceiptID, CurrentAssessmentID: row.CurrentAssessmentID,
+		CurrentDecisionID: row.CurrentDecisionID, DuplicateTargetID: row.DuplicateTargetID,
 	}
 	encoded, _ := json.Marshal(value)
 	return contentdigest.Bytes(encoded)
 }
 
 func decisionProjection(
-	verdict AnalystVerdict, decisionID string, target *string,
+	verdict auditstore.AnalystVerdict, decisionID string, target *string,
 ) (string, *string, *string, *string) {
 	switch verdict {
-	case VerdictTruePositive:
-		return string(FindingConfirmed), nil, nil, &decisionID
-	case VerdictFalsePositive:
+	case auditstore.VerdictTruePositive:
+		return string(auditstore.FindingConfirmed), nil, nil, &decisionID
+	case auditstore.VerdictFalsePositive:
 		reason := "false-positive"
-		return string(FindingRejected), &reason, nil, &decisionID
-	case VerdictDuplicate:
-		return string(FindingDuplicate), nil, target, nil
-	case VerdictNeedsEvidence:
-		return string(FindingNeedsEvidence), nil, nil, nil
+		return string(auditstore.FindingRejected), &reason, nil, &decisionID
+	case auditstore.VerdictDuplicate:
+		return string(auditstore.FindingDuplicate), nil, target, nil
+	case auditstore.VerdictNeedsEvidence:
+		return string(auditstore.FindingNeedsEvidence), nil, nil, nil
 	default:
-		return string(FindingProposed), nil, nil, nil
+		return string(auditstore.FindingProposed), nil, nil, nil
 	}
 }
 
 func validateDuplicateTarget(
-	ctx context.Context, tx pgx.Tx, auditID, findingID, targetID string,
+	ctx context.Context, reviews *reviewstore.TxStore, auditID, findingID, targetID string,
 ) error {
-	if targetID == findingID || !validReviewIdentity(targetID, 256) {
+	if targetID == findingID || !auditstore.ValidReviewIdentity(targetID, 256) {
 		return auditstore.ErrInvalid
 	}
-	var exists, cycle bool
-	err := tx.QueryRow(ctx, duplicateTargetCycleSQL, auditID, targetID, findingID).Scan(&exists, &cycle)
+	exists, cycle, err := reviews.DuplicateTarget(ctx, auditID, targetID, findingID)
 	if err != nil {
 		return err
 	}
@@ -797,51 +356,14 @@ func validateDuplicateTarget(
 func appendAuditReviewEvent(
 	ctx context.Context, tx pgx.Tx, auditID, kind, entityID string, summary map[string]any,
 ) error {
-	return auditstore.NewPostgresStore(tx).AppendReviewEvent(ctx, auditstore.ReviewEventParams{
+	return reviewstore.New(tx).AppendReviewEvent(ctx, auditstore.ReviewEventParams{
 		AuditID: auditID, Kind: kind, EntityID: entityID, Summary: summary,
 	})
 }
 
-func validateFindingList(params FindingListParams) error {
-	if !validReviewIdentity(params.OwnerID, 256) || !validReviewIdentity(params.AuditID, 256) ||
-		!pagelimit.ValidFetch(params.Limit) ||
-		(params.AfterCreatedAt == nil) != (params.AfterFindingID == "") ||
-		(params.State != nil && !params.State.Valid()) ||
-		(params.Severity != nil && !params.Severity.Valid()) {
-		return auditstore.ErrInvalid
-	}
-	if params.Verdict != nil && *params.Verdict != VerdictTruePositive && *params.Verdict != VerdictFalsePositive {
-		return auditstore.ErrInvalid
-	}
-	if params.Unreviewed && (params.Verdict != nil || params.Severity != nil) {
-		return auditstore.ErrInvalid
-	}
-	return nil
-}
-
-func validateReviewList(params ReviewListParams) error {
-	if !validReviewIdentity(params.OwnerID, 256) || !validReviewIdentity(params.AuditID, 256) ||
-		!pagelimit.ValidFetch(params.Limit) ||
-		(params.AfterCreatedAt == nil) != (params.AfterRequestID == "") ||
-		(params.State != nil && !params.State.Valid()) ||
-		(params.FindingID != nil && !validReviewIdentity(*params.FindingID, 256)) {
-		return auditstore.ErrInvalid
-	}
-	return nil
-}
-
-func validateProvenanceList(params ProvenanceListParams) error {
-	if !validReviewIdentity(params.OwnerID, 256) || !validReviewIdentity(params.AuditID, 256) ||
-		!validReviewIdentity(params.FindingID, 256) || !pagelimit.ValidFetch(params.Limit) ||
-		(params.AfterCreatedAt == nil) != (params.AfterRecordID == "") {
-		return auditstore.ErrInvalid
-	}
-	return nil
-}
-
 func validateCreateFindingReview(params CreateFindingReviewParams, now time.Time) error {
-	if !validReviewIdentity(params.OwnerID, 256) || !validReviewIdentity(params.AuditID, 256) ||
-		!validReviewIdentity(params.FindingID, 256) || !validReviewIdentity(params.RequestID, 256) ||
+	if !auditstore.ValidReviewIdentity(params.OwnerID, 256) || !auditstore.ValidReviewIdentity(params.AuditID, 256) ||
+		!auditstore.ValidReviewIdentity(params.FindingID, 256) || !auditstore.ValidReviewIdentity(params.RequestID, 256) ||
 		params.ExpectedRevision < 1 || !validIdempotencyKey(params.IdempotencyKey) ||
 		!contentdigest.Valid(params.RequestDigest) {
 		return auditstore.ErrInvalid
@@ -853,29 +375,24 @@ func validateCreateFindingReview(params CreateFindingReviewParams, now time.Time
 }
 
 func validateFindingDecision(params DecideFindingParams) error {
-	if !validReviewIdentity(params.OwnerID, 256) || !validReviewIdentity(params.AuditID, 256) ||
-		!validReviewIdentity(params.RequestID, 256) || !validReviewIdentity(params.DecisionID, 256) ||
+	if !auditstore.ValidReviewIdentity(params.OwnerID, 256) || !auditstore.ValidReviewIdentity(params.AuditID, 256) ||
+		!auditstore.ValidReviewIdentity(params.RequestID, 256) || !auditstore.ValidReviewIdentity(params.DecisionID, 256) ||
 		params.ExpectedRequestRevision < 1 || !params.Verdict.Valid() ||
 		!validIdempotencyKey(params.IdempotencyKey) || !contentdigest.Valid(params.RequestDigest) ||
 		!validRationale(params.Rationale) {
 		return auditstore.ErrInvalid
 	}
-	if params.Verdict == VerdictTruePositive {
+	if params.Verdict == auditstore.VerdictTruePositive {
 		if params.Severity == nil || !params.Severity.Valid() {
 			return auditstore.ErrInvalid
 		}
 	} else if params.Severity != nil {
 		return auditstore.ErrInvalid
 	}
-	if (params.Verdict == VerdictDuplicate) != (params.DuplicateTargetID != nil) {
+	if (params.Verdict == auditstore.VerdictDuplicate) != (params.DuplicateTargetID != nil) {
 		return auditstore.ErrInvalid
 	}
 	return nil
-}
-
-func validReviewIdentity(value string, maximum int) bool {
-	return strings.TrimSpace(value) != "" && utf8.ValidString(value) &&
-		!strings.ContainsRune(value, 0) && len([]byte(value)) <= maximum
 }
 
 func validRationale(value string) bool {

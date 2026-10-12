@@ -9,6 +9,7 @@ import (
 	"time"
 
 	. "github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/rundeletion"
@@ -166,11 +167,11 @@ func TestPostgresPurgeWaitsForRetainingPublication(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	bound, err := service.BindOutputExact(ctx, "publish-run", "result", written.Ref, nil)
+	bound, err := artifactstest.BindOutput(ctx, service, "publish-run", "result", written.Ref)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := service.FreezeRunOutputs(ctx, "publish-run"); err != nil {
+	if err := artifactstest.FreezeOutputs(ctx, service, "publish-run"); err != nil {
 		t.Fatal(err)
 	}
 	fork, err := pool.Begin(ctx)
@@ -178,7 +179,7 @@ func TestPostgresPurgeWaitsForRetainingPublication(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer fork.Rollback(context.Background())
-	publication, err := NewService(NewPostgresRepository(fork)).PublishRunOutput(ctx, "publish-run", projectID, "result", bound.TargetRef)
+	publication, err := publishOutput(ctx, NewService(NewPostgresRepository(fork)), "publish-run", projectID, "result", bound.TargetRef)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -13,6 +13,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/grauwolf32/contractor/internal/settingsstore"
+	"github.com/grauwolf32/contractor/internal/telemetry"
 )
 
 func TestPostgresSchedulerSupervisorBoundsRealRunClaims(t *testing.T) {
@@ -58,10 +59,11 @@ func TestPostgresSchedulerSupervisorBoundsRealRunClaims(t *testing.T) {
 			PollInterval: 50 * time.Millisecond, ClaimDuration: time.Hour,
 			OperationTimeout: 2 * time.Second, PlannerTimeout: time.Second,
 			FinalizationTimeout: time.Second, AbortTimeout: time.Second,
-			LeaseScanInterval: time.Second, MetricsCleanupInterval: time.Hour,
+			LeaseScanInterval: time.Second,
 			RuntimeTransport: RuntimeTransportSettings{
 				ArtifactAPIURL: "https://control.test/private/v1", RequestTimeoutSeconds: 1,
 			},
+			Reports:  telemetry.NewRepository(pool),
 			Settings: settings, Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
 		},
 	)
@@ -140,10 +142,11 @@ func TestPostgresSchedulerSupervisorResizesAndDrainsDurableLanes(t *testing.T) {
 			PollInterval: 60 * time.Millisecond, ClaimDuration: time.Hour,
 			OperationTimeout: 2 * time.Second, PlannerTimeout: time.Second,
 			FinalizationTimeout: time.Second, AbortTimeout: time.Second,
-			LeaseScanInterval: time.Second, MetricsCleanupInterval: time.Hour,
+			LeaseScanInterval: time.Second,
 			RuntimeTransport: RuntimeTransportSettings{
 				ArtifactAPIURL: "https://control.test/private/v1", RequestTimeoutSeconds: 1,
 			},
+			Reports:  telemetry.NewRepository(pool),
 			Settings: settings, Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
 		},
 	)

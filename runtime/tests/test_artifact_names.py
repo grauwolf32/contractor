@@ -20,7 +20,7 @@ SCHEMA = json.loads((ROOT / "api/v1alpha1/common.schema.json").read_text())["$de
     "valid,name",
     [(True, name) for name in CASES["valid"]] + [(False, name) for name in CASES["invalid"]],
 )
-def test_artifact_names_match_schema(field: str, valid: bool, name: str) -> None:
+def test_shared_artifact_names_match_schema(field: str, valid: bool, name: str) -> None:
     value = {"namespace": "worker", "name": "report", field: name}
     assert Draft202012Validator(SCHEMA).is_valid(value) == valid
     if valid:
@@ -31,7 +31,7 @@ def test_artifact_names_match_schema(field: str, valid: bool, name: str) -> None
 
 
 @pytest.mark.parametrize("name", CASES["invalid"])
-def test_allocation_namespace_rejects_nonportable_names(name: str) -> None:
+def test_shared_allocation_namespace_rejects_nonportable_names(name: str) -> None:
     value = allocation_spec().model_dump(mode="json", by_alias=True, exclude_none=True)
     value["namespace"] = name
     with pytest.raises(ValidationError):

@@ -5,22 +5,23 @@ import (
 	"strconv"
 
 	"github.com/grauwolf32/contractor/internal/auditservice"
+	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/pagelimit"
 )
 
-func (h *handler) listAuditEvents(w http.ResponseWriter, r *http.Request) {
+func (h *auditHandlers) listAuditEvents(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
-	if h.rejectHead(w, r) {
+	if rejectHead(w, r) {
 		return
 	}
 	_, limit, cursor, err := pageQuery(r.URL.RawQuery)
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
-	p := auditservice.EventListParams{OwnerID: principalUserID(r.Context()), AuditID: r.PathValue("auditId"), Limit: pagelimit.FetchRows(limit)}
+	p := auditstore.EventListParams{OwnerID: principalUserID(r.Context()), AuditID: r.PathValue("auditId"), Limit: pagelimit.FetchRows(limit)}
 	kind := "audit-events:" + strconv.Quote(p.OwnerID) + ":" + strconv.Quote(p.AuditID)
-	position, err := h.decodePageCursor(cursor, kind, 2)
+	position, err := h.cursors.decodePageCursor(cursor, kind, 2)
 	if err == nil && len(position) != 0 {
 		through, e1 := strconv.ParseUint(position[0], 10, 63)
 		before, e2 := strconv.ParseUint(position[1], 10, 63)
@@ -31,19 +32,19 @@ func (h *handler) listAuditEvents(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
-	result, err := h.dependencies.Audits.ListEventsPage(r.Context(), p)
+	result, err := h.Audits.ListEventsPage(r.Context(), p)
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
-	items, page, err := paginate(h, result.Items, limit, kind, func(last auditservice.Event) []string {
+	items, page, err := paginate(h.cursors, result.Items, limit, kind, func(last auditservice.Event) []string {
 		return []string{strconv.FormatUint(result.ThroughSequence, 10), strconv.FormatUint(last.Sequence, 10)}
 	})
 	if err != nil {
-		h.handleError(w, err)
+		handleError(w, err)
 		return
 	}
 	if items == nil {

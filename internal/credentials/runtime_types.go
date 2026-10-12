@@ -12,6 +12,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/grauwolf32/contractor/internal/apierror"
 	"github.com/grauwolf32/contractor/internal/credentialerrors"
 	"github.com/grauwolf32/contractor/internal/strictjson"
 )
@@ -38,7 +39,8 @@ const (
 
 var (
 	ErrRuntimeCredentialInvalid  = credentialerrors.RuntimeInvalid
-	ErrRuntimeCredentialConflict = errors.New("Runtime adapter credential conflict")
+	ErrRuntimeCredentialConflict = apierror.New(apierror.RuntimeConfigConflict, "Runtime adapter credential conflict",
+		apierror.WithMessage("Runtime credential identity or idempotency key conflicts"))
 	ErrRuntimeCredentialNotFound = credentialerrors.RuntimeNotFound
 	ErrRuntimeCredentialInUse    = errors.New("Runtime adapter credential is in use")
 
@@ -252,8 +254,25 @@ type RuntimeCredentialInUseError struct{ Usage RuntimeCredentialUsage }
 func (e *RuntimeCredentialInUseError) Error() string { return ErrRuntimeCredentialInUse.Error() }
 func (e *RuntimeCredentialInUseError) Unwrap() error { return ErrRuntimeCredentialInUse }
 
+// ErrorKind answers the error with runtime_credential_in_use; its usage is
+// the details.
+func (e *RuntimeCredentialInUseError) ErrorKind() apierror.Kind {
+	return apierror.RuntimeCredentialInUse
+}
+
+// RuntimeCredentialUsageChecker reports the RuntimeConfig bindings, Projects,
+// Runs and allocations that reference a Runtime credential: every field of
+// RuntimeCredentialUsage except AuditIDs, which RuntimeCredentialAuditHoldLookup
+// reports.
 type RuntimeCredentialUsageChecker interface {
 	InspectRuntimeCredentialUsage(context.Context, string, int) (RuntimeCredentialUsage, error)
+}
+
+// RuntimeCredentialAuditHoldLookup reports, up to a limit, the Audits whose
+// dispatch hold keeps a Runtime credential for future child Runs (AUD-R16);
+// auditstore, which owns the Audits, implements it.
+type RuntimeCredentialAuditHoldLookup interface {
+	ListHeldAuditIDsByRuntimeCredential(context.Context, string, int) ([]string, error)
 }
 
 func newRuntimeCredentialMaterial(kind RuntimeCredentialKind, value any) (RuntimeCredentialMaterial, error) {

@@ -4,10 +4,11 @@ import (
 	"context"
 	"time"
 
-	workflowconfig "github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/contracts/runlabels"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 )
 
@@ -30,7 +31,7 @@ type BindingRequirement struct {
 	Workspace          *contracts.AllocationWorkspaceSpec
 	// RuntimeSelection is the immutable Workflow/Run/escalation selection.
 	// Candidate Agent labels are deliberately resolved later by placement.
-	RuntimeSelection *workflowconfig.ResolvedConsumerExecutionConfig
+	RuntimeSelection *resolved.ResolvedConsumerExecutionConfig
 }
 
 type ReservationRequest struct {
@@ -56,7 +57,7 @@ type CandidateEdge struct {
 	RuntimeAgentID            string
 	RuntimeAgentInstanceID    string
 	RuntimeAgentLabelRevision uint64
-	RequiredRuntimeAdapters   []contracts.RuntimeAdapterRef
+	RequiredRuntimeAdapters   []runtimesettings.RuntimeAdapterRef
 }
 
 // PinnedReservationConfig is attached only after durable allocation

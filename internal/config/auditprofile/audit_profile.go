@@ -1,0 +1,950 @@
+package auditprofile
+
+import (
+	"fmt"
+	"maps"
+	"slices"
+	"sort"
+	"strings"
+	"unicode/utf8"
+
+	"github.com/grauwolf32/contractor/internal/clone"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
+	"github.com/grauwolf32/contractor/internal/contentdigest"
+	"github.com/grauwolf32/contractor/internal/contracts"
+)
+
+// Kind is the manifest kind of an AuditProfile.
+const Kind = "AuditProfile"
+
+const (
+	MaxAuditProfileStandards  = 16
+	MaxAuditProfileInputs     = 32
+	MaxAuditProfileWorkflows  = 16
+	MaxAuditWorkflowMappings  = 128
+	MaxAuditStandardLevels    = 16
+	MaxAuditStandardEntries   = 4_096
+	MaxAuditRounds            = 32
+	MaxAuditBatchSize         = 64
+	MaxAuditItemsPerRound     = 10_000
+	MaxAuditItemsTotal        = 100_000
+	MaxAuditSubmittedRuns     = 1_000_000
+	MaxAuditRunAttempts       = 10
+	MaxAuditDeadlineSeconds   = 365 * 24 * 60 * 60
+	MaxAuditEvidenceBytes     = int64(1 << 30)
+	MaxAuditLiteralParamBytes = 4096
+
+	auditTaskPackageMediaType = "application/zip"
+)
+
+type AuditProfileMode string
+
+const (
+	AuditModeRiskAssessment           AuditProfileMode = "risk-assessment"
+	AuditModeRequirementsVerification AuditProfileMode = "requirements-verification"
+	AuditModeCustomChecklist          AuditProfileMode = "custom-checklist"
+	AuditModeOperationTracing         AuditProfileMode = "operation-tracing"
+	AuditModeFindingVerification      AuditProfileMode = "finding-verification"
+)
+
+func (m AuditProfileMode) valid() bool {
+	switch m {
+	case AuditModeRiskAssessment, AuditModeRequirementsVerification,
+		AuditModeCustomChecklist, AuditModeOperationTracing,
+		AuditModeFindingVerification:
+		return true
+	default:
+		return false
+	}
+}
+
+type AuditProfileRef struct {
+	Name    string `json:"name"`
+	Version string `json:"version"`
+	Digest  string `json:"digest"`
+}
+
+type AuditStandardRef struct {
+	Scheme  string `json:"scheme"`
+	Version string `json:"version"`
+}
+
+type AuditProfileInput struct {
+	Required   bool     `json:"required"`
+	MediaTypes []string `json:"mediaTypes"`
+}
+
+type AuditInventory struct {
+	Implementation    string                     `json:"implementation"`
+	Source            *AuditWorkflowInputMapping `json:"source,omitempty"`
+	Settings          *AuditWorkflowInputMapping `json:"settings,omitempty"`
+	ItemWorkflowRole  string                     `json:"itemWorkflowRole"`
+	StandardSelection *AuditStandardSelection    `json:"standardSelection,omitempty"`
+}
+
+// AuditStandardSelection is an exact, profile-authored denominator. EntryIDs
+// are authoritative; Scope and Levels describe that bounded selection without
+// asking the Server or a model to infer a standard-specific hierarchy.
+type AuditStandardSelection struct {
+	Scope    string   `json:"scope"`
+	Levels   []string `json:"levels"`
+	EntryIDs []string `json:"entryIds"`
+}
+
+type AuditWorkflowInputSource string
+
+const (
+	AuditInputFromAudit             AuditWorkflowInputSource = "audit-input"
+	AuditInputFromItemPackage       AuditWorkflowInputSource = "item-package"
+	AuditInputFromExecutionManifest AuditWorkflowInputSource = "execution-manifest"
+	AuditInputFromRetainedOutput    AuditWorkflowInputSource = "retained-output"
+	AuditInputFromPreparation       AuditWorkflowInputSource = "prepare-output"
+)
+
+type AuditWorkflowInputMapping struct {
+	Source AuditWorkflowInputSource `json:"source"`
+	Name   string                   `json:"name,omitempty"`
+	Role   string                   `json:"role,omitempty"`
+}
+
+type AuditWorkflowParameterSource string
+
+const (
+	AuditParameterLiteral    AuditWorkflowParameterSource = "literal"
+	AuditParameterItemField  AuditWorkflowParameterSource = "item-field"
+	AuditParameterScopeField AuditWorkflowParameterSource = "scope-field"
+)
+
+type AuditWorkflowParameterMapping struct {
+	Source AuditWorkflowParameterSource `json:"source"`
+	Name   string                       `json:"name,omitempty"`
+	Value  string                       `json:"value,omitempty"`
+}
+
+type AuditWorkflowRoleKind string
+
+const (
+	AuditWorkflowPrepare    AuditWorkflowRoleKind = "prepare"
+	AuditWorkflowCheck      AuditWorkflowRoleKind = "check"
+	AuditWorkflowDiscovery  AuditWorkflowRoleKind = "discovery"
+	AuditWorkflowAssessment AuditWorkflowRoleKind = "assessment"
+)
+
+func (kind AuditWorkflowRoleKind) valid() bool {
+	return kind == AuditWorkflowPrepare || kind == AuditWorkflowCheck || kind == AuditWorkflowDiscovery ||
+		kind == AuditWorkflowAssessment
+}
+
+type ResolvedAuditWorkflowBinding struct {
+	MaxRunAttempts   int                                      `json:"maxRunAttempts,omitempty"`
+	WorkerCompletion *AuditWorkerCompletion                   `json:"workerCompletion,omitempty"`
+	Kind             AuditWorkflowRoleKind                    `json:"kind"`
+	Workflow         resolved.ResolvedWorkflow                `json:"workflow"`
+	Inputs           map[string]AuditWorkflowInputMapping     `json:"inputs"`
+	Parameters       map[string]AuditWorkflowParameterMapping `json:"parameters"`
+	Outputs          map[string]string                        `json:"outputs"`
+}
+
+type AuditRoundMode string
+
+const AuditRoundFixedBarrier AuditRoundMode = "fixed-barrier"
+
+type AuditIncompleteRoundPolicy string
+
+const (
+	AuditIncompleteAssessWithGaps AuditIncompleteRoundPolicy = "assess-with-gaps"
+	AuditIncompleteFail           AuditIncompleteRoundPolicy = "fail"
+)
+
+type AuditExecutionPolicy struct {
+	RoundMode          AuditRoundMode             `json:"roundMode"`
+	MaxRounds          int                        `json:"maxRounds"`
+	BatchSize          int                        `json:"batchSize"`
+	MaxItemsPerRound   int                        `json:"maxItemsPerRound"`
+	MaxItemsTotal      int                        `json:"maxItemsTotal"`
+	MaxSubmittedRuns   int                        `json:"maxSubmittedRuns"`
+	MaxItemRunAttempts int                        `json:"maxItemRunAttempts"`
+	DeadlineSeconds    int                        `json:"deadlineSeconds"`
+	MaxEvidenceBytes   int64                      `json:"maxEvidenceBytes"`
+	IncompleteRound    AuditIncompleteRoundPolicy `json:"incompleteRound"`
+}
+
+type AuditActiveChecksPolicy string
+
+type AuditFindingConfirmationPolicy string
+
+type AuditNotApplicablePolicy string
+
+type AuditReportAcceptancePolicy string
+
+const (
+	AuditActiveChecksProhibited       AuditActiveChecksPolicy = "prohibited"
+	AuditActiveChecksAutomatic        AuditActiveChecksPolicy = "automatic"
+	AuditActiveChecksApprovalRequired AuditActiveChecksPolicy = "approval-required"
+
+	AuditFindingDisabled      AuditFindingConfirmationPolicy = "disabled"
+	AuditFindingHumanRequired AuditFindingConfirmationPolicy = "human-required"
+
+	AuditNotApplicableHumanRequired AuditNotApplicablePolicy = "human-required"
+	AuditNotApplicableProfileRule   AuditNotApplicablePolicy = "profile-rule"
+
+	AuditReportAutomatic     AuditReportAcceptancePolicy = "automatic"
+	AuditReportHumanRequired AuditReportAcceptancePolicy = "human-required"
+)
+
+type AuditInteractionPolicy struct {
+	ActiveChecks        AuditActiveChecksPolicy        `json:"activeChecks"`
+	FindingConfirmation AuditFindingConfirmationPolicy `json:"findingConfirmation"`
+	NotApplicable       AuditNotApplicablePolicy       `json:"notApplicable"`
+	ReportAcceptance    AuditReportAcceptancePolicy    `json:"reportAcceptance"`
+}
+
+// ResolvedAuditProfile is the immutable Server-side authority retained when an
+// Audit starts. Workers never receive this value and cannot select a profile.
+type ResolvedAuditProfile struct {
+	Ref         AuditProfileRef                         `json:"ref"`
+	Mode        AuditProfileMode                        `json:"mode"`
+	Standards   []AuditStandardRef                      `json:"standards"`
+	Inputs      map[string]AuditProfileInput            `json:"inputs"`
+	Inventory   AuditInventory                          `json:"inventory"`
+	Workflows   map[string]ResolvedAuditWorkflowBinding `json:"workflows"`
+	Execution   AuditExecutionPolicy                    `json:"execution"`
+	Interaction AuditInteractionPolicy                  `json:"interaction"`
+}
+
+// Spec is the authored spec of an AuditProfile manifest. The catalog loader
+// decodes it strictly from the operator root and resolves it with Resolve.
+type Spec struct {
+	Mode        string                                 `yaml:"mode"`
+	Standards   []auditStandardRefSource               `yaml:"standards,omitempty"`
+	Inputs      *map[string]auditProfileInputSource    `yaml:"inputs"`
+	Inventory   *auditInventorySource                  `yaml:"inventory"`
+	Workflows   *map[string]auditWorkflowBindingSource `yaml:"workflows"`
+	Execution   *auditExecutionPolicySource            `yaml:"execution"`
+	Interaction *auditInteractionPolicySource          `yaml:"interaction"`
+}
+
+type auditStandardRefSource struct {
+	Scheme  string `yaml:"scheme"`
+	Version string `yaml:"version"`
+}
+
+type auditProfileInputSource struct {
+	Required   *bool    `yaml:"required"`
+	MediaTypes []string `yaml:"mediaTypes"`
+}
+
+type auditInventorySource struct {
+	Implementation    string                           `yaml:"implementation"`
+	Source            *auditWorkflowInputMappingSource `yaml:"source,omitempty"`
+	Settings          *auditWorkflowInputMappingSource `yaml:"settings,omitempty"`
+	ItemWorkflowRole  string                           `yaml:"itemWorkflowRole"`
+	StandardSelection *auditStandardSelectionSource    `yaml:"standardSelection,omitempty"`
+}
+
+type auditStandardSelectionSource struct {
+	Scope    string   `yaml:"scope"`
+	Levels   []string `yaml:"levels"`
+	EntryIDs []string `yaml:"entryIds"`
+}
+
+type auditWorkflowBindingSource struct {
+	MaxRunAttempts   *int                                        `yaml:"maxRunAttempts,omitempty"`
+	WorkerCompletion *AuditWorkerCompletion                      `yaml:"workerCompletion,omitempty"`
+	Kind             string                                      `yaml:"kind"`
+	Ref              string                                      `yaml:"ref"`
+	Inputs           *map[string]auditWorkflowInputMappingSource `yaml:"inputs"`
+	Parameters       *map[string]auditParameterMappingSource     `yaml:"parameters"`
+	Outputs          *map[string]string                          `yaml:"outputs"`
+}
+
+type auditWorkflowInputMappingSource struct {
+	Source string `yaml:"source"`
+	Name   string `yaml:"name,omitempty"`
+	Role   string `yaml:"role,omitempty"`
+}
+
+type auditParameterMappingSource struct {
+	Source string  `yaml:"source"`
+	Name   string  `yaml:"name,omitempty"`
+	Value  *string `yaml:"value,omitempty"`
+}
+
+type auditExecutionPolicySource struct {
+	RoundMode          string `yaml:"roundMode"`
+	MaxRounds          int    `yaml:"maxRounds"`
+	BatchSize          int    `yaml:"batchSize"`
+	MaxItemsPerRound   int    `yaml:"maxItemsPerRound"`
+	MaxItemsTotal      int    `yaml:"maxItemsTotal"`
+	MaxSubmittedRuns   int    `yaml:"maxSubmittedRuns"`
+	MaxItemRunAttempts int    `yaml:"maxItemRunAttempts"`
+	DeadlineSeconds    int    `yaml:"deadlineSeconds"`
+	MaxEvidenceBytes   int64  `yaml:"maxEvidenceBytes"`
+	IncompleteRound    string `yaml:"incompleteRound"`
+}
+
+type auditInteractionPolicySource struct {
+	ActiveChecks        string `yaml:"activeChecks"`
+	FindingConfirmation string `yaml:"findingConfirmation"`
+	NotApplicable       string `yaml:"notApplicable"`
+	ReportAcceptance    string `yaml:"reportAcceptance"`
+}
+
+// Resolve validates spec, binds each Workflow role to the exact Workflow
+// workflow returns for its ref, and pins the resulting closure under its
+// digest. workflow reports false for a Workflow the configuration set lacks.
+func Resolve(
+	selector resolved.Selector, spec *Spec,
+	workflow func(resolved.Selector) (resolved.ResolvedWorkflow, bool),
+) (ResolvedAuditProfile, error) {
+	if spec == nil {
+		return ResolvedAuditProfile{}, fmt.Errorf("spec is required")
+	}
+	mode := AuditProfileMode(spec.Mode)
+	if !mode.valid() {
+		return ResolvedAuditProfile{}, fmt.Errorf("spec.mode is invalid")
+	}
+	standards, err := resolveAuditStandards(spec.Standards)
+	if err != nil {
+		return ResolvedAuditProfile{}, err
+	}
+	inputs, err := resolveAuditProfileInputs(spec.Inputs)
+	if err != nil {
+		return ResolvedAuditProfile{}, err
+	}
+	workflows, err := resolveAuditWorkflowBindings(spec.Workflows, inputs, workflow)
+	if err != nil {
+		return ResolvedAuditProfile{}, err
+	}
+	inventory, err := resolveAuditInventory(spec.Inventory, inputs, workflows, standards)
+	if err != nil {
+		return ResolvedAuditProfile{}, err
+	}
+	if err := validateAuditModeInventory(mode, inventory.Implementation); err != nil {
+		return ResolvedAuditProfile{}, err
+	}
+	execution, err := resolveAuditExecutionPolicy(spec.Execution)
+	if err != nil {
+		return ResolvedAuditProfile{}, err
+	}
+	if selection := inventory.StandardSelection; selection != nil &&
+		(len(selection.EntryIDs) > execution.MaxItemsPerRound ||
+			len(selection.EntryIDs) > execution.MaxItemsTotal) {
+		return ResolvedAuditProfile{}, fmt.Errorf(
+			"spec.inventory.standardSelection.entryIds exceeds the configured item limits",
+		)
+	}
+	interaction, err := resolveAuditInteractionPolicy(spec.Interaction)
+	if err != nil {
+		return ResolvedAuditProfile{}, err
+	}
+
+	profile := ResolvedAuditProfile{
+		Ref:  AuditProfileRef{Name: selector.ID, Version: selector.Version},
+		Mode: mode, Standards: standards, Inputs: inputs, Inventory: inventory,
+		Workflows: workflows, Execution: execution, Interaction: interaction,
+	}
+	if err := ValidateAuditPreparationProfile(profile); err != nil {
+		return ResolvedAuditProfile{}, err
+	}
+	if err := ValidateAuditTaskProfile(profile); err != nil {
+		return ResolvedAuditProfile{}, err
+	}
+	digest, err := auditProfileDigest(selector, profile)
+	if err != nil {
+		return ResolvedAuditProfile{}, err
+	}
+	profile.Ref.Digest = digest
+	return profile, nil
+}
+
+func resolveAuditStandards(source []auditStandardRefSource) ([]AuditStandardRef, error) {
+	if len(source) > MaxAuditProfileStandards {
+		return nil, fmt.Errorf("spec.standards may contain at most %d entries", MaxAuditProfileStandards)
+	}
+	result := make([]AuditStandardRef, len(source))
+	seen := make(map[string]struct{}, len(source))
+	for index, candidate := range source {
+		if !contracts.ValidIdentifier(candidate.Scheme) {
+			return nil, fmt.Errorf("spec.standards[%d].scheme is invalid", index)
+		}
+		if !contracts.ValidConfigVersion(candidate.Version) {
+			return nil, fmt.Errorf("spec.standards[%d].version is invalid", index)
+		}
+		key := candidate.Scheme + "\x00" + candidate.Version
+		if _, duplicate := seen[key]; duplicate {
+			return nil, fmt.Errorf("spec.standards contains duplicate %s@%s", candidate.Scheme, candidate.Version)
+		}
+		seen[key] = struct{}{}
+		result[index] = AuditStandardRef{Scheme: candidate.Scheme, Version: candidate.Version}
+	}
+	sort.Slice(result, func(i, j int) bool {
+		if result[i].Scheme == result[j].Scheme {
+			return result[i].Version < result[j].Version
+		}
+		return result[i].Scheme < result[j].Scheme
+	})
+	return result, nil
+}
+
+func resolveAuditProfileInputs(
+	source *map[string]auditProfileInputSource,
+) (map[string]AuditProfileInput, error) {
+	if source == nil || len(*source) == 0 {
+		return nil, fmt.Errorf("spec.inputs must be a non-empty mapping")
+	}
+	if len(*source) > MaxAuditProfileInputs {
+		return nil, fmt.Errorf("spec.inputs may contain at most %d entries", MaxAuditProfileInputs)
+	}
+	result := make(map[string]AuditProfileInput, len(*source))
+	for _, name := range slices.Sorted(maps.Keys(*source)) {
+		candidate := (*source)[name]
+		if err := validateAuditMapKey("spec.inputs slot", name); err != nil {
+			return nil, err
+		}
+		if candidate.Required == nil {
+			return nil, fmt.Errorf("spec.inputs.%s.required is required", name)
+		}
+		mediaTypes, err := resolved.ValidateMediaTypes("spec.inputs."+name, candidate.MediaTypes)
+		if err != nil {
+			return nil, err
+		}
+		sort.Strings(mediaTypes)
+		result[name] = AuditProfileInput{Required: *candidate.Required, MediaTypes: mediaTypes}
+	}
+	return result, nil
+}
+
+func resolveAuditWorkflowBindings(
+	source *map[string]auditWorkflowBindingSource,
+	profileInputs map[string]AuditProfileInput,
+	lookup func(resolved.Selector) (resolved.ResolvedWorkflow, bool),
+) (map[string]ResolvedAuditWorkflowBinding, error) {
+	if source == nil || len(*source) == 0 {
+		return nil, fmt.Errorf("spec.workflows must be a non-empty mapping")
+	}
+	if len(*source) > MaxAuditProfileWorkflows {
+		return nil, fmt.Errorf("spec.workflows may contain at most %d entries", MaxAuditProfileWorkflows)
+	}
+	result := make(map[string]ResolvedAuditWorkflowBinding, len(*source))
+	for _, role := range slices.Sorted(maps.Keys(*source)) {
+		candidate := (*source)[role]
+		if err := validateAuditMapKey("spec.workflows role", role); err != nil {
+			return nil, err
+		}
+		kind := AuditWorkflowRoleKind(candidate.Kind)
+		if !kind.valid() {
+			return nil, fmt.Errorf("spec.workflows.%s.kind is invalid", role)
+		}
+		selector, err := resolved.ParseSelector(candidate.Ref)
+		if err != nil {
+			return nil, fmt.Errorf("spec.workflows.%s.ref: %w", role, err)
+		}
+		workflow, ok := lookup(selector)
+		if !ok {
+			return nil, fmt.Errorf("spec.workflows.%s.ref selects unknown Workflow %q", role, selector)
+		}
+		inputs, err := resolveAuditWorkflowInputs(role, candidate.Inputs, workflow, profileInputs)
+		if err != nil {
+			return nil, err
+		}
+		parameters, err := resolveAuditWorkflowParameters(role, candidate.Parameters, workflow)
+		if err != nil {
+			return nil, err
+		}
+		outputs, err := resolveAuditWorkflowOutputs(role, candidate.Outputs, workflow)
+		if err != nil {
+			return nil, err
+		}
+		maxRunAttempts := 0
+		if candidate.MaxRunAttempts != nil {
+			if kind != AuditWorkflowPrepare {
+				return nil, fmt.Errorf("spec.workflows.%s.maxRunAttempts is only valid for prepare roles", role)
+			}
+			maxRunAttempts = *candidate.MaxRunAttempts
+		}
+		result[role] = ResolvedAuditWorkflowBinding{
+			Kind: kind, MaxRunAttempts: maxRunAttempts, Workflow: workflow.Clone(), Inputs: inputs,
+			Parameters: parameters, Outputs: outputs, WorkerCompletion: candidate.WorkerCompletion,
+		}
+		if err := ValidateAuditWorkerCompletion(result[role]); err != nil {
+			return nil, fmt.Errorf("spec.workflows.%s: %w", role, err)
+		}
+	}
+	return result, nil
+}
+
+func resolveAuditWorkflowInputs(
+	role string,
+	source *map[string]auditWorkflowInputMappingSource,
+	workflow resolved.ResolvedWorkflow,
+	profileInputs map[string]AuditProfileInput,
+) (map[string]AuditWorkflowInputMapping, error) {
+	field := "spec.workflows." + role + ".inputs"
+	if source == nil {
+		return nil, fmt.Errorf("%s is required (use {} for none)", field)
+	}
+	result := make(map[string]AuditWorkflowInputMapping, len(*source))
+	for _, slotName := range slices.Sorted(maps.Keys(*source)) {
+		candidate := (*source)[slotName]
+		slot, exists := workflow.Inputs[slotName]
+		if !exists {
+			return nil, fmt.Errorf("%s contains unknown Workflow input %q", field, slotName)
+		}
+		mapping, err := resolveAuditWorkflowInputMapping(field+"."+slotName, candidate, slot, profileInputs)
+		if err != nil {
+			return nil, err
+		}
+		result[slotName] = mapping
+	}
+	for _, slotName := range slices.Sorted(maps.Keys(workflow.Inputs)) {
+		if workflow.Inputs[slotName].Required {
+			if _, exists := result[slotName]; !exists {
+				return nil, fmt.Errorf("%s is missing required Workflow input %q", field, slotName)
+			}
+		}
+	}
+	return result, nil
+}
+
+func resolveAuditWorkflowInputMapping(
+	field string,
+	source auditWorkflowInputMappingSource,
+	slot resolved.ArtifactSlot,
+	profileInputs map[string]AuditProfileInput,
+) (AuditWorkflowInputMapping, error) {
+	mapping := AuditWorkflowInputMapping{
+		Source: AuditWorkflowInputSource(source.Source), Name: source.Name, Role: source.Role,
+	}
+	switch mapping.Source {
+	case AuditInputFromAudit:
+		if mapping.Role != "" || validateAuditMapKey(field+".name", mapping.Name) != nil {
+			return AuditWorkflowInputMapping{}, fmt.Errorf("%s audit-input requires name and forbids role", field)
+		}
+		input, exists := profileInputs[mapping.Name]
+		if !exists {
+			return AuditWorkflowInputMapping{}, fmt.Errorf("%s names unknown Audit input %q", field, mapping.Name)
+		}
+		if slot.Required && !input.Required {
+			return AuditWorkflowInputMapping{}, fmt.Errorf("%s maps a required Workflow input from an optional Audit input", field)
+		}
+		if !resolved.MediaTypesIntersect(input.MediaTypes, slot.MediaTypes) {
+			return AuditWorkflowInputMapping{}, fmt.Errorf("%s media types are incompatible with Workflow input", field)
+		}
+	case AuditInputFromItemPackage:
+		if mapping.Name != "" || mapping.Role != "" {
+			return AuditWorkflowInputMapping{}, fmt.Errorf("%s item-package forbids name and role", field)
+		}
+		if !resolved.MediaTypesIntersect([]string{auditTaskPackageMediaType}, slot.MediaTypes) {
+			return AuditWorkflowInputMapping{}, fmt.Errorf("%s Workflow input does not accept %s", field, auditTaskPackageMediaType)
+		}
+	case AuditInputFromExecutionManifest:
+		if mapping.Name != "" || mapping.Role != "" {
+			return AuditWorkflowInputMapping{}, fmt.Errorf("%s execution-manifest forbids name and role", field)
+		}
+		if !resolved.MediaTypesIntersect([]string{"application/json"}, slot.MediaTypes) {
+			return AuditWorkflowInputMapping{}, fmt.Errorf("%s Workflow input does not accept application/json", field)
+		}
+	case AuditInputFromRetainedOutput, AuditInputFromPreparation:
+		if validateAuditMapKey(field+".role", mapping.Role) != nil ||
+			validateAuditMapKey(field+".name", mapping.Name) != nil {
+			return AuditWorkflowInputMapping{}, fmt.Errorf("%s %s requires role and name", field, mapping.Source)
+		}
+	default:
+		return AuditWorkflowInputMapping{}, fmt.Errorf("%s.source is invalid", field)
+	}
+	return mapping, nil
+}
+
+func resolveAuditWorkflowParameters(
+	role string,
+	source *map[string]auditParameterMappingSource,
+	workflow resolved.ResolvedWorkflow,
+) (map[string]AuditWorkflowParameterMapping, error) {
+	field := "spec.workflows." + role + ".parameters"
+	if source == nil {
+		return nil, fmt.Errorf("%s is required (use {} for none)", field)
+	}
+	result := make(map[string]AuditWorkflowParameterMapping, len(*source))
+	for _, parameterName := range slices.Sorted(maps.Keys(*source)) {
+		candidate := (*source)[parameterName]
+		if _, exists := workflow.Parameters[parameterName]; !exists {
+			return nil, fmt.Errorf("%s contains unknown Workflow parameter %q", field, parameterName)
+		}
+		mapping, err := resolveAuditParameterMapping(field+"."+parameterName, candidate)
+		if err != nil {
+			return nil, err
+		}
+		result[parameterName] = mapping
+	}
+	for _, parameterName := range slices.Sorted(maps.Keys(workflow.Parameters)) {
+		if workflow.Parameters[parameterName].Required {
+			if _, exists := result[parameterName]; !exists {
+				return nil, fmt.Errorf("%s is missing required Workflow parameter %q", field, parameterName)
+			}
+		}
+	}
+	return result, nil
+}
+
+func resolveAuditParameterMapping(
+	field string, source auditParameterMappingSource,
+) (AuditWorkflowParameterMapping, error) {
+	result := AuditWorkflowParameterMapping{Source: AuditWorkflowParameterSource(source.Source), Name: source.Name}
+	switch result.Source {
+	case AuditParameterLiteral:
+		if source.Value == nil || result.Name != "" || !utf8.ValidString(*source.Value) ||
+			len([]byte(*source.Value)) > MaxAuditLiteralParamBytes {
+			return AuditWorkflowParameterMapping{}, fmt.Errorf("%s literal requires a bounded UTF-8 value and forbids name", field)
+		}
+		result.Value = *source.Value
+	case AuditParameterItemField:
+		if source.Value != nil || !auditItemFields[result.Name] {
+			return AuditWorkflowParameterMapping{}, fmt.Errorf("%s item-field name is invalid or value is present", field)
+		}
+	case AuditParameterScopeField:
+		if source.Value != nil || !auditScopeFields[result.Name] {
+			return AuditWorkflowParameterMapping{}, fmt.Errorf("%s scope-field name is invalid or value is present", field)
+		}
+	default:
+		return AuditWorkflowParameterMapping{}, fmt.Errorf("%s.source is invalid", field)
+	}
+	return result, nil
+}
+
+var auditItemFields = map[string]bool{"itemKey": true, "subjectKey": true, "kind": true}
+
+var auditScopeFields = map[string]bool{"objective": true, "target": true, "authorizationScope": true}
+
+func resolveAuditWorkflowOutputs(
+	role string, source *map[string]string, workflow resolved.ResolvedWorkflow,
+) (map[string]string, error) {
+	field := "spec.workflows." + role + ".outputs"
+	if source == nil || len(*source) == 0 || len(*source) > MaxAuditWorkflowMappings {
+		return nil, fmt.Errorf("%s must contain 1..%d entries", field, MaxAuditWorkflowMappings)
+	}
+	result := make(map[string]string, len(*source))
+	seenWorkflowOutputs := make(map[string]struct{}, len(*source))
+	for _, logicalName := range slices.Sorted(maps.Keys(*source)) {
+		workflowOutput := (*source)[logicalName]
+		if err := validateAuditMapKey(field+" logical output", logicalName); err != nil {
+			return nil, err
+		}
+		if err := validateAuditMapKey(field+" workflow output", workflowOutput); err != nil {
+			return nil, err
+		}
+		slot, exists := workflow.Outputs[workflowOutput]
+		if !exists {
+			return nil, fmt.Errorf("%s.%s names unknown Workflow output %q", field, logicalName, workflowOutput)
+		}
+		if !slot.Required {
+			return nil, fmt.Errorf("%s.%s must select a required Workflow output", field, logicalName)
+		}
+		if _, duplicate := seenWorkflowOutputs[workflowOutput]; duplicate {
+			return nil, fmt.Errorf("%s selects Workflow output %q more than once", field, workflowOutput)
+		}
+		seenWorkflowOutputs[workflowOutput] = struct{}{}
+		result[logicalName] = workflowOutput
+	}
+	return result, nil
+}
+
+func resolveAuditInventory(
+	source *auditInventorySource,
+	inputs map[string]AuditProfileInput,
+	workflows map[string]ResolvedAuditWorkflowBinding,
+	standards []AuditStandardRef,
+) (AuditInventory, error) {
+	if source == nil {
+		return AuditInventory{}, fmt.Errorf("spec.inventory is required")
+	}
+	descriptor, exists := auditInventories[source.Implementation]
+	if !exists {
+		return AuditInventory{}, fmt.Errorf("spec.inventory.implementation is unsupported")
+	}
+	var inventorySource, settingsSource *AuditWorkflowInputMapping
+	if len(descriptor.mediaTypes) == 0 {
+		if source.Source != nil || len(standards) != 1 {
+			return AuditInventory{}, fmt.Errorf("standard-mappings@1 requires exactly one standard and forbids inventory.source")
+		}
+	} else {
+		if source.StandardSelection != nil {
+			return AuditInventory{}, fmt.Errorf("spec.inventory.standardSelection is only valid for standard-mappings@1")
+		}
+		var err error
+		inventorySource, err = resolveAuditInventoryArtifact("spec.inventory.source", source.Source, inputs, workflows, descriptor.mediaTypes)
+		if err != nil {
+			return AuditInventory{}, err
+		}
+	}
+	if descriptor.requiresSettings {
+		var err error
+		settingsSource, err = resolveAuditInventoryArtifact("spec.inventory.settings", source.Settings, inputs, workflows, []string{"application/json"})
+		if err != nil {
+			return AuditInventory{}, err
+		}
+		if *inventorySource == *settingsSource {
+			return AuditInventory{}, fmt.Errorf("inventory source and settings must be distinct")
+		}
+	} else if source.Settings != nil {
+		return AuditInventory{}, fmt.Errorf("%s does not accept inventory.settings", source.Implementation)
+	}
+	if err := validateAuditMapKey("spec.inventory.itemWorkflowRole", source.ItemWorkflowRole); err != nil {
+		return AuditInventory{}, err
+	}
+	if _, exists := workflows[source.ItemWorkflowRole]; !exists {
+		return AuditInventory{}, fmt.Errorf("spec.inventory.itemWorkflowRole names unknown role %q", source.ItemWorkflowRole)
+	}
+	itemBinding := workflows[source.ItemWorkflowRole]
+	if itemBinding.Kind != AuditWorkflowCheck {
+		return AuditInventory{}, fmt.Errorf("spec.inventory.itemWorkflowRole must name a check Workflow role")
+	}
+	hasItemContext := false
+	for _, mapping := range itemBinding.Inputs {
+		if mapping.Source == AuditInputFromItemPackage {
+			hasItemContext = true
+			break
+		}
+	}
+	if !hasItemContext {
+		for _, mapping := range itemBinding.Parameters {
+			if mapping.Source == AuditParameterItemField {
+				hasItemContext = true
+				break
+			}
+		}
+	}
+	if !hasItemContext {
+		return AuditInventory{}, fmt.Errorf("spec.inventory.itemWorkflowRole must receive item-package or item-field context")
+	}
+	selection, err := resolveAuditStandardSelection(source.StandardSelection)
+	if err != nil {
+		return AuditInventory{}, err
+	}
+	return AuditInventory{
+		Implementation: source.Implementation, Source: inventorySource, Settings: settingsSource,
+		ItemWorkflowRole: source.ItemWorkflowRole, StandardSelection: selection,
+	}, nil
+}
+
+func resolveAuditStandardSelection(
+	source *auditStandardSelectionSource,
+) (*AuditStandardSelection, error) {
+	if source == nil {
+		return nil, nil
+	}
+	if !utf8.ValidString(source.Scope) || source.Scope != strings.TrimSpace(source.Scope) ||
+		source.Scope == "" || len([]byte(source.Scope)) > 512 {
+		return nil, fmt.Errorf("spec.inventory.standardSelection.scope must be non-empty UTF-8 and at most 512 bytes")
+	}
+	if len(source.Levels) == 0 || len(source.Levels) > MaxAuditStandardLevels {
+		return nil, fmt.Errorf("spec.inventory.standardSelection.levels must contain between 1 and %d values", MaxAuditStandardLevels)
+	}
+	if len(source.EntryIDs) == 0 || len(source.EntryIDs) > MaxAuditStandardEntries {
+		return nil, fmt.Errorf("spec.inventory.standardSelection.entryIds must contain between 1 and %d values", MaxAuditStandardEntries)
+	}
+	levels, err := normalizeAuditSelectionValues(
+		"spec.inventory.standardSelection.levels", source.Levels, 128,
+	)
+	if err != nil {
+		return nil, err
+	}
+	entries, err := normalizeAuditSelectionValues(
+		"spec.inventory.standardSelection.entryIds", source.EntryIDs, 128,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return &AuditStandardSelection{
+		Scope: source.Scope, Levels: levels, EntryIDs: entries,
+	}, nil
+}
+
+func normalizeAuditSelectionValues(field string, source []string, maximum int) ([]string, error) {
+	result := append([]string{}, source...)
+	for index, value := range result {
+		if !utf8.ValidString(value) || value != strings.TrimSpace(value) || value == "" ||
+			strings.ContainsRune(value, 0) || len([]byte(value)) > maximum {
+			return nil, fmt.Errorf("%s[%d] is invalid", field, index)
+		}
+	}
+	sort.Strings(result)
+	for index := 1; index < len(result); index++ {
+		if result[index] == result[index-1] {
+			return nil, fmt.Errorf("%s contains duplicate %q", field, result[index])
+		}
+	}
+	return result, nil
+}
+
+func validateAuditModeInventory(mode AuditProfileMode, implementation string) error {
+	valid := false
+	switch mode {
+	case AuditModeOperationTracing:
+		valid = implementation == "openapi-operations@1"
+	case AuditModeFindingVerification:
+		valid = implementation == "finding-candidates@1"
+	case AuditModeRiskAssessment, AuditModeRequirementsVerification, AuditModeCustomChecklist:
+		valid = implementation == "checklist@1" ||
+			(mode != AuditModeCustomChecklist && implementation == "standard-mappings@1") ||
+			(mode == AuditModeRiskAssessment && implementation == AuditInventoryOpenAPIScans)
+	}
+	if !valid {
+		return fmt.Errorf("spec.inventory.implementation %q is incompatible with mode %q", implementation, mode)
+	}
+	return nil
+}
+
+func resolveAuditExecutionPolicy(source *auditExecutionPolicySource) (AuditExecutionPolicy, error) {
+	if source == nil {
+		return AuditExecutionPolicy{}, fmt.Errorf("spec.execution is required")
+	}
+	result := AuditExecutionPolicy{
+		RoundMode: AuditRoundMode(source.RoundMode), MaxRounds: source.MaxRounds,
+		BatchSize:        source.BatchSize,
+		MaxItemsPerRound: source.MaxItemsPerRound, MaxItemsTotal: source.MaxItemsTotal,
+		MaxSubmittedRuns:   source.MaxSubmittedRuns,
+		MaxItemRunAttempts: source.MaxItemRunAttempts, DeadlineSeconds: source.DeadlineSeconds,
+		MaxEvidenceBytes: source.MaxEvidenceBytes,
+		IncompleteRound:  AuditIncompleteRoundPolicy(source.IncompleteRound),
+	}
+	if result.RoundMode != AuditRoundFixedBarrier {
+		return AuditExecutionPolicy{}, fmt.Errorf("spec.execution.roundMode must be %q", AuditRoundFixedBarrier)
+	}
+	for _, bound := range []struct {
+		name, label string
+		value       int
+		maximum     int
+	}{
+		{"maxRounds", "rounds", result.MaxRounds, MaxAuditRounds},
+		{"batchSize", "items", result.BatchSize, MaxAuditBatchSize},
+		{"maxItemsPerRound", "items", result.MaxItemsPerRound, MaxAuditItemsPerRound},
+		{"maxItemsTotal", "items", result.MaxItemsTotal, MaxAuditItemsTotal},
+		{"maxSubmittedRuns", "Runs", result.MaxSubmittedRuns, MaxAuditSubmittedRuns},
+		{"maxItemRunAttempts", "attempts", result.MaxItemRunAttempts, MaxAuditRunAttempts},
+		{"deadlineSeconds", "seconds", result.DeadlineSeconds, MaxAuditDeadlineSeconds},
+	} {
+		if bound.value <= 0 || bound.value > bound.maximum {
+			return AuditExecutionPolicy{}, fmt.Errorf("spec.execution.%s must be between 1 and %d %s", bound.name, bound.maximum, bound.label)
+		}
+	}
+	if result.MaxEvidenceBytes <= 0 || result.MaxEvidenceBytes > MaxAuditEvidenceBytes {
+		return AuditExecutionPolicy{}, fmt.Errorf("spec.execution.maxEvidenceBytes must be between 1 and %d", MaxAuditEvidenceBytes)
+	}
+	if result.MaxItemsPerRound > result.MaxItemsTotal {
+		return AuditExecutionPolicy{}, fmt.Errorf("spec.execution.maxItemsPerRound cannot exceed maxItemsTotal")
+	}
+	if result.BatchSize > result.MaxItemsPerRound {
+		return AuditExecutionPolicy{}, fmt.Errorf("spec.execution.batchSize cannot exceed maxItemsPerRound")
+	}
+	minimumInitialRuns := (result.MaxItemsTotal + result.BatchSize - 1) / result.BatchSize
+	if result.MaxSubmittedRuns < minimumInitialRuns {
+		return AuditExecutionPolicy{}, fmt.Errorf(
+			"spec.execution.maxSubmittedRuns cannot cover maxItemsTotal at batchSize %d",
+			result.BatchSize,
+		)
+	}
+	if result.IncompleteRound != AuditIncompleteAssessWithGaps && result.IncompleteRound != AuditIncompleteFail {
+		return AuditExecutionPolicy{}, fmt.Errorf("spec.execution.incompleteRound is invalid")
+	}
+	return result, nil
+}
+
+func resolveAuditInteractionPolicy(source *auditInteractionPolicySource) (AuditInteractionPolicy, error) {
+	if source == nil {
+		return AuditInteractionPolicy{}, fmt.Errorf("spec.interaction is required")
+	}
+	result := AuditInteractionPolicy{
+		ActiveChecks:        AuditActiveChecksPolicy(source.ActiveChecks),
+		FindingConfirmation: AuditFindingConfirmationPolicy(source.FindingConfirmation),
+		NotApplicable:       AuditNotApplicablePolicy(source.NotApplicable),
+		ReportAcceptance:    AuditReportAcceptancePolicy(source.ReportAcceptance),
+	}
+	if result.ActiveChecks != AuditActiveChecksProhibited &&
+		result.ActiveChecks != AuditActiveChecksAutomatic &&
+		result.ActiveChecks != AuditActiveChecksApprovalRequired {
+		return AuditInteractionPolicy{}, fmt.Errorf("spec.interaction.activeChecks is invalid")
+	}
+	if result.FindingConfirmation != AuditFindingDisabled &&
+		result.FindingConfirmation != AuditFindingHumanRequired {
+		return AuditInteractionPolicy{}, fmt.Errorf("spec.interaction.findingConfirmation is invalid")
+	}
+	if result.NotApplicable != AuditNotApplicableHumanRequired && result.NotApplicable != AuditNotApplicableProfileRule {
+		return AuditInteractionPolicy{}, fmt.Errorf("spec.interaction.notApplicable is invalid")
+	}
+	if result.ReportAcceptance != AuditReportAutomatic && result.ReportAcceptance != AuditReportHumanRequired {
+		return AuditInteractionPolicy{}, fmt.Errorf("spec.interaction.reportAcceptance is invalid")
+	}
+	return result, nil
+}
+
+func auditProfileDigest(selector resolved.Selector, profile ResolvedAuditProfile) (string, error) {
+	workflows := make(map[string]any, len(profile.Workflows))
+	for role, binding := range profile.Workflows {
+		value := map[string]any{
+			"kind":     binding.Kind,
+			"workflow": binding.Workflow, "inputs": binding.Inputs,
+			"parameters": binding.Parameters, "outputs": binding.Outputs,
+		}
+		if binding.WorkerCompletion != nil {
+			value["workerCompletion"] = binding.WorkerCompletion
+		}
+		if binding.MaxRunAttempts != 0 {
+			value["maxRunAttempts"] = binding.MaxRunAttempts
+		}
+		workflows[role] = value
+	}
+	return contentdigest.CanonicalJSON(map[string]any{
+		"apiVersion": contracts.APIVersion,
+		"kind":       Kind,
+		"metadata":   map[string]any{"name": selector.ID, "version": selector.Version},
+		"spec": map[string]any{
+			"mode": profile.Mode, "standards": profile.Standards,
+			"inputs": profile.Inputs, "inventory": profile.Inventory,
+			"workflows": workflows, "execution": profile.Execution,
+			"interaction": profile.Interaction,
+		},
+	})
+}
+
+// Clone returns a deep copy of profile that shares no mutable state with it.
+func (profile ResolvedAuditProfile) Clone() ResolvedAuditProfile { return cloneAuditProfile(profile) }
+
+func cloneAuditProfile(source ResolvedAuditProfile) ResolvedAuditProfile {
+	result := source
+	result.Inventory.Source = cloneAuditInputMapping(source.Inventory.Source)
+	result.Inventory.Settings = cloneAuditInputMapping(source.Inventory.Settings)
+	if source.Inventory.StandardSelection != nil {
+		selection := *source.Inventory.StandardSelection
+		selection.Levels = append([]string{}, source.Inventory.StandardSelection.Levels...)
+		selection.EntryIDs = append([]string{}, source.Inventory.StandardSelection.EntryIDs...)
+		result.Inventory.StandardSelection = &selection
+	}
+	result.Standards = append([]AuditStandardRef{}, source.Standards...)
+	result.Inputs = make(map[string]AuditProfileInput, len(source.Inputs))
+	for name, input := range source.Inputs {
+		input.MediaTypes = append([]string{}, input.MediaTypes...)
+		result.Inputs[name] = input
+	}
+	result.Workflows = make(map[string]ResolvedAuditWorkflowBinding, len(source.Workflows))
+	for role, binding := range source.Workflows {
+		cloned := binding
+		if binding.WorkerCompletion != nil {
+			value := *binding.WorkerCompletion
+			cloned.WorkerCompletion = &value
+		}
+		cloned.Workflow = binding.Workflow.Clone()
+		cloned.Inputs = clone.Map(binding.Inputs)
+		cloned.Parameters = clone.Map(binding.Parameters)
+		cloned.Outputs = clone.Map(binding.Outputs)
+		result.Workflows[role] = cloned
+	}
+	return result
+}
+
+func validateAuditMapKey(field, value string) error {
+	if !utf8.ValidString(value) || len([]byte(value)) > 128 {
+		return fmt.Errorf("%s must be valid UTF-8 and at most 128 bytes", field)
+	}
+	return resolved.ValidateMapKey(field, value)
+}

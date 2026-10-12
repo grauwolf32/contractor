@@ -4,13 +4,13 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
 
-	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
@@ -95,7 +95,8 @@ func TestInstructionVariantsPreserveExecutionContracts(t *testing.T) {
 					}
 				}
 			}
-			snapshot, err := configload.Load(directory, archivedExperimentDescriptors())
+			registerArchivedToolsets(t, directory)
+			snapshot, err := configload.Load(directory)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -166,21 +167,36 @@ func readJSON(t *testing.T, path string, result any) {
 	}
 }
 
-// archivedExperimentDescriptors describes the frozen V40 experiment for offline
-// contract comparisons only. Historical Audit/Findings capabilities must not
-// depend on current Runtime registrations; none of these descriptors builds tools.
-func archivedExperimentDescriptors() config.Descriptors {
-	descriptors := config.MVPDescriptors()
-	for selector, descriptor := range map[string]config.ToolsetDescriptor{
-		"audit-results@1": {Tools: []string{"read_audit_task", "submit_check_result"}},
-		"security-findings@1": {
-			Tools: []string{"finding"}, FindingProposalTools: []string{"finding"},
-		},
-		"security-findings@2": {
-			Tools: []string{"finding", "list_findings"}, FindingProposalTools: []string{"finding"},
-		},
-	} {
-		descriptors.Toolsets[selector] = descriptor
+// archivedToolsets maps each Toolset version the frozen V40 experiment selects
+// but the Server no longer registers to the registered version that exports
+// the same tools with the same finding classification.
+var archivedToolsets = map[string]string{
+	"audit-results@1":     "audit-results@2",
+	"security-findings@2": "security-findings@1",
+}
+
+// registerArchivedToolsets moves the AgentTemplates of a materialized
+// experiment catalog onto registered Toolset versions, since the loader checks
+// every selection against the Server's one descriptor table. It rewrites only
+// the temporary copy, and both arms alike, so the A/B contract comparison is
+// unchanged; nothing here builds or registers a tool.
+func registerArchivedToolsets(t *testing.T, directory string) {
+	t.Helper()
+	err := filepath.WalkDir(filepath.Join(directory, "agent-templates"), func(path string, entry fs.DirEntry, err error) error {
+		if err != nil || entry.IsDir() {
+			return err
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		text := string(data)
+		for archived, registered := range archivedToolsets {
+			text = strings.ReplaceAll(text, "- ref: "+archived+"\n", "- ref: "+registered+"\n")
+		}
+		return os.WriteFile(path, []byte(text), 0o600)
+	})
+	if err != nil {
+		t.Fatal(err)
 	}
-	return descriptors
 }

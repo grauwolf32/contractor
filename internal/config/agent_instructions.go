@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
@@ -14,7 +15,7 @@ type AgentInstructions struct {
 }
 
 func (s *Snapshot) AgentInstructions(raw string) (AgentInstructions, error) {
-	selector, err := ParseSelector(raw)
+	selector, err := resolved.ParseSelector(raw)
 	if err != nil {
 		return AgentInstructions{}, err
 	}

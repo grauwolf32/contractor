@@ -2,7 +2,6 @@ package artifacts
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/grauwolf32/contractor/internal/artifactpolicy"
@@ -10,13 +9,19 @@ import (
 	"github.com/grauwolf32/contractor/internal/pagelimit"
 )
 
-// Service owns validation and creates scope-bound views over one Repository.
+// Service validates every Artifact request once, before it reaches its
+// Repository. It exposes only generic operations: the scope views below,
+// which apply the generic Namespace policy of the public and private Artifact
+// APIs, and the trusted primitives in trusted.go, on which purpose-specific
+// Server flows build the operations they own.
 type Service struct {
 	repository Repository
 }
 
 func NewService(repository Repository) *Service { return &Service{repository: repository} }
 
+// ScopedStore is the generic view of one scope. Its writes cannot create or
+// advance a binding in a Namespace that a purpose-specific flow owns.
 type ScopedStore struct {
 	service *Service
 	scope   Scope
@@ -46,76 +51,13 @@ func (s *Service) Run(runID string) (ScopedStore, error) {
 	return ScopedStore{service: s, scope: scope}, nil
 }
 
-// WriteRunRepeatRequest is the trusted Run-creation path for the immutable,
-// non-secret request fragment used by the repeat-draft projection. Generic
-// RunScope writes and Runtime Artifact APIs cannot access this namespace.
-func (s *Service) WriteRunRepeatRequest(
-	ctx context.Context,
-	runID string,
-	data []byte,
-) (WriteResult, error) {
-	scope, err := RunScope(runID)
-	if err != nil {
-		return WriteResult{}, err
+// Scoped returns the view of scope for a trusted caller that already holds
+// the Scope of a stored exact Artifact.
+func (s *Service) Scoped(scope Scope) (ScopedStore, error) {
+	if err := validateScope(scope); err != nil {
+		return ScopedStore{}, err
 	}
-	target := ArtifactRef{
-		Namespace: artifactpolicy.RunSystemNamespace,
-		Name:      artifactpolicy.RunRepeatRequestName,
-	}
-	payload := Payload{
-		MediaType: artifactpolicy.RunRepeatRequestMediaType,
-		Data:      append([]byte(nil), data...),
-	}
-	if err := validatePayload(payload); err != nil {
-		return WriteResult{}, err
-	}
-	return s.repository.Write(ctx, scope, target, payload, nil)
-}
-
-// ReadRunRepeatRequest is intentionally purpose-specific so callers cannot
-// turn the internal namespace into a general bypass around Artifact policy.
-func (s *Service) ReadRunRepeatRequest(
-	ctx context.Context,
-	runID string,
-) (ReadResult, error) {
-	scope, err := RunScope(runID)
-	if err != nil {
-		return ReadResult{}, err
-	}
-	result, err := s.repository.Read(ctx, scope, ArtifactRef{
-		Namespace: artifactpolicy.RunSystemNamespace,
-		Name:      artifactpolicy.RunRepeatRequestName,
-	})
-	if err != nil {
-		return ReadResult{}, err
-	}
-	if result.Payload.MediaType != artifactpolicy.RunRepeatRequestMediaType {
-		return ReadResult{}, ErrArtifactIntegrity
-	}
-	return result, nil
-}
-
-// WriteFindingProposal is the trusted finding-intake write path. The
-// namespace is deliberately unavailable through generic allocation Artifact
-// writes, while the resulting exact revision remains readable in its RunScope.
-func (s *Service) WriteFindingProposal(
-	ctx context.Context,
-	runID string,
-	name string,
-	payload Payload,
-) (WriteResult, error) {
-	scope, err := RunScope(runID)
-	if err != nil {
-		return WriteResult{}, err
-	}
-	target := ArtifactRef{Namespace: artifactpolicy.FindingProposalNamespace, Name: name}
-	if err := validateRef(target); err != nil {
-		return WriteResult{}, err
-	}
-	if err := validatePayload(payload); err != nil {
-		return WriteResult{}, err
-	}
-	return s.repository.Write(ctx, scope, target, payload, nil)
+	return ScopedStore{service: s, scope: scope}, nil
 }
 
 func (s ScopedStore) Write(
@@ -124,37 +66,15 @@ func (s ScopedStore) Write(
 	payload Payload,
 	expectedRevision *string,
 ) (WriteResult, error) {
-	if err := validateScope(s.scope); err != nil {
+	if err := validateTarget(target); err != nil {
 		return WriteResult{}, err
-	}
-	if err := validateRef(target); err != nil {
-		return WriteResult{}, err
-	}
-	if target.Revision != nil {
-		return WriteResult{}, ErrVersionedWriteTarget
 	}
 	if expectedRevision != nil {
 		if err := validateRevision(*expectedRevision); err != nil {
 			return WriteResult{}, err
 		}
 	}
-	if s.scope.kind == ScopeUser && artifactpolicy.IsAuditStandardCatalogNamespace(target.Namespace) {
-		return WriteResult{}, ErrReservedNamespace
-	}
-	// Audit-managed Project bindings are created frozen, only through
-	// WriteAuditArtifact and ImportAuditArtifact (ART-R26, REV-R146).
-	if s.scope.kind == ScopeProject && artifactpolicy.IsAuditManagedProjectNamespace(target.Namespace) {
-		return WriteResult{}, ErrReservedNamespace
-	}
-	if s.scope.kind == ScopeRun && (target.Namespace == "outputs" || target.Namespace == "skills" ||
-		target.Namespace == artifactpolicy.FindingProposalNamespace ||
-		artifactpolicy.IsRunSystemNamespace(target.Namespace)) {
-		return WriteResult{}, ErrReservedNamespace
-	}
-	if s.scope.kind == ScopeRun && target.Namespace == "inputs" && expectedRevision == nil {
-		// Only the trusted input forks create inputs/<slot> (ART-R76); a
-		// generic writer may only advance an existing working copy by exact
-		// CAS (ART-R16, ART-R37).
+	if genericWriteReserved(s.scope, target.Namespace, expectedRevision != nil) {
 		return WriteResult{}, ErrReservedNamespace
 	}
 	if err := validatePayload(payload); err != nil {
@@ -163,77 +83,29 @@ func (s ScopedStore) Write(
 	return s.service.repository.Write(ctx, s.scope, target, payload, expectedRevision)
 }
 
-// WriteAuditStandardPackage is the trusted, catalog-only UserScope mutation.
-// Generic User artifact writes cannot create or advance this namespace.
-func (s *Service) WriteAuditStandardPackage(
-	ctx context.Context,
-	userID string,
-	target ArtifactRef,
-	payload Payload,
-	expectedRevision *string,
-) (WriteResult, error) {
-	scope, err := UserScope(userID)
-	if err != nil {
-		return WriteResult{}, err
-	}
-	if target.Namespace != artifactpolicy.AuditStandardCatalogNamespace || target.Revision != nil {
-		return WriteResult{}, ErrInvalidName
-	}
-	if err := validateRef(target); err != nil {
-		return WriteResult{}, err
-	}
-	if expectedRevision != nil {
-		if err := validateRevision(*expectedRevision); err != nil {
-			return WriteResult{}, err
+// genericWriteReserved reports whether a generic write may not reach
+// namespace in scope, because a purpose-specific flow owns it: the Audit
+// standard catalog (ART-R25), the Audit-managed Project Namespaces, created
+// frozen only by the trusted primitives (ART-R26, REV-R146), and the
+// purpose-reserved Run Namespaces (ART-R114). Only the trusted input forks
+// create inputs/<slot>; a generic writer may only advance an existing working
+// copy by exact CAS (ART-R16, ART-R37, ART-R76).
+func genericWriteReserved(scope Scope, namespace string, advancing bool) bool {
+	switch scope.kind {
+	case ScopeUser:
+		return artifactpolicy.IsAuditStandardCatalogNamespace(namespace)
+	case ScopeProject:
+		return artifactpolicy.IsAuditManagedProjectNamespace(namespace)
+	case ScopeRun:
+		if namespace == "inputs" {
+			return !advancing
 		}
+		return artifactpolicy.IsPurposeReservedNamespace(namespace)
 	}
-	if err := validatePayload(payload); err != nil {
-		return WriteResult{}, err
-	}
-	return s.repository.Write(ctx, scope, target, payload, expectedRevision)
-}
-
-type skillForkRepository interface {
-	ForkSkill(context.Context, Scope, ArtifactRef, Scope, string) (ForkResult, error)
-}
-
-// ForkSkill is a trusted Run-initialization operation. Generic ScopedStore
-// writes remain unable to create or advance the reserved skills Namespace.
-func (s *Service) ForkSkill(
-	ctx context.Context,
-	userID string,
-	source ArtifactRef,
-	runID string,
-	name string,
-) (ForkResult, error) {
-	user, err := UserScope(userID)
-	if err != nil {
-		return ForkResult{}, err
-	}
-	run, err := RunScope(runID)
-	if err != nil {
-		return ForkResult{}, err
-	}
-	if source.Namespace != "skills" || source.Name != name {
-		return ForkResult{}, ErrInvalidName
-	}
-	if _, err := exactRevision(source); err != nil {
-		return ForkResult{}, err
-	}
-	if err := validateComponent(name); err != nil {
-		return ForkResult{}, err
-	}
-	repository, ok := s.repository.(skillForkRepository)
-	if !ok {
-		return ForkResult{}, ErrQueryUnsupported
-	}
-	return repository.ForkSkill(ctx, user, source, run, name)
+	return true
 }
 
 func (s ScopedStore) Read(ctx context.Context, ref ArtifactRef) (ReadResult, error) {
-	if err := validateScope(s.scope); err != nil {
-		return ReadResult{}, err
-	}
 	if err := validateRef(ref); err != nil {
 		return ReadResult{}, err
 	}
@@ -259,82 +131,51 @@ func (s ScopedStore) ReadExact(ctx context.Context, expected contracts.ExactArti
 }
 
 func (s ScopedStore) Metadata(ctx context.Context, ref ArtifactRef) (Metadata, error) {
-	if err := validateScope(s.scope); err != nil {
-		return Metadata{}, err
-	}
 	if err := validateRef(ref); err != nil {
 		return Metadata{}, err
 	}
-	repository, ok := s.service.repository.(QueryRepository)
-	if !ok {
-		return Metadata{}, ErrQueryUnsupported
-	}
-	return repository.Metadata(ctx, s.scope, ref)
+	return s.service.repository.Metadata(ctx, s.scope, ref)
 }
 
 func (s ScopedStore) ListMetadata(
 	ctx context.Context, query BindingPageQuery,
 ) ([]Metadata, error) {
-	if err := validateScope(s.scope); err != nil {
-		return nil, err
-	}
 	if err := validateBindingPageQuery(query); err != nil {
 		return nil, err
 	}
-	repository, ok := s.service.repository.(QueryRepository)
-	if !ok {
-		return nil, ErrQueryUnsupported
-	}
-	return repository.ListMetadata(ctx, s.scope, query)
+	return s.service.repository.ListMetadata(ctx, s.scope, query)
 }
 
 func (s ScopedStore) ListVersions(
 	ctx context.Context, ref ArtifactRef, query VersionPageQuery,
 ) ([]Metadata, error) {
-	if err := validateScope(s.scope); err != nil {
+	if err := validateTarget(ref); err != nil {
 		return nil, err
-	}
-	if err := validateRef(ref); err != nil {
-		return nil, err
-	}
-	if ref.Revision != nil {
-		return nil, ErrVersionedWriteTarget
 	}
 	if err := validateVersionPageQuery(query); err != nil {
 		return nil, err
 	}
-	repository, ok := s.service.repository.(QueryRepository)
-	if !ok {
-		return nil, ErrQueryUnsupported
-	}
 	// Distinguish an unknown binding from an impossible empty history.
-	if _, err := repository.Metadata(ctx, s.scope, ref); err != nil {
+	if _, err := s.service.repository.Metadata(ctx, s.scope, ref); err != nil {
 		return nil, err
 	}
-	return repository.ListVersions(ctx, s.scope, ref, query)
+	return s.service.repository.ListVersions(ctx, s.scope, ref, query)
 }
 
 func (s ScopedStore) ListLineage(
 	ctx context.Context, ref ArtifactRef, query LineagePageQuery,
 ) ([]LineageEdge, error) {
-	if err := validateScope(s.scope); err != nil {
-		return nil, err
-	}
 	if err := validateRef(ref); err != nil {
 		return nil, err
 	}
 	if err := validateLineagePageQuery(query); err != nil {
 		return nil, err
 	}
-	repository, ok := s.service.repository.(QueryRepository)
-	if !ok {
-		return nil, ErrQueryUnsupported
-	}
-	metadata, err := repository.Metadata(ctx, s.scope, ref)
+	metadata, err := s.service.repository.Metadata(ctx, s.scope, ref)
 	if err != nil {
 		return nil, err
 	}
-	return repository.ListLineage(ctx, s.scope, metadata.Ref, query)
+	return s.service.repository.ListLineage(ctx, s.scope, metadata.Ref, query)
 }
 
 func validateBindingPageQuery(query BindingPageQuery) error {
@@ -417,279 +258,4 @@ func validateLineagePageQuery(query LineagePageQuery) error {
 func validLineageKind(value string) bool {
 	return value == LineageInputFork || value == LineageOutputBind ||
 		value == LineageProjectOutputPublish || value == LineageAuditImport
-}
-
-// ForkInput resolves source once in UserScope, creates inputs/<slot> in the
-// target RunScope, and records exact lineage without copying payload bytes.
-func (s *Service) ForkInput(
-	ctx context.Context,
-	userID string,
-	source ArtifactRef,
-	runID string,
-	inputSlot string,
-) (ForkResult, error) {
-	user, err := UserScope(userID)
-	if err != nil {
-		return ForkResult{}, err
-	}
-	run, err := RunScope(runID)
-	if err != nil {
-		return ForkResult{}, err
-	}
-	if err := validateRef(source); err != nil {
-		return ForkResult{}, err
-	}
-	if err := validateComponent(inputSlot); err != nil {
-		return ForkResult{}, err
-	}
-	return s.repository.ForkInput(ctx, user, source, run, inputSlot)
-}
-
-// ForkProjectInput is the trusted Project-Run counterpart of ForkInput. The
-// caller must establish Project ownership before selecting the ProjectScope;
-// public request bodies never carry a source scope identifier.
-func (s *Service) ForkProjectInput(
-	ctx context.Context,
-	projectID string,
-	source ArtifactRef,
-	runID string,
-	inputSlot string,
-) (ForkResult, error) {
-	project, err := ProjectScope(projectID)
-	if err != nil {
-		return ForkResult{}, err
-	}
-	run, err := RunScope(runID)
-	if err != nil {
-		return ForkResult{}, err
-	}
-	if err := validateRef(source); err != nil {
-		return ForkResult{}, err
-	}
-	if err := validateComponent(inputSlot); err != nil {
-		return ForkResult{}, err
-	}
-	return s.repository.ForkInput(ctx, project, source, run, inputSlot)
-}
-
-// BindOutputExact is a trusted Scheduler operation. Construct Service with a
-// transaction-bound repository when output binding and Run success must be
-// committed atomically.
-func (s *Service) BindOutputExact(
-	ctx context.Context,
-	runID string,
-	outputSlot string,
-	source ArtifactRef,
-	expectedOutputRevision *string,
-) (ForkResult, error) {
-	run, err := RunScope(runID)
-	if err != nil {
-		return ForkResult{}, err
-	}
-	if err := validateComponent(outputSlot); err != nil {
-		return ForkResult{}, err
-	}
-	if _, err := exactRevision(source); err != nil {
-		return ForkResult{}, err
-	}
-	if expectedOutputRevision != nil {
-		if err := validateRevision(*expectedOutputRevision); err != nil {
-			return ForkResult{}, err
-		}
-	}
-	return s.repository.BindOutputExact(ctx, run, outputSlot, source, expectedOutputRevision)
-}
-
-type projectOutputPublisher interface {
-	PublishRunOutput(context.Context, Scope, ArtifactRef, Scope, string) (ForkResult, error)
-}
-
-type auditArtifactImporter interface {
-	ImportAuditArtifact(context.Context, Scope, ArtifactRef, Scope, ArtifactRef) (ForkResult, error)
-}
-
-// auditArtifactWriter creates frozen Audit bindings and reads the metadata
-// of an existing one for the replay comparison.
-type auditArtifactWriter interface {
-	WriteAuditArtifact(context.Context, Scope, ArtifactRef, Payload) (WriteResult, error)
-	Metadata(context.Context, Scope, ArtifactRef) (Metadata, error)
-}
-
-// PublishRunOutput is a trusted Scheduler operation that creates one
-// ProjectScope outputs/<slot> binding from an exact frozen RunScope output.
-// It is deliberately create-only: an existing Project binding is a conflict,
-// never an implicit replacement.
-func (s *Service) PublishRunOutput(
-	ctx context.Context,
-	runID string,
-	projectID string,
-	outputSlot string,
-	source ArtifactRef,
-) (ForkResult, error) {
-	run, err := RunScope(runID)
-	if err != nil {
-		return ForkResult{}, err
-	}
-	project, err := ProjectScope(projectID)
-	if err != nil {
-		return ForkResult{}, err
-	}
-	if err := validateComponent(outputSlot); err != nil {
-		return ForkResult{}, err
-	}
-	if source.Namespace != "outputs" || source.Name != outputSlot {
-		return ForkResult{}, ErrInvalidName
-	}
-	if _, err := exactRevision(source); err != nil {
-		return ForkResult{}, err
-	}
-	repository, ok := s.repository.(projectOutputPublisher)
-	if !ok {
-		return ForkResult{}, ErrQueryUnsupported
-	}
-	return repository.PublishRunOutput(ctx, run, source, project, outputSlot)
-}
-
-// ImportAuditArtifact is a trusted collection operation. It creates one
-// create-only Audit-managed ProjectScope binding backed by an exact immutable
-// RunScope revision and records its lineage without copying payload bytes.
-// The public Project artifact API reserves audit-* namespaces, so artifacts
-// staged before the matching Audit receipt commit are not externally visible.
-func (s *Service) ImportAuditArtifact(
-	ctx context.Context,
-	runID string,
-	source ArtifactRef,
-	projectID string,
-	target ArtifactRef,
-) (ForkResult, error) {
-	run, err := RunScope(runID)
-	if err != nil {
-		return ForkResult{}, err
-	}
-	project, err := ProjectScope(projectID)
-	if err != nil {
-		return ForkResult{}, err
-	}
-	if _, err := exactRevision(source); err != nil {
-		return ForkResult{}, err
-	}
-	if target.Revision != nil || !artifactpolicy.IsAuditManagedProjectNamespace(target.Namespace) {
-		return ForkResult{}, ErrInvalidName
-	}
-	if err := validateRef(target); err != nil {
-		return ForkResult{}, err
-	}
-	repository, ok := s.repository.(auditArtifactImporter)
-	if !ok {
-		return ForkResult{}, ErrQueryUnsupported
-	}
-	return repository.ImportAuditArtifact(ctx, run, source, project, target)
-}
-
-// ImportFindingArtifact is the trusted finding-intake counterpart for an
-// ordinary Project Run. Authorization and receipt creation belong to the
-// finding service; this method only enforces exact source identity and a
-// create-only Audit-managed target in the same Project.
-func (s *Service) ImportFindingArtifact(
-	ctx context.Context,
-	runID string,
-	source ArtifactRef,
-	projectID string,
-	target ArtifactRef,
-) (ForkResult, error) {
-	return s.ImportAuditArtifact(ctx, runID, source, projectID, target)
-}
-
-// WriteAuditArtifact is the one writer of Server-generated Audit material:
-// manifests, task packages, worklists, retained standards, reports and direct
-// verification contracts. It creates one frozen, create-only ProjectScope
-// binding in a Server-reserved audit-* namespace (REV-R146); generic Project
-// writes cannot reach these namespaces. Public Project artifact routes never
-// expose these staging bindings; Audit projections expose them only after the
-// durable rows that name them have committed.
-//
-// Targets are named by their content or by an immutable identity, so a retry
-// after a lost acknowledgement finds its binding already written: an existing
-// frozen binding holding the payload's bytes and media type is returned as
-// written without staging another blob (REV-R149). Any other existing binding
-// is ErrAuditArtifactCollision.
-func (s *Service) WriteAuditArtifact(
-	ctx context.Context,
-	projectID string,
-	target ArtifactRef,
-	payload Payload,
-) (WriteResult, error) {
-	project, err := ProjectScope(projectID)
-	if err != nil {
-		return WriteResult{}, err
-	}
-	if target.Revision != nil || !artifactpolicy.IsAuditManagedProjectNamespace(target.Namespace) {
-		return WriteResult{}, ErrInvalidName
-	}
-	if err := validateRef(target); err != nil {
-		return WriteResult{}, err
-	}
-	if err := validatePayload(payload); err != nil {
-		return WriteResult{}, err
-	}
-	repository, ok := s.repository.(auditArtifactWriter)
-	if !ok {
-		return WriteResult{}, ErrQueryUnsupported
-	}
-	if written, found, err := writtenAuditArtifact(ctx, repository, project, target, payload); err != nil || found {
-		return written, err
-	}
-	written, err := repository.WriteAuditArtifact(ctx, project, target, payload)
-	if !errors.Is(err, ErrArtifactConflict) {
-		return written, err
-	}
-	// A concurrent writer created the binding after the replay check.
-	if written, found, replayErr := writtenAuditArtifact(ctx, repository, project, target, payload); replayErr != nil || found {
-		return written, replayErr
-	}
-	return WriteResult{}, err
-}
-
-// writtenAuditArtifact is the replay comparison of WriteAuditArtifact. It
-// reports whether target is already bound and returns that binding when it is
-// the frozen Audit artifact payload would create.
-func writtenAuditArtifact(
-	ctx context.Context, repository auditArtifactWriter, project Scope, target ArtifactRef, payload Payload,
-) (WriteResult, bool, error) {
-	existing, err := repository.Metadata(ctx, project, target)
-	if errors.Is(err, ErrArtifactNotFound) {
-		return WriteResult{}, false, nil
-	}
-	if err != nil {
-		return WriteResult{}, false, err
-	}
-	expected := contracts.ExactContent(existing.Ref, payload.MediaType, payload.Data)
-	if !existing.Frozen || expected.Verify(existing.Exact()) != nil {
-		return WriteResult{}, true, fmt.Errorf("%w: %s/%s", ErrAuditArtifactCollision, target.Namespace, target.Name)
-	}
-	return WriteResult{
-		Ref: existing.Ref, MediaType: existing.MediaType, Size: existing.Size,
-		BindingCreatedAt: existing.CreatedAt, RevisionCreatedAt: existing.CreatedAt,
-	}, true, nil
-}
-
-// RequireExact confirms that an exact revision exists and holds a key-share
-// lock on it until the caller's transaction ends, so a concurrent purge cannot
-// remove it underneath the caller.
-func (s *Service) RequireExact(ctx context.Context, scope Scope, ref ArtifactRef) error {
-	if err := validateScope(scope); err != nil {
-		return err
-	}
-	if _, err := exactRevision(ref); err != nil {
-		return err
-	}
-	return s.repository.RequireExact(ctx, scope, ref)
-}
-
-func (s *Service) FreezeRunOutputs(ctx context.Context, runID string) error {
-	run, err := RunScope(runID)
-	if err != nil {
-		return err
-	}
-	return s.repository.FreezeOutputs(ctx, run)
 }

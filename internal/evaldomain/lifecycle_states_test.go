@@ -2,20 +2,16 @@ package evaldomain
 
 import (
 	"encoding/json"
-	"os"
-	"path/filepath"
 	"slices"
 	"testing"
 
 	evalschema "github.com/grauwolf32/contractor/api/evals/v1"
+	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 )
 
-func TestLifecycleStatesMatchSharedCases(t *testing.T) {
+func TestSharedLifecycleStatesMatchSharedCases(t *testing.T) {
 	t.Parallel()
-	data, err := os.ReadFile(filepath.Join(fixtureDir, "lifecycle-states.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	data := contractstest.ReadFile(t, "api", "testdata", "evals", "lifecycle-states.json")
 	var cases struct {
 		States   []State `json:"states"`
 		Terminal []State `json:"terminal"`

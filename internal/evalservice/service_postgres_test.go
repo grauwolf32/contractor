@@ -17,7 +17,9 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
 	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
@@ -39,11 +41,11 @@ type testCredentials struct {
 	gateway llmgateway.LLMGatewayConfigRef
 }
 
-func (c testCredentials) LookupLLMCredential(_ context.Context, id string) (config.CredentialMetadata, error) {
+func (c testCredentials) LookupLLMCredential(_ context.Context, id string) (resolved.CredentialMetadata, error) {
 	if id != "development-worker" {
-		return config.CredentialMetadata{}, errors.New("unexpected fixture credential")
+		return resolved.CredentialMetadata{}, errors.New("unexpected fixture credential")
 	}
-	return config.CredentialMetadata{Ref: llmgateway.LLMCredentialRef{CredentialID: id}, LLMGateway: c.gateway, Unrestricted: true}, nil
+	return resolved.CredentialMetadata{Ref: llmgateway.LLMCredentialRef{CredentialID: id}, LLMGateway: c.gateway, Unrestricted: true}, nil
 }
 
 type testBarrier struct{}
@@ -146,18 +148,18 @@ func newHarness(t *testing.T) *serviceHarness {
 		t.Fatal(err)
 	}
 	credentialLookup := testCredentials{gateway: gateway.Ref}
-	credentials := runtimeconfig.TransactionLLMCredentialLookupFactoryFunc(func(pgx.Tx) (config.CredentialLookup, error) { return credentialLookup, nil })
-	audits, err := auditservice.New(auditservice.Options{Pool: pool, Profiles: catalog, TransactionLLMCredentials: credentials, CredentialGuard: testBarrier{}})
+	transactionLLMCredentials := runtimeconfig.TransactionLLMCredentialLookupFactoryFunc(func(pgx.Tx) (resolved.CredentialLookup, error) { return credentialLookup, nil })
+	audits, err := auditservice.New(auditservice.Options{Pool: pool, Profiles: catalog, TransactionLLMCredentials: transactionLLMCredentials, CredentialGuard: testBarrier{}})
 	if err != nil {
 		t.Fatal(err)
 	}
 	runs, err := runservice.New(runservice.Options{Runs: runstore.NewPostgresStore(pool), Workflows: catalog, LLMCredentials: credentialLookup, CredentialGuard: testBarrier{}, RuntimeCredentials: testBarrier{}, Projects: projectstore.NewPostgresStore(pool), SkillInitializationAvailable: true, PublicTransaction: func(ctx context.Context, fn func(runservice.PublicRunWriter, *artifacts.Service) error) error {
 		return pg.InTx(ctx, pool, pgx.TxOptions{IsoLevel: pgx.RepeatableRead}, func(tx pgx.Tx) error {
-			lookup, err := runtimeconfig.BindTransactionLLMCredentialLookup(tx, credentials)
+			lookup, err := runtimeconfig.BindTransactionLLMCredentialLookup(tx, transactionLLMCredentials)
 			if err != nil {
 				return err
 			}
-			return fn(runstore.NewRunCreationPostgresStore(tx, lookup), artifacts.NewService(artifacts.NewPostgresRepository(tx)))
+			return fn(runstore.NewRunCreationPostgresStore(tx, lookup, credentials.NewRuntimeCredentialRepository(tx)), artifacts.NewService(artifacts.NewPostgresRepository(tx)))
 		})
 	}})
 	if err != nil {
@@ -165,7 +167,7 @@ func newHarness(t *testing.T) *serviceHarness {
 	}
 	run := &lostRunResponse{RunCreator: runs, lost: map[string]bool{}, pool: pool}
 	audit := &lostAuditResponse{AuditExecutor: audits, lost: map[string]bool{}}
-	resolver := &Resolver{Pool: pool, Catalog: catalog, Credentials: credentials, Barrier: testBarrier{}}
+	resolver := &Resolver{Pool: pool, Catalog: catalog, Credentials: transactionLLMCredentials, Barrier: testBarrier{}}
 	driver := &Driver{Pool: pool, Runs: run, Audits: audit}
 	service, err := New(Options{Pool: pool, Resolver: resolver, Driver: driver})
 	if err != nil {
@@ -380,7 +382,7 @@ func (h *serviceHarness) finishRuns(t *testing.T) {
 }
 func (h *serviceHarness) finishAudits(t *testing.T) {
 	t.Helper()
-	store := auditstore.NewPostgresStore(h.pool)
+	store := auditstoretest.NewStore(h.pool)
 	claims, err := store.Claim(t.Context(), auditstore.ClaimParams{HolderID: "fixture-audit-controller", Lease: time.Minute, Limit: 100})
 	if err != nil {
 		t.Fatal(err)
@@ -411,7 +413,7 @@ func (h *serviceHarness) finishAudits(t *testing.T) {
 	}
 }
 
-func TestPostgresNativeEightMembersRecoverLostResponsesAndRestart(t *testing.T) {
+func TestSharedPostgresNativeEightMembersRecoverLostResponsesAndRestart(t *testing.T) {
 	for _, kind := range []string{"workflow", "audit"} {
 		t.Run(kind, func(t *testing.T) {
 			h := newHarness(t)
@@ -475,7 +477,7 @@ func TestPostgresNativeEightMembersRecoverLostResponsesAndRestart(t *testing.T) 
 	}
 }
 
-func TestPostgresNativeBatchAdmissionFillsCapacityAndCreatesByNextTick(t *testing.T) {
+func TestSharedPostgresNativeBatchAdmissionFillsCapacityAndCreatesByNextTick(t *testing.T) {
 	for _, kind := range []string{"workflow", "audit"} {
 		t.Run(kind, func(t *testing.T) {
 			h := newHarness(t)
@@ -525,7 +527,7 @@ func TestPostgresNativeBatchAdmissionFillsCapacityAndCreatesByNextTick(t *testin
 	}
 }
 
-func TestPostgresNativeBatchAdmissionTwoCoordinatorsDoNotOverfill(t *testing.T) {
+func TestSharedPostgresNativeBatchAdmissionTwoCoordinatorsDoNotOverfill(t *testing.T) {
 	h := newHarness(t)
 	e := h.preparedWithCapacity(t, "workflow", 3)
 	h.command(t, e, "start")
@@ -568,7 +570,7 @@ SELECT count(*) FROM eval_submissions WHERE experiment_id = $1 AND state IN ('in
 	}
 }
 
-func TestPostgresPauseResumeKeepsClockAndDuplicateStartsFresh(t *testing.T) {
+func TestSharedPostgresPauseResumeKeepsClockAndDuplicateStartsFresh(t *testing.T) {
 	h := newHarness(t)
 	e := h.prepared(t, "workflow")
 	h.command(t, e, "start")
@@ -653,7 +655,7 @@ VALUES ('expired-pause',$1,$2,'expired-pause','external','expired pause','paused
 	}
 }
 
-func TestPostgresDeletedRunAfterResponseLossIsNeverRecreated(t *testing.T) {
+func TestSharedPostgresDeletedRunAfterResponseLossIsNeverRecreated(t *testing.T) {
 	h := newHarness(t)
 	e := h.prepared(t, "workflow")
 	h.run.remove = true
@@ -680,7 +682,7 @@ func TestPostgresDeletedRunAfterResponseLossIsNeverRecreated(t *testing.T) {
 	}
 }
 
-func TestPostgresPrepareFailureRetainsSchemaValidDiagnostic(t *testing.T) {
+func TestSharedPostgresPrepareFailureRetainsSchemaValidDiagnostic(t *testing.T) {
 	h := newHarness(t)
 	e := h.create(t, "workflow")
 	// The pinned source becomes unavailable before preparation, without execution.
@@ -700,7 +702,7 @@ func TestPostgresPrepareFailureRetainsSchemaValidDiagnostic(t *testing.T) {
 	}
 }
 
-func TestPostgresExternalDispatchRequiresExplicitSubmissionAndFinalizesMissingMembers(t *testing.T) {
+func TestSharedPostgresExternalDispatchRequiresExplicitSubmissionAndFinalizesMissingMembers(t *testing.T) {
 	h := newHarness(t)
 	draft, data := h.dataset(t, "workflow")
 	pre := map[string]Preflight{}
@@ -786,7 +788,7 @@ func TestPostgresExternalDispatchRequiresExplicitSubmissionAndFinalizesMissingMe
 	}
 }
 
-func TestPostgresDeadlineAndObservedTokenLimitsDrainWithoutNewAdmissions(t *testing.T) {
+func TestSharedPostgresDeadlineAndObservedTokenLimitsDrainWithoutNewAdmissions(t *testing.T) {
 	for _, budget := range []string{"deadline", "tokens"} {
 		t.Run(budget, func(t *testing.T) {
 			h := newHarness(t)
@@ -859,7 +861,7 @@ func TestPostgresDeadlineAndObservedTokenLimitsDrainWithoutNewAdmissions(t *test
 	}
 }
 
-func TestPostgresRecoveryAfterTransitionBeforeCommandAcknowledgement(t *testing.T) {
+func TestSharedPostgresRecoveryAfterTransitionBeforeCommandAcknowledgement(t *testing.T) {
 	h := newHarness(t)
 	e := h.create(t, "workflow")
 	h.command(t, e, "prepare")
@@ -872,8 +874,9 @@ func TestPostgresRecoveryAfterTransitionBeforeCommandAcknowledgement(t *testing.
 	if err = h.service.prepare(t.Context(), e, claims[0]); err != nil {
 		t.Fatal(err)
 	}
-	// Simulate process death after its commit and lease expiry without acknowledgement.
-	if _, err = h.pool.Exec(t.Context(), `UPDATE eval_controller_claims SET expires_at=clock_timestamp()-interval '1 second' WHERE experiment_id=$1`, e.ID); err != nil {
+	// Simulate process death after its commit and lease expiry without
+	// acknowledgement. A held claim's lease ends after it starts, so both move.
+	if _, err = h.pool.Exec(t.Context(), `UPDATE eval_controller_claims SET claimed_at=clock_timestamp()-interval '2 seconds', expires_at=clock_timestamp()-interval '1 second' WHERE experiment_id=$1`, e.ID); err != nil {
 		t.Fatal(err)
 	}
 	tick(t, h.coordinator(t, "restarted"))
@@ -886,7 +889,7 @@ func TestPostgresRecoveryAfterTransitionBeforeCommandAcknowledgement(t *testing.
 	}
 }
 
-func TestPostgresCancelAfterAuditCreateBeforeStartDrainsThroughOrdinaryDeletion(t *testing.T) {
+func TestSharedPostgresCancelAfterAuditCreateBeforeStartDrainsThroughOrdinaryDeletion(t *testing.T) {
 	h := newHarness(t)
 	e := h.prepared(t, "audit")
 	h.command(t, e, "start")
@@ -899,7 +902,7 @@ func TestPostgresCancelAfterAuditCreateBeforeStartDrainsThroughOrdinaryDeletion(
 	e = h.get(t, e.ID)
 	h.command(t, e, "cancel")
 	tick(t, c)
-	store := auditstore.NewPostgresStore(h.pool)
+	store := auditstoretest.NewStore(h.pool)
 	claims, err := store.Claim(t.Context(), auditstore.ClaimParams{HolderID: "audit-controller", Lease: time.Minute, Limit: 10})
 	if err != nil || len(claims) != 1 {
 		t.Fatal(claims, err)
@@ -918,7 +921,7 @@ func TestPostgresCancelAfterAuditCreateBeforeStartDrainsThroughOrdinaryDeletion(
 	}
 }
 
-func TestPostgresPreparationArtifactLossRejectsBeforeExecution(t *testing.T) {
+func TestSharedPostgresPreparationArtifactLossRejectsBeforeExecution(t *testing.T) {
 	h := newHarness(t)
 	e := h.prepared(t, "workflow")
 	if _, err := h.pool.Exec(t.Context(), `DELETE FROM artifact_bindings WHERE scope_kind='user'`); err != nil {
@@ -938,7 +941,7 @@ func TestPostgresPreparationArtifactLossRejectsBeforeExecution(t *testing.T) {
 	}
 }
 
-func TestPostgresProjectDeletionWaitsForUncertainRunAndFencesRemainingMembers(t *testing.T) {
+func TestSharedPostgresProjectDeletionWaitsForUncertainRunAndFencesRemainingMembers(t *testing.T) {
 	h := newHarness(t)
 	e := h.prepared(t, "workflow")
 	h.command(t, e, "start")
@@ -1015,7 +1018,7 @@ func (s changedAuditPins) Start(ctx context.Context, p auditservice.StartParams)
 	}
 	return s.AuditExecutor.Start(ctx, p)
 }
-func TestPostgresPinnedSelectionsRejectBeforeOrdinaryEffects(t *testing.T) {
+func TestSharedPostgresPinnedSelectionsRejectBeforeOrdinaryEffects(t *testing.T) {
 	for _, kind := range []string{"workflow", "audit"} {
 		fields := []string{"workflow", "runtime", "skills"}
 		if kind == "audit" {
@@ -1084,7 +1087,7 @@ func (h *serviceHarness) preparedWithRuntimeLabel(t *testing.T, kind string) eva
 
 func (h *serviceHarness) purgeDeletingAuditDrafts(t *testing.T) {
 	t.Helper()
-	store := auditstore.NewPostgresStore(h.pool)
+	store := auditstoretest.NewStore(h.pool)
 	claims, err := store.Claim(t.Context(), auditstore.ClaimParams{
 		HolderID: "fixture-draft-purge", Lease: time.Minute, Limit: 100,
 	})
@@ -1106,7 +1109,7 @@ func (h *serviceHarness) purgeDeletingAuditDrafts(t *testing.T) {
 	}
 }
 
-func TestPostgresDeletedRuntimeLabelRejectsEvalCreateAndDrains(t *testing.T) {
+func TestSharedPostgresDeletedRuntimeLabelRejectsEvalCreateAndDrains(t *testing.T) {
 	for _, kind := range []string{"workflow", "audit"} {
 		for _, cancel := range []bool{false, true} {
 			name := kind + "/finish"
@@ -1198,7 +1201,7 @@ func (f failedRunCreate) CreatePublic(context.Context, runservice.PublicCreatePa
 	return runservice.CreateResult{}, f.cause
 }
 
-func TestPostgresUnknownEvalCreateErrorKeepsIntent(t *testing.T) {
+func TestSharedPostgresUnknownEvalCreateErrorKeepsIntent(t *testing.T) {
 	for _, test := range []struct {
 		name  string
 		cause error
@@ -1391,7 +1394,7 @@ spec:
 			t.Fatal(err)
 		}
 	}
-	snapshot, err := configload.Load(root, config.MVPDescriptors())
+	snapshot, err := configload.Load(root)
 	if err != nil {
 		t.Fatalf("load Audit service config: %v", err)
 	}

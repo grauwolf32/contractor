@@ -9,7 +9,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/evalstore"
 )
 
-func TestEvalPostgresAuditInventoryIncludesNonItemRolesAndDeletedChildren(t *testing.T) {
+func TestSharedEvalPostgresAuditInventoryIncludesNonItemRolesAndDeletedChildren(t *testing.T) {
 	h := newEvalAPIHarness(t)
 	draft, _ := h.dataset(t, "audit")
 	created := apiDecode[struct {

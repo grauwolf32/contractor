@@ -6,15 +6,15 @@ import (
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	workflowconfig "github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/planner/stageresult"
 )
 
 // Only Metadata may be called: a payload Read would both panic and require a
 // transfer slot in the saturated context used by this test.
 type inspectorMetadataRepository struct {
 	artifacts.Repository
-	artifacts.QueryRepository
 	entries map[string]artifacts.Metadata
 	queries int
 }
@@ -78,11 +78,11 @@ func TestArtifactInspectorsUseExactMetadataWithTransferSlotsSaturated(t *testing
 		if err != nil || metadata.MediaType != "application/json" {
 			t.Fatalf("exact metadata inspection = (%+v, %v)", metadata, err)
 		}
-		candidate := contracts.StageContentResult{
-			APIVersion: contracts.APIVersion, Outcome: contracts.StageSucceeded, Summary: "done",
+		candidate := stageresult.StageContentResult{
+			APIVersion: contracts.APIVersion, Outcome: stageresult.StageSucceeded, Summary: "done",
 			Artifacts: map[string]contracts.ArtifactRef{"report": ref},
 		}
-		contract := map[string]workflowconfig.ArtifactSlot{
+		contract := map[string]resolved.ArtifactSlot{
 			"report": {Required: true, MediaTypes: []string{"application/json"}},
 		}
 		if failure := ValidateCandidate(ctx, "run-1", contract, candidate, inspector); failure != nil {

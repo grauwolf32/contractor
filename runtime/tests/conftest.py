@@ -13,6 +13,11 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 import pytest
+from shared_fixtures import (  # noqa: F401 - pytest hooks of the shared fixture convention
+    pytest_collection_modifyitems,
+    pytest_runtest_logreport,
+    pytest_sessionfinish,
+)
 from starlette.exceptions import StarletteDeprecationWarning
 
 if TYPE_CHECKING:

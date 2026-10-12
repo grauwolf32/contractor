@@ -2,10 +2,7 @@ package runstore
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-
-	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 )
 
 // CreateAuditRun inserts one initializing Run with immutable trusted Audit
@@ -28,42 +25,15 @@ func (s *PostgresStore) CreateAuditRun(
 	if err := validateIdempotencyKey(params.AuditSubmissionKey); err != nil {
 		return WorkflowRun{}, invalidf("Audit submission key is invalid")
 	}
-	metadataLabels, _ := NormalizeRunMetadataLabels(params.MetadataLabels)
-	parameters := params.Parameters
-	if parameters == nil {
-		parameters = map[string]string{}
-	}
-	encodedParameters, err := json.Marshal(parameters)
-	if err != nil {
-		return WorkflowRun{}, fmt.Errorf("create Audit WorkflowRun: encode parameters: %w", err)
-	}
-	encodedRuntimeConfig, err := json.Marshal(params.RuntimeConfig)
-	if err != nil {
-		return WorkflowRun{}, fmt.Errorf("create Audit WorkflowRun: encode RuntimeConfig snapshot: %w", err)
-	}
-	encodedProjectHTTPTarget, err := encodeProjectHTTPTarget(params.ProjectHTTPTarget)
+	run, inserted, err := s.insertRun(ctx, "create Audit WorkflowRun", runRecord{
+		CreateRunParams:  params.CreateRunParams,
+		auditExecutionID: &params.AuditExecutionID, auditSubmissionKey: &params.AuditSubmissionKey,
+	})
 	if err != nil {
 		return WorkflowRun{}, err
 	}
-	encodedMetadataLabels, err := json.Marshal(metadataLabels)
-	if err != nil {
-		return WorkflowRun{}, fmt.Errorf("create Audit WorkflowRun: encode metadata labels: %w", err)
+	if !inserted {
+		return WorkflowRun{}, fmt.Errorf("create Audit WorkflowRun %q: %w", params.RunID, ErrConflict)
 	}
-	result, err := scanWorkflowRun(s.db.QueryRow(ctx, createAuditRunSQL+prefixedWorkflowRunColumns("inserted_run")+`
-FROM inserted_run`,
-		params.RunID, params.OwnerID, params.ProjectID, params.WorkflowName, params.WorkflowVersion,
-		params.WorkflowSchemaVersion, []byte(params.WorkflowSnapshot), encodedParameters,
-		params.RuntimeConfig.ExplicitLabels(), encodedRuntimeConfig, encodedProjectHTTPTarget,
-		params.AuditExecutionID, params.AuditSubmissionKey, encodedMetadataLabels,
-	))
-	if err != nil {
-		switch persistencepostgres.Classify(err) {
-		case persistencepostgres.ClassDeleting:
-			return WorkflowRun{}, fmt.Errorf("create Audit WorkflowRun %q: %w", params.RunID, ErrProjectDeleting)
-		case persistencepostgres.ClassDuplicate:
-			return WorkflowRun{}, fmt.Errorf("create Audit WorkflowRun %q: %w", params.RunID, ErrConflict)
-		}
-		return WorkflowRun{}, fmt.Errorf("create Audit WorkflowRun %q: %w", params.RunID, err)
-	}
-	return result, nil
+	return run, nil
 }

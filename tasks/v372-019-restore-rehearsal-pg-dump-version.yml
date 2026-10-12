@@ -1,0 +1,49 @@
+schema_version: "1.0"
+id: V372-019
+title: "Check the pg_dump and pg_restore version before the backup and restore rehearsal"
+milestone: hub-audit-defects-2026-10
+epic: quality
+kind: chore
+priority: P3
+status: pending
+depends_on: []
+languages: [go, markdown]
+goal: "make test-backup-restore and the restore test fail at once with a clear message when pg_dump or pg_restore is older than the PostgreSQL server's major version, and the guides state the requirement."
+context:
+  review: "Out-of-scope finding of the hub audit fix batch, wave 2 (group w2g: V370-016), an environment note, recorded 2026-10-12; file:line verified on b2b09ea"
+  finding: >-
+    TestBackupRestorePreservesExactArtifactsAndCAS
+    (tests/integration/restore/restore_test.go:29-90) runs pg_dump and
+    pg_restore from PATH through runPostgresTool (:198-212). With a client
+    older than the server (pg_dump 16 against PostgreSQL 17 on the wave-2
+    machine) pg_dump refuses the server-version mismatch and the test fails
+    in the middle of its setup with the tool's message. make
+    test-backup-restore (make/core.mk:61-63) checks only that both tools
+    exist, and docs/testing/README.md:154 and
+    docs/operations/artifact-blob-storage.md:120-121 name the tools without
+    the version they need. The test and the target predate the shallow
+    history (boundary 6349621).
+  siblings: >-
+    The test is opt-in (scripts/release_integration_tests.py and
+    scripts/release_race_packages.py exclude it with a reason), so CI does
+    not run it; the operator procedure in artifact-blob-storage.md
+    (pg_dump --format=custom, pg_restore --exit-on-error) has the same
+    requirement for a real backup.
+scope:
+  in:
+    - "Compare the major version of pg_dump and pg_restore with the server's (SHOW server_version_num) in the make target or at the start of the test, and fail with a message that names both versions."
+    - "State the requirement in docs/testing/README.md and docs/operations/artifact-blob-storage.md."
+  out:
+    - "The rehearsal itself and the backup format."
+acceptance_criteria:
+  - id: A1
+    given: "A pg_dump whose major version is lower than the server's"
+    when: "make test-backup-restore runs"
+    then: "It fails before any database is created, naming both versions."
+  - id: A2
+    text: "With matching tools the rehearsal runs as before."
+tests:
+  - command: "make test-backup-restore"
+    covers: [A1, A2]
+  - command: make lint
+    covers: [A1, A2]

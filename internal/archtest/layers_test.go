@@ -23,6 +23,8 @@ var layers = []layerSpec{
 		role: "dependency-free helpers, embedded API schemas and test support",
 		packages: []string{
 			"api/...",
+			// The public error code registry that domain errors report.
+			"internal/apierror",
 			"internal/artifactpolicy",
 			"internal/cabundle",
 			"internal/clone",
@@ -71,6 +73,8 @@ var layers = []layerSpec{
 		packages: []string{
 			"internal/artifactpreview",
 			"internal/artifacts",
+			// Test setup of the Artifact state other packages' flows create.
+			"internal/artifacts/artifactstest",
 			"internal/gatewayrecovery",
 			"internal/httpapi/artifacttransfer",
 			"internal/performance",
@@ -85,7 +89,14 @@ var layers = []layerSpec{
 		packages: []string{
 			"internal/agentskills",
 			"internal/auditstandards",
+			// The catalog loader; only the packages that load or publish the
+			// catalog import it.
 			"internal/config",
+			// The AuditProfile model and its rules, read back from Audit snapshots.
+			"internal/config/auditprofile",
+			// The resolved Workflow model (the Run and Stage snapshot format), its
+			// rules and the one code descriptor registry.
+			"internal/config/resolved",
 			// Loads catalogs together with the bundled skill and Audit standard checks.
 			"internal/configload",
 		},
@@ -104,6 +115,8 @@ var layers = []layerSpec{
 		name: "execution",
 		role: "run execution: run store, runtime configuration, credentials, memory, planner, scheduler, control plane",
 		packages: []string{
+			// The Runtime Agent principal registry; a client of runtimeconfig labels.
+			"internal/agentprincipal",
 			"internal/controlplane",
 			"internal/credentials",
 			"internal/credentials/litellm",
@@ -112,6 +125,7 @@ var layers = []layerSpec{
 			"internal/planner/a2a",
 			"internal/planner/router",
 			"internal/planner/session",
+			"internal/planner/stageresult",
 			"internal/planner/stateview",
 			"internal/planner/streamline",
 			"internal/runrepeat",
@@ -129,7 +143,9 @@ var layers = []layerSpec{
 			"internal/auditimport",
 			"internal/auditscan",
 			"internal/auditservice",
-			"internal/auditstore",
+			// The Audit store vocabulary, its PostgreSQL implementation and
+			// the seam packages that export it.
+			"internal/auditstore/...",
 			"internal/evalcoordinator",
 			"internal/evalservice",
 			"internal/evalstore",
@@ -170,3 +186,20 @@ var layers = []layerSpec{
 // why the import exists and how it should be removed. Do not add an entry to
 // silence a new violation without both.
 var knownViolations = []knownViolation{}
+
+// forbiddenImports are imports the layers allow but a boundary inside a layer
+// does not. TestForbiddenImports (check_test.go) fails when a package that
+// from matches imports to. from is a package path, a "dir/..." pattern, or
+// "..." for every package; each rule says why.
+var forbiddenImports = []forbiddenImport{
+	{
+		from: "internal/auditservice/...", to: "internal/auditstore/claimstore",
+		reason: "the owner-facing Audit service must not hold the commands the Audit controller " +
+			"runs under its claim; it reaches Audits through the owner, review and query seams",
+	},
+	{
+		from: "...", to: "internal/auditstore/auditstoretest",
+		reason: "test support joins every Audit store seam, so production code would hold " +
+			"the seams it must not, such as the claim-bound commands",
+	},
+}

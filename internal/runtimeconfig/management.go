@@ -4,11 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/contentdigest"
-	"github.com/grauwolf32/contractor/internal/contracts"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -26,16 +24,6 @@ type BindingMutationResult struct {
 	Replayed bool
 }
 
-type managementOperation struct {
-	KeyDigest     string
-	RequestDigest string
-	Kind          string
-	ResourceID    string
-	Result        []byte
-	ActorID       string
-	PerformedAt   time.Time
-}
-
 type bindingMutationResultWire struct {
 	Binding *Binding `json:"binding,omitempty"`
 	Deleted bool     `json:"deleted,omitempty"`
@@ -49,18 +37,20 @@ type ManagementService struct {
 	repository *Repository
 	publisher  *Publisher
 	bindings   *BindingService
+	holders    LabelHolders
 }
 
 func NewManagementService(
 	pool *pgxpool.Pool,
 	publisher *Publisher,
 	bindings *BindingService,
+	holders LabelHolders,
 ) (*ManagementService, error) {
-	if pool == nil || publisher == nil || bindings == nil {
+	if pool == nil || publisher == nil || bindings == nil || holders == nil {
 		return nil, errors.New("RuntimeConfig management dependencies are incomplete")
 	}
 	return &ManagementService{
-		pool: pool, repository: NewRepository(pool), publisher: publisher, bindings: bindings,
+		pool: pool, repository: NewRepository(pool), publisher: publisher, bindings: bindings, holders: holders,
 	}, nil
 }
 
@@ -98,37 +88,25 @@ func (s *ManagementService) CreateBinding(
 	actor string,
 	at time.Time,
 ) (BindingMutationResult, error) {
-	requestDigest, keyDigest, err := prepareBindingMutation(
-		bindingCreateOperation, label, ref, 0, idempotencyKey,
-	)
+	receipt, err := prepareBindingMutation(bindingCreateOperation, label, ref, 0, idempotencyKey)
 	if err != nil {
 		return BindingMutationResult{}, err
 	}
 	var result BindingMutationResult
 	err = s.bindings.credentials.WithCredentialReferences(ctx, func() error {
 		return persistencepostgres.InTx(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-			repository := NewRepository(tx)
-			replayed, found, replayErr := lookupManagementReplay(
-				ctx, tx, keyDigest, requestDigest, bindingCreateOperation, label,
-			)
-			if replayErr != nil {
-				return replayErr
-			}
-			if found {
-				result = replayed
-				return nil
-			}
-			if err := s.bindings.validateTargetInTransaction(ctx, tx, ref); err != nil {
-				return err
-			}
-			binding, err := repository.CreateBinding(ctx, label, ref, actor, at)
-			if err != nil {
-				return err
-			}
-			result = BindingMutationResult{Binding: &binding}
-			return insertManagementResult(
-				ctx, tx, keyDigest, requestDigest, bindingCreateOperation, label, result, actor, at,
-			)
+			var err error
+			result, err = keyedBindingMutation(ctx, tx, receipt, actor, at, func() (BindingMutationResult, error) {
+				if err := s.bindings.validateTargetInTransaction(ctx, tx, ref); err != nil {
+					return BindingMutationResult{}, err
+				}
+				binding, err := NewRepository(tx).CreateBinding(ctx, label, ref, actor, at)
+				if err != nil {
+					return BindingMutationResult{}, err
+				}
+				return BindingMutationResult{Binding: &binding}, nil
+			})
+			return err
 		})
 	})
 	return result, err
@@ -143,99 +121,94 @@ func (s *ManagementService) Rebind(
 	actor string,
 	at time.Time,
 ) (BindingMutationResult, error) {
-	requestDigest, keyDigest, err := prepareBindingMutation(
-		bindingRebindOperation, label, ref, expectedRevision, idempotencyKey,
-	)
+	receipt, err := prepareBindingMutation(bindingRebindOperation, label, ref, expectedRevision, idempotencyKey)
 	if err != nil {
 		return BindingMutationResult{}, err
 	}
-	if replay, found, replayErr := readManagementReplay(
-		ctx, s.pool, keyDigest, requestDigest, bindingRebindOperation, label,
-	); replayErr != nil {
+	if replay, found, replayErr := readBindingReplay(ctx, s.pool, receipt); replayErr != nil {
 		return BindingMutationResult{}, replayErr
 	} else if found {
 		return replay, nil
 	}
-	optimistic, err := NewPrincipalRepository(s.pool).ListByLabel(ctx, label)
+	optimistic, err := s.holders.ListLabelHolders(ctx, s.pool, label)
 	if err != nil {
 		return BindingMutationResult{}, err
 	}
 	labelsToLock := []string{label}
-	for _, principal := range optimistic {
-		labelsToLock = append(labelsToLock, principal.Labels...)
+	for _, holder := range optimistic {
+		labelsToLock = append(labelsToLock, holder.Labels...)
 	}
 	labelsToLock = sortedUnion(labelsToLock)
 	var result BindingMutationResult
 	err = s.bindings.credentials.WithCredentialReferences(ctx, func() error {
 		return persistencepostgres.InTx(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-			replayed, found, replayErr := lookupManagementReplay(
-				ctx, tx, keyDigest, requestDigest, bindingRebindOperation, label,
-			)
-			if replayErr != nil {
-				return replayErr
-			}
-			if found {
-				result = replayed
-				return nil
-			}
-			repository := NewRepository(tx)
-			if _, err := repository.LockBindingsForUpdate(ctx, labelsToLock); err != nil {
-				if errors.Is(err, ErrNotFound) {
-					if _, pathErr := repository.GetBinding(ctx, label); errors.Is(pathErr, ErrNotFound) {
-						return ErrLabelNotFound
-					} else if pathErr != nil {
-						return pathErr
-					}
-					// The rebind target still exists, so the missing label is
-					// one of the other labels held by an optimistically listed
-					// principal that was removed concurrently. The snapshot is
-					// stale; report a precondition failure rather than an
-					// unknown label the request never selected.
-					return ErrPrecondition
-				}
-				return err
-			}
-			principalRepository := NewPrincipalRepository(tx)
-			current, err := principalRepository.ListByLabel(ctx, label)
-			if err != nil {
-				return err
-			}
-			if !samePrincipalSnapshots(optimistic, current) {
-				return ErrPrecondition
-			}
-			principalIDs := make([]string, len(current))
-			for index := range current {
-				principalIDs[index] = current[index].RuntimeAgentID
-			}
-			locked, err := principalRepository.LockMany(ctx, principalIDs)
-			if err != nil {
-				return err
-			}
-			if !samePrincipalSnapshots(current, locked) {
-				return ErrPrecondition
-			}
-			if err := s.bindings.validateTargetInTransaction(ctx, tx, ref); err != nil {
-				return err
-			}
-			binding, err := repository.Rebind(ctx, label, expectedRevision, ref, actor, at)
-			if err != nil {
-				if errors.Is(err, ErrNotFound) {
-					return ErrLabelNotFound
-				}
-				return err
-			}
-			for _, principal := range locked {
-				if _, err := validateAgentLabelSetFromLocked(ctx, tx, principal.Labels); err != nil {
-					return err
-				}
-			}
-			result = BindingMutationResult{Binding: &binding}
-			return insertManagementResult(
-				ctx, tx, keyDigest, requestDigest, bindingRebindOperation, label, result, actor, at,
-			)
+			var err error
+			result, err = keyedBindingMutation(ctx, tx, receipt, actor, at, func() (BindingMutationResult, error) {
+				return s.rebindInTransaction(ctx, tx, label, expectedRevision, ref, labelsToLock, optimistic, actor, at)
+			})
+			return err
 		})
 	})
 	return result, err
+}
+
+// rebindInTransaction rebinds label in tx once the label and every label of
+// its holders are locked and the holders are still those the caller listed.
+func (s *ManagementService) rebindInTransaction(
+	ctx context.Context, tx pgx.Tx, label string, expectedRevision uint64, ref Ref,
+	labelsToLock []string, optimistic []LabelHolder, actor string, at time.Time,
+) (BindingMutationResult, error) {
+	repository := NewRepository(tx)
+	if _, err := repository.LockBindingsForUpdate(ctx, labelsToLock); err != nil {
+		if errors.Is(err, ErrNotFound) {
+			if _, pathErr := repository.GetBinding(ctx, label); errors.Is(pathErr, ErrNotFound) {
+				return BindingMutationResult{}, ErrLabelNotFound
+			} else if pathErr != nil {
+				return BindingMutationResult{}, pathErr
+			}
+			// The rebind target still exists, so the missing label is one of
+			// the other labels held by an optimistically listed principal that
+			// was removed concurrently. The snapshot is stale; report a
+			// precondition failure rather than an unknown label the request
+			// never selected.
+			return BindingMutationResult{}, ErrPrecondition
+		}
+		return BindingMutationResult{}, err
+	}
+	current, err := s.holders.ListLabelHolders(ctx, tx, label)
+	if err != nil {
+		return BindingMutationResult{}, err
+	}
+	if !sameLabelHolders(optimistic, current) {
+		return BindingMutationResult{}, ErrPrecondition
+	}
+	holderIDs := make([]string, len(current))
+	for index := range current {
+		holderIDs[index] = current[index].RuntimeAgentID
+	}
+	locked, err := s.holders.LockLabelHolders(ctx, tx, holderIDs)
+	if err != nil {
+		return BindingMutationResult{}, err
+	}
+	if !sameLabelHolders(current, locked) {
+		return BindingMutationResult{}, ErrPrecondition
+	}
+	if err := s.bindings.validateTargetInTransaction(ctx, tx, ref); err != nil {
+		return BindingMutationResult{}, err
+	}
+	binding, err := repository.Rebind(ctx, label, expectedRevision, ref, actor, at)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return BindingMutationResult{}, ErrLabelNotFound
+		}
+		return BindingMutationResult{}, err
+	}
+	for _, holder := range locked {
+		if err := ValidateLockedAgentLabels(ctx, tx, holder.Labels); err != nil {
+			return BindingMutationResult{}, err
+		}
+	}
+	return BindingMutationResult{Binding: &binding}, nil
 }
 
 func (s *ManagementService) DeleteBinding(
@@ -246,49 +219,38 @@ func (s *ManagementService) DeleteBinding(
 	actor string,
 	at time.Time,
 ) (BindingMutationResult, error) {
-	requestDigest, keyDigest, err := prepareBindingMutation(
-		bindingDeleteOperation, label, Ref{}, expectedRevision, idempotencyKey,
-	)
+	receipt, err := prepareBindingMutation(bindingDeleteOperation, label, Ref{}, expectedRevision, idempotencyKey)
 	if err != nil {
 		return BindingMutationResult{}, err
 	}
 	var result BindingMutationResult
 	err = s.bindings.credentials.WithCredentialReferences(ctx, func() error {
 		return persistencepostgres.InTx(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-			replayed, found, replayErr := lookupManagementReplay(
-				ctx, tx, keyDigest, requestDigest, bindingDeleteOperation, label,
-			)
-			if replayErr != nil {
-				return replayErr
-			}
-			if found {
-				result = replayed
-				return nil
-			}
-			repository := NewRepository(tx)
-			if _, err := repository.LockBindingsForUpdate(ctx, []string{label}); err != nil {
-				if errors.Is(err, ErrNotFound) {
-					return ErrLabelNotFound
+			var err error
+			result, err = keyedBindingMutation(ctx, tx, receipt, actor, at, func() (BindingMutationResult, error) {
+				repository := NewRepository(tx)
+				if _, err := repository.LockBindingsForUpdate(ctx, []string{label}); err != nil {
+					if errors.Is(err, ErrNotFound) {
+						return BindingMutationResult{}, ErrLabelNotFound
+					}
+					return BindingMutationResult{}, err
 				}
-				return err
-			}
-			principals, err := NewPrincipalRepository(tx).ListByLabel(ctx, label)
-			if err != nil {
-				return err
-			}
-			if len(principals) != 0 {
-				return labelInUseError(principals)
-			}
-			if err := repository.DeleteBinding(ctx, label, expectedRevision); err != nil {
-				if errors.Is(err, ErrNotFound) {
-					return ErrLabelNotFound
+				holders, err := s.holders.ListLabelHolders(ctx, tx, label)
+				if err != nil {
+					return BindingMutationResult{}, err
 				}
-				return err
-			}
-			result = BindingMutationResult{Deleted: true}
-			return insertManagementResult(
-				ctx, tx, keyDigest, requestDigest, bindingDeleteOperation, label, result, actor, at,
-			)
+				if len(holders) != 0 {
+					return BindingMutationResult{}, labelInUseError(holders)
+				}
+				if err := repository.DeleteBinding(ctx, label, expectedRevision); err != nil {
+					if errors.Is(err, ErrNotFound) {
+						return BindingMutationResult{}, ErrLabelNotFound
+					}
+					return BindingMutationResult{}, err
+				}
+				return BindingMutationResult{Deleted: true}, nil
+			})
+			return err
 		})
 	})
 	return result, err
@@ -300,15 +262,15 @@ func prepareBindingMutation(
 	ref Ref,
 	expectedRevision uint64,
 	idempotencyKey string,
-) (string, string, error) {
-	if validateLabel(label) != nil ||
+) (ManagementReceipt, error) {
+	if ValidateLabel(label) != nil ||
 		(kind != bindingCreateOperation && expectedRevision == 0) ||
 		(kind != bindingDeleteOperation && validateRef(ref) != nil) {
-		return "", "", invalid("Runtime label mutation is invalid")
+		return ManagementReceipt{}, invalid("Runtime label mutation is invalid")
 	}
 	keyDigest, err := DigestIdempotencyKey(idempotencyKey)
 	if err != nil {
-		return "", "", err
+		return ManagementReceipt{}, err
 	}
 	request, err := json.Marshal(struct {
 		Kind             string `json:"kind"`
@@ -317,90 +279,57 @@ func prepareBindingMutation(
 		Ref              Ref    `json:"ref"`
 	}{Kind: kind, Label: label, ExpectedRevision: expectedRevision, Ref: ref})
 	if err != nil {
-		return "", "", invalid("Runtime label mutation cannot be normalized")
+		return ManagementReceipt{}, invalid("Runtime label mutation cannot be normalized")
 	}
-	return contentdigest.Bytes(request), keyDigest, nil
+	return ManagementReceipt{
+		KeyDigest: keyDigest, RequestDigest: contentdigest.Bytes(request), Kind: kind, ResourceID: label,
+	}, nil
 }
 
-func lookupManagementReplay(
-	ctx context.Context,
-	tx pgx.Tx,
-	keyDigest string,
-	requestDigest string,
-	kind string,
-	resourceID string,
+func readBindingReplay(
+	ctx context.Context, db persistencepostgres.DBTX, receipt ManagementReceipt,
 ) (BindingMutationResult, bool, error) {
-	// A transaction-scoped advisory lock makes the replay lookup and mutation
-	// one linearizable operation even before the immutable audit row exists.
-	if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`, keyDigest); err != nil {
-		return BindingMutationResult{}, false, errors.New("lock Runtime management idempotency key")
-	}
-	return readManagementReplay(ctx, tx, keyDigest, requestDigest, kind, resourceID)
-}
-
-func readManagementReplay(
-	ctx context.Context,
-	db persistencepostgres.DBTX,
-	keyDigest string,
-	requestDigest string,
-	kind string,
-	resourceID string,
-) (BindingMutationResult, bool, error) {
-	var operation managementOperation
-	var resultText string
-	err := db.QueryRow(ctx, `
-SELECT idempotency_key_digest, request_digest, operation_kind, resource_id,
-       result::text, actor_id, performed_at
-FROM runtime_management_operations
-WHERE idempotency_key_digest = $1`, keyDigest).Scan(
-		&operation.KeyDigest, &operation.RequestDigest, &operation.Kind, &operation.ResourceID,
-		&resultText, &operation.ActorID, &operation.PerformedAt,
-	)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return BindingMutationResult{}, false, nil
-	}
-	if err != nil {
-		return BindingMutationResult{}, false, errors.New("get Runtime management replay")
-	}
-	if operation.RequestDigest != requestDigest || operation.Kind != kind || operation.ResourceID != resourceID {
-		return BindingMutationResult{}, false, fmt.Errorf("%w: Runtime label management key", contracts.ErrIdempotencyConflict)
-	}
 	var wire bindingMutationResultWire
-	if err := json.Unmarshal([]byte(resultText), &wire); err != nil || (wire.Binding == nil) == !wire.Deleted {
+	found, err := ReadManagementReplay(ctx, db, receipt, &wire)
+	return bindingReplay(wire, found, err)
+}
+
+func bindingReplay(wire bindingMutationResultWire, found bool, err error) (BindingMutationResult, bool, error) {
+	if err != nil || !found {
+		return BindingMutationResult{}, false, err
+	}
+	if (wire.Binding == nil) == !wire.Deleted {
 		return BindingMutationResult{}, false, errors.New("invalid Runtime management replay")
 	}
 	return BindingMutationResult{Binding: wire.Binding, Deleted: wire.Deleted, Replayed: true}, true, nil
 }
 
-func insertManagementResult(
-	ctx context.Context,
-	tx pgx.Tx,
-	keyDigest string,
-	requestDigest string,
-	kind string,
-	resourceID string,
-	result BindingMutationResult,
-	actor string,
-	at time.Time,
-) error {
-	if !validActor(actor) || at.IsZero() || (result.Binding == nil) == !result.Deleted {
-		return invalid("Runtime management audit is invalid")
+// keyedBindingMutation runs one label binding mutation in tx as a Runtime
+// management keyed mutation (PER-R24): a recorded outcome under the key
+// replays without running mutate. The actor and time are recorded on the
+// binding, not in the receipt, and checked before the mutation runs.
+func keyedBindingMutation(
+	ctx context.Context, tx pgx.Tx, receipt ManagementReceipt, actor string, at time.Time,
+	mutate func() (BindingMutationResult, error),
+) (BindingMutationResult, error) {
+	var wire bindingMutationResultWire
+	var changed BindingMutationResult
+	replayed, err := KeyedManagementMutation(ctx, tx, receipt, &wire, func() (any, error) {
+		if !ValidActor(actor) || at.IsZero() {
+			return nil, invalid("Runtime management audit is invalid")
+		}
+		var err error
+		if changed, err = mutate(); err != nil {
+			return nil, err
+		}
+		if (changed.Binding == nil) == !changed.Deleted {
+			return nil, invalid("Runtime management audit is invalid")
+		}
+		return bindingMutationResultWire{Binding: changed.Binding, Deleted: changed.Deleted}, nil
+	})
+	if err != nil || !replayed {
+		return changed, err
 	}
-	encoded, err := json.Marshal(bindingMutationResultWire{Binding: result.Binding, Deleted: result.Deleted})
-	if err != nil {
-		return invalid("Runtime management result cannot be encoded")
-	}
-	command, err := tx.Exec(ctx, `
-INSERT INTO runtime_management_operations (
-    idempotency_key_digest, request_digest, operation_kind, resource_id,
-    result, actor_id, performed_at
-) VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7)
-ON CONFLICT DO NOTHING`, keyDigest, requestDigest, kind, resourceID, string(encoded), actor, persistencepostgres.Timestamp(at))
-	if err != nil {
-		return fmt.Errorf("store Runtime management audit")
-	}
-	if command.RowsAffected() != 1 {
-		return ErrConflict
-	}
-	return nil
+	result, _, err := bindingReplay(wire, true, nil)
+	return result, err
 }

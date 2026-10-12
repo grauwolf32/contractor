@@ -13,12 +13,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/agentprincipal"
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/control"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -34,7 +37,7 @@ func TestPlacementPostgresUsesCandidateAdaptersAndPinsBeforeExposure(t *testing.
 	fixture := newPlacementFixture(t, ctx, pool, []string{"debug"})
 	withoutAdapter := fixture.registerCandidate(t, ctx, "runtime-a", "1", nil)
 	withAdapter := fixture.registerCandidate(
-		t, ctx, "runtime-b", "2", []contracts.RuntimeAdapterRef{contracts.RuntimeAdapterOTLPHTTP},
+		t, ctx, "runtime-b", "2", []runtimesettings.RuntimeAdapterRef{runtimesettings.RuntimeAdapterOTLPHTTP},
 	)
 
 	reservations, err := fixture.allocator.ReserveAllContext(ctx, fixture.request())
@@ -46,7 +49,7 @@ func TestPlacementPostgresUsesCandidateAdaptersAndPinsBeforeExposure(t *testing.
 		t.Fatalf("candidate-aware reservations = %+v", reservations)
 	}
 	if got := reservations[0].ResolvedRuntimeConfig.RequiredRuntimeAdapters; len(got) != 1 ||
-		got[0] != contracts.RuntimeAdapterOTLPHTTP {
+		got[0] != runtimesettings.RuntimeAdapterOTLPHTTP {
 		t.Fatalf("required adapters = %v", got)
 	}
 	allocations, err := runstore.NewPostgresStore(pool).ListStageAllocations(ctx, fixture.stageExecutionID)
@@ -106,7 +109,7 @@ func TestPlacementOptimisticCatalogReadsDoNotGrowWithSharedCandidates(t *testing
 	}
 	register := func(index int) {
 		fixture.registerCandidateWithLabels(t, ctx, fmt.Sprintf("runtime-shared-%d", index), fmt.Sprintf("%x", index),
-			[]contracts.RuntimeAdapterRef{contracts.RuntimeAdapterOTLPHTTP}, []string{"shared"})
+			[]runtimesettings.RuntimeAdapterRef{runtimesettings.RuntimeAdapterOTLPHTTP}, []string{"shared"})
 	}
 	register(1)
 	if _, err := fixture.allocator.ReserveAllContext(ctx, request); !errors.Is(err, denied) {
@@ -141,15 +144,15 @@ func (trace *placementQueryCounter) TraceQueryStart(ctx context.Context, _ *pgx.
 func (*placementQueryCounter) TraceQueryEnd(context.Context, *pgx.Conn, pgx.TraceQueryEndData) {}
 
 type placementCountingLLMLookup struct {
-	base  workflowconfig.CredentialLookup
+	base  resolved.CredentialLookup
 	count int
 	err   error
 }
 
-func (lookup *placementCountingLLMLookup) LookupLLMCredential(ctx context.Context, id string) (workflowconfig.CredentialMetadata, error) {
+func (lookup *placementCountingLLMLookup) LookupLLMCredential(ctx context.Context, id string) (resolved.CredentialMetadata, error) {
 	lookup.count++
 	if lookup.err != nil {
-		return workflowconfig.CredentialMetadata{}, lookup.err
+		return resolved.CredentialMetadata{}, lookup.err
 	}
 	return lookup.base.LookupLLMCredential(ctx, id)
 }
@@ -213,7 +216,7 @@ func TestPlacementPostgresRechecksBindingChangedAfterOptimisticPass(t *testing.T
 		t.Fatal(err)
 	}
 	fixture.registerCandidateWithLabels(t, ctx, "runtime-rebound", "4",
-		[]contracts.RuntimeAdapterRef{contracts.RuntimeAdapterOTLPHTTP}, []string{"shared"})
+		[]runtimesettings.RuntimeAdapterRef{runtimesettings.RuntimeAdapterOTLPHTTP}, []string{"shared"})
 	request := fixture.request()
 	request.Admit = func(context.Context, []Reservation) error {
 		_, err := runtimeconfig.NewRepository(pool).Rebind(ctx, "shared", binding.Revision, newRef, "operator", time.Now().UTC())
@@ -256,11 +259,11 @@ func TestPlacementPostgresDiscardsProvisionalBatchOnPrincipalRevisionChange(t *t
 	pool := isolatedPlacementPool(t, ctx)
 	fixture := newPlacementFixture(t, ctx, pool, []string{"debug"})
 	runtimeAgentID := fixture.registerCandidateWithLabels(t, ctx, "runtime-racy", "3",
-		[]contracts.RuntimeAdapterRef{contracts.RuntimeAdapterOTLPHTTP}, []string{"debug"})
+		[]runtimesettings.RuntimeAdapterRef{runtimesettings.RuntimeAdapterOTLPHTTP}, []string{"debug"})
 	changed := false
 	fixture.allocator.credentialGuard = placementGuardFunc(func(ctx context.Context, fn func() error) error {
 		if !changed {
-			_, err := runtimeconfig.NewPrincipalRepository(pool).ReplaceLabels(
+			_, err := agentprincipal.NewRepository(pool).ReplaceLabels(
 				ctx, runtimeAgentID, 1, []string{}, "operator", time.Now().UTC(),
 			)
 			if err != nil {
@@ -292,7 +295,7 @@ func TestPlacementPostgresSkipsDeletedCachedPrincipal(t *testing.T) {
 	fixture := newPlacementFixture(t, ctx, pool, nil)
 	deletedID := fixture.registerCandidate(t, ctx, "runtime-a-deleted", "4", nil)
 	compatibleID := fixture.registerCandidate(t, ctx, "runtime-b-compatible", "5", nil)
-	if err := runtimeconfig.NewPrincipalRepository(pool).Delete(ctx, deletedID, 1); err != nil {
+	if err := agentprincipal.NewRepository(pool).Delete(ctx, deletedID, 1); err != nil {
 		t.Fatal(err)
 	}
 	reservations, err := fixture.allocator.ReserveAllContext(ctx, fixture.request())
@@ -312,8 +315,8 @@ func TestPlacementPostgresRefreshesLabelsThatBecomeCompatible(t *testing.T) {
 	pool := isolatedPlacementPool(t, ctx)
 	fixture := newPlacementFixture(t, ctx, pool, []string{"debug"})
 	id := fixture.registerCandidateWithLabels(t, ctx, "runtime-new-label", "6",
-		[]contracts.RuntimeAdapterRef{contracts.RuntimeAdapterOTLPHTTP}, nil)
-	if _, err := runtimeconfig.NewPrincipalRepository(pool).ReplaceLabels(ctx, id, 1,
+		[]runtimesettings.RuntimeAdapterRef{runtimesettings.RuntimeAdapterOTLPHTTP}, nil)
+	if _, err := agentprincipal.NewRepository(pool).ReplaceLabels(ctx, id, 1,
 		[]string{"debug"}, "operator", time.Now().UTC()); err != nil {
 		t.Fatal(err)
 	}
@@ -447,7 +450,7 @@ func TestPlacementPostgresKeepsOldAgentBindingAndNextResolutionUsesRebind(t *tes
 	}
 	runtimeAgentID := fixture.registerCandidateWithLabels(
 		t, ctx, "runtime-labeled", "4",
-		[]contracts.RuntimeAdapterRef{contracts.RuntimeAdapterOTLPHTTP}, []string{"site"},
+		[]runtimesettings.RuntimeAdapterRef{runtimesettings.RuntimeAdapterOTLPHTTP}, []string{"site"},
 	)
 
 	reservations, err := fixture.allocator.ReserveAllContext(ctx, fixture.request())
@@ -491,7 +494,7 @@ type placementFixture struct {
 	stageExecutionID string
 	runtimeSnapshot  runtimeconfig.RunSnapshot
 	template         contracts.ResolvedAgentTemplate
-	selection        workflowconfig.ResolvedConsumerExecutionConfig
+	selection        resolved.ResolvedConsumerExecutionConfig
 }
 
 func newPlacementFixture(
@@ -501,7 +504,7 @@ func newPlacementFixture(
 	runLabels []string,
 ) *placementFixture {
 	t.Helper()
-	configuration, err := configload.Load("../../testdata/configs", workflowconfig.MVPDescriptors())
+	configuration, err := configload.Load("../../testdata/configs")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -542,7 +545,7 @@ func newPlacementFixture(
 		t.Fatal("test Worker has no credential")
 	}
 	llmCredentials, err := credentials.NewStaticProvider([]credentials.StaticEntry{{
-		Metadata: workflowconfig.CredentialMetadata{
+		Metadata: resolved.CredentialMetadata{
 			Ref:          *selection.Credential,
 			LLMGateway:   selection.LLMGateway.Ref,
 			Unrestricted: true,
@@ -560,7 +563,7 @@ func newPlacementFixture(
 	txLookup, err := runtimeconfig.BindTransactionLLMCredentialLookup(
 		tx,
 		runtimeconfig.TransactionLLMCredentialLookupFactoryFunc(
-			func(pgx.Tx) (workflowconfig.CredentialLookup, error) { return llmCredentials, nil },
+			func(pgx.Tx) (resolved.CredentialLookup, error) { return llmCredentials, nil },
 		),
 	)
 	if err != nil {
@@ -614,7 +617,7 @@ func newPlacementFixture(
 		Gateways:       placementGatewayLookup{gateway: *selection.LLMGateway},
 		LLMCredentials: llmCredentials, RuntimeCredentials: placementRuntimeCredentialLookup{},
 		TransactionLLMCredentials: runtimeconfig.TransactionLLMCredentialLookupFactoryFunc(
-			func(pgx.Tx) (workflowconfig.CredentialLookup, error) { return llmCredentials, nil },
+			func(pgx.Tx) (resolved.CredentialLookup, error) { return llmCredentials, nil },
 		),
 		CredentialGuard: placementGuardFunc(func(_ context.Context, fn func() error) error { return fn() }),
 	})
@@ -633,7 +636,7 @@ func (f *placementFixture) registerCandidate(
 	ctx context.Context,
 	instanceID string,
 	idDigit string,
-	adapters []contracts.RuntimeAdapterRef,
+	adapters []runtimesettings.RuntimeAdapterRef,
 ) string {
 	return f.registerCandidateWithLabels(t, ctx, instanceID, idDigit, adapters, nil)
 }
@@ -643,18 +646,18 @@ func (f *placementFixture) registerCandidateWithLabels(
 	ctx context.Context,
 	instanceID string,
 	idDigit string,
-	adapters []contracts.RuntimeAdapterRef,
+	adapters []runtimesettings.RuntimeAdapterRef,
 	labels []string,
 ) string {
 	t.Helper()
 	runtimeAgentID := strings.Repeat(idDigit, 64)
 	now := time.Now().UTC()
-	principal := runtimeconfig.RuntimeAgentPrincipal{
+	principal := agentprincipal.Principal{
 		RuntimeAgentID: runtimeAgentID, Labels: append([]string{}, labels...), LabelRevision: 1,
 		CreatedBy: "runtime-registration", CreatedAt: now,
 		UpdatedBy: "runtime-registration", UpdatedAt: now,
 	}
-	if _, err := runtimeconfig.NewPrincipalRepository(f.pool).Insert(ctx, principal); err != nil {
+	if _, err := agentprincipal.NewRepository(f.pool).Insert(ctx, principal); err != nil {
 		t.Fatal(err)
 	}
 	registration := control.AgentRegistration{
@@ -669,7 +672,7 @@ func (f *placementFixture) registerCandidateWithLabels(
 		SupportedSandboxProfiles: []string{
 			f.template.SandboxProfile.SandboxProfileID + "@" + f.template.SandboxProfile.Version,
 		},
-		SupportedRuntimeAdapters: append([]contracts.RuntimeAdapterRef{}, adapters...),
+		SupportedRuntimeAdapters: append([]runtimesettings.RuntimeAdapterRef{}, adapters...),
 		ObservedState:            control.AgentIdle,
 	}
 	authenticated := AuthenticatedPrincipal{

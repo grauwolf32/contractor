@@ -11,7 +11,6 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
-	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 )
 
@@ -68,7 +67,7 @@ func TestPostgresPreparedOpenAPIScansKeepAssignedDenominatorAndApproval(t *testi
 			t.Fatalf("generated scan lost assigned task semantics: %+v %v", task, err)
 		}
 	}
-	reviews, err := h.service.ListReviews(ctx, auditservice.ReviewListParams{OwnerID: h.started.Audit.OwnerID, AuditID: h.started.Audit.AuditID, Limit: 10})
+	reviews, err := h.service.ListReviews(ctx, auditstore.ReviewListParams{OwnerID: h.started.Audit.OwnerID, AuditID: h.started.Audit.AuditID, Limit: 10})
 	if err != nil || len(reviews) != 3 {
 		t.Fatalf("generated scan review ledger: %+v %v", reviews, err)
 	}

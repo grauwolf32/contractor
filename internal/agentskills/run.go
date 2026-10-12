@@ -50,7 +50,7 @@ func (c *Catalog) SelectRunSources(
 	ctx context.Context,
 	ownerID string,
 	refs []contracts.ArtifactRef,
-) ([]contracts.RunSkillSnapshot, error) {
+) ([]RunSkillSnapshot, error) {
 	if c == nil || c.ownerStore == nil {
 		return nil, errors.New("SkillCatalog is not configured")
 	}
@@ -61,18 +61,18 @@ func (c *Catalog) SelectRunSources(
 	if err != nil {
 		return nil, runSkillError(CodeArtifactUnavailable, "", true)
 	}
-	selected := make([]contracts.RunSkillSnapshot, 0, len(refs))
+	selected := make([]RunSkillSnapshot, 0, len(refs))
 	var total int64
 	for _, ref := range refs {
 		metadata, readErr := store.Metadata(ctx, artifacts.ArtifactRef(ref))
 		if errors.Is(readErr, artifacts.ErrArtifactNotFound) {
-			selected = append(selected, contracts.RunSkillSnapshot{Name: ref.Name})
+			selected = append(selected, RunSkillSnapshot{Name: ref.Name})
 			continue
 		}
 		if readErr != nil {
 			return nil, runSkillError(CodeArtifactUnavailable, ref.Name, true)
 		}
-		snapshot := contracts.RunSkillSnapshot{
+		snapshot := RunSkillSnapshot{
 			Name: ref.Name, Source: exactRefPointer(metadata.Ref),
 			SourceDigest: metadata.Digest, SourceSize: metadata.Size,
 		}
@@ -90,8 +90,8 @@ func (c *Catalog) SelectRunSources(
 
 // ValidateSelectedLimits applies the stored-byte limit to every retained
 // AgentTemplate as well as to the de-duplicated Run union.
-func ValidateSelectedLimits(selected []contracts.RunSkillSnapshot, templateSets [][]string) error {
-	byName := make(map[string]contracts.RunSkillSnapshot, len(selected))
+func ValidateSelectedLimits(selected []RunSkillSnapshot, templateSets [][]string) error {
+	byName := make(map[string]RunSkillSnapshot, len(selected))
 	var runStored int64
 	for _, skill := range selected {
 		if err := skill.Validate(); err != nil || skill.Initialized() {
@@ -125,7 +125,7 @@ func ValidateSelectedLimits(selected []contracts.RunSkillSnapshot, templateSets 
 func (c *Catalog) RequireRunSources(
 	ctx context.Context,
 	ownerID string,
-	selected []contracts.RunSkillSnapshot,
+	selected []RunSkillSnapshot,
 ) error {
 	if c == nil || c.service == nil {
 		return errors.New("SkillCatalog is not configured")
@@ -152,9 +152,9 @@ func (c *Catalog) InitializeRun(
 	ctx context.Context,
 	ownerID string,
 	runID string,
-	selected []contracts.RunSkillSnapshot,
+	selected []RunSkillSnapshot,
 	templateSets [][]string,
-) ([]contracts.RunSkillSnapshot, error) {
+) ([]RunSkillSnapshot, error) {
 	if c == nil || c.ownerStore == nil || c.service == nil {
 		return nil, errors.New("SkillCatalog is not configured")
 	}
@@ -165,7 +165,7 @@ func (c *Catalog) InitializeRun(
 	if err != nil {
 		return nil, runSkillError(CodeArtifactUnavailable, "", true)
 	}
-	initialized := make([]contracts.RunSkillSnapshot, len(selected))
+	initialized := make([]RunSkillSnapshot, len(selected))
 	for index, skill := range selected {
 		if skill.Source == nil {
 			return nil, runSkillError(CodeArtifactNotFound, skill.Name, false)
@@ -197,12 +197,14 @@ func (c *Catalog) InitializeRun(
 	if err := validateInitializedLimits(initialized, templateSets); err != nil {
 		return nil, err
 	}
-	if _, err := artifacts.RunScope(runID); err != nil {
+	owner, ownerErr := artifacts.UserScope(ownerID)
+	run, runErr := artifacts.RunScope(runID)
+	if ownerErr != nil || runErr != nil {
 		return nil, runSkillError(CodeForkFailed, "", true)
 	}
 	for index := range initialized {
 		skill := &initialized[index]
-		fork, forkErr := c.service.ForkSkill(ctx, ownerID, *skill.Source, runID, skill.Name)
+		fork, forkErr := c.forkSkill(ctx, owner, *skill.Source, run, skill.Name)
 		if errors.Is(forkErr, artifacts.ErrArtifactConflict) {
 			return nil, runSkillError(CodeForkConflict, skill.Name, false)
 		}
@@ -217,6 +219,25 @@ func (c *Catalog) InitializeRun(
 		skill.Artifact = exactRefPointer(fork.TargetRef)
 	}
 	return initialized, nil
+}
+
+// forkSkill forks the exact owner version source of the Skill name into the
+// reserved skills Namespace of run (ART-R76). Generic Run writes can neither
+// create nor advance that Namespace. A retry returns the existing target when
+// its lineage points to the same exact source.
+func (c *Catalog) forkSkill(
+	ctx context.Context, owner artifacts.Scope, source contracts.ArtifactRef, run artifacts.Scope, name string,
+) (artifacts.ForkResult, error) {
+	if source.Namespace != SkillNamespace || source.Name != name {
+		return artifacts.ForkResult{}, artifacts.ErrInvalidName
+	}
+	if source.Revision == nil {
+		return artifacts.ForkResult{}, artifacts.ErrExactRevisionRequired
+	}
+	return c.service.Fork(ctx, artifacts.Fork{
+		Kind: artifacts.LineageInputFork, Source: owner, SourceRef: source,
+		Target: run, TargetRef: contracts.ArtifactRef{Namespace: SkillNamespace, Name: name}, Replay: true,
+	})
 }
 
 func validateLogicalRunRefs(refs []contracts.ArtifactRef) error {
@@ -236,8 +257,8 @@ func validateLogicalRunRefs(refs []contracts.ArtifactRef) error {
 	return nil
 }
 
-func validateInitializedLimits(skills []contracts.RunSkillSnapshot, templateSets [][]string) error {
-	byName := make(map[string]contracts.RunSkillSnapshot, len(skills))
+func validateInitializedLimits(skills []RunSkillSnapshot, templateSets [][]string) error {
+	byName := make(map[string]RunSkillSnapshot, len(skills))
 	var runExpanded int64
 	for _, skill := range skills {
 		byName[skill.Name] = skill

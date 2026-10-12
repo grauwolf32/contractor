@@ -11,7 +11,8 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
-	workflowconfig "github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/auditstore/hookstore"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/jackc/pgx/v5"
@@ -37,7 +38,7 @@ type directVerificationContract struct {
 	Workflow        json.RawMessage                   `json:"workflow"`
 	ClosureDigest   string                            `json:"workflowClosureDigest"`
 	OutputName      string                            `json:"outputName"`
-	Output          workflowconfig.ArtifactSlot       `json:"output"`
+	Output          resolved.ArtifactSlot             `json:"output"`
 	Binding         directVerificationContractBinding `json:"binding"`
 }
 
@@ -160,8 +161,12 @@ SELECT retained_evidence_bytes + $2 <= max_evidence_bytes
 	if err != nil {
 		return err
 	}
-	contractWrite, err := artifactService.WriteAuditArtifact(
-		ctx, input.ProjectID,
+	project, err := artifacts.ProjectScope(input.ProjectID)
+	if err != nil {
+		return err
+	}
+	contractWrite, err := artifactService.CreateFrozen(
+		ctx, project,
 		contracts.ArtifactRef{
 			Namespace: namespace,
 			Name:      deterministicID("direct-contract", input.ReceiptID),
@@ -198,7 +203,7 @@ func prepareDirectVerification(
 		run.RunID != input.RunID || auditdomain.DigestBytes(run.WorkflowSnapshot) != input.WorkflowClosureDigest {
 		return nil, artifacts.ErrArtifactIntegrity
 	}
-	workflow, err := workflowconfig.DecodeResolvedWorkflowSnapshot(run.WorkflowSnapshot)
+	workflow, err := resolved.DecodeResolvedWorkflowSnapshot(run.WorkflowSnapshot)
 	if err != nil || workflow.Ref.Name != run.WorkflowName || workflow.Ref.Version != run.WorkflowVersion {
 		return nil, artifacts.ErrArtifactIntegrity
 	}
@@ -263,15 +268,15 @@ func prepareDirectVerification(
 }
 
 func selectDirectVerificationOutput(
-	workflow workflowconfig.ResolvedWorkflow,
-) (string, workflowconfig.ArtifactSlot, bool) {
+	workflow resolved.ResolvedWorkflow,
+) (string, resolved.ArtifactSlot, bool) {
 	names := make([]string, 0, len(workflow.Outputs))
 	for name := range workflow.Outputs {
 		names = append(names, name)
 	}
 	sort.Strings(names)
 	var selectedName string
-	var selected workflowconfig.ArtifactSlot
+	var selected resolved.ArtifactSlot
 	for _, name := range names {
 		slot := workflow.Outputs[name]
 		if !slot.Required || !slot.Primary ||
@@ -279,7 +284,7 @@ func selectDirectVerificationOutput(
 			continue
 		}
 		if selectedName != "" {
-			return "", workflowconfig.ArtifactSlot{}, false
+			return "", resolved.ArtifactSlot{}, false
 		}
 		selectedName, selected = name, slot
 	}
@@ -356,8 +361,6 @@ func commitDirectVerification(
 	result, contract ExactArtifact,
 	retainedBytes int64,
 ) error {
-	resultRef, _ := json.Marshal(result.Ref)
-	contractRef, _ := json.Marshal(contract.Ref)
 	resultProvenance, _ := json.Marshal(map[string]any{
 		"schema":                "contractor.audit.direct-verification-provenance.v1",
 		"kind":                  "result",
@@ -374,44 +377,17 @@ func commitDirectVerification(
 		"runId":                 input.RunID,
 		"workflowClosureDigest": input.WorkflowClosureDigest,
 	})
-	logicalResult := "finding/" + input.ReceiptID + "/direct-result"
-	logicalContract := "finding/" + input.ReceiptID + "/direct-contract"
-	if _, err := tx.Exec(ctx, `
-INSERT INTO audit_artifact_links (
-    audit_id, logical_key, artifact_ref, artifact_digest,
-    media_type, size_bytes, source_provenance, display_ref
-) VALUES
-    ($1, $2, $3::jsonb, $4, $5, $6, $7::jsonb, 'direct verification result'),
-    ($1, $8, $9::jsonb, $10, $11, $12, $13::jsonb, 'direct verification contract')`,
-		input.AuditID,
-		logicalResult, resultRef, result.Digest, result.MediaType, result.SizeBytes, resultProvenance,
-		logicalContract, contractRef, contract.Digest, contract.MediaType, contract.SizeBytes, contractProvenance,
-	); err != nil {
-		return err
-	}
-	var findingID string
-	err := tx.QueryRow(ctx, commitDirectVerificationSQL,
-		assessmentID, verification.Assessment, resultRef, result.Digest,
-		contractRef, contract.Digest, input.AuditID, input.ReceiptID,
-	).Scan(&findingID)
-	if err != nil {
-		return err
-	}
-	var findingRevision int64
-	if err := tx.QueryRow(ctx, `
-UPDATE audit_findings
-   SET current_assessment_id = $1, current_decision_id = NULL,
-       state = 'proposed', rejection_reason = NULL, duplicate_target_id = NULL,
-       revision = revision + 1,
-       updated_at = GREATEST(clock_timestamp(), updated_at + interval '1 microsecond')
- WHERE audit_id = $2 AND finding_id = $3
-RETURNING revision`, assessmentID, input.AuditID, findingID).Scan(&findingRevision); err != nil {
-		return err
-	}
-	return auditstore.NewPostgresStore(tx).RecordDirectFindingAssessment(ctx,
-		auditstore.DirectFindingAssessmentParams{
-			AuditID: input.AuditID, FindingID: findingID,
-			FindingRevision: findingRevision, AssessmentID: assessmentID,
-			RetainedBytes: retainedBytes,
-		})
+	return hookstore.NewFindingEventsTx(tx).CommitDirectFindingAssessment(ctx, auditstore.DirectFindingAssessment{
+		AuditID: input.AuditID, ReceiptID: input.ReceiptID, AssessmentID: assessmentID,
+		SemanticAssessment: verification.Assessment,
+		Result: auditstore.ArtifactLink{
+			LogicalKey: "finding/" + input.ReceiptID + "/direct-result", Artifact: result,
+			SourceProvenance: resultProvenance, DisplayRef: "direct verification result",
+		},
+		Contract: auditstore.ArtifactLink{
+			LogicalKey: "finding/" + input.ReceiptID + "/direct-contract", Artifact: contract,
+			SourceProvenance: contractProvenance, DisplayRef: "direct verification contract",
+		},
+		RetainedBytes: retainedBytes,
+	})
 }

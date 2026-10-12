@@ -47,7 +47,7 @@ acceptance_criteria:
   - id: A4
     text: Source deletion, Audit deletion and reference-release races preserve required provenance without cross-owner reads, leaked holds or changes to immutable accepted snapshots; obsolete snapshot formats are rejected without conversion.
 tests:
-  - command: go test -tags=integration -count=1 ./internal/auditstore ./internal/artifacts ./internal/runstore ./internal/persistence/...
+  - command: go test -tags=integration -count=1 ./internal/auditstore/... ./internal/artifacts ./internal/runstore ./internal/persistence/...
     covers: [A1, A2, A3, A4]
   - command: git diff --check
     covers: [A4]

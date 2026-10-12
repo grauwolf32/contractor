@@ -1,0 +1,59 @@
+schema_version: "1.0"
+id: V372-027
+title: "Count the execution error message bound in UTF-8 bytes on both sides and cover it with shared cases"
+milestone: hub-audit-defects-2026-10
+epic: api-contracts
+kind: defect
+priority: P3
+status: pending
+depends_on: []
+languages: [go, python, json]
+goal: "Go, Python and the private schemas apply LIM-OBS-6's 4,096-byte bound to ExecutionError.message the same way, and shared fixture cases with execution errors reach the field so the mutation gate covers it."
+context:
+  review: "Out-of-scope finding of the hub audit fix batch, wave 2 (group w2b: V370-017, V369-002, V370-005), recorded 2026-10-12; file:line verified on b2b09ea"
+  specification: "docs/spec/platform/observability.md#OBS-R40"
+  severity: low
+  finding: >-
+    OBS-R40 and LIM-OBS-6 bound each error message of an execution report to
+    4,096 UTF-8 bytes. Go counts bytes (ExecutionError.Validate,
+    internal/contracts/reporting/telemetry.go:317-324, len([]byte(message))
+    at :321). Python counts characters (ExecutionError.message,
+    runtime/src/contractor_runtime/contracts/reports.py:31-33,
+    Field(max_length=4096)), and the private schemas do too
+    (api/v1alpha1/allocation.schema.json:17-20 and
+    api/v1alpha1/agent-state.schema.json:21, maxLength 4096). A message of
+    2,000 three-byte characters passes the Runtime and the schemas and is
+    rejected by the Server, which then refuses the whole report. No valid
+    fixture under api/testdata/v1alpha1/valid carries an execution error, so
+    the schema mutation cases of the shared fixture gate (V369-002) never
+    reach the field. Both bounds predate the shallow history (boundary
+    6349621).
+  siblings: >-
+    Other report text bounded by LIM-OBS-6: the tool argument summaries; check
+    their Go and Python bounds the same way. The completion diagnostics bound
+    (LIM-AWC-12) has the same kind of divergence and is V371-002. Other
+    private text bounds use the shared json_byte_size and ResultJSONSize rule
+    pinned by api/testdata/v1alpha1/json-byte-size-cases.json, or ASCII
+    patterns where characters and bytes agree.
+scope:
+  in:
+    - "Python counts the UTF-8 bytes of the message (one shared helper with the other byte bounds); the schemas keep maxLength 4096 as an outer bound and their descriptions name the byte rule."
+    - "Valid fixtures with an execution error (an allocation report and an agent-state snapshot) and shared cases at 4,096 bytes and 4,097 bytes of multi-byte text, read by Go and Python."
+  out:
+    - "The size of the bound and the report shape."
+acceptance_criteria:
+  - id: A1
+    given: "An execution error message of 2,000 three-byte characters, and one of exactly 4,096 bytes"
+    when: "Go and Python validate a report that carries it"
+    then: "Both reject the first and accept the second."
+  - id: A2
+    text: "The shared fixture gate mutates the execution error member of the new valid fixtures, and the new cases fail on b2b09ea."
+tests:
+  - command: "go test ./internal/contracts/..."
+    covers: [A1, A2]
+  - command: "cd runtime && uv run pytest tests/test_contracts.py"
+    covers: [A1, A2]
+  - command: "make test-wire-cross-language"
+    covers: [A1, A2]
+  - command: make lint
+    covers: [A1, A2]

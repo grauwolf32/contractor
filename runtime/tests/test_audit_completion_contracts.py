@@ -53,7 +53,7 @@ def test_shared_go_completion_wire_fixtures(case):
             decode_private(MODELS[case["model"]], raw)
 
 
-def test_private_schemas_accept_complete_contracts():
+def test_shared_private_schemas_accept_complete_contracts():
     schemas = {
         path.name: json.loads(path.read_bytes())
         for path in (ROOT / "api/v1alpha1").glob("*.schema.json")
@@ -96,7 +96,7 @@ def item(key="first", revision=1, **kwargs):
     )
 
 
-def test_normalized_snapshot_is_immutable_owned_and_uses_trusted_order():
+def test_shared_normalized_snapshot_is_immutable_owned_and_uses_trusted_order():
     snapshot = AuditSnapshot(owner(), (item(),))
     assert snapshot.items[0].revision == 1
     with pytest.raises(dataclasses.FrozenInstanceError):
@@ -117,12 +117,12 @@ def test_normalized_snapshot_is_immutable_owned_and_uses_trusted_order():
 
 
 @pytest.mark.parametrize("revision", [0, -1, True, 2**53])
-def test_recorded_revisions_are_positive_exact_bounded_integers(revision):
+def test_shared_recorded_revisions_are_positive_exact_bounded_integers(revision):
     with pytest.raises(ValueError):
         item(revision=revision)
 
 
-def test_limits_and_separate_recorded_publication_receipts():
+def test_shared_limits_and_separate_recorded_publication_receipts():
     evidence = AuditEvidence("source", "retained support")
     with pytest.raises(ValueError):
         AuditInvocationOwner("a", "b", "sha256:" + "a" * 64, tuple(f"item-{i}" for i in range(65)))
@@ -157,7 +157,7 @@ def test_limits_and_separate_recorded_publication_receipts():
         ContinueCompletion("x" * (16 * 1024 + 1))
 
 
-def test_optional_completion_fields_are_omitted_without_opt_in(tmp_path):
+def test_shared_optional_completion_fields_are_omitted_without_opt_in(tmp_path):
     from contractor_runtime.factories import built_in_factories
 
     assert "audit-results@2" in built_in_factories(tmp_path).toolsets
@@ -172,7 +172,7 @@ def test_optional_completion_fields_are_omitted_without_opt_in(tmp_path):
     assert "completionContract" not in spec.model_dump(by_alias=True, exclude_none=True)
 
 
-def test_encoder_inputs_pin_both_artifacts_and_keep_sensitive_bytes_immutable():
+def test_shared_encoder_inputs_pin_both_artifacts_and_keep_sensitive_bytes_immutable():
     package = b"task-package-secret"
     identity = dataclasses.replace(
         owner(), task_set_sha256="sha256:" + hashlib.sha256(package).hexdigest()

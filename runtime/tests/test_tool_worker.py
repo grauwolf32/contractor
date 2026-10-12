@@ -52,6 +52,7 @@ def tool_spec():
 def request(spec, *, target="http://fixture.invalid/?secret=canary"):
     return StageContentRequest(
         apiVersion="contractor/v1alpha1",
+        deadline=datetime.now(UTC) + timedelta(hours=1),
         subtaskId="0",
         objective="Scan",
         instructions="Scan",
@@ -186,7 +187,7 @@ async def worker(tmp_path, store, tool, *, spec=None):
     return await factory.create(context)
 
 
-def test_tool_worker_report_and_recreated_allocation_replay(tmp_path):
+def test_shared_tool_worker_report_and_recreated_allocation_replay(tmp_path):
     async def scenario():
         store, tool, spec = ArtifactStore(), FixtureTool(), tool_spec()
         runtime = await worker(tmp_path, store, tool, spec=spec)
@@ -246,7 +247,7 @@ class PublishingTool(FixtureTool):
         return {"status": "completed", "targetsArtifact": ref, "artifacts": {"targets": ref}}
 
 
-def test_tool_additional_artifact_publication_exact_replay_and_binding_conflict(tmp_path):
+def test_shared_tool_additional_artifact_publication_exact_replay_and_binding_conflict(tmp_path):
     async def scenario():
         store, spec = ArtifactStore(), tool_spec()
         tool = PublishingTool(store, spec)
@@ -293,7 +294,7 @@ def test_tool_additional_artifact_publication_exact_replay_and_binding_conflict(
     "variant",
     ["undeclared", "primary", "foreign", "wrong_name", "mutable", "missing", "malformed"],
 )
-def test_tool_additional_output_ref_validation(tmp_path, variant):
+def test_shared_tool_additional_output_ref_validation(tmp_path, variant):
     async def scenario():
         store, tool, spec = ArtifactStore(), FixtureTool(), tool_spec()
         ref = {"namespace": spec.namespace, "name": "targets", "revision": "forged-revision"}
@@ -327,7 +328,7 @@ def test_tool_additional_output_ref_validation(tmp_path, variant):
 
 
 @pytest.mark.parametrize("variant", ["foreign", "receipt", "memory", "alias", "duplicate", "limit"])
-def test_tool_additional_binding_rejected_before_launch(tmp_path, variant):
+def test_shared_tool_additional_binding_rejected_before_launch(tmp_path, variant):
     async def scenario():
         store, tool, spec = ArtifactStore(), FixtureTool(), tool_spec()
         value = request_with_targets(spec)
@@ -355,7 +356,7 @@ def test_tool_additional_binding_rejected_before_launch(tmp_path, variant):
 
 
 @pytest.mark.parametrize("failure", ["absent", "revision", "read", "report", "report_conflict"])
-def test_tool_additional_artifact_publication_failures_never_rescan(tmp_path, failure):
+def test_shared_tool_additional_artifact_publication_failures_never_rescan(tmp_path, failure):
     class ReadFailureStore(ArtifactStore):
         async def request(self, method, path, **kwargs):
             if failure == "read" and method == "GET" and urlsplit(path).path.endswith("/targets"):
@@ -399,7 +400,7 @@ def test_tool_additional_artifact_publication_failures_never_rescan(tmp_path, fa
 
 
 @pytest.mark.parametrize("tamper", ["mutable", "undeclared", "missing_output", "missing_artifact"])
-def test_tool_additional_receipt_validation_never_rescans(tmp_path, tamper):
+def test_shared_tool_additional_receipt_validation_never_rescans(tmp_path, tamper):
     async def scenario():
         store, spec = ArtifactStore(), tool_spec()
         tool = PublishingTool(store, spec)
@@ -428,7 +429,7 @@ def test_tool_additional_receipt_validation_never_rescans(tmp_path, tamper):
     asyncio.run(scenario())
 
 
-def test_failed_tool_with_no_additional_outputs_still_publishes_diagnostics(tmp_path):
+def test_shared_failed_tool_with_no_additional_outputs_still_publishes_diagnostics(tmp_path):
     async def scenario():
         store, tool, spec = ArtifactStore(), FixtureTool(), tool_spec()
         tool.result = {"status": "failed", "errorCode": "no_discovered_targets", "artifacts": {}}
@@ -448,7 +449,7 @@ def test_failed_tool_with_no_additional_outputs_still_publishes_diagnostics(tmp_
 
 
 @pytest.mark.parametrize("phase", ["report", "terminal"])
-def test_cancel_during_publication_finishes_state_without_rescan(tmp_path, phase):
+def test_shared_cancel_during_publication_finishes_state_without_rescan(tmp_path, phase):
     async def scenario():
         store, tool, spec = ArtifactStore(), FixtureTool(), tool_spec()
         store.block_write = phase
@@ -471,7 +472,7 @@ def test_cancel_during_publication_finishes_state_without_rescan(tmp_path, phase
     asyncio.run(scenario())
 
 
-def test_failed_state_admission_completes_without_running_tool(tmp_path):
+def test_shared_failed_state_admission_completes_without_running_tool(tmp_path):
     from contractor_runtime.worker.state import WorkerStateError
 
     async def scenario():
@@ -499,7 +500,7 @@ def test_failed_state_admission_completes_without_running_tool(tmp_path):
         ("fail_terminal", "tool_outcome_unknown", 1),
     ],
 )
-def test_artifact_failures_never_rescan(tmp_path, failure, expected, calls):
+def test_shared_artifact_failures_never_rescan(tmp_path, failure, expected, calls):
     async def scenario():
         store, tool, spec = ArtifactStore(), FixtureTool(), tool_spec()
         setattr(store, failure, True)
@@ -515,7 +516,7 @@ def test_artifact_failures_never_rescan(tmp_path, failure, expected, calls):
     asyncio.run(scenario())
 
 
-def test_report_failure_diagnostics_preserve_scanner_success_and_replay(tmp_path):
+def test_shared_report_failure_diagnostics_preserve_scanner_success_and_replay(tmp_path):
     secret = "report-transport-secret-canary"
 
     class FailingReportStore(ArtifactStore):
@@ -562,7 +563,7 @@ def test_report_failure_diagnostics_preserve_scanner_success_and_replay(tmp_path
 
 
 @pytest.mark.parametrize("mode", ["deadline", "cancel", "abort"])
-def test_tool_deadline_cancel_abort_and_replay(tmp_path, mode):
+def test_shared_tool_deadline_cancel_abort_and_replay(tmp_path, mode):
     async def scenario():
         store, tool, spec = ArtifactStore(), FixtureTool(), tool_spec()
         tool.wait = True
@@ -593,7 +594,7 @@ def test_tool_deadline_cancel_abort_and_replay(tmp_path, mode):
     asyncio.run(scenario())
 
 
-def test_input_types_sources_and_output_validation(tmp_path):
+def test_shared_input_types_sources_and_output_validation(tmp_path):
     async def scenario():
         store, tool, spec = ArtifactStore(), FixtureTool(), tool_spec()
         runtime = await worker(tmp_path, store, tool, spec=spec)
@@ -617,7 +618,7 @@ def test_input_types_sources_and_output_validation(tmp_path):
 
 
 @pytest.mark.parametrize("outcome", ["completed", "lease_loss"])
-def test_real_allocation_and_a2a_use_scanner_without_model(tmp_path, monkeypatch, outcome):
+def test_shared_real_allocation_and_a2a_use_scanner_without_model(tmp_path, monkeypatch, outcome):
     from test_scan_toolset import executable
 
     marker = tmp_path / "calls"
@@ -669,7 +670,7 @@ def test_real_allocation_and_a2a_use_scanner_without_model(tmp_path, monkeypatch
             ).create(card)
             envelope = data_request(spec.allocation_id)
             ParseDict(
-                request(spec).model_dump(by_alias=True, exclude_none=True),
+                request(spec).model_dump(mode="json", by_alias=True, exclude_none=True),
                 envelope.message.parts[0].data,
             )
             if outcome == "completed":
@@ -722,7 +723,7 @@ def test_real_allocation_and_a2a_use_scanner_without_model(tmp_path, monkeypatch
     asyncio.run(scenario())
 
 
-def test_tool_contract_digest_and_model_boundary():
+def test_shared_tool_contract_digest_and_model_boundary():
     spec = tool_spec()
     verify_template_digests(spec.agent_template)
     assert _agent_template_digest(spec.agent_template) == spec.agent_template.ref.digest
@@ -767,6 +768,7 @@ def sqlmap_spec():
 def prepared_request(spec):
     return StageContentRequest(
         apiVersion="contractor/v1alpha1",
+        deadline=datetime.now(UTC) + timedelta(hours=1),
         subtaskId="0",
         objective="Check the prepared request",
         instructions="Check the prepared request",
@@ -813,7 +815,7 @@ async def release_scanner_allocation(service, spec):
 
 
 @pytest.mark.parametrize("method", ["POST", "PATCH"])
-def test_sqlmap_prepared_request_allocation_report_and_replay(tmp_path, monkeypatch, method):
+def test_shared_sqlmap_prepared_request_allocation_report_and_replay(tmp_path, monkeypatch, method):
     from test_scan_toolset import executable
 
     marker = tmp_path / "calls"
@@ -906,7 +908,7 @@ def test_sqlmap_prepared_request_allocation_report_and_replay(tmp_path, monkeypa
 
 
 @pytest.mark.parametrize("status", [403, 404])
-def test_sqlmap_unreadable_request_never_launches(tmp_path, monkeypatch, status):
+def test_shared_sqlmap_unreadable_request_never_launches(tmp_path, monkeypatch, status):
     from test_scan_toolset import executable
 
     marker = tmp_path / "calls"
@@ -970,6 +972,7 @@ def ffuf_spec():
 def ffuf_request(spec):
     return StageContentRequest(
         apiVersion="contractor/v1alpha1",
+        deadline=datetime.now(UTC) + timedelta(hours=1),
         subtaskId="0",
         objective="Fuzz the target with the uploaded wordlist",
         instructions="Fuzz the target with the uploaded wordlist",
@@ -982,7 +985,7 @@ def ffuf_request(spec):
 
 
 @pytest.mark.parametrize("count", [2, 110])
-def test_ffuf_wordlist_allocation_report_and_replay(tmp_path, monkeypatch, count):
+def test_shared_ffuf_wordlist_allocation_report_and_replay(tmp_path, monkeypatch, count):
     from test_scan_ffuf import WORDLIST_REF, ffuf_progress, ffuf_result
     from test_scan_toolset import executable
 
@@ -1064,7 +1067,7 @@ def test_ffuf_wordlist_allocation_report_and_replay(tmp_path, monkeypatch, count
     asyncio.run(scenario())
 
 
-def test_ffuf_request_failure_publishes_partial_report_without_rescan(tmp_path, monkeypatch):
+def test_shared_ffuf_request_failure_publishes_partial_report_without_rescan(tmp_path, monkeypatch):
     from test_scan_ffuf import WORDLIST_REF, ffuf_progress, ffuf_result
     from test_scan_toolset import executable
 

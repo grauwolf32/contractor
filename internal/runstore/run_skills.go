@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/grauwolf32/contractor/internal/agentskills"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/jackc/pgx/v5"
 )
@@ -21,11 +22,7 @@ func (s *PostgresStore) LockRunSkillInitialization(
 	if err := validateOpaque("runID", runID); err != nil {
 		return WorkflowRun{}, err
 	}
-	run, err := scanWorkflowRun(s.db.QueryRow(ctx, `
-SELECT `+workflowRunColumns+`
-FROM workflow_runs
-WHERE run_id = $1
-	FOR UPDATE`, runID))
+	run, err := scanWorkflowRun(s.db.QueryRow(ctx, lockRunSkillInitializationSQL, runID))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return WorkflowRun{}, ErrNotFound
 	}
@@ -40,7 +37,7 @@ WHERE run_id = $1
 func (s *PostgresStore) SetRunSkillSelections(
 	ctx context.Context,
 	runID string,
-	skills []contracts.RunSkillSnapshot,
+	skills []agentskills.RunSkillSnapshot,
 ) error {
 	if err := validateOpaque("runID", runID); err != nil {
 		return err
@@ -77,7 +74,7 @@ WHERE run_id = $1 AND state = 'initializing' AND state_reason_code = 'created'
 func (s *PostgresStore) CompleteRunSkillInitialization(
 	ctx context.Context,
 	runID string,
-	skills []contracts.RunSkillSnapshot,
+	skills []agentskills.RunSkillSnapshot,
 ) error {
 	if err := validateOpaque("runID", runID); err != nil {
 		return err
@@ -122,7 +119,7 @@ WHERE run_id = $1 AND state = 'initializing' AND state_reason_code = $4
 	return nil
 }
 
-func validateRunSkillSnapshot(skills []contracts.RunSkillSnapshot, selectionsOnly bool) error {
+func validateRunSkillSnapshot(skills []agentskills.RunSkillSnapshot, selectionsOnly bool) error {
 	if len(skills) > contracts.MaxWorkflowRunSkills {
 		return invalidf("Run Skill snapshot exceeds %d entries", contracts.MaxWorkflowRunSkills)
 	}
@@ -149,7 +146,7 @@ func validateRunSkillSnapshot(skills []contracts.RunSkillSnapshot, selectionsOnl
 	return nil
 }
 
-func sameRunSkillSources(left, right []contracts.RunSkillSnapshot) bool {
+func sameRunSkillSources(left, right []agentskills.RunSkillSnapshot) bool {
 	if len(left) != len(right) {
 		return false
 	}

@@ -10,7 +10,8 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/auditbaseline"
 	"github.com/grauwolf32/contractor/internal/auditstore"
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/auditprofile"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
@@ -77,8 +78,8 @@ func snapshotJSONReads() []snapshotJSONRead {
 		runstore.AllocationProvenanceMember, runtimesettings.LLMCredentialMember, llmgateway.CredentialIDMember,
 	}
 	projectTargetPath := []string{runtimesettings.CredentialMember, runtimesettings.CredentialIDMember}
-	prepare := []string{config.AuditProfileWorkflowsMember, "prepare"}
-	check := []string{config.AuditProfileWorkflowsMember, "check"}
+	prepare := []string{auditprofile.AuditProfileWorkflowsMember, "prepare"}
+	check := []string{auditprofile.AuditProfileWorkflowsMember, "check"}
 	member := func(prefix []string, members ...string) []string {
 		return append(append([]string{}, prefix...), members...)
 	}
@@ -154,24 +155,24 @@ func snapshotJSONReads() []snapshotJSONRead {
 		// Audit queries and triggers over the retained ResolvedAuditProfile.
 		{
 			name: "profile role kind", document: auditProfileDocument,
-			path: member(prepare, config.AuditWorkflowKindMember), want: string(config.AuditWorkflowPrepare),
+			path: member(prepare, auditprofile.AuditWorkflowKindMember), want: string(auditprofile.AuditWorkflowPrepare),
 			sql: []string{
-				"profile_snapshot->'" + config.AuditProfileWorkflowsMember + "'",
-				"role.value->>'" + config.AuditWorkflowKindMember + "' = '" + string(config.AuditWorkflowPrepare) + "'",
-				"binding->>'" + config.AuditWorkflowKindMember + "' IS DISTINCT FROM '" + string(config.AuditWorkflowPrepare) + "'",
+				"profile_snapshot->'" + auditprofile.AuditProfileWorkflowsMember + "'",
+				"role.value->>'" + auditprofile.AuditWorkflowKindMember + "' = '" + string(auditprofile.AuditWorkflowPrepare) + "'",
+				"binding->>'" + auditprofile.AuditWorkflowKindMember + "' IS DISTINCT FROM '" + string(auditprofile.AuditWorkflowPrepare) + "'",
 			},
 		},
 		{
 			name: "profile role attempt budget", document: auditProfileDocument,
-			path: member(prepare, config.AuditWorkflowMaxRunAttemptsMember), want: "2",
-			sql: []string{"(binding->>'" + config.AuditWorkflowMaxRunAttemptsMember + "')::integer"},
+			path: member(prepare, auditprofile.AuditWorkflowMaxRunAttemptsMember), want: "2",
+			sql: []string{"(binding->>'" + auditprofile.AuditWorkflowMaxRunAttemptsMember + "')::integer"},
 		},
 		{
 			name: "profile role binding", document: auditProfileDocument,
-			path: []string{config.AuditProfileWorkflowsMember, "*"},
+			path: []string{auditprofile.AuditProfileWorkflowsMember, "*"},
 			sql: []string{
-				"profile_snapshot #> ARRAY['" + config.AuditProfileWorkflowsMember + "', e.workflow_role]",
-				"profile_snapshot #> ARRAY['" + config.AuditProfileWorkflowsMember + "', NEW.workflow_role]",
+				"profile_snapshot #> ARRAY['" + auditprofile.AuditProfileWorkflowsMember + "', e.workflow_role]",
+				"profile_snapshot #> ARRAY['" + auditprofile.AuditProfileWorkflowsMember + "', NEW.workflow_role]",
 			},
 		},
 		{
@@ -191,10 +192,10 @@ func snapshotJSONReads() []snapshotJSONRead {
 		},
 		{
 			name: "preparation input from the Audit", document: auditProfileDocument,
-			path: member(prepare, "inputs", "source", "source"), want: string(config.AuditInputFromAudit),
+			path: member(prepare, "inputs", "source", "source"), want: string(auditprofile.AuditInputFromAudit),
 			sql: []string{
 				"(binding->'inputs') ? name", "jsonb_each(binding->'inputs')",
-				"mapping.value->>'source' = '" + string(config.AuditInputFromAudit) + "'",
+				"mapping.value->>'source' = '" + string(auditprofile.AuditInputFromAudit) + "'",
 			},
 		},
 		{
@@ -204,8 +205,8 @@ func snapshotJSONReads() []snapshotJSONRead {
 		},
 		{
 			name: "preparation input from another role", document: auditProfileDocument,
-			path: member(prepare, "inputs", "previous", "source"), want: string(config.AuditInputFromPreparation),
-			sql: []string{"mapping.value->>'source' = '" + string(config.AuditInputFromPreparation) + "'"},
+			path: member(prepare, "inputs", "previous", "source"), want: string(auditprofile.AuditInputFromPreparation),
+			sql: []string{"mapping.value->>'source' = '" + string(auditprofile.AuditInputFromPreparation) + "'"},
 		},
 		{
 			name: "preparation input role", document: auditProfileDocument,
@@ -214,10 +215,10 @@ func snapshotJSONReads() []snapshotJSONRead {
 		},
 		{
 			name: "preparation literal parameter", document: auditProfileDocument,
-			path: member(prepare, "parameters", "mode", "source"), want: string(config.AuditParameterLiteral),
+			path: member(prepare, "parameters", "mode", "source"), want: string(auditprofile.AuditParameterLiteral),
 			sql: []string{
 				"(binding->'parameters') ? name", "jsonb_each(binding->'parameters')",
-				"mapping.value->>'source' = '" + string(config.AuditParameterLiteral) + "'",
+				"mapping.value->>'source' = '" + string(auditprofile.AuditParameterLiteral) + "'",
 			},
 		},
 		{
@@ -227,9 +228,9 @@ func snapshotJSONReads() []snapshotJSONRead {
 		},
 		{
 			name: "preparation scope parameter", document: auditProfileDocument,
-			path: member(prepare, "parameters", "objective", "source"), want: string(config.AuditParameterScopeField),
+			path: member(prepare, "parameters", "objective", "source"), want: string(auditprofile.AuditParameterScopeField),
 			sql: []string{
-				"mapping.value->>'source' = '" + string(config.AuditParameterScopeField) + "'",
+				"mapping.value->>'source' = '" + string(auditprofile.AuditParameterScopeField) + "'",
 				"audit.baseline_snapshot #> ARRAY['scope', mapping.value->>'name']",
 			},
 		},
@@ -250,7 +251,7 @@ func snapshotJSONReads() []snapshotJSONRead {
 		},
 		{
 			name: "finding confirmation policy", document: auditProfileDocument,
-			path: textArrayPath(config.AuditProfileFindingConfirmationPath), want: string(config.AuditFindingHumanRequired),
+			path: textArrayPath(auditprofile.AuditProfileFindingConfirmationPath), want: string(auditprofile.AuditFindingHumanRequired),
 		},
 
 		// Audit triggers over the retained baseline snapshot.
@@ -294,21 +295,21 @@ func snapshotJSONReads() []snapshotJSONRead {
 		// Eval metrics read the Planner of a stored Stage snapshot.
 		{
 			name: "Stage snapshot Planner ID", document: stageSnapshotDocument,
-			path: textArrayPath(config.StagePlannerIDPath), want: "passthrough",
+			path: textArrayPath(resolved.StagePlannerIDPath), want: "passthrough",
 		},
 		{
 			name: "Stage snapshot Planner version", document: stageSnapshotDocument,
-			path: textArrayPath(config.StagePlannerVersionPath), want: "1",
+			path: textArrayPath(resolved.StagePlannerVersionPath), want: "1",
 		},
 	}
 }
 
 func workflowSnapshotDocument(*testing.T) any {
-	return config.ResolvedWorkflow{
-		Ref: config.WorkflowRef{Name: "artifact-copy", Version: "1"}, EntryStage: "copy",
-		Stages: map[string]config.ResolvedStage{"copy": {
-			ExecutionConfig: config.ResolvedStageExecutionConfig{
-				Agents: map[string]config.ResolvedConsumerExecutionConfig{"builder": {
+	return resolved.ResolvedWorkflow{
+		Ref: resolved.WorkflowRef{Name: "artifact-copy", Version: "1"}, EntryStage: "copy",
+		Stages: map[string]resolved.ResolvedStage{"copy": {
+			ExecutionConfig: resolved.ResolvedStageExecutionConfig{
+				Agents: map[string]resolved.ResolvedConsumerExecutionConfig{"builder": {
 					Credential: &llmgateway.LLMCredentialRef{CredentialID: "llm-credential"},
 				}},
 			},
@@ -317,7 +318,7 @@ func workflowSnapshotDocument(*testing.T) any {
 }
 
 func stageSnapshotDocument(*testing.T) any {
-	return config.ResolvedStage{Planner: config.PlannerRef{PlannerID: "passthrough", Version: "1"}}
+	return resolved.ResolvedStage{Planner: resolved.PlannerRef{PlannerID: "passthrough", Version: "1"}}
 }
 
 func runSnapshotDocument(*testing.T) any {
@@ -329,7 +330,7 @@ func runSnapshotDocument(*testing.T) any {
 func projectTargetDocument(*testing.T) any {
 	return runtimesettings.HTTPOriginTargetRef{
 		URL: "https://app.example", Credential: &runtimesettings.RuntimeCredentialRef{
-			CredentialID: "runtime-credential", Kind: contracts.RuntimeCredentialOriginBasic,
+			CredentialID: "runtime-credential", Kind: runtimesettings.RuntimeCredentialOriginBasic,
 		},
 	}
 }
@@ -339,7 +340,7 @@ func allocationDocument(*testing.T) any {
 		Provenance: runtimesettings.ResolvedRuntimeConfigProvenance{
 			LLMCredential: &llmgateway.LLMCredentialRef{CredentialID: "llm-credential"},
 			RuntimeCredentialRefs: []runtimesettings.RuntimeCredentialRef{{
-				CredentialID: "runtime-credential", Kind: contracts.RuntimeCredentialCaidoBearer,
+				CredentialID: "runtime-credential", Kind: runtimesettings.RuntimeCredentialCaidoBearer,
 			}},
 		},
 	}
@@ -366,32 +367,32 @@ func auditCompletionDocument(*testing.T) any {
 }
 
 func auditProfileDocument(*testing.T) any {
-	return config.ResolvedAuditProfile{
-		Workflows: map[string]config.ResolvedAuditWorkflowBinding{
+	return auditprofile.ResolvedAuditProfile{
+		Workflows: map[string]auditprofile.ResolvedAuditWorkflowBinding{
 			"prepare": {
-				Kind: config.AuditWorkflowPrepare, MaxRunAttempts: 2,
-				Workflow: config.ResolvedWorkflow{
-					Inputs:  map[string]config.ArtifactSlot{"source": {Required: true}},
-					Outputs: map[string]config.ArtifactSlot{"result": {MediaTypes: []string{"application/json"}}},
+				Kind: auditprofile.AuditWorkflowPrepare, MaxRunAttempts: 2,
+				Workflow: resolved.ResolvedWorkflow{
+					Inputs:  map[string]resolved.ArtifactSlot{"source": {Required: true}},
+					Outputs: map[string]resolved.ArtifactSlot{"result": {MediaTypes: []string{"application/json"}}},
 				},
-				Inputs: map[string]config.AuditWorkflowInputMapping{
-					"source":   {Source: config.AuditInputFromAudit, Name: "source"},
-					"previous": {Source: config.AuditInputFromPreparation, Role: "inventory", Name: "result"},
+				Inputs: map[string]auditprofile.AuditWorkflowInputMapping{
+					"source":   {Source: auditprofile.AuditInputFromAudit, Name: "source"},
+					"previous": {Source: auditprofile.AuditInputFromPreparation, Role: "inventory", Name: "result"},
 				},
-				Parameters: map[string]config.AuditWorkflowParameterMapping{
-					"mode":      {Source: config.AuditParameterLiteral, Value: "strict"},
-					"objective": {Source: config.AuditParameterScopeField, Name: "objective"},
+				Parameters: map[string]auditprofile.AuditWorkflowParameterMapping{
+					"mode":      {Source: auditprofile.AuditParameterLiteral, Value: "strict"},
+					"objective": {Source: auditprofile.AuditParameterScopeField, Name: "objective"},
 				},
 				Outputs: map[string]string{"inventory": "result"},
 			},
 			"check": {
-				Kind: config.AuditWorkflowCheck,
-				WorkerCompletion: &config.AuditWorkerCompletion{
+				Kind: auditprofile.AuditWorkflowCheck,
+				WorkerCompletion: &auditprofile.AuditWorkerCompletion{
 					Kind: contracts.AuditCheckResultsV1, Stage: "copy", Agent: "builder",
 				},
 			},
 		},
-		Interaction: config.AuditInteractionPolicy{FindingConfirmation: config.AuditFindingHumanRequired},
+		Interaction: auditprofile.AuditInteractionPolicy{FindingConfirmation: auditprofile.AuditFindingHumanRequired},
 	}
 }
 

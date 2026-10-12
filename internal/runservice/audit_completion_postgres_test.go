@@ -15,7 +15,10 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
 	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/auditprofile"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
@@ -58,7 +61,7 @@ func TestAuditCompletionPostgresAtomicCreationRestartAndAllocation(t *testing.T)
 		t.Fatal(err)
 	}
 	manifest := writeAuditExact(t, ctx, artifactService, project.ProjectID, "manifest", "application/json", manifestBytes)
-	catalog, err := configload.Load("../../testdata/configs", config.MVPDescriptors())
+	catalog, err := configload.Load("../../testdata/configs")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -67,7 +70,7 @@ func TestAuditCompletionPostgresAtomicCreationRestartAndAllocation(t *testing.T)
 		t.Fatal(err)
 	}
 	binding := profile.Workflows["check"]
-	binding.WorkerCompletion = &config.AuditWorkerCompletion{Kind: contracts.AuditCheckResultsV1, Stage: "check", Agent: "checker"}
+	binding.WorkerCompletion = &auditprofile.AuditWorkerCompletion{Kind: contracts.AuditCheckResultsV1, Stage: "check", Agent: "checker"}
 	stage := binding.Workflow.Stages["check"]
 	agent := stage.Agents["checker"]
 	for i := range agent.Template.Toolsets {
@@ -78,11 +81,11 @@ func TestAuditCompletionPostgresAtomicCreationRestartAndAllocation(t *testing.T)
 	agent.Template.Skills = nil
 	stage.Agents["checker"] = agent
 	binding.Workflow.Stages["check"] = stage
-	if err := config.ValidateAuditWorkerCompletion(binding); err != nil {
+	if err := auditprofile.ValidateAuditWorkerCompletion(binding); err != nil {
 		t.Fatal(err)
 	}
 	profileBytes, _ := json.Marshal(map[string]any{"workflows": map[string]any{"check": binding}})
-	audits := auditstore.NewPostgresStore(pool)
+	audits := auditstoretest.NewStore(pool)
 	draft, _, err := audits.CreateDraft(ctx, auditstore.CreateDraftParams{AuditID: "audit", OwnerID: project.OwnerID, ProjectID: project.ProjectID, Profile: auditstore.ProfileIdentity{Name: "test", Version: "1", Digest: testDigest("2")}, ProfileSnapshot: profileBytes, InputSelection: json.RawMessage(`{}`), Limits: auditstore.Limits{MaxRounds: 1, BatchSize: 1, MaxItemsPerRound: 10, MaxItemsTotal: 10, MaxSubmittedRuns: 10, MaxItemRunAttempts: 2, MaxEvidenceBytes: 1 << 20}, IdempotencyKey: "audit", RequestDigest: testDigest("3")})
 	if err != nil {
 		t.Fatal(err)
@@ -104,7 +107,7 @@ func TestAuditCompletionPostgresAtomicCreationRestartAndAllocation(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	manager, _, err := configload.NewManager(config.ManagerOptions{OperatorRoot: filepath.Join("..", "config", "testdata", "valid"), ManagedRoot: filepath.Join(t.TempDir(), "managed"), Descriptors: config.MVPDescriptors()})
+	manager, _, err := configload.NewManager(config.ManagerOptions{OperatorRoot: filepath.Join("..", "config", "testdata", "valid"), ManagedRoot: filepath.Join(t.TempDir(), "managed")})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -116,13 +119,13 @@ func TestAuditCompletionPostgresAtomicCreationRestartAndAllocation(t *testing.T)
 	params := AuditCreateParams{Claim: claim, ExecutionID: execution.ExecutionID, Workflow: binding.Workflow, RuntimeConfig: runtimeconfig.BuiltInRunSnapshot(), Parameters: map[string]string{}, Inputs: map[string]auditstore.ExactArtifact{"source": source, "task": task, "execution_manifest": manifest}, ExecutionManifest: manifest, RequestDigest: execution.RequestDigest, NewRunID: func() (string, error) { return "run", nil }}
 	wrongWorkflow := params
 	encodedWorkflow, _ := json.Marshal(params.Workflow)
-	wrongWorkflow.Workflow, _ = config.DecodeResolvedWorkflowSnapshot(encodedWorkflow)
+	wrongWorkflow.Workflow, _ = resolved.DecodeResolvedWorkflowSnapshot(encodedWorkflow)
 	wrongWorkflow.Workflow.Ref.Version = "different-version"
 	if _, err := service.CreateAudit(ctx, wrongWorkflow); !errors.Is(err, ErrInvalid) {
 		t.Fatal("different Workflow accepted", err)
 	}
 	wrongTask := params
-	wrongTask.Inputs = cloneExactArtifacts(params.Inputs)
+	wrongTask.Inputs = contracts.CloneExactArtifacts(params.Inputs)
 	wrongTask.Inputs["task"] = source
 	if _, err := service.CreateAudit(ctx, wrongTask); !errors.Is(err, ErrInvalid) {
 		t.Fatal("foreign task accepted", err)
@@ -208,7 +211,7 @@ func TestAuditCompletionPostgresAtomicCreationRestartAndAllocation(t *testing.T)
 		t.Fatal(err)
 	}
 	gateway := stage.ExecutionConfig.Agents["checker"].LLMGateway.Ref
-	allocation := runstore.StageAllocation{AllocationID: "allocation", StageExecutionID: executionStage.StageExecutionID, LogicalAgentName: "checker", Namespace: "audit-check", AgentTemplateRef: agent.Template.Ref, WorkerRuntimeRef: agent.Template.Runtime, RuntimeAgentID: strings.Repeat("1", 64), RuntimeAgentInstanceID: "runtime", RuntimeAgentLabelRevision: 1, RuntimeConfigurationSchemaVersion: runstore.AllocationRuntimeConfigurationSchemaVersion, PerformanceCollectionPolicy: reporting.PerformanceCollectionDisabled, RuntimeConfiguration: &runstore.AllocationRuntimeConfiguration{ModelPolicy: stage.ExecutionConfig.Agents["checker"].ModelPolicy.Ref, Origins: runtimeconfig.ResolvedRuntimeConfigOrigins{}, Provenance: runtimesettings.ResolvedRuntimeConfigProvenance{Default: runtimesettings.RuntimeLabelBindingProvenance{Label: "default", BindingRevision: 1, Config: runtimesettings.RuntimeConfigRef{Name: runtimeconfig.BuiltInName, Version: runtimeconfig.BuiltInVersion, Digest: runtimeconfig.BuiltInDigest}}, RunLabels: []runtimesettings.RuntimeLabelBindingProvenance{}, AgentLabels: []runtimesettings.RuntimeLabelBindingProvenance{}, RuntimeAdapters: []contracts.RuntimeAdapterRef{}, RuntimeCredentialRefs: []runtimesettings.RuntimeCredentialRef{}, LLMGatewayConfig: &gateway}}}
+	allocation := runstore.StageAllocation{AllocationID: "allocation", StageExecutionID: executionStage.StageExecutionID, LogicalAgentName: "checker", Namespace: "audit-check", AgentTemplateRef: agent.Template.Ref, WorkerRuntimeRef: agent.Template.Runtime, RuntimeAgentID: strings.Repeat("1", 64), RuntimeAgentInstanceID: "runtime", RuntimeAgentLabelRevision: 1, RuntimeConfigurationSchemaVersion: runstore.AllocationRuntimeConfigurationSchemaVersion, PerformanceCollectionPolicy: reporting.PerformanceCollectionDisabled, RuntimeConfiguration: &runstore.AllocationRuntimeConfiguration{ModelPolicy: stage.ExecutionConfig.Agents["checker"].ModelPolicy.Ref, Origins: runtimeconfig.ResolvedRuntimeConfigOrigins{}, Provenance: runtimesettings.ResolvedRuntimeConfigProvenance{Default: runtimesettings.RuntimeLabelBindingProvenance{Label: "default", BindingRevision: 1, Config: runtimesettings.RuntimeConfigRef{Name: runtimeconfig.BuiltInName, Version: runtimeconfig.BuiltInVersion, Digest: runtimeconfig.BuiltInDigest}}, RunLabels: []runtimesettings.RuntimeLabelBindingProvenance{}, AgentLabels: []runtimesettings.RuntimeLabelBindingProvenance{}, RuntimeAdapters: []runtimesettings.RuntimeAdapterRef{}, RuntimeCredentialRefs: []runtimesettings.RuntimeCredentialRef{}, LLMGatewayConfig: &gateway}}}
 	if err := runs.RecordStageAllocation(ctx, allocation); persistencepostgres.SQLState(err) != persistencepostgres.SQLStateCheckViolation {
 		t.Fatal("allocation downgrade accepted", err)
 	}

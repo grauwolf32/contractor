@@ -6,7 +6,7 @@ import (
 	"log/slog"
 	"time"
 
-	workflowconfig "github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
@@ -14,6 +14,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/gatewayrecovery"
 	"github.com/grauwolf32/contractor/internal/planner"
+	"github.com/grauwolf32/contractor/internal/planner/stageresult"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/settingsstore"
 	"github.com/grauwolf32/contractor/internal/telemetry"
@@ -72,10 +73,14 @@ type Store interface {
 	// finalizing StageExecution (runID, stageExecutionID) that a transient
 	// Project output publication failure aborted (PRJ-R58).
 	RecordStageOutputPublicationFailure(context.Context, string, string) error
-	RecordStageExecutionReport(context.Context, runstore.RecordStageExecutionReportParams) error
-	RecordPlannerExecutionReport(context.Context, runstore.RecordPlannerExecutionReportParams) error
-	RebuildStageMetrics(context.Context, string, string) error
-	CleanupExpiredTelemetry(context.Context, time.Time, int) (int64, error)
+}
+
+// ReportStore keeps the bounded execution reports of a StageExecution and
+// rebuilds its StageMetrics from them; telemetry.Repository implements it.
+type ReportStore interface {
+	RecordAllocationReport(context.Context, telemetry.AllocationReportEnvelope) error
+	RecordPlannerReport(context.Context, telemetry.PlannerReportEnvelope) error
+	RebuildStageMetrics(context.Context, string, string) (telemetry.StageMetricsRecord, error)
 }
 
 type ContextPin struct {
@@ -102,9 +107,9 @@ type StageProgression struct {
 type ResultProgression struct {
 	RunID            string
 	StageExecutionID string
-	Result           contracts.StageContentResult
+	Result           stageresult.StageContentResult
 	WorkflowOutputs  map[string]string
-	OutputContracts  map[string]workflowconfig.ArtifactSlot
+	OutputContracts  map[string]resolved.ArtifactSlot
 	Progression      StageProgression
 }
 
@@ -139,7 +144,7 @@ type AtomicPersistence interface {
 		context.Context,
 		string,
 		string,
-		contracts.StageContentResult,
+		stageresult.StageContentResult,
 	) error
 	CommitTerminationProgression(context.Context, TerminationProgression) error
 	CommitTerminationAndFinishRun(
@@ -220,8 +225,8 @@ type RuntimeCredentialResolver interface {
 	UsePlaintext(
 		context.Context,
 		string,
-		[]contracts.RuntimeCredentialKind,
-		func(contracts.RuntimeCredentialKind, []byte) error,
+		[]runtimesettings.RuntimeCredentialKind,
+		func(runtimesettings.RuntimeCredentialKind, []byte) error,
 	) error
 }
 
@@ -277,19 +282,18 @@ type Options struct {
 	AbortTimeout        time.Duration
 	// LeaseScanInterval is scheduler.leaseScanInterval, the period of the
 	// allocation-loss scan.
-	LeaseScanInterval      time.Duration
-	RuntimeTransport       RuntimeTransportSettings
-	Credentials            CredentialResolver
-	RuntimeCredentials     RuntimeCredentialResolver
-	PlannerTelemetry       PlannerTelemetryRegistry
-	RunSkills              RunSkillInitializer
-	Settings               SchedulerSettingsReader
-	TelemetrySecrets       []string
-	MetricsCleanupInterval time.Duration
-	MetricsCleanupBatch    int
-	Clock                  Clock
-	NewID                  func(string) (string, error)
-	Logger                 *slog.Logger
+	LeaseScanInterval  time.Duration
+	RuntimeTransport   RuntimeTransportSettings
+	Credentials        CredentialResolver
+	RuntimeCredentials RuntimeCredentialResolver
+	PlannerTelemetry   PlannerTelemetryRegistry
+	Reports            ReportStore
+	RunSkills          RunSkillInitializer
+	Settings           SchedulerSettingsReader
+	TelemetrySecrets   []string
+	Clock              Clock
+	NewID              func(string) (string, error)
+	Logger             *slog.Logger
 }
 
 // RuntimeTransportSettings holds the static endpoints needed when materializing

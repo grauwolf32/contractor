@@ -86,7 +86,7 @@ func projectedMembers(t *testing.T, h *serviceHarness, id string) int {
 // Admission and collection read the frozen plan once per admitted and per
 // collected member. The stored row was validated before its insert and cannot
 // change, so a tick must not walk the 442 KB schema again for each read.
-func TestPostgresNativeTickTrustsStoredPlanAtMemberCeiling(t *testing.T) {
+func TestSharedPostgresNativeTickTrustsStoredPlanAtMemberCeiling(t *testing.T) {
 	h := newHarness(t)
 	const capacity = membersPerTick
 	e := h.preparedAtNativeCeiling(t, capacity)

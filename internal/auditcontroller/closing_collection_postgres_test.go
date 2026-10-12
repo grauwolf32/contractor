@@ -12,7 +12,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
@@ -263,7 +263,7 @@ func childFindingGrant(
 			t.Fatal(err)
 		}
 	}
-	workflow, err := config.DecodeResolvedWorkflowSnapshot(run.WorkflowSnapshot)
+	workflow, err := resolved.DecodeResolvedWorkflowSnapshot(run.WorkflowSnapshot)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -312,7 +312,7 @@ func childFindingGrant(
 				},
 				RunLabels:       []runtimesettings.RuntimeLabelBindingProvenance{},
 				AgentLabels:     []runtimesettings.RuntimeLabelBindingProvenance{},
-				RuntimeAdapters: []contracts.RuntimeAdapterRef{}, LLMGatewayConfig: &gateway,
+				RuntimeAdapters: []runtimesettings.RuntimeAdapterRef{}, LLMGatewayConfig: &gateway,
 				RuntimeCredentialRefs: []runtimesettings.RuntimeCredentialRef{},
 			},
 		},

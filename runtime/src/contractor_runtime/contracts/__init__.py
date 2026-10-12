@@ -22,6 +22,10 @@ from contractor_runtime.contracts.artifacts import ArtifactListResult as Artifac
 from contractor_runtime.contracts.artifacts import ArtifactReadResult as ArtifactReadResult
 from contractor_runtime.contracts.artifacts import ArtifactRef as ArtifactRef
 from contractor_runtime.contracts.artifacts import ArtifactWriteResult as ArtifactWriteResult
+from contractor_runtime.contracts.artifacts import (
+    validate_artifact_name as validate_artifact_name,
+)
+from contractor_runtime.contracts.artifacts import validate_media_type as validate_media_type
 from contractor_runtime.contracts.base import API_VERSION as API_VERSION
 from contractor_runtime.contracts.base import (
     ARTIFACT_LIST_CURSOR_PATTERN as ARTIFACT_LIST_CURSOR_PATTERN,
@@ -164,8 +168,6 @@ from contractor_runtime.contracts.settings import WorkerSummarizerConfig as Work
 from contractor_runtime.contracts.worker import AgentStateSnapshot as AgentStateSnapshot
 from contractor_runtime.contracts.worker import ContractorWorkerState as ContractorWorkerState
 from contractor_runtime.contracts.worker import StageContentRequest as StageContentRequest
-from contractor_runtime.contracts.worker import StageContentResult as StageContentResult
-from contractor_runtime.contracts.worker import StageOutcome as StageOutcome
 from contractor_runtime.contracts.worker import ToolObservationCount as ToolObservationCount
 from contractor_runtime.contracts.worker import (
     WorkerAllocationMetricsState as WorkerAllocationMetricsState,

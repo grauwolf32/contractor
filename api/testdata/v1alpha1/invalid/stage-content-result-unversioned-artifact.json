@@ -1,1 +1,0 @@
-{"apiVersion":"contractor/v1alpha1","artifacts":{"result":{"name":"result","namespace":"builder"}},"outcome":"succeeded","summary":"Invalid because the ref can fall forward."}

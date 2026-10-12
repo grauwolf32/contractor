@@ -11,10 +11,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/apierror"
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/findingintake"
@@ -47,7 +49,7 @@ func newCollectionTestPublisher(t *testing.T, pool *pgxpool.Pool) *findingintake
 
 func seedCollectionRun(t *testing.T, ctx context.Context, pool *pgxpool.Pool, owner, runID string) {
 	t.Helper()
-	snapshot, err := configload.Load("../config/testdata/valid", config.MVPDescriptors())
+	snapshot, err := configload.Load("../config/testdata/valid")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -96,7 +98,8 @@ func seedCollectionRunReceipt(t *testing.T, ctx context.Context, pool *pgxpool.P
 	if err != nil {
 		t.Fatal(err)
 	}
-	written, err := service.WriteFindingProposal(ctx, runID, suffix, artifacts.Payload{MediaType: "application/json", Data: body})
+	written, err := artifactstest.WriteFindingProposal(ctx, service, runID, suffix,
+		artifacts.Payload{MediaType: "application/json", Data: body})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -160,7 +163,7 @@ func TestFindingCollectionPublicationRunRetentionAndReplay(t *testing.T) {
 		t.Fatal("source bindings collided")
 	}
 	seedCollectionRun(t, ctx, pool, owner, "reader")
-	fork, err := service.ForkInput(ctx, owner, result.Artifact.Ref, "reader", "findings")
+	fork, err := artifactstest.ForkInput(ctx, service, owner, result.Artifact.Ref, "reader", "findings")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -194,8 +197,13 @@ func TestFindingCollectionPublicationRunRetentionAndReplay(t *testing.T) {
 	if err != nil || !replay.Replayed || replay.Artifact.Digest != result.Artifact.Digest || replay.EntryCount != 2 {
 		t.Fatalf("replay after deletion: %+v %v", replay, err)
 	}
+	// The clientKey stays bound to its first selection, so a changed
+	// selection is the permanent idempotency_conflict (FND-R114), not a
+	// retryable resource conflict.
 	params.Request.Sources = params.Request.Sources[:1]
-	if _, err := publisher.PublishCollection(ctx, params); !errors.Is(err, findingintake.ErrConflict) {
+	_, err = publisher.PublishCollection(ctx, params)
+	if classified, ok := apierror.Of(err); !errors.Is(err, findingintake.ErrCollectionKeyConflict) ||
+		!ok || classified.ErrorKind() != apierror.IdempotencyConflict || classified.ErrorKind().Retryable() {
 		t.Fatalf("changed selection = %v", err)
 	}
 }
@@ -267,7 +275,7 @@ func TestFindingCollectionAuditContributionsAndPinnedReview(t *testing.T) {
 	if _, _, err := projectstore.NewPostgresStore(pool).Create(ctx, projectstore.CreateParams{ProjectID: projectID, OwnerID: owner, Kind: projectstore.KindProject, Name: "Collection", IdempotencyKey: "project", RequestDigest: serviceTestDigest("project")}); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := auditstore.NewPostgresStore(pool).CreateDraft(ctx, auditstore.CreateDraftParams{
+	if _, _, err := auditstoretest.NewStore(pool).CreateDraft(ctx, auditstore.CreateDraftParams{
 		AuditID: auditID, OwnerID: owner, ProjectID: projectID, Profile: auditstore.ProfileIdentity{Name: "review", Version: "1", Digest: serviceTestDigest("profile")},
 		ProfileSnapshot: json.RawMessage(`{"interaction":{"findingConfirmation":"human-required"}}`), InputSelection: json.RawMessage(`{}`),
 		Limits:         auditstore.Limits{MaxRounds: 1, BatchSize: 1, MaxItemsPerRound: 2, MaxItemsTotal: 2, MaxSubmittedRuns: 2, MaxItemRunAttempts: 1, MaxEvidenceBytes: 1 << 20},
@@ -320,8 +328,12 @@ SELECT $1,$2,receipt_id,'contributing',proposal_ref FROM finding_proposal_audit_
 	if err != nil || !replay.Replayed || replay.Artifact.Digest != result.Artifact.Digest {
 		t.Fatalf("review change refreshed snapshot: %+v %v", replay, err)
 	}
+	// A stale finding revision is the retryable conflict: the same clientKey
+	// succeeds once the request names the current revision.
 	params.Request.ClientKey = "stale-review"
-	if _, err := publisher.PublishCollection(ctx, params); !errors.Is(err, findingintake.ErrConflict) {
+	_, err = publisher.PublishCollection(ctx, params)
+	if classified, ok := apierror.Of(err); !errors.Is(err, findingintake.ErrConflict) ||
+		errors.Is(err, findingintake.ErrCollectionKeyConflict) || !ok || classified.ErrorKind() != apierror.Conflict {
 		t.Fatalf("stale finding revision = %v", err)
 	}
 	params.Request.Sources[0].Findings[0].Revision = 2

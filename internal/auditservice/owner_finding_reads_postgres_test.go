@@ -11,6 +11,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
 	"github.com/grauwolf32/contractor/internal/findingintake"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -46,7 +47,7 @@ func TestOwnerFindingPageQueriesAreConstantInAudits(t *testing.T) {
 	}
 	createAudit := func(ownerID, projectID, auditID string) {
 		t.Helper()
-		if _, _, err := auditstore.NewPostgresStore(pool).CreateDraft(ctx, auditstore.CreateDraftParams{
+		if _, _, err := auditstoretest.NewStore(pool).CreateDraft(ctx, auditstore.CreateDraftParams{
 			AuditID: auditID, OwnerID: ownerID, ProjectID: projectID,
 			Profile:         auditstore.ProfileIdentity{Name: "owner-page", Version: "1", Digest: serviceTestDigest("owner-page")},
 			ProfileSnapshot: json.RawMessage(`{"interaction":{"findingConfirmation":"human-required"}}`),
@@ -62,7 +63,7 @@ func TestOwnerFindingPageQueriesAreConstantInAudits(t *testing.T) {
 	review := func(ownerID, auditID, findingID, receiptID, suffix string) {
 		t.Helper()
 		severity := "high"
-		decideFindingForTest(t, ctx, writer, ownerID, auditID, findingID, 1, "decision-"+suffix, VerdictTruePositive, &severity, nil)
+		decideFindingForTest(t, ctx, writer, ownerID, auditID, findingID, 1, "decision-"+suffix, auditstore.VerdictTruePositive, &severity, nil)
 		if _, err := pool.Exec(ctx, `
 INSERT INTO audit_finding_assessments (
     assessment_id, finding_id, audit_id, receipt_id, semantic_assessment,
@@ -125,7 +126,7 @@ INSERT INTO audit_finding_assessments (
 	page := func(ownerID string) []Finding {
 		t.Helper()
 		trace.take()
-		findings, err := reader.ListOwnerFindings(ctx, OwnerFindingListParams{OwnerID: ownerID, Limit: audits + 1})
+		findings, err := reader.ListOwnerFindings(ctx, auditstore.OwnerFindingListParams{OwnerID: ownerID, Limit: audits + 1})
 		if err != nil || len(findings) != audits+1 {
 			t.Fatalf("%s page = (%d findings, %v), want %d", ownerID, len(findings), err, audits+1)
 		}

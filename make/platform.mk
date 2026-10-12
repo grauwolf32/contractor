@@ -1,7 +1,7 @@
 # Platform families: Runtime configuration and labels, project
 # workspaces, lifecycle controls, scheduling and performance.
 
-.PHONY: test-runtime-wire test-runtime-principals test-runtime-label-placement \
+.PHONY: test-runtime-principals test-runtime-label-placement \
 	test-runtime-configuration-matrix test-runtime-configuration-hardening \
 	test-runtime-configuration-e2e test-run-metadata-labels-matrix \
 	test-run-metadata-labels-hardening test-run-metadata-labels-e2e \
@@ -18,20 +18,16 @@
 	test-performance-metrics benchmark-performance test-git-artifacts \
 	test-artifact-filesystem test-artifact-blob-backends
 
-test-runtime-wire:
-	go test ./internal/contracts/... ./internal/controlplane/...
-	cd runtime && uv run pytest tests/test_contracts.py tests/test_capabilities.py tests/test_settings.py tests/test_state.py tests/test_control_client.py
-
 test-runtime-principals: require-database
-	go test -count=1 ./internal/runtimeconfig ./internal/persistence/postgres
+	go test -count=1 ./internal/agentprincipal ./internal/runtimeconfig ./internal/persistence/postgres
 
 test-runtime-label-placement: require-database
-	go test -count=1 ./internal/controlplane ./internal/credentials ./internal/runstore ./internal/runtimeconfig
+	go test -count=1 ./internal/agentprincipal ./internal/controlplane ./internal/credentials ./internal/runstore ./internal/runtimeconfig
 
 test-runtime-configuration-matrix: test-hardening-matrices
 
 test-runtime-configuration-hardening: require-database test-runtime-configuration-matrix
-	$(call run-family-test,go test -race -count=1 ./internal/controlplane/... ./internal/credentials/... ./internal/httpapi/... ./internal/mtls/... ./internal/runstore/... ./internal/runtimeconfig/... ./internal/scheduler/... ./internal/telemetry/... ./tests/integration/lease)
+	$(call run-family-test,go test -race -count=1 ./internal/agentprincipal/... ./internal/controlplane/... ./internal/credentials/... ./internal/httpapi/... ./internal/mtls/... ./internal/runstore/... ./internal/runtimeconfig/... ./internal/scheduler/... ./internal/telemetry/... ./tests/integration/lease)
 	cd runtime && uv run pytest -W error tests/test_adapter_host.py tests/test_http_proxy_adapter.py tests/test_lease_watchdog.py tests/test_otlp_adapter.py
 
 test-runtime-configuration-e2e: require-database test-runtime-configuration-hardening test-runtime-labels-e2e test-ui-stack
@@ -139,7 +135,7 @@ test-artifact-filesystem: require-database
 
 test-artifact-blob-backends: require-database
 	@command -v podman >/dev/null || (echo "podman is required" >&2; exit 1)
-	go test -race -tags=integration -count=1 ./internal/artifacts ./internal/app ./internal/persistence/postgres ./internal/httpapi/public ./internal/httpapi/privateartifacts ./internal/auditstore ./internal/findingintake ./internal/projectlifecycle
+	go test -race -tags=integration -count=1 ./internal/artifacts ./internal/app ./internal/persistence/postgres ./internal/httpapi/public ./internal/httpapi/privateartifacts ./internal/auditstore/internal/pgstore ./internal/findingintake ./internal/projectlifecycle
 	CONTRACTOR_TEST_ARTIFACT_BACKEND=filesystem go test -race -tags=integration -count=1 $(ARTIFACT_BACKEND_PACKAGES)
 	cd runtime && uv run pytest -q tests/test_artifacts.py tests/test_workspace_auto_export.py tests/test_projectfs_overlay.py
 	go test -tags=e2e -count=1 -timeout=8m ./tests/e2e -run '^TestArtifactBlobBackendsContainers$$' -v

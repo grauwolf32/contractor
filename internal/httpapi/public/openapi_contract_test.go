@@ -9,8 +9,6 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
-	"reflect"
-	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -19,13 +17,14 @@ import (
 	"github.com/getkin/kin-openapi/openapi3filter"
 	"github.com/getkin/kin-openapi/routers"
 	"github.com/getkin/kin-openapi/routers/gorillamux"
+	"github.com/grauwolf32/contractor/internal/agentprincipal"
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/control"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	"github.com/grauwolf32/contractor/internal/runstore"
-	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"go.yaml.in/yaml/v4"
 )
 
@@ -48,7 +47,6 @@ func TestPublicOpenAPIContractIsValidAndPolicySafe(t *testing.T) {
 		t.Fatalf("public API version header contract = %#v", versionHeader)
 	}
 
-	implemented := make([]string, 0)
 	operationIDs := make(map[string]string)
 	withoutPostgreSQL := make(map[string]bool, len(operationsWithoutPostgreSQL))
 	for path, item := range document.Paths.Map() {
@@ -60,13 +58,6 @@ func TestPublicOpenAPIContractIsValidAndPolicySafe(t *testing.T) {
 		}
 		for method, operation := range item.Operations() {
 			key := strings.ToUpper(method) + " " + path
-			implementation, ok := operation.Extensions["x-contractor-implementation"].(string)
-			if !ok || implementation != "implemented" && implementation != "planned" {
-				t.Errorf("%s has invalid x-contractor-implementation %v", key, operation.Extensions["x-contractor-implementation"])
-			}
-			if implementation == "implemented" {
-				implemented = append(implemented, key)
-			}
 			// Bounded JSON bodies reject oversize input with 413
 			// request_too_large; Eval documents keep their own limit code.
 			if body := operation.RequestBody; body != nil && body.Value != nil &&
@@ -101,152 +92,6 @@ func TestPublicOpenAPIContractIsValidAndPolicySafe(t *testing.T) {
 		if !withoutPostgreSQL[key] {
 			t.Errorf("operation %s listed as never reaching PostgreSQL does not exist", key)
 		}
-	}
-	sort.Strings(implemented)
-	wantImplemented := []string{
-		"GET /v1/eval-capabilities",
-		"GET /v1/projects/{projectId}/eval-datasets",
-		"POST /v1/projects/{projectId}/eval-datasets",
-		"GET /v1/projects/{projectId}/eval-datasets/{datasetId}/revisions/{revision}/cases",
-		"POST /v1/projects/{projectId}/eval-experiments",
-		"GET /v1/eval-experiments",
-		"GET /v1/eval-experiments/{id}",
-		"PATCH /v1/eval-experiments/{id}",
-		"DELETE /v1/eval-experiments/{id}",
-		"POST /v1/eval-experiments/{id}/commands",
-		"GET /v1/eval-experiments/{id}/commands/{commandId}",
-		"GET /v1/eval-experiments/{id}/members",
-		"POST /v1/eval-experiments/{id}/members/{memberId}/submissions",
-		"POST /v1/eval-experiments/{id}/members/{memberId}/results",
-		"POST /v1/eval-experiments/{id}/members/{memberId}/assessments",
-		"GET /v1/eval-experiments/{id}/members/{memberId}/review",
-		"GET /v1/eval-experiments/{id}/members/{memberId}/executions",
-		"POST /v1/eval-experiments/{id}/selections",
-		"GET /v1/eval-experiments/{id}/pairs",
-		"GET /v1/eval-experiments/{id}/pairs/{pairId}",
-		"GET /v1/eval-experiments/{id}/charts/{chart}",
-		"GET /v1/eval-experiments/{id}/report",
-
-		"POST /v1/artifacts/{namespace}/{name}/git-import",
-		"POST /v1/projects/{projectId}/artifacts/{namespace}/{name}/git-import",
-		"DELETE /v1/settings/git-key",
-		"GET /v1/settings/git-key",
-		"PUT /v1/settings/git-key",
-		"DELETE /v1/audits/{auditId}",
-		"DELETE /v1/operations/credentials/{credentialId}",
-		"DELETE /v1/operations/runtime-agent-principals/{runtimeAgentId}",
-		"DELETE /v1/operations/runtime-credentials/{credentialId}",
-		"DELETE /v1/operations/runtime-labels/{label}",
-		"DELETE /v1/projects/{projectId}",
-		"DELETE /v1/runs/{runId}",
-		"GET /v1/artifacts",
-		"GET /v1/artifacts/{namespace}/{name}",
-		"GET /v1/artifacts/{namespace}/{name}/archive",
-		"GET /v1/artifacts/{namespace}/{name}/archive/file",
-		"GET /v1/artifacts/{namespace}/{name}/lineage",
-		"GET /v1/artifacts/{namespace}/{name}/metadata",
-		"GET /v1/artifacts/{namespace}/{name}/versions",
-		"GET /v1/audit-profiles",
-		"GET /v1/audit-profiles/{name}/versions/{version}",
-		"GET /v1/audit-standards",
-		"GET /v1/audit-standards/{scheme}/versions/{version}",
-		"GET /v1/audits",
-		"GET /v1/findings",
-		"GET /v1/reviews",
-		"GET /v1/audits/{auditId}",
-		"GET /v1/audits/{auditId}/coverage",
-		"GET /v1/audits/{auditId}/events",
-		"GET /v1/audits/{auditId}/finding-proposals",
-		"GET /v1/audits/{auditId}/findings",
-		"GET /v1/audits/{auditId}/findings/{findingId}",
-		"GET /v1/audits/{auditId}/findings/{findingId}/provenance",
-		"GET /v1/audits/{auditId}/items",
-		"GET /v1/audits/{auditId}/report",
-		"GET /v1/audits/{auditId}/reviews",
-		"GET /v1/audits/{auditId}/reviews/{requestId}",
-		"GET /v1/audits/{auditId}/workspace",
-		"GET /v1/auth/session",
-		"GET /v1/configurations/agent-templates/{name}/versions/{version}/instructions",
-		"GET /v1/configurations/agent-templates/{name}/versions/{version}/workflow-bindings",
-		"GET /v1/configurations/{kind}",
-		"GET /v1/configurations/{kind}/{name}/versions/{version}",
-		"GET /v1/events/ws",
-		"GET /v1/operations/allocations",
-		"GET /v1/operations/allocation-history",
-		"GET /v1/operations/credentials",
-		"GET /v1/operations/credentials/{credentialId}",
-		"GET /v1/operations/runtime-agent-principals",
-		"GET /v1/operations/runtime-agent-principals/{runtimeAgentId}",
-		"GET /v1/operations/runtime-agents",
-		"GET /v1/operations/performance",
-		"GET /v1/operations/performance/history",
-		"GET /v1/operations/runtime-configs",
-		"GET /v1/operations/runtime-configs/{name}/versions/{version}",
-		"GET /v1/operations/runtime-credentials",
-		"GET /v1/operations/runtime-credentials/{credentialId}",
-		"GET /v1/operations/runtime-labels",
-		"GET /v1/operations/runtime-labels/{label}",
-		"GET /v1/operations/settings/scheduler",
-		"GET /v1/operations/snapshot",
-		"GET /v1/projects",
-		"GET /v1/projects/{projectId}",
-		"GET /v1/projects/{projectId}/artifacts",
-		"GET /v1/projects/{projectId}/artifacts/{namespace}/{name}",
-		"GET /v1/projects/{projectId}/artifacts/{namespace}/{name}/archive",
-		"GET /v1/projects/{projectId}/artifacts/{namespace}/{name}/archive/file",
-		"GET /v1/projects/{projectId}/artifacts/{namespace}/{name}/lineage",
-		"GET /v1/projects/{projectId}/artifacts/{namespace}/{name}/metadata",
-		"GET /v1/projects/{projectId}/artifacts/{namespace}/{name}/versions",
-		"GET /v1/projects/{projectId}/audits",
-		"GET /v1/projects/{projectId}/runs",
-		"GET /v1/queue",
-		"GET /v1/queue/control",
-		"GET /v1/runs",
-		"GET /v1/runs/{runId}",
-		"GET /v1/runs/{runId}/artifacts",
-		"GET /v1/runs/{runId}/artifacts/{namespace}/{name}",
-		"GET /v1/runs/{runId}/artifacts/{namespace}/{name}/archive",
-		"GET /v1/runs/{runId}/artifacts/{namespace}/{name}/archive/file",
-		"GET /v1/runs/{runId}/artifacts/{namespace}/{name}/lineage",
-		"GET /v1/runs/{runId}/artifacts/{namespace}/{name}/metadata",
-		"GET /v1/runs/{runId}/artifacts/{namespace}/{name}/versions",
-		"GET /v1/runs/{runId}/finding-proposals",
-		"GET /v1/runs/{runId}/outputs/{slot}",
-		"GET /v1/runs/{runId}/repeat-draft",
-		"GET /v1/workflows",
-		"GET /v1/workflows/{name}/versions/{version}",
-		"PATCH /v1/projects/{projectId}",
-		"POST /v1/audits/{auditId}/cancel",
-		"POST /v1/audits/{auditId}/finding-proposal-imports",
-		"POST /v1/finding-collections",
-		"POST /v1/audits/{auditId}/findings/{findingId}/reviews",
-		"POST /v1/audits/{auditId}/pause",
-		"POST /v1/audits/{auditId}/resume",
-		"POST /v1/runs/{runId}/resume",
-		"POST /v1/runs/{runId}/retry-gateway",
-		"POST /v1/audits/{auditId}/reviews/{requestId}/decisions",
-		"POST /v1/audits/{auditId}/start",
-		"POST /v1/auth/login",
-		"POST /v1/auth/logout",
-		"POST /v1/configurations/{kind}",
-		"POST /v1/operations/credentials",
-		"POST /v1/operations/runtime-configs",
-		"POST /v1/operations/runtime-credentials",
-		"POST /v1/projects",
-		"POST /v1/projects/{projectId}/audits",
-		"POST /v1/projects/{projectId}/runs",
-		"POST /v1/runs",
-		"POST /v1/runs/{runId}/cancel",
-		"PUT /v1/artifacts/{namespace}/{name}",
-		"PUT /v1/operations/runtime-agent-principals/{runtimeAgentId}/labels",
-		"PUT /v1/operations/runtime-labels/{label}",
-		"PUT /v1/operations/settings/scheduler",
-		"PUT /v1/projects/{projectId}/artifacts/{namespace}/{name}",
-		"PUT /v1/queue/control",
-	}
-	sort.Strings(wantImplemented)
-	if !reflect.DeepEqual(implemented, wantImplemented) {
-		t.Fatalf("implemented public operations = %v, want %v", implemented, wantImplemented)
 	}
 
 	websocket := document.Paths.Value("/v1/events/ws").Get
@@ -699,7 +544,7 @@ func TestImplementedPublicHandlersConformToOpenAPI(t *testing.T) {
 	}
 	principalID := strings.Repeat("a", 64)
 	fixture.runtimePrincipals.principals[principalID] = controlplane.RuntimeAgentPrincipalProjection{
-		Principal: runtimeconfig.RuntimeAgentPrincipal{
+		Principal: agentprincipal.Principal{
 			RuntimeAgentID: principalID, Labels: []string{"contract-debug"}, LabelRevision: 1,
 			CreatedBy: "runtime-registration", CreatedAt: operationsNow,
 			UpdatedBy: "runtime-registration", UpdatedAt: operationsNow,
@@ -911,7 +756,7 @@ func TestImplementedPublicHandlersConformToOpenAPI(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := fixture.artifacts.BindOutputExact(t.Context(), "run_fixed", "result", output.Ref, nil); err != nil {
+	if _, err := artifactstest.BindOutput(t.Context(), fixture.artifacts, "run_fixed", "result", output.Ref); err != nil {
 		t.Fatal(err)
 	}
 	getOutput := newPublicContractRequest(http.MethodGet, "/v1/runs/run_fixed/outputs/result", nil)
@@ -1068,6 +913,7 @@ func serveAndValidatePublicContract(
 			route.Operation.OperationID, response.Code, response.Header(), response.Body.String(), err,
 		)
 	}
+	publicContractLedger.record(route.Operation.OperationID, response.Code)
 	return response
 }
 

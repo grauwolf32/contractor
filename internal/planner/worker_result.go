@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/planner/stageresult"
 )
 
 // ValidateWorkerCompletion enforces the trusted request correlation again at
@@ -34,15 +35,15 @@ func ValidateWorkerCompletion(
 // the Stage candidate.
 func StageCandidateFromWorkerCompletion(
 	completion contracts.WorkerCompletion,
-) (contracts.StageContentResult, error) {
+) (stageresult.StageContentResult, error) {
 	if err := completion.Validate(); err != nil {
-		return contracts.StageContentResult{}, fmt.Errorf("invalid WorkerCompletion: %w", err)
+		return stageresult.StageContentResult{}, fmt.Errorf("invalid WorkerCompletion: %w", err)
 	}
 	if completion.Failure != nil {
 		failure := completion.Failure
-		return contracts.StageContentResult{
+		return stageresult.StageContentResult{
 			APIVersion: contracts.APIVersion,
-			Outcome:    contracts.StageFailed,
+			Outcome:    stageresult.StageFailed,
 			Summary:    failure.Message,
 			Artifacts:  map[string]contracts.ArtifactRef{},
 			Error: &contracts.TerminationError{
@@ -51,9 +52,9 @@ func StageCandidateFromWorkerCompletion(
 		}, nil
 	}
 	result := completion.Result
-	return contracts.StageContentResult{
+	return stageresult.StageContentResult{
 		APIVersion: contracts.APIVersion,
-		Outcome:    contracts.StageSucceeded,
+		Outcome:    stageresult.StageSucceeded,
 		Summary:    result.Result,
 		Artifacts:  contracts.CloneArtifactRefs(result.Artifacts),
 	}, nil

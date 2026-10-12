@@ -176,7 +176,7 @@ func TestCatalogCreateOnlySeedResolvePinAndDisclosure(t *testing.T) {
 		repository.writes != writes {
 		t.Fatalf("pin replay = (%+v, %v), writes %d -> %d", replayed, err, writes, repository.writes)
 	}
-	if _, err := service.WriteAuditArtifact(context.Background(), "project",
+	if _, err := service.CreateFrozen(context.Background(), projectScope,
 		artifacts.ArtifactRef{Namespace: "audit-collision", Name: pinned[0].Retained.Artifact.Name},
 		artifacts.Payload{MediaType: MediaType, Data: []byte("other package")}); err != nil {
 		t.Fatal(err)
@@ -219,7 +219,9 @@ func TestCatalogRejectsDriftWithoutAdvancingBinding(t *testing.T) {
 	ref := artifacts.ArtifactRef{Namespace: CatalogNamespace, Name: ArtifactName(Reference{Scheme: "example", Version: "1"})}
 	current, _ := service.User("owner")
 	read, _ := current.Read(context.Background(), ref)
-	if _, err := service.WriteAuditStandardPackage(context.Background(), "owner", ref,
+	// No Server path advances a catalog binding; tamper with the store itself.
+	owner, _ := artifacts.UserScope("owner")
+	if _, err := repository.Write(context.Background(), owner, ref,
 		artifacts.Payload{MediaType: "application/zip", Data: []byte("tampered")}, read.Ref.Revision); err != nil {
 		t.Fatal(err)
 	}
@@ -352,8 +354,10 @@ func rawArchive(t *testing.T, name string, data []byte) []byte {
 }
 
 // memoryRepository applies the store's write precondition and creates Audit
-// bindings frozen, as PostgreSQL does.
+// bindings frozen, as PostgreSQL does. Any Repository method it does not
+// implement panics on the nil embedded interface.
 type memoryRepository struct {
+	artifacts.Repository
 	mu              sync.Mutex
 	bindings        map[string]artifacts.ReadResult
 	frozen          map[string]bool
@@ -395,7 +399,7 @@ func (r *memoryRepository) writeLocked(scope artifacts.Scope, ref artifacts.Arti
 		BindingCreatedAt: now, RevisionCreatedAt: now}, nil
 }
 
-func (r *memoryRepository) WriteAuditArtifact(_ context.Context, scope artifacts.Scope,
+func (r *memoryRepository) CreateFrozen(_ context.Context, scope artifacts.Scope,
 	ref artifacts.ArtifactRef, payload artifacts.Payload) (artifacts.WriteResult, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -457,24 +461,6 @@ func (r *memoryRepository) ListRefs(_ context.Context, scope artifacts.Scope, qu
 		return artifacts.RefPage{Refs: result[:query.Limit], More: true}, nil
 	}
 	return artifacts.RefPage{Refs: result}, nil
-}
-
-func (r *memoryRepository) ForkInput(context.Context, artifacts.Scope, artifacts.ArtifactRef,
-	artifacts.Scope, string) (artifacts.ForkResult, error) {
-	return artifacts.ForkResult{}, artifacts.ErrQueryUnsupported
-}
-
-func (r *memoryRepository) BindOutputExact(context.Context, artifacts.Scope, string,
-	artifacts.ArtifactRef, *string) (artifacts.ForkResult, error) {
-	return artifacts.ForkResult{}, artifacts.ErrQueryUnsupported
-}
-
-func (r *memoryRepository) RequireExact(context.Context, artifacts.Scope, artifacts.ArtifactRef) error {
-	return artifacts.ErrQueryUnsupported
-}
-
-func (r *memoryRepository) FreezeOutputs(context.Context, artifacts.Scope) error {
-	return artifacts.ErrQueryUnsupported
 }
 
 func artifactKey(scope artifacts.Scope, ref artifacts.ArtifactRef) string {

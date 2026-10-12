@@ -10,8 +10,11 @@ lease that enforces it, the standby Server, detection of lease-session loss and
 its time bounds, the connection pooling that the lease needs, and what must
 not stand in for that lease: an unfenced shared `runtime_agents` table or a
 durable Runtime Agent principal. It owns the one classification of a failed
-PostgreSQL call into an outcome class and how SQL names the members of
-`jsonb` documents the Server encodes from Go types. It also indexes the
+PostgreSQL call into an outcome class, how SQL names the members of `jsonb`
+documents the Server encodes from Go types, and the owner package of every
+table and view, the only package whose SQL may write it. It owns the one flow
+and the one receipt table of keyed mutations, how advisory lock keys are
+built, and the shape and lease rule of controller claims. It also indexes the
 PostgreSQL state and the transaction and serialization rules that domain
 documents own, so each can be found from here while it is stated only in its
 owner.
@@ -111,6 +114,32 @@ flowchart LR
     Lease -->|"direct, or through a session pooler, never transaction-mode pooling"| DB
 ```
 
+### Table owners
+
+Every table and view has one owner package, the only package whose SQL may
+write it ([PER-R23](#requirements)). The table ownership registry
+[`internal/persistence/table_ownership.txt`](../../../internal/persistence/table_ownership.txt)
+assigns the owners, grants the reads that other packages make and lists the
+known foreign accesses; this index names the same owners. The documents that
+own the rules of particular state are indexed in the next section.
+
+| Owner package | Tables and views |
+| --- | --- |
+| `internal/agentprincipal` | `runtime_agent_principals` |
+| `internal/artifacts` | `artifact_binding_revisions`, `artifact_bindings`, `artifact_blob_settings`, `artifact_blobs`, `artifact_lineage`, `artifact_scopes`, `artifact_versions` |
+| `internal/auditstore/internal/pgstore` | `audit_artifact_links`, `audit_controller_claims`, `audit_events`, `audit_execution_items`, `audit_executions`, `audit_finding_assessments`, `audit_finding_contributions`, `audit_findings`, `audit_items`, `audit_live_item_reviews` (view), `audit_report_pages`, `audit_review_decisions`, `audit_review_requests`, `audit_rounds`, `audits` |
+| `internal/credentials` | `credential_operations`, `git_ssh_keys`, `llm_credentials`, `runtime_credentials` |
+| `internal/evalstore` | `eval_collections`, `eval_commands`, `eval_controller_claims`, `eval_dataset_revisions`, `eval_evidence_refs`, `eval_execution_tombstones`, `eval_experiments`, `eval_frozen_plans`, `eval_member_projections`, `eval_members`, `eval_plan_resources`, `eval_progress_observations`, `eval_projection_queue`, `eval_records`, `eval_selections`, `eval_submissions`, `eval_suboperations`, `eval_view_charts`, `eval_view_pairs` |
+| `internal/findingintake` | `finding_proposal_audit_holds`, `finding_proposal_receipts` |
+| `internal/gatewayrecovery` | `gateway_allocation_routes`, `gateway_recovery_failures`, `gateway_recovery_routes`, `gateway_recovery_waits`, `gateway_run_routes` |
+| `internal/performance` | `performance_minutes` |
+| `internal/persistence/postgres` | `contractor_schema_migrations` (the migration ledger), `mutation_receipts` |
+| `internal/projectstore` | `projects` |
+| `internal/runstore` | `owner_queue_controls`, `planner_sessions`, `run_stage_resumptions`, `stage_allocations`, `stage_executions`, `stage_transition_decisions`, `workflow_run_events`, `workflow_run_output_publications`, `workflow_runs` |
+| `internal/runtimeconfig` | `runtime_config_versions`, `runtime_label_bindings` |
+| `internal/settingsstore` | `scheduler_settings` |
+| `internal/telemetry` | `allocation_execution_reports`, `planner_execution_reports`, `stage_metrics` |
+
 ### PostgreSQL state and its owners
 
 | State | Owner |
@@ -120,6 +149,8 @@ flowchart LR
 | `llm_credentials` and the `credential_operations` internal recovery journal | [Runtime config, LLM credential record](../configuration/runtime-config.md#llm-credential-record) (RCF-R33, RCF-R71) |
 | WorkflowRun metadata labels | [Runs](../execution/runs.md) (RUN-R72, RUN-R73) |
 | The `scheduler_settings` singleton and its seed row | [Operations](../operations/operations.md) (OPS-R48, OPS-R49, OPS-R50) |
+| `mutation_receipts`, the receipt of every keyed mutation, and the advisory lock keys | This document ([PER-R24](#keyed-mutations-and-controller-claims)) |
+| The shape and lease rule of `audit_controller_claims` and `eval_controller_claims` | This document ([PER-R25](#keyed-mutations-and-controller-claims)) |
 | `performance_minutes` | [Operations](../operations/operations.md) (OPS-R150, OPS-R151, OPS-R152) |
 | Not PostgreSQL state: the live Runtime Agent Registry | [Control plane](../execution/control-plane.md) (CTL-R62) |
 
@@ -199,6 +230,34 @@ the same members.
 Rationale: credential deletion checks find references by these members; a
 renamed member would make them find none and let an in-use credential be
 deleted, and only database tests would notice.
+
+### Table ownership
+
+**PER-R23.** Every table and view of the schema has exactly one owner package,
+and only the owner's SQL writes it. A write is an insert, update, delete,
+merge, truncate, copy into the relation, table lock or change of the
+relation's definition, or an exclusive row lock (`FOR UPDATE`, `FOR NO KEY
+UPDATE`), which serializes with the owner's own changes. Another package changes or locks a relation only
+through the owner's Go API, inside the caller's transaction when it needs one;
+its SQL may read the relation, shared row locks included, only where the table
+ownership registry ([Table owners](#table-owners)) grants that read with its
+reason. The registry also lists the known accesses: foreign accesses that
+break this rule today, each with why it exists and the open task that removes
+it. A known access is a debt, not a grant: it leaves the registry with the
+access, and a new foreign write moves behind its owner instead of becoming a
+known access. The rule covers the SQL text of production Go code; test
+fixtures and the triggers and functions that migrations define are outside
+it. The registry, `scripts/erd/meta.json`, the [Table owners](#table-owners)
+index and the migrated schema name the same tables and views, and the ERD
+draws each table in the registry's group.
+
+Rationale: SQL needs no Go import, so the import-based layer check cannot see
+one package writing or locking another package's table. Such writes split one
+state machine or lock order across packages, and each copy drifts from the
+owner's rules. Reopen this rule when a guarantee needs one statement to change
+relations of two owners and their APIs cannot give it inside one transaction;
+record the guarantee, the alternatives and the evidence in the owner's
+document before the registry may grant such a write.
 
 ### Related rules owned elsewhere
 
@@ -321,6 +380,56 @@ inserted and when its completion changes, not on later updates that keep it:
 the completion cannot change once set, and the profile binding it is checked
 against is immutable ([AWC-R7](../audits/worker-completion.md)).
 
+### Keyed mutations and controller claims
+
+**PER-R24.** A keyed mutation is a request its caller may repeat under an
+idempotency key and whose receipt is kept apart from the entity it changes:
+an owner's Audit mutation (create, start, pause, cancel, resume and delete),
+a managed Eval mutation, and a Runtime label binding or Agent label set
+operation. Each records one receipt in `mutation_receipts`, in the
+transaction of its effect, through one flow:
+
+1. it takes the transaction advisory lock of its key, so the requests under
+   one key run one at a time;
+2. it reads the receipt stored under the key: a receipt of the same request
+   replays, and a receipt of another request is the idempotency conflict
+   ([API-R69](../api/public-api.md)); neither runs the mutation again;
+3. otherwise it runs the mutation and claims the key with the new receipt.
+
+A key is unique within the scope of its family: an Audit key per owner and
+operation, an Eval key per owner, Project, resource and operation, and a
+Runtime management key across every operation, held only as the digest of the
+operator's key. A family that also compares the stored operation or resource
+on replay, as Runtime management does, reports a difference as the same
+conflict. No receipt changes once claimed. An Audit receipt is deleted with
+its Audit, an Eval receipt only in its Project's purge, so it stays
+replayable after its experiment's purge
+([LIFE-EVM-7](lifecycle.md)), and a Runtime management receipt is never
+deleted. A request whose key is a column of the row it creates (a Run, a
+Project, a RuntimeConfig version, a Runtime credential, an Audit execution,
+an Eval member or an Audit review request or decision) keeps the key on that
+row, and an operation that journals an outbound call keeps its journal
+(`credential_operations`, `eval_suboperations`); neither is a keyed mutation
+here.
+
+Every transaction advisory lock key, of a keyed mutation or of any other
+serialization, is built from a namespace and parts by one builder that writes
+each value after its byte length, so two different part lists never share a
+key. Two locks keep their own keys: the advisory lease of the active Server
+(PER-R2), whose fixed key every Server version shares, and the migration
+lock, which is scoped to the schema being migrated.
+
+**PER-R25.** A controller that leases the subjects it reconciles, the Audit
+controller ([AUX-R74](../audits/execution.md)) and the Eval coordinator
+([EVM-R108](../evals/managed-evals.md)), keeps one claim row per subject in
+its own claim table, and every claim table has one shape: the subject, an
+epoch, and the holder with the start and the end of its lease, all three set
+or none. Both controllers lease, prove and release claims through one helper.
+A lease advances the epoch. A write proves that its holder still holds the
+claim at its epoch and that the lease has not ended; only a release or a
+purge by the holder accepts its holder's ended lease, because no other holder
+can have leased the subject without advancing the epoch.
+
 ## Limits, failures and errors
 
 Limits ([registry](limits.md)):
@@ -346,6 +455,7 @@ Failure outcomes ([failure model](failure-model.md)):
 Lifecycle ([lifecycle](lifecycle.md)):
 
 - LIFE-PER-1 — the advisory lease (PER-R2, PER-R4, PER-R6, PER-R10).
+- LIFE-PER-2 — the receipt of a keyed mutation (PER-R24).
 
 Errors ([registry](errors.md)): `/readyz` returns `503` on a standby Server
 until it acquires the advisory lease (PER-R3). The `/readyz` `503` for an
@@ -415,6 +525,13 @@ outlasts its retries is the retryable `503 storage_transaction_conflict`
     The Run deletion locks exist only on transaction-bound stores; test
     `TestDeletionLocksRequireTransaction` in
     [`internal/rundeletion/deleter_postgres_test.go`](../../../internal/rundeletion/deleter_postgres_test.go).
+    So do the Audit start staging lock and resume renewal; test
+    `TestStartStagingLockRequiresTransaction` in
+    [`internal/auditstore/internal/pgstore/transaction_bound_test.go`](../../../internal/auditstore/internal/pgstore/transaction_bound_test.go).
+    The Audit reconcile snapshot is one commit on a pool and runs inside a
+    caller's transaction; test
+    `TestPostgresReconcileSnapshotReadsOneCommitOnAPoolAndInACallerTransaction`
+    in [`internal/auditstore/internal/pgstore/reconcile_snapshot_postgres_test.go`](../../../internal/auditstore/internal/pgstore/reconcile_snapshot_postgres_test.go).
 14. A transaction begun outside InTx keeps the operation budget (PER-R19);
     tests `TestPostgresBeginTxAppliesTheOperationBudget` in
     [`internal/persistence/postgres/within_postgres_test.go`](../../../internal/persistence/postgres/within_postgres_test.go)
@@ -424,8 +541,8 @@ outlasts its retries is the retryable `503 storage_transaction_conflict`
     caller's transaction, and a concurrent create is replayed there (PER-R20);
     tests `TestPostgresRecoveryPathsRunInsideACallerTransaction` and
     `TestPostgresCreateDraftReplaysAConcurrentWinnerInsideATransaction` in
-    [`internal/auditstore/transaction_recovery_postgres_test.go`](../../../internal/auditstore/transaction_recovery_postgres_test.go),
-    `TestPostgresAuditPreparationStartRecoversInsideACallerTransaction` in
+    [`internal/auditstore/internal/pgstore/transaction_recovery_postgres_test.go`](../../../internal/auditstore/internal/pgstore/transaction_recovery_postgres_test.go),
+    `TestSharedPostgresAuditPreparationStartRecoversInsideACallerTransaction` in
     [`internal/artifacts/audit_preparation_transaction_postgres_test.go`](../../../internal/artifacts/audit_preparation_transaction_postgres_test.go)
     and `TestPostgresSavepointQueryRowKeepsTheCallerTransactionUsable` in
     [`internal/persistence/postgres/savepoint_postgres_test.go`](../../../internal/persistence/postgres/savepoint_postgres_test.go).
@@ -437,7 +554,7 @@ outlasts its retries is the retryable `503 storage_transaction_conflict`
     executions and findings, scans none of those tables sequentially and
     reads no large index whole; test
     `TestPostgresAuditPurgeAtScaleProbesForeignKeysThroughIndexes` in
-    [`internal/auditstore/purge_scale_postgres_test.go`](../../../internal/auditstore/purge_scale_postgres_test.go).
+    [`internal/auditstore/internal/pgstore/purge_scale_postgres_test.go`](../../../internal/auditstore/internal/pgstore/purge_scale_postgres_test.go).
 17. The Planner's Run event appends fire no trigger of `workflow_runs`, a
     state change fires the lifecycle capture and an assigned guarded column
     its guard (PER-R22); test `TestPostgresRunEventAppendsFireNoWorkflowRunTrigger`
@@ -448,6 +565,45 @@ outlasts its retries is the retryable `503 storage_transaction_conflict`
     Each column-scoped guard of `workflow_runs` lists exactly the columns its
     function compares; test `TestWorkflowRunGuardsFireOnTheColumnsTheyCompare`
     in [`internal/persistence/postgres/workflow_run_triggers_postgres_test.go`](../../../internal/persistence/postgres/workflow_run_triggers_postgres_test.go).
+18. Only its owner package writes a relation; every other access is a granted
+    read or a known access that names an open task, and no registry entry
+    outlives its access (PER-R23); tests
+    `TestSQLAccessFollowsTableOwnership`,
+    `TestTableOwnershipCheckRejectsAnUnlistedForeignUpdate` and
+    `TestTableOwnershipCheckReportsEachRule` in
+    [`internal/persistence/table_ownership_test.go`](../../../internal/persistence/table_ownership_test.go),
+    and `TestSQLAccessScanReadsStatementsAsTheRepositoryWritesThem` in
+    [`internal/persistence/sql_access_test.go`](../../../internal/persistence/sql_access_test.go)
+    for how SQL text is read.
+19. The registry, `scripts/erd/meta.json` with its groups and the
+    [Table owners](#table-owners) index name the same relations and owners
+    (PER-R23); test `TestTableOwnershipMatchesTheSchemaDocuments` in
+    [`internal/persistence/table_ownership_test.go`](../../../internal/persistence/table_ownership_test.go).
+    The migrated schema has exactly the registry's tables and views; test
+    `TestPostgresIntegrationMigrationsAndConstraints` in
+    [`internal/persistence/postgres/postgres_integration_test.go`](../../../internal/persistence/postgres/postgres_integration_test.go).
+20. Every keyed mutation of each family locks its key, replays the same
+    request without running again, refuses another request under the key and
+    claims nothing when its mutation fails; a second request under a key
+    waits for the first and replays it (PER-R24); tests
+    `TestPostgresKeyedMutationReplaysAndRefusesUnderEveryFamily` and
+    `TestPostgresKeyedMutationSerializesOneKey` in
+    [`internal/persistence/postgres/receipts_postgres_test.go`](../../../internal/persistence/postgres/receipts_postgres_test.go).
+    The receipt table keeps each family's key scope and retention, and no
+    receipt changes; test
+    `TestPostgresMutationReceiptsKeepTheirShapeAndRetention` in the same
+    file. No other production code reads or writes the receipt table, and no
+    other code builds an advisory lock key; test
+    `TestKeyedMutationsUseTheSharedHelpers` in
+    [`internal/persistence/keyed_mutation_test.go`](../../../internal/persistence/keyed_mutation_test.go).
+    Two different part lists never share an advisory key; test
+    `TestNewAdvisoryKeyNeverJoinsTwoPartListsIntoOneKey` in
+    [`internal/persistence/postgres/advisory_test.go`](../../../internal/persistence/postgres/advisory_test.go).
+21. Both controller claim tables lease, prove and release through one helper:
+    a lease advances the epoch, a stale holder or epoch and an ended lease
+    are lost, and a release accepts its holder's ended lease (PER-R25); test
+    `TestPostgresControllerClaimsLeaseProveAndRelease` in
+    [`internal/persistence/postgres/receipts_postgres_test.go`](../../../internal/persistence/postgres/receipts_postgres_test.go).
 
 ## Non-goals
 

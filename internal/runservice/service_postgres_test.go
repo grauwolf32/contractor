@@ -15,8 +15,11 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/agentskills"
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
 	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/credentials"
@@ -69,7 +72,7 @@ func TestPostgresTrustedAuditRunIsAtomicReplayableAndPinsExactSkill(t *testing.T
 		t.Fatal(err)
 	}
 
-	audits := auditstore.NewPostgresStore(pool)
+	audits := auditstoretest.NewStore(pool)
 	draft, _, err := audits.CreateDraft(ctx, auditstore.CreateDraftParams{
 		AuditID: "audit-run-service", OwnerID: "owner-run-service", ProjectID: project.ProjectID,
 		Profile:         auditstore.ProfileIdentity{Name: "test", Version: "1", Digest: testDigest("2")},
@@ -127,7 +130,7 @@ func TestPostgresTrustedAuditRunIsAtomicReplayableAndPinsExactSkill(t *testing.T
 
 	manager, _, err := configload.NewManager(config.ManagerOptions{
 		OperatorRoot: filepath.Join("..", "config", "testdata", "valid"),
-		ManagedRoot:  filepath.Join(t.TempDir(), "managed"), Descriptors: config.MVPDescriptors(),
+		ManagedRoot:  filepath.Join(t.TempDir(), "managed"),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -137,7 +140,7 @@ func TestPostgresTrustedAuditRunIsAtomicReplayableAndPinsExactSkill(t *testing.T
 		t.Fatal(err)
 	}
 	addWorkflowSkill(&workflow, contracts.ArtifactRef{Namespace: contracts.AgentSkillNamespace, Name: "review"})
-	skillSnapshot := contracts.RunSkillSnapshot{
+	skillSnapshot := agentskills.RunSkillSnapshot{
 		Name: "review", Source: exactRefPointer(skillAMetadata.Ref),
 		SourceDigest: skillAMetadata.Digest, SourceSize: skillAMetadata.Size,
 	}
@@ -187,7 +190,7 @@ func TestPostgresTrustedAuditRunIsAtomicReplayableAndPinsExactSkill(t *testing.T
 	}
 	params := AuditCreateParams{
 		Claim: claim, ExecutionID: execution.ExecutionID, Workflow: workflow,
-		RuntimeConfig: runtimeconfig.BuiltInRunSnapshot(), Skills: []contracts.RunSkillSnapshot{skillSnapshot},
+		RuntimeConfig: runtimeconfig.BuiltInRunSnapshot(), Skills: []agentskills.RunSkillSnapshot{skillSnapshot},
 		Parameters: map[string]string{"objective": "check"}, Inputs: map[string]auditstore.ExactArtifact{"source": source},
 		ExecutionManifest: manifest, RequestDigest: execution.RequestDigest,
 	}
@@ -239,8 +242,8 @@ func TestPostgresTrustedAuditRunIsAtomicReplayableAndPinsExactSkill(t *testing.T
 
 type emptyCredentialLookup struct{}
 
-func (emptyCredentialLookup) LookupLLMCredential(context.Context, string) (config.CredentialMetadata, error) {
-	return config.CredentialMetadata{}, errors.New("credential unavailable")
+func (emptyCredentialLookup) LookupLLMCredential(context.Context, string) (resolved.CredentialMetadata, error) {
+	return resolved.CredentialMetadata{}, errors.New("credential unavailable")
 }
 
 type openCredentialGuard struct{}
@@ -266,14 +269,14 @@ func postgresPublicTransaction(pool *pgxpool.Pool) PublicTransaction {
 			lookup, err := runtimeconfig.BindTransactionLLMCredentialLookup(
 				tx,
 				runtimeconfig.TransactionLLMCredentialLookupFactoryFunc(
-					func(pgx.Tx) (config.CredentialLookup, error) { return emptyCredentialLookup{}, nil },
+					func(pgx.Tx) (resolved.CredentialLookup, error) { return emptyCredentialLookup{}, nil },
 				),
 			)
 			if err != nil {
 				return err
 			}
 			return fn(
-				runstore.NewRunCreationPostgresStore(tx, lookup),
+				runstore.NewRunCreationPostgresStore(tx, lookup, credentials.NewRuntimeCredentialRepository(tx)),
 				artifacts.NewService(artifacts.NewPostgresRepository(tx)),
 			)
 		})
@@ -285,7 +288,7 @@ func postgresAuditTransaction(pool *pgxpool.Pool) AuditTransaction {
 		return persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 			return fn(
 				runstore.NewPostgresStore(tx), artifacts.NewService(artifacts.NewPostgresRepository(tx)),
-				auditstore.NewPostgresStore(tx),
+				auditstoretest.NewStore(tx),
 			)
 		})
 	}
@@ -318,7 +321,7 @@ func writeExact(
 }
 
 // writeAuditExact writes an Audit-managed Project artifact as the Audit
-// services do: frozen, through WriteAuditArtifact.
+// services do: frozen, through CreateFrozen.
 func writeAuditExact(
 	t *testing.T,
 	ctx context.Context,
@@ -329,17 +332,15 @@ func writeAuditExact(
 	payload []byte,
 ) auditstore.ExactArtifact {
 	t.Helper()
-	written, err := service.WriteAuditArtifact(
-		ctx, projectID, contracts.ArtifactRef{Namespace: "audit-test", Name: name},
-		artifacts.Payload{MediaType: mediaType, Data: payload},
-	)
+	written, err := artifactstest.WriteAuditArtifact(ctx, service, projectID,
+		contracts.ArtifactRef{Namespace: "audit-test", Name: name}, artifacts.Payload{MediaType: mediaType, Data: payload})
 	if err != nil {
 		t.Fatal(err)
 	}
 	return contracts.ExactContent(written.Ref, written.MediaType, payload)
 }
 
-func addWorkflowSkill(workflow *config.ResolvedWorkflow, skill contracts.ArtifactRef) {
+func addWorkflowSkill(workflow *resolved.ResolvedWorkflow, skill contracts.ArtifactRef) {
 	for stageName, stage := range workflow.Stages {
 		for agentName, binding := range stage.Agents {
 			binding.Template.Skills = []contracts.ArtifactRef{skill}

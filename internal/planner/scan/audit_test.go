@@ -11,11 +11,11 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
-	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	contractscan "github.com/grauwolf32/contractor/internal/contracts/scan"
 	"github.com/grauwolf32/contractor/internal/planner"
+	"github.com/grauwolf32/contractor/internal/planner/stageresult"
 	"github.com/grauwolf32/contractor/internal/scanplan"
 )
 
@@ -37,7 +37,7 @@ func (s *auditFactoryHistory) ReadAuditScanHistory(context.Context, string) ([]p
 func newAuditFactoryHarness(t *testing.T, scanner string) (*factoryHarness, *auditFactoryHistory) {
 	t.Helper()
 	h := newFactoryHarness(t, 1)
-	snapshot, err := configload.Load("../../../testdata/configs-scan", config.MVPDescriptors())
+	snapshot, err := configload.Load("../../../testdata/configs-scan")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -99,7 +99,7 @@ func newAuditFactoryHarness(t *testing.T, scanner string) (*factoryHarness, *aud
 	return h, history
 }
 
-func auditFactoryResult(t *testing.T, h *factoryHarness, result contracts.StageContentResult) auditdomain.CheckResultPackage {
+func auditFactoryResult(t *testing.T, h *factoryHarness, result stageresult.StageContentResult) auditdomain.CheckResultPackage {
 	t.Helper()
 	payload := h.artifacts.payload(result.Artifacts["report"])
 	pkg, err := auditdomain.DecodeCheckResultPackage(payload.Data)
@@ -116,7 +116,7 @@ func TestAuditExecutorRetainsAssignedRequestAndURL(t *testing.T) {
 			result := h.run(t)
 			pkg := auditFactoryResult(t, h, result)
 			check := pkg.Results.Results[0]
-			if result.Outcome != contracts.StageSucceeded || len(h.invoker.calls) != 1 || check.Assessment != "inconclusive" || len(check.Coverage.Completed) != 1 {
+			if result.Outcome != stageresult.StageSucceeded || len(h.invoker.calls) != 1 || check.Assessment != "inconclusive" || len(check.Coverage.Completed) != 1 {
 				t.Fatalf("scan outcome: %+v, coverage: %+v, calls: %d", result, check, len(h.invoker.calls))
 			}
 			foundReport := false

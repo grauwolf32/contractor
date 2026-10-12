@@ -12,7 +12,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/runservice"
 	"github.com/grauwolf32/contractor/internal/runstore"
 )
@@ -138,7 +138,7 @@ func (c *Controller) reconcileRolePhase(
 	snapshot auditstore.ReconcileSnapshot,
 	kind auditstore.ExecutionRole,
 ) (changed bool, complete bool, reason *auditstore.StopReason, err error) {
-	profile, decodeErr := config.DecodeResolvedAuditProfileSnapshot(snapshot.Audit.ProfileSnapshot)
+	profile, decodeErr := auditprofile.DecodeResolvedAuditProfileSnapshot(snapshot.Audit.ProfileSnapshot)
 	if decodeErr != nil || (kind != auditstore.ExecutionPrepare && snapshot.Round == nil) {
 		return false, false, &auditstore.StopReason{
 			Code: "role_contract_invalid", Message: "The pinned Audit role configuration is invalid.",
@@ -259,7 +259,7 @@ func (c *Controller) dispatchRole(
 	return changed, false, nil, err
 }
 
-func roleNames(profile config.ResolvedAuditProfile, kind auditstore.ExecutionRole) []string {
+func roleNames(profile auditprofile.ResolvedAuditProfile, kind auditstore.ExecutionRole) []string {
 	result := make([]string, 0)
 	for name, binding := range profile.Workflows {
 		if auditstore.ExecutionRole(binding.Kind) == kind {
@@ -326,13 +326,13 @@ func roleDispositionRetryable(disposition auditstore.CollectionDisposition, erro
 }
 
 func roleDependenciesSatisfied(
-	profile config.ResolvedAuditProfile,
+	profile auditprofile.ResolvedAuditProfile,
 	snapshot auditstore.ReconcileSnapshot,
 	workflowRole string,
 ) bool {
 	binding := profile.Workflows[workflowRole]
 	for _, mapping := range binding.Inputs {
-		if mapping.Source != config.AuditInputFromRetainedOutput && mapping.Source != config.AuditInputFromPreparation {
+		if mapping.Source != auditprofile.AuditInputFromRetainedOutput && mapping.Source != auditprofile.AuditInputFromPreparation {
 			continue
 		}
 		source, exists := profile.Workflows[mapping.Role]
@@ -474,7 +474,7 @@ func (c *Controller) resumeOneIntent(
 		if execution.State != auditstore.ExecutionIntent || execution.RunID != nil {
 			continue
 		}
-		members, err := c.store.ListExecutionItems(ctx, execution.ExecutionID)
+		members, err := c.reads.ListExecutionItems(ctx, execution.ExecutionID)
 		if err != nil {
 			return false, err
 		}
@@ -487,7 +487,7 @@ func (c *Controller) resumeOneIntent(
 			for index, member := range members {
 				itemIDs[index] = member.ItemID
 			}
-			items, readErr := c.store.ListItemsByIDs(ctx, snapshot.Audit.AuditID, itemIDs)
+			items, readErr := c.reads.ListItemsByIDs(ctx, snapshot.Audit.AuditID, itemIDs)
 			if readErr != nil {
 				return false, readErr
 			}

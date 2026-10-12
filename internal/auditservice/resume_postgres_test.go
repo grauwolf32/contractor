@@ -11,7 +11,8 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditstore"
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/auditprofile"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
@@ -34,7 +35,7 @@ func newTimeControlAudit(t *testing.T, seconds int) (context.Context, *pgxpool.P
 		t.Fatal(err)
 	}
 	now := time.Now().UTC().Truncate(time.Microsecond)
-	service, err := New(Options{Pool: pool, Profiles: profiles, CredentialGuard: &countingCredentialGuard{}, Now: func() time.Time { return now }, TransactionLLMCredentials: runtimeconfig.TransactionLLMCredentialLookupFactoryFunc(func(pgx.Tx) (config.CredentialLookup, error) {
+	service, err := New(Options{Pool: pool, Profiles: profiles, CredentialGuard: &countingCredentialGuard{}, Now: func() time.Time { return now }, TransactionLLMCredentials: runtimeconfig.TransactionLLMCredentialLookupFactoryFunc(func(pgx.Tx) (resolved.CredentialLookup, error) {
 		return &switchableCredentialLookup{available: true, gateway: gateway.Ref}, nil
 	})})
 	if err != nil {
@@ -173,7 +174,7 @@ func TestAuditDeadlinePauseResumesAndRenewsExpiredReviews(t *testing.T) {
 				t.Fatal(err)
 			}
 			params := MutationParams{OwnerID: started.Audit.OwnerID, AuditID: started.Audit.AuditID, ExpectedRevision: started.Audit.Revision, IdempotencyKey: "resume-deadline", RequestDigest: serviceTestDigest("resume-deadline")}
-			profile, err := config.DecodeResolvedAuditProfileSnapshot(started.Audit.ProfileSnapshot)
+			profile, err := auditprofile.DecodeResolvedAuditProfileSnapshot(started.Audit.ProfileSnapshot)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -235,7 +236,7 @@ func auditTimeControlSnapshot(t *testing.T, ctx context.Context, pool *pgxpool.P
 'reviews', (SELECT jsonb_agg(to_jsonb(r) ORDER BY request_id) FROM audit_review_requests r WHERE audit_id='audit-time'),
 'links', (SELECT jsonb_agg(to_jsonb(l) ORDER BY logical_key) FROM audit_artifact_links l WHERE audit_id='audit-time'),
 'events', (SELECT jsonb_agg(to_jsonb(e) ORDER BY sequence_number) FROM audit_events e WHERE audit_id='audit-time'),
-'receipts', (SELECT jsonb_agg(to_jsonb(i) ORDER BY idempotency_key) FROM audit_idempotency i WHERE audit_id='audit-time')
+'receipts', (SELECT jsonb_agg(to_jsonb(i) ORDER BY idempotency_key) FROM mutation_receipts i WHERE audit_id='audit-time')
 )`).Scan(&data); err != nil {
 		t.Fatal(err)
 	}

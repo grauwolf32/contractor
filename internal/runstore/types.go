@@ -7,9 +7,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/agentskills"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
+	"github.com/grauwolf32/contractor/internal/planner/stageresult"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 )
 
@@ -119,7 +121,7 @@ type WorkflowRun struct {
 	RuntimeLabels             []string
 	RuntimeConfig             runtimeconfig.RunSnapshot
 	ProjectHTTPTarget         *runtimesettings.HTTPOriginTargetRef
-	SkillSnapshot             []contracts.RunSkillSnapshot
+	SkillSnapshot             []agentskills.RunSkillSnapshot
 	PublicationMode           OutputPublicationMode
 	AuditExecutionID          *string
 	AuditSubmissionKey        *string
@@ -405,9 +407,9 @@ type StageExecution struct {
 	PlannerSessionID             *string
 	PlannerInvocationID          *string
 	CandidateResultSchemaVersion *string
-	CandidateResult              *contracts.StageContentResult
+	CandidateResult              *stageresult.StageContentResult
 	AcceptedResultSchemaVersion  *string
-	AcceptedResult               *contracts.StageContentResult
+	AcceptedResult               *stageresult.StageContentResult
 	TerminationSchemaVersion     *string
 	Termination                  *StageTermination
 	FinalizationID               *string
@@ -467,7 +469,7 @@ type StartPlannerParams struct {
 type EnterFinalizingParams struct {
 	StageExecutionID    string
 	ResultSchemaVersion string
-	Candidate           contracts.StageContentResult
+	Candidate           stageresult.StageContentResult
 	FinalizationID      string
 	Deadline            time.Time
 	Reason              Reason
@@ -596,27 +598,6 @@ type StageExecutionReport struct {
 	Report              reporting.AllocationFinalReport
 	ReceivedAt          time.Time
 	ExpiresAt           time.Time
-}
-
-type RecordStageExecutionReportParams struct {
-	StageExecutionID            string
-	AllocationID                string
-	LogicalAgentName            string
-	ReportSchemaVersion         string
-	Report                      reporting.AllocationFinalReport
-	PerformanceCollectionPolicy reporting.PerformanceCollectionPolicy
-	Secrets                     []string
-}
-
-type RecordPlannerExecutionReportParams struct {
-	StageExecutionID    string
-	SessionID           string
-	InvocationID        string
-	StartedAt           time.Time
-	FinishedAt          time.Time
-	ReportSchemaVersion string
-	Report              reporting.ExecutionReport
-	Secrets             []string
 }
 
 func validateReason(reason Reason) error {

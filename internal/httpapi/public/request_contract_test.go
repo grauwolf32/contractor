@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"os"
 	"strings"
 	"testing"
 	"time"
@@ -13,7 +12,8 @@ import (
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/getkin/kin-openapi/routers/gorillamux"
 	"github.com/grauwolf32/contractor/internal/auth"
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
+	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	"github.com/grauwolf32/contractor/internal/gitimport"
 	"github.com/grauwolf32/contractor/internal/projectstore"
@@ -21,7 +21,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 )
 
-func TestPublicRequestAndHistoryContracts(t *testing.T) {
+func TestSharedPublicRequestAndHistoryContracts(t *testing.T) {
 	document := loadPublicOpenAPI(t)
 	router, err := gorillamux.NewRouter(document)
 	if err != nil {
@@ -29,10 +29,7 @@ func TestPublicRequestAndHistoryContracts(t *testing.T) {
 	}
 
 	t.Run("finding-decision-conditions", func(t *testing.T) {
-		data, err := os.ReadFile("../../../api/testdata/public/finding-decision-cases.json")
-		if err != nil {
-			t.Fatal(err)
-		}
+		data := contractstest.ReadFile(t, "api", "testdata", "public", "finding-decision-cases.json")
 		var cases []struct {
 			Name    string
 			Valid   bool
@@ -126,7 +123,7 @@ func TestPublicRequestAndHistoryContracts(t *testing.T) {
 
 	t.Run("git-cookie-and-bearer-mutations", func(t *testing.T) {
 		git := &requestContractGit{}
-		fixture := newHandlerFixtureWithAuth(t, "../../config/testdata/valid", newTestAuthentication(t), mustTestOrigins(t), false, nil, func(d *Dependencies) { d.GitKeys = git; d.GitImports = git })
+		fixture := newHandlerFixtureWithAuth(t, "../../config/testdata/valid", newTestAuthentication(t), mustTestOrigins(t), false, nil, func(d *testServices) { d.GitKeys = git; d.GitImports = git })
 		login := loginBrowser(t, fixture.handler, "admin", testAuthPassword, testBrowserOrigin)
 		if login.response.Code != http.StatusOK {
 			t.Fatal("fixture login failed")
@@ -196,7 +193,7 @@ func TestPublicRequestAndHistoryContracts(t *testing.T) {
 			t.Fatal(err)
 		}
 		selectedStage := workflow.Stages["copy"]
-		selectedStage.On.Failed = config.TransitionAction{Kind: config.TransitionRetry, Retry: &config.RetryTransition{MaxAttempts: count, Then: config.TransitionAction{Kind: config.TransitionFail}}}
+		selectedStage.On.Failed = resolved.TransitionAction{Kind: resolved.TransitionRetry, Retry: &resolved.RetryTransition{MaxAttempts: count, Then: resolved.TransitionAction{Kind: resolved.TransitionFail}}}
 		stage, err := json.Marshal(selectedStage)
 		if err != nil {
 			t.Fatal(err)

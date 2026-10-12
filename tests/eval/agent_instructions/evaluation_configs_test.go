@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/configload"
 )
 
@@ -55,7 +55,8 @@ func TestEvaluationReleasePreservesPairedContracts(t *testing.T) {
 	for _, overlay := range []string{"candidate/configs", "evaluation-configs/configs"} {
 		copyArchivedExecutionConfigs(t, directory, overlay)
 	}
-	snapshot, err := configload.Load(directory, archivedExperimentDescriptors())
+	registerArchivedToolsets(t, directory)
+	snapshot, err := configload.Load(directory)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -65,7 +66,7 @@ func TestEvaluationReleasePreservesPairedContracts(t *testing.T) {
 	for _, id := range []string{"d1", "o1", "l1", "t1", "t2", "a1"} {
 		t.Run(id, func(t *testing.T) {
 			arms := manifest.Cases[id]
-			var pair []config.ResolvedWorkflow
+			var pair []resolved.ResolvedWorkflow
 			for _, arm := range []string{"baseline", "candidate"} {
 				entry := arms[arm]
 				workflow, err := snapshot.Workflow(entry.Workflow)

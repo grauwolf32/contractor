@@ -8,7 +8,6 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"go.yaml.in/yaml/v4"
 )
@@ -59,7 +58,7 @@ func TestProductionMemoryConfigurationStaging(t *testing.T) {
 			if err := os.WriteFile(path, data, 0o600); err != nil {
 				t.Fatal(err)
 			}
-			expectedCatalog, err := configload.Load(configRoot, config.MVPDescriptors())
+			expectedCatalog, err := configload.Load(configRoot)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -72,7 +71,7 @@ func TestProductionMemoryConfigurationStaging(t *testing.T) {
 			}
 			target := stageE2EConfiguration(t, filepath.Join(configRoot, "e2e"), filepath.Join(t.TempDir(), "configs"), "http://127.0.0.1:1/v1")
 			stageProductionMemoryConfiguration(t, source, target)
-			actualCatalog, err := configload.Load(target, config.MVPDescriptors())
+			actualCatalog, err := configload.Load(target)
 			if err != nil {
 				t.Fatal(err)
 			}

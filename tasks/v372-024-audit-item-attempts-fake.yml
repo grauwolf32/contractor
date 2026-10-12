@@ -1,0 +1,59 @@
+schema_version: "1.0"
+id: V372-024
+title: "Make the Audit item attempt fake answer like the store and keep the item list schema-valid without it"
+milestone: hub-audit-defects-2026-10
+epic: quality
+kind: chore
+introduced_by: V369-004
+priority: P3
+status: pending
+depends_on: []
+languages: [go]
+goal: "The handler-test double of ListItemAttempts returns an empty list for every requested item without attempts, as the PostgreSQL store does, and listAuditItems renders an empty attempts array for an item the map lacks, so no test and no store renders attempts: null."
+context:
+  review: "Out-of-scope finding of the hub audit fix batch, wave 2 (group w2c: V370-009, V369-004, V370-010), recorded 2026-10-12; file:line verified on b2b09ea"
+  specification: "docs/spec/api/public-api.md#API-R1"
+  finding: >-
+    listAuditItems (internal/httpapi/public/audit_handlers.go:516-534)
+    replaces each item's attempts with the map entry of ListItemAttempts
+    (line 533), so an item missing from the map is rendered as
+    "attempts": null, which the AuditItem schema forbids (attempts is a
+    required array, api/openapi/contractor-public-v1.yaml:11695 and 11712).
+    The PostgreSQL store never omits an item: QueryStore.ListItemAttempts
+    fills an empty list for every requested item without attempts
+    (internal/auditstore/internal/pgstore/read.go:314-410, lines 404-408), so
+    production does not render null. The handler-test double does omit them
+    and says the opposite of the store: "Like the store, the result holds
+    only the items that have attempts"
+    (internal/httpapi/public/audit_handlers_test.go:735-748, added by
+    V369-004 in acfa7b5), so handler tests render a response the contract
+    rejects and exercise a path the store cannot produce (AGENTS.md 3.5).
+    The handler relies on the store's fill without the interface saying so
+    (audit_handlers.go:40).
+  siblings: >-
+    Other handler doubles of the Audit context that model page reads
+    (fakeAuditManagement in audit_handlers_test.go, the conformance fixture
+    of operation_conformance_test.go:240-250) must follow the store's
+    answers too; check the coverage and execution reads the same way. The UI
+    reads item.attempts without a null check
+    (ui/src/routes/projects/audits/executions.tsx:99 and 116,
+    activity-model.ts:134), which is correct for a schema-valid response.
+scope:
+  in:
+    - "The double fills an empty list for every requested item without attempts, and its comment states the store's rule; the ListItemAttempts interface comment states the guarantee."
+    - "listAuditItems keeps the read model's empty list when the map lacks an item."
+    - "A handler test with an item that has no attempts whose response is validated against the OpenAPI document."
+  out:
+    - "The store query and the attempt projection bound."
+acceptance_criteria:
+  - id: A1
+    text: "A page with an item that has no attempts renders attempts as an empty array, and its response validates against the contract."
+  - id: A2
+    text: "The double and the PostgreSQL store give the same map for the same item selection, and the new handler test fails on b2b09ea."
+tests:
+  - command: "go test ./internal/httpapi/public"
+    covers: [A1, A2]
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/auditstore/... ./internal/httpapi/public"
+    covers: [A2]
+  - command: make lint
+    covers: [A1, A2]

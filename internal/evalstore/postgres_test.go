@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 	pg "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
@@ -76,10 +77,7 @@ func mustTx(t *testing.T, pool *pgxpool.Pool, fn func(*Store) error) {
 }
 func fixture(t *testing.T, name, kind string) evaldomain.Frozen {
 	t.Helper()
-	b, err := os.ReadFile("../../api/testdata/evals/valid/" + name + ".json")
-	if err != nil {
-		t.Fatal(err)
-	}
+	b := contractstest.ReadFile(t, "api", "testdata", "evals", "valid", name+".json")
 	f, err := evaldomain.Freeze(kind, b)
 	if err != nil {
 		t.Fatal(name, err)
@@ -214,7 +212,7 @@ func beginProjectDeletion(t *testing.T, pool *pgxpool.Pool, scope Scope) {
 	}
 }
 
-func TestPostgresEvalDraftCASOwnerReplayAndPrivateDatasets(t *testing.T) {
+func TestSharedPostgresEvalDraftCASOwnerReplayAndPrivateDatasets(t *testing.T) {
 	pool := testPool(t)
 	ctx := context.Background()
 	a := setupProject(t, pool, "owner-a", "eval-a")
@@ -311,7 +309,7 @@ func TestPostgresEvalDraftCASOwnerReplayAndPrivateDatasets(t *testing.T) {
 	}
 }
 
-func TestPostgresEvalExternalFreezeAdmissionAndDeletionFence(t *testing.T) {
+func TestSharedPostgresEvalExternalFreezeAdmissionAndDeletionFence(t *testing.T) {
 	pool := testPool(t)
 	ctx := context.Background()
 	scope := setupProject(t, pool, "owner", "eval")
@@ -388,7 +386,7 @@ func TestPostgresEvalExternalFreezeAdmissionAndDeletionFence(t *testing.T) {
 	}
 }
 
-func TestPostgresEvalNativeFreezeStaleClaimsAndSuboperationRecovery(t *testing.T) {
+func TestSharedPostgresEvalNativeFreezeStaleClaimsAndSuboperationRecovery(t *testing.T) {
 	pool := testPool(t)
 	ctx := context.Background()
 	scope := setupProject(t, pool, "owner", "eval")
@@ -486,7 +484,7 @@ func TestPostgresEvalNativeFreezeStaleClaimsAndSuboperationRecovery(t *testing.T
 	}
 }
 
-func TestPostgresEvalBoundedPagesPinnedPurgeAndReceiptRetention(t *testing.T) {
+func TestSharedPostgresEvalBoundedPagesPinnedPurgeAndReceiptRetention(t *testing.T) {
 	pool := testPool(t)
 	ctx := context.Background()
 	scope := setupProject(t, pool, "owner", "eval")
@@ -535,7 +533,7 @@ func TestPostgresEvalBoundedPagesPinnedPurgeAndReceiptRetention(t *testing.T) {
 	}
 	beginProjectDeletion(t, pool, scope)
 	mustTx(t, pool, func(s *Store) error { return s.PurgeProject(ctx, scope) })
-	for _, table := range []string{"eval_experiments", "eval_dataset_revisions", "eval_mutation_receipts"} {
+	for _, table := range []string{"eval_experiments", "eval_dataset_revisions", "mutation_receipts"} {
 		var n int
 		if err = pool.QueryRow(ctx, `SELECT count(*) FROM `+table+` WHERE project_id=$1`, scope.ProjectID).Scan(&n); err != nil || n != 0 {
 			t.Fatal(table, n, err)
@@ -546,7 +544,7 @@ func TestPostgresEvalBoundedPagesPinnedPurgeAndReceiptRetention(t *testing.T) {
 	}
 }
 
-func TestPostgresEvalAdmissionAndProjectDeletionSerializeBothOrders(t *testing.T) {
+func TestSharedPostgresEvalAdmissionAndProjectDeletionSerializeBothOrders(t *testing.T) {
 	for _, deletionFirst := range []bool{false, true} {
 		t.Run(fmt.Sprint(deletionFirst), func(t *testing.T) {
 			pool := testPool(t)
@@ -604,7 +602,7 @@ func TestPostgresEvalAdmissionAndProjectDeletionSerializeBothOrders(t *testing.T
 	}
 }
 
-func TestPostgresEvalAuditWorkspaceDependencyFencesWithoutDeletingExperiment(t *testing.T) {
+func TestSharedPostgresEvalAuditWorkspaceDependencyFencesWithoutDeletingExperiment(t *testing.T) {
 	pool := testPool(t)
 	ctx := context.Background()
 	scope := setupProject(t, pool, "owner", "eval")
@@ -647,7 +645,7 @@ func TestPostgresEvalAuditWorkspaceDependencyFencesWithoutDeletingExperiment(t *
 	}
 }
 
-func TestPostgresEvalTerminalChildProjectDeletionPreservesLifecycle(t *testing.T) {
+func TestSharedPostgresEvalTerminalChildProjectDeletionPreservesLifecycle(t *testing.T) {
 	for _, terminal := range []evaldomain.State{evaldomain.StateFinished, evaldomain.StateCancelled} {
 		t.Run(string(terminal), func(t *testing.T) {
 			pool := testPool(t)
@@ -698,7 +696,7 @@ UPDATE eval_experiments SET state=$2, outstanding_count=0, revision=revision+1,
 	}
 }
 
-func TestPostgresEvalProjectDeletionStillPurgesTerminalExperiments(t *testing.T) {
+func TestSharedPostgresEvalProjectDeletionStillPurgesTerminalExperiments(t *testing.T) {
 	for _, terminal := range []evaldomain.State{evaldomain.StateFinished, evaldomain.StateCancelled} {
 		t.Run(string(terminal), func(t *testing.T) {
 			pool := testPool(t)
@@ -729,7 +727,7 @@ UPDATE eval_experiments SET state=$2, revision=revision+1,
 	}
 }
 
-func TestPostgresEvalFrozenDeadlineAndOptionalTokenAllowance(t *testing.T) {
+func TestSharedPostgresEvalFrozenDeadlineAndOptionalTokenAllowance(t *testing.T) {
 	for _, tokenFence := range []bool{false, true} {
 		t.Run(fmt.Sprint(tokenFence), func(t *testing.T) {
 			pool := testPool(t)

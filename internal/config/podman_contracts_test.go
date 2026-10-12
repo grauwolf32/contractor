@@ -3,31 +3,9 @@ package config
 import (
 	"os"
 	"path/filepath"
-	"reflect"
 	"strings"
 	"testing"
-
-	"github.com/grauwolf32/contractor/internal/contracts"
 )
-
-func TestPodmanRegisteredDescriptorsAndIsolation(t *testing.T) {
-	d, err := normalizeDescriptors(MVPDescriptors())
-	if err != nil {
-		t.Fatal(err)
-	}
-	profile := d.SandboxProfiles["podman@1"]
-	if profile.WorkspaceMode != contracts.WorkspaceModeDirect || profile.WorkspaceStorage != contracts.WorkspaceStorageLocal {
-		t.Fatalf("incorrect Podman requirements: %+v", profile)
-	}
-	toolset := d.Toolsets["code-execution@1"]
-	if !reflect.DeepEqual(toolset.Tools, []string{"exec_command"}) || toolset.RequiredSandboxProfile != "podman@1" || !reflect.DeepEqual(toolset.InfrastructureChannels["exec_command"], []ToolInfrastructureChannel{SandboxExecution}) {
-		t.Fatalf("incorrect execution descriptor: %+v", toolset)
-	}
-	toolset.InfrastructureChannels["exec_command"] = []ToolInfrastructureChannel{SandboxExecution, RuntimeSubprocessLauncher}
-	if _, err := normalizeDescriptors(d); err == nil {
-		t.Fatal("mixed host and sandbox authority accepted")
-	}
-}
 
 func TestPodmanAuthoringChecksWithoutFleetLookup(t *testing.T) {
 	for _, test := range []struct {
@@ -54,7 +32,7 @@ func TestPodmanAuthoringChecksWithoutFleetLookup(t *testing.T) {
 				replaceFile(t, workflow, "      context:\n", "      context:\n        workspace:\n          mode: "+test.mode+"\n          sources: [{artifact: source, target: \"\"}]\n")
 				replaceFile(t, workflow, "source: {required: true, mediaTypes: [text/plain]}", "source: {required: true, mediaTypes: [application/zip]}")
 			}
-			snapshot, err := Load(root, MVPDescriptors())
+			snapshot, err := Load(root)
 			if test.want == "" {
 				if err != nil || snapshot == nil {
 					t.Fatalf("valid Podman authoring: %v", err)
@@ -63,19 +41,5 @@ func TestPodmanAuthoringChecksWithoutFleetLookup(t *testing.T) {
 				t.Fatalf("error = %v, want %s", err, test.want)
 			}
 		})
-	}
-}
-
-func TestPodmanProfileAloneRequiresWorkspaceButAddsNoTools(t *testing.T) {
-	template := contracts.ResolvedAgentTemplate{SandboxProfile: contracts.SandboxProfileRef{SandboxProfileID: "podman", Version: "1"}}
-	agents := map[string]ResolvedAgentBinding{"worker": {Template: template}}
-	if err := validateStageWorkspace(StageContext{}, StageResultContract{}, agents); err == nil {
-		t.Fatal("profile without workspace accepted")
-	}
-	if err := validateStageWorkspace(StageContext{Workspace: &WorkspaceContext{Mode: contracts.WorkspaceModeDirect}}, StageResultContract{}, agents); err != nil {
-		t.Fatal(err)
-	}
-	if len(agents["worker"].Template.Toolsets) != 0 {
-		t.Fatal("profile added tools")
 	}
 }
