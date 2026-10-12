@@ -23,6 +23,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/planner"
 	plannersession "github.com/grauwolf32/contractor/internal/planner/session"
 	"github.com/grauwolf32/contractor/internal/planner/stageresult"
+	"github.com/grauwolf32/contractor/internal/planner/streamline"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/telemetry"
 	"google.golang.org/adk/model"
@@ -215,7 +216,7 @@ func TestRouterPersistsTwoSubtasksAndOneLogicalDispatchWithoutWorkerPayload(t *t
 	}}
 	sessions := newFakeSessions()
 	factory, err := NewConfiguredFactory(
-		sessions, sessions, workers, fakeInspector{}, unavailableWorkerStateReader{}, testModelFactory(llm), DefaultLimits(),
+		sessions, sessions, workers, fakeInspector{}, unavailableWorkerStateReader{}, testModelFactory(llm), streamline.DefaultLimits(),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -335,7 +336,7 @@ func TestRouterFactoryRejectsEmptyBindingsBeforeSideEffects(t *testing.T) {
 	workers := &fakeWorkerInvoker{}
 	sessions := newFakeSessions()
 	factory, err := NewConfiguredFactory(
-		sessions, sessions, workers, fakeInspector{}, unavailableWorkerStateReader{}, testModelFactory(llm), DefaultLimits(),
+		sessions, sessions, workers, fakeInspector{}, unavailableWorkerStateReader{}, testModelFactory(llm), streamline.DefaultLimits(),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -390,7 +391,7 @@ func mustPlanner(
 	t.Helper()
 	sessions := newFakeSessions()
 	factory, err := NewConfiguredFactory(
-		sessions, sessions, workers, fakeInspector{}, unavailableWorkerStateReader{}, testModelFactory(llm), DefaultLimits(),
+		sessions, sessions, workers, fakeInspector{}, unavailableWorkerStateReader{}, testModelFactory(llm), streamline.DefaultLimits(),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -549,16 +550,6 @@ func (s *fakeSessions) RecordFact(
 ) error {
 	s.facts = append(s.facts, fact)
 	return nil
-}
-
-func (s *fakeSessions) LoadPlan(
-	context.Context,
-	planner.SessionIdentity,
-) (planner.PlannerPlanProjection, bool, error) {
-	if s.plan == nil {
-		return planner.PlannerPlanProjection{}, false, nil
-	}
-	return cloneRouterPlanProjection(*s.plan), true, nil
 }
 
 func (s *fakeSessions) NewADKSession(

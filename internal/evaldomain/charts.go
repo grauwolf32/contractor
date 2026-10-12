@@ -3,7 +3,6 @@ package evaldomain
 import (
 	"math"
 	"sort"
-	"time"
 )
 
 type Coverage struct {
@@ -126,49 +125,10 @@ func MeasurementCohort(pairs []Pair, suite, metric, scope string, pinsVerified b
 	return c
 }
 
-type ProgressObservation struct {
-	ObservedAt time.Time
-	A          int
-	B          int
-}
 type ProgressPoint struct {
 	ElapsedMS  int64  `json:"elapsedMs"`
 	ObservedAt string `json:"observedAt"`
 	A          *int   `json:"a"`
 	B          *int   `json:"b"`
 	GapBefore  bool   `json:"gapBefore"`
-}
-
-// ProgressBuckets keeps only real server observations. A bucket is never filled
-// with an invented zero/interpolated point; long unobserved intervals stay gaps.
-func ProgressBuckets(start time.Time, observations []ProgressObservation) ([]ProgressPoint, int64) {
-	out := []ProgressPoint{}
-	if len(observations) == 0 {
-		return out, 1
-	}
-	rows := append([]ProgressObservation{}, observations...)
-	sort.SliceStable(rows, func(i, j int) bool { return rows[i].ObservedAt.Before(rows[j].ObservedAt) })
-	maxElapsed := rows[len(rows)-1].ObservedAt.Sub(start).Milliseconds()
-	if maxElapsed < 0 {
-		return out, 1
-	}
-	width := maxElapsed/MaxProgressBuckets + 1
-	bucket := int64(-1)
-	for _, o := range rows {
-		elapsed := o.ObservedAt.Sub(start).Milliseconds()
-		if elapsed < 0 {
-			continue
-		}
-		p := ProgressPoint{ElapsedMS: elapsed, ObservedAt: o.ObservedAt.UTC().Format(time.RFC3339Nano), A: &o.A, B: &o.B}
-		i := elapsed / width
-		if i == bucket {
-			p.GapBefore = out[len(out)-1].GapBefore
-			out[len(out)-1] = p
-			continue
-		}
-		p.GapBefore = len(out) == 0 && elapsed > 0 || len(out) > 0 && elapsed-out[len(out)-1].ElapsedMS > max(width, ProgressGap.Milliseconds())
-		out = append(out, p)
-		bucket = i
-	}
-	return out, width
 }

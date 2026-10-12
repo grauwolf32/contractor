@@ -316,36 +316,6 @@ func (r *Repository) RebuildStageMetrics(
 	return result, nil
 }
 
-func (r *Repository) GetStageMetrics(
-	ctx context.Context,
-	stageExecutionID string,
-) (StageMetricsRecord, error) {
-	if err := requireText("stageExecutionID", stageExecutionID); err != nil {
-		return StageMetricsRecord{}, err
-	}
-	result := StageMetricsRecord{StageExecutionID: stageExecutionID}
-	var encodedMetrics, encodedSummary []byte
-	err := r.db.QueryRow(ctx, `
-SELECT metrics_schema_version, metrics, summary, updated_at, expires_at
-FROM stage_metrics WHERE stage_execution_id = $1`, stageExecutionID).Scan(
-		&result.MetricsSchemaVersion, &encodedMetrics, &encodedSummary,
-		&result.UpdatedAt, &result.ExpiresAt,
-	)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return StageMetricsRecord{}, fmt.Errorf("get StageMetrics: %w", ErrNotFound)
-	}
-	if err != nil {
-		return StageMetricsRecord{}, fmt.Errorf("get StageMetrics: %w", err)
-	}
-	if err := json.Unmarshal(encodedMetrics, &result.Metrics); err != nil {
-		return StageMetricsRecord{}, fmt.Errorf("decode StageMetrics: %w", err)
-	}
-	if err := json.Unmarshal(encodedSummary, &result.Summary); err != nil {
-		return StageMetricsRecord{}, fmt.Errorf("decode telemetry summary: %w", err)
-	}
-	return result, nil
-}
-
 // CleanupExpired removes only telemetry for semantically terminal executions.
 // The explicit batch cap applies across all telemetry tables.
 func (r *Repository) CleanupExpired(

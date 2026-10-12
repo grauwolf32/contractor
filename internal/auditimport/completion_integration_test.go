@@ -385,7 +385,7 @@ func (f *completionFixture) injectInvalid(t *testing.T, value artifacts.ReadResu
 		if removedContent[member.ID] {
 			continue
 		}
-		value, ok := pkg.Member(member.Path)
+		value, ok := pkg.MemberByID(member.ID)
 		if !ok {
 			t.Fatal("missing package member")
 		}

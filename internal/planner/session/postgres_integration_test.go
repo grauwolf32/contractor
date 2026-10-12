@@ -199,7 +199,7 @@ func TestPostgresTypedPlanEventsAreOrderedAndCompareAppendIsAtomic(t *testing.T)
 		PlanRevision: completed.Revision, SubtaskID: "1",
 	})
 
-	base, ok, err := service.LoadPlan(ctx, started.Identity)
+	base, ok, err := loadPlan(ctx, service, started.Identity)
 	if err != nil || !ok || base.Revision != 4 || base.CurrentSubtaskID != "1" {
 		t.Fatalf("base plan = (%+v, %t, %v)", base, ok, err)
 	}
@@ -243,7 +243,7 @@ func TestPostgresTypedPlanEventsAreOrderedAndCompareAppendIsAtomic(t *testing.T)
 	if succeeded != 1 || conflicted != 1 {
 		t.Fatalf("compare append succeeded=%d conflicted=%d", succeeded, conflicted)
 	}
-	latest, ok, err := service.LoadPlan(ctx, started.Identity)
+	latest, ok, err := loadPlan(ctx, service, started.Identity)
 	if err != nil || !ok || latest.Revision != 5 || len(latest.Subtasks) != 3 {
 		t.Fatalf("latest plan = (%+v, %t, %v)", latest, ok, err)
 	}

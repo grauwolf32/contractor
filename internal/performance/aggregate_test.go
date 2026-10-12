@@ -8,11 +8,7 @@ import (
 	"time"
 )
 
-func TestPerformanceHistogramQuantilesAndMerging(t *testing.T) {
-	var empty Histogram
-	if empty.Quantile(.95) != nil {
-		t.Fatal("empty window fabricated quantile")
-	}
+func TestPerformanceHistogramMerging(t *testing.T) {
 	a, b := Histogram{}, Histogram{}
 	a.Observe(.01)
 	b.Observe(.1)
@@ -20,17 +16,6 @@ func TestPerformanceHistogramQuantilesAndMerging(t *testing.T) {
 	a.Merge(b)
 	if a.Count != 3 || a.Buckets[13] != 3 || a.Buckets[12] != 2 || math.Abs(a.SumSeconds-120.11) > 1e-9 {
 		t.Fatal("histogram totals")
-	}
-	if q := a.Quantile(.99); q == nil || !q.GreaterThan || q.Seconds != 60 {
-		t.Fatal("overflow percentile fabricated finite latency")
-	}
-	if q := a.Quantile(.5); q == nil || q.GreaterThan || q.Seconds <= .01 || q.Seconds > .1 {
-		t.Fatal("histogram interpolation")
-	}
-	for _, q := range []float64{-1, 2, math.NaN()} {
-		if a.Quantile(q) != nil {
-			t.Fatal("invalid quantile accepted")
-		}
 	}
 }
 

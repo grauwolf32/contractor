@@ -183,7 +183,6 @@ type Allocator interface {
 	// DiscardUnprepared drops a Stage's committed reservation that was never
 	// prepared, leaving no released tombstone, so the Stage can be placed again.
 	DiscardUnprepared(string) error
-	Release(string) error
 	PollAllocationLosses() []controlplane.AllocationLoss
 }
 

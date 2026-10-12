@@ -18,7 +18,7 @@ func TestRecordBoundsAndHTTPDimensions(t *testing.T) {
 	if HTTPBucketBoundsSeconds()[0] != .005 {
 		t.Fatal("bounds alias mutable global state")
 	}
-	if len(HTTPMethods()) != 10 || len(HTTPStatusClasses()) != 6 {
+	if len(HTTPMethods()) != 10 {
 		t.Fatal("HTTP dimensions changed")
 	}
 	raw, err := json.Marshal(Sample{Version: 1, HTTP: &HTTP{}})

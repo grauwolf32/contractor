@@ -133,7 +133,8 @@ func TestPostgresGatewayWorkerFlowRecoversWithoutSemanticReplay(t *testing.T) {
 		SessionID: *execution.PlannerSessionID, StageExecutionID: execution.StageExecutionID,
 		InvocationID: *execution.PlannerInvocationID,
 	}
-	plan, ok, err := sessions.LoadPlan(ctx, identity)
+	plans, err := sessions.LoadPlans(ctx, []planner.SessionIdentity{identity})
+	plan, ok := plans[identity.StageExecutionID]
 	if err != nil || !ok || plan.Revision != 6 || len(plan.Subtasks) != 2 ||
 		plan.Subtasks[0].Objective != "subtask-sensitive-analysis" ||
 		plan.Subtasks[0].Instructions != "write an exact draft" ||

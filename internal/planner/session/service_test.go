@@ -20,6 +20,19 @@ import (
 	"google.golang.org/genai"
 )
 
+// loadPlan reads one session's plan through LoadPlans, the read the Run
+// detail uses.
+func loadPlan(
+	ctx context.Context, service *Service, identity planner.SessionIdentity,
+) (planner.PlannerPlanProjection, bool, error) {
+	plans, err := service.LoadPlans(ctx, []planner.SessionIdentity{identity})
+	if err != nil {
+		return planner.PlannerPlanProjection{}, false, err
+	}
+	plan, ok := plans[identity.StageExecutionID]
+	return plan, ok, nil
+}
+
 func TestCompletionWriteTimeoutOptions(t *testing.T) {
 	store := &memoryStore{}
 	service, err := New(store, Options{})
@@ -254,7 +267,7 @@ func TestServicePersistsDeterministicTypedPlanAndFacts(t *testing.T) {
 		PlanRevision: completed.Revision, SubtaskID: completed.CurrentSubtaskID,
 	})
 
-	loaded, ok, err := service.LoadPlan(t.Context(), identity)
+	loaded, ok, err := loadPlan(t.Context(), service, identity)
 	if err != nil || !ok || loaded.Revision != 4 || loaded.CurrentSubtaskID != "1" ||
 		loaded.ActiveDispatch != nil || len(loaded.Subtasks) != 2 ||
 		loaded.Subtasks[0].Status != planner.PlannerSubtaskSucceeded ||
@@ -325,7 +338,7 @@ func TestServiceConcurrentPlanCompareAllowsOneWinner(t *testing.T) {
 	if succeeded != 1 || conflicted != 1 || len(store.snapshotEvents()) != 3 {
 		t.Fatalf("succeeded=%d conflicted=%d events=%d", succeeded, conflicted, len(store.snapshotEvents()))
 	}
-	loaded, ok, err := service.LoadPlan(t.Context(), identity)
+	loaded, ok, err := loadPlan(t.Context(), service, identity)
 	if err != nil || !ok || loaded.Revision != 1 ||
 		(loaded.Subtasks[0].Objective != "left" && loaded.Subtasks[0].Objective != "right") {
 		t.Fatalf("winning plan = (%+v, %t, %v)", loaded, ok, err)

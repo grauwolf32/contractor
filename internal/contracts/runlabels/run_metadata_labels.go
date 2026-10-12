@@ -5,7 +5,6 @@ package runlabels
 
 import (
 	"regexp"
-	"sort"
 	"strings"
 	"unicode/utf8"
 
@@ -75,14 +74,5 @@ func (labels RunMetadataLabels) Clone() RunMetadataLabels {
 	for key, value := range labels {
 		result[key] = value
 	}
-	return result
-}
-
-func (labels RunMetadataLabels) SortedKeys() []string {
-	result := make([]string, 0, len(labels))
-	for key := range labels {
-		result = append(result, key)
-	}
-	sort.Strings(result)
 	return result
 }

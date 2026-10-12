@@ -1168,16 +1168,6 @@ func (s *fakeSessions) RecordFact(
 	return nil
 }
 
-func (s *fakeSessions) LoadPlan(
-	context.Context,
-	planner.SessionIdentity,
-) (planner.PlannerPlanProjection, bool, error) {
-	if s.plan == nil {
-		return planner.PlannerPlanProjection{}, false, nil
-	}
-	return cloneTestPlanProjection(*s.plan), true, nil
-}
-
 func (s *fakeSessions) NewADKSession(
 	_ context.Context,
 	_ planner.SessionIdentity,

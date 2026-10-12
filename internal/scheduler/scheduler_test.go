@@ -2878,22 +2878,6 @@ func (a *memoryAllocator) SetWriteFence(allocationID string) error {
 	return nil
 }
 
-func (a *memoryAllocator) Release(allocationID string) error {
-	grant, ok := a.grants[allocationID]
-	if !ok {
-		return controlplane.ErrAllocationNotFound
-	}
-	delete(a.grants, allocationID)
-	if len(a.cached) > 0 && a.cached[0].Grant.AllocationID == allocationID {
-		a.cached = nil
-	}
-	if a.released == nil {
-		a.released = make(map[string]bool)
-	}
-	a.released[grant.StageExecutionID] = true
-	return nil
-}
-
 func (a *memoryAllocator) DiscardUnprepared(stageExecutionID string) error {
 	if len(a.cached) == 0 || a.cached[0].Grant.StageExecutionID != stageExecutionID {
 		return nil
@@ -3028,6 +3012,10 @@ func (w *memoryWorkers) ReleaseAll(_ context.Context, reservations []controlplan
 			continue
 		}
 		delete(w.allocator.grants, reservation.Grant.AllocationID)
+		if w.allocator.released == nil {
+			w.allocator.released = make(map[string]bool)
+		}
+		w.allocator.released[reservation.Grant.StageExecutionID] = true
 	}
 	remaining := w.allocator.cached[:0]
 	for _, reservation := range w.allocator.cached {

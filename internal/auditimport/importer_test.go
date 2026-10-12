@@ -17,7 +17,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
-	"github.com/grauwolf32/contractor/internal/auditstore/claimstore"
+	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
 	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -1632,7 +1632,7 @@ func (f *fakeImportStore) ListReportFindings(
 // RecordReportPage keeps claimstore.Store's page contract: the shared request
 // validation, contiguous ordinals and discarding other revisions' pages.
 func (f *fakeImportStore) RecordReportPage(_ context.Context, params auditstore.RecordReportPageParams) error {
-	if err := claimstore.ValidateRecordReportPage(params); err != nil {
+	if err := auditstoretest.ValidateRecordReportPage(params); err != nil {
 		return err
 	}
 	kept := f.pages[:0]
@@ -1689,7 +1689,7 @@ func (f *fakeImportStore) CollectionDispositionCounts(context.Context, string) (
 // Collect enforces the production request contract, so a collection shape
 // the PostgreSQL store would reject cannot pass here.
 func (f *fakeImportStore) Collect(_ context.Context, params auditstore.CollectParams) (auditstore.CollectionReceipt, bool, error) {
-	if err := claimstore.ValidateCollect(params); err != nil {
+	if err := auditstoretest.ValidateCollect(params); err != nil {
 		return auditstore.CollectionReceipt{}, false, err
 	}
 	if f.collectErr != nil {

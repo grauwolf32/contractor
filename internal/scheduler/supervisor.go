@@ -111,20 +111,6 @@ func (s *Scheduler) Run(ctx context.Context) error {
 	}
 }
 
-// RunOnce claims and advances at most one WorkflowRun.
-func (s *Scheduler) RunOnce(ctx context.Context) (bool, error) {
-	s.pollAllocationLosses()
-	released, terminalReleaseErr := s.recoverTerminalRelease(ctx)
-	if terminalReleaseErr != nil {
-		s.options.Logger.Warn("terminal allocation release recovery failed", "error", terminalReleaseErr)
-	}
-	worked, err := s.progressOneClaim(ctx)
-	if !worked && err == nil {
-		return released && terminalReleaseErr == nil, nil
-	}
-	return worked, err
-}
-
 // progressOneClaim is the production lane primitive. It owns exactly one
 // claim/progression/release cycle and performs no global maintenance.
 func (s *Scheduler) progressOneClaim(ctx context.Context) (bool, error) {

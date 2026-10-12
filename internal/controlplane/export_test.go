@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"net/http"
 
 	"github.com/grauwolf32/contractor/internal/contracts/control"
 )
@@ -46,4 +47,17 @@ func inProcessPrincipal(instanceID string) AuthenticatedPrincipal {
 	return AuthenticatedPrincipal{
 		RuntimeAgentID: hex.EncodeToString(sum[:]), Labels: []string{}, LabelRevision: 1,
 	}
+}
+
+// NewRuntimeControlClient builds a client on an injected HTTP client for
+// focused protocol tests; production uses NewMTLSRuntimeControlClient.
+func NewRuntimeControlClient(client *http.Client) (*RuntimeControlClient, error) {
+	if client == nil {
+		return nil, errors.New("HTTP client is required")
+	}
+	clone := *client
+	clone.CheckRedirect = func(_ *http.Request, _ []*http.Request) error {
+		return errors.New("Runtime Agent redirects are not allowed")
+	}
+	return &RuntimeControlClient{client: &clone}, nil
 }

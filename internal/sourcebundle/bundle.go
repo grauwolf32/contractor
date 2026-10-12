@@ -23,7 +23,6 @@ import (
 // Source ZIP limits and member paths match the runtime source_analysis toolset
 // and Git imports.
 const (
-	MaxArchiveBytes  = sourcezip.MaxArchiveBytes
 	MaxEntries       = sourcezip.MaxEntries
 	MaxFileBytes     = sourcezip.MaxFileBytes
 	MaxExpandedBytes = sourcezip.MaxArchiveBytes

@@ -23,3 +23,7 @@ const (
 	PreparationAccepted PreparationStatus = "accepted"
 	PreparationFailed   PreparationStatus = "failed"
 )
+
+func (s PreparationStatus) Valid() bool {
+	return s == PreparationPending || s == PreparationRunning || s == PreparationAccepted || s == PreparationFailed
+}

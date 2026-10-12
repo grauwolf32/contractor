@@ -55,9 +55,6 @@ const (
 func HTTPMethods() [10]string {
 	return [10]string{"GET", "HEAD", "POST", "PUT", "DELETE", "CONNECT", "OPTIONS", "TRACE", "PATCH", "other"}
 }
-func HTTPStatusClasses() [6]string {
-	return [6]string{"1xx", "2xx", "3xx", "4xx", "5xx", "no_response"}
-}
 func HTTPBucketBoundsSeconds() [13]float64 {
 	return [13]float64{.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10, 30, 60}
 }

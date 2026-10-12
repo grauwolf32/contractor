@@ -636,7 +636,6 @@ func (laneNoopAllocator) GetReservation(string) (controlplane.Reservation, error
 	return controlplane.Reservation{}, controlplane.ErrAllocationNotFound
 }
 func (laneNoopAllocator) SetWriteFence(string) error { return errors.New("unexpected fence") }
-func (laneNoopAllocator) Release(string) error       { return errors.New("unexpected release") }
 func (laneNoopAllocator) DiscardUnprepared(string) error {
 	return errors.New("unexpected placement discard")
 }

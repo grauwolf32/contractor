@@ -2,14 +2,16 @@ package runstore
 
 import (
 	"errors"
+	"maps"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/contracts/runlabels"
 )
 
-func TestRunMetadataLabelsNormalizeCloneAndSort(t *testing.T) {
+func TestRunMetadataLabelsNormalizeAndClone(t *testing.T) {
 	t.Parallel()
 	source := map[string]string{
 		"debug":       "",
@@ -21,7 +23,7 @@ func TestRunMetadataLabelsNormalizeCloneAndSort(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got, want := labels.SortedKeys(), []string{"debug", "eval-case_1", "eval.name", "purpose"}; !reflect.DeepEqual(got, want) {
+	if got, want := slices.Sorted(maps.Keys(labels)), []string{"debug", "eval-case_1", "eval.name", "purpose"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("sorted keys = %v, want %v", got, want)
 	}
 	delete(source, "purpose")
