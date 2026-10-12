@@ -214,7 +214,7 @@ erDiagram
 | `AuditReviewRequest` | id, audit_id, subject kind/id, review kind, exact subject revision/digest, requested actions, state, optional expiry |
 | `AuditReviewDecision` | id, request_id, actor_id, typed finding verdict or action decision, exact subject revision/digest, bounded rationale, timestamp |
 | `AuditReportCandidate` | audit_id, request_id, round_id, exact pre-publication Audit revision/digest, frozen machine/summary artifact descriptors, timestamp |
-| `AuditEvent` | audit_id, monotonic sequence, kind, entity id/revision, bounded safe summary |
+| `AuditEvent` | audit_id, dense sequence (AUD-R223), kind, entity id/revision, bounded safe summary |
 
 ### Result layers
 
@@ -256,10 +256,10 @@ stateDiagram-v2
   finalizing --> completed: commit report and coverage
   waiting_review --> completed: accept exact report candidate
   waiting_review --> failed: reject or expire report candidate
-  active --> cancelling: cancel
-  waiting_review --> cancelling: cancel
-  paused --> cancelling: cancel
-  finalizing --> cancelling: cancel before report commit
+  active --> cancelling: cancel or delete
+  waiting_review --> cancelling: cancel or delete
+  paused --> cancelling: cancel or delete
+  finalizing --> cancelling: cancel or delete before report commit
   cancelling --> cancelled: children terminal and released
   finalizing --> failed: structural finalization failure
   draft --> deleting: delete
@@ -735,6 +735,16 @@ revalidates both.
 - standard version, selected level, and requirement/asset selection rules;
 - limits and human-interaction policy.
 
+**AUD-R225.** Start stages its content-named artifacts before that
+transaction: the retained standard copies (AUD-R56), the task packages and the
+first worklist are written frozen into the Audit namespace while the draft row
+is held against purge, so a purge either removes what was staged or has
+already removed the Audit. The start transaction then writes only rows and
+accepts the staging only for the same draft revision. A start whose
+transaction does not commit leaves the staging behind; a retry of the same
+draft revision finds every artifact already written and writes none again, and
+Audit deletion purges the namespace with everything staged in it.
+
 **AUD-R96.** Draft input bindings may be edited with Audit revision CAS.
 
 **AUD-R97.** After start, the baseline is immutable. Changing target,
@@ -1155,6 +1165,12 @@ submitted -> collecting -> ready | settled`.
 **AUD-R189.** Zero items yields an explicit empty-inventory reason; it never
 proves compliance.
 
+**AUD-R224.** An Audit holds at most its pinned `maxItemsTotal` items across
+all Rounds, 1 to 100,000 (LIM-AUD-25), and at most `maxItemsPerRound` items
+in one Round, 1 to 10,000 and never more than `maxItemsTotal` (LIM-AUD-26).
+Profile validation and the Audit store reject larger limits; how many items a
+Round actually admits is bounded further by LIM-AUX-10.
+
 How terminal observation, collection and settlement move items between these
 states is specified in [execution](execution.md).
 
@@ -1217,6 +1233,10 @@ response, package content or model transcript.
 **AUD-R205.** Start and resume require `If-Match` and `Idempotency-Key` and
 accept an optional JSON object with only `deadlineSeconds`.
 
+**AUD-R226.** A start response, first or replayed, carries the Audit, its
+current Round and only that Round's items, so it holds at most LIM-AUD-26
+items however many items earlier Rounds hold.
+
 **AUD-R206.** `deadlineSeconds` must be an integer from zero through 31,536,000
 (LIM-AUD-23); explicit `null` is invalid. An absent body and `{}` both omit the
 override.
@@ -1241,7 +1261,9 @@ history, newest sequence first, in pages of at most 200 events (LIM-AUD-24).
 
 **AUD-R211.** The first read fixes `throughSequence`; signed cursors bind
 owner, Audit, that immutable prefix and the next exclusive sequence boundary.
-`total` counts the frozen prefix, before pagination.
+`total` counts the frozen prefix, before pagination. Because events are
+numbered without gaps (AUD-R223) it equals `throughSequence`, so a page reads
+only its own events and reading N events costs O(N).
 
 **AUD-R212.** New events do not invalidate continuations: refresh begins a new
 prefix.
@@ -1258,6 +1280,14 @@ coverage, retained-artifact or budget-counter mutation.
 
 **AUD-R216.** Controller claim acquire, renew and release is internal lease
 traffic and does not advance the public revision.
+
+**AUD-R223.** An Audit numbers its events 1, 2, 3 and so on without gaps: the
+n-th event has sequence n, and `eventSequence` is the sequence of the last
+event. A mutation that records k events advances the Audit revision and
+`eventSequence` by k in the same database statement and appends its events in
+order directly after the last one. One database allocator writes every Audit
+event; a recording that would skip or reuse a sequence fails the whole
+mutation as an internal error, so no committed Audit has a gap.
 
 **AUD-R217.** Consequently an unchanged strong ETag means the complete bounded
 Audit projection is unchanged, not merely that the top-level lifecycle state is
@@ -1348,6 +1378,10 @@ Registry entries owned by this document:
   AUD-R206).
 - [LIM-AUD-24](../platform/limits.md): at most 200 events per page
   (AUD-R210).
+- [LIM-AUD-25](../platform/limits.md): at most 100,000 items per Audit
+  (AUD-R224).
+- [LIM-AUD-26](../platform/limits.md): at most 10,000 items per Round
+  (AUD-R224).
 - [FAIL-AUD-1](../platform/failure-model.md): reading persisted
   profile and baseline snapshots at start, recovery and resume
   (AUD-R22, AUD-R61).
@@ -1448,6 +1482,13 @@ raw provider responses, package content or model transcripts
    it shares an execution (AUD-R105, AUD-R110).
 8. An unchanged strong ETag means the complete bounded Audit projection is
    unchanged (AUD-R217).
+9. The events of every Audit are numbered 1..N with N = `eventSequence`, and
+   only the database allocator `contractor_append_audit_events` inserts them
+   (AUD-R223); tests `TestPostgresAuditEventSequencesStayDense` and
+   `TestPostgresAuditEventAllocatorRejectsBrokenReservations` in
+   [`internal/auditstore/event_allocation_postgres_test.go`](../../../internal/auditstore/event_allocation_postgres_test.go)
+   and `TestAuditEventsHaveOneWriter` in
+   [`internal/auditstore/event_allocation_test.go`](../../../internal/auditstore/event_allocation_test.go).
 
 ## Examples
 

@@ -2,7 +2,6 @@ package auditstore
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -23,7 +22,7 @@ func (s *PostgresStore) CreateExecutionIntent(
 		return replay, false, err
 	}
 	prepared := prepareExecutionIntentWrite(params)
-	execution, err := scanExecution(s.db.QueryRow(ctx, createExecutionIntentSQL,
+	execution, err := scanExecution(persistencepostgres.SavepointQueryRow(ctx, s.db, createExecutionIntentSQL,
 		params.Claim.AuditID, params.Claim.HolderID, params.Claim.Epoch,
 		params.ExecutionID, string(params.Role), prepared.roundID, prepared.roleAttempt,
 		prepared.manifestRef, params.Manifest.Digest, params.SubmissionKey,
@@ -33,14 +32,14 @@ func (s *PostgresStore) CreateExecutionIntent(
 	if err == nil {
 		return execution, true, nil
 	}
-	if persistencepostgres.SQLState(err) == "55000" {
+	failure := persistencepostgres.Classify(err)
+	if failure == persistencepostgres.ClassDeleting {
 		return Execution{}, false, ErrProjectDeleting
 	}
-	if params.Role == ExecutionPrepare && persistencepostgres.SQLState(err) == "23514" {
+	if params.Role == ExecutionPrepare && failure == persistencepostgres.ClassRejected {
 		return Execution{}, false, ErrPrecondition
 	}
-	sqlState := persistencepostgres.SQLState(err)
-	if sqlState == persistencepostgres.SQLStateUniqueViolation || errors.Is(err, pgx.ErrNoRows) {
+	if failure == persistencepostgres.ClassDuplicate || errors.Is(err, pgx.ErrNoRows) {
 		if existing, found, replayErr := s.lookupExecutionReplay(
 			ctx, params.Claim.AuditID, params.SubmissionKey, params.RequestDigest,
 		); replayErr != nil || found {
@@ -51,7 +50,7 @@ func (s *PostgresStore) CreateExecutionIntent(
 		} else if !live {
 			return Execution{}, false, ErrClaimLost
 		}
-		if sqlState == persistencepostgres.SQLStateUniqueViolation {
+		if failure == persistencepostgres.ClassDuplicate {
 			return Execution{}, false, ErrConflict
 		}
 		return Execution{}, false, ErrPrecondition
@@ -59,21 +58,11 @@ func (s *PostgresStore) CreateExecutionIntent(
 	return Execution{}, false, fmt.Errorf("create Audit execution intent: %w", err)
 }
 
-func prefixedExecutionColumns(prefix string) string {
-	return prefix + ".execution_id, " + prefix + ".audit_id, " + prefix + ".round_id, " +
-		prefix + ".role, " + prefix + ".workflow_role, " + prefix + ".role_attempt, " + prefix + ".manifest_ref, " +
-		prefix + ".manifest_digest, " + prefix + ".submission_key, " + prefix + ".request_digest, " +
-		prefix + ".run_id, " + prefix + ".state, " + prefix + ".terminal_outcome, " +
-		prefix + ".terminal_run_generation, " + prefix + ".terminal_run_sequence, " +
-		prefix + ".terminal_observed_at, " + prefix + ".run_provenance, " + prefix + ".run_deleted_at, " +
-		prefix + ".created_at, " + prefix + ".updated_at, " + prefix + ".preparation_snapshot, " + prefix + ".preparation_outputs"
-}
-
 func (s *PostgresStore) lookupExecutionReplay(
 	ctx context.Context, auditID, submissionKey, digest string,
 ) (Execution, bool, error) {
 	execution, err := scanExecution(s.db.QueryRow(ctx, `
-SELECT `+executionColumns+` FROM audit_executions
+SELECT `+prefixedExecutionColumns("audit_executions")+` FROM audit_executions
  WHERE submission_key = $1`, submissionKey))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Execution{}, false, nil
@@ -112,11 +101,11 @@ func (s *PostgresStore) BindRun(ctx context.Context, params BindRunParams) (Exec
 	if err == nil {
 		return execution, nil
 	}
-	if persistencepostgres.SQLState(err) == "55000" {
+	if persistencepostgres.Classify(err) == persistencepostgres.ClassDeleting {
 		return Execution{}, ErrProjectDeleting
 	}
 	if !errors.Is(err, pgx.ErrNoRows) {
-		if persistencepostgres.SQLState(err) == persistencepostgres.SQLStateUniqueViolation {
+		if persistencepostgres.Classify(err) == persistencepostgres.ClassDuplicate {
 			return Execution{}, ErrConflict
 		}
 		return Execution{}, fmt.Errorf("bind Audit execution Run: %w", err)
@@ -152,8 +141,8 @@ func (s *PostgresStore) GetRunCreationIntent(
 		return RunCreationIntent{}, err
 	}
 	var result RunCreationIntent
-	execution, err := scanExecutionWithOwner(s.db.QueryRow(ctx, `
-SELECT audit.owner_id, audit.project_id, audit.profile_snapshot #> ARRAY['workflows', execution.workflow_role], `+prefixedExecutionColumns("execution")+`
+	execution, err := scanExecution(withColumns{row: s.db.QueryRow(ctx, `
+SELECT audit.owner_id, audit.project_id, `+profileRoleSQL("#>", "execution.workflow_role")+`, `+prefixedExecutionColumns("execution")+`
   FROM audit_executions AS execution
   JOIN audits AS audit USING (audit_id)
   JOIN audit_controller_claims AS claim USING (audit_id)
@@ -162,7 +151,7 @@ SELECT audit.owner_id, audit.project_id, audit.profile_snapshot #> ARRAY['workfl
    AND claim.expires_at > clock_timestamp()
  FOR UPDATE OF claim, audit, execution`,
 		claim.AuditID, claim.HolderID, claim.Epoch, executionID,
-	), &result.OwnerID, &result.ProjectID, &result.WorkflowBinding)
+	), before: []any{&result.OwnerID, &result.ProjectID, &result.WorkflowBinding}})
 	if errors.Is(err, pgx.ErrNoRows) {
 		if live, liveErr := s.claimLive(ctx, claim); liveErr != nil {
 			return RunCreationIntent{}, liveErr
@@ -180,63 +169,6 @@ SELECT audit.owner_id, audit.project_id, audit.profile_snapshot #> ARRAY['workfl
 		return RunCreationIntent{}, err
 	}
 	return result, nil
-}
-
-func scanExecutionWithOwner(row scanner, ownerID, projectID *string, binding *json.RawMessage) (Execution, error) {
-	var execution Execution
-	var encodedRef []byte
-	var state string
-	var role string
-	var roleAttempt *int
-	var outcome *string
-	var terminalSequence *int64
-	var encodedProvenance []byte
-	var preparation, outputs []byte
-	if err := row.Scan(
-		ownerID, projectID, binding,
-		&execution.ExecutionID, &execution.AuditID, &execution.RoundID,
-		&role, &execution.WorkflowRole, &roleAttempt, &encodedRef,
-		&execution.Manifest.Digest, &execution.SubmissionKey, &execution.RequestDigest,
-		&execution.RunID, &state, &outcome,
-		&execution.TerminalRunGeneration, &terminalSequence,
-		&execution.TerminalObservedAt, &encodedProvenance, &execution.RunDeletedAt,
-		&execution.CreatedAt, &execution.UpdatedAt, &preparation, &outputs,
-	); err != nil {
-		return Execution{}, err
-	}
-	execution.Role = ExecutionRole(role)
-	execution.State = ExecutionState(state)
-	execution.RoleAttempt = roleAttempt
-	if err := json.Unmarshal(encodedRef, &execution.Manifest.Ref); err != nil || execution.Manifest.Ref.ValidateExact() != nil {
-		return Execution{}, errors.New("stored Audit execution manifest ref is invalid")
-	}
-	if validateDigest("stored execution manifest digest", execution.Manifest.Digest) != nil ||
-		validateDigest("stored execution request digest", execution.RequestDigest) != nil ||
-		!execution.Role.Valid() || !execution.State.Valid() ||
-		validateText("stored execution Workflow role", execution.WorkflowRole, 128, true) != nil {
-		return Execution{}, errors.New("stored Audit execution is invalid")
-	}
-	if outcome != nil {
-		value := TerminalOutcome(*outcome)
-		if !value.Valid() {
-			return Execution{}, errors.New("stored Audit execution terminal outcome is invalid")
-		}
-		execution.TerminalOutcome = &value
-	}
-	if terminalSequence != nil {
-		if *terminalSequence < 0 {
-			return Execution{}, errors.New("stored Audit execution terminal sequence is invalid")
-		}
-		value := uint64(*terminalSequence)
-		execution.TerminalRunSequence = &value
-	}
-	if err := decodeRunProvenance(encodedProvenance, execution.RunID, &execution.RunProvenance); err != nil {
-		return Execution{}, err
-	}
-	if err := decodePreparation(&execution, preparation, outputs); err != nil {
-		return Execution{}, err
-	}
-	return execution, nil
 }
 
 func (s *PostgresStore) ObserveTerminal(
@@ -308,7 +240,7 @@ func (s *PostgresStore) ObserveSubmissionFailure(
 
 func (s *PostgresStore) getExecution(ctx context.Context, auditID, executionID string) (Execution, error) {
 	execution, err := scanExecution(s.db.QueryRow(ctx, `
-SELECT `+executionColumns+` FROM audit_executions
+SELECT `+prefixedExecutionColumns("audit_executions")+` FROM audit_executions
  WHERE audit_id = $1 AND execution_id = $2`, auditID, executionID))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Execution{}, ErrNotFound

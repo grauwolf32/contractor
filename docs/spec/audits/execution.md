@@ -554,6 +554,17 @@ Round in [ASC-R57](scans.md).
 **AUX-R74.** A claim alone does not authorize stale commits. Every mutation
 checks epoch or revision plus uniqueness constraints (FAIL-AUX-4).
 
+**AUX-R95.** A reconcile step reads its snapshot of the claimed Audit (the
+Audit, its current Round, the bounded windows of unsettled items, ready items
+and unsettled executions, role executions and collection receipts) in one
+read-only REPEATABLE READ transaction, so a concurrent owner mutation or child
+Run transition appears in every part of the snapshot or in none. The snapshot
+carries the lifecycle state of each child Run bound to an execution in its
+window: terminal observation and cancellation read no Run per execution, and
+a dispatch reads the next attempts of its whole candidate batch in one
+statement. The statements a reconcile step issues therefore do not grow with
+the Audit's items, executions or child Runs.
+
 **AUX-R75.** No network or model call occurs under a database row lock.
 
 **AUX-R76.** Recovery must produce these results for these faults:

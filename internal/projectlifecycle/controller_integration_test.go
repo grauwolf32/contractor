@@ -98,9 +98,15 @@ INSERT INTO runtime_credentials (
 	projectID := project.ProjectID
 	active := createProjectRun(t, ctx, runs, "run-active", projectID)
 	active, err = runs.TransitionRun(
-		ctx, active.RunID, runstore.RunInitializing, runstore.RunRunning,
+		ctx, active.RunID, runstore.RunInitializing, runstore.RunPending,
 		runstore.Reason{Code: "initialized"},
 	)
+	if err == nil {
+		active, err = runs.TransitionRun(
+			ctx, active.RunID, runstore.RunPending, runstore.RunRunning,
+			runstore.Reason{Code: "admitted"},
+		)
+	}
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -133,6 +139,10 @@ INSERT INTO stage_allocations (
 	); err != nil {
 		t.Fatal(err)
 	}
+	// The Run purge leaves these receipts as discarded tombstones; the Project
+	// purge deletes them, but not the receipt of a Run outside any Project.
+	seedFindingReceipts(t, ctx, pool, "completed", completed.RunID, &projectID, 2)
+	seedFindingReceipts(t, ctx, pool, "standalone", "run-standalone", nil, 1)
 	if _, err := runs.UpdateOwnerQueueControl(ctx, runstore.UpdateOwnerQueueControlParams{
 		OwnerID: project.OwnerID, ExpectedRevision: 0, Paused: true,
 	}); err != nil {
@@ -274,11 +284,18 @@ INSERT INTO stage_allocations (
 		"Project Runs":      `SELECT count(*) FROM workflow_runs WHERE project_id = 'project-delete'`,
 		"Project scope":     `SELECT count(*) FROM artifact_scopes WHERE scope_kind = 'project' AND scope_id = 'project-delete'`,
 		"Project revisions": `SELECT count(*) FROM artifact_binding_revisions WHERE scope_kind = 'project' AND scope_id = 'project-delete'`,
+		"Project receipts":  `SELECT count(*) FROM finding_proposal_receipts WHERE project_id = 'project-delete'`,
 	} {
 		var count int
 		if err := pool.QueryRow(ctx, query).Scan(&count); err != nil || count != 0 {
 			t.Fatalf("%s count = %d, error = %v", label, count, err)
 		}
+	}
+	var standaloneReceipts int
+	if err := pool.QueryRow(ctx, `
+SELECT count(*) FROM finding_proposal_receipts WHERE run_id = 'run-standalone' AND project_id IS NULL`,
+	).Scan(&standaloneReceipts); err != nil || standaloneReceipts != 1 {
+		t.Fatalf("receipts of a Run outside any Project = %d, error = %v", standaloneReceipts, err)
 	}
 	if _, err := userStore.Read(ctx, userSource.Ref); err != nil {
 		t.Fatalf("shared User Artifact was removed: %v", err)
@@ -471,12 +488,15 @@ func TestProjectDeletionPurgesAuditWithDecidedReviewsAndAssessments(t *testing.T
 	if _, err := projects.Get(ctx, project.OwnerID, project.ProjectID); !errors.Is(err, projectstore.ErrNotFound) {
 		t.Fatalf("Project did not finish deletion: %v", err)
 	}
-	var decisions, assessments int
+	var decisions, assessments, receipts int
 	if err := pool.QueryRow(ctx, `
 SELECT (SELECT count(*) FROM audit_review_decisions),
-       (SELECT count(*) FROM audit_finding_assessments)`).Scan(&decisions, &assessments); err != nil ||
-		decisions != 0 || assessments != 0 {
-		t.Fatalf("Audit decisions/assessments after Project deletion = (%d, %d, %v)", decisions, assessments, err)
+       (SELECT count(*) FROM audit_finding_assessments),
+       (SELECT count(*) FROM finding_proposal_receipts WHERE project_id = $1)`, project.ProjectID,
+	).Scan(&decisions, &assessments, &receipts); err != nil ||
+		decisions != 0 || assessments != 0 || receipts != 0 {
+		t.Fatalf("Audit decisions/assessments/receipts after Project deletion = (%d, %d, %d, %v)",
+			decisions, assessments, receipts, err)
 	}
 }
 
@@ -522,13 +542,14 @@ INSERT INTO finding_proposal_receipts (
     workflow_name, workflow_version, workflow_schema_version,
     workflow_configuration_ref, workflow_closure_digest,
     proposal_ref, proposal_digest, proposal_media_type,
-    proposal_size_bytes, evidence
+    proposal_size_bytes, evidence, report_projection
 ) VALUES ('receipt-decided', 'proposal-decided', 'allocation-decided', 'runtime-decided',
           'instance-decided', 'stage-decided', 'worker', 'invocation-decided',
           'submission-decided', 'candidate-decided', $1, 'deleted-run-decided', $2, $3,
           'finding-source', '1', 'contractor/v1alpha1',
           '{"name":"finding-source","version":"1"}'::jsonb, $1,
-          $4::jsonb, $1, 'application/json', 128, '[]'::jsonb)`,
+          $4::jsonb, $1, 'application/json', 128, '[]'::jsonb,
+          '{"description":"Test finding.","limitations":[],"severity_suggestion":"","standard_refs":[],"subject":null,"title":"Test finding."}')`,
 			[]any{digest, audit.OwnerID, audit.ProjectID, proposalRef}},
 		{`
 UPDATE finding_proposal_receipts
@@ -633,6 +654,38 @@ UPDATE audit_findings
 	})
 	if err != nil {
 		t.Fatal(err)
+	}
+}
+
+// seedFindingReceipts inserts count finding proposal receipts of runID, named
+// prefix-0001 onwards, for the Project, or for a Run outside any Project when
+// projectID is nil.
+func seedFindingReceipts(
+	t *testing.T, ctx context.Context, pool *pgxpool.Pool,
+	prefix, runID string, projectID *string, count int,
+) {
+	t.Helper()
+	if _, err := pool.Exec(ctx, `
+INSERT INTO finding_proposal_receipts (
+    receipt_id, proposal_id, allocation_id, runtime_agent_id,
+    runtime_instance_id, stage_execution_id, logical_agent_name,
+    invocation_id, submission_id, client_key, request_digest,
+    run_id, owner_id, project_id,
+    workflow_name, workflow_version, workflow_schema_version,
+    workflow_configuration_ref, workflow_closure_digest,
+    proposal_ref, proposal_digest, proposal_media_type,
+    proposal_size_bytes, evidence, report_projection
+)
+SELECT $1 || '-' || lpad(n::text, 4, '0'), $1 || '-proposal-' || n, $1 || '-allocation',
+       'runtime', 'instance', 'stage', 'worker', 'invocation', $1 || '-submission-' || n,
+       'candidate-' || n, 'sha256:' || repeat('a', 64), $2, 'user-1', $3,
+       'finding-source', '1', 'contractor/v1alpha1', '{"name":"finding-source","version":"1"}'::jsonb,
+       'sha256:' || repeat('b', 64),
+       jsonb_build_object('namespace', 'findings', 'name', 'candidate-' || n, 'revision', 'r1'),
+       'sha256:' || repeat('c', 64), 'application/json', 128, '[]'::jsonb,
+       '{"description":"Test finding.","limitations":[],"severity_suggestion":"","standard_refs":[],"subject":null,"title":"Test finding."}'
+  FROM generate_series(1, $4::integer) AS n`, prefix, runID, projectID, count); err != nil {
+		t.Fatalf("seed finding proposal receipts: %v", err)
 	}
 }
 

@@ -9,9 +9,12 @@ active Server per PostgreSQL database, the session-level PostgreSQL advisory
 lease that enforces it, the standby Server, detection of lease-session loss and
 its time bounds, the connection pooling that the lease needs, and what must
 not stand in for that lease: an unfenced shared `runtime_agents` table or a
-durable Runtime Agent principal. It also indexes the PostgreSQL state and the
-transaction and serialization rules that domain documents own, so each can be
-found from here while it is stated only in its owner.
+durable Runtime Agent principal. It owns the one classification of a failed
+PostgreSQL call into an outcome class and how SQL names the members of
+`jsonb` documents the Server encodes from Go types. It also indexes the
+PostgreSQL state and the transaction and serialization rules that domain
+documents own, so each can be found from here while it is stated only in its
+owner.
 
 It leaves to other documents:
 
@@ -182,6 +185,21 @@ not transaction-mode pooling.
 **PER-R10.** Behind a session pooler, the pooler's own client keepalive
 settings bound how long a vanished Server keeps the lease (LIFE-PER-1).
 
+### JSON documents encoded from Go types
+
+**PER-R17.** SQL that reads a member of a document the Server encodes from a
+Go type and stores in a `jsonb` column (Workflow, Stage, Run, allocation,
+Project-target, Audit profile and baseline snapshots and canonical
+RuntimeConfig documents) takes the member name from a constant declared beside
+the Go type, so a query and its encoding cannot be renamed apart. Migrations,
+which cannot use the constants, are pinned by a unit test that encodes each
+type, resolves every path SQL reads in it and requires the migrations to read
+the same members.
+
+Rationale: credential deletion checks find references by these members; a
+renamed member would make them find none and let an in-use credential be
+deleted, and only database tests would notice.
+
 ### Related rules owned elsewhere
 
 - Active-active Server replicas: [OPS-R5](../operations/operations.md).
@@ -197,6 +215,111 @@ settings bound how long a vanished Server keeps the lease (LIFE-PER-1).
 | Serialization of Agent-label and binding mutations against allocation pinning | [CTL-R90](../execution/control-plane.md) |
 | No database or network operation while holding the in-memory Runtime Registry lock | [CTL-R87](../execution/control-plane.md) |
 | One database serialization boundary for the owner queue pause and normal Stage admission | [SCH-R156](../execution/scheduler.md) |
+
+### Database failure classification
+
+**PER-R13.** The Server classifies a failed database call in one place, into
+exactly one outcome class, and every component derives its domain error and
+its retry decision from that class, never from an SQLSTATE itself. A
+cancelled or expired caller context takes precedence over any PostgreSQL
+condition in the same error. Each SQLSTATE class, and each code listed here,
+maps to one class:
+
+| Condition | SQLSTATE | Outcome class | Retryability |
+| --- | --- | --- | --- |
+| Unique or exclusion violation | 23505, 23P01 | duplicate | permanent for the request; the caller replays the existing row or reports a conflict |
+| Foreign-key violation, also raised by a trigger that requires a parent row | 23503 | reference violation | permanent |
+| Not-null violation, a violation of a named CHECK constraint, any other integrity constraint violation or data exception | 23502, 23514 naming a constraint, other class 23, class 22 | invalid | permanent |
+| Business-rule rejection raised by a trigger | 23514 naming no constraint | rejected | permanent for the state the statement observed |
+| A stored bound exceeded, raised by a trigger that names the bound, such as the Run artifact revision limit | 54000 naming a constraint | limit exceeded | permanent for the state the statement observed |
+| Write to a Project that is being deleted, rejected by a deletion fence | 55000 | deleting | permanent |
+| Missing database privilege | 42501 | permission denied | permanent |
+| Serialization failure or deadlock | 40001, 40P01 | transaction conflict | retryable: nothing committed, and the whole transaction may be replayed |
+| Lock wait or statement timeout, statement cancellation, expired caller deadline | 55P03, 57014 | timeout | retryable by an idempotent callee; ambiguous at commit |
+| Connection exception, insufficient resources, operator intervention, system error, any other transaction rollback, a lost or refused connection | classes 08, 53, 58, other class 57, other class 40 | unavailable | retryable by an idempotent callee; ambiguous at commit |
+| Cancelled caller context | — | cancelled | not retried |
+| Any other SQLSTATE, such as a syntax, undefined-object, PL/pgSQL or internal error, or one of PostgreSQL's own program limits | all other classes, including 54000 naming no constraint | internal | permanent |
+
+A transient database failure (FAIL-PRJ-4, FAIL-SCH-15) is a transaction
+conflict, a timeout or an unavailable database in this table.
+
+**PER-R14.** A schema trigger reports a business-rule rejection as
+`check_violation` (23514) without naming a constraint, and a deletion fence
+reports a deleting Project as `object_not_in_prerequisite_state` (55000). A
+CHECK constraint violation always names its constraint; that is what separates
+rejected from invalid. An assertion of the schema's own invariants, such as
+the Audit event allocator's, raises `assert_failure` (P0004) and is internal.
+
+Rationale: PostgreSQL raises its own 55000 conditions only for DDL, for
+`currval` and `lastval` before a value exists and for replication. No Server
+statement does any of these outside migrations, so 55000 means deleting. The
+classification test on the migrated schema detects a fence that stops raising
+55000; reopen this rule if a Server statement starts using one of those
+features.
+
+**PER-R15.** A permanent class is never reported as a retryable conflict. A
+domain that maps duplicate to its conflict error maps invalid and rejected to
+its invalid, precondition or not-found error, never to that conflict.
+
+**PER-R16.** A transaction conflict that outlasts the bounded transaction
+retries of its operation stays a transaction conflict. The public API reports
+it as the retryable `503 storage_transaction_conflict`; it never becomes a
+`409 conflict` or a `500 internal_error`.
+
+### Transactions of shared stores
+
+**PER-R18.** A store that serves both a pool and a caller's transaction runs
+an operation that needs a transaction through one rule. On a pool it starts a
+fresh transaction per attempt and replays a transaction conflict (PER-R13), so
+the operation must be safe to replay. On a caller's transaction it runs once
+inside that transaction; the caller owns the isolation level, the commit and
+any retry. A step whose row locks must last until the caller commits, such as
+the Run deletion locks, exists only on a store bound to a transaction, never
+on one that a pool can back.
+
+**PER-R19.** Every transaction the Server begins runs under the operation
+budget selected for its operation, including a transaction whose caller
+classifies its own commit, such as a Planner Memory transaction.
+
+**PER-R20.** A store operation that recovers from a failed statement with
+further statements, such as a replay read after a unique violation, runs that
+statement under a savepoint when it is in a caller's transaction. A database
+error rolls back to the savepoint, so only the failed statement's writes are
+undone and the recovery and the caller's transaction continue; a statement
+that returns no rows keeps its writes, as it would on a pool. A recovery read
+in a REPEATABLE READ transaction sees only that transaction's snapshot, so a
+concurrent winner that committed after it began is found by the caller's
+replay after rollback (FAIL-AUD-4), not inside the transaction.
+
+### Indexes of foreign keys
+
+**PER-R21.** Every foreign key has a valid index on its referencing table
+whose leading keys are all of the key's columns, in any order; a partial
+index counts when it holds every row whose key is set. PostgreSQL checks or
+cascades a foreign key for each deleted or re-keyed referenced row by
+querying the referencing table on the key columns, so without that index each
+probe reads the whole table, or the whole of an index that holds the key in a
+later column, and a purge costs as much as the table instead of the rows it
+removes. A foreign key without that index is listed by the schema test with
+its reason and with the schema object that bounds its probe: a usable index
+led by some of the key's columns that selects few rows, or a trigger of the
+referenced table that rejects every deletion and key change, so the probe
+never runs.
+
+### Row triggers
+
+**PER-R22.** A row trigger fires only when what it guards or checks can
+change. A guard that rejects changes to some columns fires on `UPDATE OF`
+exactly the columns its function compares, and no BEFORE UPDATE trigger of its
+table assigns a column, so only an UPDATE that lists a guarded column runs it;
+an after-row or deferred trigger states in its WHEN condition the change it
+reacts to, and fires on every INSERT when its function checks new rows. A Run
+event append, which only advances the Run's event sequence, therefore fires no
+trigger of `workflow_runs` except the deferred binding check of an
+audit-managed Run. The deferred Audit completion check runs when a Run is
+inserted and when its completion changes, not on later updates that keep it:
+the completion cannot change once set, and the profile binding it is checked
+against is immutable ([AWC-R7](../audits/worker-completion.md)).
 
 ## Limits, failures and errors
 
@@ -227,7 +350,9 @@ Lifecycle ([lifecycle](lifecycle.md)):
 Errors ([registry](errors.md)): `/readyz` returns `503` on a standby Server
 until it acquires the advisory lease (PER-R3). The `/readyz` `503` for an
 unusable working DB connection path is owned by
-[Operations](../operations/operations.md).
+[Operations](../operations/operations.md). A transaction conflict that
+outlasts its retries is the retryable `503 storage_transaction_conflict`
+(PER-R16).
 
 ## Invariants
 
@@ -252,6 +377,77 @@ unusable working DB connection path is owned by
 5. The lease session carries the keepalive values of PER-R6; test
    `TestPostgresControlPlaneLeaseSessionDetectsVanishedHolder` in
    [`internal/app/single_active_postgres_test.go`](../../../internal/app/single_active_postgres_test.go).
+6. Every SQLSTATE class maps to one outcome class (PER-R13); test
+   `TestClassifyMapsEverySQLStateClassToOneOutcome` in
+   [`internal/persistence/postgres/sqlstate_test.go`](../../../internal/persistence/postgres/sqlstate_test.go).
+   No other Go source spells an SQLSTATE, neither as a Go string nor in an
+   `ERRCODE` or `SQLSTATE` clause of SQL embedded in Go, which names the
+   condition instead; test `TestSQLStateLiteralsLiveOnlyInTheClassifier` in
+   [`internal/persistence/sqlstate_literal_test.go`](../../../internal/persistence/sqlstate_literal_test.go).
+7. What PostgreSQL and the schema's triggers report on the migrated schema
+   lands in the documented class, including rejected versus invalid
+   (PER-R13, PER-R14); test
+   `TestClassifyPostgreSQLConditionsOnTheMigratedSchema` in
+   [`internal/persistence/postgres/sqlstate_postgres_test.go`](../../../internal/persistence/postgres/sqlstate_postgres_test.go).
+8. A CHECK rejection of a telemetry report stays a permanent invalid report
+   (PER-R15); test `TestReportWriteKeepsDatabaseRejectionsPermanent` in
+   [`internal/telemetry/write_classification_postgres_test.go`](../../../internal/telemetry/write_classification_postgres_test.go).
+9. A publication whose serialization failures outlast its retries keeps the
+   transaction conflict (PER-R16); test
+   `TestFindingCollectionPublicationKeepsExhaustedTransactionConflicts` in
+   [`internal/auditservice/finding_collection_conflict_postgres_test.go`](../../../internal/auditservice/finding_collection_conflict_postgres_test.go).
+10. Audit start re-reads idempotency after a deadlock abort as after a
+    serialization failure, because both are transaction conflicts (PER-R13);
+    test `TestAuditStartReplaysTheWinnerAfterADeadlockAbort` in
+    [`internal/auditservice/start_conflict_postgres_test.go`](../../../internal/auditservice/start_conflict_postgres_test.go).
+11. Stage preparation retries a credential lookup after any transient
+    database failure, including a lock timeout and a lost connection
+    (PER-R13); test `TestCredentialFailuresClassifyRetryabilityAndLogSafeCause`
+    in [`internal/scheduler/credential_failure_test.go`](../../../internal/scheduler/credential_failure_test.go).
+12. Every JSON path SQL reads from a Go-encoded document resolves in a value
+    encoded from its Go type, and the migrations read the same members
+    (PER-R17); test `TestSQLReadsTheJSONMembersItsGoTypesEncode` in
+    [`internal/persistence/snapshot_json_paths_test.go`](../../../internal/persistence/snapshot_json_paths_test.go).
+13. A shared store's operation replays a conflict on a pool and runs once in
+    a caller's transaction (PER-R18); test
+    `TestPostgresWithinRetriesOnAPoolAndJoinsACallerTransaction` in
+    [`internal/persistence/postgres/within_postgres_test.go`](../../../internal/persistence/postgres/within_postgres_test.go).
+    The Run deletion locks exist only on transaction-bound stores; test
+    `TestDeletionLocksRequireTransaction` in
+    [`internal/rundeletion/deleter_postgres_test.go`](../../../internal/rundeletion/deleter_postgres_test.go).
+14. A transaction begun outside InTx keeps the operation budget (PER-R19);
+    tests `TestPostgresBeginTxAppliesTheOperationBudget` in
+    [`internal/persistence/postgres/within_postgres_test.go`](../../../internal/persistence/postgres/within_postgres_test.go)
+    and `TestPostgresPlannerMemoryTransactionKeepsTheOperationBudget` in
+    [`internal/memory/budget_postgres_test.go`](../../../internal/memory/budget_postgres_test.go).
+15. Every Audit store recovery path runs and returns its own outcome inside a
+    caller's transaction, and a concurrent create is replayed there (PER-R20);
+    tests `TestPostgresRecoveryPathsRunInsideACallerTransaction` and
+    `TestPostgresCreateDraftReplaysAConcurrentWinnerInsideATransaction` in
+    [`internal/auditstore/transaction_recovery_postgres_test.go`](../../../internal/auditstore/transaction_recovery_postgres_test.go),
+    `TestPostgresAuditPreparationStartRecoversInsideACallerTransaction` in
+    [`internal/artifacts/audit_preparation_transaction_postgres_test.go`](../../../internal/artifacts/audit_preparation_transaction_postgres_test.go)
+    and `TestPostgresSavepointQueryRowKeepsTheCallerTransactionUsable` in
+    [`internal/persistence/postgres/savepoint_postgres_test.go`](../../../internal/persistence/postgres/savepoint_postgres_test.go).
+16. Every foreign key of the migrated schema has an index led by all of its
+    columns, or a listed index or trigger that bounds its probe (PER-R21);
+    test `TestForeignKeysHaveProbeIndexes` in
+    [`internal/persistence/postgres/foreign_key_indexes_postgres_test.go`](../../../internal/persistence/postgres/foreign_key_indexes_postgres_test.go).
+    The purge of an Audit with 100,000 executions, beside another Audit's
+    executions and findings, scans none of those tables sequentially and
+    reads no large index whole; test
+    `TestPostgresAuditPurgeAtScaleProbesForeignKeysThroughIndexes` in
+    [`internal/auditstore/purge_scale_postgres_test.go`](../../../internal/auditstore/purge_scale_postgres_test.go).
+17. The Planner's Run event appends fire no trigger of `workflow_runs`, a
+    state change fires the lifecycle capture and an assigned guarded column
+    its guard (PER-R22); test `TestPostgresRunEventAppendsFireNoWorkflowRunTrigger`
+    in [`internal/runstore/run_event_triggers_postgres_test.go`](../../../internal/runstore/run_event_triggers_postgres_test.go).
+    An append to a Run with an Audit completion fires only the binding
+    check; test `TestAuditCompletionPostgresAtomicCreationRestartAndAllocation`
+    in [`internal/runservice/audit_completion_postgres_test.go`](../../../internal/runservice/audit_completion_postgres_test.go).
+    Each column-scoped guard of `workflow_runs` lists exactly the columns its
+    function compares; test `TestWorkflowRunGuardsFireOnTheColumnsTheyCompare`
+    in [`internal/persistence/postgres/workflow_run_triggers_postgres_test.go`](../../../internal/persistence/postgres/workflow_run_triggers_postgres_test.go).
 
 ## Non-goals
 

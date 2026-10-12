@@ -22,6 +22,11 @@ type Snapshot struct {
 	auditProfiles    map[string]ResolvedAuditProfile
 	instructions     map[string]contracts.ResolvedInstructions
 	sources          map[string]ConfigurationSource
+
+	// Discovery views and fingerprints are derived once in newSnapshot.
+	workflowDiscovery         WorkflowDiscovery
+	workflowFingerprint       catalogFingerprint
+	configurationFingerprints map[ConfigurationKind]catalogFingerprint
 }
 
 func newSnapshot(
@@ -54,7 +59,7 @@ func newSnapshot(
 		result.policies[key] = policy.Clone()
 	}
 	for key, gateway := range gateways {
-		result.gateways[key] = cloneLLMGatewayConfig(gateway)
+		result.gateways[key] = gateway.Clone()
 	}
 	for key, profile := range executionConfigs {
 		result.executionConfigs[key] = cloneExecutionConfigProfile(profile)
@@ -68,7 +73,7 @@ func newSnapshot(
 	for key, source := range sources {
 		result.sources[key] = source
 	}
-	result.buildWorkflowBindingIndex()
+	result.buildWorkflowBindingIndex(result.buildDiscovery())
 	return result
 }
 
@@ -117,7 +122,7 @@ func (s *Snapshot) LLMGateway(raw string) (llmgateway.ResolvedLLMGatewayConfig, 
 	if !ok {
 		return llmgateway.ResolvedLLMGatewayConfig{}, fmt.Errorf("unknown LLMGatewayConfig %q", selector)
 	}
-	return cloneLLMGatewayConfig(gateway), nil
+	return gateway.Clone(), nil
 }
 
 // Workflow resolves one exact name@version and returns a caller-owned copy.
@@ -190,17 +195,6 @@ func (s *Snapshot) Instructions(raw string) (contracts.ResolvedInstructions, err
 		return contracts.ResolvedInstructions{}, fmt.Errorf("unknown resolved instruction %q", normalized)
 	}
 	return instructions, nil
-}
-
-func cloneLLMGatewayConfig(
-	source llmgateway.ResolvedLLMGatewayConfig,
-) llmgateway.ResolvedLLMGatewayConfig {
-	result := source
-	if source.CredentialManager != nil {
-		manager := *source.CredentialManager
-		result.CredentialManager = &manager
-	}
-	return result
 }
 
 func cloneWorkflow(source ResolvedWorkflow) ResolvedWorkflow {
@@ -296,7 +290,7 @@ func cloneConsumerExecutionConfig(source ResolvedConsumerExecutionConfig) Resolv
 	result := source
 	result.ModelPolicy = source.ModelPolicy.Clone()
 	if source.LLMGateway != nil {
-		gateway := cloneLLMGatewayConfig(*source.LLMGateway)
+		gateway := source.LLMGateway.Clone()
 		result.LLMGateway = &gateway
 	}
 	if source.Credential != nil {
@@ -338,7 +332,7 @@ func cloneExecutionSelectionOverride(
 		result.ModelPolicy = &policy
 	}
 	if source.LLMGateway != nil {
-		gateway := cloneLLMGatewayConfig(*source.LLMGateway)
+		gateway := source.LLMGateway.Clone()
 		result.LLMGateway = &gateway
 	}
 	if source.Credential != nil {

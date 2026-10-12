@@ -6,12 +6,12 @@ import (
 )
 
 type StageContentRequest struct {
-	APIVersion      string                 `json:"apiVersion"`
-	SubtaskID       string                 `json:"subtaskId"`
-	Objective       string                 `json:"objective"`
-	Instructions    string                 `json:"instructions"`
-	Parameters      map[string]string      `json:"parameters"`
-	Artifacts       map[string]ArtifactRef `json:"artifacts"`
+	APIVersion      string                 `json:"apiVersion" strictjson:"required"`
+	SubtaskID       string                 `json:"subtaskId" strictjson:"required"`
+	Objective       string                 `json:"objective" strictjson:"required"`
+	Instructions    string                 `json:"instructions" strictjson:"required"`
+	Parameters      map[string]string      `json:"parameters" strictjson:"required"`
+	Artifacts       map[string]ArtifactRef `json:"artifacts" strictjson:"required"`
 	ResultArtifacts map[string]ArtifactRef `json:"resultArtifacts,omitempty"`
 	Deadline        *time.Time             `json:"deadline,omitempty"`
 }
@@ -25,6 +25,11 @@ func (r StageContentRequest) Validate() error {
 	}
 	if strings.TrimSpace(r.Objective) == "" || strings.TrimSpace(r.Instructions) == "" {
 		return Invalidf("objective and instructions must not be empty")
+	}
+	// The schema requires both maps, so Go never sends the null a nil map
+	// encodes to, which the Runtime would reject.
+	if r.Parameters == nil || r.Artifacts == nil {
+		return Invalidf("parameters and artifacts must be non-null maps")
 	}
 	for key := range r.Parameters {
 		if err := ValidateOpaqueID("parameter name", key); err != nil {
@@ -67,10 +72,10 @@ const (
 )
 
 type StageContentResult struct {
-	APIVersion string                 `json:"apiVersion"`
-	Outcome    StageOutcome           `json:"outcome"`
-	Summary    string                 `json:"summary"`
-	Artifacts  map[string]ArtifactRef `json:"artifacts"`
+	APIVersion string                 `json:"apiVersion" strictjson:"required"`
+	Outcome    StageOutcome           `json:"outcome" strictjson:"required"`
+	Summary    string                 `json:"summary" strictjson:"required"`
+	Artifacts  map[string]ArtifactRef `json:"artifacts" strictjson:"required"`
 	Error      *TerminationError      `json:"error,omitempty"`
 }
 
@@ -130,9 +135,9 @@ func (r StageContentResult) Validate() error {
 }
 
 type TerminationError struct {
-	Code      string `json:"code"`
-	Message   string `json:"message"`
-	Retryable bool   `json:"retryable"`
+	Code      string `json:"code" strictjson:"required"`
+	Message   string `json:"message" strictjson:"required"`
+	Retryable bool   `json:"retryable" strictjson:"required"`
 }
 
 func (e TerminationError) Validate() error {

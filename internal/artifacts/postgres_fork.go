@@ -44,7 +44,7 @@ func (r *PostgresRepository) ForkInput(
 		targetScope.kind, targetScope.id, inputSlot, targetRevision,
 	).Scan(&sourceExists, &targetCreated, &resolvedSourceRevision, &mediaType, &size)
 	if err != nil {
-		if persistencepostgres.SQLState(err) == persistencepostgres.SQLStateForeignKeyViolation {
+		if persistencepostgres.Classify(err) == persistencepostgres.ClassReferenceViolation {
 			return ForkResult{}, ErrInvalidScope
 		}
 		return ForkResult{}, fmt.Errorf("fork Workflow input %q: %w", inputSlot, err)

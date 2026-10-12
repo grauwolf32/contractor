@@ -43,12 +43,26 @@ func (s *Service) Start(ctx context.Context, params StartParams) (StartedAudit, 
 		return s.startedProjection(ctx, replay, true)
 	}
 
+	plan, err := s.stageStart(ctx, params)
+	if err != nil {
+		// A concurrent start with this key may have committed after the
+		// replay lookup, leaving the draft no longer a draft.
+		if errors.Is(err, auditstore.ErrPrecondition) {
+			if replay, found, replayErr := store.LookupMutationReplay(
+				ctx, params.OwnerID, auditstore.MutationStart,
+				params.IdempotencyKey, params.RequestDigest,
+			); replayErr == nil && found {
+				return s.startedProjection(ctx, replay, true)
+			}
+		}
+		return StartedAudit{}, err
+	}
 	var result StartedAudit
-	err := s.credentialGuard.WithRunCreation(ctx, func() error {
+	err = s.credentialGuard.WithRunCreation(ctx, func() error {
 		return persistencepostgres.InTx(
 			ctx, s.pool, pgx.TxOptions{IsoLevel: pgx.RepeatableRead},
 			func(tx pgx.Tx) error {
-				started, err := s.startInTransaction(ctx, tx, params)
+				started, err := s.startInTransaction(ctx, tx, params, plan)
 				if err == nil {
 					result = started
 				}
@@ -63,7 +77,7 @@ func (s *Service) Start(ctx context.Context, params StartParams) (StartedAudit, 
 	// began. Re-read idempotency only after rollback; mutable dependencies are
 	// still never consulted by this recovery path.
 	if errors.Is(err, auditstore.ErrConflict) || errors.Is(err, artifacts.ErrArtifactConflict) ||
-		persistencepostgres.SQLState(err) == persistencepostgres.SQLStateSerializationFailure {
+		persistencepostgres.IsTransactionConflict(err) {
 		if replay, found, replayErr := store.LookupMutationReplay(
 			ctx, params.OwnerID, auditstore.MutationStart,
 			params.IdempotencyKey, params.RequestDigest,
@@ -74,8 +88,144 @@ func (s *Service) Start(ctx context.Context, params StartParams) (StartedAudit, 
 	return StartedAudit{}, err
 }
 
+// startPlan is what an Audit start stages before its transaction: the draft
+// revision it was built from, its decoded profile and selection, the pinned
+// standards and, unless the profile prepares its inventory, the first Round.
+// The start transaction accepts the plan only for the same draft revision,
+// which proves the profile snapshot and the input selection unchanged.
+type startPlan struct {
+	revision  uint64
+	profile   config.ResolvedAuditProfile
+	selection DraftSelection
+	standards []auditstandards.PinnedPackage
+	round     *startRound
+}
+
+// startRound is the staged first Round: its inventory and the exact frozen
+// task packages and worklist written for it.
+type startRound struct {
+	inventory         auditdomain.Inventory
+	tasks             []auditstore.ExactArtifact
+	executionManifest auditdomain.ExecutionManifest
+	worklist          auditstore.ExactArtifact
+}
+
+// stageStart writes the content-named artifacts of a start before its
+// transaction (AUD-R225): retained standard copies, task packages and the
+// worklist, each frozen in the Audit namespace. The start transaction then
+// writes only rows, and a retry of the same draft revision finds every
+// artifact written and writes none again. The staging transaction holds FOR
+// KEY SHARE on the draft row, so a concurrent purge either waits and removes
+// what was staged or has already removed the Audit.
+func (s *Service) stageStart(ctx context.Context, params StartParams) (startPlan, error) {
+	var plan startPlan
+	err := persistencepostgres.InTx(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+		staged, err := stageStartInTransaction(ctx, tx, params)
+		if err == nil {
+			plan = staged
+		}
+		return err
+	})
+	return plan, err
+}
+
+func stageStartInTransaction(ctx context.Context, tx pgx.Tx, params StartParams) (startPlan, error) {
+	audit, err := auditstore.NewPostgresStore(tx).LockForStartStaging(ctx, params.OwnerID, params.AuditID)
+	if err != nil {
+		return startPlan{}, err
+	}
+	if audit.State != auditstore.AuditDraft || audit.Revision != params.ExpectedRevision {
+		return startPlan{}, auditstore.ErrPrecondition
+	}
+	profile, err := config.DecodeResolvedAuditProfileSnapshot(audit.ProfileSnapshot)
+	if err != nil || profile.Ref.Name != audit.Profile.Name ||
+		profile.Ref.Version != audit.Profile.Version || profile.Ref.Digest != audit.Profile.Digest {
+		return startPlan{}, fmt.Errorf("stored AuditProfile snapshot failed validation")
+	}
+	compatibility := ProfileCompatibility(profile)
+	if !compatibility.ServerCompatible {
+		return startPlan{}, unsupported(compatibility.Reasons)
+	}
+	selection, err := DecodeDraftSelection(audit.InputSelection)
+	if err != nil {
+		return startPlan{}, err
+	}
+
+	artifactService := artifacts.NewService(artifacts.NewPostgresRepository(tx))
+	namespace := auditdomain.ArtifactNamespace(audit.AuditID)
+	standardCatalog, err := auditstandards.NewCatalog(artifactService)
+	if err != nil {
+		return startPlan{}, err
+	}
+	standardRefs := make([]auditstandards.Reference, len(profile.Standards))
+	for index, ref := range profile.Standards {
+		standardRefs[index] = auditstandards.Reference{Scheme: ref.Scheme, Version: ref.Version}
+	}
+	pinnedStandards, err := standardCatalog.Pin(
+		ctx, params.OwnerID, audit.ProjectID, namespace, standardRefs,
+	)
+	if err != nil {
+		return startPlan{}, err
+	}
+	resolvedStandards := make([]auditstandards.ResolvedPackage, len(pinnedStandards))
+	for index, pinned := range pinnedStandards {
+		resolvedStandards[index], err = standardCatalog.ResolvePinned(ctx, audit.ProjectID, pinned)
+		if err != nil {
+			return startPlan{}, err
+		}
+	}
+	expectedStandards := make([]auditstandards.ExactPackage, 0, len(pinnedStandards))
+	for _, standard := range pinnedStandards {
+		expectedStandards = append(expectedStandards, standard.Catalog)
+	}
+	if err := contracts.CheckPinnedSelection(params.ExpectedStandardsSHA256, expectedStandards); err != nil {
+		return startPlan{}, err
+	}
+	inputPayloads, err := readAndVerifyInputs(ctx, artifactService, audit.ProjectID, profile, selection)
+	if err != nil {
+		return startPlan{}, err
+	}
+	plan := startPlan{
+		revision: audit.Revision, profile: profile, selection: selection, standards: pinnedStandards,
+	}
+	if profile.HasPreparation() {
+		return plan, nil
+	}
+	inventory, err := buildInventory(profile, selection, inputPayloads, resolvedStandards)
+	if err != nil {
+		return startPlan{}, err
+	}
+	if err := validateInventoryTaskExecution(profile, inventory); err != nil {
+		return startPlan{}, err
+	}
+	if len(inventory.Worklist.Items) > roundItemCapacity(audit.Limits.MaxItemsPerRound, audit.Limits.MaxItemsTotal, 0) {
+		return startPlan{}, fmt.Errorf("%w: Audit inventory exceeds profile limits", ErrInvalid)
+	}
+	writer := auditArtifactWriter{service: artifactService, projectID: audit.ProjectID}
+	taskArtifacts, executionManifest, err := writeTaskPackages(
+		ctx, writer, namespace, profile, selection, inventory,
+	)
+	if err != nil {
+		return startPlan{}, err
+	}
+	worklistArtifact, err := writeRoundPackage(
+		ctx, writer, namespace, 1, inventory, executionManifest,
+	)
+	if err != nil {
+		return startPlan{}, err
+	}
+	plan.round = &startRound{
+		inventory: inventory, tasks: taskArtifacts,
+		executionManifest: executionManifest, worklist: worklistArtifact,
+	}
+	return plan, nil
+}
+
+// startInTransaction freezes the baseline and materializes the staged first
+// Round. It writes rows only: every artifact it names was staged and frozen
+// by stageStart for this draft revision.
 func (s *Service) startInTransaction(
-	ctx context.Context, tx pgx.Tx, params StartParams,
+	ctx context.Context, tx pgx.Tx, params StartParams, plan startPlan,
 ) (StartedAudit, error) {
 	store := auditstore.NewPostgresStore(tx)
 	if replay, found, err := store.LookupMutationReplay(
@@ -90,22 +240,12 @@ func (s *Service) startInTransaction(
 	if err != nil {
 		return StartedAudit{}, err
 	}
-	if audit.State != auditstore.AuditDraft || audit.Revision != params.ExpectedRevision {
+	// The staged plan holds for this exact draft revision only.
+	if audit.State != auditstore.AuditDraft || audit.Revision != params.ExpectedRevision ||
+		audit.Revision != plan.revision {
 		return StartedAudit{}, auditstore.ErrPrecondition
 	}
-	profile, err := config.DecodeResolvedAuditProfileSnapshot(audit.ProfileSnapshot)
-	if err != nil || profile.Ref.Name != audit.Profile.Name ||
-		profile.Ref.Version != audit.Profile.Version || profile.Ref.Digest != audit.Profile.Digest {
-		return StartedAudit{}, fmt.Errorf("stored AuditProfile snapshot failed validation")
-	}
-	compatibility := ProfileCompatibility(profile)
-	if !compatibility.ServerCompatible {
-		return StartedAudit{}, unsupported(compatibility.Reasons)
-	}
-	selection, err := DecodeDraftSelection(audit.InputSelection)
-	if err != nil {
-		return StartedAudit{}, err
-	}
+	profile, selection := plan.profile, plan.selection
 	project, err := projectstore.NewPostgresStore(tx).LockActiveAuditProject(
 		ctx, params.OwnerID, audit.ProjectID,
 	)
@@ -146,36 +286,7 @@ func (s *Service) startInTransaction(
 	}
 
 	artifactService := artifacts.NewService(artifacts.NewPostgresRepository(tx))
-	namespace := auditdomain.ArtifactNamespace(audit.AuditID)
-	standardCatalog, err := auditstandards.NewCatalog(artifactService)
-	if err != nil {
-		return StartedAudit{}, err
-	}
-	standardRefs := make([]auditstandards.Reference, len(profile.Standards))
-	for index, ref := range profile.Standards {
-		standardRefs[index] = auditstandards.Reference{Scheme: ref.Scheme, Version: ref.Version}
-	}
-	pinnedStandards, err := standardCatalog.Pin(
-		ctx, params.OwnerID, audit.ProjectID, namespace, standardRefs,
-	)
-	if err != nil {
-		return StartedAudit{}, err
-	}
-	resolvedStandards := make([]auditstandards.ResolvedPackage, len(pinnedStandards))
-	for index, pinned := range pinnedStandards {
-		resolvedStandards[index], err = standardCatalog.ResolvePinned(ctx, audit.ProjectID, pinned)
-		if err != nil {
-			return StartedAudit{}, err
-		}
-	}
-	expectedStandards := make([]auditstandards.ExactPackage, 0, len(pinnedStandards))
-	for _, standard := range pinnedStandards {
-		expectedStandards = append(expectedStandards, standard.Catalog)
-	}
-	if err := contracts.CheckPinnedSelection(params.ExpectedStandardsSHA256, expectedStandards); err != nil {
-		return StartedAudit{}, err
-	}
-	standardLinks, err := auditStandardLinks(pinnedStandards)
+	standardLinks, err := auditStandardLinks(plan.standards)
 	if err != nil {
 		return StartedAudit{}, err
 	}
@@ -201,10 +312,6 @@ func (s *Service) startInTransaction(
 	if err := contracts.CheckPinnedSelection(params.ExpectedSkillsSHA256, skills); err != nil {
 		return StartedAudit{}, err
 	}
-	inputPayloads, err := readAndVerifyInputs(ctx, artifactService, audit.ProjectID, profile, selection)
-	if err != nil {
-		return StartedAudit{}, err
-	}
 	baseline := BaselineSnapshot{
 		Schema: BaselineSchema, Inputs: cloneExactInputs(selection.Inputs), Scope: selection.Scope,
 		RuntimeLabels: append([]string{}, selection.RuntimeLabels...), RuntimeConfig: runtimeSnapshot,
@@ -212,7 +319,7 @@ func (s *Service) startInTransaction(
 		LLMCredentialIDs:     mergeIDs(workflowCredentialIDs, runtimeSnapshot.LLMCredentialIDs),
 		RuntimeCredentialIDs: mergeIDs(runtimeSnapshot.RuntimeCredentialIDs, projectRuntimeCredentialIDs),
 		ProjectHTTPTarget:    projectTarget,
-		Standards:            append([]auditstandards.PinnedPackage{}, pinnedStandards...),
+		Standards:            append([]auditstandards.PinnedPackage{}, plan.standards...),
 	}
 	deadlineSeconds := profile.Execution.DeadlineSeconds
 	if params.DeadlineSeconds != nil {
@@ -237,46 +344,22 @@ func (s *Service) startInTransaction(
 		}
 		return s.startedProjectionWithStore(ctx, store, started, !created)
 	}
-	inventory, err := buildInventory(profile, selection, inputPayloads, resolvedStandards)
-	if err != nil {
-		return StartedAudit{}, err
+	round := plan.round
+	if round == nil {
+		return StartedAudit{}, errors.New("staged Audit start has no first Round")
 	}
-	if err := validateInventoryTaskExecution(profile, inventory); err != nil {
-		return StartedAudit{}, err
-	}
-	if len(inventory.Worklist.Items) > roundItemCapacity(audit.Limits.MaxItemsPerRound, audit.Limits.MaxItemsTotal, 0) {
-		return StartedAudit{}, fmt.Errorf("%w: Audit inventory exceeds profile limits", ErrInvalid)
-	}
-
-	projectArtifacts, err := artifactService.Project(audit.ProjectID)
-	if err != nil {
-		return StartedAudit{}, err
-	}
-	taskArtifacts, executionManifest, err := writeTaskPackages(
-		ctx, projectArtifacts, namespace, profile, selection, inventory,
-	)
-	if err != nil {
-		return StartedAudit{}, err
-	}
-	worklistArtifact, err := writeRoundPackage(
-		ctx, projectArtifacts, namespace, 1, inventory, executionManifest,
-	)
-	if err != nil {
-		return StartedAudit{}, err
-	}
-
 	baseline.Inventory = &BaselineInventory{
-		SourceContentDigest:      inventory.SourceContentDigest,
-		CanonicalInventoryDigest: inventory.CanonicalInventoryDigest,
+		SourceContentDigest:      round.inventory.SourceContentDigest,
+		CanonicalInventoryDigest: round.inventory.CanonicalInventoryDigest,
 		StandardSelection:        cloneAuditStandardSelection(profile.Inventory.StandardSelection),
-		Gaps:                     append([]string{}, inventory.Gaps...), Worklist: worklistArtifact,
-		ExecutionManifest: executionManifest,
+		Gaps:                     append([]string{}, round.inventory.Gaps...), Worklist: round.worklist,
+		ExecutionManifest: round.executionManifest,
 	}
 	baselineJSON, err := EncodeBaseline(baseline)
 	if err != nil {
 		return StartedAudit{}, err
 	}
-	items, err := materializeInventoryItems(audit.AuditID, profile, inventory, taskArtifacts)
+	items, err := materializeInventoryItems(audit.AuditID, profile, round.inventory, round.tasks)
 	if err != nil {
 		return StartedAudit{}, err
 	}
@@ -284,7 +367,7 @@ func (s *Service) startInTransaction(
 	started, created, err := store.MaterializeRound(ctx, auditstore.MaterializeRoundParams{
 		OwnerID: params.OwnerID, AuditID: audit.AuditID,
 		ExpectedRevision: params.ExpectedRevision,
-		RoundID:          roundID, RoundOrdinal: 1, Manifest: worklistArtifact,
+		RoundID:          roundID, RoundOrdinal: 1, Manifest: round.worklist,
 		BaselineSnapshot: baselineJSON,
 		DeadlineAt:       deadline,
 		Items:            items, InitialRetained: standardLinks, IdempotencyKey: params.IdempotencyKey,
@@ -355,11 +438,8 @@ func auditStandardLinks(pinned []auditstandards.PinnedPackage) ([]auditstore.Art
 			return nil, err
 		}
 		result[index] = auditstore.ArtifactLink{
-			LogicalKey: "standard/" + standard.Reference.Scheme + "/" + standard.Reference.Version,
-			Artifact: auditstore.ExactArtifact{
-				Ref: standard.Retained.Artifact, Digest: standard.Retained.Digest,
-				MediaType: standard.Retained.MediaType, SizeBytes: standard.Retained.SizeBytes,
-			},
+			LogicalKey:       "standard/" + standard.Reference.Scheme + "/" + standard.Reference.Version,
+			Artifact:         standard.Retained.Exact(),
 			SourceProvenance: provenance,
 			DisplayRef:       standard.Reference.Scheme + "@" + standard.Reference.Version,
 		}
@@ -432,11 +512,7 @@ func (s *Service) validateProfileDependencies(
 				"%w: Audit Workflow role %q credential selection is not runnable: %v", ErrInvalid, role, err,
 			)
 		}
-		ids, err := config.ResolvedWorkflowCredentialIDs(workflow)
-		if err != nil {
-			return nil, nil, nil, err
-		}
-		credentialSets = append(credentialSets, ids)
+		credentialSets = append(credentialSets, config.ResolvedWorkflowCredentialIDs(workflow))
 		refs, err := config.WorkflowSkillRefs(workflow)
 		if err != nil {
 			return nil, nil, nil, err
@@ -476,14 +552,15 @@ func readAndVerifyInputs(
 		if !exists || !contracts.AcceptsMediaType(contract.MediaTypes, selected.MediaType) {
 			return nil, fmt.Errorf("%w: stored Audit input no longer matches profile", ErrInvalid)
 		}
-		read, err := store.Read(ctx, selected.Ref)
+		if selected.Validate() != nil || !selected.HasMetadata() {
+			return nil, fmt.Errorf("%w: exact Audit input failed integrity validation", ErrInvalid)
+		}
+		read, err := store.ReadExact(ctx, selected)
+		if errors.Is(err, contracts.ErrExactArtifactMismatch) {
+			return nil, fmt.Errorf("%w: exact Audit input failed integrity validation: %v", ErrInvalid, err)
+		}
 		if err != nil {
 			return nil, err
-		}
-		if read.Ref.Revision == nil || selected.Ref.Revision == nil ||
-			*read.Ref.Revision != *selected.Ref.Revision || read.Payload.MediaType != selected.MediaType ||
-			int64(len(read.Payload.Data)) != selected.SizeBytes || auditdomain.DigestBytes(read.Payload.Data) != selected.Digest {
-			return nil, fmt.Errorf("%w: exact Audit input failed integrity validation", ErrInvalid)
 		}
 		result[name] = read
 	}
@@ -569,7 +646,7 @@ func buildInventoryFromSources(profile config.ResolvedAuditProfile, selection Dr
 
 func writeTaskPackages(
 	ctx context.Context,
-	store artifacts.ScopedStore,
+	writer auditArtifactWriter,
 	namespace string,
 	profile config.ResolvedAuditProfile,
 	selection DraftSelection,
@@ -580,7 +657,7 @@ func writeTaskPackages(
 	manifest.Items = append([]auditdomain.ExecutionItem(nil), inventory.ExecutionManifest.Items...)
 	result := make([]auditstore.ExactArtifact, len(inventory.Tasks))
 	for index, task := range inventory.Tasks {
-		write, err := writeImmutableArtifact(ctx, store, contracts.ArtifactRef{
+		write, err := writer.write(ctx, contracts.ArtifactRef{
 			Namespace: namespace, Name: task.Item.TaskPackageID,
 		}, artifacts.Payload{MediaType: auditdomain.PackageMediaType, Data: task.Package})
 		if err != nil {
@@ -644,7 +721,7 @@ func workflowInputs(
 
 func writeRoundPackage(
 	ctx context.Context,
-	store artifacts.ScopedStore,
+	writer auditArtifactWriter,
 	namespace string,
 	roundOrdinal int,
 	inventory auditdomain.Inventory,
@@ -674,7 +751,7 @@ func writeRoundPackage(
 	if err != nil {
 		return auditstore.ExactArtifact{}, err
 	}
-	write, err := writeImmutableArtifact(ctx, store, contracts.ArtifactRef{
+	write, err := writer.write(ctx, contracts.ArtifactRef{
 		Namespace: namespace,
 		Name:      auditdomain.DeterministicID("round-worklist", strconv.Itoa(roundOrdinal), validated.Digest),
 	}, artifacts.Payload{MediaType: auditdomain.PackageMediaType, Data: payload})
@@ -690,13 +767,24 @@ func writeRoundPackage(
 	}, nil
 }
 
-func writeImmutableArtifact(
+// auditArtifactWriter writes the frozen, content-named Audit artifacts of one
+// Project through artifacts.Service.WriteAuditArtifact, which also recovers a
+// write whose acknowledgement was lost.
+type auditArtifactWriter struct {
+	service   *artifacts.Service
+	projectID string
+}
+
+func (w auditArtifactWriter) write(
 	ctx context.Context,
-	store artifacts.ScopedStore,
 	target contracts.ArtifactRef,
 	payload artifacts.Payload,
 ) (auditstore.ExactArtifact, error) {
-	return auditstore.WriteImmutableArtifact(ctx, store, target, payload, artifacts.ErrArtifactConflict)
+	written, err := w.service.WriteAuditArtifact(ctx, w.projectID, target, payload)
+	if err != nil {
+		return auditstore.ExactArtifact{}, err
+	}
+	return contracts.ExactContent(written.Ref, written.MediaType, payload.Data), nil
 }
 
 func (s *Service) startedProjection(
@@ -721,7 +809,9 @@ func (s *Service) startedProjectionWithStore(
 	if err != nil {
 		return StartedAudit{}, err
 	}
-	items, err := store.ListItems(ctx, audit.AuditID)
+	// The response carries the current Round and only its items, at most
+	// LIM-AUD-26, however many items earlier Rounds hold.
+	items, err := store.ListRoundItems(ctx, audit.AuditID, round.RoundID)
 	if err != nil {
 		return StartedAudit{}, err
 	}

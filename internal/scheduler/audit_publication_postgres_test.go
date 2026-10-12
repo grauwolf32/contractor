@@ -117,8 +117,13 @@ func TestAuditManagedRunSkipsGenericProjectOutputPublication(t *testing.T) {
 		}); err != nil {
 			return err
 		}
+		if _, err := runs.TransitionRun(
+			ctx, runID, runstore.RunInitializing, runstore.RunPending, runstore.Reason{Code: "initialized"},
+		); err != nil {
+			return err
+		}
 		_, err := runs.TransitionRun(
-			ctx, runID, runstore.RunInitializing, runstore.RunRunning, runstore.Reason{Code: "initialized"},
+			ctx, runID, runstore.RunPending, runstore.RunRunning, runstore.Reason{Code: "admitted"},
 		)
 		return err
 	}); err != nil {
@@ -145,7 +150,7 @@ func TestAuditManagedRunSkipsGenericProjectOutputPublication(t *testing.T) {
 	if err := persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		return publishProjectOutputs(ctx, tx, runID, map[string]workflowconfig.ArtifactSlot{
 			"result": {Required: true, MediaTypes: []string{"text/plain"}},
-		})
+		}, 0)
 	}); err != nil {
 		t.Fatalf("skip Audit-managed output publication: %v", err)
 	}

@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useId, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import { usePublicAPI } from "../../api/context";
 import { invalidateCrossProject } from "../../api/cross-project";
@@ -193,21 +193,35 @@ export function EvalControls({
   const command = useQuery({
     queryKey: queryKeys.evals.command(experiment.experimentId, commandId),
     enabled: native && !!pending && !!commandId,
-    queryFn: async () => {
-      const result = await getEvalCommand(
-        api,
-        experiment.experimentId,
-        commandId!,
-      );
-      if (commandFinished(result)) await settle(pending!, result);
-      return result;
-    },
+    queryFn: () => getEvalCommand(api, experiment.experimentId, commandId!),
     refetchInterval: (query) =>
       query.state.error ||
       (query.state.data && commandFinished(query.state.data))
         ? false
         : EVAL_POLL_MS,
   });
+  // Each mounted instance settles its own pending command from the receipt it
+  // observes. The detail view replaces these controls while a command runs
+  // (the draft setup remounts per revision), and a replacement that joins an
+  // earlier instance's poll runs no query function of its own, so settling
+  // inside the fetch could leave it waiting on a finished command.
+  const finished =
+    pending?.commandId &&
+    command.data?.commandId === pending.commandId &&
+    commandFinished(command.data)
+      ? command.data
+      : null;
+  const settled = useRef<string | null>(null);
+  const settleObserved = useEffectEvent(
+    (current: PendingCommand, result: EvalCommandReceipt) => {
+      if (settled.current === result.commandId) return;
+      settled.current = result.commandId;
+      void settle(current, result);
+    },
+  );
+  useEffect(() => {
+    if (pending && finished) settleObserved(pending, finished);
+  }, [pending, finished]);
   // A command without a receipt (including one recovered from storage) is
   // replayed with its original idempotency key. The ref keeps StrictMode's
   // double-invoked effect from sending it twice.

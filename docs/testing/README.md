@@ -7,7 +7,7 @@ UI dependencies. Choose a check by the boundary you changed:
 
 | Check | Command | Prerequisites |
 | --- | --- | --- |
-| Formatting, language tests, builds and UI checks | `make verify` | Go, Python/uv, Node/Corepack |
+| Formatting, language tests, builds, shipped configuration and UI checks | `make verify` | Go, Python/uv, Node/Corepack |
 | PostgreSQL repositories | `make test-postgres` | Test database |
 | Live advisory scans of the Go commands and the Runtime lock | `make advisories` | Go, uv and access to the Go and PyPI advisory services |
 | Server/Runtime process integration | `make test-e2e` | Test database and locked Runtime environment |
@@ -52,7 +52,7 @@ available through a tag or a manual full-gate run before a PR is merged.
 
 | Stage | Runs |
 | --- | --- |
-| `release-verify-lint` | `make lint build`: the generated Go public client check, gofmt, vet, staticcheck, the release-graph guard and its tests, Ruff, the Runtime import-layer contracts, and the command builds |
+| `release-verify-lint` | `make lint build test-config`: the generated Go public client check, gofmt, vet, staticcheck, the release-graph guard and its tests, the database ERD freshness check, Ruff, the Runtime import-layer contracts, the command builds, the configuration package tests and validation of the shipped catalog (`config validate --root ./configs`) |
 | `release-verify-unit` | `make test`: the hardening matrices, every Go package (PostgreSQL-backed tests included when the test URL is set) and the Runtime suite |
 | `release-verify-ui` | `make ui-verify`: generated-type check, lint, typecheck, unit and server tests, and the production build |
 | `release-verify-families` | The feature families' Runtime, UI and matrix checks, and the Audit completion and findings process gates |
@@ -60,7 +60,7 @@ available through a tag or a manual full-gate run before a PR is merged.
 | `release-verify-browser-b` | External managed Evals in the production browser stack |
 | `release-verify-race` | The deduplicated Go race pass over the platform packages named in `make/release.mk` |
 | `release-verify-race-discovered` | The Go race pass over every other package with tests, discovered by [`scripts/release_race_packages.py`](../../scripts/release_race_packages.py), so a new package is raced automatically |
-| `release-verify-integration` | Every PostgreSQL-only integration-tagged Go test under the race detector, and a pass without it for packages whose tests relax a budget under the race detector, such as the 10-second finding-collection deadline |
+| `release-verify-integration` | Every PostgreSQL-only integration-tagged Go test under the race detector, a pass without it for packages whose tests relax a budget under the race detector, such as the 10-second finding-collection deadline, and every package whose tests take their Artifact blob backend from `CONTRACTOR_TEST_ARTIFACT_BACKEND`, run whole on the filesystem backend (`make test-artifact-filesystem`) |
 | `release-verify-process-a` | The first shard of the 19 process e2e tests |
 | `release-verify-process-b` | The second shard of the 19 process e2e tests |
 | `release-verify-process-c` | The third shard of the 19 process e2e tests |
@@ -81,7 +81,10 @@ integration commands continue to run their focused untagged race checks.
 `make lint` checks the stage order, the CI jobs and this table against the
 Makefile, the race coverage of every package with tests, and the release graph
 against the original process-test inventory, and discovers every
-integration-tagged test. New names
+integration-tagged test. It also requires the lint stage to keep the shipped
+catalog validation and the ERD check, and every package whose tests read
+`CONTRACTOR_TEST_ARTIFACT_BACKEND` to run whole on the filesystem backend in
+some stage. New names
 enter the release pass automatically; tool-dependent exceptions must name an
 opt-in gate and reason in
 [`scripts/release_integration_tests.py`](../../scripts/release_integration_tests.py).

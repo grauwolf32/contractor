@@ -70,7 +70,8 @@ func TestManagerRunsOperatorRootChecksOnStartupAndReload(t *testing.T) {
 	}
 	recorded.fail = errors.New("package_invalid")
 	_, err := manager.Publish(t.Context(), validPolicyPublication("checked-reload"))
-	if err == nil || err.Error() != "reload configuration roots before publication: bundle: package_invalid" {
+	if err == nil || err.Error() != "reload configuration roots before publication: bundle: package_invalid" ||
+		!errors.Is(err, ErrConfigurationDrift) {
 		t.Fatalf("publication error = %v", err)
 	}
 	if _, statErr := os.Stat(filepath.Join(managed, "model-policies", "ui-worker@2.yaml")); !errors.Is(statErr, os.ErrNotExist) {

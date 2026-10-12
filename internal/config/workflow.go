@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"maps"
 	"slices"
@@ -11,7 +12,6 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"go.yaml.in/yaml/v4"
-	"golang.org/x/text/unicode/norm"
 )
 
 func (l *loader) resolveWorkflow(selector Selector, spec *workflowSpecSource) (ResolvedWorkflow, error) {
@@ -37,7 +37,7 @@ func (l *loader) resolveWorkflow(selector Selector, spec *workflowSpecSource) (R
 	if spec.Stages == nil || len(*spec.Stages) == 0 {
 		return ResolvedWorkflow{}, fmt.Errorf("spec.stages must be a non-empty mapping")
 	}
-	if err := validateMapKey("spec.entryStage", spec.EntryStage); err != nil {
+	if err := validateWorkflowName("spec.entryStage", spec.EntryStage); err != nil {
 		return ResolvedWorkflow{}, err
 	}
 	if _, ok := (*spec.Stages)[spec.EntryStage]; !ok {
@@ -46,7 +46,7 @@ func (l *loader) resolveWorkflow(selector Selector, spec *workflowSpecSource) (R
 
 	stages := make(map[string]ResolvedStage, len(*spec.Stages))
 	for name, source := range *spec.Stages {
-		if err := validateMapKey("Stage name", name); err != nil {
+		if err := validateWorkflowName("Stage name", name); err != nil {
 			return ResolvedWorkflow{}, err
 		}
 		stage, stageErr := l.resolveStage(name, source, outputs, *spec.Stages)
@@ -72,6 +72,11 @@ func (l *loader) resolveWorkflow(selector Selector, spec *workflowSpecSource) (R
 		return ResolvedWorkflow{}, err
 	}
 	if _, err := WorkflowSkillRefs(workflow); err != nil {
+		return ResolvedWorkflow{}, err
+	}
+	// A Run without execution overrides stores exactly this snapshot, so it
+	// must fit its bound (CAT-R76); ResolveRunWorkflow measures overrides.
+	if _, err := EncodeResolvedWorkflowSnapshot(workflow); err != nil {
 		return ResolvedWorkflow{}, err
 	}
 	return workflow, nil
@@ -339,7 +344,7 @@ func (l *loader) resolveAgentBindings(source map[string]agentBindingSource) (map
 	}
 	result := make(map[string]ResolvedAgentBinding, len(source))
 	for logicalName, binding := range source {
-		if err := validateMapKey("logical Agent name", logicalName); err != nil {
+		if err := validateWorkflowName("logical Agent name", logicalName); err != nil {
 			return nil, err
 		}
 		selector, err := ParseSelector(binding.Template)
@@ -476,31 +481,17 @@ func resolveWorkspaceContext(
 	return result, nil
 }
 
+// validateWorkspaceTarget accepts "" (the workspace root) or a relative
+// directory of the workspace target grammar (WSP-R13) that allocation
+// validation applies again.
 func validateWorkspaceTarget(value string) error {
 	if value == "" {
 		return nil
 	}
-	if value != norm.NFC.String(value) || len([]byte(value)) > 1024 || strings.HasPrefix(value, "/") ||
-		strings.ContainsAny(value, "\\\x00") || strings.Contains(value, "://") {
-		return fmt.Errorf("must be a normalized relative POSIX directory")
-	}
-	parts := strings.Split(value, "/")
-	if len(parts) > 32 {
-		return fmt.Errorf("must contain at most 32 components")
-	}
-	for _, part := range parts {
-		if part == "" || part == "." || part == ".." {
-			return fmt.Errorf("contains an invalid component")
-		}
-		for _, character := range part {
-			if character < 0x20 || character == 0x7f {
-				return fmt.Errorf("contains a control character")
-			}
-		}
-	}
-	first := parts[0]
-	if len(first) >= 2 && ((first[0] >= 'A' && first[0] <= 'Z') || (first[0] >= 'a' && first[0] <= 'z')) && first[1] == ':' {
-		return fmt.Errorf("must not use Windows drive syntax")
+	if problem := contracts.RelativePathProblem(
+		value, contracts.MaxWorkspaceTargetBytes, contracts.MaxWorkspaceTargetComponents,
+	); problem != "" {
+		return errors.New(problem)
 	}
 	return nil
 }
@@ -528,11 +519,10 @@ func validateStageWorkspace(
 		}
 		for _, selection := range agent.Template.Toolsets {
 			ref := selection.Ref.ToolsetID + "@" + selection.Ref.Version
-			switch ref {
-			case "filesystem@1", "edit-files@1", "code-analysis@1", "taint-annotations@1":
+			if descriptors.Toolsets[ref].RequiresWorkspace {
 				workspaceToolsets = true
-			case "workspace-changes@1":
-				workspaceToolsets = true
+			}
+			if ref == "workspace-changes@1" {
 				changesToolset = true
 			}
 		}
@@ -691,7 +681,7 @@ func (l *loader) resolveTransitionAction(
 	switch {
 	case source.Next != nil:
 		action = TransitionAction{Kind: TransitionNext, NextStage: *source.Next}
-		if err := validateMapKey(field+".next", action.NextStage); err != nil {
+		if err := validateWorkflowName(field+".next", action.NextStage); err != nil {
 			return TransitionAction{}, err
 		}
 		if _, ok := stages[action.NextStage]; !ok {
@@ -812,6 +802,12 @@ func ValidateWorkflowGraph(workflow ResolvedWorkflow) error {
 	sort.Strings(names)
 	for _, name := range names {
 		stage := workflow.Stages[name]
+		if err := validateWorkflowName("Stage name", name); err != nil {
+			return err
+		}
+		if err := validateStageAgentNames(fmt.Sprintf("Stage %q", name), stage.Agents); err != nil {
+			return err
+		}
 		if err := stage.Session.Validate(); err != nil {
 			return fmt.Errorf("Stage %q: %w", name, err)
 		}

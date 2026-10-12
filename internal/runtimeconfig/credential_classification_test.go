@@ -9,6 +9,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/credentialerrors"
+	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 )
@@ -35,7 +36,7 @@ func TestRuntimeCredentialLookupErrorsOnlyMarkConfirmedInvalidConfiguration(t *t
 		{"missing", credentialerrors.RuntimeNotFound, true},
 		{"wrong-kind", credentialerrors.RuntimeInvalid, true},
 		{"no-row", pgx.ErrNoRows, true},
-		{"statement-timeout", &pgconn.PgError{Code: "57014", Message: "private-canary"}, false},
+		{"statement-timeout", &pgconn.PgError{Code: persistencepostgres.SQLStateQueryCanceled, Message: "private-canary"}, false},
 		{"connection-closed", errors.New("private-canary"), false},
 	} {
 		t.Run(test.name, func(t *testing.T) {
@@ -64,7 +65,7 @@ func TestLLMCredentialLookupErrorsOnlyMarkConfirmedInvalidConfiguration(t *testi
 		{"missing", credentialerrors.LLMNotFound, true},
 		{"no-row", pgx.ErrNoRows, true},
 		{"recovery-required", errors.New("private-canary"), false},
-		{"statement-timeout", &pgconn.PgError{Code: "57014", Message: "private-canary"}, false},
+		{"statement-timeout", &pgconn.PgError{Code: persistencepostgres.SQLStateQueryCanceled, Message: "private-canary"}, false},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			err := validateRunLLMCredential(t.Context(), spec, classificationLLMLookup(

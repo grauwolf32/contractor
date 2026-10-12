@@ -10,15 +10,20 @@ resolved durations and the Audit claim batch; it excludes URLs, paths and secret
 
 | ServerConfig path | Default | Scope |
 | --- | --- | --- |
+| `shutdownTimeout` | `40s` | Each shutdown phase: public request drain, Scheduler drain, private API drain |
 | `runtimeRequestTimeout` | `30s` | One private Runtime or A2A HTTP request |
-| `workerRequestTimeout` | `180s` | One Worker invocation request; also bounds each Worker model request |
-| `plannerTimeout` | `30m` | One modeled planner invocation; also bounds each planner model request |
+| `workerRequestTimeout` | `180s` | One Worker invocation request; also bounds each Worker model request and sizes the Worker's model recovery probe lease |
+| `plannerTimeout` | `30m` | Stage deadline from admission, covering Worker preparation and one modeled planner invocation; also bounds each planner model request and sizes the planner's model recovery probe lease |
 | `llmRecovery.initialDelay` | `1s` | First delay between model recovery probes |
 | `llmRecovery.maxDelay` | `30s` | Largest delay between model recovery probes |
 | `llmRecovery.automaticWindow` | `5m` | Automatic probing before a Run requires manual retry |
-| `scheduler.operationTimeout` | `30s` | One Scheduler persistence, prepare or reconciliation operation |
+| `scheduler.pollInterval` | `1s` | Delay between Scheduler lane refills and terminal release recovery passes; retry delay after a failed claim renewal |
+| `scheduler.claimDuration` | `2m` | Run claim lease, renewed every third of it (LIM-SCH-15); at least 1us and at least twice `scheduler.operationTimeout` |
+| `scheduler.leaseScanInterval` | `1s` | Delay between scans for lost Runtime allocations |
+| `scheduler.operationTimeout` | `30s` | One Scheduler store operation: claim, renewal, read, transition, commit or release marker. Runtime batches use the `runtimeLifecycle` budgets |
 | `scheduler.finalizationTimeout` | `10s` | Absolute finalization deadline recorded with the Stage candidate |
 | `scheduler.abortTimeout` | `10s` | Absolute abort deadline recorded with the termination transition |
+| `runtimeLifecycle.prepareTimeout` | `30s` | One Stage prepare batch, every allocation in order; a failed batch is cleaned up under `runtimeLifecycle.cleanupTimeout` |
 | `runtimeLifecycle.cleanupTimeout` | `30s` | One release batch or failed-prepare cleanup, including abort then release |
 | `projectLifecycle.operationTimeout` | `30s` | One Project deletion claim, release/defer, cancellation or drain step |
 | `projectLifecycle.claimDuration` | `1m` | Project deletion claim lease; at least 1us and must exceed its operation timeout |
@@ -33,7 +38,7 @@ resolved durations and the Audit claim batch; it excludes URLs, paths and secret
 | `database.statementTimeout` | `15s` | PostgreSQL statement execution |
 | `database.lockTimeout` | `2s` | PostgreSQL lock acquisition |
 | `database.idleTransactionTimeout` | `30s` | PostgreSQL idle transaction lifetime |
-| `a2a.pollInterval` | `100ms` | Delay before polling a non-terminal A2A task |
+| `a2a.pollInterval` | `100ms` | Delay before the first poll of a non-terminal A2A task; every poll that finds it still running doubles the delay, up to 2s or this value when it is longer (LIM-PLN-7) |
 | `credentialManagement.connectTimeout` | `3s` | LiteLLM virtual-key API connect/TLS timeout, at most 1m |
 | `credentialManagement.requestTimeout` | `15s` | One LiteLLM virtual-key management request, at most 2m |
 
@@ -78,8 +83,11 @@ Recovery reuses the stored deadline and operation ID; a process restart or confi
 change cannot grant another full finalization/abort budget. Each release batch
 shares one cleanup deadline. Failed-prepare cleanup shares one deadline across
 its abort and release steps, and a failed release retains the allocation grant.
-Transport timeouts can end individual requests earlier without releasing
-ownership or extending an enclosing operation.
+Each prepare batch shares one prepare deadline. The Scheduler operation budget
+never cuts a Runtime batch: a release may use its whole cleanup budget even when
+`scheduler.operationTimeout` is shorter, which then bounds only the durable
+release markers around it. Transport timeouts can end individual requests
+earlier without releasing ownership or extending an enclosing operation.
 
 `plannerTimeout`, `workerRequestTimeout` and `shutdownTimeout` have separate
 meanings. The shutdown timeout applies independently to public request drain,

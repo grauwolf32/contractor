@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"reflect"
 
+	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 )
 
@@ -17,7 +18,7 @@ type CreateParams struct {
 }
 
 func (s *Store) Create(ctx context.Context, p CreateParams) (Receipt, error) {
-	if !resourceID.MatchString(p.ID) || p.Document.Kind() != "CreateExperiment" {
+	if !contracts.ValidResourceID(p.ID) || p.Document.Kind() != "CreateExperiment" {
 		return Receipt{}, evaldomain.Failure("eval_invalid")
 	}
 	var input evaldomain.CreateExperiment

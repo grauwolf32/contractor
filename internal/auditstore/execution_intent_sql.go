@@ -1,5 +1,18 @@
 package auditstore
 
+import "github.com/grauwolf32/contractor/internal/config"
+
+// executionIntentEvents record execution intent $4 of role $5 for workflow
+// role $13 with the members $12.
+var executionIntentEvents = auditEvents(auditEvent(
+	"'execution.intent_created'", "$4::text", "NULL",
+	`jsonb_build_object(
+	           'role', $5::text,
+	           'workflowRole', $13::text,
+	           'members', jsonb_array_length($12::jsonb)
+	       )`,
+))
+
 // createExecutionIntentSQL keeps reservation and complete-batch submission in
 // one statement. live_claim, claim_gate and round_gate preserve authority and
 // lock order; eligible_members validates exact tasks, approval and attempts.
@@ -31,7 +44,7 @@ WITH member_input AS MATERIALIZED (
        AND settings.singleton = true
        AND audit.state = 'active' AND audit.dispatch_state = 'open'
        AND (audit.deadline_at IS NULL OR audit.deadline_at > clock_timestamp())
-	   AND audit.profile_snapshot #>> ARRAY['workflows', $13::text, 'kind'] = $5
+	   AND ` + profileRoleSQL("#>>", "$13::text", config.AuditWorkflowKindMember) + ` = $5
      FOR UPDATE OF audit, settings
 ), round_gate AS MATERIALIZED (
     SELECT round.round_id, round.state
@@ -67,8 +80,7 @@ WITH member_input AS MATERIALIZED (
     UPDATE audits AS audit
        SET reserved_run_count = audit.reserved_run_count + 1,
            outstanding_run_count = audit.outstanding_run_count + 1,
-           revision = audit.revision + 1,
-           next_event_sequence = audit.next_event_sequence + 1,
+           ` + executionIntentEvents.advance() + `,
            updated_at = GREATEST(clock_timestamp(), audit.updated_at + interval '1 microsecond')
       FROM claim_gate, eligible_members
      WHERE audit.audit_id = claim_gate.audit_id
@@ -81,7 +93,7 @@ WITH member_input AS MATERIALIZED (
 	       AND (
            ($5 = 'prepare' AND $6::text IS NULL AND audit.current_round_id IS NULL
              AND audit.phase = 'preparing' AND jsonb_array_length($12::jsonb) = 0
-             AND $7::integer BETWEEN 1 AND (audit.profile_snapshot #>> ARRAY['workflows', $13::text, 'maxRunAttempts'])::integer
+             AND $7::integer BETWEEN 1 AND (` + profileRoleSQL("#>>", "$13::text", config.AuditWorkflowMaxRunAttemptsMember) + `)::integer
              AND $7::integer = COALESCE((SELECT max(previous.role_attempt) + 1 FROM audit_executions AS previous
                  WHERE previous.audit_id = audit.audit_id AND previous.role = 'prepare' AND previous.workflow_role = $13), 1)
              AND NOT EXISTS (SELECT 1 FROM audit_executions AS previous
@@ -119,7 +131,7 @@ WITH member_input AS MATERIALIZED (
 	                  WHERE round_gate.round_id = $6 AND round_gate.state = 'assessing'
 	             ))
        )
-    RETURNING audit.*
+    RETURNING audit.*, ` + executionIntentEvents.appended() + `
 ), inserted_execution AS (
     INSERT INTO audit_executions (
         execution_id, audit_id, round_id, role, workflow_role, role_attempt,
@@ -146,18 +158,6 @@ WITH member_input AS MATERIALIZED (
            updated_at = GREATEST(clock_timestamp(), item.updated_at + interval '1 microsecond')
       FROM inserted_members AS member
      WHERE item.item_id = member.item_id AND item.state = 'ready'
-), event_row AS (
-    INSERT INTO audit_events (
-        audit_id, sequence_number, kind, entity_id, summary
-    )
-    SELECT execution.audit_id, reserved.next_event_sequence - 1,
-           'execution.intent_created', execution.execution_id,
-           jsonb_build_object(
-	           'role', execution.role,
-	           'workflowRole', execution.workflow_role,
-	           'members', jsonb_array_length($12::jsonb)
-	       )
-      FROM inserted_execution AS execution JOIN reserved USING (audit_id)
 )
 SELECT ` + prefixedExecutionColumns("inserted_execution") + `
   FROM inserted_execution`

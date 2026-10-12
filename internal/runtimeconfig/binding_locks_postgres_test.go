@@ -67,7 +67,7 @@ func TestPostgresBindingPinsShareLocksAndExcludeWriters(t *testing.T) {
 		}
 		_, err = writer.Exec(ctx, sql)
 		writer.Rollback(ctx)
-		if persistencepostgres.SQLState(err) != "55P03" {
+		if persistencepostgres.SQLState(err) != persistencepostgres.SQLStateLockNotAvailable {
 			t.Fatalf("writer was not excluded by shared pin: %v", err)
 		}
 	}

@@ -91,7 +91,11 @@ func TestImporterReportFinalizationSurvivesRunDeletion(t *testing.T) {
 						t.Fatal("retry changed immutable report bytes")
 					}
 				}
-				var report machineReport
+				var report struct {
+					GeneratedFrom       time.Time                              `json:"generatedFrom"`
+					AttemptDispositions auditstore.CollectionDispositionCounts `json:"attemptDispositions"`
+					Items               []reportItem                           `json:"items"`
+				}
 				mustCompletion(t, json.Unmarshal(hooked.writes[0].data, &report))
 				if !report.GeneratedFrom.Equal(snapshot.Audit.UpdatedAt) || report.AttemptDispositions.ExecutionFailed != 1 || len(report.Items) != 2 {
 					t.Fatal("retained report lost its timestamp, receipt or item facts after source deletion")
@@ -317,7 +321,7 @@ func newReportDeletionFixture(t *testing.T, pool *pgxpool.Pool, acceptance strin
 
 func reportDeletionReviewService(t *testing.T, f *completionFixture) *auditservice.Service {
 	t.Helper()
-	manager, err := configload.NewManager(config.ManagerOptions{
+	manager, _, err := configload.NewManager(config.ManagerOptions{
 		OperatorRoot: "../config/testdata/valid", ManagedRoot: filepath.Join(t.TempDir(), "managed"),
 		Descriptors: config.MVPDescriptors(),
 	})

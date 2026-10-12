@@ -1,0 +1,55 @@
+schema_version: "1.0"
+id: V371-021
+title: "Replace wall-clock budgets in the Scheduler and runstore PostgreSQL tests"
+milestone: hub-audit-defects-2026-10
+epic: quality
+kind: chore
+priority: P3
+status: pending
+depends_on: []
+languages: [go]
+goal: "The Scheduler cancellation, claim-loss and supervisor PostgreSQL tests and the runstore listener test wait on events and the database clock within the test's own deadline, so machine load cannot fail them."
+context:
+  review: "Out-of-scope findings of the hub audit fix batch (groups G13 and G9), recorded 2026-10-12; verified on a07f5e9"
+  finding: >-
+    TestPostgresCancellationCleanupRetainsRunClaim/polled_cancellation timed
+    out once under load: internal/scheduler/cancellation_claim_postgres_test.go
+    waits 1 s for the initial work and for the cleanup (lines 75 and 84,
+    receiveString with time.Second), proves the retained claim with a local
+    timer of three ClaimDurations of 200 ms (lines 60 and 85-91) and stops
+    on 1 s budgets (lines 69-73 and 96); the polled variant needs the
+    renewal ticks every ClaimDuration/3 to land inside that second.
+    TestPostgresListenerOutlivesQueryBudgetsAndReleasesOnShutdown
+    (internal/runstore/event_notification_budget_postgres_test.go:20-23)
+    opens its pool with a 300 ms QueryTimeout, and OpenPool pings with that
+    budget (internal/persistence/postgres/pool.go:101-103), so the setup
+    failed twice under load before the listener under test ran; V370-021
+    already moved the notifying commits to generous budgets for the same
+    reason (lines 35-43). AGENTS.md 3.5 asks for deterministic budgets.
+    Both predate the shallow history (boundary 6349621).
+  siblings: >-
+    The same pattern on PostgreSQL paths: claim_loss_postgres_test.go:44 and
+    :61 (1 s) and supervisor_postgres_test.go:75-194 (5 s per claim, and the
+    deadline timer at :322). The helpers receiveString and receiveError
+    (supervisor_test.go:670-699) take a fixed timeout; memory-only tests that
+    use them are out of scope unless measured flaky.
+scope:
+  in:
+    - "The helpers wait on the test context's deadline; proofs of lease expiry compare against the database clock (the stored claim expiry and clock_timestamp()) instead of a local timer."
+    - "The listener test opens its pool with default budgets and applies the short budgets only to the statements whose budget it tests."
+  out:
+    - "Scheduler, lease and listener behaviour, and the budgets the tests assert."
+acceptance_criteria:
+  - id: A1
+    given: "A CPU-saturated host (the tests repeated 20 times with parallel CPU load)"
+    when: "They run against PostgreSQL"
+    then: "None fails on a time budget."
+  - id: A2
+    text: "Each test still fails when the behaviour it checks is broken: cleanup losing the claim, a lost claim not stopping finalization, the listener not outliving the query budget."
+tests:
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=20 -run 'TestPostgresCancellationCleanupRetainsRunClaim|TestPostgresClaimLossDuringFinalizationPreventsReportAndProgression|TestPostgresSchedulerSupervisor' ./internal/scheduler"
+    covers: [A1, A2]
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=20 -run TestPostgresListenerOutlivesQueryBudgetsAndReleasesOnShutdown ./internal/runstore"
+    covers: [A1, A2]
+  - command: make lint
+    covers: [A1, A2]

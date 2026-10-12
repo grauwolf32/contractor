@@ -28,26 +28,45 @@ const CLIENT_ROUTES = new Set([
   "/operations/performance",
   "/operations/allocations/completed",
 ]);
+// Configuration identities as in the public ConfigurationName and
+// ConfigVersion schemas, and Runtime configurations as in
+// RuntimeInfrastructureId and RuntimeConfigVersion; static-server.test.mjs
+// holds the routes to api/testdata/v1alpha1/config-identity-cases.json.
+const CONFIG_NAME = "[a-z][a-z0-9_-]{0,127}";
+const CONFIG_VERSION = "[A-Za-z0-9][A-Za-z0-9._+-]{0,63}";
+const RUNTIME_CONFIG_NAME = "[a-z][a-z0-9_-]{0,62}";
+const RUNTIME_CONFIG_VERSION = "[A-Za-z0-9][A-Za-z0-9._+-]{0,127}";
+const CONFIG_KINDS =
+  "agent-templates|execution-configs|model-policies|llm-gateways";
+
 const CLIENT_ROUTE_PATTERNS = [
   /^\/issues\/[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}\/[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$/,
   /^\/reports\/[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$/,
   /^\/evals\/experiments\/[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}(?:\/(?:overview|comparison|attempts|setup))?$/,
   /^\/evals\/experiments\/[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}\/pairs\/[a-f0-9]{64}$/,
-  /^\/catalog\/(?:workflows|agents|audit-presets)\/[A-Za-z0-9][A-Za-z0-9_.-]{0,127}\/[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/,
+  new RegExp(
+    `^/catalog/(?:workflows|agents|audit-presets)/${CONFIG_NAME}/${CONFIG_VERSION}$`,
+  ),
   /^\/projects\/[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$/,
   /^\/evals\/[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$/,
   /^\/evals\/[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}\/artifacts\/[A-Za-z0-9][A-Za-z0-9_.-]{0,127}\/[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/,
   /^\/projects\/[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}\/artifacts\/[A-Za-z0-9][A-Za-z0-9_.-]{0,127}\/[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/,
   /^\/projects\/[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}\/(?:artifacts|workflows|runs|audits|findings|settings)$/,
-  /^\/projects\/[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}\/workflows\/[A-Za-z0-9][A-Za-z0-9_.-]{0,127}\/[A-Za-z0-9][A-Za-z0-9_.-]{0,63}\/run$/,
+  new RegExp(
+    `^/projects/[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}/workflows/${CONFIG_NAME}/${CONFIG_VERSION}/run$`,
+  ),
   /^\/projects\/[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}\/audits\/[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$/,
   /^\/projects\/[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}\/audits\/[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}\/(?:overview|coverage|findings|checks|reviews|runs|report)$/,
   /^\/artifacts\/[A-Za-z0-9][A-Za-z0-9_.-]{0,127}\/[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/,
   /^\/runs\/[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$/,
   /^\/runs\/[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}\/artifacts\/[A-Za-z0-9][A-Za-z0-9_.-]{0,127}\/[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/,
   /^\/operations\/(?:runtime-agents|allocations|configurations|credentials|settings)$/,
-  /^\/operations\/configuration\/[a-z][a-z0-9_-]{0,62}\/[A-Za-z0-9][A-Za-z0-9._+-]{0,127}$/,
-  /^\/operations\/configurations\/(?:agent-templates|execution-configs|model-policies|llm-gateways)\/[A-Za-z0-9][A-Za-z0-9_.-]{0,127}\/[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/,
+  new RegExp(
+    `^/operations/configuration/${RUNTIME_CONFIG_NAME}/${RUNTIME_CONFIG_VERSION}$`,
+  ),
+  new RegExp(
+    `^/operations/configurations/(?:${CONFIG_KINDS})/${CONFIG_NAME}/${CONFIG_VERSION}$`,
+  ),
   /^\/operations\/credentials\/[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/,
 ];
 const API_PREFIXES = ["/v1", "/api", "/private"];

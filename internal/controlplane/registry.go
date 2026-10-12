@@ -1233,8 +1233,10 @@ func normalizeReservationRequest(request ReservationRequest) (string, []BindingR
 	bindings := make([]BindingRequirement, len(request.Bindings))
 	seen := make(map[string]struct{}, len(request.Bindings))
 	for index, binding := range request.Bindings {
-		if strings.TrimSpace(binding.LogicalAgentName) == "" || contracts.ValidateArtifactName(binding.Namespace) != nil {
-			return "", nil, fmt.Errorf("%w: binding name and valid Artifact namespace are required", ErrInvalidRequest)
+		// Operations shows the logical Agent name as a ConfigId (WFL-R84), so
+		// placement never reserves a name it could not show.
+		if !contracts.ValidName(binding.LogicalAgentName) || contracts.ValidateArtifactName(binding.Namespace) != nil {
+			return "", nil, fmt.Errorf("%w: valid logical Agent name and Artifact namespace are required", ErrInvalidRequest)
 		}
 		if binding.Namespace == "inputs" || binding.Namespace == "outputs" {
 			return "", nil, fmt.Errorf("%w: Agent binding cannot use a Run-reserved namespace", ErrInvalidRequest)

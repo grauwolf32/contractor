@@ -151,7 +151,8 @@ func (h *handler) listProjectAudits(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, err)
 		return
 	}
-	var state *auditstore.AuditState
+	// The owner-wide list accepts a comma-separated state set; a Project list
+	// filters by one state.
 	var states []auditstore.AuditState
 	if values, ok := query["state"]; ok {
 		if projectID == "" {
@@ -166,7 +167,7 @@ func (h *handler) listProjectAudits(w http.ResponseWriter, r *http.Request) {
 				h.handleError(w, errInvalidRequest)
 				return
 			}
-			state = &candidate
+			states = []auditstore.AuditState{candidate}
 		}
 	}
 	var profileName, profileVersion *string
@@ -180,7 +181,7 @@ func (h *handler) listProjectAudits(w http.ResponseWriter, r *http.Request) {
 		profileSelector = selector.String()
 		profileName, profileVersion = &selector.ID, &selector.Version
 	}
-	cursorKind := "project-audits:" + projectID + ":" + pointerAuditState(state) + ":" + profileSelector
+	cursorKind := "project-audits:" + projectID + ":" + auditStateKey(states) + ":" + profileSelector
 	if projectID == "" {
 		cursorKind = "owner-audits:" + principalUserID(r.Context()) + ":" + auditStateKey(states) + ":" + profileSelector
 	}
@@ -190,7 +191,7 @@ func (h *handler) listProjectAudits(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	params := auditstore.ListParams{
-		OwnerID: principalUserID(r.Context()), State: state, States: states, VisibleProjects: projectID == "",
+		OwnerID: principalUserID(r.Context()), States: states, VisibleProjects: projectID == "",
 		ProfileName: profileName, ProfileVersion: profileVersion, Limit: pagelimit.FetchRows(limit),
 	}
 	if projectID != "" {
@@ -279,7 +280,7 @@ func (h *handler) startAudit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	auditID := r.PathValue("auditId")
-	digest := auditRequestDigest("", auditID, revision, seconds)
+	digest := auditRequestDigest("start", auditID, revision, seconds)
 	credentialUser := runtimeCredentialUser(r.Context())
 	started, err := h.dependencies.Audits.Start(r.Context(), auditservice.StartParams{
 		OwnerID: credentialUser.UserID, OperationsPrincipal: credentialUser.Operations,
@@ -490,7 +491,7 @@ func (h *handler) listAuditCoverage(w http.ResponseWriter, r *http.Request) {
 	if h.rejectHead(w, r) {
 		return
 	}
-	query, limit, encodedCursor, err := pageQuery(r.URL.RawQuery, "round")
+	query, limit, encodedCursor, err := pageQuery(r.URL.RawQuery, "round", "auditRevision")
 	if err != nil {
 		h.handleError(w, err)
 		return
@@ -507,14 +508,24 @@ func (h *handler) listAuditCoverage(w http.ResponseWriter, r *http.Request) {
 	} else if audit.CurrentRoundID != nil {
 		roundID = *audit.CurrentRoundID
 	}
-	if roundID == "" {
-		writeJSON(w, http.StatusOK, auditCoveragePageResponse{Items: []auditCoverageResponse{}, Page: pageInfoResponse{}})
-		return
-	}
 	cursorKind := "audit-coverage:" + auditID + ":" + roundID
-	cursor, err := h.decodePageCursor(encodedCursor, cursorKind, 1)
+	cursor, revision, err := h.decodeAuditPageCursor(encodedCursor, cursorKind, query.Get("auditRevision"), 2)
 	if err != nil {
 		h.handleError(w, err)
+		return
+	}
+	// The page, and the current Round it was chosen from, belong to one
+	// revision: the pinned one, or the one just read.
+	if revision == nil {
+		revision = &audit.Revision
+	} else if *revision != audit.Revision {
+		h.handleError(w, auditstore.ErrConflict)
+		return
+	}
+	if roundID == "" {
+		writeJSON(w, http.StatusOK, auditCoveragePageResponse{
+			Items: []auditCoverageResponse{}, Page: pageInfoResponse{}, AuditRevision: audit.Revision,
+		})
 		return
 	}
 	after := -1
@@ -525,13 +536,15 @@ func (h *handler) listAuditCoverage(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	coverage, err := h.dependencies.Audits.ListCoverage(r.Context(), ownerID, auditID, roundID, after, pagelimit.FetchRows(limit))
+	result, err := h.dependencies.Audits.ListCoverage(
+		r.Context(), ownerID, auditID, roundID, after, pagelimit.FetchRows(limit), revision,
+	)
 	if err != nil {
 		h.handleError(w, err)
 		return
 	}
-	coverage, page, err := paginate(h, coverage, limit, cursorKind, func(last auditstore.CoverageRow) []string {
-		return []string{strconv.Itoa(last.Ordinal)}
+	coverage, page, err := paginate(h, result.Rows, limit, cursorKind, func(last auditstore.CoverageRow) []string {
+		return []string{strconv.Itoa(last.Ordinal), strconv.FormatUint(result.AuditRevision, 10)}
 	})
 	if err != nil {
 		h.handleError(w, err)
@@ -545,7 +558,7 @@ func (h *handler) listAuditCoverage(w http.ResponseWriter, r *http.Request) {
 			Result: row.Result, UpdatedAt: row.UpdatedAt, Details: row.Details,
 		}
 	}
-	writeJSON(w, http.StatusOK, auditCoveragePageResponse{Items: items, Page: page})
+	writeJSON(w, http.StatusOK, auditCoveragePageResponse{Items: items, Page: page, AuditRevision: result.AuditRevision})
 }
 
 func (h *handler) getAuditReport(w http.ResponseWriter, r *http.Request) {

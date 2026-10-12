@@ -54,8 +54,10 @@ export function useAuditCoverage(audit: Audit, pin?: string | null) {
           message:
             "The check changed while its results were read; refresh them.",
         });
-      // An unpinned first batch can straddle one revision bump. Retry that
-      // whole batch once; pinned and continuation reads remain strict.
+      // Every page is pinned to the revision the batch starts from, so the
+      // Server answers 409 rather than mixing revisions. An unpinned first
+      // batch can straddle one revision bump: retry that whole batch once;
+      // pinned and continuation reads remain strict.
       const canRetry = expected === null && previous === undefined;
       for (let attempt = 0; attempt < (canRetry ? 2 : 1); attempt += 1) {
         const before = await getAudit(api, audit.auditId);
@@ -63,19 +65,23 @@ export function useAuditCoverage(audit: Audit, pin?: string | null) {
           throw conflict();
         if (previous !== undefined && previous.revision !== before.revision)
           throw conflict();
-        const batch = await collectAuditPages(
-          (pageCursor) =>
-            listAuditCoverage(api, audit.auditId, {
-              ...(pageCursor === undefined ? {} : { cursor: pageCursor }),
-              ...(before.currentRoundId === undefined
-                ? {}
-                : { round: before.currentRoundId }),
-            }),
-          cursor === undefined ? {} : { cursor },
-        );
-        const after = await getAudit(api, audit.auditId);
-        if (before.revision === after.revision)
-          return { ...batch, revision: after.revision };
+        try {
+          const batch = await collectAuditPages(
+            (pageCursor) =>
+              listAuditCoverage(api, audit.auditId, {
+                ...(pageCursor === undefined ? {} : { cursor: pageCursor }),
+                ...(before.currentRoundId === undefined
+                  ? {}
+                  : { round: before.currentRoundId }),
+                auditRevision: before.revision,
+              }),
+            cursor === undefined ? {} : { cursor },
+          );
+          return { ...batch, revision: before.revision };
+        } catch (error) {
+          if (!(error instanceof PublicAPIError) || error.status !== 409)
+            throw error;
+        }
       }
       throw conflict();
     },

@@ -637,7 +637,7 @@ func TestPostgresImmutableProjectArtifactReuseLeavesNoFilesystemOrphans(t *testi
 		t.Fatal(err)
 	}
 	base := artifacts.NewPostgresRepository(pool)
-	counting := &countingProjectArtifactRepository{Repository: base, QueryRepository: base}
+	counting := &countingProjectArtifactRepository{PostgresRepository: base}
 	access, err := NewProjectArtifactAccess(artifacts.NewService(counting))
 	if err != nil {
 		t.Fatal(err)
@@ -663,24 +663,64 @@ func TestPostgresImmutableProjectArtifactReuseLeavesNoFilesystemOrphans(t *testi
 	if counting.writes != 1 {
 		t.Fatalf("immutable Project Write calls = %d, want 1", counting.writes)
 	}
+	projectArtifacts, err := artifacts.NewService(base).Project(project.ProjectID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	metadata, err := projectArtifacts.Metadata(ctx, first.Ref)
+	if err != nil || !metadata.Frozen {
+		t.Fatalf("immutable Project artifact metadata = (%+v, %v), want frozen", metadata, err)
+	}
 	report, err := artifacts.CleanupFilesystemBlobs(ctx, pool, path, false)
 	if err != nil || report.Referenced != 1 || report.Orphans != 0 || report.Missing != 0 {
 		t.Fatalf("immutable Project blob cleanup = (%+v, %v)", report, err)
 	}
 }
 
+// requireFrozenAuditBindings fails unless projectID holds at least minimum
+// audit-* bindings and every one of them is frozen.
+func requireFrozenAuditBindings(
+	t *testing.T, ctx context.Context, pool *pgxpool.Pool, projectID string, minimum int,
+) {
+	t.Helper()
+	rows, err := pool.Query(ctx, `
+SELECT namespace || '/' || name, frozen
+  FROM artifact_bindings
+ WHERE scope_kind = 'project' AND scope_id = $1 AND starts_with(namespace, 'audit-')
+ ORDER BY namespace, name`, projectID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	bindings, unfrozen := 0, []string{}
+	for rows.Next() {
+		var binding string
+		var frozen bool
+		if err := rows.Scan(&binding, &frozen); err != nil {
+			t.Fatal(err)
+		}
+		bindings++
+		if !frozen {
+			unfrozen = append(unfrozen, binding)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	if bindings < minimum || len(unfrozen) != 0 {
+		t.Fatalf("Audit-managed bindings = %d (want at least %d), unfrozen %v", bindings, minimum, unfrozen)
+	}
+}
+
 type countingProjectArtifactRepository struct {
-	artifacts.Repository
-	artifacts.QueryRepository
+	*artifacts.PostgresRepository
 	writes int
 }
 
-func (r *countingProjectArtifactRepository) Write(
-	ctx context.Context, scope artifacts.Scope, target artifacts.ArtifactRef,
-	payload artifacts.Payload, expectedRevision *string,
+func (r *countingProjectArtifactRepository) WriteAuditArtifact(
+	ctx context.Context, scope artifacts.Scope, target artifacts.ArtifactRef, payload artifacts.Payload,
 ) (artifacts.WriteResult, error) {
 	r.writes++
-	return r.Repository.Write(ctx, scope, target, payload, expectedRevision)
+	return r.PostgresRepository.WriteAuditArtifact(ctx, scope, target, payload)
 }
 
 func TestPostgresDispatchReservationOrdersWithSettingsDecrease(t *testing.T) {
@@ -1229,9 +1269,13 @@ func TestPostgresControllerCollectsAndPublishesExactAuditReport(t *testing.T) {
 		},
 		artifacts.Payload{MediaType: "application/json", Data: []byte(`{"tampered":true}`)},
 		report.MachineArtifact.Ref.Revision,
-	); !errors.Is(err, artifacts.ErrArtifactFrozen) {
-		t.Fatalf("mutate frozen Audit report error = %v", err)
+	); !errors.Is(err, artifacts.ErrReservedNamespace) {
+		t.Fatalf("generic write to an Audit report error = %v, want reserved namespace", err)
 	}
+	// REV-R146: the round left every Audit-managed binding frozen: task
+	// packages, the worklist, execution manifests, the retained result and
+	// the report.
+	requireFrozenAuditBindings(t, ctx, harness.pool, completed.ProjectID, 5)
 
 	if err := rundeletion.New(harness.pool).DeleteReleasedTerminalRun(ctx, completed.OwnerID, runID); err != nil {
 		t.Fatal(err)

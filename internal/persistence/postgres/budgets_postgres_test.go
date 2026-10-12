@@ -110,7 +110,7 @@ func TestPostgresOrdinaryWaitBudgetsAndRecovery(t *testing.T) {
 			return err
 		})
 		assertBounded(start)
-		if SQLState(err) != "57014" || calls != 1 || IsTransactionConflict(err) {
+		if SQLState(err) != SQLStateQueryCanceled || calls != 1 || IsTransactionConflict(err) {
 			t.Fatalf("statement timeout: state=%s attempts=%d error=%v", SQLState(err), calls, err)
 		}
 		assertReusable()
@@ -132,7 +132,7 @@ func TestPostgresOrdinaryWaitBudgetsAndRecovery(t *testing.T) {
 			return err
 		})
 		assertBounded(start)
-		if SQLState(err) != "55P03" || calls != 1 || IsTransactionConflict(err) {
+		if SQLState(err) != SQLStateLockNotAvailable || calls != 1 || IsTransactionConflict(err) {
 			t.Fatalf("lock timeout: state=%s attempts=%d error=%v", SQLState(err), calls, err)
 		}
 		if err := locker.Rollback(ctx); err != nil {

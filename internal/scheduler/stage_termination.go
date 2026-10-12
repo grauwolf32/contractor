@@ -170,12 +170,12 @@ func (s *Scheduler) resumeAborting(
 	}
 	s.persistReports(ctx, run, workflow, execution, reservations, reports)
 	commitContext, cancelCommit := s.terminalOperationContext(ctx)
-	current, err := s.store.GetRun(commitContext, run.RunID)
+	state, err := s.store.GetRunState(commitContext, run.RunID)
 	if err != nil {
 		cancelCommit()
 		return err
 	}
-	if current.State == runstore.RunCancelling {
+	if state == runstore.RunCancelling {
 		err = s.persistence.CommitTerminationAndFinishRun(
 			commitContext,
 			run.RunID,
@@ -209,10 +209,12 @@ func (s *Scheduler) resumeAborting(
 	cancelCommit()
 	if errors.Is(err, runstore.ErrConflict) {
 		stateContext, cancelState := s.terminalOperationContext(ctx)
-		latest, loadErr := s.store.GetRun(stateContext, run.RunID)
+		state, loadErr := s.store.GetRunState(stateContext, run.RunID)
 		cancelState()
-		if loadErr == nil && latest.State == runstore.RunCancelling {
-			return s.resumeAborting(ctx, latest, workflow, execution, reservations)
+		if loadErr == nil && state == runstore.RunCancelling {
+			// resumeAborting reads the state again; the rest of the Run
+			// does not change with it.
+			return s.resumeAborting(ctx, run, workflow, execution, reservations)
 		}
 	}
 	if errors.Is(err, runstore.ErrQueuePaused) {

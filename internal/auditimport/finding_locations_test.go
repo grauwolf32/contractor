@@ -1,7 +1,6 @@
 package auditimport
 
 import (
-	"context"
 	"encoding/json"
 	"reflect"
 	"testing"
@@ -35,20 +34,18 @@ func TestReportPreservesExplicitLocationsAndUnknownSubject(t *testing.T) {
 		Ref:    contracts.ArtifactRef{Namespace: "findings", Name: "proposal", Revision: &revision},
 		Digest: auditdomain.DigestBytes(payload), SizeBytes: int64(len(payload)), MediaType: "application/json",
 	}
-	store := &fakeImportStore{findings: []auditstore.ReportFinding{{FindingID: "finding-1", State: "proposed", FirstProposal: artifact, Revision: 1}}}
-	access := &fakeImportArtifacts{project: map[string][]byte{refKey(artifact.Ref): payload}}
-	importer, err := New(store, &fakeImportRuns{}, access)
+	// The report reads the projection that intake stored with the receipt.
+	stored, err := auditdomain.EncodeFindingReportProjection(auditdomain.ProjectFindingReport(document))
 	if err != nil {
 		t.Fatal(err)
 	}
-	report, err := importer.reportFindings(context.Background(), auditstore.Audit{AuditID: "audit-1", ProjectID: "project-1"})
+	projection, err := auditdomain.DecodeFindingReportProjection(stored)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(report.Proposed) != 1 {
-		t.Fatalf("report = %+v", report)
-	}
-	finding := report.Proposed[0]
+	finding := newReportFinding(auditstore.ReportFinding{
+		FindingID: "finding-1", State: "proposed", FirstProposal: artifact, Revision: 1, Projection: projection,
+	})
 	if finding.Subject != nil || !reflect.DeepEqual(finding.Locations, document.Locations) || !reflect.DeepEqual(finding.HTTPExchange, document.HTTPExchange) {
 		t.Fatalf("report lost recorded context: %+v", finding)
 	}

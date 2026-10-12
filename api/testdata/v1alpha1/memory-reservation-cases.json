@@ -1,0 +1,36 @@
+{
+  "description": "Reserved RunScope bindings (ART-R114, ART-R19 to ART-R22, MEM-R89 to MEM-R92), shared by the Go Server (artifactpolicy.PurposeReservedNamespaces, IsReservedMemoryBinding and the Worker result check in contracts) and the Python Runtime (contracts.artifacts PURPOSE_RESERVED_NAMESPACES, is_reserved_memory_binding and is_reserved_result_binding). purposeReservedNamespaces is the exact list of Run Namespaces a trusted purpose-specific flow owns: none is a Stage Agent or MemoryTools Namespace. memoryReserved: the binding belongs only to MemoryTools, because its name starts with the exact, case-sensitive memoryPrefix and its Namespace is not purpose-reserved, whose own contract governs its names. resultReserved: no Stage or Worker result may bind it, because its Namespace is purpose-reserved or it is memoryReserved.",
+  "memoryPrefix": "memory.",
+  "purposeReservedNamespaces": [
+    "contractor-system",
+    "finding-proposals",
+    "inputs",
+    "outputs",
+    "skills"
+  ],
+  "bindings": [
+    {"namespace": "analysis", "name": "memory.note", "memoryReserved": true, "resultReserved": true},
+    {"namespace": "analysis", "name": "memory.", "memoryReserved": true, "resultReserved": true},
+    {"namespace": "analysis", "name": "memory.nested.note", "memoryReserved": true, "resultReserved": true},
+    {"namespace": "builder", "name": "memory.tags", "memoryReserved": true, "resultReserved": true},
+    {"namespace": "analysis", "name": "report", "memoryReserved": false, "resultReserved": false},
+    {"namespace": "analysis", "name": "memory", "memoryReserved": false, "resultReserved": false},
+    {"namespace": "analysis", "name": "memorynote", "memoryReserved": false, "resultReserved": false},
+    {"namespace": "analysis", "name": "memory_note", "memoryReserved": false, "resultReserved": false},
+    {"namespace": "analysis", "name": "Memory.note", "memoryReserved": false, "resultReserved": false},
+    {"namespace": "analysis", "name": "notes.memory.x", "memoryReserved": false, "resultReserved": false},
+    {"namespace": "inputs", "name": "memory.note", "memoryReserved": false, "resultReserved": true},
+    {"namespace": "outputs", "name": "memory.note", "memoryReserved": false, "resultReserved": true},
+    {"namespace": "skills", "name": "memory.note", "memoryReserved": false, "resultReserved": true},
+    {"namespace": "finding-proposals", "name": "memory.note", "memoryReserved": false, "resultReserved": true},
+    {"namespace": "contractor-system", "name": "memory.note", "memoryReserved": false, "resultReserved": true},
+    {"namespace": "inputs", "name": "source", "memoryReserved": false, "resultReserved": true},
+    {"namespace": "finding-proposals", "name": "proposal-1", "memoryReserved": false, "resultReserved": true},
+    {"namespace": "contractor-system", "name": "repeat-request", "memoryReserved": false, "resultReserved": true},
+    {"namespace": "Skills", "name": "memory.note", "memoryReserved": true, "resultReserved": true},
+    {"namespace": "Skills", "name": "report", "memoryReserved": false, "resultReserved": false},
+    {"namespace": "skills-extra", "name": "memory.note", "memoryReserved": true, "resultReserved": true},
+    {"namespace": "findings", "name": "memory.note", "memoryReserved": true, "resultReserved": true},
+    {"namespace": "contractor", "name": "report", "memoryReserved": false, "resultReserved": false}
+  ]
+}

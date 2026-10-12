@@ -397,8 +397,12 @@ func createStage(t *testing.T, ctx context.Context, store *runstore.PostgresStor
 		t.Fatal(err)
 	}
 	if _, err := store.TransitionRun(
-		ctx, "run-streamline", runstore.RunInitializing, runstore.RunRunning,
-		runstore.Reason{Code: "initialized"},
+		ctx, "run-streamline", runstore.RunInitializing, runstore.RunPending, runstore.Reason{Code: "initialized"},
+	); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.TransitionRun(
+		ctx, "run-streamline", runstore.RunPending, runstore.RunRunning, runstore.Reason{Code: "admitted"},
 	); err != nil {
 		t.Fatal(err)
 	}

@@ -1,0 +1,78 @@
+schema_version: "1.0"
+id: V370-014
+title: "Remove duplicated code in the Audit packages"
+milestone: hub-audit-structure-2026-10
+epic: audits
+kind: chore
+priority: P3
+status: completed
+implementation_commit: 3958f527ff502a0c5e83a60b83a8640f898a0a84
+depends_on: []
+languages: [go]
+goal: "The duplicates are gone and tests pass."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq; raw reports in docs/research/2026-10-11-hub-audit/), audits H; file:line as of 02bbdcbf, re-verify on current main"
+  finding: >-
+    Positional column lists exist twice (store.go:70-97, read.go:18-22 and
+    execution.go:62-70); the project visibility predicate three times
+    (projectstore/store_sql.go:18-22, auditstore/store.go:204-210,
+    auditservice/owner_lists.go:11-17); four bounded strict JSON walkers
+    (planner/scan/report.go:284-345, auditdomain/canonical.go:63-160,
+    auditpriority/verdict.go, scanplan/document.go); dead constants and the
+    parallel ListParams.State; operation name literals instead of the
+    constants in types.go:306-309.
+  decision: >-
+    Guarantee: each rule named in the finding has one definition. Column
+    orders: auditstore/columns.go holds the Audit, execution, round, item,
+    receipt and receipt-summary scan orders once (the hand-written round
+    lists in acceptNextRoundSQL and transitionRoundSQL and the receipt
+    summary lists in read_sql.go were further copies), and withColumns lets
+    scanExecution read extra columns, so scanExecutionWithOwner is gone.
+    Visibility: projectstore.OwnerListedProjectSQL is the owner-wide rule
+    (regular, active, not an eval execution workspace) for the Audit,
+    finding and review lists, and the Project list shares its
+    eval-workspace clause; it is a Go SQL fragment rather than a database
+    function or view because a scalar SQL function with EXISTS is not
+    inlined (it would turn the planner's anti-join into a per-row call) and
+    a view over projects would freeze its column list; it needs no
+    migration. Reopen as a view if a reader outside Go needs the rule.
+    JSON: strictjson.DecodeBounded (new file bounded.go) is the one bounded
+    token walker: depth, node and optional name-node bounds, string bytes,
+    duplicates after unescaping, trailing data, and a number function per
+    caller, which keeps each walker's number semantics: finite float64 for
+    canonical Server values and documentnumber.Float for source documents
+    (auditdomain), documentnumber.Float with names counted as nodes and
+    ErrBounds mapped to source_limit_exceeded (scanplan), literals kept until
+    the typed decode (scan planner reports) and no number at all (Audit
+    priority verdicts). TestStrictJSONNumberSemantics,
+    TestStrictJSONBoundsAndStrictness, TestWorkerReportKeepsNumberLiterals
+    and the new verdict number cases pass on the previous walkers and on
+    DecodeBounded; TestJSONExtentMatchesStrictParser now checks the extent
+    against the production bounds. Operation names come from the
+    MutationOperation constants in Go and, through sqlLiteral, in SQL. The
+    test-only review kind constants duplicated auditstore.ItemApproval*,
+    which tests now use; events.go uses ReportAcceptanceReviewKind.
+    ListParams has only States; a Project list passes its one state, with
+    an unchanged cursor kind. Tests: TestPostgresListFiltersStatesProfilesCursorAndListedProjects
+    drives the rewritten Audit list, and
+    TestProjectCollectionExcludesEvalExecutionWorkspacesBeforePagination now
+    fails if the owner-wide rule loses its eval clause. Left to their
+    owners: findingintake Retention* and StableSubmissionID are test-only
+    exports listed in V370-008, as are auditstore ListEvents and
+    ListExecutions; evalstore's 'audit.create' literal is a cross-context read
+    of audit_idempotency whose fix is a port (V370-002); evaldomain.StrictJSON
+    is a fifth bounded walker in the Eval domain that converts the same way
+    with MaxNodes set to MaxDocumentBytes, recommended as a follow-up.
+scope:
+  in:
+    - "One column helper, one visibility function or view, strictjson.DecodeBounded, constants used."
+  out:
+    - "Behaviour (numbers semantics of the JSON walkers must match)."
+acceptance_criteria:
+  - id: A1
+    text: "The duplicates are gone and tests pass."
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "go test -tags integration ./internal/audit... ./internal/projectstore ./internal/scanplan"
+    covers: [A1]

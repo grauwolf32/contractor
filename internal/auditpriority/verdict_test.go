@@ -102,6 +102,10 @@ func TestDecodeVerdictStrictFieldsAndSyntax(t *testing.T) {
 		"nested scalar":     strings.Replace(valid, `"confidence":"medium"`, `"confidence":{"private":"do-not-leak"}`, 1),
 		"nested evidence":   strings.Replace(valid, `["finding-3"]`, `[["finding-3"]]`, 1),
 		"deep object":       `{"rationale":` + strings.Repeat("[", 3000) + strings.Repeat("]", 3000) + `}`,
+		// A verdict holds no number anywhere.
+		"number scalar":   strings.Replace(valid, `"confidence":"medium"`, `"confidence":1`, 1),
+		"number evidence": strings.Replace(valid, `["finding-3"]`, `[3]`, 1),
+		"boolean scalar":  strings.Replace(valid, `"confidence":"medium"`, `"confidence":true`, 1),
 	}
 	for _, key := range []string{"item_key", "priority", "confidence", "rationale", "evidence_ids", "missing_context"} {
 		var object map[string]any

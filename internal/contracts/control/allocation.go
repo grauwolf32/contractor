@@ -40,10 +40,10 @@ func (r PrepareAllocationResponse) Validate() error {
 }
 
 type FinalizeAllocationRequest struct {
-	APIVersion     string    `json:"apiVersion"`
-	AllocationID   string    `json:"allocationId"`
-	FinalizationID string    `json:"finalizationId"`
-	Deadline       time.Time `json:"deadline"`
+	APIVersion     string    `json:"apiVersion" strictjson:"required"`
+	AllocationID   string    `json:"allocationId" strictjson:"required"`
+	FinalizationID string    `json:"finalizationId" strictjson:"required"`
+	Deadline       time.Time `json:"deadline" strictjson:"required"`
 }
 
 func (r FinalizeAllocationRequest) Validate() error {
@@ -51,11 +51,11 @@ func (r FinalizeAllocationRequest) Validate() error {
 }
 
 type AbortAllocationRequest struct {
-	APIVersion   string                     `json:"apiVersion"`
-	AllocationID string                     `json:"allocationId"`
-	AbortID      string                     `json:"abortId"`
-	Reason       contracts.TerminationError `json:"reason"`
-	Deadline     time.Time                  `json:"deadline"`
+	APIVersion   string                     `json:"apiVersion" strictjson:"required"`
+	AllocationID string                     `json:"allocationId" strictjson:"required"`
+	AbortID      string                     `json:"abortId" strictjson:"required"`
+	Reason       contracts.TerminationError `json:"reason" strictjson:"required"`
+	Deadline     time.Time                  `json:"deadline" strictjson:"required"`
 }
 
 func (r AbortAllocationRequest) Validate() error {
@@ -66,8 +66,8 @@ func (r AbortAllocationRequest) Validate() error {
 }
 
 type ReleaseAllocationRequest struct {
-	APIVersion   string `json:"apiVersion"`
-	AllocationID string `json:"allocationId"`
+	APIVersion   string `json:"apiVersion" strictjson:"required"`
+	AllocationID string `json:"allocationId" strictjson:"required"`
 }
 
 func (r ReleaseAllocationRequest) Validate() error {
@@ -95,20 +95,20 @@ func validateLifecycleRequest(apiVersion, allocationID, idField, idValue string,
 
 type AllocationSpec struct {
 	CompletionContract              *contracts.WorkerCompletionContract             `json:"completionContract,omitempty"`
-	APIVersion                      string                                          `json:"apiVersion"`
-	AllocationID                    string                                          `json:"allocationId"`
-	RunID                           string                                          `json:"runId"`
-	StageExecutionID                string                                          `json:"stageExecutionId"`
-	LogicalAgentName                string                                          `json:"logicalAgentName"`
-	Namespace                       string                                          `json:"namespace"`
-	WorkerSessionMode               contracts.WorkerSessionMode                     `json:"workerSessionMode"`
-	RunMetadataLabels               runlabels.RunMetadataLabels                     `json:"runMetadataLabels"`
-	LeaseExpiresAt                  time.Time                                       `json:"leaseExpiresAt"`
-	AgentTemplate                   contracts.ResolvedAgentTemplate                 `json:"agentTemplate"`
-	ResolvedSkills                  []contracts.ResolvedSkill                       `json:"resolvedSkills"`
+	APIVersion                      string                                          `json:"apiVersion" strictjson:"required"`
+	AllocationID                    string                                          `json:"allocationId" strictjson:"required"`
+	RunID                           string                                          `json:"runId" strictjson:"required"`
+	StageExecutionID                string                                          `json:"stageExecutionId" strictjson:"required"`
+	LogicalAgentName                string                                          `json:"logicalAgentName" strictjson:"required"`
+	Namespace                       string                                          `json:"namespace" strictjson:"required"`
+	WorkerSessionMode               contracts.WorkerSessionMode                     `json:"workerSessionMode" strictjson:"required"`
+	RunMetadataLabels               runlabels.RunMetadataLabels                     `json:"runMetadataLabels" strictjson:"required"`
+	LeaseExpiresAt                  time.Time                                       `json:"leaseExpiresAt" strictjson:"required"`
+	AgentTemplate                   contracts.ResolvedAgentTemplate                 `json:"agentTemplate" strictjson:"required"`
+	ResolvedSkills                  []contracts.ResolvedSkill                       `json:"resolvedSkills" strictjson:"required"`
 	ModelPolicy                     contracts.ResolvedModelPolicy                   `json:"modelPolicy,omitzero"`
-	RuntimeSettings                 runtimesettings.RuntimeSettings                 `json:"runtimeSettings"`
-	ResolvedRuntimeConfigProvenance runtimesettings.ResolvedRuntimeConfigProvenance `json:"resolvedRuntimeConfigProvenance"`
+	RuntimeSettings                 runtimesettings.RuntimeSettings                 `json:"runtimeSettings" strictjson:"required"`
+	ResolvedRuntimeConfigProvenance runtimesettings.ResolvedRuntimeConfigProvenance `json:"resolvedRuntimeConfigProvenance" strictjson:"required"`
 	Workspace                       *contracts.AllocationWorkspaceSpec              `json:"workspace,omitempty"`
 	PerformanceMetrics              *reporting.PerformanceMetricsRequest            `json:"performanceMetrics,omitempty"`
 }
@@ -129,12 +129,14 @@ func (s AllocationSpec) Validate() error {
 	}
 	for field, value := range map[string]string{
 		"allocationId": s.AllocationID, "runId": s.RunID,
-		"stageExecutionId": s.StageExecutionID, "logicalAgentName": s.LogicalAgentName,
-		"namespace": s.Namespace,
+		"stageExecutionId": s.StageExecutionID, "namespace": s.Namespace,
 	} {
 		if err := contracts.ValidateOpaqueID(field, value); err != nil {
 			return err
 		}
+	}
+	if !contracts.ValidName(s.LogicalAgentName) {
+		return contracts.Invalidf("logicalAgentName must be a name of at most %d characters", contracts.MaxNameLength)
 	}
 	if contracts.ValidateArtifactName(s.Namespace) != nil || s.LeaseExpiresAt.IsZero() {
 		return contracts.Invalidf("allocation namespace or lease is invalid")

@@ -130,3 +130,77 @@ UPDATE audit_review_requests
 		t.Fatalf("replacement events = (%+v, %v)", events, err)
 	}
 }
+
+// The owner-wide pending list behind the Inbox offers only requests that can
+// still be decided: a stored pending request past its expiry at the
+// PostgreSQL clock is left out before anything has expired it, exactly as
+// the workspace's pending count leaves it out. The unfiltered list and the
+// expired filter keep reporting the stored state.
+func TestOwnerPendingReviewsLeaveOutRequestsPastExpiry(t *testing.T) {
+	ctx, pool, service, started, now := newTimeControlAudit(t, 7200)
+	audit := started.Audit
+	reviews, err := service.ListReviews(ctx, ReviewListParams{
+		OwnerID: audit.OwnerID, AuditID: audit.AuditID, Limit: 10,
+	})
+	if err != nil || len(reviews) != 1 || reviews[0].State != ReviewPending {
+		t.Fatalf("item review = (%+v, %v)", reviews, err)
+	}
+	requestID := reviews[0].RequestID
+	listed := func(state *ReviewState) []string {
+		t.Helper()
+		requests, err := service.ListOwnerReviews(ctx, OwnerReviewListParams{
+			OwnerID: audit.OwnerID, State: state, Limit: 50,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		ids := make([]string, 0, len(requests))
+		for _, request := range requests {
+			ids = append(ids, request.RequestID)
+		}
+		return ids
+	}
+	pending, expired := ReviewPending, ReviewExpired
+	setExpiry := func(expiry string) {
+		t.Helper()
+		if _, err := pool.Exec(ctx, `UPDATE audit_review_requests SET expires_at = `+expiry+`
+ WHERE request_id = $1`, requestID); err != nil {
+			t.Fatal(err)
+		}
+	}
+	workspacePending := func() int {
+		t.Helper()
+		workspace, err := service.GetWorkspace(ctx, audit.OwnerID, audit.AuditID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return workspace.PendingReviews
+	}
+	if got := listed(&pending); len(got) != 1 || got[0] != requestID || workspacePending() != 1 {
+		t.Fatalf("unexpired pending list = %v, workspace = %d", got, workspacePending())
+	}
+
+	// A process clock past the expiry does not hide a request the database
+	// clock still allows deciding.
+	*now = now.Add(30 * 24 * time.Hour)
+	setExpiry(`clock_timestamp() + interval '1 hour'`)
+	if got := listed(&pending); len(got) != 1 || got[0] != requestID {
+		t.Fatalf("pending list with a skewed process clock = %v", got)
+	}
+
+	setExpiry(`clock_timestamp() - interval '1 second'`)
+	if got := listed(&pending); len(got) != 0 || workspacePending() != 0 {
+		t.Fatalf("pending list after the expiry = %v, workspace = %d", got, workspacePending())
+	}
+	if got := listed(nil); len(got) != 1 || got[0] != requestID {
+		t.Fatalf("unfiltered list after the expiry = %v", got)
+	}
+	if got := listed(&expired); len(got) != 0 {
+		t.Fatalf("expired list before the expiry is stored = %v", got)
+	}
+	var state string
+	if err := pool.QueryRow(ctx, `SELECT state FROM audit_review_requests WHERE request_id = $1`,
+		requestID).Scan(&state); err != nil || state != string(ReviewPending) {
+		t.Fatalf("listing changed the stored request: state=%q err=%v", state, err)
+	}
+}

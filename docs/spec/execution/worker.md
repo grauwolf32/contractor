@@ -459,12 +459,31 @@ bounds: every Planner, the Workflow Scheduler and RunStore apply the same
 another for its size. The 64 KiB result-text bound (LIM-WRK-5),
 model-output bounds and outer transport limits are separate limits.
 
+**WRK-R165.** The Worker State byte bounds count compact UTF-8 JSON bytes as
+WRK-R37 does: the `AgentStateSnapshot` body (LIM-WRK-17), the 4,096-byte
+arguments of each retained tool call and the 2 MiB workspace scope and
+interaction path lists. The Runtime that produces the State and the Server that
+reads it measure with the same rule, pinned by
+`api/testdata/v1alpha1/json-byte-size-cases.json`, so State the Runtime exports
+at a bound is never rejected by the Server for its size.
+
 **WRK-R38.** The A2A request DataPart uses
 `application/vnd.contractor.stage-content+json` and the terminal response
 DataPart uses `application/vnd.contractor.worker-completion+json`. The Agent
 Card ([Runtime Agent](runtime-agent.md)) and each request advertise the latter
 as the accepted output mode. A missing or different response media type fails
 closed before payload decoding.
+
+**WRK-R164.** The Planner decodes the terminal `WorkerCompletion` from the
+bytes of the A2A response that carried it with the strict private decoder
+([CTL-R149](control-plane.md)), never from the A2A SDK's generic value: a
+duplicate key anywhere in it is rejected and an integer keeps its exact
+digits. An A2A DataPart is a `google.protobuf.Value`, whose numbers are
+doubles, and the Runtime renders every integer that way (`7.0`); a number
+written as an integral double therefore counts as that integer, while a
+fractional number or one outside the member's range is rejected. Integers
+above 2^53 cannot cross this DataPart exactly: the Runtime's encoding rounds
+them to the nearest double before the Planner reads them.
 
 **WRK-R39.** For Streamline and Router,
 `execute_current_subtask` returns the bounded model-facing portion of

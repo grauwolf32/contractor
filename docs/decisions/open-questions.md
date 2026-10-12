@@ -631,7 +631,7 @@ specification says now.
 - **Specification versus code.** TLS-R22 lists three infrastructure channels
   (`runtime-http-client`, `runtime-subprocess-launcher`,
   `caido-graphql-client`), but
-  `api/descriptor-parity/toolset-infrastructure-channels.yaml` also declares
+  `api/testdata/toolset-descriptors.json` also declares
   `sandbox-execution` for `code-execution@1` `exec_command`, and the Server
   descriptors and Runtime code-execution Toolset use it; no specification
   document names that channel. Source: 01#55.

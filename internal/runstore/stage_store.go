@@ -51,11 +51,11 @@ RETURNING `+stageExecutionColumns,
 		params.StageContextSchemaVersion, encodedContext,
 	))
 	if err != nil {
-		sqlState := persistencepostgres.SQLState(err)
-		if sqlState == persistencepostgres.SQLStateUniqueViolation {
+		failure := persistencepostgres.Classify(err)
+		if failure == persistencepostgres.ClassDuplicate {
 			return StageExecution{}, fmt.Errorf("create StageExecution %q: %w", params.StageExecutionID, ErrConflict)
 		}
-		if sqlState == persistencepostgres.SQLStateForeignKeyViolation {
+		if failure == persistencepostgres.ClassReferenceViolation {
 			return StageExecution{}, fmt.Errorf("create StageExecution %q: %w", params.StageExecutionID, ErrNotFound)
 		}
 		return StageExecution{}, fmt.Errorf("create StageExecution %q: %w", params.StageExecutionID, err)
@@ -108,6 +108,47 @@ ORDER BY pending.next_attempt_at, execution.stage_execution_id`, terminalRelease
 		return nil, fmt.Errorf("iterate terminal StageExecutions with allocations: %w", err)
 	}
 	return result, nil
+}
+
+// GetActiveStageExecution returns the StageExecution of Run runID that is
+// preparing, running, finalizing or aborting, read through
+// stage_executions_run_active_idx instead of the Run's Stage history. A Run
+// has at most one (SCH-R114), so the read stops at a second: it returns
+// ErrNotFound when the Run has none and ErrMultipleActiveStages when it has
+// more than one.
+func (s *PostgresStore) GetActiveStageExecution(ctx context.Context, runID string) (StageExecution, error) {
+	if err := validateOpaque("runID", runID); err != nil {
+		return StageExecution{}, err
+	}
+	rows, err := s.db.Query(ctx, `
+SELECT `+stageExecutionColumns+`
+FROM stage_executions
+WHERE run_id = $1 AND state IN ('preparing', 'running', 'finalizing', 'aborting')
+ORDER BY created_at, stage_execution_id
+LIMIT 2`, runID)
+	if err != nil {
+		return StageExecution{}, fmt.Errorf("get active StageExecution of WorkflowRun %q: %w", runID, err)
+	}
+	defer rows.Close()
+	var active []StageExecution
+	for rows.Next() {
+		execution, scanErr := scanStageExecution(rows)
+		if scanErr != nil {
+			return StageExecution{}, fmt.Errorf("scan active StageExecution of WorkflowRun %q: %w", runID, scanErr)
+		}
+		active = append(active, execution)
+	}
+	if err := rows.Err(); err != nil {
+		return StageExecution{}, fmt.Errorf("iterate active StageExecutions of WorkflowRun %q: %w", runID, err)
+	}
+	switch len(active) {
+	case 0:
+		return StageExecution{}, fmt.Errorf("get active StageExecution of WorkflowRun %q: %w", runID, ErrNotFound)
+	case 1:
+		return active[0], nil
+	default:
+		return StageExecution{}, fmt.Errorf("WorkflowRun %q: %w", runID, ErrMultipleActiveStages)
+	}
 }
 
 func (s *PostgresStore) ListStageExecutions(ctx context.Context, runID string) ([]StageExecution, error) {
@@ -178,7 +219,7 @@ func (s *PostgresStore) StartPlanner(ctx context.Context, params StartPlannerPar
 		return &StateConflictError{Resource: "StageExecution", ID: params.StageExecutionID, Expected: string(StagePreparing)}
 	}
 	if err != nil {
-		if persistencepostgres.SQLState(err) == persistencepostgres.SQLStateUniqueViolation {
+		if persistencepostgres.Classify(err) == persistencepostgres.ClassDuplicate {
 			return fmt.Errorf("start Planner for StageExecution %q: %w", params.StageExecutionID, ErrConflict)
 		}
 		return fmt.Errorf("start Planner for StageExecution %q: %w", params.StageExecutionID, err)
@@ -306,7 +347,16 @@ func transitionResult(operation, id string, expected StageExecutionState, rows i
 func validateCreateStageExecution(params CreateStageExecutionParams) error {
 	for field, value := range map[string]string{
 		"stageExecutionID": params.StageExecutionID, "runID": params.RunID,
-		"stageName": params.StageName, "stageSpecSchemaVersion": params.StageSpecSchemaVersion,
+	} {
+		if err := validateResourceID(field, value); err != nil {
+			return err
+		}
+	}
+	if err := validateName("stageName", params.StageName); err != nil {
+		return err
+	}
+	for field, value := range map[string]string{
+		"stageSpecSchemaVersion":    params.StageSpecSchemaVersion,
 		"stageContextSchemaVersion": params.StageContextSchemaVersion,
 	} {
 		if err := validateOpaque(field, value); err != nil {
@@ -320,7 +370,7 @@ func validateCreateStageExecution(params CreateStageExecutionParams) error {
 		return invalidf("attempt and previousExecutionID have inconsistent lineage")
 	}
 	if params.PreviousExecutionID != nil {
-		if err := validateOpaque("previousExecutionID", *params.PreviousExecutionID); err != nil {
+		if err := validateResourceID("previousExecutionID", *params.PreviousExecutionID); err != nil {
 			return err
 		}
 	}

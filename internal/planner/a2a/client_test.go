@@ -227,7 +227,11 @@ func TestInvokerRejectsInvalidEnvelopeAndFailedTaskSuccessMismatch(t *testing.T)
 		"invented": true,
 	}))
 	unknown.Parts[0].MediaType = workerCompletionMediaType
-	_, err = decodeResultMessage(unknown)
+	unknown.TaskID, unknown.ContextID = "task-1", "context-1"
+	_, err = fakeInvoker(&fakeClient{response: unknown}).Invoke(
+		context.Background(), "builder", workerHandle("https://runtime.example/a2a"),
+		stageRequest(),
+	)
 	assertPlannerCode(t, err, "invalid_worker_result")
 }
 
@@ -406,15 +410,18 @@ type fakeClient struct {
 }
 
 func (c *fakeClient) SendMessage(
-	_ context.Context, request *sdk.SendMessageRequest,
+	ctx context.Context, request *sdk.SendMessageRequest,
 ) (sdk.SendMessageResult, error) {
 	c.sendCalls++
 	c.request = request
+	if event, ok := c.response.(sdk.Event); ok {
+		recordFakeResponse(ctx, sdk.StreamResponse{Event: event})
+	}
 	return c.response, nil
 }
 
 func (c *fakeClient) GetTask(
-	_ context.Context, _ *sdk.GetTaskRequest,
+	ctx context.Context, _ *sdk.GetTaskRequest,
 ) (*sdk.Task, error) {
 	c.getCalls++
 	if err := c.getErrors[c.getCalls]; err != nil {
@@ -423,12 +430,28 @@ func (c *fakeClient) GetTask(
 	if len(c.tasks) == 0 {
 		return nil, errors.New("no scripted Task")
 	}
-	if len(c.tasks) == 1 {
-		return c.tasks[0], nil
-	}
 	result := c.tasks[0]
-	c.tasks = c.tasks[1:]
+	if len(c.tasks) > 1 {
+		c.tasks = c.tasks[1:]
+	}
+	recordFakeResponse(ctx, result)
 	return result, nil
+}
+
+// recordFakeResponse stores the JSON-RPC body the bounded transport would
+// have recorded for a scripted SDK result.
+func recordFakeResponse(ctx context.Context, result any) {
+	capture := responseCaptureFrom(ctx)
+	if capture == nil {
+		return
+	}
+	body, err := json.Marshal(map[string]any{"jsonrpc": "2.0", "id": "1", "result": result})
+	if err != nil {
+		panic(err)
+	}
+	capture.mu.Lock()
+	capture.body = body
+	capture.mu.Unlock()
 }
 
 func (c *fakeClient) CancelTask(ctx context.Context, request *sdk.CancelTaskRequest) (*sdk.Task, error) {

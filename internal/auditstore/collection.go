@@ -29,7 +29,7 @@ func (s *PostgresStore) Collect(
 	}
 	prepared := prepareCollectionWrite(params)
 	outputs, _ := json.Marshal(append([]PreparationOutput{}, params.PreparationOutputs...))
-	receipt, err := scanReceipt(s.db.QueryRow(ctx, collectAuditExecutionSQL,
+	receipt, err := scanReceipt(persistencepostgres.SavepointQueryRow(ctx, s.db, collectAuditExecutionSQL,
 		params.Claim.AuditID, params.Claim.HolderID, params.Claim.Epoch,
 		params.ExecutionID, params.ReceiptID, string(params.Disposition),
 		prepared.sourceRef, prepared.sourceDigest, prepared.retained, prepared.items, prepared.links,
@@ -38,11 +38,11 @@ func (s *PostgresStore) Collect(
 	if err == nil {
 		return receipt, true, nil
 	}
-	sqlState := persistencepostgres.SQLState(err)
-	if sqlState == "23514" {
+	failure := persistencepostgres.Classify(err)
+	if failure == persistencepostgres.ClassRejected {
 		return CollectionReceipt{}, false, ErrPrecondition
 	}
-	if sqlState == persistencepostgres.SQLStateUniqueViolation || errors.Is(err, pgx.ErrNoRows) {
+	if failure == persistencepostgres.ClassDuplicate || errors.Is(err, pgx.ErrNoRows) {
 		if existing, found, replayErr := s.lookupReceiptReplay(
 			ctx, params.Claim.AuditID, params.ExecutionID, params.RequestDigest,
 		); replayErr != nil || found {
@@ -53,7 +53,7 @@ func (s *PostgresStore) Collect(
 		} else if !live {
 			return CollectionReceipt{}, false, ErrClaimLost
 		}
-		if sqlState == persistencepostgres.SQLStateUniqueViolation {
+		if failure == persistencepostgres.ClassDuplicate {
 			return CollectionReceipt{}, false, ErrConflict
 		}
 		if exceeded, budgetErr := s.evidenceBudgetExceeded(
@@ -86,14 +86,6 @@ SELECT retained_evidence_bytes + $2 > max_evidence_bytes
 		return false, fmt.Errorf("read Audit evidence budget: %w", err)
 	}
 	return exceeded, nil
-}
-
-func prefixedReceiptColumns(prefix string) string {
-	return prefix + ".receipt_id, " + prefix + ".audit_id, " + prefix + ".execution_id, " +
-		prefix + ".run_id, " + prefix + ".terminal_outcome, " + prefix + ".terminal_run_generation, " +
-		prefix + ".terminal_run_sequence, " + prefix + ".disposition, " + prefix + ".source_output_ref, " +
-		prefix + ".source_output_digest, " + prefix + ".retained_refs, " + prefix + ".error_code, " +
-		prefix + ".request_digest, " + prefix + ".created_at"
 }
 
 func (s *PostgresStore) lookupReceiptReplay(

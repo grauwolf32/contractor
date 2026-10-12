@@ -35,6 +35,7 @@ const processSpecs = [
   "e2e/scan-tools.spec.ts",
   "e2e/scheduler-settings.spec.ts",
   "e2e/stack.spec.ts",
+  "e2e/studio-catalog.spec.ts",
 ];
 const e2eDir = fileURLToPath(new URL("../e2e", import.meta.url));
 const listedSpecs = new Set([...mockedSpecs, ...processSpecs]);

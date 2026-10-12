@@ -19,6 +19,35 @@ from contractor_runtime.contracts.base import (
     _require_text,
 )
 
+# The Run Namespaces a trusted purpose-specific flow owns (ART-R114): none is a
+# Stage Agent or MemoryTools Namespace, and no Stage or Worker result binds
+# into one. The memory. name prefix belongs to MemoryTools in every other
+# Namespace (ART-R19 to ART-R22). The Server's artifactpolicy applies the same
+# rule; api/testdata/v1alpha1/memory-reservation-cases.json pins both.
+PURPOSE_RESERVED_NAMESPACES = frozenset(
+    {"contractor-system", "finding-proposals", "inputs", "outputs", "skills"}
+)
+MEMORY_ARTIFACT_PREFIX = "memory."
+
+
+def is_reserved_memory_binding(namespace: object, name: object) -> bool:
+    """Return whether a Run binding belongs exclusively to MemoryTools."""
+
+    return (
+        isinstance(namespace, str)
+        and namespace not in PURPOSE_RESERVED_NAMESPACES
+        and isinstance(name, str)
+        and name.startswith(MEMORY_ARTIFACT_PREFIX)
+    )
+
+
+def is_reserved_result_binding(namespace: object, name: object) -> bool:
+    """Return whether a Stage or Worker result may not bind this Run binding."""
+
+    return (
+        isinstance(namespace, str) and namespace in PURPOSE_RESERVED_NAMESPACES
+    ) or is_reserved_memory_binding(namespace, name)
+
 
 class ArtifactRef(WireModel):
     namespace: str

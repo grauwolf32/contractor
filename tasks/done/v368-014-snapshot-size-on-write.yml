@@ -1,0 +1,72 @@
+schema_version: "1.0"
+id: V368-014
+title: "Reject oversized Workflow snapshots when the Run is created"
+milestone: hub-audit-defects-2026-10
+epic: workflows
+kind: defect
+priority: P1
+status: completed
+implementation_commit: "d300de7765a6ccfdca0872928550c87bd7c6f0f2"
+depends_on: []
+languages: [go]
+goal: "A 2.3 MB instruction fails catalog validation and Run creation with 400, not after acceptance."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq; raw reports in docs/research/2026-10-11-hub-audit/), config G3; file:line as of 02bbdcbf, re-verify on current main"
+  finding: >-
+    The 2 MiB Workflow snapshot limit exists only on read
+    (scheduler/workflow.go:18, 28 -> failUnsupportedRun); the catalog
+    (CAT-R42, loader.go:291-297) and runstore (types.go:612-618) accept
+    larger snapshots, so the Run fails after 202. The spec has no limit.
+  specification:
+    - docs/spec/configuration/catalog.md#CAT-R76
+    - docs/spec/platform/limits.md
+  decision: >-
+    Re-verified on 4146eea: scheduler/workflow.go:18,28 held the only bound,
+    applied to len(run.WorkflowSnapshot), the jsonb text PostgreSQL returns.
+    That text spaces every separator and expands numbers (1e21 becomes 22
+    digits), so it is longer than the stored encoding: a Run stored at the
+    bound read back at more than 2 MiB and failed as unsupported, which the
+    new Scheduler PostgreSQL test reproduces against the old check. Guarantee:
+    LIM-CAT-4 (2 MiB) has one measure, config.EncodeResolvedWorkflowSnapshot
+    (json.Marshal of the resolved Workflow), and every point uses it: catalog
+    load for each Workflow without overrides, ResolveRunWorkflow after Run
+    overrides and before any credential lookup (so POST /v1/runs, eval
+    preflight and the repeat draft reject before a Run exists; POST /v1/runs
+    answers the permanent 400 invalid_request), runservice when it encodes the
+    stored bytes (public and Audit-managed Runs), runstore validateCreateRun
+    (CreateRun, CreateRunIdempotent, CreateAuditRun), and the Scheduler after
+    decoding. Audit Workflows come unchanged from the catalog, so the load
+    bound covers Audit start. Alternatives rejected: measuring the jsonb text
+    on write (only PostgreSQL can produce it, the catalog has no database, and
+    a Go copy of jsonb output rules would be a second definition); a raw-text
+    read guard with headroom (two numbers, and numeric expansion has no tight
+    bound); dropping the read check (the ground rule validates on read too).
+    The Scheduler pays one encode per decode; V370-030 caches decoded
+    snapshots per Run. Instruction files keep no size bound of their own
+    (CAT-R42): a used instruction is bounded through its Workflow's snapshot.
+    Reopen if the snapshot format stops being json.Marshal of
+    ResolvedWorkflow. Evidence: go test ./internal/config (full package),
+    -run TestPostgresStoreBoundsTheWorkflowSnapshotItStores (runstore),
+    TestPostgresSchedulerDecodesAStoredSnapshotAtItsBound plus the decode
+    tests (scheduler), TestCreateRunRejectsAnOversizedWorkflowSnapshotBeforeAcceptance
+    with the TestCreateRun/TestRunCreate/TestRunRepeat tests (httpapi/public),
+    and the runservice package against PostgreSQL; each new test fails
+    without its check. The runservice tests
+    TestPostgresRunDetailReadsStateAndCursorFromOneSnapshot and
+    TestPostgresRunDetailSurvivesFailedOptionalMetricsRead and the runstore
+    test TestPostgresStoreRejectsIdentitiesOutsideThePublicGrammars fail on
+    4146eea without this change: their fixtures move a Run from initializing
+    straight to running, which V368-011 forbids.
+scope:
+  in:
+    - "One snapshot size limit in the spec, enforced at catalog load and Run creation."
+  out:
+    - "Snapshots under the limit."
+acceptance_criteria:
+  - id: A1
+    text: "A 2.3 MB instruction fails catalog validation and Run creation with 400, not after acceptance."
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "go test ./internal/config ./internal/runservice ./internal/scheduler"
+    covers: [A1]

@@ -579,6 +579,12 @@ type AllocationRuntimeConfiguration struct {
 	Provenance  runtimesettings.ResolvedRuntimeConfigProvenance `json:"provenance"`
 }
 
+// AllocationProvenanceMember is AllocationRuntimeConfiguration's provenance
+// member, under which credential deletion checks find an unreleased
+// allocation's credentials. Renaming the tag must rename this constant;
+// internal/persistence pins both.
+const AllocationProvenanceMember = "provenance"
+
 // StageExecutionReport is the trusted Server envelope around one bounded
 // Runtime Agent report. Identity comes from the allocation record, never from
 // model-visible data.
@@ -623,6 +629,25 @@ func validateReason(reason Reason) error {
 func validateOpaque(field, value string) error {
 	if strings.TrimSpace(value) == "" {
 		return invalidf("%s is required", field)
+	}
+	return nil
+}
+
+// validateResourceID requires the public ResourceId grammar of
+// contracts.ValidResourceID for an identity the public API shows, so no
+// stored identity can fail a later strict read (API-R70).
+func validateResourceID(field, value string) error {
+	if !contracts.ValidResourceID(value) {
+		return invalidf("%s must be a resource identifier of at most %d characters", field, contracts.MaxResourceIDLength)
+	}
+	return nil
+}
+
+// validateName requires the shared name grammar of contracts.ValidName for a
+// Stage or logical Agent name (WFL-R84).
+func validateName(field, value string) error {
+	if !contracts.ValidName(value) {
+		return invalidf("%s must be a name of at most %d characters", field, contracts.MaxNameLength)
 	}
 	return nil
 }

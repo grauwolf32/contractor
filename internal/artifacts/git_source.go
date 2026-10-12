@@ -2,14 +2,11 @@ package artifacts
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/url"
 	"regexp"
 	"strings"
 	"time"
-
-	"github.com/jackc/pgx/v5"
 )
 
 type GitSource struct {
@@ -23,10 +20,7 @@ var gitCommitPattern = regexp.MustCompile(`^[0-9a-f]{40}$`)
 
 // RecordGitSource is only used by trusted import composition, in the same
 // transaction that creates the version. Exact input forks reuse that version.
-func (r *PostgresRepository) RecordGitSource(ctx context.Context, scope Scope, ref ArtifactRef, source GitSource) error {
-	if _, ok := r.db.(pgx.Tx); !ok {
-		return errors.New("Git provenance requires a caller-owned transaction")
-	}
+func (r *PostgresTxRepository) RecordGitSource(ctx context.Context, scope Scope, ref ArtifactRef, source GitSource) error {
 	if err := validateScope(scope); err != nil {
 		return err
 	}
@@ -49,7 +43,7 @@ func (r *PostgresRepository) RecordGitSource(ctx context.Context, scope Scope, r
 		return ErrArtifactIntegrity
 	}
 	var revisionFound, recorded bool
-	err = r.db.QueryRow(ctx, recordGitSourceSQL,
+	err = r.tx.QueryRow(ctx, recordGitSourceSQL,
 		scope.kind, scope.id, ref.Namespace, ref.Name, *ref.Revision,
 		source.RepositoryURL, source.RequestedRef, source.ResolvedCommit, source.ImportedAt,
 	).Scan(&revisionFound, &recorded)

@@ -115,6 +115,8 @@ func TestSchedulerSettingsReplaceRejectsInvalidRequestsWithoutMutation(t *testin
 		{name: "zero-leading precondition", body: `{"maxConcurrentRuns":2}`, contentType: "application/json", ifMatch: []string{`"01"`}, wantStatus: http.StatusBadRequest},
 		{name: "stale precondition", body: `{"maxConcurrentRuns":2}`, contentType: "application/json", ifMatch: []string{`"2"`}, wantStatus: http.StatusPreconditionFailed},
 		{name: "unknown field", body: `{"maxConcurrentRuns":2,"extra":true}`, contentType: "application/json", ifMatch: []string{`"1"`}, wantStatus: http.StatusBadRequest},
+		{name: "case alias", body: `{"MaxConcurrentRuns":2}`, contentType: "application/json", ifMatch: []string{`"1"`}, wantStatus: http.StatusBadRequest},
+		{name: "duplicate key", body: `{"maxConcurrentRuns":2,"maxConcurrentRuns":3}`, contentType: "application/json", ifMatch: []string{`"1"`}, wantStatus: http.StatusBadRequest},
 		{name: "fraction", body: `{"maxConcurrentRuns":2.5}`, contentType: "application/json", ifMatch: []string{`"1"`}, wantStatus: http.StatusBadRequest},
 		{name: "null", body: `{"maxConcurrentRuns":null}`, contentType: "application/json", ifMatch: []string{`"1"`}, wantStatus: http.StatusBadRequest},
 		{name: "too small", body: `{"maxConcurrentRuns":0}`, contentType: "application/json", ifMatch: []string{`"1"`}, wantStatus: http.StatusBadRequest},
@@ -149,8 +151,14 @@ func TestSchedulerSettingsReplaceRejectsInvalidRequestsWithoutMutation(t *testin
 	}
 }
 
+// The Scheduler settings and performance handlers rely on the one
+// Operations authorization in front of their registered routes.
 func TestSchedulerSettingsRequireOperationsCapability(t *testing.T) {
-	current := &handler{dependencies: Dependencies{SchedulerSettings: newFakeSchedulerSettings()}}
+	settings := newFakeSchedulerSettings()
+	current := &handler{dependencies: Dependencies{SchedulerSettings: settings}}
+	mux := http.NewServeMux()
+	current.registerOperationsRoutes(mux)
+	protected := current.requireOperationsRoutes(mux)
 	tests := []struct {
 		name       string
 		principal  *auth.Principal
@@ -159,18 +167,27 @@ func TestSchedulerSettingsRequireOperationsCapability(t *testing.T) {
 		{name: "unauthenticated", wantStatus: http.StatusUnauthorized},
 		{name: "user only", principal: &auth.Principal{UserID: "user", Username: "user", Capabilities: []string{auth.CapabilityUser}}, wantStatus: http.StatusForbidden},
 	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			request := httptest.NewRequest(http.MethodGet, "/v1/operations/settings/scheduler", nil)
-			if test.principal != nil {
-				request = request.WithContext(auth.WithPrincipal(request.Context(), *test.principal))
-			}
-			response := httptest.NewRecorder()
-			current.getSchedulerSettings(response, request)
-			if response.Code != test.wantStatus {
-				t.Fatalf("capability response = %d, want %d: %s", response.Code, test.wantStatus, response.Body.String())
-			}
-		})
+	for _, route := range []struct{ method, path string }{
+		{http.MethodGet, "/v1/operations/settings/scheduler"},
+		{http.MethodPut, "/v1/operations/settings/scheduler"},
+		{http.MethodGet, "/v1/operations/performance"},
+		{http.MethodGet, "/v1/operations/performance/history"},
+		{http.MethodGet, "/v1/operations/allocation-history"},
+	} {
+		for _, test := range tests {
+			t.Run(route.method+" "+route.path+" "+test.name, func(t *testing.T) {
+				request := httptest.NewRequest(route.method, route.path, strings.NewReader(`{"maxConcurrentRuns":2}`))
+				if test.principal != nil {
+					request = request.WithContext(auth.WithPrincipal(request.Context(), *test.principal))
+				}
+				response := httptest.NewRecorder()
+				protected.ServeHTTP(response, request)
+				if response.Code != test.wantStatus || settings.updates != 0 {
+					t.Fatalf("capability response = %d (updates %d), want %d: %s",
+						response.Code, settings.updates, test.wantStatus, response.Body.String())
+				}
+			})
+		}
 	}
 }
 

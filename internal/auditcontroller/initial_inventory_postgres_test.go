@@ -153,6 +153,21 @@ func TestPostgresInitialInventoryAtomicAcceptanceAndPackageReplay(t *testing.T) 
 	if err := h.pool.QueryRow(ctx, `SELECT (SELECT count(*) FROM audit_rounds), (SELECT count(*) FROM audit_items), (SELECT count(*) FROM audit_artifact_links WHERE logical_key=$1)`, auditstore.InitialInventoryLogicalKey).Scan(&rounds, &items, &links); err != nil || rounds != 1 || items != 3 || links != 1 {
 		t.Fatalf("atomic publication: rounds=%d items=%d links=%d %v", rounds, items, links, err)
 	}
+	// Preparation and acceptance record their events on the dense Audit event
+	// sequence, and the round.accepted review count matches the opened reviews.
+	var events, firstSequence, lastSequence, accepted, roundReviews, openedReviews int64
+	if err := h.pool.QueryRow(ctx, `
+SELECT count(*), COALESCE(min(sequence_number), 0), COALESCE(max(sequence_number), 0),
+       count(*) FILTER (WHERE kind = 'round.accepted'),
+       COALESCE(max((summary->>'reviews')::bigint) FILTER (WHERE kind = 'round.accepted'), -1),
+       (SELECT count(*) FROM audit_review_requests WHERE audit_id = $1 AND subject_kind = 'audit-item-action')
+  FROM audit_events WHERE audit_id = $1`, audit.AuditID).Scan(
+		&events, &firstSequence, &lastSequence, &accepted, &roundReviews, &openedReviews,
+	); err != nil || events != int64(audit.EventSequence) || firstSequence != 1 || lastSequence != events ||
+		accepted != 1 || roundReviews != openedReviews {
+		t.Fatalf("Audit events = %d numbered %d..%d, %d round.accepted with %d reviews for %d opened (%v), want 1..%d",
+			events, firstSequence, lastSequence, accepted, roundReviews, openedReviews, err, audit.EventSequence)
+	}
 	first.Items = first.Items[:2]
 	if _, _, err := h.audits.AcceptInitialRound(ctx, first); !errors.Is(err, auditstore.ErrConflict) {
 		t.Fatalf("replay accepted changed worklist: %v", err)

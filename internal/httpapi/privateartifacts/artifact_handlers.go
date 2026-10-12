@@ -105,26 +105,9 @@ func (h *handler) listArtifacts(w http.ResponseWriter, r *http.Request) {
 // getArtifact takes a transfer slot only after the request and the allocation
 // grant are accepted, and holds it while the payload is read and written.
 func (h *handler) getArtifact(w http.ResponseWriter, r *http.Request) {
-	query, err := exactQuery(r.URL.RawQuery, "revision")
+	store, ref, err := h.readTarget(r)
 	if err != nil {
 		h.handleError(w, err)
-		return
-	}
-	ref := contracts.ArtifactRef{Namespace: r.PathValue("namespace"), Name: r.PathValue("name")}
-	if values, present := query["revision"]; present {
-		if values[0] == "" {
-			h.handleError(w, fmt.Errorf("%w: revision must not be empty", errInvalidRequest))
-			return
-		}
-		ref.Revision = &values[0]
-	}
-	store, err := h.runStore(r, false)
-	if err != nil {
-		h.handleError(w, err)
-		return
-	}
-	if artifactpolicy.IsRunSystemNamespace(ref.Namespace) {
-		h.handleError(w, artifacts.ErrReservedNamespace)
 		return
 	}
 	r, transfer, err := artifacttransfer.Acquire(w, r)
@@ -149,6 +132,59 @@ func (h *handler) getArtifact(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(result.Payload.Data)
+}
+
+// getArtifactMetadata answers what the raw read of the same ref would return,
+// its exact revision, media type and size, without reading or sending the
+// payload, so a reader can refuse or reuse content before downloading it
+// (ART-R116).
+func (h *handler) getArtifactMetadata(w http.ResponseWriter, r *http.Request) {
+	store, ref, err := h.readTarget(r)
+	if err != nil {
+		h.handleError(w, err)
+		return
+	}
+	ctx, cancel := artifacttransfer.StorageContext(r.Context())
+	defer cancel()
+	metadata, err := store.Metadata(ctx, ref)
+	if err != nil {
+		h.handleError(w, err)
+		return
+	}
+	response := contracts.ArtifactReadResult{
+		APIVersion: contracts.APIVersion, Artifact: metadata.Ref,
+		MediaType: metadata.MediaType, Size: metadata.Size,
+	}
+	if err := response.Validate(); err != nil {
+		h.handleError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, response)
+}
+
+// readTarget validates a raw or metadata read of one current or exact ref and
+// resolves the allocation's RunScope for it.
+func (h *handler) readTarget(r *http.Request) (artifacts.ScopedStore, contracts.ArtifactRef, error) {
+	query, err := exactQuery(r.URL.RawQuery, "revision")
+	if err != nil {
+		return artifacts.ScopedStore{}, contracts.ArtifactRef{}, err
+	}
+	ref := contracts.ArtifactRef{Namespace: r.PathValue("namespace"), Name: r.PathValue("name")}
+	if values, present := query["revision"]; present {
+		if values[0] == "" {
+			return artifacts.ScopedStore{}, contracts.ArtifactRef{},
+				fmt.Errorf("%w: revision must not be empty", errInvalidRequest)
+		}
+		ref.Revision = &values[0]
+	}
+	store, err := h.runStore(r, false)
+	if err != nil {
+		return artifacts.ScopedStore{}, contracts.ArtifactRef{}, err
+	}
+	if artifactpolicy.IsRunSystemNamespace(ref.Namespace) {
+		return artifacts.ScopedStore{}, contracts.ArtifactRef{}, artifacts.ErrReservedNamespace
+	}
+	return store, ref, nil
 }
 
 // putArtifact takes a transfer slot after the request and allocation checks,

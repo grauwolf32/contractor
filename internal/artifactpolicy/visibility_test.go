@@ -24,6 +24,25 @@ func TestReservedMemoryBindingExcludesPurposeNamespaces(t *testing.T) {
 	}
 }
 
+// ART-R25 reserves exactly audit-standards; similar names stay ordinary.
+func TestAuditStandardCatalogNamespaceIsExact(t *testing.T) {
+	for _, test := range []struct {
+		namespace string
+		want      bool
+	}{
+		{AuditStandardCatalogNamespace, true},
+		{"audit-standards-notes", false},
+		{"audit-standardsx", false},
+		{"audit-standard", false},
+		{"Audit-standards", false},
+		{"audit-", false},
+	} {
+		if got := IsAuditStandardCatalogNamespace(test.namespace); got != test.want {
+			t.Errorf("IsAuditStandardCatalogNamespace(%q) = %t, want %t", test.namespace, got, test.want)
+		}
+	}
+}
+
 func TestPurposeReservedNamespaceIsClosed(t *testing.T) {
 	for _, namespace := range []string{"inputs", "outputs", "skills", FindingProposalNamespace} {
 		if !IsPurposeReservedNamespace(namespace) {

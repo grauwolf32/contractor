@@ -28,6 +28,7 @@ from contractor_runtime.contracts import (
     WorkerObservations,
     WorkerResult,
 )
+from contractor_runtime.contracts.artifacts import MEMORY_ARTIFACT_PREFIX
 from contractor_runtime.core.input_errors import ToolInputError
 from contractor_runtime.digests import jcs_digest, sha256_digest
 
@@ -203,7 +204,7 @@ class ToolWorkerRuntime:
         for ref in additional.values():
             if (
                 ref.namespace != self._context.namespace
-                or ref.name.startswith((RECEIPT_PREFIX, "memory."))
+                or ref.name.startswith((RECEIPT_PREFIX, MEMORY_ARTIFACT_PREFIX))
                 or ref.name in names
             ):
                 raise ValueError("invalid additional tool output binding")

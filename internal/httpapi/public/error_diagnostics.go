@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 
+	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/requestid"
@@ -41,6 +42,14 @@ func diagnosticCause(err error) string {
 		return "credential_key_unavailable"
 	case errors.Is(err, credentials.ErrCrypto):
 		return "credential_crypto_failed"
+	case errors.Is(err, credentials.ErrRecoveryRequired):
+		return "credential_recovery_required"
+	case errors.Is(err, artifacts.ErrTransferCapacity):
+		return "artifact_transfer_capacity"
+	case errors.Is(err, artifacts.ErrArtifactIntegrity):
+		return "artifact_integrity_failed"
+	case errors.Is(err, artifacts.ErrBlobMissing):
+		return "artifact_content_missing"
 	case errors.Is(err, pgx.ErrTxClosed), errors.Is(err, pgx.ErrTxCommitRollback):
 		return "storage_transaction_failed"
 	}
@@ -55,9 +64,13 @@ func diagnosticCause(err error) string {
 			return "storage_lock_unavailable"
 		case persistencepostgres.SQLStateQueryCanceled:
 			return "storage_query_cancelled"
-		case persistencepostgres.SQLStateNotNullViolation, persistencepostgres.SQLStateForeignKeyViolation, persistencepostgres.SQLStateUniqueViolation, persistencepostgres.SQLStateCheckViolation, persistencepostgres.SQLStateExclusionViolation:
+		}
+		switch persistencepostgres.Classify(err) {
+		case persistencepostgres.ClassDuplicate, persistencepostgres.ClassReferenceViolation,
+			persistencepostgres.ClassInvalid, persistencepostgres.ClassRejected,
+			persistencepostgres.ClassLimitExceeded:
 			return "storage_constraint_failed"
-		case "53300", "57P01", "57P02", "57P03", "08000", "08001", "08003", "08004", "08006", "08007", "08P01":
+		case persistencepostgres.ClassUnavailable:
 			return "storage_unavailable"
 		default:
 			return "storage_failed"

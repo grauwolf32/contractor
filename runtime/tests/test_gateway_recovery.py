@@ -268,14 +268,18 @@ def test_outer_invocation_deadline_releases_probe_without_a_model_response():
 
 
 @pytest.mark.parametrize(
-    "status,terminal",
+    "status,reported,redelivered",
     [
-        (200, ("succeeded", None, 0)),
-        (503, ("failed", "gateway_unavailable", 0)),
-        (400, ("finished", None, 0)),
+        (200, ("succeeded", None, 0), ("succeeded", None, 0)),
+        # An ending invocation must not make its Run wait, and the Server
+        # refuses failed from an ending Stage: released relinquishes the probe.
+        (503, ("failed", "gateway_unavailable", 0), ("released", None, 0)),
+        (400, ("finished", None, 0), ("finished", None, 0)),
     ],
 )
-def test_cancellation_while_reporting_a_granted_outcome_redelivers_it(status, terminal):
+def test_cancellation_while_reporting_an_outcome_redelivers_a_terminal_update(
+    status, reported, redelivered
+):
     class BlockingOutcome(Authority):
         def __init__(self):
             super().__init__()
@@ -312,8 +316,8 @@ def test_cancellation_while_reporting_a_granted_outcome_redelivers_it(status, te
         assert len(request_ids) == 1
         assert [event[2:] for event in authority.events] == [
             ("acquire", None, 0),
-            terminal,
-            terminal,
+            reported,
+            redelivered,
         ]
 
     asyncio.run(scenario())

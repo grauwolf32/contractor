@@ -14,7 +14,7 @@ from contractor_runtime.contracts.base import (
     _RUNTIME_AGENT_ID_PATTERN,
     MAX_RUNTIME_CAPABILITY_REFS,
     MAX_TOOLSET_CAPABILITY_TOOLS,
-    TOOL_NAME_PATTERN,
+    NAME_PATTERN,
     VERSION_PATTERN,
     AgentObservedState,
     ReconciliationAction,
@@ -46,7 +46,7 @@ class ToolsetCapability(WireModel):
         ):
             raise ValueError(f"tools must be 1 to {MAX_TOOLSET_CAPABILITY_TOOLS} unique tool names")
         for tool in self.tools:
-            if TOOL_NAME_PATTERN.fullmatch(tool) is None:
+            if NAME_PATTERN.fullmatch(tool) is None:
                 raise ValueError("tools must use the shared tool name grammar")
         return self
 

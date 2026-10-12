@@ -69,10 +69,24 @@ func lockRun(ctx context.Context, tx pgx.Tx, runID string, terminalUpdate bool) 
 	if err := tx.QueryRow(ctx, `SELECT state FROM workflow_runs WHERE run_id=$1 FOR UPDATE`, runID).Scan(&state); err != nil {
 		return err
 	}
-	if state != "pending" && state != "running" && state != "waiting" && (!terminalUpdate || state != "cancelling") {
+	if !acceptsUpdate(state, terminalUpdate) {
 		return ErrUnavailable
 	}
 	return nil
+}
+
+// acceptsUpdate reports whether a Run in state takes a recovery update: a
+// pending, running or waiting Run takes every update, and a cancelling Run
+// only the terminal update of a granted attempt (SCH-R108).
+func acceptsUpdate(state string, terminalUpdate bool) bool {
+	switch state {
+	case "pending", "running", "waiting":
+		return true
+	case "cancelling":
+		return terminalUpdate
+	default:
+		return false
+	}
 }
 
 func (s routeState) automaticExpired(now time.Time) bool {

@@ -21,10 +21,10 @@ func ValidateAuditWorkerCompletion(binding ResolvedAuditWorkflowBinding) error {
 	if c.Kind != contracts.AuditCheckResultsV1 || binding.Kind != AuditWorkflowCheck {
 		return fmt.Errorf("workerCompletion requires a check binding and audit-check-results@1")
 	}
-	if err := contracts.ValidateArtifactName(c.Stage); err != nil {
+	if err := validateWorkflowName("workerCompletion.stage", c.Stage); err != nil {
 		return err
 	}
-	if err := contracts.ValidateArtifactName(c.Agent); err != nil {
+	if err := validateWorkflowName("workerCompletion.agent", c.Agent); err != nil {
 		return err
 	}
 	stage, ok := binding.Workflow.Stages[c.Stage]

@@ -14,7 +14,6 @@
 package contracts
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -64,10 +63,12 @@ var (
 	// runtimeAgentIDPattern is the only Go definition of a Runtime Agent ID:
 	// the lowercase hexadecimal SHA-256 fingerprint of the agent's SPKI.
 	runtimeAgentIDPattern = regexp.MustCompile(`^[0-9a-f]{64}$`)
-	// namePattern is the shared name grammar of the public ConfigId schema:
-	// the tool names of Toolset capabilities and the logical Worker names
-	// that Operations shows. resourceIDPattern is the public ResourceId
-	// grammar of Runtime Agent instance and allocation IDs. The shared cases
+	// namePattern is the shared name grammar of the public ConfigId and
+	// ArtifactName schemas: tool names, Stage and logical Worker names,
+	// Artifact namespaces and names. resourceIDPattern is the public
+	// ResourceId grammar of every identity the public API shows. They are
+	// the only Go definitions of both grammars (API-R70); a source scan in
+	// the contracts tests rejects a copy in another package. The shared cases
 	// in api/testdata/v1alpha1/runtime-capability-cases.json hold Go, the
 	// private schemas, the public OpenAPI and the Runtime to both.
 	namePattern       = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.-]*$`)
@@ -119,17 +120,16 @@ type Validatable interface {
 	Validate() error
 }
 
-// DecodeStrict decodes one JSON object, rejects unknown/trailing fields, and
-// runs its semantic validation.
+// DecodeStrict decodes one JSON value with strictjson.Decode, so duplicate
+// keys, case aliases, unknown members, omitted or null required members and
+// trailing data are rejected, and runs its semantic validation. Its errors
+// keep their detail; private input uses DecodePrivateStrict instead.
 func DecodeStrict[T Validatable](data []byte) (T, error) {
 	var value T
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&value); err != nil {
+	if err := strictjson.Decode(data, &value); errors.Is(err, strictjson.ErrTrailingData) {
+		return value, Invalidf("multiple JSON values are not allowed")
+	} else if err != nil {
 		return value, fmt.Errorf("decode JSON: %w", err)
-	}
-	if err := EnsureJSONEOF(decoder); err != nil {
-		return value, err
 	}
 	if err := value.Validate(); err != nil {
 		return value, err
@@ -137,28 +137,16 @@ func DecodeStrict[T Validatable](data []byte) (T, error) {
 	return value, nil
 }
 
-// DecodeStrictObject decodes one JSON object into target, rejecting unknown
-// fields, and returns its raw top-level members so callers can tell an
-// explicit null from an omitted field.
+// DecodeStrictObject decodes one JSON object into target with
+// strictjson.Decode and returns its raw top-level members so callers can tell
+// an explicit null from an omitted field.
 func DecodeStrictObject(data []byte, target any) (map[string]json.RawMessage, error) {
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(target); err != nil {
+	if err := strictjson.Decode(data, target); err != nil {
 		return nil, err
 	}
 	var fields map[string]json.RawMessage
 	err := json.Unmarshal(data, &fields)
 	return fields, err
-}
-
-// EnsureJSONEOF rejects any JSON value or data after the one decoder read.
-func EnsureJSONEOF(decoder *json.Decoder) error {
-	if err := strictjson.RequireEOF(decoder); errors.Is(err, strictjson.ErrTrailingData) {
-		return Invalidf("multiple JSON values are not allowed")
-	} else if err != nil {
-		return fmt.Errorf("decode trailing JSON: %w", err)
-	}
-	return nil
 }
 
 // ValidateAPIVersion requires the exact contractor/v1alpha1 wire version.
@@ -221,21 +209,29 @@ func Invalidf(format string, args ...any) error {
 	return fmt.Errorf("%w: %s", ErrValidation, fmt.Sprintf(format, args...))
 }
 
-// SecretString is wire-serializable but redacts String and GoString output.
-// Reveal must be used only at the point where a private client is configured.
+// SecretString redacts String, GoString and default JSON output, so a log
+// line, an error or a stored document that encodes a value holding one never
+// contains the plaintext (SEC-R88). Reveal must be used only at the point
+// where a private client is configured or where an explicit private-wire
+// encoder, such as runtimesettings.RuntimeSettings.RevealJSON, writes it.
+// Decoding still accepts the plaintext a private wire delivers.
 type SecretString struct {
 	value string
 }
+
+// redactedSecret replaces every SecretString in formatted and default JSON
+// output.
+const redactedSecret = "[REDACTED]"
 
 func NewSecretString(value string) SecretString { return SecretString{value: value} }
 
 func (s SecretString) Reveal() string { return s.value }
 
-func (s SecretString) String() string { return "[REDACTED]" }
+func (s SecretString) String() string { return redactedSecret }
 
-func (s SecretString) GoString() string { return "contracts.SecretString([REDACTED])" }
+func (s SecretString) GoString() string { return "contracts.SecretString(" + redactedSecret + ")" }
 
-func (s SecretString) MarshalJSON() ([]byte, error) { return json.Marshal(s.value) }
+func (s SecretString) MarshalJSON() ([]byte, error) { return json.Marshal(redactedSecret) }
 
 func (s *SecretString) UnmarshalJSON(data []byte) error {
 	var value string

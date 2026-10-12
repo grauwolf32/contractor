@@ -25,19 +25,25 @@ func IsAuditManagedProjectNamespace(namespace string) bool {
 	return strings.HasPrefix(namespace, AuditManagedProjectNamespacePrefix)
 }
 
+// IsAuditStandardCatalogNamespace reports the one UserScope Namespace reserved
+// for curated Audit standard packages (ART-R25). It is an exact name, not a
+// prefix: audit-standards-notes is an ordinary user Namespace.
 func IsAuditStandardCatalogNamespace(namespace string) bool {
-	return strings.HasPrefix(namespace, AuditStandardCatalogNamespace)
+	return namespace == AuditStandardCatalogNamespace
 }
 
-// IsPurposeReservedNamespace reports whether a Run Namespace is owned by a
-// trusted purpose-specific flow rather than by a Stage Agent binding.
+// PurposeReservedNamespaces returns the Run Namespaces owned by a trusted
+// purpose-specific flow rather than by a Stage Agent binding (ART-R114). The
+// Runtime's contracts.artifacts.PURPOSE_RESERVED_NAMESPACES is the same list;
+// api/testdata/v1alpha1/memory-reservation-cases.json pins both.
+func PurposeReservedNamespaces() []string {
+	return []string{"inputs", "outputs", "skills", FindingProposalNamespace, RunSystemNamespace}
+}
+
+// IsPurposeReservedNamespace reports whether a Run Namespace is one of
+// PurposeReservedNamespaces.
 func IsPurposeReservedNamespace(namespace string) bool {
-	switch namespace {
-	case "inputs", "outputs", "skills", FindingProposalNamespace, RunSystemNamespace:
-		return true
-	default:
-		return false
-	}
+	return slices.Contains(PurposeReservedNamespaces(), namespace)
 }
 
 func IsRunSystemNamespace(namespace string) bool {
@@ -45,7 +51,9 @@ func IsRunSystemNamespace(namespace string) bool {
 }
 
 // IsReservedMemoryBinding reports whether a RunScope binding belongs only to
-// MemoryTools. Purpose-reserved Namespaces retain their independent policy.
+// MemoryTools (ART-R19 to ART-R22). Purpose-reserved Namespaces retain their
+// independent policy. The Runtime's is_reserved_memory_binding applies the
+// same rule.
 func IsReservedMemoryBinding(namespace, name string) bool {
 	if IsPurposeReservedNamespace(namespace) {
 		return false

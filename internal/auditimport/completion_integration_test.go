@@ -249,7 +249,7 @@ func newCompletionFixtureWithInteraction(t *testing.T, pool *pgxpool.Pool, accep
 	}
 	_, err = f.audits.TransitionRound(ctx, auditstore.RoundTransitionParams{Claim: f.claim, RoundID: f.id, ExpectedRevision: 1, ExpectedState: auditstore.RoundAccepted, TargetState: auditstore.RoundExecuting})
 	mustCompletion(t, err)
-	manager, err := configload.NewManager(config.ManagerOptions{OperatorRoot: "../config/testdata/valid", ManagedRoot: filepath.Join(t.TempDir(), "managed"), Descriptors: config.MVPDescriptors()})
+	manager, _, err := configload.NewManager(config.ManagerOptions{OperatorRoot: "../config/testdata/valid", ManagedRoot: filepath.Join(t.TempDir(), "managed"), Descriptors: config.MVPDescriptors()})
 	mustCompletion(t, err)
 	f.service, err = runservice.New(runservice.Options{Runs: f.runs, Workflows: manager, LLMCredentials: completionCredentials{}, CredentialGuard: completionCredentials{}, RuntimeCredentials: completionCredentials{}, Projects: projects,
 		PublicTransaction: func(context.Context, func(runservice.PublicRunWriter, *artifacts.Service) error) error {

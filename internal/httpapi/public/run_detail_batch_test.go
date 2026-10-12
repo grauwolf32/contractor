@@ -11,11 +11,12 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/planner"
+	"github.com/grauwolf32/contractor/internal/runservice"
 	"github.com/grauwolf32/contractor/internal/runstore"
 )
 
 type failingAllocationReader struct {
-	RunReader
+	runservice.RunDetailRunReader
 	err error
 }
 
@@ -27,39 +28,41 @@ func TestRunDetailBatchFailuresPreserveOptionalDiagnostics(t *testing.T) {
 	readErr := errors.New("private-batch-read-failure")
 	for _, test := range []struct {
 		name      string
-		configure func(*Dependencies)
+		configure func(*runservice.RunDetailStores)
 		stages    int
 		status    int
 		wantPlan  bool
 	}{
 		{
-			name: "optional readers absent", stages: 2, status: http.StatusOK,
-			configure: func(d *Dependencies) { d.Metrics, d.PlannerPlans = nil, nil },
+			name: "incomplete readers fail closed", stages: 2, status: http.StatusInternalServerError,
+			configure: func(s *runservice.RunDetailStores) { s.Metrics = nil },
 		},
 		{
 			name: "metrics unavailable", stages: 2, status: http.StatusOK, wantPlan: true,
-			configure: func(d *Dependencies) { d.Metrics = &fakeMetricsReader{err: readErr} },
+			configure: func(s *runservice.RunDetailStores) { s.Metrics = &fakeMetricsReader{err: readErr} },
 		},
 		{
 			name: "plans unavailable", stages: 2, status: http.StatusInternalServerError,
-			configure: func(d *Dependencies) { d.PlannerPlans = &fakePlannerPlanReader{err: readErr} },
+			configure: func(s *runservice.RunDetailStores) { s.Plans = &fakePlannerPlanReader{err: readErr} },
 		},
 		{
 			name: "allocations unavailable", stages: 2, status: http.StatusInternalServerError,
-			configure: func(d *Dependencies) { d.Runs = failingAllocationReader{RunReader: d.Runs, err: readErr} },
+			configure: func(s *runservice.RunDetailStores) {
+				s.Runs = failingAllocationReader{RunDetailRunReader: s.Runs, err: readErr}
+			},
 		},
 		{
 			name: "empty run needs no related reads", status: http.StatusOK,
-			configure: func(d *Dependencies) {
-				d.Runs = failingAllocationReader{RunReader: d.Runs, err: readErr}
-				d.Metrics = &fakeMetricsReader{err: readErr}
-				d.PlannerPlans = &fakePlannerPlanReader{err: readErr}
+			configure: func(s *runservice.RunDetailStores) {
+				s.Runs = failingAllocationReader{RunDetailRunReader: s.Runs, err: readErr}
+				s.Metrics = &fakeMetricsReader{err: readErr}
+				s.Plans = &fakePlannerPlanReader{err: readErr}
 			},
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			fixture := newHandlerFixtureWithAuth(t, "../../config/testdata/valid",
-				newTestAuthentication(t), mustTestOrigins(t), false, nil, test.configure)
+			fixture := newHandlerFixture(t)
+			test.configure(fixture.detailStores)
 			workflow, err := fixture.configs.Workflow("artifact-copy@1")
 			if err != nil {
 				t.Fatal(err)

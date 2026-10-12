@@ -2,9 +2,11 @@ package artifacts
 
 import (
 	"context"
-	"strings"
+	"errors"
+	"fmt"
 
 	"github.com/grauwolf32/contractor/internal/artifactpolicy"
+	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/pagelimit"
 )
 
@@ -139,9 +141,20 @@ func (s ScopedStore) Write(
 	if s.scope.kind == ScopeUser && artifactpolicy.IsAuditStandardCatalogNamespace(target.Namespace) {
 		return WriteResult{}, ErrReservedNamespace
 	}
+	// Audit-managed Project bindings are created frozen, only through
+	// WriteAuditArtifact and ImportAuditArtifact (ART-R26, REV-R146).
+	if s.scope.kind == ScopeProject && artifactpolicy.IsAuditManagedProjectNamespace(target.Namespace) {
+		return WriteResult{}, ErrReservedNamespace
+	}
 	if s.scope.kind == ScopeRun && (target.Namespace == "outputs" || target.Namespace == "skills" ||
 		target.Namespace == artifactpolicy.FindingProposalNamespace ||
 		artifactpolicy.IsRunSystemNamespace(target.Namespace)) {
+		return WriteResult{}, ErrReservedNamespace
+	}
+	if s.scope.kind == ScopeRun && target.Namespace == "inputs" && expectedRevision == nil {
+		// Only the trusted input forks create inputs/<slot> (ART-R76); a
+		// generic writer may only advance an existing working copy by exact
+		// CAS (ART-R16, ART-R37).
 		return WriteResult{}, ErrReservedNamespace
 	}
 	if err := validatePayload(payload); err != nil {
@@ -225,6 +238,24 @@ func (s ScopedStore) Read(ctx context.Context, ref ArtifactRef) (ReadResult, err
 		return ReadResult{}, err
 	}
 	return s.service.repository.Read(ctx, s.scope, ref)
+}
+
+// ReadExact reads the exact revision expected names and verifies that it
+// holds the content expected describes (contracts.ExactArtifact.Verify). An
+// invalid descriptor or other content is ErrArtifactIntegrity: stored records
+// name exact content, and repeating the read cannot change it.
+func (s ScopedStore) ReadExact(ctx context.Context, expected contracts.ExactArtifact) (ReadResult, error) {
+	if err := expected.Validate(); err != nil {
+		return ReadResult{}, fmt.Errorf("%w: exact artifact descriptor is invalid: %v", ErrArtifactIntegrity, err)
+	}
+	read, err := s.Read(ctx, expected.Ref)
+	if err != nil {
+		return ReadResult{}, err
+	}
+	if err := expected.Verify(read.Exact()); err != nil {
+		return ReadResult{}, fmt.Errorf("%w: %w", ErrArtifactIntegrity, err)
+	}
+	return read, nil
 }
 
 func (s ScopedStore) Metadata(ctx context.Context, ref ArtifactRef) (Metadata, error) {
@@ -317,6 +348,11 @@ func validateBindingPageQuery(query BindingPageQuery) error {
 	}
 	if query.ExcludeNamespace != nil {
 		if err := validateComponent(*query.ExcludeNamespace); err != nil {
+			return err
+		}
+	}
+	if query.HiddenNamespace != "" {
+		if err := validateComponent(query.HiddenNamespace); err != nil {
 			return err
 		}
 	}
@@ -472,8 +508,11 @@ type auditArtifactImporter interface {
 	ImportAuditArtifact(context.Context, Scope, ArtifactRef, Scope, ArtifactRef) (ForkResult, error)
 }
 
+// auditArtifactWriter creates frozen Audit bindings and reads the metadata
+// of an existing one for the replay comparison.
 type auditArtifactWriter interface {
 	WriteAuditArtifact(context.Context, Scope, ArtifactRef, Payload) (WriteResult, error)
+	Metadata(context.Context, Scope, ArtifactRef) (Metadata, error)
 }
 
 // PublishRunOutput is a trusted Scheduler operation that creates one
@@ -534,7 +573,7 @@ func (s *Service) ImportAuditArtifact(
 	if _, err := exactRevision(source); err != nil {
 		return ForkResult{}, err
 	}
-	if target.Revision != nil || !strings.HasPrefix(target.Namespace, "audit-") {
+	if target.Revision != nil || !artifactpolicy.IsAuditManagedProjectNamespace(target.Namespace) {
 		return ForkResult{}, ErrInvalidName
 	}
 	if err := validateRef(target); err != nil {
@@ -561,11 +600,19 @@ func (s *Service) ImportFindingArtifact(
 	return s.ImportAuditArtifact(ctx, runID, source, projectID, target)
 }
 
-// WriteAuditArtifact is the trusted counterpart used for Controller-generated
-// Audit reports. It creates one frozen, create-only ProjectScope binding in a
-// server-reserved audit-* namespace. Public Project artifact routes never
-// expose these staging bindings; the Audit report projection exposes them only
-// after the matching durable report links have committed.
+// WriteAuditArtifact is the one writer of Server-generated Audit material:
+// manifests, task packages, worklists, retained standards, reports and direct
+// verification contracts. It creates one frozen, create-only ProjectScope
+// binding in a Server-reserved audit-* namespace (REV-R146); generic Project
+// writes cannot reach these namespaces. Public Project artifact routes never
+// expose these staging bindings; Audit projections expose them only after the
+// durable rows that name them have committed.
+//
+// Targets are named by their content or by an immutable identity, so a retry
+// after a lost acknowledgement finds its binding already written: an existing
+// frozen binding holding the payload's bytes and media type is returned as
+// written without staging another blob (REV-R149). Any other existing binding
+// is ErrAuditArtifactCollision.
 func (s *Service) WriteAuditArtifact(
 	ctx context.Context,
 	projectID string,
@@ -576,7 +623,7 @@ func (s *Service) WriteAuditArtifact(
 	if err != nil {
 		return WriteResult{}, err
 	}
-	if target.Revision != nil || !strings.HasPrefix(target.Namespace, "audit-") {
+	if target.Revision != nil || !artifactpolicy.IsAuditManagedProjectNamespace(target.Namespace) {
 		return WriteResult{}, ErrInvalidName
 	}
 	if err := validateRef(target); err != nil {
@@ -589,7 +636,41 @@ func (s *Service) WriteAuditArtifact(
 	if !ok {
 		return WriteResult{}, ErrQueryUnsupported
 	}
-	return repository.WriteAuditArtifact(ctx, project, target, payload)
+	if written, found, err := writtenAuditArtifact(ctx, repository, project, target, payload); err != nil || found {
+		return written, err
+	}
+	written, err := repository.WriteAuditArtifact(ctx, project, target, payload)
+	if !errors.Is(err, ErrArtifactConflict) {
+		return written, err
+	}
+	// A concurrent writer created the binding after the replay check.
+	if written, found, replayErr := writtenAuditArtifact(ctx, repository, project, target, payload); replayErr != nil || found {
+		return written, replayErr
+	}
+	return WriteResult{}, err
+}
+
+// writtenAuditArtifact is the replay comparison of WriteAuditArtifact. It
+// reports whether target is already bound and returns that binding when it is
+// the frozen Audit artifact payload would create.
+func writtenAuditArtifact(
+	ctx context.Context, repository auditArtifactWriter, project Scope, target ArtifactRef, payload Payload,
+) (WriteResult, bool, error) {
+	existing, err := repository.Metadata(ctx, project, target)
+	if errors.Is(err, ErrArtifactNotFound) {
+		return WriteResult{}, false, nil
+	}
+	if err != nil {
+		return WriteResult{}, false, err
+	}
+	expected := contracts.ExactContent(existing.Ref, payload.MediaType, payload.Data)
+	if !existing.Frozen || expected.Verify(existing.Exact()) != nil {
+		return WriteResult{}, true, fmt.Errorf("%w: %s/%s", ErrAuditArtifactCollision, target.Namespace, target.Name)
+	}
+	return WriteResult{
+		Ref: existing.Ref, MediaType: existing.MediaType, Size: existing.Size,
+		BindingCreatedAt: existing.CreatedAt, RevisionCreatedAt: existing.CreatedAt,
+	}, true, nil
 }
 
 // RequireExact confirms that an exact revision exists and holds a key-share

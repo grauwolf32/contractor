@@ -19,7 +19,7 @@ from contractor_runtime.artifacts import (
     ArtifactHTTPResponse,
     ArtifactTransportError,
 )
-from contractor_runtime.contracts import ArtifactRef, RuntimeSettings
+from contractor_runtime.contracts import API_VERSION, ArtifactRef, RuntimeSettings
 from contractor_runtime.factories import built_in_factories
 from contractor_runtime.toolsets.run_artifacts.tools import ReadArtifactTool
 from contractor_runtime.toolsets.security_findings.collection import (
@@ -156,7 +156,9 @@ class Transport:
         self.requests.append((method, path, dict(headers), max_response_bytes))
         parsed = urlsplit(path)
         assert parsed.path.startswith("/allocations/consumer-allocation/artifacts/")
-        namespace, name = parsed.path.split("/")[-2:]
+        resource = parsed.path.removesuffix("/metadata")
+        metadata = resource != parsed.path
+        namespace, name = resource.split("/")[-2:]
         target = (namespace, name)
         if method == "GET":
             if self.deny_get:
@@ -181,6 +183,25 @@ class Transport:
                     ),
                 )
             revision, media_type, data = record
+            if metadata:
+                # The metadata route answers the exact revision, media type
+                # and size without the payload (ART-R116).
+                return ArtifactHTTPResponse(
+                    200,
+                    {"content-type": "application/json"},
+                    _json(
+                        {
+                            "apiVersion": API_VERSION,
+                            "artifact": {
+                                "namespace": namespace,
+                                "name": name,
+                                "revision": revision,
+                            },
+                            "mediaType": media_type,
+                            "size": len(data),
+                        }
+                    ),
+                )
             if self.wrong_etag and namespace != "inputs":
                 revision = "wrong-exact-revision"
             return ArtifactHTTPResponse(

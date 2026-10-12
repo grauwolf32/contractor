@@ -67,7 +67,7 @@ func TestPostgresIntegrationMigrationsAndConstraints(t *testing.T) {
 		"audit_artifact_links", "audit_controller_claims",
 		"audit_events", "audit_execution_items", "audit_executions",
 		"audit_finding_assessments", "audit_finding_contributions", "audit_findings",
-		"audit_idempotency", "audit_items", "audit_live_item_reviews", "audit_review_decisions", "audit_review_requests",
+		"audit_idempotency", "audit_items", "audit_live_item_reviews", "audit_report_pages", "audit_review_decisions", "audit_review_requests",
 		"audit_rounds", "audits",
 		"contractor_schema_migrations", "credential_operations",
 		"eval_collections", "eval_commands", "eval_controller_claims", "eval_dataset_revisions", "eval_evidence_refs", "eval_execution_tombstones", "eval_experiments", "eval_frozen_plans", "eval_member_projections", "eval_members", "eval_mutation_receipts", "eval_plan_resources", "eval_progress_observations", "eval_projection_queue", "eval_records", "eval_selections", "eval_submissions", "eval_suboperations", "eval_view_charts", "eval_view_pairs", "finding_proposal_audit_holds", "finding_proposal_receipts",
@@ -98,7 +98,7 @@ INSERT INTO workflow_runs (
     runtime_labels, runtime_config_snapshot,
     state, state_reason_code
 ) VALUES ('invalid-state', 'user', 'workflow', '1', 'v1', '{}', '{}', '{}', $1::jsonb, 'bogus', 'test')`, builtInRunRuntimeSnapshot)
-	assertSQLState(t, err, "23514")
+	assertSQLState(t, err, SQLStateCheckViolation)
 
 	_, err = first.Exec(ctx, `
 INSERT INTO workflow_runs (
@@ -107,7 +107,7 @@ INSERT INTO workflow_runs (
     runtime_labels, runtime_config_snapshot,
     state, state_reason_code
 ) VALUES ('run-terminal-shape', 'user', 'workflow', '1', 'v1', '{}', '{}', '{}', $1::jsonb, 'succeeded', 'test')`, builtInRunRuntimeSnapshot)
-	assertSQLState(t, err, "23514")
+	assertSQLState(t, err, SQLStateCheckViolation)
 
 	_, err = first.Exec(ctx, `
 INSERT INTO workflow_runs (
@@ -119,7 +119,7 @@ INSERT INTO workflow_runs (
     'run-invalid-runtime-snapshot', 'user', 'workflow', '1', 'v1', '{}', '{}', '{}',
     jsonb_set($1::jsonb, '{llmCredentialIds}', '[null]'::jsonb), 'initializing', 'test'
 )`, builtInRunRuntimeSnapshot)
-	assertSQLState(t, err, "23514")
+	assertSQLState(t, err, SQLStateCheckViolation)
 
 	_, err = first.Exec(ctx, `
 INSERT INTO workflow_runs (
@@ -141,7 +141,7 @@ INSERT INTO stage_executions (
     'invalid-terminal-stage', 'run-for-stage', 'build', 1,
     'v1', '{}', 'v1', '{}', 'succeeded', 'test', clock_timestamp()
 )`)
-	assertSQLState(t, err, "23514")
+	assertSQLState(t, err, SQLStateCheckViolation)
 }
 
 func isolatedPools(

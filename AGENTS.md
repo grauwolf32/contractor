@@ -89,9 +89,16 @@ These are settled decisions. Do not reopen them without the user.
   `contractor server config validate --root ./configs`. Exceptions:
   `tests/e2e`, `tests/ui-stack`, `tests/eval`. For Skill tests, use a test-only
   pseudo-Skill fixture.
-- **Config identities are immutable.** `name@version` names exact content.
-  Changed content needs a new version; Server treats an in-place change of a
-  published identity as a conflict or drift.
+- **Config identities published at runtime are immutable.** Managed
+  publication rejects other content under an existing identity, Skill seeds
+  and Audit standard packages report drift, and Eval pins reject a changed
+  selection; changed Audit standard content under `configs/audit-standards`
+  still needs a new version. The rest of the shipped catalog under `configs/`
+  (manifests and instructions) is pre-production: until the first release it
+  may change in place without a version bump (CAT-R74 in
+  `docs/spec/configuration/catalog.md`). Run snapshots and Eval pins record
+  digests, so compare digests, not `name@version`, when exact content matters.
+  The first release replaces this exception with a digest lock.
 - **No `assert` in production Python.** Use `if not cond: raise RuntimeError(...)`
   (Ruff `S101` enforces it outside `runtime/tests/`). In Go, never call
   `os.Exit` below `main`; honour context cancellation.
@@ -350,8 +357,14 @@ Notes:
 
 ### Go server
 
-- Decode untrusted JSON with `internal/strictjson`, which rejects unknown
-  fields, duplicate keys and trailing data.
+- Decode untrusted JSON with `strictjson.Decode`. Anywhere in the value it
+  rejects duplicate keys and a member whose name matches no field exactly (a
+  case alias such as `Reason` for `reason` is unknown, although
+  `encoding/json` would accept it, and so is any other unknown member); it
+  also rejects data after the value. A type with its own `UnmarshalJSON` is
+  checked for duplicate keys only, so such a method must decode its members
+  with `strictjson.Decode` itself. Plain `json.Unmarshal` and `json.Decoder`
+  check none of this.
 - Return classified errors; map them to stable API codes and statuses. Every
   handler that reaches PostgreSQL documents the retryable `503`
   `storage_transaction_conflict`.

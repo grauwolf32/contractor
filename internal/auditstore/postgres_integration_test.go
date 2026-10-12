@@ -138,10 +138,14 @@ func TestPostgresAuditBatchFailureRequeuesEveryMemberAndAllowsRegrouping(t *test
 		storedItems[1].State != ItemReady || storedItems[2].State != ItemReady {
 		t.Fatalf("items after failed batch = (%+v, %v)", storedItems, err)
 	}
+	storedIDs := []string{storedItems[0].ItemID, storedItems[1].ItemID, storedItems[2].ItemID}
+	attempts, err := store.NextItemAttempts(ctx, claim, storedIDs)
+	if err != nil || len(attempts) != 3 {
+		t.Fatalf("next batch attempts = (%v, %v)", attempts, err)
+	}
 	for index, want := range []int{2, 2, 1} {
-		attempt, attemptErr := store.NextItemAttempt(ctx, claim, storedItems[index].ItemID)
-		if attemptErr != nil || attempt != want {
-			t.Fatalf("next batch attempt %d = (%d, %v), want %d", index, attempt, attemptErr, want)
+		if attempt := attempts[storedIDs[index]]; attempt != want {
+			t.Fatalf("next batch attempt %d = %d, want %d", index, attempt, want)
 		}
 	}
 
@@ -156,6 +160,16 @@ func TestPostgresAuditBatchFailureRequeuesEveryMemberAndAllowsRegrouping(t *test
 	}
 	if _, inserted, err := store.CreateExecutionIntent(ctx, regrouped); err != nil || !inserted {
 		t.Fatalf("create regrouped retry batch = (%t, %v)", inserted, err)
+	}
+	// Submitted items have no next attempt; only the item still ready does.
+	if attempts, err := store.NextItemAttempts(ctx, claim, storedIDs); err != nil ||
+		len(attempts) != 1 || attempts[storedIDs[1]] != 2 {
+		t.Fatalf("next attempts after regrouping = (%v, %v), want only %s at 2", attempts, err, storedIDs[1])
+	}
+	staleClaim := claim
+	staleClaim.Epoch++
+	if _, err := store.NextItemAttempts(ctx, staleClaim, storedIDs); !errors.Is(err, ErrClaimLost) {
+		t.Fatalf("next attempts under a lost claim = %v, want ErrClaimLost", err)
 	}
 	firstAttempts, err := store.ListExecutionItems(ctx, firstIntent.ExecutionID)
 	if err != nil || len(firstAttempts) != 2 || firstAttempts[0].ItemAttempt != 1 ||
@@ -583,7 +597,7 @@ INSERT INTO finding_proposal_receipts (
     workflow_name, workflow_version, workflow_schema_version,
     workflow_configuration_ref, workflow_closure_digest,
     proposal_ref, proposal_digest, proposal_media_type,
-    proposal_size_bytes, evidence
+    proposal_size_bytes, evidence, report_projection
 ) VALUES (
     'finding-receipt-one', 'finding-proposal-one', 'allocation-finding-one',
     'runtime-finding-one', 'instance-finding-one', 'stage-finding-one', 'worker',
@@ -591,7 +605,8 @@ INSERT INTO finding_proposal_receipts (
     'run-three', $2, $3, $4, $5, 'check',
     'audit-check', '1', 'contractor/v1alpha1',
     '{"name":"audit-check","version":"1"}'::jsonb, $6,
-    $7::jsonb, $8, 'application/json', 128, '[]'::jsonb
+    $7::jsonb, $8, 'application/json', 128, '[]'::jsonb,
+    '{"description":"Test finding.","limitations":[],"severity_suggestion":"","standard_refs":[],"subject":null,"title":"Test finding."}'
 )`,
 		testDigest("d"), create.OwnerID, project.ProjectID,
 		executionThree.ExecutionID, create.AuditID, testDigest("e"),
@@ -906,6 +921,17 @@ func TestPostgresAuditTrustedTransitionsApplyGateAndEvents(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	var roundItems, roundReviews, openedReviews int
+	if err := pool.QueryRow(ctx, `
+SELECT (event.summary->>'items')::int, (event.summary->>'reviews')::int,
+       (SELECT count(*) FROM audit_review_requests WHERE audit_id = event.audit_id)
+  FROM audit_events AS event
+ WHERE event.audit_id = $1 AND event.kind = 'round.accepted'`, audit.AuditID).Scan(
+		&roundItems, &roundReviews, &openedReviews,
+	); err != nil || roundItems != 2 || roundReviews != 2 || openedReviews != 2 {
+		t.Fatalf("round.accepted counts = (%d items, %d reviews, %d opened, %v), want 2, 2, 2",
+			roundItems, roundReviews, openedReviews, err)
+	}
 	if _, err := store.TransitionTrusted(ctx, TrustedTransitionParams{
 		AuditID: audit.AuditID, ExpectedRevision: audit.Revision,
 		ExpectedState: AuditCompleted, TargetState: AuditActive,
@@ -1047,9 +1073,11 @@ func isolatedAuditPool(t *testing.T, ctx context.Context, databaseURL string) *p
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
-		pool.Close()
 		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cleanupCancel()
+		// Every test that mutates an Audit leaves its events dense.
+		requireDenseAuditEvents(t, cleanupCtx, pool)
+		pool.Close()
 		_, _ = admin.Exec(cleanupCtx, `DROP SCHEMA `+identifier+` CASCADE`)
 		admin.Close()
 	})

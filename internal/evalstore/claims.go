@@ -5,6 +5,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 	"github.com/jackc/pgx/v5"
 )
@@ -20,7 +21,7 @@ type Claim struct {
 // That deadline is compared with the stable statement timestamp: a volatile
 // clock cannot be an index condition, so every poll would read every pause.
 func (s *Store) Claim(ctx context.Context, holder string, lease time.Duration, limit int) ([]Claim, error) {
-	if !resourceID.MatchString(holder) || lease < time.Second || lease > 5*time.Minute || limit < 1 || limit > evaldomain.MaxPageSize {
+	if !contracts.ValidResourceID(holder) || lease < time.Second || lease > 5*time.Minute || limit < 1 || limit > evaldomain.MaxPageSize {
 		return nil, evaldomain.Failure("eval_invalid")
 	}
 	rows, err := s.db.Query(ctx, claimStatement, holder, lease.Milliseconds(), limit)

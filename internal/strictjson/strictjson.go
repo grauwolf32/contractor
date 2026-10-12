@@ -1,14 +1,21 @@
 // Package strictjson adds the checks encoding/json does not make on its own:
-// unknown fields and trailing values, duplicate object keys, lone UTF-16
-// surrogate escapes, and RFC 8785 canonical encoding. Callers map the errors
-// to their own codes.
+// duplicate object keys, member names that match a field only when case is
+// ignored, unknown members, missing required members, trailing values, lone
+// UTF-16 surrogate escapes, and RFC 8785 canonical encoding. Callers map the
+// errors to their own codes.
+//
+// A struct field tagged `strictjson:"required"` names a member every object
+// decoded into the struct must set to a non-null value, and
+// `strictjson:"required,nullable"` one it must set but may set to null, as a
+// JSON Schema required list does. Without the tag encoding/json would leave
+// an omitted or null member at its zero value.
 package strictjson
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"io"
+	"reflect"
 
 	"github.com/ucarion/jcs"
 )
@@ -17,19 +24,49 @@ var (
 	ErrDuplicateKey = errors.New("JSON object has a duplicate key")
 	ErrTrailingData = errors.New("JSON value has trailing data")
 	ErrInvalid      = errors.New("JSON value is invalid")
+	// ErrUnknownField reports an object member whose name matches no field
+	// of the target struct exactly, including a name encoding/json would
+	// match case-insensitively.
+	ErrUnknownField = errors.New("JSON object has an unknown member")
+	// ErrMissingField reports an object that omits a member its target
+	// struct tags strictjson:"required", or sets one that is not nullable
+	// to null, and a null where such a struct is expected.
+	ErrMissingField = errors.New("JSON object lacks a required member")
 )
 
-// Decode decodes exactly one JSON value into target, rejecting unknown object
-// fields. A decode error is returned unchanged; anything after the value,
-// valid or not, reports ErrTrailingData.
+// Decode decodes exactly one JSON value into target. Beyond encoding/json with
+// unknown fields disallowed, it rejects anywhere in the value:
+//   - a repeated object member name, after unescaping (ErrDuplicateKey);
+//   - a member whose name matches no field of its target struct exactly,
+//     such as a case alias encoding/json would accept (ErrUnknownField);
+//   - an omitted required member, a null one that is not nullable, and a
+//     null in place of a struct with required members (ErrMissingField);
+//   - anything after the value, valid or not (ErrTrailingData).
+//
+// A duplicate key is reported before member errors. A type that decodes
+// itself with UnmarshalJSON or UnmarshalText is checked for duplicate keys
+// only; its method checks its own members, normally with Decode. Syntax and
+// type errors are returned as encoding/json reports them.
 func Decode(data []byte, target any) error {
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(target); err != nil {
+	var info *typeInfo
+	if value := reflect.ValueOf(target); value.Kind() == reflect.Pointer && !value.IsNil() {
+		info = infoFor(value.Type().Elem())
+	} else {
+		info = anyInfo
+	}
+	err := check(data, info)
+	if err != nil && !errors.Is(err, errSyntax) {
 		return err
 	}
-	if RequireEOF(decoder) != nil {
-		return ErrTrailingData
+	// The scan has already rejected unknown members and trailing data, so
+	// json.Unmarshal decodes in place instead of a Decoder copying the input.
+	if decodeErr := json.Unmarshal(data, target); decodeErr != nil {
+		return decodeErr
+	}
+	if err != nil {
+		// encoding/json accepted what the scanner could not read: fail
+		// closed rather than trust either.
+		return ErrInvalid
 	}
 	return nil
 }
@@ -51,65 +88,13 @@ func RequireEOF(decoder *json.Decoder) error {
 
 // RejectDuplicateKeys reads one JSON value and reports ErrDuplicateKey for a
 // repeated object member name and ErrTrailingData for anything after the
-// value. Invalid JSON reports ErrInvalid or the decoder's syntax error.
+// value. Invalid JSON reports ErrInvalid.
 func RejectDuplicateKeys(data []byte) error {
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.UseNumber()
-	if err := scanValue(decoder); err != nil {
-		return err
-	}
-	if _, err := decoder.Token(); !errors.Is(err, io.EOF) {
-		if err != nil {
-			return err
-		}
-		return ErrTrailingData
-	}
-	return nil
-}
-
-func scanValue(decoder *json.Decoder) error {
-	token, err := decoder.Token()
-	if err != nil {
-		return err
-	}
-	delimiter, composite := token.(json.Delim)
-	if !composite {
-		return nil
-	}
-	switch delimiter {
-	case '{':
-		seen := make(map[string]struct{})
-		for decoder.More() {
-			keyToken, err := decoder.Token()
-			if err != nil {
-				return err
-			}
-			key, ok := keyToken.(string)
-			if !ok {
-				return ErrInvalid
-			}
-			if _, duplicate := seen[key]; duplicate {
-				return ErrDuplicateKey
-			}
-			seen[key] = struct{}{}
-			if err := scanValue(decoder); err != nil {
-				return err
-			}
-		}
-		if closing, err := decoder.Token(); err != nil || closing != json.Delim('}') {
+	if err := check(data, anyInfo); err != nil {
+		if errors.Is(err, errSyntax) {
 			return ErrInvalid
 		}
-	case '[':
-		for decoder.More() {
-			if err := scanValue(decoder); err != nil {
-				return err
-			}
-		}
-		if closing, err := decoder.Token(); err != nil || closing != json.Delim(']') {
-			return ErrInvalid
-		}
-	default:
-		return ErrInvalid
+		return err
 	}
 	return nil
 }

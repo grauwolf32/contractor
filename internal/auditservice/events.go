@@ -4,15 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"math"
-	"regexp"
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/pagelimit"
 	"github.com/jackc/pgx/v5"
 )
-
-var eventResourceID = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$`)
 
 type EventListParams struct {
 	OwnerID, AuditID string
@@ -40,6 +38,7 @@ type EventPage struct {
 
 // ListEventsPage reads an owner-fenced immutable prefix in one short read-only
 // snapshot. Unlike mutable finding pages, continuations survive new revisions.
+// A page reads at most p.Limit events and no count.
 func (s *Service) ListEventsPage(ctx context.Context, p EventListParams) (EventPage, error) {
 	var result EventPage
 	if !validReviewIdentity(p.OwnerID, 256) || !validReviewIdentity(p.AuditID, 256) ||
@@ -65,11 +64,10 @@ func (s *Service) ListEventsPage(ctx context.Context, p EventListParams) (EventP
 		}
 		result.ThroughSequence = *p.ThroughSequence
 	}
-	err = tx.QueryRow(ctx, `SELECT count(*) FROM audit_events WHERE audit_id=$1 AND sequence_number <= $2`,
-		p.AuditID, int64(result.ThroughSequence)).Scan(&result.Total)
-	if err != nil {
-		return result, err
-	}
+	// Events are numbered 1, 2, 3 and so on without gaps (AUD-R223), so the
+	// prefix through ThroughSequence holds exactly that many events. Counting
+	// them on every page would make reading N events cost O(N^2/limit).
+	result.Total = int(result.ThroughSequence)
 	var before *int64
 	if p.BeforeSequence != nil {
 		value := int64(*p.BeforeSequence)
@@ -120,7 +118,7 @@ func safeEventSummary(raw json.RawMessage) map[string]any {
 			}
 		case "runId", "subjectId", "findingId", "workflowRole":
 			var text string
-			if json.Unmarshal(value, &text) == nil && eventResourceID.MatchString(text) {
+			if json.Unmarshal(value, &text) == nil && contracts.ValidResourceID(text) {
 				result[key] = text
 			}
 		default:
@@ -146,7 +144,7 @@ func eventSummaryEnum(key, value string) bool {
 	case "subjectKind":
 		return ReviewSubjectKind(value).Valid()
 	case "kind":
-		return value == FindingReviewKind || value == "report-acceptance" || auditstore.ItemApprovalKind(value).Valid()
+		return value == FindingReviewKind || value == ReportAcceptanceReviewKind || auditstore.ItemApprovalKind(value).Valid()
 	case "verdict":
 		return AnalystVerdict(value).Valid()
 	case "action":

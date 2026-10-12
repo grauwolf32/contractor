@@ -136,7 +136,7 @@ func (i *Importer) DoImport(ctx context.Context, request ImportRequest, respond 
 				return projectstore.ErrDeleting
 			}
 		}
-		repository := artifacts.NewPostgresRepository(tx)
+		repository := artifacts.NewPostgresTxRepository(tx)
 		store, _, err := importScope(artifacts.NewService(repository), request)
 		if err != nil {
 			return err
@@ -166,19 +166,10 @@ func importScope(service *artifacts.Service, request ImportRequest) (artifacts.S
 func checkImportPrecondition(ctx context.Context, store artifacts.ScopedStore, target artifacts.ArtifactRef, expected *string) error {
 	metadata, err := store.Metadata(ctx, target)
 	if errors.Is(err, artifacts.ErrArtifactNotFound) {
-		if expected == nil {
-			return nil
-		}
-		return &artifacts.ConflictError{Ref: target, ExpectedRevision: expected}
+		return artifacts.WritePrecondition(target, nil, expected)
 	}
 	if err != nil {
 		return err
 	}
-	if metadata.Frozen {
-		return artifacts.ErrArtifactFrozen
-	}
-	if expected == nil || metadata.Ref.Revision == nil || *expected != *metadata.Ref.Revision {
-		return &artifacts.ConflictError{Ref: target, ExpectedRevision: expected}
-	}
-	return nil
+	return artifacts.WritePrecondition(target, &metadata, expected)
 }

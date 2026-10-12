@@ -306,8 +306,9 @@ Rationale: this keeps revisions out of model context without adding another
 network service or Artifact authorization mode.
 
 **MEM-R92.** An ordinary artifact named `memory.*` in a purpose-reserved
-`inputs`, `outputs` or `skills` Namespace remains governed by that Namespace's
-own contract and is not a Memory note.
+Namespace (`inputs`, `outputs`, `skills`, `finding-proposals` or
+`contractor-system`, [ART-R114](../artifacts/artifact-store.md)) remains
+governed by that Namespace's own contract and is not a Memory note.
 
 Filtering reserved bindings from generic lists even when the same
 AgentTemplate selects MemoryTools, the use of the private Artifact API without
@@ -396,6 +397,11 @@ as unique tags in lexical order.
 128-note limit.
 
 **MEM-R94.** MemoryTools never evicts an older note to make room.
+
+**MEM-R98.** Every note write also stores an Artifact revision in the Run, so
+once the Run has used up its Artifact revision limit (LIM-ART-6) both
+MemoryTools adapters return `memory_namespace_full` for any further write,
+create or not; no retry can succeed in that Run.
 
 **MEM-R46.** Old immutable note revisions remain ordinary Run
 artifacts under ArtifactStore retention but do not count as active notes
@@ -695,7 +701,8 @@ holds each code's meaning and its retryability without changing input
 - `memory_too_large` — resulting canonical note over 32 KiB
   (MEM-R25).
 - `memory_namespace_full` — a create beyond 128 active notes
-  (MEM-R45).
+  (MEM-R45), or any write after the Run used up its Artifact revision limit
+  (MEM-R98).
 - `memory_changed` — hidden CAS conflict or ambiguous newer value, retryable
   only after a re-read (MEM-R67, MEM-R68, MEM-R70).
 - `memory_forbidden` — capability or write-fence rejection

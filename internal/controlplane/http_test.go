@@ -6,6 +6,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -266,5 +267,46 @@ func generatePKI(t *testing.T, name string) pkiFiles {
 	return pkiFiles{
 		controlPlane: mtls.Files{Certificate: controlPlane.Certificate, PrivateKey: controlPlane.PrivateKey, CA: ca.Certificate},
 		agent:        mtls.Files{Certificate: agent.Certificate, PrivateKey: agent.PrivateKey, CA: ca.Certificate},
+	}
+}
+
+// The Runtime stops startup on a registration rejection marked not retryable
+// and retries one marked retryable, ahead of the HTTP status (CTL-R151,
+// RTA-R113), so each rejection class pins its verdict here.
+func TestPrivateRegistrationRejectionsCarryTheRetryVerdict(t *testing.T) {
+	for _, test := range []struct {
+		name      string
+		err       error
+		status    int
+		code      string
+		retryable bool
+	}{
+		{"strict validation", fmt.Errorf("%w: invalid registration", ErrInvalidRequest), http.StatusBadRequest, "invalid_request", false},
+		{"labels", runtimeconfig.ErrAgentLabelNotApplicable, http.StatusBadRequest, "invalid_runtime_labels", false},
+		{"state conflict", ErrRegistrationConflict, http.StatusConflict, "conflict", true},
+		{"internal failure", errors.New("database unavailable"), http.StatusInternalServerError, "internal_error", true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			handler, err := NewHTTPHandler(newTestRegistry(t, newTestClock()), HTTPOptions{
+				Principals: failingPrincipalRegistrar{err: test.err},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			body, err := json.Marshal(testRegistration("agent-http"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			response := httptest.NewRecorder()
+			handler.ServeHTTP(response, verifiedRequest(http.MethodPost, "/private/v1/agents/register", body))
+			var envelope privateErrorResponse
+			if err := json.Unmarshal(response.Body.Bytes(), &envelope); err != nil {
+				t.Fatal(err)
+			}
+			if response.Code != test.status || envelope.Code != test.code || envelope.Retryable != test.retryable ||
+				envelope.RequestID == "" || envelope.Message == "" {
+				t.Fatalf("rejection = %d %+v", response.Code, envelope)
+			}
+		})
 	}
 }

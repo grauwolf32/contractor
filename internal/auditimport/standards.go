@@ -57,13 +57,7 @@ func (i *Importer) loadPinnedStandards(
 		if _, duplicate := result[key]; duplicate || auditstandards.ValidatePinnedPackage(pinned) != nil {
 			return nil, fmt.Errorf("%w: Audit standard baseline is invalid", ErrPermanent)
 		}
-		payload, err := i.artifacts.ReadProjectExact(
-			ctx, snapshot.Audit.ProjectID,
-			auditstore.ExactArtifact{
-				Ref: pinned.Retained.Artifact, Digest: pinned.Retained.Digest,
-				MediaType: pinned.Retained.MediaType, SizeBytes: pinned.Retained.SizeBytes,
-			},
-		)
+		payload, err := i.artifacts.ReadProjectExact(ctx, snapshot.Audit.ProjectID, pinned.Retained.Exact())
 		if err != nil {
 			return nil, fmt.Errorf("read exact retained Audit standard: %w", err)
 		}

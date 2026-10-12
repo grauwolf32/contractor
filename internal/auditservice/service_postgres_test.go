@@ -170,9 +170,22 @@ func TestAuditDraftStartReplayAndAtomicUnsupportedRollback(t *testing.T) {
 	if err != nil || deleting.Audit.State != auditstore.AuditCancelling || deleting.Audit.DeletionRequestedAt == nil {
 		t.Fatalf("delete intent = (%+v, %v)", deleting, err)
 	}
-	coverage, err := service.ListCoverage(ctx, project.OwnerID, draft.AuditID, started.Round.RoundID, -1, 10)
+	coveragePage, err := service.ListCoverage(ctx, project.OwnerID, draft.AuditID, started.Round.RoundID, -1, 10, nil)
+	coverage := coveragePage.Rows
 	if err != nil || len(coverage) != 1 || coverage[0].Ordinal != 0 || coverage[0].Coverage.Status != auditstore.CoverageNotTested {
 		t.Fatalf("initial coverage = (%+v, %v)", coverage, err)
+	}
+	if current, err := service.Get(ctx, project.OwnerID, draft.AuditID); err != nil || coveragePage.AuditRevision != current.Revision {
+		t.Fatalf("coverage page revision = %d, Audit = (%+v, %v)", coveragePage.AuditRevision, current, err)
+	}
+	pinned := coveragePage.AuditRevision
+	if page, err := service.ListCoverage(ctx, project.OwnerID, draft.AuditID, started.Round.RoundID, -1, 10, &pinned); err != nil ||
+		page.AuditRevision != pinned || len(page.Rows) != 1 {
+		t.Fatalf("pinned coverage = (%+v, %v)", page, err)
+	}
+	stale := pinned - 1
+	if _, err := service.ListCoverage(ctx, project.OwnerID, draft.AuditID, started.Round.RoundID, -1, 10, &stale); !errors.Is(err, auditstore.ErrConflict) {
+		t.Fatalf("stale coverage pin = %v", err)
 	}
 	if coverage[0].Details == nil || coverage[0].Details.Objective == "" || !json.Valid(coverage[0].Details.TaskDocument) {
 		t.Fatalf("coverage omitted the retained task: %+v", coverage[0].Details)
@@ -246,7 +259,7 @@ func TestAuditDraftStartReplayAndAtomicUnsupportedRollback(t *testing.T) {
 		t.Fatalf("foreign owner item list = %v", err)
 	}
 	if _, err := service.ListCoverage(
-		ctx, "other-owner", draft.AuditID, started.Round.RoundID, -1, 10,
+		ctx, "other-owner", draft.AuditID, started.Round.RoundID, -1, 10, nil,
 	); !errors.Is(err, auditstore.ErrNotFound) {
 		t.Fatalf("foreign owner coverage = %v", err)
 	}
@@ -287,7 +300,7 @@ func TestAuditDraftStartReplayAndAtomicUnsupportedRollback(t *testing.T) {
 	reviews, err := service.ListReviews(ctx, ReviewListParams{
 		OwnerID: project.OwnerID, AuditID: manualDraft.AuditID, Limit: 10,
 	})
-	if err != nil || len(reviews) != 1 || reviews[0].Kind != ApplicabilityReviewKind ||
+	if err != nil || len(reviews) != 1 || reviews[0].Kind != string(auditstore.ItemApprovalApplicability) ||
 		reviews[0].SubjectKind != ReviewSubjectItemAction ||
 		reviews[0].SubjectID != manualStarted.Items[0].ItemID {
 		t.Fatalf("manual item reviews = (%+v, %v)", reviews, err)
@@ -446,9 +459,10 @@ UPDATE audit_review_requests SET expires_at = clock_timestamp() - interval '1 se
 		*rejectedItems[0].FinalDisposition != auditstore.FinalExcluded {
 		t.Fatalf("rejected exact item = (%+v, %v)", rejectedItems, err)
 	}
-	rejectedCoverage, err := service.ListCoverage(
-		ctx, project.OwnerID, rejectedDraft.AuditID, rejectedStarted.Round.RoundID, -1, 10,
+	rejectedPage, err := service.ListCoverage(
+		ctx, project.OwnerID, rejectedDraft.AuditID, rejectedStarted.Round.RoundID, -1, 10, nil,
 	)
+	rejectedCoverage := rejectedPage.Rows
 	if err != nil || len(rejectedCoverage) != 1 ||
 		rejectedCoverage[0].Coverage.Status != auditstore.CoverageExcluded {
 		t.Fatalf("rejected item coverage = (%+v, %v)", rejectedCoverage, err)
@@ -523,10 +537,11 @@ SELECT count(*)
 		*notApplicableItems[0].FinalDisposition != auditstore.FinalNotApplicable {
 		t.Fatalf("not-applicable item = (%+v, %v)", notApplicableItems, err)
 	}
-	notApplicableCoverage, err := service.ListCoverage(
+	notApplicablePage, err := service.ListCoverage(
 		ctx, project.OwnerID, notApplicableDraft.AuditID,
-		notApplicableStarted.Round.RoundID, -1, 10,
+		notApplicableStarted.Round.RoundID, -1, 10, nil,
 	)
+	notApplicableCoverage := notApplicablePage.Rows
 	if err != nil || len(notApplicableCoverage) != 1 ||
 		notApplicableCoverage[0].Coverage.Status != auditstore.CoverageNotApplicable ||
 		notApplicableCoverage[0].Coverage.Rationale != rationale {
@@ -1071,14 +1086,16 @@ func TestAuditFindingReviewHistoryAndDeletedRunProvenance(t *testing.T) {
 		decided.Finding.AnalystSeverity == nil || *decided.Finding.AnalystSeverity != SeverityHigh {
 		t.Fatalf("true-positive decision = (%+v, %v)", decided, err)
 	}
-	reportFindings, err := auditstore.NewPostgresStore(pool).ListReportFindings(ctx, auditID)
+	reportFindings, more, err := auditstore.NewPostgresStore(pool).ListReportFindings(ctx, auditstore.ReportFindingPageParams{
+		AuditID: auditID, Section: auditstore.ReportSectionConfirmed, Limit: 10, ProjectionBytes: 1 << 20,
+	})
 	var reportFinding *auditstore.ReportFinding
 	for index := range reportFindings {
 		if reportFindings[index].FindingID == firstID {
 			reportFinding = &reportFindings[index]
 		}
 	}
-	if err != nil || len(reportFindings) != 2 || reportFinding == nil ||
+	if err != nil || more || len(reportFindings) != 1 || reportFinding == nil ||
 		reportFinding.Decision == nil || reportFinding.Decision.Verdict != string(VerdictTruePositive) ||
 		reportFinding.Decision.Severity == nil || *reportFinding.Decision.Severity != string(SeverityHigh) {
 		t.Fatalf("report finding snapshot = (%+v, %v)", reportFindings, err)
@@ -1405,13 +1422,13 @@ func seedAuditFindingDocument(
 	if err != nil {
 		t.Fatal(err)
 	}
-	projectArtifacts, err := artifacts.NewService(artifacts.NewPostgresRepository(pool)).Project(projectID)
+	projection, err := auditdomain.EncodeFindingReportProjection(auditdomain.ProjectFindingReport(document))
 	if err != nil {
 		t.Fatal(err)
 	}
-	written, err := projectArtifacts.Write(ctx,
+	written, err := artifacts.NewService(artifacts.NewPostgresRepository(pool)).WriteAuditArtifact(ctx, projectID,
 		contracts.ArtifactRef{Namespace: "audit-finding-proposals", Name: "candidate-" + suffix},
-		artifacts.Payload{MediaType: "application/json", Data: payload}, nil)
+		artifacts.Payload{MediaType: "application/json", Data: payload})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1430,16 +1447,17 @@ INSERT INTO finding_proposal_receipts (
     workflow_name, workflow_version, workflow_schema_version,
     workflow_configuration_ref, workflow_closure_digest,
     proposal_ref, proposal_digest, proposal_media_type,
-    proposal_size_bytes, evidence
+    proposal_size_bytes, evidence, report_projection
 ) VALUES ($1, $2, $3, 'runtime-review', 'instance-review', 'stage-review', 'worker',
           $4, $5, $6, $7, $8, $9, $10,
           'finding-source', '1', 'contractor/v1alpha1',
           '{"name":"finding-source","version":"1"}'::jsonb, $11,
-          $12::jsonb, $13, 'application/json', $14, '[]'::jsonb)`,
+          $12::jsonb, $13, 'application/json', $14, '[]'::jsonb, $15)`,
 		receiptID, "proposal-"+suffix, "allocation-"+suffix,
 		"invocation-"+suffix, "submission-"+suffix, document.ClientKey,
 		serviceTestDigest("request-"+suffix), "deleted-run-"+suffix, ownerID, projectID,
 		serviceTestDigest("workflow-"+suffix), proposalRefJSON, proposal.Digest, proposal.SizeBytes,
+		string(projection),
 	); err != nil {
 		t.Fatal(err)
 	}

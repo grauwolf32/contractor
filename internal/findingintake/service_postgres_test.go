@@ -90,6 +90,11 @@ func testPostgresFindingReceiptAuditImportDirectVerificationAndRunDeletion(t *te
 		Tools: []string{"finding"},
 	})
 	stage.Agents["builder"] = binding
+	// The Stage result feeds the retyped primary output, so it declares the
+	// same media type: a stored snapshot is read as a complete, valid graph.
+	copied := stage.Result.Artifacts["copied"]
+	copied.MediaTypes = []string{auditdomain.DirectVerificationsMediaType}
+	stage.Result.Artifacts["copied"] = copied
 	workflow.Stages[workflow.EntryStage] = stage
 	workflow.Outputs["result"] = workflowconfig.ArtifactSlot{
 		Required: true, Primary: true,
@@ -114,8 +119,14 @@ func testPostgresFindingReceiptAuditImportDirectVerificationAndRunDeletion(t *te
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := runs.TransitionRun(ctx, runID, runstore.RunInitializing, runstore.RunRunning,
-		runstore.Reason{Code: "finding_test_started"}); err != nil {
+	if _, err := runs.TransitionRun(
+		ctx, runID, runstore.RunInitializing, runstore.RunPending, runstore.Reason{Code: "finding_test_started"},
+	); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := runs.TransitionRun(
+		ctx, runID, runstore.RunPending, runstore.RunRunning, runstore.Reason{Code: "admitted"},
+	); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := runs.CreateStageExecution(ctx, runstore.CreateStageExecutionParams{
@@ -231,6 +242,17 @@ func testPostgresFindingReceiptAuditImportDirectVerificationAndRunDeletion(t *te
 		firstReceipt.Origin.RunID != runID || firstReceipt.Origin.InvocationID != firstInput.InvocationID {
 		t.Fatalf("trusted receipt origin = %+v", firstReceipt.Origin)
 	}
+	// Intake stores the proposal's canonical report projection, so Audit
+	// reports never read the proposal artifact back.
+	wantProjection, err := auditdomain.EncodeFindingReportProjection(auditdomain.ProjectFindingReport(firstInput.Proposal))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var storedProjection string
+	if err := pool.QueryRow(ctx, `SELECT report_projection FROM finding_proposal_receipts WHERE receipt_id = $1`,
+		firstReceipt.ReceiptID).Scan(&storedProjection); err != nil || storedProjection != string(wantProjection) {
+		t.Fatalf("stored report projection = %q, %v; want %q", storedProjection, err, wantProjection)
+	}
 	changed := firstInput
 	changed.Proposal.Title = "Changed after acceptance"
 	if _, _, err := service.Submit(ctx, grant, changed); !errors.Is(err, ErrConflict) {
@@ -327,7 +349,7 @@ func testPostgresFindingReceiptAuditImportDirectVerificationAndRunDeletion(t *te
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pool.Exec(ctx, `UPDATE finding_proposal_receipts SET workflow_name = 'forged' WHERE receipt_id = $1`, firstReceipt.ReceiptID); persistencepostgres.SQLState(err) != "23514" {
+	if _, err := pool.Exec(ctx, `UPDATE finding_proposal_receipts SET workflow_name = 'forged' WHERE receipt_id = $1`, firstReceipt.ReceiptID); persistencepostgres.SQLState(err) != persistencepostgres.SQLStateCheckViolation {
 		t.Fatalf("receipt provenance rewrite SQLSTATE = %q, error = %v", persistencepostgres.SQLState(err), err)
 	}
 	hold, replayed, err := service.ImportIntoAudit(ctx, ImportRequest{

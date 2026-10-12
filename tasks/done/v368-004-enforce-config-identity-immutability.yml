@@ -1,0 +1,66 @@
+schema_version: "1.0"
+id: V368-004
+title: "Detect in-place changes of published configuration identities"
+milestone: hub-audit-defects-2026-10
+epic: workflows
+kind: defect
+priority: P1
+status: completed
+implementation_commit: "88a18225e9d43ec0818f72b68f1f4072cbbd3994"
+depends_on: []
+languages: [go]
+goal: "Changing a shipped manifest without a new version fails the gate (or the spec says why it may)."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq; raw reports in docs/research/2026-10-11-hub-audit/), config D 3.4, F2; file:line as of 02bbdcbf, re-verify on current main"
+  finding: >-
+    AGENTS.md section 2 and CAT-R44 say name@version names exact content,
+    but only managed publication, Skills, audit standards and eval pins
+    detect drift. Since 2026-08-12, 129 changes to shipped manifests kept
+    their version; worker@2 changed five times (temperature 0.1 -> 1.0 ->
+    0.6, token budgets). After a restart new content silently takes the old
+    identity.
+  decision: >-
+    The user decided on 2026-10-11: relax the rule for the pre-production
+    shipped catalog; no digest lock. Immutability and drift detection apply
+    to configuration published at runtime, as before: managed publication
+    is create-only and never rebinds an operator-root identity (CAT-R44,
+    CAT-R46, CAT-R59), bundled Skill seeds report seed_drift (SKL-R54),
+    Audit standard packages fail on drift and need a new version (AUD-R54,
+    AUD-R55), and Eval pins reject a changed selection. The shipped manifests
+    and instructions under configs/ may change in place without a version
+    bump until the first release (new CAT-R74; TPL-R36, TPL-R54, TPL-R56,
+    RCF-R27, WFL-R12, LIFE-CAT-1, the glossary, AGENTS.md section 2 and
+    configs/README.md follow). Guarantee, verified in code: what a Run used
+    stays exact, because its snapshot is the complete resolved Workflow
+    (runservice/public.go stores json.Marshal of the ResolvedWorkflow) with
+    digest-bearing AgentTemplate, ModelPolicy, LLMGatewayConfig and
+    ExecutionConfig refs and instruction digests (config/types.go); a started
+    Audit creates its child Runs from the pinned closure (runservice/audit.go,
+    AUD-R31); a managed Eval passes its frozen ExpectedWorkflowSHA256, the
+    Run service answers ErrPinnedSelectionChanged (runservice/public.go) and
+    the Eval records eval_pin_mismatch (evalservice/execution_operations.go).
+    Accepted risk: the same name@version can name different content in two
+    Runs, or in a Run and the current catalog; it is detected by those
+    digests, snapshots and Eval pins, not prevented. Pinned by
+    TestManagedPublicationNeverRebindsShippedIdentity and
+    TestShippedCatalogInPlaceChangeIsVisibleInRunSnapshots in
+    internal/config; TestExecutionConfigProfileAndRunSnapshotSurviveCatalogChange
+    already shows that a stored Run snapshot keeps the old content.
+    Alternative: a committed digest lock (kind name@version -> digest)
+    checked by contractor server config validate and the release gate, with
+    mandatory version bumps; declined while the catalog is pre-production and
+    nothing is deployed. Reopen at the first release or the first external
+    deployment, whichever comes first: add the lock and remove CAT-R74.
+scope:
+  in:
+    - "Either a committed digest lock for configs/ (kind name@version -> digest) checked by contractor server config validate and run in the release gate, or an explicit spec change that scopes immutability to published operator content; implement the chosen rule."
+  out:
+    - "Runtime behaviour of current manifests."
+acceptance_criteria:
+  - id: A1
+    text: "Changing a shipped manifest without a new version fails the gate (or the spec says why it may)."
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "go run ./cmd/contractor-server config validate --root ./configs"
+    covers: [A1]

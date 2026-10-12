@@ -310,7 +310,7 @@ func TestPostgresAuditPreparationIdentityAndReplay(t *testing.T) {
 		`UPDATE audit_executions SET workflow_role='another-role'`,
 		`UPDATE audit_executions SET preparation_snapshot='{"inputs":{},"parameters":{}}'`,
 	} {
-		if _, err := f.pool.Exec(f.ctx, query); persistencepostgres.SQLState(err) != "23514" {
+		if _, err := f.pool.Exec(f.ctx, query); persistencepostgres.SQLState(err) != persistencepostgres.SQLStateCheckViolation {
 			t.Fatalf("immutable data changed: %s: %v", query, err)
 		}
 	}
@@ -321,6 +321,16 @@ func TestPostgresAuditPreparationIdentityAndReplay(t *testing.T) {
 	audit, err := f.store.CompletePreparation(f.ctx, f.claim, current.Revision)
 	if err != nil || audit.Phase != auditdomain.AuditPhaseInventory || audit.CurrentRoundID != nil || !reflect.DeepEqual(audit.BaselineSnapshot, current.BaselineSnapshot) {
 		t.Fatalf("inventory transition: %+v %v", audit, err)
+	}
+	// Preparation records its events through the dense Audit event sequence.
+	var events, first, last, preparation int64
+	if err := f.pool.QueryRow(f.ctx, `
+SELECT count(*), COALESCE(min(sequence_number), 0), COALESCE(max(sequence_number), 0),
+       count(*) FILTER (WHERE kind IN ('audit.preparation_started', 'audit.preparation_completed'))
+  FROM audit_events WHERE audit_id = $1`, audit.AuditID).Scan(&events, &first, &last, &preparation); err != nil ||
+		events != int64(audit.EventSequence) || first != 1 || last != events || preparation != 2 {
+		t.Fatalf("preparation events = %d numbered %d..%d with %d preparation events (%v), want 1..%d",
+			events, first, last, preparation, err, audit.EventSequence)
 	}
 }
 
@@ -451,10 +461,16 @@ func TestPostgresAuditPreparationRetentionAndLifecycleWithoutRound(t *testing.T)
 		if err != nil || auditdomain.DigestBytes(read.Payload.Data) != output.Retained.Digest {
 			t.Fatalf("retained content: %v", err)
 		}
+		// The generic Project store refuses every write under audit-*
+		// (ART-R26), and the retained binding itself is frozen.
 		project, _ := f.artifacts.Project(f.audit.ProjectID)
 		mutable := output.Retained.Ref
 		mutable.Revision = nil
-		if _, err := project.Write(f.ctx, mutable, Payload{MediaType: "application/json", Data: []byte("changed")}, output.Retained.Ref.Revision); !errors.Is(err, ErrArtifactFrozen) {
+		changed := Payload{MediaType: "application/json", Data: []byte("changed")}
+		if _, err := project.Write(f.ctx, mutable, changed, output.Retained.Ref.Revision); !errors.Is(err, ErrReservedNamespace) {
+			t.Fatalf("generic write of a retained binding: %v", err)
+		}
+		if _, err := NewPostgresRepository(f.pool).Write(f.ctx, mustProjectScope(t, f.audit.ProjectID), mutable, changed, output.Retained.Ref.Revision); !errors.Is(err, ErrArtifactFrozen) {
 			t.Fatalf("retained binding was mutable: %v", err)
 		}
 	}

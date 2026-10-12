@@ -172,13 +172,13 @@ func (s *Scheduler) resumeFinalizing(
 	s.persistReports(ctx, run, workflow, execution, reservations, reports)
 
 	stateContext, cancelState := s.terminalOperationContext(ctx)
-	current, err := s.store.GetRun(stateContext, run.RunID)
+	state, err := s.store.GetRunState(stateContext, run.RunID)
 	cancelState()
 	if err != nil {
 		return err
 	}
-	if current.State == runstore.RunCancelling {
-		return s.acceptFinalizingDuringCancellation(ctx, current, execution, reservations)
+	if state == runstore.RunCancelling {
+		return s.acceptFinalizingDuringCancellation(ctx, run, execution, reservations)
 	}
 	action := workflow.stage.On.Succeeded
 	retryable := false
@@ -207,12 +207,15 @@ func (s *Scheduler) resumeFinalizing(
 		})
 	}
 	cancelCommit()
+	if errors.Is(err, errTransientOutputPublication) {
+		err = errors.Join(err, s.countTransientOutputPublication(ctx, execution))
+	}
 	if errors.Is(err, runstore.ErrConflict) {
 		stateContext, cancelState := s.terminalOperationContext(ctx)
-		current, loadErr := s.store.GetRun(stateContext, run.RunID)
+		state, loadErr := s.store.GetRunState(stateContext, run.RunID)
 		cancelState()
-		if loadErr == nil && current.State == runstore.RunCancelling {
-			return s.acceptFinalizingDuringCancellation(ctx, current, execution, reservations)
+		if loadErr == nil && state == runstore.RunCancelling {
+			return s.acceptFinalizingDuringCancellation(ctx, run, execution, reservations)
 		}
 	}
 	if errors.Is(err, runstore.ErrQueuePaused) {
@@ -223,6 +226,22 @@ func (s *Scheduler) resumeFinalizing(
 	}
 	_ = s.releaseTerminal(execution.StageExecutionID, reservations)
 	return nil
+}
+
+// countTransientOutputPublication records, as its own store operation, a
+// terminal commit that a transient publication failure aborted, so that
+// finalization recovery stops attempting publication after LIM-PRJ-4 such
+// failures (PRJ-R58). A failure it cannot count, because the database is
+// unavailable or the claim was lost, does not consume the bound. A finalizing
+// Stage that has since left finalizing needs no count.
+func (s *Scheduler) countTransientOutputPublication(ctx context.Context, execution runstore.StageExecution) error {
+	operation, cancel := s.terminalOperationContext(ctx)
+	defer cancel()
+	err := s.store.RecordStageOutputPublicationFailure(operation, execution.RunID, execution.StageExecutionID)
+	if errors.Is(err, runstore.ErrConflict) {
+		return nil
+	}
+	return err
 }
 
 func (s *Scheduler) buildProgression(

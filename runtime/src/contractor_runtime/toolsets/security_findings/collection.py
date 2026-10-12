@@ -15,6 +15,7 @@ from typing import Any
 import jcs
 
 from contractor_runtime.contracts import MEDIA_TYPE_PATTERN, ArtifactRef
+from contractor_runtime.contracts.base import is_blank
 from contractor_runtime.digests import sha256_digest
 from contractor_runtime.strict_json import unique_json_object
 from contractor_runtime.toolsets.common.finding_locations import normalize_locations
@@ -364,7 +365,7 @@ def _proposal(data: bytes) -> dict[str, Any]:
     require(all(part is not None or field == "subject" for field, part in value.items()))
     require(identifier(value["client_key"]))
     for field in ("title", "description"):
-        require(isinstance(value[field], str) and value[field].strip())
+        require(isinstance(value[field], str) and not is_blank(value[field]))
     if value["subject"] is not None:
         object_fields(value["subject"], "kind key")
         require(all(identifier(part) for part in value["subject"].values()))
@@ -394,16 +395,18 @@ def _proposal(data: bytes) -> dict[str, Any]:
         }
     )
     for field in ("preconditions", "limitations"):
-        require(all(isinstance(part, str) and part.strip() for part in array(value[field], 512)))
+        require(
+            all(isinstance(part, str) and not is_blank(part) for part in array(value[field], 512))
+        )
     evidence_ids = array(value["evidence_ids"], 256)
     require(all(identifier(part) for part in evidence_ids))
     require(len(evidence_ids) == len(set(evidence_ids)))
     for reference in array(value["standard_refs"], 512):
         object_fields(reference, "scheme version requirement_id")
         require(identifier(reference["scheme"]) and identifier(reference["requirement_id"]))
-        require(isinstance(reference["version"], str) and reference["version"].strip())
+        require(isinstance(reference["version"], str) and not is_blank(reference["version"]))
     for check in array(value["proposed_checks"], 512):
         object_fields(check, "objective method")
-        require(isinstance(check["objective"], str) and check["objective"].strip())
+        require(isinstance(check["objective"], str) and not is_blank(check["objective"]))
         require(identifier(check["method"]))
     return value

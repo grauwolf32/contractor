@@ -11,11 +11,6 @@ const (
 	MaxWorkflowRunSkills   = 128
 )
 
-// ArtifactNamePattern is shared by namespaces and logical binding names.
-const ArtifactNamePattern = `^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$`
-
-var artifactNamePattern = regexp.MustCompile(ArtifactNamePattern)
-
 // MaxArtifactListCursorLength bounds the opaque private Artifact list cursor
 // (LIM-ART-5). The cursor is unpadded base64url; the Runtime and
 // artifact.schema.json apply the same grammar.
@@ -34,8 +29,10 @@ func ValidateArtifactListCursor(value string) error {
 	return nil
 }
 
+// ValidateArtifactName checks an Artifact namespace or name, or a logical
+// binding name: the shared name grammar of ValidName.
 func ValidateArtifactName(value string) error {
-	if !artifactNamePattern.MatchString(value) {
+	if !ValidName(value) {
 		return Invalidf("artifact name must be 1 through 128 ASCII letters, digits, dots, underscores or hyphens, starting with a letter or digit")
 	}
 	return nil
@@ -53,8 +50,8 @@ func AcceptsMediaType(accepted []string, actual string) bool {
 }
 
 type ArtifactRef struct {
-	Namespace string  `json:"namespace"`
-	Name      string  `json:"name"`
+	Namespace string  `json:"namespace" strictjson:"required"`
+	Name      string  `json:"name" strictjson:"required"`
 	Revision  *string `json:"revision,omitempty"`
 }
 
@@ -129,13 +126,16 @@ func (r ArtifactRef) Key() string {
 // ValidateAgentSkillRef validates the logical, versionless ref accepted in an
 // AgentTemplate. Exact revisions belong to the Run snapshot instead.
 func (r ArtifactRef) ValidateAgentSkillRef() error {
-	if r.Namespace != AgentSkillNamespace || r.Revision != nil || !validAgentSkillName(r.Name) {
+	if r.Namespace != AgentSkillNamespace || r.Revision != nil || !ValidAgentSkillName(r.Name) {
 		return Invalidf("AgentTemplate skill ref must be versionless skills/<portable-name>")
 	}
 	return nil
 }
 
-func validAgentSkillName(value string) bool {
+// ValidAgentSkillName reports whether value is a portable Agent Skill name: 1
+// to 64 lowercase ASCII letters, digits and single inner hyphens. It is the one
+// Go definition of the grammar; SkillCatalog and skill packages use it too.
+func ValidAgentSkillName(value string) bool {
 	if len(value) < 1 || len(value) > 64 || value[0] == '-' || value[len(value)-1] == '-' {
 		return false
 	}
@@ -157,10 +157,10 @@ func validAgentSkillName(value string) bool {
 }
 
 type ArtifactReadResult struct {
-	APIVersion string      `json:"apiVersion"`
-	Artifact   ArtifactRef `json:"artifact"`
-	MediaType  string      `json:"mediaType"`
-	Size       int64       `json:"size"`
+	APIVersion string      `json:"apiVersion" strictjson:"required"`
+	Artifact   ArtifactRef `json:"artifact" strictjson:"required"`
+	MediaType  string      `json:"mediaType" strictjson:"required"`
+	Size       int64       `json:"size" strictjson:"required"`
 }
 
 func (r ArtifactReadResult) Validate() error {
@@ -183,8 +183,8 @@ type ArtifactWriteResult struct {
 // ArtifactListResult is one page of versionless refs. NextCursor continues a
 // paged listing and is absent on its last page and from a namePrefix listing.
 type ArtifactListResult struct {
-	APIVersion string        `json:"apiVersion"`
-	Artifacts  []ArtifactRef `json:"artifacts"`
+	APIVersion string        `json:"apiVersion" strictjson:"required"`
+	Artifacts  []ArtifactRef `json:"artifacts" strictjson:"required"`
 	NextCursor *string       `json:"nextCursor,omitempty"`
 }
 

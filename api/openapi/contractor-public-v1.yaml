@@ -3081,9 +3081,7 @@ paths:
         - name: If-None-Match
           in: header
           schema: {type: string, const: '*'}
-        - name: If-Match
-          in: header
-          schema: {type: string}
+        - $ref: '#/components/parameters/ArtifactIfMatch'
       requestBody:
         required: true
         content:
@@ -3134,9 +3132,7 @@ paths:
         - name: If-None-Match
           in: header
           schema: {type: string, const: '*'}
-        - name: If-Match
-          in: header
-          schema: {type: string}
+        - $ref: '#/components/parameters/ArtifactIfMatch'
       requestBody:
         required: true
         content:
@@ -3458,7 +3454,7 @@ paths:
       x-contractor-implementation: implemented
       x-max-request-body-bytes: 67108864
       parameters:
-        - $ref: '#/components/parameters/IfMatch'
+        - $ref: '#/components/parameters/ArtifactIfMatch'
         - $ref: '#/components/parameters/IfNoneMatch'
         - $ref: '#/components/parameters/OptionalOrigin'
         - $ref: '#/components/parameters/OptionalCSRFToken'
@@ -3954,7 +3950,7 @@ paths:
         - $ref: '#/components/parameters/Limit'
         - $ref: '#/components/parameters/Cursor'
         - {name: auditState, in: query, schema: {type: string}, description: 'Comma-separated Audit states.'}
-        - {name: state, in: query, schema: {type: string, enum: [pending, decided, expired]}}
+        - {name: state, in: query, schema: {type: string, enum: [pending, decided, expired]}, description: 'pending lists only requests that can still be decided: a pending request past its expiresAt at the Server database clock is left out before anything has expired it. decided and expired match the stored state.'}
       responses:
         '200':
           description: Newest-first page across owned Projects
@@ -4216,6 +4212,7 @@ paths:
           in: query
           required: false
           schema: {$ref: '#/components/schemas/ResourceId'}
+        - {name: auditRevision, in: query, required: false, schema: {type: integer, minimum: 1}, description: 'Pin this page, and the current Round it defaults to, to one Audit revision. Every page is read at one revision; continuations bind the Round and revision; a stale revision returns 409.'}
       responses:
         '200':
           description: Stable coverage page
@@ -4228,6 +4225,7 @@ paths:
         '400': {$ref: '#/components/responses/BadRequest'}
         '401': {$ref: '#/components/responses/Unauthorized'}
         '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
         '500': {$ref: '#/components/responses/InternalError'}
         '503': {$ref: '#/components/responses/StorageTransactionConflict'}
 
@@ -5243,7 +5241,7 @@ paths:
       x-contractor-implementation: implemented
       x-max-request-body-bytes: 67108864
       parameters:
-        - $ref: '#/components/parameters/IfMatch'
+        - $ref: '#/components/parameters/ArtifactIfMatch'
         - $ref: '#/components/parameters/IfNoneMatch'
         - $ref: '#/components/parameters/OptionalOrigin'
         - $ref: '#/components/parameters/OptionalCSRFToken'
@@ -6421,6 +6419,12 @@ components:
       in: header
       required: false
       schema: {type: string, pattern: '^"[^"\\]+"$'}
+    ArtifactIfMatch:
+      name: If-Match
+      in: header
+      required: false
+      description: One strong quoted Artifact revision in the `Revision` grammar. A malformed revision is 400 `invalid_request`, never a CAS conflict.
+      schema: {type: string, minLength: 3, maxLength: 258, pattern: '^"[A-Za-z0-9][A-Za-z0-9_.:-]*"$'}
     RequiredIfMatch:
       name: If-Match
       in: header
@@ -11903,10 +11907,11 @@ components:
     AuditCoveragePage:
       type: object
       additionalProperties: false
-      required: [items, page]
+      required: [items, page, auditRevision]
       properties:
         items: {type: array, maxItems: 200, items: {$ref: '#/components/schemas/AuditCoverageRow'}}
         page: {$ref: '#/components/schemas/PageInfo'}
+        auditRevision: {type: integer, minimum: 1, description: The Audit revision every row of this page was read at.}
     AuditItemApprovalKind: {enum: [none, active-check-approval, requirement-applicability]}
     AuditReportSummaryArtifact:
       type: object

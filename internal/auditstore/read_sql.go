@@ -41,10 +41,7 @@ SELECT item.audit_id, item.round_id, item.item_id, item.ordinal,
 // ordered by role and attempt. $3 is one more than the per-round bound so the
 // caller can detect overflow. Used by PostgresStore.listRoleReceipts.
 var listRoleReceiptsSQL = `
-SELECT execution.collection_receipt_id, execution.audit_id, execution.execution_id, execution.run_id,
-       execution.terminal_outcome, execution.terminal_run_generation,
-       execution.terminal_run_sequence, execution.collection_disposition,
-       execution.collection_error_code, execution.collection_request_digest, execution.collected_at
+SELECT ` + receiptSummaryColumns("execution") + `
   FROM audit_executions AS execution
  WHERE execution.audit_id = $1 AND (execution.role = 'prepare' OR (
        execution.role IN ('discovery', 'assessment') AND execution.round_id IS NOT DISTINCT FROM $2))
@@ -54,12 +51,25 @@ SELECT execution.collection_receipt_id, execution.audit_id, execution.execution_
 
 // listCollectionReceiptsSQL lists the collection receipts of Audit $1's
 // collected executions, newest first. $2 is one more than the reconcile bound
-// so the caller can detect overflow. Used by PostgresStore.ReconcileSnapshot.
+// so the caller can detect overflow. Used by PostgresStore.GetReconcileSnapshot.
 var listCollectionReceiptsSQL = `
-SELECT collection_receipt_id, audit_id, execution_id, run_id,
-       terminal_outcome, terminal_run_generation, terminal_run_sequence,
-       collection_disposition, collection_error_code, collection_request_digest, collected_at
+SELECT ` + receiptSummaryColumns("audit_executions") + `
   FROM audit_executions
  WHERE audit_id = $1 AND collection_receipt_id IS NOT NULL
  ORDER BY collected_at DESC, collection_receipt_id DESC
  LIMIT $2`
+
+// nextItemAttemptsSQL returns, for each of items $4 that is ready in Audit $1
+// under the live controller claim ($1-$3), one more than its highest recorded
+// execution attempt. An item that is not ready has no row. The unique
+// (item_id, item_attempt) index serves each maximum.
+// Used by PostgresStore.NextItemAttempts.
+var nextItemAttemptsSQL = `
+SELECT item.item_id, COALESCE(max(member.item_attempt), 0) + 1
+  FROM audit_items AS item
+  JOIN audit_controller_claims AS claim USING (audit_id)
+  LEFT JOIN audit_execution_items AS member ON member.item_id = item.item_id
+ WHERE item.audit_id = $1 AND claim.holder_id = $2 AND claim.epoch = $3
+   AND claim.expires_at > clock_timestamp()
+   AND item.item_id = ANY($4::text[]) AND item.state = 'ready'
+ GROUP BY item.item_id`

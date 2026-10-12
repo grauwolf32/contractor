@@ -307,7 +307,7 @@ func (c *RuntimeControlClient) ReadWorkerState(
 			response.StatusCode, "worker_state_response_invalid", false,
 		)
 	}
-	snapshot, err := contracts.DecodeStrict[reporting.AgentStateSnapshot](data)
+	snapshot, err := contracts.DecodePrivateStrict[reporting.AgentStateSnapshot](data)
 	if err != nil {
 		return WorkerStateReadResult{}, workerStateReadError(
 			response.StatusCode, "worker_state_response_invalid", false,
@@ -338,7 +338,7 @@ func (c *RuntimeControlClient) postJSON(
 	if err != nil {
 		return err
 	}
-	body, err := json.Marshal(request)
+	body, err := encodeLifecycleRequest(request)
 	if err != nil {
 		return fmt.Errorf("encode Runtime Agent request: %w", err)
 	}
@@ -358,9 +358,7 @@ func (c *RuntimeControlClient) postJSON(
 	if err != nil {
 		return err
 	}
-	if err := strictjson.Decode(data, response); errors.Is(err, strictjson.ErrTrailingData) {
-		return errors.New("Runtime Agent returned multiple JSON values")
-	} else if err != nil {
+	if err := contracts.DecodePrivate(data, response); err != nil {
 		return errors.New("Runtime Agent returned an invalid lifecycle response")
 	}
 	if validateResponse {

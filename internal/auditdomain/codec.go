@@ -501,32 +501,22 @@ func validateFindingProposal(proposal FindingProposal) error {
 	if proposal.Schema != FindingProposalSchema {
 		return invalid(CodeSchemaUnsupported, "schema")
 	}
-	if proposal.Preconditions == nil || proposal.StandardRefs == nil || proposal.EvidenceIDs == nil ||
-		proposal.ProposedChecks == nil || proposal.Limitations == nil {
+	if proposal.Preconditions == nil || proposal.EvidenceIDs == nil || proposal.ProposedChecks == nil {
 		return invalid(CodeInvalid, "proposal.arrays")
 	}
-	if validateIdentifier(proposal.ClientKey, "client_key") != nil || validateText(proposal.Title, "title", true) != nil ||
-		validateText(proposal.Description, "description", true) != nil || validateText(proposal.Hypothesis, "hypothesis", false) != nil ||
-		!validSeverity(proposal.SeveritySuggestion) {
+	if validateIdentifier(proposal.ClientKey, "client_key") != nil {
 		return invalid(CodeInvalid, "proposal")
 	}
-	if proposal.Subject != nil &&
-		(validateIdentifier(proposal.Subject.Kind, "subject.kind") != nil || validateIdentifier(proposal.Subject.Key, "subject.key") != nil) {
-		return invalid(CodeInvalid, "subject")
+	if err := validateFindingReportProjection(ProjectFindingReport(proposal)); err != nil {
+		return err
 	}
-	if err := validateFindingExtensions(proposal); err != nil {
+	if err := validateFindingEvidenceReferences(proposal); err != nil {
 		return err
 	}
 	if validateStringList(proposal.Preconditions, MaximumCoverageValues, "preconditions") != nil ||
 		validateUniqueStrings(proposal.EvidenceIDs, MaximumEvidencePerItem, "evidence_ids", true) != nil ||
-		validateStringList(proposal.Limitations, MaximumCoverageValues, "limitations") != nil ||
-		len(proposal.StandardRefs) > MaximumCoverageValues || len(proposal.ProposedChecks) > MaximumCoverageValues {
+		len(proposal.ProposedChecks) > MaximumCoverageValues {
 		return invalid(CodeLimitExceeded, "proposal")
-	}
-	for _, reference := range proposal.StandardRefs {
-		if validateIdentifier(reference.Scheme, "standard_refs") != nil || validateText(reference.Version, "standard_refs", true) != nil || validateIdentifier(reference.RequirementID, "standard_refs") != nil {
-			return invalid(CodeInvalid, "standard_refs")
-		}
 	}
 	for _, check := range proposal.ProposedChecks {
 		if validateText(check.Objective, "proposed_checks", true) != nil || validateIdentifier(check.Method, "proposed_checks") != nil {

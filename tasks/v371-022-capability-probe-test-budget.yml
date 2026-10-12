@@ -1,0 +1,45 @@
+schema_version: "1.0"
+id: V371-022
+title: "Remove the 10 ms probe budget from the capability discovery tests"
+milestone: hub-audit-defects-2026-10
+epic: quality
+kind: chore
+priority: P3
+status: pending
+depends_on: []
+languages: [python]
+goal: "The capability discovery tests that need a probe to time out make only that probe hang and give every other factory a budget machine load cannot exhaust."
+context:
+  review: "Out-of-scope finding of the hub audit fix batch (group G2), recorded 2026-10-12; verified on a07f5e9"
+  finding: >-
+    test_runtime_adapter_probe_timeout_is_omitted
+    (runtime/tests/test_capabilities.py:418-434) calls discover_capabilities
+    with per_factory_timeout_seconds=0.01, and the budget applies to every
+    factory, not only the hanging RuntimeAdapter: the stub WorkerRuntime and
+    the LocalWorkdirFactory probe must each finish within 10 ms, or
+    discover_capabilities omits them and CapabilitySnapshot.create raises
+    "no usable WorkerRuntime capability" or "no usable SandboxProfile
+    capability" (runtime/src/contractor_runtime/capabilities.py:79-82). It
+    failed once under load (AGENTS.md 3.5). Predates the shallow history
+    (boundary 6349621).
+  siblings: >-
+    test_optional_probe_timeout_and_failure_are_omitted_without_leaking_details
+    (test_capabilities.py:294-329) uses the same 10 ms budget with passing
+    factories and the same risk. test_podman_capabilities.py:302 passes
+    podman_timeout_seconds=0.1 on purpose to test the cleanup reserve and
+    stays. V341-001 (in progress) owns the production probe timeouts.
+scope:
+  in:
+    - "Give the non-hanging factories a generous budget and end the hanging probe deterministically (for example a per-factory budget seam the test sets for that probe only, or an injected clock)."
+  out:
+    - "Production probe timeouts and discovery behaviour."
+acceptance_criteria:
+  - id: A1
+    given: "A loaded host (both tests repeated 50 times with parallel CPU load)"
+    when: "They run"
+    then: "They pass, and each still fails if a hanging probe is not omitted."
+tests:
+  - command: "cd runtime && uv run pytest tests/test_capabilities.py"
+    covers: [A1]
+  - command: make lint
+    covers: [A1]

@@ -458,6 +458,13 @@ controls (FAIL-UIJ-2).
 explains the consequences; dismissing the confirmation changes nothing
 (FAIL-UIJ-2).
 
+**UIJ-R111.** Delete is offered in every Audit state except `deleting`, as the
+Server accepts it: drafts and ended Audits are deleted directly, while running
+work is stopped first and the deletion intent kept
+([REV-R163](../audits/review-and-reports.md)), also during the report decision
+([AUD-R222](../audits/audits.md)). The confirmation says when deleting stops
+running work first.
+
 #### Finding detail
 
 **UIJ-R85.** Finding detail offers True positive / False positive, severity

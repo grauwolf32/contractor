@@ -439,7 +439,7 @@
           "$ref": "common.schema.json#/$defs/opaqueId"
         },
         "logicalAgentName": {
-          "$ref": "common.schema.json#/$defs/opaqueId"
+          "$ref": "common.schema.json#/$defs/name"
         },
         "namespace": {
           "type": "string",
@@ -667,6 +667,8 @@
           "title": "Cabundlepem"
         },
         "requestTimeoutSeconds": {
+          "maximum": 120,
+          "minimum": 1,
           "title": "Requesttimeoutseconds",
           "type": "integer"
         }
@@ -1208,22 +1210,15 @@
           "type": "integer"
         },
         "retry": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/TelemetryRetrySettings"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null
+          "$ref": "#/$defs/TelemetryRetrySettings"
         }
       },
       "required": [
         "batchSizeBytes",
         "maxAttempts",
         "maxPendingSpans",
-        "maxPendingBytes"
+        "maxPendingBytes",
+        "retry"
       ],
       "title": "TelemetryExportSettings",
       "type": "object"
@@ -1259,15 +1254,7 @@
           "type": "integer"
         },
         "export": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/TelemetryExportSettings"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null
+          "$ref": "#/$defs/TelemetryExportSettings"
         }
       },
       "required": [
@@ -1275,7 +1262,8 @@
         "endpoint",
         "headers",
         "captureContent",
-        "flushTimeoutSeconds"
+        "flushTimeoutSeconds",
+        "export"
       ],
       "title": "TelemetrySettings",
       "type": "object"

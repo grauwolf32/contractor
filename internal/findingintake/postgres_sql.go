@@ -1,5 +1,7 @@
 package findingintake
 
+import workflowconfig "github.com/grauwolf32/contractor/internal/config"
+
 // SQL statements for postgres.go.
 
 // importIntoAuditWithTxSQL locks owner $1's retained proposal receipt for Run
@@ -25,5 +27,6 @@ SELECT receipt.receipt_id, audit.project_id, receipt.proposal_ref, receipt.evide
         WHERE review.audit_id = audit.audit_id AND review.subject_kind = 'audit-report'
           AND review.state = 'pending'
    )
-   AND audit.profile_snapshot #>> '{interaction,findingConfirmation}' = 'human-required'
+   AND audit.profile_snapshot #>> '` + workflowconfig.AuditProfileFindingConfirmationPath + `' = '` +
+	string(workflowconfig.AuditFindingHumanRequired) + `'
  FOR UPDATE OF receipt, audit`

@@ -315,8 +315,11 @@ digest before resolving `executionConfig`. Operations publishes new immutable
 versions only into the managed YAML root ([Configuration catalog](catalog.md),
 [Operations](../operations/operations.md)).
 
-**RCF-R27.** A published LLMGatewayConfig version is never edited in place;
-changing its URL or protocol creates a new LLMGatewayConfig version.
+**RCF-R27.** An LLMGatewayConfig version published at runtime is never edited
+in place; changing its URL or protocol creates a new LLMGatewayConfig version
+([CAT-R44](catalog.md)). Until the first release a shipped operator-root
+version may change in place, which changes its digest
+([CAT-R74](catalog.md)).
 
 **RCF-R28.** Encrypted PostgreSQL credentials and the external bootstrap
 master-key file are separate from the LLMGatewayConfig manifest contract.
@@ -764,7 +767,13 @@ the 10-second default applies when a document is published without
 
 **RCF-R102.** The Server pins the export values and passes them to the Python
 Runtime through RuntimeSettings. The Operations RuntimeConfig form exposes the
-batch, attempt and queue settings.
+batch, attempt and queue settings. Every RuntimeSettings `telemetry` object
+carries a complete `export` object with its `retry` object: the RuntimeConfig's
+values, or the defaults of RCF-R99 and RCF-R103 for an omitted block. The
+Runtime requires both and has no defaults of its own. The defaults and every
+numeric RuntimeSettings bound are pinned for the Server, the Runtime and the
+private schema by
+[`runtime-settings-bounds-cases.json`](../../../api/testdata/v1alpha1/runtime-settings-bounds-cases.json).
 
 **RCF-R103.** Retry timing is configured in the optional
 `worker.telemetry.export.retry` object (LIM-RCF-16, LIM-RCF-17):

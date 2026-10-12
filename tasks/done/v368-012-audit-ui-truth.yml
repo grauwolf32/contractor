@@ -1,0 +1,81 @@
+schema_version: "1.0"
+id: V368-012
+title: "Show only decidable reviews and the real delete rule in the Audit UI"
+milestone: hub-audit-defects-2026-10
+epic: ui
+kind: defect
+priority: P1
+status: completed
+implementation_commit: e6a890cba0e66c7c72b81e1192147f59d1fd27b6
+depends_on: []
+languages: [typescript, go]
+goal: "UI tests: an expired request is not listed; Delete is offered in every state the Server accepts."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq; raw reports in docs/research/2026-10-11-hub-audit/), audits G4; V367-009 follow-up; file:line as of 02bbdcbf, re-verify on current main"
+  finding: >-
+    The Inbox decision list (usePendingDecisions in ui/src/api/cross-
+    project.ts) still lists stored-pending requests past their expiry in
+    active Audits. The UI hides Delete for active, paused, waiting_review,
+    finalizing and cancelling Audits
+    (ui/src/routes/projects/audits/controls.tsx:52-57) while the Server
+    accepts deletion from every state except deleting and AUD-R222 keeps it
+    available during report decision.
+  specification:
+    - docs/spec/ui/ui.md#UI-R39
+    - docs/spec/ui/journeys.md#UIJ-R111
+    - docs/spec/audits/review-and-reports.md#REV-R198
+    - docs/spec/audits/audits.md#AUD-R222
+  decision: >-
+    Inbox: the Server's truth instead of a client expiry rule. The Server
+    exposes no decidable filter, and REV-R43 judges every expiry at the
+    PostgreSQL clock, so GET /v1/reviews?state=pending (the owner-wide live
+    list whose only reader is the Inbox and its rail badge) now leaves out a
+    stored pending request past its expiry with the predicate the workspace's
+    pending count already used, shared as one SQL fragment
+    (reviewUnexpiredSQL). The decided and expired filters, the unfiltered
+    list and the revision-pinned per-Audit Reviews projection keep the stored
+    state (REV-R198, OpenAPI parameter description, both clients
+    regenerated). Rejected: filtering on the client with reviewExpired (a
+    second clock, and the list and the per-check workspace counts could
+    disagree near expiry); reporting the effective state (expired) in every
+    review read (changes GetReview for decision replays and the revision
+    pinning of per-Audit pages, a review-expiry change beyond this task).
+    Reopen if another owner-wide reader needs stored pending requests: add a
+    separate filter value rather than widening pending again. The UI fixture
+    ownerListResponse applies the same rule so UI tests stay faithful.
+    Delete: the Server exposes no allowedActions, so the UI implements the
+    spec rule as an exhaustive per-state table: Delete in every state but
+    deleting (drafts and ended checks are deleted directly, running work is
+    stopped first with the intent kept, REV-R163, AUD-R222), still behind the
+    confirmation, whose text now says when running work is stopped first
+    (UIJ-R111; the Audit state diagram names delete on the cancel edges).
+    Reopen if the Server adds allowedActions to the Audit read model; the UI
+    then reads it instead of the table.
+  siblings: >-
+    Fixed: the rail badge (useInboxSummary shares usePendingDecisions), the
+    disabled-Delete hint of list rows and the header menu (only for
+    deleting now), and the pre-existing failure of "marks only an authorized
+    applicability review as not applicable" in audits.test.tsx (its "Not
+    applicable" text query matched the renamed coverage filter too and failed
+    on main). Ruled out: the per-Audit Reviews view keeps the stored-state
+    ledger with its expiry shown; finding decisions already refuse an
+    expired request (decidableReview). Left open, outside this task: the
+    Audit page Overview links its decidable pending count to the per-Audit
+    pending filter, which still lists stored pending requests past expiry
+    (UI-R146); Pause is offered for waiting_review although the Server
+    refuses it while a report candidate waits (AUD-R180).
+scope:
+  in:
+    - "Inbox lists only decidable requests (Server-side filter or the same expiry rule); the delete control follows the Server rule exposed as allowedActions or the spec."
+  out:
+    - "Confirmation before DELETE (AGENTS 3.8)."
+acceptance_criteria:
+  - id: A1
+    text: "UI tests: an expired request is not listed; Delete is offered in every state the Server accepts."
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "corepack pnpm --dir ui exec vitest run src/routes/inbox src/routes/projects/audits"
+    covers: [A1]
+  - command: "go test -count=1 ./internal/auditservice"
+    covers: [A1]

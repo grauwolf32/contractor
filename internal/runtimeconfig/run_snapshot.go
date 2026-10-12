@@ -35,6 +35,15 @@ type RunSnapshot struct {
 	RuntimeCredentialIDs []string      `json:"runtimeCredentialIds"`
 }
 
+// RunSnapshot's credential members, which an Audit baseline snapshot repeats
+// at its top level. Credential deletion checks and their indexes read them
+// from stored Run and Audit snapshots, so renaming a tag must rename its
+// constant; internal/persistence pins both.
+const (
+	LLMCredentialIDsMember     = "llmCredentialIds"
+	RuntimeCredentialIDsMember = "runtimeCredentialIds"
+)
+
 // NormalizeRunLabels validates the caller-selected set and returns its one
 // canonical order. Request order is deliberately not semantic.
 func NormalizeRunLabels(source []string) ([]string, error) {

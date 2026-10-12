@@ -212,9 +212,9 @@ func (s *Scheduler) prepareStageWorkers(ctx context.Context, run runstore.Workfl
 			run, execution, "worker_execution_config_unavailable", "Worker execution configuration is unavailable", err,
 		))
 	}
-	prepareContext, cancelPrepare := context.WithTimeout(ctx, s.options.OperationTimeout)
-	handles, err := s.workers.PrepareAll(prepareContext, reservations, workerSettings)
-	cancelPrepare()
+	// The WorkerController bounds the batch by its own prepare deadline
+	// (runtimeLifecycle.prepareTimeout); ctx contributes only cancellation.
+	handles, err := s.workers.PrepareAll(ctx, reservations, workerSettings)
 	clearWorkerExecutionSettings(workerSettings)
 	if err != nil {
 		if errors.Is(err, controlplane.ErrAllocationLost) {

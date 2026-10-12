@@ -30,7 +30,7 @@ func TestAuditCompletionPostgresOrdinaryOmissionAndSpoofedAuthority(t *testing.T
 		t.Fatal("ordinary Run gained authority", err)
 	}
 	_, err = pool.Exec(ctx, `UPDATE workflow_runs SET audit_completion = '{"stage":"check","agent":"checker","contract":{"kind":"audit-check-results@1"}}'::jsonb WHERE run_id = $1`, run.RunID)
-	if persistencepostgres.SQLState(err) != "23514" {
+	if persistencepostgres.SQLState(err) != persistencepostgres.SQLStateCheckViolation {
 		t.Fatal("ordinary SQL authority injection accepted", err)
 	}
 }

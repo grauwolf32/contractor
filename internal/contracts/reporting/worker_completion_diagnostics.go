@@ -1,9 +1,6 @@
 package reporting
 
 import (
-	"bytes"
-	"encoding/json"
-
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/strictjson"
 )
@@ -11,11 +8,11 @@ import (
 // WorkerCompletionDiagnostics describes the latest invocation's local work.
 // Published is a technical fact, never accepted Audit evidence/coverage.
 type WorkerCompletionDiagnostics struct {
-	Kind          string `json:"kind"`
-	Phase         string `json:"phase"`
-	AcceptedCount int    `json:"acceptedCount"`
-	TotalCount    int    `json:"totalCount"`
-	ReminderCount int    `json:"reminderCount"`
+	Kind          string `json:"kind" strictjson:"required"`
+	Phase         string `json:"phase" strictjson:"required"`
+	AcceptedCount int    `json:"acceptedCount" strictjson:"required"`
+	TotalCount    int    `json:"totalCount" strictjson:"required"`
+	ReminderCount int    `json:"reminderCount" strictjson:"required"`
 	FailureCode   string `json:"failureCode,omitempty"`
 }
 
@@ -42,69 +39,43 @@ func (d WorkerCompletionDiagnostics) Validate() error {
 	return nil
 }
 
-// Unknown optional kinds/phases are discarded instead of being interpreted as
-// successful completion. Known data is decoded strictly and remains bounded.
-func decodeWorkerCompletionDiagnostics(data []byte) (*WorkerCompletionDiagnostics, error) {
-	if len(data) == 0 || bytes.Equal(bytes.TrimSpace(data), []byte("null")) {
-		return nil, nil
-	}
-	if len(data) > 4096 || strictjson.RejectDuplicateKeys(data) != nil {
-		return nil, contracts.Invalidf("invalid Worker completion diagnostics JSON")
-	}
-	var header struct {
-		Kind  string `json:"kind"`
-		Phase string `json:"phase"`
-	}
-	if err := json.Unmarshal(data, &header); err != nil {
-		return nil, err
-	}
-	if header.Kind != "" && header.Phase != "" && (header.Kind != contracts.AuditCheckResultsV1 || !knownCompletionPhase(header.Phase)) {
-		return nil, nil
-	}
-	var value WorkerCompletionDiagnostics
-	var fields map[string]json.RawMessage
-	if err := json.Unmarshal(data, &fields); err != nil {
-		return nil, err
-	}
-	for _, key := range []string{"kind", "phase", "acceptedCount", "totalCount", "reminderCount"} {
-		if raw, ok := fields[key]; !ok || bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
-			return nil, contracts.Invalidf("missing Worker completion field")
-		}
-	}
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&value); err != nil {
-		return nil, err
-	}
-	if raw, ok := fields["failureCode"]; ok && !bytes.Equal(bytes.TrimSpace(raw), []byte("null")) && value.FailureCode == "" {
-		return nil, contracts.Invalidf("empty Worker completion failure code")
-	}
-	if err := value.Validate(); err != nil {
-		return nil, err
-	}
-	return &value, nil
-}
-
-func (r *ExecutionReport) UnmarshalJSON(data []byte) error {
-	type plain ExecutionReport
-	var value plain
-	wire := struct {
-		*plain
-		Completion json.RawMessage `json:"completion"`
-	}{plain: &value}
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.DisallowUnknownFields()
-	if err := strictjson.RejectDuplicateKeys(data); err != nil {
-		return err
-	}
-	if err := decoder.Decode(&wire); err != nil {
-		return err
-	}
-	completion, err := decodeWorkerCompletionDiagnostics(wire.Completion)
+// UnmarshalJSON strictly decodes the optional completion object of a report or
+// live Worker State, so every decoder of either applies the same checks.
+func (d *WorkerCompletionDiagnostics) UnmarshalJSON(data []byte) error {
+	value, err := decodeWorkerCompletionDiagnostics(data)
 	if err != nil {
 		return err
 	}
-	*r = ExecutionReport(value)
-	r.Completion = completion
+	*d = value
 	return nil
+}
+
+// decodeWorkerCompletionDiagnostics decodes one bounded completion object. An
+// unknown kind or phase is invalid like any other malformed value (AWC-R115):
+// it fails the containing message with contracts.ErrValidation instead of
+// being dropped.
+func decodeWorkerCompletionDiagnostics(data []byte) (WorkerCompletionDiagnostics, error) {
+	if len(data) > 4096 {
+		return WorkerCompletionDiagnostics{}, contracts.Invalidf("Worker completion diagnostics exceed 4096 bytes")
+	}
+	type plain WorkerCompletionDiagnostics
+	var wire struct {
+		plain
+		// FailureCode tells an explicit empty code from an omitted one.
+		FailureCode *string `json:"failureCode"`
+	}
+	if err := strictjson.Decode(data, &wire); err != nil {
+		return WorkerCompletionDiagnostics{}, err
+	}
+	value := WorkerCompletionDiagnostics(wire.plain)
+	if wire.FailureCode != nil {
+		if *wire.FailureCode == "" {
+			return WorkerCompletionDiagnostics{}, contracts.Invalidf("empty Worker completion failure code")
+		}
+		value.FailureCode = *wire.FailureCode
+	}
+	if err := value.Validate(); err != nil {
+		return WorkerCompletionDiagnostics{}, err
+	}
+	return value, nil
 }

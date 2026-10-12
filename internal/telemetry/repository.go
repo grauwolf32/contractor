@@ -553,12 +553,16 @@ func requireText(field string, value string) error {
 	return nil
 }
 
+// classifyWriteError keeps a deterministic database rejection permanent: a
+// constraint or trigger violation is invalid, never a retryable conflict.
 func classifyWriteError(operation string, err error) error {
-	switch persistencepostgres.SQLState(err) {
-	case persistencepostgres.SQLStateForeignKeyViolation:
+	switch persistencepostgres.Classify(err) {
+	case persistencepostgres.ClassReferenceViolation:
 		return fmt.Errorf("%s: %w", operation, ErrNotFound)
-	case persistencepostgres.SQLStateUniqueViolation, persistencepostgres.SQLStateCheckViolation:
+	case persistencepostgres.ClassDuplicate:
 		return fmt.Errorf("%s: %w", operation, ErrConflict)
+	case persistencepostgres.ClassInvalid, persistencepostgres.ClassRejected:
+		return fmt.Errorf("%s: %w", operation, ErrInvalid)
 	default:
 		return fmt.Errorf("%s: %w", operation, err)
 	}

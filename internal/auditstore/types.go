@@ -8,6 +8,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/pagelimit"
+	"github.com/grauwolf32/contractor/internal/runstore"
 )
 
 const (
@@ -278,9 +279,9 @@ type CreateDraftParams struct {
 }
 
 type ListParams struct {
-	OwnerID         string
-	ProjectID       *string
-	State           *AuditState
+	OwnerID   string
+	ProjectID *string
+	// States filters by Audit state; nil lists every state.
 	States          []AuditState
 	VisibleProjects bool
 	ProfileName     *string
@@ -310,6 +311,12 @@ const (
 	MutationTransition MutationOperation = "audit.transition"
 	MutationDelete     MutationOperation = "audit.delete"
 )
+
+// sqlLiteral quotes the operation for a statement that records it, so the
+// stored operation names come from these constants only.
+func (operation MutationOperation) sqlLiteral() string {
+	return "'" + string(operation) + "'"
+}
 
 type TransitionParams struct {
 	OwnerID          string
@@ -367,12 +374,9 @@ type RoundTransitionParams struct {
 	TargetState      RoundState
 }
 
-type ExactArtifact struct {
-	Ref       contracts.ArtifactRef `json:"ref"`
-	Digest    string                `json:"digest"`
-	MediaType string                `json:"mediaType,omitempty"`
-	SizeBytes int64                 `json:"sizeBytes,omitempty"`
-}
+// ExactArtifact is the shared exact-content descriptor. Rounds, executions
+// and results persist only its ref and digest and read back digest-only.
+type ExactArtifact = contracts.ExactArtifact
 
 // ItemOrigin is the immutable attribution of a materialized Audit item to the
 // exact source document and normalized inventory entry from which it was
@@ -744,6 +748,9 @@ type CollectionDispositionCounts struct {
 // immutable Audit report is assembled. The proposal document remains in the
 // Artifact plane; this row pins its exact retained version and the exact
 // assessment/analyst decision (if any) selected by this report revision.
+// ReportFinding is the exact finding state one report build freezes into an
+// immutable report artifact, with the report projection of its first
+// proposal stored at intake.
 type ReportFinding struct {
 	FindingID         string
 	State             string
@@ -752,6 +759,8 @@ type ReportFinding struct {
 	Assessment        *ReportFindingAssessment
 	Decision          *ReportFindingDecision
 	Revision          uint64
+	CreatedAt         time.Time
+	Projection        auditdomain.FindingReportProjection
 }
 
 type ReportFindingAssessment struct {
@@ -855,9 +864,13 @@ type ReconcileSnapshot struct {
 	Round             *Round
 	Items             []Item
 	Executions        []Execution
-	RoleExecutions    []Execution
-	Receipts          []CollectionReceiptSummary
-	RoleReceipts      []CollectionReceiptSummary
+	// RunStates is the lifecycle state of the Run bound to each execution in
+	// Executions, keyed by Run ID and read in the same snapshot. A Run whose
+	// row no longer exists has no entry.
+	RunStates      map[string]runstore.WorkflowRunState
+	RoleExecutions []Execution
+	Receipts       []CollectionReceiptSummary
+	RoleReceipts   []CollectionReceiptSummary
 	// ReadyItems are the current Round's dispatchable items, read directly so
 	// that items awaiting review ahead of them cannot starve dispatch.
 	ReadyItems     []Item

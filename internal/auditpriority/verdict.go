@@ -1,9 +1,6 @@
 package auditpriority
 
 import (
-	"bytes"
-	"encoding/json"
-	"io"
 	"unicode/utf8"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -22,69 +19,39 @@ type Verdict struct {
 	MissingContext []string   `json:"missing_context"`
 }
 
+// verdictBounds admit one object of six members, two of them arrays of at
+// most MaxEvidenceIDs and MaxMissingContextEntries strings; nothing nests
+// below an array element.
+var verdictBounds = strictjson.Bounds{MaxDepth: 3, MaxNodes: 1 + 6 + MaxEvidenceIDs + MaxMissingContextEntries}
+
 // DecodeVerdict accepts exactly one bounded object with the six required,
-// case-sensitive fields. It checks assignment and evidence authority against
-// the caller's frozen context. All failures return a closed diagnostic code.
+// case-sensitive fields: four strings and two string arrays, and no number.
+// It checks assignment and evidence authority against the caller's frozen
+// context. All failures return a closed diagnostic code.
 func DecodeVerdict(data []byte, expectedItemKey string, contextEvidenceIDs []string) (Verdict, error) {
-	var verdict Verdict
 	bad := func() (Verdict, error) { return Verdict{}, invalid(CodeInvalidVerdict) }
 	if len(data) == 0 || len(data) > MaxVerdictBytes || !utf8.Valid(data) || !strictjson.ValidUnicodeEscapes(data) {
 		return bad()
 	}
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	if token, err := decoder.Token(); err != nil || token != json.Delim('{') {
+	document, err := strictjson.DecodeBounded(data, verdictBounds, func(string) (struct{}, bool) {
+		return struct{}{}, false
+	})
+	fields, isObject := document.(map[string]any)
+	if err != nil || !isObject || len(fields) != 6 {
 		return bad()
 	}
-	seen := make(map[string]bool, 6)
-	for decoder.More() {
-		token, err := decoder.Token()
-		if err != nil {
-			return bad()
-		}
-		key, ok := token.(string)
-		if !ok || seen[key] {
-			return bad()
-		}
-		seen[key] = true
-		switch key {
-		case "item_key", "priority", "confidence", "rationale":
-			token, err = decoder.Token()
-			value, isString := token.(string)
-			if err != nil || !isString {
-				return bad()
-			}
-			switch key {
-			case "item_key":
-				verdict.ItemKey = value
-			case "priority":
-				verdict.Priority = Priority(value)
-			case "confidence":
-				verdict.Confidence = Confidence(value)
-			case "rationale":
-				verdict.Rationale = value
-			}
-		case "evidence_ids":
-			verdict.EvidenceIDs, err = decodeVerdictStrings(decoder, MaxEvidenceIDs)
-			if err != nil {
-				return bad()
-			}
-		case "missing_context":
-			verdict.MissingContext, err = decodeVerdictStrings(decoder, MaxMissingContextEntries)
-			if err != nil {
-				return bad()
-			}
-		default:
-			return bad()
-		}
-	}
-	if len(seen) != 6 {
+	itemKey, itemKeyOK := fields["item_key"].(string)
+	priority, priorityOK := fields["priority"].(string)
+	confidence, confidenceOK := fields["confidence"].(string)
+	rationale, rationaleOK := fields["rationale"].(string)
+	evidenceIDs, evidenceOK := verdictStrings(fields["evidence_ids"], MaxEvidenceIDs)
+	missingContext, missingOK := verdictStrings(fields["missing_context"], MaxMissingContextEntries)
+	if !itemKeyOK || !priorityOK || !confidenceOK || !rationaleOK || !evidenceOK || !missingOK {
 		return bad()
 	}
-	if token, err := decoder.Token(); err != nil || token != json.Delim('}') {
-		return bad()
-	}
-	if _, err := decoder.Token(); err != io.EOF {
-		return bad()
+	verdict := Verdict{
+		ItemKey: itemKey, Priority: Priority(priority), Confidence: Confidence(confidence),
+		Rationale: rationale, EvidenceIDs: evidenceIDs, MissingContext: missingContext,
 	}
 	if err := ValidateVerdict(verdict, expectedItemKey, contextEvidenceIDs); err != nil {
 		return bad()
@@ -170,27 +137,18 @@ func validEvidenceIDs(ids []string) bool {
 	return true
 }
 
-// The decoder accepts only strings at depth one and string arrays at depth
-// two. Nested objects/arrays are rejected immediately; there is no recursive
-// walk or unbounded allocation for adversarial JSON structure.
-func decodeVerdictStrings(decoder *json.Decoder, limit int) ([]string, error) {
-	if token, err := decoder.Token(); err != nil || token != json.Delim('[') {
-		return nil, invalid(CodeInvalidVerdict)
+// verdictStrings reads one verdict string array of at most limit entries; an
+// empty array is an empty, non-nil slice.
+func verdictStrings(value any, limit int) ([]string, bool) {
+	elements, ok := value.([]any)
+	if !ok || len(elements) > limit {
+		return nil, false
 	}
-	values := make([]string, 0)
-	for decoder.More() {
-		if len(values) == limit {
-			return nil, invalid(CodeInvalidVerdict)
+	result := make([]string, len(elements))
+	for index, element := range elements {
+		if result[index], ok = element.(string); !ok {
+			return nil, false
 		}
-		token, err := decoder.Token()
-		value, ok := token.(string)
-		if err != nil || !ok {
-			return nil, invalid(CodeInvalidVerdict)
-		}
-		values = append(values, value)
 	}
-	if token, err := decoder.Token(); err != nil || token != json.Delim(']') {
-		return nil, invalid(CodeInvalidVerdict)
-	}
-	return values, nil
+	return result, true
 }

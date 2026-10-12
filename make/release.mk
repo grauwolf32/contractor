@@ -20,7 +20,7 @@ release-verify $(RELEASE_STAGES): RELEASE_CONSOLIDATED := 1
 release-verify: $(RELEASE_STAGES)
 
 # The first three stages are exactly make verify.
-release-verify-lint: lint build
+release-verify-lint: lint build test-config
 
 release-verify-unit: test
 
@@ -44,7 +44,7 @@ release-verify-race: test-release-go-race
 
 release-verify-race-discovered: test-release-go-race-discovered
 
-release-verify-integration: test-release-integration test-release-non-race
+release-verify-integration: test-release-integration test-release-non-race test-artifact-filesystem
 
 release-verify-process-a: test-release-process-e2e-a
 

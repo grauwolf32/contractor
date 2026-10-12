@@ -204,6 +204,17 @@ registry through its startup probes
 advertises a Toolset ref only when at least one exported tool (LIM-TLS-1) can
 honor its complete contract in that process environment.
 
+**TLS-R38.** For every built-in Toolset, the Server descriptor and the Runtime
+ToolsetFactory declare the same exported tools, the same infrastructure
+channels per tool (TLS-R22), the same workspace need and the same required
+SandboxProfile. The shared fixture
+[`api/testdata/toolset-descriptors.json`](../../../api/testdata/toolset-descriptors.json)
+records them, together with the classifications only the Server reads
+(active-check tools, finding-proposal tools and required Workflow inputs), and
+both implementations are tested against it, so a tool or Toolset present on one
+side only fails. A Toolset with a workspace need is invalid for a Stage
+without `context.workspace` ([WSP-R10](workspace.md)).
+
 ### Toolset capabilities
 
 **TLS-R16.** A Toolset capability contains the exact ref and the subset of its
@@ -389,10 +400,12 @@ channels follows from TLS-R28.
   (TLS-R19). Owning test: `TestToolsetVisibleNameCollision` in
   [internal/config/config_test.go](../../../internal/config/config_test.go).
 - An exported tool's infrastructure channels are fixed metadata of the exact
-  Toolset version (TLS-R22, TLS-R23). Owning tests:
-  `TestToolsetInfrastructureChannelParityFixture` in
+  Toolset version, and the Server descriptor and Runtime factory of each
+  built-in Toolset agree on its tools, channels, workspace need and
+  SandboxProfile (TLS-R22, TLS-R23, TLS-R38). Owning tests:
+  `TestSharedToolsetDescriptorParity` in
   [internal/config/config_test.go](../../../internal/config/config_test.go) and
-  `test_builtin_toolset_infrastructure_channels_match_parity_fixture` in
+  `test_shared_toolset_descriptor_parity` in
   [runtime/tests/test_capabilities.py](../../../runtime/tests/test_capabilities.py).
 
 ## Examples

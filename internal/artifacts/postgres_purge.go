@@ -1,13 +1,22 @@
 package artifacts
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
 )
+
+// purgeBatchSize bounds the binding revisions one purge batch removes and the
+// candidate versions or blobs one purge statement locks or deletes
+// (LIM-DEL-2). A Run or Audit purge stays one transaction whose total work the
+// Run revision limit (LIM-ART-6) or the Audit limits bound; a ProjectScope
+// purge commits one batch per transaction (PurgeProject).
+var purgeBatchSize = 1000
 
 // PostgresPurger performs the exceptional physical cleanup used by lifecycle
 // deletion. It only accepts an existing transaction so ArtifactStore cleanup
@@ -39,49 +48,11 @@ func (p *PostgresPurger) PurgeAuditNamespace(
 	); err != nil {
 		return fmt.Errorf("enable Audit lifecycle purge: %w", err)
 	}
-	rows, err := p.tx.Query(ctx, `
-SELECT DISTINCT version_id
-FROM artifact_binding_revisions
-WHERE scope_kind = $1 AND scope_id = $2 AND namespace = $3
-ORDER BY version_id`, scope.kind, scope.id, namespace)
+	versionIDs, err := p.purgeAllRevisions(ctx, scope, namespace)
 	if err != nil {
-		return fmt.Errorf("list Audit lifecycle purge versions: %w", err)
+		return fmt.Errorf("purge Audit Artifact namespace: %w", err)
 	}
-	versionIDs := make([]string, 0)
-	for rows.Next() {
-		var versionID string
-		if err := rows.Scan(&versionID); err != nil {
-			rows.Close()
-			return fmt.Errorf("scan Audit lifecycle purge version: %w", err)
-		}
-		versionIDs = append(versionIDs, versionID)
-	}
-	if err := rows.Err(); err != nil {
-		rows.Close()
-		return fmt.Errorf("iterate Audit lifecycle purge versions: %w", err)
-	}
-	rows.Close()
-	if _, err := p.tx.Exec(ctx, `
-DELETE FROM artifact_lineage
-WHERE (source_scope_kind = $1 AND source_scope_id = $2 AND source_namespace = $3)
-   OR (target_scope_kind = $1 AND target_scope_id = $2 AND target_namespace = $3)`,
-		scope.kind, scope.id, namespace); err != nil {
-		return fmt.Errorf("delete Audit Artifact lineage: %w", err)
-	}
-	if _, err := p.tx.Exec(ctx, `
-DELETE FROM artifact_bindings
-WHERE scope_kind = $1 AND scope_id = $2 AND namespace = $3`, scope.kind, scope.id, namespace); err != nil {
-		return fmt.Errorf("delete Audit Artifact bindings: %w", err)
-	}
-	if _, err := p.tx.Exec(ctx, `
-DELETE FROM artifact_binding_revisions
-WHERE scope_kind = $1 AND scope_id = $2 AND namespace = $3`, scope.kind, scope.id, namespace); err != nil {
-		return fmt.Errorf("delete Audit Artifact revisions: %w", err)
-	}
-	if err := p.collectUnreferencedVersions(ctx, versionIDs); err != nil {
-		return err
-	}
-	return nil
+	return p.collectUnreferencedVersions(ctx, versionIDs)
 }
 
 func NewPostgresPurger(tx pgx.Tx) (*PostgresPurger, error) {
@@ -94,7 +65,9 @@ func NewPostgresPurger(tx pgx.Tx) (*PostgresPurger, error) {
 // PurgeRun removes every RunScope binding and every pin owned by runID. Exact
 // ProjectScope publications remain available, while their receipt and lineage
 // edge back to the deleted Run are removed. Versions and blobs are collected
-// only when no surviving binding revision references them.
+// only when no surviving binding revision references them. Run deletion is
+// one transaction (DEL-R22); the Run revision limit (LIM-ART-6) bounds its
+// work, and no statement handles more than one purge batch (LIM-DEL-2).
 func (p *PostgresPurger) PurgeRun(ctx context.Context, runID string) error {
 	scope, err := RunScope(runID)
 	if err != nil {
@@ -110,100 +83,71 @@ func (p *PostgresPurger) PurgeRun(ctx context.Context, runID string) error {
 	); err != nil {
 		return fmt.Errorf("enable Run lifecycle purge: %w", err)
 	}
-
-	versionIDs, err := p.scopeVersionIDs(ctx, scope)
-	if err != nil {
-		return err
-	}
 	if _, err := p.tx.Exec(ctx, `
 DELETE FROM workflow_run_output_publications
 WHERE run_id = $1`, runID); err != nil {
 		return fmt.Errorf("delete WorkflowRun output publications: %w", err)
 	}
-	if _, err := p.tx.Exec(ctx, `
-DELETE FROM artifact_lineage
-WHERE (source_scope_kind = $1 AND source_scope_id = $2)
-   OR (target_scope_kind = $1 AND target_scope_id = $2)`, scope.kind, scope.id); err != nil {
-		return fmt.Errorf("delete WorkflowRun Artifact lineage: %w", err)
-	}
-	if _, err := p.tx.Exec(ctx, `
-DELETE FROM artifact_bindings
-WHERE scope_kind = $1 AND scope_id = $2`, scope.kind, scope.id); err != nil {
-		return fmt.Errorf("delete WorkflowRun Artifact bindings: %w", err)
-	}
-	if _, err := p.tx.Exec(ctx, `
-DELETE FROM artifact_binding_revisions
-WHERE scope_kind = $1 AND scope_id = $2`, scope.kind, scope.id); err != nil {
-		return fmt.Errorf("delete WorkflowRun Artifact revisions: %w", err)
+	versionIDs, err := p.purgeAllRevisions(ctx, scope, "")
+	if err != nil {
+		return fmt.Errorf("purge WorkflowRun Artifacts: %w", err)
 	}
 	if _, err := p.tx.Exec(ctx, `
 DELETE FROM artifact_scopes
 WHERE scope_kind = $1 AND scope_id = $2`, scope.kind, scope.id); err != nil {
 		return fmt.Errorf("delete WorkflowRun Artifact scope: %w", err)
 	}
-	if err := p.collectUnreferencedVersions(ctx, versionIDs); err != nil {
-		return err
-	}
-	return nil
+	return p.collectUnreferencedVersions(ctx, versionIDs)
 }
 
-// PurgeProject removes the complete ProjectScope after every Project Run has
-// already crossed the terminal/released deletion boundary. UserScope data and
-// physical content still referenced by another scope remain intact.
-func (p *PostgresPurger) PurgeProject(ctx context.Context, projectID string) error {
+// PurgeProject removes the ProjectScope of a deleting Project in bounded
+// steps, after every Project Run and Audit is gone. Each call deletes at most
+// one purge batch of binding revisions (LIM-DEL-2), with the lineage edges
+// into or out of them and the bindings whose current revision they include,
+// and collects the versions and blobs the batch leaves unreferenced. The call
+// that finds no revision left removes the scope itself and reports true.
+// Project deletion commits every call in its own transaction (DEL-R44); no
+// write can enter the scope of a deleting Project without Runs and Audits, so
+// a committed batch stays purged. UserScope data and physical content still
+// referenced by another scope remain intact.
+func (p *PostgresPurger) PurgeProject(ctx context.Context, projectID string) (bool, error) {
 	scope, err := ProjectScope(projectID)
 	if err != nil {
-		return err
+		return false, err
 	}
 	ctx, cancel := persistencepostgres.WithCleanupBudget(ctx)
 	defer cancel()
 	if err := p.lockScope(ctx, scope); err != nil {
-		return err
+		return false, err
 	}
 	if _, err := p.tx.Exec(
 		ctx, `SELECT set_config('contractor.lifecycle_purge', 'project', true)`,
 	); err != nil {
-		return fmt.Errorf("enable Project lifecycle purge: %w", err)
+		return false, fmt.Errorf("enable Project lifecycle purge: %w", err)
 	}
-
-	versionIDs, err := p.scopeVersionIDs(ctx, scope)
+	batch, err := p.purgeRevisionBatch(ctx, scope, "", revisionKey{})
 	if err != nil {
-		return err
+		return false, fmt.Errorf("purge Project Artifact batch: %w", err)
+	}
+	if len(batch.versionIDs) > 0 {
+		return false, p.collectUnreferencedVersions(ctx, batch.versionIDs)
 	}
 	if _, err := p.tx.Exec(ctx, `
 DELETE FROM workflow_run_output_publications
 WHERE project_id = $1`, projectID); err != nil {
-		return fmt.Errorf("delete Project output publications: %w", err)
-	}
-	if _, err := p.tx.Exec(ctx, `
-DELETE FROM artifact_lineage
-WHERE (source_scope_kind = $1 AND source_scope_id = $2)
-   OR (target_scope_kind = $1 AND target_scope_id = $2)`, scope.kind, scope.id); err != nil {
-		return fmt.Errorf("delete Project Artifact lineage: %w", err)
-	}
-	if _, err := p.tx.Exec(ctx, `
-DELETE FROM artifact_bindings
-WHERE scope_kind = $1 AND scope_id = $2`, scope.kind, scope.id); err != nil {
-		return fmt.Errorf("delete Project Artifact bindings: %w", err)
-	}
-	if _, err := p.tx.Exec(ctx, `
-DELETE FROM artifact_binding_revisions
-WHERE scope_kind = $1 AND scope_id = $2`, scope.kind, scope.id); err != nil {
-		return fmt.Errorf("delete Project Artifact revisions: %w", err)
+		return false, fmt.Errorf("delete Project output publications: %w", err)
 	}
 	if _, err := p.tx.Exec(ctx, `
 DELETE FROM artifact_scopes
 WHERE scope_kind = $1 AND scope_id = $2`, scope.kind, scope.id); err != nil {
-		return fmt.Errorf("delete Project Artifact scope: %w", err)
+		return false, fmt.Errorf("delete Project Artifact scope: %w", err)
 	}
-	if err := p.collectUnreferencedVersions(ctx, versionIDs); err != nil {
-		return err
-	}
-	return nil
+	return true, nil
 }
 
 // Lifecycle callers hold resource authority before entering here. Lock order:
-// owning scope, candidate versions (lexical ID), candidate blobs (binary hash).
+// owning scope, candidate versions (byte order of their IDs), candidate blobs
+// (binary hash).
 // Reference checks MUST be separate statements after the locks: READ COMMITTED
 // then sees references removed/inserted by transactions we waited for. Foreign
 // key locks coordinate retaining forks and blob upserts coordinate new writes.
@@ -225,30 +169,111 @@ WHERE scope_kind = $1 AND scope_id = $2 FOR UPDATE`, scope.kind, scope.id)
 	return err
 }
 
-func (p *PostgresPurger) scopeVersionIDs(ctx context.Context, scope Scope) ([]string, error) {
-	rows, err := p.tx.Query(ctx, `
-SELECT DISTINCT version_id
-FROM artifact_binding_revisions
-WHERE scope_kind = $1 AND scope_id = $2
-ORDER BY version_id`, scope.kind, scope.id)
-	if err != nil {
-		return nil, fmt.Errorf("list lifecycle purge Artifact versions: %w", err)
-	}
-	defer rows.Close()
-	result := make([]string, 0)
-	for rows.Next() {
-		var versionID string
-		if err := rows.Scan(&versionID); err != nil {
-			return nil, fmt.Errorf("scan lifecycle purge Artifact version: %w", err)
-		}
-		result = append(result, versionID)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate lifecycle purge Artifact versions: %w", err)
-	}
-	return result, nil
+// revisionKey is the primary key of a binding revision within its scope. The
+// zero key, or a key with only a namespace, sorts before every stored key of
+// that range, because stored names and revisions are never empty.
+type revisionKey struct {
+	namespace, name, revision string
 }
 
+// revisionBatch is one purged batch: the version IDs of its revisions in key
+// order and the key of its last revision.
+type revisionBatch struct {
+	versionIDs []string
+	last       revisionKey
+}
+
+// purgeAllRevisions deletes every binding revision of scope, or of one
+// namespace in it, batch by batch, and returns the versions they referenced
+// for the caller to collect.
+func (p *PostgresPurger) purgeAllRevisions(
+	ctx context.Context, scope Scope, namespace string,
+) ([]string, error) {
+	versionIDs := make([]string, 0)
+	after := revisionKey{namespace: namespace}
+	for {
+		batch, err := p.purgeRevisionBatch(ctx, scope, namespace, after)
+		if err != nil {
+			return nil, err
+		}
+		versionIDs = append(versionIDs, batch.versionIDs...)
+		if len(batch.versionIDs) < purgeBatchSize {
+			return versionIDs, nil
+		}
+		after = batch.last
+	}
+}
+
+// purgeRevisionBatch deletes the next batch of at most purgeBatchSize binding
+// revisions of scope after the key after, restricted to namespace when it is
+// not empty: first the lineage edges into or out of them, because those
+// foreign keys are immediate, then the bindings whose current revision is in
+// the batch, then the revisions. An empty batch means nothing is left.
+func (p *PostgresPurger) purgeRevisionBatch(
+	ctx context.Context, scope Scope, namespace string, after revisionKey,
+) (revisionBatch, error) {
+	var rows pgx.Rows
+	var err error
+	if namespace == "" {
+		rows, err = p.tx.Query(ctx, purgeScopeRevisionBatchSQL,
+			scope.kind, scope.id, after.namespace, after.name, after.revision, purgeBatchSize)
+	} else {
+		after.namespace = namespace
+		rows, err = p.tx.Query(ctx, purgeNamespaceRevisionBatchSQL,
+			scope.kind, scope.id, namespace, after.name, after.revision, purgeBatchSize)
+	}
+	if err != nil {
+		return revisionBatch{}, fmt.Errorf("list lifecycle purge Artifact revisions: %w", err)
+	}
+	var batch revisionBatch
+	for rows.Next() {
+		var versionID string
+		if err := rows.Scan(
+			&batch.last.namespace, &batch.last.name, &batch.last.revision, &versionID,
+		); err != nil {
+			rows.Close()
+			return revisionBatch{}, fmt.Errorf("scan lifecycle purge Artifact revision: %w", err)
+		}
+		batch.versionIDs = append(batch.versionIDs, versionID)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return revisionBatch{}, fmt.Errorf("iterate lifecycle purge Artifact revisions: %w", err)
+	}
+	if len(batch.versionIDs) == 0 {
+		return batch, nil
+	}
+	arguments := []any{
+		scope.kind, scope.id, after.namespace, after.name, after.revision,
+		batch.last.namespace, batch.last.name, batch.last.revision,
+	}
+	for _, statement := range []struct{ sql, what string }{
+		{purgeTargetLineageSQL, "Artifact lineage into"},
+		{purgeSourceLineageSQL, "Artifact lineage out of"},
+		{purgeBindingSQL, "Artifact bindings of"},
+	} {
+		if _, err := p.tx.Exec(ctx, statement.sql, arguments...); err != nil {
+			return revisionBatch{}, fmt.Errorf("delete %s the purge batch: %w", statement.what, err)
+		}
+	}
+	tag, err := p.tx.Exec(ctx, purgeRevisionSQL, arguments...)
+	if err != nil {
+		return revisionBatch{}, fmt.Errorf("delete Artifact revisions of the purge batch: %w", err)
+	}
+	// The scope lock keeps writers out, so the key range holds exactly the
+	// listed revisions; any other count would leave versions uncollected.
+	if tag.RowsAffected() != int64(len(batch.versionIDs)) {
+		return revisionBatch{}, fmt.Errorf(
+			"Artifact purge batch deleted %d revisions, listed %d",
+			tag.RowsAffected(), len(batch.versionIDs),
+		)
+	}
+	return batch, nil
+}
+
+// collectUnreferencedVersions locks every candidate version and then every
+// candidate blob in one global order, at most purgeBatchSize per statement,
+// before it deletes the ones nothing references any more.
 func (p *PostgresPurger) collectUnreferencedVersions(
 	ctx context.Context,
 	versionIDs []string,
@@ -256,51 +281,49 @@ func (p *PostgresPurger) collectUnreferencedVersions(
 	if len(versionIDs) == 0 {
 		return nil
 	}
+	// Distinct IDs in byte order, the order purgeLockVersionsSQL locks in, so
+	// the lock order holds across chunk boundaries.
+	versionIDs = slices.Clone(versionIDs)
+	slices.Sort(versionIDs)
+	versionIDs = slices.Compact(versionIDs)
 	// Lock even still-referenced candidates: two purgers may delete different
 	// versions of the same blob, or different references to the same version.
-	if _, err := p.tx.Exec(ctx, `SELECT version_id FROM artifact_versions
-WHERE version_id = ANY($1::text[]) ORDER BY version_id FOR UPDATE`, versionIDs); err != nil {
-		return fmt.Errorf("lock Artifact purge versions: %w", err)
-	}
-	if _, err := p.tx.Exec(ctx, `SELECT sha256 FROM artifact_blobs
-WHERE sha256 IN (SELECT blob_sha256 FROM artifact_versions WHERE version_id = ANY($1::text[]))
-ORDER BY sha256 FOR UPDATE`, versionIDs); err != nil {
-		return fmt.Errorf("lock Artifact purge blobs: %w", err)
-	}
-	rows, err := p.tx.Query(ctx, `
-DELETE FROM artifact_versions AS version
-WHERE version.version_id = ANY($1::text[])
-  AND NOT EXISTS (
-      SELECT 1
-      FROM artifact_binding_revisions AS revision
-      WHERE revision.version_id = version.version_id
-  )
-RETURNING version.blob_sha256`, versionIDs)
-	if err != nil {
-		return fmt.Errorf("collect unreferenced Artifact versions: %w", err)
-	}
-	blobDigests := make([][]byte, 0, len(versionIDs))
-	for rows.Next() {
-		var digest []byte
-		if err := rows.Scan(&digest); err != nil {
-			rows.Close()
-			return fmt.Errorf("scan unreferenced Artifact blob digest: %w", err)
+	candidateDigests := make([][]byte, 0, len(versionIDs))
+	for chunk := range slices.Chunk(versionIDs, purgeBatchSize) {
+		if _, err := p.tx.Exec(ctx, purgeLockVersionsSQL, chunk); err != nil {
+			return fmt.Errorf("lock Artifact purge versions: %w", err)
 		}
-		blobDigests = append(blobDigests, digest)
+		digests, err := p.queryDigests(ctx, `SELECT DISTINCT blob_sha256 FROM artifact_versions
+WHERE version_id = ANY($1::text[])`, chunk)
+		if err != nil {
+			return fmt.Errorf("list Artifact purge blobs: %w", err)
+		}
+		candidateDigests = append(candidateDigests, digests...)
 	}
-	if err := rows.Err(); err != nil {
-		rows.Close()
-		return fmt.Errorf("iterate unreferenced Artifact blob digests: %w", err)
+	for chunk := range slices.Chunk(sortedDigests(candidateDigests), purgeBatchSize) {
+		if _, err := p.tx.Exec(ctx, `SELECT sha256 FROM artifact_blobs
+WHERE sha256 = ANY($1::bytea[]) ORDER BY sha256 FOR UPDATE`, chunk); err != nil {
+			return fmt.Errorf("lock Artifact purge blobs: %w", err)
+		}
 	}
-	rows.Close()
-	if len(blobDigests) == 0 {
-		return nil
+	blobDigests := make([][]byte, 0, len(candidateDigests))
+	for chunk := range slices.Chunk(versionIDs, purgeBatchSize) {
+		digests, err := p.queryDigests(ctx, purgeUnreferencedVersionsSQL, chunk)
+		if err != nil {
+			return fmt.Errorf("collect unreferenced Artifact versions: %w", err)
+		}
+		blobDigests = append(blobDigests, digests...)
 	}
-	deleted, err := p.tx.Query(ctx, `
-DELETE FROM artifact_blobs AS blob
-WHERE blob.sha256 = ANY($1::bytea[])
-  AND NOT EXISTS (SELECT 1 FROM artifact_versions AS version WHERE version.blob_sha256 = blob.sha256)
-RETURNING backend, object_key`, blobDigests)
+	for chunk := range slices.Chunk(sortedDigests(blobDigests), purgeBatchSize) {
+		if err := p.collectUnreferencedBlobs(ctx, chunk); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (p *PostgresPurger) collectUnreferencedBlobs(ctx context.Context, digests [][]byte) error {
+	deleted, err := p.tx.Query(ctx, purgeUnreferencedBlobsSQL, digests)
 	if err != nil {
 		return fmt.Errorf("collect unreferenced Artifact blobs: %w", err)
 	}
@@ -312,12 +335,25 @@ RETURNING backend, object_key`, blobDigests)
 			return err
 		}
 		if kind == BlobFilesystem && key != nil {
-			deletePhysicalAfterCommit(ctx, p.tx, BlobObject{Backend: kind, Key: *key})
+			if err := deletePhysicalAfterCommit(ctx, p.tx, BlobObject{Backend: kind, Key: *key}); err != nil {
+				return err
+			}
 		}
 	}
-	if err := deleted.Err(); err != nil {
-		return err
-	}
+	return deleted.Err()
+}
 
-	return nil
+func (p *PostgresPurger) queryDigests(ctx context.Context, sql string, versionIDs []string) ([][]byte, error) {
+	rows, err := p.tx.Query(ctx, sql, versionIDs)
+	if err != nil {
+		return nil, err
+	}
+	return pgx.CollectRows(rows, pgx.RowTo[[]byte])
+}
+
+// sortedDigests returns the distinct digests in PostgreSQL bytea order.
+func sortedDigests(digests [][]byte) [][]byte {
+	sorted := slices.Clone(digests)
+	slices.SortFunc(sorted, bytes.Compare)
+	return slices.CompactFunc(sorted, bytes.Equal)
 }

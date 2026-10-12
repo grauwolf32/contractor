@@ -21,7 +21,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/planner"
 	plannersession "github.com/grauwolf32/contractor/internal/planner/session"
-	"github.com/grauwolf32/contractor/internal/rundeletion"
+	"github.com/grauwolf32/contractor/internal/runservice"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/grauwolf32/contractor/internal/telemetry"
@@ -95,17 +95,11 @@ func TestPostgresRunDetailFixedBatchQueries(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	tracedRuns := runstore.NewPostgresStore(traced)
-	tracedPlans, err := plannersession.New(tracedRuns, plannersession.Options{})
+	tracedDetails, err := runservice.NewRunDetailReader(runservice.PostgresRunDetailTransaction(traced))
 	if err != nil {
 		t.Fatal(err)
 	}
-	batch := &handler{dependencies: Dependencies{
-		Runs: tracedRuns, RunDeletion: rundeletion.New(traced),
-		Metrics: telemetry.NewRepository(traced), PlannerPlans: tracedPlans,
-		AllocationResources: telemetry.NewRepository(traced),
-		Artifacts:           artifacts.NewService(artifacts.NewPostgresRepository(traced)),
-	}}
+	batch := &handler{dependencies: Dependencies{RunDetails: tracedDetails}}
 	get := func(h *handler, runID, owner string) *httptest.ResponseRecorder {
 		r := httptest.NewRequest(http.MethodGet, "/v1/runs/"+runID, nil)
 		r.SetPathValue("runID", runID)
@@ -121,7 +115,14 @@ func TestPostgresRunDetailFixedBatchQueries(t *testing.T) {
 			if _, err := runs.CreateRun(ctx, runstore.CreateRunParams{RunID: runID, OwnerID: "user-1", WorkflowName: "artifact-copy", WorkflowVersion: "1", WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: json.RawMessage(`{}`), RuntimeConfig: runtimeconfig.BuiltInRunSnapshot()}); err != nil {
 				t.Fatal(err)
 			}
-			if _, err := runs.TransitionRun(ctx, runID, runstore.RunInitializing, runstore.RunRunning, runstore.Reason{Code: "initialized"}); err != nil {
+			if _, err := runs.TransitionRun(
+				ctx, runID, runstore.RunInitializing, runstore.RunPending, runstore.Reason{Code: "initialized"},
+			); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := runs.TransitionRun(
+				ctx, runID, runstore.RunPending, runstore.RunRunning, runstore.Reason{Code: "admitted"},
+			); err != nil {
 				t.Fatal(err)
 			}
 			service := artifacts.NewService(artifacts.NewPostgresRepository(pool))
@@ -188,7 +189,7 @@ func TestPostgresRunDetailFixedBatchQueries(t *testing.T) {
 			}
 			trace.take()
 			response := get(batch, runID, "user-1")
-			queries := trace.take()
+			queries := detailDataQueries(t, trace.take())
 			if response.Code != http.StatusOK {
 				t.Fatalf("batch GET: %d %s", response.Code, response.Body.String())
 			}
@@ -253,7 +254,7 @@ func TestPostgresRunDetailFixedBatchQueries(t *testing.T) {
 				t.Fatal("physical allocation identity leaked")
 			}
 			denied := get(batch, runID, "other-user")
-			deniedQueries := trace.take()
+			deniedQueries := detailDataQueries(t, trace.take())
 			// GetRun reads the Run with its metadata labels in one query;
 			// related data must never be queried before the owner guard succeeds.
 			if denied.Code != http.StatusNotFound || len(deniedQueries) != 1 {
@@ -266,4 +267,30 @@ func TestPostgresRunDetailFixedBatchQueries(t *testing.T) {
 			}
 		})
 	}
+}
+
+// detailDataQueries drops the transaction control statements around one Run
+// detail read after checking that the read ran in one read-only REPEATABLE
+// READ transaction, and returns the data queries in between.
+func detailDataQueries(t *testing.T, queries []string) []string {
+	t.Helper()
+	if len(queries) < 2 || !strings.EqualFold(queries[0], "begin isolation level repeatable read read only") {
+		t.Fatalf("Run detail did not start one read-only REPEATABLE READ transaction: %q", queries)
+	}
+	last := strings.ToLower(queries[len(queries)-1])
+	if last != "commit" && last != "rollback" {
+		t.Fatalf("Run detail transaction did not end: %q", queries)
+	}
+	result := make([]string, 0, len(queries)-2)
+	for _, query := range queries[1 : len(queries)-1] {
+		lower := strings.ToLower(query)
+		if strings.HasPrefix(lower, "begin") || lower == "commit" || lower == "rollback" {
+			t.Fatalf("Run detail used more than one transaction: %q", queries)
+		}
+		if strings.HasPrefix(lower, "savepoint ") || strings.HasPrefix(lower, "release savepoint ") {
+			continue
+		}
+		result = append(result, query)
+	}
+	return result
 }

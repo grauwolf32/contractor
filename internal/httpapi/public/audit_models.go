@@ -155,12 +155,12 @@ func createAuditRequestDigest(projectID string, request createAuditRequest) (str
 	return digest, labels, nil
 }
 
-// auditRequestDigest binds a start (empty action) or lifecycle mutation.
-// Start digests predate the action field, so it is omitted when empty to keep
-// stored start digests replayable.
+// auditRequestDigest binds one Audit lifecycle request: its action (start,
+// pause, resume, cancel or delete), the Audit, the expected revision and the
+// optional time limit.
 func auditRequestDigest(action, auditID string, revision uint64, seconds ...*int) string {
 	encoded, _ := json.Marshal(struct {
-		Action          string `json:"action,omitempty"`
+		Action          string `json:"action"`
 		AuditID         string `json:"auditId"`
 		Revision        uint64 `json:"revision"`
 		DeadlineSeconds *int   `json:"deadlineSeconds,omitempty"`
@@ -181,13 +181,6 @@ func pointerString(value *string) string {
 		return ""
 	}
 	return *value
-}
-
-func pointerAuditState(value *auditstore.AuditState) string {
-	if value == nil {
-		return ""
-	}
-	return string(*value)
 }
 
 func pointerItemState(value *auditstore.ItemState) string {

@@ -75,7 +75,8 @@ func TestPostgresAcceptNextRoundIsAtomicReplaySafeAndConsumeOnce(t *testing.T) {
 			ItemID: "item-round-two", ItemKey: "verify-proposal-one", Ordinal: 0,
 			Kind: "finding-verification", SubjectKey: "subject-one",
 			Task: testExact("audits", "round-two-task", "r1"), Origin: testOrigin("verify-proposal-one"),
-			WorkflowRole: "verify", InitialState: ItemReady, Coverage: emptyCoverage(),
+			WorkflowRole: "verify", InitialState: ItemAwaitingReview, Coverage: emptyCoverage(),
+			ApprovalKind: ItemApprovalActiveCheck, ApprovalDigest: testDigest("7"),
 			ProposalSources: []ProposalItemSource{{
 				ReceiptID: "proposal-receipt-one", ProposedCheckOrdinal: 0, Proposal: proposal,
 			}},
@@ -121,6 +122,15 @@ SELECT count(*) FROM audit_items
  WHERE audit_id = $1 AND proposal_receipt_id = 'proposal-receipt-one'
    AND proposal_check_ordinal = 0`, audit.AuditID).Scan(&sourceCount); err != nil || sourceCount != 1 {
 		t.Fatalf("durable proposal consume fence = (%d, %v)", sourceCount, err)
+	}
+	var roundReviews, openedReviews int
+	if err := pool.QueryRow(ctx, `
+SELECT (event.summary->>'reviews')::int,
+       (SELECT count(*) FROM audit_review_requests WHERE audit_id = event.audit_id)
+  FROM audit_events AS event
+ WHERE event.audit_id = $1 AND event.kind = 'round.accepted' AND event.entity_id = 'round-two'`,
+		audit.AuditID).Scan(&roundReviews, &openedReviews); err != nil || roundReviews != 1 || openedReviews != 1 {
+		t.Fatalf("next round.accepted reviews = (%d, %d opened, %v), want 1", roundReviews, openedReviews, err)
 	}
 
 	closeAuditRoundForTest(t, ctx, store, claim, "round-two", 1)
@@ -200,14 +210,15 @@ INSERT INTO finding_proposal_receipts (
     workflow_name, workflow_version, workflow_schema_version,
     workflow_configuration_ref, workflow_closure_digest,
     proposal_ref, proposal_digest, proposal_media_type,
-    proposal_size_bytes, evidence
+    proposal_size_bytes, evidence, report_projection
 ) VALUES (
     $1, 'proposal-one', 'allocation-one', 'runtime-one', 'instance-one',
     'stage-one', 'worker', 'invocation-one', 'submission-one', 'candidate-one', $2,
     'run-source-one', $3, $4,
     'source-workflow', '1', 'contractor/v1alpha1',
     '{"name":"source-workflow","version":"1"}'::jsonb, $5,
-    $6::jsonb, $7, 'application/json', $8, '[]'::jsonb
+    $6::jsonb, $7, 'application/json', $8, '[]'::jsonb,
+    '{"description":"Test finding.","limitations":[],"severity_suggestion":"","standard_refs":[],"subject":null,"title":"Test finding."}'
 )`, receiptID, testDigest("5"), audit.OwnerID, audit.ProjectID,
 		testDigest("6"), proposalRef, proposal.Digest, proposal.SizeBytes); err != nil {
 		t.Fatal(err)

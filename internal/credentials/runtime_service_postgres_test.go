@@ -17,6 +17,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
+	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -226,13 +227,13 @@ INSERT INTO runtime_credentials (
 	}
 
 	_, err = pool.Exec(ctx, `UPDATE runtime_credentials SET created_by = 'changed' WHERE credential_id = 'otel-auth'`)
-	assertRuntimeCredentialSQLState(t, err, "23514")
+	assertRuntimeCredentialSQLState(t, err, persistencepostgres.SQLStateCheckViolation)
 	_, err = pool.Exec(ctx, `UPDATE runtime_credentials SET deleted_by = NULL, deleted_at = NULL WHERE credential_id = 'proxy-bearer'`)
-	assertRuntimeCredentialSQLState(t, err, "23514")
+	assertRuntimeCredentialSQLState(t, err, persistencepostgres.SQLStateCheckViolation)
 	_, err = pool.Exec(ctx, `UPDATE runtime_credentials SET deleted_by = 'another' WHERE credential_id = 'proxy-bearer'`)
-	assertRuntimeCredentialSQLState(t, err, "23514")
+	assertRuntimeCredentialSQLState(t, err, persistencepostgres.SQLStateCheckViolation)
 	_, err = pool.Exec(ctx, `DELETE FROM runtime_credentials WHERE credential_id = 'proxy-bearer'`)
-	assertRuntimeCredentialSQLState(t, err, "23514")
+	assertRuntimeCredentialSQLState(t, err, persistencepostgres.SQLStateCheckViolation)
 }
 
 func TestRuntimeCredentialDeleteSerializesWithRuntimeConfigBindings(t *testing.T) {
@@ -441,8 +442,12 @@ func TestRuntimeCredentialDeleteSerializesWithRuntimeConfigBindings(t *testing.T
 		t.Fatal(err)
 	}
 	if _, err := allocationStore.TransitionRun(
-		ctx, allocationRun.RunID, runstore.RunInitializing, runstore.RunRunning,
-		runstore.Reason{Code: "ready"},
+		ctx, allocationRun.RunID, runstore.RunInitializing, runstore.RunPending, runstore.Reason{Code: "ready"},
+	); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := allocationStore.TransitionRun(
+		ctx, allocationRun.RunID, runstore.RunPending, runstore.RunRunning, runstore.Reason{Code: "admitted"},
 	); err != nil {
 		t.Fatal(err)
 	}

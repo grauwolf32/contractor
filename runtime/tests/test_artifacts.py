@@ -340,6 +340,69 @@ def test_exact_read_rejects_a_response_for_a_different_revision() -> None:
     asyncio.run(scenario())
 
 
+def test_metadata_read_resolves_the_exact_revision_without_the_payload() -> None:
+    async def scenario() -> None:
+        metadata = {
+            "apiVersion": "contractor/v1alpha1",
+            "artifact": {"namespace": "inputs", "name": "source", "revision": "revision-2"},
+            "mediaType": "application/zip",
+            "size": 70_000,
+        }
+        transport = FakeTransport([json_response(200, metadata), json_response(200, metadata)])
+        client = ArtifactClient("allocation-1", transport)
+        cursor = client.observation_cursor
+        current = await client.read_artifact_metadata(
+            ArtifactRef(namespace="inputs", name="source")
+        )
+        exact = await client.read_artifact_metadata(
+            ArtifactRef(namespace="inputs", name="source", revision="revision-2")
+        )
+        assert current == exact
+        assert current.artifact.revision == "revision-2"
+        assert current.media_type == "application/zip" and current.size == 70_000
+        path = "/allocations/allocation-1/artifacts/inputs/source/metadata"
+        assert [(request.method, request.path) for request in transport.requests] == [
+            ("GET", path),
+            ("GET", path + "?revision=revision-2"),
+        ]
+        assert all(request.maximum == 1 << 20 for request in transport.requests)
+        # Metadata is not a content observation.
+        assert client.observed_exact_refs_since(cursor) == ()
+
+        for value in (
+            {**metadata, "artifact": {**metadata["artifact"], "name": "other"}},
+            {**metadata, "artifact": {**metadata["artifact"], "revision": "revision-1"}},
+            {**metadata, "size": MAX_ARTIFACT_BYTES + 1},
+            {**metadata, "extra": True},
+        ):
+            mismatched = ArtifactClient("allocation-1", FakeTransport([json_response(200, value)]))
+            with pytest.raises(ArtifactTransportError):
+                await mismatched.read_artifact_metadata(
+                    ArtifactRef(namespace="inputs", name="source", revision="revision-2")
+                )
+        missing = ArtifactClient(
+            "allocation-1",
+            FakeTransport(
+                [
+                    json_response(
+                        404,
+                        {
+                            "code": "artifact_not_found",
+                            "message": "artifact was not found",
+                            "retryable": False,
+                            "requestId": "request-1",
+                        },
+                    )
+                ]
+            ),
+        )
+        with pytest.raises(ArtifactAPIError) as caught:
+            await missing.read_artifact_metadata(ArtifactRef(namespace="inputs", name="missing"))
+        assert caught.value.code == "artifact_not_found" and not caught.value.retryable
+
+    asyncio.run(scenario())
+
+
 def test_api_error_is_typed_and_does_not_echo_server_message() -> None:
     async def scenario() -> None:
         recognizable = "server-message-must-not-escape"

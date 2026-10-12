@@ -22,7 +22,7 @@ func failedResumeFixture(t *testing.T, ctx context.Context, pool *pgxpool.Pool, 
 	t.Helper()
 	store := NewPostgresStore(pool)
 	run := createTestRun(t, ctx, store, runID)
-	if _, err := store.TransitionRun(ctx, runID, RunInitializing, RunRunning, Reason{Code: "started"}); err != nil {
+	if _, err := admitTestRun(ctx, store, runID); err != nil {
 		t.Fatal(err)
 	}
 	stageID := runID + "-stage"
@@ -184,7 +184,7 @@ func TestPostgresResumeFailedStageIsAtomicAndIdempotent(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, thawErr := pool.Exec(ctx, `UPDATE artifact_bindings SET frozen=false WHERE scope_kind='run' AND scope_id=$1 AND namespace='outputs'`, before.RunID)
-	if persistencepostgres.SQLState(thawErr) != "23514" {
+	if persistencepostgres.SQLState(thawErr) != persistencepostgres.SQLStateCheckViolation {
 		t.Fatalf("old receipt permitted a later thaw: %v", thawErr)
 	}
 	next, err := store.GetStageExecution(ctx, target)
@@ -253,7 +253,7 @@ func TestPostgresResumeRequiresExactStageContextArtifacts(t *testing.T) {
 	for _, missing := range []bool{true, false} {
 		runID := fmt.Sprintf("run-resume-context-%t", missing)
 		run := createTestRun(t, ctx, store, runID)
-		if _, err := store.TransitionRun(ctx, runID, RunInitializing, RunRunning, Reason{Code: "started"}); err != nil {
+		if _, err := admitTestRun(ctx, store, runID); err != nil {
 			t.Fatal(err)
 		}
 		scoped, err := artifacts.NewService(artifacts.NewPostgresRepository(pool)).Run(runID)

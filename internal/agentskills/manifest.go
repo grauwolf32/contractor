@@ -6,6 +6,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/grauwolf32/contractor/internal/contracts"
 	"go.yaml.in/yaml/v4"
 )
 
@@ -127,7 +128,7 @@ func constructManifest(root *yaml.Node) (Manifest, error) {
 	if len(name) > 64 {
 		return Manifest{}, validationError(CodeLimitExceeded, "SKILL.md")
 	}
-	if !validSkillName(name) {
+	if !contracts.ValidAgentSkillName(name) {
 		return Manifest{}, validationError(CodeManifestInvalid, "SKILL.md")
 	}
 	description, ok := scalarString(values["description"])

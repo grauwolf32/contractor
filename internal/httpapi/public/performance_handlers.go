@@ -11,9 +11,11 @@ import (
 	"github.com/grauwolf32/contractor/internal/telemetry"
 )
 
+// The Operations routes below are authorized by requireOperationsRoutes.
+
 func (h *handler) getPerformance(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
-	if h.rejectHead(w, r) || !h.requireOperationsCapability(w, r) {
+	if h.rejectHead(w, r) {
 		return
 	}
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
@@ -25,7 +27,7 @@ func (h *handler) getPerformance(w http.ResponseWriter, r *http.Request) {
 
 func (h *handler) listAllocationResourceHistory(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
-	if h.rejectHead(w, r) || !h.requireOperationsCapability(w, r) {
+	if h.rejectHead(w, r) {
 		return
 	}
 	query, limit, encodedCursor, err := pageQuery(r.URL.RawQuery, "runId")
@@ -45,6 +47,10 @@ func (h *handler) listAllocationResourceHistory(w http.ResponseWriter, r *http.R
 	params := telemetry.AllocationResourceHistoryParams{
 		OwnerID: principalUserID(r.Context()), RunID: runID, Limit: pagelimit.FetchRows(limit),
 	}
+	filter := "all"
+	if runID != "" {
+		filter = "run:" + runID
+	}
 	var upperAt time.Time
 	var upperAllocationID string
 	if encodedCursor != "" {
@@ -53,11 +59,7 @@ func (h *handler) listAllocationResourceHistory(w http.ResponseWriter, r *http.R
 			h.handleError(w, decodeErr)
 			return
 		}
-		expectedFilter := "all"
-		if runID != "" {
-			expectedFilter = "run:" + runID
-		}
-		if values[0] != expectedFilter {
+		if values[0] != filter {
 			h.handleError(w, fmt.Errorf("%w: cursor does not match the Run filter", errInvalidRequest))
 			return
 		}
@@ -85,34 +87,27 @@ func (h *handler) listAllocationResourceHistory(w http.ResponseWriter, r *http.R
 		h.handleError(w, err)
 		return
 	}
-	page := pageInfoResponse{}
-	if len(items) > limit {
-		items = items[:limit]
-		if encodedCursor == "" {
-			upperAt, upperAllocationID = items[0].FinishedAt, items[0].AllocationID
-		}
-		filter := "all"
-		if runID != "" {
-			filter = "run:" + runID
-		}
-		last := items[len(items)-1]
-		next, cursorErr := h.encodePageCursor(
-			"operations:allocation-history", filter,
-			upperAt.UTC().Format(time.RFC3339Nano), upperAllocationID,
-			last.FinishedAt.UTC().Format(time.RFC3339Nano), last.AllocationID,
-		)
-		if cursorErr != nil {
-			h.handleError(w, cursorErr)
-			return
-		}
-		page.HasMore, page.NextCursor = true, &next
+	if encodedCursor == "" && len(items) != 0 {
+		// The first page pins the upper boundary that later pages keep.
+		upperAt, upperAllocationID = items[0].FinishedAt, items[0].AllocationID
+	}
+	items, page, err := paginate(h, items, limit, "operations:allocation-history",
+		func(last telemetry.AllocationResourceSummary) []string {
+			return []string{
+				filter, upperAt.UTC().Format(time.RFC3339Nano), upperAllocationID,
+				last.FinishedAt.UTC().Format(time.RFC3339Nano), last.AllocationID,
+			}
+		})
+	if err != nil {
+		h.handleError(w, err)
+		return
 	}
 	writeJSON(w, http.StatusOK, allocationResourcePageResponse{Items: items, Page: page})
 }
 
 func (h *handler) getPerformanceHistory(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
-	if h.rejectHead(w, r) || !h.requireOperationsCapability(w, r) {
+	if h.rejectHead(w, r) {
 		return
 	}
 	query, err := exactQuery(r.URL.RawQuery, "from", "to", "step")

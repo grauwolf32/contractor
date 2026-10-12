@@ -840,7 +840,7 @@ Terms used across the specification. Each entry names the document that owns the
 
 **Reservation** — Capacity set aside inside a shared ceiling or budget before the content that uses it is admitted. Owner: [Limits](platform/limits.md).
 
-**Reserved Namespace** — A Namespace or Namespace prefix with its own contract: `inputs`, `outputs`, `skills` and the hidden `contractor-system` in RunScope, none of which can be a Stage Agent Namespace; `audit-standards` in UserScope; the `audit-*` prefix in ProjectScope. Write rules differ per Namespace: the allocation baseline write grant permits `inputs` (working input copies), while `outputs`, `skills`, `contractor-system`, `audit-standards` and `audit-*` bindings are written only by trusted Server operations. Owner: [Artifact store](artifacts/artifact-store.md).
+**Reserved Namespace** — A Namespace or Namespace prefix with its own contract: `inputs`, `outputs`, `skills`, `finding-proposals` and the hidden `contractor-system` in RunScope, none of which can be a Stage Agent Namespace; exactly `audit-standards` in UserScope; the `audit-*` prefix in ProjectScope. Write rules differ per Namespace: the allocation baseline write grant permits CAS updates of existing `inputs` bindings (working input copies) but never creates one, while `outputs`, `skills`, `finding-proposals`, `contractor-system`, `audit-standards` and `audit-*` bindings are written only by trusted Server operations. Owner: [Artifact store](artifacts/artifact-store.md).
 
 **ResolvedExecutionConfig** — The effective per-consumer ModelPolicy, Gateway and credential selection that Run initialization stores in the immutable WorkflowRun snapshot. Owner: [Agent templates](configuration/agent-templates.md).
 
@@ -995,6 +995,8 @@ Terms used across the specification. Each entry names the document that owns the
 **Shallow surface** — The search_def and list_symbols operations of code-analysis@1, implemented with Tree-sitter directly on the workspace snapshot and portable across both workspace providers. Owner: [Code analysis](tools/code-analysis.md).
 
 **Shared classification fixture** — The test fixture api/testdata/v1alpha1/gateway-failure-classification-cases.json on which the Server-side Planner and Runtime Worker Gateway failure classifiers must agree. Owner: [Failure model](platform/failure-model.md).
+
+**Shipped catalog** — The operator-root manifests and instruction resources that the repository ships under `configs/`; until the first release they may change in place without a new version (CAT-R74). Owner: [Configuration catalog](configuration/catalog.md).
 
 **Shutdown grace** — The bound (CONTRACTOR_SHUTDOWN_GRACE_SECONDS, default 10 seconds) within which the Runtime stops and destroys its Worker after lease loss, before forced termination. Owner: [Runtime Agent](execution/runtime-agent.md).
 

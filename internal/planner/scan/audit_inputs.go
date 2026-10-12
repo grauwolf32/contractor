@@ -107,7 +107,7 @@ func (p *execution) readAuditManifest(ctx context.Context, task auditdomain.Item
 		if !required {
 			continue
 		}
-		if input.Digest != pinned.Digest || !input.Ref.SameExact(pinned.Ref) {
+		if pinned.Exact().Verify(input.Exact()) != nil {
 			return empty, scanError("audit_scan_assignment_invalid", nil)
 		}
 		delete(expected, input.Name)

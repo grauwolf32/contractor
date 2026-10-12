@@ -85,14 +85,12 @@ func (s *Service) PrepareNextRound(
 	if err != nil {
 		return auditstore.AcceptRoundParams{}, nil, err
 	}
-	projectArtifacts, err := artifacts.NewService(artifacts.NewPostgresRepository(s.pool)).Project(
-		snapshot.Audit.ProjectID,
-	)
-	if err != nil {
-		return auditstore.AcceptRoundParams{}, nil, inconsistentRound("the Audit Project artifact scope is invalid", err)
+	writer := auditArtifactWriter{
+		service:   artifacts.NewService(artifacts.NewPostgresRepository(s.pool)),
+		projectID: snapshot.Audit.ProjectID,
 	}
-	sourceArtifact, err := writeImmutableArtifact(
-		ctx, projectArtifacts,
+	sourceArtifact, err := writer.write(
+		ctx,
 		contracts.ArtifactRef{
 			Namespace: namespace,
 			Name:      auditdomain.DeterministicID("proposal-inventory", snapshot.Audit.AuditID, auditdomain.DigestBytes(sourceBytes)),
@@ -122,13 +120,13 @@ func (s *Service) PrepareNextRound(
 		return auditstore.AcceptRoundParams{}, nil, err
 	}
 	taskArtifacts, manifest, err := writeTaskPackages(
-		ctx, projectArtifacts, namespace, profile, selection, inventory, prepared,
+		ctx, writer, namespace, profile, selection, inventory, prepared,
 	)
 	if err != nil {
 		return auditstore.AcceptRoundParams{}, nil, nextRoundWriteError(err)
 	}
 	worklist, err := writeRoundPackage(
-		ctx, projectArtifacts, namespace, roundOrdinal, inventory, manifest,
+		ctx, writer, namespace, roundOrdinal, inventory, manifest,
 	)
 	if err != nil {
 		return auditstore.AcceptRoundParams{}, nil, nextRoundWriteError(err)
@@ -192,11 +190,15 @@ func (s *Service) PrepareNextRound(
 	}, nil, nil
 }
 
-// nextRoundWriteError classifies a collision of a content-named Round
-// artifact with different stored content, which retained Audit data cannot
-// cause and a retry cannot repair.
+// nextRoundWriteError classifies the Round artifact write failures a retry
+// cannot repair: an invalid Audit Project scope, and a content-named Round
+// artifact that holds different stored content, which retained Audit data
+// cannot cause.
 func nextRoundWriteError(err error) error {
-	if errors.Is(err, artifacts.ErrArtifactConflict) {
+	if errors.Is(err, artifacts.ErrInvalidScope) {
+		return inconsistentRound("the Audit Project artifact scope is invalid", err)
+	}
+	if errors.Is(err, artifacts.ErrAuditArtifactCollision) {
 		return inconsistentRound("a content-named Round artifact holds different content", err)
 	}
 	return err

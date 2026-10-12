@@ -276,13 +276,13 @@ func verifyTrustedExecution(
 		var findingPolicy string
 		err := tx.QueryRow(ctx, `
 SELECT execution.audit_id, execution.execution_id, execution.role,
-       audit.profile_snapshot #>> '{interaction,findingConfirmation}'
+       audit.profile_snapshot #>> '`+workflowconfig.AuditProfileFindingConfirmationPath+`'
   FROM audit_executions AS execution
   JOIN audits AS audit USING (audit_id)
  WHERE execution.execution_id = $1 AND execution.run_id = $2`,
 			*run.AuditExecutionID, run.RunID,
 		).Scan(&audit.AuditID, &audit.ExecutionID, &audit.Role, &findingPolicy)
-		if errors.Is(err, pgx.ErrNoRows) || err == nil && findingPolicy == "disabled" {
+		if errors.Is(err, pgx.ErrNoRows) || err == nil && findingPolicy == string(workflowconfig.AuditFindingDisabled) {
 			return Origin{}, "", nil, ErrToolNotSelected
 		}
 		if err != nil {
@@ -346,10 +346,10 @@ func insertReceipt(
 		auditExecutionID, auditID, auditRole, origin.Workflow.Name, origin.Workflow.Version,
 		origin.Workflow.SchemaVersion, configurationRef, origin.Workflow.ClosureDigest,
 		proposalRef, proposal.Digest, proposal.MediaType, proposal.SizeBytes,
-		evidenceJSON,
+		evidenceJSON, string(canonical.reportProjection),
 	)
 	if err != nil {
-		if persistencepostgres.SQLState(err) == persistencepostgres.SQLStateUniqueViolation {
+		if persistencepostgres.Classify(err) == persistencepostgres.ClassDuplicate {
 			return ErrConflict
 		}
 		return fmt.Errorf("insert finding proposal receipt: %w", err)

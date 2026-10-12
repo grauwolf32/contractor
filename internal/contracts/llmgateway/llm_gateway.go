@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/url"
 	"regexp"
+	"slices"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -21,9 +22,9 @@ const (
 )
 
 type LLMGatewayConfigRef struct {
-	GatewayID string `json:"gatewayId"`
-	Version   string `json:"version"`
-	Digest    string `json:"digest"`
+	GatewayID string `json:"gatewayId" strictjson:"required"`
+	Version   string `json:"version" strictjson:"required"`
+	Digest    string `json:"digest" strictjson:"required"`
 }
 
 func (r LLMGatewayConfigRef) ValidateRef() error {
@@ -36,16 +37,21 @@ func (r LLMGatewayConfigRef) ValidateRef() error {
 // LLMCredentialRef is deliberately non-secret. The token is resolved only at
 // the final model-client or allocation-preparation boundary.
 type LLMCredentialRef struct {
-	CredentialID string `json:"credentialId"`
+	CredentialID string `json:"credentialId" strictjson:"required"`
 }
+
+// CredentialIDMember is LLMCredentialRef's JSON member. Credential deletion
+// checks find it in stored Workflow snapshots and allocation provenance, so
+// renaming the tag must rename this constant; internal/persistence pins both.
+const CredentialIDMember = "credentialId"
 
 func (r LLMCredentialRef) Validate() error {
 	return contracts.ValidateSelector("llmCredentialRef", r.CredentialID+"@1")
 }
 
 type LLMGatewayCredentialManager struct {
-	Implementation string `json:"implementation"`
-	ManagementURL  string `json:"managementUrl"`
+	Implementation string `json:"implementation" strictjson:"required"`
+	ManagementURL  string `json:"managementUrl" strictjson:"required"`
 }
 
 // GatewayFailureSignature names one exact provider response that means the
@@ -54,7 +60,7 @@ type LLMGatewayCredentialManager struct {
 // arbitrary 4xx carrying request-specific text can never become a transient
 // availability failure.
 type GatewayFailureSignature struct {
-	Status int `json:"status"`
+	Status int `json:"status" strictjson:"required"`
 	// MessageEquals matches the whole error message (or bare error string).
 	MessageEquals string `json:"messageEquals,omitempty"`
 	// LiteLLMWrapped matches the same upstream message inside LiteLLM's
@@ -148,9 +154,9 @@ func (s GatewayFailureSignature) validate() error {
 // ResolvedLLMGatewayConfig is a complete immutable non-secret Gateway body.
 // Credentials are selected beside this value and never embedded in it.
 type ResolvedLLMGatewayConfig struct {
-	Ref               LLMGatewayConfigRef          `json:"ref"`
-	Protocol          string                       `json:"protocol"`
-	URL               string                       `json:"url"`
+	Ref               LLMGatewayConfigRef          `json:"ref" strictjson:"required"`
+	Protocol          string                       `json:"protocol" strictjson:"required"`
+	URL               string                       `json:"url" strictjson:"required"`
 	CredentialManager *LLMGatewayCredentialManager `json:"credentialManager,omitempty"`
 	// FailureSignatures is present only when the Gateway declares its own set,
 	// which keeps the digest of existing declarations stable; readers use
@@ -161,15 +167,31 @@ type ResolvedLLMGatewayConfig struct {
 // EffectiveFailureSignatures returns the declared set or the protocol default.
 func (c ResolvedLLMGatewayConfig) EffectiveFailureSignatures() GatewayFailureSignatures {
 	if c.FailureSignatures != nil {
-		return cloneGatewayFailureSignatures(*c.FailureSignatures)
+		return c.FailureSignatures.Clone()
 	}
 	return DefaultGatewayFailureSignatures()
 }
 
-func cloneGatewayFailureSignatures(source GatewayFailureSignatures) GatewayFailureSignatures {
+// Clone returns a copy that shares no pointer or slice with c. It is the one
+// deep copy of a Gateway body; every immutable snapshot hands out such copies.
+func (c ResolvedLLMGatewayConfig) Clone() ResolvedLLMGatewayConfig {
+	if c.CredentialManager != nil {
+		manager := *c.CredentialManager
+		c.CredentialManager = &manager
+	}
+	if c.FailureSignatures != nil {
+		signatures := c.FailureSignatures.Clone()
+		c.FailureSignatures = &signatures
+	}
+	return c
+}
+
+// Clone returns a copy that shares no slice with s; a nil or empty list stays
+// nil or empty.
+func (s GatewayFailureSignatures) Clone() GatewayFailureSignatures {
 	return GatewayFailureSignatures{
-		ModelUnavailable: append([]GatewayFailureSignature(nil), source.ModelUnavailable...),
-		PermanentCodes:   append([]string(nil), source.PermanentCodes...),
+		ModelUnavailable: slices.Clone(s.ModelUnavailable),
+		PermanentCodes:   slices.Clone(s.PermanentCodes),
 	}
 }
 

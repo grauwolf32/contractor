@@ -18,7 +18,9 @@ from typing import Any
 import pytest
 
 import contractor_runtime.cli as runtime_cli
+from contractor_runtime._https import decode_private_error
 from contractor_runtime.contracts import RuntimeSettings
+from contractor_runtime.control_client import ControlHTTPError, RegistrationRejectedError
 from contractor_runtime.core.target_policy import (
     TargetDenied,
     parse_allowed_networks,
@@ -75,6 +77,94 @@ def test_shutdown_cancels_inflight_heartbeat_and_stops_listener(
         assert leaked == []
 
     asyncio.run(scenario())
+
+
+_LABELS_REJECTED = (
+    b'{"code":"invalid_runtime_labels","message":"Runtime Agent labels cannot be registered",'
+    b'"retryable":false,"requestId":"request_1"}'
+)
+
+
+class RejectingTransport:
+    """A Control Plane that rejects every registration permanently."""
+
+    def __init__(self) -> None:
+        self.calls = 0
+
+    async def post_json(self, _: str, __: Mapping[str, Any]) -> Mapping[str, Any]:
+        self.calls += 1
+        raise ControlHTTPError(400, decode_private_error(_LABELS_REJECTED))
+
+
+def test_permanent_registration_rejection_fails_startup_and_stops_listener(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def scenario() -> None:
+        state = RuntimeState(instance_id="runtime-rejected")
+        transport = RejectingTransport()
+        fake_server = FakeServer()
+        monkeypatch.setattr(
+            runtime_cli,
+            "runtime_agent_client_context",
+            lambda **_: ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT),
+        )
+        monkeypatch.setattr(
+            runtime_cli,
+            "runtime_agent_server_context",
+            lambda **_: ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER),
+        )
+        monkeypatch.setattr(runtime_cli, "log_runtime_certificate_expiry", lambda *_, **__: None)
+
+        with pytest.raises(RegistrationRejectedError, match="HTTP 400 invalid_runtime_labels"):
+            await asyncio.wait_for(
+                runtime_cli.serve(
+                    make_settings(tmp_path),
+                    state=state,
+                    transport=transport,
+                    server_factory=lambda _: fake_server,  # type: ignore[arg-type,return-value]
+                    install_signal_handlers=False,
+                ),
+                timeout=5,
+            )
+        assert transport.calls == 1
+        assert fake_server.stopped
+        assert (await state.snapshot()).process_state is ProcessState.STOPPING
+        await asyncio.sleep(0)
+        current = asyncio.current_task()
+        leaked = [
+            pending
+            for pending in asyncio.all_tasks()
+            if pending is not current and not pending.done()
+        ]
+        assert leaked == []
+
+    asyncio.run(scenario())
+
+
+def test_main_reports_permanent_registration_rejection(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    async def rejected(_: Settings) -> None:
+        raise RegistrationRejectedError(
+            ControlHTTPError(400, decode_private_error(_LABELS_REJECTED))
+        )
+
+    monkeypatch.setattr(runtime_cli, "parse_settings", lambda _: make_settings(tmp_path))
+    monkeypatch.setattr(runtime_cli, "configure_logging", lambda _: None)
+    monkeypatch.setattr(runtime_cli, "serve", rejected)
+    with (
+        caplog.at_level(logging.ERROR, logger="contractor_runtime.cli"),
+        pytest.raises(SystemExit) as exit_info,
+    ):
+        runtime_cli.main([])
+    assert exit_info.value.code == 1
+    messages = [record.getMessage() for record in caplog.records]
+    assert any(
+        "runtime agent failed: Control Plane rejected the Runtime Agent registration "
+        "permanently (HTTP 400 invalid_runtime_labels, request request_1)" in message
+        for message in messages
+    ), messages
+    assert not any("labels cannot be registered" in message for message in messages)
 
 
 def test_startup_orphan_cleanup_runs_off_the_event_loop(

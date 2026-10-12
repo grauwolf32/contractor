@@ -48,19 +48,34 @@ const STOPPABLE: readonly Audit["state"][] = [
   "finalizing",
 ];
 
-/** States that accept Delete. */
-const DELETABLE: readonly Audit["state"][] = [
-  "draft",
-  "completed",
-  "cancelled",
-  "failed",
-];
+/**
+ * What Delete does in each state. The Server accepts it in every state:
+ * drafts and ended checks are deleted directly, running work is stopped
+ * first and the deletion intent kept (REV-R163), also while a report waits
+ * for a decision (AUD-R222); a deleting check is already under way.
+ */
+const DELETION: Readonly<
+  Record<Audit["state"], "direct" | "stops-first" | "under-way">
+> = {
+  draft: "direct",
+  active: "stops-first",
+  waiting_review: "stops-first",
+  paused: "stops-first",
+  finalizing: "stops-first",
+  cancelling: "stops-first",
+  completed: "direct",
+  cancelled: "direct",
+  failed: "direct",
+  deleting: "under-way",
+};
 
 function auditActionAllowed(
   audit: Audit,
   action: DestructiveAuditAction,
 ): boolean {
-  return (action === "cancel" ? STOPPABLE : DELETABLE).includes(audit.state);
+  return action === "cancel"
+    ? STOPPABLE.includes(audit.state)
+    : DELETION[audit.state] !== "under-way";
 }
 
 function AuditMutationDialog({
@@ -107,7 +122,9 @@ function AuditMutationDialog({
       <p id={description} className="checks-dialog-text">
         {stopping
           ? "Stop this check and cancel its running work. Results already collected stay available. Stopping may take a moment."
-          : "Permanently delete this check, its results and retained evidence. This cannot be undone. Deletion runs in the background and may take a moment."}
+          : DELETION[audit.state] === "stops-first"
+            ? "Stop this check's running work, then permanently delete the check, its results and retained evidence. This cannot be undone. Stopping and deletion run in the background and may take a moment."
+            : "Permanently delete this check, its results and retained evidence. This cannot be undone. Deletion runs in the background and may take a moment."}
       </p>
       <dl className="checks-facts checks-dialog-facts">
         <div>
@@ -228,7 +245,7 @@ function controlButtons(audit: Audit): ControlButton[] {
       icon: <Icon name="stop" />,
       variant: "ghost",
     });
-  if (DELETABLE.includes(audit.state))
+  if (auditActionAllowed(audit, "delete"))
     buttons.push({
       action: "delete",
       text: "Delete check",
@@ -240,16 +257,13 @@ function controlButtons(audit: Audit): ControlButton[] {
   return buttons;
 }
 
-function deleteHint(audit: Audit): string {
-  if (audit.state === "deleting")
-    return "Deleting the check and its retained results…";
-  if (audit.state === "cancelling") return "Waiting for the check to stop.";
-  return "Stop the check or let it finish before deleting it.";
-}
+/** Why Delete is unavailable: only while the check is being deleted. */
+const DELETING_HINT = "Deleting the check and its retained results…";
 
 /**
  * Start, Pause new work, Continue, Stop and Delete for one check, as its
- * state allows. Start and Continue ask for a time limit; Stop and Delete ask
+ * state allows; Delete in every state but deleting, as the Server accepts.
+ * Start and Continue ask for a time limit; Stop and Delete ask
  * for confirmation. Nothing changes before the Server answers; the check and
  * its project lists are read again afterwards, and the cross-project lists
  * (Checks, Inbox, the projects list and overview) refresh alongside, also
@@ -440,7 +454,7 @@ export function AuditControls({
                 <DeleteIcon />
                 <span>Delete check</span>
               </button>
-              <small className="checks-quiet">{deleteHint(audit)}</small>
+              <small className="checks-quiet">{DELETING_HINT}</small>
             </>
           ) : (
             renderButton(deleteButton, true)
@@ -455,7 +469,7 @@ export function AuditControls({
           data-icon-only={compact ? "" : undefined}
           type="button"
           aria-label="Delete check"
-          title={deleteHint(audit)}
+          title={DELETING_HINT}
           disabled
         >
           <DeleteIcon />

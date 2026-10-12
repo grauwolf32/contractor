@@ -3,7 +3,6 @@
 package runrepeat
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -54,8 +53,6 @@ func Decode(encoded []byte) (Snapshot, error) {
 	if len(encoded) == 0 || len(encoded) > MaxSnapshotSize {
 		return Snapshot{}, fmt.Errorf("%w: invalid size", ErrInvalidSnapshot)
 	}
-	decoder := json.NewDecoder(bytes.NewReader(encoded))
-	decoder.DisallowUnknownFields()
 	// A missing patch is not an explicitly retained empty patch.
 	var stored struct {
 		SchemaVersion   string                           `json:"schemaVersion"`
@@ -64,11 +61,10 @@ func Decode(encoded []byte) (Snapshot, error) {
 		Inputs          map[string]contracts.ArtifactRef `json:"inputs"`
 		ExecutionConfig *config.ExecutionConfigPatch     `json:"executionConfig"`
 	}
-	if err := decoder.Decode(&stored); err != nil {
+	if err := strictjson.Decode(encoded, &stored); errors.Is(err, strictjson.ErrTrailingData) {
+		return Snapshot{}, fmt.Errorf("%w: trailing JSON value", ErrInvalidSnapshot)
+	} else if err != nil {
 		return Snapshot{}, fmt.Errorf("%w: decode: %v", ErrInvalidSnapshot, err)
-	}
-	if err := expectEOF(decoder); err != nil {
-		return Snapshot{}, err
 	}
 	if stored.ExecutionConfig == nil {
 		return Snapshot{}, fmt.Errorf("%w: executionConfig must be an object", ErrInvalidSnapshot)
@@ -100,13 +96,6 @@ func validate(snapshot Snapshot) error {
 		if contracts.ValidateArtifactName(slot) != nil || ref.Validate() != nil || ref.Revision == nil {
 			return fmt.Errorf("%w: input %q is not exact", ErrInvalidSnapshot, slot)
 		}
-	}
-	return nil
-}
-
-func expectEOF(decoder *json.Decoder) error {
-	if strictjson.RequireEOF(decoder) != nil {
-		return fmt.Errorf("%w: trailing JSON value", ErrInvalidSnapshot)
 	}
 	return nil
 }

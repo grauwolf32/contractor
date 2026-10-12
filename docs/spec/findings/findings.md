@@ -171,7 +171,9 @@ An entry's `retention` records one of the receipt states `source-held`,
 readable in its source RunScope (FND-R63); hard deletion of the source Run
 discards it when it was never imported (FND-R154, and
 [retention and deletion](../artifacts/retention-and-deletion.md), DEL-R28).
-This document does not specify when a receipt enters `audit-held`.
+This document does not specify when a receipt enters `audit-held`. The
+receipt itself stays as tombstone provenance until its Project is deleted
+(DEL-R61).
 
 ```mermaid
 stateDiagram-v2
@@ -481,6 +483,14 @@ new submission is rejected (FAIL-FND-1).
 allocation write-authorization critical section that ordinary private
 artifact writes use.
 
+**FND-R158.** The intake transaction also stores the receipt's report
+projection: the canonical JSON of the proposal's title, description, subject,
+hypothesis, standard references, severity suggestion, limitations, locations
+and HTTP exchange, validated by the same rules as the proposal and bounded by
+the proposal document size. It is immutable with the receipt, and Audit
+reports read it instead of the proposal artifact
+([review and reports](../audits/review-and-reports.md), REV-R195).
+
 ```mermaid
 sequenceDiagram
     participant M as Model
@@ -749,6 +759,15 @@ failures keep their bounded `422` codes (FAIL-FND-3).
 existing records, captures the available review revisions and reads the
 exact retained bytes with matching digest, MIME type and size. Publication
 exposes a complete package atomically.
+
+**FND-R159.** Publication reads its selection in a number of statements that
+does not grow with its entries (LIM-FND-15): one read authorizes every
+source, one read per source authorizes the receipts it selects, one read
+each loads the selected receipts, their Audit holds, the Audits that own
+those holds and the source Runs that still exist, and the exact documents
+are read in batches. Only the sources (LIM-FND-14) and the document batches
+(LIM-FND-16) add statements to the one repeatable-read transaction that
+holds the publication's lock (FND-R116).
 
 **FND-R111.** A successful response contains `artifact` (`ref`, `digest`,
 `mediaType`, `sizeBytes`), `snapshotAt`, `entryCount` and `replayed`.

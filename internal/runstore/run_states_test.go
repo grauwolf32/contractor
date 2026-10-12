@@ -1,6 +1,7 @@
 package runstore
 
 import (
+	"errors"
 	"fmt"
 	"go/ast"
 	"go/parser"
@@ -38,7 +39,6 @@ func declaredRunStateSets() []runStateSet {
 		{name: "active", rule: "RUN-R30, the non-terminal states", states: activeRunStates[:]},
 		{name: "terminal", rule: "RUN-R39", states: terminalRunStates[:]},
 		{name: "cancellable", rule: "RUN-R41, every active state but cancelling", states: activeWithout(RunCancelling)},
-		{name: "claimable", rule: "Scheduler claim, every initialized active state", states: activeWithout(RunInitializing)},
 		{name: "admitted", rule: "RUN-R28 and RUN-R30, admitted Runs that hold an invocation", states: []WorkflowRunState{RunRunning, RunWaiting}},
 		{name: "gateway-routed", rule: "RUN-R30, Runs a blocked model route can hold", states: []WorkflowRunState{RunPending, RunRunning, RunWaiting}},
 		{name: "cancellation-recorded", rule: "RUN-R40, states that carry a WorkflowRunCancellation", states: []WorkflowRunState{RunCancelling, RunCancelled}},
@@ -214,4 +214,95 @@ func TestRunStateSetsMatchOpenAPIAndGoSQL(t *testing.T) {
 			t.Fatalf("found Run-state lists %v; the scan missed the known active and terminal lists", found)
 		}
 	})
+}
+
+// TestRunLifecycleMatchesSpecification compares runLifecycle with the
+// WorkflowRun state diagram of docs/spec/execution/runs.md edge by edge
+// (RUN-R26 to RUN-R46), so neither can gain or lose an edge alone. It also
+// holds ValidateRunTransition to exactly the edges TransitionRun performs,
+// and the operation-owned edges to the states RUN-R41 and RUN-R46 name.
+func TestRunLifecycleMatchesSpecification(t *testing.T) {
+	root, err := filepath.Abs(filepath.Join("..", ".."))
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(filepath.Join(root, "docs", "spec", "execution", "runs.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	const fence = "```mermaid\nstateDiagram-v2\n"
+	section := string(data)
+	if start := strings.Index(section, "### Run lifecycle"); start >= 0 {
+		section = section[start:]
+	} else {
+		t.Fatal("runs.md has no Run lifecycle section")
+	}
+	start := strings.Index(section, fence)
+	if start < 0 {
+		t.Fatal("the Run lifecycle section has no state diagram")
+	}
+	diagram := section[start+len(fence):]
+	diagram = diagram[:strings.Index(diagram, "```")]
+	edgeLine := regexp.MustCompile(`^\s*(\S+)\s+-->\s+([^\s:]+)\s*(?::.*)?$`)
+	specified := map[[2]WorkflowRunState]bool{}
+	for _, line := range strings.Split(diagram, "\n") {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		match := edgeLine.FindStringSubmatch(line)
+		if match == nil {
+			t.Fatalf("state diagram line %q is not an edge", line)
+		}
+		if match[1] == "[*]" || match[2] == "[*]" {
+			continue
+		}
+		from, to := WorkflowRunState(match[1]), WorkflowRunState(match[2])
+		if !from.Valid() || !to.Valid() {
+			t.Fatalf("state diagram edge %s -> %s names a state that is not a WorkflowRun state", from, to)
+		}
+		specified[[2]WorkflowRunState{from, to}] = true
+	}
+	if len(specified) == 0 {
+		t.Fatal("the state diagram has no edge")
+	}
+	for edge := range specified {
+		if _, ok := runLifecycle[edge]; !ok {
+			t.Errorf("the specification has %s -> %s; runLifecycle does not", edge[0], edge[1])
+		}
+	}
+	for edge := range runLifecycle {
+		if !specified[edge] {
+			t.Errorf("runLifecycle has %s -> %s; the specification does not", edge[0], edge[1])
+		}
+	}
+
+	states := append(append(slices.Clone(activeRunStates[:]), terminalRunStates[:]...), "paused")
+	for _, from := range states {
+		for _, to := range states {
+			operation, edge := runLifecycle[[2]WorkflowRunState{from, to}]
+			want := edge && operation == transitionByTransitionRun
+			if err := ValidateRunTransition(from, to); (err == nil) != want || err != nil && !errors.Is(err, ErrInvalid) {
+				t.Errorf("ValidateRunTransition(%s, %s) = %v, want allowed=%t", from, to, err, want)
+			}
+		}
+	}
+	var cancellable []WorkflowRunState
+	for edge, operation := range runLifecycle {
+		switch operation {
+		case transitionByCancellation:
+			if edge[1] != RunCancelling {
+				t.Errorf("cancellation performs %s -> %s", edge[0], edge[1])
+			}
+			cancellable = append(cancellable, edge[0])
+		case transitionByContinuation:
+			if edge != [2]WorkflowRunState{RunFailed, RunPending} {
+				t.Errorf("manual continuation performs %s -> %s", edge[0], edge[1])
+			}
+		}
+	}
+	for _, set := range declaredRunStateSets() {
+		if set.name == "cancellable" && !sameRunStates(cancellable, set.states) {
+			t.Errorf("cancellation leaves %v, want the cancellable states %v", cancellable, set.states)
+		}
+	}
 }

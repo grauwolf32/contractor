@@ -360,10 +360,14 @@ func assertChangedMetadataReplayConflicts(
 		http.MethodPost, "/v1/runs", metadataRunBody(input, []string{"debug"}, changed),
 		http.StatusConflict, map[string]string{"Idempotency-Key": idempotencyKey},
 	)
+	// The key stays bound to the first request, so only a new key can carry
+	// the change: a permanent idempotency_conflict (API-R69).
 	var problem struct {
-		Code string `json:"code"`
+		Code      string `json:"code"`
+		Retryable *bool  `json:"retryable"`
 	}
-	if err := json.Unmarshal(response.body, &problem); err != nil || problem.Code != "conflict" {
+	if err := json.Unmarshal(response.body, &problem); err != nil || problem.Code != "idempotency_conflict" ||
+		problem.Retryable == nil || *problem.Retryable {
 		t.Fatalf("changed metadata replay response = (%+v, %v): %s", problem, err, response.body)
 	}
 }

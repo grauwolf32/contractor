@@ -91,7 +91,7 @@ func TestPostgresDeferredAdmissionRefreshesPrepareLease(t *testing.T) {
 	registry := &deferredLeaseRegistry{now: func() time.Time { return now }, confirmed: now.Add(time.Minute)}
 	batch, err := controlplane.NewRuntimeBatchController(
 		&deferredLeaseRuntime{now: registry.now, workers: h.workers}, registry,
-		controlplane.RuntimeBatchOptions{Now: registry.now},
+		controlplane.RuntimeBatchOptions{Now: registry.now, PrepareTimeout: time.Minute, CleanupTimeout: time.Minute},
 	)
 	if err != nil {
 		t.Fatal(err)

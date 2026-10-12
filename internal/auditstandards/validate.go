@@ -9,6 +9,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/strictjson"
@@ -267,7 +268,7 @@ func ValidatePinnedPackage(value PinnedPackage) error {
 		return err
 	}
 	if value.Catalog.Artifact.Namespace != CatalogNamespace ||
-		!strings.HasPrefix(value.Retained.Artifact.Namespace, "audit-") ||
+		!artifactpolicy.IsAuditManagedProjectNamespace(value.Retained.Artifact.Namespace) ||
 		value.Catalog.Digest != value.Retained.Digest || value.Catalog.SizeBytes != value.Retained.SizeBytes {
 		return validationError(CodeIdentityMismatch, ManifestPath)
 	}

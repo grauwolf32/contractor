@@ -1,7 +1,7 @@
+import { CONFIG_NAME_PATTERN, isConfigSelector } from "../../api/workflows";
 import { record, textValue, type Draft, type Path } from "./document";
 import type { Problem } from "./validation";
 
-const selector = /^[A-Za-z0-9][A-Za-z0-9_.-]*@[A-Za-z0-9][A-Za-z0-9_.+-]*$/;
 const toolName = /^[A-Za-z_][A-Za-z0-9_]{0,63}$/;
 const bytes = (value: string) => new TextEncoder().encode(value).length;
 const mapping = (value: unknown): value is Record<string, unknown> =>
@@ -12,6 +12,32 @@ const bindingName = (value: unknown): value is string =>
   bytes(value) <= 128 &&
   value.trim() === value &&
   ![...value].some((char) => [0, 9, 10, 13].includes(char.charCodeAt(0)));
+
+/**
+ * The workspace target rule (WSP-R13): "" for the workspace root or an NFC
+ * relative POSIX directory of at most 1024 UTF-8 bytes and 32 components
+ * without empty, ".", ".." or control-character components, backslash, URI or
+ * Windows drive (an ASCII letter and a colon). The Server and the Runtime
+ * apply the same rule; api/testdata/v1alpha1/workspace-path-cases.json pins
+ * all three.
+ */
+export function isWorkspaceTarget(target: string): boolean {
+  if (target === "") return true;
+  const parts = target.split("/");
+  return (
+    target === target.normalize("NFC") &&
+    bytes(target) <= 1024 &&
+    !target.startsWith("/") &&
+    !target.includes("\\") &&
+    ![...target].some(
+      (char) => char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127,
+    ) &&
+    !target.includes("://") &&
+    !/^[A-Za-z]:/.test(target) &&
+    parts.length <= 32 &&
+    !parts.some((part) => ["", ".", ".."].includes(part))
+  );
+}
 
 /** Authored checks only; installed templates, tools and credentials require CLI resolution. */
 export function validateAdvanced(draft: Draft): Problem[] {
@@ -34,17 +60,20 @@ export function validateAdvanced(draft: Draft): Problem[] {
       )
     )
       error(path, "Select at least one execution field.");
-    for (const key of ["modelPolicy", "llmGateway"])
+    for (const key of ["modelPolicy", "llmGateway"]) {
+      const value = row[key];
       if (
         Object.hasOwn(row, key) &&
-        (typeof row[key] !== "string" || !selector.test(textValue(row[key])))
+        (typeof value !== "string" || !isConfigSelector(value))
       )
         error([...path, key], "Use a non-null versioned selector.");
+    }
+    // An LLM credential ID uses the configuration name grammar.
     if (
       Object.hasOwn(row, "credential") &&
       !(allowClear && row.credential === null) &&
       (typeof row.credential !== "string" ||
-        !/^[A-Za-z0-9][A-Za-z0-9_.-]*$/.test(row.credential))
+        !CONFIG_NAME_PATTERN.test(row.credential))
     )
       error(
         [...path, "credential"],
@@ -137,7 +166,7 @@ export function validateAdvanced(draft: Draft): Problem[] {
           );
         if (
           ref &&
-          (typeof config.ref !== "string" || !selector.test(config.ref))
+          (typeof config.ref !== "string" || !isConfigSelector(config.ref))
         )
           error(
             [...path, "ref"],
@@ -176,24 +205,7 @@ export function validateAdvanced(draft: Draft): Problem[] {
           )
             error([...sp, "artifact"], "Choose a required stage input alias.");
           const target = s.target;
-          if (
-            typeof target !== "string" ||
-            (target !== "" &&
-              (target !== target.normalize("NFC") ||
-                bytes(target) > 1024 ||
-                target.startsWith("/") ||
-                target.includes("\\") ||
-                [...target].some(
-                  (char) =>
-                    char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127,
-                ) ||
-                target.includes("://") ||
-                /^[A-Za-z]:/.test(target) ||
-                target.split("/").length > 32 ||
-                target
-                  .split("/")
-                  .some((part) => ["", ".", ".."].includes(part))))
-          )
+          if (typeof target !== "string" || !isWorkspaceTarget(target))
             error(
               [...sp, "target"],
               "Use a normalized relative POSIX directory, or an empty root target.",

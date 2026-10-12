@@ -65,94 +65,17 @@ func parseStrictJSONNumbers(data []byte, number func(string) (float64, bool)) (a
 	if len(data) == 0 || len(data) > MaximumDocumentBytes || !utf8.Valid(data) || bytes.IndexByte(data, 0) >= 0 || !strictjson.ValidUnicodeEscapes(data) {
 		return nil, errors.New("invalid JSON bytes")
 	}
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.UseNumber()
-	nodes := 0
-	value, err := readJSONValue(decoder, 1, &nodes, number)
-	if err != nil {
-		return nil, err
-	}
-	if err := strictjson.RequireEOF(decoder); err != nil {
-		return nil, err
-	}
-	return value, nil
+	return strictjson.DecodeBounded(data, strictJSONBounds, number)
+}
+
+// strictJSONBounds counts values, not member names, as jsonExtentOf does.
+var strictJSONBounds = strictjson.Bounds{
+	MaxDepth: MaximumJSONDepth, MaxNodes: MaximumJSONNodes, MaxStringBytes: MaximumStringBytes,
 }
 
 func finiteJSONNumber(text string) (float64, bool) {
 	value, err := strconv.ParseFloat(text, 64)
 	return value, err == nil && !math.IsInf(value, 0) && !math.IsNaN(value)
-}
-
-func readJSONValue(decoder *json.Decoder, depth int, nodes *int, number func(string) (float64, bool)) (any, error) {
-	*nodes++
-	if depth > MaximumJSONDepth || *nodes > MaximumJSONNodes {
-		return nil, errors.New("JSON limit exceeded")
-	}
-	token, err := decoder.Token()
-	if err != nil {
-		return nil, err
-	}
-	switch typed := token.(type) {
-	case json.Delim:
-		switch typed {
-		case '{':
-			result := make(map[string]any)
-			for decoder.More() {
-				keyToken, keyErr := decoder.Token()
-				if keyErr != nil {
-					return nil, keyErr
-				}
-				key, ok := keyToken.(string)
-				if !ok || !utf8.ValidString(key) || len([]byte(key)) > MaximumStringBytes {
-					return nil, errors.New("invalid JSON key")
-				}
-				if _, duplicate := result[key]; duplicate {
-					return nil, errors.New("duplicate JSON key")
-				}
-				value, valueErr := readJSONValue(decoder, depth+1, nodes, number)
-				if valueErr != nil {
-					return nil, valueErr
-				}
-				result[key] = value
-			}
-			closing, closeErr := decoder.Token()
-			if closeErr != nil || closing != json.Delim('}') {
-				return nil, errors.New("invalid JSON object")
-			}
-			return result, nil
-		case '[':
-			result := make([]any, 0)
-			for decoder.More() {
-				value, valueErr := readJSONValue(decoder, depth+1, nodes, number)
-				if valueErr != nil {
-					return nil, valueErr
-				}
-				result = append(result, value)
-			}
-			closing, closeErr := decoder.Token()
-			if closeErr != nil || closing != json.Delim(']') {
-				return nil, errors.New("invalid JSON array")
-			}
-			return result, nil
-		default:
-			return nil, errors.New("unexpected JSON delimiter")
-		}
-	case json.Number:
-		value, ok := number(typed.String())
-		if !ok {
-			return nil, errors.New("invalid JSON number")
-		}
-		return value, nil
-	case string:
-		if !utf8.ValidString(typed) || len([]byte(typed)) > MaximumStringBytes {
-			return nil, errors.New("invalid JSON string")
-		}
-		return typed, nil
-	case bool, nil:
-		return typed, nil
-	default:
-		return nil, errors.New("invalid JSON token")
-	}
 }
 
 func parseJSONOrYAML(data []byte, mediaType string) (map[string]any, error) {

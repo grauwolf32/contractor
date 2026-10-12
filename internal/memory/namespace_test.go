@@ -3,6 +3,7 @@ package memory
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 	"sort"
 	"strings"
@@ -435,6 +436,9 @@ func TestMemoryToolErrorsNormalizeToClosedRetryabilityTable(t *testing.T) {
 		assertToolError(t, direct, test.wantCode, test.wantRetryable)
 	}
 	assertToolError(t, NormalizeToolError(errors.New("arbitrary internal failure")), CodeUnavailable, true)
+	// A Run that used up its Artifact revision limit can store no note.
+	assertToolError(t, mapStoreError(fmt.Errorf("write artifact: %w", artifacts.ErrRunRevisionLimit)),
+		CodeNamespaceFull, false)
 }
 
 func maximumFittingAppendFragment(t *testing.T, name, existing string) string {

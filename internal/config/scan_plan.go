@@ -62,7 +62,7 @@ func ValidateScanPlanStage(stage ResolvedStage) error {
 	}
 	seenTools := map[string]bool{}
 	for _, tool := range stage.ScanPlan.Tools {
-		if err := validateMapKey("scanPlan Worker", tool.Worker); err != nil {
+		if err := validateWorkflowName("scanPlan Worker", tool.Worker); err != nil {
 			return err
 		}
 		binding, exists := stage.Agents[tool.Worker]

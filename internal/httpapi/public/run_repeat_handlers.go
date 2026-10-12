@@ -26,6 +26,8 @@ const (
 )
 
 func (h *handler) getRunRepeatDraft(w http.ResponseWriter, r *http.Request) {
+	// The draft carries retained request provenance; no response is cached.
+	w.Header().Set("Cache-Control", "no-store")
 	if h.rejectHead(w, r) {
 		return
 	}

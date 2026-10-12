@@ -8,7 +8,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"regexp"
 	"strings"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
@@ -20,37 +19,29 @@ import (
 
 const maxJSONRequestSize = 1 << 20
 
-var (
-	publicArtifactNamePattern = regexp.MustCompile(contracts.ArtifactNamePattern)
-	publicRevisionPattern     = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$`)
-)
-
 func decodeJSON(w http.ResponseWriter, r *http.Request, target any) error {
 	return decodeJSONBounded(w, r, target, maxJSONRequestSize)
 }
 
+// decodeJSONBounded reads at most maximum bytes and decodes them strictly:
+// case aliases, duplicate keys, unknown members and trailing data are
+// rejected rather than guessed (API-R71).
 func decodeJSONBounded(w http.ResponseWriter, r *http.Request, target any, maximum int64) error {
 	if maximum <= 0 || r.ContentLength > maximum {
 		return fmt.Errorf("%w: JSON body is too large", errRequestTooLarge)
 	}
-	body := http.MaxBytesReader(w, r.Body, maximum)
-	decoder := json.NewDecoder(body)
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(target); err != nil {
+	data, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maximum))
+	if err != nil {
 		if exceedsBodyLimit(err) {
 			return fmt.Errorf("%w: JSON body is too large", errRequestTooLarge)
 		}
-		return fmt.Errorf("%w: decode JSON body: %v", errInvalidRequest, err)
+		return fmt.Errorf("%w: read JSON body: %v", errInvalidRequest, err)
 	}
-	var trailing json.RawMessage
-	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
-		if err == nil {
-			return fmt.Errorf("%w: multiple JSON values", errInvalidRequest)
-		}
-		if exceedsBodyLimit(err) {
-			return fmt.Errorf("%w: JSON body is too large", errRequestTooLarge)
-		}
-		return fmt.Errorf("%w: decode trailing JSON: %v", errInvalidRequest, err)
+	switch err := strictjson.Decode(data, target); {
+	case errors.Is(err, strictjson.ErrTrailingData):
+		return fmt.Errorf("%w: multiple JSON values", errInvalidRequest)
+	case err != nil:
+		return fmt.Errorf("%w: decode JSON body: %v", errInvalidRequest, err)
 	}
 	return nil
 }
@@ -134,6 +125,12 @@ func artifactWritePrecondition(r *http.Request) (*string, error) {
 	case err != nil:
 		return nil, fmt.Errorf("%w: If-Match requires one quoted revision", errInvalidRequest)
 	}
+	// One plain quoted revision in the public Revision grammar, as for
+	// ?revision (API-R70): a malformed or escaped value is a bad request,
+	// never a CAS conflict with the current binding (ART-R70).
+	if validatePublicRevision(revision) != nil || ifMatch[0] != `"`+revision+`"` {
+		return nil, fmt.Errorf("%w: If-Match requires one quoted Artifact revision", errInvalidRequest)
+	}
 	return &revision, nil
 }
 
@@ -148,14 +145,14 @@ func exactQueryWithRepeated(
 }
 
 func validatePublicArtifactName(value string) error {
-	if !publicArtifactNamePattern.MatchString(value) {
+	if !contracts.ValidName(value) {
 		return fmt.Errorf("%w: invalid Artifact namespace or name", errInvalidRequest)
 	}
 	return nil
 }
 
 func validatePublicRevision(value string) error {
-	if !publicRevisionPattern.MatchString(value) {
+	if !contracts.ValidResourceID(value) {
 		return fmt.Errorf("%w: invalid Artifact revision", errInvalidRequest)
 	}
 	return nil

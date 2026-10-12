@@ -14,14 +14,10 @@ import (
 	"github.com/grauwolf32/contractor/internal/randomid"
 )
 
+// The process budgets (poll and lease-scan intervals, claim lease, operation,
+// planner, finalization and abort timeouts) have no package defaults: the
+// resolved ServerConfig owns them (OPS-R15) and New rejects missing values.
 const (
-	defaultPollInterval           = time.Second
-	defaultClaimDuration          = 2 * time.Minute
-	defaultOperationTimeout       = 15 * time.Second
-	defaultPlannerTimeout         = 45 * time.Second
-	defaultFinalizationTimeout    = 10 * time.Second
-	defaultAbortTimeout           = 10 * time.Second
-	defaultLeaseScanInterval      = time.Second
 	defaultMetricsCleanupInterval = 24 * time.Hour
 	defaultMetricsCleanupBatch    = 500
 	metricsCleanupDrainPause      = time.Second
@@ -44,6 +40,7 @@ type Scheduler struct {
 	running     bool
 	releaseMu   sync.Mutex
 	releasing   map[string]struct{}
+	workflows   *workflowSnapshotCache
 }
 
 func New(
@@ -60,11 +57,12 @@ func New(
 		return nil, fmt.Errorf("Scheduler dependencies are incomplete")
 	}
 	applyOptionDefaults(&options)
-	if options.PollInterval <= 0 || options.ClaimDuration <= 0 || options.OperationTimeout <= 0 ||
+	// RunStore leases are stored with microsecond precision.
+	if options.PollInterval <= 0 || options.ClaimDuration.Microseconds() <= 0 || options.OperationTimeout <= 0 ||
 		options.PlannerTimeout <= 0 || options.FinalizationTimeout <= 0 || options.AbortTimeout <= 0 ||
 		options.LeaseScanInterval <= 0 || options.MetricsCleanupInterval <= 0 ||
 		options.MetricsCleanupBatch <= 0 || options.MetricsCleanupBatch > 10_000 {
-		return nil, fmt.Errorf("Scheduler durations must be positive and cleanup batch must be at most 10000")
+		return nil, fmt.Errorf("Scheduler durations are required and must be positive, and cleanup batch must be at most 10000")
 	}
 	if err := validateRuntimeTransport(options.RuntimeTransport); err != nil {
 		return nil, err
@@ -74,31 +72,13 @@ func New(
 		allocator: allocator, workers: workers, planners: planners, options: options,
 		wake: make(chan struct{}, 1), active: make(map[string]activeRunClaim),
 		releasing: make(map[string]struct{}),
+		workflows: newWorkflowSnapshotCache(
+			decodeExecutableWorkflow, workflowSnapshotCacheRuns, workflowSnapshotCacheBytes,
+		),
 	}, nil
 }
 
 func applyOptionDefaults(options *Options) {
-	if options.PollInterval == 0 {
-		options.PollInterval = defaultPollInterval
-	}
-	if options.ClaimDuration == 0 {
-		options.ClaimDuration = defaultClaimDuration
-	}
-	if options.OperationTimeout == 0 {
-		options.OperationTimeout = defaultOperationTimeout
-	}
-	if options.PlannerTimeout == 0 {
-		options.PlannerTimeout = defaultPlannerTimeout
-	}
-	if options.FinalizationTimeout == 0 {
-		options.FinalizationTimeout = defaultFinalizationTimeout
-	}
-	if options.AbortTimeout == 0 {
-		options.AbortTimeout = defaultAbortTimeout
-	}
-	if options.LeaseScanInterval == 0 {
-		options.LeaseScanInterval = defaultLeaseScanInterval
-	}
 	if options.MetricsCleanupInterval == 0 {
 		options.MetricsCleanupInterval = defaultMetricsCleanupInterval
 	}

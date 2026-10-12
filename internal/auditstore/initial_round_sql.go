@@ -1,5 +1,13 @@
 package auditstore
 
+// initialRoundEvents record the first round $5 with the items $7 and the
+// reviews they open.
+var initialRoundEvents = auditEvents(auditEvent(
+	"'round.accepted'", "$5::text", "1",
+	`jsonb_build_object('round', 1, 'items', jsonb_array_length($7::jsonb),
+                              'reviews', `+initialRoundReviewCount+`)`,
+))
+
 // The live claim is locked before the Audit revision. Cancelling, deleting,
 // pausing or reaching the deadline fences acceptance after package publication.
 var acceptInitialRoundSQL = `
@@ -30,17 +38,10 @@ WITH live_claim AS MATERIALIZED (
     UPDATE audits AS audit
        SET phase = 'rounds', current_round_id = $5,
            retained_evidence_bytes = audit.retained_evidence_bytes + $10,
-           revision = audit.revision + 1,
-           next_event_sequence = audit.next_event_sequence + 1,
+           ` + initialRoundEvents.advance() + `,
            updated_at = GREATEST(clock_timestamp(), audit.updated_at + interval '1 microsecond')
       FROM audit_gate WHERE audit.audit_id = audit_gate.audit_id
-    RETURNING audit.*
+    RETURNING audit.*, ` + initialRoundEvents.appended() + `
 ` + initialRoundRowsSQL + `
-), event_row AS (
-    INSERT INTO audit_events (audit_id, sequence_number, kind, entity_id, entity_revision, summary)
-    SELECT audit_id, next_event_sequence - 1, 'round.accepted', $5, 1,
-           jsonb_build_object('round', 1, 'items', jsonb_array_length($7::jsonb),
-                              'reviews', (SELECT count(*) FROM inserted_reviews))
-      FROM started
 )
 SELECT ` + prefixedAuditColumns("started") + ` FROM started`

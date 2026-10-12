@@ -1,6 +1,17 @@
 import type { Audit, AuditFinding, AuditReviewRequest } from "../api/audits";
 import type { Project } from "../api/projects";
 
+/**
+ * The Server's `state=pending` rule for `GET /v1/reviews`: only requests that
+ * can still be decided, so a stored pending request past its expiry is left
+ * out (the Server judges it at its database clock).
+ */
+function decidable(review: AuditReviewRequest): boolean {
+  return (
+    review.expiresAt === undefined || Date.parse(review.expiresAt) > Date.now()
+  );
+}
+
 /** Owner endpoints for UI fixtures. Per-check endpoints stay available for
  * detail, history and mutation assertions. */
 export function ownerListResponse(
@@ -41,7 +52,10 @@ export function ownerListResponse(
                 matches("severity", f.analystSeverity ?? "")),
           )
         : (data.reviews ?? []).filter(
-            (r) => auditIDs.has(r.auditId) && matches("state", r.state),
+            (r) =>
+              auditIDs.has(r.auditId) &&
+              matches("state", r.state) &&
+              (url.searchParams.get("state") !== "pending" || decidable(r)),
           );
   const offset = Number(url.searchParams.get("cursor") ?? 0);
   const limit = Number(url.searchParams.get("limit") ?? 50);

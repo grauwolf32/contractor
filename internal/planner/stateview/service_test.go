@@ -244,7 +244,7 @@ func (r *recordingReader) observed() (int, []string) {
 	return len(r.conditionals), append([]string(nil), r.conditionals...)
 }
 
-func testService(t *testing.T, reader planner.WorkerStateReader, bindings ...Binding) *Service {
+func testService(t testing.TB, reader planner.WorkerStateReader, bindings ...Binding) *Service {
 	t.Helper()
 	service, err := New(reader, bindings, Options{CursorKey: []byte(strings.Repeat("k", 32))})
 	if err != nil {
@@ -254,7 +254,7 @@ func testService(t *testing.T, reader planner.WorkerStateReader, bindings ...Bin
 	return service
 }
 
-func stateFixture(t *testing.T) reporting.AgentStateSnapshot {
+func stateFixture(t testing.TB) reporting.AgentStateSnapshot {
 	t.Helper()
 	data, err := os.ReadFile(filepath.Join(
 		"..", "..", "..", "api", "testdata", "v1alpha1", "valid", "agent-state-snapshot.json",

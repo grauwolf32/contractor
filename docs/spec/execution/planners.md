@@ -421,6 +421,13 @@ Server-side projection tools load the complete snapshot, validate its
 allocation, invocation and subtask correlation, run one fixed projection and
 return only that projection.
 
+**PLN-R115.** Each changed State revision is decoded and validated once:
+`WorkerStateReader` returns a snapshot it decoded with the strict private
+decoder ([CTL-R149](control-plane.md)) and validated for that read alone, and
+the projection service keeps it without copying or validating it again. An
+unchanged revision is revalidated with `If-None-Match` and served from that
+snapshot. Projections only read the snapshot.
+
 **PLN-R48.** Projection tools accept no state key, JSONPath,
 expression, field list or arbitrary aggregation program.
 
@@ -506,6 +513,14 @@ StageResult ([WRK-R27](worker.md)).
 **PLN-R66.** `PassthroughPlanner` returns a candidate when its required
 remote Worker invocation produces an immediate A2A `Message` or a terminal
 Task (FAIL-PLN-2).
+
+**PLN-R114.** The A2A `WorkerInvoker` polls a Task that is still running
+with `GetTask`: first after `a2a.pollInterval`, then after a delay that doubles
+with every poll that finds the Task still running, up to 2 seconds or the
+configured interval when that is longer (LIM-PLN-7). A Task that finishes
+quickly is noticed after a few short polls, while a Worker call that runs for
+minutes costs about 30 mTLS requests a minute instead of one per poll
+interval; it is noticed at most one maximal delay after it ends.
 
 **PLN-R67.** An A2A Task in `INPUT_REQUIRED` or `AUTH_REQUIRED` ends
 the Passthrough invocation promptly with the non-retryable Planner error

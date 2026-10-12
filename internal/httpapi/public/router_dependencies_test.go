@@ -14,6 +14,7 @@ func TestHandlerRequiresExplicitRunServices(t *testing.T) {
 		"queue":     func(d *Dependencies) { d.RunQueue = nil },
 		"lifecycle": func(d *Dependencies) { d.RunLifecycle = nil },
 		"reader":    func(d *Dependencies) { d.Runs = nil },
+		"detail":    func(d *Dependencies) { d.RunDetails = nil },
 	} {
 		t.Run(name, func(t *testing.T) {
 			candidate := dependencies

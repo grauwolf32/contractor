@@ -18,10 +18,14 @@ spec:
   plannerTimeout: 30m
 
   scheduler:
+    pollInterval: 1s
+    claimDuration: 2m
+    leaseScanInterval: 1s
     operationTimeout: 30s
     finalizationTimeout: 10s
     abortTimeout: 10s
   runtimeLifecycle:
+    prepareTimeout: 30s
     cleanupTimeout: 30s
   projectLifecycle:
     operationTimeout: 30s

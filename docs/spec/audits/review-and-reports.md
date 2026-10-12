@@ -322,6 +322,13 @@ and report acceptance use the exact-subject review ledger below (AUD-R85).
 **REV-R27.** A decision is accepted only through the owner-authenticated
 Audit API with CAS and idempotency (FAIL-REV-1).
 
+**REV-R200.** Every review decision, a finding verdict as much as an item or
+report action, accepts exactly the public `Idempotency-Key` grammar
+(`[A-Za-z0-9][A-Za-z0-9._:-]*`, at most 128 characters). A decision that the
+review ledger's stored constraints refuse is invalid, `400 invalid_request`
+for the API and the service's invalid-argument error for trusted callers,
+never an internal error, and nothing is written.
+
 **REV-R28.** Model text or an artifact claiming "approved" has no
 authority.
 
@@ -526,6 +533,32 @@ decisions, limits and reproducible provenance.
 **REV-R80.** Any ASVS statement is limited to the selected version, level,
 scope and evidence policy; partial automation is not described as complete
 compliance.
+
+**REV-R194.** A report carries at most 100,000 findings (LIM-REV-7). Its
+machine-readable `report.json` is at most 64 MiB and its `report.md` at most
+64 KiB (LIM-REV-8). An Audit whose report would pass either bound cannot form
+a structurally valid report and fails (FAIL-AUD-9).
+
+**REV-R195.** Each report finding shows the report projection that finding
+intake stored with its first receipt (FND-R158); finalization reads no
+proposal artifact.
+
+**REV-R196.** Finalization records the report's item and finding entries in
+pages, in report order: the items of each Round, then the findings of each
+state. A page holds at most 200 entries, a findings page ends with the
+finding whose report projection brings its projections to 8 MiB, and one
+finalization attempt records at most 32 pages (LIM-REV-9). An attempt that reaches its budget
+returns with its pages recorded; an attempt that times out or fails keeps the
+pages it recorded. The next attempt resumes after the last recorded page and
+never reads a recorded page again (FAIL-REV-13). Once every page is recorded,
+one attempt assembles both artifacts from the recorded entries and commits or
+freezes them.
+
+**REV-R197.** Recorded pages belong to the Audit revision they were read at.
+A revision change while `finalizing` makes them stale: the next page or the
+report commit fails its revision check, and the report is built again from
+the new revision. Every exit from `finalizing` discards the pages in the same
+transaction (LIFE-REV-6).
 
 ### Finding backtrace and offline attribution
 
@@ -809,9 +842,13 @@ and records a receipt.
 **REV-R145.** Binding keys include the Audit identity and version; a
 collision never overwrites another result.
 
-**REV-R146.** Imported results, external evidence and generated
-reports are created as frozen bindings in the Server-derived, reserved
-`audit-*` Project namespace.
+**REV-R146.** Every Audit-managed binding is created frozen in the
+Server-derived, reserved `audit-*` Project namespace: imported results and
+external evidence through the trusted import, and Server-generated material
+(task packages, worklists, execution manifests and task sets, inventories,
+retained standards, direct-verification contracts and reports) through the
+one trusted Audit writer. A generic Project artifact write never creates or
+advances a binding under the reserved prefix.
 
 **REV-R147.** Such a binding may exist briefly as recovery staging
 before its receipt or report-link transaction commits; this is why generic
@@ -821,9 +858,11 @@ Project routes hide the entire reserved prefix (ART-R26).
 expose only exact bindings that have a committed `AuditArtifactLink`;
 database-internal staging is not an acceptance signal.
 
-**REV-R149.** Crash replay accepts an existing binding only when its
-bytes, media type, size, exact source Run revision and import lineage all
-match (FAIL-REV-8).
+**REV-R149.** Crash replay accepts an existing binding only when it is
+frozen and its bytes, media type and size match and, for an imported binding,
+its exact source Run revision and import lineage match as well. Any other
+existing binding is a permanent integrity failure, never overwritten
+(FAIL-REV-8).
 
 **REV-R150.** Workers see only exact RunScope inputs and have no Audit
 or Project Artifact authority.
@@ -938,6 +977,23 @@ distinguish analyst severity from a model suggestion.
 `decided` or `expired` state, and by finding ID to retrieve paginated decision
 history.
 
+**REV-R198.** The owner-wide review list `GET /v1/reviews` filtered by
+`pending` lists only requests that can still be decided: a stored pending
+request whose expiry has passed at the PostgreSQL statement time is left out
+before anything has expired it (REV-R43), by the same rule as the workspace's
+pending count. Its `decided` and `expired` filters, its unfiltered list and
+the revision-pinned per-Audit Reviews projection (REV-R167, REV-R168) match
+the stored state.
+
+**REV-R199.** The owner-wide finding list `GET /v1/findings` reads each
+finding's first proposal receipt, the receipt's hold, the analyst decision and
+the current assessment through the finding's own Audit, exactly as the
+per-Audit list does: a receipt held by two Audits on one page exposes only
+each finding's own Audit hold. A page reads its receipts, holds, decisions and
+assessments once each, for every Audit on it together, plus one exact
+proposal read per bounded group of proposals, so its cost does not grow with
+the number of Audits on the page.
+
 **REV-R168.** Both the Findings and the Reviews projection include
 `auditRevision` and `asOf`; an optional `auditRevision` pins the first page to
 a summary.
@@ -953,9 +1009,13 @@ revision pins.
 
 **REV-R190.** Refresh explicitly starts a new context.
 
-**REV-R172.** Coverage links also pin the summary revision; the UI
-checks it before and after collecting the current-round coverage pages and
-rejects mixed revisions.
+**REV-R172.** Coverage links also pin the summary revision. Every coverage
+page is read at one Audit revision and reports it as `auditRevision`; an
+optional `auditRevision` pins a page, and the current Round it defaults to, to
+that revision, and signed continuation cursors bind the Round and revision, so
+a page whose Audit changes returns 409 (FAIL-REV-12). The UI pins every page
+of a batch to the revision it read before the batch and rejects mixed
+revisions.
 
 **REV-R173.** Finding detail identifies the exact first and contributing
 proposals, the current assessment and decision, and the duplicate target.
@@ -1064,6 +1124,12 @@ Registry entries owned by this document:
   finding-triage request expired by result collection (REV-R67).
 - [LIM-REV-6](../platform/limits.md): exactly one required primary Workflow
   output opts in to direct verification (REV-R118).
+- [LIM-REV-7](../platform/limits.md): at most 100,000 findings per report
+  (REV-R194).
+- [LIM-REV-8](../platform/limits.md): 64 MiB machine report and 64 KiB
+  Markdown summary (REV-R194).
+- [LIM-REV-9](../platform/limits.md): report finalization pages and the
+  pages one attempt records (REV-R196).
 - [FAIL-REV-1](../platform/failure-model.md): owner review decision
   (REV-R27).
 - [FAIL-REV-2](../platform/failure-model.md): creation of an authorized
@@ -1088,6 +1154,8 @@ Registry entries owned by this document:
   (REV-R159).
 - [FAIL-REV-12](../platform/failure-model.md): revision-fenced pagination of
   findings, reviews and provenance (REV-R170, REV-R192).
+- [FAIL-REV-13](../platform/failure-model.md): bounded, resumable report
+  finalization (REV-R196, REV-R197).
 - [LIFE-REV-1](../platform/lifecycle.md): backtrace provenance under Audit
   ownership (REV-R104, REV-R108).
 - [LIFE-REV-2](../platform/lifecycle.md): Audit-managed artifacts and their
@@ -1099,6 +1167,8 @@ Registry entries owned by this document:
   Audit never retained (REV-R142).
 - [LIFE-REV-5](../platform/lifecycle.md): Audit and the rows it owns
   (REV-R159, REV-R160).
+- [LIFE-REV-6](../platform/lifecycle.md): recorded report finalization pages
+  (REV-R197).
 - [Errors](../platform/errors.md): the collection disposition
   `collection-contract-invalid` (REV-R154). The revision-fence conflict uses
   the generic `409` conflict response of the

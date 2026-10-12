@@ -570,6 +570,9 @@ func mapStoreError(err error) error {
 		return toolError(CodeForbidden, false)
 	case errors.Is(err, artifacts.ErrArtifactConflict):
 		return toolError(CodeChanged, true)
+	case errors.Is(err, artifacts.ErrRunRevisionLimit):
+		// The Run can store no further revision, so no note write succeeds (MEM-R45).
+		return toolError(CodeNamespaceFull, false)
 	default:
 		return toolError(CodeUnavailable, true)
 	}

@@ -549,12 +549,8 @@ func stageArtifact(value any, slot string) (map[string]any, bool) {
 		}
 	}
 	walkJSON(value, func(object map[string]any) {
-		// Legacy prompts embedded the complete StageContentRequest under an
-		// `artifacts` field. Runtime-owned result projection now exposes only a
-		// model-facing map of named inputs, so accept that direct shape as well.
-		if artifacts, ok := object["artifacts"].(map[string]any); ok {
-			collect(artifacts[slot])
-		}
+		// The Worker renders its named inputs as one model-facing map below
+		// `Named input artifacts`.
 		collect(object[slot])
 	})
 	if len(values) == 0 {

@@ -9,8 +9,9 @@ instruction resources, the operator and managed configuration roots and their
 fixed subtrees, the manifest envelope and the `(kind, name, version)` lookup
 key, the `<id>@<version>` selector grammar, all-or-nothing loading and
 validation, the resolution of selectors and instruction refs into the Run
-snapshot, immutability of published versions, managed publication of new
-versions, and catalog discovery on the listing endpoints. It also owns
+snapshot, immutability of published versions and the pre-production exception
+for the shipped catalog, managed publication of new versions, and catalog
+discovery on the listing endpoints. It also owns
 WorkflowCatalog and the in-process AgentTemplateCatalog configuration
 boundary.
 
@@ -55,6 +56,7 @@ Terms are defined once in the [glossary](../glossary.md).
 | Managed publication | The atomic, create-only addition of a new immutable ModelPolicy or LLMGatewayConfig version to the managed root and the configuration set. |
 | Draft | A clone of a published configuration whose typed fields are edited in the Operations authoring flow; it is not executable configuration. |
 | Catalog source fingerprint | The SHA-256 fingerprint of the immutable catalog source a listing result was built from. |
+| Shipped catalog | The operator-root manifests and instruction resources that the repository ships under `configs/`; pre-production until the first release (CAT-R74). |
 
 ## Model
 
@@ -235,6 +237,14 @@ retaining unknown fields.
 `version`, which use the selector `id` and `version` grammars respectively
 (CAT-R18).
 
+**CAT-R77.** The loader reads each discovered YAML manifest and instruction
+resource with at most 4 MiB per file ([LIM-CAT-5](../platform/limits.md)). It
+opens the root and every path component below it again without following a
+symlink, so a link or a non-regular file swapped in after discovery is refused
+rather than followed. A larger file, or a path that no longer reaches a regular
+file, invalidates the complete configuration set. The same reads apply at
+startup, on the reload before a managed publication and in `config validate`.
+
 ### Identity
 
 **CAT-R13.** The configuration lookup key is
@@ -372,6 +382,31 @@ digest exists; Workflow `presentation` metadata does not add one
 reinterpret a Run and never re-resolves the authoring selector strings while
 executing it.
 
+**CAT-R76.** A Run's Workflow snapshot is at most 2 MiB
+([LIM-CAT-4](../platform/limits.md)), counted in bytes of the Server's JSON
+encoding of the resolved Workflow (CAT-R33), never in the text PostgreSQL
+returns for the stored `jsonb`, which spaces separators and expands numbers.
+WorkflowCatalog rejects a Workflow whose snapshot without Run overrides exceeds
+the bound, so the configuration set does not load (CAT-R24). Run Workflow
+resolution measures the snapshot after the Run's `executionConfig` overrides
+and before any credential lookup, so Run creation, eval preflight and the
+repeat draft reject an oversized snapshot before a Run exists; `POST /v1/runs`
+answers the permanent `400 invalid_request` and stores nothing. Audit-managed
+Run creation measures its pinned Workflow again, and the Run store refuses to
+insert a larger snapshot. The Scheduler measures a stored snapshot the same way
+after decoding it, so every snapshot accepted at creation stays executable; a
+stored snapshot over the bound fails its Run as `unsupported_workflow_shape`
+([SCH-R102](../execution/scheduler.md)).
+
+Rationale: the bound was once checked only on the Scheduler's read, after
+`202`, and against the longer `jsonb` text; one measure at every point keeps
+acceptance and execution consistent.
+
+**CAT-R78.** Every reader of a persisted Workflow snapshot decodes it strictly
+and applies the complete Workflow graph validation WorkflowCatalog applies at
+load; a snapshot that fails it is invalid on read. The check belongs to the
+decoder, so no reader skips it and none repeats it.
+
 ### Instruction resources
 
 **CAT-R36.** The authoring `instructions` object contains exactly one
@@ -398,11 +433,14 @@ Unicode, line-ending, BOM or trailing-newline normalization before hashing, so
 the stored text and digest identify exactly the bytes loaded from the
 configuration resource.
 
-**CAT-R42.** No separate maximum size applies to an instruction
+**CAT-R42.** Apart from the per-file read bound of CAT-R77, no separate
+maximum size applies to an instruction
 resource: it is an operator-authored file under the configuration root, loaded
-once at startup, and its only content rule is non-empty strict UTF-8. Its
-practical bound is the Planner budget that must carry the rendered text
-([Planners](../execution/planners.md)).
+once at startup, and its only content rule is non-empty strict UTF-8. Every
+Workflow that embeds it must still fit its snapshot bound (CAT-R76), and the
+Planner budget must carry the rendered text
+([Planners](../execution/planners.md)); together they bound a used instruction
+in practice.
 
 **CAT-R43.** WorkflowCatalog does not read the instruction file
 again while creating or executing a Run. The complete resolved instruction
@@ -412,11 +450,50 @@ the configuration resource cannot change an existing Run
 
 ### Immutability
 
-**CAT-R44.** A published configuration version of any kind is
-immutable and is never edited in place. A publication that reuses a published
-identity with different content conflicts (CAT-R59). For ModelPolicy and
-LLMGatewayConfig see also [TPL-R36](agent-templates.md); for Workflow
-`presentation` metadata see [WFL-R12](workflows.md).
+**CAT-R44.** A configuration version published at runtime is
+immutable and is never edited in place. Managed publication is create-only: a
+publication that reuses an existing identity with different content conflicts
+(CAT-R59), and it never replaces an identity that the operator root defines,
+even with identical content (CAT-R46). Content that the Server seeds from the
+operator root at runtime keeps its own drift checks: bundled Skill sources
+([SKL-R54](../tools/skills.md)) and Audit standard packages, whose changed
+content needs a new version ([AUD-R54](../audits/audits.md),
+[AUD-R55](../audits/audits.md)). The shipped catalog follows CAT-R74 until the
+first release. For ModelPolicy and LLMGatewayConfig see also
+[TPL-R36](agent-templates.md); for Workflow `presentation` metadata see
+[WFL-R12](workflows.md).
+
+**CAT-R74.** Until the first release, the shipped catalog is
+pre-production: the Workflow, AgentTemplate, ModelPolicy, LLMGatewayConfig,
+ExecutionConfig and AuditProfile manifests and the instruction resources of the
+operator root, which the repository ships under `configs/`, may change in place
+without a new `metadata.version`. The Server loads the changed content under
+the existing lookup key at its next start (CAT-R26, CAT-R72); nothing records
+the earlier content of a shipped identity. Bundled Skill sources and Audit
+standard packages are not part of this exception (CAT-R44).
+
+What a Run used stays exact, because the identity of executed content never
+rests on `name@version` alone:
+
+- every Run snapshot stores the complete resolved Workflow with the
+  digest-bearing AgentTemplate, ModelPolicy, LLMGatewayConfig and
+  ExecutionConfig refs and the instruction digests (CAT-R33, CAT-R34,
+  CAT-R41), and an edit never changes an existing Run (CAT-R35, CAT-R43);
+- a started Audit runs its child Runs from the Workflow closures it pinned at
+  start ([AUD-R31](../audits/audits.md));
+- a managed Eval rechecks the selection digests frozen in its plan when it
+  creates a member Run or Audit, and a changed selection rejects that member
+  with `eval_pin_mismatch` instead of running other content
+  ([managed Evals](../evals/managed-evals.md)).
+
+Accepted risk: two Runs, or a Run and the current catalog, can carry the same
+`name@version` with different content, so `name@version` alone does not
+identify behaviour; compare digests or Run snapshots instead. The edit itself
+is not rejected; it is detected by those digests, by the snapshots and by the
+Eval pin check. Reopen at the first release or the first external deployment,
+whichever comes first: then a committed digest lock (`kind name@version ->
+digest`) for the shipped catalog, checked by `contractor server config
+validate` and the release gate, replaces this requirement.
 
 **CAT-R45.** Workflow, AgentTemplate, ExecutionConfig and
 instruction resources are operator-authored and read-only; UI publication
@@ -490,6 +567,20 @@ identical identity and body returns that published version; the same identity
 with different normalized content conflicts
 ([FAIL-CAT-2](../platform/failure-model.md)).
 
+**CAT-R75.** Before each publication the Server reloads both roots and
+compares the union with its current snapshot. The union may differ only by
+managed versions whose durable link this Server made without swapping its
+snapshot, because a later publication step failed, and by the identical version
+the request retries; the Server adopts those exactly as the startup load would
+(CAT-R58) and binds each recovered publication's `Idempotency-Key`. Any other
+difference is configuration drift: an edited, added or removed operator-root
+file, or a managed file the Server did not write. Drift fails the publication
+with `409 configuration_drift`, `retryable` false, and publishes nothing
+([FAIL-CAT-2](../platform/failure-model.md)). Publication resumes without a
+restart once the roots match the loaded snapshot again; restoring the changed
+files is the recovery for an in-place edit, which CAT-R44 forbids. A restart
+instead loads and validates the roots as they are (CAT-R24).
+
 **CAT-R60.** Loss of the PostgreSQL audit record cannot remove or
 reinterpret the YAML version.
 
@@ -526,7 +617,10 @@ grammar (CAT-R18) and never implies latest-version selection.
 **CAT-R67.** Filtering precedes the bounded keyset pagination
 ([Public API](../api/public-api.md)). A continuation cursor is bound to the
 normalized query, the exact-name filter and a SHA-256 fingerprint of the
-immutable catalog source used to build that result.
+immutable catalog source used to build that result. The Server computes each
+fingerprint once, when it builds a configuration snapshot at load or
+publication, and takes a page's resources from that same snapshot; a page read
+neither copies nor encodes the whole catalog.
 
 **CAT-R68.** Reusing a cursor with another query, kind or catalog
 snapshot is a bounded `400`; the client restarts from the first page.
@@ -559,11 +653,13 @@ Registry entries owned by this document:
   characters (CAT-R20).
 - [LIM-CAT-3](../platform/limits.md): the catalog discovery `q` has at most 200
   Unicode code points (CAT-R63).
+- [LIM-CAT-5](../platform/limits.md): one YAML manifest or instruction resource
+  is read with at most 4 MiB (CAT-R77).
 - [FAIL-CAT-1](../platform/failure-model.md): loading and resolving the
   configuration set (CAT-R24, CAT-R15,
   CAT-R32).
 - [FAIL-CAT-2](../platform/failure-model.md): managed publication of a
-  configuration version (CAT-R58, CAT-R59).
+  configuration version (CAT-R58, CAT-R59, CAT-R75).
 - [LIFE-CAT-1](../platform/lifecycle.md): published configuration version
   (CAT-R48).
 - [LIFE-CAT-2](../platform/lifecycle.md): instruction resource and other
@@ -575,7 +671,8 @@ Errors owned by this document ([errors](../platform/errors.md)): reusing a
 catalog cursor with another query, kind or catalog snapshot is a bounded `400`
 (CAT-R68); publishing an existing identity with different
 normalized content is an immutable-definition conflict (CAT-R44,
-CAT-R59).
+CAT-R59); a publication against configuration roots that changed outside the
+Server is the permanent `409 configuration_drift` (CAT-R75).
 
 ## Security
 
@@ -604,3 +701,4 @@ CAT-R59).
   separate API and versioning decision.
 - Retiring configurations and safe garbage collection of published versions
   (CAT-R49).
+- A digest lock for the shipped catalog before the first release (CAT-R74).

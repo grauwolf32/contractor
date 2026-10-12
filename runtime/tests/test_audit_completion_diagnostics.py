@@ -1,15 +1,20 @@
 """Content-free completion facts through real Runtime reporting and shared DTO data."""
 
 import asyncio
+import copy
 import json
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
+import httpx
 import pytest
 from fakes.model import text_result
+from jsonschema import Draft202012Validator
 from pydantic import ValidationError
+from referencing import Registry, Resource
 from test_adk_runtime import stage_request
+from test_allocation import make_service, make_spec
 from test_audit_completion_runtime import runtime_for, submit
 from test_audit_result_publication import assigned
 
@@ -19,16 +24,41 @@ from contractor_runtime.contracts import (
     WorkerAllocationMetricsState,
     WorkerCompletionDiagnostics,
 )
+from contractor_runtime.server import create_app
+from contractor_runtime.telemetry.metrics import MetricsState
 from contractor_runtime.worker.sessions import WorkerSessionLifecycleError
 
-CASES = json.loads(
-    (Path(__file__).parents[2] / "api/testdata/audit-completion/diagnostics.json").read_text()
+ROOT = Path(__file__).parents[2]
+CASES = json.loads((ROOT / "api/testdata/audit-completion/diagnostics.json").read_text())
+SCHEMAS = {
+    path.name: json.loads(path.read_text(encoding="utf-8"))
+    for path in (ROOT / "api/v1alpha1").glob("*.schema.json")
+}
+REGISTRY = Registry().with_resources(
+    (schema["$id"], Resource.from_contents(schema)) for schema in SCHEMAS.values()
 )
 
 
-@pytest.mark.parametrize("case", CASES, ids=lambda case: case["name"])
-@pytest.mark.parametrize("live", [False, True], ids=["report", "live-state"])
-def test_shared_completion_diagnostics_contract(case, live):
+def _schema(filename, definition):
+    reference = f"{SCHEMAS[filename]['$id']}#/$defs/{definition}"
+    return Draft202012Validator({"$ref": reference}, registry=REGISTRY)
+
+
+def _shared_document(case, live):
+    if live:
+        raw = {
+            "counters": {},
+            "toolCalls": [],
+            "errors": [],
+            "finalOutcome": None,
+            "truncated": False,
+            "completion": case["value"],
+        }
+        return (
+            WorkerAllocationMetricsState,
+            raw,
+            _schema("agent-state.schema.json", "allocationMetrics"),
+        )
     raw = {
         "reportId": "report-1",
         "complete": True,
@@ -38,27 +68,75 @@ def test_shared_completion_diagnostics_contract(case, live):
         "truncated": False,
         "completion": case["value"],
     }
-    model = ExecutionReport
-    if live:
-        model = WorkerAllocationMetricsState
-        raw = {
-            "counters": {},
-            "toolCalls": [],
-            "errors": [],
-            "finalOutcome": None,
-            "truncated": False,
-            "completion": case["value"],
-        }
+    return ExecutionReport, raw, _schema("allocation.schema.json", "executionReport")
+
+
+@pytest.mark.parametrize("case", CASES, ids=lambda case: case["name"])
+@pytest.mark.parametrize("live", [False, True], ids=["report", "live-state"])
+def test_shared_completion_diagnostics_contract(case, live):
+    # The models, the JSON Schema and Go (TestSharedWorkerCompletionDiagnostics)
+    # give each case one verdict; an unknown kind or phase rejects the whole
+    # report or live State instead of being dropped (AWC-R115).
+    model, raw, schema = _shared_document(case, live)
+    # JSON Schema cannot compare counts across fields; only those cases are
+    # schema-valid although every codec rejects them.
+    schema_valid = not list(schema.iter_errors(raw))
+    assert schema_valid == (case["valid"] or case.get("semanticOnly", False))
+    encoded = json.dumps(raw)
     if not case["valid"]:
         with pytest.raises(ValidationError):
             model.model_validate(raw)
+        with pytest.raises(ValidationError):
+            model.model_validate_json(encoded)
         return
-    report = model.model_validate(raw)
-    assert (report.completion is not None) == case["known"]
-    encoded = report.model_dump_json(by_alias=True, exclude_none=True)
-    assert "private-evidence-marker" not in encoded
-    if case["known"]:
-        assert report.completion.model_dump(by_alias=True, exclude_none=True) == case["value"]
+    for decoded in (model.model_validate(raw), model.model_validate_json(encoded)):
+        assert decoded.completion is not None
+        assert decoded.completion.model_dump(by_alias=True, exclude_none=True) == case["value"]
+
+
+def test_shared_completion_diagnostics_reject_unknown_kind_and_phase():
+    unknown = {case["name"]: case for case in CASES if case["name"].startswith("unknown-")}
+    assert {"unknown-kind", "unknown-phase"} <= unknown.keys()
+    assert not any(case["valid"] for case in unknown.values())
+    for case in unknown.values():
+        # The producer revalidates what it records, so even an unvalidated
+        # object never reaches a report.
+        metrics = MetricsState()
+        with pytest.raises(ValidationError):
+            metrics.record_completion(WorkerCompletionDiagnostics.model_construct(**case["value"]))
+        assert metrics.build_report(report_id="report-1", duration_ms=0).completion is None
+
+
+def test_shared_completion_diagnostics_gate_the_agent_state_endpoint(
+    tmp_path, runtime_capabilities
+):
+    # The Runtime validates every State snapshot at its wire boundary. A
+    # completion object that fails the contract makes the endpoint answer 503
+    # agent_state_unavailable; it is never served with the object removed.
+    async def scenario():
+        state, service = await make_service(tmp_path, runtime_capabilities)
+        await service.prepare(make_spec())
+        worker_state = service._context.worker_state
+        app = create_app(state, allocation_service=service, require_verified_peer=False)
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="https://runtime.example"
+        ) as client:
+            for case in CASES:
+                worker_state._state["metrics"]["completion"] = copy.deepcopy(case["value"])
+                response = await client.get("/private/v1/allocations/allocation-1/agent-state")
+                if case["valid"]:
+                    assert response.status_code == 200, case["name"]
+                    completion = WorkerCompletionDiagnostics.model_validate(
+                        response.json()["state"]["metrics"]["completion"]
+                    )
+                    served = completion.model_dump(by_alias=True, exclude_none=True)
+                    assert served == case["value"], case["name"]
+                else:
+                    assert response.status_code == 503, case["name"]
+                    assert response.json()["code"] == "agent_state_unavailable", case["name"]
+                    assert response.json()["retryable"] is True, case["name"]
+
+    asyncio.run(scenario())
 
 
 @pytest.mark.parametrize(
@@ -186,8 +264,6 @@ def test_cancelled_collection_reports_partial_data_without_publication(tmp_path)
 
 def test_ordinary_reports_omit_completion_and_shared_reuse_resets_it(tmp_path):
     async def scenario():
-        from contractor_runtime.telemetry.metrics import MetricsState
-
         old = MetricsState().build_report(report_id="old", duration_ms=0)
         assert "completion" not in old.model_dump(by_alias=True)
         expected, _ = assigned()

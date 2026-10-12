@@ -314,8 +314,8 @@ func ResolveRuntimeConfig(input ResolveRuntimeConfigInput) (ResolvedRuntimeConfi
 	}
 	result := ResolvedRuntimeConfig{
 		ModelFree:                input.ModelFree,
-		ModelPolicy:              cloneResolvedModelPolicy(input.ModelPolicy),
-		LLMGateway:               cloneResolvedGateway(gateway),
+		ModelPolicy:              input.ModelPolicy.Clone(),
+		LLMGateway:               gateway.Clone(),
 		LLMCredential:            clone.Pointer(effective.credential),
 		WorkerTelemetry:          cloneTelemetry(effective.workerTelemetry),
 		HTTPProxy:                cloneHTTPProxy(effective.httpProxy),
@@ -764,24 +764,6 @@ func resolutionError(code ResolutionErrorCode, path string, cause error) error {
 	return &ResolutionError{Code: code, Path: path, cause: cause}
 }
 
-func cloneResolvedModelPolicy(value contracts.ResolvedModelPolicy) contracts.ResolvedModelPolicy {
-	result := value
-	if value.Temperature != nil {
-		temperature := *value.Temperature
-		result.Temperature = &temperature
-	}
-	return result
-}
-
-func cloneResolvedGateway(value llmgateway.ResolvedLLMGatewayConfig) llmgateway.ResolvedLLMGatewayConfig {
-	result := value
-	if value.CredentialManager != nil {
-		manager := *value.CredentialManager
-		result.CredentialManager = &manager
-	}
-	return result
-}
-
 func cloneGatewayRef(value *llmgateway.LLMGatewayConfigRef) *llmgateway.LLMGatewayConfigRef {
 	if value == nil {
 		return nil
@@ -865,8 +847,8 @@ func cloneOrigins(value ResolvedRuntimeConfigOrigins) ResolvedRuntimeConfigOrigi
 // placement caller.
 func (r ResolvedRuntimeConfig) Clone() ResolvedRuntimeConfig {
 	result := r
-	result.ModelPolicy = cloneResolvedModelPolicy(r.ModelPolicy)
-	result.LLMGateway = cloneResolvedGateway(r.LLMGateway)
+	result.ModelPolicy = r.ModelPolicy.Clone()
+	result.LLMGateway = r.LLMGateway.Clone()
 	result.LLMCredential = clone.Pointer(r.LLMCredential)
 	result.WorkerTelemetry = cloneTelemetry(r.WorkerTelemetry)
 	result.HTTPProxy = cloneHTTPProxy(r.HTTPProxy)

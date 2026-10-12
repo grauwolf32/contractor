@@ -654,6 +654,85 @@ func TestRuntimeControlClientWorkerStateFailuresAreBoundedAndSafe(t *testing.T) 
 	}
 }
 
+// A Runtime response with a case alias or a duplicate key is invalid, at the
+// top level and inside nested report and State objects (API-R71 applies the
+// same strict decoding to the private wire).
+func TestRuntimeControlClientRejectsCaseAliasesAndDuplicateKeys(t *testing.T) {
+	state, err := os.ReadFile(filepath.Join(
+		"..", "..", "api", "testdata", "v1alpha1", "valid", "agent-state-snapshot.json",
+	))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, body := range map[string]string{
+		"valid":            string(state),
+		"nested alias":     strings.Replace(string(state), `"schemaVersion"`, `"SchemaVersion"`, 1),
+		"top-level alias":  strings.Replace(string(state), `"apiVersion"`, `"APIVersion"`, 1),
+		"duplicate key":    strings.Replace(string(state), `{`, `{"apiVersion":"contractor/v1alpha1",`, 1),
+		"nested duplicate": strings.Replace(string(state), `"schemaVersion":2`, `"schemaVersion":2,"schemaVersion":2`, 1),
+	} {
+		t.Run("Worker State "+name, func(t *testing.T) {
+			if name != "valid" && body == string(state) {
+				t.Fatal("mutation did not apply")
+			}
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Cache-Control", "private, no-cache")
+				w.Header().Set("ETag", `"contractor-agent-state-v1-7"`)
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = io.WriteString(w, body)
+			}))
+			defer server.Close()
+			client, _ := NewRuntimeControlClient(server.Client())
+			_, readErr := client.ReadWorkerState(
+				context.Background(), stateWorkerHandle(server.URL, "allocation_1"), "",
+			)
+			var typed *WorkerStateReadError
+			if name == "valid" {
+				if readErr != nil {
+					t.Fatalf("valid Worker State rejected: %v", readErr)
+				}
+			} else if !errors.As(readErr, &typed) || typed.Code != "worker_state_response_invalid" {
+				t.Fatalf("Worker State with %s = %#v", name, readErr)
+			}
+		})
+	}
+
+	encoded, err := json.Marshal(reporting.AllocationFinalResponse{
+		APIVersion: contracts.APIVersion, Report: testExecutionReport("allocation_1"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, body := range map[string]string{
+		"valid":            string(encoded),
+		"nested alias":     strings.Replace(string(encoded), `"reportId"`, `"ReportId"`, 1),
+		"duplicate key":    strings.Replace(string(encoded), `{`, `{"apiVersion":"contractor/v1alpha1",`, 1),
+		"nested duplicate": strings.Replace(string(encoded), `"reportId"`, `"allocationId":"allocation_1","reportId"`, 1),
+	} {
+		t.Run("finalize "+name, func(t *testing.T) {
+			if name != "valid" && body == string(encoded) {
+				t.Fatal("mutation did not apply")
+			}
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = io.WriteString(w, body)
+			}))
+			defer server.Close()
+			client, _ := NewRuntimeControlClient(server.Client())
+			reservation := testReservation(
+				"allocation_1", "builder", server.URL, server.URL,
+				testTemplate(t), time.Now().Add(time.Minute).UTC(),
+			)
+			_, finalizeErr := client.Finalize(
+				context.Background(), reservation, "finalization_1", time.Now().Add(time.Minute),
+			)
+			if (finalizeErr == nil) != (name == "valid") {
+				t.Fatalf("finalize response with %s = %v", name, finalizeErr)
+			}
+		})
+	}
+}
+
 func TestRuntimeControlClientRejectsMismatchedWorkerStateEndpointBeforeRequest(t *testing.T) {
 	var requests atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {

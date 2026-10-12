@@ -12,8 +12,8 @@ type auditInventoryDescriptor struct {
 	requiresSettings bool
 }
 
-// Legacy builders retain their existing task/completion contracts. Explicit
-// executor contracts are opt-in and do not change old snapshots or digests.
+// A builder without a taskContract produces tasks for the generic Audit item
+// and completion contract; a builder opts in to a typed executor contract here.
 var auditInventories = map[string]auditInventoryDescriptor{
 	AuditInventoryOpenAPIScans: {
 		mediaTypes:       []string{"application/json", "application/yaml"},

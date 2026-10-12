@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { request as httpRequest } from "node:http";
 import { tmpdir } from "node:os";
@@ -6,6 +7,18 @@ import { join } from "node:path";
 import test from "node:test";
 
 import { createStaticServer } from "./static-server.mjs";
+
+// The Server's configuration identity grammar, shared with Go, the Runtime
+// and the UI client.
+const configIdentityCases = JSON.parse(
+  readFileSync(
+    new URL(
+      "../../api/testdata/v1alpha1/config-identity-cases.json",
+      import.meta.url,
+    ),
+    "utf8",
+  ),
+);
 
 const runtimeConfig = {
   uiVersion: "0.1.0",
@@ -246,6 +259,72 @@ test("encoded client identities serve the same shell on direct GET and HEAD", as
     assert.equal(head.body, "");
     assert.equal(head.headers["content-length"], get.headers["content-length"]);
     assert.equal(head.headers["cache-control"], "no-store");
+  }
+});
+
+test("configuration identity routes accept exactly the shared grammar", async (t) => {
+  const { origin } = await fixture(t);
+  const { id, version } = configIdentityCases;
+  // Encoded as the UI links encode them: "+" in a version becomes %2B.
+  const encode = encodeURIComponent;
+  const configRoutes = [
+    (name, value) => `/catalog/workflows/${name}/${value}`,
+    (name, value) => `/catalog/agents/${name}/${value}`,
+    (name, value) => `/catalog/audit-presets/${name}/${value}`,
+    (name, value) => `/projects/project-1/workflows/${name}/${value}/run`,
+    ...[
+      "agent-templates",
+      "execution-configs",
+      "model-policies",
+      "llm-gateways",
+    ].map(
+      (kind) => (name, value) =>
+        `/operations/configurations/${kind}/${name}/${value}`,
+    ),
+  ];
+  // Runtime configurations: the same characters, RuntimeInfrastructureId
+  // names of at most 63 and RuntimeConfigVersion versions of at most 128.
+  const runtimeRoute = (name, value) =>
+    `/operations/configuration/${name}/${value}`;
+  const cases = (nameBound, versionBound) => ({
+    valid: [
+      ...id.valid.map((name) => [name, "1"]),
+      ...version.valid.map((value) => ["a", value]),
+      ["a".repeat(nameBound), "1".repeat(versionBound)],
+    ],
+    invalid: [
+      ...id.invalid.map((name) => [name, "1"]),
+      ...version.invalid.map((value) => ["a", value]),
+      ["a".repeat(nameBound + 1), "1"],
+      ["a", "1".repeat(versionBound + 1)],
+    ],
+  });
+  const routed = [
+    ...configRoutes.map((route) => [
+      route,
+      cases(id.maxLength, version.maxLength),
+    ]),
+    [runtimeRoute, cases(63, 128)],
+  ];
+  for (const [route, { valid, invalid }] of routed) {
+    for (const [name, value] of valid) {
+      const path = route(encode(name), encode(value));
+      const response = await rawRequest(origin, path);
+      assert.equal(response.status, 200, path);
+      assert.equal(response.body, "<!doctype html><title>UI</title>", path);
+    }
+    for (const [name, value] of invalid) {
+      const path = route(encode(name), encode(value));
+      const response = await rawRequest(origin, path, "GET", {
+        Accept: "text/html",
+      });
+      // 404, or 400 for an encoded separator or NUL; never the shell.
+      assert.ok(
+        [400, 404].includes(response.status),
+        `${path}: ${response.status}`,
+      );
+      assert.doesNotMatch(response.body, /<title>UI<\/title>/, path);
+    }
   }
 });
 

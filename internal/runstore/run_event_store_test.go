@@ -2,6 +2,9 @@ package runstore
 
 import (
 	"encoding/json"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -101,6 +104,11 @@ func TestPlannerRunEventIdentityMustMatchDurableSession(t *testing.T) {
 func TestPublicRunEventGrammarRejectsValuesOutsideTheWebSocketSchema(t *testing.T) {
 	for _, mutate := range []func(*plannerRunEventData){
 		func(data *plannerRunEventData) { data.SessionID = "unsafe session" },
+		// The public SafeIdentifier grammar starts with a letter or digit.
+		func(data *plannerRunEventData) { data.SessionID = "_session" },
+		func(data *plannerRunEventData) { data.InvocationID = ":invocation" },
+		func(data *plannerRunEventData) { data.StageExecutionID = ".stage" },
+		func(data *plannerRunEventData) { data.SessionID = strings.Repeat("s", contracts.MaxResourceIDLength+1) },
 		func(data *plannerRunEventData) { data.SubtaskID = "00" },
 		func(data *plannerRunEventData) { data.CallID = "dispatch-1" },
 		func(data *plannerRunEventData) { data.WorkerName = "unsafe worker" },
@@ -125,6 +133,19 @@ func TestPublicRunEventGrammarRejectsValuesOutsideTheWebSocketSchema(t *testing.
 	if _, err := EncodePublicRunEventData(lifecycle); err == nil {
 		t.Fatal("lifecycle data for another Run was accepted for public delivery")
 	}
+	for _, data := range []string{
+		`{"runId":"-run-1","resource":"run","state":"running"}`,
+		`{"runId":"run-1","resource":"run","state":"_running"}`,
+		`{"runId":"run-1","resource":"stageExecution","stageExecutionId":":stage-1","state":"running"}`,
+	} {
+		event := RunEventAppend{
+			EventID: "event-lifecycle", EventSchemaVersion: contracts.APIVersion,
+			Kind: RunEventLifecycleChanged, Data: json.RawMessage(data),
+		}
+		if err := validateRunEventAppend(event); err == nil {
+			t.Fatalf("lifecycle event outside the public WebSocket grammar was accepted: %s", data)
+		}
+	}
 }
 
 func TestPlannerRunEventAllowsFailedFinishBeforeFirstSubtask(t *testing.T) {
@@ -145,6 +166,59 @@ func TestPlannerRunEventAllowsFailedFinishBeforeFirstSubtask(t *testing.T) {
 	event.Data = mustRunEventJSON(t, data)
 	if err := validateRunEventAppend(event); err == nil {
 		t.Fatal("succeeded finish before the first subtask was accepted")
+	}
+}
+
+// TestPlannerRunEventWorkerNamesUseTheLogicalAgentNameGrammar holds every
+// Planner dispatch event to the logical Agent name grammar (WFL-R84) that the
+// public PlannerDispatch.workerName schema shows. It reads the shared name
+// cases that the catalog, placement and Operations apply as well.
+func TestPlannerRunEventWorkerNamesUseTheLogicalAgentNameGrammar(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join("..", "..", "api", "testdata", "v1alpha1", "runtime-capability-cases.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var cases struct {
+		ToolName struct {
+			MaxLength int      `json:"maxLength"`
+			Valid     []string `json:"valid"`
+			Invalid   []string `json:"invalid"`
+		} `json:"toolName"`
+	}
+	if err := json.Unmarshal(raw, &cases); err != nil {
+		t.Fatal(err)
+	}
+	if cases.ToolName.MaxLength == 0 || len(cases.ToolName.Valid) == 0 || len(cases.ToolName.Invalid) == 0 {
+		t.Fatal("shared name cases are incomplete")
+	}
+	longest := strings.Repeat("a", cases.ToolName.MaxLength)
+	for _, group := range []struct {
+		names []string
+		valid bool
+	}{
+		{append([]string{longest}, cases.ToolName.Valid...), true},
+		// The previous grammar also accepted a leading underscore and colons.
+		{append([]string{longest + "a", "_reviewer", "reviewer:1"}, cases.ToolName.Invalid...), false},
+	} {
+		for _, name := range group.names {
+			for _, kind := range []RunEventKind{
+				RunEventPlannerDispatchSelected, RunEventPlannerDispatchStarted, RunEventPlannerDispatchCompleted,
+			} {
+				event := validPlannerRunEvent(t, kind)
+				var data plannerRunEventData
+				if err := json.Unmarshal(event.Data, &data); err != nil {
+					t.Fatal(err)
+				}
+				data.WorkerName = name
+				if data.Plan != nil && data.Plan.ActiveDispatch != nil {
+					data.Plan.ActiveDispatch.WorkerName = name
+				}
+				event.Data = mustRunEventJSON(t, data)
+				if err := validateRunEventAppend(event); (err == nil) != group.valid {
+					t.Errorf("%s workerName %q: valid=%v, error=%v", kind, name, group.valid, err)
+				}
+			}
+		}
 	}
 }
 

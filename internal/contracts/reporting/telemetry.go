@@ -1,8 +1,8 @@
 package reporting
 
 import (
-	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -12,8 +12,8 @@ import (
 )
 
 type ExecutionError struct {
-	Code      string `json:"code"`
-	Message   string `json:"message"`
+	Code      string `json:"code" strictjson:"required"`
+	Message   string `json:"message" strictjson:"required"`
 	Retryable *bool  `json:"retryable,omitempty"`
 }
 
@@ -24,26 +24,26 @@ type ToolMetrics struct {
 }
 
 type WorkerBudgetMetrics struct {
-	MaxModelCalls         int64   `json:"maxModelCalls"`
-	MaxToolCalls          int64   `json:"maxToolCalls"`
-	MaxTotalTokens        int64   `json:"maxTotalTokens"`
-	ObservedModelCalls    int64   `json:"observedModelCalls"`
-	ObservedToolCalls     int64   `json:"observedToolCalls"`
-	ObservedTotalTokens   int64   `json:"observedTotalTokens"`
-	TokenUsageUnavailable int64   `json:"tokenUsageUnavailable"`
+	MaxModelCalls         int64   `json:"maxModelCalls" strictjson:"required"`
+	MaxToolCalls          int64   `json:"maxToolCalls" strictjson:"required"`
+	MaxTotalTokens        int64   `json:"maxTotalTokens" strictjson:"required"`
+	ObservedModelCalls    int64   `json:"observedModelCalls" strictjson:"required"`
+	ObservedToolCalls     int64   `json:"observedToolCalls" strictjson:"required"`
+	ObservedTotalTokens   int64   `json:"observedTotalTokens" strictjson:"required"`
+	TokenUsageUnavailable int64   `json:"tokenUsageUnavailable" strictjson:"required"`
 	Exhausted             *string `json:"exhausted,omitempty"`
 }
 
 type WorkerSummarizerMetrics struct {
-	Attempts              uint64            `json:"attempts"`
-	Succeeded             uint64            `json:"succeeded"`
-	Failed                uint64            `json:"failed"`
-	ModelCalls            uint64            `json:"modelCalls"`
-	InputTokens           uint64            `json:"inputTokens"`
-	OutputTokens          uint64            `json:"outputTokens"`
-	TotalTokens           uint64            `json:"totalTokens"`
-	TokenUsageUnavailable uint64            `json:"tokenUsageUnavailable"`
-	FailureCodes          map[string]uint64 `json:"failureCodes"`
+	Attempts              uint64            `json:"attempts" strictjson:"required"`
+	Succeeded             uint64            `json:"succeeded" strictjson:"required"`
+	Failed                uint64            `json:"failed" strictjson:"required"`
+	ModelCalls            uint64            `json:"modelCalls" strictjson:"required"`
+	InputTokens           uint64            `json:"inputTokens" strictjson:"required"`
+	OutputTokens          uint64            `json:"outputTokens" strictjson:"required"`
+	TotalTokens           uint64            `json:"totalTokens" strictjson:"required"`
+	TokenUsageUnavailable uint64            `json:"tokenUsageUnavailable" strictjson:"required"`
+	FailureCodes          map[string]uint64 `json:"failureCodes" strictjson:"required"`
 }
 
 type ExecutionMetrics struct {
@@ -52,7 +52,7 @@ type ExecutionMetrics struct {
 	InputTokens  *int64                   `json:"inputTokens,omitempty"`
 	OutputTokens *int64                   `json:"outputTokens,omitempty"`
 	TotalTokens  *int64                   `json:"totalTokens,omitempty"`
-	Tools        map[string]ToolMetrics   `json:"tools"`
+	Tools        map[string]ToolMetrics   `json:"tools" strictjson:"required"`
 	WorkerBudget *WorkerBudgetMetrics     `json:"workerBudget,omitempty"`
 	Summarizer   *WorkerSummarizerMetrics `json:"summarizer,omitempty"`
 }
@@ -65,11 +65,11 @@ const (
 )
 
 type ToolCallRecord struct {
-	CallID             string          `json:"callId"`
-	Tool               string          `json:"tool"`
+	CallID             string          `json:"callId" strictjson:"required"`
+	Tool               string          `json:"tool" strictjson:"required"`
 	Arguments          map[string]any  `json:"arguments,omitempty"`
-	ArgumentsTruncated bool            `json:"argumentsTruncated"`
-	Outcome            ToolCallOutcome `json:"outcome"`
+	ArgumentsTruncated bool            `json:"argumentsTruncated" strictjson:"required"`
+	Outcome            ToolCallOutcome `json:"outcome" strictjson:"required"`
 	DurationMS         *int64          `json:"durationMs,omitempty"`
 	ResultSizeBytes    *int64          `json:"resultSizeBytes,omitempty"`
 	Error              *ExecutionError `json:"error,omitempty"`
@@ -77,19 +77,19 @@ type ToolCallRecord struct {
 
 type ExecutionReport struct {
 	Completion *WorkerCompletionDiagnostics `json:"completion,omitempty"`
-	ReportID   string                       `json:"reportId"`
-	Complete   bool                         `json:"complete"`
-	Metrics    ExecutionMetrics             `json:"metrics"`
-	ToolCalls  []ToolCallRecord             `json:"toolCalls"`
-	Errors     []ExecutionError             `json:"errors"`
-	Truncated  bool                         `json:"truncated"`
+	ReportID   string                       `json:"reportId" strictjson:"required"`
+	Complete   bool                         `json:"complete" strictjson:"required"`
+	Metrics    ExecutionMetrics             `json:"metrics" strictjson:"required"`
+	ToolCalls  []ToolCallRecord             `json:"toolCalls" strictjson:"required"`
+	Errors     []ExecutionError             `json:"errors" strictjson:"required"`
+	Truncated  bool                         `json:"truncated" strictjson:"required"`
 }
 
 type RuntimeReport struct {
-	Complete       bool                                                  `json:"complete"`
+	Complete       bool                                                  `json:"complete" strictjson:"required"`
 	DurationMS     *int64                                                `json:"durationMs,omitempty"`
 	StopReason     *string                                               `json:"stopReason,omitempty"`
-	Adapters       map[contracts.RuntimeAdapterRef]RuntimeAdapterMetrics `json:"adapters"`
+	Adapters       map[contracts.RuntimeAdapterRef]RuntimeAdapterMetrics `json:"adapters" strictjson:"required"`
 	Resources      *RuntimeResources                                     `json:"resources,omitempty"`
 	ResourcesError *ResourceReason                                       `json:"-"`
 }
@@ -103,24 +103,22 @@ func (r RuntimeReport) MarshalJSON() ([]byte, error) {
 	return json.Marshal(copy)
 }
 
+// UnmarshalJSON requires the members RuntimeReport tags required, but decodes
+// each adapter entry and the resources block on its own: a malformed one is
+// discarded as incomplete telemetry instead of failing the report (OBS-R36,
+// CTL-R136).
 func (r *RuntimeReport) UnmarshalJSON(data []byte) error {
-	if err := strictjson.RejectDuplicateKeys(data); err != nil {
-		return contracts.Invalidf("invalid runtime report JSON")
-	}
 	type wireRuntimeReport struct {
-		Complete   bool                       `json:"complete"`
+		Complete   bool                       `json:"complete" strictjson:"required"`
 		DurationMS *int64                     `json:"durationMs,omitempty"`
 		StopReason *string                    `json:"stopReason,omitempty"`
-		Adapters   map[string]json.RawMessage `json:"adapters"`
+		Adapters   map[string]json.RawMessage `json:"adapters" strictjson:"required"`
 		Resources  json.RawMessage            `json:"resources"`
 	}
 	var wire wireRuntimeReport
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&wire); err != nil {
-		return err
-	}
-	if err := strictjson.RequireEOF(decoder); err != nil {
+	if err := strictjson.Decode(data, &wire); errors.Is(err, strictjson.ErrDuplicateKey) {
+		return contracts.Invalidf("invalid runtime report JSON")
+	} else if err != nil {
 		return err
 	}
 	*r = RuntimeReport{
@@ -128,10 +126,6 @@ func (r *RuntimeReport) UnmarshalJSON(data []byte) error {
 		Adapters: map[contracts.RuntimeAdapterRef]RuntimeAdapterMetrics{},
 	}
 	r.Resources, r.ResourcesError = decodeOptionalResources(wire.Resources)
-	if wire.Adapters == nil {
-		r.Complete = false
-		return nil
-	}
 	for rawRef, rawMetrics := range wire.Adapters {
 		ref := contracts.RuntimeAdapterRef(rawRef)
 		metrics, err := decodeRuntimeAdapterMetrics(rawMetrics)
@@ -146,12 +140,7 @@ func (r *RuntimeReport) UnmarshalJSON(data []byte) error {
 
 func decodeRuntimeAdapterMetrics(data []byte) (RuntimeAdapterMetrics, error) {
 	var metrics RuntimeAdapterMetrics
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&metrics); err != nil {
-		return RuntimeAdapterMetrics{}, err
-	}
-	if err := strictjson.RequireEOF(decoder); err != nil {
+	if err := strictjson.Decode(data, &metrics); err != nil {
 		return RuntimeAdapterMetrics{}, err
 	}
 	if err := metrics.Validate(); err != nil {
@@ -167,12 +156,12 @@ type StageMetrics struct {
 }
 
 type AllocationFinalReport struct {
-	ReportID     string          `json:"reportId"`
-	AllocationID string          `json:"allocationId"`
-	StartedAt    time.Time       `json:"startedAt"`
-	FinishedAt   time.Time       `json:"finishedAt"`
-	Worker       ExecutionReport `json:"worker"`
-	Runtime      RuntimeReport   `json:"runtime"`
+	ReportID     string          `json:"reportId" strictjson:"required"`
+	AllocationID string          `json:"allocationId" strictjson:"required"`
+	StartedAt    time.Time       `json:"startedAt" strictjson:"required"`
+	FinishedAt   time.Time       `json:"finishedAt" strictjson:"required"`
+	Worker       ExecutionReport `json:"worker" strictjson:"required"`
+	Runtime      RuntimeReport   `json:"runtime" strictjson:"required"`
 }
 
 func (r *AllocationFinalReport) UnmarshalJSON(data []byte) error {
@@ -180,14 +169,11 @@ func (r *AllocationFinalReport) UnmarshalJSON(data []byte) error {
 	if len(data) > 1024*1024 {
 		return contracts.Invalidf("allocation final report exceeds 1 MiB")
 	}
-	if err := strictjson.RejectDuplicateKeys(data); err != nil {
-		return contracts.Invalidf("invalid allocation report JSON")
-	}
 	type wireReport AllocationFinalReport
 	var value wireReport
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&value); err != nil {
+	if err := strictjson.Decode(data, &value); errors.Is(err, strictjson.ErrDuplicateKey) {
+		return contracts.Invalidf("invalid allocation report JSON")
+	} else if err != nil {
 		return err
 	}
 	*r = AllocationFinalReport(value)
@@ -425,8 +411,8 @@ var runtimeAdapterErrorCodes = map[string]struct{}{
 }
 
 type RuntimeAdapterMetrics struct {
-	Operations       uint64             `json:"operations"`
-	FailedOperations uint64             `json:"failedOperations"`
+	Operations       uint64             `json:"operations" strictjson:"required"`
+	FailedOperations uint64             `json:"failedOperations" strictjson:"required"`
 	FlushAttempted   *bool              `json:"flushAttempted,omitempty"`
 	FlushSucceeded   *bool              `json:"flushSucceeded,omitempty"`
 	LastErrorCode    *string            `json:"lastErrorCode,omitempty"`
@@ -478,8 +464,8 @@ func (r RuntimeReport) Validate() error {
 }
 
 type AllocationFinalResponse struct {
-	APIVersion string                `json:"apiVersion"`
-	Report     AllocationFinalReport `json:"report"`
+	APIVersion string                `json:"apiVersion" strictjson:"required"`
+	Report     AllocationFinalReport `json:"report" strictjson:"required"`
 }
 
 func (r AllocationFinalResponse) Validate() error {

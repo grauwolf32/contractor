@@ -44,10 +44,10 @@ func (r *PostgresRepository) PublishRunOutput(
 INSERT INTO artifact_scopes (scope_kind, scope_id)
 VALUES ($1, $2)
 ON CONFLICT DO NOTHING`, projectScope.kind, projectScope.id); err != nil {
-		if persistencepostgres.SQLState(err) == "55000" {
+		if persistencepostgres.Classify(err) == persistencepostgres.ClassDeleting {
 			return ForkResult{}, fmt.Errorf("create Project artifact scope: %w", ErrScopeDeleting)
 		}
-		if persistencepostgres.SQLState(err) == persistencepostgres.SQLStateForeignKeyViolation {
+		if persistencepostgres.Classify(err) == persistencepostgres.ClassReferenceViolation {
 			return ForkResult{}, fmt.Errorf("create Project artifact scope: %w", ErrInvalidScope)
 		}
 		return ForkResult{}, fmt.Errorf("create Project artifact scope: %w", err)
@@ -62,12 +62,12 @@ ON CONFLICT DO NOTHING`, projectScope.kind, projectScope.id); err != nil {
 		projectScope.kind, projectScope.id, outputSlot, targetRevision,
 	).Scan(&sourceExists, &targetCreated, &mediaType, &size)
 	if err != nil {
-		switch persistencepostgres.SQLState(err) {
-		case "55000":
+		switch persistencepostgres.Classify(err) {
+		case persistencepostgres.ClassDeleting:
 			return ForkResult{}, fmt.Errorf("publish Project output %q: %w", outputSlot, ErrScopeDeleting)
-		case persistencepostgres.SQLStateForeignKeyViolation:
+		case persistencepostgres.ClassReferenceViolation:
 			return ForkResult{}, fmt.Errorf("publish Project output %q: %w", outputSlot, ErrInvalidScope)
-		case persistencepostgres.SQLStateUniqueViolation:
+		case persistencepostgres.ClassDuplicate:
 			return ForkResult{}, &ConflictError{
 				Ref: ArtifactRef{Namespace: "outputs", Name: outputSlot},
 			}

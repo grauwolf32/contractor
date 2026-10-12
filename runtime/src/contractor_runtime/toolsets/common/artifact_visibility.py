@@ -5,10 +5,9 @@ from __future__ import annotations
 from collections.abc import Iterable
 
 from contractor_runtime.contracts import ArtifactRef
+from contractor_runtime.contracts.artifacts import MEMORY_ARTIFACT_PREFIX
 
-MEMORY_ARTIFACT_PREFIX = "memory."
 HTTP_BODY_ARTIFACT_PREFIX = "http.body."
-PURPOSE_RESERVED_NAMESPACES = frozenset({"inputs", "outputs", "skills"})
 # Model visibility (ART-R17, ART-R19, ART-R24, ART-R109), the same rule as the
 # Server's artifactpolicy.IsModelHiddenBinding, which also excludes these
 # bindings from the private paged listing; both are checked against
@@ -24,17 +23,6 @@ class ModelArtifactAccessError(ValueError):
 
     def __init__(self) -> None:
         super().__init__("artifact is reserved for a purpose-specific Toolset")
-
-
-def is_reserved_memory_binding(namespace: object, name: object) -> bool:
-    """Return whether a Run binding belongs exclusively to MemoryTools."""
-
-    return (
-        isinstance(namespace, str)
-        and namespace not in PURPOSE_RESERVED_NAMESPACES
-        and isinstance(name, str)
-        and name.startswith(MEMORY_ARTIFACT_PREFIX)
-    )
 
 
 def is_model_hidden_binding(namespace: object, name: object) -> bool:

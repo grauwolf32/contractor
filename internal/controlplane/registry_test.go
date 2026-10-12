@@ -841,7 +841,7 @@ func TestPrepareReservationRejectsActuallyExpiredOwningAgent(t *testing.T) {
 		t.Fatalf("expired allocation grant = (%+v, %v)", grant, err)
 	}
 	runtime := &recordingRuntime{}
-	controller, err := NewRuntimeBatchController(runtime, registry, RuntimeBatchOptions{})
+	controller, err := NewRuntimeBatchController(runtime, registry, RuntimeBatchOptions{PrepareTimeout: time.Minute, CleanupTimeout: time.Minute})
 	if err != nil {
 		t.Fatal(err)
 	}

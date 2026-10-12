@@ -1,0 +1,56 @@
+schema_version: "1.0"
+id: V371-006
+title: "Take the Worker tools that observe the workspace from the shared Toolset descriptor"
+milestone: hub-audit-defects-2026-10
+epic: planner-worker
+kind: chore
+priority: P3
+status: pending
+depends_on: []
+languages: [go, python]
+goal: "The Server decides whether a Worker binding has workspace observations from the same descriptor data the Runtime uses to record them, not from its own tool list."
+context:
+  review: "Out-of-scope finding of the hub audit fix batch (group G2), recorded 2026-10-12; verified on a07f5e9"
+  specification: "docs/spec/tools/toolsets.md#TLS-R38"
+  finding: >-
+    selectedWorkspaceObservation (internal/planner/streamline/factory.go:275-301)
+    hard-codes which selected tools make a Worker binding workspace-eligible
+    for the Planner State projections: ls, glob, read_file and grep of
+    filesystem@1, nine edit-files@1 tools, the three taint-annotations@1
+    tools and changed_paths of workspace-changes@1. The Runtime decides which
+    tools record a workspace observation separately, in
+    runtime/src/contractor_runtime/observations.py:37-97 (mkdir records an
+    empty observation). api/testdata/toolset-descriptors.json, the shared
+    record of every built-in Toolset (TLS-R38, extended by V369-006), has no
+    field for it, so a tool added to one list and not the other makes the
+    Planner's workspace projections report data as unavailable or offer
+    projections the Worker never fills (AGENTS.md 3.1). Predates the shallow
+    history (boundary 6349621).
+  siblings: >-
+    Server: selectedWorkspaceObservation is the only Go copy;
+    stateview Binding.WorkspaceEligible carries its result. Runtime: the
+    observation extractors in observations.py and the Toolsets that call them
+    (filesystem, edit-files, taint annotations, workspace changes).
+    Descriptor parity tests: TestSharedToolsetDescriptorParity
+    (internal/config/config_test.go:279) and
+    test_shared_toolset_descriptor_parity (runtime/tests/test_capabilities.py:55).
+scope:
+  in:
+    - "A per-tool workspace observation classification in the Toolset descriptor and in toolset-descriptors.json, checked by both parity tests."
+    - "selectedWorkspaceObservation reads it; the Runtime extractors are registered from it or tested against it."
+  out:
+    - "Which tools observe the workspace: behaviour stays as on a07f5e9, mkdir included."
+acceptance_criteria:
+  - id: A1
+    given: "A tool marked as observing the workspace in only one of the Server descriptor and the Runtime factory"
+    when: "The parity tests run"
+    then: "They fail."
+  - id: A2
+    text: "Every AgentTemplate selection that was workspace-eligible on a07f5e9 still is, and no other one is."
+tests:
+  - command: "go test ./internal/config ./internal/planner/streamline ./internal/planner/stateview"
+    covers: [A1, A2]
+  - command: "cd runtime && uv run pytest tests/test_capabilities.py tests/test_observations.py tests/test_filesystem_observations.py"
+    covers: [A1]
+  - command: make lint
+    covers: [A1, A2]

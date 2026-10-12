@@ -98,7 +98,10 @@ func configureControlPlane(
 	workers, err := controlplane.NewRuntimeBatchController(
 		runtimeClient,
 		registry,
-		controlplane.RuntimeBatchOptions{CleanupTimeout: cfg.Operations.RuntimeLifecycle.CleanupTimeout},
+		controlplane.RuntimeBatchOptions{
+			PrepareTimeout: cfg.Operations.RuntimeLifecycle.PrepareTimeout,
+			CleanupTimeout: cfg.Operations.RuntimeLifecycle.CleanupTimeout,
+		},
 	)
 	if err != nil {
 		return controlServices{}, fmt.Errorf("configure Runtime Agent lifecycle: %w", err)

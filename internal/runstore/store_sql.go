@@ -1,5 +1,11 @@
 package runstore
 
+import (
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+)
+
 // SQL statements for store.go.
 
 // listNonTerminalRunIDsByCredentialSQL returns up to $2 Run IDs, oldest first,
@@ -9,7 +15,8 @@ package runstore
 // The jsonb_path_query_array test is the expression of
 // workflow_runs_workflow_credentials_idx: a superset of the exact
 // jsonb_path_exists test, which it narrows to indexed candidates, so both
-// arms are index scans over active Runs.
+// arms are index scans over active Runs. The JSON members come from the
+// constants beside the encoded types, so the text still matches the indexes.
 // Used by PostgresStore.ListNonTerminalRunIDsByCredential.
 var listNonTerminalRunIDsByCredentialSQL = `
 WITH credential_runs AS (
@@ -18,15 +25,15 @@ WITH credential_runs AS (
     WHERE state IN ('initializing', 'pending', 'running', 'waiting', 'cancelling')
       AND (
           (
-              jsonb_path_query_array(workflow_snapshot, '$.**.credentialId.**', '{}', true) ? $1
+              jsonb_path_query_array(workflow_snapshot, '$.**.` + llmgateway.CredentialIDMember + `.**', '{}', true) ? $1
               AND jsonb_path_exists(
                   workflow_snapshot,
-                  '$.**.credentialId ? (@ == $credential)',
+                  '$.**.` + llmgateway.CredentialIDMember + ` ? (@ == $credential)',
                   jsonb_build_object('credential', to_jsonb($1::text)),
                   true
               )
           )
-          OR (runtime_config_snapshot->'llmCredentialIds') ? $1
+          OR (runtime_config_snapshot->'` + runtimeconfig.LLMCredentialIDsMember + `') ? $1
       )
     UNION
     SELECT e.run_id, r.created_at
@@ -34,7 +41,8 @@ WITH credential_runs AS (
     JOIN stage_executions e ON e.stage_execution_id = a.stage_execution_id
     JOIN workflow_runs r ON r.run_id = e.run_id
     WHERE a.release_completed_at IS NULL
-      AND a.runtime_configuration #>> '{provenance,llmCredential,credentialId}' = $1
+      AND a.runtime_configuration #>> '{` + AllocationProvenanceMember + `,` +
+	runtimesettings.LLMCredentialMember + `,` + llmgateway.CredentialIDMember + `}' = $1
 )
 SELECT run_id
 FROM credential_runs
@@ -154,28 +162,74 @@ SET state = 'cancelling',
 WHERE run_id = $1 AND state IN ('initializing', 'pending', 'running', 'waiting')
 RETURNING `
 
-// claimRunnableRunSQL leases one runnable Run (active, or initializing with
-// skill initialization pending) that has no live scheduler claim. FOR UPDATE
-// SKIP LOCKED keeps concurrent schedulers off the same row. Order: cancelling,
-// then running/waiting, then the rest; Runs deferred within the last $3 µs go
-// last. Sets claim $1 with a $2 µs lease; the caller appends RETURNING columns.
+// claimRunnableRunSQL leases one runnable Run that holds no live Scheduler
+// claim, in claim order (SCH-R121, SCH-R123): by scheduler_claim_tier
+// (cancelling, then running and waiting, then pending Runs and Runs whose
+// Skill initialization is pending), then updated_at, created_at and run_id.
+// A Run deferred within the last $3 µs ranks behind all of them unless it is
+// cancelling; deferred Runs follow each other in updated_at order.
+//
+// A pending Run of an owner whose Queue is paused is skipped: admission could
+// not start its Stage (SCH-R163). It is still claimed while an active
+// StageExecution of it is aborting or holds an allocation whose release has
+// not completed, the release work that continues while paused (SCH-R148,
+// SCH-R152).
+//
+// The ready probe reads claim order from workflow_runs_claim_idx and stops at
+// the first Run it can lock; the deferred probe, read from
+// workflow_runs_deferred_claim_idx, runs only when the ready probe found
+// none. Neither sorts the candidates (SCH-R164). FOR UPDATE SKIP LOCKED keeps
+// concurrent Schedulers off the same row. Sets claim $1 with a $2 µs lease;
+// the caller appends the RETURNING columns.
 // Used by PostgresStore.ClaimRunnableRun.
 var claimRunnableRunSQL = `
-WITH candidate AS (
-    SELECT run_id
-    FROM workflow_runs
-    WHERE (state IN ('pending', 'running', 'waiting', 'cancelling')
-       OR (state = 'initializing' AND state_reason_code = 'skill_initialization_pending'))
-      AND (scheduler_claim_id IS NULL OR scheduler_claim_expires_at <= clock_timestamp())
-    ORDER BY CASE
-                 WHEN state = 'cancelling' THEN 0
-                 WHEN scheduler_deferred
-                  AND updated_at > clock_timestamp() - ($3::bigint * interval '1 microsecond') THEN 3
-                 WHEN state IN ('running', 'waiting') THEN 1
-                 ELSE 2
-             END,
-             updated_at, created_at, run_id
-    FOR UPDATE SKIP LOCKED
+WITH ready AS (
+    SELECT run.run_id
+    FROM workflow_runs AS run
+    WHERE run.scheduler_claim_tier IS NOT NULL
+      AND (run.scheduler_claim_id IS NULL OR run.scheduler_claim_expires_at <= clock_timestamp())
+      AND NOT (run.scheduler_claim_tier > 0 AND run.scheduler_deferred
+               AND run.updated_at > statement_timestamp() - ($3::bigint * interval '1 microsecond'))
+      AND NOT (run.state = 'pending'
+               AND run.owner_id IN (SELECT owner_id FROM owner_queue_controls WHERE paused)
+               AND NOT EXISTS (
+                   SELECT 1
+                   FROM stage_executions AS stage
+                   WHERE stage.run_id = run.run_id
+                     AND stage.state IN ('preparing', 'running', 'finalizing', 'aborting')
+                     AND (stage.state = 'aborting' OR EXISTS (
+                         SELECT 1
+                         FROM stage_allocations AS allocation
+                         WHERE allocation.stage_execution_id = stage.stage_execution_id
+                           AND allocation.release_completed_at IS NULL))))
+    ORDER BY run.scheduler_claim_tier, run.updated_at, run.created_at, run.run_id
+    LIMIT 1
+    FOR UPDATE OF run SKIP LOCKED
+), deferred AS (
+    SELECT run.run_id
+    FROM workflow_runs AS run
+    WHERE run.scheduler_deferred AND run.scheduler_claim_tier > 0
+      AND run.updated_at > statement_timestamp() - ($3::bigint * interval '1 microsecond')
+      AND (run.scheduler_claim_id IS NULL OR run.scheduler_claim_expires_at <= clock_timestamp())
+      AND NOT (run.state = 'pending'
+               AND run.owner_id IN (SELECT owner_id FROM owner_queue_controls WHERE paused)
+               AND NOT EXISTS (
+                   SELECT 1
+                   FROM stage_executions AS stage
+                   WHERE stage.run_id = run.run_id
+                     AND stage.state IN ('preparing', 'running', 'finalizing', 'aborting')
+                     AND (stage.state = 'aborting' OR EXISTS (
+                         SELECT 1
+                         FROM stage_allocations AS allocation
+                         WHERE allocation.stage_execution_id = stage.stage_execution_id
+                           AND allocation.release_completed_at IS NULL))))
+    ORDER BY run.updated_at, run.created_at, run.run_id
+    LIMIT 1
+    FOR UPDATE OF run SKIP LOCKED
+), candidate AS (
+    SELECT run_id FROM ready
+    UNION ALL
+    SELECT run_id FROM deferred
     LIMIT 1
 )
 UPDATE workflow_runs AS run

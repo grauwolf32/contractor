@@ -25,7 +25,7 @@ type ResumeRenewalParams struct {
 // the Controller's renewal, so each renewal records review.expired and
 // review.requested events with one Audit revision per event. It returns the
 // Audit revision that the subsequent Resume transition must expect.
-func (s *PostgresStore) RenewItemReviewsForResume(ctx context.Context, params ResumeRenewalParams) (uint64, error) {
+func (s *PostgresTxStore) RenewItemReviewsForResume(ctx context.Context, params ResumeRenewalParams) (uint64, error) {
 	if err := validateText("ownerID", params.OwnerID, 256, true); err != nil {
 		return 0, err
 	}
@@ -35,10 +35,7 @@ func (s *PostgresStore) RenewItemReviewsForResume(ctx context.Context, params Re
 	if params.ExpectedRevision == 0 || params.ExpectedRevision > math.MaxInt64 {
 		return 0, invalidf("Audit resume revision is invalid")
 	}
-	tx, ok := s.db.(pgx.Tx)
-	if !ok {
-		return 0, errors.New("renew Audit item reviews for Resume: the Resume transaction is required")
-	}
+	tx := s.tx
 	var revision int64
 	err := tx.QueryRow(ctx, `
 SELECT revision FROM audits

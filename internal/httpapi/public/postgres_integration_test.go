@@ -26,6 +26,7 @@ import (
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/rundeletion"
+	"github.com/grauwolf32/contractor/internal/runservice"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/grauwolf32/contractor/internal/settingsstore"
@@ -38,7 +39,7 @@ func TestPostgresPublicRunInitializationAndFrozenOutput(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	pool := isolatedPublicPool(t, ctx)
-	configurationManager, err := configload.NewManager(config.ManagerOptions{
+	configurationManager, _, err := configload.NewManager(config.ManagerOptions{
 		OperatorRoot: "../../config/testdata/valid",
 		ManagedRoot:  filepath.Join(t.TempDir(), "managed-configs"),
 		Descriptors:  config.MVPDescriptors(),
@@ -69,6 +70,10 @@ func TestPostgresPublicRunInitializationAndFrozenOutput(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(eventHub.Close)
+	runDetails, err := runservice.NewRunDetailReader(runservice.PostgresRunDetailTransaction(pool))
+	if err != nil {
+		t.Fatal(err)
+	}
 	dependencies := Dependencies{
 		Authentication: authentication, BrowserOrigins: origins,
 		Config: configurationManager, ConfigurationPublisher: configurationManager,
@@ -77,7 +82,7 @@ func TestPostgresPublicRunInitializationAndFrozenOutput(t *testing.T) {
 		RuntimeAgentPrincipals: runtimePrincipals,
 		Projects:               projectstore.NewPostgresStore(pool),
 		Audits:                 &fakeAuditManagement{},
-		Runs:                   runs, RunQueue: runs, RunLifecycle: runs, RunDeletion: rundeletion.New(pool), Artifacts: service,
+		Runs:                   runs, RunDetails: runDetails, RunQueue: runs, RunLifecycle: runs, RunDeletion: rundeletion.New(pool), Artifacts: service,
 		Operations: operations, OperationsInvalidator: operations,
 		Performance: performance.NewReadService(
 			false, nil, nil, performance.NewHistoryRepository(pool, time.Now), time.Now,

@@ -4,6 +4,8 @@ import (
 	"regexp"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 )
 
 const (
@@ -24,58 +26,58 @@ var (
 // ToolObservationCount is a content-free, Runtime-authored aggregate for one
 // model-visible tool name.
 type ToolObservationCount struct {
-	Calls    uint64 `json:"calls"`
-	Failures uint64 `json:"failures"`
+	Calls    uint64 `json:"calls" strictjson:"required"`
+	Failures uint64 `json:"failures" strictjson:"required"`
 }
 
 // WorkspaceObservationSummary is the bounded lean@1 projection attached by
 // Runtime. Detailed live paths remain in allocation-local Worker State.
 type WorkspaceObservationSummary struct {
-	ScopedFiles        uint64   `json:"scopedFiles"`
-	ScopeComplete      bool     `json:"scopeComplete"`
-	DiscoveredFiles    uint64   `json:"discoveredFiles"`
-	ReadFiles          uint64   `json:"readFiles"`
-	MatchedFiles       uint64   `json:"matchedFiles"`
-	ModifiedFiles      uint64   `json:"modifiedFiles"`
-	DetailComplete     bool     `json:"detailComplete"`
+	ScopedFiles        uint64   `json:"scopedFiles" strictjson:"required"`
+	ScopeComplete      bool     `json:"scopeComplete" strictjson:"required"`
+	DiscoveredFiles    uint64   `json:"discoveredFiles" strictjson:"required"`
+	ReadFiles          uint64   `json:"readFiles" strictjson:"required"`
+	MatchedFiles       uint64   `json:"matchedFiles" strictjson:"required"`
+	ModifiedFiles      uint64   `json:"modifiedFiles" strictjson:"required"`
+	DetailComplete     bool     `json:"detailComplete" strictjson:"required"`
 	UnreadFiles        *uint64  `json:"unreadFiles,omitempty"`
-	FilesRead          []string `json:"filesRead"`
-	FilesReadTruncated bool     `json:"filesReadTruncated"`
+	FilesRead          []string `json:"filesRead" strictjson:"required"`
+	FilesReadTruncated bool     `json:"filesReadTruncated" strictjson:"required"`
 }
 
 // WorkerObservations is authored only by Runtime, never by the Worker model.
 type WorkerObservations struct {
-	Profile   string                          `json:"profile"`
-	Tools     map[string]ToolObservationCount `json:"tools"`
+	Profile   string                          `json:"profile" strictjson:"required"`
+	Tools     map[string]ToolObservationCount `json:"tools" strictjson:"required"`
 	Workspace *WorkspaceObservationSummary    `json:"workspace,omitempty"`
-	Truncated bool                            `json:"truncated"`
+	Truncated bool                            `json:"truncated" strictjson:"required"`
 }
 
 // WorkerResult is the trusted semantic success returned to Planner.
 type WorkerResult struct {
-	SubtaskID    string                 `json:"subtaskId"`
-	Result       string                 `json:"result"`
-	Observations WorkerObservations     `json:"observations"`
-	Artifacts    map[string]ArtifactRef `json:"artifacts"`
-	Summarized   bool                   `json:"summarized"`
+	SubtaskID    string                 `json:"subtaskId" strictjson:"required"`
+	Result       string                 `json:"result" strictjson:"required"`
+	Observations WorkerObservations     `json:"observations" strictjson:"required"`
+	Artifacts    map[string]ArtifactRef `json:"artifacts" strictjson:"required"`
+	Summarized   bool                   `json:"summarized" strictjson:"required"`
 }
 
 // WorkerFailure describes a technical Runtime/tool/provider/contract failure.
 // It is not a model-authored semantic Stage outcome.
 type WorkerFailure struct {
-	Code      string `json:"code"`
-	Message   string `json:"message"`
-	Retryable bool   `json:"retryable"`
+	Code      string `json:"code" strictjson:"required"`
+	Message   string `json:"message" strictjson:"required"`
+	Retryable bool   `json:"retryable" strictjson:"required"`
 }
 
 // WorkerCompletion is the strict private A2A response shared by Go and Python.
 // Exactly one of Result and Failure is present.
 type WorkerCompletion struct {
-	APIVersion    string         `json:"apiVersion"`
+	APIVersion    string         `json:"apiVersion" strictjson:"required"`
 	Result        *WorkerResult  `json:"result,omitempty"`
 	Failure       *WorkerFailure `json:"failure,omitempty"`
-	InvocationID  string         `json:"invocationId"`
-	StateRevision uint64         `json:"stateRevision"`
+	InvocationID  string         `json:"invocationId" strictjson:"required"`
+	StateRevision uint64         `json:"stateRevision" strictjson:"required"`
 }
 
 func (c ToolObservationCount) validate() error {
@@ -234,11 +236,10 @@ func ValidBoundedOpaqueWorkerID(value string) bool {
 		!strings.ContainsAny(value, "\r\n\t\x00")
 }
 
+// isReservedWorkerResultBinding reports whether a Worker result may not name a
+// binding: one in a purpose-reserved Namespace or a reserved Memory binding
+// (ART-R114, ART-R20), the rule Stage results and the Runtime apply too.
 func isReservedWorkerResultBinding(namespace, name string) bool {
-	switch namespace {
-	case "inputs", "outputs", "skills":
-		return true
-	default:
-		return strings.HasPrefix(name, "memory.")
-	}
+	return artifactpolicy.IsPurposeReservedNamespace(namespace) ||
+		artifactpolicy.IsReservedMemoryBinding(namespace, name)
 }

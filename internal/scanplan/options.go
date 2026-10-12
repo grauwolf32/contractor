@@ -156,3 +156,26 @@ func (r *optionValues) allowedType(value reflect.Type, depth int) bool {
 	r.types[value] = allowed
 	return allowed
 }
+
+// revealedOptions is the in-process JSON form of Options that keeps the
+// authentication values. contracts.SecretString redacts itself under default
+// JSON encoding (SEC-R88), but the bounded normalization round trip must
+// return the supplied credentials and the preparation digest identifies them.
+// The form never leaves this package; only digests and prepared requests do.
+type revealedOptions struct {
+	plainOptions
+	Authentication map[string]string `json:"authentication"`
+}
+
+type plainOptions Options
+
+func (o Options) revealed() revealedOptions {
+	result := revealedOptions{plainOptions: plainOptions(o)}
+	if o.Authentication != nil {
+		result.Authentication = make(map[string]string, len(o.Authentication))
+		for name, secret := range o.Authentication {
+			result.Authentication[name] = secret.Reveal()
+		}
+	}
+	return result
+}

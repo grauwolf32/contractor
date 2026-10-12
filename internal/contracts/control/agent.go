@@ -24,16 +24,16 @@ const (
 )
 
 type ToolsetCapability struct {
-	Ref   string   `json:"ref"`
-	Tools []string `json:"tools"`
+	Ref   string   `json:"ref" strictjson:"required"`
+	Tools []string `json:"tools" strictjson:"required"`
 }
 
 type AgentHeartbeat struct {
-	APIVersion    string             `json:"apiVersion"`
-	InstanceID    string             `json:"instanceId"`
-	HeartbeatSeq  uint64             `json:"heartbeatSeq"`
-	EchoedAckSeq  uint64             `json:"echoedAckSeq"`
-	ObservedState AgentObservedState `json:"observedState"`
+	APIVersion    string             `json:"apiVersion" strictjson:"required"`
+	InstanceID    string             `json:"instanceId" strictjson:"required"`
+	HeartbeatSeq  uint64             `json:"heartbeatSeq" strictjson:"required"`
+	EchoedAckSeq  uint64             `json:"echoedAckSeq" strictjson:"required"`
+	ObservedState AgentObservedState `json:"observedState" strictjson:"required"`
 	AllocationID  *string            `json:"allocationId,omitempty"`
 }
 
@@ -51,9 +51,9 @@ func (h AgentHeartbeat) Validate() error {
 }
 
 type HeartbeatResponse struct {
-	APIVersion   string               `json:"apiVersion"`
-	AckSeq       uint64               `json:"ackSeq"`
-	Action       ReconciliationAction `json:"action"`
+	APIVersion   string               `json:"apiVersion" strictjson:"required"`
+	AckSeq       uint64               `json:"ackSeq" strictjson:"required"`
+	Action       ReconciliationAction `json:"action" strictjson:"required"`
 	AllocationID *string              `json:"allocationId,omitempty"`
 }
 

@@ -2,10 +2,16 @@ package auditstore
 
 // SQL statements for report.go.
 
+// reportCommittedEvents record the committed report with request digest $7.
+var reportCommittedEvents = auditEvents(auditEvent(
+	"'audit.report_committed'", "audit.audit_id", "audit.revision",
+	"jsonb_build_object('requestDigest', $7::text)",
+))
+
 // commitReportSQL publishes the two report links in $8 and completes the Audit
 // under the live controller claim ($1-$3). The Audit at revision $4 must be
 // finalizing with round $5 closed at revision $6, no outstanding Runs, all
-// items settled, all executions collected and no report links yet. Appends
+// items settled, all executions collected and no report links yet. Records
 // audit.report_committed with request digest $7; the caller completes the
 // trailing SELECT. Used by PostgresStore.CommitReport.
 var commitReportSQL = `
@@ -56,23 +62,17 @@ WITH link_input AS MATERIALIZED (
     RETURNING audit_id
 ), changed AS (
     UPDATE audits AS audit
-       SET state = 'completed', revision = audit.revision + 1,
+       SET state = 'completed',
            stop_reason_code = CASE WHEN audit.stop_reason_code = 'round_complete'
                                    THEN NULL ELSE audit.stop_reason_code END,
            stop_reason_message = CASE WHEN audit.stop_reason_code = 'round_complete'
                                       THEN NULL ELSE audit.stop_reason_message END,
            finished_at = clock_timestamp(),
-           next_event_sequence = audit.next_event_sequence + 1,
+           ` + reportCommittedEvents.advance() + `,
            updated_at = GREATEST(clock_timestamp(), audit.updated_at + interval '1 microsecond')
       FROM finalization_gate
      WHERE audit.audit_id = finalization_gate.audit_id
        AND (SELECT count(*) FROM inserted_links) = 2
-    RETURNING audit.*
-), event_row AS (
-    INSERT INTO audit_events (audit_id, sequence_number, kind, entity_id, entity_revision, summary)
-    SELECT changed.audit_id, changed.next_event_sequence - 1,
-           'audit.report_committed', changed.audit_id, changed.revision,
-           jsonb_build_object('requestDigest', $7::text)
-      FROM changed
+    RETURNING audit.*, ` + reportCommittedEvents.appended() + `
 )
 SELECT `

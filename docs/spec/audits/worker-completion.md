@@ -693,8 +693,33 @@ assigned results.
 
 **AWC-R114.** Ordinary Workers and historical reports omit the field.
 
-**AWC-R115.** Consumers discard unknown optional kinds and phases; malformed
-known diagnostics are rejected.
+**AWC-R115.** A `completion` object whose `kind` is not the contract kind
+`audit-check-results@1` or whose `phase` is not one of the phases of AWC-R108
+is malformed, like a known object that breaks AWC-R112 or AWC-R113. No consumer
+drops or ignores it: the private JSON Schema, the Server and the Runtime reject
+the message that carries it as a whole, and they give every case of the shared
+fixture
+[`diagnostics.json`](../../../api/testdata/audit-completion/diagnostics.json)
+the same verdict (FAIL-AWC-7):
+
+- The Server decodes the object with a validation error, so the containing
+  `ExecutionReport` or live allocation metrics fail to decode. A final or abort
+  response from the Runtime is an invalid lifecycle response: the allocation
+  gets the incomplete placeholder report with `allocation_report_unavailable`
+  ([OBS-R37](../platform/observability.md)), and the Stage result and
+  termination are unchanged ([OBS-R38](../platform/observability.md)).
+- A live Worker State read fails with the non-retryable
+  `worker_state_response_invalid`; the Planner's State projection answers the
+  non-retryable `worker_state_unavailable`, and the Stage continues.
+- The Runtime models the object with the closed kind and phase sets, so its
+  producer cannot record an unknown value. Its State endpoint validates every
+  snapshot at the wire boundary and answers `503 agent_state_unavailable`
+  rather than serving the snapshot without the object.
+- Reports are validated before they are stored and are read back with the same
+  strict decoder.
+
+Rationale: a misspelt phase must surface as a rejected report or State read,
+not as a report that silently lacks its completion facts.
 
 **AWC-R116.** The optional object is bounded to 4 KiB at the wire boundary
 (LIM-AWC-12).
@@ -821,6 +846,8 @@ Failure outcomes ([failure model](../platform/failure-model.md)):
   result binding (AWC-R97).
 - FAIL-AWC-6 — cancellation or session cleanup failure after the ZIP was
   written (AWC-R120).
+- FAIL-AWC-7 — a `completion` object with an unknown kind or phase, or any
+  other malformed one, in a Runtime report or live Worker State (AWC-R115).
 
 Lifecycle ([registry](../platform/lifecycle.md)):
 

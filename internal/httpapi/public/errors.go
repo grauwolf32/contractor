@@ -37,9 +37,9 @@ func (h *handler) handleError(w http.ResponseWriter, err error) {
 		// new key can carry the changed request.
 		h.writeError(w, http.StatusConflict, "idempotency_conflict",
 			"Idempotency-Key is already bound to a different request; use a new key for a new request", false)
-	case errors.Is(err, settingsstore.ErrPrecondition):
-		h.writeError(w, http.StatusPreconditionFailed, "precondition_failed", "resource revision precondition failed", false)
-	case errors.Is(err, auditstore.ErrPrecondition):
+	case errors.Is(err, settingsstore.ErrPrecondition), errors.Is(err, auditstore.ErrPrecondition),
+		errors.Is(err, runstore.ErrPrecondition), errors.Is(err, projectstore.ErrPrecondition),
+		errors.Is(err, runtimeconfig.ErrPrecondition):
 		h.writeError(w, http.StatusPreconditionFailed, "precondition_failed", "resource revision precondition failed", false)
 	case errors.As(err, &auditUnsupported):
 		writeJSON(w, http.StatusUnprocessableEntity, errorResponse{
@@ -52,12 +52,6 @@ func (h *handler) handleError(w http.ResponseWriter, err error) {
 		})
 	case auditdomain.ErrorCode(err) != "":
 		h.writeError(w, http.StatusUnprocessableEntity, auditdomain.ErrorCode(err), "Audit input could not be processed", false)
-	case errors.Is(err, runstore.ErrPrecondition):
-		h.writeError(w, http.StatusPreconditionFailed, "precondition_failed", "resource revision precondition failed", false)
-	case errors.Is(err, projectstore.ErrPrecondition):
-		h.writeError(w, http.StatusPreconditionFailed, "precondition_failed", "resource revision precondition failed", false)
-	case errors.Is(err, runtimeconfig.ErrPrecondition):
-		h.writeError(w, http.StatusPreconditionFailed, "precondition_failed", "resource revision precondition failed", false)
 	case errors.Is(err, runtimeconfig.ErrAgentLabelNotApplicable):
 		h.writeError(w, http.StatusBadRequest, "runtime_agent_label_not_applicable", "Runtime label has no Worker-applicable setting", false)
 	case errors.Is(err, runtimeconfig.ErrPrincipalInUse):
@@ -125,6 +119,10 @@ func (h *handler) handleError(w http.ResponseWriter, err error) {
 		h.writeError(w, http.StatusNotFound, "not_found", "resource was not found", false)
 	case errors.Is(err, config.ErrPublicationConflict):
 		h.writeError(w, http.StatusConflict, "configuration_conflict", "immutable configuration identity or idempotency key conflicts", false)
+	case errors.Is(err, config.ErrConfigurationDrift):
+		// Permanent until an operator restores the roots or restarts (CAT-R75).
+		h.writeError(w, http.StatusConflict, "configuration_drift",
+			"configuration roots changed outside the publication manager; restore them or restart the Server", false)
 	case errors.Is(err, artifacts.ErrPayloadTooLarge):
 		h.writeError(w, http.StatusRequestEntityTooLarge, "artifact_too_large", "artifact exceeds the 64 MiB limit", false)
 	case errors.Is(err, errRequestTooLarge):
@@ -147,7 +145,10 @@ func (h *handler) handleError(w http.ResponseWriter, err error) {
 		errors.Is(err, auditstore.ErrProjectDeleting),
 		errors.Is(err, artifacts.ErrScopeDeleting):
 		h.writeError(w, http.StatusConflict, "project_deleting", "Project deletion is in progress", false)
-	case errors.Is(err, artifacts.ErrArtifactConflict), errors.Is(err, artifacts.ErrArtifactFrozen),
+	case errors.Is(err, artifacts.ErrArtifactFrozen):
+		// A frozen binding never advances, so no re-read can make a retry succeed.
+		h.writeError(w, http.StatusConflict, "artifact_frozen", "artifact binding is frozen and cannot change", false)
+	case errors.Is(err, artifacts.ErrArtifactConflict),
 		errors.Is(err, projectstore.ErrConflict),
 		errors.Is(err, runstore.ErrConflict), errors.Is(err, auditstore.ErrConflict),
 		errors.Is(err, findingintake.ErrConflict):

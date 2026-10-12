@@ -93,9 +93,12 @@ type Status struct {
 	RequiresRetry  bool       `json:"requiresRetry"`
 }
 
-func (s *Service) Status(ctx context.Context, runID string) (*Status, error) {
+// ReadStatus reads the recovery status of an active Run through db, a pool or
+// the caller's transaction, so a Run detail can read it in the same snapshot
+// as the Run state. It reports nil when no route of the Run is blocked.
+func ReadStatus(ctx context.Context, db persistencepostgres.DBTX, runID string) (*Status, error) {
 	var status Status
-	err := s.pool.QueryRow(ctx, `
+	err := db.QueryRow(ctx, `
 SELECT g.failure_code,g.blocked_at,
  CASE WHEN g.automatic_until>clock_timestamp()
       THEN GREATEST(g.next_probe_at,g.probe_until) ELSE NULL END,

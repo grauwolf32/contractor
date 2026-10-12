@@ -19,19 +19,8 @@ func (proposal *FindingProposal) UnmarshalJSON(data []byte) error {
 	if err != nil {
 		return err
 	}
-	subject, present := fields["subject"]
-	if !present || (subject != nil && decoded.Subject == nil) {
-		return invalid(CodeInvalid, "subject")
-	}
-	if subject != nil {
-		if err := validateFindingJSONFields(subject, "kind key", "", ""); err != nil {
-			return err
-		}
-	}
-	if exchange, present := fields["http_exchange"]; present {
-		if err := validateHTTPExchangeJSON(exchange); err != nil {
-			return err
-		}
+	if err := validateFindingReportJSON(fields, decoded.Subject != nil); err != nil {
+		return err
 	}
 	*proposal = FindingProposal(decoded)
 	return nil

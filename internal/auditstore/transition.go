@@ -21,7 +21,7 @@ func (s *PostgresStore) Transition(
 		return Audit{}, false, err
 	}
 	if replay, found, err := s.lookupAuditReplay(
-		ctx, params.OwnerID, "audit.transition", params.IdempotencyKey, params.RequestDigest,
+		ctx, params.OwnerID, MutationTransition, params.IdempotencyKey, params.RequestDigest,
 	); err != nil || found {
 		return replay, false, err
 	}
@@ -30,43 +30,7 @@ func (s *PostgresStore) Transition(
 		reasonCode, reasonMessage = &params.Reason.Code, &params.Reason.Message
 	}
 	response, _ := json.Marshal(map[string]string{"auditId": params.AuditID})
-	audit, err := scanAudit(s.db.QueryRow(ctx, `
-WITH target AS MATERIALIZED (
-    SELECT audit.audit_id, audit.state
-      FROM audits AS audit
-     WHERE audit.audit_id = $2 AND audit.owner_id = $1
-     FOR UPDATE OF audit
-), `+reportReviewSelectionCTEs("target")+`, changed AS (
-    UPDATE audits AS audit
-       SET state = $5,
-           paused_at = CASE WHEN $5 = 'paused' THEN clock_timestamp() ELSE NULL END,
-           revision = audit.revision + 1 + report_review_count.expired,
-           dispatch_state = CASE WHEN $5 = 'cancelling' THEN 'closed' ELSE dispatch_state END,
-           stop_reason_code = $6,
-           stop_reason_message = $7,
-           updated_at = GREATEST(clock_timestamp(), updated_at + interval '1 microsecond'),
-           next_event_sequence = audit.next_event_sequence + 1 + report_review_count.expired
-      FROM target, report_review_count
-     WHERE audit.audit_id = target.audit_id
-       AND audit.revision = $3 AND audit.state = $4
-    RETURNING audit.*
-), `+reportReviewClosureCTEs+`, idempotency_row AS (
-    INSERT INTO audit_idempotency (
-        owner_id, operation, idempotency_key, request_digest,
-        audit_id, resource_id, response_snapshot
-    )
-    SELECT $1, 'audit.transition', $8, $9, audit_id, audit_id, $10::jsonb
-      FROM changed
-), event_row AS (
-    INSERT INTO audit_events (
-        audit_id, sequence_number, kind, entity_id, entity_revision, summary
-    )
-    SELECT audit_id, next_event_sequence - 1 - report_review_count.expired,
-           'audit.state_changed', audit_id, revision,
-           jsonb_build_object('from', $4::text, 'to', $5::text)
-      FROM changed CROSS JOIN report_review_count
-)
-SELECT `+prefixedAuditColumns("changed")+` FROM changed`,
+	audit, err := scanAudit(persistencepostgres.SavepointQueryRow(ctx, s.db, transitionSQL+prefixedAuditColumns("changed")+` FROM changed`,
 		params.OwnerID, params.AuditID, params.ExpectedRevision,
 		string(params.ExpectedState), string(params.TargetState), reasonCode, reasonMessage,
 		params.IdempotencyKey, params.RequestDigest, response,
@@ -74,14 +38,14 @@ SELECT `+prefixedAuditColumns("changed")+` FROM changed`,
 	if err == nil {
 		return audit, true, nil
 	}
-	if persistencepostgres.SQLState(err) == persistencepostgres.SQLStateUniqueViolation {
-		return s.replayAudit(ctx, params.OwnerID, "audit.transition", params.IdempotencyKey, params.RequestDigest)
+	if persistencepostgres.Classify(err) == persistencepostgres.ClassDuplicate {
+		return s.replayAudit(ctx, params.OwnerID, MutationTransition, params.IdempotencyKey, params.RequestDigest)
 	}
 	if !errors.Is(err, pgx.ErrNoRows) {
 		return Audit{}, false, fmt.Errorf("transition Audit: %w", err)
 	}
 	if replay, found, replayErr := s.lookupAuditReplay(
-		ctx, params.OwnerID, "audit.transition", params.IdempotencyKey, params.RequestDigest,
+		ctx, params.OwnerID, MutationTransition, params.IdempotencyKey, params.RequestDigest,
 	); replayErr != nil || found {
 		return replay, false, replayErr
 	}
@@ -97,7 +61,7 @@ func (s *PostgresStore) TransitionClaimed(
 	ctx context.Context,
 	params ClaimedTransitionParams,
 ) (Audit, error) {
-	if err := validateClaimedTransition(params); err != nil {
+	if err := ValidateClaimedTransition(params); err != nil {
 		return Audit{}, err
 	}
 	var reasonCode, reasonMessage *string
@@ -112,7 +76,7 @@ func (s *PostgresStore) TransitionClaimed(
 	if err == nil {
 		return audit, nil
 	}
-	if persistencepostgres.SQLState(err) == "55000" {
+	if persistencepostgres.Classify(err) == persistencepostgres.ClassDeleting {
 		return Audit{}, ErrProjectDeleting
 	}
 	if !errors.Is(err, pgx.ErrNoRows) {
@@ -141,30 +105,30 @@ func (s *PostgresStore) Resume(ctx context.Context, params ResumeParams) (Audit,
 		return Audit{}, false, err
 	}
 	if replay, found, err := s.lookupAuditReplay(
-		ctx, params.OwnerID, "audit.transition", params.IdempotencyKey, params.RequestDigest,
+		ctx, params.OwnerID, MutationTransition, params.IdempotencyKey, params.RequestDigest,
 	); err != nil || found {
 		return replay, false, err
 	}
 	deadline, _ := json.Marshal(params.DeadlineAt)
 	response, _ := json.Marshal(map[string]string{"auditId": params.AuditID})
-	audit, err := scanAudit(s.db.QueryRow(ctx, resumeSQL+prefixedAuditColumns("changed")+` FROM changed`,
+	audit, err := scanAudit(persistencepostgres.SavepointQueryRow(ctx, s.db, resumeSQL+prefixedAuditColumns("changed")+` FROM changed`,
 		params.OwnerID, params.AuditID, params.ExpectedRevision, params.DeadlineAt, deadline,
 		params.IdempotencyKey, params.RequestDigest, response,
 	))
 	if err == nil {
 		return audit, true, nil
 	}
-	if persistencepostgres.SQLState(err) == "55000" {
+	if persistencepostgres.Classify(err) == persistencepostgres.ClassDeleting {
 		return Audit{}, false, ErrProjectDeleting
 	}
-	if persistencepostgres.SQLState(err) == persistencepostgres.SQLStateUniqueViolation {
-		return s.replayAudit(ctx, params.OwnerID, "audit.transition", params.IdempotencyKey, params.RequestDigest)
+	if persistencepostgres.Classify(err) == persistencepostgres.ClassDuplicate {
+		return s.replayAudit(ctx, params.OwnerID, MutationTransition, params.IdempotencyKey, params.RequestDigest)
 	}
 	if !errors.Is(err, pgx.ErrNoRows) {
 		return Audit{}, false, fmt.Errorf("resume Audit: %w", err)
 	}
 	if replay, found, replayErr := s.lookupAuditReplay(
-		ctx, params.OwnerID, "audit.transition", params.IdempotencyKey, params.RequestDigest,
+		ctx, params.OwnerID, MutationTransition, params.IdempotencyKey, params.RequestDigest,
 	); replayErr != nil || found {
 		return replay, false, replayErr
 	}
@@ -194,7 +158,7 @@ func (s *PostgresStore) TransitionTrusted(
 	if err == nil {
 		return audit, nil
 	}
-	if persistencepostgres.SQLState(err) == "55000" {
+	if persistencepostgres.Classify(err) == persistencepostgres.ClassDeleting {
 		return Audit{}, ErrProjectDeleting
 	}
 	if !errors.Is(err, pgx.ErrNoRows) {
@@ -228,7 +192,7 @@ func (s *PostgresStore) ActivateAfterItemReview(
 
 func (s *PostgresStore) getAuditTrusted(ctx context.Context, auditID string) (Audit, error) {
 	audit, err := scanAudit(s.db.QueryRow(ctx, `
-SELECT `+auditColumns+` FROM audits WHERE audit_id = $1`, auditID))
+SELECT `+prefixedAuditColumns("audits")+` FROM audits WHERE audit_id = $1`, auditID))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Audit{}, ErrNotFound
 	}

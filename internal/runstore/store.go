@@ -5,10 +5,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"regexp"
 	"strings"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
@@ -19,8 +19,6 @@ import (
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/jackc/pgx/v5"
 )
-
-var credentialRunIDPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$`)
 
 // Repository groups the broad RunStore operations used by e2e test helpers.
 // Production consumers declare narrower interfaces at their use sites.
@@ -44,7 +42,7 @@ type Repository interface {
 	TransitionRun(context.Context, string, WorkflowRunState, WorkflowRunState, Reason) (WorkflowRun, error)
 	RequestRunCancellation(context.Context, string, WorkflowRunCancellation) (WorkflowRun, error)
 	ClaimRunnableRun(context.Context, string, time.Duration) (WorkflowRun, error)
-	RenewRunClaim(context.Context, string, string, time.Duration) error
+	RenewRunClaim(context.Context, string, string, time.Duration) (WorkflowRunState, error)
 	ReleaseRunClaim(context.Context, string, string) error
 	CreateStageExecution(context.Context, CreateStageExecutionParams) (StageExecution, error)
 	GetStageExecution(context.Context, string) (StageExecution, error)
@@ -97,7 +95,7 @@ func (s *PostgresStore) ListNonTerminalRunIDsByCredential(
 		if err := rows.Scan(&runID); err != nil {
 			return nil, errors.New("read non-terminal Run credential reference")
 		}
-		if !credentialRunIDPattern.MatchString(runID) {
+		if !contracts.ValidResourceID(runID) {
 			return nil, errors.New("stored credential Run reference is not publicly safe")
 		}
 		result = append(result, runID)
@@ -110,9 +108,9 @@ func (s *PostgresStore) ListNonTerminalRunIDsByCredential(
 
 // PostgresStore runs most operations on its supplied DBTX. When backed by a
 // pool, ResumeFailedRun starts its own retrying transaction; with a pgx.Tx it
-// joins the caller's transaction. Run deletion locks require a pgx.Tx (see
-// internal/rundeletion). Runtime label pinning additionally requires
-// NewRunCreationPostgresStore.
+// joins the caller's transaction. Run deletion locks exist only on
+// PostgresTxStore (see internal/rundeletion). Runtime label pinning
+// additionally requires NewRunCreationPostgresStore.
 type PostgresStore struct {
 	db                persistencepostgres.DBTX
 	runCreationTx     pgx.Tx
@@ -123,6 +121,19 @@ var _ Repository = (*PostgresStore)(nil)
 
 func NewPostgresStore(db persistencepostgres.DBTX) *PostgresStore {
 	return &PostgresStore{db: db}
+}
+
+// PostgresTxStore is a PostgresStore bound to the caller's transaction. Its
+// own methods take row locks that must last until the caller commits, so they
+// exist only on a store that cannot be backed by a pool.
+type PostgresTxStore struct {
+	*PostgresStore
+	tx pgx.Tx
+}
+
+// NewPostgresTxStore binds a PostgresStore to the caller's transaction tx.
+func NewPostgresTxStore(tx pgx.Tx) *PostgresTxStore {
+	return &PostgresTxStore{PostgresStore: NewPostgresStore(tx), tx: tx}
 }
 
 // NewRunCreationPostgresStore is the only constructor which enables Runtime
@@ -202,10 +213,10 @@ FROM inserted_run`,
 	)
 	result, err := scanWorkflowRun(row)
 	if err != nil {
-		if persistencepostgres.SQLState(err) == "55000" {
+		if persistencepostgres.Classify(err) == persistencepostgres.ClassDeleting {
 			return WorkflowRun{}, fmt.Errorf("create WorkflowRun %q: %w", params.RunID, ErrProjectDeleting)
 		}
-		if persistencepostgres.SQLState(err) == persistencepostgres.SQLStateUniqueViolation {
+		if persistencepostgres.Classify(err) == persistencepostgres.ClassDuplicate {
 			return WorkflowRun{}, fmt.Errorf("create WorkflowRun %q: %w", params.RunID, ErrConflict)
 		}
 		return WorkflowRun{}, fmt.Errorf("create WorkflowRun %q: %w", params.RunID, err)
@@ -262,7 +273,7 @@ FROM inserted_run`,
 	if err == nil {
 		return result, true, nil
 	}
-	if persistencepostgres.SQLState(err) == "55000" {
+	if persistencepostgres.Classify(err) == persistencepostgres.ClassDeleting {
 		return WorkflowRun{}, false, fmt.Errorf("create idempotent WorkflowRun %q: %w", params.RunID, ErrProjectDeleting)
 	}
 	if !errors.Is(err, pgx.ErrNoRows) {
@@ -347,6 +358,27 @@ func (s *PostgresStore) GetRun(ctx context.Context, runID string) (WorkflowRun, 
 		return WorkflowRun{}, fmt.Errorf("get WorkflowRun %q: %w", runID, err)
 	}
 	return result, nil
+}
+
+// GetRunState reads only the lifecycle state of Run runID. Callers that
+// decide on the state alone use it instead of GetRun, which reads, decodes
+// and validates every snapshot of the Run.
+func (s *PostgresStore) GetRunState(ctx context.Context, runID string) (WorkflowRunState, error) {
+	if err := validateOpaque("runID", runID); err != nil {
+		return "", err
+	}
+	var state WorkflowRunState
+	err := s.db.QueryRow(ctx, `SELECT state FROM workflow_runs WHERE run_id = $1`, runID).Scan(&state)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", fmt.Errorf("get WorkflowRun %q state: %w", runID, ErrNotFound)
+	}
+	if err != nil {
+		return "", fmt.Errorf("get WorkflowRun %q state: %w", runID, err)
+	}
+	if !state.Valid() {
+		return "", fmt.Errorf("get WorkflowRun %q state: stored state %q is not a WorkflowRun state", runID, state)
+	}
+	return state, nil
 }
 
 // ListRuns returns at most Limit Runs in deterministic newest-first order.
@@ -445,7 +477,7 @@ func (s *PostgresStore) TransitionRun(
 	if err := validateOpaque("runID", runID); err != nil {
 		return WorkflowRun{}, err
 	}
-	if err := validateRunTransition(expected, next); err != nil {
+	if err := ValidateRunTransition(expected, next); err != nil {
 		return WorkflowRun{}, err
 	}
 	if err := validateReason(reason); err != nil {
@@ -560,39 +592,48 @@ WHERE run_id = $1 AND scheduler_claim_id = $2`, runID, claimID, deferred)
 	return nil
 }
 
+// RenewRunClaim extends claim claimID on an active Run to duration from now
+// and returns the Run's state, from which the claim's lane notices a
+// cancellation. It writes only the lease expiry: updated_at, which orders
+// claims and is the Run's public updatedAt, stays as it is, and no index
+// covers the expiry, so a renewal is a heap-only update (SCH-R166).
 func (s *PostgresStore) RenewRunClaim(
 	ctx context.Context,
 	runID string,
 	claimID string,
 	duration time.Duration,
-) error {
+) (WorkflowRunState, error) {
 	if err := validateOpaque("runID", runID); err != nil {
-		return err
+		return "", err
 	}
 	if err := validateOpaque("claimID", claimID); err != nil {
-		return err
+		return "", err
 	}
 	if duration <= 0 || duration.Microseconds() <= 0 {
-		return invalidf("claim duration must be at least one microsecond")
+		return "", invalidf("claim duration must be at least one microsecond")
 	}
-	tag, err := s.db.Exec(ctx, `
+	var state WorkflowRunState
+	err := s.db.QueryRow(ctx, `
 UPDATE workflow_runs
-SET scheduler_claim_expires_at = clock_timestamp() + ($3::bigint * interval '1 microsecond'),
-    updated_at = clock_timestamp()
-WHERE run_id = $1 AND state IN ('initializing', 'pending', 'running', 'waiting', 'cancelling') AND scheduler_claim_id = $2`,
-		runID, claimID, duration.Microseconds())
+SET scheduler_claim_expires_at = clock_timestamp() + ($3::bigint * interval '1 microsecond')
+WHERE run_id = $1 AND state IN ('initializing', 'pending', 'running', 'waiting', 'cancelling') AND scheduler_claim_id = $2
+RETURNING state`,
+		runID, claimID, duration.Microseconds()).Scan(&state)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", &StateConflictError{Resource: "WorkflowRun claim", ID: runID, Expected: claimID}
+	}
 	if err != nil {
-		return fmt.Errorf("renew WorkflowRun %q claim: %w", runID, err)
+		return "", fmt.Errorf("renew WorkflowRun %q claim: %w", runID, err)
 	}
-	if tag.RowsAffected() != 1 {
-		return &StateConflictError{Resource: "WorkflowRun claim", ID: runID, Expected: claimID}
-	}
-	return nil
+	return state, nil
 }
 
 func validateCreateRun(params CreateRunParams) error {
+	if err := validateResourceID("runID", params.RunID); err != nil {
+		return err
+	}
 	for field, value := range map[string]string{
-		"runID": params.RunID, "ownerID": params.OwnerID,
+		"ownerID":      params.OwnerID,
 		"workflowName": params.WorkflowName, "workflowVersion": params.WorkflowVersion,
 		"workflowSchemaVersion": params.WorkflowSchemaVersion,
 	} {
@@ -601,9 +642,14 @@ func validateCreateRun(params CreateRunParams) error {
 		}
 	}
 	if params.ProjectID != nil {
-		if err := validateOpaque("projectID", *params.ProjectID); err != nil {
+		if err := validateResourceID("projectID", *params.ProjectID); err != nil {
 			return err
 		}
+	}
+	// Callers store config.EncodeResolvedWorkflowSnapshot's encoding, the
+	// measure of the snapshot bound (LIM-CAT-4, CAT-R76).
+	if len(params.WorkflowSnapshot) > config.MaxWorkflowSnapshotBytes {
+		return invalidf("workflowSnapshot exceeds %d bytes", config.MaxWorkflowSnapshotBytes)
 	}
 	if err := validateJSONObject("workflowSnapshot", params.WorkflowSnapshot); err != nil {
 		return err
@@ -655,15 +701,51 @@ func validateIdempotencyKey(value string) error {
 	return nil
 }
 
-func validateRunTransition(expected, next WorkflowRunState) error {
-	allowed := map[WorkflowRunState]map[WorkflowRunState]bool{
-		RunInitializing: {RunPending: true, RunRunning: true, RunFailed: true},
-		RunPending:      {RunRunning: true, RunFailed: true},
-		RunWaiting:      {RunRunning: true, RunSucceeded: true, RunFailed: true},
-		RunRunning:      {RunWaiting: true, RunSucceeded: true, RunFailed: true},
-		RunCancelling:   {RunCancelled: true},
-	}
-	if !allowed[expected][next] {
+// runTransitionOperation names the store operation that performs an edge of
+// the WorkflowRun lifecycle.
+type runTransitionOperation string
+
+const (
+	// TransitionRun performs the edges that record only a reason.
+	transitionByTransitionRun runTransitionOperation = "TransitionRun"
+	// RequestRunCancellation records the WorkflowRunCancellation that
+	// cancelling and cancelled require (RUN-R40, RUN-R41).
+	transitionByCancellation runTransitionOperation = "RequestRunCancellation"
+	// ResumeFailedRun records the continuation receipt and the new attempt
+	// with the one transition out of failed (RUN-R46).
+	transitionByContinuation runTransitionOperation = "ResumeFailedRun"
+)
+
+// runLifecycle is the WorkflowRun lifecycle of docs/spec/execution/runs.md,
+// edge by edge, with the operation that performs each edge;
+// TestRunLifecycleMatchesSpecification holds it to the specification's state
+// diagram. Initialization commits pending and only admission sets running
+// (RUN-R26, RUN-R28), and success is committed from running (RUN-R35).
+var runLifecycle = map[[2]WorkflowRunState]runTransitionOperation{
+	{RunInitializing, RunPending}:    transitionByTransitionRun,
+	{RunPending, RunRunning}:         transitionByTransitionRun,
+	{RunRunning, RunWaiting}:         transitionByTransitionRun,
+	{RunWaiting, RunRunning}:         transitionByTransitionRun,
+	{RunRunning, RunSucceeded}:       transitionByTransitionRun,
+	{RunInitializing, RunFailed}:     transitionByTransitionRun,
+	{RunPending, RunFailed}:          transitionByTransitionRun,
+	{RunRunning, RunFailed}:          transitionByTransitionRun,
+	{RunWaiting, RunFailed}:          transitionByTransitionRun,
+	{RunCancelling, RunCancelled}:    transitionByTransitionRun,
+	{RunInitializing, RunCancelling}: transitionByCancellation,
+	{RunPending, RunCancelling}:      transitionByCancellation,
+	{RunRunning, RunCancelling}:      transitionByCancellation,
+	{RunWaiting, RunCancelling}:      transitionByCancellation,
+	{RunFailed, RunPending}:          transitionByContinuation,
+}
+
+// ValidateRunTransition is the transition rule TransitionRun applies before
+// its compare-and-set: it returns ErrInvalid for an edge TransitionRun must
+// not perform, either because the lifecycle has no such edge or because
+// cancellation or manual continuation owns it. Test doubles of TransitionRun
+// apply it too, so they reject what the store rejects.
+func ValidateRunTransition(expected, next WorkflowRunState) error {
+	if runLifecycle[[2]WorkflowRunState{expected, next}] != transitionByTransitionRun {
 		return invalidf("illegal WorkflowRun transition %s -> %s", expected, next)
 	}
 	return nil

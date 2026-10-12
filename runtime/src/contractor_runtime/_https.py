@@ -17,13 +17,20 @@ import uuid
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 
+from contractor_runtime.contracts.base import is_blank
+from contractor_runtime.strict_json import strict_json_loads
+
 MAX_RESPONSE_HEADERS = 64
 MAX_RESPONSE_HEADER_BYTES = 64 * 1024
 MAX_RESPONSE_LINE_BYTES = 8192
+MAX_PRIVATE_ERROR_BYTES = 1 << 20
 CONNECTION_CLOSE_TIMEOUT_SECONDS = 0.5
+REQUEST_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
 
 _HTTP_FIELD_NAME = re.compile(rb"[!#$%&'*+.^_`|~0-9A-Za-z-]+")
 _CHUNK_SIZE = re.compile(rb"[0-9a-fA-F]+")
+_PRIVATE_ERROR_CODE = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
+_PRIVATE_ERROR_FIELDS = frozenset({"code", "message", "retryable", "requestId"})
 
 type PeerVerifier = Callable[[ssl.SSLSocket | ssl.SSLObject], None]
 
@@ -41,6 +48,48 @@ class HTTPResponse:
     status_code: int
     headers: dict[str, str]
     body: bytes = field(repr=False)
+
+
+@dataclass(frozen=True, slots=True)
+class PrivateError:
+    """The Server's private API error envelope, without its message text."""
+
+    code: str
+    retryable: bool
+    request_id: str
+
+
+def decode_private_error(body: bytes) -> PrivateError | None:
+    """Return the error envelope a non-2xx private Server response carries.
+
+    The envelope is a strict JSON object with exactly code, message, retryable
+    and requestId; its retryable flag is the Server's verdict on whether the
+    same request may succeed later. Any other body, such as a proxy error page,
+    is None, so the caller classifies the response by its status alone. The
+    message is dropped: Server text never reaches a log or a model.
+    """
+
+    if len(body) > MAX_PRIVATE_ERROR_BYTES:
+        return None
+    try:
+        value = strict_json_loads(body)
+    except (ValueError, UnicodeDecodeError, RecursionError):
+        return None
+    if (
+        not isinstance(value, dict)
+        or set(value) != _PRIVATE_ERROR_FIELDS
+        or not isinstance(value["code"], str)
+        or _PRIVATE_ERROR_CODE.fullmatch(value["code"]) is None
+        or not isinstance(value["message"], str)
+        or is_blank(value["message"])
+        or not isinstance(value["retryable"], bool)
+        or not isinstance(value["requestId"], str)
+        or REQUEST_ID_PATTERN.fullmatch(value["requestId"]) is None
+    ):
+        return None
+    return PrivateError(
+        code=value["code"], retryable=value["retryable"], request_id=value["requestId"]
+    )
 
 
 def new_request_id() -> str:

@@ -21,6 +21,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/credentials"
+	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/requestid"
 )
@@ -33,19 +34,20 @@ func TestPublicErrorDiagnosticsAreCorrelatedRedactedAndDoNotChangeEnvelopes(t *t
 		status            int
 	}{
 		{"storage", "storage_constraint_failed", "internal_error", &pgconn.PgError{
-			Code: "23503", Message: secret, Detail: secret, Where: secret, InternalQuery: secret,
+			Code: persistencepostgres.SQLStateForeignKeyViolation, Message: secret, Detail: secret, Where: secret, InternalQuery: secret,
 		}, http.StatusInternalServerError},
 		{"storage-unknown-code", "storage_failed", "internal_error", &pgconn.PgError{
 			Code: secret, Message: secret,
 		}, http.StatusInternalServerError},
 		{"storage-serialization", "storage_serialization_conflict", "storage_transaction_conflict", &pgconn.PgError{
-			Code: "40001", Message: secret,
+			Code: persistencepostgres.SQLStateSerializationFailure, Message: secret,
 		}, http.StatusServiceUnavailable},
 		{"storage-deadlock", "storage_deadlock", "storage_transaction_conflict", &pgconn.PgError{
-			Code: "40P01", Message: secret,
+			Code: persistencepostgres.SQLStateDeadlockDetected, Message: secret,
 		}, http.StatusServiceUnavailable},
 		{"downstream", "downstream_unavailable", "gateway_unavailable", credentials.ErrGatewayUnavailable, http.StatusBadGateway},
-		{"credential-recovery", "unknown", "credential_recovery_required", credentials.ErrRecoveryRequired, http.StatusServiceUnavailable},
+		{"credential-recovery", "credential_recovery_required", "credential_recovery_required", credentials.ErrRecoveryRequired, http.StatusServiceUnavailable},
+		{"transfer-capacity", "artifact_transfer_capacity", "artifact_transfer_capacity", artifacts.ErrTransferCapacity, http.StatusServiceUnavailable},
 		{"cancelled", "cancelled", "internal_error", context.Canceled, http.StatusInternalServerError},
 		{"deadline", "deadline_exceeded", "internal_error", context.DeadlineExceeded, http.StatusInternalServerError},
 		{"unknown", "unknown", "internal_error", errors.New(secret), http.StatusInternalServerError},
@@ -162,14 +164,18 @@ func TestDiagnosticCauseUsesOnlyClosedCategories(t *testing.T) {
 		err   error
 		cause string
 	}{
-		{&pgconn.PgError{Code: "40001"}, "storage_serialization_conflict"},
-		{&pgconn.PgError{Code: "40P01"}, "storage_deadlock"},
-		{&pgconn.PgError{Code: "55P03"}, "storage_lock_unavailable"},
-		{&pgconn.PgError{Code: "57014"}, "storage_query_cancelled"},
-		{&pgconn.PgError{Code: "53300"}, "storage_unavailable"},
+		{&pgconn.PgError{Code: persistencepostgres.SQLStateSerializationFailure}, "storage_serialization_conflict"},
+		{&pgconn.PgError{Code: persistencepostgres.SQLStateDeadlockDetected}, "storage_deadlock"},
+		{&pgconn.PgError{Code: persistencepostgres.SQLStateLockNotAvailable}, "storage_lock_unavailable"},
+		{&pgconn.PgError{Code: persistencepostgres.SQLStateQueryCanceled}, "storage_query_cancelled"},
+		{&pgconn.PgError{Code: persistencepostgres.SQLStateTooManyConnections}, "storage_unavailable"},
 		{pgx.ErrTxClosed, "storage_transaction_failed"},
 		{credentials.ErrCrypto, "credential_crypto_failed"},
 		{credentials.ErrKeyUnavailable, "credential_key_unavailable"},
+		{fmt.Errorf("lookup: %w", credentials.ErrRecoveryRequired), "credential_recovery_required"},
+		{artifacts.ErrTransferCapacity, "artifact_transfer_capacity"},
+		{fmt.Errorf("read: %w", artifacts.ErrArtifactIntegrity), "artifact_integrity_failed"},
+		{fmt.Errorf("read: %w", artifacts.ErrBlobMissing), "artifact_content_missing"},
 		{&net.DNSError{Err: "private network payload", Name: "private-host", IsTimeout: true}, "network_timeout"},
 		{&net.DNSError{Err: "private network payload", Name: "private-host"}, "network_failed"},
 		{&fs.PathError{Op: "read", Path: "private-path", Err: fs.ErrPermission}, "storage_io_failed"},

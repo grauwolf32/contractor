@@ -107,7 +107,7 @@ func (s *PostgresStore) StartPreparation(ctx context.Context, p StartPreparation
 	if err != nil {
 		return Audit{}, false, err
 	}
-	if replay, found, err := s.lookupAuditReplay(ctx, p.OwnerID, "audit.start", p.IdempotencyKey, p.RequestDigest); err != nil || found {
+	if replay, found, err := s.lookupAuditReplay(ctx, p.OwnerID, MutationStart, p.IdempotencyKey, p.RequestDigest); err != nil || found {
 		return replay, false, err
 	}
 	audit, err := s.Get(ctx, p.OwnerID, p.AuditID)
@@ -143,18 +143,18 @@ func (s *PostgresStore) StartPreparation(ctx context.Context, p StartPreparation
 		}
 	}
 	links, _ := prepareRetainedLinks(CollectParams{Retained: p.InitialRetained})
-	result, err := scanAudit(s.db.QueryRow(ctx, startPreparationSQL,
+	result, err := scanAudit(persistencepostgres.SavepointQueryRow(ctx, s.db, startPreparationSQL,
 		p.OwnerID, p.AuditID, p.ExpectedRevision, []byte(p.BaselineSnapshot), optionalDeadline(p.DeadlineAt),
 		links, retainedBytes, p.IdempotencyKey, p.RequestDigest,
 	))
 	if err == nil {
 		return result, true, nil
 	}
-	if persistencepostgres.SQLState(err) == "55000" {
+	if persistencepostgres.Classify(err) == persistencepostgres.ClassDeleting {
 		return Audit{}, false, ErrProjectDeleting
 	}
-	if errors.Is(err, pgx.ErrNoRows) || persistencepostgres.SQLState(err) == persistencepostgres.SQLStateUniqueViolation {
-		if replay, found, replayErr := s.lookupAuditReplay(ctx, p.OwnerID, "audit.start", p.IdempotencyKey, p.RequestDigest); replayErr != nil || found {
+	if errors.Is(err, pgx.ErrNoRows) || persistencepostgres.Classify(err) == persistencepostgres.ClassDuplicate {
+		if replay, found, replayErr := s.lookupAuditReplay(ctx, p.OwnerID, MutationStart, p.IdempotencyKey, p.RequestDigest); replayErr != nil || found {
 			return replay, false, replayErr
 		}
 		return Audit{}, false, ErrPrecondition
@@ -177,7 +177,7 @@ func (s *PostgresStore) CompletePreparation(ctx context.Context, claim Controlle
 	if err == nil {
 		return audit, nil
 	}
-	if persistencepostgres.SQLState(err) == "55000" {
+	if persistencepostgres.Classify(err) == persistencepostgres.ClassDeleting {
 		return Audit{}, ErrProjectDeleting
 	}
 	if !errors.Is(err, pgx.ErrNoRows) {

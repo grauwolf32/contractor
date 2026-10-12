@@ -1,0 +1,55 @@
+schema_version: "1.0"
+id: V368-023
+title: "Bound the Audit start replay and validate action review keys"
+milestone: hub-audit-defects-2026-10
+epic: audits
+kind: defect
+priority: P2
+status: completed
+implementation_commit: c0efeb84d576f1c6d960cdd9176d798545134af0
+depends_on: []
+languages: [go]
+goal: "A replay with more than 10,000 items stays within the schema; an invalid key returns ErrInvalid."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq; raw reports in docs/research/2026-10-11-hub-audit/), audits G3, G5; file:line as of 02bbdcbf, re-verify on current main"
+  finding: >-
+    Start replay returns items of every round (start.go:717 -> ListItems
+    limit 100,001) while OpenAPI caps items at 10,000 (:11956).
+    validateActionDecision accepts any 128-byte key (action_review.go:218);
+    the SQL CHECK rejects it with 23514 and reviewWriteError maps only
+    23505, so non-HTTP callers get 500.
+  specification:
+    - docs/spec/audits/audits.md#AUD-R226
+    - docs/spec/audits/review-and-reports.md#REV-R200
+  decision: >-
+    Verified on 4146eea: the replay projection read every Round's items
+    (the later-Round replay in the next-Round test returned 3 items for a
+    2-item Round), validateActionDecision accepted "key with spaces", and a
+    store write with it returned the raw 23514. The start projection, first
+    or replayed, now carries the current Round and reads only its items
+    through auditstore.ListRoundItems, bounded by LIM-AUD-26
+    (config.MaxAuditItemsPerRound) and failing closed on a larger stored
+    Round instead of truncating; the realistic test holds 10,001 items over
+    two Rounds. auditstore.ListItems keeps its test callers; moving them to
+    ListRoundItems and removing it is left to the Audit read cleanup to keep
+    this branch mergeable with the parallel auditstore work.
+    validateActionDecision uses the service's validIdempotencyKey like the
+    finding decisions, and reviewWriteError maps a CHECK violation to
+    ErrInvalid, so any value the ledger refuses is a 400 for the API and
+    ErrInvalid for trusted callers. Alternatives: returning all items under a
+    10,000 cap (rejected: an arbitrary truncated mix of Rounds is untruthful
+    and still disagrees with the response's single Round). Reopen if a start
+    response must summarize earlier Rounds.
+scope:
+  in:
+    - "Replay returns the current round within the documented bound; one key grammar in the service; CHECK violations classified."
+  out:
+    - "Successful start responses."
+acceptance_criteria:
+  - id: A1
+    text: "A replay with more than 10,000 items stays within the schema; an invalid key returns ErrInvalid."
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "go test -tags integration ./internal/auditservice ./internal/httpapi/public"
+    covers: [A1]

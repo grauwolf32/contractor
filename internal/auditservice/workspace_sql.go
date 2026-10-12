@@ -2,6 +2,13 @@ package auditservice
 
 // SQL statements for workspace.go.
 
+// reviewUnexpiredSQL holds when the review request aliased "request" is not
+// past its expiry at the statement's PostgreSQL time (REV-R43). Together
+// with state 'pending' it is the one rule for a request that can still be
+// decided, before anything has stored its expiry: the workspace's pending
+// count and the owner-wide pending review list (ListOwnerReviews) use it.
+const reviewUnexpiredSQL = `(request.expires_at IS NULL OR request.expires_at > statement_timestamp())`
+
 // getWorkspaceSQL reads the workspace summary of owner $1's Audit $2:
 // revision, statement time, current round, state, outstanding Runs,
 // current-round coverage counts (total, then the completed $3, issue $4, gap
@@ -18,7 +25,7 @@ SELECT audit.audit_id, audit.revision, statement_timestamp(), audit.current_roun
        (SELECT count(*) FROM audit_findings WHERE audit_id = audit.audit_id AND current_decision_id IS NULL),
        (SELECT count(*) FROM audit_review_requests AS request
          WHERE request.audit_id = audit.audit_id AND request.state = 'pending'
-           AND (request.expires_at IS NULL OR request.expires_at > statement_timestamp()))
+           AND ` + reviewUnexpiredSQL + `)
   FROM audits AS audit
  CROSS JOIN LATERAL (
        SELECT count(*) AS total,

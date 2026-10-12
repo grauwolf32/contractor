@@ -98,10 +98,11 @@ Reserved Namespaces and name prefixes:
 
 | Name | Kind | Scope | Holds | Rules |
 | --- | --- | --- | --- | --- |
-| `inputs` | Namespace | RunScope | Mutable working copies of declared Workflow inputs | ART-R14, ART-R76 |
+| `inputs` | Namespace | RunScope | Mutable working copies of declared Workflow inputs | ART-R14, ART-R37, ART-R76 |
 | `outputs` | Namespace | RunScope | Declared Workflow results, managed by Workflow Scheduler | ART-R14, ART-R90 |
 | `skills` | Namespace | RunScope | Exact read-only Agent Skill packages ([Skills](../tools/skills.md)) | ART-R14, ART-R39, ART-R108, ART-R109 |
 | `contractor-system` | Namespace, hidden | RunScope | Bounded Control Plane records coupled to a Run | ART-R17, ART-R18 |
+| `finding-proposals` | Namespace | RunScope | Finding proposals that Server finding intake writes ([Findings](../findings/findings.md)) | ART-R114 |
 | `memory.` | Name prefix | Non-reserved RunScope Namespaces | Memory notes ([Memory](../tools/memory.md)) | ART-R19 to ART-R22 |
 | `tool-invocation.` | Name prefix | RunScope | Runtime-owned receipts of model-free tool Workers ([Scanners](../tools/scanners.md)) | ART-R23 |
 | `http.body.` | Name prefix | The allocation's logical Namespace | HTTP response bodies ([HTTP and Caido](../tools/http-caido.md)) | ART-R24 |
@@ -251,7 +252,9 @@ binding.
 
 **ART-R16.** `inputs`, `outputs` and `skills` cannot be
 selected as Stage Agent Namespaces. The names in them are Workflow slot names
-or trusted runtime-resource names, not arbitrary Worker-selected paths.
+or trusted runtime-resource names, not arbitrary Worker-selected paths: only
+trusted Server operations create a binding in them, and a Worker can at most
+advance an existing `inputs` binding (ART-R37).
 
 **ART-R17.** The physical store may additionally contain the exact
 hidden `contractor-system` Namespace for bounded Control Plane records coupled
@@ -267,6 +270,15 @@ Workflow input or output, a collaboration channel or a general internal
 key/value store. Owner access is only through the validated repeat-draft
 projection owned by [Runs](../execution/runs.md), which rechecks authorization
 and source scopes.
+
+**ART-R114.** The purpose-reserved RunScope Namespaces are `inputs`,
+`outputs`, `skills`, `finding-proposals` and `contractor-system`. A trusted
+purpose-specific flow owns each one: none can be a Stage Agent Namespace or a
+MemoryTools Namespace, and no Stage result slot or Worker result binds into
+one. The Server and the Runtime apply one list and one reserved Memory binding
+rule (ART-R19 to ART-R22), pinned by
+[`memory-reservation-cases.json`](../../../api/testdata/v1alpha1/memory-reservation-cases.json),
+so a binding one side reserves is reserved by the other.
 
 **ART-R19.** The `memory.` artifact-name prefix is reserved at the
 model-visible Toolset layer in every non-reserved RunScope Namespace.
@@ -293,9 +305,9 @@ bounds, hidden CAS and response-loss reconciliation are owned by
 Rationale: this keeps revisions out of model context without adding another
 network service or Artifact authorization mode.
 
-**ART-R22.** An ordinary artifact named `memory.*` in the
-purpose-reserved `inputs`, `outputs` or `skills` Namespace is governed by that
-Namespace's own contract and is not a Memory note.
+**ART-R22.** An ordinary artifact named `memory.*` in a purpose-reserved
+Namespace (ART-R114) is governed by that Namespace's own contract and is not a
+Memory note.
 
 **ART-R23.** The `tool-invocation.` name prefix in RunScope is
 reserved for the Runtime-owned receipts of model-free tool Workers
@@ -311,16 +323,30 @@ private paged listing applies the same rule in storage (ART-R47).
 **ART-R25.** The UserScope Namespace `audit-standards` is
 reserved for curated Audit standard packages. Generic Artifact APIs cannot
 write it or read or list raw package bytes; only the trusted catalog seed path
-can create a binding. The catalog rules are owned by
-[Audits](../audits/audits.md).
+can create a binding. The reservation is this exact Namespace, not a prefix: a
+Namespace that only begins with it, such as `audit-standards-notes`, is an
+ordinary UserScope Namespace that the owner can write, read and list. The
+public UserScope list hides the reserved Namespace in storage before keyset
+pagination, together with any caller `excludeNamespace` (ART-R71). The catalog
+rules are owned by [Audits](../audits/audits.md).
 
 **ART-R26.** The Server derives and reserves the `audit-*` Project
 Namespace prefix. Generic Project list, read, metadata, version, lineage and
 mutation routes hide the entire reserved prefix, and ordinary public Project
-Artifact mutation cannot write or delete Audit-managed bindings. Owner uploads
-continue through non-reserved Namespaces. Frozen Audit bindings, recovery
+Artifact mutation cannot write or delete Audit-managed bindings; the store
+itself refuses every generic ProjectScope write under the prefix as reserved.
+Owner uploads continue through non-reserved Namespaces. Frozen Audit bindings, recovery
 staging, artifact links and crash replay are owned by
 [Review and reports](../audits/review-and-reports.md).
+
+**ART-R115.** The generic Project list reads its pages from an index of
+exactly the listable Project bindings, those outside the reserved prefix, so
+a page never reads an Audit-managed binding however many an Audit holds.
+
+Rationale: a key range on the primary key cannot replace the prefix filter.
+In a linguistic database collation such as `en_US` punctuation is ignored at
+the first comparison level, so `audit-` names interleave with names such as
+`audit0`; a `LIKE` predicate matches characters whatever the collation.
 
 ### Stage Agent Namespaces
 
@@ -383,8 +409,24 @@ Namespace and the `memory.` and `http.body.` names.
 
 **ART-R37.** The baseline allocation write grant permits `inputs`
 and non-reserved Namespaces, so Workers can modify their working input copies
-and intermediate artifacts. It denies writes to `outputs` and `skills`, whose
-bindings are created only by trusted Scheduler operations.
+and intermediate artifacts. In `inputs` it permits only a CAS update
+(`If-Match`, `expected_revision`) of an existing binding: a create
+(`If-None-Match: *`, `expected_revision=None`) there is rejected with
+`artifact_access_denied` (HTTP 403, `retryable` false), whether or not the name
+exists, and creates nothing. Every `inputs` binding is therefore a declared
+Workflow input forked by the trusted Run-creation operation (ART-R76). It
+denies writes to `outputs` and `skills`, whose bindings are created only by
+trusted Scheduler operations.
+
+Rationale: a Worker-created `inputs/<name>` would appear among the Run's
+inputs as if the Run had been started with it, including an optional input
+that was absent at creation (ART-R78). Denying every Worker write to `inputs`
+would remove the working copies ART-R77 promises, and checking a created name
+against the Workflow's input slots would put the Workflow snapshot on the
+allocation write path while still letting a Worker supply an absent optional
+input. Reopen this only if a Workflow needs an input-like binding during the
+Run that neither an ordinary Stage Namespace with a context mapping nor a new
+trusted Server operation can provide.
 
 **ART-R107.** Workers may read declared outputs produced by earlier accepted
 Stages.
@@ -490,10 +532,30 @@ even though the model may see none of them.
 Accepted cost: a page is one primary-key range scan from the cursor, and the
 hidden bindings it passes over are filtered rather than skipped by index, so
 the rows one page reads are bounded by the Run's (or the filtered Namespace's)
-bindings after the cursor, not by `limit`. A test pages 15,000 hidden and
-7,000 visible bindings through the Server and the Runtime. If listing latency
-is measured to grow with Run size, add a binding quota per Run or skip hidden
-name ranges in the index.
+bindings after the cursor, not by `limit`; the Run revision limit (LIM-ART-6,
+ART-R118) bounds those bindings. A test pages 15,000 hidden and 7,000 visible
+bindings through the Server and the Runtime. If listing latency is measured
+to grow with Run size, skip hidden name ranges in the index.
+
+**ART-R116.** `GET /private/v1/allocations/{allocationID}/artifacts/{namespace}/{name}/metadata`,
+with the same optional `revision` and the same allocation, Namespace and
+grant checks as the raw read, returns the `ArtifactReadResult` of the ref (its
+exact revision, media type and size) without reading or sending the payload.
+It is not a content observation: only a payload read records the exact
+revision for invocation provenance.
+
+**ART-R117.** The UTF-8 readers `read_artifact` and `read_text_artifact`
+first resolve a ref through the metadata read (ART-R116), unless its exact
+revision is already cached. A media type that names a binary format is
+refused before any byte is downloaded: the top-level types `image` (except
+`image/svg+xml`), `audio`, `video`, `font` and `model`, and the `application`
+archive and document subtypes `zip`, `x-zip-compressed`, any `+zip` suffix,
+`gzip`, `x-gzip`, `x-tar`, `x-7z-compressed`, `x-bzip2`, `x-xz`, `zstd`,
+`java-archive`, `pdf` and `wasm`. Any other media type, including
+`application/octet-stream`, is downloaded once per exact revision and refused
+when it is not valid UTF-8. The allocation keeps one downloaded revision of
+at most 64 MiB, so paging it, or reading a versionless ref whose current
+revision it holds, downloads nothing again.
 
 ### Versions, reads and writes
 
@@ -553,6 +615,10 @@ requires the opaque revision returned by a read or write.
 **ART-R59.** A stale expected revision returns `ArtifactConflict`
 (FAIL-ART-1). Same-binding conflicts are returned to the caller;
 infrastructure never silently overwrites or semantically merges the winner.
+A write to a frozen binding instead returns `artifact_frozen` (HTTP 409,
+`retryable` false) on the public and private Artifact APIs, whatever its
+precondition: a frozen binding never advances, so neither a re-read nor a
+retry can make the write succeed.
 
 **ART-R60.** CAS is also the response-loss contract. If a create
 or update committed but its response was lost, repeating the already-consumed
@@ -565,6 +631,24 @@ stale precondition was an intended replay (FAIL-ART-1).
 concurrent writes of identical content to different bindings, must both observe
 the committed scope or blob after a uniqueness wait rather than return a false
 CAS conflict (FAIL-ART-5).
+
+**ART-R118.** One RunScope holds at most 50,000 binding revisions outside the
+Scheduler-managed `outputs` Namespace (LIM-ART-6). The Run's bindings,
+retained revisions, candidate versions and owned lineage edges all hang off
+these revisions, so the limit bounds them too. PostgreSQL counts every
+inserted revision against its RunScope under the scope row lock, whichever
+write path inserts it, so concurrent writers of one Run cannot exceed the
+limit together. A write that would exceed it stores nothing and returns
+`artifact_limit_exceeded` (HTTP 409, `retryable` false) on the private
+Artifact API; revisions are never given back while the Run exists, so no
+retry can succeed (FAIL-ART-1). The Scheduler's `outputs` revisions do not
+count, so a Run that used up its limit still binds its declared outputs.
+MemoryTools report the exhausted limit as `memory_namespace_full`
+([Memory](../tools/memory.md)).
+
+Rationale: Run deletion purges the whole RunScope in one transaction
+(DEL-R22); without a bound on the Run, a large enough Run could never be
+deleted within the purge budget.
 
 How long an old revision remains resolvable to its immutable internal version
 is owned by [Retention and deletion](retention-and-deletion.md).
@@ -619,7 +703,12 @@ and their scope binding are owned by [Projects](projects.md).
 
 **ART-R70.** In the public Artifact API, create uses
 `If-None-Match: *` and update uses the strong current revision ETag; the
-response contains the new exact `ArtifactRef`.
+response contains the new exact `ArtifactRef`. The `If-Match` value is one
+plain double-quoted revision in the public `Revision` grammar (API-R70,
+LIM-API-19), the same grammar as the `revision` query parameter. A malformed,
+escaped or otherwise quoted value is `400 invalid_request` before the store is
+read, never a CAS conflict. The Git import routes use the same headers
+(GIT-R84).
 
 **ART-R71.** The public UserScope Artifact list accepts an exact
 `namespace` filter and an `excludeNamespace` exclusion. The Server evaluates
@@ -901,6 +990,10 @@ The scope-bound operations are conceptually:
 ```python
 async def read_artifact(ref: ArtifactRef) -> ArtifactReadResult: ...
 
+async def read_artifact_metadata(
+    ref: ArtifactRef,
+) -> ArtifactMetadata: ...  # exact ref, media type and size, no payload
+
 async def write_artifact(
     ref: ArtifactRef,
     payload: ArtifactPayload,
@@ -918,13 +1011,15 @@ async def list_artifact_prefix(
 ```
 
 Private allocation Artifact API (ART-R40 to ART-R48,
-ART-R56):
+ART-R56, ART-R116):
 
 | Element | Value |
 | --- | --- |
 | Authentication | mTLS Runtime Agent principal plus `X-Contractor-Runtime-Instance-ID` |
 | Path identity | `allocationID` |
 | List | `GET /private/v1/allocations/{allocationID}/artifacts` with `limit` and optional `namespace` and `cursor` (model-visible pages), or `limit` with `namespace` and `namePrefix` |
+| Raw read | `GET /private/v1/allocations/{allocationID}/artifacts/{namespace}/{name}` with optional `revision` |
+| Metadata read | `GET /private/v1/allocations/{allocationID}/artifacts/{namespace}/{name}/metadata` with optional `revision`; JSON `ArtifactReadResult` (ART-R116) |
 | Create precondition | `If-None-Match: *` |
 | Update precondition | exactly one quoted strong `If-Match: "<revision>"` |
 | Revision on read and write | `ETag` |
@@ -975,11 +1070,16 @@ Limits ([registry](../platform/limits.md)):
   (ART-R65).
 - LIM-ART-5 — private list `cursor` and `nextCursor`: 1 through 512 base64url
   characters (ART-R48).
+- LIM-ART-6 — binding revisions of one RunScope outside `outputs`: at most
+  50,000 (ART-R118).
 
 Errors ([registry](../platform/errors.md)):
 
 - `ArtifactConflict` — a stale or already-consumed CAS precondition; no new
   version is created (ART-R59, ART-R60).
+- `artifact_frozen` — a write to a frozen binding; permanent (ART-R59).
+- `artifact_limit_exceeded` — a write beyond the Run revision limit; nothing
+  is stored; permanent (ART-R118).
 - `context_artifact_missing` is owned by [Scheduler](../execution/scheduler.md).
 
 Failure outcomes ([failure model](../platform/failure-model.md)):
@@ -1037,8 +1137,8 @@ These properties follow from the cited requirements, which are authoritative.
 4. Every required input is forked at an exact revision before the Run is
    schedulable; Run mutations never modify the source binding
    (ART-R76, ART-R77).
-5. Generic Worker grants never cross a Run and cannot write `outputs`
-   (ART-R37, ART-R38).
+5. Generic Worker grants never cross a Run, cannot write `outputs` and cannot
+   create a binding in `inputs` (ART-R37, ART-R38).
 6. Allocation writes are rejected from the durable transition to `finalizing`
    or `aborting`, independently of Worker shutdown and allocation release
    (ART-R86).

@@ -19,6 +19,7 @@ from fakes.model import (
     thought_result,
     tool_call,
 )
+from fakes.telemetry import SERVER_EXPORT
 from google.adk.models.base_llm import BaseLlm
 from google.adk.models.llm_request import LlmRequest
 from google.adk.models.llm_response import LlmResponse
@@ -36,6 +37,7 @@ from contractor_runtime.artifacts import ArtifactValue
 from contractor_runtime.contracts import (
     API_VERSION,
     AgentTemplateRef,
+    ArtifactReadResult,
     ArtifactRef,
     ArtifactWriteResult,
     CaidoSettings,
@@ -547,6 +549,7 @@ def private_runtime_settings() -> RuntimeSettings:
                 headers={"Authorization": TELEMETRY_HEADER},
                 captureContent=False,
                 flushTimeoutSeconds=1,
+                export=SERVER_EXPORT,
             ),
             "http_proxy": HTTPProxySettings(
                 adapter="http-proxy@1",
@@ -2899,6 +2902,16 @@ class FakeArtifactClient:
 
     def observed_exact_refs_since(self, cursor: int) -> tuple[ArtifactRef, ...]:
         return tuple(self._observed[cursor:])
+
+    async def read_artifact_metadata(self, ref: ArtifactRef) -> ArtifactReadResult:
+        # The read tools resolve the exact revision before the payload
+        # (ART-R116); like the real client, this is not a content read.
+        return ArtifactReadResult(
+            apiVersion=API_VERSION,
+            artifact=ArtifactRef(namespace=ref.namespace, name=ref.name, revision="read-r1"),
+            mediaType="text/plain",
+            size=len(b"source"),
+        )
 
     async def read_artifact(self, ref: ArtifactRef) -> ArtifactValue:
         self.calls.append("read_artifact")

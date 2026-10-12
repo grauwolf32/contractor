@@ -31,9 +31,13 @@ func NewPostgresRunEventListener(pool *pgxpool.Pool) (*PostgresRunEventListener,
 	return &PostgresRunEventListener{pool: pool}, nil
 }
 
-func (l *PostgresRunEventListener) Listen(ctx context.Context, consume func(string)) error {
-	if consume == nil {
-		return errors.New("PostgreSQL Run event listener requires a consumer")
+// Listen delivers the Run ID of every committed WorkflowRun event to consume
+// until ctx ends or the connection fails. It calls ready once LISTEN is in
+// effect: every later commit is notified, so one catch-up after ready covers
+// the commits made before it.
+func (l *PostgresRunEventListener) Listen(ctx context.Context, ready func(), consume func(string)) error {
+	if ready == nil || consume == nil {
+		return errors.New("PostgreSQL Run event listener requires a ready callback and a consumer")
 	}
 	connection, err := l.pool.Acquire(ctx)
 	if err != nil {
@@ -48,6 +52,7 @@ func (l *PostgresRunEventListener) Listen(ctx context.Context, consume func(stri
 		defer cancel()
 		_, _ = connection.Exec(cleanupCtx, "UNLISTEN "+runEventNotificationChannel)
 	}()
+	ready()
 	for {
 		notification, err := connection.Conn().WaitForNotification(ctx)
 		if err != nil {

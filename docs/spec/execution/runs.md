@@ -332,7 +332,10 @@ dependency-resolved Workflow snapshot specified by
 [CAT-R33](../configuration/catalog.md), including each Stage's explicit Worker
 session mode ([Workflows](../configuration/workflows.md)). What execution
 configuration the snapshot holds, and that it never holds secret bytes, is
-specified in [AgentTemplates](../configuration/agent-templates.md).
+specified in [AgentTemplates](../configuration/agent-templates.md). The
+snapshot's size bound and where it is measured are specified in
+[CAT-R76](../configuration/catalog.md); an oversized snapshot is rejected
+before the Run exists.
 
 **RUN-R24.** The durable Run snapshot, rather than later configuration edits
 or UI state, is the execution authority for its Run, within the Runtime-label
@@ -705,22 +708,28 @@ their origin (`workflow`, `run override`, inline escalation or exact
 ExecutionConfig ref) and never reconstructs authority from browser state.
 
 **RUN-R87.** A Run detail response includes the event cursor of the
-Run's `run` stream ([Public API](../api/public-api.md)).
+Run's `run` stream ([Public API](../api/public-api.md)). The Server reads the
+Run, its Stage data, artifacts, deletion and recovery state and that cursor in
+one read-only REPEATABLE READ transaction, so the cursor belongs to exactly the
+state in the response: a change committed while the detail is read is either
+in the response or after its cursor, and a subscription from that cursor
+delivers it.
 
-**RUN-R88.** The Run detail handler verifies ownership before it
-loads related Stage data.
+**RUN-R88.** The Run detail read verifies ownership before it loads
+related Stage data.
 
 **RUN-R89.** The Run detail readers for allocations, metrics and
 Planner plans, and the Planner session store, must provide batch reads.
 PostgreSQL uses at most one query per related collection, independent of the
 number of Stages (LIM-RUN-7).
 
-**RUN-R90.** Metrics and Planner-plan readers remain optional
-dependencies. Unavailable or malformed metrics omit diagnostics without hiding
-healthy peers or the durable Run state. A configured Planner-plan reader must
-validate the exact session, Stage and invocation identity; a missing session or
-a read failure fails the request, while a valid session without a plan omits
-that optional field (FAIL-RUN-7).
+**RUN-R90.** Metrics are optional diagnostics. Unavailable or malformed
+metrics omit diagnostics without hiding healthy peers or the durable Run
+state; a failed metrics read is rolled back to its own savepoint, so it cannot
+abort the snapshot of RUN-R87. The Planner-plan read must validate the exact
+session, Stage and invocation identity; a missing session or a read failure
+fails the request, while a valid session without a plan omits that optional
+field (FAIL-RUN-7).
 
 **RUN-R91.** The authenticated owner's Run status exposes aggregate
 counts, report completeness and one optional `AttemptDiagnostics` projection
@@ -935,6 +944,12 @@ rules, including report envelopes and label propagation, are in
    result provenance.
 8. Cancel and success serialize on the durable Run row; the first committed
    transition wins.
+9. A Run detail and its event cursor come from one snapshot, so the cursor
+   never runs ahead of the state shown with it (RUN-R87); tests
+   `TestPostgresRunDetailReadsStateAndCursorFromOneSnapshot` in
+   [`internal/runservice`](../../../internal/runservice/detail_postgres_test.go)
+   and `TestPostgresRunDetailResponseKeepsStateWithItsCursor` in
+   [`internal/httpapi/public`](../../../internal/httpapi/public/run_detail_snapshot_postgres_test.go).
 
 ## Examples
 

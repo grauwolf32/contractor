@@ -18,13 +18,15 @@ func TestClaimRenewalRetriesTransientErrorsUntilLeaseMargin(t *testing.T) {
 		lost     error
 	}{
 		{name: "recovers before lease margin", failures: []error{transient, transient}},
-		{name: "transient past lease margin", failures: []error{transient, transient, transient, transient}, lost: transient},
+		{name: "transient past lease margin", failures: []error{transient, transient, transient}, lost: transient},
 		{name: "conflict is immediate loss", failures: []error{&runstore.StateConflictError{Resource: "WorkflowRun claim", ID: "run-1"}}, lost: runstore.ErrConflict},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			store := &flakyRenewalStore{laneTestStore: newLaneTestStore("run-1"), failures: test.failures, renewed: make(chan int, 64)}
-			// Ten-minute ticks against a one-hour lease: the safety margin
-			// (a third of the lease) tolerates three failed ticks, not four.
+			// A one-hour lease renewed every twenty minutes and, after a
+			// failure, retried every ten-minute poll interval: the safety
+			// margin (a third of the lease) tolerates two failed attempts,
+			// at twenty and thirty minutes, not a third at forty.
 			s := newLaneTestScheduler(t, store.laneTestStore, newMutableSchedulerSettings(1, time.Second), 10*time.Minute)
 			s.store = store
 			clock := &steppingClock{now: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}
@@ -80,18 +82,18 @@ type flakyRenewalStore struct {
 	renewed  chan int
 }
 
-func (s *flakyRenewalStore) RenewRunClaim(context.Context, string, string, time.Duration) error {
+func (s *flakyRenewalStore) RenewRunClaim(context.Context, string, string, time.Duration) (runstore.WorkflowRunState, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.count++
 	if s.count <= len(s.failures) {
-		return s.failures[s.count-1]
+		return "", s.failures[s.count-1]
 	}
 	select {
 	case s.renewed <- s.count:
 	default:
 	}
-	return nil
+	return runstore.RunRunning, nil
 }
 
 func (s *flakyRenewalStore) calls() int {
@@ -100,8 +102,68 @@ func (s *flakyRenewalStore) calls() int {
 	return s.count
 }
 
-func (s *flakyRenewalStore) GetRun(context.Context, string) (runstore.WorkflowRun, error) {
-	return runstore.WorkflowRun{RunID: "run-1", State: runstore.RunRunning}, nil
+// GetRunState answers the renewal's conflict check: the Run is still running,
+// so a conflict is a lost claim, not a terminal transition.
+func (s *flakyRenewalStore) GetRunState(context.Context, string) (runstore.WorkflowRunState, error) {
+	return runstore.RunRunning, nil
+}
+
+// TestClaimRenewalRenewsEveryThirdOfTheLease runs a lane's claim renewal for
+// ten virtual minutes with the default ServerConfig budgets, a two-minute
+// lease and a one-second poll interval: the lane renews every 40 seconds,
+// never more than three times in a minute (LIM-SCH-15), where renewing every
+// poll interval made sixty.
+func TestClaimRenewalRenewsEveryThirdOfTheLease(t *testing.T) {
+	store := &countingRenewalStore{laneTestStore: newLaneTestStore("run-1")}
+	s := newLaneTestScheduler(t, store.laneTestStore, newMutableSchedulerSettings(1, time.Second), time.Second)
+	s.store = store
+	s.options.ClaimDuration = 2 * time.Minute
+	clock := &steppingClock{now: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}
+	s.options.Clock = clock
+	start := clock.Now()
+	ownership, cancelOwnership := context.WithCancelCause(t.Context())
+	defer cancelOwnership(nil)
+	store.clock, store.until, store.stop = clock, start.Add(10*time.Minute), func() { cancelOwnership(nil) }
+
+	s.renewClaim(ownership, cancelOwnership, func(error) {}, nil, "run-1", "claim-1", runstore.RunRunning,
+		start.Add(s.options.ClaimDuration))
+	if cause := context.Cause(ownership); errors.Is(cause, ErrClaimLost) {
+		t.Fatalf("renewal lost the claim: %v", cause)
+	}
+	if len(store.renewals) != 14 || store.renewals[0].Sub(start) != 40*time.Second {
+		first := store.renewals[:min(len(store.renewals), 3)]
+		t.Fatalf("%d renewals in ten minutes, the first at %v, want one every 40 seconds", len(store.renewals), first)
+	}
+	for index, at := range store.renewals {
+		inMinute := 0
+		for _, later := range store.renewals[index:] {
+			if later.Sub(at) < time.Minute {
+				inMinute++
+			}
+		}
+		if inMinute > 3 {
+			t.Fatalf("%d renewals in the minute after %s, want at most 3", inMinute, at.Sub(start))
+		}
+	}
+}
+
+// countingRenewalStore records the virtual time of every renewal and ends
+// the lane's ownership once the clock reaches until.
+type countingRenewalStore struct {
+	*laneTestStore
+	clock    *steppingClock
+	until    time.Time
+	stop     func()
+	renewals []time.Time
+}
+
+func (s *countingRenewalStore) RenewRunClaim(ctx context.Context, _, _ string, _ time.Duration) (runstore.WorkflowRunState, error) {
+	if !s.clock.now.Before(s.until) {
+		s.stop()
+		return "", ctx.Err()
+	}
+	s.renewals = append(s.renewals, s.clock.now)
+	return runstore.RunRunning, nil
 }
 
 // steppingClock advances virtual time by each requested wait and fires at once.

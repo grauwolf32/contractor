@@ -98,7 +98,7 @@ func (s *PostgresStore) AcceptInitialRound(ctx context.Context, p AcceptInitialR
 	encodedItems, _ := json.Marshal(items)
 	encodedRef, _ := json.Marshal(p.Manifest.Ref)
 	links, _ := prepareRetainedLinks(CollectParams{Retained: []ArtifactLink{p.Inventory}})
-	_, err = scanAudit(s.db.QueryRow(ctx, acceptInitialRoundSQL,
+	_, err = scanAudit(persistencepostgres.SavepointQueryRow(ctx, s.db, acceptInitialRoundSQL,
 		p.Claim.AuditID, p.Claim.HolderID, p.Claim.Epoch, p.ExpectedAuditRevision, p.RoundID, encodedRef,
 		encodedItems, p.Manifest.Digest,
 		links, retainedBytes, digest,
@@ -107,10 +107,10 @@ func (s *PostgresStore) AcceptInitialRound(ctx context.Context, p AcceptInitialR
 		round, getErr := s.GetRound(ctx, p.Claim.AuditID, p.RoundID)
 		return round, true, getErr
 	}
-	if persistencepostgres.SQLState(err) == "55000" {
+	if persistencepostgres.Classify(err) == persistencepostgres.ClassDeleting {
 		return Round{}, false, ErrProjectDeleting
 	}
-	if errors.Is(err, pgx.ErrNoRows) || persistencepostgres.SQLState(err) == persistencepostgres.SQLStateUniqueViolation {
+	if errors.Is(err, pgx.ErrNoRows) || persistencepostgres.Classify(err) == persistencepostgres.ClassDuplicate {
 		if round, found, replayErr := replay(); found || replayErr != nil {
 			return round, false, replayErr
 		}

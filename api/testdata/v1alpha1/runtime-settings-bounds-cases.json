@@ -1,0 +1,61 @@
+{
+  "description": "Numeric bounds and required telemetry export settings of RuntimeSettings, shared by the Go Server (runtimesettings.RuntimeSettings decoded with contracts.DecodePrivateStrict), the Python Runtime (contracts.RuntimeSettings) and allocation.schema.json#/$defs/RuntimeSettings. Each case starts from base, sets each JSON pointer in set to its value and deletes each pointer in remove, and states whether all three accept the result. crossField marks a rule between two fields that JSON Schema cannot express: the schema accepts such a case and only Go and Python reject it. serverDefaults is the complete telemetry export, with its retry object, that the Server sends when the Worker's RuntimeConfig omits the export or retry block (RCF-R99, RCF-R102, RCF-R103); the Runtime has no defaults of its own.",
+  "base": "valid/runtime-settings-combined.json",
+  "serverDefaults": {
+    "export": {
+      "batchSizeBytes": 8388608,
+      "maxAttempts": 2,
+      "maxPendingSpans": 2048,
+      "maxPendingBytes": 67108864,
+      "retry": {
+        "initialBackoffMilliseconds": 100,
+        "maxBackoffMilliseconds": 1000
+      }
+    }
+  },
+  "cases": [
+    {"name": "base", "valid": true},
+    {"name": "requestTimeoutSeconds zero", "set": {"/requestTimeoutSeconds": 0}, "valid": false},
+    {"name": "requestTimeoutSeconds negative", "set": {"/requestTimeoutSeconds": -1}, "valid": false},
+    {"name": "requestTimeoutSeconds minimum", "set": {"/requestTimeoutSeconds": 1}, "valid": true},
+    {"name": "flushTimeoutSeconds below minimum", "set": {"/telemetry/flushTimeoutSeconds": 0}, "valid": false},
+    {"name": "flushTimeoutSeconds minimum", "set": {"/telemetry/flushTimeoutSeconds": 1}, "valid": true},
+    {"name": "flushTimeoutSeconds maximum", "set": {"/telemetry/flushTimeoutSeconds": 10}, "valid": true},
+    {"name": "flushTimeoutSeconds above maximum", "set": {"/telemetry/flushTimeoutSeconds": 11}, "valid": false},
+    {"name": "batchSizeBytes below minimum", "set": {"/telemetry/export/batchSizeBytes": 1048575}, "valid": false},
+    {"name": "batchSizeBytes minimum", "set": {"/telemetry/export/batchSizeBytes": 1048576}, "valid": true},
+    {"name": "batchSizeBytes maximum", "set": {"/telemetry/export/batchSizeBytes": 67108864}, "valid": true},
+    {"name": "batchSizeBytes above maximum", "set": {"/telemetry/export/batchSizeBytes": 67108865}, "valid": false},
+    {"name": "maxAttempts below minimum", "set": {"/telemetry/export/maxAttempts": 0}, "valid": false},
+    {"name": "maxAttempts minimum", "set": {"/telemetry/export/maxAttempts": 1}, "valid": true},
+    {"name": "maxAttempts maximum", "set": {"/telemetry/export/maxAttempts": 10}, "valid": true},
+    {"name": "maxAttempts above maximum", "set": {"/telemetry/export/maxAttempts": 11}, "valid": false},
+    {"name": "maxPendingSpans below minimum", "set": {"/telemetry/export/maxPendingSpans": 0}, "valid": false},
+    {"name": "maxPendingSpans minimum", "set": {"/telemetry/export/maxPendingSpans": 1}, "valid": true},
+    {"name": "maxPendingSpans maximum", "set": {"/telemetry/export/maxPendingSpans": 2048}, "valid": true},
+    {"name": "maxPendingSpans above maximum", "set": {"/telemetry/export/maxPendingSpans": 2049}, "valid": false},
+    {"name": "maxPendingBytes below batchSizeBytes", "set": {"/telemetry/export/maxPendingBytes": 8388607}, "valid": false, "crossField": true},
+    {"name": "maxPendingBytes equal to batchSizeBytes", "set": {"/telemetry/export/maxPendingBytes": 8388608}, "valid": true},
+    {"name": "maxPendingBytes above maximum", "set": {"/telemetry/export/maxPendingBytes": 67108865}, "valid": false},
+    {"name": "smallest queue", "set": {"/telemetry/export/batchSizeBytes": 1048576, "/telemetry/export/maxPendingBytes": 1048576}, "valid": true},
+    {"name": "maxPendingBytes below its minimum", "set": {"/telemetry/export/batchSizeBytes": 1048576, "/telemetry/export/maxPendingBytes": 1048575}, "valid": false},
+    {"name": "initialBackoffMilliseconds below minimum", "set": {"/telemetry/export/retry/initialBackoffMilliseconds": 0}, "valid": false},
+    {"name": "initialBackoffMilliseconds minimum", "set": {"/telemetry/export/retry/initialBackoffMilliseconds": 1}, "valid": true},
+    {"name": "initialBackoffMilliseconds equal to maxBackoffMilliseconds", "set": {"/telemetry/export/retry/initialBackoffMilliseconds": 1000}, "valid": true},
+    {"name": "initialBackoffMilliseconds above maxBackoffMilliseconds", "set": {"/telemetry/export/retry/initialBackoffMilliseconds": 1001}, "valid": false, "crossField": true},
+    {"name": "maxBackoffMilliseconds below initialBackoffMilliseconds", "set": {"/telemetry/export/retry/maxBackoffMilliseconds": 99}, "valid": false, "crossField": true},
+    {"name": "maxBackoffMilliseconds maximum", "set": {"/telemetry/export/retry/maxBackoffMilliseconds": 60000}, "valid": true},
+    {"name": "maxBackoffMilliseconds above maximum", "set": {"/telemetry/export/retry/maxBackoffMilliseconds": 60001}, "valid": false},
+    {"name": "both backoffs at maximum", "set": {"/telemetry/export/retry/initialBackoffMilliseconds": 60000, "/telemetry/export/retry/maxBackoffMilliseconds": 60000}, "valid": true},
+    {"name": "both backoffs above maximum", "set": {"/telemetry/export/retry/initialBackoffMilliseconds": 60001, "/telemetry/export/retry/maxBackoffMilliseconds": 60001}, "valid": false},
+    {"name": "Caido requestTimeoutSeconds below minimum", "set": {"/caido/requestTimeoutSeconds": 0}, "valid": false},
+    {"name": "Caido requestTimeoutSeconds minimum", "set": {"/caido/requestTimeoutSeconds": 1}, "valid": true},
+    {"name": "Caido requestTimeoutSeconds maximum", "set": {"/caido/requestTimeoutSeconds": 120}, "valid": true},
+    {"name": "Caido requestTimeoutSeconds above maximum", "set": {"/caido/requestTimeoutSeconds": 121}, "valid": false},
+    {"name": "failure signature status 422", "set": {"/llmGatewayFailureSignatures": {"modelUnavailable": [{"status": 422, "messageEquals": "Model is unloaded."}]}}, "valid": true},
+    {"name": "failure signature status 500", "set": {"/llmGatewayFailureSignatures": {"modelUnavailable": [{"status": 500, "messageEquals": "Model is unloaded."}]}}, "valid": false},
+    {"name": "telemetry without export", "remove": ["/telemetry/export"], "valid": false},
+    {"name": "export without retry", "remove": ["/telemetry/export/retry"], "valid": false},
+    {"name": "settings without telemetry", "remove": ["/telemetry"], "valid": true}
+  ]
+}

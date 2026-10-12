@@ -205,9 +205,12 @@ general scratch.
 
 ### Workflow contract
 
-**WSP-R10.** `context.workspace` is optional. A filesystem Toolset
-(`filesystem@1`, `edit-files@1` or `workspace-changes@1`) is invalid for a Stage
-without `context.workspace`; a workspace without these Toolsets is valid.
+**WSP-R10.** `context.workspace` is optional. A Toolset that reads or changes
+the workspace (`filesystem@1`, `edit-files@1`, `workspace-changes@1`,
+`code-analysis@1`, `taint-annotations@1` or `code-execution@1`, the Toolsets
+whose shared descriptor declares a workspace need,
+[TLS-R38](toolsets.md)) is invalid for a Stage without `context.workspace`; a
+workspace without these Toolsets is valid.
 
 **WSP-R11.** `context.workspace` has the `WorkspaceContext` shape of
 [Workspace context](#workspace-context): a `mode`, 1 to 32 sources (LIM-WSP-1),
@@ -222,7 +225,16 @@ from AllocationSpec.
 or `""` for the workspace root. Targets are UTF-8 NFC relative POSIX
 directories. They contain no empty, `.`, `..`, backslash, NUL/control, URI,
 Windows drive or UNC component, and have at most 32 components (LIM-WSP-2) and
-at most 1024 UTF-8 bytes (LIM-WSP-3).
+at most 1024 UTF-8 bytes (LIM-WSP-3). A Windows drive is a first component that
+starts with an ASCII letter and a colon; any other letter before a colon is an
+ordinary name. The files a Worker reports reading follow the same grammar and
+bounds, and Worker State workspace paths follow it with at most 128 components
+and 4096 UTF-8 bytes. The Runtime normalizes a project path a model supplies to
+NFC before it applies the rule, so a path it uses and records always satisfies
+it (U+212A KELVIN SIGN before a colon becomes the drive `K:` and is refused).
+Workflow publication, Studio, allocation validation and the Runtime apply one
+definition per language, pinned by
+`api/testdata/v1alpha1/workspace-path-cases.json`.
 
 **WSP-R14.** Targets are unique and non-overlapping: `backend` and
 `backend/api` cannot both be targets.

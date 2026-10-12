@@ -1,0 +1,60 @@
+schema_version: "1.0"
+id: V368-017
+title: "Stop retrying a Runtime registration the Server rejected permanently"
+milestone: hub-audit-defects-2026-10
+epic: execution-core
+kind: defect
+priority: P1
+status: completed
+implementation_commit: "5a43c217c501184c9d34fc5515ce136ad37fc619"
+depends_on: []
+languages: [python]
+goal: "A pytest drives a 400 registration and the Runtime stops with the error; a 503 still retries."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq; raw reports in docs/research/2026-10-11-hub-audit/), V367-007 follow-up; file:line as of 02bbdcbf, re-verify on current main"
+  finding: >-
+    runtime/src/contractor_runtime/control_client.py register_until_stopped
+    retries a 400 registration forever.
+  decision: >-
+    Reproduced on 4146eea: MTLSJSONTransport discarded the error body, so
+    register_until_stopped could not tell a 400 from a 503 and retried both.
+    Guarantee (RTA-R113, CTL-R151): the Server's private error envelope
+    decides first; its retryable flag already exists (invalid_request and
+    invalid_runtime_labels false, conflict and internal_error true), and a
+    new Go test pins those verdicts. Without an envelope (a proxy page or an
+    empty body) 5xx, 408, 409, 425 and 429 may clear and every other status
+    is permanent. A permanent rejection raises RegistrationRejectedError; the
+    CLI logs "runtime agent failed: Control Plane rejected the Runtime Agent
+    registration permanently (HTTP 400 invalid_runtime_labels, request
+    ...)" with only status, code and request ID, stops the listener and exits
+    1. Transport failures, timeouts, invalid responses and retryable
+    rejections back off as before. Tests drive 400, 403, 404 and a 503 marked
+    not retryable to a stop without a sleep, and 503, 409, 502, 429, 408 and
+    a 400 marked retryable to one backoff and registration; they fail
+    without the classification. Sibling paths: the envelope decoder existed
+    only in the Artifact client and is now the one decoder in _https (strict
+    JSON, snake_case code grammar that every Server code satisfies); serve's
+    finally re-awaited the failed registration task, re-raised its error and
+    skipped stopping the listener, now fixed (test fails without it).
+    Ruled out: re-registration of a running agent (REREGISTER heartbeat
+    action, release after lease loss) keeps the RTA-R28 retries, because the
+    agent may still have to confirm the release of a fenced allocation;
+    reversal condition is a Server that can tell a running agent to stop.
+    Alternatives rejected: classifying by status only would retry a 503
+    the Server marks permanent and stop on a 409 it marks retryable; a
+    pydantic wire model with a JSON schema for the envelope was left out of
+    scope (the envelope has no api/v1alpha1 schema yet). introduced_by is
+    not recorded: the loop predates this shallow history.
+scope:
+  in:
+    - "Classify registration responses: permanent rejections stop with a clear startup error; retryable ones back off as today."
+  out:
+    - "Retry of transient failures."
+acceptance_criteria:
+  - id: A1
+    text: "A pytest drives a 400 registration and the Runtime stops with the error; a 503 still retries."
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "cd runtime && uv run pytest tests -k control_client"
+    covers: [A1]

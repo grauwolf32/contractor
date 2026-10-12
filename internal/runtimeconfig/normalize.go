@@ -111,6 +111,18 @@ type caidoSource struct {
 	RequestTimeoutSeconds optional[int]    `json:"requestTimeoutSeconds"`
 }
 
+// Credential members of a canonical RuntimeConfig document, as PostgreSQL
+// text-array paths. Credential deletion checks read them from stored
+// versions, so renaming a member must change its path; internal/persistence
+// pins them against a canonical document.
+const (
+	WorkerLLMGatewayCredentialPath = "{spec,worker,llmGateway,credential}"
+	WorkerTelemetryCredentialPath  = "{spec,worker,telemetry,credential}"
+	WorkerHTTPProxyCredentialPath  = "{spec,worker,httpProxy,credential}"
+	WorkerCaidoCredentialPath      = "{spec,worker,caido,credential}"
+	PlannerTelemetryCredentialPath = "{spec,planner,telemetry,credential}"
+)
+
 type GatewayResolver interface {
 	ResolveLLMGateway(context.Context, string) (llmgateway.ResolvedLLMGatewayConfig, error)
 }

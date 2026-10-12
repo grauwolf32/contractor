@@ -20,6 +20,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auth"
 	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/findingintake"
 	"github.com/grauwolf32/contractor/internal/pagelimit"
@@ -173,8 +174,10 @@ func TestAuditCreateStartQueryAndStableErrors(t *testing.T) {
 	start.Header.Set("If-Match", `"1"`)
 	started := httptest.NewRecorder()
 	h.startAudit(started, start)
+	// A start binds its action like every other lifecycle request.
+	startDigest := contentdigest.Bytes([]byte(`{"action":"start","auditId":"audit-fixed","revision":1}`))
 	if started.Code != http.StatusOK || started.Header().Get("ETag") != `"2"` ||
-		management.start.ExpectedRevision != 1 || management.start.RequestDigest == "" ||
+		management.start.ExpectedRevision != 1 || management.start.RequestDigest != startDigest ||
 		!strings.Contains(started.Body.String(), `"expectedItemCount":1`) {
 		t.Fatalf("start Audit = %d headers=%v body=%s params=%+v", started.Code, started.Header(), started.Body.String(), management.start)
 	}
@@ -422,7 +425,7 @@ func TestAuditFindingReviewHandlersBindCASIdempotencyAndProvenanceRevision(t *te
 	management.reviews[0] = auditservice.ReviewRequest{
 		RequestID: "review-action", AuditID: "audit-fixed",
 		SubjectKind: auditservice.ReviewSubjectItemAction, SubjectID: "item-one",
-		Kind: auditservice.ActiveCheckReviewKind, SubjectRevision: 1,
+		Kind: string(auditstore.ItemApprovalActiveCheck), SubjectRevision: 1,
 		SubjectDigest: auditHandlerDigest("active-action"),
 		RequestedActions: []auditservice.ReviewRequestedAction{
 			auditservice.ReviewRequestedAction(action),
@@ -742,12 +745,12 @@ func (f *fakeAuditManagement) GetRound(context.Context, string, string, string) 
 }
 
 func (f *fakeAuditManagement) ListCoverage(
-	_ context.Context, _, _, _ string, _ int, limit int,
-) ([]auditstore.CoverageRow, error) {
+	_ context.Context, _, _, _ string, _ int, limit int, _ *uint64,
+) (auditservice.CoveragePage, error) {
 	if err := fakePageFetch(limit, auditstore.ErrInvalid); err != nil {
-		return nil, err
+		return auditservice.CoveragePage{}, err
 	}
-	return nil, f.err
+	return auditservice.CoveragePage{}, f.err
 }
 
 func (f *fakeAuditManagement) GetReport(

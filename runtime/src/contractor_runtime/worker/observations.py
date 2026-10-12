@@ -6,14 +6,13 @@ this module reduces them into the bounded per-invocation State section.
 
 from __future__ import annotations
 
-import json
 import re
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
 from contractor_runtime.contracts import WorkspaceObservationSummary
-from contractor_runtime.contracts.base import _require_workspace_target
+from contractor_runtime.contracts.base import _require_workspace_target, json_byte_size
 from contractor_runtime.observations import (
     WorkspaceToolObservation,
     exact_observation_path,
@@ -94,7 +93,7 @@ class WorkspaceObservationReducer:
         admitted: list[str] = []
         encoded_bytes = 2
         for path in lexical_paths:
-            addition = _json_string_bytes(path) + int(bool(admitted))
+            addition = json_byte_size(path) + int(bool(admitted))
             if (
                 len(admitted) >= MAX_WORKSPACE_SCOPE_PATHS
                 or encoded_bytes + addition > MAX_WORKSPACE_SCOPE_PATH_BYTES
@@ -126,7 +125,7 @@ class WorkspaceObservationReducer:
         for path in sorted(set().union(*normalized.values())):
             interaction = self._interactions.get(path)
             if interaction is None:
-                addition = _json_string_bytes(path) + int(bool(self._interactions))
+                addition = json_byte_size(path) + int(bool(self._interactions))
                 if (
                     len(self._interactions) >= MAX_WORKSPACE_INTERACTIONS
                     or self._interaction_path_bytes + addition
@@ -194,7 +193,7 @@ def validate_workspace_observation(value: Mapping[str, Any] | None) -> dict[str,
     ):
         raise ValueError("Worker workspace observation bounds are invalid")
     copied_scope = [exact_observation_path(path) for path in scope_paths]
-    if copied_scope != sorted(set(copied_scope)) or _json_list_bytes(copied_scope) > (
+    if copied_scope != sorted(set(copied_scope)) or json_byte_size(copied_scope) > (
         MAX_WORKSPACE_SCOPE_PATH_BYTES
     ):
         raise ValueError("Worker workspace observation scope is invalid")
@@ -204,7 +203,7 @@ def validate_workspace_observation(value: Mapping[str, Any] | None) -> dict[str,
         {item["path"] for item in copied_interactions}
     ) != len(copied_interactions):
         raise ValueError("Worker workspace interaction order is invalid")
-    if _json_list_bytes([item["path"] for item in copied_interactions]) > (
+    if json_byte_size([item["path"] for item in copied_interactions]) > (
         MAX_WORKSPACE_INTERACTION_PATH_BYTES
     ):
         raise ValueError("Worker workspace interaction paths exceed their bound")
@@ -291,11 +290,3 @@ def _validate_interaction(value: Any) -> dict[str, Any]:
     ):
         raise ValueError("Worker workspace interaction is inconsistent")
     return result
-
-
-def _json_string_bytes(value: str) -> int:
-    return len(json.dumps(value, ensure_ascii=False, separators=(",", ":")).encode("utf-8"))
-
-
-def _json_list_bytes(values: Sequence[str]) -> int:
-    return len(json.dumps(values, ensure_ascii=False, separators=(",", ":")).encode("utf-8"))

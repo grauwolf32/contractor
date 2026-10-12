@@ -1,0 +1,45 @@
+schema_version: "1.0"
+id: V371-019
+title: "Use artifactpolicy's Audit namespace rule in the Audit namespace purge"
+milestone: hub-audit-defects-2026-10
+epic: projects-artifacts
+kind: chore
+priority: P3
+status: pending
+depends_on: []
+languages: [go]
+goal: "The reserved audit- Namespace prefix has one Go definition, artifactpolicy.IsAuditManagedProjectNamespace, and the purge uses it too."
+context:
+  review: "Out-of-scope finding of the hub audit fix batch (group G4), recorded 2026-10-12; verified on a07f5e9"
+  specification: "docs/spec/artifacts/artifact-store.md#ART-R26"
+  finding: >-
+    PostgresPurger.PurgeAuditNamespace (internal/artifacts/postgres_purge.go:29)
+    tests strings.HasPrefix(namespace, "audit-") itself, while
+    artifactpolicy.AuditManagedProjectNamespacePrefix and
+    IsAuditManagedProjectNamespace (internal/artifactpolicy/visibility.go:14
+    and 24-26) define the reserved prefix (ART-R26) that WriteAuditArtifact
+    (artifacts/service.go:626) and the route filters use (AGENTS.md 3.1).
+    Predates the shallow history (boundary 6349621).
+  siblings: >-
+    Go: WriteAuditArtifact already uses artifactpolicy; the ListMetadata
+    exclusion (artifacts/postgres_query.go) receives the prefix as a
+    parameter; auditdomain.ArtifactNamespace derives the full name.
+    evalservice/audit_adapter.go:62 builds an Eval execution ID with an
+    "audit-" prefix, another rule. SQL: the binding admission trigger and the
+    namespace derivation (000001_baseline.sql:629 and 1808) build the full
+    namespace and stay. No Python or UI copy.
+scope:
+  in:
+    - "postgres_purge.go uses artifactpolicy.IsAuditManagedProjectNamespace."
+  out:
+    - "Purge behaviour and its batching (V370-024, V371-008)."
+acceptance_criteria:
+  - id: A1
+    text: "No Go code outside artifactpolicy tests the audit- Namespace prefix itself."
+  - id: A2
+    text: "Existing purge tests pass unchanged."
+tests:
+  - command: "go test ./internal/artifacts ./internal/artifactpolicy"
+    covers: [A1, A2]
+  - command: make lint
+    covers: [A1, A2]

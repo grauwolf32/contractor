@@ -48,6 +48,7 @@
     "agent-state-zero-revision.json": {"type": "AgentStateSnapshot", "schema": "agent-state.schema.json", "strict": true},
     "allocation-spec-adk-no-model.json": {"type": "AllocationSpec", "schema": "allocation.schema.json", "strict": true},
     "allocation-spec-bad-api-version.json": {"type": "AllocationSpec", "schema": "allocation.schema.json", "strict": true},
+    "allocation-spec-invalid-logical-agent-name.json": {"type": "AllocationSpec", "schema": "allocation.schema.json", "strict": true},
     "allocation-spec-missing-provenance.json": {"type": "AllocationSpec", "schema": "allocation.schema.json", "strict": true},
     "allocation-spec-resolved-skill-versionless.json": {"type": "AllocationSpec", "schema": "allocation.schema.json", "strict": true},
     "allocation-spec-tool-model.json": {"type": "AllocationSpec", "schema": "allocation.schema.json", "strict": true},

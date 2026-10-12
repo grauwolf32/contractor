@@ -182,12 +182,12 @@ func normalizeAuditCreate(params AuditCreateParams) (AuditCreateParams, json.Raw
 			return AuditCreateParams{}, nil, fmt.Errorf("%w: pinned Project HTTP target is invalid", ErrInvalid)
 		}
 	}
-	workflowSnapshot, err := json.Marshal(params.Workflow)
+	workflowSnapshot, err := config.EncodeResolvedWorkflowSnapshot(params.Workflow)
 	if err != nil {
-		return AuditCreateParams{}, nil, fmt.Errorf("%w: encode pinned Workflow", ErrInvalid)
+		return AuditCreateParams{}, nil, fmt.Errorf("%w: pinned Workflow snapshot: %v", ErrInvalid, err)
 	}
 	workflow, err := config.DecodeResolvedWorkflowSnapshot(workflowSnapshot)
-	if err != nil || config.ValidateWorkflowGraph(workflow) != nil {
+	if err != nil {
 		return AuditCreateParams{}, nil, fmt.Errorf("%w: pinned Workflow is invalid", ErrInvalid)
 	}
 	params.Workflow = workflow
@@ -295,9 +295,7 @@ func verifyExactProjectArtifact(
 	if err != nil {
 		return artifacts.Metadata{}, err
 	}
-	if metadata.Ref.Revision == nil || descriptor.Ref.Revision == nil ||
-		*metadata.Ref.Revision != *descriptor.Ref.Revision || metadata.Digest != descriptor.Digest ||
-		metadata.MediaType != descriptor.MediaType || metadata.Size != descriptor.SizeBytes {
+	if !descriptor.HasMetadata() || descriptor.Verify(metadata.Exact()) != nil {
 		return artifacts.Metadata{}, fmt.Errorf("%w: pinned Audit artifact failed integrity validation", ErrInvalid)
 	}
 	return metadata, nil

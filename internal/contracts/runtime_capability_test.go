@@ -130,6 +130,30 @@ func TestRuntimeCapabilityGoldenCases(t *testing.T) {
 	longestTool := strings.Repeat("a", cases.ToolName.MaxLength)
 	check("longest tool name", true, registrationSchema, withTools([]string{longestTool}), decodeRegistration)
 	check("oversized tool name", false, registrationSchema, withTools([]string{longestTool + "a"}), decodeRegistration)
+
+	// A logical Agent name uses the same grammar: Operations shows it as the
+	// allocation's logicalWorker (WFL-R84).
+	allocationSchema, err := compiler.Compile(ids["allocation.schema.json"])
+	if err != nil {
+		t.Fatal(err)
+	}
+	decodeAllocation := func(data []byte) error {
+		_, err := contracts.DecodePrivateStrict[control.AllocationSpec](data)
+		return err
+	}
+	for _, group := range []struct {
+		values []string
+		valid  bool
+	}{
+		{append([]string{longestTool}, cases.ToolName.Valid...), true},
+		{append([]string{longestTool + "a"}, cases.ToolName.Invalid...), false},
+	} {
+		for _, name := range group.values {
+			allocation := wireCase(t, "allocation-spec.json")
+			allocation["logicalAgentName"] = name
+			check(fmt.Sprintf("logicalAgentName %q", name), group.valid, allocationSchema, allocation, decodeAllocation)
+		}
+	}
 	check("most tools", true, registrationSchema, withTools(numbered(cases.ToolsPerToolset.MaxItems, "tool_%03d")), decodeRegistration)
 	check("too many tools", false, registrationSchema, withTools(numbered(cases.ToolsPerToolset.MaxItems+1, "tool_%03d")), decodeRegistration)
 

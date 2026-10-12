@@ -193,6 +193,16 @@ the Workflow graph, and no Planner tool can select escalation.
 belongs to the Control Plane ([Control Plane](control-plane.md)). Planner never
 chooses, observes or changes physical placement.
 
+**SCH-R167.** A Run's Workflow snapshot is immutable, so the Scheduler decodes
+and validates it ([CAT-R35, CAT-R76](../configuration/catalog.md)) once per Run
+and snapshot digest and reuses the validated snapshot on later steps of that
+Run. The reuse is keyed by the Run identity, the Workflow identity and schema
+version the Run records and the SHA-256 digest of the stored snapshot text; any
+difference decodes and validates the snapshot again, and a snapshot that fails
+validation is never kept. Every step works on its own copy. The Scheduler keeps
+at most LIM-SCH-16 decoded snapshots and evicts the least recently used Run, so
+an evicted Run is decoded again on its next step.
+
 ### StageExecution identity and scope
 
 **SCH-R5.** Each StageExecution records at least:
@@ -599,8 +609,9 @@ and enters its write-fenced transition; the export rules are specified in
 
 ### Operation budgets
 
-The separate process budgets for HTTP requests, Scheduler operations, stored
-terminal deadlines and batch cleanup are specified in
+The separate process budgets for HTTP requests, Scheduler store operations,
+the claim lease, stored terminal deadlines and Runtime batch preparation and
+cleanup are specified in
 [OPS-R15, OPS-R16](../operations/operations.md).
 
 **SCH-R63.** Finalize and abort use the earlier of the caller deadline and the
@@ -610,9 +621,10 @@ phases (FAIL-SCH-8, FAIL-SCH-7).
 **SCH-R64.** Recovery and repeated requests reuse the saved operation ID and
 deadline, including after a restart or a process-setting change.
 
-**SCH-R65.** Each release batch has one cleanup deadline. Failed-prepare
-cleanup shares one deadline across abort and release, and a failed release
-retains the allocation grant.
+**SCH-R65.** Each release batch has one cleanup deadline and each prepare
+batch one prepare deadline; the Scheduler store-operation budget caps neither.
+Failed-prepare cleanup shares one deadline across abort and release, and a
+failed release retains the allocation grant.
 
 **SCH-R66.** Inner requests may end earlier, but cannot extend the enclosing
 operation or relinquish unconfirmed resource ownership. Physical workspace
@@ -870,7 +882,8 @@ granted attempt, through cancellation or an unexpected failure at any point
 before its terminal update is acknowledged (including while reporting the
 outcome), re-delivers that idempotent update as a bounded best effort, the
 Planner on a context detached from its cancelled invocation, so the leased
-probe is not held until it expires. An attempt abandoned before any outcome
+probe is not held until it expires. A `failed` report is re-delivered as
+`released`. An attempt abandoned before any outcome
 reports `released`, which relinquishes the probe without reopening the blocked
 route or resetting its retry window; a cancelled attempt is never reported as
 a Gateway failure. A terminal update (`succeeded`, `finished` or `released`)
@@ -898,9 +911,40 @@ expiry or the end of the Stage (FAIL-SCH-15).
 **SCH-R112.** A retryable failure must be recorded before its request is
 resent.
 
+**SCH-R168.** The participant protocol has one definition in the Server and
+one in the Runtime, pinned by
+[`gateway-recovery-participant-cases.json`](../../../api/testdata/v1alpha1/gateway-recovery-participant-cases.json):
+the updates `acquire`, `failed`, `succeeded`, `finished` and `released`, of
+which the last three are terminal; the codes a `failed` update may carry, which
+are exactly the retryable codes of the shared Gateway failure classification;
+the bounds of an update; the update that reports each attempt outcome, where
+only `failed` carries a code and retry hint and only `failed` resends the
+request; and the update re-delivered after cancellation (SCH-R108).
+
+**SCH-R169.** Recovery routes are retained. A route holds the shared gate of
+one owner model route (SCH-R105) and is keyed by that configuration, not by a
+Run, so the routes are bounded by the distinct Gateway, model, credential and
+transport combinations an owner has used, and an outage recorded on a route
+reaches the next Run that uses it. Ending a Stage drops only its waits, route
+membership and probe (SCH-R107); a probe holder is found through an index
+that holds only routes with a probe in flight or reserved. Failure receipts,
+which make repeated failure reports idempotent (SCH-R106), belong to their
+Run and are deleted with it (LIFE-SCH-4, LIFE-SCH-5). This retention is
+reopened if a route key gains a per-Run or per-allocation value, which a
+PostgreSQL test of two Runs on one configuration detects.
+
 **SCH-R113.** Model-availability recovery does not persist or restore an ADK
 session after Runtime process loss. Which model request is retried during
 `waiting` is specified in [Runs](runs.md).
+
+**SCH-R165.** A model-call update that changes nothing is decided from one
+read without row locks or writes: an `acquire` on a route that is not blocked,
+and a terminal update whose participant holds neither the route's probe nor,
+for `succeeded` and `finished`, a recovery wait while its Run is not
+`waiting`. Every call on a healthy route is such a pair, so model calls of an
+owner's Runs no longer serialize on the Run row and the shared route row. The
+decision is the one the locking path makes at the moment of that read; every
+other update takes the Run and route locks (SCH-R106, SCH-R108).
 
 ### Run claims and execution lanes
 
@@ -946,6 +990,17 @@ it as completion (FAIL-SCH-16).
 different lanes cannot claim the same Run, and a claim cannot be silently
 stolen before expiry (FAIL-SCH-16).
 
+**SCH-R166.** A lane renews its claim every third of `scheduler.claimDuration`
+(LIM-SCH-15). A failed renewal is retried every `scheduler.pollInterval` while
+the last lease still has a third of its duration left; past that, the lane
+gives the claim up before another Scheduler could take it over (FAIL-SCH-16).
+A renewal writes only the lease expiry, which no index covers, so it is a
+heap-only update and leaves the Run's `updatedAt` and claim order unchanged.
+It returns the Run state: a Run found `cancelling` interrupts the lane, which
+the in-process cancellation of SCH-R117 normally does first. Only a renewal
+that finds the claim gone reads the Run state again, to tell a terminal
+transition (SCH-R119) from a lost claim.
+
 **SCH-R121.** Claim ordering prioritizes cancellation and rotates
 capacity-deferred work: cancelling Runs retain priority over ordinary running
 and initialization work, and releasing the claim after an
@@ -966,6 +1021,17 @@ starve it.
 **SCH-R124.** Scheduler claims WorkflowRuns with its authoritative lifecycle
 query; the Queue read model and its lack of position guarantees are specified
 in [PRJ-R90 to PRJ-R92](../artifacts/projects.md).
+
+**SCH-R164.** The claim reads candidates in claim order from indexes and locks
+the first one it can claim; it never sorts the candidates. Its work grows only
+with the Runs it skips ahead of that one: Runs claimed by a lane (at most
+`maxConcurrentRuns`), Runs deferred within their window and pending Runs of
+paused owners (SCH-R163). A progression attempt reads the Run's lifecycle
+state and its one active StageExecution (SCH-R114), not the Run's Stage
+history of up to 1,024 attempts (LIM-RUN-2); it reads the whole Run again only
+when its state changed since the claim. Only a Run without an active
+StageExecution, whose first Stage is not yet created or whose state the
+Scheduler cannot progress, has its Stage history read.
 
 **SCH-R125.** `RunOnce` is a deterministic single-claim primitive for focused
 tests and recovery tools and may perform one maintenance tick before that
@@ -1126,6 +1192,16 @@ deletion request can therefore always make progress
 **SCH-R154.** Resume makes waiting Runs eligible after a restart without
 rewriting them.
 
+**SCH-R163.** The claim does not take a pending Run whose owner's Queue is
+paused: admission could not start its Stage (SCH-R151), so claiming it would
+only defer it again. It still takes such a Run while one of its active
+StageExecutions is aborting or holds an allocation whose release has not
+completed, because that release work continues while paused (SCH-R148,
+SCH-R153), including the discard of an unadmitted placement that failed
+before (SCH-R152). A pause that commits after a lane claimed the Run is still
+observed by the gate before placement and by admission. Resume makes the
+skipped Runs claimable again in their claim order (SCH-R121, SCH-R154).
+
 **SCH-R155.** If completion would admit a next Stage, retry or escalation,
 acceptance of the current result or termination, output mapping, transition
 decision and creation of the new attempt remain one transaction, and pause
@@ -1212,6 +1288,8 @@ Limits ([registry](../platform/limits.md)):
   `next` or `fail` (SCH-R81).
 - LIM-SCH-14 — terminal facts per `aborting` StageExecution: exactly 1
   StageTermination and no accepted StageResult (SCH-R43).
+- LIM-SCH-16 — decoded Workflow snapshots kept per Server process: at most 64
+  Runs and 64 MiB of stored snapshot text (SCH-R167).
 - Used here, owned elsewhere: concurrent A2A Tasks per Worker
   ([LIM-CTL-6](../platform/limits.md), SCH-R10), slots per Runtime Agent
   process ([LIM-CTL-4](../platform/limits.md), SCH-R139), the
@@ -1252,7 +1330,7 @@ Failure outcomes ([failure model](../platform/failure-model.md)):
 - FAIL-SCH-13 — unprogressable durable state (SCH-R102).
 - FAIL-SCH-14 — model call under the recovery gate (SCH-R108, SCH-R109).
 - FAIL-SCH-15 — recording an observed model outcome (SCH-R111).
-- FAIL-SCH-16 — Run claim renewal (SCH-R119, SCH-R120).
+- FAIL-SCH-16 — Run claim renewal (SCH-R119, SCH-R120, SCH-R166).
 - FAIL-SCH-17 — concurrency setting update (SCH-R133, SCH-R138).
 - FAIL-SCH-18 — owner queue control update (SCH-R146, SCH-R156).
 

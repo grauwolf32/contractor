@@ -16,21 +16,21 @@ import (
 
 type AgentRegistration struct {
 	Capabilities *contracts.RuntimeCompletionCapabilities `json:"capabilities,omitempty"`
-	APIVersion   string                                   `json:"apiVersion"`
+	APIVersion   string                                   `json:"apiVersion" strictjson:"required"`
 
-	InstanceID                          string                               `json:"instanceId"`
-	SoftwareVersion                     string                               `json:"softwareVersion"`
-	StartedAt                           time.Time                            `json:"startedAt"`
-	ControlURL                          string                               `json:"controlUrl"`
-	A2AURL                              string                               `json:"a2aUrl"`
-	InitialLabels                       []string                             `json:"initialLabels"`
-	SupportedRuntimes                   []string                             `json:"supportedRuntimes"`
-	SupportedToolsets                   []ToolsetCapability                  `json:"supportedToolsets"`
-	SupportedSandboxProfiles            []string                             `json:"supportedSandboxProfiles"`
-	SupportedRuntimeAdapters            []contracts.RuntimeAdapterRef        `json:"supportedRuntimeAdapters"`
+	InstanceID                          string                               `json:"instanceId" strictjson:"required"`
+	SoftwareVersion                     string                               `json:"softwareVersion" strictjson:"required"`
+	StartedAt                           time.Time                            `json:"startedAt" strictjson:"required"`
+	ControlURL                          string                               `json:"controlUrl" strictjson:"required"`
+	A2AURL                              string                               `json:"a2aUrl" strictjson:"required"`
+	InitialLabels                       []string                             `json:"initialLabels" strictjson:"required"`
+	SupportedRuntimes                   []string                             `json:"supportedRuntimes" strictjson:"required"`
+	SupportedToolsets                   []ToolsetCapability                  `json:"supportedToolsets" strictjson:"required"`
+	SupportedSandboxProfiles            []string                             `json:"supportedSandboxProfiles" strictjson:"required"`
+	SupportedRuntimeAdapters            []contracts.RuntimeAdapterRef        `json:"supportedRuntimeAdapters" strictjson:"required"`
 	SupportedPerformanceMetricsVersions reporting.PerformanceMetricsVersions `json:"supportedPerformanceMetricsVersions,omitempty"`
 	WorkspaceCapabilities               *contracts.WorkspaceCapabilities     `json:"workspaceCapabilities,omitempty"`
-	ObservedState                       AgentObservedState                   `json:"observedState"`
+	ObservedState                       AgentObservedState                   `json:"observedState" strictjson:"required"`
 	AllocationID                        *string                              `json:"allocationId,omitempty"`
 }
 
@@ -80,13 +80,13 @@ func (r AgentRegistration) Validate() error {
 }
 
 type AgentRegistrationResponse struct {
-	APIVersion string `json:"apiVersion"`
+	APIVersion string `json:"apiVersion" strictjson:"required"`
 
-	RuntimeAgentID           string   `json:"runtimeAgentId"`
-	Labels                   []string `json:"labels"`
-	LabelRevision            uint64   `json:"labelRevision"`
-	HeartbeatIntervalSeconds int      `json:"heartbeatIntervalSeconds"`
-	ConfirmedLeaseSeconds    int      `json:"confirmedLeaseSeconds"`
+	RuntimeAgentID           string   `json:"runtimeAgentId" strictjson:"required"`
+	Labels                   []string `json:"labels" strictjson:"required"`
+	LabelRevision            uint64   `json:"labelRevision" strictjson:"required"`
+	HeartbeatIntervalSeconds int      `json:"heartbeatIntervalSeconds" strictjson:"required"`
+	ConfirmedLeaseSeconds    int      `json:"confirmedLeaseSeconds" strictjson:"required"`
 }
 
 func (r AgentRegistrationResponse) Validate() error {

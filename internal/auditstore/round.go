@@ -48,7 +48,7 @@ func (s *PostgresStore) MaterializeRound(
 		return Audit{}, false, err
 	}
 	if replay, found, err := s.lookupAuditReplay(
-		ctx, params.OwnerID, "audit.start", params.IdempotencyKey, params.RequestDigest,
+		ctx, params.OwnerID, MutationStart, params.IdempotencyKey, params.RequestDigest,
 	); err != nil || found {
 		return replay, false, err
 	}
@@ -86,7 +86,7 @@ func (s *PostgresStore) MaterializeRound(
 	encodedLinks, _ := json.Marshal(links)
 	retainedBytes, _ := validateArtifactLinks(params.InitialRetained)
 	response, _ := json.Marshal(map[string]string{"auditId": params.AuditID, "roundId": params.RoundID})
-	audit, err := scanAudit(s.db.QueryRow(ctx, materializeRoundSQL,
+	audit, err := scanAudit(persistencepostgres.SavepointQueryRow(ctx, s.db, materializeRoundSQL,
 		params.OwnerID, params.AuditID, params.ExpectedRevision,
 		params.RoundID, params.RoundOrdinal, encodedManifestRef,
 		[]byte(params.BaselineSnapshot), optionalDeadline(params.DeadlineAt), encodedItems,
@@ -96,17 +96,17 @@ func (s *PostgresStore) MaterializeRound(
 	if err == nil {
 		return audit, true, nil
 	}
-	switch persistencepostgres.SQLState(err) {
-	case "55000":
+	switch persistencepostgres.Classify(err) {
+	case persistencepostgres.ClassDeleting:
 		return Audit{}, false, ErrProjectDeleting
-	case persistencepostgres.SQLStateUniqueViolation:
-		return s.replayAudit(ctx, params.OwnerID, "audit.start", params.IdempotencyKey, params.RequestDigest)
+	case persistencepostgres.ClassDuplicate:
+		return s.replayAudit(ctx, params.OwnerID, MutationStart, params.IdempotencyKey, params.RequestDigest)
 	}
 	if !errors.Is(err, pgx.ErrNoRows) {
 		return Audit{}, false, fmt.Errorf("materialize Audit round: %w", err)
 	}
 	if replay, found, replayErr := s.lookupAuditReplay(
-		ctx, params.OwnerID, "audit.start", params.IdempotencyKey, params.RequestDigest,
+		ctx, params.OwnerID, MutationStart, params.IdempotencyKey, params.RequestDigest,
 	); replayErr != nil || found {
 		return replay, false, replayErr
 	}
@@ -163,7 +163,7 @@ func (s *PostgresStore) AcceptNextRound(
 	}
 	encodedItems, _ := json.Marshal(items)
 	encodedSources, _ := json.Marshal(sources)
-	round, err := scanRound(s.db.QueryRow(ctx, acceptNextRoundSQL,
+	round, err := scanRound(persistencepostgres.SavepointQueryRow(ctx, s.db, acceptNextRoundSQL,
 		params.Claim.AuditID, params.Claim.HolderID, params.Claim.Epoch,
 		params.ExpectedAuditRevision, params.PreviousRoundID,
 		params.RoundID, params.RoundOrdinal, encodedManifestRef,
@@ -172,10 +172,10 @@ func (s *PostgresStore) AcceptNextRound(
 	if err == nil {
 		return round, true, nil
 	}
-	if persistencepostgres.SQLState(err) == "55000" {
+	if persistencepostgres.Classify(err) == persistencepostgres.ClassDeleting {
 		return Round{}, false, ErrProjectDeleting
 	}
-	if persistencepostgres.SQLState(err) == persistencepostgres.SQLStateUniqueViolation || errors.Is(err, pgx.ErrNoRows) {
+	if persistencepostgres.Classify(err) == persistencepostgres.ClassDuplicate || errors.Is(err, pgx.ErrNoRows) {
 		if replay, found, replayErr := s.lookupAcceptedRoundReplay(ctx, params); replayErr != nil || found {
 			return replay, false, replayErr
 		}
@@ -184,7 +184,7 @@ func (s *PostgresStore) AcceptNextRound(
 		} else if !live {
 			return Round{}, false, ErrClaimLost
 		}
-		if persistencepostgres.SQLState(err) == persistencepostgres.SQLStateUniqueViolation {
+		if persistencepostgres.Classify(err) == persistencepostgres.ClassDuplicate {
 			return Round{}, false, ErrConflict
 		}
 		return Round{}, false, ErrPrecondition
@@ -256,7 +256,7 @@ func (s *PostgresStore) TransitionRound(
 	if err == nil {
 		return round, nil
 	}
-	if persistencepostgres.SQLState(err) == "55000" {
+	if persistencepostgres.Classify(err) == persistencepostgres.ClassDeleting {
 		return Round{}, ErrProjectDeleting
 	}
 	if !errors.Is(err, pgx.ErrNoRows) {

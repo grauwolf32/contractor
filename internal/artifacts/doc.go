@@ -4,8 +4,10 @@
 // Payload integration inventory:
 //   - PostgresRepository.Write: public/private writes, Planner Memory, Skill
 //     uploads/seeding and trusted finding proposals.
-//   - PostgresRepository.WriteAuditArtifact: Controller-generated packages and
-//     direct-verification evidence contracts.
+//   - PostgresRepository.WriteAuditArtifact, through Service.WriteAuditArtifact:
+//     every Server-generated audit-* binding (manifests, task packages,
+//     worklists, retained standards, reports and direct-verification evidence
+//     contracts), created frozen.
 //   - PostgresRepository.Read: all scoped content consumers.
 //   - ForkInput, ForkSkill, ImportAuditArtifact and PublishRunOutput: metadata
 //     only, sharing the immutable blob without opening payload bytes.

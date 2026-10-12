@@ -58,6 +58,12 @@ type ReadResult struct {
 	RevisionCreatedAt time.Time
 }
 
+// Exact describes the bytes of this read as the shared exact-content
+// descriptor.
+func (r ReadResult) Exact() contracts.ExactArtifact {
+	return contracts.ExactContent(r.Ref, r.Payload.MediaType, r.Payload.Data)
+}
+
 type WriteResult struct {
 	Ref               ArtifactRef
 	MediaType         string
@@ -88,9 +94,20 @@ type Metadata struct {
 	CreatedAt time.Time `json:"createdAt"`
 }
 
+// Exact describes this revision as the shared exact-content descriptor.
+func (m Metadata) Exact() contracts.ExactArtifact {
+	return contracts.ExactArtifact{
+		Ref: m.Ref.Clone(), Digest: m.Digest, MediaType: m.MediaType, SizeBytes: m.Size,
+	}
+}
+
 type BindingPageQuery struct {
 	Namespace        *string
 	ExcludeNamespace *string
+	// HiddenNamespace is one exact Namespace a trusted presentation layer
+	// hides besides the caller's ExcludeNamespace, such as the reserved
+	// audit-standards catalog (ART-R25) or contractor-system (ART-R17).
+	HiddenNamespace string
 	// ExcludeNamespacePrefix is used by trusted presentation layers to hide
 	// purpose-managed Project bindings that have their own acceptance API.
 	ExcludeNamespacePrefix string

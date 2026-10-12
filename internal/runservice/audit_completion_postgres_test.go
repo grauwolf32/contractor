@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"maps"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -23,6 +24,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 func TestAuditCompletionPostgresAtomicCreationRestartAndAllocation(t *testing.T) {
@@ -48,14 +50,14 @@ func TestAuditCompletionPostgresAtomicCreationRestartAndAllocation(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	task := writeExact(t, ctx, store, "audit-test", "task", "application/zip", inventory.Tasks[0].Package)
+	task := writeAuditExact(t, ctx, artifactService, project.ProjectID, "task", "application/zip", inventory.Tasks[0].Package)
 	manifestDoc := inventory.ExecutionManifest
 	manifestDoc.Items[0].TaskRef = &task.Ref
 	manifestBytes, err := auditdomain.EncodeExecutionManifest(manifestDoc)
 	if err != nil {
 		t.Fatal(err)
 	}
-	manifest := writeExact(t, ctx, store, "audit-test", "manifest", "application/json", manifestBytes)
+	manifest := writeAuditExact(t, ctx, artifactService, project.ProjectID, "manifest", "application/json", manifestBytes)
 	catalog, err := configload.Load("../../testdata/configs", config.MVPDescriptors())
 	if err != nil {
 		t.Fatal(err)
@@ -102,7 +104,7 @@ func TestAuditCompletionPostgresAtomicCreationRestartAndAllocation(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	manager, err := configload.NewManager(config.ManagerOptions{OperatorRoot: filepath.Join("..", "config", "testdata", "valid"), ManagedRoot: filepath.Join(t.TempDir(), "managed"), Descriptors: config.MVPDescriptors()})
+	manager, _, err := configload.NewManager(config.ManagerOptions{OperatorRoot: filepath.Join("..", "config", "testdata", "valid"), ManagedRoot: filepath.Join(t.TempDir(), "managed"), Descriptors: config.MVPDescriptors()})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -139,7 +141,7 @@ func TestAuditCompletionPostgresAtomicCreationRestartAndAllocation(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := omissionService.CreateAudit(ctx, params); persistencepostgres.SQLState(err) != "23514" {
+	if _, err := omissionService.CreateAudit(ctx, params); persistencepostgres.SQLState(err) != persistencepostgres.SQLStateCheckViolation {
 		t.Fatal("opted-in Run committed without its completion authority", err)
 	}
 
@@ -189,8 +191,16 @@ func TestAuditCompletionPostgresAtomicCreationRestartAndAllocation(t *testing.T)
 	if err != nil || string(exact.Payload.Data) != string(inventory.Tasks[0].Package) {
 		t.Fatal("exact task changed", err)
 	}
-	if _, err := pool.Exec(ctx, `UPDATE workflow_runs SET audit_completion = NULL WHERE run_id = 'run'`); persistencepostgres.SQLState(err) != "23514" {
+	if _, err := pool.Exec(ctx, `UPDATE workflow_runs SET audit_completion = NULL WHERE run_id = 'run'`); persistencepostgres.SQLState(err) != persistencepostgres.SQLStateCheckViolation {
 		t.Fatal("completion rewrite accepted", err)
+	}
+	// A Run event append keeps the pinned completion, so neither Audit
+	// completion trigger fires for it; the binding check of an audit-managed
+	// Run still does (PER-R22).
+	if fired := runEventAppendTriggers(t, ctx, pool, "run"); !maps.Equal(fired, map[string]int64{
+		"workflow_runs_require_complete_audit_binding": 1,
+	}) {
+		t.Fatalf("a Run event append on a Run with a completion fired the triggers %v", fired)
 	}
 	stageBytes, _ := json.Marshal(stage)
 	executionStage, err := runs.CreateStageExecution(ctx, runstore.CreateStageExecutionParams{StageExecutionID: "stage", RunID: "run", StageName: "check", Attempt: 1, StageSpecSchemaVersion: contracts.APIVersion, StageSpecSnapshot: stageBytes, StageContextSchemaVersion: contracts.APIVersion, StageContext: runstore.StageContextSnapshot{Parameters: map[string]string{}, Artifacts: map[string]runstore.PinnedContextArtifact{"task": {Required: true, Artifact: &completion.Contract.Task}, "manifest": {Required: true, Artifact: &completion.Contract.ExecutionManifest}}}})
@@ -199,7 +209,7 @@ func TestAuditCompletionPostgresAtomicCreationRestartAndAllocation(t *testing.T)
 	}
 	gateway := stage.ExecutionConfig.Agents["checker"].LLMGateway.Ref
 	allocation := runstore.StageAllocation{AllocationID: "allocation", StageExecutionID: executionStage.StageExecutionID, LogicalAgentName: "checker", Namespace: "audit-check", AgentTemplateRef: agent.Template.Ref, WorkerRuntimeRef: agent.Template.Runtime, RuntimeAgentID: strings.Repeat("1", 64), RuntimeAgentInstanceID: "runtime", RuntimeAgentLabelRevision: 1, RuntimeConfigurationSchemaVersion: runstore.AllocationRuntimeConfigurationSchemaVersion, PerformanceCollectionPolicy: reporting.PerformanceCollectionDisabled, RuntimeConfiguration: &runstore.AllocationRuntimeConfiguration{ModelPolicy: stage.ExecutionConfig.Agents["checker"].ModelPolicy.Ref, Origins: runtimeconfig.ResolvedRuntimeConfigOrigins{}, Provenance: runtimesettings.ResolvedRuntimeConfigProvenance{Default: runtimesettings.RuntimeLabelBindingProvenance{Label: "default", BindingRevision: 1, Config: runtimesettings.RuntimeConfigRef{Name: runtimeconfig.BuiltInName, Version: runtimeconfig.BuiltInVersion, Digest: runtimeconfig.BuiltInDigest}}, RunLabels: []runtimesettings.RuntimeLabelBindingProvenance{}, AgentLabels: []runtimesettings.RuntimeLabelBindingProvenance{}, RuntimeAdapters: []contracts.RuntimeAdapterRef{}, RuntimeCredentialRefs: []runtimesettings.RuntimeCredentialRef{}, LLMGatewayConfig: &gateway}}}
-	if err := runs.RecordStageAllocation(ctx, allocation); persistencepostgres.SQLState(err) != "23514" {
+	if err := runs.RecordStageAllocation(ctx, allocation); persistencepostgres.SQLState(err) != persistencepostgres.SQLStateCheckViolation {
 		t.Fatal("allocation downgrade accepted", err)
 	}
 	allocation.CompletionContract = &completion.Contract
@@ -347,4 +357,43 @@ type omitCompletionWriter struct{ AuditRunWriter }
 
 func (omitCompletionWriter) SetAuditCompletion(context.Context, string, runstore.AuditCompletionSnapshot) error {
 	return nil
+}
+
+// runEventAppendTriggers advances the Run's event sequence as every Run event
+// append does, under EXPLAIN ANALYZE in a transaction that it rolls back,
+// with every deferred check made immediate, and returns the calls of each
+// trigger of workflow_runs that fired.
+func runEventAppendTriggers(t *testing.T, ctx context.Context, pool *pgxpool.Pool, runID string) map[string]int64 {
+	t.Helper()
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
+	if _, err := tx.Exec(ctx, `SET CONSTRAINTS ALL IMMEDIATE`); err != nil {
+		t.Fatal(err)
+	}
+	var output []byte
+	if err := tx.QueryRow(ctx, `EXPLAIN (ANALYZE, TIMING OFF, SUMMARY OFF, FORMAT JSON)
+UPDATE workflow_runs SET next_run_event_sequence = next_run_event_sequence + 1 WHERE run_id = $1`,
+		runID).Scan(&output); err != nil {
+		t.Fatal(err)
+	}
+	var plans []struct {
+		Triggers []struct {
+			Name     string `json:"Trigger Name"`
+			Relation string `json:"Relation"`
+			Calls    int64  `json:"Calls"`
+		} `json:"Triggers"`
+	}
+	if err := json.Unmarshal(output, &plans); err != nil || len(plans) != 1 {
+		t.Fatalf("explain output %s: %v", output, err)
+	}
+	fired := map[string]int64{}
+	for _, trigger := range plans[0].Triggers {
+		if trigger.Relation == "workflow_runs" {
+			fired[trigger.Name] += trigger.Calls
+		}
+	}
+	return fired
 }

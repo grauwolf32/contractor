@@ -111,7 +111,7 @@ type eventHarness struct {
 	server     *httptest.Server
 }
 
-func newEventHarness(t *testing.T) *eventHarness {
+func newEventHarness(t *testing.T, configure ...func(*Options)) *eventHarness {
 	t.Helper()
 	password := []byte("correct horse battery staple")
 	hash, err := auth.HashPassword(password)
@@ -139,11 +139,15 @@ func newEventHarness(t *testing.T) *eventHarness {
 		t.Fatal(err)
 	}
 	runs := newFakeRunRepository()
-	hub, err := NewHub(Options{
+	options := Options{
 		Context: t.Context(), Authentication: authentication, Origins: origins,
 		Runs: runs, Operations: operations,
 		CatchUpInterval: 10 * time.Millisecond, SessionCheckInterval: 10 * time.Millisecond,
-	})
+	}
+	for _, change := range configure {
+		change(&options)
+	}
+	hub, err := NewHub(options)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -317,6 +321,36 @@ func TestHandshakeAuthorizationUnknownFramesAndSubscriptionLimitFailClosed(t *te
 	}
 }
 
+// API-R71: a client frame with a case alias or a duplicate key is an invalid
+// frame; it subscribes nothing and leaves the socket usable.
+func TestClientFramesRejectCaseAliasesAndDuplicateKeys(t *testing.T) {
+	harness := newEventHarness(t)
+	connection := harness.dial(t)
+	for _, raw := range []string{
+		`{"version":"contractor.events.v1","type":"subscribe","subscriptionId":"ops","Stream":{"kind":"operations"}}`,
+		`{"version":"contractor.events.v1","type":"subscribe","subscriptionId":"ops","stream":{"Kind":"operations"}}`,
+		`{"Version":"contractor.events.v1","type":"subscribe","subscriptionId":"ops","stream":{"kind":"operations"}}`,
+		`{"version":"contractor.events.v1","type":"subscribe","subscriptionId":"other","subscriptionId":"ops","stream":{"kind":"operations"}}`,
+		`{"version":"contractor.events.v1","type":"subscribe","subscriptionId":"ops","stream":{"kind":"operations","kind":"operations"}}`,
+		`{"version":"contractor.events.v1","type":"unsubscribe","type":"unsubscribe","subscriptionId":"ops"}`,
+	} {
+		_ = connection.SetWriteDeadline(time.Now().Add(2 * time.Second))
+		if err := connection.WriteMessage(websocket.TextMessage, []byte(raw)); err != nil {
+			t.Fatal(err)
+		}
+		if frame := readServerJSON(t, connection); frame["type"] != "error" || frame["code"] != "invalid_frame" {
+			t.Fatalf("frame %s = %#v, want invalid_frame", raw, frame)
+		}
+	}
+	writeClientJSON(t, connection, map[string]any{
+		"version": ProtocolVersion, "type": "subscribe", "subscriptionId": "ops",
+		"stream": map[string]any{"kind": "operations"},
+	})
+	if frame := readServerJSON(t, connection); frame["type"] != "subscribed" || frame["subscriptionId"] != "ops" {
+		t.Fatalf("valid subscription after invalid frames = %#v", frame)
+	}
+}
+
 func TestOperationsResyncAndLiveInvalidation(t *testing.T) {
 	harness := newEventHarness(t)
 	initial := harness.operations.SnapshotOperations().Cursor
@@ -415,6 +449,9 @@ func TestProtocolAndQueueBoundsRejectUnknownOrUnsafeData(t *testing.T) {
 		`{"version":"contractor.events.v2","type":"unsubscribe","subscriptionId":"x"}`,
 		`{"version":"contractor.events.v1","type":"subscribe","subscriptionId":"x","stream":{"kind":"run","id":"run-1"},"after":{"generation":"g","sequence":"01"}}`,
 		`{"version":"contractor.events.v1","type":"subscribe","subscriptionId":"x","stream":{"kind":"run","id":"run-1"},"after":null}`,
+		`{"version":"contractor.events.v1","type":"subscribe","subscriptionId":"x","stream":{"kind":"run","id":"run-1"},"after":{"Generation":"g","sequence":"1"}}`,
+		`{"version":"contractor.events.v1","type":"subscribe","subscriptionId":"x","stream":{"kind":"run","id":"run-1"},"after":{"generation":"g","generation":"g","sequence":"1"}}`,
+		`{"version":"contractor.events.v1","type":"unsubscribe","subscriptionID":"x"}`,
 	} {
 		if _, err := decodeClientFrame([]byte(raw)); err == nil {
 			t.Fatalf("invalid frame was accepted: %s", raw)

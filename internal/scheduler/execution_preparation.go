@@ -4,11 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net"
 
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
-	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/credentials"
@@ -17,7 +15,6 @@ import (
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/grauwolf32/contractor/internal/strictjson"
-	"github.com/jackc/pgx/v5/pgconn"
 )
 
 // Allocation configuration is materialized only at preparation time. These
@@ -146,10 +143,7 @@ func (s *Scheduler) materializeRuntimeSettings(
 		RequestTimeoutSeconds: s.options.RuntimeTransport.RequestTimeoutSeconds,
 	}
 	if signatures := resolved.LLMGateway.FailureSignatures; signatures != nil {
-		copied := llmgateway.GatewayFailureSignatures{
-			ModelUnavailable: append([]llmgateway.GatewayFailureSignature(nil), signatures.ModelUnavailable...),
-			PermanentCodes:   append([]string(nil), signatures.PermanentCodes...),
-		}
+		copied := signatures.Clone()
 		result.LLMGatewayFailureSignatures = &copied
 	}
 	if resolved.LLMCredential != nil {
@@ -170,14 +164,11 @@ func (s *Scheduler) materializeRuntimeSettings(
 			Headers: map[string]contracts.SecretString{}, CaptureContent: resolved.WorkerTelemetry.CaptureContent,
 			FlushTimeoutSeconds: resolved.WorkerTelemetry.FlushTimeoutSeconds,
 		}
-		if resolved.WorkerTelemetry.Export != nil {
-			export := *resolved.WorkerTelemetry.Export
-			if export.Retry != nil {
-				retry := *export.Retry
-				export.Retry = &retry
-			}
-			telemetry.Export = &export
-		}
+		// The Server pins every export value (RCF-R102): a RuntimeConfig that
+		// omits the export or retry block gets the defaults (RCF-R99, RCF-R103),
+		// copied so the settings never alias the resolved configuration.
+		export := runtimesettings.PinTelemetryExport(resolved.WorkerTelemetry.Export)
+		telemetry.Export = &export
 		if credentialID := resolved.WorkerTelemetry.Credential; credentialID != "" {
 			if err := s.useRuntimeCredential(
 				ctx, credentialID, []contracts.RuntimeCredentialKind{contracts.RuntimeCredentialOTLPHeaders},
@@ -418,23 +409,8 @@ func classifyCredentialError(err error) (bool, string) {
 	case errors.Is(err, credentials.ErrCrypto), errors.Is(err, credentials.ErrKeyUnavailable):
 		return false, "credential_unreadable"
 	}
-	if transientStorageError(err) {
+	if persistencepostgres.IsTransientFailure(err) {
 		return true, "storage_unavailable"
 	}
 	return false, "configuration_unavailable"
-}
-
-// transientStorageError recognizes connection, resource and serialization
-// failures reported by PostgreSQL or its transport.
-func transientStorageError(err error) bool {
-	if state := persistencepostgres.SQLState(err); state != "" {
-		switch state[:2] {
-		case "08", "40", "53", "57", "58":
-			return true
-		}
-		return false
-	}
-	var connectErr *pgconn.ConnectError
-	var netErr net.Error
-	return errors.As(err, &connectErr) || errors.As(err, &netErr) || pgconn.Timeout(err)
 }

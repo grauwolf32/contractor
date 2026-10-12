@@ -10,11 +10,9 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
-func validateBundledCatalogStandards(operatorRoot string, snapshot *config.Snapshot) error {
-	plan, err := auditstandards.DiscoverBundled(operatorRoot)
-	if err != nil {
-		return fmt.Errorf("discover bundled Audit standards: %w", err)
-	}
+// validateBundledCatalogStandards checks every AuditProfile standard against
+// plan, the bundled Audit standards the same offline load validated.
+func validateBundledCatalogStandards(plan *auditstandards.SeedPlan, snapshot *config.Snapshot) error {
 	for _, profile := range snapshot.AuditProfiles() {
 		for _, standard := range profile.Standards {
 			ref := auditstandards.Reference{Scheme: standard.Scheme, Version: standard.Version}

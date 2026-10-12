@@ -77,10 +77,10 @@ INSERT INTO artifact_scopes (scope_kind, scope_id)
 VALUES ($1, $2)
 ON CONFLICT DO NOTHING`, scope.kind, scope.id); err != nil {
 		discardFreshCandidate()
-		if persistencepostgres.SQLState(err) == "55000" {
+		if persistencepostgres.Classify(err) == persistencepostgres.ClassDeleting {
 			return WriteResult{}, fmt.Errorf("create artifact scope: %w", ErrScopeDeleting)
 		}
-		if persistencepostgres.SQLState(err) == persistencepostgres.SQLStateForeignKeyViolation {
+		if persistencepostgres.Classify(err) == persistencepostgres.ClassReferenceViolation {
 			return WriteResult{}, fmt.Errorf("create artifact scope: %w", ErrInvalidScope)
 		}
 		return WriteResult{}, fmt.Errorf("create artifact scope: %w", err)
@@ -100,14 +100,18 @@ ON CONFLICT DO NOTHING`, scope.kind, scope.id); err != nil {
 		return WriteResult{}, r.writeConflict(ctx, scope, target, expectedRevision)
 	}
 	if err != nil {
-		switch persistencepostgres.SQLState(err) {
-		case "55000":
+		if isRunRevisionLimit(err) {
+			discardFreshCandidate()
+			return WriteResult{}, fmt.Errorf("write artifact: %w", ErrRunRevisionLimit)
+		}
+		switch persistencepostgres.Classify(err) {
+		case persistencepostgres.ClassDeleting:
 			discardFreshCandidate()
 			return WriteResult{}, fmt.Errorf("write artifact: %w", ErrScopeDeleting)
-		case persistencepostgres.SQLStateForeignKeyViolation:
+		case persistencepostgres.ClassReferenceViolation:
 			discardFreshCandidate()
 			return WriteResult{}, fmt.Errorf("write artifact: %w", ErrInvalidScope)
-		case persistencepostgres.SQLStateUniqueViolation:
+		case persistencepostgres.ClassDuplicate:
 			discardFreshCandidate()
 			return WriteResult{}, &ConflictError{Ref: target, ExpectedRevision: clone.Pointer(expectedRevision)}
 		}
@@ -132,18 +136,22 @@ func (r *PostgresRepository) writeConflict(
 	target ArtifactRef,
 	expectedRevision *string,
 ) error {
-	var frozen bool
+	var revision string
+	current := &Metadata{Ref: ArtifactRef{Namespace: target.Namespace, Name: target.Name, Revision: &revision}}
 	err := r.db.QueryRow(ctx, `
-SELECT frozen
+SELECT current_revision, frozen
 FROM artifact_bindings
 WHERE scope_kind = $1 AND scope_id = $2 AND namespace = $3 AND name = $4`,
 		scope.kind, scope.id, target.Namespace, target.Name,
-	).Scan(&frozen)
-	if err == nil && frozen {
-		return ErrArtifactFrozen
-	}
-	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+	).Scan(&revision, &current.Frozen)
+	if errors.Is(err, pgx.ErrNoRows) {
+		current = nil
+	} else if err != nil {
 		return fmt.Errorf("inspect artifact write conflict: %w", err)
 	}
+	if refusal := WritePrecondition(target, current, expectedRevision); refusal != nil {
+		return refusal
+	}
+	// The binding moved after the write was refused; the write still lost.
 	return &ConflictError{Ref: target, ExpectedRevision: clone.Pointer(expectedRevision)}
 }

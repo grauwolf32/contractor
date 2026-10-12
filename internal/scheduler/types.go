@@ -42,10 +42,13 @@ func (*AllocationLeaseLossError) Unwrap() error { return ErrAllocationLeaseLost 
 // transactions used at lifecycle commit points.
 type Store interface {
 	ClaimRunnableRun(context.Context, string, time.Duration) (runstore.WorkflowRun, error)
-	RenewRunClaim(context.Context, string, string, time.Duration) error
+	RenewRunClaim(context.Context, string, string, time.Duration) (runstore.WorkflowRunState, error)
 	ReleaseRunClaim(context.Context, string, string) error
 	DeferRunClaim(context.Context, string, string) error
 	GetRun(context.Context, string) (runstore.WorkflowRun, error)
+	// GetRunState reads only the Run's lifecycle state; decisions on the
+	// state alone use it instead of GetRun.
+	GetRunState(context.Context, string) (runstore.WorkflowRunState, error)
 	GetOwnerQueueControl(context.Context, string) (runstore.OwnerQueueControl, error)
 	TransitionRun(
 		context.Context,
@@ -54,12 +57,21 @@ type Store interface {
 		runstore.WorkflowRunState,
 		runstore.Reason,
 	) (runstore.WorkflowRun, error)
+	// GetActiveStageExecution reads the Run's one active StageExecution:
+	// runstore.ErrNotFound when it has none, runstore.ErrMultipleActiveStages
+	// when it has more (SCH-R114). A progression attempt reads only this
+	// Stage, not the Run's Stage history.
+	GetActiveStageExecution(context.Context, string) (runstore.StageExecution, error)
 	ListStageExecutions(context.Context, string) ([]runstore.StageExecution, error)
 	ListTerminalStageExecutionsWithAllocations(context.Context) ([]runstore.StageExecution, error)
 	GetStageExecution(context.Context, string) (runstore.StageExecution, error)
 	ListStageAllocations(context.Context, string) ([]runstore.StageAllocation, error)
 	MarkStageAllocationReleaseAttempt(context.Context, string) error
 	MarkStageAllocationReleased(context.Context, string) error
+	// RecordStageOutputPublicationFailure counts a terminal commit of the
+	// finalizing StageExecution (runID, stageExecutionID) that a transient
+	// Project output publication failure aborted (PRJ-R58).
+	RecordStageOutputPublicationFailure(context.Context, string, string) error
 	RecordStageExecutionReport(context.Context, runstore.RecordStageExecutionReportParams) error
 	RecordPlannerExecutionReport(context.Context, runstore.RecordPlannerExecutionReportParams) error
 	RebuildStageMetrics(context.Context, string, string) error
@@ -170,6 +182,10 @@ type Allocator interface {
 	PollAllocationLosses() []controlplane.AllocationLoss
 }
 
+// WorkerController owns the Runtime batch budgets: PrepareAll bounds one
+// prepare batch and ReleaseAll one release batch by their own deadlines, while
+// FinalizeAll and AbortAll honour the stored terminal deadline. Callers pass
+// cancellation only and never wrap a batch in the store-operation budget.
 type WorkerController interface {
 	PrepareAll(
 		context.Context,
@@ -240,14 +256,27 @@ type realClock struct{}
 func (realClock) Now() time.Time                                { return time.Now() }
 func (realClock) After(duration time.Duration) <-chan time.Time { return time.After(duration) }
 
+// Options carries the resolved ServerConfig budgets; each duration below
+// names its ServerConfig path and is required (OPS-R15).
 type Options struct {
-	GatewayRecovery        *gatewayrecovery.Service
-	PollInterval           time.Duration
-	ClaimDuration          time.Duration
-	OperationTimeout       time.Duration
-	PlannerTimeout         time.Duration
-	FinalizationTimeout    time.Duration
-	AbortTimeout           time.Duration
+	GatewayRecovery *gatewayrecovery.Service
+	// PollInterval is scheduler.pollInterval: the lane refill and terminal
+	// release recovery period, and the retry period after a failed claim
+	// renewal.
+	PollInterval time.Duration
+	// ClaimDuration is scheduler.claimDuration, the Run claim lease, renewed
+	// every third of it.
+	ClaimDuration time.Duration
+	// OperationTimeout is scheduler.operationTimeout: one store operation
+	// (claim, renewal, read, transition or commit). Runtime batches carry
+	// their own budgets in the WorkerController.
+	OperationTimeout time.Duration
+	// PlannerTimeout is plannerTimeout: the Stage deadline from admission.
+	PlannerTimeout      time.Duration
+	FinalizationTimeout time.Duration
+	AbortTimeout        time.Duration
+	// LeaseScanInterval is scheduler.leaseScanInterval, the period of the
+	// allocation-loss scan.
 	LeaseScanInterval      time.Duration
 	RuntimeTransport       RuntimeTransportSettings
 	Credentials            CredentialResolver

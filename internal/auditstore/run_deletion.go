@@ -3,24 +3,18 @@ package auditstore
 import (
 	"context"
 	"fmt"
-
-	"github.com/jackc/pgx/v5"
 )
 
 // LockRunDeletionAudits locks FOR UPDATE, in audit_id order, the owner's
 // Audits that refer to Run runID through an AuditExecution, a finding proposal
 // receipt or a proposal Audit hold, and returns their IDs. internal/rundeletion
 // takes these locks after the Run lock and before any execution, retention or
-// Artifact lock, matching ImportIntoAudit and Audit purge. The locks must be
-// held until the Run is deleted, so the store must be transaction-backed.
-func (s *PostgresStore) LockRunDeletionAudits(
+// Artifact lock, matching ImportIntoAudit and Audit purge. The locks are held
+// until the Run is deleted in the same transaction.
+func (s *PostgresTxStore) LockRunDeletionAudits(
 	ctx context.Context, ownerID, runID string,
 ) ([]string, error) {
-	tx, ok := s.db.(pgx.Tx)
-	if !ok {
-		return nil, fmt.Errorf("lock deleted WorkflowRun %q Audit projections: a transaction-backed store is required", runID)
-	}
-	rows, err := tx.Query(ctx, lockRunDeletionAuditsSQL, ownerID, runID)
+	rows, err := s.tx.Query(ctx, lockRunDeletionAuditsSQL, ownerID, runID)
 	if err != nil {
 		return nil, fmt.Errorf("lock deleted WorkflowRun %q Audit projections: %w", runID, err)
 	}

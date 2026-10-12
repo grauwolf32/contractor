@@ -24,6 +24,7 @@ from contractor_runtime.contracts import (
     ArtifactRef,
     ArtifactWriteResult,
 )
+from contractor_runtime.contracts.base import is_blank, trim_whitespace
 from contractor_runtime.mtls import verify_control_plane_peer
 
 MAX_ARTIFACT_BYTES = 64 * 1024 * 1024
@@ -34,7 +35,6 @@ MAX_FINDING_SUBMISSION_BYTES = 8 * 1024 * 1024
 # api/testdata/v1alpha1/artifact-list-cases.json.
 MAX_BINDING_LIST_LIMIT = 256
 PATH_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]+$")
-REQUEST_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
 DIGEST_PATTERN = re.compile(r"^sha256:[0-9a-f]{64}$")
 RUNTIME_INSTANCE_HEADER = "X-Contractor-Runtime-Instance-ID"
 BINDING_CREATED_AT_HEADER = "x-contractor-binding-created-at"
@@ -171,7 +171,10 @@ class ArtifactClient:
             raise ArtifactTransportError("finding proposal API returned an invalid version")
         for field_name in ("proposalId", "receiptId"):
             candidate = value.get(field_name)
-            if not isinstance(candidate, str) or REQUEST_ID_PATTERN.fullmatch(candidate) is None:
+            if (
+                not isinstance(candidate, str)
+                or _https.REQUEST_ID_PATTERN.fullmatch(candidate) is None
+            ):
                 raise ArtifactTransportError("finding proposal API returned an invalid identity")
         if not isinstance(value.get("replayed"), bool):
             raise ArtifactTransportError("finding proposal API returned an invalid replay marker")
@@ -304,6 +307,43 @@ class ArtifactClient:
                 "Artifact API returned an invalid list response"
             ) from error
 
+    async def read_artifact_metadata(self, ref: ArtifactRef) -> ArtifactReadResult:
+        """Return the exact revision, media type and size ``read_artifact`` of
+        ``ref`` would return, without downloading the payload (ART-R116).
+
+        The result is not a content observation: only a payload read records
+        the exact revision for invocation provenance.
+        """
+
+        _validate_ref(ref)
+        path = f"{self._root}/{quote(ref.namespace, safe='')}/{quote(ref.name, safe='')}/metadata"
+        if ref.revision is not None:
+            path += f"?revision={quote(ref.revision, safe='')}"
+        response = await self._transport.request(
+            "GET",
+            path,
+            headers={"Accept": "application/json"},
+            body=b"",
+            max_response_bytes=MAX_ARTIFACT_JSON_BYTES,
+        )
+        self._raise_for_status(response)
+        _require_json(response.headers)
+        try:
+            result = ArtifactReadResult.model_validate_json(response.body)
+        except ValidationError as error:
+            raise ArtifactTransportError(
+                "Artifact API returned invalid artifact metadata"
+            ) from error
+        exact = result.artifact
+        if (
+            exact.namespace != ref.namespace
+            or exact.name != ref.name
+            or (ref.revision is not None and exact.revision != ref.revision)
+            or not 0 <= result.size <= MAX_ARTIFACT_BYTES
+        ):
+            raise ArtifactTransportError("Artifact API metadata does not match the requested ref")
+        return result
+
     async def read_artifact(
         self, ref: ArtifactRef, *, max_bytes: int = MAX_ARTIFACT_BYTES
     ) -> ArtifactValue:
@@ -370,7 +410,7 @@ class ArtifactClient:
         if expected_revision is None:
             headers["If-None-Match"] = "*"
         else:
-            if not expected_revision.strip() or any(char in expected_revision for char in '\r\n",'):
+            if is_blank(expected_revision) or any(char in expected_revision for char in '\r\n",'):
                 raise ValueError("expected revision is not a valid strong ETag value")
             headers["If-Match"] = json.dumps(expected_revision)
             expected_status = 200
@@ -428,29 +468,10 @@ class ArtifactClient:
     def _raise_for_status(response: ArtifactHTTPResponse) -> None:
         if 200 <= response.status_code < 300:
             return
-        code = "invalid_error_response"
-        retryable = False
-        request_id: str | None = None
-        if len(response.body) <= MAX_ARTIFACT_JSON_BYTES:
-            try:
-                value = json.loads(response.body)
-                if (
-                    isinstance(value, dict)
-                    and set(value) == {"code", "message", "retryable", "requestId"}
-                    and isinstance(value["code"], str)
-                    and value["code"].strip()
-                    and isinstance(value["message"], str)
-                    and value["message"].strip()
-                    and isinstance(value["retryable"], bool)
-                    and isinstance(value["requestId"], str)
-                    and REQUEST_ID_PATTERN.fullmatch(value["requestId"]) is not None
-                ):
-                    code = value["code"]
-                    retryable = value["retryable"]
-                    request_id = value["requestId"]
-            except (UnicodeDecodeError, json.JSONDecodeError):
-                pass
-        raise ArtifactAPIError(response.status_code, code, retryable, request_id)
+        error = _https.decode_private_error(response.body)
+        if error is None:
+            raise ArtifactAPIError(response.status_code, "invalid_error_response", False)
+        raise ArtifactAPIError(response.status_code, error.code, error.retryable, error.request_id)
 
 
 class MTLSArtifactTransport:
@@ -480,8 +501,8 @@ class MTLSArtifactTransport:
         if timeout_seconds <= 0:
             raise ValueError("Artifact API timeout must be positive")
         if (
-            not runtime_instance_id.strip()
-            or runtime_instance_id != runtime_instance_id.strip()
+            is_blank(runtime_instance_id)
+            or runtime_instance_id != trim_whitespace(runtime_instance_id)
             or len(runtime_instance_id) > 256
         ):
             raise ValueError("Runtime Agent instance ID is invalid")
@@ -542,7 +563,7 @@ class MTLSArtifactTransport:
 def _validate_ref(ref: ArtifactRef) -> None:
     _validate_component("namespace", ref.namespace)
     _validate_component("name", ref.name)
-    if ref.revision is not None and not ref.revision.strip():
+    if ref.revision is not None and is_blank(ref.revision):
         raise ValueError("artifact revision must not be empty")
 
 

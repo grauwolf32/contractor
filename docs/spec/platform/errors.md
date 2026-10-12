@@ -97,7 +97,7 @@ owned by [Worker](../execution/worker.md).
 | `memory_invalid` | Invalid name, tags, UTF-8 or request shape | no |
 | `memory_not_found` | Requested current note does not exist | no |
 | `memory_too_large` | Resulting canonical note exceeds 32 KiB (LIM-MEM-1) | no |
-| `memory_namespace_full` | A create would exceed 128 active notes (LIM-MEM-8) | no |
+| `memory_namespace_full` | A create would exceed 128 active notes (LIM-MEM-8), or the Run has used up its Artifact revision limit (LIM-ART-6) | no |
 | `memory_changed` | Hidden Artifact CAS conflict or ambiguous newer value | yes, after re-read |
 | `memory_forbidden` | Tool/Worker/Stage capability or write fence rejects it | no |
 | `memory_unavailable` | Bounded infrastructure failure | yes |
@@ -267,7 +267,9 @@ other codes and their retryability are owned by
 ### Related limits and failure outcomes
 
 - The bounds named in `memory_too_large` and `memory_namespace_full` are
-  LIM-MEM-1 and LIM-MEM-8, owned by [Memory](../tools/memory.md); the bounds
+  LIM-MEM-1 and LIM-MEM-8, owned by [Memory](../tools/memory.md), and the Run
+  revision limit LIM-ART-6, owned by
+  [Artifact store](../artifacts/artifact-store.md); the bounds
   behind `skill_limit_exceeded` are owned by [Skills](../tools/skills.md).
 - The failure outcomes of the Planner Gateway model request (FAIL-PLN-1) are
   registered by [Planners](../execution/planners.md); those of Skill source
@@ -300,6 +302,8 @@ requirement that defines the code.
 | `agent_state_unavailable` | — | not specified | Closed safe agent-state endpoint error for a stale, preparing, draining-with-destroyed-State or released slot | [WRK-R121](../execution/worker.md) |
 | `allocation_not_found` | — | not specified | Closed safe agent-state endpoint error for a stale, preparing, draining-with-destroyed-State or released slot | [WRK-R121](../execution/worker.md) |
 | `allocation_preparation_failed` | — | not specified | Allocation preparation failed, including a confirmed local Podman engine preparation failure. Retry follows the existing preparation retry classification. | [EXE-R115](../tools/code-execution.md) |
+| `artifact_frozen` | 409 | no | A write targets a frozen binding, which never advances, so neither a re-read nor a retry can succeed; returned on the public and private Artifact APIs whatever the write precondition. | [ART-R59](../artifacts/artifact-store.md) |
+| `artifact_limit_exceeded` | 409 | no | A RunScope write would exceed the Run revision limit (LIM-ART-6); nothing is stored and the Run never regains revisions, so no retry can succeed. Returned on the private Artifact API. | [ART-R118](../artifacts/artifact-store.md) |
 | `artifact_too_large` | 413 | no | An Artifact exceeds its 64 MiB limit (LIM-ART-4); rejected in the same way as an oversized request body | [API-R5](../api/public-api.md) |
 | `assessment_unsupported` | — | no | Reason code of audit_profile_unsupported emitted for the unsupported finding-candidate inventory entry point. | [AUD-R89](../audits/audits.md) |
 | `audit_digest_mismatch` | 422 (POST /v1/finding-collections package codec failure); none in list_findings | not specified | Reused bounded Audit package codec error for finding collection decoding (digest mismatch); in `list_findings` the tool transport maps it to its existing error envelope without source bytes, and `POST /v1/finding-collections` keeps it as a bounded 422 package codec failure | [findings](../findings/findings.md) |
@@ -334,6 +338,7 @@ requirement that defines the code.
 | `code_analysis_symbol_not_found` | — | no | The exact graph `symbolId` is absent; non-retryable for the same request (CAN-R136) | [ERR-R11](errors.md), [CAN-R74](../tools/code-analysis.md) |
 | `code_analysis_workspace_changed` | — | yes | Cursor or pending cache belongs to an older effective tree; retry without the cursor | [ERR-R11](errors.md), [CAN-R32](../tools/code-analysis.md) |
 | `collection-contract-invalid` | — | no | Bounded collection disposition recorded when the trusted collector cannot validate pinned internal data or the Store rejects a collection request by its content alone so that no retry can commit it; affected items are settled invalid with blocked coverage and their prior requested and completed coverage arrays are preserved; a cleanup-safe technical outcome, never accepted evidence, after which Run deletion is allowed. | [REV-R154](../audits/review-and-reports.md) |
+| `configuration_drift` | 409 | no | A managed publication found that the reloaded configuration roots differ from the Server's loaded snapshot by a change the Server did not make (an operator-root edit, addition or removal, or a managed file it did not write); nothing is published, and publication resumes once the roots match the loaded snapshot again or after a restart. | [CAT-R75](../configuration/catalog.md) |
 | `context_artifact_missing` | — | no | A required Stage context binding is missing when the StageExecution is created; detected before allocation and recorded as a non-retryable interrupted StageTermination with phase preparing before any allocation, Planner or Session exists. | [SCH-R17](../execution/scheduler.md) |
 | `control_lease_expired` | — | yes | Allocation-loss reason recorded in the retryable interrupted StageTermination when the confirmed Runtime Agent control lease expired. | [scheduler](../execution/scheduler.md) |
 | `counter_reset` | — | not specified | Bounded reason value of runtime.resources for a partial or unavailable resource summary (the sources define only the name) | [OPS-R174](../operations/operations.md) |
@@ -377,7 +382,7 @@ requirement that defines the code.
 | `memory_changed` | — | yes, after re-read | Hidden Artifact CAS conflict or ambiguous newer value; retryable after re-read | [ERR-R3](errors.md), [MEM-R67](../tools/memory.md) |
 | `memory_forbidden` | — | no | Tool/Worker/Stage capability or write fence rejects the memory operation | [ERR-R3](errors.md), [MEM-R63](../tools/memory.md) |
 | `memory_invalid` | — | no | Invalid memory note name, tags, UTF-8 or request shape | [ERR-R3](errors.md), [MEM-R74](../tools/memory.md) |
-| `memory_namespace_full` | — | no | A create would exceed 128 active notes (LIM-MEM-8) | [ERR-R3](errors.md), [MEM-R45](../tools/memory.md) |
+| `memory_namespace_full` | — | no | A create would exceed 128 active notes (LIM-MEM-8), or any note write after the Run used up its Artifact revision limit (LIM-ART-6) | [ERR-R3](errors.md), [MEM-R45](../tools/memory.md), [MEM-R98](../tools/memory.md) |
 | `memory_not_found` | — | no | Requested current memory note does not exist | [ERR-R3](errors.md), [MEM-R40](../tools/memory.md) |
 | `memory_too_large` | — | no | Resulting canonical memory note exceeds 32 KiB (LIM-MEM-1) | [ERR-R3](errors.md), [MEM-R25](../tools/memory.md) |
 | `memory_unavailable` | — | yes | Bounded memory infrastructure failure | [ERR-R3](errors.md), [MEM-R72](../tools/memory.md) |
@@ -449,6 +454,7 @@ requirement that defines the code.
 | `skill_path_invalid` | — | no | Non-portable, duplicate or escaping Skill package member path; a terminal Run initialization code and non-retryable for the recorded Run snapshot | [ERR-R4](errors.md) |
 | `skill_runtime_unsupported` | — | no | Skill placement/configuration failure in allocation preparation | [ERR-R9](errors.md) |
 | `startup: invalid effective configuration (no wire code)` | — | not specified | Invalid process settings or performance/profiling switches, or an enabled diagnostic listener with an invalid address or that cannot bind, fail Server startup with a safe error | [OPS-R75](../operations/operations.md) |
+| `storage_transaction_conflict` | 503 | yes | A definite PostgreSQL transaction conflict (serialization failure or deadlock), including one that outlasts the bounded transaction retries of its operation; nothing committed, so the request may be repeated. | [PER-R16](persistence.md) |
 | `submission_conflict` | — | no | Core diagnostic for a submission conflict; an existing idempotency key with changed request bytes is a conflict, not a retry strategy. | [EVF-R223](../evals/format.md) |
 | `submission_unknown` | — | not specified | Stop code: the adapter cannot prove or recover the outcome of an uncertain submission, so that member stops. | [EVF-R113](../evals/format.md) |
 | `taint_annotation_cancelled` | — | yes | Taint annotation cancelled | [ERR-R12](errors.md), [CAN-R128](../tools/code-analysis.md) |
@@ -476,6 +482,7 @@ requirement that defines the code.
 | `unnamed: blob backend mismatch` | — | not specified | The configured backend differs from the backend kind persisted in PostgreSQL; startup fails explicitly before serving or catalog seeding, and existing blobs are not copied or reinterpreted. The sources assign no wire code. | [BLB-R10](../artifacts/blob-storage.md) |
 | `unnamed: blob path not allowed` | — | not specified | A blob path is supplied while the backend is postgresql; the configuration is rejected. The sources assign no wire code. | [BLB-R9](../artifacts/blob-storage.md) |
 | `unnamed: blob path unusable` | — | not specified | The filesystem path is read-only or inaccessible, or the bounded create/write/publish/read/delete probe fails; startup fails. The sources assign no wire code. | [BLB-R8](../artifacts/blob-storage.md) |
+| `unnamed: blob store not installed` | — | not specified | An operation reached a filesystem object through work that does not carry the installation's blob store, a Server composition defect; it fails as a logged internal error, never as missing or corrupt content, and a deletion fails before its commit. The sources assign no wire code. | [BLB-R75](../artifacts/blob-storage.md) |
 | `unnamed: transfer capacity exhausted` | — | yes | All full-payload transfer slots of the Server process are taken; the request fails promptly instead of queueing its body. The sources assign no wire code or HTTP status. | [BLB-R25](../artifacts/blob-storage.md) |
 | `unnamed: unknown blob backend` | — | not specified | The configured backend name is not a known backend; validation fails at startup. The sources assign no wire code. | [BLB-R7](../artifacts/blob-storage.md) |
 | `unnamed: unsupported blob backend (s3)` | — | not specified | `s3` is selected; the Server returns an explicit unsupported-backend error and never falls back to postgresql or filesystem. The sources assign no wire code. | [BLB-R7](../artifacts/blob-storage.md) |

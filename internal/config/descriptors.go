@@ -25,9 +25,14 @@ const (
 // infer those effects at start time. RequiredWorkflowInputs names, per tool,
 // the ordinary Workflow input that the runtime toolset reads during allocation
 // preparation; ValidateWorkflowGraph requires it of every Workflow whose agent
-// selects that tool.
+// selects that tool. RequiresWorkspace marks a Toolset that reads or changes
+// the allocation workspace, so its Stage needs context.workspace. The Runtime
+// ToolsetFactory of every built-in Toolset declares the same tools, channels,
+// workspace need and SandboxProfile; api/testdata/toolset-descriptors.json
+// pins both sides and the Server-only classifications.
 type ToolsetDescriptor struct {
 	RequiredSandboxProfile string
+	RequiresWorkspace      bool
 	Tools                  []string
 	InfrastructureChannels map[string][]ToolInfrastructureChannel
 	ActiveCheckTools       []string
@@ -78,6 +83,7 @@ func MVPDescriptors() Descriptors {
 			"code-execution@1": {
 				Tools:                  []string{"exec_command"},
 				RequiredSandboxProfile: "podman@1",
+				RequiresWorkspace:      true,
 				InfrastructureChannels: map[string][]ToolInfrastructureChannel{
 					"exec_command": {SandboxExecution},
 				},
@@ -123,6 +129,7 @@ func MVPDescriptors() Descriptors {
 				},
 			},
 			"code-analysis@1": {
+				RequiresWorkspace: true,
 				Tools: []string{
 					"attack_surface", "complexity_hotspots", "entrypoint_paths_to",
 					"find_callees", "find_callers", "find_symbol", "functions_that_raise",
@@ -130,12 +137,14 @@ func MVPDescriptors() Descriptors {
 				},
 			},
 			"edit-files@1": {
+				RequiresWorkspace: true,
 				Tools: []string{
 					"append_file", "cp", "edit", "insert_line", "mkdir", "mv", "replace_range", "rm", "write_file",
 				},
 			},
 			"filesystem@1": {
-				Tools: []string{"glob", "grep", "ls", "read_file"},
+				RequiresWorkspace: true,
+				Tools:             []string{"glob", "grep", "ls", "read_file"},
 			},
 			"http-tools@1": {
 				Tools: []string{
@@ -196,10 +205,12 @@ func MVPDescriptors() Descriptors {
 				Tools: []string{"read_text_artifact", "write_text_artifact"},
 			},
 			"taint-annotations@1": {
-				Tools: []string{"annotate_sink", "annotate_trace", "annotate_validate"},
+				RequiresWorkspace: true,
+				Tools:             []string{"annotate_sink", "annotate_trace", "annotate_validate"},
 			},
 			"workspace-changes@1": {
-				Tools: []string{"changed_paths", "diff", "rollback_changes"},
+				RequiresWorkspace: true,
+				Tools:             []string{"changed_paths", "diff", "rollback_changes"},
 			},
 		},
 		SandboxProfiles: map[string]SandboxProfileDescriptor{
@@ -392,6 +403,7 @@ func normalizeToolsetDescriptor(raw string, descriptor ToolsetDescriptor, sandbo
 	}
 	return ToolsetDescriptor{
 		RequiredSandboxProfile: descriptor.RequiredSandboxProfile,
+		RequiresWorkspace:      descriptor.RequiresWorkspace,
 		Tools:                  tools, InfrastructureChannels: channels,
 		ActiveCheckTools: active, FindingProposalTools: findings,
 		RequiredWorkflowInputs: inputs,

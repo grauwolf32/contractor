@@ -1,0 +1,71 @@
+schema_version: "1.0"
+id: V368-020
+title: "Let the Server pin telemetry export settings"
+milestone: hub-audit-defects-2026-10
+epic: operations
+kind: defect
+priority: P2
+status: completed
+implementation_commit: "e38cd374aef03cd10b2b01b64ec8e5e09a673ac5"
+depends_on: []
+languages: [go, python]
+goal: "Go and Python agree on every bound case; an allocation without settings carries the Server's values."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq; raw reports in docs/research/2026-10-11-hub-audit/), exec-state G3, F4; file:line as of 02bbdcbf, re-verify on current main"
+  finding: >-
+    RCF-R102 says the Server pins export values, but without an export block
+    the Server sends nothing (scheduler/execution_preparation.go:173-180)
+    and Python applies its own defaults (otlp_http.py:408-412). No shared
+    fixture covers RuntimeSettings numeric bounds.
+  specification:
+    - docs/spec/configuration/runtime-config.md#RCF-R102
+    - docs/spec/configuration/runtime-config.md#RCF-R99
+    - docs/spec/configuration/runtime-config.md#RCF-R103
+  siblings: >-
+    Every producer and consumer of Worker telemetry settings was checked.
+    The Scheduler's materializeRuntimeSettings is the only producer; the
+    OTLP adapter was the only Runtime consumer that defaulted, and
+    OTLPInstrumentation's optional queue bounds, which fell back to the same
+    defaults, are now required. The bounds fixture covers every integer
+    field the allocation schema reaches from RuntimeSettings (request,
+    flush and Caido timeouts, the four export settings, both backoffs and
+    the failure signature status enum); it found the schema leaving the
+    Caido requestTimeoutSeconds unbounded, now 1 to 120 as in Go and
+    Python. Ruled out: RuntimeConfig documents and the public Operations
+    form, which keep export and retry optional (RCF-R100, RCF-R104), and
+    Planner telemetry, which the Server exports itself.
+  decision: >-
+    Guarantee: every allocation with Worker telemetry carries a complete
+    export object with its retry object, the RuntimeConfig's values or the
+    Server's defaults, and the Server, the Runtime and the private schema
+    all reject one without them; runtime-settings-bounds-cases.json pins the
+    defaults and every numeric bound for all three (make
+    test-wire-cross-language, plus a Scheduler test that a config without
+    export or retry sends the defaults). The defaults are applied when the
+    Scheduler builds RuntimeSettings, not when a RuntimeConfig is stored,
+    so stored documents and their digests are unchanged (RCF-R100, RCF-R104).
+    Go keeps the shared pointer types and requires them in
+    TelemetrySettings.Validate, because RuntimeConfig reuses
+    TelemetryExportSettings with an optional retry. The Runtime tests take
+    what the Server sends from the fixture (tests/fakes/telemetry.py).
+    Alternatives rejected: materializing the defaults into resolved
+    RuntimeConfigs (changes what Operations shows as configured) and
+    keeping Runtime defaults as a fallback (two copies, the defect).
+    Reversal: changing a default means editing the fixture's
+    serverDefaults with DefaultTelemetryExportSettings or
+    DefaultTelemetryRetrySettings.
+scope:
+  in:
+    - "The Server always sends export and retry with Go defaults; Python requires the field; api/testdata/v1alpha1/runtime-settings-bounds-cases.json for the numeric bounds."
+  out:
+    - "Default values."
+acceptance_criteria:
+  - id: A1
+    text: "Go and Python agree on every bound case; an allocation without settings carries the Server's values."
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "make test-wire-cross-language"
+    covers: [A1]
+  - command: "go test ./internal/scheduler ./internal/contracts/runtimesettings"
+    covers: [A1]

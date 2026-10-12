@@ -202,7 +202,11 @@ with strict type checking. Vite builds the browser bundle.
 
 **UI-R16.** The Node static server returns `index.html` for known
 client-route fallbacks, but never uses that fallback for assets,
-`/runtime-config.json` or unknown API-looking paths.
+`/runtime-config.json` or unknown API-looking paths. A route segment that names
+a configuration accepts exactly the grammar of its public schema
+(ConfigurationName and ConfigVersion, or RuntimeInfrastructureId and
+RuntimeConfigVersion for Runtime configurations), so a direct link to any valid
+version, including one with `+`, loads.
 
 **UI-R17.** TanStack Query is the only shared cache of Server state. It owns
 API queries, mutations, invalidation, refetch and the selected live-update
@@ -317,7 +321,10 @@ bottom) with the destinations and routes shown in [Navigation](#navigation).
 **UI-R39.** The Inbox at `/` puts decisions first, then blocked work, finished
 results and running checks. Inbox decisions are pending Audit reviews for
 finding triage of possible issues, active-check approval, requirement
-applicability and report acceptance.
+applicability and report acceptance that can still be decided: the Inbox and
+the rail badge read them from `GET /v1/reviews` with `state=pending`, which
+leaves out a request past its expiry ([REV-R198](../audits/review-and-reports.md)),
+as the workspace's pending count does (UI-R143).
 
 **UI-R40.** An Audit page under `/projects/:projectId/audits/:auditId` marks
 Checks as current in the rail.
@@ -812,8 +819,9 @@ entire normalized filter, finding and review filters, `auditRevision` and
 `asOf`, revision pins, signed continuation cursors and the revision fence that
 returns 409 on concurrent changes), the clearing of incompatible cursors and
 revision pins on a filter change, the explicit new context on refresh, and the
-summary-revision pin of Coverage links that the UI checks before and after
-collecting the current-round coverage pages, rejecting mixed revisions, are
+summary-revision pin of Coverage links that the UI checks before collecting
+the current-round coverage pages and the Server enforces on every page,
+rejecting mixed revisions, are
 specified in [Review and reports](../audits/review-and-reports.md) (REV-R171,
 REV-R172).
 
@@ -961,6 +969,7 @@ public API conventions are in [Public API](../api/public-api.md).
 | `/v1/queue` | Queue view | UI-R103 |
 | `/v1/runs` with `lifecycle=terminal` | Completed view | UI-R104, UI-R105 |
 | `GET /v1/audits/{auditId}/workspace` | Audit workspace snapshot | UI-R143, UI-R144 |
+| `GET /v1/reviews` with `state=pending` | Inbox decisions and the rail badge | UI-R39 |
 | `POST /v1/runs/{runId}/resume` | Continue from failed stage | [Runs](../execution/runs.md) RUN-R55 to RUN-R57 |
 
 Client routes owned here:

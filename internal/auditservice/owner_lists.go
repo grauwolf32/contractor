@@ -7,16 +7,13 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/pagelimit"
+	"github.com/grauwolf32/contractor/internal/projectstore"
 )
 
-const visibleAuditProjectSQL = `
- AND EXISTS (SELECT 1 FROM projects AS project
-   WHERE project.project_id = audit.project_id AND project.owner_id = audit.owner_id
-     AND project.kind = 'project' AND project.lifecycle_state = 'active'
-     AND NOT EXISTS (SELECT 1 FROM eval_submissions AS submission
-       JOIN eval_experiments AS experiment USING (experiment_id)
-       WHERE experiment.owner_id = project.owner_id
-         AND submission.execution_project_id = project.project_id))`
+// visibleAuditProjectSQL keeps an owner-wide list to the Audits of Projects
+// listed to their owner, by the rule the owner-wide Audit list applies.
+var visibleAuditProjectSQL = `
+ AND ` + projectstore.OwnerListedProjectSQL("audit.project_id", "audit.owner_id")
 
 func validateOwnerPage(ownerID string, limit int, before *time.Time, id string, states []auditstore.AuditState) error {
 	if !validReviewIdentity(ownerID, 256) || !pagelimit.ValidFetch(limit) ||
@@ -52,38 +49,28 @@ func (s *Service) ListOwnerFindings(ctx context.Context, params OwnerFindingList
 	}
 	defer rows.Close()
 	base := make([]findingRow, 0, params.Limit)
-	byAudit := make(map[string][]findingRow)
 	for rows.Next() {
 		row, err := scanFindingRow(rows)
 		if err != nil {
 			return nil, err
 		}
 		base = append(base, row)
-		byAudit[row.auditID] = append(byAudit[row.auditID], row)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
 	rows.Close()
-	// Receipt reads enforce each Audit hold. Batch by Audit, then restore the
-	// global keyset order; no unowned receipt can enter the projection.
-	byID := make(map[string]Finding, len(base))
-	for auditID, group := range byAudit {
-		findings, err := s.hydrateFindings(ctx, params.OwnerID, auditID, group)
-		if err != nil {
-			return nil, err
-		}
-		for _, finding := range findings {
-			byID[finding.FindingID] = finding
-		}
-	}
-	result := make([]Finding, len(base))
-	for i, row := range base {
-		result[i] = byID[row.findingID]
-	}
-	return result, nil
+	// Hydration reads every receipt through its finding's own Audit hold, for
+	// all Audits of the page at once; no unowned receipt can enter the
+	// projection.
+	return s.hydrateFindings(ctx, params.OwnerID, base)
 }
 
+// ListOwnerReviews lists the owner's review requests newest first. The
+// pending filter lists only requests that can still be decided: a stored
+// pending request past its expiry at the PostgreSQL clock is left out before
+// anything has expired it, as in the workspace's pending count. The decided
+// and expired filters and the unfiltered list use the stored state.
 func (s *Service) ListOwnerReviews(ctx context.Context, params OwnerReviewListParams) ([]ReviewRequest, error) {
 	if err := validateOwnerPage(params.OwnerID, params.Limit, params.BeforeCreatedAt, params.BeforeRequestID, params.AuditStates); err != nil {
 		return nil, err
@@ -94,6 +81,7 @@ func (s *Service) ListOwnerReviews(ctx context.Context, params OwnerReviewListPa
 	rows, err := s.pool.Query(ctx, reviewSelect+`
  WHERE audit.owner_id = $1`+visibleAuditProjectSQL+`
    AND ($2::text IS NULL OR request.state = $2)
+   AND ($2::text IS DISTINCT FROM 'pending' OR `+reviewUnexpiredSQL+`)
    AND ($3::timestamptz IS NULL OR (request.created_at, request.request_id) < ($3, $4))
    AND ($6::text[] IS NULL OR audit.state = ANY($6))
  ORDER BY request.created_at DESC, request.request_id DESC LIMIT $5`,

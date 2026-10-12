@@ -28,12 +28,12 @@ const (
 )
 
 type TelemetrySettings struct {
-	Adapter             contracts.RuntimeAdapterRef       `json:"adapter"`
-	Endpoint            string                            `json:"endpoint"`
-	Headers             map[string]contracts.SecretString `json:"headers"`
-	CaptureContent      bool                              `json:"captureContent"`
-	FlushTimeoutSeconds int                               `json:"flushTimeoutSeconds"`
-	Export              *TelemetryExportSettings          `json:"export,omitempty"`
+	Adapter             contracts.RuntimeAdapterRef       `json:"adapter" strictjson:"required"`
+	Endpoint            string                            `json:"endpoint" strictjson:"required"`
+	Headers             map[string]contracts.SecretString `json:"headers" strictjson:"required"`
+	CaptureContent      bool                              `json:"captureContent" strictjson:"required"`
+	FlushTimeoutSeconds int                               `json:"flushTimeoutSeconds" strictjson:"required"`
+	Export              *TelemetryExport                  `json:"export" strictjson:"required"`
 }
 
 func (s TelemetrySettings) Validate() error {
@@ -68,37 +68,40 @@ func (s TelemetrySettings) Validate() error {
 	if s.FlushTimeoutSeconds < 1 || s.FlushTimeoutSeconds > 10 {
 		return contracts.Invalidf("telemetry flushTimeoutSeconds must be from 1 through 10")
 	}
-	if s.Export != nil {
-		return s.Export.Validate()
+	// The Server pins every export value (RCF-R102): the allocation wire always
+	// carries the export block and its retry object, which a RuntimeConfig may
+	// omit, and the Runtime has no defaults of its own.
+	if s.Export == nil {
+		return contracts.Invalidf("telemetry export and its retry settings are required")
 	}
-	return nil
+	return s.Export.Validate()
 }
 
 type HTTPProxyBasicAuth struct {
-	Username contracts.SecretString `json:"username"`
-	Password contracts.SecretString `json:"password"`
+	Username contracts.SecretString `json:"username" strictjson:"required"`
+	Password contracts.SecretString `json:"password" strictjson:"required"`
 }
 
 type HTTPProxyTarget string
 
 type HTTPProxySettings struct {
-	Adapter     contracts.RuntimeAdapterRef `json:"adapter"`
-	ProxyURL    string                      `json:"proxyUrl"`
+	Adapter     contracts.RuntimeAdapterRef `json:"adapter" strictjson:"required"`
+	ProxyURL    string                      `json:"proxyUrl" strictjson:"required"`
 	BasicAuth   *HTTPProxyBasicAuth         `json:"basicAuth,omitempty"`
 	BearerToken *contracts.SecretString     `json:"bearerToken,omitempty"`
 	CABundlePEM *string                     `json:"caBundlePem,omitempty"`
-	Targets     []HTTPProxyTarget           `json:"targets"`
+	Targets     []HTTPProxyTarget           `json:"targets" strictjson:"required"`
 }
 
 // MaxCaidoRequestTimeoutSeconds bounds the Caido GraphQL request contract.
 const MaxCaidoRequestTimeoutSeconds = 120
 
 type CaidoSettings struct {
-	Adapter               contracts.RuntimeAdapterRef `json:"adapter"`
-	Endpoint              string                      `json:"endpoint"`
+	Adapter               contracts.RuntimeAdapterRef `json:"adapter" strictjson:"required"`
+	Endpoint              string                      `json:"endpoint" strictjson:"required"`
 	BearerToken           *contracts.SecretString     `json:"bearerToken,omitempty"`
 	CABundlePEM           *string                     `json:"caBundlePem,omitempty"`
-	RequestTimeoutSeconds int                         `json:"requestTimeoutSeconds"`
+	RequestTimeoutSeconds int                         `json:"requestTimeoutSeconds" strictjson:"required"`
 }
 
 func (s CaidoSettings) Validate() error {
@@ -177,12 +180,12 @@ type RuntimeSettings struct {
 	// LLMGatewayFailureSignatures carries the selected Gateway's declared set;
 	// absent means the protocol default, exactly as on the Gateway body.
 	LLMGatewayFailureSignatures *llmgateway.GatewayFailureSignatures `json:"llmGatewayFailureSignatures,omitempty"`
-	ArtifactAPIURL              string                               `json:"artifactApiUrl"`
+	ArtifactAPIURL              string                               `json:"artifactApiUrl" strictjson:"required"`
 	Telemetry                   *TelemetrySettings                   `json:"telemetry,omitempty"`
 	HTTPProxy                   *HTTPProxySettings                   `json:"httpProxy,omitempty"`
 	Caido                       *CaidoSettings                       `json:"caido,omitempty"`
 	HTTPOriginTarget            *HTTPOriginTargetSettings            `json:"httpOriginTarget,omitempty"`
-	RequestTimeoutSeconds       int                                  `json:"requestTimeoutSeconds"`
+	RequestTimeoutSeconds       int                                  `json:"requestTimeoutSeconds" strictjson:"required"`
 }
 
 // SecretValues returns the credential values materialized for one allocation.
@@ -275,6 +278,17 @@ type HTTPOriginTargetRef struct {
 	Credential *RuntimeCredentialRef `json:"credential,omitempty"`
 }
 
+// JSON members of HTTPOriginTargetRef, RuntimeCredentialRef and
+// ResolvedRuntimeConfigProvenance that credential deletion checks read from
+// stored Run and allocation snapshots. Renaming a tag must rename its
+// constant; internal/persistence pins both.
+const (
+	CredentialMember            = "credential"
+	CredentialIDMember          = "credentialId"
+	LLMCredentialMember         = "llmCredential"
+	RuntimeCredentialRefsMember = "runtimeCredentialRefs"
+)
+
 // Clone returns a copy that shares no credential with t. A nil target stays
 // nil.
 func (t *HTTPOriginTargetRef) Clone() *HTTPOriginTargetRef {
@@ -309,7 +323,7 @@ func (t HTTPOriginTargetRef) Validate() error {
 // HTTPOriginTargetSettings exists only in the allocation transport. Its
 // optional secret members are mutually exclusive and are never persisted.
 type HTTPOriginTargetSettings struct {
-	URL         string                  `json:"url"`
+	URL         string                  `json:"url" strictjson:"required"`
 	BasicAuth   *HTTPProxyBasicAuth     `json:"basicAuth,omitempty"`
 	BearerToken *contracts.SecretString `json:"bearerToken,omitempty"`
 }
@@ -346,9 +360,9 @@ type WorkerExecutionSettings struct {
 }
 
 type RuntimeConfigRef struct {
-	Name    string `json:"name"`
-	Version string `json:"version"`
-	Digest  string `json:"digest"`
+	Name    string `json:"name" strictjson:"required"`
+	Version string `json:"version" strictjson:"required"`
+	Digest  string `json:"digest" strictjson:"required"`
 }
 
 func (r RuntimeConfigRef) Validate() error {
@@ -365,24 +379,24 @@ func (r RuntimeConfigRef) Validate() error {
 }
 
 type RuntimeLabelBindingProvenance struct {
-	Label           string           `json:"label"`
-	BindingRevision uint64           `json:"bindingRevision"`
-	Config          RuntimeConfigRef `json:"config"`
+	Label           string           `json:"label" strictjson:"required"`
+	BindingRevision uint64           `json:"bindingRevision" strictjson:"required"`
+	Config          RuntimeConfigRef `json:"config" strictjson:"required"`
 }
 
 type RuntimeCredentialRef struct {
-	CredentialID string                          `json:"credentialId"`
-	Kind         contracts.RuntimeCredentialKind `json:"kind"`
+	CredentialID string                          `json:"credentialId" strictjson:"required"`
+	Kind         contracts.RuntimeCredentialKind `json:"kind" strictjson:"required"`
 }
 
 type ResolvedRuntimeConfigProvenance struct {
-	Default               RuntimeLabelBindingProvenance   `json:"default"`
-	RunLabels             []RuntimeLabelBindingProvenance `json:"runLabels"`
-	AgentLabels           []RuntimeLabelBindingProvenance `json:"agentLabels"`
-	RuntimeAdapters       []contracts.RuntimeAdapterRef   `json:"runtimeAdapters"`
+	Default               RuntimeLabelBindingProvenance   `json:"default" strictjson:"required"`
+	RunLabels             []RuntimeLabelBindingProvenance `json:"runLabels" strictjson:"required"`
+	AgentLabels           []RuntimeLabelBindingProvenance `json:"agentLabels" strictjson:"required"`
+	RuntimeAdapters       []contracts.RuntimeAdapterRef   `json:"runtimeAdapters" strictjson:"required"`
 	LLMGatewayConfig      *llmgateway.LLMGatewayConfigRef `json:"llmGatewayConfig,omitempty"`
 	LLMCredential         *llmgateway.LLMCredentialRef    `json:"llmCredential,omitempty"`
-	RuntimeCredentialRefs []RuntimeCredentialRef          `json:"runtimeCredentialRefs"`
+	RuntimeCredentialRefs []RuntimeCredentialRef          `json:"runtimeCredentialRefs" strictjson:"required"`
 }
 
 func (p ResolvedRuntimeConfigProvenance) Validate() error {

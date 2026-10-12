@@ -3708,6 +3708,8 @@ export interface components {
         AuditCoveragePage: {
             items: components["schemas"]["AuditCoverageRow"][];
             page: components["schemas"]["PageInfo"];
+            /** @description The Audit revision every row of this page was read at. */
+            auditRevision: number;
         };
         /** @enum {unknown} */
         AuditItemApprovalKind: "none" | "active-check-approval" | "requirement-applicability";
@@ -6158,6 +6160,8 @@ export interface components {
         /** @description Accepted for uniform mutation headers; the operation is idempotent by resource identity and does not bind the key. */
         OptionalIdempotencyKey: string;
         IfMatch: string;
+        /** @description One strong quoted Artifact revision in the `Revision` grammar. A malformed revision is 400 `invalid_request`, never a CAS conflict. */
+        ArtifactIfMatch: string;
         RequiredIfMatch: string;
         RequiredQueueControlIfMatch: string;
         IfNoneMatch: "*";
@@ -7811,7 +7815,8 @@ export interface operations {
                 /** @description Required for sessionCookie authentication; omitted for bearerAuth. */
                 "X-CSRF-Token"?: components["parameters"]["OptionalCSRFToken"];
                 "If-None-Match"?: "*";
-                "If-Match"?: string;
+                /** @description One strong quoted Artifact revision in the `Revision` grammar. A malformed revision is 400 `invalid_request`, never a CAS conflict. */
+                "If-Match"?: components["parameters"]["ArtifactIfMatch"];
             };
             path: {
                 namespace: components["parameters"]["ArtifactNamespace"];
@@ -7865,7 +7870,8 @@ export interface operations {
                 /** @description Required for sessionCookie authentication; omitted for bearerAuth. */
                 "X-CSRF-Token"?: components["parameters"]["OptionalCSRFToken"];
                 "If-None-Match"?: "*";
-                "If-Match"?: string;
+                /** @description One strong quoted Artifact revision in the `Revision` grammar. A malformed revision is 400 `invalid_request`, never a CAS conflict. */
+                "If-Match"?: components["parameters"]["ArtifactIfMatch"];
             };
             path: {
                 projectId: components["parameters"]["ProjectId"];
@@ -8278,7 +8284,8 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
-                "If-Match"?: components["parameters"]["IfMatch"];
+                /** @description One strong quoted Artifact revision in the `Revision` grammar. A malformed revision is 400 `invalid_request`, never a CAS conflict. */
+                "If-Match"?: components["parameters"]["ArtifactIfMatch"];
                 "If-None-Match"?: components["parameters"]["IfNoneMatch"];
                 /** @description Required with exact allowlist match when sessionCookie authenticates an unsafe request. */
                 Origin?: components["parameters"]["OptionalOrigin"];
@@ -8822,6 +8829,7 @@ export interface operations {
                 cursor?: components["parameters"]["Cursor"];
                 /** @description Comma-separated Audit states. */
                 auditState?: string;
+                /** @description pending lists only requests that can still be decided: a pending request past its expiresAt at the Server database clock is left out before anything has expired it. decided and expired match the stored state. */
                 state?: "pending" | "decided" | "expired";
             };
             header?: never;
@@ -9139,6 +9147,8 @@ export interface operations {
                 limit?: components["parameters"]["Limit"];
                 cursor?: components["parameters"]["Cursor"];
                 round?: components["schemas"]["ResourceId"];
+                /** @description Pin this page, and the current Round it defaults to, to one Audit revision. Every page is read at one revision; continuations bind the Round and revision; a stale revision returns 409. */
+                auditRevision?: number;
             };
             header?: never;
             path: {
@@ -9162,6 +9172,7 @@ export interface operations {
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
             500: components["responses"]["InternalError"];
             503: components["responses"]["StorageTransactionConflict"];
         };
@@ -10375,7 +10386,8 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
-                "If-Match"?: components["parameters"]["IfMatch"];
+                /** @description One strong quoted Artifact revision in the `Revision` grammar. A malformed revision is 400 `invalid_request`, never a CAS conflict. */
+                "If-Match"?: components["parameters"]["ArtifactIfMatch"];
                 "If-None-Match"?: components["parameters"]["IfNoneMatch"];
                 /** @description Required with exact allowlist match when sessionCookie authenticates an unsafe request. */
                 Origin?: components["parameters"]["OptionalOrigin"];

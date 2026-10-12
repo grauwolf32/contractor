@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-106 open tasks: 3 in progress, 89 pending, 14 deferred. 790 finished: 787 completed, 3 archived.
+76 open tasks: 3 in progress, 59 pending, 14 deferred. 848 finished: 845 completed, 3 archived.
 
 ## In progress
 
@@ -21,35 +21,19 @@ the epics are in [epics.yml](epics.yml).
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
-| [V368-011](v368-011-run-transitions-match-spec.yml) | defect | P1 | V368-010 | Allow only the Run transitions the spec defines |
-| [V368-017](v368-017-registration-permanent-failure.yml) | defect | P1 | — | Stop retrying a Runtime registration the Server rejected permanently |
-| [V368-019](v368-019-release-budget-timeouts.yml) | defect | P2 | — | Give each Scheduler timeout its own operation |
-| [V368-034](v368-034-gateway-recovery-followups.yml) | chore | P3 | — | Share the gateway recovery participant protocol and index the probe holder |
 | [V370-001](v370-001-run-stage-transition-owner.yml) | chore | P1 | V369-001 | Give Run and Stage state transitions one owner |
 | [V370-011](v370-011-scheduler-controlplane-surface.yml) | chore | P3 | — | Slim the Scheduler and Control Plane surfaces |
 | [V370-012](v370-012-runstore-runtimeconfig-cleanup.yml) | chore | P3 | — | Merge Run creation paths and split the Runtime principal registry |
-| [V370-019](v370-019-scheduler-polling-cost.yml) | defect | P1 | — | Cut steady-state Scheduler, A2A and gateway polling |
-| [V370-020](v370-020-scheduler-claim-and-tick-reads.yml) | defect | P2 | — | Bound the Scheduler claim and tick reads |
+| [V371-014](v371-014-scheduler-stage-history-reads.yml) | defect | P3 | — | Read only the Stage history fields escalation counting and cancellation cleanup use |
 
 ### Planners and the Worker model boundary (`planner-worker`)
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
-| [V368-025](v368-025-a2a-numbers-and-duplicates.yml) | defect | P2 | V368-002 | Decode A2A Worker results without float64 and with duplicate detection |
-| [V368-027](v368-027-unknown-diagnostic-phase.yml) | defect | P3 | — | Decide whether unknown Worker diagnostic kinds are dropped or rejected |
-| [V370-026](v370-026-worker-state-read-cost.yml) | defect | P3 | V368-002 | Cut the CPU cost of reading Worker State |
-
-### Runtime labels, configuration and credentials (`runtime-config`)
-
-| Task | Kind | Priority | Waiting for | Title |
-| --- | --- | --- | --- | --- |
-| [V368-021](v368-021-secretstring-marshal.yml) | defect | P2 | — | Stop SecretString from marshalling its plaintext |
-
-### Shared Memory tools (`memory`)
-
-| Task | Kind | Priority | Waiting for | Title |
-| --- | --- | --- | --- | --- |
-| [V368-018](v368-018-memory-reservation-drift.yml) | defect | P1 | — | Use one reserved-Memory-binding rule in Go and Python |
+| [V371-002](v371-002-worker-state-endpoint-contract.yml) | defect | P2 | — | Serve a schema-valid Worker State and classify its failures like the Server |
+| [V371-004](v371-004-worker-completion-exact-integers.yml) | defect | P3 | — | Bound WorkerCompletion integers to the range A2A carries exactly |
+| [V371-005](v371-005-worker-state-read-cost-guard.yml) | chore | P3 | — | Guard the Worker State read cost with a deterministic bound and re-measure it |
+| [V371-006](v371-006-workspace-observation-descriptor.yml) | chore | P3 | — | Take the Worker tools that observe the workspace from the shared Toolset descriptor |
 
 ### Scanner tool Workers and scan planning (`scan-tools`)
 
@@ -61,32 +45,21 @@ the epics are in [epics.yml](epics.yml).
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
-| [V368-009](v368-009-finding-receipt-retention.yml) | defect | P1 | — | Delete finding proposal receipts with their Project |
-| [V370-029](v370-029-collection-publication-batches.yml) | defect | P3 | — | Batch the finding collection publication reads |
+| [V371-010](v371-010-discarded-receipt-projection.yml) | defect | P2 | — | Drop the report projection of a proposal receipt discarded by Run deletion |
+| [V371-011](v371-011-proposal-quota-limits.yml) | chore | P3 | — | Register the per-Run proposal and per-proposal evidence quotas in the specification |
 
 ### Workflow catalog and document workflows (`workflows`)
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
-| [V368-004](v368-004-enforce-config-identity-immutability.yml) | defect | P1 | — | Detect in-place changes of published configuration identities |
-| [V368-014](v368-014-snapshot-size-on-write.yml) | defect | P1 | — | Reject oversized Workflow snapshots when the Run is created |
-| [V368-016](v368-016-worker-agent-name-grammar.yml) | defect | P1 | — | Validate Workflow agent names with the grammar Operations shows |
-| [V368-030](v368-030-llm-gateway-clone.yml) | defect | P3 | — | Deep-copy LLMGateway configuration in snapshot accessors |
-| [V369-006](v369-006-toolset-parity-fixture.yml) | chore | P2 | — | Extend the toolset parity fixture to the whole descriptor |
 | [V370-006](v370-006-config-model-split.yml) | chore | P2 | — | Separate the configuration data model from the catalog loader |
-| [V370-015](v370-015-simplify-config.yml) | chore | P3 | — | Remove duplicated code in config and catalog bundles |
-| [V370-030](v370-030-catalog-hot-paths.yml) | defect | P3 | — | Cache catalog fingerprints and decoded Workflow snapshots |
 
 ### Projects, artifacts and lifecycle controls (`projects-artifacts`)
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
-| [V368-022](v368-022-artifact-request-validation.yml) | defect | P2 | — | Tighten Artifact namespace and revision validation |
-| [V368-028](v368-028-blob-runtime-context.yml) | defect | P3 | — | Fail loudly when a filesystem blob operation has no blob runtime |
-| [V368-035](v368-035-publication-replay-cap.yml) | defect | P3 | — | Bound replays of a terminal commit that keeps failing on publication |
 | [V370-016](v370-016-simplify-artifacts.yml) | chore | P3 | — | Simplify the Artifact service and Runtime client |
-| [V370-024](v370-024-artifact-purge-bound.yml) | defect | P2 | — | Bound Artifact purge and the number of bindings per Run |
-| [V370-025](v370-025-artifact-read-efficiency.yml) | defect | P3 | — | Avoid full Artifact materialization and unindexed listing filters |
+| [V371-019](v371-019-audit-namespace-prefix-rule.yml) | chore | P3 | — | Use artifactpolicy's Audit namespace rule in the Audit namespace purge |
 
 ### Audits (`audits`)
 
@@ -106,80 +79,62 @@ the epics are in [epics.yml](epics.yml).
 | [V64-009](v64-009-audit-priority-ui.yml) | feature | P1 | V64-008 | Show Audit ranking progress, top-N selection and deferred checklist reasons |
 | [V64-010](v64-010-audit-priority-profile.yml) | feature | P1 | V64-008 | Publish a runnable prioritized custom-checklist Audit profile and guide |
 | [V64-011](v64-011-audit-priority-release.yml) | feature | P1 | V64-009, V64-010 | Verify contextual checklist prioritization across process and browser boundaries |
-| [V368-001](v368-001-bound-audit-report-finalization.yml) | defect | P1 | — | Bound and resume Audit report finalization |
-| [V368-006](v368-006-freeze-audit-artifacts.yml) | defect | P1 | — | Write Audit manifests, tasks and worklists frozen through one path |
-| [V368-023](v368-023-audit-api-bounds.yml) | defect | P2 | — | Bound the Audit start replay and validate action review keys |
-| [V370-003](v370-003-audit-event-allocator.yml) | chore | P1 | — | Allocate Audit events in one place |
-| [V370-004](v370-004-split-auditstore.yml) | chore | P2 | V370-003 | Split auditstore along its seams |
-| [V370-014](v370-014-simplify-audit.yml) | chore | P3 | — | Remove duplicated code in the Audit packages |
-| [V370-022](v370-022-batch-audit-reads.yml) | defect | P2 | — | Batch the Audit controller and owner finding reads |
-| [V370-027](v370-027-audit-write-and-read-cost.yml) | defect | P3 | V370-003 | Reduce Audit start and event listing costs |
+| [V370-004](v370-004-split-auditstore.yml) | chore | P2 | — | Split auditstore along its seams |
+| [V371-007](v371-007-fence-audit-artifact-writes.yml) | defect | P2 | — | Fence the Audit Controller's artifact writes against a purge by a newer claim |
+| [V371-008](v371-008-bounded-audit-deletion-steps.yml) | defect | P2 | — | Run the Audit deletion phase in bounded steps under its own budget |
+| [V371-009](v371-009-audit-list-preparation-batch.yml) | defect | P3 | — | Read the preparation state of a whole Audit page in bounded statements |
 
 ### Evaluations (`evals`)
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V40-003](v40-003-agent-instruction-eval-decision.yml) | feature | P1 | V40-002 | Evaluate instruction candidates and record evidence-based adoption decisions |
+| [V371-012](v371-012-eval-projection-lock-order.yml) | defect | P2 | — | Stop Eval member collection and Audit collection from deadlocking |
+| [V371-013](v371-013-eval-bounded-json-walker.yml) | chore | P3 | — | Read Eval JSON documents with strictjson.DecodeBounded |
 
 ### Web UI (`ui`)
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
-| [V368-012](v368-012-audit-ui-truth.yml) | defect | P1 | — | Show only decidable reviews and the real delete rule in the Audit UI |
-| [V368-015](v368-015-ui-config-grammars.yml) | defect | P1 | — | Validate configuration names in the UI with the shared fixtures |
-
-### Operations, authentication, CLI and deployment (`operations`)
-
-| Task | Kind | Priority | Waiting for | Title |
-| --- | --- | --- | --- | --- |
-| [V368-020](v368-020-telemetry-export-defaults.yml) | defect | P2 | — | Let the Server pin telemetry export settings |
+| [V371-020](v371-020-ui-resource-id-grammar.yml) | defect | P3 | — | Give the UI one ResourceId and Revision grammar and check revisions before If-Match |
 
 ### Public API and wire contracts (`api-contracts`)
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
-| [V368-002](v368-002-strict-wire-decoding.yml) | defect | P1 | — | Reject wire messages that omit required fields in Go |
-| [V368-005](v368-005-honest-error-retryability.yml) | defect | P1 | — | Make Artifact and configuration errors report the right retryability |
-| [V368-007](v368-007-strict-json-everywhere.yml) | defect | P1 | — | Decode every untrusted JSON body strictly |
-| [V368-008](v368-008-go-python-text-rules.yml) | defect | P1 | — | Share the workspace path, blank-text and byte-count rules between Go and Python |
-| [V368-013](v368-013-run-detail-cursor-snapshot.yml) | defect | P1 | — | Read the Run detail and its event cursor in one snapshot |
-| [V368-024](v368-024-resource-id-grammar.yml) | defect | P2 | — | Use one ResourceId and ConfigId grammar in every Go package |
-| [V368-031](v368-031-api-cli-polish.yml) | defect | P3 | — | Fix small public API and CLI inaccuracies |
-| [V368-032](v368-032-remove-legacy-digest-paths.yml) | chore | P3 | — | Remove backward-compatibility digest code |
 | [V369-002](v369-002-wire-gate-all-fixtures.yml) | chore | P1 | — | Run every shared fixture on both sides and mutate the schemas |
 | [V369-004](v369-004-route-table-and-operation-coverage.yml) | chore | P2 | — | Register routes from one table and validate every operation |
 | [V370-005](v370-005-contracts-kernel-domain.yml) | chore | P2 | — | Move domain logic out of the contracts kernel |
-| [V370-009](v370-009-context-handlers.yml) | chore | P2 | V368-013 | Split the public API handler by context with required dependencies |
-| [V370-010](v370-010-domain-error-kinds.yml) | chore | P2 | V368-005 | Classify domain errors through one error kind and a code registry |
-| [V370-013](v370-013-simplify-public-api.yml) | chore | P3 | — | Remove duplicated code in the public API handlers |
+| [V370-009](v370-009-context-handlers.yml) | chore | P2 | — | Split the public API handler by context with required dependencies |
+| [V370-010](v370-010-domain-error-kinds.yml) | chore | P2 | — | Classify domain errors through one error kind and a code registry |
 | [V370-017](v370-017-simplify-contracts.yml) | chore | P3 | — | Remove orphan schemas and lenient paths in the wire contracts |
-| [V370-021](v370-021-live-event-polling.yml) | defect | P2 | — | Poll Run events once per Run instead of once per subscription |
+| [V371-003](v371-003-reject-optional-member-null.yml) | defect | P3 | V371-002 | Reject explicit null for optional private-wire members and null map values |
+| [V371-016](v371-016-idempotency-key-grammar.yml) | defect | P3 | — | Give the Idempotency-Key grammar one Go definition |
+| [V371-017](v371-017-strong-etag-grammar.yml) | defect | P3 | — | Accept only RFC 9110 strong entity tags in If-Match |
+| [V371-018](v371-018-repeat-draft-description.yml) | chore | P3 | — | Remove the historical-request sentence from the repeat-draft OpenAPI description |
 
 ### PostgreSQL persistence and schema (`persistence`)
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
-| [V368-003](v368-003-classify-database-failures-once.yml) | defect | P1 | — | Classify database failures in one place |
-| [V368-026](v368-026-run-snapshot-json-paths.yml) | defect | P2 | — | Pin the JSON paths SQL reads from Go-encoded snapshots |
-| [V368-029](v368-029-dbtx-error-recovery.yml) | defect | P3 | — | Do not continue on a DBTX after a failed statement inside a transaction |
 | [V369-001](v369-001-table-ownership-test.yml) | chore | P1 | — | Assign every table an owner package and test SQL against it |
 | [V369-005](v369-005-sql-placement-concatenation.yml) | chore | P2 | — | Make the SQL placement check see concatenated statements |
 | [V370-002](v370-002-cross-context-writes.yml) | chore | P2 | V369-001 | Move the remaining cross-context table writes behind their owners |
 | [V370-007](v370-007-one-receipt-and-claim-mechanism.yml) | chore | P2 | — | Use one receipt and claim mechanism |
-| [V370-018](v370-018-simplify-persistence.yml) | chore | P3 | — | Remove duplicated transaction helpers in persistence callers |
-| [V370-023](v370-023-audit-purge-fk-indexes.yml) | defect | P2 | — | Index the foreign keys Audit purge checks and test all of them |
-| [V370-028](v370-028-run-event-trigger-cost.yml) | defect | P3 | — | Skip trigger work for Run event appends |
 
 ### Quality, CI and process (`quality`)
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V347-001](v347-001-protect-main-branch.yml) | chore | P1 | — | Protect main with a required check |
-| [V368-010](v368-010-fakes-match-stores.yml) | defect | P1 | — | Make test fakes enforce the same rules as the real stores |
-| [V368-033](v368-033-test-fidelity-followups.yml) | chore | P3 | — | Close test gaps the fix batch left |
-| [V369-003](v369-003-release-gate-coverage.yml) | chore | P1 | — | Add the missing checks to the release gate |
 | [V369-007](v369-007-unused-export-lint.yml) | chore | P3 | V370-008 | Fail lint on exported identifiers used only by tests |
 | [V370-008](v370-008-remove-test-only-exports.yml) | chore | P3 | — | Remove exported surface that only tests use |
+| [V371-015](v371-015-memory-claim-paused-skip.yml) | chore | P3 | — | Model the paused-owner claim skip in the Scheduler's memory store doubles |
+| [V371-021](v371-021-postgres-test-wall-clock.yml) | chore | P3 | — | Replace wall-clock budgets in the Scheduler and runstore PostgreSQL tests |
+| [V371-022](v371-022-capability-probe-test-budget.yml) | chore | P3 | — | Remove the 10 ms probe budget from the capability discovery tests |
+| [V371-023](v371-023-audit-route-test-timeouts.yml) | chore | P3 | — | Keep the Audit route UI tests within their timeout under load |
+| [V371-024](v371-024-browser-gate-ci-artifacts.yml) | chore | P3 | — | Keep browser gate screenshots and traces where CI uploads them |
+| [V371-025](v371-025-pnpm-root-invocation.yml) | chore | P3 | — | Document a pnpm invocation that works from the repository root |
 
 ## Deferred
 
@@ -207,23 +162,23 @@ tasks in `introduced_by`.
 
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Run execution core (`execution-core`) | 9 | 36 | 44 | 9 | 62 |
-| Planners and the Worker model boundary (`planner-worker`) | 3 | 23 | 34 | 7 | 41 |
-| Runtime labels, configuration and credentials (`runtime-config`) | 10 | 25 | 11 | 2 | 35 |
-| Shared Memory tools (`memory`) | 1 | 6 | 8 | 1 | 11 |
+| Run execution core (`execution-core`) | 4 | 36 | 45 | 9 | 63 |
+| Planners and the Worker model boundary (`planner-worker`) | 4 | 23 | 36 | 9 | 44 |
+| Runtime labels, configuration and credentials (`runtime-config`) | 9 | 25 | 11 | 2 | 37 |
+| Shared Memory tools (`memory`) | 0 | 6 | 8 | 1 | 11 |
 | Agent Skills (`agent-skills`) | 0 | 10 | 2 | 1 | 1 |
 | Run workspaces and project filesystem (`workspaces`) | 0 | 16 | 12 | 4 | 15 |
 | Code analysis and taint annotations (`code-analysis`) | 0 | 13 | 12 | 2 | 17 |
 | HTTP and Caido tools (`http-tools`) | 0 | 8 | 11 | 1 | 10 |
 | Scanner tool Workers and scan planning (`scan-tools`) | 1 | 10 | 4 | 1 | 7 |
-| Findings tools and collections (`findings`) | 2 | 7 | 4 | 1 | 6 |
-| Workflow catalog and document workflows (`workflows`) | 8 | 13 | 13 | 8 | 11 |
-| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 6 | 27 | 31 | 3 | 32 |
-| Audits (`audits`) | 26 | 49 | 64 | 12 | 70 |
-| Evaluations (`evals`) | 2 | 21 | 26 | 4 | 33 |
+| Findings tools and collections (`findings`) | 2 | 7 | 5 | 2 | 7 |
+| Workflow catalog and document workflows (`workflows`) | 1 | 13 | 13 | 8 | 11 |
+| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 2 | 27 | 31 | 4 | 34 |
+| Audits (`audits`) | 22 | 49 | 67 | 12 | 75 |
+| Evaluations (`evals`) | 4 | 21 | 28 | 5 | 33 |
 | Podman sandbox (`sandbox`) | 0 | 8 | 1 | 1 | 2 |
-| Web UI (`ui`) | 2 | 19 | 51 | 10 | 46 |
-| Operations, authentication, CLI and deployment (`operations`) | 1 | 8 | 30 | 4 | 6 |
-| Public API and wire contracts (`api-contracts`) | 16 | 1 | 24 | 16 | 6 |
-| PostgreSQL persistence and schema (`persistence`) | 11 | 0 | 17 | 29 | 3 |
-| Quality, CI and process (`quality`) | 8 | 1 | 15 | 65 | 15 |
+| Web UI (`ui`) | 1 | 19 | 52 | 10 | 48 |
+| Operations, authentication, CLI and deployment (`operations`) | 0 | 8 | 30 | 4 | 6 |
+| Public API and wire contracts (`api-contracts`) | 10 | 1 | 27 | 17 | 7 |
+| PostgreSQL persistence and schema (`persistence`) | 5 | 0 | 17 | 29 | 4 |
+| Quality, CI and process (`quality`) | 11 | 1 | 18 | 71 | 15 |

@@ -14,6 +14,7 @@ from pydantic import (
 from contractor_runtime.contracts.artifacts import ArtifactRef
 from contractor_runtime.contracts.base import (
     ARTIFACT_NAME_PATTERN,
+    NAME_PATTERN,
     TerminationError,
     VersionedWireModel,
     WireModel,
@@ -141,10 +142,11 @@ class AllocationSpec(VersionedWireModel):
             ("allocationId", self.allocation_id),
             ("runId", self.run_id),
             ("stageExecutionId", self.stage_execution_id),
-            ("logicalAgentName", self.logical_agent_name),
             ("namespace", self.namespace),
         ):
             _require_text(field, value)
+        if NAME_PATTERN.fullmatch(self.logical_agent_name) is None:
+            raise ValueError("logicalAgentName must be a name of at most 128 characters")
         if ARTIFACT_NAME_PATTERN.fullmatch(self.namespace) is None:
             raise ValueError(
                 "namespace must be a portable ASCII Artifact name of 1 through 128 characters"

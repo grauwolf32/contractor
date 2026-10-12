@@ -17,13 +17,12 @@ import (
 )
 
 var (
-	resourceIDPattern     = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$`)
 	idempotencyKeyPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$`)
 	eventKindPattern      = regexp.MustCompile(`^[a-z][a-z0-9_.-]{0,127}$`)
 )
 
 func validateID(field, value string) error {
-	if !resourceIDPattern.MatchString(value) {
+	if !contracts.ValidResourceID(value) {
 		return invalidf("%s is invalid", field)
 	}
 	return nil
@@ -120,9 +119,6 @@ func validateList(params ListParams) error {
 		if err := validateID("projectID", *params.ProjectID); err != nil {
 			return err
 		}
-	}
-	if params.State != nil && !params.State.Valid() {
-		return invalidf("Audit state is invalid")
 	}
 	for _, state := range params.States {
 		if !state.Valid() {
@@ -294,7 +290,12 @@ func ownerTransitionAllowed(from, to AuditState) bool {
 	return false
 }
 
-func validateClaimedTransition(params ClaimedTransitionParams) error {
+// ValidateClaimedTransition is the check TransitionClaimed applies before its
+// compare-and-set: it returns ErrInvalid for a claim identity, revision or
+// transition the store refuses (transitionAllowed, without draft to active,
+// which only the start of preparation performs). Test doubles of
+// TransitionClaimed apply it too, so they reject what the store rejects.
+func ValidateClaimedTransition(params ClaimedTransitionParams) error {
 	if err := validateClaimIdentity(params.Claim); err != nil {
 		return err
 	}

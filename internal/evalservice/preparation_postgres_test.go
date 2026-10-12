@@ -8,6 +8,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 	"github.com/grauwolf32/contractor/internal/evalstore"
+	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
@@ -85,7 +86,7 @@ func TestPostgresEvalPreparationDatabaseFailureIsRetryable(t *testing.T) {
 	coordinator := h.coordinator(t, "database-recovery")
 	_, err := coordinator.RunOnce(t.Context())
 	var database *pgconn.PgError
-	if !errors.As(err, &database) || database.Code != "42P01" {
+	if !errors.As(err, &database) || database.Code != persistencepostgres.SQLStateUndefinedTable {
 		t.Fatalf("lost original database error: %v", err)
 	}
 	e = h.get(t, e.ID)

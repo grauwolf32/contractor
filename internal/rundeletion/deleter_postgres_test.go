@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -109,26 +110,24 @@ INSERT INTO stage_allocations (
 	}
 }
 
-func TestPostgresDeletionLocksRequireTransaction(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-	pool := isolatedDeletionPool(t, ctx)
-	createDeletionRun(t, ctx, pool, "user-1", "run-done", runstore.RunSucceeded)
-	runs := runstore.NewPostgresStore(pool)
-	if _, err := runs.LockRunForDeletion(ctx, "user-1", "run-done"); err == nil ||
-		!strings.Contains(err.Error(), "transaction-backed store is required") {
-		t.Fatalf("pool-backed Run lock error = %v", err)
-	}
-	if err := runs.DeleteLockedRun(ctx, "user-1", "run-done"); err == nil ||
-		!strings.Contains(err.Error(), "transaction-backed store is required") {
-		t.Fatalf("pool-backed Run delete error = %v", err)
-	}
-	if _, err := auditstore.NewPostgresStore(pool).LockRunDeletionAudits(ctx, "user-1", "run-done"); err == nil ||
-		!strings.Contains(err.Error(), "transaction-backed store is required") {
-		t.Fatalf("pool-backed Audit lock error = %v", err)
-	}
-	if _, err := runs.GetRun(ctx, "run-done"); err != nil {
-		t.Fatalf("refused steps changed the Run: %v", err)
+// The deletion locks must last until the Run is deleted, so they exist only
+// on the stores bound to the caller's transaction: a store that can be
+// backed by a pool has no such step.
+func TestDeletionLocksRequireTransaction(t *testing.T) {
+	for _, step := range []struct {
+		pool, tx any
+		method   string
+	}{
+		{(*runstore.PostgresStore)(nil), (*runstore.PostgresTxStore)(nil), "LockRunForDeletion"},
+		{(*runstore.PostgresStore)(nil), (*runstore.PostgresTxStore)(nil), "DeleteLockedRun"},
+		{(*auditstore.PostgresStore)(nil), (*auditstore.PostgresTxStore)(nil), "LockRunDeletionAudits"},
+	} {
+		if _, found := reflect.TypeOf(step.pool).MethodByName(step.method); found {
+			t.Errorf("%T.%s is available outside a transaction", step.pool, step.method)
+		}
+		if _, found := reflect.TypeOf(step.tx).MethodByName(step.method); !found {
+			t.Errorf("%T.%s is missing", step.tx, step.method)
+		}
 	}
 }
 
@@ -158,10 +157,13 @@ func createDeletionRun(
 	}
 	from := runstore.RunInitializing
 	if state != runstore.RunFailed {
-		if _, err := runs.TransitionRun(ctx, runID, from, runstore.RunRunning, runstore.Reason{Code: "started"}); err != nil {
-			t.Fatal(err)
+		// A Run reaches running only through pending (RUN-R26, RUN-R28).
+		for _, next := range []runstore.WorkflowRunState{runstore.RunPending, runstore.RunRunning} {
+			if _, err := runs.TransitionRun(ctx, runID, from, next, runstore.Reason{Code: "started"}); err != nil {
+				t.Fatal(err)
+			}
+			from = next
 		}
-		from = runstore.RunRunning
 	}
 	if state != from {
 		if _, err := runs.TransitionRun(ctx, runID, from, state, runstore.Reason{Code: "finished"}); err != nil {

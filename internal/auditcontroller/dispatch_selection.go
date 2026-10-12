@@ -21,26 +21,25 @@ func (c *Controller) dispatchReadyBatch(ctx context.Context, claim auditstore.Co
 		return false, nil
 	}
 
-	selected := make([]CheckExecutionMember, 0, min(audit.Limits.BatchSize, auditstore.MaxCollectionItems))
-	var binding config.ResolvedAuditWorkflowBinding
-	profile, profileErr := config.DecodeResolvedAuditProfileSnapshot(audit.ProfileSnapshot)
-	for _, item := range snapshot.ReadyItems {
-		if item.State != auditstore.ItemReady || item.RoundID != snapshot.Round.RoundID {
-			continue
-		}
-		if len(selected) != 0 && (!sameBatchEnvelope(selected[0].Item, item) ||
-			profileErr == nil && !sameItemParameterEnvelope(binding, selected[0].Item, item)) {
-			continue
-		}
-		if len(selected) == 0 && profileErr == nil {
-			binding = profile.Workflows[item.WorkflowRole]
-		}
-		attempt, err := c.store.NextItemAttempt(ctx, claim, item.ItemID)
-		if errors.Is(err, auditstore.ErrPrecondition) {
+	candidates := batchCandidates(snapshot)
+	if len(candidates) == 0 {
+		return false, nil
+	}
+	itemIDs := make([]string, len(candidates))
+	for index, item := range candidates {
+		itemIDs[index] = item.ItemID
+	}
+	attempts, err := c.store.NextItemAttempts(ctx, claim, itemIDs)
+	if err != nil {
+		return false, err
+	}
+	selected := make([]CheckExecutionMember, 0, len(candidates))
+	for _, item := range candidates {
+		attempt, ready := attempts[item.ItemID]
+		if !ready {
+			// The item left ready after the snapshot; a later authoritative
+			// snapshot decides the batch.
 			return false, nil
-		}
-		if err != nil {
-			return false, err
 		}
 		if attempt > audit.Limits.MaxItemRunAttempts {
 			reason := auditstore.StopReason{
@@ -55,14 +54,41 @@ func (c *Controller) dispatchReadyBatch(ctx context.Context, claim auditstore.Co
 			return err == nil, err
 		}
 		selected = append(selected, CheckExecutionMember{Item: item, Attempt: attempt})
-		if len(selected) == audit.Limits.BatchSize || len(selected) == auditstore.MaxCollectionItems {
+	}
+	return c.dispatch(ctx, claim, snapshot, selected)
+}
+
+// batchCandidates is the ordered check batch the next dispatch may reserve:
+// the lowest-ordinal ready item of the current Round and the later ready items
+// that share its batch and parameter envelope, up to the batch size. Their
+// next attempts are read together, so selecting a batch costs one statement
+// whatever its size.
+func batchCandidates(snapshot auditstore.ReconcileSnapshot) []auditstore.Item {
+	audit := snapshot.Audit
+	limit := min(audit.Limits.BatchSize, auditstore.MaxCollectionItems)
+	if limit < 1 {
+		return nil
+	}
+	candidates := make([]auditstore.Item, 0, limit)
+	var binding config.ResolvedAuditWorkflowBinding
+	profile, profileErr := config.DecodeResolvedAuditProfileSnapshot(audit.ProfileSnapshot)
+	for _, item := range snapshot.ReadyItems {
+		if item.State != auditstore.ItemReady || item.RoundID != snapshot.Round.RoundID {
+			continue
+		}
+		if len(candidates) != 0 && (!sameBatchEnvelope(candidates[0], item) ||
+			profileErr == nil && !sameItemParameterEnvelope(binding, candidates[0], item)) {
+			continue
+		}
+		if len(candidates) == 0 && profileErr == nil {
+			binding = profile.Workflows[item.WorkflowRole]
+		}
+		candidates = append(candidates, item)
+		if len(candidates) == limit {
 			break
 		}
 	}
-	if len(selected) != 0 {
-		return c.dispatch(ctx, claim, snapshot, selected)
-	}
-	return false, nil
+	return candidates
 }
 
 func sameBatchEnvelope(left, right auditstore.Item) bool {

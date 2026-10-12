@@ -271,12 +271,13 @@ func seedPublicPaginationFinding(t *testing.T, ctx context.Context, pool *pgxpoo
 	if err != nil {
 		t.Fatal(err)
 	}
-	projectArtifacts, err := artifacts.NewService(artifacts.NewPostgresRepository(pool)).Project(projectID)
+	projection, err := auditdomain.EncodeFindingReportProjection(auditdomain.ProjectFindingReport(document))
 	if err != nil {
 		t.Fatal(err)
 	}
-	written, err := projectArtifacts.Write(ctx, contracts.ArtifactRef{Namespace: "audit-proposals", Name: document.ClientKey},
-		artifacts.Payload{MediaType: "application/json", Data: payload}, nil)
+	written, err := artifacts.NewService(artifacts.NewPostgresRepository(pool)).WriteAuditArtifact(ctx, projectID,
+		contracts.ArtifactRef{Namespace: "audit-proposals", Name: document.ClientKey},
+		artifacts.Payload{MediaType: "application/json", Data: payload})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -291,13 +292,15 @@ INSERT INTO finding_proposal_receipts (
     stage_execution_id, logical_agent_name, invocation_id, submission_id, client_key,
     request_digest, run_id, owner_id, project_id, workflow_name, workflow_version,
     workflow_schema_version, workflow_configuration_ref, workflow_closure_digest,
-    proposal_ref, proposal_digest, proposal_media_type, proposal_size_bytes, evidence
+    proposal_ref, proposal_digest, proposal_media_type, proposal_size_bytes, evidence,
+    report_projection
 ) VALUES ($1, $2, $3, 'runtime-pages', 'instance-pages', 'stage-pages', 'worker', $4, $5, $6,
     $7, $8, $9, $10, 'finding-source', '1', 'contractor/v1alpha1',
-    '{"name":"finding-source","version":"1"}'::jsonb, $11, $12::jsonb, $13, 'application/json', $14, '[]'::jsonb)`,
+    '{"name":"finding-source","version":"1"}'::jsonb, $11, $12::jsonb, $13, 'application/json', $14, '[]'::jsonb, $15)`,
 		receiptID, "proposal-"+suffix, "allocation-"+suffix, "invocation-"+suffix, "submission-"+suffix,
 		document.ClientKey, auditHandlerDigest("request-"+suffix), "deleted-run-"+suffix,
-		ownerID, projectID, auditHandlerDigest("workflow"), refJSON, proposal.Digest, proposal.SizeBytes)
+		ownerID, projectID, auditHandlerDigest("workflow"), refJSON, proposal.Digest, proposal.SizeBytes,
+		string(projection))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -311,6 +311,8 @@ func runBrowserStack(t *testing.T, evalMode string) {
 	// These fixture journeys back the named Project, Audit, lifecycle,
 	// Scheduler and Performance browser gates alongside the real stack.
 	// Scan and managed Evals retain their own process fixtures and invocations.
+	// studio-catalog loads every shipped definition in configs/ into Studio;
+	// unit tests may not read configs/, so the real catalog is checked here.
 	requiredBrowserSpecs := []string{
 		"e2e/stack.spec.ts",
 		"e2e/audits.spec.ts",
@@ -319,6 +321,7 @@ func runBrowserStack(t *testing.T, evalMode string) {
 		"e2e/run-repeat.spec.ts",
 		"e2e/scheduler-settings.spec.ts",
 		"e2e/performance.spec.ts",
+		"e2e/studio-catalog.spec.ts",
 	}
 	browserReport := filepath.Join(temporaryRoot, "browser-report.json")
 	if evidence := os.Getenv("CONTRACTOR_UI_EVIDENCE_DIR"); evidence != "" {

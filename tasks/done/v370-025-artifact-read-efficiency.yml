@@ -1,0 +1,84 @@
+schema_version: "1.0"
+id: V370-025
+title: "Avoid full Artifact materialization and unindexed listing filters"
+milestone: hub-audit-structure-2026-10
+epic: projects-artifacts
+kind: defect
+priority: P3
+status: completed
+implementation_commit: a32edc96eee99d96e1ccc785f85675d9e3229228
+depends_on: []
+languages: [go, python]
+goal: "EXPLAIN uses the PK for the Project list; a binary read is rejected before download."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq; raw reports in docs/research/2026-10-11-hub-audit/), artifacts I2, I4, I6; file:line as of 02bbdcbf, re-verify on current main"
+  specification:
+    - docs/spec/artifacts/artifact-store.md#ART-R115
+    - docs/spec/artifacts/artifact-store.md#ART-R116
+    - docs/spec/artifacts/artifact-store.md#ART-R117
+  finding: >-
+    ListMetadata excludes audit-* with left(namespace, length($5)) <> $5
+    (postgres_query.go:77), which no index serves; Python read_artifact
+    downloads up to 64 MiB for a 256 KiB page and rejects binaries only
+    afterwards (run_artifacts/tools.py:163-174); Run detail pages through
+    all inputs and outputs on every poll.
+  siblings: >-
+    Fixed: read_text_artifact shares the read cache and refuses binary media
+    the same way as read_artifact; versionless pages of both no longer
+    download a cached revision again. Ruled out: the private paged listing
+    (ART-R48) filters hidden names on the primary key, but LIM-ART-6 now
+    bounds the rows a page can pass over; the UserScope listing excludes only
+    the audit-standards catalog, a handful of bindings; the Run listing
+    excludes one exact system namespace.
+  decision: >-
+    Project listing: a partial index (scope_id, namespace, name) WHERE
+    scope_kind = 'project' AND namespace NOT LIKE 'audit-%', which the Project
+    listing query repeats literally, instead of the review's primary-key range
+    namespace < 'audit-' OR namespace >= 'audit.'. That range is wrong under
+    the test database's en_US collation: punctuation is ignored at the first
+    level, so audit-0abc sorts outside [audit-, audit.) and between audit0 and
+    auditab, and the range would leak Audit bindings into the listing. So
+    EXPLAIN shows the listing index, not the primary key; the paging test
+    reads at most 20 binding rows where the prefix filter read 36,030,006.
+    Reopen if the artifact name columns move to the C collation; then a
+    primary-key range suffices. Binary reads: a JSON metadata route mirroring
+    the public .../metadata route (ArtifactReadResult), not HEAD, because the
+    Runtime's HTTP client reads a body for every response and a HEAD error
+    carries no error code; and a media-type rule (ART-R117) rather than a
+    Range read, because read_text_artifact needs the whole text for line
+    numbers and the Server still loads the whole payload for a range. Run
+    detail: not changed. outputs is Scheduler-only, so declared outputs bound
+    it; inputs also holds Worker-created bindings until V368-022 decides
+    whether Workers may create them (artifacts G7), and LIM-ART-6 bounds the
+    worst case. Projecting only the declared slots from the Workflow snapshot
+    was rejected for now: it changes the public detail and the fixtures of
+    several public handler tests that build Runs without a snapshot
+    (TestRunDetailReadsEveryArtifactMetadataPage pins reading every page).
+    Reopen if V368-022 keeps Worker-created inputs.
+scope:
+  in:
+    - "Range exclusion; metadata or Range reads before download; bounded Run detail artifact projection."
+  out:
+    - "Results."
+acceptance_criteria:
+  - id: A1
+    text: "EXPLAIN uses the PK for the Project list; a binary read is rejected before download."
+    evidence: >-
+      TestPostgresIntegrationProjectListingSkipsAuditNamespacesByIndex
+      (internal/artifacts, both backends) pages five listable bindings past
+      6,000 Audit-managed ones in the en_US test database, reads at most 20
+      binding rows (36,030,006 with the old filter), and EXPLAIN (ANALYZE)
+      shows one scan of artifact_bindings_project_listing_idx with no rows
+      removed by filter. TestPostgresBinaryReadIsRefusedBeforeDownload runs
+      the Python read_artifact tool against the Go private API: the archive is
+      refused and the only GET is its metadata. Python tests cover both read
+      tools, the versionless cache reuse and the client metadata read.
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "go test -tags integration ./internal/artifacts ./internal/httpapi/privateartifacts"
+    covers: [A1]
+  - command: "cd runtime && uv run pytest tests -k read_artifact"
+    covers: [A1]
+  - command: "cd runtime && uv run pytest tests/test_run_artifacts_toolset.py tests/test_text_artifacts_toolset.py tests/test_artifacts.py"
+    covers: [A1]

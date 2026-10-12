@@ -50,8 +50,8 @@ func TestPostgresTrustedAuditRunIsAtomicReplayableAndPinsExactSkill(t *testing.T
 		t.Fatal(err)
 	}
 	source := writeExact(t, ctx, projectArtifacts, "sources", "application", "text/plain", []byte("source"))
-	task := writeExact(t, ctx, projectArtifacts, "audit-test", "task", "application/zip", []byte("task"))
-	manifest := writeExact(t, ctx, projectArtifacts, "audit-test", "manifest", "application/zip", []byte("manifest"))
+	task := writeAuditExact(t, ctx, artifactService, project.ProjectID, "task", "application/zip", []byte("task"))
+	manifest := writeAuditExact(t, ctx, artifactService, project.ProjectID, "manifest", "application/zip", []byte("manifest"))
 
 	userArtifacts, err := artifactService.User("owner-run-service")
 	if err != nil {
@@ -125,7 +125,7 @@ func TestPostgresTrustedAuditRunIsAtomicReplayableAndPinsExactSkill(t *testing.T
 		t.Fatal(err)
 	}
 
-	manager, err := configload.NewManager(config.ManagerOptions{
+	manager, _, err := configload.NewManager(config.ManagerOptions{
 		OperatorRoot: filepath.Join("..", "config", "testdata", "valid"),
 		ManagedRoot:  filepath.Join(t.TempDir(), "managed"), Descriptors: config.MVPDescriptors(),
 	})
@@ -157,7 +157,7 @@ func TestPostgresTrustedAuditRunIsAtomicReplayableAndPinsExactSkill(t *testing.T
 			RuntimeConfig: runtimeconfig.BuiltInRunSnapshot(),
 		},
 		AuditExecutionID: execution.ExecutionID, AuditSubmissionKey: execution.SubmissionKey,
-	}); persistencepostgres.SQLState(err) != "23514" {
+	}); persistencepostgres.SQLState(err) != persistencepostgres.SQLStateCheckViolation {
 		t.Fatalf("unbound Audit-managed Run error = %v", err)
 	}
 	if _, err := runstore.NewPostgresStore(pool).GetRun(ctx, "run-orphan-must-rollback"); !errors.Is(err, runstore.ErrNotFound) {
@@ -315,6 +315,28 @@ func writeExact(
 	return auditstore.ExactArtifact{
 		Ref: metadata.Ref, Digest: metadata.Digest, MediaType: metadata.MediaType, SizeBytes: metadata.Size,
 	}
+}
+
+// writeAuditExact writes an Audit-managed Project artifact as the Audit
+// services do: frozen, through WriteAuditArtifact.
+func writeAuditExact(
+	t *testing.T,
+	ctx context.Context,
+	service *artifacts.Service,
+	projectID string,
+	name string,
+	mediaType string,
+	payload []byte,
+) auditstore.ExactArtifact {
+	t.Helper()
+	written, err := service.WriteAuditArtifact(
+		ctx, projectID, contracts.ArtifactRef{Namespace: "audit-test", Name: name},
+		artifacts.Payload{MediaType: mediaType, Data: payload},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return contracts.ExactContent(written.Ref, written.MediaType, payload)
 }
 
 func addWorkflowSkill(workflow *config.ResolvedWorkflow, skill contracts.ArtifactRef) {

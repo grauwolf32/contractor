@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -40,9 +41,6 @@ func InTx(
 		}
 	}()
 
-	if err := ApplyTransactionBudget(ctx, tx); err != nil {
-		return err
-	}
 	if err := fn(tx); err != nil {
 		return err
 	}
@@ -53,12 +51,34 @@ func InTx(
 }
 
 // BeginTx starts a transaction for a caller that must own and classify its
-// commit itself. Like InTx, the transaction runs AfterCommit effects only after
-// a definite commit; the caller must Commit or Rollback it.
+// commit itself, under the same transaction budget as InTx (an operation
+// budget selected on ctx). Like InTx, the transaction runs AfterCommit effects
+// only after a definite commit; the caller must Commit or Rollback it.
 func BeginTx(ctx context.Context, pool *pgxpool.Pool, options pgx.TxOptions) (pgx.Tx, error) {
 	tx, err := pool.BeginTx(ctx, options)
 	if err != nil {
 		return nil, err
 	}
+	if err := ApplyTransactionBudget(ctx, tx); err != nil {
+		rollbackCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+		defer cancel()
+		_ = tx.Rollback(rollbackCtx)
+		return nil, err
+	}
 	return &commitTx{Tx: tx}, nil
+}
+
+// Within runs fn in a transaction on db, for a store that serves both a pool
+// and a caller's transaction. On a pool it is InTxWithRetry, so fn must be
+// replay-safe; on a caller's transaction fn runs once inside it, and the
+// caller owns the isolation level, the commit and any retry.
+func Within(ctx context.Context, db DBTX, options pgx.TxOptions, fn func(pgx.Tx) error) error {
+	switch db := db.(type) {
+	case *pgxpool.Pool:
+		return InTxWithRetry(ctx, db, options, fn)
+	case pgx.Tx:
+		return fn(db)
+	default:
+		return errors.New("a PostgreSQL pool or transaction is required")
+	}
 }

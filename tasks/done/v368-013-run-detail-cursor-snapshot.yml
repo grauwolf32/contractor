@@ -1,0 +1,67 @@
+schema_version: "1.0"
+id: V368-013
+title: "Read the Run detail and its event cursor in one snapshot"
+milestone: hub-audit-defects-2026-10
+epic: api-contracts
+kind: defect
+introduced_by: V4-001A
+priority: P1
+status: completed
+implementation_commit: a09e1f89feb8eb778c7e774d6c57b86f2dd68bd6
+depends_on: []
+languages: [go]
+goal: "A test interleaves a terminal transition between reads and the response stays consistent with its cursor."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq; raw reports in docs/research/2026-10-11-hub-audit/), public API G5, I2; file:line as of 02bbdcbf, re-verify on current main"
+  finding: >-
+    getRun reads the Run (run_handlers.go:447) and GetRunEventCursor (:484)
+    five reads apart and not in one snapshot; a terminal transition
+    committed in between makes the UI show Running until reload (API-R48).
+    The handler makes 14 sequential reads (run_handlers.go:438-535,
+    run_detail_batch.go:22-60).
+  specification:
+    - docs/spec/execution/runs.md#RUN-R87
+    - docs/spec/execution/runs.md#RUN-R90
+    - docs/spec/api/public-api.md#API-R48
+  decision: >-
+    Confirmed on fc7e526: getRun read the Run, then deletion gates, Stages,
+    decisions, artifacts and publications, then the cursor, each in its own
+    autocommit statement; under READ COMMITTED the new tests reproduce a
+    running response with the post-transition cursor and deletable=true.
+    The read moved into runservice.RunDetailReader; its production
+    RunDetailTransaction (PostgresRunDetailTransaction) is one read-only
+    REPEATABLE READ transaction in which every reader is built from the
+    transaction, so all reads see the snapshot of the first statement and a
+    change committed meanwhile is either in the response or after its cursor
+    (RUN-R87, API-R48). It writes and locks nothing, so it cannot hit a
+    serialization failure and is not retried. The optional StageMetrics read
+    runs in a savepoint because a failed statement would otherwise abort the
+    snapshot and turn optional diagnostics into a failed request (FAIL-RUN-7);
+    the metrics, Planner-plan and recovery readers are now required, the
+    "optional" configurations existed only in tests (RUN-R90 reworded).
+    gatewayrecovery.Status became ReadStatus over a DBTX so the recovery
+    state joins the snapshot; its scheduler tests call ReadStatus. Response
+    shape and query count are unchanged (13 data queries, LIM-RUN-7).
+    Alternatives: one statement for Run and cursor only (both live in
+    workflow_runs) fixes state against cursor but leaves deletable, Stage
+    and recovery data from other snapshots; reading the cursor first only
+    makes the cursor lag; SERIALIZABLE READ ONLY DEFERRABLE can wait for a
+    safe snapshot without adding anything a read needs. Reopen if the
+    detail is split into several requests (for example paginated attempts):
+    each part then needs its own cursor or the cursor must be read first.
+    introduced_by: the clone is shallow, so the commit history cannot show
+    it; V4-001A expanded GET /v1/runs/{runId} with the durable event cursor
+    read after the Run.
+scope:
+  in:
+    - "Read the Run detail and cursor in one read-only REPEATABLE READ transaction in runservice."
+  out:
+    - "Response shape."
+acceptance_criteria:
+  - id: A1
+    text: "A test interleaves a terminal transition between reads and the response stays consistent with its cursor."
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "go test -tags integration ./internal/httpapi/public ./internal/runservice"
+    covers: [A1]

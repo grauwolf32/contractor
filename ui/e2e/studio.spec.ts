@@ -5,7 +5,8 @@ import { expect, test } from "@playwright/test";
 import packageMetadata from "../package.json" with { type: "json" };
 import { presetFixture } from "../src/test/audit-presets-fixture";
 
-const configRoot = resolve(process.cwd(), "../configs");
+// Fixture copies of authored definitions (tests never read configs/).
+const fixtureRoot = resolve(process.cwd(), "src/routes/studio/testdata");
 for (const width of [1440, 390, 320]) {
   test(`studio advanced forms preserve authored contracts at ${width}px`, async ({
     page,
@@ -90,7 +91,7 @@ for (const width of [1440, 390, 320]) {
       return readFileSync((await (await promise).path())!, "utf8");
     };
     const original = readFileSync(
-      resolve(configRoot, "workflows/openapi_from_workspace_v7_memory.yaml"),
+      resolve(fixtureRoot, "openapi_from_workspace_v7_memory.yaml"),
       "utf8",
     );
     const expected = parse(original),
@@ -159,7 +160,7 @@ for (const width of [1440, 390, 320]) {
     expect(source).toContain("# Advanced form note");
     expect(parse(source)).toEqual(expected);
     const toolSource = readFileSync(
-        resolve(configRoot, "agent-templates/audit_sqlmap_scan.yaml"),
+        resolve(fixtureRoot, "audit_sqlmap_scan.yaml"),
         "utf8",
       ),
       toolExpected = parse(toolSource);
@@ -325,7 +326,7 @@ for (const width of [1440, 390, 320]) {
       page.getByRole("heading", { name: "Node Studio", exact: true }),
     ).toBeVisible();
     const original = readFileSync(
-      resolve(configRoot, "workflows/openapi_from_workspace_v7_memory.yaml"),
+      resolve(fixtureRoot, "openapi_from_workspace_v7_memory.yaml"),
       "utf8",
     );
     await page
@@ -486,10 +487,10 @@ for (const width of [1440, 390, 320]) {
       .click();
     // Both other document kinds use the same lossless import/export path.
     for (const file of [
-      "audit-profiles/openapi_operation_trace.yaml",
-      "agent-templates/workspace_openapi_builder_v3_memory.yaml",
+      "openapi_operation_trace.yaml",
+      "workspace_openapi_builder_v3_memory.yaml",
     ]) {
-      const source = readFileSync(resolve(configRoot, file), "utf8");
+      const source = readFileSync(resolve(fixtureRoot, file), "utf8");
       const expected = parse(source);
       await page
         .getByRole("button", { name: "Import YAML", exact: true })
@@ -498,7 +499,7 @@ for (const width of [1440, 390, 320]) {
       await page
         .getByRole("button", { name: "Load draft", exact: true })
         .click();
-      if (file.startsWith("audit-profiles/")) {
+      if (expected.kind === "AuditProfile") {
         await page
           .locator(".studio-node-select")
           .filter({ hasText: "trace" })

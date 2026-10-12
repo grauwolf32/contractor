@@ -97,7 +97,7 @@ cases:
     requirements: [A1, A3]
     faults: []
     expected: Every Caido tool requires its typed client in the reviewed descriptor.
-    test: {source: internal/config/config_test.go, symbol: TestCaidoToolsetDescriptorRequiresTypedClientForEveryTool}
+    test: {source: internal/config/config_test.go, symbol: TestRequiredRuntimeAdaptersFollowToolChannels}
 
 gates:
   - {id: matrix, command: make test-http-caido-matrix}

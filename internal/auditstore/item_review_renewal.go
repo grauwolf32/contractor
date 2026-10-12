@@ -10,7 +10,6 @@ import (
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/randomid"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // RenewExpiredItemReview repairs one exact item approval under a live
@@ -26,18 +25,11 @@ func (s *PostgresStore) RenewExpiredItemReview(
 		return false, ErrInvalid
 	}
 	var changed bool
-	var err error
-	switch db := s.db.(type) {
-	case *pgxpool.Pool:
-		err = persistencepostgres.InTxWithRetry(ctx, db, pgx.TxOptions{}, func(tx pgx.Tx) error {
-			changed, err = renewExpiredItemReview(ctx, tx, claim, expectedAuditRevision)
-			return err
-		})
-	case pgx.Tx:
-		changed, err = renewExpiredItemReview(ctx, db, claim, expectedAuditRevision)
-	default:
-		err = errors.New("renew Audit item review: PostgreSQL transaction support is required")
-	}
+	err := persistencepostgres.Within(ctx, s.db, pgx.TxOptions{}, func(tx pgx.Tx) error {
+		var err error
+		changed, err = renewExpiredItemReview(ctx, tx, claim, expectedAuditRevision)
+		return err
+	})
 	return changed, err
 }
 

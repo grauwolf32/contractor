@@ -6,6 +6,7 @@ import (
 	"math"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/strictjson"
 )
 
 const PerformanceMetricsVersion = 1
@@ -51,8 +52,8 @@ func (v *PerformanceMetricsVersions) UnmarshalJSON(data []byte) error {
 }
 
 type PerformanceMetricsRequest struct {
-	Version         int `json:"version"`
-	IntervalSeconds int `json:"intervalSeconds"`
+	Version         int `json:"version" strictjson:"required"`
+	IntervalSeconds int `json:"intervalSeconds" strictjson:"required"`
 }
 
 func (r PerformanceMetricsRequest) Validate() error {
@@ -79,9 +80,9 @@ const (
 // RuntimeResources describes allocation-local observations of the entire Runtime
 // process. Pointers distinguish unknown measurements from actual zero values.
 type RuntimeResources struct {
-	Version              int             `json:"version"`
-	Scope                string          `json:"scope"`
-	Status               ResourceStatus  `json:"status"`
+	Version              int             `json:"version" strictjson:"required"`
+	Scope                string          `json:"scope" strictjson:"required"`
+	Status               ResourceStatus  `json:"status" strictjson:"required"`
 	Reason               *ResourceReason `json:"reason,omitempty"`
 	DurationSeconds      *float64        `json:"durationSeconds,omitempty"`
 	CPUUserSeconds       *float64        `json:"cpuUserSeconds,omitempty"`
@@ -95,7 +96,7 @@ type RuntimeResources struct {
 
 func (r *RuntimeResources) UnmarshalJSON(data []byte) error {
 	var fields map[string]json.RawMessage
-	if err := json.Unmarshal(data, &fields); err != nil {
+	if err := strictjson.Decode(data, &fields); err != nil {
 		return contracts.Invalidf("invalid resources")
 	}
 	if fields == nil {
@@ -108,9 +109,7 @@ func (r *RuntimeResources) UnmarshalJSON(data []byte) error {
 	}
 	type wireResources RuntimeResources
 	var value wireResources
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&value); err != nil {
+	if err := strictjson.Decode(data, &value); err != nil {
 		return contracts.Invalidf("invalid resource fields")
 	}
 	*r = RuntimeResources(value)

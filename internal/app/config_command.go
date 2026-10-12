@@ -35,11 +35,11 @@ func runConfigCLI(args []string, logger *slog.Logger) error {
 	if managedRoot == "" {
 		managedRoot = defaultManagedConfigRoot(root)
 	}
-	snapshot, err := configload.LoadUnionReadOnly(root, managedRoot, contractorconfig.MVPDescriptors())
+	snapshot, bundles, err := configload.LoadUnionReadOnly(root, managedRoot, contractorconfig.MVPDescriptors())
 	if err != nil {
 		return fmt.Errorf("validate configuration: %w", err)
 	}
-	if err := validateBundledCatalogStandards(root, snapshot); err != nil {
+	if err := validateBundledCatalogStandards(bundles.Standards, snapshot); err != nil {
 		return fmt.Errorf("validate configuration: %w", err)
 	}
 	counts := snapshot.Counts()
@@ -60,11 +60,13 @@ func runConfigCLI(args []string, logger *slog.Logger) error {
 
 // loadServerConfiguration is the Server's startup load of both roots: the
 // catalog plus every operator-root bundle check, which the returned Manager
-// repeats before each managed publication. config validate applies the same
-// checks offline through configload.LoadUnionReadOnly.
+// repeats before each managed publication. It returns the bundles that load
+// validated, which configureCatalogs seeds without walking the root again.
+// config validate applies the same checks offline through
+// configload.LoadUnionReadOnly.
 func loadServerConfiguration(
 	operatorRoot, managedRoot string, logger *slog.Logger,
-) (*contractorconfig.Manager, error) {
+) (*contractorconfig.Manager, configload.Bundles, error) {
 	return configload.NewManager(contractorconfig.ManagerOptions{
 		OperatorRoot: operatorRoot,
 		ManagedRoot:  managedRoot,

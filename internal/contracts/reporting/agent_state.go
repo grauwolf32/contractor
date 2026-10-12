@@ -1,15 +1,9 @@
 package reporting
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
 	"regexp"
 	"sort"
-	"strings"
-	"unicode/utf8"
-
-	"golang.org/x/text/unicode/norm"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
@@ -28,110 +22,106 @@ var stateMetricNamePattern = regexp.MustCompile(`^[a-z0-9_]+(?:\.[a-z0-9_]+)*$`)
 // AgentStateSnapshot is the complete bounded Contractor-owned State exported
 // by one live Worker. It deliberately contains no allocation identity.
 type AgentStateSnapshot struct {
-	APIVersion string                `json:"apiVersion"`
-	State      ContractorWorkerState `json:"state"`
+	APIVersion string                `json:"apiVersion" strictjson:"required"`
+	State      ContractorWorkerState `json:"state" strictjson:"required"`
 }
 
 type ContractorWorkerState struct {
-	SchemaVersion           int                    `json:"schemaVersion"`
-	StateRevision           uint64                 `json:"stateRevision"`
-	Metrics                 WorkerAllocationState  `json:"metrics"`
-	CurrentInvocation       *WorkerInvocationState `json:"currentInvocation"`
-	LastCompletedInvocation *WorkerInvocationState `json:"lastCompletedInvocation"`
-	currentPresent          bool
-	completedPresent        bool
+	SchemaVersion           int                    `json:"schemaVersion" strictjson:"required"`
+	StateRevision           uint64                 `json:"stateRevision" strictjson:"required"`
+	Metrics                 WorkerAllocationState  `json:"metrics" strictjson:"required"`
+	CurrentInvocation       *WorkerInvocationState `json:"currentInvocation" strictjson:"required,nullable"`
+	LastCompletedInvocation *WorkerInvocationState `json:"lastCompletedInvocation" strictjson:"required,nullable"`
 }
 
 type WorkerAllocationState struct {
 	Completion   *WorkerCompletionDiagnostics `json:"completion,omitempty"`
-	Counters     map[string]uint64            `json:"counters"`
-	ToolCalls    []WorkerStateToolCall        `json:"toolCalls"`
-	Errors       []ExecutionError             `json:"errors"`
-	FinalOutcome *string                      `json:"finalOutcome"`
-	Truncated    bool                         `json:"truncated"`
+	Counters     map[string]uint64            `json:"counters" strictjson:"required"`
+	ToolCalls    []WorkerStateToolCall        `json:"toolCalls" strictjson:"required"`
+	Errors       []ExecutionError             `json:"errors" strictjson:"required"`
+	FinalOutcome *string                      `json:"finalOutcome" strictjson:"required,nullable"`
+	Truncated    bool                         `json:"truncated" strictjson:"required"`
 	WorkerBudget *WorkerStateBudget           `json:"workerBudget,omitempty"`
-	finalPresent bool
 }
 
 type WorkerStateToolCall struct {
-	CallID             string          `json:"callId"`
-	Tool               string          `json:"tool"`
+	CallID             string          `json:"callId" strictjson:"required"`
+	Tool               string          `json:"tool" strictjson:"required"`
 	Arguments          map[string]any  `json:"arguments,omitempty"`
-	ArgumentsTruncated bool            `json:"argumentsTruncated"`
-	Outcome            ToolCallOutcome `json:"outcome"`
+	ArgumentsTruncated bool            `json:"argumentsTruncated" strictjson:"required"`
+	Outcome            ToolCallOutcome `json:"outcome" strictjson:"required"`
 	DurationMS         *uint64         `json:"durationMs,omitempty"`
 	ResultSizeBytes    *uint64         `json:"resultSizeBytes,omitempty"`
 	Error              *ExecutionError `json:"error,omitempty"`
 }
 
 type WorkerStateBudget struct {
-	MaxModelCalls         uint64  `json:"maxModelCalls"`
-	MaxToolCalls          uint64  `json:"maxToolCalls"`
-	MaxTotalTokens        uint64  `json:"maxTotalTokens"`
-	ObservedModelCalls    uint64  `json:"observedModelCalls"`
-	ObservedToolCalls     uint64  `json:"observedToolCalls"`
-	ObservedTotalTokens   uint64  `json:"observedTotalTokens"`
-	TokenUsageUnavailable uint64  `json:"tokenUsageUnavailable"`
+	MaxModelCalls         uint64  `json:"maxModelCalls" strictjson:"required"`
+	MaxToolCalls          uint64  `json:"maxToolCalls" strictjson:"required"`
+	MaxTotalTokens        uint64  `json:"maxTotalTokens" strictjson:"required"`
+	ObservedModelCalls    uint64  `json:"observedModelCalls" strictjson:"required"`
+	ObservedToolCalls     uint64  `json:"observedToolCalls" strictjson:"required"`
+	ObservedTotalTokens   uint64  `json:"observedTotalTokens" strictjson:"required"`
+	TokenUsageUnavailable uint64  `json:"tokenUsageUnavailable" strictjson:"required"`
 	Exhausted             *string `json:"exhausted,omitempty"`
 }
 
 type WorkerInvocationState struct {
-	InvocationID string                      `json:"invocationId"`
-	SubtaskID    string                      `json:"subtaskId"`
-	Phase        string                      `json:"phase"`
-	Metrics      WorkerStateInvocationMetric `json:"metrics"`
-	Summarizer   WorkerStateSummarizer       `json:"summarizer"`
-	Workspace    *WorkerStateWorkspace       `json:"workspace"`
-	workspaceSet bool
+	InvocationID string                      `json:"invocationId" strictjson:"required"`
+	SubtaskID    string                      `json:"subtaskId" strictjson:"required"`
+	Phase        string                      `json:"phase" strictjson:"required"`
+	Metrics      WorkerStateInvocationMetric `json:"metrics" strictjson:"required"`
+	Summarizer   WorkerStateSummarizer       `json:"summarizer" strictjson:"required"`
+	Workspace    *WorkerStateWorkspace       `json:"workspace" strictjson:"required,nullable"`
 }
 
 type WorkerStateInvocationMetric struct {
-	ModelCalls            uint64                                     `json:"modelCalls"`
-	ModelErrors           uint64                                     `json:"modelErrors"`
-	InputTokens           uint64                                     `json:"inputTokens"`
-	OutputTokens          uint64                                     `json:"outputTokens"`
-	TotalTokens           uint64                                     `json:"totalTokens"`
-	CachedInputTokens     uint64                                     `json:"cachedInputTokens"`
-	TokenUsageUnavailable uint64                                     `json:"tokenUsageUnavailable"`
-	LatestPromptTokens    *uint64                                    `json:"latestPromptTokens"`
-	ToolCalls             uint64                                     `json:"toolCalls"`
-	ToolErrors            uint64                                     `json:"toolErrors"`
-	Tools                 map[string]WorkerStateInvocationToolMetric `json:"tools"`
-	Truncated             bool                                       `json:"truncated"`
+	ModelCalls            uint64                                     `json:"modelCalls" strictjson:"required"`
+	ModelErrors           uint64                                     `json:"modelErrors" strictjson:"required"`
+	InputTokens           uint64                                     `json:"inputTokens" strictjson:"required"`
+	OutputTokens          uint64                                     `json:"outputTokens" strictjson:"required"`
+	TotalTokens           uint64                                     `json:"totalTokens" strictjson:"required"`
+	CachedInputTokens     uint64                                     `json:"cachedInputTokens" strictjson:"required"`
+	TokenUsageUnavailable uint64                                     `json:"tokenUsageUnavailable" strictjson:"required"`
+	LatestPromptTokens    *uint64                                    `json:"latestPromptTokens" strictjson:"required,nullable"`
+	ToolCalls             uint64                                     `json:"toolCalls" strictjson:"required"`
+	ToolErrors            uint64                                     `json:"toolErrors" strictjson:"required"`
+	Tools                 map[string]WorkerStateInvocationToolMetric `json:"tools" strictjson:"required"`
+	Truncated             bool                                       `json:"truncated" strictjson:"required"`
 }
 
 type WorkerStateSummarizer struct {
-	Phase                 string  `json:"phase"`
+	Phase                 string  `json:"phase" strictjson:"required"`
 	RequestStateRevision  *uint64 `json:"requestStateRevision,omitempty"`
-	ModelCalls            uint64  `json:"modelCalls"`
-	InputTokens           uint64  `json:"inputTokens"`
-	OutputTokens          uint64  `json:"outputTokens"`
-	TotalTokens           uint64  `json:"totalTokens"`
-	TokenUsageUnavailable uint64  `json:"tokenUsageUnavailable"`
+	ModelCalls            uint64  `json:"modelCalls" strictjson:"required"`
+	InputTokens           uint64  `json:"inputTokens" strictjson:"required"`
+	OutputTokens          uint64  `json:"outputTokens" strictjson:"required"`
+	TotalTokens           uint64  `json:"totalTokens" strictjson:"required"`
+	TokenUsageUnavailable uint64  `json:"tokenUsageUnavailable" strictjson:"required"`
 	FailureCode           *string `json:"failureCode,omitempty"`
 }
 
 type WorkerStateInvocationToolMetric struct {
-	Calls    uint64 `json:"calls"`
-	Failures uint64 `json:"failures"`
+	Calls    uint64 `json:"calls" strictjson:"required"`
+	Failures uint64 `json:"failures" strictjson:"required"`
 }
 
 type WorkerStateWorkspace struct {
-	WorkspaceDigest string                            `json:"workspaceDigest"`
-	ScopePaths      []string                          `json:"scopePaths"`
-	ScopeComplete   bool                              `json:"scopeComplete"`
-	Interactions    []WorkerStateWorkspaceInteraction `json:"interactions"`
-	DetailComplete  bool                              `json:"detailComplete"`
+	WorkspaceDigest string                            `json:"workspaceDigest" strictjson:"required"`
+	ScopePaths      []string                          `json:"scopePaths" strictjson:"required"`
+	ScopeComplete   bool                              `json:"scopeComplete" strictjson:"required"`
+	Interactions    []WorkerStateWorkspaceInteraction `json:"interactions" strictjson:"required"`
+	DetailComplete  bool                              `json:"detailComplete" strictjson:"required"`
 }
 
 type WorkerStateWorkspaceInteraction struct {
-	Path           string `json:"path"`
-	FirstOrdinal   uint64 `json:"firstOrdinal"`
-	LastOrdinal    uint64 `json:"lastOrdinal"`
-	DiscoveryCalls uint64 `json:"discoveryCalls"`
-	ReadCalls      uint64 `json:"readCalls"`
-	MatchCalls     uint64 `json:"matchCalls"`
-	MutationCalls  uint64 `json:"mutationCalls"`
+	Path           string `json:"path" strictjson:"required"`
+	FirstOrdinal   uint64 `json:"firstOrdinal" strictjson:"required"`
+	LastOrdinal    uint64 `json:"lastOrdinal" strictjson:"required"`
+	DiscoveryCalls uint64 `json:"discoveryCalls" strictjson:"required"`
+	ReadCalls      uint64 `json:"readCalls" strictjson:"required"`
+	MatchCalls     uint64 `json:"matchCalls" strictjson:"required"`
+	MutationCalls  uint64 `json:"mutationCalls" strictjson:"required"`
 }
 
 func (s AgentStateSnapshot) Validate() error {
@@ -141,8 +131,8 @@ func (s AgentStateSnapshot) Validate() error {
 	if err := s.State.validate(); err != nil {
 		return err
 	}
-	encoded, err := marshalAgentStateJSON(s)
-	if err != nil || len(encoded) > MaxAgentStateSnapshotBytes {
+	size, err := contracts.ResultJSONSize(s)
+	if err != nil || size > MaxAgentStateSnapshotBytes {
 		return contracts.Invalidf("AgentStateSnapshot exceeds its bounded contract")
 	}
 	return nil
@@ -151,9 +141,6 @@ func (s AgentStateSnapshot) Validate() error {
 func (s ContractorWorkerState) validate() error {
 	if s.SchemaVersion != WorkerStateSchemaVersion || s.StateRevision == 0 {
 		return contracts.Invalidf("Worker State schema version or revision is invalid")
-	}
-	if !s.currentPresent || !s.completedPresent {
-		return contracts.Invalidf("Worker State invocation slots are required")
 	}
 	if err := s.Metrics.validate(); err != nil {
 		return err
@@ -210,8 +197,8 @@ func (s WorkerAllocationState) validate() error {
 			return err
 		}
 	}
-	if s.Counters == nil || s.ToolCalls == nil || s.Errors == nil || !s.finalPresent {
-		return contracts.Invalidf("Worker allocation State collections and finalOutcome are required")
+	if s.Counters == nil || s.ToolCalls == nil || s.Errors == nil {
+		return contracts.Invalidf("Worker allocation State collections are required")
 	}
 	if len(s.Counters) > maxStateAllocationCounters || len(s.ToolCalls) > 1000 || len(s.Errors) > 100 {
 		return contracts.Invalidf("Worker allocation State exceeds its collection bounds")
@@ -282,8 +269,8 @@ func validateStateToolCall(call WorkerStateToolCall) error {
 		return contracts.Invalidf("absent Worker State arguments cannot be marked truncated")
 	}
 	if call.Arguments != nil {
-		encoded, err := marshalAgentStateJSON(call.Arguments)
-		if err != nil || len(encoded) > 4096 {
+		size, err := contracts.ResultJSONSize(call.Arguments)
+		if err != nil || size > 4096 {
 			return contracts.Invalidf("Worker State tool arguments exceed their bound")
 		}
 	}
@@ -308,9 +295,6 @@ func (s WorkerInvocationState) validate() error {
 	}
 	if s.Phase != "running" && s.Phase != "succeeded" && s.Phase != "failed" && s.Phase != "cancelled" {
 		return contracts.Invalidf("Worker State invocation phase is invalid")
-	}
-	if !s.workspaceSet {
-		return contracts.Invalidf("Worker State invocation workspace is required")
 	}
 	if err := s.Metrics.validate(); err != nil {
 		return err
@@ -367,7 +351,7 @@ func (s WorkerStateWorkspace) validate() error {
 			return contracts.Invalidf("Worker State workspace scope paths must be unique")
 		}
 	}
-	if encoded, err := marshalAgentStateJSON(s.ScopePaths); err != nil || len(encoded) > maxStateWorkspacePathBytes {
+	if size, err := contracts.ResultJSONSize(s.ScopePaths); err != nil || size > maxStateWorkspacePathBytes {
 		return contracts.Invalidf("Worker State workspace scope paths exceed their bound")
 	}
 	interactionPaths := make([]string, 0, len(s.Interactions))
@@ -389,7 +373,7 @@ func (s WorkerStateWorkspace) validate() error {
 		previous = item
 		interactionPaths = append(interactionPaths, item.Path)
 	}
-	if encoded, err := marshalAgentStateJSON(interactionPaths); err != nil || len(encoded) > maxStateWorkspacePathBytes {
+	if size, err := contracts.ResultJSONSize(interactionPaths); err != nil || size > maxStateWorkspacePathBytes {
 		return contracts.Invalidf("Worker State workspace interaction paths exceed their bound")
 	}
 	return nil
@@ -407,284 +391,10 @@ func (i WorkerStateWorkspaceInteraction) validate() error {
 }
 
 func validateStateWorkspacePath(value string) error {
-	if value == "" || !utf8.ValidString(value) || value != norm.NFC.String(value) ||
-		len([]byte(value)) > 4096 || strings.HasPrefix(value, "/") ||
-		strings.ContainsAny(value, "\\\x00") || strings.Contains(value, "://") {
-		return contracts.Invalidf("Worker State workspace path is invalid")
-	}
-	parts := strings.Split(value, "/")
-	if len(parts) > 128 {
-		return contracts.Invalidf("Worker State workspace path is invalid")
-	}
-	for _, part := range parts {
-		if part == "" || part == "." || part == ".." {
-			return contracts.Invalidf("Worker State workspace path is invalid")
-		}
-		for _, character := range part {
-			if character < 0x20 || character == 0x7f {
-				return contracts.Invalidf("Worker State workspace path is invalid")
-			}
-		}
-	}
-	first := parts[0]
-	if len(first) >= 2 && ((first[0] >= 'A' && first[0] <= 'Z') ||
-		(first[0] >= 'a' && first[0] <= 'z')) && first[1] == ':' {
+	if contracts.RelativePathProblem(
+		value, contracts.MaxWorkerStatePathBytes, contracts.MaxWorkerStatePathComponents,
+	) != "" {
 		return contracts.Invalidf("Worker State workspace path is invalid")
 	}
 	return nil
-}
-
-func (s *ContractorWorkerState) UnmarshalJSON(data []byte) error {
-	type wireState struct {
-		SchemaVersion           *int                   `json:"schemaVersion"`
-		StateRevision           *uint64                `json:"stateRevision"`
-		Metrics                 *WorkerAllocationState `json:"metrics"`
-		CurrentInvocation       json.RawMessage        `json:"currentInvocation"`
-		LastCompletedInvocation json.RawMessage        `json:"lastCompletedInvocation"`
-	}
-	var wire wireState
-	if err := decodeStrictAgentStateJSON(data, &wire); err != nil {
-		return err
-	}
-	if wire.SchemaVersion == nil || wire.StateRevision == nil || wire.Metrics == nil ||
-		wire.CurrentInvocation == nil || wire.LastCompletedInvocation == nil {
-		return contracts.Invalidf("Worker State required fields are missing")
-	}
-	s.SchemaVersion = *wire.SchemaVersion
-	s.StateRevision = *wire.StateRevision
-	s.Metrics = *wire.Metrics
-	s.currentPresent = true
-	s.completedPresent = true
-	if !bytes.Equal(wire.CurrentInvocation, []byte("null")) {
-		var current WorkerInvocationState
-		if err := decodeStrictAgentStateJSON(wire.CurrentInvocation, &current); err != nil {
-			return err
-		}
-		s.CurrentInvocation = &current
-	}
-	if !bytes.Equal(wire.LastCompletedInvocation, []byte("null")) {
-		var completed WorkerInvocationState
-		if err := decodeStrictAgentStateJSON(wire.LastCompletedInvocation, &completed); err != nil {
-			return err
-		}
-		s.LastCompletedInvocation = &completed
-	}
-	return nil
-}
-
-func (s *WorkerAllocationState) UnmarshalJSON(data []byte) error {
-	type wireState struct {
-		Completion   json.RawMessage       `json:"completion"`
-		Counters     map[string]uint64     `json:"counters"`
-		ToolCalls    []WorkerStateToolCall `json:"toolCalls"`
-		Errors       []ExecutionError      `json:"errors"`
-		FinalOutcome json.RawMessage       `json:"finalOutcome"`
-		Truncated    *bool                 `json:"truncated"`
-		WorkerBudget *WorkerStateBudget    `json:"workerBudget,omitempty"`
-	}
-	var wire wireState
-	if err := decodeStrictAgentStateJSON(data, &wire); err != nil {
-		return err
-	}
-	if wire.Counters == nil || wire.ToolCalls == nil || wire.Errors == nil ||
-		wire.FinalOutcome == nil || wire.Truncated == nil {
-		return contracts.Invalidf("Worker allocation State required fields are missing")
-	}
-	s.Counters = wire.Counters
-	s.ToolCalls = wire.ToolCalls
-	s.Errors = wire.Errors
-	s.Truncated = *wire.Truncated
-	s.WorkerBudget = wire.WorkerBudget
-	completion, err := decodeWorkerCompletionDiagnostics(wire.Completion)
-	if err != nil {
-		return err
-	}
-	s.Completion = completion
-	s.finalPresent = true
-	if !bytes.Equal(wire.FinalOutcome, []byte("null")) {
-		var outcome string
-		if err := json.Unmarshal(wire.FinalOutcome, &outcome); err != nil {
-			return err
-		}
-		s.FinalOutcome = &outcome
-	}
-	return nil
-}
-
-func (s *WorkerStateToolCall) UnmarshalJSON(data []byte) error {
-	if err := requireAgentStateFields(
-		data, "callId", "tool", "argumentsTruncated", "outcome",
-	); err != nil {
-		return err
-	}
-	type plain WorkerStateToolCall
-	var wire plain
-	if err := decodeStrictAgentStateJSON(data, &wire); err != nil {
-		return err
-	}
-	*s = WorkerStateToolCall(wire)
-	return nil
-}
-
-func (s *WorkerStateBudget) UnmarshalJSON(data []byte) error {
-	if err := requireAgentStateFields(
-		data,
-		"maxModelCalls", "maxToolCalls", "maxTotalTokens", "observedModelCalls",
-		"observedToolCalls", "observedTotalTokens", "tokenUsageUnavailable",
-	); err != nil {
-		return err
-	}
-	type plain WorkerStateBudget
-	var wire plain
-	if err := decodeStrictAgentStateJSON(data, &wire); err != nil {
-		return err
-	}
-	*s = WorkerStateBudget(wire)
-	return nil
-}
-
-func (s *WorkerInvocationState) UnmarshalJSON(data []byte) error {
-	type wireState struct {
-		InvocationID string                      `json:"invocationId"`
-		SubtaskID    string                      `json:"subtaskId"`
-		Phase        string                      `json:"phase"`
-		Metrics      WorkerStateInvocationMetric `json:"metrics"`
-		Summarizer   *WorkerStateSummarizer      `json:"summarizer"`
-		Workspace    json.RawMessage             `json:"workspace"`
-	}
-	var wire wireState
-	if err := decodeStrictAgentStateJSON(data, &wire); err != nil {
-		return err
-	}
-	if wire.Workspace == nil || wire.Summarizer == nil {
-		return contracts.Invalidf("Worker State invocation summarizer or workspace is missing")
-	}
-	s.InvocationID = wire.InvocationID
-	s.SubtaskID = wire.SubtaskID
-	s.Phase = wire.Phase
-	s.Metrics = wire.Metrics
-	s.Summarizer = *wire.Summarizer
-	s.workspaceSet = true
-	if !bytes.Equal(wire.Workspace, []byte("null")) {
-		var workspace WorkerStateWorkspace
-		if err := decodeStrictAgentStateJSON(wire.Workspace, &workspace); err != nil {
-			return err
-		}
-		s.Workspace = &workspace
-	}
-	return nil
-}
-
-func (s *WorkerStateInvocationMetric) UnmarshalJSON(data []byte) error {
-	if err := requireAgentStateFields(
-		data,
-		"modelCalls", "modelErrors", "inputTokens", "outputTokens", "totalTokens",
-		"cachedInputTokens", "tokenUsageUnavailable", "latestPromptTokens", "toolCalls", "toolErrors", "tools",
-		"truncated",
-	); err != nil {
-		return err
-	}
-	type plain WorkerStateInvocationMetric
-	var wire plain
-	if err := decodeStrictAgentStateJSON(data, &wire); err != nil {
-		return err
-	}
-	*s = WorkerStateInvocationMetric(wire)
-	return nil
-}
-
-func (s *WorkerStateSummarizer) UnmarshalJSON(data []byte) error {
-	if err := requireAgentStateFields(
-		data, "phase", "modelCalls", "inputTokens", "outputTokens", "totalTokens",
-		"tokenUsageUnavailable",
-	); err != nil {
-		return err
-	}
-	type plain WorkerStateSummarizer
-	var wire plain
-	if err := decodeStrictAgentStateJSON(data, &wire); err != nil {
-		return err
-	}
-	*s = WorkerStateSummarizer(wire)
-	return nil
-}
-
-func (s *WorkerStateInvocationToolMetric) UnmarshalJSON(data []byte) error {
-	if err := requireAgentStateFields(data, "calls", "failures"); err != nil {
-		return err
-	}
-	type plain WorkerStateInvocationToolMetric
-	var wire plain
-	if err := decodeStrictAgentStateJSON(data, &wire); err != nil {
-		return err
-	}
-	*s = WorkerStateInvocationToolMetric(wire)
-	return nil
-}
-
-func (s *WorkerStateWorkspace) UnmarshalJSON(data []byte) error {
-	if err := requireAgentStateFields(
-		data, "workspaceDigest", "scopePaths", "scopeComplete", "interactions", "detailComplete",
-	); err != nil {
-		return err
-	}
-	type plain WorkerStateWorkspace
-	var wire plain
-	if err := decodeStrictAgentStateJSON(data, &wire); err != nil {
-		return err
-	}
-	*s = WorkerStateWorkspace(wire)
-	return nil
-}
-
-func (s *WorkerStateWorkspaceInteraction) UnmarshalJSON(data []byte) error {
-	if err := requireAgentStateFields(
-		data,
-		"path", "firstOrdinal", "lastOrdinal", "discoveryCalls", "readCalls", "matchCalls",
-		"mutationCalls",
-	); err != nil {
-		return err
-	}
-	type plain WorkerStateWorkspaceInteraction
-	var wire plain
-	if err := decodeStrictAgentStateJSON(data, &wire); err != nil {
-		return err
-	}
-	*s = WorkerStateWorkspaceInteraction(wire)
-	return nil
-}
-
-func decodeStrictAgentStateJSON(data []byte, target any) error {
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(target); err != nil {
-		return fmt.Errorf("decode Agent State JSON: %w", err)
-	}
-	return contracts.EnsureJSONEOF(decoder)
-}
-
-func requireAgentStateFields(data []byte, required ...string) error {
-	var object map[string]json.RawMessage
-	if err := json.Unmarshal(data, &object); err != nil {
-		return fmt.Errorf("decode Agent State object: %w", err)
-	}
-	if object == nil {
-		return contracts.Invalidf("Agent State value must be an object")
-	}
-	for _, field := range required {
-		if _, present := object[field]; !present {
-			return contracts.Invalidf("Agent State field %s is required", field)
-		}
-	}
-	return nil
-}
-
-func marshalAgentStateJSON(value any) ([]byte, error) {
-	var buffer bytes.Buffer
-	encoder := json.NewEncoder(&buffer)
-	encoder.SetEscapeHTML(false)
-	if err := encoder.Encode(value); err != nil {
-		return nil, err
-	}
-	return bytes.TrimSuffix(buffer.Bytes(), []byte("\n")), nil
 }

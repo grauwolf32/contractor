@@ -30,6 +30,10 @@ var (
 	ErrConfigurationNotFound    = errors.New("configuration not found")
 	ErrInvalidPublication       = errors.New("invalid configuration publication")
 	ErrPublicationConflict      = errors.New("configuration publication conflict")
+	// ErrConfigurationDrift reports that the reloaded configuration roots differ
+	// from the Server's loaded snapshot by a change the publication manager did
+	// not make. Retrying cannot succeed until the roots match again (CAT-R75).
+	ErrConfigurationDrift = errors.New("configuration roots changed outside the publication manager")
 )
 
 type ConfigurationRef struct {
@@ -58,7 +62,9 @@ func ParseConfigurationKind(raw string) (ConfigurationKind, error) {
 	}
 }
 
-func (s *Snapshot) Configurations(kind ConfigurationKind) ([]ConfigurationResource, error) {
+// configurations builds caller-owned resources of kind in exact selector
+// order; ConfigurationDiscovery publishes them with their fingerprint.
+func (s *Snapshot) configurations(kind ConfigurationKind) ([]ConfigurationResource, error) {
 	if _, err := ParseConfigurationKind(string(kind)); err != nil {
 		return nil, err
 	}
@@ -265,7 +271,8 @@ func executionSelectionResourceBody(selection ResolvedExecutionSelectionOverride
 		if selection.Credential.Clear {
 			result["credential"] = nil
 		} else {
-			result["credential"] = selection.Credential.Ref
+			// A value, not the Snapshot's pointer: the body is caller-owned.
+			result["credential"] = *selection.Credential.Ref
 		}
 	}
 	return result

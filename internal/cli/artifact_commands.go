@@ -403,13 +403,13 @@ func putArtifact(ctx context.Context, client *publicclient.Client, scope artifac
 	if create == (revision != "") {
 		return nil, 0, errors.New("internal Artifact write requires exactly one precondition")
 	}
-	var ifMatch *publicapi.IfMatch
+	var ifMatch *publicapi.ArtifactIfMatch
 	if revision != "" {
 		quoted, err := publicclient.QuoteETag(revision)
 		if err != nil {
 			return nil, 0, err
 		}
-		value := publicapi.IfMatch(quoted)
+		value := publicapi.ArtifactIfMatch(quoted)
 		ifMatch = &value
 	}
 	if scope.projectID != "" {

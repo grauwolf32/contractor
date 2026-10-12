@@ -37,8 +37,23 @@ func TestCrossLanguagePrivateArtifactLifecycle(t *testing.T) {
 		result["createdRevisionAt"] != result["currentRevisionAt"] ||
 		result["createdRevisionAt"] != result["exactRevisionAt"] ||
 		result["createdRevisionAt"] == result["updatedRevisionAt"] ||
-		result["payload"] != "first payload" || result["outputError"] != "artifact_access_denied" {
+		result["payload"] != "first payload" || result["outputError"] != "artifact_access_denied" ||
+		result["inputError"] != "artifact_access_denied" {
 		t.Fatalf("unexpected cross-language lifecycle: %+v", result)
+	}
+	if _, exists := repository.current("run-a", "inputs", "invented"); exists {
+		t.Fatal("Worker-created input reached the repository")
+	}
+	// The metadata read resolves the current and an exact revision through the
+	// same route, without the payload (ART-R116).
+	metadata, _ := result["metadata"].(map[string]any)
+	exactMetadata, _ := result["exactMetadata"].(map[string]any)
+	currentRef, _ := metadata["artifact"].(map[string]any)
+	exactRef, _ := exactMetadata["artifact"].(map[string]any)
+	if currentRef["revision"] != updated || metadata["mediaType"] != "text/plain" ||
+		metadata["size"] != float64(len("second payload")) || exactRef["revision"] != created ||
+		exactMetadata["size"] != float64(len("first payload")) {
+		t.Fatalf("unexpected cross-language metadata: %+v %+v", metadata, exactMetadata)
 	}
 
 	registry.mu.Lock()
@@ -48,7 +63,7 @@ func TestCrossLanguagePrivateArtifactLifecycle(t *testing.T) {
 	if fenced["code"] != "allocation_write_fenced" || fenced["retryable"] != false {
 		t.Fatalf("fenced cross-language write = %+v", fenced)
 	}
-	current, exists := repository.current("run-a", "inputs", "source")
+	current, exists := repository.current("run-a", "builder", "source")
 	if !exists || current.revision != updated || string(current.data) != "second payload" {
 		t.Fatalf("fenced write changed artifact: %+v", current)
 	}

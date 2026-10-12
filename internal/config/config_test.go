@@ -1,15 +1,21 @@
 package config
 
 import (
+	"bytes"
+	"encoding/json"
+	"errors"
+	"maps"
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/configtest"
 	"github.com/grauwolf32/contractor/internal/contracts"
-	"go.yaml.in/yaml/v4"
+	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
+	"github.com/grauwolf32/contractor/internal/securefile"
 )
 
 // coreFixtureRoot is the frozen catalog that behavioral tests load or copy. On
@@ -72,76 +78,6 @@ func TestLoadResolvesAndPinsCatalogReferences(t *testing.T) {
 	}
 	if instructions != stage.Instructions {
 		t.Fatalf("resolved instructions differ: %+v != %+v", instructions, stage.Instructions)
-	}
-}
-
-func TestTextArtifactToolsetDescriptor(t *testing.T) {
-	t.Parallel()
-
-	descriptor, ok := MVPDescriptors().Toolsets["text-artifacts@1"]
-	if !ok {
-		t.Fatal("text-artifacts@1 descriptor is missing")
-	}
-	if got, want := descriptor.Tools, []string{"read_text_artifact", "write_text_artifact"}; !equalStrings(got, want) {
-		t.Fatalf("text-artifacts@1 tools = %v, want %v", got, want)
-	}
-}
-
-func TestFilesystemToolsetDescriptor(t *testing.T) {
-	t.Parallel()
-
-	descriptor, ok := MVPDescriptors().Toolsets["filesystem@1"]
-	if !ok {
-		t.Fatal("filesystem@1 descriptor is missing")
-	}
-	want := []string{"glob", "grep", "ls", "read_file"}
-	if !equalStrings(descriptor.Tools, want) {
-		t.Fatalf("filesystem@1 tools = %v, want %v", descriptor.Tools, want)
-	}
-	if len(descriptor.InfrastructureChannels) != 0 {
-		t.Fatalf("filesystem@1 infrastructure channels = %v, want none", descriptor.InfrastructureChannels)
-	}
-}
-
-func TestCodeAnalysisToolsetDescriptor(t *testing.T) {
-	t.Parallel()
-
-	descriptor, ok := MVPDescriptors().Toolsets["code-analysis@1"]
-	if !ok {
-		t.Fatal("code-analysis@1 descriptor is missing")
-	}
-	want := []string{
-		"attack_surface", "complexity_hotspots", "entrypoint_paths_to",
-		"find_callees", "find_callers", "find_symbol", "functions_that_raise",
-		"graph_summary", "list_symbols", "paths_between", "search_def",
-	}
-	if !equalStrings(descriptor.Tools, want) {
-		t.Fatalf("code-analysis@1 tools = %v, want %v", descriptor.Tools, want)
-	}
-	if len(descriptor.InfrastructureChannels) != 0 {
-		t.Fatalf(
-			"code-analysis@1 infrastructure channels = %v, want none",
-			descriptor.InfrastructureChannels,
-		)
-	}
-}
-
-func TestTaintAnnotationsToolsetDescriptor(t *testing.T) {
-	t.Parallel()
-
-	descriptor, ok := MVPDescriptors().Toolsets["taint-annotations@1"]
-	if !ok {
-		t.Fatal("taint-annotations@1 descriptor is missing")
-	}
-	want := []string{"annotate_sink", "annotate_trace", "annotate_validate"}
-	if !equalStrings(descriptor.Tools, want) {
-		t.Fatalf("taint-annotations@1 tools = %v, want %v", descriptor.Tools, want)
-	}
-	if len(descriptor.InfrastructureChannels) != 0 {
-		t.Fatalf(
-			"taint-annotations@1 infrastructure channels = %v, want none",
-			descriptor.InfrastructureChannels,
-		)
 	}
 }
 
@@ -274,169 +210,28 @@ spec:
   sandboxProfile: local-workdir@1
 `
 
-func TestEditFilesToolsetDescriptor(t *testing.T) {
+// TestRequiredRuntimeAdaptersFollowToolChannels checks how the channels the
+// descriptors declare become placement requirements: every http-tools@1 tool
+// uses the direct or optionally proxied HTTP client and needs no adapter,
+// while every Caido tool needs the typed Caido client. The tool lists and
+// their channels are the ones TestSharedToolsetDescriptorParity pins.
+func TestRequiredRuntimeAdaptersFollowToolChannels(t *testing.T) {
 	t.Parallel()
-
-	descriptor, ok := MVPDescriptors().Toolsets["edit-files@1"]
-	if !ok {
-		t.Fatal("edit-files@1 descriptor is missing")
-	}
-	want := []string{
-		"append_file", "cp", "edit", "insert_line", "mkdir", "mv", "replace_range", "rm", "write_file",
-	}
-	if !equalStrings(descriptor.Tools, want) {
-		t.Fatalf("edit-files@1 tools = %v, want %v", descriptor.Tools, want)
-	}
-	if len(descriptor.InfrastructureChannels) != 0 {
-		t.Fatalf("edit-files@1 infrastructure channels = %v, want none", descriptor.InfrastructureChannels)
-	}
-}
-
-func TestWorkspaceChangesToolsetDescriptor(t *testing.T) {
-	t.Parallel()
-
-	descriptor, ok := MVPDescriptors().Toolsets["workspace-changes@1"]
-	if !ok {
-		t.Fatal("workspace-changes@1 descriptor is missing")
-	}
-	want := []string{"changed_paths", "diff", "rollback_changes"}
-	if !equalStrings(descriptor.Tools, want) {
-		t.Fatalf("workspace-changes@1 tools = %v, want %v", descriptor.Tools, want)
-	}
-	if len(descriptor.InfrastructureChannels) != 0 {
-		t.Fatalf("workspace-changes@1 infrastructure channels = %v, want none", descriptor.InfrastructureChannels)
-	}
-}
-
-func TestMemoryToolsetDescriptor(t *testing.T) {
-	t.Parallel()
-
-	descriptor, ok := MVPDescriptors().Toolsets["memory-tools@1"]
-	if !ok {
-		t.Fatal("memory-tools@1 descriptor is missing")
-	}
-	want := []string{
-		"append_memory", "list_memories", "list_memory_tags",
-		"read_memory", "search_memory", "write_memory",
-	}
-	if !equalStrings(descriptor.Tools, want) {
-		t.Fatalf("memory-tools@1 tools = %v, want %v", descriptor.Tools, want)
-	}
-	if len(descriptor.InfrastructureChannels) != 0 {
-		t.Fatalf("memory-tools@1 infrastructure channels = %v, want none", descriptor.InfrastructureChannels)
-	}
-}
-
-func TestHTTPToolsetDescriptorUsesOptionalTypedClient(t *testing.T) {
-	t.Parallel()
-
-	descriptor, ok := MVPDescriptors().Toolsets["http-tools@1"]
-	if !ok {
-		t.Fatal("http-tools@1 descriptor is missing")
-	}
-	want := []string{
-		"http_history", "http_read_body", "http_request", "http_session_clear",
-		"http_session_get", "http_session_set",
-	}
-	if !equalStrings(descriptor.Tools, want) {
-		t.Fatalf("http-tools@1 tools = %v, want %v", descriptor.Tools, want)
-	}
-	channels := descriptor.InfrastructureChannels["http_request"]
-	if len(channels) != 1 || channels[0] != RuntimeHTTPClient {
-		t.Fatalf("http_request channels = %v, want RuntimeHTTPClient", channels)
-	}
-	selected := contracts.ResolvedAgentTemplate{Toolsets: []contracts.ToolsetSelection{{
-		Ref:   contracts.ToolsetRef{ToolsetID: "http-tools", Version: "1"},
-		Tools: []string{"http_request"},
-	}}}
-	adapters, err := RequiredRuntimeAdaptersForTemplate(selected)
-	if err != nil || len(adapters) != 0 {
-		t.Fatalf("HTTP direct/optional-proxy requirements = (%v, %v), want no hard adapter", adapters, err)
-	}
-}
-
-func TestCaidoToolsetDescriptorRequiresTypedClientForEveryTool(t *testing.T) {
-	t.Parallel()
-	descriptor, ok := MVPDescriptors().Toolsets["caido@1"]
-	if !ok {
-		t.Fatal("caido@1 descriptor is missing")
-	}
-	want := []string{
-		"caido_automate_results", "caido_automate_run", "caido_history", "caido_replay",
-		"caido_request_detail", "caido_scope", "caido_sitemap", "caido_workflow_findings",
-		"caido_workflow_list", "caido_workflow_run",
-	}
-	if !equalStrings(descriptor.Tools, want) {
-		t.Fatalf("caido@1 tools = %v, want %v", descriptor.Tools, want)
-	}
-	for _, tool := range want {
-		channels := descriptor.InfrastructureChannels[tool]
-		if len(channels) != 1 || channels[0] != CaidoGraphQLClient {
-			t.Fatalf("%s channels = %v, want CaidoGraphQLClient", tool, channels)
+	for ref, want := range map[contracts.ToolsetRef][]contracts.RuntimeAdapterRef{
+		{ToolsetID: "http-tools", Version: "1"}: nil,
+		{ToolsetID: "caido", Version: "1"}:      {contracts.RuntimeAdapterCaidoGraphQL},
+	} {
+		tools := MVPDescriptors().Toolsets[ref.ToolsetID+"@"+ref.Version].Tools
+		if len(tools) == 0 {
+			t.Fatalf("Toolset %s has no tools", ref.ToolsetID)
 		}
-	}
-	selected := contracts.ResolvedAgentTemplate{Toolsets: []contracts.ToolsetSelection{{
-		Ref:   contracts.ToolsetRef{ToolsetID: "caido", Version: "1"},
-		Tools: []string{"caido_history", "caido_scope"},
-	}}}
-	adapters, err := RequiredRuntimeAdaptersForTemplate(selected)
-	if err != nil || !reflect.DeepEqual(adapters, []contracts.RuntimeAdapterRef{contracts.RuntimeAdapterCaidoGraphQL}) {
-		t.Fatalf("Caido tool adapter requirements = (%v, %v)", adapters, err)
-	}
-}
-
-func TestSourceAnalysisToolsetDescriptor(t *testing.T) {
-	t.Parallel()
-
-	descriptor, ok := MVPDescriptors().Toolsets["source-analysis@1"]
-	if !ok {
-		t.Fatal("source-analysis@1 descriptor is missing")
-	}
-	want := []string{"list_source_files", "open_source_archive", "read_source", "search_source"}
-	if !equalStrings(descriptor.Tools, want) {
-		t.Fatalf("source-analysis@1 tools = %v, want %v", descriptor.Tools, want)
-	}
-}
-
-func TestOpenAPIToolsetDescriptor(t *testing.T) {
-	t.Parallel()
-
-	descriptor, ok := MVPDescriptors().Toolsets["openapi@1"]
-	if !ok {
-		t.Fatal("openapi@1 descriptor is missing")
-	}
-	want := []string{
-		"get_openapi_component", "get_openapi_info", "get_openapi_path",
-		"initialize_openapi", "list_openapi_components", "list_openapi_paths",
-		"list_openapi_servers", "list_openapi_tags", "load_openapi", "read_openapi_document",
-		"remove_openapi_component", "remove_openapi_path", "set_openapi_info",
-		"set_openapi_servers", "set_openapi_tags", "upsert_openapi_component", "upsert_openapi_path",
-		"validate_openapi",
-	}
-	if !equalStrings(descriptor.Tools, want) {
-		t.Fatalf("openapi@1 tools = %v, want %v", descriptor.Tools, want)
-	}
-	if got := descriptor.InfrastructureChannels["validate_openapi"]; len(got) != 1 || got[0] != RuntimeSubprocessLauncher {
-		t.Fatalf("validate_openapi channels = %v, want RuntimeSubprocessLauncher", got)
-	}
-}
-
-func TestLikeC4ToolsetDescriptor(t *testing.T) {
-	t.Parallel()
-
-	descriptor, ok := MVPDescriptors().Toolsets["likec4@1"]
-	if !ok {
-		t.Fatal("likec4@1 descriptor is missing")
-	}
-	want := []string{
-		"append_likec4", "load_likec4", "read_likec4", "replace_likec4",
-		"validate_likec4", "write_likec4",
-	}
-	if !equalStrings(descriptor.Tools, want) {
-		t.Fatalf("likec4@1 tools = %v, want %v", descriptor.Tools, want)
-	}
-	if got := descriptor.InfrastructureChannels["validate_likec4"]; len(got) != 1 || got[0] != RuntimeSubprocessLauncher {
-		t.Fatalf("validate_likec4 channels = %v, want RuntimeSubprocessLauncher", got)
+		for _, tool := range tools {
+			selected := contracts.ResolvedAgentTemplate{Toolsets: []contracts.ToolsetSelection{{Ref: ref, Tools: []string{tool}}}}
+			adapters, err := RequiredRuntimeAdaptersForTemplate(selected)
+			if err != nil || !slices.Equal(adapters, want) {
+				t.Errorf("%s adapter requirements = (%v, %v), want %v", tool, adapters, err, want)
+			}
+		}
 	}
 }
 
@@ -463,34 +258,66 @@ func TestToolsetDescriptorRejectsInvalidInfrastructureChannels(t *testing.T) {
 	}
 }
 
-func TestToolsetInfrastructureChannelParityFixture(t *testing.T) {
-	t.Parallel()
+// toolsetDescriptorFixture is one Toolset of api/testdata/toolset-descriptors.json.
+type toolsetDescriptorFixture struct {
+	Tools                  []string                               `json:"tools"`
+	InfrastructureChannels map[string][]ToolInfrastructureChannel `json:"infrastructureChannels"`
+	RequiresWorkspace      bool                                   `json:"requiresWorkspace"`
+	RequiredSandboxProfile *string                                `json:"requiredSandboxProfile"`
+	ActiveCheckTools       []string                               `json:"activeCheckTools"`
+	FindingProposalTools   []string                               `json:"findingProposalTools"`
+	RequiredWorkflowInputs map[string]struct {
+		Input     string `json:"input"`
+		MediaType string `json:"mediaType"`
+	} `json:"requiredWorkflowInputs"`
+}
 
-	raw, err := os.ReadFile("../../api/descriptor-parity/toolset-infrastructure-channels.yaml")
-	if err != nil {
-		t.Fatal(err)
-	}
+// TestSharedToolsetDescriptorParity holds every Server Toolset descriptor to
+// api/testdata/toolset-descriptors.json, which the Runtime's factories are
+// held to as well (runtime/tests/test_capabilities.py), so a tool or Toolset
+// added on one side only fails.
+func TestSharedToolsetDescriptorParity(t *testing.T) {
+	t.Parallel()
 	var fixture struct {
-		SchemaVersion string                                            `yaml:"schemaVersion"`
-		Toolsets      map[string]map[string][]ToolInfrastructureChannel `yaml:"toolsets"`
+		Description string                              `json:"description"`
+		Toolsets    map[string]toolsetDescriptorFixture `json:"toolsets"`
 	}
-	if err := yaml.Unmarshal(raw, &fixture); err != nil {
+	decoder := json.NewDecoder(bytes.NewReader(contractstest.ReadFile(t, "api", "testdata", "toolset-descriptors.json")))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&fixture); err != nil {
 		t.Fatal(err)
-	}
-	if fixture.SchemaVersion != "1.0" {
-		t.Fatalf("descriptor parity schemaVersion = %q", fixture.SchemaVersion)
 	}
 	normalized, err := normalizeDescriptors(MVPDescriptors())
 	if err != nil {
 		t.Fatal(err)
 	}
-	descriptors := normalized.Toolsets
-	if len(fixture.Toolsets) != len(descriptors) {
-		t.Fatalf("descriptor parity Toolsets = %d, want %d", len(fixture.Toolsets), len(descriptors))
+	if got, want := slices.Sorted(maps.Keys(normalized.Toolsets)), slices.Sorted(maps.Keys(fixture.Toolsets)); !slices.Equal(got, want) {
+		t.Fatalf("Toolset descriptors = %v, shared fixture = %v", got, want)
 	}
-	for ref, descriptor := range descriptors {
-		if !reflect.DeepEqual(fixture.Toolsets[ref], descriptor.InfrastructureChannels) {
-			t.Fatalf("descriptor parity channels for %s = %v, want %v", ref, fixture.Toolsets[ref], descriptor.InfrastructureChannels)
+	for ref, shared := range fixture.Toolsets {
+		profile := ""
+		if shared.RequiredSandboxProfile != nil {
+			profile = *shared.RequiredSandboxProfile
+		}
+		// The fixture spells an absent collection as an empty one.
+		want := ToolsetDescriptor{
+			RequiredSandboxProfile: profile, RequiresWorkspace: shared.RequiresWorkspace,
+			Tools: shared.Tools, InfrastructureChannels: shared.InfrastructureChannels,
+		}
+		if len(shared.ActiveCheckTools) > 0 {
+			want.ActiveCheckTools = shared.ActiveCheckTools
+		}
+		if len(shared.FindingProposalTools) > 0 {
+			want.FindingProposalTools = shared.FindingProposalTools
+		}
+		for tool, input := range shared.RequiredWorkflowInputs {
+			if want.RequiredWorkflowInputs == nil {
+				want.RequiredWorkflowInputs = map[string]WorkflowInputRequirement{}
+			}
+			want.RequiredWorkflowInputs[tool] = WorkflowInputRequirement{Input: input.Input, MediaType: input.MediaType}
+		}
+		if got := normalized.Toolsets[ref]; !reflect.DeepEqual(got, want) {
+			t.Errorf("Toolset %s descriptor = %+v, shared fixture = %+v", ref, got, want)
 		}
 	}
 }
@@ -765,6 +592,89 @@ func TestManifestDiscoveryRejectsSymlinks(t *testing.T) {
 	if snapshot, err := Load(root, MVPDescriptors()); err == nil || snapshot != nil ||
 		!strings.Contains(err.Error(), "is a symlink") {
 		t.Fatalf("Load() = (%v, %v), want strict symlink error", snapshot, err)
+	}
+}
+
+// Every manifest and instruction resource is read with one file bound
+// (LIM-CAT-5, CAT-R77): a file of exactly the bound loads, one more byte
+// rejects the complete set.
+func TestCatalogFileReadsAreBounded(t *testing.T) {
+	t.Parallel()
+
+	t.Run("instruction", func(t *testing.T) {
+		root := copyCoreFixture(t)
+		path := filepath.Join(root, "instructions", "padding.md")
+		writeFile(t, path, bytes.Repeat([]byte("a"), maximumCatalogFileBytes))
+		if _, err := Load(root, MVPDescriptors()); err != nil {
+			t.Fatalf("instruction at the bound: %v", err)
+		}
+		writeFile(t, path, bytes.Repeat([]byte("a"), maximumCatalogFileBytes+1))
+		snapshot, err := Load(root, MVPDescriptors())
+		if snapshot != nil || !errors.Is(err, securefile.ErrTooLarge) ||
+			!strings.Contains(err.Error(), `read instruction "instructions/padding.md"`) {
+			t.Fatalf("instruction over the bound = (%v, %v)", snapshot, err)
+		}
+	})
+	t.Run("manifest", func(t *testing.T) {
+		root := copyCoreFixture(t)
+		path := filepath.Join(root, "model-policies", "test-worker.yaml")
+		original := readFile(t, path)
+		// A trailing YAML comment keeps the manifest valid at any length.
+		padded := func(size int) []byte {
+			data := append(append([]byte(nil), original...), "\n#"...)
+			return append(data, bytes.Repeat([]byte("x"), size-len(data))...)
+		}
+		writeFile(t, path, padded(maximumCatalogFileBytes))
+		if _, err := Load(root, MVPDescriptors()); err != nil {
+			t.Fatalf("manifest at the bound: %v", err)
+		}
+		writeFile(t, path, padded(maximumCatalogFileBytes+1))
+		snapshot, err := Load(root, MVPDescriptors())
+		if snapshot != nil || !errors.Is(err, securefile.ErrTooLarge) ||
+			!strings.Contains(err.Error(), "model-policies/test-worker.yaml: read manifest") {
+			t.Fatalf("manifest over the bound = (%v, %v)", snapshot, err)
+		}
+	})
+}
+
+// A persisted Workflow snapshot is read with the same complete graph check as
+// a catalog load (CAT-R78), so no reader validates it again and none skips it.
+func TestDecodeResolvedWorkflowSnapshotChecksTheWholeGraph(t *testing.T) {
+	t.Parallel()
+
+	snapshot := mustLoad(t, copyCoreFixture(t), MVPDescriptors())
+	workflow, err := snapshot.Workflow("artifact-copy@1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	encoded, err := json.Marshal(workflow)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if decoded, err := DecodeResolvedWorkflowSnapshot(encoded); err != nil || !reflect.DeepEqual(decoded, workflow) {
+		t.Fatalf("valid snapshot = (%+v, %v)", decoded, err)
+	}
+	for name, tamper := range map[string]func(*ResolvedWorkflow){
+		"missing entry Stage": func(workflow *ResolvedWorkflow) { workflow.EntryStage = "missing" },
+		"undeclared Workflow output": func(workflow *ResolvedWorkflow) {
+			workflow.Stages["copy"].WorkflowOutputs["undeclared"] = "copied"
+		},
+		"transition to a missing Stage": func(workflow *ResolvedWorkflow) {
+			stage := workflow.Stages["copy"]
+			stage.On.Succeeded = TransitionAction{Kind: TransitionNext, NextStage: "missing"}
+			workflow.Stages["copy"] = stage
+		},
+	} {
+		tampered := cloneWorkflow(workflow)
+		tamper(&tampered)
+		encoded, err := json.Marshal(tampered)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if decoded, err := DecodeResolvedWorkflowSnapshot(encoded); err == nil ||
+			!strings.HasPrefix(err.Error(), "persisted Workflow: ") || !reflect.DeepEqual(decoded, ResolvedWorkflow{}) {
+			t.Errorf("%s: DecodeResolvedWorkflowSnapshot = (%+v, %v)", name, decoded, err)
+		}
 	}
 }
 

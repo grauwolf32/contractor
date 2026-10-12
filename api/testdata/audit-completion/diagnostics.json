@@ -8,8 +8,7 @@
       "totalCount": 2,
       "reminderCount": 0
     },
-    "valid": true,
-    "known": true
+    "valid": true
   },
   {
     "name": "partial",
@@ -20,8 +19,7 @@
       "totalCount": 2,
       "reminderCount": 1
     },
-    "valid": true,
-    "known": true
+    "valid": true
   },
   {
     "name": "sealed",
@@ -32,8 +30,7 @@
       "totalCount": 2,
       "reminderCount": 0
     },
-    "valid": true,
-    "known": true
+    "valid": true
   },
   {
     "name": "publishing",
@@ -44,8 +41,7 @@
       "totalCount": 2,
       "reminderCount": 0
     },
-    "valid": true,
-    "known": true
+    "valid": true
   },
   {
     "name": "published",
@@ -56,8 +52,7 @@
       "totalCount": 2,
       "reminderCount": 0
     },
-    "valid": true,
-    "known": true
+    "valid": true
   },
   {
     "name": "incomplete",
@@ -69,8 +64,7 @@
       "reminderCount": 2,
       "failureCode": "audit_result_incomplete"
     },
-    "valid": true,
-    "known": true
+    "valid": true
   },
   {
     "name": "conflict",
@@ -82,8 +76,7 @@
       "reminderCount": 0,
       "failureCode": "audit_result_publication_conflict"
     },
-    "valid": true,
-    "known": true
+    "valid": true
   },
   {
     "name": "cancelled",
@@ -95,8 +88,7 @@
       "reminderCount": 0,
       "failureCode": "worker_cancelled"
     },
-    "valid": true,
-    "known": true
+    "valid": true
   },
   {
     "name": "too-many",
@@ -108,7 +100,7 @@
       "reminderCount": 0
     },
     "valid": false,
-    "known": true
+    "semanticOnly": true
   },
   {
     "name": "too-large",
@@ -119,8 +111,7 @@
       "totalCount": 65,
       "reminderCount": 0
     },
-    "valid": false,
-    "known": true
+    "valid": false
   },
   {
     "name": "too-many-reminders",
@@ -131,8 +122,7 @@
       "totalCount": 2,
       "reminderCount": 3
     },
-    "valid": false,
-    "known": true
+    "valid": false
   },
   {
     "name": "negative",
@@ -143,8 +133,7 @@
       "totalCount": 2,
       "reminderCount": 0
     },
-    "valid": false,
-    "known": true
+    "valid": false
   },
   {
     "name": "bool-count",
@@ -155,8 +144,7 @@
       "totalCount": 2,
       "reminderCount": 0
     },
-    "valid": false,
-    "known": true
+    "valid": false
   },
   {
     "name": "null-count",
@@ -167,8 +155,7 @@
       "totalCount": 2,
       "reminderCount": 0
     },
-    "valid": false,
-    "known": true
+    "valid": false
   },
   {
     "name": "missing-count",
@@ -178,8 +165,7 @@
       "totalCount": 2,
       "reminderCount": 0
     },
-    "valid": false,
-    "known": true
+    "valid": false
   },
   {
     "name": "partial-published",
@@ -191,7 +177,7 @@
       "reminderCount": 0
     },
     "valid": false,
-    "known": true
+    "semanticOnly": true
   },
   {
     "name": "failed-without-code",
@@ -202,8 +188,7 @@
       "totalCount": 2,
       "reminderCount": 0
     },
-    "valid": false,
-    "known": true
+    "valid": false
   },
   {
     "name": "not-failed-with-code",
@@ -215,8 +200,7 @@
       "reminderCount": 0,
       "failureCode": "worker_cancelled"
     },
-    "valid": false,
-    "known": true
+    "valid": false
   },
   {
     "name": "raw-payload",
@@ -228,8 +212,7 @@
       "reminderCount": 0,
       "summary": "private-evidence-marker"
     },
-    "valid": false,
-    "known": true
+    "valid": false
   },
   {
     "name": "unbounded-code",
@@ -241,8 +224,7 @@
       "reminderCount": 0,
       "failureCode": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
     },
-    "valid": false,
-    "known": true
+    "valid": false
   },
   {
     "name": "unknown-kind",
@@ -251,11 +233,9 @@
       "phase": "collecting",
       "acceptedCount": 0,
       "totalCount": 2,
-      "reminderCount": 0,
-      "summary": "private-evidence-marker"
+      "reminderCount": 0
     },
-    "valid": true,
-    "known": false
+    "valid": false
   },
   {
     "name": "unknown-phase",
@@ -264,11 +244,20 @@
       "phase": "accepted",
       "acceptedCount": 0,
       "totalCount": 2,
-      "reminderCount": 0,
-      "summary": "private-evidence-marker"
+      "reminderCount": 0
     },
-    "valid": true,
-    "known": false
+    "valid": false
+  },
+  {
+    "name": "unknown-phase-case",
+    "value": {
+      "kind": "audit-check-results@1",
+      "phase": "Sealed",
+      "acceptedCount": 2,
+      "totalCount": 2,
+      "reminderCount": 0
+    },
+    "valid": false
   },
   {
     "name": "empty-kind",
@@ -279,8 +268,7 @@
       "totalCount": 2,
       "reminderCount": 0
     },
-    "valid": false,
-    "known": true
+    "valid": false
   },
   {
     "name": "empty-phase",
@@ -291,8 +279,7 @@
       "totalCount": 2,
       "reminderCount": 0
     },
-    "valid": false,
-    "known": true
+    "valid": false
   },
   {
     "name": "empty-failure-code",
@@ -304,8 +291,7 @@
       "reminderCount": 0,
       "failureCode": ""
     },
-    "valid": false,
-    "known": true
+    "valid": false
   },
   {
     "name": "fractional-count",
@@ -316,7 +302,6 @@
       "totalCount": 2,
       "reminderCount": 0
     },
-    "valid": false,
-    "known": true
+    "valid": false
   }
 ]

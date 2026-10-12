@@ -1,0 +1,42 @@
+{
+  "description": "The model recovery participant protocol (SCH-R105 to SCH-R112, SCH-R168) shared by the Server (gatewayrecovery: Request.Validate and Terminal, ValidFailure, and the Planner participant's attemptUpdate and redelivery) and the Python Runtime (llm.recovery RecoveryUpdate and its action and code sets, llm.client _attempt_update and _redelivery). actions lists every update and whether it is terminal. failureCodes are the codes a failed update may carry. requests are update messages and whether the Server accepts them. outcomes map the outcome of one granted attempt to the update that reports it and whether the request is then resent: failure null is a model response, abandoned marks a request the Gateway received but did not answer in time, shouldRetry false is an x-should-retry: false response, and cancelled is an invocation that ended before an outcome was observed. redelivery maps an update whose invocation ended before it was acknowledged to the update re-delivered on a bounded, detached best effort.",
+  "actions": [
+    {"action": "acquire", "terminal": false},
+    {"action": "failed", "terminal": false},
+    {"action": "succeeded", "terminal": true},
+    {"action": "finished", "terminal": true},
+    {"action": "released", "terminal": true}
+  ],
+  "failureCodes": ["gateway_rate_limited", "gateway_timeout", "gateway_unavailable", "model_unavailable"],
+  "requests": [
+    {"name": "acquire", "request": {"model": "worker", "requestId": "request-1", "action": "acquire", "retryAfterSeconds": 0}, "valid": true},
+    {"name": "failed with a failure code and a hint", "request": {"model": "worker", "requestId": "request-1", "action": "failed", "code": "gateway_unavailable", "retryAfterSeconds": 2.5}, "valid": true},
+    {"name": "failed with every failure code", "request": {"model": "worker", "requestId": "request-1", "action": "failed", "code": "model_unavailable", "retryAfterSeconds": 0}, "valid": true},
+    {"name": "failed without a code", "request": {"model": "worker", "requestId": "request-1", "action": "failed", "retryAfterSeconds": 0}, "valid": false},
+    {"name": "failed with a permanent code", "request": {"model": "worker", "requestId": "request-1", "action": "failed", "code": "gateway_request_rejected", "retryAfterSeconds": 0}, "valid": false},
+    {"name": "succeeded", "request": {"model": "worker", "requestId": "request-1", "action": "succeeded", "retryAfterSeconds": 0}, "valid": true},
+    {"name": "finished", "request": {"model": "worker", "requestId": "request-1", "action": "finished", "retryAfterSeconds": 0}, "valid": true},
+    {"name": "released", "request": {"model": "worker", "requestId": "request-1", "action": "released", "retryAfterSeconds": 0}, "valid": true},
+    {"name": "unknown action", "request": {"model": "worker", "requestId": "request-1", "action": "retry", "retryAfterSeconds": 0}, "valid": false},
+    {"name": "negative hint", "request": {"model": "worker", "requestId": "request-1", "action": "failed", "code": "gateway_timeout", "retryAfterSeconds": -1}, "valid": false},
+    {"name": "empty request ID", "request": {"model": "worker", "requestId": "", "action": "acquire", "retryAfterSeconds": 0}, "valid": false},
+    {"name": "longest request ID", "request": {"model": "worker", "requestId": "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr", "action": "acquire", "retryAfterSeconds": 0}, "valid": true},
+    {"name": "request ID over 256 bytes", "request": {"model": "worker", "requestId": "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr", "action": "acquire", "retryAfterSeconds": 0}, "valid": false},
+    {"name": "empty model", "request": {"model": "", "requestId": "request-1", "action": "acquire", "retryAfterSeconds": 0}, "valid": false}
+  ],
+  "outcomes": [
+    {"name": "model response", "failure": null, "retryAfterSeconds": 0, "update": {"action": "succeeded"}, "resend": false},
+    {"name": "permanent rejection with a hint", "failure": {"code": "gateway_request_rejected", "retryable": false}, "retryAfterSeconds": 3, "update": {"action": "finished"}, "resend": false},
+    {"name": "retryable failure with a hint", "failure": {"code": "gateway_rate_limited", "retryable": true}, "retryAfterSeconds": 3, "update": {"action": "failed", "code": "gateway_rate_limited", "retryAfterSeconds": 3}, "resend": true},
+    {"name": "retryable failure without a hint", "failure": {"code": "model_unavailable", "retryable": true}, "retryAfterSeconds": 0, "update": {"action": "failed", "code": "model_unavailable", "retryAfterSeconds": 0}, "resend": true},
+    {"name": "retryable failure marked x-should-retry false", "failure": {"code": "gateway_unavailable", "retryable": true, "shouldRetry": false}, "retryAfterSeconds": 3, "update": {"action": "finished"}, "resend": false},
+    {"name": "request the Gateway did not answer in time", "failure": {"code": "gateway_timeout", "retryable": true, "abandoned": true}, "retryAfterSeconds": 0, "update": {"action": "released"}, "resend": false},
+    {"name": "invocation ended before an outcome", "cancelled": true, "retryAfterSeconds": 0, "update": {"action": "released"}, "resend": false}
+  ],
+  "redelivery": [
+    {"update": {"action": "succeeded"}, "redelivered": {"action": "succeeded"}},
+    {"update": {"action": "finished"}, "redelivered": {"action": "finished"}},
+    {"update": {"action": "released"}, "redelivered": {"action": "released"}},
+    {"update": {"action": "failed", "code": "gateway_unavailable", "retryAfterSeconds": 3}, "redelivered": {"action": "released"}}
+  ]
+}
