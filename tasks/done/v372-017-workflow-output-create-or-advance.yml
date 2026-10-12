@@ -76,8 +76,8 @@ context:
     twice in one Run, such as loops or remapping after continuation, needs a
     new decision. Iterating on one artifact across different Workflows is a
     Project-level concern, designed separately in
-    docs/proposals/0035-fast-forward-project-outputs.md (on the integration
-    branch claude/nice-gates-xce4d2); it does not need Run-internal advance.
+    docs/proposals/0035-fast-forward-project-outputs.md; it does not need
+    Run-internal advance.
   implementation: >-
     Re-verified on f625e86. bindOutput did not set Fork.Replay, so a mapping
     of the identical source was a ConflictError too, not the replay that the
