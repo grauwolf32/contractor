@@ -760,6 +760,15 @@ existing records, captures the available review revisions and reads the
 exact retained bytes with matching digest, MIME type and size. Publication
 exposes a complete package atomically.
 
+**FND-R159.** Publication reads its selection in a number of statements that
+does not grow with its entries (LIM-FND-15): one read authorizes every
+source, one read per source authorizes the receipts it selects, one read
+each loads the selected receipts, their Audit holds, the Audits that own
+those holds and the source Runs that still exist, and the exact documents
+are read in batches. Only the sources (LIM-FND-14) and the document batches
+(LIM-FND-16) add statements to the one repeatable-read transaction that
+holds the publication's lock (FND-R116).
+
 **FND-R111.** A successful response contains `artifact` (`ref`, `digest`,
 `mediaType`, `sizeBytes`), `snapshotAt`, `entryCount` and `replayed`.
 Creation returns `201`; replay returns `200`.
