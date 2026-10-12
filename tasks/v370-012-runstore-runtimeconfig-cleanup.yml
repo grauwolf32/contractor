@@ -22,6 +22,7 @@ context:
 scope:
   in:
     - "One creation encoder and SQL; the credentials repository validator; principals in their own package; one replay helper."
+    - "The [known] entry of internal/persistence/table_ownership.txt that names V370-012 (runstore's own read of runtime_credentials); a principals package takes over the [relations] owner and [reads] entries of runtimeconfig for runtime_agent_principals."
   out:
     - "Behaviour."
 acceptance_criteria:

@@ -21,6 +21,7 @@ context:
 scope:
   in:
     - "runstore methods with CAS for every transition (EnterWaiting/LeaveWaiting, FailRunWithActiveStages, LockRunState); gatewayrecovery reaches them through a port; the V369-001 allowlist loses these entries."
+    - "The [known] entries of internal/persistence/table_ownership.txt that name V370-001 (PER-R23 counts FOR UPDATE row locks as writes): the Run and Stage writes and locks of internal/scheduler (workflow_runs, stage_executions, stage_allocations) and internal/gatewayrecovery (workflow_runs), and the Run and Stage lock-and-check copies of internal/memory (Planner Memory write fence) and internal/controlplane (allocation placement). Reads that stay become [reads] grants with their reason."
   out:
     - "Transition semantics."
 acceptance_criteria:

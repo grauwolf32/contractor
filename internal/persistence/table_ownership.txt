@@ -1,0 +1,282 @@
+# Table ownership registry: PER-R23 in docs/spec/platform/persistence.md.
+#
+# TestSQLAccessFollowsTableOwnership (table_ownership_test.go) reads the SQL
+# text of every non-test Go file under api, cmd, internal and tools. It fails
+# on an access that this file does not allow, and on an entry here that no
+# longer matches an access. TestTableOwnershipMatchesTheSchemaDocuments keeps
+# scripts/erd/meta.json and the "Table owners" table of persistence.md in step
+# with [relations], and the PostgreSQL integration test of
+# internal/persistence/postgres requires the migrated schema to have exactly
+# these tables and views.
+#
+# A write is INSERT, UPDATE, DELETE, MERGE, TRUNCATE, COPY FROM or pgx
+# CopyFrom, LOCK TABLE, a change of the definition, or an exclusive row lock:
+# FOR UPDATE or FOR NO KEY UPDATE. A read is any other use, including FOR SHARE
+# and FOR KEY SHARE.
+#
+# Blank lines and lines starting with # are ignored. An indented line
+# continues the reason of the entry above it.
+
+[relations]
+# Every table and view of the migrated schema, its owner package, which alone
+# may write it, and the scripts/erd/meta.json group that draws it ("-" for a
+# view or the migration ledger, which the ERD does not draw).
+#
+# relation                           owner                            ERD group
+allocation_execution_reports         internal/telemetry               exec
+performance_minutes                  internal/performance             exec
+planner_execution_reports            internal/telemetry               exec
+planner_sessions                     internal/runstore                exec
+run_stage_resumptions                internal/runstore                exec
+stage_allocations                    internal/runstore                exec
+stage_executions                     internal/runstore                exec
+stage_metrics                        internal/telemetry               exec
+stage_transition_decisions           internal/runstore                exec
+workflow_run_events                  internal/runstore                exec
+workflow_runs                        internal/runstore                exec
+
+artifact_binding_revisions           internal/artifacts               artifacts
+artifact_bindings                    internal/artifacts               artifacts
+artifact_blob_settings               internal/artifacts               artifacts
+artifact_blobs                       internal/artifacts               artifacts
+artifact_lineage                     internal/artifacts               artifacts
+artifact_scopes                      internal/artifacts               artifacts
+artifact_versions                    internal/artifacts               artifacts
+workflow_run_output_publications     internal/runstore                artifacts
+
+owner_queue_controls                 internal/runstore                projects
+projects                             internal/projectstore            projects
+scheduler_settings                   internal/settingsstore           projects
+
+credential_operations                internal/credentials             secrets
+git_ssh_keys                         internal/credentials             secrets
+llm_credentials                      internal/credentials             secrets
+runtime_credentials                  internal/credentials             secrets
+
+gateway_allocation_routes            internal/gatewayrecovery         runtime
+gateway_recovery_failures            internal/gatewayrecovery         runtime
+gateway_recovery_routes              internal/gatewayrecovery         runtime
+gateway_recovery_waits               internal/gatewayrecovery         runtime
+gateway_run_routes                   internal/gatewayrecovery         runtime
+runtime_agent_principals             internal/runtimeconfig           runtime
+runtime_config_versions              internal/runtimeconfig           runtime
+runtime_label_bindings               internal/runtimeconfig           runtime
+runtime_management_operations        internal/runtimeconfig           runtime
+
+audit_artifact_links                 internal/auditstore              audits
+audit_controller_claims              internal/auditstore              audits
+audit_events                         internal/auditstore              audits
+audit_execution_items                internal/auditstore              audits
+audit_executions                     internal/auditstore              audits
+audit_idempotency                    internal/auditstore              audits
+audit_items                          internal/auditstore              audits
+audit_report_pages                   internal/auditstore              audits
+audit_rounds                         internal/auditstore              audits
+audits                               internal/auditstore              audits
+
+audit_finding_assessments            internal/auditstore              findings
+audit_finding_contributions          internal/auditstore              findings
+audit_findings                       internal/auditstore              findings
+audit_review_decisions               internal/auditstore              findings
+audit_review_requests                internal/auditstore              findings
+finding_proposal_audit_holds         internal/findingintake           findings
+finding_proposal_receipts            internal/findingintake           findings
+
+eval_collections                     internal/evalstore               evals
+eval_commands                        internal/evalstore               evals
+eval_controller_claims               internal/evalstore               evals
+eval_dataset_revisions               internal/evalstore               evals
+eval_evidence_refs                   internal/evalstore               evals
+eval_execution_tombstones            internal/evalstore               evals
+eval_experiments                     internal/evalstore               evals
+eval_frozen_plans                    internal/evalstore               evals
+eval_member_projections              internal/evalstore               evals
+eval_members                         internal/evalstore               evals
+eval_mutation_receipts               internal/evalstore               evals
+eval_plan_resources                  internal/evalstore               evals
+eval_progress_observations           internal/evalstore               evals
+eval_projection_queue                internal/evalstore               evals
+eval_records                         internal/evalstore               evals
+eval_selections                      internal/evalstore               evals
+eval_submissions                     internal/evalstore               evals
+eval_suboperations                   internal/evalstore               evals
+eval_view_charts                     internal/evalstore               evals
+eval_view_pairs                      internal/evalstore               evals
+
+audit_live_item_reviews              internal/auditstore              -
+contractor_schema_migrations         internal/persistence/postgres    -
+
+[reads]
+# Reads of another package's relation that the design accepts, each with the
+# reason. A package that writes a relation needs a [known] entry instead.
+#
+# package                    relation                       reason
+internal/artifacts           workflow_runs                  Output freezing checks that the Run exists; Project input
+    forks, output publication and Audit import check that the Run belongs to the Project.
+
+internal/auditstore          finding_proposal_audit_holds   Round acceptance carries proposal holds into the next round;
+    Run deletion finds the Audits that hold a Run's proposals.
+internal/auditstore          finding_proposal_receipts      Reports read each finding's first receipt; Run deletion finds
+    the Audits that a Run's receipts name.
+internal/auditstore          workflow_runs                  Audit executions bind, observe and delete their child Runs and
+    show their state.
+
+internal/credentials         projects                       Runtime credential usage lists the Projects whose HTTP target
+    uses the credential.
+internal/credentials         runtime_config_versions        Credential usage finds the bound RuntimeConfig versions that
+    name the credential.
+internal/credentials         runtime_label_bindings         Credential usage finds the labels bound to those RuntimeConfig
+    versions.
+internal/credentials         stage_allocations              Runtime credential usage lists the unreleased allocations that
+    reference the credential.
+internal/credentials         stage_executions               Runtime credential usage joins those allocations to their Runs.
+internal/credentials         workflow_runs                  Runtime credential usage lists the active Runs whose snapshots
+    pin the credential.
+
+internal/evalstore           audit_artifact_links           Evidence authorization and Audit outputs resolve the Audit's
+    accepted output links.
+internal/evalstore           audit_executions               Inventories, evidence and observed usage read the child
+    executions of a submitted Audit.
+internal/evalstore           audit_rounds                   Inventories show the round of each child execution.
+internal/evalstore           audits                         Inventories, execution views, evidence, usage and settlement
+    read the submitted Audits.
+internal/evalstore           projects                       Experiments check their evaluation and workspace Projects and
+    fence their deletion FOR SHARE.
+internal/evalstore           stage_allocations              Metric snapshots count the allocations of each Stage.
+internal/evalstore           stage_executions               Metric snapshots and observed usage read the Stages of member
+    Runs.
+internal/evalstore           stage_metrics                  Metric snapshots and observed usage read the Stage metrics of
+    member Runs.
+internal/evalstore           workflow_runs                  Inventories, execution views, evidence and usage read the
+    submitted Runs.
+
+internal/findingintake       audit_events                   Collection listing and rejection look for
+    finding.proposal_rejected events.
+internal/findingintake       audit_executions               Trusted execution checks match a proposal to its Audit
+    execution.
+internal/findingintake       audit_finding_contributions    Collection authorization and direct verification find the
+    contribution of a receipt.
+internal/findingintake       audit_review_requests          Proposal import refuses an Audit with a pending report review.
+internal/findingintake       projects                       Collection capture checks that the hold's Audit belongs to its
+    Project.
+internal/findingintake       stage_allocations              Trusted execution checks match the proposal's grant to its live
+    allocation.
+internal/findingintake       stage_executions               Trusted execution checks match that allocation to its Stage and
+    Run.
+internal/findingintake       workflow_runs                  Receipts join their source Run; import fences that Run FOR KEY
+    SHARE.
+
+internal/gitimport           projects                       Git import checks that the Project is active and fences its
+    deletion FOR SHARE.
+
+internal/projectlifecycle    audits                         Project deletion waits for the Project's Audits to request
+    deletion and to be purged.
+internal/projectlifecycle    stage_allocations              Project deletion waits until the allocations of its Runs are
+    released.
+internal/projectlifecycle    stage_executions               Project deletion joins those allocations to their Runs.
+internal/projectlifecycle    workflow_runs                  Project deletion cancels, waits for and purges the Project's
+    Runs.
+
+internal/projectstore        eval_experiments               Project lists leave out Eval workspace Projects.
+internal/projectstore        eval_submissions               Project lists leave out Eval workspace Projects.
+
+internal/runstore            projects                       The Run queue shows the Project of each Run; resumption checks
+    that it is active and fences its deletion FOR SHARE.
+
+internal/runtimeconfig       stage_allocations              Principal deletion refuses a Runtime Agent with unreleased
+    allocations.
+
+internal/telemetry           stage_allocations              Resource history reads the allocations of terminal Stages.
+internal/telemetry           stage_executions               Resource history reads terminal Stages; report and metric
+    retention deletes only those of terminal Stages.
+internal/telemetry           workflow_runs                  Resource history scopes allocations to the owner's Runs.
+
+[known]
+# Foreign accesses that break the ownership rule today. Each names the open
+# task that removes it and why the access exists; a write entry also covers
+# reads of the relation. Delete an entry with the access, never add one
+# without a task.
+#
+# package                    access  relation                          task      reason
+internal/auditservice        read    audit_events                      V370-004  The Audit event list reads the events
+    directly.
+internal/auditservice        read    audit_execution_items             V370-004  Finding review reads the execution items
+    behind a finding.
+internal/auditservice        read    audit_executions                  V370-004  Finding review reads the executions
+    behind a finding.
+internal/auditservice        read    audit_finding_assessments         V370-004  Finding reads and reviews query
+    assessments directly.
+internal/auditservice        read    audit_finding_contributions       V370-004  Finding collection and review query
+    contributions directly.
+internal/auditservice        read    audit_items                       V370-004  Workspace, next-round selection and
+    finding review query items directly.
+internal/auditservice        read    audit_review_decisions            V370-004  Review, finding and owner lists query
+    decisions directly.
+internal/auditservice        write   audit_findings                    V370-004  Finding review decisions lock the
+    finding row FOR UPDATE.
+internal/auditservice        write   audit_review_requests             V370-004  Review decisions lock the review request
+    row FOR UPDATE.
+internal/auditservice        write   audits                            V370-004  Review decisions and Audit resume lock
+    the Audit row FOR UPDATE.
+
+internal/controlplane        write   stage_executions                  V370-001  Allocation placement locks the Stage row
+    FOR UPDATE and checks that it is preparing.
+
+internal/gatewayrecovery     write   workflow_runs                     V370-001  Moves Runs between running and waiting,
+    sets the reason of a pending Run that waits and locks the Run row FOR UPDATE.
+
+internal/memory              write   stage_executions                  V370-001  The Planner Memory write fence locks the
+    Stage row FOR UPDATE and checks its state.
+internal/memory              write   workflow_runs                     V370-001  The Planner Memory write fence locks the
+    Run row FOR UPDATE and checks its state.
+
+internal/scheduler           write   stage_allocations                 V370-001  Discarding an unadmitted placement
+    deletes the Stage's allocation rows.
+internal/scheduler           write   stage_executions                  V370-001  Admission, FailRunWithActiveStages and
+    termination update Stage state; lockStageForRun locks the Stage row FOR UPDATE.
+internal/scheduler           write   workflow_runs                     V370-001  lockRunState locks the Run row FOR
+    UPDATE and checks its state at every commit point.
+
+internal/artifacts           write   workflow_run_output_publications  V370-002  PurgeRun and PurgeProject delete the
+    Run output publication receipts.
+internal/auditstore          write   projects                          V370-002  Project-owned Audit deletion locks the
+    deleting Project row under its deletion claim.
+internal/auditstore          write   scheduler_settings                V370-002  Execution intents lock the scheduler
+    settings row FOR UPDATE with the Audit to read max_concurrent_runs.
+internal/credentials         read    audits                            V370-002  Runtime credential usage reads held
+    Audit baselines, where LLM credential usage asks auditstore.
+internal/evalstore           read    artifact_binding_revisions        V370-002  Run output and evidence metadata copy
+    the artifact metadata query.
+internal/evalstore           read    artifact_bindings                 V370-002  Run output metadata copies the artifact
+    metadata query.
+internal/evalstore           read    artifact_blobs                    V370-002  Run output and evidence metadata copy
+    the artifact metadata query.
+internal/evalstore           read    artifact_versions                 V370-002  Run output and evidence metadata copy
+    the artifact metadata query.
+internal/evalstore           read    audit_idempotency                 V370-002  Execution binding matches an Audit
+    through its create idempotency record.
+internal/findingintake       write   audit_artifact_links              V370-002  Direct verification links its result
+    Artifact to the Audit.
+internal/findingintake       write   audit_finding_assessments         V370-002  Direct verification inserts its
+    assessment.
+internal/findingintake       write   audit_findings                    V370-002  Direct verification recomputes the
+    current assessment of the finding.
+internal/findingintake       write   audits                            V370-002  Proposal import and collection
+    rejection lock the Audit row FOR UPDATE.
+internal/projectlifecycle    write   projects                          V370-002  The deletion controller claims deleting
+    Projects and advances their deletion phase.
+internal/rundeletion         read    finding_proposal_audit_holds      V370-002  Run deletion reads the holds of the
+    receipts it tombstones.
+internal/rundeletion         write   finding_proposal_receipts         V370-002  Run deletion tombstones the retention
+    state of the Run's proposal receipts.
+internal/runstore            write   artifact_bindings                 V370-002  ResumeFailedRun thaws the Run's output
+    bindings.
+internal/scheduler           read    artifact_binding_revisions        V370-002  Required output verification copies
+    the artifact metadata query.
+internal/scheduler           read    artifact_bindings                 V370-002  Required output verification copies
+    the artifact metadata query.
+internal/scheduler           read    artifact_versions                 V370-002  Required output verification copies
+    the artifact metadata query.
+
+internal/runstore            read    runtime_credentials               V370-012  Run creation validates Runtime
+    credentials with its own query.

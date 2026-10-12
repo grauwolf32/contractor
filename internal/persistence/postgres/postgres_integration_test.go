@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
@@ -60,30 +61,9 @@ func TestPostgresIntegrationMigrationsAndConstraints(t *testing.T) {
 	}
 
 	tables := schemaTables(t, ctx, first)
-	wantTables := []string{
-		"allocation_execution_reports",
-		"artifact_binding_revisions", "artifact_bindings", "artifact_blob_settings", "artifact_blobs",
-		"artifact_lineage", "artifact_scopes", "artifact_versions",
-		"audit_artifact_links", "audit_controller_claims",
-		"audit_events", "audit_execution_items", "audit_executions",
-		"audit_finding_assessments", "audit_finding_contributions", "audit_findings",
-		"audit_idempotency", "audit_items", "audit_live_item_reviews", "audit_report_pages", "audit_review_decisions", "audit_review_requests",
-		"audit_rounds", "audits",
-		"contractor_schema_migrations", "credential_operations",
-		"eval_collections", "eval_commands", "eval_controller_claims", "eval_dataset_revisions", "eval_evidence_refs", "eval_execution_tombstones", "eval_experiments", "eval_frozen_plans", "eval_member_projections", "eval_members", "eval_mutation_receipts", "eval_plan_resources", "eval_progress_observations", "eval_projection_queue", "eval_records", "eval_selections", "eval_submissions", "eval_suboperations", "eval_view_charts", "eval_view_pairs", "finding_proposal_audit_holds", "finding_proposal_receipts",
-		"gateway_allocation_routes", "gateway_recovery_failures", "gateway_recovery_routes", "gateway_recovery_waits", "gateway_run_routes",
-		"git_ssh_keys", "llm_credentials", "owner_queue_controls",
-		"performance_minutes", "planner_execution_reports", "planner_sessions", "projects",
-		"run_stage_resumptions",
-		"runtime_agent_principals", "runtime_config_versions",
-		"runtime_credentials",
-		"runtime_label_bindings", "runtime_management_operations", "scheduler_settings", "stage_allocations",
-		"stage_executions", "stage_metrics",
-		"stage_transition_decisions", "workflow_run_events",
-		"workflow_run_output_publications", "workflow_runs",
-	}
+	wantTables := registryRelations(t)
 	if strings.Join(tables, ",") != strings.Join(wantTables, ",") {
-		t.Fatalf("schema tables = %v, want %v", tables, wantTables)
+		t.Fatalf("schema tables and views = %v, want the relations of the table ownership registry %v", tables, wantTables)
 	}
 	for _, name := range tables {
 		if name == "runtime_agents" || strings.Contains(name, "heartbeat") {
@@ -198,6 +178,35 @@ func isolatedPools(
 		admin.Close()
 	})
 	return first, second
+}
+
+// registryRelations returns the tables and views of the table ownership
+// registry (PER-R23), sorted: the first field of each line of its [relations]
+// section. TestTableOwnershipMatchesTheSchemaDocuments in internal/persistence
+// checks the rest of the registry.
+func registryRelations(t *testing.T) []string {
+	t.Helper()
+	source, err := os.ReadFile(filepath.Join("..", "table_ownership.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var relations []string
+	section := ""
+	for _, line := range strings.Split(string(source), "\n") {
+		fields := strings.Fields(line)
+		switch {
+		case len(fields) == 0 || strings.HasPrefix(fields[0], "#") || line[0] == ' ' || line[0] == '\t':
+		case strings.HasPrefix(fields[0], "["):
+			section = fields[0]
+		case section == "[relations]":
+			relations = append(relations, fields[0])
+		}
+	}
+	if len(relations) == 0 {
+		t.Fatal("the table ownership registry lists no relations")
+	}
+	sort.Strings(relations)
+	return relations
 }
 
 func schemaTables(t *testing.T, ctx context.Context, pool *pgxpool.Pool) []string {
