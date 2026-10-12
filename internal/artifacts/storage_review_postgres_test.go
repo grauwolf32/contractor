@@ -13,7 +13,8 @@ import (
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/rundeletion"
 	"github.com/grauwolf32/contractor/internal/runstore"
-	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/grauwolf32/contractor/internal/runstore/runstoretest"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -191,7 +192,7 @@ func storageReviewProject(t *testing.T, ctx context.Context, pool *pgxpool.Pool)
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = runstore.NewPostgresStore(pool).CreateRun(ctx, runstore.CreateRunParams{RunID: "review-run", OwnerID: p.OwnerID, ProjectID: &p.ProjectID, WorkflowName: "copy", WorkflowVersion: "1", WorkflowSchemaVersion: "contractor/v1alpha1", WorkflowSnapshot: json.RawMessage(`{}`), RuntimeConfig: runtimeconfig.BuiltInRunSnapshot()})
+	_, err = runstoretest.CreateRun(ctx, runstore.NewPostgresStore(pool), runstore.CreateRunParams{RunID: "review-run", OwnerID: p.OwnerID, ProjectID: &p.ProjectID, WorkflowName: "copy", WorkflowVersion: "1", WorkflowSchemaVersion: "contractor/v1alpha1", WorkflowSnapshot: json.RawMessage(`{}`), RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot()})
 	if err != nil {
 		t.Fatal(err)
 	}

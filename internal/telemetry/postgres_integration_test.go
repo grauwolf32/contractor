@@ -18,7 +18,9 @@ import (
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/planner/stageresult"
 	"github.com/grauwolf32/contractor/internal/runstore"
+	"github.com/grauwolf32/contractor/internal/runstore/runstoretest"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
 	"github.com/grauwolf32/contractor/internal/telemetry"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -301,13 +303,14 @@ func plannerEnvelope(
 
 func createTelemetryRun(t *testing.T, ctx context.Context, store *runstore.PostgresStore) {
 	t.Helper()
-	_, err := store.CreateRun(ctx, runstore.CreateRunParams{
+	_, err := runstoretest.CreateRun(ctx, store, runstore.CreateRunParams{
 		RunID: "run-telemetry", OwnerID: "user", WorkflowName: "workflow", WorkflowVersion: "1",
 		WorkflowSchemaVersion: contracts.APIVersion,
 		WorkflowSnapshot:      json.RawMessage(`{"name":"workflow"}`),
 		Parameters:            map[string]string{},
-		RuntimeConfig:         runtimeconfig.BuiltInRunSnapshot(),
+		RuntimeConfig:         runtimeconfigtest.BuiltInRunSnapshot(),
 	})
+
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -506,7 +509,7 @@ func isolatedTelemetryPool(t *testing.T, ctx context.Context) *pgxpool.Pool {
 		admin.Close()
 		t.Fatal(err)
 	}
-	if _, err := persistencepostgres.ApplyMigrations(ctx, pool); err != nil {
+	if _, err := persistencepostgres.ApplyMigrations(ctx, pool, persistencepostgres.MigrationBudgets{}); err != nil {
 		pool.Close()
 		admin.Close()
 		t.Fatal(err)

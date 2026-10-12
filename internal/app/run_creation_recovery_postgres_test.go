@@ -25,6 +25,10 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+// inTxWithRetryAttempts is the number of transactions
+// persistencepostgres.InTxWithRetry starts before a lasting conflict surfaces.
+const inTxWithRetryAttempts = 3
+
 func TestPostgresPublicRunCreationRecoversFreshPinsAndRolledBackResults(t *testing.T) {
 	for _, name := range []string{"concurrent-binding-rebind", "rollback-after-create", "exhausted-deadlock"} {
 		t.Run(name, func(t *testing.T) {
@@ -93,7 +97,7 @@ func TestPostgresPublicRunCreationRecoversFreshPinsAndRolledBackResults(t *testi
 			}
 			result, err := service.CreatePublic(ctx, params)
 			if name == "exhausted-deadlock" {
-				if !persistencepostgres.IsTransactionConflict(err) || attempts != persistencepostgres.MaxTransactionAttempts || generated != 1 {
+				if !persistencepostgres.IsTransactionConflict(err) || attempts != inTxWithRetryAttempts || generated != 1 {
 					t.Fatalf("exhausted creation=%+v attempts=%d ids=%d error=%v", result, attempts, generated, err)
 				}
 				var runs, refs int
@@ -213,7 +217,7 @@ func isolatedRecoveryPool(t *testing.T, ctx context.Context) *pgxpool.Pool {
 		}
 		admin.Close()
 	})
-	if _, err := persistencepostgres.ApplyMigrations(ctx, pool); err != nil {
+	if _, err := persistencepostgres.ApplyMigrations(ctx, pool, persistencepostgres.MigrationBudgets{}); err != nil {
 		t.Fatal(err)
 	}
 	return pool

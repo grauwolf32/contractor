@@ -16,7 +16,8 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/runstore"
-	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/grauwolf32/contractor/internal/runstore/runstoretest"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -63,7 +64,7 @@ func recoveryTestPool(t *testing.T) *pgxpool.Pool {
 			t.Error(err)
 		}
 	})
-	if _, err := persistencepostgres.ApplyMigrations(ctx, pool); err != nil {
+	if _, err := persistencepostgres.ApplyMigrations(ctx, pool, persistencepostgres.MigrationBudgets{}); err != nil {
 		t.Fatal(err)
 	}
 	return pool
@@ -72,10 +73,10 @@ func recoveryTestPool(t *testing.T) *pgxpool.Pool {
 func createPendingRun(t *testing.T, pool *pgxpool.Pool, runID string) {
 	t.Helper()
 	runs := runstore.NewPostgresStore(pool)
-	if _, err := runs.CreateRun(t.Context(), runstore.CreateRunParams{
+	if _, err := runstoretest.CreateRun(t.Context(), runs, runstore.CreateRunParams{
 		RunID: runID, OwnerID: "user-1", WorkflowName: "test", WorkflowVersion: "1",
 		WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: json.RawMessage(`{}`),
-		RuntimeConfig: runtimeconfig.BuiltInRunSnapshot(),
+		RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot(),
 	}); err != nil {
 		t.Fatal(err)
 	}

@@ -5,6 +5,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/grauwolf32/contractor/internal/contracts/runlabels"
 )
 
 func TestRunMetadataLabelsNormalizeCloneAndSort(t *testing.T) {
@@ -44,8 +46,8 @@ func TestRunMetadataLabelsRejectInvalidBoundsAndShapes(t *testing.T) {
 		{"two..parts": "value"},
 		{"trailing.": "value"},
 		{"contractor.internal": "value"},
-		{strings.Repeat("a", MaxRunMetadataLabelKey+1): "value"},
-		{"purpose": strings.Repeat("Ж", MaxRunMetadataLabelValue/2+1)},
+		{strings.Repeat("a", runlabels.MaxRunMetadataLabelKey+1): "value"},
+		{"purpose": strings.Repeat("Ж", runlabels.MaxRunMetadataLabelValue/2+1)},
 		{"purpose": string([]byte{0xff})},
 		{"purpose": "before\x00after"},
 	}

@@ -44,7 +44,7 @@ func TestPostgresPreparedOpenAPIScansKeepAssignedDenominatorAndApproval(t *testi
 	readyGeneratedInventory(t, ctx, h, c, map[string]artifacts.Payload{"checklist": generated})
 	c.initialRoundBuilder = h.service
 	preparationStep(t, ctx, c)
-	items, err := h.audits.ListItems(ctx, h.started.Audit.AuditID)
+	items, err := h.audits.Items(ctx, h.started.Audit.OwnerID, h.started.Audit.AuditID)
 	if err != nil || len(items) != 3 {
 		t.Fatalf("scan denominator expanded beyond explicit settings: %+v %v", items, err)
 	}

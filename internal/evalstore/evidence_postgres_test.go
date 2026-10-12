@@ -14,7 +14,8 @@ import (
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runstore"
-	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/grauwolf32/contractor/internal/runstore/runstoretest"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
 )
 
 // TestPostgresEvalRunOutputAndEvidenceReadTheArtifactStore checks the Run
@@ -31,10 +32,10 @@ func TestPostgresEvalRunOutputAndEvidenceReadTheArtifactStore(t *testing.T) {
 		t.Fatal(err)
 	}
 	project := "outputs"
-	if _, err := runstore.NewPostgresStore(pool).CreateRun(ctx, runstore.CreateRunParams{
+	if _, err := runstoretest.CreateRun(ctx, runstore.NewPostgresStore(pool), runstore.CreateRunParams{
 		RunID: "run-outputs", OwnerID: "owner", ProjectID: &project, WorkflowName: "copy", WorkflowVersion: "1",
 		WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: json.RawMessage(`{}`),
-		RuntimeConfig: runtimeconfig.BuiltInRunSnapshot(),
+		RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot(),
 	}); err != nil {
 		t.Fatal(err)
 	}

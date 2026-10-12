@@ -20,7 +20,8 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/runstore"
-	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/grauwolf32/contractor/internal/runstore/runstoretest"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -58,11 +59,11 @@ func TestPostgresRunSkillInitializerUsesCommittedExactSelection(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		if _, err := store.CreateRun(ctx, runstore.CreateRunParams{
+		if _, err := runstoretest.CreateRun(ctx, store, runstore.CreateRunParams{
 			RunID: "run-skill-init", OwnerID: "owner-1",
 			WorkflowName: workflow.Ref.Name, WorkflowVersion: workflow.Ref.Version,
 			WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: workflowSnapshot,
-			Parameters: map[string]string{}, RuntimeConfig: runtimeconfig.BuiltInRunSnapshot(),
+			Parameters: map[string]string{}, RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot(),
 		}); err != nil {
 			return err
 		}
@@ -260,11 +261,11 @@ func createAppSkillRunSelection(
 		if err != nil {
 			return err
 		}
-		if _, err := store.CreateRun(ctx, runstore.CreateRunParams{
+		if _, err := runstoretest.CreateRun(ctx, store, runstore.CreateRunParams{
 			RunID: runID, OwnerID: "owner-1",
 			WorkflowName: workflow.Ref.Name, WorkflowVersion: workflow.Ref.Version,
 			WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: workflowSnapshot,
-			Parameters: map[string]string{}, RuntimeConfig: runtimeconfig.BuiltInRunSnapshot(),
+			Parameters: map[string]string{}, RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot(),
 		}); err != nil {
 			return err
 		}
@@ -344,7 +345,7 @@ func isolatedAppPool(t *testing.T, ctx context.Context) *pgxpool.Pool {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := persistencepostgres.ApplyMigrations(ctx, pool); err != nil {
+	if _, err := persistencepostgres.ApplyMigrations(ctx, pool, persistencepostgres.MigrationBudgets{}); err != nil {
 		pool.Close()
 		t.Fatal(err)
 	}

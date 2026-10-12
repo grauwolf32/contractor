@@ -358,7 +358,7 @@ func TestOfficialGoSDKJSONRPCRoundTrip(t *testing.T) {
 				return
 			}
 			encoded, _ := json.Marshal(data.Value)
-			if _, err := contracts.DecodeStrict[contracts.StageContentRequest](encoded); err != nil {
+			if _, err := contracts.DecodePrivateStrict[contracts.StageContentRequest](encoded); err != nil {
 				yield(nil, err)
 				return
 			}

@@ -411,7 +411,7 @@ func createCodeAnalysisRun(
 func assertCodeAnalysisRun(
 	t *testing.T,
 	ctx context.Context,
-	store runstore.Repository,
+	store *runstore.PostgresStore,
 	client *http.Client,
 	baseURL string,
 	status runStatus,

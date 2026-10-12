@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/projectstore"
-	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -87,7 +87,7 @@ func populateUsageHistory(t *testing.T, ctx context.Context, pool *pgxpool.Pool)
 			t.Fatalf("create Project %q: %v", projectID, err)
 		}
 	}
-	snapshot, err := json.Marshal(runtimeconfig.BuiltInRunSnapshot())
+	snapshot, err := json.Marshal(runtimeconfigtest.BuiltInRunSnapshot())
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -2,11 +2,14 @@ package scheduler
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"testing"
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/controlplane/controlplanetest"
 
 	"github.com/grauwolf32/contractor/internal/contracts/control"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
@@ -63,11 +66,15 @@ func registerTerminalReleaseGrant(
 		}},
 		SupportedSandboxProfiles: []string{"local-workdir@1"}, ObservedState: control.AgentIdle,
 	}
-	if _, err := registry.Register(registration); err != nil {
+	sum := sha256.Sum256([]byte("lost-runtime-release\x00" + registration.InstanceID))
+	principal := controlplane.AuthenticatedPrincipal{
+		RuntimeAgentID: hex.EncodeToString(sum[:]), Labels: []string{}, LabelRevision: 1,
+	}
+	if _, err := registry.RegisterAuthenticated(principal, registration); err != nil {
 		t.Fatal(err)
 	}
 	for sequence := uint64(1); sequence <= 2; sequence++ {
-		if _, err := registry.Heartbeat(control.AgentHeartbeat{
+		if _, err := registry.HeartbeatAuthenticated(principal.RuntimeAgentID, control.AgentHeartbeat{
 			APIVersion: contracts.APIVersion, InstanceID: registration.InstanceID,
 			HeartbeatSeq: sequence, EchoedAckSeq: sequence - 1, ObservedState: control.AgentIdle,
 		}); err != nil {
@@ -76,7 +83,7 @@ func registerTerminalReleaseGrant(
 	}
 	stage := h.workflow.Stages[h.workflow.EntryStage]
 	binding := stage.Agents["builder"]
-	reservations, err := registry.ReserveAll(controlplane.ReservationRequest{
+	reservations, err := controlplanetest.Reserve(registry, controlplane.ReservationRequest{
 		RunID: execution.RunID, StageExecutionID: execution.StageExecutionID,
 		Bindings: []controlplane.BindingRequirement{{
 			LogicalAgentName: "builder", Namespace: binding.Namespace,

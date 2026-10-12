@@ -40,7 +40,7 @@ func TestWorkflowRunGuardsFireOnTheColumnsTheyCompare(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 45*time.Second)
 	defer cancel()
 	pool, _ := isolatedPools(t, ctx, storageReviewDatabaseURL(t))
-	if _, err := ApplyMigrations(ctx, pool); err != nil {
+	if _, err := ApplyMigrations(ctx, pool, MigrationBudgets{}); err != nil {
 		t.Fatal(err)
 	}
 	rows, err := pool.Query(ctx, workflowRunBeforeUpdateTriggersSQL)

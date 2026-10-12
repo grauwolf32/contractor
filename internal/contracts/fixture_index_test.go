@@ -56,7 +56,7 @@ func revealingCodecFor[T contracts.Validatable](reveal func(T) ([]byte, error)) 
 	return fixtureCodec{
 		typ: reflect.TypeFor[T](),
 		roundTrip: func(data []byte) ([]byte, error) {
-			value, err := contracts.DecodeStrict[T](data)
+			value, err := contracts.DecodePrivateStrict[T](data)
 			if err != nil {
 				return nil, err
 			}

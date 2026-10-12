@@ -53,7 +53,7 @@ func TestStageContentResultRejectsAbsentArtifactsOnDecode(t *testing.T) {
 		`{"apiVersion":"contractor/v1alpha1","outcome":"succeeded","summary":"done"}`,
 		`{"apiVersion":"contractor/v1alpha1","outcome":"succeeded","summary":"done","artifacts":null}`,
 	} {
-		if _, err := contracts.DecodeStrict[StageContentResult]([]byte(input)); err == nil {
+		if _, err := contracts.DecodePrivateStrict[StageContentResult]([]byte(input)); err == nil {
 			t.Fatalf("StageContentResult without artifacts accepted: %s", input)
 		}
 	}

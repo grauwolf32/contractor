@@ -936,8 +936,8 @@ UPDATE audit_review_requests
 		_ = rejectTx.Rollback(ctx)
 		t.Fatalf("rejected report transaction = (%+v, %v)", rejected, err)
 	}
-	rejectEvents, err := auditstoretest.NewStore(rejectTx).ListEvents(
-		ctx, audit.AuditID, rejected.EventSequence-1, 1,
+	rejectEvents, err := auditstoretest.NewStore(rejectTx).EventsAfter(
+		ctx, project.OwnerID, audit.AuditID, rejected.EventSequence-1, 1,
 	)
 	if err != nil || len(rejectEvents) != 1 || rejectEvents[0].Kind != "audit.state_changed" ||
 		!strings.Contains(string(rejectEvents[0].Summary), `"to": "failed"`) {
@@ -994,7 +994,7 @@ UPDATE audit_review_requests
 		completed.Revision != completed.EventSequence {
 		t.Fatalf("completed report Audit = (%+v, %v)", completed, err)
 	}
-	acceptEvents, err := store.ListEvents(ctx, audit.AuditID, completed.EventSequence-2, 2)
+	acceptEvents, err := store.EventsAfter(ctx, project.OwnerID, audit.AuditID, completed.EventSequence-2, 2)
 	if err != nil || len(acceptEvents) != 2 || acceptEvents[0].Kind != "audit.report_committed" ||
 		!strings.Contains(string(acceptEvents[0].Summary), candidate.SubjectDigest) ||
 		acceptEvents[1].Kind != "review.decided" {
@@ -1797,7 +1797,7 @@ func isolatedAuditServicePool(
 		admin.Close()
 		t.Fatal(err)
 	}
-	if _, err := postgres.ApplyMigrations(ctx, pool); err != nil {
+	if _, err := postgres.ApplyMigrations(ctx, pool, postgres.MigrationBudgets{}); err != nil {
 		pool.Close()
 		admin.Close()
 		t.Fatal(err)

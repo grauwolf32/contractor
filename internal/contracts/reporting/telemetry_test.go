@@ -13,7 +13,7 @@ import (
 func TestSharedAllocationRuntimeAdapterMetricsAreTypedAndBounded(t *testing.T) {
 	t.Parallel()
 
-	value, err := contracts.DecodeStrict[AllocationFinalResponse](
+	value, err := contracts.DecodePrivateStrict[AllocationFinalResponse](
 		contractstest.ReadFixture(t, "valid", "allocation-final-response.json"),
 	)
 	if err != nil {
@@ -101,7 +101,7 @@ func TestSharedMalformedRuntimeAdapterMetricsBecomeIncompleteInsteadOfBlockingRe
 	if err != nil {
 		t.Fatal(err)
 	}
-	value, err := contracts.DecodeStrict[AllocationFinalResponse](encoded)
+	value, err := contracts.DecodePrivateStrict[AllocationFinalResponse](encoded)
 	if err != nil {
 		t.Fatalf("semantic final report was blocked by optional adapter metrics: %v", err)
 	}

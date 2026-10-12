@@ -15,7 +15,8 @@ import (
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/runstore"
-	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/grauwolf32/contractor/internal/runstore/runstoretest"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
 )
 
 // TestPostgresSchedulerDecodesAStoredSnapshotAtItsBound is the read half of
@@ -33,11 +34,11 @@ func TestPostgresSchedulerDecodesAStoredSnapshotAtItsBound(t *testing.T) {
 	}
 	store := runstore.NewPostgresStore(isolatedSchedulerPool(t, ctx))
 	const runID = "run-snapshot-at-bound"
-	if _, err := store.CreateRun(ctx, runstore.CreateRunParams{
+	if _, err := runstoretest.CreateRun(ctx, store, runstore.CreateRunParams{
 		RunID: runID, OwnerID: "owner", WorkflowName: workflow.Ref.Name,
 		WorkflowVersion: workflow.Ref.Version, WorkflowSchemaVersion: contracts.APIVersion,
 		WorkflowSnapshot: encoded, Parameters: map[string]string{"objective": "bound"},
-		RuntimeConfig: runtimeconfig.BuiltInRunSnapshot(),
+		RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot(),
 	}); err != nil {
 		t.Fatalf("store a Run snapshot at the bound: %v", err)
 	}

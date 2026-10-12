@@ -1,8 +1,6 @@
 package controlplane
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"slices"
@@ -307,22 +305,6 @@ func (r *InMemoryRegistry) HeartbeatAuthenticated(
 	r.recordHeartbeat(entry, heartbeat.HeartbeatSeq, response)
 	r.recordOperationsChangeLocked(OperationsRuntimeAgent, heartbeat.InstanceID)
 	return cloneHeartbeatResponse(response), nil
-}
-
-// Register and Heartbeat retain a small in-process test/embedding surface for
-// callers that do not terminate TLS. The private HTTP API never uses these
-// methods: production always supplies its certificate-derived principal to
-// RegisterAuthenticated/HeartbeatAuthenticated and validates the current private contract.
-func (r *InMemoryRegistry) Register(registration control.AgentRegistration) (AgentSnapshot, error) {
-	return r.RegisterAuthenticated(inProcessPrincipal(registration.InstanceID), registration)
-}
-
-func (r *InMemoryRegistry) Heartbeat(heartbeat control.AgentHeartbeat) (control.HeartbeatResponse, error) {
-	return r.HeartbeatAuthenticated(inProcessPrincipal(heartbeat.InstanceID).RuntimeAgentID, heartbeat)
-}
-
-func (r *InMemoryRegistry) ReserveAll(request ReservationRequest) ([]Reservation, error) {
-	return r.reserveAll(request, nil, false)
 }
 
 // PlacementCandidates returns detached snapshots of the slots that are
@@ -963,16 +945,6 @@ func (r *InMemoryRegistry) compactStageReservationLocked(stageExecutionID string
 	}
 }
 
-func (r *InMemoryRegistry) GetAgent(instanceID string) (AgentSnapshot, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	entry, ok := r.agents[instanceID]
-	if !ok {
-		return AgentSnapshot{}, ErrAgentNotFound
-	}
-	return snapshotAgent(entry), nil
-}
-
 // PollAllocationLosses expires monotonic deadlines and drains the one-shot
 // loss edge queue. A late heartbeat can update diagnostics but cannot remove a
 // loss already attached to an allocation.
@@ -1516,13 +1488,6 @@ func (r *InMemoryRegistry) PrincipalRuntimeObservation(
 
 func sameRuntimeEndpoint(left, right control.AgentRegistration) bool {
 	return left.ControlURL == right.ControlURL || left.A2AURL == right.A2AURL
-}
-
-func inProcessPrincipal(instanceID string) AuthenticatedPrincipal {
-	sum := sha256.Sum256([]byte("in-process-runtime-principal\x00" + instanceID))
-	return AuthenticatedPrincipal{
-		RuntimeAgentID: hex.EncodeToString(sum[:]), Labels: []string{}, LabelRevision: 1,
-	}
 }
 
 func validateAuthenticatedPrincipal(principal AuthenticatedPrincipal) error {

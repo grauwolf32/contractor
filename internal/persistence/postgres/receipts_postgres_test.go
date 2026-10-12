@@ -31,7 +31,7 @@ func newKeyedFixture(t *testing.T) keyedFixture {
 	ctx, cancel := context.WithTimeout(t.Context(), 90*time.Second)
 	t.Cleanup(cancel)
 	pool, second := isolatedPools(t, ctx, url)
-	if _, err := ApplyMigrations(ctx, pool); err != nil {
+	if _, err := ApplyMigrations(ctx, pool, MigrationBudgets{}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := pool.Exec(ctx, `

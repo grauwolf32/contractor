@@ -30,7 +30,7 @@ func TestPostgresStoreBoundsTheWorkflowSnapshotItStores(t *testing.T) {
 	overInProject.ProjectID = &project
 	for name, create := range map[string]func() error{
 		"CreateRun": func() error {
-			_, err := store.CreateRun(ctx, over)
+			_, err := createRun(ctx, store, over)
 			return err
 		},
 		"CreateRunIdempotent": func() error {
@@ -58,7 +58,7 @@ func TestPostgresStoreBoundsTheWorkflowSnapshotItStores(t *testing.T) {
 
 	atBound := testRunParams("run-snapshot-at-bound")
 	atBound.WorkflowSnapshot = workflowSnapshotOfSize(t, resolved.MaxWorkflowSnapshotBytes)
-	if _, err := store.CreateRun(ctx, atBound); err != nil {
+	if _, err := createRun(ctx, store, atBound); err != nil {
 		t.Fatalf("CreateRun with a snapshot at the bound: %v", err)
 	}
 	stored, err := store.GetRun(ctx, atBound.RunID)

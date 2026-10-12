@@ -198,7 +198,7 @@ func TestSharedLLMGatewayFailureSignaturesAreExplicitDigestedAndDefaulted(t *tes
 	}
 	// The cross-language fixture pins this Go digest for the Python verifier.
 	fixture := contractstest.ReadFile(t, "api", "testdata", "v1alpha1", "valid", "llm-gateway-config-signatures.json")
-	pinned, err := contracts.DecodeStrict[llmgateway.ResolvedLLMGatewayConfig](fixture)
+	pinned, err := contracts.DecodePrivateStrict[llmgateway.ResolvedLLMGatewayConfig](fixture)
 	if err != nil {
 		t.Fatal(err)
 	}

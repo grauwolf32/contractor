@@ -49,14 +49,9 @@ type migration struct {
 
 // ApplyMigrations serializes migrators of the target schema with a
 // transaction advisory lock, verifies recorded checksums, and applies every
-// pending embedded migration.
-func ApplyMigrations(ctx context.Context, pool *pgxpool.Pool) (MigrationResult, error) {
-	return ApplyMigrationsWithBudgets(ctx, pool, MigrationBudgets{})
-}
-
-// ApplyMigrationsWithBudgets is ApplyMigrations with operator-selected
-// statement and lock timeouts; zero fields keep the defaults.
-func ApplyMigrationsWithBudgets(ctx context.Context, pool *pgxpool.Pool, budgets MigrationBudgets) (MigrationResult, error) {
+// pending embedded migration under the operator-selected statement and lock
+// timeouts of budgets; zero fields keep the defaults.
+func ApplyMigrations(ctx context.Context, pool *pgxpool.Pool, budgets MigrationBudgets) (MigrationResult, error) {
 	ctx, cancel, err := WithMigrationBudgets(ctx, budgets)
 	if err != nil {
 		return MigrationResult{}, err

@@ -11,7 +11,8 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/runstore"
-	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/grauwolf32/contractor/internal/runstore/runstoretest"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
 	"github.com/grauwolf32/contractor/internal/settingsstore"
 	"github.com/grauwolf32/contractor/internal/telemetry"
 )
@@ -27,11 +28,11 @@ func TestPostgresSchedulerSupervisorBoundsRealRunClaims(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, runID := range []string{"run-lane-1", "run-lane-2", "run-lane-3"} {
-		if _, err := postgresStore.CreateRun(ctx, runstore.CreateRunParams{
+		if _, err := runstoretest.CreateRun(ctx, postgresStore, runstore.CreateRunParams{
 			RunID: runID, OwnerID: "user-lanes", WorkflowName: workflow.Ref.Name,
 			WorkflowVersion: workflow.Ref.Version, WorkflowSchemaVersion: contracts.APIVersion,
 			WorkflowSnapshot: workflowJSON, Parameters: map[string]string{"objective": "hold lane"},
-			RuntimeConfig: runtimeconfig.BuiltInRunSnapshot(),
+			RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot(),
 		}); err != nil {
 			t.Fatal(err)
 		}
@@ -114,11 +115,11 @@ func TestPostgresSchedulerSupervisorResizesAndDrainsDurableLanes(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, runID := range []string{"run-resize-1", "run-resize-2", "run-resize-3", "run-resize-4"} {
-		if _, err := postgresStore.CreateRun(ctx, runstore.CreateRunParams{
+		if _, err := runstoretest.CreateRun(ctx, postgresStore, runstore.CreateRunParams{
 			RunID: runID, OwnerID: "user-resize", WorkflowName: workflow.Ref.Name,
 			WorkflowVersion: workflow.Ref.Version, WorkflowSchemaVersion: contracts.APIVersion,
 			WorkflowSnapshot: workflowJSON, Parameters: map[string]string{"objective": "hold lane"},
-			RuntimeConfig: runtimeconfig.BuiltInRunSnapshot(),
+			RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot(),
 		}); err != nil {
 			t.Fatal(err)
 		}

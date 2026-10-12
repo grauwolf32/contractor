@@ -21,7 +21,8 @@ import (
 	"github.com/grauwolf32/contractor/internal/planner/stageresult"
 	"github.com/grauwolf32/contractor/internal/rundeletion"
 	"github.com/grauwolf32/contractor/internal/runstore"
-	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/grauwolf32/contractor/internal/runstore/runstoretest"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
 	"github.com/grauwolf32/contractor/internal/settingsstore"
 	"github.com/grauwolf32/contractor/internal/telemetry"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -61,12 +62,13 @@ func TestPostgresDeferredRunningRunYieldsToPendingOtherOwner(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			other, err := h.store.CreateRun(ctx, runstore.CreateRunParams{
+			other, err := runstoretest.CreateRun(ctx, h.store, runstore.CreateRunParams{
 				RunID: "run-other-owner", OwnerID: "user-2", WorkflowName: h.workflow.Ref.Name,
 				WorkflowVersion: h.workflow.Ref.Version, WorkflowSchemaVersion: contracts.APIVersion,
 				WorkflowSnapshot: workflowJSON, Parameters: map[string]string{"objective": "other owner's work"},
-				RuntimeConfig: runtimeconfig.BuiltInRunSnapshot(),
+				RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot(),
 			})
+
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -265,12 +267,13 @@ func TestPostgresPausedFinalizingRunYieldsToPendingOtherOwner(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	other, err := h.store.CreateRun(ctx, runstore.CreateRunParams{
+	other, err := runstoretest.CreateRun(ctx, h.store, runstore.CreateRunParams{
 		RunID: "run-other-owner", OwnerID: "user-2", WorkflowName: h.workflow.Ref.Name,
 		WorkflowVersion: h.workflow.Ref.Version, WorkflowSchemaVersion: contracts.APIVersion,
 		WorkflowSnapshot: workflowJSON, Parameters: map[string]string{"objective": "other owner's work"},
-		RuntimeConfig: runtimeconfig.BuiltInRunSnapshot(),
+		RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot(),
 	})
+
 	if err != nil {
 		t.Fatal(err)
 	}

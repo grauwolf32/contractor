@@ -18,6 +18,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/runrepeat"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
 )
 
 func TestRunRepeatDraftRetainsExactRequestAndHidesSystemArtifact(t *testing.T) {
@@ -103,7 +104,7 @@ func TestRunRepeatDraftBlocksMissingOrInvalidAuthorityDespiteLineage(t *testing.
 			}
 			run := queryRun("run-historical", "user-1", runstore.RunFailed, time.Now().UTC())
 			run.PublicationMode = runstore.PublicationOrdinary
-			run.RuntimeConfig = runtimeconfig.BuiltInRunSnapshot()
+			run.RuntimeConfig = runtimeconfigtest.BuiltInRunSnapshot()
 			fixture.runs.runs[run.RunID] = run
 			if _, err := artifactstest.ForkInput(t.Context(), fixture.artifacts, run.OwnerID, source.Ref, run.RunID, "source"); err != nil {
 				t.Fatal(err)
@@ -203,7 +204,7 @@ func TestRunRepeatDraftReportsChangedRuntimeBinding(t *testing.T) {
 	fixture := newHandlerFixture(t)
 	run := queryRun("run-changed-binding", "user-1", runstore.RunCancelled, time.Now().UTC())
 	run.PublicationMode = runstore.PublicationOrdinary
-	run.RuntimeConfig = runtimeconfig.BuiltInRunSnapshot()
+	run.RuntimeConfig = runtimeconfigtest.BuiltInRunSnapshot()
 	fixture.runs.runs[run.RunID] = run
 	retained, err := runrepeat.Encode(runrepeat.Snapshot{
 		Workflow: resolved.WorkflowRef{Name: run.WorkflowName, Version: run.WorkflowVersion},
@@ -240,7 +241,7 @@ func TestRunRepeatDraftReportsUnavailableProjectContext(t *testing.T) {
 	}
 	run := queryRun("run-project-repeat", "user-1", runstore.RunFailed, time.Now().UTC())
 	run.PublicationMode = runstore.PublicationOrdinary
-	run.RuntimeConfig = runtimeconfig.BuiltInRunSnapshot()
+	run.RuntimeConfig = runtimeconfigtest.BuiltInRunSnapshot()
 	run.ProjectID = &project.ProjectID
 	fixture.runs.runs[run.RunID] = run
 	if _, _, err := fixture.projects.BeginDeletion(t.Context(), projectstore.BeginDeletionParams{

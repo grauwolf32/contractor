@@ -34,6 +34,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/planner/stageresult"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
 	"github.com/grauwolf32/contractor/internal/settingsstore"
 	"github.com/grauwolf32/contractor/internal/telemetry"
 )
@@ -629,7 +630,7 @@ func TestSchedulerAppliesPinnedPlannerTelemetryWithoutAgentInfluence(t *testing.
 			agentRef := runtimeconfig.Ref{
 				Name: "agent-caido", Version: "1", Digest: "sha256:" + strings.Repeat("e", 64),
 			}
-			snapshot := runtimeconfig.BuiltInRunSnapshot()
+			snapshot := runtimeconfigtest.BuiltInRunSnapshot()
 			snapshot.Labels = []runtimeconfig.PinnedLabel{{
 				Label: "debug", Explicit: true, BindingRevision: 7, Config: debugRef,
 			}}

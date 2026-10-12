@@ -34,7 +34,7 @@ func TestPostgresIntegrationMigrationsAndConstraints(t *testing.T) {
 		wait.Add(1)
 		go func(index int, pool *pgxpool.Pool) {
 			defer wait.Done()
-			results[index], errorsFound[index] = ApplyMigrations(ctx, pool)
+			results[index], errorsFound[index] = ApplyMigrations(ctx, pool, MigrationBudgets{})
 		}(index, pool)
 	}
 	wait.Wait()
@@ -52,7 +52,7 @@ func TestPostgresIntegrationMigrationsAndConstraints(t *testing.T) {
 	if applied != len(available) || results[0].CurrentVersion != latest || results[1].CurrentVersion != latest {
 		t.Fatalf("concurrent migration results = %+v, want one application of every version", results)
 	}
-	again, err := ApplyMigrations(ctx, first)
+	again, err := ApplyMigrations(ctx, first, MigrationBudgets{})
 	if err != nil {
 		t.Fatalf("second idempotent migration: %v", err)
 	}

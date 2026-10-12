@@ -105,7 +105,7 @@ func TestWorkerCompletionStrictDecodeRejectsUnknownNestedField(t *testing.T) {
 	result := document["result"].(map[string]any)
 	result["outcome"] = "succeeded"
 	encoded, _ = json.Marshal(document)
-	if _, err := DecodeStrict[WorkerCompletion](encoded); err == nil {
+	if _, err := DecodePrivateStrict[WorkerCompletion](encoded); err == nil {
 		t.Fatal("model-authored outcome was accepted")
 	}
 }

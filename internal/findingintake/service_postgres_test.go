@@ -30,7 +30,9 @@ import (
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runstore"
+	"github.com/grauwolf32/contractor/internal/runstore/runstoretest"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -112,11 +114,11 @@ func testPostgresFindingReceiptAuditImportDirectVerificationAndRunDeletion(t *te
 
 	runs := runstore.NewPostgresStore(pool)
 	projectRef := projectID
-	if _, err := runs.CreateRun(ctx, runstore.CreateRunParams{
+	if _, err := runstoretest.CreateRun(ctx, runs, runstore.CreateRunParams{
 		RunID: runID, OwnerID: ownerID, ProjectID: &projectRef,
 		WorkflowName: workflow.Ref.Name, WorkflowVersion: workflow.Ref.Version,
 		WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: workflowJSON,
-		Parameters: map[string]string{}, RuntimeConfig: runtimeconfig.BuiltInRunSnapshot(),
+		Parameters: map[string]string{}, RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot(),
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -447,7 +449,7 @@ SELECT assessment_id, result_ref, result_digest, contract_ref, contract_digest
 	if err != nil {
 		t.Fatal(err)
 	}
-	events, err := audits.ListEvents(ctx, auditID, 0, pagelimit.MaxRows)
+	events, err := audits.EventsAfter(ctx, ownerID, auditID, 0, pagelimit.MaxRows)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -660,7 +662,7 @@ func isolatedFindingPool(t *testing.T, ctx context.Context) *pgxpool.Pool {
 		admin.Close()
 		t.Fatal(err)
 	}
-	if _, err := persistencepostgres.ApplyMigrations(ctx, pool); err != nil {
+	if _, err := persistencepostgres.ApplyMigrations(ctx, pool, persistencepostgres.MigrationBudgets{}); err != nil {
 		pool.Close()
 		admin.Close()
 		t.Fatal(err)

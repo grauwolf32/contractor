@@ -12,10 +12,12 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/config/resolved"
+	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/runstore"
+	"github.com/grauwolf32/contractor/internal/runstore/runstoretest"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/jackc/pgx/v5"
 )
@@ -82,7 +84,11 @@ func TestTransactionLookupPinsRuntimeConfigWithoutAnotherPoolConnection(t *testi
 				t.Fatal(prepareErr)
 			}
 			published.ActorID, published.CreatedAt = "operator", time.Now().UTC()
-			if _, prepareErr = runtimeconfig.NewRepository(pool).InsertVersion(ctx, published); prepareErr != nil {
+			if _, prepareErr = runtimeconfig.NewRepository(pool).InsertPublishedVersion(ctx, published, runtimeconfig.Publication{
+				IdempotencyKeyDigest: contentdigest.Bytes([]byte("publish-" + label)),
+				RequestDigest:        prepared.RequestDigest(), Ref: published.Ref,
+				ActorID: published.ActorID, PublishedAt: published.CreatedAt,
+			}); prepareErr != nil {
 				t.Fatal(prepareErr)
 			}
 		} else {
@@ -162,7 +168,7 @@ func TestTransactionLookupPinsRuntimeConfigWithoutAnotherPoolConnection(t *testi
 		_ = tx.Rollback(ctx)
 		t.Fatalf("pinned LLM credential IDs = %v", pinned.LLMCredentialIDs)
 	}
-	if _, err := store.CreateRun(ctx, runstore.CreateRunParams{
+	if _, err := runstoretest.CreateRun(ctx, store, runstore.CreateRunParams{
 		RunID: "run-transaction-lookup", OwnerID: "owner-transaction-lookup",
 		WorkflowName: "test", WorkflowVersion: "1", WorkflowSchemaVersion: contracts.APIVersion,
 		WorkflowSnapshot: json.RawMessage(`{"ref":{"name":"test","version":"1"}}`),

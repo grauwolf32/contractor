@@ -21,6 +21,7 @@ import (
 	contractormemory "github.com/grauwolf32/contractor/internal/memory"
 	"github.com/grauwolf32/contractor/internal/planner/stageresult"
 	"github.com/grauwolf32/contractor/internal/runstore"
+	"github.com/grauwolf32/contractor/internal/telemetry"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	collectortracev1 "go.opentelemetry.io/proto/otlp/collector/trace/v1"
@@ -400,7 +401,7 @@ func assertStreamlineMemoryRun(
 	}
 	allocations := make([]runstore.StageAllocation, 0, 3)
 	for _, execution := range executions {
-		allocations = append(allocations, assertCompleteAllocations(t, ctx, store, execution, 1, "builder")...)
+		allocations = append(allocations, assertCompleteAllocations(t, ctx, store, telemetry.NewRepository(pool), execution, 1, "builder")...)
 	}
 	expected := []string{
 		streamlineSeed,
@@ -431,7 +432,7 @@ func assertRouterMemoryRun(
 	assertPublicAttemptMetrics(t, status, [][2]int64{{19, 16}})
 	executions := requireExecutions(t, ctx, store, runID, 1)
 	assertSucceededExecution(t, executions[0], 1)
-	allocations := assertCompleteAllocations(t, ctx, store, executions[0], 2, "builder", "reviewer")
+	allocations := assertCompleteAllocations(t, ctx, store, telemetry.NewRepository(pool), executions[0], 2, "builder", "reviewer")
 	assertPersistedMemory(
 		t, ctx, pool, runID, "builder_notes", routerNoteName, routerBuilderDescription,
 		[]string{routerBuilderTag}, []string{

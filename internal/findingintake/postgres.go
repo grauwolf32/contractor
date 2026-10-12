@@ -96,7 +96,7 @@ func scanReceiptRow(row pgx.Row) (Receipt, error) {
 	}
 	if !validIdentity(result.ClientKey) || result.Proposal.Ref.ValidateExact() != nil ||
 		result.Proposal.MediaType != proposalMediaType ||
-		result.Proposal.Digest == "" || result.Proposal.SizeBytes < 0 {
+		result.Proposal.Digest == "" || result.Proposal.SizeBytes < 0 || !result.Retention.valid() {
 		return Receipt{}, errors.New("validate stored finding proposal receipt")
 	}
 	result.Origin.RunDeleted = sourceDeletedAt != nil

@@ -359,7 +359,7 @@ exit 2
 func waitForUnallocatedPreparingExecution(
 	t *testing.T,
 	ctx context.Context,
-	store runstore.Repository,
+	store *runstore.PostgresStore,
 	runID string,
 ) runstore.StageExecution {
 	t.Helper()
@@ -388,7 +388,7 @@ func waitForUnallocatedPreparingExecution(
 func assertSameUnallocatedPreparingExecution(
 	t *testing.T,
 	ctx context.Context,
-	store runstore.Repository,
+	store *runstore.PostgresStore,
 	want runstore.StageExecution,
 ) {
 	t.Helper()

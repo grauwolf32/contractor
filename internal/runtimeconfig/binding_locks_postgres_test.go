@@ -21,12 +21,12 @@ func TestPostgresBindingPinsShareLocksAndExcludeWriters(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
 	defer cancel()
 	pool := isolatedRuntimeConfigPool(t, ctx, url)
-	if _, err := persistencepostgres.ApplyMigrations(ctx, pool); err != nil {
+	if _, err := persistencepostgres.ApplyMigrations(ctx, pool, persistencepostgres.MigrationBudgets{}); err != nil {
 		t.Fatal(err)
 	}
 	repository := NewRepository(pool)
 	for _, label := range []string{"alpha", "zulu"} {
-		if _, err := repository.CreateBinding(ctx, label, BuiltInRunSnapshot().Default.Config, "operator", time.Now()); err != nil {
+		if _, err := repository.CreateBinding(ctx, label, builtInRunSnapshot().Default.Config, "operator", time.Now()); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -92,10 +92,10 @@ func TestPostgresRunPinReportsAnUnboundLabelAsUnknown(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 15*time.Second)
 	defer cancel()
 	pool := isolatedRuntimeConfigPool(t, ctx, url)
-	if _, err := persistencepostgres.ApplyMigrations(ctx, pool); err != nil {
+	if _, err := persistencepostgres.ApplyMigrations(ctx, pool, persistencepostgres.MigrationBudgets{}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := NewRepository(pool).CreateBinding(ctx, "alpha", BuiltInRunSnapshot().Default.Config, "operator", time.Now()); err != nil {
+	if _, err := NewRepository(pool).CreateBinding(ctx, "alpha", builtInRunSnapshot().Default.Config, "operator", time.Now()); err != nil {
 		t.Fatal(err)
 	}
 	for _, labels := range [][]string{{"missing"}, {"alpha", "missing"}} {
@@ -122,10 +122,10 @@ func TestPostgresBindingCancelledPinReleasesEarlierLocks(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 15*time.Second)
 	defer cancel()
 	pool := isolatedRuntimeConfigPool(t, ctx, url)
-	if _, err := persistencepostgres.ApplyMigrations(ctx, pool); err != nil {
+	if _, err := persistencepostgres.ApplyMigrations(ctx, pool, persistencepostgres.MigrationBudgets{}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := NewRepository(pool).CreateBinding(ctx, "zulu", BuiltInRunSnapshot().Default.Config, "operator", time.Now()); err != nil {
+	if _, err := NewRepository(pool).CreateBinding(ctx, "zulu", builtInRunSnapshot().Default.Config, "operator", time.Now()); err != nil {
 		t.Fatal(err)
 	}
 	writer, err := pool.Begin(ctx)

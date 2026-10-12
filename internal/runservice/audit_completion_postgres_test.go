@@ -27,6 +27,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -116,7 +117,7 @@ func TestAuditCompletionPostgresAtomicCreationRestartAndAllocation(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	params := AuditCreateParams{Claim: claim, ExecutionID: execution.ExecutionID, Workflow: binding.Workflow, RuntimeConfig: runtimeconfig.BuiltInRunSnapshot(), Parameters: map[string]string{}, Inputs: map[string]auditstore.ExactArtifact{"source": source, "task": task, "execution_manifest": manifest}, ExecutionManifest: manifest, RequestDigest: execution.RequestDigest, NewRunID: func() (string, error) { return "run", nil }}
+	params := AuditCreateParams{Claim: claim, ExecutionID: execution.ExecutionID, Workflow: binding.Workflow, RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot(), Parameters: map[string]string{}, Inputs: map[string]auditstore.ExactArtifact{"source": source, "task": task, "execution_manifest": manifest}, ExecutionManifest: manifest, RequestDigest: execution.RequestDigest, NewRunID: func() (string, error) { return "run", nil }}
 	wrongWorkflow := params
 	encodedWorkflow, _ := json.Marshal(params.Workflow)
 	wrongWorkflow.Workflow, _ = resolved.DecodeResolvedWorkflowSnapshot(encodedWorkflow)

@@ -19,6 +19,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/localpki"
 	"github.com/grauwolf32/contractor/internal/planner/stageresult"
 	"github.com/grauwolf32/contractor/internal/runstore"
+	"github.com/grauwolf32/contractor/internal/telemetry"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -300,14 +301,14 @@ func loadSummarizerProcessReport(
 	ctx context.Context,
 	pool *pgxpool.Pool,
 	runID string,
-) runstore.StageExecutionReport {
+) telemetry.StoredAllocationReport {
 	t.Helper()
 	store := runstore.NewPostgresStore(pool)
 	executions, err := store.ListStageExecutions(ctx, runID)
 	if err != nil || len(executions) != 1 {
 		t.Fatalf("%s StageExecutions = (%+v, %v), want one", runID, executions, err)
 	}
-	reports, err := store.ListStageExecutionReports(ctx, executions[0].StageExecutionID)
+	reports, err := telemetry.NewRepository(pool).ListAllocationReports(ctx, executions[0].StageExecutionID)
 	if err != nil || len(reports) != 1 {
 		t.Fatalf("%s execution reports = (%+v, %v), want one", runID, reports, err)
 	}
