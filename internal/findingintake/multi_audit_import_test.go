@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
@@ -392,8 +393,8 @@ func insertAuditChildReceiptWithEvidence(
 		canonical.proposalBytes = append(canonical.proposalBytes,
 			bytes.Repeat([]byte(" "), padding[0]-len(canonical.proposalBytes))...)
 	}
-	written, err := artifacts.NewService(artifacts.NewPostgresRepository(f.pool)).WriteFindingProposal(
-		f.ctx, f.request.RunID, clientKey+"-proposal",
+	written, err := artifactstest.WriteFindingProposal(
+		f.ctx, artifacts.NewService(artifacts.NewPostgresRepository(f.pool)), f.request.RunID, clientKey+"-proposal",
 		artifacts.Payload{MediaType: proposalMediaType, Data: canonical.proposalBytes},
 	)
 	if err != nil {

@@ -8,24 +8,13 @@ import "context"
 // api/testdata/v1alpha1/artifact-list-cases.json carry the same value.
 const MaxBindingListLimit = 256
 
-type prefixListRepository interface {
-	ListPrefix(context.Context, Scope, string, string, int) ([]ArtifactRef, error)
-}
-
 // ListPrefix returns at most limit versionless refs in name order. Callers
 // checking a quota must request one extra result to detect overflow.
 func (s ScopedStore) ListPrefix(ctx context.Context, namespace, prefix string, limit int) ([]ArtifactRef, error) {
-	if err := validateScope(s.scope); err != nil {
-		return nil, err
-	}
 	if err := validatePrefixList(namespace, prefix, limit); err != nil {
 		return nil, err
 	}
-	repository, ok := s.service.repository.(prefixListRepository)
-	if !ok {
-		return nil, ErrQueryUnsupported
-	}
-	return repository.ListPrefix(ctx, s.scope, namespace, prefix, limit)
+	return s.service.repository.ListPrefix(ctx, s.scope, namespace, prefix, limit)
 }
 
 func validatePrefixList(namespace, prefix string, limit int) error {
@@ -37,12 +26,6 @@ func validatePrefixList(namespace, prefix string, limit int) error {
 }
 
 func (r *PostgresRepository) ListPrefix(ctx context.Context, scope Scope, namespace, prefix string, limit int) ([]ArtifactRef, error) {
-	if err := validateScope(scope); err != nil {
-		return nil, err
-	}
-	if err := validatePrefixList(namespace, prefix, limit); err != nil {
-		return nil, err
-	}
 	// starts_with treats '_' literally, unlike LIKE. Filter and LIMIT execute
 	// in PostgreSQL so unrelated names never enter the adapter or HTTP result.
 	rows, err := r.db.Query(ctx, `

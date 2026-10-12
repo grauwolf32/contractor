@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/clone"
-	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -18,26 +17,26 @@ func (r *PostgresRepository) Write(
 	payload Payload,
 	expectedRevision *string,
 ) (WriteResult, error) {
-	if err := validateScope(scope); err != nil {
-		return WriteResult{}, err
-	}
-	if err := validateRef(target); err != nil {
-		return WriteResult{}, err
-	}
-	if target.Revision != nil {
-		return WriteResult{}, ErrVersionedWriteTarget
-	}
-	if expectedRevision != nil {
-		if err := validateRevision(*expectedRevision); err != nil {
-			return WriteResult{}, err
-		}
-	}
-	if scope.kind == ScopeRun && target.Namespace == "outputs" {
-		return WriteResult{}, ErrReservedNamespace
-	}
-	if err := validatePayload(payload); err != nil {
-		return WriteResult{}, err
-	}
+	return r.write(ctx, scope, target, payload, expectedRevision, false)
+}
+
+func (r *PostgresRepository) CreateFrozen(
+	ctx context.Context, scope Scope, target ArtifactRef, payload Payload,
+) (WriteResult, error) {
+	return r.write(ctx, scope, target, payload, nil, true)
+}
+
+// write stores payload as a new revision of target. With expectedRevision nil
+// it creates the binding, frozen when frozen is set; otherwise it advances the
+// unfrozen binding whose current revision is expectedRevision.
+func (r *PostgresRepository) write(
+	ctx context.Context,
+	scope Scope,
+	target ArtifactRef,
+	payload Payload,
+	expectedRevision *string,
+	frozen bool,
+) (WriteResult, error) {
 	revision, err := r.newID("rev_")
 	if err != nil {
 		return WriteResult{}, err
@@ -57,33 +56,19 @@ func (r *PostgresRepository) Write(
 	}
 	discardFreshCandidate := func() {
 		// A preprepared file may have been published by an earlier use of the
-		// same Payload; only this Write's fresh candidate is ours to remove.
+		// same Payload; only this write's fresh candidate is ours to remove.
 		if payload.prepared == nil {
 			discardUnpublishedBlob(ctx, blob)
 		}
 	}
-	digest := blob.Digest
 	reusableKey, err := reusableBlobKey(ctx, r.db, blob)
 	if err != nil {
 		discardFreshCandidate()
 		return WriteResult{}, err
 	}
-	// Scope creation is intentionally a separate statement. Under READ COMMITTED, a
-	// concurrent INSERT ... DO NOTHING that waited for the winning transaction
-	// is visible to the binding statement below; a same-statement CTE would keep
-	// the pre-wait snapshot and could falsely report a conflict.
-	if _, err := r.db.Exec(ctx, `
-INSERT INTO artifact_scopes (scope_kind, scope_id)
-VALUES ($1, $2)
-ON CONFLICT DO NOTHING`, scope.kind, scope.id); err != nil {
+	if err := r.ensureScope(ctx, scope); err != nil {
 		discardFreshCandidate()
-		if persistencepostgres.Classify(err) == persistencepostgres.ClassDeleting {
-			return WriteResult{}, fmt.Errorf("create artifact scope: %w", ErrScopeDeleting)
-		}
-		if persistencepostgres.Classify(err) == persistencepostgres.ClassReferenceViolation {
-			return WriteResult{}, fmt.Errorf("create artifact scope: %w", ErrInvalidScope)
-		}
-		return WriteResult{}, fmt.Errorf("create artifact scope: %w", err)
+		return WriteResult{}, err
 	}
 	var storedRevision string
 	var mediaType string
@@ -93,41 +78,40 @@ ON CONFLICT DO NOTHING`, scope.kind, scope.id); err != nil {
 	var storedObjectKey *string
 	err = r.db.QueryRow(ctx, writeSQL,
 		scope.kind, scope.id, target.Namespace, target.Name, revision, expectedRevision,
-		versionID, digest, blob.Inline, blob.Size, payload.MediaType, string(blob.Backend), nullableBlobKey(blob.Key), reusableKey,
+		versionID, blob.Digest, blob.Inline, blob.Size, payload.MediaType, string(blob.Backend),
+		nullableBlobKey(blob.Key), reusableKey, frozen,
 	).Scan(&storedRevision, &mediaType, &size, &bindingCreatedAt, &revisionCreatedAt, &storedObjectKey)
 	if errors.Is(err, pgx.ErrNoRows) {
 		discardFreshCandidate()
 		return WriteResult{}, r.writeConflict(ctx, scope, target, expectedRevision)
 	}
 	if err != nil {
-		if isRunRevisionLimit(err) {
+		err = storeError(fmt.Sprintf("write artifact %s/%s", target.Namespace, target.Name), err,
+			&ConflictError{Ref: target, ExpectedRevision: clone.Pointer(expectedRevision)})
+		// A definite rejection never published the fresh candidate; an
+		// unclassified statement failure may have.
+		if definiteRejection(err) {
 			discardFreshCandidate()
-			return WriteResult{}, fmt.Errorf("write artifact: %w", ErrRunRevisionLimit)
 		}
-		switch persistencepostgres.Classify(err) {
-		case persistencepostgres.ClassDeleting:
-			discardFreshCandidate()
-			return WriteResult{}, fmt.Errorf("write artifact: %w", ErrScopeDeleting)
-		case persistencepostgres.ClassReferenceViolation:
-			discardFreshCandidate()
-			return WriteResult{}, fmt.Errorf("write artifact: %w", ErrInvalidScope)
-		case persistencepostgres.ClassDuplicate:
-			discardFreshCandidate()
-			return WriteResult{}, &ConflictError{Ref: target, ExpectedRevision: clone.Pointer(expectedRevision)}
-		}
-		return WriteResult{}, fmt.Errorf("write artifact %s/%s: %w", target.Namespace, target.Name, err)
+		return WriteResult{}, err
 	}
 	if blob.Backend == BlobFilesystem && storedObjectKey != nil && *storedObjectKey != blob.Key {
 		discardUnusedBlob(ctx, r.db, blob)
 	}
-	exact := storedRevision
 	return WriteResult{
-		Ref:               ArtifactRef{Namespace: target.Namespace, Name: target.Name, Revision: &exact},
+		Ref:               artifactExactRef(target.Namespace, target.Name, storedRevision),
 		MediaType:         mediaType,
 		Size:              size,
 		BindingCreatedAt:  bindingCreatedAt,
 		RevisionCreatedAt: revisionCreatedAt,
 	}, nil
+}
+
+// definiteRejection reports a write refusal that storeError classified, after
+// which the statement wrote nothing.
+func definiteRejection(err error) bool {
+	return errors.Is(err, ErrArtifactConflict) || errors.Is(err, ErrRunRevisionLimit) ||
+		errors.Is(err, ErrScopeDeleting) || errors.Is(err, ErrInvalidScope)
 }
 
 func (r *PostgresRepository) writeConflict(

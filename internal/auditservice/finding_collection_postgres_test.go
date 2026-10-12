@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/configload"
@@ -95,7 +96,8 @@ func seedCollectionRunReceipt(t *testing.T, ctx context.Context, pool *pgxpool.P
 	if err != nil {
 		t.Fatal(err)
 	}
-	written, err := service.WriteFindingProposal(ctx, runID, suffix, artifacts.Payload{MediaType: "application/json", Data: body})
+	written, err := artifactstest.WriteFindingProposal(ctx, service, runID, suffix,
+		artifacts.Payload{MediaType: "application/json", Data: body})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -159,7 +161,7 @@ func TestFindingCollectionPublicationRunRetentionAndReplay(t *testing.T) {
 		t.Fatal("source bindings collided")
 	}
 	seedCollectionRun(t, ctx, pool, owner, "reader")
-	fork, err := service.ForkInput(ctx, owner, result.Artifact.Ref, "reader", "findings")
+	fork, err := artifactstest.ForkInput(ctx, service, owner, result.Artifact.Ref, "reader", "findings")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -193,7 +193,7 @@ def test_audit_finding_preflight_and_failed_submission_cannot_create_links():
         assert error.value.field == "standard_refs" and client.requests == []
 
         class FailingClient:
-            async def submit_finding_proposal(self, request):
+            async def submit(self, request):
                 raise RuntimeError("finding submission unavailable")
 
         failed = GeneralFindingTool(FindingPublisher(FailingClient(), state.metrics, (), state))

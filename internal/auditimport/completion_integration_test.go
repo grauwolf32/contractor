@@ -29,6 +29,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config"
@@ -306,10 +307,10 @@ func (f *completionFixture) collect(t *testing.T, outcome runstore.WorkflowRunSt
 	if outcome == runstore.RunSucceeded {
 		value, err := f.output()
 		mustCompletion(t, err)
-		_, err = f.artifacts.BindOutputExact(f.ctx, f.run.RunID, f.profile.Workflows["check"].Outputs["result"], value.Ref, nil)
+		_, err = artifactstest.BindOutput(f.ctx, f.artifacts, f.run.RunID, f.profile.Workflows["check"].Outputs["result"], value.Ref)
 		mustCompletion(t, err)
 	}
-	mustCompletion(t, f.artifacts.FreezeRunOutputs(f.ctx, f.run.RunID))
+	mustCompletion(t, artifactstest.FreezeOutputs(f.ctx, f.artifacts, f.run.RunID))
 	expected := runstore.RunRunning
 	if outcome == runstore.RunCancelled {
 		_, err := f.runs.RequestRunCancellation(f.ctx, f.run.RunID, runstore.WorkflowRunCancellation{Code: runstore.CancellationUserRequested, RequestedAt: time.Now().UTC()})

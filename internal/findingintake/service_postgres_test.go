@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
@@ -329,9 +330,7 @@ func testPostgresFindingReceiptAuditImportDirectVerificationAndRunDeletion(t *te
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := artifactService.BindOutputExact(
-		ctx, runID, "result", directSource.Ref, nil,
-	); err != nil {
+	if _, err := artifactstest.BindOutput(ctx, artifactService, runID, "result", directSource.Ref); err != nil {
 		t.Fatal(err)
 	}
 
@@ -384,7 +383,7 @@ SELECT count(*) FROM audit_finding_assessments
 	if err := runs.MarkStageAllocationReleased(ctx, allocationID); err != nil {
 		t.Fatal(err)
 	}
-	if err := artifactService.FreezeRunOutputs(ctx, runID); err != nil {
+	if err := artifactstest.FreezeOutputs(ctx, artifactService, runID); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := runs.TransitionRun(ctx, runID, runstore.RunRunning, runstore.RunSucceeded,

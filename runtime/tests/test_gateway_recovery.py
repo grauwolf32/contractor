@@ -524,6 +524,52 @@ def test_refused_authority_connection_is_retried_as_transport_loss():
     asyncio.run(scenario())
 
 
+def test_worker_factory_shares_the_allocation_transport_with_model_recovery(tmp_path):
+    from dataclasses import replace
+
+    from test_adk_runtime import build_context, runtime_settings
+
+    from contractor_runtime.allocation import WorkerState
+    from contractor_runtime.artifacts import ArtifactClient
+    from contractor_runtime.worker.factory import AdkWorkerRuntimeFactory
+
+    class RecordingTransport(ScriptedTransport):
+        def __init__(self):
+            super().__init__([DECISION])
+            self.targets = []
+
+        async def request(self, method, path, **arguments):
+            self.targets.append((method, path))
+            return await super().request(method, path, **arguments)
+
+    class StopBuild(Exception):
+        pass
+
+    async def scenario():
+        transport = RecordingTransport()
+        built = []
+
+        def model_factory(context):
+            built.append(context)
+            raise StopBuild
+
+        factory = AdkWorkerRuntimeFactory(
+            model_factory,  # type: ignore[arg-type]
+            lambda allocation_id, _settings: ArtifactClient(allocation_id, transport),
+        )
+        context = replace(
+            build_context(tmp_path, WorkerState(), {}),
+            runtime_settings=runtime_settings().model_copy(update={"llm_recovery": True}),
+        )
+        with pytest.raises(StopBuild):
+            await factory.create(context)
+        decision = await built[0].gateway_recovery.update("worker", "req-1", "acquire")
+        assert decision.allowed
+        assert transport.targets == [("POST", "/allocations/allocation-1/gateway-recovery")]
+
+    asyncio.run(scenario())
+
+
 def test_authority_4xx_and_invalid_decisions_stop_without_retry():
     from contractor_runtime.llm.recovery import RecoveryStoppedError
 

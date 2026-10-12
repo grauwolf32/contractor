@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditimport"
 	"github.com/grauwolf32/contractor/internal/auditservice"
@@ -718,11 +719,11 @@ type countingProjectArtifactRepository struct {
 	writes int
 }
 
-func (r *countingProjectArtifactRepository) WriteAuditArtifact(
+func (r *countingProjectArtifactRepository) CreateFrozen(
 	ctx context.Context, scope artifacts.Scope, target artifacts.ArtifactRef, payload artifacts.Payload,
 ) (artifacts.WriteResult, error) {
 	r.writes++
-	return r.PostgresRepository.WriteAuditArtifact(ctx, scope, target, payload)
+	return r.PostgresRepository.CreateFrozen(ctx, scope, target, payload)
 }
 
 func TestPostgresDispatchReservationOrdersWithSettingsDecrease(t *testing.T) {
@@ -1045,10 +1046,10 @@ UPDATE audit_items SET state = 'collecting'
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := harness.artifacts.BindOutputExact(ctx, runID, "result", workerResult.Ref, nil); err != nil {
+	if _, err := artifactstest.BindOutput(ctx, harness.artifacts, runID, "result", workerResult.Ref); err != nil {
 		t.Fatal(err)
 	}
-	if err := harness.artifacts.FreezeRunOutputs(ctx, runID); err != nil {
+	if err := artifactstest.FreezeOutputs(ctx, harness.artifacts, runID); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := harness.runs.TransitionRun(ctx, runID, runstore.RunPending, runstore.RunRunning,
@@ -1163,11 +1164,11 @@ func TestPostgresControllerCollectsAndPublishesExactAuditReport(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	bound, err := harness.artifacts.BindOutputExact(ctx, runID, "result", workerResult.Ref, nil)
+	bound, err := artifactstest.BindOutput(ctx, harness.artifacts, runID, "result", workerResult.Ref)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := harness.artifacts.FreezeRunOutputs(ctx, runID); err != nil {
+	if err := artifactstest.FreezeOutputs(ctx, harness.artifacts, runID); err != nil {
 		t.Fatal(err)
 	}
 	run, err := harness.runs.GetRun(ctx, runID)

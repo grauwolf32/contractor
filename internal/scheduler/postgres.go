@@ -171,13 +171,7 @@ func (p *PostgresPersistence) CommitResultProgression(
 					}
 					continue
 				}
-				bound, err := artifactService.BindOutputExact(
-					ctx,
-					value.RunID,
-					outputName,
-					ref,
-					nil,
-				)
+				bound, err := bindOutput(ctx, artifactService, value.RunID, outputName, ref)
 				if err != nil {
 					return fmt.Errorf("bind Workflow output %q: %w", outputName, err)
 				}
@@ -273,7 +267,7 @@ func (p *PostgresPersistence) AcceptResultDuringCancellation(
 			return err
 		}
 		artifactService := artifacts.NewService(artifacts.NewPostgresRepository(tx))
-		if err := artifactService.FreezeRunOutputs(ctx, runID); err != nil {
+		if err := freezeOutputs(ctx, artifactService, runID); err != nil {
 			return fmt.Errorf("freeze Workflow outputs: %w", err)
 		}
 		if _, err := store.TransitionRun(
@@ -306,7 +300,7 @@ func (p *PostgresPersistence) CommitTerminationAndFinishRun(
 			return err
 		}
 		artifactService := artifacts.NewService(artifacts.NewPostgresRepository(tx))
-		if err := artifactService.FreezeRunOutputs(ctx, runID); err != nil {
+		if err := freezeOutputs(ctx, artifactService, runID); err != nil {
 			return fmt.Errorf("freeze Workflow outputs: %w", err)
 		}
 		if _, err := store.TransitionRun(
@@ -534,7 +528,7 @@ func commitTerminalRun(
 		}
 	}
 	artifactService := artifacts.NewService(artifacts.NewPostgresRepository(tx))
-	if err := artifactService.FreezeRunOutputs(ctx, runID); err != nil {
+	if err := freezeOutputs(ctx, artifactService, runID); err != nil {
 		return fmt.Errorf("freeze Workflow outputs: %w", err)
 	}
 	if progression.TerminalRunState == runstore.RunSucceeded {
@@ -643,9 +637,7 @@ func publishOneProjectOutput(
 		return fmt.Errorf("start Project output publication %q: %w", outputName, err)
 	}
 	attemptService := artifacts.NewService(artifacts.NewPostgresRepository(attempt))
-	published, publishErr := attemptService.PublishRunOutput(
-		ctx, runID, projectID, outputName, source,
-	)
+	published, publishErr := publishRunOutput(ctx, attemptService, runID, projectID, outputName, source)
 	if publishErr == nil {
 		target := published.TargetRef
 		_, _, recordErr := runstore.NewPostgresStore(attempt).RecordRunOutputPublication(

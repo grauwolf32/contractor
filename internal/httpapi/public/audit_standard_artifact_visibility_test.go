@@ -18,9 +18,14 @@ func TestGenericArtifactRoutesCannotExposeOrMutateAuditStandardCatalog(t *testin
 		Namespace: auditstandards.CatalogNamespace,
 		Name:      "std-protected",
 	}
-	if _, err := fixture.artifacts.WriteAuditStandardPackage(
-		t.Context(), "user-1", target,
-		artifacts.Payload{MediaType: auditstandards.MediaType, Data: []byte("protected")}, nil,
+	// Seed the package as the catalog seed path does.
+	user, err := artifacts.UserScope("user-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := fixture.artifacts.Create(
+		t.Context(), user, target,
+		artifacts.Payload{MediaType: auditstandards.MediaType, Data: []byte("protected")},
 	); err != nil {
 		t.Fatal(err)
 	}

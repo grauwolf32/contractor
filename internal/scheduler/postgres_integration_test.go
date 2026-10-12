@@ -284,10 +284,13 @@ func testPostgresSchedulerPublication(t *testing.T, scenario schedulerPublicatio
 	if err != nil || string(output.Payload.Data) != "copied\n" || output.Payload.MediaType != "text/plain" {
 		t.Fatalf("output = (%+v, %v)", output, err)
 	}
-	if _, err := artifactService.BindOutputExact(
-		ctx, "run-1", "result", workerWrite.Ref, output.Ref.Revision,
-	); !errors.Is(err, artifacts.ErrArtifactFrozen) {
-		t.Fatalf("frozen output update error = %v", err)
+	// The terminal Run's output stays frozen at its bound revision.
+	if _, err := bindOutput(ctx, artifactService, "run-1", "result", workerWrite.Ref); !errors.Is(err, artifacts.ErrArtifactConflict) {
+		t.Fatalf("frozen output rebind error = %v", err)
+	}
+	if metadata, err := runStore.Metadata(ctx, contracts.ArtifactRef{Namespace: "outputs", Name: "result"}); err != nil ||
+		!metadata.Frozen || !metadata.Ref.SameExact(output.Ref) {
+		t.Fatalf("frozen output = (%+v, %v), want %+v", metadata, err, output.Ref)
 	}
 	// Each replay of the terminal commit reissues the same idempotent
 	// finalization; the Planner and preparation never run again.
@@ -1331,12 +1334,22 @@ func createSchedulerRunInProject(
 	if err != nil {
 		t.Fatal(err)
 	}
-	if projectID == nil {
-		_, err = artifactService.ForkInput(ctx, "user-1", written.Ref, "run-1", "source")
-	} else {
-		_, err = artifactService.ForkProjectInput(ctx, *projectID, written.Ref, "run-1", "source")
+	// Fork the input as Run creation does.
+	sourceScope, err := artifacts.UserScope("user-1")
+	if projectID != nil {
+		sourceScope, err = artifacts.ProjectScope(*projectID)
 	}
 	if err != nil {
+		t.Fatal(err)
+	}
+	run, err := artifacts.RunScope("run-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := artifactService.Fork(ctx, artifacts.Fork{
+		Kind: artifacts.LineageInputFork, Source: sourceScope, SourceRef: written.Ref,
+		Target: run, TargetRef: contracts.ArtifactRef{Namespace: "inputs", Name: "source"},
+	}); err != nil {
 		t.Fatal(err)
 	}
 	runArtifacts, err := artifactService.Run("run-1")
@@ -1393,7 +1406,7 @@ func createBoundProjectRunOutput(
 	if err != nil {
 		t.Fatal(err)
 	}
-	bound, err := artifactService.BindOutputExact(ctx, runID, outputName, written.Ref, nil)
+	bound, err := bindOutput(ctx, artifactService, runID, outputName, written.Ref)
 	if err != nil {
 		t.Fatal(err)
 	}

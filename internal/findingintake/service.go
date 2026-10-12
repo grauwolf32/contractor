@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/config/auditprofile"
@@ -171,8 +172,12 @@ SELECT count(*) FROM finding_proposal_receipts WHERE run_id = $1`, grant.RunID).
 		proposalID := deterministicID(
 			"proposal", grant.AllocationID, input.InvocationID, input.SubmissionID,
 		)
-		written, writeErr := artifactService.WriteFindingProposal(
-			ctx, grant.RunID, proposalID,
+		// finding-proposals is reserved for this path: generic Run writes can
+		// neither create nor advance it, while the exact revision stays
+		// readable in its RunScope (ART-R114).
+		written, writeErr := artifactService.Create(
+			ctx, mustRunScope(grant.RunID),
+			contracts.ArtifactRef{Namespace: artifactpolicy.FindingProposalNamespace, Name: proposalID},
 			preparedPayload,
 		)
 		if writeErr != nil {

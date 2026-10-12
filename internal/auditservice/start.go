@@ -770,8 +770,8 @@ func writeRoundPackage(
 }
 
 // auditArtifactWriter writes the frozen, content-named Audit artifacts of one
-// Project through artifacts.Service.WriteAuditArtifact, which also recovers a
-// write whose acknowledgement was lost.
+// Project through artifacts.Service.CreateFrozen, which also recovers a write
+// whose acknowledgement was lost.
 type auditArtifactWriter struct {
 	service   *artifacts.Service
 	projectID string
@@ -782,7 +782,11 @@ func (w auditArtifactWriter) write(
 	target contracts.ArtifactRef,
 	payload artifacts.Payload,
 ) (auditstore.ExactArtifact, error) {
-	written, err := w.service.WriteAuditArtifact(ctx, w.projectID, target, payload)
+	project, err := artifacts.ProjectScope(w.projectID)
+	if err != nil {
+		return auditstore.ExactArtifact{}, err
+	}
+	written, err := w.service.CreateFrozen(ctx, project, target, payload)
 	if err != nil {
 		return auditstore.ExactArtifact{}, err
 	}

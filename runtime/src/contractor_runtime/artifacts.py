@@ -1,4 +1,10 @@
-"""Allocation-bound client for the Control Plane private Artifact API."""
+"""Allocation-bound client for the Control Plane private Artifact API.
+
+The module also holds what every client of that API shares: its transport,
+error model and response checks. Finding proposals
+(:mod:`contractor_runtime.finding_proposals`) and model recovery
+(:mod:`contractor_runtime.llm.recovery`) have clients of their own.
+"""
 
 from __future__ import annotations
 
@@ -6,7 +12,7 @@ import asyncio
 import json
 import re
 import ssl
-from collections.abc import Callable, Mapping
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Protocol
@@ -17,25 +23,22 @@ from pydantic import Field, ValidationError
 from contractor_runtime import _https
 from contractor_runtime.contracts import (
     ARTIFACT_LIST_CURSOR_PATTERN,
-    ARTIFACT_NAME_PATTERN,
-    MEDIA_TYPE_PATTERN,
     ArtifactListResult,
     ArtifactReadResult,
     ArtifactRef,
     ArtifactWriteResult,
+    validate_artifact_name,
+    validate_media_type,
 )
 from contractor_runtime.contracts.base import is_blank, trim_whitespace
 from contractor_runtime.mtls import verify_control_plane_peer
 
 MAX_ARTIFACT_BYTES = 64 * 1024 * 1024
 MAX_ARTIFACT_JSON_BYTES = 1 << 20
-# findingintake.MaxRequestBytes / auditdomain.MaximumDocumentBytes.
-MAX_FINDING_SUBMISSION_BYTES = 8 * 1024 * 1024
 # artifacts.MaxBindingListLimit (LIM-ART-3), pinned by
 # api/testdata/v1alpha1/artifact-list-cases.json.
 MAX_BINDING_LIST_LIMIT = 256
 PATH_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]+$")
-DIGEST_PATTERN = re.compile(r"^sha256:[0-9a-f]{64}$")
 RUNTIME_INSTANCE_HEADER = "X-Contractor-Runtime-Instance-ID"
 BINDING_CREATED_AT_HEADER = "x-contractor-binding-created-at"
 REVISION_CREATED_AT_HEADER = "x-contractor-revision-created-at"
@@ -103,108 +106,33 @@ class ArtifactWriteValue(ArtifactWriteResult):
     revision_created_at: datetime = Field(exclude=True)
 
 
+def allocation_path(allocation_id: str, resource: str) -> str:
+    """Return the private API path of one resource of an allocation."""
+
+    if PATH_ID_PATTERN.fullmatch(allocation_id) is None:
+        raise ValueError("allocation ID is not a safe URL path segment")
+    return f"/allocations/{quote(allocation_id, safe='')}/{resource}"
+
+
 class ArtifactClient:
     """Exposes only the RunScope implied by one active allocation ID."""
 
     def __init__(self, allocation_id: str, transport: ArtifactTransport) -> None:
-        if PATH_ID_PATTERN.fullmatch(allocation_id) is None:
-            raise ValueError("allocation ID is not a safe URL path segment")
+        self._root = allocation_path(allocation_id, "artifacts")
         self._allocation_id = allocation_id
         self._transport = transport
-        self._root = f"/allocations/{quote(allocation_id, safe='')}/artifacts"
-        self._finding_root = f"/allocations/{quote(allocation_id, safe='')}/finding-proposals"
         self._known_exact_refs: dict[tuple[str, str], ArtifactRef] = {}
         self._observed_exact_refs: list[ArtifactRef] = []
-
-    def gateway_recovery_client(self, *, on_retry: Callable[[str], None] | None = None):
-        """Share the existing allocation mTLS transport with model coordination."""
-        from contractor_runtime.llm.recovery import GatewayRecoveryClient
-
-        return GatewayRecoveryClient(self._allocation_id, self._transport, on_retry=on_retry)
 
     @property
     def allocation_id(self) -> str:
         """Return the immutable allocation scope used by every request."""
         return self._allocation_id
 
-    async def submit_finding_proposal(self, request: Mapping[str, object]) -> dict[str, object]:
-        """Submit one stable allocation-bound finding request.
-
-        A transport loss is retried once with byte-identical content. The
-        Server receipt is the idempotency authority; this client never invents
-        a second submission identity after an ambiguous commit.
-        """
-
-        body = json.dumps(
-            request, ensure_ascii=False, sort_keys=True, separators=(",", ":")
-        ).encode("utf-8")
-        if len(body) > MAX_FINDING_SUBMISSION_BYTES:
-            raise ValueError("finding proposal request exceeds its size limit")
-        response: ArtifactHTTPResponse | None = None
-        for attempt in range(2):
-            try:
-                response = await self._transport.request(
-                    "POST",
-                    self._finding_root,
-                    headers={"Accept": "application/json", "Content-Type": "application/json"},
-                    body=body,
-                    max_response_bytes=MAX_ARTIFACT_JSON_BYTES,
-                )
-                break
-            except ArtifactTransportError:
-                if attempt != 0:
-                    raise
-        if not (response is not None):
-            raise RuntimeError("Expected response is not None")
-        self._raise_for_status(response)
-        if response.status_code not in {200, 201}:
-            raise ArtifactTransportError("finding proposal API returned an invalid status")
-        _require_json(response.headers)
-        try:
-            value = json.loads(response.body)
-        except (UnicodeDecodeError, json.JSONDecodeError) as error:
-            raise ArtifactTransportError("finding proposal API returned invalid JSON") from error
-        expected = {"apiVersion", "proposalId", "receiptId", "proposal", "replayed"}
-        if not isinstance(value, dict) or set(value) != expected:
-            raise ArtifactTransportError("finding proposal API returned an invalid receipt")
-        if value.get("apiVersion") != "contractor/v1alpha1":
-            raise ArtifactTransportError("finding proposal API returned an invalid version")
-        for field_name in ("proposalId", "receiptId"):
-            candidate = value.get(field_name)
-            if (
-                not isinstance(candidate, str)
-                or _https.REQUEST_ID_PATTERN.fullmatch(candidate) is None
-            ):
-                raise ArtifactTransportError("finding proposal API returned an invalid identity")
-        if not isinstance(value.get("replayed"), bool):
-            raise ArtifactTransportError("finding proposal API returned an invalid replay marker")
-        proposal = value.get("proposal")
-        if not isinstance(proposal, dict) or set(proposal) != {
-            "ref",
-            "digest",
-            "mediaType",
-            "sizeBytes",
-        }:
-            raise ArtifactTransportError("finding proposal API returned invalid artifact metadata")
-        try:
-            ref = ArtifactRef.model_validate(proposal.get("ref"))
-            ref.require_exact()
-        except (ValidationError, ValueError, AttributeError) as error:
-            raise ArtifactTransportError(
-                "finding proposal API returned invalid artifact metadata"
-            ) from error
-        digest = proposal.get("digest")
-        size = proposal.get("sizeBytes")
-        if (
-            ref.namespace != "finding-proposals"
-            or not isinstance(digest, str)
-            or DIGEST_PATTERN.fullmatch(digest) is None
-            or proposal.get("mediaType") != "application/json"
-            or type(size) is not int
-            or not 0 <= size <= 8 * 1024 * 1024
-        ):
-            raise ArtifactTransportError("finding proposal API returned invalid artifact metadata")
-        return value
+    @property
+    def transport(self) -> ArtifactTransport:
+        """Return the allocation transport, which the other private API clients share."""
+        return self._transport
 
     @property
     def known_exact_refs(self) -> tuple[ArtifactRef, ...]:
@@ -248,7 +176,7 @@ class ArtifactClient:
 
         query: list[tuple[str, str]] = []
         if namespace is not None:
-            _validate_component("namespace", namespace)
+            validate_artifact_name("namespace", namespace)
             query.append(("namespace", namespace))
         _validate_list_limit(limit)
         query.append(("limit", str(limit)))
@@ -272,8 +200,8 @@ class ArtifactClient:
         with ``name_prefix``, for trusted adapters such as Memory. Callers
         checking a quota request one extra ref to detect overflow."""
 
-        _validate_component("namespace", namespace)
-        _validate_component("name prefix", name_prefix)
+        validate_artifact_name("namespace", namespace)
+        validate_artifact_name("name prefix", name_prefix)
         _validate_list_limit(limit)
         result = await self._list(
             [("namespace", namespace), ("namePrefix", name_prefix), ("limit", str(limit))]
@@ -298,8 +226,8 @@ class ArtifactClient:
             body=b"",
             max_response_bytes=MAX_ARTIFACT_JSON_BYTES,
         )
-        self._raise_for_status(response)
-        _require_json(response.headers)
+        raise_for_status(response)
+        require_json(response.headers)
         try:
             return ArtifactListResult.model_validate_json(response.body)
         except ValidationError as error:
@@ -315,7 +243,6 @@ class ArtifactClient:
         the exact revision for invocation provenance.
         """
 
-        _validate_ref(ref)
         path = f"{self._root}/{quote(ref.namespace, safe='')}/{quote(ref.name, safe='')}/metadata"
         if ref.revision is not None:
             path += f"?revision={quote(ref.revision, safe='')}"
@@ -326,8 +253,8 @@ class ArtifactClient:
             body=b"",
             max_response_bytes=MAX_ARTIFACT_JSON_BYTES,
         )
-        self._raise_for_status(response)
-        _require_json(response.headers)
+        raise_for_status(response)
+        require_json(response.headers)
         try:
             result = ArtifactReadResult.model_validate_json(response.body)
         except ValidationError as error:
@@ -347,7 +274,6 @@ class ArtifactClient:
     async def read_artifact(
         self, ref: ArtifactRef, *, max_bytes: int = MAX_ARTIFACT_BYTES
     ) -> ArtifactValue:
-        _validate_ref(ref)
         if type(max_bytes) is not int or not 0 < max_bytes <= MAX_ARTIFACT_BYTES:
             raise ValueError("artifact read byte limit is invalid")
         path = self._ref_path(ref)
@@ -358,7 +284,7 @@ class ArtifactClient:
             body=b"",
             max_response_bytes=max_bytes,
         )
-        self._raise_for_status(response)
+        raise_for_status(response)
         if len(response.body) > max_bytes:
             raise ArtifactResponseLimitError("Artifact API response exceeds the read byte limit")
         media_type = _response_media_type(response.headers)
@@ -397,14 +323,13 @@ class ArtifactClient:
         media_type: str,
         expected_revision: str | None,
     ) -> ArtifactWriteValue:
-        _validate_ref(target)
         if target.revision is not None:
             raise ValueError("artifact write target must be versionless")
         if not isinstance(data, bytes):
             raise TypeError("artifact payload must be bytes")
         if len(data) > MAX_ARTIFACT_BYTES:
             raise ValueError("artifact payload exceeds the 64 MiB limit")
-        _validate_media_type(media_type)
+        validate_media_type(media_type)
         headers = {"Accept": "application/json", "Content-Type": media_type}
         expected_status = 201
         if expected_revision is None:
@@ -421,10 +346,10 @@ class ArtifactClient:
             body=data,
             max_response_bytes=MAX_ARTIFACT_JSON_BYTES,
         )
-        self._raise_for_status(response)
+        raise_for_status(response)
         if response.status_code != expected_status:
             raise ArtifactTransportError("Artifact API returned an invalid write status")
-        _require_json(response.headers)
+        require_json(response.headers)
         try:
             result = ArtifactWriteResult.model_validate_json(response.body)
         except ValidationError as error:
@@ -464,14 +389,16 @@ class ArtifactClient:
             path += f"?revision={quote(ref.revision, safe='')}"
         return path
 
-    @staticmethod
-    def _raise_for_status(response: ArtifactHTTPResponse) -> None:
-        if 200 <= response.status_code < 300:
-            return
-        error = _https.decode_private_error(response.body)
-        if error is None:
-            raise ArtifactAPIError(response.status_code, "invalid_error_response", False)
-        raise ArtifactAPIError(response.status_code, error.code, error.retryable, error.request_id)
+
+def raise_for_status(response: ArtifactHTTPResponse) -> None:
+    """Raise the private API error a non-2xx response carries."""
+
+    if 200 <= response.status_code < 300:
+        return
+    error = _https.decode_private_error(response.body)
+    if error is None:
+        raise ArtifactAPIError(response.status_code, "invalid_error_response", False)
+    raise ArtifactAPIError(response.status_code, error.code, error.retryable, error.request_id)
 
 
 class MTLSArtifactTransport:
@@ -560,35 +487,18 @@ class MTLSArtifactTransport:
         return ArtifactHTTPResponse(response.status_code, response.headers, response.body)
 
 
-def _validate_ref(ref: ArtifactRef) -> None:
-    _validate_component("namespace", ref.namespace)
-    _validate_component("name", ref.name)
-    if ref.revision is not None and is_blank(ref.revision):
-        raise ValueError("artifact revision must not be empty")
-
-
-def _validate_component(field_name: str, value: str) -> None:
-    if type(value) is not str or not ARTIFACT_NAME_PATTERN.fullmatch(value):
-        raise ValueError(f"artifact {field_name} is invalid")
-
-
 def _validate_list_limit(limit: int) -> None:
     if type(limit) is not int or not 1 <= limit <= MAX_BINDING_LIST_LIMIT:
         raise ValueError("artifact list limit is invalid")
 
 
-def _validate_media_type(value: str) -> None:
-    if MEDIA_TYPE_PATTERN.fullmatch(value) is None:
-        raise ValueError("artifact media type is invalid")
-
-
 def _response_media_type(headers: Mapping[str, str]) -> str:
-    value = headers.get("content-type", "")
-    _validate_media_type(value)
-    return value
+    return validate_media_type(headers.get("content-type", ""))
 
 
-def _require_json(headers: Mapping[str, str]) -> None:
+def require_json(headers: Mapping[str, str]) -> None:
+    """Refuse a private API response that is not JSON."""
+
     if headers.get("content-type") != "application/json":
         raise ArtifactTransportError("Artifact API response is not application/json")
 

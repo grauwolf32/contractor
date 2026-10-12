@@ -345,14 +345,18 @@ SELECT receipt.receipt_id, hold.proposal_ref
 }
 
 func (s *Service) hydrateReceiptDocuments(ctx context.Context, receipts []Receipt) ([]Receipt, error) {
-	repository := artifacts.NewPostgresRepository(s.pool)
+	artifactService := artifacts.NewService(artifacts.NewPostgresRepository(s.pool))
 	for index := range receipts {
 		receipt := &receipts[index]
 		request, expected, err := receiptArtifact(*receipt)
 		if err != nil {
 			return nil, err
 		}
-		read, err := repository.Read(ctx, request.Scope, request.Ref)
+		store, err := artifactService.Scoped(request.Scope)
+		if err != nil {
+			return nil, err
+		}
+		read, err := store.Read(ctx, request.Ref)
 		if err != nil {
 			return nil, err
 		}
@@ -779,16 +783,31 @@ func exactArtifactFromRun(
 	}, nil
 }
 
+// retainFindingArtifact retains the exact revision source of runID as the
+// create-only, frozen Audit-managed binding namespace/name of projectID, with
+// audit_import lineage and without copying bytes. Authorization and the receipt
+// that names the retained copy belong to the finding service.
 func retainFindingArtifact(
 	ctx context.Context,
 	service *artifacts.Service,
 	runID, projectID, namespace, name string,
 	source ExactArtifact,
 ) (ExactArtifact, error) {
-	result, err := service.ImportFindingArtifact(
-		ctx, runID, source.Ref, projectID,
-		contracts.ArtifactRef{Namespace: namespace, Name: name},
-	)
+	run, err := artifacts.RunScope(runID)
+	if err != nil {
+		return ExactArtifact{}, err
+	}
+	project, err := artifacts.ProjectScope(projectID)
+	if err != nil {
+		return ExactArtifact{}, err
+	}
+	if source.Ref.Revision == nil {
+		return ExactArtifact{}, artifacts.ErrExactRevisionRequired
+	}
+	result, err := service.Fork(ctx, artifacts.Fork{
+		Kind: artifacts.LineageAuditImport, Source: run, SourceRef: source.Ref,
+		Target: project, TargetRef: contracts.ArtifactRef{Namespace: namespace, Name: name}, Frozen: true,
+	})
 	if err != nil {
 		return ExactArtifact{}, err
 	}

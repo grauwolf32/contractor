@@ -14,7 +14,6 @@ import (
 // transfer slot in the saturated context used by this test.
 type inspectorMetadataRepository struct {
 	artifacts.Repository
-	artifacts.QueryRepository
 	entries map[string]artifacts.Metadata
 	queries int
 }

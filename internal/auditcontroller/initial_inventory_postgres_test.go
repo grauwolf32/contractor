@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
 	"github.com/grauwolf32/contractor/internal/auditbaseline"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditservice"
@@ -329,10 +330,10 @@ func finishGeneratedChecklistCheck(t *testing.T, ctx context.Context, h *postgre
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := h.artifacts.BindOutputExact(ctx, *execution.RunID, "result", written.Ref, nil); err != nil {
+	if _, err := artifactstest.BindOutput(ctx, h.artifacts, *execution.RunID, "result", written.Ref); err != nil {
 		t.Fatal(err)
 	}
-	if err := h.artifacts.FreezeRunOutputs(ctx, *execution.RunID); err != nil {
+	if err := artifactstest.FreezeOutputs(ctx, h.artifacts, *execution.RunID); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := h.runs.TransitionRun(ctx, *execution.RunID, runstore.RunPending, runstore.RunRunning, runstore.Reason{Code: "test-admitted"}); err != nil {

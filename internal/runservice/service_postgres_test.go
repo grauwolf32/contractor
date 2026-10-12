@@ -15,6 +15,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/agentskills"
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
@@ -319,7 +320,7 @@ func writeExact(
 }
 
 // writeAuditExact writes an Audit-managed Project artifact as the Audit
-// services do: frozen, through WriteAuditArtifact.
+// services do: frozen, through CreateFrozen.
 func writeAuditExact(
 	t *testing.T,
 	ctx context.Context,
@@ -330,10 +331,8 @@ func writeAuditExact(
 	payload []byte,
 ) auditstore.ExactArtifact {
 	t.Helper()
-	written, err := service.WriteAuditArtifact(
-		ctx, projectID, contracts.ArtifactRef{Namespace: "audit-test", Name: name},
-		artifacts.Payload{MediaType: mediaType, Data: payload},
-	)
+	written, err := artifactstest.WriteAuditArtifact(ctx, service, projectID,
+		contracts.ArtifactRef{Namespace: "audit-test", Name: name}, artifacts.Payload{MediaType: mediaType, Data: payload})
 	if err != nil {
 		t.Fatal(err)
 	}

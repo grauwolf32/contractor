@@ -21,6 +21,7 @@ import (
 	"github.com/getkin/kin-openapi/routers/gorillamux"
 	"github.com/grauwolf32/contractor/internal/agentprincipal"
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/control"
 	"github.com/grauwolf32/contractor/internal/controlplane"
@@ -911,7 +912,7 @@ func TestImplementedPublicHandlersConformToOpenAPI(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := fixture.artifacts.BindOutputExact(t.Context(), "run_fixed", "result", output.Ref, nil); err != nil {
+	if _, err := artifactstest.BindOutput(t.Context(), fixture.artifacts, "run_fixed", "result", output.Ref); err != nil {
 		t.Fatal(err)
 	}
 	getOutput := newPublicContractRequest(http.MethodGet, "/v1/runs/run_fixed/outputs/result", nil)

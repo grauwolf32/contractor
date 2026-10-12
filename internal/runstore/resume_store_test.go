@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -32,7 +33,7 @@ func failedResumeFixture(t *testing.T, ctx context.Context, pool *pgxpool.Pool, 
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := service.BindOutputExact(ctx, runID, "upstream", written.Ref, nil); err != nil {
+	if _, err := artifactstest.BindOutput(ctx, service, runID, "upstream", written.Ref); err != nil {
 		t.Fatal(err)
 	}
 	priorID := runID + "-success"
@@ -88,7 +89,7 @@ func failResumeStage(t *testing.T, ctx context.Context, store *PostgresStore, ru
 	if err := store.CompleteStageTermination(ctx, stageID); err != nil {
 		t.Fatal(err)
 	}
-	if err := artifacts.NewService(artifacts.NewPostgresRepository(store.db)).FreezeRunOutputs(ctx, runID); err != nil {
+	if err := artifactstest.FreezeOutputs(ctx, artifacts.NewService(artifacts.NewPostgresRepository(store.db)), runID); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := store.RecordStageTransitionDecision(ctx, RecordStageTransitionDecisionParams{SourceExecutionID: stageID, RunID: runID, Action: StageTransitionFail}); err != nil {
@@ -180,7 +181,7 @@ func TestPostgresResumeFailedStageIsAtomicAndIdempotent(t *testing.T) {
 	if err != nil || string(data.Payload.Data) != "retained successful output" {
 		t.Fatal("upstream artifact changed", err)
 	}
-	if err := service.FreezeRunOutputs(ctx, before.RunID); err != nil {
+	if err := artifactstest.FreezeOutputs(ctx, service, before.RunID); err != nil {
 		t.Fatal(err)
 	}
 	_, thawErr := pool.Exec(ctx, `UPDATE artifact_bindings SET frozen=false WHERE scope_kind='run' AND scope_id=$1 AND namespace='outputs'`, before.RunID)

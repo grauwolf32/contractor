@@ -71,6 +71,8 @@ var layers = []layerSpec{
 		packages: []string{
 			"internal/artifactpreview",
 			"internal/artifacts",
+			// Test setup of the Artifact state other packages' flows create.
+			"internal/artifacts/artifactstest",
 			"internal/gatewayrecovery",
 			"internal/httpapi/artifacttransfer",
 			"internal/performance",

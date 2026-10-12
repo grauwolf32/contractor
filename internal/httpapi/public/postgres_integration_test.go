@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/configload"
@@ -205,12 +206,12 @@ func TestPostgresPublicRunInitializationAndFrozenOutput(t *testing.T) {
 	var outputRef contracts.ArtifactRef
 	err = persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		txArtifacts := artifacts.NewService(artifacts.NewPostgresRepository(tx))
-		bound, err := txArtifacts.BindOutputExact(ctx, "run-public", "result", intermediate.Ref, nil)
+		bound, err := artifactstest.BindOutput(ctx, txArtifacts, "run-public", "result", intermediate.Ref)
 		if err != nil {
 			return err
 		}
 		outputRef = bound.TargetRef
-		if err := txArtifacts.FreezeRunOutputs(ctx, "run-public"); err != nil {
+		if err := artifactstest.FreezeOutputs(ctx, txArtifacts, "run-public"); err != nil {
 			return err
 		}
 		if _, err := runstore.NewPostgresStore(tx).TransitionRun(ctx, "run-public", runstore.RunPending, runstore.RunRunning, runstore.Reason{Code: "fixture_admitted"}); err != nil {
@@ -255,9 +256,7 @@ func TestPostgresPublicRunInitializationAndFrozenOutput(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := service.ForkInput(
-		ctx, "user-1", current.Ref, "run-lineage-two", "source",
-	); err != nil {
+	if _, err := artifactstest.ForkInput(ctx, service, "user-1", current.Ref, "run-lineage-two", "source"); err != nil {
 		t.Fatal(err)
 	}
 

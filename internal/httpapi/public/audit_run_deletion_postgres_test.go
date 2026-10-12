@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
@@ -310,7 +311,8 @@ func seedPublicDeletionRunReceipt(t *testing.T, ctx context.Context, pool *pgxpo
 	if err != nil {
 		t.Fatal(err)
 	}
-	written, err := service.WriteFindingProposal(ctx, runID, suffix, artifacts.Payload{MediaType: "application/json", Data: body})
+	written, err := artifactstest.WriteFindingProposal(ctx, service, runID, suffix,
+		artifacts.Payload{MediaType: "application/json", Data: body})
 	if err != nil {
 		t.Fatal(err)
 	}
