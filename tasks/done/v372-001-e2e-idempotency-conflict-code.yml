@@ -6,7 +6,8 @@ epic: quality
 kind: defect
 introduced_by: V367-012
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: "f7d7dafd4a17eca2aa3b8040555258da58537981"
 depends_on: []
 languages: [go]
 goal: "TestRunMetadataLabelsAcrossProcesses expects the permanent 409 idempotency_conflict that API-R69 defines when a changed Run creation request reuses an Idempotency-Key."

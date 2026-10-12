@@ -6,7 +6,8 @@ epic: quality
 kind: defect
 introduced_by: V367-010
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: "ff86e570f157dd6472c2994b8fd31d8826341172"
 depends_on: []
 languages: [go]
 goal: "The foreign Runtime Agent check sends a request the private Artifact API accepts, so the 404 it requires comes from the allocation identity check."

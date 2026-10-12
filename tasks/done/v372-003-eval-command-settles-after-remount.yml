@@ -5,7 +5,8 @@ milestone: hub-audit-defects-2026-10
 epic: evals
 kind: defect
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: "4ccff939f750f0ac8ae275339caa9b0d1d6f4b98"
 depends_on: []
 languages: [typescript]
 goal: "Every mounted Eval controls instance leaves the waiting state as soon as it observes that its pending command finished, even when another instance ran the poll that finished it."

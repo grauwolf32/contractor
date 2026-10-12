@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-59 open tasks: 6 in progress, 39 pending, 14 deferred. 841 finished: 838 completed, 3 archived.
+56 open tasks: 3 in progress, 39 pending, 14 deferred. 844 finished: 841 completed, 3 archived.
 
 ## In progress
 
@@ -14,9 +14,6 @@ the epics are in [epics.yml](epics.yml).
 | [V40-002](v40-002-agent-instruction-paired-runner.yml) | evals | feature | P1 | Prepare instruction experiment bindings and a frozen plan after format readiness |
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
-| [V372-001](v372-001-e2e-idempotency-conflict-code.yml) | quality | defect | P1 | Expect idempotency_conflict for a reused Run creation key in the process test |
-| [V372-002](v372-002-e2e-foreign-agent-list-query.yml) | quality | defect | P1 | Send a valid private list query in the foreign Runtime Agent process test |
-| [V372-003](v372-003-eval-command-settles-after-remount.yml) | evals | defect | P1 | Settle a finished Eval command in the controls that observe it |
 
 ## Pending
 
@@ -143,10 +140,10 @@ tasks in `introduced_by`.
 | Workflow catalog and document workflows (`workflows`) | 1 | 13 | 13 | 8 | 11 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 1 | 27 | 31 | 3 | 34 |
 | Audits (`audits`) | 19 | 49 | 64 | 12 | 72 |
-| Evaluations (`evals`) | 3 | 21 | 27 | 4 | 33 |
+| Evaluations (`evals`) | 2 | 21 | 27 | 4 | 33 |
 | Podman sandbox (`sandbox`) | 0 | 8 | 1 | 1 | 2 |
 | Web UI (`ui`) | 0 | 19 | 51 | 10 | 48 |
 | Operations, authentication, CLI and deployment (`operations`) | 0 | 8 | 30 | 4 | 6 |
 | Public API and wire contracts (`api-contracts`) | 6 | 1 | 24 | 16 | 7 |
 | PostgreSQL persistence and schema (`persistence`) | 9 | 0 | 17 | 29 | 3 |
-| Quality, CI and process (`quality`) | 7 | 1 | 18 | 65 | 15 |
+| Quality, CI and process (`quality`) | 5 | 1 | 18 | 65 | 15 |
