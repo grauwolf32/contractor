@@ -950,8 +950,8 @@ These properties follow from the cited requirements, which are authoritative.
    OBS-R27, OBS-R43, OBS-R44); tests
    `TestMetricsPostgresIdempotencyRedactionAggregationAndRetention` in
    [`internal/telemetry/postgres_integration_test.go`](../../../internal/telemetry/postgres_integration_test.go)
-   and `TestMetricsRetentionDrainsFullBatchesBeforeLongWait` in
-   [`internal/scheduler/metrics_retention_test.go`](../../../internal/scheduler/metrics_retention_test.go).
+   and `TestRetentionDrainsFullBatchesBeforeLongWait` in
+   [`internal/telemetry/retention_test.go`](../../../internal/telemetry/retention_test.go).
 8. Metadata labels reach telemetry only as bounded attributes and never reach a
    model (OBS-R102, OBS-R106).
 

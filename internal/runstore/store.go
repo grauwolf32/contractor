@@ -64,11 +64,7 @@ type Repository interface {
 	ListStageAllocations(context.Context, string) ([]StageAllocation, error)
 	MarkStageAllocationReleaseAttempt(context.Context, string) error
 	MarkStageAllocationReleased(context.Context, string) error
-	RecordStageExecutionReport(context.Context, RecordStageExecutionReportParams) error
 	ListStageExecutionReports(context.Context, string) ([]StageExecutionReport, error)
-	RecordPlannerExecutionReport(context.Context, RecordPlannerExecutionReportParams) error
-	RebuildStageMetrics(context.Context, string, string) error
-	CleanupExpiredTelemetry(context.Context, time.Time, int) (int64, error)
 }
 
 // ListNonTerminalRunIDsByCredential returns a bounded deterministic set of

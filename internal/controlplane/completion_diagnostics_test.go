@@ -67,7 +67,7 @@ func TestSharedCompletionDiagnosticsDecideRuntimeResponses(t *testing.T) {
 				context.Background(), stateWorkerHandle(server.URL, "allocation_1"), "",
 			)
 			if !item.Valid {
-				var typed *WorkerStateReadError
+				var typed *reporting.WorkerStateReadError
 				if finalizeErr == nil || abortErr == nil || !errors.As(readErr, &typed) ||
 					typed.Code != "worker_state_response_invalid" || typed.Retryable {
 					t.Fatalf("invalid completion accepted: finalize %v, abort %v, State %#v",

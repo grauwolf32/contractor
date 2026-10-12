@@ -1924,6 +1924,7 @@ func newSchedulerHarness(t *testing.T) *schedulerHarness {
 		Settings: staticSchedulerSettings{value: settingsstore.SchedulerSettings{
 			MaxConcurrentRuns: 1, Revision: 1, UpdatedAt: clock.now,
 		}},
+		Reports: store,
 		NewID: func(prefix string) (string, error) {
 			idSequence++
 			return fmt.Sprintf("%s%d", prefix, idSequence), nil
@@ -2022,8 +2023,8 @@ type memorySchedulerStore struct {
 	run            runstore.WorkflowRun
 	stages         []runstore.StageExecution
 	allocations    []runstore.StageAllocation
-	reports        []runstore.RecordStageExecutionReportParams
-	plannerReports []runstore.RecordPlannerExecutionReportParams
+	reports        []telemetry.AllocationReportEnvelope
+	plannerReports []telemetry.PlannerReportEnvelope
 	reportError    error
 	claimID        string
 	claimCalls     int
@@ -2290,8 +2291,8 @@ func (s *memorySchedulerStore) RecordStageOutputPublicationFailure(
 	}
 }
 
-func (s *memorySchedulerStore) RecordStageExecutionReport(
-	_ context.Context, report runstore.RecordStageExecutionReportParams,
+func (s *memorySchedulerStore) RecordAllocationReport(
+	_ context.Context, report telemetry.AllocationReportEnvelope,
 ) error {
 	if s.reportError != nil {
 		return s.reportError
@@ -2301,8 +2302,8 @@ func (s *memorySchedulerStore) RecordStageExecutionReport(
 	return nil
 }
 
-func (s *memorySchedulerStore) RecordPlannerExecutionReport(
-	_ context.Context, report runstore.RecordPlannerExecutionReportParams,
+func (s *memorySchedulerStore) RecordPlannerReport(
+	_ context.Context, report telemetry.PlannerReportEnvelope,
 ) error {
 	for _, existing := range s.plannerReports {
 		if existing.StageExecutionID == report.StageExecutionID &&
@@ -2317,14 +2318,8 @@ func (s *memorySchedulerStore) RecordPlannerExecutionReport(
 
 func (s *memorySchedulerStore) RebuildStageMetrics(
 	_ context.Context, _, _ string,
-) error {
-	return nil
-}
-
-func (s *memorySchedulerStore) CleanupExpiredTelemetry(
-	_ context.Context, _ time.Time, _ int,
-) (int64, error) {
-	return 0, nil
+) (telemetry.StageMetricsRecord, error) {
+	return telemetry.StageMetricsRecord{}, nil
 }
 
 func (s *memorySchedulerStore) EnterAborting(

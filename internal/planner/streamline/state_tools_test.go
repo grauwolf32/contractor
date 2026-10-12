@@ -490,26 +490,26 @@ func (r *plannerStateTestReader) ReadWorkerState(
 	_ context.Context,
 	handle contracts.WorkerHandle,
 	ifNoneMatch string,
-) (planner.WorkerStateReadResult, error) {
+) (reporting.WorkerStateReadResult, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.calls = append(r.calls, plannerStateReadCall{
 		allocationID: handle.AllocationID, ifNoneMatch: ifNoneMatch,
 	})
 	if r.err != nil {
-		return planner.WorkerStateReadResult{}, r.err
+		return reporting.WorkerStateReadResult{}, r.err
 	}
 	snapshot, exists := r.states[handle.AllocationID]
 	if !exists {
-		return planner.WorkerStateReadResult{}, &planner.WorkerStateReadError{
+		return reporting.WorkerStateReadResult{}, &reporting.WorkerStateReadError{
 			Code: "runtime_unavailable", Retryable: true,
 		}
 	}
 	etag := stateTestETag(snapshot.State.StateRevision)
 	if ifNoneMatch == etag {
-		return planner.WorkerStateReadResult{ETag: etag, NotModified: true}, nil
+		return reporting.WorkerStateReadResult{ETag: etag, NotModified: true}, nil
 	}
-	return planner.WorkerStateReadResult{Snapshot: &snapshot, ETag: etag}, nil
+	return reporting.WorkerStateReadResult{Snapshot: &snapshot, ETag: etag}, nil
 }
 
 func (r *plannerStateTestReader) callsSnapshot() []plannerStateReadCall {

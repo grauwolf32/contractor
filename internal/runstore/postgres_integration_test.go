@@ -23,6 +23,7 @@ import (
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/grauwolf32/contractor/internal/telemetry"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -124,7 +125,8 @@ WHERE allocation_id = 'allocation-1'`)
 	}
 	reportFinished := time.Now().UTC()
 	modelCalls := int64(3)
-	reportParams := RecordStageExecutionReportParams{
+	telemetryReports := telemetry.NewRepository(pool)
+	reportParams := telemetry.AllocationReportEnvelope{
 		StageExecutionID: execution.StageExecutionID, AllocationID: allocation.AllocationID,
 		LogicalAgentName: allocation.LogicalAgentName, ReportSchemaVersion: contracts.APIVersion,
 		PerformanceCollectionPolicy: allocation.PerformanceCollectionPolicy,
@@ -141,10 +143,10 @@ WHERE allocation_id = 'allocation-1'`)
 			Runtime: reporting.RuntimeReport{Complete: true},
 		},
 	}
-	if err := store.RecordStageExecutionReport(ctx, reportParams); err != nil {
+	if err := telemetryReports.RecordAllocationReport(ctx, reportParams); err != nil {
 		t.Fatalf("record execution report: %v", err)
 	}
-	if err := store.RecordStageExecutionReport(ctx, reportParams); err != nil {
+	if err := telemetryReports.RecordAllocationReport(ctx, reportParams); err != nil {
 		t.Fatalf("idempotent execution report: %v", err)
 	}
 	reports, err := store.ListStageExecutionReports(ctx, execution.StageExecutionID)
@@ -155,7 +157,7 @@ WHERE allocation_id = 'allocation-1'`)
 	differentReport := reportParams
 	differentCalls := int64(4)
 	differentReport.Report.Worker.Metrics.ModelCalls = &differentCalls
-	if err := store.RecordStageExecutionReport(ctx, differentReport); !errors.Is(err, ErrConflict) {
+	if err := telemetryReports.RecordAllocationReport(ctx, differentReport); !errors.Is(err, telemetry.ErrConflict) {
 		t.Fatalf("mismatched execution report error = %v, want conflict", err)
 	}
 	if _, err := pool.Exec(ctx, `

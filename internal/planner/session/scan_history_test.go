@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/config"
@@ -116,5 +117,58 @@ func TestScanHistoryCannotTurnInvalidAuthorityIntoEmptyHistory(t *testing.T) {
 				t.Fatal("invalid history became retryable")
 			}
 		})
+	}
+}
+
+// batchCountingScanStore serves many scan attempts and records every session
+// read, so the history read cannot fall back to one read per attempt.
+type batchCountingScanStore struct {
+	*scanHistoryTestStore
+	sessions map[string]runstore.PlannerSession
+	batches  [][]string
+}
+
+func (s *batchCountingScanStore) GetPlannerSessions(
+	_ context.Context, sessionIDs []string,
+) (map[string]runstore.PlannerSession, error) {
+	s.batches = append(s.batches, append([]string(nil), sessionIDs...))
+	result := make(map[string]runstore.PlannerSession, len(sessionIDs))
+	for _, id := range sessionIDs {
+		if session, ok := s.sessions[id]; ok {
+			result[id] = session
+		}
+	}
+	return result, nil
+}
+
+func TestScanHistoryReadsEveryAttemptSessionInOneBatch(t *testing.T) {
+	const attempts = 64
+	fixture := newScanHistoryFixture(t)
+	executor := fixture.stages[1]
+	store := &batchCountingScanStore{
+		scanHistoryTestStore: fixture, sessions: make(map[string]runstore.PlannerSession, attempts),
+	}
+	stages := []runstore.StageExecution{fixture.stages[0]}
+	for index := range attempts {
+		stageID := fmt.Sprintf("scan-attempt-%03d", index)
+		sessionID, invocationID := "session-"+stageID, "invocation-"+stageID
+		stage := executor
+		stage.StageExecutionID, stage.PlannerSessionID, stage.PlannerInvocationID = stageID, &sessionID, &invocationID
+		stages = append(stages, stage)
+		session := fixture.session
+		session.SessionID, session.StageExecutionID, session.InvocationID = sessionID, stageID, invocationID
+		store.sessions[sessionID] = session
+	}
+	fixture.stages = stages
+	history, err := ReadAuditScanHistory(t.Context(), store, fixture.run.RunID)
+	if err != nil || len(history) != attempts {
+		t.Fatalf("scan history = %d attempts, %v; want %d", len(history), err, attempts)
+	}
+	if len(store.batches) != 1 || len(store.batches[0]) != attempts {
+		t.Fatalf("session reads = %d batches, want one batch of %d sessions", len(store.batches), attempts)
+	}
+	delete(store.sessions, "session-scan-attempt-007")
+	if _, err := ReadAuditScanHistory(t.Context(), store, fixture.run.RunID); !errors.Is(err, runstore.ErrNotFound) {
+		t.Fatalf("history with a lost attempt session = %v, want ErrNotFound", err)
 	}
 }

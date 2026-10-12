@@ -32,6 +32,14 @@ type HTTPOptions struct {
 	Principals   PrincipalRegistrar
 }
 
+// Registry is the Runtime Agent registration and heartbeat state the private
+// Control Plane API serves; InMemoryRegistry implements it.
+type Registry interface {
+	RegisterAuthenticated(AuthenticatedPrincipal, control.AgentRegistration) (AgentSnapshot, error)
+	RegistrationResponse(AuthenticatedPrincipal) control.AgentRegistrationResponse
+	HeartbeatAuthenticated(string, control.AgentHeartbeat) (control.HeartbeatResponse, error)
+}
+
 type PrincipalRegistrar interface {
 	Register(context.Context, string, []string) (runtimeconfig.RuntimeAgentPrincipal, error)
 }
