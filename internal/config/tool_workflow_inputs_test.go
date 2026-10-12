@@ -56,10 +56,10 @@ func TestFindingsReaderRequiresDeclaredCollectionInputInWorkflowSnapshot(t *test
 	}{
 		{"writer", []string{"finding"}, nil, true},
 		{"missing", []string{"list_findings"}, nil, false},
-		{"optional", []string{"list_findings"}, &ArtifactSlot{MediaTypes: []string{contracts.FindingCollectionMediaType}}, false},
+		{"optional", []string{"list_findings"}, &ArtifactSlot{MediaTypes: []string{FindingCollectionMediaType}}, false},
 		{"wrong-media", []string{"list_findings"}, &ArtifactSlot{Required: true, MediaTypes: []string{"application/json"}}, false},
-		{"reader", []string{"list_findings"}, &ArtifactSlot{Required: true, MediaTypes: []string{contracts.FindingCollectionMediaType}}, true},
-		{"both", []string{"finding", "list_findings"}, &ArtifactSlot{Required: true, MediaTypes: []string{contracts.FindingCollectionMediaType}}, true},
+		{"reader", []string{"list_findings"}, &ArtifactSlot{Required: true, MediaTypes: []string{FindingCollectionMediaType}}, true},
+		{"both", []string{"finding", "list_findings"}, &ArtifactSlot{Required: true, MediaTypes: []string{FindingCollectionMediaType}}, true},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			workflow, err := snapshot.Workflow("artifact-copy@1")
@@ -155,7 +155,7 @@ func TestToolsetDescriptorWorkflowInputRequirementsAreValidated(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := WorkflowInputRequirement{Input: "findings", MediaType: contracts.FindingCollectionMediaType}
+	want := WorkflowInputRequirement{Input: "findings", MediaType: FindingCollectionMediaType}
 	if got := normalized.Toolsets["security-findings@1"].RequiredWorkflowInputs; len(got) != 1 || got["list_findings"] != want {
 		t.Fatalf("security-findings@1 Workflow input requirements = %+v", got)
 	}

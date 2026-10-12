@@ -7,6 +7,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/planner"
+	"github.com/grauwolf32/contractor/internal/planner/stageresult"
 	"github.com/grauwolf32/contractor/internal/runstore"
 )
 
@@ -29,8 +30,8 @@ func TestStageResultBoundVerdictMatchesPlanner(t *testing.T) {
 		summary string
 		valid   bool
 	}{
-		{"HTML summary at the summary bound", strings.Repeat("<", contracts.MaxStageResultSummaryBytes), true},
-		{"HTML summary over the summary bound", strings.Repeat("<", contracts.MaxStageResultSummaryBytes+1), false},
+		{"HTML summary at the summary bound", strings.Repeat("<", stageresult.MaxStageResultSummaryBytes), true},
+		{"HTML summary over the summary bound", strings.Repeat("<", stageresult.MaxStageResultSummaryBytes+1), false},
 		{"required escaping over the encoded bound", "x" + strings.Repeat("\x01", 65000), false},
 	} {
 		t.Run(test.name, func(t *testing.T) {

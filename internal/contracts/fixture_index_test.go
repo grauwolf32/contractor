@@ -20,6 +20,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
+	"github.com/grauwolf32/contractor/internal/strictjson"
 )
 
 // fixtureIndexEntry mirrors api/testdata/v1alpha1/index.json, which Go and
@@ -71,7 +72,7 @@ func revealingCodecFor[T contracts.Validatable](reveal func(T) ([]byte, error)) 
 			if err != nil {
 				return nil, err
 			}
-			return contracts.MarshalPrivateCanonical(json.RawMessage(revealed))
+			return strictjson.Canonical(json.RawMessage(revealed))
 		},
 		privateReject: privateReject[T],
 	}

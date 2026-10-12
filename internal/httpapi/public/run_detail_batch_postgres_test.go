@@ -21,6 +21,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/planner"
 	plannersession "github.com/grauwolf32/contractor/internal/planner/session"
+	"github.com/grauwolf32/contractor/internal/planner/stageresult"
 	"github.com/grauwolf32/contractor/internal/runservice"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
@@ -72,7 +73,7 @@ func TestPostgresRunDetailFixedBatchQueries(t *testing.T) {
 				Config: runtimesettings.RuntimeConfigRef{Name: runtimeconfig.BuiltInName, Version: runtimeconfig.BuiltInVersion, Digest: runtimeconfig.BuiltInDigest},
 			},
 			RunLabels: []runtimesettings.RuntimeLabelBindingProvenance{}, AgentLabels: []runtimesettings.RuntimeLabelBindingProvenance{},
-			RuntimeAdapters: []contracts.RuntimeAdapterRef{}, RuntimeCredentialRefs: []runtimesettings.RuntimeCredentialRef{},
+			RuntimeAdapters: []runtimesettings.RuntimeAdapterRef{}, RuntimeCredentialRefs: []runtimesettings.RuntimeCredentialRef{},
 			LLMGatewayConfig: &gateway,
 		},
 	}
@@ -168,7 +169,7 @@ func TestPostgresRunDetailFixedBatchQueries(t *testing.T) {
 					}
 				}
 				if i < n-1 {
-					result := contracts.StageContentResult{APIVersion: contracts.APIVersion, Outcome: contracts.StageSucceeded, Summary: "done", Artifacts: map[string]contracts.ArtifactRef{}}
+					result := stageresult.StageContentResult{APIVersion: contracts.APIVersion, Outcome: stageresult.StageSucceeded, Summary: "done", Artifacts: map[string]contracts.ArtifactRef{}}
 					if err := runs.EnterFinalizing(ctx, runstore.EnterFinalizingParams{StageExecutionID: id, ResultSchemaVersion: contracts.APIVersion, Candidate: result, FinalizationID: "finalize-" + id, Deadline: time.Now().Add(time.Minute), Reason: runstore.Reason{Code: "done"}}); err != nil {
 						t.Fatal(err)
 					}

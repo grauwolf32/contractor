@@ -6,8 +6,8 @@ import (
 	"time"
 
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
-	"github.com/grauwolf32/contractor/internal/contracts"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
+	"github.com/grauwolf32/contractor/internal/planner/stageresult"
 	"github.com/grauwolf32/contractor/internal/telemetry"
 )
 
@@ -61,18 +61,18 @@ func RecoverCompletion(
 	contract map[string]workflowconfig.ArtifactSlot,
 	completion Completion,
 	inspector ArtifactInspector,
-) (contracts.StageContentResult, error) {
+) (stageresult.StageContentResult, error) {
 	if err := validateCompletion(completion); err != nil {
-		return contracts.StageContentResult{}, NewError(
+		return stageresult.StageContentResult{}, NewError(
 			"planner_session_invalid", "Recorded Planner completion is invalid", false, err,
 		)
 	}
 	if completion.Failure != nil {
-		return contracts.StageContentResult{}, NewErrorFromFailure(*completion.Failure, nil)
+		return stageresult.StageContentResult{}, NewErrorFromFailure(*completion.Failure, nil)
 	}
 	result := completion.Result.Clone()
 	if err := validateCandidate(ctx, runID, contract, result, inspector); err != nil {
-		return contracts.StageContentResult{}, err
+		return stageresult.StageContentResult{}, err
 	}
 	return result, nil
 }

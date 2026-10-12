@@ -10,6 +10,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
+	"github.com/grauwolf32/contractor/internal/strictjson"
 )
 
 type performanceCase struct {
@@ -48,7 +49,7 @@ func TestSharedPerformanceGoldenResources(t *testing.T) {
 					t.Fatalf("valid=%v, err=%v", valid, err)
 				}
 				if valid {
-					encoded, err := contracts.MarshalPrivateCanonical(value)
+					encoded, err := strictjson.Canonical(value)
 					if err != nil {
 						t.Fatal(err)
 					}

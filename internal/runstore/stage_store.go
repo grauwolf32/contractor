@@ -9,6 +9,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/contracts"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
+	"github.com/grauwolf32/contractor/internal/planner/stageresult"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -261,7 +262,7 @@ func (s *PostgresStore) CompleteStageResult(
 	ctx context.Context,
 	stageExecutionID string,
 	resultSchemaVersion string,
-	result contracts.StageContentResult,
+	result stageresult.StageContentResult,
 ) error {
 	if err := validateOpaque("stageExecutionID", stageExecutionID); err != nil {
 		return err

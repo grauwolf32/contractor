@@ -80,76 +80,8 @@ func (r StageContentRequest) Validate() error {
 	return nil
 }
 
-type StageOutcome string
-
-const (
-	StageSucceeded StageOutcome = "succeeded"
-	StageFailed    StageOutcome = "failed"
-)
-
-type StageContentResult struct {
-	APIVersion string                 `json:"apiVersion" strictjson:"required"`
-	Outcome    StageOutcome           `json:"outcome" strictjson:"required"`
-	Summary    string                 `json:"summary" strictjson:"required"`
-	Artifacts  map[string]ArtifactRef `json:"artifacts" strictjson:"required"`
-	Error      *TerminationError      `json:"error,omitempty"`
-}
-
-// Clone returns a copy that shares no artifact map, revision or error value
-// with r.
-func (r StageContentResult) Clone() StageContentResult {
-	result := r
-	result.Artifacts = CloneArtifactRefs(r.Artifacts)
-	if r.Error != nil {
-		terminationError := *r.Error
-		result.Error = &terminationError
-	}
-	return result
-}
-
-// Validate is the only definition of the StageResult bounds: every Planner,
-// the Scheduler and RunStore call it, so they cannot disagree about a
-// candidate's size (WRK-R37).
-func (r StageContentResult) Validate() error {
-	if err := ValidateAPIVersion(r.APIVersion); err != nil {
-		return err
-	}
-	if strings.TrimSpace(r.Summary) == "" || len(r.Summary) > MaxStageResultSummaryBytes {
-		return Invalidf("summary must be non-empty and at most %d bytes", MaxStageResultSummaryBytes)
-	}
-	if r.Artifacts == nil || len(r.Artifacts) > MaxStageResultArtifacts {
-		return Invalidf("StageContentResult artifacts must be a non-null map of at most %d entries", MaxStageResultArtifacts)
-	}
-	switch r.Outcome {
-	case StageSucceeded:
-		if r.Error != nil {
-			return Invalidf("successful StageContentResult must not contain error")
-		}
-	case StageFailed:
-		if r.Error == nil {
-			return Invalidf("failed StageContentResult requires error")
-		}
-		if err := r.Error.Validate(); err != nil {
-			return err
-		}
-	default:
-		return Invalidf("unknown StageContentResult outcome %q", r.Outcome)
-	}
-	for key, ref := range r.Artifacts {
-		if err := ValidateOpaqueID("result artifact slot", key); err != nil {
-			return err
-		}
-		if err := ref.ValidateExact(); err != nil {
-			return err
-		}
-	}
-	size, err := ResultJSONSize(r)
-	if err != nil || size > MaxStageResultBytes {
-		return Invalidf("StageContentResult exceeds its bounded contract")
-	}
-	return nil
-}
-
+// TerminationError is a classified termination cause: the reason of an
+// AbortAllocationRequest, and the error of a failed Stage result.
 type TerminationError struct {
 	Code      string `json:"code" strictjson:"required"`
 	Message   string `json:"message" strictjson:"required"`

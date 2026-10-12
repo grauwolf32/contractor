@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 )
 
@@ -63,7 +63,7 @@ func TestPrincipalOperationsSeparatesOfflineBusyAndAdapterMismatch(t *testing.T)
 		UpdatedBy: "runtime-registration", UpdatedAt: clock.Now(),
 	}
 	registration := testRegistration("agent-principal-operations")
-	registration.SupportedRuntimeAdapters = []contracts.RuntimeAdapterRef{}
+	registration.SupportedRuntimeAdapters = []runtimesettings.RuntimeAdapterRef{}
 	if _, err := registry.RegisterAuthenticated(AuthenticatedPrincipal{
 		RuntimeAgentID: principal.RuntimeAgentID,
 		Labels:         principal.Labels, LabelRevision: principal.LabelRevision,

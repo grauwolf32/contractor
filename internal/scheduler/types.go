@@ -14,6 +14,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/gatewayrecovery"
 	"github.com/grauwolf32/contractor/internal/planner"
+	"github.com/grauwolf32/contractor/internal/planner/stageresult"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/settingsstore"
 	"github.com/grauwolf32/contractor/internal/telemetry"
@@ -102,7 +103,7 @@ type StageProgression struct {
 type ResultProgression struct {
 	RunID            string
 	StageExecutionID string
-	Result           contracts.StageContentResult
+	Result           stageresult.StageContentResult
 	WorkflowOutputs  map[string]string
 	OutputContracts  map[string]workflowconfig.ArtifactSlot
 	Progression      StageProgression
@@ -139,7 +140,7 @@ type AtomicPersistence interface {
 		context.Context,
 		string,
 		string,
-		contracts.StageContentResult,
+		stageresult.StageContentResult,
 	) error
 	CommitTerminationProgression(context.Context, TerminationProgression) error
 	CommitTerminationAndFinishRun(
@@ -220,8 +221,8 @@ type RuntimeCredentialResolver interface {
 	UsePlaintext(
 		context.Context,
 		string,
-		[]contracts.RuntimeCredentialKind,
-		func(contracts.RuntimeCredentialKind, []byte) error,
+		[]runtimesettings.RuntimeCredentialKind,
+		func(runtimesettings.RuntimeCredentialKind, []byte) error,
 	) error
 }
 

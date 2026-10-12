@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/grauwolf32/contractor/internal/agentskills"
 	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -169,7 +170,7 @@ func stageSnapshot(stage workflowconfig.ResolvedStage) (json.RawMessage, error) 
 
 func bindingRequirements(
 	stage workflowconfig.ResolvedStage,
-	snapshot []contracts.RunSkillSnapshot,
+	snapshot []agentskills.RunSkillSnapshot,
 	context runstore.StageContextSnapshot,
 ) ([]controlplane.BindingRequirement, error) {
 	workspace, err := projectAllocationWorkspace(stage.Context.Workspace, context)

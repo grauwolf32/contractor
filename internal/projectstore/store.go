@@ -249,7 +249,7 @@ func scanProject(row scanner) (Project, error) {
 			project.HTTPTarget = &runtimesettings.HTTPOriginTargetRef{URL: *targetURL}
 			if credentialID != nil && credentialKind != nil {
 				project.HTTPTarget.Credential = &runtimesettings.RuntimeCredentialRef{
-					CredentialID: *credentialID, Kind: contracts.RuntimeCredentialKind(*credentialKind),
+					CredentialID: *credentialID, Kind: runtimesettings.RuntimeCredentialKind(*credentialKind),
 				}
 			}
 			if validateErr := project.HTTPTarget.Validate(); validateErr != nil {

@@ -21,6 +21,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	plannersession "github.com/grauwolf32/contractor/internal/planner/session"
+	"github.com/grauwolf32/contractor/internal/planner/stageresult"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/grauwolf32/contractor/internal/scheduler"
@@ -684,8 +685,8 @@ func transitionProductionMemoryStage(
 func finalizingParams(stageID string) runstore.EnterFinalizingParams {
 	return runstore.EnterFinalizingParams{
 		StageExecutionID: stageID, ResultSchemaVersion: contracts.APIVersion,
-		Candidate: contracts.StageContentResult{
-			APIVersion: contracts.APIVersion, Outcome: contracts.StageSucceeded,
+		Candidate: stageresult.StageContentResult{
+			APIVersion: contracts.APIVersion, Outcome: stageresult.StageSucceeded,
 			Summary: "memory race complete", Artifacts: map[string]contracts.ArtifactRef{},
 		},
 		FinalizationID: "finalization-" + stageID, Deadline: time.Now().UTC().Add(time.Minute),

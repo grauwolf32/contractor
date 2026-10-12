@@ -13,6 +13,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/planner"
+	"github.com/grauwolf32/contractor/internal/strictjson"
 )
 
 const (
@@ -102,7 +103,7 @@ func (b *resultBuilder) addJournal() error {
 		Task     auditdomain.ItemTask  `json:"task"`
 		Attempts []planner.ScanAttempt `json:"attempts"`
 	}{journalSchema, b.input.RunID, b.input.Task, b.input.Attempts}
-	data, err := contracts.MarshalPrivateCanonical(journal)
+	data, err := strictjson.Canonical(journal)
 	if err != nil {
 		return err
 	}
@@ -131,7 +132,7 @@ func (b *resultBuilder) packageResult() (Result, error) {
 		auditdomain.PackageInput{ID: auditdomain.CheckResultsMemberID, Path: "check-results.json", MediaType: auditdomain.JSONMediaType, Data: resultBytes},
 		auditdomain.PackageInput{ID: auditdomain.EvidenceMemberID, Path: "evidence.json", MediaType: auditdomain.JSONMediaType, Data: evidenceBytes},
 	)
-	basis, err := contracts.MarshalPrivateCanonical(b.members)
+	basis, err := strictjson.Canonical(b.members)
 	if err != nil {
 		return Result{}, err
 	}

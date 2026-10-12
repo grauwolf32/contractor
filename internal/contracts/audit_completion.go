@@ -32,39 +32,16 @@ func (c WorkerCompletionContract) Validate() error {
 	return nil
 }
 
-func (c WorkerCompletionContract) ValidateAllocation(namespace string, template ResolvedAgentTemplate) error {
+// ValidateAllocation checks the contract as an AllocationSpec carries it: its
+// output lies in the allocation namespace. Which AgentTemplate can complete
+// under it is the audit-results@2 Toolset's rule
+// (config.ValidateWorkerCompletionSelection).
+func (c WorkerCompletionContract) ValidateAllocation(namespace string) error {
 	if err := c.Validate(); err != nil {
 		return err
 	}
 	if c.ResultArtifact.Namespace != namespace {
 		return Invalidf("Worker completion output is outside its namespace")
-	}
-	return ValidateAuditCompletionTemplate(template)
-}
-
-func ValidateAuditCompletionTemplate(template ResolvedAgentTemplate) error {
-	if template.Summarizer != nil {
-		return Invalidf("Audit completion cannot select a terminal summarizer")
-	}
-	found := false
-	for _, selection := range template.Toolsets {
-		if selection.Ref.ToolsetID != "audit-results" {
-			continue
-		}
-		if selection.Ref.Version != "2" || found || len(selection.Tools) != 2 {
-			return Invalidf("Audit completion requires only audit-results@2 with both tools")
-		}
-		tools := map[string]bool{}
-		for _, name := range selection.Tools {
-			tools[name] = true
-		}
-		if !tools["read_audit_task"] || !tools["submit_check_result"] {
-			return Invalidf("Audit completion requires both audit-results@2 tools")
-		}
-		found = true
-	}
-	if !found {
-		return Invalidf("Audit completion requires audit-results@2")
 	}
 	return nil
 }
@@ -83,19 +60,6 @@ func CloneWorkerCompletionContract(source *WorkerCompletionContract) *WorkerComp
 		result.ExecutionManifest.Revision = &revision
 	}
 	return &result
-}
-
-// ValidateWorkerCompletionSelection rejects an untrusted v2 tool selection too.
-func ValidateWorkerCompletionSelection(c *WorkerCompletionContract, namespace string, template ResolvedAgentTemplate) error {
-	if c != nil {
-		return c.ValidateAllocation(namespace, template)
-	}
-	for _, toolset := range template.Toolsets {
-		if toolset.Ref.ToolsetID == "audit-results" && toolset.Ref.Version == "2" {
-			return Invalidf("audit-results@2 requires a trusted completion contract")
-		}
-	}
-	return nil
 }
 
 func SupportsWorkerCompletion(capabilities *RuntimeCompletionCapabilities, c *WorkerCompletionContract) bool {

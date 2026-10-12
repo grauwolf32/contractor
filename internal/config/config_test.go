@@ -15,6 +15,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/configtest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/securefile"
 )
 
@@ -217,9 +218,9 @@ spec:
 // their channels are the ones TestSharedToolsetDescriptorParity pins.
 func TestRequiredRuntimeAdaptersFollowToolChannels(t *testing.T) {
 	t.Parallel()
-	for ref, want := range map[contracts.ToolsetRef][]contracts.RuntimeAdapterRef{
+	for ref, want := range map[contracts.ToolsetRef][]runtimesettings.RuntimeAdapterRef{
 		{ToolsetID: "http-tools", Version: "1"}: nil,
-		{ToolsetID: "caido", Version: "1"}:      {contracts.RuntimeAdapterCaidoGraphQL},
+		{ToolsetID: "caido", Version: "1"}:      {runtimesettings.RuntimeAdapterCaidoGraphQL},
 	} {
 		tools := MVPDescriptors().Toolsets[ref.ToolsetID+"@"+ref.Version].Tools
 		if len(tools) == 0 {

@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strconv"
 
+	"github.com/grauwolf32/contractor/internal/agentskills"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditservice"
@@ -145,7 +146,7 @@ func (b *PinnedSubmissionBuilder) PrepareRole(
 		Parameters    map[string]string                    `json:"parameters"`
 		Inputs        map[string]auditstore.ExactArtifact  `json:"inputs"`
 		RuntimeConfig any                                  `json:"runtimeConfig"`
-		Skills        []contracts.RunSkillSnapshot         `json:"skills"`
+		Skills        []agentskills.RunSkillSnapshot       `json:"skills"`
 		ProjectTarget *runtimesettings.HTTPOriginTargetRef `json:"projectTarget,omitempty"`
 	}{
 		Schema: "contractor.audit.role-submission.v1", AuditID: audit.AuditID,
@@ -429,7 +430,7 @@ func (b *PinnedSubmissionBuilder) PrepareBatch(
 		Parameters    map[string]string                    `json:"parameters"`
 		Inputs        map[string]auditstore.ExactArtifact  `json:"inputs"`
 		RuntimeConfig any                                  `json:"runtimeConfig"`
-		Skills        []contracts.RunSkillSnapshot         `json:"skills"`
+		Skills        []agentskills.RunSkillSnapshot       `json:"skills"`
 		ProjectTarget *runtimesettings.HTTPOriginTargetRef `json:"projectTarget,omitempty"`
 	}{
 		Schema: "contractor.audit.submission.v1", AuditID: audit.AuditID,
@@ -724,17 +725,17 @@ func resolveParameters(
 
 func selectSkills(
 	workflow config.ResolvedWorkflow,
-	baseline []contracts.RunSkillSnapshot,
-) ([]contracts.RunSkillSnapshot, error) {
+	baseline []agentskills.RunSkillSnapshot,
+) ([]agentskills.RunSkillSnapshot, error) {
 	refs, err := config.WorkflowSkillRefs(workflow)
 	if err != nil {
 		return nil, invalidSubmission("Workflow Skill references are invalid")
 	}
-	byName := make(map[string]contracts.RunSkillSnapshot, len(baseline))
+	byName := make(map[string]agentskills.RunSkillSnapshot, len(baseline))
 	for _, skill := range baseline {
 		byName[skill.Name] = skill
 	}
-	result := make([]contracts.RunSkillSnapshot, len(refs))
+	result := make([]agentskills.RunSkillSnapshot, len(refs))
 	for index, ref := range refs {
 		skill, exists := byName[ref.Name]
 		if !exists || skill.Source == nil || skill.Initialized() || skill.Validate() != nil {

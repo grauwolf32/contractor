@@ -8,6 +8,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/contracts/runlabels"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 )
 
@@ -56,7 +57,7 @@ type CandidateEdge struct {
 	RuntimeAgentID            string
 	RuntimeAgentInstanceID    string
 	RuntimeAgentLabelRevision uint64
-	RequiredRuntimeAdapters   []contracts.RuntimeAdapterRef
+	RequiredRuntimeAdapters   []runtimesettings.RuntimeAdapterRef
 }
 
 // PinnedReservationConfig is attached only after durable allocation

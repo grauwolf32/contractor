@@ -15,9 +15,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/localpki"
+	"github.com/grauwolf32/contractor/internal/planner/stageresult"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -251,12 +251,12 @@ func runSummarizerProcessScenario(
 		attempt.Metrics.TotalTokens != expectation.normalTokens {
 		t.Fatalf("%s public normal-loop metrics = %+v", expectation.mode, attempt.Metrics)
 	}
-	var stageResult contracts.StageContentResult
+	var stageResult stageresult.StageContentResult
 	if err := json.Unmarshal(attempt.Result, &stageResult); err != nil {
 		t.Fatalf("%s Stage result: %v (%s)", expectation.mode, err, attempt.Result)
 	}
 	if expectation.state == "succeeded" {
-		if stageResult.Outcome != contracts.StageSucceeded || stageResult.Error != nil {
+		if stageResult.Outcome != stageresult.StageSucceeded || stageResult.Error != nil {
 			t.Fatalf("%s successful Stage result = %+v", expectation.mode, stageResult)
 		}
 		output, ok := status.Outputs["result"]
@@ -273,7 +273,7 @@ func runSummarizerProcessScenario(
 			t.Fatalf("%s output = (%q, %q), want (%q, text/plain)", expectation.mode, body, mediaType, want)
 		}
 	} else {
-		if stageResult.Outcome != contracts.StageFailed || stageResult.Error == nil ||
+		if stageResult.Outcome != stageresult.StageFailed || stageResult.Error == nil ||
 			stageResult.Error.Code != "worker_summarization_failed" || !stageResult.Error.Retryable {
 			t.Fatalf("%s failure Stage result = %+v", expectation.mode, stageResult)
 		}

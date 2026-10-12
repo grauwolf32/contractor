@@ -130,7 +130,7 @@ func invalidPinnedSkillSnapshot() error {
 
 func sameSelectedSkillNames(
 	refs []contracts.ArtifactRef,
-	selected []contracts.RunSkillSnapshot,
+	selected []agentskills.RunSkillSnapshot,
 ) bool {
 	if len(refs) != len(selected) {
 		return false

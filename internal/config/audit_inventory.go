@@ -1,14 +1,12 @@
 package config
 
-import "github.com/grauwolf32/contractor/internal/contracts"
-
 // AuditInventoryOpenAPIScans selects a versioned inventory builder, independently
 // of the Workflow that consumes its tasks.
 const AuditInventoryOpenAPIScans = "openapi-scans@1"
 
 type auditInventoryDescriptor struct {
 	mediaTypes       []string
-	taskContract     contracts.AuditTaskContract
+	taskContract     AuditTaskContract
 	requiresSettings bool
 }
 
@@ -17,7 +15,7 @@ type auditInventoryDescriptor struct {
 var auditInventories = map[string]auditInventoryDescriptor{
 	AuditInventoryOpenAPIScans: {
 		mediaTypes:       []string{"application/json", "application/yaml"},
-		taskContract:     contracts.AuditTaskOpenAPIScanV1,
+		taskContract:     AuditTaskOpenAPIScanV1,
 		requiresSettings: true,
 	},
 	"openapi-operations@1": {mediaTypes: []string{"application/json", "application/yaml", "application/zip"}},

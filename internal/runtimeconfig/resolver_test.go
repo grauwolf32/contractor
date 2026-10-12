@@ -50,11 +50,11 @@ func TestResolverComplexPrecedenceFixture(t *testing.T) {
 	input.LLMCredentials["workflow-key"] = authorization(
 		input, "workflow-key", testGatewayRef("secondary", "2"),
 	)
-	input.RuntimeCredentials = map[string]contracts.RuntimeCredentialKind{
-		"default-otel": contracts.RuntimeCredentialOTLPHeaders,
-		"run-otel":     contracts.RuntimeCredentialOTLPHeaders,
-		"planner-otel": contracts.RuntimeCredentialOTLPHeaders,
-		"proxy-auth":   contracts.RuntimeCredentialProxyBearer,
+	input.RuntimeCredentials = map[string]runtimesettings.RuntimeCredentialKind{
+		"default-otel": runtimesettings.RuntimeCredentialOTLPHeaders,
+		"run-otel":     runtimesettings.RuntimeCredentialOTLPHeaders,
+		"planner-otel": runtimesettings.RuntimeCredentialOTLPHeaders,
+		"proxy-auth":   runtimesettings.RuntimeCredentialProxyBearer,
 	}
 
 	result, err := ResolveRuntimeConfig(input)
@@ -67,7 +67,7 @@ func TestResolverComplexPrecedenceFixture(t *testing.T) {
 		result.PlannerTelemetry.Endpoint != "https://otel.example/planner" {
 		t.Fatalf("complex resolution = %+v", result)
 	}
-	if !reflect.DeepEqual(result.RequiredRuntimeAdapters, []contracts.RuntimeAdapterRef{contracts.RuntimeAdapterOTLPHTTP}) {
+	if !reflect.DeepEqual(result.RequiredRuntimeAdapters, []runtimesettings.RuntimeAdapterRef{runtimesettings.RuntimeAdapterOTLPHTTP}) {
 		t.Fatalf("required adapters = %v", result.RequiredRuntimeAdapters)
 	}
 	if result.Origins.LLMGateway.Layer != LayerEscalation ||
@@ -91,7 +91,7 @@ func TestResolverRunLabelAdaptersDoNotRequireMatchingAgentLabels(t *testing.T) {
 	}
 	if len(result.Provenance.AgentLabels) != 0 || len(result.Provenance.RunLabels) != 1 ||
 		result.Provenance.RunLabels[0].Label != "debug" ||
-		!reflect.DeepEqual(result.RequiredRuntimeAdapters, []contracts.RuntimeAdapterRef{contracts.RuntimeAdapterOTLPHTTP}) {
+		!reflect.DeepEqual(result.RequiredRuntimeAdapters, []runtimesettings.RuntimeAdapterRef{runtimesettings.RuntimeAdapterOTLPHTTP}) {
 		t.Fatalf("unlabeled candidate result = %+v", result)
 	}
 }
@@ -121,7 +121,7 @@ func TestResolverCaidoAtomicDefaultRunAgentPrecedenceAndClear(t *testing.T) {
 	input.AgentLabels = []PinnedRuntimeConfig{testPin("lab", "4", Spec{Worker: WorkerPatch{
 		Caido: caidoPatch("https://agent.example", ""),
 	}})}
-	input.RuntimeCredentials["run-caido"] = contracts.RuntimeCredentialCaidoBearer
+	input.RuntimeCredentials["run-caido"] = runtimesettings.RuntimeCredentialCaidoBearer
 
 	result, err := ResolveRuntimeConfig(input)
 	if err != nil {
@@ -129,7 +129,7 @@ func TestResolverCaidoAtomicDefaultRunAgentPrecedenceAndClear(t *testing.T) {
 	}
 	if result.Caido == nil || result.Caido.Endpoint != "https://agent.example" ||
 		result.Caido.Credential != "" || result.Origins.Caido.Layer != LayerAgentLabels ||
-		!reflect.DeepEqual(result.RequiredRuntimeAdapters, []contracts.RuntimeAdapterRef{contracts.RuntimeAdapterCaidoGraphQL}) ||
+		!reflect.DeepEqual(result.RequiredRuntimeAdapters, []runtimesettings.RuntimeAdapterRef{runtimesettings.RuntimeAdapterCaidoGraphQL}) ||
 		len(result.Provenance.RuntimeCredentialRefs) != 0 {
 		t.Fatalf("Agent Caido precedence = %+v", result)
 	}
@@ -142,7 +142,7 @@ func TestResolverCaidoAtomicDefaultRunAgentPrecedenceAndClear(t *testing.T) {
 	if result.Caido == nil || result.Caido.Endpoint != "https://run.example/prefix" ||
 		result.Origins.Caido.Layer != LayerRunLabels ||
 		!reflect.DeepEqual(result.Provenance.RuntimeCredentialRefs, []runtimesettings.RuntimeCredentialRef{{
-			CredentialID: "run-caido", Kind: contracts.RuntimeCredentialCaidoBearer,
+			CredentialID: "run-caido", Kind: runtimesettings.RuntimeCredentialCaidoBearer,
 		}}) {
 		t.Fatalf("Run Caido precedence = %+v", result)
 	}
@@ -157,7 +157,7 @@ func TestResolverCaidoAtomicDefaultRunAgentPrecedenceAndClear(t *testing.T) {
 	}
 
 	input.AgentLabels = nil
-	input.RuntimeCredentials["run-caido"] = contracts.RuntimeCredentialProxyBearer
+	input.RuntimeCredentials["run-caido"] = runtimesettings.RuntimeCredentialProxyBearer
 	_, err = ResolveRuntimeConfig(input)
 	assertResolutionError(t, err, ResolutionCredentialKindMismatch, "worker.caido.credential")
 }
@@ -326,7 +326,7 @@ func TestResolverRejectsUnauthorizedRoutesAndCredentialKinds(t *testing.T) {
 		input.RunLabels = []PinnedRuntimeConfig{testPin("debug", "4", Spec{Worker: WorkerPatch{
 			Telemetry: telemetryPatch("https://otel.example/traces", "wrong-kind"),
 		}})}
-		input.RuntimeCredentials["wrong-kind"] = contracts.RuntimeCredentialProxyBearer
+		input.RuntimeCredentials["wrong-kind"] = runtimesettings.RuntimeCredentialProxyBearer
 		_, err := ResolveRuntimeConfig(input)
 		assertResolutionError(t, err, ResolutionCredentialKindMismatch, "worker.telemetry.credential")
 	})
@@ -426,7 +426,7 @@ type resolverFixtureProjection struct {
 	WorkerTelemetry *TelemetryConfig                                `json:"workerTelemetry"`
 	ProxyEnabled    bool                                            `json:"proxyEnabled"`
 	PlannerEndpoint string                                          `json:"plannerEndpoint"`
-	Adapters        []contracts.RuntimeAdapterRef                   `json:"adapters"`
+	Adapters        []runtimesettings.RuntimeAdapterRef             `json:"adapters"`
 	Origins         ResolvedRuntimeConfigOrigins                    `json:"origins"`
 	Provenance      runtimesettings.ResolvedRuntimeConfigProvenance `json:"provenance"`
 }
@@ -491,7 +491,7 @@ func resolverInput() ResolveRuntimeConfigInput {
 			},
 		},
 		LLMCredentials:     map[string]LLMCredentialAuthorization{},
-		RuntimeCredentials: map[string]contracts.RuntimeCredentialKind{},
+		RuntimeCredentials: map[string]runtimesettings.RuntimeCredentialKind{},
 	}
 }
 
@@ -523,21 +523,21 @@ func credentialField(credentialID string) Field[string] {
 
 func telemetryPatch(endpoint, credentialID string) AtomicPatch[TelemetryConfig] {
 	return AtomicPatch[TelemetryConfig]{Present: true, Value: TelemetryConfig{
-		Adapter: string(contracts.RuntimeAdapterOTLPHTTP), Endpoint: endpoint,
+		Adapter: string(runtimesettings.RuntimeAdapterOTLPHTTP), Endpoint: endpoint,
 		Credential: credentialID, FlushTimeoutSeconds: 3,
 	}}
 }
 
 func proxyPatch(credentialID string) AtomicPatch[HTTPProxyConfig] {
 	return AtomicPatch[HTTPProxyConfig]{Present: true, Value: HTTPProxyConfig{
-		Adapter: string(contracts.RuntimeAdapterHTTPProxy), ProxyURL: "http://127.0.0.1:8080",
+		Adapter: string(runtimesettings.RuntimeAdapterHTTPProxy), ProxyURL: "http://127.0.0.1:8080",
 		Credential: credentialID, Targets: []string{"llm-gateway", "tool-http"},
 	}}
 }
 
 func caidoPatch(endpoint, credentialID string) AtomicPatch[CaidoConfig] {
 	return AtomicPatch[CaidoConfig]{Present: true, Value: CaidoConfig{
-		Adapter: string(contracts.RuntimeAdapterCaidoGraphQL), Endpoint: endpoint,
+		Adapter: string(runtimesettings.RuntimeAdapterCaidoGraphQL), Endpoint: endpoint,
 		Credential: credentialID, RequestTimeoutSeconds: 30,
 	}}
 }

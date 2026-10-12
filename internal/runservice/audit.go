@@ -151,7 +151,7 @@ func (s *Service) CreateAudit(ctx context.Context, params AuditCreateParams) (Cr
 					return err
 				}
 			} else {
-				run.SkillSnapshot = contracts.CloneRunSkills(normalized.Skills)
+				run.SkillSnapshot = agentskills.CloneRunSkills(normalized.Skills)
 				run.StateReason = runstore.Reason{Code: runstore.SkillInitializationPendingReason}
 			}
 			result = CreateResult{Run: run, Created: true}
@@ -206,7 +206,7 @@ func normalizeAuditCreate(params AuditCreateParams) (AuditCreateParams, json.Raw
 	}
 	params.ExecutionManifest = params.ExecutionManifest.Clone()
 	params.ProjectHTTPTarget = params.ProjectHTTPTarget.Clone()
-	params.Skills = contracts.CloneRunSkills(params.Skills)
+	params.Skills = agentskills.CloneRunSkills(params.Skills)
 	workflowSkillRefs, err := config.WorkflowSkillRefs(params.Workflow)
 	if err != nil || !matchingPinnedSkills(workflowSkillRefs, params.Skills) {
 		return AuditCreateParams{}, nil, fmt.Errorf("%w: pinned Skill set does not match Workflow", ErrInvalid)
@@ -301,7 +301,7 @@ func verifyExactProjectArtifact(
 	return metadata, nil
 }
 
-func matchingPinnedSkills(refs []contracts.ArtifactRef, skills []contracts.RunSkillSnapshot) bool {
+func matchingPinnedSkills(refs []contracts.ArtifactRef, skills []agentskills.RunSkillSnapshot) bool {
 	if len(refs) != len(skills) {
 		return false
 	}

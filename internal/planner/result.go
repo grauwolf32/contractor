@@ -7,18 +7,19 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/planner/stageresult"
 )
 
 func validateCandidate(
 	ctx context.Context,
 	runID string,
 	contract map[string]workflowconfig.ArtifactSlot,
-	result contracts.StageContentResult,
+	result stageresult.StageContentResult,
 	inspector ArtifactInspector,
 ) *Error {
 	if err := result.Validate(); err != nil {
 		return NewError(
-			"invalid_worker_result", "Worker returned an invalid StageContentResult", false, err,
+			"invalid_worker_result", "Worker returned an invalid stageresult.StageContentResult", false, err,
 		)
 	}
 	for name := range result.Artifacts {
@@ -31,7 +32,7 @@ func validateCandidate(
 			)
 		}
 	}
-	if result.Outcome == contracts.StageSucceeded {
+	if result.Outcome == stageresult.StageSucceeded {
 		for name, slot := range contract {
 			if _, ok := result.Artifacts[name]; slot.Required && !ok {
 				return NewError(
@@ -79,7 +80,7 @@ func ValidateCandidate(
 	ctx context.Context,
 	runID string,
 	contract map[string]workflowconfig.ArtifactSlot,
-	result contracts.StageContentResult,
+	result stageresult.StageContentResult,
 	inspector ArtifactInspector,
 ) *Error {
 	return validateCandidate(ctx, runID, contract, result, inspector)

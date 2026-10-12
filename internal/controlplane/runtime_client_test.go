@@ -312,13 +312,13 @@ func TestWorkerHandleSecretScanIgnoresFixedCardAndReservationStrings(t *testing.
 		t.Run(value, func(t *testing.T) {
 			settings := testRuntimeSettings()
 			settings.Telemetry = &runtimesettings.TelemetrySettings{
-				Adapter:             contracts.RuntimeAdapterOTLPHTTP,
+				Adapter:             runtimesettings.RuntimeAdapterOTLPHTTP,
 				Endpoint:            "https://telemetry.example/v1/traces",
 				Headers:             map[string]contracts.SecretString{"X-Scope-OrgID": contracts.NewSecretString(value)},
 				FlushTimeoutSeconds: 1,
 			}
 			settings.HTTPProxy = &runtimesettings.HTTPProxySettings{
-				Adapter: contracts.RuntimeAdapterHTTPProxy, ProxyURL: "https://proxy.example",
+				Adapter: runtimesettings.RuntimeAdapterHTTPProxy, ProxyURL: "https://proxy.example",
 				BasicAuth: &runtimesettings.HTTPProxyBasicAuth{
 					Username: contracts.NewSecretString(value), Password: contracts.NewSecretString("safe-password"),
 				},
@@ -337,7 +337,7 @@ func TestWorkerHandleSecretScanIgnoresFixedCardAndReservationStrings(t *testing.
 	}
 	settings := testRuntimeSettings()
 	settings.Telemetry = &runtimesettings.TelemetrySettings{
-		Adapter: contracts.RuntimeAdapterOTLPHTTP, Endpoint: "https://telemetry.example/v1/traces",
+		Adapter: runtimesettings.RuntimeAdapterOTLPHTTP, Endpoint: "https://telemetry.example/v1/traces",
 		Headers:             map[string]contracts.SecretString{"X-Scope-OrgID": contracts.NewSecretString("stage")},
 		FlushTimeoutSeconds: 1,
 	}
@@ -375,7 +375,7 @@ func TestWorkerHandleSecretScanDoesNotMatchShortCredentialAgainstJSONKeys(t *tes
 	)
 	settings := testRuntimeSettings()
 	settings.HTTPProxy = &runtimesettings.HTTPProxySettings{
-		Adapter: contracts.RuntimeAdapterHTTPProxy, ProxyURL: "https://proxy.example",
+		Adapter: runtimesettings.RuntimeAdapterHTTPProxy, ProxyURL: "https://proxy.example",
 		BasicAuth: &runtimesettings.HTTPProxyBasicAuth{
 			Username: contracts.NewSecretString("worker"),
 			Password: contracts.NewSecretString("short"),
@@ -465,7 +465,7 @@ func TestSharedWorkerHandleSecretScanSharedCases(t *testing.T) {
 			}
 			settings := testRuntimeSettings()
 			settings.Telemetry = &runtimesettings.TelemetrySettings{
-				Adapter: contracts.RuntimeAdapterOTLPHTTP, Endpoint: "https://telemetry.example/v1/traces",
+				Adapter: runtimesettings.RuntimeAdapterOTLPHTTP, Endpoint: "https://telemetry.example/v1/traces",
 				Headers: map[string]contracts.SecretString{
 					"X-Scope-OrgID": contracts.NewSecretString(render.Replace(test.Secret)),
 				},
@@ -912,7 +912,7 @@ func testRuntimeProvenance() runtimesettings.ResolvedRuntimeConfigProvenance {
 		},
 		RunLabels:       []runtimesettings.RuntimeLabelBindingProvenance{},
 		AgentLabels:     []runtimesettings.RuntimeLabelBindingProvenance{},
-		RuntimeAdapters: []contracts.RuntimeAdapterRef{}, LLMGatewayConfig: &gateway,
+		RuntimeAdapters: []runtimesettings.RuntimeAdapterRef{}, LLMGatewayConfig: &gateway,
 		RuntimeCredentialRefs: []runtimesettings.RuntimeCredentialRef{},
 	}
 }
@@ -935,20 +935,20 @@ func TestRuntimeAdapterMetricsAreFilteredAgainstPinnedReservation(t *testing.T) 
 	t.Parallel()
 
 	reservation := Reservation{ResolvedRuntimeConfig: &runtimeconfig.ResolvedRuntimeConfig{
-		RequiredRuntimeAdapters: []contracts.RuntimeAdapterRef{contracts.RuntimeAdapterOTLPHTTP},
+		RequiredRuntimeAdapters: []runtimesettings.RuntimeAdapterRef{runtimesettings.RuntimeAdapterOTLPHTTP},
 	}}
 	report := reporting.RuntimeReport{
 		Complete: true,
-		Adapters: map[contracts.RuntimeAdapterRef]reporting.RuntimeAdapterMetrics{
-			contracts.RuntimeAdapterOTLPHTTP:  {Operations: 2},
-			contracts.RuntimeAdapterHTTPProxy: {Operations: 1},
+		Adapters: map[runtimesettings.RuntimeAdapterRef]reporting.RuntimeAdapterMetrics{
+			runtimesettings.RuntimeAdapterOTLPHTTP:  {Operations: 2},
+			runtimesettings.RuntimeAdapterHTTPProxy: {Operations: 1},
 		},
 	}
 	sanitizeRuntimeAdapterMetrics(&report, reservation)
 	if report.Complete {
 		t.Fatal("unexpected adapter attribution did not mark telemetry incomplete")
 	}
-	if len(report.Adapters) != 1 || report.Adapters[contracts.RuntimeAdapterOTLPHTTP].Operations != 2 {
+	if len(report.Adapters) != 1 || report.Adapters[runtimesettings.RuntimeAdapterOTLPHTTP].Operations != 2 {
 		t.Fatalf("trusted adapter metrics were not retained: %+v", report.Adapters)
 	}
 

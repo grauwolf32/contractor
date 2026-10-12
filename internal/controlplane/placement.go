@@ -14,6 +14,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts/control"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -166,7 +167,7 @@ func (a *PlacementAllocator) reserveAllContext(
 	lookups := placementCredentialLookups{
 		llm: a.llmCredentials, runtime: a.runtimeCredentials,
 		llmCache:     make(map[string]placementCachedValue[runtimeconfig.LLMCredentialAuthorization]),
-		runtimeCache: make(map[string]placementCachedValue[contracts.RuntimeCredentialKind]),
+		runtimeCache: make(map[string]placementCachedValue[runtimesettings.RuntimeCredentialKind]),
 	}
 	edges := make([]CandidateEdge, 0, len(request.Bindings)*len(candidates))
 	for _, binding := range request.Bindings {
@@ -200,7 +201,7 @@ func (a *PlacementAllocator) reserveAllContext(
 				LogicalAgentName: binding.LogicalAgentName, RuntimeAgentID: candidate.Principal.RuntimeAgentID,
 				RuntimeAgentInstanceID:    candidate.Registration.InstanceID,
 				RuntimeAgentLabelRevision: candidate.Principal.LabelRevision,
-				RequiredRuntimeAdapters:   append([]contracts.RuntimeAdapterRef{}, resolved.RequiredRuntimeAdapters...),
+				RequiredRuntimeAdapters:   append([]runtimesettings.RuntimeAdapterRef{}, resolved.RequiredRuntimeAdapters...),
 			})
 		}
 	}
@@ -598,7 +599,7 @@ type placementCredentialLookups struct {
 	llm          workflowconfig.CredentialLookup
 	runtime      PlacementRuntimeCredentialLookup
 	llmCache     map[string]placementCachedValue[runtimeconfig.LLMCredentialAuthorization]
-	runtimeCache map[string]placementCachedValue[contracts.RuntimeCredentialKind]
+	runtimeCache map[string]placementCachedValue[runtimesettings.RuntimeCredentialKind]
 }
 
 func (lookups placementCredentialLookups) catalogs(
@@ -607,7 +608,7 @@ func (lookups placementCredentialLookups) catalogs(
 	configs []runtimeconfig.PinnedRuntimeConfig,
 ) (
 	map[string]runtimeconfig.LLMCredentialAuthorization,
-	map[string]contracts.RuntimeCredentialKind,
+	map[string]runtimesettings.RuntimeCredentialKind,
 	error,
 ) {
 	llmIDs := make(map[string]struct{})
@@ -626,7 +627,7 @@ func (lookups placementCredentialLookups) catalogs(
 		}
 		llmResult[id] = authorization
 	}
-	runtimeResult := make(map[string]contracts.RuntimeCredentialKind, len(runtimeIDs))
+	runtimeResult := make(map[string]runtimesettings.RuntimeCredentialKind, len(runtimeIDs))
 	for id := range runtimeIDs {
 		kind, err := lookups.runtimeKind(ctx, id)
 		if err != nil {
@@ -662,14 +663,14 @@ func (lookups placementCredentialLookups) llmAuthorization(
 func (lookups placementCredentialLookups) runtimeKind(
 	ctx context.Context,
 	id string,
-) (contracts.RuntimeCredentialKind, error) {
+) (runtimesettings.RuntimeCredentialKind, error) {
 	if cached, ok := lookups.runtimeCache[id]; ok {
 		return cached.value, cached.err
 	}
 	metadata, err := lookups.runtime.Get(ctx, id)
-	kind := contracts.RuntimeCredentialKind(metadata.Kind)
+	kind := runtimesettings.RuntimeCredentialKind(metadata.Kind)
 	if lookups.runtimeCache != nil {
-		lookups.runtimeCache[id] = placementCachedValue[contracts.RuntimeCredentialKind]{value: kind, err: err}
+		lookups.runtimeCache[id] = placementCachedValue[runtimesettings.RuntimeCredentialKind]{value: kind, err: err}
 	}
 	return kind, err
 }

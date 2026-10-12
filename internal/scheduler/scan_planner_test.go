@@ -14,6 +14,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/planner"
+	"github.com/grauwolf32/contractor/internal/planner/stageresult"
 	"github.com/grauwolf32/contractor/internal/runstore"
 )
 
@@ -53,8 +54,8 @@ func TestSchedulerDispatchesFixedScanWorkersWithDurableClaimAndNoModelAccess(t *
 			outputBinding := stage.Result.Artifacts["report"].From
 			output := exactRef(outputBinding.Namespace, outputBinding.Name, "scan-report-r1")
 			h.artifacts.values["run-1/"+output.Namespace+"/"+output.Name+"/"+*output.Revision] = ResolvedArtifact{Ref: output, MediaType: "application/json"}
-			h.planners.result = contracts.StageContentResult{
-				APIVersion: contracts.APIVersion, Outcome: contracts.StageSucceeded, Summary: "Scan report persisted",
+			h.planners.result = stageresult.StageContentResult{
+				APIVersion: contracts.APIVersion, Outcome: stageresult.StageSucceeded, Summary: "Scan report persisted",
 				Artifacts: map[string]contracts.ArtifactRef{"report": output},
 			}
 			// The generic harness predates durable claim snapshots and only

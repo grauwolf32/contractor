@@ -112,6 +112,7 @@ var layers = []layerSpec{
 			"internal/planner/a2a",
 			"internal/planner/router",
 			"internal/planner/session",
+			"internal/planner/stageresult",
 			"internal/planner/stateview",
 			"internal/planner/streamline",
 			"internal/runrepeat",

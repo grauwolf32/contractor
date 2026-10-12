@@ -646,7 +646,7 @@ func validateConsumerExecutionConfig(
 ) error {
 	var err error
 	if planner {
-		err = selection.ModelPolicy.ValidateForPlanner()
+		err = ValidatePlannerModelPolicy(selection.ModelPolicy)
 	} else {
 		err = selection.ModelPolicy.ValidateForWorker(hasTools)
 	}

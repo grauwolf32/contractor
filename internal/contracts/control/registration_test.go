@@ -6,7 +6,9 @@ import (
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+
 	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 )
 
 func TestSharedPrivateRegistrationNormalizationFingerprintAndProjection(t *testing.T) {
@@ -33,7 +35,7 @@ func TestSharedPrivateRegistrationNormalizationFingerprintAndProjection(t *testi
 		t.Fatal("startup label seed or observation changed the immutable registration fingerprint")
 	}
 	changedCapability := registration
-	changedCapability.SupportedRuntimeAdapters = []contracts.RuntimeAdapterRef{contracts.RuntimeAdapterOTLPHTTP}
+	changedCapability.SupportedRuntimeAdapters = []runtimesettings.RuntimeAdapterRef{runtimesettings.RuntimeAdapterOTLPHTTP}
 	third, err := AgentRegistrationFingerprint(changedCapability)
 	if err != nil {
 		t.Fatal(err)
@@ -46,7 +48,7 @@ func TestSharedPrivateRegistrationNormalizationFingerprintAndProjection(t *testi
 		t.Fatalf("unexpected Operations projection: %v", projection)
 	}
 	projection[0] = "mutated@1"
-	if registration.SupportedRuntimeAdapters[0] != contracts.RuntimeAdapterCaidoGraphQL {
+	if registration.SupportedRuntimeAdapters[0] != runtimesettings.RuntimeAdapterCaidoGraphQL {
 		t.Fatal("Operations projection aliases private registration memory")
 	}
 

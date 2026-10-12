@@ -5,6 +5,7 @@ import (
 	"sort"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 )
 
 type ToolInfrastructureChannel string
@@ -88,14 +89,14 @@ func MVPDescriptors() Descriptors {
 					"exec_command": {SandboxExecution},
 				},
 			},
-			"audit-results@2": {
-				Tools: []string{"read_audit_task", "submit_check_result"},
+			AuditResultsToolsetID + "@" + AuditResultsToolsetVersion: {
+				Tools: []string{ReadAuditTaskTool, SubmitCheckResultTool},
 			},
 			"security-findings@1": {
 				Tools:                []string{"finding", "list_findings"},
 				FindingProposalTools: []string{"finding"},
 				RequiredWorkflowInputs: map[string]WorkflowInputRequirement{
-					"list_findings": {Input: "findings", MediaType: contracts.FindingCollectionMediaType},
+					"list_findings": {Input: "findings", MediaType: FindingCollectionMediaType},
 				},
 			},
 			"security-findings-code@1": {
@@ -296,9 +297,9 @@ func normalizeToolClassification(
 // ambient/direct fallback and therefore contributes a hard requirement.
 func RequiredRuntimeAdaptersForTemplate(
 	template contracts.ResolvedAgentTemplate,
-) ([]contracts.RuntimeAdapterRef, error) {
+) ([]runtimesettings.RuntimeAdapterRef, error) {
 	descriptors := MVPDescriptors()
-	selected := make(map[contracts.RuntimeAdapterRef]struct{})
+	selected := make(map[runtimesettings.RuntimeAdapterRef]struct{})
 	for _, toolset := range template.Toolsets {
 		ref := toolset.Ref.ToolsetID + "@" + toolset.Ref.Version
 		descriptor, ok := descriptors.Toolsets[ref]
@@ -312,12 +313,12 @@ func RequiredRuntimeAdaptersForTemplate(
 			}
 			for _, channel := range channels {
 				if channel == CaidoGraphQLClient {
-					selected[contracts.RuntimeAdapterCaidoGraphQL] = struct{}{}
+					selected[runtimesettings.RuntimeAdapterCaidoGraphQL] = struct{}{}
 				}
 			}
 		}
 	}
-	result := make([]contracts.RuntimeAdapterRef, 0, len(selected))
+	result := make([]runtimesettings.RuntimeAdapterRef, 0, len(selected))
 	for ref := range selected {
 		result = append(result, ref)
 	}

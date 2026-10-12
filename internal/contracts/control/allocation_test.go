@@ -11,6 +11,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
+	"github.com/grauwolf32/contractor/internal/strictjson"
 )
 
 func TestSharedAllocationRunMetadataLabelCasesAreStrict(t *testing.T) {
@@ -329,7 +330,7 @@ func TestSharedPrivateAllocationSpecComposesValidatedSettingsAndProvenance(t *te
 		if err != nil {
 			t.Fatal(err)
 		}
-		canonical, err := contracts.MarshalPrivateCanonical(json.RawMessage(wire))
+		canonical, err := strictjson.Canonical(json.RawMessage(wire))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -416,7 +417,7 @@ func TestSharedPerformanceGoldenAllocationRequestIsOptional(t *testing.T) {
 	if err != nil || withoutMetrics.PerformanceMetrics != nil {
 		t.Fatalf("allocation without metrics: %v", err)
 	}
-	canonical, err := contracts.MarshalPrivateCanonical(withoutMetrics)
+	canonical, err := strictjson.Canonical(withoutMetrics)
 	if err != nil || bytes.Contains(canonical, []byte("performanceMetrics")) {
 		t.Fatalf("omitted request must remain disabled: %v", err)
 	}
@@ -426,7 +427,7 @@ func TestSharedPerformanceGoldenAllocationRequestIsOptional(t *testing.T) {
 	if err != nil || current.PerformanceMetrics == nil {
 		t.Fatalf("new allocation: %v", err)
 	}
-	canonical, err = contracts.MarshalPrivateCanonical(current)
+	canonical, err = strictjson.Canonical(current)
 	if err != nil {
 		t.Fatal(err)
 	}

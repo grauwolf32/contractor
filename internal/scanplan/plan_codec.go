@@ -12,6 +12,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/scan"
+	"github.com/grauwolf32/contractor/internal/strictjson"
 )
 
 var planDigestPattern = regexp.MustCompile(`^sha256:[a-f0-9]{64}$`)
@@ -25,7 +26,7 @@ func MarshalPlan(plan ScanPlan) ([]byte, error) {
 	if err := plan.Validate(); err != nil {
 		return nil, err
 	}
-	data, err := contracts.MarshalPrivateCanonical(plan)
+	data, err := strictjson.Canonical(plan)
 	if err != nil || len(data) > MaxPlanBytes {
 		return nil, failure("scan_plan_limit_exceeded")
 	}

@@ -8,6 +8,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/grauwolf32/contractor/internal/agentskills"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstandards"
 	"github.com/grauwolf32/contractor/internal/auditstore"
@@ -199,7 +200,7 @@ func cloneBaseline(source BaselineSnapshot) BaselineSnapshot {
 	result.Inputs = contracts.CloneExactArtifacts(source.Inputs)
 	result.RuntimeLabels = slices.Clone(source.RuntimeLabels)
 	result.RuntimeConfig = source.RuntimeConfig.Clone()
-	result.Skills = contracts.CloneRunSkills(source.Skills)
+	result.Skills = agentskills.CloneRunSkills(source.Skills)
 	result.LLMCredentialIDs = slices.Clone(source.LLMCredentialIDs)
 	result.RuntimeCredentialIDs = slices.Clone(source.RuntimeCredentialIDs)
 	result.Standards = slices.Clone(source.Standards)

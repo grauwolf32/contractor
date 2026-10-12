@@ -90,7 +90,7 @@ func (s *Service) CreateDraft(
 	if err != nil {
 		return auditstore.Audit{}, false, ErrProfileNotFound
 	}
-	if err := contracts.CheckPinnedSelection(params.ExpectedProfileSHA256, profile); err != nil {
+	if err := contentdigest.CheckPinnedSelection(params.ExpectedProfileSHA256, profile); err != nil {
 		return auditstore.Audit{}, false, err
 	}
 	project, err := projectstore.NewPostgresStore(s.pool).Get(ctx, params.OwnerID, params.ProjectID)

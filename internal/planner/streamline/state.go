@@ -5,9 +5,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/planner"
+	"github.com/grauwolf32/contractor/internal/planner/stageresult"
 	"google.golang.org/adk/model"
 	"google.golang.org/genai"
 )
@@ -23,7 +23,7 @@ type executionState struct {
 	inputTokens  int64
 	outputTokens int64
 	workerCalls  int64
-	completion   *contracts.StageContentResult
+	completion   *stageresult.StageContentResult
 	failure      *planner.Error
 
 	toolMetrics map[string]toolCounters
@@ -206,7 +206,7 @@ func (s *executionState) recordTool(
 	s.toolCalls = append(s.toolCalls, record)
 }
 
-func (s *executionState) setCompletion(result contracts.StageContentResult) bool {
+func (s *executionState) setCompletion(result stageresult.StageContentResult) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.failure != nil || s.completion != nil {
@@ -217,10 +217,10 @@ func (s *executionState) setCompletion(result contracts.StageContentResult) bool
 	return true
 }
 
-func (s *executionState) terminal() (*contracts.StageContentResult, *planner.Error) {
+func (s *executionState) terminal() (*stageresult.StageContentResult, *planner.Error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	var result *contracts.StageContentResult
+	var result *stageresult.StageContentResult
 	if s.completion != nil {
 		cloned := s.completion.Clone()
 		result = &cloned

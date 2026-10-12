@@ -6,8 +6,6 @@ import (
 	"reflect"
 	"strings"
 	"testing"
-
-	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
 func TestAuditScanUsesContractsInsteadOfCatalogNames(t *testing.T) {
@@ -172,7 +170,7 @@ func TestAuditTaskAllowsSurroundingStagesAndOtherRoles(t *testing.T) {
 		t.Fatal(err)
 	}
 	restored, err := DecodeResolvedAuditProfileSnapshot(encoded)
-	if err != nil || restored.Workflows["scan"].Workflow.AuditTask.Contract != contracts.AuditTaskOpenAPIScanV1 {
+	if err != nil || restored.Workflows["scan"].Workflow.AuditTask.Contract != AuditTaskOpenAPIScanV1 {
 		t.Fatalf("composed Workflow cannot be restored: %v", err)
 	}
 	// Neither another result producer nor a success branch around the scan

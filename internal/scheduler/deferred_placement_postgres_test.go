@@ -18,6 +18,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/gatewayrecovery"
 	"github.com/grauwolf32/contractor/internal/planner"
 	plannersession "github.com/grauwolf32/contractor/internal/planner/session"
+	"github.com/grauwolf32/contractor/internal/planner/stageresult"
 	"github.com/grauwolf32/contractor/internal/rundeletion"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
@@ -153,8 +154,8 @@ func newDeferredPlacementHarness(t *testing.T, ctx context.Context, wrap func(At
 	if err != nil {
 		t.Fatal(err)
 	}
-	invoker := &postgresTestWorkerInvoker{result: contracts.StageContentResult{
-		APIVersion: contracts.APIVersion, Outcome: contracts.StageSucceeded, Summary: "copied",
+	invoker := &postgresTestWorkerInvoker{result: stageresult.StageContentResult{
+		APIVersion: contracts.APIVersion, Outcome: stageresult.StageSucceeded, Summary: "copied",
 		Artifacts: map[string]contracts.ArtifactRef{"copied": workerWrite.Ref},
 	}}
 	passthrough, err := planner.NewPassthroughFactory(sessions, invoker, inspector)

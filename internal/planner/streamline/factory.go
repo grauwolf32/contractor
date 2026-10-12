@@ -236,7 +236,7 @@ func (f *Factory) Create(invocation planner.Invocation) (planner.Planner, error)
 }
 
 func validateModelAccess(access planner.ModelAccess) error {
-	if err := access.ModelPolicy.ValidateForPlanner(); err != nil {
+	if err := workflowconfig.ValidatePlannerModelPolicy(access.ModelPolicy); err != nil {
 		return err
 	}
 	if err := access.LLMGateway.Validate(); err != nil {

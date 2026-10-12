@@ -22,8 +22,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/localpki"
+	"github.com/grauwolf32/contractor/internal/planner/stageresult"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -560,8 +560,8 @@ func (h *scanProcessHarness) assertExecution(t *testing.T, status runStatus, too
 		t.Fatalf("scan is not one model-free worker invocation: %+v", attempt.Metrics)
 	}
 	if failure != "" {
-		var result contracts.StageContentResult
-		if err := json.Unmarshal(attempt.Result, &result); err != nil || result.Outcome != contracts.StageFailed || result.Error == nil || result.Error.Code != failure {
+		var result stageresult.StageContentResult
+		if err := json.Unmarshal(attempt.Result, &result); err != nil || result.Outcome != stageresult.StageFailed || result.Error == nil || result.Error.Code != failure {
 			t.Fatalf("scan result = %s, want failure %s", attempt.Result, failure)
 		}
 		if attempt.Metrics.ErrorCount == 0 {

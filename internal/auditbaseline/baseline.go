@@ -3,11 +3,11 @@
 package auditbaseline
 
 import (
+	"github.com/grauwolf32/contractor/internal/agentskills"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstandards"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config"
-	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 )
@@ -60,7 +60,7 @@ type BaselineSnapshot struct {
 	Scope                Scope                                `json:"scope"`
 	RuntimeLabels        []string                             `json:"runtimeLabels"`
 	RuntimeConfig        runtimeconfig.RunSnapshot            `json:"runtimeConfig"`
-	Skills               []contracts.RunSkillSnapshot         `json:"skills"`
+	Skills               []agentskills.RunSkillSnapshot       `json:"skills"`
 	LLMCredentialIDs     []string                             `json:"llmCredentialIds"`
 	RuntimeCredentialIDs []string                             `json:"runtimeCredentialIds"`
 	ProjectHTTPTarget    *runtimesettings.HTTPOriginTargetRef `json:"projectHttpTarget,omitempty"`

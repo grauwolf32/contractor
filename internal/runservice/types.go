@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 
+	"github.com/grauwolf32/contractor/internal/agentskills"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config"
@@ -32,7 +33,7 @@ type RunReader interface {
 type PublicRunWriter interface {
 	PinRuntimeLabels(context.Context, []string, ...bool) (runtimeconfig.RunSnapshot, error)
 	CreateRunIdempotent(context.Context, runstore.CreateRunIdempotentParams) (runstore.WorkflowRun, bool, error)
-	SetRunSkillSelections(context.Context, string, []contracts.RunSkillSnapshot) error
+	SetRunSkillSelections(context.Context, string, []agentskills.RunSkillSnapshot) error
 	TransitionRun(context.Context, string, runstore.WorkflowRunState, runstore.WorkflowRunState, runstore.Reason) (runstore.WorkflowRun, error)
 }
 
@@ -40,7 +41,7 @@ type AuditRunWriter interface {
 	SetAuditCompletion(context.Context, string, runstore.AuditCompletionSnapshot) error
 	CreateAuditRun(context.Context, runstore.CreateAuditRunParams) (runstore.WorkflowRun, error)
 	GetRun(context.Context, string) (runstore.WorkflowRun, error)
-	SetRunSkillSelections(context.Context, string, []contracts.RunSkillSnapshot) error
+	SetRunSkillSelections(context.Context, string, []agentskills.RunSkillSnapshot) error
 	TransitionRun(context.Context, string, runstore.WorkflowRunState, runstore.WorkflowRunState, runstore.Reason) (runstore.WorkflowRun, error)
 }
 
@@ -131,7 +132,7 @@ type AuditCreateParams struct {
 	ExecutionID       string
 	Workflow          config.ResolvedWorkflow
 	RuntimeConfig     runtimeconfig.RunSnapshot
-	Skills            []contracts.RunSkillSnapshot
+	Skills            []agentskills.RunSkillSnapshot
 	ProjectHTTPTarget *runtimesettings.HTTPOriginTargetRef
 	Parameters        map[string]string
 	Inputs            map[string]auditstore.ExactArtifact

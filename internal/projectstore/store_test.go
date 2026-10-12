@@ -94,7 +94,7 @@ INSERT INTO runtime_credentials (
 	target := &runtimesettings.HTTPOriginTargetRef{
 		URL: "https://app.example.test/api",
 		Credential: &runtimesettings.RuntimeCredentialRef{
-			CredentialID: "project-origin", Kind: contracts.RuntimeCredentialOriginBearer,
+			CredentialID: "project-origin", Kind: runtimesettings.RuntimeCredentialOriginBearer,
 		},
 	}
 	updated, err := store.Update(ctx, UpdateParams{

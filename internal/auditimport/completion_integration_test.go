@@ -35,6 +35,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/control"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	"github.com/grauwolf32/contractor/internal/httpapi/privateartifacts"
@@ -460,7 +461,7 @@ func (f *completionFixture) bridge(t *testing.T) *completionBridge {
 	for _, set := range template.Toolsets {
 		toolsets = append(toolsets, control.ToolsetCapability{Ref: set.Ref.ToolsetID + "@" + set.Ref.Version, Tools: set.Tools})
 	}
-	_, err = registry.RegisterAuthenticated(controlplane.AuthenticatedPrincipal{RuntimeAgentID: principal, Labels: []string{}, LabelRevision: 1}, control.AgentRegistration{APIVersion: contracts.APIVersion, InstanceID: "runtime-1", SoftwareVersion: "fixture", StartedAt: time.Now().UTC(), ControlURL: "https://localhost:9443", A2AURL: "https://localhost:9444", InitialLabels: []string{}, SupportedRuntimeAdapters: []contracts.RuntimeAdapterRef{}, SupportedRuntimes: []string{"adk@1"}, SupportedToolsets: toolsets, SupportedSandboxProfiles: []string{"local-workdir@1"}, ObservedState: control.AgentIdle, Capabilities: &contracts.RuntimeCompletionCapabilities{CompletionContracts: []string{contracts.AuditCheckResultsV1}}})
+	_, err = registry.RegisterAuthenticated(controlplane.AuthenticatedPrincipal{RuntimeAgentID: principal, Labels: []string{}, LabelRevision: 1}, control.AgentRegistration{APIVersion: contracts.APIVersion, InstanceID: "runtime-1", SoftwareVersion: "fixture", StartedAt: time.Now().UTC(), ControlURL: "https://localhost:9443", A2AURL: "https://localhost:9444", InitialLabels: []string{}, SupportedRuntimeAdapters: []runtimesettings.RuntimeAdapterRef{}, SupportedRuntimes: []string{"adk@1"}, SupportedToolsets: toolsets, SupportedSandboxProfiles: []string{"local-workdir@1"}, ObservedState: control.AgentIdle, Capabilities: &contracts.RuntimeCompletionCapabilities{CompletionContracts: []string{contracts.AuditCheckResultsV1}}})
 	mustCompletion(t, err)
 	for seq := uint64(1); seq <= 2; seq++ {
 		_, err = registry.HeartbeatAuthenticated(principal, control.AgentHeartbeat{APIVersion: contracts.APIVersion, InstanceID: "runtime-1", HeartbeatSeq: seq, EchoedAckSeq: seq - 1, ObservedState: control.AgentIdle})

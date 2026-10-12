@@ -1,7 +1,6 @@
 package contracts
 
 import (
-	"errors"
 	"strings"
 	"testing"
 )
@@ -58,33 +57,14 @@ func TestWireValueClonesDoNotAliasTheirSource(t *testing.T) {
 	*requestCopy.Artifacts["source"].Revision = "changed"
 	delete(requestCopy.ResultArtifacts, "report")
 
-	skill := RunSkillSnapshot{Name: "review", Source: &ref, Artifact: &ref}
-	skillCopy := CloneRunSkills([]RunSkillSnapshot{skill})[0]
-	*skillCopy.Source.Revision = "changed"
-	skillCopy.Artifact.Name = "changed"
-
 	exact := ExactArtifact{Ref: ref, Digest: "sha256:" + strings.Repeat("0", 64)}
 	exactCopy := CloneExactArtifacts(map[string]ExactArtifact{"input": exact})["input"]
 	*exactCopy.Ref.Revision = "changed"
 
-	if request.Parameters["mode"] != "strict" || len(request.ResultArtifacts) != 1 ||
-		revision != "r1" || skill.Artifact.Name != "review" {
-		t.Fatalf("a clone aliases its source: request %+v, skill %+v, revision %q", request, skill, revision)
+	if request.Parameters["mode"] != "strict" || len(request.ResultArtifacts) != 1 || revision != "r1" {
+		t.Fatalf("a clone aliases its source: request %+v, revision %q", request, revision)
 	}
-	if CloneRunSkills(nil) != nil || CloneExactArtifacts(nil) == nil {
-		t.Fatal("CloneRunSkills keeps nil and CloneExactArtifacts never returns nil")
-	}
-}
-
-func TestCheckPinnedSelection(t *testing.T) {
-	value := map[string]string{"workflow": "copy@1"}
-	if err := CheckPinnedSelection("", value); err != nil {
-		t.Fatalf("empty expectation error = %v", err)
-	}
-	if err := CheckPinnedSelection("sha256:"+strings.Repeat("0", 64), value); !errors.Is(err, ErrPinnedSelectionChanged) {
-		t.Fatalf("changed selection error = %v", err)
-	}
-	if err := CheckPinnedSelection("sha256:a4d3a5e1b3ae8e4e3b5a4d1c11b1ee4d8a8a0fd09e0c08cb8b8f6f0c7d3cd5f2", func() {}); err == nil {
-		t.Fatal("unencodable selection was accepted")
+	if CloneExactArtifacts(nil) == nil {
+		t.Fatal("CloneExactArtifacts never returns nil")
 	}
 }

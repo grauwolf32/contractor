@@ -17,6 +17,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/agentskills"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/clone"
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
@@ -30,6 +31,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	"github.com/grauwolf32/contractor/internal/planner"
+	"github.com/grauwolf32/contractor/internal/planner/stageresult"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/grauwolf32/contractor/internal/settingsstore"
@@ -173,7 +175,7 @@ func TestBindingRequirementsProjectOnlyEachTemplatesPinnedRunSkills(t *testing.T
 	stage.Agents["reviewer"] = reviewer
 	stage.ExecutionConfig.Agents["reviewer"] = stage.ExecutionConfig.Agents["builder"]
 	analysisRevision, reviewRevision := "run-analysis2-1", "run-review-1"
-	runSkills := []contracts.RunSkillSnapshot{
+	runSkills := []agentskills.RunSkillSnapshot{
 		{
 			Name: "analysis2", Source: exactSkillRef("analysis2", "owner-analysis2-1"),
 			SourceDigest: "sha256:" + strings.Repeat("a", 64), Artifact: exactSkillRef("analysis2", analysisRevision),
@@ -242,7 +244,7 @@ func TestBindingRequirementsProjectExactWorkspacePinsForEveryWorker(t *testing.T
 		"state": {Required: false},
 	}}
 
-	requirements, err := bindingRequirements(stage, []contracts.RunSkillSnapshot{}, context)
+	requirements, err := bindingRequirements(stage, []agentskills.RunSkillSnapshot{}, context)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -467,14 +469,14 @@ func TestSchedulerMaterializesAndErasesPinnedCaidoBearer(t *testing.T) {
 	harness.scheduler.options.RuntimeCredentials = runtimeCredentialResolverFunc(func(
 		_ context.Context,
 		credentialID string,
-		allowed []contracts.RuntimeCredentialKind,
-		consumer func(contracts.RuntimeCredentialKind, []byte) error,
+		allowed []runtimesettings.RuntimeCredentialKind,
+		consumer func(runtimesettings.RuntimeCredentialKind, []byte) error,
 	) error {
 		if credentialID != "caido-lab" ||
-			!reflect.DeepEqual(allowed, []contracts.RuntimeCredentialKind{contracts.RuntimeCredentialCaidoBearer}) {
+			!reflect.DeepEqual(allowed, []runtimesettings.RuntimeCredentialKind{runtimesettings.RuntimeCredentialCaidoBearer}) {
 			return errors.New("unexpected Runtime credential selection")
 		}
-		return consumer(contracts.RuntimeCredentialCaidoBearer, []byte(`{"token":"`+secret+`"}`))
+		return consumer(runtimesettings.RuntimeCredentialCaidoBearer, []byte(`{"token":"`+secret+`"}`))
 	})
 	resolved, err := schedulerTestResolvedWorkerConfig(
 		harness.workflow.Stages[harness.workflow.EntryStage].ExecutionConfig.Agents["builder"],
@@ -484,7 +486,7 @@ func TestSchedulerMaterializesAndErasesPinnedCaidoBearer(t *testing.T) {
 		t.Fatal(err)
 	}
 	resolved.Caido = &runtimeconfig.CaidoConfig{
-		Adapter: string(contracts.RuntimeAdapterCaidoGraphQL), Endpoint: "https://caido.example/prefix",
+		Adapter: string(runtimesettings.RuntimeAdapterCaidoGraphQL), Endpoint: "https://caido.example/prefix",
 		Credential: "caido-lab", RequestTimeoutSeconds: 120,
 	}
 	settings, err := harness.scheduler.materializeRuntimeSettings(t.Context(), resolved)
@@ -514,15 +516,15 @@ func TestSchedulerMaterializesProjectOriginOnlyForHTTPRequestWorkerAndErasesIt(t
 	harness.scheduler.options.RuntimeCredentials = runtimeCredentialResolverFunc(func(
 		_ context.Context,
 		credentialID string,
-		allowed []contracts.RuntimeCredentialKind,
-		consumer func(contracts.RuntimeCredentialKind, []byte) error,
+		allowed []runtimesettings.RuntimeCredentialKind,
+		consumer func(runtimesettings.RuntimeCredentialKind, []byte) error,
 	) error {
-		if credentialID != "project-origin" || !reflect.DeepEqual(allowed, []contracts.RuntimeCredentialKind{
-			contracts.RuntimeCredentialOriginBasic, contracts.RuntimeCredentialOriginBearer,
+		if credentialID != "project-origin" || !reflect.DeepEqual(allowed, []runtimesettings.RuntimeCredentialKind{
+			runtimesettings.RuntimeCredentialOriginBasic, runtimesettings.RuntimeCredentialOriginBearer,
 		}) {
 			return errors.New("unexpected Runtime credential selection")
 		}
-		return consumer(contracts.RuntimeCredentialOriginBearer, []byte(`{"token":"`+secret+`"}`))
+		return consumer(runtimesettings.RuntimeCredentialOriginBearer, []byte(`{"token":"`+secret+`"}`))
 	})
 	stage := harness.workflow.Stages[harness.workflow.EntryStage]
 	binding := stage.Agents["builder"]
@@ -534,7 +536,7 @@ func TestSchedulerMaterializesProjectOriginOnlyForHTTPRequestWorkerAndErasesIt(t
 	run := runstore.WorkflowRun{ProjectHTTPTarget: &runtimesettings.HTTPOriginTargetRef{
 		URL: "https://app.example.test/api",
 		Credential: &runtimesettings.RuntimeCredentialRef{
-			CredentialID: "project-origin", Kind: contracts.RuntimeCredentialOriginBearer,
+			CredentialID: "project-origin", Kind: runtimesettings.RuntimeCredentialOriginBearer,
 		},
 	}}
 	reservations := schedulerTestReservations(t, stage)
@@ -599,15 +601,15 @@ func TestSchedulerAppliesPinnedPlannerTelemetryWithoutAgentInfluence(t *testing.
 			harness.scheduler.options.RuntimeCredentials = runtimeCredentialResolverFunc(func(
 				_ context.Context,
 				credentialID string,
-				allowed []contracts.RuntimeCredentialKind,
-				consumer func(contracts.RuntimeCredentialKind, []byte) error,
+				allowed []runtimesettings.RuntimeCredentialKind,
+				consumer func(runtimesettings.RuntimeCredentialKind, []byte) error,
 			) error {
 				if credentialID != "planner-otel" ||
-					!reflect.DeepEqual(allowed, []contracts.RuntimeCredentialKind{contracts.RuntimeCredentialOTLPHeaders}) {
+					!reflect.DeepEqual(allowed, []runtimesettings.RuntimeCredentialKind{runtimesettings.RuntimeCredentialOTLPHeaders}) {
 					return errors.New("unexpected Runtime credential selection")
 				}
 				return consumer(
-					contracts.RuntimeCredentialOTLPHeaders,
+					runtimesettings.RuntimeCredentialOTLPHeaders,
 					[]byte(`{"headers":{"x-planner-token":"`+headerSecret+`"}}`),
 				)
 			})
@@ -639,7 +641,7 @@ func TestSchedulerAppliesPinnedPlannerTelemetryWithoutAgentInfluence(t *testing.
 				Credential: "planner-otel", FlushTimeoutSeconds: 1,
 			}
 			resolved.PlannerRuntimeCredential = &runtimesettings.RuntimeCredentialRef{
-				CredentialID: "planner-otel", Kind: contracts.RuntimeCredentialOTLPHeaders,
+				CredentialID: "planner-otel", Kind: runtimesettings.RuntimeCredentialOTLPHeaders,
 			}
 			resolved.Origins.PlannerTelemetry = &runtimeconfig.RuntimeFieldOrigin{
 				Layer: runtimeconfig.LayerRunLabels, Configs: []runtimeconfig.Ref{debugRef},
@@ -1436,7 +1438,7 @@ func TestSchedulerEscalatesNonRetryableFailureWithPinnedConfigurationAfterRestar
 	stage.Session = contracts.WorkerSessionShared
 	harness.workflow.Stages[harness.workflow.EntryStage] = stage
 	strongPolicy := configureEscalationWorkflow(t, harness, "failed", 1)
-	harness.planners.results = []contracts.StageContentResult{
+	harness.planners.results = []stageresult.StageContentResult{
 		failedStageResult("permanent", false),
 		harness.planners.result,
 	}
@@ -1497,7 +1499,7 @@ func TestSchedulerEscalatesNonRetryableFailureWithPinnedConfigurationAfterRestar
 func TestSchedulerEscalationExhaustionAppliesThenExactlyOnce(t *testing.T) {
 	harness := newSchedulerHarness(t)
 	configureEscalationWorkflow(t, harness, "failed", 1)
-	harness.planners.results = []contracts.StageContentResult{
+	harness.planners.results = []stageresult.StageContentResult{
 		failedStageResult("permanent_one", false),
 		failedStageResult("permanent_two", false),
 	}
@@ -1794,10 +1796,10 @@ func configureEscalationWorkflow(
 	return strongPolicy
 }
 
-func failedStageResult(code string, retryable bool) contracts.StageContentResult {
-	return contracts.StageContentResult{
+func failedStageResult(code string, retryable bool) stageresult.StageContentResult {
+	return stageresult.StageContentResult{
 		APIVersion: contracts.APIVersion,
-		Outcome:    contracts.StageFailed,
+		Outcome:    stageresult.StageFailed,
 		Summary:    "Stage failed",
 		Artifacts:  map[string]contracts.ArtifactRef{},
 		Error: &contracts.TerminationError{
@@ -1892,8 +1894,8 @@ func newSchedulerHarness(t *testing.T) *schedulerHarness {
 		pin: pinStageAllocations(store),
 	}
 	workers := &memoryWorkers{allocator: allocator, workflow: workflow, clock: clock, events: events}
-	result := contracts.StageContentResult{
-		APIVersion: contracts.APIVersion, Outcome: contracts.StageSucceeded, Summary: "copied",
+	result := stageresult.StageContentResult{
+		APIVersion: contracts.APIVersion, Outcome: stageresult.StageSucceeded, Summary: "copied",
 		Artifacts: map[string]contracts.ArtifactRef{"copied": exactRef("builder", "copied", "result-r1")},
 	}
 	planners := &memoryPlannerRegistry{store: store, result: result, events: events}
@@ -2477,7 +2479,7 @@ func (p *memoryAtomicPersistence) CommitResultProgression(
 		p.store.stages[index].AcceptedResult = &result
 		p.store.stages[index].AcceptedResultSchemaVersion = stringPointer(contracts.APIVersion)
 		p.stageStates = append(p.stageStates, p.store.stages[index].State)
-		if result.Outcome == contracts.StageSucceeded {
+		if result.Outcome == stageresult.StageSucceeded {
 			for output, resultName := range value.WorkflowOutputs {
 				if source, ok := result.Artifacts[resultName]; ok {
 					revision := "output-" + *source.Revision
@@ -2562,7 +2564,7 @@ func (p *memoryAtomicPersistence) AcceptResultDuringCancellation(
 	_ context.Context,
 	runID string,
 	stageExecutionID string,
-	result contracts.StageContentResult,
+	result stageresult.StageContentResult,
 ) error {
 	if !p.runIn(runID, []runstore.WorkflowRunState{runstore.RunCancelling}) {
 		return runstore.ErrConflict
@@ -3034,8 +3036,8 @@ func (w *memoryWorkers) ReleaseAll(_ context.Context, reservations []controlplan
 
 type memoryPlannerRegistry struct {
 	store       *memorySchedulerStore
-	result      contracts.StageContentResult
-	results     []contracts.StageContentResult
+	result      stageresult.StageContentResult
+	results     []stageresult.StageContentResult
 	runErrors   []error
 	events      *eventRecorder
 	createCalls int
@@ -3052,7 +3054,7 @@ func (r *memoryPlannerRegistry) Create(
 	if ref != planner.PassthroughRef {
 		return nil, errors.New("unexpected Planner ref")
 	}
-	return plannerFunc(func(context.Context) (contracts.StageContentResult, error) {
+	return plannerFunc(func(context.Context) (stageresult.StageContentResult, error) {
 		r.runCalls++
 		for index := range r.store.stages {
 			if r.store.stages[index].StageExecutionID == invocation.StageExecutionID &&
@@ -3069,7 +3071,7 @@ func (r *memoryPlannerRegistry) Create(
 		r.events.add("planner")
 		callIndex := r.runCalls - 1
 		if callIndex < len(r.runErrors) && r.runErrors[callIndex] != nil {
-			return contracts.StageContentResult{}, r.runErrors[callIndex]
+			return stageresult.StageContentResult{}, r.runErrors[callIndex]
 		}
 		if callIndex < len(r.results) {
 			return r.results[callIndex].Clone(), nil
@@ -3078,9 +3080,9 @@ func (r *memoryPlannerRegistry) Create(
 	}), nil
 }
 
-type plannerFunc func(context.Context) (contracts.StageContentResult, error)
+type plannerFunc func(context.Context) (stageresult.StageContentResult, error)
 
-func (f plannerFunc) Run(ctx context.Context) (contracts.StageContentResult, error) { return f(ctx) }
+func (f plannerFunc) Run(ctx context.Context) (stageresult.StageContentResult, error) { return f(ctx) }
 
 type credentialResolverFunc func(
 	context.Context,
@@ -3099,15 +3101,15 @@ func (f credentialResolverFunc) ResolveLLMCredential(
 type runtimeCredentialResolverFunc func(
 	context.Context,
 	string,
-	[]contracts.RuntimeCredentialKind,
-	func(contracts.RuntimeCredentialKind, []byte) error,
+	[]runtimesettings.RuntimeCredentialKind,
+	func(runtimesettings.RuntimeCredentialKind, []byte) error,
 ) error
 
 func (f runtimeCredentialResolverFunc) UsePlaintext(
 	ctx context.Context,
 	credentialID string,
-	allowed []contracts.RuntimeCredentialKind,
-	consumer func(contracts.RuntimeCredentialKind, []byte) error,
+	allowed []runtimesettings.RuntimeCredentialKind,
+	consumer func(runtimesettings.RuntimeCredentialKind, []byte) error,
 ) error {
 	return f(ctx, credentialID, allowed, consumer)
 }

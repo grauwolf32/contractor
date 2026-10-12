@@ -10,6 +10,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
+	"github.com/grauwolf32/contractor/internal/strictjson"
 )
 
 func TestSharedValidGoldenFixtures(t *testing.T) {
@@ -115,7 +116,7 @@ func privateRoundTrip[T contracts.Validatable](data []byte) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return contracts.MarshalPrivateCanonical(value)
+	return strictjson.Canonical(value)
 }
 
 func privateReject[T contracts.Validatable](data []byte) error {

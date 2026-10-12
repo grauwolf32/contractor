@@ -8,6 +8,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/planner/stageresult"
 )
 
 // Only Metadata may be called: a payload Read would both panic and require a
@@ -78,8 +79,8 @@ func TestArtifactInspectorsUseExactMetadataWithTransferSlotsSaturated(t *testing
 		if err != nil || metadata.MediaType != "application/json" {
 			t.Fatalf("exact metadata inspection = (%+v, %v)", metadata, err)
 		}
-		candidate := contracts.StageContentResult{
-			APIVersion: contracts.APIVersion, Outcome: contracts.StageSucceeded, Summary: "done",
+		candidate := stageresult.StageContentResult{
+			APIVersion: contracts.APIVersion, Outcome: stageresult.StageSucceeded, Summary: "done",
 			Artifacts: map[string]contracts.ArtifactRef{"report": ref},
 		}
 		contract := map[string]workflowconfig.ArtifactSlot{

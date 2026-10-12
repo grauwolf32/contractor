@@ -15,6 +15,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/control"
 	"github.com/grauwolf32/contractor/internal/contracts/runlabels"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 )
 
 func TestConfirmedLeaseRequiresEchoOfIssuedAck(t *testing.T) {
@@ -270,7 +271,7 @@ func TestReserveCandidateEdgesFindsCompleteNonGreedyAssignment(t *testing.T) {
 			LogicalAgentName: logical, RuntimeAgentID: candidate.Principal.RuntimeAgentID,
 			RuntimeAgentInstanceID:    candidate.Registration.InstanceID,
 			RuntimeAgentLabelRevision: candidate.Principal.LabelRevision,
-			RequiredRuntimeAdapters:   []contracts.RuntimeAdapterRef{},
+			RequiredRuntimeAdapters:   []runtimesettings.RuntimeAdapterRef{},
 		}
 	}
 	reservations, err := registry.ReserveCandidateEdges(request, []CandidateEdge{
@@ -313,7 +314,7 @@ func TestReserveCandidateEdgesLeavesEverySlotFreeWithoutCompleteMatching(t *test
 			LogicalAgentName: logical, RuntimeAgentID: firstAgent.Principal.RuntimeAgentID,
 			RuntimeAgentInstanceID:    firstAgent.Registration.InstanceID,
 			RuntimeAgentLabelRevision: firstAgent.Principal.LabelRevision,
-			RequiredRuntimeAdapters:   []contracts.RuntimeAdapterRef{},
+			RequiredRuntimeAdapters:   []runtimesettings.RuntimeAdapterRef{},
 		}
 	}
 	if _, err := registry.ReserveCandidateEdges(request, []CandidateEdge{edge("first"), edge("second")}); !errors.Is(err, ErrInsufficientCapacity) {
@@ -1326,7 +1327,7 @@ func testBinding(
 func testRegistration(instanceID string) control.AgentRegistration {
 	return control.AgentRegistration{
 		InitialLabels:            []string{},
-		SupportedRuntimeAdapters: []contracts.RuntimeAdapterRef{},
+		SupportedRuntimeAdapters: []runtimesettings.RuntimeAdapterRef{},
 		APIVersion:               contracts.APIVersion, InstanceID: instanceID, SoftwareVersion: "0.1.0",
 		StartedAt:         time.Date(2026, 8, 29, 12, 0, 0, 0, time.UTC),
 		ControlURL:        "https://" + instanceID + ".example:9443",

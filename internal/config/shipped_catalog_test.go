@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/contentdigest"
-	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
 // TestManagedPublicationNeverRebindsShippedIdentity pins the runtime half of
@@ -114,7 +113,7 @@ func TestShippedCatalogInPlaceChangeIsVisibleInRunSnapshots(t *testing.T) {
 				t.Fatalf("dependency digests: template %s -> %s, policy %s -> %s",
 					oldTemplate.Ref.Digest, newTemplate.Ref.Digest, oldPolicy.Digest, newPolicy.Digest)
 			}
-			if err := contracts.CheckPinnedSelection(pin, after); !errors.Is(err, contracts.ErrPinnedSelectionChanged) {
+			if err := contentdigest.CheckPinnedSelection(pin, after); !errors.Is(err, contentdigest.ErrPinnedSelectionChanged) {
 				t.Fatalf("pinned selection accepted changed shipped content: %v", err)
 			}
 			beforeSnapshot, err := json.Marshal(before)

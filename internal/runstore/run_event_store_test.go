@@ -7,6 +7,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
+	"github.com/grauwolf32/contractor/internal/planner/stageresult"
 )
 
 func TestRunEventClosedSchemasAcceptEveryFixedKind(t *testing.T) {
@@ -155,13 +156,13 @@ func TestPlannerRunEventAllowsFailedFinishBeforeFirstSubtask(t *testing.T) {
 	}
 	zero := uint64(0)
 	data.PlanRevision = &zero
-	data.Outcome = string(contracts.StageFailed)
+	data.Outcome = string(stageresult.StageFailed)
 	event.Data = mustRunEventJSON(t, data)
 	if err := validateRunEventAppend(event); err != nil {
 		t.Fatalf("failed finish before the first subtask: %v", err)
 	}
 
-	data.Outcome = string(contracts.StageSucceeded)
+	data.Outcome = string(stageresult.StageSucceeded)
 	event.Data = mustRunEventJSON(t, data)
 	if err := validateRunEventAppend(event); err == nil {
 		t.Fatal("succeeded finish before the first subtask was accepted")
@@ -283,9 +284,9 @@ func validPlannerRunEvent(t *testing.T, kind RunEventKind) RunEventAppend {
 		}
 	case RunEventPlannerFinishRequested:
 		data.PlanRevision = &revision
-		data.Outcome = string(contracts.StageSucceeded)
+		data.Outcome = string(stageresult.StageSucceeded)
 	case RunEventPlannerCompleted:
-		data.Outcome = string(contracts.StageSucceeded)
+		data.Outcome = string(stageresult.StageSucceeded)
 	case RunEventPlannerFailed:
 		data.Outcome = "failure"
 		data.Code = "planner_gateway_unavailable"

@@ -24,6 +24,7 @@ import (
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/planner"
 	plannersession "github.com/grauwolf32/contractor/internal/planner/session"
+	"github.com/grauwolf32/contractor/internal/planner/stageresult"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
@@ -140,8 +141,8 @@ func testPostgresSchedulerPublication(t *testing.T, scenario schedulerPublicatio
 	if err != nil {
 		t.Fatal(err)
 	}
-	candidate := contracts.StageContentResult{
-		APIVersion: contracts.APIVersion, Outcome: contracts.StageSucceeded, Summary: "copied",
+	candidate := stageresult.StageContentResult{
+		APIVersion: contracts.APIVersion, Outcome: stageresult.StageSucceeded, Summary: "copied",
 		Artifacts: map[string]contracts.ArtifactRef{"copied": workerWrite.Ref},
 	}
 
@@ -1171,7 +1172,7 @@ type finalizingFixture struct {
 	persistence *PostgresPersistence
 	workflow    workflowconfig.ResolvedWorkflow
 	executionID string
-	result      contracts.StageContentResult
+	result      stageresult.StageContentResult
 }
 
 func createFinalizingFixture(
@@ -1259,8 +1260,8 @@ func createRunningStageFixture(t *testing.T, ctx context.Context, pool *pgxpool.
 	}); err != nil {
 		t.Fatal(err)
 	}
-	result := contracts.StageContentResult{
-		APIVersion: contracts.APIVersion, Outcome: contracts.StageSucceeded, Summary: "copied",
+	result := stageresult.StageContentResult{
+		APIVersion: contracts.APIVersion, Outcome: stageresult.StageSucceeded, Summary: "copied",
 		Artifacts: map[string]contracts.ArtifactRef{"copied": written.Ref},
 	}
 	return finalizingFixture{
@@ -1413,7 +1414,7 @@ func loadSchedulerWorkflow(t *testing.T) workflowconfig.ResolvedWorkflow {
 }
 
 type postgresTestWorkerInvoker struct {
-	result contracts.StageContentResult
+	result stageresult.StageContentResult
 	calls  int
 	// before, when set, acts as the Worker before it answers; its error fails
 	// the Worker invocation.

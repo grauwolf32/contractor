@@ -91,28 +91,6 @@ func (p ResolvedModelPolicy) ValidateForWorkerSummarizer() error {
 	return validateWorkerSummarizerModelPolicy(p)
 }
 
-func (p ResolvedModelPolicy) ValidateForPlanner() error {
-	if err := validateModelPolicy(p); err != nil {
-		return err
-	}
-	if p.MaxOutputTokens <= 0 {
-		return Invalidf("Planner modelPolicy requires maxOutputTokens")
-	}
-	if p.MaxModelCalls <= 0 {
-		return Invalidf("Planner modelPolicy requires maxModelCalls")
-	}
-	if p.MaxWorkerCalls <= 0 {
-		return Invalidf("Planner modelPolicy requires maxWorkerCalls")
-	}
-	if p.MaxTotalTokens <= 0 {
-		return Invalidf("Planner modelPolicy requires maxTotalTokens")
-	}
-	if p.MaxToolCalls != 0 {
-		return Invalidf("Planner modelPolicy must omit maxToolCalls")
-	}
-	return nil
-}
-
 const (
 	MaxWorkerModelCalls                       = 1_000
 	MaxWorkerToolCalls                        = 10_000

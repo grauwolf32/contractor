@@ -9,6 +9,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/gatewayrecovery"
+	"github.com/grauwolf32/contractor/internal/planner/stageresult"
 	"github.com/grauwolf32/contractor/internal/telemetry"
 )
 
@@ -114,8 +115,8 @@ type SessionIdentity struct {
 }
 
 type Completion struct {
-	Result  *contracts.StageContentResult `json:"result,omitempty"`
-	Failure *Failure                      `json:"failure,omitempty"`
+	Result  *stageresult.StageContentResult `json:"result,omitempty"`
+	Failure *Failure                        `json:"failure,omitempty"`
 }
 
 // SessionStart grants invocation ownership only for a newly created durable
@@ -192,7 +193,7 @@ type PlanSessionService interface {
 }
 
 type Planner interface {
-	Run(context.Context) (contracts.StageContentResult, error)
+	Run(context.Context) (stageresult.StageContentResult, error)
 }
 
 // ReportProvider exposes telemetry collected by a Planner implementation after

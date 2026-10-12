@@ -12,6 +12,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/scan"
 	"github.com/grauwolf32/contractor/internal/scanplan"
+	"github.com/grauwolf32/contractor/internal/strictjson"
 	jsonschema "github.com/santhosh-tekuri/jsonschema/v6"
 )
 
@@ -424,7 +425,7 @@ func reidentifyPlan(t *testing.T, plan scanplan.ScanPlan) []byte {
 		oldCandidate := job.CandidateID
 		semantic := *job
 		semantic.ID, semantic.CandidateID = "", ""
-		raw, err := contracts.MarshalPrivateCanonical(semantic)
+		raw, err := strictjson.Canonical(semantic)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -439,19 +440,19 @@ func reidentifyPlan(t *testing.T, plan scanplan.ScanPlan) []byte {
 	sort.Slice(plan.Candidates, func(i, j int) bool { return plan.Candidates[i].ID < plan.Candidates[j].ID })
 	sort.Slice(plan.Jobs, func(i, j int) bool { return plan.Jobs[i].CandidateID < plan.Jobs[j].CandidateID })
 	plan.ID = ""
-	raw, err := contracts.MarshalPrivateCanonical(plan)
+	raw, err := strictjson.Canonical(plan)
 	if err != nil {
 		t.Fatal(err)
 	}
 	plan.ID = "plan-" + strings.TrimPrefix(digest(raw), "sha256:")
 	for i := range plan.Jobs {
-		raw, err = contracts.MarshalPrivateCanonical(map[string]string{"planId": plan.ID, "candidateId": plan.Jobs[i].CandidateID})
+		raw, err = strictjson.Canonical(map[string]string{"planId": plan.ID, "candidateId": plan.Jobs[i].CandidateID})
 		if err != nil {
 			t.Fatal(err)
 		}
 		plan.Jobs[i].ID = "job-" + strings.TrimPrefix(digest(raw), "sha256:")
 	}
-	raw, err = contracts.MarshalPrivateCanonical(plan)
+	raw, err = strictjson.Canonical(plan)
 	if err != nil {
 		t.Fatal(err)
 	}

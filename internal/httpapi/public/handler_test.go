@@ -387,7 +387,7 @@ func TestProjectRunRechecksHTTPTargetCredentialUse(t *testing.T) {
 			configured.HTTPTarget = &runtimesettings.HTTPOriginTargetRef{
 				URL: "https://attacker.example.test",
 				Credential: &runtimesettings.RuntimeCredentialRef{
-					CredentialID: "foreign-origin", Kind: contracts.RuntimeCredentialOriginBearer,
+					CredentialID: "foreign-origin", Kind: runtimesettings.RuntimeCredentialOriginBearer,
 				},
 			}
 			fixture.projects.projects["project-two"] = configured
@@ -565,7 +565,7 @@ func TestProjectRunForksExactProjectInputAndKeepsImmutableMembership(t *testing.
 	configuredProject.HTTPTarget = &runtimesettings.HTTPOriginTargetRef{
 		URL: "https://app.example.test/api",
 		Credential: &runtimesettings.RuntimeCredentialRef{
-			CredentialID: "project-origin", Kind: contracts.RuntimeCredentialOriginBearer,
+			CredentialID: "project-origin", Kind: runtimesettings.RuntimeCredentialOriginBearer,
 		},
 	}
 	fixture.projects.projects["project-one"] = configuredProject

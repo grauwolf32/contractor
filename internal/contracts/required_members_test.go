@@ -15,8 +15,10 @@ import (
 	jsonschema "github.com/santhosh-tekuri/jsonschema/v6"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+
 	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 )
 
 var updateRequiredMemberCases = flag.Bool(
@@ -173,7 +175,7 @@ func isolatedRuntimeTelemetry(typeName, pointer string) (func([]byte) string, bo
 			return "kept the report complete"
 		default:
 			ref := strings.NewReplacer("~1", "/", "~0", "~").Replace(strings.TrimPrefix(match[2], "adapters/"))
-			if _, kept := report.Adapters[contracts.RuntimeAdapterRef(ref)]; kept {
+			if _, kept := report.Adapters[runtimesettings.RuntimeAdapterRef(ref)]; kept {
 				return "kept the malformed adapter metrics"
 			}
 		}

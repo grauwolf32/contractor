@@ -11,6 +11,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
+	"github.com/grauwolf32/contractor/internal/planner/stageresult"
 	"github.com/grauwolf32/contractor/internal/telemetry"
 )
 
@@ -68,7 +69,7 @@ type passthroughPlanner struct {
 
 func (p *passthroughPlanner) Run(
 	ctx context.Context,
-) (candidate contracts.StageContentResult, runErr error) {
+) (candidate stageresult.StageContentResult, runErr error) {
 	reportStarted := time.Now()
 	var identity SessionIdentity
 	var invoked bool
@@ -82,7 +83,7 @@ func (p *passthroughPlanner) Run(
 	started, err := StartSession(ctx, p.sessions, instrumentation, p.invocation.StageExecutionID)
 	identity = started.Identity
 	if err != nil {
-		return contracts.StageContentResult{}, err
+		return stageresult.StageContentResult{}, err
 	}
 	if started.Completion != nil {
 		return RecoverCompletion(
@@ -92,11 +93,11 @@ func (p *passthroughPlanner) Run(
 
 	facts := RequestFactsFor([]string{p.binding}, p.request)
 	if err := RecordSessionRequest(ctx, p.sessions, instrumentation, started.Identity, facts); err != nil {
-		return contracts.StageContentResult{}, err
+		return stageresult.StageContentResult{}, err
 	}
 	deadline := p.invocation.Deadline
 	if !deadline.After(time.Now()) {
-		return contracts.StageContentResult{}, p.fail(
+		return stageresult.StageContentResult{}, p.fail(
 			ctx,
 			started.Identity,
 			NewError(
@@ -126,7 +127,7 @@ func (p *passthroughPlanner) Run(
 		failure := FailureFrom(err)
 		invokeFailure = &failure
 		workerSpan.End("failed", telemetry.PlannerSpanAttributes{ErrorCode: failure.Code})
-		return contracts.StageContentResult{}, p.fail(
+		return stageresult.StageContentResult{}, p.fail(
 			ctx, started.Identity, NewErrorFromFailure(FailureFrom(err), err),
 		)
 	}
@@ -134,7 +135,7 @@ func (p *passthroughPlanner) Run(
 		failure := FailureFrom(validation)
 		invokeFailure = &failure
 		workerSpan.End("rejected", telemetry.PlannerSpanAttributes{ErrorCode: failure.Code})
-		return contracts.StageContentResult{}, p.fail(ctx, started.Identity, validation)
+		return stageresult.StageContentResult{}, p.fail(ctx, started.Identity, validation)
 	}
 	result, err := StageCandidateFromWorkerCompletion(workerCompletion)
 	if err != nil {
@@ -144,14 +145,14 @@ func (p *passthroughPlanner) Run(
 		failure := FailureFrom(validation)
 		invokeFailure = &failure
 		workerSpan.End("rejected", telemetry.PlannerSpanAttributes{ErrorCode: failure.Code})
-		return contracts.StageContentResult{}, p.fail(ctx, started.Identity, validation)
+		return stageresult.StageContentResult{}, p.fail(ctx, started.Identity, validation)
 	}
 	if err := validateCandidate(
 		invokeContext, p.invocation.RunID, p.invocation.Stage.Result.Artifacts, result, p.inspector,
 	); err != nil {
 		failure := FailureFrom(err)
 		workerSpan.End("rejected", telemetry.PlannerSpanAttributes{ErrorCode: failure.Code})
-		return contracts.StageContentResult{}, p.fail(ctx, started.Identity, err)
+		return stageresult.StageContentResult{}, p.fail(ctx, started.Identity, err)
 	}
 	if workerCompletion.Failure != nil {
 		failure := Failure{
@@ -166,7 +167,7 @@ func (p *passthroughPlanner) Run(
 	recorded := result.Clone()
 	completion := Completion{Result: &recorded}
 	if err := CompleteSession(ctx, p.sessions, started.Identity, completion); err != nil {
-		return contracts.StageContentResult{}, SessionError("record completion", err)
+		return stageresult.StageContentResult{}, SessionError("record completion", err)
 	}
 	return result.Clone(), nil
 }

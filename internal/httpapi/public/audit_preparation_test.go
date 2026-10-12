@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/agentskills"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstandards"
@@ -42,7 +43,7 @@ func TestSharedAuditPreparationHandlersWithoutRound(t *testing.T) {
 		Inputs: map[string]auditstore.ExactArtifact{"source": {Ref: contracts.ArtifactRef{Namespace: "inputs", Name: "source", Revision: &inputRevision}, Digest: auditHandlerDigest("source"), MediaType: "application/zip", SizeBytes: 1}}, RuntimeLabels: []string{}})
 	selected, _ := auditservice.DecodeDraftSelection(selection)
 	baseline, err := auditservice.EncodeBaseline(auditservice.BaselineSnapshot{Schema: auditservice.BaselineSchema, Inputs: selected.Inputs,
-		RuntimeLabels: []string{}, RuntimeConfig: runtimeconfig.BuiltInRunSnapshot(), Skills: []contracts.RunSkillSnapshot{},
+		RuntimeLabels: []string{}, RuntimeConfig: runtimeconfig.BuiltInRunSnapshot(), Skills: []agentskills.RunSkillSnapshot{},
 		LLMCredentialIDs: []string{}, RuntimeCredentialIDs: []string{}, Standards: []auditstandards.PinnedPackage{}})
 	if err != nil {
 		t.Fatal(err)

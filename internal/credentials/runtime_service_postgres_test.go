@@ -491,10 +491,10 @@ func TestRuntimeCredentialDeleteSerializesWithRuntimeConfigBindings(t *testing.T
 					Name: allocationRef.Name, Version: allocationRef.Version, Digest: allocationRef.Digest,
 				},
 			}},
-			RuntimeAdapters:  []contracts.RuntimeAdapterRef{contracts.RuntimeAdapterOTLPHTTP},
+			RuntimeAdapters:  []runtimesettings.RuntimeAdapterRef{runtimesettings.RuntimeAdapterOTLPHTTP},
 			LLMGatewayConfig: &gateway,
 			RuntimeCredentialRefs: []runtimesettings.RuntimeCredentialRef{{
-				CredentialID: "allocation-debug", Kind: contracts.RuntimeCredentialOTLPHeaders,
+				CredentialID: "allocation-debug", Kind: runtimesettings.RuntimeCredentialOTLPHeaders,
 			}},
 		},
 	}

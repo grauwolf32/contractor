@@ -12,6 +12,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/gatewayrecovery"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
+	"github.com/grauwolf32/contractor/internal/planner/stageresult"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -154,7 +155,7 @@ func (p *PostgresPersistence) CommitResultProgression(
 			return err
 		}
 
-		if value.Result.Outcome == contracts.StageSucceeded {
+		if value.Result.Outcome == stageresult.StageSucceeded {
 			artifactService := artifacts.NewService(artifacts.NewPostgresRepository(tx))
 			outputNames := make([]string, 0, len(value.WorkflowOutputs))
 			for outputName := range value.WorkflowOutputs {
@@ -251,7 +252,7 @@ func (p *PostgresPersistence) AcceptResultDuringCancellation(
 	ctx context.Context,
 	runID string,
 	stageExecutionID string,
-	result contracts.StageContentResult,
+	result stageresult.StageContentResult,
 ) error {
 	if runID == "" || stageExecutionID == "" {
 		return fmt.Errorf("Run and StageExecution IDs are required")
@@ -458,7 +459,7 @@ func validateResultProgression(value ResultProgression) error {
 	if err := value.Result.Validate(); err != nil {
 		return fmt.Errorf("invalid StageResult acceptance: %w", err)
 	}
-	if value.Result.Outcome == contracts.StageSucceeded {
+	if value.Result.Outcome == stageresult.StageSucceeded {
 		for outputName, slot := range value.OutputContracts {
 			resultName, mapped := value.WorkflowOutputs[outputName]
 			if mapped {

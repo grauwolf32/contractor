@@ -16,6 +16,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
+	"github.com/grauwolf32/contractor/internal/planner/stageresult"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/grauwolf32/contractor/internal/telemetry"
@@ -418,7 +419,7 @@ func telemetryAllocationRuntimeConfiguration() *runstore.AllocationRuntimeConfig
 			},
 			RunLabels:       []runtimesettings.RuntimeLabelBindingProvenance{},
 			AgentLabels:     []runtimesettings.RuntimeLabelBindingProvenance{},
-			RuntimeAdapters: []contracts.RuntimeAdapterRef{}, LLMGatewayConfig: &gateway,
+			RuntimeAdapters: []runtimesettings.RuntimeAdapterRef{}, LLMGatewayConfig: &gateway,
 			RuntimeCredentialRefs: []runtimesettings.RuntimeCredentialRef{},
 		},
 	}
@@ -431,8 +432,8 @@ func finishTelemetryStage(
 	stageExecutionID string,
 ) {
 	t.Helper()
-	result := contracts.StageContentResult{
-		APIVersion: contracts.APIVersion, Outcome: contracts.StageSucceeded,
+	result := stageresult.StageContentResult{
+		APIVersion: contracts.APIVersion, Outcome: stageresult.StageSucceeded,
 		Summary: "done", Artifacts: map[string]contracts.ArtifactRef{},
 	}
 	if err := store.EnterFinalizing(ctx, runstore.EnterFinalizingParams{

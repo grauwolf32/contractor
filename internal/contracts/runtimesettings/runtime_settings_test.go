@@ -27,7 +27,7 @@ func everySecretSettings() RuntimeSettings {
 		LLMGatewayToken: secret("canary-llm-token"),
 		ArtifactAPIURL:  "https://server.example/private/v1",
 		Telemetry: &TelemetrySettings{
-			Adapter: contracts.RuntimeAdapterOTLPHTTP, Endpoint: "https://otel.example/v1/traces",
+			Adapter: RuntimeAdapterOTLPHTTP, Endpoint: "https://otel.example/v1/traces",
 			Headers: map[string]contracts.SecretString{
 				"Authorization": contracts.NewSecretString("canary-otlp-authorization"),
 				"X-Scope-OrgID": contracts.NewSecretString("canary-otlp-tenant"),
@@ -35,7 +35,7 @@ func everySecretSettings() RuntimeSettings {
 			FlushTimeoutSeconds: 5,
 		},
 		HTTPProxy: &HTTPProxySettings{
-			Adapter: contracts.RuntimeAdapterHTTPProxy, ProxyURL: "http://proxy.example:3128",
+			Adapter: RuntimeAdapterHTTPProxy, ProxyURL: "http://proxy.example:3128",
 			BasicAuth: &HTTPProxyBasicAuth{
 				Username: contracts.NewSecretString("canary-proxy-user"),
 				Password: contracts.NewSecretString("canary-proxy-password"),
@@ -44,7 +44,7 @@ func everySecretSettings() RuntimeSettings {
 			Targets:     []HTTPProxyTarget{ProxyTargetLLMGateway},
 		},
 		Caido: &CaidoSettings{
-			Adapter: contracts.RuntimeAdapterCaidoGraphQL, Endpoint: "https://caido.example/graphql",
+			Adapter: RuntimeAdapterCaidoGraphQL, Endpoint: "https://caido.example/graphql",
 			BearerToken: secret("canary-caido-bearer"), RequestTimeoutSeconds: 30,
 		},
 		HTTPOriginTarget: &HTTPOriginTargetSettings{
@@ -164,11 +164,11 @@ func TestRuntimeSettingsWireEncodingKeepsAbsentSecretsAbsent(t *testing.T) {
 	settings := RuntimeSettings{
 		ArtifactAPIURL: "https://server.example/private/v1", RequestTimeoutSeconds: 30,
 		Telemetry: &TelemetrySettings{
-			Adapter: contracts.RuntimeAdapterOTLPHTTP, Endpoint: "https://otel.example/v1/traces",
+			Adapter: RuntimeAdapterOTLPHTTP, Endpoint: "https://otel.example/v1/traces",
 			Headers: map[string]contracts.SecretString{}, FlushTimeoutSeconds: 5,
 		},
 		HTTPProxy: &HTTPProxySettings{
-			Adapter: contracts.RuntimeAdapterHTTPProxy, ProxyURL: "http://proxy.example:3128",
+			Adapter: RuntimeAdapterHTTPProxy, ProxyURL: "http://proxy.example:3128",
 			Targets: []HTTPProxyTarget{ProxyTargetToolHTTP},
 		},
 	}
@@ -216,7 +216,7 @@ func TestHTTPOriginTargetReferenceAndSecretSettingsAreStrict(t *testing.T) {
 	reference := HTTPOriginTargetRef{
 		URL: "https://app.example.test/api",
 		Credential: &RuntimeCredentialRef{
-			CredentialID: "project-origin", Kind: contracts.RuntimeCredentialOriginBearer,
+			CredentialID: "project-origin", Kind: RuntimeCredentialOriginBearer,
 		},
 	}
 	if err := reference.Validate(); err != nil {
@@ -224,7 +224,7 @@ func TestHTTPOriginTargetReferenceAndSecretSettingsAreStrict(t *testing.T) {
 	}
 	invalidKind := reference
 	invalidKind.Credential = &RuntimeCredentialRef{
-		CredentialID: "project-origin", Kind: contracts.RuntimeCredentialProxyBearer,
+		CredentialID: "project-origin", Kind: RuntimeCredentialProxyBearer,
 	}
 	if err := invalidKind.Validate(); err == nil {
 		t.Fatal("proxy credential was accepted as an origin credential")

@@ -10,6 +10,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/clone"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/planner"
+	"github.com/grauwolf32/contractor/internal/planner/stageresult"
 	"github.com/grauwolf32/contractor/internal/telemetry"
 	"google.golang.org/adk/agent"
 	"google.golang.org/adk/tool"
@@ -39,7 +40,7 @@ type workerCallOutput struct {
 }
 
 type finishArgs struct {
-	Outcome   contracts.StageOutcome           `json:"outcome"`
+	Outcome   stageresult.StageOutcome         `json:"outcome"`
 	Summary   string                           `json:"summary"`
 	Artifacts map[string]contracts.ArtifactRef `json:"artifacts"`
 	Error     *contracts.TerminationError      `json:"error,omitempty"`
@@ -332,7 +333,7 @@ func (p *streamlinePlanner) callWorker(
 	}
 	workerSpan.End("succeeded", telemetry.PlannerSpanAttributes{})
 	beforeCompletion := p.plan.Snapshot()
-	completedPlan, planErr := p.plan.CompleteDispatch(claim.CallID, contracts.StageSucceeded)
+	completedPlan, planErr := p.plan.CompleteDispatch(claim.CallID, stageresult.StageSucceeded)
 	if planErr != nil {
 		failure := failureFromPlanError(planErr)
 		state.recordTool(executeCurrentSubtaskToolName, safeArguments, false, time.Since(started), 0, &failure)
@@ -455,10 +456,10 @@ func (p *streamlinePlanner) finish(
 		telemetry.PlannerSpanAttributes{Operation: "finish", ToolName: finishToolName},
 	)
 	safeOutcome := "invalid"
-	if args.Outcome == contracts.StageSucceeded || args.Outcome == contracts.StageFailed {
+	if args.Outcome == stageresult.StageSucceeded || args.Outcome == stageresult.StageFailed {
 		safeOutcome = string(args.Outcome)
 	}
-	result := contracts.StageContentResult{
+	result := stageresult.StageContentResult{
 		APIVersion: contracts.APIVersion, Outcome: args.Outcome,
 		Summary: args.Summary, Artifacts: contracts.CloneArtifactRefs(args.Artifacts), Error: clone.Pointer(args.Error),
 	}

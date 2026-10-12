@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 	"github.com/grauwolf32/contractor/internal/contracts/control"
@@ -32,7 +33,7 @@ func TestSharedAuditCompletionSharedPythonFixtures(t *testing.T) {
 			case "capabilities":
 				err = privateReject[contracts.RuntimeCompletionCapabilities](c.Value)
 			case "allocation":
-				err = privateReject[control.AllocationSpec](c.Value)
+				err = allocationCompletionReject(c.Value)
 			case "registration":
 				err = privateReject[control.AgentRegistration](c.Value)
 			default:
@@ -43,4 +44,16 @@ func TestSharedAuditCompletionSharedPythonFixtures(t *testing.T) {
 			}
 		})
 	}
+}
+
+// allocationCompletionReject applies what the Server checks before it sends an
+// AllocationSpec with a completion choice: the strict wire decoding and the
+// audit-results@2 selection rule of the Toolset descriptor, which the Runtime
+// checks on receipt.
+func allocationCompletionReject(data []byte) error {
+	spec, err := contracts.DecodePrivateStrict[control.AllocationSpec](data)
+	if err != nil {
+		return err
+	}
+	return config.ValidateWorkerCompletionSelection(spec.CompletionContract, spec.Namespace, spec.AgentTemplate)
 }

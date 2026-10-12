@@ -5,7 +5,6 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/config"
-	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
 // Validate actual task requirements after inventory construction and before any
@@ -29,7 +28,7 @@ func validateInventoryTaskExecution(profile config.ResolvedAuditProfile, invento
 			return fmt.Errorf("%w: task contract differs from Workflow executor", ErrInvalid)
 		}
 		switch contract {
-		case contracts.AuditTaskOpenAPIScanV1:
+		case config.AuditTaskOpenAPIScanV1:
 			stage, exists := binding.Workflow.Stages[execution.Stage]
 			if !exists || stage.AuditScan == nil || task.Scan == nil || stage.AuditScan.Scanner != task.Scan.Scanner {
 				return fmt.Errorf("%w: assigned scanner differs from task executor", ErrInvalid)

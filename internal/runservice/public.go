@@ -10,6 +10,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/clone"
 	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/credentials"
@@ -57,7 +58,7 @@ func (s *Service) CreatePublic(ctx context.Context, params PublicCreateParams) (
 				}
 				return fmt.Errorf("%w: invalid Workflow or executionConfig selection: %v", ErrInvalid, resolveErr)
 			}
-			if err := contracts.CheckPinnedSelection(normalized.ExpectedWorkflowSHA256, workflow); err != nil {
+			if err := contentdigest.CheckPinnedSelection(normalized.ExpectedWorkflowSHA256, workflow); err != nil {
 				return err
 			}
 			if validationErr := validateWorkflowInputs(workflow, normalized.Parameters, normalized.Inputs); validationErr != nil {
@@ -123,10 +124,10 @@ func (s *Service) CreatePublic(ctx context.Context, params PublicCreateParams) (
 				if pinErr != nil {
 					return pinErr
 				}
-				if err := contracts.CheckPinnedSelection(normalized.ExpectedRuntimeSHA256, runtimeSnapshot); err != nil {
+				if err := contentdigest.CheckPinnedSelection(normalized.ExpectedRuntimeSHA256, runtimeSnapshot); err != nil {
 					return err
 				}
-				selectedSkills := []contracts.RunSkillSnapshot{}
+				selectedSkills := []agentskills.RunSkillSnapshot{}
 				if len(skillRefs) > 0 {
 					selectedSkills, catalogErr = catalog.SelectRunSources(ctx, normalized.OwnerID, skillRefs)
 					if catalogErr != nil {
@@ -138,7 +139,7 @@ func (s *Service) CreatePublic(ctx context.Context, params PublicCreateParams) (
 						return catalogErr
 					}
 				}
-				if err := contracts.CheckPinnedSelection(normalized.ExpectedSkillsSHA256, selectedSkills); err != nil {
+				if err := contentdigest.CheckPinnedSelection(normalized.ExpectedSkillsSHA256, selectedSkills); err != nil {
 					return err
 				}
 				stored, created, err = runs.CreateRunIdempotent(ctx, runstore.CreateRunIdempotentParams{
@@ -200,7 +201,7 @@ func (s *Service) CreatePublic(ctx context.Context, params PublicCreateParams) (
 					)
 					return err
 				}
-				stored.SkillSnapshot = append([]contracts.RunSkillSnapshot(nil), selectedSkills...)
+				stored.SkillSnapshot = append([]agentskills.RunSkillSnapshot(nil), selectedSkills...)
 				stored.StateReason = runstore.Reason{Code: runstore.SkillInitializationPendingReason}
 				return nil
 			})

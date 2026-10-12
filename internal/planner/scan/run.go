@@ -14,15 +14,17 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 	contractscan "github.com/grauwolf32/contractor/internal/contracts/scan"
 	"github.com/grauwolf32/contractor/internal/planner"
+	"github.com/grauwolf32/contractor/internal/planner/stageresult"
 	"github.com/grauwolf32/contractor/internal/scanplan"
+	"github.com/grauwolf32/contractor/internal/strictjson"
 )
 
 // Allow journal writes to finish after invocation cancellation, but never wait
 // indefinitely for storage during recovery. This is not a scanner time budget.
 const journalIOTimeout = 5 * time.Second
 
-func (p *execution) Run(ctx context.Context) (contracts.StageContentResult, error) {
-	empty := contracts.StageContentResult{}
+func (p *execution) Run(ctx context.Context) (stageresult.StageContentResult, error) {
+	empty := stageresult.StageContentResult{}
 	start, err := p.factory.sessions.BeginScan(ctx, p.invocation.StageExecutionID, p.invocation.SchedulerClaimID)
 	if err != nil {
 		return empty, scanError("scan_session_unavailable", err)
@@ -201,7 +203,7 @@ func (p *execution) validateSavedInputs(ctx context.Context, job scanplan.ScanJo
 		if err != nil {
 			return err
 		}
-		data, err := contracts.MarshalPrivateCanonical(job.Request)
+		data, err := strictjson.Canonical(job.Request)
 		if err != nil || payload.MediaType != "application/vnd.contractor.http-request+json" || !bytes.Equal(payload.Data, data) {
 			return fmt.Errorf("saved scan input content differs")
 		}
@@ -219,7 +221,7 @@ func (p *execution) materialize(ctx context.Context, job scanplan.ScanJob) (map[
 		inputs[name] = ref.Clone()
 	}
 	if job.Request != nil {
-		data, err := contracts.MarshalPrivateCanonical(job.Request)
+		data, err := strictjson.Canonical(job.Request)
 		if err != nil {
 			return nil, err
 		}
