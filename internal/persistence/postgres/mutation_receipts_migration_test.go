@@ -58,7 +58,7 @@ VALUES ('upgrade-experiment', 4, 'old-holder', clock_timestamp() + interval '1 m
 	}
 
 	result, err := ApplyMigrations(ctx, pool)
-	if err != nil || !slices.Contains(result.AppliedVersions, 140) || !slices.Contains(result.AppliedVersions, 141) {
+	if err != nil || !slices.Contains(result.AppliedVersions, 13) || !slices.Contains(result.AppliedVersions, 14) {
 		t.Fatalf("fold receipts and align claims = %+v, %v", result, err)
 	}
 	for _, folded := range []struct {
