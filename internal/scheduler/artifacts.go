@@ -45,23 +45,14 @@ func (r *ArtifactServiceResolver) Resolve(
 // binds (ART-R89).
 const outputsNamespace = "outputs"
 
-// errOutputStateInvalid marks a Workflow output step of a result progression
-// that the Run's durable state fails on every replay: the mapping meets an
-// outputs/<slot> binding of another revision (ART-R90), a required output has
-// no Stage result or no binding at success, a mapped output is undeclared, or
-// a bound version's media type does not fit its output slot. Each check reads
-// only the durable candidate, the Run's pinned Workflow and immutable artifact
-// versions, so the Scheduler ends the Run as state it cannot progress
-// (SCH-R102) instead of replaying the rolled-back acceptance forever.
-var errOutputStateInvalid = errors.New("invalid Workflow output state")
-
 // bindOutput creates the Workflow output slot of runID at the exact StageResult
 // revision source, a metadata fork inside the RunScope with lineage
 // output_bind (ART-R90). Pass a Service bound to the transaction that accepts
 // the StageResult, so the binding commits with it. A Run creates each output
 // binding once: one already forked from the same exact source revision is a
 // replay and is returned unchanged, and one of any other revision is never
-// replaced, which errOutputStateInvalid reports.
+// replaced, which errInvalidRunState reports: no replay of the acceptance
+// changes the existing binding.
 func bindOutput(
 	ctx context.Context, service *artifacts.Service, runID, slot string, source contracts.ArtifactRef,
 ) (artifacts.ForkResult, error) {
@@ -81,7 +72,7 @@ func bindOutput(
 	// transient database failure is no conflict and stays an ordinary error
 	// for finalization recovery to retry.
 	if errors.Is(err, artifacts.ErrArtifactConflict) {
-		return artifacts.ForkResult{}, fmt.Errorf("%w: %w", errOutputStateInvalid, err)
+		return artifacts.ForkResult{}, fmt.Errorf("%w: %w", errInvalidRunState, err)
 	}
 	return bound, err
 }

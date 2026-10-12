@@ -78,7 +78,7 @@ func TestPostgresOutputMappingOntoAnotherRevisionEndsRunOnce(t *testing.T) {
 	if _, err := h.scheduler.RunOnce(ctx); err != nil {
 		t.Errorf("second pass: %v", err)
 	}
-	if commits.commits != 1 || !errors.Is(commits.last, errOutputStateInvalid) ||
+	if commits.commits != 1 || !errors.Is(commits.last, errInvalidRunState) ||
 		!errors.Is(commits.last, artifacts.ErrArtifactConflict) {
 		t.Fatalf("result commits = %d, last = %v; want one, refused as invalid output state", commits.commits, commits.last)
 	}
@@ -147,7 +147,7 @@ FOR EACH ROW EXECUTE FUNCTION fault_test_output_bind()`); err != nil {
 
 	worked, err := h.scheduler.RunOnce(ctx)
 	if !worked || persistencepostgres.SQLState(err) != persistencepostgres.SQLStateDeadlockDetected ||
-		errors.Is(err, errOutputStateInvalid) {
+		errors.Is(err, errInvalidRunState) {
 		t.Fatalf("RunOnce with an injected deadlock = (%v, %v), want the retryable database error", worked, err)
 	}
 	run, err := h.store.GetRun(ctx, "run-1")
@@ -215,7 +215,7 @@ func TestPostgresDeterministicOutputChecksAreInvalidOutputState(t *testing.T) {
 			value := valid
 			test.change(&value)
 			err := fixture.persistence.CommitResultProgression(ctx, value)
-			if !errors.Is(err, errOutputStateInvalid) || !strings.Contains(err.Error(), test.want) {
+			if !errors.Is(err, errInvalidRunState) || !strings.Contains(err.Error(), test.want) {
 				t.Fatalf("result commit = %v, want invalid output state: %s", err, test.want)
 			}
 		})

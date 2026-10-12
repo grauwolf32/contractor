@@ -28,6 +28,16 @@ var (
 	ErrUnsupportedWorkflow      = errors.New("Workflow is outside the executable MVP shape")
 )
 
+// errInvalidRunState marks durable state the Scheduler cannot progress
+// (SCH-R102). A check that reads only the Run's durable state, such as its
+// pinned Workflow snapshot, its persisted Stage history with the escalation
+// ordinals, a durable candidate or immutable artifact versions, failed, so
+// every replay fails alike: the Scheduler ends the Run through FAIL-SCH-13
+// (failInvalidRunState) instead of repeating the progression on every pass. A
+// store error that a later pass may outlast, a transient database failure,
+// runstore.ErrConflict or runstore.ErrQueuePaused, never carries it.
+var errInvalidRunState = errors.New("durable state the Scheduler cannot progress")
+
 type AllocationLeaseLossError struct {
 	Loss controlplane.AllocationLoss
 }
@@ -143,7 +153,7 @@ type AtomicPersistence interface {
 	// Workflow output mapping and commits the progression. Workflow outputs
 	// that the Run's durable state rules out, such as a mapping onto an
 	// output already bound at another revision, fail with
-	// errOutputStateInvalid and commit nothing.
+	// errInvalidRunState and commit nothing.
 	CommitResultProgression(context.Context, ResultProgression) error
 	AcceptResultDuringCancellation(
 		context.Context,

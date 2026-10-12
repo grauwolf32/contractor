@@ -58,7 +58,7 @@ func TestPostgresRequiredWorkflowOutputsReadTheArtifactStore(t *testing.T) {
 				t.Fatal(err)
 			}
 			if test.want == "" && verified != nil || test.want != "" &&
-				(!errors.Is(verified, errOutputStateInvalid) || !strings.HasSuffix(verified.Error(), ": "+test.want)) {
+				(!errors.Is(verified, errInvalidRunState) || !strings.HasSuffix(verified.Error(), ": "+test.want)) {
 				t.Fatalf("verification = %v, want %q", verified, test.want)
 			}
 		})

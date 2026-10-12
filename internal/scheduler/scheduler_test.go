@@ -2491,7 +2491,7 @@ func (p *memoryAtomicPersistence) CommitResultProgression(
 					target := exactRef("outputs", output, "output-"+*source.Revision)
 					if existing, exists := p.outputs[output]; exists && !existing.SameExact(target) {
 						conflict := &artifacts.ConflictError{Ref: contracts.ArtifactRef{Namespace: "outputs", Name: output}}
-						return fmt.Errorf("bind Workflow output %q: %w: %w", output, errOutputStateInvalid, conflict)
+						return fmt.Errorf("bind Workflow output %q: %w: %w", output, errInvalidRunState, conflict)
 					}
 					bound[output] = target
 				}
