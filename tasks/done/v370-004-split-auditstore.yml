@@ -1,0 +1,63 @@
+schema_version: "1.0"
+id: V370-004
+title: "Split auditstore along its seams"
+milestone: hub-audit-structure-2026-10
+epic: audits
+kind: chore
+priority: P2
+status: completed
+implementation_commit: "7c2723903e83f04217339b68f2317f4a8933e24d"
+depends_on: [V370-003]
+languages: [go]
+goal: "Each importer sees only the seam it uses."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq; raw reports in docs/research/2026-10-11-hub-audit/), audits B, F4; file:line as of 02bbdcbf, re-verify on current main"
+  finding: >-
+    auditstore is one PostgresStore with 70 exported methods over seven
+    seams (claim-bound controller commands, owner lifecycle, start and
+    rounds, collection and findings, reviews and reports, reads, shared
+    types); importers use 1-29 methods; 32 ad hoc NewPostgresStore(tx)
+    calls; auditservice keeps 36 read-SQL call sites.
+  decision: >-
+    Guarantee: package internal/auditstore holds only the vocabulary
+    (entity types, states, limits, parameters, errors); the PostgreSQL
+    implementation lives in internal/auditstore/internal/pgstore, one store
+    type per seam (ClaimStore, OwnerStore and OwnerTxStore, ReviewStore and
+    ReviewTxStore, QueryStore, and FindingEvents, RunDeletion and
+    RunDeletionTx, ProjectDeletion and CredentialHolds for other contexts),
+    and each seam is reachable only through its exporting package
+    (claimstore, ownerstore, reviewstore, querystore, hookstore). Go's
+    internal rule keeps every other importer off pgstore, so an importer can
+    call only the seam it imports; archtest forbids auditservice to import
+    claimstore and keeps the test-only auditstoretest, which joins every seam
+    for fixtures, out of production code. The Audit controller and importer
+    take the claim seam and a Reader of the read seam; the owner-facing
+    service holds the owner, review and query seams, and its SQL (finding,
+    review, provenance, workspace and event reads, collection reads, review
+    and resume locks) moved into them, with the review vocabulary moved to
+    auditstore. Alternatives: interfaces per seam over the one PostgresStore
+    (rejected: every importer could still construct the full store, which
+    is what the finding was about) and one package per seam with copies of
+    the shared helpers (rejected: the seams share scanners, validators and
+    the event allocator, and copies would drift, AGENTS 3.1). Evidence: go
+    build and vet with all tags; the Audit packages' tests; the archtest
+    self-test proves the new rules fire. Reversal: if a seam needs another
+    seam's command, add a narrow method to the seam that owns the rule, not
+    a second exporting package for pgstore. Behaviour notes: a stored
+    decision replay without a finding now reports the idempotency conflict
+    instead of failing to scan, and the event page reads its snapshot
+    through persistencepostgres.Within, so it runs under the operation
+    budget like the reconcile snapshot (PER-R19).
+scope:
+  in:
+    - "Store types per seam; auditservice read SQL moves into the read seam; archtest rule that auditservice does not import the claim package."
+  out:
+    - "Behaviour."
+acceptance_criteria:
+  - id: A1
+    text: "Each importer sees only the seam it uses."
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "go test -tags integration ./internal/audit..."
+    covers: [A1]
