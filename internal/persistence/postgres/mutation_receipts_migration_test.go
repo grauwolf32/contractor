@@ -103,7 +103,8 @@ VALUES ('upgrade-experiment', 4, 'old-holder', clock_timestamp() + interval '1 m
 SELECT to_regclass('audit_idempotency') IS NULL, to_regclass('eval_mutation_receipts') IS NULL,
        to_regclass('runtime_management_operations') IS NULL,
        (SELECT prosrc LIKE '%FROM mutation_receipts i%' FROM pg_proc
-         WHERE proname = 'contractor_eval_retain_deleted_execution')`).Scan(
+         WHERE proname = 'contractor_eval_retain_deleted_execution'
+           AND pronamespace = current_schema()::regnamespace)`).Scan(
 		&auditGone, &evalGone, &runtimeGone, &tombstoneReadsReceipts,
 	); err != nil {
 		t.Fatal(err)
