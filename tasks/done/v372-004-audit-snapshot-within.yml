@@ -6,7 +6,8 @@ epic: audits
 kind: defect
 introduced_by: V370-022
 priority: P3
-status: in_progress
+status: completed
+implementation_commit: "87e5622752bacde6e9ae3252410757709a414278"
 depends_on: []
 languages: [go]
 goal: "The reconcile snapshot and the start staging lock use the one pool-or-transaction rule of PER-R18: no store branches on its handle's type at run time."
