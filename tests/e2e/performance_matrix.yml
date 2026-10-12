@@ -103,8 +103,8 @@ cases:
     group: http_accounting
     acceptance: [A1, A2]
     faults: [F14]
-    expected: Fixed cumulative histograms merge as counts and derive bounded quantiles only at read time.
-    test: {source: internal/performance/aggregate_test.go, kind: go_test, name: TestPerformanceHistogramQuantilesAndMerging}
+    expected: Fixed cumulative histograms merge as counts on the Server, and quantile bucket bounds are derived only at read time, with no value for an empty window and an overflow marker instead of a finite latency.
+    test: {source: ui/src/api/performance.test.ts, kind: test_title, name: derives quantile bucket bounds without inventing an empty or overflow value}
 
   - id: restricted_postgres_visibility
     group: postgres_diagnostics
