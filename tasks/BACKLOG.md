@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-85 open tasks: 3 in progress, 68 pending, 14 deferred. 872 finished: 869 completed, 3 archived.
+84 open tasks: 3 in progress, 67 pending, 14 deferred. 873 finished: 870 completed, 3 archived.
 
 ## In progress
 
@@ -25,7 +25,6 @@ the epics are in [epics.yml](epics.yml).
 | [V372-007](v372-007-terminal-stage-state-set.yml) | chore | P3 | — | Define the terminal StageExecution states once and hold SQL and the UI to them |
 | [V372-012](v372-012-gateway-recovery-late-update.yml) | defect | P2 | — | Keep a late model-recovery update of an ended Stage from moving its Run back to waiting |
 | [V372-028](v372-028-runstore-strict-snapshot-reads.yml) | chore | P3 | — | Decode persisted Run, Stage and allocation snapshots strictly in runstore |
-| [V373-005](v373-005-record-why-a-run-could-not-progress.yml) | defect | P3 | — | Record why the Scheduler ended a Run it could not progress |
 | [V373-006](v373-006-escalation-state-ends-run.yml) | defect | P2 | — | End a Run whose escalation history is invalid instead of retrying it forever |
 
 ### Planners and the Worker model boundary (`planner-worker`)
@@ -176,7 +175,7 @@ tasks in `introduced_by`.
 
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Run execution core (`execution-core`) | 6 | 36 | 49 | 11 | 63 |
+| Run execution core (`execution-core`) | 5 | 36 | 49 | 11 | 63 |
 | Planners and the Worker model boundary (`planner-worker`) | 4 | 23 | 36 | 9 | 44 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 11 | 25 | 12 | 3 | 37 |
 | Shared Memory tools (`memory`) | 0 | 6 | 8 | 1 | 11 |
