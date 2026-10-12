@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-50 open tasks: 3 in progress, 33 pending, 14 deferred. 850 finished: 847 completed, 3 archived.
+49 open tasks: 3 in progress, 32 pending, 14 deferred. 851 finished: 848 completed, 3 archived.
 
 ## In progress
 
@@ -75,7 +75,6 @@ the epics are in [epics.yml](epics.yml).
 | --- | --- | --- | --- | --- |
 | [V369-002](v369-002-wire-gate-all-fixtures.yml) | chore | P1 | — | Run every shared fixture on both sides and mutate the schemas |
 | [V370-005](v370-005-contracts-kernel-domain.yml) | chore | P2 | — | Move domain logic out of the contracts kernel |
-| [V370-010](v370-010-domain-error-kinds.yml) | chore | P2 | — | Classify domain errors through one error kind and a code registry |
 | [V370-017](v370-017-simplify-contracts.yml) | chore | P3 | — | Remove orphan schemas and lenient paths in the wire contracts |
 
 ### PostgreSQL persistence and schema (`persistence`)
@@ -138,6 +137,6 @@ tasks in `introduced_by`.
 | Podman sandbox (`sandbox`) | 0 | 8 | 1 | 1 | 2 |
 | Web UI (`ui`) | 0 | 19 | 51 | 10 | 48 |
 | Operations, authentication, CLI and deployment (`operations`) | 0 | 8 | 30 | 4 | 6 |
-| Public API and wire contracts (`api-contracts`) | 4 | 1 | 24 | 16 | 7 |
+| Public API and wire contracts (`api-contracts`) | 3 | 1 | 24 | 16 | 7 |
 | PostgreSQL persistence and schema (`persistence`) | 5 | 0 | 17 | 29 | 4 |
 | Quality, CI and process (`quality`) | 5 | 1 | 18 | 65 | 15 |
