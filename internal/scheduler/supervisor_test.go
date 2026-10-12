@@ -496,12 +496,6 @@ func (s *laneTestStore) pendingRuns(runIDs ...string) {
 	}
 }
 
-func (s *laneTestStore) TransitionRun(
-	context.Context, string, runstore.WorkflowRunState, runstore.WorkflowRunState, runstore.Reason,
-) (runstore.WorkflowRun, error) {
-	return runstore.WorkflowRun{}, errors.New("unexpected Run transition")
-}
-
 func (s *laneTestStore) GetActiveStageExecution(context.Context, string) (runstore.StageExecution, error) {
 	return runstore.StageExecution{}, errors.New("unexpected active Stage read")
 }
@@ -615,6 +609,10 @@ func (laneNoopPersistence) CommitTerminationAndFinishRun(context.Context, string
 }
 
 func (laneNoopPersistence) FailRunWithActiveStages(context.Context, string, runstore.WorkflowRunState, runstore.WorkflowRunState, runstore.Reason, runstore.StageTermination, string) error {
+	return errors.New("unexpected persistence call")
+}
+
+func (laneNoopPersistence) FinishCancelledRun(context.Context, string) error {
 	return errors.New("unexpected persistence call")
 }
 

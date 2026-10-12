@@ -2671,6 +2671,18 @@ func (p *memoryAtomicPersistence) FailRunWithActiveStages(
 	return nil
 }
 
+// FinishCancelledRun ends a cancelling Run, as the store's compare-and-set on
+// the locked Run row does.
+func (p *memoryAtomicPersistence) FinishCancelledRun(_ context.Context, runID string) error {
+	if !p.runIn(runID, []runstore.WorkflowRunState{runstore.RunCancelling}) {
+		return runstore.ErrConflict
+	}
+	p.store.run.State = runstore.RunCancelled
+	p.store.run.StateReason = runstore.Reason{Code: runstore.CancellationUserRequested}
+	p.store.claimID = ""
+	return nil
+}
+
 type memoryArtifactResolver struct {
 	current map[string]string
 	values  map[string]ResolvedArtifact

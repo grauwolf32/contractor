@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
+	"log/slog"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -58,6 +60,13 @@ func TestPostgresCancellationCleanupRetainsRunClaim(t *testing.T) {
 			}
 			s := newLaneTestScheduler(t, newLaneTestStore(), newMutableSchedulerSettings(2, time.Second), 20*time.Millisecond)
 			s.store = store
+			// The Run has no Stage, so the cleanup ends with the commit that
+			// finishes a cancelled Run.
+			persistence, err := NewPostgresPersistence(pool)
+			if err != nil {
+				t.Fatal(err)
+			}
+			s.persistence = persistence
 			s.options.ClaimDuration = 200 * time.Millisecond
 			done := make(chan error, 1)
 			go func() {
@@ -147,7 +156,8 @@ func TestPostgresFailActiveRunEndsCancellingRunAsCancelled(t *testing.T) {
 	}
 	s := &Scheduler{store: store, persistence: persistence, options: Options{
 		OperationTimeout: 5 * time.Second, Clock: staticClock{now: time.Now().UTC()},
-		NewID: func(prefix string) (string, error) { return prefix + "1", nil },
+		NewID:  func(prefix string) (string, error) { return prefix + "1", nil },
+		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
 	}}
 	if err := s.failInvalidRunState(ctx, "run-1", nil); err != nil {
 		t.Fatalf("fail cancelling Run: %v", err)

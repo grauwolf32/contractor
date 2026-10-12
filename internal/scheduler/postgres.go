@@ -329,7 +329,8 @@ func (p *PostgresPersistence) CommitTerminationAndFinishRun(
 // running Stages are interrupted, aborting Stages commit their stored
 // termination, and a finalizing Stage, which already won its result race,
 // accepts its durable candidate without Workflow progression or output
-// binding.
+// binding. The outputs that earlier Stages bound are frozen with the Run
+// (ART-R94).
 func (p *PostgresPersistence) FailRunWithActiveStages(
 	ctx context.Context,
 	runID string,
@@ -346,9 +347,36 @@ func (p *PostgresPersistence) FailRunWithActiveStages(
 		}); err != nil {
 			return err
 		}
+		// The Run row is locked above, as before every other terminal freeze.
+		if err := freezeOutputs(ctx, artifacts.NewService(artifacts.NewPostgresRepository(tx)), runID); err != nil {
+			return fmt.Errorf("freeze Workflow outputs: %w", err)
+		}
 		// Every active Stage ended above; a waiting Run's expected state is
 		// matched before the gateway cleanup could return it to running.
 		return gatewayrecovery.EndStage(ctx, tx, runstore.GatewayRecoveryRuns{}, runID)
+	})
+}
+
+// FinishCancelledRun ends a cancelling Run that has no active StageExecution
+// (RUN-R43): it freezes the outputs that earlier Stages bound (ART-R94) and
+// moves the Run to cancelled in one transaction. Cancellation forbids new
+// Stages (RUN-R42), so none can start after the caller found none active. A
+// Run that is no longer cancelling is a StateConflictError and changes
+// nothing.
+func (p *PostgresPersistence) FinishCancelledRun(ctx context.Context, runID string) error {
+	return persistencepostgres.InTx(ctx, p.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+		store := runstore.NewPostgresTxStore(tx)
+		if _, err := store.LockRunState(ctx, runID, runstore.RunCancelling); err != nil {
+			return err
+		}
+		if err := freezeOutputs(ctx, artifacts.NewService(artifacts.NewPostgresRepository(tx)), runID); err != nil {
+			return fmt.Errorf("freeze Workflow outputs: %w", err)
+		}
+		_, err := store.TransitionRun(
+			ctx, runID, runstore.RunCancelling, runstore.RunCancelled,
+			runstore.Reason{Code: runstore.CancellationUserRequested},
+		)
+		return err
 	})
 }
 

@@ -50,7 +50,8 @@ func (*AllocationLeaseLossError) Unwrap() error { return ErrAllocationLeaseLost 
 
 // Store is the non-transactional durable state boundary used while no remote
 // operation is in flight. AtomicPersistence owns the short multi-resource
-// transactions used at lifecycle commit points.
+// transactions used at lifecycle commit points; the Scheduler's WorkflowRun
+// transitions are among them, so Store moves no Run.
 type Store interface {
 	ClaimRunnableRun(context.Context, string, time.Duration) (runstore.WorkflowRun, error)
 	RenewRunClaim(context.Context, string, string, time.Duration) (runstore.WorkflowRunState, error)
@@ -61,13 +62,6 @@ type Store interface {
 	// state alone use it instead of GetRun.
 	GetRunState(context.Context, string) (runstore.WorkflowRunState, error)
 	GetOwnerQueueControl(context.Context, string) (runstore.OwnerQueueControl, error)
-	TransitionRun(
-		context.Context,
-		string,
-		runstore.WorkflowRunState,
-		runstore.WorkflowRunState,
-		runstore.Reason,
-	) (runstore.WorkflowRun, error)
 	// GetActiveStageExecution reads the Run's one active StageExecution:
 	// runstore.ErrNotFound when it has none, runstore.ErrMultipleActiveStages
 	// when it has more (SCH-R114). A progression attempt reads only this
@@ -131,6 +125,8 @@ type TerminationProgression struct {
 
 // AtomicPersistence is deliberately high-level: implementations either commit
 // every listed RunStore and ArtifactStore mutation or expose none of them.
+// Each commit that makes a Run succeeded, failed or cancelled also freezes the
+// Run's output bindings in the same transaction (ART-R92, ART-R94).
 type AtomicPersistence interface {
 	AdmitStage(context.Context, string, string) (runstore.StageExecution, error)
 	// DiscardUnadmittedPlacement deletes the durable allocation rows of a
@@ -179,6 +175,9 @@ type AtomicPersistence interface {
 		runstore.StageTermination,
 		string,
 	) error
+	// FinishCancelledRun moves a cancelling Run without an active
+	// StageExecution to cancelled.
+	FinishCancelledRun(context.Context, string) error
 }
 
 type ResolvedArtifact struct {
