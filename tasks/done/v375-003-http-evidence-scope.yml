@@ -5,7 +5,8 @@ milestone: http-finding-evidence-2026-10
 epic: http-tools
 kind: chore
 priority: P3
-status: in_progress
+status: completed
+implementation_commit: 8a904a8edf595cc3cf54017c229d20782a83cdd3
 depends_on: []
 languages: [markdown, yaml]
 goal: >-
@@ -48,3 +49,9 @@ tests:
     covers: [A1, A2, A3, A4]
   - command: git diff --check
     covers: [A1, A2, A3, A4]
+verification:
+  result: Documentation and pending implementation tasks recorded; production code and the normative specification are unchanged.
+  checks:
+    - make lint passed, including task consistency, specification consistency and the release graph.
+    - Relative links in the new plan and proposal resolved to existing files.
+    - git diff --check passed.
