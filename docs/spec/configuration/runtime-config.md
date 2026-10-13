@@ -302,9 +302,16 @@ on an invocation is owned by [Failure model](../platform/failure-model.md).
 (LIM-RCF-2).
 
 **RCF-R24.** When `failureSignatures` is omitted, the `openai-compatible@1`
-default (the LM Studio unload messages observed through LiteLLM) applies and
-the manifest digest is unchanged. A declared block joins the digest, so it is
-added on a new Gateway version.
+default applies without changing the manifest digest. It recognizes the exact
+LM Studio HTTP 400 messages `Model is unloaded.`,
+`Model unloaded by user or API request.`,
+`Engine protocol predict request failed: fetch failed` and `terminated`, both
+directly and inside the observed LiteLLM BadRequest wrapper. These include
+inference engine loss after OOM or GPU watchdog failures. A declared block
+replaces the defaults and joins the digest, so it is added on a new Gateway
+version. Recovery keeps the existing bounds in
+[SCH-R105](../execution/scheduler.md) to
+[SCH-R109](../execution/scheduler.md).
 
 **RCF-R25.** Server forwards the declared block to allocations as
 `runtimeSettings.llmGatewayFailureSignatures`.

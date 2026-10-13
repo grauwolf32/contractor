@@ -322,6 +322,120 @@
       }
     },
     {
+      "name": "default matches lm studio terminated engine",
+      "status": 400,
+      "signatures": "default",
+      "code": "model_unavailable",
+      "retryable": true,
+      "body": {
+        "error": "terminated"
+      }
+    },
+    {
+      "name": "default matches nested terminated engine message",
+      "status": 400,
+      "signatures": "default",
+      "code": "model_unavailable",
+      "retryable": true,
+      "body": {
+        "error": {
+          "message": "terminated"
+        }
+      }
+    },
+    {
+      "name": "default matches litellm wrapped terminated engine without suffix",
+      "status": 400,
+      "signatures": "default",
+      "code": "model_unavailable",
+      "retryable": true,
+      "body": {
+        "error": {
+          "message": "litellm.BadRequestError: OpenAIException - Error code: 400 - {'error': 'terminated'}"
+        }
+      }
+    },
+    {
+      "name": "default matches litellm wrapped terminated engine with model group suffix",
+      "status": 400,
+      "signatures": "default",
+      "code": "model_unavailable",
+      "retryable": true,
+      "body": {
+        "error": {
+          "message": "litellm.BadRequestError: OpenAIException - Error code: 400 - {'error': 'terminated'}. Received Model Group=worker-model"
+        }
+      }
+    },
+    {
+      "name": "terminated substring is not engine unavailability",
+      "status": 400,
+      "signatures": "default",
+      "code": "gateway_request_rejected",
+      "retryable": false,
+      "body": {
+        "error": "request terminated by invalid tools"
+      }
+    },
+    {
+      "name": "terminated litellm wrapper with foreign suffix is not a match",
+      "status": 400,
+      "signatures": "default",
+      "code": "gateway_request_rejected",
+      "retryable": false,
+      "body": {
+        "error": {
+          "message": "litellm.BadRequestError: OpenAIException - Error code: 400 - {'error': 'terminated'} extra"
+        }
+      }
+    },
+    {
+      "name": "terminated message on another permanent status stays rejected",
+      "status": 404,
+      "signatures": "default",
+      "code": "gateway_request_rejected",
+      "retryable": false,
+      "body": {
+        "error": "terminated"
+      }
+    },
+    {
+      "name": "declared signatures without terminated override protocol defaults",
+      "status": 400,
+      "signatures": "declared",
+      "code": "gateway_request_rejected",
+      "retryable": false,
+      "body": {
+        "error": "terminated"
+      }
+    },
+    {
+      "name": "empty signatures keep terminated permanent",
+      "status": 400,
+      "signatures": "empty",
+      "code": "gateway_request_rejected",
+      "retryable": false,
+      "body": {
+        "error": "terminated"
+      }
+    },
+    {
+      "name": "permanent context code wins over terminated signature and retry hint",
+      "status": 400,
+      "signatures": "default",
+      "code": "context_length_exceeded",
+      "retryable": false,
+      "headers": {
+        "x-should-retry": "true"
+      },
+      "body": {
+        "error": {
+          "code": "context_length_exceeded",
+          "message": "terminated"
+        }
+      }
+    },
+    {
       "name": "default includes budget_exceeded",
       "status": 429,
       "signatures": "default",
