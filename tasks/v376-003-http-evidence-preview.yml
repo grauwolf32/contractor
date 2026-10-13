@@ -1,0 +1,93 @@
+schema_version: "1.0"
+id: V376-003
+title: Preview and download finding-selected HTTP evidence in the UI
+milestone: http-finding-evidence-2026-10
+epic: ui
+kind: feature
+priority: P1
+status: in_progress
+depends_on: [V376-002]
+languages: [typescript, css, markdown]
+goal: >-
+  Let a user inspect the actual request and available response of finding
+  evidence from Run materials and finding links without filling the UI with
+  unselected traffic or fetching every body to render a list.
+context:
+  design: docs/plans/2026-10-13-http-finding-evidence.md
+  specification:
+    - docs/spec/ui/ui.md
+    - docs/spec/ui/journeys.md
+    - docs/spec/tools/http-caido.md
+    - docs/spec/findings/findings.md
+    - docs/spec/artifacts/artifact-store.md
+  ui_guidance:
+    - docs/design/ui/README.md
+    - ui/src/ui/README.md
+scope:
+  in:
+    - Add a strict decoder and request/response preview for the selected-exchange contract from V376-002, following shared fixtures.
+    - Show saved method, URL, request headers/body and response status, headers/body or its explicit unavailable or incomplete outcome.
+    - Expose exact finding evidence links and download of the complete saved exchange; render JSON readably, HTML as source and binary content as downloadable data.
+    - Keep Run material browsing paginated, distinguish selected HTTP evidence from other materials and load payloads only for an opened preview or download.
+    - Update the owning UI requirements and bump the UI package version.
+  out:
+    - A full traffic browser, compressed export, independent bookmarking or a new model-facing evidence tool.
+    - Inferring request metadata from artifact names, reconstructing missing requests or supporting obsolete artifact schemas.
+requirements:
+  - id: R1
+    text: The preview reflects authoritative captured bytes and exact refs; absent response and empty response body are different states.
+  - id: R2
+    text: The materials list shows saved evidence and follows all server pages without eager body downloads or an unbounded client-side artifact scan.
+  - id: R3
+    text: A finding relationship is displayed only from a Server-reported exact evidence association, never inferred from matching URLs or artifact names.
+failure_outcomes:
+  - operation: Read or download selected HTTP evidence
+    permanent: Missing, malformed or unsupported evidence reports a bounded error and retains any valid metadata; it never fabricates an exchange.
+    retryable: Use existing read backoff and explicit retry actions without polling settled objects forever.
+    ambiguous: Reads have no mutation effects; downloads and retries keep the exact selected revision.
+    cancelled: Abort or discard reads when the selected evidence changes or the view unmounts.
+    timeout: Use existing public API read deadlines and show the failed read without changing the finding state.
+cardinality:
+  - collection: Selected HTTP evidence and other Run materials
+    expected: A few to tens of saved exchanges
+    maximum: More than one artifact page; no assumption of at most 128 saved exchanges
+    bound: Existing server page bounds, bounded preview bytes and only the selected payload loaded; verify browsing beyond 100 entries.
+lifecycle:
+  - entity: UI selection and preview
+    delete: Changing selection, namespace, page or leaving the route
+    cascade: Clear obsolete view state and reads; durable evidence stays owned by its Run and finding lifecycle.
+    retention: Exact selected revision remains identifiable through navigation and download.
+acceptance_criteria:
+  - id: A1
+    given: A finding-selected exchange with request and response
+    when: The user opens it from Run materials or the finding evidence link
+    then: Exchanges within the existing 256 KiB preview limit show request and response headers/body, readable JSON or HTML source; every saved exchange can be downloaded at its exact revision, and a larger preview explains the limit.
+  - id: A2
+    given: Empty bodies, absent or incomplete response, binary data, malformed content and a failed read
+    when: A preview is opened
+    then: Each outcome is labelled truthfully, read failures are retryable in place and arbitrary HTML is never executed.
+  - id: A3
+    given: More than 100 evidence or material entries and several pages
+    when: The user navigates and selects one exchange
+    then: Every page is reachable and no other body is downloaded merely to render or filter the list.
+  - id: A4
+    given: A narrow viewport of 390 px and light, dark and black themes
+    when: The user navigates request/response views using a keyboard
+    then: Content remains usable and accessible with theme tokens, visible outcomes and working exact evidence navigation.
+tests:
+  - command: make test-wire-cross-language
+    covers: [A1, A2]
+  - command: make lint
+    covers: [A1, A2, A3, A4]
+  - command: make ui-verify
+    covers: [A1, A2, A3, A4]
+  - command: make ui-browser-mocked
+    covers: [A1, A2, A3, A4]
+verification:
+  date: 2026-10-14
+  before_merge:
+    - Focused UI suites passed, 93 tests across 5 files, including shared captures, binary/absent/partial outcomes, 130-entry pagination and exact finding links.
+    - UI lint and TypeScript checks passed under Node 24.20.0.
+    - make ui-browser-mocked passed, 53 browser tests across 17 specs, including HTTP evidence at 390 px in light, dark and black themes.
+    - make test-wire-cross-language passed against disposable PostgreSQL.
+  remaining: Complete make ui-verify and final make lint on main, as requested by the user before marking the task completed.

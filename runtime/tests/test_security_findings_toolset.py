@@ -216,7 +216,7 @@ class FakeFindingClient:
 
     async def submit(self, request: dict[str, object]) -> dict[str, object]:
         self.requests.append(request)
-        return json.loads(_receipt_response(201, replayed=False).body)
+        return json.loads(_receipt_response(201, replayed=False, request=request).body)
 
     async def request(
         self,
@@ -231,7 +231,7 @@ class FakeFindingClient:
         assert method == "POST"
         assert path.startswith("/allocations/") and path.endswith("/finding-proposals")
         self.requests.append(json.loads(body))
-        return _receipt_response(201, replayed=False)
+        return _receipt_response(201, replayed=False, request=self.requests[-1])
 
 
 class LossyFindingTransport:
@@ -253,10 +253,36 @@ class LossyFindingTransport:
         self.bodies.append(body)
         if len(self.bodies) == 1:
             raise ArtifactTransportError("response lost")
-        return _receipt_response(200, replayed=True)
+        return _receipt_response(200, replayed=True, request=json.loads(body))
 
 
-def _receipt_response(status: int, *, replayed: bool) -> ArtifactHTTPResponse:
+def _receipt_response(
+    status: int, *, replayed: bool, request: dict | None = None
+) -> ArtifactHTTPResponse:
+    request = request or {}
+    refs = list(request.get("evidenceRefs", []))
+    if "httpEvidence" in request:
+        from contractor_runtime.toolsets.common.http_capture import CapturedHTTPExchange
+
+        CapturedHTTPExchange.model_validate(request["httpEvidence"])
+        refs.append(
+            {
+                "namespace": "finding-proposals",
+                "name": "http.exchange.proposal-1",
+                "revision": "http-rev-1",
+            }
+        )
+    evidence = [
+        {
+            "ref": ref,
+            "digest": "sha256:" + "a" * 64,
+            "mediaType": "application/vnd.contractor.http-exchange+json"
+            if ref["name"].startswith("http.exchange.")
+            else "text/plain",
+            "sizeBytes": 2,
+        }
+        for ref in refs
+    ]
     payload = json.dumps(
         {
             "apiVersion": "contractor/v1alpha1",
@@ -273,6 +299,7 @@ def _receipt_response(status: int, *, replayed: bool) -> ArtifactHTTPResponse:
                 "sizeBytes": 2,
             },
             "replayed": replayed,
+            "evidence": evidence,
         },
         separators=(",", ":"),
     ).encode()

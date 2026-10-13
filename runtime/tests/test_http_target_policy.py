@@ -12,7 +12,7 @@ from pathlib import Path
 import httpcore
 import httpx
 import pytest
-from test_http_toolset import FakeArtifactClient, close_tools, make_tools, proxy_runtime_settings
+from test_http_toolset import close_tools, make_tools, proxy_runtime_settings
 
 from contractor_runtime.adapters import AdapterHandles
 from contractor_runtime.adapters.http_proxy import ProxyHTTPClient, ProxyTargetDenied
@@ -103,7 +103,7 @@ def test_names_resolving_to_loopback_are_denied_at_connect_time(tmp_path: Path) 
                     {"rebind.example": ("127.0.0.1",), "link.example": ("fe80::1",)}
                 )
             )
-            factory = HTTPToolsetFactory(lambda *_: FakeArtifactClient(), target_policy=config)
+            factory = HTTPToolsetFactory(target_policy=config)
             tools = await make_tools(factory, tmp_path, settings=direct_settings())
             try:
                 for url in (
@@ -162,9 +162,7 @@ def test_loopback_project_target_is_reachable_in_direct_mode(tmp_path: Path) -> 
     async def scenario() -> None:
         async with loopback_server() as server, loopback_server() as other:
             server.redirects["/elsewhere"] = f"http://127.0.0.1:{other.port}/private"
-            factory = HTTPToolsetFactory(
-                lambda *_: FakeArtifactClient(), target_policy=TargetPolicyConfig()
-            )
+            factory = HTTPToolsetFactory(target_policy=TargetPolicyConfig())
             settings = direct_settings(
                 httpOriginTarget=HTTPOriginTargetSettings(url=f"http://127.0.0.1:{server.port}/")
             )
@@ -201,7 +199,7 @@ def test_operator_networks_allow_loopback_but_never_runtime_endpoints(tmp_path: 
                     calls,
                 ),
             )
-            factory = HTTPToolsetFactory(lambda *_: FakeArtifactClient(), target_policy=config)
+            factory = HTTPToolsetFactory(target_policy=config)
             settings = direct_settings(
                 artifactApiUrl=f"https://artifacts.example:{artifacts.port}/private/v1"
             )
@@ -244,7 +242,7 @@ def test_proxy_route_allows_loopback_targets_that_the_policy_allows(tmp_path: Pa
             allowed_networks=parse_allowed_networks(["127.0.0.0/8", "::1/128"]),
             resolver=table_resolver({}),
         )
-        factory = HTTPToolsetFactory(lambda *_: FakeArtifactClient(), target_policy=config)
+        factory = HTTPToolsetFactory(target_policy=config)
         tools = await make_tools(
             factory,
             tmp_path,
@@ -294,7 +292,7 @@ def test_proxy_route_refuses_loopback_outside_the_project_target(tmp_path: Path)
         client = httpx.AsyncClient(transport=httpx.MockTransport(handler), trust_env=False)
         proxy = ProxyHTTPClient(client)
         config = TargetPolicyConfig(resolver=table_resolver({"app.local": ("127.0.0.1",)}))
-        factory = HTTPToolsetFactory(lambda *_: FakeArtifactClient(), target_policy=config)
+        factory = HTTPToolsetFactory(target_policy=config)
         settings = proxy_runtime_settings().model_copy(
             update={
                 "http_origin_target": HTTPOriginTargetSettings(url="http://app.local:3000/"),
@@ -376,9 +374,7 @@ def test_proxy_redirect_to_unicode_dot_metadata_is_refused(tmp_path: Path) -> No
 
     async def scenario() -> None:
         client = httpx.AsyncClient(transport=httpx.MockTransport(handler), trust_env=False)
-        factory = HTTPToolsetFactory(
-            lambda *_: FakeArtifactClient(), target_policy=TargetPolicyConfig()
-        )
+        factory = HTTPToolsetFactory(target_policy=TargetPolicyConfig())
         tools = await make_tools(
             factory,
             tmp_path,

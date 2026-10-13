@@ -106,7 +106,12 @@ def test_http_secrets_are_absent_from_every_retained_projection(tmp_path: Path) 
             assert forbidden not in retained
 
         encoded_artifacts = b"\n".join(artifacts.payloads.values())
-        assert HTTP_RESPONSE_BODY.encode() in encoded_artifacts
+        assert encoded_artifacts == b""
+        captured = await state.http_captures.get("http", "1")
+        assert (
+            base64.b64decode(captured["attempts"][-1]["response"]["message"]["body_base64"])
+            == HTTP_RESPONSE_BODY.encode()
+        )
         for forbidden in (
             HTTP_AUTH_SECRET,
             HTTP_COOKIE_SECRET,
@@ -320,10 +325,16 @@ def test_caido_results_and_artifacts_scrub_runtime_injected_credentials(
         assert findings["findings"][0]["description"] == "Authorization: [REDACTED]"
         assert converted["output"].startswith("Authorization: [runtime-target-credential]\n")
 
-        exchange = ArtifactRef.model_validate(detail["raw_artifact"]).require_exact()
-        stored = json.loads(artifacts.payloads[exact_key(exchange)])
-        assert stored["request"]["text"] == request_preview
-        assert stored["response"]["text"] == response_preview
+        stored = await _state.http_captures.get("caido", "request-1")
+        attempt = stored["attempts"][0]
+        assert (
+            base64.b64decode(attempt["request"]["message"]["data_base64"]).decode()
+            == request_preview
+        )
+        assert (
+            base64.b64decode(attempt["response"]["message"]["data_base64"]).decode()
+            == response_preview
+        )
         output = ArtifactRef.model_validate(converted["output_artifact"]).require_exact()
         assert artifacts.payloads[exact_key(output)].startswith(
             b"Authorization: [runtime-target-credential]\n"
@@ -331,7 +342,7 @@ def test_caido_results_and_artifacts_scrub_runtime_injected_credentials(
 
         returned = json.dumps([detail, replay, findings, converted])
         stored_bytes = b"\n".join(artifacts.payloads.values())
-        assert len(artifacts.payloads) == 3
+        assert len(artifacts.payloads) == 1
         for forbidden in (TARGET_TOKEN, GATEWAY_TOKEN, PROXY_AUTHORIZATION):
             assert forbidden not in returned
             assert forbidden.encode() not in stored_bytes
@@ -378,10 +389,14 @@ def test_caido_short_injected_credentials_are_replaced_as_whole_header_values(
         )
         response = base64.b64decode(detail["response"]["raw"]["data_b64"])
         assert response == b"HTTP/1.1 200 OK\r\n\r\n\xff[REDACTED]\x00"
-        exchange = ArtifactRef.model_validate(detail["raw_artifact"]).require_exact()
-        stored = json.loads(artifacts.payloads[exact_key(exchange)])
-        assert stored["request"]["text"] == detail["raw"]["data"]
-        assert base64.b64decode(stored["response"]["dataBase64"]) == response
+        stored = await _state.http_captures.get("caido", "request-1")
+        attempt = stored["attempts"][0]
+        assert (
+            base64.b64decode(attempt["request"]["message"]["data_base64"]).decode()
+            == detail["raw"]["data"]
+        )
+        assert base64.b64decode(attempt["response"]["message"]["data_base64"]) == response
+        assert artifacts.payloads == {}
         await close_caido_tools(tools)
         await handle.close()
 

@@ -1,0 +1,286 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contractor.local/schema/v1alpha1/http-exchange.schema.json",
+  "$comment": "Capture in private finding submission httpEvidence. Additional semantic bounds (HTTP identity <= 2^53-1, URL/header grammar, source/message matching, canonical base64 and decoded/aggregate bytes) are enforced by the owning shared-case validators. Stored evidence uses #/$defs/artifact.",
+  "$ref": "#/$defs/capture",
+  "$defs": {
+    "header": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "value"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[!#$%&'*+.^_`|~0-9A-Za-z-]+$"
+        },
+        "value": {
+          "type": "string",
+          "pattern": "^[^\\r\\n]*$"
+        }
+      }
+    },
+    "message": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "headers",
+            "body_base64"
+          ],
+          "properties": {
+            "kind": {
+              "const": "structured"
+            },
+            "headers": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/header"
+              }
+            },
+            "body_base64": {
+              "type": "string",
+              "contentEncoding": "base64",
+              "pattern": "^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$",
+              "$comment": "Canonical padding bits and decoded byte limits are checked by the owning Go/Runtime validators."
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "data_base64"
+          ],
+          "properties": {
+            "kind": {
+              "const": "raw"
+            },
+            "data_base64": {
+              "type": "string",
+              "contentEncoding": "base64",
+              "pattern": "^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$",
+              "$comment": "Canonical padding bits and decoded byte limits are checked by the owning Go/Runtime validators."
+            }
+          }
+        }
+      ]
+    },
+    "request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "method",
+        "url",
+        "message"
+      ],
+      "properties": {
+        "method": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[!#$%&'*+.^_`|~0-9A-Za-z-]+$"
+        },
+        "url": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 8192,
+          "x-maxBytes": 8192,
+          "pattern": "^https?://"
+        },
+        "message": {
+          "$ref": "#/$defs/message"
+        }
+      }
+    },
+    "response": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "message",
+        "complete"
+      ],
+      "properties": {
+        "status": {
+          "type": "integer",
+          "minimum": 100,
+          "maximum": 599
+        },
+        "message": {
+          "$ref": "#/$defs/message"
+        },
+        "complete": {
+          "type": "boolean"
+        }
+      }
+    },
+    "attempt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "request"
+      ],
+      "properties": {
+        "request": {
+          "$ref": "#/$defs/request"
+        },
+        "response": {
+          "$ref": "#/$defs/response"
+        },
+        "error": {
+          "enum": [
+            "transport_error",
+            "timeout",
+            "cancelled",
+            "response_invalid",
+            "response_too_large",
+            "target_denied",
+            "request_invalid"
+          ]
+        }
+      },
+      "anyOf": [
+        {
+          "required": [
+            "response"
+          ]
+        },
+        {
+          "required": [
+            "error"
+          ]
+        }
+      ],
+      "allOf": [
+        {
+          "if": {
+            "required": [
+              "response"
+            ],
+            "properties": {
+              "response": {
+                "properties": {
+                  "complete": {
+                    "const": true
+                  }
+                }
+              }
+            }
+          },
+          "then": {
+            "not": {
+              "required": [
+                "error"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "capture": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source",
+        "request_id",
+        "attempts"
+      ],
+      "properties": {
+        "source": {
+          "enum": [
+            "http",
+            "caido"
+          ]
+        },
+        "request_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256,
+          "x-maxBytes": 256,
+          "pattern": "^[^\\u0000-\\u001f]+$"
+        },
+        "request_tag": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+        },
+        "attempts": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 13,
+          "items": {
+            "$ref": "#/$defs/attempt"
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "source": {
+                "const": "http"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "request_tag"
+            ],
+            "properties": {
+              "request_id": {
+                "pattern": "^[1-9][0-9]{0,15}$"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "capture",
+        "finding"
+      ],
+      "properties": {
+        "schema": {
+          "const": "contractor.http.exchange.v1"
+        },
+        "capture": {
+          "$ref": "#/$defs/capture"
+        },
+        "finding": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "proposal_id",
+            "receipt_id"
+          ],
+          "properties": {
+            "proposal_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+            },
+            "receipt_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+            }
+          }
+        }
+      }
+    }
+  }
+}

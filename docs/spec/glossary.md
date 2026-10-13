@@ -148,7 +148,7 @@ Terms used across the specification. Each entry names the document that owns the
 
 **Caido client handle (`caido-graphql-client`)** — The one private infrastructure handle that `caido-graphql@1` advertises and every `caido@1` tool requires. Owner: [HTTP and Caido tools](tools/http-caido.md).
 
-**Caido exchange artifact** — The single `application/vnd.contractor.caido-exchange+json` artifact that holds one Caido request together with its response. Owner: [HTTP and Caido tools](tools/http-caido.md).
+**Caido capture** — Scrubbed raw request and optional response bytes in the allocation buffer, available for finding selection. Owner: [HTTP and Caido tools](tools/http-caido.md).
 
 **Caido GraphQL adapter (`caido-graphql@1`)** — The typed private Runtime adapter that creates the allocation's Caido GraphQL client and is not an HTTP forward proxy. Owner: [HTTP and Caido tools](tools/http-caido.md).
 
@@ -660,7 +660,7 @@ Terms used across the specification. Each entry names the document that owns the
 
 **Outcome class** — The kind of result a failed external call or mutation produced: transient, permanent, ambiguous, timeout or cancelled. Owner: [Failure model](platform/failure-model.md).
 
-**Outgoing exchange store** — The allocation memory store of the latest outgoing exchanges from which a finding snapshots selected HTTP evidence. Owner: [HTTP and Caido tools](tools/http-caido.md).
+**Outgoing exchange store** — Shared bounded HTTP/Caido allocation capture buffer, with actual requests, available responses and invocation ownership. Owner: [HTTP and Caido tools](tools/http-caido.md).
 
 **Outstanding count** — An Audit's reserved submission intents plus its associated nonterminal child Runs. Owner: [Audit execution](audits/execution.md).
 
@@ -854,7 +854,6 @@ Terms used across the specification. Each entry names the document that owns the
 
 **Resource admission** — The step that moves a pending Run to running and sets its first started_at. Owner: [Runs](execution/runs.md).
 
-**Response body artifact** — The ordinary Run artifact of media type `application/vnd.contractor.http-body+json` that holds one complete response body. Owner: [HTTP and Caido tools](tools/http-caido.md).
 
 **Response record** — The bounded metadata and preview that `http_request` returns for one completed request. Owner: [HTTP and Caido tools](tools/http-caido.md).
 
@@ -1221,3 +1220,5 @@ Terms used across the specification. Each entry names the document that owns the
 **WorkspaceSnapshot** — An immutable value of the current managed-text projection and its canonical digest, acquired for one operation. Owner: [Run workspaces and filesystem tools](tools/workspace.md).
 
 **Write fence** — The Server-side rejection of an allocation's Artifact writes, established on its grant when its StageExecution durably enters `finalizing` or `aborting` and serialized with complete mutations. The Control Plane establishes it together with the authoritative terminal phase before any outbound finalize or abort call, and a write-fenced allocation never continues Worker execution. Owner: [Artifact store](artifacts/artifact-store.md).
+
+**Selected HTTP exchange artifact** — Frozen ordinary evidence published only with a finding, containing the captured request and optional response. Owner: [Findings](findings/findings.md).

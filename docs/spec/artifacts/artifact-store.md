@@ -102,7 +102,7 @@ Reserved Namespaces and name prefixes:
 | `outputs` | Namespace | RunScope | Declared Workflow results, managed by Workflow Scheduler | ART-R14, ART-R90 |
 | `skills` | Namespace | RunScope | Exact read-only Agent Skill packages ([Skills](../tools/skills.md)) | ART-R14, ART-R39, ART-R108, ART-R109 |
 | `contractor-system` | Namespace, hidden | RunScope | Bounded Control Plane records coupled to a Run | ART-R17, ART-R18 |
-| `finding-proposals` | Namespace | RunScope | Finding proposals that Server finding intake writes ([Findings](../findings/findings.md)) | ART-R114 |
+| `finding-proposals` | Namespace | RunScope | Finding proposals and their frozen selected HTTP exchanges that Server finding intake writes ([Findings](../findings/findings.md)) | ART-R114 |
 | `memory.` | Name prefix | Non-reserved RunScope Namespaces | Memory notes ([Memory](../tools/memory.md)) | ART-R19 to ART-R22 |
 | `tool-invocation.` | Name prefix | RunScope | Runtime-owned receipts of model-free tool Workers ([Scanners](../tools/scanners.md)) | ART-R23 |
 | `http.body.` | Name prefix | The allocation's logical Namespace | HTTP response bodies ([HTTP and Caido](../tools/http-caido.md)) | ART-R24 |
@@ -279,6 +279,11 @@ one. The Server and the Runtime apply one list and one reserved Memory binding
 rule (ART-R19 to ART-R22), pinned by
 [`memory-reservation-cases.json`](../../../api/testdata/v1alpha1/memory-reservation-cases.json),
 so a binding one side reserves is reserved by the other.
+
+The `finding-proposals` Namespace also holds selected HTTP exchange evidence.
+Finding intake creates its frozen binding together with the proposal and receipt;
+generic writes cannot supply or change the Server-issued finding association
+([FND-R49](../findings/findings.md), [FND-R160](../findings/findings.md)).
 
 **ART-R19.** The `memory.` artifact-name prefix is reserved at the
 model-visible Toolset layer in every non-reserved RunScope Namespace.

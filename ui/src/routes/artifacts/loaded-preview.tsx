@@ -12,18 +12,22 @@ import {
   type ArtifactPreviewPlan,
 } from "./preview-plan";
 import { ScanReportSummary } from "./scan-report-summary";
+import type { HTTPPreviewContext } from "./previews/http-exchange";
 import "./materials.css";
 
 const MarkdownArtifactPreview = lazy(() => import("./previews/markdown"));
 const OpenApiArtifactPreview = lazy(() => import("./previews/openapi"));
 const LikeC4ArtifactPreview = lazy(() => import("./previews/likec4"));
 const DiffArtifactPreview = lazy(() => import("./previews/diff"));
+const HTTPExchangePreview = lazy(() => import("./previews/http-exchange"));
 
 const RENDERER_LABELS = {
   diff: "Diff",
   markdown: "Markdown",
   openapi: "OpenAPI",
   likec4: "LikeC4",
+  http: "HTTP exchange",
+  "invalid-http": "HTTP exchange",
 } as const;
 
 type RenderedPlan = Exclude<ArtifactPreviewPlan, { kind: "source" }>;
@@ -32,8 +36,25 @@ function rendererLabel(plan: RenderedPlan): string {
   return RENDERER_LABELS[plan.kind];
 }
 
-function Renderer({ plan, source }: { plan: RenderedPlan; source: string }) {
+function Renderer({
+  plan,
+  source,
+  context,
+}: {
+  plan: RenderedPlan;
+  source: string;
+  context?: HTTPPreviewContext | undefined;
+}) {
   switch (plan.kind) {
+    case "http":
+      return <HTTPExchangePreview document={plan.document} context={context} />;
+    case "invalid-http":
+      return (
+        <p className="artifact-renderer-error" role="alert">
+          This HTTP exchange is invalid or unsupported. Download the saved file
+          to inspect its bytes.
+        </p>
+      );
     case "diff":
       return <DiffArtifactPreview source={source} />;
     case "markdown":
@@ -75,9 +96,11 @@ class RendererErrorBoundary extends Component<
 export function LoadedArtifactPreview({
   mediaType,
   source,
+  context,
 }: {
   mediaType: string;
   source: string;
+  context?: HTTPPreviewContext | undefined;
 }) {
   const [plan, setPlan] = useState<ArtifactPreviewPlan>();
   const [tab, setTab] = useState<"rendered" | "source">("rendered");
@@ -184,7 +207,7 @@ export function LoadedArtifactPreview({
               <p className="artifact-renderer-loading">Loading renderer…</p>
             }
           >
-            <Renderer plan={plan} source={source} />
+            <Renderer plan={plan} source={source} context={context} />
           </Suspense>
         </RendererErrorBoundary>
       </div>

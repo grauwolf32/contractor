@@ -241,8 +241,13 @@ fixed_decisions:
   http_caido:
     generic_http: >-
       http-tools@1 uses allocation-owned direct transport or the optional
-      label-resolved tool-http forward proxy; complete bodies are bounded Run
-      artifacts and session secrets remain allocation-memory-only.
+      label-resolved tool-http forward proxy. HTTP and Caido exchanges share an
+      allocation-memory buffer (128 records, 64 MiB); only exchanges selected
+      by a finding become immutable ordinary evidence, atomically with intake.
+      Requests are mandatory and responses optional. Other proxied traffic is
+      inspected in Caido. Complete traffic export remains a deferred proposal;
+      reopen only for a concrete offline analysis or retention requirement.
+      Session secrets remain allocation-memory-only.
     caido: >-
       caido@1 requires the separate caido-graphql@1 label-driven adapter with
       optional caido-bearer@1 credential. AgentTemplate grants exact tools;

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import base64
-import json
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -19,7 +18,6 @@ from contractor_runtime.adapters.http_proxy import ProxyHTTPClient
 from contractor_runtime.allocation import WorkerState
 from contractor_runtime.artifacts import (
     ArtifactAPIError,
-    ArtifactResponseLimitError,
     ArtifactTransportError,
 )
 from contractor_runtime.contracts import (
@@ -30,7 +28,6 @@ from contractor_runtime.contracts import (
 )
 from contractor_runtime.core.target_policy import TargetDenied
 from contractor_runtime.toolsets.http.tools import (
-    HTTP_BODY_MEDIA_TYPE,
     HTTPToolError,
     HTTPToolsetFactory,
 )
@@ -128,10 +125,8 @@ def test_direct_text_binary_status_redirect_and_exact_body_reads(tmp_path: Path)
         assert text["body_kind"] == "text"
         assert text["body_preview"] == "hello world"
         assert text["redirects"] == 1
-        exact = ArtifactRef.model_validate(text["body_artifact"]).require_exact()
-        assert artifacts.media_types[(exact.namespace, exact.name, exact.revision)] == (
-            HTTP_BODY_MEDIA_TYPE
-        )
+        assert "body_artifact" not in text
+        assert artifacts.writes == 0
         text_slice = await read(text["request_id"], offset=6, length=5)
         assert text_slice == {
             "request_id": 1,
@@ -200,7 +195,7 @@ def test_http_body_reads_cache_pages_and_evict_between_requests(tmp_path: Path) 
                 "data": "😀é",
             }
             assert (await read(text_id, offset=3, length=2))["data"] == "z"
-            assert artifacts.reads == 1
+            assert artifacts.reads == 0
 
             binary_page = await read(binary_id, offset=1, length=3)
             assert binary_page == {
@@ -214,14 +209,14 @@ def test_http_body_reads_cache_pages_and_evict_between_requests(tmp_path: Path) 
                 "data_b64": base64.b64encode(b"\xffpa").decode(),
             }
             assert base64.b64decode((await read(binary_id, offset=4))["data_b64"]) == b"yload"
-            assert artifacts.reads == 2
+            assert artifacts.reads == 0
             assert state.http_session._cached_body.request_id == binary_id
             assert sys.getsizeof(state.http_session._cached_body.content) <= (
                 http_tools.MAX_DECODED_BODY_CACHE_BYTES
             )
 
             assert (await read(text_id, offset=4))["eof"] is True
-            assert artifacts.reads == 3
+            assert artifacts.reads == 0
             assert state.http_session._cached_body.request_id == text_id
         finally:
             await close_tools(tools)
@@ -230,7 +225,7 @@ def test_http_body_reads_cache_pages_and_evict_between_requests(tmp_path: Path) 
         with pytest.raises(HTTPToolError) as failure:
             await read(text_id)
         assert failure.value.code == "http_request_failed"
-        assert artifacts.reads == 3
+        assert artifacts.reads == 0
 
     asyncio.run(scenario())
 
@@ -254,7 +249,7 @@ def test_http_body_read_skips_content_above_cache_bound(
             assert (await tools["http_read_body"](result["request_id"]))["data"] == "body"
             assert state.http_session._cached_body is None
             assert (await tools["http_read_body"](result["request_id"]))["data"] == "body"
-            assert artifacts.reads == 2
+            assert artifacts.reads == 0
         finally:
             await close_tools(tools)
 
@@ -268,7 +263,7 @@ def test_http_body_read_skips_content_above_cache_bound(
         ArtifactAPIError(503, "unavailable", True),
     ],
 )
-def test_http_body_read_retries_transient_artifact_failures(
+def test_http_body_read_uses_buffer_during_artifact_failures(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, error: Exception
 ) -> None:
     async def scenario() -> None:
@@ -291,10 +286,10 @@ def test_http_body_read_retries_transient_artifact_failures(
 
             with monkeypatch.context() as patch:
                 patch.setattr(artifacts, "read_artifact", fail_read)
-                with pytest.raises(HTTPToolError) as failure:
-                    await tools["http_read_body"](result["request_id"])
-                assert failure.value.code == "http_request_failed"
-                assert failure.value.retryable is True
+                assert (await tools["http_read_body"](result["request_id"]))[
+                    "data"
+                ] == "stored body"
+                assert artifacts.reads == 0
 
             recovered = await tools["http_read_body"](result["request_id"])
             assert recovered["data"] == "stored body"
@@ -305,62 +300,26 @@ def test_http_body_read_retries_transient_artifact_failures(
     asyncio.run(scenario())
 
 
-def test_http_body_read_keeps_invalid_artifacts_nonretryable(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_http_body_read_expires_with_capture_eviction_and_session_clear(tmp_path: Path) -> None:
     async def scenario() -> None:
         async def handler(request: httpx.Request) -> httpx.Response:
-            return httpx.Response(
-                200, content=b"stored body", headers={"content-type": "text/plain"}, request=request
-            )
+            return httpx.Response(200, text="buffered body", request=request)
 
         artifacts = FakeArtifactClient()
         tools, state = await create_tools(tmp_path, handler, artifacts=artifacts)
         try:
-            result = await tools["http_request"]("https://target.example/body")
-            request_id = result["request_id"]
-
-            async def assert_not_found(selected_id: int = request_id) -> None:
-                with pytest.raises(HTTPToolError) as failure:
-                    await tools["http_read_body"](selected_id)
-                assert failure.value.code == "http_body_not_found"
-                assert failure.value.retryable is False
-
-            await assert_not_found(request_id + 1)
-            for error in (
-                ArtifactAPIError(404, "artifact_not_found", False),
-                ArtifactResponseLimitError("oversized artifact response"),
-            ):
-
-                async def fail_read(_ref: ArtifactRef, selected_error: Exception = error) -> Any:
-                    raise selected_error
-
-                with monkeypatch.context() as patch:
-                    patch.setattr(artifacts, "read_artifact", fail_read)
-                    await assert_not_found()
-
-            exact = ArtifactRef.model_validate(result["body_artifact"]).require_exact()
-            key = (exact.namespace, exact.name, exact.revision)
-            media_type = artifacts.media_types[key]
-            payload = artifacts.payloads[key]
-            artifacts.media_types[key] = "application/octet-stream"
-            await assert_not_found()
-            await assert_not_found()
+            first = await tools["http_request"]("https://target.example/first")
+            assert (await tools["http_read_body"](first["request_id"]))["data"] == "buffered body"
+            for number in range(http_tools.MAX_HISTORY):
+                await tools["http_request"](f"https://target.example/item-{number}")
+            with pytest.raises(HTTPToolError) as expired:
+                await tools["http_read_body"](first["request_id"])
+            assert expired.value.code == "http_body_not_found"
+            assert len(await tools["http_history"]()) == http_tools.MAX_HISTORY
+            await tools["http_session_clear"]()
+            assert not state.http_captures._entries
             assert state.http_session._cached_body is None
-            artifacts.media_types[key] = media_type
-            artifacts.payloads[key] = b"invalid envelope"
-            await assert_not_found()
-            assert state.http_session._cached_body is None
-            value = json.loads(payload)
-            value["kind"] = "binary"
-            value["dataBase64"] = base64.b64encode(b"stored body").decode()
-            del value["text"]
-            artifacts.payloads[key] = json.dumps(value).encode()
-            await assert_not_found()
-            await assert_not_found()
-            assert state.http_session._cached_body is None
-            artifacts.payloads[key] = payload
-            assert (await tools["http_read_body"](request_id))["data"] == "stored body"
+            assert artifacts.writes == artifacts.reads == 0
         finally:
             await close_tools(tools)
 
@@ -438,7 +397,7 @@ def test_malformed_urls_fail_before_send_without_proxy_retries(
             proxy_client = httpx.AsyncClient(
                 transport=httpx.MockTransport(handler), trust_env=False
             )
-            factory = HTTPToolsetFactory(lambda _allocation, _settings: FakeArtifactClient())
+            factory = HTTPToolsetFactory()
             tools = await make_tools(
                 factory,
                 tmp_path,
@@ -512,7 +471,7 @@ def test_host_names_under_the_shared_host_rule_are_sent(tmp_path: Path, route: s
             proxy_client = httpx.AsyncClient(
                 transport=httpx.MockTransport(handler), trust_env=False
             )
-            factory = HTTPToolsetFactory(lambda _allocation, _settings: FakeArtifactClient())
+            factory = HTTPToolsetFactory()
             tools = await make_tools(
                 factory,
                 tmp_path,
@@ -563,12 +522,7 @@ def test_connect_time_target_denial_does_not_retain_an_exchange(tmp_path: Path) 
                 )
             assert failure.value.code == "http_target_denied"
             assert failure.value.retryable is False
-            captured = session._exchanges._entries[1]
-            assert captured.complete is False
-            assert len(captured.attempts) == 1
-            assert captured.attempts[0].error is None
-            with pytest.raises(ValueError, match="request_id is unavailable"):
-                await session.finding_exchange(1, "invocation-1")
+            assert not session._captures.contains("http", "1")
             assert await tools["http_history"]() == []
         finally:
             await close_tools(tools)
@@ -657,7 +611,7 @@ def test_project_authorization_is_exact_origin_hidden_and_erased(tmp_path: Path)
         def direct() -> httpx.AsyncClient:
             return httpx.AsyncClient(transport=httpx.MockTransport(handler), trust_env=False)
 
-        factory = HTTPToolsetFactory(lambda _allocation, _settings: FakeArtifactClient(), direct)
+        factory = HTTPToolsetFactory(direct)
         settings = RuntimeSettings(
             llmGatewayUrl="https://gateway.example/v1",
             artifactApiUrl="https://control.example/private/v1",
@@ -701,9 +655,8 @@ def test_proxy_route_is_required_and_target_errors_are_returned(tmp_path: Path) 
         return httpx.Response(502, content=b"target failure", request=request)
 
     async def scenario() -> None:
-        artifacts = FakeArtifactClient()
         settings = proxy_runtime_settings()
-        factory = HTTPToolsetFactory(lambda _allocation, _settings: artifacts)
+        factory = HTTPToolsetFactory()
         with pytest.raises(RuntimeError, match="resolved tool-http"):
             await make_tools(factory, tmp_path, settings=settings)
 
@@ -746,7 +699,6 @@ def test_oversized_response_and_proxy_auth_failure_leave_no_body_selection(
         client = httpx.AsyncClient(transport=httpx.MockTransport(proxy_auth), trust_env=False)
         proxy = ProxyHTTPClient(client)
         factory = HTTPToolsetFactory(
-            lambda _allocation, _settings: artifacts,
             lambda: (_ for _ in ()).throw(AssertionError("direct fallback")),
         )
         proxied = await make_tools(
@@ -781,7 +733,7 @@ async def create_tools(
     def direct() -> httpx.AsyncClient:
         return httpx.AsyncClient(transport=httpx.MockTransport(handler), trust_env=False)
 
-    factory = HTTPToolsetFactory(lambda _allocation, _settings: artifacts, direct)
+    factory = HTTPToolsetFactory(direct)
     tools = await make_tools(factory, tmp_path, state=state)
     return tools, state
 

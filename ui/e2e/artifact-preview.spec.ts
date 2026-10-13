@@ -6,6 +6,49 @@ const API_VERSION = "contractor.public.v1";
 const REVISION = "revision-1";
 
 const artifacts = {
+  "http-evidence": {
+    mediaType: "application/vnd.contractor.http-exchange+json",
+    source: JSON.stringify({
+      schema: "contractor.http.exchange.v1",
+      capture: {
+        source: "http",
+        request_id: "1",
+        request_tag: "r-browser-h1",
+        attempts: [
+          {
+            request: {
+              method: "POST",
+              url:
+                "https://target.example/a/very/long/request/path?query=" +
+                "x".repeat(180),
+              message: {
+                kind: "structured",
+                headers: [{ name: "Content-Type", value: "application/json" }],
+                body_base64: Buffer.from('{"selected":"request"}').toString(
+                  "base64",
+                ),
+              },
+            },
+            response: {
+              status: 403,
+              complete: true,
+              message: {
+                kind: "structured",
+                headers: [{ name: "Content-Type", value: "text/html" }],
+                body_base64: Buffer.from(
+                  '<img src="https://preview.invalid/leak"><script>window.httpInjected = true</script>',
+                ).toString("base64"),
+              },
+            },
+          },
+        ],
+      },
+      finding: {
+        proposal_id: "proposal-browser",
+        receipt_id: "receipt-browser",
+      },
+    }),
+  },
   markdown: {
     mediaType: "text/markdown",
     source: [
@@ -279,5 +322,61 @@ for (const viewport of [
       expect(consoleErrors).toEqual([]);
       expect(pageErrors).toEqual([]);
     });
+  });
+}
+
+for (const theme of ["light", "dark", "black"]) {
+  test("HTTP evidence at 390px in " + theme, async ({ page }, testInfo) => {
+    const base = testInfo.project.use.baseURL;
+    if (typeof base !== "string")
+      throw new Error("Playwright baseURL is required");
+    const origin = new URL(base).origin;
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.addInitScript(
+      (value) => localStorage.setItem("contractor.theme", value),
+      theme,
+    );
+    const external: string[] = [];
+    page.on("request", (request) => {
+      if (new URL(request.url()).origin !== origin)
+        external.push(request.url());
+    });
+    await installArtifactAPI(page, origin);
+    await openPreview(page, "http-evidence");
+    const request = page.getByRole("tab", { name: "Request", exact: true });
+    await expect(request).toBeVisible();
+    await expect(
+      page.getByText('"selected": "request"', { exact: false }),
+    ).toBeVisible();
+    await request.focus();
+    await page.keyboard.press("ArrowRight");
+    await expect(
+      page.getByRole("tab", { name: "Response", exact: true }),
+    ).toBeFocused();
+    await expect(page.getByText("HTTP 403 · Complete response")).toBeVisible();
+    await expect(
+      page.locator(".http-evidence pre").filter({ hasText: "<img" }),
+    ).toBeVisible();
+    await expect(
+      page.locator(
+        ".http-evidence img, .http-evidence script, .http-evidence iframe",
+      ),
+    ).toHaveCount(0);
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+    ).toBe(true);
+    const download = page.waitForEvent("download");
+    await page
+      .getByRole("button", { name: "Download response body", exact: true })
+      .click();
+    expect((await download).suggestedFilename()).toBe("response-body.txt");
+    const saved = page.waitForEvent("download");
+    await page
+      .getByRole("button", { name: "Download this revision", exact: true })
+      .click();
+    expect((await saved).suggestedFilename()).toMatch(/revision-1\.json$/);
+    expect(external).toEqual([]);
   });
 }

@@ -14,90 +14,64 @@ from test_caido_read_tools import close_tools as close_caido_tools
 from test_caido_read_tools import create_tools as create_caido_tools
 from test_http_toolset import FakeArtifactClient, close_tools, create_tools
 
-from contractor_runtime.contracts import ArtifactRef
+from contractor_runtime.toolsets.common.http_capture import RecentHTTPCaptures
 from contractor_runtime.toolsets.http.tools import HTTPToolError
 
 
-class BlockingArtifactClient(FakeArtifactClient):
-    """Commit the first body and then expose a cancellation point to the test."""
-
+class BlockingCaptureBuffer(RecentHTTPCaptures):
     def __init__(self) -> None:
         super().__init__()
         self.committed = asyncio.Event()
         self.block_after_commit = True
 
-    async def write_artifact(
-        self,
-        target: ArtifactRef,
-        *,
-        data: bytes,
-        media_type: str,
-        expected_revision: str | None,
-    ) -> Any:
-        result = await super().write_artifact(
-            target,
-            data=data,
-            media_type=media_type,
-            expected_revision=expected_revision,
-        )
+    async def put(self, capture, invocation_id):
+        await super().put(capture, invocation_id)
         if self.block_after_commit:
+            self.block_after_commit = False
             self.committed.set()
             await asyncio.Event().wait()
-        return result
 
 
-def test_http_cancellation_after_body_commit_never_reuses_id_or_selects_orphan(
+def test_http_cancellation_during_capture_preserves_id_and_does_not_commit_cookies(
     tmp_path: Path,
 ) -> None:
-    observed: list[httpx.Request] = []
+    observed = []
 
-    async def handler(request: httpx.Request) -> httpx.Response:
+    async def handler(request):
         observed.append(request)
-        headers = {"content-type": "text/plain"}
-        if request.url.path == "/first":
-            headers["set-cookie"] = "cancelled=must-not-survive; Path=/"
         return httpx.Response(
             200,
-            content=request.url.path.encode(),
-            headers=headers,
+            text=request.url.path,
+            headers={"set-cookie": "cancelled=must-not-survive; Path=/"}
+            if request.url.path == "/first"
+            else {},
             request=request,
         )
 
-    async def scenario() -> None:
-        artifacts = BlockingArtifactClient()
-        tools, _state = await create_tools(tmp_path, handler, artifacts=artifacts)
+    async def scenario():
+        artifacts = FakeArtifactClient()
+        tools, state = await create_tools(tmp_path, handler, artifacts=artifacts)
+        buffer = BlockingCaptureBuffer()
+        state.http_captures = buffer
+        state.http_session._captures = buffer
         first = asyncio.create_task(tools["http_request"]("https://target.example/first"))
-        await asyncio.wait_for(artifacts.committed.wait(), timeout=1)
+        await asyncio.wait_for(buffer.committed.wait(), timeout=1)
         first.cancel()
         with pytest.raises(asyncio.CancelledError):
             await first
-
-        assert artifacts.writes == 1
-        first_key = next(iter(artifacts.payloads))
-        assert first_key[1].endswith(".000001")
+        assert artifacts.writes == 0
         with pytest.raises(HTTPToolError) as missing:
             await tools["http_read_body"](1)
         assert missing.value.code == "http_body_not_found"
-        assert await tools["http_history"]() == []
-
-        artifacts.block_after_commit = False
+        failed = await tools["http_history"]()
+        assert failed[0]["request_id"] == 1 and failed[0]["error"] == "cancelled"
         second = await tools["http_request"]("https://target.example/second")
         assert second["request_id"] == 2
-        assert second["body_artifact"]["name"].endswith(".000002")
         assert "cookie" not in observed[-1].headers
         assert (await tools["http_read_body"](2))["data"] == "/second"
-        assert [item["request_id"] for item in await tools["http_history"]()] == [2]
-        assert (
-            artifacts.payloads[first_key]
-            != artifacts.payloads[
-                (
-                    second["body_artifact"]["namespace"],
-                    second["body_artifact"]["name"],
-                    second["body_artifact"]["revision"],
-                )
-            ]
-        )
+        assert [item["request_id"] for item in await tools["http_history"]()] == [1, 2]
         await close_tools(tools)
+        assert not buffer._entries
 
     asyncio.run(scenario())
 

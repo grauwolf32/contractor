@@ -2,6 +2,10 @@ import { useId } from "react";
 
 import type { AuditFinding } from "../../api/audits";
 import { formatBytes } from "../../app/format";
+import { Link } from "react-router";
+import { HTTP_EXCHANGE_MEDIA_TYPE } from "../../api/artifacts";
+import type { ArtifactArchiveScope } from "../../api/artifact-archive";
+import { artifactDetailPath } from "../artifacts/paths";
 import {
   CapturedExchange,
   LocationList,
@@ -17,6 +21,21 @@ function EvidenceFiles({ finding }: { finding: AuditFinding }) {
     <ul className="issues-file-list">
       {finding.firstProposal.evidence.map((artifact, index) => {
         const evidenceId = document.evidence_ids[index];
+        const receipt = finding.firstProposal;
+        const hold = receipt.auditHolds.find(
+          (item) => item.auditId === finding.auditId,
+        );
+        const retained = hold?.evidence[index];
+        const scope: ArtifactArchiveScope | undefined =
+          retained !== undefined && hold !== undefined
+            ? { kind: "project", id: hold.projectId }
+            : receipt.origin.runDeleted
+              ? undefined
+              : { kind: "run", id: receipt.origin.runId };
+        const ref = retained?.ref ?? artifact.ref;
+        const href =
+          scope === undefined ? undefined : artifactDetailPath(scope, ref);
+        const http = artifact.mediaType === HTTP_EXCHANGE_MEDIA_TYPE;
         return (
           <li
             key={`${artifact.ref.namespace}/${artifact.ref.name}@${artifact.ref.revision}`}
@@ -26,14 +45,27 @@ function EvidenceFiles({ finding }: { finding: AuditFinding }) {
               {evidenceId ?? `evidence ${index + 1}`}
             </span>
             <span className="issues-file-name">
-              {artifact.ref.namespace}/{artifact.ref.name}
+              {href === undefined ? (
+                <>
+                  {ref.namespace}/{ref.name}
+                </>
+              ) : (
+                <Link to={href}>
+                  {http ? "Open HTTP exchange" : ref.namespace + "/" + ref.name}
+                </Link>
+              )}
             </span>
             <span className="issues-quiet">
-              {evidenceId !== undefined && evidenceId === responseBody
-                ? "Response body · "
-                : ""}
+              {http
+                ? "Request and available response · "
+                : evidenceId !== undefined && evidenceId === responseBody
+                  ? "Response body · "
+                  : ""}
               {artifact.mediaType} · {formatBytes(artifact.sizeBytes)}
             </span>
+            {href === undefined ? (
+              <span className="issues-quiet">Source is unavailable.</span>
+            ) : null}
           </li>
         );
       })}

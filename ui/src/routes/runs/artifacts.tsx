@@ -23,7 +23,7 @@ import { CursorControls } from "../../app/cursor-controls";
 import { saveBlob } from "../../app/download";
 import { useCursorStack } from "../../app/pagination";
 import { ErrorNotice } from "../../app/error-notice";
-import { EmptyState, StatusChip } from "../../ui";
+import { EmptyState, FilterChips, StatusChip } from "../../ui";
 import { ArtifactPreviewPanel } from "../artifacts/preview";
 import { ArtifactDetailView } from "../artifacts/artifact-detail-view";
 import { type RunDisclosureProps, RunSection } from "./components";
@@ -357,9 +357,28 @@ export function RunArtifactLibrary({
       {...disclosure}
     >
       <div className="runs-namespace-filter">
+        <FilterChips
+          label="Run materials"
+          options={[
+            { value: "", label: "All materials" },
+            {
+              value: "finding-proposals",
+              label: "Possible issues and evidence",
+            },
+          ]}
+          value={namespace ?? ""}
+          onChange={(value) => {
+            setNamespace(value || undefined);
+            pages.reset();
+          }}
+        />
         {namespaceFilter.form}
         {namespaceFilter.error}
       </div>
+      <p className="runs-hint">
+        HTTP exchanges are saved with possible issues. Other proxied traffic is
+        available in Caido.
+      </p>
       <QueryView
         query={query}
         loading={

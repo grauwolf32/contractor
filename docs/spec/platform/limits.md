@@ -370,10 +370,10 @@ its owning requirement.
 | `LIM-FND-4` | 8192 UTF-8 bytes | `url` of a Web location; mirrors LIM-HTP-8 (the HTTP tool URL bound) | FindingProposal location validation; the enforcing component is not specified | [FND-R39](../findings/findings.md) |
 | `LIM-FND-5` | 64 ASCII bytes | `method` of a Web location (matches the bounded HTTP method field) | FindingProposal location validation; the enforcing component is not specified | [FND-R39](../findings/findings.md) |
 | `LIM-FND-6` | 1–9007199254740991 (JSON/JavaScript exact integers) | `line` and `range` endpoints of a Source location | FindingProposal location validation; the enforcing component is not specified | [FND-R39](../findings/findings.md) |
-| `LIM-FND-7` | 1 MiB per attempt | Outgoing request body recorded in each `http_exchange` attempt; mirrors LIM-HTP-5 (the `http_request` encoded request body bound) | FindingProposal `http_exchange` validation in the Runtime HTTP finding evidence model and in Server proposal validation | [FND-R53](../findings/findings.md) |
+| `LIM-FND-7` | 1 MiB per attempt | Outgoing structured request body or raw Caido request in each selected exchange attempt; mirrors LIM-HTP-5 (the `http_request` encoded request body bound) | FindingProposal `http_exchange` validation in the Runtime HTTP finding evidence model and in Server proposal validation | [FND-R53](../findings/findings.md) |
 | `LIM-FND-8` | 64 KiB per header block | Each request or response header block in `http_exchange`; the request block is the complete set of headers actually sent. This is the only registry entry for the 64 KiB block: `http_request` cites it (HTP-R24, HTP-R25, HTP-R58) and no LIM-HTP entry exists for it | `http_request` (refuses before sending a request whose complete block would exceed it, HTP-R25; fails `http_response_invalid` on a larger response block, HTP-R58), and FindingProposal `http_exchange` validation in the Runtime HTTP finding evidence model and in Server proposal validation | [findings](../findings/findings.md) |
-| `LIM-FND-9` | 13 records (at most ten redirects plus three attempts) | Request records in one `http_exchange`; mirrors LIM-HTP-7 (10 redirects) and LIM-HTP-9 (two retries after the first attempt) | FindingProposal `http_exchange` validation in the Runtime HTTP finding evidence model and in Server proposal validation | [FND-R53](../findings/findings.md) |
-| `LIM-FND-10` | 8 MiB | Encoded proposal submission, including the embedded `http_exchange` snapshot | Server finding intake (private proposal route); an oversized finding fails explicitly | [FND-R55](../findings/findings.md) |
+| `LIM-FND-9` | 13 records (at most ten redirects plus three attempts) | Request records in one selected exchange or `http_exchange` projection; mirrors LIM-HTP-7 (10 redirects) and LIM-HTP-9 (two retries after the first attempt) | FindingProposal `http_exchange` validation in the Runtime HTTP finding evidence model and in Server proposal validation | [FND-R53](../findings/findings.md) |
+| `LIM-FND-10` | 8 MiB | Encoded proposal document, including its optional direct HTTP projection | Runtime proposal builder and Server finding intake; an oversized finding fails explicitly | [FND-R55](../findings/findings.md) |
 | `LIM-FND-11` | 1–160 ASCII bytes, pattern [A-Za-z0-9][A-Za-z0-9._:-]* | ID values in finding collection metadata (Audit-domain identifier contract) | Server collection publisher, the Go and Python collection codecs and Runtime reader preparation | [FND-R77](../findings/findings.md) |
 | `LIM-FND-12` | at most 64 Audit IDs per entry (sorted, unique) | Optional `audit_holds` of a collection entry | Server collection publisher, the Go and Python collection codecs and Runtime reader preparation | [FND-R82](../findings/findings.md) |
 | `LIM-FND-13` | 1–9007199254740991 | Review observation `revision` in a collection entry | Server collection publisher, the Go and Python collection codecs and Runtime reader preparation | [FND-R86](../findings/findings.md) |
@@ -395,6 +395,7 @@ its owning requirement.
 | `LIM-FND-29` | 256 KiB | Canonical JSON response of one `list_findings` call, including the final cursor | Runtime `list_findings` reader (explicit limit error when one complete item cannot fit) | [FND-R134](../findings/findings.md) |
 | `LIM-FND-30` | 1024 bytes | Decoded cursor JSON of `list_findings` | Runtime `list_findings` reader | [FND-R138](../findings/findings.md) |
 | `LIM-FND-31` | 1366 ASCII bytes | Encoded `list_findings` cursor (unpadded base64url) | Runtime `list_findings` reader | [FND-R138](../findings/findings.md) |
+| `LIM-FND-32` | 64 MiB | Complete private finding submission, including selected HTTP capture | Runtime FindingProposalClient and bounded Server intake decoder; existing transfer admission bounds concurrent buffers | [FND-R55](../findings/findings.md) |
 | `LIM-GIT-1` | 512 UTF-8 bytes | Path length of one entry in the imported source tree | Server Git importer | [GIT-R26](../artifacts/git-import.md) |
 | `LIM-GIT-2` | 1 key per owner | Optional Git SSH private keys per owner | Server Git key settings (/v1/settings/git-key) | [GIT-R37](../artifacts/git-import.md) |
 | `LIM-GIT-3` | 32 KiB | SSH private-key input | Server Git key settings (PUT /v1/settings/git-key) | [GIT-R40](../artifacts/git-import.md) |
@@ -429,7 +430,7 @@ its owning requirement.
 | `LIM-HTP-15` | 16 MiB | response body, applied separately to bytes received and to the decoded body | http-tools@1 (`http_request`) | [HTP-R62](../tools/http-caido.md) |
 | `LIM-HTP-16` | 8192 text characters or binary bytes | one `http_read_body` call | http-tools@1 (`http_read_body`) | [HTP-R68](../tools/http-caido.md) |
 | `LIM-HTP-17` | 128 summaries | allocation HTTP history (`http_history`) | http-tools@1 (`http_history`) | [HTP-R70](../tools/http-caido.md) |
-| `LIM-HTP-18` | 128 outgoing exchanges (latest) | outgoing exchange store of one allocation | http-tools@1 | [HTP-R71](../tools/http-caido.md) |
+| `LIM-HTP-18` | 128 recent exchanges (latest across HTTP and Caido) | Shared allocation capture buffer | Runtime HTTP/Caido toolsets; oldest-first eviction independently of the byte bound | [HTP-R71](../tools/http-caido.md) |
 | `LIM-HTP-19` | 16 MiB | one Caido GraphQL response, received and decoded | caido-graphql@1 adapter | [HTP-R87](../tools/http-caido.md) |
 | `LIM-HTP-20` | 1 MiB | raw request supplied to Caido replay or a workflow | caido@1 tools and the caido-graphql@1 adapter | [HTP-R87](../tools/http-caido.md) |
 | `LIM-HTP-21` | 8192 characters | inline raw preview in a Caido tool result | caido@1 tools and the caido-graphql@1 adapter | [HTP-R87](../tools/http-caido.md) |
@@ -444,6 +445,7 @@ its owning requirement.
 | `LIM-HTP-30` | 6144 binary bytes (encoded as base64) | binary preview returned by Caido request detail | caido@1 (`caido_request_detail`) | [HTP-R90](../tools/http-caido.md) |
 | `LIM-HTP-31` | 0..60000 ms | Automate request delay | caido@1 (`caido_automate_run`) | [HTP-R106](../tools/http-caido.md) |
 | `LIM-HTP-32` | 0 retries | Caido request retries configured for an Automate run | caido@1 (`caido_automate_run`) | [HTP-R106](../tools/http-caido.md) |
+| `LIM-HTP-33` | 64 MiB of serialized capture JSON | Shared HTTP/Caido buffer of one allocation; independent of the 128-entry count | Runtime capture buffer; release replaced bytes and evict oldest captures until both bounds hold | [HTP-R71](../tools/http-caido.md) |
 | `LIM-MEM-1` | 32 KiB | Complete canonical JSON payload of one Memory note, including the schemaVersion, name and ordinal fields; for append_memory, the resulting note | MemoryTools adapters (Server-side Planner adapter and Python Worker adapter) | [MEM-R25](../tools/memory.md) |
 | `LIM-MEM-2` | 121 ASCII bytes | Memory note name (keeps the memory.-prefixed binding within the 128-character Artifact name limit LIM-ART-1) | MemoryTools adapters (Server-side Planner adapter and Python Worker adapter) | [MEM-R26](../tools/memory.md) |
 | `LIM-MEM-3` | 512 UTF-8 bytes | Memory note description | MemoryTools adapters (Server-side Planner adapter and Python Worker adapter) | [MEM-R27](../tools/memory.md) |
@@ -725,6 +727,9 @@ its owning requirement.
 | `LIM-UI-9` | 25 Runs per page | Project Runs section | Web UI Project Runs section | [UI-R121](../ui/ui.md) |
 | `LIM-UI-10` | exactly 1 local file per selection | shared file-drop component for UserScope and ProjectScope uploads | Web UI file-drop component | [UI-R132](../ui/ui.md) |
 | `LIM-UI-11` | 50 events per read | Audit All activity | Web UI Audit activity view | [UI-R153](../ui/ui.md) |
+| `LIM-UI-12` | 256 KiB | One inline text artifact preview, including selected HTTP exchange JSON | Web UI preview eligibility and strict HTTP decoder; larger evidence remains downloadable | [UI-R194](../ui/ui.md) |
+| `LIM-UI-13` | 8192 Unicode characters | Displayed text of one HTTP request or response body | Web UI HTTP preview; explicit shortening and complete body download | [UI-R194](../ui/ui.md) |
+| `LIM-UI-14` | 50 rows | Structured HTTP headers displayed at once | Web UI HTTP preview, with Previous/Next header pages | [UI-R194](../ui/ui.md) |
 | `LIM-UIJ-1` | 7 days | Audit Start/Continue time-limit dialog: seven-day preset, which is also the UI default for Start and for resuming after the time limit | Web UI (Audit time-limit dialog) | [journeys](../ui/journeys.md) |
 | `LIM-UIJ-2` | 24 hours | Audit Start/Continue time-limit dialog: 24-hour preset | Web UI (Audit time-limit dialog) | [UIJ-R77](../ui/journeys.md) |
 | `LIM-WFL-1` | exactly 1 entry Stage per Workflow | Workflow `entryStage` | WorkflowCatalog (Workflow schema validation) | [WFL-R3](../configuration/workflows.md) |

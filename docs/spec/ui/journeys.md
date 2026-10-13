@@ -214,8 +214,8 @@ and the optional active logical Worker dispatch.
 lineage metadata.
 
 **UIJ-R19.** The surface previews bounded UTF-8 Markdown, YAML, JSON, OpenAPI
-and LikeC4 artifacts and retains an explicit download action for the original
-bytes.
+and LikeC4 artifacts, plus selected HTTP exchanges, and retains an explicit
+download action for the original bytes.
 
 **UIJ-R20.** The surface shows bounded Planner, Worker and Runtime metrics
 without exposing prompts, tool payloads, provider bodies or secrets.
@@ -342,6 +342,12 @@ file.
 file.
 
 **UIJ-R56.** Opening a Run does not require downloading every output.
+
+**UIJ-R112.** Opening HTTP evidence from Run materials or a possible issue
+shows the saved request and available response, including missing or incomplete
+outcomes, under [UI-R192 to UI-R195](ui.md). Full traffic remains in Caido
+when routed through it; unselected traffic is not an ordinary HTTP material.
+A large or unsupported preview explains the limit and offers Download.
 
 ### US-06 — Fix the cause and repeat an analysis
 

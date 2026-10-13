@@ -1,0 +1,119 @@
+schema_version: "1.0"
+id: V376-002
+title: Persist HTTP exchanges only when selected as finding evidence
+milestone: http-finding-evidence-2026-10
+epic: http-tools
+kind: feature
+priority: P1
+status: completed
+depends_on: [V376-001]
+languages: [go, python, markdown]
+goal: >-
+  Keep ordinary HTTP artifacts limited to exchanges selected for findings,
+  with the actual outgoing request and optional received response, while
+  retaining the recent exchange buffer and using existing finding intake.
+context:
+  authority: User selected finding-only retention and Caido history instead of complete traffic export on 2026-10-13.
+  design: docs/plans/2026-10-13-http-finding-evidence.md
+  specification:
+    - docs/spec/tools/http-caido.md
+    - docs/spec/findings/findings.md
+    - docs/spec/artifacts/artifact-store.md
+    - docs/spec/platform/limits.md
+    - docs/spec/platform/failure-model.md
+    - docs/spec/platform/lifecycle.md
+  current_gap: >-
+    http/tools.py writes every non-empty final response body to an artifact;
+    caido/tools.py request_detail and completed replay write exchanges before
+    finding selection; finding currently embeds an outgoing snapshot rather
+    than exposing the selected request as its own ordinary evidence artifact.
+scope:
+  in:
+    - Define a strict versioned selected-exchange artifact with mandatory actual request, optional response and explicit incomplete or failed outcomes.
+    - Define explicit HTTP and Caido source selection in existing finding tools; preserve bounded inspection without an independent save tool.
+    - Retain recent response bodies for http_read_body and finding selection without automatically publishing each response as ordinary durable evidence.
+    - Keep at most 128 recent exchanges and define an allocation byte budget and deterministic eviction under the existing per-request bounds.
+    - Publish and pin selected evidence through existing artifact and finding receipt mechanisms; keep publication retries independent of target execution.
+    - Update owning specs, fixed decisions, limits, failure and lifecycle registries and shared fixtures with the implementation.
+  out:
+    - Complete traffic retention, compressed export, independent bookmarks or a new evidence storage subsystem.
+    - Caido routing changes, live model changes, compatibility readers and reconstruction of earlier Runs.
+    - UI rendering, owned by V376-003; the separate sitemap defect V375-002.
+requirements:
+  - id: R1
+    text: Only finding-selected HTTP exchanges are published as ordinary HTTP evidence; successful inspection or an HTTP response alone does not select evidence.
+  - id: R2
+    text: Saved request bytes and headers come from trusted capture, with existing credential handling; a response may be absent or incomplete and 4xx/5xx remain received responses.
+  - id: R3
+    text: HTTP and Caido identities are explicit, finding receives exact durable evidence refs, and selected evidence remains available after release and buffer eviction.
+  - id: R4
+    text: Selection and publication never send or replay target traffic, and repeated finding submission reuses the existing receipt without duplicate evidence publication.
+failure_outcomes:
+  - operation: Select a captured source and publish finding evidence
+    permanent: Invalid, expired or foreign source IDs and oversized content fail explicitly with safe repair text; partial exchanges never become successful evidence.
+    retryable: Retry storage only within existing artifact transport and finding intake budgets; never retry target execution to save evidence.
+    ambiguous: Reconcile using existing deterministic artifact identity, CAS and finding receipt; do not blindly append another artifact or receipt.
+    cancelled: Join in-flight capture and publication before allocation cleanup; no writer outlives its grant and no uncommitted finding is reported as saved.
+    timeout: Preserve independent target-call and artifact/intake deadlines and classify which operation failed.
+cardinality:
+  - collection: Recent captured exchanges and response bodies of one allocation
+    expected: Tens of requests with small response bodies
+    maximum: At most 128 exchanges and 64 MiB of serialized capture JSON under the owning body, header and attempt bounds
+    bound: LIM-HTP-18 and LIM-HTP-33; deterministic oldest-first eviction on count or bytes, with shared cases and a real 16 MiB response regression.
+  - collection: Evidence of one finding
+    expected: One selected HTTP exchange plus any supporting evidence
+    maximum: Existing finding evidence count and document byte limits
+    bound: Validate the complete evidence set before publication; no unbounded traffic or artifact collection scan.
+lifecycle:
+  - entity: Buffered exchange
+    delete: Count or byte eviction, session clear, allocation release or lease loss
+    cascade: Drop only allocation memory; exact selected artifacts and finding pins remain governed by their existing lifecycle.
+    retention: Bounded allocation memory with explicit expired-ID failures
+  - entity: Selected HTTP evidence artifact
+    delete: Existing reference-safe Run, Project and finding evidence lifecycle
+    cascade: Existing artifact and evidence pin rules
+    retention: A recorded finding retains its exact evidence independently of external Caido history and Runtime memory.
+acceptance_criteria:
+  - id: A1
+    given: HTTP requests and Caido inspection or replay with no finding selection
+    when: Tools complete and the allocation is released
+    then: No ordinary HTTP evidence artifacts were published, and bounded tool inspection worked while the source was retained.
+  - id: A2
+    given: A retained HTTP or Caido source selected by a finding
+    when: Finding intake succeeds and the buffer is later cleared
+    then: Exact ordinary evidence contains the captured request and available response or truthful failure outcome, and remains readable through existing finding links.
+  - id: A3
+    given: Expired or foreign IDs, missing response, binary data, retries, redirects, duplicate headers and credential canaries
+    when: Inspection and selection run through production paths
+    then: Ownership, size and credential rules hold; target traffic is not replayed and no missing response is fabricated.
+  - id: A4
+    given: Lost write acknowledgements, intake rejection, cancellation and buffer count or byte exhaustion
+    when: Publication is retried or allocation cleanup runs
+    then: The existing receipt and exact refs reconcile publication without duplicate visible evidence, memory stays bounded and no task outlives release.
+  - id: A5
+    given: The current contract, all finding facades and a disposable PostgreSQL database
+    when: Shared fixtures, production store or process regressions and full touched-package suites run
+    then: Specs and implementations agree and every applicable generic HTTP and Caido path obeys finding-only retention.
+tests:
+  - command: make lint
+    covers: [A1, A2, A3, A4, A5]
+  - command: make test-runtime
+    covers: [A1, A2, A3, A4, A5]
+  - command: make test-wire-cross-language
+    covers: [A3, A5]
+  - command: go test -tags integration ./internal/auditdomain ./internal/findingintake ./internal/artifacts ./internal/httpapi/privateartifacts ./internal/httpapi/public ./internal/config
+    covers: [A1, A2, A4, A5]
+  - command: make verify-public-api
+    covers: [A2, A3, A5]
+  - command: make verify-public-api-postgres
+    covers: [A2, A3, A4, A5]
+verification:
+  date: 2026-10-14
+  results:
+    - make lint passed, including layer and shared-fixture source checks.
+    - make test-runtime passed with 3814 passed and 39 skipped; skipped cases are not counted as passes.
+    - make test-wire-cross-language passed with the disposable PostgreSQL database (227 fixtures, 196 Go and 161 Python shared tests).
+    - Full touched Go packages with integration passed against disposable PostgreSQL; findingintake was rerun after adding the late-rollback regression.
+    - make verify-public-api and make verify-public-api-postgres passed.
+    - Shipped configuration validation passed; no demo database mutation or deployment was performed.
+implementation_commit: 28231edfb758433422276ca03a02bfb951bb5d08

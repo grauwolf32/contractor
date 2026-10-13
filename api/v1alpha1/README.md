@@ -180,3 +180,9 @@ omission disables sampling. Shared producer fragments live in `performance.schem
 Resource integers are bounded by `2^53 - 1`. A complete report requires CPU/RSS
 boundaries, two successful RSS observations and no uncovered interval above 30 seconds.
 Shared Go/Python cases also verify cross-field invariants beyond JSON Schema.
+
+`http-exchange.schema.json` describes the captured exchange submitted as
+`httpEvidence` with an allocation finding. `#/$defs/artifact` describes the
+frozen selected evidence, whose finding association is supplied by Server
+intake. Go and Runtime validate `api/testdata/http-capture-cases.json`; the
+Runtime schema check also pins the closed object structure.

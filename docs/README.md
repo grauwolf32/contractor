@@ -21,6 +21,11 @@ history and legacy-to-domain map of the specification.
 
 [Proposals](proposals/) hold designs of capabilities that are not implemented
 yet; each is folded into the specification once implemented.
+[Compressed HTTP traffic export](proposals/0036-compressed-http-traffic-export.md)
+is a deferred idea. The selected
+[HTTP finding evidence scope](plans/2026-10-13-http-finding-evidence.md) keeps
+ordinary HTTP materials limited to finding evidence and uses Caido for other
+proxied traffic; its Runtime and UI implementation tasks are pending.
 [Research](research/README.md) holds hypotheses and exploratory reports.
 Accepted contracts belong in the specification; implementation status belongs in
 [task files](../tasks/) governed by [tasks/index.yml](../tasks/index.yml). A historical test report does not establish

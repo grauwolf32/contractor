@@ -3,15 +3,12 @@
 from __future__ import annotations
 
 import base64
-from collections import OrderedDict
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
 import httpx
 
-from contractor_runtime.contracts import ArtifactRef
 from contractor_runtime.toolsets.common.credentials import RUNTIME_TARGET_CREDENTIAL
-from contractor_runtime.toolsets.common.http_limits import MAX_HISTORY
 
 
 def capture_headers(headers: httpx.Headers) -> list[dict[str, str]]:
@@ -77,44 +74,47 @@ class CapturedAttempt:
 class CapturedExchange:
     request_id: int
     request_tag: str
-    invocation_id: str | None
     attempts: list[CapturedAttempt] = field(default_factory=list, repr=False)
     complete: bool = False
-    response_body: ArtifactRef | None = None
+    response_body: bytes = field(default=b"", repr=False)
+    error: str | None = None
 
-    def snapshot(self) -> dict[str, Any]:
+    def evidence(self) -> dict[str, Any]:
+        attempts = []
+        for index, attempt in enumerate(self.attempts):
+            last = index == len(self.attempts) - 1
+            value: dict[str, Any] = {
+                "request": {
+                    "method": attempt.method,
+                    "url": attempt.url,
+                    "message": {
+                        "kind": "structured",
+                        "headers": [dict(header) for header in attempt.headers],
+                        "body_base64": base64.b64encode(attempt.body).decode("ascii"),
+                    },
+                }
+            }
+            if attempt.status is not None and self.error != "response_invalid":
+                value["response"] = {
+                    "status": attempt.status,
+                    "message": {
+                        "kind": "structured",
+                        "headers": [dict(header) for header in attempt.response_headers],
+                        "body_base64": base64.b64encode(self.response_body if last else b"").decode(
+                            "ascii"
+                        ),
+                    },
+                    "complete": last and self.complete,
+                }
+            error = self.error if last and self.error else attempt.error
+            if error is not None:
+                value["error"] = error
+            if "response" not in value and "error" not in value:
+                value["error"] = "transport_error"
+            attempts.append(value)
         return {
-            "request_id": self.request_id,
+            "source": "http",
+            "request_id": str(self.request_id),
             "request_tag": self.request_tag,
-            "attempts": [attempt.snapshot() for attempt in self.attempts],
+            "attempts": attempts,
         }
-
-
-class HTTPExchangeHistory:
-    """Access is serialized by the owning HTTP session's lock."""
-
-    def __init__(self) -> None:
-        self._entries: OrderedDict[int, CapturedExchange] = OrderedDict()
-
-    def begin(self, request_id: int, tag: str, invocation_id: str | None) -> CapturedExchange:
-        exchange = CapturedExchange(request_id, tag, invocation_id)
-        self._entries[request_id] = exchange
-        while len(self._entries) > MAX_HISTORY:
-            self._entries.popitem(last=False)
-        return exchange
-
-    def resolve(self, request_id: int, invocation_id: str) -> CapturedExchange:
-        if type(request_id) is not int:
-            raise ValueError("request_id must be an integer returned by http_request")
-        exchange = self._entries.get(request_id)
-        if exchange is None or not exchange.complete or exchange.invocation_id != invocation_id:
-            raise ValueError(
-                "request_id is unavailable in this invocation; omit it or use a recent ID"
-            )
-        return exchange
-
-    def clear(self) -> None:
-        self._entries.clear()
-
-    def contains(self, request_id: int) -> bool:
-        return request_id in self._entries

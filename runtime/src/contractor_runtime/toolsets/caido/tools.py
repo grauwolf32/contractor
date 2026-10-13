@@ -16,7 +16,11 @@ from datetime import UTC, datetime, timedelta
 from itertools import pairwise
 from types import MappingProxyType
 from typing import Any
+from urllib.parse import urlunsplit
 
+from google.adk.tools.tool_context import ToolContext
+
+from contractor_runtime import threads
 from contractor_runtime.adapters import AdapterHandles
 from contractor_runtime.adapters.caido_graphql import CaidoClientError, CaidoGraphQLClient
 from contractor_runtime.adapters.host import EMPTY_ADAPTER_HANDLES
@@ -42,11 +46,12 @@ from contractor_runtime.toolsets.common.credentials import (
     target_authorization,
 )
 from contractor_runtime.toolsets.common.factory import require_metrics, require_selected_tools
+from contractor_runtime.toolsets.common.http_capture import (
+    RecentHTTPCaptures,
+    allocation_http_captures,
+)
 from contractor_runtime.workspace import AllocationWorkspace
 
-CAIDO_EXCHANGE_MEDIA_TYPE = "application/vnd.contractor.caido-exchange+json"
-CAIDO_EXCHANGE_ARTIFACT_PREFIX = "caido.exchange."
-CAIDO_EXCHANGE_SCHEMA_VERSION = "1.0"
 MAX_PAGE_SIZE = 100
 MAX_OFFSET = 1_000_000_000
 MAX_ID_BYTES = 256
@@ -255,6 +260,7 @@ class CaidoToolsetFactory:
             target_policy=policy,
             sleep=self._sleep,
             monotonic=self._monotonic,
+            captures=allocation_http_captures(state),
         )
         builders: dict[str, Callable[[], _CaidoTool]] = {
             "caido_scope": lambda: CaidoScopeTool(session, metrics),
@@ -283,6 +289,7 @@ class _CaidoSession:
         target_policy: TargetPolicy,
         sleep: Callable[[float], Awaitable[None]],
         monotonic: Callable[[], float],
+        captures: RecentHTTPCaptures,
     ) -> None:
         self._handle: CaidoGraphQLClient | None = handle
         self._artifact_client: ArtifactClient | None = artifact_client
@@ -297,6 +304,7 @@ class _CaidoSession:
         self._monotonic = monotonic
         self._lock = asyncio.Lock()
         self._closed = False
+        self._captures = captures
 
     @property
     def metric_secrets(self) -> tuple[str, ...]:
@@ -380,7 +388,9 @@ class _CaidoSession:
                 }
             )
 
-    async def request_detail(self, request_id: str) -> dict[str, Any]:
+    async def request_detail(
+        self, request_id: str, invocation_id: str | None = None
+    ) -> dict[str, Any]:
         selected_id = _request_identifier(request_id)
         async with self._lock:
             data = await self._execute("request_detail", {"id": selected_id})
@@ -393,13 +403,24 @@ class _CaidoSession:
             raw_response = b""
             if isinstance(response, dict):
                 raw_response = self._redaction.message(_blob(response.pop("_raw")))
-            artifact = await self._write_exchange(raw_request, raw_response)
+            await self._remember_exchange(
+                request["id"],
+                request["method"],
+                _captured_url(
+                    request["host"],
+                    request["port"],
+                    request["is_tls"],
+                    request["path"],
+                    request["query"],
+                ),
+                raw_request,
+                raw_response,
+                response.get("status_code") if isinstance(response, dict) else None,
+                invocation_id,
+            )
             request["raw"] = _raw_preview(raw_request)
             if isinstance(response, dict):
                 response["raw"] = _raw_preview(raw_response)
-            request["raw_artifact"] = (
-                None if artifact is None else artifact.model_dump(by_alias=True)
-            )
             return _bounded_result(request)
 
     async def replay(
@@ -412,6 +433,7 @@ class _CaidoSession:
         is_tls: bool,
         wait: bool,
         timeout_seconds: int | float,
+        invocation_id: str | None = None,
     ) -> dict[str, Any]:
         selected_request_id = _optional_identifier(request_id)
         if type(wait) is not bool or type(is_tls) is not bool:
@@ -513,15 +535,23 @@ class _CaidoSession:
                         return _bounded_result({**base_result, "status": "failed"})
                     raw_response = self._redaction.message(observation.pop("_raw_response"))
                     raw_replayed_request = self._redaction.message(observation.pop("_raw_request"))
-                    try:
-                        artifact = await self._write_exchange(raw_replayed_request, raw_response)
-                    except CaidoToolError as error:
-                        raise CaidoToolError(error.code, retryable=False) from None
+                    await self._remember_exchange(
+                        observation["request_id"],
+                        observation["method"],
+                        _captured_url(
+                            connection["host"],
+                            connection["port"],
+                            connection["isTLS"],
+                            observation["path"],
+                            observation["query"],
+                        ),
+                        raw_replayed_request,
+                        raw_response,
+                        observation["status_code"],
+                        invocation_id,
+                    )
                     observation["raw"] = _raw_preview(raw_replayed_request)
                     observation["response_raw"] = _raw_preview(raw_response)
-                    observation["raw_artifact"] = (
-                        None if artifact is None else artifact.model_dump(by_alias=True)
-                    )
                     return _bounded_result({**base_result, **observation})
                 remaining = deadline - self._monotonic()
                 if remaining <= 0:
@@ -891,23 +921,58 @@ class _CaidoSession:
                 }
             )
 
-    async def _write_exchange(self, raw_request: bytes, raw_response: bytes) -> ArtifactRef | None:
-        envelope = _exchange_envelope(raw_request, raw_response)
-        if envelope is None:
-            return None
-        encoded = json.dumps(
-            envelope,
-            ensure_ascii=False,
-            allow_nan=False,
-            separators=(",", ":"),
-        ).encode()
-        if len(encoded) > MAX_ARTIFACT_BYTES:
-            raise CaidoToolError("caido_response_too_large")
-        return await self._write_artifact(
-            CAIDO_EXCHANGE_ARTIFACT_PREFIX,
-            encoded,
-            CAIDO_EXCHANGE_MEDIA_TYPE,
-        )
+    async def _remember_exchange(
+        self,
+        request_id: str,
+        method: str,
+        url: str,
+        raw_request: bytes,
+        raw_response: bytes,
+        status: int | None,
+        invocation_id: str | None,
+    ) -> None:
+        def encode() -> dict[str, Any]:
+            return self._capture_exchange(
+                request_id, method, url, raw_request, raw_response, status
+            )
+
+        capture = await threads.to_thread_until_done(encode, name="caido-exchange-capture")
+        try:
+            await self._captures.put(capture, invocation_id)
+        except ValueError:
+            raise CaidoToolError("caido_response_invalid") from None
+
+    @staticmethod
+    def _capture_exchange(
+        request_id: str,
+        method: str,
+        url: str,
+        raw_request: bytes,
+        raw_response: bytes,
+        status: int | None,
+    ) -> dict[str, Any]:
+        attempt: dict[str, Any] = {
+            "request": {
+                "method": method,
+                "url": url,
+                "message": {
+                    "kind": "raw",
+                    "data_base64": base64.b64encode(raw_request).decode("ascii"),
+                },
+            }
+        }
+        if raw_response and status is not None:
+            attempt["response"] = {
+                "status": status,
+                "message": {
+                    "kind": "raw",
+                    "data_base64": base64.b64encode(raw_response).decode("ascii"),
+                },
+                "complete": True,
+            }
+        else:
+            attempt["error"] = "transport_error"
+        return {"source": "caido", "request_id": request_id, "attempts": [attempt]}
 
     async def _write_artifact(self, prefix: str, data: bytes, media_type: str) -> ArtifactRef:
         if len(data) > MAX_ARTIFACT_BYTES:
@@ -951,6 +1016,7 @@ class _CaidoSession:
             self._sleep = _closed_sleep
             self._monotonic = _closed_monotonic
             self._closed = True
+            self._captures.clear("caido")
 
     async def _execute(
         self, operation: str, variables: Mapping[str, Any] | None = None
@@ -1107,19 +1173,23 @@ class CaidoRequestDetailTool(_CaidoTool):
         request_id: Exact string ID from Caido history or another Caido result.
 
     Returns:
-        Request/response metadata and bounded raw previews, with raw_artifact
-        pointing to the exact stored exchange when available.
+        Request/response metadata and bounded raw previews. Use finding with
+        caido_request_id to retain this exchange as durable evidence.
     """
 
-    async def __call__(self, request_id: str) -> dict[str, Any]:
+    async def __call__(
+        self, request_id: str, tool_context: ToolContext | None = None
+    ) -> dict[str, Any]:
         arguments = {"hasRequestId": bool(request_id) if isinstance(request_id, str) else False}
         return await self._call(
             arguments,
             lambda result: {
                 "status": result.get("status", "found"),
-                "hasArtifact": result.get("raw_artifact") is not None,
+                "hasResponse": result.get("response") is not None,
             },
-            lambda: self._session.request_detail(request_id),
+            lambda: self._session.request_detail(
+                request_id, tool_context.invocation_id if tool_context else None
+            ),
         )
 
 
@@ -1153,6 +1223,7 @@ class CaidoReplayTool(_CaidoTool):
         is_tls: bool = False,
         wait: bool = True,
         timeout_seconds: int | float = 15,
+        tool_context: ToolContext | None = None,
     ) -> dict[str, Any]:
         arguments = {
             "source": "id" if isinstance(request_id, str) and request_id else "raw",
@@ -1174,6 +1245,7 @@ class CaidoReplayTool(_CaidoTool):
                 is_tls=is_tls,
                 wait=wait,
                 timeout_seconds=timeout_seconds,
+                invocation_id=tool_context.invocation_id if tool_context else None,
             ),
         )
 
@@ -1697,6 +1769,15 @@ def _request_response_summary(value: object) -> dict[str, Any] | None:
     }
 
 
+def _captured_url(host: str, port: int | None, is_tls: bool, path: str, query: str) -> str:
+    selected_host = f"[{host}]" if ":" in host and not host.startswith("[") else host
+    default_port = 443 if is_tls else 80
+    authority = selected_host if port in {None, default_port} else f"{selected_host}:{port}"
+    return urlunsplit(
+        ("https" if is_tls else "http", authority, path or "/", query.lstrip("?"), "")
+    )
+
+
 def _request_detail(value: object) -> dict[str, Any]:
     request = _exact_object(
         value,
@@ -1889,26 +1970,6 @@ def _raw_connection(value: object, limit: int) -> dict[str, Any]:
     if count < len(nodes):
         raise CaidoToolError("caido_response_invalid")
     return {"count": count, "nodes": nodes}
-
-
-def _exchange_envelope(request: bytes, response: bytes) -> dict[str, Any] | None:
-    if not request and not response:
-        return None
-    return {
-        "schemaVersion": CAIDO_EXCHANGE_SCHEMA_VERSION,
-        "request": _raw_envelope_value(request),
-        "response": _raw_envelope_value(response),
-    }
-
-
-def _raw_envelope_value(value: bytes) -> dict[str, Any] | None:
-    if not value:
-        return None
-    try:
-        text = value.decode()
-    except UnicodeDecodeError:
-        return {"kind": "binary", "dataBase64": base64.b64encode(value).decode("ascii")}
-    return {"kind": "text", "text": text}
 
 
 def _raw_preview(value: bytes) -> dict[str, Any] | None:

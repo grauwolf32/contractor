@@ -20,7 +20,7 @@ from contractor_runtime.toolsets.common.finding_locations import (
     StandardReference,
     normalize_locations,
 )
-from contractor_runtime.toolsets.common.http_evidence import HTTPExchange
+from contractor_runtime.toolsets.common.http_capture import RecentHTTPCaptures
 from contractor_runtime.toolsets.security_findings.submission import build_submission
 
 
@@ -57,7 +57,8 @@ class FindingPublisher:
         evidence_refs: list[ArtifactRef] | None = None,
         standard_refs: list[StandardReference] | None = None,
         request_id: int | None = None,
-    ) -> dict[str, str]:
+        caido_request_id: str | None = None,
+    ) -> dict[str, Any]:
         with RecordedToolCall(
             self.metrics, "finding", {}, secrets=self.secrets, bound_error=_bounded_finding_error
         ) as call:
@@ -75,11 +76,9 @@ class FindingPublisher:
             for reference in cwe_reference(cwe):
                 if reference not in standards:
                     standards.append(reference)
-            exchange, body_ref = await self._http_evidence(request_id, context.invocation_id)
-            if body_ref is not None:
-                encoded_ref = body_ref.model_dump(exclude_none=True)
-                if encoded_ref not in refs:
-                    refs.append(encoded_ref)
+            exchange = await self._http_evidence(
+                request_id, caido_request_id, context.invocation_id
+            )
             request = build_submission(
                 invocation_id=context.invocation_id,
                 client_key=call_client_key(context),
@@ -92,11 +91,7 @@ class FindingPublisher:
             if normalized:
                 proposal["locations"] = normalized
             if exchange is not None:
-                if body_ref is not None:
-                    index = request["evidenceRefs"].index(body_ref.model_dump(exclude_none=True))
-                    exchange["response_body_evidence_id"] = proposal["evidence_ids"][index]
-                HTTPExchange.model_validate(exchange)
-                proposal["http_exchange"] = exchange
+                request["httpEvidence"] = exchange
             audit_binding = getattr(self.state, "audit_completion_binding", None)
             audit_collector = audit_binding.current() if audit_binding is not None else None
             if audit_collector is not None:
@@ -118,24 +113,39 @@ class FindingPublisher:
                 "receipt_id": str(receipt["receiptId"]),
                 "client_key": proposal["client_key"],
             }
+            if exchange is not None:
+                result["evidence_refs"] = [item["ref"] for item in receipt["evidence"]]
             call.succeed(result, arguments={"location_count": len(normalized)})
             return result
 
     async def _http_evidence(
-        self, request_id: int | None, invocation_id: str
-    ) -> tuple[dict[str, Any] | None, ArtifactRef | None]:
-        if request_id is None:
-            return None, None
-        session = getattr(self.state, "http_session", None)
-        if session is None:
+        self, request_id: int | None, caido_request_id: str | None, invocation_id: str
+    ) -> dict[str, Any] | None:
+        if request_id is None and caido_request_id is None:
+            return None
+        if request_id is not None and caido_request_id is not None:
+            raise ToolInputError("select request_id or caido_request_id, not both")
+        if request_id is not None and (type(request_id) is not int or request_id <= 0):
+            raise ToolInputError("request_id must be an integer returned by http_request")
+        if caido_request_id is not None and (
+            not isinstance(caido_request_id, str) or not caido_request_id
+        ):
+            raise ToolInputError("caido_request_id must be an ID from inspected Caido traffic")
+        captures = getattr(self.state, "http_captures", None)
+        if not isinstance(captures, RecentHTTPCaptures):
             raise ToolInputError(
-                "request_id requires this worker's HTTP session; omit it to report a URL"
+                "captured HTTP evidence requires this worker's HTTP or Caido session"
             )
         try:
-            return await session.finding_exchange(request_id, invocation_id)
+            return await captures.get(
+                "http" if request_id is not None else "caido",
+                str(request_id) if request_id is not None else caido_request_id,
+                invocation_id=invocation_id,
+            )
         except ValueError:
             raise ToolInputError(
-                "request_id is unavailable in this invocation; use a recent ID or omit it"
+                "HTTP evidence is unavailable in this invocation; "
+                "inspect a recent request or omit the ID"
             ) from None
 
     def close(self) -> None:

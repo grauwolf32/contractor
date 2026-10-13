@@ -1,4 +1,7 @@
-import type { ArtifactMetadata } from "../../api/artifacts";
+import {
+  HTTP_EXCHANGE_MEDIA_TYPE,
+  type ArtifactMetadata,
+} from "../../api/artifacts";
 import { workflowFormats } from "../workflows/formats";
 import { SKILL_ARCHIVE_MEDIA_TYPE } from "./artifact-file";
 
@@ -73,6 +76,7 @@ export function materialKindOf(item: KindSource): MaterialKind {
 
 /** "Source code", "API spec", …; a Skill package in the skills namespace. */
 export function materialKindLabel(item: KindSource): string {
+  if (item.mediaType === HTTP_EXCHANGE_MEDIA_TYPE) return "HTTP exchange";
   if (
     item.artifact.namespace === "skills" &&
     item.mediaType === SKILL_ARCHIVE_MEDIA_TYPE
@@ -102,6 +106,7 @@ export function groupMaterialsByKind<T extends KindSource>(
 
 /** Short format name ("ZIP", "Markdown"), else the media type itself. */
 export function formatLabel(mediaType: string): string {
+  if (mediaType === HTTP_EXCHANGE_MEDIA_TYPE) return "HTTP exchange";
   return Object.hasOwn(workflowFormats, mediaType)
     ? workflowFormats[mediaType]!
     : mediaType;

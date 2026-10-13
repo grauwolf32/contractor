@@ -51,6 +51,9 @@ class GeneralFindingTool(_FindingFacade):
         title: Short non-empty finding title.
         description: Observation, impact, prerequisites and reproduction details.
         locations: Optional explicit source or web locations.
+        request_id: Optional recent http_request ID from this invocation.
+        caido_request_id: Optional Caido ID inspected in this invocation. Select
+            one HTTP source; selected exchanges are saved automatically.
         cwe: Optional CWE-NNN weakness identifier from the pinned catalog.
         evidence_refs: Optional exact artifact references copied from tool output.
         standard_refs: Optional exact standard identities copied from an assigned
@@ -64,10 +67,12 @@ class GeneralFindingTool(_FindingFacade):
         description: str,
         tool_context: ToolContext,
         locations: list[Location] | None = None,
+        request_id: LineNumber | None = None,
+        caido_request_id: str | None = None,
         cwe: str | None = None,
         evidence_refs: list[ExactEvidenceRef] | None = None,
         standard_refs: list[StandardReference] | None = None,
-    ) -> dict[str, str]:
+    ) -> dict[str, Any]:
         return await self._publisher.submit(
             title=title,
             description=description,
@@ -76,6 +81,8 @@ class GeneralFindingTool(_FindingFacade):
             cwe=cwe,
             evidence_refs=evidence_refs,
             standard_refs=standard_refs,
+            request_id=request_id,
+            caido_request_id=caido_request_id,
         )
 
 
@@ -110,7 +117,7 @@ class CodeFindingTool(_FindingFacade):
         cwe: str | None = None,
         evidence_refs: list[ExactEvidenceRef] | None = None,
         standard_refs: list[StandardReference] | None = None,
-    ) -> dict[str, str]:
+    ) -> dict[str, Any]:
         location: dict[str, Any] = {"file": file}
         if line is not None:
             location["line"] = line
@@ -141,6 +148,9 @@ class HTTPFindingTool(_FindingFacade):
         url: Absolute HTTP/HTTPS URL of the affected endpoint.
         method: Explicit HTTP method; no default method is inferred.
         request_id: Optional ID returned by http_request in this invocation.
+        caido_request_id: Optional ID from caido_request_detail or a completed
+            caido_replay in this invocation. Select this or request_id; finding
+            saves the selected exchange automatically without sending traffic.
         cwe: Optional CWE-NNN weakness identifier from the pinned catalog.
         evidence_refs: Optional exact artifact references copied from tool output.
         standard_refs: Optional exact standard identities copied from an assigned
@@ -156,10 +166,11 @@ class HTTPFindingTool(_FindingFacade):
         method: str,
         tool_context: ToolContext,
         request_id: LineNumber | None = None,
+        caido_request_id: str | None = None,
         cwe: str | None = None,
         evidence_refs: list[ExactEvidenceRef] | None = None,
         standard_refs: list[StandardReference] | None = None,
-    ) -> dict[str, str]:
+    ) -> dict[str, Any]:
         return await self._publisher.submit(
             title=title,
             description=description,
@@ -169,6 +180,7 @@ class HTTPFindingTool(_FindingFacade):
             evidence_refs=evidence_refs,
             standard_refs=standard_refs,
             request_id=request_id,
+            caido_request_id=caido_request_id,
         )
 
 

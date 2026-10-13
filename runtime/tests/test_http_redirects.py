@@ -8,7 +8,7 @@ from typing import Any
 
 import httpx
 import pytest
-from test_http_toolset import FakeArtifactClient, close_tools, make_tools, proxy_runtime_settings
+from test_http_toolset import close_tools, make_tools, proxy_runtime_settings
 
 from contractor_runtime.adapters import AdapterHandles
 from contractor_runtime.adapters.http_proxy import ProxyHTTPClient
@@ -19,7 +19,7 @@ async def redirect_tools(
     tmp_path: Path, handler: Any, proxied: bool
 ) -> tuple[dict[str, Any], httpx.AsyncClient]:
     client = httpx.AsyncClient(transport=httpx.MockTransport(handler), trust_env=False)
-    factory = HTTPToolsetFactory(lambda *_: FakeArtifactClient(), lambda: client)
+    factory = HTTPToolsetFactory(lambda: client)
     kwargs: dict[str, Any] = {}
     if proxied:
         kwargs = {

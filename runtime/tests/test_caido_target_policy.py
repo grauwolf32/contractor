@@ -244,7 +244,7 @@ def test_caido_and_http_proxy_reject_the_same_destinations(tmp_path: Path) -> No
         )
         client = httpx.AsyncClient(transport=httpx.MockTransport(proxy_handler), trust_env=False)
         http_tools = await make_tools(
-            HTTPToolsetFactory(lambda *_: FakeArtifactClient(), target_policy=policy),
+            HTTPToolsetFactory(target_policy=policy),
             tmp_path,
             settings=settings,
             adapter_handles=AdapterHandles(tool_http=ProxyHTTPClient(client)),

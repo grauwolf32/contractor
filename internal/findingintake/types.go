@@ -10,19 +10,22 @@ import (
 	"fmt"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/apierror"
+	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/strictjson"
 )
 
 const (
 	APIVersion = contracts.APIVersion
-	// A proposal can include captured outgoing HTTP bytes. Apply the existing
-	// Audit document ceiling to the complete submission, including its envelope.
-	MaxRequestBytes   = auditdomain.MaximumDocumentBytes
+	// The proposal keeps its 8 MiB document ceiling. The complete private
+	// submission can additionally carry selected HTTP evidence (LIM-FND-32).
+	MaxRequestBytes   = artifacts.MaxPayloadSize
 	MaxEvidenceRefs   = auditdomain.MaximumEvidencePerItem
 	proposalMediaType = "application/json"
 )
@@ -46,11 +49,31 @@ var (
 var identityPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$`)
 
 type Submission struct {
-	APIVersion   string                      `json:"apiVersion"`
-	InvocationID string                      `json:"invocationId"`
-	SubmissionID string                      `json:"submissionId"`
-	Proposal     auditdomain.FindingProposal `json:"proposal"`
-	EvidenceRefs []contracts.ArtifactRef     `json:"evidenceRefs"`
+	APIVersion   string                            `json:"apiVersion"`
+	InvocationID string                            `json:"invocationId"`
+	SubmissionID string                            `json:"submissionId"`
+	Proposal     auditdomain.FindingProposal       `json:"proposal"`
+	EvidenceRefs []contracts.ArtifactRef           `json:"evidenceRefs"`
+	HTTPEvidence *auditdomain.CapturedHTTPExchange `json:"httpEvidence,omitempty"`
+}
+
+func (input *Submission) UnmarshalJSON(data []byte) error {
+	type plain Submission
+	if err := strictjson.Decode(data, (*plain)(input)); err != nil {
+		return err
+	}
+	// A missing selection is omitted, never an explicitly unknown capture.
+	// Decode only its raw token; all fields were strictly checked above.
+	var fields struct {
+		HTTPEvidence json.RawMessage `json:"httpEvidence"`
+	}
+	if err := json.Unmarshal(data, &fields); err != nil {
+		return err
+	}
+	if string(fields.HTTPEvidence) == "null" {
+		return ErrInvalid
+	}
+	return nil
 }
 
 // ExactArtifact is the shared exact-content descriptor. Receipts always
@@ -122,11 +145,12 @@ type Receipt struct {
 }
 
 type SubmissionResponse struct {
-	APIVersion string        `json:"apiVersion"`
-	ProposalID string        `json:"proposalId"`
-	ReceiptID  string        `json:"receiptId"`
-	Proposal   ExactArtifact `json:"proposal"`
-	Replayed   bool          `json:"replayed"`
+	APIVersion string          `json:"apiVersion"`
+	ProposalID string          `json:"proposalId"`
+	ReceiptID  string          `json:"receiptId"`
+	Proposal   ExactArtifact   `json:"proposal"`
+	Evidence   []ExactArtifact `json:"evidence"`
+	Replayed   bool            `json:"replayed"`
 }
 
 type ListQuery struct {
@@ -190,7 +214,8 @@ func canonicalize(input Submission) (canonicalSubmission, error) {
 	}
 	refs := append([]contracts.ArtifactRef(nil), input.EvidenceRefs...)
 	for _, ref := range refs {
-		if err := ref.ValidateExact(); err != nil || ref.Namespace == "finding-proposals" {
+		if err := ref.ValidateExact(); err != nil ||
+			ref.Namespace == "finding-proposals" && !strings.HasPrefix(ref.Name, "http.exchange.") {
 			return canonicalSubmission{}, fmt.Errorf("%w: evidence reference", ErrInvalid)
 		}
 	}
@@ -221,10 +246,28 @@ func canonicalize(input Submission) (canonicalSubmission, error) {
 		return canonicalSubmission{}, fmt.Errorf("%w: submission correlation", ErrInvalid)
 	}
 	input.EvidenceRefs = refs
+	if input.HTTPEvidence != nil {
+		if len(refs) >= MaxEvidenceRefs || auditdomain.ValidateCapturedHTTPExchange(*input.HTTPEvidence) != nil {
+			return canonicalSubmission{}, fmt.Errorf("%w: HTTP evidence", ErrInvalid)
+		}
+		input.Proposal.EvidenceIDs = append(append([]string(nil), input.Proposal.EvidenceIDs...), fmt.Sprintf("evidence-%d", len(refs)+1))
+		if snapshot := findingHTTPSnapshot(*input.HTTPEvidence, fmt.Sprintf("evidence-%d", len(refs)+1)); snapshot != nil {
+			input.Proposal.HTTPExchange = snapshot
+		}
+		proposalBytes, err = auditdomain.EncodeFindingProposal(input.Proposal)
+		if err != nil {
+			return canonicalSubmission{}, fmt.Errorf("%w: HTTP proposal document", ErrInvalid)
+		}
+		reportProjection, err = auditdomain.EncodeFindingReportProjection(auditdomain.ProjectFindingReport(input.Proposal))
+		if err != nil {
+			return canonicalSubmission{}, fmt.Errorf("%w: HTTP report projection", ErrInvalid)
+		}
+	}
 	digestValue := struct {
-		Proposal     json.RawMessage         `json:"proposal"`
-		EvidenceRefs []contracts.ArtifactRef `json:"evidenceRefs"`
-	}{Proposal: proposalBytes, EvidenceRefs: refs}
+		Proposal     json.RawMessage                   `json:"proposal"`
+		EvidenceRefs []contracts.ArtifactRef           `json:"evidenceRefs"`
+		HTTPEvidence *auditdomain.CapturedHTTPExchange `json:"httpEvidence,omitempty"`
+	}{Proposal: proposalBytes, EvidenceRefs: refs, HTTPEvidence: input.HTTPEvidence}
 	encoded, err := json.Marshal(digestValue)
 	if err != nil {
 		return canonicalSubmission{}, fmt.Errorf("canonicalize finding submission: %w", err)
@@ -233,6 +276,41 @@ func canonicalize(input Submission) (canonicalSubmission, error) {
 		request: input, proposalBytes: proposalBytes, reportProjection: reportProjection,
 		digest: auditdomain.DigestBytes(encoded),
 	}, nil
+}
+
+func findingHTTPSnapshot(capture auditdomain.CapturedHTTPExchange, evidenceID string) *auditdomain.FindingHTTPExchange {
+	if capture.Source != "http" {
+		return nil
+	}
+	id, _ := strconv.ParseInt(capture.RequestID, 10, 64)
+	result := &auditdomain.FindingHTTPExchange{RequestID: id, RequestTag: capture.RequestTag}
+	for _, attempt := range capture.Attempts {
+		if attempt.Request.Message.Kind != "structured" {
+			return nil
+		}
+		value := auditdomain.FindingHTTPAttempt{Method: attempt.Request.Method, URL: attempt.Request.URL,
+			Headers: *attempt.Request.Message.Headers, BodyBase64: *attempt.Request.Message.BodyBase64}
+		if response := attempt.Response; response != nil {
+			status := response.Status
+			value.Status = &status
+			if response.Message.Headers != nil {
+				value.ResponseHeaders = *response.Message.Headers
+			}
+			if response.Message.BodyBase64 != nil && *response.Message.BodyBase64 != "" {
+				result.ResponseBodyEvidenceID = evidenceID
+			}
+		} else {
+			if attempt.Error != "transport_error" && attempt.Error != "timeout" && attempt.Error != "cancelled" {
+				return nil
+			}
+			value.Error = "transport_error"
+			if attempt.Error == "cancelled" {
+				value.Error = "cancelled"
+			}
+		}
+		result.Attempts = append(result.Attempts, value)
+	}
+	return result
 }
 
 func stableSubmissionID(invocationID, clientKey string) string {

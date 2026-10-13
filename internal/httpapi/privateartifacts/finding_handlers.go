@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/findingintake"
 )
@@ -28,6 +29,13 @@ func (h *handler) postFindingProposal(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, err)
 		return
 	}
+	ctx, release, err := artifacts.AcquireTransfer(r.Context())
+	if err != nil {
+		h.handleError(w, err)
+		return
+	}
+	defer release()
+	r = r.WithContext(ctx)
 	input, err := readFindingSubmission(w, r)
 	if err != nil {
 		h.handleError(w, err)
@@ -79,11 +87,16 @@ func findingSubmissionResponse(
 	receipt findingintake.Receipt,
 	replayed bool,
 ) findingintake.SubmissionResponse {
+	evidence := receipt.Evidence
+	if evidence == nil {
+		evidence = []findingintake.ExactArtifact{}
+	}
 	return findingintake.SubmissionResponse{
 		APIVersion: findingintake.APIVersion,
 		ProposalID: receipt.ProposalID,
 		ReceiptID:  receipt.ReceiptID,
 		Proposal:   receipt.Proposal,
+		Evidence:   evidence,
 		Replayed:   replayed,
 	}
 }

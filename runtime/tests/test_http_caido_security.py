@@ -188,13 +188,10 @@ def test_omitted_http_timeout_is_bounded_when_allocation_timeout_exceeds_tool_li
         return httpx.Response(200, content=b"ok", request=request)
 
     async def scenario() -> None:
-        artifacts = FakeArtifactClient()
-
         def direct() -> httpx.AsyncClient:
             return httpx.AsyncClient(transport=httpx.MockTransport(handler), trust_env=False)
 
         factory = http_tools.HTTPToolsetFactory(
-            lambda _allocation, _settings: artifacts,
             direct,
         )
         settings = RuntimeSettings(
@@ -299,12 +296,14 @@ def test_http_response_stream_limit_is_exact_and_never_partially_selects_body(
         tools, _state = await create_tools(tmp_path, handler, artifacts=artifacts)
         exact = await tools["http_request"]("https://target.example/exact")
         assert exact["content_length"] == 64
-        assert artifacts.writes == 1
+        assert artifacts.writes == 0
         with pytest.raises(HTTPToolError) as oversized:
             await tools["http_request"]("https://target.example/oversized")
         assert oversized.value.code == "http_response_too_large"
-        assert artifacts.writes == 1
-        assert [item["request_id"] for item in await tools["http_history"]()] == [1]
+        assert artifacts.writes == 0
+        history = await tools["http_history"]()
+        assert [item["request_id"] for item in history] == [1, 2]
+        assert history[-1]["error"] == "response_too_large"
         await close_tools(tools)
 
     asyncio.run(scenario())
@@ -399,7 +398,8 @@ def test_http_timeout_is_one_deadline_for_a_trickling_response(tmp_path: Path) -
         assert 0.9 <= elapsed < 3
         assert artifacts.writes == 0
         # The session lock was released at the deadline.
-        assert await asyncio.wait_for(tools["http_history"](), 1) == []
+        history = await asyncio.wait_for(tools["http_history"](), 1)
+        assert len(history) == 1 and history[0]["error"] == "timeout"
         await close_tools(tools)
 
     asyncio.run(scenario())
