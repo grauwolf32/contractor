@@ -118,8 +118,15 @@ These are settled decisions. Do not reopen them without the user.
 - **Do not touch the user's work.** The primary checkout often holds the
   user's uncommitted files. Never `git add -A`, `git stash`, `git reset --hard`
   or `git clean` there. Stage only the paths you changed.
-- **Never migrate or write to the demo stand's database.** Use a disposable
-  test database or a scratch schema.
+- **Keep tests and exploratory mutations off the demo database.** Use a
+  disposable test database or a scratch schema in a test database. Read-only
+  inspection of the demo is allowed. A user-requested demo deployment
+  authorizes the schema migrations required by that revision and normal
+  Server startup writes; do not ask for separate migration approval. Before
+  migrating, take and verify a recoverable backup, preserve existing business
+  data and record the applied migration versions in the release manifest.
+  Resetting, bulk-deleting or replacing demo business data outside required
+  migrations needs separate, explicit user authorization.
 
 ## 3. Lessons from the backlog
 
