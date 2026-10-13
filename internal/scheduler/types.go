@@ -17,6 +17,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/planner/stageresult"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/settingsstore"
+	"github.com/grauwolf32/contractor/internal/sourcezip"
 	"github.com/grauwolf32/contractor/internal/telemetry"
 )
 
@@ -312,6 +313,7 @@ type Options struct {
 // RuntimeTransportSettings holds the static endpoints needed when materializing
 // per-allocation Runtime settings; credentials are resolved from pinned config.
 type RuntimeTransportSettings struct {
+	SourceArchiveLimits   *sourcezip.Limits
 	ArtifactAPIURL        string
 	RequestTimeoutSeconds int
 }

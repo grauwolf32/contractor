@@ -748,6 +748,11 @@ scratch.
 `source-analysis@1` compatibility path below allocation-private
 `scratch/source`.
 
+The allocation-private `source-analysis@1` reader uses the Server-selected
+`RuntimeSettings.sourceArchiveLimits` admission budgets
+([GIT-R93](../artifacts/git-import.md)). Project workspace storage limits and
+code-analysis parser budgets remain independent.
+
 **WSP-R131.** The project workspace and the
 `source-analysis@1` path are never combined, and project-workspace presence
 always takes precedence, including for a missing path.

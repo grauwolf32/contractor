@@ -521,7 +521,30 @@ def _require_worker_summarizer_policy(policy: ResolvedModelPolicy) -> None:
         raise ValueError("modelPolicy is incompatible with the Worker terminal summarizer")
 
 
+class SourceArchiveLimits(WireModel):
+    """Server-selected expanded source budgets; compressed Artifact bytes stay separate."""
+
+    max_expanded_bytes: int = Field(ge=1, le=1024 * 1024 * 1024)
+    max_file_bytes: int = Field(ge=1, le=64 * 1024 * 1024)
+    max_entries: int = Field(ge=1, le=50_000)
+
+    @model_validator(mode="after")
+    def validate_limits(self) -> Self:
+        if self.max_file_bytes > self.max_expanded_bytes:
+            raise ValueError("source file limit exceeds expanded source limit")
+        return self
+
+
+def default_source_archive_limits() -> SourceArchiveLimits:
+    return SourceArchiveLimits(
+        max_expanded_bytes=64 * 1024 * 1024,
+        max_file_bytes=4 * 1024 * 1024,
+        max_entries=10_000,
+    )
+
+
 class RuntimeSettings(WireModel):
+    source_archive_limits: SourceArchiveLimits | None = None
     llm_recovery: bool = Field(default=False, strict=True, exclude_if=lambda value: not value)
     llm_gateway_url: str | None = Field(default=None, exclude_if=lambda value: value is None)
     llm_gateway_token: SecretStr | None = None

@@ -140,7 +140,9 @@ func configureWorkflows(
 	if err != nil {
 		return workflowServices{}, err
 	}
+	sourceLimits := cfg.GitImport.EffectiveLimits().Source
 	runtimeTransport := scheduler.RuntimeTransportSettings{
+		SourceArchiveLimits:   &sourceLimits,
 		ArtifactAPIURL:        strings.TrimRight(cfg.PrivateURL, "/") + "/private/v1",
 		RequestTimeoutSeconds: int(cfg.WorkerRequestTimeout / time.Second),
 	}

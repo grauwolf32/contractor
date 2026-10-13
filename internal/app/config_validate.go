@@ -92,7 +92,7 @@ func (c *serveConfigInputs) effectiveConfig() (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
-	gitConfig := gitimport.Config{AllowedRemotes: c.gitRemotes.values, KnownHostsFile: c.gitKnownHosts}
+	gitConfig := gitimport.Config{AllowedRemotes: c.gitRemotes.values, KnownHostsFile: c.gitKnownHosts, Limits: &c.gitImportLimits}
 	if err := gitimport.ValidateConfig(gitConfig); err != nil {
 		return Config{}, err
 	}

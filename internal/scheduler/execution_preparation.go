@@ -142,6 +142,10 @@ func (s *Scheduler) materializeRuntimeSettings(
 		ArtifactAPIURL:        s.options.RuntimeTransport.ArtifactAPIURL,
 		RequestTimeoutSeconds: s.options.RuntimeTransport.RequestTimeoutSeconds,
 	}
+	if limits := s.options.RuntimeTransport.SourceArchiveLimits; limits != nil {
+		copied := *limits
+		result.SourceArchiveLimits = &copied
+	}
 	if signatures := resolved.LLMGateway.FailureSignatures; signatures != nil {
 		copied := signatures.Clone()
 		result.LLMGatewayFailureSignatures = &copied

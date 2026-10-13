@@ -76,6 +76,44 @@ but unavailable development credential rejects Run creation before execution.
 
 For managed virtual keys, follow [Gateway credentials](../operations/gateway-credentials.md).
 
+## Git import budgets and SSH
+
+The checked-in ServerConfig allows `github.com:443` and `github.com:22`.
+The built-in allowlist remains empty when no remote list is authored.
+The local config pins GitHub's published host keys in `configs/github_known_hosts`.
+For SSH imports, configure the owner's key in Repository access and add its
+public key to GitHub. Other hosts need operator-verified entries through
+`gitKnownHostsFile`; allowing a port does not disable host verification or read
+the host's SSH agent. Refresh the pinned file only after independently verifying
+a GitHub-published key rotation.
+
+`ServerConfig.spec.gitImport` controls import resource budgets. The local
+configuration admits 128 MiB of expanded source and 16 MiB per source file,
+while the compressed Artifact ceiling stays 64 MiB. Built-in defaults stay
+64 MiB expanded and 4 MiB per file. Values are literal integer byte counts:
+
+```yaml
+gitImport:
+  timeout: 120s
+  maxReceivedBytes: 134217728
+  maxDecodedBytes: 268435456
+  maxExpandedBytes: 134217728
+  maxFileBytes: 16777216
+  maxEntries: 10000
+```
+
+Each setting has an environment override, for example
+`CONTRACTOR_GIT_IMPORT_MAX_EXPANDED_BYTES`, and a flag, for example
+`--git-import-max-expanded-bytes`. The remaining suffixes are `TIMEOUT`,
+`MAX_RECEIVED_BYTES`, `MAX_DECODED_BYTES`, `MAX_FILE_BYTES` and `MAX_ENTRIES`
+with corresponding kebab-case flags. Precedence is defaults < YAML <
+environment < flags; changes require a Server restart and affect newly
+prepared allocations. Server forwards the source budgets to Runtime, so no
+second Runtime configuration is needed. See the
+[Git import budget contract](../spec/artifacts/git-import.md#import-budgets)
+for finite ceilings and failure behavior. The source bundle CLI and the
+code-analysis parser retain their independent budgets.
+
 ## Inspect Operations
 
 The read-only Operations API exposes one coherent current Control Plane view:

@@ -8,6 +8,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
+	"github.com/grauwolf32/contractor/internal/sourcezip"
 )
 
 // TestSharedRuntimeSettingsBoundsCases checks RuntimeSettings decoding against
@@ -21,7 +22,8 @@ func TestSharedRuntimeSettingsBoundsCases(t *testing.T) {
 		Description    string `json:"description"`
 		Base           string `json:"base"`
 		ServerDefaults struct {
-			Export TelemetryExport `json:"export"`
+			Export              TelemetryExport  `json:"export"`
+			SourceArchiveLimits sourcezip.Limits `json:"sourceArchiveLimits"`
 		} `json:"serverDefaults"`
 		Cases []struct {
 			Name       string                     `json:"name"`
@@ -41,6 +43,9 @@ func TestSharedRuntimeSettingsBoundsCases(t *testing.T) {
 	}
 	if want := PinTelemetryExport(nil); fixture.ServerDefaults.Export != want {
 		t.Fatalf("shared server defaults = %+v, want the Server's %+v", fixture.ServerDefaults.Export, want)
+	}
+	if fixture.ServerDefaults.SourceArchiveLimits != sourcezip.DefaultLimits() {
+		t.Fatal("source archive defaults differ from the shared fixture")
 	}
 	base := contractstest.ReadFixture(t, "valid", strings.TrimPrefix(fixture.Base, "valid/"))
 	for _, test := range fixture.Cases {

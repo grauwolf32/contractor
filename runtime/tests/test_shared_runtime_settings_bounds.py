@@ -19,6 +19,7 @@ from pydantic import ValidationError
 from referencing import Registry, Resource
 
 from contractor_runtime.contracts import RuntimeSettings
+from contractor_runtime.contracts.settings import default_source_archive_limits
 
 ROOT = Path(__file__).resolve().parents[2]
 FIXTURES = ROOT / "api" / "testdata" / "v1alpha1"
@@ -85,6 +86,10 @@ def test_shared_runtime_settings_server_defaults() -> None:
     # Runtime has none and only accepts what the Server sends.
     assert FIXTURE["base"].startswith("valid/")
     assert SERVER_EXPORT.model_dump(by_alias=True) == FIXTURE["serverDefaults"]["export"]
+    assert (
+        default_source_archive_limits().model_dump(by_alias=True)
+        == (FIXTURE["serverDefaults"]["sourceArchiveLimits"])
+    )
 
 
 @pytest.mark.parametrize("case", FIXTURE["cases"], ids=lambda case: case["name"])

@@ -50,8 +50,18 @@ spec:
     requestTimeout: 15s
 
   artifactBlobBackend: postgresql
+  # Whole-import and source-reader budgets; bytes are literal byte counts.
+  gitImport:
+    timeout: 120s
+    maxReceivedBytes: 134217728
+    maxDecodedBytes: 268435456
+    maxExpandedBytes: 134217728
+    maxFileBytes: 16777216
+    maxEntries: 10000
   gitAllowedRemotes:
     - github.com:443
+    - github.com:22
+  gitKnownHostsFile: github_known_hosts
 
   localAuthFile: ../.local/secrets/local-auth.yaml
   browserOrigins:

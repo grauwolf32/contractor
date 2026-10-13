@@ -395,16 +395,18 @@ verified.
 
 ### Import budgets
 
-**GIT-R66.** Every import must stay within these budgets, which bound
+**GIT-R66.** Every import must stay within these budgets. Listed defaults apply when
+`ServerConfig.spec.gitImport` omits a setting; configurable ranges are defined
+by the referenced limit registry entries. These budgets bound
 ref advertisements, object counts, delta depth and parser allocations as well
 as the final output:
 
 | Budget | Value | Limit |
 | --- | --- | --- |
 | Import request JSON | 64 KiB | LIM-GIT-5 |
-| Whole import, including resolution, fetch, ZIP creation and publication | 120 seconds | LIM-GIT-6 |
-| Cumulative received Git protocol and pack bytes | 128 MiB | LIM-GIT-7 |
-| Cumulative decoded Git object bytes, including delta results | 256 MiB | LIM-GIT-8 |
+| Whole import, including resolution, fetch, ZIP creation and publication | configurable, default 120 seconds | LIM-GIT-6 |
+| Cumulative received Git protocol and pack bytes | configurable, default 128 MiB | LIM-GIT-7 |
+| Cumulative decoded Git object bytes, including delta results | configurable, default 256 MiB | LIM-GIT-8 |
 | One advertisement or ACK negotiation | 4 MiB | LIM-GIT-9 |
 | Advertised references, including peeled entries | 10,000 | LIM-GIT-10 |
 | Packed objects | 50,000 | LIM-GIT-11 |
@@ -412,13 +414,36 @@ as the final output:
 | Delta depth | 50 | LIM-GIT-13 |
 | Annotated-tag depth | 8 | LIM-GIT-14 |
 | Published ZIP payload | 64 MiB | LIM-GIT-15 |
-| Source ZIP entries | 10,000 | LIM-GIT-16 |
-| Source ZIP expanded bytes | 64 MiB | LIM-GIT-17 |
-| One source file | 4 MiB | LIM-GIT-18 |
+| Source ZIP entries | configurable, default 10,000 | LIM-GIT-16 |
+| Source ZIP expanded bytes | configurable, default 64 MiB | LIM-GIT-17 |
+| One source file | configurable, default 4 MiB | LIM-GIT-18 |
 
-Rationale: the source ZIP entry, expanded-byte and one-file budgets preserve
-the current source-analysis budgets rather than assuming that a 64 MiB
-transport artifact is always consumable as a workspace.
+**GIT-R92.** The operator configures `timeout`, `maxReceivedBytes`,
+`maxDecodedBytes`, `maxExpandedBytes`, `maxFileBytes` and `maxEntries` under
+`ServerConfig.spec.gitImport`. Resolution is defaults, YAML, environment, then
+flags (OPS-R13); invalid, nonpositive, excessive or inconsistent budgets fail
+before startup. Received and decoded accounting uses the effective values
+before object allocation, including delta intermediates. The HTTP import
+handler, service and Git client use the same whole-import timeout.
+
+**GIT-R93.** Scheduler sends the effective expanded-byte, file-byte and entry
+budgets as `RuntimeSettings.sourceArchiveLimits` on every prepared allocation.
+The Runtime source archive reader validates declared and streamed sizes with
+those values. Omission of this optional process setting means the registered
+source defaults; a supplied object requires all three members. The Go and
+Python validators and wire schema share the RuntimeSettings bounds fixture.
+A process setting change applies to newly prepared allocations after restart;
+existing allocations retain their received values. Raising archive admission
+does not widen model-visible read/search windows or code-analysis parser
+budgets. Local directory bundling retains its independent default budgets.
+
+Rationale: compressed transport size, expanded source content and parsing work
+are separate bounds. Configurable source admission permits larger snapshots
+without claiming that every admitted file can be parsed. Code analysis reports
+oversized files in its existing coverage output. The generic compressed
+Artifact ceiling and one-import admission remain fixed. Operators size memory
+and workspace capacity for their selected values; filesystem blob storage does
+not make the current in-memory pack decoder or ZIP encoder a streaming path.
 
 **GIT-R67.** Decoded accounting includes delta programs and
 intermediate results, even after their buffers become reclaimable. Every

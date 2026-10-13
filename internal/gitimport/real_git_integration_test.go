@@ -32,6 +32,7 @@ import (
 	"time"
 
 	"github.com/go-git/go-git/v5/plumbing"
+	"github.com/grauwolf32/contractor/internal/sourcezip"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/knownhosts"
 )
@@ -226,7 +227,7 @@ func TestDecodedPackCumulativeBudget(t *testing.T) {
 	// inflation even though the compressed pack is tiny and objects deduplicate.
 	entry := packEntry{kind: plumbing.BlobObject, data: make([]byte, maxObjectBytes)}
 	pack := makePack(entry, entry, entry, entry, entry)
-	if _, err := decodePack(context.Background(), bytes.NewReader(pack)); !errors.Is(err, ErrBudget) {
+	if _, err := decodePack(context.Background(), bytes.NewReader(pack), DefaultLimits()); !errors.Is(err, ErrBudget) {
 		t.Fatalf("cumulative decoded bytes: %v", err)
 	}
 }
@@ -546,4 +547,57 @@ func TestReadOnlyGitProbe(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Logf("HTTPS and private SSH succeeded; peak RSS=%d KiB", usage.Maxrss)
+}
+
+func TestRealHTTPSConfiguredSourceBudgets(t *testing.T) {
+	repo, _ := realRepository(t)
+	content := bytes.Repeat([]byte("source line\n"), (5<<20)/len("source line\n")+1)
+	for index := range 14 {
+		if err := os.WriteFile(filepath.Join(repo, fmt.Sprintf("large-%02d.txt", index)), content, 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	nativeGit(t, repo, "add", ".")
+	nativeGit(t, repo, "commit", "-m", "larger source fixture")
+	commit := strings.TrimSpace(string(nativeGit(t, repo, "rev-parse", "HEAD")))
+	server := serveGitHTTP(t, repo, nil)
+	defer server.Close()
+	remote, err := ParseRemote(server.URL + "/repo.git")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, test := range []struct {
+		name     string
+		limits   Limits
+		accepted bool
+	}{
+		{"default", DefaultLimits(), false},
+		{"configured", Limits{Timeout: Deadline, MaxReceivedBytes: MaxReceivedBytes, MaxDecodedBytes: MaxDecodedBytes, Source: sourcezip.Limits{MaxExpandedBytes: 128 << 20, MaxFileBytes: 16 << 20, MaxEntries: 10000}}, true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			client, err := NewClient(Config{AllowedRemotes: []string{remote.Address}, Limits: &test.limits}, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			client.allowLoopback = true
+			client.tlsConfig = server.Client().Transport.(*http.Transport).TLSClientConfig.Clone()
+			snapshot, err := client.Fetch(t.Context(), remote, "main", nil)
+			if !test.accepted {
+				if !errors.Is(err, ErrBudget) {
+					t.Fatalf("expected budget rejection: %v", err)
+				}
+				return
+			}
+			if err != nil || snapshot.Commit != commit {
+				t.Fatalf("configured fetch=%+v, %v", snapshot, err)
+			}
+			archive, err := zip.NewReader(bytes.NewReader(snapshot.Data), int64(len(snapshot.Data)))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(archive.File) != 27 {
+				t.Fatalf("source ZIP files=%d", len(archive.File))
+			}
+		})
+	}
 }

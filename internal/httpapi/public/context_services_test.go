@@ -152,6 +152,8 @@ func (s testServices) dependencies() Dependencies {
 // configured.
 type unavailableGitImports struct{}
 
+func (unavailableGitImports) Timeout() time.Duration { return gitimport.Deadline }
+
 func (unavailableGitImports) DoImport(context.Context, gitimport.ImportRequest, func(gitimport.ImportResult)) error {
 	return gitimport.ErrConfiguration
 }

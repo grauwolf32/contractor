@@ -50,7 +50,7 @@ func configureHTTP(
 	if err != nil {
 		return serverHandlers{}, fmt.Errorf("configure Git reader: %w", err)
 	}
-	gitImporter, err := gitimport.NewImporter(pool, gitClient, credentialSet.gitKeys)
+	gitImporter, err := gitimport.NewImporter(pool, gitClient, credentialSet.gitKeys, cfg.GitImport.EffectiveLimits().Timeout)
 	if err != nil {
 		return serverHandlers{}, fmt.Errorf("configure Git importer: %w", err)
 	}
