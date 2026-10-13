@@ -95,7 +95,7 @@ func (r *PostgresRepository) write(
 		}
 		return WriteResult{}, err
 	}
-	if blob.Backend == BlobFilesystem && storedObjectKey != nil && *storedObjectKey != blob.Key {
+	if blob.Backend == BlobFilesystem && (storedObjectKey == nil || *storedObjectKey != blob.Key) {
 		discardUnusedBlob(ctx, r.db, blob)
 	}
 	return WriteResult{

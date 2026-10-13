@@ -35,6 +35,7 @@ type Config struct {
 	DatabaseURL                 string
 	ArtifactBlobBackend         artifacts.BlobBackend
 	ArtifactBlobPath            string
+	ArtifactBlobInlineMaxBytes  int64
 	GitImport                   gitimport.Config
 	OperatorConfigRoot          string
 	ManagedConfigRoot           string
@@ -159,18 +160,14 @@ func runCLI(
 		<-watchDone
 	}()
 	ctx = activeContext
-	var blobStore artifacts.BlobStore = artifacts.PostgresBlobStore{}
-	if cfg.ArtifactBlobBackend == artifacts.BlobFilesystem {
-		files, err := artifacts.OpenFilesystemBlobStore(ctx, cfg.ArtifactBlobPath)
-		if err != nil {
-			return err
-		}
-		defer files.Close()
-		blobStore = files
-	}
-	if err := artifacts.ClaimBlobBackend(ctx, pool, cfg.ArtifactBlobBackend); err != nil {
+	backend, blobStore, err := artifacts.OpenBlobStore(ctx, cfg.ArtifactBlobBackend, cfg.ArtifactBlobPath, cfg.ArtifactBlobInlineMaxBytes)
+	if err != nil {
 		return err
 	}
+	if closer, ok := blobStore.(io.Closer); ok {
+		defer closer.Close()
+	}
+	logger.Info("artifact blob storage initialized", "large_payload_backend", backend)
 	ctx = artifacts.WithBlobRuntime(ctx, artifacts.NewBlobRuntime(blobStore, logger))
 	configurationManager, bundles, err := loadServerConfiguration(cfg.OperatorConfigRoot, cfg.ManagedConfigRoot, logger)
 	if err != nil {

@@ -151,9 +151,6 @@ func purgeBlobContext(t *testing.T, ctx context.Context, pool *pgxpool.Pool) (co
 	if os.Getenv("CONTRACTOR_TEST_ARTIFACT_BACKEND") != "filesystem" {
 		return ctx, ""
 	}
-	if err := ClaimBlobBackend(ctx, pool, BlobFilesystem); err != nil {
-		t.Fatal(err)
-	}
 	path := t.TempDir()
 	files, err := OpenFilesystemBlobStore(ctx, path)
 	if err != nil {

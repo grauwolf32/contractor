@@ -128,8 +128,8 @@ test-git-artifacts: require-database runtime-venv
 ARTIFACT_BACKEND_PACKAGES := ./internal/artifacts ./internal/findingintake
 
 # Every one of those tests on the filesystem backend, without Podman; a
-# release-verify-integration pass. Tests that always claim the filesystem
-# backend, such as the Run, Project and Audit purge tests, run in every pass.
+# release-verify-integration pass. Tests that always use filesystem
+# storage, such as the Run, Project and Audit purge tests, run in every pass.
 test-artifact-filesystem: require-database
 	CONTRACTOR_TEST_ARTIFACT_BACKEND=filesystem go test -tags=integration -count=1 -timeout=15m $(ARTIFACT_BACKEND_PACKAGES)
 

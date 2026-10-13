@@ -38,9 +38,6 @@ func TestBackupRestorePreservesExactArtifactsAndCAS(t *testing.T) {
 			if err != nil || len(initial.AppliedVersions) == 0 {
 				t.Fatalf("fresh migration: %+v, %v", initial, err)
 			}
-			if err := artifacts.ClaimBlobBackend(ctx, source, backend); err != nil {
-				t.Fatal(err)
-			}
 			sourceDir, backupDir, targetDir := t.TempDir(), filepath.Join(t.TempDir(), "blobs"), t.TempDir()
 			sourceCtx := restoreBlobContext(t, ctx, backend, sourceDir)
 			projects := projectstore.NewPostgresStore(source)
@@ -91,9 +88,6 @@ func TestBackupRestorePreservesExactArtifactsAndCAS(t *testing.T) {
 			restored, err := postgres.ApplyMigrations(ctx, target, postgres.MigrationBudgets{})
 			if err != nil || len(restored.AppliedVersions) != 0 || restored.CurrentVersion != initial.CurrentVersion {
 				t.Fatalf("restored migration ledger: %+v, %v", restored, err)
-			}
-			if err := artifacts.ClaimBlobBackend(ctx, target, backend); err != nil {
-				t.Fatal(err)
 			}
 			targetCtx := restoreBlobContext(t, ctx, backend, targetDir)
 			recoveredStore, err := artifacts.NewService(artifacts.NewPostgresRepository(target)).Project(project.ProjectID)

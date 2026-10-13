@@ -151,9 +151,11 @@ API-published configuration version on pod replacement. Use only baked-in
 operator configurations there. Do not bind credentials, admin keys or
 RuntimeConfigs to a Gateway published in that ephemeral root.
 
-Choose the payload backend for a fresh installation. Changing the flag does
-not migrate an existing store. PostgreSQL is the default; filesystem requires a
-dedicated absolute path; S3 is not implemented. Storage, backup implications and
+The default payload policy is `auto`: a configured writable file root stores
+new payloads above the inclusive inline threshold; smaller payloads and writes
+without available filesystem storage use PostgreSQL. Existing blobs retain
+their own backend. Configure `artifactBlobPath` and `artifactBlobInlineMaxBytes`
+in ServerConfig, or force a new-write backend explicitly. S3 is not implemented. Storage, backup implications and
 offline cleanup are described in [artifact blob storage](operations/artifact-blob-storage.md).
 
 The Gateway endpoint and model aliases belong to immutable documents under

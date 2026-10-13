@@ -30,7 +30,8 @@ Terms are collected in the [glossary](../glossary.md); this document owns the
 following ones.
 
 - **Payload backend.** The storage that holds the immutable Artifact payload
-  bytes of an installation: `postgresql` or `filesystem`.
+  bytes of one blob: `postgresql` or `filesystem`. The blob registry records
+  the backend and physical object key independently of the current write policy.
 - **ArtifactBlobStore.** The internal blob interface through which every
   payload is stored, opened and deleted; it sits beside the ArtifactRegistry
   ([Artifact store](artifact-store.md)) under the ArtifactStore.
@@ -60,22 +61,23 @@ following ones.
 The ArtifactStore keeps scopes, immutable versions, logical bindings, CAS,
 grants and lineage in the ArtifactRegistry, which is PostgreSQL, and immutable
 payload bytes in the ArtifactBlobStore. The ArtifactBlobStore is backed by
-exactly one payload backend per installation.
+per-blob storage metadata. A Server process chooses its new-write policy at startup;
+PostgreSQL and filesystem payloads may coexist in the same registry.
 
 ```mermaid
 flowchart TD
     Store[ArtifactStore] --> Registry["ArtifactRegistry (PostgreSQL)<br/>scopes, immutable versions, logical bindings, CAS, grants, lineage"]
     Store --> Blob["ArtifactBlobStore<br/>immutable payload bytes"]
-    Blob -->|"default"| PG["postgresql<br/>payload bytes in the PostgreSQL database"]
-    Blob -->|"explicit startup option"| FS["filesystem<br/>payload files under a Server-owned path;<br/>PostgreSQL keeps object key, digest and size"]
+    Blob -->|"inline payloads or unavailable filesystem"| PG["postgresql<br/>payload bytes in the PostgreSQL database"]
+    Blob -->|"larger payloads with an available filesystem"| FS["filesystem<br/>payload files under a Server-owned path;<br/>PostgreSQL keeps object key, digest and size"]
 ```
 
 ### Backends
 
 | Backend | Payload location | Local storage requirement |
 | --- | --- | --- |
-| `postgresql` | Existing PostgreSQL database; default | No local blob filesystem, shared local volume, writable blob directory, temporary upload file or PVC |
-| `filesystem` | Explicit Server-owned path | Writable directory; ephemeral storage is allowed |
+| `postgresql` | Existing PostgreSQL database; inline payloads and fallback | No local blob filesystem, shared local volume, writable blob directory, temporary upload file or PVC |
+| `filesystem` | Configured Server-owned path | Writable directory for new files; ephemeral storage is allowed |
 
 ### Filesystem physical objects
 
@@ -110,15 +112,25 @@ stateDiagram-v2
 and lifecycle authority stay in PostgreSQL whichever payload backend is
 selected.
 
-**BLB-R2.** The Server selects one payload backend at startup for its
-installation (LIM-BLB-2), and all payloads use that backend: there is no
-size-based routing.
+**BLB-R2.** A registry may contain both supported payload backends (LIM-BLB-2).
+The Server selects the policy for new payloads at startup; existing blobs
+retain their recorded backend, physical key, digest and size.
 
 **BLB-R64.** Payload backend selection is independent of Worker workspace
 storage, UI settings and managed configuration roots.
 
-**BLB-R65.** Neither a filesystem probe nor whether a directory happens to
-be writable decides the backend implicitly.
+**BLB-R65.** The default startup mode is `auto`. At each startup, the Server
+probes the configured dedicated blob directory using the operations in BLB-R8.
+With a usable directory, new payloads up to the inclusive inline threshold
+(LIM-BLB-3) use PostgreSQL and larger payloads use filesystem. Without a configured
+directory or after an unavailable-directory probe, new payloads use PostgreSQL
+regardless of that threshold. Cancellation and deadline expiry abort startup
+instead of selecting another backend.
+
+Rationale: each blob already records its physical storage. Selecting a writer
+at startup does not reinterpret existing payloads and needs no global backend
+claim. A writable directory is used only when explicitly configured; its
+durability remains the operator's deployment choice under BLB-R6.
 
 **BLB-R3.** Backend selection is a startup option only: it is not an
 Operations setting, Workflow field, Runtime label or per-request option.
@@ -126,49 +138,57 @@ Operations setting, Workflow field, Runtime label or per-request option.
 **BLB-R66.** The command-line flag overrides the environment variable (see
 [Startup configuration](#startup-configuration)).
 
-**BLB-R67.** Changing the payload backend requires a Server restart.
+**BLB-R67.** Changing the startup write policy or inline threshold requires a
+Server restart. No restart moves existing payload bytes.
 
-**BLB-R4.** The payload backend is `postgresql`, the default, or
-`filesystem`; each keeps payloads where the [backend table](#backends) says and
-needs only the local storage listed there.
+**BLB-R4.** Each stored payload backend is `postgresql` or `filesystem`.
+Startup mode accepts `auto`, `postgresql` or `filesystem`; explicit backend
+modes force new payloads into that backend, while reads and physical deletion
+always use each blob's recorded backend.
 
-**BLB-R5.** `filesystem` requires an absolute, dedicated path. The
-directory may be ephemeral, for example a Kubernetes `emptyDir`, including
-memory-backed storage; a persistent disk or PVC is optional for operators who
-need it.
+**BLB-R5.** `filesystem` requires an absolute, dedicated path. `auto` may
+configure the same path; YAML paths resolve relative to the ServerConfig file
+before validation, while environment and CLI paths must be clean and absolute.
+The directory may be ephemeral, for example a Kubernetes `emptyDir`, including
+memory-backed storage; persistent storage is optional for operators who need it.
 
 **BLB-R6.** Losing a `filesystem` volume may lose Artifact bytes while
 their metadata remains in PostgreSQL. This is an accepted limitation of the
 filesystem backend: payloads lost this way are reported through the
 missing-content behaviour of BLB-R46 (FAIL-BLB-6).
 
-**BLB-R7.** An unknown backend name fails validation, and `s3` is
-rejected with an explicit unsupported-backend error. Backend selection never
-falls back to `postgresql` or `filesystem`.
+**BLB-R7.** An unknown startup mode fails validation, and `s3` is rejected
+with an explicit unsupported-backend error. Invalid configuration never becomes
+a fallback to another backend; automatic availability fallback is defined only
+for `auto` by BLB-R65 and BLB-R77.
 
-**BLB-R8.** Before serving, `filesystem` verifies actual bounded create,
-write, publish, read and delete operations in its path; a read-only or
-inaccessible path fails startup (FAIL-BLB-7).
+**BLB-R8.** Before serving, explicit `filesystem` mode verifies actual bounded
+create, write, publish, read and delete operations in its path; failure aborts
+startup (FAIL-BLB-7). `auto` performs the same probe when a path is configured
+and applies BLB-R65. Opening files for reads under a PostgreSQL write policy
+does not create directories or require write access.
 
-**BLB-R9.** `postgresql` rejects a supplied blob path and performs no
-filesystem initialization for artifacts.
+**BLB-R9.** Explicit `postgresql` mode performs no filesystem write probe.
+An optional blob path opens existing files for reads, checks and deletion;
+unavailable files retain their own missing-content or I/O errors.
 
-**BLB-R10.** The Server persists the installation's backend kind in
-PostgreSQL and checks it before serving or catalog seeding. A mismatch fails
-explicitly; restarting with another backend does not copy or reinterpret
-existing blobs (FAIL-BLB-7).
+**BLB-R10.** The registry stores the effective backend on every blob. There
+is no installation-wide backend setting or guard. Startup never changes a
+blob's recorded physical location; reads, checks and final-reference deletion
+route through that location, independently of the current write policy.
 
-**BLB-R11.** Existing installations with payloads are `postgresql`
-installations. A fresh installation may choose either `postgresql` or
-`filesystem`.
+**BLB-R11.** Existing PostgreSQL payloads and newly written filesystem
+payloads may coexist, and either remains readable after a change of write
+policy. Enabling filesystem writes does not require moving existing payloads.
 
 **BLB-R12.** Relocating a `filesystem` path requires operator-managed
 data movement if existing bytes should survive. An empty replacement path is
 allowed; payloads absent from it follow the missing-content behaviour of
 BLB-R46.
 
-**BLB-R13.** The single active Server process uses one backend for its
-registry, and any replica sharing that registry must use the same backend.
+**BLB-R13.** The single active Server process may read both payload backends
+and uses at most one configured filesystem root. All processes that read
+filesystem payloads from a shared registry must see their underlying files.
 
 **BLB-R68.** A `filesystem` deployment is specified for one Server process.
 
@@ -177,12 +197,30 @@ the same underlying directory with compatible atomic publication semantics,
 because identical path strings on separate hosts or pods are separate stores,
 not one.
 
+**BLB-R76.** `ServerConfig.spec.artifactBlobInlineMaxBytes` sets the inclusive
+inline threshold in `auto` mode, with default and bounds in LIM-BLB-3. Explicit
+backend modes ignore the threshold for new-write routing. All modes retain the
+generic payload ceiling and independent transfer/processing budgets.
+
+**BLB-R77.** When filesystem preparation of an `auto` upload fails with a
+missing-storage or I/O failure before registry publication, the Server may
+prepare the same bytes inline in PostgreSQL. Cancellation, timeout, invalid
+content, and a failed or ambiguous registry publication never trigger this
+fallback. An unreferenced file candidate follows existing offline-cleanup rules.
+
+**BLB-R78.** Deduplication preserves an existing digest's physical backend,
+including when the current write policy differs. Existing inline bytes retain
+database checksum validation; existing files undergo BLB-R39 verification. An
+unused file candidate is removed under the existing commit-safe cleanup rules.
+The Server never acknowledges a duplicate whose retained file is unavailable.
+
 ### Blob boundary
 
 **BLB-R14.** Every payload passes through one small internal blob
 interface, the ArtifactBlobStore, which stores complete immutable bytes, opens
 them and deletes an exact physical object. The ArtifactBlobStore is
-replaceable: the backend behind it is chosen at startup.
+replaceable: startup selects its new-write policy, and existing objects route
+through their recorded backend.
 
 **BLB-R15.** The PostgreSQL adapter participates in registry
 transactions, and inline PostgreSQL payloads keep database-enforced size and
@@ -210,9 +248,9 @@ filesystem selection.
 installation's blob store, a Server composition defect such as work started
 from a fresh background context, fails as a logged internal error. It is never
 reported as missing or corrupt content, and a deletion fails before its commit
-instead of skipping the unlink. Without the blob store a write can only offer
-inline bytes, which the persisted backend kind rejects on a `filesystem`
-installation (BLB-R10).
+instead of skipping the unlink. A prepared filesystem payload also requires
+the installed blob store for its pre-publication check. Inline payloads carry
+their bytes with the registry row and need no filesystem access.
 
 ### Transfers and memory
 
@@ -337,11 +375,11 @@ bytes the Server wrote, so publication rechecks only that the candidate file is
 still present with that size and never reads it back.
 
 **BLB-R41.** The publication statement may reuse only the exact physical
-key that was verified. If the existing content is missing, or a concurrent
-writer has installed a different unverified key, the Server atomically attaches
-the complete upload candidate instead; existing revisions that reference the
-same SHA then read the replacement bytes, without any change to logical
-revisions or content identity (FAIL-BLB-3).
+key verified by the writer. If another writer has installed a different
+unverified key, a verified filesystem candidate may replace that key atomically;
+a PostgreSQL candidate must fail rather than publish an unverified reference.
+A verified filesystem candidate may also repair genuinely missing file content.
+Missing file content with only a PostgreSQL candidate remains an explicit error.
 
 **BLB-R42.** Corruption, permission and I/O errors and cancellation are
 not treated as absence of content.
@@ -436,14 +474,15 @@ durable cleanup queue is needed (FAIL-BLB-8).
 
 ### Startup configuration
 
-| Flag | Environment | Default |
-| --- | --- | --- |
-| `--artifact-blob-backend` | `CONTRACTOR_ARTIFACT_BLOB_BACKEND` | `postgresql` |
-| `--artifact-blob-path` | `CONTRACTOR_ARTIFACT_BLOB_PATH` | unset |
+| ServerConfig field | Flag | Environment | Default |
+| --- | --- | --- | --- |
+| `artifactBlobBackend` | `--artifact-blob-backend` | `CONTRACTOR_ARTIFACT_BLOB_BACKEND` | `auto` |
+| `artifactBlobPath` | `--artifact-blob-path` | `CONTRACTOR_ARTIFACT_BLOB_PATH` | unset |
+| `artifactBlobInlineMaxBytes` | `--artifact-blob-inline-max-bytes` | `CONTRACTOR_ARTIFACT_BLOB_INLINE_MAX_BYTES` | LIM-BLB-3 |
 
-The backend flag accepts `postgresql` and `filesystem` (BLB-R4,
-BLB-R7). The path flag is required by `filesystem` (BLB-R5) and
-rejected by `postgresql` (BLB-R9).
+Precedence is built-in defaults < ServerConfig < environment < CLI. Backend
+mode and path validation follow BLB-R4, BLB-R5 and BLB-R7. A configured path is
+also used for existing filesystem reads when new writes select PostgreSQL.
 
 ### Blob store protocol sketch
 
@@ -465,7 +504,8 @@ Limits ([registry](../platform/limits.md)):
 
 - LIM-BLB-1 — four active full-payload transfers per Server process
   (BLB-R24).
-- LIM-BLB-2 — one payload backend per installation (BLB-R2).
+- LIM-BLB-2 — supported per-blob backends and configured roots (BLB-R2).
+- LIM-BLB-3 — inclusive inline threshold in auto mode (BLB-R76).
 - The generic payload ceiling (LIM-ART-4) belongs to
   [Artifact store](artifact-store.md), the overlay export budget to [Workspace](../tools/workspace.md) and Git
   import admission to [Git import](git-import.md).
@@ -494,9 +534,7 @@ code:
 
 - unknown backend — validation failure (BLB-R7);
 - unsupported backend `s3` (BLB-R7);
-- backend kind mismatch (BLB-R10);
-- unusable `filesystem` path — startup failure (BLB-R8);
-- blob path supplied with `postgresql` (BLB-R9);
+- unusable explicit `filesystem` path — startup failure; `auto` uses PostgreSQL (BLB-R8);
 - transfer capacity exhausted — retryable (BLB-R25);
 - missing or corrupt content (BLB-R46, BLB-R52);
 - blob store not installed for an operation — internal error (BLB-R75).
@@ -528,8 +566,8 @@ objects (BLB-R74). Telemetry content rules are in
 - S3-compatible object storage, a deferred third backend: its credentials,
   buckets, multipart operations and consistency and recovery details are not
   designed, and `s3` is rejected (BLB-R7).
-- Migration of populated stores, automatic store migration and online backend
-  switching.
+- Bulk migration or rewriting of existing payload locations and online write-policy
+  reconfiguration. Startup policy changes may coexist with retained payloads.
 - Online orphan sweeping and online cleanup.
 - Stronger crash durability: no distributed transaction, durable upload-intent
   queue, automatic reconstruction, background reconciliation service or

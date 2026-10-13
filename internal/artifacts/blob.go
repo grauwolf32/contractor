@@ -9,21 +9,22 @@ import (
 	"path/filepath"
 
 	"github.com/grauwolf32/contractor/internal/apierror"
-	postgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
-	"github.com/jackc/pgx/v5"
 )
 
 type BlobBackend string
 
 const (
+	// BlobAuto selects the new-write policy; each blob records its own backend.
+	BlobAuto       BlobBackend = "auto"
 	BlobPostgres   BlobBackend = "postgresql"
 	BlobFilesystem BlobBackend = "filesystem"
 )
 
+const DefaultBlobInlineMaxBytes int64 = 1 << 20
+
 var (
-	ErrBlobBackend         = errors.New("invalid or unsupported artifact blob backend")
-	ErrBlobBackendMismatch = errors.New("artifact blob backend does not match the installation")
-	ErrBlobMissing         = apierror.New(apierror.ArtifactContentMissing, "artifact blob content is missing")
+	ErrBlobBackend = errors.New("invalid or unsupported artifact blob backend")
+	ErrBlobMissing = apierror.New(apierror.ArtifactContentMissing, "artifact blob content is missing")
 	// ErrBlobIO reports a failed blob storage operation. Unlike
 	// ErrArtifactIntegrity it proves nothing about the stored bytes, and the
 	// same operation may succeed on retry.
@@ -53,13 +54,10 @@ type BlobStore interface {
 
 func ValidateBlobConfig(kind, path string) (BlobBackend, error) {
 	if kind == "" {
-		kind = string(BlobPostgres)
+		kind = string(BlobAuto)
 	}
 	switch BlobBackend(kind) {
-	case BlobPostgres:
-		if path != "" {
-			return "", fmt.Errorf("%w: postgresql does not accept a blob path", ErrBlobBackend)
-		}
+	case BlobAuto, BlobPostgres:
 	case BlobFilesystem:
 		if !filepath.IsAbs(path) || filepath.Clean(path) != path {
 			return "", fmt.Errorf("%w: filesystem requires a clean absolute blob path", ErrBlobBackend)
@@ -67,22 +65,16 @@ func ValidateBlobConfig(kind, path string) (BlobBackend, error) {
 	default:
 		return "", fmt.Errorf("%w: %s", ErrBlobBackend, kind)
 	}
+	if path != "" && (!filepath.IsAbs(path) || filepath.Clean(path) != path) {
+		return "", fmt.Errorf("%w: blob path must be clean and absolute", ErrBlobBackend)
+	}
 	return BlobBackend(kind), nil
 }
 
-// ClaimBlobBackend serializes first startup and prevents implicit migration.
-func ClaimBlobBackend(ctx context.Context, db postgres.DBTX, kind BlobBackend) error {
-	if kind != BlobPostgres && kind != BlobFilesystem {
-		return ErrBlobBackend
-	}
-	var selected string
-	err := db.QueryRow(ctx, `UPDATE artifact_blob_settings SET backend = $1
-WHERE singleton AND (backend IS NULL OR backend = $1) RETURNING backend`, string(kind)).Scan(&selected)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return ErrBlobBackendMismatch
-	}
-	if err != nil {
-		return fmt.Errorf("claim artifact blob backend: %w", err)
+// ValidateBlobInlineLimit checks the inclusive inline threshold for auto mode.
+func ValidateBlobInlineLimit(value int64) error {
+	if value < 0 || value > MaxPayloadSize {
+		return fmt.Errorf("%w: inline byte limit must be between 0 and %d", ErrBlobBackend, MaxPayloadSize)
 	}
 	return nil
 }
@@ -127,7 +119,7 @@ func (PostgresBlobStore) Check(ctx context.Context, object BlobObject) error {
 // Deletion of inline bytes is owned by the registry DELETE, never a second I/O.
 func (PostgresBlobStore) Delete(ctx context.Context, object BlobObject) error {
 	if object.Backend != BlobPostgres {
-		return ErrBlobBackendMismatch
+		return ErrArtifactIntegrity
 	}
 	return ctx.Err()
 }

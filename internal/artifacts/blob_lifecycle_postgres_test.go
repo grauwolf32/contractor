@@ -24,9 +24,6 @@ func TestFilesystemRegistryAndCommitCleanup(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	pool := isolatedArtifactPool(t, ctx)
-	if err := ClaimBlobBackend(ctx, pool, BlobFilesystem); err != nil {
-		t.Fatal(err)
-	}
 	path := t.TempDir()
 	files, err := OpenFilesystemBlobStore(ctx, path)
 	if err != nil {
@@ -81,9 +78,6 @@ func TestFilesystemBlobWithoutRuntimeFailsLoudly(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	pool := isolatedArtifactPool(t, ctx)
-	if err := ClaimBlobBackend(ctx, pool, BlobFilesystem); err != nil {
-		t.Fatal(err)
-	}
 	path := t.TempDir()
 	files, err := OpenFilesystemBlobStore(ctx, path)
 	if err != nil {
@@ -121,12 +115,6 @@ func TestFilesystemBlobWithoutRuntimeFailsLoudly(t *testing.T) {
 	}
 	_, err = run.Write(runtimeless, ArtifactRef{Namespace: "scratch", Name: "prepared"}, prepared, nil)
 	loud("write of a prepared filesystem payload", err)
-	// Without a runtime a write can only offer inline bytes; the registry's
-	// backend guard rejects them on a filesystem installation.
-	_, err = run.Write(runtimeless, ArtifactRef{Namespace: "scratch", Name: "inline"}, Payload{MediaType: "text/plain", Data: []byte("inline bytes")}, nil)
-	if postgres.SQLState(err) != postgres.SQLStateCheckViolation {
-		t.Fatalf("inline write without blob runtime = %v, want the backend guard rejection", err)
-	}
 	if _, err := runstore.NewPostgresStore(pool).TransitionRun(ctx, "runtimeless-run", runstore.RunRunning, runstore.RunSucceeded, runstore.Reason{Code: "done"}); err != nil {
 		t.Fatal(err)
 	}
@@ -189,9 +177,6 @@ func TestFilesystemMissingContentKeepsMetadata(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 	pool := isolatedArtifactPool(t, ctx)
-	if err := ClaimBlobBackend(ctx, pool, BlobFilesystem); err != nil {
-		t.Fatal(err)
-	}
 	path := t.TempDir()
 	files, err := OpenFilesystemBlobStore(ctx, path)
 	if err != nil {
@@ -225,9 +210,6 @@ func TestFilesystemFailedUnlinkLeavesCleanableOrphan(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 	pool := isolatedArtifactPool(t, ctx)
-	if err := ClaimBlobBackend(ctx, pool, BlobFilesystem); err != nil {
-		t.Fatal(err)
-	}
 	path := t.TempDir()
 	files, err := OpenFilesystemBlobStore(ctx, path)
 	if err != nil {
@@ -260,9 +242,6 @@ func TestFilesystemCreateOnlyConflictDiscardsCandidate(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 	pool := isolatedArtifactPool(t, ctx)
-	if err := ClaimBlobBackend(ctx, pool, BlobFilesystem); err != nil {
-		t.Fatal(err)
-	}
 	path := t.TempDir()
 	files, err := OpenFilesystemBlobStore(ctx, path)
 	if err != nil {
@@ -326,9 +305,6 @@ func TestFilesystemLostWriteAcknowledgementKeepsCommittedBytes(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 	pool := isolatedArtifactPool(t, ctx)
-	if err := ClaimBlobBackend(ctx, pool, BlobFilesystem); err != nil {
-		t.Fatal(err)
-	}
 	path := t.TempDir()
 	files, err := OpenFilesystemBlobStore(ctx, path)
 	if err != nil {
