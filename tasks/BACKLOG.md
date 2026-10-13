@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-85 open tasks: 4 in progress, 67 pending, 14 deferred. 876 finished: 873 completed, 3 archived.
+84 open tasks: 3 in progress, 67 pending, 14 deferred. 877 finished: 874 completed, 3 archived.
 
 ## In progress
 
@@ -14,7 +14,6 @@ the epics are in [epics.yml](epics.yml).
 | [V40-002](v40-002-agent-instruction-paired-runner.yml) | evals | feature | P1 | Prepare instruction experiment bindings and a frozen plan after format readiness |
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
-| [V375-003](v375-003-configurable-git-import-limits.yml) | projects-artifacts | feature | P1 | Configure Git import resource budgets and permit GitHub SSH in the local configuration |
 
 ## Pending
 
@@ -192,7 +191,7 @@ tasks in `introduced_by`.
 | Scanner tool Workers and scan planning (`scan-tools`) | 1 | 10 | 4 | 1 | 7 |
 | Findings tools and collections (`findings`) | 4 | 7 | 5 | 4 | 7 |
 | Workflow catalog and document workflows (`workflows`) | 3 | 13 | 13 | 11 | 12 |
-| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 2 | 28 | 32 | 4 | 34 |
+| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 1 | 28 | 32 | 4 | 34 |
 | Audits (`audits`) | 21 | 49 | 68 | 12 | 76 |
 | Evaluations (`evals`) | 4 | 21 | 28 | 5 | 33 |
 | Podman sandbox (`sandbox`) | 0 | 8 | 1 | 1 | 2 |

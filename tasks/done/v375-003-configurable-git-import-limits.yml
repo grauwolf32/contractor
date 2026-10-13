@@ -5,7 +5,8 @@ milestone: git-artifact-import
 epic: projects-artifacts
 kind: feature
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: 0df36cbd445e3e0ad6d44d9fb5fe8a590bfd1979
 depends_on: []
 languages: [go, python, json, yaml, markdown]
 goal: Allow operators to admit larger source snapshots without rebuilding Server or Runtime, while keeping transport, decoding and archive work bounded and consistent across both processes.
@@ -92,10 +93,11 @@ tests:
 verification:
   - All touched Go package suites passed with a disposable PostgreSQL 17 database, including the filesystem publication regression; the final Git integration and app suites passed again after the export cleanup.
   - The real Git integration suite passed, including a tracked tree above 64 MiB with files above 4 MiB under raised budgets and rejection with defaults.
-  - The focused Runtime and contract suites passed 340 tests. The complete Runtime suite passed 3828 tests with 39 optional tests skipped.
+  - The focused Runtime and contract suites passed 340 tests. The complete Runtime suite passed 3828 tests with 39 tests skipped.
   - The cross-language gate passed 293 Runtime contract tests and 1066 shared Runtime cases, covering 226 fixtures through 195 Go and 160 Python shared tests.
   - make lint, make verify-public-api, shipped configuration validation and git diff --check passed.
   - A read-only probe using the configured production Git client fetched NetBox c69d31d720146980a847f2a9ec3518ddfe3a3fc9 over both HTTPS and SSH with the owner's existing encrypted key. Both produced the same 22578998-byte ZIP with SHA-256 e96cb6f29c73b502e6d9817732276cdcbdc2e207c238865cfb34e85b81ddbc13.
   - The production Runtime source reader opened that ZIP using the Server's serialized 128 MiB expanded and 16 MiB per-file limits, retaining 2164 readable files and reporting 133 ignored entries. The ZIP contains 2297 entries and no Git internals.
   - Peak RSS of the standalone process performing two successive production-client probes, HTTPS then SSH, was 538.44 MiB; this is not a constant-memory or one-import process bound.
   - GitHub host keys were checked against its official published fingerprints before the pinned known_hosts file was committed. No demo Artifact was published and all credential lookup queries used a read-only database session.
+  - The demo was updated to implementation revision 0df36cbd445e3e0ad6d44d9fb5fe8a590bfd1979. Its live configuration admits both GitHub ports and uses the committed host key pins and 128/16 MiB source budgets. Read-only HTTPS and SSH probes passed with that deployed configuration, and the deployed Runtime opened the resulting NetBox ZIP. Server, UI, both Runtime Agents and all five scanner tools were ready; the retained Run, 24 Projects, 23 Runs and migration ledger were unchanged.
