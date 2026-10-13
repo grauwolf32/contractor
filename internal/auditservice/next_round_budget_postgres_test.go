@@ -19,6 +19,11 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
+// nextRoundBudgetDeadline bounds each test below, and each holds its
+// Controller claim for as long: under -race the near-limit reads outlast a
+// shorter lease, and only the test's own deadline may end the claim.
+const nextRoundBudgetDeadline = 180 * time.Second
+
 // TestPostgresNextRoundSpreadsLargeProposalsAndReportsUnschedulable holds
 // proposals that together exceed one 8 MiB proposal inventory and one that
 // cannot fit any inventory. Later Rounds split the former and skip the
@@ -28,7 +33,7 @@ func TestPostgresNextRoundSpreadsLargeProposalsAndReportsUnschedulable(t *testin
 	if databaseURL == "" {
 		t.Skip("CONTRACTOR_TEST_DATABASE_URL is not set")
 	}
-	ctx, cancel := context.WithTimeout(t.Context(), 180*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), nextRoundBudgetDeadline)
 	defer cancel()
 	pool := isolatedAuditServicePool(t, ctx, databaseURL)
 	snapshot := loadAuditServiceProfilesWithProfile(t, func(profile string) string {
@@ -79,7 +84,7 @@ func TestPostgresNextRoundSpreadsLargeProposalsAndReportsUnschedulable(t *testin
 		t.Fatal(err)
 	}
 	store := auditstoretest.NewStore(pool)
-	claims, err := store.Claim(ctx, auditstore.ClaimParams{HolderID: "round-budget-controller", Lease: time.Minute, Limit: 1})
+	claims, err := store.Claim(ctx, auditstore.ClaimParams{HolderID: "round-budget-controller", Lease: nextRoundBudgetDeadline, Limit: 1})
 	if err != nil || len(claims) != 1 {
 		t.Fatalf("claim = (%+v, %v)", claims, err)
 	}
@@ -140,7 +145,7 @@ func TestPostgresNextRoundPreparesNineNearLimitProposals(t *testing.T) {
 	if databaseURL == "" {
 		t.Skip("CONTRACTOR_TEST_DATABASE_URL is not set")
 	}
-	ctx, cancel := context.WithTimeout(t.Context(), 180*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), nextRoundBudgetDeadline)
 	defer cancel()
 	pool := isolatedAuditServicePool(t, ctx, databaseURL)
 	snapshot := loadAuditServiceProfilesWithProfile(t, func(profile string) string {
@@ -191,7 +196,7 @@ func TestPostgresNextRoundPreparesNineNearLimitProposals(t *testing.T) {
 		t.Fatal(err)
 	}
 	store := auditstoretest.NewStore(pool)
-	claims, err := store.Claim(ctx, auditstore.ClaimParams{HolderID: "round-budget-controller", Lease: time.Minute, Limit: 1})
+	claims, err := store.Claim(ctx, auditstore.ClaimParams{HolderID: "round-budget-controller", Lease: nextRoundBudgetDeadline, Limit: 1})
 	if err != nil || len(claims) != 1 {
 		t.Fatalf("claim = (%+v, %v)", claims, err)
 	}
