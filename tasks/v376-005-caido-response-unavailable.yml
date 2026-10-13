@@ -1,0 +1,49 @@
+schema_version: "1.0"
+id: V376-005
+title: Preserve an unavailable Caido response without inventing a transport failure
+milestone: http-finding-evidence-2026-10
+epic: http-tools
+kind: defect
+introduced_by: V376-002
+priority: P2
+status: pending
+depends_on: [V376-002, V376-004]
+languages: [go, python, typescript, markdown]
+goal: Retain finding-selected requests whose response Caido does not expose with an explicit unavailable capture outcome.
+context:
+  finding: >-
+    runtime/src/contractor_runtime/toolsets/caido/tools.py:979 assigns
+    transport_error when request detail has no response bytes. Missing capture
+    does not prove target transport failure, yet the UI currently says it failed.
+  siblings: >-
+    The Runtime capture model, Go finding intake validator, private artifact
+    schema, shared cases and UI decoder/renderer must recognize the same
+    response_unavailable outcome. Actual HTTP transport failures keep their
+    current outcome. No public API endpoint or generated DTO changes.
+  specification:
+    - docs/spec/findings/findings.md
+    - docs/spec/tools/http-caido.md
+    - docs/spec/platform/failure-model.md
+scope:
+  in:
+    - Mark absent Caido response capture as response_unavailable, retaining the actual request.
+    - Keep Go, Python, schema, fixtures and UI outcome labels consistent.
+    - Verify selected request-only evidence through real finding intake on both blob backends.
+  out:
+    - New traffic, replay, fetching another response during finding publication or diagnosing Caido's remote state.
+acceptance_criteria:
+  - id: A1
+    text: An inspected Caido request without response is selectable; saved evidence has the exact request, no fabricated response and response_unavailable.
+  - id: A2
+    text: UI says the response was unavailable, without claiming transport failure; actual HTTP failures remain unchanged.
+  - id: A3
+    text: Shared validators, real PostgreSQL and filesystem intake regressions and the complete verification gate pass.
+tests:
+  - command: make verify
+    covers: [A1, A2, A3]
+  - command: make test-wire-cross-language
+    covers: [A1, A2, A3]
+  - command: go test -tags integration ./internal/auditdomain ./internal/findingintake ./internal/httpapi/privateartifacts
+    covers: [A1, A3]
+  - command: make ui-browser-mocked
+    covers: [A2, A3]

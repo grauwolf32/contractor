@@ -1,0 +1,37 @@
+schema_version: "1.0"
+id: V376-004
+title: Align the HTTP hardening matrix with buffered capture cancellation
+milestone: http-finding-evidence-2026-10
+epic: http-tools
+kind: chore
+introduced_by: V376-002
+priority: P2
+status: in_progress
+depends_on: [V376-002]
+languages: [go, python, markdown]
+goal: Keep the hardening gate and documented regression owner current after finding-only retention replaced automatic body writes.
+context:
+  finding: >-
+    tests/e2e/http_caido_matrix.yml:64 and docs/spec/tools/http-caido.md:1007
+    still reference the removed body-commit cancellation test. The real
+    regression now cancels capture in allocation memory, so make verify
+    stops in TestHTTPCaidoHardeningMatrixIsComplete.
+  siblings: The matrix retention policy and expected HTTP/redaction outcomes still describe automatic response-body artifacts.
+scope:
+  in:
+    - Point the matrix and specification invariant to the actual cancellation regression.
+    - State the current buffer, cookie, request identity and finding-only retention outcomes in the matrix.
+  out:
+    - Production transport, evidence storage and target-policy behavior.
+acceptance_criteria:
+  - id: A1
+    text: The complete hardening matrix resolves every real test symbol and describes memory capture without orphan body artifacts.
+  - id: A2
+    text: The existing cancellation regression still verifies no cookie commit, no request-ID reuse and no automatic artifacts.
+tests:
+  - command: go test -count=1 ./tests/e2e
+    covers: [A1, A2]
+  - command: uv run --directory runtime pytest tests/test_http_caido_concurrency.py
+    covers: [A2]
+  - command: make lint
+    covers: [A1, A2]

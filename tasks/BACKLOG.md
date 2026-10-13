@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-85 open tasks: 4 in progress, 67 pending, 14 deferred. 879 finished: 876 completed, 3 archived.
+87 open tasks: 5 in progress, 68 pending, 14 deferred. 879 finished: 876 completed, 3 archived.
 
 ## In progress
 
@@ -15,6 +15,7 @@ the epics are in [epics.yml](epics.yml).
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V376-003](v376-003-http-evidence-preview.yml) | ui | feature | P1 | Preview and download finding-selected HTTP evidence in the UI |
+| [V376-004](v376-004-http-capture-matrix.yml) | http-tools | chore | P2 | Align the HTTP hardening matrix with buffered capture cancellation |
 
 ## Pending
 
@@ -48,6 +49,7 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V375-002](v375-002-caido-sitemap-cardinality.yml) | defect | P1 | — | Keep Caido sitemap browsing usable above one hundred entries |
+| [V376-005](v376-005-caido-response-unavailable.yml) | defect | P2 | V376-004 | Preserve an unavailable Caido response without inventing a transport failure |
 
 ### Scanner tool Workers and scan planning (`scan-tools`)
 
@@ -188,7 +190,7 @@ tasks in `introduced_by`.
 | Agent Skills (`agent-skills`) | 0 | 10 | 2 | 1 | 1 |
 | Run workspaces and project filesystem (`workspaces`) | 0 | 16 | 12 | 4 | 15 |
 | Code analysis and taint annotations (`code-analysis`) | 0 | 13 | 12 | 2 | 17 |
-| HTTP and Caido tools (`http-tools`) | 1 | 9 | 12 | 2 | 11 |
+| HTTP and Caido tools (`http-tools`) | 3 | 9 | 13 | 3 | 13 |
 | Scanner tool Workers and scan planning (`scan-tools`) | 1 | 10 | 4 | 1 | 7 |
 | Findings tools and collections (`findings`) | 4 | 7 | 5 | 4 | 7 |
 | Workflow catalog and document workflows (`workflows`) | 3 | 13 | 13 | 11 | 12 |

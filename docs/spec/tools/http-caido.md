@@ -1004,7 +1004,7 @@ These properties follow from the cited requirements, which are authoritative.
 8. Reserved HTTP and Caido IDs and tags are monotonic and never reused after an
    ambiguous or cancelled operation (HTP-R75, HTP-R76, HTP-R102, HTP-R99);
    tests
-   `test_http_cancellation_after_body_commit_never_reuses_id_or_selects_orphan`
+   `test_http_cancellation_during_capture_preserves_id_and_does_not_commit_cookies`
    and
    `test_cancelled_caido_mutation_consumes_opaque_tag_and_slot_remains_usable`
    in
