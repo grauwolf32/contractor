@@ -312,9 +312,16 @@ create or change a task.
 - **Inputs.** A task may start only when everything in `depends_on` is
   complete. Documents named in `context.specification`, `context.design`,
   `context.format` or `context.proposal` are required reading.
-- **Create the task first, even for small fixes.** Work done without a task
-  file (about 180 commits on 2026-09-22/23, the V3B redesign, the layer checks)
-  later produced defects that nobody could trace.
+- **Create the task before changing code, even for small fixes.** Tasks track
+  code changes, including their tests and accompanying specification or API
+  contract updates. They are not a tracker for every user request. Deploying
+  an existing revision, restarting services, checking logs or status, answering
+  questions, read-only investigation and editing agent instructions do not
+  require a task. Record deployment results in the release manifest or
+  operational log. If an investigation or deployment requires a code change,
+  create its task before changing code. Code work done without a task file
+  (about 180 commits on 2026-09-22/23, the V3B redesign, the layer checks) later
+  produced defects that nobody could trace.
 - **Start from a template.** Copy `tasks/templates/feature.yml`, `defect.yml`
   or `chore.yml`. The templates carry the sections that were missing when
   later fixes became necessary.
