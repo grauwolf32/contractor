@@ -6,7 +6,8 @@ epic: planner-worker
 kind: defect
 introduced_by: V65-001
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: 101f7097843b48b7d67542c64cbeefcefdb1db17
 depends_on: []
 languages: [go, python, json, markdown]
 goal: Classify the observed LM Studio HTTP 400 terminated response as transient model unavailability so the existing recovery gate can resume the model call.
