@@ -22,6 +22,7 @@ const OUTCOME_LABELS: Record<string, string> = {
   cancelled: "Request was interrupted",
   response_invalid: "Response could not be decoded",
   response_too_large: "Response exceeded the size limit",
+  response_unavailable: "Response was unavailable when captured",
   target_denied: "Destination was denied",
   request_invalid: "A following request could not be sent",
 };

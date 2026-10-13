@@ -690,7 +690,8 @@ using canonical base64. Each returned preview is at most 8192 characters
 **HTP-R91.** A missing request or session is an explicit bounded `not_found`
 domain result. A malformed partial GraphQL result is `caido_response_invalid`
 and replaces no buffered capture (FAIL-HTP-5). A valid request with no response
-is retained with an explicit transport outcome.
+is retained with `response_unavailable`; missing capture alone does not prove
+a target transport failure.
 
 **HTP-R92.** `caido_workflow_run` dispatches by mutually exclusive input:
 `request_id` starts an active workflow asynchronously, while non-empty UTF-8

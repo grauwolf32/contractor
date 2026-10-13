@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-86 open tasks: 4 in progress, 68 pending, 14 deferred. 880 finished: 877 completed, 3 archived.
+86 open tasks: 5 in progress, 67 pending, 14 deferred. 880 finished: 877 completed, 3 archived.
 
 ## In progress
 
@@ -15,6 +15,7 @@ the epics are in [epics.yml](epics.yml).
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V376-003](v376-003-http-evidence-preview.yml) | ui | feature | P1 | Preview and download finding-selected HTTP evidence in the UI |
+| [V376-005](v376-005-caido-response-unavailable.yml) | http-tools | defect | P2 | Preserve an unavailable Caido response without inventing a transport failure |
 
 ## Pending
 
@@ -48,7 +49,6 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V375-002](v375-002-caido-sitemap-cardinality.yml) | defect | P1 | — | Keep Caido sitemap browsing usable above one hundred entries |
-| [V376-005](v376-005-caido-response-unavailable.yml) | defect | P2 | — | Preserve an unavailable Caido response without inventing a transport failure |
 
 ### Scanner tool Workers and scan planning (`scan-tools`)
 

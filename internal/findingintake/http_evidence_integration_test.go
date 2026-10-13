@@ -3,6 +3,7 @@
 package findingintake
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"sync"
@@ -163,6 +164,38 @@ func TestPostgresFindingHTTPExchangePublishesAtomically(t *testing.T) {
 			}
 			if err := pool.QueryRow(ctx, `SELECT count(*) FROM artifact_bindings WHERE scope_kind = 'run' AND scope_id = $1 AND name LIKE 'http.exchange.%'`, run).Scan(&count); err != nil || count != 1 {
 				t.Fatalf("HTTP artifacts after replay: %d, %v", count, err)
+			}
+			raw := base64.StdEncoding.EncodeToString([]byte("GET /no-response HTTP/1.1\r\nHost: target.example\r\n\r\n"))
+			requestOnly := auditdomain.CapturedHTTPExchange{
+				Source: "caido", RequestID: "caido-request-only",
+				Attempts: []auditdomain.CapturedHTTPAttempt{{
+					Request: &auditdomain.CapturedHTTPRequest{Method: "GET", URL: "https://target.example/no-response",
+						Message: auditdomain.HTTPMessage{Kind: "raw", DataBase64: &raw}},
+					Error: "response_unavailable",
+				}},
+			}
+			missingResponse := testSubmission("http-invocation", "request-only", []contracts.ArtifactRef{})
+			missingResponse.HTTPEvidence = &requestOnly
+			selected, _, err := service.Submit(ctx, grant, missingResponse)
+			if err != nil || len(selected.Evidence) != 1 {
+				t.Fatalf("select request-only Caido evidence: %v", err)
+			}
+			requestRead, err := runStore.Read(ctx, selected.Evidence[0].Ref)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var requestDocument map[string]json.RawMessage
+			if err := json.Unmarshal(requestRead.Payload.Data, &requestDocument); err != nil {
+				t.Fatal(err)
+			}
+			var requestCapture auditdomain.CapturedHTTPExchange
+			if err := strictjson.Decode(requestDocument["capture"], &requestCapture); err != nil {
+				t.Fatal(err)
+			}
+			requestAttempt := requestCapture.Attempts[0]
+			if requestAttempt.Response != nil || requestAttempt.Error != "response_unavailable" ||
+				*requestAttempt.Request.Message.DataBase64 != raw {
+				t.Fatal("request-only evidence changed bytes or fabricated an outcome")
 			}
 		})
 	}

@@ -6,13 +6,13 @@ epic: http-tools
 kind: defect
 introduced_by: V376-002
 priority: P2
-status: pending
+status: in_progress
 depends_on: [V376-002, V376-004]
 languages: [go, python, typescript, markdown]
 goal: Retain finding-selected requests whose response Caido does not expose with an explicit unavailable capture outcome.
 context:
   finding: >-
-    runtime/src/contractor_runtime/toolsets/caido/tools.py:979 assigns
+    runtime/src/contractor_runtime/toolsets/caido/tools.py:974 assigns
     transport_error when request detail has no response bytes. Missing capture
     does not prove target transport failure, yet the UI currently says it failed.
   siblings: >-
@@ -47,3 +47,9 @@ tests:
     covers: [A1, A3]
   - command: make ui-browser-mocked
     covers: [A2, A3]
+verification:
+  before_merge:
+    - Runtime suites passed, 103 tests.
+    - HTTP UI contract and renderer suites passed, 82 tests.
+    - Full integration suites for auditdomain, findingintake and privateartifacts passed against disposable PostgreSQL, including request-only evidence on both blob backends.
+  remaining: Complete make verify, shared wire and browser gates on main before closing this task.

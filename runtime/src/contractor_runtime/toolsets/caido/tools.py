@@ -971,7 +971,7 @@ class _CaidoSession:
                 "complete": True,
             }
         else:
-            attempt["error"] = "transport_error"
+            attempt["error"] = "response_unavailable"
         return {"source": "caido", "request_id": request_id, "attempts": [attempt]}
 
     async def _write_artifact(self, prefix: str, data: bytes, media_type: str) -> ArtifactRef:

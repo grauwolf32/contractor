@@ -96,6 +96,7 @@ class CapturedHTTPAttempt(ClosedModel):
             "cancelled",
             "response_invalid",
             "response_too_large",
+            "response_unavailable",
             "target_denied",
             "request_invalid",
         ]

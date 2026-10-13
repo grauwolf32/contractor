@@ -175,7 +175,7 @@ def test_caido_finding_selects_inspected_bytes_without_another_graphql_call(tmp_
                     base64.b64decode(attempt["response"]["message"]["data_base64"]) == raw_response
                 )
             else:
-                assert "response" not in attempt and attempt["error"] == "transport_error"
+                assert "response" not in attempt and attempt["error"] == "response_unavailable"
             assert result["evidence_refs"][-1]["namespace"] == "finding-proposals"
             assert observed == ["RequestDetail"]
             assert artifacts.payloads == {}

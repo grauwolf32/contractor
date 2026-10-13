@@ -53,6 +53,15 @@ function preview(value = document(), trusted = true) {
   );
 }
 describe("HTTP exchange preview", () => {
+  it("does not diagnose a transport failure from an unavailable Caido response", async () => {
+    preview(document("caido_without_response"));
+    await userEvent.click(screen.getByRole("tab", { name: "Response" }));
+    expect(screen.getByText("No response captured.")).toBeVisible();
+    expect(
+      screen.getByText("Response was unavailable when captured"),
+    ).toBeVisible();
+    expect(screen.queryByText("Transport failed")).not.toBeInTheDocument();
+  });
   it("shows exact request bytes, readable JSON and a Server-owned finding association", async () => {
     const value = document();
     value.capture.attempts[0]!.request.message = {
