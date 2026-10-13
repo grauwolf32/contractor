@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-88 open tasks: 6 in progress, 68 pending, 14 deferred. 885 finished: 882 completed, 3 archived.
+87 open tasks: 5 in progress, 68 pending, 14 deferred. 886 finished: 883 completed, 3 archived.
 
 ## In progress
 
@@ -14,7 +14,6 @@ the epics are in [epics.yml](epics.yml).
 | [V40-002](v40-002-agent-instruction-paired-runner.yml) | evals | feature | P1 | Prepare instruction experiment bindings and a frozen plan after format readiness |
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
-| [V373-008](v373-008-near-limit-round-test-lease.yml) | quality | chore | P3 | Let the near-limit next-Round tests hold their Controller claim for their whole deadline |
 | [V376-003](v376-003-http-evidence-preview.yml) | ui | feature | P1 | Preview and download finding-selected HTTP evidence in the UI |
 | [V376-005](v376-005-caido-response-unavailable.yml) | http-tools | defect | P2 | Preserve truthful missing and intermediate HTTP response outcomes |
 
@@ -203,4 +202,4 @@ tasks in `introduced_by`.
 | Operations, authentication, CLI and deployment (`operations`) | 0 | 8 | 31 | 4 | 6 |
 | Public API and wire contracts (`api-contracts`) | 9 | 1 | 29 | 20 | 8 |
 | PostgreSQL persistence and schema (`persistence`) | 5 | 0 | 19 | 33 | 8 |
-| Quality, CI and process (`quality`) | 15 | 1 | 19 | 77 | 16 |
+| Quality, CI and process (`quality`) | 14 | 1 | 19 | 77 | 16 |
