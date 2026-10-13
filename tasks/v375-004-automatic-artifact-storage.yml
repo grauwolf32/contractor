@@ -5,8 +5,7 @@ milestone: artifact-blob-backends
 epic: projects-artifacts
 kind: feature
 priority: P1
-status: completed
-implementation_commit: 2ae8ac037d6ddd6fa0974dbc4f952d89bbd5bf48
+status: in_progress
 depends_on: [V34-003, V375-003]
 languages: [go, sql]
 goal: >-
