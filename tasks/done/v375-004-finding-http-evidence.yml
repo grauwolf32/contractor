@@ -5,7 +5,7 @@ milestone: http-finding-evidence-2026-10
 epic: http-tools
 kind: feature
 priority: P1
-status: in_progress
+status: completed
 depends_on: [V375-003]
 languages: [go, python, markdown]
 goal: >-
@@ -116,3 +116,4 @@ verification:
     - Full touched Go packages with integration passed against disposable PostgreSQL; findingintake was rerun after adding the late-rollback regression.
     - make verify-public-api and make verify-public-api-postgres passed.
     - Shipped configuration validation passed; no demo database mutation or deployment was performed.
+implementation_commit: 28231edfb758433422276ca03a02bfb951bb5d08

@@ -60,7 +60,7 @@ current implementation scope.
 | Task | Outcome |
 | --- | --- |
 | [V375-003](../../tasks/done/v375-003-http-evidence-scope.yml) | Recorded this scope, preserved the deferred export proposal and prepared implementation tasks. |
-| [V375-004](../../tasks/v375-004-finding-http-evidence.yml) | Implement finding-only HTTP/Caido evidence, recent response-body retention, exact references, failure handling and the owning specification changes. |
+| [V375-004](../../tasks/done/v375-004-finding-http-evidence.yml) | Implement finding-only HTTP/Caido evidence, recent response-body retention, exact references, failure handling and the owning specification changes. |
 | [V375-005](../../tasks/v375-005-http-evidence-preview.yml) | Show and download selected request/response evidence in the UI with bounded reads and truthful finding links. |
 
 The reference HTTP, finding, artifact and platform contracts change together
