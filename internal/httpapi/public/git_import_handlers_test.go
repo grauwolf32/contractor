@@ -121,9 +121,6 @@ func TestGitImportPublicationAndAdmission(t *testing.T) {
 		t.Run(string(backend), func(t *testing.T) {
 			pool := isolatedPublicPool(t, t.Context())
 			var blob artifacts.BlobStore = artifacts.PostgresBlobStore{}
-			if err := artifacts.ClaimBlobBackend(t.Context(), pool, backend); err != nil {
-				t.Fatal(err)
-			}
 			if backend == artifacts.BlobFilesystem {
 				fs, err := artifacts.OpenFilesystemBlobStore(t.Context(), t.TempDir())
 				if err != nil {
@@ -275,9 +272,6 @@ func TestGitImportPublicationAndAdmission(t *testing.T) {
 
 func TestConfiguredGitSnapshotPublishesExactFilesystemBlob(t *testing.T) {
 	pool := isolatedPublicPool(t, t.Context())
-	if err := artifacts.ClaimBlobBackend(t.Context(), pool, artifacts.BlobFilesystem); err != nil {
-		t.Fatal(err)
-	}
 	blob, err := artifacts.OpenFilesystemBlobStore(t.Context(), t.TempDir())
 	if err != nil {
 		t.Fatal(err)

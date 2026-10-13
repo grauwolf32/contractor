@@ -1,0 +1,120 @@
+schema_version: "1.0"
+id: V375-004
+title: Route artifact payloads by size and per-blob storage metadata
+milestone: artifact-blob-backends
+epic: projects-artifacts
+kind: feature
+priority: P1
+status: completed
+implementation_commit: 2ae8ac037d6ddd6fa0974dbc4f952d89bbd5bf48
+depends_on: [V34-003, V375-003]
+languages: [go, sql]
+goal: >-
+  Store small payloads in PostgreSQL and larger payloads in a configured writable
+  directory, selecting new-write storage at each startup while reading and
+  deleting existing blobs through their own backend metadata.
+context:
+  specification: docs/spec/artifacts/blob-storage.md#BLB-R65
+  decision: >-
+    The user approved per-startup selection, removal of artifact_blob_settings,
+    a ServerConfig directory and a configurable inclusive 1 MiB inline threshold.
+scope:
+  in:
+    - Add default auto selection using artifactBlobPath and artifactBlobInlineMaxBytes.
+    - Route reads, checks and deletion by each blob's backend, including mixed registries.
+    - Preserve digest deduplication, bounded preparation and commit-safe candidate cleanup across backends.
+    - Remove the global backend settings table, guard trigger and claim API through a forward migration.
+    - Update the tracked config, specification, operational guidance and generated ERD.
+    - Test startup selection, mixed storage, deduplication, purge and schema migration on real PostgreSQL.
+  out:
+    - Moving or rewriting existing payloads, including the demo database.
+    - S3, per-request backend options or new public API fields.
+requirements:
+  - id: R1
+    text: >-
+      auto is the default startup mode. A configured dedicated absolute root is
+      probed with real create/write/publish/read/delete operations at each startup.
+      With a successful probe, payloads up to the inclusive threshold use PostgreSQL
+      and larger payloads use files. File preparation I/O failure in auto may use
+      PostgreSQL before publication. No directory or a failed probe selects PostgreSQL
+      for new writes. Cancellation and deadline expiry abort instead of falling back.
+  - id: R2
+    text: >-
+      backend and object_key on artifact_blobs own existing physical locations.
+      Reads, checks and final-reference deletion use those fields. Missing or
+      inaccessible files return explicit errors even when new writes use PostgreSQL.
+      Explicit filesystem and postgresql modes force their new-write backend;
+      either can read both kinds when the file root is available.
+  - id: R3
+    text: >-
+      ServerConfig artifactBlobPath resolves relative to the YAML file. The
+      inline threshold defaults to 1048576 bytes and accepts 0..67108864 bytes.
+      Existing defaults < YAML < environment < flags precedence and strict
+      validation apply. Unsupported backend names fail before serving.
+  - id: R4
+    text: >-
+      Existing digests retain their physical backend. A duplicate can reuse a
+      verified filesystem object or existing inline bytes across a change of
+      write policy. Missing filesystem content is repaired only by a new verified
+      filesystem candidate; PostgreSQL candidates never publish a successful
+      reference to missing file content. Races cannot reuse an unverified key.
+  - id: R5
+    text: >-
+      A forward migration drops only artifact_blob_settings and its guard. It
+      retains blob bytes, keys, checksums, sizes and all Artifact revisions.
+      Inline checksum validation and filesystem metadata validation remain enforced.
+failure_outcomes:
+  - operation: Probe and open the configured filesystem root
+    permanent: auto probe failure selects PostgreSQL writes; explicit filesystem failure aborts startup. Unknown modes and invalid paths fail validation.
+    retryable: No probe retry during startup; subsequent startup may choose another writer. Filesystem reads continue to report their own missing or I/O outcome.
+    ambiguous: Probe candidates have no Artifact metadata; existing offline cleanup owns any physical orphans.
+    cancelled: Abort startup and close any rooted descriptor; no fallback on cancellation.
+    timeout: Startup context expiry aborts without initializing another writer.
+  - operation: Deduplicate and publish Artifact metadata
+    permanent: Invalid bytes, missing content without a repair candidate, CAS rejection or an unverified concurrent key fails without success.
+    retryable: Existing classified storage conflicts and I/O failures retain existing retry contracts.
+    ambiguous: Preserve a candidate after an ambiguous publication; existing exact revisions and cleanup reconcile the outcome.
+    cancelled: Join existing publication work and retain existing commit-safe cleanup rules.
+    timeout: Existing Artifact operation budgets bound the work.
+cardinality:
+  - collection: Storage adapters
+    expected: PostgreSQL and optionally one configured filesystem root.
+    maximum: Two adapters per Server process.
+    bound: No artifact scan or backend settings query at startup; one bounded file probe.
+  - collection: Deduplication candidate
+    expected: Zero or one blob row for one SHA-256 digest.
+    maximum: One row and one payload verification per write.
+    bound: Point lookup; payload verification remains bounded by the existing Artifact ceiling and four transfer slots.
+lifecycle:
+  - entity: Physical Artifact blob
+    delete: Existing final-reference purge rules route file unlink after commit through the recorded backend.
+    cascade: Artifact scopes, versions, grants and lineage retain their existing lifecycle.
+    retention: Startup never rewrites or migrates existing blobs; offline cleanup inspects only filesystem references.
+acceptance_criteria:
+  - id: A1
+    given: auto mode with writable, unavailable or omitted directory and payloads around the inline threshold.
+    when: The production initializer selects storage and the real registry publishes payloads.
+    then: The threshold is inclusive, large payloads use files when available, fallback writes use PostgreSQL, and stored bytes round-trip exactly.
+  - id: A2
+    given: Existing PostgreSQL and filesystem blobs and a changed new-write policy.
+    when: Reads, duplicate writes and final-reference deletion run.
+    then: Each blob's metadata controls access; dedup preserves existing locations, unused candidates are cleaned, missing files never become successful empty content, and purge preserves commit boundaries.
+  - id: A3
+    given: An existing schema through migration 14 with ordinary blob data.
+    when: The new migration runs and different backends publish new blobs.
+    then: The singleton and guard are absent, existing payloads and metadata remain unchanged, and per-blob validation still rejects invalid storage shapes.
+  - id: A4
+    given: ServerConfig paths and thresholds, environment and CLI conflicts, cancellation or unsupported backend names.
+    when: Process configuration and storage are initialized.
+    then: Defaults and precedence are deterministic, invalid values fail strictly, and cancelled startup never falls back.
+tests:
+  - command: make test-artifact-blob-backends
+    covers: [A1, A2, A3, A4]
+  - command: make test-go
+    covers: [A1, A2, A3, A4]
+  - command: go test -tags=integration ./tests/integration/restore
+    covers: [A2, A3]
+  - command: go run ./cmd/contractor server config validate --root ./configs
+    covers: [A4]
+  - command: make lint
+    covers: [A1, A2, A3, A4]

@@ -38,10 +38,13 @@ WITH scope_ready AS (
     SET sha256 = EXCLUDED.sha256,
         object_key = CASE
             WHEN artifact_blobs.backend = 'filesystem'
+             AND EXCLUDED.backend = 'filesystem'
              AND artifact_blobs.object_key IS DISTINCT FROM $14::text
             THEN EXCLUDED.object_key ELSE artifact_blobs.object_key END
-    WHERE artifact_blobs.backend = EXCLUDED.backend
-      AND (artifact_blobs.backend = 'filesystem' OR artifact_blobs.payload = EXCLUDED.payload)
+    WHERE ((artifact_blobs.backend = 'postgresql'
+            AND (EXCLUDED.backend <> 'postgresql' OR artifact_blobs.payload = EXCLUDED.payload))
+        OR (artifact_blobs.backend = 'filesystem'
+            AND (EXCLUDED.backend = 'filesystem' OR artifact_blobs.object_key = $14::text)))
       AND artifact_blobs.size_bytes = EXCLUDED.size_bytes
     RETURNING object_key
 ), blob_ready AS (

@@ -14,9 +14,6 @@ func TestFilesystemOfflineCleanupPreservesReferences(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 	pool := isolatedArtifactPool(t, ctx)
-	if err := ClaimBlobBackend(ctx, pool, BlobFilesystem); err != nil {
-		t.Fatal(err)
-	}
 	path := t.TempDir()
 	files, err := OpenFilesystemBlobStore(ctx, path)
 	if err != nil {

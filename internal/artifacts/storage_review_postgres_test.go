@@ -223,9 +223,6 @@ func TestStorageReviewSingleConnectionCleanup(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer pool.Close()
-	if err := ClaimBlobBackend(ctx, pool, BlobFilesystem); err != nil {
-		t.Fatal(err)
-	}
 	path := t.TempDir()
 	files, err := OpenFilesystemBlobStore(ctx, path)
 	if err != nil {

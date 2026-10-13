@@ -37,7 +37,6 @@ workflow_runs                        internal/runstore                exec
 
 artifact_binding_revisions           internal/artifacts               artifacts
 artifact_bindings                    internal/artifacts               artifacts
-artifact_blob_settings               internal/artifacts               artifacts
 artifact_blobs                       internal/artifacts               artifacts
 artifact_lineage                     internal/artifacts               artifacts
 artifact_scopes                      internal/artifacts               artifacts

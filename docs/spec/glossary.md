@@ -684,7 +684,7 @@ Terms used across the specification. Each entry names the document that owns the
 
 **Passthrough Planner (`passthrough@1`, `PassthroughPlanner`)** — The deterministic, model-free baseline Planner that sends one Worker task to its sole Worker and maps the completion into a candidate. Owner: [Planners](execution/planners.md).
 
-**Payload backend** — The storage that holds the immutable Artifact payload bytes of an installation, either `postgresql` (default) or `filesystem`, selected once at Server startup. Owner: [Artifact blob storage](artifacts/blob-storage.md).
+**Payload backend** — The storage recorded for an immutable Artifact blob, either `postgresql` or `filesystem`. Startup selects the policy for new payloads; existing blobs retain their own physical location. Owner: [Artifact blob storage](artifacts/blob-storage.md).
 
 **Performance metrics** — Contractor's own collection, storage and presentation of Server, HTTP, connection-pool, PostgreSQL and host GPU measurements and of completed-allocation resource summaries. Owner: [Operations](operations/operations.md).
 

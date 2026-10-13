@@ -49,7 +49,9 @@ spec:
     connectTimeout: 3s
     requestTimeout: 15s
 
-  artifactBlobBackend: postgresql
+  artifactBlobBackend: auto
+  artifactBlobPath: ../.local/artifact-blobs
+  artifactBlobInlineMaxBytes: 1048576
   # Whole-import and source-reader budgets; bytes are literal byte counts.
   gitImport:
     timeout: 120s

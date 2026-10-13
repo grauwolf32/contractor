@@ -221,9 +221,6 @@ func TestPostgresPlannerMemoryRemovesDeduplicatedBlobCandidate(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	pool := isolatedMemoryPool(t, ctx)
-	if err := artifacts.ClaimBlobBackend(ctx, pool, artifacts.BlobFilesystem); err != nil {
-		t.Fatal(err)
-	}
 	path := t.TempDir()
 	files, err := artifacts.OpenFilesystemBlobStore(ctx, path)
 	if err != nil {
@@ -260,9 +257,6 @@ func TestPostgresPlannerMemoryRetainsTransferLeaseThroughPublish(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	pool := isolatedMemoryPool(t, ctx)
-	if err := artifacts.ClaimBlobBackend(ctx, pool, artifacts.BlobFilesystem); err != nil {
-		t.Fatal(err)
-	}
 	path := t.TempDir()
 	files, err := artifacts.OpenFilesystemBlobStore(ctx, path)
 	if err != nil {

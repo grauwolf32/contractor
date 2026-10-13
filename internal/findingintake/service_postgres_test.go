@@ -51,9 +51,6 @@ func testPostgresFindingReceiptAuditImportDirectVerificationAndRunDeletion(t *te
 	pool := isolatedFindingPool(t, ctx)
 	var blobPath string
 	if os.Getenv("CONTRACTOR_TEST_ARTIFACT_BACKEND") == "filesystem" {
-		if err := artifacts.ClaimBlobBackend(ctx, pool, artifacts.BlobFilesystem); err != nil {
-			t.Fatal(err)
-		}
 		blobPath = t.TempDir()
 		files, err := artifacts.OpenFilesystemBlobStore(ctx, blobPath)
 		if err != nil {

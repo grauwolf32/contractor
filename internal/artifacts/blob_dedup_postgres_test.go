@@ -21,9 +21,6 @@ func TestFilesystemDedupRepairsMissingContent(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	pool := isolatedArtifactPool(t, ctx)
-	if err := ClaimBlobBackend(ctx, pool, BlobFilesystem); err != nil {
-		t.Fatal(err)
-	}
 	path := t.TempDir()
 	files, err := OpenFilesystemBlobStore(ctx, path)
 	if err != nil {
@@ -79,9 +76,6 @@ func newDedupFixture(t *testing.T) dedupFixture {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	t.Cleanup(cancel)
 	pool := isolatedArtifactPool(t, ctx)
-	if err := ClaimBlobBackend(ctx, pool, BlobFilesystem); err != nil {
-		t.Fatal(err)
-	}
 	path := t.TempDir()
 	files, err := OpenFilesystemBlobStore(ctx, path)
 	if err != nil {

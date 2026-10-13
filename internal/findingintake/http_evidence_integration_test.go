@@ -22,9 +22,6 @@ func TestPostgresFindingHTTPExchangePublishesAtomically(t *testing.T) {
 			ctx := t.Context()
 			pool := isolatedFindingPool(t, ctx)
 			if backend == "filesystem" {
-				if err := artifacts.ClaimBlobBackend(ctx, pool, artifacts.BlobFilesystem); err != nil {
-					t.Fatal(err)
-				}
 				files, err := artifacts.OpenFilesystemBlobStore(ctx, t.TempDir())
 				if err != nil {
 					t.Fatal(err)

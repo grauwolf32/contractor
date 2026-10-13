@@ -622,9 +622,6 @@ func TestPostgresImmutableProjectArtifactReuseLeavesNoFilesystemOrphans(t *testi
 		t.Skip("CONTRACTOR_TEST_DATABASE_URL is not set")
 	}
 	pool := isolatedControllerPool(t, ctx, databaseURL)
-	if err := artifacts.ClaimBlobBackend(ctx, pool, artifacts.BlobFilesystem); err != nil {
-		t.Fatal(err)
-	}
 	path := t.TempDir()
 	files, err := artifacts.OpenFilesystemBlobStore(ctx, path)
 	if err != nil {
