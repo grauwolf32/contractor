@@ -6,7 +6,7 @@ epic: http-tools
 kind: chore
 introduced_by: V376-002
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V376-002]
 languages: [go, python, markdown]
 goal: Keep the hardening gate and documented regression owner current after finding-only retention replaced automatic body writes.
@@ -35,3 +35,4 @@ tests:
     covers: [A2]
   - command: make lint
     covers: [A1, A2]
+implementation_commit: c269db04f09ac68798f4c8303ddb0717cb745877
