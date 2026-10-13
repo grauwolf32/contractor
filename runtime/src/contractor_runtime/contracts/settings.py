@@ -192,6 +192,8 @@ class GatewayFailureSignatures(WireModel):
 
 # LM Studio's answer when its inference engine process died (2026-10-04 OOM).
 _ENGINE_LOST = "Engine protocol predict request failed: fetch failed"
+# LM Studio's answer after a GPU watchdog ended llama-server (2026-10-13).
+_ENGINE_TERMINATED = "terminated"
 
 
 def default_gateway_failure_signatures() -> GatewayFailureSignatures:
@@ -207,11 +209,13 @@ def default_gateway_failure_signatures() -> GatewayFailureSignatures:
                 status=400, message_equals="Model unloaded by user or API request."
             ),
             GatewayFailureSignature(status=400, message_equals=_ENGINE_LOST),
+            GatewayFailureSignature(status=400, message_equals=_ENGINE_TERMINATED),
             GatewayFailureSignature(status=400, litellm_wrapped="Model is unloaded."),
             GatewayFailureSignature(
                 status=400, litellm_wrapped="Model unloaded by user or API request."
             ),
             GatewayFailureSignature(status=400, litellm_wrapped=_ENGINE_LOST),
+            GatewayFailureSignature(status=400, litellm_wrapped=_ENGINE_TERMINATED),
         ],
         permanent_codes=["insufficient_quota", "budget_exceeded", "context_length_exceeded"],
     )

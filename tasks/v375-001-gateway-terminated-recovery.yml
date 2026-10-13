@@ -1,0 +1,73 @@
+schema_version: "1.0"
+id: V375-001
+title: Recover model calls after LM Studio terminates its inference engine
+milestone: run-admission-gateway-recovery
+epic: planner-worker
+kind: defect
+introduced_by: V65-001
+priority: P1
+status: in_progress
+depends_on: []
+languages: [go, python, json, markdown]
+goal: Classify the observed LM Studio HTTP 400 terminated response as transient model unavailability so the existing recovery gate can resume the model call.
+context:
+  authority: User requested handling of the error found while investigating failed demo Runs on 2026-10-13.
+  severity: high
+  specification:
+    - docs/spec/platform/failure-model.md#FAIL-R5
+    - docs/spec/platform/failure-model.md#FAIL-R7
+    - docs/spec/platform/failure-model.md#FAIL-R8
+    - docs/spec/platform/failure-model.md#FAIL-R9
+    - docs/spec/configuration/runtime-config.md#RCF-R24
+    - docs/spec/execution/scheduler.md#SCH-R105
+    - docs/spec/execution/worker.md#WRK-R17
+  finding: >-
+    internal/contracts/llmgateway/llm_gateway.go:101 and
+    runtime/src/contractor_runtime/contracts/settings.py:197 omit the exact
+    terminated response from the default modelUnavailable signatures.
+    NVIDIA watchdog faults ended llama-server during demo Runs
+    run_17fb3af0f69745b12a749af50905e24f,
+    run_70d2dd09356135c7a002e72cf8069959 and
+    run_97b5a6546297eeeb5af8b1a680e0f672. LM Studio returned HTTP 400
+    with an error string terminated, wrapped by LiteLLM. The classifiers
+    returned gateway_request_rejected with retryable false, bypassing recovery.
+  siblings: >-
+    Server Planners and Runtime Workers consume matching defaults in Go and
+    Python. Direct provider strings, nested messages and the observed LiteLLM
+    wrapper need the same verdict. Explicit Gateway signatures replace the
+    defaults; unrelated 4xx responses, non-exact messages and permanent codes
+    retain their existing classification. No public API field or enum changes.
+scope:
+  in:
+    - Add exact direct and LiteLLM-wrapped HTTP 400 terminated signatures to both protocol defaults.
+    - Extend the shared classification fixture with positive cases, exact-match rejection cases and explicit-signature precedence.
+    - Exercise the production Gateway client's recovery path with the observed failure and an identical retried model payload.
+    - Document the default engine termination signature and its bounded recovery contract.
+  out:
+    - Change GPU drivers, inference backend, live model selection or demo services.
+    - Change Stage retry policy, recovery bounds, database schema or provider-body redaction.
+    - Change Caido tools while investigating their separately reported diagnostics.
+acceptance_criteria:
+  - id: A1
+    text: Given default signatures, direct and LiteLLM-wrapped HTTP 400 terminated responses classify as model_unavailable with retryable true in both languages.
+  - id: A2
+    text: Given near-match text, another permanent status, an explicit signature set without terminated or a permanent provider code, classification remains permanent.
+  - id: A3
+    text: The Runtime Gateway client reports model_unavailable to the existing recovery gate, resends only the identical model call and succeeds when the provider recovers without retaining provider content or credentials.
+  - id: A4
+    text: Shared fixtures, specification and implementations agree; the relevant package suites, cross-language gate and lint pass.
+tests:
+  - command: go test ./internal/contracts/llmgateway ./internal/config ./internal/gatewayrecovery ./internal/planner/streamline ./internal/planner/router
+    covers: [A1, A2, A4]
+  - command: uv run --project runtime pytest runtime/tests/test_gateway_error_classification.py runtime/tests/test_gateway_recovery.py runtime/tests/test_gateway_client.py runtime/tests/test_openai_gateway_llm.py runtime/tests/test_metrics.py
+    covers: [A1, A2, A3, A4]
+  - command: make test-wire-cross-language
+    covers: [A1, A2, A4]
+  - command: make lint
+    covers: [A4]
+verification:
+  - Before the fix, the Go shared classifier failed all four new positive cases; Python failed four classifier cases and three Gateway recovery cases.
+  - All five listed Go package suites passed with a disposable PostgreSQL container, including database-backed Gateway and Planner tests.
+  - The focused Runtime suites passed 143 tests after the fix, including recovery of direct, nested and LiteLLM-wrapped terminated responses.
+  - The cross-language gate passed 293 Runtime contract tests and 1048 shared Runtime cases, with 226 fixtures covered by 195 Go and 160 Python shared tests.
+  - make lint and git diff --check passed; no demo service or database mutation was performed.

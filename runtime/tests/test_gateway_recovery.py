@@ -26,7 +26,22 @@ class Authority:
         )
 
 
-def test_model_unload_retries_only_identical_model_request():
+@pytest.mark.parametrize(
+    "error_body",
+    [
+        {"error": "Model is unloaded."},
+        {"error": "terminated"},
+        {"error": {"message": "terminated"}},
+        {
+            "error": {
+                "message": "litellm.BadRequestError: OpenAIException - Error code: 400 - "
+                "{'error': 'terminated'}. Received Model Group=worker-model"
+            }
+        },
+    ],
+    ids=["model-unloaded", "engine-terminated", "nested-terminated", "litellm-terminated"],
+)
+def test_model_unavailability_retries_only_identical_model_request(error_body):
     async def scenario():
         authority = Authority()
         requests = []
@@ -34,7 +49,7 @@ def test_model_unload_retries_only_identical_model_request():
         async def gateway(request):
             requests.append(request)
             if len(requests) == 1:
-                return httpx.Response(400, json={"error": "Model is unloaded."})
+                return httpx.Response(400, json=error_body)
             return httpx.Response(200, json={"ok": True})
 
         async with httpx.AsyncClient(transport=httpx.MockTransport(gateway)) as http:
