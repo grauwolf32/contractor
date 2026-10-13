@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-83 open tasks: 3 in progress, 66 pending, 14 deferred. 876 finished: 873 completed, 3 archived.
+84 open tasks: 3 in progress, 67 pending, 14 deferred. 876 finished: 873 completed, 3 archived.
 
 ## In progress
 
@@ -41,6 +41,12 @@ the epics are in [epics.yml](epics.yml).
 | --- | --- | --- | --- | --- |
 | [V372-006](v372-006-runtime-label-set-rule.yml) | chore | P3 | — | Give the Runtime label set rule one Go definition and hold the UI and the Runtime to it |
 | [V372-021](v372-021-credential-master-key-unavailable.yml) | defect | P2 | — | Answer an LLM or Runtime credential operation without the master key with a registered non-retryable code |
+
+### HTTP and Caido tools (`http-tools`)
+
+| Task | Kind | Priority | Waiting for | Title |
+| --- | --- | --- | --- | --- |
+| [V375-002](v375-002-caido-sitemap-cardinality.yml) | defect | P1 | — | Keep Caido sitemap browsing usable above one hundred entries |
 
 ### Scanner tool Workers and scan planning (`scan-tools`)
 
@@ -181,7 +187,7 @@ tasks in `introduced_by`.
 | Agent Skills (`agent-skills`) | 0 | 10 | 2 | 1 | 1 |
 | Run workspaces and project filesystem (`workspaces`) | 0 | 16 | 12 | 4 | 15 |
 | Code analysis and taint annotations (`code-analysis`) | 0 | 13 | 12 | 2 | 17 |
-| HTTP and Caido tools (`http-tools`) | 0 | 8 | 11 | 1 | 10 |
+| HTTP and Caido tools (`http-tools`) | 1 | 8 | 12 | 1 | 11 |
 | Scanner tool Workers and scan planning (`scan-tools`) | 1 | 10 | 4 | 1 | 7 |
 | Findings tools and collections (`findings`) | 4 | 7 | 5 | 4 | 7 |
 | Workflow catalog and document workflows (`workflows`) | 3 | 13 | 13 | 11 | 12 |
