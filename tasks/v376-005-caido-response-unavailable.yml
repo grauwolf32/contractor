@@ -1,6 +1,6 @@
 schema_version: "1.0"
 id: V376-005
-title: Preserve an unavailable Caido response without inventing a transport failure
+title: Preserve truthful missing and intermediate HTTP response outcomes
 milestone: http-finding-evidence-2026-10
 epic: http-tools
 kind: defect
@@ -26,6 +26,7 @@ context:
     - docs/spec/platform/failure-model.md
 scope:
   in:
+    - Preserve valid earlier redirect/retry responses when the final response is invalid; invalidate only that final response record.
     - Mark absent Caido response capture as response_unavailable, retaining the actual request.
     - Keep Go, Python, schema, fixtures and UI outcome labels consistent.
     - Verify selected request-only evidence through real finding intake on both blob backends.
@@ -52,4 +53,5 @@ verification:
     - Runtime suites passed, 103 tests.
     - HTTP UI contract and renderer suites passed, 82 tests.
     - Full integration suites for auditdomain, findingintake and privateartifacts passed against disposable PostgreSQL, including request-only evidence on both blob backends.
-  remaining: Complete make verify, shared wire and browser gates on main before closing this task.
+  remaining: Complete make verify, shared wire and browser gates on a fixed main snapshot before closing this task.
+  intermediate_response_regression: The new production-tool regression failed before the fix (missing earlier 302 response) and passed afterwards; 135 Runtime tests passed.

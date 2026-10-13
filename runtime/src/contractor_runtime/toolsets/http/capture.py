@@ -94,7 +94,7 @@ class CapturedExchange:
                     },
                 }
             }
-            if attempt.status is not None and self.error != "response_invalid":
+            if attempt.status is not None and not (last and self.error == "response_invalid"):
                 value["response"] = {
                     "status": attempt.status,
                     "message": {

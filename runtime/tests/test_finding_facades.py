@@ -132,6 +132,41 @@ def context(call_id="call-1", invocation_id="invocation-1"):
     return SimpleNamespace(invocation_id=invocation_id, function_call_id=call_id)
 
 
+def test_invalid_final_response_keeps_prior_redirect_evidence(tmp_path):
+    async def scenario():
+        async def handler(request):
+            if request.url.path == "/start":
+                return httpx.Response(302, headers={"Location": "/final"}, request=request)
+            return httpx.Response(600, request=request)
+
+        http, state = await create_tools(tmp_path, handler)
+        try:
+            with pytest.raises(HTTPToolError, match="http_response_invalid"):
+                await http["http_request"]("https://target.example/start", tool_context=context())
+            history = await http["http_history"]()
+            client = FakeFindingClient()
+            finding = await finding_tool(HTTPFindingsToolsetFactory, client, state)
+            await finding(
+                title="Invalid final response",
+                description="A redirect was followed by an invalid response.",
+                url="https://target.example/start",
+                method="GET",
+                request_id=history[0]["request_id"],
+                tool_context=context(),
+            )
+            attempts = client.requests[0]["httpEvidence"]["attempts"]
+            assert len(attempts) == 2
+            assert attempts[0]["response"]["status"] == 302
+            assert attempts[0]["response"]["complete"] is False
+            assert "error" not in attempts[0]
+            assert "response" not in attempts[1]
+            assert attempts[1]["error"] == "response_invalid"
+        finally:
+            await close_tools(http)
+
+    asyncio.run(scenario())
+
+
 @pytest.mark.parametrize("has_response", [True, False])
 def test_caido_finding_selects_inspected_bytes_without_another_graphql_call(tmp_path, has_response):
     from test_caido_read_tools import FakeArtifactClient as CaidoArtifacts
