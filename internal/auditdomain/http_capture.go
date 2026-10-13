@@ -168,7 +168,7 @@ func ValidateCapturedHTTPExchange(value CapturedHTTPExchange) error {
 		}
 		if attempt.Error != "" && attempt.Error != "transport_error" && attempt.Error != "timeout" &&
 			attempt.Error != "cancelled" && attempt.Error != "response_invalid" && attempt.Error != "response_too_large" &&
-			attempt.Error != "target_denied" && attempt.Error != "request_invalid" {
+			attempt.Error != "target_denied" && attempt.Error != "request_invalid" && attempt.Error != "response_unavailable" {
 			return invalid(CodeInvalid, "httpEvidence.error")
 		}
 		if response := attempt.Response; response != nil {

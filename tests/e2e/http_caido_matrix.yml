@@ -9,9 +9,11 @@ policy:
     Caido access is pinned to reviewed static operation documents and exact
     response shapes; schema drift fails closed until a code/config revision.
   retention: >-
-    Raw response bodies live only in reserved Run artifacts and model results;
-    credentials, filters, URLs and arbitrary server errors are absent from
-    durable reports, events, metrics and redacted session projections.
+    Request and response bytes live in the bounded allocation capture buffer;
+    only finding-selected exchanges become immutable ordinary evidence.
+    Runtime credentials use their defined markers and telemetry stays redacted.
+    Session credentials, filters and arbitrary server errors do not enter
+    metrics or redacted session projections.
 
 cases:
   - id: request_injection_preflight
@@ -56,12 +58,12 @@ cases:
     faults: [F07]
     expected: Concurrent requests and body reads retain one exact monotonic mapping.
     test: {source: runtime/tests/test_http_caido_concurrency.py, symbol: test_http_requests_and_body_reads_are_serialized_and_exact}
-  - id: cancelled_body_commit
+  - id: cancelled_capture
     category: cancellation
     requirements: [A2]
     faults: [F08]
-    expected: Cancellation after body commit neither exposes the orphan nor reuses its request ID.
-    test: {source: runtime/tests/test_http_caido_concurrency.py, symbol: test_http_cancellation_after_body_commit_never_reuses_id_or_selects_orphan}
+    expected: Cancellation during capture does not commit cookies, reuse its request ID or publish ordinary artifacts.
+    test: {source: runtime/tests/test_http_caido_concurrency.py, symbol: test_http_cancellation_during_capture_preserves_id_and_does_not_commit_cookies}
   - id: cancelled_caido_mutation
     category: cancellation
     requirements: [A2]
@@ -78,7 +80,7 @@ cases:
     category: redaction
     requirements: [A3]
     faults: [F11]
-    expected: HTTP credentials and raw canaries remain absent outside the intended body artifact/result.
+    expected: HTTP credentials and raw canaries remain absent outside the private capture buffer and bounded tool result.
     test: {source: runtime/tests/test_http_caido_redaction.py, symbol: test_http_secrets_are_absent_from_every_retained_projection}
   - id: caido_retention
     category: redaction

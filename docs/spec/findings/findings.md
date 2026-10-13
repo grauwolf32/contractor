@@ -473,8 +473,9 @@ mandatory `request: {method,url,message}`, an optional
 `response: {status,message,complete}`, and optional `error`. An absent response
 requires an error; a complete response cannot also claim an error. Outcomes are
 `transport_error`, `timeout`, `cancelled`, `response_invalid`,
-`response_too_large`, `target_denied` or `request_invalid`. HTTP status 4xx/5xx
-is response data. Missing optional values are omitted, never `null`.
+`response_too_large`, `response_unavailable`, `target_denied` or
+`request_invalid`. `response_unavailable` records missing response capture
+without diagnosing a target transport failure. HTTP status 4xx/5xx is response data. Missing optional values are omitted, never `null`.
 
 **FND-R162.** HTTP messages have `kind: structured`, ordered duplicate-preserving
 `headers: [{name,value}]` and canonical `body_base64`. Caido messages have

@@ -142,7 +142,8 @@
             "response_invalid",
             "response_too_large",
             "target_denied",
-            "request_invalid"
+            "request_invalid",
+            "response_unavailable"
           ]
         }
       },

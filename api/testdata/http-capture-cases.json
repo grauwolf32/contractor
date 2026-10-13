@@ -430,7 +430,7 @@
                 "data_base64": "R0VUIC8gSFRUUC8xLjENCkhvc3Q6IHRhcmdldC5leGFtcGxlDQoNCg=="
               }
             },
-            "error": "transport_error"
+            "error": "response_unavailable"
           }
         ]
       }
