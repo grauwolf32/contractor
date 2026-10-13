@@ -1,0 +1,64 @@
+.http-evidence {
+  min-width: 0;
+  padding: 1rem;
+  color: var(--text);
+}
+.http-evidence-heading,
+.http-evidence-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  min-width: 0;
+}
+.http-evidence-heading code {
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.http-evidence h4 {
+  margin-block: 1rem 0.5rem;
+}
+.http-evidence-actions h4 {
+  margin-inline-end: auto;
+}
+.http-evidence-headers {
+  margin: 0.5rem 0;
+}
+.http-evidence-headers > div {
+  display: grid;
+  grid-template-columns: minmax(6rem, 1fr) minmax(0, 3fr);
+  gap: 0.5rem;
+  padding-block: 0.4rem;
+  border-bottom: 1px solid var(--line);
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+}
+.http-evidence-headers dt,
+.http-evidence-headers dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.http-evidence-attempt {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-block: 1rem;
+}
+.http-evidence-outcome {
+  font-weight: 600;
+}
+.http-evidence .artifact-preview {
+  max-height: 28rem;
+  max-width: 100%;
+  overflow: auto;
+}
+@media (max-width: 480px) {
+  .http-evidence {
+    padding: 0.75rem;
+  }
+  .http-evidence-headers > div {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.2rem;
+  }
+}

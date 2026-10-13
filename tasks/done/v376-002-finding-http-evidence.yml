@@ -1,12 +1,12 @@
 schema_version: "1.0"
-id: V375-004
+id: V376-002
 title: Persist HTTP exchanges only when selected as finding evidence
 milestone: http-finding-evidence-2026-10
 epic: http-tools
 kind: feature
 priority: P1
 status: completed
-depends_on: [V375-003]
+depends_on: [V376-001]
 languages: [go, python, markdown]
 goal: >-
   Keep ordinary HTTP artifacts limited to exchanges selected for findings,
@@ -38,7 +38,7 @@ scope:
   out:
     - Complete traffic retention, compressed export, independent bookmarks or a new evidence storage subsystem.
     - Caido routing changes, live model changes, compatibility readers and reconstruction of earlier Runs.
-    - UI rendering, owned by V375-005; the separate sitemap defect V375-002.
+    - UI rendering, owned by V376-003; the separate sitemap defect V375-002.
 requirements:
   - id: R1
     text: Only finding-selected HTTP exchanges are published as ordinary HTTP evidence; successful inspection or an HTTP response alone does not select evidence.

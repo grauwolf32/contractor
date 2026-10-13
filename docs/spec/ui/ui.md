@@ -768,6 +768,41 @@ of the imported ref to the requested input only and the display of Git
 provenance are owned by [Git import](../artifacts/git-import.md) (GIT-R1,
 GIT-R3, GIT-R6, GIT-R10, GIT-R11, GIT-R12, GIT-R37, GIT-R88).
 
+### Selected HTTP evidence
+
+**UI-R192.** The material preview recognizes only the current selected HTTP
+exchange schema and media type owned by [Findings](../findings/findings.md)
+(FND-R49, FND-R160 to FND-R162). It validates the closed structure, required
+request, optional response, source identities and byte bounds before rendering.
+Malformed or unsupported content gets a bounded error and keeps Download.
+No obsolete body-only or Caido artifact format is interpreted as this exchange.
+
+**UI-R193.** One selected exchange shows method and URL, ordered headers and
+body for each attempt, and separate Request and Response views. Empty body,
+absent response and incomplete response are distinct visible outcomes; 4xx/5xx
+is received response data. JSON may be formatted; HTML stays source text and
+never executes or loads embedded resources. Binary data is labelled and can
+be downloaded. The original saved exchange remains downloadable at its exact
+revision, including when it is too large for preview.
+
+**UI-R194.** Preview reads keep the existing 256 KiB text payload admission
+limit (LIM-UI-12). Display of each body is at most 8192 Unicode characters
+(LIM-UI-13); longer content is explicitly shortened with a download action.
+At most 50 structured headers are displayed at once (LIM-UI-14), with all
+header pages reachable. Raw Caido header previews are bounded and the raw
+message download preserves all saved bytes. Switching message or attempt is
+keyboard-accessible at 390 px in all three themes.
+
+**UI-R195.** Run material browsing reads metadata pages and loads a payload
+only for the opened preview or download; there is no client traffic scan or
+128-artifact retention assumption. The possible-issues/evidence shortcut uses
+the Server namespace filter before pagination. HTTP exchanges are identified by
+media type. A relationship to a possible issue is shown from its Server-owned
+association or exact receipt evidence; matching names or URLs alone grant no
+relationship. An Audit finding links its retained exact Project evidence when
+available, otherwise its live exact source-Run evidence. Deleted evidence with
+no retained copy has no fabricated link.
+
 ### Audits
 
 **UI-R139.** Audit navigation is Project → Audits → Overview / Coverage /

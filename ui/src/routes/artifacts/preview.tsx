@@ -5,7 +5,12 @@ import {
   canBrowseArchive,
   type ArtifactArchiveScope,
 } from "../../api/artifact-archive";
-import { canPreviewArtifact, type ArtifactMetadata } from "../../api/artifacts";
+import {
+  canPreviewArtifact,
+  HTTP_EXCHANGE_MEDIA_TYPE,
+  MAXIMUM_PREVIEW_BYTES,
+  type ArtifactMetadata,
+} from "../../api/artifacts";
 import { ErrorNotice } from "../../app/error-notice";
 import { ArchivePreviewPanel } from "./archive-preview";
 import { LoadedArtifactPreview } from "./loaded-preview";
@@ -40,7 +45,13 @@ export function ArtifactPreviewPanel({
       />
     );
   }
-  return <TextArtifactPreviewPanel {...props} titleAs={titleAs} />;
+  return (
+    <TextArtifactPreviewPanel
+      {...props}
+      scope={archiveScope}
+      titleAs={titleAs}
+    />
+  );
 }
 
 function TextArtifactPreviewPanel({
@@ -49,12 +60,14 @@ function TextArtifactPreviewPanel({
   loadOnMountKey,
   unavailableCopy,
   titleAs: Title,
+  scope,
 }: {
   metadata: ArtifactMetadata;
   loadPreview: () => Promise<string>;
   loadOnMountKey?: readonly unknown[] | undefined;
   unavailableCopy: string;
   titleAs: "h2" | "h3";
+  scope?: ArtifactArchiveScope | undefined;
 }) {
   const headingId = useId();
   const manualPreview = useMutation({ mutationFn: loadPreview });
@@ -114,7 +127,10 @@ function TextArtifactPreviewPanel({
         </p>
       ) : (
         <p className="materials-quiet materials-unavailable">
-          {unavailableCopy}
+          {metadata.mediaType === HTTP_EXCHANGE_MEDIA_TYPE &&
+          metadata.size > MAXIMUM_PREVIEW_BYTES
+            ? "This HTTP exchange exceeds the 256 KiB preview limit. Download this revision to inspect the complete saved request and available response."
+            : unavailableCopy}
         </p>
       )}
       {error === null ? null : <ErrorNotice error={error} />}
@@ -123,6 +139,7 @@ function TextArtifactPreviewPanel({
           key={metadata.artifact.revision}
           mediaType={metadata.mediaType}
           source={data}
+          context={{ metadata, scope }}
         />
       )}
     </section>

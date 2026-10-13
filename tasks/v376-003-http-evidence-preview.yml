@@ -1,12 +1,12 @@
 schema_version: "1.0"
-id: V375-005
+id: V376-003
 title: Preview and download finding-selected HTTP evidence in the UI
 milestone: http-finding-evidence-2026-10
 epic: ui
 kind: feature
 priority: P1
-status: pending
-depends_on: [V375-004]
+status: in_progress
+depends_on: [V376-002]
 languages: [typescript, css, markdown]
 goal: >-
   Let a user inspect the actual request and available response of finding
@@ -25,7 +25,7 @@ context:
     - ui/src/ui/README.md
 scope:
   in:
-    - Add a strict decoder and request/response preview for the selected-exchange contract from V375-004, following shared fixtures.
+    - Add a strict decoder and request/response preview for the selected-exchange contract from V376-002, following shared fixtures.
     - Show saved method, URL, request headers/body and response status, headers/body or its explicit unavailable or incomplete outcome.
     - Expose exact finding evidence links and download of the complete saved exchange; render JSON readably, HTML as source and binary content as downloadable data.
     - Keep Run material browsing paginated, distinguish selected HTTP evidence from other materials and load payloads only for an opened preview or download.
@@ -61,7 +61,7 @@ acceptance_criteria:
   - id: A1
     given: A finding-selected exchange with request and response
     when: The user opens it from Run materials or the finding evidence link
-    then: The UI shows request and response headers/body, readable JSON or HTML source, and downloads the complete saved exchange at its exact revision.
+    then: Exchanges within the existing 256 KiB preview limit show request and response headers/body, readable JSON or HTML source; every saved exchange can be downloaded at its exact revision, and a larger preview explains the limit.
   - id: A2
     given: Empty bodies, absent or incomplete response, binary data, malformed content and a failed read
     when: A preview is opened
@@ -75,9 +75,19 @@ acceptance_criteria:
     when: The user navigates request/response views using a keyboard
     then: Content remains usable and accessible with theme tokens, visible outcomes and working exact evidence navigation.
 tests:
+  - command: make test-wire-cross-language
+    covers: [A1, A2]
   - command: make lint
     covers: [A1, A2, A3, A4]
   - command: make ui-verify
     covers: [A1, A2, A3, A4]
   - command: make ui-browser-mocked
     covers: [A1, A2, A3, A4]
+verification:
+  date: 2026-10-14
+  before_merge:
+    - Focused UI suites passed, 93 tests across 5 files, including shared captures, binary/absent/partial outcomes, 130-entry pagination and exact finding links.
+    - UI lint and TypeScript checks passed under Node 24.20.0.
+    - make ui-browser-mocked passed, 53 browser tests across 17 specs, including HTTP evidence at 390 px in light, dark and black themes.
+    - make test-wire-cross-language passed against disposable PostgreSQL.
+  remaining: Complete make ui-verify and final make lint on main, as requested by the user before marking the task completed.

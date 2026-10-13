@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-85 open tasks: 3 in progress, 68 pending, 14 deferred. 878 finished: 875 completed, 3 archived.
+85 open tasks: 4 in progress, 67 pending, 14 deferred. 878 finished: 875 completed, 3 archived.
 
 ## In progress
 
@@ -14,6 +14,7 @@ the epics are in [epics.yml](epics.yml).
 | [V40-002](v40-002-agent-instruction-paired-runner.yml) | evals | feature | P1 | Prepare instruction experiment bindings and a frozen plan after format readiness |
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
+| [V376-003](v376-003-http-evidence-preview.yml) | ui | feature | P1 | Preview and download finding-selected HTTP evidence in the UI |
 
 ## Pending
 
@@ -113,7 +114,6 @@ the epics are in [epics.yml](epics.yml).
 | --- | --- | --- | --- | --- |
 | [V371-020](v371-020-ui-resource-id-grammar.yml) | defect | P3 | — | Give the UI one ResourceId and Revision grammar and check revisions before If-Match |
 | [V372-005](v372-005-issues-decision-focus-race.yml) | defect | P2 | — | Move focus to the next possible issue reliably after a decision |
-| [V375-005](v375-005-http-evidence-preview.yml) | feature | P1 | — | Preview and download finding-selected HTTP evidence in the UI |
 
 ### Public API and wire contracts (`api-contracts`)
 

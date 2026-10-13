@@ -5,6 +5,8 @@ import type { components } from "./generated/public";
 export const MAXIMUM_ARTIFACT_BYTES = 64 * 1024 * 1024;
 export const MAXIMUM_PREVIEW_BYTES = 256 * 1024;
 export const ARTIFACT_PAGE_SIZE = 50;
+export const HTTP_EXCHANGE_MEDIA_TYPE =
+  "application/vnd.contractor.http-exchange+json";
 
 // A strict end assertion also rejects a trailing newline (unlike JavaScript $).
 export const ARTIFACT_NAME_PATTERN =
@@ -17,6 +19,7 @@ export const MEDIA_TYPE_PATTERN =
   /^(?=.{3,255}$)[a-z0-9][a-z0-9!#$&^_.+-]*\/[a-z0-9][a-z0-9!#$&^_.+-]*$/;
 
 const PREVIEW_MEDIA_TYPES = new Set([
+  HTTP_EXCHANGE_MEDIA_TYPE,
   "application/json",
   "application/vnd.oai.openapi",
   "application/vnd.oai.openapi+json",
@@ -33,6 +36,7 @@ const PREVIEW_MEDIA_TYPES = new Set([
 ]);
 
 const EXTENSIONS = new Map([
+  [HTTP_EXCHANGE_MEDIA_TYPE, ".json"],
   ["application/json", ".json"],
   ["application/vnd.oai.openapi", ".yaml"],
   ["application/vnd.oai.openapi+json", ".json"],

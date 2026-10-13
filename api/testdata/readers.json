@@ -1,7 +1,7 @@
 {
   "description": "Who reads each shared fixture under api/testdata: go (a TestShared* Go test), python (a test_shared_* Runtime test, or a test module whose test_shared_* tests ran) and ui (a UI source that imports the fixture). Keys are paths below api/testdata; a key ending in / covers its directory, and the longest matching key wins. make test-wire-cross-language (scripts/shared_fixture_gate.py) fails when a fixture matches no key, when a declared side does not read it, when a side reads it without being declared, and when a fixture has one reader but no reason. README files and this file are not fixtures.",
   "readers": {
-    "http-capture-cases.json": {"readers": ["go", "python"]},
+    "http-capture-cases.json": {"readers": ["go", "python", "ui"]},
     "audit-completion/": {"readers": ["go", "python"]},
     "audit-composition/prepared-openapi-scan.yaml": {"readers": ["go"], "reason": "a catalog-valid Audit profile for the Server's preparation, storage and public tests; the Runtime and the UI never parse profiles"},
     "audit-composition/profile-cases.json": {"readers": ["go"], "reason": "authoring cases of the Server-side Audit profile loader; no other implementation loads profiles"},

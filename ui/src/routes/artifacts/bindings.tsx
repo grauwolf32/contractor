@@ -1,6 +1,9 @@
 import type { ReactNode } from "react";
 
-import type { ArtifactMetadata } from "../../api/artifacts";
+import {
+  HTTP_EXCHANGE_MEDIA_TYPE,
+  type ArtifactMetadata,
+} from "../../api/artifacts";
 import { ContextLink } from "../../app/context-navigation";
 import { formatBytes } from "../../app/format";
 import { RecordedTime } from "../../app/recorded-time";
@@ -50,7 +53,11 @@ export function ArtifactBindingsTable({
               <td data-label="Current revision">
                 <code>{item.artifact.revision}</code>
               </td>
-              <td data-label="Media type">{item.mediaType}</td>
+              <td data-label="Media type" title={item.mediaType}>
+                {item.mediaType === HTTP_EXCHANGE_MEDIA_TYPE
+                  ? "HTTP exchange"
+                  : item.mediaType}
+              </td>
               <td data-label="Size">{formatBytes(item.size)}</td>
               {showLocked ? (
                 <td data-label="Locked">{item.frozen ? "yes" : "no"}</td>

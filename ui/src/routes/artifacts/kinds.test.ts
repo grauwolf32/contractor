@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import type { ArtifactMetadata } from "../../api/artifacts";
+import {
+  HTTP_EXCHANGE_MEDIA_TYPE,
+  type ArtifactMetadata,
+} from "../../api/artifacts";
 import { SKILL_ARCHIVE_MEDIA_TYPE } from "./artifact-file";
 import {
   formatLabel,
@@ -70,6 +73,9 @@ describe("material kinds", () => {
   });
 
   it("labels kinds and Skill packages", () => {
+    expect(
+      materialKindLabel(item("finding-proposals", HTTP_EXCHANGE_MEDIA_TYPE)),
+    ).toBe("HTTP exchange");
     expect(materialKindLabel(item("openapi", "application/yaml"))).toBe(
       "API spec",
     );
@@ -103,6 +109,7 @@ describe("material kinds", () => {
   });
 
   it("names formats and keeps unknown media types as written", () => {
+    expect(formatLabel(HTTP_EXCHANGE_MEDIA_TYPE)).toBe("HTTP exchange");
     expect(formatLabel("application/zip")).toBe("ZIP");
     expect(formatLabel("text/markdown")).toBe("Markdown");
     expect(formatLabel("application/x-custom")).toBe("application/x-custom");

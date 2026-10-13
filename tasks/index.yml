@@ -75,7 +75,7 @@ execution_policy:
 
 milestones:
   - id: http-finding-evidence-2026-10
-    exit_task: V375-005
+    exit_task: V376-003
     outcome: Only HTTP exchanges selected as finding evidence become ordinary artifacts, and their requests and available responses can be previewed and downloaded in the UI.
   - id: hub-audit-defects-2026-10
     exit_task: V368-035
