@@ -6,8 +6,9 @@ import (
 	"unicode/utf8"
 )
 
-// Outgoing bytes belong to the retained proposal. An existing response body is
-// pinned through EvidenceIDs, so no new per-request artifact is necessary.
+// Outgoing bytes also form the proposal's bounded report projection. The exact
+// selected-exchange artifact carries the available response body and is pinned
+// through EvidenceIDs when finding intake commits.
 type FindingHTTPExchange struct {
 	RequestID              int64                `json:"request_id"`
 	RequestTag             string               `json:"request_tag"`

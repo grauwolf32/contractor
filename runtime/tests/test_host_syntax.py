@@ -12,9 +12,9 @@ import pytest
 from test_caido_read_tools import FakeArtifactClient as CaidoArtifactClient
 from test_caido_read_tools import close_tools as close_caido_tools
 from test_caido_read_tools import create_tools as create_caido_tools
-from test_http_toolset import FakeArtifactClient, make_tools, proxy_runtime_settings
 from test_http_toolset import close_tools as close_http_tools
 from test_http_toolset import create_tools as create_http_tools
+from test_http_toolset import make_tools, proxy_runtime_settings
 from test_scan_toolset import install_echo_scanners
 from test_scan_toolset import make_tools as make_scan_tools
 
@@ -125,7 +125,7 @@ def test_shared_http_request_shares_the_scanner_host_rule(
                 transport=httpx.MockTransport(handler), trust_env=False
             )
             tools = await make_tools(
-                HTTPToolsetFactory(lambda _allocation, _settings: FakeArtifactClient()),
+                HTTPToolsetFactory(),
                 tmp_path,
                 settings=proxy_runtime_settings(),
                 adapter_handles=AdapterHandles(tool_http=ProxyHTTPClient(proxy_client)),

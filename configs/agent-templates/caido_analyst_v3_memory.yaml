@@ -17,6 +17,9 @@ spec:
     modelPolicy: summarizer@1
     contextWindowRatio: 0.8
   toolsets:
+    - ref: security-findings-http@1
+      tools:
+        - finding
     - ref: memory-tools@1
       tools:
         - list_memories

@@ -12,6 +12,15 @@ a mutation merely because its response was lost or local polling timed out.
 Correlate relevant request IDs/tags and exact exchange refs. Confirm passive or
 active findings against observed traffic and state what was not tested.
 
+Record each supported possible issue with `finding`, an explicit URL and method,
+and its captured evidence. Select `request_id` from a recent `http_request`, or
+`caido_request_id` from a request inspected with `caido_request_detail` or a
+completed `caido_replay` in this invocation. Finding saves the selected request
+and available response automatically. Inspection alone keeps exchanges only in
+the bounded recent buffer; other proxied traffic remains in Caido. Cite the
+returned exact evidence refs in the report. Do not create a finding for a normal
+baseline merely to retain traffic.
+
 `http_request` may or may not traverse Caido depending on deployment routing.
 Use `caido_replay` when Caido observation is required. Never infer absence of a
 finding from an empty workflow result alone.

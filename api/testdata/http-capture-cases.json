@@ -1,0 +1,2915 @@
+{
+  "limits": {
+    "bufferEntries": 128,
+    "bufferBytes": 67108864,
+    "requestBodyBytes": 1048576,
+    "responseBodyBytes": 16777216,
+    "headerBytes": 65536,
+    "attempts": 13,
+    "submissionBytes": 67108864
+  },
+  "cases": [
+    {
+      "name": "received_http_error_is_response",
+      "valid": true,
+      "value": {
+        "source": "http",
+        "request_id": "7",
+        "request_tag": "r-test-h000007",
+        "attempts": [
+          {
+            "request": {
+              "method": "POST",
+              "url": "https://target.example/api?q=%2F&q=2",
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "one"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "two"
+                  }
+                ],
+                "body_base64": "eyJwcm9iZSI6MX0="
+              }
+            },
+            "response": {
+              "status": 422,
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body_base64": "eyJlcnJvciI6ImlucHV0In0="
+              },
+              "complete": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "empty_response_body",
+      "valid": true,
+      "value": {
+        "source": "http",
+        "request_id": "7",
+        "request_tag": "r-test-h000007",
+        "attempts": [
+          {
+            "request": {
+              "method": "POST",
+              "url": "https://target.example/api?q=%2F&q=2",
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "one"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "two"
+                  }
+                ],
+                "body_base64": "eyJwcm9iZSI6MX0="
+              }
+            },
+            "response": {
+              "status": 422,
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body_base64": ""
+              },
+              "complete": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "binary_response",
+      "valid": true,
+      "value": {
+        "source": "http",
+        "request_id": "7",
+        "request_tag": "r-test-h000007",
+        "attempts": [
+          {
+            "request": {
+              "method": "POST",
+              "url": "https://target.example/api?q=%2F&q=2",
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "one"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "two"
+                  }
+                ],
+                "body_base64": "eyJwcm9iZSI6MX0="
+              }
+            },
+            "response": {
+              "status": 422,
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body_base64": "AP+A"
+              },
+              "complete": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "transport_error",
+      "valid": true,
+      "value": {
+        "source": "http",
+        "request_id": "7",
+        "request_tag": "r-test-h000007",
+        "attempts": [
+          {
+            "request": {
+              "method": "POST",
+              "url": "https://target.example/api?q=%2F&q=2",
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "one"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "two"
+                  }
+                ],
+                "body_base64": "eyJwcm9iZSI6MX0="
+              }
+            },
+            "error": "transport_error"
+          }
+        ]
+      }
+    },
+    {
+      "name": "timeout",
+      "valid": true,
+      "value": {
+        "source": "http",
+        "request_id": "7",
+        "request_tag": "r-test-h000007",
+        "attempts": [
+          {
+            "request": {
+              "method": "POST",
+              "url": "https://target.example/api?q=%2F&q=2",
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "one"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "two"
+                  }
+                ],
+                "body_base64": "eyJwcm9iZSI6MX0="
+              }
+            },
+            "error": "timeout"
+          }
+        ]
+      }
+    },
+    {
+      "name": "cancelled",
+      "valid": true,
+      "value": {
+        "source": "http",
+        "request_id": "7",
+        "request_tag": "r-test-h000007",
+        "attempts": [
+          {
+            "request": {
+              "method": "POST",
+              "url": "https://target.example/api?q=%2F&q=2",
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "one"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "two"
+                  }
+                ],
+                "body_base64": "eyJwcm9iZSI6MX0="
+              }
+            },
+            "error": "cancelled"
+          }
+        ]
+      }
+    },
+    {
+      "name": "response_invalid",
+      "valid": true,
+      "value": {
+        "source": "http",
+        "request_id": "7",
+        "request_tag": "r-test-h000007",
+        "attempts": [
+          {
+            "request": {
+              "method": "POST",
+              "url": "https://target.example/api?q=%2F&q=2",
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "one"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "two"
+                  }
+                ],
+                "body_base64": "eyJwcm9iZSI6MX0="
+              }
+            },
+            "error": "response_invalid"
+          }
+        ]
+      }
+    },
+    {
+      "name": "response_too_large",
+      "valid": true,
+      "value": {
+        "source": "http",
+        "request_id": "7",
+        "request_tag": "r-test-h000007",
+        "attempts": [
+          {
+            "request": {
+              "method": "POST",
+              "url": "https://target.example/api?q=%2F&q=2",
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "one"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "two"
+                  }
+                ],
+                "body_base64": "eyJwcm9iZSI6MX0="
+              }
+            },
+            "error": "response_too_large"
+          }
+        ]
+      }
+    },
+    {
+      "name": "incomplete_response",
+      "valid": true,
+      "value": {
+        "source": "http",
+        "request_id": "7",
+        "request_tag": "r-test-h000007",
+        "attempts": [
+          {
+            "request": {
+              "method": "POST",
+              "url": "https://target.example/api?q=%2F&q=2",
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "one"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "two"
+                  }
+                ],
+                "body_base64": "eyJwcm9iZSI6MX0="
+              }
+            },
+            "response": {
+              "status": 422,
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body_base64": "eyJlcnJvciI6ImlucHV0In0="
+              },
+              "complete": false
+            },
+            "error": "timeout"
+          }
+        ]
+      }
+    },
+    {
+      "name": "caido_raw",
+      "valid": true,
+      "value": {
+        "source": "caido",
+        "request_id": "request-42",
+        "attempts": [
+          {
+            "request": {
+              "method": "GET",
+              "url": "http://target.example/",
+              "message": {
+                "kind": "raw",
+                "data_base64": "R0VUIC8gSFRUUC8xLjENCkhvc3Q6IHRhcmdldC5leGFtcGxlDQoNCg=="
+              }
+            },
+            "response": {
+              "status": 200,
+              "message": {
+                "kind": "raw",
+                "data_base64": "SFRUUC8xLjEgMjAwIE9LDQpDb250ZW50LUxlbmd0aDogMA0KDQo="
+              },
+              "complete": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "caido_without_response",
+      "valid": true,
+      "value": {
+        "source": "caido",
+        "request_id": "request-42",
+        "attempts": [
+          {
+            "request": {
+              "method": "GET",
+              "url": "http://target.example/",
+              "message": {
+                "kind": "raw",
+                "data_base64": "R0VUIC8gSFRUUC8xLjENCkhvc3Q6IHRhcmdldC5leGFtcGxlDQoNCg=="
+              }
+            },
+            "error": "transport_error"
+          }
+        ]
+      }
+    },
+    {
+      "name": "unknown_source",
+      "valid": false,
+      "value": {
+        "source": "proxy",
+        "request_id": "7",
+        "request_tag": "r-test-h000007",
+        "attempts": [
+          {
+            "request": {
+              "method": "POST",
+              "url": "https://target.example/api?q=%2F&q=2",
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "one"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "two"
+                  }
+                ],
+                "body_base64": "eyJwcm9iZSI6MX0="
+              }
+            },
+            "response": {
+              "status": 422,
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body_base64": "eyJlcnJvciI6ImlucHV0In0="
+              },
+              "complete": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "invalid_http_identity_0",
+      "valid": false,
+      "value": {
+        "source": "http",
+        "request_id": "0",
+        "request_tag": "r-test-h000007",
+        "attempts": [
+          {
+            "request": {
+              "method": "POST",
+              "url": "https://target.example/api?q=%2F&q=2",
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "one"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "two"
+                  }
+                ],
+                "body_base64": "eyJwcm9iZSI6MX0="
+              }
+            },
+            "response": {
+              "status": 422,
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body_base64": "eyJlcnJvciI6ImlucHV0In0="
+              },
+              "complete": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "invalid_http_identity_01",
+      "valid": false,
+      "value": {
+        "source": "http",
+        "request_id": "01",
+        "request_tag": "r-test-h000007",
+        "attempts": [
+          {
+            "request": {
+              "method": "POST",
+              "url": "https://target.example/api?q=%2F&q=2",
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "one"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "two"
+                  }
+                ],
+                "body_base64": "eyJwcm9iZSI6MX0="
+              }
+            },
+            "response": {
+              "status": 422,
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body_base64": "eyJlcnJvciI6ImlucHV0In0="
+              },
+              "complete": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "invalid_http_identity_-1",
+      "valid": false,
+      "value": {
+        "source": "http",
+        "request_id": "-1",
+        "request_tag": "r-test-h000007",
+        "attempts": [
+          {
+            "request": {
+              "method": "POST",
+              "url": "https://target.example/api?q=%2F&q=2",
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "one"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "two"
+                  }
+                ],
+                "body_base64": "eyJwcm9iZSI6MX0="
+              }
+            },
+            "response": {
+              "status": 422,
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body_base64": "eyJlcnJvciI6ImlucHV0In0="
+              },
+              "complete": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "invalid_http_identity_1.0",
+      "valid": false,
+      "value": {
+        "source": "http",
+        "request_id": "1.0",
+        "request_tag": "r-test-h000007",
+        "attempts": [
+          {
+            "request": {
+              "method": "POST",
+              "url": "https://target.example/api?q=%2F&q=2",
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "one"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "two"
+                  }
+                ],
+                "body_base64": "eyJwcm9iZSI6MX0="
+              }
+            },
+            "response": {
+              "status": 422,
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body_base64": "eyJlcnJvciI6ImlucHV0In0="
+              },
+              "complete": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "invalid_http_identity_+1",
+      "valid": false,
+      "value": {
+        "source": "http",
+        "request_id": "+1",
+        "request_tag": "r-test-h000007",
+        "attempts": [
+          {
+            "request": {
+              "method": "POST",
+              "url": "https://target.example/api?q=%2F&q=2",
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "one"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "two"
+                  }
+                ],
+                "body_base64": "eyJwcm9iZSI6MX0="
+              }
+            },
+            "response": {
+              "status": 422,
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body_base64": "eyJlcnJvciI6ImlucHV0In0="
+              },
+              "complete": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "invalid_http_identity_9007199254740992",
+      "valid": false,
+      "value": {
+        "source": "http",
+        "request_id": "9007199254740992",
+        "request_tag": "r-test-h000007",
+        "attempts": [
+          {
+            "request": {
+              "method": "POST",
+              "url": "https://target.example/api?q=%2F&q=2",
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "one"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "two"
+                  }
+                ],
+                "body_base64": "eyJwcm9iZSI6MX0="
+              }
+            },
+            "response": {
+              "status": 422,
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body_base64": "eyJlcnJvciI6ImlucHV0In0="
+              },
+              "complete": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "invalid_http_identity_١",
+      "valid": false,
+      "value": {
+        "source": "http",
+        "request_id": "١",
+        "request_tag": "r-test-h000007",
+        "attempts": [
+          {
+            "request": {
+              "method": "POST",
+              "url": "https://target.example/api?q=%2F&q=2",
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "one"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "two"
+                  }
+                ],
+                "body_base64": "eyJwcm9iZSI6MX0="
+              }
+            },
+            "response": {
+              "status": 422,
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body_base64": "eyJlcnJvciI6ImlucHV0In0="
+              },
+              "complete": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "missing_tag",
+      "valid": false,
+      "value": {
+        "source": "http",
+        "request_id": "7",
+        "attempts": [
+          {
+            "request": {
+              "method": "POST",
+              "url": "https://target.example/api?q=%2F&q=2",
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "one"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "two"
+                  }
+                ],
+                "body_base64": "eyJwcm9iZSI6MX0="
+              }
+            },
+            "response": {
+              "status": 422,
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body_base64": "eyJlcnJvciI6ImlucHV0In0="
+              },
+              "complete": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "null_tag",
+      "valid": false,
+      "value": {
+        "source": "http",
+        "request_id": "7",
+        "request_tag": null,
+        "attempts": [
+          {
+            "request": {
+              "method": "POST",
+              "url": "https://target.example/api?q=%2F&q=2",
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "one"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "two"
+                  }
+                ],
+                "body_base64": "eyJwcm9iZSI6MX0="
+              }
+            },
+            "response": {
+              "status": 422,
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body_base64": "eyJlcnJvciI6ImlucHV0In0="
+              },
+              "complete": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "empty_tag",
+      "valid": false,
+      "value": {
+        "source": "http",
+        "request_id": "7",
+        "request_tag": "",
+        "attempts": [
+          {
+            "request": {
+              "method": "POST",
+              "url": "https://target.example/api?q=%2F&q=2",
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "one"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "two"
+                  }
+                ],
+                "body_base64": "eyJwcm9iZSI6MX0="
+              }
+            },
+            "response": {
+              "status": 422,
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body_base64": "eyJlcnJvciI6ImlucHV0In0="
+              },
+              "complete": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "unknown_root_field",
+      "valid": false,
+      "value": {
+        "source": "http",
+        "request_id": "7",
+        "request_tag": "r-test-h000007",
+        "attempts": [
+          {
+            "request": {
+              "method": "POST",
+              "url": "https://target.example/api?q=%2F&q=2",
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "one"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "two"
+                  }
+                ],
+                "body_base64": "eyJwcm9iZSI6MX0="
+              }
+            },
+            "response": {
+              "status": 422,
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body_base64": "eyJlcnJvciI6ImlucHV0In0="
+              },
+              "complete": true
+            }
+          }
+        ],
+        "extra": 1
+      }
+    },
+    {
+      "name": "no_attempts",
+      "valid": false,
+      "value": {
+        "source": "http",
+        "request_id": "7",
+        "request_tag": "r-test-h000007",
+        "attempts": []
+      }
+    },
+    {
+      "name": "too_many_attempts",
+      "valid": false,
+      "value": {
+        "source": "http",
+        "request_id": "7",
+        "request_tag": "r-test-h000007",
+        "attempts": [
+          {
+            "request": {
+              "method": "POST",
+              "url": "https://target.example/api?q=%2F&q=2",
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "one"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "two"
+                  }
+                ],
+                "body_base64": "eyJwcm9iZSI6MX0="
+              }
+            },
+            "response": {
+              "status": 422,
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body_base64": "eyJlcnJvciI6ImlucHV0In0="
+              },
+              "complete": true
+            }
+          },
+          {
+            "request": {
+              "method": "POST",
+              "url": "https://target.example/api?q=%2F&q=2",
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "one"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "two"
+                  }
+                ],
+                "body_base64": "eyJwcm9iZSI6MX0="
+              }
+            },
+            "response": {
+              "status": 422,
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body_base64": "eyJlcnJvciI6ImlucHV0In0="
+              },
+              "complete": true
+            }
+          },
+          {
+            "request": {
+              "method": "POST",
+              "url": "https://target.example/api?q=%2F&q=2",
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "one"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "two"
+                  }
+                ],
+                "body_base64": "eyJwcm9iZSI6MX0="
+              }
+            },
+            "response": {
+              "status": 422,
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body_base64": "eyJlcnJvciI6ImlucHV0In0="
+              },
+              "complete": true
+            }
+          },
+          {
+            "request": {
+              "method": "POST",
+              "url": "https://target.example/api?q=%2F&q=2",
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "one"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "two"
+                  }
+                ],
+                "body_base64": "eyJwcm9iZSI6MX0="
+              }
+            },
+            "response": {
+              "status": 422,
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body_base64": "eyJlcnJvciI6ImlucHV0In0="
+              },
+              "complete": true
+            }
+          },
+          {
+            "request": {
+              "method": "POST",
+              "url": "https://target.example/api?q=%2F&q=2",
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "one"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "two"
+                  }
+                ],
+                "body_base64": "eyJwcm9iZSI6MX0="
+              }
+            },
+            "response": {
+              "status": 422,
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body_base64": "eyJlcnJvciI6ImlucHV0In0="
+              },
+              "complete": true
+            }
+          },
+          {
+            "request": {
+              "method": "POST",
+              "url": "https://target.example/api?q=%2F&q=2",
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "one"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "two"
+                  }
+                ],
+                "body_base64": "eyJwcm9iZSI6MX0="
+              }
+            },
+            "response": {
+              "status": 422,
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body_base64": "eyJlcnJvciI6ImlucHV0In0="
+              },
+              "complete": true
+            }
+          },
+          {
+            "request": {
+              "method": "POST",
+              "url": "https://target.example/api?q=%2F&q=2",
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "one"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "two"
+                  }
+                ],
+                "body_base64": "eyJwcm9iZSI6MX0="
+              }
+            },
+            "response": {
+              "status": 422,
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body_base64": "eyJlcnJvciI6ImlucHV0In0="
+              },
+              "complete": true
+            }
+          },
+          {
+            "request": {
+              "method": "POST",
+              "url": "https://target.example/api?q=%2F&q=2",
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "one"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "two"
+                  }
+                ],
+                "body_base64": "eyJwcm9iZSI6MX0="
+              }
+            },
+            "response": {
+              "status": 422,
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body_base64": "eyJlcnJvciI6ImlucHV0In0="
+              },
+              "complete": true
+            }
+          },
+          {
+            "request": {
+              "method": "POST",
+              "url": "https://target.example/api?q=%2F&q=2",
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "one"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "two"
+                  }
+                ],
+                "body_base64": "eyJwcm9iZSI6MX0="
+              }
+            },
+            "response": {
+              "status": 422,
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body_base64": "eyJlcnJvciI6ImlucHV0In0="
+              },
+              "complete": true
+            }
+          },
+          {
+            "request": {
+              "method": "POST",
+              "url": "https://target.example/api?q=%2F&q=2",
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "one"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "two"
+                  }
+                ],
+                "body_base64": "eyJwcm9iZSI6MX0="
+              }
+            },
+            "response": {
+              "status": 422,
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body_base64": "eyJlcnJvciI6ImlucHV0In0="
+              },
+              "complete": true
+            }
+          },
+          {
+            "request": {
+              "method": "POST",
+              "url": "https://target.example/api?q=%2F&q=2",
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "one"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "two"
+                  }
+                ],
+                "body_base64": "eyJwcm9iZSI6MX0="
+              }
+            },
+            "response": {
+              "status": 422,
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body_base64": "eyJlcnJvciI6ImlucHV0In0="
+              },
+              "complete": true
+            }
+          },
+          {
+            "request": {
+              "method": "POST",
+              "url": "https://target.example/api?q=%2F&q=2",
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "one"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "two"
+                  }
+                ],
+                "body_base64": "eyJwcm9iZSI6MX0="
+              }
+            },
+            "response": {
+              "status": 422,
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body_base64": "eyJlcnJvciI6ImlucHV0In0="
+              },
+              "complete": true
+            }
+          },
+          {
+            "request": {
+              "method": "POST",
+              "url": "https://target.example/api?q=%2F&q=2",
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "one"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "two"
+                  }
+                ],
+                "body_base64": "eyJwcm9iZSI6MX0="
+              }
+            },
+            "response": {
+              "status": 422,
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body_base64": "eyJlcnJvciI6ImlucHV0In0="
+              },
+              "complete": true
+            }
+          },
+          {
+            "request": {
+              "method": "POST",
+              "url": "https://target.example/api?q=%2F&q=2",
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "one"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "two"
+                  }
+                ],
+                "body_base64": "eyJwcm9iZSI6MX0="
+              }
+            },
+            "response": {
+              "status": 422,
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body_base64": "eyJlcnJvciI6ImlucHV0In0="
+              },
+              "complete": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "missing_request",
+      "valid": false,
+      "value": {
+        "source": "http",
+        "request_id": "7",
+        "request_tag": "r-test-h000007",
+        "attempts": [
+          {
+            "response": {
+              "status": 422,
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body_base64": "eyJlcnJvciI6ImlucHV0In0="
+              },
+              "complete": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "null_request",
+      "valid": false,
+      "value": {
+        "source": "http",
+        "request_id": "7",
+        "request_tag": "r-test-h000007",
+        "attempts": [
+          {
+            "request": null,
+            "response": {
+              "status": 422,
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body_base64": "eyJlcnJvciI6ImlucHV0In0="
+              },
+              "complete": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "unknown_request_field",
+      "valid": false,
+      "value": {
+        "source": "http",
+        "request_id": "7",
+        "request_tag": "r-test-h000007",
+        "attempts": [
+          {
+            "request": {
+              "method": "POST",
+              "url": "https://target.example/api?q=%2F&q=2",
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "one"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "two"
+                  }
+                ],
+                "body_base64": "eyJwcm9iZSI6MX0="
+              },
+              "extra": 1
+            },
+            "response": {
+              "status": 422,
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body_base64": "eyJlcnJvciI6ImlucHV0In0="
+              },
+              "complete": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "no_outcome",
+      "valid": false,
+      "value": {
+        "source": "http",
+        "request_id": "7",
+        "request_tag": "r-test-h000007",
+        "attempts": [
+          {
+            "request": {
+              "method": "POST",
+              "url": "https://target.example/api?q=%2F&q=2",
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "one"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "two"
+                  }
+                ],
+                "body_base64": "eyJwcm9iZSI6MX0="
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "null_response",
+      "valid": false,
+      "value": {
+        "source": "http",
+        "request_id": "7",
+        "request_tag": "r-test-h000007",
+        "attempts": [
+          {
+            "request": {
+              "method": "POST",
+              "url": "https://target.example/api?q=%2F&q=2",
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "one"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "two"
+                  }
+                ],
+                "body_base64": "eyJwcm9iZSI6MX0="
+              }
+            },
+            "response": null,
+            "error": "timeout"
+          }
+        ]
+      }
+    },
+    {
+      "name": "null_error",
+      "valid": false,
+      "value": {
+        "source": "http",
+        "request_id": "7",
+        "request_tag": "r-test-h000007",
+        "attempts": [
+          {
+            "request": {
+              "method": "POST",
+              "url": "https://target.example/api?q=%2F&q=2",
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "one"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "two"
+                  }
+                ],
+                "body_base64": "eyJwcm9iZSI6MX0="
+              }
+            },
+            "response": {
+              "status": 422,
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body_base64": "eyJlcnJvciI6ImlucHV0In0="
+              },
+              "complete": true
+            },
+            "error": null
+          }
+        ]
+      }
+    },
+    {
+      "name": "complete_with_error",
+      "valid": false,
+      "value": {
+        "source": "http",
+        "request_id": "7",
+        "request_tag": "r-test-h000007",
+        "attempts": [
+          {
+            "request": {
+              "method": "POST",
+              "url": "https://target.example/api?q=%2F&q=2",
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "one"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "two"
+                  }
+                ],
+                "body_base64": "eyJwcm9iZSI6MX0="
+              }
+            },
+            "response": {
+              "status": 422,
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body_base64": "eyJlcnJvciI6ImlucHV0In0="
+              },
+              "complete": true
+            },
+            "error": "timeout"
+          }
+        ]
+      }
+    },
+    {
+      "name": "unknown_error",
+      "valid": false,
+      "value": {
+        "source": "http",
+        "request_id": "7",
+        "request_tag": "r-test-h000007",
+        "attempts": [
+          {
+            "request": {
+              "method": "POST",
+              "url": "https://target.example/api?q=%2F&q=2",
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "one"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "two"
+                  }
+                ],
+                "body_base64": "eyJwcm9iZSI6MX0="
+              }
+            },
+            "error": "connection_refused"
+          }
+        ]
+      }
+    },
+    {
+      "name": "invalid_status",
+      "valid": false,
+      "value": {
+        "source": "http",
+        "request_id": "7",
+        "request_tag": "r-test-h000007",
+        "attempts": [
+          {
+            "request": {
+              "method": "POST",
+              "url": "https://target.example/api?q=%2F&q=2",
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "one"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "two"
+                  }
+                ],
+                "body_base64": "eyJwcm9iZSI6MX0="
+              }
+            },
+            "response": {
+              "status": 600,
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body_base64": "eyJlcnJvciI6ImlucHV0In0="
+              },
+              "complete": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "bool_status",
+      "valid": false,
+      "value": {
+        "source": "http",
+        "request_id": "7",
+        "request_tag": "r-test-h000007",
+        "attempts": [
+          {
+            "request": {
+              "method": "POST",
+              "url": "https://target.example/api?q=%2F&q=2",
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "one"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "two"
+                  }
+                ],
+                "body_base64": "eyJwcm9iZSI6MX0="
+              }
+            },
+            "response": {
+              "status": true,
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body_base64": "eyJlcnJvciI6ImlucHV0In0="
+              },
+              "complete": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "missing_complete",
+      "valid": false,
+      "value": {
+        "source": "http",
+        "request_id": "7",
+        "request_tag": "r-test-h000007",
+        "attempts": [
+          {
+            "request": {
+              "method": "POST",
+              "url": "https://target.example/api?q=%2F&q=2",
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "one"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "two"
+                  }
+                ],
+                "body_base64": "eyJwcm9iZSI6MX0="
+              }
+            },
+            "response": {
+              "status": 422,
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body_base64": "eyJlcnJvciI6ImlucHV0In0="
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "null_complete",
+      "valid": false,
+      "value": {
+        "source": "http",
+        "request_id": "7",
+        "request_tag": "r-test-h000007",
+        "attempts": [
+          {
+            "request": {
+              "method": "POST",
+              "url": "https://target.example/api?q=%2F&q=2",
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "one"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "two"
+                  }
+                ],
+                "body_base64": "eyJwcm9iZSI6MX0="
+              }
+            },
+            "response": {
+              "status": 422,
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body_base64": "eyJlcnJvciI6ImlucHV0In0="
+              },
+              "complete": null
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "string_complete",
+      "valid": false,
+      "value": {
+        "source": "http",
+        "request_id": "7",
+        "request_tag": "r-test-h000007",
+        "attempts": [
+          {
+            "request": {
+              "method": "POST",
+              "url": "https://target.example/api?q=%2F&q=2",
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "one"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "two"
+                  }
+                ],
+                "body_base64": "eyJwcm9iZSI6MX0="
+              }
+            },
+            "response": {
+              "status": 422,
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body_base64": "eyJlcnJvciI6ImlucHV0In0="
+              },
+              "complete": "true"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "unknown_message_field",
+      "valid": false,
+      "value": {
+        "source": "http",
+        "request_id": "7",
+        "request_tag": "r-test-h000007",
+        "attempts": [
+          {
+            "request": {
+              "method": "POST",
+              "url": "https://target.example/api?q=%2F&q=2",
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "one"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "two"
+                  }
+                ],
+                "body_base64": "eyJwcm9iZSI6MX0=",
+                "extra": 1
+              }
+            },
+            "response": {
+              "status": 422,
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body_base64": "eyJlcnJvciI6ImlucHV0In0="
+              },
+              "complete": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "missing_headers",
+      "valid": false,
+      "value": {
+        "source": "http",
+        "request_id": "7",
+        "request_tag": "r-test-h000007",
+        "attempts": [
+          {
+            "request": {
+              "method": "POST",
+              "url": "https://target.example/api?q=%2F&q=2",
+              "message": {
+                "kind": "structured",
+                "body_base64": "eyJwcm9iZSI6MX0="
+              }
+            },
+            "response": {
+              "status": 422,
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body_base64": "eyJlcnJvciI6ImlucHV0In0="
+              },
+              "complete": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "null_headers",
+      "valid": false,
+      "value": {
+        "source": "http",
+        "request_id": "7",
+        "request_tag": "r-test-h000007",
+        "attempts": [
+          {
+            "request": {
+              "method": "POST",
+              "url": "https://target.example/api?q=%2F&q=2",
+              "message": {
+                "kind": "structured",
+                "headers": null,
+                "body_base64": "eyJwcm9iZSI6MX0="
+              }
+            },
+            "response": {
+              "status": 422,
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body_base64": "eyJlcnJvciI6ImlucHV0In0="
+              },
+              "complete": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "header_linebreak",
+      "valid": false,
+      "value": {
+        "source": "http",
+        "request_id": "7",
+        "request_tag": "r-test-h000007",
+        "attempts": [
+          {
+            "request": {
+              "method": "POST",
+              "url": "https://target.example/api?q=%2F&q=2",
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "x\r\nHeader: y"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "one"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "two"
+                  }
+                ],
+                "body_base64": "eyJwcm9iZSI6MX0="
+              }
+            },
+            "response": {
+              "status": 422,
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body_base64": "eyJlcnJvciI6ImlucHV0In0="
+              },
+              "complete": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "invalid_header_name",
+      "valid": false,
+      "value": {
+        "source": "http",
+        "request_id": "7",
+        "request_tag": "r-test-h000007",
+        "attempts": [
+          {
+            "request": {
+              "method": "POST",
+              "url": "https://target.example/api?q=%2F&q=2",
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Bad Header",
+                    "value": "application/json"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "one"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "two"
+                  }
+                ],
+                "body_base64": "eyJwcm9iZSI6MX0="
+              }
+            },
+            "response": {
+              "status": 422,
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body_base64": "eyJlcnJvciI6ImlucHV0In0="
+              },
+              "complete": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "invalid_base64",
+      "valid": false,
+      "value": {
+        "source": "http",
+        "request_id": "7",
+        "request_tag": "r-test-h000007",
+        "attempts": [
+          {
+            "request": {
+              "method": "POST",
+              "url": "https://target.example/api?q=%2F&q=2",
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "one"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "two"
+                  }
+                ],
+                "body_base64": "!"
+              }
+            },
+            "response": {
+              "status": 422,
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body_base64": "eyJlcnJvciI6ImlucHV0In0="
+              },
+              "complete": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "noncanonical_base64",
+      "valid": false,
+      "value": {
+        "source": "http",
+        "request_id": "7",
+        "request_tag": "r-test-h000007",
+        "attempts": [
+          {
+            "request": {
+              "method": "POST",
+              "url": "https://target.example/api?q=%2F&q=2",
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "one"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "two"
+                  }
+                ],
+                "body_base64": "Zh=="
+              }
+            },
+            "response": {
+              "status": 422,
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body_base64": "eyJlcnJvciI6ImlucHV0In0="
+              },
+              "complete": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "invalid_method",
+      "valid": false,
+      "value": {
+        "source": "http",
+        "request_id": "7",
+        "request_tag": "r-test-h000007",
+        "attempts": [
+          {
+            "request": {
+              "method": "GET X",
+              "url": "https://target.example/api?q=%2F&q=2",
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "one"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "two"
+                  }
+                ],
+                "body_base64": "eyJwcm9iZSI6MX0="
+              }
+            },
+            "response": {
+              "status": 422,
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body_base64": "eyJlcnJvciI6ImlucHV0In0="
+              },
+              "complete": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "invalid_url",
+      "valid": false,
+      "value": {
+        "source": "http",
+        "request_id": "7",
+        "request_tag": "r-test-h000007",
+        "attempts": [
+          {
+            "request": {
+              "method": "POST",
+              "url": "file:///tmp/data",
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "one"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "two"
+                  }
+                ],
+                "body_base64": "eyJwcm9iZSI6MX0="
+              }
+            },
+            "response": {
+              "status": 422,
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body_base64": "eyJlcnJvciI6ImlucHV0In0="
+              },
+              "complete": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "source_message_mismatch",
+      "valid": false,
+      "value": {
+        "source": "caido",
+        "request_id": "7",
+        "request_tag": "r-test-h000007",
+        "attempts": [
+          {
+            "request": {
+              "method": "POST",
+              "url": "https://target.example/api?q=%2F&q=2",
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "one"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "two"
+                  }
+                ],
+                "body_base64": "eyJwcm9iZSI6MX0="
+              }
+            },
+            "response": {
+              "status": 422,
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body_base64": "eyJlcnJvciI6ImlucHV0In0="
+              },
+              "complete": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "empty_raw_request",
+      "valid": false,
+      "value": {
+        "source": "caido",
+        "request_id": "request-42",
+        "attempts": [
+          {
+            "request": {
+              "method": "GET",
+              "url": "http://target.example/",
+              "message": {
+                "kind": "raw",
+                "data_base64": ""
+              }
+            },
+            "response": {
+              "status": 200,
+              "message": {
+                "kind": "raw",
+                "data_base64": "SFRUUC8xLjEgMjAwIE9LDQpDb250ZW50LUxlbmd0aDogMA0KDQo="
+              },
+              "complete": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "unknown_raw_message_field",
+      "valid": false,
+      "value": {
+        "source": "caido",
+        "request_id": "request-42",
+        "attempts": [
+          {
+            "request": {
+              "method": "GET",
+              "url": "http://target.example/",
+              "message": {
+                "kind": "raw",
+                "data_base64": "R0VUIC8gSFRUUC8xLjENCkhvc3Q6IHRhcmdldC5leGFtcGxlDQoNCg==",
+                "headers": []
+              }
+            },
+            "response": {
+              "status": 200,
+              "message": {
+                "kind": "raw",
+                "data_base64": "SFRUUC8xLjEgMjAwIE9LDQpDb250ZW50LUxlbmd0aDogMA0KDQo="
+              },
+              "complete": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "unicode_id_byte_bound",
+      "valid": false,
+      "value": {
+        "source": "caido",
+        "request_id": "ééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé",
+        "attempts": [
+          {
+            "request": {
+              "method": "GET",
+              "url": "http://target.example/",
+              "message": {
+                "kind": "raw",
+                "data_base64": "R0VUIC8gSFRUUC8xLjENCkhvc3Q6IHRhcmdldC5leGFtcGxlDQoNCg=="
+              }
+            },
+            "response": {
+              "status": 200,
+              "message": {
+                "kind": "raw",
+                "data_base64": "SFRUUC8xLjEgMjAwIE9LDQpDb250ZW50LUxlbmd0aDogMA0KDQo="
+              },
+              "complete": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "control_in_id",
+      "valid": false,
+      "value": {
+        "source": "caido",
+        "request_id": "request\u0001",
+        "attempts": [
+          {
+            "request": {
+              "method": "GET",
+              "url": "http://target.example/",
+              "message": {
+                "kind": "raw",
+                "data_base64": "R0VUIC8gSFRUUC8xLjENCkhvc3Q6IHRhcmdldC5leGFtcGxlDQoNCg=="
+              }
+            },
+            "response": {
+              "status": 200,
+              "message": {
+                "kind": "raw",
+                "data_base64": "SFRUUC8xLjEgMjAwIE9LDQpDb250ZW50LUxlbmd0aDogMA0KDQo="
+              },
+              "complete": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "target_denied",
+      "valid": true,
+      "value": {
+        "source": "http",
+        "request_id": "7",
+        "request_tag": "r-test-h000007",
+        "attempts": [
+          {
+            "request": {
+              "method": "POST",
+              "url": "https://target.example/api?q=%2F&q=2",
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "one"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "two"
+                  }
+                ],
+                "body_base64": "eyJwcm9iZSI6MX0="
+              }
+            },
+            "error": "target_denied"
+          }
+        ]
+      }
+    },
+    {
+      "name": "request_invalid",
+      "valid": true,
+      "value": {
+        "source": "http",
+        "request_id": "7",
+        "request_tag": "r-test-h000007",
+        "attempts": [
+          {
+            "request": {
+              "method": "POST",
+              "url": "https://target.example/api?q=%2F&q=2",
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "one"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "two"
+                  }
+                ],
+                "body_base64": "eyJwcm9iZSI6MX0="
+              }
+            },
+            "error": "request_invalid"
+          }
+        ]
+      }
+    },
+    {
+      "name": "empty_error",
+      "valid": false,
+      "value": {
+        "source": "http",
+        "request_id": "7",
+        "request_tag": "r-test-h000007",
+        "attempts": [
+          {
+            "request": {
+              "method": "POST",
+              "url": "https://target.example/api?q=%2F&q=2",
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "one"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "two"
+                  }
+                ],
+                "body_base64": "eyJwcm9iZSI6MX0="
+              }
+            },
+            "response": {
+              "status": 422,
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body_base64": "eyJlcnJvciI6ImlucHV0In0="
+              },
+              "complete": true
+            },
+            "error": ""
+          }
+        ]
+      }
+    },
+    {
+      "name": "null_error_again",
+      "valid": false,
+      "value": {
+        "source": "http",
+        "request_id": "7",
+        "request_tag": "r-test-h000007",
+        "attempts": [
+          {
+            "request": {
+              "method": "POST",
+              "url": "https://target.example/api?q=%2F&q=2",
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "one"
+                  },
+                  {
+                    "name": "X-Probe",
+                    "value": "two"
+                  }
+                ],
+                "body_base64": "eyJwcm9iZSI6MX0="
+              }
+            },
+            "response": {
+              "status": 422,
+              "message": {
+                "kind": "structured",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body_base64": "eyJlcnJvciI6ImlucHV0In0="
+              },
+              "complete": true
+            },
+            "error": null
+          }
+        ]
+      }
+    },
+    {
+      "name": "empty_caido_tag",
+      "valid": false,
+      "value": {
+        "source": "caido",
+        "request_id": "request-42",
+        "attempts": [
+          {
+            "request": {
+              "method": "GET",
+              "url": "http://target.example/",
+              "message": {
+                "kind": "raw",
+                "data_base64": "R0VUIC8gSFRUUC8xLjENCkhvc3Q6IHRhcmdldC5leGFtcGxlDQoNCg=="
+              }
+            },
+            "response": {
+              "status": 200,
+              "message": {
+                "kind": "raw",
+                "data_base64": "SFRUUC8xLjEgMjAwIE9LDQpDb250ZW50LUxlbmd0aDogMA0KDQo="
+              },
+              "complete": true
+            }
+          }
+        ],
+        "request_tag": ""
+      }
+    }
+  ]
+}

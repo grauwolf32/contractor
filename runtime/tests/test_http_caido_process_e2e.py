@@ -149,20 +149,12 @@ def test_http_caido_allocation_tools_finalize_release_and_reuse(tmp_path: Path) 
         result = await service._context.worker.invoke(stage_request())
 
         assert result.result is not None
-        assert result.result.artifacts["report"].revision == "revision-2"
+        assert result.result.artifacts["report"].revision == "revision-1"
         assert [request.url.host for request in http_requests] == ["target.example"]
         assert caido_operations == ["RequestsByOffset", "CreateScope"]
-        body = artifacts.bindings[
-            (
-                "analysis",
-                next(
-                    name
-                    for namespace, name in artifacts.bindings
-                    if namespace == "analysis" and name.startswith("http.body.")
-                ),
-            )
-        ]
-        assert RAW_BODY.encode() in body.data
+        assert all(not name.startswith("http.body.") for _, name in artifacts.bindings)
+        buffer = service._context.worker_state.http_captures
+        assert not buffer._entries  # The scripted worker explicitly cleared its session.
 
         terminal = await service.finalize(
             FinalizeAllocationRequest(

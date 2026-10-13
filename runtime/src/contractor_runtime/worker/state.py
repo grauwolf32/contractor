@@ -77,6 +77,7 @@ class WorkerStateStore:
         self.execution = WorkerExecutionState()
         # Private allocation-owned resource, excluded from JSON/model state.
         self.http_session: Any = None
+        self.http_captures: Any = None
         self._lock = asyncio.Lock()
         self._state: dict[str, Any] = {
             "schemaVersion": WORKER_STATE_SCHEMA_VERSION,

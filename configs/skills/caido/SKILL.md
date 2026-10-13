@@ -43,8 +43,8 @@ analysis or when starting from a captured request. Every replay has a fresh
   one scope with at most 256 allow/deny terms in total.
 - `caido_history(filter="", limit=20, offset=0)` reads one newest-first page
   using bounded HTTPQL.
-- `caido_request_detail(request_id)` returns metadata, bounded raw previews and
-  an exact exchange artifact when raw bytes exist.
+- `caido_request_detail(request_id)` returns metadata and bounded raw previews,
+  retaining the exchange in this invocation's recent buffer for finding selection.
 - `caido_replay(...)` accepts exactly one source: `request_id`, or
   `raw_request` plus `host` and optional port/TLS. `wait=false` returns after
   start; a `timeout` result ends only local observation and does not mean Caido
@@ -72,14 +72,21 @@ analysis or when starting from a captured request. Every replay has a fresh
 1. Use `caido_scope` and `caido_history` to establish the authorized baseline.
 2. Inspect only relevant candidates with `caido_request_detail`.
 3. Use `caido_replay` for a single confirming change. Preserve its
-   `request_tag`, response status and exact exchange artifact.
+   `request_tag`, request ID and response status.
 4. Use `caido_automate_run` only for a genuine multi-payload question, then
    inspect bounded pages with `caido_automate_results`.
 5. Resolve optional recipes with `caido_workflow_list`. Convert workflows
    transform text; active workflows operate on one captured request; passive
    workflows analyze traffic already seen by Caido.
 6. Read `caido_workflow_findings`, correlate relevant request IDs, and report
-   evidence plus limitations. An empty list is not proof of absence because a
+   evidence plus limitations. Record relevant observations through `finding`,
+   selecting `caido_request_id` after inspecting the exchange, or `request_id`
+   for a recent `http_request`. Finding automatically saves the selected request
+   and available response and returns exact evidence refs. Ordinary tool calls
+   do not save HTTP artifacts. The recent shared buffer holds at most 128
+   exchanges and 64 MiB; inspect the source again if it expired. Do not create
+   a finding solely to preserve routine traffic; that traffic remains in Caido
+   when routed through it. An empty finding list is not proof of absence because a
    workflow may be missing, disabled, or may not have observed the traffic.
 
 Useful recipes commonly include Copy As Python Requests, GraphQL Introspection

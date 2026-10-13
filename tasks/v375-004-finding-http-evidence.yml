@@ -5,7 +5,7 @@ milestone: http-finding-evidence-2026-10
 epic: http-tools
 kind: feature
 priority: P1
-status: pending
+status: in_progress
 depends_on: [V375-003]
 languages: [go, python, markdown]
 goal: >-
@@ -58,8 +58,8 @@ failure_outcomes:
 cardinality:
   - collection: Recent captured exchanges and response bodies of one allocation
     expected: Tens of requests with small response bodies
-    maximum: At most 128 exchanges under the owning HTTP body, header and attempt bounds
-    bound: Define and enforce the allocation byte budget and eviction behavior in the limit registry and shared cases before implementing retention.
+    maximum: At most 128 exchanges and 64 MiB of serialized capture JSON under the owning body, header and attempt bounds
+    bound: LIM-HTP-18 and LIM-HTP-33; deterministic oldest-first eviction on count or bytes, with shared cases and a real 16 MiB response regression.
   - collection: Evidence of one finding
     expected: One selected HTTP exchange plus any supporting evidence
     maximum: Existing finding evidence count and document byte limits
@@ -101,9 +101,18 @@ tests:
     covers: [A1, A2, A3, A4, A5]
   - command: make test-wire-cross-language
     covers: [A3, A5]
-  - command: go test -tags integration ./internal/findingintake ./internal/artifacts ./internal/httpapi/public
+  - command: go test -tags integration ./internal/auditdomain ./internal/findingintake ./internal/artifacts ./internal/httpapi/privateartifacts ./internal/httpapi/public ./internal/config
     covers: [A1, A2, A4, A5]
   - command: make verify-public-api
     covers: [A2, A3, A5]
   - command: make verify-public-api-postgres
     covers: [A2, A3, A4, A5]
+verification:
+  date: 2026-10-14
+  results:
+    - make lint passed, including layer and shared-fixture source checks.
+    - make test-runtime passed with 3814 passed and 39 skipped; skipped cases are not counted as passes.
+    - make test-wire-cross-language passed with the disposable PostgreSQL database (227 fixtures, 196 Go and 161 Python shared tests).
+    - Full touched Go packages with integration passed against disposable PostgreSQL; findingintake was rerun after adding the late-rollback regression.
+    - make verify-public-api and make verify-public-api-postgres passed.
+    - Shipped configuration validation passed; no demo database mutation or deployment was performed.

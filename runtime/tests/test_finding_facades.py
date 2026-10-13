@@ -116,8 +116,83 @@ async def finding_tool(factory_type, client, state):
     return tools["finding"]
 
 
+def request_attempts(submission):
+    result = []
+    for attempt in submission["httpEvidence"]["attempts"]:
+        value = {**attempt["request"], **attempt["request"]["message"]}
+        if "response" in attempt:
+            value["status"] = attempt["response"]["status"]
+        if "error" in attempt:
+            value["error"] = attempt["error"]
+        result.append(value)
+    return result
+
+
 def context(call_id="call-1", invocation_id="invocation-1"):
     return SimpleNamespace(invocation_id=invocation_id, function_call_id=call_id)
+
+
+@pytest.mark.parametrize("has_response", [True, False])
+def test_caido_finding_selects_inspected_bytes_without_another_graphql_call(tmp_path, has_response):
+    from test_caido_read_tools import FakeArtifactClient as CaidoArtifacts
+    from test_caido_read_tools import close_tools as close_caido
+    from test_caido_read_tools import create_tools as create_caido
+    from test_caido_read_tools import representative_responses
+
+    async def scenario():
+        raw_request = b"POST /probe HTTP/1.1\r\nHost: target.example\r\n\r\n\x00\xff"
+        raw_response = b"HTTP/1.1 403 Forbidden\r\nX-Test: one\r\nX-Test: two\r\n\r\n\x00\xff"
+        responses = representative_responses(raw_request, raw_response)
+        if not has_response:
+            responses["RequestDetail"]["request"]["response"] = None
+        observed = []
+
+        async def handler(request):
+            payload = json.loads(request.content)
+            observed.append(payload["operationName"])
+            return httpx.Response(200, json={"data": responses[payload["operationName"]]})
+
+        artifacts = CaidoArtifacts()
+        caido, state, handle = await create_caido(tmp_path, handler, artifacts)
+        try:
+            detail = await caido["caido_request_detail"]("request-1", tool_context=context())
+            client = FakeFindingClient()
+            tool = await finding_tool(HTTPFindingsToolsetFactory, client, state)
+            result = await tool(
+                title="Observed issue",
+                description="Captured behavior",
+                url="https://target.example/probe",
+                method="POST",
+                caido_request_id=detail["id"],
+                tool_context=context(),
+            )
+            capture = client.requests[0]["httpEvidence"]
+            attempt = capture["attempts"][0]
+            assert capture["source"] == "caido"
+            assert base64.b64decode(attempt["request"]["message"]["data_base64"]) == raw_request
+            if has_response:
+                assert (
+                    base64.b64decode(attempt["response"]["message"]["data_base64"]) == raw_response
+                )
+            else:
+                assert "response" not in attempt and attempt["error"] == "transport_error"
+            assert result["evidence_refs"][-1]["namespace"] == "finding-proposals"
+            assert observed == ["RequestDetail"]
+            assert artifacts.payloads == {}
+            with pytest.raises(ToolInputError, match="unavailable"):
+                await tool(
+                    title="F",
+                    description="D",
+                    url="https://target.example",
+                    method="GET",
+                    caido_request_id="request-1",
+                    tool_context=context(invocation_id="foreign"),
+                )
+        finally:
+            await close_caido(caido)
+            await handle.close()
+
+    asyncio.run(scenario())
 
 
 def test_code_call_normalizes_coordinates_and_keeps_retry_identity():
@@ -390,7 +465,7 @@ def test_http_evidence_captures_actual_request_and_survives_history_eviction(tmp
         )
         document = client.requests[0]["proposal"]
         assert _proposal(json.dumps(document).encode()) == document
-        attempts = document["http_exchange"]["attempts"]
+        attempts = request_attempts(client.requests[0])
         assert len(attempts) == len(observed) == 2
         for captured, actual in zip(attempts, observed, strict=True):
             assert base64.b64decode(captured["body_base64"]) == actual.content
@@ -403,9 +478,11 @@ def test_http_evidence_captures_actual_request_and_survives_history_eviction(tmp
         assert not any(
             row["name"].lower() in {"authorization", "cookie"} for row in attempts[1]["headers"]
         )
-        assert document["http_exchange"]["response_body_evidence_id"] == "evidence-1"
-        assert client.requests[0]["evidenceRefs"] == [result["body_artifact"]]
-        assert artifacts.writes == 1  # The existing response body; no request artifacts.
+        response = client.requests[0]["httpEvidence"]["attempts"][-1]["response"]
+        assert base64.b64decode(response["message"]["body_base64"]) == b"observed response"
+        assert response["complete"] is True
+        assert client.requests[0]["evidenceRefs"] == []
+        assert artifacts.writes == 0
         assert "capture-secret" not in repr(state.metrics)
         assert "cookie-secret" not in repr(await http["http_history"]())
 
@@ -510,7 +587,7 @@ def test_http_request_refuses_exchanges_finding_cannot_retain(tmp_path: Path) ->
                 request_id=result["request_id"],
                 tool_context=context(),
             )
-            assert client.requests[-1]["proposal"]["http_exchange"]["attempts"][0]["status"] == 200
+            assert request_attempts(client.requests[-1])[0]["status"] == 200
         finally:
             await close_tools(http)
 
@@ -546,7 +623,7 @@ def test_every_sent_request_fits_finding_evidence_header_limits(tmp_path):
             request_id=result["request_id"],
             tool_context=context(),
         )
-        attempt = client.requests[0]["proposal"]["http_exchange"]["attempts"][0]
+        attempt = request_attempts(client.requests[0])[0]
         assert len(attempt["headers"]) > len(headers)
         assert _proposal(json.dumps(client.requests[0]["proposal"]).encode())
 
@@ -589,7 +666,7 @@ def test_http_evidence_never_retains_the_runtime_target_credential(tmp_path):
             return httpx.AsyncClient(transport=httpx.MockTransport(handler), trust_env=False)
 
         state = WorkerState()
-        factory = HTTPToolsetFactory(lambda _allocation, _settings: FakeArtifactClient(), direct)
+        factory = HTTPToolsetFactory(direct)
         settings = RuntimeSettings(
             llmGatewayUrl="https://gateway.example/v1",
             artifactApiUrl="https://control.example/private/v1",
@@ -630,14 +707,14 @@ def test_http_evidence_never_retains_the_runtime_target_credential(tmp_path):
                 row["value"] for row in attempt["headers"] if row["name"].lower() == "authorization"
             ]
 
-        chain = client.requests[0]["proposal"]["http_exchange"]["attempts"]
+        chain = request_attempts(client.requests[0])
         assert [authorization(attempt) for attempt in chain] == [
             ["[runtime-target-credential]"],
             [],
             ["[runtime-target-credential]"],
         ]
         # A credential the model supplied itself is evidence the model already knows.
-        own = client.requests[1]["proposal"]["http_exchange"]["attempts"]
+        own = request_attempts(client.requests[1])
         assert authorization(own[0]) == ["Bearer model-value"]
         await close_tools(http)
 

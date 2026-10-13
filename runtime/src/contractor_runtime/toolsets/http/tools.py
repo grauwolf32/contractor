@@ -22,6 +22,7 @@ import idna
 from google.adk.tools.tool_context import ToolContext
 from pydantic import ValidationError
 
+from contractor_runtime import threads
 from contractor_runtime.adapters import AdapterHandles
 from contractor_runtime.adapters.host import EMPTY_ADAPTER_HANDLES
 from contractor_runtime.adapters.http_proxy import (
@@ -30,14 +31,7 @@ from contractor_runtime.adapters.http_proxy import (
     ProxyTargetDenied,
 )
 from contractor_runtime.adapters.otlp_retry import retry_after_seconds
-from contractor_runtime.artifacts import (
-    MAX_ARTIFACT_BYTES,
-    ArtifactAPIError,
-    ArtifactClient,
-    ArtifactResponseLimitError,
-    ArtifactTransportError,
-)
-from contractor_runtime.contracts import ArtifactRef, RuntimeSettings
+from contractor_runtime.contracts import RuntimeSettings
 from contractor_runtime.core.target_policy import (
     TargetDenied,
     TargetPolicy,
@@ -47,11 +41,13 @@ from contractor_runtime.core.target_policy import (
 from contractor_runtime.core.tool_metrics import RecordedToolCall, ToolMetrics, elapsed_ms
 from contractor_runtime.http_body import BodyTooLarge, read_limited_body
 from contractor_runtime.redaction import runtime_secrets
-from contractor_runtime.toolsets.common.artifact_visibility import HTTP_BODY_ARTIFACT_PREFIX
-from contractor_runtime.toolsets.common.artifacts import ArtifactClientFactory
 from contractor_runtime.toolsets.common.credentials import target_authorization
 from contractor_runtime.toolsets.common.factory import require_metrics, require_selected_tools
 from contractor_runtime.toolsets.common.finding_locations import validate_web_url
+from contractor_runtime.toolsets.common.http_capture import (
+    RecentHTTPCaptures,
+    allocation_http_captures,
+)
 from contractor_runtime.toolsets.common.http_evidence import HTTPAttempt
 from contractor_runtime.toolsets.common.http_limits import (
     MAX_ATTEMPTS,
@@ -71,12 +67,10 @@ from contractor_runtime.toolsets.common.http_limits import (
     MAX_URL_BYTES,
     header_block_bytes,
 )
-from contractor_runtime.toolsets.http.capture import CapturedAttempt, HTTPExchangeHistory
+from contractor_runtime.toolsets.http.capture import CapturedAttempt, CapturedExchange
 from contractor_runtime.toolsets.http.transport import PolicyHTTPTransport
 from contractor_runtime.workspace import AllocationWorkspace
 
-HTTP_BODY_MEDIA_TYPE = "application/vnd.contractor.http-body+json"
-BODY_SCHEMA_VERSION = "1.0"
 # A 16 MiB UTF-8 response can occupy almost 64 MiB as a Python str when a
 # single non-BMP character forces four-byte storage for all characters.
 MAX_DECODED_BODY_CACHE_BYTES = 4 * MAX_RESPONSE_BODY_BYTES + 128
@@ -163,12 +157,10 @@ class HTTPToolsetFactory:
 
     def __init__(
         self,
-        artifact_client_factory: ArtifactClientFactory | None = None,
         direct_client_factory: Callable[[], httpx.AsyncClient] | None = None,
         *,
         target_policy: TargetPolicyConfig | None = None,
     ) -> None:
-        self._artifact_client_factory = artifact_client_factory or _unconfigured_client
         # Tests may inject a fixed client; production clients enforce the
         # allocation's target policy on every TCP connection.
         self._direct_client_factory = direct_client_factory
@@ -198,7 +190,7 @@ class HTTPToolsetFactory:
         adapter_handles: AdapterHandles = EMPTY_ADAPTER_HANDLES,
         project_workspace: Any = None,
     ) -> Mapping[str, Any]:
-        del run_id, workspace, project_workspace
+        del run_id, workspace, project_workspace, allocation_id, namespace
         require_selected_tools(selected, self.exported_tools)
         metrics = require_metrics(state, "http-tools@1")
 
@@ -215,8 +207,6 @@ class HTTPToolsetFactory:
             self._new_direct_client(policy) if request_selected and proxy is None else None
         )
         session = _HTTPSession(
-            artifact_client=self._artifact_client_factory(allocation_id, runtime_settings),
-            namespace=namespace,
             timeout_cap_seconds=runtime_settings.request_timeout_seconds,
             target_policy=policy,
             secrets_for_metrics=_http_metric_secrets(runtime_settings),
@@ -224,6 +214,7 @@ class HTTPToolsetFactory:
             direct_client=direct_client,
             target_origin=_target_origin(runtime_settings),
             target_authorization=target_authorization(runtime_settings),
+            captures=allocation_http_captures(state),
         )
         state.http_session = session
         builders: dict[str, Callable[[], _HTTPTool]] = {
@@ -243,15 +234,8 @@ class HTTPToolsetFactory:
 
 
 @dataclass(frozen=True, slots=True)
-class _StoredBody:
-    artifact: ArtifactRef
-    kind: Literal["text", "binary"]
-
-
-@dataclass(frozen=True, slots=True)
 class _CachedBody:
     request_id: int
-    artifact: ArtifactRef
     kind: Literal["text", "binary"]
     content: str | bytes
 
@@ -262,17 +246,17 @@ class _RequestRecord:
     tag: str
     method: str
     final_url: str
-    status: int
+    status: int | None
     content_type: str
     body_kind: Literal["empty", "text", "binary"]
     body_bytes: int
-    artifact: ArtifactRef | None
     redirects: int
     retries: int
     elapsed_ms: int
     preview: str | None
     headers: dict[str, str] = field(repr=False)
     headers_truncated: bool = False
+    error: str | None = None
 
     def projection(self, *, include_preview: bool) -> dict[str, Any]:
         result: dict[str, Any] = {
@@ -286,15 +270,14 @@ class _RequestRecord:
             "headers": dict(self.headers),
             "headers_truncated": self.headers_truncated,
             "body_kind": self.body_kind,
-            "body_artifact": (
-                None
-                if self.artifact is None
-                else self.artifact.model_dump(by_alias=True, exclude_none=True)
-            ),
             "redirects": self.redirects,
             "retries": self.retries,
             "elapsed_ms": self.elapsed_ms,
         }
+        if self.status is None:
+            result.pop("status")
+        if self.error is not None:
+            result["error"] = self.error
         if include_preview:
             result["body_preview"] = self.preview
             result["body_truncated"] = (
@@ -309,8 +292,6 @@ class _HTTPSession:
     def __init__(
         self,
         *,
-        artifact_client: ArtifactClient,
-        namespace: str,
         timeout_cap_seconds: int,
         target_policy: TargetPolicy,
         secrets_for_metrics: tuple[str, ...],
@@ -318,9 +299,8 @@ class _HTTPSession:
         direct_client: httpx.AsyncClient | None,
         target_origin: tuple[str, str, int] | None,
         target_authorization: str | None,
+        captures: RecentHTTPCaptures,
     ) -> None:
-        self._artifact_client = artifact_client
-        self._namespace = namespace
         self._timeout_cap_seconds = timeout_cap_seconds
         self._target_policy = target_policy
         self._secrets_for_metrics = secrets_for_metrics
@@ -330,9 +310,8 @@ class _HTTPSession:
         self._target_authorization = target_authorization
         self._lock = asyncio.Lock()
         self._history: deque[_RequestRecord] = deque(maxlen=MAX_HISTORY)
-        self._bodies: dict[int, _StoredBody] = {}
         self._cached_body: _CachedBody | None = None
-        self._exchanges = HTTPExchangeHistory()
+        self._captures = captures
         self._default_headers: dict[str, str] = {}
         self._cookies = httpx.Cookies()
         self._auth_kind: Literal["none", "basic", "bearer"] = "none"
@@ -384,7 +363,7 @@ class _HTTPSession:
             merged_headers = _merge_headers(self._default_headers, selected_headers)
             merged_headers["X-Request-Id"] = f"r{self._nonce}-h{request_id:06d}"
             tag = merged_headers["X-Request-Id"]
-            captured = self._exchanges.begin(request_id, tag, invocation_id)
+            captured = CapturedExchange(request_id, tag)
             # httpx keeps its own cookie jar in addition to the allocation
             # session jar.  Treat that transport jar as scratch space: stale
             # cookies left by a cancelled/failed prior call must never affect
@@ -392,8 +371,9 @@ class _HTTPSession:
             self._clear_transport_cookies()
             # The tool timeout is one deadline for every hop, retry and the
             # complete body read, so a trickling target cannot hold the session
-            # lock indefinitely. The body artifact write is not included.
+            # lock indefinitely. Finding publication has its own deadline.
             deadline = asyncio.get_running_loop().time() + selected_timeout
+            published = False
             try:
                 async with asyncio.timeout_at(deadline):
                     (
@@ -417,35 +397,18 @@ class _HTTPSession:
                         body_bytes = await _read_response_body(response)
                     finally:
                         await response.aclose()
-            except TimeoutError:
-                raise HTTPToolError("http_request_failed") from None
-            try:
                 content_type = _content_type(response.headers)
-                body_kind, preview, envelope = _encode_body(content_type, body_bytes)
-                artifact: ArtifactRef | None = None
-                if envelope is not None:
-                    encoded = json.dumps(
-                        envelope,
-                        ensure_ascii=False,
-                        allow_nan=False,
-                        separators=(",", ":"),
-                    ).encode("utf-8")
-                    if len(encoded) > MAX_ARTIFACT_BYTES:
-                        raise HTTPToolError("http_response_too_large")
-                    written = await self._artifact_client.write_artifact(
-                        ArtifactRef(
-                            namespace=self._namespace,
-                            name=f"{HTTP_BODY_ARTIFACT_PREFIX}{self._nonce}.{request_id:06d}",
-                        ),
-                        data=encoded,
-                        media_type=HTTP_BODY_MEDIA_TYPE,
-                        expected_revision=None,
-                    )
-                    artifact = written.artifact.require_exact()
-                    if body_kind not in {"text", "binary"}:
-                        raise RuntimeError("Expected body_kind in {'text', 'binary'}")
-                    self._bodies[request_id] = _StoredBody(artifact=artifact, kind=body_kind)
+                body_kind, preview, _ = await threads.to_thread_until_done(
+                    _encode_body, content_type, body_bytes, name="http-body-preview"
+                )
                 safe_headers, headers_truncated = _response_headers(response.headers)
+                captured.complete = True
+                captured.response_body = body_bytes
+                evidence = await threads.to_thread_until_done(
+                    captured.evidence, name="http-exchange-capture"
+                )
+                await self._captures.put(evidence, invocation_id)
+                published = True
                 self._cookies = candidate_cookies
                 record = _RequestRecord(
                     request_id=request_id,
@@ -456,7 +419,6 @@ class _HTTPSession:
                     content_type=content_type,
                     body_kind=body_kind,
                     body_bytes=len(body_bytes),
-                    artifact=artifact,
                     redirects=redirects,
                     retries=retries,
                     elapsed_ms=elapsed_ms(started_ns),
@@ -465,13 +427,58 @@ class _HTTPSession:
                     headers_truncated=headers_truncated,
                 )
                 self._history.append(record)
-                captured.complete = True
-                captured.response_body = artifact
                 return record.projection(include_preview=True)
-            except HTTPToolError:
-                raise
-            except (ArtifactTransportError, ValueError, TypeError):
+            except TimeoutError:
+                captured.error = "timeout"
                 raise HTTPToolError("http_request_failed") from None
+            except asyncio.CancelledError:
+                captured.complete = False
+                captured.error = "cancelled"
+                raise
+            except HTTPToolError as error:
+                captured.complete = False
+                captured.error = {
+                    "http_response_invalid": "response_invalid",
+                    "http_response_too_large": "response_too_large",
+                    "http_target_denied": "target_denied",
+                    "http_request_invalid": "request_invalid",
+                }.get(error.code, "transport_error")
+                raise
+            except (ValueError, TypeError):
+                captured.complete = False
+                captured.error = "transport_error"
+                raise HTTPToolError("http_request_failed") from None
+            finally:
+                if captured.attempts and not published:
+                    if not captured.complete:
+                        last = captured.attempts[-1]
+                        self._history.append(
+                            _RequestRecord(
+                                request_id=request_id,
+                                tag=tag,
+                                method=last.method,
+                                final_url=last.url,
+                                status=last.status
+                                if last.status is not None and 100 <= last.status <= 599
+                                else None,
+                                content_type="",
+                                body_kind="empty",
+                                body_bytes=0,
+                                redirects=0,
+                                retries=max(0, len(captured.attempts) - 1),
+                                elapsed_ms=elapsed_ms(started_ns),
+                                preview=None,
+                                headers={},
+                                error=captured.error or "transport_error",
+                            )
+                        )
+                    evidence = await threads.to_thread_until_done(
+                        captured.evidence, name="http-exchange-capture"
+                    )
+                    try:
+                        await self._captures.put(evidence, invocation_id)
+                    except ValueError:
+                        raise HTTPToolError("http_response_invalid") from None
 
     async def _send_following(
         self,
@@ -485,7 +492,7 @@ class _HTTPSession:
         follow_redirects: bool,
         attempts: list[CapturedAttempt],
     ) -> tuple[httpx.Response, str, str, int, int, httpx.Cookies]:
-        # Commit this prospective jar only after the complete response/artifact succeeds.
+        # Commit this prospective jar only after the complete response is buffered.
         candidate_cookies = httpx.Cookies(self._cookies)
         redirects = 0
         retries = 0
@@ -679,6 +686,8 @@ class _HTTPSession:
         except (httpx.InvalidURL, idna.IDNAError):
             raise HTTPToolError("http_request_invalid") from None
         except (TargetDenied, ProxyTargetDenied):
+            if attempt is not None and attempt.status is None:
+                attempts.remove(attempt)
             # Connect-time and proxy-route denials share the pre-send code.
             raise HTTPToolError("http_target_denied") from None
         except (httpx.HTTPError, ProxyRequestError):
@@ -690,15 +699,6 @@ class _HTTPSession:
                 attempt.error = "transport_error"
             raise HTTPToolError("http_request_failed") from None
 
-    async def finding_exchange(
-        self, request_id: int, invocation_id: str
-    ) -> tuple[dict[str, Any], ArtifactRef | None]:
-        """Copy selected evidence while locked; never expose the private store to the model."""
-        async with self._lock:
-            self._require_open()
-            exchange = self._exchanges.resolve(request_id, invocation_id)
-            return exchange.snapshot(), exchange.response_body
-
     async def read_body(self, request_id: int, offset: int, limit: int) -> dict[str, Any]:
         if type(request_id) is not int or request_id <= 0:
             raise HTTPToolError("http_request_invalid")
@@ -708,39 +708,40 @@ class _HTTPSession:
             raise HTTPToolError("http_request_invalid")
         async with self._lock:
             self._require_open()
-            stored = self._bodies.get(request_id)
-            if stored is None:
+            if not self._captures.contains("http", str(request_id)):
                 raise HTTPToolError("http_body_not_found")
             cached = self._cached_body
-            if (
-                cached is not None
-                and cached.request_id == request_id
-                and cached.artifact == stored.artifact
-                and cached.kind == stored.kind
-            ):
+            if cached is not None and cached.request_id == request_id:
                 kind, content = cached.kind, cached.content
             else:
                 self._cached_body = None
                 try:
-                    value = await self._artifact_client.read_artifact(stored.artifact)
-                    if value.media_type != HTTP_BODY_MEDIA_TYPE:
+                    capture = await self._captures.get("http", str(request_id))
+                    response = capture["attempts"][-1].get("response")
+                    if response is None or not response["complete"]:
                         raise HTTPToolError("http_body_not_found")
-                    kind, content = _decode_body_artifact(value.data)
-                    if kind != stored.kind:
+                    message = response["message"]
+                    body_bytes = await threads.to_thread_until_done(
+                        lambda: base64.b64decode(message["body_base64"], validate=True),
+                        name="http-body-base64",
+                    )
+                    if not body_bytes:
                         raise HTTPToolError("http_body_not_found")
+                    headers = {row["name"].lower(): row["value"] for row in message["headers"]}
+                    body_kind, _, decoded = await threads.to_thread_until_done(
+                        _encode_body,
+                        headers.get("content-type", ""),
+                        body_bytes,
+                        name="http-body-decode",
+                    )
+                    kind = body_kind
+                    content = decoded if kind == "text" else body_bytes
                 except HTTPToolError:
                     raise
-                except ArtifactResponseLimitError:
-                    raise HTTPToolError("http_body_not_found") from None
-                except ArtifactAPIError as error:
-                    code = "http_request_failed" if error.retryable else "http_body_not_found"
-                    raise HTTPToolError(code) from None
-                except ArtifactTransportError:
-                    raise HTTPToolError("http_request_failed") from None
                 except Exception:
                     raise HTTPToolError("http_body_not_found") from None
                 if sys.getsizeof(content) <= MAX_DECODED_BODY_CACHE_BYTES:
-                    self._cached_body = _CachedBody(request_id, stored.artifact, kind, content)
+                    self._cached_body = _CachedBody(request_id, kind, content)
             if kind == "text":
                 if not (isinstance(content, str)):
                     raise RuntimeError("Expected isinstance(content, str)")
@@ -775,7 +776,9 @@ class _HTTPSession:
         async with self._lock:
             self._require_open()
             selected = [
-                record for record in self._history if self._exchanges.contains(record.request_id)
+                record
+                for record in self._history
+                if self._captures.contains("http", str(record.request_id))
             ][-limit:]
             return [record.projection(include_preview=False) for record in selected]
 
@@ -844,7 +847,6 @@ class _HTTPSession:
             # allocation-local state.  The adapter already closed its client;
             # clear the session-owned copy independently here.
             self._clear_local_session()
-            self._bodies.clear()
             self._cached_body = None
             self._nonce = ""
             self._secrets_for_metrics = ()
@@ -870,7 +872,9 @@ class _HTTPSession:
             "default_headers": headers,
             "cookie_names": cookie_names,
             "cookie_count": len(cookie_names),
-            "history_count": len(self._history),
+            "history_count": sum(
+                self._captures.contains("http", str(record.request_id)) for record in self._history
+            ),
         }
 
     def _clear_mutable_session(self) -> None:
@@ -887,7 +891,8 @@ class _HTTPSession:
         self._default_headers.clear()
         self._cookies.clear()
         self._history.clear()
-        self._exchanges.clear()
+        self._captures.clear("http")
+        self._cached_body = None
         self._erase_auth()
 
     def _erase_auth(self) -> None:
@@ -929,10 +934,11 @@ class _HTTPTool:
 
 class HTTPRequestTool(_HTTPTool):
     name = "http_request"
-    description = """Send an HTTP/HTTPS request and store the response body as an artifact.
+    description = """Send an HTTP/HTTPS request and retain its exchange in the recent buffer.
 
     Only a bounded text preview is returned inline. Use http_read_body to inspect
-    more text or binary content. Request bodies are limited to 1 MiB and response
+    more text or binary content. Use finding with request_id to save evidence.
+    Request bodies are limited to 1 MiB and response
     bodies to 16 MiB.
 
     Metadata and Runtime service destinations fail with http_target_denied, as
@@ -957,7 +963,7 @@ class HTTPRequestTool(_HTTPTool):
 
     Returns:
         Request ID, response status and headers, body kind and preview, timing,
-        redirect/retry counts and an exact body artifact reference.
+        redirect/retry counts. Finding saves selected exchanges as artifacts.
     """
 
     async def __call__(
@@ -1134,7 +1140,7 @@ class HTTPSessionClearTool(_HTTPTool):
     description = """Clear HTTP session cookies, default headers, authentication and history.
 
     Returns:
-        The cleared session view. Previously persisted body artifacts remain stored.
+        The cleared session view. Previously saved finding evidence remains stored.
     """
 
     async def __call__(self) -> dict[str, Any]:
@@ -1401,7 +1407,7 @@ def _content_type(headers: httpx.Headers) -> str:
 
 def _encode_body(
     content_type: str, body: bytes
-) -> tuple[Literal["empty", "text", "binary"], str | None, dict[str, Any] | None]:
+) -> tuple[Literal["empty", "text", "binary"], str | None, str | bytes | None]:
     if not body:
         return "empty", "", None
     normalized = content_type.lower().split(";", 1)[0].strip()
@@ -1411,59 +1417,8 @@ def _encode_body(
         except UnicodeDecodeError:
             pass
         else:
-            return (
-                "text",
-                text[:MAX_PREVIEW_CHARACTERS],
-                {
-                    "schemaVersion": BODY_SCHEMA_VERSION,
-                    "kind": "text",
-                    "contentType": content_type,
-                    "text": text,
-                },
-            )
-    return (
-        "binary",
-        None,
-        {
-            "schemaVersion": BODY_SCHEMA_VERSION,
-            "kind": "binary",
-            "contentType": content_type,
-            "dataBase64": base64.b64encode(body).decode("ascii"),
-        },
-    )
-
-
-def _decode_body_artifact(payload: bytes) -> tuple[Literal["text", "binary"], str | bytes]:
-    if len(payload) > MAX_ARTIFACT_BYTES:
-        raise HTTPToolError("http_body_not_found")
-    try:
-        value = json.loads(payload)
-    except (json.JSONDecodeError, UnicodeError):
-        raise HTTPToolError("http_body_not_found") from None
-    if not isinstance(value, dict) or value.get("schemaVersion") != BODY_SCHEMA_VERSION:
-        raise HTTPToolError("http_body_not_found")
-    if value.get("kind") == "text" and set(value) == {
-        "schemaVersion",
-        "kind",
-        "contentType",
-        "text",
-    }:
-        text = value.get("text")
-        if isinstance(text, str):
-            return "text", text
-    if value.get("kind") == "binary" and set(value) == {
-        "schemaVersion",
-        "kind",
-        "contentType",
-        "dataBase64",
-    }:
-        encoded = value.get("dataBase64")
-        if isinstance(encoded, str):
-            try:
-                return "binary", base64.b64decode(encoded, validate=True)
-            except (ValueError, TypeError):
-                pass
-    raise HTTPToolError("http_body_not_found")
+            return "text", text[:MAX_PREVIEW_CHARACTERS], text
+    return "binary", None, body
 
 
 def _response_headers(headers: httpx.Headers) -> tuple[dict[str, str], bool]:
@@ -1556,13 +1511,3 @@ def _is_sensitive_header(name: str) -> bool:
     return normalized in _SENSITIVE_HEADERS or any(
         marker in normalized for marker in ("api-key", "auth-token", "access-token")
     )
-
-
-class _UnavailableArtifactTransport:
-    async def request(self, *_args: Any, **_kwargs: Any) -> Any:
-        raise ArtifactTransportError("Artifact transport is not configured")
-
-
-def _unconfigured_client(allocation_id: str, runtime_settings: RuntimeSettings) -> ArtifactClient:
-    del runtime_settings
-    return ArtifactClient(allocation_id, _UnavailableArtifactTransport())

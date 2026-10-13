@@ -137,7 +137,7 @@ proposal:
 | `request_id` | The selected request record |
 | `request_tag` | Tag of that record |
 | `attempts` | Nonempty list of attempts |
-| `response_body_evidence_id` | Optional evidence ID of the final response-body artifact |
+| `response_body_evidence_id` | Optional evidence ID of the full selected exchange containing the final response body |
 
 Each attempt has `method`, `url`, `headers` (`{name,value}` rows), canonical
 `body_base64`, exactly one of `status` or `error`, and optional
@@ -379,43 +379,44 @@ source bytes.
 ### Selected HTTP evidence
 
 **FND-R42.** The HTTP facade requires `url` and `method` even without a
-`request_id`. A missing ID permits a finding without captured evidence.
+captured source. The general and HTTP facades accept optional `request_id`
+or `caido_request_id`, mutually exclusive. Omitting both permits a finding
+without captured HTTP evidence.
 
-**FND-R43.** A `request_id` resolves only against the outgoing request
-records of the HTTP session, under the ownership and same-invocation rule of
-[HTTP and Caido tools](../tools/http-caido.md) (HTP-R71, HTP-R72). A supplied
-expired, incomplete or foreign ID returns a repairable error; the caller may
-choose a current ID or omit it (FAIL-FND-2).
-
-That a failed or incomplete exchange cannot be attached as successful
-evidence (HTP-R73), that `http_request` does not truncate the captured
-exchange and that a completed request stays usable by
-`finding(request_id=...)` (HTP-R59) are specified in
-[HTTP and Caido tools](../tools/http-caido.md).
-
-A response whose headers this evidence contract cannot retain, including a
-header block over 64 KiB (LIM-FND-8), fails `http_response_invalid` as
-specified in [HTTP and Caido tools](../tools/http-caido.md) (HTP-R58).
+**FND-R43.** A supplied source resolves only against the allocation's
+bounded HTTP/Caido buffer, with the same-invocation ownership rule of
+[HTTP and Caido tools](../tools/http-caido.md) (HTP-R71, HTP-R72). An invalid,
+expired or foreign source returns a repairable error; the caller can select a
+current source or omit it (FAIL-FND-2). The request is mandatory; a missing or
+incomplete response is saved with its truthful failure or partial outcome.
 
 **FND-R46.** Creating a finding never sends or replays traffic.
 
 **FND-R47.** The authored location and the observed request remain
 separate facts; neither silently replaces the other.
 
-**FND-R48.** `http_exchange` embeds a copied snapshot in the selected
-proposal with the fields listed in
-[HTTP exchange snapshot](#http-exchange-snapshot); each attempt has exactly
-one of `status` or `error`, and `error` is `transport_error` or `cancelled`.
+**FND-R48.** For direct HTTP capture the Server derives the optional
+`http_exchange` proposal/report projection described in
+[HTTP exchange snapshot](#http-exchange-snapshot). Each projected attempt has
+exactly one of `status` or `error`; its errors are `transport_error` or
+`cancelled`. The full evidence artifact preserves response completeness and
+all capture error codes. A capture that this limited projection cannot
+represent truthfully has no embedded projection; its evidence remains intact.
 
-**FND-R49.** An existing final response-body artifact is pinned
-through normal exact evidence references. No new artifact is created for
-each outgoing request.
+**FND-R49.** Only a finding-selected exchange becomes an ordinary HTTP
+evidence artifact, using media type
+`application/vnd.contractor.http-exchange+json` and schema
+`contractor.http.exchange.v1`. The Server creates a frozen binding in the
+RunScope namespace `finding-proposals`, named `http.exchange.<proposal_id>`,
+and appends its exact descriptor to the receipt's evidence. No independent save
+tool or automatic publication of ordinary traffic is required. An exact
+previously saved exchange can be reused through `evidence_refs`.
 
-**FND-R50.** A request explicitly selected by an HTTP finding retains
-its actual target headers and body in full inside that proposal, including
-`Authorization` and `Cookie`. The selected target `Authorization` and `Cookie`
-headers and request bodies are not added to history summaries, metrics or
-serialized worker state.
+**FND-R50.** A selected exchange retains actual target headers and body
+bytes, including model-supplied `Authorization` and `Cookie`, under the
+credential rules below. The HTTP proposal projection also includes captured
+request bytes. Headers and bodies are not added to history summaries, metrics
+or serialized Worker state.
 
 **FND-R51.** Private transport credentials remain outside the
 target request capture.
@@ -435,10 +436,11 @@ autonomous pentest evidence is described in
 [proposal 0033](../../proposals/0033-autonomous-pentest-audits.md).
 
 **FND-R53.** Selected HTTP evidence mirrors the existing HTTP bounds:
-an outgoing body of at most 1 MiB per attempt (LIM-FND-7, mirroring
-LIM-HTP-5), at most 64 KiB per header block (LIM-FND-8), and at most ten
-redirects plus three attempts, 13 records in total (LIM-FND-9, mirroring
-LIM-HTP-7 and LIM-HTP-9).
+an outgoing structured body or raw Caido request of at most 1 MiB per attempt
+(LIM-FND-7), at most 64 KiB per structured header block (LIM-FND-8), at most
+13 attempt records (LIM-FND-9), and at most 16 MiB of response bytes per
+attempt (LIM-HTP-15). Direct HTTP retains only the final response body;
+intermediate response records explicitly have `complete: false`.
 
 **FND-R54.** The request header block bounded by LIM-FND-8 is the
 complete set of headers actually sent, not only the model-supplied headers.
@@ -449,12 +451,39 @@ Runtime-added headers, and refuses before sending any request whose complete
 block would exceed 64 KiB (LIM-FND-8)
 ([HTTP and Caido tools](../tools/http-caido.md), HTP-R24, HTP-R25).
 
-**FND-R55.** The 8 MiB proposal and submission limit
-(LIM-FND-10) applies to the encoded snapshot. An oversized finding fails
-explicitly; evidence is never silently truncated. The size and truncation
-semantics of the original response artifact are unchanged.
+**FND-R55.** The proposal document and embedded report projection retain
+the 8 MiB limit (LIM-FND-10). The complete private submission, including
+selected capture, is at most 64 MiB (LIM-FND-32). All evidence of a finding
+together remains under the existing 64 MiB quota. Oversized content fails
+explicitly; selected evidence is never silently truncated.
 
 ### Intake
+
+### Selected exchange artifact
+
+**FND-R160.** The selected artifact is a closed JSON object with `schema`,
+`capture` and `finding`. `finding` contains Server-derived `proposal_id` and
+`receipt_id`; Runtime and the model cannot supply this association. The private
+submission carries only optional `httpEvidence: capture`. Intake returns
+`evidence`, an ordered array of exact Artifact descriptors, including when empty.
+
+**FND-R161.** `capture` has `source: http|caido`, string `request_id`, optional
+`request_tag` (required for HTTP), and 1–13 `attempts`. Each attempt has a
+mandatory `request: {method,url,message}`, an optional
+`response: {status,message,complete}`, and optional `error`. An absent response
+requires an error; a complete response cannot also claim an error. Outcomes are
+`transport_error`, `timeout`, `cancelled`, `response_invalid`,
+`response_too_large`, `target_denied` or `request_invalid`. HTTP status 4xx/5xx
+is response data. Missing optional values are omitted, never `null`.
+
+**FND-R162.** HTTP messages have `kind: structured`, ordered duplicate-preserving
+`headers: [{name,value}]` and canonical `body_base64`. Caido messages have
+`kind: raw` and canonical `data_base64` preserving scrubbed raw bytes; an empty
+raw request is invalid. Source and message kinds must agree. HTTP IDs are
+canonical decimal integers 1–9007199254740991; Caido IDs are nonempty strings
+of at most 256 UTF-8 bytes without ASCII control characters. The owning schema
+is [http-exchange.schema.json](../../../api/v1alpha1/http-exchange.schema.json);
+Go and Runtime validate the shared capture cases.
 
 **FND-R56.** Runtime submits a proposal through the allocation-bound private
 route `POST /private/v1/allocations/{allocation_id}/finding-proposals`.
@@ -469,8 +498,11 @@ selection, the current write fence
 evidence refs in that Run and all payload and count limits.
 
 **FND-R59.** One PostgreSQL transaction creates the immutable proposal
-Artifact, verifies its exact evidence, records the receipt and commits the
-retention row. A generic artifact write cannot forge a receipt.
+Artifact and any selected HTTP exchange Artifact, verifies and pins their
+exact evidence, and records the receipt and retention row. Rejection or
+rollback exposes neither a selected exchange binding nor its finding.
+Filesystem candidate blobs follow the existing orphan cleanup rules.
+A generic artifact write cannot forge a receipt or its selected HTTP binding.
 
 **FND-R60.** Replay of `(allocation_id, invocation_id, submission_id)` with
 the same canonical digest returns the original receipt; a different digest
@@ -501,9 +533,9 @@ sequenceDiagram
     R->>R: Reject unknown or deprecated CWE IDs locally, derive client_key from the ADK function-call ID
     R->>S: POST /private/v1/allocations/{allocation_id}/finding-proposals with invocation and submission IDs
     S->>S: Derive Run and optional Audit from the allocation, verify Toolset selection, write fence, exact evidence refs and limits
-    S->>DB: One transaction: proposal Artifact, evidence verification, receipt, retention row
+    S->>DB: One transaction: proposal, selected HTTP evidence, exact pins, receipt, retention row
     S-->>R: Receipt (the original receipt on a replay with the same digest)
-    R-->>M: proposal_id, receipt_id, client_key
+    R-->>M: proposal_id, receipt_id, client_key, exact evidence_refs when capture was selected
 ```
 
 ### Proposals of ordinary Runs
@@ -1024,7 +1056,7 @@ evidence membership.
 ## Limits, failures and errors
 
 - [Limits](../platform/limits.md): proposal `limitations` LIM-FND-1;
-  encoded proposal submission LIM-FND-10; locations LIM-FND-2 to
+  encoded proposal LIM-FND-10 and complete submission LIM-FND-32; locations LIM-FND-2 to
   LIM-FND-6; selected HTTP evidence LIM-FND-7, LIM-FND-8 and LIM-FND-9,
   where LIM-FND-7 mirrors LIM-HTP-5 and LIM-FND-9 mirrors LIM-HTP-7 and
   LIM-HTP-9; collection IDs LIM-FND-11, Audit holds LIM-FND-12 and review

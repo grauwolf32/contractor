@@ -84,6 +84,20 @@ func (s *Service) Submit(
 		return Receipt{}, false, err
 	}
 	defer releaseTransfer()
+	receiptID := deterministicID("receipt", grant.AllocationID, input.InvocationID, input.SubmissionID)
+	proposalID := deterministicID("proposal", grant.AllocationID, input.InvocationID, input.SubmissionID)
+	var httpPayload *artifacts.Payload
+	if canonical.request.HTTPEvidence != nil {
+		data, encodeErr := auditdomain.EncodeHTTPExchangeArtifact(*canonical.request.HTTPEvidence, proposalID, receiptID)
+		if encodeErr != nil || len(data) > artifacts.MaxPayloadSize {
+			return Receipt{}, false, fmt.Errorf("%w: HTTP evidence payload", ErrInvalid)
+		}
+		prepared, prepareErr := artifacts.PreparePayload(ctx, artifacts.Payload{MediaType: auditdomain.HTTPExchangeMediaType, Data: data})
+		if prepareErr != nil {
+			return Receipt{}, false, prepareErr
+		}
+		httpPayload = &prepared
+	}
 	preparedPayload, err := artifacts.PreparePayload(ctx, artifacts.Payload{MediaType: proposalMediaType, Data: canonical.proposalBytes})
 	if err != nil {
 		return Receipt{}, false, err
@@ -156,6 +170,10 @@ SELECT count(*) FROM finding_proposal_receipts WHERE run_id = $1`, grant.RunID).
 				}
 				return metadataErr
 			}
+			if ref.Namespace == artifactpolicy.FindingProposalNamespace &&
+				(metadata.MediaType != auditdomain.HTTPExchangeMediaType || !metadata.Frozen) {
+				return ErrAccessDenied
+			}
 			evidenceBytes += metadata.Size
 			if evidenceBytes > maxProposalEvidenceBytes {
 				return fmt.Errorf("%w: proposal evidence quota exceeded", ErrInvalid)
@@ -166,12 +184,21 @@ SELECT count(*) FROM finding_proposal_receipts WHERE run_id = $1`, grant.RunID).
 			})
 		}
 
-		receiptID := deterministicID(
-			"receipt", grant.AllocationID, input.InvocationID, input.SubmissionID,
-		)
-		proposalID := deterministicID(
-			"proposal", grant.AllocationID, input.InvocationID, input.SubmissionID,
-		)
+		if httpPayload != nil {
+			if evidenceBytes+int64(len(httpPayload.Data)) > maxProposalEvidenceBytes {
+				return fmt.Errorf("%w: proposal evidence quota exceeded", ErrInvalid)
+			}
+			written, writeErr := artifactService.CreateFrozen(ctx, mustRunScope(grant.RunID),
+				contracts.ArtifactRef{Namespace: artifactpolicy.FindingProposalNamespace, Name: "http.exchange." + proposalID}, *httpPayload)
+			if writeErr != nil {
+				if errors.Is(writeErr, artifacts.ErrAuditArtifactCollision) {
+					return ErrConflict
+				}
+				return writeErr
+			}
+			evidence = append(evidence, ExactArtifact{Ref: written.Ref, Digest: auditdomain.DigestBytes(httpPayload.Data),
+				MediaType: written.MediaType, SizeBytes: written.Size})
+		}
 		// finding-proposals is reserved for this path: generic Run writes can
 		// neither create nor advance it, while the exact revision stays
 		// readable in its RunScope (ART-R114).

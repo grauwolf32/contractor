@@ -1,7 +1,8 @@
 # HTTP materials selected by findings
 
 Status: user-selected implementation scope, recorded on 2026-10-13. This is a
-non-normative plan; the Runtime and UI changes below are not implemented.
+non-normative plan. Runtime finding-only retention is implemented; the UI
+preview task is next.
 
 ## Agreed user outcome
 
@@ -16,7 +17,8 @@ non-normative plan; the Runtime and UI changes below are not implemented.
    intake and exact-reference mechanism. Selecting evidence never resends
    traffic. Selected HTTP artifacts remain available after buffer eviction and
    allocation release under the existing finding retention rules.
-4. The recent Runtime buffer keeps its existing maximum of 128 exchanges.
+4. The recent shared HTTP/Caido Runtime buffer keeps at most 128 exchanges
+   and 64 MiB of serialized captures, evicting the oldest on either bound.
    Tool reads and selection operate within its documented ownership and size
    bounds. Expired or foreign IDs fail explicitly.
 5. Other proxied traffic is inspected in Caido. Caido history is external to
@@ -32,7 +34,7 @@ Full traffic export is recorded separately in
 traffic retention, a ZIP download and independent bookmarking are outside the
 current implementation scope.
 
-## Current behavior that must change
+## Gaps identified before implementation
 
 - `http_request` currently writes a durable `http.body.*` artifact for every
   non-empty final response. Only outgoing requests are kept in the recent

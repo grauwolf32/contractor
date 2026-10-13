@@ -20,7 +20,6 @@ from contractor_runtime.contracts import (
     RuntimeSettings,
 )
 from contractor_runtime.toolsets.caido.tools import (
-    CAIDO_EXCHANGE_MEDIA_TYPE,
     CAIDO_TOOL_NAMES,
     CaidoToolError,
     CaidoToolsetFactory,
@@ -98,13 +97,12 @@ def test_all_read_tools_use_static_operations_and_normalize_bounded_results(
         assert detail["raw"]["truncated"] is True
         assert detail["created_at"] == expected_time
         assert detail["response"]["raw"]["kind"] == "binary"
-        exact = ArtifactRef.model_validate(detail["raw_artifact"]).require_exact()
-        stored = json.loads(artifacts.payloads[(exact.namespace, exact.name, exact.revision)])
-        assert stored["request"]["text"].encode() == raw_request
-        assert base64.b64decode(stored["response"]["dataBase64"]) == raw_response
-        assert artifacts.media_types[(exact.namespace, exact.name, exact.revision)] == (
-            CAIDO_EXCHANGE_MEDIA_TYPE
-        )
+        stored = await state.http_captures.get("caido", "request-1")
+        attempt = stored["attempts"][0]
+        assert base64.b64decode(attempt["request"]["message"]["data_base64"]) == raw_request
+        assert base64.b64decode(attempt["response"]["message"]["data_base64"]) == raw_response
+        assert "raw_artifact" not in detail
+        assert artifacts.payloads == {}
 
         automate = await tools["caido_automate_results"]("session-1", limit=10)
         assert automate["entry_id"] == "entry-2"

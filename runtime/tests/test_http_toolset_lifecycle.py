@@ -27,7 +27,7 @@ def test_close_erases_session_and_fresh_allocation_starts_empty(tmp_path: Path) 
         return client
 
     async def create(allocation_id: str) -> dict[str, Any]:
-        factory = HTTPToolsetFactory(lambda _allocation, _settings: FakeArtifactClient(), direct)
+        factory = HTTPToolsetFactory(direct)
         settings = RuntimeSettings(
             llmGatewayUrl="https://gateway.example/v1",
             llmGatewayToken="gateway-token",
@@ -80,7 +80,7 @@ def test_tool_cleanup_succeeds_after_terminal_proxy_adapter_detach(tmp_path: Pat
             trust_env=False,
         )
         handle = ProxyHTTPClient(client)
-        factory = HTTPToolsetFactory(lambda _allocation, _settings: FakeArtifactClient())
+        factory = HTTPToolsetFactory()
         settings = RuntimeSettings(
             llmGatewayUrl="https://gateway.example/v1",
             llmGatewayToken="gateway-token",

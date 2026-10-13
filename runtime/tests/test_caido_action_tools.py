@@ -242,7 +242,7 @@ def test_scope_replay_automate_and_workflow_actions_are_exact_and_bounded(
             "recognizable-payload-one",
         ):
             assert forbidden not in retained
-        assert len(artifacts.payloads) == 2
+        assert len(artifacts.payloads) == 1
         await handle.close()
 
     asyncio.run(scenario())

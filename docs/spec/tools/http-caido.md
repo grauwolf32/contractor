@@ -8,7 +8,7 @@ This document owns the Runtime tool contracts used for HTTP exploration and
 Caido-assisted security workflows:
 
 - the generic HTTP Toolset `http-tools@1`: its operations, request contract,
-  retries, response records, response-body artifacts, allocation session state,
+  retries, response records, finding-selected exchange artifacts, allocation session state,
   request IDs and outgoing exchange store;
 - how `http-tools@1` uses the `tool-http` route of the optional `http-proxy@1`
   adapter, and how the Runtime target policy applies on that forward-proxy
@@ -78,9 +78,9 @@ following ones.
   that `http_session_get` returns.
 - **Response record.** The bounded metadata and preview that `http_request`
   returns for one completed request.
-- **Response body artifact.** The ordinary Run artifact of media type
-  `application/vnd.contractor.http-body+json` that holds one complete response
-  body.
+- **Selected HTTP exchange artifact.** The immutable Run evidence artifact of
+  media type `application/vnd.contractor.http-exchange+json`, published only
+  with a finding, containing its captured request and optional response.
 - **Outgoing exchange store.** The allocation memory store of the latest
   outgoing exchanges from which a finding snapshots selected HTTP evidence.
 - **Request ID.** The allocation-monotonic identifier of one `http_request`
@@ -89,9 +89,8 @@ following ones.
   proxy history correlate HTTP tool and Caido Replay traffic.
 - **Static operation.** A GraphQL document that is a source-code constant
   selected by a Caido tool method.
-- **Caido exchange artifact.** The single
-  `application/vnd.contractor.caido-exchange+json` artifact that holds one
-  Caido request together with its response.
+- **Caido capture.** Scrubbed raw request and optional response bytes in the
+  allocation buffer; a finding can select this capture as HTTP evidence.
 - **Runtime credential marker.** `[runtime-target-credential]` or
   `[runtime-credential]`, the text that replaces a header line carrying a
   credential the Runtime injected.
@@ -106,8 +105,9 @@ following ones.
 
 `http-tools@1` sends model-described requests to application targets, either
 through the `tool-http` forward-proxy route or directly. `caido@1` drives the
-Caido control GraphQL API through the `caido-graphql@1` adapter. Both store
-large content as artifacts.
+Caido control GraphQL API through the `caido-graphql@1` adapter. Both buffer inspected exchanges in allocation memory. A finding selects
+which exchanges become durable evidence; large convert workflow output remains
+an artifact under its separate contract.
 
 ```mermaid
 flowchart LR
@@ -119,8 +119,11 @@ flowchart LR
     M -->|"caido_* tool: variables only"| CT[caido@1]
     CT -->|"execute(static operation, variables)"| A["caido-graphql@1<br/>handle caido-graphql-client"]
     A -->|"endpoint + /graphql"| C[Caido control GraphQL API]
-    HT -->|"response bodies"| AS[(ArtifactStore)]
-    CT -->|"raw exchanges, large workflow output"| AS
+    HT --> B[Recent exchange buffer]
+    CT --> B
+    B -->|finding selection| F[Finding intake]
+    F -->|atomic proposal and selected evidence| AS[(ArtifactStore)]
+    CT -->|large convert output| AS
 ```
 
 ### HTTP session state
@@ -132,9 +135,8 @@ Each allocation of `http-tools@1` holds this state in memory:
 | Cookies | The authoritative allocation-owned cookies | Cookie names and count |
 | Default headers | Session default request headers | Non-sensitive values; redaction markers for sensitive headers |
 | Authentication | `none`, `bearer` or `basic` | `auth_kind` |
-| History | Completed request summaries | `http_history`; the history count |
-| Outgoing exchange store | The latest outgoing exchanges with their attempts and invocation ownership | Only through `finding(request_id=...)` |
-| Body refs | The exact body ArtifactRef of each request ID | The exact ref in the response record; body content only through `http_read_body(request_id, offset, length)` |
+| History | Recent request summaries and explicit failed outcomes | `http_history`; the history count |
+| Outgoing exchange store | Shared bounded HTTP/Caido capture buffer, including attempts, available response bytes and invocation ownership | HTTP bodies through `http_read_body`; selection through `finding(request_id=...)` or `finding(caido_request_id=...)` |
 | Project target | Target URL, derived `Authorization` header and source secret | Never |
 
 ### One `http_request` call
@@ -145,7 +147,6 @@ sequenceDiagram
     participant H as http-tools@1
     participant R as tool-http proxy or direct transport
     participant T as Target
-    participant A as ArtifactStore
     M->>H: http_request(url, method, headers, query, body, body_type, timeout, follow_redirects)
     H->>H: Serialize with other calls, reserve a request ID, validate input
     loop Every attempt and redirect hop, within one call deadline
@@ -156,10 +157,9 @@ sequenceDiagram
         R-->>H: Status and headers, or transport failure
         H->>H: Reject a status outside 100..599 or a header block finding evidence cannot retain (http_response_invalid)
     end
-    H->>A: Stream the complete body into an http.body. artifact
-    A-->>H: Exact ArtifactRef
-    H->>H: Commit prospective cookies, retain the exchange
-    H-->>M: Response record with preview and body ref
+    H->>H: Read the bounded body and retain the exchange in memory
+    H->>H: Commit prospective cookies
+    H-->>M: Response record with preview and request ID
 ```
 
 ### One Caido tool call
@@ -183,8 +183,11 @@ sequenceDiagram
     A->>G: Request with injected bearer header, or as guest
     G-->>A: Response
     A-->>C: Exact operation-specific shape with matched identities, or a stable error code
-    opt Raw exchange or large workflow output
-        C->>S: Scrubbed bytes under a reserved binding
+    opt Request detail or completed Replay
+        C->>C: Retain scrubbed exchange in the allocation buffer
+    end
+    opt Large convert workflow output
+        C->>S: Scrubbed output under a reserved binding
     end
     C-->>M: Bounded result with previews and exact refs
     Note over C,G: No mutation is retried automatically
@@ -305,11 +308,11 @@ or introspect an infrastructure instance during Runtime Agent registration.
 | Tool | Purpose |
 | --- | --- |
 | `http_request` | Send one bounded HTTP or HTTPS request and return metadata plus a small preview. |
-| `http_read_body` | Read a bounded slice of a body stored as an ordinary Run artifact. |
+| `http_read_body` | Read a bounded slice of a response body retained in allocation memory. |
 | `http_history` | Return bounded allocation-session request summaries, oldest first. |
 | `http_session_set` | Set allocation-memory cookies, default headers and authentication. |
 | `http_session_get` | Return the redacted session view. |
-| `http_session_clear` | Erase cookies, headers, authentication and history; retained response artifacts remain immutable. |
+| `http_session_clear` | Erase cookies, headers, authentication, HTTP history and buffered HTTP exchanges; selected finding evidence remains immutable. |
 
 **HTP-R20.** The callable shape remains compatible with the migrated Skills:
 `http_request(url, method, headers, query, body, body_type, timeout, follow_redirects)`.
@@ -348,7 +351,7 @@ encoded request body (LIM-HTP-5).
 **HTP-R29.** The timeout is one deadline for the whole call: connecting,
 sending and reading every redirect hop and retry, retry waits, and reading the
 complete response body. The same value also bounds each individual network
-operation. Storing the body artifact afterwards is not included.
+operation. A later finding submission has the existing independent intake deadline.
 
 **HTP-R30.** Expiry of the deadline fails with the retryable
 `http_request_failed` (FAIL-HTP-1).
@@ -389,9 +392,9 @@ allocation memory. They are available to sequential A2A tasks on the same
 allocation and are erased on release, abort or lease loss (LIFE-HTP-1). Ambient
 session authentication is not serialized to an artifact.
 
-**HTP-R38.** `http_session_clear` erases cookies, headers, authentication and
-history; clearing or closing the session also erases the outgoing exchange
-store (LIFE-HTP-2). Retained response artifacts remain immutable (LIFE-HTP-3).
+**HTP-R38.** `http_session_clear` erases cookies, headers, authentication,
+history and buffered HTTP captures (LIFE-HTP-2). Caido captures have their own
+session lifetime. Selected finding evidence remains immutable (LIFE-HTP-3).
 
 ### Project target authorization
 
@@ -417,9 +420,9 @@ nor its credential.
 cookies are the authoritative copy, and transport cookies are cleared before
 every hop, including redirects and retries on direct and proxied requests.
 
-**HTP-R44.** Same-origin response cookies and deletions are applied to the
-prospective request state. Prospective cookies become session state only after
-the full request and the body Artifact write succeed (FAIL-HTP-2).
+**HTP-R44.** Prospective response cookies become session state only after
+the full request succeeds and its exchange is buffered. An error or cancellation
+does not commit the prospective cookie jar (FAIL-HTP-2).
 
 **HTP-R45.** Each redirect hop is compared with the originally requested
 origin. A hop on another origin receives no session cookies, no session
@@ -499,39 +502,43 @@ headers that the finding-evidence contract cannot retain, including a header
 block over 64 KiB (LIM-FND-8), fails `http_response_invalid` before
 `http_request` completes.
 
-**HTP-R59.** The Runtime does not truncate the captured exchange; a completed
-request remains usable by `finding(request_id=...)`.
+**HTP-R59.** A completed final response and every sent request remain
+available without request-body truncation while retained in the bounded buffer.
+Intermediate redirect or retry response bodies are not retained: their status
+and headers are recorded with `complete: false`. A failed or interrupted final
+response is explicit; it is never presented as complete.
 
 **HTP-R60.** The response record contains the request ID and tag, method, final
 URL, status, content type and length, safe response headers, body kind, at most
-8192 characters of text preview (LIM-HTP-14), the exact body ArtifactRef when
-the body is non-empty, truncation and elapsed milliseconds.
+8192 characters of text preview (LIM-HTP-14), truncation and elapsed milliseconds.
+It contains no body ArtifactRef: ordinary execution does not publish evidence.
 
 **HTP-R61.** `Authorization`, cookies, `set-cookie` and proxy headers are
 removed from returned headers and from retained metrics.
 
 ### Response bodies
 
-**HTP-R62.** The complete response body is streamed, with a 16 MiB hard limit
-(LIM-HTP-15), into an ordinary artifact in the allocation's logical namespace
-with media type `application/vnd.contractor.http-body+json`. The limit applies
-separately to the bytes received and to the decoded body.
+**HTP-R62.** The complete final response body is streamed into allocation
+memory with a 16 MiB hard limit (LIM-HTP-15). The limit applies separately to
+bytes received and to the decoded body. A too-large or interrupted response
+retains a truthful failed capture without a fabricated complete body.
 
 **HTP-R63.** `gzip` and `deflate` content codings are decoded incrementally, so
 compressed data never inflates past the limit in memory; any other content
 coding is stored as received.
 
-**HTP-R64.** Text is stored as UTF-8 text; arbitrary bytes use base64.
+**HTP-R64.** Captured body bytes use canonical base64. `http_read_body`
+decodes text for inspection and returns binary slices as base64.
 
-**HTP-R65.** The JSON envelope itself must also fit the Artifact plane's 64 MiB
-payload limit (LIM-ART-4) after text escaping or base64 encoding. The raw
-response-body limit remains independently capped at 16 MiB.
+**HTP-R65.** The selected exchange JSON, including base64 expansion and
+Server-issued finding association, must fit the Artifact plane's 64 MiB
+payload limit (LIM-ART-4). The raw final response body remains independently
+capped at 16 MiB; the proposal keeps its separate document limit.
 
-**HTP-R66.** Internal body names are collision-resistant. Bindings use the
-reserved `http.body.` prefix: generic model-visible Artifact tools neither list
-nor read or write them. This is a Toolset authority boundary, not a new
-Artifact API or storage class. The exact returned ref is retained in allocation
-memory.
+**HTP-R66.** `http_request` does not create a response-body artifact.
+Only finding selection publishes the exchange, through the atomic finding
+intake described in [Findings](../findings/findings.md). No separate save tool
+or all-traffic archive is part of this contract.
 
 **HTP-R67.** `http_read_body` accepts only a request ID created by that
 allocation, never an arbitrary ArtifactRef.
@@ -540,52 +547,53 @@ allocation, never an arbitrary ArtifactRef.
 text characters or binary bytes (LIM-HTP-16). Offsets are characters for UTF-8
 text and bytes for binary bodies.
 
-**HTP-R69.** `http_read_body` reports transient Artifact API or transport
-failures as the retryable `http_request_failed`, and the same request ID can be
-read again. Missing, invalid or oversized stored bodies fail with the
-non-retryable `http_body_not_found` (FAIL-HTP-3).
+**HTP-R69.** A missing, expired, invalid or incomplete buffered final body
+fails with non-retryable `http_body_not_found` (FAIL-HTP-3). Reads use allocation
+memory and do not call the Artifact API.
 
 ### History, request IDs and the outgoing exchange store
 
 **HTP-R70.** History contains at most 128 summaries (LIM-HTP-17).
-`http_history(limit)` returns them in request-ID order, oldest first, and omits
-previews and body content. Only completed, still-retained records appear in
-`http_history`.
+`http_history(limit)` returns retained records in request-ID order, oldest
+first, without previews or body content. Failed sent attempts are included with
+an explicit error; validation or target denial before any send creates no
+exchange. Evicted captures disappear from history.
 
-**HTP-R71.** An outgoing exchange store accompanies the history and retains the
-latest 128 outgoing exchanges (LIM-HTP-18), within the history capacity. Each
-record contains the actual httpx request method and URL, the ordered headers
-including duplicate fields, the complete outgoing body bytes, the response
-status and headers or a transport outcome, the redirect and retry attempts, and
-invocation ownership.
+**HTP-R71.** HTTP and Caido share one allocation buffer of at most 128 recent
+exchanges (LIM-HTP-18) and 64 MiB of serialized capture JSON (LIM-HTP-33).
+Each record retains the actual request, available response, attempts and
+invocation ownership. Either limit evicts the oldest capture deterministically.
+Replacing the same source and request ID releases its previous bytes.
 
-**HTP-R72.** The store is allocation-owned; resolving a request ID from it
-additionally requires the same invocation. No per-request outgoing artifact is
-created, and existing response body artifacts remain unchanged.
+**HTP-R72.** The buffer is allocation-owned; finding selection additionally
+requires the same invocation that captured or inspected the source. HTTP and
+Caido identities are disjoint. Buffer bytes never enter serialized Worker state.
 
-**HTP-R73.** `finding(request_id=...)` snapshots a selected exchange without
-replay. An expired or foreign-invocation ID fails explicitly, and a failed or
-incomplete exchange cannot be attached as successful evidence.
+**HTP-R73.** `finding(request_id=...)` or `finding(caido_request_id=...)`
+selects one buffered exchange without replay. An expired or foreign-invocation
+ID fails explicitly. A request with an absent or incomplete response can be
+selected with its explicit outcome; selection does not claim successful execution.
 
-**HTP-R74.** A request explicitly selected by an HTTP finding retains its
-actual target headers and body inside that proposal, including `Authorization`
-and `Cookie`, except that the Project target credential the Runtime injects is
-captured as the marker `[runtime-target-credential]`. The snapshot is specified
-by [the finding evidence contract](../findings/findings.md).
+**HTP-R74.** The selected exchange is an ordinary immutable evidence artifact
+with a mandatory captured request and optional response, published and pinned
+with its finding. Actual target headers and bodies are retained, including
+model-supplied `Authorization` and `Cookie`; Runtime-injected Project credentials
+use the existing marker. Caido capture keeps its existing scrubbing rules.
+The format and publication boundary are owned by
+[Findings](../findings/findings.md).
 
 **HTP-R75.** Request IDs are monotonic for the allocation. Tool calls serialize
 session mutation and request ID assignment; network waits do not permit a
 second call to reuse state or an ID.
 
-**HTP-R76.** Once reserved, a request ID is never reused: not after a
-validation failure, transport ambiguity, cancellation or an Artifact write
-whose response is lost (FAIL-HTP-1, FAIL-HTP-2), and not after the session is
-cleared or closed.
+**HTP-R76.** Once reserved, a request ID is never reused after validation
+failure, transport ambiguity, cancellation, evidence publication ambiguity,
+session clear or close (FAIL-HTP-1, FAIL-FND-1).
 
-**HTP-R77.** A body blob that was committed before cancellation but never
-selected into the session remains an unreferenced reserved binding (LIFE-HTP-5,
-FAIL-HTP-2); it cannot be recovered through `http_read_body`, and ordinary
-Artifact tools cannot enumerate its prefix.
+**HTP-R77.** Allocation release joins in-flight capture work before erasing
+the buffer. Captures that were not selected by a committed finding leave no
+ordinary HTTP artifact. Cancellation racing with finding commit is reconciled
+through the existing finding receipt (FAIL-FND-1).
 
 ### Caido Toolset operations
 
@@ -595,7 +603,7 @@ Artifact tools cannot enumerate its prefix.
 | --- | --- |
 | `caido_scope` | List scopes or create one bounded allow/deny scope |
 | `caido_history` | Query paginated proxy history using bounded HTTPQL text |
-| `caido_request_detail` | Read request/response metadata and bounded raw previews/artifacts |
+| `caido_request_detail` | Read request/response metadata and bounded raw previews and finding-selectable capture |
 | `caido_replay` | Replay a stored request or one bounded supplied raw request |
 | `caido_automate_run` | Create, configure and start bounded Automate fuzzing |
 | `caido_automate_results` | Page one Automate result set |
@@ -665,25 +673,24 @@ Rationale: schema validation alone does not validate scalar values.
 
 ### Raw exchanges and workflow output
 
-**HTP-R88.** The full raw Caido request and response and large workflow output
-are stored with the same allocation Artifact client under reserved
-collision-resistant bindings; tool results contain previews and exact refs. A
-tool result never returns an unbounded raw exchange inline.
+**HTP-R88.** Request detail and completed Replay retain scrubbed raw exchanges
+in the shared allocation buffer and return bounded previews and source IDs.
+They do not publish ordinary exchange artifacts. Large workflow output remains
+under the existing allocation Artifact client contract (HTP-R93).
 
-**HTP-R89.** For request detail, the tool validates and decodes both Caido
-Blobs before one mutation, then stores request plus response in a single
-`application/vnd.contractor.caido-exchange+json` artifact (FAIL-HTP-5).
+**HTP-R89.** Request detail validates and decodes both available Caido Blobs
+before buffering one exchange (FAIL-HTP-5). The request is mandatory; a response
+may be absent. `finding(caido_request_id=...)` selects the inspected exchange
+from the same invocation without another GraphQL read or replay.
 
-Rationale: one atomic exchange binding avoids a half-published pair if the
-second write were to fail.
-
-**HTP-R90.** Inside the envelope, text is UTF-8 and arbitrary bytes are base64.
-Each returned preview is at most 8192 characters (LIM-HTP-21), or 6144 binary
-bytes encoded as base64 (LIM-HTP-30).
+**HTP-R90.** Caido capture preserves scrubbed raw request and response bytes
+using canonical base64. Each returned preview is at most 8192 characters
+(LIM-HTP-21), or 6144 binary bytes encoded as base64 (LIM-HTP-30).
 
 **HTP-R91.** A missing request or session is an explicit bounded `not_found`
-domain result, while a malformed partial response is `caido_response_invalid`
-and produces no selected artifact (FAIL-HTP-5).
+domain result. A malformed partial GraphQL result is `caido_response_invalid`
+and replaces no buffered capture (FAIL-HTP-5). A valid request with no response
+is retained with an explicit transport outcome.
 
 **HTP-R92.** `caido_workflow_run` dispatches by mutually exclusive input:
 `request_id` starts an active workflow asynchronously, while non-empty UTF-8
@@ -856,13 +863,14 @@ Toolset call counters and Runtime adapter metrics remain the only ones.
   `http_session_set(cookies, headers, auth, replace_cookies, replace_headers)`
   (HTP-R34), `http_session_get` and `http_session_clear` (HTP-R19); the ten
   Caido tools (HTP-R78).
-- Finding evidence selection: `finding(request_id=...)` (HTP-R73), specified in
+- Finding evidence selection: `finding(request_id=...)` or
+  `finding(caido_request_id=...)` (HTP-R73), specified in
   [Findings](../findings/findings.md).
 - Adapter: `caido-graphql@1` with the private handle `caido-graphql-client` and
   the client `execute(operation, variables)` (HTP-R13, HTP-R17).
-- Artifacts: response bodies as `application/vnd.contractor.http-body+json`
-  under `http.body.` bindings (HTP-R62, HTP-R66); Caido exchanges as
-  `application/vnd.contractor.caido-exchange+json` (HTP-R89); convert output
+- Artifacts: selected exchanges as `application/vnd.contractor.http-exchange+json`
+  under frozen `finding-proposals/http.exchange.<proposal_id>` bindings
+  (HTP-R74); convert output
   under `caido.output.*` (HTP-R93).
 - Headers: the request tag `X-Request-Id` (HTP-R98).
 - Configuration: `worker.caido` and the `tool-http` route of `http-proxy@1`,
@@ -890,11 +898,12 @@ Limits ([registry](../platform/limits.md)):
 - LIM-HTP-16 — `http_read_body` slice of at most 8192 characters or bytes
   (HTP-R68).
 - LIM-HTP-17 — at most 128 history summaries (HTP-R70).
-- LIM-HTP-18 — latest 128 outgoing exchanges (HTP-R71).
+- LIM-HTP-18 — latest 128 exchanges shared by HTTP and Caido (HTP-R71).
 - LIM-HTP-19 to LIM-HTP-29 — Caido common limits (HTP-R87).
 - LIM-HTP-30 — request detail binary preview of 6144 bytes (HTP-R90).
 - LIM-HTP-31 — Automate delay of 0..60000 ms (HTP-R106).
 - LIM-HTP-32 — zero Caido request retries for Automate (HTP-R106).
+- LIM-HTP-33 — 64 MiB serialized capture buffer, with oldest-first eviction (HTP-R71).
 - The generic Artifact payload limit (LIM-ART-4) belongs to
   [Artifact store](../artifacts/artifact-store.md); the host-name bounds and
   the allowed-target-network count belong to
@@ -908,8 +917,8 @@ Failure outcomes ([failure model](../platform/failure-model.md)):
 
 - FAIL-HTP-1 — sending an `http_request` attempt or redirect hop (HTP-R7,
   HTP-R30, HTP-R55, HTP-R76).
-- FAIL-HTP-2 — writing the response body artifact (HTP-R44, HTP-R76, HTP-R77).
-- FAIL-HTP-3 — reading a stored body through `http_read_body` (HTP-R69).
+- FAIL-HTP-2 — buffering after target execution (HTP-R44, HTP-R77).
+- FAIL-HTP-3 — reading a buffered body through `http_read_body` (HTP-R69).
 - FAIL-HTP-4 — Caido read-only queries and polling (HTP-R82, HTP-R109).
 - FAIL-HTP-5 — storing a Caido request-detail exchange (HTP-R89, HTP-R91).
 - FAIL-HTP-6 — Caido GraphQL mutations (HTP-R102, HTP-R103, HTP-R108).
@@ -919,10 +928,10 @@ Entity lifecycle ([lifecycle](../platform/lifecycle.md)):
 
 - LIFE-HTP-1 — HTTP session state (HTP-R37, HTP-R38).
 - LIFE-HTP-2 — outgoing exchange store records (HTP-R38, HTP-R71).
-- LIFE-HTP-3 — response body artifacts (HTP-R38, HTP-R72).
+- LIFE-HTP-3 — selected HTTP evidence artifacts (HTP-R38, HTP-R72).
 - LIFE-HTP-4 — HTTP clients, Caido sessions and allocation secrets (HTP-R42,
   HTP-R115, HTP-R125).
-- LIFE-HTP-5 — unreferenced reserved body bindings (HTP-R77).
+- LIFE-HTP-5 — unselected captures, without durable retention (HTP-R77).
 - LIFE-HTP-6 — traffic captured by Caido (HTP-R97).
 
 Errors ([registry](../platform/errors.md)): `http_request_invalid`,
@@ -937,8 +946,8 @@ outcomes are domain results, not error codes (HTP-R91, HTP-R111).
 
 - Authority: only AgentTemplate selection makes these tools model-visible, and
   labels configure infrastructure only (HTP-R2, HTP-R3, HTP-R4, HTP-R123).
-- Response body bindings are outside the reach of generic Artifact tools
-  (HTP-R66, HTP-R67).
+- `http_read_body` reads only allocation-created IDs; selected evidence bindings
+  and their finding association are Server-owned (HTP-R66, HTP-R67, FND-R160).
 - Infrastructure endpoints and credentials never reach the model (HTP-R5,
   HTP-R36, HTP-R41, HTP-R112, HTP-R61).
 - Destinations: invalid hosts never reach a resolver, proxy or Caido (HTP-R33);
