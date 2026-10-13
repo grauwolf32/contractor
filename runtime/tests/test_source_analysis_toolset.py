@@ -565,3 +565,62 @@ class ReadOnlyArtifactClient:
             binding_created_at=datetime.now(UTC),
             revision_created_at=datetime.now(UTC),
         )
+
+
+def test_server_source_limits_reach_factory_and_extraction(tmp_path: Path) -> None:
+    from contractor_runtime.contracts.settings import SourceArchiveLimits
+
+    payload = b"# source line\n" * ((5 * 1024 * 1024) // len(b"# source line\n") + 1)
+    archive = make_zip({"large.py": payload})
+    with pytest.raises(ValueError, match="file limit"):
+        source_tools_module._extract_archive(archive, tmp_path / "default")
+
+    async def scenario() -> None:
+        client = ReadOnlyArtifactClient()
+        ref = client.seed("inputs", "source", "application/zip", archive)
+        settings = runtime_settings()
+        settings.source_archive_limits = SourceArchiveLimits(
+            max_expanded_bytes=128 * 1024 * 1024,
+            max_file_bytes=16 * 1024 * 1024,
+            max_entries=10000,
+        )
+        work = tmp_path / "configured"
+        work.mkdir()
+        factory = SourceAnalysisToolsetFactory(lambda _allocation, _settings: client)
+        selected = await factory.create_selected(
+            selected=["open_source_archive", "read_source"],
+            allocation_id="allocation-1",
+            run_id="run-1",
+            namespace="analysis",
+            runtime_settings=settings,
+            workspace=AllocationWorkspace(root=tmp_path, path=work),
+            state=WorkerState(),
+        )
+        result = await selected["open_source_archive"](ref.namespace, ref.name, ref.revision)
+        assert result["fileCount"] == 1
+        assert result["totalUncompressedBytes"] == len(payload)
+        assert (work / "source" / "large.py").read_bytes() == payload
+        result = await selected["read_source"]("large.py", max_lines=2)
+        assert result["text"] == "# source line\n" * 2
+        assert result["truncated"] is True
+
+    asyncio.run(scenario())
+
+
+def test_configured_source_declared_and_streamed_budgets() -> None:
+    from contractor_runtime.contracts.settings import SourceArchiveLimits
+
+    limits = SourceArchiveLimits(max_expanded_bytes=70, max_file_bytes=5, max_entries=14)
+    members = [zipfile.ZipInfo(f"part-{index}.txt") for index in range(14)]
+    for member in members:
+        member.file_size = 5
+    _validate_entries(members, limits)
+    with pytest.raises(ValueError, match="uncompressed limit"):
+        _validate_entries(members, limits.model_copy(update={"max_expanded_bytes": 69}))
+    with pytest.raises(ValueError, match="entry limit"):
+        _validate_entries(members, limits.model_copy(update={"max_entries": 13}))
+    with (
+        zipfile.ZipFile(io.BytesIO(make_zip({"part.txt": "123456"}))) as archive,
+        pytest.raises(ValueError, match="streamed limit"),
+    ):
+        source_tools_module._read_member_bounded(archive, archive.infolist()[0], limits)

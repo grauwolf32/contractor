@@ -133,6 +133,7 @@ func ParseRemote(raw string) (Remote, error) {
 // Test-only fields are unexported; production always verifies actual addresses.
 type Client struct {
 	config        Config
+	limits        Limits
 	tlsConfig     *tls.Config
 	allowLoopback bool
 	sshWireBudget int64 // test seam; zero uses the production wire limit
@@ -147,7 +148,7 @@ func NewClient(cfg Config, logger *slog.Logger) (*Client, error) {
 		logger = slog.Default()
 	}
 	cfg.AllowedRemotes = append([]string(nil), cfg.AllowedRemotes...)
-	return &Client{config: cfg, logger: logger}, nil
+	return &Client{config: cfg, limits: cfg.EffectiveLimits(), logger: logger}, nil
 }
 func (c *Client) Allowed(remote Remote) bool {
 	for _, address := range c.config.AllowedRemotes {
@@ -199,7 +200,7 @@ type Snapshot struct {
 }
 
 func (c *Client) Fetch(ctx context.Context, remote Remote, ref string, signer ssh.Signer) (Snapshot, error) {
-	ctx, cancel := context.WithTimeout(ctx, Deadline)
+	ctx, cancel := context.WithTimeout(ctx, c.limits.Timeout)
 	defer cancel()
 	canonical, err := ParseRemote(remote.URL)
 	if err != nil || canonical != remote {
@@ -269,8 +270,8 @@ func (c *Client) Fetch(ctx context.Context, remote Remote, ref string, signer ss
 	if err := upload.Decode(&countedBody{Reader: negotiation, close: response.Close}); err != nil {
 		return Snapshot{}, safeError(err)
 	}
-	negotiation.remaining = MaxReceivedBytes
-	objects, err := decodePack(ctx, upload)
+	negotiation.remaining = c.limits.MaxReceivedBytes
+	objects, err := decodePack(ctx, upload, c.limits)
 	if errors.Is(err, ErrContent) {
 		// The old receive step observed transport and byte-budget failures even
 		// when the pack itself was malformed. Drain only that failure path with
@@ -285,7 +286,7 @@ func (c *Client) Fetch(ctx context.Context, remote Remote, ref string, signer ss
 	if err != nil {
 		return Snapshot{}, safeError(err)
 	}
-	archive, commit, err := archiveSnapshot(ctx, objects, oid)
+	archive, commit, err := archiveSnapshot(ctx, objects, oid, c.limits.Source)
 	if err != nil {
 		return Snapshot{}, err
 	}
@@ -390,7 +391,7 @@ func (r *boundedReader) Read(p []byte) (int, error) {
 func (c *Client) https(ctx context.Context, remote Remote) (*packp.AdvRefs, func([]byte) (io.ReadCloser, error), func(), error) {
 	transport := &http.Transport{DialContext: c.dial, TLSClientConfig: c.tlsConfig, DisableCompression: true, MaxResponseHeaderBytes: 64 << 10, ResponseHeaderTimeout: 15 * time.Second}
 	client := &http.Client{Transport: transport, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
-	remaining := int64(MaxReceivedBytes)
+	remaining := c.limits.MaxReceivedBytes
 	call := func(method, suffix string, body []byte) (io.ReadCloser, error) {
 		req, err := http.NewRequestWithContext(ctx, method, strings.TrimSuffix(remote.URL, "/")+suffix, bytes.NewReader(body))
 		if err != nil {
@@ -502,7 +503,7 @@ func (c *Client) ssh(ctx context.Context, remote Remote, signer ssh.Signer) (*pa
 	}
 	// Count the SSH wire stream as well as stdout, including a hostile stderr
 	// stream and handshake/channel traffic. Exhaustion closes all channels.
-	limit := int64(MaxReceivedBytes)
+	limit := c.limits.MaxReceivedBytes
 	if c.sshWireBudget > 0 && c.sshWireBudget < limit {
 		limit = c.sshWireBudget
 	}
@@ -548,7 +549,7 @@ func (c *Client) ssh(ctx context.Context, remote Remote, signer ssh.Signer) (*pa
 	if err := session.Start(command); err != nil {
 		return nil, nil, cleanup, wire, err
 	}
-	reader := &boundedReader{ctx: ctx, reader: stdout, remaining: MaxReceivedBytes}
+	reader := &boundedReader{ctx: ctx, reader: stdout, remaining: c.limits.MaxReceivedBytes}
 	adv, err := decodeAdvertisement(ctx, reader)
 	exchange := func(body []byte) (io.ReadCloser, error) {
 		if _, err := stdin.Write(body); err != nil {

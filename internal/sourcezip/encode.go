@@ -33,6 +33,7 @@ type Member struct {
 }
 
 type Options struct {
+	Limits *Limits
 	// CompressionLevel zero keeps archive/zip's default Deflate compressor.
 	CompressionLevel int
 	// ModifiedField preserves Git import's historical ZIP header encoding.
@@ -48,18 +49,25 @@ type Options struct {
 // Size, bounds compressed bytes and observes ctx during compression and
 // between members.
 func Encode(ctx context.Context, members []Member, options Options) ([]byte, error) {
+	limits := DefaultLimits()
+	if options.Limits != nil {
+		limits = *options.Limits
+	}
+	if err := limits.Validate(); err != nil {
+		return nil, ErrLimit
+	}
 	maximum := options.MaxBytes
 	if maximum == 0 {
 		maximum = MaxArchiveBytes
 	}
-	if maximum < 0 || maximum > MaxArchiveBytes || len(members) == 0 || len(members) > MaxEntries {
+	if maximum < 0 || maximum > MaxArchiveBytes || len(members) == 0 || len(members) > limits.MaxEntries {
 		return nil, ErrLimit
 	}
 	var expanded int64
 	for _, member := range members {
 		if member.Name == "" || len(member.Name) > MaxPathBytes ||
-			member.Size < 0 || member.Size > MaxFileBytes ||
-			member.Size > MaxArchiveBytes-expanded || member.Write == nil {
+			member.Size < 0 || member.Size > limits.MaxFileBytes ||
+			member.Size > limits.MaxExpandedBytes-expanded || member.Write == nil {
 			return nil, ErrLimit
 		}
 		expanded += member.Size

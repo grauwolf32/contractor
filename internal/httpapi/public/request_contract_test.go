@@ -236,6 +236,8 @@ func (g *requestContractGit) Replace(_ context.Context, owner string, _ []byte) 
 	return credentials.GitKeyMetadata{Configured: true}, nil
 }
 func (g *requestContractGit) Delete(context.Context, string) error { g.calls++; return nil }
+func (g *requestContractGit) Timeout() time.Duration               { return gitimport.Deadline }
+
 func (g *requestContractGit) DoImport(_ context.Context, request gitimport.ImportRequest, respond func(gitimport.ImportResult)) error {
 	g.calls++
 	if request.ExpectedRevision != nil {

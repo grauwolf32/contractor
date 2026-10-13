@@ -16,10 +16,7 @@ import (
 )
 
 const (
-	MaxArchiveBytes = sourcezip.MaxArchiveBytes
-	MaxEntries      = sourcezip.MaxEntries
-	MaxFileBytes    = sourcezip.MaxFileBytes
-	MaxPathBytes    = sourcezip.MaxPathBytes
+	MaxPathBytes = sourcezip.MaxPathBytes
 )
 
 type sourceFile struct {
@@ -27,7 +24,10 @@ type sourceFile struct {
 	data []byte
 }
 
-func archiveSnapshot(ctx context.Context, objects map[plumbing.Hash]*gitObject, selected plumbing.Hash) ([]byte, plumbing.Hash, error) {
+func archiveSnapshot(ctx context.Context, objects map[plumbing.Hash]*gitObject, selected plumbing.Hash, limits sourcezip.Limits) ([]byte, plumbing.Hash, error) {
+	if err := limits.Validate(); err != nil {
+		return nil, plumbing.ZeroHash, ErrBudget
+	}
 	commit := selected
 	for depth := 0; ; depth++ {
 		object := objects[commit]
@@ -68,7 +68,7 @@ func archiveSnapshot(ctx context.Context, objects map[plumbing.Hash]*gitObject, 
 				return err
 			}
 			entries++
-			if entries > MaxEntries {
+			if entries > limits.MaxEntries {
 				return ErrBudget
 			}
 			mode, tail, ok := bytes.Cut(data, []byte{' '})
@@ -104,7 +104,7 @@ func archiveSnapshot(ctx context.Context, objects map[plumbing.Hash]*gitObject, 
 				if blob == nil || blob.kind != plumbing.BlobObject {
 					return ErrContent
 				}
-				if len(blob.data) > MaxFileBytes || len(blob.data) > MaxArchiveBytes-total {
+				if int64(len(blob.data)) > limits.MaxFileBytes || int64(len(blob.data)) > limits.MaxExpandedBytes-int64(total) {
 					return ErrBudget
 				}
 				if bytes.HasPrefix(blob.data, []byte("version https://git-lfs.github.com/spec/v1\n")) || bytes.HasPrefix(blob.data, []byte("version https://git-lfs.github.com/spec/v1\r\n")) {
@@ -156,7 +156,7 @@ func archiveSnapshot(ctx context.Context, objects map[plumbing.Hash]*gitObject, 
 			},
 		}
 	}
-	archive, err := sourcezip.Encode(ctx, members, sourcezip.Options{ModifiedField: true})
+	archive, err := sourcezip.Encode(ctx, members, sourcezip.Options{ModifiedField: true, Limits: &limits})
 	if errors.Is(err, sourcezip.ErrLimit) {
 		return nil, plumbing.ZeroHash, ErrBudget
 	}

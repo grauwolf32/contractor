@@ -54,6 +54,7 @@ func (c *serveConfigInputs) parseFlags(args []string) error {
 	flags := flag.NewFlagSet("contractor-server serve", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
 	c.settings.operations.registerFlags(flags)
+	gitImportFlags(flags, &c.gitImportLimits)
 	flags.Var(&c.gitRemotes, "git-allowed-remote", "allowed Git remote host:port; repeatable")
 	flags.StringVar(&c.gitKnownHosts, "git-known-hosts-file", c.gitKnownHosts, "absolute read-only SSH known_hosts file")
 	flags.StringVar(&c.serverConfigPath, "config", c.serverConfigPath, "strict YAML ServerConfig file")

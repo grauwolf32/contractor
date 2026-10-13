@@ -30,11 +30,11 @@ type packedObject struct {
 // delta programs/results. The pack is scanned directly from its source; only
 // the last 20 bytes are retained to detect trailing data after the SHA-1.
 // No thin packs are requested or accepted.
-func decodePack(ctx context.Context, source io.Reader) (map[plumbing.Hash]*gitObject, error) {
+func decodePack(ctx context.Context, source io.Reader, limits Limits) (map[plumbing.Hash]*gitObject, error) {
 	if source == nil {
 		return nil, ErrContent
 	}
-	reader := &packStreamReader{ctx: ctx, source: source}
+	reader := &packStreamReader{ctx: ctx, source: source, maximum: limits.MaxReceivedBytes}
 	contentError := func() error {
 		if err := ctx.Err(); err != nil {
 			return err
@@ -60,7 +60,7 @@ func decodePack(ctx context.Context, source io.Reader) (map[plumbing.Hash]*gitOb
 	pending := make([]*packedObject, 0)
 	var decoded int64
 	charge := func(n int64) error {
-		if n < 0 || n > maxObjectBytes || n > MaxDecodedBytes-decoded {
+		if n < 0 || n > maxObjectBytes || n > limits.MaxDecodedBytes-decoded {
 			return ErrBudget
 		}
 		decoded += n
@@ -182,6 +182,7 @@ type packStreamReader struct {
 	ctx       context.Context
 	source    io.Reader
 	total     int64
+	maximum   int64
 	tail      [20]byte
 	readError error
 }
@@ -193,7 +194,7 @@ func (r *packStreamReader) Read(p []byte) (int, error) {
 	if len(p) == 0 {
 		return 0, nil
 	}
-	if r.total == MaxReceivedBytes {
+	if r.total == r.maximum {
 		var probe [1]byte
 		n, err := r.source.Read(probe[:])
 		if n != 0 {
@@ -205,8 +206,8 @@ func (r *packStreamReader) Read(p []byte) (int, error) {
 		}
 		return 0, err
 	}
-	if int64(len(p)) > MaxReceivedBytes-r.total {
-		p = p[:MaxReceivedBytes-r.total]
+	if int64(len(p)) > r.maximum-r.total {
+		p = p[:r.maximum-r.total]
 	}
 	n, err := r.source.Read(p)
 	if n > 0 {

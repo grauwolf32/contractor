@@ -287,7 +287,9 @@ durations and bounded counts, not credentials, URLs or secret paths.
 - Audit controller polling, claims and operations;
 - database budgets;
 - A2A polling;
-- credential-management HTTP.
+- credential-management HTTP;
+- whole Git import, wire and decoded bytes and source archive admission
+  (`gitImport`, [GIT-R92](../artifacts/git-import.md)).
 
 **OPS-R16.** Increasing one transport timeout cannot silently
 enlarge an operation or reset a stored deadline: changing the HTTP timeout

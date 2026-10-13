@@ -22,6 +22,10 @@ from contractor_runtime.adapters import AdapterHandles
 from contractor_runtime.adapters.host import EMPTY_ADAPTER_HANDLES
 from contractor_runtime.artifacts import ArtifactClient
 from contractor_runtime.contracts import ArtifactRef, RuntimeSettings
+from contractor_runtime.contracts.settings import (
+    SourceArchiveLimits,
+    default_source_archive_limits,
+)
 from contractor_runtime.core.input_errors import ToolInputError
 from contractor_runtime.core.lines import split_lines
 from contractor_runtime.projectfs.operation_guard import WorkspaceOperationGuard
@@ -43,9 +47,10 @@ from contractor_runtime.toolsets.common.line_window import bounded_line_window
 from contractor_runtime.toolsets.common.tool_base import SessionArtifactTool
 from contractor_runtime.workspace import AllocationWorkspace
 
-MAX_ARCHIVE_ENTRIES = 10_000
-MAX_TOTAL_UNCOMPRESSED_BYTES = 64 * 1024 * 1024
-MAX_FILE_UNCOMPRESSED_BYTES = 4 * 1024 * 1024
+_DEFAULT_LIMITS = default_source_archive_limits()
+MAX_ARCHIVE_ENTRIES = _DEFAULT_LIMITS.max_entries
+MAX_TOTAL_UNCOMPRESSED_BYTES = _DEFAULT_LIMITS.max_expanded_bytes
+MAX_FILE_UNCOMPRESSED_BYTES = _DEFAULT_LIMITS.max_file_bytes
 MAX_PATH_UTF8_BYTES = 512
 MAX_LIST_RESULTS = 200
 MAX_SEARCH_RESULTS = 100
@@ -153,7 +158,10 @@ class SourceAnalysisToolsetFactory:
         metrics = require_metrics(state, "source-analysis@1")
         client = self._client_factory(allocation_id, runtime_settings)
         session = _SourceArchiveSession(
-            client, workspace, operation_timeout_seconds=runtime_settings.request_timeout_seconds
+            client,
+            workspace,
+            operation_timeout_seconds=runtime_settings.request_timeout_seconds,
+            limits=runtime_settings.source_archive_limits,
         )
         secrets = runtime_secrets(runtime_settings)
         builders: dict[str, Callable[[], Any]] = {
@@ -194,7 +202,9 @@ class _SourceArchiveSession:
         workspace: AllocationWorkspace,
         *,
         operation_timeout_seconds: float = 120,
+        limits: SourceArchiveLimits | None = None,
     ) -> None:
+        self._limits = limits or default_source_archive_limits()
         self._client = client
         self._workspace = workspace
         self._source_path = workspace.path / "source"
@@ -228,7 +238,7 @@ class _SourceArchiveSession:
 
             def extract_and_install() -> tuple[list[_SourceFile], int, int]:
                 try:
-                    extracted = _extract_archive(value.data, staging)
+                    extracted = _extract_archive(value.data, staging, self._limits)
                     # Cancellation retains this operation's ownership but must
                     # not start another publication after extraction completes.
                     self._require_available()
@@ -603,12 +613,15 @@ class ReadSourceTool(_BaseSourceTool):
         )
 
 
-def _extract_archive(data: bytes, staging: Path) -> tuple[list[_SourceFile], int, int]:
+def _extract_archive(
+    data: bytes, staging: Path, limits: SourceArchiveLimits | None = None
+) -> tuple[list[_SourceFile], int, int]:
+    limits = limits or default_source_archive_limits()
     staging.mkdir(mode=0o700)
     try:
         with zipfile.ZipFile(io.BytesIO(data), mode="r") as archive:
             entries = archive.infolist()
-            _validate_entries(entries)
+            _validate_entries(entries, limits)
             files: list[_SourceFile] = []
             ignored_count = 0
             total_bytes = 0
@@ -625,7 +638,7 @@ def _extract_archive(data: bytes, staging: Path) -> tuple[list[_SourceFile], int
                     ignored_count += 1
                     continue
                 try:
-                    payload = _read_member_bounded(archive, info)
+                    payload = _read_member_bounded(archive, info, limits)
                 except (OSError, RuntimeError, zipfile.BadZipFile) as error:
                     raise ValueError("source ZIP member could not be read safely") from error
                 try:
@@ -646,9 +659,12 @@ def _extract_archive(data: bytes, staging: Path) -> tuple[list[_SourceFile], int
     return files, total_bytes, ignored_count
 
 
-def _validate_entries(entries: list[zipfile.ZipInfo]) -> None:
-    if len(entries) > MAX_ARCHIVE_ENTRIES:
-        raise ValueError("source ZIP exceeds the 10000 entry limit")
+def _validate_entries(
+    entries: list[zipfile.ZipInfo], limits: SourceArchiveLimits | None = None
+) -> None:
+    limits = limits or default_source_archive_limits()
+    if len(entries) > limits.max_entries:
+        raise ValueError(f"source ZIP exceeds the {limits.max_entries} entry limit")
     seen: set[str] = set()
     regular_files: set[str] = set()
     total_declared = 0
@@ -665,11 +681,15 @@ def _validate_entries(entries: list[zipfile.ZipInfo]) -> None:
         allowed_kind = stat.S_IFDIR if info.is_dir() else stat.S_IFREG
         if kind not in {0, allowed_kind}:
             raise ValueError("source ZIP contains a link or special file")
-        if info.file_size < 0 or info.file_size > MAX_FILE_UNCOMPRESSED_BYTES:
-            raise ValueError("source ZIP member exceeds the 4 MiB file limit")
+        if info.file_size < 0 or info.file_size > limits.max_file_bytes:
+            raise ValueError(
+                f"source ZIP member exceeds the {limits.max_file_bytes} byte file limit"
+            )
         total_declared += info.file_size
-        if total_declared > MAX_TOTAL_UNCOMPRESSED_BYTES:
-            raise ValueError("source ZIP exceeds the 64 MiB uncompressed limit")
+        if total_declared > limits.max_expanded_bytes:
+            raise ValueError(
+                f"source ZIP exceeds the {limits.max_expanded_bytes} byte uncompressed limit"
+            )
         normalized_entries.append((info, normalized))
         if not info.is_dir():
             regular_files.add(normalized)
@@ -700,11 +720,15 @@ def _validated_member_path(raw: str) -> str:
     return normalized
 
 
-def _read_member_bounded(archive: zipfile.ZipFile, info: zipfile.ZipInfo) -> bytes:
+def _read_member_bounded(
+    archive: zipfile.ZipFile, info: zipfile.ZipInfo, limits: SourceArchiveLimits
+) -> bytes:
     with archive.open(info, mode="r") as source:
-        payload = source.read(MAX_FILE_UNCOMPRESSED_BYTES + 1)
-        if len(payload) > MAX_FILE_UNCOMPRESSED_BYTES or source.read(1):
-            raise ValueError("source ZIP member exceeds the 4 MiB streamed limit")
+        payload = source.read(limits.max_file_bytes + 1)
+        if len(payload) > limits.max_file_bytes or source.read(1):
+            raise ValueError(
+                f"source ZIP member exceeds the {limits.max_file_bytes} byte streamed limit"
+            )
     if len(payload) != info.file_size:
         raise ValueError("source ZIP member size differs from its declaration")
     return payload

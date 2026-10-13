@@ -13,11 +13,12 @@ import (
 )
 
 type GitImportService interface {
+	Timeout() time.Duration
 	DoImport(context.Context, gitimport.ImportRequest, func(gitimport.ImportResult)) error
 }
 
 func (h *artifactHandlers) importGitArtifact(w http.ResponseWriter, r *http.Request) {
-	ctx, cancel := context.WithTimeout(r.Context(), gitimport.Deadline)
+	ctx, cancel := context.WithTimeout(r.Context(), h.GitImports.Timeout())
 	defer cancel()
 	r = r.WithContext(ctx)
 	deadline, _ := ctx.Deadline()

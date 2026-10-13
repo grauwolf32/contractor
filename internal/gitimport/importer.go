@@ -48,18 +48,21 @@ type ImportResult struct {
 	GitSource artifacts.GitSource   `json:"gitSource"`
 }
 type Importer struct {
-	pool   *pgxpool.Pool
-	client SnapshotClient
-	keys   KeyProvider
-	slots  chan struct{}
+	pool    *pgxpool.Pool
+	client  SnapshotClient
+	keys    KeyProvider
+	slots   chan struct{}
+	timeout time.Duration
 }
 
-func NewImporter(pool *pgxpool.Pool, client SnapshotClient, keys KeyProvider) (*Importer, error) {
-	if pool == nil || client == nil || keys == nil {
+func NewImporter(pool *pgxpool.Pool, client SnapshotClient, keys KeyProvider, timeout time.Duration) (*Importer, error) {
+	if pool == nil || client == nil || keys == nil || timeout <= 0 || timeout > 30*time.Minute {
 		return nil, ErrConfiguration
 	}
-	return &Importer{pool: pool, client: client, keys: keys, slots: make(chan struct{}, 1)}, nil
+	return &Importer{pool: pool, client: client, keys: keys, slots: make(chan struct{}, 1), timeout: timeout}, nil
 }
+
+func (i *Importer) Timeout() time.Duration { return i.timeout }
 
 // DoImport keeps both admission leases through the caller's small metadata
 // response. The complete ZIP is never passed to the HTTP response callback.
@@ -68,7 +71,7 @@ func (i *Importer) DoImport(ctx context.Context, request ImportRequest, respond 
 	if respond == nil {
 		return ErrConfiguration
 	}
-	ctx, cancel := context.WithTimeout(ctx, Deadline)
+	ctx, cancel := context.WithTimeout(ctx, i.timeout)
 	defer cancel()
 	ctx, release, err := artifacts.AcquireTransfer(ctx)
 	if err != nil {

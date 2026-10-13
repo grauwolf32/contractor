@@ -11,6 +11,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
+	"github.com/grauwolf32/contractor/internal/sourcezip"
 )
 
 var headerNamePattern = regexp.MustCompile(`^[!#$%&'*+\-.^_` + "`" + `|~0-9A-Za-z]+$`)
@@ -174,9 +175,10 @@ func (s HTTPProxySettings) Validate() error {
 }
 
 type RuntimeSettings struct {
-	LLMRecovery     bool                    `json:"llmRecovery,omitempty"`
-	LLMGatewayURL   string                  `json:"llmGatewayUrl,omitempty"`
-	LLMGatewayToken *contracts.SecretString `json:"llmGatewayToken,omitempty"`
+	SourceArchiveLimits *sourcezip.Limits       `json:"sourceArchiveLimits,omitempty"`
+	LLMRecovery         bool                    `json:"llmRecovery,omitempty"`
+	LLMGatewayURL       string                  `json:"llmGatewayUrl,omitempty"`
+	LLMGatewayToken     *contracts.SecretString `json:"llmGatewayToken,omitempty"`
 	// LLMGatewayFailureSignatures carries the selected Gateway's declared set;
 	// absent means the protocol default, exactly as on the Gateway body.
 	LLMGatewayFailureSignatures *llmgateway.GatewayFailureSignatures `json:"llmGatewayFailureSignatures,omitempty"`
@@ -229,6 +231,11 @@ func (s RuntimeSettings) SecretValues() []string {
 }
 
 func (s RuntimeSettings) Validate() error {
+	if s.SourceArchiveLimits != nil {
+		if err := s.SourceArchiveLimits.Validate(); err != nil {
+			return contracts.Invalidf("runtimeSettings.sourceArchiveLimits: %v", err)
+		}
+	}
 	if s.LLMGatewayURL != "" {
 		if err := validateRuntimeEndpoint("runtimeSettings.llmGatewayUrl", s.LLMGatewayURL); err != nil {
 			return err
