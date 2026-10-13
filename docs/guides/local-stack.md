@@ -76,6 +76,22 @@ but unavailable development credential rejects Run creation before execution.
 
 For managed virtual keys, follow [Gateway credentials](../operations/gateway-credentials.md).
 
+## Artifact payload storage
+
+The local ServerConfig uses `artifactBlobBackend: auto`,
+`artifactBlobPath: ../.local/artifact-blobs`, and
+`artifactBlobInlineMaxBytes: 1048576`. The path resolves beside the YAML file,
+so local files live under the repository's ignored `.local/artifact-blobs`.
+With a writable root, payloads through 1 MiB inclusive use PostgreSQL and larger
+payloads use files. Without available filesystem storage, new writes fall back
+to PostgreSQL. Existing blobs keep their recorded location across restarts.
+
+Override these through `CONTRACTOR_ARTIFACT_BLOB_BACKEND`,
+`CONTRACTOR_ARTIFACT_BLOB_PATH`, `CONTRACTOR_ARTIFACT_BLOB_INLINE_MAX_BYTES`, or
+matching `--artifact-blob-*` flags. Explicit backend modes force all new writes
+into that backend. See [blob storage](../operations/artifact-blob-storage.md)
+for mixed-backend reads, missing content and backup requirements.
+
 ## Git import budgets and SSH
 
 The checked-in ServerConfig allows `github.com:443` and `github.com:22`.

@@ -34,13 +34,6 @@ func CleanupFilesystemBlobs(ctx context.Context, db postgres.DBTX, path string, 
 	if _, err = ValidateBlobConfig(string(BlobFilesystem), path); err != nil {
 		return
 	}
-	var backend *string
-	if err = db.QueryRow(ctx, `SELECT backend FROM artifact_blob_settings WHERE singleton`).Scan(&backend); err != nil {
-		return
-	}
-	if backend == nil || *backend != string(BlobFilesystem) {
-		return report, ErrBlobBackendMismatch
-	}
 	current := string(filepath.Separator)
 	for _, component := range strings.Split(strings.TrimPrefix(path, current), string(filepath.Separator)) {
 		current = filepath.Join(current, component)

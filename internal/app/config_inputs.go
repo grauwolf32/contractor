@@ -28,6 +28,7 @@ type serveConfigInputs struct {
 	gitImportLimits             gitimport.Limits
 	blobBackend                 string
 	blobPath                    string
+	blobInlineMaxBytes          string
 	operatorConfigRoot          string
 	managedConfigRoot           string
 	publicBearerToken           contracts.SecretString
@@ -100,6 +101,10 @@ func loadServeConfigInputs(args []string, getenv func(string) string) (*serveCon
 	blobPath := settings.artifactBlobPath
 	if value := getenv("CONTRACTOR_ARTIFACT_BLOB_PATH"); value != "" {
 		blobPath = value
+	}
+	blobInlineMaxBytes := strconv.FormatInt(settings.artifactBlobInlineMaxBytes, 10)
+	if value := getenv("CONTRACTOR_ARTIFACT_BLOB_INLINE_MAX_BYTES"); value != "" {
+		blobInlineMaxBytes = value
 	}
 	operatorConfigRoot := settings.operatorConfigRoot
 	if value := getenv("CONTRACTOR_OPERATOR_CONFIG_ROOT"); value != "" {
@@ -201,6 +206,7 @@ func loadServeConfigInputs(args []string, getenv func(string) string) (*serveCon
 		gitImportLimits:             gitLimits,
 		blobBackend:                 blobBackend,
 		blobPath:                    blobPath,
+		blobInlineMaxBytes:          blobInlineMaxBytes,
 		operatorConfigRoot:          operatorConfigRoot,
 		managedConfigRoot:           managedConfigRoot,
 		publicBearerToken:           publicBearerToken,

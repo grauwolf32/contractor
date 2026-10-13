@@ -18,9 +18,6 @@ func TestReadExactBatchPreservesScopeRevisionAndBlobIntegrity(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
 			pool := isolatedArtifactPool(t, ctx)
-			if err := ClaimBlobBackend(ctx, pool, backend); err != nil {
-				t.Fatal(err)
-			}
 			var blobPath string
 			if backend == BlobFilesystem {
 				blobPath = t.TempDir()

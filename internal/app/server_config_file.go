@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/gitimport"
 	"go.yaml.in/yaml/v4"
 )
@@ -37,6 +38,7 @@ type serverConfigValues struct {
 	plannerTimeout              time.Duration
 	artifactBlobBackend         string
 	artifactBlobPath            string
+	artifactBlobInlineMaxBytes  int64
 	operatorConfigRoot          string
 	managedConfigRoot           string
 	credentialMasterKeyFile     string
@@ -76,6 +78,7 @@ type serverConfigSpec struct {
 	PlannerTimeout              *string   `yaml:"plannerTimeout"`
 	ArtifactBlobBackend         *string   `yaml:"artifactBlobBackend"`
 	ArtifactBlobPath            *string   `yaml:"artifactBlobPath"`
+	ArtifactBlobInlineMaxBytes  *int64    `yaml:"artifactBlobInlineMaxBytes"`
 	OperatorConfigRoot          *string   `yaml:"operatorConfigRoot"`
 	ManagedConfigRoot           *string   `yaml:"managedConfigRoot"`
 	CredentialMasterKeyFile     *string   `yaml:"credentialMasterKeyFile"`
@@ -94,19 +97,21 @@ type serverConfigSpec struct {
 
 func defaultServerConfigValues() serverConfigValues {
 	return serverConfigValues{
-		developmentLLMGateway: defaultDevelopmentLLMGateway,
-		gitImportLimits:       gitimport.DefaultLimits(),
-		operations:            defaultOperationalSettings(),
-		listenAddress:         defaultListenAddress,
-		privateListenAddress:  defaultPrivateListenAddress,
-		privateURL:            defaultPrivateURL,
-		shutdownTimeout:       defaultShutdownTimeout,
-		runtimeRequestTimeout: defaultRuntimeRequestTimeout,
-		workerRequestTimeout:  defaultWorkerRequestTimeout,
-		plannerTimeout:        defaultPlannerTimeout,
-		operatorConfigRoot:    defaultConfigRoot,
-		performanceMetrics:    true,
-		pprofListen:           "127.0.0.1:6060",
+		artifactBlobBackend:        string(artifacts.BlobAuto),
+		artifactBlobInlineMaxBytes: artifacts.DefaultBlobInlineMaxBytes,
+		developmentLLMGateway:      defaultDevelopmentLLMGateway,
+		gitImportLimits:            gitimport.DefaultLimits(),
+		operations:                 defaultOperationalSettings(),
+		listenAddress:              defaultListenAddress,
+		privateListenAddress:       defaultPrivateListenAddress,
+		privateURL:                 defaultPrivateURL,
+		shutdownTimeout:            defaultShutdownTimeout,
+		runtimeRequestTimeout:      defaultRuntimeRequestTimeout,
+		workerRequestTimeout:       defaultWorkerRequestTimeout,
+		plannerTimeout:             defaultPlannerTimeout,
+		operatorConfigRoot:         defaultConfigRoot,
+		performanceMetrics:         true,
+		pprofListen:                "127.0.0.1:6060",
 	}
 }
 
@@ -213,6 +218,9 @@ func applyServerConfigSpec(values *serverConfigValues, spec serverConfigSpec, ba
 	setConfigPath(&values.gitKnownHostsFile, spec.GitKnownHostsFile, base)
 	setString(&values.artifactBlobBackend, spec.ArtifactBlobBackend)
 	setConfigPath(&values.artifactBlobPath, spec.ArtifactBlobPath, base)
+	if spec.ArtifactBlobInlineMaxBytes != nil {
+		values.artifactBlobInlineMaxBytes = *spec.ArtifactBlobInlineMaxBytes
+	}
 	setConfigPath(&values.operatorConfigRoot, spec.OperatorConfigRoot, base)
 	setConfigPath(&values.managedConfigRoot, spec.ManagedConfigRoot, base)
 	setConfigPath(&values.credentialMasterKeyFile, spec.CredentialMasterKeyFile, base)

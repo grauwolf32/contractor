@@ -37,7 +37,8 @@ func PreparePayload(ctx context.Context, payload Payload) (Payload, error) {
 	if err := validatePayload(payload); err != nil {
 		return payload, err
 	}
-	if _, ok := activeBlobStore(ctx).(*FilesystemBlobStore); !ok {
+	preparer, ok := activeBlobStore(ctx).(interface{ preparesFile(int) bool })
+	if !ok || !preparer.preparesFile(len(payload.Data)) {
 		return payload, nil
 	}
 	ctx, release, err := AcquireTransfer(ctx)
@@ -101,8 +102,7 @@ func activeBlobStore(ctx context.Context) BlobStore {
 	return runtimelessBlobStore{}
 }
 
-// runtimelessBlobStore stores inline payloads, which the registry's backend
-// guard rejects on a filesystem installation. Opening a filesystem object
+// runtimelessBlobStore can only store and open inline payloads. Opening a filesystem object
 // needs the installation's blob root, so reaching one is a logged internal
 // error instead of an integrity failure.
 type runtimelessBlobStore struct{ PostgresBlobStore }

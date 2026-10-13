@@ -6,15 +6,16 @@ import (
 	"testing"
 )
 
-func TestBlobConfigIsExplicit(t *testing.T) {
+func TestBlobConfigSelectionModes(t *testing.T) {
 	for _, tc := range []struct {
 		kind, path string
 		valid      bool
 	}{
 		{"", "", true}, {"postgresql", "", true}, {"filesystem", "/var/blobs", true},
-		{"postgresql", "/var/blobs", false}, {"filesystem", "", false},
+		{"postgresql", "/var/blobs", true}, {"filesystem", "", false},
 		{"filesystem", "relative", false}, {"filesystem", "/var/../blobs", false},
-		{"s3", "", false}, {"auto", "", false},
+		{"s3", "", false}, {"auto", "", true}, {"auto", "/var/blobs", true},
+		{"auto", "relative", false}, {"auto", "/var/../blobs", false},
 	} {
 		_, err := ValidateBlobConfig(tc.kind, tc.path)
 		if (err == nil) != tc.valid {

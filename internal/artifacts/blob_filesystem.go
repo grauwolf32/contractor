@@ -27,7 +27,29 @@ type FilesystemBlobStore struct {
 }
 
 func OpenFilesystemBlobStore(ctx context.Context, path string) (*FilesystemBlobStore, error) {
+	store, err := openFilesystemBlobRoot(ctx, path, true)
+	if err != nil {
+		return nil, err
+	}
+	probe, err := store.Store(ctx, []byte("contractor blob probe"))
+	if err == nil {
+		_, err = store.Read(ctx, probe)
+	}
+	if err == nil {
+		err = store.Delete(ctx, probe)
+	}
+	if err != nil {
+		_ = store.Close()
+		return nil, fmt.Errorf("artifact blob directory probe failed: %w", err)
+	}
+	return store, nil
+}
+
+func openFilesystemBlobRoot(ctx context.Context, path string, create bool) (*FilesystemBlobStore, error) {
 	if _, err := ValidateBlobConfig(string(BlobFilesystem), path); err != nil {
+		return nil, err
+	}
+	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 	// Reject existing symlink components before creating a dedicated root.
@@ -38,31 +60,26 @@ func OpenFilesystemBlobStore(ctx context.Context, path string) (*FilesystemBlobS
 		if errors.Is(err, os.ErrNotExist) {
 			break
 		}
-		if err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
-			return nil, errors.New("invalid artifact blob directory")
+		if err != nil {
+			return nil, blobIOError(err)
+		}
+		if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+			return nil, fmt.Errorf("invalid artifact blob directory: %w", ErrBlobIO)
 		}
 	}
-	if err := os.MkdirAll(path, 0700); err != nil {
-		return nil, errors.New("artifact blob directory is not writable")
+	if create {
+		if err := os.MkdirAll(path, 0700); err != nil {
+			return nil, fmt.Errorf("artifact blob directory is not writable: %w", blobIOError(err))
+		}
 	}
 	root, err := os.OpenRoot(path)
 	if err != nil {
-		return nil, errors.New("cannot open artifact blob directory")
+		return nil, fmt.Errorf("cannot open artifact blob directory: %w", blobIOError(err))
 	}
-	store := &FilesystemBlobStore{root: root}
-	probe, err := store.Store(ctx, []byte("contractor blob probe"))
-	if err == nil {
-		_, err = store.Read(ctx, probe)
-	}
-	if err == nil {
-		err = store.Delete(ctx, probe)
-	}
-	if err != nil {
-		_ = root.Close()
-		return nil, fmt.Errorf("artifact blob directory probe failed: %w", err)
-	}
-	return store, nil
+	return &FilesystemBlobStore{root: root}, nil
 }
+
+func (*FilesystemBlobStore) preparesFile(int) bool { return true }
 
 func (s *FilesystemBlobStore) Close() error { return s.root.Close() }
 

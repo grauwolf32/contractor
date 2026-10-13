@@ -1,24 +1,48 @@
 # Artifact blob storage
 
 Artifact revisions, permissions, pins and lineage always live in PostgreSQL.
-Select payload storage when starting `contractor server run`:
+Configure payload storage when starting the Server:
 
-```shell
-contractor server run --artifact-blob-backend=postgresql
-contractor server run --artifact-blob-backend=filesystem --artifact-blob-path=/var/lib/contractor/blobs
+```yaml
+apiVersion: contractor/v1alpha1
+kind: ServerConfig
+spec:
+  artifactBlobBackend: auto
+  artifactBlobPath: /var/lib/contractor/blobs
+  artifactBlobInlineMaxBytes: 1048576
 ```
 
-Equivalent environment variables are `CONTRACTOR_ARTIFACT_BLOB_BACKEND` and
-`CONTRACTOR_ARTIFACT_BLOB_PATH`. CLI flags win. PostgreSQL is the default and
-does not accept a blob path or use local temporary upload files. Filesystem
-requires a dedicated writable absolute path. S3 is reserved for a future
-backend; selecting `s3` currently fails explicitly.
+`auto` is the default. At each startup, it probes the configured dedicated file
+root. With writable storage, payloads up to 1 MiB inclusive remain in PostgreSQL
+and larger payloads use files. The threshold is configurable from zero through
+the 64 MiB Artifact ceiling. Without a root or when its probe fails, all new
+payloads use PostgreSQL. A later filesystem preparation I/O failure in auto
+mode can also fall back before registry publication; cancellation and ambiguous
+registry writes never trigger a second publication.
 
-Run database migrations before startup. The installation records its selected
-backend; changing flags does not migrate an existing store. Filesystem bytes
-are not duplicated in PostgreSQL. Metadata-only queries and scope forks do not
-copy payloads. Both adapters support payloads up to 64 MiB; Skills, Audit
-packages and overlay state have independent smaller processing limits.
+The equivalent flags are `--artifact-blob-backend`, `--artifact-blob-path` and
+`--artifact-blob-inline-max-bytes`; the environment names are
+`CONTRACTOR_ARTIFACT_BLOB_BACKEND`, `CONTRACTOR_ARTIFACT_BLOB_PATH` and
+`CONTRACTOR_ARTIFACT_BLOB_INLINE_MAX_BYTES`. Precedence is built-in defaults <
+ServerConfig < environment < CLI. YAML paths resolve beside the configuration
+file; environment and CLI paths must be clean and absolute.
+
+Explicit `postgresql` or `filesystem` modes force the new-write backend,
+independently of the inline threshold. Filesystem mode requires a writable root
+and fails startup if its probe fails. PostgreSQL mode may still configure the
+root for reading and deleting retained files; opening those files requires no
+write probe. S3 is not implemented, and selecting it fails validation.
+
+Run database migrations before startup. The per-blob storage migration removes
+the obsolete installation-wide backend claim and guard, retaining all payloads
+and revisions. Each blob records its own backend and physical key. Policy changes
+never migrate existing bytes. Duplicate digests keep their existing location;
+existing files must be verified before reuse, and a missing file cannot be
+reused by an inline candidate. Filesystem candidates are cleaned when an existing
+inline blob wins deduplication. Metadata-only queries and scope forks do not copy
+payloads. File payloads are not duplicated in PostgreSQL. Both adapters support
+payloads up to 64 MiB; Skills, Audit packages and overlay state retain their
+independent processing limits.
 
 Kubernetes without PVC is supported. PostgreSQL mode retains payloads in the
 database across Server replacement. Filesystem may use an ephemeral `emptyDir`;
@@ -98,9 +122,10 @@ directory are not a consistent backup.
 1. Make a PostgreSQL custom-format dump (`pg_dump --format=custom --no-owner`).
    Supply connection credentials through protected PostgreSQL connection
    settings, not a password in command arguments.
-2. For filesystem storage, also copy the complete dedicated blob root while
-   writers remain stopped. Retain the corresponding database dump and directory
-   as one backup set. PostgreSQL storage needs no separate payload directory.
+2. If the registry contains any filesystem blobs, copy the complete dedicated
+   blob root while writers remain stopped, even when current writes use PostgreSQL.
+   Retain the database dump and directory as one backup set. A registry containing
+   only inline PostgreSQL payloads needs no separate payload directory.
 3. Separately retain operator configurations, the durable managed root if one
    is used, local-auth bootstrap, PKI and the credential master key with their
    original owner-only permissions. They are not included in the database dump.
@@ -109,8 +134,9 @@ directory are not a consistent backup.
    recover them.
 4. Restore into an empty replacement database with
    `pg_restore --exit-on-error --no-owner --dbname=<replacement> <archive>`.
-   Restore the matching filesystem snapshot to its dedicated path if selected.
-   Keep the recorded backend; changing its flag is not a migration.
+   Restore the matching filesystem snapshot to the configured dedicated path
+   whenever retained blobs use it. Each restored blob keeps its recorded backend;
+   the startup policy applies only to new payloads.
 5. Run the matching release's migrator, start Server and Runtime, verify
    readiness, authentication, exact retained Artifact revisions and a new
    controlled write, then resume admission. Browser sessions are process-local
@@ -172,9 +198,10 @@ Render the PostgreSQL example with `kubectl kustomize deploy/artifact-blobs/post
 The separate [filesystem overlay](../../deploy/artifact-blobs/filesystem/kustomization.yaml)
 applies its [patch](../../deploy/artifact-blobs/filesystem/filesystem.patch.yaml),
 which adds an explicit `/blobs` disk-backed `emptyDir` and uses `Recreate` with
-one replica. Render it with `kubectl kustomize deploy/artifact-blobs/filesystem`
-only for a **fresh filesystem installation**, never over a populated PostgreSQL
-store. A container restart within the same pod can retain `emptyDir`; pod
+one replica. Render it with `kubectl kustomize deploy/artifact-blobs/filesystem`.
+After the schema upgrade, this may also enable file writes over an existing
+PostgreSQL registry; retained inline payloads stay in PostgreSQL. Existing file
+payloads require their matching blob root. A container restart within the same pod can retain `emptyDir`; pod
 replacement loses it. Disk `emptyDir` capacity counts against node ephemeral
 storage. Using `medium: Memory` instead also charges blob files to container
 memory. A PVC may replace this volume if persistence is desired, but is not
@@ -198,7 +225,8 @@ secret files plus `/managed` (and `/blobs` for filesystem).
 | Contract | Verification |
 | --- | --- |
 | 64 MiB exact bytes, read-only root, no PVC, PostgreSQL restart | `TestArtifactBlobBackendsContainers/postgresql` uploads, verifies SHA-256, replaces the container and reads the exact revision |
-| Real public/private API and backend propagation | Both container cases run the Python Runtime's Artifact copy workflow over allocation-scoped mTLS, then read the exact public output |
+| Real public/private API and backend propagation | All four container cases run the Python Runtime's Artifact copy workflow over allocation-scoped mTLS, then read the exact public output |
+| Size routing and fallback | Auto stores small bundled packages inline and the 64 MiB payload in files; auto-unavailable runs without a writable blob volume and retains the large payload across container replacement |
 | Ephemeral volume loss | Filesystem container replacement returns `artifact_content_missing` while metadata remains readable |
 | Four-transfer saturation and cancellation | Four incomplete 64 MiB HTTP uploads hold all slots; another upload or output download gets 503, cancel frees a slot, remaining uploads commit; Run metadata stays available |
 | Oversize, integrity, generation keys, symlink escape, startup configuration | Adapter/config tests plus container Content-Length rejection |

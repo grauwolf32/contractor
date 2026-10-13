@@ -46,8 +46,13 @@ func TestArtifactBlobBackendsContainers(t *testing.T) {
 	image := "localhost/contractor-blob-gate:" + randomHex(t, 8)
 	runChecked(t, buildRoot, nil, "podman", "build", "-q", "-t", image, buildRoot)
 	t.Cleanup(func() { _ = exec.Command("podman", "rmi", "-f", image).Run() })
-	for _, backend := range []string{"postgresql", "filesystem"} {
+	for _, backend := range []string{"postgresql", "filesystem", "auto", "auto-unavailable"} {
 		t.Run(backend, func(t *testing.T) {
+			mode := backend
+			if mode == "auto-unavailable" {
+				mode = "auto"
+			}
+			usesFiles := backend == "filesystem" || backend == "auto"
 			ctx, cancel := context.WithTimeout(context.Background(), 4*time.Minute)
 			defer cancel()
 			root := t.TempDir()
@@ -81,9 +86,9 @@ func TestArtifactBlobBackendsContainers(t *testing.T) {
 				"CONTRACTOR_CA_FILE": ca.Certificate, "CONTRACTOR_CONTROL_PLANE_CERT_FILE": control.Certificate,
 				"CONTRACTOR_CONTROL_PLANE_KEY_FILE": control.PrivateKey, "CONTRACTOR_LLM_GATEWAY_TOKEN": llmGatewayToken,
 				"CONTRACTOR_PUBLIC_BEARER_TOKEN": publicToken, "CONTRACTOR_LOCAL_AUTH_FILE": writeE2ELocalAuth(t, root, userID),
-				"CONTRACTOR_BROWSER_ORIGINS": "https://ui.contractor.invalid", "CONTRACTOR_ARTIFACT_BLOB_BACKEND": backend,
+				"CONTRACTOR_BROWSER_ORIGINS": "https://ui.contractor.invalid", "CONTRACTOR_ARTIFACT_BLOB_BACKEND": mode,
 			}
-			if backend == "filesystem" {
+			if backend != "postgresql" {
 				environment["CONTRACTOR_ARTIFACT_BLOB_PATH"] = "/blobs"
 			}
 			client := &http.Client{Timeout: 45 * time.Second}
@@ -92,7 +97,7 @@ func TestArtifactBlobBackendsContainers(t *testing.T) {
 			start := func() {
 				containerName = "contractor-blob-gate-" + randomHex(t, 8)
 				args := []string{"run", "--name", containerName, "--network=host", "--read-only", "--read-only-tmpfs=false", "--cap-drop=all", "--security-opt=no-new-privileges", "--tmpfs=/managed:rw,nosuid,nodev,noexec,size=64m", "-v", root + ":" + root + ":ro"}
-				if backend == "filesystem" {
+				if usesFiles {
 					args = append(args, "--tmpfs=/blobs:rw,nosuid,nodev,noexec,size=1g")
 				}
 				for key, value := range environment {
@@ -146,28 +151,39 @@ func TestArtifactBlobBackendsContainers(t *testing.T) {
 			blobGatePeak(t, containerName, backend)
 			runChecked(t, repositoryRoot, nil, "podman", "stop", "--time=10", containerName)
 			start() // New container and fresh tmpfs, retained PostgreSQL registry.
-			if backend == "postgresql" {
+			if !usesFiles {
 				blobGateVerify(t, client, exact, payload)
 			} else {
-				for _, path := range []string{
-					"/v1/artifacts/skills/trace",
-					"/v1/audit-standards/owasp-web-top10/versions/2025",
-				} {
-					blobGateCatalogRead(t, client, publicURL+path, http.StatusServiceUnavailable)
-				}
-				logs := server.logs.redacted()
-				for _, seed := range []struct{ message, identity string }{
-					{"bundled skill initialization", "trace"},
-					{"bundled Audit standard initialization", "owasp-web-top10"},
-				} {
-					count := 0
-					for _, line := range strings.Split(logs, "\n") {
-						if strings.Contains(line, seed.message) && strings.Contains(line, seed.identity) && strings.Contains(line, "content_missing") {
-							count++
-						}
+				if backend == "auto" {
+					// Small bundled packages stayed inline and survive loss of the
+					// volume that held the maximum-sized filesystem payload.
+					for _, path := range []string{
+						"/v1/artifacts/skills/trace",
+						"/v1/audit-standards/owasp-web-top10/versions/2025",
+					} {
+						blobGateCatalogRead(t, client, publicURL+path, http.StatusOK)
 					}
-					if count != 1 {
-						t.Fatalf("startup logged %d missing-content outcomes for %s, want one", count, seed.identity)
+				} else {
+					for _, path := range []string{
+						"/v1/artifacts/skills/trace",
+						"/v1/audit-standards/owasp-web-top10/versions/2025",
+					} {
+						blobGateCatalogRead(t, client, publicURL+path, http.StatusServiceUnavailable)
+					}
+					logs := server.logs.redacted()
+					for _, seed := range []struct{ message, identity string }{
+						{"bundled skill initialization", "trace"},
+						{"bundled Audit standard initialization", "owasp-web-top10"},
+					} {
+						count := 0
+						for _, line := range strings.Split(logs, "\n") {
+							if strings.Contains(line, seed.message) && strings.Contains(line, seed.identity) && strings.Contains(line, "content_missing") {
+								count++
+							}
+						}
+						if count != 1 {
+							t.Fatalf("startup logged %d missing-content outcomes for %s, want one", count, seed.identity)
+						}
 					}
 				}
 				request, _ := http.NewRequest(http.MethodGet, exact, nil)

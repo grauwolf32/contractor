@@ -17,8 +17,8 @@ import (
 // A displaced generation is left for offline cleanup, not unlinked here:
 // readers may already have resolved it before the competing row update.
 func reusableBlobKey(ctx context.Context, db postgres.DBTX, candidate BlobObject) (*string, error) {
-	if candidate.Backend != BlobFilesystem {
-		return nil, nil
+	if candidate.Backend != BlobFilesystem && candidate.Backend != BlobPostgres {
+		return nil, ErrArtifactIntegrity
 	}
 	store := activeBlobStore(ctx)
 	// A preprepared payload may have lost its file before reaching publication.
@@ -26,8 +26,10 @@ func reusableBlobKey(ctx context.Context, db postgres.DBTX, candidate BlobObject
 	// Store derived the candidate's digest from the bytes it wrote, so only its
 	// presence and size need rechecking; this keeps every write from re-reading
 	// up to 64 MiB inside the caller's transaction.
-	if err := store.Check(ctx, candidate); err != nil {
-		return nil, err
+	if candidate.Backend == BlobFilesystem {
+		if err := store.Check(ctx, candidate); err != nil {
+			return nil, err
+		}
 	}
 	var backend BlobBackend
 	var key *string
@@ -40,7 +42,18 @@ FROM artifact_blobs WHERE sha256 = $1`, candidate.Digest).Scan(&backend, &key, &
 	if err != nil {
 		return nil, fmt.Errorf("inspect deduplicated artifact blob: %w", err)
 	}
-	if backend != BlobFilesystem || key == nil || size != candidate.Size {
+	if size != candidate.Size {
+		return nil, ErrArtifactIntegrity
+	}
+	if backend == BlobPostgres {
+		if key != nil {
+			return nil, ErrArtifactIntegrity
+		}
+		// Inline bytes are checksum-validated by PostgreSQL. Keep this existing
+		// location even when the new-write policy prepared a file candidate.
+		return nil, nil
+	}
+	if backend != BlobFilesystem || key == nil {
 		return nil, ErrArtifactIntegrity
 	}
 	if *key == candidate.Key {
@@ -48,7 +61,10 @@ FROM artifact_blobs WHERE sha256 = $1`, candidate.Digest).Scan(&backend, &key, &
 	}
 	existing := BlobObject{Backend: backend, Key: *key, Digest: candidate.Digest, Size: size}
 	if _, err := store.Read(ctx, existing); errors.Is(err, ErrBlobMissing) {
-		return nil, nil
+		if candidate.Backend == BlobFilesystem {
+			return nil, nil
+		}
+		return nil, err
 	} else if err != nil {
 		// Corruption, permissions and cancellation are not evidence of absence.
 		return nil, err

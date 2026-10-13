@@ -170,6 +170,12 @@ fixed_decisions:
   persistence:
     database: PostgreSQL
     mvp_blob_backend: PostgreSQL bytea addressed through ArtifactStore
+    artifact_payload_storage: >-
+      Current payload routing follows docs/spec/artifacts/blob-storage.md:
+      auto prefers PostgreSQL through the configured inline threshold and files
+      above it when a dedicated root is writable, with PostgreSQL availability
+      fallback. Every blob records its own backend; no installation-wide claim
+      or payload migration is needed for changing the new-write policy.
   scheduler_concurrency:
     authority: >-
       One PostgreSQL singleton stores global maxConcurrentRuns in 1..32 with a
