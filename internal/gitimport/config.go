@@ -12,11 +12,15 @@ import (
 var ErrConfiguration = apierror.New(apierror.GitImportUnavailable, "invalid Git remote allowlist or known_hosts path")
 
 type Config struct {
+	Limits         *Limits
 	AllowedRemotes []string
 	KnownHostsFile string
 }
 
 func ValidateConfig(cfg Config) error {
+	if err := cfg.EffectiveLimits().Validate(); err != nil {
+		return err
+	}
 	if cfg.KnownHostsFile != "" && (!filepath.IsAbs(cfg.KnownHostsFile) || filepath.Clean(cfg.KnownHostsFile) != cfg.KnownHostsFile) {
 		return ErrConfiguration
 	}

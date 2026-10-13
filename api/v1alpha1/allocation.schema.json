@@ -1092,9 +1092,20 @@
       "title": "GatewayFailureSignatures",
       "type": "object"
     },
+    "SourceArchiveLimits": {
+      "additionalProperties": false,
+      "type": "object",
+      "properties": {
+        "maxExpandedBytes": {"type": "integer", "minimum": 1, "maximum": 1073741824},
+        "maxFileBytes": {"type": "integer", "minimum": 1, "maximum": 67108864},
+        "maxEntries": {"type": "integer", "minimum": 1, "maximum": 50000}
+      },
+      "required": ["maxExpandedBytes", "maxFileBytes", "maxEntries"]
+    },
     "RuntimeSettings": {
       "additionalProperties": false,
       "properties": {
+        "sourceArchiveLimits": {"anyOf": [{"$ref": "#/$defs/SourceArchiveLimits"}, {"type": "null"}]},
         "llmGatewayUrl": {
           "title": "Llmgatewayurl",
           "type": "string"

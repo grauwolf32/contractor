@@ -73,6 +73,10 @@ func New(
 }
 
 func applyOptionDefaults(options *Options) {
+	if options.RuntimeTransport.SourceArchiveLimits != nil {
+		copied := *options.RuntimeTransport.SourceArchiveLimits
+		options.RuntimeTransport.SourceArchiveLimits = &copied
+	}
 	if options.Clock == nil {
 		options.Clock = realClock{}
 	}
@@ -86,6 +90,11 @@ func applyOptionDefaults(options *Options) {
 }
 
 func validateRuntimeTransport(settings RuntimeTransportSettings) error {
+	if settings.SourceArchiveLimits != nil {
+		if err := settings.SourceArchiveLimits.Validate(); err != nil {
+			return err
+		}
+	}
 	parsed, err := url.Parse(settings.ArtifactAPIURL)
 	if err != nil || parsed.Host == "" || parsed.User != nil ||
 		(parsed.Scheme != "http" && parsed.Scheme != "https") {

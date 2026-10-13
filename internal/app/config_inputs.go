@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/gitimport"
 )
 
 // serveConfigInputs is transient parse state. Unlike ServerConfig, it may hold
@@ -24,6 +25,7 @@ type serveConfigInputs struct {
 	databaseURL                 string
 	gitRemotes                  repeatedStringFlag
 	gitKnownHosts               string
+	gitImportLimits             gitimport.Limits
 	blobBackend                 string
 	blobPath                    string
 	operatorConfigRoot          string
@@ -82,6 +84,10 @@ func loadServeConfigInputs(args []string, getenv func(string) string) (*serveCon
 	if value := getenv("CONTRACTOR_GIT_ALLOWED_REMOTES"); value != "" {
 		gitRemotes.values = strings.Split(value, ",")
 		gitRemotes.clearOnFirstSet = true
+	}
+	gitLimits := settings.gitImportLimits
+	if err := gitImportEnvironment(&gitLimits, getenv); err != nil {
+		return nil, err
 	}
 	gitKnownHosts := settings.gitKnownHostsFile
 	if value := getenv("CONTRACTOR_GIT_KNOWN_HOSTS_FILE"); value != "" {
@@ -192,6 +198,7 @@ func loadServeConfigInputs(args []string, getenv func(string) string) (*serveCon
 		databaseURL:                 databaseURL,
 		gitRemotes:                  gitRemotes,
 		gitKnownHosts:               gitKnownHosts,
+		gitImportLimits:             gitLimits,
 		blobBackend:                 blobBackend,
 		blobPath:                    blobPath,
 		operatorConfigRoot:          operatorConfigRoot,

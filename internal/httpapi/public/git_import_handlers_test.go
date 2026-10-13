@@ -5,6 +5,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"github.com/grauwolf32/contractor/internal/sourcezip"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -62,6 +65,8 @@ func TestGitImportErrorNamesUnsupportedEntry(t *testing.T) {
 // respondingGitImports answers like an importer that still holds both
 // admission slots while its metadata response is written.
 type respondingGitImports struct{}
+
+func (respondingGitImports) Timeout() time.Duration { return gitimport.Deadline }
 
 func (respondingGitImports) DoImport(_ context.Context, request gitimport.ImportRequest, respond func(gitimport.ImportResult)) error {
 	revision := "revision-1"
@@ -138,7 +143,7 @@ func TestGitImportPublicationAndAdmission(t *testing.T) {
 				}
 				return gitimport.Snapshot{Data: []byte("fixture ZIP bytes"), RepositoryURL: remote.URL, Commit: strings.Repeat("a", 40)}, nil
 			}}
-			importer, err := gitimport.NewImporter(pool, client, keys)
+			importer, err := gitimport.NewImporter(pool, client, keys, gitimport.Deadline)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -265,5 +270,56 @@ func TestGitImportPublicationAndAdmission(t *testing.T) {
 				t.Fatalf("released admission: %d %s", response.Code, response.Body)
 			}
 		})
+	}
+}
+
+func TestConfiguredGitSnapshotPublishesExactFilesystemBlob(t *testing.T) {
+	pool := isolatedPublicPool(t, t.Context())
+	if err := artifacts.ClaimBlobBackend(t.Context(), pool, artifacts.BlobFilesystem); err != nil {
+		t.Fatal(err)
+	}
+	blob, err := artifacts.OpenFilesystemBlobStore(t.Context(), t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer blob.Close()
+	ctx := artifacts.WithBlobRuntime(t.Context(), artifacts.NewBlobRuntime(blob, nil))
+	limits := sourcezip.Limits{MaxExpandedBytes: 128 << 20, MaxFileBytes: 16 << 20, MaxEntries: 10000}
+	content := bytes.Repeat([]byte("source line\n"), (5<<20)/len("source line\n")+1)
+	members := make([]sourcezip.Member, 14)
+	for index := range members {
+		members[index] = sourcezip.Member{Name: fmt.Sprintf("part-%02d.txt", index), Size: int64(len(content)), Write: func(w io.Writer) error { _, err := w.Write(content); return err }}
+	}
+	archive, err := sourcezip.Encode(ctx, members, sourcezip.Options{Limits: &limits})
+	if err != nil {
+		t.Fatal(err)
+	}
+	client := &snapshotClientFixture{fetch: func(context.Context, gitimport.Remote, string, ssh.Signer) (gitimport.Snapshot, error) {
+		return gitimport.Snapshot{Data: archive, RepositoryURL: "https://example.test:443/repo.git", Commit: strings.Repeat("a", 40)}, nil
+	}}
+	cipher, err := credentials.NewTokenCipher(bytes.Repeat([]byte{1}, 32))
+	if err != nil {
+		t.Fatal(err)
+	}
+	importer, err := gitimport.NewImporter(pool, client, credentials.NewGitKeys(pool, cipher), 3*time.Minute)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var result gitimport.ImportResult
+	if err := importer.DoImport(ctx, gitimport.ImportRequest{OwnerID: "user-1", Target: artifacts.ArtifactRef{Namespace: "source", Name: "configured"}, RepositoryURL: "https://example.test/repo.git"}, func(value gitimport.ImportResult) { result = value }); err != nil {
+		t.Fatal(err)
+	}
+	user, err := artifacts.NewService(artifacts.NewPostgresRepository(pool)).User("user-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	stored, err := user.Read(ctx, result.Artifact)
+	if err != nil || !bytes.Equal(stored.Payload.Data, archive) || result.GitSource.ResolvedCommit != strings.Repeat("a", 40) {
+		t.Fatalf("retained snapshot = %+v, %v", result, err)
+	}
+	var backend string
+	var noInline bool
+	if err := pool.QueryRow(ctx, `SELECT backend,payload IS NULL FROM artifact_blobs`).Scan(&backend, &noInline); err != nil || backend != "filesystem" || !noInline {
+		t.Fatalf("blob backend=%s, no inline=%t, %v", backend, noInline, err)
 	}
 }

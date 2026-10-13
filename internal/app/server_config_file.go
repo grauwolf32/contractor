@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/gitimport"
 	"go.yaml.in/yaml/v4"
 )
 
@@ -26,6 +27,7 @@ type serverConfigValues struct {
 	operations                  OperationalSettings
 	gitAllowedRemotes           []string
 	gitKnownHostsFile           string
+	gitImportLimits             gitimport.Limits
 	listenAddress               string
 	privateListenAddress        string
 	privateURL                  string
@@ -60,7 +62,8 @@ type serverConfigDocument struct {
 // Pointer leaves distinguish an omitted setting from an explicit false or
 // empty value. Secret bytes and connection URLs intentionally have no fields.
 type serverConfigSpec struct {
-	DevelopmentLLMGateway       *string `yaml:"developmentLlmGateway"`
+	GitImport                   gitImportSpec `yaml:"gitImport"`
+	DevelopmentLLMGateway       *string       `yaml:"developmentLlmGateway"`
 	operationalSpec             `yaml:",inline"`
 	GitAllowedRemotes           *[]string `yaml:"gitAllowedRemotes"`
 	GitKnownHostsFile           *string   `yaml:"gitKnownHostsFile"`
@@ -92,6 +95,7 @@ type serverConfigSpec struct {
 func defaultServerConfigValues() serverConfigValues {
 	return serverConfigValues{
 		developmentLLMGateway: defaultDevelopmentLLMGateway,
+		gitImportLimits:       gitimport.DefaultLimits(),
 		operations:            defaultOperationalSettings(),
 		listenAddress:         defaultListenAddress,
 		privateListenAddress:  defaultPrivateListenAddress,
@@ -198,6 +202,9 @@ func applyServerConfigSpec(values *serverConfigValues, spec serverConfigSpec, ba
 		return err
 	}
 	if err := setDuration(&values.plannerTimeout, spec.PlannerTimeout, "plannerTimeout"); err != nil {
+		return err
+	}
+	if err := applyGitImportSpec(&values.gitImportLimits, spec.GitImport); err != nil {
 		return err
 	}
 	if spec.GitAllowedRemotes != nil {

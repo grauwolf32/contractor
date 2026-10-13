@@ -1,0 +1,103 @@
+schema_version: "1.0"
+id: V375-003
+title: Configure Git import resource budgets and permit GitHub SSH in the local configuration
+milestone: git-artifact-import
+epic: projects-artifacts
+kind: feature
+priority: P1
+status: completed
+implementation_commit: 0df36cbd445e3e0ad6d44d9fb5fe8a590bfd1979
+depends_on: []
+languages: [go, python, json, yaml, markdown]
+goal: Allow operators to admit larger source snapshots without rebuilding Server or Runtime, while keeping transport, decoding and archive work bounded and consistent across both processes.
+context:
+  authority: User requested configurable limits and a committed github.com:22 allowlist entry on 2026-10-13 after NetBox exceeded the source limits.
+  specification:
+    - docs/spec/artifacts/git-import.md
+    - docs/spec/tools/workspace.md
+    - docs/spec/operations/operations.md
+    - docs/spec/execution/scheduler.md
+    - docs/spec/platform/persistence.md
+  finding: NetBox main c69d31d has 67.4 MiB of tracked files, including 13.9 MiB and 5.9 MiB files; fixed 64 MiB expanded and 4 MiB per-file limits reject it. The tracked local ServerConfig permits github.com:443 but not github.com:22.
+scope:
+  in:
+    - Add strictly validated restart-only ServerConfig Git import budgets with existing defaults and explicit finite ceilings.
+    - Enforce configured received bytes, decoded bytes, import timeout, expanded source bytes, source file bytes and source entry count on the real Git reader and archive writer.
+    - Forward effective source archive limits in allocation RuntimeSettings and enforce them when the Runtime opens source archives.
+    - Keep the generic compressed Artifact limit and independent code-analysis parsing budgets unchanged.
+    - Pin GitHub public SSH host keys from its official fingerprint document without relaxing strict host verification.
+    - Commit github.com:22 alongside github.com:443 in configs/server.local.yaml and apply the allowlist to the idle demo through its operational configuration.
+    - Document configuration, scope, limits and cross-process behavior; extend shared validation fixtures.
+  out:
+    - Change the blob backend, migrate or directly mutate the demo database, or introduce per-artifact storage routing.
+    - Remove SSH host verification, use the host SSH agent or change the owner's stored SSH key.
+    - Change local-directory CLI bundling defaults, Git history depth, unsupported-entry policy or immutable Artifact publication semantics.
+requirements:
+  - id: R1
+    text: Omitted process settings retain current defaults; explicit nonpositive, excessive or inconsistent settings fail before startup. RuntimeSettings source limits are validated identically by Go, Python and the wire schema.
+  - id: R2
+    text: Configured limits bound work before allocation or decompression, including delta intermediates, every traversed directory and every source file. Source ZIPs stay below the existing 64 MiB Artifact payload limit.
+  - id: R3
+    text: Every prepared allocation receives the Server's effective source limits; Runtime extraction validates declared and streamed bytes with those limits, without changing model-visible read windows or parser CPU budgets.
+failure_outcomes:
+  - operation: Fetch, decode, archive and publish a Git source snapshot
+    permanent: Invalid configuration prevents startup; exhausted budgets retain git_import_limit and publish no revision. Unsafe or unsupported entries keep their existing classifications.
+    retryable: Existing capacity, storage and transport classifications remain unchanged; no new retry loop is introduced.
+    ambiguous: Existing Artifact CAS publication and exact metadata reads remain the reconciliation authority.
+    cancelled: Import cancellation stops network and archive work; Runtime extraction joins through the existing WorkspaceOperationGuard before cleanup.
+    timeout: The configured whole-import timeout encloses fetch, archive creation and publication; earlier cancellation remains authoritative.
+cardinality:
+  - collection: Git objects and source archive entries of one import
+    expected: NetBox has 2567 objects and 2675 tree entries.
+    maximum: Configured finite byte and entry budgets, with existing fixed protocol parser ceilings and one active Git import.
+    bound: Declared object sizes and delta results are charged before allocation; source file and aggregate sizes are checked before ZIP encoding or extraction.
+lifecycle:
+  - entity: Imported Artifact revision
+    delete: Existing Artifact and Project deletion authority applies.
+    cascade: No new durable entities or tables.
+    retention: Existing exact revision, digest, Git provenance and blob retention contracts apply.
+acceptance_criteria:
+  - id: A1
+    given: Default, partial, explicit zero, excessive and inconsistent ServerConfig import settings
+    when: Server configuration is resolved
+    then: Defaults and valid overrides resolve deterministically; invalid values fail before startup and the tracked local config permits both GitHub ports.
+  - id: A2
+    given: Real Git packs and source archives near configured boundaries, including files above the old 4 MiB limit and a tree above the old 64 MiB limit
+    when: Import runs with default, raised or lowered budgets
+    then: Defaults and lowered budgets reject over-budget input; sufficient raised budgets accept a readable exact snapshot and real-store publication preserves its bytes and provenance.
+  - id: A3
+    given: Effective Server source limits and an allocation using source-analysis
+    when: Scheduler prepares the allocation and Runtime opens its source ZIP
+    then: The exact limits cross the wire and declared and streamed violations fail safely; higher valid limits admit the same archive without widening result windows or analysis parser budgets.
+  - id: A4
+    given: Updated specification, shared fixtures, local configuration and implementations
+    when: Relevant package suites, cross-language validation, public API verification, shipped config validation and lint run
+    then: All checks pass using a disposable test database and no test reads the live configs tree.
+tests:
+  - command: go test ./internal/sourcezip ./internal/sourcebundle ./internal/gitimport ./internal/app ./internal/contracts/... ./internal/scheduler ./internal/httpapi/public
+    covers: [A1, A2, A3, A4]
+  - command: uv run --project runtime pytest runtime/tests/test_source_analysis_toolset.py runtime/tests/test_shared_runtime_settings_bounds.py runtime/tests/test_contracts.py
+    covers: [A3, A4]
+  - command: go test -tags=integration ./internal/gitimport
+    covers: [A2, A4]
+  - command: make test-runtime
+    covers: [A3, A4]
+  - command: make test-wire-cross-language
+    covers: [A3, A4]
+  - command: make verify-public-api
+    covers: [A4]
+  - command: go run ./cmd/contractor server config validate --root ./configs
+    covers: [A1, A4]
+  - command: make lint
+    covers: [A4]
+verification:
+  - All touched Go package suites passed with a disposable PostgreSQL 17 database, including the filesystem publication regression; the final Git integration and app suites passed again after the export cleanup.
+  - The real Git integration suite passed, including a tracked tree above 64 MiB with files above 4 MiB under raised budgets and rejection with defaults.
+  - The focused Runtime and contract suites passed 340 tests. The complete Runtime suite passed 3828 tests with 39 tests skipped.
+  - The cross-language gate passed 293 Runtime contract tests and 1066 shared Runtime cases, covering 226 fixtures through 195 Go and 160 Python shared tests.
+  - make lint, make verify-public-api, shipped configuration validation and git diff --check passed.
+  - A read-only probe using the configured production Git client fetched NetBox c69d31d720146980a847f2a9ec3518ddfe3a3fc9 over both HTTPS and SSH with the owner's existing encrypted key. Both produced the same 22578998-byte ZIP with SHA-256 e96cb6f29c73b502e6d9817732276cdcbdc2e207c238865cfb34e85b81ddbc13.
+  - The production Runtime source reader opened that ZIP using the Server's serialized 128 MiB expanded and 16 MiB per-file limits, retaining 2164 readable files and reporting 133 ignored entries. The ZIP contains 2297 entries and no Git internals.
+  - Peak RSS of the standalone process performing two successive production-client probes, HTTPS then SSH, was 538.44 MiB; this is not a constant-memory or one-import process bound.
+  - GitHub host keys were checked against its official published fingerprints before the pinned known_hosts file was committed. No demo Artifact was published and all credential lookup queries used a read-only database session.
+  - The demo was updated to implementation revision 0df36cbd445e3e0ad6d44d9fb5fe8a590bfd1979. Its live configuration admits both GitHub ports and uses the committed host key pins and 128/16 MiB source budgets. Read-only HTTPS and SSH probes passed with that deployed configuration, and the deployed Runtime opened the resulting NetBox ZIP. Server, UI, both Runtime Agents and all five scanner tools were ready; the retained Run, 24 Projects, 23 Runs and migration ledger were unchanged.

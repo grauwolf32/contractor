@@ -19,6 +19,7 @@ import (
 
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/protocol/packp"
+	"github.com/grauwolf32/contractor/internal/sourcezip"
 )
 
 func TestRemotePolicy(t *testing.T) {
@@ -186,7 +187,7 @@ func TestPackBudgetsAndDelta(t *testing.T) {
 	base := &gitObject{kind: plumbing.BlobObject, data: []byte("hello")}
 	delta := []byte{5, 6, 6, 'h', 'e', 'l', 'l', 'o', '!'}
 	pack := makePack(packEntry{kind: plumbing.REFDeltaObject, data: delta, base: objectHash(base)}, packEntry{kind: base.kind, data: base.data})
-	objects, err := decodePack(context.Background(), bytes.NewReader(pack))
+	objects, err := decodePack(context.Background(), bytes.NewReader(pack), DefaultLimits())
 	if err != nil || objects[objectHash(&gitObject{kind: plumbing.BlobObject, data: []byte("hello!")})] == nil {
 		t.Fatalf("delta: %v", err)
 	}
@@ -209,14 +210,14 @@ func TestPackBudgetsAndDelta(t *testing.T) {
 		"trailing-60": {append(bytes.Clone(pack), 0x60), ErrContent},
 	} {
 		t.Run(name, func(t *testing.T) {
-			if _, err := decodePack(context.Background(), bytes.NewReader(tc.pack)); !errors.Is(err, tc.err) {
+			if _, err := decodePack(context.Background(), bytes.NewReader(tc.pack), DefaultLimits()); !errors.Is(err, tc.err) {
 				t.Fatalf("got %v", err)
 			}
 		})
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if _, err := decodePack(ctx, bytes.NewReader(pack)); !errors.Is(err, context.Canceled) {
+	if _, err := decodePack(ctx, bytes.NewReader(pack), DefaultLimits()); !errors.Is(err, context.Canceled) {
 		t.Fatalf("cancel: %v", err)
 	}
 }
@@ -236,7 +237,7 @@ func TestPackStreamPreservesSourceErrorsAndEnforcesByteLimit(t *testing.T) {
 	pack := makePack(packEntry{kind: plumbing.BlobObject, data: []byte("payload")})
 	for _, cut := range []int{8, len(pack) / 2, len(pack) - 5} {
 		source := io.MultiReader(bytes.NewReader(pack[:cut]), failingPackSource{err: io.ErrUnexpectedEOF})
-		if _, err := decodePack(context.Background(), source); !errors.Is(err, io.ErrUnexpectedEOF) {
+		if _, err := decodePack(context.Background(), source, DefaultLimits()); !errors.Is(err, io.ErrUnexpectedEOF) {
 			t.Fatalf("source error after %d bytes = %v", cut, err)
 		}
 	}
@@ -249,7 +250,7 @@ func TestPackStreamPreservesSourceErrorsAndEnforcesByteLimit(t *testing.T) {
 		{"over-limit", MaxReceivedBytes + 1, ErrBudget},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			reader := &packStreamReader{ctx: t.Context(), source: io.LimitReader(zeroPackSource{}, test.length)}
+			reader := &packStreamReader{ctx: t.Context(), source: io.LimitReader(zeroPackSource{}, test.length), maximum: MaxReceivedBytes}
 			buffer := make([]byte, 64<<10)
 			for {
 				_, err := reader.Read(buffer)
@@ -277,7 +278,7 @@ func TestDeltaDepthAndAdvertisementLimits(t *testing.T) {
 		entries = append(entries, packEntry{kind: plumbing.REFDeltaObject, data: delta, base: objectHash(base)})
 		base = &gitObject{kind: plumbing.BlobObject, data: next}
 	}
-	if _, err := decodePack(context.Background(), bytes.NewReader(makePack(entries...))); !errors.Is(err, ErrBudget) {
+	if _, err := decodePack(context.Background(), bytes.NewReader(makePack(entries...)), DefaultLimits()); !errors.Is(err, ErrBudget) {
 		t.Fatalf("delta depth: %v", err)
 	}
 	adv := packp.NewAdvRefs()
@@ -337,7 +338,7 @@ func TestSnapshotRejectsContentTheRuntimeCannotOpen(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			objects, commit := snapshotObjects("100644", tc.name, tc.data)
-			if _, _, err := archiveSnapshot(context.Background(), objects, commit); !errors.Is(err, ErrContent) {
+			if _, _, err := archiveSnapshot(context.Background(), objects, commit, sourcezip.DefaultLimits()); !errors.Is(err, ErrContent) {
 				t.Fatalf("Runtime-unopenable snapshot error = %v", err)
 			}
 		})
@@ -346,11 +347,11 @@ func TestSnapshotRejectsContentTheRuntimeCannotOpen(t *testing.T) {
 
 func TestSnapshotContentAndDeterminism(t *testing.T) {
 	objects, commit := snapshotObjects("100755", "hello.txt", []byte("hello\n"))
-	first, resolved, err := archiveSnapshot(context.Background(), objects, commit)
+	first, resolved, err := archiveSnapshot(context.Background(), objects, commit, sourcezip.DefaultLimits())
 	if err != nil || resolved != commit {
 		t.Fatal(err)
 	}
-	second, _, err := archiveSnapshot(context.Background(), objects, commit)
+	second, _, err := archiveSnapshot(context.Background(), objects, commit, sourcezip.DefaultLimits())
 	if err != nil || !bytes.Equal(first, second) {
 		t.Fatalf("not deterministic: %v", err)
 	}
@@ -372,11 +373,11 @@ func TestSnapshotContentAndDeterminism(t *testing.T) {
 		data       []byte
 		want       error
 	}{
-		{"120000", "link", []byte("target"), ErrContent}, {"160000", "module", nil, ErrContent}, {"100644", "../escape", nil, ErrContent}, {"100644", "C:drive", nil, ErrContent}, {"100644", ".git", nil, ErrContent}, {"100644", strings.Repeat("x", 513), nil, ErrBudget}, {"100644", "large", make([]byte, MaxFileBytes+1), ErrBudget}, {"100644", "lfs", []byte("version https://git-lfs.github.com/spec/v1\noid sha256:x\n"), ErrContent},
+		{"120000", "link", []byte("target"), ErrContent}, {"160000", "module", nil, ErrContent}, {"100644", "../escape", nil, ErrContent}, {"100644", "C:drive", nil, ErrContent}, {"100644", ".git", nil, ErrContent}, {"100644", strings.Repeat("x", 513), nil, ErrBudget}, {"100644", "large", make([]byte, sourcezip.MaxFileBytes+1), ErrBudget}, {"100644", "lfs", []byte("version https://git-lfs.github.com/spec/v1\noid sha256:x\n"), ErrContent},
 	} {
 		t.Run(fmt.Sprintf("%s-%s", tc.mode, tc.name[:min(len(tc.name), 20)]), func(t *testing.T) {
 			objects, commit := snapshotObjects(tc.mode, tc.name, tc.data)
-			if _, _, err := archiveSnapshot(context.Background(), objects, commit); !errors.Is(err, tc.want) {
+			if _, _, err := archiveSnapshot(context.Background(), objects, commit, sourcezip.DefaultLimits()); !errors.Is(err, tc.want) {
 				t.Fatalf("got %v", err)
 			}
 		})
@@ -394,7 +395,7 @@ func TestSnapshotNamesUnsupportedEntries(t *testing.T) {
 	} {
 		t.Run(tc.kind, func(t *testing.T) {
 			objects, commit := snapshotObjects(tc.mode, tc.name, tc.data)
-			_, _, err := archiveSnapshot(context.Background(), objects, commit)
+			_, _, err := archiveSnapshot(context.Background(), objects, commit, sourcezip.DefaultLimits())
 			var unsupported *UnsupportedEntryError
 			if !errors.As(err, &unsupported) || !errors.Is(err, ErrContent) {
 				t.Fatalf("error = %v, want an UnsupportedEntryError matching ErrContent", err)
@@ -412,8 +413,8 @@ func TestSnapshotEntryAndExpandedLimits(t *testing.T) {
 		count int
 		size  int
 	}{
-		{"entries", MaxEntries + 1, 0},
-		{"expanded", MaxArchiveBytes/MaxFileBytes + 1, MaxFileBytes},
+		{"entries", sourcezip.MaxEntries + 1, 0},
+		{"expanded", sourcezip.MaxArchiveBytes/sourcezip.MaxFileBytes + 1, sourcezip.MaxFileBytes},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			blob := &gitObject{kind: plumbing.BlobObject, data: make([]byte, tc.size)}
@@ -427,7 +428,7 @@ func TestSnapshotEntryAndExpandedLimits(t *testing.T) {
 			commit := &gitObject{kind: plumbing.CommitObject, data: []byte("tree " + treeHash.String() + "\n\nfixture\n")}
 			commitHash := objectHash(commit)
 			objects := map[plumbing.Hash]*gitObject{blobHash: blob, treeHash: tree, commitHash: commit}
-			if _, _, err := archiveSnapshot(context.Background(), objects, commitHash); !errors.Is(err, ErrBudget) {
+			if _, _, err := archiveSnapshot(context.Background(), objects, commitHash, sourcezip.DefaultLimits()); !errors.Is(err, ErrBudget) {
 				t.Fatalf("snapshot limit: %v", err)
 			}
 		})

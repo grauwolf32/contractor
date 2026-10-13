@@ -11,6 +11,11 @@
         "initialBackoffMilliseconds": 100,
         "maxBackoffMilliseconds": 1000
       }
+    },
+    "sourceArchiveLimits": {
+      "maxExpandedBytes": 67108864,
+      "maxFileBytes": 4194304,
+      "maxEntries": 10000
     }
   },
   "cases": [
@@ -56,6 +61,24 @@
     {"name": "failure signature status 500", "set": {"/llmGatewayFailureSignatures": {"modelUnavailable": [{"status": 500, "messageEquals": "Model is unloaded."}]}}, "valid": false},
     {"name": "telemetry without export", "remove": ["/telemetry/export"], "valid": false},
     {"name": "export without retry", "remove": ["/telemetry/export/retry"], "valid": false},
-    {"name": "settings without telemetry", "remove": ["/telemetry"], "valid": true}
+    {"name": "settings without telemetry", "remove": ["/telemetry"], "valid": true},
+    {"name": "default source limits", "set": {"/sourceArchiveLimits": {"maxExpandedBytes": 67108864, "maxFileBytes": 4194304, "maxEntries": 10000}}, "valid": true},
+    {"name": "raised source limits", "set": {"/sourceArchiveLimits": {"maxExpandedBytes": 134217728, "maxFileBytes": 16777216, "maxEntries": 10000}}, "valid": true},
+    {"name": "maximum source limits", "set": {"/sourceArchiveLimits": {"maxExpandedBytes": 1073741824, "maxFileBytes": 67108864, "maxEntries": 50000}}, "valid": true},
+    {"name": "missing source file limit", "set": {"/sourceArchiveLimits": {"maxExpandedBytes": 1, "maxEntries": 1}}, "valid": false},
+    {"name": "unknown source limit", "set": {"/sourceArchiveLimits": {"maxExpandedBytes": 67108864, "maxFileBytes": 4194304, "maxEntries": 10000, "unknown": 1}}, "valid": false},
+    {"name": "file exceeds expanded source", "set": {"/sourceArchiveLimits": {"maxExpandedBytes": 1, "maxFileBytes": 2, "maxEntries": 1}}, "valid": false, "crossField": true},
+    {"name": "maxExpandedBytes zero", "set": {"/sourceArchiveLimits": {"maxExpandedBytes": 0, "maxFileBytes": 4194304, "maxEntries": 10000}}, "valid": false},
+    {"name": "maxExpandedBytes negative", "set": {"/sourceArchiveLimits": {"maxExpandedBytes": -1, "maxFileBytes": 4194304, "maxEntries": 10000}}, "valid": false},
+    {"name": "maxExpandedBytes above maximum", "set": {"/sourceArchiveLimits": {"maxExpandedBytes": 1073741825, "maxFileBytes": 4194304, "maxEntries": 10000}}, "valid": false},
+    {"name": "maxExpandedBytes fractional", "set": {"/sourceArchiveLimits": {"maxExpandedBytes": 1.5, "maxFileBytes": 4194304, "maxEntries": 10000}}, "valid": false},
+    {"name": "maxFileBytes zero", "set": {"/sourceArchiveLimits": {"maxExpandedBytes": 67108864, "maxFileBytes": 0, "maxEntries": 10000}}, "valid": false},
+    {"name": "maxFileBytes negative", "set": {"/sourceArchiveLimits": {"maxExpandedBytes": 67108864, "maxFileBytes": -1, "maxEntries": 10000}}, "valid": false},
+    {"name": "maxFileBytes above maximum", "set": {"/sourceArchiveLimits": {"maxExpandedBytes": 67108864, "maxFileBytes": 67108865, "maxEntries": 10000}}, "valid": false},
+    {"name": "maxFileBytes fractional", "set": {"/sourceArchiveLimits": {"maxExpandedBytes": 67108864, "maxFileBytes": 1.5, "maxEntries": 10000}}, "valid": false},
+    {"name": "maxEntries zero", "set": {"/sourceArchiveLimits": {"maxExpandedBytes": 67108864, "maxFileBytes": 4194304, "maxEntries": 0}}, "valid": false},
+    {"name": "maxEntries negative", "set": {"/sourceArchiveLimits": {"maxExpandedBytes": 67108864, "maxFileBytes": 4194304, "maxEntries": -1}}, "valid": false},
+    {"name": "maxEntries above maximum", "set": {"/sourceArchiveLimits": {"maxExpandedBytes": 67108864, "maxFileBytes": 4194304, "maxEntries": 50001}}, "valid": false},
+    {"name": "maxEntries fractional", "set": {"/sourceArchiveLimits": {"maxExpandedBytes": 67108864, "maxFileBytes": 4194304, "maxEntries": 1.5}}, "valid": false}
   ]
 }
