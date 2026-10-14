@@ -1,0 +1,89 @@
+schema_version: "1.0"
+id: V382-001
+title: Add configurable Interactsh tools for Worker callback evidence
+milestone: interactsh-worker-tools-2026-10
+epic: http-tools
+kind: feature
+priority: P1
+status: pending
+depends_on: []
+languages: [go, python, typescript, markdown]
+goal: >-
+  Give explicitly selected Workers Interactsh registration and bounded polling
+  tools for blind SSRF, XSS and other out-of-band checks, with operator-selected
+  infrastructure configured through RuntimeConfig, credentials and labels like
+  Caido or the HTTP proxy.
+context:
+  request: >-
+    On 2026-10-15 the user requested a separate task for Interactsh Worker tools
+    and configurability comparable to Caido, LLM Gateways and HTTP proxies.
+  specification:
+    - docs/spec/tools/http-caido.md
+    - docs/spec/tools/toolsets.md
+    - docs/spec/configuration/runtime-config.md
+    - docs/spec/platform/security.md
+    - docs/spec/platform/failure-model.md
+  upstream: https://github.com/projectdiscovery/interactsh
+scope:
+  in:
+    - An exact interactsh Toolset and typed Runtime adapter with configurable server endpoint, trust settings, credential references and bounded operation timeouts.
+    - Explicit AgentTemplate tool selection, Runtime discovery, placement and private allocation delivery with matching Go/Python schemas and shared fixtures.
+    - Register correlation payloads and poll decrypted DNS/HTTP/SMTP interactions with bounded safe previews, pagination or explicit truncation and exact retained evidence refs.
+    - Operations authoring for infrastructure settings and credentials and a shipped reusable Worker assignment with accurate tool descriptions.
+    - Real local Interactsh server protocol and callback tests plus cancellation, release, redaction and lost-response cases.
+  out:
+    - Treating any observed interaction as proof of a vulnerability without checking its origin, nonce and triggering action.
+    - Browser automation, arbitrary external collectors and modifying an Audit scope from model output.
+    - Adding an independent durable callback controller, receipt store or secret store.
+requirements:
+  - id: R1
+    text: RuntimeConfig and labels choose an exact Interactsh infrastructure endpoint and encrypted credential ref. Tool arguments cannot retarget the server or reveal infrastructure credentials, private keys or registration secrets.
+  - id: R2
+    text: AgentTemplate allowlists alone grant model tool authority; absent adapters fail placement/prepare, and labels or Skills cannot add omitted tools.
+  - id: R3
+    text: Register allocation-owned unpredictable correlation IDs and return only the callback payload and a safe handle; poll only registrations owned by that active allocation.
+  - id: R4
+    text: Retain exact evidence with protocol, observation time, correlation ID, safe source metadata and the triggering request/action relation. Distinguish no interaction, poll failure, expired registration and truncated results.
+  - id: R5
+    text: Derive finite registration, event, response-byte, poll-rate and timeout limits in the owning limits registry and test maximum-size responses. Never perform indefinite polling inside one tool call.
+  - id: R6
+    text: Stop and join in-flight work on cancel, lease loss and release; deregister owned sessions where the upstream protocol supports it, erase private material and retain already published evidence under ordinary Artifact lifecycle rules.
+  - id: R7
+    text: Separate callback availability from machine proof. Do not upgrade generic HTTP/Caido evidence or claim attacker-versus-target attribution solely because a model-readable callback URL received traffic.
+failure_outcomes:
+  - operation: Registration, polling and deregistration against Interactsh
+    permanent: Invalid input, unknown handles, authentication denial and incompatible protocol return stable classified tool errors without blind retries.
+    retryable: Bounded polling retries honor finite attempt/deadline limits and Retry-After; registration retries require reconciliation of the same owned identity.
+    ambiguous: Preserve the generated registration identity and reconcile a response-lost registration or deregistration through upstream semantics; report outcome unknown when reconciliation cannot prove the result.
+    cancelled: Allocation teardown cancels and joins adapter work before dropping credentials and registration ownership.
+    timeout: Give registration, one poll and cleanup independent finite budgets; retain uncertainty without fabricating absent callbacks.
+cardinality:
+  - collection: Registrations and interactions per allocation
+    expected: A small number of registrations with bounded incremental polling.
+    maximum: Specify finite caps before implementation and record them in docs/spec/platform/limits.md.
+    bound: Bound each tool call by events and serialized bytes; cap accumulated in-memory events and never rescan all retained Run artifacts on a poll.
+lifecycle:
+  - entity: Interactsh registration and callback evidence
+    delete: Allocation lifecycle owns registration cleanup; ordinary owner APIs own retained evidence deletion.
+    cascade: Cancel and join polls before deregistration and erase private key material on release or lease loss.
+    retention: Ephemeral registrations expire and are never restored from public artifacts; published evidence follows Run/Project retention and purge.
+acceptance_criteria:
+  - id: A1
+    given: Configured and absent Interactsh adapters and independently selected tools.
+    when: RuntimeConfig is authored and Workers are placed and prepared.
+    then: Exact capabilities, endpoint/credential validation, clear/merge rules and private delivery match Caido/proxy conventions with no secret exposure.
+  - id: A2
+    given: A real local Interactsh server and a registered Worker payload.
+    when: A test target produces DNS and HTTP interactions and the Worker polls.
+    then: Only the owned correlated interactions are returned with bounded metadata and exact retained evidence; no callback remains distinct from infrastructure failure.
+  - id: A3
+    given: Lost registration responses, oversized or malformed results, expired handles, cancellation and lease loss.
+    when: The real adapter processes each outcome.
+    then: Stable errors, bounded work, reconciliation and joined cleanup are verified without leaking keys or credentials.
+tests:
+  - command: make test-wire-cross-language verify-public-api
+    covers: [A1, A2, A3]
+  - command: make test-runtime ui-verify
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A1, A2, A3]
