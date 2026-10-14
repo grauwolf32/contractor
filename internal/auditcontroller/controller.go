@@ -86,12 +86,13 @@ func (c *Controller) reconcile(
 ) (bool, error) {
 	readContext, cancelRead := context.WithTimeout(ctx, c.options.OperationTimeout)
 	snapshot, err := c.store.GetReconcileSnapshot(readContext, claim)
-	cancelRead()
 	if err != nil {
+		cancelRead()
 		return false, err
 	}
 	var cancel context.CancelFunc
 	if snapshot.Audit.State == auditstore.AuditDeleting {
+		cancelRead()
 		renewContext, cancelRenew := context.WithTimeout(ctx, c.options.OperationTimeout)
 		err := c.store.RenewClaim(renewContext, claim, deletionClaimLease)
 		cancelRenew()
@@ -100,7 +101,8 @@ func (c *Controller) reconcile(
 		}
 		ctx, cancel = persistencepostgres.WithCleanupBudget(ctx)
 	} else {
-		ctx, cancel = context.WithTimeout(ctx, c.options.OperationTimeout)
+		// Ordinary work keeps sharing one budget with its snapshot read.
+		ctx, cancel = readContext, cancelRead
 	}
 	defer cancel()
 	audit := snapshot.Audit
