@@ -13,6 +13,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/configtest"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/planner/stageresult"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -196,7 +197,7 @@ func TestSchedulerSummaryDeadlineStartsAtAdmissionForEveryAttempt(t *testing.T) 
 }
 
 func TestSummaryPublicationRetriesOnlyKnownTransientFailures(t *testing.T) {
-	for _, err := range []error{context.Canceled, context.DeadlineExceeded, artifacts.ErrBlobIO, &pgconn.PgError{Code: "40001"}, &pgconn.PgError{Code: "08006"}} {
+	for _, err := range []error{context.Canceled, context.DeadlineExceeded, artifacts.ErrBlobIO, &pgconn.PgError{Code: persistencepostgres.SQLStateSerializationFailure}, &pgconn.PgError{Code: persistencepostgres.SQLStateConnectionFailure}} {
 		if !summaryPublicationRetryable(err) {
 			t.Fatalf("transient error rejected: %v", err)
 		}

@@ -1,0 +1,36 @@
+schema_version: "1.0"
+id: V378-004
+title: Use shared PostgreSQL error constants in summary continuation fixtures
+milestone: planner-summary-continuation-2026-10
+epic: planner-worker
+kind: chore
+introduced_by: V378-001
+priority: P2
+status: in_progress
+depends_on: [V378-001]
+languages: [go]
+goal: Keep summary fault injection on the single PostgreSQL error-code definition without weakening repository guards.
+context:
+  finding: >-
+    internal/scheduler/summary_postgres_test.go:65 and
+    internal/scheduler/summary_test.go:199 spell SQLSTATE values directly.
+    TestSQLStateLiteralsLiveOnlyInTheClassifier reports all three occurrences
+    in the CI unit stage; the full package guard reproduces them locally.
+  regression: internal/persistence/sqlstate_literal_test.go#TestSQLStateLiteralsLiveOnlyInTheClassifier
+  siblings: The module-wide guard finds both fault-injection helpers; existing Scheduler credential and escalation tests already use the shared constants.
+scope:
+  in:
+    - Replace all three fixture literals with the existing serialization and connection-failure constants from persistence/postgres.
+    - Run the complete unit stage so every package-level repository guard executes, with disposable PostgreSQL configured.
+  out:
+    - Production error classification, retry behavior, new SQLSTATE definitions or guard exceptions.
+acceptance_criteria:
+  - id: A1
+    text: The existing module-wide SQLSTATE guard reproduces the three violations before the fix and passes afterward with its original allowlist.
+  - id: A2
+    text: Full persistence and Scheduler packages and the complete Go/Runtime unit stage pass, retaining real-store summary fault coverage.
+tests:
+  - command: make lint
+    covers: [A1, A2]
+  - command: make release-verify-unit
+    covers: [A1, A2]

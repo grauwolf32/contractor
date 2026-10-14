@@ -16,6 +16,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	plannermemory "github.com/grauwolf32/contractor/internal/memory"
+	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/planner"
 	plannersession "github.com/grauwolf32/contractor/internal/planner/session"
 	"github.com/grauwolf32/contractor/internal/planner/streamline"
@@ -62,7 +63,7 @@ func (p *summaryProgressionFault) CommitResultProgression(ctx context.Context, v
 	}
 	p.done = true
 	if p.mode == "transaction-conflict" {
-		return &pgconn.PgError{Code: "40001"}
+		return &pgconn.PgError{Code: persistencepostgres.SQLStateSerializationFailure}
 	}
 	if err := p.AtomicPersistence.CommitResultProgression(ctx, value); err != nil {
 		return err
