@@ -89,6 +89,16 @@ spec:
             maxAttempts: 2
             then:
               fail: {}
+        summarized:
+          escalate:
+            maxAttempts: 1
+            planner: streamline@1
+            deadlineSeconds: 1800
+            executionConfig:
+              planner:
+                modelPolicy: planner@2
+                llmGateway: local-litellm@1
+                credential: development-planner
 
     project_discovery:
       objective: Map project structure, architecture, security controls, and runtime integrations
@@ -148,6 +158,16 @@ spec:
             maxAttempts: 2
             then:
               fail: {}
+        summarized:
+          escalate:
+            maxAttempts: 1
+            planner: streamline@1
+            deadlineSeconds: 1800
+            executionConfig:
+              planner:
+                modelPolicy: planner@2
+                llmGateway: local-litellm@1
+                credential: development-planner
 
     likec4_build:
       objective: Build an evidence-linked single-file LikeC4 architecture model for the project
@@ -215,6 +235,16 @@ spec:
             maxAttempts: 6
             then:
               fail: {}
+        summarized:
+          escalate:
+            maxAttempts: 1
+            planner: streamline@1
+            deadlineSeconds: 1800
+            executionConfig:
+              planner:
+                modelPolicy: planner@2
+                llmGateway: local-litellm@1
+                credential: development-planner
 
     likec4_validate:
       objective: Validate and minimally repair the candidate LikeC4 model against source evidence
@@ -291,3 +321,13 @@ spec:
             maxAttempts: 2
             then:
               fail: {}
+        summarized:
+          escalate:
+            maxAttempts: 1
+            planner: streamline@1
+            deadlineSeconds: 1800
+            executionConfig:
+              planner:
+                modelPolicy: planner@2
+                llmGateway: local-litellm@1
+                credential: development-planner

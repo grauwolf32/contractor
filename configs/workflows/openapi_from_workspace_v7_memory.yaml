@@ -89,6 +89,16 @@ spec:
             maxAttempts: 2
             then:
               fail: {}
+        summarized:
+          escalate:
+            maxAttempts: 1
+            planner: streamline@1
+            deadlineSeconds: 1800
+            executionConfig:
+              planner:
+                modelPolicy: planner@2
+                llmGateway: local-litellm@1
+                credential: development-planner
 
     project_discovery:
       objective: Map project structure, API surface, security controls, and runtime integrations
@@ -148,6 +158,16 @@ spec:
             maxAttempts: 2
             then:
               fail: {}
+        summarized:
+          escalate:
+            maxAttempts: 1
+            planner: streamline@1
+            deadlineSeconds: 1800
+            executionConfig:
+              planner:
+                modelPolicy: planner@2
+                llmGateway: local-litellm@1
+                credential: development-planner
 
     openapi_build:
       objective: Build an evidence-linked OpenAPI document for the implemented inbound HTTP API
@@ -215,6 +235,16 @@ spec:
             maxAttempts: 4
             then:
               fail: {}
+        summarized:
+          escalate:
+            maxAttempts: 1
+            planner: streamline@1
+            deadlineSeconds: 1800
+            executionConfig:
+              planner:
+                modelPolicy: planner@2
+                llmGateway: local-litellm@1
+                credential: development-planner
 
     openapi_validate:
       objective: Validate and minimally repair the candidate OpenAPI document against source evidence
@@ -291,3 +321,13 @@ spec:
             maxAttempts: 2
             then:
               fail: {}
+        summarized:
+          escalate:
+            maxAttempts: 1
+            planner: streamline@1
+            deadlineSeconds: 1800
+            executionConfig:
+              planner:
+                modelPolicy: planner@2
+                llmGateway: local-litellm@1
+                credential: development-planner

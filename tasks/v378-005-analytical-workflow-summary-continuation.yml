@@ -1,0 +1,65 @@
+schema_version: "1.0"
+id: V378-005
+title: Enable summary continuation in the shipped analytical passthrough Workflows
+milestone: planner-summary-continuation-2026-10
+epic: workflows
+kind: feature
+priority: P2
+status: in_progress
+depends_on: [V378-001]
+languages: []
+goal: >-
+  Long analytical passthrough Stages continue through Streamline after terminal
+  summarization instead of exhausting ordinary retries with no completed output.
+context:
+  specification:
+    - docs/spec/configuration/workflows.md#WFL-R86
+    - docs/spec/execution/scheduler.md#SCH-R171
+    - docs/spec/execution/scheduler.md#SCH-R172
+    - docs/spec/execution/scheduler.md#SCH-R173
+    - docs/spec/configuration/catalog.md#CAT-R74
+  request: Update current Workflows after merging summary continuation; retain short smoke fixtures and bounded Audit Workers.
+scope:
+  in:
+    - Add one summary escalation policy to all 15 Stages of openapi-from-workspace@7, likec4-from-workspace@7, openapi-from-analysis@4, likec4-from-analysis@5, taint-trace-from-workspace@4, findings-review@2 and source-findings-review@1.
+    - Document the analytical selection and the intentionally unchanged Workflow classes in configs/README.md.
+  out:
+    - Changes to security-analysis@4, which already declares the policy.
+    - Changes to existing Streamline variants, Audit Workflows without summarizers, artifact-copy@2 and podman-python-check@2 smoke fixtures.
+    - Changes to Worker models, templates, namespaces, toolsets, output contracts, existing outcome transitions or frozen Run snapshots.
+requirements:
+  - id: R1
+    text: Every selected Stage retains its source passthrough Planner and declares one on.summarized escalation to streamline@1 with maxAttempts 1 and deadlineSeconds 1800.
+  - id: R2
+    text: Each continuation explicitly selects planner@2, local-litellm@1 and development-planner, matching the existing security-analysis policy without overriding Worker execution settings.
+  - id: R3
+    text: Existing succeeded, failed and interrupted actions and all other Stage fields remain identical; retries and cancellation follow the existing pinned continuation contract.
+failure_outcomes:
+  - operation: Existing Scheduler-owned summary continuation
+    permanent: Existing summary-publication and continuation validation failures retain their classified terminal outcomes.
+    retryable: Existing bounded on.failed and on.interrupted actions remain unchanged.
+    ambiguous: Existing summary artifact natural keys and transition receipts reconcile response loss.
+    cancelled: Existing Stage cancellation drains and releases fresh allocations.
+    timeout: The 1800-second per-attempt continuation allowance is capped by PlannerTimeout.
+cardinality:
+  - collection: Selected shipped Workflow Stages
+    expected: 15 Stages across 7 Workflows
+    maximum: 15
+    bound: One automatic summary escalation per Stage lineage; ordinary retries retain existing finite maxAttempts.
+lifecycle:
+  - entity: Shipped analytical Workflow content
+    delete: Existing operator-catalog lifecycle applies; no new entity is introduced.
+    cascade: Existing Runs retain their complete resolved Workflow snapshots.
+    retention: New Runs pin the changed source digests; existing snapshots remain immutable.
+acceptance_criteria:
+  - id: A1
+    text: All 15 selected Stages resolve the bounded Streamline continuation with the original Worker settings and all other transitions preserved.
+  - id: A2
+    text: The complete shipped catalog validates, and excluded Workflow files remain byte-identical to the main baseline.
+  - id: A3
+    text: The configuration suites and repository lint pass without tests reading the live configs tree.
+tests:
+  - command: make test-config
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A3]

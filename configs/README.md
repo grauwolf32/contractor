@@ -44,6 +44,16 @@ The current user-facing Workflow set is:
 - `artifact-copy@2` as the ordinary artifact smoke fixture;
 - `podman-python-check@2` as the explicitly selected offline Podman execution fixture.
 
+The passthrough stages of the workspace and analysis-based OpenAPI/LikeC4
+Workflows, security analysis, taint tracing and both findings-review Workflows
+retain terminal summaries and continue once with `streamline@1`. Each
+continuation has a 30-minute allowance capped by the Server's Planner timeout,
+and retains the original task, Worker selection, namespace, recorded artifacts
+and selected Memory. Normal completion follows the original Stage graph.
+Existing Streamline variants already use that Planner. Bounded Audit Workers
+have no terminal summarizer; the short artifact-copy and Podman smoke fixtures
+retain their direct passthrough completion and failure checks.
+
 Historical source-analysis and earlier workspace/Skill versions are deleted,
 not archived or republished. Existing Runs retain their complete resolved
 Workflow snapshots; the Audit catalog now starts at `@1` with current completion semantics.
