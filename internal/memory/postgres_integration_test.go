@@ -722,7 +722,7 @@ func createRunningMemoryStage(
 	if _, err := store.CreateStageExecution(ctx, runstore.CreateStageExecutionParams{
 		StageExecutionID: stageID, RunID: runID, StageName: "memory", Attempt: 1,
 		StageSpecSchemaVersion:    contracts.APIVersion,
-		StageSpecSnapshot:         json.RawMessage(`{"objective":"memory test"}`),
+		StageSpecSnapshot:         json.RawMessage(`{"objective":"memory test","session":"isolated"}`),
 		StageContextSchemaVersion: contracts.APIVersion,
 		StageContext:              runstore.StageContextSnapshot{},
 	}); err != nil {

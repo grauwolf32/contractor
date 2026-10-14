@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-87 open tasks: 5 in progress, 68 pending, 14 deferred. 888 finished: 885 completed, 3 archived.
+88 open tasks: 6 in progress, 68 pending, 14 deferred. 888 finished: 885 completed, 3 archived.
 
 ## In progress
 
@@ -16,6 +16,7 @@ the epics are in [epics.yml](epics.yml).
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V376-003](v376-003-http-evidence-preview.yml) | ui | feature | P1 | Preview and download finding-selected HTTP evidence in the UI |
 | [V376-005](v376-005-caido-response-unavailable.yml) | http-tools | defect | P2 | Preserve truthful missing and intermediate HTTP response outcomes |
+| [V380-002](v380-002-planner-session-fixture-authority.yml) | planner-worker | chore | P2 | Retain explicit Worker session modes in Planner database fixtures |
 
 ## Pending
 
@@ -184,7 +185,7 @@ tasks in `introduced_by`.
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | Run execution core (`execution-core`) | 4 | 36 | 49 | 11 | 63 |
-| Planners and the Worker model boundary (`planner-worker`) | 4 | 25 | 37 | 11 | 48 |
+| Planners and the Worker model boundary (`planner-worker`) | 5 | 25 | 37 | 12 | 49 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 11 | 25 | 12 | 3 | 37 |
 | Shared Memory tools (`memory`) | 0 | 6 | 8 | 1 | 11 |
 | Agent Skills (`agent-skills`) | 0 | 10 | 2 | 1 | 1 |
