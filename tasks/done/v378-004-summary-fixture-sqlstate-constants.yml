@@ -6,7 +6,7 @@ epic: planner-worker
 kind: chore
 introduced_by: V378-001
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V378-001]
 languages: [go]
 goal: Keep summary fault injection on the single PostgreSQL error-code definition without weakening repository guards.
@@ -34,3 +34,12 @@ tests:
     covers: [A1, A2]
   - command: make release-verify-unit
     covers: [A1, A2]
+verification:
+  date: 2026-10-14
+  results:
+    - The existing SQLSTATE guard reproduced all three fixture violations before the fix and passed afterward without allowlist changes.
+    - make lint passed with the canonical constant references in both helpers.
+    - The complete release-verify-unit stage passed with disposable PostgreSQL and package parallelism limited to one, including 94 Go packages and 3835 Runtime tests; 39 Runtime tests were skipped and are not counted as passes.
+  notes:
+    - The first parallel full unit pass hit an existing App test timeout while dropping its temporary lease database. The complete repeat with reduced package parallelism passed without changing the test or its timeout.
+implementation_commit: cb59239e4252678364c29a92ba339354c0025175
