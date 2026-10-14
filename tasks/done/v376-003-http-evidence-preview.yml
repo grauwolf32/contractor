@@ -5,7 +5,8 @@ milestone: http-finding-evidence-2026-10
 epic: ui
 kind: feature
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: 21e105fde9fc1be89a73c7bfaad319dd16d3b0d4
 depends_on: [V376-002]
 languages: [typescript, css, markdown]
 goal: >-
@@ -90,4 +91,15 @@ verification:
     - UI lint and TypeScript checks passed under Node 24.20.0.
     - make ui-browser-mocked passed, 53 browser tests across 17 specs, including HTTP evidence at 390 px in light, dark and black themes.
     - make test-wire-cross-language passed against disposable PostgreSQL.
-  remaining: Complete make ui-verify and final make lint on main, as requested by the user before marking the task completed.
+  completion:
+    date: '2026-10-15'
+    revision: a161ffb98af14d85bf32e70f90d726c715c7f0cc
+    environment: Go 1.26.9, Node 24.20.0 and disposable PostgreSQL 17; test GOFLAGS=-buildvcs=false -p=2; max_locks_per_transaction=1024.
+    commands:
+    - command: make verify
+      result: Passed; Runtime 3835 passed and 39 skipped; UI 1984 passed.
+    - command: make test-wire-cross-language
+      result: Passed with disposable PostgreSQL configured.
+    - command: make ui-browser-mocked
+      result: Passed with disposable PostgreSQL configured.
+    result: 'Full UI verification passed: 1984 tests in 170 files, generated-client check, lint, typecheck and production build. The browser gate passed 53 tests in 17 specs, including 390 px light/dark/black HTTP evidence navigation.'
