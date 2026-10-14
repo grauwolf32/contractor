@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-88 open tasks: 6 in progress, 68 pending, 14 deferred. 887 finished: 884 completed, 3 archived.
+87 open tasks: 5 in progress, 68 pending, 14 deferred. 888 finished: 885 completed, 3 archived.
 
 ## In progress
 
@@ -16,7 +16,6 @@ the epics are in [epics.yml](epics.yml).
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V376-003](v376-003-http-evidence-preview.yml) | ui | feature | P1 | Preview and download finding-selected HTTP evidence in the UI |
 | [V376-005](v376-005-caido-response-unavailable.yml) | http-tools | defect | P2 | Preserve truthful missing and intermediate HTTP response outcomes |
-| [V379-001](v379-001-audit-workflow-dependency-graph.yml) | workflows | chore | P3 | Document Audit and Workflow dependencies in an interactive HTML graph |
 
 ## Pending
 
@@ -194,7 +193,7 @@ tasks in `introduced_by`.
 | HTTP and Caido tools (`http-tools`) | 3 | 10 | 13 | 4 | 14 |
 | Scanner tool Workers and scan planning (`scan-tools`) | 1 | 10 | 4 | 1 | 7 |
 | Findings tools and collections (`findings`) | 4 | 7 | 5 | 4 | 7 |
-| Workflow catalog and document workflows (`workflows`) | 4 | 14 | 13 | 12 | 12 |
+| Workflow catalog and document workflows (`workflows`) | 3 | 14 | 13 | 12 | 12 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 1 | 29 | 32 | 4 | 34 |
 | Audits (`audits`) | 21 | 49 | 68 | 12 | 77 |
 | Evaluations (`evals`) | 4 | 21 | 28 | 5 | 33 |

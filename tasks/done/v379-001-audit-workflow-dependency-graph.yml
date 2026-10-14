@@ -5,7 +5,8 @@ milestone: workflow-catalog-consolidation
 epic: workflows
 kind: chore
 priority: P3
-status: in_progress
+status: completed
+implementation_commit: cff461643ec6b7ab9d0119021dd62ee529fb435b
 depends_on: []
 languages: [python, javascript, html, css]
 goal: >-
