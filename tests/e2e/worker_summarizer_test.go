@@ -11,10 +11,12 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/localpki"
 	"github.com/grauwolf32/contractor/internal/planner/stageresult"
@@ -136,8 +138,8 @@ func TestWorkerSummarizerProductionBoundaries(t *testing.T) {
 	runIDs := make([]string, 0, 10)
 
 	for _, expectation := range []summarizerProcessExpectation{
-		{workflow: "worker-summarizer@1", mode: "cumulative", state: "succeeded", summarized: true, normalCalls: 1, normalTokens: 20_000},
-		{workflow: "worker-summarizer-context@1", mode: "context-window", state: "succeeded", summarized: true, normalCalls: 1, normalTokens: 7171},
+		{workflow: "worker-summarizer@1", mode: "cumulative", state: "failed", summarized: true, normalCalls: 1, normalTokens: 20_000},
+		{workflow: "worker-summarizer-context@1", mode: "context-window", state: "failed", summarized: true, normalCalls: 1, normalTokens: 7171},
 		{workflow: "worker-summarizer@1", mode: "normal-final", state: "succeeded", normalCalls: 3, normalTokens: 20_010},
 		// LiteLLM normalizes an omitted OpenAI usage member to zero-valued
 		// metadata. Runtime recognizes that representation as unavailable and
@@ -215,6 +217,9 @@ func TestWorkerSummarizerProductionBoundaries(t *testing.T) {
 		t, ctx, runtimeProcess, controlClient, runtimeBaseURL, reuseAllocationID, workRoot,
 	)
 
+	continuedID := runSummaryContinuationProcess(t, ctx, server, runtimeProcess, gateway, publicClient, pool, publicBaseURL, input)
+	runIDs = append(runIDs, continuedID)
+	waitForRuntimeIdle(t, ctx, runtimeProcess, controlClient, runtimeBaseURL, workRoot)
 	assertSummarizerGatewayCaptures(t, gateway)
 	assertSummarizerRetentionSafe(t, ctx, pool, runIDs, server, runtimeProcess, gateway)
 	if failures := gateway.Failures(); len(failures) != 0 {
@@ -273,11 +278,14 @@ func runSummarizerProcessScenario(
 		if string(body) != want || mediaType != "text/plain" {
 			t.Fatalf("%s output = (%q, %q), want (%q, text/plain)", expectation.mode, body, mediaType, want)
 		}
-	} else {
+	} else if expectation.summaryFailure != "" {
 		if stageResult.Outcome != stageresult.StageFailed || stageResult.Error == nil ||
 			stageResult.Error.Code != "worker_summarization_failed" || !stageResult.Error.Retryable {
 			t.Fatalf("%s failure Stage result = %+v", expectation.mode, stageResult)
 		}
+	} else if !stageResult.Summarized || stageResult.SummaryArtifact == nil || stageResult.Error == nil ||
+		stageResult.Error.Code != stageresult.SummaryRequiredCode || stageResult.Error.Retryable {
+		t.Fatalf("%s lost its summary without a continuation policy: %+v", expectation.mode, stageResult)
 	}
 	report := loadSummarizerProcessReport(t, ctx, pool, runID)
 	assertSummarizerReport(t, report.Report.Worker, expectation)
@@ -468,8 +476,8 @@ func assertSummarizerGatewayCaptures(t *testing.T, gateway *summarizerGateway) {
 			t.Fatalf("unsafe or unpinned summarizer capture: %+v", capture)
 		}
 	}
-	if summaryCount != 5 {
-		t.Fatalf("terminal summarizer requests = %d, want 5", summaryCount)
+	if summaryCount != 6 {
+		t.Fatalf("terminal summarizer requests = %d, want 6", summaryCount)
 	}
 	encoded, err := json.Marshal(captures)
 	if err != nil {
@@ -480,6 +488,74 @@ func assertSummarizerGatewayCaptures(t *testing.T, gateway *summarizerGateway) {
 			t.Fatalf("Gateway retained forbidden request material")
 		}
 	}
+}
+
+func runSummaryContinuationProcess(t *testing.T, ctx context.Context, server, runtimeProcess *childProcess,
+	gateway *summarizerGateway, client *http.Client, pool *pgxpool.Pool, baseURL string, input artifactRef) string {
+	t.Helper()
+	runID := createWorkflowRunWithParameters(t, client, baseURL, "worker-summary-continuation@1", "worker-summary-continuation", input, map[string]string{"mode": "continuation"})
+	status := waitForRunState(t, ctx, server, runtimeProcess, gateway, client, baseURL, runID, "succeeded")
+	if len(status.Attempts) != 2 || status.Attempts[0].State != "failed" || status.Attempts[1].State != "succeeded" {
+		t.Fatalf("summary attempts: %+v", status.Attempts)
+	}
+	store := runstore.NewPostgresStore(pool)
+	executions, err := store.ListStageExecutions(ctx, runID)
+	if err != nil || len(executions) != 2 {
+		t.Fatalf("continuation executions: %v", err)
+	}
+	source, target := executions[0], executions[1]
+	if source.AcceptedResult == nil || !source.AcceptedResult.Summarized || source.AcceptedResult.SummaryArtifact == nil ||
+		source.AcceptedResult.Artifacts["result"].Revision != nil || source.AcceptedResult.Artifacts["progress"].Revision == nil ||
+		target.ExecutionConfigVariant != runstore.StageExecutionConfigSummaryEscalation || target.StageContext.Continuation == nil ||
+		!reflect.DeepEqual(source.StageContext.Artifacts, target.StageContext.Artifacts) {
+		t.Fatal("partial result was lost, treated as final, or changed context")
+	}
+	var originalStage, continuedStage resolved.ResolvedStage
+	if err := json.Unmarshal(source.StageSpecSnapshot, &originalStage); err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(target.StageSpecSnapshot, &continuedStage); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(originalStage.Agents, continuedStage.Agents) || !reflect.DeepEqual(originalStage.Result, continuedStage.Result) ||
+		originalStage.Objective != continuedStage.Objective || originalStage.Instructions != continuedStage.Instructions {
+		t.Fatal("continuation changed original authority or Worker binding")
+	}
+	summary := source.AcceptedResult.SummaryArtifact
+	raw, _ := download(t, client, baseURL+"/v1/runs/"+runID+"/artifacts/"+summary.Namespace+"/"+summary.Name+"?revision="+url.QueryEscape(*summary.Revision))
+	if string(raw) != "Terminal summary for continuation" {
+		t.Fatalf("summary bytes: %q", raw)
+	}
+	body, _ := download(t, client, baseURL+"/v1/runs/"+runID+"/outputs/result")
+	if string(body) != "artifact produced for continuation" {
+		t.Fatalf("continued output: %q", body)
+	}
+	normal, summaries := gateway.Counts("continuation")
+	if normal != 4 || summaries != 1 {
+		t.Fatalf("continuation repeated source work: normal=%d summary=%d", normal, summaries)
+	}
+	reports := telemetry.NewRepository(pool)
+	allocations := make([]runstore.StageAllocation, 0, 2)
+	for _, e := range executions {
+		rows, err := store.ListStageAllocations(ctx, e.StageExecutionID)
+		if err != nil || len(rows) != 1 {
+			t.Fatalf("continuation allocations: %v", err)
+		}
+		stored, err := reports.ListAllocationReports(ctx, e.StageExecutionID)
+		if err != nil || len(stored) != 1 || !stored[0].Report.Worker.Complete {
+			t.Fatalf("cumulative reports: %v", err)
+		}
+		allocations = append(allocations, rows[0])
+	}
+	if allocations[0].Namespace != allocations[1].Namespace || allocations[0].AgentTemplateRef != allocations[1].AgentTemplateRef ||
+		allocations[0].LogicalAgentName != allocations[1].LogicalAgentName || allocations[0].AllocationID == allocations[1].AllocationID {
+		t.Fatal("continuation changed the logical Worker or reused its old allocation")
+	}
+	if status.Attempts[0].Metrics == nil || status.Attempts[1].Metrics == nil ||
+		status.Attempts[0].Metrics.TotalTokens != 20000 || status.Attempts[1].Metrics.TotalTokens != 60 {
+		t.Fatal("previous usage disappeared from public attempts")
+	}
+	return runID
 }
 
 func assertSummarizerRetentionSafe(

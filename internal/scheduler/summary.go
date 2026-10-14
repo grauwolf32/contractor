@@ -5,34 +5,38 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
-	"sort"
-	"time"
 
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
+	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/planner/stageresult"
 	"github.com/grauwolf32/contractor/internal/runstore"
 )
 
-// These private transaction labels are outside the authored alias grammar.
-const summaryContextPin = "continuation/summary"
-const priorArtifactContextPin = "continuation/result/"
-
-func stageContextPins(snapshot runstore.StageContextSnapshot) []ContextPin {
-	result := make([]ContextPin, 0, len(snapshot.Artifacts))
-	for name, value := range snapshot.Artifacts {
-		if value.Artifact != nil {
-			result = append(result, ContextPin{Name: name, Ref: value.Artifact.Clone()})
-		}
+func (s *Scheduler) recoverCompletedSummary(ctx context.Context, run runstore.WorkflowRun, workflow executableWorkflow, execution runstore.StageExecution) (bool, error) {
+	readContext, cancel := context.WithTimeout(ctx, s.options.OperationTimeout)
+	defer cancel()
+	started, err := s.options.PlannerSessions.Begin(readContext, execution.StageExecutionID)
+	if errors.Is(err, planner.ErrInvocationInProgress) {
+		return false, nil // Existing process-loss rules own unfinished calls.
 	}
-	if value := snapshot.Continuation; value != nil {
-		result = append(result, ContextPin{Name: summaryContextPin, Ref: value.SummaryArtifact.Clone()})
-		for name, ref := range value.Artifacts {
-			result = append(result, ContextPin{Name: priorArtifactContextPin + name, Ref: ref.Clone()})
+	if err != nil {
+		if errors.Is(err, context.Canceled) || persistencepostgres.IsTransientFailure(err) {
+			return false, err
 		}
+		return true, s.failInvalidRunState(ctx, run.RunID, err)
 	}
-	sort.Slice(result, func(i, j int) bool { return result[i].Name < result[j].Name })
-	return result
+	if started.Completion == nil || started.Completion.Result == nil || !started.Completion.Result.Summarized {
+		return false, nil
+	}
+	if !s.now().Before(s.stageDeadline(execution, workflow.stage)) {
+		return true, s.beginAbort(ctx, run, workflow, execution, nil, stageDeadlineFailure())
+	}
+	// Read the trusted completion before checking old live grants. A restart
+	// may have lost them, but this Worker already finished: no adoption,
+	// allocation preparation or source dispatch is needed to save its summary.
+	return true, s.enterFinalizing(ctx, run, workflow, execution, nil, started.Completion.Result.Clone())
 }
 
 func (s *Scheduler) validateSummarySource(ctx context.Context, run runstore.WorkflowRun, execution runstore.StageExecution) error {
@@ -51,6 +55,7 @@ func (s *Scheduler) validateSummarySource(ctx context.Context, run runstore.Work
 	}
 	result := source.AcceptedResult
 	if source.RunID != run.RunID || source.StageName != execution.StageName || source.State != runstore.StageFailed ||
+		source.ExecutionConfigVariant != runstore.StageExecutionConfigBase ||
 		result == nil || !result.Summarized || result.SummaryArtifact == nil ||
 		!result.SummaryArtifact.SameExact(continuation.SummaryArtifact) || result.Summary != continuation.Summary ||
 		!reflect.DeepEqual(result.Artifacts, continuation.Artifacts) ||
@@ -58,13 +63,37 @@ func (s *Scheduler) validateSummarySource(ctx context.Context, run runstore.Work
 		!reflect.DeepEqual(source.StageContext.Artifacts, execution.StageContext.Artifacts) {
 		return fmt.Errorf("%w: continuation differs from its saved source task or summary", errInvalidRunState)
 	}
+	if execution.PreviousExecutionID == nil {
+		return fmt.Errorf("%w: summary continuation has no preceding attempt", errInvalidRunState)
+	}
+	parent := source
+	if *execution.PreviousExecutionID != source.StageExecutionID {
+		parent, err = s.store.GetStageExecution(readContext, *execution.PreviousExecutionID)
+		if errors.Is(err, runstore.ErrNotFound) {
+			return fmt.Errorf("%w: summary continuation parent is missing", errInvalidRunState)
+		}
+		if err != nil {
+			return err
+		}
+		if parent.ExecutionConfigVariant != runstore.StageExecutionConfigSummaryEscalation ||
+			parent.EscalationOrdinal == nil || *parent.EscalationOrdinal != 1 ||
+			!reflect.DeepEqual(parent.StageContext, execution.StageContext) {
+			return fmt.Errorf("%w: summary retry or resume changed its parent context", errInvalidRunState)
+		}
+	} else if execution.ResumeSourceExecutionID != nil {
+		return fmt.Errorf("%w: an automatic summary root cannot be a manual resume", errInvalidRunState)
+	}
+	if parent.RunID != execution.RunID || parent.StageName != execution.StageName || parent.Attempt+1 != execution.Attempt ||
+		(parent.State != runstore.StageFailed && parent.State != runstore.StageInterrupted) ||
+		(execution.ResumeSourceExecutionID != nil && *execution.ResumeSourceExecutionID != parent.StageExecutionID) {
+		return fmt.Errorf("%w: summary continuation has invalid immediate attempt lineage", errInvalidRunState)
+	}
 	return nil
 }
 
 func summaryEscalationConfiguration(
 	execution runstore.StageExecution,
 	action resolved.EscalateTransition,
-	deadline time.Time,
 ) (stageExecutionConfiguration, error) {
 	if action.Planner == nil || execution.CandidateResult == nil ||
 		!execution.CandidateResult.Summarized || execution.CandidateResult.SummaryArtifact == nil {
@@ -76,7 +105,6 @@ func summaryEscalationConfiguration(
 		Summary:                execution.CandidateResult.Summary,
 		SummaryArtifact:        execution.CandidateResult.SummaryArtifact.Clone(),
 		Artifacts:              contracts.CloneArtifactRefs(execution.CandidateResult.Artifacts),
-		Deadline:               deadline,
 	}
 	return stageExecutionConfiguration{
 		variant: runstore.StageExecutionConfigSummaryEscalation,

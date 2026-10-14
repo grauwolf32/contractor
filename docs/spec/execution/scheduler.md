@@ -257,6 +257,9 @@ and, for an ADK-backed strategy, a new live ADK conversation.
 context, accepted prior results and Run-scoped artifact refs selected by
 Workflow policy. It never inherits the previous attempt's pinned context
 implicitly, nor the previous Planner's framework-private state or subtask plan.
+Summary continuation explicitly copies the original exact context under
+SCH-R173; retries and manual resumptions of that continuation preserve those
+pins.
 
 ### Normal execution sequence
 
@@ -755,8 +758,9 @@ the action's own attempt limit and a still-`running` WorkflowRun are the
 complete eligibility rule, so a failed candidate produced by a model-backed
 Planner cannot enable or suppress an escalation indirectly.
 
-**SCH-R88.** When the escalation limit is exhausted, Scheduler evaluates
+**SCH-R88.** When a model-only escalation limit is exhausted, Scheduler evaluates
 `then`, which contains exactly one `next` or `fail` action (SCH-R81).
+The one-shot summary strategy has no exhaustion edge (SCH-R171).
 
 **SCH-R89.** The escalation counter belongs to that exact declared action
 across the StageExecution ancestry and is not reset by alternating outcomes.
@@ -764,6 +768,69 @@ across the StageExecution ancestry and is not reset by alternating outcomes.
 **SCH-R90.** An escalation policy under `failed` never applies to
 `interrupted`, or vice versa; each outcome needs its own explicit escalation
 configuration.
+
+### Continuation after terminal summarization
+
+**SCH-R171.** Passthrough retains a valid Runtime-owned `summarized=true`
+completion as an incomplete failed StageResult with `worker_summarized`,
+`retryable=false`, summary text and exact recorded result refs. Before fencing
+and accepting it, Scheduler saves its text as an ordinary `text/plain`
+artifact named `summary.<source_stage_execution_id>` in the same resolved
+Agent Namespace and attaches its exact `summaryArtifact` ref. Publication uses
+that natural key and create-only CAS; a replay reconciles media type and exact
+bytes rather than appending another revision. Saving also occurs without a
+continuation policy, so inspection survives `on.failed` or a later failure.
+Only the declared `on.summarized` policy selects `summary_escalation`, ordinal
+one, and creates a fresh Streamline attempt atomically with source acceptance,
+transition receipt and exact context pins. A repeated strategy selection is
+invalid durable state, not another escalation or an exhaustion branch.
+An indexed existence probe of the unique automatic root checks the strategy
+slot without loading the Run's attempt history.
+
+**SCH-R172.** The summary policy's `deadlineSeconds` is an explicit
+per-attempt allowance from `admitted_at`, capped by the enclosing
+`PlannerTimeout`. Queue/capacity waiting consumes no execution allowance.
+Retries and explicit user resumptions get the same pinned allowance from
+their new admission; an expired absolute deadline is never copied. Every
+attempt retains the existing finite model, token and Worker-call policy;
+ordinary retries remain bounded by Workflow `maxAttempts`. Usage and elapsed
+work from earlier attempts remain visible in their immutable reports, never
+reset as historical accounting. No new automatic resume or unmetered call
+loop is introduced.
+
+**SCH-R173.** The continuation's StageSpec preserves the original objective,
+instructions, Worker binding, template, namespace, toolsets, parameters,
+authorized scope and final result contract. Its StageContext copies the source
+input revisions explicitly and adds separate saved-summary provenance and
+recorded result refs. Latest bindings are not re-resolved. Recovery checks the
+accepted failed source in the same Run/Stage, its exact summary/ref and original
+context. At most two direct Stage reads also validate the immediate parent,
+attempt increment and terminal outcome before admission. Retry and manual-resume
+lineage preserve that context and the
+`summary_escalation` variant/ordinal; only its first automatic root consumes
+the strategy slot. Missing exact pins or changed source authority are permanent
+invalid state. Existing Artifact and selected Memory tools access the same
+Run/Namespace through fresh allocations; allocation-local HTTP buffers,
+cookies, ADK sessions and in-flight calls are not inherited.
+
+**SCH-R174.** Summary publication retries only known transient context,
+blob-I/O and classified PostgreSQL failures, with each operation bounded by
+`operationTimeout` and replay bounded by the admitted source Stage deadline.
+The recorded Planner completion prevents another source Worker dispatch.
+Recovery reads that completed summary before consulting lost live allocation
+grants, so Server loss before publication can still publish and transition
+without adopting an old Worker. An unfinished session follows the existing
+process-loss interruption rules.
+Other failures terminate with non-retryable `summary_publication_failed`;
+retryable publication outages use `summary_publication_unavailable`.
+Cancellation admits no continuation; queue pause and allocation fencing use
+the existing progression, drain and release boundaries. A committed summary
+remains available under Run retention.
+
+Rationale: the existing natural-key artifact and source transition receipts
+cover response loss and restart without another table or Planner invocation
+inside one StageExecution. Reopen this boundary only if bounded saved artifacts
+cannot carry the progress required to complete the unchanged task.
 
 ### Manual continuation attempts
 
@@ -820,6 +887,8 @@ interrupted StageTermination, remaining allocations stop or become lost at the
 abort deadline, any Worker reported by a reconnected agent is drained, and
 Workflow Scheduler then chooses the declared retry, configured escalation or
 Run failure action.
+An already completed trusted summary is recovered as data under SCH-R174 before
+consulting live grants; it does not resume a model invocation or adopt a Worker.
 
 **SCH-R101.** A Runtime Agent process restart never reattaches its old Worker;
 the affected in-process Worker no longer exists, and an affected `preparing` or

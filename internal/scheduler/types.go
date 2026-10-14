@@ -69,6 +69,7 @@ type Store interface {
 	// Stage, not the Run's Stage history.
 	GetActiveStageExecution(context.Context, string) (runstore.StageExecution, error)
 	ListStageExecutions(context.Context, string) ([]runstore.StageExecution, error)
+	HasSummaryEscalation(context.Context, string, string) (bool, error)
 	ListTerminalStageExecutionsWithAllocations(context.Context) ([]runstore.StageExecution, error)
 	GetStageExecution(context.Context, string) (runstore.StageExecution, error)
 	ListStageAllocations(context.Context, string) ([]runstore.StageAllocation, error)
@@ -88,9 +89,12 @@ type ReportStore interface {
 	RebuildStageMetrics(context.Context, string, string) (telemetry.StageMetricsRecord, error)
 }
 
-type ContextPin struct {
-	Name string
-	Ref  contracts.ArtifactRef
+type ContextPin = runstore.StageContextPin
+
+// sessionRecovery is called only for a running Stage. Begin then reads its
+// existing durable session; it cannot start another invocation.
+type sessionRecovery interface {
+	Begin(context.Context, string) (planner.SessionStart, error)
 }
 
 type NextStageCreation struct {
@@ -280,6 +284,7 @@ func (realClock) After(duration time.Duration) <-chan time.Time { return time.Af
 // names its ServerConfig path and is required (OPS-R15).
 type Options struct {
 	GatewayRecovery *gatewayrecovery.Service
+	PlannerSessions sessionRecovery
 	// PollInterval is scheduler.pollInterval: the lane refill and terminal
 	// release recovery period, and the retry period after a failed claim
 	// renewal.

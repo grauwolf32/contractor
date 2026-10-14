@@ -81,7 +81,7 @@ func (s *Scheduler) buildStageCreation(
 			Artifact: &exact,
 		}
 	}
-	pins := stageContextPins(contextSnapshot)
+	pins := contextSnapshot.Pins()
 	stage := workflow.stage
 	if configuration.planner != nil {
 		stage.Planner = *configuration.planner
@@ -144,7 +144,7 @@ func missingRequiredContext(execution runstore.StageExecution) string {
 
 // prepareAndPlan retains one Stage deadline across allocation and Planner phases.
 func (s *Scheduler) prepareAndPlan(ctx context.Context, run runstore.WorkflowRun, workflow executableWorkflow, execution runstore.StageExecution) error {
-	deadline := s.stageDeadline(execution)
+	deadline := s.stageDeadline(execution, workflow.stage)
 	prepared, err := s.prepareStageWorkers(ctx, run, workflow, execution, deadline)
 	if err != nil || prepared == nil {
 		return err
@@ -206,7 +206,7 @@ func (s *Scheduler) prepareStageWorkers(ctx context.Context, run runstore.Workfl
 			return nil, err
 		}
 		execution = admitted
-		stageDeadline = s.stageDeadline(execution)
+		stageDeadline = s.stageDeadline(execution, workflow.stage)
 	}
 
 	// Placement pinned the durable allocation rows before it exposed the
@@ -259,17 +259,18 @@ func (s *Scheduler) discardUnadmittedPlacement(ctx context.Context, runID, stage
 	}
 }
 
-func (s *Scheduler) stageDeadline(execution runstore.StageExecution) time.Time {
-	var deadline time.Time
+func (s *Scheduler) stageDeadline(execution runstore.StageExecution, stage resolved.ResolvedStage) time.Time {
+	allowance := s.options.PlannerTimeout
+	if execution.StageContext.Continuation != nil {
+		// The policy is validated before preparation. Every retry/manual resume
+		// gets this explicitly declared per-attempt allowance, never a copied
+		// expired absolute deadline. Queue time consumes no execution budget.
+		allowance = min(allowance, time.Duration(stage.On.Summarized.Escalate.DeadlineSeconds)*time.Second)
+	}
 	if execution.AdmittedAt != nil {
-		deadline = execution.AdmittedAt.Add(s.options.PlannerTimeout)
-	} else {
-		deadline = s.now().Add(s.options.PlannerTimeout)
+		return execution.AdmittedAt.Add(allowance)
 	}
-	if continuation := execution.StageContext.Continuation; continuation != nil && continuation.Deadline.Before(deadline) {
-		deadline = continuation.Deadline
-	}
-	return deadline
+	return s.now().Add(allowance)
 }
 
 func stageDeadlineFailure() planner.Failure {

@@ -613,12 +613,15 @@ func (l *loader) resolveTransitionAction(
 		if err != nil {
 			return resolved.TransitionAction{}, err
 		}
-		then, err := l.resolveTransitionAction(
-			field+".escalate.then", source.Escalate.Then, stages,
-			map[resolved.TransitionKind]bool{resolved.TransitionNext: true, resolved.TransitionFail: true},
-		)
-		if err != nil {
-			return resolved.TransitionAction{}, err
+		var then resolved.TransitionAction
+		if plannerRef == nil {
+			then, err = l.resolveTransitionAction(
+				field+".escalate.then", source.Escalate.Then, stages,
+				map[resolved.TransitionKind]bool{resolved.TransitionNext: true, resolved.TransitionFail: true},
+			)
+			if err != nil {
+				return resolved.TransitionAction{}, err
+			}
 		}
 		action = resolved.TransitionAction{
 			Kind: resolved.TransitionEscalate,

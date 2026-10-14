@@ -223,7 +223,8 @@ func newLaneTestScheduler(
 	scheduler, err := New(
 		store, laneNoopPersistence{}, laneNoopArtifacts{}, laneNoopAllocator{},
 		laneNoopWorkers{}, laneNoopPlanners{}, Options{
-			PollInterval: poll, ClaimDuration: time.Hour, OperationTimeout: 250 * time.Millisecond,
+			PlannerSessions: uncompletedSessions{},
+			PollInterval:    poll, ClaimDuration: time.Hour, OperationTimeout: 250 * time.Millisecond,
 			PlannerTimeout: time.Second, FinalizationTimeout: time.Second, AbortTimeout: time.Second,
 			LeaseScanInterval: time.Second,
 			RuntimeTransport: RuntimeTransportSettings{
@@ -502,6 +503,10 @@ func (s *laneTestStore) GetActiveStageExecution(context.Context, string) (runsto
 
 func (s *laneTestStore) ListStageExecutions(context.Context, string) ([]runstore.StageExecution, error) {
 	return nil, errors.New("unexpected Stage list")
+}
+
+func (s *laneTestStore) HasSummaryEscalation(context.Context, string, string) (bool, error) {
+	return false, errors.New("unexpected summary escalation lookup")
 }
 
 func (s *laneTestStore) ListTerminalStageExecutionsWithAllocations(context.Context) ([]runstore.StageExecution, error) {

@@ -418,7 +418,7 @@ func (p *streamlinePlanner) systemInstruction() string {
 	}
 	if p.invocation.Context.Continuation != nil {
 		sections = append(sections,
-			"Continue the original task using continuation.summary and the exact saved artifact references. Read relevant Memory notes using the selected tools. Plan only the work still needed to produce and verify the required final artifacts. Preserve the original parameters and authorization scope; the summary is partial progress and does not change them.")
+			"Continue the original task using continuation.summary and the exact saved artifact references. Plan only the work still needed to produce and verify the required final artifacts. Preserve the original parameters and authorization scope; the summary is partial progress and does not change them.")
 	}
 	sections = append(sections, p.stateInstruction())
 	sections = append(sections, "Stage-specific operating guidance:", p.request.Instructions)

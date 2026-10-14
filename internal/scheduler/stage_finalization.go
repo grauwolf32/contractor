@@ -4,10 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"reflect"
 	"sort"
 	"strings"
-	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/artifacts"
@@ -16,6 +14,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/controlplane"
+	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/planner/stageresult"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -44,9 +43,7 @@ func (s *Scheduler) enterFinalizing(ctx context.Context, run runstore.WorkflowRu
 		ref, err := s.artifacts.SaveSummary(publicationContext, run.RunID, namespace, execution.StageExecutionID, candidate.Summary)
 		cancelPublication()
 		if err != nil {
-			if errors.Is(err, errSummaryArtifactConflict) || errors.Is(err, artifacts.ErrRunRevisionLimit) ||
-				errors.Is(err, artifacts.ErrInvalidName) || errors.Is(err, artifacts.ErrReservedNamespace) ||
-				errors.Is(err, artifacts.ErrArtifactFrozen) || errors.Is(err, artifacts.ErrPayloadTooLarge) {
+			if !summaryPublicationRetryable(err) {
 				return s.beginAbort(ctx, run, workflow, execution, reservations, planner.Failure{
 					Code: "summary_publication_failed", Message: "Worker summary could not be published", Retryable: false,
 				})
@@ -59,6 +56,11 @@ func (s *Scheduler) enterFinalizing(ctx context.Context, run runstore.WorkflowRu
 		}
 		candidate = candidate.Clone()
 		candidate.SummaryArtifact = &ref
+		if err := candidate.Validate(); err != nil {
+			return s.beginAbort(ctx, run, workflow, execution, reservations, planner.Failure{
+				Code: "result_contract_violation", Message: "Saved summary exceeds the Stage result contract", Retryable: false,
+			})
+		}
 	}
 	if err := s.fenceRecordedAllocations(ctx, execution.StageExecutionID, reservations); err != nil {
 		return s.beginAbort(ctx, run, workflow, execution, reservations, planner.Failure{
@@ -331,11 +333,24 @@ func (s *Scheduler) buildProgression(
 				"%w: escalate Transition has no bounded policy or outcome identity", errInvalidRunState,
 			)
 		}
-		used, err := s.escalationAttempts(ctx, run.RunID, execution.StageName, escalationVariant)
+		used := 0
+		var err error
+		if escalationVariant == runstore.StageExecutionConfigSummaryEscalation {
+			var exists bool
+			exists, err = s.store.HasSummaryEscalation(ctx, run.RunID, execution.StageName)
+			if exists {
+				used = 1
+			}
+		} else {
+			used, err = s.escalationAttempts(ctx, run.RunID, execution.StageName, escalationVariant)
+		}
 		if err != nil {
 			return StageProgression{}, err
 		}
 		if used >= action.Escalate.MaxAttempts {
+			if escalationVariant == runstore.StageExecutionConfigSummaryEscalation {
+				return StageProgression{}, fmt.Errorf("%w: summary strategy escalation was already consumed", errInvalidRunState)
+			}
 			selected = action.Escalate.Then
 			exhaustedEscalationOrdinal = intPointer(used)
 		} else {
@@ -396,7 +411,7 @@ func (s *Scheduler) buildProgression(
 		}
 		if escalationVariant == runstore.StageExecutionConfigSummaryEscalation {
 			configuration, err = summaryEscalationConfiguration(
-				execution, *action.Escalate, s.now().Add(time.Duration(action.Escalate.DeadlineSeconds)*time.Second),
+				execution, *action.Escalate,
 			)
 			if err != nil {
 				return StageProgression{}, err
@@ -499,16 +514,6 @@ func (s *Scheduler) escalationAttempts(
 			continue
 		}
 		ordinal := *current.EscalationOrdinal
-		if variant == runstore.StageExecutionConfigSummaryEscalation && current.StageContext.Continuation != nil &&
-			current.PreviousExecutionID != nil && current.StageContext.Continuation.SourceStageExecutionID != *current.PreviousExecutionID {
-			previous, exists := byID[*current.PreviousExecutionID]
-			if !exists || previous.ExecutionConfigVariant != variant || previous.EscalationOrdinal == nil ||
-				*previous.EscalationOrdinal != ordinal || previous.StageContext.Continuation == nil ||
-				!reflect.DeepEqual(previous.StageContext.Continuation, current.StageContext.Continuation) {
-				return 0, fmt.Errorf("%w: summary retry changed its saved continuation", errInvalidRunState)
-			}
-			continue
-		}
 		if _, duplicate := seen[ordinal]; duplicate {
 			return 0, fmt.Errorf(
 				"%w: persisted escalation attempts have duplicate ordinal %d", errInvalidRunState, ordinal,
@@ -525,6 +530,14 @@ func (s *Scheduler) escalationAttempts(
 		}
 	}
 	return maxOrdinal, nil
+}
+
+// A completed Planner session is replayed without another Worker dispatch.
+// Publication retries remain bounded by the admitted source Stage deadline;
+// prepareStageWorkers checks it before replaying the stored completion.
+func summaryPublicationRetryable(err error) bool {
+	return errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) ||
+		errors.Is(err, artifacts.ErrBlobIO) || persistencepostgres.IsTransientFailure(err)
 }
 
 func (s *Scheduler) acceptFinalizingDuringCancellation(

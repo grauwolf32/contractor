@@ -4280,7 +4280,31 @@ export interface components {
             /** @description Runtime-owned terminal summary carried by passthrough as incomplete work requiring continuation. */
             summarized?: boolean;
             summaryArtifact?: components["schemas"]["ExactArtifactRef"];
-        } & (unknown & unknown & unknown & unknown & unknown);
+        } & ({
+            /** @enum {unknown} */
+            outcome?: "succeeded";
+            /** @enum {unknown} */
+            summarized?: false;
+        } | {
+            /** @enum {unknown} */
+            outcome?: "failed";
+            /** @enum {unknown} */
+            summarized?: false;
+            error: {
+                code?: unknown;
+            };
+        } | {
+            /** @enum {unknown} */
+            outcome?: "failed";
+            /** @enum {unknown} */
+            summarized: true;
+            error: {
+                /** @enum {unknown} */
+                code?: "worker_summarized";
+                /** @enum {unknown} */
+                retryable?: false;
+            };
+        });
         StageTermination: {
             /** @enum {unknown} */
             outcome: "cancelled" | "interrupted";
@@ -4984,9 +5008,9 @@ export interface components {
                 /** @constant */
                 version?: "1";
             };
+            /** @description Per-attempt execution allowance from admission; queue time is excluded and the enclosing Stage timeout still applies. */
             deadlineSeconds: number;
             executionConfig: components["schemas"]["WorkflowEscalationConfig"];
-            then: components["schemas"]["WorkflowNextOrFailTransition"];
         };
         WorkflowFailureTransition: components["schemas"]["WorkflowNextTransition"] | components["schemas"]["WorkflowRetryTransition"] | components["schemas"]["WorkflowEscalateTransition"] | components["schemas"]["WorkflowFailTransition"];
         WorkflowTransitions: {

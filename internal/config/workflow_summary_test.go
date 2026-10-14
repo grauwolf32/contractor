@@ -1,6 +1,7 @@
 package config
 
 import (
+	"bytes"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -17,7 +18,6 @@ const summaryTransitionYAML = `        summarized:
               planner:
                 modelPolicy: test-planner@1
                 llmGateway: local-litellm@1
-            then: {fail: {}}
 `
 
 func summaryWorkflowFixture(t *testing.T) (string, string) {
@@ -55,10 +55,39 @@ func TestSummaryEscalationPinsItsIndependentPlannerAndClonesPolicy(t *testing.T)
 	if _, err := resolved.DecodeResolvedWorkflowSnapshot(encoded); err != nil {
 		t.Fatalf("persisted summary policy failed strict validation: %v", err)
 	}
+	for _, injected := range []string{`"then":null,`, `"then":{"kind":"fail"},`} {
+		corrupt := bytes.Replace(encoded, []byte(`"deadlineSeconds":600,`), []byte(`"deadlineSeconds":600,`+injected), 1)
+		if bytes.Equal(corrupt, encoded) {
+			t.Fatal("snapshot mutation did not select the summary policy")
+		}
+		if _, err := resolved.DecodeResolvedWorkflowSnapshot(corrupt); err == nil {
+			t.Fatal("persisted summary policy accepted an authored then")
+		}
+	}
 	cloned := workflow.Clone()
 	cloned.Stages["copy"].On.Summarized.Escalate.Planner.PlannerID = "changed"
 	if policy.Planner.PlannerID != "streamline" {
 		t.Fatal("Workflow clone shared its summary Planner ref")
+	}
+}
+
+func TestSummaryStrategyCannotMixWithModelEscalation(t *testing.T) {
+	root, _ := summaryWorkflowFixture(t)
+	workflow, err := mustLoad(t, root).Workflow("artifact-copy@1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	stage := workflow.Stages["copy"]
+	policy := stage.ExecutionConfig.Agents["builder"].ModelPolicy
+	stage.On.Failed = resolved.TransitionAction{Kind: resolved.TransitionEscalate, Escalate: &resolved.EscalateTransition{
+		MaxAttempts: 1, Then: resolved.TransitionAction{Kind: resolved.TransitionFail},
+		ExecutionConfig: resolved.ResolvedEscalationExecutionConfig{Override: resolved.ResolvedStageExecutionConfigOverride{
+			Agents: map[string]resolved.ResolvedExecutionSelectionOverride{"builder": {ModelPolicy: &policy}},
+		}},
+	}}
+	workflow.Stages["copy"] = stage
+	if err := resolved.ResolveEscalationVariants(&workflow); err == nil || !strings.Contains(err.Error(), "cannot share a Stage") {
+		t.Fatalf("mixed strategy/model policies were not rejected at their boundary: %v", err)
 	}
 }
 
@@ -71,6 +100,8 @@ func TestSummaryEscalationRejectsInvalidOrUnboundedPolicies(t *testing.T) {
 		{"zero deadline", "deadlineSeconds: 600", "deadlineSeconds: 0"},
 		{"oversized deadline", "deadlineSeconds: 600", "deadlineSeconds: 86401"},
 		{"multiple strategy attempts", "maxAttempts: 1", "maxAttempts: 2"},
+		{"unreachable exhaustion edge", "deadlineSeconds: 600", "deadlineSeconds: 600\n            then: {fail: {}}"},
+		{"null exhaustion edge", "deadlineSeconds: 600", "deadlineSeconds: 600\n            then: null"},
 		{"missing model", "                modelPolicy: test-planner@1\n", ""},
 		{"missing Gateway", "                llmGateway: local-litellm@1\n", ""},
 		{"unknown field", "deadlineSeconds: 600", "deadlineSeconds: 600\n            unknownField: true"},

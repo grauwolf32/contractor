@@ -274,6 +274,7 @@ type escalateSource struct {
 	Then            *transitionActionSource          `yaml:"then"`
 	plannerPresent  bool
 	deadlinePresent bool
+	thenPresent     bool
 }
 
 type escalationExecutionConfigSource struct {

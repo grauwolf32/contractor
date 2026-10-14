@@ -38,14 +38,35 @@ context:
     material, instead of replaying the original Worker request or carrying an
     unbounded ADK conversation. Reopen this boundary only with evidence that the
     bounded saved-artifact continuation cannot complete the declared Stage.
-  current_contract_gaps: >-
+  original_contract_gaps: >-
     TPL-R87 forbids changing the Planner factory through executionConfig and
     TPL-R92 rejects Planner model selections on passthrough. Workflow outcomes
     currently have no summary-continuation branch or predicate. SCH-R12 and
     buildStageCreation resolve a fresh context rather than inherit prior exact
     pins. Revise these owning contracts explicitly; do not rely on existing
     model-only escalation already providing these guarantees.
+  review_decisions: >-
+    PR 550 review at 194c6101: preserve summary publication without a continuation
+    policy as R3 requires (reserved namespaces already fail catalog validation).
+    deadlineSeconds is an explicit per-attempt allowance starting at admission,
+    capped by PlannerTimeout; queue time is excluded. Bounded Workflow retries
+    and explicit user resumptions get that same allowance anew, while usage
+    remains cumulative in allocation/Planner reports. Do not persist an absolute
+    continuation deadline in copied context. Summary escalation has maxAttempts=1
+    and no authored then: its source cannot summarize again; continuation errors
+    follow on.failed/on.interrupted. Repeated strategy selection is invalid state.
+    In this first version a Stage cannot combine summary strategy escalation with
+    model-only escalation: target factory and its independent model selection
+    must stay pinned across retries. Reopen this restriction when a production
+    caller needs explicitly composed strategy/model tiers.
   specification:
+    - docs/spec/configuration/workflows.md#WFL-R86
+    - docs/spec/execution/scheduler.md#SCH-R171
+    - docs/spec/execution/scheduler.md#SCH-R172
+    - docs/spec/execution/scheduler.md#SCH-R173
+    - docs/spec/execution/scheduler.md#SCH-R174
+    - docs/spec/execution/planners.md#PLN-R116
+    - docs/spec/execution/planners.md#PLN-R117
     - docs/spec/configuration/workflows.md#WFL-R37
     - docs/spec/configuration/workflows.md#WFL-R48
     - docs/spec/configuration/agent-templates.md#TPL-R87
@@ -127,7 +148,7 @@ cardinality:
   - collection: Strategy continuations for one source Stage lineage
     expected: Zero or one
     maximum: One passthrough-to-streamline escalation across the ancestry
-    bound: One source-keyed transition and one target attempt per policy; no repeated full ancestry/artifact scan per poll.
+    bound: One indexed root-existence read and at most two direct lineage reads; one source-keyed transition and one target attempt per policy, without repeated full ancestry or artifact scans.
   - collection: Handoff summary and prior saved material
     expected: One summary and a few exact refs
     maximum: 65536 UTF-8 summary bytes and 128 WorkerResult artifact refs, plus original task within the existing 262144-byte complete Planner input bound
@@ -181,6 +202,8 @@ tests:
     covers: [A1, A2, A3, A4, A6, A7, A8]
   - command: make test-postgres
     covers: [A2, A5, A6]
+  - command: go test ./internal/app/...
+    covers: [A1, A5, A8]
   - command: make test-streamline
     covers: [A1, A2, A3, A7]
   - command: make test-runtime
@@ -191,7 +214,11 @@ tests:
     covers: [A8]
   - command: make verify-public-api-postgres
     covers: [A5, A8]
-  - command: make test-e2e
+  - command: make test-release-process-e2e-a
+    covers: [A1, A2, A3, A4, A5, A6]
+  - command: make test-release-process-e2e-b
+    covers: [A1, A2, A3, A4, A5, A6]
+  - command: make test-release-process-e2e-c
     covers: [A1, A2, A3, A4, A5, A6]
   - command: go run ./cmd/contractor server config validate --root ./configs
     covers: [A8]

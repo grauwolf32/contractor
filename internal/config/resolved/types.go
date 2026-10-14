@@ -188,7 +188,7 @@ type EscalateTransition struct {
 	Planner         *PlannerRef                       `json:"planner,omitempty"`
 	DeadlineSeconds int                               `json:"deadlineSeconds,omitempty"`
 	ExecutionConfig ResolvedEscalationExecutionConfig `json:"executionConfig"`
-	Then            TransitionAction                  `json:"then"`
+	Then            TransitionAction                  `json:"then,omitzero"`
 }
 
 type StageTransitions struct {

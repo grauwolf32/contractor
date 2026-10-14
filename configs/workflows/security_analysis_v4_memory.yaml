@@ -72,5 +72,3 @@ spec:
                 modelPolicy: planner@2
                 llmGateway: local-litellm@1
                 credential: development-planner
-            then:
-              fail: {}

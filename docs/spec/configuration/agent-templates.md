@@ -825,7 +825,9 @@ Run snapshot. A missing or incompatible profile rejects the consuming Workflow
 **TPL-R87.** An escalation override may select other already published
 ModelPolicy, LLMGatewayConfig and credential refs, but cannot change the
 Planner factory, Agent bindings, AgentTemplates, Stage context, result contract
-or Workflow graph.
+or Workflow graph. The separately typed summary policy may change only the
+factory from Passthrough to Streamline under
+[WFL-R86](workflows.md); that is not a general executionConfig factory override.
 
 **TPL-R88.** Contractor does not infer whether a selected model is stronger;
 the Workflow author declares the escalation tier intentionally.
@@ -849,7 +851,9 @@ matching credential at Run initialization.
 
 **TPL-R92.** `passthrough@1` has no model client, so a Planner model, Gateway
 or credential selection for that Stage is invalid, and the Run form exposes no
-Planner model selection for it.
+Planner model selection for it. An independent Planner selection in the
+declared summary continuation variant is validated against its Streamline
+target, never borrowed from the base Worker ([WFL-R86](workflows.md)).
 
 **TPL-R93.** The Planner and every logical Worker resolve their model policy,
 Gateway and optional matching credential independently.

@@ -15,6 +15,23 @@ import (
 
 const terminalReleaseRecoveryBatchLimit = 32
 
+// HasSummaryEscalation uses the unique ordinal-root index. It reads neither
+// attempt snapshots nor the whole Run history for a one-shot summary policy.
+func (s *PostgresStore) HasSummaryEscalation(ctx context.Context, runID, stageName string) (bool, error) {
+	if err := validateOpaque("runID", runID); err != nil {
+		return false, err
+	}
+	if err := validateOpaque("stageName", stageName); err != nil {
+		return false, err
+	}
+	var exists bool
+	err := s.db.QueryRow(ctx, hasSummaryEscalationSQL, runID, stageName).Scan(&exists)
+	if err != nil {
+		return false, fmt.Errorf("read summary escalation root: %w", err)
+	}
+	return exists, nil
+}
+
 func (s *PostgresStore) CreateStageExecution(
 	ctx context.Context,
 	params CreateStageExecutionParams,

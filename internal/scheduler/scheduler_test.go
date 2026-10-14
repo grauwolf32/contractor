@@ -1917,7 +1917,8 @@ func newSchedulerHarness(t *testing.T) *schedulerHarness {
 	}
 	idSequence := 0
 	scheduler, err := New(store, persistence, resolver, allocator, workers, planners, Options{
-		PollInterval: time.Second, LeaseScanInterval: time.Second, ClaimDuration: time.Hour, OperationTimeout: time.Second,
+		PlannerSessions: uncompletedSessions{},
+		PollInterval:    time.Second, LeaseScanInterval: time.Second, ClaimDuration: time.Hour, OperationTimeout: time.Second,
 		PlannerTimeout: 30 * time.Second, FinalizationTimeout: 10 * time.Second, AbortTimeout: 10 * time.Second,
 		RuntimeTransport: RuntimeTransportSettings{
 			ArtifactAPIURL: "https://control.test/private/v1", RequestTimeoutSeconds: 5,
@@ -3099,7 +3100,7 @@ func (r *memoryPlannerRegistry) Create(
 ) (planner.Planner, error) {
 	r.createCalls++
 	r.invocation = invocation
-	if ref != planner.PassthroughRef {
+	if ref != planner.PassthroughRef && ref != "streamline@1" {
 		return nil, errors.New("unexpected Planner ref")
 	}
 	return plannerFunc(func(context.Context) (stageresult.StageContentResult, error) {
@@ -3129,6 +3130,23 @@ func (r *memoryPlannerRegistry) Create(
 }
 
 type plannerFunc func(context.Context) (stageresult.StageContentResult, error)
+
+type uncompletedSessions struct{}
+
+func (uncompletedSessions) Begin(context.Context, string) (planner.SessionStart, error) {
+	return planner.SessionStart{}, planner.ErrInvocationInProgress
+}
+
+func (s *memorySchedulerStore) HasSummaryEscalation(_ context.Context, runID, stageName string) (bool, error) {
+	for _, e := range s.stages {
+		if e.RunID == runID && e.StageName == stageName && e.ExecutionConfigVariant == runstore.StageExecutionConfigSummaryEscalation &&
+			e.ResumeSourceExecutionID == nil && e.PreviousExecutionID != nil && e.StageContext.Continuation != nil &&
+			e.StageContext.Continuation.SourceStageExecutionID == *e.PreviousExecutionID {
+			return true, nil
+		}
+	}
+	return false, nil
+}
 
 func (f plannerFunc) Run(ctx context.Context) (stageresult.StageContentResult, error) { return f(ctx) }
 

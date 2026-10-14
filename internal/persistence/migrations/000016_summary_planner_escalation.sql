@@ -6,16 +6,20 @@ ALTER TABLE stage_executions
 
 ALTER TABLE stage_executions
   ADD CONSTRAINT stage_execution_config_variant_shape CHECK (
-    (execution_config_variant = 'base' AND escalation_ordinal IS NULL)
+    (execution_config_variant = 'base' AND escalation_ordinal IS NULL
+      AND NOT (stage_context_snapshot ? 'continuation'))
     OR (
       execution_config_variant IN ('failed_escalation', 'interrupted_escalation')
       AND escalation_ordinal IS NOT NULL AND escalation_ordinal > 0
+      AND NOT (stage_context_snapshot ? 'continuation')
     )
     OR (
       execution_config_variant = 'summary_escalation'
+      AND escalation_ordinal IS NOT NULL
       AND escalation_ordinal = 1
       AND stage_context_snapshot ? 'continuation'
       AND jsonb_typeof(stage_context_snapshot -> 'continuation') = 'object'
+      AND (stage_context_snapshot -> 'continuation') ? 'sourceStageExecutionId'
       AND jsonb_typeof(stage_context_snapshot -> 'continuation' -> 'sourceStageExecutionId') = 'string'
     )
   );

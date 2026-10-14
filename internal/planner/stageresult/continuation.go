@@ -1,19 +1,14 @@
 package stageresult
 
-import (
-	"time"
-
-	"github.com/grauwolf32/contractor/internal/contracts"
-)
+import "github.com/grauwolf32/contractor/internal/contracts"
 
 // SummaryContinuation is explicit saved progress for a fresh Stage attempt.
-// Its deadline is control data and never enters the Planner model input.
+// Attempt deadlines come from the pinned policy and admission time.
 type SummaryContinuation struct {
 	SourceStageExecutionID string                           `json:"sourceStageExecutionId"`
 	Summary                string                           `json:"summary"`
 	SummaryArtifact        contracts.ArtifactRef            `json:"summaryArtifact"`
 	Artifacts              map[string]contracts.ArtifactRef `json:"artifacts"`
-	Deadline               time.Time                        `json:"deadline"`
 }
 
 func (s SummaryContinuation) Clone() SummaryContinuation {
@@ -24,8 +19,8 @@ func (s SummaryContinuation) Clone() SummaryContinuation {
 }
 
 func (s SummaryContinuation) Validate() error {
-	if !contracts.ValidResourceID(s.SourceStageExecutionID) || s.Deadline.IsZero() {
-		return contracts.Invalidf("summary continuation requires its source execution and deadline")
+	if !contracts.ValidResourceID(s.SourceStageExecutionID) {
+		return contracts.Invalidf("summary continuation requires its source execution")
 	}
 	if s.SummaryArtifact.Name != SummaryArtifactPrefix+s.SourceStageExecutionID {
 		return contracts.Invalidf("summary continuation artifact differs from its source execution")

@@ -37,6 +37,7 @@ type summarizerGateway struct {
 	mu             sync.Mutex
 	normalCalls    map[string]int
 	summaryCalls   map[string]int
+	plannerCalls   int
 	pending        map[string]summarizerFinalizerExpectation
 	captures       []summarizerGatewayCapture
 	failures       []string
@@ -129,6 +130,10 @@ func (g *summarizerGateway) serveHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	model = strings.TrimPrefix(model, "openai/")
+	if model == "planner-model" {
+		g.serveContinuationPlanner(w, request)
+		return
+	}
 	finalizerInput, isFinalizer, err := decodeWorkerResultFinalizerRequest(request)
 	if err != nil {
 		g.fail(w, http.StatusBadRequest, err.Error())
@@ -233,9 +238,13 @@ func (g *summarizerGateway) serveHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if normalCall == 1 {
+	if normalCall == 1 || (mode == "continuation" && normalCall == 2) {
+		name := "result"
+		if mode == "continuation" && normalCall == 1 {
+			name = "progress"
+		}
 		message := toolCallMessage("summary-write-"+mode, "write_text_artifact", map[string]any{
-			"name": "result", "text": "artifact produced for " + mode,
+			"name": name, "text": "artifact produced for " + mode,
 			"media_type": "text/plain", "expected_revision": nil,
 		})
 		// This text is model-visible history, but neither a result nor an
@@ -246,7 +255,11 @@ func (g *summarizerGateway) serveHTTP(w http.ResponseWriter, r *http.Request) {
 		g.writeCompletion(w, model, message, "tool_calls", usage)
 		return
 	}
-	if normalCall != 2 || !normalModeCompletesNormally(mode) {
+	wantFinal := 2
+	if mode == "continuation" {
+		wantFinal = 3
+	}
+	if normalCall != wantFinal || !normalModeCompletesNormally(mode) {
 		g.fail(w, http.StatusBadRequest, "unexpected additional normal Worker invocation")
 		return
 	}
@@ -352,6 +365,11 @@ func (g *summarizerGateway) fail(w http.ResponseWriter, status int, message stri
 
 func normalUsage(mode string, call int) map[string]any {
 	switch mode {
+	case "continuation":
+		if call == 1 {
+			return summarizerUsage(100, 19900, 20000)
+		}
+		return summarizerUsage(7, 3, 10)
 	case "cumulative", "invalid-summary", "cancel-summary", "provider-timeout":
 		return summarizerUsage(100, 19_900, 20_000)
 	case "context-window":
@@ -384,7 +402,7 @@ func summarizerUsage(prompt, completion, total int) map[string]any {
 
 func normalModeCompletesNormally(mode string) bool {
 	switch mode {
-	case "normal-final", "missing-usage", "disabled", "reuse-after-failure", "reuse-after-cancel":
+	case "normal-final", "missing-usage", "disabled", "reuse-after-failure", "reuse-after-cancel", "continuation":
 		return true
 	default:
 		return false
@@ -397,6 +415,7 @@ func summarizerRequestMode(request map[string]any) (string, error) {
 		"missing-usage": true, "disabled": true, "invalid-summary": true,
 		"cancel-summary": true, "provider-timeout": true,
 		"reuse-after-failure": true, "reuse-after-cancel": true,
+		"continuation": true,
 	}
 	values := map[string]bool{}
 	walkDomainJSON(request, func(object map[string]any) {
@@ -416,6 +435,52 @@ func summarizerRequestMode(request map[string]any) (string, error) {
 		return value, nil
 	}
 	return "", errors.New("summarizer Gateway request omitted mode")
+}
+
+func (g *summarizerGateway) serveContinuationPlanner(w http.ResponseWriter, request map[string]any) {
+	g.mu.Lock()
+	g.plannerCalls++
+	step := g.plannerCalls
+	g.mu.Unlock()
+	var message map[string]any
+	switch step {
+	case 1:
+		valid := false
+		walkDomainJSON(request, func(object map[string]any) {
+			saved, ok := object["continuation"].(map[string]any)
+			if !ok {
+				return
+			}
+			parameters, _ := object["parameters"].(map[string]any)
+			inputs, _ := object["artifacts"].(map[string]any)
+			ref, _ := saved["summaryArtifact"].(map[string]any)
+			progress, _ := saved["artifacts"].(map[string]any)
+			contract, _ := object["resultArtifacts"].(map[string]any)
+			result, _ := contract["result"].(map[string]any)
+			valid = object["objective"] == "Exercise continuation of partial analysis into the required final report" &&
+				object["instructions"] != "" && parameters["mode"] == "continuation" && inputs["source"] != nil &&
+				saved["summary"] == "Terminal summary for continuation" &&
+				ref["namespace"] == "builder" && ref["revision"] != "" && progress["progress"] != nil && result["required"] == true
+		})
+		if !valid {
+			g.fail(w, http.StatusBadRequest, "Planner did not receive original task and separate saved progress")
+			return
+		}
+		message = toolCallMessage("continue-add", "add_subtask", map[string]any{"objective": "Publish the remaining report", "instructions": "Reuse the partial analysis and verify the final report."})
+	case 2:
+		message = toolCallMessage("continue-execute", "execute_current_subtask", map[string]any{"subtask_id": "0"})
+	case 3:
+		ref, ok := exactArtifactValue(request, "builder", "result")
+		if !ok {
+			g.fail(w, http.StatusBadRequest, "continuation did not publish an exact final report")
+			return
+		}
+		message = toolCallMessage("continue-finish", "finish", map[string]any{"outcome": "succeeded", "summary": "Report completed", "artifacts": map[string]any{"result": ref}})
+	default:
+		g.fail(w, http.StatusBadRequest, "continuation exceeded its bounded Planner script")
+		return
+	}
+	g.writeCompletion(w, "planner-model", message, "tool_calls", summarizerUsage(7, 3, 10))
 }
 
 func summarizerResultMessage(request map[string]any, result string) (map[string]any, error) {

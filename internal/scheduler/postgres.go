@@ -464,12 +464,18 @@ func validateProgression(runID, sourceExecutionID string, value StageProgression
 		}
 		if decision.Action == runstore.StageTransitionEscalate {
 			if params.ExecutionConfigVariant != runstore.StageExecutionConfigFailedEscalation &&
-				params.ExecutionConfigVariant != runstore.StageExecutionConfigInterruptedEscalation {
+				params.ExecutionConfigVariant != runstore.StageExecutionConfigInterruptedEscalation &&
+				params.ExecutionConfigVariant != runstore.StageExecutionConfigSummaryEscalation {
 				return fmt.Errorf("escalate Stage progression requires an escalation configuration variant")
 			}
 			if decision.EscalationOrdinal == nil || params.EscalationOrdinal == nil ||
 				*decision.EscalationOrdinal != *params.EscalationOrdinal || decision.EscalationExhausted {
 				return fmt.Errorf("escalate Stage progression ordinal differs from its target")
+			}
+		} else if decision.Action == runstore.StageTransitionRetry &&
+			params.ExecutionConfigVariant == runstore.StageExecutionConfigSummaryEscalation {
+			if params.EscalationOrdinal == nil || *params.EscalationOrdinal != 1 || params.StageContext.Continuation == nil {
+				return fmt.Errorf("summary retry requires its existing strategy ordinal and context")
 			}
 		} else if params.ExecutionConfigVariant != runstore.StageExecutionConfigBase ||
 			params.EscalationOrdinal != nil {
@@ -499,7 +505,7 @@ func validateNextStagePins(value NextStageCreation) error {
 		}
 		pins[pin.Name] = pin.Ref
 	}
-	for _, expected := range stageContextPins(value.Params.StageContext) {
+	for _, expected := range value.Params.StageContext.Pins() {
 		pin, present := pins[expected.Name]
 		if !present || !pin.SameExact(expected.Ref) {
 			return fmt.Errorf("StageContext artifact %q pin differs from its exact snapshot", expected.Name)
@@ -537,6 +543,10 @@ func commitNextStage(
 	sort.Slice(pins, func(i, j int) bool { return pins[i].Name < pins[j].Name })
 	for _, pin := range pins {
 		if err := artifactService.RequireExact(ctx, scope, pin.Ref); err != nil {
+			if errors.Is(err, artifacts.ErrArtifactNotFound) || errors.Is(err, artifacts.ErrInvalidName) ||
+				errors.Is(err, artifacts.ErrExactRevisionRequired) {
+				return fmt.Errorf("%w: require StageContext artifact %q: %w", errInvalidRunState, pin.Name, err)
+			}
 			return fmt.Errorf("require StageContext artifact %q: %w", pin.Name, err)
 		}
 	}

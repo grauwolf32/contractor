@@ -205,7 +205,9 @@ func workflowTransitionReadModel(action resolved.TransitionAction) workflowTrans
 			),
 		}
 		then := workflowTransitionReadModel(action.Escalate.Then)
-		result.Then = &then
+		if action.Escalate.Planner == nil {
+			result.Then = &then
+		}
 	}
 	return result
 }

@@ -23,6 +23,7 @@ func (s *escalateSource) UnmarshalYAML(node *yaml.Node) error {
 	}
 	s.plannerPresent = yamlMappingHasKey(node, "planner")
 	s.deadlinePresent = yamlMappingHasKey(node, "deadlineSeconds")
+	s.thenPresent = yamlMappingHasKey(node, "then")
 	return nil
 }
 
@@ -35,6 +36,9 @@ func resolveEscalationPlanner(field string, source *escalateSource) (*resolved.P
 	}
 	if source.Planner == nil || source.DeadlineSeconds == nil {
 		return nil, 0, fmt.Errorf("on.summarized.escalate requires planner and deadlineSeconds")
+	}
+	if source.thenPresent {
+		return nil, 0, fmt.Errorf("on.summarized.escalate has no then; continuation failures use on.failed/on.interrupted")
 	}
 	selector, err := resolved.ParseSelector(*source.Planner)
 	if err != nil {

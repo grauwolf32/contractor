@@ -193,7 +193,8 @@ func testPostgresSchedulerPublication(t *testing.T, scenario schedulerPublicatio
 	}
 	sequence := 0
 	scheduler, err := New(store, transactions, resolver, allocator, workers, planners, Options{
-		PollInterval: time.Second, LeaseScanInterval: time.Second, ClaimDuration: time.Minute, OperationTimeout: 5 * time.Second,
+		PlannerSessions: sessions,
+		PollInterval:    time.Second, LeaseScanInterval: time.Second, ClaimDuration: time.Minute, OperationTimeout: 5 * time.Second,
 		PlannerTimeout: 20 * time.Second, FinalizationTimeout: 5 * time.Second, AbortTimeout: 5 * time.Second,
 		RuntimeTransport: testSchedulerRuntimeTransport(), Credentials: credentialProvider, Clock: clock,
 		Settings: settingsstore.NewPostgresStore(pool), Reports: telemetry.NewRepository(pool),
@@ -1472,7 +1473,7 @@ func (i *postgresTestWorkerInvoker) Invoke(
 				Profile: contracts.WorkerObservationProfileLeanV1,
 				Tools:   map[string]contracts.ToolObservationCount{},
 			},
-			Artifacts: result.Artifacts, Summarized: false,
+			Artifacts: result.Artifacts, Summarized: result.Summarized,
 		},
 		InvocationID: "worker-postgres-test", StateRevision: 2,
 	}, nil

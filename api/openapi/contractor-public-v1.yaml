@@ -12620,27 +12620,30 @@ components:
           type: boolean
           description: Runtime-owned terminal summary carried by passthrough as incomplete work requiring continuation.
         summaryArtifact: {$ref: '#/components/schemas/ExactArtifactRef'}
-      allOf:
-        - if: {properties: {outcome: {const: succeeded}}}
-          then: {not: {required: [error]}}
-        - if: {properties: {outcome: {const: failed}}}
-          then: {required: [error]}
-        - if: {required: [summarized], properties: {summarized: {const: true}}}
-          then:
-            required: [error]
-            properties:
-              outcome: {const: failed}
-              error:
-                properties:
-                  code: {const: worker_summarized}
-                  retryable: {const: false}
-        - if: {required: [summaryArtifact]}
-          then: {required: [summarized], properties: {summarized: {const: true}}}
-        - if:
-            required: [error]
-            properties:
-              error: {required: [code], properties: {code: {const: worker_summarized}}}
-          then: {required: [summarized], properties: {summarized: {const: true}}}
+      oneOf:
+        - properties:
+            outcome: {enum: [succeeded]}
+            summarized: {enum: [false]}
+          not:
+            anyOf:
+              - required: [error]
+              - required: [summaryArtifact]
+        - required: [error]
+          properties:
+            outcome: {enum: [failed]}
+            summarized: {enum: [false]}
+            error:
+              properties:
+                code: {not: {enum: [worker_summarized]}}
+          not: {required: [summaryArtifact]}
+        - required: [summarized, error]
+          properties:
+            outcome: {enum: [failed]}
+            summarized: {enum: [true]}
+            error:
+              properties:
+                code: {enum: [worker_summarized]}
+                retryable: {enum: [false]}
     StageTermination:
       type: object
       additionalProperties: false
@@ -13688,7 +13691,7 @@ components:
     WorkflowSummaryTransition:
       type: object
       additionalProperties: false
-      required: [kind, maxAttempts, planner, deadlineSeconds, executionConfig, then]
+      required: [kind, maxAttempts, planner, deadlineSeconds, executionConfig]
       properties:
         kind: {type: string, const: escalate}
         maxAttempts: {type: integer, const: 1}
@@ -13698,9 +13701,12 @@ components:
             - properties:
                 plannerId: {const: streamline}
                 version: {const: '1'}
-        deadlineSeconds: {type: integer, minimum: 1, maximum: 86400}
+        deadlineSeconds:
+          type: integer
+          minimum: 1
+          maximum: 86400
+          description: Per-attempt execution allowance from admission; queue time is excluded and the enclosing Stage timeout still applies.
         executionConfig: {$ref: '#/components/schemas/WorkflowEscalationConfig'}
-        then: {$ref: '#/components/schemas/WorkflowNextOrFailTransition'}
     WorkflowFailureTransition:
       oneOf:
         - {$ref: '#/components/schemas/WorkflowNextTransition'}

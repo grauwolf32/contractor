@@ -236,7 +236,7 @@ func ValidateWorkflowGraph(workflow ResolvedWorkflow) error {
 			return err
 		}
 		for _, named := range stage.On.Actions() {
-			if named.Outcome == "succeeded" {
+			if named.Outcome == "succeeded" || named.Outcome == "summarized" {
 				continue
 			}
 			if err := applyWorkflowTransition(
@@ -302,6 +302,12 @@ func validateResolvedTransition(
 	case TransitionEscalate:
 		if action.NextStage != "" || action.Retry != nil || action.Escalate == nil || action.Escalate.MaxAttempts < 1 {
 			return fmt.Errorf("%s escalate Transition requires bounded maxAttempts >= 1", field)
+		}
+		if action.Escalate.Planner != nil {
+			if action.Escalate.Then != (TransitionAction{}) {
+				return fmt.Errorf("%s summary strategy escalation has no then", field)
+			}
+			return nil
 		}
 		if err := validateResolvedTransition(
 			field+".escalate.then",

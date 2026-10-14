@@ -12,7 +12,7 @@ import (
 )
 
 // ArtifactServiceResolver resolves current RunScope bindings outside any
-// Scheduler transaction and returns only the exact ref plus metadata.
+// Scheduler transaction, and publishes source-keyed summary artifacts.
 type ArtifactServiceResolver struct {
 	service *artifacts.Service
 }
