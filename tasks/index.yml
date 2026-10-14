@@ -74,6 +74,9 @@ execution_policy:
     P3: Low-impact correction with no user-visible failure, such as documentation, dead code or test hygiene.
 
 milestones:
+  - id: http-session-continuation-2026-10
+    exit_task: V377-001
+    outcome: Target cookies survive allocation replacement within the same Run and Agent Namespace as an ordinary artifact, preserving login state without retaining all HTTP traffic.
   - id: http-finding-evidence-2026-10
     exit_task: V376-003
     outcome: Only HTTP exchanges selected as finding evidence become ordinary artifacts, and their requests and available responses can be previewed and downloaded in the UI.
