@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/grauwolf32/contractor/internal/auditstore/hookstore"
 	"path/filepath"
 	"reflect"
 	"testing"
@@ -34,7 +35,7 @@ func TestImporterReportFinalizationSurvivesRunDeletion(t *testing.T) {
 		for _, point := range []string{"before-machine", "after-machine", "after-summary"} {
 			t.Run(acceptance+"/"+point, func(t *testing.T) {
 				f, snapshot := newReportDeletionFixture(t, pool, acceptance)
-				access, err := NewArtifactAccess(f.artifacts)
+				access, err := NewArtifactAccess(f.artifacts, hookstore.NewClaimedArtifacts(f.pool))
 				mustCompletion(t, err)
 				deleted := false
 				hooked := &reportDeletionArtifacts{ArtifactAccess: access, hook: func(observed string) {
@@ -111,7 +112,7 @@ func TestImporterPendingReportReviewSurvivesRunDeletion(t *testing.T) {
 	for _, action := range []auditstore.ReviewAction{auditstore.ReviewApprove, auditstore.ReviewReject} {
 		t.Run(string(action), func(t *testing.T) {
 			f, snapshot := newReportDeletionFixture(t, pool, "human-required")
-			access, err := NewArtifactAccess(f.artifacts)
+			access, err := NewArtifactAccess(f.artifacts, hookstore.NewClaimedArtifacts(f.pool))
 			mustCompletion(t, err)
 			importer, err := New(f.audits, f.audits, f.runs, access)
 			mustCompletion(t, err)
@@ -185,7 +186,7 @@ func TestImporterPendingReportReviewSurvivesRunDeletion(t *testing.T) {
 func TestImporterReportRetryRejectsChangedFinalizationTimestamp(t *testing.T) {
 	pool := completionPool(t)
 	f, snapshot := newReportDeletionFixture(t, pool, "automatic")
-	access, err := NewArtifactAccess(f.artifacts)
+	access, err := NewArtifactAccess(f.artifacts, hookstore.NewClaimedArtifacts(f.pool))
 	mustCompletion(t, err)
 	hooked := &reportDeletionArtifacts{ArtifactAccess: access, hook: func(point string) {
 		if point == "after-machine" {
@@ -352,6 +353,12 @@ type reportDeletionArtifacts struct {
 		artifact auditstore.ExactArtifact
 		data     []byte
 	}
+}
+
+func (a *reportDeletionArtifacts) WithClaim(claim auditstore.ControllerClaim) ArtifactAccess {
+	bound := *a
+	bound.ArtifactAccess = a.ArtifactAccess.WithClaim(claim)
+	return &bound
 }
 
 func (a *reportDeletionArtifacts) PutImmutableProject(ctx context.Context, projectID string, target contracts.ArtifactRef, payload artifacts.Payload) (auditstore.ExactArtifact, error) {

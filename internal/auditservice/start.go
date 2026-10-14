@@ -14,6 +14,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstandards"
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/auditstore/hookstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/ownerstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/querystore"
 	"github.com/grauwolf32/contractor/internal/config/auditprofile"
@@ -776,6 +777,8 @@ func writeRoundPackage(
 type auditArtifactWriter struct {
 	service   *artifacts.Service
 	projectID string
+	claim     *auditstore.ControllerClaim
+	writes    *hookstore.ClaimedArtifacts
 }
 
 func (w auditArtifactWriter) write(
@@ -787,7 +790,17 @@ func (w auditArtifactWriter) write(
 	if err != nil {
 		return auditstore.ExactArtifact{}, err
 	}
-	written, err := w.service.CreateFrozen(ctx, project, target, payload)
+	var written artifacts.WriteResult
+	if w.claim != nil {
+		err = w.writes.WithArtifactWrite(ctx, *w.claim, w.projectID, target.Namespace, func(service *artifacts.Service) error {
+			var writeErr error
+			written, writeErr = service.CreateFrozen(ctx, project, target, payload)
+			return writeErr
+		})
+	} else {
+		// Start staging holds the draft Audit row in its own transaction.
+		written, err = w.service.CreateFrozen(ctx, project, target, payload)
+	}
 	if err != nil {
 		return auditstore.ExactArtifact{}, err
 	}

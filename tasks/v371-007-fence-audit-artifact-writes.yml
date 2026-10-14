@@ -5,7 +5,7 @@ milestone: hub-audit-defects-2026-10
 epic: audits
 kind: defect
 priority: P2
-status: pending
+status: in_progress
 depends_on: []
 languages: [go]
 goal: "A controller whose claim was taken over cannot write an Audit-managed artifact after the new holder purged the Audit; a PostgreSQL reproduction shows the write refused and no binding left behind, or records why the race cannot happen."

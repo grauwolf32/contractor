@@ -99,6 +99,7 @@ type CheckExecutionMember struct {
 }
 
 type SubmissionBuilder interface {
+	WithClaim(auditstore.ControllerClaim) SubmissionBuilder
 	// PrepareBatch may select a non-empty ordered prefix of the supplied
 	// candidates to satisfy trusted encoded-package byte limits.
 	PrepareBatch(context.Context, auditstore.ReconcileSnapshot, []CheckExecutionMember) (PreparedSubmission, error)

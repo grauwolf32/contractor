@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"github.com/grauwolf32/contractor/internal/auditstore/hookstore"
 	"log/slog"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
@@ -54,7 +55,7 @@ func configureAudits(
 	if err != nil {
 		return auditServices{}, err
 	}
-	auditArtifactAccess, err := auditcontroller.NewProjectArtifactAccess(catalogs.artifacts)
+	auditArtifactAccess, err := auditcontroller.NewProjectArtifactAccess(catalogs.artifacts, hookstore.NewClaimedArtifacts(pool))
 	if err != nil {
 		return auditServices{}, fmt.Errorf("configure Audit Controller artifacts: %w", err)
 	}
@@ -67,7 +68,7 @@ func configureAudits(
 	if err != nil {
 		return auditServices{}, fmt.Errorf("configure Audit Controller submissions: %w", err)
 	}
-	auditImportArtifacts, err := auditimport.NewArtifactAccess(catalogs.artifacts)
+	auditImportArtifacts, err := auditimport.NewArtifactAccess(catalogs.artifacts, hookstore.NewClaimedArtifacts(pool))
 	if err != nil {
 		return auditServices{}, fmt.Errorf("configure Audit import artifacts: %w", err)
 	}

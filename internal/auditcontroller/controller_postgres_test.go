@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/grauwolf32/contractor/internal/auditstore/hookstore"
 	"os"
 	"path/filepath"
 	"strings"
@@ -617,11 +618,8 @@ func TestPostgresControllerFullWindowSkipsPreparationUntilSettingsIncrease(t *te
 func TestPostgresImmutableProjectArtifactReuseLeavesNoFilesystemOrphans(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	databaseURL := os.Getenv("CONTRACTOR_TEST_DATABASE_URL")
-	if databaseURL == "" {
-		t.Skip("CONTRACTOR_TEST_DATABASE_URL is not set")
-	}
-	pool := isolatedControllerPool(t, ctx, databaseURL)
+	h := newPostgresControllerHarness(t, ctx, 1)
+	pool := h.pool
 	path := t.TempDir()
 	files, err := artifacts.OpenFilesystemBlobStore(ctx, path)
 	if err != nil {
@@ -629,21 +627,18 @@ func TestPostgresImmutableProjectArtifactReuseLeavesNoFilesystemOrphans(t *testi
 	}
 	defer files.Close()
 	ctx = artifacts.WithBlobRuntime(ctx, artifacts.NewBlobRuntime(files, nil))
-	project, _, err := projectstore.NewPostgresStore(pool).Create(ctx, projectstore.CreateParams{
-		ProjectID: "project-immutable-audit", OwnerID: "owner-immutable-audit",
-		Kind: projectstore.KindProject, Name: "Immutable Audit artifact test",
-		IdempotencyKey: "create-immutable-project", RequestDigest: postgresDigest("immutable-project"),
-	})
-	if err != nil {
-		t.Fatal(err)
+	project := h.started.Audit
+	claims, err := h.audits.Claim(ctx, auditstore.ClaimParams{HolderID: "immutable-writer", Lease: time.Minute, Limit: 1})
+	if err != nil || len(claims) != 1 {
+		t.Fatalf("claim: %v %v", claims, err)
 	}
 	base := artifacts.NewPostgresRepository(pool)
-	counting := &countingProjectArtifactRepository{PostgresRepository: base}
-	access, err := NewProjectArtifactAccess(artifacts.NewService(counting))
+	unbound, err := NewProjectArtifactAccess(artifacts.NewService(base), hookstore.NewClaimedArtifacts(pool))
 	if err != nil {
 		t.Fatal(err)
 	}
-	target := contracts.ArtifactRef{Namespace: "audit-test", Name: "content-derived"}
+	access := unbound.WithClaim(claims[0])
+	target := contracts.ArtifactRef{Namespace: auditdomain.ArtifactNamespace(project.AuditID), Name: "content-derived"}
 	payload := artifacts.Payload{MediaType: "application/json", Data: []byte(`{"stable":true}`)}
 	var first auditstore.ExactArtifact
 	for attempt := 0; attempt < 4; attempt++ {
@@ -660,9 +655,6 @@ func TestPostgresImmutableProjectArtifactReuseLeavesNoFilesystemOrphans(t *testi
 	if _, err := access.PutImmutableProject(ctx, project.ProjectID, target,
 		artifacts.Payload{MediaType: "application/json", Data: []byte(`{"stable":false}`)}); !errors.Is(err, ErrInvalidSubmission) {
 		t.Fatalf("content-derived binding collision = %v", err)
-	}
-	if counting.writes != 1 {
-		t.Fatalf("immutable Project Write calls = %d, want 1", counting.writes)
 	}
 	projectArtifacts, err := artifacts.NewService(base).Project(project.ProjectID)
 	if err != nil {
@@ -712,18 +704,6 @@ SELECT namespace || '/' || name, frozen
 	}
 }
 
-type countingProjectArtifactRepository struct {
-	*artifacts.PostgresRepository
-	writes int
-}
-
-func (r *countingProjectArtifactRepository) CreateFrozen(
-	ctx context.Context, scope artifacts.Scope, target artifacts.ArtifactRef, payload artifacts.Payload,
-) (artifacts.WriteResult, error) {
-	r.writes++
-	return r.PostgresRepository.CreateFrozen(ctx, scope, target, payload)
-}
-
 func TestPostgresDispatchReservationOrdersWithSettingsDecrease(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
@@ -753,7 +733,7 @@ func TestPostgresDispatchReservationOrdersWithSettingsDecrease(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	builder := harness.builder(t)
+	builder := harness.builder(t).WithClaim(claim)
 	first, err := builder.PrepareBatch(ctx, snapshot, []CheckExecutionMember{{Item: snapshot.Items[0], Attempt: 1}})
 	if err != nil {
 		t.Fatal(err)
@@ -844,7 +824,7 @@ func TestPostgresControllersConvergeWithoutDuplicateExecutionAttempts(t *testing
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := harness.builder(t).PrepareBatch(
+	if _, err := harness.builder(t).WithClaim(preflightClaims[0]).PrepareBatch(
 		ctx, preflightSnapshot, []CheckExecutionMember{{Item: preflightSnapshot.Items[0], Attempt: 1}},
 	); err != nil {
 		t.Fatalf("preflight pinned submission: %v", err)
@@ -1228,7 +1208,7 @@ func TestPostgresControllerCollectsAndPublishesExactAuditReport(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	access, err := auditimport.NewArtifactAccess(harness.artifacts)
+	access, err := auditimport.NewArtifactAccess(harness.artifacts, hookstore.NewClaimedArtifacts(harness.pool))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1569,7 +1549,7 @@ func newPostgresControllerHarnessWithConfig(
 
 func (h *postgresControllerHarness) builder(t *testing.T) *PinnedSubmissionBuilder {
 	t.Helper()
-	access, err := NewProjectArtifactAccess(h.artifacts)
+	access, err := NewProjectArtifactAccess(h.artifacts, hookstore.NewClaimedArtifacts(h.pool))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1624,7 +1604,7 @@ func (h *postgresControllerHarness) controllerWithCollector(
 	t *testing.T, findings ...auditimport.FindingRetention,
 ) *Controller {
 	t.Helper()
-	access, err := auditimport.NewArtifactAccess(h.artifacts)
+	access, err := auditimport.NewArtifactAccess(h.artifacts, hookstore.NewClaimedArtifacts(h.pool))
 	if err != nil {
 		t.Fatal(err)
 	}

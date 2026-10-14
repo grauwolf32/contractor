@@ -5,6 +5,7 @@ package auditimport
 import (
 	"context"
 	"encoding/json"
+	"github.com/grauwolf32/contractor/internal/auditstore/hookstore"
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
@@ -72,7 +73,7 @@ INSERT INTO finding_proposal_receipts (
 	mustCompletion(t, err)
 	snapshot, err := f.audits.GetReconcileSnapshot(f.ctx, f.claim)
 	mustCompletion(t, err)
-	access, err := NewArtifactAccess(f.artifacts)
+	access, err := NewArtifactAccess(f.artifacts, hookstore.NewClaimedArtifacts(f.pool))
 	mustCompletion(t, err)
 	intake, err := findingintake.New(f.pool)
 	mustCompletion(t, err)
@@ -138,7 +139,7 @@ INSERT INTO finding_proposal_receipts (
 )`, id, completionDigest([]byte(id)), f.run.RunID, f.id, f.execution.ExecutionID)
 		mustCompletion(t, err)
 	}
-	access, err := NewArtifactAccess(f.artifacts)
+	access, err := NewArtifactAccess(f.artifacts, hookstore.NewClaimedArtifacts(f.pool))
 	mustCompletion(t, err)
 	importer, err := New(f.audits, f.audits, f.runs, access)
 	mustCompletion(t, err)

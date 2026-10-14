@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/grauwolf32/contractor/internal/auditstore/hookstore"
 	"slices"
 	"strings"
 	"sync"
@@ -48,7 +49,7 @@ func TestImporterFinalizesLargeAuditUnderPageBudgetAndResumes(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
 	seed := seedLargeReportAudit(t, ctx, pool)
-	access, err := NewArtifactAccess(artifacts.NewService(artifacts.NewPostgresRepository(pool)))
+	access, err := NewArtifactAccess(artifacts.NewService(artifacts.NewPostgresRepository(pool)), hookstore.NewClaimedArtifacts(pool))
 	mustCompletion(t, err)
 	store := &budgetedReportStore{Store: auditstoretest.NewStore(pool), reads: map[string]int{}}
 	importer, err := New(store, store, runstore.NewPostgresStore(pool), access)

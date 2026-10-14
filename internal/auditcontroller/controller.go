@@ -232,7 +232,7 @@ func (c *Controller) dispatchRole(
 	workflowRole string,
 	attempt int,
 ) (bool, bool, *auditstore.StopReason, error) {
-	prepared, err := c.builder.PrepareRole(ctx, snapshot, workflowRole, attempt)
+	prepared, err := c.builder.WithClaim(claim).PrepareRole(ctx, snapshot, workflowRole, attempt)
 	if err != nil {
 		if errors.Is(err, ErrInvalidSubmission) {
 			return false, false, &auditstore.StopReason{
@@ -503,7 +503,7 @@ func (c *Controller) resumeOneIntent(
 				}
 				selected[index] = CheckExecutionMember{Item: item, Attempt: member.ItemAttempt}
 			}
-			prepared, err = c.builder.PrepareBatch(ctx, snapshot, selected)
+			prepared, err = c.builder.WithClaim(claim).PrepareBatch(ctx, snapshot, selected)
 			if err == nil && !matchingIntent(execution, members, prepared.Intent) {
 				err = ErrInvalidSubmission
 			}
@@ -511,7 +511,7 @@ func (c *Controller) resumeOneIntent(
 			if len(members) != 0 || execution.RoleAttempt == nil {
 				return c.failInvalidIntent(ctx, claim, execution.ExecutionID)
 			}
-			prepared, err = c.builder.PrepareRole(
+			prepared, err = c.builder.WithClaim(claim).PrepareRole(
 				ctx, snapshot, execution.WorkflowRole, *execution.RoleAttempt,
 			)
 			if err == nil && !matchingRoleIntent(execution, prepared.Intent) {
@@ -552,7 +552,7 @@ func (c *Controller) dispatch(
 	snapshot auditstore.ReconcileSnapshot,
 	selected []CheckExecutionMember,
 ) (bool, error) {
-	prepared, err := c.builder.PrepareBatch(ctx, snapshot, selected)
+	prepared, err := c.builder.WithClaim(claim).PrepareBatch(ctx, snapshot, selected)
 	if err != nil {
 		if errors.Is(err, ErrInvalidSubmission) {
 			reason := auditstore.StopReason{

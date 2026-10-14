@@ -127,6 +127,12 @@ func (s *ClaimStore) PurgeClaimed(
 func purgeClaimedAudit(
 	ctx context.Context, tx pgx.Tx, claim auditstore.ControllerClaim, namespace string,
 ) error {
+	if err := auditClaims.Lock(ctx, tx, claim.AuditID, claim.HolderID, int64(claim.Epoch)); err != nil {
+		if errors.Is(err, persistencepostgres.ErrControllerClaimLost) {
+			return auditstore.ErrClaimLost
+		}
+		return err
+	}
 	var projectID string
 	err := tx.QueryRow(ctx, purgeClaimedAuditSQL, claim.AuditID, claim.HolderID, claim.Epoch).Scan(&projectID)
 	if errors.Is(err, pgx.ErrNoRows) {

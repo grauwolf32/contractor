@@ -192,6 +192,8 @@ type fakeRoleOutputLookup struct {
 
 type fakeBuilderArtifactAccess struct{ payload artifacts.Payload }
 
+func (f *fakeBuilderArtifactAccess) WithClaim(auditstore.ControllerClaim) ArtifactAccess { return f }
+
 func (f *fakeBuilderArtifactAccess) PutImmutableProject(
 	context.Context, string, contracts.ArtifactRef, artifacts.Payload,
 ) (auditstore.ExactArtifact, error) {

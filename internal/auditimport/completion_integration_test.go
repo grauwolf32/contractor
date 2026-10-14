@@ -13,6 +13,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"github.com/grauwolf32/contractor/internal/auditstore/hookstore"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -327,7 +328,7 @@ func (f *completionFixture) collect(t *testing.T, outcome runstore.WorkflowRunSt
 	mustCompletion(t, err)
 	snapshot, err := f.audits.GetReconcileSnapshot(f.ctx, f.claim)
 	mustCompletion(t, err)
-	access, err := NewArtifactAccess(f.artifacts)
+	access, err := NewArtifactAccess(f.artifacts, hookstore.NewClaimedArtifacts(f.pool))
 	mustCompletion(t, err)
 	importer, err := New(f.audits, f.audits, f.runs, access)
 	mustCompletion(t, err)

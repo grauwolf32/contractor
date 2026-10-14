@@ -7,12 +7,14 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/auditstore/hookstore"
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
 // ArtifactAccess keeps package construction testable while production uses
 // the existing ProjectScope artifact authority.
 type ArtifactAccess interface {
+	WithClaim(auditstore.ControllerClaim) ArtifactAccess
 	PutImmutableProject(
 		context.Context, string, contracts.ArtifactRef, artifacts.Payload,
 	) (auditstore.ExactArtifact, error)
@@ -52,13 +54,23 @@ func (a *ProjectArtifactAccess) ReadProjectExact(
 	}, nil
 }
 
-type ProjectArtifactAccess struct{ service *artifacts.Service }
+type ProjectArtifactAccess struct {
+	service *artifacts.Service
+	writes  *hookstore.ClaimedArtifacts
+	claim   auditstore.ControllerClaim
+}
 
-func NewProjectArtifactAccess(service *artifacts.Service) (*ProjectArtifactAccess, error) {
-	if service == nil {
+func NewProjectArtifactAccess(service *artifacts.Service, writes *hookstore.ClaimedArtifacts) (*ProjectArtifactAccess, error) {
+	if service == nil || writes == nil {
 		return nil, errors.New("Audit Controller Artifact service is required")
 	}
-	return &ProjectArtifactAccess{service: service}, nil
+	return &ProjectArtifactAccess{service: service, writes: writes}, nil
+}
+
+func (a *ProjectArtifactAccess) WithClaim(claim auditstore.ControllerClaim) ArtifactAccess {
+	bound := *a
+	bound.claim = claim
+	return &bound
 }
 
 // PutImmutableProject writes a content-named manifest or task package as a
@@ -75,7 +87,12 @@ func (a *ProjectArtifactAccess) PutImmutableProject(
 	if err != nil {
 		return auditstore.ExactArtifact{}, err
 	}
-	written, err := a.service.CreateFrozen(ctx, project, target, payload)
+	var written artifacts.WriteResult
+	err = a.writes.WithArtifactWrite(ctx, a.claim, projectID, target.Namespace, func(service *artifacts.Service) error {
+		var writeErr error
+		written, writeErr = service.CreateFrozen(ctx, project, target, payload)
+		return writeErr
+	})
 	if errors.Is(err, artifacts.ErrAuditArtifactCollision) {
 		return auditstore.ExactArtifact{}, fmt.Errorf("%w: immutable Audit artifact binding collision: %v", ErrInvalidSubmission, err)
 	}

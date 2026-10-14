@@ -937,6 +937,15 @@ phases in order (FAIL-REV-11, LIFE-REV-5):
 3. release evidence and accepted-proposal holds;
 4. only then purge Audit-managed Project bindings and domain rows.
 
+Every controller publication or retention, including preparation and later
+Round packages and imported reports, locks its live claim and then its Audit
+in the transaction that inserts or replays the binding. The transaction
+rejects a deleting or missing Audit and an expired or replaced claim with
+`ErrClaimLost`. Purge takes the same claim-before-Audit lock order. Start
+staging instead holds the draft Audit row; finding intake holds the Audit
+through its existing decision transaction. Artifact storage never reads Audit
+tables to infer this authority.
+
 **REV-R160.** The purge removes every row the Audit owns, including
 immutable review decisions and finding assessments that outlive the deleted
 child Runs; their restricting keys protect them only outside a purge.
