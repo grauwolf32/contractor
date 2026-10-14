@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-86 open tasks: 5 in progress, 67 pending, 14 deferred. 881 finished: 878 completed, 3 archived.
+88 open tasks: 5 in progress, 69 pending, 14 deferred. 881 finished: 878 completed, 3 archived.
 
 ## In progress
 
@@ -15,7 +15,7 @@ the epics are in [epics.yml](epics.yml).
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V376-003](v376-003-http-evidence-preview.yml) | ui | feature | P1 | Preview and download finding-selected HTTP evidence in the UI |
-| [V376-005](v376-005-caido-response-unavailable.yml) | http-tools | defect | P2 | Preserve an unavailable Caido response without inventing a transport failure |
+| [V376-005](v376-005-caido-response-unavailable.yml) | http-tools | defect | P2 | Preserve truthful missing and intermediate HTTP response outcomes |
 
 ## Pending
 
@@ -36,6 +36,7 @@ the epics are in [epics.yml](epics.yml).
 | [V371-004](v371-004-worker-completion-exact-integers.yml) | defect | P3 | — | Bound WorkerCompletion integers to the range A2A carries exactly |
 | [V371-005](v371-005-worker-state-read-cost-guard.yml) | chore | P3 | — | Guard the Worker State read cost with a deterministic bound and re-measure it |
 | [V371-006](v371-006-workspace-observation-descriptor.yml) | chore | P3 | — | Take the Worker tools that observe the workspace from the shared Toolset descriptor |
+| [V378-001](v378-001-passthrough-streamline-summary-escalation.yml) | feature | P1 | — | Escalate summarized passthrough work to Streamline with its original task |
 
 ### Runtime labels, configuration and credentials (`runtime-config`)
 
@@ -49,6 +50,7 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V375-002](v375-002-caido-sitemap-cardinality.yml) | defect | P1 | — | Keep Caido sitemap browsing usable above one hundred entries |
+| [V377-001](v377-001-http-cookie-session-artifact.yml) | feature | P2 | — | Preserve target cookies as an ordinary artifact across Run continuation |
 
 ### Scanner tool Workers and scan planning (`scan-tools`)
 
@@ -183,13 +185,13 @@ tasks in `introduced_by`.
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | Run execution core (`execution-core`) | 4 | 36 | 49 | 11 | 63 |
-| Planners and the Worker model boundary (`planner-worker`) | 4 | 23 | 37 | 9 | 46 |
+| Planners and the Worker model boundary (`planner-worker`) | 5 | 24 | 37 | 9 | 46 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 11 | 25 | 12 | 3 | 37 |
 | Shared Memory tools (`memory`) | 0 | 6 | 8 | 1 | 11 |
 | Agent Skills (`agent-skills`) | 0 | 10 | 2 | 1 | 1 |
 | Run workspaces and project filesystem (`workspaces`) | 0 | 16 | 12 | 4 | 15 |
 | Code analysis and taint annotations (`code-analysis`) | 0 | 13 | 12 | 2 | 17 |
-| HTTP and Caido tools (`http-tools`) | 2 | 9 | 13 | 3 | 13 |
+| HTTP and Caido tools (`http-tools`) | 3 | 10 | 13 | 3 | 13 |
 | Scanner tool Workers and scan planning (`scan-tools`) | 1 | 10 | 4 | 1 | 7 |
 | Findings tools and collections (`findings`) | 4 | 7 | 5 | 4 | 7 |
 | Workflow catalog and document workflows (`workflows`) | 3 | 13 | 13 | 11 | 12 |

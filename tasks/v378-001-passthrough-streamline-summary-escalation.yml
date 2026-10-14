@@ -1,0 +1,197 @@
+schema_version: "1.0"
+id: V378-001
+title: Escalate summarized passthrough work to Streamline with its original task
+milestone: planner-summary-continuation-2026-10
+epic: planner-worker
+kind: feature
+priority: P1
+status: pending
+depends_on: [V3-003, V3-008, V376-002]
+languages: [go, python, markdown]
+goal: >-
+  Preserve work when a passthrough Worker reaches terminal summarization and let
+  Streamline plan the continuation. Pass the complete original task and the
+  summary as separate inputs, retain access to saved artifacts and Memory in
+  the same Run and Agent Namespace, and still require the declared final report.
+context:
+  request: >-
+    On 2026-10-14 the user requested passthrough-to-streamline escalation after
+    the summarizer, analogous to Scheduler escalation. They explicitly required
+    both the original task and summary, preservation of the namespace and access
+    to the same recorded artifacts/Memory. Only already recorded artifacts need
+    survive; target-cookie persistence is a separate, non-blocking follow-up
+    V377-001 and is not a dependency of this task.
+  finding: >-
+    internal/planner/worker_result.go:54 maps every successful WorkerResult to
+    StageSucceeded without checking Summarized. internal/planner/passthrough.go:150
+    validates the required report before CompleteSession at line 173. In five
+    XBOW attempts (first batch 037, overnight 029/030/034/054), the summarizer
+    succeeded once, no report was written, and the result was rejected with
+    result_contract_violation. Stage candidate/result and the Planner session
+    retained no summary text, only the rejection and metrics.
+  boundary_decision: >-
+    Reuse Scheduler-owned bounded escalation, creating a new StageExecution and
+    Planner Session in the same Run. Preserve one Planner invocation per attempt.
+    The Runtime-owned summarized flag selects an explicitly declared typed
+    continuation policy; a model never chooses escalation. Persist the summary
+    before transition and hand over the immutable original task plus recorded
+    material, instead of replaying the original Worker request or carrying an
+    unbounded ADK conversation. Reopen this boundary only with evidence that the
+    bounded saved-artifact continuation cannot complete the declared Stage.
+  current_contract_gaps: >-
+    TPL-R87 forbids changing the Planner factory through executionConfig and
+    TPL-R92 rejects Planner model selections on passthrough. Workflow outcomes
+    currently have no summary-continuation branch or predicate. SCH-R12 and
+    buildStageCreation resolve a fresh context rather than inherit prior exact
+    pins. Revise these owning contracts explicitly; do not rely on existing
+    model-only escalation already providing these guarantees.
+  specification:
+    - docs/spec/configuration/workflows.md#WFL-R37
+    - docs/spec/configuration/workflows.md#WFL-R48
+    - docs/spec/configuration/agent-templates.md#TPL-R87
+    - docs/spec/configuration/agent-templates.md#TPL-R91
+    - docs/spec/configuration/agent-templates.md#TPL-R92
+    - docs/spec/execution/scheduler.md#SCH-R1
+    - docs/spec/execution/scheduler.md#SCH-R12
+    - docs/spec/execution/scheduler.md#SCH-R78
+    - docs/spec/execution/scheduler.md#SCH-R89
+    - docs/spec/execution/planners.md#PLN-R71
+    - docs/spec/execution/planners.md#PLN-R107
+    - docs/spec/execution/worker.md#WRK-R149
+    - docs/spec/tools/memory.md#MEM-R14
+    - docs/spec/platform/persistence.md#PER-R24
+scope:
+  in:
+    - Declare a strict, narrowly typed summary-triggered Planner escalation policy for passthrough@1 to streamline@1 and pin its exact strategy and model/config variant at Run initialization.
+    - Persist the valid Runtime summary as an intermediate ordinary artifact in the source Worker's resolved Namespace and record its exact ref before source teardown or result rejection can lose it.
+    - Pass original objective/instructions, parameters, pinned input refs, authorized scope, limits and final result contract separately from the summary and prior recorded output refs.
+    - Reuse Scheduler progression, fencing, allocation release, transition receipts and ancestry accounting for exactly one strategy escalation in the same Run.
+    - Preserve the logical Worker binding, AgentTemplate, namespace and selected toolsets so Streamline and its Worker can access existing recorded artifacts and selected Memory operations.
+    - Enable the declared policy on the shipped summarizer-enabled security analysis Workflow using existing configured model choices; use copied testdata fixtures in tests.
+    - Align specification, configuration validation, persistence, Planner input, safe transition diagnostics and any affected API/wire contracts in the same implementation.
+  out:
+    - V377-001 target-cookie persistence, HTTP session restoration or an archive of temporary request history/body buffers.
+    - Serializing or resuming a previous ADK conversation, arbitrary Runtime State or an in-flight model call.
+    - General Planner strategy routing, an expression/predicate language, automatic model-strength inference or escalation on every Worker failure.
+    - Changing the original authorization scope, Worker model, graph, AgentTemplate or final report requirement during escalation.
+requirements:
+  - id: R1
+    text: Only a validated WorkerResult with Runtime-owned summarized=true activates the declared summary-continuation policy. WorkerFailure, summarizer failure, gateway errors and ordinary unsummarized completions retain their own existing policies.
+  - id: R2
+    text: Resolve and pin streamline@1, its independent ModelPolicy, Gateway and credential ref before Run admission; missing/incompatible configuration fails before capacity acquisition or model calls, without guessing or borrowing a Worker model.
+  - id: R3
+    text: Save summary bytes and exact recorded-artifact refs durably before any transition can discard them. A disabled/exhausted policy or a later continuation failure leaves the summary available for inspection without claiming final Stage success.
+  - id: R4
+    text: Streamline receives the complete immutable original task and the summary as distinct inputs with provenance; preserve exact original input revisions even when the source Worker updated their latest bindings. Summary content cannot rewrite task authority or scope.
+  - id: R5
+    text: Keep run_id, logical Worker binding, AgentTemplate and resolved Agent Namespace unchanged; use new grants/wrappers for the new allocation. Memory remains available through its selected tools rather than being implicitly copied into the prompt.
+  - id: R6
+    text: Only recorded artifacts and explicit task/summary data cross attempts. Do not promise old http_history/http_read_body IDs, cookies or allocation-local State survive, and do not require V377-001 to implement this feature.
+  - id: R7
+    text: The Scheduler alone records an explicit summary-continuation outcome and the strategy escalation. Keep one Planner invocation per StageExecution; do not mask a missing report as successful completion or give a Planner model an escalate tool.
+  - id: R8
+    text: Escalate passthrough to Streamline at most once per declared policy across the complete attempt ancestry. Retries cannot reset that counter or silently switch back to passthrough; subsequent summarized Worker calls inside Streamline remain bounded by its existing finite plan/call budgets.
+  - id: R9
+    text: Pin finite continuation deadlines and model/Worker-call budgets, account for elapsed work and charged usage explicitly, preserve existing enclosing deadlines and report cumulative usage. New per-attempt allowance must be declared, never an implicit unbounded reset.
+  - id: R10
+    text: Streamline plans remaining work against the original objective and calls finish only with a result satisfying the unchanged Stage artifact contract; missing or invalid report refs cannot become success, and prior progress is not unconditionally rerun.
+  - id: R11
+    text: Reuse natural-key Artifact publication/CAS and the existing source-stage transition receipt to reconcile response loss; atomically commit source progression and target creation/pins without a new receipt table or a duplicate continuation attempt.
+  - id: R12
+    text: Reuse current bounds of 65536 UTF-8 summary bytes, 128 returned artifact refs and 262144 bytes for the complete Planner input. Reject total overflow deterministically while retaining the saved summary; do not silently truncate the original task.
+  - id: R13
+    text: Update all affected strict schemas, configuration readers, DTOs, fixtures and stable reason/event codes together; keep public v1 changes additive, generate derived clients and support no legacy payload shape.
+failure_outcomes:
+  - operation: Resolve and admit the summary-escalation policy
+    success: Immutable Run snapshot contains a compatible Streamline variant and finite continuation limits; later catalog edits cannot alter it.
+    permanent: Missing model/config, unsupported strategy, incompatible Worker binding or invalid bounds rejects configuration/admission before side effects.
+    retryable: Existing classified storage/config reads retain their bounded admission retries.
+    ambiguous: Run creation reuses its existing key and pinned snapshot; no second Run or variant is manufactured.
+    cancelled: Cancellation prevents admission through the existing Run lifecycle.
+    timeout: Existing Run initialization/operation deadlines own admission.
+  - operation: Save summary and commit the continuation transition
+    success: One exact summary artifact and one source-keyed transition create one pinned target attempt in the same Run/Namespace.
+    permanent: Invalid summary/ref, exhausted artifact limits, incompatible handoff or oversized combined input yields a stable classified failure; existing committed summary remains inspectable.
+    retryable: Retry only existing classified Artifact/transaction failures within the operation and chain deadlines.
+    ambiguous: Reconcile natural-key summary publication and the existing immutable source transition; never append blindly or dispatch the source Worker again.
+    cancelled: Fence and join source writes; a cancelling Run admits no continuation, and an already committed target is cancelled through existing Scheduler cleanup.
+    timeout: Summary publication and transition deadlines stay within existing operation/continuation bounds; retain a committed summary and do not leave an unbounded background mutation.
+  - operation: Run the Streamline continuation
+    success: Valid final report and Stage candidate are accepted through the existing finish/acceptance path.
+    permanent: Invalid context, unavailable exact ref or incompatible capability uses a stable failure; no silent loss of summary or broadening of scope.
+    retryable: Existing Gateway/Worker retries obey pinned policy and aggregate continuation bounds; no repeated strategy escalation.
+    ambiguous: Existing dispatch/Planner completion receipts decide what completed; no blind repeated Worker request.
+    cancelled: Existing Scheduler cancel/drain/release joins all calls and does not evaluate a new escalation edge.
+    timeout: The declared continuation deadline stops work, retains saved artifacts and joins allocation cleanup; process-loss recovery does not claim to resume ADK in flight.
+cardinality:
+  - collection: Strategy continuations for one source Stage lineage
+    expected: Zero or one
+    maximum: One passthrough-to-streamline escalation across the ancestry
+    bound: One source-keyed transition and one target attempt per policy; no repeated full ancestry/artifact scan per poll.
+  - collection: Handoff summary and prior saved material
+    expected: One summary and a few exact refs
+    maximum: 65536 UTF-8 summary bytes and 128 WorkerResult artifact refs, plus original task within the existing 262144-byte complete Planner input bound
+    bound: Direct exact-ref reads and bounded payload validation; no enumeration or download of every Run artifact or all Memory notes.
+  - collection: Continuation subtasks and dispatches
+    expected: A small number of finish/report steps
+    maximum: Existing 32-subtask and one-active-dispatch limits, additionally capped by the pinned finite Planner model/Worker-call/token budgets
+    bound: Existing bounded plan operations and pages; no new unmetered tool or retry loop.
+lifecycle:
+  - entity: Saved summary and continuation attempt
+    delete: Owning Run deletion/purge follows existing active-execution guards and Run Artifact cleanup.
+    cascade: Existing Stage ancestry, transition receipt and exact Artifact pins own their references; introduce no independent lifetime or table.
+    retention: Summary and recorded artifacts survive source allocation release, failed continuation and Server restart under existing Run retention; abandoned uncommitted work follows existing cleanup.
+acceptance_criteria:
+  - id: A1
+    given: A passthrough Worker returns summarized=true without the required final report and a valid declared continuation policy
+    when: The completion is handled through the real Server/Runtime process path
+    then: Summary is saved before teardown and Scheduler creates one Streamline attempt in the same Run with the original task and summary as separate inputs; the missing intermediate report is not treated as final success.
+  - id: A2
+    given: Original task inputs have exact pinned revisions and source work changes their latest bindings, records a result artifact and writes Memory notes
+    when: Streamline and its replacement Worker continue
+    then: Original input revisions and full objective/parameters/scope/result requirements are preserved; saved refs and Memory remain readable in the same Namespace without rerunning the entire source task.
+  - id: A3
+    given: Streamline receives the saved partial summary and has remaining bounded capacity
+    when: It plans and executes the necessary report/publication work
+    then: The final accepted Stage satisfies the unchanged required report contract, while a missing/invalid report is rejected and partial summary remains inspectable.
+  - id: A4
+    given: A normal completion, WorkerFailure, failed summarizer, no continuation policy, invalid target config or exhausted escalation policy
+    when: Each boundary is handled
+    then: Only the trusted summarized completion with valid policy escalates; ordinary policies retain their meanings, invalid config fails before admission and valid summary remains durable when continuation is unavailable.
+  - id: A5
+    given: Summary publication response loss, transaction conflict and Server loss before/after target creation on real PostgreSQL and both blob backends
+    when: Scheduler reconciles the stored outcome
+    then: At most one summary publication/transition/target is committed, exact original and summary refs survive and no source Worker call is blindly repeated; unfinished ADK calls obey existing process-loss semantics.
+  - id: A6
+    given: Run cancellation, queue pause, old allocation writes, repeated summary and Workflow retries around the transition
+    when: Continuation would be admitted or resumed
+    then: Existing pause/fence/cancel/release rules hold, no cancelled Run admits work and ancestry accounting never resets or switches back to passthrough.
+  - id: A7
+    given: Exact maximum summary/ref/combined-context sizes, one over each bound and exhausted continuation time/model/Worker-call budgets
+    when: Context is validated and continuation executes with injected clocks/budgets
+    then: Exact limits pass, overflow and exhaustion fail deterministically without truncating the original task or losing saved summary, and aggregate usage remains visible.
+  - id: A8
+    given: The updated shipped Workflow and fixture copies of changed config, wire and public representations
+    when: Strict validation and the relevant deterministic gates run
+    then: The declared production policy has a caller, configured model choices remain unchanged, shared languages agree, public changes are additive and cookie persistence is not required.
+tests:
+  - command: make lint
+    covers: [A8]
+  - command: go test ./internal/planner/... ./internal/scheduler/... ./internal/config/... ./internal/runstore/...
+    covers: [A1, A2, A3, A4, A6, A7, A8]
+  - command: make test-postgres
+    covers: [A2, A5, A6]
+  - command: make test-streamline
+    covers: [A1, A2, A3, A7]
+  - command: make test-runtime
+    covers: [A1, A4, A8]
+  - command: make test-wire-cross-language
+    covers: [A4, A7, A8]
+  - command: make verify-public-api
+    covers: [A8]
+  - command: make verify-public-api-postgres
+    covers: [A5, A8]
+  - command: make test-e2e
+    covers: [A1, A2, A3, A4, A5, A6]
+  - command: go run ./cmd/contractor server config validate --root ./configs
+    covers: [A8]

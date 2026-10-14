@@ -1,0 +1,135 @@
+schema_version: "1.0"
+id: V377-001
+title: Preserve target cookies as an ordinary artifact across Run continuation
+milestone: http-session-continuation-2026-10
+epic: http-tools
+kind: feature
+priority: P2
+status: pending
+depends_on: [V376-002]
+languages: [go, python, markdown]
+goal: >-
+  Continue an authenticated target session after retry, escalation or allocation
+  replacement in the same Run without logging in again. Persist cookies learned
+  from the investigated target as an ordinary Run artifact in the same resolved
+  Agent Namespace and restore them into the next HTTP toolset instance.
+context:
+  request: >-
+    On 2026-10-14 the user proposed passing the original task and summarizer
+    summary from passthrough to streamline through Planner escalation. They
+    accepted retaining only saved artifacts, then requested this follow-up for
+    cookies so useful authenticated target state survives the transition.
+    The user explicitly chose an ordinary artifact in the same Worker Namespace
+    for target cookies, without a separate encrypted credential store.
+  current_behavior: >-
+    HTP-R37 requires cookies to stay in allocation memory.
+    runtime/src/contractor_runtime/toolsets/http/tools.py:193 discards the
+    supplied Namespace; _clear_local_session at line 890 clears the cookie jar
+    on teardown. Scheduler escalation creates a new allocation, so retaining
+    the Namespace currently preserves Memory and saved artifacts but not the
+    HTTP login session. This feature deliberately revises that contract.
+  specification:
+    - docs/spec/tools/http-caido.md#HTP-R37
+    - docs/spec/tools/http-caido.md#HTP-R38
+    - docs/spec/tools/http-caido.md#HTP-R43
+    - docs/spec/artifacts/artifact-store.md#ART-R27
+    - docs/spec/artifacts/artifact-store.md#ART-R40
+    - docs/spec/tools/memory.md#MEM-R14
+    - docs/spec/execution/scheduler.md#SCH-R11
+    - docs/spec/platform/security.md#SEC-R31
+scope:
+  in:
+    - Define a strict cookie-session artifact format and canonical binding in the HTTP Worker's existing Run and resolved Agent Namespace.
+    - Save target-issued cookies and explicit cookie updates with the allocation-bound Artifact client; restore committed state before a new HTTP toolset accepts work.
+    - Preserve matching and lifetime attributes, including domain, path, host-only status, Secure, expiry and session-cookie behavior within the Run.
+    - Persist explicit clear and cookie deletion so continuation cannot resurrect cleared state.
+    - Update the HTTP lifecycle specification, shared fixtures and real-store/process regressions together.
+  out:
+    - Implementing passthrough-to-streamline escalation or changing Planner factory selection.
+    - Archiving HTTP history, request/response buffers or previous ADK conversations.
+    - Persisting Contractor/Runtime infrastructure credentials, proxy or Caido tokens, Runtime-injected Project authorization, default authorization headers or basic/bearer session auth.
+    - Sharing cookies with another Run or implicitly with another Agent Namespace.
+requirements:
+  - id: R1
+    text: Use an ordinary versioned RunScope artifact in the same resolved Agent Namespace, with normal Artifact grants and retention; no new table, separate secret store, generic-tool restriction or encryption requirement for target cookies.
+  - id: R2
+    text: Record the target origin and cookie attributes needed to preserve direct/proxy matching semantics in a strict versioned payload; validate Go/Python readers and writers with shared fixtures and no legacy readers.
+  - id: R3
+    text: Restore only the same Run and Namespace's committed state, retaining target and redirect authority checks. Absence means an empty jar; malformed or incompatible state is a classified failure rather than silent replacement.
+  - id: R4
+    text: Save only committed cookie changes. Unchanged state creates no revision, and a cancelled or incomplete HTTP response cannot commit its prospective cookies or checkpoint.
+  - id: R5
+    text: Serialize writes with the existing session owner, use Artifact CAS and reconcile ambiguous writes by exact-value reads; never repeat a target HTTP mutation to retry its cookie checkpoint.
+  - id: R6
+    text: Explicit clear/deletion records an empty or updated jar before claiming durable success; old allocation writes remain fenced before the next attempt restores state.
+  - id: R7
+    text: Bound each jar to 128 cookies and 65536 encoded UTF-8 JSON bytes including metadata, define the limits once and share exact-limit/over-limit fixtures across languages.
+  - id: R8
+    text: Save only target cookies. Infrastructure secrets retain existing RuntimeSettings rules. Persistence adds no implicit values to prompts, summaries, telemetry or error messages; ordinary authorized artifact reads remain available.
+failure_outcomes:
+  - operation: Read and restore the target cookie jar
+    success: Absence starts empty; a valid artifact restores live cookies and drops expired values using an injected clock.
+    permanent: Malformed, oversized or incompatible-origin state fails with a stable non-retryable initialization/session code before any target request, without silently discarding state.
+    retryable: Existing classified Artifact failures retry only within the allocation preparation deadline and existing attempt bounds.
+    ambiguous: Reads have no mutation effects and retain the exact revision selected for restoration.
+    cancelled: Join the read before cleanup; never expose a partially restored ready session.
+    timeout: The allocation preparation deadline owns restoration; its failure prevents HTTP readiness.
+  - operation: Checkpoint or explicitly clear target cookies
+    success: One complete CAS revision records the changed jar, including an empty jar after clear.
+    permanent: Invalid state, exhausted revision budget, unauthorized Namespace, stale allocation or target mismatch is classified permanently, without repeating the target request.
+    retryable: Bound existing Artifact retries by the current operation deadline, preserving expected revision and exact bytes.
+    ambiguous: Reconcile with the existing Artifact CAS and exact payload comparison; a different newer value is a conflict and is never blindly overwritten.
+    cancelled: Join and reconcile a possible committed Artifact mutation before teardown; cancelled prospective HTTP cookies remain uncommitted.
+    timeout: Use a checkpoint deadline inside the request/control deadline; retain the actual HTTP outcome and report unconfirmed durable cookie persistence truthfully.
+cardinality:
+  - collection: Saved cookie-session bindings in one Run
+    expected: One per HTTP-enabled Agent Namespace
+    maximum: One per selected Namespace within existing Run Artifact limits
+    bound: Direct binding lookup and one CAS mutation; no full Run artifact scan.
+  - collection: Cookies in one saved jar
+    expected: A few after login
+    maximum: 128 cookies and 65536 encoded bytes including metadata
+    bound: Validate count and bytes before read/write; test exact limits and one over each.
+lifecycle:
+  - entity: Target cookie-session artifact
+    delete: Run purge removes it; explicit HTTP session clear commits an empty jar.
+    cascade: Existing RunScope Artifact deletion and blob cleanup own all revisions.
+    retention: Same Run Artifact retention; session cookies survive allocation replacement within that Run, expired cookies never restore and another Run starts empty.
+acceptance_criteria:
+  - id: A1
+    given: A disposable target returns a login cookie and its ordinary cookie-session artifact is committed
+    when: Retry or Scheduler escalation replaces the allocation in the same Run and Namespace
+    then: The next HTTP toolset authenticates without another login through both direct and proxied transport.
+  - id: A2
+    given: Saved cookies and allocations in another Run, another Namespace or an incompatible target origin
+    when: Each toolset initializes and follows redirects
+    then: Restoration never borrows another Run or Namespace's jar, normal authorized artifact reads remain available, target authority is preserved and incompatible stored origin fails before any target request.
+  - id: A3
+    given: Domain/path matching, Secure and expired cookies with an injected clock
+    when: The jar is saved, restored and used
+    then: Existing matching semantics hold, expired cookies are dropped and session cookies remain usable within the owning Run.
+  - id: A4
+    given: Session clear, server cookie deletion or a cancelled/incomplete response with prospective cookies
+    when: The allocation is replaced
+    then: Clear/deletion is durable and no cancelled or incomplete response resurrects or adds cookies.
+  - id: A5
+    given: Artifact response loss, CAS conflict, storage failure, cancellation and an old write at the Stage terminal barrier
+    when: Checkpoint/restore crosses these boundaries against real PostgreSQL and both supported blob backends
+    then: Exact-value reconciliation and existing fences prevent duplicate/stale writes; no target mutation is replayed and failures stay bounded and classified.
+  - id: A6
+    given: Maximum cookie count/bytes, one over each bound and unchanged HTTP calls
+    when: The jar is validated or checkpointed
+    then: Exact limits succeed, oversized input fails deterministically and unchanged state creates no revision.
+  - id: A7
+    given: Target cookies, injected infrastructure credentials and ordinary authorized artifact readers
+    when: Cookie persistence and continuation run
+    then: Only target cookies enter the ordinary artifact in the original Namespace; no encryption layer is required and no infrastructure value or automatic prompt/telemetry disclosure is added.
+tests:
+  - command: make lint
+    covers: [A1, A2, A3, A4, A5, A6, A7]
+  - command: make test-wire-cross-language
+    covers: [A2, A3, A6, A7]
+  - command: make test-http-caido-hardening
+    covers: [A1, A2, A3, A4, A5, A6, A7]
+  - command: make test-postgres
+    covers: [A1, A2, A4, A5, A6, A7]
