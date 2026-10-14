@@ -1,11 +1,11 @@
 schema_version: "1.0"
-id: V379-001
+id: V380-001
 title: Configure the modeled Planner subtask limit in each Workflow
 milestone: workflow-planner-subtask-budgets-2026-10
 epic: planner-worker
 kind: feature
 priority: P2
-status: in_progress
+status: completed
 depends_on: []
 languages: [go, typescript]
 goal: >-
@@ -85,3 +85,18 @@ tests:
     covers: [A1, A4]
   - command: make lint
     covers: [A1, A4]
+verification:
+  date: 2026-10-15
+  results:
+    - make test-config passed, including validation of all 21 shipped Workflows with the unchanged model selections.
+    - go test -count=1 ./internal/planner/... and go test -count=1 ./internal/scheduler/... passed with dedicated disposable PostgreSQL configured.
+    - go test -count=1 ./internal/contracts/... ./internal/runstore/... ./internal/httpapi/public/... ./internal/publicclient/... passed with PostgreSQL configured.
+    - make verify-public-api passed with the target's required public-operation coverage check.
+    - make ui-verify passed on Node 24.20 with 170 test files, 2002 UI tests, 14 static-server tests, generated-client checking, lint, typecheck and build.
+    - make test-wire-cross-language passed with 229 fixtures, 203 Go shared tests and 161 Python shared tests; the Runtime contract suites passed 293 tests and the shared Runtime selection passed 1067 tests.
+    - make lint passed, including strict task/spec consistency, generated-client checking, layer checks and shared-fixture reader coverage.
+  notes:
+    - Real PostgreSQL accepts and reloads a 101-record plan under its pinned limit, reconciles replay without an append, rejects overflow atomically and rejects a corrupted persisted plan above its retained limit.
+    - Scheduler tests against PostgreSQL retain a non-default limit of 64 through summary continuation, recovery and manual resume on both blob backends; the focused Scheduler unit test also covers continuation retries.
+    - Independent model-call, token, byte, fact and deadline budgets continue to bound execution even when maxSubtasks is increased.
+implementation_commit: e8548f1e6982544635f174bbb72c7215fe90e7e9

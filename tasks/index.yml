@@ -75,7 +75,7 @@ execution_policy:
 
 milestones:
   - id: workflow-planner-subtask-budgets-2026-10
-    exit_task: V379-001
+    exit_task: V380-001
     outcome: Each Workflow pins its modeled Planner subtask limit, defaulting to 32, through immutable execution and validated public plan projections.
   - id: planner-summary-continuation-2026-10
     exit_task: V378-001
