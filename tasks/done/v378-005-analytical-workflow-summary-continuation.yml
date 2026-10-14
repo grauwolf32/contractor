@@ -5,7 +5,8 @@ milestone: planner-summary-continuation-2026-10
 epic: workflows
 kind: feature
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: ac31df0b606e8878ff370d8c882e29d13fd85910
 depends_on: [V378-001]
 languages: []
 goal: >-
@@ -63,3 +64,9 @@ tests:
     covers: [A1, A2, A3]
   - command: make lint
     covers: [A3]
+verification:
+  date: 2026-10-14
+  results:
+    - make test-config passed all configuration and configload packages and validated the 21-Workflow shipped catalog.
+    - make lint passed.
+    - Semantic comparison against main e3265e4e found exactly 15 added policies across seven Workflows; removing those policies reproduced every original field, and all excluded Workflow files were byte-identical.
