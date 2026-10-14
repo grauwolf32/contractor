@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-89 open tasks: 7 in progress, 68 pending, 14 deferred. 881 finished: 878 completed, 3 archived.
+88 open tasks: 6 in progress, 68 pending, 14 deferred. 882 finished: 879 completed, 3 archived.
 
 ## In progress
 
@@ -17,7 +17,6 @@ the epics are in [epics.yml](epics.yml).
 | [V376-003](v376-003-http-evidence-preview.yml) | ui | feature | P1 | Preview and download finding-selected HTTP evidence in the UI |
 | [V376-005](v376-005-caido-response-unavailable.yml) | http-tools | defect | P2 | Preserve truthful missing and intermediate HTTP response outcomes |
 | [V378-001](v378-001-passthrough-streamline-summary-escalation.yml) | planner-worker | feature | P1 | Escalate summarized passthrough work to Streamline with its original task |
-| [V378-002](v378-002-http-caido-process-retention-contract.yml) | http-tools | chore | P2 | Align the HTTP and Caido process regression with finding-only retention |
 
 ## Pending
 
@@ -192,7 +191,7 @@ tasks in `introduced_by`.
 | Agent Skills (`agent-skills`) | 0 | 10 | 2 | 1 | 1 |
 | Run workspaces and project filesystem (`workspaces`) | 0 | 16 | 12 | 4 | 15 |
 | Code analysis and taint annotations (`code-analysis`) | 0 | 13 | 12 | 2 | 17 |
-| HTTP and Caido tools (`http-tools`) | 4 | 10 | 13 | 4 | 14 |
+| HTTP and Caido tools (`http-tools`) | 3 | 10 | 13 | 4 | 14 |
 | Scanner tool Workers and scan planning (`scan-tools`) | 1 | 10 | 4 | 1 | 7 |
 | Findings tools and collections (`findings`) | 4 | 7 | 5 | 4 | 7 |
 | Workflow catalog and document workflows (`workflows`) | 3 | 13 | 13 | 11 | 12 |

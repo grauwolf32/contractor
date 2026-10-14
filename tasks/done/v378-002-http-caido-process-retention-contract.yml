@@ -6,7 +6,7 @@ epic: http-tools
 kind: chore
 introduced_by: V376-002
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V376-002]
 languages: [go]
 goal: Verify buffered HTTP inspection without expecting an automatically saved body artifact.
@@ -44,5 +44,12 @@ tests:
     covers: [A1, A2]
   - command: go test ./tests/e2e
     covers: [A1, A2]
-  - command: make test-release-process-e2e-a
+  - command: make test-http-caido-e2e
     covers: [A1, A2]
+verification:
+  date: 2026-10-14
+  results:
+    - make lint and the complete untagged tests/e2e package passed.
+    - make test-http-caido-e2e passed against a dedicated disposable PostgreSQL database, including both HTTP allocations, Caido pinning and release-response-loss recovery.
+    - The initial process gate reproduced the obsolete body-artifact assertion; its first retry exposed the missing finding tool expectation. Both fixture defects are corrected without production behavior changes.
+implementation_commit: 381e790c2e4b357d737dce7da2f571e3c5353d57
