@@ -166,6 +166,7 @@ Operations settings, performance metrics, profiling, PKI, deployment and the com
 | [`api/v1alpha1/`](../../api/v1alpha1/) | Server ↔ Runtime wire contract and shared fixtures |
 | [Architecture model](artitecture.likec4) | LikeC4 component map and focused views (`make verify-architecture`) |
 | [Database ERD](database-erd.html) | Interactive PostgreSQL schema: tables, keys, purpose and the processes that use them (`make docs-erd`) |
+| [Audit and Workflow dependencies](audit-workflow-dependencies.html) | Offline interactive architecture, shipped configuration dependencies and Workflow Stages (`make docs-dependencies`) |
 | [`configs/`](../../configs/README.md) | Shipped Workflows, templates, policies and Skills |
 
 ## Outside the specification
