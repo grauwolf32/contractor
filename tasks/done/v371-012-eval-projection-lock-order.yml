@@ -5,7 +5,8 @@ milestone: hub-audit-defects-2026-10
 epic: evals
 kind: defect
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 4c36632c1d2ee17885ca42044d917115400130de
 depends_on: []
 languages: [go, sql]
 goal: "Concurrent Audit collection and Eval member projection take their shared row locks in one order, and a transaction conflict in member collection is retried as a conflict instead of rotating the member as damaged."
@@ -80,7 +81,23 @@ acceptance_criteria:
   - id: A3
     text: "The reproduction fails on a07f5e9."
 tests:
-  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 -tags integration ./internal/evalservice ./internal/evalstore ./internal/auditstore"
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 -tags integration ./internal/evalservice ./internal/evalstore ./internal/auditstore/..."
     covers: [A1, A2, A3]
   - command: make lint
     covers: [A1, A2, A3]
+verification:
+  date: '2026-10-15'
+  revision: a161ffb98af14d85bf32e70f90d726c715c7f0cc
+  environment: Go 1.26.9, Node 24.20.0 and disposable PostgreSQL 17; test GOFLAGS=-buildvcs=false -p=2; max_locks_per_transaction=1024.
+  commands:
+  - command: make verify
+    result: Passed; Runtime 3835 passed and 39 skipped; UI 1984 passed.
+  - command: go test -p 1 -count=1 -tags integration ./internal/auditcontroller ./internal/auditstore/... ./internal/artifacts ./internal/auditimport ./internal/rundeletion ./internal/evalservice ./internal/evalstore ./internal/findingintake ./internal/auditdomain ./internal/httpapi/privateartifacts ./internal/auditservice ./internal/app ./internal/projectlifecycle
+    result: Passed with disposable PostgreSQL configured.
+  - command: go test -p 1 -race -count=1 ./internal/evalservice -run '^(TestSharedPostgresAuditCollectionAndEvalProjectionUseOneLockOrder|TestSharedPostgresMemberCollectionRetriesConflictsWithoutDamageRotation)$'
+    result: Passed with disposable PostgreSQL configured.
+  regression:
+    baseline: f590b00fc378105d4d677b2a7d712679b765c895
+    before: The first synchronized real Audit collection/projection race deadlocked with SQLSTATE 40P01. The collection retry regression returned the first SQLSTATE 40001 without retry.
+    after: 100 synchronized real PostgreSQL collection/projection races complete without deadlock. Two injected serialization failures succeed on attempt three; exhausted conflicts leave the member damage-rotation timestamp unchanged.
+  siblings: The shared dirty-trigger function and bulk member insertion lock projection queue before member rows; direct member projection and view publication use the same order. Collection and publication use the existing bounded transaction retry.
