@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/grauwolf32/contractor/internal/auditstore/hookstore"
+	"github.com/grauwolf32/contractor/internal/findingintake"
 	"os"
 	"path/filepath"
 	"strings"
@@ -1518,7 +1519,7 @@ func newPostgresControllerHarnessWithConfig(
 		t.Fatal(err)
 	}
 	runs := runstore.NewPostgresStore(pool)
-	audits := auditstoretest.NewStore(pool)
+	audits := auditstoretest.NewStore(pool).WithPurgeDependencies(findingintake.DeleteAuditHoldsBatch)
 	runCreation, err := runservice.New(runservice.Options{
 		Runs: runs, Workflows: snapshot, LLMCredentials: controllerCredentialLookup{},
 		CredentialGuard: guard, RuntimeCredentials: controllerRuntimeCredentials{}, Projects: projects,
@@ -1541,7 +1542,7 @@ func newPostgresControllerHarnessWithConfig(
 			return persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 				return fn(
 					runstore.NewPostgresStore(tx), artifacts.NewService(artifacts.NewPostgresRepository(tx)),
-					auditstoretest.NewStore(tx),
+					auditstoretest.NewStore(tx).WithPurgeDependencies(findingintake.DeleteAuditHoldsBatch),
 				)
 			})
 		},

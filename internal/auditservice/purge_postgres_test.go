@@ -37,7 +37,7 @@ func TestAuditPurgeRemovesDecidedReviews(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			store := auditstoretest.NewStore(pool)
+			store := auditstoretest.NewStore(pool).WithPurgeDependencies(findingintake.DeleteAuditHoldsBatch)
 			audit, _, err := store.CreateDraft(ctx, auditstore.CreateDraftParams{
 				AuditID: "audit-purge-" + subject, OwnerID: project.OwnerID, ProjectID: project.ProjectID,
 				Profile: auditstore.ProfileIdentity{

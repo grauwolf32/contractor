@@ -14,6 +14,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/grauwolf32/contractor/internal/auditstore/hookstore"
+	"github.com/grauwolf32/contractor/internal/findingintake"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -173,7 +174,7 @@ func newCompletionFixtureWithInteraction(t *testing.T, pool *pgxpool.Pool, accep
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	t.Cleanup(cancel)
-	f := &completionFixture{ctx: ctx, pool: pool, id: fmt.Sprintf("fixture-%d", time.Now().UnixNano()), artifacts: artifacts.NewService(artifacts.NewPostgresRepository(pool)), audits: auditstoretest.NewStore(pool), runs: runstore.NewPostgresStore(pool), keys: []string{"first", "second"}}
+	f := &completionFixture{ctx: ctx, pool: pool, id: fmt.Sprintf("fixture-%d", time.Now().UnixNano()), artifacts: artifacts.NewService(artifacts.NewPostgresRepository(pool)), audits: auditstoretest.NewStore(pool).WithPurgeDependencies(findingintake.DeleteAuditHoldsBatch), runs: runstore.NewPostgresStore(pool), keys: []string{"first", "second"}}
 	projects := projectstore.NewPostgresStore(pool)
 	_, _, err := projects.Create(ctx, projectstore.CreateParams{ProjectID: f.id, OwnerID: "owner", Kind: projectstore.KindProject, Name: "Completion gate", IdempotencyKey: f.id, RequestDigest: completionDigest([]byte(f.id))})
 	mustCompletion(t, err)
@@ -263,7 +264,7 @@ func newCompletionFixtureWithInteraction(t *testing.T, pool *pgxpool.Pool, accep
 		},
 		AuditTransaction: func(ctx context.Context, fn func(runservice.AuditRunWriter, *artifacts.Service, runservice.AuditExecutionWriter) error) error {
 			return persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-				return fn(runstore.NewPostgresStore(tx), artifacts.NewService(artifacts.NewPostgresRepository(tx)), auditstoretest.NewStore(tx))
+				return fn(runstore.NewPostgresStore(tx), artifacts.NewService(artifacts.NewPostgresRepository(tx)), auditstoretest.NewStore(tx).WithPurgeDependencies(findingintake.DeleteAuditHoldsBatch))
 			})
 		},
 	})

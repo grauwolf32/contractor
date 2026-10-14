@@ -77,7 +77,7 @@ WHERE audit_id=$1 AND first_receipt_id=$2`, auditID, f.receiptID).Scan(&findingI
 			}
 		}
 	}
-	audits := auditstoretest.NewStore(f.pool)
+	audits := auditstoretest.NewStore(f.pool).WithPurgeDependencies(DeleteAuditHoldsBatch)
 	first, err := audits.Get(f.ctx, f.request.OwnerID, f.request.AuditID)
 	if err != nil {
 		t.Fatal(err)
@@ -123,7 +123,7 @@ func TestPostgresAuditReceiptReadsRequireHoldInAuditProject(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := auditstoretest.NewStore(f.pool).CreateDraft(f.ctx, auditstore.CreateDraftParams{
+	if _, _, err := auditstoretest.NewStore(f.pool).WithPurgeDependencies(DeleteAuditHoldsBatch).CreateDraft(f.ctx, auditstore.CreateDraftParams{
 		AuditID: otherAudit, OwnerID: f.request.OwnerID, ProjectID: otherProject,
 		Profile:         auditstore.ProfileIdentity{Name: "profile", Version: "1", Digest: auditdomain.DigestBytes([]byte("profile"))},
 		ProfileSnapshot: json.RawMessage(`{"interaction":{"findingConfirmation":"human-required"}}`),
@@ -283,7 +283,7 @@ func TestPostgresAuditInboxOmitsUnretainedChildReceiptAfterRunDeletion(t *testin
 	if err := f.intake.RetainAuditCollectionBatch(f.ctx, []ImportRequest{request}); err != nil {
 		t.Fatal(err)
 	}
-	audits := auditstoretest.NewStore(f.pool)
+	audits := auditstoretest.NewStore(f.pool).WithPurgeDependencies(DeleteAuditHoldsBatch)
 	beforeRejection, err := audits.Get(f.ctx, request.OwnerID, request.AuditID)
 	if err != nil {
 		t.Fatal(err)
@@ -350,7 +350,7 @@ func TestPostgresAuditInboxOmitsUnretainedChildReceiptAfterRunDeletion(t *testin
 
 func createFixtureAudit(t *testing.T, f deletionImportFixture, auditID string) {
 	t.Helper()
-	if _, _, err := auditstoretest.NewStore(f.pool).CreateDraft(f.ctx, auditstore.CreateDraftParams{
+	if _, _, err := auditstoretest.NewStore(f.pool).WithPurgeDependencies(DeleteAuditHoldsBatch).CreateDraft(f.ctx, auditstore.CreateDraftParams{
 		AuditID: auditID, OwnerID: f.request.OwnerID, ProjectID: "delete-project",
 		Profile:         auditstore.ProfileIdentity{Name: "profile", Version: "1", Digest: auditdomain.DigestBytes([]byte("profile"))},
 		ProfileSnapshot: json.RawMessage(`{"interaction":{"findingConfirmation":"human-required"}}`),
