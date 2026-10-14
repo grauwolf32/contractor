@@ -441,6 +441,15 @@ advancing the epoch. Renewal cannot revive an expired, released or replaced
 claim. Audit deletion renews before entering its separate cleanup budget
 ([REV-R160](../audits/review-and-reports.md)).
 
+Execution-to-Eval projection writers hold their existing Run or Audit
+authority before the Eval projection queue and then member projection rows.
+Dirty triggers, native/external selections and view publication share this
+queue-before-member order. Member collection finishes source and evidence
+reads before acquiring these private projection locks; it never acquires an
+Audit controller claim afterward. A definite transaction conflict retries the
+whole collection with a fresh snapshot under PER-R16, and is never treated as
+a damaged member when retries are exhausted.
+
 ## Limits, failures and errors
 
 Limits ([registry](limits.md)):

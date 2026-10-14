@@ -5,7 +5,7 @@ milestone: hub-audit-defects-2026-10
 epic: evals
 kind: defect
 priority: P2
-status: pending
+status: in_progress
 depends_on: []
 languages: [go, sql]
 goal: "Concurrent Audit collection and Eval member projection take their shared row locks in one order, and a transaction conflict in member collection is retried as a conflict instead of rotating the member as damaged."

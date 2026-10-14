@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-87 open tasks: 8 in progress, 65 pending, 14 deferred. 888 finished: 885 completed, 3 archived.
+87 open tasks: 9 in progress, 64 pending, 14 deferred. 888 finished: 885 completed, 3 archived.
 
 ## In progress
 
@@ -16,6 +16,7 @@ the epics are in [epics.yml](epics.yml).
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V371-007](v371-007-fence-audit-artifact-writes.yml) | audits | defect | P2 | Fence the Audit Controller's artifact writes against a purge by a newer claim |
 | [V371-008](v371-008-bounded-audit-deletion-steps.yml) | audits | defect | P2 | Run the Audit deletion phase in bounded steps under its own budget |
+| [V371-012](v371-012-eval-projection-lock-order.yml) | evals | defect | P2 | Stop Eval member collection and Audit collection from deadlocking |
 | [V372-011](v372-011-keep-database-error-class.yml) | persistence | defect | P2 | Keep the database error class on store paths that replace the error |
 | [V376-003](v376-003-http-evidence-preview.yml) | ui | feature | P1 | Preview and download finding-selected HTTP evidence in the UI |
 | [V376-005](v376-005-caido-response-unavailable.yml) | http-tools | defect | P2 | Preserve truthful missing and intermediate HTTP response outcomes |
@@ -108,7 +109,6 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V40-003](v40-003-agent-instruction-eval-decision.yml) | feature | P1 | V40-002 | Evaluate instruction candidates and record evidence-based adoption decisions |
-| [V371-012](v371-012-eval-projection-lock-order.yml) | defect | P2 | — | Stop Eval member collection and Audit collection from deadlocking |
 | [V371-013](v371-013-eval-bounded-json-walker.yml) | chore | P3 | — | Read Eval JSON documents with strictjson.DecodeBounded |
 
 ### Web UI (`ui`)

@@ -93,6 +93,14 @@ func (s *Store) ProjectMember(ctx context.Context, scope Scope, id, member strin
 	if err = evaldomain.Validate("MemberView", doc); err != nil {
 		return err
 	}
+	// All dirty triggers and view publication take the queue before member
+	// rows. Acquire it only after collecting evidence, so no source-Audit or
+	// Artifact lock is taken while this private projection lock is held.
+	var queued string
+	if err := s.db.QueryRow(ctx, `SELECT experiment_id FROM eval_projection_queue
+WHERE experiment_id = $1 FOR UPDATE`, id).Scan(&queued); err != nil {
+		return normalize(err)
+	}
 	tag, err := s.db.Exec(ctx, `
 UPDATE eval_member_projections
 SET projected_revision = revision,document = $4,collection_complete = $5,observed_document = $6,checked_at = clock_timestamp()

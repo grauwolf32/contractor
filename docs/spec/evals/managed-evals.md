@@ -881,6 +881,14 @@ last complete view visible with an explicit freshness flag (FAIL-EVM-7).
 **EVM-R166.** The read model is rebuildable; changing the selected authority
 still requires CAS.
 
+Dirty marking and projection publication take the experiment's projection
+queue before member projection rows. Source and evidence collection precedes
+these private locks; it does not take an Audit controller claim afterward.
+Member collection retries definite serialization failures and deadlocks with
+a fresh transaction under PER-R16. An exhausted transaction conflict keeps
+the member dirty without rotating its failure position. Only other failures
+use the existing damaged-member rotation.
+
 **EVM-R167.** A publication whose selected member documents, comparison policy,
 pins and selection revision are unchanged keeps the current generation and only
 marks it current.
