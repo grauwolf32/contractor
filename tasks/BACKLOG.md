@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-86 open tasks: 8 in progress, 64 pending, 14 deferred. 889 finished: 886 completed, 3 archived.
+85 open tasks: 7 in progress, 64 pending, 14 deferred. 890 finished: 887 completed, 3 archived.
 
 ## In progress
 
@@ -14,7 +14,6 @@ the epics are in [epics.yml](epics.yml).
 | [V40-002](v40-002-agent-instruction-paired-runner.yml) | evals | feature | P1 | Prepare instruction experiment bindings and a frozen plan after format readiness |
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
-| [V371-007](v371-007-fence-audit-artifact-writes.yml) | audits | defect | P2 | Fence the Audit Controller's artifact writes against a purge by a newer claim |
 | [V371-008](v371-008-bounded-audit-deletion-steps.yml) | audits | defect | P2 | Run the Audit deletion phase in bounded steps under its own budget |
 | [V371-012](v371-012-eval-projection-lock-order.yml) | evals | defect | P2 | Stop Eval member collection and Audit collection from deadlocking |
 | [V376-003](v376-003-http-evidence-preview.yml) | ui | feature | P1 | Preview and download finding-selected HTTP evidence in the UI |
@@ -194,7 +193,7 @@ tasks in `introduced_by`.
 | Findings tools and collections (`findings`) | 4 | 7 | 5 | 4 | 7 |
 | Workflow catalog and document workflows (`workflows`) | 3 | 14 | 13 | 12 | 12 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 1 | 29 | 32 | 4 | 34 |
-| Audits (`audits`) | 21 | 49 | 68 | 12 | 77 |
+| Audits (`audits`) | 20 | 49 | 68 | 12 | 77 |
 | Evaluations (`evals`) | 4 | 21 | 28 | 5 | 33 |
 | Podman sandbox (`sandbox`) | 0 | 8 | 1 | 1 | 2 |
 | Web UI (`ui`) | 3 | 20 | 53 | 10 | 48 |
