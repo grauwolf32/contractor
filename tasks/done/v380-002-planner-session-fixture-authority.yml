@@ -6,7 +6,7 @@ epic: planner-worker
 kind: chore
 introduced_by: V380-001
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V380-001]
 languages: [go]
 goal: Restore Memory and Streamline regression coverage through the real Planner session startup boundary using valid persisted Stage fixtures.
@@ -51,3 +51,14 @@ tests:
     covers: [A1, A2, A3]
   - command: make lint
     covers: [A3]
+verification:
+  date: 2026-10-15
+  results:
+    - Before the correction, both complete packages reproduced the CI failures against disposable PostgreSQL, including all affected Memory setup paths and the scripted Streamline recovery test.
+    - go test -count=1 ./internal/memory/... ./tests/integration/streamline passed after adding the explicit session mode to both fixture snapshots.
+    - make test-go passed with disposable PostgreSQL configured, including all Go packages selected by CI's unit gate and the production configuration hardening checks.
+    - make lint passed without changes to validation, assertions, test timing, skip rules or CI stage selection.
+  notes:
+    - The opt-in live Gateway test remains outside deterministic verification; its skip is not counted as a passed live-model check.
+    - All tests importing the real Planner session service were audited; Scheduler and public API fixtures already serialize valid resolved Stage authority.
+implementation_commit: 4dff68c968e1def1ad6bb6cbb5236234d72d985a
