@@ -29,8 +29,11 @@ func (r *RuntimeCredentialRepository) Get(ctx context.Context, credentialID stri
 
 func (r *RuntimeCredentialRepository) CountStored(ctx context.Context) (int64, error) {
 	var count int64
-	if r == nil || r.db == nil || r.db.QueryRow(ctx, `SELECT count(*) FROM runtime_credentials`).Scan(&count) != nil {
+	if r == nil || r.db == nil {
 		return 0, errors.New("count stored Runtime credentials")
+	}
+	if err := r.db.QueryRow(ctx, `SELECT count(*) FROM runtime_credentials`).Scan(&count); err != nil {
+		return 0, persistencepostgres.WrapError("count stored Runtime credentials", err)
 	}
 	return count, nil
 }
@@ -40,9 +43,12 @@ func (r *RuntimeCredentialRepository) VerifyStoredKey(ctx context.Context, keyID
 		return ErrKeyUnavailable
 	}
 	var mismatch bool
-	if r == nil || r.db == nil || r.db.QueryRow(ctx, `
-SELECT EXISTS (SELECT 1 FROM runtime_credentials WHERE key_id <> $1)`, keyID).Scan(&mismatch) != nil {
+	if r == nil || r.db == nil {
 		return errors.New("verify stored Runtime credential encryption key")
+	}
+	if err := r.db.QueryRow(ctx, `
+SELECT EXISTS (SELECT 1 FROM runtime_credentials WHERE key_id <> $1)`, keyID).Scan(&mismatch); err != nil {
+		return persistencepostgres.WrapError("verify stored Runtime credential encryption key", err)
 	}
 	if mismatch {
 		return ErrKeyUnavailable
@@ -114,19 +120,19 @@ WHERE c.credential_id > $1 AND c.deleted_at IS NULL
 ORDER BY c.credential_id
 LIMIT $2`, afterCredentialID, limit)
 	if err != nil {
-		return nil, errors.New("list Runtime credential metadata")
+		return nil, persistencepostgres.WrapError("list Runtime credential metadata", err)
 	}
 	defer rows.Close()
 	result := make([]RuntimeCredentialMetadata, 0)
 	for rows.Next() {
 		var metadata RuntimeCredentialMetadata
 		if err := rows.Scan(&metadata.CredentialID, &metadata.Kind, &metadata.CreatedBy, &metadata.CreatedAt); err != nil {
-			return nil, errors.New("read Runtime credential metadata")
+			return nil, persistencepostgres.WrapError("read Runtime credential metadata", err)
 		}
 		result = append(result, metadata)
 	}
-	if rows.Err() != nil {
-		return nil, errors.New("iterate Runtime credential metadata")
+	if err := rows.Err(); err != nil {
+		return nil, persistencepostgres.WrapError("iterate Runtime credential metadata", err)
 	}
 	return result, nil
 }
@@ -148,7 +154,7 @@ WHERE idempotency_key_digest = $1`, keyDigest).Scan(
 		return RuntimeCredentialCreation{}, ErrRuntimeCredentialNotFound
 	}
 	if err != nil {
-		return RuntimeCredentialCreation{}, errors.New("get Runtime credential creation replay")
+		return RuntimeCredentialCreation{}, persistencepostgres.WrapError("get Runtime credential creation replay", err)
 	}
 	return result, nil
 }
@@ -182,7 +188,7 @@ WHERE credential_id = $1 AND deleted_at IS NOT NULL`, credentialID).Scan(&result
 		return RuntimeCredentialTombstone{}, ErrRuntimeCredentialNotFound
 	}
 	if err != nil {
-		return RuntimeCredentialTombstone{}, errors.New("get Runtime credential tombstone")
+		return RuntimeCredentialTombstone{}, persistencepostgres.WrapError("get Runtime credential tombstone", err)
 	}
 	return result, nil
 }
@@ -195,19 +201,19 @@ func (r *RuntimeCredentialRepository) InspectRuntimeCredentialUsage(
 	}
 	rows, err := r.db.Query(ctx, runtimeCredentialLabelUsageSQL, credentialID, limit)
 	if err != nil {
-		return RuntimeCredentialUsage{}, errors.New("inspect active Runtime credential bindings")
+		return RuntimeCredentialUsage{}, persistencepostgres.WrapError("inspect active Runtime credential bindings", err)
 	}
 	defer rows.Close()
 	var usage RuntimeCredentialUsage
 	for rows.Next() {
 		var label string
 		if err := rows.Scan(&label); err != nil {
-			return RuntimeCredentialUsage{}, errors.New("read active Runtime credential binding")
+			return RuntimeCredentialUsage{}, persistencepostgres.WrapError("read active Runtime credential binding", err)
 		}
 		usage.BindingLabels = append(usage.BindingLabels, label)
 	}
-	if rows.Err() != nil {
-		return RuntimeCredentialUsage{}, errors.New("iterate active Runtime credential bindings")
+	if err := rows.Err(); err != nil {
+		return RuntimeCredentialUsage{}, persistencepostgres.WrapError("iterate active Runtime credential bindings", err)
 	}
 	projectRows, err := r.db.Query(ctx, `
 SELECT project_id
@@ -216,48 +222,48 @@ WHERE http_target_credential_id = $1
 ORDER BY project_id
 LIMIT $2`, credentialID, limit)
 	if err != nil {
-		return RuntimeCredentialUsage{}, errors.New("inspect Runtime credential Project targets")
+		return RuntimeCredentialUsage{}, persistencepostgres.WrapError("inspect Runtime credential Project targets", err)
 	}
 	defer projectRows.Close()
 	for projectRows.Next() {
 		var projectID string
 		if err := projectRows.Scan(&projectID); err != nil {
-			return RuntimeCredentialUsage{}, errors.New("read Runtime credential Project target")
+			return RuntimeCredentialUsage{}, persistencepostgres.WrapError("read Runtime credential Project target", err)
 		}
 		usage.ProjectIDs = append(usage.ProjectIDs, projectID)
 	}
-	if projectRows.Err() != nil {
-		return RuntimeCredentialUsage{}, errors.New("iterate Runtime credential Project targets")
+	if err := projectRows.Err(); err != nil {
+		return RuntimeCredentialUsage{}, persistencepostgres.WrapError("iterate Runtime credential Project targets", err)
 	}
 	runRows, err := r.db.Query(ctx, runtimeCredentialRunUsageSQL, credentialID, limit)
 	if err != nil {
-		return RuntimeCredentialUsage{}, errors.New("inspect Runtime credential Run snapshots")
+		return RuntimeCredentialUsage{}, persistencepostgres.WrapError("inspect Runtime credential Run snapshots", err)
 	}
 	defer runRows.Close()
 	for runRows.Next() {
 		var runID string
 		if err := runRows.Scan(&runID); err != nil {
-			return RuntimeCredentialUsage{}, errors.New("read Runtime credential Run snapshot")
+			return RuntimeCredentialUsage{}, persistencepostgres.WrapError("read Runtime credential Run snapshot", err)
 		}
 		usage.RunIDs = append(usage.RunIDs, runID)
 	}
-	if runRows.Err() != nil {
-		return RuntimeCredentialUsage{}, errors.New("iterate Runtime credential Run snapshots")
+	if err := runRows.Err(); err != nil {
+		return RuntimeCredentialUsage{}, persistencepostgres.WrapError("iterate Runtime credential Run snapshots", err)
 	}
 	allocationRows, err := r.db.Query(ctx, runtimeCredentialAllocationUsageSQL, credentialID, limit)
 	if err != nil {
-		return RuntimeCredentialUsage{}, errors.New("inspect Runtime credential allocation snapshots")
+		return RuntimeCredentialUsage{}, persistencepostgres.WrapError("inspect Runtime credential allocation snapshots", err)
 	}
 	defer allocationRows.Close()
 	for allocationRows.Next() {
 		var allocationID string
 		if err := allocationRows.Scan(&allocationID); err != nil {
-			return RuntimeCredentialUsage{}, errors.New("read Runtime credential allocation snapshot")
+			return RuntimeCredentialUsage{}, persistencepostgres.WrapError("read Runtime credential allocation snapshot", err)
 		}
 		usage.AllocationIDs = append(usage.AllocationIDs, allocationID)
 	}
-	if allocationRows.Err() != nil {
-		return RuntimeCredentialUsage{}, errors.New("iterate Runtime credential allocation snapshots")
+	if err := allocationRows.Err(); err != nil {
+		return RuntimeCredentialUsage{}, persistencepostgres.WrapError("iterate Runtime credential allocation snapshots", err)
 	}
 	return usage, nil
 }
@@ -349,9 +355,9 @@ func validateRuntimeCredentialCreation(value RuntimeCredentialCreation) error {
 
 func classifyRuntimeCredentialWrite(err error) error {
 	if class := persistencepostgres.ConstraintError(err, ErrRuntimeCredentialConflict, ErrRuntimeCredentialInvalid); class != nil {
-		return class
+		return persistencepostgres.WrapError(class.Error(), errors.Join(class, err))
 	}
-	return errors.New("persist Runtime credential state")
+	return persistencepostgres.WrapError("persist Runtime credential state", err)
 }
 
 func runtimeCredentialKeyDigest(value string) (string, error) {
@@ -396,7 +402,7 @@ func safeRuntimeCredentialStoreError(err error) error {
 		errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
 		return err
 	default:
-		return errors.New("Runtime credential store failure")
+		return persistencepostgres.WrapError("Runtime credential store failure", err)
 	}
 }
 

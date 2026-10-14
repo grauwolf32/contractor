@@ -302,6 +302,12 @@ maps to one class:
 A transient database failure (FAIL-PRJ-4, FAIL-SCH-15) is a transaction
 conflict, a timeout or an unavailable database in this table.
 
+Store reads, writes and locks preserve the original cause through every
+wrapper. A static safe message uses `postgres.WrapError`, whose `Unwrap`
+retains classification and cancellation identity without rendering SQL,
+credentials or provider content. Replacing a failed database call with a new
+unrelated error is rejected by the production-source check.
+
 **PER-R14.** A schema trigger reports a business-rule rejection as
 `check_violation` (23514) without naming a constraint, and a deletion fence
 reports a deleting Project as `object_not_in_prerequisite_state` (55000). A

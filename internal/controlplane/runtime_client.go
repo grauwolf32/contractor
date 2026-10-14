@@ -22,6 +22,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/mtls"
+	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/requestid"
 	"github.com/grauwolf32/contractor/internal/strictjson"
 )
@@ -201,7 +202,7 @@ func (c *RuntimeControlClient) Release(ctx context.Context, reservation Reservat
 	limited := io.LimitReader(response.Body, 1)
 	data, err := io.ReadAll(limited)
 	if err != nil {
-		return errors.New("read Runtime Agent release response")
+		return persistencepostgres.WrapError("read Runtime Agent release response", err)
 	}
 	if len(data) != 0 {
 		return errors.New("Runtime Agent release response must be empty")
@@ -768,7 +769,7 @@ func readBoundedRuntimeBody(body io.Reader) ([]byte, error) {
 func readBoundedBody(body io.Reader, limit int) ([]byte, error) {
 	data, err := io.ReadAll(io.LimitReader(body, int64(limit)+1))
 	if err != nil {
-		return nil, errors.New("read Runtime Agent response")
+		return nil, persistencepostgres.WrapError("read Runtime Agent response", err)
 	}
 	if len(data) > limit {
 		return nil, errors.New("Runtime Agent response is too large")

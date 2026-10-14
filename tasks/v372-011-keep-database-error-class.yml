@@ -5,7 +5,7 @@ milestone: hub-audit-defects-2026-10
 epic: persistence
 kind: defect
 priority: P2
-status: pending
+status: in_progress
 depends_on: []
 languages: [go]
 goal: "Every failed database call keeps its PER-R13 outcome class up to the caller, so a transaction conflict is retried or answered as 503 storage_transaction_conflict and a cancelled context stays cancelled, instead of becoming an unclassified internal error."

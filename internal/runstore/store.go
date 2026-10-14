@@ -34,14 +34,14 @@ func (s *PostgresStore) ListNonTerminalRunIDsByCredential(
 	}
 	rows, err := s.db.Query(ctx, listNonTerminalRunIDsByCredentialSQL, credentialID, limit)
 	if err != nil {
-		return nil, errors.New("list non-terminal Runs by credential")
+		return nil, persistencepostgres.WrapError("list non-terminal Runs by credential", err)
 	}
 	defer rows.Close()
 	result := make([]string, 0)
 	for rows.Next() {
 		var runID string
 		if err := rows.Scan(&runID); err != nil {
-			return nil, errors.New("read non-terminal Run credential reference")
+			return nil, persistencepostgres.WrapError("read non-terminal Run credential reference", err)
 		}
 		if !contracts.ValidResourceID(runID) {
 			return nil, errors.New("stored credential Run reference is not publicly safe")
@@ -49,7 +49,7 @@ func (s *PostgresStore) ListNonTerminalRunIDsByCredential(
 		result = append(result, runID)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, errors.New("iterate non-terminal Run credential references")
+		return nil, persistencepostgres.WrapError("iterate non-terminal Run credential references", err)
 	}
 	return result, nil
 }
