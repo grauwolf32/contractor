@@ -973,6 +973,10 @@ Audit, never a completed report. A crash, cancellation or lost reply resumes
 from the rows remaining; no new purge journal is needed. The Audit row and
 its claim are removed last.
 
+Report reads of a deleting Audit return the existing `unavailable` state
+before inspecting report links, because a committed cleanup pass may have
+removed only one link of the pair.
+
 **REV-R161.** Audit deletion cleanup runs regardless of owner or Audit
 queue pause.
 
