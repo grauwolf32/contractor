@@ -1,0 +1,44 @@
+schema_version: "1.0"
+id: V378-002
+title: Align the HTTP and Caido process regression with finding-only retention
+milestone: http-finding-evidence-2026-10
+epic: http-tools
+kind: chore
+introduced_by: V376-002
+priority: P2
+status: in_progress
+depends_on: [V376-002]
+languages: [go]
+goal: Verify buffered HTTP inspection without expecting an automatically saved body artifact.
+context:
+  finding: >-
+    tests/e2e/http_caido_test.go:252 and :298 still call assertHTTPBodyArtifact,
+    while V376-002 removed automatic body publication. The full process gate
+    fails even though the HTTP request and buffered body inspection succeed.
+  specification:
+    - docs/spec/tools/http-caido.md#HTP-R66
+    - docs/spec/tools/http-caido.md#HTP-R69
+  siblings: >-
+    Both HTTP allocations share the obsolete helper and report text in
+    tests/e2e/http_caido_gateway_test.go:15. The hardening matrix was already
+    updated by V376-004; Runtime inspection and finding-selection fixtures
+    already follow the buffered-capture contract.
+scope:
+  in:
+    - Replace the obsolete body-artifact assertion with an exact inventory assertion that only the explicitly published report survives release.
+    - Make the deterministic Gateway report describe buffered inspection truthfully.
+    - Preserve the real HTTP 500/body inspection, heterogeneous routing, credential isolation and release-recovery assertions.
+  out:
+    - Production HTTP transport, finding intake, artifact storage or retention behavior.
+acceptance_criteria:
+  - id: A1
+    text: Both HTTP allocations inspect the received 500 body in the production Runtime and leave only their explicitly written report in the HTTP namespace after release.
+  - id: A2
+    text: The existing Caido routing, configuration pinning, credential and release-response-loss assertions pass unchanged.
+tests:
+  - command: make lint
+    covers: [A1, A2]
+  - command: go test ./tests/e2e
+    covers: [A1, A2]
+  - command: make test-release-process-e2e-a
+    covers: [A1, A2]

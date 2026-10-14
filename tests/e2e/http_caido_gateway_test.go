@@ -12,7 +12,7 @@ import (
 const (
 	httpCaidoSessionCanary = "HTTP_CAIDO_SESSION_SECRET_CANARY"
 	httpCaidoRawCanary     = "HTTP_CAIDO_RAW_BODY_CANARY"
-	httpCaidoHTTPReport    = "# HTTP analysis\n\nThe bounded 500 response body is retained by exact artifact reference.\n"
+	httpCaidoHTTPReport    = "# HTTP analysis\n\nThe bounded 500 response body was inspected in allocation memory.\n"
 	httpCaidoCaidoReport   = "# Caido analysis\n\nHistory and one bounded scope mutation completed against the pinned instance.\n"
 )
 
