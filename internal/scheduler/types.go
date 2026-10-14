@@ -188,6 +188,7 @@ type ResolvedArtifact struct {
 
 type ArtifactResolver interface {
 	Resolve(context.Context, string, contracts.ArtifactRef) (ResolvedArtifact, error)
+	SaveSummary(ctx context.Context, runID, namespace, sourceStageID, summary string) (contracts.ArtifactRef, error)
 }
 
 type Allocator interface {

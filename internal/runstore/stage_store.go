@@ -372,8 +372,15 @@ func validateCreateStageExecution(params CreateStageExecutionParams) error {
 		if params.EscalationOrdinal == nil || *params.EscalationOrdinal <= 0 {
 			return invalidf("escalation executionConfig variant requires a positive ordinal")
 		}
+	case StageExecutionConfigSummaryEscalation:
+		if params.EscalationOrdinal == nil || *params.EscalationOrdinal != 1 || params.StageContext.Continuation == nil {
+			return invalidf("summary escalation requires ordinal one and saved continuation")
+		}
 	default:
 		return invalidf("unknown executionConfig variant %q", variant)
+	}
+	if variant != StageExecutionConfigSummaryEscalation && params.StageContext.Continuation != nil {
+		return invalidf("saved continuation requires the summary escalation variant")
 	}
 	if err := validateJSONObject("stageSpecSnapshot", params.StageSpecSnapshot); err != nil {
 		return err

@@ -95,6 +95,10 @@ func cloneStage(source ResolvedStage) ResolvedStage {
 		Failed:      cloneTransition(source.On.Failed),
 		Interrupted: cloneTransition(source.On.Interrupted),
 	}
+	if source.On.Summarized != nil {
+		action := cloneTransition(*source.On.Summarized)
+		result.On.Summarized = &action
+	}
 	return result
 }
 
@@ -183,8 +187,13 @@ func cloneTransition(source TransitionAction) TransitionAction {
 	if source.Escalate != nil {
 		result.Escalate = &EscalateTransition{
 			MaxAttempts:     source.Escalate.MaxAttempts,
+			DeadlineSeconds: source.Escalate.DeadlineSeconds,
 			ExecutionConfig: cloneEscalationExecutionConfig(source.Escalate.ExecutionConfig),
 			Then:            cloneTransition(source.Escalate.Then),
+		}
+		if source.Escalate.Planner != nil {
+			ref := *source.Escalate.Planner
+			result.Escalate.Planner = &ref
 		}
 	}
 	return result

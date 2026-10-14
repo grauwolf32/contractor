@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/artifacts"
@@ -32,6 +34,31 @@ func (s *Scheduler) enterFinalizing(ctx context.Context, run runstore.WorkflowRu
 			}
 		}
 		return s.beginAbort(ctx, run, workflow, execution, reservations, failure)
+	}
+	if candidate.Summarized {
+		namespace := ""
+		for _, binding := range workflow.stage.Agents {
+			namespace = binding.Namespace
+		}
+		publicationContext, cancelPublication := context.WithTimeout(ctx, s.options.OperationTimeout)
+		ref, err := s.artifacts.SaveSummary(publicationContext, run.RunID, namespace, execution.StageExecutionID, candidate.Summary)
+		cancelPublication()
+		if err != nil {
+			if errors.Is(err, errSummaryArtifactConflict) || errors.Is(err, artifacts.ErrRunRevisionLimit) ||
+				errors.Is(err, artifacts.ErrInvalidName) || errors.Is(err, artifacts.ErrReservedNamespace) ||
+				errors.Is(err, artifacts.ErrArtifactFrozen) || errors.Is(err, artifacts.ErrPayloadTooLarge) {
+				return s.beginAbort(ctx, run, workflow, execution, reservations, planner.Failure{
+					Code: "summary_publication_failed", Message: "Worker summary could not be published", Retryable: false,
+				})
+			}
+			return planner.NewError("summary_publication_unavailable", "Worker summary publication is unavailable", true, err)
+		}
+		if err := ref.ValidateExact(); err != nil || ref.Namespace != namespace ||
+			ref.Name != stageresult.SummaryArtifactPrefix+execution.StageExecutionID {
+			return s.failInvalidRunState(ctx, run.RunID, fmt.Errorf("summary publication returned an invalid reference"))
+		}
+		candidate = candidate.Clone()
+		candidate.SummaryArtifact = &ref
 	}
 	if err := s.fenceRecordedAllocations(ctx, execution.StageExecutionID, reservations); err != nil {
 		return s.beginAbort(ctx, run, workflow, execution, reservations, planner.Failure{
@@ -80,6 +107,18 @@ func (s *Scheduler) validateCandidate(
 	stage := workflow.stage
 	if err := result.Validate(); err != nil {
 		return err
+	}
+	if result.Summarized && (stage.Planner != (resolved.PlannerRef{PlannerID: "passthrough", Version: "1"}) || len(stage.Agents) != 1) {
+		return fmt.Errorf("only a passthrough Worker completion can request summary continuation")
+	}
+	if result.SummaryArtifact != nil {
+		metadata, err := s.artifacts.Resolve(ctx, runID, *result.SummaryArtifact)
+		if err != nil {
+			return &candidateVerificationError{cause: err}
+		}
+		if !metadata.Ref.SameExact(*result.SummaryArtifact) || metadata.MediaType != "text/plain" {
+			return fmt.Errorf("summary artifact differs from its exact text version")
+		}
 	}
 	for name := range result.Artifacts {
 		if _, declared := stage.Result.Artifacts[name]; !declared {
@@ -194,6 +233,10 @@ func (s *Scheduler) resumeFinalizing(
 			reasonCode = execution.CandidateResult.Error.Code
 		}
 	}
+	if execution.CandidateResult.Summarized && workflow.stage.On.Summarized != nil {
+		action = *workflow.stage.On.Summarized
+		escalationVariant = runstore.StageExecutionConfigSummaryEscalation
+	}
 	commitContext, cancelCommit := s.terminalOperationContext(ctx)
 	progression, err := s.buildProgression(
 		commitContext, run, workflow, execution, action, retryable, reasonCode, escalationVariant,
@@ -282,7 +325,8 @@ func (s *Scheduler) buildProgression(
 	if action.Kind == resolved.TransitionEscalate {
 		if action.Escalate == nil ||
 			(escalationVariant != runstore.StageExecutionConfigFailedEscalation &&
-				escalationVariant != runstore.StageExecutionConfigInterruptedEscalation) {
+				escalationVariant != runstore.StageExecutionConfigInterruptedEscalation &&
+				escalationVariant != runstore.StageExecutionConfigSummaryEscalation) {
 			return StageProgression{}, fmt.Errorf(
 				"%w: escalate Transition has no bounded policy or outcome identity", errInvalidRunState,
 			)
@@ -313,9 +357,21 @@ func (s *Scheduler) buildProgression(
 			return StageProgression{}, fmt.Errorf("%w: %w", errInvalidRunState, err)
 		}
 		previous := execution.StageExecutionID
+		configuration := stageExecutionConfiguration{variant: runstore.StageExecutionConfigBase}
+		if execution.ExecutionConfigVariant == runstore.StageExecutionConfigSummaryEscalation {
+			if workflow.stage.On.Summarized == nil || workflow.stage.On.Summarized.Escalate == nil {
+				return StageProgression{}, fmt.Errorf("%w: retry lost its summary policy", errInvalidRunState)
+			}
+			policy := workflow.stage.On.Summarized.Escalate
+			configuration = stageExecutionConfiguration{
+				variant: runstore.StageExecutionConfigSummaryEscalation,
+				ordinal: execution.EscalationOrdinal, effective: &policy.ExecutionConfig.Effective,
+				planner: policy.Planner, context: &execution.StageContext,
+			}
+		}
 		creation, err := s.buildStageCreation(
 			ctx, run, targetWorkflow, execution.Attempt+1, &previous,
-			stageExecutionConfiguration{variant: runstore.StageExecutionConfigBase},
+			configuration,
 		)
 		if err != nil {
 			return StageProgression{}, err
@@ -335,11 +391,20 @@ func (s *Scheduler) buildProgression(
 		}
 		previous := execution.StageExecutionID
 		effective := action.Escalate.ExecutionConfig.Effective
+		configuration := stageExecutionConfiguration{
+			variant: escalationVariant, ordinal: nextEscalationOrdinal, effective: &effective,
+		}
+		if escalationVariant == runstore.StageExecutionConfigSummaryEscalation {
+			configuration, err = summaryEscalationConfiguration(
+				execution, *action.Escalate, s.now().Add(time.Duration(action.Escalate.DeadlineSeconds)*time.Second),
+			)
+			if err != nil {
+				return StageProgression{}, err
+			}
+		}
 		creation, err := s.buildStageCreation(
 			ctx, run, targetWorkflow, execution.Attempt+1, &previous,
-			stageExecutionConfiguration{
-				variant: escalationVariant, ordinal: nextEscalationOrdinal, effective: &effective,
-			},
+			configuration,
 		)
 		if err != nil {
 			return StageProgression{}, err
@@ -434,6 +499,16 @@ func (s *Scheduler) escalationAttempts(
 			continue
 		}
 		ordinal := *current.EscalationOrdinal
+		if variant == runstore.StageExecutionConfigSummaryEscalation && current.StageContext.Continuation != nil &&
+			current.PreviousExecutionID != nil && current.StageContext.Continuation.SourceStageExecutionID != *current.PreviousExecutionID {
+			previous, exists := byID[*current.PreviousExecutionID]
+			if !exists || previous.ExecutionConfigVariant != variant || previous.EscalationOrdinal == nil ||
+				*previous.EscalationOrdinal != ordinal || previous.StageContext.Continuation == nil ||
+				!reflect.DeepEqual(previous.StageContext.Continuation, current.StageContext.Continuation) {
+				return 0, fmt.Errorf("%w: summary retry changed its saved continuation", errInvalidRunState)
+			}
+			continue
+		}
 		if _, duplicate := seen[ordinal]; duplicate {
 			return 0, fmt.Errorf(
 				"%w: persisted escalation attempts have duplicate ordinal %d", errInvalidRunState, ordinal,

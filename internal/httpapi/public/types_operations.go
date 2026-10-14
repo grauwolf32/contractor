@@ -101,15 +101,18 @@ type resolvedStageExecutionConfigResponse struct {
 }
 
 type workflowTransitionsResponse struct {
-	Succeeded   workflowTransitionResponse `json:"succeeded"`
-	Failed      workflowTransitionResponse `json:"failed"`
-	Interrupted workflowTransitionResponse `json:"interrupted"`
+	Succeeded   workflowTransitionResponse  `json:"succeeded"`
+	Failed      workflowTransitionResponse  `json:"failed"`
+	Interrupted workflowTransitionResponse  `json:"interrupted"`
+	Summarized  *workflowTransitionResponse `json:"summarized,omitempty"`
 }
 
 type workflowTransitionResponse struct {
 	Kind            resolved.TransitionKind           `json:"kind"`
 	NextStage       string                            `json:"nextStage,omitempty"`
 	MaxAttempts     int                               `json:"maxAttempts,omitempty"`
+	Planner         *resolved.PlannerRef              `json:"planner,omitempty"`
+	DeadlineSeconds int                               `json:"deadlineSeconds,omitempty"`
 	ExecutionConfig *workflowEscalationConfigResponse `json:"executionConfig,omitempty"`
 	Then            *workflowTransitionResponse       `json:"then,omitempty"`
 }

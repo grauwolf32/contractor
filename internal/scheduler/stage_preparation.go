@@ -50,13 +50,18 @@ func (s *Scheduler) buildStageCreation(
 		Parameters: clone.Map(run.Parameters),
 		Artifacts:  make(map[string]runstore.PinnedContextArtifact, len(workflow.stage.Context.Artifacts)),
 	}
-	pins := make([]ContextPin, 0, len(workflow.stage.Context.Artifacts))
 	names := make([]string, 0, len(workflow.stage.Context.Artifacts))
 	for name := range workflow.stage.Context.Artifacts {
 		names = append(names, name)
 	}
 	sort.Strings(names)
+	if configuration.context != nil {
+		contextSnapshot = configuration.context.Clone()
+	}
 	for _, name := range names {
+		if configuration.context != nil {
+			continue
+		}
 		declaration := workflow.stage.Context.Artifacts[name]
 		current := auditPinnedContextRef(run, contracts.ArtifactRef{Namespace: declaration.Namespace, Name: declaration.Name})
 		resolved, resolveErr := s.artifacts.Resolve(ctx, run.RunID, current)
@@ -75,9 +80,12 @@ func (s *Scheduler) buildStageCreation(
 			Required: declaration.Required,
 			Artifact: &exact,
 		}
-		pins = append(pins, ContextPin{Name: name, Ref: exact})
 	}
+	pins := stageContextPins(contextSnapshot)
 	stage := workflow.stage
+	if configuration.planner != nil {
+		stage.Planner = *configuration.planner
+	}
 	if configuration.variant == "" {
 		configuration.variant = runstore.StageExecutionConfigBase
 	}
@@ -87,7 +95,8 @@ func (s *Scheduler) buildStageCreation(
 			return NextStageCreation{}, fmt.Errorf("base Stage execution configuration has escalation data")
 		}
 	case runstore.StageExecutionConfigFailedEscalation,
-		runstore.StageExecutionConfigInterruptedEscalation:
+		runstore.StageExecutionConfigInterruptedEscalation,
+		runstore.StageExecutionConfigSummaryEscalation:
 		if configuration.ordinal == nil || *configuration.ordinal <= 0 || configuration.effective == nil {
 			return NextStageCreation{}, fmt.Errorf("escalated Stage execution configuration is incomplete")
 		}
@@ -114,6 +123,8 @@ type stageExecutionConfiguration struct {
 	variant   runstore.StageExecutionConfigVariant
 	ordinal   *int
 	effective *resolved.ResolvedStageExecutionConfig
+	planner   *resolved.PlannerRef
+	context   *runstore.StageContextSnapshot
 }
 
 func missingRequiredContext(execution runstore.StageExecution) string {
@@ -249,10 +260,16 @@ func (s *Scheduler) discardUnadmittedPlacement(ctx context.Context, runID, stage
 }
 
 func (s *Scheduler) stageDeadline(execution runstore.StageExecution) time.Time {
+	var deadline time.Time
 	if execution.AdmittedAt != nil {
-		return execution.AdmittedAt.Add(s.options.PlannerTimeout)
+		deadline = execution.AdmittedAt.Add(s.options.PlannerTimeout)
+	} else {
+		deadline = s.now().Add(s.options.PlannerTimeout)
 	}
-	return s.now().Add(s.options.PlannerTimeout)
+	if continuation := execution.StageContext.Continuation; continuation != nil && continuation.Deadline.Before(deadline) {
+		deadline = continuation.Deadline
+	}
+	return deadline
 }
 
 func stageDeadlineFailure() planner.Failure {

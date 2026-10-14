@@ -12616,11 +12616,31 @@ components:
           maxProperties: 128
           additionalProperties: {$ref: '#/components/schemas/ExactArtifactRef'}
         error: {$ref: '#/components/schemas/TerminationError'}
+        summarized:
+          type: boolean
+          description: Runtime-owned terminal summary carried by passthrough as incomplete work requiring continuation.
+        summaryArtifact: {$ref: '#/components/schemas/ExactArtifactRef'}
       allOf:
         - if: {properties: {outcome: {const: succeeded}}}
           then: {not: {required: [error]}}
         - if: {properties: {outcome: {const: failed}}}
           then: {required: [error]}
+        - if: {required: [summarized], properties: {summarized: {const: true}}}
+          then:
+            required: [error]
+            properties:
+              outcome: {const: failed}
+              error:
+                properties:
+                  code: {const: worker_summarized}
+                  retryable: {const: false}
+        - if: {required: [summaryArtifact]}
+          then: {required: [summarized], properties: {summarized: {const: true}}}
+        - if:
+            required: [error]
+            properties:
+              error: {required: [code], properties: {code: {const: worker_summarized}}}
+          then: {required: [summarized], properties: {summarized: {const: true}}}
     StageTermination:
       type: object
       additionalProperties: false
@@ -13154,7 +13174,7 @@ components:
       additionalProperties: false
       required: [variant, agents]
       properties:
-        variant: {enum: [base, failed_escalation, interrupted_escalation]}
+        variant: {enum: [base, failed_escalation, interrupted_escalation, summary_escalation]}
         escalationOrdinal: {type: integer, minimum: 1}
         ref: {$ref: '#/components/schemas/ExecutionConfigRef'}
         planner: {$ref: '#/components/schemas/ConsumerExecutionConfig'}
@@ -13665,6 +13685,22 @@ components:
       oneOf:
         - {$ref: '#/components/schemas/WorkflowNextTransition'}
         - {$ref: '#/components/schemas/WorkflowSucceedTransition'}
+    WorkflowSummaryTransition:
+      type: object
+      additionalProperties: false
+      required: [kind, maxAttempts, planner, deadlineSeconds, executionConfig, then]
+      properties:
+        kind: {type: string, const: escalate}
+        maxAttempts: {type: integer, const: 1}
+        planner:
+          allOf:
+            - {$ref: '#/components/schemas/PlannerRef'}
+            - properties:
+                plannerId: {const: streamline}
+                version: {const: '1'}
+        deadlineSeconds: {type: integer, minimum: 1, maximum: 86400}
+        executionConfig: {$ref: '#/components/schemas/WorkflowEscalationConfig'}
+        then: {$ref: '#/components/schemas/WorkflowNextOrFailTransition'}
     WorkflowFailureTransition:
       oneOf:
         - {$ref: '#/components/schemas/WorkflowNextTransition'}
@@ -13679,6 +13715,7 @@ components:
         succeeded: {$ref: '#/components/schemas/WorkflowSucceededTransition'}
         failed: {$ref: '#/components/schemas/WorkflowFailureTransition'}
         interrupted: {$ref: '#/components/schemas/WorkflowFailureTransition'}
+        summarized: {$ref: '#/components/schemas/WorkflowSummaryTransition'}
     WorkflowStageContract:
       type: object
       additionalProperties: false

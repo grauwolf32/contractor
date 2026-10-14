@@ -15,31 +15,26 @@ import (
 func ResolveEscalationVariants(workflow *ResolvedWorkflow) error {
 	for _, stageName := range slices.Sorted(maps.Keys(workflow.Stages)) {
 		stage := workflow.Stages[stageName]
-		actions := []struct {
-			outcome string
-			action  *TransitionAction
-		}{
-			{outcome: "failed", action: &stage.On.Failed},
-			{outcome: "interrupted", action: &stage.On.Interrupted},
-		}
-		for _, item := range actions {
-			if item.action.Kind != TransitionEscalate || item.action.Escalate == nil {
+		for _, item := range stage.On.Actions() {
+			if item.Action.Kind != TransitionEscalate || item.Action.Escalate == nil {
 				continue
 			}
-			variantStage := stage
-			variantStage.ExecutionConfig = cloneStageExecutionConfig(stage.ExecutionConfig)
+			variantStage, err := escalationStage(stage, item.Outcome, *item.Action.Escalate)
+			if err != nil {
+				return fmt.Errorf("Stage %q on.%s: %w", stageName, item.Outcome, err)
+			}
 			origin := escalationExecutionConfigOrigin(
-				stageName, item.outcome, item.action.Escalate.ExecutionConfig,
+				stageName, item.Outcome, item.Action.Escalate.ExecutionConfig,
 			)
 			if err := applyResolvedStageExecutionConfigOverride(
-				&variantStage, item.action.Escalate.ExecutionConfig.Override, origin,
+				&variantStage, item.Action.Escalate.ExecutionConfig.Override, origin,
 			); err != nil {
-				return fmt.Errorf("Stage %q on.%s.escalate.executionConfig: %w", stageName, item.outcome, err)
+				return fmt.Errorf("Stage %q on.%s.escalate.executionConfig: %w", stageName, item.Outcome, err)
 			}
 			if err := ValidateStageExecutionConfig(stageName, variantStage); err != nil {
-				return fmt.Errorf("Stage %q on.%s.escalate.executionConfig: %w", stageName, item.outcome, err)
+				return fmt.Errorf("Stage %q on.%s.escalate.executionConfig: %w", stageName, item.Outcome, err)
 			}
-			item.action.Escalate.ExecutionConfig.Effective = cloneStageExecutionConfig(
+			item.Action.Escalate.ExecutionConfig.Effective = cloneStageExecutionConfig(
 				variantStage.ExecutionConfig,
 			)
 		}
@@ -66,8 +61,10 @@ func ValidateStageEscalationVariant(
 			return fmt.Errorf("Stage %q on.%s.escalate.executionConfig.ref: %w", stageName, outcome, err)
 		}
 	}
-	variantStage := stage
-	variantStage.ExecutionConfig = cloneStageExecutionConfig(stage.ExecutionConfig)
+	variantStage, err := escalationStage(stage, outcome, *action.Escalate)
+	if err != nil {
+		return fmt.Errorf("Stage %q on.%s: %w", stageName, outcome, err)
+	}
 	if err := applyResolvedStageExecutionConfigOverride(
 		&variantStage,
 		variant.Override,

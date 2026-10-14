@@ -533,7 +533,20 @@ func (l *loader) resolveTransitions(source *stageTransitionsSource, stages map[s
 	if err != nil {
 		return resolved.StageTransitions{}, err
 	}
-	return resolved.StageTransitions{Succeeded: succeeded, Failed: failed, Interrupted: interrupted}, nil
+	result := resolved.StageTransitions{Succeeded: succeeded, Failed: failed, Interrupted: interrupted}
+	if source.summarizedPresent && source.Summarized == nil {
+		return resolved.StageTransitions{}, fmt.Errorf("on.summarized must not be null")
+	}
+	if source.Summarized != nil {
+		action, err := l.resolveTransitionAction("on.summarized", source.Summarized, stages, map[resolved.TransitionKind]bool{
+			resolved.TransitionEscalate: true,
+		})
+		if err != nil {
+			return resolved.StageTransitions{}, err
+		}
+		result.Summarized = &action
+	}
+	return result, nil
 }
 
 func (l *loader) resolveTransitionAction(
@@ -590,6 +603,10 @@ func (l *loader) resolveTransitionAction(
 		if source.Escalate.MaxAttempts < 1 {
 			return resolved.TransitionAction{}, fmt.Errorf("%s.escalate.maxAttempts must be at least 1", field)
 		}
+		plannerRef, deadlineSeconds, err := resolveEscalationPlanner(field, source.Escalate)
+		if err != nil {
+			return resolved.TransitionAction{}, err
+		}
 		executionConfig, err := l.resolveEscalationExecutionConfig(
 			field+".escalate.executionConfig", source.Escalate.ExecutionConfig,
 		)
@@ -607,6 +624,8 @@ func (l *loader) resolveTransitionAction(
 			Kind: resolved.TransitionEscalate,
 			Escalate: &resolved.EscalateTransition{
 				MaxAttempts:     source.Escalate.MaxAttempts,
+				Planner:         plannerRef,
+				DeadlineSeconds: deadlineSeconds,
 				ExecutionConfig: executionConfig,
 				Then:            then,
 			},

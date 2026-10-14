@@ -320,8 +320,34 @@ type PinnedContextArtifact struct {
 // StageContextSnapshot explicitly retains optional absence as an entry whose
 // Artifact is nil. Present refs must always carry an exact revision.
 type StageContextSnapshot struct {
-	Parameters map[string]string                `json:"parameters"`
-	Artifacts  map[string]PinnedContextArtifact `json:"artifacts"`
+	Parameters   map[string]string                `json:"parameters"`
+	Artifacts    map[string]PinnedContextArtifact `json:"artifacts"`
+	Continuation *stageresult.SummaryContinuation `json:"continuation,omitempty"`
+}
+
+func (s StageContextSnapshot) Clone() StageContextSnapshot {
+	result := StageContextSnapshot{}
+	if s.Parameters != nil {
+		result.Parameters = make(map[string]string, len(s.Parameters))
+	}
+	if s.Artifacts != nil {
+		result.Artifacts = make(map[string]PinnedContextArtifact, len(s.Artifacts))
+	}
+	for key, value := range s.Parameters {
+		result.Parameters[key] = value
+	}
+	for key, value := range s.Artifacts {
+		if value.Artifact != nil {
+			ref := value.Artifact.Clone()
+			value.Artifact = &ref
+		}
+		result.Artifacts[key] = value
+	}
+	if s.Continuation != nil {
+		continuation := s.Continuation.Clone()
+		result.Continuation = &continuation
+	}
+	return result
 }
 
 type CreateStageExecutionParams struct {
@@ -347,6 +373,7 @@ const (
 	StageExecutionConfigBase                  StageExecutionConfigVariant = "base"
 	StageExecutionConfigFailedEscalation      StageExecutionConfigVariant = "failed_escalation"
 	StageExecutionConfigInterruptedEscalation StageExecutionConfigVariant = "interrupted_escalation"
+	StageExecutionConfigSummaryEscalation     StageExecutionConfigVariant = "summary_escalation"
 )
 
 type TerminationOutcome string
@@ -629,6 +656,11 @@ func validateJSONObject(field string, value json.RawMessage) error {
 }
 
 func (s StageContextSnapshot) Validate() error {
+	if s.Continuation != nil {
+		if err := s.Continuation.Validate(); err != nil {
+			return fmt.Errorf("%w: invalid summary continuation: %v", ErrInvalid, err)
+		}
+	}
 	for name := range s.Parameters {
 		if strings.TrimSpace(name) == "" {
 			return invalidf("StageContext parameter name is required")

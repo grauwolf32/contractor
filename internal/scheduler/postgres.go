@@ -89,6 +89,14 @@ func (p *PostgresPersistence) EnterFinalizingWithResult(
 		if err != nil {
 			return err
 		}
+		if params.Candidate.Summarized {
+			if params.Candidate.SummaryArtifact == nil {
+				return fmt.Errorf("summarized candidate requires its saved summary artifact")
+			}
+			if err := artifactService.RequireExact(ctx, scope, *params.Candidate.SummaryArtifact); err != nil {
+				return fmt.Errorf("require saved summary: %w", err)
+			}
+		}
 		names := sortedArtifactNames(params.Candidate.Artifacts)
 		for _, name := range names {
 			if err := artifactService.RequireExact(ctx, scope, params.Candidate.Artifacts[name]); err != nil {
@@ -491,18 +499,12 @@ func validateNextStagePins(value NextStageCreation) error {
 		}
 		pins[pin.Name] = pin.Ref
 	}
-	for name, contextArtifact := range value.Params.StageContext.Artifacts {
-		pin, present := pins[name]
-		if contextArtifact.Artifact == nil {
-			if present {
-				return fmt.Errorf("absent StageContext artifact %q must not be pinned", name)
-			}
-			continue
+	for _, expected := range stageContextPins(value.Params.StageContext) {
+		pin, present := pins[expected.Name]
+		if !present || !pin.SameExact(expected.Ref) {
+			return fmt.Errorf("StageContext artifact %q pin differs from its exact snapshot", expected.Name)
 		}
-		if !present || !pin.SameExact(*contextArtifact.Artifact) {
-			return fmt.Errorf("StageContext artifact %q pin differs from its exact snapshot", name)
-		}
-		delete(pins, name)
+		delete(pins, expected.Name)
 	}
 	if len(pins) != 0 {
 		return fmt.Errorf("StageContext contains an undeclared artifact pin")

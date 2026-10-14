@@ -62,3 +62,15 @@ spec:
           fail: {}
         interrupted:
           fail: {}
+        summarized:
+          escalate:
+            maxAttempts: 1
+            planner: streamline@1
+            deadlineSeconds: 1800
+            executionConfig:
+              planner:
+                modelPolicy: planner@2
+                llmGateway: local-litellm@1
+                credential: development-planner
+            then:
+              fail: {}

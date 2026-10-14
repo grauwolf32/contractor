@@ -97,6 +97,14 @@ func (w executableWorkflow) selectExecution(
 			return executableWorkflow{}, fmt.Errorf("interrupted-escalation StageExecution identity is invalid")
 		}
 		stage.ExecutionConfig = stage.On.Interrupted.Escalate.ExecutionConfig.Effective
+	case runstore.StageExecutionConfigSummaryEscalation:
+		if stage.On.Summarized == nil || stage.On.Summarized.Kind != resolved.TransitionEscalate ||
+			stage.On.Summarized.Escalate == nil || stage.On.Summarized.Escalate.Planner == nil ||
+			execution.EscalationOrdinal == nil || *execution.EscalationOrdinal != 1 || execution.StageContext.Continuation == nil {
+			return executableWorkflow{}, fmt.Errorf("summary-escalation StageExecution identity is invalid")
+		}
+		stage.Planner = *stage.On.Summarized.Escalate.Planner
+		stage.ExecutionConfig = stage.On.Summarized.Escalate.ExecutionConfig.Effective
 	default:
 		return executableWorkflow{}, fmt.Errorf(
 			"StageExecution has unknown executionConfig variant %q", execution.ExecutionConfigVariant,
@@ -129,6 +137,19 @@ func validatePersistedExecution(
 	}
 	if err := execution.StageContext.Validate(); err != nil {
 		return err
+	}
+	if (execution.ExecutionConfigVariant == runstore.StageExecutionConfigSummaryEscalation) != (execution.StageContext.Continuation != nil) {
+		return fmt.Errorf("StageExecution continuation differs from its configuration variant")
+	}
+	if continuation := execution.StageContext.Continuation; continuation != nil {
+		if continuation.SourceStageExecutionID == execution.StageExecutionID {
+			return fmt.Errorf("summary continuation refers to itself")
+		}
+		for _, binding := range workflow.stage.Agents {
+			if continuation.SummaryArtifact.Namespace != binding.Namespace {
+				return fmt.Errorf("summary continuation changed the Agent Namespace")
+			}
+		}
 	}
 	if !reflect.DeepEqual(execution.StageContext.Parameters, run.Parameters) ||
 		len(execution.StageContext.Artifacts) != len(workflow.stage.Context.Artifacts) {

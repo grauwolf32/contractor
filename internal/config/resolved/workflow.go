@@ -160,24 +160,21 @@ func ValidateWorkflowGraph(workflow ResolvedWorkflow) error {
 		if err := validateResolvedStageMappings(name, stage, workflow.Outputs); err != nil {
 			return err
 		}
-		checks := []struct {
-			field   string
-			action  TransitionAction
-			allowed map[TransitionKind]bool
-		}{
-			{"succeeded", stage.On.Succeeded, map[TransitionKind]bool{TransitionNext: true, TransitionSucceed: true}},
-			{"failed", stage.On.Failed, map[TransitionKind]bool{TransitionNext: true, TransitionRetry: true, TransitionEscalate: true, TransitionFail: true}},
-			{"interrupted", stage.On.Interrupted, map[TransitionKind]bool{TransitionNext: true, TransitionRetry: true, TransitionEscalate: true, TransitionFail: true}},
-		}
-		for _, check := range checks {
-			field := "Stage " + name + " on." + check.field
-			if err := validateResolvedTransition(field, check.action, workflow.Stages, check.allowed); err != nil {
+		for _, check := range stage.On.Actions() {
+			allowed := map[TransitionKind]bool{TransitionNext: true, TransitionRetry: true, TransitionEscalate: true, TransitionFail: true}
+			if check.Outcome == "succeeded" {
+				allowed = map[TransitionKind]bool{TransitionNext: true, TransitionSucceed: true}
+			} else if check.Outcome == "summarized" {
+				allowed = map[TransitionKind]bool{TransitionEscalate: true}
+			}
+			field := "Stage " + name + " on." + check.Outcome
+			if err := validateResolvedTransition(field, check.Action, workflow.Stages, allowed); err != nil {
 				return err
 			}
-			if err := ValidateStageEscalationVariant(name, check.field, stage, check.action); err != nil {
+			if err := ValidateStageEscalationVariant(name, check.Outcome, stage, check.Action); err != nil {
 				return err
 			}
-			continuation := transitionContinuation(check.action)
+			continuation := transitionContinuation(check.Action)
 			if continuation.Kind == TransitionNext {
 				adjacency[name][continuation.NextStage] = struct{}{}
 			}
@@ -238,9 +235,12 @@ func ValidateWorkflowGraph(workflow ResolvedWorkflow) error {
 		); err != nil {
 			return err
 		}
-		for _, action := range []TransitionAction{stage.On.Failed, stage.On.Interrupted} {
+		for _, named := range stage.On.Actions() {
+			if named.Outcome == "succeeded" {
+				continue
+			}
 			if err := applyWorkflowTransition(
-				name, action, incoming, workflow.Outputs, flows,
+				name, named.Action, incoming, workflow.Outputs, flows,
 			); err != nil {
 				return err
 			}

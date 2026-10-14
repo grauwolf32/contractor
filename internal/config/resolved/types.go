@@ -185,14 +185,17 @@ type RetryTransition struct {
 
 type EscalateTransition struct {
 	MaxAttempts     int                               `json:"maxAttempts"`
+	Planner         *PlannerRef                       `json:"planner,omitempty"`
+	DeadlineSeconds int                               `json:"deadlineSeconds,omitempty"`
 	ExecutionConfig ResolvedEscalationExecutionConfig `json:"executionConfig"`
 	Then            TransitionAction                  `json:"then"`
 }
 
 type StageTransitions struct {
-	Succeeded   TransitionAction `json:"succeeded"`
-	Failed      TransitionAction `json:"failed"`
-	Interrupted TransitionAction `json:"interrupted"`
+	Succeeded   TransitionAction  `json:"succeeded"`
+	Failed      TransitionAction  `json:"failed"`
+	Interrupted TransitionAction  `json:"interrupted"`
+	Summarized  *TransitionAction `json:"summarized,omitempty"`
 }
 
 type ResolvedStage struct {

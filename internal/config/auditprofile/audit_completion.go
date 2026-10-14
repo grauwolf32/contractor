@@ -46,6 +46,9 @@ func ValidateAuditWorkerCompletion(binding ResolvedAuditWorkflowBinding) error {
 		if action.Escalate != nil {
 			variant := stage
 			variant.ExecutionConfig = action.Escalate.ExecutionConfig.Effective.Clone()
+			if action.Escalate.Planner != nil {
+				variant.Planner = *action.Escalate.Planner
+			}
 			if err := resolved.ValidateStageEscalationVariant(c.Stage, outcome, stage, action); err != nil {
 				return err
 			}
@@ -59,8 +62,8 @@ func ValidateAuditWorkerCompletion(binding ResolvedAuditWorkflowBinding) error {
 		}
 		return nil
 	}
-	for outcome, action := range map[string]resolved.TransitionAction{"succeeded": stage.On.Succeeded, "failed": stage.On.Failed, "interrupted": stage.On.Interrupted} {
-		if err := visit(action, 0, outcome); err != nil {
+	for _, named := range stage.On.Actions() {
+		if err := visit(named.Action, 0, named.Outcome); err != nil {
 			return err
 		}
 	}

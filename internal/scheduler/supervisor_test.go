@@ -622,6 +622,10 @@ func (laneNoopArtifacts) Resolve(context.Context, string, contracts.ArtifactRef)
 	return ResolvedArtifact{}, errors.New("unexpected artifact resolution")
 }
 
+func (laneNoopArtifacts) SaveSummary(context.Context, string, string, string, string) (contracts.ArtifactRef, error) {
+	return contracts.ArtifactRef{}, errors.New("summary publication is unavailable")
+}
+
 type laneNoopAllocator struct{}
 
 func (laneNoopAllocator) ReserveAllContext(context.Context, controlplane.ReservationRequest) ([]controlplane.Reservation, error) {

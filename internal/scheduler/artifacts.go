@@ -1,12 +1,14 @@
 package scheduler
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/planner/stageresult"
 )
 
 // ArtifactServiceResolver resolves current RunScope bindings outside any
@@ -39,6 +41,43 @@ func (r *ArtifactServiceResolver) Resolve(
 		return ResolvedArtifact{}, fmt.Errorf("ArtifactStore returned an inexact ref: %w", err)
 	}
 	return ResolvedArtifact{Ref: result.Ref, MediaType: result.MediaType}, nil
+}
+
+var errSummaryArtifactConflict = errors.New("saved summary differs from its source completion")
+
+// SaveSummary uses the source execution as a natural publication key. A lost
+// acknowledgement is reconciled by exact bytes, never by appending a revision.
+func (r *ArtifactServiceResolver) SaveSummary(
+	ctx context.Context, runID, namespace, sourceStageID, summary string,
+) (contracts.ArtifactRef, error) {
+	store, err := r.service.Run(runID)
+	if err != nil {
+		return contracts.ArtifactRef{}, err
+	}
+	ref := contracts.ArtifactRef{Namespace: namespace, Name: stageresult.SummaryArtifactPrefix + sourceStageID}
+	read := func() (contracts.ArtifactRef, error) {
+		value, err := store.Read(ctx, ref)
+		if err != nil {
+			return contracts.ArtifactRef{}, err
+		}
+		if value.Payload.MediaType != "text/plain" || !bytes.Equal(value.Payload.Data, []byte(summary)) {
+			return contracts.ArtifactRef{}, errSummaryArtifactConflict
+		}
+		return value.Ref.Clone(), nil
+	}
+	if existing, err := read(); !errors.Is(err, artifacts.ErrArtifactNotFound) {
+		return existing, err
+	}
+	written, err := store.Write(ctx, ref, artifacts.Payload{MediaType: "text/plain", Data: []byte(summary)}, nil)
+	if err == nil {
+		return written.Ref.Clone(), nil
+	}
+	if ctx.Err() == nil {
+		if existing, readErr := read(); readErr == nil || errors.Is(readErr, errSummaryArtifactConflict) {
+			return existing, readErr
+		}
+	}
+	return contracts.ArtifactRef{}, err
 }
 
 // outputsNamespace holds a Run's Workflow outputs, which only the Scheduler

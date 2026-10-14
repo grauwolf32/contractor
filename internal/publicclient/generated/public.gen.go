@@ -2045,13 +2045,13 @@ func (e WorkerCompletionDiagnosticsPhase) Valid() bool {
 
 // Defines values for WorkflowEscalateTransitionKind.
 const (
-	Escalate WorkflowEscalateTransitionKind = "escalate"
+	WorkflowEscalateTransitionKindEscalate WorkflowEscalateTransitionKind = "escalate"
 )
 
 // Valid indicates whether the value is a known member of the WorkflowEscalateTransitionKind enum.
 func (e WorkflowEscalateTransitionKind) Valid() bool {
 	switch e {
-	case Escalate:
+	case WorkflowEscalateTransitionKindEscalate:
 		return true
 	default:
 		return false
@@ -2130,6 +2130,36 @@ const (
 func (e WorkflowSucceedTransitionKind) Valid() bool {
 	switch e {
 	case Succeed:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for WorkflowSummaryTransitionKind.
+const (
+	WorkflowSummaryTransitionKindEscalate WorkflowSummaryTransitionKind = "escalate"
+)
+
+// Valid indicates whether the value is a known member of the WorkflowSummaryTransitionKind enum.
+func (e WorkflowSummaryTransitionKind) Valid() bool {
+	switch e {
+	case WorkflowSummaryTransitionKindEscalate:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for WorkflowSummaryTransitionMaxAttempts.
+const (
+	WorkflowSummaryTransitionMaxAttemptsN1 WorkflowSummaryTransitionMaxAttempts = 1
+)
+
+// Valid indicates whether the value is a known member of the WorkflowSummaryTransitionMaxAttempts enum.
+func (e WorkflowSummaryTransitionMaxAttempts) Valid() bool {
+	switch e {
+	case WorkflowSummaryTransitionMaxAttemptsN1:
 		return true
 	default:
 		return false
@@ -6586,7 +6616,11 @@ type StageContentResult struct {
 	Artifacts  map[string]ExactArtifactRef  `json:"artifacts"`
 	Error      *TerminationError            `json:"error,omitempty"`
 	Outcome    StageOutcome                 `json:"outcome"`
-	Summary    string                       `json:"summary"`
+
+	// Summarized Runtime-owned terminal summary carried by passthrough as incomplete work requiring continuation.
+	Summarized      *bool             `json:"summarized,omitempty"`
+	Summary         string            `json:"summary"`
+	SummaryArtifact *ExactArtifactRef `json:"summaryArtifact,omitempty"`
 }
 
 // StageContentResultApiVersion defines model for StageContentResult.ApiVersion.
@@ -6946,11 +6980,31 @@ type WorkflowSummary struct {
 	Ref          WorkflowRef                           `json:"ref"`
 }
 
+// WorkflowSummaryTransition defines model for WorkflowSummaryTransition.
+type WorkflowSummaryTransition struct {
+	DeadlineSeconds int                                  `json:"deadlineSeconds"`
+	ExecutionConfig WorkflowEscalationConfig             `json:"executionConfig"`
+	Kind            WorkflowSummaryTransitionKind        `json:"kind"`
+	MaxAttempts     WorkflowSummaryTransitionMaxAttempts `json:"maxAttempts"`
+	Planner         struct {
+		PlannerId interface{} `json:"plannerId"`
+		Version   interface{} `json:"version"`
+	} `json:"planner"`
+	Then WorkflowNextOrFailTransition `json:"then"`
+}
+
+// WorkflowSummaryTransitionKind defines model for WorkflowSummaryTransition.Kind.
+type WorkflowSummaryTransitionKind string
+
+// WorkflowSummaryTransitionMaxAttempts defines model for WorkflowSummaryTransition.MaxAttempts.
+type WorkflowSummaryTransitionMaxAttempts int
+
 // WorkflowTransitions defines model for WorkflowTransitions.
 type WorkflowTransitions struct {
 	Failed      WorkflowFailureTransition   `json:"failed"`
 	Interrupted WorkflowFailureTransition   `json:"interrupted"`
 	Succeeded   WorkflowSucceededTransition `json:"succeeded"`
+	Summarized  *WorkflowSummaryTransition  `json:"summarized,omitempty"`
 }
 
 // WorkspaceCapabilities defines model for WorkspaceCapabilities.
