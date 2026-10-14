@@ -13,6 +13,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config/auditprofile"
+	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/runservice"
 	"github.com/grauwolf32/contractor/internal/runstore"
 )
@@ -63,9 +64,7 @@ func (c *Controller) RunOnce(ctx context.Context) (bool, error) {
 		wait.Add(1)
 		go func(index int, claim auditstore.ControllerClaim) {
 			defer wait.Done()
-			operationContext, cancel := context.WithTimeout(ctx, c.options.OperationTimeout)
-			changed, reconcileErr := c.reconcile(operationContext, claim)
-			cancel()
+			changed, reconcileErr := c.reconcile(ctx, claim)
 			if changed {
 				worked.Store(true)
 			}
@@ -85,10 +84,25 @@ func (c *Controller) RunOnce(ctx context.Context) (bool, error) {
 func (c *Controller) reconcile(
 	ctx context.Context, claim auditstore.ControllerClaim,
 ) (bool, error) {
-	snapshot, err := c.store.GetReconcileSnapshot(ctx, claim)
+	readContext, cancelRead := context.WithTimeout(ctx, c.options.OperationTimeout)
+	snapshot, err := c.store.GetReconcileSnapshot(readContext, claim)
+	cancelRead()
 	if err != nil {
 		return false, err
 	}
+	var cancel context.CancelFunc
+	if snapshot.Audit.State == auditstore.AuditDeleting {
+		renewContext, cancelRenew := context.WithTimeout(ctx, c.options.OperationTimeout)
+		err := c.store.RenewClaim(renewContext, claim, deletionClaimLease)
+		cancelRenew()
+		if err != nil {
+			return false, err
+		}
+		ctx, cancel = persistencepostgres.WithCleanupBudget(ctx)
+	} else {
+		ctx, cancel = context.WithTimeout(ctx, c.options.OperationTimeout)
+	}
+	defer cancel()
 	audit := snapshot.Audit
 
 	// A non-nil phase result stops this pass, including retryable no-op outcomes.

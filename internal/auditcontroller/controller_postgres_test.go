@@ -1319,10 +1319,13 @@ func TestPostgresControllerCollectsAndPublishesExactAuditReport(t *testing.T) {
 }
 
 func TestPostgresControllerDeletesActiveAuditWhileOwnerQueuePaused(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 	harness := newPostgresControllerHarness(t, ctx, 2)
 	controller := harness.controllerWithCollector(t)
+	budgetStore := &deletionBudgetStore{Store: controller.store}
+	budgetDeleter := &deletionBudgetDeleter{RunDeleter: controller.deleter, pool: harness.pool}
+	controller.store, controller.deleter = budgetStore, budgetDeleter
 	if worked, err := controller.RunOnce(ctx); err != nil || !worked {
 		t.Fatalf("activate round = (%t, %v)", worked, err)
 	}
@@ -1334,6 +1337,7 @@ func TestPostgresControllerDeletesActiveAuditWhileOwnerQueuePaused(t *testing.T)
 		t.Fatalf("submitted child = (%+v, %v)", executions, err)
 	}
 	runID := *executions[0].RunID
+	seedLargeAuditChildRun(t, ctx, harness, runID)
 	if _, err := harness.runs.UpdateOwnerQueueControl(
 		ctx, runstore.UpdateOwnerQueueControlParams{
 			OwnerID: harness.started.Audit.OwnerID, ExpectedRevision: 0, Paused: true,
@@ -1389,6 +1393,9 @@ func TestPostgresControllerDeletesActiveAuditWhileOwnerQueuePaused(t *testing.T)
 	}
 	if _, err := harness.runs.GetRun(ctx, runID); !errors.Is(err, runstore.ErrNotFound) {
 		t.Fatalf("deleted child Run lookup = %v", err)
+	}
+	if !budgetDeleter.checked || budgetStore.lease != deletionClaimLease {
+		t.Fatalf("deletion policy: checked=%t renewed lease=%s", budgetDeleter.checked, budgetStore.lease)
 	}
 	queue, err := harness.runs.GetOwnerQueueControl(ctx, current.OwnerID)
 	if err != nil || !queue.Paused {

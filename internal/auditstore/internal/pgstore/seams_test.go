@@ -1,6 +1,7 @@
 package pgstore
 
 import (
+	"context"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
 )
@@ -20,7 +21,7 @@ type testStore struct {
 
 func newTestStore(db persistencepostgres.DBTX) *testStore {
 	return &testStore{
-		ClaimStore: NewClaimStore(db), OwnerStore: NewOwnerStore(db), ReviewStore: NewReviewStore(db),
+		ClaimStore: NewClaimStore(db).WithPurgeDependencies(purgeTestAuditHolds), OwnerStore: NewOwnerStore(db), ReviewStore: NewReviewStore(db),
 		QueryStore: NewQueryStore(db), FindingEvents: NewFindingEvents(db), RunDeletion: NewRunDeletion(db),
 		ProjectDeletion: NewProjectDeletion(db), CredentialHolds: NewCredentialHolds(db),
 	}
@@ -41,8 +42,17 @@ type testTxStore struct {
 
 func newTestTxStore(tx pgx.Tx) *testTxStore {
 	return &testTxStore{
-		ClaimStore: NewClaimStore(tx), OwnerTxStore: NewOwnerTxStore(tx), ReviewTxStore: NewReviewTxStore(tx),
+		ClaimStore: NewClaimStore(tx).WithPurgeDependencies(purgeTestAuditHolds), OwnerTxStore: NewOwnerTxStore(tx), ReviewTxStore: NewReviewTxStore(tx),
 		QueryStore: NewQueryStore(tx), FindingEventsTx: NewFindingEventsTx(tx), RunDeletionTx: NewRunDeletionTx(tx),
 		ProjectDeletion: NewProjectDeletion(tx), CredentialHolds: NewCredentialHolds(tx),
 	}
+}
+
+// This test-only composition releases the same bounded rows as finding
+// intake, without importing that client back into its own store's fixtures.
+func purgeTestAuditHolds(ctx context.Context, tx pgx.Tx, auditID string, limit int) (int, error) {
+	tag, err := tx.Exec(ctx, `WITH batch AS (
+ SELECT ctid FROM finding_proposal_audit_holds WHERE audit_id = $1 LIMIT $2
+ ) DELETE FROM finding_proposal_audit_holds AS hold USING batch WHERE hold.ctid = batch.ctid`, auditID, limit)
+	return int(tag.RowsAffected()), err
 }

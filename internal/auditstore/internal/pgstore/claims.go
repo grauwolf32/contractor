@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -52,6 +53,17 @@ func (s *ClaimStore) ReleaseClaim(ctx context.Context, claim auditstore.Controll
 		return fmt.Errorf("release Audit claim: %w", err)
 	}
 	return nil
+}
+
+func (s *ClaimStore) RenewClaim(ctx context.Context, claim auditstore.ControllerClaim, lease time.Duration) error {
+	if err := validateClaimIdentity(claim); err != nil {
+		return err
+	}
+	err := auditClaims.Renew(ctx, s.db, claim.AuditID, claim.HolderID, int64(claim.Epoch), lease)
+	if errors.Is(err, persistencepostgres.ErrControllerClaimLost) {
+		return auditstore.ErrClaimLost
+	}
+	return err
 }
 
 func scanClaim(row scanner) (auditstore.ControllerClaim, error) {

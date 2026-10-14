@@ -200,8 +200,9 @@ revision it holds, then the revisions. Their versions and blobs are then
 locked in one global order and the unreferenced ones deleted, at most one
 batch of them per statement. A Run purge stays the one transaction of DEL-R22:
 the Run revision limit (LIM-ART-6) bounds its batches. An Audit namespace
-purge likewise runs inside its Audit deletion transaction
-([review-and-reports](../audits/review-and-reports.md)).
+purge commits at most one batch per transaction while the owning Audit stays
+deleting; its domain rows are removed in subsequent bounded work and the
+Audit row is removed last ([REV-R160](../audits/review-and-reports.md)).
 
 Rationale: a statement per batch keeps every statement and lock set bounded,
 and each batch's key range starts behind the rows earlier batches deleted, so

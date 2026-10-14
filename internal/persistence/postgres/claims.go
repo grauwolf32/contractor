@@ -124,6 +124,25 @@ func (c ControllerClaims) Lock(ctx context.Context, db DBTX, subjectID, holderID
 	return nil
 }
 
+// Renew extends an exact live claim for a bounded maintenance operation.
+// A lost or already expired lease cannot be revived by its former holder.
+func (c ControllerClaims) Renew(ctx context.Context, db DBTX, subjectID, holderID string, epoch int64, lease time.Duration) error {
+	if lease < minControllerLease || lease > maxControllerLease {
+		return errors.New("controller claim renewal lease is invalid")
+	}
+	tag, err := db.Exec(ctx, `UPDATE `+c.table+` AS claim
+SET expires_at = clock_timestamp() + $4 * interval '1 millisecond'
+WHERE claim.`+c.subject+` = $1 AND `+c.LiveCondition("claim", "$2", "$3"),
+		subjectID, holderID, epoch, lease.Milliseconds())
+	if err != nil {
+		return WrapError("renew controller claim", err)
+	}
+	if tag.RowsAffected() != 1 {
+		return ErrControllerClaimLost
+	}
+	return nil
+}
+
 // Live reports whether holderID still holds subjectID at epoch, without
 // locking the claim.
 func (c ControllerClaims) Live(ctx context.Context, db DBTX, subjectID, holderID string, epoch int64) (bool, error) {

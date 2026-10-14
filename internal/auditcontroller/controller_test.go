@@ -777,6 +777,18 @@ func (s *fakeControllerStore) Claim(_ context.Context, params auditstore.ClaimPa
 	}}, nil
 }
 
+func (s *fakeControllerStore) RenewClaim(_ context.Context, claim auditstore.ControllerClaim, lease time.Duration) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if !s.held || claim.Epoch != s.epoch {
+		return auditstore.ErrClaimLost
+	}
+	if lease < time.Second || lease > 5*time.Minute {
+		return auditstore.ErrInvalid
+	}
+	return nil
+}
+
 func (s *fakeControllerStore) ReleaseClaim(_ context.Context, claim auditstore.ControllerClaim) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()

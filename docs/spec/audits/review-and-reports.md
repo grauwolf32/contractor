@@ -950,6 +950,24 @@ tables to infer this authority.
 immutable review decisions and finding assessments that outlive the deleted
 child Runs; their restricting keys protect them only outside a purge.
 
+The deleting phase owns the two-minute cleanup budget independently of the
+ordinary reconcile budget. Before cleanup it renews the exact live claim for
+four minutes; an expired or replaced claim cannot be revived. The phase joins
+cleanup before releasing the claim. A child Run remains an atomic deletion,
+bounded by its Run revision quota. Project deletion already owns a separate
+purge budget and is unchanged.
+
+An Audit namespace commits at most one Artifact purge batch per pass. Once it
+is empty, each pass changes or deletes at most 1,000 domain and dependent
+rows in total (LIM-REV-10). Purge clears derived finding and item
+back-references before deleting immutable history, removes leaf rows before
+parents, and releases finding holds and mutation receipts through their
+owners. The creation receipt stays until the final Audit DELETE so Eval
+tombstone recovery can read it. Partial cleanup is visible only as a deleting
+Audit, never a completed report. A crash, cancellation or lost reply resumes
+from the rows remaining; no new purge journal is needed. The Audit row and
+its claim are removed last.
+
 **REV-R161.** Audit deletion cleanup runs regardless of owner or Audit
 queue pause.
 

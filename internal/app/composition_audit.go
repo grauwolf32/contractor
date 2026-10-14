@@ -15,6 +15,7 @@ import (
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/credentials"
+	"github.com/grauwolf32/contractor/internal/findingintake"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/rundeletion"
@@ -61,7 +62,7 @@ func configureAudits(
 	}
 	// The Controller side holds the claim-bound commands and the reads of the
 	// Audit store; the owner-facing service holds neither seam's handle.
-	auditClaims, auditReads := claimstore.New(pool), querystore.New(pool)
+	auditClaims, auditReads := claimstore.New(pool).WithPurgeDependencies(findingintake.DeleteAuditHoldsBatch), querystore.New(pool)
 	auditSubmissionBuilder, err := auditcontroller.NewPinnedSubmissionBuilder(
 		auditArtifactAccess, auditReads,
 	)

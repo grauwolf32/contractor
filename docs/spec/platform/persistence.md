@@ -436,6 +436,11 @@ claim at its epoch and that the lease has not ended; only a release or a
 purge by the holder accepts its holder's ended lease, because no other holder
 can have leased the subject without advancing the epoch.
 
+A bounded maintenance operation may renew its exact still-live claim without
+advancing the epoch. Renewal cannot revive an expired, released or replaced
+claim. Audit deletion renews before entering its separate cleanup budget
+([REV-R160](../audits/review-and-reports.md)).
+
 ## Limits, failures and errors
 
 Limits ([registry](limits.md)):
