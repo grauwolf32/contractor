@@ -18,7 +18,11 @@ from contractor_runtime.factories import (
     FactoryRegistry,
     WorkerRuntimeFactory,
 )
-from contractor_runtime.sandbox.contracts import SandboxContractError, validate_sandbox_selection
+from contractor_runtime.sandbox.contracts import (
+    PODMAN_PROFILES,
+    SandboxContractError,
+    validate_sandbox_selection,
+)
 
 
 def validate_spec(
@@ -128,7 +132,7 @@ def validate_spec(
             retryable=False,
             status_code=422,
         )
-    if sandbox_ref == "podman@1" and factories.execution_lifecycle is None:
+    if sandbox_ref in PODMAN_PROFILES and factories.execution_lifecycle is None:
         raise AllocationError(
             "sandbox_unavailable",
             "sandbox lifecycle is unavailable",

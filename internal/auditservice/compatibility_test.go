@@ -153,3 +153,36 @@ func mustAuditServiceProfile(t *testing.T) auditprofile.ResolvedAuditProfile {
 	}
 	return profile
 }
+
+func TestProjectActiveCheckPolicyCoversNetworkedCodeExecution(t *testing.T) {
+	for _, sandbox := range []string{"podman", "podman-network"} {
+		t.Run(sandbox, func(t *testing.T) {
+			profile := mustAuditServiceProfile(t)
+			profile.Interaction.ActiveChecks = auditprofile.AuditActiveChecksAutomatic
+			binding := profile.Workflows["check"]
+			stage := binding.Workflow.Stages["check"]
+			agent := stage.Agents["worker"]
+			agent.Template.Toolsets = []contracts.ToolsetSelection{{
+				Ref:   contracts.ToolsetRef{ToolsetID: "code-execution", Version: "1"},
+				Tools: []string{"exec_command"},
+			}}
+			agent.Template.SandboxProfile = contracts.SandboxProfileRef{SandboxProfileID: sandbox, Version: "1"}
+			stage.Agents["worker"] = agent
+			binding.Workflow.Stages["check"] = stage
+			profile.Workflows["check"] = binding
+			if got := workflowRoleSelectsClassifiedTool(profile, "check", true); got != (sandbox == "podman-network") {
+				t.Fatalf("incorrect active role classification: %v", got)
+			}
+			for _, policy := range []contracts.ActiveChecksPolicy{contracts.ActiveChecksAutomatic, contracts.ActiveChecksApprovalRequired, contracts.ActiveChecksProhibited} {
+				got, err := activeCheckPolicy(profile, policy)
+				if policy == contracts.ActiveChecksProhibited && sandbox == "podman-network" {
+					if err == nil {
+						t.Fatal("Project prohibition admitted networked execution")
+					}
+				} else if err != nil || got != policy {
+					t.Fatalf("policy %s: got %s, %v", policy, got, err)
+				}
+			}
+		})
+	}
+}

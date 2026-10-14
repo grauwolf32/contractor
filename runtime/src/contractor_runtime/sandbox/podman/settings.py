@@ -9,6 +9,10 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from types import MappingProxyType
 
+from contractor_runtime.sandbox.contracts import SandboxContractError, SandboxErrorCode
+
+NETWORKED_MODE = "pasta"
+
 PODMAN_LIMIT_CEILINGS = MappingProxyType(
     {
         "cpus": 64,
@@ -29,6 +33,7 @@ _OWNER = re.compile(r"[a-z0-9][a-z0-9_-]{0,62}")
 @dataclass(frozen=True, slots=True)
 class PodmanSettings:
     enabled: bool = False
+    network_enabled: bool = False
     image: str | None = field(default=None, repr=False)
     owner: str | None = field(default=None, repr=False)
     cpus: float = 2.0
@@ -42,6 +47,10 @@ class PodmanSettings:
     output_max_bytes: int = 1 << 20
 
     def __post_init__(self) -> None:
+        if type(self.network_enabled) is not bool:
+            raise ValueError("podman network enabled must be boolean")
+        if self.network_enabled and not self.enabled:
+            raise ValueError("podman network requires enabled podman")
         if type(self.enabled) is not bool:
             raise ValueError("podman enabled must be boolean")
         if self.image is not None and (
@@ -68,6 +77,10 @@ class PodmanSettings:
         if self.tmpfs_bytes > self.memory_bytes:
             raise ValueError("podman tmpfs maximum must not exceed memory maximum")
 
+    def validate_network(self, mode: str) -> None:
+        if mode != "none" and (not self.network_enabled or mode != NETWORKED_MODE):
+            raise SandboxContractError(SandboxErrorCode.INCOMPATIBLE)
+
     @property
     def command_cleanup_reserve_seconds(self) -> int:
         """Part of a command's budget kept for stop and removal (at most half)."""
@@ -80,6 +93,11 @@ def add_podman_arguments(parser: argparse.ArgumentParser, values: Mapping[str, s
         "--podman-enabled",
         type=_boolean,
         default=values.get("CONTRACTOR_PODMAN_ENABLED", "false"),
+    )
+    parser.add_argument(
+        "--podman-network-enabled",
+        type=_boolean,
+        default=values.get("CONTRACTOR_PODMAN_NETWORK_ENABLED", "false"),
     )
     for name in ("image", "owner", *PODMAN_LIMIT_CEILINGS):
         parser.add_argument(
@@ -94,7 +112,7 @@ def podman_settings(parser: argparse.ArgumentParser, args: argparse.Namespace) -
         return PodmanSettings(
             **{
                 name: getattr(args, "podman_" + name)
-                for name in ("enabled", "image", "owner", *PODMAN_LIMIT_CEILINGS)
+                for name in ("enabled", "network_enabled", "image", "owner", *PODMAN_LIMIT_CEILINGS)
             }
         )
     except ValueError as error:

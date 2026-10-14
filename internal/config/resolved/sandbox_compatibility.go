@@ -2,6 +2,7 @@ package resolved
 
 import (
 	"fmt"
+	"slices"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
@@ -16,9 +17,9 @@ func sandboxToolCompatibility(registered descriptorTable, template contracts.Res
 	profile := template.SandboxProfile.SandboxProfileID + "@" + template.SandboxProfile.Version
 	for _, selected := range template.Toolsets {
 		ref := selected.Ref.ToolsetID + "@" + selected.Ref.Version
-		required := registered.Toolsets[ref].RequiredSandboxProfile
-		if required != "" && profile != required {
-			return fmt.Errorf("Toolset %s requires SandboxProfile %s", ref, required)
+		required := registered.Toolsets[ref].RequiredSandboxProfiles
+		if len(required) > 0 && !slices.Contains(required, profile) {
+			return fmt.Errorf("Toolset %s requires one of SandboxProfiles %v", ref, required)
 		}
 	}
 	return nil

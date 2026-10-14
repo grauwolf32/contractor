@@ -44,8 +44,9 @@ SHARED_DESCRIPTOR_FIELDS = frozenset(
         "tools",
         "infrastructureChannels",
         "requiresWorkspace",
-        "requiredSandboxProfile",
+        "requiredSandboxProfiles",
         "activeCheckTools",
+        "sandboxActiveCheckTools",
         "findingProposalTools",
         "requiredWorkflowInputs",
     }
@@ -81,7 +82,7 @@ def test_shared_toolset_descriptor_parity(tmp_path: Path) -> None:
             },
             # Allocation validation reads the attribute the same way.
             "requiresWorkspace": getattr(factory, "requires_workspace", False),
-            "requiredSandboxProfile": TOOLSET_SANDBOX_REQUIREMENTS.get(ref),
+            "requiredSandboxProfiles": sorted(TOOLSET_SANDBOX_REQUIREMENTS.get(ref, ())),
         }
         assert actual == {field: shared[field] for field in actual}, ref
 

@@ -13,9 +13,11 @@ func TestPodmanAuthoringChecksWithoutFleetLookup(t *testing.T) {
 		want                      string
 	}{
 		{"direct", "direct", "podman@1", "exec_command", ""},
+		{"network-direct", "direct", "podman-network@1", "exec_command", ""},
+		{"network-overlay", "overlay", "podman-network@1", "exec_command", "requires context.workspace.mode direct"},
 		{"overlay", "overlay", "podman@1", "exec_command", "requires context.workspace.mode direct"},
 		{"missing-workspace", "", "podman@1", "exec_command", "requires context.workspace.mode direct"},
-		{"host-fallback", "direct", "local-workdir@1", "exec_command", "requires SandboxProfile podman@1"},
+		{"host-fallback", "direct", "local-workdir@1", "exec_command", "requires one of SandboxProfiles"},
 		{"unknown-tool", "direct", "podman@1", "exec_python", "does not export selected tool"},
 	} {
 		t.Run(test.name, func(t *testing.T) {

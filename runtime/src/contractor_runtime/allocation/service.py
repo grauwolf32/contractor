@@ -59,6 +59,7 @@ from contractor_runtime.redaction import (
     runtime_setting_values,
     substring_values,
 )
+from contractor_runtime.sandbox.contracts import PODMAN_PROFILES
 from contractor_runtime.sandbox.lifecycle import PreparedExecution
 from contractor_runtime.state import ProcessState, RuntimeState
 from contractor_runtime.telemetry.resources import ProcessReading, ResourceCollector
@@ -265,12 +266,14 @@ class AllocationService:
                         allocation_id=spec.allocation_id,
                         timeout_seconds=remaining,
                     )
-                if sandbox.ref == "podman@1":
+                if sandbox.ref in PODMAN_PROFILES:
                     if not (lifecycle is not None and project_workspace is not None):
                         raise RuntimeError(
                             "Expected lifecycle is not None and project_workspace is not None"
                         )
-                    execution = lifecycle.allocate(spec.allocation_id, project_workspace)
+                    execution = lifecycle.allocate(
+                        spec.allocation_id, project_workspace, sandbox_profile=sandbox.ref
+                    )
                     await execution.prepare(deadline=adapter_deadline)
                 worker_state = WorkerStateStore()
                 if execution is not None:

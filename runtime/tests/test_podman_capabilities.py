@@ -135,7 +135,7 @@ def test_cancelled_discovery_preserves_probe_bind_and_waits_for_owner(tmp_path):
             entered, resume = asyncio.Event(), asyncio.Event()
             roots = []
 
-            async def probe(root, *, deadline):
+            async def probe(root, *, deadline, network):
                 roots.append(root)
                 entered.set()
                 await resume.wait()
@@ -168,7 +168,7 @@ def test_discovery_pairs_capabilities_only_after_owner_receipt_and_bind_cleanup(
         async with owner(tmp_path) as fixture:
             events = []
 
-            async def probe(root, *, deadline):
+            async def probe(root, *, deadline, network):
                 assert fixture.backend.recovered and fixture.backend.entry is None
                 assert root.is_dir()
                 events.append("probe")
@@ -212,7 +212,7 @@ def test_unconfirmed_cleanup_prevents_registration_and_preserves_probe_files(tmp
         async with owner(tmp_path) as fixture:
             roots = []
 
-            async def probe(root, *, deadline):
+            async def probe(root, *, deadline, network):
                 roots.append(root)
                 raise SandboxContractError(SandboxErrorCode.CLEANUP_FAILED)
 
@@ -238,7 +238,7 @@ def test_timeout_retains_late_probe_and_never_reuses_its_positive_receipt(tmp_pa
             entered, resume = asyncio.Event(), asyncio.Event()
             roots = []
 
-            async def probe(root, *, deadline):
+            async def probe(root, *, deadline, network):
                 roots.append(root)
                 entered.set()
                 await resume.wait()
@@ -310,7 +310,7 @@ def test_provider_cleanup_failure_invalidates_positive_probe_receipt(tmp_path):
     async def scenario():
         async with owner(tmp_path) as fixture:
 
-            async def probe(root, *, deadline):
+            async def probe(root, *, deadline, network):
                 return {"available": True, "failure": None}
 
             fixture.backend.probe = probe

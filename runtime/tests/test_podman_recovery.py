@@ -166,6 +166,8 @@ def test_recovery_failure_prevents_all_capability_probes(tmp_path):
         fixture = Owner(tmp_path)
 
         class Unavailable:
+            settings = fixture.settings
+
             async def recover(self, *, deadline):
                 raise RuntimeError("unresolved predecessor")
 

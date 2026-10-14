@@ -34,6 +34,9 @@ class ExecutionLifecycle(Protocol):
     def probe_available(self) -> bool: ...
 
     @property
+    def network_probe_available(self) -> bool: ...
+
+    @property
     def settings(self) -> PodmanSettings:
         """Immutable operator policy; selected tools advertise its limits."""
         ...
@@ -47,7 +50,11 @@ class ExecutionLifecycle(Protocol):
     async def prepare_root(self, root: Path) -> None: ...
 
     def allocate(
-        self, allocation_id: str, workspace: DirectWorkspaceSession
+        self,
+        allocation_id: str,
+        workspace: DirectWorkspaceSession,
+        *,
+        sandbox_profile: str = "podman@1",
     ) -> PreparedExecution: ...
 
     async def close(self, *, deadline: float) -> None: ...

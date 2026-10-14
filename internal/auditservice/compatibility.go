@@ -91,13 +91,14 @@ func workflowRoleSelectsClassifiedTool(
 	if !exists {
 		return false
 	}
-	classified := resolved.SelectsFindingProposalTool
-	if active {
-		classified = resolved.SelectsActiveCheckTool
-	}
 	for _, stage := range binding.Workflow.Stages {
 		for _, agent := range stage.Agents {
-			if slices.ContainsFunc(agent.Template.Toolsets, classified) {
+			if slices.ContainsFunc(agent.Template.Toolsets, func(selection contracts.ToolsetSelection) bool {
+				if active {
+					return resolved.SelectsActiveCheckTool(selection, agent.Template.SandboxProfile)
+				}
+				return resolved.SelectsFindingProposalTool(selection)
+			}) {
 				return true
 			}
 		}

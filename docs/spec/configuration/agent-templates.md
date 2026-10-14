@@ -547,8 +547,8 @@ allocation preparation if it does not (FAIL-TPL-2).
 mount or implementation module through `sandboxProfile`.
 
 The built-in `local-workdir@1` profile is specified in
-[Runtime Agent](../execution/runtime-agent.md); `podman@1` and its
-`code-execution@1` Toolset are specified in
+[Runtime Agent](../execution/runtime-agent.md); `podman@1`, `podman-network@1`
+and their `code-execution@1` Toolset are specified in
 [Code execution](../tools/code-execution.md).
 
 ### Terminal summarizer

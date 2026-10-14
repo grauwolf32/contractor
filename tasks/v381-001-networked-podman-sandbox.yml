@@ -1,0 +1,90 @@
+schema_version: "1.0"
+id: V381-001
+title: Add an explicitly selected networked Podman sandbox
+milestone: networked-podman-sandbox-2026-10
+epic: sandbox
+kind: feature
+priority: P1
+status: in_progress
+depends_on: []
+languages: [go, python, markdown]
+goal: >-
+  Let Workers run network-capable commands through a separate podman-network@1
+  SandboxProfile while preserving podman@1 as network-isolated execution and
+  reusing the existing rootless owner, guardian, deadlines and cleanup.
+context:
+  request: On 2026-10-15 the user requested a sandbox variation with network access.
+  specification:
+    - docs/spec/tools/code-execution.md
+    - docs/spec/tools/workspace.md
+    - docs/spec/tools/toolsets.md
+    - docs/spec/configuration/agent-templates.md
+    - docs/spec/execution/control-plane.md
+    - docs/spec/platform/security.md
+  boundary_decision: >-
+    Use a separate exact profile and immutable operator opt-in, never a
+    model-selected Podman flag or host networking. Networked commands do not
+    inherit the HTTP Toolset target-policy or proxy guarantees. Advertise only
+    profiles whose real startup preparation and cleanup probe succeeds.
+scope:
+  in:
+    - Exact authoring, placement, shared descriptors and Runtime compatibility for both Podman profiles.
+    - Operator-enabled rootless network configuration and allocation-owned profile selection.
+    - Code-execution tool selection, preparation, diagnostics, teardown and regression tests.
+    - Provisioning and specification documentation with explicit network boundary guarantees.
+  out:
+    - Host networking, privileged commands, port publication and persistent background services.
+    - Claiming HTTP target-scope enforcement for arbitrary executed code.
+    - Interactsh integration, which has its own task V382-001.
+requirements:
+  - id: R1
+    text: podman@1 always uses network none; podman-network@1 is a distinct local-direct profile requiring immutable Runtime network opt-in and a successful probe.
+  - id: R2
+    text: code-execution@1 accepts either registered Podman profile, rejects other profiles, and retains its narrow sandbox-execution channel with no host fallback.
+  - id: R3
+    text: Pin the selected network mode to allocation ownership and verify actual container isolation; executed code cannot choose another mode, mounts, credentials or resource limits.
+  - id: R4
+    text: Keep existing cancellation, lease loss, command descendant cleanup and recovery behavior; finite command/resource/output bounds apply to both profiles.
+  - id: R5
+    text: Document that egress follows the operator's network boundary and does not implicitly use HTTP/Caido routing, target-policy or managed credentials.
+  - id: R6
+    text: Join Runtime health pulses before requesting owner close so a successful owner exit cannot disconnect the control socket before its cleanup receipt is read; regress this ordering for both opt-in settings.
+failure_outcomes:
+  - operation: Networked container probe and allocation preparation
+    permanent: Missing opt-in or incompatible selection is rejected before execution; unsupported network configuration is not advertised.
+    retryable: Existing bounded Podman preparation and Scheduler retry classification apply.
+    ambiguous: Reconcile by existing owner/allocation/creation identity, never blindly create a second container.
+    cancelled: Existing owner and guardian stop and join processes before removing the workspace.
+    timeout: Existing probe, prepare, command and cleanup budgets remain separate and finite.
+cardinality:
+  - collection: Podman profiles and owned containers
+    expected: Two registered profiles and one allocation-owned container.
+    maximum: Existing single-slot and ownership/recovery bounds.
+    bound: Constant profile selection and bounded existing engine operations; no new queue or receipt table.
+lifecycle:
+  - entity: Networked allocation container
+    delete: Allocation owner removes only its verified exact container.
+    cascade: Stop descendants before removing mounts and workspace.
+    retention: No resources survive confirmed release; existing fenced cleanup and startup recovery apply.
+acceptance_criteria:
+  - id: A1
+    given: Network opt-in disabled or enabled.
+    when: Authoring, probing, placement and Runtime prepare select either Podman profile.
+    then: Only supported exact combinations are admitted and advertised; podman@1 stays network none.
+  - id: A2
+    given: A networked allocation and a reachable HTTP fixture.
+    when: A command makes a request, completes, times out or is cancelled.
+    then: Networked execution reaches the fixture, isolated execution cannot, and both retain proven process cleanup and failure outcomes.
+  - id: A3
+    given: Shared Go/Python descriptors and a Worker selecting code-execution@1.
+    when: Compatibility and allocation tests run.
+    then: Both languages enforce the same profile set, local-direct requirement and narrow execution channel.
+tests:
+  - command: go test -count=1 ./internal/config/... ./internal/controlplane ./internal/scheduler ./internal/auditservice
+    covers: [A1, A3]
+  - command: make test-runtime test-wire-cross-language
+    covers: [A1, A2, A3]
+  - command: make test-podman-supervisor test-podman-matrix
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A1, A2, A3]

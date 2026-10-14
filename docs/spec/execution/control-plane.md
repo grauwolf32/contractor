@@ -747,7 +747,7 @@ required sandbox = AgentTemplate.sandboxProfile
 required tools   = each AgentTemplate.toolsets[ref].tools
 required adapters = RuntimeAdapters referenced by resolved Run + Agent label settings
 required workspace mode = Stage context.workspace.mode, when workspace exists
-required workspace storage = local for podman@1; otherwise no storage constraint
+required workspace storage = local for podman@1 or podman-network@1; otherwise no storage constraint
 ```
 
 **CTL-R72.** For each candidate slot, Control Plane first
@@ -783,13 +783,13 @@ tries another candidate or reports temporary insufficient compatible capacity.
 effective labels do not resolve the `caido-graphql@1` adapter, and chooses an
 Agent advertising that adapter ([http-caido](../tools/http-caido.md)).
 
-**CTL-R78.** For a binding selecting `podman@1`, placement requires
+**CTL-R78.** For a binding selecting `podman@1` or `podman-network@1`, placement requires
 the exact runtime, profile, selected tools and local direct workspace
 capability, as well as the registered profile/tool compatibility. These are
 binding-specific requirements: a different Worker in the Stage may continue to
 use its own compatible profile ([code-execution](../tools/code-execution.md)).
 
-**CTL-R79.** Apart from the `podman@1` requirement, workspace
+**CTL-R79.** Apart from the Podman profiles' requirement, workspace
 `storage` is operational diagnostics: placement requires the requested
 workspace mode and the exact Toolset/tool capabilities,
 and the Scheduler does not prefer local over memory storage
