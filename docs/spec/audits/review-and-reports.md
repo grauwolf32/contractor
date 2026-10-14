@@ -937,6 +937,10 @@ phases in order (FAIL-REV-11, LIFE-REV-5):
 3. release evidence and accepted-proposal holds;
 4. only then purge Audit-managed Project bindings and domain rows.
 
+Immutable history and item rows that reference a hold are removed in bounded
+steps while releasing that hold; its material stays available until all such
+references and holds are gone.
+
 Every controller publication or retention, including preparation and later
 Round packages and imported reports, locks its live claim and then its Audit
 in the transaction that inserts or replays the binding. The transaction
@@ -957,12 +961,13 @@ cleanup before releasing the claim. A child Run remains an atomic deletion,
 bounded by its Run revision quota. Project deletion already owns a separate
 purge budget and is unchanged.
 
-An Audit namespace commits at most one Artifact purge batch per pass. Once it
-is empty, each pass changes or deletes at most 1,000 domain and dependent
-rows in total (LIM-REV-10). Purge clears derived finding and item
+Each pass changes or deletes at most 1,000 domain and dependent rows in total
+(LIM-REV-10). Purge clears derived finding and item
 back-references before deleting immutable history, removes leaf rows before
 parents, and releases finding holds and mutation receipts through their
-owners. The creation receipt stays until the final Audit DELETE so Eval
+owners before removing any retained material. Once these references and holds
+are gone, an Audit namespace commits at most one Artifact purge batch per
+pass. The creation receipt stays until the final Audit DELETE so Eval
 tombstone recovery can read it. Partial cleanup is visible only as a deleting
 Audit, never a completed report. A crash, cancellation or lost reply resumes
 from the rows remaining; no new purge journal is needed. The Audit row and

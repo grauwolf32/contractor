@@ -54,8 +54,8 @@ WHERE scope_kind = 'project' AND scope_id = $1 AND namespace = $2`, f.project.Pr
 	if err := f.store.PurgeClaimed(f.ctx, claim, namespace); err != nil {
 		t.Fatal(err)
 	}
-	if left := revisions(); previous-left != persistencepostgres.CleanupBatchRows || left == 0 {
-		t.Fatalf("first purge: removed %d revisions, left %d", previous-left, left)
+	if left := revisions(); left != previous {
+		t.Fatalf("namespace was purged before bounded history/hold cleanup: removed %d revisions", previous-left)
 	}
 	stale := claim
 	if _, err := f.pool.Exec(f.ctx, `UPDATE audit_controller_claims

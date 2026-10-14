@@ -144,16 +144,8 @@ func purgeClaimedAudit(
 	if err != nil {
 		return fmt.Errorf("lock drained Audit for purge: %w", err)
 	}
-	purger, err := artifacts.NewPostgresPurger(tx)
-	if err != nil {
-		return err
-	}
-	complete, err := purger.PurgeAuditNamespace(ctx, projectID, namespace)
-	if err != nil {
-		return fmt.Errorf("purge Audit artifacts: %w", err)
-	}
-	if !complete {
-		return nil
+	if _, err := tx.Exec(ctx, `SELECT set_config('contractor.lifecycle_purge', 'audit', true)`); err != nil {
+		return persistencepostgres.WrapError("enable Audit lifecycle purge", err)
 	}
 	remaining := persistencepostgres.CleanupBatchRows
 	for _, statement := range purgeAuditDomainSQL {
@@ -180,6 +172,19 @@ func purgeClaimedAudit(
 	removed, err = persistencepostgres.DeleteAuditReceiptsBatch(ctx, tx, claim.AuditID, remaining)
 	if err != nil || removed == remaining {
 		return err
+	}
+	// References from decided history are gone before releasing holds; held
+	// material remains available until every hold has been released.
+	purger, err := artifacts.NewPostgresPurger(tx)
+	if err != nil {
+		return err
+	}
+	complete, err := purger.PurgeAuditNamespace(ctx, projectID, namespace)
+	if err != nil {
+		return fmt.Errorf("purge Audit artifacts: %w", err)
+	}
+	if !complete {
+		return nil
 	}
 	tag, err := tx.Exec(ctx, `
 DELETE FROM audits AS audit
