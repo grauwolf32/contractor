@@ -1,0 +1,451 @@
+{
+  "nodes": [
+    {
+      "id": "project",
+      "label": "Project",
+      "kind": "Context",
+      "lane": 0,
+      "description": "Контейнер материалов, запусков и аудитов. Audit всегда принадлежит одному Project.",
+      "sources": [
+        "docs/spec/artifacts/projects.md",
+        "docs/spec/audits/audits.md"
+      ]
+    },
+    {
+      "id": "profile",
+      "label": "AuditProfile",
+      "kind": "Configuration",
+      "lane": 0,
+      "description": "Версионированная программа: режим, стандарты, входы, inventory, роли Workflows, лимиты и правила взаимодействия.",
+      "sources": [
+        "docs/spec/audits/audits.md",
+        "internal/config/auditprofile/audit_profile.go"
+      ]
+    },
+    {
+      "id": "standard",
+      "label": "Audit standard package",
+      "kind": "Configuration",
+      "lane": 0,
+      "description": "Точные версии требований или рисков, evidence contracts и отображения проверок на Workflow-роли.",
+      "sources": ["docs/spec/audits/audits.md"]
+    },
+    {
+      "id": "audit",
+      "label": "Audit",
+      "kind": "Audit",
+      "lane": 1,
+      "description": "Долгоживущая оценка Project по неизменяемой baseline. Координирует обычные Runs и собирает покрытие и результаты.",
+      "sources": ["docs/spec/audits/audits.md"]
+    },
+    {
+      "id": "baseline",
+      "label": "Pinned baseline",
+      "kind": "Audit",
+      "lane": 1,
+      "description": "При старте фиксируются точные входы, scope, профиль, Workflow closures, RuntimeConfig, Skills, стандарты и лимиты. Изменение каталога не меняет начатый Audit.",
+      "sources": ["docs/spec/audits/audits.md"]
+    },
+    {
+      "id": "inventory",
+      "label": "Inventory → Round → Item",
+      "kind": "Audit",
+      "lane": 1,
+      "description": "Детерминированный inventory создаёт ограниченное множество предметов проверки. Неизменяемый Round содержит AuditItems с точными задачами, происхождением и попытками.",
+      "sources": [
+        "docs/spec/audits/audits.md",
+        "internal/config/auditprofile/audit_inventory.go"
+      ]
+    },
+    {
+      "id": "controller",
+      "label": "Audit Controller",
+      "kind": "Execution",
+      "lane": 1,
+      "description": "Владеет подготовкой, раундами, items, child Run intents, сбором результатов, покрытием и бюджетами Audit.",
+      "sources": ["docs/spec/audits/execution.md"]
+    },
+    {
+      "id": "workflow",
+      "label": "Workflow",
+      "kind": "Configuration",
+      "lane": 2,
+      "description": "Версионированный граф Stages: параметры, слоты входов/выходов, objective, Planner, Agent bindings и переходы.",
+      "sources": [
+        "docs/spec/configuration/workflows.md",
+        "internal/config/workflow.go"
+      ]
+    },
+    {
+      "id": "execution",
+      "label": "AuditExecution",
+      "kind": "Audit",
+      "lane": 2,
+      "description": "Одна подача Workflow-роли. Содержит точный execution manifest; соответствует не более чем одному Run. Один check Run может обслуживать ограниченный batch items.",
+      "sources": ["docs/spec/audits/audits.md", "docs/spec/audits/execution.md"]
+    },
+    {
+      "id": "run",
+      "label": "WorkflowRun / Run",
+      "kind": "Execution",
+      "lane": 2,
+      "description": "Один запуск одного Workflow. Хранит разрешённый snapshot конфигурации и точные привязки артефактов. Может быть самостоятельным или созданным Audit.",
+      "sources": [
+        "docs/spec/execution/runs.md",
+        "docs/spec/configuration/workflows.md"
+      ]
+    },
+    {
+      "id": "scheduler",
+      "label": "Workflow Scheduler",
+      "kind": "Execution",
+      "lane": 2,
+      "description": "Владеет Run/Stage lifecycle, retry, escalation и приёмом выходов; не принимает решения о смысле находок и требованиях стандарта.",
+      "sources": [
+        "docs/spec/execution/scheduler.md",
+        "docs/spec/audits/audits.md"
+      ]
+    },
+    {
+      "id": "stage",
+      "label": "Stage / StageExecution",
+      "kind": "Execution",
+      "lane": 3,
+      "description": "Stage задаёт objective, инструкции, Planner, Worker bindings и переходы. StageExecution — конкретная попытка выполнения этапа.",
+      "sources": [
+        "docs/spec/configuration/workflows.md",
+        "docs/spec/execution/scheduler.md"
+      ]
+    },
+    {
+      "id": "planner",
+      "label": "Planner",
+      "kind": "Execution",
+      "lane": 3,
+      "description": "Декомпозиция и диспетчеризация внутри одного Stage. passthrough и scan-plan детерминированы; streamline и router используют модель.",
+      "sources": [
+        "docs/spec/execution/planners.md",
+        "internal/config/resolved/descriptors.go"
+      ]
+    },
+    {
+      "id": "template",
+      "label": "AgentTemplate",
+      "kind": "Configuration",
+      "lane": 3,
+      "description": "Переиспользуемое описание Worker: runtime, инструкции, Skills, Toolsets, sandbox и модельная политика для adk@1.",
+      "sources": [
+        "docs/spec/configuration/agent-templates.md",
+        "internal/config/template.go"
+      ]
+    },
+    {
+      "id": "controlplane",
+      "label": "Control Plane",
+      "kind": "Execution",
+      "lane": 3,
+      "description": "Регистрация Runtime Agents, capabilities, placement, allocation и release. Учитывает закреплённые Runtime labels и требуемые возможности.",
+      "sources": ["docs/spec/execution/control-plane.md"]
+    },
+    {
+      "id": "worker",
+      "label": "Worker",
+      "kind": "Runtime",
+      "lane": 4,
+      "description": "Экземпляр шаблона на одну allocation. adk@1 делает ограниченное модельное суждение; tool@1 исполняет детерминированный scanner без модели. Runtime собирает структурированный результат.",
+      "sources": [
+        "docs/spec/execution/worker.md",
+        "docs/spec/tools/scanners.md"
+      ]
+    },
+    {
+      "id": "runtime",
+      "label": "Runtime Agent",
+      "kind": "Runtime",
+      "lane": 4,
+      "description": "Один allocation slot и один Worker на процесс. Создаёт workspace и инструменты, обслуживает A2A и присоединяет завершение работы к release.",
+      "sources": ["docs/spec/execution/runtime-agent.md"]
+    },
+    {
+      "id": "tools",
+      "label": "Toolsets + Skills + Sandbox",
+      "kind": "Runtime",
+      "lane": 4,
+      "description": "Явно разрешённые инструменты, закреплённые пакеты знаний и среда исполнения. Выбираются AgentTemplate, проверяются при placement.",
+      "sources": [
+        "docs/spec/configuration/agent-templates.md",
+        "docs/spec/tools/toolsets.md",
+        "docs/spec/tools/skills.md"
+      ]
+    },
+    {
+      "id": "llm",
+      "label": "ModelPolicy + LLM Gateway",
+      "kind": "Configuration",
+      "lane": 4,
+      "description": "Политика модели, лимиты и маршрут. executionConfig и RuntimeConfig формируют эффективный выбор; model-free Workers и Planners не требуют модели.",
+      "sources": [
+        "docs/spec/configuration/agent-templates.md",
+        "docs/spec/configuration/runtime-config.md"
+      ]
+    },
+    {
+      "id": "runtimeconfig",
+      "label": "RuntimeConfig + labels",
+      "kind": "Configuration",
+      "lane": 4,
+      "description": "Закреплённая инфраструктурная конфигурация, target policy, adapter settings и ссылки на credentials. Секреты разрешаются отдельно при allocation.",
+      "sources": ["docs/spec/configuration/runtime-config.md"]
+    },
+    {
+      "id": "artifacts",
+      "label": "Artifacts + evidence",
+      "kind": "Result",
+      "lane": 5,
+      "description": "Точные ревизии входов и выходов, результаты проверок, manifests и evidence. ArtifactStore отвечает за scope, lineage и сохранение данных.",
+      "sources": [
+        "docs/spec/artifacts/artifact-store.md",
+        "docs/spec/audits/review-and-reports.md"
+      ]
+    },
+    {
+      "id": "findings",
+      "label": "Finding proposals",
+      "kind": "Result",
+      "lane": 5,
+      "description": "Предложения о возможных проблемах с происхождением и evidence. Приём и triage принадлежат Audit; технический успех Run не равен подтверждённой находке.",
+      "sources": [
+        "docs/spec/findings/findings.md",
+        "docs/spec/audits/review-and-reports.md"
+      ]
+    },
+    {
+      "id": "review",
+      "label": "Human review",
+      "kind": "Result",
+      "lane": 5,
+      "description": "Аутентифицированные решения по точной ревизии или digest предмета review. Профиль определяет, когда нужны approval и подтверждение.",
+      "sources": ["docs/spec/audits/review-and-reports.md"]
+    },
+    {
+      "id": "report",
+      "label": "Coverage + report",
+      "kind": "Result",
+      "lane": 5,
+      "description": "Покрытие, выводы и пробелы по принятому evidence. Политика профиля определяет автоматическое или owner-accepted принятие отчёта.",
+      "sources": ["docs/spec/audits/review-and-reports.md"]
+    }
+  ],
+  "edges": [
+    {
+      "from": "project",
+      "to": "audit",
+      "label": "содержит · 0..N",
+      "source": "docs/spec/audits/audits.md"
+    },
+    {
+      "from": "audit",
+      "to": "baseline",
+      "label": "фиксирует при старте",
+      "source": "docs/spec/audits/audits.md"
+    },
+    {
+      "from": "baseline",
+      "to": "profile",
+      "label": "snapshot + digest",
+      "source": "docs/spec/audits/audits.md"
+    },
+    {
+      "from": "profile",
+      "to": "standard",
+      "label": "выбирает · 0..N",
+      "source": "docs/spec/audits/audits.md"
+    },
+    {
+      "from": "profile",
+      "to": "workflow",
+      "label": "prepare / check / discovery / assessment",
+      "source": "docs/spec/audits/audits.md"
+    },
+    {
+      "from": "profile",
+      "to": "inventory",
+      "label": "задаёт генератор",
+      "source": "docs/spec/audits/audits.md"
+    },
+    {
+      "from": "audit",
+      "to": "inventory",
+      "label": "раунды и предметы проверки",
+      "source": "docs/spec/audits/audits.md"
+    },
+    {
+      "from": "controller",
+      "to": "audit",
+      "label": "координирует",
+      "source": "docs/spec/audits/execution.md"
+    },
+    {
+      "from": "controller",
+      "to": "execution",
+      "label": "создаёт submission",
+      "source": "docs/spec/audits/execution.md"
+    },
+    {
+      "from": "execution",
+      "to": "run",
+      "label": "связывает · 0..1",
+      "source": "docs/spec/audits/audits.md"
+    },
+    {
+      "from": "execution",
+      "to": "inventory",
+      "label": "попытки items / role inputs",
+      "source": "docs/spec/audits/audits.md"
+    },
+    {
+      "from": "run",
+      "to": "workflow",
+      "label": "точный snapshot · 1",
+      "source": "docs/spec/execution/runs.md"
+    },
+    {
+      "from": "scheduler",
+      "to": "run",
+      "label": "исполняет",
+      "source": "docs/spec/execution/scheduler.md"
+    },
+    {
+      "from": "scheduler",
+      "to": "stage",
+      "label": "попытки и переходы",
+      "source": "docs/spec/execution/scheduler.md"
+    },
+    {
+      "from": "workflow",
+      "to": "stage",
+      "label": "определяет граф",
+      "source": "docs/spec/configuration/workflows.md"
+    },
+    {
+      "from": "stage",
+      "to": "planner",
+      "label": "выбирает стратегию",
+      "source": "docs/spec/configuration/workflows.md"
+    },
+    {
+      "from": "stage",
+      "to": "template",
+      "label": "Agent bindings",
+      "source": "docs/spec/configuration/workflows.md"
+    },
+    {
+      "from": "planner",
+      "to": "worker",
+      "label": "передаёт подзадачи",
+      "source": "docs/spec/execution/planners.md"
+    },
+    {
+      "from": "template",
+      "to": "tools",
+      "label": "выбирает",
+      "source": "docs/spec/configuration/agent-templates.md"
+    },
+    {
+      "from": "worker",
+      "to": "template",
+      "label": "экземпляр шаблона",
+      "source": "docs/spec/configuration/agent-templates.md"
+    },
+    {
+      "from": "runtime",
+      "to": "worker",
+      "label": "один slot / Worker",
+      "source": "docs/spec/execution/runtime-agent.md"
+    },
+    {
+      "from": "controlplane",
+      "to": "runtime",
+      "label": "placement + allocation",
+      "source": "docs/spec/execution/control-plane.md"
+    },
+    {
+      "from": "scheduler",
+      "to": "controlplane",
+      "label": "запрашивает allocation",
+      "source": "docs/spec/execution/scheduler.md"
+    },
+    {
+      "from": "controlplane",
+      "to": "runtimeconfig",
+      "label": "закреплённые labels",
+      "source": "docs/spec/execution/control-plane.md"
+    },
+    {
+      "from": "worker",
+      "to": "tools",
+      "label": "использует",
+      "source": "docs/spec/execution/worker.md"
+    },
+    {
+      "from": "worker",
+      "to": "llm",
+      "label": "только adk@1",
+      "source": "docs/spec/configuration/agent-templates.md"
+    },
+    {
+      "from": "planner",
+      "to": "llm",
+      "label": "streamline / router",
+      "source": "docs/spec/execution/planners.md"
+    },
+    {
+      "from": "worker",
+      "to": "artifacts",
+      "label": "результат + evidence",
+      "source": "docs/spec/execution/worker.md"
+    },
+    {
+      "from": "worker",
+      "to": "findings",
+      "label": "предлагает",
+      "source": "docs/spec/findings/findings.md"
+    },
+    {
+      "from": "controller",
+      "to": "artifacts",
+      "label": "собирает и удерживает",
+      "source": "docs/spec/audits/execution.md"
+    },
+    {
+      "from": "controller",
+      "to": "findings",
+      "label": "приём и triage",
+      "source": "docs/spec/audits/execution.md"
+    },
+    {
+      "from": "audit",
+      "to": "review",
+      "label": "запрашивает решения",
+      "source": "docs/spec/audits/review-and-reports.md"
+    },
+    {
+      "from": "review",
+      "to": "findings",
+      "label": "подтверждает / отклоняет",
+      "source": "docs/spec/audits/review-and-reports.md"
+    },
+    {
+      "from": "audit",
+      "to": "report",
+      "label": "публикует",
+      "source": "docs/spec/audits/review-and-reports.md"
+    },
+    {
+      "from": "report",
+      "to": "artifacts",
+      "label": "опирается на evidence",
+      "source": "docs/spec/audits/review-and-reports.md"
+    }
+  ]
+}
