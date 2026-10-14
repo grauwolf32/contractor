@@ -12,7 +12,6 @@ import (
 )
 
 const (
-	MaxPlannerSubtasks                = 32
 	MaxPlannerGlobalObjectiveBytes    = 64 * 1024
 	MaxPlannerSubtaskObjectiveBytes   = 8 * 1024
 	MaxPlannerSubtaskInstructionBytes = 32 * 1024
@@ -81,17 +80,21 @@ type PlannerPlanController struct {
 	mu sync.Mutex
 
 	plan             PlannerPlan
+	maxSubtasks      int
 	nextSubtaskID    uint64
 	nextDispatchCall uint64
 }
 
-func NewPlannerPlanController(objective string) (*PlannerPlanController, error) {
+func NewPlannerPlanController(objective string, limit contracts.PlannerSubtaskLimit) (*PlannerPlanController, error) {
+	if err := limit.Validate(); err != nil {
+		return nil, err
+	}
 	if err := validatePlanText(
 		"global objective", objective, MaxPlannerGlobalObjectiveBytes,
 	); err != nil {
 		return nil, err
 	}
-	return &PlannerPlanController{plan: PlannerPlan{
+	return &PlannerPlanController{maxSubtasks: limit.Effective(), plan: PlannerPlan{
 		Objective: objective,
 		Subtasks:  []PlannerSubtask{},
 	}}, nil
@@ -113,7 +116,7 @@ func (c *PlannerPlanController) AddSubtask(
 			"planner_plan_dispatch_active", "Cannot change the plan while a Worker dispatch is active",
 		)
 	}
-	if len(c.plan.Subtasks) >= MaxPlannerSubtasks {
+	if len(c.plan.Subtasks) >= c.maxSubtasks {
 		return clonePlannerPlan(c.plan), planError(
 			"planner_subtask_limit", "Planner reached its subtask limit",
 		)
@@ -298,7 +301,7 @@ func (p PlannerPlan) Projection() PlannerPlanProjection {
 }
 
 func (p PlannerPlanProjection) Validate() error {
-	if len(p.Subtasks) > MaxPlannerSubtasks {
+	if len(p.Subtasks) > contracts.MaxPlannerSubtasks {
 		return fmt.Errorf("Planner plan exceeds its subtask limit")
 	}
 	currentIndex := -1

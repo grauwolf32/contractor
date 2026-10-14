@@ -45,8 +45,9 @@ const (
 )
 
 // DecodeResolvedWorkflowSnapshot strictly decodes immutable Run authority.
-// Every Stage must retain its explicit Worker session mode. Authoring defaults
-// are resolved before persistence and are never inferred while reading a snapshot.
+// Every Stage must retain its explicit Worker session mode. Worker session defaults
+// are resolved before persistence. Optional maxSubtasks instead retains its
+// contract-defined omission meaning, so the pinned selection needs no catalog.
 func DecodeResolvedWorkflowSnapshot(data []byte) (ResolvedWorkflow, error) {
 	var workflow ResolvedWorkflow
 	if err := strictjson.Decode(data, &workflow); err != nil {
@@ -65,6 +66,9 @@ func DecodeResolvedWorkflowSnapshot(data []byte) (ResolvedWorkflow, error) {
 func DecodeResolvedStageSnapshot(data []byte) (ResolvedStage, error) {
 	var stage ResolvedStage
 	if err := strictjson.Decode(data, &stage); err != nil {
+		return ResolvedStage{}, err
+	}
+	if err := stage.MaxSubtasks.Validate(); err != nil {
 		return ResolvedStage{}, err
 	}
 	if err := validateStageAgentNames("persisted Stage", stage.Agents); err != nil {

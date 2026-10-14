@@ -291,6 +291,7 @@ func newScanTestService(t *testing.T) (*fencedScanStore, *Service) {
 	t.Helper()
 	store := &fencedScanStore{memoryStore: &memoryStore{execution: runstore.StageExecution{
 		StageExecutionID: "stage-scan", State: runstore.StagePreparing,
+		StageSpecSnapshot: json.RawMessage(`{"session":"isolated"}`),
 	}}, claim: "claim-1"}
 	service, err := New(store, Options{})
 	if err != nil {

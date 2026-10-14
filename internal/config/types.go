@@ -142,6 +142,7 @@ type workflowDocument struct {
 }
 
 type workflowSpecSource struct {
+	MaxSubtasks     yaml.Node                       `yaml:"maxSubtasks,omitempty"`
 	AuditTask       *resolved.AuditTaskExecution    `yaml:"auditTask,omitempty"`
 	Presentation    *workflowPresentationSource     `yaml:"presentation,omitempty"`
 	Parameters      *map[string]parameterSlotSource `yaml:"parameters"`

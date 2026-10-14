@@ -306,8 +306,15 @@ not an argument to either operation.
 non-empty bounded objective and instructions. Server assigns the next decimal
 string ID (`0`, `1`, ...), so the model cannot choose, replace or reuse an ID.
 
-**PLN-R27.** A Planner invocation contains at most 32 subtasks
-(LIM-PLN-3).
+**PLN-R27.** Each modeled Planner invocation contains at most its immutable
+Workflow `maxSubtasks` selection ([WFL-R87](../configuration/workflows.md)),
+with omission meaning 32 and an absolute maximum of 1000 (LIM-PLN-3).
+The controller rejects an append at that count with `planner_subtask_limit`
+without changing the plan. Completed and failed records continue to count.
+The Planner session copies the Stage selection on creation and rejects
+oversized persisted plans on write and read, including batched Run-detail
+reads. A retry or summary continuation uses its pinned Stage selection rather
+than consulting the current catalog.
 
 **PLN-R28.** The plan has no edit, reorder, delete, skip, parent/child
 decomposition or arbitrary metadata operation. Those capabilities require a
@@ -802,7 +809,7 @@ Limits ([registry](../platform/limits.md)):
   exactly 1 (PLN-R7).
 - LIM-PLN-2 — logical Worker mapping of `router@1`: fixed, at least 1
   (PLN-R9).
-- LIM-PLN-3 — subtasks per Planner invocation: at most 32 (PLN-R27).
+- LIM-PLN-3 — subtasks per Planner invocation: Workflow-selected 1..1000, default 32 (PLN-R27).
 - LIM-PLN-4 — active dispatches per plan: at most 1 (PLN-R30).
 - LIM-PLN-5 — tool calls executed per model turn: 1 (PLN-R41).
 - LIM-PLN-6 — projection collection `limit`: 1..100, default 100

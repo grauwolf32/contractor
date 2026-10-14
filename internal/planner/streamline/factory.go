@@ -172,7 +172,7 @@ func (f *Factory) Create(invocation planner.Invocation) (planner.Planner, error)
 	if err != nil {
 		return nil, err
 	}
-	plan, err := planner.NewPlannerPlanController(invocation.Stage.Objective)
+	plan, err := planner.NewPlannerPlanController(invocation.Stage.Objective, invocation.Stage.MaxSubtasks)
 	if err != nil {
 		return nil, fmt.Errorf("initialize Planner plan: %w", err)
 	}

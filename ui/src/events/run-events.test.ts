@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
+import plannerSubtaskCases from "../../../api/testdata/planner-subtask-cases.json";
+
 import {
   parseServerFrame,
   RunEventsManager,
@@ -909,4 +911,50 @@ describe("RunEventsManager", () => {
       manager.close();
     },
   );
+});
+
+describe("shared Planner subtask contract", () => {
+  for (const testCase of plannerSubtaskCases.plans) {
+    it(`validates a ${testCase.count}-record plan within the event frame budget`, () => {
+      const event = plannerEvent("sub-1", "run-1", "1");
+      event.data.plan.subtasks = Array.from(
+        { length: testCase.count },
+        (_, index) => ({
+          id: String(index),
+          objective: "x",
+          instructions: "y",
+          status: "pending",
+        }),
+      );
+      const parse = () => parseServerFrame(JSON.stringify(event));
+      if (testCase.valid && testCase.eventFrameValid) {
+        expect(parse()).toMatchObject({
+          data: { plan: { subtasks: event.data.plan.subtasks } },
+        });
+      } else {
+        expect(parse).toThrow();
+      }
+    });
+  }
+  for (const testCase of plannerSubtaskCases.ids) {
+    it(`validates current subtask ID ${testCase.value}`, () => {
+      const event = {
+        ...plannerEvent("sub-1", "run-1", "1"),
+        data: {
+          stageExecutionId: "stage-1",
+          sessionId: "session-1",
+          invocationId: "invocation-1",
+          eventKind: "planner.current_changed",
+          planRevision: 1,
+          subtaskId: testCase.value,
+        },
+      };
+      const parse = () => parseServerFrame(JSON.stringify(event));
+      if (testCase.valid) {
+        expect(parse()).toMatchObject({ data: { subtaskId: testCase.value } });
+      } else {
+        expect(parse).toThrow();
+      }
+    });
+  }
 });

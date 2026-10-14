@@ -51,6 +51,7 @@ func TestCompletionWriteTimeoutOptions(t *testing.T) {
 func TestServiceCreatesOneInvocationAndRecoversCompletion(t *testing.T) {
 	store := &memoryStore{execution: runstore.StageExecution{
 		StageExecutionID: "stage-1", State: runstore.StagePreparing,
+		StageSpecSnapshot: json.RawMessage(`{"session":"isolated"}`),
 	}}
 	sequence := 0
 	service, err := New(store, Options{NewID: func(prefix string) (string, error) {
@@ -125,6 +126,7 @@ func TestADKSessionPersistsOnlyBoundedRedactedEventFacts(t *testing.T) {
 	const stateCursor = "opaque-state-cursor-retention-canary"
 	store := &memoryStore{execution: runstore.StageExecution{
 		StageExecutionID: "stage-1", State: runstore.StagePreparing,
+		StageSpecSnapshot: json.RawMessage(`{"session":"isolated"}`),
 	}}
 	sequence := 0
 	service, err := New(store, Options{NewID: func(prefix string) (string, error) {
@@ -220,7 +222,7 @@ func TestADKSessionPersistsOnlyBoundedRedactedEventFacts(t *testing.T) {
 
 func TestServicePersistsDeterministicTypedPlanAndFacts(t *testing.T) {
 	store, service, identity := runningTestService(t)
-	controller, err := planner.NewPlannerPlanController("Global objective is joined from the Stage")
+	controller, err := planner.NewPlannerPlanController("Global objective is joined from the Stage", 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -363,6 +365,7 @@ func runningTestService(t *testing.T) (*memoryStore, *Service, planner.SessionId
 	t.Helper()
 	store := &memoryStore{execution: runstore.StageExecution{
 		StageExecutionID: "stage-plan", State: runstore.StagePreparing,
+		StageSpecSnapshot: json.RawMessage(`{"session":"isolated"}`),
 	}}
 	service, err := New(store, Options{})
 	if err != nil {
@@ -545,7 +548,7 @@ func TestPlannerFactIDsUseTheRunEventGrammar(t *testing.T) {
 	if err := validatePlannerFact(selected); err != nil {
 		t.Fatalf("valid dispatch fact: %v", err)
 	}
-	for _, subtaskID := range []string{"", "01", "00", "100", "1a", " 1"} {
+	for _, subtaskID := range []string{"", "01", "00", "1000", "1a", " 1"} {
 		fact := selected
 		fact.SubtaskID = subtaskID
 		if err := validatePlannerFact(fact); err == nil {
@@ -560,7 +563,7 @@ func TestPlannerFactIDsUseTheRunEventGrammar(t *testing.T) {
 		}
 	}
 	current := planner.PlannerFact{Kind: planner.PlannerEventCurrentChanged, Key: "current:2", PlanRevision: 2}
-	for subtaskID, valid := range map[string]bool{"": true, "0": true, "31": true, "01": false, "x": false} {
+	for subtaskID, valid := range map[string]bool{"": true, "0": true, "31": true, "100": true, "999": true, "1000": false, "01": false, "x": false} {
 		current.SubtaskID = subtaskID
 		if err := validatePlannerFact(current); (err == nil) != valid {
 			t.Errorf("current-changed subtask ID %q: valid=%v, error=%v", subtaskID, valid, err)

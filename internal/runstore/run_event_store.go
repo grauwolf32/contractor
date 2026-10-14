@@ -17,7 +17,6 @@ import (
 const (
 	maxRunEventDataBytes               = 2 * 1024 * 1024
 	maxRunEventTokenBytes              = 128
-	maxRunEventSubtasks                = 32
 	maxRunEventSubtaskObjectiveBytes   = 8 * 1024
 	maxRunEventSubtaskInstructionBytes = 32 * 1024
 	maxRunEventFunctions               = 32
@@ -291,7 +290,7 @@ func validatePlannerRunEventData(kind RunEventKind, data plannerRunEventData) er
 }
 
 func validatePlannerRunPlan(plan plannerRunPlanProjection) error {
-	if plan.Revision == 0 || len(plan.Subtasks) == 0 || len(plan.Subtasks) > maxRunEventSubtasks {
+	if plan.Revision == 0 || len(plan.Subtasks) == 0 || len(plan.Subtasks) > contracts.MaxPlannerSubtasks {
 		return invalidf("WorkflowRun Planner plan revision or subtask count is invalid")
 	}
 	firstUnresolved := ""
@@ -367,19 +366,15 @@ func validatePlannerRunActivity(activity plannerRunActivity) error {
 }
 
 // ValidPlannerSubtaskID reports whether value identifies a Planner subtask: its
-// decimal position in the plan, one or two digits without a leading zero, as
+// decimal position below the absolute plan limit, without a leading zero, as
 // the public PlannerSubtask id states. The Planner session applies it before
 // it records a fact, so no fact it accepts can fail its append.
 func ValidPlannerSubtaskID(value string) bool {
-	if value == "" || len(value) > 2 || len(value) > 1 && value[0] == '0' {
+	if value == "" || len(value) > len(strconv.Itoa(contracts.MaxPlannerSubtasks-1)) {
 		return false
 	}
-	for _, current := range value {
-		if current < '0' || current > '9' {
-			return false
-		}
-	}
-	return true
+	position, err := strconv.Atoi(value)
+	return err == nil && position >= 0 && position < contracts.MaxPlannerSubtasks && strconv.Itoa(position) == value
 }
 
 // ValidPlannerDispatchCallID reports whether value is a Server-generated

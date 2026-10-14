@@ -58,6 +58,7 @@ type allocationPageResponse struct {
 }
 
 type workflowSummaryResponse struct {
+	MaxSubtasks  contracts.PlannerSubtaskLimit     `json:"maxSubtasks,omitempty"`
 	Ref          resolved.WorkflowRef              `json:"ref"`
 	Presentation *resolved.WorkflowPresentation    `json:"presentation,omitempty"`
 	EntryStage   string                            `json:"entryStage"`

@@ -16,6 +16,10 @@ func (l *loader) resolveWorkflow(selector resolved.Selector, spec *workflowSpecS
 	if spec == nil {
 		return resolved.ResolvedWorkflow{}, fmt.Errorf("spec is required")
 	}
+	maxSubtasks, err := resolveWorkflowMaxSubtasks(spec.MaxSubtasks)
+	if err != nil {
+		return resolved.ResolvedWorkflow{}, err
+	}
 	presentation, err := resolveWorkflowPresentation(spec.Presentation)
 	if err != nil {
 		return resolved.ResolvedWorkflow{}, err
@@ -51,10 +55,12 @@ func (l *loader) resolveWorkflow(selector resolved.Selector, spec *workflowSpecS
 		if stageErr != nil {
 			return resolved.ResolvedWorkflow{}, fmt.Errorf("spec.stages.%s: %w", name, stageErr)
 		}
+		stage.MaxSubtasks = maxSubtasks
 		stages[name] = stage
 	}
 	// As for Stages, the decoded auditTask belongs to this load alone.
 	workflow := resolved.ResolvedWorkflow{
+		MaxSubtasks:  maxSubtasks,
 		Ref:          resolved.WorkflowRef{Name: selector.ID, Version: selector.Version},
 		AuditTask:    spec.AuditTask,
 		Presentation: presentation,
@@ -79,6 +85,27 @@ func (l *loader) resolveWorkflow(selector resolved.Selector, spec *workflowSpecS
 		return resolved.ResolvedWorkflow{}, err
 	}
 	return workflow, nil
+}
+
+func resolveWorkflowMaxSubtasks(source yaml.Node) (contracts.PlannerSubtaskLimit, error) {
+	if source.Kind == 0 {
+		return 0, nil
+	}
+	var value int
+	if source.Kind != yaml.ScalarNode || source.Tag != "!!int" {
+		return 0, fmt.Errorf("spec.maxSubtasks must be an integer from 1 to %d", contracts.MaxPlannerSubtasks)
+	}
+	if err := source.Decode(&value); err != nil {
+		return 0, fmt.Errorf("spec.maxSubtasks: %w", err)
+	}
+	limit := contracts.PlannerSubtaskLimit(value)
+	if value == 0 {
+		return 0, fmt.Errorf("spec.maxSubtasks must be an integer from 1 to %d", contracts.MaxPlannerSubtasks)
+	}
+	if err := limit.Validate(); err != nil {
+		return 0, fmt.Errorf("spec.maxSubtasks: %w", err)
+	}
+	return limit, nil
 }
 
 func resolveWorkflowPresentation(source *workflowPresentationSource) (*resolved.WorkflowPresentation, error) {

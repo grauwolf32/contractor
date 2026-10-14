@@ -153,6 +153,26 @@ flowchart LR
 The reusable definition owns these slot contracts; concrete input and output
 bindings belong to one WorkflowRun, not to the reusable Workflow definition.
 
+**WFL-R87.** Optional `spec.maxSubtasks` selects the maximum number of
+subtasks in each modeled Planner invocation of this Workflow. It is an integer
+from 1 to 1000; omission has the contract-defined meaning 32. Explicit null,
+zero, negative, fractional and non-integer values are invalid. The selection is
+retained in the Workflow snapshot and copied exactly to every derived Stage
+snapshot. Streamline, Router, retries, manual resumptions and summary
+continuation use that immutable selection; it is not a Workflow-wide aggregate
+counter. Shipped defaults remain unchanged when the field is omitted.
+
+```yaml
+spec:
+  maxSubtasks: 64
+```
+
+The shared plan controller and retained Planner session enforce the effective
+count. The independent model-call, token, deadline, 2 MiB session JSON and
+WebSocket frame-size limits continue to apply; increasing this count does not
+raise another budget. Oversized event frames retain the existing resync and
+HTTP snapshot recovery behavior.
+
 **WFL-R3.** The `v1alpha1` schema is an explicit state-machine graph
 with a versioned document envelope, exactly one entry Stage (LIM-WFL-1), a
 mapping of stable Stage names and Stage-local typed transitions.

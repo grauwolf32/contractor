@@ -399,6 +399,16 @@ func TestPostgresSummaryContinuationReconcilesAndRetainsArtifactsAndMemory(t *te
 				if historyReads.reads != 1 {
 					t.Fatalf("summary progression scanned full history after initial empty-Run check: %d reads", historyReads.reads)
 				}
+				attempts, err := h.store.ListStageExecutions(ctx, "run-1")
+				if err != nil {
+					t.Fatal(err)
+				}
+				for _, attempt := range attempts {
+					stage, err := resolved.DecodeResolvedStageSnapshot(attempt.StageSpecSnapshot)
+					if err != nil || stage.MaxSubtasks.Effective() != 64 {
+						t.Fatalf("attempt %d lost the pinned subtask limit: %v", attempt.Attempt, err)
+					}
+				}
 				decisions, err := h.store.ListStageTransitionDecisions(ctx, "run-1")
 				if err != nil || len(decisions) < 1 || decisions[0].Action != runstore.StageTransitionEscalate {
 					t.Fatalf("transition receipt: %+v %v", decisions, err)

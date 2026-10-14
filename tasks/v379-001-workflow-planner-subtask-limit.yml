@@ -1,0 +1,87 @@
+schema_version: "1.0"
+id: V379-001
+title: Configure the modeled Planner subtask limit in each Workflow
+milestone: workflow-planner-subtask-budgets-2026-10
+epic: planner-worker
+kind: feature
+priority: P2
+status: in_progress
+depends_on: []
+languages: [go, typescript]
+goal: >-
+  A Workflow can select its modeled Planner plan size with spec.maxSubtasks;
+  omission retains the default 32 for each Planner invocation.
+context:
+  specification:
+    - docs/spec/configuration/workflows.md#WFL-R87
+    - docs/spec/execution/planners.md#PLN-R27
+    - docs/spec/platform/limits.md
+    - docs/spec/configuration/catalog.md#CAT-R74
+  request: Move the fixed 32-subtask limit into Workflow configuration, defaulting to 32 when omitted.
+scope:
+  in:
+    - Add optional spec.maxSubtasks and retain it in immutable Workflow and derived Stage snapshots.
+    - Enforce the effective limit in the shared Streamline/Router plan controller and durable Planner session state.
+    - Preserve the pinned limit across retries, manual resume and passthrough-to-Streamline continuation.
+    - Update public Workflow projections, Run-store event validation, plan and event schemas, generated clients, UI event validation and shared boundary fixtures.
+  out:
+    - Stage-specific authoring overrides, a Workflow-wide aggregate subtask counter, changes to model selections, call/token budgets or deadline semantics.
+    - Runtime wire changes: Runtime receives one current subtask and does not own the Planner plan.
+requirements:
+  - id: R1
+    text: spec.maxSubtasks is an optional positive integer from 1 to 1000. Omission means 32; explicit null, zero, negative, fractional, string, boolean and out-of-range values are rejected.
+  - id: R2
+    text: The same scalar limit contract defines the authoring, snapshot, Planner, public API and UI fixtures. The existing independent 2 MiB session JSON and finite model-call budgets still bound large plans.
+  - id: R3
+    text: Every Stage copies its Workflow selection exactly into its immutable snapshot; automatic continuation, retries and manual resume retain that selection without reading mutable catalog files.
+  - id: R4
+    text: Reaching the configured plan count returns planner_subtask_limit without appending or mutating a record; persisted plans above their pinned session limit are rejected on write and read.
+failure_outcomes:
+  - operation: Workflow configuration and snapshot validation
+    permanent: Malformed or out-of-range limits fail catalog load and strict snapshot decoding before execution or capacity preparation.
+    retryable: No retry is introduced for deterministic invalid limits.
+    ambiguous: No new remote operation or receipt is introduced.
+    cancelled: Existing admission, cancellation and allocation release rules apply unchanged.
+    timeout: Existing independent operation and Planner deadlines remain finite and unchanged.
+  - operation: Planner plan publication
+    permanent: Existing classified invalid plan transition and size failures reject the mutation; an oversized count cannot be accepted as a valid session state.
+    retryable: Existing bounded append CAS retries remain unchanged.
+    ambiguous: Existing transition digests and revision receipts reconcile a committed append with a lost response.
+    cancelled: Existing context cancellation joins the append before cleanup.
+    timeout: Existing session-store operation budgets own database I/O.
+cardinality:
+  - collection: One modeled Planner invocation's plan
+    expected: 32 records by default
+    maximum: 1000 records when explicitly configured
+    bound: The configured count and existing 2 MiB session-state/event encoding bound apply independently; model calls remain capped at 1000.
+lifecycle:
+  - entity: Workflow subtask budget
+    delete: Follows existing Workflow catalog lifecycle; no new entity or database table is added.
+    cascade: Existing Run and Stage snapshots retain their own selection across retries and summary continuation.
+    retention: The optional field's omission has the contract-defined meaning 32; explicit selections remain immutable execution authority.
+acceptance_criteria:
+  - id: A1
+    text: Catalog, strict snapshot codecs and public contracts accept omission and valid 1/32/64/1000 limits, reject malformed cases, and preserve snapshot cloning and Stage inheritance.
+  - id: A2
+    text: Streamline and Router enforce configured smaller and larger plan sizes, preserve the original planner_subtask_limit outcome and count failed/completed subtasks in the same plan.
+  - id: A3
+    text: Real PostgreSQL session publication and reload accept a plan larger than 32 under a larger pinned limit, and reject plans above the pinned limit without a committed append; recovery and projection reads preserve it.
+  - id: A4
+    text: Shared Go/UI fixtures validate larger plan IDs and cardinalities against OpenAPI and event schemas, and all affected package suites and gates pass.
+tests:
+  - command: make test-config
+    covers: [A1]
+  - command: go test -count=1 ./internal/planner/...
+    covers: [A2, A3]
+  - command: go test -count=1 ./internal/scheduler/...
+    covers: [A1, A2]
+  - command: go test -count=1 ./internal/contracts/... ./internal/runstore/... ./internal/httpapi/public/... ./internal/publicclient/...
+    covers: [A1, A3, A4]
+  - command: make verify-public-api
+    covers: [A1, A4]
+  - command: make ui-verify
+    covers: [A4]
+  - command: make test-wire-cross-language
+    covers: [A1, A4]
+  - command: make lint
+    covers: [A1, A4]

@@ -11,7 +11,7 @@ import (
 )
 
 func TestPlannerPlanUsesImmutableObjectiveOrderedIDsAndDeepSnapshots(t *testing.T) {
-	controller, err := NewPlannerPlanController("Build an API description")
+	controller, err := NewPlannerPlanController("Build an API description", 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -41,7 +41,7 @@ func TestPlannerPlanUsesImmutableObjectiveOrderedIDsAndDeepSnapshots(t *testing.
 }
 
 func TestPlannerPlanAllowsExactlyOneConcurrentCurrentClaim(t *testing.T) {
-	controller, err := NewPlannerPlanController("Review the project")
+	controller, err := NewPlannerPlanController("Review the project", 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -85,7 +85,7 @@ func TestPlannerPlanAllowsExactlyOneConcurrentCurrentClaim(t *testing.T) {
 }
 
 func TestPlannerPlanRejectsStaleClaimWithoutMutation(t *testing.T) {
-	controller, err := NewPlannerPlanController("Review the project")
+	controller, err := NewPlannerPlanController("Review the project", 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -106,7 +106,7 @@ func TestPlannerPlanRejectsStaleClaimWithoutMutation(t *testing.T) {
 }
 
 func TestPlannerPlanCompletesAndAdvancesWithLateResultFence(t *testing.T) {
-	controller, err := NewPlannerPlanController("Review the project")
+	controller, err := NewPlannerPlanController("Review the project", 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -138,7 +138,7 @@ func TestPlannerPlanCompletesAndAdvancesWithLateResultFence(t *testing.T) {
 }
 
 func TestPlannerPlanFinishPreconditions(t *testing.T) {
-	controller, err := NewPlannerPlanController("Review the project")
+	controller, err := NewPlannerPlanController("Review the project", 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -170,14 +170,14 @@ func TestPlannerPlanFinishPreconditions(t *testing.T) {
 }
 
 func TestPlannerPlanRejectsBoundsWithoutRevisionChange(t *testing.T) {
-	controller, err := NewPlannerPlanController("Review the project")
+	controller, err := NewPlannerPlanController("Review the project", 0)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if _, planErr := controller.AddSubtask(" ", "instructions"); planErr == nil || planErr.Code != "planner_subtask_invalid" {
 		t.Fatalf("invalid text error = %+v", planErr)
 	}
-	for index := 0; index < MaxPlannerSubtasks; index++ {
+	for index := 0; index < contracts.DefaultPlannerSubtasks; index++ {
 		if _, planErr := controller.AddSubtask("Task", "Instructions"); planErr != nil {
 			t.Fatalf("add %d: %v", index, planErr)
 		}
@@ -192,7 +192,7 @@ func TestPlannerPlanRejectsBoundsWithoutRevisionChange(t *testing.T) {
 }
 
 func TestPlannerPlanTransitionValidationRejectsHistoryTampering(t *testing.T) {
-	controller, err := NewPlannerPlanController("Review the project")
+	controller, err := NewPlannerPlanController("Review the project", 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -279,7 +279,7 @@ func TestPlannerPlanTransitionValidationRejectsHistoryTampering(t *testing.T) {
 func TestPlannerPlanClaimsOnlyValidLogicalWorkerNames(t *testing.T) {
 	longest := strings.Repeat("a", contracts.MaxNameLength)
 	for _, name := range []string{"", " ", "my worker", "_worker", "worker:1", "worker/1", "é", longest + "a"} {
-		controller, err := NewPlannerPlanController("Review the project")
+		controller, err := NewPlannerPlanController("Review the project", 0)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -294,7 +294,7 @@ func TestPlannerPlanClaimsOnlyValidLogicalWorkerNames(t *testing.T) {
 			t.Fatalf("rejected claim of %q mutated plan: before=%+v after=%+v", name, before, after)
 		}
 	}
-	controller, err := NewPlannerPlanController("Review the project")
+	controller, err := NewPlannerPlanController("Review the project", 0)
 	if err != nil {
 		t.Fatal(err)
 	}

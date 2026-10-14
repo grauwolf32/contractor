@@ -4925,7 +4925,13 @@ export interface components {
             displayName: string;
             description: string;
         };
+        /**
+         * @description Maximum subtasks per modeled Planner invocation in this Workflow, including summary continuation; omission selects 32. Independent call, token and byte budgets still apply.
+         * @default 32
+         */
+        PlannerSubtaskLimit: number;
         WorkflowSummary: {
+            maxSubtasks?: components["schemas"]["PlannerSubtaskLimit"];
             ref: components["schemas"]["WorkflowRef"];
             presentation?: components["schemas"]["WorkflowPresentation"];
             entryStage: components["schemas"]["ConfigId"];
@@ -5152,6 +5158,7 @@ export interface components {
          *     }
          */
         WorkflowResource: {
+            maxSubtasks?: components["schemas"]["PlannerSubtaskLimit"];
             ref: components["schemas"]["WorkflowRef"];
             presentation?: components["schemas"]["WorkflowPresentation"];
             entryStage: components["schemas"]["ConfigId"];
