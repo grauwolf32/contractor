@@ -5,7 +5,7 @@ milestone: planner-summary-continuation-2026-10
 epic: planner-worker
 kind: feature
 priority: P1
-status: in_progress
+status: completed
 depends_on: [V3-003, V3-008, V376-002]
 languages: [go, python, markdown]
 goal: >-
@@ -133,14 +133,14 @@ failure_outcomes:
   - operation: Save summary and commit the continuation transition
     success: One exact summary artifact and one source-keyed transition create one pinned target attempt in the same Run/Namespace.
     permanent: Invalid summary/ref, exhausted artifact limits, incompatible handoff or oversized combined input yields a stable classified failure; existing committed summary remains inspectable.
-    retryable: Retry only existing classified Artifact/transaction failures within the operation and chain deadlines.
+    retryable: Retry only existing classified Artifact/transaction failures within each operation timeout and the admitted source Stage deadline.
     ambiguous: Reconcile natural-key summary publication and the existing immutable source transition; never append blindly or dispatch the source Worker again.
     cancelled: Fence and join source writes; a cancelling Run admits no continuation, and an already committed target is cancelled through existing Scheduler cleanup.
     timeout: Summary publication and transition deadlines stay within existing operation/continuation bounds; retain a committed summary and do not leave an unbounded background mutation.
   - operation: Run the Streamline continuation
     success: Valid final report and Stage candidate are accepted through the existing finish/acceptance path.
     permanent: Invalid context, unavailable exact ref or incompatible capability uses a stable failure; no silent loss of summary or broadening of scope.
-    retryable: Existing Gateway/Worker retries obey pinned policy and aggregate continuation bounds; no repeated strategy escalation.
+    retryable: Existing Gateway/Worker retries obey pinned per-attempt budgets and the bounded Workflow attempt count; no repeated strategy escalation.
     ambiguous: Existing dispatch/Planner completion receipts decide what completed; no blind repeated Worker request.
     cancelled: Existing Scheduler cancel/drain/release joins all calls and does not evaluate a new escalation edge.
     timeout: The declared continuation deadline stops work, retains saved artifacts and joins allocation cleanup; process-loss recovery does not claim to resume ADK in flight.
@@ -222,3 +222,19 @@ tests:
     covers: [A1, A2, A3, A4, A5, A6]
   - command: go run ./cmd/contractor server config validate --root ./configs
     covers: [A8]
+verification:
+  date: 2026-10-14
+  results:
+    - make lint passed, including task/spec consistency, shared-fixture readers, layer checks and the generated 16-migration database ERD.
+    - Full Planner, Scheduler, Config, RunStore and App Go suites passed with dedicated disposable PostgreSQL databases. The final Scheduler suite includes all 18 recovery, publication-loss, allocation-loss, pause, cancel and manual-resume scenarios on both blob backends.
+    - make test-postgres, make test-streamline, make verify-public-api and make verify-public-api-postgres passed with PostgreSQL configured.
+    - make test-wire-cross-language passed with 228 fixtures, 199 Go shared tests and 161 Python shared tests.
+    - make test-runtime passed on the complete repeat with 3835 passed and 39 skipped; skipped tests are not counted as passes.
+    - make ui-verify passed with Node 24.20, including 170 test files and 1984 tests, lint, typecheck, generation check and build.
+    - The three release process shards passed all 19 selected tests, including actual Server/Runtime summary continuation to a required report and cumulative usage.
+    - Shipped catalog validation passed using the existing configured model choices.
+  notes:
+    - The first Runtime pass hit the existing 100 ms parser scheduling assertion at 107 ms. Its focused retry and complete Runtime repeat passed without changing the threshold.
+    - The first full process pass and first shard A retry exposed obsolete HTTP/Caido body-artifact and finding-tool expectations from V376-002; V378-002 repairs them. The focused HTTP/Caido regression and final shard A pass succeeded.
+    - A repeated App suite overlapped process tests and collided on the database-scoped active-Server lease. The full App suite passed again in its own database; the three process shards also use distinct databases.
+implementation_commit: edca5ba6f623bc88174c71ca762984f831a2878b
