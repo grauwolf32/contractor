@@ -6,7 +6,7 @@ epic: planner-worker
 kind: chore
 introduced_by: V378-001
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V378-001]
 languages: [go]
 goal: Keep the summary continuation fixture on the same complete configuration loading boundary as every Scheduler caller.
@@ -34,3 +34,10 @@ tests:
     covers: [A1, A2]
   - command: go test ./internal/scheduler/... ./internal/configload/... -count=1
     covers: [A1, A2]
+verification:
+  date: 2026-10-14
+  results:
+    - The full configload package reproduced the CI module-boundary failure before the fix.
+    - make release-verify-lint passed after the correction, including the complete configuration suites, command builds and shipped catalog validation.
+    - The complete Scheduler and configload packages passed with a dedicated disposable PostgreSQL database configured.
+implementation_commit: 6126a4a25b4590966404bb4728a3e04205da4012
