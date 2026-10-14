@@ -148,56 +148,68 @@ UPDATE audit_controller_claims SET expires_at = clock_timestamp() + interval '10
 		t.Fatalf("scaled fixture = %v", counts)
 	}
 
-	purge, err := conn.Begin(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() { _ = purge.Rollback(context.WithoutCancel(ctx)) }()
-	// The counters can still hold work of earlier transactions on this
-	// connection that is not flushed yet, so only differences count.
-	reads := func() map[string]purgeScaleReads {
-		rows, err := purge.Query(ctx, purgeScaleReadsSQL, scaled)
+	largeIndexScans := int64(0)
+	for pass := 0; ; pass++ {
+		purge, err := conn.Begin(ctx)
 		if err != nil {
 			t.Fatal(err)
 		}
-		relations := map[string]purgeScaleReads{}
-		var name string
-		var read purgeScaleReads
-		if _, err := pgx.ForEachRow(rows, []any{&name, &read.kind, &read.scans, &read.fetched, &read.size}, func() error {
-			relations[name] = read
-			return nil
-		}); err != nil {
+		defer func() { _ = purge.Rollback(context.WithoutCancel(ctx)) }()
+		// The counters can still hold work of earlier transactions on this
+		// connection that is not flushed yet, so only differences count.
+		reads := func() map[string]purgeScaleReads {
+			rows, err := purge.Query(ctx, purgeScaleReadsSQL, scaled)
+			if err != nil {
+				t.Fatal(err)
+			}
+			relations := map[string]purgeScaleReads{}
+			var name string
+			var read purgeScaleReads
+			if _, err := pgx.ForEachRow(rows, []any{&name, &read.kind, &read.scans, &read.fetched, &read.size}, func() error {
+				relations[name] = read
+				return nil
+			}); err != nil {
+				t.Fatal(err)
+			}
+			return relations
+		}
+		before := reads()
+		if err := newTestStore(purge).PurgeClaimed(ctx, claim, auditdomain.ArtifactNamespace(f.audit.AuditID)); err != nil {
 			t.Fatal(err)
 		}
-		return relations
-	}
-	before := reads()
-	if err := newTestStore(purge).PurgeClaimed(ctx, claim, auditdomain.ArtifactNamespace(f.audit.AuditID)); err != nil {
-		t.Fatal(err)
-	}
-	// Run the deferred checks inside the purge transaction, where it still
-	// counts what the purge did.
-	if _, err := purge.Exec(ctx, `SET CONSTRAINTS ALL IMMEDIATE`); err != nil {
-		t.Fatal(err)
-	}
-	largeIndexScans := int64(0)
-	for name, after := range reads() {
-		scans, fetched := after.scans-before[name].scans, after.fetched-before[name].fetched
-		switch {
-		case after.kind == "table" && scans != 0:
-			t.Errorf("purge scanned %s (%d rows) sequentially %d times", name, counts[name], scans)
-		case after.kind == "index" && after.size >= purgeScaleIndexMinBlocks && scans != 0:
-			largeIndexScans += scans
-			if 10*fetched > 9*scans*after.size {
-				t.Errorf("purge read %d blocks of the %d-block index %s in %d scans", fetched, after.size, name, scans)
+		// Run the deferred checks inside the purge transaction, where it still
+		// counts what the purge did.
+		if _, err := purge.Exec(ctx, `SET CONSTRAINTS ALL IMMEDIATE`); err != nil {
+			t.Fatal(err)
+		}
+		for name, after := range reads() {
+			scans, fetched := after.scans-before[name].scans, after.fetched-before[name].fetched
+			switch {
+			case after.kind == "table" && scans != 0:
+				t.Errorf("purge scanned %s (%d rows) sequentially %d times", name, counts[name], scans)
+			case after.kind == "index" && after.size >= purgeScaleIndexMinBlocks && scans != 0:
+				largeIndexScans += scans
+				if 10*fetched > 9*scans*after.size {
+					t.Errorf("purge read %d blocks of the %d-block index %s in %d scans", fetched, after.size, name, scans)
+				}
 			}
+		}
+		if err := purge.Commit(ctx); err != nil {
+			t.Fatal(err)
+		}
+		var remains bool
+		if err := conn.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM audits WHERE audit_id = $1)`, claim.AuditID).Scan(&remains); err != nil {
+			t.Fatal(err)
+		}
+		if !remains {
+			break
+		}
+		if pass >= 200 {
+			t.Fatal("bounded scale purge did not finish")
 		}
 	}
 	if largeIndexScans == 0 {
-		t.Errorf("purge scanned no index of %d blocks or more; the fixture is too small to tell whole reads apart", purgeScaleIndexMinBlocks)
-	}
-	if err := purge.Commit(ctx); err != nil {
-		t.Fatal(err)
+		t.Fatalf("purge scanned no large index; scale fixture is too small")
 	}
 	var executions, assessments, kept int
 	if err := conn.QueryRow(ctx, `
