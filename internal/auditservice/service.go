@@ -223,6 +223,11 @@ func (s *Service) GetReport(
 	if err != nil {
 		return ReportProjection{}, err
 	}
+	// Bounded deletion can remove the two immutable report links in different
+	// committed passes. Do not read a partial set once deletion owns the Audit.
+	if audit.State == auditstore.AuditDeleting {
+		return ReportProjection{Status: ReportUnavailable}, nil
+	}
 	machine, machineErr := s.reads().GetArtifactLink(ctx, auditID, auditstore.ReportMachineLogicalKey)
 	summary, summaryErr := s.reads().GetArtifactLink(ctx, auditID, auditstore.ReportSummaryLogicalKey)
 	status := ReportReady

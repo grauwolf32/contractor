@@ -937,9 +937,45 @@ phases in order (FAIL-REV-11, LIFE-REV-5):
 3. release evidence and accepted-proposal holds;
 4. only then purge Audit-managed Project bindings and domain rows.
 
+Immutable history and item rows that reference a hold are removed in bounded
+steps while releasing that hold; its material stays available until all such
+references and holds are gone.
+
+Every controller publication or retention, including preparation and later
+Round packages and imported reports, locks its live claim and then its Audit
+in the transaction that inserts or replays the binding. The transaction
+rejects a deleting or missing Audit and an expired or replaced claim with
+`ErrClaimLost`. Purge takes the same claim-before-Audit lock order. Start
+staging instead holds the draft Audit row; finding intake holds the Audit
+through its existing decision transaction. Artifact storage never reads Audit
+tables to infer this authority.
+
 **REV-R160.** The purge removes every row the Audit owns, including
 immutable review decisions and finding assessments that outlive the deleted
 child Runs; their restricting keys protect them only outside a purge.
+
+The deleting phase owns the two-minute cleanup budget independently of the
+ordinary reconcile budget. Before cleanup it renews the exact live claim for
+four minutes; an expired or replaced claim cannot be revived. The phase joins
+cleanup before releasing the claim. A child Run remains an atomic deletion,
+bounded by its Run revision quota. Project deletion already owns a separate
+purge budget and is unchanged.
+
+Each pass changes or deletes at most 1,000 domain and dependent rows in total
+(LIM-REV-10). Purge clears derived finding and item
+back-references before deleting immutable history, removes leaf rows before
+parents, and releases finding holds and mutation receipts through their
+owners before removing any retained material. Once these references and holds
+are gone, an Audit namespace commits at most one Artifact purge batch per
+pass. The creation receipt stays until the final Audit DELETE so Eval
+tombstone recovery can read it. Partial cleanup is visible only as a deleting
+Audit, never a completed report. A crash, cancellation or lost reply resumes
+from the rows remaining; no new purge journal is needed. The Audit row and
+its claim are removed last.
+
+Report reads of a deleting Audit return the existing `unavailable` state
+before inspecting report links, because a committed cleanup pass may have
+removed only one link of the pair.
 
 **REV-R161.** Audit deletion cleanup runs regardless of owner or Audit
 queue pause.

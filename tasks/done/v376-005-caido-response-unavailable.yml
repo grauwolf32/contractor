@@ -6,7 +6,8 @@ epic: http-tools
 kind: defect
 introduced_by: V376-002
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 1b1b8bef48a8df867b6fb966f87b148f7fbf6634
 depends_on: [V376-002, V376-004]
 languages: [go, python, typescript, markdown]
 goal: Retain finding-selected requests whose response Caido does not expose with an explicit unavailable capture outcome.
@@ -53,5 +54,18 @@ verification:
     - Runtime suites passed, 103 tests.
     - HTTP UI contract and renderer suites passed, 82 tests.
     - Full integration suites for auditdomain, findingintake and privateartifacts passed against disposable PostgreSQL, including request-only evidence on both blob backends.
-  remaining: Complete make verify, shared wire and browser gates on a fixed main snapshot before closing this task.
   intermediate_response_regression: The new production-tool regression failed before the fix (missing earlier 302 response) and passed afterwards; 135 Runtime tests passed.
+  completion:
+    date: '2026-10-15'
+    revision: a161ffb98af14d85bf32e70f90d726c715c7f0cc
+    environment: Go 1.26.9, Node 24.20.0 and disposable PostgreSQL 17; test GOFLAGS=-buildvcs=false -p=2; max_locks_per_transaction=1024.
+    commands:
+    - command: make verify
+      result: Passed; Runtime 3835 passed and 39 skipped; UI 1984 passed.
+    - command: make test-wire-cross-language
+      result: Passed with disposable PostgreSQL configured.
+    - command: go test -p 1 -count=1 -tags integration ./internal/auditcontroller ./internal/auditstore/... ./internal/artifacts ./internal/auditimport ./internal/rundeletion ./internal/evalservice ./internal/evalstore ./internal/findingintake ./internal/auditdomain ./internal/httpapi/privateartifacts ./internal/auditservice ./internal/app ./internal/projectlifecycle
+      result: Passed with disposable PostgreSQL configured.
+    - command: make ui-browser-mocked
+      result: Passed with disposable PostgreSQL configured.
+    result: The full gate, shared Go/Python wire fixtures and browser gate passed. Real PostgreSQL/filesystem intake suites preserve request-only evidence as response_unavailable, and Runtime regressions retain valid earlier responses when the final hop is invalid.

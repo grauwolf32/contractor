@@ -552,6 +552,17 @@ func (h *controllerHarness) finishOldest(t *testing.T, state runstore.WorkflowRu
 
 type fakeSubmissionBuilder struct{}
 
+func (b fakeSubmissionBuilder) WithClaim(auditstore.ControllerClaim) SubmissionBuilder { return b }
+
+func (b prefixSubmissionBuilder) WithClaim(auditstore.ControllerClaim) SubmissionBuilder { return b }
+
+func (b *countingSubmissionBuilder) WithClaim(claim auditstore.ControllerClaim) SubmissionBuilder {
+	if b.delegate != nil {
+		b.delegate = b.delegate.WithClaim(claim)
+	}
+	return b
+}
+
 type countingSubmissionBuilder struct {
 	calls    atomic.Int64
 	delegate SubmissionBuilder
@@ -764,6 +775,18 @@ func (s *fakeControllerStore) Claim(_ context.Context, params auditstore.ClaimPa
 		AuditID: s.audit.AuditID, HolderID: params.HolderID, Epoch: s.epoch,
 		ClaimedAt: now, ExpiresAt: now.Add(params.Lease),
 	}}, nil
+}
+
+func (s *fakeControllerStore) RenewClaim(_ context.Context, claim auditstore.ControllerClaim, lease time.Duration) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if !s.held || claim.Epoch != s.epoch {
+		return auditstore.ErrClaimLost
+	}
+	if lease < time.Second || lease > 5*time.Minute {
+		return auditstore.ErrInvalid
+	}
+	return nil
 }
 
 func (s *fakeControllerStore) ReleaseClaim(_ context.Context, claim auditstore.ControllerClaim) error {

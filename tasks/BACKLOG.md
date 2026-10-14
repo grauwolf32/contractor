@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-87 open tasks: 5 in progress, 68 pending, 14 deferred. 888 finished: 885 completed, 3 archived.
+81 open tasks: 3 in progress, 64 pending, 14 deferred. 894 finished: 891 completed, 3 archived.
 
 ## In progress
 
@@ -14,8 +14,6 @@ the epics are in [epics.yml](epics.yml).
 | [V40-002](v40-002-agent-instruction-paired-runner.yml) | evals | feature | P1 | Prepare instruction experiment bindings and a frozen plan after format readiness |
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
-| [V376-003](v376-003-http-evidence-preview.yml) | ui | feature | P1 | Preview and download finding-selected HTTP evidence in the UI |
-| [V376-005](v376-005-caido-response-unavailable.yml) | http-tools | defect | P2 | Preserve truthful missing and intermediate HTTP response outcomes |
 
 ## Pending
 
@@ -98,8 +96,6 @@ the epics are in [epics.yml](epics.yml).
 | [V64-009](v64-009-audit-priority-ui.yml) | feature | P1 | V64-008 | Show Audit ranking progress, top-N selection and deferred checklist reasons |
 | [V64-010](v64-010-audit-priority-profile.yml) | feature | P1 | V64-008 | Publish a runnable prioritized custom-checklist Audit profile and guide |
 | [V64-011](v64-011-audit-priority-release.yml) | feature | P1 | V64-009, V64-010 | Verify contextual checklist prioritization across process and browser boundaries |
-| [V371-007](v371-007-fence-audit-artifact-writes.yml) | defect | P2 | — | Fence the Audit Controller's artifact writes against a purge by a newer claim |
-| [V371-008](v371-008-bounded-audit-deletion-steps.yml) | defect | P2 | — | Run the Audit deletion phase in bounded steps under its own budget |
 | [V371-009](v371-009-audit-list-preparation-batch.yml) | defect | P3 | — | Read the preparation state of a whole Audit page in bounded statements |
 
 ### Evaluations (`evals`)
@@ -107,7 +103,6 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V40-003](v40-003-agent-instruction-eval-decision.yml) | feature | P1 | V40-002 | Evaluate instruction candidates and record evidence-based adoption decisions |
-| [V371-012](v371-012-eval-projection-lock-order.yml) | defect | P2 | — | Stop Eval member collection and Audit collection from deadlocking |
 | [V371-013](v371-013-eval-bounded-json-walker.yml) | chore | P3 | — | Read Eval JSON documents with strictjson.DecodeBounded |
 
 ### Web UI (`ui`)
@@ -138,7 +133,6 @@ the epics are in [epics.yml](epics.yml).
 | [V372-008](v372-008-upward-table-reads.yml) | chore | P3 | — | Remove the table reads that point up the layer stack or name who owns each one |
 | [V372-009](v372-009-ownership-check-blind-spots.yml) | chore | P3 | — | Close the blind spots of the table ownership check |
 | [V372-010](v372-010-erd-usage-from-ownership-scan.yml) | chore | P3 | — | Take the ERD's code-usage lists from the ownership scan and document the new-table workflow |
-| [V372-011](v372-011-keep-database-error-class.yml) | defect | P2 | — | Keep the database error class on store paths that replace the error |
 
 ### Quality, CI and process (`quality`)
 
@@ -190,16 +184,16 @@ tasks in `introduced_by`.
 | Agent Skills (`agent-skills`) | 0 | 10 | 2 | 1 | 1 |
 | Run workspaces and project filesystem (`workspaces`) | 0 | 16 | 12 | 4 | 15 |
 | Code analysis and taint annotations (`code-analysis`) | 0 | 13 | 12 | 2 | 17 |
-| HTTP and Caido tools (`http-tools`) | 3 | 10 | 13 | 4 | 14 |
+| HTTP and Caido tools (`http-tools`) | 2 | 10 | 13 | 4 | 14 |
 | Scanner tool Workers and scan planning (`scan-tools`) | 1 | 10 | 4 | 1 | 7 |
 | Findings tools and collections (`findings`) | 4 | 7 | 5 | 4 | 7 |
 | Workflow catalog and document workflows (`workflows`) | 3 | 14 | 13 | 12 | 12 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 1 | 29 | 32 | 4 | 34 |
-| Audits (`audits`) | 21 | 49 | 68 | 12 | 77 |
-| Evaluations (`evals`) | 4 | 21 | 28 | 5 | 33 |
+| Audits (`audits`) | 19 | 49 | 68 | 12 | 77 |
+| Evaluations (`evals`) | 3 | 21 | 28 | 5 | 33 |
 | Podman sandbox (`sandbox`) | 0 | 8 | 1 | 1 | 2 |
-| Web UI (`ui`) | 3 | 20 | 53 | 10 | 48 |
+| Web UI (`ui`) | 2 | 20 | 53 | 10 | 48 |
 | Operations, authentication, CLI and deployment (`operations`) | 0 | 8 | 31 | 4 | 6 |
 | Public API and wire contracts (`api-contracts`) | 9 | 1 | 29 | 20 | 8 |
-| PostgreSQL persistence and schema (`persistence`) | 5 | 0 | 19 | 33 | 8 |
+| PostgreSQL persistence and schema (`persistence`) | 4 | 0 | 19 | 33 | 8 |
 | Quality, CI and process (`quality`) | 14 | 1 | 19 | 77 | 16 |

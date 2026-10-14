@@ -13,6 +13,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config/auditprofile"
+	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/runservice"
 	"github.com/grauwolf32/contractor/internal/runstore"
 )
@@ -63,9 +64,7 @@ func (c *Controller) RunOnce(ctx context.Context) (bool, error) {
 		wait.Add(1)
 		go func(index int, claim auditstore.ControllerClaim) {
 			defer wait.Done()
-			operationContext, cancel := context.WithTimeout(ctx, c.options.OperationTimeout)
-			changed, reconcileErr := c.reconcile(operationContext, claim)
-			cancel()
+			changed, reconcileErr := c.reconcile(ctx, claim)
 			if changed {
 				worked.Store(true)
 			}
@@ -85,10 +84,27 @@ func (c *Controller) RunOnce(ctx context.Context) (bool, error) {
 func (c *Controller) reconcile(
 	ctx context.Context, claim auditstore.ControllerClaim,
 ) (bool, error) {
-	snapshot, err := c.store.GetReconcileSnapshot(ctx, claim)
+	readContext, cancelRead := context.WithTimeout(ctx, c.options.OperationTimeout)
+	snapshot, err := c.store.GetReconcileSnapshot(readContext, claim)
 	if err != nil {
+		cancelRead()
 		return false, err
 	}
+	var cancel context.CancelFunc
+	if snapshot.Audit.State == auditstore.AuditDeleting {
+		cancelRead()
+		renewContext, cancelRenew := context.WithTimeout(ctx, c.options.OperationTimeout)
+		err := c.store.RenewClaim(renewContext, claim, deletionClaimLease)
+		cancelRenew()
+		if err != nil {
+			return false, err
+		}
+		ctx, cancel = persistencepostgres.WithCleanupBudget(ctx)
+	} else {
+		// Ordinary work keeps sharing one budget with its snapshot read.
+		ctx, cancel = readContext, cancelRead
+	}
+	defer cancel()
 	audit := snapshot.Audit
 
 	// A non-nil phase result stops this pass, including retryable no-op outcomes.
@@ -232,7 +248,7 @@ func (c *Controller) dispatchRole(
 	workflowRole string,
 	attempt int,
 ) (bool, bool, *auditstore.StopReason, error) {
-	prepared, err := c.builder.PrepareRole(ctx, snapshot, workflowRole, attempt)
+	prepared, err := c.builder.WithClaim(claim).PrepareRole(ctx, snapshot, workflowRole, attempt)
 	if err != nil {
 		if errors.Is(err, ErrInvalidSubmission) {
 			return false, false, &auditstore.StopReason{
@@ -503,7 +519,7 @@ func (c *Controller) resumeOneIntent(
 				}
 				selected[index] = CheckExecutionMember{Item: item, Attempt: member.ItemAttempt}
 			}
-			prepared, err = c.builder.PrepareBatch(ctx, snapshot, selected)
+			prepared, err = c.builder.WithClaim(claim).PrepareBatch(ctx, snapshot, selected)
 			if err == nil && !matchingIntent(execution, members, prepared.Intent) {
 				err = ErrInvalidSubmission
 			}
@@ -511,7 +527,7 @@ func (c *Controller) resumeOneIntent(
 			if len(members) != 0 || execution.RoleAttempt == nil {
 				return c.failInvalidIntent(ctx, claim, execution.ExecutionID)
 			}
-			prepared, err = c.builder.PrepareRole(
+			prepared, err = c.builder.WithClaim(claim).PrepareRole(
 				ctx, snapshot, execution.WorkflowRole, *execution.RoleAttempt,
 			)
 			if err == nil && !matchingRoleIntent(execution, prepared.Intent) {
@@ -552,7 +568,7 @@ func (c *Controller) dispatch(
 	snapshot auditstore.ReconcileSnapshot,
 	selected []CheckExecutionMember,
 ) (bool, error) {
-	prepared, err := c.builder.PrepareBatch(ctx, snapshot, selected)
+	prepared, err := c.builder.WithClaim(claim).PrepareBatch(ctx, snapshot, selected)
 	if err != nil {
 		if errors.Is(err, ErrInvalidSubmission) {
 			reason := auditstore.StopReason{

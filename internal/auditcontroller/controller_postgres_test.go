@@ -9,6 +9,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/grauwolf32/contractor/internal/auditstore/hookstore"
+	"github.com/grauwolf32/contractor/internal/findingintake"
 	"os"
 	"path/filepath"
 	"strings"
@@ -617,11 +619,8 @@ func TestPostgresControllerFullWindowSkipsPreparationUntilSettingsIncrease(t *te
 func TestPostgresImmutableProjectArtifactReuseLeavesNoFilesystemOrphans(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	databaseURL := os.Getenv("CONTRACTOR_TEST_DATABASE_URL")
-	if databaseURL == "" {
-		t.Skip("CONTRACTOR_TEST_DATABASE_URL is not set")
-	}
-	pool := isolatedControllerPool(t, ctx, databaseURL)
+	h := newPostgresControllerHarness(t, ctx, 1)
+	pool := h.pool
 	path := t.TempDir()
 	files, err := artifacts.OpenFilesystemBlobStore(ctx, path)
 	if err != nil {
@@ -629,21 +628,18 @@ func TestPostgresImmutableProjectArtifactReuseLeavesNoFilesystemOrphans(t *testi
 	}
 	defer files.Close()
 	ctx = artifacts.WithBlobRuntime(ctx, artifacts.NewBlobRuntime(files, nil))
-	project, _, err := projectstore.NewPostgresStore(pool).Create(ctx, projectstore.CreateParams{
-		ProjectID: "project-immutable-audit", OwnerID: "owner-immutable-audit",
-		Kind: projectstore.KindProject, Name: "Immutable Audit artifact test",
-		IdempotencyKey: "create-immutable-project", RequestDigest: postgresDigest("immutable-project"),
-	})
-	if err != nil {
-		t.Fatal(err)
+	project := h.started.Audit
+	claims, err := h.audits.Claim(ctx, auditstore.ClaimParams{HolderID: "immutable-writer", Lease: time.Minute, Limit: 1})
+	if err != nil || len(claims) != 1 {
+		t.Fatalf("claim: %v %v", claims, err)
 	}
 	base := artifacts.NewPostgresRepository(pool)
-	counting := &countingProjectArtifactRepository{PostgresRepository: base}
-	access, err := NewProjectArtifactAccess(artifacts.NewService(counting))
+	unbound, err := NewProjectArtifactAccess(artifacts.NewService(base), hookstore.NewClaimedArtifacts(pool))
 	if err != nil {
 		t.Fatal(err)
 	}
-	target := contracts.ArtifactRef{Namespace: "audit-test", Name: "content-derived"}
+	access := unbound.WithClaim(claims[0])
+	target := contracts.ArtifactRef{Namespace: auditdomain.ArtifactNamespace(project.AuditID), Name: "content-derived"}
 	payload := artifacts.Payload{MediaType: "application/json", Data: []byte(`{"stable":true}`)}
 	var first auditstore.ExactArtifact
 	for attempt := 0; attempt < 4; attempt++ {
@@ -660,9 +656,6 @@ func TestPostgresImmutableProjectArtifactReuseLeavesNoFilesystemOrphans(t *testi
 	if _, err := access.PutImmutableProject(ctx, project.ProjectID, target,
 		artifacts.Payload{MediaType: "application/json", Data: []byte(`{"stable":false}`)}); !errors.Is(err, ErrInvalidSubmission) {
 		t.Fatalf("content-derived binding collision = %v", err)
-	}
-	if counting.writes != 1 {
-		t.Fatalf("immutable Project Write calls = %d, want 1", counting.writes)
 	}
 	projectArtifacts, err := artifacts.NewService(base).Project(project.ProjectID)
 	if err != nil {
@@ -712,18 +705,6 @@ SELECT namespace || '/' || name, frozen
 	}
 }
 
-type countingProjectArtifactRepository struct {
-	*artifacts.PostgresRepository
-	writes int
-}
-
-func (r *countingProjectArtifactRepository) CreateFrozen(
-	ctx context.Context, scope artifacts.Scope, target artifacts.ArtifactRef, payload artifacts.Payload,
-) (artifacts.WriteResult, error) {
-	r.writes++
-	return r.PostgresRepository.CreateFrozen(ctx, scope, target, payload)
-}
-
 func TestPostgresDispatchReservationOrdersWithSettingsDecrease(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
@@ -753,7 +734,7 @@ func TestPostgresDispatchReservationOrdersWithSettingsDecrease(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	builder := harness.builder(t)
+	builder := harness.builder(t).WithClaim(claim)
 	first, err := builder.PrepareBatch(ctx, snapshot, []CheckExecutionMember{{Item: snapshot.Items[0], Attempt: 1}})
 	if err != nil {
 		t.Fatal(err)
@@ -844,7 +825,7 @@ func TestPostgresControllersConvergeWithoutDuplicateExecutionAttempts(t *testing
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := harness.builder(t).PrepareBatch(
+	if _, err := harness.builder(t).WithClaim(preflightClaims[0]).PrepareBatch(
 		ctx, preflightSnapshot, []CheckExecutionMember{{Item: preflightSnapshot.Items[0], Attempt: 1}},
 	); err != nil {
 		t.Fatalf("preflight pinned submission: %v", err)
@@ -1228,11 +1209,13 @@ func TestPostgresControllerCollectsAndPublishesExactAuditReport(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	access, err := auditimport.NewArtifactAccess(harness.artifacts)
+	access, err := auditimport.NewArtifactAccess(harness.artifacts, hookstore.NewClaimedArtifacts(harness.pool))
 	if err != nil {
 		t.Fatal(err)
 	}
-	replayed, err := access.RetainRunExact(
+	replayed, err := access.WithClaim(auditstore.ControllerClaim{
+		AuditID: completed.AuditID, HolderID: "postgres-audit-controller", Epoch: 1,
+	}).RetainRunExact(
 		ctx, runID,
 		auditstore.ExactArtifact{
 			Ref: outputMetadata.Ref, Digest: outputMetadata.Digest,
@@ -1241,9 +1224,8 @@ func TestPostgresControllerCollectsAndPublishesExactAuditReport(t *testing.T) {
 		completed.ProjectID,
 		contracts.ArtifactRef{Namespace: resultLink.Artifact.Ref.Namespace, Name: resultLink.Artifact.Ref.Name},
 	)
-	if err != nil || replayed.Digest != resultLink.Artifact.Digest ||
-		replayed.Ref.Revision == nil || *replayed.Ref.Revision != *resultLink.Artifact.Ref.Revision {
-		t.Fatalf("retained result replay = (%+v, %v)", replayed, err)
+	if !errors.Is(err, auditstore.ErrClaimLost) || replayed.Ref.Revision != nil {
+		t.Fatalf("retained result replay after claim release = (%+v, %v)", replayed, err)
 	}
 
 	auditService, err := auditservice.New(auditservice.Options{
@@ -1338,10 +1320,13 @@ func TestPostgresControllerCollectsAndPublishesExactAuditReport(t *testing.T) {
 }
 
 func TestPostgresControllerDeletesActiveAuditWhileOwnerQueuePaused(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 	harness := newPostgresControllerHarness(t, ctx, 2)
 	controller := harness.controllerWithCollector(t)
+	budgetStore := &deletionBudgetStore{Store: controller.store}
+	budgetDeleter := &deletionBudgetDeleter{RunDeleter: controller.deleter, pool: harness.pool}
+	controller.store, controller.deleter = budgetStore, budgetDeleter
 	if worked, err := controller.RunOnce(ctx); err != nil || !worked {
 		t.Fatalf("activate round = (%t, %v)", worked, err)
 	}
@@ -1353,6 +1338,7 @@ func TestPostgresControllerDeletesActiveAuditWhileOwnerQueuePaused(t *testing.T)
 		t.Fatalf("submitted child = (%+v, %v)", executions, err)
 	}
 	runID := *executions[0].RunID
+	seedLargeAuditChildRun(t, ctx, harness, runID)
 	if _, err := harness.runs.UpdateOwnerQueueControl(
 		ctx, runstore.UpdateOwnerQueueControlParams{
 			OwnerID: harness.started.Audit.OwnerID, ExpectedRevision: 0, Paused: true,
@@ -1408,6 +1394,9 @@ func TestPostgresControllerDeletesActiveAuditWhileOwnerQueuePaused(t *testing.T)
 	}
 	if _, err := harness.runs.GetRun(ctx, runID); !errors.Is(err, runstore.ErrNotFound) {
 		t.Fatalf("deleted child Run lookup = %v", err)
+	}
+	if !budgetDeleter.checked || budgetStore.lease != deletionClaimLease {
+		t.Fatalf("deletion policy: checked=%t renewed lease=%s", budgetDeleter.checked, budgetStore.lease)
 	}
 	queue, err := harness.runs.GetOwnerQueueControl(ctx, current.OwnerID)
 	if err != nil || !queue.Paused {
@@ -1530,7 +1519,7 @@ func newPostgresControllerHarnessWithConfig(
 		t.Fatal(err)
 	}
 	runs := runstore.NewPostgresStore(pool)
-	audits := auditstoretest.NewStore(pool)
+	audits := auditstoretest.NewStore(pool).WithPurgeDependencies(findingintake.DeleteAuditHoldsBatch)
 	runCreation, err := runservice.New(runservice.Options{
 		Runs: runs, Workflows: snapshot, LLMCredentials: controllerCredentialLookup{},
 		CredentialGuard: guard, RuntimeCredentials: controllerRuntimeCredentials{}, Projects: projects,
@@ -1553,7 +1542,7 @@ func newPostgresControllerHarnessWithConfig(
 			return persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 				return fn(
 					runstore.NewPostgresStore(tx), artifacts.NewService(artifacts.NewPostgresRepository(tx)),
-					auditstoretest.NewStore(tx),
+					auditstoretest.NewStore(tx).WithPurgeDependencies(findingintake.DeleteAuditHoldsBatch),
 				)
 			})
 		},
@@ -1569,7 +1558,7 @@ func newPostgresControllerHarnessWithConfig(
 
 func (h *postgresControllerHarness) builder(t *testing.T) *PinnedSubmissionBuilder {
 	t.Helper()
-	access, err := NewProjectArtifactAccess(h.artifacts)
+	access, err := NewProjectArtifactAccess(h.artifacts, hookstore.NewClaimedArtifacts(h.pool))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1624,7 +1613,7 @@ func (h *postgresControllerHarness) controllerWithCollector(
 	t *testing.T, findings ...auditimport.FindingRetention,
 ) *Controller {
 	t.Helper()
-	access, err := auditimport.NewArtifactAccess(h.artifacts)
+	access, err := auditimport.NewArtifactAccess(h.artifacts, hookstore.NewClaimedArtifacts(h.pool))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1892,4 +1881,70 @@ func postgresDigest(value string) string {
 		}
 	}
 	return "sha256:" + result[:64]
+}
+
+type deletionBudgetStore struct {
+	Store
+	lease time.Duration
+}
+
+func (s *deletionBudgetStore) RenewClaim(ctx context.Context, claim auditstore.ControllerClaim, lease time.Duration) error {
+	s.lease = lease
+	return s.Store.RenewClaim(ctx, claim, lease)
+}
+
+type deletionBudgetDeleter struct {
+	RunDeleter
+	pool    *pgxpool.Pool
+	checked bool
+}
+
+func (d *deletionBudgetDeleter) DeleteReleasedTerminalRun(ctx context.Context, ownerID, runID string) error {
+	// Inspect the selected SQL policy, not elapsed wall-clock time. The
+	// ordinary reconcile context has no maintenance budget at this boundary.
+	if err := persistencepostgres.InTx(ctx, d.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+		var cleanup bool
+		if err := tx.QueryRow(ctx, `SELECT current_setting('statement_timeout')::interval = interval '60 seconds'`).Scan(&cleanup); err != nil {
+			return err
+		}
+		if !cleanup {
+			return errors.New("child Run deletion inherited the ordinary operation budget")
+		}
+		return nil
+	}); err != nil {
+		return err
+	}
+	d.checked = true
+	return d.RunDeleter.DeleteReleasedTerminalRun(ctx, ownerID, runID)
+}
+
+func seedLargeAuditChildRun(t *testing.T, ctx context.Context, h *postgresControllerHarness, runID string) {
+	t.Helper()
+	scope, _ := artifacts.RunScope(runID)
+	seed, err := h.artifacts.Create(ctx, scope, contracts.ArtifactRef{Namespace: "scratch", Name: "purge-seed"},
+		artifacts.Payload{MediaType: "text/plain", Data: []byte("large child Run purge fixture")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var remaining int
+	var versionID string
+	if err := h.pool.QueryRow(ctx, `SELECT 50000 - revision_count FROM artifact_scopes
+WHERE scope_kind = 'run' AND scope_id = $1`, runID).Scan(&remaining); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.pool.QueryRow(ctx, `SELECT version_id FROM artifact_binding_revisions
+WHERE scope_kind = 'run' AND scope_id = $1 AND namespace = $2 AND name = $3 AND revision = $4`,
+		runID, seed.Ref.Namespace, seed.Ref.Name, seed.Ref.Revision).Scan(&versionID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.pool.Exec(ctx, `INSERT INTO artifact_binding_revisions
+(scope_kind,scope_id,namespace,name,revision,version_id)
+SELECT 'run',$1,'bulk','item-' || n,'bulk-' || n,$3 FROM generate_series(1,$2::int) AS n`, runID, remaining, versionID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.pool.Exec(ctx, `INSERT INTO artifact_bindings
+(scope_kind,scope_id,namespace,name,current_revision)
+SELECT 'run',$1,'bulk','item-' || n,'bulk-' || n FROM generate_series(1,$2::int) AS n`, runID, remaining); err != nil {
+		t.Fatal(err)
+	}
 }

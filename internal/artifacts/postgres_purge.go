@@ -14,9 +14,9 @@ import (
 // purgeBatchSize bounds the binding revisions one purge batch removes and the
 // candidate versions or blobs one purge statement locks or deletes
 // (LIM-DEL-2). A Run or Audit purge stays one transaction whose total work the
-// Run revision limit (LIM-ART-6) or the Audit limits bound; a ProjectScope
-// purge commits one batch per transaction (PurgeProject).
-var purgeBatchSize = 1000
+// Run revision limit (LIM-ART-6) bounds its work; ProjectScope and Audit
+// namespace purges commit one batch per transaction.
+var purgeBatchSize = persistencepostgres.CleanupBatchRows
 
 // PostgresPurger performs the exceptional physical cleanup used by lifecycle
 // deletion. It only accepts an existing transaction so ArtifactStore cleanup
@@ -26,33 +26,37 @@ type PostgresPurger struct {
 }
 
 // PurgeAuditNamespace removes one Server-reserved Audit namespace without
-// touching owner-authored Project bindings. The caller must delete the owning
-// Audit domain rows in the same transaction.
+// touching owner-authored Project bindings. Each call removes one revision
+// batch and reports whether the namespace is empty. The owning Audit stays
+// deleting across committed batches and is removed last.
 func (p *PostgresPurger) PurgeAuditNamespace(
 	ctx context.Context, projectID, namespace string,
-) error {
+) (bool, error) {
 	scope, err := ProjectScope(projectID)
 	if err != nil {
-		return err
+		return false, err
 	}
 	if !strings.HasPrefix(namespace, "audit-") || validateComponent(namespace) != nil {
-		return ErrInvalidName
+		return false, ErrInvalidName
 	}
 	ctx, cancel := persistencepostgres.WithCleanupBudget(ctx)
 	defer cancel()
 	if err := p.lockScope(ctx, scope); err != nil {
-		return err
+		return false, err
 	}
 	if _, err := p.tx.Exec(
 		ctx, `SELECT set_config('contractor.lifecycle_purge', 'audit', true)`,
 	); err != nil {
-		return fmt.Errorf("enable Audit lifecycle purge: %w", err)
+		return false, fmt.Errorf("enable Audit lifecycle purge: %w", err)
 	}
-	versionIDs, err := p.purgeAllRevisions(ctx, scope, namespace)
+	batch, err := p.purgeRevisionBatch(ctx, scope, namespace, revisionKey{namespace: namespace})
 	if err != nil {
-		return fmt.Errorf("purge Audit Artifact namespace: %w", err)
+		return false, fmt.Errorf("purge Audit Artifact namespace: %w", err)
 	}
-	return p.collectUnreferencedVersions(ctx, versionIDs)
+	if err := p.collectUnreferencedVersions(ctx, batch.versionIDs); err != nil {
+		return false, err
+	}
+	return len(batch.versionIDs) < purgeBatchSize, nil
 }
 
 func NewPostgresPurger(tx pgx.Tx) (*PostgresPurger, error) {

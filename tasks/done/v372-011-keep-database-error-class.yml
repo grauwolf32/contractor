@@ -5,7 +5,8 @@ milestone: hub-audit-defects-2026-10
 epic: persistence
 kind: defect
 priority: P2
-status: pending
+status: completed
+implementation_commit: 89a2cc5790b53b3cedf31aff24e2e1f0a60860bb
 depends_on: []
 languages: [go]
 goal: "Every failed database call keeps its PER-R13 outcome class up to the caller, so a transaction conflict is retried or answered as 503 storage_transaction_conflict and a cancelled context stays cancelled, instead of becoming an unclassified internal error."
@@ -74,3 +75,17 @@ tests:
     covers: [A2, A3]
   - command: make lint
     covers: [A1, A2, A3]
+verification:
+  date: '2026-10-15'
+  revision: a161ffb98af14d85bf32e70f90d726c715c7f0cc
+  environment: Go 1.26.9, Node 24.20.0 and disposable PostgreSQL 17; test GOFLAGS=-buildvcs=false -p=2; max_locks_per_transaction=1024.
+  commands:
+  - command: make verify
+    result: Passed; Runtime 3835 passed and 39 skipped; UI 1984 passed.
+  - command: go test -p 1 -count=1 ./internal/controlplane ./internal/agentprincipal ./internal/credentials ./internal/runstore ./internal/persistence ./internal/httpapi/public
+    result: Passed with disposable PostgreSQL configured.
+  regression:
+    baseline: b8895290e2d014b0a7d71e0da50fca56b7df5894
+    before: PostgreSQL placement conflict attempted once and lost its class; principal reads lost cancellation; Runtime credential usage lost its database cause.
+    after: TestPlacementLockPreservesDatabaseFailure, TestPrincipalDatabaseFailureIdentity and TestRuntimeCredentialDatabaseFailureIdentity pass with real PostgreSQL. The production source guard rejects its errors.New probe.
+  siblings: Principal, credential lifecycle and Run reference reads preserve the safe wrapper and cause. Registry commit and Runtime response-body errors preserve cancellation; public classification tests pass.

@@ -119,14 +119,23 @@ func (s *ClaimStore) PurgeClaimed(
 	if namespace != auditdomain.ArtifactNamespace(claim.AuditID) {
 		return invalidf("Audit purge namespace is invalid")
 	}
+	if s.purgeDependencies == nil {
+		return invalidf("Audit purge requires dependent-row cleanup")
+	}
 	return persistencepostgres.Within(ctx, s.db, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		return purgeClaimedAudit(ctx, tx, claim, namespace)
+		return purgeClaimedAudit(ctx, tx, claim, namespace, s.purgeDependencies)
 	})
 }
 
 func purgeClaimedAudit(
-	ctx context.Context, tx pgx.Tx, claim auditstore.ControllerClaim, namespace string,
+	ctx context.Context, tx pgx.Tx, claim auditstore.ControllerClaim, namespace string, purgeDependencies auditstore.PurgeDependencies,
 ) error {
+	if err := auditClaims.Lock(ctx, tx, claim.AuditID, claim.HolderID, int64(claim.Epoch)); err != nil {
+		if errors.Is(err, persistencepostgres.ErrControllerClaimLost) {
+			return auditstore.ErrClaimLost
+		}
+		return err
+	}
 	var projectID string
 	err := tx.QueryRow(ctx, purgeClaimedAuditSQL, claim.AuditID, claim.HolderID, claim.Epoch).Scan(&projectID)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -135,12 +144,47 @@ func purgeClaimedAudit(
 	if err != nil {
 		return fmt.Errorf("lock drained Audit for purge: %w", err)
 	}
+	if _, err := tx.Exec(ctx, `SELECT set_config('contractor.lifecycle_purge', 'audit', true)`); err != nil {
+		return persistencepostgres.WrapError("enable Audit lifecycle purge", err)
+	}
+	remaining := persistencepostgres.CleanupBatchRows
+	for _, statement := range purgeAuditDomainSQL {
+		tag, err := tx.Exec(ctx, statement, claim.AuditID, remaining)
+		if err != nil {
+			return persistencepostgres.WrapError("purge Audit domain batch", err)
+		}
+		remaining -= int(tag.RowsAffected())
+		if remaining == 0 {
+			return nil
+		}
+	}
+	removed, err := purgeDependencies(ctx, tx, claim.AuditID, remaining)
+	if err != nil {
+		return err
+	}
+	if removed < 0 || removed > remaining {
+		return invalidf("Audit purge dependency exceeded its row bound")
+	}
+	remaining -= removed
+	if remaining == 0 {
+		return nil
+	}
+	removed, err = persistencepostgres.DeleteAuditReceiptsBatch(ctx, tx, claim.AuditID, remaining)
+	if err != nil || removed == remaining {
+		return err
+	}
+	// References from decided history are gone before releasing holds; held
+	// material remains available until every hold has been released.
 	purger, err := artifacts.NewPostgresPurger(tx)
 	if err != nil {
 		return err
 	}
-	if err := purger.PurgeAuditNamespace(ctx, projectID, namespace); err != nil {
+	complete, err := purger.PurgeAuditNamespace(ctx, projectID, namespace)
+	if err != nil {
 		return fmt.Errorf("purge Audit artifacts: %w", err)
+	}
+	if !complete {
+		return nil
 	}
 	tag, err := tx.Exec(ctx, `
 DELETE FROM audits AS audit

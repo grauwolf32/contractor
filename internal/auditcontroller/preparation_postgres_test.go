@@ -5,6 +5,7 @@ package auditcontroller
 import (
 	"context"
 	"errors"
+	"github.com/grauwolf32/contractor/internal/auditstore/hookstore"
 	"strings"
 	"testing"
 	"time"
@@ -364,7 +365,7 @@ func TestPostgresPreparationRecoversLostCollectionResponse(t *testing.T) {
 	preparationStep(t, ctx, c)
 	finishPreparationRun(t, ctx, h, preparationExecutions(t, ctx, h, 1)[0], runstore.RunSucceeded, false)
 	preparationStep(t, ctx, c)
-	access, _ := auditimport.NewArtifactAccess(h.artifacts)
+	access, _ := auditimport.NewArtifactAccess(h.artifacts, hookstore.NewClaimedArtifacts(h.pool))
 	c.collector, _ = auditimport.New(lostPreparationCollection{h.audits}, h.audits, h.runs, access)
 	if _, err := c.RunOnce(ctx); !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("lost collection response: %v", err)

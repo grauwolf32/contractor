@@ -37,7 +37,7 @@ func TestAuditPurgeRemovesDecidedReviews(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			store := auditstoretest.NewStore(pool)
+			store := auditstoretest.NewStore(pool).WithPurgeDependencies(findingintake.DeleteAuditHoldsBatch)
 			audit, _, err := store.CreateDraft(ctx, auditstore.CreateDraftParams{
 				AuditID: "audit-purge-" + subject, OwnerID: project.OwnerID, ProjectID: project.ProjectID,
 				Profile: auditstore.ProfileIdentity{
@@ -97,6 +97,9 @@ func TestAuditPurgeRemovesDecidedReviews(t *testing.T) {
 			var decisions int
 			if err := pool.QueryRow(ctx, `SELECT count(*) FROM audit_review_decisions`).Scan(&decisions); err != nil || decisions == 0 {
 				t.Fatalf("decisions before purge = (%d, %v)", decisions, err)
+			}
+			if report, err := service.GetReport(ctx, audit.OwnerID, audit.AuditID); err != nil || report.Status != ReportUnavailable {
+				t.Fatalf("report during bounded deletion = (%+v, %v), want unavailable", report, err)
 			}
 			if err := store.PurgeClaimed(ctx, claim, auditdomain.ArtifactNamespace(audit.AuditID)); err != nil {
 				t.Fatalf("purge Audit with a decided %s review: %v", subject, err)

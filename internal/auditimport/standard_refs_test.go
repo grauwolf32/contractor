@@ -343,6 +343,11 @@ func TestCollectionLoadsPinnedStandardsOncePerAttempt(t *testing.T) {
 	}
 }
 
+func (c *standardReadCounter) WithClaim(claim auditstore.ControllerClaim) ArtifactAccess {
+	c.ArtifactAccess = c.ArtifactAccess.WithClaim(claim)
+	return c
+}
+
 type standardReadCounter struct {
 	ArtifactAccess
 	key   string

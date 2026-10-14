@@ -11,6 +11,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstandards"
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/auditstore/hookstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/querystore"
 	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -176,7 +177,8 @@ func (s *Service) prepareInitialInventory(ctx context.Context, claim auditstore.
 		return auditstore.AcceptInitialRoundParams{}, err
 	}
 	namespace := auditdomain.ArtifactNamespace(audit.AuditID)
-	writer := auditArtifactWriter{service: service, projectID: audit.ProjectID}
+	writer := auditArtifactWriter{service: service, projectID: audit.ProjectID,
+		claim: &claim, writes: hookstore.NewClaimedArtifacts(s.pool)}
 	tasks, manifest, err := writeTaskPackages(ctx, writer, namespace, profile, selection, inventory, prepared)
 	if err != nil {
 		return auditstore.AcceptInitialRoundParams{}, err

@@ -58,6 +58,11 @@ type evidenceReadArtifacts struct {
 	err        error
 }
 
+func (a *evidenceReadArtifacts) WithClaim(claim auditstore.ControllerClaim) ArtifactAccess {
+	a.ArtifactAccess = a.ArtifactAccess.WithClaim(claim)
+	return a
+}
+
 func (a *evidenceReadArtifacts) ReadRunExact(context.Context, string, contracts.ArtifactRef) (auditstore.ExactArtifact, []byte, error) {
 	return a.descriptor, []byte("evidence"), a.err
 }
