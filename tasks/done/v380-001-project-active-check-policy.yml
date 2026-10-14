@@ -5,7 +5,8 @@ milestone: project-active-check-policy-2026-10
 epic: audits
 kind: feature
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: b8a9e3255d941a9d3ef88aa609f71e193f1a17cb
 depends_on: []
 languages: [go, typescript, markdown]
 goal: >-
