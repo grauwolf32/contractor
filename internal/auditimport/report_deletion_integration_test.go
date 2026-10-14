@@ -356,9 +356,8 @@ type reportDeletionArtifacts struct {
 }
 
 func (a *reportDeletionArtifacts) WithClaim(claim auditstore.ControllerClaim) ArtifactAccess {
-	bound := *a
-	bound.ArtifactAccess = a.ArtifactAccess.WithClaim(claim)
-	return &bound
+	a.ArtifactAccess = a.ArtifactAccess.WithClaim(claim)
+	return a
 }
 
 func (a *reportDeletionArtifacts) PutImmutableProject(ctx context.Context, projectID string, target contracts.ArtifactRef, payload artifacts.Payload) (auditstore.ExactArtifact, error) {

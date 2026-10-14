@@ -105,6 +105,11 @@ type invalidTaskArtifactAccess struct {
 	task contracts.ArtifactRef
 }
 
+func (a invalidTaskArtifactAccess) WithClaim(claim auditstore.ControllerClaim) ArtifactAccess {
+	a.ArtifactAccess = a.ArtifactAccess.WithClaim(claim)
+	return a
+}
+
 func (a invalidTaskArtifactAccess) ReadProjectExact(
 	ctx context.Context, projectID string, expected auditstore.ExactArtifact,
 ) ([]byte, error) {

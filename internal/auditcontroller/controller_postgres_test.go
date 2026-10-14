@@ -1212,7 +1212,9 @@ func TestPostgresControllerCollectsAndPublishesExactAuditReport(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	replayed, err := access.RetainRunExact(
+	replayed, err := access.WithClaim(auditstore.ControllerClaim{
+		AuditID: completed.AuditID, HolderID: "postgres-audit-controller", Epoch: 1,
+	}).RetainRunExact(
 		ctx, runID,
 		auditstore.ExactArtifact{
 			Ref: outputMetadata.Ref, Digest: outputMetadata.Digest,
@@ -1221,9 +1223,8 @@ func TestPostgresControllerCollectsAndPublishesExactAuditReport(t *testing.T) {
 		completed.ProjectID,
 		contracts.ArtifactRef{Namespace: resultLink.Artifact.Ref.Namespace, Name: resultLink.Artifact.Ref.Name},
 	)
-	if err != nil || replayed.Digest != resultLink.Artifact.Digest ||
-		replayed.Ref.Revision == nil || *replayed.Ref.Revision != *resultLink.Artifact.Ref.Revision {
-		t.Fatalf("retained result replay = (%+v, %v)", replayed, err)
+	if !errors.Is(err, auditstore.ErrClaimLost) || replayed.Ref.Revision != nil {
+		t.Fatalf("retained result replay after claim release = (%+v, %v)", replayed, err)
 	}
 
 	auditService, err := auditservice.New(auditservice.Options{
