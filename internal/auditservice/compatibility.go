@@ -1,11 +1,13 @@
 package auditservice
 
 import (
+	"fmt"
 	"slices"
 	"sort"
 
 	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
+	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
 var reasonOrder = []CompatibilityReason{
@@ -15,6 +17,7 @@ var reasonOrder = []CompatibilityReason{
 	ReasonMultipleRoundsUnsupported,
 	ReasonBatchingUnsupported,
 	ReasonAutomaticActiveChecksUnsupported,
+	ReasonProjectActiveChecksProhibited,
 	ReasonActiveCheckApprovalUnsupported,
 	ReasonFindingConfirmationUnsupported,
 	ReasonManualApplicabilityUnsupported,
@@ -24,18 +27,11 @@ var reasonOrder = []CompatibilityReason{
 
 func ProfileCompatibility(profile auditprofile.ResolvedAuditProfile) Compatibility {
 	reasons := make(map[CompatibilityReason]struct{})
-	for role, binding := range profile.Workflows {
-		// Preparation has no item whose exact approval could authorize tools.
-		if binding.Kind == auditprofile.AuditWorkflowPrepare && workflowRoleSelectsClassifiedTool(profile, role, true) {
-			reasons[ReasonAutomaticActiveChecksUnsupported] = struct{}{}
-		}
-	}
 	if profile.Inventory.Implementation == "finding-candidates@1" {
 		reasons[ReasonAssessmentUnsupported] = struct{}{}
 	}
 	switch profile.Interaction.ActiveChecks {
 	case auditprofile.AuditActiveChecksAutomatic:
-		reasons[ReasonAutomaticActiveChecksUnsupported] = struct{}{}
 	case auditprofile.AuditActiveChecksApprovalRequired:
 		// Exact action approval is enforced by the shared Audit review ledger
 		// and rechecked in CreateExecutionIntent.
@@ -54,6 +50,29 @@ func ProfileCompatibility(profile auditprofile.ResolvedAuditProfile) Compatibili
 			profile.Inventory.Implementation == "standard-mappings@1" || profile.Inventory.Implementation == auditprofile.AuditInventoryOpenAPIScans,
 		Reasons: ordered,
 	}
+}
+
+// activeCheckPolicy resolves Project approval authority without modifying the
+// retained AuditProfile identity. A profile prohibition cannot be broadened.
+func activeCheckPolicy(profile auditprofile.ResolvedAuditProfile, projectPolicy contracts.ActiveChecksPolicy) (contracts.ActiveChecksPolicy, error) {
+	if !projectPolicy.Valid() {
+		return "", fmt.Errorf("%w: Project active checks policy is invalid", ErrInvalid)
+	}
+	policy := projectPolicy
+	if profile.Interaction.ActiveChecks == contracts.ActiveChecksProhibited {
+		policy = contracts.ActiveChecksProhibited
+	}
+	if policy == contracts.ActiveChecksProhibited && profileSelectsClassifiedTool(profile, true) {
+		return "", unsupported([]CompatibilityReason{ReasonProjectActiveChecksProhibited})
+	}
+	if policy == contracts.ActiveChecksApprovalRequired {
+		for role, binding := range profile.Workflows {
+			if binding.Kind == auditprofile.AuditWorkflowPrepare && workflowRoleSelectsClassifiedTool(profile, role, true) {
+				return "", unsupported([]CompatibilityReason{ReasonActiveCheckApprovalUnsupported})
+			}
+		}
+	}
+	return policy, nil
 }
 
 func profileSelectsClassifiedTool(profile auditprofile.ResolvedAuditProfile, active bool) bool {

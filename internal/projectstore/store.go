@@ -28,21 +28,24 @@ func NewPostgresStore(db persistencepostgres.DBTX) *PostgresStore {
 }
 
 func (s *PostgresStore) Create(ctx context.Context, params CreateParams) (Project, bool, error) {
+	if params.ActiveChecks == "" {
+		params.ActiveChecks = contracts.ActiveChecksAutomatic
+	}
 	if err := validateCreate(params); err != nil {
 		return Project{}, false, err
 	}
 	project, err := scanProject(s.db.QueryRow(ctx, `
 INSERT INTO projects (
     project_id, owner_id, kind, name, description,
-    request_idempotency_key, request_digest
-) VALUES ($1, $2, $3, $4, $5, $6, $7)
+    request_idempotency_key, request_digest, active_checks
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 ON CONFLICT DO NOTHING
 RETURNING project_id, owner_id, kind, name, description,
-          http_target_url, http_target_credential_id, http_target_credential_kind,
+          http_target_url, http_target_credential_id, http_target_credential_kind, active_checks,
           lifecycle_state, deletion_phase, deletion_requested_at,
           revision, created_at, updated_at`,
 		params.ProjectID, params.OwnerID, params.Kind, params.Name, params.Description,
-		params.IdempotencyKey, params.RequestDigest,
+		params.IdempotencyKey, params.RequestDigest, params.ActiveChecks,
 	))
 	if err == nil {
 		return project, true, nil
@@ -77,7 +80,7 @@ func (s *PostgresStore) Get(ctx context.Context, ownerID, projectID string) (Pro
 	}
 	project, err := scanProject(s.db.QueryRow(ctx, `
 SELECT project_id, owner_id, kind, name, description,
-       http_target_url, http_target_credential_id, http_target_credential_kind,
+       http_target_url, http_target_credential_id, http_target_credential_kind, active_checks,
        lifecycle_state, deletion_phase, deletion_requested_at,
        revision, created_at, updated_at
 FROM projects
@@ -103,7 +106,7 @@ func (s *PostgresStore) LockActiveAuditProject(
 	}
 	project, err := scanProject(s.db.QueryRow(ctx, `
 SELECT project_id, owner_id, kind, name, description,
-       http_target_url, http_target_credential_id, http_target_credential_kind,
+       http_target_url, http_target_credential_id, http_target_credential_kind, active_checks,
        lifecycle_state, deletion_phase, deletion_requested_at,
        revision, created_at, updated_at
 FROM projects
@@ -158,7 +161,7 @@ func (s *PostgresStore) Update(ctx context.Context, params UpdateParams) (Projec
 	}
 	project, err := scanProject(s.db.QueryRow(ctx, updateProjectSQL,
 		params.Name, params.Description, targetURL(params.HTTPTarget), targetCredentialID(params.HTTPTarget),
-		targetCredentialKind(params.HTTPTarget), params.OwnerID, params.ProjectID, params.ExpectedRevision,
+		targetCredentialKind(params.HTTPTarget), params.OwnerID, params.ProjectID, params.ExpectedRevision, params.ActiveChecks,
 	))
 	if err == nil {
 		return project, nil
@@ -225,13 +228,16 @@ func scanProject(row scanner) (Project, error) {
 	var deletionRequestedAt *time.Time
 	err := row.Scan(
 		&project.ProjectID, &project.OwnerID, &project.Kind, &project.Name,
-		&project.Description, &targetURL, &credentialID, &credentialKind,
+		&project.Description, &targetURL, &credentialID, &credentialKind, &project.ActiveChecks,
 		&project.Lifecycle, &deletionPhase, &deletionRequestedAt,
 		&revision, &project.CreatedAt, &project.UpdatedAt,
 	)
 	if err == nil {
 		if revision <= 0 {
 			return Project{}, errors.New("stored Project revision is invalid")
+		}
+		if !project.ActiveChecks.Valid() {
+			return Project{}, errors.New("stored Project active checks policy is invalid")
 		}
 		if !project.Lifecycle.Valid() {
 			return Project{}, errors.New("stored Project lifecycle is invalid")
@@ -288,6 +294,9 @@ func validateCreate(params CreateParams) error {
 	if err := validateIdentity(params.OwnerID, params.ProjectID); err != nil {
 		return err
 	}
+	if params.ActiveChecks != "" && !params.ActiveChecks.Valid() {
+		return invalid("Project active checks policy is invalid")
+	}
 	if !params.Kind.Valid() {
 		return invalid("Project kind is invalid")
 	}
@@ -309,6 +318,9 @@ func validateUpdate(params UpdateParams) error {
 	}
 	if err := validateMetadata(params.Name, params.Description); err != nil {
 		return err
+	}
+	if params.ActiveChecks != nil && !params.ActiveChecks.Valid() {
+		return invalid("Project active checks policy is invalid")
 	}
 	if params.HTTPTarget != nil {
 		if err := params.HTTPTarget.Validate(); err != nil {

@@ -233,6 +233,13 @@ export function CheckTechnicalDetails({
                   />
                 )}
               </Fact>
+              <Fact term="Active checks">
+                {baseline.activeChecks === "automatic"
+                  ? "Automatically"
+                  : baseline.activeChecks === "approval-required"
+                    ? "Ask before each active check"
+                    : "Disabled"}
+              </Fact>
               <Fact term="Skills">{baseline.skills.length}</Fact>
               <Fact term="Standards">{baseline.standards.length}</Fact>
               <Fact term="Runtime configs">

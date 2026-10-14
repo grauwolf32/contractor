@@ -36,6 +36,7 @@ function project(projectId: string, overrides: Partial<Project> = {}): Project {
     name: projectId,
     description: "",
     lifecycle: "active",
+    activeChecks: "automatic",
     revision: "1",
     createdAt: "2026-10-01T10:00:00Z",
     updatedAt: "2026-10-01T10:00:00Z",

@@ -74,6 +74,9 @@ execution_policy:
     P3: Low-impact correction with no user-visible failure, such as documentation, dead code or test hygiene.
 
 milestones:
+  - id: project-active-check-policy-2026-10
+    exit_task: V380-001
+    outcome: Projects default to automatic active Audit checks and pin their owner-selected execution policy at Audit start.
   - id: planner-summary-continuation-2026-10
     exit_task: V378-001
     outcome: Summarized passthrough work continues through one Scheduler-owned escalation to Streamline with the original task, saved summary and the same recorded artifacts and Memory Namespace.

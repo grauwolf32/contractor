@@ -31,6 +31,8 @@ const evaluation = {
   name: "OpenAPI regression",
   description: "A/B evaluation workspace",
   lifecycle: "active",
+
+  activeChecks: "automatic",
   revision: "1",
   createdAt: "2026-09-05T08:00:00Z",
   updatedAt: "2026-09-05T08:01:00Z",

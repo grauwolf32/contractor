@@ -44,6 +44,7 @@ func (s *Service) PrepareNextRound(
 	if err != nil {
 		return auditstore.AcceptRoundParams{}, nil, inconsistentRound("the pinned Audit baseline is invalid", err)
 	}
+	profile.Interaction.ActiveChecks = baseline.ActiveChecks
 	selection, err := DecodeDraftSelection(snapshot.Audit.InputSelection)
 	if err != nil {
 		return auditstore.AcceptRoundParams{}, nil, inconsistentRound("the pinned Audit input selection is invalid", err)

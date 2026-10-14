@@ -483,6 +483,23 @@ destination, so the outputs of repeated Audit checks would collide.
 only by trusted Run creation and must not be accepted from the public
 Run-create API.
 
+### Active checks
+
+**PRJ-R103.** Project `activeChecks` is `automatic`, `approval-required` or
+`prohibited`, defaulting to `automatic` at creation. Public reads always return
+the value. Creation and revision-CAS update reject null and invalid values;
+omitting it from an update preserves it. A no-op update preserves the revision. The existing deleting-Project fence
+also protects this setting.
+
+**PRJ-R104.** For active-enabled Audit profiles, the Project setting owns
+execution approval: automatic admits active items without individual reviews,
+approval-required requires exact item review, and prohibited rejects active
+capabilities before dispatch. A profile prohibition remains authoritative.
+Audit start pins the effective value under the shared Project admission lock;
+later Project edits apply only to newly started Audits. The Settings page
+exposes all three choices and explains this start boundary. Scope, selected
+tools, explicit manual reviews and finding triage remain independent.
+
 ### HTTP target
 
 **PRJ-R64.** A Project may store one optional application URL and a

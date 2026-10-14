@@ -53,8 +53,8 @@ func validateAuditTaskBinding(profile ResolvedAuditProfile, binding ResolvedAudi
 		if profile.Execution.BatchSize != 1 {
 			return fmt.Errorf("%s executor requires batchSize 1", execution.Contract)
 		}
-		if profile.Interaction.ActiveChecks != AuditActiveChecksApprovalRequired {
-			return fmt.Errorf("%s executor requires approval-required active checks", execution.Contract)
+		if profile.Interaction.ActiveChecks == AuditActiveChecksProhibited {
+			return fmt.Errorf("%s executor requires active checks", execution.Contract)
 		}
 		return validateAuditScanMappings(profile, binding, stage)
 	default:

@@ -35,7 +35,7 @@ func OwnerListedProjectSQL(projectID, ownerID string) string {
 // Used by PostgresStore.List.
 var listProjectsSQL = `
 SELECT project_id, owner_id, kind, name, description,
-       http_target_url, http_target_credential_id, http_target_credential_kind,
+       http_target_url, http_target_credential_id, http_target_credential_kind, active_checks,
        lifecycle_state, deletion_phase, deletion_requested_at,
        revision, created_at, updated_at
 FROM projects
@@ -51,16 +51,20 @@ LIMIT $5`
 // the revision and a strictly increasing updated_at and returns the new row; no
 // row means missing, deleting or stale, which the caller then resolves.
 // Used by PostgresStore.Update.
+const projectUpdateChangedSQL = `ROW(name, description, http_target_url, http_target_credential_id, http_target_credential_kind, active_checks)
+ IS DISTINCT FROM ROW($1::text, $2::text, $3::text, $4::text, $5::text, COALESCE($9::text, active_checks))`
+
 var updateProjectSQL = `
 UPDATE projects
-SET name = $1, description = $2,
+SET name = $1, description = $2, active_checks = COALESCE($9, active_checks),
     http_target_url = $3, http_target_credential_id = $4, http_target_credential_kind = $5,
-    revision = revision + 1,
-    updated_at = GREATEST(clock_timestamp(), updated_at + interval '1 microsecond')
+    revision = revision + CASE WHEN ` + projectUpdateChangedSQL + ` THEN 1 ELSE 0 END,
+    updated_at = CASE WHEN ` + projectUpdateChangedSQL + `
+      THEN GREATEST(clock_timestamp(), updated_at + interval '1 microsecond') ELSE updated_at END
 WHERE owner_id = $6 AND project_id = $7 AND revision = $8
   AND lifecycle_state = 'active'
 RETURNING project_id, owner_id, kind, name, description,
-          http_target_url, http_target_credential_id, http_target_credential_kind,
+          http_target_url, http_target_credential_id, http_target_credential_kind, active_checks,
           lifecycle_state, deletion_phase, deletion_requested_at,
           revision, created_at, updated_at`
 
@@ -79,6 +83,6 @@ SET lifecycle_state = 'deleting',
 WHERE owner_id = $1 AND project_id = $2 AND revision = $3
   AND lifecycle_state = 'active'
 RETURNING project_id, owner_id, kind, name, description,
-          http_target_url, http_target_credential_id, http_target_credential_kind,
+          http_target_url, http_target_credential_id, http_target_credential_kind, active_checks,
           lifecycle_state, deletion_phase, deletion_requested_at,
           revision, created_at, updated_at`

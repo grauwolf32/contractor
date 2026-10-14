@@ -1,0 +1,13 @@
+[
+  {"value":"automatic","valid":true},
+  {"value":"approval-required","valid":true},
+  {"value":"prohibited","valid":true},
+  {"value":"","valid":false},
+  {"value":"Automatic","valid":false},
+  {"value":" automatic ","valid":false},
+  {"value":"enabled","valid":false},
+  {"value":null,"valid":false},
+  {"value":true,"valid":false},
+  {"value":1,"valid":false},
+  {"value":[],"valid":false}
+]

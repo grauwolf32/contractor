@@ -1,0 +1,99 @@
+schema_version: "1.0"
+id: V380-001
+title: Control automatic Audit active checks through Project settings
+milestone: project-active-check-policy-2026-10
+epic: audits
+kind: feature
+priority: P1
+status: in_progress
+depends_on: []
+languages: [go, typescript, markdown]
+goal: >-
+  Run active Audit checks automatically by default, with an owner-editable
+  Project policy for automatic execution, per-item approval or prohibition.
+  Keep the selected policy immutable for a started Audit and retain profile
+  prohibitions, explicit manual items and human finding review.
+context:
+  request: >-
+    On 2026-10-15 the user rejected the unconditional automatic-active-check
+    restriction and requested a Project setting, explicitly selecting automatic
+    Audit execution as the default.
+  specification:
+    - docs/spec/audits/audits.md
+    - docs/spec/audits/execution.md
+    - docs/spec/audits/review-and-reports.md
+    - docs/spec/audits/scans.md
+    - docs/spec/artifacts/projects.md
+    - docs/spec/platform/persistence.md
+    - docs/spec/platform/failure-model.md
+  boundary_decision: >-
+    Project activeChecks owns execution approval for active-enabled profiles.
+    Profile prohibited remains prohibited; automatic and approval-required
+    profiles use the Project's mode. Pin that effective policy at start under
+    the existing shared Project admission lock, never rewrite a pinned profile
+    or reinterpret a running Audit when Project settings change.
+scope:
+  in:
+    - Project persistence, strict public create/read/update contracts and settings UI.
+    - Effective policy at initial, prepared and proposed-check Round admission.
+    - Automatic profile compatibility and OpenAPI scanner executor validation.
+    - Specification and real PostgreSQL regression coverage.
+  out:
+    - New browser, identity, callback or target-scope enforcement adapters.
+    - Removing human finding triage, applicability decisions or explicit manual items.
+requirements:
+  - id: R1
+    text: Project activeChecks accepts automatic, approval-required and prohibited; creation defaults to automatic and reads and writes reject invalid values.
+  - id: R2
+    text: Project PATCH uses existing revision CAS; omitted fields are preserved, null or unknown values fail, deleting Projects remain fenced.
+  - id: R3
+    text: Active-enabled Audit profiles use the effective pinned Project policy, with no per-item active-check review in automatic mode. Profile and Project prohibitions reject classified active capabilities before execution.
+  - id: R4
+    text: Start atomically pins the effective policy; prepared inventory and every later Round use it. Idempotent start replay retains the original policy after Project changes.
+  - id: R5
+    text: Explicit manual/applicability reviews and finding triage remain independent of automatic active checks; Runtime tool selection and authorized scope are unchanged.
+failure_outcomes:
+  - operation: Project update and Audit start
+    permanent: Invalid policies return invalid_request; stale revisions retain existing precondition errors; prohibited active execution fails before dispatch.
+    retryable: Existing bounded transaction-conflict handling and storage_transaction_conflict 503 apply.
+    ambiguous: Read the Project revision after uncertain PATCH; Audit start replays its existing keyed mutation receipt.
+    cancelled: Existing request context and transaction rollback own cancellation; no new detached work.
+    timeout: Existing request and transaction deadlines apply independently of child execution deadlines.
+cardinality:
+  - collection: Project policy and Audit baseline
+    expected: One three-value enum per Project and started Audit.
+    maximum: One enum; existing bounded Project pages and Round limits.
+    bound: Constant additional rows and bytes; no collection rescans or new receipt mechanism.
+lifecycle:
+  - entity: Project policy and pinned Audit policy
+    delete: Existing Project and Audit deletion authority and fences apply.
+    cascade: Values live on existing rows and baseline snapshots.
+    retention: Keep a started Audit's policy until its normal purge; subsequent Project edits affect new Audits only.
+acceptance_criteria:
+  - id: A1
+    given: A new Project and an active-enabled HTTP or scanner Audit profile.
+    when: The owner starts an Audit without changing the default policy.
+    then: Active items become runnable without active-check-approval review requests.
+  - id: A2
+    given: Project approval-required or prohibited policy, or a profile prohibition.
+    when: Initial, prepared or subsequent Round work is admitted.
+    then: Approval-required items wait for exact review; prohibited active work never dispatches; manual reviews remain enforced.
+  - id: A3
+    given: A started Audit and a later Project setting change.
+    when: Start is replayed or a subsequent Round is built.
+    then: The original effective policy remains pinned; a newly started Audit uses the updated setting.
+  - id: A4
+    given: Project API and settings editor.
+    when: Valid, invalid, null and stale-revision edits are submitted.
+    then: Valid modes round-trip through PostgreSQL and the UI; invalid values fail strictly and conflicts are shown.
+tests:
+  - command: go test -count=1 ./internal/projectstore ./internal/auditbaseline ./internal/auditdomain ./internal/auditservice ./internal/auditcontroller ./internal/planner/scan ./internal/persistence ./internal/persistence/postgres ./internal/config/... ./internal/httpapi/public
+    covers: [A1, A2, A3, A4]
+  - command: go test -count=1 -tags=integration ./internal/auditcontroller
+    covers: [A1, A2, A3]
+  - command: make verify-public-api
+    covers: [A1, A2, A3, A4]
+  - command: VITEST_MAX_WORKERS=2 make ui-verify
+    covers: [A1, A2, A3, A4]
+  - command: make lint
+    covers: [A1, A2, A3, A4]

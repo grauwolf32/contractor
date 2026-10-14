@@ -6,6 +6,7 @@ import { RUNTIME_CONFIGURATION_PATH } from "../../app/navigation";
 import { useSession } from "../../auth/session";
 import { TechnicalDetails } from "../../ui";
 import { ProjectArtifactRegion } from "./artifact-region";
+import { ProjectActiveChecksEditor } from "./active-checks-editor";
 import { ProjectAuditWorkspace } from "./audits/list";
 import {
   ProjectHTTPTargetEditor,
@@ -35,6 +36,7 @@ function ProjectSettings({
   requestDeletion: () => void;
 }) {
   const details = useId();
+  const activeChecks = useId();
   const target = useId();
   const danger = useId();
   const location = useLocation();
@@ -70,6 +72,12 @@ function ProjectSettings({
   }, [location, navigate, openSheet]);
   return (
     <div className="projects-settings">
+      <section className="projects-panel" aria-labelledby={activeChecks}>
+        <div className="projects-section-heading">
+          <h3 id={activeChecks}>Active checks</h3>
+        </div>
+        <ProjectActiveChecksEditor key={project.projectId} project={project} />
+      </section>
       <section className="projects-panel" aria-labelledby={details}>
         <div className="projects-section-heading">
           <h3 id={details}>Project details</h3>

@@ -16,6 +16,7 @@ const project: Project = {
   name: "Router evals",
   description: "",
   lifecycle: "active",
+  activeChecks: "automatic",
   revision: "1",
   createdAt: "2026-09-01T10:00:00Z",
   updatedAt: "2026-09-01T10:00:00Z",

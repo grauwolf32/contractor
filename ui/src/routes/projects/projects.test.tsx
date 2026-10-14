@@ -33,6 +33,7 @@ const project = {
   name: "Payment service",
   description: "Reusable service analysis",
   lifecycle: "active",
+  activeChecks: "automatic",
   revision: "1",
   createdAt: "2026-09-01T10:00:00Z",
   updatedAt: "2026-09-01T10:00:00Z",
@@ -605,6 +606,7 @@ describe("Project routes", () => {
       kind: "project",
       name: "Payment service",
       description: "Reusable service analysis",
+      activeChecks: "automatic",
     });
     expect(body).not.toHaveProperty("owner_id");
     expect(body).not.toHaveProperty("scope_kind");

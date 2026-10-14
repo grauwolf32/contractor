@@ -133,7 +133,7 @@ exact licensed standard package:
   active WSTG 4.2 scenarios. It records source-backed violations and gaps; it
   does not execute live tests or report their success.
 - `owasp-wstg-4-2-active-http@1` checks a running website/API using HTTP evidence
-  and per-item active-check approval. It has the same 94 WSTG scenarios and
+  and Project-controlled active-check approval. It has the same 94 WSTG scenarios and
   explicitly records unsupported browser, network and identity checks as gaps.
 - `owasp-wstg-4-2-fast-source-review@1` and
   `owasp-wstg-4-2-fast-active-http@1` provide a first pass over 16 selected WSTG
@@ -175,7 +175,8 @@ Runs remain identifiable through their retained exact Workflow closure and
 
 `openapi-sqlmap-scan@1` and `openapi-nuclei-scan@1` accept exact `openapi`
 and `settings` artifacts. Each selected operation becomes one check and needs
-an **active-check approval** before its Run can start. The Runtime must advertise
+an **active-check approval** before its Run can start only when Project
+Settings selects approval-required. The default is automatic execution. The Runtime must advertise
 `scan_sqlmap` or `scan_nuclei` from an installed scanner. For Nuclei, install the
 Workflow's pinned `http-missing-security-headers` template in
 `NUCLEI_TEMPLATES_DIR`; an empty or unavailable selection does not expand to all
@@ -223,8 +224,9 @@ curl -fsS -H "$AUTHORIZATION" \
   jq '.items[] | {requestId,revision,kind,state}'
 ```
 
-Review the selected operation and target in the Audit UI, then approve that item
-there or submit its exact review ID and current revision:
+With Project active checks set to approval-required, review the selected
+operation and target in the Audit UI, then approve the item there or submit its
+exact review ID and current revision. Automatic mode does not require this step:
 
 ```sh
 request_id=request_... # from the pending active-check-approval review

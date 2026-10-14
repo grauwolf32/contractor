@@ -652,8 +652,10 @@ check batches, bounded multiple rounds, pinned discovery and assessment
 Workflow roles, exact active-check and manual-item approval, human finding
 confirmation, human applicability decisions and exact report acceptance.
 
-**AUD-R80.** Automatic active checks are not enabled: a profile must prohibit
-them or require an exact human decision.
+**AUD-R80.** Automatic active checks are supported. An active-enabled profile
+uses the Project's approval policy (PRJ-R103 and PRJ-R104); a profile with
+`activeChecks: prohibited` cannot gain active tools through Project settings.
+The Project defaults to automatic execution.
 
 **AUD-R81.** `findingConfirmation: disabled` means finding proposals are not an
 accepted result surface for that profile; it never turns proposals into
@@ -663,10 +665,18 @@ findings implicitly.
 outputs or AgentTemplates can emit finding proposals, and rejects active-check
 capabilities under `activeChecks: prohibited` (FAIL-AUD-4).
 
-**AUD-R83.** For `activeChecks: approval-required`, each item assigned to a
+**AUD-R83.** For the effective pinned `activeChecks: approval-required`, each item assigned to a
 Workflow role that exposes a classified active-check tool starts in
 `awaiting_review`. The trusted profile gate wins over a weaker
 inventory-authored policy.
+
+**AUD-R227.** Start pins the effective `activeChecks` in the immutable baseline,
+without rewriting the retained profile or its digest. Initial inventory,
+prepared inventory and every proposed-check Round use that same policy.
+Automatic mode creates no active-check-approval requests; explicit manual and
+applicability reviews remain required. An idempotent start replay retains the
+original policy after Project changes. A policy change between staging and
+baseline commit rejects the stale start before work is executable.
 
 **AUD-R84.** Manual checklist items also start in `awaiting_review`. No
 model-authored marker can make an active-check or manual item runnable.
@@ -687,8 +697,10 @@ reason codes describe missing Server capabilities rather than transient Worker
 availability (FAIL-AUD-4).
 
 **AUD-R89.** The Server emits the reason codes
-`automatic_active_checks_unsupported` and `assessment_unsupported` for the
-unsupported finding-candidate inventory entry point.
+`assessment_unsupported` for the unsupported finding-candidate inventory entry
+point. `automatic_active_checks_unsupported` describes a profile prohibition
+that conflicts with selected active tools; it does not reject automatic mode.
+`project_active_checks_prohibited` describes a Project prohibition at start.
 
 **AUD-R90.** The Server emits the reason code
 `finding_confirmation_unsupported` when `findingConfirmation: disabled` but a

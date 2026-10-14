@@ -108,7 +108,8 @@ func TestSharedPublicAuditPreparationContracts(t *testing.T) {
 		t.Fatal(err)
 	}
 	wire["baseline"] = map[string]any{
-		"inputs": wire["inputs"], "scope": map[string]any{}, "runtimeLabels": []any{}, "skills": []any{}, "standards": []any{},
+		"activeChecks": "automatic",
+		"inputs":       wire["inputs"], "scope": map[string]any{}, "runtimeLabels": []any{}, "skills": []any{}, "standards": []any{},
 		"runtimeConfig": map[string]any{"default": map[string]any{"label": "default", "explicit": false, "bindingRevision": 1, "config": map[string]any{"name": "runtime-example", "version": "1", "digest": auditHandlerDigest("runtime")}}, "labels": []any{}},
 	}
 	for _, state := range []string{"active", "paused", "cancelling", "cancelled", "failed", "deleting"} {

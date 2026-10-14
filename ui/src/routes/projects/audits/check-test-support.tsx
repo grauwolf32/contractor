@@ -49,6 +49,7 @@ export function makeProject(
     name,
     description: "",
     lifecycle: "active",
+    activeChecks: "automatic",
     revision: "1",
     createdAt: BASE_TIME,
     updatedAt: BASE_TIME,

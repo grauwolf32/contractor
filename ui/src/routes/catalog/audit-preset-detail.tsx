@@ -60,8 +60,8 @@ const ACTIVE_TESTS: Readonly<
   Record<AuditProfile["interaction"]["activeChecks"], string>
 > = {
   prohibited: "Never run",
-  automatic: "Run without asking",
-  "approval-required": "Only after your approval",
+  automatic: "Use project setting",
+  "approval-required": "Use project setting",
 };
 
 const POSSIBLE_ISSUES: Readonly<

@@ -102,9 +102,10 @@ type createRunResponse struct {
 }
 
 type createProjectRequest struct {
-	Kind        projectstore.Kind `json:"kind"`
-	Name        string            `json:"name"`
-	Description string            `json:"description,omitempty"`
+	Kind         projectstore.Kind            `json:"kind"`
+	Name         string                       `json:"name"`
+	Description  string                       `json:"description,omitempty"`
+	ActiveChecks contracts.ActiveChecksPolicy `json:"activeChecks,omitempty"`
 }
 
 func (r *createProjectRequest) UnmarshalJSON(data []byte) error {
@@ -122,15 +123,25 @@ func (r *createProjectRequest) UnmarshalJSON(data []byte) error {
 	if fields.null("description") {
 		return errors.New("description cannot be null")
 	}
+	if fields.null("activeChecks") {
+		return errors.New("activeChecks cannot be null")
+	}
+	if _, present := fields["activeChecks"]; !present {
+		decoded.ActiveChecks = contracts.ActiveChecksAutomatic
+	}
+	if !decoded.ActiveChecks.Valid() {
+		return errors.New("activeChecks is invalid")
+	}
 	*r = createProjectRequest(decoded)
 	return nil
 }
 
 type updateProjectRequest struct {
-	Name        *string                   `json:"name,omitempty"`
-	Description *string                   `json:"description,omitempty"`
-	HTTPTarget  *projectHTTPTargetRequest `json:"httpTarget,omitempty"`
-	targetSet   bool
+	Name         *string                       `json:"name,omitempty"`
+	Description  *string                       `json:"description,omitempty"`
+	HTTPTarget   *projectHTTPTargetRequest     `json:"httpTarget,omitempty"`
+	ActiveChecks *contracts.ActiveChecksPolicy `json:"activeChecks,omitempty"`
+	targetSet    bool
 }
 
 type projectHTTPTargetRequest struct {
@@ -152,6 +163,9 @@ func (r *updateProjectRequest) UnmarshalJSON(data []byte) error {
 		if name != "httpTarget" && isJSONNull(value) {
 			return fmt.Errorf("%s cannot be null", name)
 		}
+	}
+	if decoded.ActiveChecks != nil && !decoded.ActiveChecks.Valid() {
+		return errors.New("activeChecks is invalid")
 	}
 	if raw, present := fields["httpTarget"]; present {
 		decoded.targetSet = true
@@ -176,16 +190,17 @@ func (r *updateProjectRequest) UnmarshalJSON(data []byte) error {
 }
 
 type projectResponse struct {
-	ProjectID   string                               `json:"projectId"`
-	Kind        projectstore.Kind                    `json:"kind"`
-	Name        string                               `json:"name"`
-	Description string                               `json:"description"`
-	HTTPTarget  *runtimesettings.HTTPOriginTargetRef `json:"httpTarget,omitempty"`
-	Lifecycle   projectstore.Lifecycle               `json:"lifecycle"`
-	Deletion    *projectDeletionResponse             `json:"deletion,omitempty"`
-	Revision    string                               `json:"revision"`
-	CreatedAt   time.Time                            `json:"createdAt"`
-	UpdatedAt   time.Time                            `json:"updatedAt"`
+	ProjectID    string                               `json:"projectId"`
+	Kind         projectstore.Kind                    `json:"kind"`
+	Name         string                               `json:"name"`
+	Description  string                               `json:"description"`
+	ActiveChecks contracts.ActiveChecksPolicy         `json:"activeChecks"`
+	HTTPTarget   *runtimesettings.HTTPOriginTargetRef `json:"httpTarget,omitempty"`
+	Lifecycle    projectstore.Lifecycle               `json:"lifecycle"`
+	Deletion     *projectDeletionResponse             `json:"deletion,omitempty"`
+	Revision     string                               `json:"revision"`
+	CreatedAt    time.Time                            `json:"createdAt"`
+	UpdatedAt    time.Time                            `json:"updatedAt"`
 }
 
 type projectDeletionResponse struct {

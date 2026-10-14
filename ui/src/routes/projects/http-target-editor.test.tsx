@@ -16,6 +16,7 @@ const project: Project = {
   name: "Payment service",
   description: "",
   lifecycle: "active",
+  activeChecks: "automatic",
   revision: "1",
   createdAt: "2026-09-20T10:00:00Z",
   updatedAt: "2026-09-20T10:00:00Z",
