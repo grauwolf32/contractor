@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	configload "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
+	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/configtest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/planner/stageresult"

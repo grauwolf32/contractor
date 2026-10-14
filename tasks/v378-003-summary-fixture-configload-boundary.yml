@@ -1,0 +1,36 @@
+schema_version: "1.0"
+id: V378-003
+title: Load summary continuation test fixtures through configload
+milestone: planner-summary-continuation-2026-10
+epic: planner-worker
+kind: chore
+introduced_by: V378-001
+priority: P2
+status: in_progress
+depends_on: [V378-001]
+languages: [go]
+goal: Keep the summary continuation fixture on the same complete configuration loading boundary as every Scheduler caller.
+context:
+  finding: >-
+    internal/scheduler/summary_test.go:12 imports internal/config under the
+    alias configload, and line 23 calls its Load directly. CI fails
+    TestCatalogLoadersAreReachedOnlyThroughConfigload in the test-config
+    dependency of release-verify-lint even though make lint itself passed.
+  regression: internal/configload/boundary_test.go#TestCatalogLoadersAreReachedOnlyThroughConfigload
+  siblings: The existing module-wide boundary test scans all aliases and callers; the other Scheduler fixtures already import internal/configload.
+scope:
+  in:
+    - Use the existing internal/configload entry point in the summary test fixture.
+    - Verify the complete Scheduler package with disposable PostgreSQL and the complete lint stage used by CI.
+  out:
+    - Production configuration behavior, continuation semantics or relaxation of the module boundary guard.
+acceptance_criteria:
+  - id: A1
+    text: The existing module-wide loader boundary regression fails before the import correction and passes after it, with no exceptions added.
+  - id: A2
+    text: The complete Scheduler and configload packages and release-verify-lint pass; the summary fixture continues to use copied testdata rather than live configs.
+tests:
+  - command: make release-verify-lint
+    covers: [A1, A2]
+  - command: go test ./internal/scheduler/... ./internal/configload/... -count=1
+    covers: [A1, A2]
