@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-87 open tasks: 9 in progress, 64 pending, 14 deferred. 888 finished: 885 completed, 3 archived.
+86 open tasks: 8 in progress, 64 pending, 14 deferred. 889 finished: 886 completed, 3 archived.
 
 ## In progress
 
@@ -17,7 +17,6 @@ the epics are in [epics.yml](epics.yml).
 | [V371-007](v371-007-fence-audit-artifact-writes.yml) | audits | defect | P2 | Fence the Audit Controller's artifact writes against a purge by a newer claim |
 | [V371-008](v371-008-bounded-audit-deletion-steps.yml) | audits | defect | P2 | Run the Audit deletion phase in bounded steps under its own budget |
 | [V371-012](v371-012-eval-projection-lock-order.yml) | evals | defect | P2 | Stop Eval member collection and Audit collection from deadlocking |
-| [V372-011](v372-011-keep-database-error-class.yml) | persistence | defect | P2 | Keep the database error class on store paths that replace the error |
 | [V376-003](v376-003-http-evidence-preview.yml) | ui | feature | P1 | Preview and download finding-selected HTTP evidence in the UI |
 | [V376-005](v376-005-caido-response-unavailable.yml) | http-tools | defect | P2 | Preserve truthful missing and intermediate HTTP response outcomes |
 
@@ -201,5 +200,5 @@ tasks in `introduced_by`.
 | Web UI (`ui`) | 3 | 20 | 53 | 10 | 48 |
 | Operations, authentication, CLI and deployment (`operations`) | 0 | 8 | 31 | 4 | 6 |
 | Public API and wire contracts (`api-contracts`) | 9 | 1 | 29 | 20 | 8 |
-| PostgreSQL persistence and schema (`persistence`) | 5 | 0 | 19 | 33 | 8 |
+| PostgreSQL persistence and schema (`persistence`) | 4 | 0 | 19 | 33 | 8 |
 | Quality, CI and process (`quality`) | 14 | 1 | 19 | 77 | 16 |
