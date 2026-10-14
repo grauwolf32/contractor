@@ -5,7 +5,8 @@ milestone: networked-podman-sandbox-2026-10
 epic: sandbox
 kind: feature
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: 562d9de61fbf0681c839494103800f0dc6cf7556
 depends_on: []
 languages: [go, python, markdown]
 goal: >-

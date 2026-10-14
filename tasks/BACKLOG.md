@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-88 open tasks: 6 in progress, 68 pending, 14 deferred. 889 finished: 886 completed, 3 archived.
+87 open tasks: 5 in progress, 68 pending, 14 deferred. 890 finished: 887 completed, 3 archived.
 
 ## In progress
 
@@ -16,7 +16,6 @@ the epics are in [epics.yml](epics.yml).
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V376-003](v376-003-http-evidence-preview.yml) | ui | feature | P1 | Preview and download finding-selected HTTP evidence in the UI |
 | [V376-005](v376-005-caido-response-unavailable.yml) | http-tools | defect | P2 | Preserve truthful missing and intermediate HTTP response outcomes |
-| [V381-001](v381-001-networked-podman-sandbox.yml) | sandbox | feature | P1 | Add an explicitly selected networked Podman sandbox |
 
 ## Pending
 
@@ -198,7 +197,7 @@ tasks in `introduced_by`.
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 1 | 29 | 32 | 4 | 34 |
 | Audits (`audits`) | 21 | 50 | 68 | 12 | 77 |
 | Evaluations (`evals`) | 4 | 21 | 28 | 5 | 33 |
-| Podman sandbox (`sandbox`) | 1 | 9 | 1 | 1 | 2 |
+| Podman sandbox (`sandbox`) | 0 | 9 | 1 | 1 | 2 |
 | Web UI (`ui`) | 3 | 20 | 53 | 10 | 48 |
 | Operations, authentication, CLI and deployment (`operations`) | 0 | 8 | 31 | 4 | 6 |
 | Public API and wire contracts (`api-contracts`) | 9 | 1 | 29 | 20 | 8 |
