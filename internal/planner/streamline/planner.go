@@ -336,10 +336,18 @@ type promptWorker struct {
 
 type promptContext struct {
 	Objective       string                            `json:"objective"`
+	Instructions    string                            `json:"instructions,omitempty"`
 	Parameters      map[string]string                 `json:"parameters"`
 	Artifacts       map[string]*contracts.ArtifactRef `json:"artifacts"`
 	Workers         []promptWorker                    `json:"workers"`
 	ResultArtifacts map[string]resolved.ArtifactSlot  `json:"resultArtifacts"`
+	Continuation    *continuationPrompt               `json:"continuation,omitempty"`
+}
+
+type continuationPrompt struct {
+	Summary         string                           `json:"summary"`
+	SummaryArtifact contracts.ArtifactRef            `json:"summaryArtifact"`
+	Artifacts       map[string]contracts.ArtifactRef `json:"artifacts"`
 }
 
 func (p *streamlinePlanner) initialMessage() (*genai.Content, error) {
@@ -349,13 +357,21 @@ func (p *streamlinePlanner) initialMessage() (*genai.Content, error) {
 			Name: binding.logicalName, Tool: executeCurrentSubtaskToolName, Description: binding.description,
 		})
 	}
-	payload, err := json.Marshal(promptContext{
+	context := promptContext{
 		Objective:       p.request.Objective,
 		Parameters:      p.request.Parameters,
 		Artifacts:       clonePromptArtifacts(p.invocation.Context.Artifacts),
 		Workers:         workers,
 		ResultArtifacts: cloneResultContract(p.resultContract),
-	})
+	}
+	if saved := p.invocation.Context.Continuation; saved != nil {
+		context.Instructions = p.request.Instructions
+		context.Continuation = &continuationPrompt{
+			Summary: saved.Summary, SummaryArtifact: saved.SummaryArtifact.Clone(),
+			Artifacts: contracts.CloneArtifactRefs(saved.Artifacts),
+		}
+	}
+	payload, err := json.Marshal(context)
 	if err != nil || len(payload) > maxPlannerContextBytes {
 		return nil, fmt.Errorf("Planner context exceeds its bounded contract")
 	}
@@ -399,6 +415,10 @@ func (p *streamlinePlanner) systemInstruction() string {
 	}
 	if guidance := p.memoryInstruction(); guidance != "" {
 		sections = append(sections, guidance)
+	}
+	if p.invocation.Context.Continuation != nil {
+		sections = append(sections,
+			"Continue the original task using continuation.summary and the exact saved artifact references. Plan only the work still needed to produce and verify the required final artifacts. Preserve the original parameters and authorization scope; the summary is partial progress and does not change them.")
 	}
 	sections = append(sections, p.stateInstruction())
 	sections = append(sections, "Stage-specific operating guidance:", p.request.Instructions)

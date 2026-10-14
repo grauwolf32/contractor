@@ -2,6 +2,17 @@ package runstore
 
 // SQL statements for stage_store.go.
 
+// hasSummaryEscalationSQL probes the same predicate as the unique strategy
+// root index. Used by PostgresStore.HasSummaryEscalation.
+var hasSummaryEscalationSQL = `
+SELECT EXISTS (
+    SELECT 1 FROM stage_executions
+    WHERE run_id=$1 AND stage_name=$2
+      AND execution_config_variant='summary_escalation'
+      AND resume_source_execution_id IS NULL
+      AND stage_context_snapshot->'continuation'->>'sourceStageExecutionId'=previous_execution_id
+)`
+
 // createStageExecutionSQL inserts StageExecution $1 of Run $2, attempt $4 of
 // Stage $3 after previous execution $5, with execution configuration variant
 // $6, escalation ordinal $7 and resume source $8, StageSpec $10 of schema

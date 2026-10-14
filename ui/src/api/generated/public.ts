@@ -4277,7 +4277,34 @@ export interface components {
                 [key: string]: components["schemas"]["ExactArtifactRef"];
             };
             error?: components["schemas"]["TerminationError"];
-        } & (unknown & unknown);
+            /** @description Runtime-owned terminal summary carried by passthrough as incomplete work requiring continuation. */
+            summarized?: boolean;
+            summaryArtifact?: components["schemas"]["ExactArtifactRef"];
+        } & ({
+            /** @enum {unknown} */
+            outcome?: "succeeded";
+            /** @enum {unknown} */
+            summarized?: false;
+        } | {
+            /** @enum {unknown} */
+            outcome?: "failed";
+            /** @enum {unknown} */
+            summarized?: false;
+            error: {
+                code?: unknown;
+            };
+        } | {
+            /** @enum {unknown} */
+            outcome?: "failed";
+            /** @enum {unknown} */
+            summarized: true;
+            error: {
+                /** @enum {unknown} */
+                code?: "worker_summarized";
+                /** @enum {unknown} */
+                retryable?: false;
+            };
+        });
         StageTermination: {
             /** @enum {unknown} */
             outcome: "cancelled" | "interrupted";
@@ -4609,7 +4636,7 @@ export interface components {
         };
         StageExecutionConfig: {
             /** @enum {unknown} */
-            variant: "base" | "failed_escalation" | "interrupted_escalation";
+            variant: "base" | "failed_escalation" | "interrupted_escalation" | "summary_escalation";
             escalationOrdinal?: number;
             ref?: components["schemas"]["ExecutionConfigRef"];
             planner?: components["schemas"]["ConsumerExecutionConfig"];
@@ -4970,11 +4997,27 @@ export interface components {
             then: components["schemas"]["WorkflowNextOrFailTransition"];
         };
         WorkflowSucceededTransition: components["schemas"]["WorkflowNextTransition"] | components["schemas"]["WorkflowSucceedTransition"];
+        WorkflowSummaryTransition: {
+            /** @constant */
+            kind: "escalate";
+            /** @constant */
+            maxAttempts: 1;
+            planner: components["schemas"]["PlannerRef"] & {
+                /** @constant */
+                plannerId?: "streamline";
+                /** @constant */
+                version?: "1";
+            };
+            /** @description Per-attempt execution allowance from admission; queue time is excluded and the enclosing Stage timeout still applies. */
+            deadlineSeconds: number;
+            executionConfig: components["schemas"]["WorkflowEscalationConfig"];
+        };
         WorkflowFailureTransition: components["schemas"]["WorkflowNextTransition"] | components["schemas"]["WorkflowRetryTransition"] | components["schemas"]["WorkflowEscalateTransition"] | components["schemas"]["WorkflowFailTransition"];
         WorkflowTransitions: {
             succeeded: components["schemas"]["WorkflowSucceededTransition"];
             failed: components["schemas"]["WorkflowFailureTransition"];
             interrupted: components["schemas"]["WorkflowFailureTransition"];
+            summarized?: components["schemas"]["WorkflowSummaryTransition"];
         };
         WorkflowStageContract: {
             objective: string;

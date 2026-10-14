@@ -12,7 +12,7 @@ import (
 const (
 	httpCaidoSessionCanary = "HTTP_CAIDO_SESSION_SECRET_CANARY"
 	httpCaidoRawCanary     = "HTTP_CAIDO_RAW_BODY_CANARY"
-	httpCaidoHTTPReport    = "# HTTP analysis\n\nThe bounded 500 response body is retained by exact artifact reference.\n"
+	httpCaidoHTTPReport    = "# HTTP analysis\n\nThe bounded 500 response body was inspected in allocation memory.\n"
 	httpCaidoCaidoReport   = "# Caido analysis\n\nHistory and one bounded scope mutation completed against the pinned instance.\n"
 )
 
@@ -95,7 +95,7 @@ func httpCaidoCaidoGatewayStage(name, scopeName string) domainGatewayStage {
 	tools := []string{
 		"caido_automate_results", "caido_automate_run", "caido_history", "caido_replay",
 		"caido_request_detail", "caido_scope", "caido_sitemap", "caido_workflow_findings",
-		"caido_workflow_list", "caido_workflow_run", "http_history", "http_read_body",
+		"caido_workflow_list", "caido_workflow_run", "finding", "http_history", "http_read_body",
 		"http_request", "list_skills", "load_skill", "load_skill_resource",
 		"read_text_artifact", "write_text_artifact",
 	}

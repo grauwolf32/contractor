@@ -52,6 +52,20 @@ func StageCandidateFromWorkerCompletion(
 		}, nil
 	}
 	result := completion.Result
+	if result.Summarized {
+		return stageresult.StageContentResult{
+			APIVersion: contracts.APIVersion,
+			Outcome:    stageresult.StageFailed,
+			Summary:    result.Result,
+			Artifacts:  contracts.CloneArtifactRefs(result.Artifacts),
+			Summarized: true,
+			Error: &contracts.TerminationError{
+				Code:      stageresult.SummaryRequiredCode,
+				Message:   "Worker returned a terminal summary; continuation is required",
+				Retryable: false,
+			},
+		}, nil
+	}
 	return stageresult.StageContentResult{
 		APIVersion: contracts.APIVersion,
 		Outcome:    stageresult.StageSucceeded,

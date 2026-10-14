@@ -48,7 +48,7 @@ func New(
 	options Options,
 ) (*Scheduler, error) {
 	if store == nil || persistence == nil || artifactResolver == nil || allocator == nil ||
-		workers == nil || planners == nil || options.Reports == nil || options.Settings == nil {
+		workers == nil || planners == nil || options.Reports == nil || options.Settings == nil || options.PlannerSessions == nil {
 		return nil, fmt.Errorf("Scheduler dependencies are incomplete")
 	}
 	applyOptionDefaults(&options)

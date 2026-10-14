@@ -50,13 +50,18 @@ func (s *Scheduler) buildStageCreation(
 		Parameters: clone.Map(run.Parameters),
 		Artifacts:  make(map[string]runstore.PinnedContextArtifact, len(workflow.stage.Context.Artifacts)),
 	}
-	pins := make([]ContextPin, 0, len(workflow.stage.Context.Artifacts))
 	names := make([]string, 0, len(workflow.stage.Context.Artifacts))
 	for name := range workflow.stage.Context.Artifacts {
 		names = append(names, name)
 	}
 	sort.Strings(names)
+	if configuration.context != nil {
+		contextSnapshot = configuration.context.Clone()
+	}
 	for _, name := range names {
+		if configuration.context != nil {
+			continue
+		}
 		declaration := workflow.stage.Context.Artifacts[name]
 		current := auditPinnedContextRef(run, contracts.ArtifactRef{Namespace: declaration.Namespace, Name: declaration.Name})
 		resolved, resolveErr := s.artifacts.Resolve(ctx, run.RunID, current)
@@ -75,9 +80,12 @@ func (s *Scheduler) buildStageCreation(
 			Required: declaration.Required,
 			Artifact: &exact,
 		}
-		pins = append(pins, ContextPin{Name: name, Ref: exact})
 	}
+	pins := contextSnapshot.Pins()
 	stage := workflow.stage
+	if configuration.planner != nil {
+		stage.Planner = *configuration.planner
+	}
 	if configuration.variant == "" {
 		configuration.variant = runstore.StageExecutionConfigBase
 	}
@@ -87,7 +95,8 @@ func (s *Scheduler) buildStageCreation(
 			return NextStageCreation{}, fmt.Errorf("base Stage execution configuration has escalation data")
 		}
 	case runstore.StageExecutionConfigFailedEscalation,
-		runstore.StageExecutionConfigInterruptedEscalation:
+		runstore.StageExecutionConfigInterruptedEscalation,
+		runstore.StageExecutionConfigSummaryEscalation:
 		if configuration.ordinal == nil || *configuration.ordinal <= 0 || configuration.effective == nil {
 			return NextStageCreation{}, fmt.Errorf("escalated Stage execution configuration is incomplete")
 		}
@@ -114,6 +123,8 @@ type stageExecutionConfiguration struct {
 	variant   runstore.StageExecutionConfigVariant
 	ordinal   *int
 	effective *resolved.ResolvedStageExecutionConfig
+	planner   *resolved.PlannerRef
+	context   *runstore.StageContextSnapshot
 }
 
 func missingRequiredContext(execution runstore.StageExecution) string {
@@ -133,7 +144,7 @@ func missingRequiredContext(execution runstore.StageExecution) string {
 
 // prepareAndPlan retains one Stage deadline across allocation and Planner phases.
 func (s *Scheduler) prepareAndPlan(ctx context.Context, run runstore.WorkflowRun, workflow executableWorkflow, execution runstore.StageExecution) error {
-	deadline := s.stageDeadline(execution)
+	deadline := s.stageDeadline(execution, workflow.stage)
 	prepared, err := s.prepareStageWorkers(ctx, run, workflow, execution, deadline)
 	if err != nil || prepared == nil {
 		return err
@@ -195,7 +206,7 @@ func (s *Scheduler) prepareStageWorkers(ctx context.Context, run runstore.Workfl
 			return nil, err
 		}
 		execution = admitted
-		stageDeadline = s.stageDeadline(execution)
+		stageDeadline = s.stageDeadline(execution, workflow.stage)
 	}
 
 	// Placement pinned the durable allocation rows before it exposed the
@@ -248,11 +259,18 @@ func (s *Scheduler) discardUnadmittedPlacement(ctx context.Context, runID, stage
 	}
 }
 
-func (s *Scheduler) stageDeadline(execution runstore.StageExecution) time.Time {
-	if execution.AdmittedAt != nil {
-		return execution.AdmittedAt.Add(s.options.PlannerTimeout)
+func (s *Scheduler) stageDeadline(execution runstore.StageExecution, stage resolved.ResolvedStage) time.Time {
+	allowance := s.options.PlannerTimeout
+	if execution.StageContext.Continuation != nil {
+		// The policy is validated before preparation. Every retry/manual resume
+		// gets this explicitly declared per-attempt allowance, never a copied
+		// expired absolute deadline. Queue time consumes no execution budget.
+		allowance = min(allowance, time.Duration(stage.On.Summarized.Escalate.DeadlineSeconds)*time.Second)
 	}
-	return s.now().Add(s.options.PlannerTimeout)
+	if execution.AdmittedAt != nil {
+		return execution.AdmittedAt.Add(allowance)
+	}
+	return s.now().Add(allowance)
 }
 
 func stageDeadlineFailure() planner.Failure {

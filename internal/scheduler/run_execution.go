@@ -84,6 +84,12 @@ func (s *Scheduler) executeRun(ctx context.Context, run runstore.WorkflowRun, cl
 	if err := validatePersistedExecution(execution, run, workflow); err != nil {
 		return s.failInvalidRunState(ctx, run.RunID, err)
 	}
+	if err := s.validateSummarySource(ctx, run, execution); err != nil {
+		if errors.Is(err, errInvalidRunState) {
+			return s.failInvalidRunState(ctx, run.RunID, err)
+		}
+		return err
+	}
 	// Scope allocation-loss interrupts to the Stage this lane is now
 	// progressing; a loss for an already-finished Stage must not cancel it.
 	s.setActiveStage(run.RunID, claimID, execution.StageExecutionID)
@@ -99,6 +105,9 @@ func (s *Scheduler) executeRun(ctx context.Context, run runstore.WorkflowRun, cl
 		}
 		return s.prepareAndPlan(ctx, run, workflow, execution)
 	case runstore.StageRunning:
+		if handled, err := s.recoverCompletedSummary(ctx, run, workflow, execution); handled || err != nil {
+			return err
+		}
 		return s.prepareAndPlan(ctx, run, workflow, execution)
 	case runstore.StageFinalizing:
 		return s.resumeFinalizing(ctx, run, workflow, execution, nil)

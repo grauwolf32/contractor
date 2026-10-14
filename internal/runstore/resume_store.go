@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sort"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -113,18 +112,10 @@ func (s *PostgresStore) ResumeFailedRun(ctx context.Context, ownerID, runID, sou
 		if err != nil {
 			return err
 		}
-		// Check in name order, like Stage creation, for a deterministic lock order.
-		names := make([]string, 0, len(previous.StageContext.Artifacts))
-		for name := range previous.StageContext.Artifacts {
-			names = append(names, name)
-		}
-		sort.Strings(names)
-		for _, name := range names {
-			value := previous.StageContext.Artifacts[name]
-			if value.Artifact != nil {
-				if err := service.RequireExact(ctx, scope, *value.Artifact); err != nil {
-					return err
-				}
+		// Use the same exact pin set and lock order as automatic progression.
+		for _, pin := range previous.StageContext.Pins() {
+			if err := service.RequireExact(ctx, scope, pin.Ref); err != nil {
+				return err
 			}
 		}
 		_, err = tx.Exec(ctx, `INSERT INTO run_stage_resumptions(source_execution_id,run_id,target_execution_id,requested_by)

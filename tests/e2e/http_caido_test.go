@@ -249,7 +249,7 @@ func TestHTTPAndCaidoAcrossHeterogeneousRuntimeProcesses(t *testing.T) {
 	assertHTTPCaidoReport(
 		t, operations, publicClient, publicBaseURL, httpInitialStatus, "report", httpCaidoHTTPReport,
 	)
-	assertHTTPBodyArtifact(t, operations, publicClient, publicBaseURL, httpInitial.RunID)
+	assertHTTPInspectionHasNoAutomaticArtifacts(t, operations, httpInitial.RunID)
 
 	oldRun := createHTTPCaidoRun(
 		operations, "security-analysis@4", "http-caido-old-run", "target.example",
@@ -295,7 +295,7 @@ func TestHTTPAndCaidoAcrossHeterogeneousRuntimeProcesses(t *testing.T) {
 	assertHTTPCaidoReport(
 		t, operations, publicClient, publicBaseURL, httpUnrelatedStatus, "report", httpCaidoHTTPReport,
 	)
-	assertHTTPBodyArtifact(t, operations, publicClient, publicBaseURL, httpUnrelated.RunID)
+	assertHTTPInspectionHasNoAutomaticArtifacts(t, operations, httpUnrelated.RunID)
 
 	releaseProxy.allowReleaseAcknowledgement()
 	waitForObservedRuntimeAgents(
@@ -474,11 +474,10 @@ func assertHTTPCaidoReport(
 	operations.evidence = append(operations.evidence, append([]byte(nil), data...))
 }
 
-func assertHTTPBodyArtifact(
+func assertHTTPInspectionHasNoAutomaticArtifacts(
 	t *testing.T,
 	operations *runtimeOperations,
-	client *http.Client,
-	baseURL, runID string,
+	runID string,
 ) {
 	t.Helper()
 	data := operations.request(
@@ -495,35 +494,10 @@ func assertHTTPBodyArtifact(
 	if err := json.Unmarshal(data, &page); err != nil {
 		t.Fatal(err)
 	}
-	bodyName := ""
-	for _, item := range page.Items {
-		if strings.HasPrefix(item.Ref.Name, "http.body.") {
-			if bodyName != "" || item.Ref.Revision == nil ||
-				item.MediaType != "application/vnd.contractor.http-body+json" {
-				t.Fatalf("invalid HTTP body artifact inventory: %+v", page.Items)
-			}
-			bodyName = item.Ref.Name
-		}
-	}
-	if bodyName == "" {
-		t.Fatalf("Run %s has no reserved HTTP body artifact: %+v", runID, page.Items)
-	}
-	payload, mediaType := download(
-		t, client, baseURL+"/v1/runs/"+url.PathEscape(runID)+"/artifacts/http/"+
-			url.PathEscape(bodyName),
-	)
-	if mediaType != "application/vnd.contractor.http-body+json" {
-		t.Fatalf("HTTP body media type = %q", mediaType)
-	}
-	var envelope struct {
-		SchemaVersion string `json:"schemaVersion"`
-		Kind          string `json:"kind"`
-		ContentType   string `json:"contentType"`
-		Text          string `json:"text"`
-	}
-	if err := json.Unmarshal(payload, &envelope); err != nil || envelope.SchemaVersion != "1.0" ||
-		envelope.Kind != "text" || !strings.Contains(envelope.Text, httpCaidoRawCanary) {
-		t.Fatalf("HTTP body artifact envelope = (%+v, %v)", envelope, err)
+	if len(page.Items) != 1 || page.Items[0].Ref.Namespace != "http" ||
+		page.Items[0].Ref.Name != "report" || page.Items[0].Ref.Revision == nil ||
+		page.Items[0].MediaType != "text/markdown" {
+		t.Fatalf("Run %s retained unselected HTTP traffic instead of only its report: %+v", runID, page.Items)
 	}
 }
 

@@ -71,12 +71,10 @@ func validateRunCredentials(
 ) error {
 	for stageName, stage := range workflow.Stages {
 		configs := map[string]ResolvedStageExecutionConfig{"base": stage.ExecutionConfig}
-		for outcome, action := range map[string]TransitionAction{
-			"failed escalation":      stage.On.Failed,
-			"interrupted escalation": stage.On.Interrupted,
-		} {
+		for _, named := range stage.On.Actions() {
+			action := named.Action
 			if action.Kind == TransitionEscalate && action.Escalate != nil {
-				configs[outcome] = action.Escalate.ExecutionConfig.Effective
+				configs[named.Outcome+" escalation"] = action.Escalate.ExecutionConfig.Effective
 			}
 		}
 		for _, variant := range slices.Sorted(maps.Keys(configs)) {
@@ -109,7 +107,8 @@ func ResolvedWorkflowCredentialIDs(workflow ResolvedWorkflow) []string {
 	for _, stageName := range slices.Sorted(maps.Keys(workflow.Stages)) {
 		stage := workflow.Stages[stageName]
 		configs := []ResolvedStageExecutionConfig{stage.ExecutionConfig}
-		for _, action := range []TransitionAction{stage.On.Failed, stage.On.Interrupted} {
+		for _, named := range stage.On.Actions() {
+			action := named.Action
 			if action.Kind == TransitionEscalate && action.Escalate != nil {
 				configs = append(configs, action.Escalate.ExecutionConfig.Effective)
 			}

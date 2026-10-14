@@ -155,6 +155,19 @@ func (f *Factory) Create(invocation planner.Invocation) (planner.Planner, error)
 	if err != nil {
 		return nil, err
 	}
+	if invocation.Context.Continuation != nil {
+		if f.profile.routesWorkers || len(bindings) != 1 {
+			return nil, fmt.Errorf("summary continuation requires the single-Worker Streamline Planner")
+		}
+		if err := invocation.Context.Continuation.Validate(); err != nil {
+			return nil, fmt.Errorf("invalid summary continuation: %w", err)
+		}
+		if invocation.Context.Continuation.SummaryArtifact.Namespace != invocation.Stage.Agents[bindings[0]].Namespace {
+			return nil, fmt.Errorf("summary continuation differs from the Worker Namespace")
+		}
+		continuation := invocation.Context.Continuation.Clone()
+		invocation.Context.Continuation = &continuation
+	}
 	request, err := planner.BuildStageRequest(invocation)
 	if err != nil {
 		return nil, err
@@ -214,10 +227,6 @@ func (f *Factory) Create(invocation planner.Invocation) (planner.Planner, error)
 	if err := validateModelAccess(*invocation.ModelAccess); err != nil {
 		return nil, err
 	}
-	selectedModel, err := f.modelFactory(*invocation.ModelAccess)
-	if err != nil {
-		return nil, fmt.Errorf("configure %s model client: %w", f.profile.ref, err)
-	}
 	selectedLimits, err := limitsFromPolicy(invocation.ModelAccess.ModelPolicy, f.limits.MaxWallTime)
 	if err != nil {
 		return nil, err
@@ -226,13 +235,24 @@ func (f *Factory) Create(invocation planner.Invocation) (planner.Planner, error)
 	if err != nil {
 		return nil, fmt.Errorf("initialize Planner Worker State projections: %w", err)
 	}
-	return &streamlinePlanner{
+	instance := &streamlinePlanner{
 		profile: f.profile, invocation: invocation, request: request, workers: workers, plan: plan,
 		resultContract: cloneResultContract(invocation.Stage.Result.Artifacts),
 		sessions:       f.sessions, adkSessions: f.adkSessions,
 		invoker: f.invoker, inspector: f.inspector, stateViews: stateViews,
-		model: selectedModel, limits: selectedLimits,
-	}, nil
+		limits: selectedLimits,
+	}
+	if invocation.Context.Continuation != nil {
+		if _, err := instance.initialMessage(); err != nil {
+			return nil, err
+		}
+	}
+	selectedModel, err := f.modelFactory(*invocation.ModelAccess)
+	if err != nil {
+		return nil, fmt.Errorf("configure %s model client: %w", f.profile.ref, err)
+	}
+	instance.model = selectedModel
+	return instance, nil
 }
 
 func validateModelAccess(access planner.ModelAccess) error {

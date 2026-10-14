@@ -118,5 +118,9 @@ func plannerContext(snapshot runstore.StageContextSnapshot) planner.StageContext
 			result.Artifacts[name] = nil
 		}
 	}
+	if snapshot.Continuation != nil {
+		continuation := snapshot.Continuation.Clone()
+		result.Continuation = &continuation
+	}
 	return result
 }

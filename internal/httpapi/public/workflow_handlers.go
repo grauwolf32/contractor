@@ -161,6 +161,12 @@ func workflowResourceReadModel(workflow resolved.ResolvedWorkflow) workflowResou
 				Interrupted: workflowTransitionReadModel(stage.On.Interrupted),
 			},
 		}
+		if stage.On.Summarized != nil {
+			response := result.Stages[name]
+			action := workflowTransitionReadModel(*stage.On.Summarized)
+			response.On.Summarized = &action
+			result.Stages[name] = response
+		}
 	}
 	return result
 }
@@ -190,6 +196,8 @@ func workflowTransitionReadModel(action resolved.TransitionAction) workflowTrans
 	}
 	if action.Escalate != nil {
 		result.MaxAttempts = action.Escalate.MaxAttempts
+		result.Planner = action.Escalate.Planner
+		result.DeadlineSeconds = action.Escalate.DeadlineSeconds
 		result.ExecutionConfig = &workflowEscalationConfigResponse{
 			Ref: action.Escalate.ExecutionConfig.Ref,
 			Effective: resolvedStageExecutionConfigReadModel(
@@ -197,7 +205,9 @@ func workflowTransitionReadModel(action resolved.TransitionAction) workflowTrans
 			),
 		}
 		then := workflowTransitionReadModel(action.Escalate.Then)
-		result.Then = &then
+		if action.Escalate.Planner == nil {
+			result.Then = &then
+		}
 	}
 	return result
 }

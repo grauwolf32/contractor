@@ -572,6 +572,9 @@ Assembled from every document.
 | `worker_state_changed` | — | not specified | A projection collection cursor was invalidated because the bound state revision changed. | [PLN-R59](../execution/planners.md) |
 | `worker_state_unavailable` | — | not specified | A Planner projection tool was called before any WorkerCompletion matching that logical Worker was returned. | [PLN-R57](../execution/planners.md) |
 | `worker_summarization_failed` | — | yes for missing, invalid, mismatched or oversized summarizer output and summarizer budget exhaustion; provider failures keep Gateway retryability | Terminal summarization failed; a more specific bounded cause is in metrics | [WRK-R152](../execution/worker.md) |
+| `worker_summarized` | — | no | Trusted terminal summary is incomplete work; declared summary policy may continue it, otherwise ordinary failure applies | [SCH-R171](../execution/scheduler.md) |
+| `summary_publication_failed` | — | no | Permanent failure saving the source-keyed ordinary summary artifact | [SCH-R174](../execution/scheduler.md) |
+| `summary_publication_unavailable` | — | yes, within source admission deadline | Transient summary publication failure; replay the recorded completion without dispatching its Worker again | [SCH-R174](../execution/scheduler.md) |
 | `workspace_capacity_exceeded` | — | yes | Workspace placement/resource failure: capacity exceeded | [ERR-R10](errors.md), [WSP-R173](../tools/workspace.md) |
 | `workspace_export_failed` | — | yes | Overlay workspace export failed because of a temporary Artifact API failure; invalid state, quota and fence failures are classified by their own stable cause instead (WSP-R152) | [ERR-R10](errors.md), [WSP-R152](../tools/workspace.md) |
 | `workspace_limit_exceeded` | — | no | Workspace limit exceeded; a deterministic quota violation (WSP-R174) | [ERR-R10](errors.md), [WSP-R93](../tools/workspace.md) |

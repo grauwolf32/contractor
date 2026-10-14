@@ -23,8 +23,9 @@ const (
 // StageContext is the immutable input snapshot visible to one Planner
 // invocation. A nil artifact records an explicitly absent optional binding.
 type StageContext struct {
-	Parameters map[string]string
-	Artifacts  map[string]*contracts.ArtifactRef
+	Parameters   map[string]string
+	Artifacts    map[string]*contracts.ArtifactRef
+	Continuation *stageresult.SummaryContinuation
 }
 
 // Invocation contains only Stage-local semantic input and already prepared

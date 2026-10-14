@@ -223,7 +223,8 @@ func newLaneTestScheduler(
 	scheduler, err := New(
 		store, laneNoopPersistence{}, laneNoopArtifacts{}, laneNoopAllocator{},
 		laneNoopWorkers{}, laneNoopPlanners{}, Options{
-			PollInterval: poll, ClaimDuration: time.Hour, OperationTimeout: 250 * time.Millisecond,
+			PlannerSessions: uncompletedSessions{},
+			PollInterval:    poll, ClaimDuration: time.Hour, OperationTimeout: 250 * time.Millisecond,
 			PlannerTimeout: time.Second, FinalizationTimeout: time.Second, AbortTimeout: time.Second,
 			LeaseScanInterval: time.Second,
 			RuntimeTransport: RuntimeTransportSettings{
@@ -504,6 +505,10 @@ func (s *laneTestStore) ListStageExecutions(context.Context, string) ([]runstore
 	return nil, errors.New("unexpected Stage list")
 }
 
+func (s *laneTestStore) HasSummaryEscalation(context.Context, string, string) (bool, error) {
+	return false, errors.New("unexpected summary escalation lookup")
+}
+
 func (s *laneTestStore) ListTerminalStageExecutionsWithAllocations(context.Context) ([]runstore.StageExecution, error) {
 	return nil, nil
 }
@@ -620,6 +625,10 @@ type laneNoopArtifacts struct{}
 
 func (laneNoopArtifacts) Resolve(context.Context, string, contracts.ArtifactRef) (ResolvedArtifact, error) {
 	return ResolvedArtifact{}, errors.New("unexpected artifact resolution")
+}
+
+func (laneNoopArtifacts) SaveSummary(context.Context, string, string, string, string) (contracts.ArtifactRef, error) {
+	return contracts.ArtifactRef{}, errors.New("summary publication is unavailable")
 }
 
 type laneNoopAllocator struct{}

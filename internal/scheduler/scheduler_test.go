@@ -1917,7 +1917,8 @@ func newSchedulerHarness(t *testing.T) *schedulerHarness {
 	}
 	idSequence := 0
 	scheduler, err := New(store, persistence, resolver, allocator, workers, planners, Options{
-		PollInterval: time.Second, LeaseScanInterval: time.Second, ClaimDuration: time.Hour, OperationTimeout: time.Second,
+		PlannerSessions: uncompletedSessions{},
+		PollInterval:    time.Second, LeaseScanInterval: time.Second, ClaimDuration: time.Hour, OperationTimeout: time.Second,
 		PlannerTimeout: 30 * time.Second, FinalizationTimeout: 10 * time.Second, AbortTimeout: 10 * time.Second,
 		RuntimeTransport: RuntimeTransportSettings{
 			ArtifactAPIURL: "https://control.test/private/v1", RequestTimeoutSeconds: 5,
@@ -2684,8 +2685,41 @@ func (p *memoryAtomicPersistence) FinishCancelledRun(_ context.Context, runID st
 }
 
 type memoryArtifactResolver struct {
-	current map[string]string
-	values  map[string]ResolvedArtifact
+	current   map[string]string
+	values    map[string]ResolvedArtifact
+	summaries map[string]string
+}
+
+func (r *memoryArtifactResolver) SaveSummary(
+	_ context.Context, runID, namespace, sourceStageID, summary string,
+) (contracts.ArtifactRef, error) {
+	ref := contracts.ArtifactRef{Namespace: namespace, Name: stageresult.SummaryArtifactPrefix + sourceStageID}
+	if err := ref.Validate(); err != nil || summary == "" || len(summary) > stageresult.MaxStageResultSummaryBytes {
+		return contracts.ArtifactRef{}, artifacts.ErrInvalidName
+	}
+	key := runID + "/" + ref.Namespace + "/" + ref.Name
+	if existing, ok := r.summaries[key]; ok {
+		if existing != summary {
+			return contracts.ArtifactRef{}, errSummaryArtifactConflict
+		}
+		value, err := r.Resolve(context.Background(), runID, ref)
+		return value.Ref, err
+	}
+	if r.summaries == nil {
+		r.summaries = make(map[string]string)
+	}
+	if r.current == nil {
+		r.current = make(map[string]string)
+	}
+	if r.values == nil {
+		r.values = make(map[string]ResolvedArtifact)
+	}
+	revision := "summary-r1"
+	ref.Revision = &revision
+	r.summaries[key] = summary
+	r.current[key] = revision
+	r.values[key+"/"+revision] = ResolvedArtifact{Ref: ref, MediaType: "text/plain"}
+	return ref.Clone(), nil
 }
 
 func (r *memoryArtifactResolver) Resolve(
@@ -3066,7 +3100,7 @@ func (r *memoryPlannerRegistry) Create(
 ) (planner.Planner, error) {
 	r.createCalls++
 	r.invocation = invocation
-	if ref != planner.PassthroughRef {
+	if ref != planner.PassthroughRef && ref != "streamline@1" {
 		return nil, errors.New("unexpected Planner ref")
 	}
 	return plannerFunc(func(context.Context) (stageresult.StageContentResult, error) {
@@ -3096,6 +3130,23 @@ func (r *memoryPlannerRegistry) Create(
 }
 
 type plannerFunc func(context.Context) (stageresult.StageContentResult, error)
+
+type uncompletedSessions struct{}
+
+func (uncompletedSessions) Begin(context.Context, string) (planner.SessionStart, error) {
+	return planner.SessionStart{}, planner.ErrInvocationInProgress
+}
+
+func (s *memorySchedulerStore) HasSummaryEscalation(_ context.Context, runID, stageName string) (bool, error) {
+	for _, e := range s.stages {
+		if e.RunID == runID && e.StageName == stageName && e.ExecutionConfigVariant == runstore.StageExecutionConfigSummaryEscalation &&
+			e.ResumeSourceExecutionID == nil && e.PreviousExecutionID != nil && e.StageContext.Continuation != nil &&
+			e.StageContext.Continuation.SourceStageExecutionID == *e.PreviousExecutionID {
+			return true, nil
+		}
+	}
+	return false, nil
+}
 
 func (f plannerFunc) Run(ctx context.Context) (stageresult.StageContentResult, error) { return f(ctx) }
 

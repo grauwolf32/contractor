@@ -2045,13 +2045,13 @@ func (e WorkerCompletionDiagnosticsPhase) Valid() bool {
 
 // Defines values for WorkflowEscalateTransitionKind.
 const (
-	Escalate WorkflowEscalateTransitionKind = "escalate"
+	WorkflowEscalateTransitionKindEscalate WorkflowEscalateTransitionKind = "escalate"
 )
 
 // Valid indicates whether the value is a known member of the WorkflowEscalateTransitionKind enum.
 func (e WorkflowEscalateTransitionKind) Valid() bool {
 	switch e {
-	case Escalate:
+	case WorkflowEscalateTransitionKindEscalate:
 		return true
 	default:
 		return false
@@ -2130,6 +2130,36 @@ const (
 func (e WorkflowSucceedTransitionKind) Valid() bool {
 	switch e {
 	case Succeed:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for WorkflowSummaryTransitionKind.
+const (
+	WorkflowSummaryTransitionKindEscalate WorkflowSummaryTransitionKind = "escalate"
+)
+
+// Valid indicates whether the value is a known member of the WorkflowSummaryTransitionKind enum.
+func (e WorkflowSummaryTransitionKind) Valid() bool {
+	switch e {
+	case WorkflowSummaryTransitionKindEscalate:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for WorkflowSummaryTransitionMaxAttempts.
+const (
+	WorkflowSummaryTransitionMaxAttemptsN1 WorkflowSummaryTransitionMaxAttempts = 1
+)
+
+// Valid indicates whether the value is a known member of the WorkflowSummaryTransitionMaxAttempts enum.
+func (e WorkflowSummaryTransitionMaxAttempts) Valid() bool {
+	switch e {
+	case WorkflowSummaryTransitionMaxAttemptsN1:
 		return true
 	default:
 		return false
@@ -6586,11 +6616,41 @@ type StageContentResult struct {
 	Artifacts  map[string]ExactArtifactRef  `json:"artifacts"`
 	Error      *TerminationError            `json:"error,omitempty"`
 	Outcome    StageOutcome                 `json:"outcome"`
-	Summary    string                       `json:"summary"`
+
+	// Summarized Runtime-owned terminal summary carried by passthrough as incomplete work requiring continuation.
+	Summarized      *bool             `json:"summarized,omitempty"`
+	Summary         string            `json:"summary"`
+	SummaryArtifact *ExactArtifactRef `json:"summaryArtifact,omitempty"`
+	union           json.RawMessage
 }
 
 // StageContentResultApiVersion defines model for StageContentResult.ApiVersion.
 type StageContentResultApiVersion string
+
+// StageContentResult0 defines model for StageContentResult.0.
+type StageContentResult0 struct {
+	Outcome    interface{} `json:"outcome,omitempty"`
+	Summarized interface{} `json:"summarized,omitempty"`
+}
+
+// StageContentResult1 defines model for StageContentResult.1.
+type StageContentResult1 struct {
+	Error struct {
+		Code interface{} `json:"code,omitempty"`
+	} `json:"error"`
+	Outcome    interface{} `json:"outcome,omitempty"`
+	Summarized interface{} `json:"summarized,omitempty"`
+}
+
+// StageContentResult2 defines model for StageContentResult.2.
+type StageContentResult2 struct {
+	Error struct {
+		Code      interface{} `json:"code,omitempty"`
+		Retryable interface{} `json:"retryable,omitempty"`
+	} `json:"error"`
+	Outcome    interface{} `json:"outcome,omitempty"`
+	Summarized interface{} `json:"summarized"`
+}
 
 // StageExecutionConfig defines model for StageExecutionConfig.
 type StageExecutionConfig struct {
@@ -6946,11 +7006,31 @@ type WorkflowSummary struct {
 	Ref          WorkflowRef                           `json:"ref"`
 }
 
+// WorkflowSummaryTransition defines model for WorkflowSummaryTransition.
+type WorkflowSummaryTransition struct {
+	// DeadlineSeconds Per-attempt execution allowance from admission; queue time is excluded and the enclosing Stage timeout still applies.
+	DeadlineSeconds int                                  `json:"deadlineSeconds"`
+	ExecutionConfig WorkflowEscalationConfig             `json:"executionConfig"`
+	Kind            WorkflowSummaryTransitionKind        `json:"kind"`
+	MaxAttempts     WorkflowSummaryTransitionMaxAttempts `json:"maxAttempts"`
+	Planner         struct {
+		PlannerId interface{} `json:"plannerId"`
+		Version   interface{} `json:"version"`
+	} `json:"planner"`
+}
+
+// WorkflowSummaryTransitionKind defines model for WorkflowSummaryTransition.Kind.
+type WorkflowSummaryTransitionKind string
+
+// WorkflowSummaryTransitionMaxAttempts defines model for WorkflowSummaryTransition.MaxAttempts.
+type WorkflowSummaryTransitionMaxAttempts int
+
 // WorkflowTransitions defines model for WorkflowTransitions.
 type WorkflowTransitions struct {
 	Failed      WorkflowFailureTransition   `json:"failed"`
 	Interrupted WorkflowFailureTransition   `json:"interrupted"`
 	Succeeded   WorkflowSucceededTransition `json:"succeeded"`
+	Summarized  *WorkflowSummaryTransition  `json:"summarized,omitempty"`
 }
 
 // WorkspaceCapabilities defines model for WorkspaceCapabilities.
@@ -11940,6 +12020,206 @@ func (t *RuntimeResourceSummary) UnmarshalJSON(b []byte) error {
 		err = json.Unmarshal(raw, &t.Version)
 		if err != nil {
 			return fmt.Errorf("error reading 'version': %w", err)
+		}
+	}
+
+	return err
+}
+
+// AsStageContentResult0 returns the union data inside the StageContentResult as a StageContentResult0
+func (t StageContentResult) AsStageContentResult0() (StageContentResult0, error) {
+	var body StageContentResult0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromStageContentResult0 overwrites any union data inside the StageContentResult as the provided StageContentResult0
+func (t *StageContentResult) FromStageContentResult0(v StageContentResult0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeStageContentResult0 performs a merge with any union data inside the StageContentResult, using the provided StageContentResult0
+func (t *StageContentResult) MergeStageContentResult0(v StageContentResult0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsStageContentResult1 returns the union data inside the StageContentResult as a StageContentResult1
+func (t StageContentResult) AsStageContentResult1() (StageContentResult1, error) {
+	var body StageContentResult1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromStageContentResult1 overwrites any union data inside the StageContentResult as the provided StageContentResult1
+func (t *StageContentResult) FromStageContentResult1(v StageContentResult1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeStageContentResult1 performs a merge with any union data inside the StageContentResult, using the provided StageContentResult1
+func (t *StageContentResult) MergeStageContentResult1(v StageContentResult1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsStageContentResult2 returns the union data inside the StageContentResult as a StageContentResult2
+func (t StageContentResult) AsStageContentResult2() (StageContentResult2, error) {
+	var body StageContentResult2
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromStageContentResult2 overwrites any union data inside the StageContentResult as the provided StageContentResult2
+func (t *StageContentResult) FromStageContentResult2(v StageContentResult2) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeStageContentResult2 performs a merge with any union data inside the StageContentResult, using the provided StageContentResult2
+func (t *StageContentResult) MergeStageContentResult2(v StageContentResult2) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t StageContentResult) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	object := make(map[string]json.RawMessage)
+	if t.union != nil {
+		err = json.Unmarshal(b, &object)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	object["apiVersion"], err = json.Marshal(t.ApiVersion)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'apiVersion': %w", err)
+	}
+
+	if t.Artifacts != nil {
+		object["artifacts"], err = json.Marshal(t.Artifacts)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'artifacts': %w", err)
+		}
+	}
+
+	if t.Error != nil {
+		object["error"], err = json.Marshal(t.Error)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'error': %w", err)
+		}
+	}
+
+	object["outcome"], err = json.Marshal(t.Outcome)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'outcome': %w", err)
+	}
+
+	if t.Summarized != nil {
+		object["summarized"], err = json.Marshal(t.Summarized)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'summarized': %w", err)
+		}
+	}
+
+	object["summary"], err = json.Marshal(t.Summary)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'summary': %w", err)
+	}
+
+	if t.SummaryArtifact != nil {
+		object["summaryArtifact"], err = json.Marshal(t.SummaryArtifact)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'summaryArtifact': %w", err)
+		}
+	}
+	b, err = json.Marshal(object)
+	return b, err
+}
+
+func (t *StageContentResult) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	if err != nil {
+		return err
+	}
+	object := make(map[string]json.RawMessage)
+	err = json.Unmarshal(b, &object)
+	if err != nil {
+		return err
+	}
+
+	if raw, found := object["apiVersion"]; found {
+		err = json.Unmarshal(raw, &t.ApiVersion)
+		if err != nil {
+			return fmt.Errorf("error reading 'apiVersion': %w", err)
+		}
+	}
+
+	if raw, found := object["artifacts"]; found {
+		err = json.Unmarshal(raw, &t.Artifacts)
+		if err != nil {
+			return fmt.Errorf("error reading 'artifacts': %w", err)
+		}
+	}
+
+	if raw, found := object["error"]; found {
+		err = json.Unmarshal(raw, &t.Error)
+		if err != nil {
+			return fmt.Errorf("error reading 'error': %w", err)
+		}
+	}
+
+	if raw, found := object["outcome"]; found {
+		err = json.Unmarshal(raw, &t.Outcome)
+		if err != nil {
+			return fmt.Errorf("error reading 'outcome': %w", err)
+		}
+	}
+
+	if raw, found := object["summarized"]; found {
+		err = json.Unmarshal(raw, &t.Summarized)
+		if err != nil {
+			return fmt.Errorf("error reading 'summarized': %w", err)
+		}
+	}
+
+	if raw, found := object["summary"]; found {
+		err = json.Unmarshal(raw, &t.Summary)
+		if err != nil {
+			return fmt.Errorf("error reading 'summary': %w", err)
+		}
+	}
+
+	if raw, found := object["summaryArtifact"]; found {
+		err = json.Unmarshal(raw, &t.SummaryArtifact)
+		if err != nil {
+			return fmt.Errorf("error reading 'summaryArtifact': %w", err)
 		}
 	}
 

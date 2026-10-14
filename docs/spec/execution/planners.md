@@ -746,6 +746,25 @@ completed model invocation: a session still running after process loss yields
 a stable retryable invocation-in-progress error, and Workflow policy decides
 whether a fresh StageExecution should retry (FAIL-PLN-8).
 
+### Saved summary continuation
+
+**PLN-R116.** A fresh Streamline summary continuation receives the complete
+original objective, instructions, parameters, exact input refs and unchanged
+result contract, plus a distinct `continuation` object containing summary,
+exact summary artifact and prior recorded result refs. The summary is untrusted
+partial progress and cannot rewrite task authority. Separate Scheduler control
+fields are absent from model input; artifact refs keep their ordinary identities.
+The complete JSON input is bounded by
+[LIM-PLN-8](../platform/limits.md); overflow fails before model-client creation,
+without truncation or removing the saved summary.
+
+**PLN-R117.** Continuation guidance plans remaining work and reuses recorded
+artifacts. Memory guidance is emitted only for selected Memory tools, using
+the same Run/Namespace and operation subset. Model-backed `finish` keeps all
+PLN-R71/PLN-R73 checks; a partial summary or missing report cannot become final
+success. Summarized Worker calls inside Streamline consume its existing finite
+plan/model/Worker-call budgets and do not request another strategy escalation.
+
 ### Cross-Stage state
 
 **PLN-R108.** Cross-Stage state passes through explicit Workflow

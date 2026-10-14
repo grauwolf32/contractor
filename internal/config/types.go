@@ -246,9 +246,11 @@ type stageResultSource struct {
 }
 
 type stageTransitionsSource struct {
-	Succeeded   *transitionActionSource `yaml:"succeeded"`
-	Failed      *transitionActionSource `yaml:"failed"`
-	Interrupted *transitionActionSource `yaml:"interrupted"`
+	Succeeded         *transitionActionSource `yaml:"succeeded"`
+	Failed            *transitionActionSource `yaml:"failed"`
+	Interrupted       *transitionActionSource `yaml:"interrupted"`
+	Summarized        *transitionActionSource `yaml:"summarized,omitempty"`
+	summarizedPresent bool
 }
 
 type transitionActionSource struct {
@@ -266,8 +268,13 @@ type retrySource struct {
 
 type escalateSource struct {
 	MaxAttempts     int                              `yaml:"maxAttempts"`
+	Planner         *string                          `yaml:"planner,omitempty"`
+	DeadlineSeconds *int                             `yaml:"deadlineSeconds,omitempty"`
 	ExecutionConfig *escalationExecutionConfigSource `yaml:"executionConfig"`
 	Then            *transitionActionSource          `yaml:"then"`
+	plannerPresent  bool
+	deadlinePresent bool
+	thenPresent     bool
 }
 
 type escalationExecutionConfigSource struct {

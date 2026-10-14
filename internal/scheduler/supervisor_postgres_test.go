@@ -58,6 +58,7 @@ func TestPostgresSchedulerSupervisorBoundsRealRunClaims(t *testing.T) {
 		store, laneNoopPersistence{}, laneNoopArtifacts{}, laneNoopAllocator{},
 		laneNoopWorkers{}, laneNoopPlanners{}, Options{
 			PollInterval: 50 * time.Millisecond, ClaimDuration: time.Hour,
+			PlannerSessions:  uncompletedSessions{},
 			OperationTimeout: 2 * time.Second, PlannerTimeout: time.Second,
 			FinalizationTimeout: time.Second, AbortTimeout: time.Second,
 			LeaseScanInterval: time.Second,
@@ -141,6 +142,7 @@ func TestPostgresSchedulerSupervisorResizesAndDrainsDurableLanes(t *testing.T) {
 		store, laneNoopPersistence{}, laneNoopArtifacts{}, laneNoopAllocator{},
 		laneNoopWorkers{}, laneNoopPlanners{}, Options{
 			PollInterval: 60 * time.Millisecond, ClaimDuration: time.Hour,
+			PlannerSessions:  uncompletedSessions{},
 			OperationTimeout: 2 * time.Second, PlannerTimeout: time.Second,
 			FinalizationTimeout: time.Second, AbortTimeout: time.Second,
 			LeaseScanInterval: time.Second,

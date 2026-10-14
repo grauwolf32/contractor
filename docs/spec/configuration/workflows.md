@@ -360,8 +360,10 @@ owned by [WRK-R65](../execution/worker.md).
 
 **WFL-R35.** `entryStage` must name one key in `stages`.
 
-**WFL-R36.** In `v1alpha1`, `on` must contain exactly the three keys
-`succeeded`, `failed` and `interrupted`, each with one action object.
+**WFL-R36.** In `v1alpha1`, `on` must contain `succeeded`, `failed`
+and `interrupted`, each with one action object. Its only optional key is
+`summarized`, the narrow continuation policy of WFL-R86. Null and unknown
+branches are invalid.
 
 **WFL-R81.** Each transition selects exactly one typed action: `next`,
 `retry`, `escalate`, `succeed` or `fail`.
@@ -375,6 +377,9 @@ changing snapshots validated as `v1alpha1`.
 **WFL-R38.** A StageResult selects `succeeded` or `failed`; a
 StageTermination selects `interrupted`. `cancelled` is intentionally absent,
 because it is handled only by the enclosing WorkflowRun cancellation path.
+The trusted incomplete summarized result selects `summarized` when declared,
+otherwise `failed`; summary retention is independent of that selection
+([SCH-R171](../execution/scheduler.md)).
 
 **WFL-R39.** Workflow cancellation is not a graph edge: once the Run is
 `cancelling`, Stage cancellation does not evaluate `on` transitions
@@ -384,7 +389,8 @@ because it is handled only by the enclosing WorkflowRun cancellation path.
 
 - `succeeded` allows `next` or `succeed`;
 - `failed` allows `next`, `retry`, `escalate` or `fail`;
-- `interrupted` allows `next`, `retry`, `escalate` or `fail`.
+- `interrupted` allows `next`, `retry`, `escalate` or `fail`;
+- `summarized` allows only the strategy escalation of WFL-R86.
 
 **WFL-R41.** `next` names another Stage, and every `next` target must
 exist.
@@ -465,6 +471,39 @@ Workflow author declares the escalation tier intentionally are owned by
 (LIM-SCH-5), what it counts, the effective executionConfig of an escalated
 StageExecution and its pinning in the Run snapshot are owned by
 [SCH-R84 to SCH-R90](../execution/scheduler.md).
+
+### Summary continuation policy
+
+**WFL-R86.** A summarizer-enabled, single ADK Worker Stage using
+`passthrough@1` may declare:
+
+```yaml
+summarized:
+  escalate:
+    maxAttempts: 1
+    planner: streamline@1
+    deadlineSeconds: 1800
+    executionConfig:
+      planner:
+        modelPolicy: planner@2
+        llmGateway: local-litellm@1
+        credential: development-planner
+```
+
+The target factory is exactly `streamline@1`; its independent compatible
+ModelPolicy, Gateway and optional matching credential are resolved and pinned
+before Run admission. Only a Planner execution selection may be overridden;
+the Worker and original task authority stay unchanged. The existing
+ExecutionConfig ref/inline union applies. The deadline is bounded by
+[LIM-SCH-18](../platform/limits.md) and has the admission semantics of SCH-R172.
+No `then` is accepted: this source can summarize only once, and continuation
+errors use the unchanged `failed` or `interrupted` branches. A Stage combining
+this strategy policy with model-only escalation is rejected.
+
+Rationale: a typed one-shot continuation preserves work without model-selected
+routing or an unreachable exhaustion edge. Model-tier composition is excluded
+until a caller needs an explicitly pinned composition of strategy and model
+changes; catalog validation enforces that restriction.
 
 ### Artifact slots
 
@@ -666,7 +705,7 @@ Stage fields:
 | `context.workspace` | Workspace hydration | [Workspace](../tools/workspace.md) |
 | `result.artifacts` | Stage-local result name to slot contract plus `from` (omitted only by a workspace export slot) | WFL-R61 to WFL-R65 |
 | `workflowOutputs` | Workflow output slot to result name | WFL-R70 to WFL-R76, WFL-R85 |
-| `on` | `succeeded`, `failed`, `interrupted` actions | WFL-R36 to WFL-R51, WFL-R81, WFL-R82 |
+| `on` | Required `succeeded`, `failed`, `interrupted`; optional `summarized` | WFL-R36 to WFL-R51, WFL-R81, WFL-R82, WFL-R86 |
 
 The strict WorkflowCatalog loader is the one validator of the authored `on`
 actions and the escalation `executionConfig` union (WFL-R36, WFL-R40, WFL-R45,

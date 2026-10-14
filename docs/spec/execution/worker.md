@@ -1178,10 +1178,12 @@ semantic repair after a failed summary.
 
 #### State, metrics and lifecycle
 
-**WRK-R154.** The summarizer input and output are not retained
-separately. The semantic output exists only in the returned `WorkerResult` and
-the live Planner conversation; durable Stage content remains Planner-owned
-(LIFE-WRK-4).
+**WRK-R154.** Runtime does not retain the summarizer transcript or a separate
+output archive. It returns the semantic output in `WorkerResult`; durable
+Stage content remains Planner-owned. Passthrough records its trusted
+incomplete completion and Scheduler publishes its ordinary summary artifact
+before continuation or ordinary failure ([SCH-R171](scheduler.md)).
+Worker State keeps only bounded state/usage, not summary text (LIFE-WRK-4).
 
 **WRK-R155.** `ExecutionMetrics` carries a separate optional
 summarizer aggregate, so that normal Worker usage and terminal summarization

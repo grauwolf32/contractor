@@ -29,6 +29,7 @@ import (
 
 type plannerServices struct {
 	registry *planner.Registry
+	sessions *plannersession.Service
 }
 
 type workflowServices struct {
@@ -107,7 +108,7 @@ func configurePlanners(
 	if err != nil {
 		return plannerServices{}, err
 	}
-	return plannerServices{registry: plannerRegistry}, nil
+	return plannerServices{registry: plannerRegistry, sessions: plannerSessions}, nil
 }
 
 func configureWorkflows(
@@ -157,6 +158,7 @@ func configureWorkflows(
 		planners.registry,
 		scheduler.Options{
 			GatewayRecovery:     recovery,
+			PlannerSessions:     planners.sessions,
 			PollInterval:        cfg.Operations.Scheduler.PollInterval,
 			ClaimDuration:       cfg.Operations.Scheduler.ClaimDuration,
 			LeaseScanInterval:   cfg.Operations.Scheduler.LeaseScanInterval,

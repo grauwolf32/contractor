@@ -12616,11 +12616,34 @@ components:
           maxProperties: 128
           additionalProperties: {$ref: '#/components/schemas/ExactArtifactRef'}
         error: {$ref: '#/components/schemas/TerminationError'}
-      allOf:
-        - if: {properties: {outcome: {const: succeeded}}}
-          then: {not: {required: [error]}}
-        - if: {properties: {outcome: {const: failed}}}
-          then: {required: [error]}
+        summarized:
+          type: boolean
+          description: Runtime-owned terminal summary carried by passthrough as incomplete work requiring continuation.
+        summaryArtifact: {$ref: '#/components/schemas/ExactArtifactRef'}
+      oneOf:
+        - properties:
+            outcome: {enum: [succeeded]}
+            summarized: {enum: [false]}
+          not:
+            anyOf:
+              - required: [error]
+              - required: [summaryArtifact]
+        - required: [error]
+          properties:
+            outcome: {enum: [failed]}
+            summarized: {enum: [false]}
+            error:
+              properties:
+                code: {not: {enum: [worker_summarized]}}
+          not: {required: [summaryArtifact]}
+        - required: [summarized, error]
+          properties:
+            outcome: {enum: [failed]}
+            summarized: {enum: [true]}
+            error:
+              properties:
+                code: {enum: [worker_summarized]}
+                retryable: {enum: [false]}
     StageTermination:
       type: object
       additionalProperties: false
@@ -13154,7 +13177,7 @@ components:
       additionalProperties: false
       required: [variant, agents]
       properties:
-        variant: {enum: [base, failed_escalation, interrupted_escalation]}
+        variant: {enum: [base, failed_escalation, interrupted_escalation, summary_escalation]}
         escalationOrdinal: {type: integer, minimum: 1}
         ref: {$ref: '#/components/schemas/ExecutionConfigRef'}
         planner: {$ref: '#/components/schemas/ConsumerExecutionConfig'}
@@ -13665,6 +13688,25 @@ components:
       oneOf:
         - {$ref: '#/components/schemas/WorkflowNextTransition'}
         - {$ref: '#/components/schemas/WorkflowSucceedTransition'}
+    WorkflowSummaryTransition:
+      type: object
+      additionalProperties: false
+      required: [kind, maxAttempts, planner, deadlineSeconds, executionConfig]
+      properties:
+        kind: {type: string, const: escalate}
+        maxAttempts: {type: integer, const: 1}
+        planner:
+          allOf:
+            - {$ref: '#/components/schemas/PlannerRef'}
+            - properties:
+                plannerId: {const: streamline}
+                version: {const: '1'}
+        deadlineSeconds:
+          type: integer
+          minimum: 1
+          maximum: 86400
+          description: Per-attempt execution allowance from admission; queue time is excluded and the enclosing Stage timeout still applies.
+        executionConfig: {$ref: '#/components/schemas/WorkflowEscalationConfig'}
     WorkflowFailureTransition:
       oneOf:
         - {$ref: '#/components/schemas/WorkflowNextTransition'}
@@ -13679,6 +13721,7 @@ components:
         succeeded: {$ref: '#/components/schemas/WorkflowSucceededTransition'}
         failed: {$ref: '#/components/schemas/WorkflowFailureTransition'}
         interrupted: {$ref: '#/components/schemas/WorkflowFailureTransition'}
+        summarized: {$ref: '#/components/schemas/WorkflowSummaryTransition'}
     WorkflowStageContract:
       type: object
       additionalProperties: false
