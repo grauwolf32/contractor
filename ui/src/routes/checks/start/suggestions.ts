@@ -21,11 +21,11 @@ interface SuggestionRule {
 }
 
 /** Second sentence of every reason: what readiness checked. */
-export const FORMAT_MATCH_REASON =
+const FORMAT_MATCH_REASON =
   "Your project has a material whose format matches each input it needs.";
 
 /** In order: the first rule that applies is the suggestion. */
-export const SUGGESTION_RULES: readonly SuggestionRule[] = [
+const SUGGESTION_RULES: readonly SuggestionRule[] = [
   {
     id: "sql-injection",
     checkTypes: ["openapi-sqlmap-scan"],
@@ -120,12 +120,11 @@ export interface SuggestionResult {
 export function suggestCheckTypes(
   objective: string,
   ready: (checkType: string) => boolean,
-  rules: readonly SuggestionRule[] = SUGGESTION_RULES,
 ): SuggestionResult {
   const text = objective.trim();
   if (text === "") return {};
   const found: Suggestion[] = [];
-  for (const rule of rules) {
+  for (const rule of SUGGESTION_RULES) {
     if (!rule.words.test(text)) continue;
     const checkType = rule.checkTypes.find(
       (name) => ready(name) && !found.some((known) => known.checkType === name),

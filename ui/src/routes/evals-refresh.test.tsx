@@ -1,25 +1,13 @@
-import { webcrypto } from "node:crypto";
-import { act, render, screen, waitFor, within } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { StrictMode } from "react";
-import { createMemoryRouter } from "react-router";
-import { beforeEach, expect, it, vi } from "vitest";
+import { beforeEach, expect, it } from "vitest";
 
-import { PublicAPI } from "../api/client";
-import { Application } from "../app/application";
-import * as queryClients from "../app/query-client";
-import { applicationRoutes } from "../app/router";
-import {
-  createEvalFixture,
-  EVAL_API_VERSION,
-  EVAL_FIXTURE_ORIGIN,
-} from "../test/evals-fixture";
-import { MemoryStorage } from "../test/storage";
+import { createApplicationQueryClient } from "../app/query-client";
+import { createEvalFixture } from "../test/evals-fixture";
+import { json } from "../test/fake-server";
+import { renderEvals, stubEvalBrowser } from "./evals/test-support";
 
-beforeEach(() => {
-  vi.stubGlobal("localStorage", new MemoryStorage());
-  vi.stubGlobal("crypto", webcrypto);
-});
+beforeEach(stubEvalBrowser);
 
 function refreshFixture() {
   const fixture = createEvalFixture({ prepared: true });
@@ -60,26 +48,8 @@ function refreshFixture() {
 }
 
 function start(fixture: ReturnType<typeof createEvalFixture>, path: string) {
-  const cache = queryClients.createApplicationQueryClient();
-  vi.spyOn(queryClients, "createApplicationQueryClient").mockReturnValue(cache);
-  const api = new PublicAPI(
-    {
-      uiVersion: "0.4.0",
-      apiBaseUrl: EVAL_FIXTURE_ORIGIN,
-      supportedApiVersions: [EVAL_API_VERSION],
-    },
-    async (input) =>
-      fixture.fetch(input instanceof Request ? input : new Request(input)),
-  );
-  const router = createMemoryRouter(applicationRoutes(), {
-    initialEntries: [path],
-  });
-  render(
-    <StrictMode>
-      <Application api={api} publicAPI={api} router={router} />
-    </StrictMode>,
-  );
-  return { cache, router };
+  const cache = createApplicationQueryClient();
+  return { cache, ...renderEvals(fixture, path, { cache, strict: true }) };
 }
 
 async function release(pending: (() => void)[], index = 0) {
@@ -203,9 +173,7 @@ it.each(["section", "experiment"] as const)(
       const original = context.fixture.fetch;
       context.fixture.fetch = async (request) =>
         new URL(request.url).pathname === "/v1/eval-experiments/experiment-2"
-          ? new Response(JSON.stringify(other), {
-              headers: { "content-type": "application/json" },
-            })
+          ? json(other)
           : original(request);
       target =
         "/evals/experiments/experiment-2/comparison?filter=unresolved&viewSnapshot=other-view";

@@ -15,11 +15,18 @@ import {
 import type { PublicAPI } from "../../api/client";
 import { queryKeys } from "../../api/query-keys";
 import { saveBlob } from "../../app/download";
+import { pollInterval } from "../../app/polling";
 import { useAuditProjectionRefresh } from "../projects/audits/projection-refresh";
+
+/** The check can no longer change on its own, so its reads stop polling. */
+function settled(audit: Audit): boolean {
+  return auditPollInterval([audit]) === false;
+}
 
 /**
  * The selected check of /reports/:auditId, read with the check page's key
- * and polled like it while the check can change. Idle without a valid ID.
+ * and polled like it while the check can change; failed reads back off.
+ * Idle without a valid ID.
  */
 export function useReportCheck(
   api: PublicAPI,
@@ -29,19 +36,15 @@ export function useReportCheck(
     queryKey: queryKeys.audits.detail(auditId ?? ""),
     queryFn: () => getAudit(api, auditId ?? ""),
     enabled: auditId !== undefined && AUDIT_ID_PATTERN.test(auditId),
-    refetchInterval: (query) =>
-      auditPollInterval(
-        query.state.data === undefined ? [] : [query.state.data],
-        1_000,
-      ),
+    refetchInterval: pollInterval<Audit>({ interval: 1_000, settled }),
     refetchOnReconnect: true,
   });
 }
 
 /**
  * The check's report, read with the same key as the check page and the
- * decision components. It is polled while the check can still change, and
- * read once more when polling stops.
+ * decision components. It is polled while the check can still change (failed
+ * reads back off), and read once more when polling stops.
  */
 export function useAuditReport(
   audit: Audit,
@@ -51,7 +54,10 @@ export function useAuditReport(
   const report = useQuery({
     queryKey,
     queryFn: () => getAuditReport(api, audit.auditId),
-    refetchInterval: auditPollInterval([audit], 1_000),
+    refetchInterval: pollInterval<AuditReport>({
+      interval: 1_000,
+      settled: () => settled(audit),
+    }),
     refetchOnReconnect: true,
   });
   useAuditProjectionRefresh(audit, queryKey);

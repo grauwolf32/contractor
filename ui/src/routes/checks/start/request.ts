@@ -10,8 +10,17 @@ import type {
   ExactArtifactRef,
 } from "../../../api/audits";
 
-/** Longest objective, target and authorization scope the form accepts. */
-export const SCOPE_TEXT_LIMIT = 4096;
+/** Longest objective, target and authorization scope the Server accepts. */
+export const SCOPE_TEXT_LIMITS = {
+  objective: schemaLimit("AuditScope", "maxLength", "properties", "objective"),
+  target: schemaLimit("AuditScope", "maxLength", "properties", "target"),
+  authorizationScope: schemaLimit(
+    "AuditScope",
+    "maxLength",
+    "properties",
+    "authorizationScope",
+  ),
+} as const;
 
 // Runtime labels are public RuntimeInfrastructureIds.
 const RUNTIME_LABEL = RUNTIME_INFRASTRUCTURE_ID;

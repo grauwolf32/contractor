@@ -22,11 +22,16 @@ import {
 } from "../../api/cross-project";
 import { useDocumentTitle } from "../../app/document-title";
 import {
+  useGuardedNavigate,
+  usePageLocationNow,
+} from "../../app/page-location";
+import {
   FINDING_STATE_LABELS,
   severityLabel,
   verdictLabel,
 } from "../../app/vocabulary";
 import {
+  Button,
   EmptyState,
   FilterChips,
   Kbd,
@@ -38,6 +43,7 @@ import {
   type FilterChipOption,
 } from "../../ui";
 import type { AuditFindingDecisionResult } from "../decisions";
+import { useAnnouncement } from "../decisions/announcement";
 import {
   FINDING_STATES,
   SEVERITY_OPTIONS,
@@ -57,8 +63,6 @@ import {
 } from "./links";
 
 import "./issues.css";
-
-const ANNOUNCEMENT_MS = 8_000;
 
 /**
  * Empty-list titles that claim the state is clear: only for a complete list
@@ -161,6 +165,10 @@ export function IssuesRoute() {
   const { auditId, findingId } = useParams();
   const [params] = useSearchParams();
   const navigate = useNavigate();
+  // A recorded decision answers late: it moves on only while the user is
+  // still on this page (AGENTS.md 3.8).
+  const navigateLate = useGuardedNavigate();
+  const pageNow = usePageLocationNow();
   const location = useLocation();
   const projectSelect = useId();
   const severitySelect = useId();
@@ -187,10 +195,7 @@ export function IssuesRoute() {
           (candidate) => candidate.projectId === filters.project,
         );
   const [focusRequest, setFocusRequest] = useState<FocusRequest | null>(null);
-  const [announcement, setAnnouncement] = useState<{
-    text: string;
-    id: number;
-  } | null>(null);
+  const { text: liveText, announce } = useAnnouncement();
   // The neighbours of the selected possible issue while it was listed: a
   // decision can take it out of the list before onDecided runs.
   const neighbours = useRef<{
@@ -219,15 +224,6 @@ export function IssuesRoute() {
       };
   });
 
-  useEffect(() => {
-    if (announcement === null) return undefined;
-    const timer = window.setTimeout(
-      () => setAnnouncement(null),
-      ANNOUNCEMENT_MS,
-    );
-    return () => window.clearTimeout(timer);
-  }, [announcement]);
-
   // Runs after PaneLayout's own effect (children first), which on one-pane
   // screens focuses the row of the decided possible issue: that row leaves
   // the list once its check is read again.
@@ -237,26 +233,26 @@ export function IssuesRoute() {
     listTitle.current?.focus();
   }, [selectedKey]);
 
-  const open = useCallback(
-    (
-      issue: CrossProjectIssue,
-      options: { replace?: boolean; focus?: boolean } = {},
-    ) => {
-      if (options.focus === true)
-        setFocusRequest((current) => ({
-          key: keyOf(issue),
-          id: (current?.id ?? 0) + 1,
-        }));
-      void navigate(
-        {
-          pathname: issuePath(issue.finding.auditId, issue.finding.findingId),
-          search,
-        },
-        { replace: options.replace ?? false },
-      );
-    },
-    [navigate, search],
+  const issueTo = useCallback(
+    (issue: CrossProjectIssue) => ({
+      pathname: issuePath(issue.finding.auditId, issue.finding.findingId),
+      search,
+    }),
+    [search],
   );
+  // J / K, previous and next replace the history entry instead of adding one.
+  const open = useCallback(
+    (issue: CrossProjectIssue) =>
+      void navigate(issueTo(issue), { replace: true }),
+    [issueTo, navigate],
+  );
+
+  function requestFocus(issue: CrossProjectIssue) {
+    setFocusRequest((current) => ({
+      key: keyOf(issue),
+      id: (current?.id ?? 0) + 1,
+    }));
+  }
 
   function setFilters(change: Partial<IssueFilters>) {
     void navigate(
@@ -273,23 +269,17 @@ export function IssuesRoute() {
     index: selectedIndex,
     onMove: (position) => {
       const issue = issues[position];
-      if (issue !== undefined) open(issue, { replace: true });
+      if (issue !== undefined) open(issue);
     },
     onOpen: (position) => {
       const issue = issues[position];
-      if (issue !== undefined)
-        setFocusRequest((current) => ({
-          key: keyOf(issue),
-          id: (current?.id ?? 0) + 1,
-        }));
+      if (issue !== undefined) requestFocus(issue);
     },
   });
 
-  function announce(text: string) {
-    setAnnouncement((current) => ({ text, id: (current?.id ?? 0) + 1 }));
-  }
-
   function onDecided(result: AuditFindingDecisionResult) {
+    // The user moved on while the decision was recorded: stay where they are.
+    if (pageNow() === undefined) return;
     const decided = keyOf(result);
     const around =
       neighbours.current?.key === decided ? neighbours.current : undefined;
@@ -304,13 +294,14 @@ export function IssuesRoute() {
         `Decision recorded: ${outcome}. That was the last possible issue in this list.`,
       );
       focusListTitle.current = true;
-      void navigate({ pathname: "/issues", search }, { replace: true });
+      void navigateLate({ pathname: "/issues", search }, { replace: true });
       return;
     }
     announce(
       `Decision recorded: ${outcome}. Showing the next possible issue: ${target.finding.firstProposal.document.title}.`,
     );
-    open(target, { replace: true, focus: true });
+    requestFocus(target);
+    void navigateLate(issueTo(target), { replace: true });
   }
 
   function dropReview() {
@@ -346,7 +337,6 @@ export function IssuesRoute() {
     !list.truncated;
   const running = runningNote(list);
   const empty = emptyText(list, filters, complete, running);
-  const liveText = announcement?.text ?? "";
 
   const listPane = (
     <ListPane
@@ -418,7 +408,7 @@ export function IssuesRoute() {
                 </option>
               ))}
             </select>
-            <span id={`${severitySelect}-hint`} className="issues-quiet">
+            <span id={`${severitySelect}-hint`} className="ui-caption">
               The analyst&apos;s rating; AI suggestions are not filtered.
             </span>
           </span>
@@ -446,14 +436,9 @@ export function IssuesRoute() {
             {list.error.message}
           </p>
           <div className="issues-notice-actions">
-            <button
-              type="button"
-              className="ui-btn"
-              data-size="xs"
-              onClick={() => void list.refetch()}
-            >
+            <Button size="xs" onClick={() => void list.refetch()}>
               Retry
-            </button>
+            </Button>
           </div>
         </div>
       ) : null}
@@ -473,14 +458,9 @@ export function IssuesRoute() {
             ))}
           </ul>
           <div className="issues-notice-actions">
-            <button
-              type="button"
-              className="ui-btn"
-              data-size="xs"
-              onClick={() => void list.refetch()}
-            >
+            <Button size="xs" onClick={() => void list.refetch()}>
               Retry
-            </button>
+            </Button>
           </div>
         </div>
       )}
@@ -582,14 +562,8 @@ export function IssuesRoute() {
               : { index: selectedIndex, count: issues.length }
           }
           listPending={list.pending}
-          onPrevious={
-            previous === undefined
-              ? undefined
-              : () => open(previous, { replace: true })
-          }
-          onNext={
-            next === undefined ? undefined : () => open(next, { replace: true })
-          }
+          onPrevious={previous === undefined ? undefined : () => open(previous)}
+          onNext={next === undefined ? undefined : () => open(next)}
           reviewId={params.get("review")}
           onDropReview={dropReview}
           onDecided={onDecided}
@@ -598,7 +572,6 @@ export function IssuesRoute() {
               ? focusRequest.id
               : undefined
           }
-          backTo={{ pathname: "/issues", search }}
         />
       </>
     );

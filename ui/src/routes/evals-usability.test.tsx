@@ -1,42 +1,16 @@
-import { webcrypto } from "node:crypto";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { createMemoryRouter } from "react-router";
-import { beforeEach, expect, it, vi } from "vitest";
-import { PublicAPI } from "../api/client";
-import { Application } from "../app/application";
-import { applicationRoutes } from "../app/router";
-import { MemoryStorage } from "../test/storage";
-import {
-  createEvalFixture,
-  EVAL_API_VERSION,
-  EVAL_FIXTURE_ORIGIN,
-} from "../test/evals-fixture";
+import { beforeEach, expect, it } from "vitest";
+import { createEvalFixture } from "../test/evals-fixture";
+import { json } from "../test/fake-server";
 import pairs from "../../../api/testdata/evals/valid/pair-page.json";
-import { MAX_EVAL_DOCUMENT_BYTES } from "./evals/setup-model";
+import { MAX_EVAL_DOCUMENT_BYTES } from "./evals/plan-size";
+import { renderEvals, stubEvalBrowser } from "./evals/test-support";
 
-beforeEach(() => {
-  vi.stubGlobal("localStorage", new MemoryStorage());
-  vi.stubGlobal("crypto", webcrypto);
-});
+beforeEach(stubEvalBrowser);
 
 function start(fixture: ReturnType<typeof createEvalFixture>, path: string) {
-  const api = new PublicAPI(
-    {
-      uiVersion: "0.4.0",
-      apiBaseUrl: EVAL_FIXTURE_ORIGIN,
-      supportedApiVersions: [EVAL_API_VERSION],
-    },
-    async (input) =>
-      fixture.fetch(input instanceof Request ? input : new Request(input)),
-  );
-  const router = createMemoryRouter(applicationRoutes(), {
-    initialEntries: [path],
-  });
-  return {
-    ...render(<Application api={api} publicAPI={api} router={router} />),
-    router,
-  };
+  return renderEvals(fixture, path);
 }
 
 function datasetFile(raw: string): File {
@@ -135,10 +109,7 @@ it("refreshes execution inventory when the pair evidence is refreshed", async ()
     if (deleted && new URL(request.url).pathname.endsWith("/executions")) {
       const body = await response.json();
       for (const item of body.items) item.available = false;
-      return new Response(JSON.stringify(body), {
-        status: response.status,
-        headers: response.headers,
-      });
+      return json(body, response.status);
     }
     return response;
   };

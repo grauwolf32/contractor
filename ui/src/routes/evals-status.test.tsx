@@ -1,22 +1,11 @@
-import { webcrypto } from "node:crypto";
-import { render, screen, waitFor } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { createMemoryRouter } from "react-router";
-import { beforeEach, expect, it, vi } from "vitest";
-import { PublicAPI } from "../api/client";
-import { Application } from "../app/application";
-import { applicationRoutes } from "../app/router";
-import { MemoryStorage } from "../test/storage";
-import {
-  createEvalFixture,
-  EVAL_API_VERSION,
-  EVAL_FIXTURE_ORIGIN,
-} from "../test/evals-fixture";
+import { beforeEach, expect, it } from "vitest";
+import { createEvalFixture } from "../test/evals-fixture";
+import { json } from "../test/fake-server";
+import { renderEvals, stubEvalBrowser } from "./evals/test-support";
 
-beforeEach(() => {
-  vi.stubGlobal("localStorage", new MemoryStorage());
-  vi.stubGlobal("crypto", webcrypto);
-});
+beforeEach(stubEvalBrowser);
 
 function finishedFixture() {
   const fixture = createEvalFixture({ prepared: true });
@@ -35,20 +24,8 @@ function finishedFixture() {
 }
 
 function start(fixture: ReturnType<typeof createEvalFixture>) {
-  const api = new PublicAPI(
-    {
-      uiVersion: "0.4.0",
-      apiBaseUrl: EVAL_FIXTURE_ORIGIN,
-      supportedApiVersions: [EVAL_API_VERSION],
-    },
-    async (input) =>
-      fixture.fetch(input instanceof Request ? input : new Request(input)),
-  );
-  const router = createMemoryRouter(applicationRoutes(), {
-    initialEntries: ["/evals/experiments/experiment-1/overview"],
-  });
-  render(<Application api={api} publicAPI={api} router={router} />);
-  return router;
+  return renderEvals(fixture, "/evals/experiments/experiment-1/overview")
+    .router;
 }
 
 it("explains zero executions and lets the user prepare a fresh copy", async () => {
@@ -62,9 +39,7 @@ it("explains zero executions and lets the user prepare a fresh copy", async () =
     const document = await response.json();
     for (const item of document.items)
       item.member.reason = "A required output role is unavailable.";
-    return new Response(JSON.stringify(document), {
-      headers: response.headers,
-    });
+    return json(document);
   };
   const router = start(fixture),
     user = userEvent.setup();

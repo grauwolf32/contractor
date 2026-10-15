@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { Button } from "../../ui";
 import type { BlockType } from "./document";
 import type { StudioGraph, StudioNode } from "./graph";
 import type { Problem } from "./validation";
@@ -56,25 +57,22 @@ export function StudioCanvas({
   return (
     <section className="studio-canvas" aria-label="Definition graph">
       <div className="studio-canvas-tools">
-        <button
-          className="ui-btn"
+        <Button
           onClick={() => setZoom((value) => Math.max(0.001, value - 0.2))}
           aria-label="Zoom out"
         >
           −
-        </button>
+        </Button>
         <output aria-label="Canvas zoom">
           {zoom < 0.01 ? (zoom * 100).toFixed(1) : Math.round(zoom * 100)}%
         </output>
-        <button
-          className="ui-btn"
+        <Button
           onClick={() => setZoom((value) => Math.min(1.6, value + 0.2))}
           aria-label="Zoom in"
         >
           +
-        </button>
-        <button
-          className="ui-btn"
+        </Button>
+        <Button
           onClick={() => {
             setPositions({});
             setZoom(1);
@@ -82,9 +80,8 @@ export function StudioCanvas({
           }}
         >
           Auto arrange
-        </button>
-        <button
-          className="ui-btn"
+        </Button>
+        <Button
           onClick={() => {
             const view = viewport.current;
             if (!view) return;
@@ -104,7 +101,7 @@ export function StudioCanvas({
           }}
         >
           Fit graph
-        </button>
+        </Button>
       </div>
       <p className="studio-canvas-help">
         {connect

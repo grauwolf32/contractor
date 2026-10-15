@@ -3,52 +3,65 @@ import userEvent from "@testing-library/user-event";
 import { createMemoryRouter } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { PublicAPI, type AuthSession } from "../api/client";
 import { Application } from "../app/application";
 import { applicationRoutes } from "../app/router";
-import type { RuntimeConfig } from "../config/runtime-config";
+import { conforming } from "../test/builders";
+import {
+  failure,
+  fakeServer,
+  json,
+  page,
+  type FakeServer,
+  type Routes,
+} from "../test/fake-server";
+import { testAPI, testSession } from "../test/render";
 
-const runtimeConfig: RuntimeConfig = {
-  uiVersion: "0.1.0",
-  supportedApiVersions: ["contractor.public.v1"],
-  apiBaseUrl: "http://127.0.0.1:8080",
-};
-
-const session: AuthSession = {
-  principal: {
-    userId: "user_local",
-    username: "owner",
-    capabilities: ["user"],
-  },
-  csrfToken: "a".repeat(43),
-  idleExpiresAt: "2099-01-01T00:00:00Z",
-  absoluteExpiresAt: "2099-01-02T00:00:00Z",
-};
-
-function apiResponse(
-  value: unknown,
-  status = 200,
-  headers: Record<string, string> = {},
-): Response {
-  return new Response(JSON.stringify(value), {
-    status,
-    headers: {
-      "content-type": "application/json",
-      "X-Contractor-API-Version": "contractor.public.v1",
-      ...headers,
-    },
+// V385: needs shared Application render harness (src/test renders routes
+// without the Application providers).
+function renderApplication(routes: Routes, path = "/catalog/skills") {
+  const server = fakeServer({
+    "GET /v1/auth/session": () => json(testSession()),
+    ...routes,
   });
+  const { api } = testAPI(server);
+  const router = createMemoryRouter(applicationRoutes(), {
+    initialEntries: [path],
+  });
+  render(<Application api={api} publicAPI={api} router={router} />);
+  return server;
 }
 
 function skill(name: string, revision: string) {
-  return {
+  return conforming("ArtifactMetadata", {
     artifact: { namespace: "skills", name, revision },
     mediaType: "application/zip",
     size: 2048,
     current: true,
     frozen: true,
     createdAt: "2026-09-01T12:00:00Z",
-  };
+  });
+}
+
+/** A Skill package archive listing `paths`, as one SKILL.md-sized file each. */
+function archive(name: string, revision: string, paths: string[]) {
+  return json(
+    conforming("ArtifactArchive", {
+      artifact: { namespace: "skills", name, revision },
+      entries: paths.map((path) => ({
+        kind: "file",
+        path,
+        size: path === "SKILL.md" ? 48 : 4,
+        previewable: true,
+      })),
+    }),
+    200,
+    { ETag: `"${revision}"` },
+  );
+}
+
+/** Archive reads of the Skill package `name`. */
+function archiveReads(server: FakeServer, name: string): number {
+  return server.sent("GET", `/v1/artifacts/skills/${name}/archive`).length;
 }
 
 /** jsdom has no IntersectionObserver; every observed row is reported visible. */
@@ -73,72 +86,30 @@ afterEach(() => {
 
 describe("Skills catalog", () => {
   it("shows an explicit error with retry when the archive request fails, and keeps the placeholder for packages without a description", async () => {
-    let brokenArchiveReads = 0;
-    const api = new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const request = input instanceof Request ? input : new Request(input);
-        const url = new URL(request.url);
-        if (url.pathname === "/v1/auth/session") {
-          return apiResponse(session);
-        }
-        if (url.pathname === "/v1/artifacts") {
-          return apiResponse({
-            items: [skill("broken", "r1"), skill("plain", "r2")],
-            page: { hasMore: false },
-          });
-        }
-        if (url.pathname === "/v1/artifacts/skills/broken/archive") {
-          brokenArchiveReads += 1;
-          if (brokenArchiveReads === 1) {
-            return apiResponse(
-              { code: "unavailable", message: "Archive store is unavailable" },
-              503,
-            );
-          }
-          return apiResponse(
-            {
-              artifact: { namespace: "skills", name: "broken", revision: "r1" },
-              entries: [
-                { kind: "file", path: "SKILL.md", size: 48, previewable: true },
-              ],
-            },
-            200,
-            { ETag: '"r1"' },
-          );
-        }
-        if (url.pathname === "/v1/artifacts/skills/broken/archive/file") {
-          const text = "---\ndescription: Reviews source evidence\n---\n# Hi\n";
-          return apiResponse(
-            {
-              artifact: { namespace: "skills", name: "broken", revision: "r1" },
-              path: "SKILL.md",
-              text,
-              size: new TextEncoder().encode(text).length,
-            },
-            200,
-            { ETag: '"r1"' },
-          );
-        }
-        if (url.pathname === "/v1/artifacts/skills/plain/archive") {
-          return apiResponse(
-            {
-              artifact: { namespace: "skills", name: "plain", revision: "r2" },
-              entries: [
-                { kind: "file", path: "notes.txt", size: 4, previewable: true },
-              ],
-            },
-            200,
-            { ETag: '"r2"' },
-          );
-        }
-        throw new Error(`unexpected ${request.method} ${url.pathname}`);
-      }),
-    );
-    const router = createMemoryRouter(applicationRoutes(), {
-      initialEntries: ["/catalog/skills"],
+    const server = renderApplication({
+      "GET /v1/artifacts": () =>
+        json(page([skill("broken", "r1"), skill("plain", "r2")])),
+      "GET /v1/artifacts/{namespace}/{name}/archive": ({ params }) => {
+        if (params.name === "plain")
+          return archive("plain", "r2", ["notes.txt"]);
+        return archiveReads(server, "broken") === 1
+          ? failure(503, "unavailable", "Archive store is unavailable")
+          : archive("broken", "r1", ["SKILL.md"]);
+      },
+      "GET /v1/artifacts/{namespace}/{name}/archive/file": () => {
+        const text = "---\ndescription: Reviews source evidence\n---\n# Hi\n";
+        return json(
+          conforming("ArtifactArchiveFile", {
+            artifact: { namespace: "skills", name: "broken", revision: "r1" },
+            path: "SKILL.md",
+            text,
+            size: new TextEncoder().encode(text).length,
+          }),
+          200,
+          { ETag: '"r1"' },
+        );
+      },
     });
-    render(<Application api={api} publicAPI={api} router={router} />);
 
     const broken = (
       await screen.findByRole("link", { name: "broken" })
@@ -171,26 +142,11 @@ describe("Skills catalog", () => {
       await within(broken).findByText("Reviews source evidence"),
     ).toBeInTheDocument();
     expect(within(broken).queryByText("Description unavailable")).toBeNull();
-    expect(brokenArchiveReads).toBe(2);
+    expect(archiveReads(server, "broken")).toBe(2);
   });
 
   it("explains how to create the first package in Library words", async () => {
-    const api = new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const request = input instanceof Request ? input : new Request(input);
-        const url = new URL(request.url);
-        if (url.pathname === "/v1/auth/session") return apiResponse(session);
-        if (url.pathname === "/v1/artifacts") {
-          return apiResponse({ items: [], page: { hasMore: false } });
-        }
-        throw new Error(`unexpected ${request.method} ${url.pathname}`);
-      }),
-    );
-    const router = createMemoryRouter(applicationRoutes(), {
-      initialEntries: ["/catalog/skills"],
-    });
-    render(<Application api={api} publicAPI={api} router={router} />);
+    renderApplication({ "GET /v1/artifacts": () => json(page([])) });
 
     const empty = (await screen.findByText("No global Skill packages found."))
       .parentElement!;
@@ -204,60 +160,34 @@ describe("Skills catalog", () => {
   });
 
   it("lists packages with size, files and revision, and uploads a Skill ZIP", async () => {
-    const puts: Request[] = [];
     let stored = false;
-    const api = new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const request = input instanceof Request ? input : new Request(input);
-        const url = new URL(request.url);
-        if (url.pathname === "/v1/auth/session") return apiResponse(session);
-        if (url.pathname === "/v1/artifacts" && request.method === "GET") {
-          return apiResponse({
-            items: stored
+    const server = renderApplication({
+      "GET /v1/artifacts": () =>
+        json(
+          page(
+            stored
               ? [skill("review", "r1"), skill("triage", "r9")]
               : [skill("review", "r1")],
-            page: { hasMore: false },
-          });
-        }
-        if (url.pathname === "/v1/artifacts/skills/review/archive") {
-          return apiResponse(
-            {
-              artifact: { namespace: "skills", name: "review", revision: "r1" },
-              entries: [
-                { kind: "file", path: "notes.md", size: 4, previewable: true },
-              ],
-            },
-            200,
-            { ETag: '"r1"' },
-          );
-        }
-        if (url.pathname.startsWith("/v1/artifacts/skills/triage/archive")) {
-          return apiResponse({ code: "unavailable", message: "Later" }, 503);
-        }
-        if (
-          url.pathname === "/v1/artifacts/skills/triage" &&
-          request.method === "PUT"
-        ) {
-          puts.push(request.clone());
-          stored = true;
-          return apiResponse(
-            {
-              artifact: { namespace: "skills", name: "triage", revision: "r9" },
-              mediaType: "application/vnd.contractor.agent-skill+zip",
-              size: 3,
-            },
-            201,
-            { ETag: '"r9"' },
-          );
-        }
-        throw new Error(`unexpected ${request.method} ${url.pathname}`);
-      }),
-    );
-    const router = createMemoryRouter(applicationRoutes(), {
-      initialEntries: ["/catalog/skills"],
+          ),
+        ),
+      "GET /v1/artifacts/{namespace}/{name}/archive": ({ params }) =>
+        params.name === "review"
+          ? archive("review", "r1", ["notes.md"])
+          : failure(503, "unavailable", "Later"),
+      "PUT /v1/artifacts/{namespace}/{name}": () => {
+        stored = true;
+        return json(
+          conforming("ArtifactWriteResponse", {
+            artifact: { namespace: "skills", name: "triage", revision: "r9" },
+            mediaType: "application/vnd.contractor.agent-skill+zip",
+            size: 3,
+          }),
+          201,
+          { ETag: '"r9"' },
+        );
+      },
     });
-    render(<Application api={api} publicAPI={api} router={router} />);
+    const puts = () => server.sent("PUT", "/v1/artifacts/skills/triage");
 
     const link = await screen.findByRole("link", { name: "review" });
     expect(link).toHaveAttribute("href", "/artifacts/skills/review");
@@ -287,7 +217,7 @@ describe("Skills catalog", () => {
     expect(within(dialog).getByRole("alert")).toHaveTextContent(
       "Skill package exceeds the 16 MiB upload limit.",
     );
-    expect(puts).toHaveLength(0);
+    expect(puts()).toHaveLength(0);
 
     // The drop zone is now named by the chosen file.
     await user.upload(
@@ -299,8 +229,8 @@ describe("Skills catalog", () => {
       await screen.findByText("Global Skill revision stored."),
     ).toBeVisible();
     expect(screen.queryByRole("dialog")).toBeNull();
-    expect(puts).toHaveLength(1);
-    expect(puts[0]!.headers.get("Content-Type")).toBe(
+    expect(puts()).toHaveLength(1);
+    expect(puts()[0]!.headers.get("Content-Type")).toBe(
       "application/vnd.contractor.agent-skill+zip",
     );
     expect(await screen.findByRole("link", { name: "triage" })).toHaveAttribute(

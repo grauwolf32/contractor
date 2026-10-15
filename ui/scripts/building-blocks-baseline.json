@@ -42,83 +42,12 @@
     "src/routes/catalog/audit-preset-detail.tsx": {
       "button": 1
     },
-    "src/routes/checks/list/check-summary.tsx": {
-      "button": 1
-    },
-    "src/routes/checks/list/checks-list.tsx": {
-      "button": 1
-    },
-    "src/routes/checks/start/materials.tsx": {
-      "button": 3
-    },
-    "src/routes/checks/start/setup.tsx": {
-      "button": 4
-    },
-    "src/routes/checks/start/type-list.tsx": {
-      "button": 2
-    },
-    "src/routes/decisions/finding-decision.tsx": {
-      "button": 4
-    },
-    "src/routes/decisions/more-menu.tsx": {
-      "button": 2,
-      "svg": 1
-    },
-    "src/routes/evals/artifact-picker.tsx": {
-      "button": 2
-    },
-    "src/routes/evals/assessment-setup.tsx": {
-      "button": 2
-    },
-    "src/routes/evals/charts.tsx": {
-      "button": 2
-    },
-    "src/routes/evals/common.tsx": {
-      "button": 3
-    },
-    "src/routes/evals/comparison.tsx": {
-      "button": 5
-    },
-    "src/routes/evals/controls.tsx": {
-      "button": 3
-    },
-    "src/routes/evals/datasets.tsx": {
-      "button": 12
-    },
-    "src/routes/evals/detail.tsx": {
-      "button": 3
-    },
-    "src/routes/evals/list.tsx": {
-      "button": 3
-    },
-    "src/routes/evals/member.tsx": {
-      "button": 2
-    },
-    "src/routes/evals/pair.tsx": {
-      "button": 1
-    },
-    "src/routes/evals/review.tsx": {
-      "button": 2
-    },
-    "src/routes/evals/setup.tsx": {
-      "button": 7
-    },
     "src/routes/inbox/detail.tsx": {
       "button": 3,
       "svg": 2
     },
     "src/routes/inbox/list.tsx": {
       "button": 2
-    },
-    "src/routes/issues/history.tsx": {
-      "button": 1
-    },
-    "src/routes/issues/index.tsx": {
-      "button": 2
-    },
-    "src/routes/issues/issue-detail.tsx": {
-      "button": 6,
-      "svg": 1
     },
     "src/routes/login.tsx": {
       "button": 1
@@ -238,13 +167,6 @@
     "src/routes/projects/workflow-recommendations.tsx": {
       "button": 2
     },
-    "src/routes/reports/list.tsx": {
-      "button": 2
-    },
-    "src/routes/reports/report-view.tsx": {
-      "button": 3,
-      "svg": 1
-    },
     "src/routes/runs/actions.tsx": {
       "button": 3
     },
@@ -268,39 +190,6 @@
     },
     "src/routes/settings/git-key.tsx": {
       "button": 2
-    },
-    "src/routes/skill-description.tsx": {
-      "button": 1
-    },
-    "src/routes/skill-upload-dialog.tsx": {
-      "button": 2
-    },
-    "src/routes/skills.tsx": {
-      "button": 1
-    },
-    "src/routes/studio/canvas.tsx": {
-      "button": 4
-    },
-    "src/routes/studio/catalog-picker.tsx": {
-      "button": 6
-    },
-    "src/routes/studio/execution-form.tsx": {
-      "button": 3
-    },
-    "src/routes/studio/index.tsx": {
-      "button": 18
-    },
-    "src/routes/studio/inspector.tsx": {
-      "button": 12
-    },
-    "src/routes/studio/live.tsx": {
-      "button": 5
-    },
-    "src/routes/studio/tool-execution-form.tsx": {
-      "button": 4
-    },
-    "src/routes/studio/workspace-form.tsx": {
-      "button": 8
     },
     "src/routes/workflows/card.tsx": {
       "button": 1

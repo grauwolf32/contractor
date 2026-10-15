@@ -1,6 +1,8 @@
 import { useId, useState } from "react";
 import { Document, parseDocument } from "yaml";
 import { Dialog, DialogHeader } from "../../app/dialog";
+import { Button, Field } from "../../ui";
+import { DraftChoice, DraftField, DraftList } from "./advanced-fields";
 import {
   at,
   record,
@@ -59,57 +61,30 @@ export function Inspector({
     path: Path,
     multiline = false,
     number = false,
-  ) => {
-    const current = textValue(at(draft.value, path));
-    const commit = (value: string) => {
-      if (value !== current)
-        onPatch(path, number ? (value === "" ? null : Number(value)) : value);
-    };
-    return (
-      <label className="studio-field" key={JSON.stringify(path)}>
-        <span>{label}</span>
-        {multiline ? (
-          <textarea
-            key={current}
-            defaultValue={current}
-            rows={4}
-            onBlur={(event) => commit(event.target.value)}
-          />
-        ) : (
-          <input
-            key={current}
-            defaultValue={current}
-            type={number ? "number" : "text"}
-            onBlur={(event) => commit(event.target.value)}
-          />
-        )}
-      </label>
-    );
-  };
+  ) => (
+    <DraftField
+      key={JSON.stringify(path)}
+      editor={editor}
+      label={label}
+      path={path}
+      multiline={multiline}
+      number={number}
+    />
+  );
   const select = (
     label: string,
     path: Path,
     options: string[],
     fallback = "",
-  ) => {
-    const current = textValue(at(draft.value, path)) || fallback;
-    return (
-      <label className="studio-field">
-        <span>{label}</span>
-        <select
-          value={current}
-          onChange={(event) => onPatch(path, event.target.value)}
-        >
-          {!options.includes(current) ? (
-            <option value={current}>{current || "Choose…"}</option>
-          ) : null}
-          {options.map((option) => (
-            <option key={option}>{option}</option>
-          ))}
-        </select>
-      </label>
-    );
-  };
+  ) => (
+    <DraftChoice
+      editor={editor}
+      label={label}
+      path={path}
+      options={options}
+      fallback={fallback}
+    />
+  );
   const catalogField = (label: string, path: Path, kind: CatalogKind) => (
     <CatalogField
       key={JSON.stringify(path)}
@@ -130,49 +105,35 @@ export function Inspector({
     </label>
   );
   const remove = (path: Path, title: string) => (
-    <button
-      className="ui-btn"
-      onClick={() => onRemove({ ...node, path, title })}
-    >
+    <Button onClick={() => onRemove({ ...node, path, title })}>
       Remove {title}
-    </button>
+    </Button>
   );
-  const media = (path: Path) => {
-    const types = at(draft.value, path);
-    return (
-      <label className="studio-field">
-        <span>Media types (comma separated)</span>
-        <input
-          key={JSON.stringify(types)}
-          defaultValue={Array.isArray(types) ? types.join(", ") : ""}
-          onBlur={(event) => {
-            const next = event.target.value
-              .split(",")
-              .map((type) => type.trim())
-              .filter(Boolean);
-            if (JSON.stringify(next) !== JSON.stringify(types))
-              onPatch(path, next);
-          }}
-        />
-      </label>
-    );
-  };
+  const media = (path: Path) => (
+    <DraftList
+      editor={editor}
+      label="Media types (comma separated)"
+      path={path}
+    />
+  );
   return (
     <aside className="studio-inspector" aria-label="Block properties">
       <span className="studio-eyebrow">{node.type}</span>
       <h2>{node.title}</h2>
       {node.removable && typeof p[2] === "string" ? (
-        <label className="studio-field">
-          <span>Block name</span>
-          <input
-            key={node.title}
-            defaultValue={node.title}
-            onBlur={(event) => {
-              if (event.target.value !== node.title)
-                onRename(event.target.value);
-            }}
-          />
-        </label>
+        <Field label="Block name" className="studio-field">
+          {(control) => (
+            <input
+              {...control}
+              key={node.title}
+              defaultValue={node.title}
+              onBlur={(event) => {
+                if (event.target.value !== node.title)
+                  onRename(event.target.value);
+              }}
+            />
+          )}
+        </Field>
       ) : null}
       {node.type === "failure" ? (
         <p>
@@ -192,13 +153,12 @@ export function Inspector({
                 "isolated",
               )}
               {field("Instructions file", [...p, "instructions", "ref"])}
-              <button
-                className="ui-btn"
+              <Button
                 onClick={() => onPatch(["spec", "entryStage"], node.title)}
                 disabled={record(draft.value.spec).entryStage === node.title}
               >
                 Use as entry stage
-              </button>
+              </Button>
               <h3>Agents</h3>
               {Object.keys(record(value.agents)).map((name) => (
                 <div key={name} className="studio-group">
@@ -212,8 +172,7 @@ export function Inspector({
                   {remove([...p, "agents", name], `agent ${name}`)}
                 </div>
               ))}
-              <button
-                className="ui-btn"
+              <Button
                 onClick={() => {
                   const name = uniqueName(value.agents, "agent");
                   onPatch([...p, "agents", name], {
@@ -223,7 +182,7 @@ export function Inspector({
                 }}
               >
                 Add agent
-              </button>
+              </Button>
               <h3>Outcome transitions</h3>
               {OUTCOMES.map((outcome) => {
                 const path = [...p, "on", outcome],
@@ -235,46 +194,48 @@ export function Inspector({
                     : ["next", "retry", "escalate", "fail"];
                 return (
                   <div className="studio-group" key={outcome}>
-                    <label className="studio-field">
-                      <span>{outcome}</span>
-                      <select
-                        value={type}
-                        onChange={(event) => {
-                          const next = event.target.value;
-                          const first =
-                            Object.keys(
-                              record(record(draft.value.spec).stages),
-                            ).find((name) => name !== node.title) ?? "";
-                          onPatch(
-                            path,
-                            next === "next"
-                              ? { next: first }
-                              : next === "retry" || next === "escalate"
-                                ? {
-                                    [next]: {
-                                      maxAttempts: next === "retry" ? 2 : 1,
-                                      ...(next === "escalate"
-                                        ? {
-                                            executionConfig: {
-                                              ref: "execution@1",
-                                            },
-                                          }
-                                        : {}),
-                                      then: { fail: {} },
-                                    },
-                                  }
-                                : { [next]: {} },
-                          );
-                        }}
-                      >
-                        {!options.includes(type) ? (
-                          <option value="">Choose…</option>
-                        ) : null}
-                        {options.map((option) => (
-                          <option key={option}>{option}</option>
-                        ))}
-                      </select>
-                    </label>
+                    <Field label={outcome} className="studio-field">
+                      {(control) => (
+                        <select
+                          {...control}
+                          value={type}
+                          onChange={(event) => {
+                            const next = event.target.value;
+                            const first =
+                              Object.keys(
+                                record(record(draft.value.spec).stages),
+                              ).find((name) => name !== node.title) ?? "";
+                            onPatch(
+                              path,
+                              next === "next"
+                                ? { next: first }
+                                : next === "retry" || next === "escalate"
+                                  ? {
+                                      [next]: {
+                                        maxAttempts: next === "retry" ? 2 : 1,
+                                        ...(next === "escalate"
+                                          ? {
+                                              executionConfig: {
+                                                ref: "execution@1",
+                                              },
+                                            }
+                                          : {}),
+                                        then: { fail: {} },
+                                      },
+                                    }
+                                  : { [next]: {} },
+                            );
+                          }}
+                        >
+                          {!options.includes(type) ? (
+                            <option value="">Choose…</option>
+                          ) : null}
+                          {options.map((option) => (
+                            <option key={option}>{option}</option>
+                          ))}
+                        </select>
+                      )}
+                    </Field>
                     {type === "next"
                       ? select(
                           "Destination stage",
@@ -298,39 +259,38 @@ export function Inspector({
                             outcome={outcome}
                           />
                         ) : null}
-                        <label className="studio-field">
-                          <span>After attempts</span>
-                          <select
-                            value={
-                              textValue(
-                                record(record(action[type]).then).next,
-                              ) || "__fail"
-                            }
-                            onChange={(event) =>
-                              onPatch(
-                                [...path, type, "then"],
-                                event.target.value === "__fail"
-                                  ? { fail: {} }
-                                  : { next: event.target.value },
-                              )
-                            }
-                          >
-                            <option value="__fail">Fail</option>
-                            {Object.keys(
-                              record(record(draft.value.spec).stages),
-                            ).map((name) => (
-                              <option key={name}>{name}</option>
-                            ))}
-                          </select>
-                        </label>
+                        <Field label="After attempts" className="studio-field">
+                          {(control) => (
+                            <select
+                              {...control}
+                              value={
+                                textValue(
+                                  record(record(action[type]).then).next,
+                                ) || "__fail"
+                              }
+                              onChange={(event) =>
+                                onPatch(
+                                  [...path, type, "then"],
+                                  event.target.value === "__fail"
+                                    ? { fail: {} }
+                                    : { next: event.target.value },
+                                )
+                              }
+                            >
+                              <option value="__fail">Fail</option>
+                              {Object.keys(
+                                record(record(draft.value.spec).stages),
+                              ).map((name) => (
+                                <option key={name}>{name}</option>
+                              ))}
+                            </select>
+                          )}
+                        </Field>
                       </>
                     ) : null}
-                    <button
-                      className="ui-btn"
-                      onClick={() => onConnect(outcome)}
-                    >
+                    <Button onClick={() => onConnect(outcome)}>
                       Connect {outcome} on canvas
-                    </button>
+                    </Button>
                   </div>
                 );
               })}
@@ -371,8 +331,7 @@ export function Inspector({
                   </div>
                 ),
               )}
-              <button
-                className="ui-btn"
+              <Button
                 onClick={() => {
                   const name = uniqueName(
                     record(value.context).artifacts,
@@ -388,7 +347,7 @@ export function Inspector({
                 }}
               >
                 Add incoming file
-              </button>
+              </Button>
               <h3>Result files</h3>
               {Object.entries(record(record(value.result).artifacts)).map(
                 ([name, slot]) => (
@@ -431,8 +390,7 @@ export function Inspector({
                   </div>
                 ),
               )}
-              <button
-                className="ui-btn"
+              <Button
                 onClick={() => {
                   const name = uniqueName(
                       record(value.result).artifacts,
@@ -453,7 +411,7 @@ export function Inspector({
                 }}
               >
                 Add result file
-              </button>
+              </Button>
               <h3>Workflow output bindings</h3>
               {Object.entries(record(value.workflowOutputs)).map(([name]) => (
                 <div className="studio-group" key={name}>
@@ -468,29 +426,32 @@ export function Inspector({
                   )}
                 </div>
               ))}
-              <label className="studio-field">
-                <span>Bind workflow output</span>
-                <select
-                  value=""
-                  onChange={(event) =>
-                    onPatch(
-                      [...p, "workflowOutputs", event.target.value],
-                      Object.keys(record(record(value.result).artifacts))[0] ??
-                        "",
-                    )
-                  }
-                >
-                  <option value="">Choose an output…</option>
-                  {Object.keys(record(record(draft.value.spec).outputs))
-                    .filter(
-                      (name) =>
-                        !Object.hasOwn(record(value.workflowOutputs), name),
-                    )
-                    .map((name) => (
-                      <option key={name}>{name}</option>
-                    ))}
-                </select>
-              </label>
+              <Field label="Bind workflow output" className="studio-field">
+                {(control) => (
+                  <select
+                    {...control}
+                    value=""
+                    onChange={(event) =>
+                      onPatch(
+                        [...p, "workflowOutputs", event.target.value],
+                        Object.keys(
+                          record(record(value.result).artifacts),
+                        )[0] ?? "",
+                      )
+                    }
+                  >
+                    <option value="">Choose an output…</option>
+                    {Object.keys(record(record(draft.value.spec).outputs))
+                      .filter(
+                        (name) =>
+                          !Object.hasOwn(record(value.workflowOutputs), name),
+                      )
+                      .map((name) => (
+                        <option key={name}>{name}</option>
+                      ))}
+                  </select>
+                )}
+              </Field>
               <WorkspaceForm editor={editor} stagePath={p} />
               <StageExecutionForm editor={editor} name={node.title} />
             </>
@@ -501,27 +462,7 @@ export function Inspector({
               {node.type === "output"
                 ? check("Primary output", [...p, "primary"])
                 : null}
-              <label className="studio-field">
-                <span>Media types (comma separated)</span>
-                <input
-                  key={JSON.stringify(value.mediaTypes)}
-                  defaultValue={
-                    Array.isArray(value.mediaTypes)
-                      ? value.mediaTypes.join(", ")
-                      : ""
-                  }
-                  onBlur={(event) => {
-                    const types = event.target.value
-                      .split(",")
-                      .map((type) => type.trim())
-                      .filter(Boolean);
-                    if (
-                      JSON.stringify(types) !== JSON.stringify(value.mediaTypes)
-                    )
-                      onPatch([...p, "mediaTypes"], types);
-                  }}
-                />
-              </label>
+              {media([...p, "mediaTypes"])}
             </>
           ) : null}
           {node.type === "parameter"
@@ -551,41 +492,43 @@ export function Inspector({
               {Object.entries(record(value.inputs)).map(([name, input]) => (
                 <div className="studio-group" key={name}>
                   <strong>{name}</strong>
-                  <label className="studio-field">
-                    <span>Source</span>
-                    <select
-                      value={textValue(record(input).source)}
-                      onChange={(event) => {
-                        const path = [...p, "inputs", name],
-                          source = event.target.value;
-                        const document = draft.document.clone();
-                        document.setIn([...path, "source"], source);
-                        if (
-                          ["item-package", "execution-manifest"].includes(
-                            source,
+                  <Field label="Source" className="studio-field">
+                    {(control) => (
+                      <select
+                        {...control}
+                        value={textValue(record(input).source)}
+                        onChange={(event) => {
+                          const path = [...p, "inputs", name],
+                            source = event.target.value;
+                          const document = draft.document.clone();
+                          document.setIn([...path, "source"], source);
+                          if (
+                            ["item-package", "execution-manifest"].includes(
+                              source,
+                            )
                           )
-                        )
-                          document.deleteIn([...path, "name"]);
-                        if (
-                          !["prepare-output", "retained-output"].includes(
-                            source,
+                            document.deleteIn([...path, "name"]);
+                          if (
+                            !["prepare-output", "retained-output"].includes(
+                              source,
+                            )
                           )
-                        )
-                          document.deleteIn([...path, "role"]);
-                        onReplace({ ...draft, source: document.toString() });
-                      }}
-                    >
-                      {[
-                        "audit-input",
-                        "item-package",
-                        "execution-manifest",
-                        "prepare-output",
-                        "retained-output",
-                      ].map((source) => (
-                        <option key={source}>{source}</option>
-                      ))}
-                    </select>
-                  </label>
+                            document.deleteIn([...path, "role"]);
+                          onReplace({ ...draft, source: document.toString() });
+                        }}
+                      >
+                        {[
+                          "audit-input",
+                          "item-package",
+                          "execution-manifest",
+                          "prepare-output",
+                          "retained-output",
+                        ].map((source) => (
+                          <option key={source}>{source}</option>
+                        ))}
+                      </select>
+                    )}
+                  </Field>
                   {[
                     "audit-input",
                     "prepare-output",
@@ -605,8 +548,7 @@ export function Inspector({
                   {remove([...p, "inputs", name], `binding ${name}`)}
                 </div>
               ))}
-              <button
-                className="ui-btn"
+              <Button
                 onClick={() => {
                   const name = uniqueName(value.inputs, "input");
                   onPatch([...p, "inputs", name], {
@@ -618,7 +560,7 @@ export function Inspector({
                 }}
               >
                 Add input binding
-              </button>
+              </Button>
               <p>
                 Edit input sources, output names, parameters and worker
                 completion in block YAML.
@@ -701,24 +643,11 @@ export function Inspector({
           {node.type === "toolset" ? (
             <>
               {field("Toolset", [...p, "ref"])}
-              <label className="studio-field">
-                <span>Tools (comma separated)</span>
-                <input
-                  key={JSON.stringify(value.tools)}
-                  defaultValue={
-                    Array.isArray(value.tools) ? value.tools.join(", ") : ""
-                  }
-                  onBlur={(event) =>
-                    onPatch(
-                      [...p, "tools"],
-                      event.target.value
-                        .split(",")
-                        .map((tool) => tool.trim())
-                        .filter(Boolean),
-                    )
-                  }
-                />
-              </label>
+              <DraftList
+                editor={editor}
+                label="Tools (comma separated)"
+                path={[...p, "tools"]}
+              />
             </>
           ) : null}
           {node.type === "skill" ? (
@@ -727,17 +656,11 @@ export function Inspector({
               {field("Namespace", [...p, "namespace"])}
             </>
           ) : null}
-          <button className="ui-btn" onClick={() => setEditing(true)}>
-            Edit block YAML
-          </button>
+          <Button onClick={() => setEditing(true)}>Edit block YAML</Button>
           {node.removable ? (
-            <button
-              className="ui-btn"
-              data-variant="danger"
-              onClick={() => onRemove(node)}
-            >
+            <Button variant="danger" onClick={() => onRemove(node)}>
               Remove block
-            </button>
+            </Button>
           ) : null}
         </>
       )}
@@ -778,7 +701,7 @@ function BlockYAML({
     [discard, setDiscard] = useState(false);
   return (
     <Dialog
-      className="ui-dialog studio-dialog"
+      className="ui-dialog ui-panel"
       labelledBy={id}
       onRequestClose={() => (source === initial ? onClose() : setDiscard(true))}
     >
@@ -794,54 +717,53 @@ function BlockYAML({
         Changes apply only to this block. Other fields and comments stay in the
         document.
       </p>
-      <label className="studio-field">
-        <span>Block YAML</span>
-        <textarea
-          className="studio-source"
-          rows={18}
-          value={source}
-          onChange={(event) => {
-            setSource(event.target.value);
-            setError("");
-            setDiscard(false);
-          }}
-        />
-      </label>
+      <Field label="Block YAML" className="studio-field">
+        {(control) => (
+          <textarea
+            {...control}
+            className="studio-source"
+            rows={18}
+            value={source}
+            onChange={(event) => {
+              setSource(event.target.value);
+              setError("");
+              setDiscard(false);
+            }}
+          />
+        )}
+      </Field>
       {error ? <p role="alert">{error}</p> : null}
       {discard ? (
         <p role="alert">
           Discard unapplied block edits?{" "}
-          <button className="ui-btn" onClick={onClose}>
-            Discard block edits
-          </button>
-          <button className="ui-btn" onClick={() => setDiscard(false)}>
-            Keep editing
-          </button>
+          <Button onClick={onClose}>Discard block edits</Button>
+          <Button onClick={() => setDiscard(false)}>Keep editing</Button>
         </p>
       ) : null}
-      <button
-        className="ui-btn"
-        onClick={() => {
-          try {
-            if (source !== initial) {
-              const block = parseDocument(source, { uniqueKeys: true });
-              if (block.errors.length)
-                throw new Error(block.errors[0]!.message);
-              const document = draft.document.clone();
-              document.setIn(node.path, block.contents);
-              // Parent checks enforce the same size/alias bounds as file imports.
-              onReplace({ ...draft, source: document.toString() });
+      <div className="ui-dialog-actions">
+        <Button
+          onClick={() => {
+            try {
+              if (source !== initial) {
+                const block = parseDocument(source, { uniqueKeys: true });
+                if (block.errors.length)
+                  throw new Error(block.errors[0]!.message);
+                const document = draft.document.clone();
+                document.setIn(node.path, block.contents);
+                // Parent checks enforce the same size/alias bounds as file imports.
+                onReplace({ ...draft, source: document.toString() });
+              }
+              onClose();
+            } catch (error) {
+              setError(
+                error instanceof Error ? error.message : "Invalid block YAML.",
+              );
             }
-            onClose();
-          } catch (error) {
-            setError(
-              error instanceof Error ? error.message : "Invalid block YAML.",
-            );
-          }
-        }}
-      >
-        Apply block YAML
-      </button>
+          }}
+        >
+          Apply block YAML
+        </Button>
+      </div>
     </Dialog>
   );
 }

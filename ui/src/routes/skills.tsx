@@ -11,7 +11,7 @@ import { useCursorStack } from "../app/pagination";
 import { QueryView } from "../app/query-view";
 import { RecordedTime } from "../app/recorded-time";
 import { RefreshButton } from "../app/refresh-button";
-import { EmptyState } from "../ui";
+import { Button, EmptyState } from "../ui";
 import { ArtifactStoredNotice } from "./artifacts/bindings";
 import { artifactDetailPath } from "./artifacts/paths";
 import { LibrarySectionHeader } from "./catalog/library-parts";
@@ -54,14 +54,9 @@ export function SkillsRoute() {
               onRefresh={() => void query.refetch()}
               label="Refresh"
             />
-            <button
-              type="button"
-              className="ui-btn"
-              data-variant="primary"
-              onClick={() => setUploadOpen(true)}
-            >
+            <Button variant="primary" onClick={() => setUploadOpen(true)}>
               Upload Skills
-            </button>
+            </Button>
           </>
         }
       />
@@ -95,22 +90,21 @@ export function SkillsRoute() {
             <h3 id={listHeading} className="library-block-title">
               Current packages
             </h3>
-            <p className="library-muted">
+            <p className="ui-caption">
               Each package holds a SKILL.md and its files. Open one to read it
               or to see earlier revisions.
             </p>
           </div>
-          <span className="ui-badge library-tag">Global</span>
+          <span className="ui-badge">Global</span>
         </header>
         <QueryView
           query={query}
           loading={
-            <p className="library-muted" aria-live="polite">
+            <p className="ui-caption" aria-live="polite">
               Loading Skills…
             </p>
           }
           errorContext="Could not load Skills"
-          onRetry={() => void query.refetch()}
           isEmpty={(queryData) => queryData.items.length === 0}
           empty={
             <EmptyState title="No global Skill packages found.">

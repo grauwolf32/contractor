@@ -16,7 +16,6 @@ summary:focus-visible,
     .ui-dialog,
     .ui-field,
     .mobile-section-picker,
-    .eval-field,
     .eval-key-value
   )
   :is(
@@ -68,20 +67,20 @@ summary:focus-visible,
   min-inline-size: 0;
 }
 
-:is(.route-page form, .ui-dialog, .ui-field, .eval-field, .eval-key-value)
+:is(.route-page form, .ui-dialog, .ui-field, .eval-key-value)
   :is(input, textarea)::placeholder {
   color: var(--muted);
   opacity: 1;
 }
 
-:is(.route-page form, .ui-dialog, .ui-field, .eval-field, .eval-key-value)
+:is(.route-page form, .ui-dialog, .ui-field, .eval-key-value)
   :is(input, select, textarea):focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
   border-color: var(--focus);
 }
 
-:is(.route-page form, .ui-dialog, .ui-field, .eval-field, .eval-key-value)
+:is(.route-page form, .ui-dialog, .ui-field, .eval-key-value)
   :is(input, select, textarea)[aria-invalid="true"] {
   border-color: var(--danger);
 }
@@ -91,13 +90,6 @@ summary:focus-visible,
 }
 
 .project-form-actions,
-.skill-upload-actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.65rem;
-}
-
 .optional-settings {
   border: 1px solid var(--line);
   border-radius: 0.7rem;

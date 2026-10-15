@@ -13,50 +13,11 @@ const DIGEST = `sha256:${"2".repeat(64)}`;
 
 type Inputs = AuditProfile["inputs"];
 
-export function profileFixture(
-  name: string,
-  overrides: Partial<Omit<AuditProfile, "ref">> & { version?: string } = {},
-): AuditProfile {
-  const { version = "1", ...rest } = overrides;
-  return build.conforming("AuditProfile", {
-    ref: { name, version, digest: DIGEST },
-    mode: "risk-assessment",
-    standards: [],
-    inputs: { source: { required: true, mediaTypes: ["application/zip"] } },
-    inventory: {
-      implementation: "standard-mappings@1",
-      itemWorkflowRole: "check",
-    },
-    execution: {
-      roundMode: "fixed-barrier",
-      maxRounds: 1,
-      batchSize: 1,
-      maxItemsPerRound: 10,
-      maxItemsTotal: 10,
-      maxSubmittedRuns: 30,
-      maxItemRunAttempts: 3,
-      deadlineSeconds: 86400,
-      maxEvidenceBytes: 67_108_864,
-      incompleteRound: "assess-with-gaps",
-    },
-    interaction: {
-      activeChecks: "prohibited",
-      findingConfirmation: "human-required",
-      notApplicable: "human-required",
-      reportAcceptance: "automatic",
-    },
-    serverCompatible: true,
-    requiresInputValidation: true,
-    compatibilityReasons: [],
-    ...rest,
-  });
-}
-
 const SOURCE: Inputs = {
   source: { required: true, mediaTypes: ["application/zip"] },
 };
 const OPENAPI_AND_SOURCE: Inputs = {
-  source: { required: true, mediaTypes: ["application/zip"] },
+  ...SOURCE,
   openapi: {
     required: true,
     mediaTypes: ["application/json", "application/yaml", "application/zip"],
@@ -76,6 +37,34 @@ function limits(total: number, attempts = 3) {
     maxEvidenceBytes: 67_108_864,
     incompleteRound: "assess-with-gaps" as const,
   };
+}
+
+export function profileFixture(
+  name: string,
+  overrides: Partial<Omit<AuditProfile, "ref">> & { version?: string } = {},
+): AuditProfile {
+  const { version = "1", ...rest } = overrides;
+  return build.conforming("AuditProfile", {
+    ref: { name, version, digest: DIGEST },
+    mode: "risk-assessment",
+    standards: [],
+    inputs: SOURCE,
+    inventory: {
+      implementation: "standard-mappings@1",
+      itemWorkflowRole: "check",
+    },
+    execution: limits(10),
+    interaction: {
+      activeChecks: "prohibited",
+      findingConfirmation: "human-required",
+      notApplicable: "human-required",
+      reportAcceptance: "automatic",
+    },
+    serverCompatible: true,
+    requiresInputValidation: true,
+    compatibilityReasons: [],
+    ...rest,
+  });
 }
 
 export const trace = profileFixture("openapi-operation-trace", {

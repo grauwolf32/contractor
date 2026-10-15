@@ -86,6 +86,6 @@ export function useEvalExperiment(id: string) {
     queryKey: queryKeys.evals.experiment(id),
     enabled: !!id,
     queryFn: ({ signal }) => getEvalExperiment(api, id, signal),
-    refetchInterval: (query) => evalExperimentPollInterval(query.state.data),
+    refetchInterval: evalExperimentPollInterval,
   });
 }

@@ -5,4 +5,4 @@ export { FindingSummary } from "./finding-summary";
 export { FindingDecision } from "./finding-decision";
 export { ActionDecision, ReportDecision } from "./review-decision";
 export { DecisionRecord } from "./decision-record";
-export type { AuditFindingDecisionResult, AuditReviewDecision } from "./model";
+export type { AuditFindingDecisionResult } from "./model";

@@ -32,7 +32,7 @@ function digest(value: unknown): Promise<string> {
 
 // Persist only correlation, never request bodies containing cases, rubrics,
 // credentials or input parameters. The server owns the saved draft.
-export async function mutationKey(
+async function mutationKey(
   owner: string,
   operation: string,
   request: unknown,

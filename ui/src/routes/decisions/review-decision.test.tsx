@@ -21,11 +21,7 @@ import {
   makeTriageReview,
   proposedReport,
 } from "./test-support";
-import {
-  json,
-  failure,
-  type Fallback as Handler,
-} from "../../test/fake-server";
+import { failure, fakeServer, json, type Routes } from "../../test/fake-server";
 import { renderWithAPI } from "../../test/render";
 
 /** A Server that keeps one review request. */
@@ -34,12 +30,19 @@ function reviewServer(
   refuse?: (attempt: number) => Response | undefined,
 ) {
   const state = { review: initial, attempts: 0 };
-  const handle: Handler = async (request, url) => {
-    const path = url.pathname;
-    const base = `/v1/audits/${AUDIT_ID}/reviews/${state.review.requestId}`;
-    if (request.method === "GET" && path === base)
+  const routes = {
+    "GET /v1/audits/{auditId}/reviews/{requestId}": ({ params }) => {
+      expect(params).toEqual({
+        auditId: AUDIT_ID,
+        requestId: state.review.requestId,
+      });
       return json(state.review, 200, { ETag: `"${state.review.revision}"` });
-    if (request.method === "POST" && path === `${base}/decisions`) {
+    },
+    "POST /v1/audits/{auditId}/reviews/{requestId}/decisions": async ({
+      request,
+      params,
+    }) => {
+      expect(params.requestId).toBe(state.review.requestId);
       state.attempts += 1;
       const refused = refuse?.(state.attempts);
       if (refused !== undefined) return refused;
@@ -62,10 +65,9 @@ function reviewServer(
         decision,
       };
       return json({ request: state.review, decision, replayed: false });
-    }
-    throw new Error(`unexpected ${request.method} ${path}`);
-  };
-  return { state, handle };
+    },
+  } satisfies Routes;
+  return { state, routes };
 }
 
 /** Reads the request like a page does and renders its decision. */
@@ -147,7 +149,7 @@ describe("ActionDecision", () => {
           />
         )}
       />,
-      { server: server.handle },
+      { server: fakeServer(server.routes) },
     );
     const user = userEvent.setup();
     const region = await bar();
@@ -211,7 +213,7 @@ describe("ActionDecision", () => {
           <ActionDecision auditId={AUDIT_ID} review={review} />
         )}
       />,
-      { server: server.handle },
+      { server: fakeServer(server.routes) },
     );
     const user = userEvent.setup();
     const region = await bar();
@@ -391,7 +393,7 @@ describe("ReportDecision", () => {
           />
         )}
       />,
-      { server: server.handle },
+      { server: fakeServer(server.routes) },
     );
     const user = userEvent.setup();
     const region = await bar();
@@ -501,21 +503,24 @@ describe("ReportDecision", () => {
           report = options.refusedReport;
         return refused;
       });
-      const handle: Handler = async (request, url) => {
-        const path = url.pathname;
-        if (
-          request.method === "GET" &&
-          path === `/v1/audits/${AUDIT_ID}/report`
-        )
-          return json(server.state.review.state === "decided" ? ready : report);
-        if (request.method === "POST") {
+      const routes = {
+        ...server.routes,
+        "GET /v1/audits/{auditId}/report": () =>
+          json(server.state.review.state === "decided" ? ready : report),
+        "POST /v1/audits/{auditId}/reviews/{requestId}/decisions": (call) => {
           sentDecision = true;
-          return server.handle(request, url);
-        }
-        if (sentDecision) await options.afterDecision?.();
-        return server.handle(request, url);
-      };
-      return { ...server, handle };
+          return server.routes[
+            "POST /v1/audits/{auditId}/reviews/{requestId}/decisions"
+          ](call);
+        },
+        "GET /v1/audits/{auditId}/reviews/{requestId}": async (call) => {
+          if (sentDecision) await options.afterDecision?.();
+          return server.routes["GET /v1/audits/{auditId}/reviews/{requestId}"](
+            call,
+          );
+        },
+      } satisfies Routes;
+      return { state: server.state, routes };
     }
 
     it("keeps the bar while recording, even once the report moved on", async () => {
@@ -526,7 +531,7 @@ describe("ReportDecision", () => {
       const onRecording = vi.fn();
       const server = reportServer({ afterDecision: () => held });
       renderWithAPI(<ReportPage onRecording={onRecording} />, {
-        server: server.handle,
+        server: fakeServer(server.routes),
       });
       const user = userEvent.setup();
       const region = await bar();
@@ -581,7 +586,7 @@ describe("ReportDecision", () => {
         refusedReport: { status: "pending" },
       });
       renderWithAPI(<ReportPage onRecording={onRecording} />, {
-        server: server.handle,
+        server: fakeServer(server.routes),
       });
       const user = userEvent.setup();
       const region = await bar();
@@ -616,15 +621,7 @@ describe("ReportDecision", () => {
   describe("without a report from the page", () => {
     /** A Server whose report read waits for `answer`. */
     function reportRead(answer: () => Response | Promise<Response>) {
-      const handle: Handler = (request, url) => {
-        if (
-          request.method === "GET" &&
-          url.pathname === `/v1/audits/${AUDIT_ID}/report`
-        )
-          return answer();
-        throw new Error(`unexpected ${request.method} ${url.pathname}`);
-      };
-      return handle;
+      return fakeServer({ "GET /v1/audits/{auditId}/report": () => answer() });
     }
 
     it("reads the report and offers actions only once it carries this request", async () => {

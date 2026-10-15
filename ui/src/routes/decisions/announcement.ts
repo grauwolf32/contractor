@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 /** How long a status message such as "Decision recorded: …" stays. */
-export const ANNOUNCEMENT_MS = 8_000;
+const ANNOUNCEMENT_MS = 8_000;
 
 interface Announcement {
   /** The message for the live region, or "". */

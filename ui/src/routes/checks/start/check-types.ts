@@ -338,11 +338,19 @@ export function formatName(mediaType: string): string {
     : mediaType;
 }
 
+/** "a", "a and b", "a, b and c"; `or` joins alternatives instead. */
+export function joinWords(
+  words: readonly string[],
+  conjunction: "and" | "or" = "and",
+): string {
+  return words.length <= 1
+    ? (words[0] ?? "")
+    : `${words.slice(0, -1).join(", ")} ${conjunction} ${words.at(-1)}`;
+}
+
 /** "ZIP", "JSON or YAML", "JSON, YAML or ZIP". */
 export function formatList(mediaTypes: readonly string[]): string {
-  const names = [...new Set(mediaTypes.map(formatName))];
-  if (names.length <= 1) return names[0] ?? "";
-  return `${names.slice(0, -1).join(", ")} or ${names.at(-1)}`;
+  return joinWords([...new Set(mediaTypes.map(formatName))], "or");
 }
 
 /** The project's current materials whose format matches an input. */

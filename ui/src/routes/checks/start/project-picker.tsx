@@ -44,7 +44,7 @@ export function ProjectPicker({ notice }: { notice?: string | undefined }) {
     );
   else if (index.isPending && index.projects.length === 0)
     body = (
-      <p className="start-pane-block start-quiet" role="status">
+      <p className="start-pane-block ui-caption" role="status">
         Loading projects…
       </p>
     );

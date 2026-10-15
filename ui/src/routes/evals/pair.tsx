@@ -6,8 +6,9 @@ import { getEvalPair, type EvalMember } from "../../api/evals";
 import { queryKeys } from "../../api/query-keys";
 import { ContextLink, ReturnLink } from "../../app/context-navigation";
 import { useDocumentTitle } from "../../app/document-title";
+import { formatTimestamp } from "../../app/format";
 import { RefreshButton } from "../../app/refresh-button";
-import { IdChip, StatusChip, TechnicalDetails } from "../../ui";
+import { Button, Facts, IdChip, StatusChip, TechnicalDetails } from "../../ui";
 import { ArmKey, EvalError, EvalFrame } from "./common";
 import { experimentListPath, experimentPath } from "./labels";
 import { artifactHref } from "./links";
@@ -152,11 +153,9 @@ export function EvalPairRoute() {
                 <MemberSummary member={member} />
                 <MemberExecutions id={experimentId} member={member} />
                 {canReview && member.resultSha256 ? (
-                  <div className="eval-actions">
-                    <button
-                      type="button"
-                      className="ui-btn"
-                      data-size="sm"
+                  <div className="ui-toolbar">
+                    <Button
+                      size="sm"
                       onClick={(event) => {
                         reviewTrigger.current = event.currentTarget;
                         setRecorded("");
@@ -164,14 +163,14 @@ export function EvalPairRoute() {
                       }}
                     >
                       Review {label}
-                    </button>
+                    </Button>
                   </div>
                 ) : null}
               </section>
             ))}
           </div>
           {pair.data.pair.exclusions.map((reason) => (
-            <p className="eval-muted" key={reason}>
+            <p className="ui-caption" key={reason}>
               {reason.replaceAll("_", " ")}
             </p>
           ))}
@@ -205,8 +204,7 @@ export function EvalPairRoute() {
                     <details className="eval-disclosure">
                       <summary>
                         {record.kind === "result" ? "Result" : "Assessment"} ·{" "}
-                        {record.actorId} ·{" "}
-                        {new Date(record.createdAt).toLocaleString()}
+                        {record.actorId} · {formatTimestamp(record.createdAt)}
                       </summary>
                       <div className="eval-disclosure-body">
                         {"outputs" in record.document ? (
@@ -217,7 +215,7 @@ export function EvalPairRoute() {
                               {record.document.collection.status}
                             </p>
                             {record.document.collection.gaps.map((gap) => (
-                              <p className="eval-muted" key={gap}>
+                              <p className="ui-caption" key={gap}>
                                 {gap}
                               </p>
                             ))}
@@ -258,26 +256,31 @@ export function EvalPairRoute() {
                           </>
                         )}
                         <TechnicalDetails summary="Record digests">
-                          <dl className="eval-facts">
-                            <dt>Record</dt>
-                            <dd>
-                              <IdChip
-                                value={record.recordSha256}
-                                label="record digest"
-                              />
-                            </dd>
-                            <dt>Predecessor</dt>
-                            <dd>
-                              {record.previousRecordSha256 ? (
-                                <IdChip
-                                  value={record.previousRecordSha256}
-                                  label="predecessor digest"
-                                />
-                              ) : (
-                                "First revision"
-                              )}
-                            </dd>
-                          </dl>
+                          <Facts
+                            size="sm"
+                            items={[
+                              {
+                                term: "Record",
+                                value: (
+                                  <IdChip
+                                    value={record.recordSha256}
+                                    label="record digest"
+                                  />
+                                ),
+                              },
+                              {
+                                term: "Predecessor",
+                                value: record.previousRecordSha256 ? (
+                                  <IdChip
+                                    value={record.previousRecordSha256}
+                                    label="predecessor digest"
+                                  />
+                                ) : (
+                                  "First revision"
+                                ),
+                              },
+                            ]}
+                          />
                         </TechnicalDetails>
                       </div>
                     </details>
@@ -285,7 +288,7 @@ export function EvalPairRoute() {
                 ))}
               </ul>
             ) : (
-              <p className="eval-muted">No attributed records yet.</p>
+              <p className="ui-caption">No attributed records yet.</p>
             )}
           </section>
         </>

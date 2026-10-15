@@ -9,6 +9,7 @@ import {
 } from "../../api/audits";
 import { usePublicAPI } from "../../api/context";
 import { queryKeys } from "../../api/query-keys";
+import { Button } from "../../ui";
 
 interface DuplicatePickerProps {
   auditId: string;
@@ -167,13 +168,13 @@ export function DuplicatePicker({
         <p className="decisions-duplicate-note" role="alert">
           The possible issues of this check could not be loaded. You can still
           enter the exact ID of the original.{" "}
-          <button
-            type="button"
-            className="decisions-text-button"
+          <Button
+            variant="link"
+            size="xs"
             onClick={() => void candidates.refetch()}
           >
             Try again
-          </button>
+          </Button>
         </p>
       ) : others.length === 0 ? (
         <p className="decisions-duplicate-note">
