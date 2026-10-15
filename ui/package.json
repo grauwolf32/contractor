@@ -10,7 +10,7 @@
   "scripts": {
     "dev": "vite",
     "start": "node server/index.mjs",
-    "generate": "openapi-typescript ../api/openapi/contractor-public-v1.yaml -o src/api/generated/public.ts",
+    "generate": "openapi-typescript ../api/openapi/contractor-public-v1.yaml -o src/api/generated/public.ts && node scripts/generate-schemas.mjs",
     "generate:check": "node scripts/check-generated.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
@@ -23,6 +23,7 @@
     "build": "vite build"
   },
   "dependencies": {
+    "@cfworker/json-schema": "4.1.1",
     "@fontsource-variable/jetbrains-mono": "5.3.0",
     "@fontsource-variable/manrope": "5.3.0",
     "@likec4/core": "1.56.0",
