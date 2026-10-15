@@ -1,16 +1,21 @@
 import { describe, expect, it } from "vitest";
 
+import type {
+  AuditCoverageRow,
+  AuditFinding,
+  AuditItem,
+} from "../../../api/audits";
+
 import {
   buildEntries,
+  type CheckEntry,
   commonPathPrefix,
   countLegend,
   endpointArea,
   entryName,
   filterEntries,
-  findingOnItem,
   groupByKind,
   issueSummary,
-  itemStatus,
   legend,
   relativePath,
   splitIssues,
@@ -25,6 +30,22 @@ import {
   requirementRow,
   workspaceOf,
 } from "./check-test-support";
+
+/** The status buildEntries gives one row with its item, if loaded. */
+function itemStatus(
+  row: AuditCoverageRow,
+  item: AuditItem | undefined,
+): CheckEntry["status"] {
+  return buildEntries([row], item === undefined ? [] : [item], [], "item")[0]!
+    .status;
+}
+
+/** Whether buildEntries lists the possible issue on the row's item. */
+function findingOnItem(finding: AuditFinding, row: AuditCoverageRow): boolean {
+  return buildEntries([row], [], [finding], "item")[0]!.findings.includes(
+    finding,
+  );
+}
 
 describe("check model", () => {
   it("names items by their coverage, or by the work going on before it", () => {
@@ -138,7 +159,6 @@ describe("check model", () => {
 
   it("ties a possible issue to its item by assessment, subject or operation", () => {
     const row = endpointRow("item_1", 0, "GET", "/orders", "traced-complete");
-    const operation = { method: "GET", path: "/orders" };
     expect(
       findingOnItem(
         makeFinding("a", "f", "t", null, {
@@ -156,25 +176,18 @@ describe("check model", () => {
           },
         }),
         row,
-        operation,
       ),
     ).toBe(true);
+    expect(findingOnItem(makeFinding("a", "f", "t", row.subjectKey), row)).toBe(
+      true,
+    );
     expect(
-      findingOnItem(makeFinding("a", "f", "t", row.subjectKey), row, operation),
+      findingOnItem(makeFinding("a", "f", "t", "get https://host/orders"), row),
     ).toBe(true);
-    expect(
-      findingOnItem(
-        makeFinding("a", "f", "t", "get https://host/orders"),
-        row,
-        operation,
-      ),
-    ).toBe(true);
-    expect(
-      findingOnItem(makeFinding("a", "f", "t", "POST /orders"), row, operation),
-    ).toBe(false);
-    expect(
-      findingOnItem(makeFinding("a", "f", "t", null), row, operation),
-    ).toBe(false);
+    expect(findingOnItem(makeFinding("a", "f", "t", "POST /orders"), row)).toBe(
+      false,
+    );
+    expect(findingOnItem(makeFinding("a", "f", "t", null), row)).toBe(false);
   });
 
   it("filters by result group and searches task, result, evidence and attempts", () => {

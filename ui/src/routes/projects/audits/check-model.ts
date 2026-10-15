@@ -54,7 +54,7 @@ export interface CheckEntry {
 }
 
 /** A coverage status, or the work going on while it has none yet. */
-export function itemStatus(
+function itemStatus(
   row: Pick<AuditCoverageRow, "coverage">,
   item: Pick<AuditItem, "state"> | undefined,
 ): ItemStatus {
@@ -95,7 +95,7 @@ function subjectOperation(key: string): ItemOperation | undefined {
  * Whether a possible issue belongs to an item: its current assessment names
  * the item, or its subject is the item's subject or traced operation.
  */
-export function findingOnItem(
+function findingOnItem(
   finding: AuditFinding,
   row: Pick<AuditCoverageRow, "itemId" | "itemKey" | "subjectKey">,
   operation: ItemOperation | undefined,
