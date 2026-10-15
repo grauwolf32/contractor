@@ -5,13 +5,8 @@ import { describe, expect, it, vi } from "vitest";
 import type { ArtifactMetadata } from "../../api/artifacts";
 import { sha256Hex } from "../../app/digest";
 import { conforming } from "../../test/builders";
-import {
-  bytes,
-  fakeServer,
-  invalidJSON,
-  json,
-  page,
-} from "../../test/fake-server";
+import { fakeServer, invalidJSON } from "../../test/fake-server";
+import { bytes, json, page } from "../../test/responses";
 import { renderWithAPI, testSession } from "../../test/render";
 import { EvalArtifactPicker } from "./artifact-picker";
 

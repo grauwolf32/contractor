@@ -3,7 +3,8 @@ import { describe, expect, it } from "vitest";
 
 import { queryKeys } from "../../api/query-keys";
 import * as build from "../../test/builders";
-import { fakeServer, json, page } from "../../test/fake-server";
+import { fakeServer } from "../../test/fake-server";
+import { json, page } from "../../test/responses";
 import { renderWithAPI } from "../../test/render";
 import {
   useWorkspaceProject,

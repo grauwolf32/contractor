@@ -22,7 +22,8 @@ import {
   makeTriageReview,
   proposedReport,
 } from "./test-support";
-import { failure, fakeServer, json, type Routes } from "../../test/fake-server";
+import { fakeServer, type Routes } from "../../test/fake-server";
+import { failure, json } from "../../test/responses";
 import { renderWithAPI } from "../../test/render";
 
 /** A Server that keeps one review request. */

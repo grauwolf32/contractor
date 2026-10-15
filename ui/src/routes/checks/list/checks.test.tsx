@@ -5,14 +5,13 @@ import { describe, expect, it } from "vitest";
 import type { Audit, AuditState } from "../../../api/audits";
 import type { Project } from "../../../api/projects";
 import { renderApplication } from "../../../test/application";
+import { fakeServer, type FakeCall } from "../../../test/fake-server";
 import {
   emptyPageOrNotFound,
   failure,
-  fakeServer,
   json,
   page,
-  type FakeCall,
-} from "../../../test/fake-server";
+} from "../../../test/responses";
 import { ownerListRoutes } from "../../../test/owner-lists";
 import { testAPI, testSession } from "../../../test/render";
 import {

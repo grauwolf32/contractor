@@ -11,13 +11,13 @@ import { createApplicationQueryClient } from "../../app/query-client";
 import { FakeEventSocket, renderApplication } from "../../test/application";
 import { operationsSnapshot as snapshot } from "../../test/builders-execution";
 import { deferred } from "../../test/deferred";
+import type { Fallback } from "../../test/fake-server";
 import {
   failure,
   json,
   noContent,
   preconditionFailed,
-  type Fallback,
-} from "../../test/fake-server";
+} from "../../test/responses";
 import { CSRF_TOKEN } from "../../test/render";
 
 const digest = `sha256:${"1".repeat(64)}`;

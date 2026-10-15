@@ -16,13 +16,12 @@ import { Application } from "../app/application";
 import { applicationRoutes } from "../app/router";
 import { RunEventsManager } from "../events/run-events";
 import {
-  emptyPageOrNotFound,
   fakeServer,
-  json,
   type Fallback,
   type FakeServer,
   type Routes,
 } from "./fake-server";
+import { emptyPageOrNotFound, json } from "./responses";
 import { serverOf, testAPI, testSession, TEST_RUNTIME_CONFIG } from "./render";
 
 type Capability = AuthSession["principal"]["capabilities"][number];

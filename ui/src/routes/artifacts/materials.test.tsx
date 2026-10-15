@@ -7,13 +7,8 @@ import {
   artifactWrite,
   conforming,
 } from "../../test/builders";
-import {
-  failure,
-  fakeServer,
-  json,
-  page,
-  type Routes,
-} from "../../test/fake-server";
+import { fakeServer, type Routes } from "../../test/fake-server";
+import { failure, json, page } from "../../test/responses";
 import { renderWithAPI } from "../../test/render";
 import { ProjectArtifactRegion } from "../projects/artifact-region";
 

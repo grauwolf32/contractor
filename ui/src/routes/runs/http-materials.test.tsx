@@ -4,7 +4,8 @@ import { expect, it } from "vitest";
 import captures from "../../../../api/testdata/http-capture-cases.json";
 import { HTTP_EXCHANGE_MEDIA_TYPE } from "../../api/artifacts";
 import { conforming } from "../../test/builders";
-import { bytes, fakeServer, json, page } from "../../test/fake-server";
+import { fakeServer } from "../../test/fake-server";
+import { bytes, json, page } from "../../test/responses";
 import { renderWithAPI } from "../../test/render";
 import { RunArtifactDetailRoute, RunArtifactLibrary } from "./artifacts";
 

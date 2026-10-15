@@ -3,15 +3,8 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { components } from "../api/generated/public";
 import { conforming } from "../test/builders";
-import {
-  emptyPageOrNotFound,
-  failure,
-  fakeServer,
-  json,
-  page,
-  type FakeCall,
-  type Routes,
-} from "../test/fake-server";
+import { fakeServer, type FakeCall, type Routes } from "../test/fake-server";
+import { emptyPageOrNotFound, failure, json, page } from "../test/responses";
 import { CSRF_TOKEN } from "../test/render";
 import { FakeEventSocket, renderApplication } from "../test/application";
 

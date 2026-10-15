@@ -15,17 +15,16 @@ import {
   stageAttempt,
   workflowResource,
 } from "../../test/builders-execution";
+import { fakeServer, type Routes } from "../../test/fake-server";
 import {
   bytes,
   conflict,
   emptyPageOrNotFound,
   failure,
-  fakeServer,
   json,
   noContent,
   page,
-  type Routes,
-} from "../../test/fake-server";
+} from "../../test/responses";
 import { CSRF_TOKEN } from "../../test/render";
 import { FakeEventSocket, renderApplication } from "../../test/application";
 

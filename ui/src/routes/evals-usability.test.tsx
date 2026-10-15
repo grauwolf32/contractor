@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it } from "vitest";
 import { renderApplication } from "../test/application";
 import { createEvalFixture } from "../test/evals-fixture";
-import { json } from "../test/fake-server";
+import { json } from "../test/responses";
 import pairs from "../../../api/testdata/evals/valid/pair-page.json";
 import { MAX_EVAL_DOCUMENT_BYTES } from "./evals/plan-size";
 import { evalServer, stubEvalBrowser } from "./evals/test-support";

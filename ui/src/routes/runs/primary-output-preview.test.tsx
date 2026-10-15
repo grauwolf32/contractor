@@ -4,13 +4,8 @@ import { describe, expect, it, vi } from "vitest";
 import type { RunStatus } from "../../api/runs";
 import { conforming } from "../../test/builders";
 import { workflowResource } from "../../test/builders-execution";
-import {
-  bytes,
-  failure,
-  fakeServer,
-  json,
-  type Routes,
-} from "../../test/fake-server";
+import { fakeServer, type Routes } from "../../test/fake-server";
+import { bytes, failure, json } from "../../test/responses";
 import { renderWithAPI } from "../../test/render";
 import { RunOutputGallery } from "./outputs";
 

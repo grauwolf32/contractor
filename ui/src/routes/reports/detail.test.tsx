@@ -8,7 +8,7 @@ import { getAudit } from "../../api/audits";
 import { usePublicAPI } from "../../api/context";
 import { queryKeys } from "../../api/query-keys";
 import { deferred } from "../../test/deferred";
-import { failure, json } from "../../test/fake-server";
+import { failure, json } from "../../test/responses";
 import { AuditReportView } from "../projects/audits/report";
 import {
   acceptanceReview,

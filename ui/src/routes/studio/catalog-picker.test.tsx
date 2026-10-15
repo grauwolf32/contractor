@@ -3,7 +3,8 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { components } from "../../api/generated/public";
 import { conforming, DIGEST } from "../../test/builders";
-import { failure, fakeServer, json, page } from "../../test/fake-server";
+import { fakeServer } from "../../test/fake-server";
+import { failure, json, page } from "../../test/responses";
 import { renderWithAPI } from "../../test/render";
 import { CatalogField, type CatalogKind } from "./catalog-picker";
 

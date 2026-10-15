@@ -4,7 +4,8 @@ import { describe, expect, it } from "vitest";
 import type { AuditFinding } from "../../api/audits";
 import { FindingSummary } from "./finding-summary";
 import { AUDIT_ID, DIGEST, makeFinding, NOW } from "./test-support";
-import { failure, fakeServer, json } from "../../test/fake-server";
+import { fakeServer } from "../../test/fake-server";
+import { failure, json } from "../../test/responses";
 import { renderWithAPI } from "../../test/render";
 
 const DESCRIPTION = [

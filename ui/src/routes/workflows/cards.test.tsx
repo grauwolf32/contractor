@@ -6,7 +6,7 @@ import {
   workflowResource,
   workflowSummary,
 } from "../../test/builders-execution";
-import { json, page } from "../../test/fake-server";
+import { json, page } from "../../test/responses";
 import { renderApplication } from "../../test/application";
 
 const workflow = (version: string) =>

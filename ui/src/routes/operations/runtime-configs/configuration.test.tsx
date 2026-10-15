@@ -5,7 +5,7 @@ import type { components } from "../../../api/generated/public";
 import { renderApplication } from "../../../test/application";
 import { operationsSnapshot } from "../../../test/builders-execution";
 import { conforming } from "../../../test/builders";
-import { json, noContent, page } from "../../../test/fake-server";
+import { json, noContent, page } from "../../../test/responses";
 
 type Schemas = components["schemas"];
 type Worker = Schemas["RuntimeConfigDocument"]["spec"]["worker"];

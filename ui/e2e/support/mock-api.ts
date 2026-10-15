@@ -22,7 +22,7 @@ import {
 import { RESPONSE_SCHEMAS } from "../../src/api/generated/response-schemas";
 import type { components } from "../../src/api/generated/public";
 import { conforming } from "../../src/test/builders";
-import { operationOf } from "../../src/test/fake-server";
+import { operationOf } from "../../src/test/responses";
 
 type Schemas = components["schemas"];
 

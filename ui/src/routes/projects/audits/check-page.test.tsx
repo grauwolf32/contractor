@@ -39,7 +39,7 @@ import {
   workspaceOf,
   type Handler,
 } from "./check-test-support";
-import { json } from "../../../test/fake-server";
+import { json } from "../../../test/responses";
 
 const ROOT = "/projects/project_example/audits/audit_example";
 const project = makeProject("project_example", "Payment service");

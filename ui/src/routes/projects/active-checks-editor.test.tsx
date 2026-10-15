@@ -5,7 +5,8 @@ import { expect, it } from "vitest";
 
 import { PublicAPIProvider } from "../../api/context";
 import * as build from "../../test/builders";
-import { fakeServer, json, preconditionFailed } from "../../test/fake-server";
+import { fakeServer } from "../../test/fake-server";
+import { json, preconditionFailed } from "../../test/responses";
 import { testAPI } from "../../test/render";
 import { ProjectActiveChecksEditor } from "./active-checks-editor";
 

@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import { renderApplication } from "../../../test/application";
 import { operationsSnapshot } from "../../../test/builders-execution";
-import { json, page } from "../../../test/fake-server";
+import { json, page } from "../../../test/responses";
 
 const digest = `sha256:${"5".repeat(64)}`;
 

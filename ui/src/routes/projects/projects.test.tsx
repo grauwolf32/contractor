@@ -7,7 +7,7 @@ import { queryKeys } from "../../api/query-keys";
 import { renderApplication } from "../../test/application";
 import * as build from "../../test/builders";
 import { runStatus, stageContract } from "../../test/builders-execution";
-import { bytes, json, page } from "../../test/fake-server";
+import { bytes, json, page } from "../../test/responses";
 import { CSRF_TOKEN } from "../../test/render";
 import { fakeAPI } from "./audits/check-test-support";
 

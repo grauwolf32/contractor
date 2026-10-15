@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import type { RuntimeAgentObservation } from "../../api/operations";
 import { renderApplication } from "../../test/application";
 import { operationsSnapshot } from "../../test/builders-execution";
-import { json, page } from "../../test/fake-server";
+import { json, page } from "../../test/responses";
 
 function agent(
   instanceId: string,

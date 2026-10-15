@@ -20,13 +20,8 @@ import {
 } from "../../test/builders";
 import { runStatus, workflowSummary } from "../../test/builders-execution";
 import { deferred } from "../../test/deferred";
-import {
-  failure,
-  fakeServer,
-  json,
-  page,
-  type Routes,
-} from "../../test/fake-server";
+import { fakeServer, type Routes } from "../../test/fake-server";
+import { failure, json, page } from "../../test/responses";
 import { CSRF_TOKEN, renderWithAPI } from "../../test/render";
 import { WorkflowRunForm } from "./run-form";
 

@@ -12,13 +12,8 @@ import type {
 import type { PublicAPI } from "../../../api/client";
 import type { Project } from "../../../api/projects";
 import * as build from "../../../test/builders";
-import {
-  emptyPageOrNotFound,
-  fakeServer,
-  json,
-  page,
-  type Fallback,
-} from "../../../test/fake-server";
+import { fakeServer, type Fallback } from "../../../test/fake-server";
+import { emptyPageOrNotFound, json, page } from "../../../test/responses";
 import { testAPI, testSession } from "../../../test/render";
 
 export const { DIGEST } = build;

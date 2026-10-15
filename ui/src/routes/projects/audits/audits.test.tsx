@@ -15,7 +15,8 @@ import { createApplicationQueryClient } from "../../../app/query-client";
 import { queryKeys } from "../../../api/query-keys";
 import { renderApplication } from "../../../test/application";
 import * as build from "../../../test/builders";
-import { fakeServer, invalidJSON, json, page } from "../../../test/fake-server";
+import { fakeServer, invalidJSON } from "../../../test/fake-server";
+import { json, page } from "../../../test/responses";
 import { testAPI, testSession } from "../../../test/render";
 
 /** A PublicAPI over `handle` whose answers the fake Server checks. */

@@ -10,11 +10,8 @@ import { describe, expect, it } from "vitest";
 import { FakeEventSocket, renderApplication } from "../../../test/application";
 import { operationsSnapshot } from "../../../test/builders-execution";
 import { conforming } from "../../../test/builders";
-import {
-  json,
-  preconditionFailed,
-  type Routes,
-} from "../../../test/fake-server";
+import type { Routes } from "../../../test/fake-server";
+import { json, preconditionFailed } from "../../../test/responses";
 
 function schedulerSettings(maxConcurrentRuns: number, revision: string) {
   return json(

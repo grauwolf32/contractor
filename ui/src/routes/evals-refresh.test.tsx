@@ -5,7 +5,7 @@ import { beforeEach, expect, it } from "vitest";
 import { createApplicationQueryClient } from "../app/query-client";
 import { renderApplication } from "../test/application";
 import { createEvalFixture } from "../test/evals-fixture";
-import { json } from "../test/fake-server";
+import { json } from "../test/responses";
 import { evalServer, stubEvalBrowser } from "./evals/test-support";
 
 beforeEach(stubEvalBrowser);

@@ -4,7 +4,8 @@ import { describe, expect, it, vi } from "vitest";
 import type { components } from "../../../api/generated/public";
 import { FakeEventSocket, renderApplication } from "../../../test/application";
 import { conforming } from "../../../test/builders";
-import { json, page, type FakeCall } from "../../../test/fake-server";
+import type { FakeCall } from "../../../test/fake-server";
+import { json, page } from "../../../test/responses";
 import { performanceFreshnessState } from "./freshness";
 import { metricSeriesSegments } from "./series";
 

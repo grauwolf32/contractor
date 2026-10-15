@@ -3,14 +3,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { ArtifactMetadata } from "../../api/artifacts";
 import { artifactMetadata, conforming } from "../../test/builders";
-import {
-  bytes,
-  failure,
-  fakeServer,
-  json,
-  page,
-  type Routes,
-} from "../../test/fake-server";
+import { fakeServer, type Routes } from "../../test/fake-server";
+import { bytes, failure, json, page } from "../../test/responses";
 import { renderWithAPI } from "../../test/render";
 import { ProjectArtifactDetailRoute } from "../projects/artifact-detail";
 import { SKILL_ARCHIVE_MEDIA_TYPE } from "./artifact-file";

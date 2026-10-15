@@ -4,7 +4,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { renderApplication } from "../test/application";
 import { conforming } from "../test/builders";
-import { failure, json, page, type FakeServer } from "../test/fake-server";
+import type { FakeServer } from "../test/fake-server";
+import { failure, json, page } from "../test/responses";
 
 function skill(name: string, revision: string) {
   return conforming("ArtifactMetadata", {

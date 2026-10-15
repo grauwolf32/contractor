@@ -14,7 +14,7 @@ import {
   json,
   noContent,
   page,
-} from "../../test/fake-server";
+} from "../../test/responses";
 import { renderWithAPI } from "../../test/render";
 import { CredentialCreateForm } from "./credentials/form";
 import { RuntimeConfigurationRoute } from "./runtime-configs/index";

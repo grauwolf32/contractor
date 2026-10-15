@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import { renderApplication } from "../test/application";
 import * as build from "../test/builders";
-import { json, page } from "../test/fake-server";
+import { json, page } from "../test/responses";
 import { CSRF_TOKEN } from "../test/render";
 
 const evaluation = build.project("evaluation-openapi", {

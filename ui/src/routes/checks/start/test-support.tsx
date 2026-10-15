@@ -2,13 +2,8 @@
 import type { ArtifactMetadata } from "../../../api/artifacts";
 import type { Audit, AuditProfile } from "../../../api/audits";
 import type { Project } from "../../../api/projects";
-import {
-  failure,
-  fakeServer,
-  json,
-  page,
-  type FakeCall,
-} from "../../../test/fake-server";
+import { fakeServer, type FakeCall } from "../../../test/fake-server";
+import { failure, json, page } from "../../../test/responses";
 import { renderWithAPI } from "../../../test/render";
 import { StartCheckRoute } from "../start";
 import { draftAudit, projectFixture, startResponse } from "./test-fixtures";

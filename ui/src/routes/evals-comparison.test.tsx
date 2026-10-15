@@ -4,7 +4,7 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
 import { createEvalFixture } from "../test/evals-fixture";
-import { failure } from "../test/fake-server";
+import { failure } from "../test/responses";
 import pairs from "../../../api/testdata/evals/valid/pair-page.json";
 import { evalServer, stubEvalBrowser } from "./evals/test-support";
 

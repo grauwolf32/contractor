@@ -6,13 +6,8 @@ import type { components } from "../../api/generated/public";
 import { renderApplication } from "../../test/application";
 import { conforming } from "../../test/builders";
 import { workflowResource } from "../../test/builders-execution";
-import {
-  emptyPageOrNotFound,
-  failure,
-  fakeServer,
-  json,
-  page,
-} from "../../test/fake-server";
+import { fakeServer } from "../../test/fake-server";
+import { emptyPageOrNotFound, failure, json, page } from "../../test/responses";
 
 type Schemas = components["schemas"];
 

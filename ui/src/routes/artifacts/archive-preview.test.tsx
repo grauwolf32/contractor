@@ -3,7 +3,8 @@ import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { artifactMetadata, conforming } from "../../test/builders";
-import { fakeServer, json, type FakeCall } from "../../test/fake-server";
+import { fakeServer, type FakeCall } from "../../test/fake-server";
+import { json } from "../../test/responses";
 import { renderWithAPI } from "../../test/render";
 import { ArtifactPreviewPanel } from "./preview";
 

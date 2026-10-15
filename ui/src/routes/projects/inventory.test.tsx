@@ -4,7 +4,8 @@ import { describe, expect, it } from "vitest";
 
 import * as build from "../../test/builders";
 import { deferred } from "../../test/deferred";
-import { json, page, type Fallback } from "../../test/fake-server";
+import type { Fallback } from "../../test/fake-server";
+import { json, page } from "../../test/responses";
 import { renderWithAPI } from "../../test/render";
 import { useProjectArtifactInventory } from "./inventory";
 

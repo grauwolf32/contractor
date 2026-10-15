@@ -23,7 +23,8 @@ import { createApplicationQueryClient } from "../app/query-client";
 import { ApplicationShell } from "../app/shell";
 import { SessionProvider, type SessionAPI } from "../auth/session";
 import * as build from "./builders";
-import { fakeServer, json, page } from "./fake-server";
+import { fakeServer } from "./fake-server";
+import { json, page } from "./responses";
 import { ownerListResponse } from "./owner-lists";
 import { testAPI, testSession } from "./render";
 

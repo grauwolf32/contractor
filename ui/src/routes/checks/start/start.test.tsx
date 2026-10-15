@@ -29,7 +29,7 @@ import {
   wstgLive,
   wstgLiveDetail,
 } from "./test-fixtures";
-import { failure, gatewayFailure, json, page } from "../../../test/fake-server";
+import { failure, gatewayFailure, json, page } from "../../../test/responses";
 import { CSRF_TOKEN } from "../../../test/render";
 import { renderStart } from "./test-support";
 

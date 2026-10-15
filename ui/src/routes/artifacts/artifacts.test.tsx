@@ -15,7 +15,7 @@ import {
   artifactWrite,
   conforming,
 } from "../../test/builders";
-import { bytes, failure, json, page } from "../../test/fake-server";
+import { bytes, failure, json, page } from "../../test/responses";
 import { CSRF_TOKEN } from "../../test/render";
 
 const LIST = "GET /v1/artifacts";

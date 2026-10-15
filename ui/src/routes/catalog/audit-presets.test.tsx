@@ -13,7 +13,8 @@ import {
   standardResponse,
 } from "../../test/audit-presets-fixture";
 import { stageContract, workflowResource } from "../../test/builders-execution";
-import { failure, fakeServer, json, page } from "../../test/fake-server";
+import { fakeServer } from "../../test/fake-server";
+import { failure, json, page } from "../../test/responses";
 import { auditPresetLabel } from "../projects/audits/labels";
 
 function setup(
