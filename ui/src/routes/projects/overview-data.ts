@@ -25,11 +25,15 @@ import { CROSS_PROJECT_LIMITS } from "../../api/cross-project";
 import { listProjectArtifacts } from "../../api/project-artifacts";
 import { listProjectRuns } from "../../api/projects";
 import { queryKeys } from "../../api/query-keys";
+import { pollInterval } from "../../app/polling";
 import { MATERIAL_KIND_ORDER, materialKindOf } from "../artifacts/kinds";
 import { AUDIT_STATES, AUDIT_STATES_WITH_FINDINGS } from "../../api/states";
 
 /** How often the overview refreshes checks and Runs while it is open. */
 const OVERVIEW_POLL_MS = 10_000;
+
+/** Overview reads poll while shown and back off while reads fail. */
+const overviewPoll = pollInterval({ interval: OVERVIEW_POLL_MS });
 
 /**
  * The project's newest checks: the first page, as the cross-project lists
@@ -48,7 +52,7 @@ export function useProjectChecks(projectId: string) {
         limit: AUDIT_PAGE_SIZE,
       }),
     staleTime: OVERVIEW_POLL_MS,
-    refetchInterval: OVERVIEW_POLL_MS,
+    refetchInterval: overviewPoll,
     refetchOnWindowFocus: false,
   });
 }
@@ -60,7 +64,7 @@ export function useWaitingChecks(projectId: string) {
     queryKey: [...queryKeys.projects.audits.all(projectId), "waiting-review"],
     queryFn: () =>
       listProjectAudits(api, { projectId, state: "waiting_review", limit: 3 }),
-    refetchInterval: OVERVIEW_POLL_MS,
+    refetchInterval: overviewPoll,
   });
 }
 
@@ -223,7 +227,7 @@ export function useRecentRuns(projectId: string) {
   return useQuery({
     queryKey: queryKeys.projects.runView(projectId, options),
     queryFn: () => listProjectRuns(api, { projectId, ...options }),
-    refetchInterval: OVERVIEW_POLL_MS,
+    refetchInterval: overviewPoll,
   });
 }
 
@@ -234,7 +238,7 @@ export function useSuccessfulRuns(projectId: string) {
   return useQuery({
     queryKey: queryKeys.projects.runView(projectId, options),
     queryFn: () => listProjectRuns(api, { projectId, ...options }),
-    refetchInterval: 15_000,
+    refetchInterval: pollInterval({ interval: 15_000 }),
   });
 }
 

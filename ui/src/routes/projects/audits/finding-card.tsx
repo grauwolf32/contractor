@@ -13,7 +13,13 @@ import { ContextLink } from "../../../app/context-navigation";
 import { formatBytes } from "../../../app/format";
 import { RecordedTime } from "../../../app/recorded-time";
 import { severityLabel, verdictLabel } from "../../../app/vocabulary";
-import { IdChip, StatusChip, TechnicalDetails } from "../../../ui";
+import {
+  Button,
+  Facts,
+  IdChip,
+  StatusChip,
+  TechnicalDetails,
+} from "../../../ui";
 import { FindingDecision, FindingSummary } from "../../decisions";
 import {
   assessmentLabel,
@@ -59,16 +65,14 @@ export function FindingProvenance({
   });
   return (
     <div className="issues-provenance">
-      <button
-        className="ui-btn"
-        data-size="xs"
-        type="button"
+      <Button
+        size="xs"
         aria-expanded={expanded}
         aria-controls={panelId}
         onClick={() => setExpanded((value) => !value)}
       >
         {expanded ? "Hide provenance" : "Show provenance"}
-      </button>
+      </Button>
       <div id={panelId} hidden={!expanded}>
         {!expanded ? null : provenance.data === undefined ? (
           provenance.error === null ? (
@@ -78,15 +82,13 @@ export function FindingProvenance({
           ) : (
             <div className="issues-notice" data-tone="error" role="alert">
               <p>Provenance could not be loaded: {provenance.error.message}</p>
-              <button
-                type="button"
-                className="ui-btn"
-                data-size="xs"
+              <Button
+                size="xs"
                 disabled={provenance.isFetching}
                 onClick={() => void provenance.refetch()}
               >
                 Try again
-              </button>
+              </Button>
             </div>
           )
         ) : provenance.data.items.length === 0 ? (
@@ -263,88 +265,83 @@ export function FindingTechnicalDetails({
   const workflow = `${proposal.origin.workflow.name}@${proposal.origin.workflow.version}`;
   return (
     <TechnicalDetails description="Ratings, identifiers and where this possible issue came from.">
-      <dl className="issues-facts">
-        <div>
-          <dt>AI suggestion</dt>
-          <dd>
-            {document.severity_suggestion === ""
-              ? "None"
-              : severityLabel(document.severity_suggestion)}
-          </dd>
-        </div>
-        <div>
-          <dt>Analyst rating</dt>
-          <dd>{analystRating(finding)}</dd>
-        </div>
-        <div>
-          <dt>Source workflow</dt>
-          <dd>
-            <IdChip
-              value={workflow}
-              display={workflow}
-              label="source workflow version"
-            />
-          </dd>
-        </div>
-        <div>
-          <dt>Verification</dt>
-          <dd>
-            {finding.currentAssessment === undefined
-              ? "Not verified yet"
-              : assessmentLabel(finding.currentAssessment.semanticAssessment)}
-          </dd>
-        </div>
-        {finding.duplicateTargetId === undefined ? null : (
-          <div>
-            <dt>Duplicate of</dt>
-            <dd>
+      {/* V385: needs shared removal of .issues-facts (src/routes/issues/
+          issues.css), a copy of ui-facts sm with 13rem columns; then drop
+          the class here. */}
+      <Facts
+        size="sm"
+        className="issues-facts"
+        items={[
+          {
+            term: "AI suggestion",
+            value:
+              document.severity_suggestion === ""
+                ? "None"
+                : severityLabel(document.severity_suggestion),
+          },
+          { term: "Analyst rating", value: analystRating(finding) },
+          {
+            term: "Source workflow",
+            value: (
               <IdChip
-                value={finding.duplicateTargetId}
-                label="original possible issue ID"
+                value={workflow}
+                display={workflow}
+                label="source workflow version"
               />
-            </dd>
-          </div>
-        )}
-        <div>
-          <dt>Possible issue ID</dt>
-          <dd>
-            <IdChip value={finding.findingId} label="possible issue ID" />
-          </dd>
-        </div>
-        {showCheckId ? (
-          <div>
-            <dt>Check ID</dt>
-            <dd>
+            ),
+          },
+          {
+            term: "Verification",
+            value:
+              finding.currentAssessment === undefined
+                ? "Not verified yet"
+                : assessmentLabel(finding.currentAssessment.semanticAssessment),
+          },
+          {
+            term: "Duplicate of",
+            value:
+              finding.duplicateTargetId === undefined ? undefined : (
+                <IdChip
+                  value={finding.duplicateTargetId}
+                  label="original possible issue ID"
+                />
+              ),
+          },
+          {
+            term: "Possible issue ID",
+            value: (
+              <IdChip value={finding.findingId} label="possible issue ID" />
+            ),
+          },
+          {
+            term: "Check ID",
+            value: showCheckId && (
               <IdChip value={audit.auditId} label="check ID" />
-            </dd>
-          </div>
-        ) : null}
-        <div>
-          <dt>Subject</dt>
-          <dd>
-            {document.subject === null ? (
-              "Not specified"
-            ) : (
-              <>
-                <span className="issues-mono">{document.subject.key}</span>{" "}
-                <span className="issues-quiet">{document.subject.kind}</span>
-              </>
-            )}
-          </dd>
-        </div>
-        {pendingReview === undefined || pendingReview === null ? null : (
-          <div>
-            <dt>Review ID</dt>
-            <dd>
-              <IdChip value={pendingReview.requestId} label="review ID" />
-            </dd>
-          </div>
-        )}
-        <div>
-          <dt>Revision</dt>
-          <dd>{finding.revision}</dd>
-        </div>
-      </dl>
+            ),
+          },
+          {
+            term: "Subject",
+            value:
+              document.subject === null ? (
+                "Not specified"
+              ) : (
+                <>
+                  <span className="issues-mono">{document.subject.key}</span>{" "}
+                  <span className="issues-quiet">{document.subject.kind}</span>
+                </>
+              ),
+          },
+          {
+            term: "Review ID",
+            value:
+              pendingReview === undefined ||
+              pendingReview === null ? undefined : (
+                <IdChip value={pendingReview.requestId} label="review ID" />
+              ),
+          },
+          { term: "Revision", value: finding.revision },
+        ]}
+      />
     </TechnicalDetails>
   );
 }
@@ -398,14 +395,9 @@ export function AuditFindingCard({
                 : "The review status could not be loaded."}
             </p>
             {onRetryReview === undefined ? null : (
-              <button
-                className="ui-btn"
-                data-size="xs"
-                type="button"
-                onClick={onRetryReview}
-              >
+              <Button size="xs" onClick={onRetryReview}>
                 {reviewActionLabel}
-              </button>
+              </Button>
             )}
           </div>
         ) : (

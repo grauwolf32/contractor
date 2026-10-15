@@ -2,22 +2,21 @@ import { describe, expect, it } from "vitest";
 
 import buckets from "../../../../../api/testdata/public/audit-coverage-buckets.json";
 
-import {
-  isConcludedStatus,
-  STATUS_GROUPS,
-  statusGroup,
-  type Status,
-} from "./assessments";
+import { schemaEnum } from "../../../api/contract";
+import type { AuditCoverageStatus } from "../../../app/vocabulary";
+import { isConcludedStatus, statusGroup } from "./assessments";
 
 describe("coverage result groups", () => {
   const all = [
     ...buckets.completed,
     ...buckets.gap,
     ...buckets.unchecked,
-  ] as Status[];
+  ] as AuditCoverageStatus[];
 
   it("classify every coverage status of the shared bucket cases", () => {
-    expect([...all].sort()).toEqual(Object.keys(STATUS_GROUPS).sort());
+    expect([...all].sort()).toEqual(
+      [...schemaEnum("AuditCoverageStatus")].sort(),
+    );
     expect(new Set(all).size).toBe(all.length);
   });
 

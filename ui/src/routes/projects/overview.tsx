@@ -10,7 +10,7 @@ import { Icon } from "../../app/icon";
 import { RecordedTime } from "../../app/recorded-time";
 import { RefreshButton } from "../../app/refresh-button";
 import { checkStateLabel } from "../../app/vocabulary";
-import { StatusGlyph } from "../../ui";
+import { ButtonLink, StatusGlyph } from "../../ui";
 import { artifactDetailPath } from "../artifacts/paths";
 import { auditProfileLabel } from "./audits/labels";
 import { CheckComposer } from "./check-composer";
@@ -423,14 +423,13 @@ function Attention({
                 </span>
               </span>
             </div>
-            <ContextLink
-              className="ui-btn"
-              data-size="sm"
+            <ButtonLink
+              size="sm"
               returnLabel="Project Overview"
               to={`${projectPath(projectId, "audits")}/${encodeURIComponent(audit.auditId)}/reviews?state=pending`}
             >
               Review decisions
-            </ContextLink>
+            </ButtonLink>
           </li>
         ))}
       </ul>

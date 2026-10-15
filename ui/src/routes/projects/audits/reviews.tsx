@@ -21,11 +21,13 @@ import {
   type ItemKind,
 } from "../../../app/vocabulary";
 import {
+  Button,
+  Facts,
+  type FilterChipOption,
   FilterChips,
   IdChip,
   StatusChip,
   TechnicalDetails,
-  type FilterChipOption,
 } from "../../../ui";
 import { ActionDecision, DecisionRecord } from "../../decisions";
 import { itemHash, sectionPath } from "./check-links";
@@ -142,31 +144,24 @@ function ReviewCard({
       ) : review.decision !== undefined ? (
         <DecisionRecord decision={review.decision} />
       ) : review.state === "pending" ? null : (
-        <p className="checks-quiet">No decision recorded.</p>
+        <p className="ui-caption">No decision recorded.</p>
       )}
       <TechnicalDetails summary="Review details">
-        <dl className="checks-facts">
-          <div>
-            <dt>Type</dt>
-            <dd>{reviewKindLabel(review.kind)}</dd>
-          </div>
-          <div>
-            <dt>Subject revision</dt>
-            <dd>{review.subjectRevision}</dd>
-          </div>
-          <div>
-            <dt>Review ID</dt>
-            <dd>
-              <IdChip value={review.requestId} label="review ID" />
-            </dd>
-          </div>
-          <div>
-            <dt>Subject ID</dt>
-            <dd>
-              <IdChip value={findingId} label="subject ID" />
-            </dd>
-          </div>
-        </dl>
+        <Facts
+          size="sm"
+          items={[
+            { term: "Type", value: reviewKindLabel(review.kind) },
+            { term: "Subject revision", value: review.subjectRevision },
+            {
+              term: "Review ID",
+              value: <IdChip value={review.requestId} label="review ID" />,
+            },
+            {
+              term: "Subject ID",
+              value: <IdChip value={findingId} label="subject ID" />,
+            },
+          ]}
+        />
       </TechnicalDetails>
     </li>
   );
@@ -220,7 +215,7 @@ export function AuditReviews({
     <div className="checks-section">
       <div className="checks-section-heading">
         <h2>Decisions</h2>
-        <p className="checks-quiet">
+        <p className="ui-caption">
           What the check asked you to decide, and what was decided.
         </p>
       </div>
@@ -231,7 +226,7 @@ export function AuditReviews({
         onChange={(value) => queue.change("state", value)}
       />
       {reviews.isPending ? (
-        <p className="checks-quiet" role="status">
+        <p className="ui-caption" role="status">
           Loading decisions…
         </p>
       ) : reviews.error !== null ? (
@@ -250,14 +245,9 @@ export function AuditReviews({
                 {capitalize(itemNoun(kind, 2))} could not be loaded, so their
                 identifiers are shown instead.
               </p>
-              <button
-                className="ui-btn"
-                data-size="xs"
-                type="button"
-                onClick={() => void items.refetch()}
-              >
+              <Button size="xs" onClick={() => void items.refetch()}>
                 Try again
-              </button>
+              </Button>
             </div>
           ) : null}
           {needsItems ? (
@@ -272,7 +262,7 @@ export function AuditReviews({
             />
           ) : null}
           {reviews.data.items.length === 0 ? (
-            <p className="checks-quiet">
+            <p className="ui-caption">
               {state === "pending"
                 ? "Nothing is waiting for you. Choose All to see earlier decisions."
                 : "No decisions have been requested yet."}

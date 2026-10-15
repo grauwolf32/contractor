@@ -65,11 +65,6 @@ const STOP_REASON_SENTENCES: Readonly<Record<string, string>> = {
     "The check stopped because a step failed in a way that cannot be retried.",
 };
 
-/** Every stop reason code the UI explains in plain words. */
-export const STOP_REASON_CODES: readonly string[] = Object.keys(
-  STOP_REASON_SENTENCES,
-);
-
 const FAILURE_CODE =
   /_invalid$|_unresolved$|not_retryable$|_budget_exhausted$/u;
 

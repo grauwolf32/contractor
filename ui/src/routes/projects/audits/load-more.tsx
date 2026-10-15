@@ -1,3 +1,5 @@
+import { Button } from "../../../ui";
+
 /**
  * Secondary "Load more" control for a bounded collection. Renders nothing
  * once every record is loaded.
@@ -26,15 +28,14 @@ export function LoadMoreControl({
         Showing {shown} of ≥{shown} {noun}
         {error === null ? "" : ` · Loading more failed: ${error.message}`}
       </p>
-      <button
-        className="ui-btn"
-        data-size="sm"
-        type="button"
-        disabled={loading}
+      <Button
+        size="sm"
+        pending={loading}
+        pendingLabel="Loading more…"
         onClick={onLoadMore}
       >
-        {loading ? "Loading more…" : error === null ? label : "Retry"}
-      </button>
+        {error === null ? label : "Retry"}
+      </Button>
     </div>
   );
 }

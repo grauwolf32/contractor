@@ -24,6 +24,8 @@ import { queryKeys } from "../../../api/query-keys";
 import { useDocumentTitle } from "../../../app/document-title";
 import { ErrorNotice } from "../../../app/error-notice";
 import { catalogReturnState } from "../../../app/navigation";
+import { useGuardedNavigate } from "../../../app/page-location";
+import { pollInterval } from "../../../app/polling";
 import {
   checkItemKind,
   checkStateLabel,
@@ -31,6 +33,7 @@ import {
   type ItemKind,
 } from "../../../app/vocabulary";
 import {
+  ButtonLink,
   DetailPane,
   EmptyState,
   PaneLayout,
@@ -334,7 +337,7 @@ function CheckPage({
         );
       else if (selected === undefined)
         content = coverage.isPending ? (
-          <p className="checks-quiet" role="status">
+          <p className="ui-caption" role="status">
             Loading {plural}…
           </p>
         ) : (
@@ -489,12 +492,11 @@ function CheckPage({
                 links={links}
               />
               <SectionTabs section={section} kind={kind} links={links} />
-              <Link
-                className="ui-btn"
+              <ButtonLink
                 to={`/catalog/studio?kind=AuditProfile&audit=${encodeURIComponent(audit.auditId)}`}
               >
                 Open live Studio
-              </Link>
+              </ButtonLink>
             </div>
           }
         >
@@ -519,7 +521,7 @@ function CheckMessage({ children }: { children: ReactNode }) {
 export function ProjectAuditDetailRoute() {
   const location = useLocation();
   const api = usePublicAPI();
-  const navigate = useNavigate();
+  const navigate = useGuardedNavigate();
   const queryClient = useQueryClient();
   const { projectId = "", auditId = "", section: rawSection } = useParams();
   const validRoute =
@@ -534,11 +536,10 @@ export function ProjectAuditDetailRoute() {
     queryKey: queryKeys.audits.detail(auditId),
     queryFn: () => getAudit(api, auditId),
     enabled: validRoute,
-    refetchInterval: (query) =>
-      auditPollInterval(
-        query.state.data === undefined ? [] : [query.state.data],
-        1_000,
-      ),
+    refetchInterval: pollInterval<Audit>({
+      interval: 1_000,
+      settled: (current) => auditPollInterval([current]) === false,
+    }),
     refetchOnReconnect: true,
     refetchOnWindowFocus: true,
     retry: (count, error) =>
@@ -589,7 +590,7 @@ export function ProjectAuditDetailRoute() {
   if (audit.isPending)
     return (
       <CheckMessage>
-        <p className="checks-quiet" role="status">
+        <p className="ui-caption" role="status">
           Loading check…
         </p>
       </CheckMessage>

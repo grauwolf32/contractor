@@ -16,6 +16,8 @@ import { RecordedTime } from "../../app/recorded-time";
 import type { StatusTone } from "../../app/status-tone";
 import { checkStateLabel } from "../../app/vocabulary";
 import {
+  Button,
+  IconButton,
   EmptyState,
   Kbd,
   ListPane,
@@ -216,33 +218,27 @@ export function ProjectListPane({
       subtitle={subtitle}
       actions={
         <>
-          <button
-            type="button"
-            className="ui-btn refresh-button projects-icon-button"
-            data-variant="ghost"
-            data-size="sm"
-            aria-label="Refresh projects"
-            title="Refresh projects"
-            aria-busy={query.isFetching || undefined}
+          <IconButton
+            className="refresh-button"
+            variant="ghost"
+            size="sm"
+            label="Refresh projects"
+            icon={<Icon name="refresh" size={16} />}
+            pending={query.isFetching}
             data-fetching={query.isFetching || undefined}
-            disabled={query.isFetching}
             onClick={() => {
               void query.refetch();
               void invalidateCrossProject(queryClient);
             }}
-          >
-            <Icon name="refresh" />
-          </button>
-          <button
-            type="button"
-            className="ui-btn"
-            data-size="sm"
+          />
+          <Button
+            size="sm"
             aria-label="New project"
             onClick={onNewProject}
+            icon={<Icon name="plus" />}
           >
-            <Icon name="plus" />
             <span>New</span>
-          </button>
+          </Button>
         </>
       }
       toolbar={
@@ -280,15 +276,13 @@ export function ProjectListPane({
           ) : secondary ? (
             <div className="projects-list-error">
               <p>Projects could not be loaded: {query.error.message}</p>
-              <button
-                type="button"
-                className="ui-btn"
-                data-size="xs"
+              <Button
+                size="xs"
                 disabled={query.isFetching}
                 onClick={() => void query.refetch()}
               >
                 Try again
-              </button>
+              </Button>
             </div>
           ) : (
             <ErrorNotice
@@ -315,15 +309,9 @@ export function ProjectListPane({
               <EmptyState
                 title="No projects yet"
                 action={
-                  <button
-                    type="button"
-                    className="ui-btn"
-                    data-variant="primary"
-                    data-size="sm"
-                    onClick={onNewProject}
-                  >
+                  <Button variant="primary" size="sm" onClick={onNewProject}>
                     New project
-                  </button>
+                  </Button>
                 }
               >
                 A project keeps your materials, the checks you run on them and

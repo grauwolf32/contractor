@@ -11,7 +11,7 @@ import {
 import { usePublicAPI } from "../../../api/context";
 import { queryKeys } from "../../../api/query-keys";
 import { ContextLink } from "../../../app/context-navigation";
-import { EmptyState, FilterChips, ListSection } from "../../../ui";
+import { Button, EmptyState, FilterChips, ListSection } from "../../../ui";
 import { IssueRow } from "../../issues/issue-row";
 import { issueHref, type StateFilter } from "../../issues/links";
 import { AuditFindingCard } from "./finding-card";
@@ -153,14 +153,9 @@ function ExactFinding({
               current version. Refresh the context before making a decision.
             </p>
             <div className="issues-notice-actions">
-              <button
-                type="button"
-                className="ui-btn"
-                data-size="xs"
-                onClick={refresh}
-              >
+              <Button size="xs" onClick={refresh}>
                 Refresh context
-              </button>
+              </Button>
             </div>
           </div>
         ) : null}

@@ -1,78 +1,55 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { expect, it, vi } from "vitest";
+import { expect, it } from "vitest";
 
-import { PublicAPI } from "../../api/client";
 import { PublicAPIProvider } from "../../api/context";
-import type { Project } from "../../api/projects";
+import * as build from "../../test/builders";
+import { fakeServer, json, preconditionFailed } from "../../test/fake-server";
+import { testAPI } from "../../test/render";
 import { ProjectActiveChecksEditor } from "./active-checks-editor";
 
-const project: Project = {
-  projectId: "policy-project",
-  kind: "project",
+const project = build.project("policy-project", {
   name: "Policy",
-  description: "",
-  activeChecks: "automatic",
-  lifecycle: "active",
-
   revision: "4",
   createdAt: "2026-10-15T10:00:00Z",
   updatedAt: "2026-10-15T10:00:00Z",
-};
+});
 
 it.each([false, true])(
   "saves Project policy with the edited revision; conflict=%s",
   async (conflict) => {
-    const requests: Request[] = [];
-    const api = new PublicAPI(
-      {
-        apiBaseUrl: "https://api.example.test",
-        uiVersion: "0.6.5",
-        supportedApiVersions: ["contractor.public.v1"],
-      },
-      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-        const request = new Request(input, init);
-        requests.push(request);
-        return conflict
-          ? Response.json(
-              {
-                error: {
-                  code: "precondition_failed",
-                  message: "Project changed",
-                  retryable: false,
+    const { api, server } = testAPI(
+      fakeServer({
+        "PATCH /v1/projects/{projectId}": () =>
+          conflict
+            ? preconditionFailed("Project changed")
+            : json(
+                {
+                  ...project,
+                  activeChecks: "approval-required",
+                  revision: "5",
                 },
-              },
-              {
-                status: 412,
-                headers: { "X-Contractor-API-Version": "contractor.public.v1" },
-              },
-            )
-          : Response.json(
-              { ...project, activeChecks: "approval-required", revision: "5" },
-              {
-                headers: {
-                  ETag: '"5"',
-                  "X-Contractor-API-Version": "contractor.public.v1",
-                },
-              },
-            );
+                200,
+                { ETag: '"5"' },
+              ),
       }),
     );
-    api.csrf.replace("a".repeat(43));
     const client = new QueryClient({
       defaultOptions: {
         queries: { retry: false },
         mutations: { retry: false },
       },
     });
-    const view = render(
+    // The page re-renders the editor with a newer project while it edits.
+    const editor = (current: typeof project) => (
       <QueryClientProvider client={client}>
         <PublicAPIProvider api={api}>
-          <ProjectActiveChecksEditor project={project} />
+          <ProjectActiveChecksEditor project={current} />
         </PublicAPIProvider>
-      </QueryClientProvider>,
+      </QueryClientProvider>
     );
+    const view = render(editor(project));
     const user = userEvent.setup();
     expect(screen.getByText("Automatically")).toBeVisible();
     await user.click(
@@ -82,19 +59,13 @@ it.each([false, true])(
       screen.getByRole("combobox", { name: "Active checks" }),
       "approval-required",
     );
-    view.rerender(
-      <QueryClientProvider client={client}>
-        <PublicAPIProvider api={api}>
-          <ProjectActiveChecksEditor project={{ ...project, revision: "6" }} />
-        </PublicAPIProvider>
-      </QueryClientProvider>,
-    );
+    view.rerender(editor({ ...project, revision: "6" }));
     await user.click(
       screen.getByRole("button", { name: "Save active checks" }),
     );
-    await waitFor(() => expect(requests).toHaveLength(1));
-    expect(requests[0]?.headers.get("If-Match")).toBe('"4"');
-    await expect(requests[0]?.clone().json()).resolves.toEqual({
+    await waitFor(() => expect(server.requests).toHaveLength(1));
+    expect(server.requests[0]?.headers.get("If-Match")).toBe('"4"');
+    await expect(server.requests[0]?.clone().json()).resolves.toEqual({
       activeChecks: "approval-required",
     });
     if (conflict)

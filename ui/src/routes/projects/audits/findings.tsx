@@ -26,11 +26,12 @@ import {
   type VerdictValue,
 } from "../../../app/vocabulary";
 import {
+  Button,
   EmptyState,
+  type FilterChipOption,
   FilterChips,
   ListSection,
   shortenId,
-  type FilterChipOption,
 } from "../../../ui";
 import { IssueRow } from "../../issues/issue-row";
 import { issueHref, type StateFilter } from "../../issues/links";
@@ -46,9 +47,10 @@ import { auditProfileLabel } from "./labels";
 import { LoadMoreControl } from "./load-more";
 import { AuditAnchor } from "./shared";
 
+import { plural } from "../../../app/format";
+
 import "./styles.css";
 import "../../issues/issues.css";
-import { plural } from "../../../app/format";
 
 /** Decision filter values: none yet, then every analyst verdict. */
 const DECISIONS: readonly VerdictValue[] = [
@@ -351,16 +353,14 @@ export function ProjectFindingsRoute() {
                   {plural(sources.length, "check", "checks")}
                 </span>
                 {filtered ? (
-                  <button
-                    className="ui-btn"
-                    data-size="xs"
-                    type="button"
+                  <Button
+                    size="xs"
                     onClick={() =>
                       setFilters({}, { replace: true, state: location.state })
                     }
                   >
                     Clear filters
-                  </button>
+                  </Button>
                 ) : null}
               </div>
               {loading ? (
@@ -389,14 +389,12 @@ export function ProjectFindingsRoute() {
                         : "This check is missing from the list below."}
                     </p>
                     <div className="issues-notice-actions">
-                      <button
-                        className="ui-btn"
-                        data-size="xs"
-                        type="button"
+                      <Button
+                        size="xs"
                         onClick={() => void findings.results[index]?.refetch()}
                       >
                         Retry
-                      </button>
+                      </Button>
                     </div>
                   </div>
                 );

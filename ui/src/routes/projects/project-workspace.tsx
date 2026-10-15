@@ -1,7 +1,5 @@
-import { useQuery } from "@tanstack/react-query";
 import {
   type ReactNode,
-  useCallback,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -9,19 +7,18 @@ import {
 } from "react";
 import { Link, Outlet } from "react-router";
 
-import { usePublicAPI } from "../../api/context";
-import { PublicAPIError } from "../../api/error";
-import { getProject, PROJECT_ID_PATTERN } from "../../api/projects";
-import { queryKeys } from "../../api/query-keys";
-import { ActionMenu } from "../../app/action-menu";
 import { useDocumentTitle } from "../../app/document-title";
 import { ErrorNotice } from "../../app/error-notice";
 import { StaleDataWarning } from "../../app/query-view";
 import { DetailHeader, DetailPane, IdChip } from "../../ui";
-import { DeleteProjectDialog, ProjectDeletionProgress } from "./deletion";
+import {
+  DeleteProjectDialog,
+  ProjectActions,
+  ProjectDeletionProgress,
+} from "./deletion";
 import { ProjectNavigation } from "./navigation";
 import { ProjectSectionActionsContext } from "./section-actions-context";
-import { pollWhileDeleting, useProjectDeletion } from "./use-project-deletion";
+import { useWorkspaceProject } from "./use-project-deletion";
 import type { ProjectWorkspaceContext } from "./workspace-context";
 
 import "../primary-actions.css";
@@ -35,41 +32,19 @@ import "../primary-actions.css";
  * then returns to /projects.
  */
 export function ProjectWorkspace({ projectId }: { projectId: string }) {
-  const api = usePublicAPI();
-  const validProject = PROJECT_ID_PATTERN.test(projectId);
-  const project = useQuery({
-    queryKey: queryKeys.projects.detail(projectId),
-    queryFn: () => getProject(api, projectId),
-    enabled: validProject,
-    refetchInterval: pollWhileDeleting,
-    retry: (failureCount, error) =>
-      !(error instanceof PublicAPIError && error.status === 404) &&
-      failureCount < 2,
-  });
-  const { deletion, deletionObserved, deleteOpen, setDeleteOpen } =
-    useProjectDeletion(project, "/projects");
-  const activeProject =
-    project.data?.kind === "project" && project.data.lifecycle === "active"
-      ? project.data
-      : undefined;
+  const workspace = useWorkspaceProject(projectId, "project");
+  const { project, activeProject, requestDeletion } = workspace;
   const [sectionActions, setSectionActions] = useState<HTMLDivElement | null>(
     null,
   );
   useDocumentTitle(project.data?.name ?? "Project");
   // Another project opens at its top, also when the detail pane had been
   // scrolled for the previous one (the pane itself stays mounted).
-  const workspace = useRef<HTMLDivElement>(null);
+  const frame = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
-    const pane = workspace.current?.closest<HTMLElement>(".ui-panes-detail");
+    const pane = frame.current?.closest<HTMLElement>(".ui-panes-detail");
     if (pane !== null && pane !== undefined) pane.scrollTop = 0;
   }, []);
-  // The mutation's reset is stable, so the sections' context only changes
-  // with the project.
-  const resetDeletion = deletion.reset;
-  const requestDeletion = useCallback(() => {
-    resetDeletion();
-    setDeleteOpen(true);
-  }, [resetDeletion, setDeleteOpen]);
   const context = useMemo<ProjectWorkspaceContext | undefined>(
     () =>
       activeProject === undefined
@@ -78,7 +53,7 @@ export function ProjectWorkspace({ projectId }: { projectId: string }) {
     [activeProject, requestDeletion],
   );
 
-  if (!validProject) {
+  if (!workspace.valid) {
     return (
       <DetailPane>
         <ErrorNotice error={new Error("Project route is invalid")} />
@@ -108,37 +83,12 @@ export function ProjectWorkspace({ projectId }: { projectId: string }) {
           </span>
         </>
       }
-      actions={
-        <ActionMenu label="Project actions">
-          <button
-            className="ui-btn"
-            data-variant="ghost"
-            data-size="sm"
-            type="button"
-            disabled={project.isFetching}
-            onClick={() => void project.refetch()}
-          >
-            {project.isFetching ? "Refreshing…" : "Refresh project details"}
-          </button>
-          {activeProject === undefined ? null : (
-            <button
-              className="ui-btn"
-              data-variant="danger"
-              data-size="sm"
-              type="button"
-              onClick={requestDeletion}
-            >
-              Delete Project
-            </button>
-          )}
-        </ActionMenu>
-      }
+      actions={<ProjectActions workspace={workspace} noun="Project" />}
     />
   );
 
   const data = project.data;
-  const gone =
-    project.error instanceof PublicAPIError && project.error.status === 404;
+  const { gone } = workspace;
   // Without a body the section shows; a failed refresh of a project that is
   // still there keeps the section and says the header may be stale.
   let body: ReactNode = null;
@@ -148,7 +98,7 @@ export function ProjectWorkspace({ projectId }: { projectId: string }) {
         Loading Project…
       </p>
     );
-  } else if (deletionObserved && gone) {
+  } else if (workspace.deletionObserved && gone) {
     body = (
       <p className="loading-copy" role="status">
         Project deleted. Returning to Projects…
@@ -179,7 +129,7 @@ export function ProjectWorkspace({ projectId }: { projectId: string }) {
 
   return (
     <ProjectSectionActionsContext value={sectionActions}>
-      <div className="projects-workspace" ref={workspace}>
+      <div className="projects-workspace" ref={frame}>
         <DetailPane
           header={
             <>
@@ -207,20 +157,7 @@ export function ProjectWorkspace({ projectId }: { projectId: string }) {
           )}
         </DetailPane>
       </div>
-      {deleteOpen && activeProject !== undefined ? (
-        <DeleteProjectDialog
-          project={activeProject}
-          pending={deletion.isPending}
-          error={deletion.error}
-          onCancel={() => {
-            if (!deletion.isPending) {
-              setDeleteOpen(false);
-              deletion.reset();
-            }
-          }}
-          onConfirm={() => deletion.mutate(activeProject)}
-        />
-      ) : null}
+      <DeleteProjectDialog workspace={workspace} />
     </ProjectSectionActionsContext>
   );
 }
