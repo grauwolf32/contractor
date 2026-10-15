@@ -1,3 +1,4 @@
+import { RESOURCE_ID } from "./contract";
 import type { PublicAPI } from "./client";
 import { invalidAPIResponse, requireData } from "./error";
 import type { components } from "./generated/public";
@@ -37,7 +38,6 @@ export interface AllocationResourcePageRequest {
   cursor?: string;
 }
 
-const RESOURCE_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$/;
 const HISTOGRAM_BOUNDS_SECONDS = [
   0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60,
 ] as const;
@@ -296,7 +296,7 @@ export async function listAllocationResourceHistory(
   request: AllocationResourcePageRequest = {},
   signal?: AbortSignal,
 ): Promise<AllocationResourcePage> {
-  if (request.runId !== undefined && !RESOURCE_ID_PATTERN.test(request.runId)) {
+  if (request.runId !== undefined && !RESOURCE_ID.test(request.runId)) {
     throw new TypeError("Run ID is invalid");
   }
   const result = await api.request((client) =>

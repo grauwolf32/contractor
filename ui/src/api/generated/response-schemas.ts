@@ -472,8 +472,22 @@ export type PublicSchemaName =
   | "OperationsSnapshot"
   | "RuntimeAgentPage"
   | "AllocationPage"
+  | "IdempotencyKeyHeader"
+  | "RequiredIfMatchHeader"
+  | "OptionalOriginHeader"
+  | "OptionalCSRFTokenHeader"
+  | "importGitArtifactIfNoneMatchHeader"
+  | "ArtifactIfMatchHeader"
+  | "importProjectGitArtifactIfNoneMatchHeader"
+  | "OriginHeader"
+  | "CSRFTokenHeader"
+  | "IfNoneMatchHeader"
+  | "RequiredQueueControlIfMatchHeader"
   | "retryRunGatewayResponse202"
-  | "resumeRunResponse202";
+  | "resumeRunResponse202"
+  | "IfMatchHeader"
+  | "OptionalIdempotencyKeyHeader"
+  | "connectEventsWebSocketSecWebSocketProtocolHeader";
 
 /** A schema under $defs of event-schemas.json. */
 export type EventSchemaName =
@@ -1857,3 +1871,243 @@ export const RESPONSE_SCHEMAS = {
 } as const satisfies Record<string, Record<string, PublicSchemaName | null>>;
 
 export type ResponseOperation = keyof typeof RESPONSE_SCHEMAS;
+
+/** The PublicSchemaName of each request header an operation declares. */
+export const REQUEST_HEADER_SCHEMAS = {
+  "POST /v1/projects/{projectId}/eval-datasets": {
+    "Idempotency-Key": "IdempotencyKeyHeader",
+  },
+  "POST /v1/projects/{projectId}/eval-experiments": {
+    "Idempotency-Key": "IdempotencyKeyHeader",
+  },
+  "DELETE /v1/eval-experiments/{id}": {
+    "Idempotency-Key": "IdempotencyKeyHeader",
+    "If-Match": "RequiredIfMatchHeader",
+  },
+  "PATCH /v1/eval-experiments/{id}": {
+    "Idempotency-Key": "IdempotencyKeyHeader",
+    "If-Match": "RequiredIfMatchHeader",
+  },
+  "POST /v1/eval-experiments/{id}/commands": {
+    "Idempotency-Key": "IdempotencyKeyHeader",
+    "If-Match": "RequiredIfMatchHeader",
+  },
+  "POST /v1/eval-experiments/{id}/members/{memberId}/submissions": {
+    "Idempotency-Key": "IdempotencyKeyHeader",
+  },
+  "POST /v1/eval-experiments/{id}/members/{memberId}/results": {
+    "Idempotency-Key": "IdempotencyKeyHeader",
+  },
+  "POST /v1/eval-experiments/{id}/members/{memberId}/assessments": {
+    "Idempotency-Key": "IdempotencyKeyHeader",
+  },
+  "POST /v1/eval-experiments/{id}/selections": {
+    "Idempotency-Key": "IdempotencyKeyHeader",
+    "If-Match": "RequiredIfMatchHeader",
+  },
+  "POST /v1/finding-collections": {
+    Origin: "OptionalOriginHeader",
+    "X-CSRF-Token": "OptionalCSRFTokenHeader",
+  },
+  "PUT /v1/settings/git-key": {
+    Origin: "OptionalOriginHeader",
+    "X-CSRF-Token": "OptionalCSRFTokenHeader",
+  },
+  "DELETE /v1/settings/git-key": {
+    Origin: "OptionalOriginHeader",
+    "X-CSRF-Token": "OptionalCSRFTokenHeader",
+  },
+  "POST /v1/artifacts/{namespace}/{name}/git-import": {
+    Origin: "OptionalOriginHeader",
+    "X-CSRF-Token": "OptionalCSRFTokenHeader",
+    "If-None-Match": "importGitArtifactIfNoneMatchHeader",
+    "If-Match": "ArtifactIfMatchHeader",
+  },
+  "POST /v1/projects/{projectId}/artifacts/{namespace}/{name}/git-import": {
+    Origin: "OptionalOriginHeader",
+    "X-CSRF-Token": "OptionalCSRFTokenHeader",
+    "If-None-Match": "importProjectGitArtifactIfNoneMatchHeader",
+    "If-Match": "ArtifactIfMatchHeader",
+  },
+  "POST /v1/auth/login": { Origin: "OptionalOriginHeader" },
+  "POST /v1/auth/logout": {
+    Origin: "OriginHeader",
+    "X-CSRF-Token": "CSRFTokenHeader",
+  },
+  "POST /v1/projects": {
+    "Idempotency-Key": "IdempotencyKeyHeader",
+    Origin: "OptionalOriginHeader",
+    "X-CSRF-Token": "OptionalCSRFTokenHeader",
+  },
+  "DELETE /v1/projects/{projectId}": {
+    "If-Match": "RequiredIfMatchHeader",
+    Origin: "OptionalOriginHeader",
+    "X-CSRF-Token": "OptionalCSRFTokenHeader",
+  },
+  "PATCH /v1/projects/{projectId}": {
+    "If-Match": "RequiredIfMatchHeader",
+    Origin: "OptionalOriginHeader",
+    "X-CSRF-Token": "OptionalCSRFTokenHeader",
+  },
+  "PUT /v1/projects/{projectId}/artifacts/{namespace}/{name}": {
+    "If-Match": "ArtifactIfMatchHeader",
+    "If-None-Match": "IfNoneMatchHeader",
+    Origin: "OptionalOriginHeader",
+    "X-CSRF-Token": "OptionalCSRFTokenHeader",
+  },
+  "POST /v1/projects/{projectId}/runs": {
+    "Idempotency-Key": "IdempotencyKeyHeader",
+    Origin: "OptionalOriginHeader",
+    "X-CSRF-Token": "OptionalCSRFTokenHeader",
+  },
+  "POST /v1/projects/{projectId}/audits": {
+    "Idempotency-Key": "IdempotencyKeyHeader",
+    Origin: "OptionalOriginHeader",
+    "X-CSRF-Token": "OptionalCSRFTokenHeader",
+  },
+  "DELETE /v1/audits/{auditId}": {
+    "Idempotency-Key": "IdempotencyKeyHeader",
+    "If-Match": "RequiredIfMatchHeader",
+    Origin: "OptionalOriginHeader",
+    "X-CSRF-Token": "OptionalCSRFTokenHeader",
+  },
+  "POST /v1/audits/{auditId}/start": {
+    "Idempotency-Key": "IdempotencyKeyHeader",
+    "If-Match": "RequiredIfMatchHeader",
+    Origin: "OptionalOriginHeader",
+    "X-CSRF-Token": "OptionalCSRFTokenHeader",
+  },
+  "POST /v1/audits/{auditId}/pause": {
+    "Idempotency-Key": "IdempotencyKeyHeader",
+    "If-Match": "RequiredIfMatchHeader",
+    Origin: "OptionalOriginHeader",
+    "X-CSRF-Token": "OptionalCSRFTokenHeader",
+  },
+  "POST /v1/audits/{auditId}/resume": {
+    "Idempotency-Key": "IdempotencyKeyHeader",
+    "If-Match": "RequiredIfMatchHeader",
+    Origin: "OptionalOriginHeader",
+    "X-CSRF-Token": "OptionalCSRFTokenHeader",
+  },
+  "POST /v1/audits/{auditId}/cancel": {
+    "Idempotency-Key": "IdempotencyKeyHeader",
+    "If-Match": "RequiredIfMatchHeader",
+    Origin: "OptionalOriginHeader",
+    "X-CSRF-Token": "OptionalCSRFTokenHeader",
+  },
+  "POST /v1/audits/{auditId}/finding-proposal-imports": {
+    Origin: "OptionalOriginHeader",
+    "X-CSRF-Token": "OptionalCSRFTokenHeader",
+  },
+  "POST /v1/audits/{auditId}/findings/{findingId}/reviews": {
+    "Idempotency-Key": "IdempotencyKeyHeader",
+    "If-Match": "RequiredIfMatchHeader",
+    Origin: "OptionalOriginHeader",
+    "X-CSRF-Token": "OptionalCSRFTokenHeader",
+  },
+  "POST /v1/audits/{auditId}/reviews/{requestId}/decisions": {
+    "Idempotency-Key": "IdempotencyKeyHeader",
+    "If-Match": "RequiredIfMatchHeader",
+    Origin: "OptionalOriginHeader",
+    "X-CSRF-Token": "OptionalCSRFTokenHeader",
+  },
+  "PUT /v1/queue/control": {
+    "If-Match": "RequiredQueueControlIfMatchHeader",
+    Origin: "OptionalOriginHeader",
+    "X-CSRF-Token": "OptionalCSRFTokenHeader",
+  },
+  "POST /v1/runs": {
+    "Idempotency-Key": "IdempotencyKeyHeader",
+    Origin: "OptionalOriginHeader",
+    "X-CSRF-Token": "OptionalCSRFTokenHeader",
+  },
+  "DELETE /v1/runs/{runId}": {
+    Origin: "OptionalOriginHeader",
+    "X-CSRF-Token": "OptionalCSRFTokenHeader",
+  },
+  "POST /v1/runs/{runId}/retry-gateway": {
+    Origin: "OptionalOriginHeader",
+    "X-CSRF-Token": "OptionalCSRFTokenHeader",
+  },
+  "POST /v1/runs/{runId}/resume": {
+    Origin: "OptionalOriginHeader",
+    "X-CSRF-Token": "OptionalCSRFTokenHeader",
+  },
+  "POST /v1/runs/{runId}/cancel": {
+    Origin: "OptionalOriginHeader",
+    "X-CSRF-Token": "OptionalCSRFTokenHeader",
+  },
+  "PUT /v1/artifacts/{namespace}/{name}": {
+    "If-Match": "ArtifactIfMatchHeader",
+    "If-None-Match": "IfNoneMatchHeader",
+    Origin: "OptionalOriginHeader",
+    "X-CSRF-Token": "OptionalCSRFTokenHeader",
+  },
+  "POST /v1/configurations/{kind}": {
+    "Idempotency-Key": "IdempotencyKeyHeader",
+    Origin: "OptionalOriginHeader",
+    "X-CSRF-Token": "OptionalCSRFTokenHeader",
+  },
+  "POST /v1/operations/runtime-configs": {
+    "Idempotency-Key": "IdempotencyKeyHeader",
+    Origin: "OptionalOriginHeader",
+    "X-CSRF-Token": "OptionalCSRFTokenHeader",
+  },
+  "PUT /v1/operations/runtime-labels/{label}": {
+    "Idempotency-Key": "IdempotencyKeyHeader",
+    "If-Match": "IfMatchHeader",
+    "If-None-Match": "IfNoneMatchHeader",
+    Origin: "OptionalOriginHeader",
+    "X-CSRF-Token": "OptionalCSRFTokenHeader",
+  },
+  "DELETE /v1/operations/runtime-labels/{label}": {
+    "Idempotency-Key": "IdempotencyKeyHeader",
+    "If-Match": "RequiredIfMatchHeader",
+    Origin: "OptionalOriginHeader",
+    "X-CSRF-Token": "OptionalCSRFTokenHeader",
+  },
+  "POST /v1/operations/runtime-credentials": {
+    "Idempotency-Key": "IdempotencyKeyHeader",
+    Origin: "OptionalOriginHeader",
+    "X-CSRF-Token": "OptionalCSRFTokenHeader",
+  },
+  "DELETE /v1/operations/runtime-credentials/{credentialId}": {
+    "Idempotency-Key": "OptionalIdempotencyKeyHeader",
+    Origin: "OptionalOriginHeader",
+    "X-CSRF-Token": "OptionalCSRFTokenHeader",
+  },
+  "DELETE /v1/operations/runtime-agent-principals/{runtimeAgentId}": {
+    "Idempotency-Key": "IdempotencyKeyHeader",
+    "If-Match": "RequiredIfMatchHeader",
+    Origin: "OptionalOriginHeader",
+    "X-CSRF-Token": "OptionalCSRFTokenHeader",
+  },
+  "PUT /v1/operations/runtime-agent-principals/{runtimeAgentId}/labels": {
+    "Idempotency-Key": "IdempotencyKeyHeader",
+    "If-Match": "RequiredIfMatchHeader",
+    Origin: "OptionalOriginHeader",
+    "X-CSRF-Token": "OptionalCSRFTokenHeader",
+  },
+  "POST /v1/operations/credentials": {
+    "Idempotency-Key": "IdempotencyKeyHeader",
+    Origin: "OptionalOriginHeader",
+    "X-CSRF-Token": "OptionalCSRFTokenHeader",
+  },
+  "DELETE /v1/operations/credentials/{credentialId}": {
+    "Idempotency-Key": "IdempotencyKeyHeader",
+    Origin: "OptionalOriginHeader",
+    "X-CSRF-Token": "OptionalCSRFTokenHeader",
+  },
+  "PUT /v1/operations/settings/scheduler": {
+    "If-Match": "RequiredIfMatchHeader",
+    Origin: "OptionalOriginHeader",
+    "X-CSRF-Token": "OptionalCSRFTokenHeader",
+  },
+  "GET /v1/events/ws": {
+    Origin: "OriginHeader",
+    "Sec-WebSocket-Protocol":
+      "connectEventsWebSocketSecWebSocketProtocolHeader",
+  },
+} as const satisfies Partial<
+  Record<ResponseOperation, Record<string, PublicSchemaName>>
+>;

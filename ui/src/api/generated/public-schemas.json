@@ -10868,6 +10868,50 @@
         }
       }
     },
+    "IdempotencyKeyHeader": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "RequiredIfMatchHeader": {
+      "type": "string",
+      "pattern": "^\"[1-9][0-9]{0,19}\"$"
+    },
+    "OptionalOriginHeader": {
+      "type": "string",
+      "format": "uri",
+      "maxLength": 2048
+    },
+    "OptionalCSRFTokenHeader": {
+      "type": "string",
+      "minLength": 43,
+      "maxLength": 43,
+      "pattern": "^[A-Za-z0-9_-]+$"
+    },
+    "importGitArtifactIfNoneMatchHeader": { "type": "string", "const": "*" },
+    "ArtifactIfMatchHeader": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 258,
+      "pattern": "^\"[A-Za-z0-9][A-Za-z0-9_.:-]*\"$"
+    },
+    "importProjectGitArtifactIfNoneMatchHeader": {
+      "type": "string",
+      "const": "*"
+    },
+    "OriginHeader": { "type": "string", "format": "uri", "maxLength": 2048 },
+    "CSRFTokenHeader": {
+      "type": "string",
+      "minLength": 43,
+      "maxLength": 43,
+      "pattern": "^[A-Za-z0-9_-]+$"
+    },
+    "IfNoneMatchHeader": { "type": "string", "const": "*" },
+    "RequiredQueueControlIfMatchHeader": {
+      "type": "string",
+      "pattern": "^\"(0|[1-9][0-9]{0,19})\"$"
+    },
     "retryRunGatewayResponse202": {
       "type": "object",
       "additionalProperties": false,
@@ -10893,6 +10937,17 @@
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
         }
       }
+    },
+    "IfMatchHeader": { "type": "string", "pattern": "^\"[^\"\\\\]+\"$" },
+    "OptionalIdempotencyKeyHeader": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "connectEventsWebSocketSecWebSocketProtocolHeader": {
+      "type": "string",
+      "const": "contractor.events.v1"
     }
   }
 }

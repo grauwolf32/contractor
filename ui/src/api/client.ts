@@ -11,6 +11,7 @@ import {
 } from "../config/runtime-config";
 import {
   isResponseOperation,
+  requestHeaderViolation,
   responseViolation,
   type ResponseOperation,
 } from "./contract";
@@ -129,30 +130,59 @@ export function requireContractResponse(
 
 const CLIENT_METHODS = ["GET", "PUT", "POST", "DELETE", "PATCH"] as const;
 
+type ClientInit = {
+  parseAs?: string;
+  params?: { header?: Record<string, unknown> };
+};
+
 type ClientCall = (
   path: string,
-  init?: { parseAs?: string },
+  init?: ClientInit,
 ) => Promise<{ data?: unknown; error?: unknown; response: Response }>;
 
 /**
- * Wraps the generated client so that every parsed JSON success body is
- * validated against its operation's response schema before a wrapper sees
- * it. Bodies read as text, blob or stream are left to their callers.
+ * Refuses, before anything is sent, a request header value (If-Match,
+ * Idempotency-Key, If-None-Match) that breaks the schema its operation
+ * declares for it.
+ */
+function requireContractHeaders(
+  operation: ResponseOperation,
+  headers: Record<string, unknown> | undefined,
+): void {
+  for (const [name, value] of Object.entries(headers ?? {})) {
+    const violation = requestHeaderViolation(operation, name, value);
+    if (violation !== undefined) {
+      throw publicAPIError(0, {
+        code: "invalid_client_request",
+        message: `${name} for ${operation} breaks the public contract at ${violation}`,
+        retryable: false,
+      });
+    }
+  }
+}
+
+/**
+ * Wraps the generated client so that declared request headers are checked
+ * before sending and every parsed JSON success body is validated against
+ * its operation's response schema before a wrapper sees it. Bodies read as
+ * text, blob or stream are left to their callers.
  */
 function validatingClient(client: Client<paths>): Client<paths> {
   const wrapped: Record<string, unknown> = { ...client };
   for (const method of CLIENT_METHODS) {
     const call = client[method] as unknown as ClientCall;
-    wrapped[method] = async (path: string, init?: { parseAs?: string }) => {
-      const result = await call(path, init);
+    wrapped[method] = async (path: string, init?: ClientInit) => {
       const operation = `${method} ${path}`;
+      if (!isResponseOperation(operation)) {
+        throw publicAPIError(0, {
+          code: "invalid_client_request",
+          message: `${operation} is not in the generated public contract`,
+          retryable: false,
+        });
+      }
+      requireContractHeaders(operation, init?.params?.header);
+      const result = await call(path, init);
       if (result.response.ok && (init?.parseAs ?? "json") === "json") {
-        if (!isResponseOperation(operation)) {
-          throw new InvalidResponseError(
-            result.response.status,
-            `${operation} is not in the generated public contract`,
-          );
-        }
         requireContractResponse(operation, result.response.status, result.data);
       }
       return result;

@@ -1,3 +1,4 @@
+import { RESOURCE_ID } from "./contract";
 import type { PublicAPI } from "./client";
 import { invalidAPIResponse, PublicAPIError, requireData } from "./error";
 import type { components } from "./generated/public";
@@ -10,7 +11,8 @@ import {
 } from "./runs";
 
 export const PROJECT_PAGE_SIZE = 50;
-export const PROJECT_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$/;
+// Project IDs are public ResourceIds.
+export const PROJECT_ID_PATTERN = RESOURCE_ID;
 export const PROJECT_REVISION_PATTERN = /^[1-9][0-9]{0,18}$/;
 export const MAXIMUM_PROJECT_NAME_LENGTH = 160;
 export const MAXIMUM_PROJECT_DESCRIPTION_LENGTH = 4096;

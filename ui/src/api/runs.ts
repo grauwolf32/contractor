@@ -1,3 +1,4 @@
+import { RESOURCE_ID } from "./contract";
 import {
   ARTIFACT_NAME_PATTERN,
   ARTIFACT_PAGE_SIZE,
@@ -30,7 +31,8 @@ import {
 } from "./run-metadata-labels";
 
 export const RUN_PAGE_SIZE = 50;
-export const RUN_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$/;
+// Run and Stage execution IDs are public ResourceIds.
+export const RUN_ID_PATTERN = RESOURCE_ID;
 export const RUN_STATES = [
   "initializing",
   "pending",

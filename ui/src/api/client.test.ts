@@ -639,6 +639,28 @@ describe("response contract", () => {
     expect((error as Error).message).not.toContain("secret");
   });
 
+  it("refuses a request header that breaks its operation's schema before sending", async () => {
+    const fetchImplementation = vi.fn(async () => apiResponse({}));
+    const api = new PublicAPI(runtimeConfig, fetchImplementation);
+    api.csrf.replace(session.csrfToken);
+    for (const ifMatch of ['"01"', "1", '"1"x', '"123456789012345678901"']) {
+      await expect(
+        api.request((client) =>
+          client.PUT("/v1/queue/control", {
+            params: { header: { "If-Match": ifMatch } },
+            body: { paused: true },
+          }),
+        ),
+      ).rejects.toMatchObject({
+        code: "invalid_client_request",
+        message: expect.stringContaining(
+          "If-Match for PUT /v1/queue/control breaks the public contract",
+        ),
+      });
+    }
+    expect(fetchImplementation).not.toHaveBeenCalled();
+  });
+
   it("rejects an undeclared success status", async () => {
     await expect(readProject(project, 203)).rejects.toMatchObject({
       code: "invalid_api_response",

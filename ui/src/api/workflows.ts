@@ -1,3 +1,4 @@
+import { RESOURCE_ID } from "./contract";
 import type { PublicAPI } from "./client";
 import { invalidAPIResponse, PublicAPIError, requireData } from "./error";
 import type { components } from "./generated/public";
@@ -14,7 +15,6 @@ export const CONFIG_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/;
 // holds them to the Server grammar.
 export const CONFIG_NAME_PATTERN = /^[a-z][a-z0-9_-]{0,127}$/;
 export const CONFIG_VERSION_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$/;
-const RESOURCE_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$/;
 
 /**
  * An exact `<name>@<version>` configuration selector, as in the public
@@ -200,7 +200,7 @@ export async function createProjectRun(
   request: CreateRunRequest,
   idempotencyKey: string,
 ): Promise<CreateRunResponse> {
-  if (!RESOURCE_ID_PATTERN.test(projectId)) {
+  if (!RESOURCE_ID.test(projectId)) {
     throw new TypeError("Project ID is invalid");
   }
   const mutationHeaders = api.mutationHeaders({ idempotencyKey });

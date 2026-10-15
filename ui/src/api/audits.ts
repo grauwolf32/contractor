@@ -1,3 +1,4 @@
+import { RESOURCE_ID } from "./contract";
 import { requireAuditComposition } from "./audit-composition";
 import type { PublicAPI } from "./client";
 import { invalidAPIResponse, PublicAPIError, requireData } from "./error";
@@ -6,7 +7,8 @@ import { requireProjectID } from "./projects";
 import { CONFIG_NAME_PATTERN, CONFIG_VERSION_PATTERN } from "./workflows";
 
 export const AUDIT_PAGE_SIZE = 50;
-export const AUDIT_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$/;
+// Audit IDs are public ResourceIds.
+export const AUDIT_ID_PATTERN = RESOURCE_ID;
 
 export type AuditProfile = components["schemas"]["AuditProfile"];
 export type AuditProfilePage = components["schemas"]["AuditProfilePage"];

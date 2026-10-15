@@ -10,6 +10,7 @@ import publicSchemas from "./generated/public-schemas.json" with { type: "json" 
 import {
   EVENT_SCHEMA_ID,
   PUBLIC_SCHEMA_ID,
+  REQUEST_HEADER_SCHEMAS,
   RESPONSE_SCHEMAS,
   type EventSchemaName,
   type PublicSchemaName,
@@ -106,6 +107,24 @@ export function responseViolation(
   }
   const at = violation(body, publicURI(name));
   return at === undefined ? undefined : `the body does not conform at ${at}`;
+}
+
+/**
+ * Why a request header value breaks the schema `operation` declares for it,
+ * if it does. Headers the operation does not declare are not checked here.
+ */
+export function requestHeaderViolation(
+  operation: ResponseOperation,
+  header: string,
+  value: unknown,
+): string | undefined {
+  const declared: Readonly<Record<string, PublicSchemaName>> | undefined = (
+    REQUEST_HEADER_SCHEMAS as Partial<
+      Record<ResponseOperation, Readonly<Record<string, PublicSchemaName>>>
+    >
+  )[operation];
+  const name = declared?.[header];
+  return name === undefined ? undefined : violation(value, publicURI(name));
 }
 
 /** Why a parsed event frame breaks contractor-events-v1, if it does. */
@@ -247,3 +266,14 @@ export function schemaLimit(
   }
   return value;
 }
+
+/*
+ * Shared rules: the public grammars the UI checks before it sends a value
+ * (route parameters, If-Match revisions, form fields). Each one is the
+ * generated schema itself, so it cannot drift from the Server.
+ */
+
+/** ResourceId: Run, Project, Audit and other Server-assigned identifiers. */
+export const RESOURCE_ID = stringRule("ResourceId");
+/** Revision: an exact Artifact revision. */
+export const REVISION = stringRule("Revision");

@@ -4,6 +4,7 @@
  * running checks. Everything here is pure, so the sections can be tested
  * without a Server.
  */
+import { RESOURCE_ID } from "../../api/contract";
 import type { AuditState, AuditWorkspace } from "../../api/audits";
 import type {
   CrossProjectCheck,
@@ -141,9 +142,6 @@ export const COUNTED_CHECK_STATES: ReadonlySet<AuditState> = new Set([
   "paused",
 ]);
 
-// Server IDs (ResourceId); anything else in `?item=` is ignored.
-const RESOURCE_ID = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$/;
-
 function idsOf(ref: InboxRef): string[] {
   switch (ref.kind) {
     case "issue":
@@ -179,6 +177,7 @@ export function parseRefKey(
   } catch {
     return undefined;
   }
+  // Server IDs are ResourceIds; anything else in `?item=` is ignored.
   if (ids.some((id) => !RESOURCE_ID.test(id))) return undefined;
   const [first, second] = ids;
   if (first === undefined) return undefined;

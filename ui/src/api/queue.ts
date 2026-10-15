@@ -28,8 +28,6 @@ export interface QueuePageRequest {
   cursor?: string;
 }
 
-const QUEUE_CONTROL_REVISION = /^(?:0|[1-9][0-9]{0,18})$/;
-
 function invalidQueueResponse(status: number): PublicAPIError {
   return invalidAPIResponse(
     status,
@@ -66,9 +64,7 @@ export async function setOwnerQueuePaused(
   paused: boolean,
   expectedRevision: string,
 ): Promise<OwnerQueueControl> {
-  if (!QUEUE_CONTROL_REVISION.test(expectedRevision)) {
-    throw new TypeError("Queue control revision is invalid");
-  }
+  // The client checks the If-Match value against the operation's schema.
   const result = await api.request((client) =>
     client.PUT("/v1/queue/control", {
       params: { header: { "If-Match": `"${expectedRevision}"` } },

@@ -1,3 +1,4 @@
+import { REVISION } from "./contract";
 import type { PublicAPI } from "./client";
 import type { ResponseOperation } from "./contract";
 import { invalidAPIResponse, PublicAPIError, requireData } from "./error";
@@ -14,7 +15,8 @@ export const HTTP_EXCHANGE_MEDIA_TYPE =
 // A strict end assertion also rejects a trailing newline (unlike JavaScript $).
 export const ARTIFACT_NAME_PATTERN =
   /^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}(?![\s\S])/;
-export const ARTIFACT_REVISION_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$/;
+// An exact Artifact revision is the public Revision grammar.
+export const ARTIFACT_REVISION_PATTERN = REVISION;
 // RFC 6838 restricted names in canonical lowercase, at most 255 characters as
 // in the public MediaType schema; the shared cases in
 // api/testdata/v1alpha1/media-type-cases.json pin the grammar.
