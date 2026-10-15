@@ -1,15 +1,23 @@
 import { listAuditProfiles, type AuditProfile } from "./audits";
 import { collectAuditPages } from "./audit-collections";
 import type { PublicAPI } from "./client";
+import { stringRule } from "./contract";
 import { invalidAPIResponse, requireData } from "./error";
 import type { components } from "./generated/public";
 
 export type AuditStandard = components["schemas"]["AuditStandardPackage"];
 
-// The OpenAPI AuditStandardRef identity patterns.
-export const AUDIT_STANDARD_SCHEME_PATTERN = /^[a-z][a-z0-9.-]{0,63}$/;
-export const AUDIT_STANDARD_VERSION_PATTERN =
-  /^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$/;
+// The OpenAPI AuditStandardRef identity rules.
+export const AUDIT_STANDARD_SCHEME_PATTERN = stringRule(
+  "AuditStandardRef",
+  "properties",
+  "scheme",
+);
+export const AUDIT_STANDARD_VERSION_PATTERN = stringRule(
+  "AuditStandardRef",
+  "properties",
+  "version",
+);
 
 // The profile endpoint has no search filter. Read the bounded batch of pages
 // before searching or grouping versions so presets on later pages remain

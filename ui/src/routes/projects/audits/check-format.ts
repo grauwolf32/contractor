@@ -1,4 +1,5 @@
 import type { Audit } from "../../../api/audits";
+import { ENDED_AUDIT_STATES } from "../../../api/states";
 
 const shortDateTime = new Intl.DateTimeFormat("en-US", {
   month: "short",
@@ -45,12 +46,7 @@ export function startedText(audit: Audit): string {
     : `Started ${formatShortDateTime(audit.startedAt)}`;
 }
 
-const TERMINAL: readonly Audit["state"][] = [
-  "completed",
-  "cancelled",
-  "failed",
-  "deleting",
-];
+const TERMINAL: readonly Audit["state"][] = ENDED_AUDIT_STATES;
 
 /**
  * The check's time limit in words, or undefined once it no longer matters

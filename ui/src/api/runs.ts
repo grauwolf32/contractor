@@ -1,4 +1,5 @@
 import { RESOURCE_ID } from "./contract";
+import { isStateIn, TERMINAL_RUN_STATES } from "./states";
 import {
   ARTIFACT_NAME_PATTERN,
   ARTIFACT_PAGE_SIZE,
@@ -33,21 +34,7 @@ import {
 export const RUN_PAGE_SIZE = 50;
 // Run and Stage execution IDs are public ResourceIds.
 export const RUN_ID_PATTERN = RESOURCE_ID;
-export const RUN_STATES = [
-  "initializing",
-  "pending",
-  "waiting",
-  "running",
-  "cancelling",
-  "succeeded",
-  "failed",
-  "cancelled",
-] as const satisfies readonly WorkflowRunState[];
-export const TERMINAL_RUN_STATES = [
-  "succeeded",
-  "failed",
-  "cancelled",
-] as const satisfies readonly WorkflowRunState[];
+export { RUN_STATES, TERMINAL_RUN_STATES } from "./states";
 
 export type WorkflowRunState = components["schemas"]["WorkflowRunState"];
 export type WorkflowRunLifecycle =
@@ -144,7 +131,7 @@ function exactRevisionQuery(revision: string): string {
 }
 
 export function isTerminalRunState(state: WorkflowRunState): boolean {
-  return TERMINAL_RUN_STATES.some((terminal) => terminal === state);
+  return isStateIn(TERMINAL_RUN_STATES, state);
 }
 
 export async function listRuns(

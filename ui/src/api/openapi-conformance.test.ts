@@ -142,7 +142,8 @@ describe("hand-written UI contracts match the public OpenAPI", () => {
     const schema = schemaAt(path as string);
     const mismatches = probes.filter(
       (value) =>
-        (pattern as RegExp).test(value) !== openapiAccepts(schema, value),
+        (pattern as { test(value: string): boolean }).test(value) !==
+        openapiAccepts(schema, value),
     );
     expect(mismatches).toEqual([]);
   });

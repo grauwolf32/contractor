@@ -1,4 +1,12 @@
 import type { PublicAPI } from "./client";
+import {
+  DIGEST,
+  RUNTIME_AGENT_ID,
+  RUNTIME_CONFIG_VERSION,
+  RUNTIME_CREDENTIAL_ID,
+  RUNTIME_INFRASTRUCTURE_ID,
+  stringRule,
+} from "./contract";
 import { invalidAPIResponse, publicAPIError, requireData } from "./error";
 import type { components } from "./generated/public";
 import {
@@ -21,11 +29,11 @@ export const WRITABLE_CONFIGURATION_KINDS = [
   "llm-gateways",
 ] as const satisfies readonly WritableConfigurationKind[];
 export const MANAGED_CONFIG_NAME_PATTERN = CONFIG_NAME_PATTERN;
-export const BUDGET_DURATION_PATTERN =
-  /^(?=.{2,32}$)[1-9][0-9]*(?:s|m|h|d|mo)$/;
-
-const DIGEST_PATTERN = /^sha256:[0-9a-f]{64}$/;
-const SCHEDULER_SETTINGS_ETAG = /^"[1-9][0-9]{0,19}"$/;
+export const BUDGET_DURATION_PATTERN = stringRule(
+  "GatewayPolicy",
+  "properties",
+  "budgetDuration",
+);
 // Telemetry export retry defaults the Runtime applies to an omitted bound.
 const DEFAULT_INITIAL_BACKOFF_MILLISECONDS = 100;
 const DEFAULT_MAX_BACKOFF_MILLISECONDS = 1000;
@@ -103,29 +111,28 @@ function requirePublishedRef(ref: {
 }): void {
   const name = ref.policyId ?? ref.gatewayId ?? "";
   requireConfigIdentity(name, ref.version);
-  if (!DIGEST_PATTERN.test(ref.digest)) {
+  if (!DIGEST.test(ref.digest)) {
     throw new TypeError("Published configuration digest is invalid");
   }
 }
 
 function requireRuntimeIdentity(name: string, version?: string): void {
   if (
-    !/^[a-z][a-z0-9_-]{0,62}$/.test(name) ||
-    (version !== undefined &&
-      !/^[A-Za-z0-9][A-Za-z0-9._+-]{0,127}$/.test(version))
+    !RUNTIME_INFRASTRUCTURE_ID.test(name) ||
+    (version !== undefined && !RUNTIME_CONFIG_VERSION.test(version))
   ) {
     throw new TypeError("Runtime configuration identity is invalid");
   }
 }
 
 function requireRuntimeCredentialId(value: string): void {
-  if (!/^[a-z][a-z0-9_-]{0,127}$/.test(value)) {
+  if (!RUNTIME_CREDENTIAL_ID.test(value)) {
     throw new TypeError("Runtime credential ID is invalid");
   }
 }
 
 function requireRuntimeAgentId(value: string): void {
-  if (!/^[0-9a-f]{64}$/.test(value)) {
+  if (!RUNTIME_AGENT_ID.test(value)) {
     throw new TypeError("Runtime Agent principal ID is invalid");
   }
 }
@@ -134,7 +141,7 @@ function requireRuntimeRef(
   ref: components["schemas"]["RuntimeConfigRef"],
 ): components["schemas"]["RuntimeConfigRef"] {
   requireRuntimeIdentity(ref.name, ref.version);
-  if (!DIGEST_PATTERN.test(ref.digest)) {
+  if (!DIGEST.test(ref.digest)) {
     throw new TypeError("RuntimeConfig ref is invalid");
   }
   return { name: ref.name, version: ref.version, digest: ref.digest };
@@ -338,9 +345,7 @@ export async function replaceSchedulerSettings(
       "Maximum concurrent Workflow Runs must be an integer from 1 through 32",
     );
   }
-  if (!SCHEDULER_SETTINGS_ETAG.test(etag)) {
-    throw new TypeError("Scheduler settings ETag is invalid");
-  }
+  // The client checks the If-Match value against the operation's schema.
   const result = await api.request((client) =>
     client.PUT("/v1/operations/settings/scheduler", {
       params: { header: { "If-Match": etag } },

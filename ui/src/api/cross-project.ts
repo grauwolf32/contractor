@@ -36,6 +36,12 @@ import { PublicAPIError } from "./error";
 import type { components, operations } from "./generated/public";
 import { listProjects, type Project } from "./projects";
 import { queryKeys } from "./query-keys";
+import {
+  AUDIT_STATES_WITH_FINDINGS,
+  INBOX_AUDIT_STATES,
+  OPEN_AUDIT_STATES,
+  REPORT_AUDIT_STATES,
+} from "./states";
 import { collectOwnerPages, type OwnerCollection } from "./owner-pages";
 
 /** Page size is enforced by the Server; collections have no fixed cap. */
@@ -115,34 +121,12 @@ const POLLED = {
   retry: false,
 } as const;
 
-/** Which per-check reads a check in each state can have. */
-const READS_BY_STATE: Readonly<
-  Record<AuditState, { issues: boolean; decisions: boolean; report: boolean }>
-> = {
-  draft: { issues: false, decisions: false, report: false },
-  active: { issues: true, decisions: true, report: false },
-  waiting_review: { issues: true, decisions: true, report: true },
-  paused: { issues: true, decisions: true, report: false },
-  finalizing: { issues: true, decisions: true, report: true },
-  cancelling: { issues: true, decisions: false, report: false },
-  completed: { issues: true, decisions: false, report: true },
-  cancelled: { issues: true, decisions: false, report: true },
-  failed: { issues: true, decisions: false, report: true },
-  deleting: { issues: false, decisions: false, report: false },
-};
-
-function statesWith(read: "issues" | "decisions" | "report"): AuditState[] {
-  return (Object.keys(READS_BY_STATE) as AuditState[]).filter(
-    (state) => READS_BY_STATE[state][read],
-  );
-}
-
 // Every check that ran can hold possible issues.
-const ISSUE_CHECK_STATES = statesWith("issues");
+const ISSUE_CHECK_STATES = AUDIT_STATES_WITH_FINDINGS;
 // Running and waiting checks can ask for decisions.
-const DECISION_CHECK_STATES = statesWith("decisions");
+const DECISION_CHECK_STATES = OPEN_AUDIT_STATES;
 // Finishing and ended checks can have a report.
-const REPORT_CHECK_STATES = statesWith("report");
+const REPORT_CHECK_STATES = REPORT_AUDIT_STATES;
 
 /**
  * The checks the Inbox reads: running ones and those waiting for the user
@@ -151,10 +135,7 @@ const REPORT_CHECK_STATES = statesWith("report");
  * the badge and share its reads; possible issues of other checks stay on the
  * Issues page and the check's own page.
  */
-export const INBOX_CHECK_STATES: readonly AuditState[] = [
-  "active",
-  "waiting_review",
-];
+export const INBOX_CHECK_STATES: readonly AuditState[] = INBOX_AUDIT_STATES;
 
 /** Review kinds that need the user beyond triaging a possible issue. */
 const OTHER_DECISIONS: Readonly<Record<AuditReviewKind, boolean>> = {

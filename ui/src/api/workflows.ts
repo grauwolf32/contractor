@@ -1,4 +1,10 @@
-import { RESOURCE_ID } from "./contract";
+import {
+  CONFIG_ID,
+  CONFIG_VERSION,
+  CONFIGURATION_NAME,
+  RESOURCE_ID,
+  stringRule,
+} from "./contract";
 import type { PublicAPI } from "./client";
 import { invalidAPIResponse, PublicAPIError, requireData } from "./error";
 import type { components } from "./generated/public";
@@ -9,24 +15,15 @@ import {
 
 export const WORKFLOW_PAGE_SIZE = 50;
 export const REFERENCE_PAGE_SIZE = 50;
-export const CONFIG_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/;
-// Configuration names and versions as in the public ConfigurationName and
-// ConfigVersion schemas; api/testdata/v1alpha1/config-identity-cases.json
-// holds them to the Server grammar.
-export const CONFIG_NAME_PATTERN = /^[a-z][a-z0-9_-]{0,127}$/;
-export const CONFIG_VERSION_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$/;
+// The public ConfigId, ConfigurationName and ConfigVersion rules.
+export const CONFIG_ID_PATTERN = CONFIG_ID;
+export const CONFIG_NAME_PATTERN = CONFIGURATION_NAME;
+export const CONFIG_VERSION_PATTERN = CONFIG_VERSION;
+const SELECTOR = stringRule("Selector");
 
-/**
- * An exact `<name>@<version>` configuration selector, as in the public
- * Selector schema: neither part may contain `@`, so the first one separates.
- */
+/** An exact `<name>@<version>` configuration selector (public Selector). */
 export function isConfigSelector(value: string): boolean {
-  const separator = value.indexOf("@");
-  return (
-    separator > 0 &&
-    CONFIG_NAME_PATTERN.test(value.slice(0, separator)) &&
-    CONFIG_VERSION_PATTERN.test(value.slice(separator + 1))
-  );
+  return SELECTOR.test(value);
 }
 
 export type WorkflowPage = components["schemas"]["WorkflowPage"];

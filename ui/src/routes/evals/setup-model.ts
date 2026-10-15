@@ -1,3 +1,4 @@
+import { stringRule } from "../../api/contract";
 import type { EvalCapabilities, EvalDraft, EvalVariant } from "../../api/evals";
 import { compareWorkflowVersions } from "../workflows/families";
 
@@ -6,7 +7,8 @@ export const MAX_EVAL_MEMBERS = 1000;
 export const MAX_EVAL_REPETITIONS = 100;
 export const MAX_EVAL_DOCUMENT_BYTES = 1024 * 1024;
 export const DEFAULT_WALL_MS = 90 * 60 * 1000;
-export const EVAL_ID_PATTERN = /^[a-z0-9][a-z0-9_.-]{0,127}$/;
+// Eval case and criterion IDs follow the public EvalId rule.
+export const EVAL_ID_PATTERN = stringRule("EvalId");
 export const PIN_DIMENSIONS = [
   "source",
   "tasks",

@@ -1,8 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 
+import performanceCases from "../../../api/testdata/v1alpha1/performance-cases.json";
 import type { RuntimeConfig } from "../config/runtime-config";
 import { PublicAPI } from "./client";
+import { conformsTo } from "./contract";
 import {
+  consistentAllocationResourceSummary,
   getPerformance,
   getPerformanceHistory,
   histogramQuantileUpperBound,
@@ -611,4 +614,61 @@ describe("performance API", () => {
       code: "invalid_api_response",
     });
   });
+});
+
+describe("shared Runtime resource summary cases", () => {
+  // api/testdata/v1alpha1/performance-cases.json, which Go and the Runtime
+  // also read: the schema rejects the schemaInvalid cases and the
+  // cross-field invariants reject the rest.
+  function summary(resources: unknown) {
+    const resourceStatus =
+      typeof resources === "object" && resources !== null
+        ? (resources as { status?: unknown }).status
+        : undefined;
+    const status =
+      resourceStatus === "complete"
+        ? "available"
+        : resourceStatus === "unavailable"
+          ? "unavailable"
+          : "partial";
+    return {
+      allocationId: "allocation_1",
+      runId: "run_1",
+      stageExecutionId: "stage_1",
+      stage: "execute",
+      logicalAgent: "worker",
+      outcome: "succeeded",
+      finishedAt: "2026-10-05T10:00:00Z",
+      collectionPolicy: "requested",
+      status,
+      resources,
+    };
+  }
+
+  it.each(performanceCases.validResources)("accepts $name", ({ value }) => {
+    const candidate = summary(value);
+    expect(conformsTo("AllocationResourceSummary", candidate)).toBe(true);
+    expect(
+      consistentAllocationResourceSummary(
+        candidate as Parameters<typeof consistentAllocationResourceSummary>[0],
+      ),
+    ).toBe(true);
+  });
+
+  it.each(performanceCases.invalidResources)(
+    "rejects $name",
+    ({ value, schemaInvalid }) => {
+      const candidate = summary(value);
+      const conforms = conformsTo("AllocationResourceSummary", candidate);
+      if (!schemaInvalid) expect(conforms).toBe(true);
+      expect(
+        conforms &&
+          consistentAllocationResourceSummary(
+            candidate as Parameters<
+              typeof consistentAllocationResourceSummary
+            >[0],
+          ),
+      ).toBe(false);
+    },
+  );
 });

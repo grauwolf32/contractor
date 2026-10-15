@@ -1,20 +1,14 @@
 import type { PublicAPI } from "./client";
+import { schemaEnum } from "./contract";
+import { NON_TERMINAL_RUN_STATES } from "./states";
 import { invalidAPIResponse, PublicAPIError, requireData } from "./error";
 import type { components } from "./generated/public";
 
 export const QUEUE_PAGE_SIZE = 50;
-export const QUEUE_STATES = [
-  "initializing",
-  "pending",
-  "waiting",
-  "running",
-  "cancelling",
-] as const satisfies readonly QueueState[];
-export const QUEUE_MEMBERSHIPS = [
-  "standalone",
-  "project",
-  "evaluation",
-] as const satisfies readonly QueueMembership[];
+// The Queue lists the Run states that can still change.
+export const QUEUE_STATES = NON_TERMINAL_RUN_STATES;
+export const QUEUE_MEMBERSHIPS =
+  schemaEnum<QueueMembership>("RunQueueMembership");
 
 export type QueueState = components["schemas"]["NonTerminalWorkflowRunState"];
 export type QueueMembership = components["schemas"]["RunQueueMembership"];

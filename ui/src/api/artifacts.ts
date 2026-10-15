@@ -1,4 +1,4 @@
-import { REVISION } from "./contract";
+import { REVISION, stringRule } from "./contract";
 import type { PublicAPI } from "./client";
 import type { ResponseOperation } from "./contract";
 import { invalidAPIResponse, PublicAPIError, requireData } from "./error";
@@ -12,16 +12,12 @@ const MAXIMUM_WRITE_RESPONSE_BYTES = 64 * 1024;
 export const HTTP_EXCHANGE_MEDIA_TYPE =
   "application/vnd.contractor.http-exchange+json";
 
-// A strict end assertion also rejects a trailing newline (unlike JavaScript $).
-export const ARTIFACT_NAME_PATTERN =
-  /^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}(?![\s\S])/;
+export const ARTIFACT_NAME_PATTERN = stringRule("ArtifactName");
 // An exact Artifact revision is the public Revision grammar.
 export const ARTIFACT_REVISION_PATTERN = REVISION;
-// RFC 6838 restricted names in canonical lowercase, at most 255 characters as
-// in the public MediaType schema; the shared cases in
-// api/testdata/v1alpha1/media-type-cases.json pin the grammar.
-export const MEDIA_TYPE_PATTERN =
-  /^(?=.{3,255}$)[a-z0-9][a-z0-9!#$&^_.+-]*\/[a-z0-9][a-z0-9!#$&^_.+-]*$/;
+// A concrete media type: the second branch of the public MediaType schema
+// (RFC 6838 restricted names in canonical lowercase).
+export const MEDIA_TYPE_PATTERN = stringRule("MediaType", "oneOf", "1");
 
 const PREVIEW_MEDIA_TYPES = new Set([
   HTTP_EXCHANGE_MEDIA_TYPE,

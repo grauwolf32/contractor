@@ -1,4 +1,5 @@
 import { RESOURCE_ID } from "./contract";
+import { CHANGING_AUDIT_STATES, isStateIn } from "./states";
 import { requireAuditComposition } from "./audit-composition";
 import type { PublicAPI } from "./client";
 import { invalidAPIResponse, PublicAPIError, requireData } from "./error";
@@ -712,13 +713,7 @@ export function auditMutationAudit(value: Audit | AuditStartResponse): Audit {
  * when they have the outstanding Run count.
  */
 export function auditNeedsPolling(state: AuditState): boolean {
-  return (
-    state === "active" ||
-    state === "waiting_review" ||
-    state === "finalizing" ||
-    state === "cancelling" ||
-    state === "deleting"
-  );
+  return isStateIn(CHANGING_AUDIT_STATES, state);
 }
 
 /** Polling interval for a set of Audits: off when none of them can change. */

@@ -277,3 +277,23 @@ export function schemaLimit(
 export const RESOURCE_ID = stringRule("ResourceId");
 /** Revision: an exact Artifact revision. */
 export const REVISION = stringRule("Revision");
+/** Digest: sha256: and 64 lowercase hexadecimal digits. */
+export const DIGEST = stringRule("Digest");
+/** ConfigurationName: a published configuration's name. */
+export const CONFIGURATION_NAME = stringRule("ConfigurationName");
+/** ConfigVersion: a published configuration's version. */
+export const CONFIG_VERSION = stringRule("ConfigVersion");
+/** ConfigId: Stage, logical Agent and tool names. */
+export const CONFIG_ID = stringRule("ConfigId");
+/** RuntimeInfrastructureId: RuntimeConfig names and Runtime labels. */
+export const RUNTIME_INFRASTRUCTURE_ID = stringRule("RuntimeInfrastructureId");
+/** RuntimeConfigVersion: a RuntimeConfig's version. */
+export const RUNTIME_CONFIG_VERSION = stringRule("RuntimeConfigVersion");
+/** RuntimeCredentialId: a Runtime credential's identifier. */
+export const RUNTIME_CREDENTIAL_ID = stringRule("RuntimeCredentialId");
+/** A Runtime Agent principal's ID: 64 lowercase hexadecimal digits. */
+export const RUNTIME_AGENT_ID = stringRule(
+  "RuntimeAgentPrincipal",
+  "properties",
+  "runtimeAgentId",
+);

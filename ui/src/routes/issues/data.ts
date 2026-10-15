@@ -20,24 +20,18 @@ import {
 } from "../../api/cross-project";
 import { FINDING_STATES } from "../projects/audits/finding-options";
 import type { IssueFilters, StateFilter } from "./links";
+import {
+  AUDIT_STATES_WITH_FINDINGS,
+  WORKING_AUDIT_STATES,
+} from "../../api/states";
 
 /** Check states that can hold possible issues (every state but draft and deleting). */
-const ISSUE_CHECK_STATES: readonly AuditState[] = [
-  "active",
-  "waiting_review",
-  "paused",
-  "finalizing",
-  "cancelling",
-  "completed",
-  "cancelled",
-  "failed",
-];
+const ISSUE_CHECK_STATES = AUDIT_STATES_WITH_FINDINGS;
 
 /** Checks that can still propose possible issues. */
-const RUNNING_CHECK_STATES: ReadonlySet<AuditState> = new Set([
-  "active",
-  "finalizing",
-]);
+const RUNNING_CHECK_STATES: ReadonlySet<AuditState> = new Set(
+  WORKING_AUDIT_STATES,
+);
 
 /** A count for a filter chip: exact, a lower bound ("12+") or unknown. */
 export type IssueCount = number | string | undefined;

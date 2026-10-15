@@ -1,4 +1,10 @@
-import { RESOURCE_ID } from "./contract";
+import {
+  conformsTo,
+  RESOURCE_ID,
+  RUNTIME_CREDENTIAL_ID,
+  schemaLimit,
+  stringRule,
+} from "./contract";
 import type { PublicAPI } from "./client";
 import { invalidAPIResponse, PublicAPIError, requireData } from "./error";
 import type { components } from "./generated/public";
@@ -13,22 +19,38 @@ import {
 export const PROJECT_PAGE_SIZE = 50;
 // Project IDs are public ResourceIds.
 export const PROJECT_ID_PATTERN = RESOURCE_ID;
-export const PROJECT_REVISION_PATTERN = /^[1-9][0-9]{0,18}$/;
-export const MAXIMUM_PROJECT_NAME_LENGTH = 160;
-export const MAXIMUM_PROJECT_DESCRIPTION_LENGTH = 4096;
-export const MAXIMUM_PROJECT_TARGET_URL_BYTES = 2048;
-const RUNTIME_CREDENTIAL_ID_PATTERN = /^[a-z][a-z0-9_-]{0,127}$/;
+export const PROJECT_REVISION_PATTERN = stringRule(
+  "Project",
+  "properties",
+  "revision",
+);
+export const MAXIMUM_PROJECT_NAME_LENGTH = schemaLimit(
+  "CreateProjectRequest",
+  "maxLength",
+  "properties",
+  "name",
+);
+export const MAXIMUM_PROJECT_DESCRIPTION_LENGTH = schemaLimit(
+  "CreateProjectRequest",
+  "maxLength",
+  "properties",
+  "description",
+);
+// The Server bounds the target URL in UTF-8 bytes.
+export const MAXIMUM_PROJECT_TARGET_URL_BYTES = schemaLimit(
+  "ProjectHTTPTarget",
+  "maxLength",
+  "properties",
+  "url",
+);
 
 export type Project = components["schemas"]["Project"];
 export type ActiveChecksPolicy = components["schemas"]["ActiveChecksPolicy"];
 
 export function requireActiveChecksPolicy(value: unknown): ActiveChecksPolicy {
-  if (
-    value === "automatic" ||
-    value === "approval-required" ||
-    value === "prohibited"
-  )
-    return value;
+  if (conformsTo("ActiveChecksPolicy", value)) {
+    return value as ActiveChecksPolicy;
+  }
   throw new TypeError("Project active checks policy is invalid");
 }
 export type ProjectKind = components["schemas"]["ProjectKind"];
@@ -96,7 +118,7 @@ export function normalizeProjectRequest(
   const name = request.name.trim();
   const description = request.description?.trim() ?? "";
   if (
-    (request.kind !== "project" && request.kind !== "evaluation") ||
+    !conformsTo("ProjectKind", request.kind) ||
     name.length === 0 ||
     name.length > MAXIMUM_PROJECT_NAME_LENGTH ||
     description.length > MAXIMUM_PROJECT_DESCRIPTION_LENGTH
@@ -147,7 +169,7 @@ export function normalizeProjectHTTPTarget(
   const credential = target.credential;
   if (
     credential !== undefined &&
-    (!RUNTIME_CREDENTIAL_ID_PATTERN.test(credential.credentialId) ||
+    (!RUNTIME_CREDENTIAL_ID.test(credential.credentialId) ||
       (credential.kind !== "http-origin-basic@1" &&
         credential.kind !== "http-origin-bearer@1"))
   ) {
