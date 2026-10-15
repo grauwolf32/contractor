@@ -34,7 +34,7 @@ export function EvalDiagnostics({
             : "Experiment needs attention"}
         </strong>
         {experiment.diagnostics.map((diagnostic, index) => (
-          <div className="eval-diagnostic" key={index}>
+          <div className="ui-stack" data-gap="1" key={index}>
             <p>
               {MESSAGES[diagnostic.code] ??
                 `The server could not complete this action. Suggested recovery: ${diagnostic.recovery.replaceAll("_", " ")}.`}

@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useId, useState } from "react";
-import { Link, useSearchParams } from "react-router";
+import { useSearchParams } from "react-router";
 import { usePublicAPI } from "../../api/context";
 import {
   importEvalDataset,
@@ -10,12 +10,12 @@ import {
 } from "../../api/evals";
 import { queryKeys } from "../../api/query-keys";
 import { useDocumentTitle } from "../../app/document-title";
-import { EmptyState, IdChip } from "../../ui";
+import { QueryView } from "../../app/query-view";
+import { Button, ButtonLink, EmptyState, Field, IdChip } from "../../ui";
 import { EvalArtifactPicker } from "./artifact-picker";
 import {
   CommaSeparatedInput,
   EvalFrame,
-  EvalField,
   EvalError,
   KeyValueEditor,
 } from "./common";
@@ -25,7 +25,8 @@ import {
 } from "./key-value-validity";
 import { useEvalDatasets, useEvalOwner, useEvalProjects } from "./queries";
 import { recoverableMutation } from "./recovery";
-import { MAX_EVAL_CASES, MAX_EVAL_DOCUMENT_BYTES } from "./setup-model";
+import { MAX_EVAL_DOCUMENT_BYTES } from "./plan-size";
+import { MAX_EVAL_CASES } from "./setup-model";
 
 const MAX_EVAL_IMPORT_FILE_BYTES = 16 * 1024 * 1024;
 const DATASET_SIZE_ERROR =
@@ -78,43 +79,52 @@ function CaseEditor({
   return (
     <div className="eval-case-editor">
       <div className="eval-grid">
-        <EvalField label="Case ID">
-          <input
-            value={value.id}
-            onChange={(e) => onChange({ ...value, id: e.target.value })}
-            required
-            maxLength={128}
-          />
-        </EvalField>
-        <EvalField label="Task kind">
-          <input
-            value={value.task.kind}
-            onChange={(e) =>
-              onChange({
-                ...value,
-                task: { ...value.task, kind: e.target.value },
-              })
-            }
-            required
-          />
-        </EvalField>
+        <Field label="Case ID">
+          {(control) => (
+            <input
+              {...control}
+              value={value.id}
+              onChange={(e) => onChange({ ...value, id: e.target.value })}
+              required
+              maxLength={128}
+            />
+          )}
+        </Field>
+        <Field label="Task kind">
+          {(control) => (
+            <input
+              {...control}
+              value={value.task.kind}
+              onChange={(e) =>
+                onChange({
+                  ...value,
+                  task: { ...value.task, kind: e.target.value },
+                })
+              }
+              required
+            />
+          )}
+        </Field>
       </div>
-      <EvalField
+      <Field
         label="Visible task objective"
         hint="This task and its inputs are sent to the selected Workflow or check."
       >
-        <textarea
-          value={value.task.objective}
-          onChange={(e) =>
-            onChange({
-              ...value,
-              task: { ...value.task, objective: e.target.value },
-            })
-          }
-          required
-          rows={3}
-        />
-      </EvalField>
+        {(control) => (
+          <textarea
+            {...control}
+            value={value.task.objective}
+            onChange={(e) =>
+              onChange({
+                ...value,
+                task: { ...value.task, objective: e.target.value },
+              })
+            }
+            required
+            rows={3}
+          />
+        )}
+      </Field>
       <KeyValueEditor
         label="Task parameters"
         value={value.task.parameters}
@@ -122,20 +132,23 @@ function CaseEditor({
           onChange({ ...value, task: { ...value.task, parameters } })
         }
       />
-      <EvalField
+      <Field
         label="Required capabilities"
         hint="Optional capability names, separated by commas."
       >
-        <CommaSeparatedInput
-          value={value.requires}
-          onChange={(requires) =>
-            onChange({
-              ...value,
-              requires,
-            })
-          }
-        />
-      </EvalField>
+        {(control) => (
+          <CommaSeparatedInput
+            {...control}
+            value={value.requires}
+            onChange={(requires) =>
+              onChange({
+                ...value,
+                requires,
+              })
+            }
+          />
+        )}
+      </Field>
       <h4 className="eval-subheading">Input files</h4>
       {Object.keys(value.inputs).length ? (
         <ul className="eval-roles" role="list">
@@ -145,11 +158,9 @@ function CaseEditor({
                 <code>{role}</code> · {ref.namespace}/{ref.name}{" "}
                 <IdChip value={ref.revision} label={`${role} revision`} />
               </span>
-              <button
-                type="button"
-                className="ui-btn"
-                data-variant="ghost"
-                data-size="sm"
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={() =>
                   onChange({
                     ...value,
@@ -162,30 +173,31 @@ function CaseEditor({
                 }
               >
                 Remove input {role}
-              </button>
+              </Button>
             </li>
           ))}
         </ul>
       ) : (
-        <p className="eval-muted">No input files yet.</p>
+        <p className="ui-caption">No input files yet.</p>
       )}
       <div className="eval-inline-fields">
-        <EvalField label="Input role">
-          <input
-            value={inputRole}
-            onChange={(e) => setInputRole(e.target.value)}
-          />
-        </EvalField>
-        <button
-          type="button"
-          className="ui-btn"
+        <Field label="Input role">
+          {(control) => (
+            <input
+              {...control}
+              value={inputRole}
+              onChange={(e) => setInputRole(e.target.value)}
+            />
+          )}
+        </Field>
+        <Button
           aria-expanded={pick}
           aria-controls={pick ? picker : undefined}
           disabled={!inputRole.trim()}
           onClick={() => setPick(!pick)}
         >
           Choose input
-        </button>
+        </Button>
       </div>
       {pick ? (
         <div id={picker}>
@@ -226,11 +238,9 @@ function CaseEditor({
                 />
                 <span>Required output</span>
               </label>
-              <button
-                type="button"
-                className="ui-btn"
-                data-variant="ghost"
-                data-size="sm"
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={() =>
                   onChange({
                     ...value,
@@ -243,32 +253,36 @@ function CaseEditor({
                 }
               >
                 Remove output {role}
-              </button>
+              </Button>
             </li>
           ))}
         </ul>
       ) : (
-        <p className="eval-muted">No output roles yet.</p>
+        <p className="ui-caption">No output roles yet.</p>
       )}
       <div className="eval-grid">
-        <EvalField label="Output role">
-          <input
-            value={outputRole}
-            onChange={(e) => setOutputRole(e.target.value)}
-          />
-        </EvalField>
-        <EvalField label="Output media types">
-          <input
-            value={mediaType}
-            onChange={(e) => setMediaType(e.target.value)}
-          />
-        </EvalField>
+        <Field label="Output role">
+          {(control) => (
+            <input
+              {...control}
+              value={outputRole}
+              onChange={(e) => setOutputRole(e.target.value)}
+            />
+          )}
+        </Field>
+        <Field label="Output media types">
+          {(control) => (
+            <input
+              {...control}
+              value={mediaType}
+              onChange={(e) => setMediaType(e.target.value)}
+            />
+          )}
+        </Field>
       </div>
-      <div className="eval-actions">
-        <button
-          type="button"
-          className="ui-btn"
-          data-size="sm"
+      <div className="ui-toolbar">
+        <Button
+          size="sm"
           disabled={!outputRole.trim() || !mediaType.trim()}
           onClick={() => {
             onChange({
@@ -285,7 +299,7 @@ function CaseEditor({
           }}
         >
           Add output role
-        </button>
+        </Button>
       </div>
     </div>
   );
@@ -371,30 +385,31 @@ export function DatasetAuthor({
     <section className="eval-panel eval-author" aria-labelledby={heading}>
       <div className="eval-step-heading">
         <h2 id={heading}>Create dataset revision</h2>
-        <p className="eval-muted">
+        <p className="ui-caption">
           Changing visible cases requires a new revision.
         </p>
       </div>
-      <EvalField label="Import dataset JSON">
-        <input
-          type="file"
-          accept="application/json,.json"
-          onChange={(e) => void importFile(e.target.files?.[0])}
-        />
-      </EvalField>
+      <Field label="Import dataset JSON">
+        {(control) => (
+          <input
+            {...control}
+            type="file"
+            accept="application/json,.json"
+            onChange={(e) => void importFile(e.target.files?.[0])}
+          />
+        )}
+      </Field>
       {importRejected ? (
-        <div className="eval-actions">
-          <button
-            type="button"
-            className="ui-btn"
-            data-size="sm"
+        <div className="ui-toolbar">
+          <Button
+            size="sm"
             onClick={() => {
               setImportRejected(false);
               setError(null);
             }}
           >
             Author cases instead
-          </button>
+          </Button>
         </div>
       ) : imported ? (
         <div className="eval-import">
@@ -414,43 +429,47 @@ export function DatasetAuthor({
               evaluator partition
             </span>
           </label>
-          <p className="eval-muted">
+          <p className="ui-caption">
             Private rubrics are excluded from imports by default and never
             become model inputs.
           </p>
-          <div className="eval-actions">
-            <button
-              type="button"
-              className="ui-btn"
-              data-size="sm"
+          <div className="ui-toolbar">
+            <Button
+              size="sm"
               onClick={() => {
                 setImported(null);
                 setError(null);
               }}
             >
               Author cases instead
-            </button>
+            </Button>
           </div>
         </div>
       ) : (
         <>
           <div className="eval-grid">
-            <EvalField label="Dataset ID">
-              <input
-                value={data.datasetId}
-                onChange={(e) =>
-                  setData({ ...data, datasetId: e.target.value })
-                }
-              />
-            </EvalField>
-            <EvalField label="Dataset name">
-              <input
-                value={data.name}
-                onChange={(e) => setData({ ...data, name: e.target.value })}
-              />
-            </EvalField>
+            <Field label="Dataset ID">
+              {(control) => (
+                <input
+                  {...control}
+                  value={data.datasetId}
+                  onChange={(e) =>
+                    setData({ ...data, datasetId: e.target.value })
+                  }
+                />
+              )}
+            </Field>
+            <Field label="Dataset name">
+              {(control) => (
+                <input
+                  {...control}
+                  value={data.name}
+                  onChange={(e) => setData({ ...data, name: e.target.value })}
+                />
+              )}
+            </Field>
           </div>
-          <div className="eval-cases">
+          <div className="ui-stack" data-gap="2">
             {data.cases.map((value, index) => (
               <details
                 className="eval-case eval-disclosure"
@@ -476,12 +495,10 @@ export function DatasetAuthor({
                     />
                   </KeyValueValidityProvider>
                   {data.cases.length > 1 ? (
-                    <div className="eval-actions">
-                      <button
-                        type="button"
-                        className="ui-btn"
-                        data-variant="ghost"
-                        data-size="sm"
+                    <div className="ui-toolbar">
+                      <Button
+                        variant="ghost"
+                        size="sm"
                         onClick={() =>
                           setData({
                             ...data,
@@ -490,30 +507,28 @@ export function DatasetAuthor({
                         }
                       >
                         Remove case {index + 1}
-                      </button>
+                      </Button>
                     </div>
                   ) : null}
                 </div>
               </details>
             ))}
           </div>
-          <div className="eval-actions">
-            <button
-              type="button"
-              className="ui-btn"
-              data-size="sm"
+          <div className="ui-toolbar">
+            <Button
+              size="sm"
               disabled={data.cases.length >= MAX_EVAL_CASES}
               onClick={() =>
                 setData({ ...data, cases: [...data.cases, newCase()] })
               }
             >
               Add case
-            </button>
+            </Button>
           </div>
           <details className="eval-disclosure">
             <summary>Private human review rubrics</summary>
             <div className="eval-disclosure-body">
-              <p className="eval-muted">
+              <p className="ui-caption">
                 Only the evaluator and owner review screen can read these
                 rubrics. They are separate from visible cases.
               </p>
@@ -521,49 +536,60 @@ export function DatasetAuthor({
                 <fieldset className="eval-subfieldset" key={index}>
                   <legend>Rubric {index + 1}</legend>
                   <div className="eval-grid">
-                    <EvalField label="Review criterion ID">
-                      <input
-                        value={check.id}
-                        onChange={(e) =>
-                          setData({
-                            ...data,
-                            privateChecks: data.privateChecks.map((c, i) =>
-                              i === index ? { ...c, id: e.target.value } : c,
-                            ),
-                          })
-                        }
-                      />
-                    </EvalField>
-                    <EvalField label="Rubric revision">
-                      <input
-                        value={check.revision}
+                    <Field label="Review criterion ID">
+                      {(control) => (
+                        <input
+                          {...control}
+                          value={check.id}
+                          onChange={(e) =>
+                            setData({
+                              ...data,
+                              privateChecks: data.privateChecks.map((c, i) =>
+                                i === index ? { ...c, id: e.target.value } : c,
+                              ),
+                            })
+                          }
+                        />
+                      )}
+                    </Field>
+                    <Field label="Rubric revision">
+                      {(control) => (
+                        <input
+                          {...control}
+                          value={check.revision}
+                          onChange={(e) =>
+                            setData({
+                              ...data,
+                              privateChecks: data.privateChecks.map((c, i) =>
+                                i === index
+                                  ? { ...c, revision: e.target.value }
+                                  : c,
+                              ),
+                            })
+                          }
+                        />
+                      )}
+                    </Field>
+                  </div>
+                  <Field label="Private rubric">
+                    {(control) => (
+                      <textarea
+                        {...control}
+                        rows={4}
+                        value={check.rubric}
                         onChange={(e) =>
                           setData({
                             ...data,
                             privateChecks: data.privateChecks.map((c, i) =>
                               i === index
-                                ? { ...c, revision: e.target.value }
+                                ? { ...c, rubric: e.target.value }
                                 : c,
                             ),
                           })
                         }
                       />
-                    </EvalField>
-                  </div>
-                  <EvalField label="Private rubric">
-                    <textarea
-                      rows={4}
-                      value={check.rubric}
-                      onChange={(e) =>
-                        setData({
-                          ...data,
-                          privateChecks: data.privateChecks.map((c, i) =>
-                            i === index ? { ...c, rubric: e.target.value } : c,
-                          ),
-                        })
-                      }
-                    />
-                  </EvalField>
+                    )}
+                  </Field>
                   <KeyValueValidityProvider value={keyValues.register}>
                     <KeyValueEditor
                       label="Private expectations"
@@ -578,12 +604,10 @@ export function DatasetAuthor({
                       }
                     />
                   </KeyValueValidityProvider>
-                  <div className="eval-actions">
-                    <button
-                      type="button"
-                      className="ui-btn"
-                      data-variant="ghost"
-                      data-size="sm"
+                  <div className="ui-toolbar">
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       onClick={() =>
                         setData({
                           ...data,
@@ -594,15 +618,13 @@ export function DatasetAuthor({
                       }
                     >
                       Remove rubric
-                    </button>
+                    </Button>
                   </div>
                 </fieldset>
               ))}
-              <div className="eval-actions">
-                <button
-                  type="button"
-                  className="ui-btn"
-                  data-size="sm"
+              <div className="ui-toolbar">
+                <Button
+                  size="sm"
                   onClick={() =>
                     setData({
                       ...data,
@@ -614,7 +636,7 @@ export function DatasetAuthor({
                   }
                 >
                   Add human rubric
-                </button>
+                </Button>
               </div>
             </div>
           </details>
@@ -624,20 +646,16 @@ export function DatasetAuthor({
         error={error ?? (sizeProblem ? new Error(sizeProblem) : save.error)}
       />
       {!importRejected ? (
-        <div className="eval-actions eval-author-actions">
-          <button
-            type="button"
-            className="ui-btn"
-            data-variant="primary"
-            disabled={
-              save.isPending ||
-              sizeProblem !== null ||
-              (!imported && keyValues.invalid)
-            }
+        <div className="ui-toolbar">
+          <Button
+            variant="primary"
+            disabled={sizeProblem !== null || (!imported && keyValues.invalid)}
+            pending={save.isPending}
+            pendingLabel="Saving revision…"
             onClick={() => save.mutate()}
           >
-            {save.isPending ? "Saving revision…" : "Save dataset revision"}
-          </button>
+            Save dataset revision
+          </Button>
         </div>
       ) : null}
     </section>
@@ -662,37 +680,35 @@ export function EvalDatasetsRoute() {
       ]}
       description="Visible cases and private review rubrics, saved as immutable revisions of an evaluation workspace."
       action={
-        <Link
-          className="ui-btn"
-          data-variant="primary"
-          data-size="sm"
-          to="/evals/new"
-        >
+        <ButtonLink variant="primary" size="sm" to="/evals/new">
           New experiment
-        </Link>
+        </ButtonLink>
       }
     >
       <div className="eval-inline-fields">
-        <EvalField label="Evaluation workspace">
-          <select
-            value={projectId}
-            onChange={(e) => {
-              setParams({ project: e.target.value });
-              setAuthor(false);
-            }}
-          >
-            <option value="">Choose a workspace</option>
-            {projects.data
-              ?.filter((p) => p.lifecycle === "active")
-              .map((p) => (
-                <option key={p.projectId} value={p.projectId}>
-                  {p.name}
-                </option>
-              ))}
-          </select>
-        </EvalField>
+        <Field label="Evaluation workspace">
+          {(control) => (
+            <select
+              {...control}
+              value={projectId}
+              onChange={(e) => {
+                setParams({ project: e.target.value });
+                setAuthor(false);
+              }}
+            >
+              <option value="">Choose a workspace</option>
+              {projects.data
+                ?.filter((p) => p.lifecycle === "active")
+                .map((p) => (
+                  <option key={p.projectId} value={p.projectId}>
+                    {p.name}
+                  </option>
+                ))}
+            </select>
+          )}
+        </Field>
       </div>
-      <EvalError error={projects.error ?? datasets.error} />
+      <EvalError error={projects.error} />
       {projectId ? (
         <>
           <section className="eval-section" aria-labelledby={revisionsHeading}>
@@ -702,53 +718,55 @@ export function EvalDatasetsRoute() {
                 <span className="eval-count">{datasets.data.length}</span>
               ) : null}
             </div>
-            {datasets.isPending ? (
-              <p role="status">Loading datasets…</p>
-            ) : datasets.data?.length === 0 ? (
-              <EmptyState title="No datasets yet">
-                <p>
-                  Author visible cases or import a dataset document to create
-                  the first revision.
-                </p>
-              </EmptyState>
-            ) : datasets.data?.length ? (
-              <ul className="eval-records" role="list">
-                {datasets.data.map((d) => (
-                  <li className="eval-record eval-dataset" key={d.revision}>
-                    <div className="eval-record-main">
-                      <strong>{d.name}</strong>
-                      <span className="eval-record-meta">
-                        <span>
-                          {d.caseCount} cases ·{" "}
-                          {d.source
-                            ? `${d.source.system}/${d.source.id}`
-                            : "Native"}
+            <QueryView
+              query={datasets}
+              loading={<p role="status">Loading datasets…</p>}
+              isEmpty={(data) => data.length === 0}
+              empty={
+                <EmptyState title="No datasets yet">
+                  <p>
+                    Author visible cases or import a dataset document to create
+                    the first revision.
+                  </p>
+                </EmptyState>
+              }
+            >
+              {(data) => (
+                <ul className="eval-records" role="list">
+                  {data.map((d) => (
+                    <li className="eval-record eval-dataset" key={d.revision}>
+                      <div className="eval-record-main">
+                        <strong>{d.name}</strong>
+                        <span className="eval-record-meta">
+                          <span>
+                            {d.caseCount} cases ·{" "}
+                            {d.source
+                              ? `${d.source.system}/${d.source.id}`
+                              : "Native"}
+                          </span>
+                          <IdChip value={d.revision} label="dataset revision" />
                         </span>
-                        <IdChip value={d.revision} label="dataset revision" />
-                      </span>
-                    </div>
-                    <Link
-                      className="ui-btn"
-                      data-size="sm"
-                      to={`/evals/new?project=${encodeURIComponent(projectId)}&dataset=${encodeURIComponent(d.datasetId)}&revision=${encodeURIComponent(d.revision)}`}
-                    >
-                      Use revision
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            ) : null}
+                      </div>
+                      <ButtonLink
+                        size="sm"
+                        to={`/evals/new?project=${encodeURIComponent(projectId)}&dataset=${encodeURIComponent(d.datasetId)}&revision=${encodeURIComponent(d.revision)}`}
+                      >
+                        Use revision
+                      </ButtonLink>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </QueryView>
           </section>
-          <div className="eval-actions">
-            <button
-              type="button"
-              className="ui-btn"
+          <div className="ui-toolbar">
+            <Button
               aria-expanded={author}
               aria-controls={author ? authorPanel : undefined}
               onClick={() => setAuthor(!author)}
             >
               Create or import dataset
-            </button>
+            </Button>
           </div>
           {author ? (
             <div id={authorPanel}>

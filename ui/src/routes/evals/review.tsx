@@ -11,8 +11,8 @@ import {
   type EvalMember,
 } from "../../api/evals";
 import { ContextLink } from "../../app/context-navigation";
-import { IdChip, TechnicalDetails } from "../../ui";
-import { EvalError, EvalField } from "./common";
+import { Button, Field, IdChip, TechnicalDetails } from "../../ui";
+import { EvalError } from "./common";
 import { useEvalOwner } from "./queries";
 import { finishMutation, recoverableMutation } from "./recovery";
 import { queryKeys } from "../../api/query-keys";
@@ -184,7 +184,7 @@ export function EvalHumanReview({
         <h2 id={heading} ref={headingRef} tabIndex={-1}>
           Review result
         </h2>
-        <p className="eval-muted">
+        <p className="ui-caption">
           This decision is recorded under your account and cannot be changed
           later.
         </p>
@@ -208,7 +208,7 @@ export function EvalHumanReview({
       {review.data && !changed ? (
         <>
           {review.data.gaps.map((gap) => (
-            <p className="eval-muted" key={gap}>
+            <p className="ui-caption" key={gap}>
               {gap}
             </p>
           ))}
@@ -233,35 +233,41 @@ export function EvalHumanReview({
                 </dl>
               ) : null}
               <div className="eval-grid">
-                <EvalField label={`Decision for ${rubric.id}`}>
-                  <select
-                    value={decisions[rubric.id]?.status ?? ""}
-                    onChange={(e) =>
-                      update(rubric.id, {
-                        status: e.target.value as Decision | "",
-                      })
-                    }
-                  >
-                    <option value="">Choose after review</option>
-                    <option value="pass">Pass</option>
-                    <option value="fail">Fail</option>
-                    <option value="incomplete">Incomplete evidence</option>
-                    {review.data?.policy?.find((c) => c.id === rubric.id)
-                      ?.allowNotApplicable ? (
-                      <option value="not_applicable">Not applicable</option>
-                    ) : null}
-                  </select>
-                </EvalField>
+                <Field label={`Decision for ${rubric.id}`}>
+                  {(control) => (
+                    <select
+                      {...control}
+                      value={decisions[rubric.id]?.status ?? ""}
+                      onChange={(e) =>
+                        update(rubric.id, {
+                          status: e.target.value as Decision | "",
+                        })
+                      }
+                    >
+                      <option value="">Choose after review</option>
+                      <option value="pass">Pass</option>
+                      <option value="fail">Fail</option>
+                      <option value="incomplete">Incomplete evidence</option>
+                      {review.data?.policy?.find((c) => c.id === rubric.id)
+                        ?.allowNotApplicable ? (
+                        <option value="not_applicable">Not applicable</option>
+                      ) : null}
+                    </select>
+                  )}
+                </Field>
               </div>
-              <EvalField label={`Reason for ${rubric.id}`}>
-                <textarea
-                  rows={3}
-                  value={decisions[rubric.id]?.reason ?? ""}
-                  onChange={(e) =>
-                    update(rubric.id, { reason: e.target.value })
-                  }
-                />
-              </EvalField>
+              <Field label={`Reason for ${rubric.id}`}>
+                {(control) => (
+                  <textarea
+                    {...control}
+                    rows={3}
+                    value={decisions[rubric.id]?.reason ?? ""}
+                    onChange={(e) =>
+                      update(rubric.id, { reason: e.target.value })
+                    }
+                  />
+                )}
+              </Field>
               <fieldset className="eval-subfieldset">
                 <legend>Cited evidence</legend>
                 {review.data?.evidence.length ? (
@@ -296,7 +302,7 @@ export function EvalHumanReview({
                     </label>
                   ))
                 ) : (
-                  <p className="eval-muted">No evidence files to cite.</p>
+                  <p className="ui-caption">No evidence files to cite.</p>
                 )}
               </fieldset>
             </fieldset>
@@ -306,19 +312,17 @@ export function EvalHumanReview({
           </TechnicalDetails>
         </>
       ) : null}
-      <div className="eval-actions">
-        <button type="button" className="ui-btn" onClick={onClose}>
-          Close review
-        </button>
-        <button
-          type="button"
-          className="ui-btn"
-          data-variant="primary"
-          disabled={!review.data?.checks.length || !!changed || save.isPending}
+      <div className="ui-toolbar">
+        <Button onClick={onClose}>Close review</Button>
+        <Button
+          variant="primary"
+          disabled={!review.data?.checks.length || !!changed}
+          pending={save.isPending}
+          pendingLabel="Saving review…"
           onClick={() => save.mutate()}
         >
-          {save.isPending ? "Saving review…" : "Save and select assessment"}
-        </button>
+          Save and select assessment
+        </Button>
       </div>
     </section>
   );

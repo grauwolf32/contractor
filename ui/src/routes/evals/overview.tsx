@@ -1,8 +1,8 @@
 import { useState } from "react";
 import type { EvalExperiment } from "../../api/evals";
-import { StatusChip } from "../../ui";
+import { Facts, Field, StatusChip } from "../../ui";
 import { EvalChartPanel } from "./charts";
-import { ArmKey, EvalField } from "./common";
+import { ArmKey } from "./common";
 import { evalConclusionLabel, evalFreshnessText } from "./labels";
 
 const COUNTS = [
@@ -24,7 +24,7 @@ export function EvalOverviewSummary({
   const summary = experiment.summary;
   if (!summary)
     return (
-      <p className="eval-muted">
+      <p className="ui-caption">
         Comparison is waiting for collected observations.
       </p>
     );
@@ -71,17 +71,18 @@ export function EvalOverviewSummary({
                   id
                 )}
               </h3>
-              <dl className="eval-coverage">
-                {COUNTS.map(([key, label]) => (
-                  <div key={key}>
-                    <dt>{label}</dt>
-                    <dd>
+              <Facts
+                className="eval-coverage"
+                items={COUNTS.map(([key, label]) => ({
+                  term: label,
+                  value: (
+                    <>
                       {counts[key]}
                       <span> / {counts.expected}</span>
-                    </dd>
-                  </div>
-                ))}
-              </dl>
+                    </>
+                  ),
+                }))}
+              />
             </section>
           );
         })}
@@ -101,19 +102,22 @@ export function EvalOverviewCharts({
   return (
     <>
       <div className="eval-overview-selector">
-        <EvalField label="Overview chart">
-          <select
-            value={selected}
-            onChange={(event) =>
-              setSelected(
-                event.target.value === "progress" ? "progress" : "quality",
-              )
-            }
-          >
-            <option value="quality">Quality A/B</option>
-            <option value="progress">Execution progress</option>
-          </select>
-        </EvalField>
+        <Field label="Overview chart">
+          {(control) => (
+            <select
+              {...control}
+              value={selected}
+              onChange={(event) =>
+                setSelected(
+                  event.target.value === "progress" ? "progress" : "quality",
+                )
+              }
+            >
+              <option value="quality">Quality A/B</option>
+              <option value="progress">Execution progress</option>
+            </select>
+          )}
+        </Field>
       </div>
       <div className="eval-overview-charts">
         {(["quality", "progress"] as const).map((chart) => (

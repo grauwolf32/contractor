@@ -2,7 +2,7 @@ import planSizeCases from "../../../../api/testdata/evals/plan-size-cases.json";
 import { describe, expect, it } from "vitest";
 
 import type { EvalDraft } from "../../api/evals";
-import { estimatedPlanBytes, MAX_EVAL_DOCUMENT_BYTES } from "./setup-model";
+import { estimatedPlanBytes, MAX_EVAL_DOCUMENT_BYTES } from "./plan-size";
 
 describe("native plan-size estimate", () => {
   it("uses the Server document bound", () => {

@@ -1,40 +1,15 @@
-import { webcrypto } from "node:crypto";
-import { act, render, screen, waitFor, within } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { createMemoryRouter } from "react-router";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 
-import { PublicAPI } from "../../api/client";
-import { Application } from "../../app/application";
-import * as queryClientFactory from "../../app/query-client";
-import { applicationRoutes } from "../../app/router";
-import {
-  createEvalFixture,
-  EVAL_API_VERSION,
-  EVAL_FIXTURE_ORIGIN,
-} from "../../test/evals-fixture";
-import { MemoryStorage } from "../../test/storage";
+import { createApplicationQueryClient } from "../../app/query-client";
+import { createEvalFixture } from "../../test/evals-fixture";
+import { renderEvals, stubEvalBrowser } from "./test-support";
 
-beforeEach(() => {
-  vi.stubGlobal("localStorage", new MemoryStorage());
-  vi.stubGlobal("crypto", webcrypto);
-});
+beforeEach(stubEvalBrowser);
 
 function start(fixture: ReturnType<typeof createEvalFixture>, path: string) {
-  const api = new PublicAPI(
-    {
-      uiVersion: "0.4.0",
-      apiBaseUrl: EVAL_FIXTURE_ORIGIN,
-      supportedApiVersions: [EVAL_API_VERSION],
-    },
-    async (input) =>
-      fixture.fetch(input instanceof Request ? input : new Request(input)),
-  );
-  const router = createMemoryRouter(applicationRoutes(), {
-    initialEntries: [path],
-  });
-  render(<Application api={api} publicAPI={api} router={router} />);
-  return router;
+  return renderEvals(fixture, path).router;
 }
 
 describe("Experiment setup vocabulary", () => {
@@ -130,31 +105,19 @@ describe("Experiment setup navigation", () => {
       const released = new Promise<void>((resolve) => {
         release = resolve;
       });
-      const api = new PublicAPI(
-        {
-          uiVersion: "0.4.0",
-          apiBaseUrl: EVAL_FIXTURE_ORIGIN,
-          supportedApiVersions: [EVAL_API_VERSION],
-        },
-        async (input) => {
-          const request = input instanceof Request ? input : new Request(input);
-          if (
-            request.method === "POST" &&
-            new URL(request.url).pathname.endsWith("/eval-experiments")
-          )
-            await released;
-          return fixture.fetch(request);
-        },
-      );
-      const router = createMemoryRouter(applicationRoutes(), {
-        initialEntries: ["/evals/new"],
+      const answer = fixture.fetch;
+      fixture.fetch = async (request) => {
+        if (
+          request.method === "POST" &&
+          new URL(request.url).pathname.endsWith("/eval-experiments")
+        )
+          await released;
+        return answer(request);
+      };
+      const queryClient = createApplicationQueryClient();
+      const { router } = renderEvals(fixture, "/evals/new", {
+        cache: queryClient,
       });
-      const queryClient = queryClientFactory.createApplicationQueryClient();
-      const factory = vi
-        .spyOn(queryClientFactory, "createApplicationQueryClient")
-        .mockReturnValueOnce(queryClient);
-      render(<Application api={api} publicAPI={api} router={router} />);
-      factory.mockRestore();
       const user = userEvent.setup();
       await user.type(
         await screen.findByLabelText("Experiment name"),

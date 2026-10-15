@@ -12,9 +12,9 @@ import { queryKeys } from "../../api/query-keys";
 import { ContextLink } from "../../app/context-navigation";
 import { saveBlob } from "../../app/download";
 import { RefreshButton } from "../../app/refresh-button";
-import { FilterChips, StatusChip } from "../../ui";
+import { Button, Field, FilterChips, StatusChip } from "../../ui";
 import { EvalChartPanel } from "./charts";
-import { ArmKey, EvalError, EvalField } from "./common";
+import { ArmKey, EvalError } from "./common";
 import { PAIR_FILTERS } from "./labels";
 import { MemberSummary } from "./member";
 import { useEvalViewRefresh } from "./view-refresh";
@@ -70,7 +70,7 @@ export function EvalComparison({ experiment }: { experiment: EvalExperiment }) {
   });
   if (!snapshot)
     return (
-      <p className="eval-muted">
+      <p className="ui-caption">
         Comparison is waiting for a prepared plan and collected observations.
       </p>
     );
@@ -79,54 +79,55 @@ export function EvalComparison({ experiment }: { experiment: EvalExperiment }) {
       <section className="eval-section" aria-labelledby={chartsHeading}>
         <div className="eval-section-heading">
           <h2 id={chartsHeading}>Charts</h2>
-          <div className="eval-actions">
+          <div className="ui-toolbar">
             <RefreshButton
               className="ui-btn"
               isFetching={false}
               onRefresh={() => void refresh()}
               label="Refresh"
             />
-            <button
-              type="button"
-              className="ui-btn"
-              disabled={report.isPending}
-              onClick={() => report.mutate()}
-            >
+            <Button pending={report.isPending} onClick={() => report.mutate()}>
               Export safe report
-            </button>
+            </Button>
           </div>
         </div>
         <EvalError error={report.error} />
         <div className="eval-inline-fields">
-          <EvalField label="Comparison metric">
-            <select
-              value={metric}
-              onChange={(e) =>
-                update({
-                  metric: e.target.value,
-                  chartCursor: null,
-                  binFilter: null,
-                  cursor: null,
-                })
-              }
-            >
-              <option value="tokens">Tokens</option>
-              <option value="duration">Duration</option>
-            </select>
-          </EvalField>
-          <EvalField label="Chart view">
-            <select
-              value={plot === "pair-deltas" ? "pair-deltas" : "distribution"}
-              onChange={(e) =>
-                update({ plot: e.target.value, chartCursor: null })
-              }
-            >
-              <option value="distribution">Distribution</option>
-              <option value="pair-deltas">Case differences</option>
-            </select>
-          </EvalField>
+          <Field label="Comparison metric">
+            {(control) => (
+              <select
+                {...control}
+                value={metric}
+                onChange={(e) =>
+                  update({
+                    metric: e.target.value,
+                    chartCursor: null,
+                    binFilter: null,
+                    cursor: null,
+                  })
+                }
+              >
+                <option value="tokens">Tokens</option>
+                <option value="duration">Duration</option>
+              </select>
+            )}
+          </Field>
+          <Field label="Chart view">
+            {(control) => (
+              <select
+                {...control}
+                value={plot === "pair-deltas" ? "pair-deltas" : "distribution"}
+                onChange={(e) =>
+                  update({ plot: e.target.value, chartCursor: null })
+                }
+              >
+                <option value="distribution">Distribution</option>
+                <option value="pair-deltas">Case differences</option>
+              </select>
+            )}
+          </Field>
         </div>
-        <p className="eval-muted">
+        <p className="ui-caption">
           Charts describe the complete matching cohort in this snapshot.
           Pair-list filters below keep whole-experiment denominators unchanged.
         </p>
@@ -143,15 +144,10 @@ export function EvalComparison({ experiment }: { experiment: EvalExperiment }) {
           }
         />
         {chartCursor ? (
-          <div className="eval-actions">
-            <button
-              type="button"
-              className="ui-btn"
-              data-size="sm"
-              onClick={() => update({ chartCursor: null })}
-            >
+          <div className="ui-toolbar">
+            <Button size="sm" onClick={() => update({ chartCursor: null })}>
               First differences
-            </button>
+            </Button>
           </div>
         ) : null}
       </section>
@@ -166,20 +162,18 @@ export function EvalComparison({ experiment }: { experiment: EvalExperiment }) {
         {binFilter ? (
           <p className="eval-callout">
             Filtered to the selected distribution bin.{" "}
-            <button
-              type="button"
-              className="ui-btn"
-              data-size="xs"
+            <Button
+              size="xs"
               onClick={() => update({ binFilter: null, cursor: null })}
             >
               Clear bin filter
-            </button>
+            </Button>
           </p>
         ) : null}
         <EvalError error={pairs.error} reload={() => void refresh()} />
         {pairs.data ? (
           <>
-            <p className="eval-muted">
+            <p className="ui-caption">
               {pairs.data.filteredCount} matching pairs · {pairs.data.freshness}
               . Complete quality pairs:{" "}
               {pairs.data.experimentSummary.completeQualityPairs}; complete
@@ -217,7 +211,7 @@ export function EvalComparison({ experiment }: { experiment: EvalExperiment }) {
                       </section>
                     </div>
                     {pair.exclusions.map((reason) => (
-                      <p className="eval-muted" key={reason}>
+                      <p className="ui-caption" key={reason}>
                         {reason.replaceAll("_", " ")}
                       </p>
                     ))}
@@ -225,30 +219,26 @@ export function EvalComparison({ experiment }: { experiment: EvalExperiment }) {
                 ))}
               </ul>
             ) : (
-              <p className="eval-muted">
+              <p className="ui-caption">
                 No pairs match this filter. Choose All pairs or Unresolved pairs
                 to inspect the remaining evidence.
               </p>
             )}
-            <div className="eval-actions">
-              <button
-                type="button"
-                className="ui-btn"
-                data-size="sm"
+            <div className="ui-toolbar">
+              <Button
+                size="sm"
                 disabled={!cursor}
                 onClick={() => update({ cursor: null })}
               >
                 First pairs
-              </button>
-              <button
-                type="button"
-                className="ui-btn"
-                data-size="sm"
+              </Button>
+              <Button
+                size="sm"
                 disabled={!pairs.data.page.hasMore}
                 onClick={() => update({ cursor: pairs.data!.page.nextCursor })}
               >
                 Next pairs
-              </button>
+              </Button>
             </div>
           </>
         ) : null}

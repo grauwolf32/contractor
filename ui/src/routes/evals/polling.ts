@@ -3,40 +3,42 @@ import {
   isTerminalEvalState,
   type EvalExperiment,
 } from "../../api/evals";
+import { pollInterval } from "../../app/polling";
 
-export const EVAL_SETTLED_POLL_MS = 30_000;
+// A settled view still changes on its own (deletion, a refreshed snapshot), so
+// it keeps a slow poll instead of stopping.
+const EVAL_SETTLED_POLL_MS = 30_000;
 
-type EvalPollState = Pick<
-  EvalExperiment,
-  "state" | "freshness" | "deletionRequestedAt"
->;
-type EvalListPollState = Pick<EvalExperiment, "state" | "freshness">;
+type EvalProgress = Pick<EvalExperiment, "state" | "freshness">;
 
-function isTerminalAndCurrent(value: EvalListPollState): boolean {
+function terminalAndCurrent(value: EvalProgress): boolean {
   return isTerminalEvalState(value.state) && value.freshness === "current";
 }
 
-export function evalExperimentPollInterval(
-  value: EvalPollState | undefined,
-): number | false {
-  if (value?.state === "draft") return false;
-  if (
-    value !== undefined &&
-    isTerminalAndCurrent(value) &&
-    value.deletionRequestedAt == null
-  ) {
-    return EVAL_SETTLED_POLL_MS;
-  }
-  return EVAL_POLL_MS;
-}
+const experimentPoll = pollInterval<
+  EvalProgress & Pick<EvalExperiment, "deletionRequestedAt">
+>({
+  interval: EVAL_POLL_MS,
+  settled: (experiment) =>
+    terminalAndCurrent(experiment) && experiment.deletionRequestedAt == null,
+  settledInterval: EVAL_SETTLED_POLL_MS,
+});
 
-export function evalListPollInterval(
-  items: EvalListPollState[] | undefined,
-  paged: boolean,
-): number | false {
-  if (paged) return false;
-  if (items !== undefined && items.every(isTerminalAndCurrent)) {
-    return EVAL_SETTLED_POLL_MS;
-  }
-  return EVAL_POLL_MS;
-}
+/**
+ * One experiment: short polling while it can change, slow once it is
+ * terminal with a current view, none for a draft (only its author changes
+ * it), and backing off while reads fail.
+ */
+export const evalExperimentPollInterval: typeof experimentPoll = (query) =>
+  query.state.data?.state === "draft" ? false : experimentPoll(query);
+
+/**
+ * The first experiments page: slow once every row is terminal and current,
+ * short while any can change, backing off while reads fail. Later pages do
+ * not poll.
+ */
+export const evalListPollInterval = pollInterval<{ items: EvalProgress[] }>({
+  interval: EVAL_POLL_MS,
+  settled: (page) => page.items.every(terminalAndCurrent),
+  settledInterval: EVAL_SETTLED_POLL_MS,
+});

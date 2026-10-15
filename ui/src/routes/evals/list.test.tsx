@@ -1,39 +1,14 @@
-import { webcrypto } from "node:crypto";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { createMemoryRouter } from "react-router";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 
-import { PublicAPI } from "../../api/client";
-import { Application } from "../../app/application";
-import { applicationRoutes } from "../../app/router";
-import {
-  createEvalFixture,
-  EVAL_API_VERSION,
-  EVAL_FIXTURE_ORIGIN,
-} from "../../test/evals-fixture";
-import { MemoryStorage } from "../../test/storage";
+import { createEvalFixture } from "../../test/evals-fixture";
+import { renderEvals, stubEvalBrowser } from "./test-support";
 
-beforeEach(() => {
-  vi.stubGlobal("localStorage", new MemoryStorage());
-  vi.stubGlobal("crypto", webcrypto);
-});
+beforeEach(stubEvalBrowser);
 
 function start(fixture: ReturnType<typeof createEvalFixture>, path: string) {
-  const api = new PublicAPI(
-    {
-      uiVersion: "0.4.0",
-      apiBaseUrl: EVAL_FIXTURE_ORIGIN,
-      supportedApiVersions: [EVAL_API_VERSION],
-    },
-    async (input) =>
-      fixture.fetch(input instanceof Request ? input : new Request(input)),
-  );
-  const router = createMemoryRouter(applicationRoutes(), {
-    initialEntries: [path],
-  });
-  render(<Application api={api} publicAPI={api} router={router} />);
-  return router;
+  return renderEvals(fixture, path).router;
 }
 
 function preview() {
