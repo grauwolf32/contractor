@@ -1,63 +1,42 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   act,
   fireEvent,
-  render,
   screen,
   waitFor,
   within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router";
+import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
-import { PublicAPI } from "../../api/client";
-import { PublicAPIProvider } from "../../api/context";
+
 import { gitKeyQueryKey } from "../../api/git-artifacts";
+import { conforming } from "../../test/builders";
+import {
+  failure,
+  fakeServer,
+  json,
+  noContent,
+  type Routes,
+} from "../../test/fake-server";
+import { renderWithAPI } from "../../test/render";
 import { GitKeySettings } from "../settings/git-key";
 import { GitImportDialog } from "./git-import-dialog";
-import type { ReactNode } from "react";
 
-function json(value: unknown, status = 200) {
-  return new Response(status === 204 ? null : JSON.stringify(value), {
-    status,
-    headers: {
-      "content-type": "application/json",
-      "X-Contractor-API-Version": "contractor.public.v1",
-    },
-  });
+function setup(child: ReactNode, routes: Routes) {
+  const view = renderWithAPI(<>{child}</>, { server: fakeServer(routes) });
+  return { ...view, cache: view.queryClient };
 }
-function setup(
-  child: ReactNode,
-  fetch: (request: Request) => Promise<Response>,
-) {
-  const api = new PublicAPI(
-    {
-      uiVersion: "0.1.0",
-      supportedApiVersions: ["contractor.public.v1"],
-      apiBaseUrl: "http://127.0.0.1:8080",
-    },
-    vi.fn(async (input) =>
-      fetch(input instanceof Request ? input : new Request(input)),
-    ),
-  );
-  api.csrf.replace("a".repeat(43));
-  const cache = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
-  });
-  return {
-    cache,
-    ...render(
-      <QueryClientProvider client={cache}>
-        <PublicAPIProvider api={api}>
-          <MemoryRouter>{child}</MemoryRouter>
-        </PublicAPIProvider>
-      </QueryClientProvider>,
-    ),
-  };
+
+/** A configured key with `fingerprint`, checked against the contract. */
+function gitKey(fingerprint: string) {
+  const state = { configured: true, fingerprint, keyType: "ssh-ed25519" };
+  conforming("GitKeyState", state);
+  return state;
 }
-const imported = {
+
+const imported = conforming("GitImportResult", {
   artifact: { namespace: "sources", name: "source", revision: "rev-imported" },
-  mediaType: "application/zip" as const,
+  mediaType: "application/zip",
   size: 123,
   gitSource: {
     repositoryUrl: "https://example.test:443/repo.git",
@@ -65,17 +44,13 @@ const imported = {
     resolvedCommit: "a".repeat(40),
     importedAt: "2026-09-06T12:00:00Z",
   },
-};
+});
 
 describe("Git artifacts", () => {
   it.each(["save", "replace", "remove"] as const)(
     "keeps the successful %s result when an older key GET arrives late",
     async (change) => {
-      const previous = {
-        configured: true,
-        fingerprint: "SHA256:previous",
-        keyType: "ssh-ed25519",
-      };
+      const previous = gitKey("SHA256:previous");
       const saved = { ...previous, fingerprint: "SHA256:saved" };
       let resolveRead!: (response: Response) => void;
       const delayedRead = new Promise<Response>((resolve) => {
@@ -83,16 +58,17 @@ describe("Git artifacts", () => {
       });
       let reads = 0;
       let delayedRequest: Request | undefined;
-      const { cache } = setup(<GitKeySettings />, async (request) => {
-        if (request.method === "GET") {
+      const { cache } = setup(<GitKeySettings />, {
+        "GET /v1/settings/git-key": ({ request }) => {
           reads++;
           if (change !== "save" && reads === 1) return json(previous);
           delayedRequest = request;
           // Deliver the stale response even if transport cancellation races
           // with completion; query cancellation must also protect the cache.
           return delayedRead;
-        }
-        return request.method === "DELETE" ? json(undefined, 204) : json(saved);
+        },
+        "PUT /v1/settings/git-key": () => json(saved),
+        "DELETE /v1/settings/git-key": () => noContent(),
       });
       if (change !== "save") {
         await screen.findByText(previous.fingerprint);
@@ -155,24 +131,19 @@ describe("Git artifacts", () => {
     const initialRead = new Promise<Response>((resolve) => {
       resolveInitial = resolve;
     });
-    const { cache } = setup(<GitKeySettings />, async (request) => {
-      if (request.method === "GET") {
+    const { cache } = setup(<GitKeySettings />, {
+      "GET /v1/settings/git-key": ({ request }) => {
         reads++;
         if (reads === 1) {
           initialRequest = request;
           return initialRead;
         }
         return json({ configured: false });
-      }
-      writes++;
-      return json(
-        {
-          code: "git_key_invalid",
-          message: "Unsupported key",
-          retryable: false,
-        },
-        400,
-      );
+      },
+      "PUT /v1/settings/git-key": () => {
+        writes++;
+        return failure(400, "git_key_invalid", "Unsupported key");
+      },
     });
     await waitFor(() => expect(initialRequest).toBeDefined());
     fireEvent.change(screen.getByLabelText("SSH private key"), {
@@ -196,16 +167,16 @@ describe("Git artifacts", () => {
   it("saves and removes only key metadata, clears the secret and never caches it", async () => {
     const secret = "fixture-private-key-canary";
     const writes: string[] = [];
-    const { cache } = setup(<GitKeySettings />, async (request) => {
-      if (request.method === "GET") return json({ configured: false });
-      if (request.method === "DELETE") return json(undefined, 204);
-      writes.push(await request.text());
-      return json({
-        configured: true,
-        fingerprint: "SHA256:fixture",
-        keyType: "ssh-ed25519",
-        updatedAt: imported.gitSource.importedAt,
-      });
+    const { cache } = setup(<GitKeySettings />, {
+      "GET /v1/settings/git-key": () => json({ configured: false }),
+      "DELETE /v1/settings/git-key": () => noContent(),
+      "PUT /v1/settings/git-key": async ({ request }) => {
+        writes.push(await request.text());
+        return json({
+          ...gitKey("SHA256:fixture"),
+          updatedAt: imported.gitSource.importedAt,
+        });
+      },
     });
     await screen.findByText("No Git SSH key configured.");
     fireEvent.change(screen.getByLabelText("SSH private key"), {
@@ -236,21 +207,11 @@ describe("Git artifacts", () => {
     expect(screen.getByText("No Git SSH key configured.")).toBeInTheDocument();
   });
   it("requires confirmation for Git key removal and dismisses safely", async () => {
-    const deletes: Request[] = [];
-    setup(<GitKeySettings />, async (request) => {
-      if (request.method === "GET")
-        return json({
-          configured: true,
-          fingerprint: "SHA256:keep-me",
-          keyType: "ssh-ed25519",
-        });
-      if (request.method === "DELETE") {
-        deletes.push(request.clone());
-        return json(undefined, 204);
-      }
-      throw new Error(`unexpected ${request.method}`);
+    const { user, sent } = setup(<GitKeySettings />, {
+      "GET /v1/settings/git-key": () => json(gitKey("SHA256:keep-me")),
+      "DELETE /v1/settings/git-key": () => noContent(),
     });
-    const user = userEvent.setup();
+    const deletes = () => sent("DELETE", "/git-key");
     await screen.findByText("SHA256:keep-me");
     const trigger = await screen.findByRole("button", {
       name: "Remove Git key",
@@ -264,7 +225,7 @@ describe("Git artifacts", () => {
       expect(
         within(dialog).getByRole("button", { name: "Cancel" }),
       ).toHaveFocus();
-      expect(deletes).toHaveLength(0);
+      expect(deletes()).toHaveLength(0);
       return dialog;
     };
     let dialog = await open();
@@ -275,13 +236,13 @@ describe("Git artifacts", () => {
     dialog = await open();
     await user.click(dialog.parentElement!);
     expect(screen.queryByRole("alertdialog")).toBeNull();
-    expect(deletes).toHaveLength(0);
+    expect(deletes()).toHaveLength(0);
     expect(screen.getByText("SHA256:keep-me")).toBeInTheDocument();
     dialog = await open();
     await user.click(
       within(dialog).getByRole("button", { name: "Remove Git key" }),
     );
-    await waitFor(() => expect(deletes).toHaveLength(1));
+    await waitFor(() => expect(deletes()).toHaveLength(1));
     await screen.findByText("Git SSH key removed.");
     expect(screen.queryByRole("alertdialog")).toBeNull();
   });
@@ -291,17 +252,13 @@ describe("Git artifacts", () => {
       finishDelete = resolve;
     });
     let deletes = 0;
-    setup(<GitKeySettings />, async (request) => {
-      if (request.method === "GET")
-        return json({
-          configured: true,
-          fingerprint: "SHA256:still-here",
-          keyType: "ssh-ed25519",
-        });
-      deletes++;
-      return delayedDelete;
+    const { user } = setup(<GitKeySettings />, {
+      "GET /v1/settings/git-key": () => json(gitKey("SHA256:still-here")),
+      "DELETE /v1/settings/git-key": () => {
+        deletes++;
+        return delayedDelete;
+      },
     });
-    const user = userEvent.setup();
     await screen.findByText("SHA256:still-here");
     await user.click(screen.getByRole("button", { name: "Remove Git key" }));
     const dialog = screen.getByRole("alertdialog", { name: "Remove Git key?" });
@@ -316,16 +273,7 @@ describe("Git artifacts", () => {
     await user.click(dialog.parentElement!);
     expect(dialog).toBeInTheDocument();
     await act(async () => {
-      finishDelete(
-        json(
-          {
-            code: "git_key_delete_failed",
-            message: "Removal failed",
-            retryable: false,
-          },
-          500,
-        ),
-      );
+      finishDelete(failure(500, "git_key_delete_failed", "Removal failed"));
       await delayedDelete;
     });
     expect(await within(dialog).findByRole("alert")).toHaveTextContent(
@@ -336,22 +284,11 @@ describe("Git artifacts", () => {
     expect(deletes).toBe(1);
   });
   it("keeps the existing key state on invalid replacement", async () => {
-    setup(<GitKeySettings />, async (request) =>
-      request.method === "GET"
-        ? json({
-            configured: true,
-            fingerprint: "SHA256:previous",
-            keyType: "ssh-ed25519",
-          })
-        : json(
-            {
-              code: "git_key_invalid",
-              message: "Unsupported key",
-              retryable: false,
-            },
-            400,
-          ),
-    );
+    setup(<GitKeySettings />, {
+      "GET /v1/settings/git-key": () => json(gitKey("SHA256:previous")),
+      "PUT /v1/settings/git-key": () =>
+        failure(400, "git_key_invalid", "Unsupported key"),
+    });
     await screen.findByText("SHA256:previous");
     fireEvent.change(screen.getByLabelText("SSH private key"), {
       target: { value: "invalid" },
@@ -364,9 +301,8 @@ describe("Git artifacts", () => {
   });
   it("requires exact replacement consent and never bubbles submission into the Run form", async () => {
     const onImported = vi.fn(),
-      outerSubmit = vi.fn(),
-      requests: Request[] = [];
-    setup(
+      outerSubmit = vi.fn();
+    const { requests } = setup(
       <form onSubmit={outerSubmit}>
         <GitImportDialog
           projectId="project-1"
@@ -374,19 +310,22 @@ describe("Git artifacts", () => {
           onImported={onImported}
         />
       </form>,
-      async (request) => {
-        requests.push(request);
-        if (request.method === "GET")
-          return json({
-            ...imported,
-            artifact: { ...imported.artifact, revision: "rev-before" },
-            current: true,
-            frozen: false,
-            createdAt: imported.gitSource.importedAt,
-          });
-        expect(request.headers.get("If-Match")).toBe('"rev-before"');
-        expect(request.headers.get("If-None-Match")).toBeNull();
-        return json(imported, 200);
+      {
+        "GET /v1/projects/{projectId}/artifacts/{namespace}/{name}/metadata":
+          () =>
+            json({
+              ...imported,
+              artifact: { ...imported.artifact, revision: "rev-before" },
+              current: true,
+              frozen: false,
+              createdAt: imported.gitSource.importedAt,
+            }),
+        "POST /v1/projects/{projectId}/artifacts/{namespace}/{name}/git-import":
+          ({ request }) => {
+            expect(request.headers.get("If-Match")).toBe('"rev-before"');
+            expect(request.headers.get("If-None-Match")).toBeNull();
+            return json(imported, 200);
+          },
       },
     );
     expect(screen.getByLabelText("Repository URL")).toHaveFocus();
@@ -413,20 +352,20 @@ describe("Git artifacts", () => {
   it("rejects spaces before a request and aborts a pending import on close", async () => {
     let signal: AbortSignal | undefined;
     const onClose = vi.fn();
-    const fetch = vi.fn(async (request: Request) => {
-      if (request.method === "GET")
-        return json(
-          { code: "not_found", message: "not found", retryable: false },
-          404,
-        );
-      signal = request.signal;
-      return new Promise<Response>((_resolve, reject) =>
-        request.signal.addEventListener("abort", () =>
-          reject(new Error("aborted")),
-        ),
-      );
-    });
-    setup(<GitImportDialog onClose={onClose} onImported={vi.fn()} />, fetch);
+    const { requests } = setup(
+      <GitImportDialog onClose={onClose} onImported={vi.fn()} />,
+      {
+        "GET /v1/artifacts/{namespace}/{name}/metadata": () => failure(404),
+        "POST /v1/artifacts/{namespace}/{name}/git-import": ({ request }) => {
+          signal = request.signal;
+          return new Promise<Response>((_resolve, reject) =>
+            request.signal.addEventListener("abort", () =>
+              reject(new Error("aborted")),
+            ),
+          );
+        },
+      },
+    );
     fireEvent.change(screen.getByLabelText("Repository URL"), {
       target: { value: "https://example.test/repo.git" },
     });
@@ -437,7 +376,7 @@ describe("Git artifacts", () => {
       screen.getByRole("button", { name: "Import snapshot" }),
     );
     await screen.findByRole("alert");
-    expect(fetch).not.toHaveBeenCalled();
+    expect(requests).toHaveLength(0);
     fireEvent.change(screen.getByLabelText("Name"), {
       target: { value: "source" },
     });

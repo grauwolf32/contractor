@@ -1,106 +1,70 @@
 import {
   act,
   fireEvent,
-  render,
   screen,
   waitFor,
   within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { createMemoryRouter } from "react-router";
 import { describe, expect, it, vi } from "vitest";
 
-import type { RuntimeConfig } from "../../config/runtime-config";
-import { PublicAPI } from "../../api/client";
-import { Application } from "../../app/application";
-import { applicationRoutes } from "../../app/router";
+import type { ArtifactMetadata } from "../../api/artifacts";
+import { conforming } from "../../test/builders";
+import { failure, json, page } from "../../test/fake-server";
+import { CSRF_TOKEN } from "../../test/render";
+import {
+  artifactMetadata,
+  artifactWrite,
+  payload,
+  renderApplication,
+} from "./test-support";
 
-const runtimeConfig: RuntimeConfig = {
-  uiVersion: "0.1.0",
-  supportedApiVersions: ["contractor.public.v1"],
-  apiBaseUrl: "http://127.0.0.1:8080",
-};
+const LIST = "GET /v1/artifacts";
+const METADATA = "GET /v1/artifacts/{namespace}/{name}/metadata";
+const VERSIONS = "GET /v1/artifacts/{namespace}/{name}/versions";
+const LINEAGE = "GET /v1/artifacts/{namespace}/{name}/lineage";
+const WRITE = "PUT /v1/artifacts/{namespace}/{name}";
 
-const session = {
-  principal: {
-    userId: "user_local",
-    username: "owner",
-    capabilities: ["user", "operations"],
-  },
-  csrfToken: "a".repeat(43),
-  idleExpiresAt: "2026-08-31T20:00:00Z",
-  absoluteExpiresAt: "2026-09-01T12:00:00Z",
-};
-
-function apiResponse(
-  body: BodyInit | null,
-  options: ResponseInit = {},
-): Response {
-  const headers = new Headers(options.headers);
-  headers.set("X-Contractor-API-Version", "contractor.public.v1");
-  return new Response(body, { ...options, headers });
-}
-
-function jsonResponse(value: unknown, options: ResponseInit = {}): Response {
-  return apiResponse(JSON.stringify(value), {
-    ...options,
-    headers: { "content-type": "application/json", ...options.headers },
+/** `projects/source` at `revision`, a 4-byte text file. */
+function source(
+  revision: string,
+  overrides: Partial<ArtifactMetadata> = {},
+): ArtifactMetadata {
+  return artifactMetadata("projects", "source", {
+    artifact: { namespace: "projects", name: "source", revision },
+    mediaType: "text/plain",
+    size: 4,
+    createdAt: "2026-09-01T10:00:00Z",
+    ...overrides,
   });
 }
 
-function renderArtifactApplication(
-  api: PublicAPI,
-  path: string | { pathname: string; search: string; state: unknown },
-) {
-  const router = createMemoryRouter(applicationRoutes(), {
-    initialEntries: [path],
-  });
-  return {
-    ...render(<Application api={api} publicAPI={api} router={router} />),
-    router,
-  };
+/** A PUT that stays pending until the UI aborts it. */
+function pendingUntilAborted(request: Request): Promise<Response> {
+  return new Promise<Response>((_resolve, reject) =>
+    request.signal.addEventListener("abort", () =>
+      reject(new DOMException("aborted", "AbortError")),
+    ),
+  );
 }
 
 describe("Artifact routes", () => {
   it("shows Files inside the Library with its tabs, without Skill packages, paged in the URL", async () => {
-    const requests: URL[] = [];
-    const file = {
-      artifact: { namespace: "inputs", name: "wordlist", revision: "r1" },
+    const file = artifactMetadata("inputs", "wordlist", {
       mediaType: "text/vnd.contractor.wordlist",
       size: 2048,
-      current: true,
-      frozen: false,
       createdAt: "2026-09-01T10:00:00Z",
-    };
-    const api = new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const request = input instanceof Request ? input : new Request(input);
-        const url = new URL(request.url);
-        if (url.pathname === "/v1/auth/session") return jsonResponse(session);
-        if (url.pathname === "/v1/artifacts") {
-          requests.push(url);
-          return jsonResponse(
-            url.searchParams.get("cursor") === "page-2"
-              ? {
-                  items: [
-                    {
-                      ...file,
-                      artifact: { ...file.artifact, name: "second" },
-                    },
-                  ],
-                  page: { hasMore: false },
-                }
-              : {
-                  items: [file],
-                  page: { hasMore: true, nextCursor: "page-2" },
-                },
-          );
-        }
-        return jsonResponse({ items: [], page: { hasMore: false } });
-      }),
-    );
-    const { router } = renderArtifactApplication(api, "/artifacts");
+    });
+    const { router, sent } = renderApplication("/artifacts", {
+      [LIST]: ({ url }) =>
+        url.searchParams.get("cursor") === "page-2"
+          ? json(
+              page([
+                { ...file, artifact: { ...file.artifact, name: "second" } },
+              ]),
+            )
+          : json(page([file], "page-2")),
+    });
 
     expect(
       await screen.findByRole("heading", { level: 1, name: "Library" }),
@@ -133,8 +97,10 @@ describe("Artifact routes", () => {
     expect(row.closest("li")).toHaveTextContent("Wordlist");
     expect(row.closest("li")).toHaveTextContent("2.0 KiB");
     expect(
-      requests.every(
-        (url) => url.searchParams.get("excludeNamespace") === "skills",
+      sent("GET", "/v1/artifacts").every(
+        (request) =>
+          new URL(request.url).searchParams.get("excludeNamespace") ===
+          "skills",
       ),
     ).toBe(true);
 
@@ -156,33 +122,16 @@ describe("Artifact routes", () => {
     const metadata = new Promise<Response>((resolve) => {
       respond = resolve;
     });
-    const api = new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const request = input instanceof Request ? input : new Request(input);
-        const path = new URL(request.url).pathname;
-        if (path === "/v1/auth/session") return jsonResponse(session);
-        if (path.endsWith("/metadata")) return metadata;
-        throw new Error(`unexpected ${path}`);
-      }),
-    );
-    renderArtifactApplication(api, "/artifacts/projects/source");
+    renderApplication("/artifacts/projects/source", {
+      [METADATA]: () => metadata,
+    });
     expect(await screen.findByText("Loading this file…")).toBeVisible();
     expect(
       screen.getByRole("heading", { level: 1, name: "projects/source" }),
     ).toBeVisible();
     expect(screen.queryByText(/(Current|Historical) revision/)).toBeNull();
     await act(async () => {
-      respond(
-        jsonResponse(
-          {
-            code: "unavailable",
-            message: "Metadata unavailable",
-            retryable: false,
-          },
-          { status: 503 },
-        ),
-      );
+      respond(failure(503, "unavailable", "Metadata unavailable"));
       await metadata;
     });
     expect(await screen.findByText("Could not load this file")).toBeVisible();
@@ -194,33 +143,15 @@ describe("Artifact routes", () => {
 
   it("recovers a failed filtered read without submitting a write or dropping filters", async () => {
     let reads = 0;
-    const requests: Request[] = [];
-    const api = new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const request = input instanceof Request ? input : new Request(input);
-        requests.push(request);
-        const url = new URL(request.url);
-        if (url.pathname === "/v1/auth/session") return jsonResponse(session);
-        if (url.pathname === "/v1/artifacts") {
-          expect(url.searchParams.get("namespace")).toBe("projects");
-          reads += 1;
-          return reads === 1
-            ? jsonResponse(
-                {
-                  code: "unavailable",
-                  message: "Storage is temporarily unavailable",
-                  retryable: false,
-                  requestId: "read-recovery",
-                },
-                { status: 503 },
-              )
-            : jsonResponse({ items: [], page: { hasMore: false } });
-        }
-        throw new Error(`unexpected request ${url.pathname}`);
-      }),
-    );
-    renderArtifactApplication(api, "/artifacts?namespace=projects");
+    const { requests } = renderApplication("/artifacts?namespace=projects", {
+      [LIST]: ({ url }) => {
+        expect(url.searchParams.get("namespace")).toBe("projects");
+        reads += 1;
+        return reads === 1
+          ? failure(503, "unavailable", "Storage is temporarily unavailable")
+          : json(page([]));
+      },
+    });
     expect(await screen.findByText("Could not load files")).toBeVisible();
     expect(
       screen.getByText("Storage is temporarily unavailable"),
@@ -244,8 +175,7 @@ describe("Artifact routes", () => {
   });
 
   it("lists bindings and creates one exact Artifact without optimistic state", async () => {
-    const requests: Request[] = [];
-    const current = {
+    const current = artifactMetadata("projects", "existing", {
       artifact: {
         namespace: "projects",
         name: "existing",
@@ -253,24 +183,22 @@ describe("Artifact routes", () => {
       },
       mediaType: "text/plain",
       size: 5,
-      current: true,
-      frozen: false,
       createdAt: "2026-08-31T12:00:00Z",
-    };
-    const api = new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const request = input instanceof Request ? input : new Request(input);
-        requests.push(request);
-        const url = new URL(request.url);
-        if (url.pathname === "/v1/auth/session") {
-          return jsonResponse(session);
-        }
-        if (url.pathname === "/v1/artifacts" && request.method === "GET") {
-          expect(url.searchParams.get("excludeNamespace")).toBe("skills");
-          if (url.searchParams.get("cursor") === "cursor-next") {
-            return jsonResponse({
-              items: [
+    });
+    const stored = artifactMetadata("projects", "source", {
+      artifact: {
+        namespace: "projects",
+        name: "source",
+        revision: "revision-2",
+      },
+      size: 3,
+    });
+    const { sent } = renderApplication("/artifacts", {
+      [LIST]: ({ url }) => {
+        expect(url.searchParams.get("excludeNamespace")).toBe("skills");
+        return url.searchParams.get("cursor") === "cursor-next"
+          ? json(
+              page([
                 {
                   ...current,
                   artifact: {
@@ -279,44 +207,12 @@ describe("Artifact routes", () => {
                     revision: "revision-next",
                   },
                 },
-              ],
-              page: { hasMore: false },
-            });
-          }
-          return jsonResponse({
-            items: [current],
-            page: { hasMore: true, nextCursor: "cursor-next" },
-          });
-        }
-        if (
-          url.pathname === "/v1/artifacts/projects/source" &&
-          request.method === "PUT"
-        ) {
-          return jsonResponse(
-            {
-              artifact: {
-                namespace: "projects",
-                name: "source",
-                revision: "revision-2",
-              },
-              mediaType: "application/zip",
-              size: 3,
-            },
-            { status: 201, headers: { ETag: '"revision-2"' } },
-          );
-        }
-        return jsonResponse(
-          {
-            code: "not_found",
-            message: "resource was not found",
-            retryable: false,
-            requestId: "request-test",
-          },
-          { status: 404 },
-        );
-      }),
-    );
-    renderArtifactApplication(api, "/artifacts");
+              ]),
+            )
+          : json(page([current], "cursor-next"));
+      },
+      [WRITE]: () => json(artifactWrite(stored), 201, { ETag: '"revision-2"' }),
+    });
     // Library rows open the current binding, not the listed revision.
     expect(
       await screen.findByRole("link", { name: "projects/existing" }),
@@ -343,9 +239,9 @@ describe("Artifact routes", () => {
     expect(screen.getByLabelText("Media type")).toHaveValue("application/zip");
     await user.click(screen.getByRole("button", { name: "Create binding" }));
 
-    await vi.waitFor(() => {
-      expect(requests.some((request) => request.method === "PUT")).toBe(true);
-    });
+    await vi.waitFor(() =>
+      expect(sent("PUT", "/v1/artifacts/projects/source")).toHaveLength(1),
+    );
     const notice = await screen.findByRole("status", {
       name: /File uploaded to your library/,
     });
@@ -354,42 +250,18 @@ describe("Artifact routes", () => {
       within(notice).getByRole("link", { name: "Open file" }),
     ).toHaveAttribute("href", "/artifacts/projects/source?revision=revision-2");
     await vi.waitFor(() => expect(notice).toHaveFocus());
-    const put = requests.find((request) => request.method === "PUT");
+    const put = sent("PUT", "/v1/artifacts/projects/source")[0];
     expect(put?.headers.get("If-None-Match")).toBe("*");
     expect(put?.headers.get("If-Match")).toBeNull();
-    expect(put?.headers.get("X-CSRF-Token")).toBe(session.csrfToken);
+    expect(put?.headers.get("X-CSRF-Token")).toBe(CSRF_TOKEN);
     expect(put?.headers.get("Content-Type")).toBe("application/zip");
   });
 
   it("reconciles a CAS conflict and never retries the unsafe PUT", async () => {
-    const requests: Request[] = [];
-    const api = new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const request = input instanceof Request ? input : new Request(input);
-        requests.push(request);
-        const url = new URL(request.url);
-        if (url.pathname === "/v1/auth/session") {
-          return jsonResponse(session);
-        }
-        if (url.pathname === "/v1/artifacts" && request.method === "GET") {
-          return jsonResponse({ items: [], page: { hasMore: false } });
-        }
-        if (request.method === "PUT") {
-          return jsonResponse(
-            {
-              code: "conflict",
-              message: "resource state changed",
-              retryable: true,
-              requestId: "request-conflict",
-            },
-            { status: 409 },
-          );
-        }
-        throw new Error(`unexpected test request ${request.method} ${url}`);
-      }),
-    );
-    renderArtifactApplication(api, "/artifacts");
+    const { sent } = renderApplication("/artifacts", {
+      [LIST]: () => json(page([])),
+      [WRITE]: () => failure(409, "conflict", "resource state changed", true),
+    });
     await screen.findByText("No files yet");
     const user = userEvent.setup();
     await user.click(screen.getByRole("button", { name: "Upload file" }));
@@ -401,35 +273,20 @@ describe("Artifact routes", () => {
     await user.click(screen.getByRole("button", { name: "Create binding" }));
 
     expect(await screen.findByText(/binding changed/i)).toBeInTheDocument();
-    await vi.waitFor(() => {
-      expect(
-        requests.filter((request) => request.method === "GET").length,
-      ).toBeGreaterThanOrEqual(3);
-    });
-    expect(requests.filter((request) => request.method === "PUT")).toHaveLength(
-      1,
+    // The list is read again after the refused write.
+    await vi.waitFor(() =>
+      expect(sent("GET", "/v1/artifacts").length).toBeGreaterThanOrEqual(2),
     );
+    expect(sent("PUT", "/v1/artifacts/projects/source")).toHaveLength(1);
   });
 
   it("keeps Skill packages on the dedicated Skills surface", async () => {
-    const requests: Request[] = [];
-    const api = new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const request = input instanceof Request ? input : new Request(input);
-        requests.push(request);
-        const url = new URL(request.url);
-        if (url.pathname === "/v1/auth/session") {
-          return jsonResponse(session);
-        }
-        if (url.pathname === "/v1/artifacts" && request.method === "GET") {
-          expect(url.searchParams.get("excludeNamespace")).toBe("skills");
-          return jsonResponse({ items: [], page: { hasMore: false } });
-        }
-        throw new Error(`unexpected test request ${request.method} ${url}`);
-      }),
-    );
-    renderArtifactApplication(api, "/artifacts");
+    const { sent } = renderApplication("/artifacts", {
+      [LIST]: ({ url }) => {
+        expect(url.searchParams.get("excludeNamespace")).toBe("skills");
+        return json(page([]));
+      },
+    });
     await screen.findByText("No files yet");
 
     const user = userEvent.setup();
@@ -453,12 +310,12 @@ describe("Artifact routes", () => {
       "href",
       "/catalog/skills",
     );
-    expect(requests.some((request) => request.method === "PUT")).toBe(false);
+    expect(sent("PUT", "")).toHaveLength(0);
   });
 
   it("renders exact history/lineage and escapes bounded preview text", async () => {
     const preview = "<script>alert('not executable')</script>";
-    const selected = {
+    const selected = artifactMetadata("projects", "architecture", {
       artifact: {
         namespace: "projects",
         name: "architecture",
@@ -467,75 +324,46 @@ describe("Artifact routes", () => {
       mediaType: "text/plain",
       size: preview.length,
       current: false,
-      frozen: false,
       createdAt: "2026-08-31T12:00:00Z",
-    };
+    });
     const current = {
       ...selected,
       artifact: { ...selected.artifact, revision: "revision-3" },
       current: true,
     };
-    const api = new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const request = input instanceof Request ? input : new Request(input);
-        const url = new URL(request.url);
-        if (url.pathname === "/v1/auth/session") {
-          return jsonResponse(session);
-        }
-        if (url.pathname.endsWith("/metadata")) {
-          return jsonResponse(selected);
-        }
-        if (url.pathname.endsWith("/versions")) {
-          return jsonResponse({
-            items: [current, selected],
-            page: { hasMore: false },
-          });
-        }
-        if (url.pathname.endsWith("/lineage")) {
-          return jsonResponse({
-            items: [
-              {
-                kind: "input_fork",
-                sourceScope: "user",
-                source: selected.artifact,
-                targetScope: "run",
-                target: {
-                  namespace: "inputs",
-                  name: "architecture",
-                  revision: "revision-run-1",
-                },
-                runId: "run-example",
-                stageExecutionId: "stage-example",
-                createdAt: "2026-08-31T12:01:00Z",
+    renderApplication("/artifacts/projects/architecture?revision=revision-2", {
+      [METADATA]: () => json(selected),
+      [VERSIONS]: () => json(page([current, selected])),
+      [LINEAGE]: () =>
+        json(
+          page([
+            conforming("ArtifactLineageEdge", {
+              kind: "input_fork",
+              sourceScope: "user",
+              source: selected.artifact,
+              targetScope: "run",
+              target: {
+                namespace: "inputs",
+                name: "architecture",
+                revision: "revision-run-1",
               },
-              {
-                kind: "project_output_publish",
-                sourceScope: "run",
-                source: selected.artifact,
-                targetScope: "project",
-                target: selected.artifact,
-                createdAt: "2026-08-31T12:02:00Z",
-              },
-            ],
-            page: { hasMore: false },
-          });
-        }
-        if (url.pathname.endsWith("/projects/architecture")) {
-          return apiResponse(preview, {
-            headers: {
-              "content-type": "text/plain",
-              "content-length": String(preview.length),
-            },
-          });
-        }
-        throw new Error(`unexpected test request ${request.method} ${url}`);
-      }),
-    );
-    renderArtifactApplication(
-      api,
-      "/artifacts/projects/architecture?revision=revision-2",
-    );
+              runId: "run-example",
+              stageExecutionId: "stage-example",
+              createdAt: "2026-08-31T12:01:00Z",
+            }),
+            conforming("ArtifactLineageEdge", {
+              kind: "project_output_publish",
+              sourceScope: "run",
+              source: selected.artifact,
+              targetScope: "project",
+              target: selected.artifact,
+              createdAt: "2026-08-31T12:02:00Z",
+            }),
+          ]),
+        ),
+      "GET /v1/artifacts/{namespace}/{name}": () =>
+        payload(preview, "text/plain"),
+    });
     expect(
       (await screen.findAllByText("revision-2", { selector: "code" })).length,
     ).toBeGreaterThan(0);
@@ -543,14 +371,12 @@ describe("Artifact routes", () => {
       screen.getByText("Historical revision", { selector: ".lede" }),
     ).toBeVisible();
     expect(screen.queryByText("input fork")).not.toBeInTheDocument();
-    await userEvent
-      .setup()
-      .click(screen.getByRole("button", { name: "Versions" }));
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Versions" }));
     expect(await screen.findByText("input fork")).toBeInTheDocument();
     expect(screen.getByText("project output publish")).toBeInTheDocument();
     expect(screen.getByText("Run run-example")).toBeInTheDocument();
 
-    const user = userEvent.setup();
     await user.click(screen.getByRole("button", { name: "Load preview" }));
     expect(await screen.findByText(preview)).toBeInTheDocument();
     expect(document.querySelector("script")).toBeNull();
@@ -560,69 +386,37 @@ describe("Artifact routes", () => {
   });
 
   it("keeps contextual return navigation and current status after a user Artifact version upload", async () => {
-    const original = {
-      artifact: {
-        namespace: "projects",
-        name: "source",
-        revision: "revision-1",
-      },
-      mediaType: "text/plain",
-      size: 4,
-      current: true,
-      frozen: false,
-      createdAt: "2026-09-01T10:00:00Z",
-    };
-    const latest = {
-      ...original,
-      artifact: { ...original.artifact, revision: "revision-2" },
-    };
+    const original = source("revision-1");
+    const latest = source("revision-2");
     const returnState = {
       returnTo: "/artifacts?namespace=projects&cursor=page-two",
       returnLabel: "Filtered Artifacts",
       returnState: { returnTo: "/catalog/skills", returnLabel: "Skills" },
     };
     let written = false;
-    const api = new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const request = input instanceof Request ? input : new Request(input);
-        const url = new URL(request.url);
-        if (url.pathname === "/v1/auth/session") return jsonResponse(session);
-        if (
-          request.method === "PUT" &&
-          url.pathname === "/v1/artifacts/projects/source"
-        ) {
+    const { router } = renderApplication(
+      {
+        pathname: "/artifacts/projects/source",
+        search: "?revision=revision-1",
+        state: returnState,
+      },
+      {
+        [WRITE]: ({ request }) => {
           expect(request.headers.get("If-Match")).toBe('"revision-1"');
           written = true;
-          return jsonResponse(
-            { artifact: latest.artifact, mediaType: "text/plain", size: 4 },
-            { status: 201, headers: { ETag: '"revision-2"' } },
-          );
-        }
-        if (url.pathname.endsWith("/metadata")) {
-          return jsonResponse(
+          return json(artifactWrite(latest), 201, { ETag: '"revision-2"' });
+        },
+        [METADATA]: ({ url }) =>
+          json(
             url.searchParams.get("revision") === "revision-2"
               ? latest
               : { ...original, current: !written },
-          );
-        }
-        if (url.pathname.endsWith("/versions"))
-          return jsonResponse({
-            items: [latest, { ...original, current: false }],
-            page: { hasMore: false },
-          });
-        if (url.pathname.endsWith("/lineage"))
-          return jsonResponse({ items: [], page: { hasMore: false } });
-        if (url.pathname === "/v1/artifacts")
-          return jsonResponse({ items: [], page: { hasMore: false } });
-        throw new Error(`unexpected ${request.method} ${url}`);
-      }),
+          ),
+        [VERSIONS]: () => json(page([latest, { ...original, current: false }])),
+        [LINEAGE]: () => json(page([])),
+        [LIST]: () => json(page([])),
+      },
     );
-    const { router } = renderArtifactApplication(api, {
-      pathname: "/artifacts/projects/source",
-      search: "?revision=revision-1",
-      state: returnState,
-    });
     expect(
       await screen.findByText("Current revision", { selector: ".lede" }),
     ).toBeVisible();
@@ -676,83 +470,43 @@ describe("Artifact routes", () => {
   ])(
     "keeps a concurrent-writer upload conflict visible with the new current revision (pinned: $pinned)",
     async ({ path }) => {
-      const original = {
-        artifact: {
-          namespace: "projects",
-          name: "source",
-          revision: "revision-1",
-        },
-        mediaType: "text/plain",
-        size: 4,
-        current: true,
-        frozen: false,
-        createdAt: "2026-09-01T10:00:00Z",
-      };
-      const concurrent = {
-        ...original,
-        artifact: { ...original.artifact, revision: "revision-2" },
+      const original = source("revision-1");
+      const concurrent = source("revision-2", {
         size: 6,
         createdAt: "2026-09-01T10:05:00Z",
-      };
-      const mine = {
-        ...original,
-        artifact: { ...original.artifact, revision: "revision-3" },
-      };
+      });
+      const mine = source("revision-3");
       const returnState = { returnTo: "/artifacts", returnLabel: "Artifacts" };
       // Another writer binds revision-2 while this page shows revision-1.
       let concurrentWriter = false;
-      const writes: Request[] = [];
-      const api = new PublicAPI(
-        runtimeConfig,
-        vi.fn(async (input) => {
-          const request = input instanceof Request ? input : new Request(input);
-          const url = new URL(request.url);
-          if (url.pathname === "/v1/auth/session") return jsonResponse(session);
-          if (
-            request.method === "PUT" &&
-            url.pathname === "/v1/artifacts/projects/source"
-          ) {
-            writes.push(request);
+      const { router, sent } = renderApplication(
+        { search: "", ...path, state: returnState },
+        {
+          [WRITE]: ({ request }) => {
             if (request.headers.get("If-Match") === '"revision-2"') {
-              return jsonResponse(
-                { artifact: mine.artifact, mediaType: "text/plain", size: 4 },
-                { status: 200, headers: { ETag: '"revision-3"' } },
-              );
+              return json(artifactWrite(mine), 200, { ETag: '"revision-3"' });
             }
             concurrentWriter = true;
-            return jsonResponse(
-              {
-                code: "conflict",
-                message:
-                  "resource state changed; retry with the current revision",
-                retryable: true,
-                requestId: "request-conflict",
-              },
-              { status: 409 },
+            return failure(
+              409,
+              "conflict",
+              "resource state changed; retry with the current revision",
+              true,
             );
-          }
-          if (url.pathname.endsWith("/metadata")) {
+          },
+          [METADATA]: ({ url }) => {
             switch (url.searchParams.get("revision")) {
               case "revision-1":
-                return jsonResponse({
-                  ...original,
-                  current: !concurrentWriter,
-                });
+                return json({ ...original, current: !concurrentWriter });
               case "revision-3":
-                return jsonResponse(mine);
+                return json(mine);
             }
-            return jsonResponse(concurrentWriter ? concurrent : original);
-          }
-          if (url.pathname === "/v1/artifacts")
-            return jsonResponse({ items: [], page: { hasMore: false } });
-          throw new Error(`unexpected ${request.method} ${url}`);
-        }),
+            return json(concurrentWriter ? concurrent : original);
+          },
+          [LIST]: () => json(page([])),
+        },
       );
-      const { router } = renderArtifactApplication(api, {
-        search: "",
-        ...path,
-        state: returnState,
-      });
+      const writes = () => sent("PUT", "/v1/artifacts/projects/source");
       expect(
         await screen.findByText("Current revision", { selector: ".lede" }),
       ).toBeVisible();
@@ -780,8 +534,8 @@ describe("Artifact routes", () => {
       expect(notice).toHaveTextContent(/binding changed/);
       expect(router.state.location.search).toBe("");
       expect(router.state.location.state).toEqual(returnState);
-      expect(writes).toHaveLength(1);
-      expect(writes[0]?.headers.get("If-Match")).toBe('"revision-1"');
+      expect(writes()).toHaveLength(1);
+      expect(writes()[0]?.headers.get("If-Match")).toBe('"revision-1"');
 
       // An explicit new upload against the reviewed revision clears it.
       await user.upload(
@@ -798,7 +552,7 @@ describe("Artifact routes", () => {
         await screen.findByText("revision-3", { selector: "code" }),
       ).toBeInTheDocument();
       expect(screen.queryByRole("alert")).not.toBeInTheDocument();
-      expect(writes.map((write) => write.headers.get("If-Match"))).toEqual([
+      expect(writes().map((write) => write.headers.get("If-Match"))).toEqual([
         '"revision-1"',
         '"revision-2"',
       ]);
@@ -806,41 +560,17 @@ describe("Artifact routes", () => {
   );
 
   it("does not offer inline preview for binary content", async () => {
-    const binary = {
-      artifact: {
-        namespace: "projects",
-        name: "source",
-        revision: "revision-1",
-      },
+    const binary = source("revision-1", {
       mediaType: "application/octet-stream",
       size: 1024,
-      current: true,
-      frozen: false,
-      createdAt: "2026-08-31T12:00:00Z",
-    };
-    const api = new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const request = input instanceof Request ? input : new Request(input);
-        const url = new URL(request.url);
-        if (url.pathname === "/v1/auth/session") {
-          return jsonResponse(session);
-        }
-        if (url.pathname.endsWith("/metadata")) {
-          return jsonResponse(binary);
-        }
-        if (url.pathname.endsWith("/versions")) {
-          return jsonResponse({ items: [binary], page: { hasMore: false } });
-        }
-        if (url.pathname.endsWith("/lineage")) {
-          return jsonResponse({ items: [], page: { hasMore: false } });
-        }
-        throw new Error("binary preview must not fetch Artifact bytes");
-      }),
-    );
-    renderArtifactApplication(
-      api,
+    });
+    const { sent } = renderApplication(
       "/artifacts/projects/source?revision=revision-1",
+      {
+        [METADATA]: () => json(binary),
+        [VERSIONS]: () => json(page([binary])),
+        [LINEAGE]: () => json(page([])),
+      },
     );
     const previewButton = await screen.findByRole("button", {
       name: "Load preview",
@@ -852,34 +582,26 @@ describe("Artifact routes", () => {
     expect(
       screen.getByText(/Inline preview is unavailable/),
     ).toBeInTheDocument();
+    // A binary preview never reads the Artifact bytes.
+    expect(sent("GET", "/v1/artifacts/projects/source")).toHaveLength(0);
   });
+
   it("restores the namespace and cursor after inspecting an Artifact", async () => {
-    const binding = {
-      artifact: { namespace: "sources", name: "example", revision: "r1" },
+    const binding = artifactMetadata("sources", "example", {
       mediaType: "text/plain",
       size: 4,
-      current: true,
-      frozen: false,
       createdAt: "2026-09-01T10:00:00Z",
-    };
-    const api = new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const request = input instanceof Request ? input : new Request(input),
-          url = new URL(request.url);
-        if (url.pathname === "/v1/auth/session") return jsonResponse(session);
-        if (url.pathname.endsWith("/metadata")) return jsonResponse(binding);
-        if (url.pathname === "/v1/artifacts") {
+    });
+    const { router } = renderApplication(
+      "/artifacts?namespace=sources&cursor=page-two",
+      {
+        [METADATA]: () => json(binding),
+        [LIST]: ({ url }) => {
           expect(url.searchParams.get("namespace")).toBe("sources");
           expect(url.searchParams.get("cursor")).toBe("page-two");
-          return jsonResponse({ items: [binding], page: { hasMore: false } });
-        }
-        return jsonResponse({ items: [], page: { hasMore: false } });
-      }),
-    );
-    const { router } = renderArtifactApplication(
-      api,
-      "/artifacts?namespace=sources&cursor=page-two",
+          return json(page([binding]));
+        },
+      },
     );
     const user = userEvent.setup();
     await user.click(
@@ -902,32 +624,15 @@ describe("Files upload dialog", () => {
   /** Starts a file upload whose PUT stays pending until it is aborted. */
   async function startPendingUpload() {
     let signal: AbortSignal | undefined;
-    let listReads = 0;
-    const api = new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const request = input instanceof Request ? input : new Request(input);
-        const url = new URL(request.url);
-        if (url.pathname === "/v1/auth/session") return jsonResponse(session);
-        if (url.pathname === "/v1/artifacts" && request.method === "GET") {
-          listReads += 1;
-          return jsonResponse({ items: [], page: { hasMore: false } });
-        }
-        if (
-          url.pathname === "/v1/artifacts/inputs/wordlist" &&
-          request.method === "PUT"
-        ) {
-          signal = request.signal;
-          return new Promise<Response>((_resolve, reject) =>
-            request.signal.addEventListener("abort", () =>
-              reject(new DOMException("aborted", "AbortError")),
-            ),
-          );
-        }
-        return jsonResponse({ items: [], page: { hasMore: false } });
-      }),
-    );
-    renderArtifactApplication(api, "/artifacts");
+    const { sent } = renderApplication("/artifacts", {
+      [LIST]: () => json(page([])),
+      [WRITE]: ({ request, params }) => {
+        expect(params).toEqual({ namespace: "inputs", name: "wordlist" });
+        signal = request.signal;
+        return pendingUntilAborted(request);
+      },
+    });
+    const listReads = () => sent("GET", "/v1/artifacts").length;
     await screen.findByText("No files yet");
     const user = userEvent.setup();
     const uploadButton = screen.getByRole("button", { name: "Upload file" });
@@ -955,8 +660,8 @@ describe("Files upload dialog", () => {
       user,
       dialog,
       uploadButton,
-      listReadsBefore: listReads,
-      listReads: () => listReads,
+      listReadsBefore: listReads(),
+      listReads,
       aborted: () => signal?.aborted,
     };
   }
