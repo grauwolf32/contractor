@@ -62,6 +62,12 @@ func NewPinnedSubmissionBuilder(
 	return result, nil
 }
 
+func (b *PinnedSubmissionBuilder) WithClaim(claim auditstore.ControllerClaim) SubmissionBuilder {
+	bound := *b
+	bound.artifacts = b.artifacts.WithClaim(claim)
+	return &bound
+}
+
 func (b *PinnedSubmissionBuilder) PrepareRole(
 	ctx context.Context,
 	snapshot auditstore.ReconcileSnapshot,

@@ -5,6 +5,7 @@ cases:
     expected: Only verified local direct profile/tool selections execute; missing prerequisites never fall back.
     tests:
       - {source: internal/controlplane/podman_placement_test.go, symbol: TestPodmanPlacementRequiresExactLocalDirectCapability}
+      - {source: runtime/tests/test_podman_network.py, symbol: test_network_profile_requires_operator_opt_in_and_its_own_probe}
       - {source: runtime/tests/test_podman_capabilities.py, symbol: test_owner_probe_checks_each_prerequisite_and_cleans_exact_resources}
     real:
       - {source: runtime/tests/test_podman_capabilities.py, symbol: test_real_complete_startup_probe_advertises_only_after_removal}
@@ -25,6 +26,7 @@ cases:
       - {source: runtime/tests/test_podman_command_coordination.py, symbol: test_selected_execution_changes_analysis_and_explicit_artifact_publication}
     real:
       - {source: runtime/tests/test_podman_release_integration.py, symbol: test_real_command_edit_snapshot_ordering_and_cancellation}
+      - {source: runtime/tests/test_podman_execution_integration.py, symbol: test_real_cancelled_command_stops_writers_in_both_profiles}
       - {source: runtime/tests/test_podman_execution_integration.py, symbol: test_real_exec_uid_shell_cwd_utf8_large_command_and_disk_authority}
   - id: authority-and-containment
     spec: 4
@@ -88,6 +90,7 @@ cases:
       - {source: runtime/tests/test_podman_supervisor_integration.py, symbol: test_pid_limit_prevents_fork_growth_then_kills_survivors}
       - {source: runtime/tests/test_podman_supervisor_integration.py, symbol: test_effective_mapping_confinement_and_resource_limits}
       - {source: runtime/tests/test_podman_supervisor_integration.py, symbol: test_expiry_cannot_be_extended_or_forged_by_workload}
+      - {source: runtime/tests/test_podman_execution_integration.py, symbol: test_real_network_profile_http_and_isolated_profile_denial}
   - id: non-podman-regression
     spec: 11
     expected: Existing local-workdir, memory/overlay, host validators and script-free Skills keep their authority and behavior.

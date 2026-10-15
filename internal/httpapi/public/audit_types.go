@@ -61,6 +61,7 @@ type auditRuntimeSnapshotResponse struct {
 }
 
 type auditBaselineResponse struct {
+	ActiveChecks      contracts.ActiveChecksPolicy         `json:"activeChecks"`
 	Inputs            map[string]auditstore.ExactArtifact  `json:"inputs"`
 	Scope             auditservice.Scope                   `json:"scope"`
 	RuntimeLabels     []string                             `json:"runtimeLabels"`

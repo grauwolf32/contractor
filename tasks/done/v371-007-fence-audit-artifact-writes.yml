@@ -5,7 +5,8 @@ milestone: hub-audit-defects-2026-10
 epic: audits
 kind: defect
 priority: P2
-status: pending
+status: completed
+implementation_commit: f590b00fc378105d4d677b2a7d712679b765c895
 depends_on: []
 languages: [go]
 goal: "A controller whose claim was taken over cannot write an Audit-managed artifact after the new holder purged the Audit; a PostgreSQL reproduction shows the write refused and no binding left behind, or records why the race cannot happen."
@@ -74,7 +75,23 @@ acceptance_criteria:
   - id: A3
     text: "The reproduction test fails on a07f5e9, or the task records why the race cannot occur."
 tests:
-  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 -tags integration ./internal/auditcontroller ./internal/auditstore ./internal/artifacts ./internal/auditimport"
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 -tags integration ./internal/auditcontroller ./internal/auditstore/... ./internal/artifacts ./internal/auditimport"
     covers: [A1, A2, A3]
   - command: make lint
     covers: [A1, A2, A3]
+verification:
+  date: '2026-10-15'
+  revision: a161ffb98af14d85bf32e70f90d726c715c7f0cc
+  environment: Go 1.26.9, Node 24.20.0 and disposable PostgreSQL 17; test GOFLAGS=-buildvcs=false -p=2; max_locks_per_transaction=1024.
+  commands:
+  - command: make verify
+    result: Passed; Runtime 3835 passed and 39 skipped; UI 1984 passed.
+  - command: go test -p 1 -count=1 -tags integration ./internal/auditcontroller ./internal/auditstore/... ./internal/artifacts ./internal/auditimport ./internal/rundeletion ./internal/evalservice ./internal/evalstore ./internal/findingintake ./internal/auditdomain ./internal/httpapi/privateartifacts ./internal/auditservice ./internal/app ./internal/projectlifecycle
+    result: Passed with disposable PostgreSQL configured.
+  - command: go test -p 1 -race -count=1 ./internal/auditstore/internal/pgstore -run '^(TestClaimedArtifactWritesFenceTakeoverAndPurge|TestPostgresAuditPurgeCommitsBoundedBatchesAndResumesAfterTakeover)$'
+    result: Passed with disposable PostgreSQL configured.
+  regression:
+    baseline: 89a2cc5790b53b3cedf31aff24e2e1f0a60860bb
+    before: A probe through the original unfenced publication path accepted stale writes after takeover and purge and left four hidden Audit namespace bindings.
+    after: 'TestClaimedArtifactWritesFenceTakeoverAndPurge passes: live replay succeeds, takeover/deleting/purged writes return ErrClaimLost, and no post-purge binding remains.'
+  siblings: Preparation, initial/next-round inventory and import/report publication bind the claim through the Audit-owned transaction port. Start staging and finding intake already hold their draft/Audit row against purge.

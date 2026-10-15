@@ -63,6 +63,46 @@ that a workload stopped. A focused closed-socket regression covers this path.
 
 Skill scripts and future read-only skill mounts remain out of scope.
 
+## Networked sandbox
+
+Select `sandboxProfile: podman-network@1` in an AgentTemplate using the same
+`code-execution@1` / `exec_command` Toolset. Enable both `--podman-enabled true`
+and `--podman-network-enabled true` on the Runtime; the environment spelling is
+`CONTRACTOR_PODMAN_NETWORK_ENABLED=true`. The network opt-in defaults to false.
+The approved image, stable owner, local-direct workspace and all existing
+resource/deadline limits are still required.
+
+This profile uses fixed rootless `pasta`, which must be installed on the host.
+It has a private network namespace and does not publish ports or join the host
+network. The original `podman@1` continues to use `none`. No tool argument,
+Runtime label or Skill can switch a running allocation between those modes.
+Both `probe` and `prepare` owner RPCs carry an exact `network` member (`none`
+or `pasta`), validated against the immutable operator policy. Creation owns the
+mode alongside its identity, so a replay with another mode is incompatible.
+
+Startup probes the isolated profile first and, when enabled, runs the complete
+probe again for the networked profile. Each probe must confirm cleanup before
+advertisement. A definite network failure leaves the isolated profile usable;
+uncertain cleanup fences registration. Diagnostics retain `podmanNetwork=none`
+for the isolated profile and `podmanNetworkProfileAvailable` for the second
+profile. The common finite discovery deadline bounds both probes.
+
+Networked commands can access the deployment network and download dependencies.
+They do not inherit HTTP Toolset target filtering, proxy routes, target/Gateway
+credentials or environment values. Operators enforce any required egress
+boundary through deployment networking. Audit classifies `exec_command` as an
+active tool for this profile, so the pinned Project setting controls automatic,
+approval-required or prohibited execution. Offline execution is not classified
+as active solely because it uses `exec_command`.
+
+The real command gate includes HTTP egress versus isolated denial and fatal
+command cleanup for both profiles:
+
+```sh
+CONTRACTOR_RUN_PODMAN_SUPERVISOR_GATE=1 uv run pytest -W error \
+  tests/test_podman_execution_integration.py
+```
+
 ## Implementation history
 
 V31-001 registers authoring/placement contracts and parses immutable startup
@@ -112,7 +152,8 @@ Parsing verifies syntax only; the engine and startup probe verify image
 availability and service-owner locking before capability advertisement.
 
 There are no image/resource/environment fields in Workflow or model tool input.
-Network is fixed to `none`, engine access is local rootless Podman, shell is
+Network is fixed to `none` for `podman@1` and `pasta` for `podman-network@1`;
+engine access is local rootless Podman, shell is
 `/bin/sh -c`, and mounts/user mapping are operator-owned implementation policy.
 No remote engine, host socket, arbitrary mount, host environment inheritance,
 privileged mode or skill-script mount is introduced. The workspace bind has no

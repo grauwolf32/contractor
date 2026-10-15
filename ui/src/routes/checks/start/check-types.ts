@@ -211,7 +211,7 @@ const KNOWN: Readonly<Record<string, CheckTypePresentation>> = {
   "owasp-wstg-4-2-active-http": {
     label: "OWASP WSTG 4.2 live testing",
     description:
-      "Tests a running website or API over HTTP, scenario by scenario, with your approval for live tests.",
+      "Tests a running website or API over HTTP, scenario by scenario, using your project’s active-check setting.",
     order: 60,
   },
   "owasp-wstg-4-2-fast-active-http": {
@@ -223,13 +223,13 @@ const KNOWN: Readonly<Record<string, CheckTypePresentation>> = {
   "openapi-nuclei-scan": {
     label: "Nuclei scan",
     description:
-      "Runs Nuclei on the endpoints your scan settings select, each after your approval.",
+      "Runs Nuclei on the endpoints your scan settings select, using your project’s active-check setting.",
     order: 70,
   },
   "openapi-sqlmap-scan": {
     label: "SQLMap scan",
     description:
-      "Runs SQLMap on the endpoints your scan settings select, each after your approval.",
+      "Runs SQLMap on the endpoints your scan settings select, using your project’s active-check setting.",
     order: 80,
   },
   "source-checklist": {
@@ -584,6 +584,8 @@ const REASON_WORDS: Readonly<Record<CompatibilityReason, string>> = {
   assessment_unsupported: "assessment steps",
   multiple_rounds_unsupported: "more than one round",
   batching_unsupported: "several items in one run",
+  project_active_checks_prohibited:
+    "active checks are disabled in Project settings",
   automatic_active_checks_unsupported: "automatic live tests",
   active_check_approval_unsupported: "approvals for live tests",
   finding_confirmation_unsupported: "confirming possible issues",

@@ -22,6 +22,9 @@ const (
 	defaultClaimLease       = 30 * time.Second
 	defaultOperationTimeout = 10 * time.Second
 	defaultClaimBatch       = 8
+	// A deletion attempt uses the Artifact cleanup budget under a renewed
+	// lease twice as long, rather than the ordinary reconcile deadline.
+	deletionClaimLease = 4 * time.Minute
 )
 
 var (
@@ -36,6 +39,7 @@ var (
 type Store interface {
 	Claim(context.Context, auditstore.ClaimParams) ([]auditstore.ControllerClaim, error)
 	ReleaseClaim(context.Context, auditstore.ControllerClaim) error
+	RenewClaim(context.Context, auditstore.ControllerClaim, time.Duration) error
 	ExpireReportReview(context.Context, auditstore.ControllerClaim, uint64) (bool, error)
 	RenewExpiredItemReview(context.Context, auditstore.ControllerClaim, uint64) (bool, error)
 	TransitionClaimed(context.Context, auditstore.ClaimedTransitionParams) (auditstore.Audit, error)
@@ -99,6 +103,7 @@ type CheckExecutionMember struct {
 }
 
 type SubmissionBuilder interface {
+	WithClaim(auditstore.ControllerClaim) SubmissionBuilder
 	// PrepareBatch may select a non-empty ordered prefix of the supplied
 	// candidates to satisfy trusted encoded-package byte limits.
 	PrepareBatch(context.Context, auditstore.ReconcileSnapshot, []CheckExecutionMember) (PreparedSubmission, error)

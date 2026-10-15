@@ -4,7 +4,7 @@ Requirement prefix: `EXE` · [Specification index](../README.md)
 
 ## Purpose and scope
 
-This document owns the `podman@1` SandboxProfile and the `code-execution@1`
+This document owns the `podman@1` and `podman-network@1` SandboxProfiles and the `code-execution@1`
 Toolset: one allocation-scoped rootless Podman container that shares the
 allocation's local direct project directory, the compatibility rules that tie
 the profile to its Toolset and workspace, the operator-owned process
@@ -47,6 +47,8 @@ following ones.
 
 - **`podman@1`.** The SandboxProfile that gives an allocation one rootless
   Podman container sharing its local direct project directory.
+- **`podman-network@1`.** The separately enabled Podman profile with a private
+  rootless network namespace and deployment-controlled egress.
 - **`code-execution@1`.** The explicitly selected Toolset that exports
   `exec_command`.
 - **Execution handle.** The private, allocation-owned sandbox channel through
@@ -158,43 +160,43 @@ sequenceDiagram
 ### Scope of isolation
 
 **EXE-R1.** One local Runtime Agent creates one rootless Podman container
-(LIM-EXE-1) when preparing an allocation that selects `podman@1`. The
+(LIM-EXE-1) when preparing an allocation that selects either Podman profile. The
 container shares that allocation's local direct project directory. Explicit
 execution tools run commands inside it; finalization stops it, and release
 removes it before deleting mounted files.
 
 **EXE-R2.** The ADK Worker, the A2A listener, the Artifact client and the
-existing trusted Toolsets continue to run in the Runtime process. `podman@1`
-isolates executed code; it does not move or sandbox the whole Runtime Agent.
+existing trusted Toolsets continue to run in the Runtime process. Both Podman
+profiles isolate executed code; they do not sandbox the whole Runtime Agent.
 
-**EXE-R3.** `podman@1` does not replace the Scheduler, introduce another queue
-or create an independent Worker lifecycle.
+**EXE-R3.** Neither Podman profile replaces the Scheduler, introduces another queue
+or creates an independent Worker lifecycle.
 
 ### Selection and capability advertisement
 
-**EXE-R4.** An AgentTemplate selects `podman@1` and `code-execution@1` through
+**EXE-R4.** An AgentTemplate selects a Podman profile and `code-execution@1` through
 the existing exact selectors of
 [AgentTemplates](../configuration/agent-templates.md): `spec.sandboxProfile`
 and an entry of `spec.toolsets` (see [Examples](#examples)).
 
-**EXE-R5.** `podman@1` and `code-execution@1` are registered authoring refs. A
-Runtime advertises this pair only after an opt-in, real startup probe and
+**EXE-R5.** Both Podman profiles and `code-execution@1` are registered authoring refs. A
+Runtime advertises each profile only after its opt-in, real startup probe and
 confirmed probe cleanup (EXE-R110); registering the authoring refs alone does
 not make a Runtime eligible.
 
 **EXE-R6.** Filesystem and edit tools retain their own capability probes
-([Workspace](workspace.md)). Selecting `podman@1` does not implicitly add
+([Workspace](workspace.md)). Selecting either Podman profile does not implicitly add
 execution or filesystem tools.
 
-**EXE-R7.** `podman@1` may be selected without `exec_command`; it still owns
+**EXE-R7.** Either Podman profile may be selected without `exec_command`; it still owns
 its container lifecycle.
 
-**EXE-R8.** Selecting `exec_command` requires `podman@1`. `exec_command`
+**EXE-R8.** Selecting `exec_command` requires `podman@1` or `podman-network@1`. `exec_command`
 cannot execute on the host or silently fall back to `local-workdir@1`.
 
 ### Workspace mode and storage
 
-**EXE-R9.** Every `podman@1` Worker requires a declared Stage
+**EXE-R9.** Every Worker selecting either Podman profile requires a declared Stage
 `context.workspace` with `mode: direct` and a Runtime configured with
 `workspace.storage: local`; the Podman executor requires `local + direct`.
 
@@ -218,11 +220,11 @@ can be supplied by the model.
 Compatibility is checked at three boundaries: authoring, placement and the
 Runtime.
 
-**EXE-R12.** Authoring rejects `podman@1` with a missing workspace or with
+**EXE-R12.** Authoring rejects either Podman profile with a missing workspace or with
 `mode: overlay`, and rejects execution tools with an incompatible
 SandboxProfile.
 
-**EXE-R13.** For a binding selecting `podman@1`, placement requires the exact
+**EXE-R13.** For a binding selecting either Podman profile, placement requires the exact
 runtime, profile, selected tools and local direct workspace capability, and the
 registered profile/tool compatibility; local workspace storage is an explicit
 binding placement requirement.
@@ -230,7 +232,7 @@ binding placement requirement.
 **EXE-R120.** These are binding-specific requirements: a different Worker in
 the same Stage may continue to use its own compatible profile.
 
-**EXE-R14.** Bindings that do not select `podman@1` keep the ordinary
+**EXE-R14.** Bindings that do not select either Podman profile keep the ordinary
 placement behavior of [Control Plane](../execution/control-plane.md), and
 ordinary workspace placement remains as specified in
 [Workspace](workspace.md).
@@ -262,7 +264,8 @@ environment spelling and the implementation ceilings are documented in the
 | memory | 2 GiB by default (LIM-EXE-3); positive operator-configured hard limit |
 | pids | 256 by default (LIM-EXE-4); includes command children and the inert container PID 1, not the host guardian |
 | tmpfs | 256 MiB by default (LIM-EXE-5) for private temporary files |
-| network | `none` in `podman@1` |
+| network | `none` in `podman@1`; fixed rootless `pasta` in operator-enabled `podman-network@1` |
+| network profile enabled | False unless explicitly enabled with immutable Runtime startup policy |
 | command timeout | 60 seconds default (LIM-EXE-6), 300 seconds operator maximum by default (LIM-EXE-7) |
 | stdout/stderr previews | 32 KiB each (LIM-EXE-8) |
 | combined output limit | 1 MiB per command (LIM-EXE-9); exceeding it terminates execution |
@@ -285,11 +288,9 @@ prepare. Packages and the inert init are provisioned in the approved image;
 the trusted owner and the guardian run on the host. Project-local environments
 can be created from already available dependencies.
 
-**EXE-R23.** Executed code has no network access: package downloads and live
-target HTTP requests from executed code are unavailable.
-
-Rationale: network access is deliberately excluded; a networked profile is a
-non-goal ([Non-goals](#non-goals)).
+**EXE-R23.** Code in `podman@1` has no network access: package downloads and live
+target requests from executed code are unavailable. The separate
+`podman-network@1` profile provides network access under EXE-R123 to EXE-R126.
 
 **EXE-R24.** `http-tools@1` and `caido@1` remain separate, explicitly selected
 capabilities ([HTTP and Caido](http-caido.md)); their credentials and proxy
@@ -299,6 +300,38 @@ implicitly configure container commands.
 **EXE-R25.** The resolved image digest and the effective limits are captured
 in allocation-owned diagnostic state. Reports may include the image digest and
 safe limits, but not host paths or secrets.
+
+### Networked profile
+
+**EXE-R123.** `podman-network@1` is a distinct exact profile sharing the existing
+Podman image, local-direct workspace, resource limits, execution channel and
+allocation lifecycle. Immutable operator startup `network_enabled` defaults to
+false and requires Podman to be enabled. A selected profile is pinned for its
+allocation; a repeated prepare cannot change its network. `podman@1` always
+uses `--network=none`, even when the networked profile is enabled.
+
+**EXE-R124.** The networked profile uses fixed rootless `--network=pasta` with
+its own network namespace. Host networking, additional ports, model-selected
+network flags and ambient credentials remain unavailable. Network availability
+requires a separate complete preparation, resource, execution, descendant and
+liveness probe followed by verified cleanup. A definite network-probe failure
+with confirmed cleanup leaves only the isolated profile available; uncertain
+cleanup prevents registration of either profile.
+
+**EXE-R125.** Networked commands use the operator's deployment network boundary.
+They do not inherit HTTP/Caido target filtering, proxy routing, managed target
+credentials or Gateway credentials. The operator owns egress restriction and
+its enforcement outside arbitrary executed code (SEC-R89). Reopen this boundary
+when an execution profile promises enforceable per-engagement egress or proxy
+semantics; a prompt or Project scope string does not provide that enforcement.
+
+**EXE-R126.** The shared Toolset descriptor classifies selected `exec_command`
+as an active-check tool only for `podman-network@1`. Audit admission therefore
+applies the pinned Project policy and profile prohibition. Offline commands
+remain usable by source-only profiles. Cancellation, lease loss, finalization,
+release and recovery stop workload descendants and remove the exact container
+and its network resources before deleting mounted files; no background service
+survives confirmed release.
 
 ### Container and mount boundary
 
@@ -337,7 +370,7 @@ used.
 
 **EXE-R33.** No command may choose its execution user.
 
-**EXE-R34.** `podman@1` uses regular Linux container isolation, which shares
+**EXE-R34.** Both Podman profiles use regular Linux container isolation, which shares
 the host kernel; it is not a VM profile. CPU, memory, process and tmpfs limits
 are enforced by the runtime and the OS, not by model instructions.
 
@@ -873,8 +906,8 @@ spec:
   cannot add tools, images, mounts, privileges or network authority
   ([SKL-R44](skills.md)); enabling scripts needs a separate amendment to
   [Skills](skills.md).
-- A networked profile. It would need explicit egress and proxy semantics and
-  Audit active-check classification.
+- Host networking, model-selected network modes and transparent proxy or
+  target-scope enforcement for arbitrary executed code.
 - Skill mounts. No `/skills/<name>` mount is provided. A read-only
   `/skills/<name>` mount containing selected Run-pinned skill packages, with
   writable outputs directed to `/workspace` or `/tmp`, is reserved; selection

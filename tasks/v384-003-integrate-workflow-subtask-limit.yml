@@ -4,10 +4,10 @@ title: Integrate Workflow Planner subtask budgets with current main
 milestone: workflow-planner-subtask-budgets-2026-10
 epic: planner-worker
 kind: chore
-introduced_by: V380-001
+introduced_by: V384-001
 priority: P2
 status: in_progress
-depends_on: [V380-001, V380-002]
+depends_on: [V384-001, V384-002]
 languages: [go, typescript, markdown]
 goal: >-
   Merge the completed Workflow subtask budget branch into main while retaining

@@ -2087,6 +2087,8 @@ func (f *fakeImportArtifacts) RetainRunExact(_ context.Context, _ string, source
 	source.Ref = target
 	return source, nil
 }
+func (f *fakeImportArtifacts) WithClaim(auditstore.ControllerClaim) ArtifactAccess { return f }
+
 func (f *fakeImportArtifacts) PutImmutableProject(_ context.Context, _ string, target contracts.ArtifactRef, payload artifacts.Payload) (auditstore.ExactArtifact, error) {
 	if f.writes == nil {
 		return auditstore.ExactArtifact{}, errors.New("unexpected report write")

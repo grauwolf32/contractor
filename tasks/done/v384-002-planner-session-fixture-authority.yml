@@ -1,13 +1,13 @@
 schema_version: "1.0"
-id: V380-002
+id: V384-002
 title: Retain explicit Worker session modes in Planner database fixtures
 milestone: workflow-planner-subtask-budgets-2026-10
 epic: planner-worker
 kind: chore
-introduced_by: V380-001
+introduced_by: V384-001
 priority: P2
 status: completed
-depends_on: [V380-001]
+depends_on: [V384-001]
 languages: [go]
 goal: Restore Memory and Streamline regression coverage through the real Planner session startup boundary using valid persisted Stage fixtures.
 context:
@@ -16,7 +16,7 @@ context:
     - docs/spec/execution/planners.md#PLN-R27
   ci: https://github.com/grauwolf32/contractor/actions/runs/38641080151/job/116116529819
   finding: >-
-    V380-001 makes internal/planner/session/service.go:85 decode immutable Stage
+    V384-001 makes internal/planner/session/service.go:85 decode immutable Stage
     authority before pinning the Workflow subtask limit. The fixtures at
     internal/memory/postgres_integration_test.go:725 and
     tests/integration/streamline/streamline_test.go:415 omit the required session

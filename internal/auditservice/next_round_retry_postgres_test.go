@@ -22,6 +22,14 @@ import (
 )
 
 func TestPostgresNextRoundRebuildsWorklistAfterFailedAcceptanceAndInboxGrowth(t *testing.T) {
+	for _, policy := range []contracts.ActiveChecksPolicy{contracts.ActiveChecksAutomatic, contracts.ActiveChecksApprovalRequired} {
+		t.Run(string(policy), func(t *testing.T) { testNextRoundRetryPolicy(t, policy) })
+	}
+}
+
+func testNextRoundRetryPolicy(t *testing.T, policy contracts.ActiveChecksPolicy) {
+	t.Helper()
+
 	databaseURL := os.Getenv("CONTRACTOR_TEST_DATABASE_URL")
 	if databaseURL == "" {
 		t.Skip("CONTRACTOR_TEST_DATABASE_URL is not set")
@@ -54,7 +62,7 @@ func TestPostgresNextRoundRebuildsWorklistAfterFailedAcceptanceAndInboxGrowth(t 
 	const ownerID, projectID, auditID = "round-retry-owner", "round-retry-project", "round-retry-audit"
 	project, _, err := projectstore.NewPostgresStore(pool).Create(ctx, projectstore.CreateParams{
 		ProjectID: projectID, OwnerID: ownerID, Kind: projectstore.KindProject,
-		Name: "Round retry", IdempotencyKey: "round-retry-project", RequestDigest: serviceTestDigest("round-retry-project"),
+		ActiveChecks: policy, Name: "Round retry", IdempotencyKey: "round-retry-project", RequestDigest: serviceTestDigest("round-retry-project"),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -80,6 +88,42 @@ func TestPostgresNextRoundRebuildsWorklistAfterFailedAcceptanceAndInboxGrowth(t 
 	started, err := service.Start(ctx, start)
 	if err != nil {
 		t.Fatal(err)
+	}
+	baseline, err := DecodeBaseline(started.Audit.BaselineSnapshot)
+	if err != nil || baseline.ActiveChecks != policy {
+		t.Fatalf("pinned policy = %s, %v", baseline.ActiveChecks, err)
+	}
+	changedPolicy := contracts.ActiveChecksAutomatic
+	if policy == contracts.ActiveChecksAutomatic {
+		changedPolicy = contracts.ActiveChecksProhibited
+	}
+	if _, err := projectstore.NewPostgresStore(pool).Update(ctx, projectstore.UpdateParams{
+		ProjectID: project.ProjectID, OwnerID: project.OwnerID, ExpectedRevision: project.Revision,
+		Name: project.Name, Description: project.Description, ActiveChecks: &changedPolicy,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	newDraft, _, err := service.CreateDraft(ctx, CreateDraftParams{
+		AuditID: "new-policy-audit", OwnerID: ownerID, ProjectID: projectID,
+		Profile:        ProfileSelector{Name: "test-checklist", Version: "1"},
+		Inputs:         map[string]contracts.ArtifactRef{"checklist": checklist.Ref},
+		IdempotencyKey: "new-policy-draft", RequestDigest: serviceTestDigest("new-policy-draft"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	newer, err := service.Start(ctx, StartParams{OwnerID: ownerID, AuditID: newDraft.AuditID, ExpectedRevision: newDraft.Revision,
+		IdempotencyKey: "new-policy-start", RequestDigest: serviceTestDigest("new-policy-start")})
+	if changedPolicy == contracts.ActiveChecksProhibited {
+		if !errors.Is(err, ErrUnsupported) {
+			t.Fatalf("prohibited Project started active work: %v", err)
+		}
+	} else if err != nil || len(newer.Items) != 1 || newer.Items[0].State != auditstore.ItemReady {
+		t.Fatalf("new Audit ignored automatic Project policy: %+v %v", newer, err)
+	}
+	wantState, wantKind, wantReviews := auditstore.ItemReady, auditstore.ItemApprovalNone, 0
+	if policy == contracts.ActiveChecksApprovalRequired {
+		wantState, wantKind, wantReviews = auditstore.ItemAwaitingReview, auditstore.ItemApprovalActiveCheck, 2
 	}
 	firstWorklist, err := projectArtifacts.Read(ctx, started.Round.Manifest.Ref)
 	if err != nil {
@@ -172,8 +216,8 @@ func TestPostgresNextRoundRebuildsWorklistAfterFailedAcceptanceAndInboxGrowth(t 
 		if len(item.ProposalSources) != 1 || item.ProposalSources[0].ProposedCheckOrdinal != 0 ||
 			item.Origin.SourceRef == nil || item.Origin.SourceRef.ValidateExact() != nil ||
 			item.ProposalSources[0].Proposal.Ref.ValidateExact() != nil ||
-			item.InitialState != auditstore.ItemAwaitingReview ||
-			item.ApprovalKind != auditstore.ItemApprovalActiveCheck || item.ApprovalDigest == "" {
+			item.InitialState != wantState ||
+			item.ApprovalKind != wantKind || (item.ApprovalDigest != "") != (policy == contracts.ActiveChecksApprovalRequired) {
 			t.Fatalf("next-Round item lost exact proposal origin: %+v", item)
 		}
 		seenSources[item.ProposalSources[0].ReceiptID] = true
@@ -193,7 +237,7 @@ JOIN audit_review_requests AS review
    AND item.state='awaiting_review' AND review.state='pending'
    AND review.subject_kind='audit-item-action'
    AND review.subject_digest=item.approval_subject_digest`, auditID, accepted.RoundID).
-		Scan(&pendingApprovals); err != nil || pendingApprovals != 2 {
+		Scan(&pendingApprovals); err != nil || pendingApprovals != wantReviews {
 		t.Fatalf("durable later-Round action approvals = (%d, %v)", pendingApprovals, err)
 	}
 	// Empty proposals occupy the first held-inbox page; the only new check

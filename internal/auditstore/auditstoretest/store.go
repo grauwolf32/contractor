@@ -5,6 +5,7 @@
 package auditstoretest
 
 import (
+	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/internal/pgstore"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
@@ -53,4 +54,13 @@ func NewTxStore(tx pgx.Tx) *TxStore {
 		FindingEventsTx: pgstore.NewFindingEventsTx(tx), RunDeletionTx: pgstore.NewRunDeletionTx(tx),
 		ProjectDeletion: pgstore.NewProjectDeletion(tx), CredentialHolds: pgstore.NewCredentialHolds(tx),
 	}
+}
+
+// WithPurgeDependencies composes the actual foreign row owner at the test
+// caller, avoiding both a test-helper ownership violation and an import cycle
+// in that owner's own tests.
+func (s *Store) WithPurgeDependencies(purge auditstore.PurgeDependencies) *Store {
+	bound := *s
+	bound.ClaimStore = s.ClaimStore.WithPurgeDependencies(purge)
+	return &bound
 }

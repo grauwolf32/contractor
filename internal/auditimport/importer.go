@@ -45,6 +45,9 @@ func (i *Importer) Collect(
 	snapshot auditstore.ReconcileSnapshot,
 	execution auditstore.Execution,
 ) (bool, error) {
+	bound := *i
+	bound.artifacts = i.artifacts.WithClaim(claim)
+	i = &bound
 	changed, err := i.collect(ctx, claim, snapshot, execution)
 	if !errors.Is(err, ErrPermanent) {
 		return changed, err

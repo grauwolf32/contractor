@@ -60,6 +60,8 @@ const COMPATIBILITY_REASONS: Readonly<Record<CompatibilityReason, string>> = {
   multiple_rounds_unsupported:
     "This type needs more than one round, which this server does not run.",
   batching_unsupported: "This server cannot run items in batches.",
+  project_active_checks_prohibited:
+    "active checks are disabled in Project settings",
   automatic_active_checks_unsupported:
     "This type runs active tests without asking, which this server does not allow.",
   active_check_approval_unsupported:

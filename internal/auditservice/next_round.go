@@ -8,6 +8,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/auditstore/hookstore"
 	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/pagelimit"
@@ -44,6 +45,7 @@ func (s *Service) PrepareNextRound(
 	if err != nil {
 		return auditstore.AcceptRoundParams{}, nil, inconsistentRound("the pinned Audit baseline is invalid", err)
 	}
+	profile.Interaction.ActiveChecks = baseline.ActiveChecks
 	selection, err := DecodeDraftSelection(snapshot.Audit.InputSelection)
 	if err != nil {
 		return auditstore.AcceptRoundParams{}, nil, inconsistentRound("the pinned Audit input selection is invalid", err)
@@ -87,6 +89,7 @@ func (s *Service) PrepareNextRound(
 	writer := auditArtifactWriter{
 		service:   artifacts.NewService(artifacts.NewPostgresRepository(s.pool)),
 		projectID: snapshot.Audit.ProjectID,
+		claim:     &claim, writes: hookstore.NewClaimedArtifacts(s.pool),
 	}
 	sourceArtifact, err := writer.write(
 		ctx,

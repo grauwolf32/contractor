@@ -25,6 +25,7 @@ const (
 	ReasonMultipleRoundsUnsupported        CompatibilityReason = "multiple_rounds_unsupported"
 	ReasonBatchingUnsupported              CompatibilityReason = "batching_unsupported"
 	ReasonAutomaticActiveChecksUnsupported CompatibilityReason = "automatic_active_checks_unsupported"
+	ReasonProjectActiveChecksProhibited    CompatibilityReason = "project_active_checks_prohibited"
 	ReasonActiveCheckApprovalUnsupported   CompatibilityReason = "active_check_approval_unsupported"
 	ReasonFindingConfirmationUnsupported   CompatibilityReason = "finding_confirmation_unsupported"
 	ReasonManualApplicabilityUnsupported   CompatibilityReason = "manual_applicability_unsupported"

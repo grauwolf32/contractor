@@ -19,6 +19,8 @@ from contractor_runtime.contracts import AllocationSpec
 from contractor_runtime.projectfs.paths import ProjectPathError, normalize_project_path
 
 PODMAN_PROFILE = "podman@1"
+PODMAN_NETWORK_PROFILE = "podman-network@1"
+PODMAN_PROFILES = frozenset({PODMAN_PROFILE, PODMAN_NETWORK_PROFILE})
 EXECUTION_TOOLSET = "code-execution@1"
 EXECUTION_TOOLS = frozenset({"exec_command"})
 EXECUTION_CHANNELS = MappingProxyType({"exec_command": frozenset({"sandbox-execution"})})
@@ -32,8 +34,10 @@ class SandboxRequirements:
     workspace_storage: str
 
 
-SANDBOX_REQUIREMENTS = MappingProxyType({PODMAN_PROFILE: SandboxRequirements("direct", "local")})
-TOOLSET_SANDBOX_REQUIREMENTS = MappingProxyType({EXECUTION_TOOLSET: PODMAN_PROFILE})
+SANDBOX_REQUIREMENTS = MappingProxyType(
+    {profile: SandboxRequirements("direct", "local") for profile in PODMAN_PROFILES}
+)
+TOOLSET_SANDBOX_REQUIREMENTS = MappingProxyType({EXECUTION_TOOLSET: PODMAN_PROFILES})
 
 
 class SandboxErrorCode(StrEnum):
@@ -61,7 +65,7 @@ def validate_sandbox_selection(spec: AllocationSpec, storage: str | None) -> Non
         toolset = f"{selected.ref.toolset_id}@{selected.ref.version}"
         required = TOOLSET_SANDBOX_REQUIREMENTS.get(toolset)
         if required is not None and (
-            ref != required or not selected.tools or not set(selected.tools) <= EXECUTION_TOOLS
+            ref not in required or not selected.tools or not set(selected.tools) <= EXECUTION_TOOLS
         ):
             raise SandboxContractError(SandboxErrorCode.INCOMPATIBLE)
     requirement = SANDBOX_REQUIREMENTS.get(ref)

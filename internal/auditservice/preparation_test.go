@@ -8,6 +8,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/configload"
+	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
 // The catalog fixture is a frozen copy of the profiles, Workflows and WSTG
@@ -73,7 +74,13 @@ func TestPreparationCannotUseClassifiedToolsBeforeItemApproval(t *testing.T) {
 	prepare.Kind, prepare.MaxRunAttempts = auditprofile.AuditWorkflowPrepare, 1
 	profile.Workflows["prepare-scan"] = prepare
 	compatibility := ProfileCompatibility(profile)
-	if compatibility.ServerCompatible || len(compatibility.Reasons) != 1 || compatibility.Reasons[0] != ReasonAutomaticActiveChecksUnsupported {
-		t.Fatalf("item approval authorized preparation tools: %+v", compatibility)
+	if !compatibility.ServerCompatible {
+		t.Fatalf("active preparation rejected before Project policy selection: %+v", compatibility)
+	}
+	if _, err := activeCheckPolicy(profile, contracts.ActiveChecksApprovalRequired); err == nil {
+		t.Fatal("item approval authorized preparation tools")
+	}
+	if policy, err := activeCheckPolicy(profile, contracts.ActiveChecksAutomatic); err != nil || policy != contracts.ActiveChecksAutomatic {
+		t.Fatalf("automatic preparation policy = %s, %v", policy, err)
 	}
 }

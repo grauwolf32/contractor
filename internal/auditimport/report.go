@@ -175,6 +175,9 @@ func (i *Importer) Finalize(
 	claim auditstore.ControllerClaim,
 	snapshot auditstore.ReconcileSnapshot,
 ) (bool, error) {
+	bound := *i
+	bound.artifacts = i.artifacts.WithClaim(claim)
+	i = &bound
 	if snapshot.Audit.AuditID != claim.AuditID || snapshot.Audit.State != auditstore.AuditFinalizing ||
 		snapshot.Round == nil || snapshot.Round.State != auditstore.RoundClosed ||
 		snapshot.Audit.OutstandingRunCount != 0 || len(snapshot.Items) != 0 || len(snapshot.Executions) != 0 ||

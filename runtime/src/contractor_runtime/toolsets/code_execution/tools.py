@@ -66,6 +66,9 @@ class CodeExecutionToolsetFactory:
 
 _DESCRIPTION = """Run a shell command in the allocation container.
 
+    Networking is disabled in podman@1 and available in podman-network@1.
+    Networked commands follow the operator network policy, without HTTP Toolset
+    target filtering, proxy routing or managed credentials.
     Background processes are forbidden. Timeout or output overflow terminates the
     allocation; partial file changes are not rolled back.
 

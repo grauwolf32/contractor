@@ -41,6 +41,14 @@ type CredentialHolds = pgstore.CredentialHolds
 // AuditCreations matches an Audit to the owner's create request that made it.
 type AuditCreations = pgstore.AuditCreations
 
+// ClaimedArtifacts publishes material for round preparation and import under
+// an explicit live claim, without exposing controller commands.
+type ClaimedArtifacts = pgstore.ClaimedArtifacts
+
+func NewClaimedArtifacts(db persistencepostgres.DBTX) *ClaimedArtifacts {
+	return pgstore.NewClaimedArtifacts(db)
+}
+
 func NewFindingEvents(db persistencepostgres.DBTX) *FindingEvents {
 	return pgstore.NewFindingEvents(db)
 }

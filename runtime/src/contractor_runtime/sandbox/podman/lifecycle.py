@@ -16,6 +16,8 @@ from pathlib import Path
 from contractor_runtime.projectfs import DirectWorkspaceSession
 from contractor_runtime.projectfs.operation_guard import WorkspaceOperationGuard
 from contractor_runtime.sandbox.contracts import (
+    PODMAN_NETWORK_PROFILE,
+    PODMAN_PROFILE,
     SandboxContractError,
     SandboxErrorCode,
     SandboxIdentity,
@@ -28,7 +30,7 @@ from contractor_runtime.sandbox.podman.io import (
 )
 from contractor_runtime.sandbox.podman.owner import encode, receive_rpc, send_rpc
 from contractor_runtime.sandbox.podman.probe import PROBE_FAILURES
-from contractor_runtime.sandbox.podman.settings import PodmanSettings
+from contractor_runtime.sandbox.podman.settings import NETWORKED_MODE, PodmanSettings
 from contractor_runtime.sandbox.podman.workroots import check_root_policy
 
 # Popen intentionally has no asyncio transport whose close/destructor could
@@ -154,6 +156,7 @@ class PodmanLifecycle:
         self._close_confirmed = False
         self._failed = False
         self._probe_result: dict | None = None
+        self._network_probe_result: dict | None = None
         self._probe_storage_root: Path | None = None
 
     def reject_probe(self) -> None:
@@ -169,6 +172,15 @@ class PodmanLifecycle:
         )
 
     @property
+    def network_probe_available(self) -> bool:
+        return (
+            self.probe_available
+            and self.settings.network_enabled
+            and self._network_probe_result is not None
+            and self._network_probe_result["available"] is True
+        )
+
+    @property
     def probe_diagnostics(self) -> dict:
         if not self.probe_available:
             return {}
@@ -180,6 +192,7 @@ class PodmanLifecycle:
             "podmanPids": self.settings.pids,
             "podmanTmpfsBytes": self.settings.tmpfs_bytes,
             "podmanNetwork": "none",
+            "podmanNetworkProfileAvailable": self.network_probe_available,
             "podmanBindDiskQuotaEnforced": False,
         }
 
@@ -194,18 +207,13 @@ class PodmanLifecycle:
                 raise SandboxContractError(SandboxErrorCode.INCOMPATIBLE)
             self._probe_storage_root = root.parent.parent
             if self._probe_result is None:
-                if not (self._client is not None):
-                    raise RuntimeError("Expected self._client is not None")
-                result = await self._client.request("probe", root=str(root), deadline=deadline)
-                if (
-                    not isinstance(result, dict)
-                    or set(result) != {"available", "failure"}
-                    or type(result["available"]) is not bool
-                    or (result["available"] and result["failure"] is not None)
-                    or (not result["available"] and result["failure"] not in PROBE_FAILURES)
-                ):
-                    raise SandboxContractError(SandboxErrorCode.OUTCOME_UNKNOWN)
-                self._probe_result = result
+                self._probe_result = await self._probe_mode(root, deadline, "none")
+            if (
+                self._probe_result["available"]
+                and self.settings.network_enabled
+                and self._network_probe_result is None
+            ):
+                self._network_probe_result = await self._probe_mode(root, deadline, NETWORKED_MODE)
             return dict(self._probe_result)
 
         try:
@@ -214,6 +222,22 @@ class PodmanLifecycle:
             # A timed-out caller cannot treat a late positive receipt as readiness.
             self._failed = True
             raise
+
+    async def _probe_mode(self, root: Path, deadline: float, network: str) -> dict:
+        if self._client is None:
+            raise SandboxContractError(SandboxErrorCode.UNAVAILABLE)
+        result = await self._client.request(
+            "probe", root=str(root), deadline=deadline, network=network
+        )
+        if (
+            not isinstance(result, dict)
+            or set(result) != {"available", "failure"}
+            or type(result["available"]) is not bool
+            or (result["available"] and result["failure"] is not None)
+            or (not result["available"] and result["failure"] not in PROBE_FAILURES)
+        ):
+            raise SandboxContractError(SandboxErrorCode.OUTCOME_UNKNOWN)
+        return result
 
     def bind_health(self, lease_source: Callable[[], float | None], failure: Callable[[], None]):
         self._lease_source = lease_source
@@ -254,15 +278,33 @@ class PodmanLifecycle:
 
         await self._operations.run(operation, deadline)
 
-    def allocate(self, allocation_id: str, workspace: DirectWorkspaceSession) -> PodmanAllocation:
+    def allocate(
+        self,
+        allocation_id: str,
+        workspace: DirectWorkspaceSession,
+        *,
+        sandbox_profile: str = PODMAN_PROFILE,
+    ) -> PodmanAllocation:
         if not self._recovered or self._closed or self._failed:
             raise SandboxContractError(SandboxErrorCode.UNAVAILABLE)
         if workspace.mode != "direct" or workspace.storage.storage != "local":
             raise SandboxContractError(SandboxErrorCode.INCOMPATIBLE)
+        if sandbox_profile == PODMAN_PROFILE:
+            network = "none"
+        elif sandbox_profile == PODMAN_NETWORK_PROFILE and self.network_probe_available:
+            network = NETWORKED_MODE
+        else:
+            raise SandboxContractError(SandboxErrorCode.UNAVAILABLE)
         root = Path(workspace.storage.root) / "run_workdir"
         if self._entry is None:
-            self._entry = PodmanAllocation(self, allocation_id, root, workspace.execution_guard)
-        elif self._entry.allocation_id != allocation_id or self._entry.root != root:
+            self._entry = PodmanAllocation(
+                self, allocation_id, root, workspace.execution_guard, network=network
+            )
+        elif (
+            self._entry.allocation_id != allocation_id
+            or self._entry.root != root
+            or self._entry.network != network
+        ):
             raise SandboxContractError(SandboxErrorCode.INCOMPATIBLE)
         return self._entry
 
@@ -276,6 +318,12 @@ class PodmanLifecycle:
         self._closed = True
         if self._entry is not None:
             self._entry.reject()
+        # A successful owner close also closes its health socket. Join pulses
+        # before requesting close so that EOF cannot make a concurrent pulse
+        # disconnect the control socket before its close receipt is read.
+        if self._heartbeat is not None:
+            self._heartbeat.cancel()
+            await asyncio.gather(self._heartbeat, return_exceptions=True)
         try:
 
             async def operation():
@@ -303,11 +351,18 @@ class PodmanLifecycle:
 
 class PodmanAllocation:
     def __init__(
-        self, owner: PodmanLifecycle, allocation_id: str, root: Path, guard: WorkspaceOperationGuard
+        self,
+        owner: PodmanLifecycle,
+        allocation_id: str,
+        root: Path,
+        guard: WorkspaceOperationGuard,
+        *,
+        network: str = "none",
     ):
         self.owner = owner
         self.allocation_id = allocation_id
         self.root = root
+        self.network = network
         self.identity: SandboxIdentity | None = None
         self.rejected = False
         self.removed = False
@@ -339,6 +394,7 @@ class PodmanAllocation:
                 "prepare",
                 allocation=self.allocation_id,
                 root=str(self.root),
+                network=self.network,
                 deadline=bounded,
                 lease=self.owner._lease_source() or 0.0,
             )

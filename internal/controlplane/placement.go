@@ -272,7 +272,7 @@ func (a *PlacementAllocator) reserveAllContext(
 	}
 	result, err := a.registry.CommitCandidateReservations(request.StageExecutionID, pinned)
 	if err != nil {
-		return nil, errors.New("commit durable placement to live Registry")
+		return nil, persistencepostgres.WrapError("commit durable placement to live Registry", err)
 	}
 	committed = true
 	return result, nil
@@ -363,7 +363,7 @@ func (a *PlacementAllocator) pinReservations(
 		case errors.Is(err, runstore.ErrConflict):
 			return runstore.ErrConflict
 		default:
-			return errors.New("lock StageExecution for allocation placement")
+			return persistencepostgres.WrapError("lock StageExecution for allocation placement", err)
 		}
 	}
 	for _, reservation := range reservations {

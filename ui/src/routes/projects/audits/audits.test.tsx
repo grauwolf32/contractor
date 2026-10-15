@@ -41,6 +41,8 @@ const project = {
   name: "Payment service",
   description: "Reusable service analysis",
   lifecycle: "active",
+
+  activeChecks: "automatic",
   revision: "1",
   createdAt: "2026-09-06T10:00:00Z",
   updatedAt: "2026-09-06T10:00:00Z",

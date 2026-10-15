@@ -1,0 +1,45 @@
+schema_version: "1.0"
+id: V383-001
+title: Integrate Project Audit policy with the current main migration sequence
+milestone: project-active-check-policy-2026-10
+epic: audits
+kind: chore
+introduced_by: V380-001
+priority: P3
+status: completed
+implementation_commit: 2fc2c0a9a9a7f72799fc90b892f51e72546cb409
+depends_on: [V380-001, V381-001]
+languages: [go, sql, markdown]
+goal: >-
+  Merge automatic Project Audit checks and the networked sandbox with the
+  current main reliability fixes without losing either migration history or
+  the live-claim artifact publication and bounded deletion contracts.
+context:
+  request: On 2026-10-15 the user requested merging the completed feature branch into main.
+  finding: >-
+    internal/persistence/migrations/000017_project_active_checks.sql:1 reuses
+    the migration number now published on main for Audit purge indexes;
+    generated dependency graph, ERD and backlog also have merge conflicts.
+  specification:
+    - docs/spec/platform/persistence.md
+scope:
+  in:
+    - Append the unpublished Project policy migration after main's existing 000017 and 000018 migrations.
+    - Exercise upgrade from main's migration prefix and preserve existing Project and Audit baseline data.
+    - Regenerate conflicted documentation and backlog from the combined implementation.
+    - Verify merged Audit start, prepared inventory, later Rounds and retention behavior against PostgreSQL.
+  out:
+    - Changes to the published migrations, feature semantics, Runtime network policy or public API.
+    - Demo deployment and business-data migration.
+acceptance_criteria:
+  - id: A1
+    text: Migration versions are unique and sequential; both a fresh schema and an upgrade from main's prefix succeed while retaining business data and prior Audit policy.
+  - id: A2
+    text: Generated artifacts contain both branches' changes, and the combined Go and public API checks pass with real PostgreSQL without losing claim-fenced publication or bounded cleanup behavior.
+tests:
+  - command: go test -p 2 -count=1 -tags=integration ./internal/auditcontroller ./internal/auditservice ./internal/auditstore/... ./internal/persistence/... ./internal/projectstore ./internal/httpapi/public
+    covers: [A1, A2]
+  - command: make verify-public-api
+    covers: [A2]
+  - command: make lint
+    covers: [A1, A2]

@@ -24,7 +24,7 @@ func TestRequestDigestsArePinned(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, tc := range []struct{ name, got, want string }{
-		{"project", project, "sha256:50fa781fd06af1977e1ce9d540bb407870096abd97428af01b2c05bfecc31c3c"},
+		{"project", project, "sha256:9e884a914037d5512900231cd8bb2290c6f066b9f0c49ed3a8d79db137ebc9b9"},
 		{"audit create", audit, "sha256:6cbc66c38782dec0a016581539d2fa6602c3ecdff50d6ac91291f98dbe5015ba"},
 		{"audit start", auditRequestDigest("start", "audit-1", 3), "sha256:aaa21d0388ca0a5e7fc3b9b66ba8cd9f93ba2847c42950363e601b547bdf54be"},
 		{"audit start limit", auditRequestDigest("start", "audit-1", 3, timeLimitPointer(0)), "sha256:c9864979e1a2a956eb06cf99e96075ed3eea75d72f9e3a5ad740f4713fab91be"},

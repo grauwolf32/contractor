@@ -19,6 +19,17 @@ export const MAXIMUM_PROJECT_TARGET_URL_BYTES = 2048;
 const RUNTIME_CREDENTIAL_ID_PATTERN = /^[a-z][a-z0-9_-]{0,127}$/;
 
 export type Project = components["schemas"]["Project"];
+export type ActiveChecksPolicy = components["schemas"]["ActiveChecksPolicy"];
+
+export function requireActiveChecksPolicy(value: unknown): ActiveChecksPolicy {
+  if (
+    value === "automatic" ||
+    value === "approval-required" ||
+    value === "prohibited"
+  )
+    return value;
+  throw new TypeError("Project active checks policy is invalid");
+}
 export type ProjectKind = components["schemas"]["ProjectKind"];
 export type ProjectLifecycle = components["schemas"]["ProjectLifecycle"];
 export type ProjectDeletionPhase =
@@ -94,11 +105,19 @@ export function normalizeProjectRequest(
   return {
     kind: request.kind,
     name,
+    activeChecks: requireActiveChecksPolicy(
+      request.activeChecks === undefined ? "automatic" : request.activeChecks,
+    ),
     ...(description === "" ? {} : { description }),
   };
 }
 
 function safeProject(value: Project, status: number): Project {
+  try {
+    requireActiveChecksPolicy(value.activeChecks);
+  } catch {
+    throw invalidProjectResponse(status);
+  }
   const deletionValid =
     value.deletion !== undefined &&
     (value.deletion.phase === "cancelling" ||
@@ -273,6 +292,11 @@ export async function updateProject(
     throw new TypeError("Project metadata is invalid");
   }
   const body: UpdateProjectRequest = {
+    ...(options.request.activeChecks === undefined
+      ? {}
+      : {
+          activeChecks: requireActiveChecksPolicy(options.request.activeChecks),
+        }),
     ...(name === undefined ? {} : { name }),
     ...(description === undefined ? {} : { description }),
     ...(targetPresent

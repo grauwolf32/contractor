@@ -37,7 +37,7 @@ func (s OpenAPIScanTask) CoverageRequirement() string {
 // settings. Missing concrete data remain non-runnable items with gaps; a missing
 // operation or malformed settings reject the entire inventory atomically.
 func BuildOpenAPIScanInventory(source []byte, sourceMediaType string, settingsData []byte, settingsInput ExactInput, options InventoryOptions) (Inventory, error) {
-	if options.ApprovalRequirement != ApprovalActiveCheck || settingsInput.Name == options.SourceInputName ||
+	if (options.ApprovalRequirement != ApprovalActiveCheck && options.ApprovalRequirement != ApprovalNone) || settingsInput.Name == options.SourceInputName ||
 		validateIdentifier(settingsInput.Name, "settings.name") != nil || settingsInput.Ref.ValidateExact() != nil ||
 		settingsInput.Digest != DigestBytes(settingsData) {
 		return Inventory{}, invalid(CodeInventoryInvalid, "scan.settings")
@@ -59,7 +59,7 @@ func BuildOpenAPIScanInventory(source []byte, sourceMediaType string, settingsDa
 		}
 		task := openAPIScanTask(settings, settingsInput, prepared)
 		subjects = append(subjects, inventorySubject{kind: "openapi-scan", scan: &task,
-			approval: ApprovalActiveCheck, requested: []string{task.CoverageRequirement()}, gaps: task.Gaps})
+			approval: options.ApprovalRequirement, requested: []string{task.CoverageRequirement()}, gaps: task.Gaps})
 		basis.Subjects = append(basis.Subjects, map[string]any{"scan": task})
 	}
 	canonical, err := canonicalJSON(basis)

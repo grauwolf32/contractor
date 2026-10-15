@@ -477,6 +477,16 @@ local-network demo proxy. Public HTTP addresses and hostnames remain invalid.
 **SEC-R62.** The non-browser `Authorization: Bearer` path maps to the same
 local-auth principal and requires neither Origin nor CSRF.
 
+### Networked code execution
+
+**SEC-R89.** `podman-network@1` executes arbitrary code in a rootless private
+network namespace under explicit immutable operator opt-in. Its traffic is
+outside the HTTP/scanner/Caido target policy below and does not receive their
+proxy routes or managed credentials. Deployment network controls own and
+verify egress restrictions; the selected profile and effective limits remain
+allocation diagnostics. Audit admission still classifies its execution tool
+as active and applies the pinned Project policy (EXE-R125, EXE-R126).
+
 ### Runtime target policy
 
 **SEC-R63.** `http-tools@1`, every `scan@1` operation and request-bound

@@ -91,7 +91,7 @@ class Guardian:
     def __init__(self, fence, lease):
         self.fence = fence
         # Keep expiry tests fast; production's bounded interval is tested live.
-        if fence.cli.sequence == 2:
+        if fence.cli.sequence % 2 == 0:
             fence.expires = time.monotonic() + 0.05
 
     async def request(self, op, *, deadline):

@@ -38,7 +38,7 @@ func (s *Service) CollectView(ctx context.Context, e evalstore.Experiment, claim
 		err = s.collectMember(ctx, e, member.MemberID, claim)
 		if err != nil {
 			faults = append(faults, err)
-			if ctx.Err() == nil {
+			if ctx.Err() == nil && !pg.IsTransactionConflict(err) {
 				faults = append(faults, reader.RotateProjectionFailure(ctx, e.OwnerID, e.ID, member.MemberID))
 			}
 		}
@@ -46,7 +46,7 @@ func (s *Service) CollectView(ctx context.Context, e evalstore.Experiment, claim
 	if len(faults) > 0 {
 		return errors.Join(faults...)
 	}
-	return pg.InTx(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+	return pg.InTxWithRetry(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		st := evalstore.NewTxStore(tx)
 		plan, err := st.FrozenPlan(ctx, e.OwnerID, e.ID)
 		if err != nil {
@@ -69,7 +69,7 @@ func (s *Service) CollectView(ctx context.Context, e evalstore.Experiment, claim
 	})
 }
 func (s *Service) collectMember(ctx context.Context, e evalstore.Experiment, member string, claim evalstore.Claim) error {
-	return pg.InTx(ctx, s.pool, pgx.TxOptions{IsoLevel: pgx.RepeatableRead}, func(tx pgx.Tx) error {
+	return pg.InTxWithRetry(ctx, s.pool, pgx.TxOptions{IsoLevel: pgx.RepeatableRead}, func(tx pgx.Tx) error {
 		st := evalstore.NewTxStore(tx)
 		locked, err := st.LockCollection(ctx, scope(e), e.ID, claim)
 		if err != nil {

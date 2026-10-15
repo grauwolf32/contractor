@@ -368,7 +368,7 @@ func (s *Service) Delete(ctx context.Context, request DeleteRequest) (DeleteResu
 		ctx, request.CredentialID, maximumCredentialRunReferences,
 	)
 	if err != nil {
-		return DeleteResult{}, errors.New("inspect credential Run references")
+		return DeleteResult{}, persistencepostgres.WrapError("inspect credential Run references", err)
 	}
 	auditIDs, err := s.listAuditHolds(ctx, request.CredentialID)
 	if err != nil {
@@ -574,14 +574,17 @@ func (s *Service) executeDelete(
 		return err
 	}
 	record, err := s.repository.GetCredential(ctx, request.CredentialID)
-	if err != nil || record.LLMGateway != request.LLMGateway || record.RemoteKeyID != request.RemoteKeyID {
+	if err != nil {
+		return persistencepostgres.WrapError("read prepared credential deletion record", err)
+	}
+	if record.LLMGateway != request.LLMGateway || record.RemoteKeyID != request.RemoteKeyID {
 		return errors.New("prepared credential deletion no longer matches its active record")
 	}
 	runIDs, err := s.runs.ListNonTerminalRunIDsByCredential(
 		ctx, request.CredentialID, maximumCredentialRunReferences,
 	)
 	if err != nil {
-		return errors.New("inspect credential Run references")
+		return persistencepostgres.WrapError("inspect credential Run references", err)
 	}
 	auditIDs, err := s.listAuditHolds(ctx, request.CredentialID)
 	if err != nil {
@@ -630,7 +633,7 @@ func (s *Service) listAuditHolds(ctx context.Context, credentialID string) ([]st
 		ctx, credentialID, maximumCredentialRunReferences,
 	)
 	if err != nil {
-		return nil, errors.New("inspect credential Audit references")
+		return nil, persistencepostgres.WrapError("inspect credential Audit references", err)
 	}
 	return auditIDs, nil
 }

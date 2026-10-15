@@ -47,7 +47,8 @@ while True:
 
 
 class PodmanProbe:
-    def __init__(self, engine, settings):
+    def __init__(self, engine, settings, *, network: str = "none"):
+        self.network = network
         self.engine = engine
         self.settings = settings
         self.commands = PodmanCommand(settings)
@@ -83,7 +84,9 @@ class PodmanProbe:
         self.phase = "supervisor"
         allocation = "probe-" + uuid.uuid4().hex
         self.attempts.append(allocation)  # includes a lost create response
-        identity = await self.engine.create(allocation, root, deadline=deadline)
+        identity = await self.engine.create(
+            allocation, root, deadline=deadline, network=self.network
+        )
         await self.engine.start(identity, deadline=deadline)
         state = await self.engine.supervisor_state(identity, deadline=deadline)
         fence = await asyncio.to_thread(open_fence, identity.container_id, state)
@@ -134,7 +137,7 @@ assert os.getuid()=={os.getuid()} and os.getgid()=={os.getgid()} and os.getuid()
 status=open('/proc/self/status').read()
 assert 'CapEff:\\t0000000000000000' in status
 assert 'NoNewPrivs:\\t1' in status and 'Seccomp:\\t2' in status
-assert os.listdir('/sys/class/net')==['lo']
+assert (os.listdir('/sys/class/net')==['lo'])=={self.network == "none"}
 assert os.stat('/proc/self/ns/net').st_ino!={os.stat("/proc/self/ns/net").st_ino}
 assert not os.path.exists('/run/podman/podman.sock')
 assert not any(k.startswith('CONTRACTOR_') or 'PROXY' in k.upper() for k in os.environ)

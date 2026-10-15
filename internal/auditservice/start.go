@@ -14,6 +14,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstandards"
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/auditstore/hookstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/ownerstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/querystore"
 	"github.com/grauwolf32/contractor/internal/config/auditprofile"
@@ -96,11 +97,13 @@ func (s *Service) Start(ctx context.Context, params StartParams) (StartedAudit, 
 // The start transaction accepts the plan only for the same draft revision,
 // which proves the profile snapshot and the input selection unchanged.
 type startPlan struct {
-	revision  uint64
-	profile   auditprofile.ResolvedAuditProfile
-	selection DraftSelection
-	standards []auditstandards.PinnedPackage
-	round     *startRound
+	projectPolicy contracts.ActiveChecksPolicy
+	activeChecks  contracts.ActiveChecksPolicy
+	revision      uint64
+	profile       auditprofile.ResolvedAuditProfile
+	selection     DraftSelection
+	standards     []auditstandards.PinnedPackage
+	round         *startRound
 }
 
 // startRound is the staged first Round: its inventory and the exact frozen
@@ -148,6 +151,14 @@ func stageStartInTransaction(ctx context.Context, tx pgx.Tx, params StartParams)
 	if !compatibility.ServerCompatible {
 		return startPlan{}, unsupported(compatibility.Reasons)
 	}
+	project, err := projectstore.NewPostgresStore(tx).LockActiveAuditProject(ctx, params.OwnerID, audit.ProjectID)
+	if err != nil {
+		return startPlan{}, err
+	}
+	policy, err := activeCheckPolicy(profile, project.ActiveChecks)
+	if err != nil {
+		return startPlan{}, err
+	}
 	selection, err := DecodeDraftSelection(audit.InputSelection)
 	if err != nil {
 		return startPlan{}, err
@@ -189,11 +200,14 @@ func stageStartInTransaction(ctx context.Context, tx pgx.Tx, params StartParams)
 	}
 	plan := startPlan{
 		revision: audit.Revision, profile: profile, selection: selection, standards: pinnedStandards,
+		projectPolicy: project.ActiveChecks, activeChecks: policy,
 	}
 	if profile.HasPreparation() {
 		return plan, nil
 	}
-	inventory, err := buildInventory(profile, selection, inputPayloads, resolvedStandards)
+	inventoryProfile := profile
+	inventoryProfile.Interaction.ActiveChecks = policy
+	inventory, err := buildInventory(inventoryProfile, selection, inputPayloads, resolvedStandards)
 	if err != nil {
 		return startPlan{}, err
 	}
@@ -253,6 +267,9 @@ func (s *Service) startInTransaction(
 	)
 	if err != nil {
 		return StartedAudit{}, err
+	}
+	if project.ActiveChecks != plan.projectPolicy {
+		return StartedAudit{}, auditstore.ErrPrecondition
 	}
 	txLLMCredentials, err := runtimeconfig.BindTransactionLLMCredentialLookup(
 		tx, s.transactionLLMCredentials,
@@ -316,7 +333,8 @@ func (s *Service) startInTransaction(
 		return StartedAudit{}, err
 	}
 	baseline := BaselineSnapshot{
-		Schema: BaselineSchema, Inputs: contracts.CloneExactArtifacts(selection.Inputs), Scope: selection.Scope,
+		ActiveChecks: plan.activeChecks,
+		Schema:       BaselineSchema, Inputs: contracts.CloneExactArtifacts(selection.Inputs), Scope: selection.Scope,
 		RuntimeLabels: append([]string{}, selection.RuntimeLabels...), RuntimeConfig: runtimeSnapshot,
 		Skills:               append([]agentskills.RunSkillSnapshot{}, skills...),
 		LLMCredentialIDs:     mergeIDs(workflowCredentialIDs, runtimeSnapshot.LLMCredentialIDs),
@@ -776,6 +794,8 @@ func writeRoundPackage(
 type auditArtifactWriter struct {
 	service   *artifacts.Service
 	projectID string
+	claim     *auditstore.ControllerClaim
+	writes    *hookstore.ClaimedArtifacts
 }
 
 func (w auditArtifactWriter) write(
@@ -787,7 +807,17 @@ func (w auditArtifactWriter) write(
 	if err != nil {
 		return auditstore.ExactArtifact{}, err
 	}
-	written, err := w.service.CreateFrozen(ctx, project, target, payload)
+	var written artifacts.WriteResult
+	if w.claim != nil {
+		err = w.writes.WithArtifactWrite(ctx, *w.claim, w.projectID, target.Namespace, func(service *artifacts.Service) error {
+			var writeErr error
+			written, writeErr = service.CreateFrozen(ctx, project, target, payload)
+			return writeErr
+		})
+	} else {
+		// Start staging holds the draft Audit row in its own transaction.
+		written, err = w.service.CreateFrozen(ctx, project, target, payload)
+	}
 	if err != nil {
 		return auditstore.ExactArtifact{}, err
 	}

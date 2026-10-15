@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"errors"
+	"github.com/grauwolf32/contractor/internal/findingintake"
 	"os"
 	"path/filepath"
 	"strings"
@@ -39,7 +40,7 @@ func TestProjectAndAuditPurgesUnlinkOnlyUnreferencedFilesystemBlobs(t *testing.T
 
 	projects := projectstore.NewPostgresStore(pool)
 	runs := runstore.NewPostgresStore(pool)
-	audits := auditstoretest.NewStore(pool)
+	audits := auditstoretest.NewStore(pool).WithPurgeDependencies(findingintake.DeleteAuditHoldsBatch)
 	service := artifacts.NewService(artifacts.NewPostgresRepository(pool))
 	project, _, err := projects.Create(ctx, projectstore.CreateParams{
 		ProjectID: "project-files", OwnerID: "user-1", Kind: projectstore.KindProject,

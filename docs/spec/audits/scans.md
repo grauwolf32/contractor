@@ -166,9 +166,10 @@ topology.
 preview validates the presence and media contracts of the original inputs;
 parsing of generated documents waits until accepted preparation outputs exist.
 
-**ASC-R9.** Preparation does not authorize classified
-active-check tools before item approval. Profiles requiring such preparation
-are unsupported until an explicit Audit-scoped approval contract exists.
+**ASC-R9.** Preparation may use classified active tools only when the effective
+Project policy pinned at Audit start is automatic. Preparation has no item for
+individual approval: approval-required mode rejects active preparation before
+dispatch, and prohibited mode rejects classified active capabilities.
 
 **ASC-R10.** Preparation leaves the scan approval and
 outcome-aware retry rules unchanged.
@@ -582,7 +583,7 @@ are not accepted through the settings artifact.
 
 **ASC-R105.** `auditdomain.BuildOpenAPIScanInventory` creates an
 `openapi-scans` inventory with `openapi-scan` task items. It requires
-active-check approval.
+the effective approval policy pinned in the Audit baseline.
 
 **ASC-R106.** Each task pins the exact source and settings refs and
 byte digests, the selected operation, the preparation digest, the SQLMap
@@ -840,14 +841,14 @@ Round (ASC-R58) ([review and reports](review-and-reports.md)).
 ## Security
 
 Security-relevant requirements: preparation never authorizes classified
-active-check tools before item approval (ASC-R9); an accepted
+active-check tools unless the pinned Project policy is automatic (ASC-R9); an accepted
 item pins its exact operation, source and versions, and neither a model nor a
 scanner report can retarget it (ASC-R85, ASC-R86);
 dispatch validates fork mappings and preparation helpers grant no authority
 (ASC-R87, ASC-R88, ASC-R111); the target
 server is an explicit pre-start override rather than a generated OpenAPI server
 (ASC-R89, ASC-R97); scope and active-check approval stay
-authoritative and the scan inventory requires active-check approval
+authoritative and the scan inventory uses the effective pinned active-check policy
 (ASC-R90, ASC-R105); scanner arguments and templates are
 pinned by configuration, never by model output or the settings artifact
 (ASC-R91, ASC-R104); credentials and request bodies

@@ -34,6 +34,7 @@ from contractor_runtime.sandbox.podman.supervisor import CompletionGate, Guardia
 class Entry:
     allocation_id: str
     root: Path
+    network: str = "none"
     identity: SandboxIdentity | None = None
     guardian: GuardianClient | None = None
     fence: CgroupFence | None = None
@@ -116,12 +117,13 @@ class LifecycleBackend:
             await self.engine.remove(identity, deadline=deadline)
         self.recovered = True
 
-    async def probe(self, root: Path, *, deadline: float) -> dict:
+    async def probe(self, root: Path, *, deadline: float, network: str = "none") -> dict:
         if not self.recovered or self.closed or self.lost or self.entry is not None:
             raise SandboxContractError(SandboxErrorCode.UNAVAILABLE)
         if self.probe_test is not None:
             raise SandboxContractError(SandboxErrorCode.CLEANUP_FAILED)
-        self.probe_test = PodmanProbe(self.engine, self.settings)
+        self.settings.validate_network(network)
+        self.probe_test = PodmanProbe(self.engine, self.settings, network=network)
         result = await self.probe_test.run(root, deadline=deadline)
         self.probe_test = None  # only a confirmed cleanup releases ownership
         return result
@@ -130,14 +132,19 @@ class LifecycleBackend:
         if self.lost or entry.rejected or time.monotonic() >= self.lease:
             raise SandboxContractError(SandboxErrorCode.UNAVAILABLE)
 
-    async def prepare(self, allocation_id: str, root: Path, *, deadline: float) -> SandboxIdentity:
+    async def prepare(
+        self, allocation_id: str, root: Path, *, deadline: float, network: str = "none"
+    ) -> SandboxIdentity:
         if not self.recovered or self.closed or self.probe_test is not None:
             raise SandboxContractError(SandboxErrorCode.UNAVAILABLE)
+        self.settings.validate_network(network)
         entry = self.entry
         if entry is None:
-            entry = Entry(allocation_id, root, rejected=allocation_id in self._rejected)
+            entry = Entry(
+                allocation_id, root, network=network, rejected=allocation_id in self._rejected
+            )
             self.entry = entry  # own even an uncertain create before invoking CLI
-        if entry.allocation_id != allocation_id or entry.root != root:
+        if entry.allocation_id != allocation_id or entry.root != root or entry.network != network:
             raise SandboxContractError(SandboxErrorCode.INCOMPATIBLE)
         self._live(entry)
         if entry.prepared:
@@ -149,7 +156,9 @@ class LifecycleBackend:
                 raise SandboxContractError(SandboxErrorCode.UNAVAILABLE)
             return entry.identity
         try:
-            entry.identity = await self.engine.create(allocation_id, root, deadline=deadline)
+            entry.identity = await self.engine.create(
+                allocation_id, root, deadline=deadline, network=network
+            )
             self._live(entry)
             await self.engine.start(entry.identity, deadline=deadline)
             self._live(entry)

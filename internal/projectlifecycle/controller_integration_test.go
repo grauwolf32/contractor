@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"github.com/grauwolf32/contractor/internal/findingintake"
 	"os"
 	"strings"
 	"testing"
@@ -150,7 +151,7 @@ INSERT INTO stage_allocations (
 	}); err != nil {
 		t.Fatal(err)
 	}
-	audits := auditstoretest.NewStore(pool)
+	audits := auditstoretest.NewStore(pool).WithPurgeDependencies(findingintake.DeleteAuditHoldsBatch)
 	audit, _, err := audits.CreateDraft(ctx, auditstore.CreateDraftParams{
 		AuditID: "audit-project-delete", OwnerID: project.OwnerID, ProjectID: project.ProjectID,
 		Profile: auditstore.ProfileIdentity{
@@ -340,7 +341,7 @@ func TestProjectDeletionWaitsForLockedAuditBeforeDraining(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			audits := auditstoretest.NewStore(pool)
+			audits := auditstoretest.NewStore(pool).WithPurgeDependencies(findingintake.DeleteAuditHoldsBatch)
 			audit, _, err := audits.CreateDraft(ctx, auditstore.CreateDraftParams{
 				AuditID: "locked-audit", OwnerID: project.OwnerID, ProjectID: project.ProjectID,
 				Profile: auditstore.ProfileIdentity{
@@ -446,7 +447,7 @@ func TestProjectDeletionPurgesAuditWithDecidedReviewsAndAssessments(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
-	audits := auditstoretest.NewStore(pool)
+	audits := auditstoretest.NewStore(pool).WithPurgeDependencies(findingintake.DeleteAuditHoldsBatch)
 	audit, _, err := audits.CreateDraft(ctx, auditstore.CreateDraftParams{
 		AuditID: "decided-audit", OwnerID: project.OwnerID, ProjectID: project.ProjectID,
 		Profile: auditstore.ProfileIdentity{

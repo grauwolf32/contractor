@@ -302,6 +302,12 @@ maps to one class:
 A transient database failure (FAIL-PRJ-4, FAIL-SCH-15) is a transaction
 conflict, a timeout or an unavailable database in this table.
 
+Store reads, writes and locks preserve the original cause through every
+wrapper. A static safe message uses `postgres.WrapError`, whose `Unwrap`
+retains classification and cancellation identity without rendering SQL,
+credentials or provider content. Replacing a failed database call with a new
+unrelated error is rejected by the production-source check.
+
 **PER-R14.** A schema trigger reports a business-rule rejection as
 `check_violation` (23514) without naming a constraint, and a deletion fence
 reports a deleting Project as `object_not_in_prerequisite_state` (55000). A
@@ -429,6 +435,20 @@ A lease advances the epoch. A write proves that its holder still holds the
 claim at its epoch and that the lease has not ended; only a release or a
 purge by the holder accepts its holder's ended lease, because no other holder
 can have leased the subject without advancing the epoch.
+
+A bounded maintenance operation may renew its exact still-live claim without
+advancing the epoch. Renewal cannot revive an expired, released or replaced
+claim. Audit deletion renews before entering its separate cleanup budget
+([REV-R160](../audits/review-and-reports.md)).
+
+Execution-to-Eval projection writers hold their existing Run or Audit
+authority before the Eval projection queue and then member projection rows.
+Dirty triggers, native/external selections and view publication share this
+queue-before-member order. Member collection finishes source and evidence
+reads before acquiring these private projection locks; it never acquires an
+Audit controller claim afterward. A definite transaction conflict retries the
+whole collection with a fresh snapshot under PER-R16, and is never treated as
+a damaged member when retries are exhausted.
 
 ## Limits, failures and errors
 

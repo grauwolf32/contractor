@@ -26,10 +26,21 @@ type store struct{ db persistencepostgres.DBTX }
 // controller claim: claims, transitions, Round acceptance, execution intents,
 // Run binding, terminal observation, collection, report finalization,
 // settlement and purge. Each command checks the claim epoch it is given.
-type ClaimStore struct{ store }
+type ClaimStore struct {
+	store
+	purgeDependencies auditstore.PurgeDependencies
+}
 
 func NewClaimStore(db persistencepostgres.DBTX) *ClaimStore {
-	return &ClaimStore{store{db: db}}
+	return &ClaimStore{store: store{db: db}}
+}
+
+// WithPurgeDependencies composes cleanup owned by other contexts. Purge
+// refuses to run without this port; other claim commands do not use it.
+func (s *ClaimStore) WithPurgeDependencies(purge auditstore.PurgeDependencies) *ClaimStore {
+	bound := *s
+	bound.purgeDependencies = purge
+	return &bound
 }
 
 // OwnerStore holds the owner's Audit lifecycle commands: draft creation, the

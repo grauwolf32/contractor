@@ -11,7 +11,7 @@ fmt:
 # tools/testonlyexports is its own module (it pins golang.org/x/tools), so the
 # root go vet does not reach it; it fails on an exported identifier that only
 # tests reference, beyond the entries of its baseline (AGENTS.md 3.7).
-lint: generate-public-client-check
+lint: generate-public-client-check docs-dependencies-check
 	test -z "$$(gofmt -l cmd internal tests tools)"
 	go vet ./...
 	go run honnef.co/go/tools/cmd/staticcheck@v0.8.1 -checks U1000 -tests -tags=e2e,integration ./...
@@ -62,6 +62,15 @@ verify-architecture:
 docs-erd:
 	npm ci --prefix scripts/erd --no-audit --no-fund
 	python3 scripts/erd/build_erd.py
+
+.PHONY: docs-dependencies docs-dependencies-check
+
+# Offline Audit/Workflow architecture and exact shipped catalog dependencies.
+docs-dependencies:
+	cd runtime && uv run python ../scripts/dependencies/build_graph.py
+
+docs-dependencies-check:
+	cd runtime && uv run python ../scripts/dependencies/build_graph.py --check
 
 # Regenerates the public error code table of docs/spec/platform/errors.md from
 # the Server's error registry in internal/apierror; its tests fail while the

@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"reflect"
 	"sort"
 	"strings"
 	"sync"
@@ -103,6 +104,12 @@ func (f *fakeProjectStore) Create(
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	claimKey := params.OwnerID + "\x00" + params.IdempotencyKey
+	if params.ActiveChecks == "" {
+		params.ActiveChecks = contracts.ActiveChecksAutomatic
+	}
+	if !params.ActiveChecks.Valid() {
+		return projectstore.Project{}, false, projectstore.ErrInvalid
+	}
 	if claim, exists := f.claims[claimKey]; exists {
 		if claim.digest != params.RequestDigest {
 			return projectstore.Project{}, false, contracts.ErrIdempotencyConflict
@@ -120,7 +127,7 @@ func (f *fakeProjectStore) Create(
 	f.nextTime++
 	project := projectstore.Project{
 		ProjectID: params.ProjectID, OwnerID: params.OwnerID, Kind: params.Kind,
-		Name: params.Name, Description: params.Description,
+		Name: params.Name, Description: params.Description, ActiveChecks: params.ActiveChecks,
 		Lifecycle: projectstore.LifecycleActive, Revision: 1,
 		CreatedAt: now, UpdatedAt: now,
 	}
@@ -191,8 +198,18 @@ func (f *fakeProjectStore) Update(
 		len(params.Description) > projectstore.MaxDescriptionBytes {
 		return projectstore.Project{}, projectstore.ErrInvalid
 	}
+	previous := project
 	project.Name, project.Description = params.Name, params.Description
+	if params.ActiveChecks != nil {
+		if !params.ActiveChecks.Valid() {
+			return projectstore.Project{}, projectstore.ErrInvalid
+		}
+		project.ActiveChecks = *params.ActiveChecks
+	}
 	project.HTTPTarget = params.HTTPTarget.Clone()
+	if reflect.DeepEqual(previous, project) {
+		return project, nil
+	}
 	project.Revision++
 	project.UpdatedAt = time.Unix(0, f.nextTime).UTC()
 	f.nextTime++

@@ -1,0 +1,77 @@
+schema_version: "1.0"
+id: V379-001
+title: "Document Audit and Workflow dependencies in an interactive HTML graph"
+milestone: workflow-catalog-consolidation
+epic: workflows
+kind: chore
+priority: P3
+status: completed
+implementation_commit: cff461643ec6b7ab9d0119021dd62ee529fb435b
+depends_on: []
+languages: [python, javascript, html, css]
+goal: >-
+  Make the Audit orchestration boundary and the exact shipped configuration
+  dependencies navigable in one offline HTML document.
+context:
+  request: "2026-10-15: visualize both architecture and concrete configs/ dependencies in HTML."
+  specification:
+    - docs/spec/audits/audits.md#model
+    - docs/spec/configuration/workflows.md#model
+    - docs/spec/configuration/agent-templates.md#model
+  sources:
+    - configs/README.md
+    - internal/config/auditprofile/audit_workflow_dependencies.go
+scope:
+  in:
+    - "A standalone offline graph with architecture and shipped-catalog views."
+    - "Extract exact catalog references, preparation output dependencies and Stage bindings."
+    - "Search, dependency direction filters, node details, source links, zoom and SVG export."
+    - "A deterministic generator and a documented regeneration command."
+  out:
+    - "Server, Runtime, public API, database or application UI behavior changes."
+    - "Live database records, secrets, e2e and example-only catalogs."
+acceptance_criteria:
+  - id: A1
+    text: >-
+      The architecture view explains Project, Audit, baseline, roles, ordinary
+      Runs, Workflow Stages, Planner, Worker, results and review with sources.
+  - id: A2
+    text: >-
+      The catalog view includes all shipped AuditProfiles and Workflows, their
+      exact referenced dependencies, and actual prepare-output and Stage
+      relationships; no missing reference is silently dropped.
+  - id: A3
+    text: >-
+      The HTML works from file:// without network requests. Search, both
+      directions of dependency traversal, filters, node selection, zoom and
+      SVG export work at desktop and 390 px width in light, dark and black themes.
+  - id: A4
+    text: >-
+      Regeneration is deterministic and source paths resolve. Repository lint
+      succeeds; no application behavior or user-owned work changes.
+tests:
+  - command: make docs-dependencies
+    covers: [A1, A2, A4]
+  - command: make docs-dependencies-check
+    covers: [A2, A4]
+  - command: make lint
+    covers: [A4]
+  - command: "Manual Chromium check: offline loading, search, traversal, filters, details, zoom, export, 390 px and all themes."
+    covers: [A1, A2, A3]
+verification:
+  date: 2026-10-15
+  results:
+    - "make docs-dependencies and make docs-dependencies-check passed; the deterministic snapshot includes 13 AuditProfiles, 21 Workflows and 25 AgentTemplates."
+    - "make lint passed, including 95 script tests, Go vet/staticcheck/export checks, task/spec checks and Runtime lint/layer checks."
+    - "Ruff check of scripts/dependencies/build_graph.py and Prettier checks of the template, architecture data and README passed."
+    - >-
+      Chromium verified every profile root and every Workflow's Stage graph;
+      architecture has 24 nodes and 35 relationships. The OpenAPI workspace
+      graph has three next transitions and four summary escalations. Model-free
+      SQLMap dependencies exclude model policies and Gateways.
+    - >-
+      Offline browser checks passed for preparation-output context, incoming,
+      direct/transitive and combined traversal, hidden-type search, filters,
+      node/edge details, keyboard activation, zoom, pan and three SVG exports.
+      All three modes fit 1600 px and 390 px without page overflow in light,
+      dark and black themes; no JavaScript errors or HTTP requests occurred.

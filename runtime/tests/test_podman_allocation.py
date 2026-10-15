@@ -36,7 +36,9 @@ from contractor_runtime.sandbox.contracts import SandboxContractError
 from contractor_runtime.state import ProcessState, RuntimeState
 
 
-async def service_for(tmp_path, fixture, *, fail_worker=False, runtime_factory=None):
+async def service_for(
+    tmp_path, fixture, *, fail_worker=False, runtime_factory=None, sandbox_profile="podman"
+):
     events = []
     source, reader = workspace_inputs([("source", "", archive({"src/main.py": b"ready\n"}))])
 
@@ -68,7 +70,7 @@ async def service_for(tmp_path, fixture, *, fail_worker=False, runtime_factory=N
             return Worker(context)
 
     runtime = runtime_factory or Runtime()
-    sandbox = PodmanWorkdirFactory(tmp_path / "scratch")
+    sandbox = PodmanWorkdirFactory(tmp_path / "scratch", ref=sandbox_profile + "@1")
     provider = Provider(
         local_settings(tmp_path / "project"),
         before_initialize=lambda: fixture.lifecycle.prepare_root(tmp_path / "project"),
@@ -100,7 +102,9 @@ async def service_for(tmp_path, fixture, *, fail_worker=False, runtime_factory=N
     )
     spec = allocation_spec()
     spec.workspace = source
-    spec.agent_template.sandbox_profile = SandboxProfileRef(sandboxProfileId="podman", version="1")
+    spec.agent_template.sandbox_profile = SandboxProfileRef(
+        sandboxProfileId=sandbox_profile, version="1"
+    )
     spec.agent_template.ref.digest = _agent_template_digest(spec.agent_template)
     return service, state, spec, events, exits
 

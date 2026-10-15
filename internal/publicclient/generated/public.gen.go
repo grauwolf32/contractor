@@ -18,6 +18,27 @@ import (
 	"github.com/oapi-codegen/runtime"
 )
 
+// Defines values for ActiveChecksPolicy.
+const (
+	ApprovalRequired ActiveChecksPolicy = "approval-required"
+	Automatic        ActiveChecksPolicy = "automatic"
+	Prohibited       ActiveChecksPolicy = "prohibited"
+)
+
+// Valid indicates whether the value is a known member of the ActiveChecksPolicy enum.
+func (e ActiveChecksPolicy) Valid() bool {
+	switch e {
+	case ApprovalRequired:
+		return true
+	case Automatic:
+		return true
+	case Prohibited:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for AgentSkillRefNamespace.
 const (
 	Skills AgentSkillRefNamespace = "skills"
@@ -2553,6 +2574,9 @@ func (e ListOwnerReviewsParamsState) Valid() bool {
 	}
 }
 
+// ActiveChecksPolicy Project approval policy for active-enabled Audit profiles, pinned at Audit start. A profile prohibition always remains prohibited.
+type ActiveChecksPolicy string
+
 // AgentInstructions defines model for AgentInstructions.
 type AgentInstructions struct {
 	Instructions struct {
@@ -2831,6 +2855,8 @@ type AuditAnalystVerdict = interface{}
 
 // AuditBaseline defines model for AuditBaseline.
 type AuditBaseline struct {
+	// ActiveChecks Project approval policy for active-enabled Audit profiles, pinned at Audit start. A profile prohibition always remains prohibited.
+	ActiveChecks      ActiveChecksPolicy            `json:"activeChecks"`
 	Inputs            map[string]AuditExactArtifact `json:"inputs"`
 	Inventory         *AuditBaselineInventory       `json:"inventory,omitempty"`
 	ProjectHttpTarget *ProjectHTTPTarget            `json:"projectHttpTarget,omitempty"`
@@ -3087,10 +3113,11 @@ type AuditHoldState = interface{}
 
 // AuditInteractionPolicy defines model for AuditInteractionPolicy.
 type AuditInteractionPolicy struct {
-	ActiveChecks        interface{} `json:"activeChecks"`
-	FindingConfirmation interface{} `json:"findingConfirmation"`
-	NotApplicable       interface{} `json:"notApplicable"`
-	ReportAcceptance    interface{} `json:"reportAcceptance"`
+	// ActiveChecks Project approval policy for active-enabled Audit profiles, pinned at Audit start. A profile prohibition always remains prohibited.
+	ActiveChecks        ActiveChecksPolicy `json:"activeChecks"`
+	FindingConfirmation interface{}        `json:"findingConfirmation"`
+	NotApplicable       interface{}        `json:"notApplicable"`
+	ReportAcceptance    interface{}        `json:"reportAcceptance"`
 }
 
 // AuditInventory defines model for AuditInventory.
@@ -3854,9 +3881,11 @@ type CreateCredentialRequest struct {
 
 // CreateProjectRequest defines model for CreateProjectRequest.
 type CreateProjectRequest struct {
-	Description *string     `json:"description,omitempty"`
-	Kind        ProjectKind `json:"kind"`
-	Name        string      `json:"name"`
+	// ActiveChecks Defaults to automatic when omitted.
+	ActiveChecks *ActiveChecksPolicy `json:"activeChecks,omitempty"`
+	Description  *string             `json:"description,omitempty"`
+	Kind         ProjectKind         `json:"kind"`
+	Name         string              `json:"name"`
 }
 
 // CreateRunRequest defines model for CreateRunRequest.
@@ -6000,16 +6029,18 @@ type PlannerSubtaskLimit = int
 
 // Project defines model for Project.
 type Project struct {
-	CreatedAt   time.Time          `json:"createdAt"`
-	Deletion    *ProjectDeletion   `json:"deletion,omitempty"`
-	Description string             `json:"description"`
-	HttpTarget  *ProjectHTTPTarget `json:"httpTarget,omitempty"`
-	Kind        ProjectKind        `json:"kind"`
-	Lifecycle   ProjectLifecycle   `json:"lifecycle"`
-	Name        string             `json:"name"`
-	ProjectId   ResourceId         `json:"projectId"`
-	Revision    string             `json:"revision"`
-	UpdatedAt   time.Time          `json:"updatedAt"`
+	// ActiveChecks Project approval policy for active-enabled Audit profiles, pinned at Audit start. A profile prohibition always remains prohibited.
+	ActiveChecks ActiveChecksPolicy `json:"activeChecks"`
+	CreatedAt    time.Time          `json:"createdAt"`
+	Deletion     *ProjectDeletion   `json:"deletion,omitempty"`
+	Description  string             `json:"description"`
+	HttpTarget   *ProjectHTTPTarget `json:"httpTarget,omitempty"`
+	Kind         ProjectKind        `json:"kind"`
+	Lifecycle    ProjectLifecycle   `json:"lifecycle"`
+	Name         string             `json:"name"`
+	ProjectId    ResourceId         `json:"projectId"`
+	Revision     string             `json:"revision"`
+	UpdatedAt    time.Time          `json:"updatedAt"`
 }
 
 // ProjectDeletion defines model for ProjectDeletion.
@@ -6794,9 +6825,11 @@ type UpdateOwnerQueueControlRequest struct {
 
 // UpdateProjectRequest defines model for UpdateProjectRequest.
 type UpdateProjectRequest struct {
-	Description *string                              `json:"description,omitempty"`
-	HttpTarget  nullable.Nullable[ProjectHTTPTarget] `json:"httpTarget,omitempty"`
-	Name        *string                              `json:"name,omitempty"`
+	// ActiveChecks Project approval policy for active-enabled Audit profiles, pinned at Audit start. A profile prohibition always remains prohibited.
+	ActiveChecks *ActiveChecksPolicy                  `json:"activeChecks,omitempty"`
+	Description  *string                              `json:"description,omitempty"`
+	HttpTarget   nullable.Nullable[ProjectHTTPTarget] `json:"httpTarget,omitempty"`
+	Name         *string                              `json:"name,omitempty"`
 }
 
 // UpdateSchedulerSettingsRequest defines model for UpdateSchedulerSettingsRequest.

@@ -37,9 +37,11 @@ class Guardian:
 
 
 class Owner:
-    def __init__(self, root: Path):
+    def __init__(self, root: Path, *, network_enabled=False):
         self.cli = ScriptedEngine()
-        self.settings = PodmanSettings(enabled=True, owner="lifecycle-test", image=IMAGE)
+        self.settings = PodmanSettings(
+            enabled=True, owner="lifecycle-test", image=IMAGE, network_enabled=network_enabled
+        )
         self.engine = PodmanEngine(self.settings, cli=self.cli, owner_directory=root / "owners")
         self.guardians = []
         self.attach_fail = False
@@ -77,8 +79,8 @@ class Owner:
 
 
 @asynccontextmanager
-async def owner(root):
-    fixture = Owner(root)
+async def owner(root, *, network_enabled=False):
+    fixture = Owner(root, network_enabled=network_enabled)
     try:
         yield fixture
     finally:

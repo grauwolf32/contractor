@@ -7,10 +7,12 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/auditstore/hookstore"
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
 type ArtifactAccess interface {
+	WithClaim(auditstore.ControllerClaim) ArtifactAccess
 	ReadProjectExact(context.Context, string, auditstore.ExactArtifact) ([]byte, error)
 	ReadRunBinding(context.Context, string, contracts.ArtifactRef) (auditstore.ExactArtifact, []byte, bool, error)
 	ReadRunExact(context.Context, string, contracts.ArtifactRef) (auditstore.ExactArtifact, []byte, error)
@@ -18,13 +20,23 @@ type ArtifactAccess interface {
 	PutImmutableProject(context.Context, string, contracts.ArtifactRef, artifacts.Payload) (auditstore.ExactArtifact, error)
 }
 
-type ServiceArtifactAccess struct{ service *artifacts.Service }
+type ServiceArtifactAccess struct {
+	service *artifacts.Service
+	writes  *hookstore.ClaimedArtifacts
+	claim   auditstore.ControllerClaim
+}
 
-func NewArtifactAccess(service *artifacts.Service) (*ServiceArtifactAccess, error) {
-	if service == nil {
+func NewArtifactAccess(service *artifacts.Service, writes *hookstore.ClaimedArtifacts) (*ServiceArtifactAccess, error) {
+	if service == nil || writes == nil {
 		return nil, errors.New("Audit import Artifact service is required")
 	}
-	return &ServiceArtifactAccess{service: service}, nil
+	return &ServiceArtifactAccess{service: service, writes: writes}, nil
+}
+
+func (a *ServiceArtifactAccess) WithClaim(claim auditstore.ControllerClaim) ArtifactAccess {
+	bound := *a
+	bound.claim = claim
+	return &bound
 }
 
 // ReadProjectExact reads expected through the one exact read
@@ -96,6 +108,20 @@ func (a *ServiceArtifactAccess) RetainRunExact(
 	projectID string,
 	target contracts.ArtifactRef,
 ) (auditstore.ExactArtifact, error) {
+	var retained auditstore.ExactArtifact
+	err := a.writes.WithArtifactWrite(ctx, a.claim, projectID, target.Namespace, func(service *artifacts.Service) error {
+		bound := *a
+		bound.service = service
+		var retainErr error
+		retained, retainErr = bound.retainRunExact(ctx, runID, source, projectID, target)
+		return retainErr
+	})
+	return retained, err
+}
+
+func (a *ServiceArtifactAccess) retainRunExact(
+	ctx context.Context, runID string, source auditstore.ExactArtifact, projectID string, target contracts.ArtifactRef,
+) (auditstore.ExactArtifact, error) {
 	run, err := artifacts.RunScope(runID)
 	if err != nil {
 		return auditstore.ExactArtifact{}, err
@@ -164,7 +190,12 @@ func (a *ServiceArtifactAccess) PutImmutableProject(
 	if err != nil {
 		return auditstore.ExactArtifact{}, err
 	}
-	written, err := a.service.CreateFrozen(ctx, project, target, payload)
+	var written artifacts.WriteResult
+	err = a.writes.WithArtifactWrite(ctx, a.claim, projectID, target.Namespace, func(service *artifacts.Service) error {
+		var writeErr error
+		written, writeErr = service.CreateFrozen(ctx, project, target, payload)
+		return writeErr
+	})
 	if err != nil {
 		return auditstore.ExactArtifact{}, err
 	}

@@ -5,7 +5,8 @@ milestone: hub-audit-defects-2026-10
 epic: audits
 kind: defect
 priority: P2
-status: pending
+status: completed
+implementation_commit: a161ffb98af14d85bf32e70f90d726c715c7f0cc
 depends_on: [V370-024]
 languages: [go, sql]
 goal: "Child-Run deletion and the Audit purge each proceed in steps that fit a named deletion budget and the controller's claim lease, so an Audit with a large namespace or large child Runs is deleted instead of timing out on every pass."
@@ -76,7 +77,28 @@ acceptance_criteria:
   - id: A3
     text: "The large-Audit test fails on a07f5e9."
 tests:
-  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 -tags integration ./internal/auditcontroller ./internal/auditstore ./internal/artifacts ./internal/rundeletion"
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 -tags integration ./internal/auditcontroller ./internal/auditstore/... ./internal/artifacts ./internal/rundeletion"
     covers: [A1, A2, A3]
   - command: make lint
     covers: [A1, A2, A3]
+verification:
+  date: '2026-10-15'
+  revision: a161ffb98af14d85bf32e70f90d726c715c7f0cc
+  environment: Go 1.26.9, Node 24.20.0 and disposable PostgreSQL 17; test GOFLAGS=-buildvcs=false -p=2; max_locks_per_transaction=1024.
+  commands:
+  - command: make verify
+    result: Passed; Runtime 3835 passed and 39 skipped; UI 1984 passed.
+  - command: go test -p 1 -count=1 -tags integration ./internal/auditcontroller ./internal/auditstore/... ./internal/artifacts ./internal/auditimport ./internal/rundeletion ./internal/evalservice ./internal/evalstore ./internal/findingintake ./internal/auditdomain ./internal/httpapi/privateartifacts ./internal/auditservice ./internal/app ./internal/projectlifecycle
+    result: Passed with disposable PostgreSQL configured.
+  - command: go test -p 1 -race -count=1 -tags integration ./internal/auditcontroller -run '^TestPostgresControllerDeletesActiveAuditWhileOwnerQueuePaused$'
+    result: Passed with disposable PostgreSQL configured.
+  - command: go test -p 1 -race -count=1 ./internal/auditstore/internal/pgstore -run '^(TestClaimedArtifactWritesFenceTakeoverAndPurge|TestPostgresAuditPurgeCommitsBoundedBatchesAndResumesAfterTakeover)$'
+    result: Passed with disposable PostgreSQL configured.
+  regression:
+    baseline: f590b00fc378105d4d677b2a7d712679b765c895
+    before: TestPostgresAuditPurgeCommitsBoundedBatchesAndResumesAfterTakeover failed because one transaction removed all 2005 namespace revisions.
+    after: The regression now preserves bounded progress across takeover, rejects the stale holder and finishes without retained Audit rows or material. Decided-review purge tests also verify that report reads return unavailable during deletion.
+  scale:
+  - Controller deletion includes a child Run with 50000 revisions and checks the maintenance SQL budget and four-minute claim renewal without wall-clock assertions.
+  - Namespace regression uses 2005 revisions, 4005 events and decided reviews; FK probe covers 100000 execution rows and 2000 assessments across committed batches.
+  siblings: Shared Run/Project cleanup keeps its own budget. Ordinary Audit work still shares the original total snapshot/reconcile deadline. Finding holds are removed through their owner and receipts through the existing receipt helper.

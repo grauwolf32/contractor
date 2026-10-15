@@ -48,6 +48,9 @@ def sandbox_spec():
     "mode,storage,profile,execution,valid",
     [
         ("direct", "local", "podman", True, True),
+        ("direct", "local", "podman-network", True, True),
+        ("overlay", "local", "podman-network", True, False),
+        ("direct", "memory", "podman-network", True, False),
         ("direct", "local", "podman", False, True),
         (None, "local", "podman", False, False),
         ("overlay", "local", "podman", True, False),

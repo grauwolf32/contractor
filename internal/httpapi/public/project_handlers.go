@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/contentdigest"
+	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	"github.com/grauwolf32/contractor/internal/pagelimit"
@@ -77,7 +78,7 @@ func (h *projectHandlers) createProject(w http.ResponseWriter, r *http.Request) 
 	project, created, err := h.Projects.Create(r.Context(), projectstore.CreateParams{
 		ProjectID: projectID, OwnerID: principalUserID(r.Context()), Kind: request.Kind,
 		Name: request.Name, Description: request.Description,
-		IdempotencyKey: key, RequestDigest: digest,
+		IdempotencyKey: key, RequestDigest: digest, ActiveChecks: request.ActiveChecks,
 	})
 	if err != nil {
 		handleError(w, err)
@@ -218,7 +219,7 @@ func (h *projectHandlers) updateProject(w http.ResponseWriter, r *http.Request) 
 		var updateErr error
 		project, updateErr = h.Projects.Update(r.Context(), projectstore.UpdateParams{
 			ProjectID: projectID, OwnerID: ownerID, ExpectedRevision: revision,
-			Name: name, Description: description, HTTPTarget: httpTarget,
+			Name: name, Description: description, HTTPTarget: httpTarget, ActiveChecks: request.ActiveChecks,
 		})
 		return updateErr
 	}
@@ -271,11 +272,15 @@ func (h *projectHandlers) deleteProject(w http.ResponseWriter, r *http.Request) 
 }
 
 func projectRequestDigest(request createProjectRequest) (string, error) {
+	if request.ActiveChecks == "" {
+		request.ActiveChecks = contracts.ActiveChecksAutomatic
+	}
 	digest, err := contentdigest.JSON(struct {
-		Kind        projectstore.Kind `json:"kind"`
-		Name        string            `json:"name"`
-		Description string            `json:"description"`
-	}{request.Kind, request.Name, request.Description})
+		Kind         projectstore.Kind            `json:"kind"`
+		Name         string                       `json:"name"`
+		Description  string                       `json:"description"`
+		ActiveChecks contracts.ActiveChecksPolicy `json:"activeChecks"`
+	}{request.Kind, request.Name, request.Description, request.ActiveChecks})
 	if err != nil {
 		return "", fmt.Errorf("encode Project request: %w", err)
 	}
@@ -290,7 +295,7 @@ func writeProject(w http.ResponseWriter, status int, project projectstore.Projec
 func projectReadModel(project projectstore.Project) projectResponse {
 	result := projectResponse{
 		ProjectID: project.ProjectID, Kind: project.Kind, Name: project.Name,
-		Description: project.Description, Lifecycle: project.Lifecycle,
+		Description: project.Description, Lifecycle: project.Lifecycle, ActiveChecks: project.ActiveChecks,
 		Revision:   strconv.FormatUint(project.Revision, 10),
 		HTTPTarget: project.HTTPTarget.Clone(),
 		CreatedAt:  project.CreatedAt, UpdatedAt: project.UpdatedAt,

@@ -24,6 +24,8 @@ from contractor_runtime.factories import (
     built_in_factories,
     declared_sensitive_output_tools,
 )
+from contractor_runtime.sandbox.podman.lifecycle import PodmanLifecycle
+from contractor_runtime.sandbox.podman.settings import PodmanSettings
 from contractor_runtime.state import RuntimeState
 from contractor_runtime.toolsets.caido.tools import CAIDO_TOOL_NAMES
 from contractor_runtime.toolsets.http.tools import HTTPToolsetFactory
@@ -59,7 +61,7 @@ def test_production_registry_derives_exactly_the_previous_sensitive_output_tools
 ) -> None:
     registry = built_in_factories(
         tmp_path,
-        execution_lifecycle=object() if with_execution else None,  # type: ignore[arg-type]
+        execution_lifecycle=PodmanLifecycle(PodmanSettings()) if with_execution else None,
     )
     assert ("code-execution@1" in registry.toolsets) is with_execution
 

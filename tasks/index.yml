@@ -75,8 +75,17 @@ execution_policy:
 
 milestones:
   - id: workflow-planner-subtask-budgets-2026-10
-    exit_task: V380-001
+    exit_task: V384-001
     outcome: Each Workflow pins its modeled Planner subtask limit, defaulting to 32, through immutable execution and validated public plan projections.
+  - id: interactsh-worker-tools-2026-10
+    exit_task: V382-001
+    outcome: Explicit Worker tools register and poll bounded Interactsh callback evidence through operator-configured infrastructure, credentials and Runtime labels.
+  - id: networked-podman-sandbox-2026-10
+    exit_task: V381-001
+    outcome: An explicitly selected and operator-enabled Podman profile provides networked execution with the existing allocation isolation and cleanup guarantees.
+  - id: project-active-check-policy-2026-10
+    exit_task: V380-001
+    outcome: Projects default to automatic active Audit checks and pin their owner-selected execution policy at Audit start.
   - id: planner-summary-continuation-2026-10
     exit_task: V378-001
     outcome: Summarized passthrough work continues through one Scheduler-owned escalation to Streamline with the original task, saved summary and the same recorded artifacts and Memory Namespace.

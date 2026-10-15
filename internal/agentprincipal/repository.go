@@ -63,7 +63,7 @@ WHERE runtime_agent_id > $1
 ORDER BY runtime_agent_id
 LIMIT $2`, afterRuntimeAgentID, limit)
 	if err != nil {
-		return nil, errors.New("list Runtime Agent principals")
+		return nil, persistencepostgres.WrapError("list Runtime Agent principals", err)
 	}
 	defer rows.Close()
 	result := make([]Principal, 0, limit)
@@ -74,8 +74,8 @@ LIMIT $2`, afterRuntimeAgentID, limit)
 		}
 		result = append(result, principal)
 	}
-	if rows.Err() != nil {
-		return nil, errors.New("iterate Runtime Agent principals")
+	if err := rows.Err(); err != nil {
+		return nil, persistencepostgres.WrapError("iterate Runtime Agent principals", err)
 	}
 	return result, nil
 }
@@ -91,7 +91,7 @@ SELECT EXISTS (
     FROM stage_allocations
     WHERE runtime_agent_id = $1 AND release_completed_at IS NULL
 )`, runtimeAgentID).Scan(&present); err != nil {
-		return false, errors.New("inspect Runtime Agent allocation references")
+		return false, persistencepostgres.WrapError("inspect Runtime Agent allocation references", err)
 	}
 	return present, nil
 }
@@ -111,7 +111,7 @@ func (r *Repository) ListByLabel(ctx context.Context, label string) ([]Principal
 WHERE labels @> ARRAY[$1]::text[]
 ORDER BY runtime_agent_id`, label)
 	if err != nil {
-		return nil, errors.New("list Runtime Agent principals by label")
+		return nil, persistencepostgres.WrapError("list Runtime Agent principals by label", err)
 	}
 	defer rows.Close()
 	result := make([]Principal, 0)
@@ -122,8 +122,8 @@ ORDER BY runtime_agent_id`, label)
 		}
 		result = append(result, principal)
 	}
-	if rows.Err() != nil {
-		return nil, errors.New("iterate Runtime Agent principals by label")
+	if err := rows.Err(); err != nil {
+		return nil, persistencepostgres.WrapError("iterate Runtime Agent principals by label", err)
 	}
 	return result, nil
 }
@@ -258,7 +258,7 @@ func scanPrincipal(row rowScanner) (Principal, error) {
 	); errors.Is(err, pgx.ErrNoRows) {
 		return Principal{}, runtimeconfig.ErrNotFound
 	} else if err != nil {
-		return Principal{}, errors.New("read Runtime Agent principal")
+		return Principal{}, persistencepostgres.WrapError("read Runtime Agent principal", err)
 	}
 	parsed, err := strconv.ParseUint(revision, 10, 64)
 	if err != nil {

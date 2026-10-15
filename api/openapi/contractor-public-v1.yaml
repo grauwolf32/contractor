@@ -10864,6 +10864,9 @@ components:
         kind: {$ref: '#/components/schemas/ProjectKind'}
         name: {type: string, minLength: 1, maxLength: 160}
         description: {type: string, maxLength: 4096}
+        activeChecks:
+          allOf: [{$ref: '#/components/schemas/ActiveChecksPolicy'}]
+          description: Defaults to automatic when omitted.
     UpdateProjectRequest:
       type: object
       additionalProperties: false
@@ -10871,10 +10874,15 @@ components:
       properties:
         name: {type: string, minLength: 1, maxLength: 160}
         description: {type: string, maxLength: 4096}
+        activeChecks: {$ref: '#/components/schemas/ActiveChecksPolicy'}
         httpTarget:
           oneOf:
             - {$ref: '#/components/schemas/ProjectHTTPTarget'}
             - {type: 'null'}
+    ActiveChecksPolicy:
+      type: string
+      enum: [prohibited, automatic, approval-required]
+      description: Project approval policy for active-enabled Audit profiles, pinned at Audit start. A profile prohibition always remains prohibited.
     HTTPOriginCredentialRef:
       type: object
       additionalProperties: false
@@ -10905,13 +10913,14 @@ components:
     Project:
       type: object
       additionalProperties: false
-      required: [projectId, kind, name, description, lifecycle, revision, createdAt, updatedAt]
+      required: [projectId, kind, name, description, activeChecks, lifecycle, revision, createdAt, updatedAt]
       properties:
         projectId: {$ref: '#/components/schemas/ResourceId'}
         kind: {$ref: '#/components/schemas/ProjectKind'}
         name: {type: string, minLength: 1, maxLength: 160}
         description: {type: string, maxLength: 4096}
         httpTarget: {$ref: '#/components/schemas/ProjectHTTPTarget'}
+        activeChecks: {$ref: '#/components/schemas/ActiveChecksPolicy'}
         lifecycle: {$ref: '#/components/schemas/ProjectLifecycle'}
         deletion: {$ref: '#/components/schemas/ProjectDeletion'}
         revision: {type: string, pattern: '^[1-9][0-9]{0,18}$'}
@@ -11234,7 +11243,7 @@ components:
       additionalProperties: false
       required: [activeChecks, findingConfirmation, notApplicable, reportAcceptance]
       properties:
-        activeChecks: {enum: [prohibited, automatic, approval-required]}
+        activeChecks: {$ref: '#/components/schemas/ActiveChecksPolicy'}
         findingConfirmation: {enum: [disabled, human-required]}
         notApplicable: {enum: [human-required, profile-rule]}
         reportAcceptance: {enum: [automatic, human-required]}
@@ -11246,6 +11255,7 @@ components:
         - multiple_rounds_unsupported
         - batching_unsupported
         - automatic_active_checks_unsupported
+        - project_active_checks_prohibited
         - active_check_approval_unsupported
         - finding_confirmation_unsupported
         - manual_applicability_unsupported
@@ -11374,8 +11384,9 @@ components:
     AuditBaseline:
       type: object
       additionalProperties: false
-      required: [inputs, scope, runtimeLabels, runtimeConfig, skills, standards]
+      required: [inputs, scope, activeChecks, runtimeLabels, runtimeConfig, skills, standards]
       properties:
+        activeChecks: {$ref: '#/components/schemas/ActiveChecksPolicy'}
         inputs:
           type: object
           minProperties: 1

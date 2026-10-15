@@ -722,6 +722,8 @@ Terms used across the specification. Each entry names the document that owns the
 
 **`podman@1`** — The SandboxProfile that gives an allocation one rootless Podman container sharing its local direct project directory. Owner: [Code execution](tools/code-execution.md).
 
+**`podman-network@1`** — The separately enabled Podman SandboxProfile that adds a private rootless network namespace under the deployment's egress policy. Owner: [Code execution](tools/code-execution.md).
+
 **Preparation attempt** — One submission of a prepare role, identified by (audit_id, workflow_role, role_attempt), with no Round, no execution items and at most one Run. Owner: [Audit preparation and OpenAPI scans](audits/scans.md).
 
 **Preparation digest** — The digest that binds preparation policy, source, options, selected operation and mode. Owner: [Scanners](tools/scanners.md).

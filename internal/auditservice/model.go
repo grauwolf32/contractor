@@ -65,7 +65,7 @@ func validateDraftSelection(value DraftSelection) error {
 }
 
 func ValidateBaseline(value BaselineSnapshot) error {
-	if value.Schema != BaselineSchema || len(value.Inputs) == 0 ||
+	if value.Schema != BaselineSchema || !value.ActiveChecks.Valid() || len(value.Inputs) == 0 ||
 		value.RuntimeLabels == nil || value.Skills == nil || value.LLMCredentialIDs == nil ||
 		value.RuntimeCredentialIDs == nil || value.Standards == nil {
 		return fmt.Errorf("%w: Audit baseline shape is invalid", ErrInvalid)

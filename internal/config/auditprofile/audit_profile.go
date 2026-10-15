@@ -169,7 +169,7 @@ type AuditExecutionPolicy struct {
 	IncompleteRound    AuditIncompleteRoundPolicy `json:"incompleteRound"`
 }
 
-type AuditActiveChecksPolicy string
+type AuditActiveChecksPolicy = contracts.ActiveChecksPolicy
 
 type AuditFindingConfirmationPolicy string
 
@@ -178,9 +178,9 @@ type AuditNotApplicablePolicy string
 type AuditReportAcceptancePolicy string
 
 const (
-	AuditActiveChecksProhibited       AuditActiveChecksPolicy = "prohibited"
-	AuditActiveChecksAutomatic        AuditActiveChecksPolicy = "automatic"
-	AuditActiveChecksApprovalRequired AuditActiveChecksPolicy = "approval-required"
+	AuditActiveChecksProhibited       = contracts.ActiveChecksProhibited
+	AuditActiveChecksAutomatic        = contracts.ActiveChecksAutomatic
+	AuditActiveChecksApprovalRequired = contracts.ActiveChecksApprovalRequired
 
 	AuditFindingDisabled      AuditFindingConfirmationPolicy = "disabled"
 	AuditFindingHumanRequired AuditFindingConfirmationPolicy = "human-required"
@@ -860,9 +860,7 @@ func resolveAuditInteractionPolicy(source *auditInteractionPolicySource) (AuditI
 		NotApplicable:       AuditNotApplicablePolicy(source.NotApplicable),
 		ReportAcceptance:    AuditReportAcceptancePolicy(source.ReportAcceptance),
 	}
-	if result.ActiveChecks != AuditActiveChecksProhibited &&
-		result.ActiveChecks != AuditActiveChecksAutomatic &&
-		result.ActiveChecks != AuditActiveChecksApprovalRequired {
+	if !result.ActiveChecks.Valid() {
 		return AuditInteractionPolicy{}, fmt.Errorf("spec.interaction.activeChecks is invalid")
 	}
 	if result.FindingConfirmation != AuditFindingDisabled &&
