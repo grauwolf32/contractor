@@ -254,7 +254,7 @@ function MetadataLabelBadge({
         }}
       >
         <label
-          className="visually-hidden"
+          className="ui-visually-hidden"
           htmlFor={`metadata-label-${label.id}-key`}
         >
           Run metadata label key {index + 1}
@@ -282,7 +282,7 @@ function MetadataLabelBadge({
           :
         </span>
         <label
-          className="visually-hidden"
+          className="ui-visually-hidden"
           htmlFor={`metadata-label-${label.id}-value`}
         >
           Run metadata label value {index + 1}

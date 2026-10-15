@@ -13,6 +13,7 @@ import { RunStateChip } from "../runs/components";
 import { ProjectRegion } from "./common";
 import { groupEvaluationRuns } from "./evaluation-groups";
 import { QueryView } from "../../app/query-view";
+import "./projects.css";
 
 function EvaluationRuns({ runs }: { runs: readonly RunSummary[] }) {
   return (

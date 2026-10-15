@@ -8,6 +8,15 @@
  * tokens.
  */
 
+/* ---------- Run draft (base rules; this sheet refines them below) ---------- */
+
+.field-guidance {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.76rem;
+  line-height: 1.45;
+}
+
 /* Focus on a field or a checkbox of the form. */
 .run-field input:focus,
 .run-field select:focus,

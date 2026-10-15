@@ -72,7 +72,7 @@ export function ArtifactFileDrop({
       <input
         key={inputRevision}
         ref={fileInput}
-        className="visually-hidden"
+        className="ui-visually-hidden"
         name="file"
         type="file"
         aria-labelledby={copyId}
@@ -318,8 +318,8 @@ export function ArtifactWriteForm({
       <div
         className={
           project
-            ? "form-grid project-artifact-fields materials-fields"
-            : "form-grid materials-fields"
+            ? "project-artifact-fields materials-fields"
+            : "materials-fields"
         }
       >
         <label>

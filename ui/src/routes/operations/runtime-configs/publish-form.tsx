@@ -159,7 +159,7 @@ export function RuntimeConfigPublishForm({
           Values become active only through a label binding. Publishing another
           version never mutates existing Runs or allocations.
         </p>
-        <div className="form-grid">
+        <div className="ops-form-grid">
           <Field label="RuntimeConfig name">
             {(control) => (
               <input
@@ -193,7 +193,7 @@ export function RuntimeConfigPublishForm({
           >
             Worker LLM Gateway route
           </BlockSwitch>
-          <div className="form-grid">
+          <div className="ops-form-grid">
             <Field label="LLM Gateway">
               {(control) => (
                 <select
@@ -256,7 +256,7 @@ export function RuntimeConfigPublishForm({
                 Capture content — trust this sink with unredacted prompts,
                 responses and tool content, including any secrets they contain.
               </label>
-              <div className="form-grid">
+              <div className="ops-form-grid">
                 <Field label="OTLP traces endpoint">
                   {(control) => (
                     <input
@@ -292,7 +292,7 @@ export function RuntimeConfigPublishForm({
           >
             Worker HTTP proxy · http-proxy@1
           </BlockSwitch>
-          <div className="form-grid">
+          <div className="ops-form-grid">
             <Field label="Proxy URL">
               {(control) => (
                 <input
@@ -348,7 +348,7 @@ export function RuntimeConfigPublishForm({
               Telemetry delivery limits and proxy trust. Each field applies only
               while its block above is enabled.
             </p>
-            <div className="form-grid">
+            <div className="ops-form-grid">
               {LIMIT_FIELDS.map(({ field, label, block, minimum, maximum }) => (
                 <Field key={field} label={label}>
                   {(control) => (

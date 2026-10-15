@@ -203,7 +203,7 @@ export function CredentialCreateForm() {
         not an in-place update or rotation.
       </p>
       {inventoryError === null ? null : <ErrorNotice error={inventoryError} />}
-      <div className="form-grid">
+      <div className="ops-form-grid">
         <Field label="Credential ID">
           {(control) => (
             <input
@@ -270,7 +270,7 @@ export function CredentialCreateForm() {
       <details className="optional-settings">
         <summary>Optional settings</summary>
         <div>
-          <div className="form-grid">
+          <div className="ops-form-grid">
             <Field label="Safe label" optional>
               {(control) => (
                 <input
