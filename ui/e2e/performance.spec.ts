@@ -1,17 +1,12 @@
-import { expect, test, type Route } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 
-import packageMetadata from "../package.json" with { type: "json" };
-
-const apiVersion = "contractor.public.v1";
-
-async function fulfillJSON(route: Route, value: unknown, status = 200) {
-  await route.fulfill({
-    status,
-    contentType: "application/json",
-    headers: { "X-Contractor-API-Version": apiVersion },
-    body: JSON.stringify(value),
-  });
-}
+import {
+  authSession,
+  fulfillEmptyPageOrNotFound,
+  fulfillError,
+  fulfillJSON,
+  mockAPI,
+} from "./support/mock-api";
 
 function freshness(
   observedAt: string,
@@ -79,100 +74,75 @@ function snapshot(
 test("renders disabled stale and discontinuous performance observations truthfully", async ({
   page,
 }) => {
-  const origin = new URL(test.info().project.use.baseURL as string).origin;
-  const csrf = "a".repeat(43);
   let enabled = false;
   let registryReads = 0;
 
-  await page.route("**/runtime-config.json", (route) =>
-    fulfillJSON(route, {
-      uiVersion: packageMetadata.version,
-      supportedApiVersions: [apiVersion],
-      apiBaseUrl: origin,
-    }),
-  );
-  await page.route(`${origin}/v1/**`, async (route) => {
-    const request = route.request();
-    const url = new URL(request.url());
-    if (url.pathname === "/v1/auth/session") {
-      await fulfillJSON(route, {
-        principal: {
-          userId: "operator",
-          username: "operator",
-          capabilities: ["user", "operations"],
-        },
-        csrfToken: csrf,
-        idleExpiresAt: "2099-09-06T20:00:00Z",
-        absoluteExpiresAt: "2099-09-07T12:00:00Z",
-      });
-      return;
-    }
-    if (url.pathname === "/v1/operations/snapshot") {
-      registryReads += 1;
-      await fulfillJSON(route, { code: "unexpected_registry_read" }, 500);
-      return;
-    }
-    if (url.pathname === "/v1/operations/performance") {
-      const readAt = new Date().toISOString();
-      const staleAt = new Date(Date.now() - 90_000).toISOString();
-      await fulfillJSON(
-        route,
-        enabled
-          ? snapshot(true, readAt, sample("performance-current", staleAt, 1.5))
-          : snapshot(false, readAt),
-      );
-      return;
-    }
-    if (url.pathname === "/v1/operations/performance/history") {
-      const from = url.searchParams.get("from");
-      const to = url.searchParams.get("to");
-      const step = url.searchParams.get("step");
-      if (from === null || to === null || step === null) {
-        await fulfillJSON(route, { code: "invalid_query" }, 400);
+  await mockAPI(
+    page,
+    async (route, _request, url) => {
+      if (url.pathname === "/v1/operations/snapshot") {
+        registryReads += 1;
+        await fulfillError(route, 500, "unexpected_registry_read");
         return;
       }
-      const end = Date.parse(to);
-      const points = enabled
-        ? [
-            {
-              kind: "sample",
-              ...sample(
-                "performance-before-restart",
-                new Date(end - 45_000).toISOString(),
-                1,
-              ),
-            },
-            {
-              kind: "sample",
-              ...sample(
-                "performance-before-restart",
-                new Date(end - 30_000).toISOString(),
-              ),
-            },
-            {
-              kind: "sample",
-              ...sample(
-                "performance-after-restart",
-                new Date(end - 15_000).toISOString(),
-                2,
-              ),
-            },
-          ]
-        : [];
-      await fulfillJSON(route, { from, to, step, points });
-      return;
-    }
-    await fulfillJSON(
-      route,
-      {
-        code: "not_found",
-        message: "not found",
-        retryable: false,
-        requestId: "request-performance-browser",
-      },
-      404,
-    );
-  });
+      if (url.pathname === "/v1/operations/performance") {
+        const readAt = new Date().toISOString();
+        const staleAt = new Date(Date.now() - 90_000).toISOString();
+        await fulfillJSON(
+          route,
+          enabled
+            ? snapshot(
+                true,
+                readAt,
+                sample("performance-current", staleAt, 1.5),
+              )
+            : snapshot(false, readAt),
+        );
+        return;
+      }
+      if (url.pathname === "/v1/operations/performance/history") {
+        const from = url.searchParams.get("from");
+        const to = url.searchParams.get("to");
+        const step = url.searchParams.get("step");
+        if (from === null || to === null || step === null) {
+          await fulfillError(route, 400, "invalid_query");
+          return;
+        }
+        const end = Date.parse(to);
+        const points = enabled
+          ? [
+              {
+                kind: "sample",
+                ...sample(
+                  "performance-before-restart",
+                  new Date(end - 45_000).toISOString(),
+                  1,
+                ),
+              },
+              {
+                kind: "sample",
+                ...sample(
+                  "performance-before-restart",
+                  new Date(end - 30_000).toISOString(),
+                ),
+              },
+              {
+                kind: "sample",
+                ...sample(
+                  "performance-after-restart",
+                  new Date(end - 15_000).toISOString(),
+                  2,
+                ),
+              },
+            ]
+          : [];
+        await fulfillJSON(route, { from, to, step, points });
+        return;
+      }
+      await fulfillEmptyPageOrNotFound(route);
+    },
+    { session: authSession("operator") },
+  );
 
   await page.goto("/operations/performance");
   await expect(
@@ -201,86 +171,71 @@ test("renders disabled stale and discontinuous performance observations truthful
 test("shows only available GPU metrics on desktop and mobile", async ({
   page,
 }) => {
-  const origin = new URL(test.info().project.use.baseURL as string).origin;
   let gpuAvailable = true;
   let reverseDevices = false;
-  await page.route("**/runtime-config.json", (route) =>
-    fulfillJSON(route, {
-      uiVersion: packageMetadata.version,
-      supportedApiVersions: [apiVersion],
-      apiBaseUrl: origin,
-    }),
-  );
-  await page.route(`${origin}/v1/**`, async (route) => {
-    const url = new URL(route.request().url());
-    if (url.pathname === "/v1/auth/session") {
-      return fulfillJSON(route, {
-        principal: {
-          userId: "operator",
-          username: "operator",
-          capabilities: ["user", "operations"],
+  await mockAPI(
+    page,
+    async (route, _request, url) => {
+      const gpu = (at: string, utilization = 0) => ({
+        freshness: {
+          ...freshness(at),
+          status: "partial",
+          reason: "unsupported_metric",
         },
-        csrfToken: "a".repeat(43),
-        idleExpiresAt: "2099-09-19T20:00:00Z",
-        absoluteExpiresAt: "2099-09-20T12:00:00Z",
+        devices: [
+          {
+            id: "GPU-aa",
+            name: "NVIDIA GeForce RTX 5090",
+            utilizationPercent: utilization,
+            memoryUsedBytes: 24 * 1024 ** 3,
+            memoryTotalBytes: 32 * 1024 ** 3,
+            temperatureCelsius: 44,
+          },
+          {
+            id: "GPU-bb",
+            name: "NVIDIA GeForce RTX 5090",
+            utilizationPercent: 65 - utilization / 2,
+            memoryUsedBytes: 16 * 1024 ** 3,
+            memoryTotalBytes: 32 * 1024 ** 3,
+            temperatureCelsius: 58,
+            powerWatts: 190,
+          },
+        ].sort((a, b) =>
+          reverseDevices ? b.id.localeCompare(a.id) : a.id.localeCompare(b.id),
+        ),
       });
-    }
-    const gpu = (at: string, utilization = 0) => ({
-      freshness: {
-        ...freshness(at),
-        status: "partial",
-        reason: "unsupported_metric",
-      },
-      devices: [
-        {
-          id: "GPU-aa",
-          name: "NVIDIA GeForce RTX 5090",
-          utilizationPercent: utilization,
-          memoryUsedBytes: 24 * 1024 ** 3,
-          memoryTotalBytes: 32 * 1024 ** 3,
-          temperatureCelsius: 44,
-        },
-        {
-          id: "GPU-bb",
-          name: "NVIDIA GeForce RTX 5090",
-          utilizationPercent: 65 - utilization / 2,
-          memoryUsedBytes: 16 * 1024 ** 3,
-          memoryTotalBytes: 32 * 1024 ** 3,
-          temperatureCelsius: 58,
-          powerWatts: 190,
-        },
-      ].sort((a, b) =>
-        reverseDevices ? b.id.localeCompare(a.id) : a.id.localeCompare(b.id),
-      ),
-    });
-    if (url.pathname === "/v1/operations/performance") {
-      const at = new Date().toISOString();
-      return fulfillJSON(
-        route,
-        snapshot(true, at, {
-          ...sample("gpu-generation", at, 1),
-          ...(gpuAvailable ? { gpu: gpu(at) } : {}),
-        }),
-      );
-    }
-    if (url.pathname === "/v1/operations/performance/history") {
-      const to = url.searchParams.get("to")!;
-      return fulfillJSON(route, {
-        from: url.searchParams.get("from"),
-        to,
-        step: url.searchParams.get("step"),
-        points: [10, 30, 20, 40, 35, 10].map((utilization, i) => {
-          const at = new Date(Date.parse(to) - (6 - i) * 15_000).toISOString();
-          return {
-            kind: "sample",
+      if (url.pathname === "/v1/operations/performance") {
+        const at = new Date().toISOString();
+        return fulfillJSON(
+          route,
+          snapshot(true, at, {
             ...sample("gpu-generation", at, 1),
-            ...(gpuAvailable ? { gpu: gpu(at, utilization) } : {}),
-          };
-        }),
-      });
-    }
-    return fulfillJSON(route, { code: "not_found" }, 404);
-  });
+            ...(gpuAvailable ? { gpu: gpu(at) } : {}),
+          }),
+        );
+      }
+      if (url.pathname === "/v1/operations/performance/history") {
+        const to = url.searchParams.get("to")!;
+        return fulfillJSON(route, {
+          from: url.searchParams.get("from"),
+          to,
+          step: url.searchParams.get("step"),
+          points: [10, 30, 20, 40, 35, 10].map((utilization, i) => {
+            const at = new Date(
+              Date.parse(to) - (6 - i) * 15_000,
+            ).toISOString();
+            return {
+              kind: "sample",
+              ...sample("gpu-generation", at, 1),
+              ...(gpuAvailable ? { gpu: gpu(at, utilization) } : {}),
+            };
+          }),
+        });
+      }
+      return fulfillEmptyPageOrNotFound(route);
+    },
+    { session: authSession("operator") },
+  );
   await page.goto("/operations/performance");
   const cardName = "GPU NVIDIA GeForce RTX 5090 · aa";
   const card = page.getByRole("article", { name: cardName });

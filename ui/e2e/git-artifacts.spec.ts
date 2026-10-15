@@ -1,11 +1,20 @@
 import { expect, test, type Page, type Route } from "@playwright/test";
 
-import packageMetadata from "../package.json" with { type: "json" };
+import { project } from "../src/test/builders";
 import {
   stageContract,
   workflowResource,
   workflowSummary,
 } from "../src/test/builders-execution";
+import {
+  authSession,
+  fulfillEmpty,
+  fulfillEmptyPageOrNotFound,
+  fulfillError,
+  fulfillJSON,
+  mockAPI,
+  UNANSWERED,
+} from "./support/mock-api";
 
 // Key tests deliberately avoid traces/screenshots of request bodies or inputs.
 test.use({ trace: "off", screenshot: "off" });
@@ -63,171 +72,134 @@ async function fixture(
     },
   ];
   const reply = (route: Route, value: unknown, status = 200) =>
-    route.fulfill({
-      status,
-      ...(status === 204 ? { body: "" } : { json: value }),
-      headers: {
-        "X-Contractor-API-Version": "contractor.public.v1",
-        "cache-control": "no-store",
-        etag: '"1"',
-      },
-    });
-  await page.route("**/runtime-config.json", (route) =>
-    route.fulfill({
-      json: {
-        uiVersion: packageMetadata.version,
-        supportedApiVersions: ["contractor.public.v1"],
-        apiBaseUrl: origin,
-      },
-    }),
-  );
-  await page.route(`${origin}/v1/**`, async (route) => {
-    const request = route.request();
-    const path = new URL(request.url()).pathname;
-    if (path === "/v1/auth/session")
-      return reply(route, {
-        principal: {
-          userId: "owner",
-          username: "owner",
-          capabilities: options.operations ? ["user", "operations"] : ["user"],
-        },
-        csrfToken: "a".repeat(43),
-        idleExpiresAt: "2099-01-01T00:00:00Z",
-        absoluteExpiresAt: "2099-01-02T00:00:00Z",
-      });
-    if (path === "/v1/settings/git-key") {
-      if (request.method() === "PUT") {
-        if (request.postDataJSON().privateKey === "bad")
-          return reply(
+    status === 204
+      ? fulfillEmpty(route, 204, { etag: '"1"' })
+      : fulfillJSON(route, value, status, { etag: '"1"' });
+  await mockAPI(
+    page,
+    async (route, request, url) => {
+      const path = url.pathname;
+      if (path === "/v1/settings/git-key") {
+        if (request.method() === "PUT") {
+          if (request.postDataJSON().privateKey === "bad")
+            return fulfillError(
+              route,
+              400,
+              "git_key_invalid",
+              "Unsupported key format",
+            );
+          configured = true;
+        }
+        if (request.method() === "DELETE") {
+          configured = false;
+          return reply(route, undefined, 204);
+        }
+        return reply(
+          route,
+          configured
+            ? {
+                configured: true,
+                fingerprint: "SHA256:fixture-public",
+                keyType: "ssh-ed25519",
+                updatedAt: timestamp,
+              }
+            : { configured: false },
+        );
+      }
+      if (path === "/v1/operations/snapshot")
+        return reply(route, {
+          cursor: { generation: "git-settings", revision: "1" },
+          runtimeAgents: [],
+          allocations: [],
+        });
+      if (path === "/v1/operations/settings/scheduler")
+        return reply(route, {
+          maxConcurrentRuns: 1,
+          revision: "1",
+          updatedAt: timestamp,
+        });
+      if (path.endsWith("/git-import")) {
+        writes.push({
+          path,
+          headers: request.headers(),
+          body: request.postDataJSON(),
+        });
+        if (options.pendingImport) return UNANSWERED;
+        if (options.failImport)
+          return fulfillError(
             route,
-            {
-              code: "git_key_invalid",
-              message: "Unsupported key format",
-              retryable: false,
-            },
-            400,
+            422,
+            "git_host_untrusted",
+            "Git SSH host trust is unavailable or verification failed",
           );
-        configured = true;
-      }
-      if (request.method() === "DELETE") {
-        configured = false;
-        return reply(route, undefined, 204);
-      }
-      return reply(
-        route,
-        configured
-          ? {
-              configured: true,
-              fingerprint: "SHA256:fixture-public",
-              keyType: "ssh-ed25519",
-              updatedAt: timestamp,
-            }
-          : { configured: false },
-      );
-    }
-    if (path === "/v1/operations/snapshot")
-      return reply(route, {
-        cursor: { generation: "git-settings", revision: "1" },
-        runtimeAgents: [],
-        allocations: [],
-      });
-    if (path === "/v1/operations/settings/scheduler")
-      return reply(route, {
-        maxConcurrentRuns: 1,
-        revision: "1",
-        updatedAt: timestamp,
-      });
-    if (path.endsWith("/git-import")) {
-      writes.push({
-        path,
-        headers: request.headers(),
-        body: request.postDataJSON(),
-      });
-      if (options.pendingImport) return;
-      if (options.failImport)
+        const parts = path.split("/");
+        const name = parts.at(-2)!;
+        const namespace = parts.at(-3)!;
+        const gitSource = {
+          repositoryUrl: "https://example.test:443/repo.git",
+          requestedRef: request.postDataJSON().ref ?? null,
+          resolvedCommit: commit,
+          importedAt: timestamp,
+        };
+        const item = {
+          artifact: { namespace, name, revision: "rev-imported" },
+          mediaType: "application/zip",
+          size: 123,
+          current: true,
+          frozen: false,
+          createdAt: timestamp,
+          gitSource,
+        };
+        metadata.push(item);
         return reply(
           route,
           {
-            code: "git_host_untrusted",
-            message: "Git SSH host trust is unavailable or verification failed",
-            retryable: false,
+            artifact: item.artifact,
+            mediaType: item.mediaType,
+            size: item.size,
+            gitSource,
           },
-          422,
+          201,
         );
-      const parts = path.split("/");
-      const name = parts.at(-2)!;
-      const namespace = parts.at(-3)!;
-      const gitSource = {
-        repositoryUrl: "https://example.test:443/repo.git",
-        requestedRef: request.postDataJSON().ref ?? null,
-        resolvedCommit: commit,
-        importedAt: timestamp,
-      };
-      const item = {
-        artifact: { namespace, name, revision: "rev-imported" },
-        mediaType: "application/zip",
-        size: 123,
-        current: true,
-        frozen: false,
-        createdAt: timestamp,
-        gitSource,
-      };
-      metadata.push(item);
-      return reply(
-        route,
-        {
-          artifact: item.artifact,
-          mediaType: item.mediaType,
-          size: item.size,
-          gitSource,
-        },
-        201,
-      );
-    }
-    if (path.endsWith("/metadata")) {
-      const parts = path.split("/");
-      const item = metadata.find(
-        (item) =>
-          item.artifact.name === parts.at(-2) &&
-          item.artifact.namespace === parts.at(-3),
-      );
-      return item === undefined
-        ? reply(
-            route,
-            { code: "not_found", message: "not found", retryable: false },
-            404,
-          )
-        : reply(route, item);
-    }
-    if (path.endsWith("/artifacts"))
-      return reply(route, { items: metadata, page: { hasMore: false } });
-    if (path === "/v1/projects/git-project")
-      return reply(route, {
-        projectId: "git-project",
-        kind: "project",
-        name: "Git project",
-        description: "",
-        activeChecks: "automatic",
-        lifecycle: "active",
-        revision: "1",
-        createdAt: timestamp,
-        updatedAt: timestamp,
-      });
-    if (path === "/v1/workflows/git-review/versions/1")
-      return reply(route, workflow);
-    if (path === "/v1/workflows")
-      return reply(route, {
-        items: [workflowSummary(workflow)],
-        page: { hasMore: false },
-      });
-    if (request.method() === "POST")
-      writes.push({
-        path,
-        headers: request.headers(),
-        body: request.postDataJSON(),
-      });
-    return reply(route, { items: [], page: { hasMore: false } });
-  });
+      }
+      if (path.endsWith("/metadata")) {
+        const parts = path.split("/");
+        const item = metadata.find(
+          (item) =>
+            item.artifact.name === parts.at(-2) &&
+            item.artifact.namespace === parts.at(-3),
+        );
+        return item === undefined
+          ? fulfillError(route, 404, "not_found")
+          : reply(route, item);
+      }
+      if (path.endsWith("/artifacts"))
+        return reply(route, { items: metadata, page: { hasMore: false } });
+      if (path === "/v1/projects/git-project")
+        return reply(route, project("git-project", { name: "Git project" }));
+      if (path === "/v1/workflows/git-review/versions/1")
+        return reply(route, workflow);
+      if (path === "/v1/workflows")
+        return reply(route, {
+          items: [workflowSummary(workflow)],
+          page: { hasMore: false },
+        });
+      if (request.method() === "POST")
+        writes.push({
+          path,
+          headers: request.headers(),
+          body: request.postDataJSON(),
+        });
+      return fulfillEmptyPageOrNotFound(route);
+    },
+    {
+      apiOrigin: origin,
+      session: authSession(
+        "owner",
+        options.operations ? ["user", "operations"] : ["user"],
+      ),
+    },
+  );
   return writes;
 }
 

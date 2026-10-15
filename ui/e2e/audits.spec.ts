@@ -1,8 +1,13 @@
-import { expect, test, type Locator, type Route } from "@playwright/test";
+import { expect, test, type Locator } from "@playwright/test";
 
-import packageMetadata from "../package.json" with { type: "json" };
+import { auditInput, project as projectBuilder } from "../src/test/builders";
+import {
+  CSRF_TOKEN,
+  fulfillEmptyPageOrNotFound,
+  fulfillJSON,
+  mockAPI,
+} from "./support/mock-api";
 
-const API_VERSION = "contractor.public.v1";
 const PROJECT_ID = "project_audit_browser";
 const PROFILE_DIGEST = `sha256:${"2".repeat(64)}`;
 
@@ -16,39 +21,6 @@ function fact(scope: Locator, term: string): Locator {
     .getByRole("definition");
 }
 
-function headers(extra: Record<string, string> = {}): Record<string, string> {
-  return {
-    "cache-control": "no-store",
-    "content-type": "application/json",
-    "x-contractor-api-version": API_VERSION,
-    ...extra,
-  };
-}
-
-async function fulfillJSON(
-  route: Route,
-  value: unknown,
-  status = 200,
-  extraHeaders: Record<string, string> = {},
-): Promise<void> {
-  const origin = route.request().headers()["origin"];
-  await route.fulfill({
-    status,
-    body: JSON.stringify(value),
-    headers: headers({
-      ...(origin === undefined
-        ? {}
-        : {
-            "access-control-allow-origin": origin,
-            "access-control-allow-credentials": "true",
-            "access-control-expose-headers":
-              "X-Contractor-API-Version, ETag, X-Request-ID",
-          }),
-      ...extraHeaders,
-    }),
-  });
-}
-
 test("Project Audit pins exact input and exposes authoritative coverage", async ({
   page,
 }, testInfo) => {
@@ -58,16 +30,12 @@ test("Project Audit pins exact input and exposes authoritative coverage", async 
   }
   const apiOrigin =
     process.env.CONTRACTOR_UI_E2E_API_URL ?? "http://127.0.0.3:8080";
-  const project = {
-    projectId: PROJECT_ID,
-    kind: "project",
+  const project = projectBuilder(PROJECT_ID, {
     name: "Audit browser fixture",
     description: "Exact Project input",
-    lifecycle: "active",
-    revision: "1",
     createdAt: "2026-09-06T10:00:00Z",
     updatedAt: "2026-09-06T10:00:00Z",
-  };
+  });
   const artifact = {
     artifact: {
       namespace: "sources",
@@ -163,230 +131,196 @@ test("Project Audit pins exact input and exposes authoritative coverage", async 
   const objective =
     "Verify that a user can only read and update orders belonging to their own account. Check both the API handler and the service layer.";
 
-  await page.route("**/runtime-config.json", (route) =>
-    route.fulfill({
-      json: {
-        uiVersion: packageMetadata.version,
-        supportedApiVersions: [API_VERSION],
-        apiBaseUrl: apiOrigin,
-      },
-    }),
-  );
-  await page.route(`${apiOrigin}/v1/**`, async (route) => {
-    const request = route.request();
-    const path = new URL(request.url()).pathname;
-    if (request.method() === "OPTIONS") {
-      await route.fulfill({
-        status: 204,
-        headers: {
-          "access-control-allow-origin": new URL(configuredBaseURL).origin,
-          "access-control-allow-credentials": "true",
-          "access-control-allow-methods": "GET, POST, DELETE, OPTIONS",
-          "access-control-allow-headers":
-            "content-type, idempotency-key, if-match, x-csrf-token",
-        },
-      });
-      return;
-    }
-    if (path === "/v1/auth/session") {
-      await fulfillJSON(route, {
-        principal: {
-          userId: "user_browser",
-          username: "browser",
-          capabilities: ["user", "operations"],
-        },
-        csrfToken: "a".repeat(43),
-        idleExpiresAt: "2099-01-01T00:00:00Z",
-        absoluteExpiresAt: "2099-01-02T00:00:00Z",
-      });
-      return;
-    }
-    if (path === `/v1/projects/${PROJECT_ID}`) {
-      await fulfillJSON(route, project, 200, { etag: '"1"' });
-      return;
-    }
-    if (path === "/v1/audit-profiles") {
-      await fulfillJSON(route, { items: [profile], page: { hasMore: false } });
-      return;
-    }
-    if (path === "/v1/audit-profiles/source-checklist/versions/1") {
-      await fulfillJSON(route, profile, 200, {
-        etag: `"${PROFILE_DIGEST}"`,
-      });
-      return;
-    }
-    if (path === `/v1/projects/${PROJECT_ID}/artifacts`) {
-      await fulfillJSON(route, { items: [artifact], page: { hasMore: false } });
-      return;
-    }
-    if (path === `/v1/projects/${PROJECT_ID}/audits`) {
-      if (request.method() === "POST") {
-        createRequests.push({
-          headers: request.headers(),
-          body: request.postDataJSON(),
-        });
-        await fulfillJSON(route, audit, 201, { etag: '"1"' });
-      } else {
-        await fulfillJSON(route, { items: [], page: { hasMore: false } });
+  await mockAPI(
+    page,
+    async (route, request, url) => {
+      const path = url.pathname;
+      if (path === `/v1/projects/${PROJECT_ID}`) {
+        await fulfillJSON(route, project, 200, { etag: '"1"' });
+        return;
       }
-      return;
-    }
-    if (path === "/v1/audits/audit_browser/workspace") {
-      await fulfillJSON(route, {
-        auditId: audit.auditId,
-        auditRevision: audit.revision,
-        asOf: audit.updatedAt,
-        executionState: audit.state,
-        outstandingRuns: 0,
-        totalChecks: audit.state === "draft" ? 0 : 1,
-        completedChecks: audit.state === "draft" ? 0 : 1,
-        issues: 0,
-        gaps: audit.state === "draft" ? 0 : 1,
-        unchecked: 0,
-        findings: 0,
-        unreviewedFindings: 0,
-        pendingReviews: 0,
-      });
-      return;
-    }
-    if (path === "/v1/audits/audit_browser/start") {
-      audit = {
-        ...audit,
-        state: "active",
-        phase: "rounds",
-        currentRoundId: "round_browser",
-        revision: 2,
-        dispatchState: "open",
-        holdState: "held",
-        submittedRunCount: 1,
-        outstandingRunCount: 1,
-      };
-      await fulfillJSON(
-        route,
-        {
-          audit,
-          round: {
-            roundId: "round_browser",
-            ordinal: 1,
-            manifest: exactArtifact,
-            state: "executing",
-            expectedItemCount: 1,
-            revision: 1,
-            createdAt: audit.createdAt,
-            updatedAt: audit.updatedAt,
-          },
-          items: [],
-        },
-        200,
-        { etag: '"2"' },
-      );
-      return;
-    }
-    if (path === "/v1/audits/audit_browser") {
-      await fulfillJSON(route, audit, 200, { etag: `"${audit.revision}"` });
-      return;
-    }
-    if (path === "/v1/audits/audit_browser/items") {
-      // Attempts, artifacts and identity shown inside the opened Coverage row.
-      await fulfillJSON(route, {
-        items: [
+      if (path === "/v1/audit-profiles") {
+        await fulfillJSON(route, {
+          items: [profile],
+          page: { hasMore: false },
+        });
+        return;
+      }
+      if (path === "/v1/audit-profiles/source-checklist/versions/1") {
+        await fulfillJSON(route, profile, 200, {
+          etag: `"${PROFILE_DIGEST}"`,
+        });
+        return;
+      }
+      if (path === `/v1/projects/${PROJECT_ID}/artifacts`) {
+        await fulfillJSON(route, {
+          items: [artifact],
+          page: { hasMore: false },
+        });
+        return;
+      }
+      if (path === `/v1/projects/${PROJECT_ID}/audits`) {
+        if (request.method() === "POST") {
+          createRequests.push({
+            headers: request.headers(),
+            body: request.postDataJSON(),
+          });
+          await fulfillJSON(route, audit, 201, { etag: '"1"' });
+        } else {
+          await fulfillJSON(route, { items: [], page: { hasMore: false } });
+        }
+        return;
+      }
+      if (path === "/v1/audits/audit_browser/workspace") {
+        await fulfillJSON(route, {
+          auditId: audit.auditId,
+          auditRevision: audit.revision,
+          asOf: audit.updatedAt,
+          executionState: audit.state,
+          outstandingRuns: 0,
+          totalChecks: audit.state === "draft" ? 0 : 1,
+          completedChecks: audit.state === "draft" ? 0 : 1,
+          issues: 0,
+          gaps: audit.state === "draft" ? 0 : 1,
+          unchecked: 0,
+          findings: 0,
+          unreviewedFindings: 0,
+          pendingReviews: 0,
+        });
+        return;
+      }
+      if (path === "/v1/audits/audit_browser/start") {
+        audit = {
+          ...audit,
+          state: "active",
+          phase: "rounds",
+          currentRoundId: "round_browser",
+          revision: 2,
+          dispatchState: "open",
+          holdState: "held",
+          submittedRunCount: 1,
+          outstandingRunCount: 1,
+        };
+        await fulfillJSON(
+          route,
           {
-            itemId: "item_browser",
-            roundId: "round_browser",
-            itemKey: "check-authz",
-            ordinal: 0,
-            kind: "check",
-            subjectKey: "Authorization controls",
-            task: exactArtifact,
-            origin: {
-              schema: "contractor.audit.item-origin.v1",
-              entryKey: "check-authz",
-              sourceRef: exactArtifact.ref,
-              sourceContentDigest: exactArtifact.digest,
-              sourceMediaType: "application/zip",
-              canonicalInventoryDigest: `sha256:${"c".repeat(64)}`,
+            audit,
+            round: {
+              roundId: "round_browser",
+              ordinal: 1,
+              manifest: exactArtifact,
+              state: "executing",
+              expectedItemCount: 1,
+              revision: 1,
+              createdAt: audit.createdAt,
+              updatedAt: audit.updatedAt,
             },
-            workflowRole: "check",
-            state: "settled",
-            approvalKind: "none",
-            finalDisposition: "accepted-result",
-            attempts: [
-              {
-                executionItemId: "execution_item_browser",
-                executionId: "execution_browser",
-                itemId: "item_browser",
-                itemAttempt: 1,
-                role: "check",
-                state: "settled",
-                collectionDisposition: "accepted-result",
-                terminalOutcome: "succeeded",
-                runId: "run_browser",
-                runDeleted: false,
-                createdAt: audit.createdAt,
-              },
-            ],
-            createdAt: audit.createdAt,
-            updatedAt: audit.updatedAt,
+            items: [],
           },
-        ],
-        page: { hasMore: false },
-      });
-      return;
-    }
-    if (path === "/v1/audits/audit_browser/coverage") {
-      await fulfillJSON(route, {
-        items: [
-          {
-            roundId: "round_browser",
-            itemId: "item_browser",
-            ordinal: 0,
-            itemKey: "check-authz",
-            subjectKey: "Authorization controls",
-            details: {
-              objective,
-              methods: ["source-analysis"],
-              taskDocument: {
-                schema: "contractor.audit.item-task.v1",
-                checklist: {
-                  statement:
-                    "Verify ownership checks for every order operation.",
-                },
+          200,
+          { etag: '"2"' },
+        );
+        return;
+      }
+      if (path === "/v1/audits/audit_browser") {
+        await fulfillJSON(route, audit, 200, { etag: `"${audit.revision}"` });
+        return;
+      }
+      if (path === "/v1/audits/audit_browser/items") {
+        // Attempts, artifacts and identity shown inside the opened Coverage row.
+        await fulfillJSON(route, {
+          items: [
+            {
+              itemId: "item_browser",
+              roundId: "round_browser",
+              itemKey: "check-authz",
+              ordinal: 0,
+              kind: "check",
+              subjectKey: "Authorization controls",
+              task: exactArtifact,
+              origin: {
+                schema: "contractor.audit.item-origin.v1",
+                entryKey: "check-authz",
+                sourceRef: exactArtifact.ref,
+                sourceContentDigest: exactArtifact.digest,
+                sourceMediaType: "application/zip",
+                canonicalInventoryDigest: `sha256:${"c".repeat(64)}`,
               },
-              resultSummary:
-                "The service checks ownership before returning an order. Automated tests for cross-account access were not available, so this check remains inconclusive.",
-              evidence: [
+              workflowRole: "check",
+              state: "settled",
+              approvalKind: "none",
+              finalDisposition: "accepted-result",
+              attempts: [
                 {
-                  id: "order-service",
-                  kind: "observation",
-                  summary:
-                    "`OrderService.getOrder` compares the order owner with the authenticated account before reading the record.",
+                  executionItemId: "execution_item_browser",
+                  executionId: "execution_browser",
+                  itemId: "item_browser",
+                  itemAttempt: 1,
+                  role: "check",
+                  state: "settled",
+                  collectionDisposition: "accepted-result",
+                  terminalOutcome: "succeeded",
+                  runId: "run_browser",
+                  runDeleted: false,
+                  createdAt: audit.createdAt,
                 },
               ],
+              createdAt: audit.createdAt,
+              updatedAt: audit.updatedAt,
             },
-            coverage: {
-              status: "inconclusive",
-              requested: ["implementation", "tests"],
-              completed: ["implementation"],
-              gaps: ["test evidence missing"],
+          ],
+          page: { hasMore: false },
+        });
+        return;
+      }
+      if (path === "/v1/audits/audit_browser/coverage") {
+        await fulfillJSON(route, {
+          items: [
+            {
+              roundId: "round_browser",
+              itemId: "item_browser",
+              ordinal: 0,
+              itemKey: "check-authz",
+              subjectKey: "Authorization controls",
+              details: {
+                objective,
+                methods: ["source-analysis"],
+                taskDocument: {
+                  schema: "contractor.audit.item-task.v1",
+                  checklist: {
+                    statement:
+                      "Verify ownership checks for every order operation.",
+                  },
+                },
+                resultSummary:
+                  "The service checks ownership before returning an order. Automated tests for cross-account access were not available, so this check remains inconclusive.",
+                evidence: [
+                  {
+                    id: "order-service",
+                    kind: "observation",
+                    summary:
+                      "`OrderService.getOrder` compares the order owner with the authenticated account before reading the record.",
+                  },
+                ],
+              },
+              coverage: {
+                status: "inconclusive",
+                requested: ["implementation", "tests"],
+                completed: ["implementation"],
+                gaps: ["test evidence missing"],
+              },
+              updatedAt: audit.updatedAt,
             },
-            updatedAt: audit.updatedAt,
-          },
-        ],
-        page: { hasMore: false },
-      });
-      return;
-    }
-    await fulfillJSON(
-      route,
-      {
-        code: "not_found",
-        message: "not found",
-        retryable: false,
-        requestId: "request-browser",
-      },
-      404,
-    );
-  });
+          ],
+          page: { hasMore: false },
+          auditRevision: audit.revision,
+        });
+        return;
+      }
+      await fulfillEmptyPageOrNotFound(route, "not found");
+    },
+    { apiOrigin },
+  );
 
   await page.goto(`/projects/${PROJECT_ID}/audits`);
   // Checks start on the Start page; the empty list repeats the tab's link.
@@ -507,7 +441,7 @@ test("Project Audit pins exact input and exposes authoritative coverage", async 
   expect(createRequests[0]!.headers["idempotency-key"]).toMatch(
     /^create-audit-ui-/u,
   );
-  expect(createRequests[0]!.headers["x-csrf-token"]).toBe("a".repeat(43));
+  expect(createRequests[0]!.headers["x-csrf-token"]).toBe(CSRF_TOKEN);
   expect(createRequests[0]!.body).toEqual({
     profile: { name: "source-checklist", version: "1" },
     inputs: { sources: artifact.artifact },
@@ -586,16 +520,12 @@ test("audit program library renders exact Top 10 and ASVS evidence boundaries", 
       sizeBytes: 4096,
     },
   });
-  const project = {
-    projectId: PROJECT_ID,
-    kind: "project",
+  const project = projectBuilder(PROJECT_ID, {
     name: "Audit program library fixture",
     description: "Exact Top 10 and ASVS reports",
-    lifecycle: "active",
-    revision: "1",
     createdAt: now,
     updatedAt: now,
-  };
+  });
   const runtimeConfig = {
     default: {
       label: "default",
@@ -614,7 +544,7 @@ test("audit program library renders exact Top 10 and ASVS evidence boundaries", 
     auditId,
     projectId: PROJECT_ID,
     profile: { name: profileName, version: "1", digest: digest("d") },
-    inputs: {},
+    inputs: { source: auditInput() },
     scope: { objective: "Render exact program evidence." },
     runtimeLabels: [],
     state: "completed",
@@ -642,7 +572,8 @@ test("audit program library renders exact Top 10 and ASVS evidence boundaries", 
     startedAt: now,
     finishedAt: now,
     baseline: {
-      inputs: {},
+      activeChecks: "prohibited",
+      inputs: { source: auditInput() },
       scope: { objective: "Render exact program evidence." },
       runtimeLabels: [],
       runtimeConfig,
@@ -768,94 +699,62 @@ test("audit program library renders exact Top 10 and ASVS evidence boundaries", 
     },
   };
 
-  await page.route("**/runtime-config.json", (route) =>
-    route.fulfill({
-      json: {
-        uiVersion: packageMetadata.version,
-        supportedApiVersions: [API_VERSION],
-        apiBaseUrl: apiOrigin,
-      },
-    }),
-  );
-  await page.route(`${apiOrigin}/v1/**`, async (route) => {
-    const request = route.request();
-    const path = new URL(request.url()).pathname;
-    if (request.method() === "OPTIONS") {
-      await route.fulfill({
-        status: 204,
-        headers: {
-          "access-control-allow-origin": new URL(configuredBaseURL).origin,
-          "access-control-allow-credentials": "true",
-          "access-control-allow-methods": "GET, OPTIONS",
-          "access-control-allow-headers": "content-type, x-csrf-token",
-        },
-      });
-      return;
-    }
-    if (path === "/v1/auth/session") {
-      await fulfillJSON(route, {
-        principal: {
-          userId: "user_browser",
-          username: "browser",
-          capabilities: ["user", "operations"],
-        },
-        csrfToken: "p".repeat(43),
-        idleExpiresAt: "2099-01-01T00:00:00Z",
-        absoluteExpiresAt: "2099-01-02T00:00:00Z",
-      });
-      return;
-    }
-    if (path === `/v1/projects/${PROJECT_ID}`) {
-      await fulfillJSON(route, project, 200, { etag: '"1"' });
-      return;
-    }
-    const match = /^\/v1\/audits\/([^/]+)(?:\/(coverage|report))?$/u.exec(path);
-    const program =
-      match === null ? undefined : programs[match[1] as keyof typeof programs];
-    if (match !== null && program !== undefined) {
-      if (match[2] === "coverage") {
-        await fulfillJSON(route, {
-          items: program.coverage,
-          page: { hasMore: false },
-        });
-      } else if (match[2] === "report") {
-        await fulfillJSON(route, {
-          status: "ready",
-          machineArtifact: {
-            ...exact(
-              "audit-program-browser",
-              `${match[1]}-report.json`,
-              "report-json-r1",
-            ),
-            mediaType: "application/json",
-          },
-          summaryArtifact: {
-            ...exact(
-              "audit-program-browser",
-              `${match[1]}-report.md`,
-              "report-md-r1",
-            ),
-            mediaType: "text/markdown",
-          },
-          machine: { conclusion: "completed-with-gaps", certification: false },
-          summary: program.summary,
-        });
-      } else {
-        await fulfillJSON(route, program.audit, 200, { etag: '"7"' });
+  await mockAPI(
+    page,
+    async (route, request, url) => {
+      const path = url.pathname;
+      if (path === `/v1/projects/${PROJECT_ID}`) {
+        await fulfillJSON(route, project, 200, { etag: '"1"' });
+        return;
       }
-      return;
-    }
-    await fulfillJSON(
-      route,
-      {
-        code: "not_found",
-        message: "not found",
-        retryable: false,
-        requestId: "request-program-library",
-      },
-      404,
-    );
-  });
+      const match = /^\/v1\/audits\/([^/]+)(?:\/(coverage|report))?$/u.exec(
+        path,
+      );
+      const program =
+        match === null
+          ? undefined
+          : programs[match[1] as keyof typeof programs];
+      if (match !== null && program !== undefined) {
+        if (match[2] === "coverage") {
+          await fulfillJSON(route, {
+            items: program.coverage,
+            page: { hasMore: false },
+            auditRevision: program.audit.revision,
+          });
+        } else if (match[2] === "report") {
+          await fulfillJSON(route, {
+            status: "ready",
+            machineArtifact: {
+              ...exact(
+                "audit-program-browser",
+                `${match[1]}-report.json`,
+                "report-json-r1",
+              ),
+              mediaType: "application/json",
+            },
+            summaryArtifact: {
+              ...exact(
+                "audit-program-browser",
+                `${match[1]}-report.md`,
+                "report-md-r1",
+              ),
+              mediaType: "text/markdown",
+            },
+            machine: {
+              conclusion: "completed-with-gaps",
+              certification: false,
+            },
+            summary: program.summary,
+          });
+        } else {
+          await fulfillJSON(route, program.audit, 200, { etag: '"7"' });
+        }
+        return;
+      }
+      await fulfillEmptyPageOrNotFound(route, "not found");
+    },
+    { apiOrigin },
+  );
 
   const allActivity = page.getByRole("region", { name: "All activity" });
   const sections = page.getByRole("navigation", { name: "Check sections" });
@@ -939,16 +838,12 @@ for (const viewport of [
       ...exact("report.md", "report-summary-r1"),
       digest: `sha256:${"8".repeat(64)}`,
     };
-    const project = {
-      projectId: PROJECT_ID,
-      kind: "project",
+    const project = projectBuilder(PROJECT_ID, {
       name: "Audit review fixture",
       description: "Browser lifecycle fixture",
-      lifecycle: "active",
-      revision: "1",
       createdAt: now,
       updatedAt: now,
-    };
+    });
     const baseAudit = {
       auditId,
       projectId: PROJECT_ID,
@@ -957,7 +852,7 @@ for (const viewport of [
         version: "1",
         digest: PROFILE_DIGEST,
       },
-      inputs: {},
+      inputs: { source: auditInput() },
       scope: { objective: "Review retained evidence." },
       runtimeLabels: [],
       dispatchState: "closed",
@@ -1087,244 +982,205 @@ for (const viewport of [
       ifMatch: string | undefined;
     }> = [];
 
-    await page.route("**/runtime-config.json", (route) =>
-      route.fulfill({
-        json: {
-          uiVersion: packageMetadata.version,
-          supportedApiVersions: [API_VERSION],
-          apiBaseUrl: apiOrigin,
-        },
-      }),
-    );
-    await page.route(`${apiOrigin}/v1/**`, async (route) => {
-      const request = route.request();
-      const path = new URL(request.url()).pathname;
-      if (request.method() === "OPTIONS") {
-        await route.fulfill({
-          status: 204,
-          headers: {
-            "access-control-allow-origin": new URL(configuredBaseURL).origin,
-            "access-control-allow-credentials": "true",
-            "access-control-allow-methods": "GET, POST, DELETE, OPTIONS",
-            "access-control-allow-headers":
-              "content-type, idempotency-key, if-match, x-csrf-token",
-          },
-        });
-        return;
-      }
-      if (path === "/v1/auth/session") {
-        await fulfillJSON(route, {
-          principal: {
-            userId: "user_browser",
-            username: "browser",
-            capabilities: ["user", "operations"],
-          },
-          csrfToken: "b".repeat(43),
-          idleExpiresAt: "2099-01-01T00:00:00Z",
-          absoluteExpiresAt: "2099-01-02T00:00:00Z",
-        });
-        return;
-      }
-      if (path === `/v1/projects/${PROJECT_ID}`) {
-        await fulfillJSON(route, project, 200, { etag: '"1"' });
-        return;
-      }
-      if (path === `/v1/audits/${auditId}` && request.method() === "GET") {
-        await fulfillJSON(route, audit, 200, { etag: `"${audit.revision}"` });
-        return;
-      }
-      if (path === `/v1/audits/${auditId}/findings/${findingId}`) {
-        await fulfillJSON(route, finding, 200, {
-          etag: `"${finding.revision}"`,
-        });
-        return;
-      }
-      if (path === `/v1/audits/${auditId}/reviews/${reviewId}`) {
-        await fulfillJSON(route, review, 200, { etag: `"${review.revision}"` });
-        return;
-      }
-      if (path === `/v1/audits/${auditId}/workspace`) {
-        await fulfillJSON(route, {
-          auditId,
-          auditRevision: audit.revision,
-          asOf: now,
-          executionState: audit.state,
-          outstandingRuns: 0,
-          totalChecks: 0,
-          completedChecks: 0,
-          issues: 0,
-          gaps: 0,
-          unchecked: 0,
-          findings: 1,
-          unreviewedFindings: finding.state === "proposed" ? 1 : 0,
-          pendingReviews: review.state === "pending" ? 1 : 0,
-        });
-        return;
-      }
-      if (path === `/v1/audits/${auditId}/findings`) {
-        await fulfillJSON(route, {
-          items: [finding],
-          page: { hasMore: false },
-          total: 1,
-          auditRevision: audit.revision,
-          asOf: now,
-        });
-        return;
-      }
-      if (path === `/v1/audits/${auditId}/reviews`) {
-        const params = new URL(request.url()).searchParams;
-        if (
-          params.has("auditRevision") &&
-          params.get("auditRevision") !== String(audit.revision)
-        ) {
-          await fulfillJSON(
-            route,
-            {
-              code: "conflict",
-              message: "Audit revision changed",
-              requestId: "stale-page",
-              retryable: false,
-            },
-            409,
-          );
+    await mockAPI(
+      page,
+      async (route, request, url) => {
+        const path = url.pathname;
+        if (path === `/v1/projects/${PROJECT_ID}`) {
+          await fulfillJSON(route, project, 200, { etag: '"1"' });
           return;
         }
-        const items = [review, reportReview].filter(
-          (item) =>
-            (!params.has("state") || item.state === params.get("state")) &&
-            (!params.has("finding") ||
-              ("findingId" in item &&
-                item.findingId === params.get("finding"))),
-        );
-        await fulfillJSON(route, {
-          items,
-          page: { hasMore: false },
-          total: 51,
-          auditRevision: audit.revision,
-          asOf: now,
-        });
-        return;
-      }
-      if (path === `/v1/audits/${auditId}/findings/${findingId}/provenance`) {
-        await fulfillJSON(route, {
-          auditRevision: audit.revision,
-          findingRevision: finding.revision,
-          items: [
-            {
-              recordId: "source:receipt_browser",
-              kind: "source-proposal",
-              receiptId: proposal.receiptId,
-              relation: "source",
-              proposal: proposal.proposal,
-              origin: proposal.origin,
-              supportsCurrentAssessment: false,
-              createdAt: now,
+        if (path === `/v1/audits/${auditId}` && request.method() === "GET") {
+          await fulfillJSON(route, audit, 200, { etag: `"${audit.revision}"` });
+          return;
+        }
+        if (path === `/v1/audits/${auditId}/findings/${findingId}`) {
+          await fulfillJSON(route, finding, 200, {
+            etag: `"${finding.revision}"`,
+          });
+          return;
+        }
+        if (path === `/v1/audits/${auditId}/reviews/${reviewId}`) {
+          await fulfillJSON(route, review, 200, {
+            etag: `"${review.revision}"`,
+          });
+          return;
+        }
+        if (path === `/v1/audits/${auditId}/workspace`) {
+          await fulfillJSON(route, {
+            auditId,
+            auditRevision: audit.revision,
+            asOf: now,
+            executionState: audit.state,
+            outstandingRuns: 0,
+            totalChecks: 0,
+            completedChecks: 0,
+            issues: 0,
+            gaps: 0,
+            unchecked: 0,
+            findings: 1,
+            unreviewedFindings: finding.state === "proposed" ? 1 : 0,
+            pendingReviews: review.state === "pending" ? 1 : 0,
+          });
+          return;
+        }
+        if (path === `/v1/audits/${auditId}/findings`) {
+          await fulfillJSON(route, {
+            items: [finding],
+            page: { hasMore: false },
+            total: 1,
+            auditRevision: audit.revision,
+            asOf: now,
+          });
+          return;
+        }
+        if (path === `/v1/audits/${auditId}/reviews`) {
+          const params = new URL(request.url()).searchParams;
+          if (
+            params.has("auditRevision") &&
+            params.get("auditRevision") !== String(audit.revision)
+          ) {
+            await fulfillJSON(
+              route,
+              {
+                code: "conflict",
+                message: "Audit revision changed",
+                requestId: "stale-page",
+                retryable: false,
+              },
+              409,
+            );
+            return;
+          }
+          const items = [review, reportReview].filter(
+            (item) =>
+              (!params.has("state") || item.state === params.get("state")) &&
+              (!params.has("finding") ||
+                ("findingId" in item &&
+                  item.findingId === params.get("finding"))),
+          );
+          await fulfillJSON(route, {
+            items,
+            page: { hasMore: false },
+            total: 51,
+            auditRevision: audit.revision,
+            asOf: now,
+          });
+          return;
+        }
+        if (path === `/v1/audits/${auditId}/findings/${findingId}/provenance`) {
+          await fulfillJSON(route, {
+            auditRevision: audit.revision,
+            findingRevision: finding.revision,
+            items: [
+              {
+                recordId: "source:receipt_browser",
+                kind: "source-proposal",
+                receiptId: proposal.receiptId,
+                relation: "first",
+                proposal: proposal.proposal,
+                origin: proposal.origin,
+                supportsCurrentAssessment: false,
+                createdAt: now,
+              },
+            ],
+            page: { hasMore: false },
+          });
+          return;
+        }
+        if (
+          path === `/v1/audits/${auditId}/reviews/${reviewId}/decisions` &&
+          request.method() === "POST"
+        ) {
+          mutations.push({
+            method: request.method(),
+            path,
+            ifMatch: request.headers()["if-match"],
+          });
+          const decision = {
+            decisionId: "decision_browser",
+            requestId: reviewId,
+            auditId,
+            findingId,
+            actorId: "user_browser",
+            verdict: "true_positive",
+            severity: "high",
+            rationale: "Confirmed against the retained exact source revision.",
+            subjectRevision: 1,
+            subjectDigest: reviewSubjectDigest,
+            createdAt: now,
+          };
+          finding = {
+            ...finding,
+            state: "confirmed",
+            revision: 2,
+            analystVerdict: "true_positive",
+            analystSeverity: "high",
+            analystDecision: decision,
+          };
+          review = { ...review, state: "decided", revision: 2, decision };
+          audit = { ...audit, revision: 2, eventSequence: 6 };
+          await fulfillJSON(route, {
+            finding,
+            request: review,
+            decision,
+            replayed: false,
+          });
+          return;
+        }
+        if (path === `/v1/audits/${auditId}/report`) {
+          await fulfillJSON(route, {
+            status: "proposed",
+            review: reportReview,
+            machineArtifact,
+            summaryArtifact,
+            machine: {
+              conclusion: "completed-with-gaps",
+              certification: false,
             },
-          ],
-          page: { hasMore: false },
-        });
-        return;
-      }
-      if (
-        path === `/v1/audits/${auditId}/reviews/${reviewId}/decisions` &&
-        request.method() === "POST"
-      ) {
-        mutations.push({
-          method: request.method(),
-          path,
-          ifMatch: request.headers()["if-match"],
-        });
-        const decision = {
-          decisionId: "decision_browser",
-          requestId: reviewId,
-          auditId,
-          findingId,
-          actorId: "user_browser",
-          verdict: "true_positive",
-          severity: "high",
-          rationale: "Confirmed against the retained exact source revision.",
-          subjectRevision: 1,
-          subjectDigest: reviewSubjectDigest,
-          createdAt: now,
-        };
-        finding = {
-          ...finding,
-          state: "confirmed",
-          revision: 2,
-          analystVerdict: "true_positive",
-          analystSeverity: "high",
-          analystDecision: decision,
-        };
-        review = { ...review, state: "decided", revision: 2, decision };
-        audit = { ...audit, revision: 2, eventSequence: 6 };
-        await fulfillJSON(route, {
-          finding,
-          request: review,
-          decision,
-          replayed: false,
-        });
-        return;
-      }
-      if (path === `/v1/audits/${auditId}/report`) {
-        await fulfillJSON(route, {
-          status: "proposed",
-          review: reportReview,
-          machineArtifact,
-          summaryArtifact,
-          machine: {
-            conclusion: "completed-with-gaps",
-            certification: false,
-          },
-          summary:
-            "One exact finding awaits report acceptance; this is not a certification.",
-        });
-        return;
-      }
-      if (
-        path === `/v1/audits/${auditId}/cancel` &&
-        request.method() === "POST"
-      ) {
-        mutations.push({
-          method: request.method(),
-          path,
-          ifMatch: request.headers()["if-match"],
-        });
-        audit = {
-          ...audit,
-          state: "cancelled",
-          revision: 3,
-          eventSequence: 7,
-          holdState: "released",
-        };
-        await fulfillJSON(route, audit, 200, { etag: '"3"' });
-        return;
-      }
-      if (path === `/v1/audits/${auditId}` && request.method() === "DELETE") {
-        mutations.push({
-          method: request.method(),
-          path,
-          ifMatch: request.headers()["if-match"],
-        });
-        audit = {
-          ...audit,
-          state: "deleting",
-          revision: 4,
-          eventSequence: 8,
-        };
-        await fulfillJSON(route, audit, 200, { etag: '"4"' });
-        return;
-      }
-      await fulfillJSON(
-        route,
-        {
-          code: "not_found",
-          message: "not found",
-          retryable: false,
-          requestId: "request-review-browser",
-        },
-        404,
-      );
-    });
+            summary:
+              "One exact finding awaits report acceptance; this is not a certification.",
+          });
+          return;
+        }
+        if (
+          path === `/v1/audits/${auditId}/cancel` &&
+          request.method() === "POST"
+        ) {
+          mutations.push({
+            method: request.method(),
+            path,
+            ifMatch: request.headers()["if-match"],
+          });
+          audit = {
+            ...audit,
+            state: "cancelled",
+            revision: 3,
+            eventSequence: 7,
+            holdState: "released",
+          };
+          await fulfillJSON(route, audit, 202, { etag: '"3"' });
+          return;
+        }
+        if (path === `/v1/audits/${auditId}` && request.method() === "DELETE") {
+          mutations.push({
+            method: request.method(),
+            path,
+            ifMatch: request.headers()["if-match"],
+          });
+          audit = {
+            ...audit,
+            state: "deleting",
+            revision: 4,
+            eventSequence: 8,
+          };
+          await fulfillJSON(route, audit, 202, { etag: '"4"' });
+          return;
+        }
+        await fulfillEmptyPageOrNotFound(route, "not found");
+      },
+      { apiOrigin },
+    );
 
     const queueURL = `/projects/${PROJECT_ID}/audits/${auditId}/reviews?state=pending&cursor=review-page-two&auditRevision=1`;
     await page.goto(queueURL);

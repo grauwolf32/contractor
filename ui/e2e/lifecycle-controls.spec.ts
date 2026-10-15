@@ -1,36 +1,18 @@
-import { expect, test, type Page, type Route } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
-import packageMetadata from "../package.json" with { type: "json" };
+import { project } from "../src/test/builders";
+import {
+  CSRF_TOKEN,
+  fulfillEmpty,
+  fulfillEmptyPageOrNotFound,
+  fulfillError,
+  fulfillJSON,
+  mockAPI,
+} from "./support/mock-api";
 
-const API_VERSION = "contractor.public.v1";
-const CSRF_TOKEN = "l".repeat(43);
 const PROJECT_ID = "project-lifecycle-browser";
 
-function responseHeaders(
-  extra: Record<string, string> = {},
-): Record<string, string> {
-  return {
-    "cache-control": "no-store",
-    "content-type": "application/json",
-    "x-contractor-api-version": API_VERSION,
-    ...extra,
-  };
-}
-
-async function fulfillJSON(
-  route: Route,
-  value: unknown,
-  status = 200,
-  extraHeaders: Record<string, string> = {},
-): Promise<void> {
-  await route.fulfill({
-    body: JSON.stringify(value),
-    headers: responseHeaders(extraHeaders),
-    status,
-  });
-}
-
-async function installLifecycleAPI(page: Page, uiOrigin: string) {
+async function installLifecycleAPI(page: Page) {
   let queuePaused = false;
   let queueRevision = 0;
   let runDeleted = false;
@@ -42,17 +24,13 @@ async function installLifecycleAPI(page: Page, uiOrigin: string) {
     headers: Record<string, string>;
   }> = [];
 
-  const activeProject = {
-    projectId: PROJECT_ID,
-    kind: "project",
+  const activeProject = project(PROJECT_ID, {
     name: "Lifecycle browser",
     description: "Lifecycle release fixture",
-    lifecycle: "active",
-    revision: "1",
     createdAt: "2026-09-05T08:00:00Z",
     updatedAt: "2026-09-05T08:00:00Z",
-  };
-  const deletingProject = {
+  });
+  const deletingProject = project(PROJECT_ID, {
     ...activeProject,
     lifecycle: "deleting",
     revision: "2",
@@ -61,33 +39,9 @@ async function installLifecycleAPI(page: Page, uiOrigin: string) {
       phase: "draining",
       requestedAt: "2026-09-05T08:05:00Z",
     },
-  };
+  });
 
-  await page.route("**/runtime-config.json", (route) =>
-    route.fulfill({
-      json: {
-        uiVersion: packageMetadata.version,
-        supportedApiVersions: [API_VERSION],
-        apiBaseUrl: uiOrigin,
-      },
-    }),
-  );
-  await page.route(`${uiOrigin}/v1/**`, async (route) => {
-    const request = route.request();
-    const url = new URL(request.url());
-    if (url.pathname === "/v1/auth/session") {
-      await fulfillJSON(route, {
-        principal: {
-          userId: "user-lifecycle-browser",
-          username: "lifecycle",
-          capabilities: ["user", "operations"],
-        },
-        csrfToken: CSRF_TOKEN,
-        idleExpiresAt: "2099-01-01T00:00:00Z",
-        absoluteExpiresAt: "2099-01-02T00:00:00Z",
-      });
-      return;
-    }
+  await mockAPI(page, async (route, request, url) => {
     if (url.pathname === "/v1/queue/control") {
       if (request.method() === "PUT") {
         writes.push({
@@ -144,7 +98,7 @@ async function installLifecycleAPI(page: Page, uiOrigin: string) {
         headers: request.headers(),
       });
       runDeleted = true;
-      await route.fulfill({ status: 204, headers: responseHeaders() });
+      await fulfillEmpty(route);
       return;
     }
     if (url.pathname === "/v1/projects" && request.method() === "GET") {
@@ -168,16 +122,7 @@ async function installLifecycleAPI(page: Page, uiOrigin: string) {
         return;
       }
       if (projectDeleted) {
-        await fulfillJSON(
-          route,
-          {
-            code: "not_found",
-            message: "resource was not found",
-            retryable: false,
-            requestId: "request-lifecycle-project-deleted",
-          },
-          404,
-        );
+        await fulfillError(route, 404, "not_found", "resource was not found");
         return;
       }
       const project = projectDeleting ? deletingProject : activeProject;
@@ -191,20 +136,7 @@ async function installLifecycleAPI(page: Page, uiOrigin: string) {
       await fulfillJSON(route, { items: [], page: { hasMore: false } });
       return;
     }
-    if (url.pathname === "/v1/workflows") {
-      await fulfillJSON(route, { items: [], page: { hasMore: false } });
-      return;
-    }
-    await fulfillJSON(
-      route,
-      {
-        code: "not_found",
-        message: "not found",
-        retryable: false,
-        requestId: "request-lifecycle-unexpected",
-      },
-      404,
-    );
+    await fulfillEmptyPageOrNotFound(route);
   });
 
   return {
@@ -217,15 +149,8 @@ async function installLifecycleAPI(page: Page, uiOrigin: string) {
 
 test("independently served UI completes lifecycle controls without manual reload", async ({
   page,
-}, testInfo) => {
-  const configuredBaseURL = testInfo.project.use.baseURL;
-  if (typeof configuredBaseURL !== "string") {
-    throw new Error("Playwright baseURL is required");
-  }
-  const fixture = await installLifecycleAPI(
-    page,
-    new URL(configuredBaseURL).origin,
-  );
+}) => {
+  const fixture = await installLifecycleAPI(page);
 
   await page.goto("/runs");
   await page.getByRole("button", { name: "Pause queue" }).click();

@@ -1,5 +1,5 @@
 import { spawn, execFileSync } from "node:child_process";
-import { readFile, mkdtemp, rm } from "node:fs/promises";
+import { readFile, readdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -8,6 +8,57 @@ import { createStaticServer } from "./static-server.mjs";
 import { UI_VERSION } from "./runtime-config.mjs";
 
 const uiRoot = fileURLToPath(new URL("..", import.meta.url));
+const SUPPORT_DIRECTORY = "support";
+
+/**
+ * The places in the browser specs under `e2eDir` that answer a routed
+ * request themselves. Every answer goes through e2e/support/mock-api.ts,
+ * which checks it against the public contract before serving it (UI-R196);
+ * a direct route.fulfill would serve a body the contract never checked.
+ */
+export async function directFulfilments(e2eDir) {
+  const found = [];
+  for (const entry of await readdir(e2eDir, {
+    recursive: true,
+    withFileTypes: true,
+  })) {
+    if (!entry.isFile() || !entry.name.endsWith(".ts")) continue;
+    const path = join(entry.parentPath, entry.name);
+    const relative = path.slice(e2eDir.length + 1);
+    if (relative.split(/[\\/]/)[0] === SUPPORT_DIRECTORY) continue;
+    const lines = (await readFile(path, "utf8")).split("\n");
+    lines.forEach((line, index) => {
+      if (/\.fulfill\s*\(/.test(line)) found.push(`${relative}:${index + 1}`);
+    });
+  }
+  return found.sort();
+}
+
+/**
+ * Refuses a spec inventory that differs from the gate lists, and specs that
+ * bypass the contract-checked mock answers.
+ */
+export async function checkBrowserSpecs(e2eDir, listedSpecs) {
+  const listed = new Set(listedSpecs);
+  const actual = new Set(
+    (await readdir(e2eDir))
+      .filter((name) => name.endsWith(".spec.ts"))
+      .map((name) => `e2e/${name}`),
+  );
+  const unlisted = [...actual].filter((name) => !listed.has(name));
+  const missing = [...listed].filter((name) => !actual.has(name));
+  if (unlisted.length !== 0 || missing.length !== 0) {
+    throw new Error(
+      `browser spec inventory differs: unlisted=${unlisted.join(", ")} missing=${missing.join(", ")}`,
+    );
+  }
+  const direct = await directFulfilments(e2eDir);
+  if (direct.length !== 0) {
+    throw new Error(
+      `browser specs answer requests without the contract check of e2e/support/mock-api.ts: ${direct.join(", ")}`,
+    );
+  }
+}
 
 // A zero exit status can still mean that Playwright skipped every selected
 // case. Require actual passing attempts from every explicitly selected file.

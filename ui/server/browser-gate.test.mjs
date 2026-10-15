@@ -1,7 +1,15 @@
 import assert from "node:assert/strict";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { test } from "node:test";
+import { fileURLToPath } from "node:url";
 
-import { validateBrowserReport } from "./browser-gate.mjs";
+import {
+  checkBrowserSpecs,
+  directFulfilments,
+  validateBrowserReport,
+} from "./browser-gate.mjs";
 
 function report() {
   return {
@@ -55,4 +63,35 @@ test("browser gate requires passing attempts in every selected file", () => {
     () => validateBrowserReport(failedAttempt, ["e2e/catalog.spec.ts"]),
     /non-passing attempt/,
   );
+});
+
+test("browser specs answer requests only through the contract-checked mock", async () => {
+  const e2eDir = await mkdtemp(join(tmpdir(), "contractor-e2e-probe-"));
+  try {
+    await mkdir(join(e2eDir, "support"));
+    await writeFile(
+      join(e2eDir, "support", "mock-api.ts"),
+      "await route.fulfill({ status: 204 });\n",
+    );
+    await writeFile(
+      join(e2eDir, "probe.spec.ts"),
+      "test();\nawait route.fulfill({ json: {} });\n",
+    );
+    assert.deepEqual(await directFulfilments(e2eDir), ["probe.spec.ts:2"]);
+    await assert.rejects(
+      checkBrowserSpecs(e2eDir, ["e2e/probe.spec.ts"]),
+      /without the contract check .*probe.spec.ts:2/,
+    );
+    await assert.rejects(
+      checkBrowserSpecs(e2eDir, []),
+      /unlisted=e2e\/probe.spec.ts/,
+    );
+  } finally {
+    await rm(e2eDir, { recursive: true, force: true });
+  }
+});
+
+test("the browser specs serve no unchecked answer", async () => {
+  const e2eDir = fileURLToPath(new URL("../e2e", import.meta.url));
+  assert.deepEqual(await directFulfilments(e2eDir), []);
 });
