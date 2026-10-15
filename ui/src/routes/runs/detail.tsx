@@ -280,15 +280,6 @@ function LoadedRunHeader({
   );
 }
 
-type DisclosureKey =
-  | "metrics"
-  | "attempts"
-  | "labels"
-  | "bindings"
-  | "runtime"
-  | "artifacts"
-  | "cancellation";
-
 /**
  * The body of a loaded Run: triage, results, publications and Technical
  * details. It is mounted with the first snapshot, whose state decides which
@@ -333,9 +324,7 @@ function RunBody({
   // Heavy sections stay open while a Run is active or failed (diagnostics
   // matter) and start collapsed once it ended otherwise; reference material
   // always starts collapsed.
-  const [disclosures, setDisclosures] = useState<
-    Record<DisclosureKey, boolean>
-  >(() => {
+  const [disclosures, setDisclosures] = useState(() => {
     const open = !isTerminalRunState(run.state) || run.state === "failed";
     return {
       metrics: run.state !== "succeeded",
@@ -353,7 +342,7 @@ function RunBody({
   const [instructionOverrides, setInstructionOverrides] = useState<
     Record<string, boolean>
   >({});
-  function disclosure(key: DisclosureKey): RunDisclosureProps {
+  function disclosure(key: keyof typeof disclosures): RunDisclosureProps {
     return {
       open: disclosures[key],
       onToggle: (event) => {
