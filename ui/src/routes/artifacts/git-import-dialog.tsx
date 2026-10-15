@@ -1,6 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { useEffect, useId, useRef, useState, type FormEvent } from "react";
+import { useId, useRef, useState, type FormEvent } from "react";
 import { Link } from "react-router";
+
 import {
   ARTIFACT_NAME_PATTERN,
   getArtifactMetadata,
@@ -15,9 +16,12 @@ import {
 } from "../../api/git-artifacts";
 import { getProjectArtifactMetadata } from "../../api/project-artifacts";
 import { queryKeys } from "../../api/query-keys";
+import { writeConflict } from "../../app/conflict";
 import { Dialog, DialogHeader } from "../../app/dialog";
 import { ErrorNotice } from "../../app/error-notice";
 import { RecordedTime } from "../../app/recorded-time";
+import { Button } from "../../ui";
+import { useUploadOperation } from "./upload-operation";
 import "./git-artifacts.css";
 import "./materials.css";
 
@@ -69,13 +73,9 @@ export function GitImportDialog({
   const [replace, setReplace] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<unknown>();
-  const operation = useRef<AbortController | null>(null);
+  const operation = useUploadOperation(onClose);
+  const close = operation.close;
   const initialFocus = useRef<HTMLInputElement>(null);
-  useEffect(() => () => operation.current?.abort(), []);
-  function close() {
-    operation.current?.abort();
-    onClose();
-  }
   function changeTarget(update: () => void) {
     update();
     setBaseline(undefined);
@@ -99,8 +99,7 @@ export function GitImportDialog({
       setError(new Error("Enter a repository URL without surrounding spaces."));
       return;
     }
-    const controller = new AbortController();
-    operation.current = controller;
+    const signal = operation.start();
     setPending(true);
     setError(undefined);
     try {
@@ -119,7 +118,7 @@ export function GitImportDialog({
           if (!(error instanceof PublicAPIError && error.status === 404))
             throw error;
         }
-        if (controller.signal.aborted) return;
+        if (signal.aborted) return;
         if (current !== undefined) {
           setBaseline(current);
           setReplace(false);
@@ -138,9 +137,9 @@ export function GitImportDialog({
             ? {}
             : { expectedRevision: baseline.artifact.revision }),
         },
-        controller.signal,
+        signal,
       );
-      if (controller.signal.aborted) return;
+      if (signal.aborted) return;
       void cache.invalidateQueries({
         queryKey:
           projectId === undefined
@@ -149,20 +148,20 @@ export function GitImportDialog({
       });
       onImported(result);
     } catch (error) {
-      if (!controller.signal.aborted) {
+      if (!signal.aborted) {
         setError(error);
-        if (error instanceof PublicAPIError && error.status === 409) {
+        if (writeConflict(error) !== undefined) {
           setBaseline(undefined);
           setReplace(false);
         }
       }
     } finally {
-      if (!controller.signal.aborted) setPending(false);
+      if (!signal.aborted) setPending(false);
     }
   }
   return (
     <Dialog
-      className="ui-dialog ui-panel materials-sheet git-import-dialog"
+      className="ui-dialog ui-panel materials-sheet"
       labelledBy={heading}
       describedBy={description}
       initialFocusRef={initialFocus}
@@ -262,26 +261,24 @@ export function GitImportDialog({
           </div>
         )}
         {error === undefined ? null : <ErrorNotice error={error} />}
-        <p className="materials-quiet">
+        <p className="ui-caption">
           An import can take up to two minutes. If you cancel it or lose the
           response, look for it before trying again: a complete import may
           already be stored.
         </p>
-        <div className="materials-form-actions">
-          <button type="button" className="ui-btn" onClick={close}>
+        <div className="ui-toolbar" data-justify="end">
+          <Button onClick={close}>
             {pending ? "Cancel import" : "Cancel"}
-          </button>
-          <button
+          </Button>
+          <Button
             type="submit"
-            className="ui-btn"
-            data-variant="primary"
-            disabled={
-              pending ||
-              (baseline !== undefined && (!replace || baseline.frozen))
-            }
+            variant="primary"
+            pending={pending}
+            pendingLabel="Importing…"
+            disabled={baseline !== undefined && (!replace || baseline.frozen)}
           >
-            {pending ? "Importing…" : "Import snapshot"}
-          </button>
+            Import snapshot
+          </Button>
         </div>
       </form>
     </Dialog>

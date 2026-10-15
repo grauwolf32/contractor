@@ -3,7 +3,7 @@ import { useId, useRef, useState, type ReactNode } from "react";
 import type { WorkflowSummary } from "../../api/workflows";
 import { Dialog } from "../../app/dialog";
 import { Icon } from "../../app/icon";
-import { IdChip } from "../../ui";
+import { IconButton, IdChip } from "../../ui";
 import { workflowSelector } from "./presentation";
 import "./overview.css";
 
@@ -52,17 +52,15 @@ export function WorkflowRunDrawer({
             />
           </code>
         </div>
-        <button
+        <IconButton
           ref={close}
-          className="ui-btn workflow-drawer-close"
-          data-variant="ghost"
-          type="button"
-          aria-label="Close Run setup"
+          className="workflow-drawer-close"
+          label="Close Run setup"
+          icon={<Icon name="close" size={18} />}
+          variant="ghost"
           disabled={submitting}
           onClick={onClose}
-        >
-          <Icon name="close" />
-        </button>
+        />
       </header>
       <p className="workflow-drawer-description" id={description}>
         {projectId

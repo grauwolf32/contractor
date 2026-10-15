@@ -1,6 +1,6 @@
 .http-evidence {
   min-width: 0;
-  padding: 1rem;
+  padding: var(--space-4);
   color: var(--text);
 }
 .http-evidence-heading,
@@ -8,7 +8,7 @@
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 0.5rem;
+  gap: var(--space-2);
   min-width: 0;
 }
 .http-evidence-heading code {
@@ -16,22 +16,22 @@
   min-width: 0;
 }
 .http-evidence h4 {
-  margin-block: 1rem 0.5rem;
+  margin-block: var(--space-4) var(--space-2);
 }
 .http-evidence-actions h4 {
   margin-inline-end: auto;
 }
 .http-evidence-headers {
-  margin: 0.5rem 0;
+  margin: var(--space-2) 0;
 }
 .http-evidence-headers > div {
   display: grid;
   grid-template-columns: minmax(6rem, 1fr) minmax(0, 3fr);
-  gap: 0.5rem;
-  padding-block: 0.4rem;
+  gap: var(--space-2);
+  padding-block: var(--space-1-5);
   border-bottom: 1px solid var(--line);
   font-family: var(--font-mono);
-  font-size: 0.8rem;
+  font-size: var(--text-sm);
 }
 .http-evidence-headers dt,
 .http-evidence-headers dd {
@@ -42,8 +42,8 @@
 .http-evidence-attempt {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  margin-block: 1rem;
+  gap: var(--space-2);
+  margin-block: var(--space-4);
 }
 .http-evidence-outcome {
   font-weight: 600;
@@ -55,10 +55,10 @@
 }
 @media (max-width: 480px) {
   .http-evidence {
-    padding: 0.75rem;
+    padding: var(--space-3);
   }
   .http-evidence-headers > div {
     grid-template-columns: minmax(0, 1fr);
-    gap: 0.2rem;
+    gap: var(--space-1);
   }
 }

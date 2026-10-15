@@ -1,6 +1,7 @@
 import { type FormEvent, type ReactNode, useState } from "react";
 
 import { ARTIFACT_NAME_PATTERN } from "../../api/artifacts";
+import { Button } from "../../ui";
 import "./materials.css";
 
 /**
@@ -43,9 +44,9 @@ export function useNamespaceFilter({
             defaultValue={value ?? ""}
           />
         </label>
-        <button className="ui-btn" data-size="sm" type="submit">
+        <Button size="sm" type="submit">
           Apply
-        </button>
+        </Button>
       </form>
     ),
     error:

@@ -47,12 +47,12 @@ describe("Diff Artifact preview", () => {
     expect(screen.getByText("1 file changed")).toBeInTheDocument();
     expect(screen.getByText("+2 additions")).toBeInTheDocument();
     expect(screen.getByText("−1 deletion")).toBeInTheDocument();
-    expect(view.container.querySelectorAll(".diff-line-addition")).toHaveLength(
-      2,
-    );
-    expect(view.container.querySelectorAll(".diff-line-deletion")).toHaveLength(
-      1,
-    );
+    expect(
+      view.container.querySelectorAll('.diff-line[data-kind="addition"]'),
+    ).toHaveLength(2);
+    expect(
+      view.container.querySelectorAll('.diff-line[data-kind="deletion"]'),
+    ).toHaveLength(1);
   });
 
   it("does not mistake changed content for the next file header", () => {
@@ -116,12 +116,12 @@ describe("Diff Artifact preview", () => {
       "addition",
     );
     const view = render(<DiffArtifactPreview source={patch} />);
-    expect(view.container.querySelectorAll(".diff-line-deletion")).toHaveLength(
-      1,
-    );
-    expect(view.container.querySelectorAll(".diff-line-addition")).toHaveLength(
-      1,
-    );
+    expect(
+      view.container.querySelectorAll('.diff-line[data-kind="deletion"]'),
+    ).toHaveLength(1);
+    expect(
+      view.container.querySelectorAll('.diff-line[data-kind="addition"]'),
+    ).toHaveLength(1);
     expect(screen.getByText("+1 addition")).toBeVisible();
     expect(screen.getByText("−1 deletion")).toBeVisible();
   });

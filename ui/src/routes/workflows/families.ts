@@ -19,6 +19,16 @@ export function groupWorkflowVersions(items: readonly WorkflowSummary[]) {
     }));
 }
 
+/**
+ * Whether every version of a family is a dotted number, so "Latest" and
+ * "Earlier version" follow publication order (compareVersions).
+ */
+export function hasNumericVersions(
+  versions: readonly WorkflowSummary[],
+): boolean {
+  return versions.every((item) => /^\d+(?:\.\d+)*$/.test(item.ref.version));
+}
+
 export function useWorkflowFamilies(items: readonly WorkflowSummary[]) {
   const [choices, setChoices] = useState<Record<string, string>>({});
   return {

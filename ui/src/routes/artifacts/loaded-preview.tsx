@@ -3,16 +3,17 @@ import {
   lazy,
   Suspense,
   useEffect,
-  useId,
   useState,
   type ReactNode,
 } from "react";
+
 import {
   createArtifactPreviewPlan,
   type ArtifactPreviewPlan,
 } from "./preview-plan";
 import { ScanReportSummary } from "./scan-report-summary";
 import type { HTTPPreviewContext } from "./previews/http-exchange";
+import { PanelTabs } from "./tabs";
 import "./materials.css";
 
 const MarkdownArtifactPreview = lazy(() => import("./previews/markdown"));
@@ -31,10 +32,6 @@ const RENDERER_LABELS = {
 } as const;
 
 type RenderedPlan = Exclude<ArtifactPreviewPlan, { kind: "source" }>;
-
-function rendererLabel(plan: RenderedPlan): string {
-  return RENDERER_LABELS[plan.kind];
-}
 
 function Renderer({
   plan,
@@ -103,8 +100,6 @@ export function LoadedArtifactPreview({
   context?: HTTPPreviewContext | undefined;
 }) {
   const [plan, setPlan] = useState<ArtifactPreviewPlan>();
-  const [tab, setTab] = useState<"rendered" | "source">("rendered");
-  const id = useId();
 
   useEffect(() => {
     let active = true;
@@ -140,88 +135,40 @@ export function LoadedArtifactPreview({
     );
   }
 
-  const renderedTabId = `${id}-rendered-tab`;
-  const renderedPanelId = `${id}-rendered-panel`;
-  const sourceTabId = `${id}-source-tab`;
-  const sourcePanelId = `${id}-source-panel`;
   return (
     <div className="materials-preview-shell">
-      <div
-        aria-label="Preview mode"
-        className="materials-tabs"
-        role="tablist"
-        onKeyDown={(event) => {
-          if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key))
-            return;
-          event.preventDefault();
-          const next =
-            event.key === "Home"
-              ? "rendered"
-              : event.key === "End"
-                ? "source"
-                : tab === "rendered"
-                  ? "source"
-                  : "rendered";
-          setTab(next);
-          document
-            .getElementById(next === "rendered" ? renderedTabId : sourceTabId)
-            ?.focus();
-        }}
-      >
-        <button
-          aria-controls={renderedPanelId}
-          aria-selected={tab === "rendered"}
-          tabIndex={tab === "rendered" ? 0 : -1}
-          className="materials-tab"
-          id={renderedTabId}
-          role="tab"
-          type="button"
-          onClick={() => setTab("rendered")}
-        >
-          Rendered
-        </button>
-        <button
-          aria-controls={sourcePanelId}
-          aria-selected={tab === "source"}
-          tabIndex={tab === "source" ? 0 : -1}
-          className="materials-tab"
-          id={sourceTabId}
-          role="tab"
-          type="button"
-          onClick={() => setTab("source")}
-        >
-          Source
-        </button>
-        <span className="materials-tabs-note">{rendererLabel(plan)}</span>
-      </div>
-      <div
-        aria-labelledby={renderedTabId}
-        hidden={tab !== "rendered"}
-        id={renderedPanelId}
-        role="tabpanel"
-        tabIndex={0}
-      >
-        <RendererErrorBoundary>
-          <Suspense
-            fallback={
-              <p className="artifact-renderer-loading">Loading renderer…</p>
-            }
-          >
-            <Renderer plan={plan} source={source} context={context} />
-          </Suspense>
-        </RendererErrorBoundary>
-      </div>
-      <div
-        aria-labelledby={sourceTabId}
-        hidden={tab !== "source"}
-        id={sourcePanelId}
-        role="tabpanel"
-        tabIndex={0}
-      >
-        <pre className="artifact-preview" tabIndex={0}>
-          {source}
-        </pre>
-      </div>
+      <PanelTabs
+        label="Preview mode"
+        note={RENDERER_LABELS[plan.kind]}
+        tabs={[
+          {
+            id: "rendered",
+            label: "Rendered",
+            panel: (
+              <RendererErrorBoundary>
+                <Suspense
+                  fallback={
+                    <p className="artifact-renderer-loading">
+                      Loading renderer…
+                    </p>
+                  }
+                >
+                  <Renderer plan={plan} source={source} context={context} />
+                </Suspense>
+              </RendererErrorBoundary>
+            ),
+          },
+          {
+            id: "source",
+            label: "Source",
+            panel: (
+              <pre className="artifact-preview" tabIndex={0}>
+                {source}
+              </pre>
+            ),
+          },
+        ]}
+      />
     </div>
   );
 }

@@ -5,54 +5,5 @@
     "src/routes/operations/performance/chart.tsx": "performance charts",
     "src/routes/studio/canvas.tsx": "the Studio graph canvas"
   },
-  "files": {
-    "src/routes/artifacts/archive-preview.tsx": {
-      "button": 1
-    },
-    "src/routes/artifacts/artifact-detail-view.tsx": {
-      "button": 1
-    },
-    "src/routes/artifacts/common.tsx": {
-      "button": 3
-    },
-    "src/routes/artifacts/git-import-dialog.tsx": {
-      "button": 2
-    },
-    "src/routes/artifacts/list.tsx": {
-      "button": 2
-    },
-    "src/routes/artifacts/metadata-summary.tsx": {
-      "button": 1
-    },
-    "src/routes/artifacts/namespace-filter.tsx": {
-      "button": 1
-    },
-    "src/routes/artifacts/preview.tsx": {
-      "button": 1
-    },
-    "src/routes/artifacts/previews/http-exchange.tsx": {
-      "button": 4
-    },
-    "src/routes/projects/artifact-region.tsx": {
-      "button": 2
-    },
-    "src/routes/workflows/card.tsx": {
-      "button": 1
-    },
-    "src/routes/workflows/detail.tsx": {
-      "svg": 1
-    },
-    "src/routes/workflows/list.tsx": {
-      "button": 1
-    },
-    "src/routes/workflows/overview.tsx": {
-      "button": 2
-    },
-    "src/routes/workflows/run-drawer.tsx": {
-      "button": 1
-    },
-    "src/routes/workflows/run-form.tsx": {
-      "button": 9
-    }
-  }
+  "files": {}
 }

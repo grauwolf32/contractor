@@ -1,17 +1,28 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, render, screen, waitFor, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { createMemoryRouter, RouterProvider } from "react-router";
-import { describe, expect, it, vi } from "vitest";
+import { act, screen, waitFor, within } from "@testing-library/react";
+import { describe, expect, it } from "vitest";
 
 import type { ArtifactMetadata } from "../../api/artifacts";
-import { PublicAPI } from "../../api/client";
-import { PublicAPIProvider } from "../../api/context";
+import { conforming } from "../../test/builders";
+import {
+  failure,
+  fakeServer,
+  json,
+  page,
+  type Routes,
+} from "../../test/fake-server";
+import { renderWithAPI } from "../../test/render";
 import { ProjectArtifactRegion } from "../projects/artifact-region";
+import { artifactMetadata, artifactWrite } from "./test-support";
 
 const PROJECT = "project-1";
 const LIST = `/v1/projects/${PROJECT}/artifacts`;
 const COMMIT = "a".repeat(40);
+const LIST_READ = "GET /v1/projects/{projectId}/artifacts";
+const WRITE = "PUT /v1/projects/{projectId}/artifacts/{namespace}/{name}";
+const METADATA =
+  "GET /v1/projects/{projectId}/artifacts/{namespace}/{name}/metadata";
+const GIT_IMPORT =
+  "POST /v1/projects/{projectId}/artifacts/{namespace}/{name}/git-import";
 
 const gitSource = {
   repositoryUrl: "https://example.test:443/repo.git",
@@ -26,87 +37,52 @@ function material(
   mediaType: string,
   extra: Partial<ArtifactMetadata> = {},
 ): ArtifactMetadata {
-  return {
+  return artifactMetadata(namespace, name, {
     artifact: { namespace, name, revision: `${name}-r1` },
     mediaType,
     size: 2048,
-    current: true,
-    frozen: false,
     createdAt: "2026-10-01T10:00:00Z",
     ...extra,
-  };
-}
-
-function json(value: unknown, status = 200, etag?: string): Response {
-  return new Response(status === 204 ? null : JSON.stringify(value), {
-    status,
-    headers: {
-      "content-type": "application/json",
-      "X-Contractor-API-Version": "contractor.public.v1",
-      ...(etag === undefined ? {} : { ETag: etag }),
-    },
   });
 }
 
-function renderRegion(
-  handle: (request: Request) => Promise<Response> | Response,
-  path = `/projects/${PROJECT}/artifacts`,
-) {
-  const requests: Request[] = [];
-  const api = new PublicAPI(
-    {
-      uiVersion: "0.1.0",
-      supportedApiVersions: ["contractor.public.v1"],
-      apiBaseUrl: "http://127.0.0.1:8080",
-    },
-    vi.fn(async (input) => {
-      const request = input instanceof Request ? input : new Request(input);
-      requests.push(request.clone());
-      return handle(request);
-    }),
-  );
-  api.csrf.replace("a".repeat(43));
-  const router = createMemoryRouter(
-    [
+function gitImported(metadata: ArtifactMetadata) {
+  return conforming("GitImportResult", {
+    artifact: metadata.artifact,
+    mediaType: "application/zip",
+    size: metadata.size,
+    gitSource,
+  });
+}
+
+function renderRegion(routes: Routes, path = `/projects/${PROJECT}/artifacts`) {
+  return renderWithAPI(null, {
+    path,
+    server: fakeServer(routes),
+    routes: [
       {
         path: "/projects/:projectId/artifacts",
         element: <ProjectArtifactRegion projectId={PROJECT} />,
       },
-      { path: "*", element: <p>Elsewhere</p> },
     ],
-    { initialEntries: [path] },
-  );
-  render(
-    <QueryClientProvider
-      client={
-        new QueryClient({ defaultOptions: { queries: { retry: false } } })
-      }
-    >
-      <PublicAPIProvider api={api}>
-        <RouterProvider router={router} />
-      </PublicAPIProvider>
-    </QueryClientProvider>,
-  );
-  return { router, requests };
+  });
 }
 
 function listOf(items: ArtifactMetadata[]) {
-  return json({ items, page: { hasMore: false } });
+  return json(page(items));
 }
 
 describe("Project materials", () => {
   it("groups materials by kind with their format, size, Git commit and lock", async () => {
-    const { requests } = renderRegion((request) => {
-      const url = new URL(request.url);
-      if (url.pathname === LIST)
-        return listOf([
+    const { requests } = renderRegion({
+      [LIST_READ]: () =>
+        listOf([
           material("artifacts", "notes", "text/plain", { frozen: true }),
           material("docs", "readme", "text/markdown"),
           material("sources", "service", "application/zip", { gitSource }),
           material("openapi", "shop", "application/yaml"),
           material("outputs", "report", "text/markdown"),
-        ]);
-      throw new Error(`unexpected ${request.method} ${url}`);
+        ]),
     });
 
     const headings = await screen.findAllByRole("heading", { level: 3 });
@@ -146,18 +122,12 @@ describe("Project materials", () => {
   });
 
   it("keeps the namespace filter valid and in the URL, and resets the page", async () => {
-    const { router, requests } = renderRegion((request) => {
-      const url = new URL(request.url);
-      if (url.pathname === LIST)
-        return url.searchParams.get("namespace") === "docs"
+    const { router, requests, user } = renderRegion({
+      [LIST_READ]: ({ url }) =>
+        url.searchParams.get("namespace") === "docs"
           ? listOf([])
-          : json({
-              items: [material("docs", "readme", "text/markdown")],
-              page: { hasMore: true, nextCursor: "page-2" },
-            });
-      throw new Error(`unexpected ${request.method} ${url}`);
+          : json(page([material("docs", "readme", "text/markdown")], "page-2")),
     });
-    const user = userEvent.setup();
     await screen.findByRole("link", { name: "docs/readme" });
     await user.click(screen.getByRole("button", { name: "Next" }));
     await waitFor(() =>
@@ -199,21 +169,20 @@ describe("Project materials", () => {
   });
 
   it("says the kind groups cover one page when the list has more pages", async () => {
-    const { router } = renderRegion((request) => {
-      const url = new URL(request.url);
-      if (url.pathname !== LIST)
-        throw new Error(`unexpected ${request.method} ${url}`);
-      return url.searchParams.get("cursor") === "page-2"
-        ? listOf([material("openapi", "shop", "application/yaml")])
-        : json({
-            items: [
-              material("sources", "service", "application/zip"),
-              material("sources", "worker", "application/zip"),
-            ],
-            page: { hasMore: true, nextCursor: "page-2" },
-          });
+    const { router, user } = renderRegion({
+      [LIST_READ]: ({ url }) =>
+        url.searchParams.get("cursor") === "page-2"
+          ? listOf([material("openapi", "shop", "application/yaml")])
+          : json(
+              page(
+                [
+                  material("sources", "service", "application/zip"),
+                  material("sources", "worker", "application/zip"),
+                ],
+                "page-2",
+              ),
+            ),
     });
-    const user = userEvent.setup();
 
     const source = within(
       await screen.findByRole("region", { name: "Source code" }),
@@ -235,11 +204,10 @@ describe("Project materials", () => {
   });
 
   it("opens the Add material sheet from ?add=artifact and keeps other filters", async () => {
-    const { router } = renderRegion((request) => {
-      if (new URL(request.url).pathname === LIST) return listOf([]);
-      throw new Error(`unexpected ${request.url}`);
-    }, `/projects/${PROJECT}/artifacts?add=artifact&artifactsNamespace=docs`);
-    const user = userEvent.setup();
+    const { router, user } = renderRegion(
+      { [LIST_READ]: () => listOf([]) },
+      `/projects/${PROJECT}/artifacts?add=artifact&artifactsNamespace=docs`,
+    );
 
     const sheet = await screen.findByRole("dialog", { name: "Add material" });
     const kinds = within(
@@ -289,25 +257,19 @@ describe("Project materials", () => {
     const created = material("openapi", "shop", "application/yaml", {
       size: content.length,
     });
-    const { router, requests } = renderRegion(async (request) => {
-      const url = new URL(request.url);
-      if (url.pathname === LIST && request.method === "GET")
-        return listOf(stored ? [created] : []);
-      if (url.pathname === `${LIST}/openapi/shop` && request.method === "PUT") {
-        stored = true;
-        return json(
-          {
-            artifact: created.artifact,
-            mediaType: created.mediaType,
-            size: created.size,
-          },
-          201,
-          `"${created.artifact.revision}"`,
-        );
-      }
-      throw new Error(`unexpected ${request.method} ${url}`);
-    }, `/projects/${PROJECT}/artifacts?add=artifact`);
-    const user = userEvent.setup();
+    const { router, sent, user } = renderRegion(
+      {
+        [LIST_READ]: () => listOf(stored ? [created] : []),
+        [WRITE]: ({ params }) => {
+          expect(params).toMatchObject({ namespace: "openapi", name: "shop" });
+          stored = true;
+          return json(artifactWrite(created), 201, {
+            ETag: `"${created.artifact.revision}"`,
+          });
+        },
+      },
+      `/projects/${PROJECT}/artifacts?add=artifact`,
+    );
 
     const sheet = await screen.findByRole("dialog", { name: "Add material" });
     await user.click(within(sheet).getByRole("button", { name: "OpenAPI" }));
@@ -363,7 +325,7 @@ describe("Project materials", () => {
       await screen.findByRole("link", { name: "openapi/shop" }),
     ).toBeVisible();
 
-    const put = requests.find((request) => request.method === "PUT")!;
+    const put = sent("PUT", "/openapi/shop")[0]!;
     expect(put.headers.get("If-None-Match")).toBe("*");
     expect(put.headers.get("If-Match")).toBeNull();
     expect(put.headers.get("Content-Type")).toBe("application/yaml");
@@ -374,22 +336,13 @@ describe("Project materials", () => {
   });
 
   it("explains a refused create and never retries it", async () => {
-    const { requests } = renderRegion((request) => {
-      const url = new URL(request.url);
-      if (url.pathname === LIST && request.method === "GET") return listOf([]);
-      if (request.method === "PUT")
-        return json(
-          {
-            code: "conflict",
-            message: "resource state changed",
-            retryable: true,
-            requestId: "request-conflict",
-          },
-          409,
-        );
-      throw new Error(`unexpected ${request.method} ${url}`);
-    }, `/projects/${PROJECT}/artifacts?add=artifact`);
-    const user = userEvent.setup();
+    const { requests, user } = renderRegion(
+      {
+        [LIST_READ]: () => listOf([]),
+        [WRITE]: () => failure(409, "conflict", "resource state changed", true),
+      },
+      `/projects/${PROJECT}/artifacts?add=artifact`,
+    );
     const sheet = await screen.findByRole("dialog", { name: "Add material" });
     const docsKind = within(sheet).getByRole("button", { name: "Docs" });
     await user.click(docsKind);
@@ -421,20 +374,20 @@ describe("Project materials", () => {
   /** Starts a Docs upload whose PUT stays pending until it is aborted. */
   async function startPendingUpload() {
     let signal: AbortSignal | undefined;
-    const { requests } = renderRegion((request) => {
-      const url = new URL(request.url);
-      if (url.pathname === LIST && request.method === "GET") return listOf([]);
-      if (url.pathname === `${LIST}/docs/readme` && request.method === "PUT") {
-        signal = request.signal;
-        return new Promise<Response>((_resolve, reject) =>
-          request.signal.addEventListener("abort", () =>
-            reject(new DOMException("aborted", "AbortError")),
-          ),
-        );
-      }
-      throw new Error(`unexpected ${request.method} ${url}`);
-    }, `/projects/${PROJECT}/artifacts?add=artifact`);
-    const user = userEvent.setup();
+    const { requests, user } = renderRegion(
+      {
+        [LIST_READ]: () => listOf([]),
+        [WRITE]: ({ request }) => {
+          signal = request.signal;
+          return new Promise<Response>((_resolve, reject) =>
+            request.signal.addEventListener("abort", () =>
+              reject(new DOMException("aborted", "AbortError")),
+            ),
+          );
+        },
+      },
+      `/projects/${PROJECT}/artifacts?add=artifact`,
+    );
     const sheet = await screen.findByRole("dialog", { name: "Add material" });
     const kind = within(sheet).getByRole("button", { name: "Docs" });
     await user.click(kind);
@@ -513,29 +466,17 @@ describe("Project materials", () => {
       size: 123,
       gitSource,
     });
-    const { requests } = renderRegion(async (request) => {
-      const url = new URL(request.url);
-      if (url.pathname === LIST) return listOf(imported ? [result] : []);
-      if (url.pathname === `${LIST}/sources/source/metadata`)
-        return json(
-          { code: "not_found", message: "not found", retryable: false },
-          404,
-        );
-      if (url.pathname === `${LIST}/sources/source/git-import`) {
-        imported = true;
-        return json(
-          {
-            artifact: result.artifact,
-            mediaType: result.mediaType,
-            size: result.size,
-            gitSource,
-          },
-          201,
-        );
-      }
-      throw new Error(`unexpected ${request.method} ${url}`);
-    }, `/projects/${PROJECT}/artifacts?add=artifact`);
-    const user = userEvent.setup();
+    const { requests, user } = renderRegion(
+      {
+        [LIST_READ]: () => listOf(imported ? [result] : []),
+        [METADATA]: () => failure(404),
+        [GIT_IMPORT]: () => {
+          imported = true;
+          return json(gitImported(result), 201);
+        },
+      },
+      `/projects/${PROJECT}/artifacts?add=artifact`,
+    );
     const sheet = await screen.findByRole("dialog", { name: "Add material" });
     await user.click(
       within(sheet).getByRole("button", { name: "Import Git repository" }),
@@ -598,23 +539,22 @@ describe("Project materials", () => {
       },
       frozen: true,
     });
-    const { requests } = renderRegion((request) => {
-      const url = new URL(request.url);
-      if (url.pathname === LIST) return listOf([existing, locked]);
-      if (url.pathname === `${LIST}/sources/source/metadata`)
-        return json(existing);
-      if (url.pathname === `${LIST}/sources/pinned/metadata`)
-        return json(locked);
-      if (url.pathname === `${LIST}/sources/source/git-import`)
-        return json({
-          artifact: { ...existing.artifact, revision: "rev-after" },
-          mediaType: "application/zip",
-          size: 123,
-          gitSource,
-        });
-      throw new Error(`unexpected ${request.method} ${url}`);
-    }, `/projects/${PROJECT}/artifacts?add=artifact`);
-    const user = userEvent.setup();
+    const { requests, user } = renderRegion(
+      {
+        [LIST_READ]: () => listOf([existing, locked]),
+        [METADATA]: ({ params }) =>
+          json(params.name === "pinned" ? locked : existing),
+        [GIT_IMPORT]: () =>
+          json(
+            gitImported({
+              ...existing,
+              artifact: { ...existing.artifact, revision: "rev-after" },
+              size: 123,
+            }),
+          ),
+      },
+      `/projects/${PROJECT}/artifacts?add=artifact`,
+    );
     const sheet = await screen.findByRole("dialog", { name: "Add material" });
     await user.click(
       within(sheet).getByRole("button", { name: "Import Git repository" }),
@@ -661,25 +601,21 @@ describe("Project materials", () => {
 
   it("cancels a pending Git import and returns to its kind", async () => {
     let signal: AbortSignal | undefined;
-    renderRegion((request) => {
-      const url = new URL(request.url);
-      if (url.pathname === LIST) return listOf([]);
-      if (url.pathname.endsWith("/metadata"))
-        return json(
-          { code: "not_found", message: "not found", retryable: false },
-          404,
-        );
-      if (url.pathname.endsWith("/git-import")) {
-        signal = request.signal;
-        return new Promise<Response>((_resolve, reject) =>
-          request.signal.addEventListener("abort", () =>
-            reject(new DOMException("aborted", "AbortError")),
-          ),
-        );
-      }
-      throw new Error(`unexpected ${request.method} ${url}`);
-    }, `/projects/${PROJECT}/artifacts?add=artifact`);
-    const user = userEvent.setup();
+    const { user } = renderRegion(
+      {
+        [LIST_READ]: () => listOf([]),
+        [METADATA]: () => failure(404),
+        [GIT_IMPORT]: ({ request }) => {
+          signal = request.signal;
+          return new Promise<Response>((_resolve, reject) =>
+            request.signal.addEventListener("abort", () =>
+              reject(new DOMException("aborted", "AbortError")),
+            ),
+          );
+        },
+      },
+      `/projects/${PROJECT}/artifacts?add=artifact`,
+    );
     const sheet = await screen.findByRole("dialog", { name: "Add material" });
     const gitKind = within(sheet).getByRole("button", {
       name: "Import Git repository",
