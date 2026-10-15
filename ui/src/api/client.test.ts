@@ -1,7 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 
 import type { RuntimeConfig } from "../config/runtime-config";
-import { APICompatibilityError, PublicAPIError, publicAPIError } from "./error";
+import {
+  APICompatibilityError,
+  InvalidResponseError,
+  PublicAPIError,
+  publicAPIError,
+} from "./error";
 import { PublicAPI } from "./client";
 
 const runtimeConfig: RuntimeConfig = {
@@ -229,47 +234,12 @@ describe("PublicAPI", () => {
     expect(
       publicAPIError(409, {
         details: {
-          kind: "credential_in_use",
-          runIds: null,
-          auditIds: ["audit-only"],
-        },
-      }).inUse,
-    ).toEqual({
-      kind: "credential_in_use",
-      runIds: [],
-      auditIds: ["audit-only"],
-      bindingLabels: [],
-    });
-
-    const unsafe = publicAPIError(409, {
-      code: "credential_in_use",
-      message: "Credential is pinned",
-      retryable: false,
-      details: {
-        kind: "credential_in_use",
-        runIds: ["../escape"],
-        bindingLabels: ["../escape"],
-      },
-    });
-    expect(unsafe.inUse).toEqual({
-      kind: "credential_in_use",
-      runIds: [],
-      auditIds: [],
-      bindingLabels: [],
-    });
-
-    expect(
-      publicAPIError(409, {
-        details: {
           kind: "runtime_credential_in_use",
-          bindingLabels: ["debug", "../escape"],
-          projectIds: ["project-one", "../escape", "x".repeat(257)],
+          bindingLabels: ["debug"],
+          projectIds: ["project-one", "project-one"],
           runIds: ["run-one"],
           auditIds: ["audit-one"],
-          allocationIds: Array.from(
-            { length: 129 },
-            (_, index) => `allocation-${index}`,
-          ),
+          allocationIds: [],
         },
       }).inUse,
     ).toEqual({
@@ -280,18 +250,61 @@ describe("PublicAPI", () => {
       auditIds: ["audit-one"],
       allocationIds: [],
     });
-
     expect(
       publicAPIError(409, {
         details: {
           kind: "runtime_label_in_use",
-          runtimeAgentIds: ["a".repeat(64), "../escape", "b".repeat(65)],
+          runtimeAgentIds: ["a".repeat(64)],
         },
       }).inUse,
     ).toEqual({
       kind: "runtime_label_in_use",
       runtimeAgentIds: ["a".repeat(64)],
     });
+  });
+
+  it.each([
+    ["a null list", { kind: "credential_in_use", runIds: null }],
+    [
+      "an unsafe reference",
+      { kind: "credential_in_use", runIds: ["../escape"] },
+    ],
+    [
+      "an oversized identifier",
+      {
+        kind: "runtime_credential_in_use",
+        bindingLabels: [],
+        projectIds: ["x".repeat(257)],
+        runIds: [],
+        allocationIds: [],
+      },
+    ],
+    [
+      "too many references",
+      {
+        kind: "runtime_credential_in_use",
+        bindingLabels: [],
+        projectIds: [],
+        runIds: [],
+        allocationIds: Array.from(
+          { length: 129 },
+          (_, index) => `allocation-${index}`,
+        ),
+      },
+    ],
+    [
+      "an invalid Runtime Agent ID",
+      { kind: "runtime_label_in_use", runtimeAgentIds: ["b".repeat(65)] },
+    ],
+  ])("drops in-use details with %s", (_, details) => {
+    const error = publicAPIError(409, {
+      code: "credential_in_use",
+      message: "Credential is pinned",
+      retryable: false,
+      details,
+    });
+    expect(error.inUse).toBeUndefined();
+    expect(error).toMatchObject({ status: 409, code: "credential_in_use" });
   });
 
   it("fences direct binary requests and attaches the current CSRF", async () => {
@@ -572,5 +585,140 @@ describe("CSRF refresh after another tab replaces the session", () => {
     expect(sessionReads).toBe(2);
     expect(mutations).toBe(1);
     expect(api.csrf.get()).toBe(session.csrfToken);
+  });
+});
+
+describe("response contract", () => {
+  const project = {
+    projectId: "project_1",
+    kind: "project",
+    name: "Shop",
+    description: "",
+    activeChecks: "automatic",
+    lifecycle: "active",
+    revision: "1",
+    createdAt: "2026-10-01T10:00:00Z",
+    updatedAt: "2026-10-01T10:00:00Z",
+  };
+
+  function readProject(body: unknown, status = 200) {
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async () => apiResponse(body, status)),
+    );
+    return api.request((client) =>
+      client.GET("/v1/projects/{projectId}", {
+        params: { path: { projectId: "project_1" } },
+      }),
+    );
+  }
+
+  it("passes a conforming success body to the caller", async () => {
+    await expect(readProject(project)).resolves.toMatchObject({
+      data: project,
+    });
+  });
+
+  it.each([
+    ["a missing required member", { ...project, name: undefined }, "#"],
+    ["an unknown member", { ...project, owner: "secret" }, "#/owner"],
+    [
+      "a wrong enum value",
+      { ...project, lifecycle: "archived" },
+      "#/lifecycle",
+    ],
+    ["a pattern mismatch", { ...project, projectId: "-p" }, "#/projectId"],
+  ])("rejects %s with the one invalid-response error", async (_, body, at) => {
+    const error = await readProject(body).catch((cause: unknown) => cause);
+    expect(error).toBeInstanceOf(InvalidResponseError);
+    expect(error).toMatchObject({
+      status: 200,
+      code: "invalid_api_response",
+      detail: `Server response to GET /v1/projects/{projectId} broke the public contract: the body does not conform at ${at}`,
+    });
+    expect((error as InvalidResponseError).detail).not.toContain("secret");
+  });
+
+  it("refuses a request header that breaks its operation's schema before sending", async () => {
+    const fetchImplementation = vi.fn(async () => apiResponse({}));
+    const api = new PublicAPI(runtimeConfig, fetchImplementation);
+    api.csrf.replace(session.csrfToken);
+    for (const ifMatch of ['"01"', "1", '"1"x', '"123456789012345678901"']) {
+      await expect(
+        api.request((client) =>
+          client.PUT("/v1/queue/control", {
+            params: { header: { "If-Match": ifMatch } },
+            body: { paused: true },
+          }),
+        ),
+      ).rejects.toMatchObject({
+        code: "invalid_client_request",
+        message: expect.stringContaining(
+          "If-Match for PUT /v1/queue/control breaks the public contract",
+        ),
+      });
+    }
+    expect(fetchImplementation).not.toHaveBeenCalled();
+  });
+
+  it("rejects an undeclared success status", async () => {
+    await expect(readProject(project, 203)).rejects.toMatchObject({
+      code: "invalid_api_response",
+      detail: expect.stringContaining("status 203 is not declared"),
+    });
+  });
+
+  it("leaves error envelopes to the error mapping", async () => {
+    const result = await readProject(
+      { code: "not_found", message: "No project" },
+      404,
+    );
+    expect(result.error).toMatchObject({ code: "not_found" });
+  });
+
+  it("validates direct JSON responses read through readJSON", async () => {
+    const api = new PublicAPI(runtimeConfig, vi.fn());
+    const body = {
+      artifact: { namespace: "projects", name: "source", revision: "r1" },
+      mediaType: "application/zip",
+      size: 3,
+    };
+    await expect(
+      api.readJSON(
+        "PUT /v1/artifacts/{namespace}/{name}",
+        apiResponse(body, 201),
+        1024,
+      ),
+    ).resolves.toEqual(body);
+    await expect(
+      api.readJSON(
+        "PUT /v1/artifacts/{namespace}/{name}",
+        apiResponse({ ...body, size: -1 }, 201),
+        1024,
+      ),
+    ).rejects.toBeInstanceOf(InvalidResponseError);
+    await expect(
+      api.readJSON(
+        "PUT /v1/artifacts/{namespace}/{name}",
+        apiResponse(body, 201),
+        8,
+      ),
+    ).rejects.toMatchObject({
+      code: "invalid_api_response",
+      detail: expect.stringContaining("exceeded the client limit"),
+    });
+    await expect(
+      api.readJSON(
+        "PUT /v1/artifacts/{namespace}/{name}",
+        new Response("not json", {
+          status: 201,
+          headers: { "Content-Type": "text/plain" },
+        }),
+        1024,
+      ),
+    ).rejects.toMatchObject({
+      code: "invalid_api_response",
+      detail: expect.stringContaining("was unreadable"),
+    });
   });
 });

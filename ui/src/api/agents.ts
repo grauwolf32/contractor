@@ -1,11 +1,7 @@
 import type { PublicAPI } from "./client";
-import { requireData } from "./error";
+import { invalidAPIResponse, requireData } from "./error";
 import type { components } from "./generated/public";
-import {
-  CONFIG_ID_PATTERN,
-  CONFIG_NAME_PATTERN,
-  CONFIG_VERSION_PATTERN,
-} from "./workflows";
+import { CONFIG_NAME_PATTERN, CONFIG_VERSION_PATTERN } from "./workflows";
 
 export type AgentInstructions = components["schemas"]["AgentInstructions"];
 export type AgentTemplateWorkflowBindingPage =
@@ -42,16 +38,15 @@ export async function getAgentInstructions(
     ),
   );
   const value = requireData(result);
+  // The Server answers for the requested Agent version.
   if (
-    value.template?.templateId !== name ||
-    value.template.version !== version ||
-    !/^sha256:[a-f0-9]{64}$/.test(value.template.digest) ||
-    !/^sha256:[a-f0-9]{64}$/.test(value.instructions?.digest ?? "") ||
-    typeof value.instructions?.ref !== "string" ||
-    typeof value.instructions.text !== "string" ||
-    value.instructions.text.length === 0
+    value.template.templateId !== name ||
+    value.template.version !== version
   ) {
-    throw new Error("Server returned invalid agent instructions");
+    throw invalidAPIResponse(
+      result.response.status,
+      "Server returned instructions of another Agent version",
+    );
   }
   return value;
 }
@@ -83,22 +78,5 @@ export async function listAgentTemplateWorkflowBindings(
       },
     ),
   );
-  const value = requireData(result);
-  if (
-    !Array.isArray(value.items) ||
-    typeof value.page?.hasMore !== "boolean" ||
-    (value.page.hasMore &&
-      (typeof value.page.nextCursor !== "string" ||
-        value.page.nextCursor.length === 0)) ||
-    value.items.some(
-      (item) =>
-        !CONFIG_NAME_PATTERN.test(item.workflow?.name ?? "") ||
-        !CONFIG_VERSION_PATTERN.test(item.workflow?.version ?? "") ||
-        !CONFIG_ID_PATTERN.test(item.stage ?? "") ||
-        !CONFIG_ID_PATTERN.test(item.logicalWorker ?? ""),
-    )
-  ) {
-    throw new Error("Server returned invalid Agent Workflow bindings");
-  }
-  return value;
+  return requireData(result);
 }

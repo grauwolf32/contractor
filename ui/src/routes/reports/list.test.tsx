@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   audit,
-  fakeServer,
+  reportsServer,
   project,
   renderRoutes,
   report,
@@ -62,7 +62,7 @@ async function settled() {
 
 describe("Reports list", () => {
   it("lists reports of every project, waiting for acceptance first", async () => {
-    renderRoutes("/reports", fakeServer(state()));
+    renderRoutes("/reports", reportsServer(state()));
     await settled();
 
     expect(
@@ -99,7 +99,7 @@ describe("Reports list", () => {
 
   it("keeps the status filter in the URL", async () => {
     const user = userEvent.setup();
-    const { location } = renderRoutes("/reports", fakeServer(state()));
+    const { location } = renderRoutes("/reports", reportsServer(state()));
     await settled();
     const filters = screen.getByRole("group", { name: "Filter by status" });
     expect(
@@ -130,7 +130,7 @@ describe("Reports list", () => {
     const user = userEvent.setup();
     const { location } = renderRoutes(
       "/reports?status=ready&project=project_payment",
-      fakeServer(state()),
+      reportsServer(state()),
     );
     await screen.findByRole("button", { name: "Ready 1" });
     expect(screen.getByRole("button", { name: "Ready 1" })).toHaveAttribute(
@@ -174,7 +174,7 @@ describe("Reports list", () => {
 
   it("filters by project in the URL", async () => {
     const user = userEvent.setup();
-    const { location } = renderRoutes("/reports", fakeServer(state()));
+    const { location } = renderRoutes("/reports", reportsServer(state()));
     await settled();
     const select = screen.getByRole("combobox", { name: "Project" });
     expect(
@@ -204,7 +204,7 @@ describe("Reports list", () => {
     const user = userEvent.setup();
     const { location } = renderRoutes(
       "/reports?status=ready",
-      fakeServer(state()),
+      reportsServer(state()),
     );
     await screen.findByRole("button", { name: "Ready 2" });
     await user.keyboard("j");
@@ -218,7 +218,7 @@ describe("Reports list", () => {
   it("says when nothing is listed", async () => {
     renderRoutes(
       "/reports",
-      fakeServer({
+      reportsServer({
         projects: [project("project_payment", "Payment service")],
         audits: [audit("project_payment", "audit_running", "active")],
         reports: {},
@@ -234,7 +234,7 @@ describe("Reports list", () => {
 
   it("says which filter is empty", async () => {
     const user = userEvent.setup();
-    const server = fakeServer(state());
+    const server = reportsServer(state());
     server.state.reports = {
       audit_trace: report("audit_trace", "ready"),
     };
@@ -248,7 +248,7 @@ describe("Reports list", () => {
 
   it("keeps the readable reports when some reads fail", async () => {
     const user = userEvent.setup();
-    const server = fakeServer({
+    const server = reportsServer({
       ...state(),
       failingProjects: ["project_crapi"],
     });
@@ -276,7 +276,7 @@ describe("Reports list", () => {
 
   it("explains a list that cannot be read", async () => {
     const user = userEvent.setup();
-    const server = fakeServer({ ...state(), indexFails: true });
+    const server = reportsServer({ ...state(), indexFails: true });
     renderRoutes("/reports", server);
     expect(
       await screen.findByText("Reports could not be loaded"),

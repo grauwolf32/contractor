@@ -57,26 +57,6 @@ function validateRunMetadataLabel(key: string, value: unknown): string {
   return value as string;
 }
 
-export function safeRunMetadataLabels(value: unknown): Record<string, string> {
-  if (value === null || typeof value !== "object" || Array.isArray(value)) {
-    throw new TypeError("Run metadata labels must be an object");
-  }
-  const entries = Object.entries(value);
-  if (entries.length > RUN_METADATA_LABEL_LIMIT) {
-    throw new TypeError(
-      `Run metadata labels exceed ${RUN_METADATA_LABEL_LIMIT} entries`,
-    );
-  }
-  entries.sort(([left], [right]) =>
-    left === right ? 0 : left < right ? -1 : 1,
-  );
-  const result: Record<string, string> = {};
-  for (const [key, child] of entries) {
-    result[key] = validateRunMetadataLabel(key, child);
-  }
-  return result;
-}
-
 export function normalizeRunMetadataLabelSelectors(
   source: readonly RunMetadataLabelSelector[],
 ): RunMetadataLabelSelector[] {

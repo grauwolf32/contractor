@@ -272,6 +272,14 @@ export function ReportsList({
         </EmptyState>
       ) : (
         <>
+          {reports.truncated ? (
+            <div className="reports-list-note" role="status">
+              <p>
+                There are more checks than can be read at once, so this list of
+                reports is incomplete.
+              </p>
+            </div>
+          ) : null}
           {reports.partial ? (
             <div className="reports-list-note" role="status">
               <p>

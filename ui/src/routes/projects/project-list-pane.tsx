@@ -28,6 +28,7 @@ import { type ProjectActivity, useProjectActivity } from "./project-activity";
 import { projectPath } from "./project-sections";
 import { plural } from "../../app/format";
 import { pollWhileAnyDeleting } from "./use-project-deletion";
+import { LIVE_AUDIT_STATES } from "../../api/states";
 
 interface RowStatus {
   tone: StatusTone;
@@ -46,12 +47,7 @@ function Status({ tone, children }: { tone: StatusTone; children: ReactNode }) {
  * Check states a row reports while a check is in them, in this order, with
  * the state's own label: "Check running", "Check stopping", …
  */
-const IN_FLIGHT_STATES: readonly AuditState[] = [
-  "active",
-  "finalizing",
-  "cancelling",
-  "waiting_review",
-];
+const IN_FLIGHT_STATES: readonly AuditState[] = LIVE_AUDIT_STATES;
 
 /** "Check running", "2 checks waiting for you". */
 function checksIn(count: number, stateLabel: string): string {

@@ -446,10 +446,12 @@ describe("Managed Evals setup", () => {
     );
     expect(screen.getByRole("button", { name: "Prepare" })).toBeDisabled();
     view.unmount();
+    // A running experiment carries its prepared setup instead of a draft.
     fixture.state.experiment = {
       ...fixture.state.experiment,
       state: "running",
       allowedCommands: ["cancel"],
+      setup: createEvalFixture({ prepared: true }).state.experiment.setup!,
     };
     delete fixture.state.experiment.draft;
     start(fixture, "/evals/experiments/experiment-1/setup");

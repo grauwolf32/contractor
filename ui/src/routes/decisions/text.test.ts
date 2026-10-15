@@ -103,7 +103,7 @@ describe("aiSummary", () => {
 
   it("falls back to the title and stays short", () => {
     expect(
-      aiSummary(makeFinding({}, { title: "Weak hash!", description: "" })),
+      aiSummary(makeFinding({}, { title: "Weak hash!", description: " " })),
     ).toBe("Weak hash!");
     const long = aiSummary(
       makeFinding({}, { description: `${"word ".repeat(120)}end.` }),

@@ -26,6 +26,7 @@ import { listProjectArtifacts } from "../../api/project-artifacts";
 import { listProjectRuns } from "../../api/projects";
 import { queryKeys } from "../../api/query-keys";
 import { MATERIAL_KIND_ORDER, materialKindOf } from "../artifacts/kinds";
+import { AUDIT_STATES, AUDIT_STATES_WITH_FINDINGS } from "../../api/states";
 
 /** How often the overview refreshes checks and Runs while it is open. */
 const OVERVIEW_POLL_MS = 10_000;
@@ -63,8 +64,10 @@ export function useWaitingChecks(projectId: string) {
   });
 }
 
-// Draft and deleting checks hold no possible issues (api/cross-project.ts).
-const NO_ISSUES: readonly AuditState[] = ["draft", "deleting"];
+// Draft and deleting checks hold no possible issues.
+const NO_ISSUES: readonly AuditState[] = AUDIT_STATES.filter(
+  (state) => !AUDIT_STATES_WITH_FINDINGS.includes(state),
+);
 
 export interface CheckIssues {
   audit: Audit;

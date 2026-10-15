@@ -9,6 +9,7 @@ import type { RuntimeConfig } from "../../config/runtime-config";
 import { PublicAPI } from "../../api/client";
 import { Application } from "../../app/application";
 import { applicationRoutes } from "../../app/router";
+import { stageContract } from "../../test/builders-execution";
 
 const runtimeConfig: RuntimeConfig = {
   uiVersion: "0.1.0",
@@ -1193,7 +1194,7 @@ describe("Project routes", () => {
         if (url.pathname === "/v1/workflows/openapi-from-source/versions/1") {
           return jsonResponse({
             ...workflowSummaries[0],
-            stages: {},
+            stages: { analyze: stageContract() },
           });
         }
         if (url.pathname === "/v1/runs/run_project_recommended") {

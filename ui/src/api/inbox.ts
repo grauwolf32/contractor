@@ -9,7 +9,7 @@ import {
   type AuditItemPage,
 } from "./audits";
 import type { PublicAPI } from "./client";
-import { invalidAPIResponse, requireData } from "./error";
+import { requireData } from "./error";
 
 /** The item state of a work item whose action waits for the owner. */
 const AWAITING_REVIEW: AuditItem["state"] = "awaiting_review";
@@ -40,16 +40,5 @@ export async function listAwaitingReviewItems(
       },
     }),
   );
-  const value = requireData(result);
-  if (
-    !Array.isArray(value.items) ||
-    value.page === null ||
-    typeof value.page !== "object" ||
-    typeof value.page.hasMore !== "boolean"
-  )
-    throw invalidAPIResponse(
-      result.response.status,
-      "Server returned an invalid Audit item page",
-    );
-  return { items: structuredClone(value.items), page: { ...value.page } };
+  return requireData(result);
 }

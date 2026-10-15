@@ -1,10 +1,6 @@
 import type { PublicAPI } from "./client";
-import {
-  ARTIFACT_NAME_PATTERN,
-  ARTIFACT_REVISION_PATTERN,
-  MAXIMUM_ARTIFACT_BYTES,
-} from "./artifacts";
-import { publicAPIError, requireData } from "./error";
+import { ARTIFACT_NAME_PATTERN } from "./artifacts";
+import { invalidAPIResponse, publicAPIError, requireData } from "./error";
 import type { components } from "./generated/public";
 
 export type GitKeyState = components["schemas"]["GitKeyState"];
@@ -96,23 +92,16 @@ export async function importGitArtifact(
             },
           ),
         );
-  const result = await requireData(response);
+  const result = requireData(response);
+  // Cross-field: the Server imported into the requested Artifact.
   if (
-    result.artifact?.namespace !== draft.namespace ||
-    result.artifact.name !== draft.name ||
-    !ARTIFACT_REVISION_PATTERN.test(result.artifact.revision) ||
-    result.mediaType !== "application/zip" ||
-    !Number.isSafeInteger(result.size) ||
-    result.size <= 0 ||
-    result.size > MAXIMUM_ARTIFACT_BYTES ||
-    !/^[a-f0-9]{40}$/.test(result.gitSource?.resolvedCommit ?? "")
+    result.artifact.namespace !== draft.namespace ||
+    result.artifact.name !== draft.name
   ) {
-    throw publicAPIError(0, {
-      code: "invalid_api_response",
-      message:
-        "Git import response is incomplete; inspect the Artifact library before retrying",
-      retryable: false,
-    });
+    throw invalidAPIResponse(
+      response.response.status,
+      "Git import response is incomplete; inspect the Artifact library before retrying",
+    );
   }
   return result;
 }

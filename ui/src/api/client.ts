@@ -9,7 +9,18 @@ import {
   type RuntimeConfig,
   validateAPIBaseURL,
 } from "../config/runtime-config";
-import { APICompatibilityError, PublicAPIError, publicAPIError } from "./error";
+import {
+  isResponseOperation,
+  requestHeaderViolation,
+  responseViolation,
+  type ResponseOperation,
+} from "./contract";
+import {
+  APICompatibilityError,
+  InvalidResponseError,
+  PublicAPIError,
+  publicAPIError,
+} from "./error";
 import type { components, operations, paths } from "./generated/public";
 
 const MAXIMUM_ERROR_BODY_BYTES = 64 * 1024;
@@ -95,6 +106,89 @@ async function boundedErrorResponse(response: Response): Promise<Response> {
     statusText: response.statusText,
     headers,
   });
+}
+
+/**
+ * Throws the invalid-response error unless `body` is what `operation`
+ * declares for `status`. Every JSON success response passes here: the
+ * generated client through validatingClient, direct requests through
+ * PublicAPI.readJSON.
+ */
+function requireContractResponse(
+  operation: ResponseOperation,
+  status: number,
+  body: unknown,
+): void {
+  const violation = responseViolation(operation, status, body);
+  if (violation !== undefined) {
+    throw new InvalidResponseError(
+      status,
+      `Server response to ${operation} broke the public contract: ${violation}`,
+    );
+  }
+}
+
+const CLIENT_METHODS = ["GET", "PUT", "POST", "DELETE", "PATCH"] as const;
+
+type ClientInit = {
+  parseAs?: string;
+  params?: { header?: Record<string, unknown> };
+};
+
+type ClientCall = (
+  path: string,
+  init?: ClientInit,
+) => Promise<{ data?: unknown; error?: unknown; response: Response }>;
+
+/**
+ * Refuses, before anything is sent, a request header value (If-Match,
+ * Idempotency-Key, If-None-Match) that breaks the schema its operation
+ * declares for it.
+ */
+function requireContractHeaders(
+  operation: ResponseOperation,
+  headers: Record<string, unknown> | undefined,
+): void {
+  for (const [name, value] of Object.entries(headers ?? {})) {
+    const violation = requestHeaderViolation(operation, name, value);
+    if (violation !== undefined) {
+      throw publicAPIError(0, {
+        code: "invalid_client_request",
+        message: `${name} for ${operation} breaks the public contract at ${violation}`,
+        retryable: false,
+      });
+    }
+  }
+}
+
+/**
+ * Wraps the generated client so that declared request headers are checked
+ * before sending and every parsed JSON success body is validated against
+ * its operation's response schema before a wrapper sees it. Bodies read as
+ * text, blob or stream are left to their callers.
+ */
+function validatingClient(client: Client<paths>): Client<paths> {
+  const wrapped: Record<string, unknown> = { ...client };
+  for (const method of CLIENT_METHODS) {
+    const call = client[method] as unknown as ClientCall;
+    wrapped[method] = async (path: string, init?: ClientInit) => {
+      const operation = `${method} ${path}`;
+      if (!isResponseOperation(operation)) {
+        throw publicAPIError(0, {
+          code: "invalid_client_request",
+          message: `${operation} is not in the generated public contract`,
+          retryable: false,
+        });
+      }
+      requireContractHeaders(operation, init?.params?.header);
+      const result = await call(path, init);
+      if (result.response.ok && (init?.parseAs ?? "json") === "json") {
+        requireContractResponse(operation, result.response.status, result.data);
+      }
+      return result;
+    };
+  }
+  return wrapped as unknown as Client<paths>;
 }
 
 function exactHeaderValue(name: string, value: string): string {
@@ -242,12 +336,14 @@ export class PublicAPI {
       return boundedErrorResponse(response);
     };
     this.#fetch = checkedFetch;
-    this.#client = createClient<paths>({
-      baseUrl: apiOrigin,
-      credentials: "include",
-      fetch: checkedFetch,
-      headers: { Accept: "application/json" },
-    });
+    this.#client = validatingClient(
+      createClient<paths>({
+        baseUrl: apiOrigin,
+        credentials: "include",
+        fetch: checkedFetch,
+        headers: { Accept: "application/json" },
+      }),
+    );
   }
 
   get apiBaseUrl(): string {
@@ -299,6 +395,67 @@ export class PublicAPI {
     return this.#safeRequest(() => this.#fetch(request));
   }
 
+  /**
+   * Reads a direct request's JSON success body, bounded to `maximumBytes`,
+   * and validates it as `operation`'s response. Direct requests (uploads and
+   * bounded previews) that answer with JSON must read it here.
+   */
+  async readJSON<T>(
+    operation: ResponseOperation,
+    response: Response,
+    maximumBytes: number,
+  ): Promise<T> {
+    const unreadable = () =>
+      new InvalidResponseError(
+        response.status,
+        `Server response to ${operation} was unreadable`,
+      );
+    if (
+      response.headers.get("Content-Type")?.split(";")[0]?.trim() !==
+        "application/json" ||
+      response.body === null
+    ) {
+      await response.body?.cancel().catch(() => undefined);
+      throw unreadable();
+    }
+    const reader = response.body.getReader();
+    const chunks: Uint8Array[] = [];
+    let length = 0;
+    try {
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        length += value.byteLength;
+        if (length > maximumBytes) {
+          await reader.cancel();
+          throw new InvalidResponseError(
+            response.status,
+            `Server response to ${operation} exceeded the client limit`,
+          );
+        }
+        chunks.push(value);
+      }
+    } finally {
+      reader.releaseLock();
+    }
+    const bytes = new Uint8Array(length);
+    let offset = 0;
+    for (const chunk of chunks) {
+      bytes.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+    let body: unknown;
+    try {
+      body = JSON.parse(
+        new TextDecoder("utf-8", { fatal: true }).decode(bytes),
+      );
+    } catch {
+      throw unreadable();
+    }
+    requireContractResponse(operation, response.status, body);
+    return body as T;
+  }
+
   async error(response: Response): Promise<PublicAPIError> {
     let value: unknown;
     try {
@@ -316,11 +473,10 @@ export class PublicAPI {
       if (error instanceof PublicAPIError) {
         throw error;
       }
-      throw publicAPIError(0, {
-        code: "invalid_api_response",
-        message: "Public API returned an unreadable response",
-        retryable: false,
-      });
+      throw new InvalidResponseError(
+        0,
+        "Public API returned an unreadable response",
+      );
     }
   }
 

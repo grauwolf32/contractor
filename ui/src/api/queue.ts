@@ -1,21 +1,14 @@
 import type { PublicAPI } from "./client";
+import { schemaEnum } from "./contract";
+import { NON_TERMINAL_RUN_STATES } from "./states";
 import { invalidAPIResponse, PublicAPIError, requireData } from "./error";
 import type { components } from "./generated/public";
-import { safeRunMetadataLabels } from "./run-metadata-labels";
 
 export const QUEUE_PAGE_SIZE = 50;
-export const QUEUE_STATES = [
-  "initializing",
-  "pending",
-  "waiting",
-  "running",
-  "cancelling",
-] as const satisfies readonly QueueState[];
-export const QUEUE_MEMBERSHIPS = [
-  "standalone",
-  "project",
-  "evaluation",
-] as const satisfies readonly QueueMembership[];
+// The Queue lists the Run states that can still change.
+export const QUEUE_STATES = NON_TERMINAL_RUN_STATES;
+export const QUEUE_MEMBERSHIPS =
+  schemaEnum<QueueMembership>("RunQueueMembership");
 
 export type QueueState = components["schemas"]["NonTerminalWorkflowRunState"];
 export type QueueMembership = components["schemas"]["RunQueueMembership"];
@@ -29,10 +22,6 @@ export interface QueuePageRequest {
   cursor?: string;
 }
 
-const RESOURCE_ID = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$/;
-const EVENT_SEQUENCE = /^(?:0|[1-9][0-9]{0,19})$/;
-const QUEUE_CONTROL_REVISION = /^(?:0|[1-9][0-9]{0,18})$/;
-
 function invalidQueueResponse(status: number): PublicAPIError {
   return invalidAPIResponse(
     status,
@@ -40,72 +29,28 @@ function invalidQueueResponse(status: number): PublicAPIError {
   );
 }
 
-function safeQueueItem(item: QueueItem, status: number): QueueItem {
-  if (
-    !RESOURCE_ID.test(item.runId) ||
-    !QUEUE_STATES.includes(item.state) ||
-    typeof item.workflow !== "string" ||
-    item.workflow.length === 0 ||
-    item.workflow.length > 193 ||
-    !RESOURCE_ID.test(item.eventCursor?.generation ?? "") ||
-    !EVENT_SEQUENCE.test(item.eventCursor?.sequence ?? "")
-  ) {
-    throw invalidQueueResponse(status);
-  }
-  if (
-    item.project !== undefined &&
-    (!RESOURCE_ID.test(item.project.projectId) ||
-      typeof item.project.name !== "string" ||
-      item.project.name.trim().length === 0 ||
-      item.project.name.length > 160 ||
-      (item.project.kind !== "project" && item.project.kind !== "evaluation"))
-  ) {
-    throw invalidQueueResponse(status);
-  }
-  return {
-    runId: item.runId,
-    ...(item.project === undefined
-      ? {}
-      : {
-          project: {
-            projectId: item.project.projectId,
-            name: item.project.name,
-            kind: item.project.kind,
-          },
-        }),
-    workflow: item.workflow,
-    state: item.state,
-    labels: safeRunMetadataLabels(item.labels),
-    eventCursor: { ...item.eventCursor },
-    createdAt: item.createdAt,
-    updatedAt: item.updatedAt,
-  };
-}
-
-function safeOwnerQueueControl(
+function requireOwnerQueueControl(
   value: OwnerQueueControl,
   response: Response,
 ): OwnerQueueControl {
+  // The ETag names the representation's revision; revision 0 is the
+  // never-written default, which is unpaused and has no update time.
   if (
-    typeof value.paused !== "boolean" ||
-    !QUEUE_CONTROL_REVISION.test(value.revision) ||
     response.headers.get("ETag") !== `"${value.revision}"` ||
-    (value.revision === "0" &&
-      (value.paused || value.updatedAt !== undefined)) ||
-    (value.revision !== "0" &&
-      (typeof value.updatedAt !== "string" ||
-        !Number.isFinite(Date.parse(value.updatedAt))))
+    (value.revision === "0"
+      ? value.paused || value.updatedAt !== undefined
+      : value.updatedAt === undefined)
   ) {
     throw invalidQueueResponse(response.status);
   }
-  return { ...value };
+  return value;
 }
 
 export async function getOwnerQueueControl(
   api: PublicAPI,
 ): Promise<OwnerQueueControl> {
   const result = await api.request((client) => client.GET("/v1/queue/control"));
-  return safeOwnerQueueControl(requireData(result), result.response);
+  return requireOwnerQueueControl(requireData(result), result.response);
 }
 
 export async function setOwnerQueuePaused(
@@ -113,16 +58,18 @@ export async function setOwnerQueuePaused(
   paused: boolean,
   expectedRevision: string,
 ): Promise<OwnerQueueControl> {
-  if (!QUEUE_CONTROL_REVISION.test(expectedRevision)) {
-    throw new TypeError("Queue control revision is invalid");
-  }
+  // The client checks the If-Match value against the operation's schema.
   const result = await api.request((client) =>
     client.PUT("/v1/queue/control", {
       params: { header: { "If-Match": `"${expectedRevision}"` } },
       body: { paused },
     }),
   );
-  const control = safeOwnerQueueControl(requireData(result), result.response);
+  const control = requireOwnerQueueControl(
+    requireData(result),
+    result.response,
+  );
+  // The replacement answers with the state it was asked to set.
   if (control.paused !== paused) {
     throw invalidQueueResponse(result.response.status);
   }
@@ -155,14 +102,5 @@ export async function listRunQueue(
       },
     }),
   );
-  const page = requireData(result);
-  if (!Array.isArray(page.items) || page.page === undefined) {
-    throw invalidQueueResponse(result.response.status);
-  }
-  return {
-    items: page.items.map((item) =>
-      safeQueueItem(item, result.response.status),
-    ),
-    page: { ...page.page },
-  };
+  return requireData(result);
 }

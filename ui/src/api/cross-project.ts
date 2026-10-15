@@ -36,7 +36,13 @@ import { PublicAPIError } from "./error";
 import type { components, operations } from "./generated/public";
 import { listProjects, type Project } from "./projects";
 import { queryKeys } from "./query-keys";
-import { collectOwnerPages, type OwnerCollection } from "./owner-pages";
+import {
+  AUDIT_STATES_WITH_FINDINGS,
+  INBOX_AUDIT_STATES,
+  OPEN_AUDIT_STATES,
+  REPORT_AUDIT_STATES,
+} from "./states";
+import { loadAllPages, type LoadedPages } from "./pages";
 
 /** Page size is enforced by the Server; collections have no fixed cap. */
 export const CROSS_PROJECT_LIMITS = { pageSize: 200, pollMs: 20_000 } as const;
@@ -115,34 +121,12 @@ const POLLED = {
   retry: false,
 } as const;
 
-/** Which per-check reads a check in each state can have. */
-const READS_BY_STATE: Readonly<
-  Record<AuditState, { issues: boolean; decisions: boolean; report: boolean }>
-> = {
-  draft: { issues: false, decisions: false, report: false },
-  active: { issues: true, decisions: true, report: false },
-  waiting_review: { issues: true, decisions: true, report: true },
-  paused: { issues: true, decisions: true, report: false },
-  finalizing: { issues: true, decisions: true, report: true },
-  cancelling: { issues: true, decisions: false, report: false },
-  completed: { issues: true, decisions: false, report: true },
-  cancelled: { issues: true, decisions: false, report: true },
-  failed: { issues: true, decisions: false, report: true },
-  deleting: { issues: false, decisions: false, report: false },
-};
-
-function statesWith(read: "issues" | "decisions" | "report"): AuditState[] {
-  return (Object.keys(READS_BY_STATE) as AuditState[]).filter(
-    (state) => READS_BY_STATE[state][read],
-  );
-}
-
 // Every check that ran can hold possible issues.
-const ISSUE_CHECK_STATES = statesWith("issues");
+const ISSUE_CHECK_STATES = AUDIT_STATES_WITH_FINDINGS;
 // Running and waiting checks can ask for decisions.
-const DECISION_CHECK_STATES = statesWith("decisions");
+const DECISION_CHECK_STATES = OPEN_AUDIT_STATES;
 // Finishing and ended checks can have a report.
-const REPORT_CHECK_STATES = statesWith("report");
+const REPORT_CHECK_STATES = REPORT_AUDIT_STATES;
 
 /**
  * The checks the Inbox reads: running ones and those waiting for the user
@@ -151,10 +135,7 @@ const REPORT_CHECK_STATES = statesWith("report");
  * the badge and share its reads; possible issues of other checks stay on the
  * Issues page and the check's own page.
  */
-export const INBOX_CHECK_STATES: readonly AuditState[] = [
-  "active",
-  "waiting_review",
-];
+export const INBOX_CHECK_STATES: readonly AuditState[] = INBOX_AUDIT_STATES;
 
 /** Review kinds that need the user beyond triaging a possible issue. */
 const OTHER_DECISIONS: Readonly<Record<AuditReviewKind, boolean>> = {
@@ -297,15 +278,17 @@ export function useProjectsIndex(
   const { data, error, isPending } = useQuery({
     queryKey: queryKeys.crossProject.projects,
     queryFn: ({ signal }) =>
-      collectOwnerPages((cursor) =>
-        listProjects(
-          api,
-          {
-            kind: "project",
-            ...(cursor === undefined ? {} : { cursor }),
-          },
-          signal,
-        ),
+      loadAllPages(
+        (cursor) =>
+          listProjects(
+            api,
+            {
+              kind: "project",
+              ...(cursor === undefined ? {} : { cursor }),
+            },
+            signal,
+          ),
+        { signal },
       ),
     enabled: options.enabled ?? true,
     ...POLLED,
@@ -318,7 +301,7 @@ export function useProjectsIndex(
           (project) =>
             project.kind === "project" && project.lifecycle !== "deleting",
         ) ?? NO_PROJECTS,
-      truncated: false,
+      truncated: data?.truncated ?? false,
       partial: failure !== null,
       errors:
         failure === null
@@ -352,15 +335,17 @@ export function useAllChecks(options: AllChecksOptions = {}): AllChecks {
   const query = useQuery({
     queryKey: queryKeys.crossProject.ownerAudits(stateKey),
     queryFn: ({ signal }) =>
-      collectOwnerPages((cursor) =>
-        listOwnerAudits(
-          api,
-          {
-            ...(stateKey === "" ? {} : { state: stateKey }),
-            ...(cursor === undefined ? {} : { cursor }),
-          },
-          signal,
-        ),
+      loadAllPages(
+        (cursor) =>
+          listOwnerAudits(
+            api,
+            {
+              ...(stateKey === "" ? {} : { state: stateKey }),
+              ...(cursor === undefined ? {} : { cursor }),
+            },
+            signal,
+          ),
+        { signal },
       ),
     enabled,
     ...POLLED,
@@ -385,7 +370,8 @@ export function useAllChecks(options: AllChecksOptions = {}): AllChecks {
         : [...index.errors, { scope: "list", error: failure }];
     return {
       checks,
-      truncated: false,
+      // Checks of Projects past a truncated index are left out too.
+      truncated: index.truncated || (query.data?.truncated ?? false),
       partial: index.partial || failure !== null,
       errors,
       error: index.error ?? (query.data === undefined ? query.error : null),
@@ -579,15 +565,14 @@ export interface PossibleIssuesOptions {
 export interface AllPossibleIssues extends CrossProjectStatus {
   /** Matching possible issues from every owner-wide page, newest first. */
   issues: CrossProjectIssue[];
-  /** Compatibility field for consumers; owner-wide lists have no per-check cap. */
-  truncatedAuditIds: string[];
   /** Number of listed matches; a partial collection is a lower bound. */
   total: number | undefined;
 }
 
 interface MergedIssues {
   issues: CrossProjectIssue[];
-  truncatedAuditIds: string[];
+  /** A finding list stopped at the page cap. */
+  truncated: boolean;
   total: number;
 }
 
@@ -652,18 +637,20 @@ function usePossibleIssueReads(options: PossibleIssuesOptions) {
           severity ?? null,
         ),
         queryFn: ({ signal }: { signal: AbortSignal }) =>
-          collectOwnerPages((cursor) =>
-            listOwnerFindings(
-              api,
-              {
-                auditState: auditStateKey,
-                ...(state === undefined ? {} : { state }),
-                ...(verdict === undefined ? {} : { verdict }),
-                ...(severity === undefined ? {} : { severity }),
-                ...(cursor === undefined ? {} : { cursor }),
-              },
-              signal,
-            ),
+          loadAllPages(
+            (cursor) =>
+              listOwnerFindings(
+                api,
+                {
+                  auditState: auditStateKey,
+                  ...(state === undefined ? {} : { state }),
+                  ...(verdict === undefined ? {} : { verdict }),
+                  ...(severity === undefined ? {} : { severity }),
+                  ...(cursor === undefined ? {} : { cursor }),
+                },
+                signal,
+              ),
+            { signal },
           ),
         enabled,
         ...POLLED,
@@ -672,7 +659,7 @@ function usePossibleIssueReads(options: PossibleIssuesOptions) {
   );
   const combine = useCallback(
     (
-      results: UseQueryResult<OwnerCollection<AuditFinding>>[],
+      results: UseQueryResult<LoadedPages<AuditFinding>>[],
     ): CheckReads<MergedIssues> => {
       const byAudit = new Map(
         checks.checks.map((check) => [check.audit.auditId, check]),
@@ -693,7 +680,11 @@ function usePossibleIssueReads(options: PossibleIssuesOptions) {
       }
       issues.sort(newerIssue);
       return {
-        merged: { issues, truncatedAuditIds: [], total: issues.length },
+        merged: {
+          issues,
+          truncated: results.some((result) => result.data?.truncated === true),
+          total: issues.length,
+        },
         errors,
         pending: results.some((result) => result.isPending),
       };
@@ -710,12 +701,11 @@ export function useAllPossibleIssues(
 ): AllPossibleIssues {
   const { checks, findings } = usePossibleIssueReads(options);
   return useMemo(() => {
-    const { issues, truncatedAuditIds, total } = findings.merged;
-    const status = statusOf(checks, findings, truncatedAuditIds.length > 0);
+    const { issues, truncated, total } = findings.merged;
+    const status = statusOf(checks, findings, truncated);
     return {
       ...status,
       issues,
-      truncatedAuditIds,
       total: status.isPending || status.error !== null ? undefined : total,
     };
   }, [checks, findings]);
@@ -740,8 +730,6 @@ export interface PendingDecisionsOptions {
 export interface PendingDecisions extends CrossProjectStatus {
   /** All matching pending requests, newest first. */
   decisions: CrossProjectDecision[];
-  /** Compatibility field for consumers; owner-wide lists have no per-check cap. */
-  truncatedAuditIds: string[];
 }
 
 /**
@@ -767,16 +755,18 @@ export function usePendingDecisions(
   const query = useQuery({
     queryKey: queryKeys.crossProject.ownerReviews(auditStateKey),
     queryFn: ({ signal }) =>
-      collectOwnerPages((cursor) =>
-        listOwnerReviews(
-          api,
-          {
-            state: "pending",
-            auditState: auditStateKey,
-            ...(cursor === undefined ? {} : { cursor }),
-          },
-          signal,
-        ),
+      loadAllPages(
+        (cursor) =>
+          listOwnerReviews(
+            api,
+            {
+              state: "pending",
+              auditState: auditStateKey,
+              ...(cursor === undefined ? {} : { cursor }),
+            },
+            signal,
+          ),
+        { signal },
       ),
     enabled,
     ...POLLED,
@@ -812,9 +802,8 @@ export function usePendingDecisions(
       pending: query.isPending,
     };
     return {
-      ...statusOf(checks, reads, false),
+      ...statusOf(checks, reads, query.data?.truncated ?? false),
       decisions,
-      truncatedAuditIds: [],
     };
   }, [checks, kindKey, query.data, query.error, query.isPending]);
 }

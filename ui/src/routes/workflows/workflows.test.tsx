@@ -19,6 +19,7 @@ import {
   RunDraftMemoryStore,
 } from "../../run-drafts/memory";
 import type { WorkflowResource } from "../../api/workflows";
+import { workflowSummary } from "../../test/builders-execution";
 import { WorkflowRunForm } from "./run-form";
 
 const runtimeConfig: RuntimeConfig = {
@@ -169,7 +170,10 @@ function apiResponse(value: unknown, options: ResponseInit = {}): Response {
 
 function inventoryResponse(path: string): Response | undefined {
   if (path === "/v1/workflows")
-    return apiResponse({ items: [workflow], page: { hasMore: false } });
+    return apiResponse({
+      items: [workflowSummary(workflow)],
+      page: { hasMore: false },
+    });
   if (path === "/v1/artifacts") {
     return apiResponse({
       items: [sourceArtifact],
@@ -309,9 +313,12 @@ describe("Workflow overview and Run drawer", () => {
               { status: 503 },
             );
           return url.searchParams.has("cursor")
-            ? apiResponse({ items: [second], page: { hasMore: false } })
+            ? apiResponse({
+                items: [workflowSummary(second)],
+                page: { hasMore: false },
+              })
             : apiResponse({
-                items: [first],
+                items: [workflowSummary(first)],
                 page: { hasMore: true, nextCursor: "older-page" },
               });
         }
@@ -931,18 +938,18 @@ describe("Workflow routes", () => {
         if (url.pathname === "/v1/workflows") {
           if (url.searchParams.get("q") === "likec4") {
             return apiResponse({
-              items: [nextWorkflow],
+              items: [workflowSummary(nextWorkflow)],
               page: { hasMore: false },
             });
           }
           if (url.searchParams.get("cursor") === "next-workflow") {
             return apiResponse({
-              items: [nextWorkflow],
+              items: [workflowSummary(nextWorkflow)],
               page: { hasMore: false },
             });
           }
           return apiResponse({
-            items: [workflow],
+            items: [workflowSummary(workflow)],
             page: { hasMore: true, nextCursor: "next-workflow" },
           });
         }
@@ -1017,6 +1024,7 @@ describe("Workflow routes", () => {
             runId: "run_openapi",
             workflow: workflowSelector,
             state: "running",
+            deletable: false,
             runtimeLabels: ["caido", "debug"],
             labels: {
               "eval.id": "eval-ui-01",
@@ -1028,6 +1036,7 @@ describe("Workflow routes", () => {
             attempts: [],
             transitions: [],
             outputs: {},
+            outputPublications: [],
           });
         }
         if (url.pathname === "/v1/runs/run_openapi/artifacts") {

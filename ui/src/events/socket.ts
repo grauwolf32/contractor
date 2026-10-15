@@ -1,9 +1,7 @@
+import { eventFrameViolation } from "../api/contract";
 import { validateAPIBaseURL } from "../config/runtime-config";
 
-export const EVENT_PROTOCOL = "contractor.events.v1";
-
-const SAFE_IDENTIFIER = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$/;
-const UNSIGNED_DECIMAL = /^(?:0|[1-9][0-9]*)$/;
+const EVENT_PROTOCOL = "contractor.events.v1";
 
 export interface EventCursor {
   generation: string;
@@ -17,17 +15,12 @@ type WebSocketFactory = new (
   protocols?: string | string[],
 ) => WebSocket;
 
-function requireIdentifier(name: string, value: string, maximum = 256): void {
-  if (value.length > maximum || !SAFE_IDENTIFIER.test(value)) {
-    throw new TypeError(`${name} is not a safe identifier`);
+/** Sends a client frame after checking it against contractor-events-v1. */
+function send(socket: WebSocket, frame: object): void {
+  if (eventFrameViolation(frame) !== undefined) {
+    throw new TypeError("Event client frame breaks the contract");
   }
-}
-
-function requireCursor(cursor: EventCursor): void {
-  requireIdentifier("cursor generation", cursor.generation);
-  if (cursor.sequence.length > 20 || !UNSIGNED_DECIMAL.test(cursor.sequence)) {
-    throw new TypeError("cursor sequence is not an unsigned decimal string");
-  }
+  socket.send(JSON.stringify(frame));
 }
 
 export function eventSocketURL(apiBaseUrl: string): string {
@@ -62,44 +55,32 @@ export class EventsSocket {
     stream: EventStream,
     after?: EventCursor,
   ): void {
-    requireIdentifier("subscription ID", subscriptionId, 128);
-    if (stream.kind === "run") {
-      requireIdentifier("Run ID", stream.id);
-    }
-    if (after !== undefined) {
-      requireCursor(after);
-    }
     const exactStream =
       stream.kind === "run"
         ? { kind: "run" as const, id: stream.id }
         : { kind: "operations" as const };
-    this.socket.send(
-      JSON.stringify({
-        version: EVENT_PROTOCOL,
-        type: "subscribe",
-        subscriptionId,
-        stream: exactStream,
-        ...(after === undefined
-          ? {}
-          : {
-              after: {
-                generation: after.generation,
-                sequence: after.sequence,
-              },
-            }),
-      }),
-    );
+    send(this.socket, {
+      version: EVENT_PROTOCOL,
+      type: "subscribe",
+      subscriptionId,
+      stream: exactStream,
+      ...(after === undefined
+        ? {}
+        : {
+            after: {
+              generation: after.generation,
+              sequence: after.sequence,
+            },
+          }),
+    });
   }
 
   unsubscribe(subscriptionId: string): void {
-    requireIdentifier("subscription ID", subscriptionId, 128);
-    this.socket.send(
-      JSON.stringify({
-        version: EVENT_PROTOCOL,
-        type: "unsubscribe",
-        subscriptionId,
-      }),
-    );
+    send(this.socket, {
+      version: EVENT_PROTOCOL,
+      type: "unsubscribe",
+      subscriptionId,
+    });
   }
 
   close(): void {

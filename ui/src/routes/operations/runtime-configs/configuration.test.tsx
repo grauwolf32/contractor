@@ -122,10 +122,13 @@ function setup(
         body = { items: credentials, page: { hasMore: false } };
       else if (pathname === "/v1/operations/runtime-labels")
         body = { items: bindings, page: { hasMore: false } };
+      else if (pathname === "/v1/queue/control")
+        body = { paused: false, revision: "0" };
       return new Response(JSON.stringify(body), {
         headers: {
           "content-type": "application/json",
           "X-Contractor-API-Version": "contractor.public.v1",
+          ...(pathname === "/v1/queue/control" ? { ETag: '"0"' } : {}),
         },
       });
     }),

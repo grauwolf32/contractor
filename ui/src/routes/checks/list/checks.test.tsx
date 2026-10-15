@@ -7,12 +7,15 @@ import type { Audit } from "../../../api/audits";
 import type { Project } from "../../../api/projects";
 import {
   fakeAPI,
-  jsonResponse,
   makeAudit,
   makeProject,
   renderApplication,
   workspaceOf,
 } from "../../projects/audits/check-test-support";
+import { json } from "../../../test/fake-server";
+
+// LIM-UI-15 in docs/spec/platform/limits.md.
+const MAXIMUM_LOADED_PAGES = 20;
 
 const projectA = makeProject("project_a", "crapi-workshop");
 const projectB = makeProject("project_b", "Payment service");
@@ -54,20 +57,29 @@ function serve(
     projects?: Project[];
     failProject?: string;
     extra?: Record<string, Audit>;
+    /** The owner check list never ends: one check per page. */
+    endless?: boolean;
   } = {},
 ) {
   const projects = options.projects ?? [projectA, projectB];
   return fakeAPI(async (request, url) => {
     const path = url.pathname;
+    if (path === "/v1/audits" && options.endless) {
+      const index = Number(url.searchParams.get("cursor") ?? 0);
+      return json({
+        items: [makeAudit(`audit_${index}`, "project_a", "active")],
+        page: { hasMore: true, nextCursor: String(index + 1) },
+      });
+    }
     if (url.pathname === "/v1/audits" && options.failProject)
-      return jsonResponse(
+      return json(
         {
           code: "internal_error",
           message: "Check list unavailable",
           retryable: false,
           requestId: "req_test",
         },
-        { status: 500 },
+        500,
       );
     const ownerResponse = ownerListResponse(url, {
       projects,
@@ -75,27 +87,28 @@ function serve(
     });
     if (ownerResponse !== undefined) return ownerResponse;
     if (path === "/v1/projects")
-      return jsonResponse({ items: projects, page: { hasMore: false } });
+      return json({ items: projects, page: { hasMore: false } });
     let match = /^\/v1\/projects\/([^/]+)$/.exec(path);
     if (match)
-      return jsonResponse(
+      return json(
         projects.find((project) => project.projectId === match![1]),
-        { headers: { ETag: '"1"' } },
+        200,
+        { ETag: '"1"' },
       );
     match = /^\/v1\/projects\/([^/]+)\/audits$/.exec(path);
     if (match) {
       if (match[1] === options.failProject)
-        return jsonResponse(
+        return json(
           {
             code: "unavailable",
             message: "Checks unavailable",
             retryable: true,
             requestId: "request_failed",
           },
-          { status: 503 },
+          503,
         );
       const state = url.searchParams.get("state");
-      return jsonResponse({
+      return json({
         items: Object.values(audits).filter(
           (audit) =>
             audit.projectId === match![1] &&
@@ -108,14 +121,14 @@ function serve(
     if (match) {
       const audit = audits[match[1]!] ?? options.extra?.[match[1]!];
       if (audit === undefined)
-        return jsonResponse(
+        return json(
           {
             code: "not_found",
             message: "Check not found",
             retryable: false,
             requestId: "request_missing",
           },
-          { status: 404 },
+          404,
         );
       if (match[2] === undefined) {
         if (request.method === "DELETE") {
@@ -124,17 +137,14 @@ function serve(
             state: "deleting",
             revision: audit.revision + 1,
           };
-          return jsonResponse(audits[audit.auditId], {
-            status: 202,
-            headers: { ETag: `"${audit.revision + 1}"` },
+          return json(audits[audit.auditId], 202, {
+            ETag: `"${audit.revision + 1}"`,
           });
         }
-        return jsonResponse(audit, {
-          headers: { ETag: `"${audit.revision}"` },
-        });
+        return json(audit, 200, { ETag: `"${audit.revision}"` });
       }
       if (match[2] === "/workspace")
-        return jsonResponse(
+        return json(
           workspaceOf(audit, {
             totalChecks: 3,
             completedChecks: audit.state === "completed" ? 3 : 1,
@@ -153,10 +163,7 @@ function serve(
           revision: audit.revision + 1,
         };
         audits[audit.auditId] = cancelled;
-        return jsonResponse(cancelled, {
-          status: 202,
-          headers: { ETag: `"${cancelled.revision}"` },
-        });
+        return json(cancelled, 202, { ETag: `"${cancelled.revision}"` });
       }
     }
     return undefined;
@@ -474,6 +481,28 @@ describe("Checks list", () => {
       "href",
       "/projects/project_a/audits/old_wait/reviews?state=pending",
     );
+  });
+
+  it("says the list is incomplete when the owner has more pages than the cap", async () => {
+    const { api, requests } = serve({}, { endless: true });
+    renderApplication(api, "/checks");
+    expect(
+      await screen.findByText(
+        "There are more checks than can be read at once, so this list is incomplete.",
+      ),
+    ).toBeVisible();
+    // Each owner list (the page's and the shell's) stops at the cap.
+    const reads = new Map<string, number>();
+    for (const request of requests) {
+      const url = new URL(request.url);
+      if (url.pathname !== "/v1/audits") continue;
+      const key = url.searchParams.get("state") ?? "";
+      reads.set(key, (reads.get(key) ?? 0) + 1);
+    }
+    expect(reads.size).toBeGreaterThan(0);
+    for (const count of reads.values()) {
+      expect(count).toBe(MAXIMUM_LOADED_PAGES);
+    }
   });
 
   it("shows a failed owner check list and retries it", async () => {

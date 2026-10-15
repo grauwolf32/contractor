@@ -238,6 +238,31 @@ credentials or session material (FAIL-UI-2).
 **UI-R22.** Server contract tests exercise request and response examples
 against the same OpenAPI document that the UI build pins.
 
+**UI-R196.** Every JSON success response the UI reads, through the generated
+client or a direct request, must conform to the response schema the pinned
+OpenAPI document declares for its operation and status, and every Server event
+frame must conform to `api/events/contractor-events-v1.schema.json`. The
+validators are generated from those two documents and interpreted at run time
+without `eval`; handwritten code must not repeat a shape check that a schema
+expresses, and request-side form rules (identifier grammars, limits and enums)
+are read from the same generated schemas. A response that breaks its schema,
+carries an undeclared status or cannot be read fails with the one bounded
+invalid-response client error (`invalid_api_response`) that names the
+operation and the first failing location, never the body; the UI accepts none
+of it. An event frame that breaks the schema is a protocol error: live
+continuity ends and the view returns to its REST snapshot (UI-R29). Only
+invariants between members that a schema cannot express are checked by hand,
+next to the operation that relies on them: a resource that echoes the
+requested identity, an ETag equal to the body's revision, ordering and
+uniqueness across items, matching cursor generations and sequences, and
+consistent Planner plans.
+
+**UI-R197.** A view that reads every page of a list follows the Server's
+cursors through one shared reader that stops after 20 pages (LIM-UI-15). When
+pages remain, the view says that the list is incomplete instead of presenting
+a partial list as whole, and a picker or check that needs the whole list
+refuses to proceed rather than choose from part of it.
+
 **UI-R23.** Vite's transform is not the type-checking gate: CI separately
 runs strict TypeScript checking.
 

@@ -7,8 +7,8 @@ import { describe, expect, it, vi } from "vitest";
 import { PublicAPI } from "../../api/client";
 import { PublicAPIProvider } from "../../api/context";
 import type { RunStatus } from "../../api/runs";
-import type { WorkflowResource } from "../../api/workflows";
 import type { RuntimeConfig } from "../../config/runtime-config";
+import { workflowResource } from "../../test/builders-execution";
 import { RunOutputGallery } from "./artifacts";
 
 const saved = vi.hoisted(() => [] as Array<{ blob: Blob; filename: string }>);
@@ -22,11 +22,7 @@ const runtimeConfig: RuntimeConfig = {
   apiBaseUrl: "http://127.0.0.1:8080",
 };
 
-const workflow = {
-  ref: { name: "source-review", version: "1" },
-  entryStage: "review",
-  parameters: {},
-  inputs: {},
+const workflow = workflowResource("source-review", "1", {
   outputs: {
     report: {
       required: true,
@@ -40,8 +36,7 @@ const workflow = {
     },
     trace: { required: false, mediaTypes: ["application/json"] },
   },
-  stages: {},
-} satisfies WorkflowResource;
+});
 
 type GalleryRun = Pick<RunStatus, "runId" | "workflow" | "state" | "outputs">;
 

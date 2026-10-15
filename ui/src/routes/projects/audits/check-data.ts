@@ -25,6 +25,7 @@ import { usePublicAPI } from "../../../api/context";
 import { queryKeys } from "../../../api/query-keys";
 import { useAuditCollection } from "./collections";
 import { useAuditProjectionRefresh } from "./projection-refresh";
+import { REPORT_AUDIT_STATES } from "../../../api/states";
 
 export const checkKeys = {
   /**
@@ -49,13 +50,7 @@ export const checkKeys = {
 };
 
 /** Checks in these states can have a report. */
-export const REPORT_STATES: readonly AuditState[] = [
-  "waiting_review",
-  "finalizing",
-  "completed",
-  "cancelled",
-  "failed",
-];
+export const REPORT_STATES: readonly AuditState[] = REPORT_AUDIT_STATES;
 
 /** The newest cached workspace of a check, shown while a newer one loads. */
 function previousWorkspace(

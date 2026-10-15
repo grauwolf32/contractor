@@ -42,6 +42,7 @@ import {
   materialKindOf,
 } from "../artifacts/kinds";
 import { MaterialKindIcon } from "../artifacts/icons";
+import { LIVE_AUDIT_STATES } from "../../api/states";
 
 const NO_CHECKS: Audit[] = [];
 
@@ -50,11 +51,9 @@ const NO_CHECKS: Audit[] = [];
  * live, but not running (contract §3 labels: Finishing, Stopping, Waiting for
  * you).
  */
-const OTHER_LIVE_STATES: readonly AuditState[] = [
-  "finalizing",
-  "cancelling",
-  "waiting_review",
-];
+const OTHER_LIVE_STATES: readonly AuditState[] = LIVE_AUDIT_STATES.filter(
+  (state) => state !== "active",
+);
 
 /** Material chips shown before "All materials". */
 const CHIP_LIMIT = 4;

@@ -10,6 +10,7 @@ import * as queryClientFactory from "../../app/query-client";
 import { applicationRoutes } from "../../app/router";
 import type { RuntimeConfig } from "../../config/runtime-config";
 import { RunEventsManager } from "../../events/run-events";
+import { workflowResource } from "../../test/builders-execution";
 
 const runtimeConfig: RuntimeConfig = {
   uiVersion: "0.1.0",
@@ -223,6 +224,18 @@ function renderRunApplication(api: PublicAPI, path: string) {
     router,
     events,
   };
+}
+
+function notInFixture(): Response {
+  return apiResponse(
+    {
+      code: "not_found",
+      message: "Not in this fixture",
+      retryable: false,
+      requestId: "request_test",
+    },
+    { status: 404 },
+  );
 }
 
 function sessionOrArtifacts(request: Request): Response | undefined {
@@ -599,7 +612,12 @@ describe("Run routes", () => {
     });
     const api = new PublicAPI(runtimeConfig, async (input, init) => {
       const request = new Request(input, init);
-      return sessionOrArtifacts(request) ?? apiResponse(current);
+      return (
+        sessionOrArtifacts(request) ??
+        (new URL(request.url).pathname === "/v1/runs/run-router"
+          ? apiResponse(current)
+          : notInFixture())
+      );
     });
     renderRunApplication(api, "/runs/run-router");
     expect(
@@ -630,6 +648,8 @@ describe("Run routes", () => {
           },
           { status: 409 },
         );
+      if (new URL(request.url).pathname !== "/v1/runs/run-router")
+        return notInFixture();
       gets++;
       return apiResponse(current);
     });
@@ -953,6 +973,7 @@ describe("Run routes", () => {
                   runId: "run-second",
                   workflow: "likec4-from-workspace@5",
                   state: "succeeded",
+                  deletable: true,
                   labels: {},
                   createdAt: "2026-08-31T10:00:00Z",
                   updatedAt: "2026-08-31T10:10:00Z",
@@ -971,6 +992,7 @@ describe("Run routes", () => {
                 runId: "run-first",
                 workflow: "openapi-from-workspace@5",
                 state: "succeeded",
+                deletable: true,
                 labels: {},
                 createdAt: "2026-08-31T12:00:00Z",
                 updatedAt: "2026-08-31T12:01:00Z",
@@ -1015,6 +1037,7 @@ describe("Run routes", () => {
       runId,
       workflow: "openapi-from-workspace@5",
       state: "failed",
+      deletable: true,
       labels: {},
       createdAt: "2026-08-31T12:00:00Z",
       updatedAt: "2026-08-31T12:01:00Z",
@@ -1198,6 +1221,7 @@ describe("Run routes", () => {
                   runId: "run-leg-a-page-2",
                   workflow: "router-analysis@1",
                   state: "succeeded",
+                  deletable: true,
                   labels: {
                     "eval.id": "eval-group=01",
                     "eval.leg": "a",
@@ -1218,6 +1242,7 @@ describe("Run routes", () => {
                 runId: `run-leg-${leg}`,
                 workflow: "router-analysis@1",
                 state: "succeeded",
+                deletable: true,
                 labels: {
                   "eval.id": "eval-group=01",
                   "eval.leg": leg,
@@ -1552,7 +1577,10 @@ describe("Run routes", () => {
         if (url.pathname === "/v1/runs/run-router") {
           return apiResponse(runFixture({ eventCursor: undefined }));
         }
-        if (url.pathname === "/v1/runs/run-router/artifacts/inputs/source") {
+        if (
+          url.pathname ===
+          "/v1/runs/run-router/artifacts/inputs/source/metadata"
+        ) {
           return apiResponse({
             artifact: {
               namespace: "inputs",
@@ -1560,12 +1588,16 @@ describe("Run routes", () => {
               revision: "input-r1",
             },
             mediaType: "application/zip",
-            sizeBytes: 3,
-            digest,
+            size: 3,
+            current: true,
+            frozen: true,
             createdAt: "2026-08-31T12:00:00Z",
           });
         }
-        return apiResponse({ items: [], page: { hasMore: false } });
+        if (url.pathname === "/v1/runs" || url.pathname === "/v1/queue") {
+          return apiResponse({ items: [], page: { hasMore: false } });
+        }
+        return notInFixture();
       }),
     );
     const { router } = renderRunApplication(api, "/runs/run-router");
@@ -1840,6 +1872,7 @@ describe("Run routes", () => {
   it("opens a reviewed new-Run draft without mutating the terminal source", async () => {
     const terminal = runFixture({
       state: "failed",
+      deletable: true,
       labels: {},
       eventCursor: undefined,
       activeStageExecutionId: undefined,
@@ -1862,14 +1895,9 @@ describe("Run routes", () => {
       ],
       finishedAt: "2026-08-31T12:02:00Z",
     });
-    const workflow = {
-      ref: { name: "router-analysis", version: "1" },
-      entryStage: "analysis",
+    const workflow = workflowResource("router-analysis", "1", {
       parameters: { objective: { required: true } },
-      inputs: {},
-      outputs: {},
-      stages: {},
-    };
+    });
     const createRequests: Request[] = [];
     const api = new PublicAPI(runtimeConfig, async (input, init) => {
       const request = new Request(input, init);
@@ -1993,14 +2021,7 @@ describe("Run routes", () => {
         const path = new URL(request.url).pathname;
         if (path === "/v1/runs/run-router") return apiResponse(terminal);
         if (path === "/v1/workflows/router-analysis/versions/1")
-          return apiResponse({
-            ref: { name: "router-analysis", version: "1" },
-            entryStage: "analysis",
-            parameters: {},
-            inputs: {},
-            outputs: {},
-            stages: {},
-          });
+          return apiResponse(workflowResource("router-analysis", "1"));
         if (path === "/v1/runs/run-router/repeat-draft")
           return apiResponse({
             sourceRunId: "run-router",
@@ -2637,6 +2658,7 @@ describe("Run routes", () => {
                 runId: "run-router",
                 workflow: run.workflow,
                 state: run.state,
+                deletable: run.deletable,
                 labels: {},
                 createdAt: "2026-08-31T12:00:00Z",
                 updatedAt: "2026-08-31T12:01:00Z",

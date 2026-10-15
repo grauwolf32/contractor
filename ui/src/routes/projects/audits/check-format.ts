@@ -1,5 +1,6 @@
 import type { Audit } from "../../../api/audits";
 import { formatClock, formatShortDateTime } from "../../../app/format";
+import { ENDED_AUDIT_STATES } from "../../../api/states";
 
 function parse(value: string | undefined): Date | undefined {
   if (value === undefined) return undefined;
@@ -26,12 +27,7 @@ export function startedText(audit: Audit): string {
     : `Started ${formatShortDateTime(audit.startedAt)}`;
 }
 
-const TERMINAL: readonly Audit["state"][] = [
-  "completed",
-  "cancelled",
-  "failed",
-  "deleting",
-];
+const TERMINAL: readonly Audit["state"][] = ENDED_AUDIT_STATES;
 
 /**
  * The check's time limit in words, or undefined once it no longer matters

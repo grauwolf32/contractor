@@ -4,6 +4,7 @@
  * running checks. Everything here is pure, so the sections can be tested
  * without a Server.
  */
+import { RESOURCE_ID } from "../../api/contract";
 import type { AuditState, AuditWorkspace } from "../../api/audits";
 import type {
   CrossProjectCheck,
@@ -12,11 +13,17 @@ import type {
   CrossProjectReport,
 } from "../../api/cross-project";
 import type { RunStatus, RunSummary } from "../../api/runs";
+import {
+  INBOX_AUDIT_STATES,
+  INBOX_LISTED_AUDIT_STATES,
+  OPEN_AUDIT_STATES,
+  WORKING_AUDIT_STATES,
+} from "../../api/states";
 
 /** How far back failed and finished work counts as new: 7 days. */
 export const RECENT_MS = 7 * 24 * 60 * 60 * 1000;
 /** Rows per kind in Unblock and Ready before "See all …". */
-export const SHOWN_PER_KIND = 5;
+const SHOWN_PER_KIND = 5;
 
 export type InboxSectionId = "decide" | "unblock" | "ready" | "running";
 
@@ -112,37 +119,21 @@ export interface InboxModel {
 }
 
 /** Checks the Inbox lists in one of its sections. */
-export const LISTED_CHECK_STATES: readonly AuditState[] = [
-  "active",
-  "waiting_review",
-  "paused",
-  "finalizing",
-  "completed",
-  "failed",
-];
+export const LISTED_CHECK_STATES: readonly AuditState[] =
+  INBOX_LISTED_AUDIT_STATES;
 
 /** Checks whose stopped items show in Unblock (the Inbox check states). */
-const GAP_CHECK_STATES: ReadonlySet<AuditState> = new Set([
-  "active",
-  "waiting_review",
-]);
+const GAP_CHECK_STATES: ReadonlySet<AuditState> = new Set(INBOX_AUDIT_STATES);
 
 /** Checks in Running: working or writing their report. */
-const RUNNING_CHECK_STATES: ReadonlySet<AuditState> = new Set([
-  "active",
-  "finalizing",
-]);
+const RUNNING_CHECK_STATES: ReadonlySet<AuditState> = new Set(
+  WORKING_AUDIT_STATES,
+);
 
 /** Checks whose workspace counters the list shows. */
-export const COUNTED_CHECK_STATES: ReadonlySet<AuditState> = new Set([
-  "active",
-  "waiting_review",
-  "finalizing",
-  "paused",
-]);
-
-// Server IDs (ResourceId); anything else in `?item=` is ignored.
-const RESOURCE_ID = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$/;
+export const COUNTED_CHECK_STATES: ReadonlySet<AuditState> = new Set(
+  OPEN_AUDIT_STATES,
+);
 
 function idsOf(ref: InboxRef): string[] {
   switch (ref.kind) {
@@ -179,6 +170,7 @@ export function parseRefKey(
   } catch {
     return undefined;
   }
+  // Server IDs are ResourceIds; anything else in `?item=` is ignored.
   if (ids.some((id) => !RESOURCE_ID.test(id))) return undefined;
   const [first, second] = ids;
   if (first === undefined) return undefined;

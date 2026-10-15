@@ -22,6 +22,7 @@ import { AuditTimeLimitDialog } from "./time-limit-dialog";
 import "./checks.css";
 import { ConflictNotice } from "../../../app/conflict-notice";
 import { AlertDialog, Facts } from "../../../ui";
+import { OPEN_AUDIT_STATES } from "../../../api/states";
 
 export function AuditMutationNotice({ error }: { error: unknown }) {
   return (
@@ -35,12 +36,7 @@ export function AuditMutationNotice({ error }: { error: unknown }) {
 type DestructiveAuditAction = Extract<AuditMutationAction, "cancel" | "delete">;
 
 /** States that accept Stop (cancel). */
-const STOPPABLE: readonly Audit["state"][] = [
-  "active",
-  "waiting_review",
-  "paused",
-  "finalizing",
-];
+const STOPPABLE: readonly Audit["state"][] = OPEN_AUDIT_STATES;
 
 /**
  * What Delete does in each state. The Server accepts it in every state:

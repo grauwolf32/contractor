@@ -120,7 +120,7 @@ describe("Eval input picker", () => {
     expect(download?.headers.get("Accept")).toBe("text/plain");
   });
 
-  it("validates a workspace input identity before downloading it", async () => {
+  it("offers no input from a list whose identity breaks the contract", async () => {
     const onSelect = vi.fn();
     const requests = renderPicker(
       {
@@ -134,13 +134,13 @@ describe("Eval input picker", () => {
       },
       onSelect,
     );
-    await userEvent
-      .setup()
-      .click(await screen.findByRole("button", { name: "Use input" }));
 
     expect(
-      await screen.findByText("Project Artifact revision is invalid"),
+      await screen.findByText(
+        /The Server sent an answer this page cannot read/,
+      ),
     ).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Use input" })).toBeNull();
     expect(onSelect).not.toHaveBeenCalled();
     expect(
       requests.some((request) =>

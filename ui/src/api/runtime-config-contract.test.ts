@@ -103,8 +103,8 @@ describe("RuntimeConfig author and read contracts", () => {
       config,
       vi.fn(async () => response(resource(gateway))),
     );
-    await expect(getRuntimeConfig(api, "typed", "1")).rejects.toThrow(
-      "response shape",
-    );
+    await expect(getRuntimeConfig(api, "typed", "1")).rejects.toMatchObject({
+      code: "invalid_api_response",
+    });
   });
 });

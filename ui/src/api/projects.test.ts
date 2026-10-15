@@ -40,34 +40,32 @@ function response(value: unknown, options: ResponseInit = {}): Response {
 
 describe("Project API", () => {
   it.each([
-    "http://target:70000/",
-    "https://host/?",
-    "ftp://target/",
-    " https://target/",
-  ])(
-    "rejects a stored target URL %j that authoring would reject",
-    async (url) => {
-      const invalid = { ...project, httpTarget: { url } };
-      const api = new PublicAPI(
-        runtimeConfig,
-        vi.fn(async (input) => {
-          const path = new URL(
-            (input instanceof Request ? input : new Request(input)).url,
-          ).pathname;
-          return path === "/v1/projects"
-            ? response({ items: [project, invalid], page: { hasMore: false } })
-            : response(invalid, { headers: { ETag: '"1"' } });
-        }),
-      );
+    [
+      "an active Project with a deletion",
+      { deletion: { phase: "draining", requestedAt: "2026-09-01T10:00:00Z" } },
+    ],
+    ["a deleting Project without its deletion", { lifecycle: "deleting" }],
+  ])("rejects %s", async (_, changes) => {
+    const invalid = { ...project, ...changes };
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const path = new URL(
+          (input instanceof Request ? input : new Request(input)).url,
+        ).pathname;
+        return path === "/v1/projects"
+          ? response({ items: [project, invalid], page: { hasMore: false } })
+          : response(invalid, { headers: { ETag: '"1"' } });
+      }),
+    );
 
-      await expect(listProjects(api)).rejects.toThrow(
-        "Server returned an invalid Project response",
-      );
-      await expect(getProject(api, project.projectId)).rejects.toThrow(
-        "Server returned an invalid Project response",
-      );
-    },
-  );
+    await expect(listProjects(api)).rejects.toMatchObject({
+      detail: "Server returned an invalid Project response",
+    });
+    await expect(getProject(api, project.projectId)).rejects.toMatchObject({
+      detail: "Server returned an invalid Project response",
+    });
+  });
 
   it("reads a valid stored target with its credential", async () => {
     const targeted = {
@@ -256,30 +254,27 @@ describe("Project API", () => {
     await expect(captured?.clone().text()).resolves.toBe("");
   });
 
-  it("normalizes absent-safe Run labels in the Project history", async () => {
+  it("reads the Project's Run history", async () => {
     let captured: Request | undefined;
+    const run = {
+      runId: "run_example",
+      projectId: project.projectId,
+      workflow: "openapi-from-source@1",
+      state: "running",
+      deletable: false,
+      labels: {},
+      createdAt: "2026-09-01T10:01:00Z",
+      updatedAt: "2026-09-01T10:02:00Z",
+    };
     const api = new PublicAPI(
       runtimeConfig,
       vi.fn(async (input) => {
         captured = input instanceof Request ? input : new Request(input);
-        return response({
-          items: [
-            {
-              runId: "run_example",
-              projectId: project.projectId,
-              workflow: "openapi-from-source@1",
-              state: "running",
-              labels: undefined,
-              createdAt: "2026-09-01T10:01:00Z",
-              updatedAt: "2026-09-01T10:02:00Z",
-            },
-          ],
-          page: { hasMore: false },
-        });
+        return response({ items: [run], page: { hasMore: false } });
       }),
     );
     const page = await listProjectRuns(api, { projectId: project.projectId });
-    expect(page.items[0]?.labels).toEqual({});
+    expect(page.items).toEqual([run]);
     expect(new URL(captured!.url).pathname).toBe(
       `/v1/projects/${project.projectId}/runs`,
     );

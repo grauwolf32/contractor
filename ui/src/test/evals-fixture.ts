@@ -12,6 +12,7 @@ import duration from "../../../api/testdata/evals/valid/duration-chart.json" wit
 import progress from "../../../api/testdata/evals/valid/progress-chart.json" with { type: "json" };
 import differences from "../../../api/testdata/evals/valid/deltas-chart.json" with { type: "json" };
 import type { components } from "../api/generated/public";
+import { workflowResource } from "./builders-execution";
 import type {
   EvalCommand,
   EvalDatasetInput,
@@ -37,7 +38,9 @@ export interface FixtureResponse {
   status: number;
   headers: Record<string, string>;
 }
+// Eval pages always carry nextCursor; owner pages (PageInfo) omit it.
 const page = { hasMore: false, nextCursor: null };
+const ownerPage = { hasMore: false };
 
 export function createEvalFixture(
   options: { prepared?: boolean; external?: boolean; audit?: boolean } = {},
@@ -151,9 +154,10 @@ export function createEvalFixture(
     const e = fixture.experiment;
     let result: FixtureResponse;
     if (path === "/v1/auth/session") return response(EVAL_FIXTURE_SESSION);
-    if (path === "/v1/projects") return response({ items: [project], page });
+    if (path === "/v1/projects")
+      return response({ items: [project], page: ownerPage });
     if (["/v1/audits", "/v1/findings", "/v1/reviews"].includes(path))
-      return response({ items: [], page });
+      return response({ items: [], page: ownerPage });
     if (path === "/v1/eval-capabilities")
       return response({
         controlModes: ["server", "external"],
@@ -184,16 +188,13 @@ export function createEvalFixture(
         page,
       });
     if (path.includes("/workflows/") && path.includes("/versions/"))
-      return response({
-        ref: { name: path.split("/")[3], version: path.split("/")[5] },
-        entryStage: "check",
-        parameters: {},
-        inputs: {},
-        outputs: {
-          report: { required: true, mediaTypes: ["application/json"] },
-        },
-        stages: {},
-      });
+      return response(
+        workflowResource(path.split("/")[3]!, path.split("/")[5], {
+          outputs: {
+            report: { required: true, mediaTypes: ["application/json"] },
+          },
+        }),
+      );
     if (path.includes("/audit-profiles/"))
       return response(
         {
@@ -204,14 +205,32 @@ export function createEvalFixture(
           },
           mode: "custom-checklist",
           standards: [],
-          inputs: {},
-          inventory: {
-            mode: "tasks",
-            source: "manifest",
-            manifestInput: "tasks",
+          inputs: {
+            tasks: { required: true, mediaTypes: ["application/json"] },
           },
-          execution: {},
-          interaction: {},
+          inventory: {
+            implementation: "checklist@1",
+            source: { source: "audit-input", name: "tasks" },
+            itemWorkflowRole: "check",
+          },
+          execution: {
+            roundMode: "fixed-barrier",
+            maxRounds: 1,
+            batchSize: 1,
+            maxItemsPerRound: 10,
+            maxItemsTotal: 10,
+            maxSubmittedRuns: 10,
+            maxItemRunAttempts: 1,
+            deadlineSeconds: 3600,
+            maxEvidenceBytes: 1_048_576,
+            incompleteRound: "assess-with-gaps",
+          },
+          interaction: {
+            activeChecks: "prohibited",
+            findingConfirmation: "disabled",
+            notApplicable: "profile-rule",
+            reportAcceptance: "automatic",
+          },
           serverCompatible: true,
           requiresInputValidation: false,
           compatibilityReasons: [],
@@ -224,7 +243,7 @@ export function createEvalFixture(
       path === "/v1/operations/credentials" ||
       path.endsWith("/artifacts")
     )
-      return response({ items: [], page });
+      return response({ items: [], page: ownerPage });
     if (path.endsWith("/eval-datasets") && method === "GET")
       return response({
         items: [
@@ -253,15 +272,23 @@ export function createEvalFixture(
       return response({
         items: [
           {
-            ...e,
-            draft: undefined,
-            setup: undefined,
+            experimentId: e.experimentId,
+            projectId: e.projectId,
+            name: e.name,
+            controlMode: e.controlMode,
+            executionKind: e.executionKind,
+            state: e.state,
+            revision: e.revision,
+            expectedMembers: e.expectedMembers,
+            updatedAt: e.updatedAt,
             variants: (e.draft?.variants ?? e.setup?.variants)?.map((v) => ({
               id: v.id,
               selector: v.selector,
             })),
             caseCount: 2,
             repetitions: 2,
+            summary: e.summary,
+            freshness: e.freshness,
           },
         ],
         page,
@@ -292,7 +319,7 @@ export function createEvalFixture(
       e.revision++;
       result = response(
         { experimentId: e.experimentId, revision: e.revision, state: e.state },
-        201,
+        200,
         e.revision,
       );
     } else if (path.endsWith("/commands") && method === "POST") {
@@ -331,7 +358,10 @@ export function createEvalFixture(
         return error("eval_pin_mismatch");
       e.revision++;
       if (command.kind === "prepare") {
-        e.setup = structuredClone(e.draft!);
+        // The prepared setup keeps everything but the draft's run order.
+        const setup: Partial<EvalDraft> = structuredClone(e.draft!);
+        delete setup.order;
+        e.setup = setup as NonNullable<EvalExperiment["setup"]>;
         delete e.draft;
         e.state = "ready";
         e.planSha256 = EVAL_FIXTURE_DIGEST;
@@ -368,6 +398,7 @@ export function createEvalFixture(
         e.experimentId = "experiment-duplicate";
         e.state = "draft";
         e.draft = structuredClone(draftExample.draft) as EvalDraft;
+        delete e.setup;
         e.planSha256 = null;
         e.allowedCommands = ["prepare"];
         result = response(

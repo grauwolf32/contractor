@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { EVENT_PROTOCOL, EventsSocket, eventSocketURL } from "./socket";
+import { EventsSocket, eventSocketURL } from "./socket";
+
+const EVENT_PROTOCOL = "contractor.events.v1";
 
 class FakeWebSocket {
   readonly url: string;

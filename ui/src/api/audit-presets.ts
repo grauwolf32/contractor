@@ -1,15 +1,23 @@
 import { listAuditProfiles, type AuditProfile } from "./audits";
 import { collectAuditPages } from "./audit-collections";
 import type { PublicAPI } from "./client";
-import { PublicAPIError, publicAPIError } from "./error";
+import { stringRule } from "./contract";
+import { invalidAPIResponse, requireData } from "./error";
 import type { components } from "./generated/public";
 
 export type AuditStandard = components["schemas"]["AuditStandardPackage"];
 
-// The OpenAPI AuditStandardRef identity patterns.
-export const AUDIT_STANDARD_SCHEME_PATTERN = /^[a-z][a-z0-9.-]{0,63}$/;
-export const AUDIT_STANDARD_VERSION_PATTERN =
-  /^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$/;
+// The OpenAPI AuditStandardRef identity rules.
+export const AUDIT_STANDARD_SCHEME_PATTERN = stringRule(
+  "AuditStandardRef",
+  "properties",
+  "scheme",
+);
+export const AUDIT_STANDARD_VERSION_PATTERN = stringRule(
+  "AuditStandardRef",
+  "properties",
+  "version",
+);
 
 // The profile endpoint has no search filter. Read the bounded batch of pages
 // before searching or grouping versions so presets on later pages remain
@@ -46,29 +54,12 @@ export async function getAuditStandard(
       ...(signal === undefined ? {} : { signal }),
     }),
   );
-  if (result.data === undefined)
-    throw publicAPIError(result.response.status, result.error);
-  const standard = result.data.standard;
+  const standard = requireData(result).standard;
+  // Cross-field: the requested standard, listing every entry it may disclose
+  // and, with full disclosure, every mapping and evidence contract.
   if (
-    standard?.reference?.scheme !== scheme ||
+    standard.reference.scheme !== scheme ||
     standard.reference.version !== version ||
-    !/^sha256:[a-f0-9]{64}$/.test(standard.digest) ||
-    typeof standard.title !== "string" ||
-    !standard.source ||
-    !standard.license ||
-    !["full", "identifiers", "metadata"].includes(
-      standard.license.disclosure,
-    ) ||
-    !Number.isSafeInteger(standard.entryCount) ||
-    standard.entryCount < 0 ||
-    !Number.isSafeInteger(standard.mappingCount) ||
-    standard.mappingCount < 0 ||
-    !Number.isSafeInteger(standard.evidenceContractCount) ||
-    standard.evidenceContractCount < 0 ||
-    (standard.entries !== undefined && !Array.isArray(standard.entries)) ||
-    (standard.mappings !== undefined && !Array.isArray(standard.mappings)) ||
-    (standard.evidenceContracts !== undefined &&
-      !Array.isArray(standard.evidenceContracts)) ||
     (standard.license.disclosure !== "metadata" &&
       (standard.entries?.length ?? 0) !== standard.entryCount) ||
     (standard.license.disclosure === "full" &&
@@ -76,13 +67,12 @@ export async function getAuditStandard(
         (standard.evidenceContracts?.length ?? 0) !==
           standard.evidenceContractCount))
   ) {
-    throw new PublicAPIError({
-      status: result.response.status,
-      code: "invalid_api_response",
-      message: "Server returned an invalid audit standard response",
-    });
+    throw invalidAPIResponse(
+      result.response.status,
+      "Server returned an invalid audit standard response",
+    );
   }
-  return structuredClone(standard);
+  return standard;
 }
 
 export function auditPresetPath(name: string, version: string): string {

@@ -320,9 +320,7 @@ describe("Project HTTP credential picker", () => {
       screen.getByLabelText("Authorization"),
       "existing",
     );
-    await screen.findByText(
-      "Runtime credentials could not be fully loaded. Retry before choosing a credential.",
-    );
+    await screen.findByText("Server returned an invalid page continuation");
     expect(reads).toHaveBeenCalledTimes(2);
     expect(screen.getByRole("button", { name: "Save target" })).toBeDisabled();
   });

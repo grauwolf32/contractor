@@ -1,16 +1,21 @@
 import type { PublicAPI } from "./client";
+import {
+  DIGEST,
+  RUNTIME_AGENT_ID,
+  RUNTIME_CONFIG_VERSION,
+  RUNTIME_CREDENTIAL_ID,
+  RUNTIME_INFRASTRUCTURE_ID,
+  stringRule,
+} from "./contract";
 import { invalidAPIResponse, publicAPIError, requireData } from "./error";
+import { loadCompletePages } from "./pages";
 import type { components } from "./generated/public";
 import {
-  safeConfigurationResource,
-  safeCredentialResource,
-} from "./safe-resources";
-import {
-  CONFIG_ID_PATTERN,
   CONFIG_NAME_PATTERN,
   CONFIG_VERSION_PATTERN,
   listConfigurations,
   listCredentials,
+  requireCanonicalConfiguration,
 } from "./workflows";
 
 export const OPERATIONS_PAGE_SIZE = 50;
@@ -25,19 +30,14 @@ export const WRITABLE_CONFIGURATION_KINDS = [
   "llm-gateways",
 ] as const satisfies readonly WritableConfigurationKind[];
 export const MANAGED_CONFIG_NAME_PATTERN = CONFIG_NAME_PATTERN;
-export const BUDGET_DURATION_PATTERN =
-  /^(?=.{2,32}$)[1-9][0-9]*(?:s|m|h|d|mo)$/;
-
-const RESOURCE_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$/;
-const DIGEST_PATTERN = /^sha256:[0-9a-f]{64}$/;
-const UNSIGNED_DECIMAL = /^(?:0|[1-9][0-9]*)$/;
-const RUNTIME_CAPABILITY_REF_PATTERN =
-  /^[a-z][a-z0-9_-]*@[A-Za-z0-9][A-Za-z0-9._+-]*$/;
-const MAX_RUNTIME_CAPABILITY_REFS = 128;
-const MAX_RUNTIME_TOOLSETS = 128;
-const MAX_RUNTIME_TOOLS_PER_TOOLSET = 256;
-const SCHEDULER_SETTINGS_REVISION = /^[1-9][0-9]{0,19}$/;
-const SCHEDULER_SETTINGS_ETAG = /^"[1-9][0-9]{0,19}"$/;
+export const BUDGET_DURATION_PATTERN = stringRule(
+  "GatewayPolicy",
+  "properties",
+  "budgetDuration",
+);
+// Telemetry export retry defaults the Runtime applies to an omitted bound.
+const DEFAULT_INITIAL_BACKOFF_MILLISECONDS = 100;
+const DEFAULT_MAX_BACKOFF_MILLISECONDS = 1000;
 
 export type OperationsSnapshot = components["schemas"]["OperationsSnapshot"];
 export type OperationsCursor = components["schemas"]["SnapshotCursor"];
@@ -95,24 +95,6 @@ export interface CursorPageRequest {
   cursor?: string;
 }
 
-function requireExactRuntimeKeys(
-  value: object,
-  required: readonly string[],
-  optional: readonly string[] = [],
-): void {
-  if (value === null || typeof value !== "object" || Array.isArray(value)) {
-    throw new TypeError("Runtime configuration API response shape is invalid");
-  }
-  const keys = Object.keys(value);
-  const allowed = new Set([...required, ...optional]);
-  if (
-    required.some((key) => !keys.includes(key)) ||
-    keys.some((key) => !allowed.has(key))
-  ) {
-    throw new TypeError("Runtime configuration API response shape is invalid");
-  }
-}
-
 function requireConfigIdentity(name: string, version?: string): void {
   if (
     !CONFIG_NAME_PATTERN.test(name) ||
@@ -130,316 +112,76 @@ function requirePublishedRef(ref: {
 }): void {
   const name = ref.policyId ?? ref.gatewayId ?? "";
   requireConfigIdentity(name, ref.version);
-  if (!DIGEST_PATTERN.test(ref.digest)) {
+  if (!DIGEST.test(ref.digest)) {
     throw new TypeError("Published configuration digest is invalid");
   }
 }
 
 function requireRuntimeIdentity(name: string, version?: string): void {
   if (
-    !/^[a-z][a-z0-9_-]{0,62}$/.test(name) ||
-    (version !== undefined &&
-      !/^[A-Za-z0-9][A-Za-z0-9._+-]{0,127}$/.test(version))
+    !RUNTIME_INFRASTRUCTURE_ID.test(name) ||
+    (version !== undefined && !RUNTIME_CONFIG_VERSION.test(version))
   ) {
     throw new TypeError("Runtime configuration identity is invalid");
   }
 }
 
 function requireRuntimeCredentialId(value: string): void {
-  if (!/^[a-z][a-z0-9_-]{0,127}$/.test(value)) {
+  if (!RUNTIME_CREDENTIAL_ID.test(value)) {
     throw new TypeError("Runtime credential ID is invalid");
   }
 }
 
 function requireRuntimeAgentId(value: string): void {
-  if (!/^[0-9a-f]{64}$/.test(value)) {
+  if (!RUNTIME_AGENT_ID.test(value)) {
     throw new TypeError("Runtime Agent principal ID is invalid");
   }
 }
 
-function safeRuntimeRef(
+function requireRuntimeRef(
   ref: components["schemas"]["RuntimeConfigRef"],
 ): components["schemas"]["RuntimeConfigRef"] {
-  requireExactRuntimeKeys(ref, ["name", "version", "digest"]);
   requireRuntimeIdentity(ref.name, ref.version);
-  if (!DIGEST_PATTERN.test(ref.digest)) {
+  if (!DIGEST.test(ref.digest)) {
     throw new TypeError("RuntimeConfig ref is invalid");
   }
   return { name: ref.name, version: ref.version, digest: ref.digest };
 }
 
-function safeRuntimeTelemetry(
-  value: components["schemas"]["RuntimeTelemetryConfig"],
-): components["schemas"]["RuntimeTelemetryConfig"] {
-  requireExactRuntimeKeys(
-    value,
-    ["adapter", "endpoint"],
-    ["credential", "captureContent", "flushTimeoutSeconds", "export"],
+/** A telemetry export never starts retrying above its maximum backoff. */
+function consistentTelemetryRetry(
+  telemetry: components["schemas"]["RuntimeTelemetryConfig"] | null | undefined,
+): boolean {
+  const retry = telemetry?.export?.retry;
+  return (
+    retry === undefined ||
+    (retry.initialBackoffMilliseconds ??
+      DEFAULT_INITIAL_BACKOFF_MILLISECONDS) <=
+      (retry.maxBackoffMilliseconds ?? DEFAULT_MAX_BACKOFF_MILLISECONDS)
   );
-  const endpoint = new URL(value.endpoint);
-  if (value.export !== undefined) {
-    requireExactRuntimeKeys(
-      value.export,
-      [],
-      [
-        "batchSizeBytes",
-        "maxAttempts",
-        "maxPendingSpans",
-        "maxPendingBytes",
-        "retry",
-      ],
-    );
-    if (value.export.retry !== undefined) {
-      requireExactRuntimeKeys(
-        value.export.retry,
-        [],
-        ["initialBackoffMilliseconds", "maxBackoffMilliseconds"],
-      );
-      const initial = value.export.retry.initialBackoffMilliseconds ?? 100;
-      const maximum = value.export.retry.maxBackoffMilliseconds ?? 1000;
-      if (
-        value.export.retry.initialBackoffMilliseconds === null ||
-        value.export.retry.maxBackoffMilliseconds === null ||
-        !Number.isInteger(initial) ||
-        !Number.isInteger(maximum) ||
-        initial < 1 ||
-        maximum > 60000 ||
-        initial > maximum
-      ) {
-        throw new TypeError("Runtime telemetry retry backoff is invalid");
-      }
-    }
-  }
-  if (
-    !["http:", "https:"].includes(endpoint.protocol) ||
-    endpoint.username !== "" ||
-    endpoint.password !== "" ||
-    endpoint.search !== "" ||
-    endpoint.hash !== ""
-  ) {
-    throw new TypeError("Runtime telemetry endpoint is invalid");
-  }
-  return {
-    adapter: value.adapter,
-    endpoint: endpoint.toString(),
-    ...(value.credential === undefined ? {} : { credential: value.credential }),
-    ...(value.captureContent === undefined
-      ? {}
-      : { captureContent: value.captureContent }),
-    ...(value.flushTimeoutSeconds === undefined
-      ? {}
-      : { flushTimeoutSeconds: value.flushTimeoutSeconds }),
-    ...(value.export === undefined
-      ? {}
-      : {
-          export: {
-            ...value.export,
-            ...(value.export.retry === undefined
-              ? {}
-              : { retry: { ...value.export.retry } }),
-          },
-        }),
-  };
 }
 
-function safeRuntimeDocument(
-  value: RuntimeConfigDocument,
-): RuntimeConfigDocument {
-  requireExactRuntimeKeys(value, ["apiVersion", "kind", "metadata", "spec"]);
-  requireExactRuntimeKeys(value.metadata, ["name", "version"]);
-  requireExactRuntimeKeys(value.spec, [], ["worker", "planner"]);
-  requireRuntimeIdentity(value.metadata.name, value.metadata.version);
-  const worker = value.spec.worker;
-  const planner = value.spec.planner;
-  if (worker !== undefined) {
-    requireExactRuntimeKeys(
-      worker,
-      [],
-      ["llmGateway", "telemetry", "httpProxy", "caido"],
-    );
-    if (worker.llmGateway !== undefined) {
-      requireExactRuntimeKeys(worker.llmGateway, [], ["gateway", "credential"]);
-      if (worker.llmGateway.gateway !== undefined) {
-        requireExactRuntimeKeys(worker.llmGateway.gateway, [
-          "gatewayId",
-          "version",
-          "digest",
-        ]);
-      }
-    }
-    if (worker.httpProxy !== undefined && worker.httpProxy !== null) {
-      requireExactRuntimeKeys(
-        worker.httpProxy,
-        ["adapter", "proxyUrl", "targets"],
-        ["credential", "caBundlePem"],
-      );
-    }
-    if (worker.caido !== undefined && worker.caido !== null) {
-      requireExactRuntimeKeys(
-        worker.caido,
-        ["adapter", "endpoint"],
-        ["credential", "caBundlePem", "requestTimeoutSeconds"],
-      );
-    }
-  }
-  if (planner !== undefined) {
-    requireExactRuntimeKeys(planner, [], ["telemetry"]);
-  }
-  return {
-    apiVersion: value.apiVersion,
-    kind: value.kind,
-    metadata: {
-      name: value.metadata.name,
-      version: value.metadata.version,
-    },
-    spec: {
-      ...(worker === undefined
-        ? {}
-        : {
-            worker: {
-              ...(worker.llmGateway === undefined
-                ? {}
-                : {
-                    llmGateway: {
-                      ...(worker.llmGateway.gateway === undefined
-                        ? {}
-                        : { gateway: { ...worker.llmGateway.gateway } }),
-                      ...(worker.llmGateway.credential === undefined
-                        ? {}
-                        : { credential: worker.llmGateway.credential }),
-                    },
-                  }),
-              ...(worker.telemetry === undefined
-                ? {}
-                : {
-                    telemetry:
-                      worker.telemetry === null
-                        ? null
-                        : safeRuntimeTelemetry(worker.telemetry),
-                  }),
-              ...(worker.httpProxy === undefined
-                ? {}
-                : {
-                    httpProxy:
-                      worker.httpProxy === null
-                        ? null
-                        : {
-                            adapter: worker.httpProxy.adapter,
-                            proxyUrl: worker.httpProxy.proxyUrl,
-                            ...(worker.httpProxy.credential === undefined
-                              ? {}
-                              : { credential: worker.httpProxy.credential }),
-                            ...(worker.httpProxy.caBundlePem === undefined
-                              ? {}
-                              : { caBundlePem: worker.httpProxy.caBundlePem }),
-                            targets: [...worker.httpProxy.targets],
-                          },
-                  }),
-              ...(worker.caido === undefined
-                ? {}
-                : {
-                    caido: worker.caido === null ? null : { ...worker.caido },
-                  }),
-            },
-          }),
-      ...(planner === undefined
-        ? {}
-        : {
-            planner: {
-              ...(planner.telemetry === undefined
-                ? {}
-                : {
-                    telemetry:
-                      planner.telemetry === null
-                        ? null
-                        : safeRuntimeTelemetry(planner.telemetry),
-                  }),
-            },
-          }),
-    },
-  };
-}
-
-function safeRuntimeConfigResource(
+/**
+ * A RuntimeConfig resource is the document its ref names, and its
+ * telemetry retry bounds are ordered.
+ */
+function requireRuntimeConfigResource(
   value: RuntimeConfigResource,
+  status: number,
 ): RuntimeConfigResource {
-  requireExactRuntimeKeys(value, [
-    "ref",
-    "document",
-    "builtIn",
-    "createdBy",
-    "createdAt",
-  ]);
-  const ref = safeRuntimeRef(value.ref);
-  const document = safeRuntimeDocument(value.document);
+  const document = value.document;
   if (
-    ref.name !== document.metadata.name ||
-    ref.version !== document.metadata.version
+    value.ref.name !== document.metadata.name ||
+    value.ref.version !== document.metadata.version ||
+    !consistentTelemetryRetry(document.spec.worker?.telemetry) ||
+    !consistentTelemetryRetry(document.spec.planner?.telemetry)
   ) {
-    throw new TypeError("RuntimeConfig resource identity is invalid");
+    throw invalidAPIResponse(
+      status,
+      "Server returned an invalid RuntimeConfig resource",
+    );
   }
-  return {
-    ref,
-    document,
-    builtIn: value.builtIn,
-    createdBy: value.createdBy,
-    createdAt: value.createdAt,
-  };
-}
-
-function safeRuntimeLabel(value: RuntimeLabelBinding): RuntimeLabelBinding {
-  requireExactRuntimeKeys(value, [
-    "label",
-    "config",
-    "revision",
-    "createdBy",
-    "createdAt",
-    "updatedBy",
-    "updatedAt",
-  ]);
-  requireRuntimeIdentity(value.label);
-  if (!/^[1-9][0-9]{0,19}$/.test(value.revision)) {
-    throw new TypeError("Runtime label revision is invalid");
-  }
-  return {
-    label: value.label,
-    config: safeRuntimeRef(value.config),
-    revision: value.revision,
-    createdBy: value.createdBy,
-    createdAt: value.createdAt,
-    updatedBy: value.updatedBy,
-    updatedAt: value.updatedAt,
-  };
-}
-
-function safeRuntimeCredential(
-  value: RuntimeCredentialMetadata,
-): RuntimeCredentialMetadata {
-  requireExactRuntimeKeys(value, [
-    "credentialId",
-    "kind",
-    "createdBy",
-    "createdAt",
-  ]);
-  requireRuntimeCredentialId(value.credentialId);
-  if (
-    ![
-      "otlp-headers@1",
-      "http-proxy-basic@1",
-      "http-proxy-bearer@1",
-      "caido-bearer@1",
-      "http-origin-basic@1",
-      "http-origin-bearer@1",
-    ].includes(value.kind)
-  ) {
-    throw new TypeError("Runtime credential kind is invalid");
-  }
-  return {
-    credentialId: value.credentialId,
-    kind: value.kind,
-    createdBy: value.createdBy,
-    createdAt: value.createdAt,
-  };
+  return value;
 }
 
 function idempotencyHeader(api: PublicAPI, key: string): string {
@@ -452,376 +194,111 @@ function idempotencyHeader(api: PublicAPI, key: string): string {
   return result;
 }
 
-function validOperationsCursor(cursor: OperationsCursor): boolean {
-  return (
-    RESOURCE_ID_PATTERN.test(cursor.generation) &&
-    cursor.revision.length <= 20 &&
-    UNSIGNED_DECIMAL.test(cursor.revision)
-  );
-}
-
-function safeReason(value: { code: string; retryable: boolean } | undefined) {
-  return value === undefined
-    ? undefined
-    : { code: value.code, retryable: value.retryable };
-}
-
-function safeWorkspaceCapabilities(
+/** Workspace limits nest: one file or managed text fits the whole tree. */
+function consistentWorkspace(
   value: WorkspaceCapabilities | undefined,
-): WorkspaceCapabilities | undefined {
-  if (value === undefined) return undefined;
-  requireExactRuntimeKeys(value, ["storage", "modes", "limits"]);
-  requireExactRuntimeKeys(value.limits, [
-    "maxFiles",
-    "maxExpandedBytes",
-    "maxManagedTextBytes",
-    "maxFileBytes",
-  ]);
-  const limits = value.limits;
-  const numbers = [
-    limits.maxFiles,
-    limits.maxExpandedBytes,
-    limits.maxManagedTextBytes,
-    limits.maxFileBytes,
-  ];
-  if (
-    (value.storage !== "local" && value.storage !== "memory") ||
-    !Array.isArray(value.modes) ||
-    value.modes.length === 0 ||
-    value.modes.length > 2 ||
-    value.modes.some((mode) => mode !== "direct" && mode !== "overlay") ||
-    new Set(value.modes).size !== value.modes.length ||
-    numbers.some((number) => !Number.isSafeInteger(number) || number <= 0) ||
-    limits.maxFileBytes > limits.maxExpandedBytes ||
-    limits.maxManagedTextBytes > limits.maxExpandedBytes
-  ) {
-    throw new TypeError("Runtime Agent workspace capability is invalid");
-  }
-  return {
-    storage: value.storage,
-    modes: [...value.modes].sort(),
-    limits: { ...limits },
-  };
+): boolean {
+  return (
+    value === undefined ||
+    (value.limits.maxFileBytes <= value.limits.maxExpandedBytes &&
+      value.limits.maxManagedTextBytes <= value.limits.maxExpandedBytes)
+  );
 }
 
-function safeRuntimeAgent(
-  value: RuntimeAgentObservation,
-): RuntimeAgentObservation {
-  requireExactRuntimeKeys(
-    value,
-    [
-      "instanceId",
-      "softwareVersion",
-      "supportedRuntimes",
-      "supportedToolsets",
-      "supportedSandboxProfiles",
-      "supportedRuntimeAdapters",
-      "observedState",
-      "slotState",
-    ],
-    [
-      "lastAcceptedHeartbeat",
-      "confirmedLeaseUntil",
-      "currentAllocationId",
-      "authoritativeAllocationId",
-      "reconciliationReason",
-      "workspaceCapabilities",
-    ],
+/** A live Agent advertises each toolset once, with nesting workspace limits. */
+function consistentRuntimeAgent(value: RuntimeAgentObservation): boolean {
+  const toolsets = value.supportedToolsets.map((toolset) => toolset.ref);
+  return (
+    new Set(toolsets).size === toolsets.length &&
+    consistentWorkspace(value.workspaceCapabilities)
   );
-  const reason = safeReason(value.reconciliationReason);
-  const runtimes = safeCapabilityRefs(value.supportedRuntimes, true);
-  const sandboxes = safeCapabilityRefs(value.supportedSandboxProfiles, true);
-  const adapters = safeCapabilityRefs(value.supportedRuntimeAdapters, false);
-  const workspaceCapabilities = safeWorkspaceCapabilities(
-    value.workspaceCapabilities,
-  );
-  if (
-    !Array.isArray(value.supportedToolsets) ||
-    value.supportedToolsets.length > MAX_RUNTIME_TOOLSETS
-  ) {
-    throw new TypeError("Runtime Agent capabilities are invalid");
-  }
-  const seenToolsets = new Set<string>();
-  const toolsets = value.supportedToolsets.map((capability) => {
-    if (capability !== null && typeof capability === "object") {
-      requireExactRuntimeKeys(capability, ["ref", "tools"]);
-    }
-    if (
-      capability === null ||
-      typeof capability !== "object" ||
-      typeof capability.ref !== "string" ||
-      capability.ref.length > 256 ||
-      !RUNTIME_CAPABILITY_REF_PATTERN.test(capability.ref) ||
-      seenToolsets.has(capability.ref) ||
-      !Array.isArray(capability.tools) ||
-      capability.tools.length === 0 ||
-      capability.tools.length > MAX_RUNTIME_TOOLS_PER_TOOLSET
-    ) {
-      throw new TypeError("Runtime Agent capabilities are invalid");
-    }
-    seenToolsets.add(capability.ref);
-    const tools = capability.tools.map((tool) => {
-      if (typeof tool !== "string" || !CONFIG_ID_PATTERN.test(tool)) {
-        throw new TypeError("Runtime Agent capabilities are invalid");
-      }
-      return tool;
-    });
-    if (new Set(tools).size !== tools.length) {
-      throw new TypeError("Runtime Agent capabilities are invalid");
-    }
-    return { ref: capability.ref, tools: tools.sort() };
-  });
-  toolsets.sort((left, right) => left.ref.localeCompare(right.ref));
-  return {
-    instanceId: value.instanceId,
-    softwareVersion: value.softwareVersion,
-    supportedRuntimes: runtimes,
-    supportedToolsets: toolsets,
-    supportedSandboxProfiles: sandboxes,
-    supportedRuntimeAdapters: adapters,
-    ...(workspaceCapabilities === undefined ? {} : { workspaceCapabilities }),
-    observedState: value.observedState,
-    slotState: value.slotState,
-    ...(value.lastAcceptedHeartbeat === undefined
-      ? {}
-      : { lastAcceptedHeartbeat: value.lastAcceptedHeartbeat }),
-    ...(value.confirmedLeaseUntil === undefined
-      ? {}
-      : { confirmedLeaseUntil: value.confirmedLeaseUntil }),
-    ...(value.currentAllocationId === undefined
-      ? {}
-      : { currentAllocationId: value.currentAllocationId }),
-    ...(value.authoritativeAllocationId === undefined
-      ? {}
-      : { authoritativeAllocationId: value.authoritativeAllocationId }),
-    ...(reason === undefined ? {} : { reconciliationReason: reason }),
-  };
 }
 
-function safeRuntimeAgentPrincipal(
-  value: RuntimeAgentPrincipal,
+/**
+ * A principal is offline exactly when no live Agent reports for it, and
+ * mismatched exactly when it misses some of the adapters it requires.
+ */
+function consistentPrincipal(value: RuntimeAgentPrincipal): boolean {
+  return (
+    value.missingRuntimeAdapters.every((adapter) =>
+      value.requiredRuntimeAdapters.includes(adapter),
+    ) &&
+    (value.availability === "offline") === (value.live === undefined) &&
+    (value.availability === "adapter_capability_mismatch") ===
+      value.missingRuntimeAdapters.length > 0 &&
+    (value.live === undefined || consistentRuntimeAgent(value.live))
+  );
+}
+
+/**
+ * Capability lists and labels have no wire order. Sorting the freshly parsed
+ * response once keeps every Operations view in the same order.
+ */
+function sortRuntimeAgent(value: RuntimeAgentObservation): void {
+  value.supportedRuntimes.sort();
+  value.supportedSandboxProfiles.sort();
+  value.supportedRuntimeAdapters.sort();
+  value.supportedToolsets.sort((left, right) =>
+    left.ref.localeCompare(right.ref),
+  );
+  for (const toolset of value.supportedToolsets) toolset.tools.sort();
+  value.workspaceCapabilities?.modes.sort();
+}
+
+function sortPrincipal(value: RuntimeAgentPrincipal): void {
+  value.labels.sort();
+  value.requiredRuntimeAdapters.sort();
+  value.missingRuntimeAdapters.sort();
+  if (value.live !== undefined) sortRuntimeAgent(value.live);
+}
+
+/** A model-backed allocation resolves the LLM Gateway that serves it. */
+function consistentAllocation(value: AllocationObservation): boolean {
+  return (
+    value.executionConfig.modelPolicy === undefined ||
+    value.executionConfig.llmGateway !== undefined
+  );
+}
+
+function requirePrincipal(
+  result: { data?: RuntimeAgentPrincipal; error?: unknown; response: Response },
+  runtimeAgentId: string,
 ): RuntimeAgentPrincipal {
-  requireExactRuntimeKeys(
-    value,
-    [
-      "runtimeAgentId",
-      "labels",
-      "revision",
-      "availability",
-      "requiredRuntimeAdapters",
-      "missingRuntimeAdapters",
-      "createdBy",
-      "createdAt",
-      "updatedBy",
-      "updatedAt",
-    ],
-    ["live"],
-  );
-  requireRuntimeAgentId(value.runtimeAgentId);
-  if (!/^[1-9][0-9]{0,19}$/.test(value.revision)) {
-    throw new TypeError("Runtime Agent principal revision is invalid");
-  }
-  const labels = [...value.labels].sort();
-  labels.forEach((label) => requireRuntimeIdentity(label));
-  if (new Set(labels).size !== labels.length || labels.includes("default")) {
-    throw new TypeError("Runtime Agent principal labels are invalid");
-  }
-  const required = safeCapabilityRefs(value.requiredRuntimeAdapters, false);
-  const missing = safeCapabilityRefs(value.missingRuntimeAdapters, false);
-  const availability = [
-    "available",
-    "offline",
-    "busy",
-    "slot_unavailable",
-    "adapter_capability_mismatch",
-  ] as const;
+  const principal = requireData(result);
+  // The Server answers for the requested principal; the ETag is its revision.
   if (
-    !availability.includes(value.availability) ||
-    missing.some((adapter) => !required.includes(adapter)) ||
-    (value.availability === "offline") !== (value.live === undefined) ||
-    (value.availability === "adapter_capability_mismatch") !==
-      missing.length > 0
+    !consistentPrincipal(principal) ||
+    principal.runtimeAgentId !== runtimeAgentId ||
+    result.response.headers.get("etag") !== `"${principal.revision}"`
   ) {
-    throw new TypeError("Runtime Agent principal adapter status is invalid");
+    throw invalidAPIResponse(
+      result.response.status,
+      "Server returned an invalid Runtime Agent principal",
+    );
   }
-  return {
-    runtimeAgentId: value.runtimeAgentId,
-    labels,
-    revision: value.revision,
-    availability: value.availability,
-    requiredRuntimeAdapters: required,
-    missingRuntimeAdapters: missing,
-    ...(value.live === undefined ? {} : { live: safeRuntimeAgent(value.live) }),
-    createdBy: value.createdBy,
-    createdAt: value.createdAt,
-    updatedBy: value.updatedBy,
-    updatedAt: value.updatedAt,
-  };
+  sortPrincipal(principal);
+  return principal;
 }
 
-function safeCapabilityRefs(values: string[], required: boolean): string[] {
-  if (
-    !Array.isArray(values) ||
-    (required && values.length === 0) ||
-    values.length > MAX_RUNTIME_CAPABILITY_REFS
-  ) {
-    throw new TypeError("Runtime Agent capabilities are invalid");
-  }
-  const result = values.map((value) => {
-    if (
-      typeof value !== "string" ||
-      value.length > 256 ||
-      !RUNTIME_CAPABILITY_REF_PATTERN.test(value)
-    ) {
-      throw new TypeError("Runtime Agent capabilities are invalid");
-    }
-    return value;
-  });
-  if (new Set(result).size !== result.length) {
-    throw new TypeError("Runtime Agent capabilities are invalid");
-  }
-  return result.sort();
-}
-
-function safeAllocation(value: AllocationObservation): AllocationObservation {
-  const reason = safeReason(value.reason);
-  const origins = value.executionConfig.origins;
-  const llmGateway = value.executionConfig.llmGateway;
-  if (
-    value.executionConfig.modelPolicy !== undefined &&
-    llmGateway === undefined
-  ) {
-    throw new TypeError("active Allocation has no resolved LLM Gateway");
-  }
-  return {
-    allocationId: value.allocationId,
-    runId: value.runId,
-    stageExecutionId: value.stageExecutionId,
-    runtimeAgentInstanceId: value.runtimeAgentInstanceId,
-    logicalWorker: value.logicalWorker,
-    agentTemplate: {
-      templateId: value.agentTemplate.templateId,
-      version: value.agentTemplate.version,
-      digest: value.agentTemplate.digest,
-    },
-    executionConfig: {
-      ...(value.executionConfig.modelPolicy === undefined
-        ? {}
-        : {
-            modelPolicy: {
-              policyId: value.executionConfig.modelPolicy.policyId,
-              version: value.executionConfig.modelPolicy.version,
-              digest: value.executionConfig.modelPolicy.digest,
-            },
-          }),
-      ...(llmGateway === undefined
-        ? {}
-        : {
-            llmGateway: {
-              gatewayId: llmGateway.gatewayId,
-              version: llmGateway.version,
-              digest: llmGateway.digest,
-            },
-          }),
-      ...(value.executionConfig.credential === undefined
-        ? {}
-        : {
-            credential: {
-              credentialId: value.executionConfig.credential.credentialId,
-            },
-          }),
-      ...(origins === undefined
-        ? {}
-        : {
-            origins: {
-              ...(origins.modelPolicy === undefined
-                ? {}
-                : { modelPolicy: origins.modelPolicy }),
-              ...(origins.llmGateway === undefined
-                ? {}
-                : { llmGateway: origins.llmGateway }),
-              ...(origins.credential === undefined
-                ? {}
-                : { credential: origins.credential }),
-            },
-          }),
-    },
-    authoritativePhase: value.authoritativePhase,
-    observedPhase: value.observedPhase,
-    ...(reason === undefined ? {} : { reason }),
-    metrics: {
-      reportsComplete: value.metrics.reportsComplete,
-      modelCalls: value.metrics.modelCalls,
-      inputTokens: value.metrics.inputTokens,
-      outputTokens: value.metrics.outputTokens,
-      totalTokens: value.metrics.totalTokens,
-      toolCalls: value.metrics.toolCalls,
-      toolFailures: value.metrics.toolFailures,
-      errorCount: value.metrics.errorCount,
-      truncated: value.metrics.truncated,
-    },
-    ...(value.exhaustedDimension === undefined
-      ? {}
-      : { exhaustedDimension: value.exhaustedDimension }),
-  };
-}
-
-function safeCursor(cursor: OperationsCursor): OperationsCursor {
-  return { generation: cursor.generation, revision: cursor.revision };
-}
-
-function safePageInfo(page: { hasMore: boolean; nextCursor?: string }) {
-  return {
-    hasMore: page.hasMore,
-    ...(page.nextCursor === undefined ? {} : { nextCursor: page.nextCursor }),
-  };
-}
-
+/** Every page of an Operations list as one page; partial lists throw. */
 async function collectAllPages<T>(
   load: (request: CursorPageRequest) => Promise<{
     items: T[];
     page: { hasMore: boolean; nextCursor?: string };
   }>,
-  resource: string,
+  what: string,
 ): Promise<{ items: T[]; page: { hasMore: false } }> {
-  const items: T[] = [];
-  const seen = new Set<string>();
-  let cursor: string | undefined;
-  for (;;) {
-    const page = await load(cursor === undefined ? {} : { cursor });
-    items.push(...page.items);
-    if (!page.page.hasMore) return { items, page: { hasMore: false } };
-    const next = page.page.nextCursor;
-    if (next === undefined || next === "" || seen.has(next)) {
-      throw new Error(`The server returned an invalid ${resource} cursor.`);
-    }
-    seen.add(next);
-    cursor = next;
-  }
+  const items = await loadCompletePages(what, (cursor) =>
+    load(cursor === undefined ? {} : { cursor }),
+  );
+  return { items, page: { hasMore: false } };
 }
 
-function safeSchedulerSettings(
+function requireSchedulerSettings(
   value: SchedulerSettings,
   response: Response,
 ): SchedulerSettingsSnapshot {
-  const keys = Object.keys(value);
-  if (
-    keys.length !== 3 ||
-    !keys.includes("maxConcurrentRuns") ||
-    !keys.includes("revision") ||
-    !keys.includes("updatedAt") ||
-    !Number.isInteger(value.maxConcurrentRuns) ||
-    value.maxConcurrentRuns < 1 ||
-    value.maxConcurrentRuns > 32 ||
-    !SCHEDULER_SETTINGS_REVISION.test(value.revision) ||
-    typeof value.updatedAt !== "string" ||
-    !Number.isFinite(Date.parse(value.updatedAt))
-  ) {
-    throw invalidAPIResponse(
-      response.status,
-      "Server returned invalid Scheduler settings",
-    );
-  }
+  // The ETag is the settings revision, and the representation is never cached.
   const etag = response.headers.get("ETag");
   if (
     etag !== `"${value.revision}"` ||
@@ -832,14 +309,7 @@ function safeSchedulerSettings(
       "Server returned inconsistent Scheduler settings headers",
     );
   }
-  return {
-    resource: {
-      maxConcurrentRuns: value.maxConcurrentRuns,
-      revision: value.revision,
-      updatedAt: value.updatedAt,
-    },
-    etag,
-  };
+  return { resource: value, etag };
 }
 
 export { listConfigurations, listCredentials };
@@ -850,7 +320,7 @@ export async function getSchedulerSettings(
   const result = await api.request((client) =>
     client.GET("/v1/operations/settings/scheduler"),
   );
-  return safeSchedulerSettings(requireData(result), result.response);
+  return requireSchedulerSettings(requireData(result), result.response);
 }
 
 export async function replaceSchedulerSettings(
@@ -867,16 +337,18 @@ export async function replaceSchedulerSettings(
       "Maximum concurrent Workflow Runs must be an integer from 1 through 32",
     );
   }
-  if (!SCHEDULER_SETTINGS_ETAG.test(etag)) {
-    throw new TypeError("Scheduler settings ETag is invalid");
-  }
+  // The client checks the If-Match value against the operation's schema.
   const result = await api.request((client) =>
     client.PUT("/v1/operations/settings/scheduler", {
       params: { header: { "If-Match": etag } },
       body: { maxConcurrentRuns },
     }),
   );
-  const settings = safeSchedulerSettings(requireData(result), result.response);
+  const settings = requireSchedulerSettings(
+    requireData(result),
+    result.response,
+  );
+  // The replacement answers with the value it was asked to set.
   if (settings.resource.maxConcurrentRuns !== maxConcurrentRuns) {
     throw invalidAPIResponse(
       result.response.status,
@@ -897,17 +369,17 @@ export async function getOperationsSnapshot(
     ),
   );
   const snapshot = requireData(result);
-  if (!validOperationsCursor(snapshot.cursor)) {
+  if (
+    !snapshot.runtimeAgents.every(consistentRuntimeAgent) ||
+    !snapshot.allocations.every(consistentAllocation)
+  ) {
     throw invalidAPIResponse(
       result.response.status,
       "Server returned an invalid Operations snapshot",
     );
   }
-  return {
-    cursor: safeCursor(snapshot.cursor),
-    runtimeAgents: snapshot.runtimeAgents.map(safeRuntimeAgent),
-    allocations: snapshot.allocations.map(safeAllocation),
-  };
+  snapshot.runtimeAgents.forEach(sortRuntimeAgent);
+  return snapshot;
 }
 
 export async function listRuntimeAgentPrincipals(
@@ -925,10 +397,14 @@ export async function listRuntimeAgentPrincipals(
     }),
   );
   const page = requireData(result);
-  return {
-    items: page.items.map(safeRuntimeAgentPrincipal),
-    page: safePageInfo(page.page),
-  };
+  if (!page.items.every(consistentPrincipal)) {
+    throw invalidAPIResponse(
+      result.response.status,
+      "Server returned an invalid Runtime Agent principal",
+    );
+  }
+  page.items.forEach(sortPrincipal);
+  return page;
 }
 
 export function listAllRuntimeAgentPrincipals(
@@ -936,7 +412,7 @@ export function listAllRuntimeAgentPrincipals(
 ): Promise<RuntimeAgentPrincipalPage> {
   return collectAllPages(
     (request) => listRuntimeAgentPrincipals(api, request),
-    "Runtime Agent principal",
+    "The Runtime Agent list",
   );
 }
 
@@ -950,17 +426,7 @@ export async function getRuntimeAgentPrincipal(
       params: { path: { runtimeAgentId } },
     }),
   );
-  const principal = safeRuntimeAgentPrincipal(requireData(result));
-  if (
-    principal.runtimeAgentId !== runtimeAgentId ||
-    result.response.headers.get("etag") !== `"${principal.revision}"`
-  ) {
-    throw invalidAPIResponse(
-      result.response.status,
-      "Server returned an invalid Runtime Agent principal",
-    );
-  }
-  return principal;
+  return requirePrincipal(result, runtimeAgentId);
 }
 
 export async function replaceRuntimeAgentPrincipalLabels(
@@ -1006,18 +472,7 @@ export async function replaceRuntimeAgentPrincipalLabels(
       },
     ),
   );
-  const principal = safeRuntimeAgentPrincipal(requireData(result));
-  if (
-    result.response.status !== 200 ||
-    principal.runtimeAgentId !== runtimeAgentId ||
-    result.response.headers.get("etag") !== `"${principal.revision}"`
-  ) {
-    throw invalidAPIResponse(
-      result.response.status,
-      "Server returned an invalid Runtime Agent label mutation",
-    );
-  }
-  return principal;
+  return requirePrincipal(result, runtimeAgentId);
 }
 
 export async function deleteRuntimeAgentPrincipal(
@@ -1049,7 +504,7 @@ export async function deleteRuntimeAgentPrincipal(
       },
     }),
   );
-  if (result.response.status !== 204 || result.error !== undefined) {
+  if (!result.response.ok) {
     throw publicAPIError(result.response.status, result.error);
   }
 }
@@ -1068,12 +523,15 @@ export async function getConfiguration(
       ...(signal === undefined ? {} : { signal }),
     }),
   );
-  const resource = safeConfigurationResource(requireData(result));
+  const resource = requireCanonicalConfiguration(
+    requireData(result),
+    result.response.status,
+  );
+  // The Server answers for the requested configuration version.
   if (
     resource.ref.kind !== kind ||
     resource.ref.name !== name ||
-    resource.ref.version !== version ||
-    !DIGEST_PATTERN.test(resource.ref.digest)
+    resource.ref.version !== version
   ) {
     throw invalidAPIResponse(
       result.response.status,
@@ -1108,13 +566,15 @@ export async function publishConfiguration(
       body: request,
     }),
   );
-  const resource = safeConfigurationResource(requireData(result));
+  const resource = requireCanonicalConfiguration(
+    requireData(result),
+    result.response.status,
+  );
+  // The publication answers with the identity it was asked to publish.
   if (
-    result.response.status !== 201 ||
     resource.ref.kind !== kind ||
     resource.ref.name !== request.name ||
-    resource.ref.version !== request.version ||
-    !DIGEST_PATTERN.test(resource.ref.digest)
+    resource.ref.version !== request.version
   ) {
     throw invalidAPIResponse(
       result.response.status,
@@ -1134,15 +594,14 @@ export async function getCredential(
       params: { path: { credentialId } },
     }),
   );
-  const credential = safeCredentialResource(requireData(result));
+  const credential = requireData(result);
+  // The Server answers for the requested credential.
   if (credential.credentialId !== credentialId) {
     throw invalidAPIResponse(
       result.response.status,
       "Server returned an invalid credential resource",
     );
   }
-  requirePublishedRef(credential.llmGateway);
-  credential.effectivePolicy.modelPolicies.forEach(requirePublishedRef);
   return credential;
 }
 
@@ -1161,9 +620,9 @@ export async function createCredential(
       body: request,
     }),
   );
-  const credential = safeCredentialResource(requireData(result));
+  const credential = requireData(result);
+  // The creation answers with the credential and Gateway it was asked for.
   if (
-    result.response.status !== 201 ||
     credential.credentialId !== request.credentialId ||
     credential.llmGateway.gatewayId !== request.llmGateway.gatewayId ||
     credential.llmGateway.version !== request.llmGateway.version ||
@@ -1174,7 +633,6 @@ export async function createCredential(
       "Server returned an invalid credential creation response",
     );
   }
-  credential.effectivePolicy.modelPolicies.forEach(requirePublishedRef);
   return credential;
 }
 
@@ -1193,7 +651,7 @@ export async function deleteCredential(
       },
     }),
   );
-  if (result.response.status !== 204 || result.error !== undefined) {
+  if (!result.response.ok) {
     throw publicAPIError(result.response.status, result.error);
   }
 }
@@ -1213,10 +671,10 @@ export async function listRuntimeConfigs(
     }),
   );
   const page = requireData(result);
-  return {
-    items: page.items.map(safeRuntimeConfigResource),
-    page: safePageInfo(page.page),
-  };
+  page.items.forEach((item) =>
+    requireRuntimeConfigResource(item, result.response.status),
+  );
+  return page;
 }
 
 export async function getRuntimeConfig(
@@ -1230,7 +688,11 @@ export async function getRuntimeConfig(
       params: { path: { name, version } },
     }),
   );
-  const resource = safeRuntimeConfigResource(requireData(result));
+  const resource = requireRuntimeConfigResource(
+    requireData(result),
+    result.response.status,
+  );
+  // The Server answers for the requested RuntimeConfig version.
   if (resource.ref.name !== name || resource.ref.version !== version) {
     throw invalidAPIResponse(
       result.response.status,
@@ -1252,9 +714,12 @@ export async function publishRuntimeConfig(
       body: document,
     }),
   );
-  const resource = safeRuntimeConfigResource(requireData(result));
+  const resource = requireRuntimeConfigResource(
+    requireData(result),
+    result.response.status,
+  );
+  // The publication answers with the identity it was asked to publish.
   if (
-    result.response.status !== 201 ||
     resource.ref.name !== document.metadata.name ||
     resource.ref.version !== document.metadata.version
   ) {
@@ -1280,11 +745,7 @@ export async function listRuntimeLabels(
       },
     }),
   );
-  const page = requireData(result);
-  return {
-    items: page.items.map(safeRuntimeLabel),
-    page: safePageInfo(page.page),
-  };
+  return requireData(result);
 }
 
 export function listAllRuntimeLabels(
@@ -1292,7 +753,7 @@ export function listAllRuntimeLabels(
 ): Promise<RuntimeLabelPage> {
   return collectAllPages(
     (request) => listRuntimeLabels(api, request),
-    "Runtime label",
+    "The Runtime label list",
   );
 }
 
@@ -1304,7 +765,7 @@ export async function putRuntimeLabel(
   expectedRevision?: string,
 ): Promise<RuntimeLabelBinding> {
   requireRuntimeIdentity(label);
-  const safeConfig = safeRuntimeRef(config);
+  const safeConfig = requireRuntimeRef(config);
   if (
     expectedRevision !== undefined &&
     !/^[1-9][0-9]{0,19}$/.test(expectedRevision)
@@ -1335,9 +796,9 @@ export async function putRuntimeLabel(
       body: { config: safeConfig },
     }),
   );
-  const binding = safeRuntimeLabel(requireData(result));
+  const binding = requireData(result);
+  // The Server answers for the requested label; the ETag is its revision.
   if (
-    ![200, 201].includes(result.response.status) ||
     binding.label !== label ||
     result.response.headers.get("etag") !== `"${binding.revision}"`
   ) {
@@ -1375,7 +836,7 @@ export async function deleteRuntimeLabel(
       },
     }),
   );
-  if (result.response.status !== 204 || result.error !== undefined) {
+  if (!result.response.ok) {
     throw publicAPIError(result.response.status, result.error);
   }
 }
@@ -1394,11 +855,7 @@ export async function listRuntimeCredentials(
       },
     }),
   );
-  const page = requireData(result);
-  return {
-    items: page.items.map(safeRuntimeCredential),
-    page: safePageInfo(page.page),
-  };
+  return requireData(result);
 }
 
 export async function createRuntimeCredential(
@@ -1414,9 +871,9 @@ export async function createRuntimeCredential(
       body: request,
     }),
   );
-  const metadata = safeRuntimeCredential(requireData(result));
+  const metadata = requireData(result);
+  // The creation answers with the credential it was asked to create.
   if (
-    result.response.status !== 201 ||
     metadata.credentialId !== request.credentialId ||
     metadata.kind !== request.kind
   ) {
@@ -1443,7 +900,7 @@ export async function deleteRuntimeCredential(
       },
     }),
   );
-  if (result.response.status !== 204 || result.error !== undefined) {
+  if (!result.response.ok) {
     throw publicAPIError(result.response.status, result.error);
   }
 }

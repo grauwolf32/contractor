@@ -75,7 +75,7 @@ async function installRunAPI(page: Page, uiOrigin: string): Promise<void> {
             stage: "validate",
             objective: "Validate the responsive layout.",
             attempt: 1,
-            executionConfig: { variant: "base", agents: {} },
+            executionConfig: { variant: "base", agents: { validator: {} } },
             state: "succeeded",
             result: {
               apiVersion: "contractor/v1alpha1",
@@ -102,6 +102,7 @@ async function installRunAPI(page: Page, uiOrigin: string): Promise<void> {
             revision: LONG_REVISION,
           },
         },
+        outputPublications: [],
         createdAt: "2026-09-04T08:00:00Z",
         updatedAt: "2026-09-04T08:01:00Z",
         startedAt: "2026-09-04T08:00:00Z",

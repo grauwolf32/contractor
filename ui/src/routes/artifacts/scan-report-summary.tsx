@@ -1,3 +1,5 @@
+import { DIGEST } from "../../api/contract";
+
 const SCAN_TOOLS = new Set([
   "scan_nuclei",
   "scan_naabu",
@@ -132,7 +134,7 @@ export function ScanReportSummary({ source }: { source: string }) {
     typeof report.tool !== "string" ||
     !SCAN_TOOLS.has(report.tool) ||
     typeof report.inputDigest !== "string" ||
-    !/^sha256:[a-f0-9]{64}$/.test(report.inputDigest) ||
+    !DIGEST.test(report.inputDigest) ||
     !isRecord(report.inputArtifacts) ||
     !isRecord(report.observation)
   ) {

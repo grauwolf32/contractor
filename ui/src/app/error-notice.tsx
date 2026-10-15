@@ -1,4 +1,4 @@
-import { PublicAPIError } from "../api/error";
+import { InvalidResponseError, PublicAPIError } from "../api/error";
 import { Button } from "../ui/button";
 
 export function ErrorNotice({
@@ -56,6 +56,9 @@ export function ErrorNotice({
             Code {error.code} · Status {error.status}
           </small>
           {requestId === undefined ? null : <small>Request {requestId}</small>}
+          {error instanceof InvalidResponseError ? (
+            <small>{error.detail}</small>
+          ) : null}
         </details>
       ) : null}
     </div>

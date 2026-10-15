@@ -51,9 +51,17 @@ import { RecordedTime } from "../../../app/recorded-time";
 import { InUseErrorDetails } from "../in-use-details";
 import { compactDigest } from "../../../app/format";
 import { OpsSection, PublicationFeedback } from "../common";
+import {
+  RUNTIME_CONFIG_VERSION,
+  RUNTIME_CREDENTIAL_ID,
+  RUNTIME_INFRASTRUCTURE_ID,
+} from "../../../api/contract";
 
-const RUNTIME_ID = /^[a-z][a-z0-9_-]{0,62}$/;
-const RUNTIME_VERSION = /^[A-Za-z0-9][A-Za-z0-9._+-]{0,127}$/;
+// RuntimeConfig names and labels, versions and credential IDs follow the
+// public RuntimeInfrastructureId, RuntimeConfigVersion and
+// RuntimeCredentialId rules.
+const RUNTIME_ID = RUNTIME_INFRASTRUCTURE_ID;
+const RUNTIME_VERSION = RUNTIME_CONFIG_VERSION;
 
 function exactKey(resource: RuntimeConfigResource): string {
   return `${resource.ref.name}@${resource.ref.version}:${resource.ref.digest}`;
@@ -423,7 +431,7 @@ function RuntimeConfigPublishForm({
               ref={initialFocus}
               aria-label="RuntimeConfig name"
               required
-              maxLength={63}
+              maxLength={RUNTIME_ID.maxLength}
               value={draft.name}
               onChange={(event) => update("name", event.target.value)}
             />
@@ -433,7 +441,7 @@ function RuntimeConfigPublishForm({
             <input
               aria-label="RuntimeConfig version"
               required
-              maxLength={128}
+              maxLength={RUNTIME_VERSION.maxLength}
               value={draft.version}
               onChange={(event) => update("version", event.target.value)}
             />
@@ -1143,7 +1151,7 @@ function RuntimeCredentialCreateForm({ onClose }: { onClose: () => void }) {
     if (pending) return;
     setError(null);
     setCreated(undefined);
-    if (!/^[a-z][a-z0-9_-]{0,127}$/.test(credentialId)) {
+    if (!RUNTIME_CREDENTIAL_ID.test(credentialId)) {
       setError(new Error("Credential ID must match [a-z][a-z0-9_-]*."));
       clearSecretFields();
       return;

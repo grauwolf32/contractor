@@ -45,10 +45,14 @@ root before building. Rebuilding alone does not increment the version. Deploy
 the matching `package.json` with the new bundle and restart the UI service so
 the browser and runtime configuration report the same version.
 
-The generated file at `src/api/generated/public.ts` comes only from
-`api/openapi/contractor-public-v1.yaml`. Run `make ui-generate`; never edit the
-file by hand. `make ui-generate-check` regenerates it and fails on a tracked
-diff.
+The files in `src/api/generated/` come only from
+`api/openapi/contractor-public-v1.yaml` and
+`api/events/contractor-events-v1.schema.json`: `public.ts` holds the TypeScript
+types (openapi-typescript), and `scripts/generate-schemas.mjs` writes the schema
+bundles and the operation-to-response-schema map that `src/api/contract.ts`
+validates every JSON response and event frame against. Run `make ui-generate`;
+never edit the files by hand. `make ui-generate-check` regenerates them and
+fails when any of them differs.
 
 The `/artifacts` route manages UserScope Workflow inputs. Uploads are limited
 to 64 MiB and use explicit create/CAS preconditions; the UI never retries a

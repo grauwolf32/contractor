@@ -57,7 +57,7 @@ describe("Agent catalog API", () => {
     expect(captured?.signal.aborted).toBe(true);
   });
 
-  it("fails locally for invalid identities and malformed binding pages", async () => {
+  it("fails locally for invalid identities and rejects malformed binding pages", async () => {
     const fetcher = vi.fn(async () =>
       response({ items: undefined, page: { hasMore: false } }),
     );
@@ -68,6 +68,6 @@ describe("Agent catalog API", () => {
     expect(fetcher).not.toHaveBeenCalled();
     await expect(
       listAgentTemplateWorkflowBindings(api, "researcher", "1"),
-    ).rejects.toThrow("invalid Agent Workflow bindings");
+    ).rejects.toMatchObject({ code: "invalid_api_response", status: 200 });
   });
 });

@@ -1,11 +1,9 @@
+import { schemaViolation } from "./contract";
 import type { components } from "./generated/public";
 
 type ErrorEnvelope = components["schemas"]["Error"];
 
 const MAXIMUM_ERROR_TEXT = 512;
-const SAFE_RESOURCE_ID = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$/;
-const SAFE_RUNTIME_LABEL = /^[a-z][a-z0-9_-]{0,62}$/;
-const SAFE_RUNTIME_AGENT_ID = /^[0-9a-f]{64}$/;
 
 export type InUseDetails =
   | {
@@ -27,45 +25,39 @@ export type InUseDetails =
       runtimeAgentIds: readonly string[];
     };
 
-function safeReferences(value: unknown, pattern: RegExp): string[] {
-  if (!Array.isArray(value) || value.length > 128) return [];
-  return [
-    ...new Set(
-      value.filter(
-        (item): item is string =>
-          typeof item === "string" && pattern.test(item),
-      ),
-    ),
-  ];
-}
-
-function parseInUseDetails(
-  value: ErrorEnvelope["details"],
-): InUseDetails | undefined {
-  switch (value?.kind) {
+/** In-use references, kept only when the details conform to the contract. */
+function parseInUseDetails(value: unknown): InUseDetails | undefined {
+  const details = value as ErrorEnvelope["details"];
+  switch (details?.kind) {
     case "credential_in_use":
+      if (schemaViolation("CredentialInUseDetails", details) !== undefined)
+        return undefined;
       return {
-        kind: value.kind,
-        runIds: safeReferences(value.runIds, SAFE_RESOURCE_ID),
-        auditIds: safeReferences(value.auditIds, SAFE_RESOURCE_ID),
-        bindingLabels: safeReferences(value.bindingLabels, SAFE_RUNTIME_LABEL),
+        kind: details.kind,
+        runIds: [...new Set(details.runIds)],
+        auditIds: [...new Set(details.auditIds)],
+        bindingLabels: [...new Set(details.bindingLabels)],
       };
     case "runtime_credential_in_use":
+      if (
+        schemaViolation("RuntimeCredentialInUseDetails", details) !== undefined
+      ) {
+        return undefined;
+      }
       return {
-        kind: value.kind,
-        bindingLabels: safeReferences(value.bindingLabels, SAFE_RUNTIME_LABEL),
-        projectIds: safeReferences(value.projectIds, SAFE_RESOURCE_ID),
-        runIds: safeReferences(value.runIds, SAFE_RESOURCE_ID),
-        auditIds: safeReferences(value.auditIds, SAFE_RESOURCE_ID),
-        allocationIds: safeReferences(value.allocationIds, SAFE_RESOURCE_ID),
+        kind: details.kind,
+        bindingLabels: [...new Set(details.bindingLabels)],
+        projectIds: [...new Set(details.projectIds)],
+        runIds: [...new Set(details.runIds)],
+        auditIds: [...new Set(details.auditIds)],
+        allocationIds: [...new Set(details.allocationIds)],
       };
     case "runtime_label_in_use":
+      if (schemaViolation("RuntimeLabelInUseDetails", details) !== undefined)
+        return undefined;
       return {
-        kind: value.kind,
-        runtimeAgentIds: safeReferences(
-          value.runtimeAgentIds,
-          SAFE_RUNTIME_AGENT_ID,
-        ),
+        kind: details.kind,
+        runtimeAgentIds: [...new Set(details.runtimeAgentIds)],
       };
     default:
       return undefined;
@@ -153,10 +145,33 @@ export function requireData<T>(result: {
   return result.data;
 }
 
+/**
+ * The one client error for a Server response the UI cannot accept: a body
+ * that breaks the operation's generated response schema, an unreadable body,
+ * or a cross-field invariant the schema cannot express. Pages show `message`,
+ * which is the same for every such answer; `detail` names the operation and
+ * the failing location, never the body, and stays behind the request details.
+ * A status of 0 means no readable response arrived.
+ */
+export class InvalidResponseError extends PublicAPIError {
+  readonly detail: string;
+
+  constructor(status: number, detail: string) {
+    super({
+      status,
+      code: "invalid_api_response",
+      message:
+        "The Server sent an answer this page cannot read. Reload the page; if it keeps happening, the Server and the UI may be different versions.",
+    });
+    this.name = "InvalidResponseError";
+    this.detail = boundedText(detail, "invalid response");
+  }
+}
+
 /** An error for a response body that does not match the public contract. */
 export function invalidAPIResponse(
   status: number,
   message: string,
-): PublicAPIError {
-  return new PublicAPIError({ status, code: "invalid_api_response", message });
+): InvalidResponseError {
+  return new InvalidResponseError(status, message);
 }

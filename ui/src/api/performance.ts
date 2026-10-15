@@ -1,7 +1,7 @@
+import { RESOURCE_ID } from "./contract";
 import type { PublicAPI } from "./client";
 import { invalidAPIResponse, requireData } from "./error";
 import type { components } from "./generated/public";
-import { hasExactKeys } from "./json-guards";
 
 export const ALLOCATION_HISTORY_PAGE_SIZE = 50;
 export const PERFORMANCE_RANGES = {
@@ -38,621 +38,195 @@ export interface AllocationResourcePageRequest {
   cursor?: string;
 }
 
-const RESOURCE_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$/;
-const CONFIG_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/;
-const TERMINAL_STAGE_STATES = new Set([
-  "succeeded",
-  "failed",
-  "interrupted",
-  "cancelled",
-]);
-const PERFORMANCE_REASONS = new Set([
-  "unsupported_platform",
-  "read_failed",
-  "sampling_gap",
-  "counter_reset",
-  "missing_baseline",
-  "permission_denied",
-  "statistics_disabled",
-  "database_unavailable",
-  "budget_exceeded",
-  "record_limit",
-  "gpu_not_available",
-  "unsupported_metric",
-]);
-const RESOURCE_REASONS = new Set([
-  "unsupported_platform",
-  "read_failed",
-  "sampling_gap",
-  "counter_reset",
-  "invalid_report",
-  "report_missing",
-]);
-const RUNTIME_RESOURCE_REASONS = new Set([
-  "unsupported_platform",
-  "read_failed",
-  "sampling_gap",
-  "counter_reset",
-  "invalid_report",
-]);
 const HISTOGRAM_BOUNDS_SECONDS = [
   0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60,
 ] as const;
+const AGGREGATE_STEP_SECONDS = { "1m": 60, "5m": 300, "1h": 3_600 } as const;
 
-function validTimestamp(value: unknown): value is string {
-  return (
-    typeof value === "string" &&
-    value.length <= 64 &&
-    !Number.isNaN(Date.parse(value))
-  );
-}
+type Sample = components["schemas"]["PerformanceSample"];
+type Freshness = PerformanceFreshness | undefined;
+type GPU =
+  | components["schemas"]["PerformanceGPU"]
+  | components["schemas"]["PerformanceGPUAggregate"];
 
-function finiteNonnegative(value: unknown): value is number {
-  return typeof value === "number" && Number.isFinite(value) && value >= 0;
-}
-
-function unsignedInteger(value: unknown): value is number {
-  return finiteNonnegative(value) && Number.isSafeInteger(value);
-}
-
-function exactKeys(
-  value: object | null | undefined,
-  required: readonly string[],
-  optional: readonly string[] = [],
-): boolean {
-  return (
-    value !== null &&
-    value !== undefined &&
-    !Array.isArray(value) &&
-    hasExactKeys(value, required, optional)
-  );
-}
-
-function boundedJSONTree(value: unknown, depth = 0): boolean {
-  if (value === null || depth > 12) return false;
-  if (typeof value === "number") return finiteNonnegative(value);
-  if (typeof value === "string") return value.length <= 1_024;
-  if (typeof value === "boolean") return true;
-  if (Array.isArray(value)) {
-    return (
-      value.length <= 1_024 &&
-      value.every((entry) => boundedJSONTree(entry, depth + 1))
-    );
-  }
-  if (typeof value !== "object") return false;
-  const entries = Object.entries(value);
-  return (
-    entries.length <= 64 &&
-    entries.every(
-      ([key, entry]) => key.length <= 128 && boundedJSONTree(entry, depth + 1),
-    )
-  );
-}
-
-function validFreshness(value: PerformanceFreshness): boolean {
-  return (
-    exactKeys(
-      value,
-      ["status", "lastAttemptAt", "intervalSeconds", "coverage"],
-      ["reason", "observedAt"],
-    ) &&
-    ["ok", "partial", "unavailable"].includes(value.status) &&
-    (value.reason === undefined || PERFORMANCE_REASONS.has(value.reason)) &&
-    validTimestamp(value.lastAttemptAt) &&
-    (value.observedAt === undefined || validTimestamp(value.observedAt)) &&
-    [15, 60, 300].includes(value.intervalSeconds) &&
-    exactKeys(value.coverage, [
-      "startedAt",
-      "endedAt",
-      "durationSeconds",
-      "expectedSamples",
-      "observedSamples",
-    ]) &&
-    validTimestamp(value.coverage.startedAt) &&
-    validTimestamp(value.coverage.endedAt) &&
-    finiteNonnegative(value.coverage.durationSeconds) &&
-    unsignedInteger(value.coverage.expectedSamples) &&
-    unsignedInteger(value.coverage.observedSamples) &&
-    value.coverage.observedSamples <= value.coverage.expectedSamples
-  );
-}
-
-function validHistogram(value: PerformanceHistogram): boolean {
-  if (
-    !exactKeys(value, ["count", "sumSeconds", "buckets"]) ||
-    !unsignedInteger(value.count) ||
-    !finiteNonnegative(value.sumSeconds) ||
-    value.buckets.length !== HISTOGRAM_BOUNDS_SECONDS.length + 1
-  ) {
-    return false;
-  }
+/** Buckets are cumulative: nondecreasing, at most and ending at the count. */
+function monotonicHistogram(value: PerformanceHistogram): boolean {
   let previous = 0;
   for (const bucket of value.buckets) {
-    if (!unsignedInteger(bucket) || bucket < previous || bucket > value.count) {
-      return false;
-    }
+    if (bucket < previous || bucket > value.count) return false;
     previous = bucket;
   }
   return previous === value.count;
 }
 
-function validHTTPSurface(value: unknown): boolean {
-  if (typeof value !== "object" || value === null) return false;
-  const surface = value as components["schemas"]["PerformanceHTTPSurface"];
+/** A window never observes more samples than it expects. */
+function consistentFreshness(value: Freshness): boolean {
   return (
-    exactKeys(surface, ["surface", "inFlight", "counts", "duration"]) &&
-    (surface.surface === "public" || surface.surface === "private") &&
-    unsignedInteger(surface.inFlight) &&
-    surface.counts.length === 10 &&
-    surface.counts.every(
-      (row) => row.length === 6 && row.every(unsignedInteger),
-    ) &&
-    validHistogram(surface.duration)
+    value === undefined ||
+    value.coverage.observedSamples <= value.coverage.expectedSamples
   );
 }
 
-function validGPU(
-  value:
-    | components["schemas"]["PerformanceGPU"]
-    | components["schemas"]["PerformanceGPUAggregate"],
-  aggregate = false,
+function consistentSurfaces(
+  surfaces: components["schemas"]["PerformanceHTTPSurface"][] | undefined,
 ): boolean {
-  if (
-    !exactKeys(value, ["freshness", "devices"]) ||
-    !validFreshness(value.freshness) ||
-    value.freshness.intervalSeconds !== 15 ||
-    !Array.isArray(value.devices) ||
-    value.devices.length > 8
-  )
-    return false;
-  const fields = [
-    "utilizationPercent",
-    "memoryUsedBytes",
-    "memoryTotalBytes",
-    "temperatureCelsius",
-    "powerWatts",
-    "powerLimitWatts",
-  ] as const;
-  const seen = new Set<string>();
-  if (
-    !aggregate &&
-    (value.freshness.status === "unavailable") !== (value.devices.length === 0)
-  )
-    return false;
-  for (const device of value.devices) {
-    if (
-      !exactKeys(device, ["id", "name"], fields) ||
-      typeof device.id !== "string" ||
-      !/^GPU-[0-9a-fA-F-]{1,64}$/.test(device.id) ||
-      seen.has(device.id) ||
-      typeof device.name !== "string" ||
-      device.name.trim() === "" ||
-      device.name.length > 128 ||
-      /\p{Cc}/u.test(device.name)
-    )
-      return false;
-    seen.add(device.id);
-    for (const field of fields) {
-      const metric = device[field];
-      if (metric === undefined) continue;
-      const upper =
-        field === "utilizationPercent"
-          ? 100
-          : field.startsWith("memory")
-            ? Number.MAX_SAFE_INTEGER
-            : Number.MAX_VALUE;
-      if (aggregate) {
-        if (
-          typeof metric !== "object" ||
-          !exactKeys(metric, ["last", "min", "max", "samples", "observedAt"]) ||
-          ![metric.last, metric.min, metric.max].every(finiteNonnegative) ||
-          metric.min > metric.last ||
-          metric.last > metric.max ||
-          metric.max > upper ||
-          !unsignedInteger(metric.samples) ||
-          metric.samples === 0 ||
-          !validTimestamp(metric.observedAt)
-        )
-          return false;
-      } else if (
-        !finiteNonnegative(metric) ||
-        metric > upper ||
-        (field.startsWith("memory") && !unsignedInteger(metric))
-      )
-        return false;
-    }
-    if (
-      !aggregate &&
-      typeof device.memoryUsedBytes === "number" &&
-      typeof device.memoryTotalBytes === "number" &&
-      device.memoryUsedBytes > device.memoryTotalBytes
-    )
-      return false;
-  }
-  return true;
+  return (surfaces ?? []).every((surface) =>
+    monotonicHistogram(surface.duration),
+  );
 }
 
-function validSample(
-  value: components["schemas"]["PerformanceSample"],
-  historyPoint = false,
-): boolean {
+/**
+ * GPU devices are distinct; a current reading lists devices exactly when it
+ * is available and never uses more memory than the device has; a gauge
+ * summary keeps its last value between its minimum and maximum.
+ */
+function consistentGPU(value: GPU | undefined, aggregate: boolean): boolean {
+  if (value === undefined) return true;
+  const devices: { id: string }[] = value.devices;
   if (
-    !exactKeys(
-      value,
-      ["version", "generation", "observedAt"],
-      [
-        "http",
-        "process",
-        "pool",
-        "database",
-        "databaseSize",
-        "gpu",
-        ...(historyPoint ? ["kind"] : []),
-      ],
-    ) ||
-    (historyPoint &&
-      (value as components["schemas"]["PerformanceFineHistoryPoint"]).kind !==
-        "sample") ||
-    value.version !== 1 ||
-    typeof value.generation !== "string" ||
-    value.generation.length === 0 ||
-    value.generation.length > 128 ||
-    !validTimestamp(value.observedAt) ||
-    !boundedJSONTree(value)
+    !consistentFreshness(value.freshness) ||
+    new Set(devices.map((device) => device.id)).size !== devices.length
   ) {
     return false;
   }
-  if (
-    value.http !== undefined &&
-    (!exactKeys(value.http, ["freshness", "surfaces"]) ||
-      !validFreshness(value.http.freshness) ||
-      value.http.surfaces.length !== 2 ||
-      !value.http.surfaces.every(validHTTPSurface))
-  ) {
-    return false;
+  if (aggregate) {
+    const gauges =
+      value.devices as components["schemas"]["PerformanceGPUDeviceGauges"][];
+    return gauges.every((device) =>
+      Object.values(device).every(
+        (gauge) =>
+          typeof gauge !== "object" ||
+          (gauge.min <= gauge.last && gauge.last <= gauge.max),
+      ),
+    );
   }
-  if (value.gpu !== undefined && !validGPU(value.gpu)) return false;
-  for (const group of [
-    value.process,
-    value.pool,
-    value.database,
-    value.databaseSize,
-  ]) {
-    if (group !== undefined && !validFreshness(group.freshness)) return false;
-  }
-  if (
-    value.database?.rates?.bufferHitRatio !== undefined &&
-    value.database.rates.bufferHitRatio > 1
-  ) {
-    return false;
-  }
-  return true;
+  const current =
+    value.devices as components["schemas"]["PerformanceGPUDevice"][];
+  return (
+    (value.freshness.status === "unavailable") === (current.length === 0) &&
+    current.every(
+      (device) =>
+        device.memoryUsedBytes === undefined ||
+        device.memoryTotalBytes === undefined ||
+        device.memoryUsedBytes <= device.memoryTotalBytes,
+    )
+  );
 }
 
-function safeSnapshot(
+function consistentSample(value: Sample): boolean {
+  return (
+    [
+      value.http?.freshness,
+      value.process?.freshness,
+      value.pool?.freshness,
+      value.database?.freshness,
+      value.databaseSize?.freshness,
+    ].every(consistentFreshness) &&
+    consistentSurfaces(value.http?.surfaces) &&
+    consistentGPU(value.gpu, false)
+  );
+}
+
+function requireSnapshot(
   value: PerformanceSnapshot,
   status: number,
 ): PerformanceSnapshot {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    throw invalidAPIResponse(
-      status,
-      "Server returned invalid performance data",
-    );
-  }
-  const diagnostics = value.diagnostics;
+  // The current sample belongs to the snapshot's collector generation.
   if (
-    !exactKeys(
-      value,
-      [
-        "enabled",
-        "generation",
-        "observedAt",
-        "sampleIntervalSeconds",
-        "databaseIntervalSeconds",
-        "databaseSizeIntervalSeconds",
-        "diagnostics",
-      ],
-      ["current"],
-    ) ||
-    typeof value.enabled !== "boolean" ||
-    typeof value.generation !== "string" ||
-    value.generation.length === 0 ||
-    value.generation.length > 128 ||
-    !validTimestamp(value.observedAt) ||
-    value.sampleIntervalSeconds !== 15 ||
-    value.databaseIntervalSeconds !== 60 ||
-    value.databaseSizeIntervalSeconds !== 300 ||
-    !exactKeys(
-      diagnostics,
-      [
-        "skippedSamples",
-        "rejectedSamples",
-        "skippedMinutes",
-        "droppedMinutes",
-        "pendingMinutes",
-      ],
-      ["collectorReason", "writerReason"],
-    ) ||
-    ![
-      diagnostics.skippedSamples,
-      diagnostics.rejectedSamples,
-      diagnostics.skippedMinutes,
-      diagnostics.droppedMinutes,
-      diagnostics.pendingMinutes,
-    ].every(unsignedInteger) ||
-    diagnostics.pendingMinutes > 10 ||
-    (diagnostics.collectorReason !== undefined &&
-      !PERFORMANCE_REASONS.has(diagnostics.collectorReason)) ||
-    (diagnostics.writerReason !== undefined &&
-      !PERFORMANCE_REASONS.has(diagnostics.writerReason)) ||
-    (!value.enabled && value.current !== undefined) ||
-    (value.current !== undefined &&
-      (!validSample(value.current) ||
-        value.current.generation !== value.generation))
+    value.current !== undefined &&
+    (value.current.generation !== value.generation ||
+      !consistentSample(value.current))
   ) {
     throw invalidAPIResponse(
       status,
       "Server returned invalid performance data",
     );
   }
-  return {
-    ...value,
-    diagnostics: { ...diagnostics },
-    ...(value.current === undefined ? {} : { current: { ...value.current } }),
-  };
+  return value;
 }
 
 function pointTimestamp(point: PerformanceHistoryPoint): string {
   return point.kind === "sample" ? point.observedAt : point.minuteStart;
 }
 
-function safeHistory(
+/**
+ * History answers the requested window and step: fine steps carry samples,
+ * coarse steps aggregates of that step, ordered by time inside the window.
+ */
+function requireHistory(
   value: PerformanceHistory,
   request: PerformanceHistoryRequest,
   status: number,
 ): PerformanceHistory {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    throw invalidAPIResponse(
-      status,
-      "Server returned invalid performance history",
-    );
-  }
-  const from = Date.parse(value.from);
-  const to = Date.parse(value.to);
   const requestedFrom = Date.parse(request.from);
   const requestedTo = Date.parse(request.to);
-  let previous = Number.NEGATIVE_INFINITY;
+  const invalid = () =>
+    invalidAPIResponse(status, "Server returned invalid performance history");
   if (
-    !exactKeys(value, ["from", "to", "step", "points"]) ||
-    !validTimestamp(value.from) ||
-    !validTimestamp(value.to) ||
-    from !== requestedFrom ||
-    to !== requestedTo ||
-    value.step !== request.step ||
-    !Array.isArray(value.points) ||
-    value.points.length > 1_000
+    Date.parse(value.from) !== requestedFrom ||
+    Date.parse(value.to) !== requestedTo ||
+    value.step !== request.step
   ) {
-    throw invalidAPIResponse(
-      status,
-      "Server returned invalid performance history",
-    );
+    throw invalid();
   }
+  let previous = Number.NEGATIVE_INFINITY;
   for (const point of value.points) {
-    if (typeof point !== "object" || point === null || Array.isArray(point)) {
-      throw invalidAPIResponse(
-        status,
-        "Server returned invalid performance history points",
-      );
-    }
     const timestamp = Date.parse(pointTimestamp(point));
-    const kindMatches =
-      request.step === "15s"
-        ? point.kind === "sample"
-        : point.kind === "aggregate";
-    const structurallyValid =
+    const consistent =
       point.kind === "sample"
-        ? validSample(point, true)
-        : exactKeys(
-            point,
-            [
-              "kind",
-              "version",
-              "generation",
-              "minuteStart",
-              "status",
-              "omittedWindows",
-              "coverageSeconds",
-              "process",
-              "pool",
-              "droppedMinutes",
-              "stepSeconds",
-              "observedMinutes",
-              "expectedMinutes",
-            ],
-            [
-              "http",
-              "cpu",
-              "poolLast",
-              "gcPausesLast",
-              "gpu",
-              "database",
-              "databaseSize",
-            ],
-          ) &&
-          point.version === 1 &&
-          typeof point.generation === "string" &&
-          point.generation.length > 0 &&
-          point.generation.length <= 128 &&
-          validTimestamp(point.minuteStart) &&
-          ["ok", "partial", "unavailable"].includes(point.status) &&
-          point.stepSeconds ===
-            ({ "1m": 60, "5m": 300, "1h": 3_600 } as const)[
-              request.step as "1m" | "5m" | "1h"
-            ] &&
-          Array.isArray(point.http ?? []) &&
-          (point.http === undefined ||
-            (point.http.length === 2 && point.http.every(validHTTPSurface))) &&
-          (point.gpu === undefined || validGPU(point.gpu, true)) &&
-          boundedJSONTree(point);
-    if (
-      !kindMatches ||
-      !structurallyValid ||
-      !Number.isFinite(timestamp) ||
-      (point.kind === "aggregate"
-        ? timestamp + point.stepSeconds * 1_000 <= requestedFrom
-        : timestamp < requestedFrom) ||
-      timestamp >= requestedTo ||
-      timestamp < previous
-    ) {
-      throw invalidAPIResponse(
-        status,
-        "Server returned invalid performance history points",
-      );
+        ? request.step === "15s" &&
+          consistentSample(point) &&
+          timestamp >= requestedFrom
+        : request.step !== "15s" &&
+          point.stepSeconds === AGGREGATE_STEP_SECONDS[request.step] &&
+          consistentSurfaces(point.http) &&
+          consistentGPU(point.gpu, true) &&
+          timestamp + point.stepSeconds * 1_000 > requestedFrom;
+    if (!consistent || timestamp >= requestedTo || timestamp < previous) {
+      throw invalid();
     }
     previous = timestamp;
   }
-  return { ...value, points: value.points.map((point) => ({ ...point })) };
+  return value;
 }
 
-export function safeAllocationResourceSummary(
+/**
+ * Invariants of a resource summary that the schema cannot express: the
+ * status follows the collection policy, an available or partial summary
+ * carries resources of the same completeness, and RSS boundaries never
+ * exceed the observed peak that sampling recorded.
+ */
+export function consistentAllocationResourceSummary(
   value: AllocationResourceSummary,
-  status = 200,
-): AllocationResourceSummary {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    throw invalidAPIResponse(
-      status,
-      "Server returned an invalid allocation resource summary",
-    );
-  }
-  const allowedStatuses = [
-    "disabled",
-    "unsupported",
-    "pending",
-    "available",
-    "partial",
-    "unavailable",
-  ];
+): boolean {
   const resource = value.resources;
-  const resourceFloats = [
-    resource?.durationSeconds,
-    resource?.cpuUserSeconds,
-    resource?.cpuSystemSeconds,
-    resource?.maxSampleGapSeconds,
-  ];
-  const resourceIntegers = [
-    resource?.rssStartBytes,
-    resource?.rssEndBytes,
-    resource?.rssPeakObservedBytes,
-    resource?.rssSampleCount,
-  ];
-  const hasSamples =
-    resource?.rssSampleCount !== undefined && resource.rssSampleCount > 0;
-  const hasPeak = resource?.rssPeakObservedBytes !== undefined;
-  const boundaries = [resource?.rssStartBytes, resource?.rssEndBytes].filter(
-    (boundary) => boundary !== undefined,
-  );
-  const resourceValid =
-    resource === undefined ||
-    (exactKeys(
-      resource,
-      ["version", "scope", "status"],
-      [
-        "reason",
-        "durationSeconds",
-        "cpuUserSeconds",
-        "cpuSystemSeconds",
-        "rssStartBytes",
-        "rssEndBytes",
-        "rssPeakObservedBytes",
-        "rssSampleCount",
-        "maxSampleGapSeconds",
-      ],
-    ) &&
-      resource.version === 1 &&
-      resource.scope === "runtime_process" &&
-      ["complete", "partial", "unavailable"].includes(resource.status) &&
-      (resource.reason === undefined ||
-        RUNTIME_RESOURCE_REASONS.has(resource.reason)) &&
-      resourceFloats.every(
-        (measurement) =>
-          measurement === undefined || finiteNonnegative(measurement),
-      ) &&
-      resourceIntegers.every(
-        (measurement) =>
-          measurement === undefined || unsignedInteger(measurement),
-      ) &&
-      (resource.maxSampleGapSeconds === undefined ||
-        resource.durationSeconds === undefined ||
-        resource.maxSampleGapSeconds <= resource.durationSeconds) &&
-      hasSamples === hasPeak &&
-      boundaries.every(
-        (boundary) =>
-          hasSamples && boundary <= (resource.rssPeakObservedBytes ?? -1),
-      ) &&
-      (!hasSamples || (resource.rssSampleCount ?? 0) >= boundaries.length) &&
-      (resource.status !== "complete" ||
-        (resource.reason === undefined &&
-          resource.durationSeconds !== undefined &&
-          resource.cpuUserSeconds !== undefined &&
-          resource.cpuSystemSeconds !== undefined &&
-          boundaries.length === 2 &&
-          resource.maxSampleGapSeconds !== undefined &&
-          resource.maxSampleGapSeconds <= 30)) &&
-      boundedJSONTree(resource));
   const policyMatches =
-    (value.collectionPolicy === "disabled" && value.status === "disabled") ||
-    (value.collectionPolicy === "unsupported" &&
-      value.status === "unsupported") ||
-    (value.collectionPolicy === "requested" &&
-      ["pending", "available", "partial", "unavailable"].includes(
-        value.status,
-      ));
+    value.collectionPolicy === "requested"
+      ? !["disabled", "unsupported"].includes(value.status)
+      : value.status === value.collectionPolicy;
   if (
-    !exactKeys(
-      value,
-      [
-        "allocationId",
-        "runId",
-        "stageExecutionId",
-        "stage",
-        "logicalAgent",
-        "outcome",
-        "finishedAt",
-        "collectionPolicy",
-        "status",
-      ],
-      ["reason", "resources"],
-    ) ||
-    typeof value.allocationId !== "string" ||
-    typeof value.runId !== "string" ||
-    typeof value.stageExecutionId !== "string" ||
-    typeof value.stage !== "string" ||
-    typeof value.logicalAgent !== "string" ||
-    !RESOURCE_ID_PATTERN.test(value.allocationId) ||
-    !RESOURCE_ID_PATTERN.test(value.runId) ||
-    !RESOURCE_ID_PATTERN.test(value.stageExecutionId) ||
-    !CONFIG_ID_PATTERN.test(value.stage) ||
-    !CONFIG_ID_PATTERN.test(value.logicalAgent) ||
-    !TERMINAL_STAGE_STATES.has(value.outcome) ||
-    !validTimestamp(value.finishedAt) ||
-    !allowedStatuses.includes(value.status) ||
-    (value.reason !== undefined && !RESOURCE_REASONS.has(value.reason)) ||
-    !resourceValid ||
     !policyMatches ||
-    ((value.status === "available" || value.status === "partial") &&
-      resource === undefined) ||
     (value.status === "available" && resource?.status !== "complete") ||
     (value.status === "partial" && resource?.status !== "partial")
   ) {
-    throw invalidAPIResponse(
-      status,
-      "Server returned an invalid allocation resource summary",
-    );
+    return false;
   }
-  return {
-    ...value,
-    ...(resource === undefined ? {} : { resources: { ...resource } }),
-  };
+  if (resource === undefined) return true;
+  const hasSamples = (resource.rssSampleCount ?? 0) > 0;
+  const boundaries = [resource.rssStartBytes, resource.rssEndBytes].filter(
+    (boundary) => boundary !== undefined,
+  );
+  return (
+    (resource.maxSampleGapSeconds === undefined ||
+      resource.durationSeconds === undefined ||
+      resource.maxSampleGapSeconds <= resource.durationSeconds) &&
+    hasSamples === (resource.rssPeakObservedBytes !== undefined) &&
+    boundaries.every(
+      (boundary) =>
+        hasSamples && boundary <= (resource.rssPeakObservedBytes ?? -1),
+    ) &&
+    (!hasSamples || (resource.rssSampleCount ?? 0) >= boundaries.length)
+  );
 }
 
 export function performanceHistoryWindow(
@@ -676,7 +250,7 @@ export function histogramQuantileUpperBound(
 ): number | "overflow" | undefined {
   if (
     histogram === undefined ||
-    !validHistogram(histogram) ||
+    !monotonicHistogram(histogram) ||
     !Number.isFinite(quantile) ||
     quantile <= 0 ||
     quantile > 1 ||
@@ -700,7 +274,7 @@ export async function getPerformance(
       ...(signal === undefined ? {} : { signal }),
     }),
   );
-  return safeSnapshot(requireData(result), result.response.status);
+  return requireSnapshot(requireData(result), result.response.status);
 }
 
 export async function getPerformanceHistory(
@@ -714,7 +288,7 @@ export async function getPerformanceHistory(
       ...(signal === undefined ? {} : { signal }),
     }),
   );
-  return safeHistory(requireData(result), request, result.response.status);
+  return requireHistory(requireData(result), request, result.response.status);
 }
 
 export async function listAllocationResourceHistory(
@@ -722,7 +296,7 @@ export async function listAllocationResourceHistory(
   request: AllocationResourcePageRequest = {},
   signal?: AbortSignal,
 ): Promise<AllocationResourcePage> {
-  if (request.runId !== undefined && !RESOURCE_ID_PATTERN.test(request.runId)) {
+  if (request.runId !== undefined && !RESOURCE_ID.test(request.runId)) {
     throw new TypeError("Run ID is invalid");
   }
   const result = await api.request((client) =>
@@ -739,46 +313,20 @@ export async function listAllocationResourceHistory(
   );
   const page = requireData(result);
   if (
-    typeof page !== "object" ||
-    page === null ||
-    Array.isArray(page) ||
-    !exactKeys(page, ["items", "page"]) ||
-    !Array.isArray(page.items) ||
+    // At most the requested page size, continued exactly when more remain.
     page.items.length > ALLOCATION_HISTORY_PAGE_SIZE ||
-    typeof page.page !== "object" ||
-    page.page === null ||
-    Array.isArray(page.page) ||
-    !exactKeys(page.page, ["hasMore"], ["nextCursor"]) ||
-    typeof page.page.hasMore !== "boolean" ||
     page.page.hasMore !== (page.page.nextCursor !== undefined) ||
-    (page.page.nextCursor !== undefined &&
-      (page.page.nextCursor.length === 0 || page.page.nextCursor.length > 512))
+    // One summary per allocation, all of the requested Run.
+    new Set(page.items.map((item) => item.allocationId)).size !==
+      page.items.length ||
+    (request.runId !== undefined &&
+      page.items.some((item) => item.runId !== request.runId)) ||
+    !page.items.every(consistentAllocationResourceSummary)
   ) {
     throw invalidAPIResponse(
       result.response.status,
       "Server returned an invalid allocation resource page",
     );
   }
-  const items = page.items.map((item) =>
-    safeAllocationResourceSummary(item, result.response.status),
-  );
-  if (
-    new Set(items.map((item) => item.allocationId)).size !== items.length ||
-    (request.runId !== undefined &&
-      items.some((item) => item.runId !== request.runId))
-  ) {
-    throw invalidAPIResponse(
-      result.response.status,
-      "Server returned mixed allocation resource identities",
-    );
-  }
-  return {
-    items,
-    page: {
-      hasMore: page.page.hasMore,
-      ...(page.page.nextCursor === undefined
-        ? {}
-        : { nextCursor: page.page.nextCursor }),
-    },
-  };
+  return page;
 }

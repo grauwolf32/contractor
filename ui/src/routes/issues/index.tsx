@@ -343,8 +343,7 @@ export function IssuesRoute() {
     !list.pending &&
     list.error === null &&
     list.errors.length === 0 &&
-    list.truncatedChecks.length === 0 &&
-    !list.checksTruncated;
+    !list.truncated;
   const running = runningNote(list);
   const empty = emptyText(list, filters, complete, running);
   const liveText = announcement?.text ?? "";
@@ -485,6 +484,14 @@ export function IssuesRoute() {
           </div>
         </div>
       )}
+      {list.truncated ? (
+        <div className="issues-notice" data-tone="warning" role="status">
+          <p>
+            <strong>This list is incomplete.</strong> There are more possible
+            issues than can be read at once.
+          </p>
+        </div>
+      ) : null}
       {list.pending && issues.length === 0 && list.error === null ? (
         <p className="issues-list-status" role="status">
           Loading possible issues…

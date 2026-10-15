@@ -13,6 +13,7 @@ import {
   updateProject,
   type Project,
 } from "../../api/projects";
+import { loadCompletePages } from "../../api/pages";
 import { queryKeys } from "../../api/query-keys";
 import { AlertDialog } from "../../ui";
 import { Dialog, DialogHeader } from "../../app/dialog";
@@ -203,28 +204,13 @@ function ProjectHTTPTargetDialog({
   const [error, setError] = useState<unknown>(null);
   const credentials = useQuery({
     queryKey: queryKeys.operations.runtimeCredentials.picker,
-    queryFn: async ({ signal }) => {
-      const items: RuntimeCredentialMetadata[] = [];
-      const seen = new Set<string>();
-      let cursor: string | undefined;
-      for (;;) {
-        signal.throwIfAborted();
-        const page = await listRuntimeCredentials(
-          api,
-          cursor === undefined ? {} : { cursor },
-        );
-        signal.throwIfAborted();
-        items.push(...page.items);
-        if (!page.page.hasMore) return items;
-        cursor = page.page.nextCursor;
-        if (!cursor || seen.has(cursor)) {
-          throw new Error(
-            "Runtime credentials could not be fully loaded. Retry before choosing a credential.",
-          );
-        }
-        seen.add(cursor);
-      }
-    },
+    queryFn: ({ signal }) =>
+      loadCompletePages(
+        "The Runtime credential list",
+        (cursor) =>
+          listRuntimeCredentials(api, cursor === undefined ? {} : { cursor }),
+        { signal },
+      ),
   });
   const originCredentials = (credentials.data ?? []).filter(
     (credential): credential is OriginCredential =>

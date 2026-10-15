@@ -1,8 +1,13 @@
 // Check types, materials and projects shaped like the bundled catalog
 // (configs/audit-profiles), for the Start page tests.
 import type { ArtifactMetadata } from "../../../api/artifacts";
-import type { Audit, AuditProfile } from "../../../api/audits";
+import type {
+  Audit,
+  AuditProfile,
+  AuditStartResponse,
+} from "../../../api/audits";
 import type { Project } from "../../../api/projects";
+import * as build from "../../../test/builders";
 
 const DIGEST = `sha256:${"2".repeat(64)}`;
 
@@ -13,7 +18,7 @@ export function profileFixture(
   overrides: Partial<Omit<AuditProfile, "ref">> & { version?: string } = {},
 ): AuditProfile {
   const { version = "1", ...rest } = overrides;
-  return {
+  return build.conforming("AuditProfile", {
     ref: { name, version, digest: DIGEST },
     mode: "risk-assessment",
     standards: [],
@@ -44,7 +49,7 @@ export function profileFixture(
     requiresInputValidation: true,
     compatibilityReasons: [],
     ...rest,
-  };
+  });
 }
 
 const SOURCE: Inputs = {
@@ -176,10 +181,10 @@ export const wstgLive = profileFixture("owasp-wstg-4-2-active-http", {
   interaction: LIVE_INTERACTION,
 });
 
-export const wstgLiveDetail: AuditProfile = {
+export const wstgLiveDetail: AuditProfile = build.conforming("AuditProfile", {
   ...wstgLive,
   workflows: liveWorkflows(),
-};
+});
 
 export const nuclei = profileFixture("openapi-nuclei-scan", {
   inputs: {
@@ -231,7 +236,7 @@ export function materialFixture(
   mediaType: string,
   overrides: Partial<ArtifactMetadata> = {},
 ): ArtifactMetadata {
-  return {
+  return build.conforming("ArtifactMetadata", {
     artifact: { namespace: "sources", name, revision: `${name}-r1` },
     mediaType,
     size: 2048,
@@ -239,43 +244,35 @@ export function materialFixture(
     frozen: false,
     createdAt: "2026-10-01T10:00:00Z",
     ...overrides,
-  };
+  });
 }
 
 export const sourceZip = materialFixture("shop-source", "application/zip");
 export const openapiYaml = materialFixture("shop-openapi", "application/yaml");
 
 export function projectFixture(overrides: Partial<Project> = {}): Project {
-  return {
-    projectId: "project_shop",
-    kind: "project",
+  return build.project("project_shop", {
     name: "Shop service",
     description: "Workshop API",
-    lifecycle: "active",
-    activeChecks: "automatic",
-    revision: "1",
     createdAt: "2026-10-01T10:00:00Z",
     updatedAt: "2026-10-01T10:00:00Z",
     ...overrides,
-  };
+  });
 }
 
+/** A draft of `profile` with one pinned input per required profile input. */
 export function draftAudit(
   profile: AuditProfile,
   overrides: Partial<Audit> = {},
 ): Audit {
-  return {
-    auditId: "audit_new",
-    projectId: "project_shop",
+  return build.audit("project_shop", "audit_new", "draft", {
     profile: { ...profile.ref },
-    inputs: {},
-    scope: {},
-    runtimeLabels: [],
-    state: "draft",
-    phase: "not-started",
-    revision: 1,
-    dispatchState: "closed",
-    holdState: "pending",
+    inputs: Object.fromEntries(
+      Object.entries(profile.inputs).map(([name, input]) => [
+        name,
+        build.auditInput(`shop-${name}`, { mediaType: input.mediaTypes[0] }),
+      ]),
+    ),
     limits: {
       maxRounds: 1,
       batchSize: 1,
@@ -285,20 +282,15 @@ export function draftAudit(
       maxItemRunAttempts: 3,
       maxEvidenceBytes: 67_108_864,
     },
-    reservedRunCount: 0,
-    submittedRunCount: 0,
-    outstandingRunCount: 0,
-    retainedEvidenceBytes: 0,
-    eventSequence: 1,
     createdAt: "2026-10-07T10:00:00Z",
     updatedAt: "2026-10-07T10:00:00Z",
     ...overrides,
-  } as Audit;
+  });
 }
 
 /** The started check in its first round. */
 export function startedAudit(draft: Audit): Audit {
-  return {
+  return build.conforming("Audit", {
     ...draft,
     state: "active",
     phase: "rounds",
@@ -306,23 +298,18 @@ export function startedAudit(draft: Audit): Audit {
     revision: draft.revision + 1,
     dispatchState: "open",
     holdState: "held",
-  } as Audit;
+  } as Audit);
 }
 
 /** POST /v1/audits/{auditId}/start response body. */
 export function startResponse(draft: Audit) {
   const audit = startedAudit(draft);
-  return {
+  return build.conforming("AuditStartResponse", {
     audit,
-    round: {
-      roundId: "round_1",
-      ordinal: 1,
-      state: "executing",
-      expectedItemCount: 1,
-      revision: 1,
+    round: build.auditRound({
       createdAt: audit.createdAt,
       updatedAt: audit.updatedAt,
-    },
+    }),
     items: [],
-  };
+  } as AuditStartResponse);
 }

@@ -188,6 +188,12 @@ describe("Operations inventories beyond the first page", () => {
       ) {
         const document = (await request.json()) as RuntimeConfigAuthorDocument;
         posts.push(document);
+        // The Server answers with the exact Gateway the selector resolved to.
+        const selected = gateways.find(
+          (candidate) =>
+            `${candidate.ref.name}@${candidate.ref.version}` ===
+            document.spec.worker?.llmGateway?.gateway,
+        );
         return reply(
           {
             ref: {
@@ -195,7 +201,20 @@ describe("Operations inventories beyond the first page", () => {
               version: document.metadata.version,
               digest: digest(900),
             },
-            document,
+            document: {
+              ...document,
+              spec: {
+                worker: {
+                  llmGateway: {
+                    gateway: {
+                      gatewayId: selected?.ref.name,
+                      version: selected?.ref.version,
+                      digest: selected?.ref.digest,
+                    },
+                  },
+                },
+              },
+            },
             builtIn: false,
             createdBy: "operator",
             createdAt: now,

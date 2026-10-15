@@ -12,7 +12,6 @@ src/api/artifact-archive.ts:ArtifactArchiveFile V385-001
 src/api/artifacts.ts:suggestedArtifactFilename V385-001
 src/api/audit-collections.ts:AUDIT_COLLECTION_MAX_PAGES V385-001
 src/api/audit-collections.ts:CollectAuditPagesOptions V385-001
-src/api/audit-composition.ts:validPreparation V385-001
 src/api/audit-presets.ts:AUDIT_STANDARD_SCHEME_PATTERN V385-001
 src/api/audit-presets.ts:AUDIT_STANDARD_VERSION_PATTERN V385-001
 src/api/audits.ts:AuditCoveragePage V385-001
@@ -43,9 +42,7 @@ src/api/evals.ts:EvalChartQuery V385-001
 src/api/evals.ts:EvalPair V385-001
 src/api/evals.ts:EvalReview V385-001
 src/api/evals.ts:TERMINAL_EVAL_STATES V385-001
-src/api/evals.ts:evalNextPage V385-001
 src/api/evals.ts:mutationHeaders V385-001
-src/api/finding-locations.ts:isFindingLocation V385-001
 src/api/git-artifacts.ts:GitImportDraft V385-001
 src/api/git-artifacts.ts:GitKeyState V385-001
 src/api/http-exchange.ts:HTTPAttempt V385-001

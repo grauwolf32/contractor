@@ -7,6 +7,7 @@ import {
   type ExactArtifactRef,
 } from "./artifacts";
 import type { PublicAPI } from "./client";
+import type { ResponseOperation } from "./contract";
 import { invalidAPIResponse, PublicAPIError } from "./error";
 import type { components } from "./generated/public";
 import { PROJECT_ID_PATTERN } from "./projects";
@@ -85,21 +86,36 @@ function archiveURL(
   return `${prefix}/artifacts/${encodeURIComponent(ref.namespace)}/${encodeURIComponent(ref.name)}/archive${path === undefined ? "" : "/file"}?${query}`;
 }
 
-function invalidResponse(): PublicAPIError {
-  return invalidAPIResponse(0, "Server returned an invalid archive preview");
+function invalidResponse(status: number): PublicAPIError {
+  return invalidAPIResponse(
+    status,
+    "Server returned an invalid archive preview",
+  );
 }
 
-function object(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
+/** The operation `archiveURL` addresses for this scope. */
+function archiveOperation(
+  scope: ArtifactArchiveScope,
+  file: boolean,
+): ResponseOperation {
+  const suffix = file ? "/archive/file" : "/archive";
+  switch (scope.kind) {
+    case "user":
+      return `GET /v1/artifacts/{namespace}/{name}${suffix}`;
+    case "project":
+      return `GET /v1/projects/{projectId}/artifacts/{namespace}/{name}${suffix}`;
+    case "run":
+      return `GET /v1/runs/{runId}/artifacts/{namespace}/{name}${suffix}`;
+  }
 }
 
-async function readArchiveJSON(
+async function readArchiveJSON<T extends { artifact: ExactArtifactRef }>(
   api: PublicAPI,
   scope: ArtifactArchiveScope,
   ref: ExactArtifactRef,
   signal: AbortSignal,
   path?: string,
-): Promise<Record<string, unknown>> {
+): Promise<T> {
   const response = await api.fetch(archiveURL(scope, ref, path), {
     method: "GET",
     headers: { Accept: "application/json" },
@@ -122,54 +138,24 @@ async function readArchiveJSON(
     }
     throw error;
   }
-  // 4096 paths of 1024 bytes can expand sixfold under JSON's HTML escaping.
-  const maximum = path === undefined ? 32 * 1024 * 1024 : 2 * 1024 * 1024;
-  if (
-    response.headers.get("ETag") !== `"${ref.revision}"` ||
-    response.headers.get("Content-Type")?.split(";")[0]?.trim() !==
-      "application/json" ||
-    response.body === null
-  ) {
+  // Cross-field: the ETag header names the requested revision.
+  if (response.headers.get("ETag") !== `"${ref.revision}"`) {
     await response.body?.cancel();
-    throw invalidResponse();
+    throw invalidResponse(response.status);
   }
-  const reader = response.body.getReader();
-  const chunks: Uint8Array[] = [];
-  let length = 0;
-  try {
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      length += value.byteLength;
-      if (length > maximum) {
-        await reader.cancel();
-        throw invalidResponse();
-      }
-      chunks.push(value);
-    }
-  } finally {
-    reader.releaseLock();
-  }
-  const bytes = new Uint8Array(length);
-  let offset = 0;
-  for (const chunk of chunks) {
-    bytes.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
-  let data: unknown;
-  try {
-    data = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
-  } catch {
-    throw invalidResponse();
-  }
+  // 4096 paths of 1024 bytes can expand sixfold under JSON's HTML escaping.
+  const data = await api.readJSON<T>(
+    archiveOperation(scope, path !== undefined),
+    response,
+    path === undefined ? 32 * 1024 * 1024 : 2 * 1024 * 1024,
+  );
+  // Cross-field: the Server answered for the requested Artifact revision.
   if (
-    !object(data) ||
-    !object(data.artifact) ||
     data.artifact.namespace !== ref.namespace ||
     data.artifact.name !== ref.name ||
     data.artifact.revision !== ref.revision
   ) {
-    throw invalidResponse();
+    throw invalidResponse(response.status);
   }
   return data;
 }
@@ -180,36 +166,27 @@ export async function getArtifactArchive(
   ref: ExactArtifactRef,
   signal: AbortSignal,
 ): Promise<ArtifactArchive> {
-  const data = await readArchiveJSON(api, scope, ref, signal);
-  if (!Array.isArray(data.entries) || data.entries.length > 4096)
-    throw invalidResponse();
-  const seen = new Map<string, string>();
+  const data = await readArchiveJSON<ArtifactArchive>(api, scope, ref, signal);
+  // Cross-field: paths are unique, every parent is a directory entry, and
+  // only a file within the preview limit is previewable.
+  const kinds = new Map<string, ArtifactArchiveEntry["kind"]>();
   for (const entry of data.entries) {
     if (
-      !object(entry) ||
-      typeof entry.path !== "string" ||
-      !validPath(entry.path) ||
-      (entry.kind !== "file" && entry.kind !== "directory") ||
-      typeof entry.size !== "number" ||
-      !Number.isSafeInteger(entry.size) ||
-      entry.size < 0 ||
-      entry.size > 256 * 1024 * 1024 ||
-      typeof entry.previewable !== "boolean" ||
+      kinds.has(entry.path) ||
       (entry.previewable &&
-        (entry.kind !== "file" || entry.size > MAXIMUM_PREVIEW_BYTES)) ||
-      seen.has(entry.path)
+        (entry.kind !== "file" || entry.size > MAXIMUM_PREVIEW_BYTES))
     )
-      throw invalidResponse();
-    seen.set(entry.path, entry.kind);
+      throw invalidResponse(200);
+    kinds.set(entry.path, entry.kind);
   }
-  for (const path of seen.keys()) {
+  for (const path of kinds.keys()) {
     const parts = path.split("/");
     for (let i = 1; i < parts.length; i++) {
-      if (seen.get(parts.slice(0, i).join("/")) !== "directory")
-        throw invalidResponse();
+      if (kinds.get(parts.slice(0, i).join("/")) !== "directory")
+        throw invalidResponse(200);
     }
   }
-  return data as unknown as ArtifactArchive;
+  return data;
 }
 
 export async function getArtifactArchiveFile(
@@ -219,15 +196,19 @@ export async function getArtifactArchiveFile(
   path: string,
   signal: AbortSignal,
 ): Promise<ArtifactArchiveFile> {
-  const data = await readArchiveJSON(api, scope, ref, signal, path);
+  const data = await readArchiveJSON<ArtifactArchiveFile>(
+    api,
+    scope,
+    ref,
+    signal,
+    path,
+  );
+  // Cross-field: the requested file, whose size is its text's UTF-8 length.
   if (
     data.path !== path ||
-    typeof data.text !== "string" ||
-    typeof data.size !== "number" ||
-    data.size > MAXIMUM_PREVIEW_BYTES ||
     data.size !== new TextEncoder().encode(data.text).length
   ) {
-    throw invalidResponse();
+    throw invalidResponse(200);
   }
-  return data as unknown as ArtifactArchiveFile;
+  return data;
 }

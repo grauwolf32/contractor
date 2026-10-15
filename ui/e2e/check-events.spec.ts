@@ -7,7 +7,14 @@ const audit = {
   auditId: "audit_history",
   projectId: "project_history",
   profile: { name: "openapi-operation-trace", version: "1", digest },
-  inputs: {},
+  inputs: {
+    source: {
+      ref: { namespace: "sources", name: "history-source", revision: "r1" },
+      digest,
+      mediaType: "application/zip",
+      sizeBytes: 2048,
+    },
+  },
   scope: {},
   runtimeLabels: [],
   state: "completed",
@@ -89,6 +96,7 @@ for (const width of [1440, 390, 320]) {
           kind: "project",
           name: "History project",
           description: "",
+          activeChecks: "automatic",
           lifecycle: "active",
           revision: "1",
           createdAt: date,
@@ -113,6 +121,8 @@ for (const width of [1440, 390, 320]) {
         };
       else if (url.pathname.endsWith("/report"))
         value = { status: "unavailable" };
+      else if (url.pathname.endsWith("/coverage"))
+        value = { items: [], page: { hasMore: false }, auditRevision: 51 };
       else if (url.pathname.endsWith("/events")) {
         const cursor = url.searchParams.get("cursor");
         cursors.push(cursor ?? "head");
