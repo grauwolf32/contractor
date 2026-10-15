@@ -11,6 +11,8 @@ import {
 } from "../../../app/vocabulary";
 import {
   ActivityLog,
+  Button,
+  ButtonLink,
   Kbd,
   MethodChip,
   StatusChip,
@@ -239,21 +241,18 @@ export function CheckItemView({
           </span>
           <span className="checks-item-steps">
             {previous === undefined ? (
-              <button
-                type="button"
-                className="ui-btn"
-                data-size="sm"
+              <Button
+                size="sm"
                 data-icon-only=""
                 aria-label={`Previous ${singular}`}
                 aria-keyshortcuts="K"
                 disabled
               >
                 <span aria-hidden="true">↑</span>
-              </button>
+              </Button>
             ) : (
-              <Link
-                className="ui-btn"
-                data-size="sm"
+              <ButtonLink
+                size="sm"
                 data-icon-only=""
                 to={previous}
                 aria-label={`Previous ${singular}`}
@@ -261,24 +260,21 @@ export function CheckItemView({
                 title="Previous (K)"
               >
                 <span aria-hidden="true">↑</span>
-              </Link>
+              </ButtonLink>
             )}
             {next === undefined ? (
-              <button
-                type="button"
-                className="ui-btn"
-                data-size="sm"
+              <Button
+                size="sm"
                 data-icon-only=""
                 aria-label={`Next ${singular}`}
                 aria-keyshortcuts="J"
                 disabled
               >
                 <span aria-hidden="true">↓</span>
-              </button>
+              </Button>
             ) : (
-              <Link
-                className="ui-btn"
-                data-size="sm"
+              <ButtonLink
+                size="sm"
                 data-icon-only=""
                 to={next}
                 aria-label={`Next ${singular}`}
@@ -286,7 +282,7 @@ export function CheckItemView({
                 title="Next (J)"
               >
                 <span aria-hidden="true">↓</span>
-              </Link>
+              </ButtonLink>
             )}
             <span className="checks-key-hint" aria-hidden="true">
               <Kbd>K</Kbd> <Kbd>J</Kbd>

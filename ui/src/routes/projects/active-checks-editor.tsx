@@ -11,6 +11,7 @@ import {
 import { queryKeys } from "../../api/query-keys";
 import { ErrorNotice } from "../../app/error-notice";
 import { useUnsavedDraft } from "./project-drafts";
+import { Button } from "../../ui";
 
 const MODES: Record<ActiveChecksPolicy, string> = {
   automatic: "Automatically",
@@ -59,17 +60,15 @@ export function ProjectActiveChecksEditor({ project }: { project: Project }) {
           Applies when starting a new check. Checks already in progress keep
           their setting. Presets that disable active tests remain disabled.
         </p>
-        <button
-          className="ui-btn"
-          data-size="sm"
-          type="button"
+        <Button
+          size="sm"
           onClick={() => {
             mutation.reset();
             setEditing(project);
           }}
         >
           Edit active checks
-        </button>
+        </Button>
       </div>
     );
 
@@ -89,24 +88,22 @@ export function ProjectActiveChecksEditor({ project }: { project: Project }) {
         <ErrorNotice error={mutation.error} reconcileWrite />
       )}
       <div className="projects-form-actions">
-        <button
-          className="ui-btn"
-          data-size="sm"
-          data-variant="primary"
+        <Button
+          size="sm"
+          variant="primary"
           type="submit"
-          disabled={mutation.isPending}
+          pending={mutation.isPending}
+          pendingLabel="Saving…"
         >
-          {mutation.isPending ? "Saving…" : "Save active checks"}
-        </button>
-        <button
-          className="ui-btn"
-          data-size="sm"
-          type="button"
+          Save active checks
+        </Button>
+        <Button
+          size="sm"
           disabled={mutation.isPending}
           onClick={() => setEditing(null)}
         >
           Cancel
-        </button>
+        </Button>
       </div>
     </form>
   );

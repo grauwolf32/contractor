@@ -15,17 +15,19 @@ import {
   type ItemKind,
 } from "../../../app/vocabulary";
 import {
+  Button,
   DetailHeader,
   EmptyState,
   FilterChips,
+  IconButton,
   Kbd,
+  type ListNavigationContainerProps,
   ListPane,
   ListRow,
   ListSection,
   MethodChip,
   StatusChip,
   StatusGlyph,
-  type ListNavigationContainerProps,
 } from "../../../ui";
 import { GROUP_IDS, groupLabel, itemHeading, type Group } from "./assessments";
 import { startedText } from "./check-format";
@@ -47,26 +49,6 @@ import { PathText } from "./path-text";
  * row declares them.
  */
 const LIST_KEYS = "J K ArrowDown ArrowUp Home End";
-
-function ActivityGlyph() {
-  return (
-    <svg
-      width="16"
-      height="16"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      focusable="false"
-    >
-      <path d="M9 6.5h10.5M9 12h10.5M9 17.5h10.5" />
-      <path d="M4.5 6.5h.01M4.5 12h.01M4.5 17.5h.01" />
-    </svg>
-  );
-}
 
 function EntryTitle({
   entry,
@@ -263,20 +245,14 @@ export function CheckListPane({
               {coverage.truncated ? "≥" : ""}
               {entries.length.toLocaleString("en-US")} {plural}
             </p>
-            <button
-              type="button"
-              className="ui-btn"
-              data-variant="ghost"
-              data-size="xs"
-              data-icon-only=""
-              aria-label={`Refresh ${plural}`}
-              title={`Refresh ${plural}`}
-              aria-busy={coverage.isFetching || undefined}
-              disabled={coverage.isFetching}
+            <IconButton
+              variant="ghost"
+              size="xs"
+              label={`Refresh ${plural}`}
+              icon={<Icon name="refresh" />}
+              pending={coverage.isFetching}
               onClick={onRefresh}
-            >
-              <Icon name="refresh" />
-            </button>
+            />
             {filtered ? (
               <button
                 type="button"
@@ -315,14 +291,9 @@ export function CheckListPane({
         >
           <strong>A newer revision of this check is available.</strong>
           <p>This list shows revision {pin}.</p>
-          <button
-            className="ui-btn"
-            data-size="xs"
-            type="button"
-            onClick={onRefresh}
-          >
+          <Button size="xs" onClick={onRefresh}>
             Show the latest results
-          </button>
+          </Button>
         </div>
       ) : null}
       {coverage.error !== null && entries.length > 0 ? (
@@ -340,7 +311,7 @@ export function CheckListPane({
             to={links.overview}
             selected={activitySelected}
             ariaKeyShortcuts={LIST_KEYS}
-            glyph={<ActivityGlyph />}
+            glyph={<Icon name="list" size={16} strokeWidth={2} />}
             title="All activity"
             meta="What the whole check is doing, in plain words"
             trailing={

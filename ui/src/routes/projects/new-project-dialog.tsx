@@ -16,6 +16,7 @@ import { queryKeys } from "../../api/query-keys";
 import { Dialog, DialogHeader } from "../../app/dialog";
 import { ErrorNotice } from "../../app/error-notice";
 import type { NewProjectKeys } from "./new-project-keys";
+import { Button } from "../../ui";
 
 import "./projects.css";
 
@@ -142,22 +143,17 @@ export function NewProjectDialog({
         )}
         {create.error === null ? null : <ErrorNotice error={create.error} />}
         <div className="projects-form-actions">
-          <button
-            type="button"
-            className="ui-btn"
-            disabled={create.isPending}
-            onClick={close}
-          >
+          <Button disabled={create.isPending} onClick={close}>
             Cancel
-          </button>
-          <button
+          </Button>
+          <Button
             type="submit"
-            className="ui-btn"
-            data-variant="primary"
-            disabled={create.isPending}
+            variant="primary"
+            pending={create.isPending}
+            pendingLabel="Creating…"
           >
-            {create.isPending ? "Creating…" : wording.submitLabel}
-          </button>
+            {wording.submitLabel}
+          </Button>
         </div>
       </form>
     </Dialog>

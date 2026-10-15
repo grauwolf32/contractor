@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { Link, useLocation, useSearchParams } from "react-router";
+import { useLocation, useSearchParams } from "react-router";
 
 import { AUDIT_ID_PATTERN } from "../../api/audits";
 import { usePublicAPI } from "../../api/context";
@@ -17,13 +17,20 @@ import { compactId, formatTimestamp } from "../../app/format";
 import { useURLCursorStack } from "../../app/pagination";
 import { QueryView } from "../../app/query-view";
 import { RefreshButton } from "../../app/refresh-button";
-import { EmptyState, FilterChips, IdChip, StatusGlyph } from "../../ui";
+import {
+  ButtonLink,
+  EmptyState,
+  FilterChips,
+  IdChip,
+  StatusGlyph,
+} from "../../ui";
 import { RunMetadataLabelChips } from "../runs/components";
 import { ProjectSectionActions } from "./navigation";
 import { projectPath } from "./project-sections";
 
-import "./projects.css";
 import { runStateLabel } from "../../app/vocabulary";
+
+import "./projects.css";
 
 type RunView = "all" | "active" | "completed";
 
@@ -121,13 +128,9 @@ export function ProjectRunHistory({ projectId }: { projectId: string }) {
       aria-label="Project Runs"
     >
       <ProjectSectionActions>
-        <Link
-          className="ui-btn"
-          data-size="sm"
-          to={projectPath(projectId, "workflows")}
-        >
+        <ButtonLink size="sm" to={projectPath(projectId, "workflows")}>
           Choose workflow
-        </Link>
+        </ButtonLink>
       </ProjectSectionActions>
       <div className="projects-toolbar">
         <FilterChips

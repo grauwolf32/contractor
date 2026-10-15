@@ -4,7 +4,7 @@ import { Link, useLocation, useNavigate } from "react-router";
 import type { Project } from "../../api/projects";
 import { RUNTIME_CONFIGURATION_PATH } from "../../app/navigation";
 import { useSession } from "../../auth/session";
-import { TechnicalDetails } from "../../ui";
+import { Button, TechnicalDetails } from "../../ui";
 import { ProjectArtifactRegion } from "./artifact-region";
 import { ProjectActiveChecksEditor } from "./active-checks-editor";
 import { ProjectAuditWorkspace } from "./audits/list";
@@ -129,15 +129,9 @@ function ProjectSettings({
           project&apos;s name.
         </p>
         <div className="projects-form-actions">
-          <button
-            type="button"
-            className="ui-btn"
-            data-variant="danger"
-            data-size="sm"
-            onClick={requestDeletion}
-          >
+          <Button variant="danger" size="sm" onClick={requestDeletion}>
             Delete this project
-          </button>
+          </Button>
         </div>
       </section>
     </div>

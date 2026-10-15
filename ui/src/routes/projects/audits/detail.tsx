@@ -24,6 +24,7 @@ import { queryKeys } from "../../../api/query-keys";
 import { useDocumentTitle } from "../../../app/document-title";
 import { ErrorNotice } from "../../../app/error-notice";
 import { catalogReturnState } from "../../../app/navigation";
+import { useGuardedNavigate } from "../../../app/page-location";
 import {
   checkItemKind,
   checkStateLabel,
@@ -31,6 +32,7 @@ import {
   type ItemKind,
 } from "../../../app/vocabulary";
 import {
+  ButtonLink,
   DetailPane,
   EmptyState,
   PaneLayout,
@@ -489,12 +491,11 @@ function CheckPage({
                 links={links}
               />
               <SectionTabs section={section} kind={kind} links={links} />
-              <Link
-                className="ui-btn"
+              <ButtonLink
                 to={`/catalog/studio?kind=AuditProfile&audit=${encodeURIComponent(audit.auditId)}`}
               >
                 Open live Studio
-              </Link>
+              </ButtonLink>
             </div>
           }
         >
@@ -519,7 +520,7 @@ function CheckMessage({ children }: { children: ReactNode }) {
 export function ProjectAuditDetailRoute() {
   const location = useLocation();
   const api = usePublicAPI();
-  const navigate = useNavigate();
+  const navigate = useGuardedNavigate();
   const queryClient = useQueryClient();
   const { projectId = "", auditId = "", section: rawSection } = useParams();
   const validRoute =

@@ -2,7 +2,7 @@ import { useState } from "react";
 
 import type { components } from "../../../api/generated/public";
 import { formatBytes } from "../../../app/format";
-import { MethodChip } from "../../../ui";
+import { Button, MethodChip } from "../../../ui";
 import {
   attemptOutcome,
   decodeBody,
@@ -72,16 +72,15 @@ function HeaderValue({ name, value }: HTTPHeader) {
           <span className="ui-visually-hidden">Hidden</span>
         </span>
       )}
-      <button
-        type="button"
-        className="ui-btn issues-reveal"
-        data-size="xs"
-        data-variant="ghost"
+      <Button
+        className="issues-reveal"
+        size="xs"
+        variant="ghost"
         aria-label={`${shown ? "Hide" : "Show"} ${name} value`}
         onClick={() => setShown((value) => !value)}
       >
         {shown ? "Hide" : "Show"}
-      </button>
+      </Button>
     </span>
   );
 }

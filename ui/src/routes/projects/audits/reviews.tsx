@@ -21,11 +21,12 @@ import {
   type ItemKind,
 } from "../../../app/vocabulary";
 import {
+  Button,
+  type FilterChipOption,
   FilterChips,
   IdChip,
   StatusChip,
   TechnicalDetails,
-  type FilterChipOption,
 } from "../../../ui";
 import { ActionDecision, DecisionRecord } from "../../decisions";
 import { itemHash, sectionPath } from "./check-links";
@@ -250,14 +251,9 @@ export function AuditReviews({
                 {capitalize(itemNoun(kind, 2))} could not be loaded, so their
                 identifiers are shown instead.
               </p>
-              <button
-                className="ui-btn"
-                data-size="xs"
-                type="button"
-                onClick={() => void items.refetch()}
-              >
+              <Button size="xs" onClick={() => void items.refetch()}>
                 Try again
-              </button>
+              </Button>
             </div>
           ) : null}
           {needsItems ? (

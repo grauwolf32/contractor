@@ -11,7 +11,7 @@ import {
 } from "../../api/workflows";
 import { useDocumentTitle } from "../../app/document-title";
 import { ErrorNotice } from "../../app/error-notice";
-import { DetailHeader, IdChip } from "../../ui";
+import { ButtonLink, DetailHeader, IdChip } from "../../ui";
 import { WorkflowRunForm } from "../workflows/run-form";
 
 import "./projects.css";
@@ -90,9 +90,9 @@ export function ProjectWorkflowRunRoute() {
           </>
         }
         actions={
-          <Link className="ui-btn" data-size="sm" to={backPath}>
+          <ButtonLink size="sm" to={backPath}>
             ← Back to {evaluation ? "Eval" : "Project"}
-          </Link>
+          </ButtonLink>
         }
       />
       <div className="projects-run-body">

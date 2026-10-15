@@ -1,10 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
-import { Link, useLocation } from "react-router";
+import { useLocation } from "react-router";
 
 import { auditPollInterval, listProjectAudits } from "../../../api/audits";
 import { usePublicAPI } from "../../../api/context";
 import { queryKeys } from "../../../api/query-keys";
-import { ContextLink } from "../../../app/context-navigation";
 import { CursorControls } from "../../../app/cursor-controls";
 import { useURLCursorStack } from "../../../app/pagination";
 import { QueryView } from "../../../app/query-view";
@@ -12,6 +11,7 @@ import { RecordedTime } from "../../../app/recorded-time";
 import { RefreshButton } from "../../../app/refresh-button";
 import { checkStateLabel } from "../../../app/vocabulary";
 import {
+  ButtonLink,
   EmptyState,
   IdChip,
   ListRow,
@@ -67,14 +67,9 @@ export function ProjectAuditWorkspace({
           isFetching={audits.isFetching}
           onRefresh={() => void audits.refetch()}
         />
-        <Link
-          className="ui-btn"
-          data-variant="primary"
-          data-size="sm"
-          to={start}
-        >
+        <ButtonLink variant="primary" size="sm" to={start}>
           Start a check
-        </Link>
+        </ButtonLink>
       </ProjectSectionActions>
       <QueryView
         query={audits}
@@ -89,9 +84,9 @@ export function ProjectAuditWorkspace({
           <EmptyState
             title="No checks yet"
             action={
-              <Link className="ui-btn" data-size="sm" to={start}>
+              <ButtonLink size="sm" to={start}>
                 Start a check
-              </Link>
+              </ButtonLink>
             }
           >
             A check reads this project&apos;s materials and reports what it
@@ -140,14 +135,13 @@ export function ProjectAuditWorkspace({
                   )}
                   <div className="checks-row-actions">
                     {audit.state === "waiting_review" ? (
-                      <ContextLink
-                        className="ui-btn"
-                        data-size="sm"
+                      <ButtonLink
+                        size="sm"
                         returnLabel="Project checks"
                         to={`${root}/reviews?state=pending`}
                       >
                         Review decisions
-                      </ContextLink>
+                      </ButtonLink>
                     ) : null}
                     <AuditControls
                       audit={audit}

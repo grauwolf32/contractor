@@ -15,7 +15,7 @@ import {
 } from "../../api/projects";
 import { loadCompletePages } from "../../api/pages";
 import { queryKeys } from "../../api/query-keys";
-import { AlertDialog } from "../../ui";
+import { AlertDialog, Button } from "../../ui";
 import { Dialog, DialogHeader } from "../../app/dialog";
 import { ErrorNotice } from "../../app/error-notice";
 import { createMutationIdempotencyKey } from "../../mutations/idempotency";
@@ -117,28 +117,20 @@ export function ProjectHTTPTargetEditor({
         </dl>
       )}
       <div className="projects-form-actions">
-        <button
-          ref={configure}
-          className="ui-btn"
-          data-size="sm"
-          type="button"
-          onClick={() => setEditing(project)}
-        >
+        <Button ref={configure} size="sm" onClick={() => setEditing(project)}>
           {target === undefined ? "Configure target" : "Edit target"}
-        </button>
+        </Button>
         {target === undefined ? null : (
-          <button
-            className="ui-btn"
-            data-variant="danger"
-            data-size="sm"
-            type="button"
+          <Button
+            variant="danger"
+            size="sm"
             onClick={() => {
               removal.reset();
               setRemoving(project);
             }}
           >
             Remove target
-          </button>
+          </Button>
         )}
       </div>
       {editing ? (
@@ -477,26 +469,21 @@ function ProjectHTTPTargetDialog({
         ) : null}
         {error === null ? null : <ErrorNotice error={error} reconcileWrite />}
         <div className="projects-form-actions">
-          <button
-            className="ui-btn"
-            data-variant="primary"
+          <Button
+            variant="primary"
             type="submit"
+            pending={pending}
+            pendingLabel="Saving…"
             disabled={
-              pending ||
-              (authMode === "existing" &&
-                (credentials.isFetching || credentials.error !== null))
+              authMode === "existing" &&
+              (credentials.isFetching || credentials.error !== null)
             }
           >
-            {pending ? "Saving…" : "Save target"}
-          </button>
-          <button
-            className="ui-btn"
-            type="button"
-            disabled={pending}
-            onClick={onClose}
-          >
+            Save target
+          </Button>
+          <Button disabled={pending} onClick={onClose}>
             Cancel
-          </button>
+          </Button>
         </div>
       </form>
     </Dialog>

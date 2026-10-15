@@ -3,6 +3,7 @@ import { useId, useRef, useState } from "react";
 import type { Audit } from "../../../api/audits";
 import { Dialog, DialogHeader } from "../../../app/dialog";
 import { AuditMutationNotice } from "./controls";
+import { Button } from "../../../ui";
 
 import "./checks.css";
 
@@ -120,22 +121,18 @@ export function AuditTimeLimitDialog({
         ) : null}
         {error === null ? null : <AuditMutationNotice error={error} />}
         <div className="checks-dialog-actions">
-          <button
-            type="button"
-            className="ui-btn"
-            disabled={pending}
-            onClick={onClose}
-          >
+          <Button disabled={pending} onClick={onClose}>
             Close
-          </button>
-          <button
+          </Button>
+          <Button
             type="submit"
-            className="ui-btn"
-            data-variant="primary"
-            disabled={pending || !valid}
+            variant="primary"
+            pending={pending}
+            pendingLabel="Applying…"
+            disabled={!valid}
           >
-            {pending ? "Applying…" : title}
-          </button>
+            {title}
+          </Button>
         </div>
       </form>
     </Dialog>

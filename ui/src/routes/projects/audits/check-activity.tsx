@@ -18,7 +18,7 @@ import {
   reviewKindLabel,
   type ItemKind,
 } from "../../../app/vocabulary";
-import { StatusChip, StatusGlyph } from "../../../ui";
+import { Button, StatusChip, StatusGlyph } from "../../../ui";
 import { ActionDecision } from "../../decisions";
 import { nowSentence } from "./activity-model";
 import { CheckEventHistory } from "./event-history";
@@ -83,15 +83,13 @@ function Decisions({
       {waiting.error === null ? null : (
         <div className="checks-notice" data-tone="warning" role="status">
           <p>The decisions waiting for you could not be loaded.</p>
-          <button
-            className="ui-btn"
-            data-size="xs"
-            type="button"
+          <Button
+            size="xs"
             disabled={waiting.isFetching}
             onClick={() => void waiting.refetch()}
           >
             Try again
-          </button>
+          </Button>
         </div>
       )}
       {requests.length === 0 ? (
@@ -223,15 +221,13 @@ function Issues({
     status = (
       <div className="checks-notice" data-tone="warning" role="status">
         <p>The issues of this check could not be loaded.</p>
-        <button
-          className="ui-btn"
-          data-size="xs"
-          type="button"
+        <Button
+          size="xs"
           disabled={findings.isFetching}
           onClick={() => void findings.refetch()}
         >
           Try again
-        </button>
+        </Button>
       </div>
     );
   else

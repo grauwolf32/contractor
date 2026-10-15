@@ -10,7 +10,7 @@ import { ContextLink } from "../../app/context-navigation";
 import { ErrorNotice } from "../../app/error-notice";
 import { QueryView } from "../../app/query-view";
 import { RecordedTime } from "../../app/recorded-time";
-import { IdChip, StatusGlyph } from "../../ui";
+import { Button, IdChip, StatusGlyph } from "../../ui";
 import { artifactDetailPath } from "../artifacts/paths";
 import {
   organizeRunOutputs,
@@ -142,14 +142,9 @@ function RecentRunResult({
           {contract.error ? (
             <p className="projects-caption">
               Output roles unavailable.{" "}
-              <button
-                type="button"
-                className="ui-btn"
-                data-size="xs"
-                onClick={() => void contract.refetch()}
-              >
+              <Button size="xs" onClick={() => void contract.refetch()}>
                 Retry output roles
-              </button>
+              </Button>
             </p>
           ) : null}
           {shown.length === 0 ? (

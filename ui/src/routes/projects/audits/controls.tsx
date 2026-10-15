@@ -18,11 +18,12 @@ import { MutationDraftKeyring } from "../../../mutations/idempotency";
 import { checkKeys } from "./check-data";
 import { auditProfileLabel } from "./labels";
 import { AuditTimeLimitDialog } from "./time-limit-dialog";
+import { AlertDialog, Button, Facts } from "../../../ui";
+
+import { ConflictNotice } from "../../../app/conflict-notice";
+import { OPEN_AUDIT_STATES } from "../../../api/states";
 
 import "./checks.css";
-import { ConflictNotice } from "../../../app/conflict-notice";
-import { AlertDialog, Facts } from "../../../ui";
-import { OPEN_AUDIT_STATES } from "../../../api/states";
 
 export function AuditMutationNotice({ error }: { error: unknown }) {
   return (
@@ -372,14 +373,13 @@ export function AuditControls({
   function renderButton(button: ControlButton, inMenu = false) {
     const iconOnly = compact && !inMenu;
     return (
-      <button
+      <Button
         key={button.action}
-        type="button"
-        className="ui-btn"
-        data-size="sm"
-        data-variant={
+        size="sm"
+        variant={
           iconOnly && button.variant === "ghost" ? "secondary" : button.variant
         }
+        icon={button.icon}
         data-icon-only={iconOnly ? "" : undefined}
         aria-label={
           iconOnly || button.name !== button.text ? button.name : undefined
@@ -389,9 +389,8 @@ export function AuditControls({
         disabled={mutation.isPending}
         onClick={() => activate(button)}
       >
-        {button.icon}
         {iconOnly ? null : <span>{button.text}</span>}
-      </button>
+      </Button>
     );
   }
   const deleteButton = buttons.find((button) => button.action === "delete");
@@ -408,16 +407,14 @@ export function AuditControls({
         <ActionMenu label="Check actions">
           {deleteButton === undefined ? (
             <>
-              <button
-                className="ui-btn"
-                data-size="sm"
-                data-variant="danger"
-                type="button"
+              <Button
+                size="sm"
+                variant="danger"
+                icon={<Icon name="delete" />}
                 disabled
               >
-                <Icon name="delete" />
                 <span>Delete check</span>
-              </button>
+              </Button>
               <small className="checks-quiet">{DELETING_HINT}</small>
             </>
           ) : (
@@ -426,19 +423,17 @@ export function AuditControls({
         </ActionMenu>
       ) : null}
       {!menu && deleteButton === undefined ? (
-        <button
-          className="ui-btn"
-          data-size="sm"
-          data-variant="danger"
+        <Button
+          size="sm"
+          variant="danger"
           data-icon-only={compact ? "" : undefined}
-          type="button"
           aria-label="Delete check"
           title={DELETING_HINT}
+          icon={<Icon name="delete" />}
           disabled
         >
-          <Icon name="delete" />
           {compact ? null : <span>Delete check</span>}
-        </button>
+        </Button>
       ) : null}
       {confirmation === undefined &&
       timeAction === undefined &&

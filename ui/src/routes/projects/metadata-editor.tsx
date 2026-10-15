@@ -12,7 +12,7 @@ import {
 import { queryKeys } from "../../api/query-keys";
 import { ErrorNotice } from "../../app/error-notice";
 import { formatTimestamp } from "../../app/format";
-import { IdChip } from "../../ui";
+import { Button, IdChip } from "../../ui";
 import { useUnsavedDraft } from "./project-drafts";
 
 import "./projects.css";
@@ -127,10 +127,8 @@ export function ProjectMetadataEditor({ project }: { project: Project }) {
           </div>
         </dl>
         <div className="projects-form-actions">
-          <button
-            className="ui-btn"
-            data-size="sm"
-            type="button"
+          <Button
+            size="sm"
             onClick={() => {
               mutation.reset();
               setValidationError(null);
@@ -138,7 +136,7 @@ export function ProjectMetadataEditor({ project }: { project: Project }) {
             }}
           >
             Edit metadata
-          </button>
+          </Button>
         </div>
       </div>
     );
@@ -174,24 +172,22 @@ export function ProjectMetadataEditor({ project }: { project: Project }) {
         <ErrorNotice error={mutation.error} reconcileWrite />
       )}
       <div className="projects-form-actions">
-        <button
-          className="ui-btn"
-          data-variant="primary"
-          data-size="sm"
+        <Button
+          variant="primary"
+          size="sm"
           type="submit"
-          disabled={mutation.isPending}
+          pending={mutation.isPending}
+          pendingLabel="Saving…"
         >
-          {mutation.isPending ? "Saving…" : "Save changes"}
-        </button>
-        <button
-          className="ui-btn"
-          data-size="sm"
-          type="button"
+          Save changes
+        </Button>
+        <Button
+          size="sm"
           disabled={mutation.isPending}
           onClick={() => setEditing(null)}
         >
           Cancel
-        </button>
+        </Button>
       </div>
     </form>
   );

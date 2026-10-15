@@ -8,18 +8,19 @@ import { queryKeys } from "../../api/query-keys";
 import { compactId } from "../../app/format";
 import { CursorControls } from "../../app/cursor-controls";
 import { useDocumentTitle } from "../../app/document-title";
+import { useGuardedNavigate } from "../../app/page-location";
 import { useCursorStack } from "../../app/pagination";
 import { QueryView } from "../../app/query-view";
 import { RecordedTime } from "../../app/recorded-time";
 import { RefreshButton } from "../../app/refresh-button";
+import { Button } from "../../ui";
 import { EvaluationActivity } from "./evaluation-activity";
 import { NewProjectDialog } from "./new-project-dialog";
 import { useNewProjectKeys } from "./new-project-keys";
 import { ProjectsRoute } from "./projects-route";
+import { pollWhileAnyDeleting } from "./use-project-deletion";
 
 import "./collection.css";
-import { pollWhileAnyDeleting } from "./use-project-deletion";
-import { useGuardedNavigate } from "../../app/page-location";
 
 /**
  * /projects. The same component serves /projects/:projectId, so choosing a
@@ -62,14 +63,9 @@ export function EvaluationListRoute() {
             result.
           </p>
         </div>
-        <button
-          type="button"
-          className="ui-btn"
-          data-variant="primary"
-          onClick={() => setCreateOpen(true)}
-        >
+        <Button variant="primary" onClick={() => setCreateOpen(true)}>
           New Eval
-        </button>
+        </Button>
       </header>
 
       {createOpen ? (
@@ -119,14 +115,9 @@ export function EvaluationListRoute() {
               An Eval is a Project workspace whose ordinary Runs use
               purpose=eval and eval.* metadata labels.
             </p>
-            <button
-              type="button"
-              className="ui-btn"
-              data-variant="primary"
-              onClick={() => setCreateOpen(true)}
-            >
+            <Button variant="primary" onClick={() => setCreateOpen(true)}>
               New Eval
-            </button>
+            </Button>
           </div>
         }
       >

@@ -13,7 +13,7 @@ import { ContextLink } from "../../../app/context-navigation";
 import { formatBytes } from "../../../app/format";
 import { RecordedTime } from "../../../app/recorded-time";
 import { severityLabel, verdictLabel } from "../../../app/vocabulary";
-import { IdChip, StatusChip, TechnicalDetails } from "../../../ui";
+import { Button, IdChip, StatusChip, TechnicalDetails } from "../../../ui";
 import { FindingDecision, FindingSummary } from "../../decisions";
 import {
   assessmentLabel,
@@ -59,16 +59,14 @@ export function FindingProvenance({
   });
   return (
     <div className="issues-provenance">
-      <button
-        className="ui-btn"
-        data-size="xs"
-        type="button"
+      <Button
+        size="xs"
         aria-expanded={expanded}
         aria-controls={panelId}
         onClick={() => setExpanded((value) => !value)}
       >
         {expanded ? "Hide provenance" : "Show provenance"}
-      </button>
+      </Button>
       <div id={panelId} hidden={!expanded}>
         {!expanded ? null : provenance.data === undefined ? (
           provenance.error === null ? (
@@ -78,15 +76,13 @@ export function FindingProvenance({
           ) : (
             <div className="issues-notice" data-tone="error" role="alert">
               <p>Provenance could not be loaded: {provenance.error.message}</p>
-              <button
-                type="button"
-                className="ui-btn"
-                data-size="xs"
+              <Button
+                size="xs"
                 disabled={provenance.isFetching}
                 onClick={() => void provenance.refetch()}
               >
                 Try again
-              </button>
+              </Button>
             </div>
           )
         ) : provenance.data.items.length === 0 ? (
@@ -398,14 +394,9 @@ export function AuditFindingCard({
                 : "The review status could not be loaded."}
             </p>
             {onRetryReview === undefined ? null : (
-              <button
-                className="ui-btn"
-                data-size="xs"
-                type="button"
-                onClick={onRetryReview}
-              >
+              <Button size="xs" onClick={onRetryReview}>
                 {reviewActionLabel}
-              </button>
+              </Button>
             )}
           </div>
         ) : (

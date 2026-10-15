@@ -3,7 +3,13 @@ import { Link, type To } from "react-router";
 
 import type { Audit, AuditWorkspace } from "../../../api/audits";
 import { itemNoun, type ItemKind } from "../../../app/vocabulary";
-import { IdChip, ProgressSegments, StatusGlyph } from "../../../ui";
+import {
+  Button,
+  ButtonLink,
+  IdChip,
+  ProgressSegments,
+  StatusGlyph,
+} from "../../../ui";
 import type { CheckLinks } from "./check-links";
 import { timeLimitText } from "./check-format";
 import {
@@ -170,13 +176,12 @@ export function CheckProgress({
         <div className="checks-progress-actions">
           <AuditControls audit={audit} projectName={projectName} menu />
           {unreviewed > 0 ? (
-            <Link
-              className="ui-btn"
-              data-variant="primary"
+            <ButtonLink
+              variant="primary"
               to={`/issues?${new URLSearchParams({ project: projectId, state: "proposed" }).toString()}`}
             >
               Review {plural(unreviewed, "possible issue", "possible issues")}
-            </Link>
+            </ButtonLink>
           ) : null}
         </div>
       </div>
@@ -251,15 +256,14 @@ export function CheckProgress({
               ? "The counts of this check could not be loaded."
               : "The counts could not be refreshed; they show the last snapshot."}
           </p>
-          <button
-            className="ui-btn"
-            data-size="xs"
-            type="button"
-            disabled={workspace.isFetching}
+          <Button
+            size="xs"
+            pending={workspace.isFetching}
+            pendingLabel="Loading…"
             onClick={() => void workspace.refetch()}
           >
-            {workspace.isFetching ? "Loading…" : "Try again"}
-          </button>
+            Try again
+          </Button>
         </div>
       )}
     </section>

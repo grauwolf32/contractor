@@ -23,7 +23,7 @@ import {
 } from "./recommendations";
 import { ProjectSectionActions } from "./navigation";
 import { QueryView } from "../../app/query-view";
-import { FilterChips } from "../../ui";
+import { Button, FilterChips } from "../../ui";
 
 import "./projects.css";
 
@@ -205,10 +205,8 @@ export function ProjectWorkflowRecommendations({
         </div>
         <ErrorNotice error={workflows.error ?? artifacts.error} />
         <div className="projects-form-actions">
-          <button
-            className="ui-btn"
-            data-size="sm"
-            type="button"
+          <Button
+            size="sm"
             disabled={workflows.isFetching || artifacts.isFetching}
             onClick={() => {
               void workflows.refetch();
@@ -216,7 +214,7 @@ export function ProjectWorkflowRecommendations({
             }}
           >
             Retry matching
-          </button>
+          </Button>
         </div>
       </section>
     );
@@ -263,10 +261,8 @@ export function ProjectWorkflowRecommendations({
             Inspect all Workflows to review missing inputs or explicitly run
             again.
           </p>
-          <button
-            className="ui-btn"
-            data-size="sm"
-            type="button"
+          <Button
+            size="sm"
             onClick={() => {
               setFilters(
                 (current) => {
@@ -284,7 +280,7 @@ export function ProjectWorkflowRecommendations({
             }}
           >
             Show all workflows
-          </button>
+          </Button>
         </div>
       ) : (
         <div className="workflow-family-grid">
