@@ -415,7 +415,7 @@ export function AuditControls({
               >
                 <span>Delete check</span>
               </Button>
-              <small className="checks-quiet">{DELETING_HINT}</small>
+              <small className="ui-caption">{DELETING_HINT}</small>
             </>
           ) : (
             renderButton(deleteButton, true)

@@ -336,7 +336,7 @@ function CheckPage({
         );
       else if (selected === undefined)
         content = coverage.isPending ? (
-          <p className="checks-quiet" role="status">
+          <p className="ui-caption" role="status">
             Loading {plural}…
           </p>
         ) : (
@@ -590,7 +590,7 @@ export function ProjectAuditDetailRoute() {
   if (audit.isPending)
     return (
       <CheckMessage>
-        <p className="checks-quiet" role="status">
+        <p className="ui-caption" role="status">
           Loading check…
         </p>
       </CheckMessage>

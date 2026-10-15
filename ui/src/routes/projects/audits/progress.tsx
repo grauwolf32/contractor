@@ -199,7 +199,7 @@ export function CheckProgress({
         </div>
       </div>
       {pinned ? (
-        <p className="checks-quiet">
+        <p className="ui-caption">
           {`Counts describe revision ${pin}, the one the list shows${
             partialList
               ? `: the ${entries.length.toLocaleString("en-US")} ${pluralNoun} loaded so far`
@@ -207,7 +207,7 @@ export function CheckProgress({
           }.`}
         </p>
       ) : fromRows || !partialList ? null : (
-        <p className="checks-quiet">
+        <p className="ui-caption">
           Counts cover the whole check; the list shows the{" "}
           {entries.length.toLocaleString("en-US")} {pluralNoun} loaded so far.
         </p>

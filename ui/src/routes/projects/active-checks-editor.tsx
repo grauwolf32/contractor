@@ -56,7 +56,7 @@ export function ProjectActiveChecksEditor({ project }: { project: Project }) {
     return (
       <div className="projects-editor">
         <p>{MODES[project.activeChecks]}</p>
-        <p className="projects-caption">
+        <p className="ui-caption">
           Applies when starting a new check. Checks already in progress keep
           their setting. Presets that disable active tests remain disabled.
         </p>
@@ -87,7 +87,7 @@ export function ProjectActiveChecksEditor({ project }: { project: Project }) {
       {mutation.error === null ? null : (
         <ErrorNotice error={mutation.error} reconcileWrite />
       )}
-      <div className="projects-form-actions">
+      <div className="ui-toolbar">
         <Button
           size="sm"
           variant="primary"

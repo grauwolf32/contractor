@@ -142,7 +142,7 @@ export function NewProjectDialog({
           </p>
         )}
         {create.error === null ? null : <ErrorNotice error={create.error} />}
-        <div className="projects-form-actions">
+        <div className="ui-dialog-actions">
           <Button disabled={create.isPending} onClick={close}>
             Cancel
           </Button>

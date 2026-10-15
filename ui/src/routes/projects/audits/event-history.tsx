@@ -107,16 +107,16 @@ export function CheckEventHistory({
         />
       )}
       {query.isPending ? (
-        <p className="checks-quiet" role="status">
+        <p className="ui-caption" role="status">
           Loading activity…
         </p>
       ) : null}
       <ActivityLog aria-label="Activity on this check" entries={entries} />
       {query.isSuccess && events.length === 0 ? (
-        <p className="checks-quiet">No recorded events.</p>
+        <p className="ui-caption">No recorded events.</p>
       ) : null}
       {pages.length === 0 ? null : (
-        <p className="checks-quiet">
+        <p className="ui-caption">
           Showing {events.length.toLocaleString("en-US")} of{" "}
           {pages[0]!.total.toLocaleString("en-US")} recorded events.
         </p>

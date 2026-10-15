@@ -110,7 +110,7 @@ export function AuditTimeLimitDialog({
             />
           </label>
         ) : null}
-        <p className="checks-quiet">
+        <p className="ui-caption">
           The time includes waiting in the queue and stops while the check is
           paused. Reaching the limit pauses new work; running work can finish.
         </p>
@@ -120,7 +120,7 @@ export function AuditTimeLimitDialog({
           </p>
         ) : null}
         {error === null ? null : <AuditMutationNotice error={error} />}
-        <div className="checks-dialog-actions">
+        <div className="ui-dialog-actions">
           <Button disabled={pending} onClick={onClose}>
             Close
           </Button>

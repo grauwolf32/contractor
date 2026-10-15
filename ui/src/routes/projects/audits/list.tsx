@@ -74,7 +74,7 @@ export function ProjectAuditWorkspace({
       <QueryView
         query={audits}
         loading={
-          <p className="checks-quiet" role="status">
+          <p className="ui-caption" role="status">
             Loading checks…
           </p>
         }

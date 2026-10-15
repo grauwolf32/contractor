@@ -89,7 +89,7 @@ export function ProjectHTTPTargetEditor({
   return (
     <div className="projects-editor">
       {target === undefined ? (
-        <p className="projects-caption">
+        <p className="ui-caption">
           No target is configured. Workers receive no Project Authorization.
         </p>
       ) : (
@@ -116,7 +116,7 @@ export function ProjectHTTPTargetEditor({
           </div>
         </dl>
       )}
-      <div className="projects-form-actions">
+      <div className="ui-toolbar">
         <Button ref={configure} size="sm" onClick={() => setEditing(project)}>
           {target === undefined ? "Configure target" : "Edit target"}
         </Button>
@@ -351,7 +351,7 @@ function ProjectHTTPTargetDialog({
           onClose: onClose,
         }}
       />
-      <p className="projects-caption">
+      <p className="ui-caption">
         The URL and credential reference are safe metadata. Secret material is
         write-only and reaches only matching HTTP-enabled allocations.
       </p>
@@ -468,7 +468,7 @@ function ProjectHTTPTargetDialog({
           </label>
         ) : null}
         {error === null ? null : <ErrorNotice error={error} reconcileWrite />}
-        <div className="projects-form-actions">
+        <div className="ui-dialog-actions">
           <Button
             variant="primary"
             type="submit"

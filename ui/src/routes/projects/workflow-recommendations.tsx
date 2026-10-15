@@ -22,6 +22,7 @@ import {
   type WorkflowCompatibility,
 } from "./recommendations";
 import { ProjectSectionActions } from "./navigation";
+import { plural } from "../../app/format";
 import { QueryView } from "../../app/query-view";
 import { Button, FilterChips } from "../../ui";
 
@@ -204,7 +205,7 @@ export function ProjectWorkflowRecommendations({
           <h3 id={heading}>Workflows whose formats match</h3>
         </div>
         <ErrorNotice error={workflows.error ?? artifacts.error} />
-        <div className="projects-form-actions">
+        <div className="ui-toolbar">
           <Button
             size="sm"
             disabled={workflows.isFetching || artifacts.isFetching}
@@ -227,10 +228,9 @@ export function ProjectWorkflowRecommendations({
       aria-label="Workflows"
     >
       <ProjectSectionActions>
-        <span className="projects-caption">
-          {families.length} {families.length === 1 ? "workflow" : "workflows"} ·{" "}
-          {workflows.data?.length ?? 0}{" "}
-          {workflows.data?.length === 1 ? "version" : "versions"}
+        <span className="ui-caption">
+          {plural(families.length, "workflow")} ·{" "}
+          {plural(workflows.data?.length ?? 0, "version")}
         </span>
       </ProjectSectionActions>
       <div className="projects-toolbar">
@@ -299,7 +299,7 @@ export function ProjectWorkflowRecommendations({
           ))}
         </div>
       )}
-      <p className="projects-caption">
+      <p className="ui-caption">
         Input matches compare media types. Review content and parameters in the
         Run form.
       </p>

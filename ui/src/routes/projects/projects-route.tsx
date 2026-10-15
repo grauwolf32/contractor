@@ -27,7 +27,7 @@ function ProjectsStart({ onNewProject }: { onNewProject: () => void }) {
       <EmptyState
         title="Choose a project"
         action={
-          <div className="projects-start-actions">
+          <div className="ui-toolbar">
             <Button variant="primary" size="sm" onClick={onNewProject}>
               New project
             </Button>

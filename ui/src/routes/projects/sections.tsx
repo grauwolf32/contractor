@@ -93,7 +93,7 @@ function ProjectSettings({
         <div className="projects-section-heading">
           <h3 id={target}>Live target</h3>
         </div>
-        <p className="projects-caption">
+        <p className="ui-caption">
           The running application that active checks of this project may send
           requests to, and the authorization they use.
         </p>
@@ -105,7 +105,7 @@ function ProjectSettings({
       </section>
       <TechnicalDetails description="Identifiers, revision and where execution defaults live.">
         <ProjectFacts project={project} showId={false} />
-        <p className="projects-caption">
+        <p className="ui-caption">
           These settings apply to this project only. Server-wide execution
           defaults live under Operations.
           {operator ? (
@@ -123,12 +123,12 @@ function ProjectSettings({
         <div className="projects-section-heading">
           <h3 id={danger}>Delete this project</h3>
         </div>
-        <p className="projects-caption">
+        <p className="ui-caption">
           Deletion cancels every active Run and permanently removes the
           project&apos;s Runs, history and materials. You confirm by typing the
           project&apos;s name.
         </p>
-        <div className="projects-form-actions">
+        <div className="ui-toolbar">
           <Button variant="danger" size="sm" onClick={requestDeletion}>
             Delete this project
           </Button>

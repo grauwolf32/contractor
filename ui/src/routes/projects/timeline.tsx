@@ -24,7 +24,7 @@ import type { CheckIssues } from "./overview-data";
 import { RunPrimaryResult } from "./overview-runs";
 import { projectPath } from "./project-sections";
 import { TIMELINE_FILTERS, type TimelineFilter } from "./timeline-filter";
-import { formatDay } from "../../app/format";
+import { formatDay, plural } from "../../app/format";
 import { materialKindLabel } from "../artifacts/kinds";
 
 /** How many events the timeline shows. */
@@ -93,7 +93,7 @@ function checkEvent(
         {phrase}
         {reason === undefined ? "" : `: ${reason}`}.
         {toReview > 0
-          ? ` ${toReview} ${toReview === 1 ? "possible issue needs" : "possible issues need"} review.`
+          ? ` ${plural(toReview, "possible issue needs", "possible issues need")} review.`
           : null}
       </>
     ),
@@ -117,7 +117,7 @@ function issueEvent(finding: AuditFinding): TimelineEvent {
         {operation === null ? null : (
           <>
             on{" "}
-            <span className="projects-mono">
+            <span className="ui-mono">
               {operation[1]!.toUpperCase()} {operation[2]}
             </span>
             {": "}

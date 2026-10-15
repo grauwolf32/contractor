@@ -339,7 +339,7 @@ export function CheckListPane({
                 prefix === "" ? undefined : (
                   <>
                     under{" "}
-                    <code className="checks-mono">
+                    <code className="ui-mono">
                       <PathText path={prefix} />
                     </code>
                   </>
@@ -371,7 +371,7 @@ export function CheckListPane({
         />
       </div>
       {entries.length === 0 ? null : (
-        <p className="checks-pane-note checks-quiet">
+        <p className="checks-pane-note ui-caption">
           These results describe single {plural}. A check can finish with issues
           or with incomplete {plural}; excluded {plural} do not count as met.
         </p>

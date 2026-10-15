@@ -70,14 +70,14 @@ function Decisions({
   if (waiting.isPending && audit.state !== "draft")
     return (
       <Block title="Decisions waiting">
-        <p className="checks-quiet" role="status">
+        <p className="ui-caption" role="status">
           Loading decisions…
         </p>
       </Block>
     );
   return (
     <Block title="Decisions waiting">
-      <p className="checks-quiet" role="status">
+      <p className="ui-caption" role="status">
         {recorded}
       </p>
       {waiting.error === null ? null : (
@@ -94,7 +94,7 @@ function Decisions({
       )}
       {requests.length === 0 ? (
         waiting.error === null ? (
-          <p className="checks-quiet">Nothing is waiting for you.</p>
+          <p className="ui-caption">Nothing is waiting for you.</p>
         ) : null
       ) : (
         <ul className="checks-waiting">
@@ -111,7 +111,7 @@ function Decisions({
                         ? "Check report"
                         : "")}
                 </span>
-                <span className="checks-quiet">
+                <span className="ui-caption">
                   Requested <RecordedTime value={review.createdAt} />
                 </span>
               </p>
@@ -205,7 +205,7 @@ function Issues({
   // Drafts and checks being deleted are not read (useCheckFindings).
   if (!findingsReadable(audit) && !any)
     status = (
-      <p className="checks-quiet">
+      <p className="ui-caption">
         {audit.state === "draft"
           ? "A draft has no issues or possible issues yet."
           : "This check is being deleted; its issues are no longer read."}
@@ -213,7 +213,7 @@ function Issues({
     );
   else if (findings.isPending)
     status = (
-      <p className="checks-quiet" role="status">
+      <p className="ui-caption" role="status">
         Loading issues…
       </p>
     );
@@ -232,7 +232,7 @@ function Issues({
     );
   else
     status = (
-      <p className="checks-quiet">
+      <p className="ui-caption">
         {issuesSentence(
           findings.items,
           findings.truncated,
@@ -291,7 +291,7 @@ function Report({
   if (!REPORT_STATES.includes(audit.state))
     return (
       <Block title="Report">
-        <p className="checks-quiet">
+        <p className="ui-caption">
           The report is written when the check finishes.
         </p>
       </Block>
@@ -304,7 +304,7 @@ function Report({
     <Block title="Report">
       <p className="checks-report-line">
         {status === undefined ? (
-          <span className="checks-quiet">
+          <span className="ui-caption">
             {report.error === null
               ? "Loading the report status…"
               : "The report status could not be loaded."}
@@ -356,7 +356,7 @@ export function CheckActivity({
     <div className="checks-activity">
       <div className="checks-section-heading">
         <h2>All activity</h2>
-        <p className="checks-quiet">
+        <p className="ui-caption">
           What the whole check is doing, in plain words.
         </p>
       </div>

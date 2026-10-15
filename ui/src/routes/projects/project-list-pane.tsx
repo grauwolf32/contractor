@@ -17,6 +17,7 @@ import type { StatusTone } from "../../app/status-tone";
 import { checkStateLabel } from "../../app/vocabulary";
 import {
   Button,
+  IconButton,
   EmptyState,
   Kbd,
   ListPane,
@@ -217,24 +218,25 @@ export function ProjectListPane({
       subtitle={subtitle}
       actions={
         <>
-          <Button
-            className="refresh-button projects-icon-button"
+          <IconButton
+            className="refresh-button"
             variant="ghost"
             size="sm"
-            aria-label="Refresh projects"
-            title="Refresh projects"
-            aria-busy={query.isFetching || undefined}
+            label="Refresh projects"
+            icon={<Icon name="refresh" size={16} />}
+            pending={query.isFetching}
             data-fetching={query.isFetching || undefined}
-            disabled={query.isFetching}
             onClick={() => {
               void query.refetch();
               void invalidateCrossProject(queryClient);
             }}
+          />
+          <Button
+            size="sm"
+            aria-label="New project"
+            onClick={onNewProject}
+            icon={<Icon name="plus" />}
           >
-            <Icon name="refresh" />
-          </Button>
-          <Button size="sm" aria-label="New project" onClick={onNewProject}>
-            <Icon name="plus" />
             <span>New</span>
           </Button>
         </>
