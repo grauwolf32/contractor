@@ -311,6 +311,7 @@ describe("checkItemKind", () => {
         ? {}
         : {
             baseline: {
+              activeChecks: "automatic",
               inputs: {},
               scope: {},
               runtimeLabels: [],

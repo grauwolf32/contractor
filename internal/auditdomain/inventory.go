@@ -277,7 +277,8 @@ func validateBasisItem(
 	subject := basis.Subjects[index]
 	switch basis.Kind {
 	case "openapi-scans":
-		if task.Scan == nil || item.Kind != "openapi-scan" || item.ApprovalRequirement != ApprovalActiveCheck ||
+		if task.Scan == nil || item.Kind != "openapi-scan" ||
+			(item.ApprovalRequirement != ApprovalActiveCheck && item.ApprovalRequirement != ApprovalNone) ||
 			item.ItemKey != openAPIScanKey(canonicalDigest, task.Scan.Operation) || item.SubjectKey != item.ItemKey ||
 			!equalStringSlices(coverage.Requested, []string{task.Scan.CoverageRequirement()}) ||
 			!equalStringSlices(coverage.Gaps, task.Scan.Gaps) ||

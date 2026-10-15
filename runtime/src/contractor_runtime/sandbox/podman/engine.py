@@ -46,6 +46,7 @@ class _Creation:
     allocation_id: str
     creation_id: str
     content: ContentPin
+    network: str = "none"
     attempted: bool = False
     failed_exit: bool = False
     identity: SandboxIdentity | None = None
@@ -133,8 +134,9 @@ class PodmanEngine:
         await self._operations.run(operation, self._deadline(deadline))
 
     async def create(
-        self, allocation_id: str, content_root: Path, *, deadline: float
+        self, allocation_id: str, content_root: Path, *, deadline: float, network: str = "none"
     ) -> SandboxIdentity:
+        self._settings.validate_network(network)
         deadline = self._deadline(deadline, self._settings.prepare_max_seconds)
 
         async def operation() -> SandboxIdentity:
@@ -146,9 +148,9 @@ class PodmanEngine:
                 if len(self._records) >= MAX_OWNED_CONTAINERS:
                     raise SandboxContractError(SandboxErrorCode.UNAVAILABLE)
                 content = await asyncio.to_thread(ContentPin, content_root)
-                record = _Creation(allocation_id, uuid.uuid4().hex, content)
+                record = _Creation(allocation_id, uuid.uuid4().hex, content, network=network)
                 self._records[allocation_id] = record
-            if record.content.path != content_root:
+            if record.content.path != content_root or record.network != network:
                 raise SandboxContractError(SandboxErrorCode.INCOMPATIBLE)
             await asyncio.to_thread(record.content.verify)
             if record.identity is not None:
@@ -496,7 +498,7 @@ class PodmanEngine:
             "--pull=never",
             "--read-only",
             "--read-only-tmpfs=false",
-            "--network=none",
+            "--network=" + record.network,
             "--ipc=none",
             "--pid=private",
             "--uts=private",

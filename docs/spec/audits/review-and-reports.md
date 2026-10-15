@@ -309,7 +309,8 @@ extensions and do not become effective merely because a model emits those
 strings.
 
 Which items start in `awaiting_review` (items of a Workflow role that exposes
-a classified active-check tool under `activeChecks: approval-required`,
+a classified active-check tool under the effective pinned Project
+`activeChecks: approval-required` policy,
 manual checklist items, and standard-backed items with package-authored
 `human-review` applicability or a `required` evidence-contract review) is
 specified in [audits](audits.md) (AUD-R83 to AUD-R87). Those item decisions

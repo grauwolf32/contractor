@@ -8,6 +8,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditstandards"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config/auditprofile"
+	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 )
@@ -56,6 +57,7 @@ type DerivedInventory struct {
 
 type BaselineSnapshot struct {
 	Schema               string                               `json:"schema"`
+	ActiveChecks         contracts.ActiveChecksPolicy         `json:"activeChecks"`
 	Inputs               map[string]auditstore.ExactArtifact  `json:"inputs"`
 	Scope                Scope                                `json:"scope"`
 	RuntimeLabels        []string                             `json:"runtimeLabels"`

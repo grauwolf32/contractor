@@ -41,7 +41,7 @@ func TestSharedAuditPreparationHandlersWithoutRound(t *testing.T) {
 	selection, _ := json.Marshal(auditservice.DraftSelection{Schema: auditservice.DraftSelectionSchema,
 		Inputs: map[string]auditstore.ExactArtifact{"source": {Ref: contracts.ArtifactRef{Namespace: "inputs", Name: "source", Revision: &inputRevision}, Digest: auditHandlerDigest("source"), MediaType: "application/zip", SizeBytes: 1}}, RuntimeLabels: []string{}})
 	selected, _ := auditservice.DecodeDraftSelection(selection)
-	baseline, err := auditservice.EncodeBaseline(auditservice.BaselineSnapshot{Schema: auditservice.BaselineSchema, Inputs: selected.Inputs,
+	baseline, err := auditservice.EncodeBaseline(auditservice.BaselineSnapshot{ActiveChecks: contracts.ActiveChecksAutomatic, Schema: auditservice.BaselineSchema, Inputs: selected.Inputs,
 		RuntimeLabels: []string{}, RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot(), Skills: []agentskills.RunSkillSnapshot{},
 		LLMCredentialIDs: []string{}, RuntimeCredentialIDs: []string{}, Standards: []auditstandards.PinnedPackage{}})
 	if err != nil {

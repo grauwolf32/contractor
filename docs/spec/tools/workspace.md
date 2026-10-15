@@ -601,7 +601,7 @@ host trust boundary.
 content directories and their approved mounts.
 
 The Podman executor requires `local + direct` and cannot be combined with
-Contractor `overlay`; every `podman@1` Worker therefore needs a direct-mode
+Contractor `overlay`; every `podman@1` or `podman-network@1` Worker therefore needs a direct-mode
 `context.workspace` on a Runtime with local storage
 ([EXE-R9 and EXE-R10](code-execution.md)).
 

@@ -69,6 +69,13 @@ func TestPodmanRegisteredFleetPreservesOrdinaryMemoryAndOverlaySlots(t *testing.
 }
 
 func TestPodmanPlacementRequiresExactLocalDirectCapability(t *testing.T) {
+	for _, profile := range []string{"podman", "podman-network"} {
+		t.Run(profile, func(t *testing.T) { testPodmanPlacement(t, profile) })
+	}
+}
+func testPodmanPlacement(t *testing.T, profile string) {
+	t.Helper()
+
 	for _, test := range []struct {
 		name                     string
 		storage                  contracts.WorkspaceStorage
@@ -86,14 +93,14 @@ func TestPodmanPlacementRequiresExactLocalDirectCapability(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			registration := testRegistration("podman-test")
 			if test.profile {
-				registration.SupportedSandboxProfiles = append(registration.SupportedSandboxProfiles, "podman@1")
+				registration.SupportedSandboxProfiles = append(registration.SupportedSandboxProfiles, profile+"@1")
 			}
 			if test.tool {
 				registration.SupportedToolsets = append(registration.SupportedToolsets, control.ToolsetCapability{Ref: "code-execution@1", Tools: []string{"exec_command"}})
 			}
 			registration.WorkspaceCapabilities = &contracts.WorkspaceCapabilities{Storage: test.storage, Modes: []contracts.WorkspaceMode{test.mode}}
 			template := testTemplate(t)
-			template.SandboxProfile = contracts.SandboxProfileRef{SandboxProfileID: "podman", Version: "1"}
+			template.SandboxProfile = contracts.SandboxProfileRef{SandboxProfileID: profile, Version: "1"}
 			template.Toolsets = []contracts.ToolsetSelection{{Ref: contracts.ToolsetRef{ToolsetID: "code-execution", Version: "1"}, Tools: []string{"exec_command"}}}
 			var workspace *contracts.AllocationWorkspaceSpec
 			if test.workspace {

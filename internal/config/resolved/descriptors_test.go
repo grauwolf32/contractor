@@ -168,13 +168,14 @@ func TestToolsetDescriptorRejectsInvalidInfrastructureChannels(t *testing.T) {
 
 // toolsetDescriptorFixture is one Toolset of api/testdata/toolset-descriptors.json.
 type toolsetDescriptorFixture struct {
-	Tools                  []string                           `json:"tools"`
-	InfrastructureChannels map[string][]infrastructureChannel `json:"infrastructureChannels"`
-	RequiresWorkspace      bool                               `json:"requiresWorkspace"`
-	RequiredSandboxProfile *string                            `json:"requiredSandboxProfile"`
-	ActiveCheckTools       []string                           `json:"activeCheckTools"`
-	FindingProposalTools   []string                           `json:"findingProposalTools"`
-	RequiredWorkflowInputs map[string]struct {
+	Tools                   []string                           `json:"tools"`
+	InfrastructureChannels  map[string][]infrastructureChannel `json:"infrastructureChannels"`
+	RequiresWorkspace       bool                               `json:"requiresWorkspace"`
+	RequiredSandboxProfiles []string                           `json:"requiredSandboxProfiles"`
+	SandboxActiveCheckTools map[string][]string                `json:"sandboxActiveCheckTools"`
+	ActiveCheckTools        []string                           `json:"activeCheckTools"`
+	FindingProposalTools    []string                           `json:"findingProposalTools"`
+	RequiredWorkflowInputs  map[string]struct {
 		Input     string `json:"input"`
 		MediaType string `json:"mediaType"`
 	} `json:"requiredWorkflowInputs"`
@@ -200,17 +201,20 @@ func TestSharedToolsetDescriptorParity(t *testing.T) {
 		t.Fatalf("Toolset descriptors = %v, shared fixture = %v", got, want)
 	}
 	for ref, shared := range fixture.Toolsets {
-		profile := ""
-		if shared.RequiredSandboxProfile != nil {
-			profile = *shared.RequiredSandboxProfile
+		var profiles []string
+		if len(shared.RequiredSandboxProfiles) > 0 {
+			profiles = shared.RequiredSandboxProfiles
 		}
 		// The fixture spells an absent collection as an empty one.
 		want := toolsetDescriptor{
-			RequiredSandboxProfile: profile, RequiresWorkspace: shared.RequiresWorkspace,
+			RequiredSandboxProfiles: profiles, RequiresWorkspace: shared.RequiresWorkspace,
 			Tools: shared.Tools, InfrastructureChannels: shared.InfrastructureChannels,
 		}
 		if len(shared.ActiveCheckTools) > 0 {
 			want.ActiveCheckTools = shared.ActiveCheckTools
+		}
+		if len(shared.SandboxActiveCheckTools) > 0 {
+			want.SandboxActiveCheckTools = shared.SandboxActiveCheckTools
 		}
 		if len(shared.FindingProposalTools) > 0 {
 			want.FindingProposalTools = shared.FindingProposalTools

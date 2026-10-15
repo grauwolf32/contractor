@@ -144,7 +144,7 @@ created and removed:
 | Allocation adapters in the `AllocationAdapterHost` | Preparation step 2, before any sandbox, Toolset or Worker resource | Closed by finalization or abort after a bounded flush; release keeps them closed and erases their secrets |
 | `local-workdir@1` allocation directory (the profile workspace) | Preparation step 3 | Removed at release before cleanup is acknowledged; marked orphans removed at startup |
 | WorkspaceSession and its local, memory or overlay files | Preparation step 4, when `AllocationSpec.workspace` is present | Removed at release |
-| Podman execution container (`podman@1`) | Preparation step 4, after local direct hydration | Stop confirmed by finalization or abort; removal confirmed by release |
+| Podman execution container (`podman@1` or `podman-network@1`) | Preparation step 4, after local direct hydration | Stop confirmed by finalization or abort; removal confirmed by release |
 | Loaded Skill objects and extracted allocation-local skill files | Preparation step 5 | Removed at release |
 | Contractor State, instrumentation reducers, selected Toolsets, native ADK SkillToolset | Preparation step 6 | Toolsets closed by finalization or abort; State removed at release |
 | Worker runtime instance | Preparation step 6 | Destroyed by finalization, abort or lease loss |
@@ -430,7 +430,7 @@ SandboxProfile to prepare the allocation-local scratch.
 **RTA-R36.** Preparation step 4: if `AllocationSpec.workspace` is present, the
 Runtime Agent creates a private WorkspaceSession, downloads its exact RunScope
 ZIP and state refs through the existing Artifact API, hydrates the selected
-local or memory storage and establishes a checkpoint. For `podman@1`, it
+local or memory storage and establishes a checkpoint. For either Podman profile, it
 prepares the allocation-owned container only after local direct hydration and
 before any Toolset or Worker receives execution access.
 
@@ -531,7 +531,7 @@ the slot cannot reuse dirty state (FAIL-RTA-5).
 directories below its dedicated work root on Runtime Agent startup, before the
 slot can report `idle`.
 
-The opt-in `podman@1` SandboxProfile is specified in
+The opt-in `podman@1` and `podman-network@1` SandboxProfiles are specified in
 [Code execution](../tools/code-execution.md).
 
 **RTA-R53.** A directory is recognized as an allocation directory

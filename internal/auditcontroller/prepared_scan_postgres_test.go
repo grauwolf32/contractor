@@ -12,9 +12,17 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
 func TestPostgresPreparedOpenAPIScansKeepAssignedDenominatorAndApproval(t *testing.T) {
+	for _, policy := range []contracts.ActiveChecksPolicy{contracts.ActiveChecksAutomatic, contracts.ActiveChecksApprovalRequired} {
+		t.Run(string(policy), func(t *testing.T) { testPreparedOpenAPIScanPolicy(t, policy) })
+	}
+}
+func testPreparedOpenAPIScanPolicy(t *testing.T, policy contracts.ActiveChecksPolicy) {
+	t.Helper()
+
 	ctx, cancel := context.WithTimeout(t.Context(), 60*time.Second)
 	defer cancel()
 	catalog := preparationControllerConfig(t, false, func(files map[string]string) {
@@ -38,7 +46,7 @@ func TestPostgresPreparedOpenAPIScansKeepAssignedDenominatorAndApproval(t *testi
 		files["audit-profiles/checklist.yaml"] = strings.Replace(profile, "activeChecks: prohibited", "activeChecks: approval-required", 1)
 	})
 	settings := artifacts.Payload{MediaType: "application/json", Data: []byte(`{"schema":"contractor.audit.openapi-scan-settings.v1","scanner":"sqlmap","server":"http://127.0.0.1:8080","testParameters":["q"],"operations":{"#/paths/~1a/get":{"parameters":{"query:q":"one"}},"#/paths/~1b/get":{"parameters":{"query:q":"two"}},"#/paths/~1c/get":{"parameters":{"query:q":"three"}}}}`)}
-	h := newPostgresControllerHarnessWithConfig(t, ctx, 0, 1, catalog, map[string]artifacts.Payload{"settings": settings})
+	h := newPostgresControllerHarnessWithPolicy(t, ctx, 0, 1, catalog, policy, map[string]artifacts.Payload{"settings": settings})
 	c := preparationController(t, h)
 	generated := artifacts.Payload{MediaType: "application/json", Data: []byte(`{"openapi":"3.1.0","paths":{"/a":{"get":{"parameters":[{"in":"query","name":"q","schema":{"type":"string"}}],"responses":{"200":{"description":"ok"}}}},"/b":{"get":{"parameters":[{"in":"query","name":"q","schema":{"type":"string"}}],"responses":{"200":{"description":"ok"}}}},"/c":{"get":{"parameters":[{"in":"query","name":"q","schema":{"type":"string"}}],"responses":{"200":{"description":"ok"}}}},"/unselected":{"get":{"responses":{"200":{"description":"ok"}}}}}}`)}
 	readyGeneratedInventory(t, ctx, h, c, map[string]artifacts.Payload{"checklist": generated})
@@ -49,8 +57,12 @@ func TestPostgresPreparedOpenAPIScansKeepAssignedDenominatorAndApproval(t *testi
 		t.Fatalf("scan denominator expanded beyond explicit settings: %+v %v", items, err)
 	}
 	project, _ := h.artifacts.Project(h.started.Audit.ProjectID)
+	wantState, wantKind, wantReviews := auditstore.ItemReady, auditstore.ItemApprovalNone, 0
+	if policy == contracts.ActiveChecksApprovalRequired {
+		wantState, wantKind, wantReviews = auditstore.ItemAwaitingReview, auditstore.ItemApprovalActiveCheck, 3
+	}
 	for _, item := range items {
-		if item.Kind != "openapi-scan" || item.State != auditstore.ItemAwaitingReview || item.ApprovalKind != auditstore.ItemApprovalActiveCheck {
+		if item.Kind != "openapi-scan" || item.State != wantState || item.ApprovalKind != wantKind {
 			t.Fatalf("generated scan bypassed exact approval: %+v", item)
 		}
 		read, err := project.Read(ctx, item.Task.Ref)
@@ -68,7 +80,7 @@ func TestPostgresPreparedOpenAPIScansKeepAssignedDenominatorAndApproval(t *testi
 		}
 	}
 	reviews, err := h.service.ListReviews(ctx, auditstore.ReviewListParams{OwnerID: h.started.Audit.OwnerID, AuditID: h.started.Audit.AuditID, Limit: 10})
-	if err != nil || len(reviews) != 3 {
+	if err != nil || len(reviews) != wantReviews {
 		t.Fatalf("generated scan review ledger: %+v %v", reviews, err)
 	}
 	preparationExecutions(t, ctx, h, 1)

@@ -2512,6 +2512,7 @@ function top10Baseline(audit: Audit): NonNullable<Audit["baseline"]> {
     sizeBytes: 4096,
   };
   return {
+    activeChecks: "automatic",
     inputs: audit.inputs,
     scope: audit.scope,
     runtimeLabels: [],

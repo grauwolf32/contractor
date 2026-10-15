@@ -31,6 +31,7 @@ export function project(projectId: string, name: string): Project {
     name,
     description: "",
     lifecycle: "active",
+    activeChecks: "automatic",
     revision: "1",
     createdAt: NOW,
     updatedAt: NOW,

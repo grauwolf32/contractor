@@ -206,11 +206,12 @@ honor its complete contract in that process environment.
 
 **TLS-R38.** For every built-in Toolset, the Server descriptor and the Runtime
 ToolsetFactory declare the same exported tools, the same infrastructure
-channels per tool (TLS-R22), the same workspace need and the same required
-SandboxProfile. The shared fixture
+channels per tool (TLS-R22), the same workspace need and the same set of allowed
+SandboxProfiles. The shared fixture
 [`api/testdata/toolset-descriptors.json`](../../../api/testdata/toolset-descriptors.json)
 records them, together with the classifications only the Server reads
-(active-check tools, finding-proposal tools and required Workflow inputs), and
+(active-check tools including profile-dependent active checks, finding-proposal
+tools and required Workflow inputs), and
 both implementations are tested against it, so a tool or Toolset present on one
 side only fails. A Toolset with a workspace need is invalid for a Stage
 without `context.workspace` ([WSP-R10](workspace.md)).

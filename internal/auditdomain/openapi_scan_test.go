@@ -245,7 +245,7 @@ func TestOpenAPIScanInventoryRejectsMalformedAssignmentsAtomically(t *testing.T)
 		}
 	}
 	input.Digest = DigestBytes([]byte(nucleiSettings))
-	options.ApprovalRequirement = ApprovalNone
+	options.ApprovalRequirement = ApprovalHumanReview
 	if _, err := BuildOpenAPIScanInventory([]byte(scanSource), "application/json", []byte(nucleiSettings), input, options); err == nil {
 		t.Fatal("scan approval dropped")
 	}
@@ -258,8 +258,8 @@ func TestOpenAPIScanInventoryValidatorChecksSettingsAndCoverage(t *testing.T) {
 		"source absent":    func(v *Inventory) { v.ExecutionManifest.Items[0].Inputs = v.ExecutionManifest.Items[0].Inputs[:1] },
 		"trace coverage":   func(v *Inventory) { v.Coverage.Rows[0].Requested = []string{"operation-resolution"} },
 		"approval": func(v *Inventory) {
-			v.Worklist.Items[0].ApprovalRequirement = ApprovalNone
-			v.Tasks[0].Item.ApprovalRequirement = ApprovalNone
+			v.Worklist.Items[0].ApprovalRequirement = ApprovalHumanReview
+			v.Tasks[0].Item.ApprovalRequirement = ApprovalHumanReview
 		},
 	} {
 		t.Run(name, func(t *testing.T) {

@@ -2,6 +2,7 @@ package resolved
 
 import (
 	"fmt"
+	"maps"
 	"slices"
 	"sort"
 	"sync"
@@ -46,13 +47,14 @@ type plannerDescriptor struct {
 // workspace need and SandboxProfile; api/testdata/toolset-descriptors.json
 // pins both sides and the Server-only classifications.
 type toolsetDescriptor struct {
-	RequiredSandboxProfile string
-	RequiresWorkspace      bool
-	Tools                  []string
-	InfrastructureChannels map[string][]infrastructureChannel
-	ActiveCheckTools       []string
-	FindingProposalTools   []string
-	RequiredWorkflowInputs map[string]workflowInputRequirement
+	RequiredSandboxProfiles []string
+	RequiresWorkspace       bool
+	Tools                   []string
+	InfrastructureChannels  map[string][]infrastructureChannel
+	ActiveCheckTools        []string
+	SandboxActiveCheckTools map[string][]string
+	FindingProposalTools    []string
+	RequiredWorkflowInputs  map[string]workflowInputRequirement
 }
 
 // workflowInputRequirement is one Workflow input a selected tool depends on:
@@ -112,9 +114,10 @@ func builtInDescriptors() descriptorTable {
 		},
 		Toolsets: map[string]toolsetDescriptor{
 			"code-execution@1": {
-				Tools:                  []string{"exec_command"},
-				RequiredSandboxProfile: "podman@1",
-				RequiresWorkspace:      true,
+				Tools:                   []string{"exec_command"},
+				RequiredSandboxProfiles: []string{"podman-network@1", "podman@1"},
+				SandboxActiveCheckTools: map[string][]string{"podman-network@1": {"exec_command"}},
+				RequiresWorkspace:       true,
 				InfrastructureChannels: map[string][]infrastructureChannel{
 					"exec_command": {channelSandboxExecution},
 				},
@@ -245,8 +248,9 @@ func builtInDescriptors() descriptorTable {
 			},
 		},
 		SandboxProfiles: map[string]sandboxProfileDescriptor{
-			"podman@1":        {WorkspaceMode: contracts.WorkspaceModeDirect, WorkspaceStorage: contracts.WorkspaceStorageLocal},
-			"local-workdir@1": {},
+			"podman-network@1": {WorkspaceMode: contracts.WorkspaceModeDirect, WorkspaceStorage: contracts.WorkspaceStorageLocal},
+			"podman@1":         {WorkspaceMode: contracts.WorkspaceModeDirect, WorkspaceStorage: contracts.WorkspaceStorageLocal},
+			"local-workdir@1":  {},
 		},
 	}
 }
@@ -306,9 +310,9 @@ func ToolsetTools(selector string) ([]string, bool) {
 
 // SelectsActiveCheckTool reports whether selection selects a tool that its
 // registered Toolset classifies as an active check.
-func SelectsActiveCheckTool(selection contracts.ToolsetSelection) bool {
+func SelectsActiveCheckTool(selection contracts.ToolsetSelection, profile contracts.SandboxProfileRef) bool {
 	descriptor := registeredDescriptors().Toolsets[selection.Ref.ToolsetID+"@"+selection.Ref.Version]
-	return selectsAny(selection.Tools, descriptor.ActiveCheckTools)
+	return selectsAny(selection.Tools, descriptor.ActiveCheckTools) || selectsAny(selection.Tools, descriptor.SandboxActiveCheckTools[profile.SandboxProfileID+"@"+profile.Version])
 }
 
 // SelectsFindingProposalTool reports whether selection selects a tool that
@@ -403,7 +407,7 @@ func normalizeDescriptors(input descriptorTable) (descriptorTable, error) {
 func validExecutionDescriptor(descriptor toolsetDescriptor) bool {
 	channels := descriptor.InfrastructureChannels["exec_command"]
 	return len(descriptor.Tools) == 1 && descriptor.Tools[0] == "exec_command" &&
-		descriptor.RequiredSandboxProfile == "podman@1" &&
+		slices.Equal(descriptor.RequiredSandboxProfiles, []string{"podman-network@1", "podman@1"}) &&
 		len(descriptor.InfrastructureChannels) == 1 && len(channels) == 1 &&
 		channels[0] == channelSandboxExecution
 }
@@ -449,8 +453,8 @@ func normalizeToolsetDescriptor(raw string, descriptor toolsetDescriptor, sandbo
 	if raw == "code-execution@1" && !validExecutionDescriptor(descriptor) {
 		return toolsetDescriptor{}, fmt.Errorf("sandbox execution requires its exact isolated Toolset channel")
 	}
-	if descriptor.RequiredSandboxProfile != "" {
-		if _, ok := sandboxProfiles[descriptor.RequiredSandboxProfile]; !ok {
+	for _, profile := range descriptor.RequiredSandboxProfiles {
+		if _, ok := sandboxProfiles[profile]; !ok {
 			return toolsetDescriptor{}, fmt.Errorf("Toolset %q requires an unknown SandboxProfile", raw)
 		}
 	}
@@ -496,7 +500,7 @@ func normalizeToolsetDescriptor(raw string, descriptor toolsetDescriptor, sandbo
 			}
 		}
 		for _, channel := range selected {
-			if channel == channelSandboxExecution && (raw != "code-execution@1" || tool != "exec_command" || len(selected) != 1 || descriptor.RequiredSandboxProfile != "podman@1") {
+			if channel == channelSandboxExecution && (raw != "code-execution@1" || tool != "exec_command" || len(selected) != 1 || !slices.Equal(descriptor.RequiredSandboxProfiles, []string{"podman-network@1", "podman@1"})) {
 				return toolsetDescriptor{}, fmt.Errorf("sandbox execution requires its exact isolated Toolset channel")
 			}
 		}
@@ -505,6 +509,23 @@ func normalizeToolsetDescriptor(raw string, descriptor toolsetDescriptor, sandbo
 	active, err := normalizeToolClassification(raw, "active-check", descriptor.ActiveCheckTools, seen)
 	if err != nil {
 		return toolsetDescriptor{}, err
+	}
+	var sandboxActive map[string][]string
+	for _, profile := range slices.Sorted(maps.Keys(descriptor.SandboxActiveCheckTools)) {
+		if _, known := sandboxProfiles[profile]; !known {
+			return toolsetDescriptor{}, fmt.Errorf("Toolset %q classifies an unknown SandboxProfile", raw)
+		}
+		tools, err := normalizeToolClassification(raw, "sandbox-active-check", descriptor.SandboxActiveCheckTools[profile], seen)
+		if err != nil {
+			return toolsetDescriptor{}, err
+		}
+		if len(tools) == 0 {
+			return toolsetDescriptor{}, fmt.Errorf("Toolset %q has an empty sandbox active-check classification", raw)
+		}
+		if sandboxActive == nil {
+			sandboxActive = map[string][]string{}
+		}
+		sandboxActive[profile] = tools
 	}
 	findings, err := normalizeToolClassification(raw, "finding-proposal", descriptor.FindingProposalTools, seen)
 	if err != nil {
@@ -515,10 +536,10 @@ func normalizeToolsetDescriptor(raw string, descriptor toolsetDescriptor, sandbo
 		return toolsetDescriptor{}, err
 	}
 	return toolsetDescriptor{
-		RequiredSandboxProfile: descriptor.RequiredSandboxProfile,
-		RequiresWorkspace:      descriptor.RequiresWorkspace,
-		Tools:                  tools, InfrastructureChannels: channels,
-		ActiveCheckTools: active, FindingProposalTools: findings,
+		RequiredSandboxProfiles: append([]string(nil), descriptor.RequiredSandboxProfiles...),
+		RequiresWorkspace:       descriptor.RequiresWorkspace,
+		Tools:                   tools, InfrastructureChannels: channels,
+		ActiveCheckTools: active, SandboxActiveCheckTools: sandboxActive, FindingProposalTools: findings,
 		RequiredWorkflowInputs: inputs,
 	}, nil
 }

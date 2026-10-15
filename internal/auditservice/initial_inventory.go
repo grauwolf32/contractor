@@ -158,6 +158,7 @@ func (s *Service) prepareInitialInventory(ctx context.Context, claim auditstore.
 		}
 		inventory, err = buildInventory(profile, selection, original, standards)
 	} else {
+		profile.Interaction.ActiveChecks = baseline.ActiveChecks
 		approval := auditdomain.ApprovalNone
 		if profile.Interaction.ActiveChecks == auditprofile.AuditActiveChecksApprovalRequired && workflowRoleSelectsClassifiedTool(profile, profile.Inventory.ItemWorkflowRole, true) {
 			approval = auditdomain.ApprovalActiveCheck

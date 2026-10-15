@@ -3048,12 +3048,20 @@ export interface components {
             kind: components["schemas"]["ProjectKind"];
             name: string;
             description?: string;
+            /** @description Defaults to automatic when omitted. */
+            activeChecks?: components["schemas"]["ActiveChecksPolicy"];
         };
         UpdateProjectRequest: {
             name?: string;
             description?: string;
+            activeChecks?: components["schemas"]["ActiveChecksPolicy"];
             httpTarget?: components["schemas"]["ProjectHTTPTarget"] | null;
         };
+        /**
+         * @description Project approval policy for active-enabled Audit profiles, pinned at Audit start. A profile prohibition always remains prohibited.
+         * @enum {string}
+         */
+        ActiveChecksPolicy: "prohibited" | "automatic" | "approval-required";
         HTTPOriginCredentialRef: {
             credentialId: components["schemas"]["RuntimeCredentialId"];
             /** @enum {unknown} */
@@ -3079,6 +3087,7 @@ export interface components {
             name: string;
             description: string;
             httpTarget?: components["schemas"]["ProjectHTTPTarget"];
+            activeChecks: components["schemas"]["ActiveChecksPolicy"];
             lifecycle: components["schemas"]["ProjectLifecycle"];
             deletion?: components["schemas"]["ProjectDeletion"];
             revision: string;
@@ -3297,8 +3306,7 @@ export interface components {
             incompleteRound: "assess-with-gaps" | "fail";
         };
         AuditInteractionPolicy: {
-            /** @enum {unknown} */
-            activeChecks: "prohibited" | "automatic" | "approval-required";
+            activeChecks: components["schemas"]["ActiveChecksPolicy"];
             /** @enum {unknown} */
             findingConfirmation: "disabled" | "human-required";
             /** @enum {unknown} */
@@ -3307,7 +3315,7 @@ export interface components {
             reportAcceptance: "automatic" | "human-required";
         };
         /** @enum {unknown} */
-        AuditCompatibilityReason: "preparation_unsupported" | "discovery_unsupported" | "assessment_unsupported" | "multiple_rounds_unsupported" | "batching_unsupported" | "automatic_active_checks_unsupported" | "active_check_approval_unsupported" | "finding_confirmation_unsupported" | "manual_applicability_unsupported" | "report_acceptance_unsupported" | "manual_item_unsupported";
+        AuditCompatibilityReason: "preparation_unsupported" | "discovery_unsupported" | "assessment_unsupported" | "multiple_rounds_unsupported" | "batching_unsupported" | "automatic_active_checks_unsupported" | "project_active_checks_prohibited" | "active_check_approval_unsupported" | "finding_confirmation_unsupported" | "manual_applicability_unsupported" | "report_acceptance_unsupported" | "manual_item_unsupported";
         AuditProfile: {
             ref: components["schemas"]["AuditProfileRef"];
             mode: components["schemas"]["AuditProfileMode"];
@@ -3377,6 +3385,7 @@ export interface components {
             worklist: components["schemas"]["AuditExactArtifact"];
         };
         AuditBaseline: {
+            activeChecks: components["schemas"]["ActiveChecksPolicy"];
             inputs: {
                 [key: string]: components["schemas"]["AuditExactArtifact"];
             };

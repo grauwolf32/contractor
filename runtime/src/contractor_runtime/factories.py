@@ -33,6 +33,7 @@ from contractor_runtime.core.target_policy import TargetPolicyConfig
 from contractor_runtime.llm.factory import ModelFactory
 from contractor_runtime.projectfs import WorkspaceProvider, build_workspace_provider
 from contractor_runtime.projectfs.config import WorkspaceSettings
+from contractor_runtime.sandbox.contracts import PODMAN_NETWORK_PROFILE
 from contractor_runtime.sandbox.lifecycle import ExecutionLifecycle
 from contractor_runtime.toolsets.audit_results.v2 import AuditResultsToolsetFactory
 from contractor_runtime.toolsets.caido.tools import CaidoToolsetFactory
@@ -314,9 +315,20 @@ def built_in_factories(
             sandbox.ref: sandbox,
             **(
                 {
+                    **(
+                        {
+                            PODMAN_NETWORK_PROFILE: PodmanWorkdirFactory(
+                                work_root,
+                                available=lambda: execution_lifecycle.network_probe_available,
+                                ref=PODMAN_NETWORK_PROFILE,
+                            )
+                        }
+                        if execution_lifecycle.settings.network_enabled
+                        else {}
+                    ),
                     "podman@1": PodmanWorkdirFactory(
                         work_root, available=lambda: execution_lifecycle.probe_available
-                    )
+                    ),
                 }
                 if execution_lifecycle
                 else {}
@@ -336,8 +348,9 @@ class PodmanWorkdirFactory(LocalWorkdirFactory):
 
     ref = "podman@1"
 
-    def __init__(self, root: Path, *, available=lambda: False):
+    def __init__(self, root: Path, *, available=lambda: False, ref: str = "podman@1"):
         super().__init__(root)
+        self.ref = ref
         self._available = available
 
     async def probe(self) -> bool:

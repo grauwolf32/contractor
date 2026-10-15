@@ -990,7 +990,7 @@ model {
     workerExecution.workerRuntime -> allocationCapabilities.codeAnalysisTools 'Construct selected read-only operations over a narrowed Reader snapshot'
     workerExecution.workerRuntime -> allocationCapabilities.taintAnnotationTools 'Construct selected structured mutations over a narrowed Writer'
     workerExecution.workerRuntime -> allocationCapabilities.httpCaidoTools 'Construct only selected bounded HTTP / Caido operations'
-    workerExecution.workerRuntime -> allocationCapabilities.codeExecutionTools 'Explicit Toolset allowlist plus podman@1 required; ADK/A2A/trusted tools remain in Runtime process'
+    workerExecution.workerRuntime -> allocationCapabilities.codeExecutionTools 'Explicit Toolset allowlist plus podman@1 or podman-network@1 required; ADK/A2A/trusted tools remain in Runtime process'
     workerExecution.workerRuntime -> allocationCapabilities.securityFindingsTools 'Construct only explicitly selected proposal tool; no Run creation, approval or final assessment'
     workerExecution.workerRuntime -> allocationCapabilities.skillToolset 'Construct from AgentTemplate-selected exact Run package artifacts'
     workerExecution.workerRuntime -> allocationCapabilities.artifactClient 'Prepare-time exact read of reserved skills/* packages; no write or owner/catalog authority'

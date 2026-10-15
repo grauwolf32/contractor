@@ -347,9 +347,9 @@ its owning requirement.
 | `LIM-EVM-15` | 100 items (maximum page size; oversized limit is 422) | All managed Eval list endpoints (keyset pagination) | Contractor Server public API | [EVM-R210](../evals/managed-evals.md) |
 | `LIM-EVM-16` | 1 exact binding per arm | A/B arms of a Workflow or Audit experiment | Native preparation / external registration | [EVM-R53](../evals/managed-evals.md) |
 | `LIM-EVM-17` | 1 materialized summary read per request | Managed Eval list, pair and chart reads | Contractor Server read model | [EVM-R217](../evals/managed-evals.md) |
-| `LIM-EXE-1` | 1 container per allocation | Rootless Podman containers created for an allocation that selects `podman@1` (a single container, not a multi-container pod) | Runtime Agent Podman lifecycle | [EXE-R1](../tools/code-execution.md) |
-| `LIM-EXE-2` | 2 vCPU by default; positive operator-configured limit | CPU limit of the `podman@1` container | Container runtime and OS; validated at Runtime startup | [EXE-R18](../tools/code-execution.md) |
-| `LIM-EXE-3` | 2 GiB by default; positive operator-configured hard limit | Memory hard limit of the `podman@1` container | Container runtime and OS; validated at Runtime startup | [EXE-R18](../tools/code-execution.md) |
+| `LIM-EXE-1` | 1 container per allocation | Rootless Podman containers created for an allocation that selects `podman@1` or `podman-network@1` (a single container, not a multi-container pod) | Runtime Agent Podman lifecycle | [EXE-R1](../tools/code-execution.md) |
+| `LIM-EXE-2` | 2 vCPU by default; positive operator-configured limit | CPU limit of the `podman@1` or `podman-network@1` container | Container runtime and OS; validated at Runtime startup | [EXE-R18](../tools/code-execution.md) |
+| `LIM-EXE-3` | 2 GiB by default; positive operator-configured hard limit | Memory hard limit of the `podman@1` or `podman-network@1` container | Container runtime and OS; validated at Runtime startup | [EXE-R18](../tools/code-execution.md) |
 | `LIM-EXE-4` | 256 PIDs by default | Process limit of the container, counting command children and the inert container PID 1, not the host guardian | Container runtime and OS; validated at Runtime startup | [EXE-R18](../tools/code-execution.md) |
 | `LIM-EXE-5` | 256 MiB by default | Private `/tmp` tmpfs of the container | Container runtime and OS; validated at Runtime startup | [EXE-R18](../tools/code-execution.md) |
 | `LIM-EXE-6` | 60 seconds | Default `exec_command` `timeout_seconds` | Runtime `exec_command` tool | [EXE-R18](../tools/code-execution.md) |
@@ -363,7 +363,7 @@ its owning requirement.
 | `LIM-EXE-14` | 3600 seconds | Ceiling of the operator command maximum | Runtime startup settings validation | [EXE-R56](../tools/code-execution.md) |
 | `LIM-EXE-15` | stop grace plus 1 second, at most half the command budget | Cleanup reserve taken from the `exec_command` budget | Runtime `exec_command` tool | [EXE-R57](../tools/code-execution.md) |
 | `LIM-EXE-16` | 1 active command per allocation | Concurrent `exec_command` executions in one allocation | Runtime execution handle | [EXE-R62](../tools/code-execution.md) |
-| `LIM-EXE-17` | 1 cleanup task per release | Allocation release cleanup of a `podman@1` allocation | Runtime AllocationService | [EXE-R96](../tools/code-execution.md) |
+| `LIM-EXE-17` | 1 cleanup task per release | Allocation release cleanup of a `podman@1` or `podman-network@1` allocation | Runtime AllocationService | [EXE-R96](../tools/code-execution.md) |
 | `LIM-EXE-18` | 10 seconds, and at most the confirmed control lease | Runtime-renewed liveness deadline of the host guardian | Host guardian | [EXE-R108](../tools/code-execution.md) |
 | `LIM-FND-1` | 512 UTF-8 bytes per value | Each value of FindingProposal `limitations` (values are distinct and nonblank) | Server finding intake, which rejects the proposal before publishing its receipt | [FND-R10](../findings/findings.md) |
 | `LIM-FND-2` | 256 locations per finding | Typed `locations` of one FindingProposal (matches the per-finding evidence capacity) | FindingProposal location validation; the enforcing component is not specified | [FND-R39](../findings/findings.md) |

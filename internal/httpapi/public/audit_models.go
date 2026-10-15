@@ -89,7 +89,8 @@ func auditReadModel(source auditstore.Audit) (auditResponse, error) {
 			})
 		}
 		result.Baseline = &auditBaselineResponse{
-			Inputs: baseline.Inputs, Scope: baseline.Scope,
+			ActiveChecks: baseline.ActiveChecks,
+			Inputs:       baseline.Inputs, Scope: baseline.Scope,
 			RuntimeLabels: baseline.RuntimeLabels,
 			RuntimeConfig: auditRuntimeSnapshotResponse{
 				Default: baseline.RuntimeConfig.Default, Labels: baseline.RuntimeConfig.Labels,

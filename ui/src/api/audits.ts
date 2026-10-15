@@ -3,7 +3,7 @@ import { validFindingCoordinates } from "./finding-locations";
 import type { PublicAPI } from "./client";
 import { invalidAPIResponse, PublicAPIError, requireData } from "./error";
 import type { components } from "./generated/public";
-import { requireProjectID } from "./projects";
+import { requireActiveChecksPolicy, requireProjectID } from "./projects";
 import { CONFIG_NAME_PATTERN, CONFIG_VERSION_PATTERN } from "./workflows";
 
 export const AUDIT_PAGE_SIZE = 50;
@@ -280,6 +280,13 @@ function safeProfile(profile: AuditProfile, status: number): AuditProfile {
 }
 
 function safeAudit(audit: Audit, status: number): Audit {
+  if (audit?.baseline !== undefined) {
+    try {
+      requireActiveChecksPolicy(audit.baseline.activeChecks);
+    } catch {
+      throw invalidAuditResponse(status);
+    }
+  }
   if (
     audit === null ||
     typeof audit !== "object" ||

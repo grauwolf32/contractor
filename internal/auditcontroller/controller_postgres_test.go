@@ -1438,6 +1438,14 @@ func newPostgresControllerHarnessWithConfig(
 	t *testing.T, ctx context.Context, manualCount, itemCount int, snapshot *config.Snapshot,
 	additionalInputs ...map[string]artifacts.Payload,
 ) *postgresControllerHarness {
+	return newPostgresControllerHarnessWithPolicy(t, ctx, manualCount, itemCount, snapshot, contracts.ActiveChecksAutomatic, additionalInputs...)
+}
+
+func newPostgresControllerHarnessWithPolicy(
+	t *testing.T, ctx context.Context, manualCount, itemCount int, snapshot *config.Snapshot,
+	policy contracts.ActiveChecksPolicy,
+	additionalInputs ...map[string]artifacts.Payload,
+) *postgresControllerHarness {
 	t.Helper()
 	databaseURL := os.Getenv("CONTRACTOR_TEST_DATABASE_URL")
 	if databaseURL == "" {
@@ -1448,7 +1456,7 @@ func newPostgresControllerHarnessWithConfig(
 	projects := projectstore.NewPostgresStore(pool)
 	project, _, err := projects.Create(ctx, projectstore.CreateParams{
 		ProjectID: "project-audit-controller", OwnerID: "owner-audit-controller",
-		Kind: projectstore.KindProject, Name: "Audit Controller test",
+		Kind: projectstore.KindProject, Name: "Audit Controller test", ActiveChecks: policy,
 		IdempotencyKey: "create-controller-project", RequestDigest: postgresDigest("project"),
 	})
 	if err != nil {

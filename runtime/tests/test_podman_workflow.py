@@ -19,7 +19,7 @@ def test_sample_selected_tools_disk_edits_and_only_explicit_artifacts(tmp_path, 
         async with owner(tmp_path) as fixture:
             peer, model = ArtifactPeer(), sample_model(publish=publish)
 
-            async def verified(root, *, deadline):
+            async def verified(root, *, deadline, network):
                 assert fixture.backend.recovered
                 return {"available": True, "failure": None}
 

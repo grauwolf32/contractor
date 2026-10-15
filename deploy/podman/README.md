@@ -137,3 +137,14 @@ disable Podman against an old root. Migration to another owner/account requires
 confirmed old-container removal and new dedicated roots. Same-user host tampering,
 killing owners/guardians, user-manager shutdown and indefinitely blocked kernel
 operations are outside the bounded-success guarantee.
+
+## Networked Workers
+
+`podman-network@1` uses the same approved image and lifecycle as `podman@1`,
+with rootless `pasta` networking. Install `pasta` on the host, enable
+`--podman-network-enabled true` alongside the existing Podman startup settings,
+and explicitly select the new profile in the Worker's AgentTemplate. The
+Runtime advertises it only after its own complete probe and confirmed cleanup.
+The network profile does not inherit HTTP proxy/target-policy routing or managed
+credentials; deployment networking owns egress controls. See
+[the Runtime contract](../../runtime/PODMAN.md#networked-sandbox).

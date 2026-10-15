@@ -3,6 +3,7 @@ package projectstore
 import (
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 )
 
@@ -49,17 +50,18 @@ type Deletion struct {
 }
 
 type Project struct {
-	ProjectID   string
-	OwnerID     string
-	Kind        Kind
-	Name        string
-	Description string
-	HTTPTarget  *runtimesettings.HTTPOriginTargetRef
-	Lifecycle   Lifecycle
-	Deletion    *Deletion
-	Revision    uint64
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
+	ProjectID    string
+	OwnerID      string
+	Kind         Kind
+	Name         string
+	Description  string
+	ActiveChecks contracts.ActiveChecksPolicy
+	HTTPTarget   *runtimesettings.HTTPOriginTargetRef
+	Lifecycle    Lifecycle
+	Deletion     *Deletion
+	Revision     uint64
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
 }
 
 type CreateParams struct {
@@ -68,6 +70,7 @@ type CreateParams struct {
 	Kind           Kind
 	Name           string
 	Description    string
+	ActiveChecks   contracts.ActiveChecksPolicy
 	IdempotencyKey string
 	RequestDigest  string
 }
@@ -78,6 +81,7 @@ type UpdateParams struct {
 	ExpectedRevision uint64
 	Name             string
 	Description      string
+	ActiveChecks     *contracts.ActiveChecksPolicy
 	HTTPTarget       *runtimesettings.HTTPOriginTargetRef
 }
 

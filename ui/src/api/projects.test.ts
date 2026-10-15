@@ -25,6 +25,7 @@ const project: Project = {
   name: "Example",
   description: "Reusable inputs",
   lifecycle: "active",
+  activeChecks: "automatic",
   revision: "1",
   createdAt: "2026-09-01T10:00:00Z",
   updatedAt: "2026-09-01T10:00:00Z",
@@ -165,6 +166,7 @@ describe("Project API", () => {
       kind: "project",
       name: "Example",
       description: "Reusable inputs",
+      activeChecks: "automatic",
     });
     await expect(requests[1]?.json()).resolves.toEqual({ name: "Renamed" });
   });
