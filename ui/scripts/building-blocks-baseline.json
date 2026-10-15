@@ -271,24 +271,6 @@
     },
     "src/routes/studio/workspace-form.tsx": {
       "button": 8
-    },
-    "src/routes/workflows/card.tsx": {
-      "button": 1
-    },
-    "src/routes/workflows/detail.tsx": {
-      "svg": 1
-    },
-    "src/routes/workflows/list.tsx": {
-      "button": 1
-    },
-    "src/routes/workflows/overview.tsx": {
-      "button": 2
-    },
-    "src/routes/workflows/run-drawer.tsx": {
-      "button": 1
-    },
-    "src/routes/workflows/run-form.tsx": {
-      "button": 9
     }
   }
 }

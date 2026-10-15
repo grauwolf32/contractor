@@ -11,10 +11,6 @@
   ],
   "classes": [
     {
-      "name": "is-blocking",
-      "source": "src/routes/workflows/run-form.tsx: is-${notice.severity}"
-    },
-    {
       "name": "scalar-app",
       "source": "rendered by @scalar/api-reference-react"
     }

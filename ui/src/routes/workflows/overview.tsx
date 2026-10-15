@@ -2,19 +2,18 @@ import { useId, type ReactNode } from "react";
 import { useLocation, useNavigate } from "react-router";
 
 import type { WorkflowResource } from "../../api/workflows";
-import { ErrorNotice } from "../../app/error-notice";
+import { plural } from "../../app/format";
 import { RefreshButton } from "../../app/refresh-button";
-import { DetailHeader, DetailPane, IdChip, StatusChip } from "../../ui";
-import { LibraryBackLink } from "../catalog/library-parts";
-import { groupWorkflowVersions } from "./families";
+import { Button, DetailHeader, DetailPane, IdChip, StatusChip } from "../../ui";
+import { groupWorkflowVersions, hasNumericVersions } from "./families";
 import { workflowFormats } from "./formats";
 import { useWorkflowInventory } from "./inventory";
 import { workflowDisplayName, workflowSelector } from "./presentation";
 import { WorkflowRunDrawer } from "./run-drawer";
 import { WorkflowRunForm } from "./run-form";
+import { WorkflowVersionSelect } from "./version-select";
 import "./cards.css";
 import "./overview.css";
-import { plural } from "../../app/format";
 
 function OverviewSlots({
   title,
@@ -65,17 +64,20 @@ function OverviewSlots({
   );
 }
 
+/**
+ * One published Workflow version: contract, stages and the launch card,
+ * with the Run sheet behind `#workflow-run-setup`. `children` follow the
+ * stage list (the Studio link and the stage internals).
+ */
 export function WorkflowOverview({
   workflow,
   refreshing,
   refresh,
-  error,
   children,
 }: {
   workflow: WorkflowResource;
   refreshing: boolean;
   refresh: () => void;
-  error: Error | null;
   children: ReactNode;
 }) {
   const inventory = useWorkflowInventory();
@@ -95,9 +97,7 @@ export function WorkflowOverview({
         item.ref.name === workflow.ref.name &&
         item.ref.version === workflow.ref.version,
     );
-  const numericVersions =
-    knownVersion &&
-    family.versions.every((item) => /^\d+(?:\.\d+)*$/.test(item.ref.version));
+  const numericVersions = knownVersion && hasNumericVersions(family.versions);
   const latest = family.versions[0]?.ref.version === workflow.ref.version;
   const selector = workflowSelector(workflow);
   const stages = Object.entries(workflow.stages).sort(
@@ -118,13 +118,7 @@ export function WorkflowOverview({
   const open = location.hash === "#workflow-run-setup";
 
   return (
-    <div className="ui-stack workflow-overview-page">
-      <LibraryBackLink
-        fallback={{
-          returnTo: "/catalog/workflows",
-          returnLabel: "All workflows",
-        }}
-      />
+    <>
       <article className="library-sheet" aria-labelledby={titleId}>
         <DetailPane
           header={
@@ -144,25 +138,16 @@ export function WorkflowOverview({
                     display={selector}
                     label="workflow version"
                   />
-                  <label className="workflow-card-select">
-                    <span>Version</span>
-                    <select
-                      aria-label={`Version of ${workflow.ref.name}`}
-                      value={workflow.ref.version}
-                      onChange={(event) =>
-                        void navigate(
-                          `/catalog/workflows/${encodeURIComponent(workflow.ref.name)}/${encodeURIComponent(event.target.value)}`,
-                          { state: location.state },
-                        )
-                      }
-                    >
-                      {family.versions.map((item) => (
-                        <option key={item.ref.version} value={item.ref.version}>
-                          {item.ref.version}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+                  <WorkflowVersionSelect
+                    workflow={workflow}
+                    versions={family.versions}
+                    onChange={(next) =>
+                      void navigate(
+                        `/catalog/workflows/${encodeURIComponent(workflow.ref.name)}/${encodeURIComponent(next)}`,
+                        { state: location.state },
+                      )
+                    }
+                  />
                   <span>Published Workflow</span>
                 </>
               }
@@ -185,7 +170,6 @@ export function WorkflowOverview({
               {workflow.presentation.description}
             </p>
           ) : null}
-          {error ? <ErrorNotice error={error} /> : null}
           {inventory.isError ? (
             <div className="library-note" data-tone="warning" role="status">
               <p>
@@ -193,14 +177,9 @@ export function WorkflowOverview({
                 remains available.
               </p>
               <div>
-                <button
-                  type="button"
-                  className="ui-btn"
-                  data-size="sm"
-                  onClick={() => void inventory.refetch()}
-                >
+                <Button size="sm" onClick={() => void inventory.refetch()}>
                   Retry versions
-                </button>
+                </Button>
               </div>
             </div>
           ) : null}
@@ -244,7 +223,7 @@ export function WorkflowOverview({
                     How it runs
                   </h3>
                   <span className="library-muted">
-                    {stages.length} {stages.length === 1 ? "Stage" : "Stages"}
+                    {plural(stages.length, "Stage")}
                   </span>
                 </header>
                 <ol className="workflow-stage-overview">
@@ -314,10 +293,8 @@ export function WorkflowOverview({
                   <dd>{Object.keys(workflow.outputs).length} declared</dd>
                 </div>
               </dl>
-              <button
-                type="button"
-                className="ui-btn"
-                data-variant="primary"
+              <Button
+                variant="primary"
                 aria-haspopup="dialog"
                 onClick={() =>
                   void navigate(
@@ -331,7 +308,7 @@ export function WorkflowOverview({
                 }
               >
                 Configure Run <span aria-hidden="true">→</span>
-              </button>
+              </Button>
               <small>Review the input revisions before starting.</small>
             </aside>
           </div>
@@ -360,6 +337,6 @@ export function WorkflowOverview({
           )}
         </WorkflowRunDrawer>
       ) : null}
-    </div>
+    </>
   );
 }
