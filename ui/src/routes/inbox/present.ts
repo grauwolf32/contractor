@@ -10,6 +10,7 @@ import type {
   CrossProjectDecision,
 } from "../../api/cross-project";
 import type { RunStatus, RunSummary } from "../../api/runs";
+import { plural } from "../../app/format";
 import {
   capitalize,
   checkItemKind,
@@ -199,9 +200,7 @@ export function checkProgress(
       : `${done.toLocaleString("en-US")} of ${itemCount(kind, total)} done`;
   const details = [
     issues > 0 ? `${issues.toLocaleString("en-US")} with an issue found` : "",
-    gaps > 0
-      ? `${gaps.toLocaleString("en-US")} ${gaps === 1 ? "needs" : "need"} follow-up`
-      : "",
+    gaps > 0 ? `${plural(gaps, "needs", "need")} follow-up` : "",
     unchecked > 0 ? `${unchecked.toLocaleString("en-US")} not checked yet` : "",
   ].filter((part) => part !== "");
   return {

@@ -29,6 +29,8 @@ export type LiveStatus = Pick<
   "connection" | "error" | "resyncReason"
 >;
 
+// V385: needs shared compact number formatter ("1.2K", "3.4M") in
+// src/app/format.ts.
 function compactMetric(value: number): string {
   if (value < 1_000) {
     return String(value);

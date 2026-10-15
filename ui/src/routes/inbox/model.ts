@@ -19,6 +19,7 @@ import {
   OPEN_AUDIT_STATES,
   WORKING_AUDIT_STATES,
 } from "../../api/states";
+import { plural } from "../../app/format";
 
 /** How far back failed and finished work counts as new: 7 days. */
 const RECENT_MS = 7 * 24 * 60 * 60 * 1000;
@@ -435,18 +436,14 @@ interface SubtitleCounts {
   running: number;
 }
 
-function phrase(count: number, one: string, many: string): string {
-  return `${count.toLocaleString("en-US")} ${count === 1 ? one : many}`;
-}
-
 /** "2 need you, 1 is stuck, 2 are ready, 1 check is running." */
 export function inboxSubtitle(counts: SubtitleCounts): string {
   const parts = [
-    counts.decide > 0 ? phrase(counts.decide, "needs you", "need you") : "",
-    counts.unblock > 0 ? phrase(counts.unblock, "is stuck", "are stuck") : "",
-    counts.ready > 0 ? phrase(counts.ready, "is ready", "are ready") : "",
+    counts.decide > 0 ? plural(counts.decide, "needs you", "need you") : "",
+    counts.unblock > 0 ? plural(counts.unblock, "is stuck", "are stuck") : "",
+    counts.ready > 0 ? plural(counts.ready, "is ready", "are ready") : "",
     counts.running > 0
-      ? phrase(counts.running, "check is running", "checks are running")
+      ? plural(counts.running, "check is running", "checks are running")
       : "",
   ].filter((part) => part !== "");
   return parts.length === 0

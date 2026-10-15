@@ -1,9 +1,4 @@
-import {
-  useQuery,
-  useQueryClient,
-  type Query,
-  type QueryKey,
-} from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback } from "react";
 import { Link } from "react-router";
 
@@ -25,7 +20,7 @@ import {
 } from "../../ui";
 import { checkPath } from "../projects/audits/check-links";
 import { describeStopReason } from "../projects/audits/stop-reason";
-import { newestCached } from "./data";
+import { newestCached, pinned } from "./data";
 import {
   Block,
   DetailBar,
@@ -45,12 +40,6 @@ import {
   projectPath,
   sectionTitle,
 } from "./present";
-
-function pinnedStaleTime(
-  query: Query<AuditWorkspace, Error, AuditWorkspace, QueryKey>,
-) {
-  return query.state.data === undefined ? 0 : ("static" as const);
-}
 
 /**
  * A check of the Inbox (stuck, running or finished): its progress from the
@@ -85,7 +74,7 @@ export function CheckDetail({
     queryKey: queryKeys.inbox.workspace(auditId, revision),
     queryFn: () => getAuditWorkspace(api, auditId),
     placeholderData: placeholder,
-    staleTime: pinnedStaleTime,
+    ...pinned<AuditWorkspace>(),
   });
   const kind = checkKind(check);
   const progress =

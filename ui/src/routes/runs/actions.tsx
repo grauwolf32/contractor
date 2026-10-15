@@ -18,9 +18,8 @@ import { useRunDraftStore } from "../../run-drafts/context";
 import { auditDestination, prepareRepeatDraft } from "../../run-drafts/repeat";
 import { CancelRunDialog } from "./cancel";
 import { useRetryModelConnection } from "./recovery";
-import { ContinueRunDialog } from "./resume";
 import { useGuardedNavigate } from "../../app/page-location";
-import { Button } from "../../ui";
+import { AlertDialog, Button } from "../../ui";
 
 /** The longest cancellation reason the Server accepts (CancelRunRequest). */
 const CANCELLATION_REASON_LIMIT = schemaLimit(
@@ -141,13 +140,33 @@ function useContinueFromFailedStage(
       ),
     overlay:
       target === undefined ? null : (
-        <ContinueRunDialog
-          stage={target.stage}
+        // It names the stage and warns that model and tool calls, including
+        // external side effects, repeat (S06).
+        <AlertDialog
+          eyebrow="Continue failed Run"
+          title="Continue from failed stage?"
+          tone="primary"
+          cancelLabel="Back"
+          confirmLabel="Confirm continuation"
+          pendingLabel="Continuing…"
           pending={mutation.isPending}
-          error={mutation.error}
+          error={
+            mutation.error === null ? null : (
+              <ErrorNotice error={mutation.error} />
+            )
+          }
           onConfirm={() => confirm(target)}
           onCancel={dismiss}
-        />
+        >
+          <p>
+            Retry stage <strong>{target.stage}</strong>? Model and tool calls
+            will run again and may repeat external side effects.
+          </p>
+          <p>
+            Successful stages and their results are preserved. The failed stage
+            gets a new attempt with its saved inputs and configuration.
+          </p>
+        </AlertDialog>
       ),
   };
 }

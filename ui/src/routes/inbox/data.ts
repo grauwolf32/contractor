@@ -103,9 +103,10 @@ const POLLED = {
 
 /**
  * A read pinned to a check revision: once it has data it is never
- * refetched; a failed read retries on the poll interval, backing off.
+ * refetched; a failed read retries on the poll interval, backing off. The
+ * list and the check detail read a check's workspace with these options.
  */
-function pinned<T>() {
+export function pinned<T>() {
   return {
     staleTime: (query: Query<T, Error, T, QueryKey>) =>
       query.state.data === undefined ? 0 : ("static" as const),
