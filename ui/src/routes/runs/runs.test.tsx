@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { PublicAPI } from "../../api/client";
 import type { RunStatus } from "../../api/runs";
 import { Application } from "../../app/application";
+import * as queryClientFactory from "../../app/query-client";
 import { applicationRoutes } from "../../app/router";
 import type { RuntimeConfig } from "../../config/runtime-config";
 import { RunEventsManager } from "../../events/run-events";
@@ -2081,6 +2082,90 @@ describe("Run routes", () => {
       ),
     );
   });
+
+  // AGENTS.md 3.8, V385-001 A7: a late answer never moves a user who left.
+  it.each([
+    [
+      "an ordinary draft",
+      {
+        sourceRunId: "run-router",
+        authority: "ordinary",
+        workflow: { name: "router-analysis", version: "1" },
+        notices: [],
+        draft: {
+          parameters: { objective: "Review the original project" },
+          runtimeLabels: [],
+          labels: {},
+          executionConfig: { status: "available", value: {} },
+          inputs: {},
+        },
+      },
+    ],
+    [
+      "an Audit-managed Run",
+      {
+        sourceRunId: "run-router",
+        authority: "audit-managed",
+        workflow: { name: "router-analysis", version: "1" },
+        projectId: "project-audit",
+        auditId: "audit-one",
+        notices: [],
+      },
+    ],
+  ])(
+    "stays where the user went when the repeat draft of %s answers late",
+    async (_kind, repeatDraft) => {
+      const terminal = runFixture({
+        state: "failed",
+        eventCursor: undefined,
+        activeStageExecutionId: undefined,
+        finishedAt: "2026-08-31T12:02:00Z",
+      });
+      let answer: () => void = () => undefined;
+      const answered = new Promise<void>((resolve) => {
+        answer = resolve;
+      });
+      const api = new PublicAPI(runtimeConfig, async (input, init) => {
+        const request = new Request(input, init);
+        const common = sessionOrArtifacts(request);
+        if (common !== undefined) return common;
+        const path = new URL(request.url).pathname;
+        if (path === "/v1/runs/run-router") return apiResponse(terminal);
+        if (path === "/v1/runs/run-router/repeat-draft") {
+          await answered;
+          return apiResponse(repeatDraft);
+        }
+        if (path === "/v1/runs") return apiResponse({ items: [], page: {} });
+        return apiResponse(
+          {
+            code: "not_found",
+            message: "Not in this fixture",
+            retryable: false,
+          },
+          { status: 404 },
+        );
+      });
+      const queryClient = queryClientFactory.createApplicationQueryClient();
+      const factory = vi
+        .spyOn(queryClientFactory, "createApplicationQueryClient")
+        .mockReturnValueOnce(queryClient);
+      const view = renderRunApplication(api, "/runs/run-router");
+      factory.mockRestore();
+      const user = userEvent.setup();
+      await user.click(
+        await screen.findByRole("button", { name: "Configure another Run" }),
+      );
+      await act(() => view.router.navigate("/settings"));
+      expect(queryClient.isMutating()).toBe(1);
+      answer();
+      // Once the draft request settled, the code after it has run: the user
+      // is still where they went, and no navigation is under way.
+      await waitFor(() => expect(queryClient.isMutating()).toBe(0));
+      await act(async () => undefined);
+      expect(view.router.state.navigation.state).toBe("idle");
+      expect(view.router.state.location.pathname).toBe("/settings");
+    },
+  );
 
   it("renders terminal attempts, escalation, safe metrics, and frozen outputs", async () => {
     const output = {

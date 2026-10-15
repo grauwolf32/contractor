@@ -1,11 +1,5 @@
 import { useCallback, useState } from "react";
-import {
-  Link,
-  useLocation,
-  useNavigate,
-  useParams,
-  useSearchParams,
-} from "react-router";
+import { Link, useLocation, useParams, useSearchParams } from "react-router";
 
 import { useDocumentTitle } from "../../app/document-title";
 import { DetailPane, EmptyState, PaneLayout } from "../../ui";
@@ -17,6 +11,7 @@ import { projectPath, projectSectionOf } from "./project-sections";
 import { ProjectWorkspace } from "./project-workspace";
 
 import "./projects.css";
+import { useGuardedNavigate } from "../../app/page-location";
 
 /** The detail pane on /projects, before a project is chosen. */
 function ProjectsStart({ onNewProject }: { onNewProject: () => void }) {
@@ -60,7 +55,7 @@ function ProjectsStart({ onNewProject }: { onNewProject: () => void }) {
 export function ProjectsRoute() {
   const { projectId } = useParams();
   const { pathname } = useLocation();
-  const navigate = useNavigate();
+  const navigate = useGuardedNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [creating, setCreating] = useState(false);
   const createKeys = useNewProjectKeys();

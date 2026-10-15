@@ -4,7 +4,7 @@ import type { Location } from "react-router";
 import { createMemoryRouter, MemoryRouter, RouterProvider } from "react-router";
 import { describe, expect, it } from "vitest";
 
-import { usePageLocationNow } from "./page-location";
+import { useGuardedNavigate, usePageLocationNow } from "./page-location";
 
 type Read = () => Location | undefined;
 
@@ -81,5 +81,58 @@ describe("usePageLocationNow", () => {
     );
     expect(read()?.pathname).toBe("/checks/new");
     expect(read()?.search).toBe("?project=p");
+  });
+});
+
+describe("useGuardedNavigate", () => {
+  type Go = (to: string) => Promise<boolean>;
+
+  function Form({ onReady }: { onReady: (go: Go) => void }) {
+    const go = useGuardedNavigate();
+    useEffect(() => onReady(go), [onReady, go]);
+    return <p>Form</p>;
+  }
+
+  function routes(onReady: (go: Go) => void) {
+    return createMemoryRouter(
+      [
+        { path: "/form", element: <Form onReady={onReady} /> },
+        { path: "/saved", element: <p>Saved</p> },
+        { path: "/elsewhere", element: <p>Elsewhere</p> },
+      ],
+      { initialEntries: ["/form"] },
+    );
+  }
+
+  it("navigates while the user is still on the page that asked", async () => {
+    let go: Go = async () => false;
+    const router = routes((next) => {
+      go = next;
+    });
+    render(<RouterProvider router={router} />);
+    await screen.findByText("Form");
+    let moved = false;
+    await act(async () => {
+      moved = await go("/saved");
+    });
+    expect(moved).toBe(true);
+    expect(router.state.location.pathname).toBe("/saved");
+  });
+
+  it("leaves a user who moved on where they are", async () => {
+    let go: Go = async () => false;
+    const router = routes((next) => {
+      go = next;
+    });
+    render(<RouterProvider router={router} />);
+    await screen.findByText("Form");
+    const late = go;
+    await act(() => router.navigate("/elsewhere"));
+    let moved = true;
+    await act(async () => {
+      moved = await late("/saved");
+    });
+    expect(moved).toBe(false);
+    expect(router.state.location.pathname).toBe("/elsewhere");
   });
 });

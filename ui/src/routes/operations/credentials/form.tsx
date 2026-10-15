@@ -4,7 +4,6 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { type FormEvent, useMemo, useState } from "react";
-import { useNavigate } from "react-router";
 
 import { usePublicAPI } from "../../../api/context";
 import {
@@ -24,6 +23,7 @@ import { hasCredentialManager } from "../llm-configurations/model";
 import { validateCredentialRequest } from "./validation";
 import { compactDigest } from "../../../app/format";
 import { PublicationFeedback, ScopeChip } from "../common";
+import { useGuardedNavigate } from "../../../app/page-location";
 
 function configKey(resource: ConfigurationResource): string {
   return `${resource.ref.name}@${resource.ref.version}:${resource.ref.digest}`;
@@ -35,7 +35,7 @@ function optionalNumber(value: string): number | undefined {
 
 export function CredentialCreateForm() {
   const api = usePublicAPI();
-  const navigate = useNavigate();
+  const navigate = useGuardedNavigate();
   const queryClient = useQueryClient();
   const [keyring] = useState(
     () =>

@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useId, useState } from "react";
-import { useNavigate, useParams } from "react-router";
+import { useParams } from "react-router";
 
 import { usePublicAPI } from "../../../api/context";
 import { deleteCredential, getCredential } from "../../../api/operations";
@@ -16,10 +16,11 @@ import { ActiveChip } from "./active-chip";
 import { CredentialPolicyView } from "./policy";
 import { InUseErrorDetails } from "../in-use-details";
 import { QueryView } from "../../../app/query-view";
+import { useGuardedNavigate } from "../../../app/page-location";
 
 function CredentialDeletion({ credentialId }: { credentialId: string }) {
   const api = usePublicAPI();
-  const navigate = useNavigate();
+  const navigate = useGuardedNavigate();
   const queryClient = useQueryClient();
   const heading = useId();
   const [confirmed, setConfirmed] = useState(false);

@@ -8,7 +8,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import { Link, useNavigate } from "react-router";
+import { Link } from "react-router";
 
 import { listArtifacts, type ArtifactMetadata } from "../../api/artifacts";
 import { usePublicAPI } from "../../api/context";
@@ -60,6 +60,7 @@ import { RunInputUploadDialog } from "./run-input-upload-dialog";
 import "./run-drafts.css";
 import { nextPageCursor } from "../../app/pagination";
 import { LoadMoreButton } from "../../app/load-more";
+import { useGuardedNavigate } from "../../app/page-location";
 
 const INITIAL_CURSOR = null;
 const EVAL_METADATA_PRESET = [
@@ -706,7 +707,7 @@ function WorkflowRunFormBody({
   onDiscardDraft: () => void;
 }) {
   const api = usePublicAPI();
-  const navigate = useNavigate();
+  const navigate = useGuardedNavigate();
   const queryClient = useQueryClient();
   const [gitSlot, setGitSlot] = useState<string | null>(null);
   const [uploadSlot, setUploadSlot] = useState<string | null>(null);

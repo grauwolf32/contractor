@@ -21,7 +21,6 @@
  * Nothing is shown as created or started before the Server says so: lists
  * are invalidated and refetched after every answer.
  */
-import { useNavigate } from "react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 
@@ -37,11 +36,11 @@ import { usePublicAPI } from "../../../api/context";
 import { invalidateCrossProject } from "../../../api/cross-project";
 import { PublicAPIError } from "../../../api/error";
 import { queryKeys } from "../../../api/query-keys";
+import { useGuardedNavigate } from "../../../app/page-location";
 import {
   canonicalMutationRequest,
   MutationDraftKeyring,
 } from "../../../mutations/idempotency";
-import { usePageLocationNow } from "../../../app/page-location";
 import { checkPath } from "../../projects/audits/check-links";
 
 type LaunchIntent = "start" | "draft";
@@ -141,8 +140,7 @@ export interface Launch {
 
 export function useLaunch(projectId: string): Launch {
   const api = usePublicAPI();
-  const navigate = useNavigate();
-  const pageNow = usePageLocationNow();
+  const navigate = useGuardedNavigate();
   const queryClient = useQueryClient();
   const [createKeys] = useState(
     () => new MutationDraftKeyring<CreateVariables>("create-audit"),
@@ -218,7 +216,7 @@ export function useLaunch(projectId: string): Launch {
   // the request was on its way (the next page may still be loading, with
   // this one on screen).
   function open(auditId: string): void {
-    if (pageNow() !== undefined) void navigate(checkPath(projectId, auditId));
+    void navigate(checkPath(projectId, auditId));
   }
 
   async function readAgain(auditId: string): Promise<Audit | undefined> {

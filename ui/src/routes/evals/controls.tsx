@@ -1,5 +1,4 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "react-router";
 import { useEffect, useEffectEvent, useId, useRef, useState } from "react";
 import { usePublicAPI } from "../../api/context";
 import { invalidateCrossProject } from "../../api/cross-project";
@@ -28,6 +27,7 @@ import {
   type PendingCommand,
 } from "./recovery";
 import { queryKeys } from "../../api/query-keys";
+import { useGuardedNavigate } from "../../app/page-location";
 
 const LABELS: Record<EvalCommand["kind"], string> = {
   prepare: "Prepare",
@@ -85,7 +85,7 @@ export function EvalControls({
   const api = usePublicAPI(),
     owner = useEvalOwner(),
     cache = useQueryClient(),
-    navigate = useNavigate();
+    navigate = useGuardedNavigate();
   const [pending, setPending] = useState<PendingCommand | null>(() =>
     readCommand(owner, experiment.experimentId),
   );

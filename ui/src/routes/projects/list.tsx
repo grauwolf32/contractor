@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { Link, useNavigate } from "react-router";
+import { Link } from "react-router";
 
 import { usePublicAPI } from "../../api/context";
 import { listProjects } from "../../api/projects";
@@ -19,6 +19,7 @@ import { ProjectsRoute } from "./projects-route";
 
 import "./collection.css";
 import { pollWhileAnyDeleting } from "./use-project-deletion";
+import { useGuardedNavigate } from "../../app/page-location";
 
 /**
  * /projects. The same component serves /projects/:projectId, so choosing a
@@ -34,7 +35,7 @@ export const ProjectListRoute = ProjectsRoute;
 export function EvaluationListRoute() {
   useDocumentTitle("Evals");
   const api = usePublicAPI();
-  const navigate = useNavigate();
+  const navigate = useGuardedNavigate();
   const pages = useCursorStack();
   const [createOpen, setCreateOpen] = useState(false);
   const createKeys = useNewProjectKeys();

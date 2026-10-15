@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useId, useState, type ReactNode } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router";
+import { Link, useSearchParams } from "react-router";
 import { usePublicAPI } from "../../api/context";
 import {
   saveEvalDraft,
@@ -35,6 +35,7 @@ import {
   PIN_DIMENSIONS,
 } from "./setup-model";
 import { VariantEditor } from "./variants";
+import { useGuardedNavigate } from "../../app/page-location";
 
 const STEPS = [
   "Variants",
@@ -55,7 +56,7 @@ export function EvalSetupForm({
   const api = usePublicAPI(),
     owner = useEvalOwner(),
     cache = useQueryClient(),
-    navigate = useNavigate();
+    navigate = useGuardedNavigate();
   const [params] = useSearchParams();
   const authorPanel = useId();
   const [projectId, setProjectId] = useState(
@@ -124,7 +125,7 @@ export function EvalSetupForm({
       setDirty(false);
       onDirtyChange?.(false);
       await cache.invalidateQueries({ queryKey: queryKeys.evals.all });
-      void navigate(
+      await navigate(
         `/evals/experiments/${encodeURIComponent(result.experimentId)}/setup`,
       );
     },

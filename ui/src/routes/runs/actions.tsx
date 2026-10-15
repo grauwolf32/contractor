@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { type ReactNode, useRef, useState } from "react";
-import { Link, useNavigate } from "react-router";
+import { Link } from "react-router";
 
 import { usePublicAPI } from "../../api/context";
 import { queryKeys } from "../../api/query-keys";
@@ -19,6 +19,7 @@ import { auditDestination, prepareRepeatDraft } from "../../run-drafts/repeat";
 import { CANCELLATION_REASON_LIMIT, CancelRunDialog } from "./cancel";
 import { RetryModelDialog } from "./recovery";
 import { ContinueRunDialog } from "./resume";
+import { useGuardedNavigate } from "../../app/page-location";
 import { Button } from "../../ui";
 
 /** What one header action contributes: its button, a dialog and a notice. */
@@ -235,7 +236,7 @@ const REPEAT_OUTCOME_TITLES: Record<
 
 function useConfigureAnotherRun(run: RunStatus): ActionParts {
   const api = usePublicAPI();
-  const navigate = useNavigate();
+  const navigate = useGuardedNavigate();
   const drafts = useRunDraftStore();
   const [outcome, setOutcome] = useState<RepeatOutcome>();
   const mutation = useMutation({
