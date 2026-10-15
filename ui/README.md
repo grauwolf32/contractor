@@ -153,6 +153,11 @@ make ui-browser-mocked
 
 This builds and serves an isolated production UI, runs every API-mocked spec,
 and checks the Playwright report for executed passes with no skips or flaky
-attempts. The real-stack scenarios still use their Go harness and its isolated
+attempts. Specs answer API requests only through `e2e/support/mock-api.ts`,
+which checks every mocked status and success body against the generated
+contract before serving it and fails the test with the operation and the
+failing location otherwise; build mock bodies with the shared builders in
+`src/test`. The gate refuses a spec that calls `route.fulfill` itself.
+The real-stack scenarios still use their Go harness and its isolated
 URLs, credentials, source fixture and evidence paths. The pinned baseline is
 Chromium; broader browser and visual-regression matrices are deferred.

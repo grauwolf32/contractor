@@ -277,9 +277,9 @@ for (const viewport of [
       });
       await launcher.click();
       let runDialog = page.getByRole("dialog", { name: "Configure Run" });
-      await expect(
-        runDialog.locator(".workflow-drawer-heading code"),
-      ).toHaveText(WORKFLOW_SELECTOR);
+      await expect(runDialog.getByRole("banner").getByRole("code")).toHaveText(
+        WORKFLOW_SELECTOR,
+      );
       await runDialog
         .locator('[name="parameter-objective"]')
         .fill("Keep Project setup");

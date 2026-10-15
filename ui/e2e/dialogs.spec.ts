@@ -116,7 +116,7 @@ for (const viewport of [
         name: "Configure Run",
       });
       await expect(parent).toBeVisible();
-      await expect(parent.locator(".workflow-drawer-heading code")).toHaveText(
+      await expect(parent.getByRole("banner").getByRole("code")).toHaveText(
         `${WORKFLOW_NAME}@${WORKFLOW_VERSION}`,
       );
       await expect(

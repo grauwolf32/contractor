@@ -341,7 +341,8 @@ test("cancelling a pending Git import keeps the Project Workflow form open", asy
   await expect(
     page
       .getByRole("dialog", { name: "Configure Run" })
-      .locator(".workflow-drawer-heading code"),
+      .getByRole("banner")
+      .getByRole("code"),
   ).toHaveText("git-review@1");
   await expect(page.locator('[name="parameter-note"]')).toHaveValue(
     "preserved",
