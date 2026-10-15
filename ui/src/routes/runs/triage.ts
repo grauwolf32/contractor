@@ -22,7 +22,7 @@ const MODEL_INFRASTRUCTURE_ISSUE_CODES = new Set([
   "worker_gateway_unavailable",
 ]);
 
-export interface RunTriageIssue {
+interface RunTriageIssue {
   code: string;
   message: string;
   retryable?: boolean;
@@ -31,7 +31,7 @@ export interface RunTriageIssue {
   source: "result" | "termination" | "diagnostic" | "cancellation";
 }
 
-export interface RunTriageMetrics {
+interface RunTriageMetrics {
   modelCalls: number;
   totalTokens: number;
   toolCalls: number;
@@ -50,7 +50,7 @@ export interface RunTriage {
   guidance: RunTriageGuidance;
 }
 
-export interface RunTriageGuidance {
+interface RunTriageGuidance {
   kind:
     | "recovery-wait"
     | "scheduled-retry"

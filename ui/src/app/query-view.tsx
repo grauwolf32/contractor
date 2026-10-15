@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import { ErrorNotice } from "./error-notice";
 
 /** The subset of a TanStack Query result that QueryView reads. */
-export interface QueryViewState<T> {
+interface QueryViewState<T> {
   data: T | undefined;
   error: Error | null;
   isFetching: boolean;

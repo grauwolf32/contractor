@@ -19,7 +19,7 @@ export const ADVANCED_SECTIONS = [
 export const PROJECT_SECTIONS = [...MAIN_SECTIONS, ...ADVANCED_SECTIONS];
 
 /** A section's URL segment; "" is the Overview. */
-export type ProjectSectionSegment = (typeof PROJECT_SECTIONS)[number][0];
+type ProjectSectionSegment = (typeof PROJECT_SECTIONS)[number][0];
 
 /** The URL of a project or one of its sections. */
 export function projectPath(

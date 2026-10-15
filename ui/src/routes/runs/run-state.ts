@@ -10,7 +10,7 @@ import type { StageAttempt, WorkflowRunState } from "../../api/runs";
 import type { components } from "../../api/generated/public";
 import type { StatusTone } from "../../app/status-tone";
 
-export interface RunsLabel {
+interface RunsLabel {
   readonly label: string;
   readonly tone: StatusTone;
 }
@@ -72,7 +72,7 @@ const PUBLICATION_STATUS_LABELS: Readonly<
 };
 
 /** "release_pending" → "Release pending", for values this client does not know. */
-export function readableValue(value: string): string {
+function readableValue(value: string): string {
   const words = value.replaceAll(/[_-]+/g, " ").trim();
   return words === ""
     ? "Unknown"

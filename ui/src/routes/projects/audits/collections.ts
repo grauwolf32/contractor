@@ -103,9 +103,7 @@ export function useAuditCollection<B extends AuditCollection<unknown>>({
 }
 
 /** Reads one page of a collection endpoint for `collectAuditPages`. */
-export type AuditPageLoader<T> = (
-  cursor?: string,
-) => Promise<AuditCollectionPage<T>>;
+type AuditPageLoader<T> = (cursor?: string) => Promise<AuditCollectionPage<T>>;
 
 /**
  * Several Audit collections (one per source) loaded side by side, each capped

@@ -1020,7 +1020,7 @@ const OVERVIEW_TONES: Readonly<Record<InboxSectionId, StatusTone>> = {
   running: "progress",
 };
 
-export function Overview({
+function Overview({
   context,
   counts,
 }: {

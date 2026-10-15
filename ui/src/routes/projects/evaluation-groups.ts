@@ -1,6 +1,6 @@
 import type { RunSummary } from "../../api/runs";
 
-export interface EvaluationRunGroup {
+interface EvaluationRunGroup {
   id: string;
   names: string[];
   runs: RunSummary[];

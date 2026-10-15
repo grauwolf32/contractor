@@ -644,7 +644,7 @@ function CapacityCounts({ data }: { data: InboxData }) {
   );
 }
 
-export interface InboxListProps extends Selection {
+interface InboxListProps extends Selection {
   data: InboxData;
   subtitle: string;
   containerProps: ListNavigationContainerProps;

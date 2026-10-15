@@ -24,7 +24,7 @@ import type { components } from "../api/generated/public";
 import type { StatusTone } from "./status-tone";
 
 export type AuditCoverageStatus = components["schemas"]["AuditCoverageStatus"];
-export type AuditReportStatus = components["schemas"]["AuditReportStatus"];
+type AuditReportStatus = components["schemas"]["AuditReportStatus"];
 export type AuditReviewState = components["schemas"]["AuditReviewState"];
 export type AuditReviewKind = AuditReviewRequest["kind"];
 
@@ -303,7 +303,7 @@ function checkTypeNameKind(name: string): ItemKind {
 }
 
 /** What the UI knows about a check: a work item, the check type or the check. */
-export type CheckItemKindSource =
+type CheckItemKindSource =
   | Pick<AuditItem, "kind" | "origin">
   | Pick<AuditProfile, "inventory" | "standards">
   | Pick<Audit, "profile" | "baseline">;

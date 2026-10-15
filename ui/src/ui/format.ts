@@ -14,7 +14,7 @@ const clockFormat = new Intl.DateTimeFormat("en-US", {
   hourCycle: "h23",
 });
 
-export interface ClockTime {
+interface ClockTime {
   /** HH:MM in local time, or the original text when it is not a date. */
   label: string;
   /** ISO timestamp for `<time dateTime>`; absent for free text. */

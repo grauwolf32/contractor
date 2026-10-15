@@ -24,7 +24,7 @@ const adapterNames: Record<string, string> = {
   "http-proxy@1": "HTTP proxy",
 };
 
-export function CapabilityRefs({ values }: { values: string[] }) {
+function CapabilityRefs({ values }: { values: string[] }) {
   return values.length === 0 ? (
     <span className="ops-muted">None</span>
   ) : (
@@ -39,7 +39,7 @@ export function CapabilityRefs({ values }: { values: string[] }) {
 }
 
 /** Saved Agent labels as chips, or a line saying there are none. */
-export function AgentLabelChips({ labels }: { labels: readonly string[] }) {
+function AgentLabelChips({ labels }: { labels: readonly string[] }) {
   return (
     <div className="ops-chips runtime-agent-label-chips">
       {labels.length === 0 ? (

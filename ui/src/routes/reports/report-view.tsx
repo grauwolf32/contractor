@@ -243,7 +243,7 @@ function loadErrorHint(error: Error): string {
   return "Try again to load the report.";
 }
 
-export interface ReportContentProps {
+interface ReportContentProps {
   audit: Audit;
   /** The report read (useAuditReport). */
   query: Pick<

@@ -126,7 +126,7 @@ export function rowPage(row: InboxRow): string {
 }
 
 /** Progress of a check's current round from its workspace counters. */
-export interface CheckProgress {
+interface CheckProgress {
   kind: ItemKind;
   total: number;
   /** Concluded items, including those with an issue found. */
@@ -294,14 +294,14 @@ export function recoveryReason(code: RecoveryCode): string {
     : "The model connection is interrupted.";
 }
 
-export type OutputArtifact = NonNullable<OutputEntry["artifact"]>;
+type OutputArtifact = NonNullable<OutputEntry["artifact"]>;
 
 /**
  * A finished Run's primary result, from the Workflow's published `primary`
  * flag (UUS:102-103). Without a declared primary output nothing is picked in
  * its place, and a declared one the Run did not produce stays missing.
  */
-export type PrimaryOutput =
+type PrimaryOutput =
   | { state: "loading" }
   | { state: "unavailable" }
   | { state: "none" }

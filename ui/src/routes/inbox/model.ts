@@ -29,10 +29,10 @@ export type InboxRef =
   | { kind: "report"; auditId: string };
 
 /** Why a check is listed. */
-export type CheckReason = "paused" | "failed" | "gaps" | "running" | "finished";
+type CheckReason = "paused" | "failed" | "gaps" | "running" | "finished";
 
 /** Why a Run is listed. */
-export type RunReason = "model" | "failed" | "finished";
+type RunReason = "model" | "failed" | "finished";
 
 interface RowBase {
   /**
@@ -128,7 +128,7 @@ const GAP_CHECK_STATES: ReadonlySet<AuditState> = new Set([
 ]);
 
 /** Checks in Running: working or writing their report. */
-export const RUNNING_CHECK_STATES: ReadonlySet<AuditState> = new Set([
+const RUNNING_CHECK_STATES: ReadonlySet<AuditState> = new Set([
   "active",
   "finalizing",
 ]);
@@ -221,7 +221,7 @@ export function runTime(run: Pick<RunSummary, "finishedAt" | "updatedAt">) {
 }
 
 /** When a check ended, or last changed while it runs. */
-export function checkTime(check: CrossProjectCheck): string {
+function checkTime(check: CrossProjectCheck): string {
   return check.audit.finishedAt ?? check.audit.updatedAt;
 }
 
@@ -282,7 +282,7 @@ export function waitingRuns(runs: readonly RunSummary[]): RunSummary[] {
 }
 
 /** The model connection needs the user: automatic recovery has ended. */
-export function needsModelRetry(status: RunStatus | undefined): boolean {
+function needsModelRetry(status: RunStatus | undefined): boolean {
   return status?.recovery?.requiresRetry === true;
 }
 
@@ -434,7 +434,7 @@ export function distinctCount(rows: readonly InboxRow[]): number {
   return new Set(rows.map((row) => row.key)).size;
 }
 
-export interface SubtitleCounts {
+interface SubtitleCounts {
   /** Items that need a decision; the rail badge's number. */
   decide: number;
   unblock: number;

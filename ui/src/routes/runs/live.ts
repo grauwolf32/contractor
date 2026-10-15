@@ -12,7 +12,7 @@ import type {
   RunResyncReason,
 } from "../../events/run-events";
 
-export interface DispatchProjection {
+interface DispatchProjection {
   callId: string;
   subtaskId: string;
   workerName: string;

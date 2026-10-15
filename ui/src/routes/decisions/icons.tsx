@@ -1,5 +1,5 @@
 /** Decorative stroke icons of the V3B decision bar and issue summary. */
-export type DecisionIconName = "confirm" | "reject" | "unsure" | "next";
+type DecisionIconName = "confirm" | "reject" | "unsure" | "next";
 
 const PATHS: Readonly<Record<DecisionIconName, readonly string[]>> = {
   confirm: ["M5 12.5l4.2 4.2L19 7"],

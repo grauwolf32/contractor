@@ -1,7 +1,7 @@
 import { useEffect, useRef, type ReactNode, type Ref } from "react";
 import { Link, type To } from "react-router";
 
-export interface PaneLayoutProps {
+interface PaneLayoutProps {
   /** The list pane content, usually a ListPane. */
   list: ReactNode;
   /** The detail pane content, usually a DetailPane or an EmptyState. */
@@ -122,7 +122,7 @@ export function PaneLayout({
   );
 }
 
-export interface ListPaneProps {
+interface ListPaneProps {
   /** Pane title, e.g. "Possible issues". */
   title?: ReactNode;
   /** Title level. Default "h1". */
@@ -209,7 +209,7 @@ export function ListPane({
   );
 }
 
-export interface DetailPaneProps {
+interface DetailPaneProps {
   /** Usually a DetailHeader. */
   header?: ReactNode;
   /**
@@ -254,7 +254,7 @@ export interface BreadcrumbItem {
   to?: To | undefined;
 }
 
-export interface DetailHeaderProps {
+interface DetailHeaderProps {
   breadcrumb?: readonly BreadcrumbItem[] | undefined;
   title: ReactNode;
   /** Title level. Default "h2". */

@@ -238,7 +238,7 @@ function dayLabel(time: string, now: Date): string {
     : datedFormat.format(date);
 }
 
-export interface ProjectTimelineProps {
+interface ProjectTimelineProps {
   project: Project;
   checks: readonly Audit[];
   issues: readonly CheckIssues[];

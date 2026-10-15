@@ -95,7 +95,6 @@ summary:focus-visible,
   accent-color: var(--accent);
 }
 
-.inline-actions,
 .project-form-actions,
 .skill-upload-actions {
   display: flex;
@@ -106,11 +105,6 @@ summary:focus-visible,
 
 /* Create dialogs: required fields first, one optional disclosure, actions
    bottom right with the primary button last. */
-.project-dialog-form {
-  display: grid;
-  gap: 1rem;
-}
-
 .project-dialog > .artifact-form {
   margin: 0;
   border: 0;
@@ -155,28 +149,6 @@ summary:focus-visible,
   padding: 0.9rem;
 }
 
-.button-link {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: var(--control-height);
-  border: 1px solid transparent;
-  border-radius: var(--control-radius);
-  background: var(--primary);
-  color: var(--on-primary);
-  padding: 0.55rem 0.9rem;
-  font-weight: 700;
-  text-decoration: none;
-}
-
-.button-link:hover {
-  background: var(--primary-hover);
-}
-
-.project-dialog .inline-actions {
-  margin-top: 1rem;
-}
-
 .project-dialog form,
 .project-dialog-heading > div {
   min-width: 0;
@@ -191,8 +163,7 @@ summary:focus-visible,
   padding: clamp(1rem, 2.2vw, 2rem);
 }
 
-.route-page > .route-header-row,
-.catalog-page > .route-header-row {
+.route-page > .route-header-row {
   margin-bottom: 1.25rem;
 }
 
@@ -211,18 +182,6 @@ summary:focus-visible,
   color: var(--muted-strong);
   font-size: 0.6875rem;
   letter-spacing: 0.08em;
-}
-
-.delete-icon-button.danger-button {
-  border-color: var(--line);
-  background: var(--surface-raised);
-  color: var(--muted-strong);
-}
-
-.delete-icon-button:not(:disabled):hover {
-  border-color: var(--danger);
-  background: var(--danger-bg-strong);
-  color: var(--danger);
 }
 
 .mobile-section-picker {
@@ -287,46 +246,6 @@ summary:focus-visible,
 
 .section-navigation a:focus-visible {
   outline-offset: -2px;
-}
-
-.audit-open-link {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: var(--control-height);
-  border: 1px solid var(--line);
-  border-radius: var(--control-radius);
-  background: var(--surface-raised);
-  color: var(--text);
-  padding: 0.55rem 0.9rem;
-  font-size: 0.85rem;
-  font-weight: 650;
-  text-decoration: none;
-}
-
-.audit-open-link:hover {
-  border-color: var(--line-strong);
-  background: var(--surface);
-  color: var(--accent);
-}
-
-.metadata-grid > div {
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-
-.catalog-page {
-  width: 100%;
-  max-width: 80rem;
-  margin-inline: auto;
-}
-
-.catalog-page > header h2 {
-  margin: 0;
-}
-
-.catalog-page .route-header-row {
-  margin-bottom: 1.25rem;
 }
 
 .skip-link {

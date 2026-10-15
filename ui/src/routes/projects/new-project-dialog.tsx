@@ -19,7 +19,7 @@ import type { NewProjectKeys } from "./new-project-keys";
 
 import "./projects.css";
 
-export interface NewProjectWording {
+interface NewProjectWording {
   /** Dialog title, e.g. "New project". */
   title: string;
   /** Accessible name of the close button. */

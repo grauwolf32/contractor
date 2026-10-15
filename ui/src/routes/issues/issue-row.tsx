@@ -18,7 +18,7 @@ const foundFormat = new Intl.DateTimeFormat("en-US", {
 });
 
 /** "Oct 4, 23:56", with the full timestamp on hover. */
-export function FoundTime({ value }: { value: string }) {
+function FoundTime({ value }: { value: string }) {
   const date = new Date(value);
   if (Number.isNaN(date.valueOf())) return <span>{value}</span>;
   return (
@@ -84,7 +84,7 @@ function separated(parts: readonly ReactNode[]): ReactNode {
     ));
 }
 
-export interface IssueRowProps {
+interface IssueRowProps {
   finding: AuditFinding;
   to: To;
   selected?: boolean | undefined;

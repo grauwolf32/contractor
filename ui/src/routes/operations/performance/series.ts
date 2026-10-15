@@ -1,6 +1,6 @@
 import type { ChartDatum } from "./chart";
 
-export interface ChartSegment {
+interface ChartSegment {
   generation: string;
   values: Array<{ time: number; value: number; observedAt: string }>;
 }

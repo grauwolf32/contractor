@@ -203,7 +203,7 @@ function registerLayer(layer: DialogLayer): () => void {
   };
 }
 
-export interface DialogProps {
+interface DialogProps {
   children: ReactNode;
   className: string;
   backdropClassName?: string;

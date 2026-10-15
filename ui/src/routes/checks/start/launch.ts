@@ -43,9 +43,9 @@ import {
   MutationDraftKeyring,
 } from "../../../mutations/idempotency";
 
-export type LaunchIntent = "start" | "draft";
+type LaunchIntent = "start" | "draft";
 
-export interface LaunchRequest {
+interface LaunchRequest {
   request: CreateAuditRequest;
   /** Seconds for the start request; 0 means no time limit. */
   deadlineSeconds: number;

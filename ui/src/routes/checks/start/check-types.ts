@@ -14,7 +14,7 @@ import type { AuditProfile } from "../../../api/audits";
 import { checkItemKind, itemCount, itemNoun } from "../../../app/vocabulary";
 
 export type ProfileInput = AuditProfile["inputs"][string];
-export type CompatibilityReason = AuditProfile["compatibilityReasons"][number];
+type CompatibilityReason = AuditProfile["compatibilityReasons"][number];
 
 /**
  * Version order, oldest first: dotted numbers compare part by part
@@ -80,7 +80,7 @@ export interface CheckTypeRow {
 }
 
 /** How many items a check type works on at most. */
-export function coverageSize(profile: AuditProfile): number {
+function coverageSize(profile: AuditProfile): number {
   return (
     profile.inventory.standardSelection?.entryIds.length ??
     profile.execution.maxItemsTotal
@@ -299,7 +299,7 @@ export function presentCheckType(profile: AuditProfile): CheckTypePresentation {
 // ---------- Materials ----------
 
 /** Whether a material's media type is one the input accepts ("format matches"). */
-export function mediaTypeMatches(
+function mediaTypeMatches(
   mediaType: string,
   accepted: readonly string[],
 ): boolean {
@@ -419,7 +419,7 @@ export function scopeFieldsUsed(profile: AuditProfile): Set<ScopeField> {
 
 // ---------- Readiness ----------
 
-export type MissingNeed =
+type MissingNeed =
   /** No current material has a format this input takes. */
   | { kind: "input"; name: string; label: string; formats: string }
   /**
@@ -435,7 +435,7 @@ export type Readiness =
   | { state: "missing"; missing: MissingNeed[] }
   | { state: "unavailable"; reasons: CompatibilityReason[] };
 
-export interface ReadinessContext {
+interface ReadinessContext {
   /** The project's current materials read so far. */
   materials: readonly ArtifactMetadata[];
   /** The project has a live target in its settings. */
@@ -603,7 +603,7 @@ export function compatibilityReasonText(reason: CompatibilityReason): string {
 
 // ---------- What a check type covers ----------
 
-export interface ScopeSummary {
+interface ScopeSummary {
   /** "70 requirements", "Up to 94 scenarios", "Every endpoint in the API spec". */
   readonly size: string;
   /** One quiet line about where the items come from. */

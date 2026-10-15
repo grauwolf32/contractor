@@ -12,7 +12,7 @@ export interface StudioNode {
   y: number;
   removable?: boolean;
 }
-export interface StudioEdge {
+interface StudioEdge {
   from: string;
   to: string;
   label: string;

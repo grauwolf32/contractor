@@ -258,7 +258,7 @@ function RequestDecision({
   );
 }
 
-export interface ActionDecisionProps {
+interface ActionDecisionProps {
   auditId: string;
   /** An active test approval or requirement applicability request. */
   review: AuditReviewRequest;
@@ -308,7 +308,7 @@ export function ActionDecision({
   );
 }
 
-export interface ReportDecisionProps {
+interface ReportDecisionProps {
   auditId: string;
   /** The report acceptance request. */
   review: AuditReviewRequest;

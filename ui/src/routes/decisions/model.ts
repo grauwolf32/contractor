@@ -235,7 +235,7 @@ export function verdictForState(
 }
 
 /** What a refused decision was about, for the explanation. */
-export type DecisionSubject = "finding" | "request";
+type DecisionSubject = "finding" | "request";
 
 /**
  * Why a decision was not saved and what the page did about it. Every failed

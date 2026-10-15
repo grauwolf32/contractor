@@ -292,76 +292,8 @@
   color: var(--text);
 }
 
-/* A Project's recommendation filters and search (projects/workflow-recommendations.tsx). */
-.workflow-discovery-toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: end;
-  justify-content: space-between;
-  gap: 1rem;
-  margin: 1rem 0;
-}
-
-.workflow-discovery-toolbar .catalog-search {
-  display: grid;
-  gap: 0.375rem;
-  color: var(--muted-strong);
-  font-size: 0.8125rem;
-  font-weight: 700;
-}
-
-.workflow-discovery-toolbar .catalog-search input {
-  width: min(24rem, 100%);
-  height: 2.375rem;
-  padding: 0 0.75rem;
-  border: 1px solid var(--line-strong);
-  border-radius: 0.625rem;
-  background: var(--surface);
-  color: var(--text);
-  font-size: 0.875rem;
-  font-weight: 400;
-}
-
-.workflow-discovery-toolbar .catalog-search input::placeholder {
-  color: var(--faint);
-  opacity: 1;
-}
-
-.workflow-discovery-toolbar .catalog-search input:focus-visible {
-  border-color: var(--focus);
-  outline: 2px solid var(--focus);
-  outline-offset: 1px;
-}
-
-.workflow-filter-tabs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.375rem;
-}
-
-.workflow-filter-tabs button {
-  min-height: 2rem;
-  padding: 0.25rem 0.75rem;
-  font-size: 0.78125rem;
-}
-
-.workflow-filter-tabs [aria-pressed="true"] {
-  border-color: var(--sel-line);
-  background: var(--sel);
-  color: var(--text);
-}
-
 @media (max-width: 600px) {
   .workflow-card-contract {
     grid-template-columns: 1fr;
-  }
-
-  .workflow-discovery-toolbar {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .workflow-discovery-toolbar .catalog-search input {
-    width: 100%;
   }
 }

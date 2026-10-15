@@ -24,7 +24,7 @@ export const MATERIAL_KIND_ORDER: readonly MaterialKind[] = [
   "other",
 ];
 
-export const MATERIAL_KIND_LABELS: Readonly<Record<MaterialKind, string>> = {
+const MATERIAL_KIND_LABELS: Readonly<Record<MaterialKind, string>> = {
   source: "Source code",
   api: "API spec",
   architecture: "Architecture",

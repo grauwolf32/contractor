@@ -10,7 +10,7 @@ import {
 } from "../../../app/vocabulary";
 
 /** Analyst severities, most severe first, for filters. */
-export const FINDING_SEVERITIES: readonly AuditFindingSeverity[] = [
+const FINDING_SEVERITIES: readonly AuditFindingSeverity[] = [
   "critical",
   "high",
   "medium",
@@ -28,9 +28,9 @@ export const FINDING_STATES: readonly AuditFindingState[] = [
 ];
 
 /** Decision filter values the findings endpoint accepts (`verdict`). */
-export type VerdictFilter = NonNullable<FindingPageRequest["verdict"]>;
+type VerdictFilter = NonNullable<FindingPageRequest["verdict"]>;
 
-export const VERDICT_FILTERS: readonly VerdictFilter[] = [
+const VERDICT_FILTERS: readonly VerdictFilter[] = [
   "unreviewed",
   "true_positive",
   "false_positive",
@@ -50,7 +50,7 @@ export function isVerdictFilter(value: string): value is VerdictFilter {
   return (VERDICT_FILTERS as readonly string[]).includes(value);
 }
 
-export interface FilterOption {
+interface FilterOption {
   value: string;
   label: string;
 }

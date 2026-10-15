@@ -166,7 +166,7 @@ function useNow(intervalMs = 60_000): number {
   return now;
 }
 
-export interface PerCheck<T> {
+interface PerCheck<T> {
   /** Settled data (or the previous revision's) by check ID. */
   byCheck: Map<string, T>;
   failed: number;
@@ -217,13 +217,13 @@ function usePerCheckReads<T>(
 }
 
 /** Declared outputs of a Workflow version; null when they cannot be read. */
-export type WorkflowOutputs = Record<string, WorkflowOutputSlot> | null;
+type WorkflowOutputs = Record<string, WorkflowOutputSlot> | null;
 
-export function workflowKey(identity: WorkflowIdentity): string {
+function workflowKey(identity: WorkflowIdentity): string {
   return `${identity.name}@${identity.version}`;
 }
 
-export interface RunStatuses {
+interface RunStatuses {
   byRun: Map<string, RunStatus>;
   /** Runs whose status could not be read. */
   failed: Set<string>;
@@ -236,7 +236,7 @@ export interface RunList {
 }
 
 /** Ready reports of the checks that finished in the last 7 days. */
-export interface ReadyReports {
+interface ReadyReports {
   /** Newest check first. */
   reports: CrossProjectReport[];
   /** Some of those reports have not been read yet. */

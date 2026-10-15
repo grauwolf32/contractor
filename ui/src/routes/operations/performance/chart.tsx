@@ -9,7 +9,7 @@ export interface ChartDatum {
   value?: number;
 }
 
-export interface ChartSeries {
+interface ChartSeries {
   id: string;
   label: string;
   color: string;

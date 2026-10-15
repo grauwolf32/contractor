@@ -4,7 +4,7 @@ import { useSyncExternalStore } from "react";
 export type ThemePreference = "system" | "light" | "dark" | "black";
 
 /** The palette actually on screen. */
-export type ResolvedTheme = "light" | "dark" | "black";
+type ResolvedTheme = "light" | "dark" | "black";
 
 export const THEME_PREFERENCES: readonly ThemePreference[] = [
   "system",

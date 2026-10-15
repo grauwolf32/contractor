@@ -4,7 +4,7 @@
  * custom number of hours between 0.01 and 8760 (365 days).
  */
 
-export type TimeLimitChoice = "86400" | "604800" | "0" | "custom";
+type TimeLimitChoice = "86400" | "604800" | "0" | "custom";
 
 export const DEFAULT_TIME_LIMIT: TimeLimitChoice = "86400";
 

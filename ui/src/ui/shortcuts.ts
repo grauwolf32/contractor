@@ -10,7 +10,7 @@ import {
 export type ShortcutHandler = (event: KeyboardEvent) => void;
 
 /** A handler that can decline an event before the binding takes it. */
-export interface ShortcutBinding {
+interface ShortcutBinding {
   handler: ShortcutHandler;
   /**
    * Asked last, right before the binding would take the event. False leaves
@@ -289,7 +289,7 @@ export function useShortcuts(
   }, [enabled, allowInDialog]);
 }
 
-export interface ListNavigationOptions {
+interface ListNavigationOptions {
   /** Number of items in the list. */
   count: number;
   /** Selected item, or -1 when nothing is selected. */
@@ -307,7 +307,7 @@ export interface ListNavigationContainerProps {
   onKeyDown: (event: ReactKeyboardEvent<HTMLElement>) => void;
 }
 
-export interface ListNavigation {
+interface ListNavigation {
   /** Spread on the element that contains the list rows. */
   containerProps: ListNavigationContainerProps;
 }

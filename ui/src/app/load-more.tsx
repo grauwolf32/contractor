@@ -1,5 +1,5 @@
 /** The part of an infinite query result that LoadMoreButton reads. */
-export interface NextPageQuery {
+interface NextPageQuery {
   hasNextPage: boolean;
   isFetchingNextPage: boolean;
   fetchNextPage: () => Promise<unknown>;
