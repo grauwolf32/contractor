@@ -1,8 +1,8 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useState } from "react";
 
 import type { ArtifactWriteResponse } from "../../api/artifacts";
-import { Dialog, DialogHeader } from "../../app/dialog";
 import { ArtifactWriteForm } from "../artifacts/common";
+import { UploadDialog } from "../artifacts/upload-dialog";
 
 function fixedMediaType(mediaTypes: readonly string[]): string | undefined {
   return mediaTypes.length === 1 && mediaTypes[0] !== "*/*"
@@ -10,6 +10,11 @@ function fixedMediaType(mediaTypes: readonly string[]): string | undefined {
     : undefined;
 }
 
+/**
+ * Uploads a local file for one input slot of the Run form and selects the
+ * returned revision. Closing the dialog aborts the upload (UploadDialog); a
+ * write that answers after that is not selected.
+ */
 export function RunInputUploadDialog({
   projectId,
   slotName,
@@ -23,79 +28,39 @@ export function RunInputUploadDialog({
   onClose: () => void;
   onUploaded: (result: ArtifactWriteResponse) => void;
 }) {
-  const heading = useId();
-  const description = useId();
-  const operation = useRef<AbortController | null>(null);
   const [pending, setPending] = useState(false);
   const mediaType = fixedMediaType(mediaTypes);
-
-  useEffect(() => () => operation.current?.abort(), []);
-
-  function startOperation(): AbortSignal {
-    operation.current?.abort();
-    const controller = new AbortController();
-    operation.current = controller;
-    return controller.signal;
-  }
-
-  function close(): void {
-    operation.current?.abort();
-    onClose();
-  }
-
-  function uploaded(result: ArtifactWriteResponse): void {
-    if (operation.current?.signal.aborted) return;
-    onUploaded(result);
-    onClose();
-  }
-
   // The dialog title names the slot and labels the form, so the form shows
   // no heading of its own (and no internal "Artifact" noun).
-  const form =
-    projectId === undefined ? (
-      <ArtifactWriteForm
-        fixedNamespace="inputs"
-        {...(mediaType === undefined ? {} : { fixedMediaType: mediaType })}
-        acceptedMediaTypes={mediaTypes}
-        startOperation={startOperation}
-        submitLabel="Upload and select"
-        headingId={heading}
-        onPendingChange={setPending}
-        onWritten={uploaded}
-      />
-    ) : (
-      <ArtifactWriteForm
-        scope={{ kind: "project", id: projectId }}
-        fixedNamespace="artifacts"
-        {...(mediaType === undefined ? {} : { fixedMediaType: mediaType })}
-        acceptedMediaTypes={mediaTypes}
-        startOperation={startOperation}
-        submitLabel="Upload and select"
-        headingId={heading}
-        onPendingChange={setPending}
-        onWritten={uploaded}
-      />
-    );
-
   return (
-    <Dialog
-      className="ui-dialog ui-panel run-input-upload-dialog"
-      labelledBy={heading}
-      describedBy={description}
-      onRequestClose={close}
+    <UploadDialog
+      eyebrow={`${projectId === undefined ? "Library" : "Project"} input`}
+      title={`Upload local file for ${slotName}`}
+      closeLabel="Close local file upload"
+      note={`A confirmed upload selects the returned revision in this input slot; if you close${pending ? " now" : ""} before it completes, refresh the library before retrying.`}
+      onClose={onClose}
     >
-      <DialogHeader
-        id={heading}
-        eyebrow={<>{projectId === undefined ? "Library" : "Project"} input</>}
-        title={<>Upload local file for {slotName}</>}
-        close={{ label: "Close local file upload", onClose: close }}
-      />
-      <p id={description} className="muted-copy">
-        A confirmed upload selects the returned revision in this input slot; if
-        you close{pending ? " now" : ""} before it completes, refresh the
-        library before retrying.
-      </p>
-      {form}
-    </Dialog>
+      {(upload) => (
+        <ArtifactWriteForm
+          {...(projectId === undefined
+            ? { fixedNamespace: "inputs" }
+            : {
+                scope: { kind: "project", id: projectId },
+                fixedNamespace: "artifacts",
+              })}
+          {...(mediaType === undefined ? {} : { fixedMediaType: mediaType })}
+          acceptedMediaTypes={mediaTypes}
+          startOperation={upload.start}
+          submitLabel="Upload and select"
+          headingId={upload.headingId}
+          onPendingChange={setPending}
+          onWritten={(result) => {
+            if (upload.aborted()) return;
+            onUploaded(result);
+            onClose();
+          }}
+        />
+      )}
+    </UploadDialog>
   );
 }

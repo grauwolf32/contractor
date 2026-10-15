@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useId } from "react";
-import { Link, useLocation, useNavigate, useParams } from "react-router";
+import { useLocation, useNavigate, useParams } from "react-router";
 
 import { auditPresetPath } from "../../api/audit-presets";
 import { getAuditProfile, type AuditProfile } from "../../api/audits";
@@ -27,7 +27,15 @@ import {
   TERMS,
   type ItemKind,
 } from "../../app/vocabulary";
-import { DetailHeader, DetailPane, IdChip, TechnicalDetails } from "../../ui";
+import {
+  Button,
+  ButtonLink,
+  DetailHeader,
+  DetailPane,
+  Facts,
+  IdChip,
+  TechnicalDetails,
+} from "../../ui";
 import { auditPresetLabel } from "../projects/audits/labels";
 import { workflowFormats } from "../workflows/formats";
 import { AuditPresetStandardChecks } from "./audit-preset-checks";
@@ -37,6 +45,7 @@ import {
   presetScope,
   startCheckPath,
   useAuditPresets,
+  wordOf,
 } from "./audit-preset-data";
 import {
   CheckTypeAvailability,
@@ -79,15 +88,6 @@ const REPORT_ACCEPTANCE: Readonly<
   "human-required": "Needs your acceptance",
 };
 
-function wordOf<K extends string>(
-  table: Readonly<Record<K, string>>,
-  value: K,
-): string {
-  return Object.hasOwn(table, value)
-    ? table[value]
-    : capitalize(value.replaceAll("-", " "));
-}
-
 function VersionPicker({ name, version }: { name: string; version: string }) {
   const query = useAuditPresets();
   const navigate = useNavigate();
@@ -119,22 +119,20 @@ function VersionPicker({ name, version }: { name: string; version: string }) {
         </select>
       </label>
       {query.isPending ? (
-        <span className="library-muted" role="status">
+        <span className="ui-caption" role="status">
           Loading versions…
         </span>
       ) : null}
       {query.error ? (
         <span className="library-inline-error" role="alert">
           Other versions could not be loaded.{" "}
-          <button
-            type="button"
-            className="ui-btn"
-            data-size="xs"
-            disabled={query.isFetching}
+          <Button
+            size="xs"
+            pending={query.isFetching}
             onClick={() => void query.refetch()}
           >
             Retry
-          </button>
+          </Button>
         </span>
       ) : null}
     </span>
@@ -163,7 +161,7 @@ function CheckTypeItems({
           </h3>
           <p className="library-block-lede">{presetScope(profile)}</p>
           {selection ? (
-            <p className="library-muted">
+            <p className="ui-caption">
               {itemCount(kind, selection.entryIds.length)} selected · Levels{" "}
               {selection.levels.join(", ")}
             </p>
@@ -227,7 +225,7 @@ function CheckTypeInputs({ profile }: { profile: AuditProfile }) {
         Inputs
       </h3>
       {inputs.length === 0 ? (
-        <p className="library-muted">This check type needs no inputs.</p>
+        <p className="ui-caption">This check type needs no inputs.</p>
       ) : (
         <ul className="library-rows">
           {inputs.map(([name, input]) => (
@@ -286,54 +284,50 @@ function CheckTypeTechnicalDetails({ profile }: { profile: AuditProfile }) {
   const { execution } = profile;
   return (
     <TechnicalDetails description="Limits and identities, for admins and debugging.">
-      <dl className="library-facts library-facts-compact">
-        <div>
-          <dt>Digest</dt>
-          <dd>
-            <code title={profile.ref.digest}>
-              {compactDigest(profile.ref.digest)}
-            </code>
-          </dd>
-        </div>
-        <div>
-          <dt>Inventory</dt>
-          <dd>
-            <code>{profile.inventory.implementation}</code> · role{" "}
-            <code>{profile.inventory.itemWorkflowRole}</code>
-          </dd>
-        </div>
-        <div>
-          <dt>Input validation</dt>
-          <dd>
-            {profile.requiresInputValidation ? "Required" : "Not required"}
-          </dd>
-        </div>
-        <div>
-          <dt>Rounds</dt>
-          <dd>
-            Up to {execution.maxRounds} · {execution.roundMode} · incomplete
-            round: {execution.incompleteRound}
-          </dd>
-        </div>
-        <div>
-          <dt>Items</dt>
-          <dd>
-            {execution.maxItemsTotal} in total · {execution.maxItemsPerRound}{" "}
-            per round · batches of {execution.batchSize}
-          </dd>
-        </div>
-        <div>
-          <dt>Runs</dt>
-          <dd>
-            Up to {execution.maxSubmittedRuns} submitted ·{" "}
-            {execution.maxItemRunAttempts} attempts per item
-          </dd>
-        </div>
-        <div>
-          <dt>Evidence</dt>
-          <dd>Up to {formatBytes(execution.maxEvidenceBytes)}</dd>
-        </div>
-      </dl>
+      <Facts
+        size="sm"
+        items={[
+          {
+            term: "Digest",
+            value: (
+              <code title={profile.ref.digest}>
+                {compactDigest(profile.ref.digest)}
+              </code>
+            ),
+          },
+          {
+            term: "Inventory",
+            value: (
+              <>
+                <code>{profile.inventory.implementation}</code> · role{" "}
+                <code>{profile.inventory.itemWorkflowRole}</code>
+              </>
+            ),
+          },
+          {
+            term: "Input validation",
+            value: profile.requiresInputValidation
+              ? "Required"
+              : "Not required",
+          },
+          {
+            term: "Rounds",
+            value: `Up to ${execution.maxRounds} · ${execution.roundMode} · incomplete round: ${execution.incompleteRound}`,
+          },
+          {
+            term: "Items",
+            value: `${execution.maxItemsTotal} in total · ${execution.maxItemsPerRound} per round · batches of ${execution.batchSize}`,
+          },
+          {
+            term: "Runs",
+            value: `Up to ${execution.maxSubmittedRuns} submitted · ${execution.maxItemRunAttempts} attempts per item`,
+          },
+          {
+            term: "Evidence",
+            value: `Up to ${formatBytes(execution.maxEvidenceBytes)}`,
+          },
+        ]}
+      />
     </TechnicalDetails>
   );
 }
@@ -349,38 +343,39 @@ function CheckTypeContents({ profile }: { profile: AuditProfile }) {
           <CompatibilityReasons reasons={profile.compatibilityReasons} />
         </div>
       )}
-      <dl className="library-facts">
-        <div>
-          <dt>Standards</dt>
-          <dd>
-            {profile.standards.length === 0
-              ? "None"
-              : profile.standards
-                  .map((standard) => `${standard.scheme}@${standard.version}`)
-                  .join(", ")}
-          </dd>
-        </div>
-        <div>
-          <dt>Time limit</dt>
-          <dd>{formatTimeLimit(profile.execution.deadlineSeconds)}</dd>
-        </div>
-        <div>
-          <dt>Active tests</dt>
-          <dd>{wordOf(ACTIVE_TESTS, interaction.activeChecks)}</dd>
-        </div>
-        <div>
-          <dt>Possible issues</dt>
-          <dd>{wordOf(POSSIBLE_ISSUES, interaction.findingConfirmation)}</dd>
-        </div>
-        <div>
-          <dt>Applicability</dt>
-          <dd>{wordOf(NOT_APPLICABLE, interaction.notApplicable)}</dd>
-        </div>
-        <div>
-          <dt>Report</dt>
-          <dd>{wordOf(REPORT_ACCEPTANCE, interaction.reportAcceptance)}</dd>
-        </div>
-      </dl>
+      <Facts
+        items={[
+          {
+            term: "Standards",
+            value:
+              profile.standards.length === 0
+                ? "None"
+                : profile.standards
+                    .map((standard) => `${standard.scheme}@${standard.version}`)
+                    .join(", "),
+          },
+          {
+            term: "Time limit",
+            value: formatTimeLimit(profile.execution.deadlineSeconds),
+          },
+          {
+            term: "Active tests",
+            value: wordOf(ACTIVE_TESTS, interaction.activeChecks),
+          },
+          {
+            term: "Possible issues",
+            value: wordOf(POSSIBLE_ISSUES, interaction.findingConfirmation),
+          },
+          {
+            term: "Applicability",
+            value: wordOf(NOT_APPLICABLE, interaction.notApplicable),
+          },
+          {
+            term: "Report",
+            value: wordOf(REPORT_ACCEPTANCE, interaction.reportAcceptance),
+          },
+        ]}
+      />
       <CheckTypeItems profile={profile} kind={kind} />
       <CheckTypeInputs profile={profile} />
       <CheckTypeWorkflows profile={profile} />
@@ -436,20 +431,13 @@ export function AuditPresetDetailRoute() {
               }
               actions={
                 <>
-                  <Link
-                    className="ui-btn"
-                    to="/catalog/studio?kind=AuditProfile"
-                  >
+                  <ButtonLink to="/catalog/studio?kind=AuditProfile">
                     Open Node Studio
-                  </Link>
+                  </ButtonLink>
                   {profile?.serverCompatible ? (
-                    <Link
-                      className="ui-btn"
-                      data-variant="primary"
-                      to={startCheckPath(name)}
-                    >
+                    <ButtonLink variant="primary" to={startCheckPath(name)}>
                       Start a check with this type
-                    </Link>
+                    </ButtonLink>
                   ) : null}
                 </>
               }
@@ -462,11 +450,10 @@ export function AuditPresetDetailRoute() {
             <QueryView
               query={query}
               loading={
-                <p className="library-muted" role="status">
+                <p className="ui-caption" role="status">
                   Loading check type…
                 </p>
               }
-              onRetry={() => void query.refetch()}
             >
               {(data) => <CheckTypeContents key={selector} profile={data} />}
             </QueryView>

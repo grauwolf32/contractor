@@ -11,8 +11,8 @@ import {
   formatTimestamp,
 } from "../../../app/format";
 import { QueryView } from "../../../app/query-view";
-import { DetailHeader, IdChip } from "../../../ui";
-import { Glance, ScopeChip } from "../common";
+import { DetailHeader, Facts, IdChip } from "../../../ui";
+import { FactRows, ScopeChip } from "../common";
 
 const FIELD_LABELS: Record<string, string> = {
   gatewayId: "Gateway ID",
@@ -60,16 +60,13 @@ function ConfigValue({ name, value }: { name: string; value: unknown }) {
 function ConfigFields({ record }: { record: Record<string, unknown> }) {
   return (
     <div className="ops-facts-frame">
-      <dl className="ops-facts">
-        {Object.entries(record).map(([key, value]) => (
-          <div key={key}>
-            <dt>{fieldLabel(key)}</dt>
-            <dd>
-              <ConfigValue name={key} value={value} />
-            </dd>
-          </div>
-        ))}
-      </dl>
+      <FactRows
+        items={Object.entries(record).map(([key, value]) => ({
+          key,
+          term: fieldLabel(key),
+          value: <ConfigValue name={key} value={value} />,
+        }))}
+      />
     </div>
   );
 }
@@ -80,7 +77,7 @@ function OptionalBlock({ title, value }: { title: string; value: unknown }) {
     <article className="ops-panel">
       <h3 className="ops-panel-title">{title}</h3>
       {value === null ? (
-        <p className="ops-note">
+        <p className="ui-caption">
           Explicitly clears the lower-precedence block.
         </p>
       ) : (
@@ -120,27 +117,33 @@ export function RuntimeConfigDetailRoute() {
             Loading RuntimeConfig…
           </p>
         }
-        onRetry={() => void query.refetch()}
       >
         {(data) => (
           <>
-            <Glance
-              label="Version identity"
+            <Facts
+              className="ops-glance"
+              aria-label="Version identity"
               items={[
-                [
-                  "Digest",
-                  <IdChip
-                    key="digest"
-                    value={data.ref.digest}
-                    display={compactDigest(data.ref.digest)}
-                    label="RuntimeConfig digest"
-                  />,
-                ],
-                ["Source", data.builtIn ? "built-in" : data.createdBy],
-                [
-                  "Created",
-                  data.builtIn ? "Built-in" : formatTimestamp(data.createdAt),
-                ],
+                {
+                  term: "Digest",
+                  value: (
+                    <IdChip
+                      value={data.ref.digest}
+                      display={compactDigest(data.ref.digest)}
+                      label="RuntimeConfig digest"
+                    />
+                  ),
+                },
+                {
+                  term: "Source",
+                  value: data.builtIn ? "built-in" : data.createdBy,
+                },
+                {
+                  term: "Created",
+                  value: data.builtIn
+                    ? "Built-in"
+                    : formatTimestamp(data.createdAt),
+                },
               ]}
             />
             <div className="ops-block-grid">

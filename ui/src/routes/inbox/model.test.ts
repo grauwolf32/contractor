@@ -5,8 +5,9 @@ import type {
   CrossProjectCheck,
   CrossProjectReport,
 } from "../../api/cross-project";
-import type { RunStatus, RunSummary } from "../../api/runs";
-import { auditFixture, projectFixture } from "../../test/shell-harness";
+import type { RunSummary } from "../../api/runs";
+import * as build from "../../test/builders";
+import { runStatus } from "../../test/builders-execution";
 import {
   buildInbox,
   finishedRecently,
@@ -15,15 +16,18 @@ import {
   moreRecentRunsMayFollow,
   nextToDecide,
   parseRefKey,
-  RECENT_MS,
   recentRuns,
   refKey,
   rowIndex,
-  type InboxInput,
 } from "./model";
 import { checkProgress, primaryOutput } from "./present";
 
 const NOW = Date.parse("2026-10-07T12:00:00Z");
+
+/** The Inbox's "recent" window: the last 7 days. */
+const RECENT_MINUTES = 7 * 24 * 60;
+
+type InboxInput = Parameters<typeof buildInbox>[0];
 
 function ago(minutes: number): string {
   return new Date(NOW - minutes * 60_000).toISOString();
@@ -35,8 +39,8 @@ function check(
   overrides: Partial<Audit> = {},
 ): CrossProjectCheck {
   return {
-    project: projectFixture("project_a", { name: "Shop" }),
-    audit: { ...auditFixture("project_a", auditId, state), ...overrides },
+    project: build.project("project_a", { name: "Shop" }),
+    audit: build.audit("project_a", auditId, state, overrides),
   };
 }
 
@@ -45,7 +49,7 @@ function run(
   state: RunSummary["state"],
   minutes: number,
 ): RunSummary {
-  return {
+  return build.conforming("RunSummary", {
     runId,
     workflow: "review@1",
     state,
@@ -54,25 +58,17 @@ function run(
     createdAt: ago(minutes + 1),
     updatedAt: ago(minutes),
     finishedAt: ago(minutes),
-  };
+  });
 }
 
+/** Counters of an active check: four items, one done, `gaps` uncertain. */
 function workspace(auditId: string, gaps: number): AuditWorkspace {
-  return {
-    auditId,
-    auditRevision: 1,
-    asOf: ago(0),
-    executionState: "active",
-    outstandingRuns: 0,
+  return build.workspace(build.audit("project_a", auditId, "active"), {
     totalChecks: 4,
     completedChecks: 1,
-    issues: 0,
     gaps,
     unchecked: 3 - gaps,
-    findings: 0,
-    unreviewedFindings: 0,
-    pendingReviews: 0,
-  };
+  });
 }
 
 function input(overrides: Partial<InboxInput> = {}): InboxInput {
@@ -155,7 +151,7 @@ describe("Inbox sections", () => {
     const failed = recentRuns(
       [
         run("run_new", "failed", 10),
-        run("run_old", "failed", RECENT_MS / 60_000 + 10),
+        run("run_old", "failed", RECENT_MINUTES + 10),
       ],
       NOW,
     );
@@ -183,7 +179,7 @@ describe("Inbox sections", () => {
     const done = check("audit_done", "completed", { finishedAt: ago(5) });
     const report: CrossProjectReport = {
       ...done,
-      report: { status: "ready", summary: "# Report" },
+      report: build.report("audit_done", "ready", { summary: "# Report" }),
     };
     const model = buildInbox(
       input({
@@ -214,7 +210,7 @@ describe("Inbox sections", () => {
 
   it("knows when recent Runs may continue on the Server's next page", () => {
     const recent = [run("run_a", "failed", 10), run("run_b", "failed", 20)];
-    const old = run("run_old", "failed", RECENT_MS / 60_000 + 10);
+    const old = run("run_old", "failed", RECENT_MINUTES + 10);
     // A full page of recent Runs: the next page may hold more of them.
     expect(moreRecentRunsMayFollow(recent, true, NOW)).toBe(true);
     // The page reaches past the 7 days, or it is the last page.
@@ -241,7 +237,7 @@ describe("Inbox sections", () => {
 
   it("lists a waiting Run only once the Server says it needs a retry", () => {
     // A waiting Run has not ended.
-    const waiting: RunSummary = {
+    const waiting = build.conforming("RunSummary", {
       runId: "run_wait",
       workflow: "review@1",
       state: "waiting",
@@ -249,17 +245,18 @@ describe("Inbox sections", () => {
       labels: {},
       createdAt: ago(2),
       updatedAt: ago(1),
-    };
+    });
     const status = (requiresRetry: boolean) =>
-      ({
-        runId: "run_wait",
+      runStatus("run_wait", {
+        workflow: "review@1",
+        state: "waiting",
         recovery: {
           code: "model_unavailable",
           since: ago(5),
           automaticUntil: ago(1),
           requiresRetry,
         },
-      }) as RunStatus;
+      });
     const automatic = buildInbox(
       input({
         waitingRuns: [waiting],
@@ -338,11 +335,12 @@ describe("Inbox words", () => {
   });
 
   it("never picks a file when no primary output is declared", () => {
-    const status = {
+    const status = runStatus("run_1", {
+      workflow: "review@1",
       outputs: {
         log: { namespace: "outputs", name: "log", revision: "r1" },
       },
-    } as unknown as RunStatus;
+    });
     const declared = (primary: boolean) =>
       new Map([
         [
@@ -359,7 +357,7 @@ describe("Inbox words", () => {
     expect(
       primaryOutput(
         { workflow: "review@1" },
-        { outputs: {} } as unknown as RunStatus,
+        runStatus("run_1", { workflow: "review@1" }),
         false,
         declared(true),
       ),

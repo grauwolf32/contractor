@@ -1,4 +1,5 @@
 import { DIGEST } from "../../api/contract";
+import { Facts } from "../../ui";
 
 const SCAN_TOOLS = new Set([
   "scan_nuclei",
@@ -144,40 +145,43 @@ export function ScanReportSummary({ source }: { source: string }) {
   return (
     <section className="materials-scan" aria-label="Scanner execution">
       <h3 className="materials-subtitle">Scanner execution</h3>
-      <dl className="materials-facts">
-        <div>
-          <dt>Tool</dt>
-          <dd>{report.tool}</dd>
-        </div>
-        <div>
-          <dt>Technical outcome</dt>
-          <dd>{executionStatus(report.tool, observation)}</dd>
-        </div>
-        {typeof observation.errorCode === "string" ? (
-          <div>
-            <dt>Error code</dt>
-            <dd>{observation.errorCode}</dd>
-          </div>
-        ) : null}
-        {Array.isArray(observation.results) ? (
-          <div>
-            <dt>Reported items</dt>
-            <dd>{observation.results.length}</dd>
-          </div>
-        ) : null}
-        {report.tool === "scan_katana" &&
-        isRecord(observation.coverage) &&
-        Array.isArray(observation.coverage.limitations) &&
-        observation.coverage.limitations.every(
-          (reason) => typeof reason === "string",
-        ) ? (
-          <div>
-            <dt>Discovery limitations</dt>
-            <dd>{observation.coverage.limitations.join(", ")}</dd>
-          </div>
-        ) : null}
-      </dl>
-      <p className="materials-quiet">
+      <Facts
+        layout="row"
+        className="materials-facts"
+        items={[
+          { term: "Tool", value: report.tool },
+          {
+            term: "Technical outcome",
+            value: executionStatus(report.tool, observation),
+          },
+          {
+            term: "Error code",
+            value:
+              typeof observation.errorCode === "string"
+                ? observation.errorCode
+                : undefined,
+          },
+          {
+            term: "Reported items",
+            value: Array.isArray(observation.results)
+              ? observation.results.length
+              : undefined,
+          },
+          {
+            term: "Discovery limitations",
+            value:
+              report.tool === "scan_katana" &&
+              isRecord(observation.coverage) &&
+              Array.isArray(observation.coverage.limitations) &&
+              observation.coverage.limitations.every(
+                (reason) => typeof reason === "string",
+              )
+                ? observation.coverage.limitations.join(", ")
+                : undefined,
+          },
+        ]}
+      />
+      <p className="ui-caption">
         This describes scanner execution. A completed scan or an empty report
         does not establish that the target is free of vulnerabilities.
         {report.tool === "scan_katana"

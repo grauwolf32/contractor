@@ -10,7 +10,7 @@ import { ContextLink } from "../../app/context-navigation";
 import { ErrorNotice } from "../../app/error-notice";
 import { QueryView } from "../../app/query-view";
 import { RecordedTime } from "../../app/recorded-time";
-import { IdChip, StatusGlyph } from "../../ui";
+import { Button, IdChip, StatusGlyph } from "../../ui";
 import { artifactDetailPath } from "../artifacts/paths";
 import {
   organizeRunOutputs,
@@ -140,20 +140,15 @@ function RecentRunResult({
       ) : (
         <>
           {contract.error ? (
-            <p className="projects-caption">
+            <p className="ui-caption">
               Output roles unavailable.{" "}
-              <button
-                type="button"
-                className="ui-btn"
-                data-size="xs"
-                onClick={() => void contract.refetch()}
-              >
+              <Button size="xs" onClick={() => void contract.refetch()}>
                 Retry output roles
-              </button>
+              </Button>
             </p>
           ) : null}
           {shown.length === 0 ? (
-            <p className="projects-caption">No output published by this Run.</p>
+            <p className="ui-caption">No output published by this Run.</p>
           ) : (
             <ul role="list" className="projects-outputs">
               {shown.map((entry) => (
@@ -185,7 +180,7 @@ function RecentRunResult({
                       </span>
                     </ContextLink>
                   ) : (
-                    <p className="projects-caption">
+                    <p className="ui-caption">
                       {entry.kind === "primary" ? "Primary result" : "Output"}{" "}
                       <code>{entry.slot}</code> was not published.
                     </p>
@@ -219,7 +214,7 @@ export function RecentResults({
           Successful Runs
         </Link>
       </div>
-      <p className="projects-caption">
+      <p className="ui-caption">
         Outputs of the three most recent successful Runs.
       </p>
       <QueryView
@@ -232,7 +227,7 @@ export function RecentResults({
         onRetry={() => void results.refetch()}
         isEmpty={(data) => data.items.length === 0}
         empty={
-          <p className="projects-caption">
+          <p className="ui-caption">
             No successful Runs yet. Published results appear here.
           </p>
         }
@@ -278,7 +273,7 @@ export function RecentRuns({
         onRetry={() => void runs.refetch()}
         isEmpty={(data) => data.items.length === 0}
         empty={
-          <p className="projects-caption">
+          <p className="ui-caption">
             No Runs yet. Checks and Workflows start Runs.
           </p>
         }

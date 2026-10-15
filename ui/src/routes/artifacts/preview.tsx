@@ -12,6 +12,7 @@ import {
   type ArtifactMetadata,
 } from "../../api/artifacts";
 import { ErrorNotice } from "../../app/error-notice";
+import { Button } from "../../ui";
 import { ArchivePreviewPanel } from "./archive-preview";
 import { LoadedArtifactPreview } from "./loaded-preview";
 import "./materials.css";
@@ -102,31 +103,29 @@ function TextArtifactPreviewPanel({
           Preview
         </Title>
         {!canPreview && automatic ? null : (
-          <button
-            className="ui-btn"
-            data-size="sm"
-            type="button"
-            disabled={!canPreview || pending}
+          <Button
+            size="sm"
+            disabled={!canPreview}
+            pending={pending}
+            pendingLabel="Loading…"
             onClick={requestPreview}
           >
-            {pending
-              ? "Loading…"
-              : data === undefined
-                ? automatic
-                  ? "Retry preview"
-                  : "Load preview"
-                : "Reload preview"}
-          </button>
+            {data === undefined
+              ? automatic
+                ? "Retry preview"
+                : "Load preview"
+              : "Reload preview"}
+          </Button>
         )}
       </div>
       {canPreview ? (
-        <p className="materials-quiet">
+        <p className="ui-caption">
           {automatic
             ? "Text files up to 256 KiB are shown here."
             : "Text files up to 256 KiB. The preview loads only when you ask for it."}
         </p>
       ) : (
-        <p className="materials-quiet materials-unavailable">
+        <p className="ui-caption">
           {metadata.mediaType === HTTP_EXCHANGE_MEDIA_TYPE &&
           metadata.size > MAXIMUM_PREVIEW_BYTES
             ? "This HTTP exchange exceeds the 256 KiB preview limit. Download this revision to inspect the complete saved request and available response."

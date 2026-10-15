@@ -1,14 +1,34 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  describeStopReason,
-  STOP_REASON_CODES,
-  stopReasonTone,
-} from "./stop-reason";
+import { describeStopReason, stopReasonTone } from "./stop-reason";
+
+/** The Audit stop reason codes of internal/auditcontroller. */
+const STOP_REASON_CODES = [
+  "deadline_exhausted",
+  "round_complete",
+  "cancel_requested",
+  "delete_requested",
+  "project_deleting",
+  "report_rejected",
+  "report_acceptance_expired",
+  "submission_budget_exhausted",
+  "item_budget_exhausted",
+  "item_attempt_budget_exhausted",
+  "round_budget_exhausted",
+  "role_attempt_budget_exhausted",
+  "proposal_scan_budget_exhausted",
+  "proposal_inventory_limit_exceeded",
+  "next_round_contract_invalid",
+  "controller_contract_invalid",
+  "dispatch_contract_invalid",
+  "role_contract_invalid",
+  "role_dispatch_contract_invalid",
+  "role_dependency_unresolved",
+  "role_execution_not_retryable",
+];
 
 describe("stop reasons", () => {
   it("explains every code the Server sends in one plain sentence", () => {
-    expect(STOP_REASON_CODES).toHaveLength(21);
     for (const code of STOP_REASON_CODES) {
       const stop = describeStopReason({
         state: "completed",

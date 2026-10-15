@@ -1,42 +1,40 @@
-import { act, render, screen, waitFor, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { createMemoryRouter } from "react-router";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { act, screen, waitFor, within } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 
-import { PublicAPI } from "../../api/client";
-import type { RunStatus } from "../../api/runs";
-import { Application } from "../../app/application";
+import type {
+  PlannerPlan,
+  RunStatus,
+  RunSummary,
+  StageAttempt,
+} from "../../api/runs";
 import * as queryClientFactory from "../../app/query-client";
-import { applicationRoutes } from "../../app/router";
-import type { RuntimeConfig } from "../../config/runtime-config";
-import { RunEventsManager } from "../../events/run-events";
-import { workflowResource } from "../../test/builders-execution";
+import { conforming, DIGEST } from "../../test/builders";
+import {
+  runStatus,
+  stageAttempt,
+  workflowResource,
+} from "../../test/builders-execution";
+import {
+  API_VERSION_HEADERS,
+  conflict,
+  emptyPageOrNotFound,
+  failure,
+  fakeServer,
+  json,
+  noContent,
+  page,
+  type Routes,
+} from "../../test/fake-server";
+import { CSRF_TOKEN } from "../../test/render";
+import { FakeEventSocket, renderApplication, SIGNED_IN } from "./test-support";
 
-const runtimeConfig: RuntimeConfig = {
-  uiVersion: "0.1.0",
-  supportedApiVersions: ["contractor.public.v1"],
-  apiBaseUrl: "http://127.0.0.1:8080",
-};
-
-const digest = `sha256:${"1".repeat(64)}`;
-const session = {
-  principal: {
-    userId: "user_local",
-    username: "owner",
-    capabilities: ["user", "operations"] as const,
-  },
-  csrfToken: "a".repeat(43),
-  idleExpiresAt: "2026-08-31T20:00:00Z",
-  absoluteExpiresAt: "2026-09-01T12:00:00Z",
-};
-
-const executionConfig = {
-  variant: "failed_escalation" as const,
+const executionConfig: StageAttempt["executionConfig"] = {
+  variant: "failed_escalation",
   escalationOrdinal: 1,
-  ref: { configId: "strong-review", version: "2", digest },
+  ref: { configId: "strong-review", version: "2", digest: DIGEST },
   planner: {
-    modelPolicy: { policyId: "planner-strong", version: "2", digest },
-    llmGateway: { gatewayId: "local", version: "1", digest },
+    modelPolicy: { policyId: "planner-strong", version: "2", digest: DIGEST },
+    llmGateway: { gatewayId: "local", version: "1", digest: DIGEST },
     credential: { credentialId: "planner-budget" },
     origins: {
       modelPolicy: "executionConfig:strong-review@2",
@@ -46,8 +44,8 @@ const executionConfig = {
   },
   agents: {
     reviewer: {
-      modelPolicy: { policyId: "worker-strong", version: "2", digest },
-      llmGateway: { gatewayId: "local", version: "1", digest },
+      modelPolicy: { policyId: "worker-strong", version: "2", digest: DIGEST },
+      llmGateway: { gatewayId: "local", version: "1", digest: DIGEST },
       credential: { credentialId: "worker-budget" },
       origins: {
         modelPolicy: "executionConfig:strong-review@2",
@@ -58,206 +56,166 @@ const executionConfig = {
   },
 };
 
-const basePlan = {
+const basePlan: PlannerPlan = {
   revision: 1,
   subtasks: [
     {
       id: "0",
       objective: "Inspect the source tree",
       instructions: "Use bounded source search.",
-      status: "pending" as const,
+      status: "pending",
     },
   ],
   currentSubtaskId: "0",
 };
 
-type RunOverrides = Omit<
-  Partial<RunStatus>,
-  "eventCursor" | "activeStageExecutionId"
-> & {
-  eventCursor?: RunStatus["eventCursor"] | undefined;
-  activeStageExecutionId?: RunStatus["activeStageExecutionId"] | undefined;
-};
+/** Overrides in which `undefined` removes the member. */
+type RunOverrides = { [K in keyof RunStatus]?: RunStatus[K] | undefined };
 
+/** The running analysis attempt of the default Run. */
+const RUNNING_ATTEMPT = stageAttempt("stage-router-1", {
+  stage: "analysis",
+  objective: "Produce a global architecture review.",
+  executionConfig,
+  state: "running",
+  plan: basePlan,
+  createdAt: "2026-08-31T12:00:00Z",
+  updatedAt: "2026-08-31T12:01:00Z",
+  plannerStartedAt: "2026-08-31T12:00:01Z",
+});
+
+/**
+ * Run "run-router" of router-analysis@1, running its first attempt with a
+ * live event cursor, unless overridden; an override of `undefined` removes
+ * the member.
+ */
 function runFixture(overrides: RunOverrides = {}): RunStatus {
-  const result: RunStatus = {
-    runId: "run-router",
+  const run: Record<string, unknown> = {
     workflow: "router-analysis@1",
     state: "running",
     deletable: false,
-    runtimeLabels: [],
     labels: {
       "eval.id": "eval-router-01",
       "eval.leg": "a",
       purpose: "eval",
     },
-    runtimeConfiguration: {
-      default: {
-        label: "default",
-        bindingRevision: "1",
-        config: {
-          name: "contractor-empty",
-          version: "1",
-          digest:
-            "sha256:80a1754c01f8443c29fdc8f650a2254b2461694819918b204a55a7ad3425dc5f",
-        },
-      },
-      labels: [],
-    },
     parameters: { objective: "Review the project architecture" },
     inputs: {
-      source: {
-        namespace: "inputs",
-        name: "source",
-        revision: "input-r1",
-      },
+      source: { namespace: "inputs", name: "source", revision: "input-r1" },
     },
-    attempts: [
-      {
-        stageExecutionId: "stage-router-1",
-        stage: "analysis",
-        objective: "Produce a global architecture review.",
-        attempt: 1,
-        executionConfig,
-        state: "running",
-        plan: basePlan,
-        createdAt: "2026-08-31T12:00:00Z",
-        updatedAt: "2026-08-31T12:01:00Z",
-        plannerStartedAt: "2026-08-31T12:00:01Z",
-      },
-    ],
-    transitions: [],
-    outputs: {},
-    outputPublications: [],
+    attempts: [RUNNING_ATTEMPT],
     eventCursor: { generation: "run-generation-1", sequence: "10" },
     activeStageExecutionId: "stage-router-1",
     createdAt: "2026-08-31T12:00:00Z",
     updatedAt: "2026-08-31T12:01:00Z",
     startedAt: "2026-08-31T12:00:00Z",
+    ...overrides,
   };
-  Object.assign(result, overrides);
-  if (
-    Object.prototype.hasOwnProperty.call(overrides, "eventCursor") &&
-    overrides.eventCursor === undefined
-  ) {
-    delete result.eventCursor;
+  for (const [key, value] of Object.entries(run)) {
+    if (value === undefined) delete run[key];
   }
-  if (
-    Object.prototype.hasOwnProperty.call(overrides, "activeStageExecutionId") &&
-    overrides.activeStageExecutionId === undefined
-  ) {
-    delete result.activeStageExecutionId;
-  }
-  return result;
+  return runStatus("run-router", run as Partial<RunStatus>);
 }
 
-function apiResponse(value: unknown, options: ResponseInit = {}): Response {
-  const headers = new Headers(options.headers);
-  headers.set("content-type", "application/json");
-  headers.set("X-Contractor-API-Version", "contractor.public.v1");
-  return new Response(JSON.stringify(value), { ...options, headers });
+/** The list item of a terminal Run. */
+function summary(
+  runId: string,
+  overrides: Partial<RunSummary> = {},
+): RunSummary {
+  return conforming("RunSummary", {
+    runId,
+    workflow: "router-analysis@1",
+    state: "succeeded",
+    deletable: true,
+    labels: {},
+    createdAt: "2026-08-31T12:00:00Z",
+    updatedAt: "2026-08-31T12:01:00Z",
+    ...overrides,
+  });
 }
 
-function byteResponse(value: string, mediaType: string): Response {
+/** Exact Artifact metadata of a Run. */
+function artifactMetadata(
+  artifact: { namespace: string; name: string; revision: string },
+  mediaType = "text/plain",
+  size = 12,
+) {
+  return conforming("ArtifactMetadata", {
+    artifact,
+    mediaType,
+    size,
+    current: true,
+    frozen: true,
+    createdAt: "2026-08-31T12:05:00Z",
+  });
+}
+
+// V385: needs shared byte response helper (src/test/fake-server.ts).
+function bytes(value: string, mediaType: string): Response {
   return new Response(value, {
     headers: {
       "content-type": mediaType,
       "content-length": String(new TextEncoder().encode(value).byteLength),
-      "X-Contractor-API-Version": "contractor.public.v1",
+      ...API_VERSION_HEADERS,
     },
   });
 }
 
-class RouteWebSocket {
-  static instances: RouteWebSocket[] = [];
+/** The signed-in owner and the Run's empty Artifact library. */
+const RUN_PAGE: Routes = {
+  ...SIGNED_IN,
+  "GET /v1/runs/{runId}/artifacts": () => json(page([])),
+};
 
-  protocol = "contractor.events.v1";
-  readyState = 0;
-  sent: string[] = [];
-  onopen: ((event: Event) => unknown) | null = null;
-  onmessage: ((event: MessageEvent) => unknown) | null = null;
-  onerror: ((event: Event) => unknown) | null = null;
-  onclose: ((event: CloseEvent) => unknown) | null = null;
-
-  constructor(
-    readonly url: string | URL,
-    readonly protocols?: string | string[],
-  ) {
-    RouteWebSocket.instances.push(this);
-  }
-
-  send(value: string): void {
-    this.sent.push(value);
-  }
-
-  close(code?: number): void {
-    this.readyState = 3;
-    this.onclose?.({ code: code ?? 1000 } as CloseEvent);
-  }
-
-  open(): void {
-    this.readyState = 1;
-    this.onopen?.(new Event("open"));
-  }
-
-  message(value: unknown): void {
-    this.onmessage?.({ data: JSON.stringify(value) } as MessageEvent);
-  }
+/** The Run page of `run()`, read again on every request. */
+function runServer(run: () => RunStatus, routes: Routes = {}) {
+  return fakeServer({
+    ...RUN_PAGE,
+    "GET /v1/runs/{runId}": () => json(run()),
+    ...routes,
+  });
 }
 
-function renderRunApplication(api: PublicAPI, path: string) {
-  const router = createMemoryRouter(applicationRoutes(), {
-    initialEntries: [path],
-  });
-  const events = new RunEventsManager(runtimeConfig.apiBaseUrl, {
-    WebSocketImplementation: RouteWebSocket as unknown as typeof WebSocket,
-  });
+/** How often the Run page read the Run. */
+function runReads(view: ReturnType<typeof renderApplication>): number {
+  return view.sent("GET", "/v1/runs/run-router").length;
+}
+
+/** Opens the Run's event stream and acknowledges its subscription. */
+async function subscribe() {
+  await waitFor(() => expect(FakeEventSocket.instances).toHaveLength(1));
+  const socket = FakeEventSocket.instances[0]!;
+  act(() => socket.open());
+  const subscription = JSON.parse(socket.sent[0] ?? "{}");
+  act(() =>
+    socket.message({
+      version: "contractor.events.v1",
+      type: "subscribed",
+      subscriptionId: subscription.subscriptionId,
+      stream: { kind: "run", id: "run-router" },
+      cursor: subscription.after,
+    }),
+  );
   return {
-    ...render(
-      <Application
-        api={api}
-        publicAPI={api}
-        runEvents={events}
-        router={router}
-      />,
-    ),
-    router,
-    events,
+    socket,
+    subscription,
+    /** An event frame of the Run's stream at `sequence`. */
+    frame: (sequence: string, occurredAt = "2026-08-31T12:02:00Z") => ({
+      version: "contractor.events.v1",
+      type: "event",
+      subscriptionId: subscription.subscriptionId,
+      stream: { kind: "run", id: "run-router" },
+      cursor: { generation: "run-generation-1", sequence },
+      occurredAt,
+    }),
   };
 }
 
-function notInFixture(): Response {
-  return apiResponse(
-    {
-      code: "not_found",
-      message: "Not in this fixture",
-      retryable: false,
-      requestId: "request_test",
-    },
-    { status: 404 },
-  );
-}
-
-function sessionOrArtifacts(request: Request): Response | undefined {
-  const url = new URL(request.url);
-  if (url.pathname === "/v1/auth/session") {
-    return apiResponse(session);
-  }
-  if (url.pathname === "/v1/runs/run-router/artifacts") {
-    return apiResponse({ items: [], page: { hasMore: false } });
-  }
-  return undefined;
-}
-
-beforeEach(() => {
-  RouteWebSocket.instances = [];
-});
-
 describe("Run routes", () => {
   it("keeps attempt and Planner disclosures through lifecycle refetches and Refresh", async () => {
-    const first = { ...runFixture().attempts[0]!, state: "failed" as const };
+    const first = { ...RUNNING_ATTEMPT, state: "failed" as const };
     const second = {
-      ...runFixture().attempts[0]!,
+      ...RUNNING_ATTEMPT,
       stageExecutionId: "stage-router-2",
       attempt: 2,
     };
@@ -265,34 +223,11 @@ describe("Run routes", () => {
       attempts: [first, second],
       activeStageExecutionId: "stage-router-2",
     });
-    let detailReads = 0;
-    const api = new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const request = input instanceof Request ? input : new Request(input);
-        const shared = sessionOrArtifacts(request);
-        if (shared !== undefined) return shared;
-        if (new URL(request.url).pathname === "/v1/runs/run-router") {
-          detailReads += 1;
-          return apiResponse(currentRun);
-        }
-        throw new Error(`unexpected ${request.method} ${request.url}`);
-      }),
+    const view = renderApplication(
+      runServer(() => currentRun),
+      "/runs/run-router",
     );
-    const view = renderRunApplication(api, "/runs/run-router");
-    await waitFor(() => expect(RouteWebSocket.instances).toHaveLength(1));
-    const socket = RouteWebSocket.instances[0]!;
-    act(() => socket.open());
-    const subscription = JSON.parse(socket.sent[0] ?? "{}");
-    act(() =>
-      socket.message({
-        version: "contractor.events.v1",
-        type: "subscribed",
-        subscriptionId: subscription.subscriptionId,
-        stream: { kind: "run", id: "run-router" },
-        cursor: subscription.after,
-      }),
-    );
+    const { socket, frame } = await subscribe();
     const attempt = (id: string) =>
       view.container.querySelector<HTMLDetailsElement>(`#attempt-${id}`)!;
     const instructions = (id: string) =>
@@ -301,7 +236,7 @@ describe("Run routes", () => {
       )!;
     await waitFor(() => expect(attempt("stage-router-2").open).toBe(true));
     expect(attempt("stage-router-1").open).toBe(false);
-    const user = userEvent.setup();
+    const user = view.user;
     await user.click(attempt("stage-router-1").querySelector("summary")!);
     await user.click(instructions("stage-router-2").querySelector("summary")!);
     await user.click(attempt("stage-router-2").querySelector("summary")!);
@@ -315,25 +250,19 @@ describe("Run routes", () => {
       stageExecutionId: "stage-router-3",
       attempt: 3,
     };
-    currentRun = {
-      ...currentRun,
+    currentRun = runFixture({
       attempts: [first, { ...second, state: "failed" }, third],
       activeStageExecutionId: "stage-router-3",
       eventCursor: { generation: "run-generation-1", sequence: "11" },
-    };
+    });
     act(() =>
       socket.message({
-        version: "contractor.events.v1",
-        type: "event",
-        subscriptionId: subscription.subscriptionId,
-        stream: { kind: "run", id: "run-router" },
-        cursor: { generation: "run-generation-1", sequence: "11" },
+        ...frame("11"),
         kind: "lifecycle.changed",
-        occurredAt: "2026-08-31T12:02:00Z",
         data: { runId: "run-router", resource: "run", state: "running" },
       }),
     );
-    await waitFor(() => expect(detailReads).toBeGreaterThan(1));
+    await waitFor(() => expect(runReads(view)).toBeGreaterThan(1));
     await waitFor(() => expect(attempt("stage-router-3").open).toBe(true));
     expect(attempt("stage-router-1")).not.toBe(originalAttempt);
     expect(attempt("stage-router-1").open).toBe(true);
@@ -341,9 +270,11 @@ describe("Run routes", () => {
     expect(instructions("stage-router-2").open).toBe(true);
 
     const priorRefreshAttempt = attempt("stage-router-1");
-    await new Promise((resolve) => setTimeout(resolve, 5));
+    const readsBeforeRefresh = runReads(view);
     await user.click(screen.getByRole("button", { name: "Refresh" }));
-    await waitFor(() => expect(detailReads).toBeGreaterThan(2));
+    await waitFor(() =>
+      expect(runReads(view)).toBeGreaterThan(readsBeforeRefresh),
+    );
     await waitFor(() =>
       expect(attempt("stage-router-1")).not.toBe(priorRefreshAttempt),
     );
@@ -354,7 +285,6 @@ describe("Run routes", () => {
   });
 
   it("shows a waiting invocation and retries the model without a new stage", async () => {
-    let posts = 0;
     let current = runFixture({
       state: "waiting",
       recovery: {
@@ -364,24 +294,17 @@ describe("Run routes", () => {
         requiresRetry: true,
       },
     });
-    const api = new PublicAPI(runtimeConfig, async (input, init) => {
-      const request = new Request(input, init);
-      const common = sessionOrArtifacts(request);
-      if (common !== undefined) return common;
-      const path = new URL(request.url).pathname;
-      if (
-        path === "/v1/runs/run-router/retry-gateway" &&
-        request.method === "POST"
-      ) {
-        posts++;
-        expect(await request.json()).toEqual({});
-        current = runFixture();
-        return apiResponse({ runId: "run-router" }, { status: 202 });
-      }
-      if (path === "/v1/runs/run-router") return apiResponse(current);
-      throw new Error(`Unexpected request: ${request.method} ${path}`);
-    });
-    renderRunApplication(api, "/runs/run-router");
+    const view = renderApplication(
+      runServer(() => current, {
+        "POST /v1/runs/{runId}/retry-gateway": () => {
+          current = runFixture();
+          return json({ runId: "run-router" }, 202);
+        },
+      }),
+      "/runs/run-router",
+    );
+    const retries = () =>
+      view.sent("POST", "/v1/runs/run-router/retry-gateway");
     const retry = await screen.findByRole("button", {
       name: "Retry model connection",
     });
@@ -391,7 +314,7 @@ describe("Run routes", () => {
     expect(
       screen.queryByRole("button", { name: "Continue from failed stage" }),
     ).not.toBeInTheDocument();
-    const user = userEvent.setup();
+    const user = view.user;
     await user.click(retry);
     // Retry has its own confirmation, distinct from Continue and Repeat.
     const dialog = screen.getByRole("alertdialog", {
@@ -402,7 +325,7 @@ describe("Run routes", () => {
     );
     expect(dialog).toHaveTextContent("no new stage attempt starts");
     await user.click(within(dialog).getByRole("button", { name: "Not now" }));
-    expect(posts).toBe(0);
+    expect(retries()).toHaveLength(0);
     await waitFor(() => expect(retry).toHaveFocus());
 
     await user.click(retry);
@@ -419,100 +342,95 @@ describe("Run routes", () => {
       ).not.toBeInTheDocument(),
     );
     expect(screen.queryByRole("dialog")).toBeNull();
-    expect(posts).toBe(1);
+    expect(retries()).toHaveLength(1);
+    expect(await retries()[0]!.json()).toEqual({});
     expect(current.attempts).toHaveLength(1);
     await waitFor(() =>
       expect(screen.getByRole("heading", { level: 1 })).toHaveFocus(),
     );
   });
 
-  it("keeps refreshing unchanged recovery until manual retry is required", async () => {
-    const now = Date.now();
-    const automaticUntil = new Date(now + 3300).toISOString();
-    const waiting = runFixture({
-      state: "waiting",
-      recovery: {
+  it("reads a waiting Run when automatic recovery is due and slows down once a manual retry is required", async () => {
+    // Fake timers that also follow real time: the jumps below replace the
+    // seconds the polling waits, so no assertion depends on the wall clock.
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const now = Date.now();
+      const automaticUntil = new Date(now + 3_300).toISOString();
+      const recovery: NonNullable<RunStatus["recovery"]> = {
         code: "model_unavailable",
         since: new Date(now).toISOString(),
         nextRetryAt: new Date(now + 100).toISOString(),
         automaticUntil,
         requiresRetry: false,
-      },
-    });
-    let detailReads = 0;
-    let withoutRecovery = false;
-    const api = new PublicAPI(runtimeConfig, async (input, init) => {
-      const request = new Request(input, init);
-      const common = sessionOrArtifacts(request);
-      if (common !== undefined) return common;
-      const path = new URL(request.url).pathname;
-      if (path === "/v1/runs/run-router") {
-        detailReads++;
-        if (withoutRecovery)
-          return apiResponse({ ...waiting, recovery: undefined });
-        if (Date.now() >= Date.parse(automaticUntil)) {
-          return apiResponse({
-            ...waiting,
-            recovery: { ...waiting.recovery!, requiresRetry: true },
-          });
-        }
-        return apiResponse(waiting);
-      }
-      throw new Error(`Unexpected request: ${request.method} ${path}`);
-    });
-    renderRunApplication(api, "/runs/run-router");
-    expect(await screen.findByText(/Next recovery check:/)).toBeInTheDocument();
-    await waitFor(() => expect(detailReads).toBeGreaterThanOrEqual(2), {
-      timeout: 6000,
-    });
-    expect(
-      screen.queryByRole("button", { name: "Retry model connection" }),
-    ).not.toBeInTheDocument();
-    expect(
-      await screen.findByRole(
-        "button",
-        { name: "Retry model connection" },
-        { timeout: 9000 },
-      ),
-    ).toBeInTheDocument();
-    expect(detailReads).toBeGreaterThanOrEqual(3);
-    const readsAtRetry = detailReads;
-    await new Promise((resolve) => setTimeout(resolve, 2300));
-    expect(detailReads).toBe(readsAtRetry);
-
-    withoutRecovery = true;
-    await userEvent
-      .setup()
-      .click(screen.getByRole("button", { name: "Refresh" }));
-    await waitFor(() =>
+      };
+      // No event stream: only the polling rule reads the Run again.
+      const waiting = (value: RunStatus["recovery"]) =>
+        runFixture({
+          state: "waiting",
+          eventCursor: undefined,
+          recovery: value,
+        });
+      let withoutRecovery = false;
+      const view = renderApplication(
+        runServer(() =>
+          withoutRecovery
+            ? waiting(undefined)
+            : waiting({
+                ...recovery,
+                requiresRetry: Date.now() >= Date.parse(automaticUntil),
+              }),
+        ),
+        "/runs/run-router",
+      );
+      expect(
+        await screen.findByText(/Next recovery check:/),
+      ).toBeInTheDocument();
+      // The recovery check is due: the Run is read at least every 2 s.
+      await act(() => vi.advanceTimersByTimeAsync(2_000));
+      await waitFor(() => expect(runReads(view)).toBeGreaterThanOrEqual(2));
       expect(
         screen.queryByRole("button", { name: "Retry model connection" }),
-      ).not.toBeInTheDocument(),
-    );
-    const readsWithoutRecovery = detailReads;
-    await new Promise((resolve) => setTimeout(resolve, 2300));
-    expect(detailReads).toBe(readsWithoutRecovery);
-  }, 15000);
+      ).not.toBeInTheDocument();
+      // Automatic recovery ends without a Run event; the next read shows it.
+      await act(() => vi.advanceTimersByTimeAsync(2_000));
+      expect(
+        await screen.findByRole("button", { name: "Retry model connection" }),
+      ).toBeInTheDocument();
+      expect(runReads(view)).toBeGreaterThanOrEqual(3);
+      // A manual retry is required: the 2 s reads stop (the next one is
+      // 20 s away).
+      const readsAtRetry = runReads(view);
+      await act(() => vi.advanceTimersByTimeAsync(10_000));
+      expect(runReads(view)).toBe(readsAtRetry);
+
+      withoutRecovery = true;
+      await view.user.click(screen.getByRole("button", { name: "Refresh" }));
+      await waitFor(() =>
+        expect(
+          screen.queryByRole("button", { name: "Retry model connection" }),
+        ).not.toBeInTheDocument(),
+      );
+      const readsWithoutRecovery = runReads(view);
+      await act(() => vi.advanceTimersByTimeAsync(10_000));
+      expect(runReads(view)).toBe(readsWithoutRecovery);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 
   it("keeps a loaded Run visible when a background refetch fails", async () => {
     let fail = false;
-    const api = new PublicAPI(runtimeConfig, async (input, init) => {
-      const request = new Request(input, init);
-      const common = sessionOrArtifacts(request);
-      if (common !== undefined) return common;
-      const path = new URL(request.url).pathname;
-      if (path === "/v1/runs/run-router") {
-        if (fail) {
-          return apiResponse(
-            { error: { code: "unavailable", message: "Server unavailable" } },
-            { status: 503 },
-          );
-        }
-        return apiResponse(runFixture());
-      }
-      throw new Error(`Unexpected request: ${request.method} ${path}`);
-    });
-    renderRunApplication(api, "/runs/run-router");
+    const view = renderApplication(
+      fakeServer({
+        ...RUN_PAGE,
+        "GET /v1/runs/{runId}": () =>
+          fail
+            ? failure(503, "unavailable", "Server unavailable", true)
+            : json(runFixture()),
+      }),
+      "/runs/run-router",
+    );
     const stageHeading = {
       name: "Produce a global architecture review.",
     };
@@ -520,7 +438,7 @@ describe("Run routes", () => {
       await screen.findByRole("heading", stageHeading),
     ).toBeInTheDocument();
     fail = true;
-    await userEvent.setup().click(screen.getByLabelText("Refresh"));
+    await view.user.click(screen.getByLabelText("Refresh"));
     expect(
       await screen.findByText(/showing the last loaded data/i),
     ).toBeInTheDocument();
@@ -531,54 +449,47 @@ describe("Run routes", () => {
   });
 
   it("continues a failed stage only after confirmation and refreshes the authoritative Run", async () => {
-    let posts = 0;
-    let requestBody: unknown;
-    const failed = { ...runFixture().attempts[0]!, state: "failed" as const };
+    const failed = { ...RUNNING_ATTEMPT, state: "failed" as const };
     let current = runFixture({
       state: "failed",
       resumeStageExecutionId: failed.stageExecutionId,
       attempts: [failed],
       activeStageExecutionId: undefined,
     });
-    const api = new PublicAPI(runtimeConfig, async (input, init) => {
-      const request = new Request(input, init);
-      const common = sessionOrArtifacts(request);
-      if (common !== undefined) return common;
-      const path = new URL(request.url).pathname;
-      if (path === "/v1/runs/run-router/resume" && request.method === "POST") {
-        posts++;
-        requestBody = await request.json();
-        current = runFixture({
-          attempts: [
-            failed,
+    const view = renderApplication(
+      runServer(() => current, {
+        "POST /v1/runs/{runId}/resume": () => {
+          current = runFixture({
+            attempts: [
+              failed,
+              {
+                ...failed,
+                stageExecutionId: "stage-router-2",
+                previousExecutionId: failed.stageExecutionId,
+                attempt: 2,
+                state: "preparing",
+              },
+            ],
+            activeStageExecutionId: "stage-router-2",
+          });
+          return json(
             {
-              ...failed,
+              runId: "run-router",
+              sourceStageExecutionId: failed.stageExecutionId,
               stageExecutionId: "stage-router-2",
-              previousExecutionId: failed.stageExecutionId,
-              attempt: 2,
-              state: "preparing",
             },
-          ],
-          activeStageExecutionId: "stage-router-2",
-        });
-        return apiResponse(
-          {
-            runId: "run-router",
-            sourceStageExecutionId: failed.stageExecutionId,
-            stageExecutionId: "stage-router-2",
-          },
-          { status: 202 },
-        );
-      }
-      if (path === "/v1/runs/run-router") return apiResponse(current);
-      throw new Error(`Unexpected request: ${request.method} ${path}`);
-    });
-    renderRunApplication(api, "/runs/run-router");
-    const user = userEvent.setup();
+            202,
+          );
+        },
+      }),
+      "/runs/run-router",
+    );
+    const posts = () => view.sent("POST", "/v1/runs/run-router/resume");
+    const user = view.user;
     await user.click(
       await screen.findByRole("button", { name: "Continue from failed stage" }),
     );
-    expect(posts).toBe(0);
+    expect(posts()).toHaveLength(0);
     expect(
       screen.getByText(/may repeat external side effects/),
     ).toBeInTheDocument();
@@ -590,8 +501,10 @@ describe("Run routes", () => {
         screen.queryByRole("button", { name: "Continue from failed stage" }),
       ).not.toBeInTheDocument(),
     );
-    expect(posts).toBe(1);
-    expect(requestBody).toEqual({ stageExecutionId: "stage-router-1" });
+    expect(posts()).toHaveLength(1);
+    expect(await posts()[0]!.json()).toEqual({
+      stageExecutionId: "stage-router-1",
+    });
     // The new attempt comes only from the refetched Run, linked to its source.
     const continued = await waitFor(() => {
       const element = document.querySelector<HTMLElement>(
@@ -610,16 +523,10 @@ describe("Run routes", () => {
       state: "failed",
       activeStageExecutionId: undefined,
     });
-    const api = new PublicAPI(runtimeConfig, async (input, init) => {
-      const request = new Request(input, init);
-      return (
-        sessionOrArtifacts(request) ??
-        (new URL(request.url).pathname === "/v1/runs/run-router"
-          ? apiResponse(current)
-          : notInFixture())
-      );
-    });
-    renderRunApplication(api, "/runs/run-router");
+    renderApplication(
+      runServer(() => current),
+      "/runs/run-router",
+    );
     expect(
       await screen.findByText(/Continuation is unavailable/),
     ).toBeInTheDocument();
@@ -629,32 +536,19 @@ describe("Run routes", () => {
   });
 
   it("keeps a failed Run unchanged after a continuation conflict", async () => {
-    let gets = 0;
     const current = runFixture({
       state: "failed",
       resumeStageExecutionId: "stage-router-1",
       activeStageExecutionId: undefined,
     });
-    const api = new PublicAPI(runtimeConfig, async (input, init) => {
-      const request = new Request(input, init);
-      const common = sessionOrArtifacts(request);
-      if (common !== undefined) return common;
-      if (request.method === "POST")
-        return apiResponse(
-          {
-            code: "conflict",
-            message: "Run cannot be continued",
-            retryable: false,
-          },
-          { status: 409 },
-        );
-      if (new URL(request.url).pathname !== "/v1/runs/run-router")
-        return notInFixture();
-      gets++;
-      return apiResponse(current);
-    });
-    renderRunApplication(api, "/runs/run-router");
-    const user = userEvent.setup();
+    const view = renderApplication(
+      runServer(() => current, {
+        "POST /v1/runs/{runId}/resume": () =>
+          conflict("conflict", "Run cannot be continued"),
+      }),
+      "/runs/run-router",
+    );
+    const user = view.user;
     await user.click(
       await screen.findByRole("button", { name: "Continue from failed stage" }),
     );
@@ -667,7 +561,7 @@ describe("Run routes", () => {
     expect(
       await within(dialog).findByText("Run cannot be continued"),
     ).toBeInTheDocument();
-    await waitFor(() => expect(gets).toBeGreaterThan(1));
+    await waitFor(() => expect(runReads(view)).toBeGreaterThan(1));
     // The refusal stays in the confirmation; Back returns to the unchanged Run.
     await user.click(within(dialog).getByRole("button", { name: "Back" }));
     expect(
@@ -680,11 +574,7 @@ describe("Run routes", () => {
   });
 
   it("keeps a refused continuation on its own stage and never reopens it unasked", async () => {
-    const posts: unknown[] = [];
-    const analysis = {
-      ...runFixture().attempts[0]!,
-      state: "failed" as const,
-    };
+    const analysis = { ...RUNNING_ATTEMPT, state: "failed" as const };
     const review = {
       ...analysis,
       stageExecutionId: "stage-review-1",
@@ -699,34 +589,22 @@ describe("Run routes", () => {
         resumeStageExecutionId: attempt.stageExecutionId,
       });
     let current = failedAt(analysis);
-    const api = new PublicAPI(runtimeConfig, async (input, init) => {
-      const request = new Request(input, init);
-      const common = sessionOrArtifacts(request);
-      if (common !== undefined) return common;
-      const path = new URL(request.url).pathname;
-      if (path === "/v1/runs/run-router/resume" && request.method === "POST") {
-        posts.push(await request.json());
-        // Another tab continued the Run first: it is queued again.
-        current = runFixture({
-          state: "pending",
-          eventCursor: undefined,
-          activeStageExecutionId: undefined,
-          attempts: [analysis],
-        });
-        return apiResponse(
-          {
-            code: "conflict",
-            message: "The Run is no longer failed",
-            retryable: false,
-          },
-          { status: 409 },
-        );
-      }
-      if (path === "/v1/runs/run-router") return apiResponse(current);
-      throw new Error(`Unexpected request: ${request.method} ${path}`);
-    });
-    const view = renderRunApplication(api, "/runs/run-router");
-    const user = userEvent.setup();
+    const view = renderApplication(
+      runServer(() => current, {
+        "POST /v1/runs/{runId}/resume": () => {
+          // Another tab continued the Run first: it is queued again.
+          current = runFixture({
+            state: "pending",
+            eventCursor: undefined,
+            activeStageExecutionId: undefined,
+            attempts: [analysis],
+          });
+          return conflict("conflict", "The Run is no longer failed");
+        },
+      }),
+      "/runs/run-router",
+    );
+    const user = view.user;
     await user.click(
       await screen.findByRole("button", { name: "Continue from failed stage" }),
     );
@@ -774,11 +652,13 @@ describe("Run routes", () => {
     });
     expect(next).toHaveTextContent("Retry stage review?");
     expect(within(next).queryByText("The Run is no longer failed")).toBeNull();
-    expect(posts).toEqual([{ stageExecutionId: "stage-router-1" }]);
+    const posts = view.sent("POST", "/v1/runs/run-router/resume");
+    expect(await Promise.all(posts.map((post) => post.json()))).toEqual([
+      { stageExecutionId: "stage-router-1" },
+    ]);
   });
 
   it("keeps a refused model retry on its own recovery and never reopens it unasked", async () => {
-    let posts = 0;
     const waitingFor = (code: "model_unavailable" | "gateway_timeout") =>
       runFixture({
         state: "waiting",
@@ -791,32 +671,20 @@ describe("Run routes", () => {
         },
       });
     let current = waitingFor("model_unavailable");
-    const api = new PublicAPI(runtimeConfig, async (input, init) => {
-      const request = new Request(input, init);
-      const common = sessionOrArtifacts(request);
-      if (common !== undefined) return common;
-      const path = new URL(request.url).pathname;
-      if (
-        path === "/v1/runs/run-router/retry-gateway" &&
-        request.method === "POST"
-      ) {
-        posts++;
-        // The model came back and the Run resumed before this request.
-        current = runFixture({ eventCursor: undefined });
-        return apiResponse(
-          {
-            code: "conflict",
-            message: "The Run is not waiting for a model retry",
-            retryable: false,
-          },
-          { status: 409 },
-        );
-      }
-      if (path === "/v1/runs/run-router") return apiResponse(current);
-      throw new Error(`Unexpected request: ${request.method} ${path}`);
-    });
-    const view = renderRunApplication(api, "/runs/run-router");
-    const user = userEvent.setup();
+    const view = renderApplication(
+      runServer(() => current, {
+        "POST /v1/runs/{runId}/retry-gateway": () => {
+          // The model came back and the Run resumed before this request.
+          current = runFixture({ eventCursor: undefined });
+          return conflict(
+            "conflict",
+            "The Run is not waiting for a model retry",
+          );
+        },
+      }),
+      "/runs/run-router",
+    );
+    const user = view.user;
     await user.click(
       await screen.findByRole("button", { name: "Retry model connection" }),
     );
@@ -856,69 +724,44 @@ describe("Run routes", () => {
     expect(
       screen.getByRole("alertdialog", { name: "Retry the model connection?" }),
     ).toHaveTextContent("The model request timed out.");
-    expect(posts).toBe(1);
+    expect(view.sent("POST", "/v1/runs/run-router/retry-gateway")).toHaveLength(
+      1,
+    );
   });
 
   it("offers confirmed deletion only for server-deletable completed Runs", async () => {
-    const deleteRequests: Request[] = [];
     let deleted = false;
-    const api = new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const request = input instanceof Request ? input : new Request(input);
-        const url = new URL(request.url);
-        if (url.pathname === "/v1/auth/session") {
-          return apiResponse(session);
-        }
-        if (url.pathname === "/v1/runs" && request.method === "GET") {
-          return apiResponse({
-            items: [
-              ...(!deleted
-                ? [
-                    {
-                      runId: "run-delete",
-                      workflow: "router-analysis@1",
-                      state: "succeeded",
-                      deletable: true,
-                      labels: {},
-                      createdAt: "2026-08-31T12:00:00Z",
-                      updatedAt: "2026-08-31T12:01:00Z",
+    const view = renderApplication(
+      fakeServer({
+        ...SIGNED_IN,
+        "GET /v1/runs": () =>
+          json(
+            page([
+              ...(deleted
+                ? []
+                : [
+                    summary("run-delete", {
                       finishedAt: "2026-08-31T12:01:00Z",
-                    },
-                  ]
-                : []),
-              {
-                runId: "run-release-pending",
-                workflow: "router-analysis@1",
+                    }),
+                  ]),
+              summary("run-release-pending", {
                 state: "failed",
                 deletable: false,
-                labels: {},
                 createdAt: "2026-08-31T11:00:00Z",
                 updatedAt: "2026-08-31T11:01:00Z",
                 finishedAt: "2026-08-31T11:01:00Z",
-              },
-            ],
-            page: { hasMore: false },
-          });
-        }
-        if (
-          url.pathname === "/v1/runs/run-delete" &&
-          request.method === "DELETE"
-        ) {
-          deleteRequests.push(request);
+              }),
+            ]),
+          ),
+        "DELETE /v1/runs/{runId}": () => {
           deleted = true;
-          return new Response(null, {
-            status: 204,
-            headers: {
-              "X-Contractor-API-Version": "contractor.public.v1",
-            },
-          });
-        }
-        throw new Error(`unexpected ${request.method} ${url}`);
+          return noContent();
+        },
       }),
+      "/runs?view=completed",
     );
-    renderRunApplication(api, "/runs?view=completed");
-    const user = userEvent.setup();
+    const deletions = () => view.sent("DELETE", "/v1/runs/run-delete");
+    const user = view.user;
 
     const trigger = await screen.findByRole("button", {
       name: "Delete Run run-delete",
@@ -938,7 +781,7 @@ describe("Run routes", () => {
     expect(screen.getByRole("button", { name: "Delete Run" })).toHaveFocus();
     await user.keyboard("{Escape}");
     await waitFor(() => expect(trigger).toHaveFocus());
-    expect(deleteRequests).toHaveLength(0);
+    expect(deletions()).toHaveLength(0);
 
     await user.click(trigger);
     await user.click(screen.getByRole("button", { name: "Delete Run" }));
@@ -947,68 +790,47 @@ describe("Run routes", () => {
         screen.queryByRole("link", { name: "run-delete" }),
       ).not.toBeInTheDocument(),
     );
-    expect(deleteRequests).toHaveLength(1);
-    expect(deleteRequests[0]?.headers.get("X-CSRF-Token")).toBe(
-      session.csrfToken,
-    );
-    expect(await deleteRequests[0]?.clone().text()).toBe("");
+    expect(deletions()).toHaveLength(1);
+    expect(deletions()[0]?.headers.get("X-CSRF-Token")).toBe(CSRF_TOKEN);
+    expect(await deletions()[0]?.text()).toBe("");
   });
 
   it("filters and paginates authoritative Run history", async () => {
-    const requests: URL[] = [];
-    const api = new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const request = input instanceof Request ? input : new Request(input);
-        const url = new URL(request.url);
-        if (url.pathname === "/v1/auth/session") {
-          return apiResponse(session);
-        }
-        if (url.pathname === "/v1/runs") {
-          requests.push(url);
+    const view = renderApplication(
+      fakeServer({
+        ...SIGNED_IN,
+        "GET /v1/runs": ({ url }) => {
           if (url.searchParams.get("cursor") === "next-run") {
-            return apiResponse({
-              items: [
-                {
-                  runId: "run-second",
+            return json(
+              page([
+                summary("run-second", {
                   workflow: "likec4-from-workspace@5",
-                  state: "succeeded",
-                  deletable: true,
-                  labels: {},
                   createdAt: "2026-08-31T10:00:00Z",
                   updatedAt: "2026-08-31T10:10:00Z",
                   finishedAt: "2026-08-31T10:10:00Z",
-                },
-              ],
-              page: { hasMore: false },
-            });
+                }),
+              ]),
+            );
           }
           if (url.searchParams.get("state") === "failed") {
-            return apiResponse({ items: [], page: { hasMore: false } });
+            return json(page([]));
           }
-          return apiResponse({
-            items: [
-              {
-                runId: "run-first",
-                workflow: "openapi-from-workspace@5",
-                state: "succeeded",
-                deletable: true,
-                labels: {},
-                createdAt: "2026-08-31T12:00:00Z",
-                updatedAt: "2026-08-31T12:01:00Z",
-              },
-            ],
-            page: { hasMore: true, nextCursor: "next-run" },
-          });
-        }
-        throw new Error(`unexpected ${request.method} ${url}`);
+          return json(
+            page(
+              [summary("run-first", { workflow: "openapi-from-workspace@5" })],
+              "next-run",
+            ),
+          );
+        },
       }),
+      "/runs?view=completed",
     );
-    renderRunApplication(api, "/runs?view=completed");
+    const lastList = () =>
+      new URL(view.sent("GET", "/v1/runs").at(-1)!.url).searchParams;
     expect(
       await screen.findByRole("link", { name: "run-first" }),
     ).toBeInTheDocument();
-    const user = userEvent.setup();
+    const user = view.user;
     const labelFilters =
       document.querySelector<HTMLDetailsElement>(".run-label-filters");
     expect(labelFilters?.open).toBe(false);
@@ -1026,58 +848,38 @@ describe("Run routes", () => {
     expect(
       await screen.findByText("No completed Runs match this view."),
     ).toBeInTheDocument();
-    expect(requests.at(-1)?.searchParams.get("state")).toBe("failed");
-    expect(requests.at(-1)?.searchParams.get("lifecycle")).toBe("terminal");
-    expect(requests.at(-1)?.searchParams.has("cursor")).toBe(false);
+    expect(lastList().get("state")).toBe("failed");
+    expect(lastList().get("lifecycle")).toBe("terminal");
+    expect(lastList().has("cursor")).toBe(false);
   });
 
   it("drops the completed page cursor when the tab link clears the filters", async () => {
-    const requests: URL[] = [];
-    const completedRun = (runId: string) => ({
-      runId,
-      workflow: "openapi-from-workspace@5",
-      state: "failed",
-      deletable: true,
-      labels: {},
-      createdAt: "2026-08-31T12:00:00Z",
-      updatedAt: "2026-08-31T12:01:00Z",
-      finishedAt: "2026-08-31T12:01:00Z",
-    });
-    const api = new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const request = input instanceof Request ? input : new Request(input);
-        const url = new URL(request.url);
-        if (url.pathname === "/v1/auth/session") {
-          return apiResponse(session);
-        }
-        if (url.pathname === "/v1/runs") {
-          requests.push(url);
+    const failed = (runId: string) =>
+      summary(runId, {
+        workflow: "openapi-from-workspace@5",
+        state: "failed",
+        finishedAt: "2026-08-31T12:01:00Z",
+      });
+    const view = renderApplication(
+      fakeServer({
+        ...SIGNED_IN,
+        "GET /v1/runs": ({ url }) => {
           if (url.searchParams.get("cursor") === "failed-2") {
-            return apiResponse({
-              items: [completedRun("run-failed-2")],
-              page: { hasMore: false },
-            });
+            return json(page([failed("run-failed-2")]));
           }
           if (url.searchParams.get("state") === "failed") {
-            return apiResponse({
-              items: [completedRun("run-failed-1")],
-              page: { hasMore: true, nextCursor: "failed-2" },
-            });
+            return json(page([failed("run-failed-1")], "failed-2"));
           }
-          return apiResponse({
-            items: [{ ...completedRun("run-any"), state: "succeeded" }],
-            page: { hasMore: false },
-          });
-        }
-        throw new Error(`unexpected ${request.method} ${url}`);
+          return json(
+            page([{ ...failed("run-any"), state: "succeeded" as const }]),
+          );
+        },
       }),
-    );
-    const { router } = renderRunApplication(
-      api,
       "/runs?view=completed&state=failed",
     );
-    const user = userEvent.setup();
+    const lastList = () =>
+      new URL(view.sent("GET", "/v1/runs").at(-1)!.url).searchParams;
+    const user = view.user;
 
     expect(
       await screen.findByRole("link", { name: "run-failed-1" }),
@@ -1086,7 +888,7 @@ describe("Run routes", () => {
     expect(
       await screen.findByRole("link", { name: "run-failed-2" }),
     ).toBeInTheDocument();
-    expect(router.state.location.search).toBe(
+    expect(view.router.state.location.search).toBe(
       "?view=completed&state=failed&cursor=failed-2",
     );
     expect(document.title).toBe("Completed · Runs · Contractor");
@@ -1096,30 +898,16 @@ describe("Run routes", () => {
     expect(
       await screen.findByRole("link", { name: "run-any" }),
     ).toBeInTheDocument();
-    expect(requests.at(-1)?.searchParams.has("state")).toBe(false);
-    expect(requests.at(-1)?.searchParams.has("cursor")).toBe(false);
+    expect(lastList().has("state")).toBe(false);
+    expect(lastList().has("cursor")).toBe(false);
     expect(screen.queryByRole("navigation", { name: "Run pages" })).toBeNull();
   });
 
   it("honors a deep-linked Run state filter", async () => {
-    const requests: URL[] = [];
-    const api = new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const request = input instanceof Request ? input : new Request(input);
-        const url = new URL(request.url);
-        if (url.pathname === "/v1/auth/session") {
-          return apiResponse(session);
-        }
-        if (url.pathname === "/v1/runs") {
-          requests.push(url);
-          return apiResponse({ items: [], page: { hasMore: false } });
-        }
-        throw new Error(`unexpected ${request.method} ${url}`);
-      }),
+    const view = renderApplication(
+      fakeServer({ ...SIGNED_IN, "GET /v1/runs": () => json(page([])) }),
+      "/runs?state=failed",
     );
-
-    renderRunApplication(api, "/runs?state=failed");
 
     expect(
       await screen.findByText("No completed Runs match this view."),
@@ -1138,30 +926,21 @@ describe("Run routes", () => {
         { name: "Completed" },
       ),
     ).toHaveAttribute("aria-current", "page");
-    expect(requests).toHaveLength(1);
-    expect(requests[0]?.searchParams.get("state")).toBe("failed");
-    expect(requests[0]?.searchParams.get("lifecycle")).toBe("terminal");
+    const lists = view.sent("GET", "/v1/runs");
+    expect(lists).toHaveLength(1);
+    const query = new URL(lists[0]!.url).searchParams;
+    expect(query.get("state")).toBe("failed");
+    expect(query.get("lifecycle")).toBe("terminal");
   });
 
   it("stays in Completed when a state deep link is cleared or filtered further", async () => {
-    const requests: URL[] = [];
-    const api = new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const request = input instanceof Request ? input : new Request(input);
-        const url = new URL(request.url);
-        if (url.pathname === "/v1/auth/session") {
-          return apiResponse(session);
-        }
-        if (url.pathname === "/v1/runs") {
-          requests.push(url);
-          return apiResponse({ items: [], page: { hasMore: false } });
-        }
-        throw new Error(`unexpected ${request.method} ${url}`);
-      }),
+    const view = renderApplication(
+      fakeServer({ ...SIGNED_IN, "GET /v1/runs": () => json(page([])) }),
+      "/runs?state=failed",
     );
-    const { router } = renderRunApplication(api, "/runs?state=failed");
-    const user = userEvent.setup();
+    const { router, user } = view;
+    const lastList = () =>
+      new URL(view.sent("GET", "/v1/runs").at(-1)!.url).searchParams;
     expect(
       await screen.findByText("No completed Runs match this view."),
     ).toBeInTheDocument();
@@ -1182,10 +961,8 @@ describe("Run routes", () => {
     );
     expect(completedLink()).toHaveAttribute("aria-current", "page");
     expect(document.title).toBe("Completed · Runs · Contractor");
-    await waitFor(() =>
-      expect(requests.at(-1)?.searchParams.has("state")).toBe(false),
-    );
-    expect(requests.at(-1)?.searchParams.get("lifecycle")).toBe("terminal");
+    await waitFor(() => expect(lastList().has("state")).toBe(false));
+    expect(lastList().get("lifecycle")).toBe("terminal");
 
     // A metadata filter added to a state deep link keeps the view as well.
     await act(() => router.navigate("/runs?state=cancelled"));
@@ -1202,66 +979,42 @@ describe("Run routes", () => {
   });
 
   it("keeps exact metadata selectors across paging and resets the cursor when they change", async () => {
-    const requests: URL[] = [];
-    const api = new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const request = input instanceof Request ? input : new Request(input);
-        const url = new URL(request.url);
-        if (url.pathname === "/v1/auth/session") {
-          return apiResponse(session);
-        }
-        if (url.pathname === "/v1/runs") {
-          requests.push(url);
-          const labels = url.searchParams.getAll("label");
+    const evalLabels = (leg: string) => ({
+      "eval.id": "eval-group=01",
+      "eval.leg": leg,
+      purpose: "eval",
+    });
+    const view = renderApplication(
+      fakeServer({
+        ...SIGNED_IN,
+        "GET /v1/runs": ({ url }) => {
           if (url.searchParams.get("cursor") === "next-eval") {
-            return apiResponse({
-              items: [
-                {
-                  runId: "run-leg-a-page-2",
-                  workflow: "router-analysis@1",
-                  state: "succeeded",
-                  deletable: true,
-                  labels: {
-                    "eval.id": "eval-group=01",
-                    "eval.leg": "a",
-                    purpose: "eval",
-                  },
+            return json(
+              page([
+                summary("run-leg-a-page-2", {
+                  labels: evalLabels("a"),
                   createdAt: "2026-08-31T10:00:00Z",
                   updatedAt: "2026-08-31T10:10:00Z",
                   finishedAt: "2026-08-31T10:10:00Z",
-                },
-              ],
-              page: { hasMore: false },
-            });
+                }),
+              ]),
+            );
           }
-          const leg = labels.includes("eval.leg=b") ? "b" : "a";
-          return apiResponse({
-            items: [
-              {
-                runId: `run-leg-${leg}`,
-                workflow: "router-analysis@1",
-                state: "succeeded",
-                deletable: true,
-                labels: {
-                  "eval.id": "eval-group=01",
-                  "eval.leg": leg,
-                  purpose: "eval",
-                },
-                createdAt: "2026-08-31T12:00:00Z",
-                updatedAt: "2026-08-31T12:01:00Z",
-              },
-            ],
-            page: { hasMore: true, nextCursor: "next-eval" },
-          });
-        }
-        throw new Error(`unexpected ${request.method} ${url}`);
+          const leg = url.searchParams.getAll("label").includes("eval.leg=b")
+            ? "b"
+            : "a";
+          return json(
+            page(
+              [summary(`run-leg-${leg}`, { labels: evalLabels(leg) })],
+              "next-eval",
+            ),
+          );
+        },
       }),
-    );
-    renderRunApplication(
-      api,
       "/runs?view=completed&label=eval.id%3Deval-group%3D01&label=eval.leg%3Da",
     );
+    const lastList = () =>
+      new URL(view.sent("GET", "/v1/runs").at(-1)!.url).searchParams;
     expect(
       await screen.findByRole("link", { name: "run-leg-a" }),
     ).toBeInTheDocument();
@@ -1272,7 +1025,7 @@ describe("Run routes", () => {
     const firstRow = screen
       .getByRole("link", { name: "run-leg-a" })
       .closest("tr");
-    const user = userEvent.setup();
+    const user = view.user;
     const contextToggle = within(firstRow!).getByRole("button", {
       name: "Context for run-leg-a",
     });
@@ -1289,8 +1042,8 @@ describe("Run routes", () => {
     expect(
       await screen.findByRole("link", { name: "run-leg-a-page-2" }),
     ).toBeInTheDocument();
-    expect(requests.at(-1)?.searchParams.get("cursor")).toBe("next-eval");
-    expect(requests.at(-1)?.searchParams.getAll("label")).toEqual([
+    expect(lastList().get("cursor")).toBe("next-eval");
+    expect(lastList().getAll("label")).toEqual([
       "eval.id=eval-group=01",
       "eval.leg=a",
     ]);
@@ -1304,8 +1057,8 @@ describe("Run routes", () => {
     expect(
       await screen.findByRole("link", { name: "run-leg-b" }),
     ).toBeInTheDocument();
-    expect(requests.at(-1)?.searchParams.has("cursor")).toBe(false);
-    expect(requests.at(-1)?.searchParams.getAll("label")).toEqual([
+    expect(lastList().has("cursor")).toBe(false);
+    expect(lastList().getAll("label")).toEqual([
       "eval.id=eval-group=01",
       "eval.leg=b",
       "purpose=eval",
@@ -1314,48 +1067,22 @@ describe("Run routes", () => {
 
   it("shows a global task and advances only its nested typed Planner projection", async () => {
     let currentRun = runFixture();
-    let detailReads = 0;
-    const api = new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const request = input instanceof Request ? input : new Request(input);
-        const shared = sessionOrArtifacts(request);
-        if (shared !== undefined) {
-          return shared;
-        }
-        const url = new URL(request.url);
-        if (url.pathname === "/v1/runs/run-router") {
-          detailReads += 1;
-          return apiResponse(currentRun);
-        }
-        throw new Error(`unexpected ${request.method} ${url}`);
-      }),
+    const view = renderApplication(
+      runServer(() => currentRun),
+      "/runs/run-router",
     );
-    const view = renderRunApplication(api, "/runs/run-router");
     expect(
       await screen.findByRole("heading", {
         name: "Produce a global architecture review.",
       }),
     ).toBeInTheDocument();
     expect(screen.getByText("Inspect the source tree")).toBeInTheDocument();
-    await waitFor(() => expect(RouteWebSocket.instances).toHaveLength(1));
-    const socket = RouteWebSocket.instances[0];
-    act(() => socket?.open());
-    const subscription = JSON.parse(socket?.sent[0] ?? "{}");
+    const { socket, subscription, frame } = await subscribe();
     expect(subscription.after).toEqual({
       generation: "run-generation-1",
       sequence: "10",
     });
-    act(() =>
-      socket?.message({
-        version: "contractor.events.v1",
-        type: "subscribed",
-        subscriptionId: subscription.subscriptionId,
-        stream: { kind: "run", id: "run-router" },
-        cursor: subscription.after,
-      }),
-    );
-    const livePlan: NonNullable<RunStatus["attempts"][number]["plan"]> = {
+    const livePlan: PlannerPlan = {
       revision: 2,
       subtasks: [
         {
@@ -1373,22 +1100,16 @@ describe("Run routes", () => {
       ],
       currentSubtaskId: "0",
     };
+    const planner = {
+      stageExecutionId: "stage-router-1",
+      sessionId: "session-router-1",
+      invocationId: "invocation-router-1",
+    };
     act(() =>
-      socket?.message({
-        version: "contractor.events.v1",
-        type: "event",
-        subscriptionId: subscription.subscriptionId,
-        stream: { kind: "run", id: "run-router" },
-        cursor: { generation: "run-generation-1", sequence: "11" },
+      socket.message({
+        ...frame("11"),
         kind: "planner.event",
-        occurredAt: "2026-08-31T12:02:00Z",
-        data: {
-          stageExecutionId: "stage-router-1",
-          sessionId: "session-router-1",
-          invocationId: "invocation-router-1",
-          eventKind: "planner.plan_changed",
-          plan: livePlan,
-        },
+        data: { ...planner, eventKind: "planner.plan_changed", plan: livePlan },
       }),
     );
     expect(
@@ -1400,20 +1121,13 @@ describe("Run routes", () => {
     expect(metadataPanel).toHaveTextContent("eval.id:eval-router-01");
     expect(metadataPanel).toHaveTextContent("eval.leg:a");
     expect(metadataPanel).toHaveTextContent("Labels are fixed at creation");
-    expect(detailReads).toBe(1);
+    expect(runReads(view)).toBe(1);
     act(() =>
-      socket?.message({
-        version: "contractor.events.v1",
-        type: "event",
-        subscriptionId: subscription.subscriptionId,
-        stream: { kind: "run", id: "run-router" },
-        cursor: { generation: "run-generation-1", sequence: "12" },
+      socket.message({
+        ...frame("12", "2026-08-31T12:02:01Z"),
         kind: "planner.event",
-        occurredAt: "2026-08-31T12:02:01Z",
         data: {
-          stageExecutionId: "stage-router-1",
-          sessionId: "session-router-1",
-          invocationId: "invocation-router-1",
+          ...planner,
           eventKind: "planner.dispatch_selected",
           planRevision: 2,
           subtaskId: "0",
@@ -1433,23 +1147,18 @@ describe("Run routes", () => {
 
     currentRun = runFixture({
       state: "cancelling",
-      attempts: [{ ...runFixture().attempts[0]!, plan: livePlan }],
+      attempts: [{ ...RUNNING_ATTEMPT, plan: livePlan }],
       eventCursor: { generation: "run-generation-1", sequence: "13" },
       updatedAt: "2026-08-31T12:02:02Z",
     });
     act(() =>
-      socket?.message({
-        version: "contractor.events.v1",
-        type: "event",
-        subscriptionId: subscription.subscriptionId,
-        stream: { kind: "run", id: "run-router" },
-        cursor: { generation: "run-generation-1", sequence: "13" },
+      socket.message({
+        ...frame("13", "2026-08-31T12:02:02Z"),
         kind: "lifecycle.changed",
-        occurredAt: "2026-08-31T12:02:02Z",
         data: { runId: "run-router", resource: "run", state: "succeeded" },
       }),
     );
-    await waitFor(() => expect(detailReads).toBeGreaterThan(1));
+    await waitFor(() => expect(runReads(view)).toBeGreaterThan(1));
     // The lifecycle hint said succeeded; only the refetched Run state shows.
     expect(await screen.findByText("Cancelling")).toBeInTheDocument();
     expect(screen.queryByText("Succeeded")).toBeNull();
@@ -1459,13 +1168,12 @@ describe("Run routes", () => {
   });
 
   it("follows a new attempt's first Planner fact without a projection resync", async () => {
-    let detailReads = 0;
     let releaseRefetch!: () => void;
     const refetchReleased = new Promise<void>((resolve) => {
       releaseRefetch = resolve;
     });
     const retry = {
-      ...runFixture().attempts[0]!,
+      ...RUNNING_ATTEMPT,
       stageExecutionId: "stage-router-2",
       objective: "Retry the architecture review.",
       attempt: 2,
@@ -1474,56 +1182,27 @@ describe("Run routes", () => {
       plannerStartedAt: "2026-08-31T12:02:00Z",
     };
     delete retry.plan;
-    const api = new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const request = input instanceof Request ? input : new Request(input);
-        const shared = sessionOrArtifacts(request);
-        if (shared !== undefined) {
-          return shared;
-        }
-        const url = new URL(request.url);
-        if (url.pathname === "/v1/runs/run-router") {
-          detailReads += 1;
-          if (detailReads === 1) {
-            return apiResponse(runFixture());
-          }
+    let reads = 0;
+    const view = renderApplication(
+      fakeServer({
+        ...RUN_PAGE,
+        "GET /v1/runs/{runId}": async () => {
+          reads += 1;
+          if (reads === 1) return json(runFixture());
           await refetchReleased;
-          return apiResponse(
+          return json(
             runFixture({
-              attempts: [
-                { ...runFixture().attempts[0]!, state: "failed" },
-                retry,
-              ],
+              attempts: [{ ...RUNNING_ATTEMPT, state: "failed" }, retry],
               activeStageExecutionId: "stage-router-2",
               eventCursor: { generation: "run-generation-1", sequence: "12" },
             }),
           );
-        }
-        throw new Error(`unexpected ${request.method} ${url}`);
+        },
       }),
+      "/runs/run-router",
     );
-    renderRunApplication(api, "/runs/run-router");
-    await waitFor(() => expect(RouteWebSocket.instances).toHaveLength(1));
-    const socket = RouteWebSocket.instances[0]!;
-    act(() => socket.open());
-    const subscription = JSON.parse(socket.sent[0] ?? "{}");
-    const frame = (sequence: string) => ({
-      version: "contractor.events.v1",
-      type: "event",
-      subscriptionId: subscription.subscriptionId,
-      stream: { kind: "run", id: "run-router" },
-      cursor: { generation: "run-generation-1", sequence },
-      occurredAt: "2026-08-31T12:02:00Z",
-    });
+    const { socket, frame } = await subscribe();
     act(() => {
-      socket.message({
-        version: "contractor.events.v1",
-        type: "subscribed",
-        subscriptionId: subscription.subscriptionId,
-        stream: { kind: "run", id: "run-router" },
-        cursor: subscription.after,
-      });
       // The Stage start commits its lifecycle hint and planner.started
       // together; the Planner fact arrives before the Run refetch returns.
       socket.message({
@@ -1547,7 +1226,7 @@ describe("Run routes", () => {
         },
       });
     });
-    await waitFor(() => expect(detailReads).toBe(2));
+    await waitFor(() => expect(runReads(view)).toBe(2));
     expect(socket.readyState).toBe(1);
     expect(screen.queryByText(/REST resync after/)).toBeNull();
 
@@ -1560,47 +1239,30 @@ describe("Run routes", () => {
         name: "Retry the architecture review.",
       }),
     ).toBeInTheDocument();
-    expect(detailReads).toBe(2);
-    expect(RouteWebSocket.instances).toHaveLength(1);
+    expect(runReads(view)).toBe(2);
+    expect(FakeEventSocket.instances).toHaveLength(1);
   });
 
   it("titles the Run detail, Run Artifact and Runs pages", async () => {
-    const api = new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const request = input instanceof Request ? input : new Request(input);
-        const shared = sessionOrArtifacts(request);
-        if (shared !== undefined) {
-          return shared;
-        }
-        const url = new URL(request.url);
-        if (url.pathname === "/v1/runs/run-router") {
-          return apiResponse(runFixture({ eventCursor: undefined }));
-        }
-        if (
-          url.pathname ===
-          "/v1/runs/run-router/artifacts/inputs/source/metadata"
-        ) {
-          return apiResponse({
-            artifact: {
-              namespace: "inputs",
-              name: "source",
-              revision: "input-r1",
-            },
-            mediaType: "application/zip",
-            size: 3,
-            current: true,
-            frozen: true,
-            createdAt: "2026-08-31T12:00:00Z",
-          });
-        }
-        if (url.pathname === "/v1/runs" || url.pathname === "/v1/queue") {
-          return apiResponse({ items: [], page: { hasMore: false } });
-        }
-        return notInFixture();
-      }),
+    const { router } = renderApplication(
+      fakeServer(
+        {
+          ...RUN_PAGE,
+          "GET /v1/runs/{runId}": () =>
+            json(runFixture({ eventCursor: undefined })),
+          "GET /v1/runs/{runId}/artifacts/{namespace}/{name}/metadata": () =>
+            json(
+              artifactMetadata(
+                { namespace: "inputs", name: "source", revision: "input-r1" },
+                "application/zip",
+                3,
+              ),
+            ),
+        },
+        emptyPageOrNotFound,
+      ),
+      "/runs/run-router",
     );
-    const { router } = renderRunApplication(api, "/runs/run-router");
     await waitFor(() =>
       expect(document.title).toBe("router-analysis@1 · Run · Contractor"),
     );
@@ -1620,45 +1282,22 @@ describe("Run routes", () => {
 
   it("reconciles a cancellation race without an optimistic terminal state", async () => {
     let currentRun = runFixture({ eventCursor: undefined });
-    let cancellationBody: unknown;
-    let cancellationCalls = 0;
-    const api = new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const request = input instanceof Request ? input : new Request(input);
-        const shared = sessionOrArtifacts(request);
-        if (shared !== undefined) {
-          return shared;
-        }
-        const url = new URL(request.url);
-        if (
-          url.pathname === "/v1/runs/run-router" &&
-          request.method === "GET"
-        ) {
-          return apiResponse(currentRun);
-        }
-        if (
-          url.pathname === "/v1/runs/run-router/cancel" &&
-          request.method === "POST"
-        ) {
-          cancellationCalls += 1;
-          cancellationBody = await request.clone().json();
+    const view = renderApplication(
+      runServer(() => currentRun, {
+        "POST /v1/runs/{runId}/cancel": () => {
           currentRun = runFixture({
             state: "succeeded",
             eventCursor: undefined,
             activeStageExecutionId: undefined,
             finishedAt: "2026-08-31T12:05:00Z",
           });
-          return apiResponse(
-            { runId: "run-router", state: "succeeded" },
-            { status: 200 },
-          );
-        }
-        throw new Error(`unexpected ${request.method} ${url}`);
+          return json({ runId: "run-router", state: "succeeded" });
+        },
       }),
+      "/runs/run-router",
     );
-    renderRunApplication(api, "/runs/run-router");
-    const user = userEvent.setup();
+    const cancellations = () => view.sent("POST", "/v1/runs/run-router/cancel");
+    const user = view.user;
     await user.click(await screen.findByRole("button", { name: "Cancel Run" }));
     const dialog = screen.getByRole("dialog", { name: "Cancel this Run?" });
     expect(within(dialog).getByLabelText("Reason")).toHaveFocus();
@@ -1671,7 +1310,7 @@ describe("Run routes", () => {
         "Give a cancellation reason of 1–4096 characters.",
       ),
     ).toBeInTheDocument();
-    expect(cancellationCalls).toBe(0);
+    expect(cancellations()).toHaveLength(0);
     await user.type(
       within(dialog).getByLabelText("Reason"),
       "Stop after the current review",
@@ -1688,54 +1327,38 @@ describe("Run routes", () => {
       ).not.toBeInTheDocument(),
     );
     expect(screen.queryByText(/Cancellation/)).not.toBeInTheDocument();
-    expect(cancellationCalls).toBe(1);
-    expect(cancellationBody).toEqual({
+    expect(cancellations()).toHaveLength(1);
+    expect(await cancellations()[0]!.json()).toEqual({
       reason: "Stop after the current review",
     });
   });
 
   it("keeps cancellation retryable after a failed request while the Run is active", async () => {
     let currentRun = runFixture({ eventCursor: undefined });
-    let cancellationCalls = 0;
-    const api = new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const request = input instanceof Request ? input : new Request(input);
-        const shared = sessionOrArtifacts(request);
-        if (shared !== undefined) return shared;
-        const path = new URL(request.url).pathname;
-        if (path === "/v1/runs/run-router" && request.method === "GET") {
-          return apiResponse(currentRun);
-        }
-        if (
-          path === "/v1/runs/run-router/cancel" &&
-          request.method === "POST"
-        ) {
-          cancellationCalls += 1;
-          if (cancellationCalls === 1) {
-            return apiResponse(
-              {
-                code: "unavailable",
-                message: "Cancellation service unavailable",
-                retryable: true,
-              },
-              { status: 500 },
+    let calls = 0;
+    const view = renderApplication(
+      runServer(() => currentRun, {
+        "POST /v1/runs/{runId}/cancel": () => {
+          calls += 1;
+          if (calls === 1) {
+            return failure(
+              500,
+              "unavailable",
+              "Cancellation service unavailable",
+              true,
             );
           }
           currentRun = runFixture({
             state: "cancelling",
             eventCursor: undefined,
           });
-          return apiResponse(
-            { runId: "run-router", state: "cancelling" },
-            { status: 202 },
-          );
-        }
-        throw new Error(`unexpected ${request.method} ${path}`);
+          return json({ runId: "run-router", state: "cancelling" }, 202);
+        },
       }),
+      "/runs/run-router",
     );
-    renderRunApplication(api, "/runs/run-router");
-    const user = userEvent.setup();
+    const cancellations = () => view.sent("POST", "/v1/runs/run-router/cancel");
+    const user = view.user;
     await user.click(await screen.findByRole("button", { name: "Cancel Run" }));
     const dialog = screen.getByRole("dialog", { name: "Cancel this Run?" });
     const button = within(dialog).getByRole("button", {
@@ -1751,13 +1374,13 @@ describe("Run routes", () => {
     );
     expect(button).toBeEnabled();
     expect(screen.queryByText(/had finished before/)).toBeNull();
-    expect(cancellationCalls).toBe(1);
+    expect(cancellations()).toHaveLength(1);
     await user.click(button);
     expect(await screen.findByText("Cleanup in progress")).toBeVisible();
     expect(screen.getByText("Cancelling")).toBeInTheDocument();
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(screen.queryByRole("button", { name: "Cancel Run" })).toBeNull();
-    expect(cancellationCalls).toBe(2);
+    expect(cancellations()).toHaveLength(2);
   });
 
   it("surfaces the primary terminal cause and focuses its failed attempt", async () => {
@@ -1767,7 +1390,7 @@ describe("Run routes", () => {
       activeStageExecutionId: undefined,
       attempts: [
         {
-          ...runFixture().attempts[0]!,
+          ...RUNNING_ATTEMPT,
           state: "failed",
           result: {
             apiVersion: "contractor/v1alpha1",
@@ -1809,38 +1432,24 @@ describe("Run routes", () => {
       updatedAt: "2026-08-31T12:00:34Z",
       finishedAt: "2026-08-31T12:00:34Z",
     });
-    const api = new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const request = input instanceof Request ? input : new Request(input);
-        const shared = sessionOrArtifacts(request);
-        if (shared !== undefined) {
-          return shared;
-        }
-        if (new URL(request.url).pathname === "/v1/runs/run-router") {
-          return apiResponse(failedRun);
-        }
-        throw new Error(`unexpected ${request.method} ${request.url}`);
-      }),
+    const view = renderApplication(
+      runServer(() => failedRun),
+      "/runs/run-router",
     );
-
-    const view = renderRunApplication(api, "/runs/run-router");
     const heading = await screen.findByRole("heading", {
       name: "Run failed in analysis",
     });
-    const triage = heading.closest(".run-triage");
+    const triage = heading.closest<HTMLElement>(".run-triage")!;
     expect(triage).not.toBeNull();
     expect(
-      within(triage as HTMLElement).getByText("planner_gateway_unavailable"),
+      within(triage).getByText("planner_gateway_unavailable"),
     ).toBeInTheDocument();
     expect(
-      within(triage as HTMLElement).getByText(
+      within(triage).getByText(
         "The configured Planner gateway is unavailable.",
       ),
     ).toBeInTheDocument();
-    expect(
-      within(triage as HTMLElement).getByText("Retryable"),
-    ).toBeInTheDocument();
+    expect(within(triage).getByText("Retryable")).toBeInTheDocument();
     // Execution metrics live under Technical details and stay open for a
     // failed Run.
     const metrics =
@@ -1849,9 +1458,7 @@ describe("Run routes", () => {
     expect(within(metrics).getAllByText("34s").length).toBeGreaterThan(0);
     expect(within(metrics).getByText("1.2K")).toBeInTheDocument();
     expect(
-      within(triage as HTMLElement).getByRole("link", {
-        name: "Inspect focused attempt",
-      }),
+      within(triage).getByRole("link", { name: "Inspect focused attempt" }),
     ).toHaveAttribute("href", "#attempt-stage-router-1");
     expect(
       view.container.querySelector<HTMLDetailsElement>(
@@ -1878,7 +1485,7 @@ describe("Run routes", () => {
       activeStageExecutionId: undefined,
       attempts: [
         {
-          ...runFixture().attempts[0]!,
+          ...RUNNING_ATTEMPT,
           state: "failed",
           result: {
             apiVersion: "contractor/v1alpha1",
@@ -1898,67 +1505,60 @@ describe("Run routes", () => {
     const workflow = workflowResource("router-analysis", "1", {
       parameters: { objective: { required: true } },
     });
-    const createRequests: Request[] = [];
-    const api = new PublicAPI(runtimeConfig, async (input, init) => {
-      const request = new Request(input, init);
-      const common = sessionOrArtifacts(request);
-      if (common !== undefined) return common;
-      const path = new URL(request.url).pathname;
-      if (path === "/v1/runs/run-router/repeat-draft") {
-        return apiResponse({
-          sourceRunId: "run-router",
-          authority: "ordinary",
-          workflow: { name: "router-analysis", version: "1" },
-          notices: [
-            {
-              code: "runtime_binding_changed",
-              severity: "warning",
-              field: "runtimeLabels.default",
-              message: "The default Runtime binding changed.",
+    const view = renderApplication(
+      fakeServer({
+        ...RUN_PAGE,
+        "GET /v1/runs/{runId}": ({ params }) =>
+          json(
+            params.runId === "run-repeat-new"
+              ? {
+                  ...terminal,
+                  runId: "run-repeat-new",
+                  state: "initializing",
+                  attempts: [],
+                  finishedAt: undefined,
+                }
+              : terminal,
+          ),
+        "GET /v1/runs/{runId}/repeat-draft": () =>
+          json({
+            sourceRunId: "run-router",
+            authority: "ordinary",
+            workflow: { name: "router-analysis", version: "1" },
+            notices: [
+              {
+                code: "runtime_binding_changed",
+                severity: "warning",
+                field: "runtimeLabels.default",
+                message: "The default Runtime binding changed.",
+              },
+            ],
+            draft: {
+              parameters: { objective: "Review the original project" },
+              runtimeLabels: [],
+              labels: {},
+              executionConfig: { status: "available", value: {} },
+              inputs: {},
             },
-          ],
-          draft: {
-            parameters: { objective: "Review the original project" },
-            runtimeLabels: [],
-            labels: {},
-            executionConfig: { status: "available", value: {} },
-            inputs: {},
-          },
-        });
-      }
-      if (path === "/v1/workflows/router-analysis/versions/1") {
-        return apiResponse(workflow);
-      }
-      if (path === "/v1/artifacts") {
-        return apiResponse({ items: [], page: { hasMore: false } });
-      }
-      if (path === "/v1/runs" && request.method === "POST") {
-        createRequests.push(request.clone());
-        return apiResponse(
-          {
-            runId: "run-repeat-new",
-            state: "initializing",
-            runtimeLabels: [],
-            labels: {},
-            runtimeConfiguration: terminal.runtimeConfiguration,
-          },
-          { status: 202 },
-        );
-      }
-      if (path === "/v1/runs/run-repeat-new") {
-        return apiResponse({
-          ...terminal,
-          runId: "run-repeat-new",
-          state: "initializing",
-          attempts: [],
-          finishedAt: undefined,
-        });
-      }
-      if (path === "/v1/runs/run-router") return apiResponse(terminal);
-      throw new Error(`unexpected ${request.method} ${path}`);
-    });
-    const view = renderRunApplication(api, "/runs/run-router");
-    const user = userEvent.setup();
+          }),
+        "GET /v1/workflows/{name}/versions/{version}": () => json(workflow),
+        "GET /v1/artifacts": () => json(page([])),
+        "POST /v1/runs": () =>
+          json(
+            {
+              runId: "run-repeat-new",
+              state: "initializing",
+              runtimeLabels: [],
+              labels: {},
+              runtimeConfiguration: terminal.runtimeConfiguration,
+            },
+            202,
+          ),
+      }),
+      "/runs/run-router",
+    );
+    const creations = () => view.sent("POST", "/v1/runs");
+    const user = view.user;
     await user.click(
       await screen.findByRole("button", { name: "Configure another Run" }),
     );
@@ -1978,14 +1578,14 @@ describe("Run routes", () => {
       await screen.findByDisplayValue("Review the original project"),
     ).toBeInTheDocument();
     expect(screen.getByText("runtime_binding_changed")).toBeInTheDocument();
-    expect(createRequests).toHaveLength(0);
+    expect(creations()).toHaveLength(0);
 
     await user.click(review);
     await user.click(
       screen.getByRole("button", { name: "Start Workflow Run" }),
     );
-    await waitFor(() => expect(createRequests).toHaveLength(1));
-    expect(await createRequests[0]!.json()).toEqual({
+    await waitFor(() => expect(creations()).toHaveLength(1));
+    expect(await creations()[0]!.json()).toEqual({
       workflow: "router-analysis@1",
       runtimeLabels: [],
       parameters: { objective: "Review the original project" },
@@ -2012,41 +1612,32 @@ describe("Run routes", () => {
         activeStageExecutionId: undefined,
         finishedAt: "2026-08-31T12:02:00Z",
       });
-      const requests: Request[] = [];
-      const api = new PublicAPI(runtimeConfig, async (input, init) => {
-        const request = new Request(input, init);
-        requests.push(request);
-        const common = sessionOrArtifacts(request);
-        if (common !== undefined) return common;
-        const path = new URL(request.url).pathname;
-        if (path === "/v1/runs/run-router") return apiResponse(terminal);
-        if (path === "/v1/workflows/router-analysis/versions/1")
-          return apiResponse(workflowResource("router-analysis", "1"));
-        if (path === "/v1/runs/run-router/repeat-draft")
-          return apiResponse({
-            sourceRunId: "run-router",
-            authority: "ordinary",
-            workflow: { name: "router-analysis", version: "1" },
-            notices: [{ code, severity: "blocking", message }],
-          });
-        throw new Error(`Unexpected request: ${request.method} ${path}`);
-      });
-      const view = renderRunApplication(api, "/runs/run-router");
-      const user = userEvent.setup();
+      const view = renderApplication(
+        runServer(() => terminal, {
+          "GET /v1/workflows/{name}/versions/{version}": () =>
+            json(workflowResource("router-analysis", "1")),
+          "GET /v1/runs/{runId}/repeat-draft": () =>
+            json({
+              sourceRunId: "run-router",
+              authority: "ordinary",
+              workflow: { name: "router-analysis", version: "1" },
+              notices: [{ code, severity: "blocking", message }],
+            }),
+        }),
+        "/runs/run-router",
+      );
       for (let attempt = 0; attempt < 2; attempt++) {
-        await user.click(
+        await view.user.click(
           await screen.findByRole("button", { name: "Configure another Run" }),
         );
         expect(await screen.findByText(message)).toBeInTheDocument();
         expect(view.router.state.location.pathname).toBe("/runs/run-router");
       }
-      expect(requests.filter((request) => request.method !== "GET")).toEqual(
-        [],
-      );
       expect(
-        requests.filter((request) =>
-          new URL(request.url).pathname.startsWith("/v1/workflows"),
-        ),
+        view.requests.filter((request) => request.method !== "GET"),
+      ).toEqual([]);
+      expect(
+        view.sent("GET", "/v1/workflows/router-analysis/versions/1"),
       ).toHaveLength(1);
     },
   );
@@ -2059,42 +1650,30 @@ describe("Run routes", () => {
       activeStageExecutionId: undefined,
       finishedAt: "2026-08-31T12:02:00Z",
     });
-    const api = new PublicAPI(runtimeConfig, async (input, init) => {
-      const request = new Request(input, init);
-      const common = sessionOrArtifacts(request);
-      if (common !== undefined) return common;
-      const path = new URL(request.url).pathname;
-      if (path === "/v1/runs/run-router") return apiResponse(terminal);
-      if (path === "/v1/runs/run-router/repeat-draft") {
-        return apiResponse({
-          sourceRunId: "run-router",
-          authority: "audit-managed",
-          workflow: { name: "router-analysis", version: "1" },
-          projectId: "project-audit",
-          auditId: "audit-one",
-          notices: [
-            {
-              code: "audit_managed_run",
-              severity: "blocking",
-              field: "authority",
-              message: "Continue from Audit.",
-            },
-          ],
-        });
-      }
-      return apiResponse(
-        {
-          code: "not_found",
-          message: "Fixture stops after navigation",
-          retryable: false,
-          requestId: "request-audit-navigation",
-        },
-        { status: 404 },
-      );
-    });
-    const view = renderRunApplication(api, "/runs/run-router");
-    const user = userEvent.setup();
-    await user.click(
+    // Everything the Audit page reads answers 404: the fixture stops after
+    // the navigation.
+    const view = renderApplication(
+      runServer(() => terminal, {
+        "GET /v1/runs/{runId}/repeat-draft": () =>
+          json({
+            sourceRunId: "run-router",
+            authority: "audit-managed",
+            workflow: { name: "router-analysis", version: "1" },
+            projectId: "project-audit",
+            auditId: "audit-one",
+            notices: [
+              {
+                code: "audit_managed_run",
+                severity: "blocking",
+                field: "authority",
+                message: "Continue from Audit.",
+              },
+            ],
+          }),
+      }),
+      "/runs/run-router",
+    );
+    await view.user.click(
       await screen.findByRole("button", { name: "Configure another Run" }),
     );
     await waitFor(() =>
@@ -2146,34 +1725,22 @@ describe("Run routes", () => {
       const answered = new Promise<void>((resolve) => {
         answer = resolve;
       });
-      const api = new PublicAPI(runtimeConfig, async (input, init) => {
-        const request = new Request(input, init);
-        const common = sessionOrArtifacts(request);
-        if (common !== undefined) return common;
-        const path = new URL(request.url).pathname;
-        if (path === "/v1/runs/run-router") return apiResponse(terminal);
-        if (path === "/v1/runs/run-router/repeat-draft") {
-          await answered;
-          return apiResponse(repeatDraft);
-        }
-        if (path === "/v1/runs") return apiResponse({ items: [], page: {} });
-        return apiResponse(
-          {
-            code: "not_found",
-            message: "Not in this fixture",
-            retryable: false,
-          },
-          { status: 404 },
-        );
-      });
       const queryClient = queryClientFactory.createApplicationQueryClient();
       const factory = vi
         .spyOn(queryClientFactory, "createApplicationQueryClient")
         .mockReturnValueOnce(queryClient);
-      const view = renderRunApplication(api, "/runs/run-router");
+      const view = renderApplication(
+        runServer(() => terminal, {
+          "GET /v1/runs/{runId}/repeat-draft": async () => {
+            await answered;
+            return json(repeatDraft);
+          },
+          "GET /v1/runs": () => json(page([])),
+        }),
+        "/runs/run-router",
+      );
       factory.mockRestore();
-      const user = userEvent.setup();
-      await user.click(
+      await view.user.click(
         await screen.findByRole("button", { name: "Configure another Run" }),
       );
       await act(() => view.router.navigate("/settings"));
@@ -2200,14 +1767,12 @@ describe("Run routes", () => {
       activeStageExecutionId: undefined,
       outputs: { report: output },
       attempts: [
-        {
-          stageExecutionId: "stage-router-1",
+        stageAttempt("stage-router-1", {
           stage: "analysis",
           objective: "Produce a global architecture review.",
-          attempt: 1,
           executionConfig: {
             variant: "base",
-            planner: executionConfig.planner,
+            planner: executionConfig.planner!,
             agents: executionConfig.agents,
           },
           state: "interrupted",
@@ -2226,9 +1791,8 @@ describe("Run routes", () => {
           createdAt: "2026-08-31T12:00:00Z",
           updatedAt: "2026-08-31T12:02:00Z",
           terminalAt: "2026-08-31T12:02:00Z",
-        },
-        {
-          stageExecutionId: "stage-router-2",
+        }),
+        stageAttempt("stage-router-2", {
           stage: "analysis",
           objective: "Produce a global architecture review.",
           attempt: 2,
@@ -2298,14 +1862,14 @@ describe("Run routes", () => {
                   {
                     label: "debug",
                     bindingRevision: "7",
-                    config: { name: "debug", version: "1", digest },
+                    config: { name: "debug", version: "1", digest: DIGEST },
                   },
                 ],
                 runtimeAdapters: ["otlp-http@1"],
                 origins: {
                   workerTelemetry: {
                     layer: "agent_labels",
-                    configs: [{ name: "debug", version: "1", digest }],
+                    configs: [{ name: "debug", version: "1", digest: DIGEST }],
                   },
                   llmGateway: { layer: "run_execution_config" },
                   caido: { layer: "run_execution_config" },
@@ -2317,7 +1881,7 @@ describe("Run routes", () => {
           createdAt: "2026-08-31T12:02:01Z",
           updatedAt: "2026-08-31T12:05:00Z",
           terminalAt: "2026-08-31T12:05:00Z",
-        },
+        }),
       ],
       transitions: [
         {
@@ -2339,52 +1903,17 @@ describe("Run routes", () => {
       ],
       finishedAt: "2026-08-31T12:05:00Z",
     });
-    const api = new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const request = input instanceof Request ? input : new Request(input);
-        const url = new URL(request.url);
-        if (url.pathname === "/v1/auth/session") {
-          return apiResponse(session);
-        }
-        if (url.pathname === "/v1/runs/run-router") {
-          return apiResponse(terminalRun);
-        }
-        if (url.pathname === "/v1/runs/run-router/artifacts") {
-          return apiResponse({
-            items: [
-              {
-                artifact: output,
-                mediaType: "text/plain",
-                size: 12,
-                current: true,
-                frozen: true,
-                createdAt: "2026-08-31T12:05:00Z",
-              },
-            ],
-            page: { hasMore: false },
-          });
-        }
-        if (
-          url.pathname ===
-          "/v1/runs/run-router/artifacts/outputs/report/metadata"
-        ) {
-          return apiResponse({
-            artifact: output,
-            mediaType: "text/plain",
-            size: 12,
-            current: true,
-            frozen: true,
-            createdAt: "2026-08-31T12:05:00Z",
-          });
-        }
-        if (url.pathname === "/v1/runs/run-router/artifacts/outputs/report") {
-          return byteResponse("safe report\n", "text/plain");
-        }
-        throw new Error(`unexpected ${request.method} ${url}`);
+    const view = renderApplication(
+      runServer(() => terminalRun, {
+        "GET /v1/runs/{runId}/artifacts": () =>
+          json(page([artifactMetadata(output)])),
+        "GET /v1/runs/{runId}/artifacts/{namespace}/{name}/metadata": () =>
+          json(artifactMetadata(output)),
+        "GET /v1/runs/{runId}/artifacts/{namespace}/{name}": () =>
+          bytes("safe report\n", "text/plain"),
       }),
+      "/runs/run-router",
     );
-    const view = renderRunApplication(api, "/runs/run-router");
     expect(await screen.findByText("worker_lease_lost")).toBeInTheDocument();
     // The Planner summary is Markdown, rendered inside a bounded preview.
     expect(
@@ -2470,8 +1999,9 @@ describe("Run routes", () => {
     await waitFor(() =>
       expect(library?.querySelector("summary")).toHaveTextContent("1 Artifact"),
     );
-    const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: "Preview result" }));
+    await view.user.click(
+      screen.getByRole("button", { name: "Preview result" }),
+    );
     expect(
       await screen.findByText("safe report", { selector: "pre" }),
     ).toBeInTheDocument();
@@ -2515,34 +2045,22 @@ describe("Run routes", () => {
       ],
       finishedAt: "2026-08-31T12:05:01Z",
     });
-    const api = new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const request = input instanceof Request ? input : new Request(input);
-        const shared = sessionOrArtifacts(request);
-        if (shared !== undefined) {
-          return shared;
-        }
-        if (new URL(request.url).pathname === "/v1/runs/run-router") {
-          return apiResponse(projectRun);
-        }
-        throw new Error(`unexpected ${request.method} ${request.url}`);
-      }),
+    renderApplication(
+      runServer(() => projectRun),
+      "/runs/run-router",
     );
-
-    renderRunApplication(api, "/runs/run-router");
 
     const panel = (
       await screen.findByRole("heading", {
         name: "Reusable output status",
       })
-    ).closest("section");
+    ).closest<HTMLElement>("section")!;
     expect(panel).not.toBeNull();
-    expect(within(panel as HTMLElement).getByText("Published")).toBeVisible();
-    expect(within(panel as HTMLElement).getByText("Failed")).toBeVisible();
+    expect(within(panel).getByText("Published")).toBeVisible();
+    expect(within(panel).getByText("Failed")).toBeVisible();
     expect(panel).toHaveTextContent("source outputs/openapi@run-output-r1");
     expect(
-      within(panel as HTMLElement).getByRole("link", {
+      within(panel).getByRole("link", {
         name: "target outputs/openapi@project-output-r1",
       }),
     ).toHaveAttribute(
@@ -2555,38 +2073,21 @@ describe("Run routes", () => {
   });
 
   it("inspects exact RunScope metadata, versions, lineage, and safe preview", async () => {
-    const metadata = {
-      artifact: {
-        namespace: "outputs",
-        name: "report",
-        revision: "output-r2",
-      },
-      mediaType: "text/plain",
-      size: 12,
-      current: true,
-      frozen: true,
-      createdAt: "2026-08-31T12:05:00Z",
-    };
-    const api = new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const request = input instanceof Request ? input : new Request(input);
-        const url = new URL(request.url);
-        if (url.pathname === "/v1/auth/session") {
-          return apiResponse(session);
-        }
-        if (url.pathname.endsWith("/metadata")) {
-          return apiResponse(metadata);
-        }
-        if (url.pathname.endsWith("/versions")) {
-          return apiResponse({
-            items: [metadata],
-            page: { hasMore: false },
-          });
-        }
-        if (url.pathname.endsWith("/lineage")) {
-          return apiResponse({
-            items: [
+    const metadata = artifactMetadata({
+      namespace: "outputs",
+      name: "report",
+      revision: "output-r2",
+    });
+    const view = renderApplication(
+      fakeServer({
+        ...SIGNED_IN,
+        "GET /v1/runs/{runId}/artifacts/{namespace}/{name}/metadata": () =>
+          json(metadata),
+        "GET /v1/runs/{runId}/artifacts/{namespace}/{name}/versions": () =>
+          json(page([metadata])),
+        "GET /v1/runs/{runId}/artifacts/{namespace}/{name}/lineage": () =>
+          json(
+            page([
               {
                 kind: "output_bind",
                 sourceScope: "run",
@@ -2601,18 +2102,11 @@ describe("Run routes", () => {
                 stageExecutionId: "stage-router-1",
                 createdAt: "2026-08-31T12:05:00Z",
               },
-            ],
-            page: { hasMore: false },
-          });
-        }
-        if (url.pathname === "/v1/runs/run-router/artifacts/outputs/report") {
-          return byteResponse("safe report\n", "text/plain");
-        }
-        throw new Error(`unexpected ${request.method} ${url}`);
+            ]),
+          ),
+        "GET /v1/runs/{runId}/artifacts/{namespace}/{name}": () =>
+          bytes("safe report\n", "text/plain"),
       }),
-    );
-    renderRunApplication(
-      api,
       "/runs/run-router/artifacts/outputs/report?revision=output-r2",
     );
     expect(
@@ -2623,15 +2117,12 @@ describe("Run routes", () => {
       screen.getByText("Current revision", { selector: ".lede" }),
     ).toBeVisible();
     expect(screen.getByText("yes")).toBeInTheDocument();
-    await userEvent
-      .setup()
-      .click(screen.getByRole("button", { name: "Versions" }));
+    await view.user.click(screen.getByRole("button", { name: "Versions" }));
     expect(await screen.findByText("output bind")).toBeInTheDocument();
     expect(
       screen.queryByRole("heading", { name: /Upload/ }),
     ).not.toBeInTheDocument();
-    const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: "Load preview" }));
+    await view.user.click(screen.getByRole("button", { name: "Load preview" }));
     expect(
       await screen.findByText("safe report", { selector: "pre" }),
     ).toBeInTheDocument();
@@ -2640,49 +2131,30 @@ describe("Run routes", () => {
 
   describe("Run page header", () => {
     function renderRun(run: RunStatus, path = "/runs/run-router") {
-      const writes: Request[] = [];
-      const api = new PublicAPI(runtimeConfig, async (input, init) => {
-        const request = new Request(input, init);
-        const common = sessionOrArtifacts(request);
-        if (common !== undefined) return common;
-        if (request.method !== "GET") {
-          writes.push(request);
-          throw new Error(`unexpected ${request.method} ${request.url}`);
-        }
-        const url = new URL(request.url);
-        if (url.pathname === "/v1/runs/run-router") return apiResponse(run);
-        if (url.pathname === "/v1/runs") {
-          return apiResponse({
-            items: [
-              {
-                runId: "run-router",
-                workflow: run.workflow,
-                state: run.state,
-                deletable: run.deletable,
-                labels: {},
-                createdAt: "2026-08-31T12:00:00Z",
-                updatedAt: "2026-08-31T12:01:00Z",
-              },
-            ],
-            page: { hasMore: false },
-          });
-        }
-        return apiResponse(
-          {
-            code: "not_found",
-            message: "Not in this fixture",
-            retryable: false,
-          },
-          { status: 404 },
-        );
-      });
-      return { ...renderRunApplication(api, path), writes };
+      const view = renderApplication(
+        runServer(() => run, {
+          "GET /v1/runs": () =>
+            json(
+              page([
+                summary("run-router", {
+                  workflow: run.workflow,
+                  state: run.state,
+                  deletable: run.deletable,
+                }),
+              ]),
+            ),
+        }),
+        path,
+      );
+      return {
+        ...view,
+        /** Requests that would change something; none is expected. */
+        writes: () =>
+          view.requests.filter((request) => request.method !== "GET"),
+      };
     }
 
-    const failedAttempt = {
-      ...runFixture().attempts[0]!,
-      state: "failed" as const,
-    };
+    const failedAttempt = { ...RUNNING_ATTEMPT, state: "failed" as const };
 
     it.each([
       ["running", runFixture({ eventCursor: undefined }), ["Cancel Run"]],
@@ -2774,7 +2246,7 @@ describe("Run routes", () => {
           resumeStageExecutionId: failedAttempt.stageExecutionId,
         }),
       );
-      const user = userEvent.setup();
+      const user = view.user;
       const trigger = await screen.findByRole("button", {
         name: "Continue from failed stage",
       });
@@ -2796,12 +2268,12 @@ describe("Run routes", () => {
       await user.click(within(dialog).getByRole("button", { name: "Back" }));
       expect(screen.queryByRole("alertdialog")).toBeNull();
       await waitFor(() => expect(trigger).toHaveFocus());
-      expect(view.writes).toHaveLength(0);
+      expect(view.writes()).toHaveLength(0);
     });
 
     it("keeps a dismissed cancellation free of requests", async () => {
       const view = renderRun(runFixture({ eventCursor: undefined }));
-      const user = userEvent.setup();
+      const user = view.user;
       const trigger = await screen.findByRole("button", {
         name: "Cancel Run",
       });
@@ -2813,7 +2285,7 @@ describe("Run routes", () => {
       );
       expect(screen.queryByRole("dialog")).toBeNull();
       await waitFor(() => expect(trigger).toHaveFocus());
-      expect(view.writes).toHaveLength(0);
+      expect(view.writes()).toHaveLength(0);
       expect(
         within(trigger.closest("header")!).getByText("Running"),
       ).toBeInTheDocument();
@@ -2824,7 +2296,7 @@ describe("Run routes", () => {
         state: "cancelled",
         projectId: "project-payment",
         activeStageExecutionId: undefined,
-        attempts: [{ ...runFixture().attempts[0]!, state: "cancelled" }],
+        attempts: [{ ...RUNNING_ATTEMPT, state: "cancelled" }],
         cancellation: {
           code: "user_cancelled",
           requestedAt: "2026-08-31T12:03:00Z",
@@ -2834,7 +2306,7 @@ describe("Run routes", () => {
         finishedAt: "2026-08-31T12:04:00Z",
       });
       const view = renderRun(cancelled);
-      const user = userEvent.setup();
+      const user = view.user;
       expect(
         await screen.findByRole("heading", {
           level: 1,
@@ -2919,7 +2391,7 @@ describe("Run routes", () => {
           state: "succeeded",
           eventCursor: undefined,
           activeStageExecutionId: undefined,
-          attempts: [{ ...runFixture().attempts[0]!, state: "succeeded" }],
+          attempts: [{ ...RUNNING_ATTEMPT, state: "succeeded" }],
         }),
       );
       const shortcut = await screen.findByRole("link", {
@@ -2935,13 +2407,13 @@ describe("Run routes", () => {
       expect(attempt.open).toBe(true);
       // A finished Run without an event stream shows no live status line.
       expect(screen.queryByText(/^Live events/)).toBeNull();
-      await userEvent.setup().click(shortcut);
+      await view.user.click(shortcut);
       expect(attempts.open).toBe(true);
       expect(attempt.open).toBe(true);
     });
 
     it("leads back to the list view the Run was opened from", async () => {
-      renderRun(
+      const view = renderRun(
         runFixture({
           state: "failed",
           eventCursor: undefined,
@@ -2950,8 +2422,9 @@ describe("Run routes", () => {
         }),
         "/runs?view=completed&state=failed",
       );
-      const user = userEvent.setup();
-      await user.click(await screen.findByRole("link", { name: "run-router" }));
+      await view.user.click(
+        await screen.findByRole("link", { name: "run-router" }),
+      );
       const breadcrumb = await screen.findByRole("navigation", {
         name: "Breadcrumb",
       });
@@ -2962,10 +2435,9 @@ describe("Run routes", () => {
       expect(
         within(breadcrumb).getByRole("link", { name: "Completed" }),
       ).toHaveAttribute("href", "/runs?view=completed&state=failed");
-      expect(within(breadcrumb).getByText("run-router")).toHaveAttribute(
-        "aria-current",
-        "page",
-      );
+      expect(
+        within(breadcrumb).getByText("run-router").closest("[aria-current]"),
+      ).toHaveAttribute("aria-current", "page");
     });
   });
 });

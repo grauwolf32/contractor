@@ -1,10 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 
 import type { ArtifactArchiveScope } from "../../api/artifact-archive";
 import type { ArtifactMetadata } from "../../api/artifacts";
 import { formatBytes, formatTimestamp } from "../../app/format";
 import { RecordedTime } from "../../app/recorded-time";
-import { IdChip, StatusGlyph, TechnicalDetails } from "../../ui";
+import { Button, Facts, IdChip, StatusGlyph, TechnicalDetails } from "../../ui";
 import { ArtifactHistory } from "./history";
 import { MaterialIcon } from "./icons";
 import { formatLabel } from "./kinds";
@@ -38,54 +38,47 @@ export function ArtifactRevisionLede({
 export function ArtifactFacts({ metadata }: { metadata: ArtifactMetadata }) {
   const git = metadata.gitSource;
   return (
-    <dl className="materials-facts">
-      <div>
-        <dt>Format</dt>
-        <dd>{formatLabel(metadata.mediaType)}</dd>
-      </div>
-      <div>
-        <dt>Size</dt>
-        <dd>{formatBytes(metadata.size)}</dd>
-      </div>
-      <div>
-        <dt>Created</dt>
-        <dd>
-          <time dateTime={metadata.createdAt}>
-            {formatTimestamp(metadata.createdAt)}
-          </time>
-        </dd>
-      </div>
-      <div>
-        <dt>Locked</dt>
-        <dd>{metadata.frozen ? "yes" : "no"}</dd>
-      </div>
-      {git === undefined ? null : (
-        <>
-          <div className="materials-fact-wide">
-            <dt>Git repository</dt>
-            <dd className="materials-mono materials-wrap">
-              {git.repositoryUrl}
-            </dd>
-          </div>
-          <div>
-            <dt>Branch or tag</dt>
-            <dd>{git.requestedRef ?? "Default branch"}</dd>
-          </div>
-          <div>
-            <dt>Git commit</dt>
-            <dd>
-              <IdChip value={git.resolvedCommit} label="Git commit" />
-            </dd>
-          </div>
-          <div>
-            <dt>Imported</dt>
-            <dd>
-              <RecordedTime value={git.importedAt} />
-            </dd>
-          </div>
-        </>
-      )}
-    </dl>
+    <Facts
+      layout="row"
+      className="materials-facts"
+      items={[
+        { term: "Format", value: formatLabel(metadata.mediaType) },
+        { term: "Size", value: formatBytes(metadata.size) },
+        {
+          term: "Created",
+          value: (
+            <time dateTime={metadata.createdAt}>
+              {formatTimestamp(metadata.createdAt)}
+            </time>
+          ),
+        },
+        { term: "Locked", value: metadata.frozen ? "yes" : "no" },
+        ...(git === undefined
+          ? []
+          : [
+              {
+                term: "Git repository",
+                value: (
+                  <span className="ui-mono materials-fact-wide">
+                    {git.repositoryUrl}
+                  </span>
+                ),
+              },
+              {
+                term: "Branch or tag",
+                value: git.requestedRef ?? "Default branch",
+              },
+              {
+                term: "Git commit",
+                value: <IdChip value={git.resolvedCommit} label="Git commit" />,
+              },
+              {
+                term: "Imported",
+                value: <RecordedTime value={git.importedAt} />,
+              },
+            ]),
+      ]}
+    />
   );
 }
 
@@ -103,36 +96,30 @@ export function ArtifactTechnicalDetails({
   /** Heading level of Versions and Lineage. Default "h3". */
   titleAs?: "h2" | "h3" | undefined;
 }) {
-  const wrapper = useRef<HTMLDivElement>(null);
   const [opened, setOpened] = useState(false);
-  useEffect(() => {
-    const node = wrapper.current;
-    if (node === null) return undefined;
-    // `toggle` does not bubble; a capturing listener still sees it.
-    const onToggle = (event: Event) => {
-      if (event.target instanceof HTMLDetailsElement && event.target.open)
-        setOpened(true);
-    };
-    node.addEventListener("toggle", onToggle, true);
-    return () => node.removeEventListener("toggle", onToggle, true);
-  }, []);
   return (
-    <div ref={wrapper} id={HISTORY_ID} className="materials-tech">
-      <TechnicalDetails description="Revision, media type, versions and lineage.">
-        <dl className="materials-facts materials-tech-facts">
-          <div className="materials-fact-wide">
-            <dt>Revision</dt>
-            <dd>
-              <code>{metadata.artifact.revision}</code>
-            </dd>
-          </div>
-          <div>
-            <dt>Media type</dt>
-            <dd>
-              <code>{metadata.mediaType}</code>
-            </dd>
-          </div>
-        </dl>
+    <div id={HISTORY_ID} className="materials-tech">
+      <TechnicalDetails
+        description="Revision, media type, versions and lineage."
+        onToggle={(open) => {
+          if (open) setOpened(true);
+        }}
+      >
+        <Facts
+          layout="row"
+          className="materials-facts materials-tech-facts"
+          items={[
+            {
+              term: "Revision",
+              value: (
+                <code className="materials-fact-wide">
+                  {metadata.artifact.revision}
+                </code>
+              ),
+            },
+            { term: "Media type", value: <code>{metadata.mediaType}</code> },
+          ]}
+        />
         {opened ? (
           <ArtifactHistory
             key={metadata.artifact.revision}
@@ -149,11 +136,10 @@ export function ArtifactTechnicalDetails({
 /** Opens Technical details at the version history and moves focus there. */
 export function ArtifactVersionsButton() {
   return (
-    <button
-      type="button"
-      className="ui-btn"
-      data-size="sm"
-      data-variant="ghost"
+    <Button
+      size="sm"
+      variant="ghost"
+      icon={<MaterialIcon name="history" />}
       onClick={() => {
         const node = document.getElementById(HISTORY_ID);
         const details = node?.querySelector("details");
@@ -169,8 +155,7 @@ export function ArtifactVersionsButton() {
         details.querySelector("summary")?.focus({ preventScroll: true });
       }}
     >
-      <MaterialIcon name="history" />
       Versions
-    </button>
+    </Button>
   );
 }

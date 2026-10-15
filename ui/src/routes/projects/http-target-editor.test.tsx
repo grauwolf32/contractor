@@ -1,82 +1,51 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { QueryClient } from "@tanstack/react-query";
+import { screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import { PublicAPI } from "../../api/client";
-import { PublicAPIProvider } from "../../api/context";
 import type { RuntimeCredentialMetadata } from "../../api/operations";
 import type { Project } from "../../api/projects";
 import { queryKeys } from "../../api/query-keys";
+import * as build from "../../test/builders";
+import { json, page } from "../../test/fake-server";
+import { renderWithAPI } from "../../test/render";
 import { ProjectHTTPTargetEditor } from "./http-target-editor";
 
-const project: Project = {
-  projectId: "project_example",
-  kind: "project",
+const project = build.project("project_example", {
   name: "Payment service",
-  description: "",
-  lifecycle: "active",
-  activeChecks: "automatic",
-  revision: "1",
   createdAt: "2026-09-20T10:00:00Z",
   updatedAt: "2026-09-20T10:00:00Z",
-};
+});
 
 function credential(
   credentialId: string,
   kind: RuntimeCredentialMetadata["kind"] = "http-origin-bearer@1",
 ): RuntimeCredentialMetadata {
-  return {
+  return build.conforming("RuntimeCredentialMetadata", {
     credentialId,
     kind,
     createdBy: "user_local",
     createdAt: "2026-09-20T10:00:00Z",
-  };
-}
-
-function response(value: unknown, status = 200, headers: HeadersInit = {}) {
-  return new Response(JSON.stringify(value), {
-    status,
-    headers: {
-      "Content-Type": "application/json",
-      "X-Contractor-API-Version": "contractor.public.v1",
-      ...headers,
-    },
   });
 }
 
+/** The editor over a fake Server answering `handle`, with a cached first page. */
 function fixture(
-  fetcher: (request: Request) => Promise<Response>,
-  currentProject = project,
+  handle: (request: Request) => Promise<Response>,
+  currentProject: Project = project,
 ) {
-  const api = new PublicAPI(
-    {
-      uiVersion: "0.1.0",
-      supportedApiVersions: ["contractor.public.v1"],
-      apiBaseUrl: "http://127.0.0.1:8080",
-    },
-    vi.fn(async (input) => fetcher(input as Request)),
-  );
-  api.csrf.replace("a".repeat(43));
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
-  const pageSnapshot = {
-    items: [credential("cached-page")],
-    page: { hasMore: false },
-  };
+  const pageSnapshot = page([credential("cached-page")]);
   queryClient.setQueryData(
     queryKeys.operations.runtimeCredentials.list(),
     pageSnapshot,
   );
-  render(
-    <QueryClientProvider client={queryClient}>
-      <PublicAPIProvider api={api}>
-        <ProjectHTTPTargetEditor project={currentProject} />
-      </PublicAPIProvider>
-    </QueryClientProvider>,
+  const { user } = renderWithAPI(
+    <ProjectHTTPTargetEditor project={currentProject} />,
+    { server: (request) => handle(request), queryClient },
   );
-  return { user: userEvent.setup(), queryClient, pageSnapshot };
+  return { user, queryClient, pageSnapshot };
 }
 
 describe("Project HTTP credential picker", () => {
@@ -87,25 +56,20 @@ describe("Project HTTP credential picker", () => {
       const url = new URL(request.url);
       if (request.method === "PATCH") {
         update = await request.json();
-        return response(
-          { ...project, ...(update as object), revision: "2" },
-          200,
-          { ETag: '"2"' },
-        );
+        return json({ ...project, ...(update as object), revision: "2" }, 200, {
+          ETag: '"2"',
+        });
       }
       cursors.push(url.searchParams.get("cursor"));
-      return response(
+      return json(
         url.searchParams.has("cursor")
-          ? {
-              items: [credential("later-origin")],
-              page: { hasMore: false },
-            }
-          : {
-              items: Array.from({ length: 50 }, (_, index) =>
+          ? page([credential("later-origin")])
+          : page(
+              Array.from({ length: 50 }, (_, index) =>
                 credential(`proxy-${index}`, "http-proxy-basic@1"),
               ),
-              page: { hasMore: true, nextCursor: "page-2" },
-            },
+              "page-2",
+            ),
       );
     });
     await user.click(screen.getByRole("button", { name: "Configure target" }));
@@ -150,7 +114,7 @@ describe("Project HTTP credential picker", () => {
       cursors.push(cursor);
       if (cursor !== null)
         return fail
-          ? response(
+          ? json(
               {
                 code: "unavailable",
                 message: "Later credentials unavailable",
@@ -158,14 +122,8 @@ describe("Project HTTP credential picker", () => {
               },
               503,
             )
-          : response({
-              items: [credential("later-origin")],
-              page: { hasMore: false },
-            });
-      return response({
-        items: [credential("first-origin")],
-        page: { hasMore: true, nextCursor: "page-2" },
-      });
+          : json(page([credential("later-origin")]));
+      return json(page([credential("first-origin")], "page-2"));
     });
     await user.click(screen.getByRole("button", { name: "Configure target" }));
     await user.selectOptions(
@@ -183,19 +141,16 @@ describe("Project HTTP credential picker", () => {
   });
 
   it("keeps the Project's current credential visible when it is absent from the inventory", async () => {
-    const { user } = fixture(
-      async () => response({ items: [], page: { hasMore: false } }),
-      {
-        ...project,
-        httpTarget: {
-          url: "https://app.example.test/",
-          credential: {
-            credentialId: "current-origin",
-            kind: "http-origin-bearer@1",
-          },
+    const { user } = fixture(async () => json(page([])), {
+      ...project,
+      httpTarget: {
+        url: "https://app.example.test/",
+        credential: {
+          credentialId: "current-origin",
+          kind: "http-origin-bearer@1",
         },
       },
-    );
+    });
     await user.click(screen.getByRole("button", { name: "Edit target" }));
     expect(
       await screen.findByRole("option", { name: /current-origin/ }),
@@ -206,9 +161,7 @@ describe("Project HTTP credential picker", () => {
   });
 
   it("masks new secrets unless the user asks to see them while typing", async () => {
-    const { user } = fixture(async () =>
-      response({ items: [], page: { hasMore: false } }),
-    );
+    const { user } = fixture(async () => json(page([])));
     await user.click(screen.getByRole("button", { name: "Configure target" }));
     await user.selectOptions(screen.getByLabelText("Authorization"), "basic");
     const password = screen.getByLabelText("Password · write only");
@@ -244,9 +197,9 @@ describe("Project HTTP credential picker", () => {
       if (request.method === "PATCH") {
         writes.push(request.clone());
         const updated: Project = { ...project, revision: "5" };
-        return response(updated, 200, { ETag: '"5"' });
+        return json(updated, 200, { ETag: '"5"' });
       }
-      return response({ items: [], page: { hasMore: false } });
+      return json(page([]));
     }, targeted);
     expect(screen.getByText("current-origin")).toBeVisible();
     await user.click(screen.getByRole("button", { name: "Remove target" }));
@@ -283,7 +236,7 @@ describe("Project HTTP credential picker", () => {
     const { user } = fixture(async (request) => {
       if (request.method === "PATCH") {
         writes.push(request);
-        return response(
+        return json(
           {
             code: "precondition_failed",
             message: "resource revision precondition failed",
@@ -292,7 +245,7 @@ describe("Project HTTP credential picker", () => {
           412,
         );
       }
-      return response({ items: [], page: { hasMore: false } });
+      return json(page([]));
     }, targeted);
     await user.click(screen.getByRole("button", { name: "Remove target" }));
     const dialog = screen.getByRole("alertdialog", {
@@ -309,10 +262,7 @@ describe("Project HTTP credential picker", () => {
 
   it("rejects cyclic pagination instead of treating the first page as complete", async () => {
     const reads = vi.fn(async () =>
-      response({
-        items: [credential("first-origin")],
-        page: { hasMore: true, nextCursor: "repeated" },
-      }),
+      json(page([credential("first-origin")], "repeated")),
     );
     const { user } = fixture(reads);
     await user.click(screen.getByRole("button", { name: "Configure target" }));

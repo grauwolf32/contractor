@@ -1,8 +1,15 @@
 import { useCallback, useState } from "react";
-import { Link, useLocation, useParams, useSearchParams } from "react-router";
+import { useLocation, useParams, useSearchParams } from "react-router";
 
 import { useDocumentTitle } from "../../app/document-title";
-import { DetailPane, EmptyState, PaneLayout } from "../../ui";
+import { useGuardedNavigate } from "../../app/page-location";
+import {
+  Button,
+  ButtonLink,
+  DetailPane,
+  EmptyState,
+  PaneLayout,
+} from "../../ui";
 import { NewProjectDialog } from "./new-project-dialog";
 import { useNewProjectKeys } from "./new-project-keys";
 import { ProjectDraftsContext } from "./project-drafts";
@@ -11,7 +18,6 @@ import { projectPath, projectSectionOf } from "./project-sections";
 import { ProjectWorkspace } from "./project-workspace";
 
 import "./projects.css";
-import { useGuardedNavigate } from "../../app/page-location";
 
 /** The detail pane on /projects, before a project is chosen. */
 function ProjectsStart({ onNewProject }: { onNewProject: () => void }) {
@@ -21,19 +27,13 @@ function ProjectsStart({ onNewProject }: { onNewProject: () => void }) {
       <EmptyState
         title="Choose a project"
         action={
-          <div className="projects-start-actions">
-            <button
-              type="button"
-              className="ui-btn"
-              data-variant="primary"
-              data-size="sm"
-              onClick={onNewProject}
-            >
+          <div className="ui-toolbar">
+            <Button variant="primary" size="sm" onClick={onNewProject}>
               New project
-            </button>
-            <Link className="ui-btn" data-size="sm" to="/checks/new">
+            </Button>
+            <ButtonLink size="sm" to="/checks/new">
               Start a check
-            </Link>
+            </ButtonLink>
           </div>
         }
       >

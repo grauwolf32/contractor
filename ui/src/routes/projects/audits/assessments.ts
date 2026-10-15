@@ -1,7 +1,7 @@
 import type { AuditCoverageRow } from "../../../api/audits";
 import { capitalize, itemNoun, type ItemKind } from "../../../app/vocabulary";
 
-export type Status = AuditCoverageRow["coverage"]["status"];
+type Status = AuditCoverageRow["coverage"]["status"];
 
 /**
  * Result filter of a check's item list, kept in the URL as `result`. The
@@ -27,7 +27,7 @@ export const GROUP_IDS: readonly Group[] = [
  * filter that lists exactly its items. An item the owner rejected is excluded
  * and needs follow-up: it is a gap, not concluded work.
  */
-export const STATUS_GROUPS: Readonly<Record<Status, Exclude<Group, "all">>> = {
+const STATUS_GROUPS: Readonly<Record<Status, Exclude<Group, "all">>> = {
   violated: "issues",
   satisfied: "complete",
   "traced-complete": "complete",

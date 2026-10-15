@@ -3,7 +3,7 @@ import { PublicAPIError } from "../../../api/error";
 import { ErrorNotice } from "../../../app/error-notice";
 import { formatTimestamp } from "../../../app/format";
 import type { AuditFindingPage, AuditReviewPage } from "../../../api/audits";
-import { TechnicalDetails } from "../../../ui";
+import { Button, TechnicalDetails } from "../../../ui";
 
 import "../../issues/issues.css";
 
@@ -61,33 +61,18 @@ export function AuditQueuePage({
           records in this check
         </p>
         <div className="issues-queue-actions">
-          <button
-            type="button"
-            className="ui-btn"
-            data-size="xs"
-            onClick={onRefresh}
-          >
+          <Button size="xs" onClick={onRefresh}>
             Refresh context
-          </button>
+          </Button>
           {queue.params.has("cursor") ? (
-            <button
-              type="button"
-              className="ui-btn"
-              data-size="xs"
-              onClick={queue.refresh}
-            >
+            <Button size="xs" onClick={queue.refresh}>
               First page
-            </button>
+            </Button>
           ) : null}
           {page.page.hasMore && page.page.nextCursor !== undefined ? (
-            <button
-              type="button"
-              className="ui-btn"
-              data-size="xs"
-              onClick={() => queue.next(page)}
-            >
+            <Button size="xs" onClick={() => queue.next(page)}>
               Next page
-            </button>
+            </Button>
           ) : null}
         </div>
       </div>

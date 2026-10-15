@@ -1,55 +1,46 @@
-import { QueryClientProvider } from "@tanstack/react-query";
-import { StrictMode } from "react";
-import { act, render, screen, waitFor, within } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { createMemoryRouter, MemoryRouter, RouterProvider } from "react-router";
+import type { ReactElement } from "react";
 import { describe, expect, it, vi } from "vitest";
 
-import { PublicAPI } from "../../api/client";
-import { PublicAPIProvider } from "../../api/context";
 import { queryKeys } from "../../api/query-keys";
-import type { RuntimeConfig } from "../../config/runtime-config";
-import { Application } from "../../app/application";
+import type { WorkflowResource } from "../../api/workflows";
 import { createApplicationQueryClient } from "../../app/query-client";
-import { applicationRoutes } from "../../app/router";
-import { RunDraftProvider } from "../../run-drafts/provider";
 import { RunDraftStoreContext } from "../../run-drafts/context";
 import {
   initialRunDraftState,
   RunDraftMemoryStore,
 } from "../../run-drafts/memory";
-import type { WorkflowResource } from "../../api/workflows";
-import { workflowSummary } from "../../test/builders-execution";
+import { RunDraftProvider } from "../../run-drafts/provider";
+import { conforming } from "../../test/builders";
+import { runStatus, workflowSummary } from "../../test/builders-execution";
+import {
+  failure,
+  fakeServer,
+  json,
+  page,
+  type Routes,
+} from "../../test/fake-server";
+import { CSRF_TOKEN, renderWithAPI } from "../../test/render";
+import {
+  artifactMetadata,
+  artifactWrite,
+  renderApplication,
+} from "../artifacts/test-support";
 import { WorkflowRunForm } from "./run-form";
-
-const runtimeConfig: RuntimeConfig = {
-  uiVersion: "0.1.0",
-  supportedApiVersions: ["contractor.public.v1"],
-  apiBaseUrl: "http://127.0.0.1:8080",
-};
 
 const digest = `sha256:${"1".repeat(64)}`;
 const secondDigest = `sha256:${"2".repeat(64)}`;
 const workflowDisplayName = "OpenAPI from source workspace";
 const workflowDescription =
   "Build an exact OpenAPI contract from a source artifact.";
-const session = {
-  principal: {
-    userId: "user_local",
-    username: "owner",
-    capabilities: ["user", "operations"] as const,
-  },
-  csrfToken: "a".repeat(43),
-  idleExpiresAt: "2026-08-31T20:00:00Z",
-  absoluteExpiresAt: "2026-09-01T12:00:00Z",
-};
 
 const workerConfig = {
   modelPolicy: { policyId: "worker", version: "1", digest },
   llmGateway: { gatewayId: "local", version: "1", digest },
 };
 
-const workflow: WorkflowResource = {
+const workflow: WorkflowResource = conforming("WorkflowResource", {
   ref: { name: "openapi-from-workspace", version: "fixture-1" },
   presentation: {
     displayName: workflowDisplayName,
@@ -110,31 +101,25 @@ const workflow: WorkflowResource = {
       },
     },
   },
-};
+});
 
 const workflowSelector = `${workflow.ref.name}@${workflow.ref.version}`;
 const workflowRoute = `/catalog/workflows/${workflow.ref.name}/${workflow.ref.version}`;
-const workflowEndpoint = `/v1/workflows/${workflow.ref.name}/versions/${workflow.ref.version}`;
-const nextWorkflow: WorkflowResource = {
+const WORKFLOW = "GET /v1/workflows/{name}/versions/{version}";
+const CREATE_RUN = "POST /v1/runs";
+const nextWorkflow = conforming("WorkflowResource", {
   ref: { name: "likec4-from-workspace", version: "fixture-1" },
   entryStage: workflow.entryStage,
   parameters: workflow.parameters,
   inputs: workflow.inputs,
   outputs: workflow.outputs,
   stages: workflow.stages,
-};
-const sourceArtifact = {
-  artifact: {
-    namespace: "projects",
-    name: "source",
-    revision: "revision-7",
-  },
-  mediaType: "application/zip",
+});
+const sourceArtifact = artifactMetadata("projects", "source", {
+  artifact: { namespace: "projects", name: "source", revision: "revision-7" },
   size: 1024,
-  current: true,
-  frozen: false,
   createdAt: "2026-08-31T12:00:00Z",
-};
+});
 
 const pinnedRuntimeConfiguration = {
   default: {
@@ -161,66 +146,85 @@ const labeledRuntimeConfiguration = {
   ],
 };
 
-function apiResponse(value: unknown, options: ResponseInit = {}): Response {
-  const headers = new Headers(options.headers);
-  headers.set("content-type", "application/json");
-  headers.set("X-Contractor-API-Version", "contractor.public.v1");
-  return new Response(JSON.stringify(value), { ...options, headers });
+/** The Server's answer to an accepted Run. */
+function createdRun(
+  runId: string,
+  overrides: Partial<
+    Parameters<typeof conforming<"CreateRunResponse">>[1]
+  > = {},
+) {
+  return conforming("CreateRunResponse", {
+    runId,
+    state: "running",
+    runtimeLabels: [],
+    labels: {},
+    runtimeConfiguration: pinnedRuntimeConfiguration,
+    ...overrides,
+  });
 }
 
-function inventoryResponse(path: string): Response | undefined {
-  if (path === "/v1/workflows")
-    return apiResponse({
-      items: [workflowSummary(workflow)],
-      page: { hasMore: false },
-    });
-  if (path === "/v1/artifacts") {
-    return apiResponse({
-      items: [sourceArtifact],
-      page: { hasMore: false },
-    });
-  }
-  if (path === "/v1/configurations/model-policies") {
-    return apiResponse({
-      items: [
-        {
-          ref: {
-            kind: "model-policies",
-            name: "worker-strong",
-            version: "2",
-            digest,
-          },
-          body: { model: "strong-model", maxTotalTokens: 100_000 },
-          source: "operator",
-        },
-      ],
-      page: { hasMore: false },
-    });
-  }
-  if (path === "/v1/configurations/llm-gateways") {
-    return apiResponse({
-      items: [
-        {
-          ref: {
-            kind: "llm-gateways",
-            name: "local",
-            version: "1",
-            digest,
-          },
-          body: {
-            protocol: "openai-compatible@1",
-            url: "http://192.0.2.1:4000",
-          },
-          source: "operator",
-        },
-      ],
-      page: { hasMore: false },
-    });
-  }
-  if (path === "/v1/operations/credentials") {
-    return apiResponse({
-      items: [
-        {
+const runtimeLabelBinding = (
+  label: string,
+  config: { name: string; version: string; digest: string },
+  revision: string,
+  by: string,
+) =>
+  conforming("RuntimeLabelBinding", {
+    label,
+    config,
+    revision,
+    createdBy: by,
+    createdAt: "2026-08-31T12:00:00Z",
+    updatedBy: by,
+    updatedAt: "2026-08-31T12:00:00Z",
+  });
+
+/**
+ * The choices of the Run form: one published Workflow, the source ZIP, a
+ * model policy, a Gateway, a credential, the default and two Runtime labels.
+ */
+const inventoryRoutes: Routes = {
+  "GET /v1/workflows": () => json(page([workflowSummary(workflow)])),
+  "GET /v1/artifacts": () => json(page([sourceArtifact])),
+  "GET /v1/configurations/{kind}": ({ params }) =>
+    json(
+      page(
+        params.kind === "model-policies"
+          ? [
+              conforming("ConfigurationResource", {
+                ref: {
+                  kind: "model-policies",
+                  name: "worker-strong",
+                  version: "2",
+                  digest,
+                },
+                body: { model: "strong-model", maxTotalTokens: 100_000 },
+                source: "operator",
+              }),
+            ]
+          : params.kind === "llm-gateways"
+            ? [
+                conforming("ConfigurationResource", {
+                  ref: {
+                    kind: "llm-gateways",
+                    name: "local",
+                    version: "1",
+                    digest,
+                  },
+                  body: {
+                    protocol: "openai-compatible@1",
+                    url: "http://192.0.2.1:4000",
+                  },
+                  source: "operator",
+                }),
+              ]
+            : [],
+      ),
+    ),
+  "GET /v1/operations/credentials": () =>
+    json(
+      page([
+        conforming("CredentialResource", {
           credentialId: "worker-budget",
           llmGateway: { gatewayId: "local", version: "1", digest },
           label: "Worker budget",
@@ -231,46 +235,54 @@ function inventoryResponse(path: string): Response | undefined {
             ],
             models: ["strong-model"],
           },
-        },
-      ],
-      page: { hasMore: false },
-    });
-  }
-  if (path === "/v1/operations/runtime-labels") {
-    return apiResponse({
-      items: [
-        {
-          label: "default",
-          config: pinnedRuntimeConfiguration.default.config,
-          revision: "1",
-          createdBy: "system",
-          createdAt: "2026-08-31T12:00:00Z",
-          updatedBy: "system",
-          updatedAt: "2026-08-31T12:00:00Z",
-        },
-        {
-          label: "caido",
-          config: labeledRuntimeConfiguration.labels[0]!.config,
-          revision: "4",
-          createdBy: "user_local",
-          createdAt: "2026-08-31T12:00:00Z",
-          updatedBy: "user_local",
-          updatedAt: "2026-08-31T12:00:00Z",
-        },
-        {
-          label: "debug",
-          config: labeledRuntimeConfiguration.labels[1]!.config,
-          revision: "7",
-          createdBy: "user_local",
-          createdAt: "2026-08-31T12:00:00Z",
-          updatedBy: "user_local",
-          updatedAt: "2026-08-31T12:00:00Z",
-        },
-      ],
-      page: { hasMore: false },
-    });
-  }
-  return undefined;
+        }),
+      ]),
+    ),
+  "GET /v1/operations/runtime-labels": () =>
+    json(
+      page([
+        runtimeLabelBinding(
+          "default",
+          pinnedRuntimeConfiguration.default.config,
+          "1",
+          "system",
+        ),
+        runtimeLabelBinding(
+          "caido",
+          labeledRuntimeConfiguration.labels[0]!.config,
+          "4",
+          "user_local",
+        ),
+        runtimeLabelBinding(
+          "debug",
+          labeledRuntimeConfiguration.labels[1]!.config,
+          "7",
+          "user_local",
+        ),
+      ]),
+    ),
+};
+
+/** The Workflow page of `workflow` with the Run form's choices and `routes`. */
+function workflowRoutes(routes: Routes = {}): Routes {
+  return { [WORKFLOW]: () => json(workflow), ...inventoryRoutes, ...routes };
+}
+
+/** The Run form alone, with a draft store of the signed-in owner. */
+function renderRunForm(
+  form: ReactElement,
+  routes: Routes,
+  queryClient = createApplicationQueryClient(),
+) {
+  return renderWithAPI(
+    <RunDraftProvider ownerId="user_local">{form}</RunDraftProvider>,
+    { server: fakeServer(routes), queryClient },
+  );
+}
+
+/** A response the client never receives: the Run may exist. */
+function responseLost(): never {
+  throw new TypeError("response lost");
 }
 
 async function openRunSetup() {
@@ -279,66 +291,26 @@ async function openRunSetup() {
     .click(await screen.findByRole("button", { name: "Configure Run" }));
 }
 
-function renderWorkflowApplication(
-  api: PublicAPI,
-  path: string,
-  { strict = false }: { strict?: boolean } = {},
-) {
-  const router = createMemoryRouter(applicationRoutes(), {
-    initialEntries: [path],
-  });
-  const application = <Application api={api} publicAPI={api} router={router} />;
-  return {
-    ...render(strict ? <StrictMode>{application}</StrictMode> : application),
-    router,
-  };
-}
-
 describe("Workflow overview and Run drawer", () => {
   const first = { ...workflow, ref: { ...workflow.ref, version: "1" } };
   const second = { ...workflow, ref: { ...workflow.ref, version: "2" } };
   const route = `/catalog/workflows/${workflow.ref.name}`;
-  function overviewAPI(paths: string[] = [], versionsUnavailable = false) {
-    return new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const request = input instanceof Request ? input : new Request(input);
-        const url = new URL(request.url);
-        paths.push(url.pathname);
-        if (url.pathname === "/v1/auth/session") return apiResponse(session);
-        if (url.pathname === "/v1/workflows") {
-          if (versionsUnavailable)
-            return apiResponse(
-              { code: "unavailable", message: "Unavailable", retryable: false },
-              { status: 503 },
-            );
-          return url.searchParams.has("cursor")
-            ? apiResponse({
-                items: [workflowSummary(second)],
-                page: { hasMore: false },
-              })
-            : apiResponse({
-                items: [workflowSummary(first)],
-                page: { hasMore: true, nextCursor: "older-page" },
-              });
-        }
-        if (url.pathname === `/v1/workflows/${workflow.ref.name}/versions/1`)
-          return apiResponse(first);
-        if (url.pathname === `/v1/workflows/${workflow.ref.name}/versions/2`)
-          return apiResponse(second);
-        const inventory = inventoryResponse(url.pathname);
-        if (inventory) return inventory;
-        throw new Error(`unexpected ${request.method} ${url}`);
-      }),
-    );
+  function overviewRoutes(versionsUnavailable = false): Routes {
+    return {
+      ...inventoryRoutes,
+      "GET /v1/workflows": ({ url }) =>
+        versionsUnavailable
+          ? failure(503, "unavailable", "Unavailable")
+          : url.searchParams.has("cursor")
+            ? json(page([workflowSummary(second)]))
+            : json(page([workflowSummary(first)], "older-page")),
+      [WORKFLOW]: ({ params }) => json(params.version === "2" ? second : first),
+    };
   }
 
   it("shows the contract before setup, loads all versions and preserves a pinned older route", async () => {
-    const paths: string[] = [];
-    const { router } = renderWorkflowApplication(
-      overviewAPI(paths),
-      `${route}/1`,
-    );
+    const { router, sent } = renderApplication(`${route}/1`, overviewRoutes());
+
     expect(
       await screen.findByRole("heading", { name: "Inputs and results" }),
     ).toBeVisible();
@@ -352,13 +324,13 @@ describe("Workflow overview and Run drawer", () => {
     expect(
       screen.queryByRole("button", { name: "Start Workflow Run" }),
     ).not.toBeInTheDocument();
-    expect(paths).not.toContain("/v1/artifacts");
+    expect(sent("GET", "/v1/artifacts")).toHaveLength(0);
     expect(await screen.findByText("Earlier version")).toBeVisible();
     expect(
       screen.getByRole("combobox", { name: `Version of ${workflow.ref.name}` }),
     ).toHaveValue("1");
     expect(router.state.location.pathname).toBe(`${route}/1`);
-    expect(paths.filter((path) => path === "/v1/workflows")).toHaveLength(2);
+    expect(sent("GET", "/v1/workflows")).toHaveLength(2);
     const user = userEvent.setup();
     await user.selectOptions(
       screen.getByRole("combobox", { name: `Version of ${workflow.ref.name}` }),
@@ -370,7 +342,8 @@ describe("Workflow overview and Run drawer", () => {
   });
 
   it("retains optional and required values across closing, nested dialogs and exact version changes", async () => {
-    renderWorkflowApplication(overviewAPI(), `${route}/1`);
+    renderApplication(`${route}/1`, overviewRoutes());
+
     const user = userEvent.setup();
     const trigger = await screen.findByRole("button", {
       name: "Configure Run",
@@ -443,7 +416,8 @@ describe("Workflow overview and Run drawer", () => {
   });
 
   it("keeps exact setup available if the version inventory fails without claiming Latest", async () => {
-    renderWorkflowApplication(overviewAPI([], true), `${route}/1`);
+    renderApplication(`${route}/1`, overviewRoutes(true));
+
     await screen.findByRole("button", { name: "Retry versions" });
     expect(
       screen.getByRole("combobox", { name: `Version of ${workflow.ref.name}` }),
@@ -457,28 +431,19 @@ describe("Workflow overview and Run drawer", () => {
     const noInputs = { ...first, parameters: {}, inputs: {} };
     let rejectSubmission: (error: Error) => void = () => {};
     const keys: (string | null)[] = [];
-    const api = new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const request = input instanceof Request ? input : new Request(input);
-        const path = new URL(request.url).pathname;
-        if (path === "/v1/auth/session") return apiResponse(session);
-        if (path === `/v1/workflows/${workflow.ref.name}/versions/1`)
-          return apiResponse(noInputs);
-        if (path === "/v1/runs" && request.method === "POST") {
-          keys.push(request.headers.get("Idempotency-Key"));
-          if (keys.length === 1)
-            return new Promise<Response>((_, reject) => {
-              rejectSubmission = reject;
-            });
-          throw new TypeError("response lost");
-        }
-        const inventory = inventoryResponse(path);
-        if (inventory) return inventory;
-        throw new Error(`unexpected ${request.method} ${path}`);
-      }),
-    );
-    renderWorkflowApplication(api, `${route}/1#workflow-run-setup`);
+    renderApplication(`${route}/1#workflow-run-setup`, {
+      ...inventoryRoutes,
+      [WORKFLOW]: () => json(noInputs),
+      [CREATE_RUN]: ({ request }) => {
+        keys.push(request.headers.get("Idempotency-Key"));
+        if (keys.length === 1)
+          return new Promise<Response>((_, reject) => {
+            rejectSubmission = reject;
+          });
+        return responseLost();
+      },
+    });
+
     const user = userEvent.setup();
     await user.click(
       await screen.findByRole("button", { name: "Start Workflow Run" }),
@@ -506,20 +471,9 @@ describe("Workflow routes", () => {
   it.each([workflowDisplayName, "View workflow"])(
     "preserves Workflow search and return state through the %s link",
     async (linkName) => {
-      const api = new PublicAPI(
-        runtimeConfig,
-        vi.fn(async (input) => {
-          const request = input instanceof Request ? input : new Request(input);
-          const path = new URL(request.url).pathname;
-          if (path === "/v1/auth/session") return apiResponse(session);
-          if (path === workflowEndpoint) return apiResponse(workflow);
-          const inventory = inventoryResponse(path);
-          if (inventory !== undefined) return inventory;
-          throw new Error(`unexpected ${request.method} ${path}`);
-        }),
-      );
       const path = "/catalog/workflows?q=openapi&keep=yes";
-      const { router } = renderWorkflowApplication(api, path);
+      const { router } = renderApplication(path, workflowRoutes());
+
       const returnState = { from: "catalog-navigation" };
       await act(async () => {
         await router.navigate(path, { replace: true, state: returnState });
@@ -551,27 +505,12 @@ describe("Workflow routes", () => {
         resolveSubmission = resolve;
       });
       const submissions: Request[] = [];
-      const api = new PublicAPI(
-        runtimeConfig,
-        vi.fn(async (input) => {
-          const request = input instanceof Request ? input : new Request(input);
-          const path = new URL(request.url).pathname;
-          if (path.endsWith("/artifacts")) {
-            return apiResponse({
-              items: [sourceArtifact],
-              page: { hasMore: false },
-            });
-          }
-          if (request.method === "POST") {
-            submissions.push(request);
-            if (submissions.length === 1) return pending;
-            throw new TypeError("replacement response lost");
-          }
-          throw new Error(`unexpected ${request.method} ${path}`);
-        }),
-      );
+      const submit = ({ request }: { request: Request }) => {
+        submissions.push(request);
+        if (submissions.length === 1) return pending;
+        throw new TypeError("replacement response lost");
+      };
       const queryClient = createApplicationQueryClient();
-      api.csrf.replace(session.csrfToken);
       let finishInvalidation!: () => void;
       const invalidation = new Promise<void>((resolve) => {
         finishInvalidation = resolve;
@@ -583,32 +522,33 @@ describe("Workflow routes", () => {
         projectId === undefined
           ? `${workflowRoute}/run`
           : `/projects/${projectId}/workflows/${workflow.ref.name}/${workflow.ref.version}/run`;
-      const router = createMemoryRouter(
-        [
+      const { router, user } = renderWithAPI(null, {
+        path: formPath,
+        queryClient,
+        server: fakeServer({
+          "GET /v1/artifacts": () => json(page([sourceArtifact])),
+          "GET /v1/projects/{projectId}/artifacts": () =>
+            json(page([sourceArtifact])),
+          [CREATE_RUN]: submit,
+          "POST /v1/projects/{projectId}/runs": submit,
+        }),
+        routes: [
           {
             path: formPath,
             element: (
-              <WorkflowRunForm
-                workflow={workflow}
-                {...(projectId === undefined ? {} : { projectId })}
-              />
+              <RunDraftStoreContext.Provider value={store}>
+                <WorkflowRunForm
+                  workflow={workflow}
+                  {...(projectId === undefined ? {} : { projectId })}
+                />
+              </RunDraftStoreContext.Provider>
             ),
           },
           { path: "/away", element: <p>Away</p> },
           { path: "/runs/:runId", element: <p>Created Run</p> },
         ],
-        { initialEntries: [formPath] },
-      );
-      render(
-        <QueryClientProvider client={queryClient}>
-          <PublicAPIProvider api={api}>
-            <RunDraftStoreContext.Provider value={store}>
-              <RouterProvider router={router} />
-            </RunDraftStoreContext.Provider>
-          </PublicAPIProvider>
-        </QueryClientProvider>,
-      );
-      const user = userEvent.setup();
+      });
+
       async function edit(objective: string) {
         await user.type(await screen.findByLabelText(/^objective/i), objective);
         await screen.findByRole("option", {
@@ -626,16 +566,9 @@ describe("Workflow routes", () => {
       await waitFor(() => expect(submissions).toHaveLength(1));
       const success = () =>
         resolveSubmission(
-          apiResponse(
-            {
-              runId: "run_old",
-              ...(projectId === undefined ? {} : { projectId }),
-              state: "running",
-              runtimeLabels: [],
-              labels: {},
-              runtimeConfiguration: pinnedRuntimeConfiguration,
-            },
-            { status: 202 },
+          json(
+            createdRun("run_old", projectId === undefined ? {} : { projectId }),
+            202,
           ),
         );
       if (resolveBeforeReplacement) {
@@ -715,7 +648,7 @@ describe("Workflow routes", () => {
   );
 
   it("requires slot-by-slot review when one MIME candidate is suggested twice", async () => {
-    const reportArtifact = {
+    const reportArtifact = artifactMetadata("reports", "review", {
       ...sourceArtifact,
       artifact: {
         namespace: "reports",
@@ -723,7 +656,7 @@ describe("Workflow routes", () => {
         revision: "revision-report-1",
       },
       mediaType: "text/markdown",
-    };
+    });
     const exactRef = "reports/review@revision-report-1";
     const reviewWorkflow: WorkflowResource = {
       ...workflow,
@@ -739,36 +672,16 @@ describe("Workflow routes", () => {
         },
       },
     };
-    const api = new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const request = input instanceof Request ? input : new Request(input);
-        if (new URL(request.url).pathname === "/v1/artifacts") {
-          return apiResponse({
-            items: [reportArtifact],
-            page: { hasMore: false },
-          });
-        }
-        throw new Error(`unexpected ${request.method} ${request.url}`);
-      }),
-    );
-    render(
-      <QueryClientProvider client={createApplicationQueryClient()}>
-        <PublicAPIProvider api={api}>
-          <RunDraftProvider ownerId="user_local">
-            <MemoryRouter>
-              <WorkflowRunForm
-                workflow={reviewWorkflow}
-                initialArtifactSelections={{
-                  dependency_report: exactRef,
-                  project_report: exactRef,
-                }}
-                initialArtifacts={[reportArtifact]}
-              />
-            </MemoryRouter>
-          </RunDraftProvider>
-        </PublicAPIProvider>
-      </QueryClientProvider>,
+    const { user } = renderRunForm(
+      <WorkflowRunForm
+        workflow={reviewWorkflow}
+        initialArtifactSelections={{
+          dependency_report: exactRef,
+          project_report: exactRef,
+        }}
+        initialArtifacts={[reportArtifact]}
+      />,
+      { "GET /v1/artifacts": () => json(page([reportArtifact])) },
     );
 
     expect(await screen.findByText("Review 2")).toBeVisible();
@@ -782,7 +695,6 @@ describe("Workflow routes", () => {
       screen.getAllByRole("link", { name: "Preview file details" }),
     ).toHaveLength(2);
 
-    const user = userEvent.setup();
     await user.click(
       screen.getByRole("button", {
         name: "Confirm input for dependency_report",
@@ -805,44 +717,28 @@ describe("Workflow routes", () => {
         artifact: { ...sourceArtifact.artifact, name: "readme" },
         mediaType: "text/plain",
       };
-      const api = new PublicAPI(
-        runtimeConfig,
-        vi.fn(async (input) => {
-          const request = input instanceof Request ? input : new Request(input);
-          const path = new URL(request.url).pathname;
-          if (path.endsWith("/artifacts")) {
-            return apiResponse({
-              items: [sourceArtifact, textArtifact],
-              page: { hasMore: false },
-            });
-          }
-          throw new Error(`unexpected ${request.method} ${path}`);
-        }),
+      const list = () => json(page([sourceArtifact, textArtifact]));
+      const { user } = renderRunForm(
+        <WorkflowRunForm
+          workflow={{
+            ...workflow,
+            inputs: {
+              ...workflow.inputs,
+              document: {
+                required: false,
+                mediaTypes: ["application/pdf"],
+              },
+              any: { required: false, mediaTypes: ["*/*"] },
+            },
+          }}
+          {...(projectId === undefined ? {} : { projectId })}
+        />,
+        {
+          "GET /v1/artifacts": list,
+          "GET /v1/projects/{projectId}/artifacts": list,
+        },
       );
-      render(
-        <QueryClientProvider client={createApplicationQueryClient()}>
-          <PublicAPIProvider api={api}>
-            <RunDraftProvider ownerId="user_local">
-              <MemoryRouter>
-                <WorkflowRunForm
-                  workflow={{
-                    ...workflow,
-                    inputs: {
-                      ...workflow.inputs,
-                      document: {
-                        required: false,
-                        mediaTypes: ["application/pdf"],
-                      },
-                      any: { required: false, mediaTypes: ["*/*"] },
-                    },
-                  }}
-                  {...(projectId === undefined ? {} : { projectId })}
-                />
-              </MemoryRouter>
-            </RunDraftProvider>
-          </PublicAPIProvider>
-        </QueryClientProvider>,
-      );
+
       const source = screen.getByRole("combobox", { name: "source required" });
       await within(source).findByRole("option", { name: /source@revision-7/ });
       expect(within(source).getAllByRole("option")).toHaveLength(2);
@@ -866,7 +762,7 @@ describe("Workflow routes", () => {
       expect(
         screen.queryByRole("button", { name: "Import Git for document" }),
       ).toBeNull();
-      await userEvent.setup().click(git);
+      await user.click(git);
       expect(
         screen.getByRole("dialog", { name: "Import Git repository" }),
       ).toBeVisible();
@@ -874,89 +770,42 @@ describe("Workflow routes", () => {
   );
 
   it("isolates infinite Run inventories from finite Operations picker cache", async () => {
-    const fetcher = vi.fn(async (input: RequestInfo | URL) => {
-      const request = input instanceof Request ? input : new Request(input);
-      const inventory = inventoryResponse(new URL(request.url).pathname);
-      if (inventory !== undefined) {
-        return inventory;
-      }
-      throw new Error(`unexpected ${request.method} ${request.url}`);
-    });
-    const api = new PublicAPI(runtimeConfig, fetcher);
     const queryClient = createApplicationQueryClient();
     queryClient.setQueryData(queryKeys.configurations.picker("llm-gateways"), {
       items: [],
       page: { hasMore: false },
     });
-
-    render(
-      <QueryClientProvider client={queryClient}>
-        <PublicAPIProvider api={api}>
-          <RunDraftProvider ownerId="user_local">
-            <MemoryRouter>
-              <WorkflowRunForm workflow={workflow} />
-            </MemoryRouter>
-          </RunDraftProvider>
-        </PublicAPIProvider>
-      </QueryClientProvider>,
+    const { requests, user } = renderRunForm(
+      <WorkflowRunForm workflow={workflow} />,
+      inventoryRoutes,
+      queryClient,
     );
+    const paths = () =>
+      requests.map((request) => new URL(request.url).pathname);
 
     expect(
       await screen.findByRole("heading", { name: "Start Workflow Run" }),
     ).toBeInTheDocument();
     expect(await screen.findByText("0/2")).toBeInTheDocument();
     await screen.findByRole("option", { name: /projects\/source@revision-7/ });
-    expect(
-      fetcher.mock.calls.map(
-        ([input]) =>
-          new URL(input instanceof Request ? input.url : input).pathname,
-      ),
-    ).toEqual(["/v1/artifacts"]);
+    expect(paths()).toEqual(["/v1/artifacts"]);
 
-    const user = userEvent.setup();
     await user.click(screen.getByText("Execution overrides", { exact: true }));
     expect(
       await screen.findAllByRole("option", { name: /worker-strong@2/ }),
     ).toHaveLength(2);
-    expect(
-      fetcher.mock.calls.map(
-        ([input]) =>
-          new URL(input instanceof Request ? input.url : input).pathname,
-      ),
-    ).not.toContain("/v1/operations/runtime-labels");
+    expect(paths()).not.toContain("/v1/operations/runtime-labels");
   });
 
   it("loads all published Workflow pages before presenting grouped cards", async () => {
-    const api = new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const request = input instanceof Request ? input : new Request(input);
-        const url = new URL(request.url);
-        if (url.pathname === "/v1/auth/session") {
-          return apiResponse(session);
-        }
-        if (url.pathname === "/v1/workflows") {
-          if (url.searchParams.get("q") === "likec4") {
-            return apiResponse({
-              items: [workflowSummary(nextWorkflow)],
-              page: { hasMore: false },
-            });
-          }
-          if (url.searchParams.get("cursor") === "next-workflow") {
-            return apiResponse({
-              items: [workflowSummary(nextWorkflow)],
-              page: { hasMore: false },
-            });
-          }
-          return apiResponse({
-            items: [workflowSummary(workflow)],
-            page: { hasMore: true, nextCursor: "next-workflow" },
-          });
-        }
-        throw new Error(`unexpected ${request.method} ${url}`);
-      }),
-    );
-    const { router } = renderWorkflowApplication(api, "/catalog/workflows");
+    const { router } = renderApplication("/catalog/workflows", {
+      "GET /v1/workflows": ({ url }) =>
+        url.searchParams.get("q") === "likec4" ||
+        url.searchParams.get("cursor") === "next-workflow"
+          ? json(page([workflowSummary(nextWorkflow)]))
+          : json(page([workflowSummary(workflow)], "next-workflow")),
+    });
+
     expect(
       await screen.findByRole("link", {
         name: workflowDisplayName,
@@ -986,66 +835,41 @@ describe("Workflow routes", () => {
 
   it("submits declared strings, an exact Artifact, and published overrides", async () => {
     const posts: Array<{ request: Request; body: unknown }> = [];
-    const api = new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const request = input instanceof Request ? input : new Request(input);
-        const url = new URL(request.url);
-        if (url.pathname === "/v1/auth/session") {
-          return apiResponse(session);
-        }
-        if (url.pathname === workflowEndpoint) {
-          return apiResponse(workflow);
-        }
-        const inventory = inventoryResponse(url.pathname);
-        if (inventory !== undefined) {
-          return inventory;
-        }
-        if (url.pathname === "/v1/runs" && request.method === "POST") {
+    const labels = {
+      "eval.id": "eval-ui-01",
+      "eval.leg": "a",
+      "eval.name": "openapi-browser",
+      purpose: "eval",
+    };
+    const { router } = renderApplication(
+      workflowRoute,
+      workflowRoutes({
+        [CREATE_RUN]: async ({ request }) => {
           posts.push({ request, body: await request.clone().json() });
-          return apiResponse(
-            {
-              runId: "run_openapi",
-              state: "running",
+          return json(
+            createdRun("run_openapi", {
               runtimeLabels: ["caido", "debug"],
-              labels: {
-                "eval.id": "eval-ui-01",
-                "eval.leg": "a",
-                "eval.name": "openapi-browser",
-                purpose: "eval",
-              },
+              labels,
               runtimeConfiguration: labeledRuntimeConfiguration,
-            },
-            { status: 202 },
+            }),
+            202,
           );
-        }
-        if (url.pathname === "/v1/runs/run_openapi") {
-          return apiResponse({
-            runId: "run_openapi",
-            workflow: workflowSelector,
-            state: "running",
-            deletable: false,
-            runtimeLabels: ["caido", "debug"],
-            labels: {
-              "eval.id": "eval-ui-01",
-              "eval.leg": "a",
-              "eval.name": "openapi-browser",
-              purpose: "eval",
-            },
-            runtimeConfiguration: labeledRuntimeConfiguration,
-            attempts: [],
-            transitions: [],
-            outputs: {},
-            outputPublications: [],
-          });
-        }
-        if (url.pathname === "/v1/runs/run_openapi/artifacts") {
-          return apiResponse({ items: [], page: { hasMore: false } });
-        }
-        throw new Error(`unexpected ${request.method} ${url}`);
+        },
+        "GET /v1/runs/{runId}": () =>
+          json(
+            runStatus("run_openapi", {
+              workflow: workflowSelector,
+              state: "running",
+              deletable: false,
+              runtimeLabels: ["caido", "debug"],
+              labels,
+              runtimeConfiguration: labeledRuntimeConfiguration,
+            }),
+          ),
+        "GET /v1/runs/{runId}/artifacts": () => json(page([])),
       }),
     );
-    const { router } = renderWorkflowApplication(api, workflowRoute);
+
     expect(
       await screen.findByRole("heading", {
         name: workflowDisplayName,
@@ -1125,9 +949,7 @@ describe("Workflow routes", () => {
       expect(router.state.location.pathname).toBe("/runs/run_openapi"),
     );
     expect(posts).toHaveLength(1);
-    expect(posts[0]?.request.headers.get("X-CSRF-Token")).toBe(
-      session.csrfToken,
-    );
+    expect(posts[0]?.request.headers.get("X-CSRF-Token")).toBe(CSRF_TOKEN);
     expect(posts[0]?.request.headers.get("Idempotency-Key")).toMatch(
       /^run-ui-[0-9a-f]{32}$/,
     );
@@ -1174,34 +996,18 @@ describe("Workflow routes", () => {
 
   it("blocks a mutation while required declared fields are missing", async () => {
     let postCount = 0;
-    const api = new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const request = input instanceof Request ? input : new Request(input);
-        const url = new URL(request.url);
-        if (url.pathname === "/v1/auth/session") {
-          return apiResponse(session);
-        }
-        if (url.pathname === workflowEndpoint) {
-          return apiResponse(workflow);
-        }
-        if (
-          url.pathname.startsWith("/v1/configurations/") ||
-          url.pathname === "/v1/operations/credentials"
-        ) {
-          return apiResponse({ items: [], page: { hasMore: false } });
-        }
-        const inventory = inventoryResponse(url.pathname);
-        if (inventory !== undefined) {
-          return inventory;
-        }
-        if (url.pathname === "/v1/runs") {
+    renderApplication(
+      workflowRoute,
+      workflowRoutes({
+        "GET /v1/configurations/{kind}": () => json(page([])),
+        "GET /v1/operations/credentials": () => json(page([])),
+        [CREATE_RUN]: () => {
           postCount += 1;
-        }
-        throw new Error(`unexpected ${request.method} ${url}`);
+          return responseLost();
+        },
       }),
     );
-    renderWorkflowApplication(api, workflowRoute);
+
     await userEvent
       .setup()
       .click(
@@ -1237,43 +1043,20 @@ describe("Workflow routes", () => {
 
   it("reuses one key for exact response-loss retry and rotates it after edits", async () => {
     const keys: string[] = [];
-    let postCount = 0;
-    const api = new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const request = input instanceof Request ? input : new Request(input);
-        const url = new URL(request.url);
-        if (url.pathname === "/v1/auth/session") {
-          return apiResponse(session);
-        }
-        if (url.pathname === workflowEndpoint) {
-          return apiResponse(workflow);
-        }
-        const inventory = inventoryResponse(url.pathname);
-        if (inventory !== undefined) {
-          return inventory;
-        }
-        if (url.pathname === "/v1/runs" && request.method === "POST") {
+    const { router } = renderApplication(
+      workflowRoute,
+      workflowRoutes({
+        [CREATE_RUN]: ({ request }) => {
           keys.push(request.headers.get("Idempotency-Key") ?? "missing");
-          postCount += 1;
-          if (postCount < 3) {
-            throw new TypeError("response lost");
-          }
-          return apiResponse(
-            {
-              runId: "run_changed",
-              state: "running",
-              runtimeLabels: [],
-              labels: { "eval.leg": "b" },
-              runtimeConfiguration: pinnedRuntimeConfiguration,
-            },
-            { status: 202 },
+          if (keys.length < 3) return responseLost();
+          return json(
+            createdRun("run_changed", { labels: { "eval.leg": "b" } }),
+            202,
           );
-        }
-        throw new Error(`unexpected ${request.method} ${url}`);
+        },
       }),
     );
-    const { router } = renderWorkflowApplication(api, workflowRoute);
+
     await openRunSetup();
     const user = userEvent.setup();
     const objective = await screen.findByLabelText(/^objective/i);
@@ -1341,23 +1124,16 @@ describe("Workflow routes", () => {
 
   it("authors editable colon badges and key-only labels without losing pending input on submit", async () => {
     const requests: unknown[] = [];
-    const api = new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const request = input instanceof Request ? input : new Request(input);
-        const url = new URL(request.url);
-        if (url.pathname === "/v1/auth/session") return apiResponse(session);
-        if (url.pathname === workflowEndpoint) return apiResponse(workflow);
-        const inventory = inventoryResponse(url.pathname);
-        if (inventory !== undefined) return inventory;
-        if (url.pathname === "/v1/runs" && request.method === "POST") {
+    renderApplication(
+      workflowRoute,
+      workflowRoutes({
+        [CREATE_RUN]: async ({ request }) => {
           requests.push(await request.json());
-          throw new TypeError("response lost");
-        }
-        throw new Error(`unexpected ${request.method} ${url}`);
+          return responseLost();
+        },
       }),
     );
-    renderWorkflowApplication(api, workflowRoute);
+
     await openRunSetup();
     const user = userEvent.setup();
     await user.type(
@@ -1415,57 +1191,40 @@ describe("Workflow routes", () => {
   });
 
   it("uploads a local UserScope file into its originating exact input slot", async () => {
-    const puts: Request[] = [];
     let stored = false;
-    const uploadedArtifact = {
+    const uploadedArtifact = artifactMetadata("inputs", "service-source", {
       artifact: {
         namespace: "inputs",
         name: "service-source",
         revision: "revision-upload-1",
       },
-      mediaType: "application/zip",
       size: 3,
-      current: true,
-      frozen: false,
       createdAt: "2026-09-06T20:00:00Z",
-    };
-    const api = new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const request = input instanceof Request ? input : new Request(input);
-        const url = new URL(request.url);
-        if (url.pathname === "/v1/auth/session") return apiResponse(session);
-        if (url.pathname === workflowEndpoint) return apiResponse(workflow);
-        if (url.pathname === "/v1/artifacts" && request.method === "GET") {
-          return apiResponse({
-            items: stored ? [uploadedArtifact] : [],
-            page: { hasMore: false },
+    });
+    const { sent } = renderApplication(
+      workflowRoute,
+      workflowRoutes({
+        "GET /v1/artifacts": () => json(page(stored ? [uploadedArtifact] : [])),
+        "PUT /v1/artifacts/{namespace}/{name}": async ({ request, params }) => {
+          expect(params).toEqual({
+            namespace: "inputs",
+            name: "service-source",
           });
-        }
-        if (
-          url.pathname === "/v1/artifacts/inputs/service-source" &&
-          request.method === "PUT"
-        ) {
-          puts.push(request.clone());
           expect(Buffer.from(await request.arrayBuffer()).toString()).toBe(
             "zip",
           );
           expect(request.headers.get("If-None-Match")).toBe("*");
           expect(request.headers.get("Content-Type")).toBe("application/zip");
           stored = true;
-          return apiResponse(
-            {
-              artifact: uploadedArtifact.artifact,
-              mediaType: uploadedArtifact.mediaType,
-              size: uploadedArtifact.size,
-            },
-            { status: 201, headers: { ETag: '"revision-upload-1"' } },
-          );
-        }
-        throw new Error(`unexpected ${request.method} ${url}`);
+          return json(artifactWrite(uploadedArtifact), 201, {
+            ETag: '"revision-upload-1"',
+          });
+        },
       }),
+      { strict: true },
     );
-    renderWorkflowApplication(api, workflowRoute, { strict: true });
+    const puts = () => sent("PUT", "/v1/artifacts/inputs/service-source");
+
     await openRunSetup();
     const user = userEvent.setup();
     await user.type(
@@ -1501,7 +1260,7 @@ describe("Workflow routes", () => {
     );
 
     await waitFor(() => expect(dialog).not.toBeInTheDocument());
-    expect(puts).toHaveLength(1);
+    expect(puts()).toHaveLength(1);
     expect(screen.getByLabelText(/^objective/i)).toHaveValue(
       "Keep this field while uploading",
     );
@@ -1533,20 +1292,12 @@ describe("Workflow routes", () => {
       uploadStarted = resolve;
     });
     let uploadAborted = false;
-    const api = new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const request = input instanceof Request ? input : new Request(input);
-        const url = new URL(request.url);
-        if (url.pathname === "/v1/auth/session") return apiResponse(session);
-        if (url.pathname === workflowEndpoint) return apiResponse(workflow);
-        if (url.pathname === "/v1/artifacts" && request.method === "GET") {
-          return apiResponse({ items: [], page: { hasMore: false } });
-        }
-        if (
-          url.pathname === "/v1/artifacts/inputs/cancel-source" &&
-          request.method === "PUT"
-        ) {
+    renderApplication(
+      workflowRoute,
+      workflowRoutes({
+        "GET /v1/artifacts": () => json(page([])),
+        "PUT /v1/artifacts/{namespace}/{name}": async ({ request, params }) => {
+          expect(params.name).toBe("cancel-source");
           uploadStarted?.();
           return await new Promise<Response>((_resolve, reject) => {
             const abort = () => {
@@ -1559,11 +1310,11 @@ describe("Workflow routes", () => {
             }
             request.signal.addEventListener("abort", abort, { once: true });
           });
-        }
-        throw new Error(`unexpected ${request.method} ${url}`);
+        },
       }),
+      { strict: true },
     );
-    renderWorkflowApplication(api, workflowRoute, { strict: true });
+
     await openRunSetup();
     const user = userEvent.setup();
     await user.type(
@@ -1602,28 +1353,16 @@ describe("Workflow routes", () => {
 
   it("blocks duplicate and reserved Run metadata labels before mutation", async () => {
     let postCount = 0;
-    const api = new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const request = input instanceof Request ? input : new Request(input);
-        const url = new URL(request.url);
-        if (url.pathname === "/v1/auth/session") {
-          return apiResponse(session);
-        }
-        if (url.pathname === workflowEndpoint) {
-          return apiResponse(workflow);
-        }
-        const inventory = inventoryResponse(url.pathname);
-        if (inventory !== undefined) {
-          return inventory;
-        }
-        if (url.pathname === "/v1/runs" && request.method === "POST") {
+    renderApplication(
+      workflowRoute,
+      workflowRoutes({
+        [CREATE_RUN]: () => {
           postCount += 1;
-        }
-        throw new Error(`unexpected ${request.method} ${url}`);
+          return responseLost();
+        },
       }),
     );
-    renderWorkflowApplication(api, workflowRoute);
+
     await openRunSetup();
     const user = userEvent.setup();
     await user.type(

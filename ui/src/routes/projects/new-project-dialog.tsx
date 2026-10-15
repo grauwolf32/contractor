@@ -16,6 +16,7 @@ import { queryKeys } from "../../api/query-keys";
 import { Dialog, DialogHeader } from "../../app/dialog";
 import { ErrorNotice } from "../../app/error-notice";
 import type { NewProjectKeys } from "./new-project-keys";
+import { Button, Field } from "../../ui";
 
 import "./projects.css";
 
@@ -117,47 +118,46 @@ export function NewProjectDialog({
         }}
       />
       <form className="projects-form" onSubmit={submit}>
-        <label className="projects-field">
-          <span>Name</span>
-          <input
-            ref={nameField}
-            name="name"
-            required
-            autoComplete="off"
-            maxLength={MAXIMUM_PROJECT_NAME_LENGTH}
-          />
-        </label>
-        <label className="projects-field">
-          <span>Description</span>
-          <textarea
-            name="description"
-            maxLength={MAXIMUM_PROJECT_DESCRIPTION_LENGTH}
-            rows={3}
-          />
-        </label>
+        <Field label="Name" className="projects-field">
+          {(control) => (
+            <input
+              {...control}
+              ref={nameField}
+              name="name"
+              required
+              autoComplete="off"
+              maxLength={MAXIMUM_PROJECT_NAME_LENGTH}
+            />
+          )}
+        </Field>
+        <Field label="Description" className="projects-field">
+          {(control) => (
+            <textarea
+              {...control}
+              name="description"
+              maxLength={MAXIMUM_PROJECT_DESCRIPTION_LENGTH}
+              rows={3}
+            />
+          )}
+        </Field>
         {validationError === null ? null : (
           <p className="form-error" role="alert">
             {validationError}
           </p>
         )}
         {create.error === null ? null : <ErrorNotice error={create.error} />}
-        <div className="projects-form-actions">
-          <button
-            type="button"
-            className="ui-btn"
-            disabled={create.isPending}
-            onClick={close}
-          >
+        <div className="ui-dialog-actions">
+          <Button disabled={create.isPending} onClick={close}>
             Cancel
-          </button>
-          <button
+          </Button>
+          <Button
             type="submit"
-            className="ui-btn"
-            data-variant="primary"
-            disabled={create.isPending}
+            variant="primary"
+            pending={create.isPending}
+            pendingLabel="Creating…"
           >
-            {create.isPending ? "Creating…" : wording.submitLabel}
-          </button>
+            {wording.submitLabel}
+          </Button>
         </div>
       </form>
     </Dialog>

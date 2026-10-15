@@ -1,16 +1,16 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useId, useState } from "react";
+import { type ReactNode, useId, useState } from "react";
 import { useParams } from "react-router";
 
+import { CONFIG_ID } from "../../../api/contract";
 import { usePublicAPI } from "../../../api/context";
 import { deleteCredential, getCredential } from "../../../api/operations";
 import { queryKeys } from "../../../api/query-keys";
-import { CONFIG_ID_PATTERN } from "../../../api/workflows";
 import { MutationDraftKeyring } from "../../../mutations/idempotency";
 import { ErrorNotice } from "../../../app/error-notice";
 import { formatTimestamp } from "../../../app/format";
-import { DetailHeader } from "../../../ui";
-import { ConfigurationRefLink, Glance } from "../common";
+import { Button, DetailHeader, Facts } from "../../../ui";
+import { ConfigurationRefLink } from "../common";
 import { exactConfigurationRef } from "../references";
 import { ActiveChip } from "./active-chip";
 import { CredentialPolicyView } from "./policy";
@@ -18,11 +18,36 @@ import { InUseErrorDetails } from "../in-use-details";
 import { QueryView } from "../../../app/query-view";
 import { useGuardedNavigate } from "../../../app/page-location";
 
+/** A titled block of the credential page: eyebrow, heading and content. */
+function Panel({
+  eyebrow,
+  title,
+  className = "ops-panel",
+  children,
+}: {
+  eyebrow: string;
+  title: string;
+  className?: string;
+  children: ReactNode;
+}) {
+  const heading = useId();
+  return (
+    <section className={className} aria-labelledby={heading}>
+      <div>
+        <p className="ops-eyebrow">{eyebrow}</p>
+        <h3 id={heading} className="ops-panel-title">
+          {title}
+        </h3>
+      </div>
+      {children}
+    </section>
+  );
+}
+
 function CredentialDeletion({ credentialId }: { credentialId: string }) {
   const api = usePublicAPI();
   const navigate = useGuardedNavigate();
   const queryClient = useQueryClient();
-  const heading = useId();
   const [confirmed, setConfirmed] = useState(false);
   const [keyring] = useState(
     () =>
@@ -49,14 +74,12 @@ function CredentialDeletion({ credentialId }: { credentialId: string }) {
     },
   });
   return (
-    <section className="ops-panel ops-danger" aria-labelledby={heading}>
-      <div>
-        <p className="ops-eyebrow">Permanent action</p>
-        <h3 id={heading} className="ops-panel-title">
-          Delete credential
-        </h3>
-      </div>
-      <p className="ops-note">
+    <Panel
+      eyebrow="Permanent action"
+      title="Delete credential"
+      className="ops-panel ops-danger"
+    >
+      <p className="ui-caption">
         Deletion is rejected while a non-terminal Run, Audit dispatch hold, or
         active RuntimeConfig label references this credential. No disable,
         update, rotation, or force-delete shortcut exists.
@@ -73,26 +96,24 @@ function CredentialDeletion({ credentialId }: { credentialId: string }) {
       {mutation.error === null ? null : <ErrorNotice error={mutation.error} />}
       <InUseErrorDetails error={mutation.error} />
       <div className="ops-danger-actions">
-        <button
-          className="ui-btn"
-          data-variant="danger"
-          type="button"
-          disabled={!confirmed || mutation.isPending}
+        <Button
+          variant="danger"
+          disabled={!confirmed}
+          pending={mutation.isPending}
+          pendingLabel="Deleting…"
           onClick={() => mutation.mutate()}
         >
-          {mutation.isPending
-            ? "Deleting…"
-            : "Delete from LiteLLM and Contractor"}
-        </button>
+          Delete from LiteLLM and Contractor
+        </Button>
       </div>
-    </section>
+    </Panel>
   );
 }
 
 export function CredentialDetailRoute() {
   const api = usePublicAPI();
   const { credentialId = "" } = useParams();
-  const valid = CONFIG_ID_PATTERN.test(credentialId);
+  const valid = CONFIG_ID.test(credentialId);
   const query = useQuery({
     queryKey: queryKeys.credentials.detail(credentialId),
     queryFn: () => getCredential(api, credentialId),
@@ -115,73 +136,61 @@ export function CredentialDetailRoute() {
               Loading credential metadata…
             </p>
           }
-          onRetry={() => void query.refetch()}
         >
           {(data) => (
             <>
-              <Glance
-                label="Credential"
+              <Facts
+                className="ops-glance"
+                aria-label="Credential"
                 items={[
-                  ["Safe label", data.label ?? "None"],
-                  ["Created", formatTimestamp(data.createdAt)],
-                  [
-                    "Gateway",
-                    <ConfigurationRefLink
-                      key="gateway"
-                      value={exactConfigurationRef(data.llmGateway)}
-                    />,
-                  ],
+                  { term: "Safe label", value: data.label ?? "None" },
+                  { term: "Created", value: formatTimestamp(data.createdAt) },
+                  {
+                    term: "Gateway",
+                    value: (
+                      <ConfigurationRefLink
+                        value={exactConfigurationRef(data.llmGateway)}
+                      />
+                    ),
+                  },
                 ]}
               />
-              <section
-                className="ops-panel"
-                aria-labelledby="credential-policy-heading"
-              >
-                <div>
-                  <p className="ops-eyebrow">Policy</p>
-                  <h3
-                    id="credential-policy-heading"
-                    className="ops-panel-title"
-                  >
-                    LiteLLM-enforced limits
-                  </h3>
-                </div>
+              <Panel eyebrow="Policy" title="LiteLLM-enforced limits">
                 <CredentialPolicyView policy={data.effectivePolicy} />
-              </section>
-              <section
-                className="ops-panel"
-                aria-labelledby="credential-consumption-heading"
-              >
-                <div>
-                  <p className="ops-eyebrow">Gateway observation</p>
-                  <h3
-                    id="credential-consumption-heading"
-                    className="ops-panel-title"
-                  >
-                    Consumption
-                  </h3>
-                </div>
+              </Panel>
+              <Panel eyebrow="Gateway observation" title="Consumption">
                 {data.consumption === undefined ? (
-                  <p className="ops-note">
+                  <p className="ui-caption">
                     No live consumption aggregate is available.
                   </p>
                 ) : (
-                  <Glance
+                  <Facts
+                    className="ops-glance"
                     items={[
-                      ["Spend", data.consumption.spend ?? "—"],
-                      ["Requests", data.consumption.requests ?? "—"],
-                      ["Input tokens", data.consumption.inputTokens ?? "—"],
-                      ["Output tokens", data.consumption.outputTokens ?? "—"],
-                      [
-                        "Observed",
-                        data.consumption.observedAt === undefined
-                          ? "—"
-                          : formatTimestamp(data.consumption.observedAt),
-                      ],
+                      { term: "Spend", value: data.consumption.spend ?? "—" },
+                      {
+                        term: "Requests",
+                        value: data.consumption.requests ?? "—",
+                      },
+                      {
+                        term: "Input tokens",
+                        value: data.consumption.inputTokens ?? "—",
+                      },
+                      {
+                        term: "Output tokens",
+                        value: data.consumption.outputTokens ?? "—",
+                      },
+                      {
+                        term: "Observed",
+                        value:
+                          data.consumption.observedAt === undefined
+                            ? "—"
+                            : formatTimestamp(data.consumption.observedAt),
+                      },
                     ]}
                   />
                 )}
-              </section>
+              </Panel>
               <CredentialDeletion credentialId={credentialId} />
             </>
           )}

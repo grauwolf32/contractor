@@ -6,7 +6,6 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { ArtifactMetadata } from "../../api/artifacts";
 import type { Audit, AuditFinding, AuditProfile } from "../../api/audits";
-import type { PublicAPI } from "../../api/client";
 import type { Project } from "../../api/projects";
 import type { RunSummary } from "../../api/runs";
 import type { WorkflowSummary } from "../../api/workflows";
@@ -14,43 +13,13 @@ import { Application } from "../../app/application";
 import * as queryClientFactory from "../../app/query-client";
 import { applicationRoutes } from "../../app/router";
 import { stageContract } from "../../test/builders-execution";
-import { fakeServer } from "../../test/fake-server";
-import { testAPI } from "../../test/render";
+import { failure, fakeServer, json, page } from "../../test/fake-server";
+import { testAPI, testSession } from "../../test/render";
 import { auditFixture, projectFixture } from "../../test/shell-harness";
 import { makeFinding } from "../decisions/test-support";
 
-/** A PublicAPI over `handle` whose answers the fake Server checks. */
-function checkedAPI(
-  handle: (input: Request) => Response | Promise<Response>,
-): PublicAPI {
-  return testAPI(fakeServer({}, (request) => handle(request))).api;
-}
-
-function session(capabilities: string[] = ["user", "operations"]) {
-  return {
-    principal: { userId: "user_local", username: "owner", capabilities },
-    csrfToken: "a".repeat(43),
-    idleExpiresAt: "2026-10-06T20:00:00Z",
-    absoluteExpiresAt: "2026-10-07T12:00:00Z",
-  };
-}
-
 const DIGEST = `sha256:${"a".repeat(64)}`;
 const RECENT = new Date(Date.now() - 5 * 60_000).toISOString();
-
-function json(value: unknown, init: ResponseInit = {}): Response {
-  const headers = new Headers(init.headers);
-  headers.set("content-type", "application/json");
-  headers.set("X-Contractor-API-Version", "contractor.public.v1");
-  return new Response(JSON.stringify(value), { ...init, headers });
-}
-
-function page(items: unknown[], hasMore = false) {
-  return {
-    items,
-    page: hasMore ? { hasMore, nextCursor: "next" } : { hasMore },
-  };
-}
 
 function check(
   projectId: string,
@@ -163,7 +132,7 @@ interface FakeServer {
   outputs?: Record<string, Record<string, unknown>>;
   artifacts?: ArtifactMetadata[];
   profiles?: AuditProfile[];
-  capabilities?: string[];
+  capabilities?: Parameters<typeof testSession>[0];
   /** Answers POST /v1/projects. */
   createProject?: (request: Request) => Response | Promise<Response>;
   /** Answers PATCH /v1/projects/:projectId. */
@@ -178,142 +147,148 @@ interface FakeServer {
 
 function serve(server: FakeServer) {
   const requests: Request[] = [];
-  const api = checkedAPI(async (input) => {
-    const request = input instanceof Request ? input : new Request(input);
-    requests.push(request.clone());
-    const url = new URL(request.url);
-    const path = url.pathname;
-    if (path === "/v1/audits" && server.holdAudits?.())
-      await new Promise(() => {});
-    if (path === "/v1/findings")
-      await Promise.all(
-        Object.keys(server.findings ?? {}).map((id) =>
-          server.holdFindings?.(id),
-        ),
-      );
-    const ownerResponse = ownerListResponse(url, {
-      projects: server.projects,
-      audits: Object.values(server.audits ?? {}).flat(),
-      findings: Object.values(server.findings ?? {}).flat(),
-    });
-    if (ownerResponse !== undefined) return ownerResponse;
-    const query = url.searchParams;
-    if (path === "/v1/auth/session") return json(session(server.capabilities));
-    if (path === "/v1/projects" && request.method === "POST") {
-      if (server.createProject === undefined)
-        throw new Error("unexpected POST /v1/projects");
-      return server.createProject(request);
-    }
-    if (path === "/v1/projects") return json(page(server.projects));
-    let match = /^\/v1\/projects\/([^/]+)$/.exec(path);
-    if (match !== null && request.method === "PATCH") {
-      if (server.updateProject === undefined)
-        throw new Error(`unexpected PATCH ${path}`);
-      return server.updateProject(request);
-    }
-    if (match !== null) {
-      const found = server.projects.find(
-        (candidate) => candidate.projectId === match![1],
-      );
-      return found === undefined
-        ? json(
-            { code: "not_found", message: "not found", retryable: false },
-            { status: 404 },
-          )
-        : json(found, { headers: { ETag: `"${found.revision}"` } });
-    }
-    match = /^\/v1\/projects\/([^/]+)\/audits$/.exec(path);
-    if (match !== null) {
-      if (server.holdAudits?.() === true)
-        return new Promise<Response>(() => undefined);
-      const state = query.get("state");
-      const items = (server.audits?.[match[1]!] ?? []).filter(
-        (audit) => state === null || audit.state === state,
-      );
-      return json(page(items, server.moreAudits === true && state === null));
-    }
-    match = /^\/v1\/audits\/([^/]+)\/(start|pause|resume|cancel)$/.exec(path);
-    if (match !== null && request.method === "POST") {
-      if (server.mutateAudit === undefined)
-        throw new Error(`unexpected POST ${path}`);
-      return server.mutateAudit(match[1]!, match[2]!);
-    }
-    match = /^\/v1\/audits\/([^/]+)$/.exec(path);
-    if (match !== null && request.method === "GET") {
-      const auditId = match[1];
-      const found = Object.values(server.audits ?? {})
-        .flat()
-        .find((audit) => audit.auditId === auditId);
-      return found === undefined
-        ? json(
-            { code: "not_found", message: "not found", retryable: false },
-            { status: 404 },
-          )
-        : json(found, { headers: { ETag: `"${found.revision}"` } });
-    }
-    match = /^\/v1\/audits\/([^/]+)\/(findings|reviews)$/.exec(path);
-    if (match !== null) {
-      if (match[2] === "findings") await server.holdFindings?.(match[1]!);
-      const items =
-        match[2] === "findings" && query.get("state") === "proposed"
-          ? (server.findings?.[match[1]!] ?? [])
-          : [];
-      return json({
-        ...page(items),
-        total: items.length,
-        auditRevision: 1,
-        asOf: RECENT,
+  const { api } = testAPI(
+    fakeServer({}, async (request, url) => {
+      requests.push(request.clone());
+      const path = url.pathname;
+      if (path === "/v1/audits" && server.holdAudits?.())
+        await new Promise(() => {});
+      if (path === "/v1/findings")
+        await Promise.all(
+          Object.keys(server.findings ?? {}).map((id) =>
+            server.holdFindings?.(id),
+          ),
+        );
+      const ownerResponse = ownerListResponse(url, {
+        projects: server.projects,
+        audits: Object.values(server.audits ?? {}).flat(),
+        findings: Object.values(server.findings ?? {}).flat(),
       });
-    }
-    match = /^\/v1\/projects\/([^/]+)\/runs$/.exec(path);
-    if (match !== null) {
-      const state = query.get("state");
-      const limit = Number(query.get("limit") ?? "50");
-      return json(
-        page(
-          (server.runs ?? [])
-            .filter((item) => state === null || item.state === state)
-            .slice(0, limit),
-        ),
-      );
-    }
-    match = /^\/v1\/runs\/([^/]+)$/.exec(path);
-    if (match !== null) {
-      const summary = (server.runs ?? []).find(
-        (item) => item.runId === match![1],
-      );
-      return json({
-        ...summary,
-        runtimeLabels: [],
-        runtimeConfiguration: {
-          default: {
-            label: "default",
-            bindingRevision: "1",
-            config: { name: "empty", version: "1", digest: DIGEST },
+      if (ownerResponse !== undefined) return ownerResponse;
+      const query = url.searchParams;
+      if (path === "/v1/auth/session")
+        return json(testSession(server.capabilities ?? ["user", "operations"]));
+      if (path === "/v1/projects" && request.method === "POST") {
+        if (server.createProject === undefined)
+          throw new Error("unexpected POST /v1/projects");
+        return server.createProject(request);
+      }
+      if (path === "/v1/projects") return json(page(server.projects));
+      let match = /^\/v1\/projects\/([^/]+)$/.exec(path);
+      if (match !== null && request.method === "PATCH") {
+        if (server.updateProject === undefined)
+          throw new Error(`unexpected PATCH ${path}`);
+        return server.updateProject(request);
+      }
+      if (match !== null) {
+        const found = server.projects.find(
+          (candidate) => candidate.projectId === match![1],
+        );
+        return found === undefined
+          ? failure(404, "not_found", "not found")
+          : json(found, 200, { ETag: `"${found.revision}"` });
+      }
+      match = /^\/v1\/projects\/([^/]+)\/audits$/.exec(path);
+      if (match !== null) {
+        if (server.holdAudits?.() === true)
+          return new Promise<Response>(() => undefined);
+        const state = query.get("state");
+        const items = (server.audits?.[match[1]!] ?? []).filter(
+          (audit) => state === null || audit.state === state,
+        );
+        return json(
+          page(
+            items,
+            server.moreAudits === true && state === null ? "next" : undefined,
+          ),
+        );
+      }
+      match = /^\/v1\/audits\/([^/]+)\/(start|pause|resume|cancel)$/.exec(path);
+      if (match !== null && request.method === "POST") {
+        if (server.mutateAudit === undefined)
+          throw new Error(`unexpected POST ${path}`);
+        return server.mutateAudit(match[1]!, match[2]!);
+      }
+      match = /^\/v1\/audits\/([^/]+)$/.exec(path);
+      if (match !== null && request.method === "GET") {
+        const auditId = match[1];
+        const found = Object.values(server.audits ?? {})
+          .flat()
+          .find((audit) => audit.auditId === auditId);
+        return found === undefined
+          ? failure(404, "not_found", "not found")
+          : json(found, 200, { ETag: `"${found.revision}"` });
+      }
+      match = /^\/v1\/audits\/([^/]+)\/(findings|reviews)$/.exec(path);
+      if (match !== null) {
+        if (match[2] === "findings") await server.holdFindings?.(match[1]!);
+        const items =
+          match[2] === "findings" && query.get("state") === "proposed"
+            ? (server.findings?.[match[1]!] ?? [])
+            : [];
+        return json({
+          ...page(items),
+          total: items.length,
+          auditRevision: 1,
+          asOf: RECENT,
+        });
+      }
+      match = /^\/v1\/projects\/([^/]+)\/runs$/.exec(path);
+      if (match !== null) {
+        const state = query.get("state");
+        const limit = Number(query.get("limit") ?? "50");
+        return json(
+          page(
+            (server.runs ?? [])
+              .filter((item) => state === null || item.state === state)
+              .slice(0, limit),
+          ),
+        );
+      }
+      match = /^\/v1\/runs\/([^/]+)$/.exec(path);
+      if (match !== null) {
+        const summary = (server.runs ?? []).find(
+          (item) => item.runId === match![1],
+        );
+        return json({
+          ...summary,
+          runtimeLabels: [],
+          runtimeConfiguration: {
+            default: {
+              label: "default",
+              bindingRevision: "1",
+              config: { name: "empty", version: "1", digest: DIGEST },
+            },
+            labels: [],
           },
-          labels: [],
-        },
-        attempts: [],
-        transitions: [],
-        outputs: server.outputs?.[match[1]!] ?? {},
-        outputPublications: [],
-      });
-    }
-    if (path === "/v1/workflows") return json(page([workflow]));
-    if (path === "/v1/workflows/openapi-from-source/versions/1")
-      return json({ ...workflow, stages: { analyze: stageContract() } });
-    match = /^\/v1\/projects\/([^/]+)\/artifacts$/.exec(path);
-    if (match !== null) {
-      const namespace = query.get("namespace");
-      const limit = Number(query.get("limit") ?? "50");
-      const items = (server.artifacts ?? []).filter(
-        (item) => namespace === null || item.artifact.namespace === namespace,
-      );
-      return json(page(items.slice(0, limit), items.length > limit));
-    }
-    if (path === "/v1/audit-profiles") return json(page(server.profiles ?? []));
-    return json(page([]));
-  });
+          attempts: [],
+          transitions: [],
+          outputs: server.outputs?.[match[1]!] ?? {},
+          outputPublications: [],
+        });
+      }
+      if (path === "/v1/workflows") return json(page([workflow]));
+      if (path === "/v1/workflows/openapi-from-source/versions/1")
+        return json({ ...workflow, stages: { analyze: stageContract() } });
+      match = /^\/v1\/projects\/([^/]+)\/artifacts$/.exec(path);
+      if (match !== null) {
+        const namespace = query.get("namespace");
+        const limit = Number(query.get("limit") ?? "50");
+        const items = (server.artifacts ?? []).filter(
+          (item) => namespace === null || item.artifact.namespace === namespace,
+        );
+        return json(
+          page(
+            items.slice(0, limit),
+            items.length > limit ? "next" : undefined,
+          ),
+        );
+      }
+      if (path === "/v1/audit-profiles")
+        return json(page(server.profiles ?? []));
+      return json(page([]));
+    }),
+  );
   return { api, requests };
 }
 
@@ -600,7 +575,7 @@ describe("New project", () => {
 
   function createdResponse(server: FakeServer): Response {
     server.projects = [created, ...server.projects];
-    return json(created, { status: 201, headers: { ETag: '"1"' } });
+    return json(created, 201, { ETag: '"1"' });
   }
 
   it("replaces ?new=1 once the project exists, so Back does not reopen the dialog", async () => {
@@ -644,7 +619,7 @@ describe("New project", () => {
                 message: "Project store unavailable",
                 retryable: true,
               },
-              { status: 503 },
+              503,
             )
           : createdResponse(server);
       },
@@ -1120,7 +1095,7 @@ describe("Project overview", () => {
           revision: audit.revision + 1,
         };
         checks[index] = paused;
-        return json(paused, { headers: { ETag: `"${paused.revision}"` } });
+        return json(paused, 200, { ETag: `"${paused.revision}"` });
       },
     };
     const { user } = renderAt(server, "/projects/project_a");
@@ -1238,7 +1213,7 @@ describe("Project settings", () => {
         };
         const updated = { ...projectA, ...body, revision: "2" };
         server.projects = [updated, projectB];
-        return json(updated, { headers: { ETag: '"2"' } });
+        return json(updated, 200, { ETag: '"2"' });
       },
     };
     const { user } = renderAt(server, "/projects/project_a/settings");

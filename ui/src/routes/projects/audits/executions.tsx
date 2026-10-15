@@ -11,7 +11,7 @@ import { ErrorNotice } from "../../../app/error-notice";
 import { compactId } from "../../../app/format";
 import { StaleDataWarning } from "../../../app/query-view";
 import { capitalize, itemNoun, type ItemKind } from "../../../app/vocabulary";
-import { TechnicalDetails } from "../../../ui";
+import { Facts, TechnicalDetails } from "../../../ui";
 import { auditCheckTitle } from "./check-title";
 import { itemBeyondLoaded, type CheckEntry } from "./check-model";
 import { itemHash, sectionPath } from "./check-links";
@@ -47,13 +47,13 @@ function AttemptsMissing({
   const singular = itemNoun(entry.kind, 1);
   if (items.isPending)
     return (
-      <p className="checks-quiet" role="status">
+      <p className="ui-caption" role="status">
         Loading attempts…
       </p>
     );
   if (itemBeyondLoaded(entry, items))
     return (
-      <p className="checks-quiet">
+      <p className="ui-caption">
         Attempts are not loaded: this {singular} is beyond the{" "}
         {itemNoun(entry.kind, 2)} read so far. “Load more {singular} details” at
         the top reads them.
@@ -68,7 +68,7 @@ function AttemptsMissing({
       />
     );
   return (
-    <p className="checks-quiet">
+    <p className="ui-caption">
       {auditPollInterval([audit]) === false
         ? `No attempts are recorded for this ${singular}.`
         : `Attempts are not loaded for this ${singular} yet.`}
@@ -97,7 +97,7 @@ export function ItemTechnicalDetails({
         {item === undefined ? (
           <AttemptsMissing audit={audit} entry={entry} items={items} />
         ) : item.attempts.length === 0 ? (
-          <p className="checks-quiet">No run submitted.</p>
+          <p className="ui-caption">No run submitted.</p>
         ) : (
           <div className="checks-table-scroll">
             <table className="checks-table">
@@ -159,63 +159,55 @@ export function ItemTechnicalDetails({
             )}
           </div>
         )}
-        <dl className="checks-facts">
-          <div>
-            <dt>Item key</dt>
-            <dd>
-              <code className="checks-mono">{row.itemKey}</code>
-            </dd>
-          </div>
-          <div>
-            <dt>Subject</dt>
-            <dd>
-              <code className="checks-mono">{row.subjectKey}</code>
-            </dd>
-          </div>
-          {item === undefined ? null : (
-            <>
-              <div>
-                <dt>Item state</dt>
-                <dd>{item.state}</dd>
-              </div>
-              <div>
-                <dt>Workflow role</dt>
-                <dd>{item.workflowRole}</dd>
-              </div>
-              <div>
-                <dt>Disposition</dt>
-                <dd>{item.finalDisposition ?? "pending"}</dd>
-              </div>
-              <div>
-                <dt>Origin</dt>
-                <dd>
-                  {item.origin.entryKey}
-                  {item.origin.entryVersion === undefined
-                    ? ""
-                    : `@${item.origin.entryVersion}`}
-                </dd>
-              </div>
-              {item.origin.standard === undefined ? null : (
-                <div>
-                  <dt>Causal standard mapping</dt>
-                  <dd>
-                    <code className="checks-mono">
-                      {item.origin.standard.scheme}@
-                      {item.origin.standard.version}/
-                      {item.origin.standard.mappingKey}
-                    </code>
-                  </dd>
-                </div>
-              )}
-            </>
-          )}
-          <div>
-            <dt>Check ID</dt>
-            <dd>
-              <code className="checks-mono">{audit.auditId}</code>
-            </dd>
-          </div>
-        </dl>
+        <Facts
+          size="sm"
+          items={[
+            {
+              term: "Item key",
+              value: <code className="ui-mono">{row.itemKey}</code>,
+            },
+            {
+              term: "Subject",
+              value: <code className="ui-mono">{row.subjectKey}</code>,
+            },
+            ...(item === undefined
+              ? []
+              : [
+                  { term: "Item state", value: item.state },
+                  { term: "Workflow role", value: item.workflowRole },
+                  {
+                    term: "Disposition",
+                    value: item.finalDisposition ?? "pending",
+                  },
+                  {
+                    term: "Origin",
+                    value: (
+                      <>
+                        {item.origin.entryKey}
+                        {item.origin.entryVersion === undefined
+                          ? ""
+                          : `@${item.origin.entryVersion}`}
+                      </>
+                    ),
+                  },
+                  {
+                    term: "Causal standard mapping",
+                    value:
+                      item.origin.standard === undefined ? undefined : (
+                        <code className="ui-mono">
+                          {item.origin.standard.scheme}@
+                          {item.origin.standard.version}/
+                          {item.origin.standard.mappingKey}
+                        </code>
+                      ),
+                  },
+                ]),
+            {
+              term: "Check ID",
+              value: <code className="ui-mono">{audit.auditId}</code>,
+            },
+          ]}
+        />
         {row.details?.taskDocument === undefined ? null : (
           <details className="checks-disclosure">
             <summary>Task document</summary>
@@ -263,14 +255,14 @@ export function AuditRuns({
         <p className="checks-runs-intro">
           <Link to="/runs">Global Runs →</Link>
         </p>
-        <p className="checks-quiet">
+        <p className="ui-caption">
           No runs yet. A draft starts its runs only once it is started.
         </p>
       </div>
     );
   if (items.isPending)
     return (
-      <p className="checks-quiet" role="status">
+      <p className="ui-caption" role="status">
         Loading runs…
       </p>
     );
@@ -289,7 +281,7 @@ export function AuditRuns({
         />
       )}
       {attempts.length === 0 ? (
-        <p className="checks-quiet">No runs submitted yet.</p>
+        <p className="ui-caption">No runs submitted yet.</p>
       ) : (
         <div className="checks-table-scroll">
           <table className="checks-table">

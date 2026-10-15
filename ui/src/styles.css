@@ -500,10 +500,6 @@ code {
   font-size: 0.76rem;
 }
 
-.danger-button {
-  background: var(--danger);
-}
-
 .visually-hidden {
   position: absolute !important;
   width: 1px !important;

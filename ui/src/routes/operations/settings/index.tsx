@@ -3,8 +3,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type FormEvent, type ReactNode, useState } from "react";
 import { Link } from "react-router";
 
+import { schemaLimit } from "../../../api/contract";
 import { usePublicAPI } from "../../../api/context";
-import { PublicAPIError } from "../../../api/error";
 import {
   getSchedulerSettings,
   replaceSchedulerSettings,
@@ -12,24 +12,39 @@ import {
 } from "../../../api/operations";
 import { queryKeys } from "../../../api/query-keys";
 import { useSession } from "../../../auth/session";
+import { writeConflict } from "../../../app/conflict";
 import { ErrorNotice } from "../../../app/error-notice";
 import { formatTimestamp } from "../../../app/format";
-import { StatusGlyph } from "../../../ui";
+import { QueryView } from "../../../app/query-view";
+import { Button, Facts, Field, StatusGlyph } from "../../../ui";
 import { AppearanceSettings } from "../../settings/appearance";
 import { GitKeySettings } from "../../settings/git-key";
 import { SettingSection } from "../../settings/section";
-import { Glance } from "../common";
+
+// The admission ceiling's bounds, as UpdateSchedulerSettingsRequest has them.
+const MINIMUM = schemaLimit(
+  "UpdateSchedulerSettingsRequest",
+  "minimum",
+  "properties",
+  "maxConcurrentRuns",
+);
+const MAXIMUM = schemaLimit(
+  "UpdateSchedulerSettingsRequest",
+  "maximum",
+  "properties",
+  "maxConcurrentRuns",
+);
 
 function validateMaximum(value: string): string | undefined {
   if (value.trim() === "") {
-    return "Enter a maximum from 1 through 32.";
+    return `Enter a maximum from ${MINIMUM} through ${MAXIMUM}.`;
   }
   if (!/^[0-9]+$/.test(value)) {
     return "Maximum concurrent Workflow Runs must be a whole number.";
   }
   const parsed = Number(value);
-  if (!Number.isSafeInteger(parsed) || parsed < 1 || parsed > 32) {
-    return "Maximum concurrent Workflow Runs must be from 1 through 32.";
+  if (!Number.isSafeInteger(parsed) || parsed < MINIMUM || parsed > MAXIMUM) {
+    return `Maximum concurrent Workflow Runs must be from ${MINIMUM} through ${MAXIMUM}.`;
   }
   return undefined;
 }
@@ -64,7 +79,7 @@ function SchedulerSettings() {
     },
     onError: (error) => {
       setSaved(undefined);
-      if (error instanceof PublicAPIError && error.status === 412) {
+      if (writeConflict(error) === "stale") {
         setConflict(
           "Another operator saved Scheduler settings first. The saved value is being reloaded; no overwrite occurred.",
         );
@@ -145,129 +160,118 @@ function SchedulerSettings() {
               </p>
             </div>
           </div>
-          <p className="ops-note">
+          <p className="ui-caption">
             Queue admission remains separate under{" "}
             <Link to="/runs?view=queue">Runs / Queue</Link>.
           </p>
         </>
       }
     >
-      {query.isPending ? (
-        <p className="ops-loading" role="status">
-          Loading saved scheduling settings…
-        </p>
-      ) : query.data === undefined ? (
-        <ErrorNotice
-          error={query.error}
-          onRetry={() => void query.refetch()}
-          retryPending={query.isFetching}
-        />
-      ) : (
-        <form className="ops-setting-form" onSubmit={submit}>
-          <Glance
-            label="Saved Scheduler settings"
-            items={[
-              ["Saved limit", query.data.resource.maxConcurrentRuns],
-              ["Revision", <code key="r">{query.data.resource.revision}</code>],
-              ["Last updated", formatTimestamp(query.data.resource.updatedAt)],
-            ]}
-          />
-          <label className="ops-field ops-number-field">
-            Maximum concurrent Workflow Runs
-            <input
-              aria-label="Maximum concurrent Workflow Runs"
-              name="maxConcurrentRuns"
-              type="number"
-              inputMode="numeric"
-              min={1}
-              max={32}
-              step={1}
-              required
-              value={displayedDraft}
-              aria-invalid={validationError !== undefined}
-              aria-describedby="scheduler-maximum-guidance scheduler-maximum-error"
-              onChange={(event) => {
-                const value = event.target.value;
-                if (value === String(query.data.resource.maxConcurrentRuns)) {
-                  setDraft(undefined);
-                  setEditBaseline(undefined);
-                  setConflict(undefined);
-                } else {
-                  setEditBaseline((current) => current ?? query.data);
-                  setDraft(value);
-                }
-                setSaved(undefined);
-                mutation.reset();
-              }}
+      <QueryView
+        query={query}
+        loading={
+          <p className="ops-loading" role="status">
+            Loading saved scheduling settings…
+          </p>
+        }
+      >
+        {(data) => (
+          <form className="ops-setting-form" onSubmit={submit}>
+            <Facts
+              className="ops-glance"
+              aria-label="Saved Scheduler settings"
+              items={[
+                { term: "Saved limit", value: data.resource.maxConcurrentRuns },
+                {
+                  term: "Revision",
+                  value: <code>{data.resource.revision}</code>,
+                },
+                {
+                  term: "Last updated",
+                  value: formatTimestamp(data.resource.updatedAt),
+                },
+              ]}
             />
-            <small id="scheduler-maximum-guidance" className="field-guidance">
-              A whole number from 1 through 32.
-            </small>
-          </label>
-          {validationError === undefined ? null : (
-            <p
-              id="scheduler-maximum-error"
-              className="ops-field-error"
-              role="alert"
+            <Field
+              className="ops-number-field"
+              label="Maximum concurrent Workflow Runs"
+              hint={`A whole number from ${MINIMUM} through ${MAXIMUM}.`}
+              error={validationError}
             >
-              {validationError}
-            </p>
-          )}
-          {conflictMessage === undefined ? null : (
-            <div className="notice notice-warning" role="alert">
-              {conflictMessage}
-            </div>
-          )}
-          {mutation.error === null ||
-          (mutation.error instanceof PublicAPIError &&
-            mutation.error.status === 412) ? null : (
-            <ErrorNotice error={mutation.error} reconcileWrite />
-          )}
-          {query.error === null || query.isPending ? null : (
-            <ErrorNotice error={query.error} />
-          )}
-          {saved === undefined ||
-          saved.revision !== query.data.resource.revision ? null : (
-            <div className="notice notice-success" role="status">
-              {saved.message}
-            </div>
-          )}
+              {(control) => (
+                <input
+                  {...control}
+                  name="maxConcurrentRuns"
+                  type="number"
+                  inputMode="numeric"
+                  min={MINIMUM}
+                  max={MAXIMUM}
+                  step={1}
+                  required
+                  value={displayedDraft}
+                  onChange={(event) => {
+                    const value = event.target.value;
+                    if (value === String(data.resource.maxConcurrentRuns)) {
+                      setDraft(undefined);
+                      setEditBaseline(undefined);
+                      setConflict(undefined);
+                    } else {
+                      setEditBaseline((current) => current ?? data);
+                      setDraft(value);
+                    }
+                    setSaved(undefined);
+                    mutation.reset();
+                  }}
+                />
+              )}
+            </Field>
+            {conflictMessage === undefined ? null : (
+              <div className="notice notice-warning" role="alert">
+                {conflictMessage}
+              </div>
+            )}
+            {mutation.error === null ||
+            writeConflict(mutation.error) === "stale" ? null : (
+              <ErrorNotice error={mutation.error} reconcileWrite />
+            )}
+            {saved === undefined ||
+            saved.revision !== data.resource.revision ? null : (
+              <div className="notice notice-success" role="status">
+                {saved.message}
+              </div>
+            )}
 
-          <div className="ops-form-actions">
-            <button
-              className="ui-btn"
-              data-variant="primary"
-              type="submit"
-              disabled={
-                mutation.isPending ||
-                validationError !== undefined ||
-                !dirty ||
-                stale
-              }
-            >
-              {mutation.isPending ? "Saving…" : "Save scheduling limit"}
-            </button>
-            <button
-              className="ui-btn"
-              type="button"
-              aria-label="Reset to saved value"
-              disabled={mutation.isPending || (!dirty && !stale)}
-              onClick={reset}
-            >
-              Reset
-            </button>
-            <button
-              className="ui-btn ops-push-end"
-              data-variant="ghost"
-              type="button"
-              disabled={mutation.isPending || query.isFetching}
-              onClick={() => void query.refetch()}
-            >
-              {query.isFetching ? "Reloading…" : "Reload saved value"}
-            </button>
-          </div>
-        </form>
-      )}
+            <div className="ops-form-actions">
+              <Button
+                variant="primary"
+                type="submit"
+                disabled={validationError !== undefined || !dirty || stale}
+                pending={mutation.isPending}
+                pendingLabel="Saving…"
+              >
+                Save scheduling limit
+              </Button>
+              <Button
+                aria-label="Reset to saved value"
+                disabled={mutation.isPending || (!dirty && !stale)}
+                onClick={reset}
+              >
+                Reset
+              </Button>
+              <Button
+                variant="ghost"
+                className="ops-push-end"
+                disabled={mutation.isPending}
+                pending={query.isFetching}
+                pendingLabel="Reloading…"
+                onClick={() => void query.refetch()}
+              >
+                Reload saved value
+              </Button>
+            </div>
+          </form>
+        )}
+      </QueryView>
     </SettingSection>
   );
 }

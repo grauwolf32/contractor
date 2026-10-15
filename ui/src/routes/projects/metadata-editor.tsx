@@ -12,7 +12,7 @@ import {
 import { queryKeys } from "../../api/query-keys";
 import { ErrorNotice } from "../../app/error-notice";
 import { formatTimestamp } from "../../app/format";
-import { IdChip } from "../../ui";
+import { Button, Facts, IdChip } from "../../ui";
 import { useUnsavedDraft } from "./project-drafts";
 
 import "./projects.css";
@@ -27,34 +27,21 @@ export function ProjectFacts({
   showId?: boolean;
 }) {
   return (
-    <dl className="projects-facts">
-      {showId ? (
-        <div>
-          <dt>Project ID</dt>
-          <dd>
+    <Facts
+      size="sm"
+      items={[
+        {
+          term: "Project ID",
+          value: showId && (
             <IdChip value={project.projectId} label="project ID" />
-          </dd>
-        </div>
-      ) : null}
-      <div>
-        <dt>Kind</dt>
-        <dd>{project.kind}</dd>
-      </div>
-      <div>
-        <dt>Revision</dt>
-        <dd>
-          <code>{project.revision}</code>
-        </dd>
-      </div>
-      <div>
-        <dt>Created</dt>
-        <dd>{formatTimestamp(project.createdAt)}</dd>
-      </div>
-      <div>
-        <dt>Updated</dt>
-        <dd>{formatTimestamp(project.updatedAt)}</dd>
-      </div>
-    </dl>
+          ),
+        },
+        { term: "Kind", value: project.kind },
+        { term: "Revision", value: <code>{project.revision}</code> },
+        { term: "Created", value: formatTimestamp(project.createdAt) },
+        { term: "Updated", value: formatTimestamp(project.updatedAt) },
+      ]}
+    />
   );
 }
 
@@ -126,11 +113,9 @@ export function ProjectMetadataEditor({ project }: { project: Project }) {
             </dd>
           </div>
         </dl>
-        <div className="projects-form-actions">
-          <button
-            className="ui-btn"
-            data-size="sm"
-            type="button"
+        <div className="ui-toolbar">
+          <Button
+            size="sm"
             onClick={() => {
               mutation.reset();
               setValidationError(null);
@@ -138,7 +123,7 @@ export function ProjectMetadataEditor({ project }: { project: Project }) {
             }}
           >
             Edit metadata
-          </button>
+          </Button>
         </div>
       </div>
     );
@@ -173,25 +158,23 @@ export function ProjectMetadataEditor({ project }: { project: Project }) {
       {mutation.error === null ? null : (
         <ErrorNotice error={mutation.error} reconcileWrite />
       )}
-      <div className="projects-form-actions">
-        <button
-          className="ui-btn"
-          data-variant="primary"
-          data-size="sm"
+      <div className="ui-toolbar">
+        <Button
+          variant="primary"
+          size="sm"
           type="submit"
-          disabled={mutation.isPending}
+          pending={mutation.isPending}
+          pendingLabel="Saving…"
         >
-          {mutation.isPending ? "Saving…" : "Save changes"}
-        </button>
-        <button
-          className="ui-btn"
-          data-size="sm"
-          type="button"
+          Save changes
+        </Button>
+        <Button
+          size="sm"
           disabled={mutation.isPending}
           onClick={() => setEditing(null)}
         >
           Cancel
-        </button>
+        </Button>
       </div>
     </form>
   );

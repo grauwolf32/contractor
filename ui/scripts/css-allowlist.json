@@ -1,23 +1,15 @@
 {
   "prefixes": [
     {
-      "prefix": "diff-line-",
-      "source": "src/routes/artifacts/previews/diff.tsx: diff-line-${line.kind}"
-    },
-    {
       "prefix": "ops-signin-spiral-",
       "source": "src/routes/login-backdrop.tsx: ops-signin-spiral-${position}"
     },
     {
       "prefix": "run-result-",
-      "source": "src/routes/runs/artifacts.tsx: run-result-${entry.kind}"
+      "source": "src/routes/runs/outputs.tsx: run-result-${entry.kind}"
     }
   ],
   "classes": [
-    {
-      "name": "is-blocking",
-      "source": "src/routes/workflows/run-form.tsx: is-${notice.severity}"
-    },
     {
       "name": "scalar-app",
       "source": "rendered by @scalar/api-reference-react"

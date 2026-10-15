@@ -13,13 +13,15 @@ import {
   type WorkflowResource,
 } from "../../api/workflows";
 import { ErrorNotice } from "../../app/error-notice";
+import { compactDigest, plural } from "../../app/format";
+import { QueryView } from "../../app/query-view";
+import { ButtonLink, Facts, TechnicalDetails } from "../../ui";
+import { artifactDetailPath } from "../artifacts/paths";
+import { LibraryBackLink } from "../catalog/library-parts";
 import { locationDestination } from "../catalog/navigation";
+import { ConsumerConfigList } from "./consumer-config";
 import { WorkflowOverview } from "./overview";
 import { workflowSelector } from "./presentation";
-
-import { compactDigest } from "../../app/format";
-import { artifactDetailPath } from "../artifacts/paths";
-import { ConsumerConfigList } from "./consumer-config";
 
 type SuccessTransition = components["schemas"]["WorkflowSucceededTransition"];
 type FailureTransition = components["schemas"]["WorkflowFailureTransition"];
@@ -48,8 +50,7 @@ function FailureTransitionView({
   if (transition.kind === "retry") {
     return (
       <span>
-        retry up to {transition.maxAttempts}{" "}
-        {transition.maxAttempts === 1 ? "attempt" : "attempts"}, then{" "}
+        retry up to {plural(transition.maxAttempts, "attempt")}, then{" "}
         <TerminalTransition transition={transition.then} />
       </span>
     );
@@ -59,8 +60,7 @@ function FailureTransitionView({
     return (
       <div className="workflow-escalation">
         <span>
-          escalate up to {transition.maxAttempts}{" "}
-          {transition.maxAttempts === 1 ? "attempt" : "attempts"} using{" "}
+          escalate up to {plural(transition.maxAttempts, "attempt")} using{" "}
           {ref === undefined ? (
             "an inline resolved profile"
           ) : (
@@ -104,8 +104,7 @@ function StageContract({
         </span>
         <span className="workflow-stage-summary">
           {stage.planner.plannerId}@{stage.planner.version} ·{" "}
-          {Object.keys(stage.agents).length} logical Worker
-          {Object.keys(stage.agents).length === 1 ? "" : "s"}
+          {plural(Object.keys(stage.agents).length, "logical Worker")}
         </span>
       </summary>
       <div className="workflow-stage-body">
@@ -113,25 +112,32 @@ function StageContract({
           <h4>Objective</h4>
           <p>{stage.objective}</p>
         </div>
-        <dl className="workflow-stage-facts">
-          <div>
-            <dt>Planner</dt>
-            <dd>
-              <code>
-                {stage.planner.plannerId}@{stage.planner.version}
-              </code>
-            </dd>
-          </div>
-          <div>
-            <dt>Instructions</dt>
-            <dd>
-              <code>{stage.instructions.ref}</code>
-              <small title={stage.instructions.digest}>
-                {compactDigest(stage.instructions.digest)}
-              </small>
-            </dd>
-          </div>
-        </dl>
+        <Facts
+          layout="list"
+          size="sm"
+          className="workflow-stage-facts"
+          items={[
+            {
+              term: "Planner",
+              value: (
+                <code>
+                  {stage.planner.plannerId}@{stage.planner.version}
+                </code>
+              ),
+            },
+            {
+              term: "Instructions",
+              value: (
+                <>
+                  <code>{stage.instructions.ref}</code>
+                  <small title={stage.instructions.digest}>
+                    {compactDigest(stage.instructions.digest)}
+                  </small>
+                </>
+              ),
+            },
+          ]}
+        />
         <div>
           <h4>Logical Workers</h4>
           <ul className="workflow-agent-list">
@@ -189,26 +195,27 @@ function StageContract({
         </div>
         <div>
           <h4>Scheduler transitions</h4>
-          <dl className="workflow-stage-facts">
-            <div>
-              <dt>succeeded</dt>
-              <dd>
-                <TerminalTransition transition={stage.on.succeeded} />
-              </dd>
-            </div>
-            <div>
-              <dt>failed</dt>
-              <dd>
-                <FailureTransitionView transition={stage.on.failed} />
-              </dd>
-            </div>
-            <div>
-              <dt>interrupted</dt>
-              <dd>
-                <FailureTransitionView transition={stage.on.interrupted} />
-              </dd>
-            </div>
-          </dl>
+          <Facts
+            layout="list"
+            size="sm"
+            className="workflow-stage-facts"
+            items={[
+              {
+                term: "succeeded",
+                value: <TerminalTransition transition={stage.on.succeeded} />,
+              },
+              {
+                term: "failed",
+                value: <FailureTransitionView transition={stage.on.failed} />,
+              },
+              {
+                term: "interrupted",
+                value: (
+                  <FailureTransitionView transition={stage.on.interrupted} />
+                ),
+              },
+            ]}
+          />
         </div>
       </div>
     </details>
@@ -225,75 +232,55 @@ export function WorkflowDetailRoute() {
     queryFn: ({ signal }) => getWorkflow(api, name, version, signal),
     enabled: valid,
   });
-  if (!valid) {
-    return (
-      <div className="ui-stack">
-        <ErrorNotice error={new Error("Workflow route is invalid")} />
-        <Link className="library-back" to="/catalog/workflows">
-          Return to Workflows
-        </Link>
-      </div>
-    );
-  }
-
-  if (query.isPending)
-    return (
-      <p className="library-muted" role="status">
-        Loading Workflow contract…
-      </p>
-    );
-  if (!query.data)
-    return (
-      <div className="ui-stack">
-        <ErrorNotice error={query.error} />
-        <Link className="library-back" to="/catalog/workflows">
-          Return to Workflows
-        </Link>
-      </div>
-    );
-
   return (
-    <WorkflowOverview
-      key={workflowSelector(query.data)}
-      workflow={query.data}
-      refreshing={query.isFetching}
-      refresh={() => void query.refetch()}
-      error={query.error}
-    >
-      <Link className="ui-btn" to="/catalog/studio?kind=Workflow">
-        Open Node Studio
-      </Link>
-      <details className="workflow-technical-details">
-        <summary>
-          <svg
-            className="workflow-technical-chevron"
-            width="13"
-            height="13"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden="true"
-            focusable="false"
-          >
-            <path d="M9.5 6l6 6-6 6" />
-          </svg>
-          Agents, execution settings and transitions
-        </summary>
-        <div className="workflow-technical-details-body">
-          {Object.keys(query.data.stages)
-            .sort()
-            .map((stageName) => (
-              <StageContract
-                key={stageName}
-                name={stageName}
-                workflow={query.data}
-              />
-            ))}
-        </div>
-      </details>
-    </WorkflowOverview>
+    <div className="ui-stack workflow-overview-page">
+      <LibraryBackLink
+        fallback={{
+          returnTo: "/catalog/workflows",
+          returnLabel: "All workflows",
+        }}
+      />
+      {valid ? (
+        <QueryView
+          query={query}
+          loading={
+            <p className="library-muted" role="status">
+              Loading Workflow contract…
+            </p>
+          }
+        >
+          {(workflow) => (
+            <WorkflowOverview
+              key={workflowSelector(workflow)}
+              workflow={workflow}
+              refreshing={query.isFetching}
+              refresh={() => void query.refetch()}
+            >
+              <ButtonLink to="/catalog/studio?kind=Workflow">
+                Open Node Studio
+              </ButtonLink>
+              <TechnicalDetails
+                summary="Agents, execution settings and transitions"
+                className="workflow-technical-details"
+              >
+                <div className="ui-stack">
+                  {Object.keys(workflow.stages)
+                    .sort()
+                    .map((stageName) => (
+                      <StageContract
+                        key={stageName}
+                        name={stageName}
+                        workflow={workflow}
+                      />
+                    ))}
+                </div>
+              </TechnicalDetails>
+            </WorkflowOverview>
+          )}
+        </QueryView>
+      ) : (
+        <ErrorNotice error={new Error("Workflow route is invalid")} />
+      )}
+    </div>
   );
 }

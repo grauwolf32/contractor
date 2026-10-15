@@ -1,5 +1,6 @@
-import { useId, useState } from "react";
+import { useState } from "react";
 import { Link } from "react-router";
+
 import type { ArtifactArchiveScope } from "../../../api/artifact-archive";
 import type { ArtifactMetadata } from "../../../api/artifacts";
 import {
@@ -10,8 +11,9 @@ import {
 } from "../../../api/http-exchange";
 import { saveBlob } from "../../../app/download";
 import { formatBytes } from "../../../app/format";
-import { MethodChip, TechnicalDetails } from "../../../ui";
+import { Button, MethodChip, TechnicalDetails } from "../../../ui";
 import { artifactDetailPath } from "../paths";
+import { PanelTabs } from "../tabs";
 import "./http-exchange.css";
 
 const BODY_PREVIEW_CHARACTERS = 8192;
@@ -39,7 +41,7 @@ function Headers({ rows }: { rows: HTTPHeader[] }) {
     <section aria-label="Headers">
       <h4>Headers</h4>
       {rows.length === 0 ? (
-        <p className="materials-quiet">No headers.</p>
+        <p className="ui-caption">No headers.</p>
       ) : (
         <dl className="http-evidence-headers">
           {rows.slice(start, start + HEADERS_PER_PAGE).map((row, index) => (
@@ -52,28 +54,24 @@ function Headers({ rows }: { rows: HTTPHeader[] }) {
       )}
       {rows.length <= HEADERS_PER_PAGE ? null : (
         <div className="http-evidence-actions">
-          <button
-            className="ui-btn"
-            data-size="xs"
+          <Button
+            size="xs"
             disabled={page === 0}
             onClick={() => setPage(page - 1)}
-            type="button"
           >
             Previous headers
-          </button>
+          </Button>
           <span>
             {start + 1}–{Math.min(start + HEADERS_PER_PAGE, rows.length)} of{" "}
             {rows.length}
           </span>
-          <button
-            className="ui-btn"
-            data-size="xs"
+          <Button
+            size="xs"
             disabled={start + HEADERS_PER_PAGE >= rows.length}
             onClick={() => setPage(page + 1)}
-            type="button"
           >
             Next headers
-          </button>
+          </Button>
         </div>
       )}
     </section>
@@ -114,10 +112,8 @@ function Body({
       <div className="http-evidence-actions">
         <h4>{label}</h4>
         {data.length === 0 ? null : (
-          <button
-            type="button"
-            className="ui-btn"
-            data-size="xs"
+          <Button
+            size="xs"
             onClick={() =>
               saveBlob(
                 new Blob([data], { type: "application/octet-stream" }),
@@ -127,13 +123,13 @@ function Body({
             }
           >
             Download {label.toLowerCase()}
-          </button>
+          </Button>
         )}
       </div>
       {data.length === 0 ? (
-        <p className="materials-quiet">Empty body (0 bytes).</p>
+        <p className="ui-caption">Empty body (0 bytes).</p>
       ) : display === undefined ? (
-        <p className="materials-quiet">
+        <p className="ui-caption">
           Binary body · {formatBytes(data.length)}. Use Download.
         </p>
       ) : (
@@ -142,7 +138,7 @@ function Body({
         </pre>
       )}
       {!truncated ? null : (
-        <p className="materials-quiet">
+        <p className="ui-caption">
           Showing the first 8192 characters. Download this body or the complete
           exchange for all bytes.
         </p>
@@ -197,10 +193,8 @@ function Message({
     <>
       <div className="http-evidence-actions">
         <h4>Raw {direction}</h4>
-        <button
-          className="ui-btn"
-          data-size="xs"
-          type="button"
+        <Button
+          size="xs"
           onClick={() =>
             saveBlob(
               new Blob([data], { type: "application/octet-stream" }),
@@ -209,7 +203,7 @@ function Message({
           }
         >
           Download raw {direction}
-        </button>
+        </Button>
       </div>
       <section aria-label="Headers">
         <h4>Headers</h4>
@@ -217,14 +211,14 @@ function Message({
           {headerText}
         </pre>
         {headerBytes.length <= shown.length ? null : (
-          <p className="materials-quiet">
+          <p className="ui-caption">
             Headers preview is shortened. Download the raw message for all
             bytes.
           </p>
         )}
       </section>
       {separator < 0 ? (
-        <p className="materials-quiet">
+        <p className="ui-caption">
           Raw framing has no header/body separator; inspect the downloaded
           message.
         </p>
@@ -245,93 +239,54 @@ function Attempt({
   document: HTTPExchangeDocument;
   index: number;
 }) {
-  const id = useId();
-  const [tab, setTab] = useState<"request" | "response">("request");
   const attempt = document.capture.attempts[index]!;
   const response = attempt.response;
   return (
-    <>
-      <div
-        role="tablist"
-        aria-label="HTTP message"
-        className="materials-tabs"
-        onKeyDown={(event) => {
-          if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key))
-            return;
-          event.preventDefault();
-          const next =
-            event.key === "Home"
-              ? "request"
-              : event.key === "End"
-                ? "response"
-                : tab === "request"
-                  ? "response"
-                  : "request";
-          setTab(next);
-          documentNode(id + "-" + next)?.focus();
-        }}
-      >
-        {(["request", "response"] as const).map((direction) => (
-          <button
-            key={direction}
-            className="materials-tab"
-            type="button"
-            role="tab"
-            id={id + "-" + direction}
-            aria-controls={id + "-" + direction + "-panel"}
-            aria-selected={tab === direction}
-            tabIndex={tab === direction ? 0 : -1}
-            onClick={() => setTab(direction)}
-          >
-            {direction === "request" ? "Request" : "Response"}
-          </button>
-        ))}
-      </div>
-      <div
-        role="tabpanel"
-        id={id + "-request-panel"}
-        aria-labelledby={id + "-request"}
-        hidden={tab !== "request"}
-        tabIndex={0}
-      >
-        <Message value={attempt.request.message} direction="request" />
-      </div>
-      <div
-        role="tabpanel"
-        id={id + "-response-panel"}
-        aria-labelledby={id + "-response"}
-        hidden={tab !== "response"}
-        tabIndex={0}
-      >
-        {response === undefined ? (
-          <p className="http-evidence-outcome">No response captured.</p>
-        ) : (
-          <>
-            <p className="http-evidence-outcome">
-              HTTP {response.status} ·{" "}
-              {response.complete ? "Complete response" : "Incomplete response"}
-            </p>
-            {response.complete ? null : (
-              <p className="materials-quiet">
-                The saved body may be absent or partial. A redirect or retry can
-                retain only status and headers.
-              </p>
-            )}
-            <Message value={response.message} direction="response" />
-          </>
-        )}
-        {attempt.error === undefined ? null : (
-          <p className="http-evidence-outcome">
-            {OUTCOME_LABELS[attempt.error]}
-          </p>
-        )}
-      </div>
-    </>
+    <PanelTabs
+      label="HTTP message"
+      tabs={[
+        {
+          id: "request",
+          label: "Request",
+          panel: (
+            <Message value={attempt.request.message} direction="request" />
+          ),
+        },
+        {
+          id: "response",
+          label: "Response",
+          panel: (
+            <>
+              {response === undefined ? (
+                <p className="http-evidence-outcome">No response captured.</p>
+              ) : (
+                <>
+                  <p className="http-evidence-outcome">
+                    HTTP {response.status} ·{" "}
+                    {response.complete
+                      ? "Complete response"
+                      : "Incomplete response"}
+                  </p>
+                  {response.complete ? null : (
+                    <p className="ui-caption">
+                      The saved body may be absent or partial. A redirect or
+                      retry can retain only status and headers.
+                    </p>
+                  )}
+                  <Message value={response.message} direction="response" />
+                </>
+              )}
+              {attempt.error === undefined ? null : (
+                <p className="http-evidence-outcome">
+                  {OUTCOME_LABELS[attempt.error]}
+                </p>
+              )}
+            </>
+          ),
+        },
+      ]}
+    />
   );
-}
-
-function documentNode(id: string) {
-  return window.document.getElementById(id);
 }
 
 export default function HTTPExchangePreview({
@@ -358,7 +313,7 @@ export default function HTTPExchangePreview({
         <code>{attempt.request.url}</code>
       </div>
       {trustedAssociation && scope?.kind === "run" ? (
-        <p className="materials-quiet">
+        <p className="ui-caption">
           Saved with a possible issue.{" "}
           <Link
             to={artifactDetailPath(scope, {

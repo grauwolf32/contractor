@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { type ReactNode, useRef, useState } from "react";
 import { Link } from "react-router";
 
+import { schemaLimit } from "../../api/contract";
 import { usePublicAPI } from "../../api/context";
 import { queryKeys } from "../../api/query-keys";
 import {
@@ -9,18 +10,24 @@ import {
   getRunRepeatDraft,
   isTerminalRunState,
   resumeRun,
-  retryRunGateway,
   type RunStatus,
 } from "../../api/runs";
 import { ErrorNotice } from "../../app/error-notice";
 import { Icon } from "../../app/icon";
 import { useRunDraftStore } from "../../run-drafts/context";
 import { auditDestination, prepareRepeatDraft } from "../../run-drafts/repeat";
-import { CANCELLATION_REASON_LIMIT, CancelRunDialog } from "./cancel";
-import { RetryModelDialog } from "./recovery";
-import { ContinueRunDialog } from "./resume";
+import { CancelRunDialog } from "./cancel";
+import { useRetryModelConnection } from "./recovery";
 import { useGuardedNavigate } from "../../app/page-location";
-import { Button } from "../../ui";
+import { AlertDialog, Button } from "../../ui";
+
+/** The longest cancellation reason the Server accepts (CancelRunRequest). */
+const CANCELLATION_REASON_LIMIT = schemaLimit(
+  "CancelRunRequest",
+  "maxLength",
+  "properties",
+  "reason",
+);
 
 /** What one header action contributes: its button, a dialog and a notice. */
 interface ActionParts {
@@ -42,82 +49,12 @@ type ActionDone = (announcement: string) => void;
  */
 type FocusHeading = () => void;
 
-type Recovery = NonNullable<RunStatus["recovery"]>;
-
 /** The failed stage a Continue confirmation was opened for. */
 interface ContinueTarget {
   /** The stage execution the Server offered as the continuation source. */
   source: string;
   /** Its stage name, as the confirmation shows it. */
   stage: string;
-}
-
-/**
- * Retry model connection. The confirmation keeps the recovery it was opened
- * for: it stays open, with any refusal, until the user closes it, even when
- * a refetch ends that recovery, and a later recovery never reopens it
- * without a click.
- */
-function useRetryModelConnection(
-  run: RunStatus,
-  onDone: ActionDone,
-  focusHeading: FocusHeading,
-): ActionParts {
-  const api = usePublicAPI();
-  const queryClient = useQueryClient();
-  const [target, setTarget] = useState<Recovery>();
-  const retry = useMutation({
-    mutationFn: () => retryRunGateway(api, run.runId),
-    onSettled: () =>
-      queryClient.invalidateQueries({ queryKey: queryKeys.runs.all }),
-  });
-  const offer = run.recovery?.requiresRetry === true ? run.recovery : undefined;
-
-  function clear(): void {
-    setTarget(undefined);
-    retry.reset();
-  }
-
-  function dismiss(): void {
-    clear();
-    if (offer === undefined) focusHeading();
-  }
-
-  return {
-    control:
-      offer === undefined ? null : (
-        <button
-          className="ui-btn"
-          data-size="sm"
-          data-variant="primary"
-          type="button"
-          onClick={() => {
-            retry.reset();
-            setTarget(offer);
-          }}
-        >
-          <Icon name="refresh" />
-          Retry model connection
-        </button>
-      ),
-    overlay:
-      target === undefined ? null : (
-        <RetryModelDialog
-          recovery={target}
-          pending={retry.isPending}
-          error={retry.error}
-          onConfirm={() =>
-            retry.mutate(undefined, {
-              onSuccess: () => {
-                clear();
-                onDone("Model connection retry requested.");
-              },
-            })
-          }
-          onCancel={dismiss}
-        />
-      ),
-  };
 }
 
 /**
@@ -183,11 +120,10 @@ function useContinueFromFailedStage(
   return {
     control:
       source === undefined ? null : (
-        <button
-          className="ui-btn"
-          data-size="sm"
-          data-variant="primary"
-          type="button"
+        <Button
+          variant="primary"
+          size="sm"
+          icon={<Icon name="play" />}
           onClick={() => {
             mutation.reset();
             setTarget({
@@ -199,19 +135,38 @@ function useContinueFromFailedStage(
             });
           }}
         >
-          <Icon name="play" />
           Continue from failed stage
-        </button>
+        </Button>
       ),
     overlay:
       target === undefined ? null : (
-        <ContinueRunDialog
-          stage={target.stage}
+        // It names the stage and warns that model and tool calls, including
+        // external side effects, repeat (S06).
+        <AlertDialog
+          eyebrow="Continue failed Run"
+          title="Continue from failed stage?"
+          tone="primary"
+          cancelLabel="Back"
+          confirmLabel="Confirm continuation"
+          pendingLabel="Continuing…"
           pending={mutation.isPending}
-          error={mutation.error}
+          error={
+            mutation.error === null ? null : (
+              <ErrorNotice error={mutation.error} />
+            )
+          }
           onConfirm={() => confirm(target)}
           onCancel={dismiss}
-        />
+        >
+          <p>
+            Retry stage <strong>{target.stage}</strong>? Model and tool calls
+            will run again and may repeat external side effects.
+          </p>
+          <p>
+            Successful stages and their results are preserved. The failed stage
+            gets a new attempt with its saved inputs and configuration.
+          </p>
+        </AlertDialog>
       ),
   };
 }
@@ -372,7 +327,9 @@ function useCancelRun(
       normalized.length === 0 ||
       normalized.length > CANCELLATION_REASON_LIMIT
     ) {
-      setValidationError("Give a cancellation reason of 1–4096 characters.");
+      setValidationError(
+        `Give a cancellation reason of 1–${CANCELLATION_REASON_LIMIT} characters.`,
+      );
       return;
     }
     setValidationError(undefined);
@@ -398,23 +355,22 @@ function useCancelRun(
 
   return {
     control: cancellable ? (
-      <button
-        className="ui-btn"
-        data-size="sm"
-        data-variant="ghost"
-        type="button"
+      <Button
+        variant="ghost"
+        size="sm"
+        icon={<Icon name="stop" />}
         onClick={() => {
           mutation.reset();
           setOpen(true);
         }}
       >
-        <Icon name="stop" />
         Cancel Run
-      </button>
+      </Button>
     ) : null,
     overlay: open ? (
       <CancelRunDialog
         reason={reason}
+        maxLength={CANCELLATION_REASON_LIMIT}
         onReasonChange={(value) => {
           setReason(value);
           setValidationError(undefined);
@@ -434,40 +390,40 @@ function useCancelRun(
  * stage, Configure another Run and Cancel Run. The three recovery actions
  * stay separate, each with its own confirmation (two dialogs and the
  * reviewed repeat draft); none changes the displayed state before the Server
- * confirms it. Rendered as the action group plus a notices block, which the
- * header grid places.
+ * confirms it. The page places the buttons in its header, the notices under
+ * it and the dialogs anywhere.
  */
-export function RunActions({
-  run,
-  refresh,
-  onDone,
-  focusHeading,
-}: {
-  run: RunStatus;
-  refresh: ReactNode;
-  onDone: ActionDone;
-  focusHeading: FocusHeading;
-}) {
-  const retry = useRetryModelConnection(run, onDone, focusHeading);
+export function useRunActions(
+  run: RunStatus,
+  onDone: ActionDone,
+  focusHeading: FocusHeading,
+): { controls: ReactNode; notices: ReactNode; overlays: ReactNode } {
+  const retry = useRetryModelConnection(run, {
+    onRequested: () => onDone("Model connection retry requested."),
+    onClosedWithoutOffer: focusHeading,
+  });
   const resume = useContinueFromFailedStage(run, onDone, focusHeading);
   const repeat = useConfigureAnotherRun(run);
   const cancel = useCancelRun(run, onDone, focusHeading);
-  const hasNotice = repeat.notice !== undefined && repeat.notice !== null;
-  return (
-    <>
-      <div className="runs-run-actions">
+  return {
+    controls: (
+      <>
         {retry.control}
         {resume.control}
         {repeat.control}
         {cancel.control}
-        {refresh}
-      </div>
-      {hasNotice ? (
+      </>
+    ),
+    notices:
+      repeat.notice === undefined || repeat.notice === null ? null : (
         <div className="runs-run-notices">{repeat.notice}</div>
-      ) : null}
-      {retry.overlay}
-      {resume.overlay}
-      {cancel.overlay}
-    </>
-  );
+      ),
+    overlays: (
+      <>
+        {retry.overlay}
+        {resume.overlay}
+        {cancel.overlay}
+      </>
+    ),
+  };
 }

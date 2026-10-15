@@ -1,9 +1,11 @@
 import { useId, useState } from "react";
 
 import type { Project, ProjectDeletionPhase } from "../../api/projects";
+import { ActionMenu } from "../../app/action-menu";
 import { ErrorNotice } from "../../app/error-notice";
 import { formatTimestamp } from "../../app/format";
-import { AlertDialog, Field, StatusGlyph } from "../../ui";
+import { AlertDialog, Button, Field, StatusGlyph } from "../../ui";
+import type { WorkspaceProject } from "./use-project-deletion";
 
 import "./projects.css";
 
@@ -40,20 +42,58 @@ const DELETION_PHASES: readonly ProjectDeletionPhase[] = [
   "purging_artifacts",
 ];
 
+/**
+ * The workspace's action menu: refresh the project and, while it is active,
+ * ask to delete it. `noun` names it ("Project", "Eval").
+ */
+export function ProjectActions({
+  workspace,
+  noun,
+}: {
+  workspace: WorkspaceProject;
+  noun: "Project" | "Eval";
+}) {
+  const { project } = workspace;
+  return (
+    <ActionMenu label={`${noun} actions`}>
+      <Button
+        variant="ghost"
+        size="sm"
+        pending={project.isFetching}
+        pendingLabel="Refreshing…"
+        onClick={() => void project.refetch()}
+      >
+        Refresh project details
+      </Button>
+      {workspace.activeProject === undefined ? null : (
+        <Button variant="danger" size="sm" onClick={workspace.requestDeletion}>
+          Delete {noun}
+        </Button>
+      )}
+    </ActionMenu>
+  );
+}
+
+/** The type-to-confirm deletion dialog, while the workspace asks for it. */
 export function DeleteProjectDialog({
+  workspace,
+}: {
+  workspace: WorkspaceProject;
+}) {
+  const project = workspace.activeProject;
+  if (!workspace.deleteOpen || project === undefined) return null;
+  return <DeleteConfirmation project={project} workspace={workspace} />;
+}
+
+function DeleteConfirmation({
   project,
-  pending,
-  error,
-  onCancel,
-  onConfirm,
+  workspace: { deletion, cancelDeletion },
 }: {
   project: Project;
-  pending: boolean;
-  error: Error | null;
-  onCancel: () => void;
-  onConfirm: () => void;
+  workspace: WorkspaceProject;
 }) {
   const [confirmation, setConfirmation] = useState("");
+  const pending = deletion.isPending;
   const resourceLabel = project.kind === "evaluation" ? "Eval" : "Project";
   return (
     <AlertDialog
@@ -82,9 +122,11 @@ export function DeleteProjectDialog({
           )}
         </Field>
       }
-      error={error === null ? null : <ErrorNotice error={error} />}
-      onCancel={onCancel}
-      onConfirm={onConfirm}
+      error={
+        deletion.error === null ? null : <ErrorNotice error={deletion.error} />
+      }
+      onCancel={cancelDeletion}
+      onConfirm={() => deletion.mutate(project)}
     >
       <p>
         This cancels every active Run and permanently deletes all Project Runs,

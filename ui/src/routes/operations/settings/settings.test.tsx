@@ -1,163 +1,48 @@
 import {
   act,
   fireEvent,
-  render,
   screen,
   waitFor,
   within,
 } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { createMemoryRouter } from "react-router";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
-import { PublicAPI } from "../../../api/client";
-import { Application } from "../../../app/application";
-import { applicationRoutes } from "../../../app/router";
-import type { RuntimeConfig } from "../../../config/runtime-config";
-import { RunEventsManager } from "../../../events/run-events";
-
-const runtimeConfig: RuntimeConfig = {
-  uiVersion: "0.1.0",
-  supportedApiVersions: ["contractor.public.v1"],
-  apiBaseUrl: "http://127.0.0.1:8080",
-};
-const session = {
-  principal: {
-    userId: "user_local",
-    username: "owner",
-    capabilities: ["user", "operations"] as const,
-  },
-  csrfToken: "a".repeat(43),
-  idleExpiresAt: "2026-09-06T20:00:00Z",
-  absoluteExpiresAt: "2026-09-07T12:00:00Z",
-};
-
-function response(
-  value: unknown,
-  status = 200,
-  headers: Record<string, string> = {},
-): Response {
-  return new Response(value === undefined ? undefined : JSON.stringify(value), {
-    status,
-    headers: {
-      "content-type": "application/json",
-      "X-Contractor-API-Version": "contractor.public.v1",
-      ...headers,
-    },
-  });
-}
+import { conforming } from "../../../test/builders";
+import {
+  json,
+  preconditionFailed,
+  type Routes,
+} from "../../../test/fake-server";
+import {
+  FakeSocket,
+  operationsSnapshot,
+  renderOperationsApp,
+} from "../test-support";
 
 function schedulerSettings(maxConcurrentRuns: number, revision: string) {
-  return response(
-    {
+  return json(
+    conforming("SchedulerSettings", {
       maxConcurrentRuns,
       revision,
       updatedAt: `2026-09-06T01:00:0${revision}Z`,
-    },
+    }),
     200,
     { ETag: `"${revision}"`, "Cache-Control": "no-store" },
   );
 }
 
-function operationsSnapshot(revision = "7") {
-  return {
-    cursor: { generation: "operations-settings-generation", revision },
-    runtimeAgents: [],
-    allocations: [],
-  };
-}
-
-class SettingsWebSocket {
-  static instances: SettingsWebSocket[] = [];
-  protocol = "contractor.events.v1";
-  readyState = 0;
-  sent: string[] = [];
-  onopen: ((event: Event) => unknown) | null = null;
-  onmessage: ((event: MessageEvent) => unknown) | null = null;
-  onerror: ((event: Event) => unknown) | null = null;
-  onclose: ((event: CloseEvent) => unknown) | null = null;
-
-  constructor() {
-    SettingsWebSocket.instances.push(this);
-  }
-
-  send(value: string): void {
-    this.sent.push(value);
-  }
-
-  close(): void {
-    this.readyState = 3;
-  }
-
-  open(): void {
-    this.readyState = 1;
-    this.onopen?.(new Event("open"));
-  }
-
-  message(value: unknown): void {
-    this.onmessage?.({ data: JSON.stringify(value) } as MessageEvent);
-  }
-}
-
-function renderSettings(api: PublicAPI, path = "/operations/settings") {
-  const router = createMemoryRouter(applicationRoutes(), {
-    initialEntries: [path],
-  });
-  const events = new RunEventsManager(runtimeConfig.apiBaseUrl, {
-    WebSocketImplementation: SettingsWebSocket as unknown as typeof WebSocket,
-  });
-  return render(
-    <Application
-      api={api}
-      publicAPI={api}
-      runEvents={events}
-      router={router}
-    />,
-  );
-}
-
-function commonResponse(request: Request): Response | undefined {
-  const path = new URL(request.url).pathname;
-  if (path === "/v1/auth/session") {
-    return response(session);
-  }
-  if (path === "/v1/operations/snapshot") {
-    return response(operationsSnapshot());
-  }
-  if (path === "/v1/settings/git-key") {
-    return response({ configured: false });
-  }
-  return undefined;
-}
-
-beforeEach(() => {
-  SettingsWebSocket.instances = [];
-});
+/** The snapshot and the personal Git key every Settings page reads. */
+const common: Routes = {
+  "GET /v1/operations/snapshot": () => json(operationsSnapshot()),
+  "GET /v1/settings/git-key": () => json({ configured: false }),
+};
 
 describe("Operations Scheduler settings", () => {
   it("keeps personal repository settings available without Operations capability", async () => {
-    const api = new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const request = input instanceof Request ? input : new Request(input);
-        const path = new URL(request.url).pathname;
-        if (path === "/v1/auth/session") {
-          return response({
-            ...session,
-            principal: {
-              ...session.principal,
-              capabilities: ["user"],
-            },
-          });
-        }
-        if (path === "/v1/settings/git-key") {
-          return response({ configured: false });
-        }
-        throw new Error(`unexpected ${request.method} ${request.url}`);
-      }),
-    );
-
-    renderSettings(api);
+    renderOperationsApp("/operations/settings", {
+      capabilities: ["user"],
+      routes: { "GET /v1/settings/git-key": () => json({ configured: false }) },
+    });
 
     expect(
       await screen.findByRole("heading", { name: "Git SSH key" }),
@@ -193,23 +78,9 @@ describe("Operations Scheduler settings", () => {
   });
 
   it("points sessions without the capability from other Operations pages to Settings", async () => {
-    const requests: string[] = [];
-    const api = new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const request = input instanceof Request ? input : new Request(input);
-        const path = new URL(request.url).pathname;
-        requests.push(path);
-        if (path === "/v1/auth/session") {
-          return response({
-            ...session,
-            principal: { ...session.principal, capabilities: ["user"] },
-          });
-        }
-        throw new Error(`unexpected ${request.method} ${request.url}`);
-      }),
-    );
-    renderSettings(api, "/operations/runtime-agents");
+    const { requests } = renderOperationsApp("/operations/runtime-agents", {
+      capabilities: ["user"],
+    });
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "not authorized to observe or manage Operations",
     );
@@ -224,33 +95,28 @@ describe("Operations Scheduler settings", () => {
       screen.queryByRole("navigation", { name: "Operations sections" }),
     ).not.toBeInTheDocument();
     expect(
-      requests.filter(
-        (path) =>
-          ![
-            "/v1/projects",
-            "/v1/audits",
-            "/v1/findings",
-            "/v1/reviews",
-          ].includes(path),
-      ),
+      requests
+        .map((request) => new URL(request.url).pathname)
+        .filter(
+          (path) =>
+            ![
+              "/v1/projects",
+              "/v1/audits",
+              "/v1/findings",
+              "/v1/reviews",
+            ].includes(path),
+        ),
     ).toEqual(["/v1/auth/session"]);
   });
 
   it("shows Settings as an Operations section to operators", async () => {
-    const api = new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const request = input instanceof Request ? input : new Request(input);
-        const common = commonResponse(request);
-        if (common !== undefined) return common;
-        if (
-          new URL(request.url).pathname === "/v1/operations/settings/scheduler"
-        )
-          return schedulerSettings(2, "3");
-        throw new Error(`unexpected ${request.method} ${request.url}`);
-      }),
-    );
-    renderSettings(api);
+    renderOperationsApp("/operations/settings", {
+      routes: {
+        ...common,
+        "GET /v1/operations/settings/scheduler": () =>
+          schedulerSettings(2, "3"),
+      },
+    });
     expect(
       await screen.findByRole("heading", {
         level: 3,
@@ -282,29 +148,19 @@ describe("Operations Scheduler settings", () => {
   });
 
   it("validates, CAS-saves once and settles on the returned value", async () => {
-    const requests: Request[] = [];
     let finishPut: ((value: Response) => void) | undefined;
     const pendingPut = new Promise<Response>((resolve) => {
       finishPut = resolve;
     });
-    const api = new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const request = input instanceof Request ? input : new Request(input);
-        const common = commonResponse(request);
-        if (common !== undefined) return common;
-        if (
-          new URL(request.url).pathname === "/v1/operations/settings/scheduler"
-        ) {
-          requests.push(request);
-          return request.method === "GET"
-            ? schedulerSettings(1, "1")
-            : pendingPut;
-        }
-        throw new Error(`unexpected ${request.method} ${request.url}`);
-      }),
-    );
-    renderSettings(api);
+    const { sent, user } = renderOperationsApp("/operations/settings", {
+      routes: {
+        ...common,
+        "GET /v1/operations/settings/scheduler": () =>
+          schedulerSettings(1, "1"),
+        "PUT /v1/operations/settings/scheduler": () => pendingPut,
+      },
+    });
+    const puts = () => sent("PUT", "/v1/operations/settings/scheduler");
     const input = await screen.findByLabelText(
       "Maximum concurrent Workflow Runs",
     );
@@ -318,26 +174,19 @@ describe("Operations Scheduler settings", () => {
     expect(
       screen.getByText("Enter a maximum from 1 through 32."),
     ).toBeInTheDocument();
-    expect(requests.filter((request) => request.method === "PUT")).toHaveLength(
-      0,
-    );
+    expect(puts()).toHaveLength(0);
     fireEvent.change(input, { target: { value: "1.5" } });
     expect(screen.getByText(/must be a whole number/)).toBeInTheDocument();
     fireEvent.change(input, { target: { value: "33" } });
     expect(screen.getByText(/must be from 1 through 32/)).toBeInTheDocument();
 
     fireEvent.change(input, { target: { value: "2" } });
-    const user = userEvent.setup();
     await user.click(
       screen.getByRole("button", { name: "Save scheduling limit" }),
     );
     expect(screen.getByRole("button", { name: "Saving…" })).toBeDisabled();
-    await waitFor(() =>
-      expect(
-        requests.filter((request) => request.method === "PUT"),
-      ).toHaveLength(1),
-    );
-    const put = requests.find((request) => request.method === "PUT");
+    await waitFor(() => expect(puts()).toHaveLength(1));
+    const put = puts()[0];
     expect(put?.headers.get("If-Match")).toBe('"1"');
     await expect(put?.json()).resolves.toEqual({ maxConcurrentRuns: 2 });
 
@@ -355,38 +204,24 @@ describe("Operations Scheduler settings", () => {
     let saved = 1;
     let revision = "1";
     let puts = 0;
-    const api = new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const request = input instanceof Request ? input : new Request(input);
-        const common = commonResponse(request);
-        if (common !== undefined) return common;
-        if (
-          new URL(request.url).pathname !== "/v1/operations/settings/scheduler"
-        ) {
-          throw new Error(`unexpected ${request.method} ${request.url}`);
-        }
-        if (request.method === "GET") return schedulerSettings(saved, revision);
-        puts += 1;
-        saved = 3;
-        revision = "2";
-        return response(
-          {
-            code: "precondition_failed",
-            message: "resource revision precondition failed",
-            retryable: false,
-            requestId: "request-conflict",
-          },
-          412,
-        );
-      }),
-    );
-    renderSettings(api);
+    const { user } = renderOperationsApp("/operations/settings", {
+      routes: {
+        ...common,
+        "GET /v1/operations/settings/scheduler": () =>
+          schedulerSettings(saved, revision),
+        "PUT /v1/operations/settings/scheduler": () => {
+          puts += 1;
+          saved = 3;
+          revision = "2";
+          return preconditionFailed("resource revision precondition failed");
+        },
+      },
+    });
     const input = await screen.findByLabelText(
       "Maximum concurrent Workflow Runs",
     );
     fireEvent.change(input, { target: { value: "2" } });
-    await userEvent.click(
+    await user.click(
       screen.getByRole("button", { name: "Save scheduling limit" }),
     );
 
@@ -400,7 +235,7 @@ describe("Operations Scheduler settings", () => {
       screen.getByRole("button", { name: "Save scheduling limit" }),
     ).toBeDisabled();
 
-    await userEvent.click(
+    await user.click(
       screen.getByRole("button", { name: "Reset to saved value" }),
     );
     expect(input).toHaveValue(3);
@@ -413,27 +248,20 @@ describe("Operations Scheduler settings", () => {
     let saved = 1;
     let revision = "1";
     let settingsReads = 0;
-    const api = new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const request = input instanceof Request ? input : new Request(input);
-        const common = commonResponse(request);
-        if (common !== undefined) return common;
-        if (
-          new URL(request.url).pathname === "/v1/operations/settings/scheduler"
-        ) {
+    renderOperationsApp("/operations/settings", {
+      routes: {
+        ...common,
+        "GET /v1/operations/settings/scheduler": () => {
           settingsReads += 1;
           return schedulerSettings(saved, revision);
-        }
-        throw new Error(`unexpected ${request.method} ${request.url}`);
-      }),
-    );
-    renderSettings(api);
+        },
+      },
+    });
     expect(
       await screen.findByRole("heading", { name: "Workflow scheduling" }),
     ).toBeInTheDocument();
-    await waitFor(() => expect(SettingsWebSocket.instances).toHaveLength(1));
-    const socket = SettingsWebSocket.instances[0];
+    await waitFor(() => expect(FakeSocket.instances).toHaveLength(1));
+    const socket = FakeSocket.instances[0];
     act(() => socket?.open());
     const subscription = JSON.parse(socket?.sent[0] ?? "{}");
     act(() =>
@@ -456,7 +284,7 @@ describe("Operations Scheduler settings", () => {
         subscriptionId: subscription.subscriptionId,
         stream: { kind: "operations" },
         cursor: {
-          generation: "operations-settings-generation",
+          generation: "operations-generation-1",
           sequence: "8",
         },
         kind: "operations.changed",

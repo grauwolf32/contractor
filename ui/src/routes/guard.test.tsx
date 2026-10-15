@@ -10,20 +10,12 @@ import { APICompatibilityError, PublicAPIError } from "../api/error";
 import { queryKeys } from "../api/query-keys";
 import { createApplicationQueryClient } from "../app/query-client";
 import { SessionProvider, type SessionAPI } from "../auth/session";
+import { testSession } from "../test/render";
 import { AuthenticatedRoute } from "./guard";
 import { LoginRoute } from "./login";
 import { NotFoundRoute, RouteChunkLoading } from "./placeholders";
 
-const session: AuthSession = {
-  principal: {
-    userId: "user_local",
-    username: "owner",
-    capabilities: ["user", "operations"],
-  },
-  csrfToken: "a".repeat(43),
-  idleExpiresAt: "2026-09-20T12:00:00Z",
-  absoluteExpiresAt: "2026-09-21T12:00:00Z",
-};
+const session = testSession(["user", "operations"]);
 
 function renderGuard(getSession: SessionAPI["getSession"], initialPath = "/") {
   const queryClient = createApplicationQueryClient();

@@ -1,30 +1,24 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
+
+import { renderWithAPI } from "../../test/render";
 import { ArtifactPreviewPanel } from "./preview";
+import { artifactMetadata } from "./test-support";
 
 describe("Artifact preview keyboard navigation", () => {
   it("moves selection and focus with arrows, Home and End, then Tabs into the panel", async () => {
-    const client = new QueryClient();
-    render(
-      <QueryClientProvider client={client}>
-        <ArtifactPreviewPanel
-          metadata={{
-            artifact: { namespace: "reports", name: "result", revision: "r1" },
-            mediaType: "text/markdown",
-            size: 10,
-            current: true,
-            frozen: true,
-            createdAt: "2026-09-01T10:00:00Z",
-          }}
-          loadPreview={async () => "# Result\nEvidence"}
-          loadOnMountKey={["preview", "keyboard"]}
-          unavailableCopy="Download this file"
-        />
-      </QueryClientProvider>,
+    const { user } = renderWithAPI(
+      <ArtifactPreviewPanel
+        metadata={artifactMetadata("reports", "result", {
+          mediaType: "text/markdown",
+          size: 10,
+          frozen: true,
+        })}
+        loadPreview={async () => "# Result\nEvidence"}
+        loadOnMountKey={["preview", "keyboard"]}
+        unavailableCopy="Download this file"
+      />,
     );
-    const user = userEvent.setup();
     const rendered = await screen.findByRole("tab", { name: "Rendered" });
     const source = screen.getByRole("tab", { name: "Source" });
     rendered.focus();
