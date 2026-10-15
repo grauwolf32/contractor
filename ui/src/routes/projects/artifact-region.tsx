@@ -7,16 +7,14 @@ import { usePublicAPI } from "../../api/context";
 import type { GitImportResult } from "../../api/git-artifacts";
 import { listProjectArtifacts } from "../../api/project-artifacts";
 import { queryKeys } from "../../api/query-keys";
-import { CursorControls } from "../../app/cursor-controls";
 import { useURLCursorStack } from "../../app/pagination";
-import { QueryView } from "../../app/query-view";
 import { RefreshButton } from "../../app/refresh-button";
-import { EmptyState, ListSection } from "../../ui";
+import { Button, ListSection } from "../../ui";
 import { AddMaterialSheet } from "../artifacts/add-material";
 import { MaterialIcon } from "../artifacts/icons";
 import { groupMaterialsByKind } from "../artifacts/kinds";
+import { MaterialList } from "../artifacts/material-list";
 import { MaterialRow } from "../artifacts/material-row";
-import { useNamespaceFilter } from "../artifacts/namespace-filter";
 import { MaterialAddedNotice } from "../artifacts/notices";
 import { artifactDetailPath } from "../artifacts/paths";
 import "../artifacts/materials.css";
@@ -124,11 +122,6 @@ export function ProjectArtifactRegion({ projectId }: { projectId: string }) {
     }, true);
   }
 
-  const namespaceFilter = useNamespaceFilter({
-    value: namespace,
-    onApply: setNamespaceFilter,
-  });
-
   return (
     <section
       ref={region}
@@ -142,17 +135,15 @@ export function ProjectArtifactRegion({ projectId }: { projectId: string }) {
           Runs. Each check and Run reads one exact version, so a new version
           never changes earlier results.
         </p>
-        <div className="materials-actions">
-          <button
+        <div className="ui-toolbar">
+          <Button
             ref={addButton}
-            type="button"
-            className="ui-btn"
-            data-variant="primary"
+            variant="primary"
+            icon={<MaterialIcon name="plus" />}
             onClick={openAdd}
           >
-            <MaterialIcon name="plus" />
             Add material
-          </button>
+          </Button>
           <RefreshButton
             className="ui-btn"
             isFetching={query.isFetching}
@@ -175,43 +166,18 @@ export function ProjectArtifactRegion({ projectId }: { projectId: string }) {
       )}
 
       <div className="materials-panel">
-        <div className="materials-panel-head">
-          {namespaceFilter.form}
-          {namespace === undefined ? null : (
-            <button
-              type="button"
-              className="ui-btn"
-              data-variant="ghost"
-              data-size="sm"
-              onClick={() => setNamespaceFilter(undefined)}
-            >
-              Show all namespaces
-            </button>
-          )}
-        </div>
-        {namespaceFilter.error}
-        <QueryView
+        <MaterialList
           query={query}
-          loading={
-            <p className="materials-loading" role="status">
-              Loading materials…
-            </p>
-          }
-          errorContext="Could not load materials"
-          onRetry={() => void query.refetch()}
-          isEmpty={(page) => page.items.length === 0}
-          empty={
-            namespace === undefined ? (
-              <EmptyState title="No materials yet">
-                Add source code, an API spec, an architecture model or docs so
-                checks have something to read.
-              </EmptyState>
-            ) : (
-              <EmptyState title={`Nothing in the ${namespace} namespace`}>
-                Show all namespaces to see every material of this project.
-              </EmptyState>
-            )
-          }
+          namespace={namespace}
+          onNamespace={setNamespaceFilter}
+          noun="materials"
+          empty={{
+            title: "No materials yet",
+            text: "Add source code, an API spec, an architecture model or docs so checks have something to read.",
+          }}
+          namespaceEmptyText="Show all namespaces to see every material of this project."
+          pagesLabel="Material pages"
+          pages={pages}
         >
           {(data) => {
             // Groups come from one page: their counts are totals only when
@@ -220,7 +186,7 @@ export function ProjectArtifactRegion({ projectId }: { projectId: string }) {
             return (
               <>
                 {onePage ? null : (
-                  <p className="materials-quiet materials-page-note">
+                  <p className="ui-caption materials-page-note">
                     Grouped by kind within this page. Other pages can hold more
                     materials of each kind.
                   </p>
@@ -252,13 +218,7 @@ export function ProjectArtifactRegion({ projectId }: { projectId: string }) {
               </>
             );
           }}
-        </QueryView>
-        <div className="materials-pager">
-          <CursorControls
-            label="Material pages"
-            {...pages.controls(query.data?.page)}
-          />
-        </div>
+        </MaterialList>
       </div>
 
       {addOpen ? (

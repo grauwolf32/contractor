@@ -25,7 +25,8 @@ export default function DiffArtifactPreview({ source }: { source: string }) {
         <div className="diff-lines" tabIndex={0}>
           {diff.lines.map((line, index) => (
             <div
-              className={`diff-line diff-line-${line.kind}`}
+              className="diff-line"
+              data-kind={line.kind}
               key={`${index}-${line.content}`}
             >
               <span className="diff-line-number" aria-hidden="true">

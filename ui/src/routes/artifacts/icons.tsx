@@ -19,7 +19,7 @@ export function MaterialIcon({
   name: MaterialIconName;
   size?: number;
 }) {
-  return <Icon name={name} size={size} className="materials-icon" />;
+  return <Icon name={name} size={size} />;
 }
 
 /** The icon of a material kind, as on the project's material chips. */

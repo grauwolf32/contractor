@@ -1,24 +1,23 @@
 import { useQuery } from "@tanstack/react-query";
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 
 import { listArtifacts, type ArtifactWriteResponse } from "../../api/artifacts";
 import { usePublicAPI } from "../../api/context";
 import { queryKeys } from "../../api/query-keys";
-import { CursorControls } from "../../app/cursor-controls";
-import { Dialog, DialogHeader } from "../../app/dialog";
 import { useDocumentTitle } from "../../app/document-title";
 import { useURLCursorStack } from "../../app/pagination";
-import { QueryView } from "../../app/query-view";
 import { RefreshButton } from "../../app/refresh-button";
-import { EmptyState, ListSection } from "../../ui";
+import { Button, ListSection } from "../../ui";
 import { LibraryTabs } from "../catalog/library-tabs";
 import { ArtifactWriteForm } from "./common";
 import { MaterialIcon } from "./icons";
+import { MaterialList } from "./material-list";
 import { MaterialRow } from "./material-row";
-import { useNamespaceFilter } from "./namespace-filter";
 import { FileStoredNotice } from "./notices";
 import { artifactDetailPath } from "./paths";
+import { UploadDialog } from "./upload-dialog";
+import { uploadCancelNote } from "./upload-operation";
 import "./materials.css";
 
 /** Skill packages have their own Library tab (S06:383-397). */
@@ -72,13 +71,8 @@ export function ArtifactListRoute() {
     setFilters(next, { preventScrollReset: true });
   }
 
-  const namespaceFilter = useNamespaceFilter({
-    value: namespace,
-    onApply: applyNamespace,
-  });
-
   return (
-    <div className="route-page materials-page materials-files">
+    <div className="route-page materials-page">
       <header className="materials-library-head">
         <h1 className="materials-library-title">Library</h1>
         <LibraryTabs />
@@ -88,23 +82,21 @@ export function ArtifactListRoute() {
         <div className="materials-panel-title">
           <div>
             <h2 id={titleId}>Files</h2>
-            <p className="materials-quiet">
+            <p className="ui-caption">
               Your own inputs for Workflow Runs. A Run reads the exact version
               you select. Skill packages live in{" "}
               <Link to={SKILLS_PATH}>Skills</Link>.
             </p>
           </div>
-          <div className="materials-actions">
-            <button
+          <div className="ui-toolbar">
+            <Button
               ref={uploadButton}
-              type="button"
-              className="ui-btn"
-              data-variant="primary"
+              variant="primary"
+              icon={<MaterialIcon name="upload" />}
               onClick={() => setUploadOpen(true)}
             >
-              <MaterialIcon name="upload" />
               Upload file
-            </button>
+            </Button>
             <RefreshButton
               className="ui-btn"
               isFetching={query.isFetching}
@@ -127,42 +119,18 @@ export function ArtifactListRoute() {
           </div>
         )}
 
-        <div className="materials-panel-head">
-          {namespaceFilter.form}
-          {namespace === undefined ? null : (
-            <button
-              type="button"
-              className="ui-btn"
-              data-variant="ghost"
-              data-size="sm"
-              onClick={() => applyNamespace(undefined)}
-            >
-              Show all namespaces
-            </button>
-          )}
-        </div>
-        {namespaceFilter.error}
-        <QueryView
+        <MaterialList
           query={query}
-          loading={
-            <p className="materials-loading" role="status">
-              Loading files…
-            </p>
-          }
-          errorContext="Could not load files"
-          onRetry={() => void query.refetch()}
-          isEmpty={(page) => page.items.length === 0}
-          empty={
-            namespace === undefined ? (
-              <EmptyState title="No files yet">
-                Upload a file to use it as a Workflow input.
-              </EmptyState>
-            ) : (
-              <EmptyState title={`Nothing in the ${namespace} namespace`}>
-                Show all namespaces to see every file.
-              </EmptyState>
-            )
-          }
+          namespace={namespace}
+          onNamespace={applyNamespace}
+          noun="files"
+          empty={{
+            title: "No files yet",
+            text: "Upload a file to use it as a Workflow input.",
+          }}
+          namespaceEmptyText="Show all namespaces to see every file."
+          pagesLabel="File pages"
+          pages={pages}
         >
           {(page) => (
             <ListSection>
@@ -180,13 +148,7 @@ export function ArtifactListRoute() {
               ))}
             </ListSection>
           )}
-        </QueryView>
-        <div className="materials-pager">
-          <CursorControls
-            label="File pages"
-            {...pages.controls(query.data?.page)}
-          />
-        </div>
+        </MaterialList>
       </section>
 
       {uploadOpen ? (
@@ -205,10 +167,7 @@ export function ArtifactListRoute() {
 
 /**
  * Upload of one file to the personal library, as Materials uploads one
- * material: closing the dialog (or "Cancel upload") aborts a running
- * upload, which the Server may still have stored, so the dialog says to
- * look before retrying; a refused or lost write is explained and never
- * retried.
+ * material (UploadDialog): closing the dialog aborts a running upload.
  */
 function FileUploadDialog({
   onClose,
@@ -217,49 +176,27 @@ function FileUploadDialog({
   onClose: () => void;
   onWritten: (result: ArtifactWriteResponse) => void;
 }) {
-  const heading = useId();
-  const cancelNote = useId();
-  const operation = useRef<AbortController | null>(null);
-  useEffect(() => () => operation.current?.abort(), []);
-  const startOperation = useCallback(() => {
-    const controller = new AbortController();
-    operation.current = controller;
-    return controller.signal;
-  }, []);
-  function close() {
-    operation.current?.abort();
-    onClose();
-  }
-
   return (
-    <Dialog
-      className="ui-dialog ui-panel materials-sheet"
-      labelledBy={heading}
-      describedBy={cancelNote}
-      onRequestClose={close}
+    <UploadDialog
+      eyebrow="Library"
+      title="Upload file"
+      closeLabel="Close file upload"
+      note={uploadCancelNote("file")}
+      onClose={onClose}
     >
-      <DialogHeader
-        id={heading}
-        eyebrow="Library"
-        title="Upload file"
-        close={{ label: "Close file upload", onClose: close }}
-      />
-      <p id={cancelNote} className="materials-quiet">
-        Closing this dialog cancels a running upload. If you cancel it or lose
-        the response, look for the file in the list before trying again: it may
-        already be stored.
-      </p>
-      <ArtifactWriteForm
-        excludedNamespace={{
-          namespace: EXCLUDED_SKILL_NAMESPACE,
-          destination: SKILLS_PATH,
-          label: "Skills",
-        }}
-        headingId={heading}
-        startOperation={startOperation}
-        onCancel={close}
-        onWritten={onWritten}
-      />
-    </Dialog>
+      {(upload) => (
+        <ArtifactWriteForm
+          excludedNamespace={{
+            namespace: EXCLUDED_SKILL_NAMESPACE,
+            destination: SKILLS_PATH,
+            label: "Skills",
+          }}
+          headingId={upload.headingId}
+          startOperation={upload.start}
+          onCancel={upload.close}
+          onWritten={onWritten}
+        />
+      )}
+    </UploadDialog>
   );
 }

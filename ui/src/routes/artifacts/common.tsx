@@ -25,6 +25,7 @@ import {
 } from "../../api/scoped-artifacts";
 import { ErrorNotice } from "../../app/error-notice";
 import { formatBytes } from "../../app/format";
+import { Button } from "../../ui";
 import { artifactFileStem, inferredArtifactMediaType } from "./artifact-file";
 import { MaterialIcon } from "./icons";
 import { ArtifactMediaTypeField } from "./media-type-field";
@@ -88,14 +89,9 @@ export function ArtifactFileDrop({
           ? `or choose one local file, up to ${maximumBytes / (1024 * 1024)} MiB`
           : `${formatBytes(file.size)} · ready to upload`}
       </small>
-      <button
-        className="ui-btn"
-        data-size="sm"
-        type="button"
-        onClick={() => fileInput.current?.click()}
-      >
+      <Button size="sm" onClick={() => fileInput.current?.click()}>
         {file === null ? "Choose file" : "Choose another file"}
-      </button>
+      </Button>
     </div>
   );
 }
@@ -315,7 +311,7 @@ export function ArtifactWriteForm({
         onSelect={selectFile}
       />
       {acceptedMediaTypes === undefined ? null : (
-        <small className="materials-quiet">
+        <small className="ui-caption">
           Accepted by this input: {acceptedMediaTypes.join(", ")}
         </small>
       )}
@@ -323,7 +319,7 @@ export function ArtifactWriteForm({
         className={
           project
             ? "form-grid project-artifact-fields materials-fields"
-            : "form-grid artifact-fields materials-fields"
+            : "form-grid materials-fields"
         }
       >
         <label>
@@ -379,28 +375,23 @@ export function ArtifactWriteForm({
           {writeErrorHint?.(mutation.error)}
         </>
       )}
-      <div className="materials-form-actions">
+      <div className="ui-toolbar" data-justify="end">
         {onCancel === undefined ? null : (
-          <button
-            type="button"
-            className="ui-btn"
+          <Button
             disabled={mutation.isPending && !cancelsUpload}
             onClick={onCancel}
           >
             {cancelsUpload ? "Cancel upload" : "Cancel"}
-          </button>
+          </Button>
         )}
-        <button
+        <Button
           type="submit"
-          className="ui-btn"
-          data-variant="primary"
-          disabled={mutation.isPending}
+          variant="primary"
+          pending={mutation.isPending}
+          pendingLabel="Uploading…"
         >
-          {mutation.isPending
-            ? "Uploading…"
-            : (submitLabel ??
-              (update ? "Upload new version" : "Create binding"))}
-        </button>
+          {submitLabel ?? (update ? "Upload new version" : "Create binding")}
+        </Button>
       </div>
     </form>
   );

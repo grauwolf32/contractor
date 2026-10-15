@@ -5,17 +5,17 @@ import { Link, useLocation, useSearchParams } from "react-router";
 import type { ArtifactArchiveScope } from "../../api/artifact-archive";
 import type { ArtifactMetadata } from "../../api/artifacts";
 import { usePublicAPI } from "../../api/context";
-import { PublicAPIError } from "../../api/error";
 import { artifactScopeKeys } from "../../api/query-keys";
 import {
   scopedArtifactAPI,
   type WritableArtifactScope,
 } from "../../api/scoped-artifacts";
+import { writeConflict } from "../../app/conflict";
 import { saveBlob } from "../../app/download";
 import { ErrorNotice } from "../../app/error-notice";
 import { QueryView } from "../../app/query-view";
 import { RefreshButton } from "../../app/refresh-button";
-import { StatusGlyph } from "../../ui";
+import { Button, StatusGlyph } from "../../ui";
 import {
   MAXIMUM_SKILL_ARCHIVE_BYTES,
   SKILL_ARCHIVE_MEDIA_TYPE,
@@ -81,7 +81,7 @@ function ArtifactUpdatePanel({
         Upload a new version
       </summary>
       <div className="materials-update-body">
-        <p className="materials-quiet">
+        <p className="ui-caption">
           The file becomes the current version. Earlier versions stay in the
           history, and checks and Runs keep the version they read.
         </p>
@@ -194,21 +194,14 @@ export function ArtifactDetailView({
     setRejectedUpload(rejected);
     // A precondition conflict means that another writer moved the binding:
     // show its current revision instead of the pinned, now historical one.
-    if (
-      revision !== undefined &&
-      rejected.error instanceof PublicAPIError &&
-      rejected.error.code === "conflict"
-    ) {
+    if (revision !== undefined && writeConflict(rejected.error) !== undefined) {
       setSearchParams({}, { replace: true, state: location.state });
     }
   };
 
   return (
     <section
-      className={[
-        "route-page artifact-page materials-page materials-detail",
-        className,
-      ]
+      className={["route-page materials-page materials-detail", className]
         .filter(Boolean)
         .join(" ")}
       aria-labelledby={titleId}
@@ -228,21 +221,18 @@ export function ArtifactDetailView({
             </h1>
             <ArtifactRevisionLede metadata={metadata} />
           </div>
-          <div className="materials-actions">
+          <div className="ui-toolbar">
             {metadata === undefined ? null : (
               <>
-                <button
-                  className="ui-btn"
-                  data-size="sm"
-                  type="button"
-                  disabled={downloadShown && download.isPending}
+                <Button
+                  size="sm"
+                  icon={<MaterialIcon name="download" />}
+                  pending={downloadShown && download.isPending}
+                  pendingLabel="Downloading…"
                   onClick={() => download.mutate(metadata)}
                 >
-                  <MaterialIcon name="download" />
-                  {downloadShown && download.isPending
-                    ? "Downloading…"
-                    : "Download this revision"}
-                </button>
+                  Download this revision
+                </Button>
                 <ArtifactVersionsButton />
               </>
             )}
@@ -277,7 +267,6 @@ export function ArtifactDetailView({
             </p>
           }
           errorContext={`Could not load this ${noun}`}
-          onRetry={() => void query.refetch()}
         >
           {(shown) => (
             <>

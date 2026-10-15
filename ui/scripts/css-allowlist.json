@@ -1,10 +1,6 @@
 {
   "prefixes": [
     {
-      "prefix": "diff-line-",
-      "source": "src/routes/artifacts/previews/diff.tsx: diff-line-${line.kind}"
-    },
-    {
       "prefix": "ops-signin-spiral-",
       "source": "src/routes/login-backdrop.tsx: ops-signin-spiral-${position}"
     },

@@ -22,7 +22,7 @@ function ExactRef({
   value: ExactArtifactRef;
 }) {
   return (
-    <span className="materials-mono materials-wrap">
+    <span className="ui-mono">
       {scope}: {value.namespace}/{value.name}@{value.revision}
     </span>
   );
@@ -97,9 +97,8 @@ export function ArtifactHistory({
               Loading versions…
             </p>
           }
-          onRetry={() => void versions.refetch()}
           isEmpty={(page) => page.items.length === 0}
-          empty={<p className="materials-quiet">No versions found.</p>}
+          empty={<p className="ui-caption">No versions found.</p>}
         >
           {(page) => (
             <ol className="materials-versions">
@@ -142,10 +141,9 @@ export function ArtifactHistory({
               Loading lineage…
             </p>
           }
-          onRetry={() => void lineage.refetch()}
           isEmpty={(page) => page.items.length === 0}
           empty={
-            <p className="materials-quiet">
+            <p className="ui-caption">
               No lineage edges reference this revision.
             </p>
           }

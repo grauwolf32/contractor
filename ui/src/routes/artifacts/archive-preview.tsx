@@ -12,6 +12,8 @@ import type { ArtifactMetadata } from "../../api/artifacts";
 import { usePublicAPI } from "../../api/context";
 import { ErrorNotice } from "../../app/error-notice";
 import { formatBytes } from "../../app/format";
+import { QueryView } from "../../app/query-view";
+import { Button } from "../../ui";
 import { LoadedArtifactPreview } from "./loaded-preview";
 import "./archive-preview.css";
 import "./materials.css";
@@ -144,30 +146,25 @@ export function ArchivePreviewPanel({
         <Title id={headingId} className="materials-section-title">
           Archive contents
         </Title>
-        <button
-          className="ui-btn"
-          data-size="sm"
-          type="button"
-          disabled={archive.isFetching}
+        <Button
+          size="sm"
+          pending={archive.isFetching}
+          pendingLabel="Loading files…"
           onClick={() => {
             if (requested) void archive.refetch();
             else setRequested(true);
           }}
         >
-          {archive.isFetching
-            ? "Loading files…"
-            : entries === undefined
-              ? "Browse files"
-              : "Reload files"}
-        </button>
+          {entries === undefined ? "Browse files" : "Reload files"}
+        </Button>
       </div>
-      <p className="materials-quiet">
+      <p className="ui-caption">
         Browse the files inside without extracting them. Text files up to 256
         KiB open as a preview.
       </p>
       {archive.error === null ? null : <ErrorNotice error={archive.error} />}
       {entries?.length === 0 ? (
-        <p className="materials-quiet">This archive is empty.</p>
+        <p className="ui-caption">This archive is empty.</p>
       ) : null}
       {entries === undefined || entries.length === 0 ? null : (
         <div className="archive-browser">
@@ -180,7 +177,7 @@ export function ArchivePreviewPanel({
           </nav>
           <div className="archive-file-content" aria-live="polite">
             {entry === undefined ? (
-              <p className="materials-quiet">
+              <p className="ui-caption">
                 Choose a file in the list to preview it.
               </p>
             ) : (
@@ -192,29 +189,31 @@ export function ArchivePreviewPanel({
                   <span>{formatBytes(entry.size)}</span>
                 </div>
                 {!entry.previewable ? (
-                  <p className="materials-quiet">
+                  <p className="ui-caption">
                     This file exceeds the preview limits. Download the original
                     archive to view it.
                   </p>
-                ) : file.isPending || file.isFetching ? (
-                  <p className="materials-loading" role="status">
-                    Loading file…
-                  </p>
-                ) : file.error !== null ? (
-                  <>
-                    <ErrorNotice
-                      error={file.error}
-                      onRetry={() => void file.refetch()}
-                    />
-                  </>
                 ) : (
-                  <LoadedArtifactPreview
-                    key={`${metadata.artifact.revision}:${entry.path}`}
-                    mediaType={
-                      /\.md$/i.test(entry.path) ? "text/markdown" : "text/plain"
+                  <QueryView
+                    query={file}
+                    loading={
+                      <p className="materials-loading" role="status">
+                        Loading file…
+                      </p>
                     }
-                    source={file.data.text}
-                  />
+                  >
+                    {(loaded) => (
+                      <LoadedArtifactPreview
+                        key={`${metadata.artifact.revision}:${entry.path}`}
+                        mediaType={
+                          /\.md$/i.test(entry.path)
+                            ? "text/markdown"
+                            : "text/plain"
+                        }
+                        source={loaded.text}
+                      />
+                    )}
+                  </QueryView>
                 )}
               </>
             )}
