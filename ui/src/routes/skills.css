@@ -127,10 +127,6 @@
   padding: 0;
 }
 
-.skill-upload-actions {
-  margin-top: var(--space-4);
-}
-
 @media (max-width: 640px) {
   .skill-row {
     grid-template-columns: minmax(0, 1fr);
