@@ -119,7 +119,8 @@ func (h *catalogHandlers) getWorkflow(w http.ResponseWriter, r *http.Request) {
 
 func workflowSummaryReadModel(workflow resolved.ResolvedWorkflow) workflowSummaryResponse {
 	return workflowSummaryResponse{
-		Ref: workflow.Ref, Presentation: workflow.Presentation, EntryStage: workflow.EntryStage,
+		MaxSubtasks: workflow.MaxSubtasks,
+		Ref:         workflow.Ref, Presentation: workflow.Presentation, EntryStage: workflow.EntryStage,
 		Parameters: workflow.Parameters, Inputs: workflow.Inputs, Outputs: workflow.Outputs,
 	}
 }

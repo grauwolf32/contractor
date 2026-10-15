@@ -199,6 +199,7 @@ type StageTransitions struct {
 }
 
 type ResolvedStage struct {
+	MaxSubtasks     contracts.PlannerSubtaskLimit   `json:"maxSubtasks,omitempty"`
 	Objective       string                          `json:"objective"`
 	Instructions    contracts.ResolvedInstructions  `json:"instructions"`
 	Planner         PlannerRef                      `json:"planner"`
@@ -217,12 +218,13 @@ type ResolvedStage struct {
 // Workflow digests are intentionally not part of v1alpha1; Runs persist this
 // complete value as their execution authority.
 type ResolvedWorkflow struct {
-	Ref          WorkflowRef              `json:"ref"`
-	AuditTask    *AuditTaskExecution      `json:"auditTask,omitempty"`
-	Presentation *WorkflowPresentation    `json:"presentation,omitempty"`
-	Parameters   map[string]ParameterSlot `json:"parameters"`
-	Inputs       map[string]ArtifactSlot  `json:"inputs"`
-	Outputs      map[string]ArtifactSlot  `json:"outputs"`
-	EntryStage   string                   `json:"entryStage"`
-	Stages       map[string]ResolvedStage `json:"stages"`
+	MaxSubtasks  contracts.PlannerSubtaskLimit `json:"maxSubtasks,omitempty"`
+	Ref          WorkflowRef                   `json:"ref"`
+	AuditTask    *AuditTaskExecution           `json:"auditTask,omitempty"`
+	Presentation *WorkflowPresentation         `json:"presentation,omitempty"`
+	Parameters   map[string]ParameterSlot      `json:"parameters"`
+	Inputs       map[string]ArtifactSlot       `json:"inputs"`
+	Outputs      map[string]ArtifactSlot       `json:"outputs"`
+	EntryStage   string                        `json:"entryStage"`
+	Stages       map[string]ResolvedStage      `json:"stages"`
 }

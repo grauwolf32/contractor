@@ -412,7 +412,7 @@ func createStage(t *testing.T, ctx context.Context, store *runstore.PostgresStor
 	}
 	if _, err := store.CreateStageExecution(ctx, runstore.CreateStageExecutionParams{
 		StageExecutionID: "stage-streamline", RunID: "run-streamline", StageName: "plan", Attempt: 1,
-		StageSpecSchemaVersion: contracts.APIVersion, StageSpecSnapshot: json.RawMessage(`{"objective":"plan"}`),
+		StageSpecSchemaVersion: contracts.APIVersion, StageSpecSnapshot: json.RawMessage(`{"objective":"plan","session":"isolated"}`),
 		StageContextSchemaVersion: contracts.APIVersion,
 		StageContext: runstore.StageContextSnapshot{
 			Parameters: map[string]string{"mode": "strict-secret-value"},

@@ -127,6 +127,9 @@ func ValidateStageWorkspace(
 // It is exported so the Scheduler can distrust and revalidate a durable JSON
 // snapshot without consulting the mutable configuration directory.
 func ValidateWorkflowGraph(workflow ResolvedWorkflow) error {
+	if err := workflow.MaxSubtasks.Validate(); err != nil {
+		return err
+	}
 	if err := ValidateAuditTaskWorkflow(workflow); err != nil {
 		return err
 	}
@@ -145,6 +148,9 @@ func ValidateWorkflowGraph(workflow ResolvedWorkflow) error {
 	sort.Strings(names)
 	for _, name := range names {
 		stage := workflow.Stages[name]
+		if stage.MaxSubtasks != workflow.MaxSubtasks {
+			return fmt.Errorf("Stage %q maxSubtasks differs from its Workflow selection", name)
+		}
 		if err := ValidateWorkflowName("Stage name", name); err != nil {
 			return err
 		}

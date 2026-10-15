@@ -74,6 +74,9 @@ execution_policy:
     P3: Low-impact correction with no user-visible failure, such as documentation, dead code or test hygiene.
 
 milestones:
+  - id: workflow-planner-subtask-budgets-2026-10
+    exit_task: V384-001
+    outcome: Each Workflow pins its modeled Planner subtask limit, defaulting to 32, through immutable execution and validated public plan projections.
   - id: interactsh-worker-tools-2026-10
     exit_task: V382-001
     outcome: Explicit Worker tools register and poll bounded Interactsh callback evidence through operator-configured infrastructure, credentials and Runtime labels.

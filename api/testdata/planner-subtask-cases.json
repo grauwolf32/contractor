@@ -1,0 +1,42 @@
+{
+  "default": 32,
+  "maximum": 1000,
+  "limits": [
+    {"name":"omitted","present":false,"value":null,"valid":true,"effective":32},
+    {"name":"one","present":true,"value":1,"valid":true,"effective":1},
+    {"name":"explicit-default","present":true,"value":32,"valid":true,"effective":32},
+    {"name":"larger-plan","present":true,"value":64,"valid":true,"effective":64},
+    {"name":"maximum","present":true,"value":1000,"valid":true,"effective":1000},
+    {"name":"null","present":true,"value":null,"valid":false},
+    {"name":"zero","present":true,"value":0,"valid":false},
+    {"name":"negative","present":true,"value":-1,"valid":false},
+    {"name":"overflow","present":true,"value":1001,"valid":false},
+    {"name":"fraction","present":true,"value":1.5,"valid":false},
+    {"name":"string","present":true,"value":"64","valid":false},
+    {"name":"boolean","present":true,"value":true,"valid":false},
+    {"name":"object","present":true,"value":{},"valid":false},
+    {"name":"array","present":true,"value":[],"valid":false}
+  ],
+  "plans": [
+    {"count":1,"valid":true,"eventFrameValid":true},
+    {"count":32,"valid":true,"eventFrameValid":true},
+    {"count":33,"valid":true,"eventFrameValid":true},
+    {"count":64,"valid":true,"eventFrameValid":true},
+    {"count":101,"valid":true,"eventFrameValid":true},
+    {"count":1000,"valid":true,"eventFrameValid":false},
+    {"count":1001,"valid":false,"eventFrameValid":false}
+  ],
+  "ids": [
+    {"value":"0","valid":true},
+    {"value":"31","valid":true},
+    {"value":"32","valid":true},
+    {"value":"99","valid":true},
+    {"value":"100","valid":true},
+    {"value":"999","valid":true},
+    {"value":"1000","valid":false},
+    {"value":"-1","valid":false},
+    {"value":"01","valid":false},
+    {"value":"1.0","valid":false},
+    {"value":"x","valid":false}
+  ]
+}

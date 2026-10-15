@@ -6024,6 +6024,9 @@ type PlannerSubtask struct {
 	Status       interface{} `json:"status"`
 }
 
+// PlannerSubtaskLimit Maximum subtasks per modeled Planner invocation in this Workflow, including summary continuation; omission selects 32. Independent call, token and byte budgets still apply.
+type PlannerSubtaskLimit = int
+
 // Project defines model for Project.
 type Project struct {
 	// ActiveChecks Project approval policy for active-enabled Audit profiles, pinned at Audit start. A profile prohibition always remains prohibited.
@@ -6972,8 +6975,11 @@ type WorkflowRef struct {
 
 // WorkflowResource defines model for WorkflowResource.
 type WorkflowResource struct {
-	EntryStage   ConfigId                              `json:"entryStage"`
-	Inputs       map[string]ArtifactSlot               `json:"inputs"`
+	EntryStage ConfigId                `json:"entryStage"`
+	Inputs     map[string]ArtifactSlot `json:"inputs"`
+
+	// MaxSubtasks Maximum subtasks per modeled Planner invocation in this Workflow, including summary continuation; omission selects 32. Independent call, token and byte budgets still apply.
+	MaxSubtasks  *PlannerSubtaskLimit                  `json:"maxSubtasks,omitempty"`
 	Outputs      map[string]WorkflowOutputArtifactSlot `json:"outputs"`
 	Parameters   map[string]ParameterSlot              `json:"parameters"`
 	Presentation *WorkflowPresentation                 `json:"presentation,omitempty"`
@@ -7031,8 +7037,11 @@ type WorkflowSucceededTransition struct {
 
 // WorkflowSummary defines model for WorkflowSummary.
 type WorkflowSummary struct {
-	EntryStage   ConfigId                              `json:"entryStage"`
-	Inputs       map[string]ArtifactSlot               `json:"inputs"`
+	EntryStage ConfigId                `json:"entryStage"`
+	Inputs     map[string]ArtifactSlot `json:"inputs"`
+
+	// MaxSubtasks Maximum subtasks per modeled Planner invocation in this Workflow, including summary continuation; omission selects 32. Independent call, token and byte budgets still apply.
+	MaxSubtasks  *PlannerSubtaskLimit                  `json:"maxSubtasks,omitempty"`
 	Outputs      map[string]WorkflowOutputArtifactSlot `json:"outputs"`
 	Parameters   map[string]ParameterSlot              `json:"parameters"`
 	Presentation *WorkflowPresentation                 `json:"presentation,omitempty"`

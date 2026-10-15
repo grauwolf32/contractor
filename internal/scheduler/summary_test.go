@@ -21,6 +21,11 @@ import (
 
 func configureSummaryWorkflow(t *testing.T, workflow *resolved.ResolvedWorkflow) {
 	t.Helper()
+	workflow.MaxSubtasks = 64
+	for name, stage := range workflow.Stages {
+		stage.MaxSubtasks = workflow.MaxSubtasks
+		workflow.Stages[name] = stage
+	}
 	catalog, err := configload.Load(configtest.CopyWithPolicies(t, "../../testdata/configs"))
 	if err != nil {
 		t.Fatal(err)
@@ -90,6 +95,10 @@ func TestSchedulerSummaryContinuationPreservesOriginalContextAndRetriesStrategy(
 		t.Fatalf("continuation/retry result: %s stages=%d summaries=%d", h.store.run.State, len(h.store.stages), len(h.artifacts.summaries))
 	}
 	for _, attempt := range h.store.stages[1:] {
+		stage, err := resolved.DecodeResolvedStageSnapshot(attempt.StageSpecSnapshot)
+		if err != nil || stage.MaxSubtasks != h.workflow.MaxSubtasks {
+			t.Fatalf("continuation/retry lost its Workflow subtask limit: %v", err)
+		}
 		if attempt.ExecutionConfigVariant != runstore.StageExecutionConfigSummaryEscalation || *attempt.EscalationOrdinal != 1 ||
 			!reflect.DeepEqual(attempt.StageContext, h.store.stages[1].StageContext) {
 			t.Fatalf("retry changed strategy/context: %+v", attempt)

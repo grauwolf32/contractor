@@ -157,7 +157,7 @@ func TestPostgresTypedPlanEventsAreOrderedAndCompareAppendIsAtomic(t *testing.T)
 		t.Fatal(err)
 	}
 
-	controller, err := planner.NewPlannerPlanController("global-objective-never-copy")
+	controller, err := planner.NewPlannerPlanController("global-objective-never-copy", 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -298,7 +298,22 @@ func createPlannerStage(
 	t *testing.T, ctx context.Context, store *runstore.PostgresStore,
 ) {
 	t.Helper()
-	_, err := runstoretest.CreateRun(ctx, store, runstore.CreateRunParams{
+	createPlannerStageWithLimit(t, ctx, store, 0)
+}
+
+func createPlannerStageWithLimit(
+	t *testing.T, ctx context.Context, store *runstore.PostgresStore, limit contracts.PlannerSubtaskLimit,
+) {
+	t.Helper()
+	stage := map[string]any{"objective": "build", "session": "isolated"}
+	if limit != 0 {
+		stage["maxSubtasks"] = limit
+	}
+	stageSnapshot, err := json.Marshal(stage)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = runstoretest.CreateRun(ctx, store, runstore.CreateRunParams{
 		RunID: "run-planner", OwnerID: "user", WorkflowName: "workflow", WorkflowVersion: "1",
 		WorkflowSchemaVersion: contracts.APIVersion,
 		WorkflowSnapshot:      json.RawMessage(`{"name":"workflow"}`),
@@ -322,7 +337,7 @@ func createPlannerStage(
 	_, err = store.CreateStageExecution(ctx, runstore.CreateStageExecutionParams{
 		StageExecutionID: "stage-planner", RunID: "run-planner", StageName: "build", Attempt: 1,
 		StageSpecSchemaVersion:    contracts.APIVersion,
-		StageSpecSnapshot:         json.RawMessage(`{"objective":"build"}`),
+		StageSpecSnapshot:         stageSnapshot,
 		StageContextSchemaVersion: contracts.APIVersion,
 		StageContext:              runstore.StageContextSnapshot{},
 	})

@@ -54,6 +54,12 @@ Existing Streamline variants already use that Planner. Bounded Audit Workers
 have no terminal summarizer; the short artifact-copy and Podman smoke fixtures
 retain their direct passthrough completion and failure checks.
 
+Set optional `spec.maxSubtasks` on a Workflow to bound each Streamline/Router
+plan, including summary continuation. For example, `maxSubtasks: 64` allows up
+to 64 records per invocation. Omission selects 32; explicit values must be
+integers from 1 to 1000. Model-call, Worker-call, token, byte and time budgets
+remain independent. Existing Runs retain their pinned selection.
+
 Historical source-analysis and earlier workspace/Skill versions are deleted,
 not archived or republished. Existing Runs retain their complete resolved
 Workflow snapshots; the Audit catalog now starts at `@1` with current completion semantics.

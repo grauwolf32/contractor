@@ -6,7 +6,8 @@ const MAXIMUM_SERVER_FRAME_BYTES = 64 * 1024;
 const SAFE_IDENTIFIER = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$/;
 const SUBSCRIPTION_IDENTIFIER = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/;
 const UNSIGNED_DECIMAL = /^(?:0|[1-9][0-9]*)$/;
-const SUBTASK_IDENTIFIER = /^(?:0|[1-9][0-9]?)$/;
+const SUBTASK_IDENTIFIER = /^(?:0|[1-9][0-9]{0,2})$/;
+const MAXIMUM_PLANNER_SUBTASKS = 1000;
 const DISPATCH_IDENTIFIER = /^dispatch-[0-9]{4,}$/;
 
 export type RunEventConnectionState =
@@ -366,7 +367,7 @@ function parsePlan(value: unknown): PlannerPlan {
   if (
     !Array.isArray(value.subtasks) ||
     value.subtasks.length < 1 ||
-    value.subtasks.length > 32
+    value.subtasks.length > MAXIMUM_PLANNER_SUBTASKS
   ) {
     throw new Error("Planner subtask list is invalid");
   }

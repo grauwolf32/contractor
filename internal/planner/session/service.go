@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/clone"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/planner"
@@ -81,11 +82,15 @@ func (s *Service) Begin(
 		return planner.SessionStart{}, fmt.Errorf("load StageExecution: %w", err)
 	}
 	if execution.State == runstore.StagePreparing {
+		stage, err := resolved.DecodeResolvedStageSnapshot(execution.StageSpecSnapshot)
+		if err != nil {
+			return planner.SessionStart{}, fmt.Errorf("load Planner Stage authority: %w", err)
+		}
 		identity, err := s.newIdentity(stageExecutionID)
 		if err != nil {
 			return planner.SessionStart{}, err
 		}
-		initial, err := encodeState(persistentState{Status: statusRunning, NextSequence: 2})
+		initial, err := encodeState(persistentState{MaxSubtasks: stage.MaxSubtasks, Status: statusRunning, NextSequence: 2})
 		if err != nil {
 			return planner.SessionStart{}, err
 		}
@@ -481,6 +486,7 @@ const (
 )
 
 type persistentState struct {
+	MaxSubtasks              contracts.PlannerSubtaskLimit  `json:"maxSubtasks,omitempty"`
 	Scan                     *scanPersistentState           `json:"scan,omitempty"`
 	Status                   string                         `json:"status"`
 	NextSequence             int64                          `json:"nextSequence"`
@@ -581,6 +587,9 @@ func encodeRequestEvent(facts planner.RequestFacts) (json.RawMessage, error) {
 }
 
 func encodeState(state persistentState) (json.RawMessage, error) {
+	if err := state.MaxSubtasks.Validate(); err != nil {
+		return nil, err
+	}
 	if state.Scan != nil {
 		if err := validateScanPersistent(*state.Scan); err != nil {
 			return nil, err
@@ -596,6 +605,9 @@ func encodeState(state persistentState) (json.RawMessage, error) {
 		return nil, fmt.Errorf("Planner request state is inconsistent")
 	}
 	if state.Plan != nil {
+		if len(state.Plan.Subtasks) > state.MaxSubtasks.Effective() {
+			return nil, fmt.Errorf("Planner plan exceeds its pinned Workflow subtask limit")
+		}
 		if err := state.Plan.Validate(); err != nil {
 			return nil, fmt.Errorf("Planner plan state is invalid: %w", err)
 		}

@@ -35,6 +35,7 @@ var contractsImporters = map[string][]string{
 	"internal/app":                         {"ArtifactRef", "SecretString"},
 	"internal/artifacts":                   {"ArtifactRef", "ValidateArtifactName", "ValidMediaType"},
 	"internal/artifacts/artifactstest":     {"ArtifactRef"},
+	"internal/auditbaseline":               {"ActiveChecksPolicy"},
 	"internal/auditcontroller":             {"ArtifactRef"},
 	"internal/auditdomain":                 {"ArtifactRef", "ValidMediaType"},
 	"internal/auditimport":                 {"ArtifactRef"},
