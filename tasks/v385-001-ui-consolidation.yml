@@ -94,7 +94,9 @@ context:
     3.7 ms for a 50-finding page and 13.6 ms for a 200-Audit owner page in
     Node 26, about a quarter of it the library building error locations for
     valid input. The user kept the interpreter on 2026-10-16 with a
-    one-frame budget instead. Reversal condition: the interpreter cannot
+    one-frame budget instead; measured in Chromium on 2026-10-16, a
+    180 kB page of 200 Audits validates in 11.9 ms median (14.9 ms p90),
+    and in 51 ms median with 4x CPU throttling. Reversal condition: the interpreter cannot
     express a schema the Server publishes, or validating the largest page
     the UI reads (200 items) takes more than 16 ms in Chromium on the
     development machine; then generate Ajv standalone code per operation
