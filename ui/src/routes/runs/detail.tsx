@@ -150,7 +150,14 @@ function RunHeader({
       titleAs="h1"
       titleRef={titleRef}
       title={<span id="run-title">{title}</span>}
-      status={status}
+      status={
+        <>
+          {/* V385: needs a shared DetailHeader eyebrow; CSS shows this one
+              above the title. */}
+          <p className="runs-label runs-run-kind">Workflow Run</p>
+          {status}
+        </>
+      }
       actions={actions}
       meta={meta}
     />
