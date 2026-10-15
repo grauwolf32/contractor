@@ -711,31 +711,6 @@ code.issues-attempt-request {
   overflow-wrap: anywhere;
 }
 
-.issues-facts {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(13rem, 100%), 1fr));
-  gap: var(--space-3) var(--space-6);
-  margin: 0;
-}
-
-.issues-facts > div {
-  min-width: 0;
-}
-
-.issues-facts dt {
-  color: var(--muted);
-  font-size: var(--text-xs);
-  font-weight: 600;
-}
-
-.issues-facts dd {
-  margin: var(--space-0-5) 0 0;
-  color: var(--text);
-  font-size: var(--text-sm);
-  font-weight: 600;
-  overflow-wrap: anywhere;
-}
-
 /* ---------- History and provenance ---------- */
 
 .issues-history {
