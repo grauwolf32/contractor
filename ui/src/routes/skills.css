@@ -149,7 +149,7 @@
   margin-top: 1rem;
 }
 
-@media (max-width: 600px) {
+@media (max-width: 640px) {
   .skill-row {
     grid-template-columns: minmax(0, 1fr);
   }

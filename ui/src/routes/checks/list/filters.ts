@@ -12,7 +12,7 @@ import { CHECK_STATE_LABELS } from "../../../app/vocabulary";
 export type CheckFilter =
   "running" | "waiting" | "drafts" | "finished" | "stopped" | "all";
 
-export interface CheckFilterOption {
+interface CheckFilterOption {
   value: CheckFilter;
   label: string;
   /** Check states in this filter; empty for All. */

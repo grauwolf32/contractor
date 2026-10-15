@@ -4,7 +4,7 @@
  * custom number of hours between 0.01 and 8760 (365 days).
  */
 
-export type TimeLimitChoice = "86400" | "604800" | "0" | "custom";
+type TimeLimitChoice = "86400" | "604800" | "0" | "custom";
 
 export const DEFAULT_TIME_LIMIT: TimeLimitChoice = "86400";
 
@@ -47,21 +47,4 @@ export function timeLimitSeconds(state: TimeLimitState): number | undefined {
   return seconds >= 1 && seconds <= MAX_CUSTOM_HOURS * 3600
     ? seconds
     : undefined;
-}
-
-function plural(count: number, unit: string): string {
-  const text = Number.isInteger(count)
-    ? count.toLocaleString("en-US")
-    : count.toLocaleString("en-US", { maximumFractionDigits: 2 });
-  return `${text} ${unit}${count === 1 ? "" : "s"}`;
-}
-
-/** "24 hours", "7 days", "1.5 hours", "36 seconds"; 0 is "no time limit". */
-export function describeTimeLimit(seconds: number): string {
-  if (seconds === 0) return "no time limit";
-  if (seconds > 86400 && seconds % 86400 === 0)
-    return plural(seconds / 86400, "day");
-  if (seconds >= 3600) return plural(Math.round(seconds / 36) / 100, "hour");
-  if (seconds % 60 === 0) return plural(seconds / 60, "minute");
-  return plural(seconds, "second");
 }

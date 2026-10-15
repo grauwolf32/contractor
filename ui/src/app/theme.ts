@@ -4,7 +4,7 @@ import { useSyncExternalStore } from "react";
 export type ThemePreference = "system" | "light" | "dark" | "black";
 
 /** The palette actually on screen. */
-export type ResolvedTheme = "light" | "dark" | "black";
+type ResolvedTheme = "light" | "dark" | "black";
 
 export const THEME_PREFERENCES: readonly ThemePreference[] = [
   "system",
@@ -17,7 +17,7 @@ export const THEME_PREFERENCES: readonly ThemePreference[] = [
  * Browser-local appearance preference. It is neither a secret nor a draft, so
  * it may live in localStorage; reads and writes tolerate blocked storage.
  */
-export const THEME_STORAGE_KEY = "contractor.theme";
+const THEME_STORAGE_KEY = "contractor.theme";
 
 const DARK_QUERY = "(prefers-color-scheme: dark)";
 
@@ -46,7 +46,7 @@ function darkMediaQuery(): MediaQueryList | undefined {
     : undefined;
 }
 
-export function resolveTheme(
+function resolveTheme(
   value: ThemePreference,
   systemPrefersDark = darkMediaQuery()?.matches === true,
 ): ResolvedTheme {
@@ -57,18 +57,16 @@ export function resolveTheme(
 }
 
 /**
- * Applies a preference to the document. "system" removes the attribute so the
- * stylesheet's prefers-color-scheme rules decide, including live OS changes.
+ * Applies a preference to the document: data-theme is always the palette on
+ * screen, so theme.css defines each palette once. "system" resolves to light
+ * or dark here, and initializeTheme applies it again when the OS setting
+ * changes.
  */
-export function applyTheme(
+function applyTheme(
   value: ThemePreference,
   root: HTMLElement = document.documentElement,
 ): void {
-  if (value === "system") {
-    root.removeAttribute("data-theme");
-  } else {
-    root.setAttribute("data-theme", value);
-  }
+  root.setAttribute("data-theme", resolveTheme(value));
   const meta = document.querySelector<HTMLMetaElement>(
     'meta[name="color-scheme"]',
   );
@@ -99,10 +97,13 @@ export function initializeTheme(): void {
     applyTheme(preference);
     notify();
   });
-  darkMediaQuery()?.addEventListener("change", notify);
+  darkMediaQuery()?.addEventListener("change", () => {
+    if (preference === "system") applyTheme(preference);
+    notify();
+  });
 }
 
-export function getThemePreference(): ThemePreference {
+function getThemePreference(): ThemePreference {
   return preference;
 }
 

@@ -20,10 +20,7 @@ import {
 } from "./check-model";
 import { AuditControls } from "./controls";
 import { describeStopReason, stopReasonTone } from "./stop-reason";
-
-function plural(count: number, singular: string, many: string): string {
-  return `${count.toLocaleString("en-US")} ${count === 1 ? singular : many}`;
-}
+import { plural } from "../../../app/format";
 
 /**
  * The legend under a progress line: a swatch, the status and how many items

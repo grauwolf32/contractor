@@ -1,19 +1,24 @@
 import type { ReactNode } from "react";
 
+import { Button } from "../ui/button";
 import { ErrorNotice } from "./error-notice";
 
 /** The subset of a TanStack Query result that QueryView reads. */
-export interface QueryViewState<T> {
+interface QueryViewState<T> {
   data: T | undefined;
   error: Error | null;
   isFetching: boolean;
+  /** Retries the read; a TanStack Query result brings its own. */
+  refetch?: () => unknown;
 }
 
 /**
  * Renders a query's loading, error, empty, and loaded states. The error panel
  * replaces content only when no data has been loaded; a failed background
  * refetch keeps the last loaded data visible with an inline stale-data
- * warning and retry.
+ * warning and retry. Pass the useQuery result itself as `query`: Try again
+ * then calls its refetch unless `onRetry` says otherwise, and the loading
+ * state reads "Loading…" unless `loading` replaces it.
  */
 export function QueryView<T>({
   query,
@@ -25,21 +30,29 @@ export function QueryView<T>({
   children,
 }: {
   query: QueryViewState<T>;
-  loading: ReactNode;
+  loading?: ReactNode;
   errorContext?: string;
-  onRetry: () => void;
+  onRetry?: () => void;
   /** Selects loaded data that renders `empty` instead of `children`. */
   isEmpty?: (data: T) => boolean;
   empty?: ReactNode;
   children: (data: T) => ReactNode;
 }) {
+  const retry = onRetry ?? (() => void query.refetch?.());
   if (query.data === undefined) {
-    if (query.error === null) return loading;
+    if (query.error === null)
+      return (
+        loading ?? (
+          <p className="ui-caption" role="status">
+            Loading…
+          </p>
+        )
+      );
     return (
       <ErrorNotice
         error={query.error}
         {...(errorContext === undefined ? {} : { context: errorContext })}
-        onRetry={onRetry}
+        onRetry={retry}
         retryPending={query.isFetching}
       />
     );
@@ -49,7 +62,7 @@ export function QueryView<T>({
       {query.error === null ? null : (
         <StaleDataWarning
           error={query.error}
-          onRetry={onRetry}
+          onRetry={retry}
           retryPending={query.isFetching}
         />
       )}
@@ -71,14 +84,14 @@ export function StaleDataWarning({
     <div className="notice notice-warning" role="status">
       <strong>Could not refresh; showing the last loaded data.</strong>
       <p>{error.message}</p>
-      <button
-        className="secondary-button"
-        type="button"
-        disabled={retryPending}
+      <Button
+        size="sm"
+        pending={retryPending}
+        pendingLabel="Loading…"
         onClick={onRetry}
       >
-        {retryPending ? "Loading…" : "Try again"}
-      </button>
+        Try again
+      </Button>
     </div>
   );
 }

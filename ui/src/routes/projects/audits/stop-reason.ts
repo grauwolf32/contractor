@@ -73,7 +73,7 @@ export const STOP_REASON_CODES: readonly string[] = Object.keys(
 const FAILURE_CODE =
   /_invalid$|_unresolved$|not_retryable$|_budget_exhausted$/u;
 
-export interface StopReasonPresentation {
+interface StopReasonPresentation {
   /** Short name of the code, or undefined when the code is unknown. */
   label: string | undefined;
   /** One plain sentence; the Server's message when the code is unknown. */

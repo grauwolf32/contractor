@@ -88,7 +88,7 @@ export interface InputSlot {
   readonly explicit: boolean;
 }
 
-export interface Selection {
+interface Selection {
   readonly row: RowView;
   readonly family: CheckTypeFamily;
   /** The version the form submits (from the list). */

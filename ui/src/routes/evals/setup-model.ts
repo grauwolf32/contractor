@@ -1,12 +1,12 @@
 import type { EvalCapabilities, EvalDraft, EvalVariant } from "../../api/evals";
-import { compareWorkflowVersions } from "../workflows/families";
+import { compareVersions } from "../../app/format";
 
 export const MAX_EVAL_CASES = 1000;
 export const MAX_EVAL_MEMBERS = 1000;
 export const MAX_EVAL_REPETITIONS = 100;
 export const MAX_EVAL_DOCUMENT_BYTES = 1024 * 1024;
-export const DEFAULT_WALL_MS = 90 * 60 * 1000;
-export const EVAL_ID_PATTERN = /^[a-z0-9][a-z0-9_.-]{0,127}$/;
+const DEFAULT_WALL_MS = 90 * 60 * 1000;
+const EVAL_ID_PATTERN = /^[a-z0-9][a-z0-9_.-]{0,127}$/;
 export const PIN_DIMENSIONS = [
   "source",
   "tasks",
@@ -112,8 +112,7 @@ export function sortedBindings(
       const [aName, aVersion = ""] = a.selector.split("@");
       const [bName, bVersion = ""] = b.selector.split("@");
       return (
-        aName!.localeCompare(bName!) ||
-        compareWorkflowVersions(bVersion, aVersion)
+        aName!.localeCompare(bName!) || compareVersions(bVersion, aVersion)
       );
     });
 }

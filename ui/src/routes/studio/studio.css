@@ -571,7 +571,7 @@
     grid-template-columns: 150px minmax(0, 1fr) 260px;
   }
 }
-@media (max-width: 800px) {
+@media (max-width: 820px) {
   .studio-page {
     height: auto;
     min-height: calc(100dvh - var(--shell-topbar-height));

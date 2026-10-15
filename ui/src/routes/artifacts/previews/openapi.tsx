@@ -1,5 +1,6 @@
 import { ApiReferenceReact } from "@scalar/api-reference-react";
 import "@scalar/api-reference-react/style.css";
+import "./openapi.css";
 
 import { useResolvedTheme } from "../../../app/theme";
 

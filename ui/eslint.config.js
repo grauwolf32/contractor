@@ -4,6 +4,10 @@ import reactRefresh from "eslint-plugin-react-refresh";
 import globals from "globals";
 import tseslint from "typescript-eslint";
 
+import buildingBlocks, {
+  readBaseline,
+} from "./scripts/eslint-building-blocks.mjs";
+
 export default tseslint.config(
   {
     ignores: [
@@ -37,7 +41,31 @@ export default tseslint.config(
     },
   },
   {
-    files: ["server/**/*.mjs", "eslint.config.js"],
+    // Pages use the shared Button, AlertDialog and Icon (src/ui/README.md);
+    // scripts/building-blocks-baseline.json lists what is left to adopt.
+    files: ["src/**/*.tsx"],
+    ignores: [
+      "src/ui/**",
+      "src/app/**",
+      "src/test/**",
+      "src/**/*.test.tsx",
+      "src/**/*test-support.tsx",
+    ],
+    plugins: { "building-blocks": buildingBlocks },
+    rules: {
+      "building-blocks/use-shared": [
+        "error",
+        {
+          root: import.meta.dirname,
+          baseline: readBaseline(
+            new URL("./scripts/building-blocks-baseline.json", import.meta.url),
+          ),
+        },
+      ],
+    },
+  },
+  {
+    files: ["server/**/*.mjs", "scripts/**/*.mjs", "eslint.config.js"],
     languageOptions: {
       globals: globals.node,
     },

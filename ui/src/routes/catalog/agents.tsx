@@ -13,14 +13,10 @@ import { queryKeys } from "../../api/query-keys";
 import { CursorControls } from "../../app/cursor-controls";
 import { QueryView } from "../../app/query-view";
 import { EmptyState } from "../../ui";
-import { compareWorkflowVersions } from "../workflows/families";
 import { LibrarySearch, LibrarySectionHeader } from "./library-parts";
 import { locationDestination } from "./navigation";
 import { useCatalogQueryState } from "./query-state";
-
-function plural(count: number, singular: string, many: string): string {
-  return `${count} ${count === 1 ? singular : many}`;
-}
+import { plural, compareVersions } from "../../app/format";
 
 function AgentCard({
   name,
@@ -73,7 +69,7 @@ function AgentCard({
       >
         <span className="library-agent-identity">
           <strong>{item.ref.name}</strong>
-          <span className="library-tag">{item.ref.version}</span>
+          <span className="ui-badge library-tag">{item.ref.version}</span>
         </span>
         <span className="library-card-text">
           {body.description || "No authored description."}
@@ -168,7 +164,7 @@ export function AgentListRoute() {
           <div className="library-grid">
             {[...families].map(([name, versions]) => {
               versions.sort((a, b) =>
-                compareWorkflowVersions(b.ref.version, a.ref.version),
+                compareVersions(b.ref.version, a.ref.version),
               );
               const item =
                 versions.find(

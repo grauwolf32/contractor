@@ -1,0 +1,17 @@
+/* The LikeC4 architecture preview (likec4.tsx). */
+
+.likec4-artifact-preview {
+  background: var(--background);
+}
+
+.likec4-artifact-canvas {
+  width: 100%;
+  height: min(70vh, 48rem);
+  min-height: 30rem;
+}
+
+/* Third-party buttons inside the preview keep their own size, not the
+   global button rule's minimum height (src/styles.css). */
+.likec4-artifact-preview button {
+  min-height: initial;
+}

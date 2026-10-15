@@ -15,7 +15,7 @@ export function RouteErrorPanel() {
   const chunkFailed = isChunkLoadError(error);
   const reloadPath = `${location.pathname}${location.search}${location.hash}`;
   return (
-    <section className="panel centered-state" role="alert">
+    <section className="ui-panel centered-state" role="alert">
       <h2>
         {chunkFailed ? "This page needs a reload" : "This page could not open"}
       </h2>

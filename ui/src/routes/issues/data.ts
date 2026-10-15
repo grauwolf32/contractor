@@ -40,7 +40,7 @@ const RUNNING_CHECK_STATES: ReadonlySet<AuditState> = new Set([
 ]);
 
 /** A count for a filter chip: exact, a lower bound ("12+") or unknown. */
-export type IssueCount = number | string | undefined;
+type IssueCount = number | string | undefined;
 
 export interface IssueList {
   /** Possible issues matching every filter, newest first. */
@@ -79,10 +79,7 @@ function byText(left: string, right: string): number {
 }
 
 /** Newest first, like the cross-project lists; IDs break ties. */
-export function newerIssue(
-  left: CrossProjectIssue,
-  right: CrossProjectIssue,
-): number {
+function newerIssue(left: CrossProjectIssue, right: CrossProjectIssue): number {
   return (
     time(right.finding.createdAt) - time(left.finding.createdAt) ||
     time(right.finding.updatedAt) - time(left.finding.updatedAt) ||

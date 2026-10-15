@@ -100,7 +100,7 @@ export function SkillsRoute() {
               or to see earlier revisions.
             </p>
           </div>
-          <span className="library-tag">Global</span>
+          <span className="ui-badge library-tag">Global</span>
         </header>
         <QueryView
           query={query}

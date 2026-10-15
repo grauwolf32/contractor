@@ -122,7 +122,7 @@ export function WorkflowCard({
         </label>
         {numeric ? (
           <span
-            className="workflow-card-tag"
+            className="ui-badge workflow-card-tag"
             data-tone={latest ? "accent" : undefined}
           >
             {latest ? "Latest" : "Earlier version"}

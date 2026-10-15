@@ -7,7 +7,7 @@ import type { components } from "../../api/generated/public";
 import { queryKeys } from "../../api/query-keys";
 import { capitalize, checkItemKind, itemNoun } from "../../app/vocabulary";
 import { auditPresetLabel } from "../projects/audits/labels";
-import { compareWorkflowVersions } from "../workflows/families";
+import { compareVersions } from "../../app/format";
 
 // Check types are AuditProfiles in the API (contract §3: "Check type").
 
@@ -125,7 +125,7 @@ export function groupCheckTypes(
     .map(([name, versions]) => ({
       name,
       versions: versions.sort((left, right) =>
-        compareWorkflowVersions(right.ref.version, left.ref.version),
+        compareVersions(right.ref.version, left.ref.version),
       ),
     }));
 }

@@ -21,7 +21,7 @@ export function continuation(value: unknown): Record<string, unknown> {
       ? record(record(action.escalate).then)
       : action;
 }
-export function nextStages(stage: unknown): string[] {
+function nextStages(stage: unknown): string[] {
   return OUTCOMES.flatMap((outcome) => {
     const next = continuation(record(record(stage).on)[outcome]).next;
     return typeof next === "string" ? [next] : [];
@@ -42,7 +42,7 @@ export const SELECTOR_MESSAGE = "Use a versioned selector such as worker@1.";
  * or more canonical type/subtype values (MEDIA_TYPE_PATTERN), each listed
  * once, or the wildcard alone.
  */
-export function mediaTypesProblem(value: unknown): string | undefined {
+function mediaTypesProblem(value: unknown): string | undefined {
   if (
     !Array.isArray(value) ||
     !value.length ||

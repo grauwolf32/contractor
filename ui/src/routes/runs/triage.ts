@@ -22,7 +22,7 @@ const MODEL_INFRASTRUCTURE_ISSUE_CODES = new Set([
   "worker_gateway_unavailable",
 ]);
 
-export interface RunTriageIssue {
+interface RunTriageIssue {
   code: string;
   message: string;
   retryable?: boolean;
@@ -31,7 +31,7 @@ export interface RunTriageIssue {
   source: "result" | "termination" | "diagnostic" | "cancellation";
 }
 
-export interface RunTriageMetrics {
+interface RunTriageMetrics {
   modelCalls: number;
   totalTokens: number;
   toolCalls: number;
@@ -50,7 +50,7 @@ export interface RunTriage {
   guidance: RunTriageGuidance;
 }
 
-export interface RunTriageGuidance {
+interface RunTriageGuidance {
   kind:
     | "recovery-wait"
     | "scheduled-retry"
@@ -303,27 +303,4 @@ export function deriveRunTriage(run: RunStatus): RunTriage {
     ...(metrics === undefined ? {} : { metrics }),
     guidance: guidance(run, context.attempt, context.issue),
   };
-}
-
-export function formatRunDuration(value: number | undefined): string {
-  if (value === undefined) {
-    return "—";
-  }
-  const seconds = Math.floor(value / 1000);
-  if (seconds < 1) {
-    return "<1s";
-  }
-  if (seconds < 60) {
-    return `${seconds}s`;
-  }
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) {
-    return `${minutes}m ${seconds % 60}s`;
-  }
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) {
-    return `${hours}h ${minutes % 60}m`;
-  }
-  const days = Math.floor(hours / 24);
-  return `${days}d ${hours % 24}h`;
 }

@@ -162,7 +162,7 @@ export function GitImportDialog({
   }
   return (
     <Dialog
-      className="project-dialog panel materials-sheet git-import-dialog"
+      className="ui-dialog ui-panel materials-sheet git-import-dialog"
       labelledBy={heading}
       describedBy={description}
       initialFocusRef={initialFocus}

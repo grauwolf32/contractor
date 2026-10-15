@@ -14,7 +14,7 @@ import {
   type Project,
 } from "../../api/projects";
 import { queryKeys } from "../../api/query-keys";
-import { ConfirmRemovalDialog } from "../../app/confirm-removal-dialog";
+import { AlertDialog } from "../../ui";
 import { Dialog, DialogHeader } from "../../app/dialog";
 import { ErrorNotice } from "../../app/error-notice";
 import { createMutationIdempotencyKey } from "../../mutations/idempotency";
@@ -147,19 +147,12 @@ export function ProjectHTTPTargetEditor({
         />
       ) : null}
       {removing === null || removing.httpTarget === undefined ? null : (
-        <ConfirmRemovalDialog
+        <AlertDialog
           eyebrow="Live target"
           title="Remove the live target?"
-          description={
-            <>
-              Checks of this project will no longer receive{" "}
-              <code>{removing.httpTarget.url}</code> or its authorization. The
-              Runtime credential itself is kept under Operations.
-            </>
-          }
+          pendingLabel="Removing…"
           confirmLabel="Remove target"
           pending={removal.isPending}
-          dismissOnBackdrop={false}
           error={
             removal.error === null ? undefined : (
               <ErrorNotice error={removal.error} reconcileWrite />
@@ -170,7 +163,13 @@ export function ProjectHTTPTargetEditor({
             removal.reset();
           }}
           onConfirm={() => removal.mutate(removing)}
-        />
+        >
+          <p>
+            Checks of this project will no longer receive{" "}
+            <code>{removing.httpTarget.url}</code> or its authorization. The
+            Runtime credential itself is kept under Operations.
+          </p>
+        </AlertDialog>
       )}
     </div>
   );
@@ -357,7 +356,7 @@ function ProjectHTTPTargetDialog({
 
   return (
     <Dialog
-      className="project-dialog panel projects-target-dialog"
+      className="ui-dialog ui-panel projects-target-dialog"
       labelledBy={heading}
       initialFocusRef={urlInput}
       onRequestClose={() => {

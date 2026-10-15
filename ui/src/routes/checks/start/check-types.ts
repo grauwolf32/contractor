@@ -12,30 +12,10 @@
 import type { ArtifactMetadata } from "../../../api/artifacts";
 import type { AuditProfile } from "../../../api/audits";
 import { checkItemKind, itemCount, itemNoun } from "../../../app/vocabulary";
+import { compareVersions } from "../../../app/format";
 
 export type ProfileInput = AuditProfile["inputs"][string];
-export type CompatibilityReason = AuditProfile["compatibilityReasons"][number];
-
-/**
- * Version order, oldest first: dotted numbers compare part by part
- * ("10" after "9", "1.10" after "1.9"); other versions compare naturally.
- */
-export function compareVersions(left: string, right: string): number {
-  const numeric = /^\d+(?:\.\d+)*$/;
-  if (numeric.test(left) && numeric.test(right)) {
-    const a = left.split(".").map(BigInt);
-    const b = right.split(".").map(BigInt);
-    for (let index = 0; index < Math.max(a.length, b.length); index++) {
-      const x = a[index] ?? 0n;
-      const y = b[index] ?? 0n;
-      if (x !== y) return x > y ? 1 : -1;
-    }
-  }
-  return (
-    left.localeCompare(right, "en", { numeric: true }) ||
-    (left < right ? -1 : left > right ? 1 : 0)
-  );
-}
+type CompatibilityReason = AuditProfile["compatibilityReasons"][number];
 
 /** All loaded versions of one check type name. */
 export interface CheckTypeFamily {
@@ -80,7 +60,7 @@ export interface CheckTypeRow {
 }
 
 /** How many items a check type works on at most. */
-export function coverageSize(profile: AuditProfile): number {
+function coverageSize(profile: AuditProfile): number {
   return (
     profile.inventory.standardSelection?.entryIds.length ??
     profile.execution.maxItemsTotal
@@ -299,7 +279,7 @@ export function presentCheckType(profile: AuditProfile): CheckTypePresentation {
 // ---------- Materials ----------
 
 /** Whether a material's media type is one the input accepts ("format matches"). */
-export function mediaTypeMatches(
+function mediaTypeMatches(
   mediaType: string,
   accepted: readonly string[],
 ): boolean {
@@ -419,7 +399,7 @@ export function scopeFieldsUsed(profile: AuditProfile): Set<ScopeField> {
 
 // ---------- Readiness ----------
 
-export type MissingNeed =
+type MissingNeed =
   /** No current material has a format this input takes. */
   | { kind: "input"; name: string; label: string; formats: string }
   /**
@@ -435,7 +415,7 @@ export type Readiness =
   | { state: "missing"; missing: MissingNeed[] }
   | { state: "unavailable"; reasons: CompatibilityReason[] };
 
-export interface ReadinessContext {
+interface ReadinessContext {
   /** The project's current materials read so far. */
   materials: readonly ArtifactMetadata[];
   /** The project has a live target in its settings. */
@@ -603,7 +583,7 @@ export function compatibilityReasonText(reason: CompatibilityReason): string {
 
 // ---------- What a check type covers ----------
 
-export interface ScopeSummary {
+interface ScopeSummary {
   /** "70 requirements", "Up to 94 scenarios", "Every endpoint in the API spec". */
   readonly size: string;
   /** One quiet line about where the items come from. */

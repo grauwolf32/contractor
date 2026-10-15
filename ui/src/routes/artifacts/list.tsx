@@ -233,7 +233,7 @@ function FileUploadDialog({
 
   return (
     <Dialog
-      className="project-dialog panel materials-sheet"
+      className="ui-dialog ui-panel materials-sheet"
       labelledBy={heading}
       describedBy={cancelNote}
       onRequestClose={close}

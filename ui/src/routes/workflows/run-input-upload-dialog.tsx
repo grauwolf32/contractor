@@ -79,7 +79,7 @@ export function RunInputUploadDialog({
 
   return (
     <Dialog
-      className="project-dialog panel run-input-upload-dialog"
+      className="ui-dialog ui-panel run-input-upload-dialog"
       labelledBy={heading}
       describedBy={description}
       onRequestClose={close}

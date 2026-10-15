@@ -37,7 +37,7 @@ const INITIAL_CURSOR = null as string | null;
  * the rest on request ("Load more materials"), so a large project does not
  * download its whole inventory every time.
  */
-export const MATERIAL_AUTOLOAD_PAGES = 4;
+const MATERIAL_AUTOLOAD_PAGES = 4;
 
 // A check type version does not change once published.
 const PROFILE_DETAIL_STALE_MS = 5 * 60_000;

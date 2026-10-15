@@ -7,15 +7,8 @@ import {
   useMutation,
   useQueryClient,
 } from "@tanstack/react-query";
-import {
-  type FormEvent,
-  useEffect,
-  useId,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
-import { Link, useNavigate } from "react-router";
+import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { Link } from "react-router";
 
 import { listArtifacts, type ArtifactMetadata } from "../../api/artifacts";
 import { usePublicAPI } from "../../api/context";
@@ -40,7 +33,7 @@ import {
   type CreateRunRequest,
   type WorkflowResource,
 } from "../../api/workflows";
-import { Dialog, DialogHeader } from "../../app/dialog";
+import { Icon } from "../../app/icon";
 import {
   initialRunDraftState,
   type RunDraftEntry,
@@ -60,14 +53,14 @@ import {
 } from "../../run-drafts/validation";
 import { ErrorNotice } from "../../app/error-notice";
 import { compactDigest, formatBytes, formatTimestamp } from "../../app/format";
-import { StatusChip, type StatusTone } from "../../ui";
-import { GitRepositoryIcon } from "../artifacts/git-repository-icon";
+import { AlertDialog, StatusChip, type StatusTone } from "../../ui";
 import { artifactDetailPath } from "../artifacts/paths";
 import { RunInputUploadDialog } from "./run-input-upload-dialog";
 
 import "./run-drafts.css";
 import { nextPageCursor } from "../../app/pagination";
 import { LoadMoreButton } from "../../app/load-more";
+import { useGuardedNavigate } from "../../app/page-location";
 
 const INITIAL_CURSOR = null;
 const EVAL_METADATA_PRESET = [
@@ -681,45 +674,22 @@ function DiscardRunDraftDialog({
   onClose: () => void;
   onDiscard: () => void;
 }) {
-  const heading = useId();
-  const safeAction = useRef<HTMLButtonElement>(null);
   return (
-    <Dialog
-      className="project-dialog panel run-draft-discard-dialog"
-      labelledBy={heading}
-      initialFocusRef={safeAction}
-      onRequestClose={onClose}
-      role="alertdialog"
+    <AlertDialog
+      className="run-draft-discard-dialog"
+      eyebrow="Unsaved Run setup"
+      title="Discard this Run draft?"
+      closeLabel="Close discard confirmation"
+      cancelLabel="Keep editing"
+      confirmLabel="Discard Run draft"
+      onCancel={onClose}
+      onConfirm={onDiscard}
     >
-      <DialogHeader
-        id={heading}
-        eyebrow="Unsaved Run setup"
-        title="Discard this Run draft?"
-        close={{ label: "Close discard confirmation", onClose: onClose }}
-      />
       <p>
         Parameters, input selections, labels, overrides and any ambiguous
         submission identity in this tab will be removed.
       </p>
-      <div className="run-draft-actions">
-        <button
-          ref={safeAction}
-          className="ui-btn"
-          type="button"
-          onClick={onClose}
-        >
-          Keep editing
-        </button>
-        <button
-          className="ui-btn"
-          data-variant="danger"
-          type="button"
-          onClick={onDiscard}
-        >
-          Discard Run draft
-        </button>
-      </div>
-    </Dialog>
+    </AlertDialog>
   );
 }
 
@@ -737,7 +707,7 @@ function WorkflowRunFormBody({
   onDiscardDraft: () => void;
 }) {
   const api = usePublicAPI();
-  const navigate = useNavigate();
+  const navigate = useGuardedNavigate();
   const queryClient = useQueryClient();
   const [gitSlot, setGitSlot] = useState<string | null>(null);
   const [uploadSlot, setUploadSlot] = useState<string | null>(null);
@@ -1706,7 +1676,7 @@ function WorkflowRunFormBody({
                           title={`Import Git repository for ${name}`}
                           onClick={() => setGitSlot(name)}
                         >
-                          <GitRepositoryIcon />
+                          <Icon name="git" />
                         </button>
                       ) : null}
                     </div>

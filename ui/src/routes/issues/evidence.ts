@@ -93,7 +93,7 @@ export function isCredentialHeader(name: string): boolean {
   );
 }
 
-export type DecodedBody =
+type DecodedBody =
   | { kind: "empty" }
   | { kind: "text"; text: string; bytes: number }
   | { kind: "binary"; bytes: number };

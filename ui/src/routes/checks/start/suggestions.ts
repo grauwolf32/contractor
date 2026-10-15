@@ -10,7 +10,7 @@
  * material fits the objective (docs/spec/ui/journeys.md US-03).
  */
 
-export interface SuggestionRule {
+interface SuggestionRule {
   readonly id: string;
   /** Check type (profile) names this rule suggests, the better fit first. */
   readonly checkTypes: readonly string[];
@@ -97,7 +97,7 @@ export const SUGGESTION_RULES: readonly SuggestionRule[] = [
   },
 ];
 
-export interface Suggestion {
+interface Suggestion {
   /** The suggested check type (profile name). */
   readonly checkType: string;
   readonly ruleId: string;

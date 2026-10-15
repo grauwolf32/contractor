@@ -48,6 +48,7 @@ import { AuditAnchor } from "./shared";
 
 import "./styles.css";
 import "../../issues/issues.css";
+import { plural } from "../../../app/format";
 
 /** Decision filter values: none yet, then every analyst verdict. */
 const DECISIONS: readonly VerdictValue[] = [
@@ -64,10 +65,6 @@ function isDecision(value: string): value is VerdictValue {
 interface Row {
   audit: Audit;
   finding: AuditFinding;
-}
-
-function plural(count: number, one: string, many: string): string {
-  return `${count} ${count === 1 ? one : many}`;
 }
 
 /**

@@ -23,8 +23,7 @@ import { formatTimestamp } from "../../app/format";
 import { RefreshButton } from "../../app/refresh-button";
 import { RecordedTime } from "../../app/recorded-time";
 import { QueryView } from "../../app/query-view";
-import { ConfirmRemovalDialog } from "../../app/confirm-removal-dialog";
-import { DeleteIcon } from "../../app/delete-icon";
+import { AlertDialog, IconButton } from "../../ui";
 import { Icon } from "../../app/icon";
 import { EmptyState, IdChip } from "../../ui";
 import {
@@ -33,7 +32,7 @@ import {
   RunStateChip,
 } from "./components";
 import { RunIdLink, RunsFilter } from "./list-parts";
-import { RUN_STATE_LABELS } from "./run-state";
+import { RUN_STATE_LABELS } from "../../app/vocabulary";
 
 const EVAL_FILTER_KEYS = ["purpose", "eval.name", "eval.id", "eval.leg"];
 
@@ -368,17 +367,14 @@ function CompletedRunRow({
         </td>
         <td className="run-list-actions-cell">
           {run.deletable === true ? (
-            <button
-              className="ui-btn runs-delete"
-              data-size="sm"
-              data-variant="ghost"
-              type="button"
-              aria-label={`Delete Run ${run.runId}`}
-              title="Delete completed Run"
+            <IconButton
+              className="runs-delete"
+              size="sm"
+              variant="ghost"
+              label={`Delete Run ${run.runId}`}
+              icon={<Icon name="delete" />}
               onClick={onDelete}
-            >
-              <DeleteIcon />
-            </button>
+            />
           ) : null}
         </td>
       </tr>
@@ -559,21 +555,12 @@ export function CompletedRunsPanel() {
       </div>
       <CursorControls label="Run pages" {...pages.controls(query.data?.page)} />
       {deleteTarget === undefined ? null : (
-        <ConfirmRemovalDialog
-          className="run-delete-dialog"
+        <AlertDialog
           eyebrow="Permanent action"
           title="Delete completed Run?"
-          description={
-            <>
-              This permanently removes Run <code>{deleteTarget}</code>, its
-              execution history, and all Run-owned Artifacts. Shared source
-              Artifacts and published Project outputs are retained.
-            </>
-          }
           confirmLabel="Delete Run"
           pendingLabel="Deleting…"
           pending={deletion.isPending}
-          dismissOnBackdrop={false}
           error={
             deletion.error === null ? null : (
               <ErrorNotice error={deletion.error} />
@@ -584,7 +571,13 @@ export function CompletedRunsPanel() {
             setDeleteTarget(undefined);
           }}
           onConfirm={() => deletion.mutate(deleteTarget)}
-        />
+        >
+          <p>
+            This permanently removes Run <code>{deleteTarget}</code>, its
+            execution history, and all Run-owned Artifacts. Shared source
+            Artifacts and published Project outputs are retained.
+          </p>
+        </AlertDialog>
       )}
     </div>
   );

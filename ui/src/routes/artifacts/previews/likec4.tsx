@@ -9,6 +9,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { useResolvedTheme } from "../../../app/theme";
 import type { LikeC4WorkerResponse } from "./likec4-protocol";
+import "./likec4.css";
 
 type Diagram = LikeC4DiagramProps["view"];
 type DiagramModel = ReturnType<typeof LikeC4Model.fromDump>;

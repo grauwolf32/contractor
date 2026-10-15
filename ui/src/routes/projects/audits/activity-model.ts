@@ -71,16 +71,14 @@ const DISPOSITIONS: Readonly<
 };
 
 /** "finished", "failed", … for an attempt's technical outcome. */
-export function outcomeWords(
-  outcome: AuditItemAttempt["terminalOutcome"],
-): string {
+function outcomeWords(outcome: AuditItemAttempt["terminalOutcome"]): string {
   return outcome !== undefined && Object.hasOwn(OUTCOME_WORDS, outcome)
     ? OUTCOME_WORDS[outcome]
     : "finished";
 }
 
 /** A sentence and tone for how an attempt's result was collected. */
-export function dispositionOf(attempt: AuditItemAttempt): {
+function dispositionOf(attempt: AuditItemAttempt): {
   text: string | undefined;
   tone: StatusTone;
 } {

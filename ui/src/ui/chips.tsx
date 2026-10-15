@@ -21,7 +21,7 @@ export function Kbd({ children }: { children: ReactNode }) {
 
 const COPIED = "Copied";
 
-export interface IdChipProps {
+interface IdChipProps {
   /** The full identifier; copied and shown on hover. */
   value: string;
   /** What the identifier is, for the copy button: "Copy " + label. */

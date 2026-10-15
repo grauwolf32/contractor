@@ -50,12 +50,3 @@ export function filterSearch(filters: ReportFilters): string {
 export function reportPath(auditId: string, filters: ReportFilters): string {
   return `/reports/${encodeURIComponent(auditId)}${filterSearch(filters)}`;
 }
-
-/** The check page and its sections (coverage, report, …). */
-export function checkPath(
-  audit: { projectId: string; auditId: string },
-  section?: string,
-): string {
-  const base = `/projects/${encodeURIComponent(audit.projectId)}/audits/${encodeURIComponent(audit.auditId)}`;
-  return section === undefined ? base : `${base}/${section}`;
-}

@@ -57,7 +57,7 @@ import { aiSummary } from "./text";
 import "./decisions.css";
 
 /** The next item to decide, e.g. in the Inbox; bound to J. */
-export interface FindingDecisionNext {
+interface FindingDecisionNext {
   label: string;
   onNext: () => void;
 }

@@ -19,61 +19,10 @@ import { workflowSelector } from "./presentation";
 
 import { compactDigest } from "../../app/format";
 import { artifactDetailPath } from "../artifacts/paths";
+import { ConsumerConfigList } from "./consumer-config";
 
-type ConsumerConfig = components["schemas"]["ConsumerExecutionConfig"];
-type ResolvedConfig = components["schemas"]["ResolvedStageExecutionConfig"];
 type SuccessTransition = components["schemas"]["WorkflowSucceededTransition"];
 type FailureTransition = components["schemas"]["WorkflowFailureTransition"];
-
-function ConsumerConfigView({
-  name,
-  config,
-}: {
-  name: string;
-  config: ConsumerConfig;
-}) {
-  if (config.modelPolicy === undefined) {
-    return (
-      <li>
-        <strong>{name}</strong>
-        <span>Tool execution · no model</span>
-      </li>
-    );
-  }
-  return (
-    <li>
-      <strong>{name}</strong>
-      <span>
-        Model {config.modelPolicy.policyId}@{config.modelPolicy.version}
-      </span>
-      <span>
-        {config.llmGateway === undefined
-          ? "Gateway resolved during Runtime placement"
-          : `Gateway ${config.llmGateway.gatewayId}@${config.llmGateway.version}`}
-      </span>
-      <span>Credential {config.credential?.credentialId ?? "none"}</span>
-    </li>
-  );
-}
-
-function ResolvedConfigView({ config }: { config: ResolvedConfig }) {
-  return (
-    <ul className="workflow-consumer-list">
-      {config.planner === undefined ? null : (
-        <ConsumerConfigView name="Planner" config={config.planner} />
-      )}
-      {Object.entries(config.agents)
-        .sort(([left], [right]) => left.localeCompare(right))
-        .map(([name, agent]) => (
-          <ConsumerConfigView
-            key={name}
-            name={`Agent ${name}`}
-            config={agent}
-          />
-        ))}
-    </ul>
-  );
-}
 
 function TerminalTransition({
   transition,
@@ -121,7 +70,11 @@ function FailureTransitionView({
           )}
           , then <TerminalTransition transition={transition.then} />
         </span>
-        <ResolvedConfigView config={transition.executionConfig.effective} />
+        <ConsumerConfigList
+          config={transition.executionConfig.effective}
+          workerLabel={(name) => `Agent ${name}`}
+          className="workflow-consumer-list"
+        />
       </div>
     );
   }
@@ -228,7 +181,11 @@ function StageContract({
         </div>
         <div>
           <h4>Resolved base execution config</h4>
-          <ResolvedConfigView config={stage.executionConfig} />
+          <ConsumerConfigList
+            config={stage.executionConfig}
+            workerLabel={(name) => `Agent ${name}`}
+            className="workflow-consumer-list"
+          />
         </div>
         <div>
           <h4>Scheduler transitions</h4>
@@ -270,7 +227,7 @@ export function WorkflowDetailRoute() {
   });
   if (!valid) {
     return (
-      <div className="library-detail">
+      <div className="ui-stack">
         <ErrorNotice error={new Error("Workflow route is invalid")} />
         <Link className="library-back" to="/catalog/workflows">
           Return to Workflows
@@ -287,7 +244,7 @@ export function WorkflowDetailRoute() {
     );
   if (!query.data)
     return (
-      <div className="library-detail">
+      <div className="ui-stack">
         <ErrorNotice error={query.error} />
         <Link className="library-back" to="/catalog/workflows">
           Return to Workflows

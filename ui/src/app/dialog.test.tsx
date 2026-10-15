@@ -17,7 +17,7 @@ function BasicDialogHarness() {
       <button type="button">Background action</button>
       {open ? (
         <Dialog
-          className="project-dialog"
+          className="ui-dialog"
           labelledBy={heading}
           initialFocusRef={initialFocus}
           onRequestClose={() => setOpen(false)}
@@ -34,11 +34,7 @@ function BasicDialogHarness() {
 function ParentDialog({ children }: { children: ReactNode }) {
   const heading = useId();
   return (
-    <Dialog
-      className="project-dialog"
-      labelledBy={heading}
-      onRequestClose={vi.fn()}
-    >
+    <Dialog className="ui-dialog" labelledBy={heading} onRequestClose={vi.fn()}>
       <h2 id={heading}>Parent</h2>
       {children}
     </Dialog>
@@ -118,7 +114,7 @@ describe("Dialog", () => {
           </button>
           {parentOpen ? (
             <Dialog
-              className="project-dialog"
+              className="ui-dialog"
               labelledBy={parentHeading}
               onRequestClose={() => setParentOpen(false)}
             >
@@ -135,7 +131,7 @@ describe("Dialog", () => {
                 </button>
                 {childOpen ? (
                   <Dialog
-                    className="project-dialog"
+                    className="ui-dialog"
                     labelledBy={childHeading}
                     onRequestClose={() => setChildOpen(false)}
                   >
@@ -204,7 +200,7 @@ describe("Dialog", () => {
           <button type="button">Parent fallback</button>
           {childOpen ? (
             <Dialog
-              className="project-dialog"
+              className="ui-dialog"
               labelledBy={heading}
               onRequestClose={() => {
                 requests();

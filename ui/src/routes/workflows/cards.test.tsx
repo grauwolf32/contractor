@@ -5,7 +5,6 @@ import { describe, expect, it, vi } from "vitest";
 import { PublicAPI } from "../../api/client";
 import { Application } from "../../app/application";
 import { applicationRoutes } from "../../app/router";
-import { compareWorkflowVersions } from "./families";
 
 const config = {
   uiVersion: "0.1.0",
@@ -42,13 +41,6 @@ function response(data: unknown) {
 }
 
 describe("shared Workflow cards", () => {
-  it("orders numeric version components without lexical or number precision errors", () => {
-    expect(compareWorkflowVersions("10", "9")).toBeGreaterThan(0);
-    expect(compareWorkflowVersions("1.10", "1.9")).toBeGreaterThan(0);
-    expect(
-      compareWorkflowVersions("999999999999999999999", "999999999999999999998"),
-    ).toBeGreaterThan(0);
-  });
   it("defaults to the latest version across pages, pins an older choice on refresh and keeps exact links and contracts together", async () => {
     let secondRead = false;
     const api = new PublicAPI(

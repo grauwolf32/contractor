@@ -24,9 +24,10 @@ import {
   itemOperation,
   type ItemOperation,
 } from "./check-title";
+import { plural } from "../../../app/format";
 
 /** How an item reads in lists, chips and the progress line. */
-export interface ItemStatus {
+interface ItemStatus {
   label: string;
   tone: StatusTone;
   /** The result filter the item belongs to. */
@@ -182,7 +183,7 @@ export function entryName(entry: CheckEntry): string {
 }
 
 /** Text an item search matches: task, result, evidence and attempts. */
-export function entrySearchText(entry: CheckEntry): string {
+function entrySearchText(entry: CheckEntry): string {
   const { row, item } = entry;
   return [
     entryName(entry),
@@ -284,16 +285,12 @@ export function endpointArea(path: string, prefix: string): string | undefined {
     : undefined;
 }
 
-function plural(count: number, singular: string, many: string): string {
-  return `${count.toLocaleString("en-US")} ${count === 1 ? singular : many}`;
-}
-
 /**
  * Findings by what they are to the user: issues (confirmed), possible issues
  * (not decided yet, or waiting for evidence) and findings set aside (not an
  * issue, or a duplicate). Possible issues never count as issues.
  */
-export interface IssueSplit {
+interface IssueSplit {
   issues: AuditFinding[];
   possible: AuditFinding[];
   setAside: AuditFinding[];
@@ -377,7 +374,7 @@ export function legendSentence(entries: readonly LegendEntry[]): string {
 }
 
 /** Work counts of a check, from its workspace snapshot. */
-export interface WorkCounts {
+interface WorkCounts {
   total: number;
   done: number;
   issues: number;

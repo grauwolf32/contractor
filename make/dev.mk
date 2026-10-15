@@ -1,7 +1,7 @@
 # Formatting, linting, code generation and the checks that hold the
 # public API and the architecture model to the specifications.
 
-.PHONY: fmt lint generate-public-client generate-public-client-check verify-architecture docs-erd \
+.PHONY: fmt lint ui-gates generate-public-client generate-public-client-check verify-architecture docs-erd \
 	docs-error-registry verify-public-api verify-public-api-postgres run-local tasks-backlog
 
 fmt:
@@ -11,7 +11,7 @@ fmt:
 # tools/testonlyexports is its own module (it pins golang.org/x/tools), so the
 # root go vet does not reach it; it fails on an exported identifier that only
 # tests reference, beyond the entries of its baseline (AGENTS.md 3.7).
-lint: generate-public-client-check docs-dependencies-check
+lint: generate-public-client-check docs-dependencies-check ui-gates
 	test -z "$$(gofmt -l cmd internal tests tools)"
 	go vet ./...
 	go run honnef.co/go/tools/cmd/staticcheck@v0.8.1 -checks U1000 -tests -tags=e2e,integration ./...
@@ -27,6 +27,17 @@ lint: generate-public-client-check docs-dependencies-check
 	cd runtime && uv run ruff check .
 	cd runtime && uv run ruff format --check .
 	cd runtime && uv run lint-imports --no-cache --no-logo
+
+# The UI's dead-code and building-block gates (V385-001; ui/src/ui/README.md,
+# "Gates"). They need the UI dependencies (make ui-install): the probes of the
+# gates themselves, unreferenced CSS classes and stray breakpoints, exports
+# without a production importer, and ESLint, whose building-blocks rule
+# rejects hand-written ui-btn buttons, alert dialogs and SVG icons in pages.
+ui-gates:
+	cd ui && node --test scripts/*.test.mjs
+	cd ui && node scripts/check-css.mjs
+	cd ui && node scripts/check-exports.mjs
+	cd ui && corepack pnpm exec eslint .
 
 # Regenerates tasks/BACKLOG.md from the task files; make lint fails when it is stale.
 tasks-backlog:

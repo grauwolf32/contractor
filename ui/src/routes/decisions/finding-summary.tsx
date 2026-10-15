@@ -45,7 +45,7 @@ const ASSESSMENT_LABELS: Readonly<Record<SemanticAssessment, string>> = {
   "not-tested": "Not tested",
 };
 
-export interface FindingSummaryProps {
+interface FindingSummaryProps {
   auditId: string;
   finding: AuditFinding;
   /**

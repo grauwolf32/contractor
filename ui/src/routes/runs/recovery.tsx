@@ -1,19 +1,10 @@
-import { useId, useRef } from "react";
-
 import type { RunStatus } from "../../api/runs";
-import { Dialog, DialogHeader } from "../../app/dialog";
 import { ErrorNotice } from "../../app/error-notice";
 import { formatTimestamp } from "../../app/format";
-import { StatusGlyph } from "../../ui";
+import { AlertDialog, StatusGlyph } from "../../ui";
+import { runRecoveryReason } from "../../app/vocabulary";
 
 type Recovery = NonNullable<RunStatus["recovery"]>;
-
-const recoveryReasons: Record<Recovery["code"], string> = {
-  model_unavailable: "The model was unloaded or is unavailable.",
-  gateway_unavailable: "The model gateway is unavailable.",
-  gateway_timeout: "The model request timed out.",
-  gateway_rate_limited: "The model gateway is rate limiting requests.",
-};
 
 /**
  * Model recovery of a waiting Run, for the triage summary. The Retry model
@@ -26,7 +17,7 @@ export function RecoveryStatus({ run }: { run: RunStatus }) {
     <div className="runs-recovery" role="status">
       <StatusGlyph tone={recovery.requiresRetry ? "blocked" : "progress"} />
       <div>
-        <strong>{recoveryReasons[recovery.code]}</strong>
+        <strong>{runRecoveryReason(recovery.code)}</strong>
         <p>
           {recovery.requiresRetry
             ? "Automatic recovery has paused. Restore the model, then use Retry model connection to continue."
@@ -60,47 +51,26 @@ export function RetryModelDialog({
   onConfirm: () => void;
   onCancel: () => void;
 }) {
-  const titleId = useId();
-  const descriptionId = useId();
-  const back = useRef<HTMLButtonElement>(null);
   return (
-    <Dialog
-      className="project-dialog panel runs-dialog"
-      labelledBy={titleId}
-      describedBy={descriptionId}
-      initialFocusRef={back}
-      onRequestClose={() => {
-        if (!pending) onCancel();
-      }}
+    <AlertDialog
+      className="runs-dialog"
+      eyebrow="Model recovery"
+      title="Retry the model connection?"
+      tone="primary"
+      cancelLabel="Not now"
+      confirmLabel="Confirm retry"
+      pendingLabel="Enabling retry…"
+      pending={pending}
+      error={error === null ? null : <ErrorNotice error={error} />}
+      onConfirm={onConfirm}
+      onCancel={onCancel}
     >
-      <DialogHeader
-        id={titleId}
-        eyebrow="Model recovery"
-        title="Retry the model connection?"
-      />
-      <div id={descriptionId} className="runs-dialog-text">
-        <p>{recoveryReasons[recovery.code]}</p>
-        <p>
-          The current invocation continues where it stopped. Completed work is
-          kept and no new stage attempt starts. Restore the model before you
-          retry.
-        </p>
-      </div>
-      {error === null ? null : <ErrorNotice error={error} />}
-      <div className="project-dialog-actions">
-        <button
-          className="secondary-button"
-          type="button"
-          ref={back}
-          disabled={pending}
-          onClick={onCancel}
-        >
-          Not now
-        </button>
-        <button type="button" disabled={pending} onClick={onConfirm}>
-          {pending ? "Enabling retry…" : "Confirm retry"}
-        </button>
-      </div>
-    </Dialog>
+      <p>{runRecoveryReason(recovery.code)}</p>
+      <p>
+        The current invocation continues where it stopped. Completed work is
+        kept and no new stage attempt starts. Restore the model before you
+        retry.
+      </p>
+    </AlertDialog>
   );
 }

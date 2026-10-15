@@ -13,14 +13,14 @@ import type {
 import type { StatusTone } from "../../app/status-tone";
 
 export type EvalState = EvalExperiment["state"];
-export type EvalConclusion = EvalSummary["conclusion"];
-export type EvalExecutionKind = EvalExperiment["executionKind"];
-export type EvalControlMode = EvalExperiment["controlMode"];
-export type EvalFreshness = NonNullable<EvalExperiment["freshness"]>;
-export type EvalSection = "overview" | "comparison" | "attempts" | "setup";
+type EvalConclusion = EvalSummary["conclusion"];
+type EvalExecutionKind = EvalExperiment["executionKind"];
+type EvalControlMode = EvalExperiment["controlMode"];
+type EvalFreshness = NonNullable<EvalExperiment["freshness"]>;
+type EvalSection = "overview" | "comparison" | "attempts" | "setup";
 
 /** A status word and the tone of its glyph or chip. */
-export interface EvalLabel {
+interface EvalLabel {
   readonly label: string;
   readonly tone: StatusTone;
 }
@@ -63,9 +63,7 @@ export function evalStateLabel(state: EvalState): EvalLabel {
 
 // "Meets declared gates" is the only passing wording (S30:529-530): it is not
 // a universal quality approval.
-export const EVAL_CONCLUSION_LABELS: Readonly<
-  Record<EvalConclusion, EvalLabel>
-> = {
+const EVAL_CONCLUSION_LABELS: Readonly<Record<EvalConclusion, EvalLabel>> = {
   pass: { label: "Meets declared gates", tone: "success" },
   regressions: { label: "Regressions found", tone: "blocked" },
   inconclusive: { label: "Inconclusive", tone: "warning" },

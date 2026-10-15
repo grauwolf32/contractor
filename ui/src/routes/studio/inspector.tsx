@@ -778,7 +778,7 @@ function BlockYAML({
     [discard, setDiscard] = useState(false);
   return (
     <Dialog
-      className="project-dialog studio-dialog"
+      className="ui-dialog studio-dialog"
       labelledBy={id}
       onRequestClose={() => (source === initial ? onClose() : setDiscard(true))}
     >

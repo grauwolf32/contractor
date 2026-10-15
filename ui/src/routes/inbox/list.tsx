@@ -49,6 +49,7 @@ import {
   SECTIONS,
   SUCCEEDED_RUNS_PATH,
 } from "./present";
+import { plural } from "../../app/format";
 
 const UNAVAILABLE = "Some of this could not be loaded. Try again above.";
 
@@ -394,10 +395,6 @@ function Section({
   );
 }
 
-function plural(count: number, one: string, many: string): string {
-  return `${count.toLocaleString("en-US")} ${count === 1 ? one : many}`;
-}
-
 /**
  * Where to decide the requests the Inbox leaves out: each check with more
  * pending requests than its first page links to its own pending requests
@@ -644,7 +641,7 @@ function CapacityCounts({ data }: { data: InboxData }) {
   );
 }
 
-export interface InboxListProps extends Selection {
+interface InboxListProps extends Selection {
   data: InboxData;
   subtitle: string;
   containerProps: ListNavigationContainerProps;

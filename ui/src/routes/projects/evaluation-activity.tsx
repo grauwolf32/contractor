@@ -4,7 +4,7 @@ import { RecordedTime } from "../../app/recorded-time";
 import { usePublicAPI } from "../../api/context";
 import { listProjectRuns } from "../../api/projects";
 import { queryKeys } from "../../api/query-keys";
-import { StateBadge } from "../runs/components";
+import { RunStateChip } from "../runs/components";
 
 export function EvaluationActivity({ projectId }: { projectId: string }) {
   const api = usePublicAPI();
@@ -27,7 +27,7 @@ export function EvaluationActivity({ projectId }: { projectId: string }) {
         <>
           <div>
             <span>Last execution</span>
-            <StateBadge state={run.state} />
+            <RunStateChip state={run.state} />
           </div>
           <ContextLink
             to={`/runs/${encodeURIComponent(run.runId)}`}

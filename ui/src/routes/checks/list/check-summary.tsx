@@ -11,7 +11,7 @@ import { PublicAPIError } from "../../../api/error";
 import { getProject } from "../../../api/projects";
 import { queryKeys } from "../../../api/query-keys";
 import { ErrorNotice } from "../../../app/error-notice";
-import { formatTimestamp } from "../../../app/format";
+import { formatTimestamp, plural } from "../../../app/format";
 import { RecordedTime } from "../../../app/recorded-time";
 import {
   checkItemKind,
@@ -43,10 +43,6 @@ import {
   ProgressLegend,
   StopReasonBanner,
 } from "../../projects/audits/progress";
-
-function plural(count: number, singular: string, many: string): string {
-  return `${count.toLocaleString("en-US")} ${count === 1 ? singular : many}`;
-}
 
 function Summary({
   audit,

@@ -645,7 +645,7 @@ export function StudioRoute() {
       ) : null}
       {replacement || removing || blocker.state === "blocked" ? (
         <Dialog
-          className="project-dialog studio-dialog"
+          className="ui-dialog studio-dialog"
           labelledBy={headingId}
           onRequestClose={() => {
             setReplacement(undefined);
@@ -740,7 +740,7 @@ function ImportYAML({
   const close = () => (source ? setDiscard(true) : onClose());
   return (
     <Dialog
-      className="project-dialog studio-dialog"
+      className="ui-dialog studio-dialog"
       labelledBy={id}
       onRequestClose={close}
     >

@@ -13,7 +13,7 @@ import { artifactDetailPath } from "./paths";
 import "./materials.css";
 
 /** Where a Git import came from: repository, branch or tag, commit. */
-export function GitSourceLine({ source }: { source: GitSource }) {
+function GitSourceLine({ source }: { source: GitSource }) {
   return (
     <p className="materials-notice-line">
       <span>

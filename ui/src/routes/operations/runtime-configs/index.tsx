@@ -32,9 +32,8 @@ import {
 } from "../../../api/operations";
 import { queryKeys } from "../../../api/query-keys";
 import { Dialog, DialogHeader } from "../../../app/dialog";
-import { ConfirmRemovalDialog } from "../../../app/confirm-removal-dialog";
+import { AlertDialog } from "../../../ui";
 import { Icon } from "../../../app/icon";
-import { DeleteIcon } from "../../../app/delete-icon";
 import {
   createMutationIdempotencyKey,
   MutationDraftKeyring,
@@ -395,7 +394,7 @@ function RuntimeConfigPublishForm({
   ] as const;
   return (
     <Dialog
-      className="project-dialog panel ops-dialog"
+      className="ui-dialog ui-panel ops-dialog"
       labelledBy={heading}
       initialFocusRef={initialFocus}
       onRequestClose={() => {
@@ -703,7 +702,7 @@ function RuntimeConfigPublishForm({
           </strong>
           <p>Current label bindings remain in effect until you rebind them.</p>
         </div>
-        <div className="project-dialog-actions">
+        <div className="ui-dialog-actions">
           <button
             type="button"
             className="ui-btn"
@@ -901,7 +900,7 @@ function BindingEditor({
               setConfirmRemoval(true);
             }}
           >
-            <DeleteIcon />
+            <Icon name="delete" />
           </button>
         )}
       </div>
@@ -931,15 +930,12 @@ function BindingEditor({
         </>
       )}
       {confirmRemoval ? (
-        <ConfirmRemovalDialog
+        <AlertDialog
+          eyebrow="Confirm removal"
           className="ops-confirm"
+          dismissOnBackdrop
           title={`Remove binding ${binding.label}?`}
-          description={
-            <>
-              New Runs will no longer be able to select the label{" "}
-              <code>{binding.label}</code>. To restore it, create a new binding.
-            </>
-          }
+          pendingLabel="Removing…"
           confirmLabel="Remove binding"
           pending={deletion.isPending}
           confirmDisabled={stale}
@@ -956,7 +952,12 @@ function BindingEditor({
             deletion.reset();
           }}
           onConfirm={() => deletion.mutate()}
-        />
+        >
+          <p>
+            New Runs will no longer be able to select the label{" "}
+            <code>{binding.label}</code>. To restore it, create a new binding.
+          </p>
+        </AlertDialog>
       ) : null}
     </article>
   );
@@ -1202,7 +1203,7 @@ function RuntimeCredentialCreateForm({ onClose }: { onClose: () => void }) {
 
   return (
     <Dialog
-      className="project-dialog panel ops-dialog"
+      className="ui-dialog ui-panel ops-dialog"
       labelledBy={heading}
       initialFocusRef={initialFocus}
       onRequestClose={() => {
@@ -1316,7 +1317,7 @@ function RuntimeCredentialCreateForm({ onClose }: { onClose: () => void }) {
                     )
                   }
                 >
-                  <DeleteIcon />
+                  <Icon name="delete" />
                 </button>
               </div>
             ))}
@@ -1375,7 +1376,7 @@ function RuntimeCredentialCreateForm({ onClose }: { onClose: () => void }) {
             cannot be read back.
           </div>
         )}
-        <div className="project-dialog-actions">
+        <div className="ui-dialog-actions">
           <button
             type="button"
             className="ui-btn"
@@ -1509,7 +1510,7 @@ function RuntimeCredentialList({
                           setConfirmRemoval(credential);
                         }}
                       >
-                        <DeleteIcon />
+                        <Icon name="delete" />
                       </button>
                     </td>
                   </tr>
@@ -1521,18 +1522,12 @@ function RuntimeCredentialList({
       </QueryView>
       <CursorControls label="Runtime credential pages" {...controls} />
       {confirmRemoval ? (
-        <ConfirmRemovalDialog
+        <AlertDialog
+          eyebrow="Confirm removal"
           className="ops-confirm"
+          dismissOnBackdrop
           title={`Delete Runtime credential ${confirmRemoval.credentialId}?`}
-          description={
-            <>
-              This permanently deletes the <code>{confirmRemoval.kind}</code>{" "}
-              credential <code>{confirmRemoval.credentialId}</code>. Its ID
-              cannot be reused, and RuntimeConfig versions that name it cannot
-              be bound again. Restore access by entering the secret under a new
-              ID and publishing a new version.
-            </>
-          }
+          pendingLabel="Removing…"
           confirmLabel="Delete Runtime credential"
           pending={deletion.isPending}
           error={
@@ -1548,7 +1543,15 @@ function RuntimeCredentialList({
             deletion.reset();
           }}
           onConfirm={() => deletion.mutate(confirmRemoval.credentialId)}
-        />
+        >
+          <p>
+            This permanently deletes the <code>{confirmRemoval.kind}</code>{" "}
+            credential <code>{confirmRemoval.credentialId}</code>. Its ID cannot
+            be reused, and RuntimeConfig versions that name it cannot be bound
+            again. Restore access by entering the secret under a new ID and
+            publishing a new version.
+          </p>
+        </AlertDialog>
       ) : null}
     </OpsSection>
   );
@@ -1568,7 +1571,7 @@ function RuntimeBindingsDialog({
   const heading = useId();
   return (
     <Dialog
-      className="project-dialog panel ops-dialog"
+      className="ui-dialog ui-panel ops-dialog"
       labelledBy={heading}
       onRequestClose={onClose}
     >

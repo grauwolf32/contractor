@@ -10,7 +10,7 @@ import {
 import { usePublicAPI } from "../../api/context";
 import { queryKeys } from "../../api/query-keys";
 
-export interface DuplicatePickerProps {
+interface DuplicatePickerProps {
   auditId: string;
   /** The possible issue being decided; it cannot be its own original. */
   findingId: string;

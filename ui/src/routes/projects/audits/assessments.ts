@@ -51,7 +51,7 @@ const CONCLUDED_GROUPS: ReadonlySet<Group> = new Set<Group>([
  * What a coverage status means. Coverage is not a verdict on security: a
  * traced endpoint is only traced, and excluded items never count as met.
  */
-export const STATUS_DESCRIPTIONS: Readonly<Record<Status, string>> = {
+const STATUS_DESCRIPTIONS: Readonly<Record<Status, string>> = {
   violated: "The evidence shows that the requirement is not met.",
   satisfied: "The available evidence meets the requirement.",
   inconclusive: "There is not enough evidence to reach a conclusion.",

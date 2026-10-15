@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { Link, useNavigate } from "react-router";
+import { Link } from "react-router";
 
 import { usePublicAPI } from "../../api/context";
 import { listProjects } from "../../api/projects";
@@ -18,6 +18,8 @@ import { useNewProjectKeys } from "./new-project-keys";
 import { ProjectsRoute } from "./projects-route";
 
 import "./collection.css";
+import { pollWhileAnyDeleting } from "./use-project-deletion";
+import { useGuardedNavigate } from "../../app/page-location";
 
 /**
  * /projects. The same component serves /projects/:projectId, so choosing a
@@ -33,7 +35,7 @@ export const ProjectListRoute = ProjectsRoute;
 export function EvaluationListRoute() {
   useDocumentTitle("Evals");
   const api = usePublicAPI();
-  const navigate = useNavigate();
+  const navigate = useGuardedNavigate();
   const pages = useCursorStack();
   const [createOpen, setCreateOpen] = useState(false);
   const createKeys = useNewProjectKeys();
@@ -45,12 +47,7 @@ export function EvaluationListRoute() {
         kind: "evaluation",
         ...(cursor === undefined ? {} : { cursor }),
       }),
-    refetchInterval: (current) =>
-      current.state.data?.items.some(
-        (project) => project.lifecycle === "deleting",
-      )
-        ? 1_000
-        : false,
+    refetchInterval: pollWhileAnyDeleting,
   });
 
   return (
@@ -115,7 +112,7 @@ export function EvaluationListRoute() {
         onRetry={() => void query.refetch()}
         isEmpty={(data) => data.items.length === 0}
         empty={
-          <div className="empty-state panel">
+          <div className="empty-state ui-panel">
             <p className="eyebrow">Nothing here yet</p>
             <h3>Create your first Eval</h3>
             <p>
@@ -139,7 +136,7 @@ export function EvaluationListRoute() {
               const path = `/evals/${encodeURIComponent(project.projectId)}`;
               return (
                 <article
-                  className={`panel project-card ${project.lifecycle === "deleting" ? "is-deleting" : ""}`}
+                  className={`ui-panel project-card ${project.lifecycle === "deleting" ? "is-deleting" : ""}`}
                   key={project.projectId}
                 >
                   <div>

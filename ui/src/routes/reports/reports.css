@@ -66,8 +66,7 @@
   line-height: 1.5;
 }
 
-.reports-list-loading,
-.reports-list-limit {
+.reports-list-loading {
   padding: 0.875rem var(--ui-pad-end, 1rem) 0 var(--ui-pad-start, 1.25rem);
   font-size: 0.75rem;
 }

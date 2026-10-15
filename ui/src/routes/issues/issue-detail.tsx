@@ -61,13 +61,13 @@ const CHEVRON_UP = "M6 14.5l6-6 6 6";
 const CHEVRON_DOWN = "M6 9.5l6 6 6-6";
 
 /** Where the selected possible issue sits in the list. */
-export interface IssuePosition {
+interface IssuePosition {
   /** Zero-based. */
   index: number;
   count: number;
 }
 
-export interface IssueDetailProps {
+interface IssueDetailProps {
   auditId: string;
   findingId: string;
   /** The possible issue as the list has it, shown until the exact read. */

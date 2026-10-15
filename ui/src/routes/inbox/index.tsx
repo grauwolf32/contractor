@@ -24,6 +24,7 @@ import {
 import { rowPage } from "./present";
 
 import "./inbox.css";
+import { plural } from "../../app/format";
 
 /** The overview, where focus requests and announcements name no item. */
 const OVERVIEW = "";
@@ -32,10 +33,6 @@ const OVERVIEW = "";
 interface RowChoice {
   key: string;
   section: InboxSectionId;
-}
-
-function plural(count: number, one: string, many: string): string {
-  return `${count.toLocaleString("en-US")} ${count === 1 ? one : many}`;
 }
 
 /** One line per section for the overview shown when nothing is selected. */

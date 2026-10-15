@@ -17,7 +17,11 @@ import {
   type PerformanceSnapshot,
 } from "../../../api/performance";
 import { queryKeys } from "../../../api/query-keys";
-import { formatBytes, formatTimestamp } from "../../../app/format";
+import {
+  formatBytes,
+  formatTimestamp,
+  formatSeconds,
+} from "../../../app/format";
 import { TechnicalDetails } from "../../../ui";
 import { OperationsState, OpsSection } from "../common";
 import { type ChartDatum, MetricChart } from "./chart";
@@ -144,10 +148,6 @@ function decimal(value: number): string {
   return value.toLocaleString(undefined, { maximumFractionDigits: 2 });
 }
 
-function seconds(value: number): string {
-  return `${value.toLocaleString(undefined, { maximumFractionDigits: 3 })} s`;
-}
-
 function quantile(
   histogram: PerformanceHistogram | undefined,
   value: number,
@@ -157,7 +157,7 @@ function quantile(
     ? "Unavailable"
     : bound === "overflow"
       ? "> 60 s"
-      : `≤ ${seconds(bound)}`;
+      : `≤ ${formatSeconds(bound)}`;
 }
 
 function GroupCard({
@@ -306,7 +306,7 @@ function CurrentMetrics({
           </div>
           <div>
             <dt>GC pause delta</dt>
-            <dd>{metric(process?.gcPauseSeconds, seconds)}</dd>
+            <dd>{metric(process?.gcPauseSeconds, formatSeconds)}</dd>
           </div>
         </dl>
       </GroupCard>
@@ -382,11 +382,11 @@ function CurrentMetrics({
           </div>
           <div>
             <dt>Acquire mean</dt>
-            <dd>{metric(acquisitionMean, seconds)}</dd>
+            <dd>{metric(acquisitionMean, formatSeconds)}</dd>
           </div>
           <div>
             <dt>Empty-pool wait</dt>
-            <dd>{metric(pool?.emptyAcquireWaitSeconds, seconds)}</dd>
+            <dd>{metric(pool?.emptyAcquireWaitSeconds, formatSeconds)}</dd>
           </div>
           <div>
             <dt>Cancelled acquires</dt>
@@ -423,7 +423,9 @@ function CurrentMetrics({
           </div>
           <div>
             <dt>Longest transaction</dt>
-            <dd>{metric(database?.longestTransactionSeconds, seconds)}</dd>
+            <dd>
+              {metric(database?.longestTransactionSeconds, formatSeconds)}
+            </dd>
           </div>
           <div>
             <dt>Commits / s</dt>

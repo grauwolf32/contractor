@@ -21,10 +21,11 @@ import type {
   AuditState,
 } from "../api/audits";
 import type { components } from "../api/generated/public";
+import type { RunStatus, WorkflowRunState } from "../api/runs";
 import type { StatusTone } from "./status-tone";
 
 export type AuditCoverageStatus = components["schemas"]["AuditCoverageStatus"];
-export type AuditReportStatus = components["schemas"]["AuditReportStatus"];
+type AuditReportStatus = components["schemas"]["AuditReportStatus"];
 export type AuditReviewState = components["schemas"]["AuditReviewState"];
 export type AuditReviewKind = AuditReviewRequest["kind"];
 
@@ -166,7 +167,12 @@ function unknownLabel(value: string): string {
   return words === "" ? "Unknown" : capitalize(words);
 }
 
-function labelOf<K extends string>(
+/**
+ * The label of `value` in a vocabulary table; a value this client does not
+ * know yet reads as written ("release_pending" is "Release pending") with
+ * the neutral tone.
+ */
+export function labelOf<K extends string>(
   table: Readonly<Record<K, VocabularyLabel>>,
   value: K,
 ): VocabularyLabel {
@@ -239,6 +245,66 @@ export function severityLabel(
     : wordOf(SEVERITY_LABELS, severity);
 }
 
+// Run states keep the execution vocabulary (v3b-build-contract.md §3: "Run,
+// Workflow, Runtime Agent: unchanged"): each label is the API state as a
+// word, so it never claims more than the state says, and an unknown wait
+// reason stays unknown (§3). Tones follow the state's meaning
+// (docs/spec/execution/runs.md, Run lifecycle): initializing and running are
+// work under way (progress); pending is not admitted yet (idle); waiting for
+// the model route and cancelling need attention (warning). Runs, Projects and
+// the Inbox all read this table.
+export const RUN_STATE_LABELS: Readonly<
+  Record<WorkflowRunState, VocabularyLabel>
+> = {
+  initializing: { label: "Initializing", tone: "progress" },
+  pending: { label: "Pending", tone: "idle" },
+  waiting: { label: "Waiting", tone: "warning" },
+  running: { label: "Running", tone: "progress" },
+  cancelling: { label: "Cancelling", tone: "warning" },
+  succeeded: { label: "Succeeded", tone: "done" },
+  failed: { label: "Failed", tone: "blocked" },
+  cancelled: { label: "Cancelled", tone: "neutral" },
+};
+
+/** Run state: "Running", "Waiting", "Succeeded", … */
+export function runStateLabel(state: WorkflowRunState): VocabularyLabel {
+  return labelOf(RUN_STATE_LABELS, state);
+}
+
+const RUN_STATE_PHRASES: Readonly<Record<WorkflowRunState, string>> = {
+  initializing: "is initializing",
+  pending: "is pending",
+  waiting: "is waiting",
+  running: "is running",
+  cancelling: "is cancelling",
+  succeeded: "succeeded",
+  failed: "failed",
+  cancelled: "was cancelled",
+};
+
+/** Run state inside a sentence, after the Run's name: "is running", "succeeded". */
+export function runStatePhrase(state: WorkflowRunState): string {
+  return Object.hasOwn(RUN_STATE_PHRASES, state)
+    ? RUN_STATE_PHRASES[state]
+    : `is ${runStateLabel(state).label.toLowerCase()}`;
+}
+
+type RunRecoveryCode = NonNullable<RunStatus["recovery"]>["code"];
+
+const RUN_RECOVERY_REASONS: Readonly<Record<RunRecoveryCode, string>> = {
+  model_unavailable: "The model was unloaded or is unavailable.",
+  gateway_unavailable: "The model gateway is unavailable.",
+  gateway_timeout: "The model request timed out.",
+  gateway_rate_limited: "The model gateway is rate limiting requests.",
+};
+
+/** Why a waiting Run waits for its model route (RUN-R30). */
+export function runRecoveryReason(code: RunRecoveryCode): string {
+  return Object.hasOwn(RUN_RECOVERY_REASONS, code)
+    ? RUN_RECOVERY_REASONS[code]
+    : "The model connection is interrupted.";
+}
+
 /** What one unit of work in a check is called. */
 export type ItemKind = "endpoint" | "requirement" | "scenario" | "item";
 
@@ -303,7 +369,7 @@ function checkTypeNameKind(name: string): ItemKind {
 }
 
 /** What the UI knows about a check: a work item, the check type or the check. */
-export type CheckItemKindSource =
+type CheckItemKindSource =
   | Pick<AuditItem, "kind" | "origin">
   | Pick<AuditProfile, "inventory" | "standards">
   | Pick<Audit, "profile" | "baseline">;

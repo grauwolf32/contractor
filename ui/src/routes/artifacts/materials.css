@@ -896,7 +896,7 @@ form.materials-filter.inline-form button {
 
 /* ---------- Sheets: Add material, upload, Git import ---------- */
 
-.project-dialog.materials-sheet {
+.ui-dialog.materials-sheet {
   display: flex;
   flex-direction: column;
   gap: 1rem;
@@ -906,7 +906,7 @@ form.materials-filter.inline-form button {
   border-radius: 14px;
 }
 
-.materials-sheet .project-dialog-heading h2 {
+.materials-sheet .ui-dialog-heading h2 {
   margin: 0;
   color: var(--text);
   font-size: 1.25rem;
@@ -916,15 +916,15 @@ form.materials-filter.inline-form button {
   overflow-wrap: anywhere;
 }
 
-.materials-sheet .project-dialog-heading .eyebrow {
+.materials-sheet .ui-dialog-heading .eyebrow {
   margin: 0 0 0.25rem;
   color: var(--muted);
   font-size: 0.71875rem;
   letter-spacing: 0.08em;
 }
 
-.materials-sheet .project-dialog-close,
-.materials-sheet .project-dialog-close:not(:disabled):active {
+.materials-sheet .ui-dialog-close,
+.materials-sheet .ui-dialog-close:not(:disabled):active {
   width: 2rem;
   min-height: 0;
   height: 2rem;
@@ -937,7 +937,7 @@ form.materials-filter.inline-form button {
   transform: none;
 }
 
-.materials-sheet .project-dialog-close:not(:disabled):hover {
+.materials-sheet .ui-dialog-close:not(:disabled):hover {
   background: var(--surface-hover);
   color: var(--text);
 }
@@ -963,7 +963,7 @@ form.materials-filter.inline-form button {
 }
 
 /* Fields inside the sheets and the new-version panel: V3B control size. */
-.project-dialog.materials-sheet
+.ui-dialog.materials-sheet
   :is(
     input:not(
       [type="checkbox"],
@@ -993,7 +993,7 @@ form.materials-filter.inline-form button {
   font-size: 0.9375rem;
 }
 
-.project-dialog.materials-sheet label,
+.ui-dialog.materials-sheet label,
 .materials-detail .materials-update label {
   color: var(--muted-strong);
   font-size: 0.8125rem;
@@ -1203,7 +1203,7 @@ form.materials-filter.inline-form button {
 /* The shared backdrop docks dialogs to the bottom from 640 px down
    (styles.css); only then do the sheets drop their side and bottom edges. */
 @media (max-width: 640px) {
-  .project-dialog.materials-sheet {
+  .ui-dialog.materials-sheet {
     padding: 1rem 1rem 1.25rem;
     border-right: 0;
     border-bottom: 0;
@@ -1212,7 +1212,7 @@ form.materials-filter.inline-form button {
   }
 }
 
-@media (max-width: 520px) {
+@media (max-width: 640px) {
   .materials-write-form .materials-fields,
   .materials-form-pair {
     grid-template-columns: minmax(0, 1fr);

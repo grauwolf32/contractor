@@ -18,6 +18,7 @@ disagree, fix one of them in the same commit.
 | Every capability today and where it lands | [v3b-coverage.html](v3b-coverage.html) (open in a browser; the data is the `ROWS` array in the page source) |
 | Visual reference | `docs/design/ui/mockups/v3b/{home,project,start,check,issue}.html` (open in a browser; `?theme=dark` / `?theme=black`) and [v3b-panes.md](v3b-panes.md) |
 | Tokens and palette | `ui/src/app/theme.css`, [themes.md](themes.md) |
+| Building blocks, style scale and breakpoints | `ui/src/ui/README.md` (Button, AlertDialog, Facts, Field, Icon, formatters, polling; spacing, radius, font-size and control tokens; breakpoints 480, 640, 820 and 1100 px) |
 | User goals and acceptance | `docs/spec/ui/journeys.md`, `docs/spec/ui/ui.md`, `docs/spec/18-…`, `docs/spec/audits/audits.md` (UI parts), `docs/spec/artifacts/git-import.md`, `docs/spec/evals/managed-evals.md` |
 | API | `api/openapi/contractor-public-v1.yaml`, wrappers in `ui/src/api/*.ts` |
 
@@ -38,6 +39,9 @@ disagree, fix one of them in the same commit.
    decisions. Cancel and Delete keep their confirmation dialogs.
 5. **Colours only from tokens** (`var(--…)` from `theme.css`). No raw hex, rgb
    or named colours in CSS or TSX. Every screen works in light, dark and black.
+   Sizes come from the scale in `theme.css` and media queries use only the four
+   breakpoints; pages use the shared `Button`, `AlertDialog` and `Icon` instead
+   of their own (lint enforces both, `ui/src/ui/README.md`).
 6. **No browser storage** except the existing theme preference. No secrets in
    the DOM after submit, in URLs, or in storage.
 7. **Accessible by default.** Real `<button>` and `<a>`; icon-only controls have
@@ -127,7 +131,7 @@ Wording that must not change in meaning:
   with logo, a command button and a **Menu** / **Close menu** toggle that opens
   the destinations as a drawer.
 - **Panes.** Destinations with lists use `PaneLayout`: list pane (360 px; 300 px
-  between 821 and 1099 px) and detail pane. ≤ 820 px shows one pane: the list,
+  between 821 and 1100 px) and detail pane. ≤ 820 px shows one pane: the list,
   or the detail with a "Back to …" link when something is selected. Selection
   lives in the URL (path segment or query), never only in state.
 - **Keyboard.** J / K (and ↓ / ↑ inside a focused list) move the selection;

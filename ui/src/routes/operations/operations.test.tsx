@@ -10,6 +10,7 @@ import type {
   RuntimeConfigResource,
 } from "../../api/operations";
 import { Application } from "../../app/application";
+import * as queryClientFactory from "../../app/query-client";
 import { applicationRoutes } from "../../app/router";
 import type { RuntimeConfig } from "../../config/runtime-config";
 import { RunEventsManager } from "../../events/run-events";
@@ -133,14 +134,26 @@ function renderOperations(api: PublicAPI, path: string) {
   const events = new RunEventsManager(runtimeConfig.apiBaseUrl, {
     WebSocketImplementation: OperationsWebSocket as unknown as typeof WebSocket,
   });
-  return render(
-    <Application
-      api={api}
-      publicAPI={api}
-      runEvents={events}
-      router={router}
-    />,
-  );
+  return {
+    ...render(
+      <Application
+        api={api}
+        publicAPI={api}
+        runEvents={events}
+        router={router}
+      />,
+    ),
+    router,
+  };
+}
+
+/** A response the test releases when it chooses. */
+function heldResponse() {
+  let release: () => void = () => undefined;
+  const released = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  return { released, release };
 }
 
 function sessionResponse(request: Request): Response | undefined {
@@ -720,6 +733,163 @@ describe("Operations routes", () => {
         },
       },
     ]);
+  });
+
+  // AGENTS.md 3.8, V385-001 A7: a late answer never moves a user who left.
+  it("leaves a user who moved on where they are when a credential deletion answers late", async () => {
+    const credential = {
+      credentialId: "worker-budget",
+      llmGateway: { gatewayId: "local-litellm", version: "1", digest },
+      createdAt: "2026-08-31T12:00:00Z",
+      effectivePolicy: {
+        modelPolicies: [{ policyId: "worker", version: "1", digest }],
+        models: ["qwen-worker"],
+      },
+    };
+    const deletion = heldResponse();
+    const api = new PublicAPI(runtimeConfig, async (input, init) => {
+      const request = new Request(input, init);
+      const authenticated = sessionResponse(request);
+      if (authenticated !== undefined) return authenticated;
+      const path = new URL(request.url).pathname;
+      if (path === "/v1/operations/snapshot") return apiResponse(snapshot());
+      if (path === "/v1/operations/credentials/worker-budget") {
+        if (request.method === "DELETE") {
+          await deletion.released;
+          return apiResponse(undefined, 204);
+        }
+        return apiResponse(credential);
+      }
+      if (path === "/v1/operations/credentials")
+        return apiResponse({ items: [], page: { hasMore: false } });
+      return apiResponse(
+        { code: "not_found", message: "Not in this fixture", retryable: false },
+        404,
+      );
+    });
+    const queryClient = queryClientFactory.createApplicationQueryClient();
+    const factory = vi
+      .spyOn(queryClientFactory, "createApplicationQueryClient")
+      .mockReturnValueOnce(queryClient);
+    const view = renderOperations(api, "/operations/credentials/worker-budget");
+    factory.mockRestore();
+    const user = userEvent.setup();
+    await user.click(
+      await screen.findByLabelText(/I understand that the LiteLLM key/),
+    );
+    await user.click(
+      screen.getByRole("button", {
+        name: "Delete from LiteLLM and Contractor",
+      }),
+    );
+    await act(() => view.router.navigate("/settings"));
+    expect(queryClient.isMutating()).toBe(1);
+    deletion.release();
+    await waitFor(() => expect(queryClient.isMutating()).toBe(0));
+    await act(async () => undefined);
+    expect(
+      queryClient
+        .getMutationCache()
+        .getAll()
+        .map((m) => m.state.status),
+    ).toEqual(["success"]);
+    expect(view.router.state.navigation.state).toBe("idle");
+    expect(view.router.state.location.pathname).toBe("/settings");
+  });
+
+  it("leaves a user who moved on where they are when a credential creation answers late", async () => {
+    const gateway = {
+      ref: {
+        kind: "llm-gateways" as const,
+        name: "local-litellm",
+        version: "1",
+        digest,
+      },
+      body: {
+        protocol: "openai-compatible@1" as const,
+        url: "http://127.0.0.1:4000/v1",
+        credentialManager: {
+          implementation: "litellm-virtual-keys@1" as const,
+          managementUrl: "http://127.0.0.1:4000",
+        },
+      },
+      source: "operator" as const,
+    };
+    const policy = {
+      ref: {
+        kind: "model-policies" as const,
+        name: "worker",
+        version: "1",
+        digest,
+      },
+      body: { model: "qwen-worker" },
+      source: "operator" as const,
+    };
+    const credential = {
+      credentialId: "worker-budget",
+      llmGateway: { gatewayId: "local-litellm", version: "1", digest },
+      createdAt: "2026-08-31T12:00:00Z",
+      effectivePolicy: {
+        modelPolicies: [{ policyId: "worker", version: "1", digest }],
+        models: ["qwen-worker"],
+      },
+      generatedToken: "CREDENTIAL_SECRET_CANARY",
+    };
+    const creation = heldResponse();
+    const api = new PublicAPI(runtimeConfig, async (input, init) => {
+      const request = new Request(input, init);
+      const authenticated = sessionResponse(request);
+      if (authenticated !== undefined) return authenticated;
+      const path = new URL(request.url).pathname;
+      if (path === "/v1/operations/snapshot") return apiResponse(snapshot());
+      if (path === "/v1/configurations/llm-gateways")
+        return apiResponse({ items: [gateway], page: { hasMore: false } });
+      if (path === "/v1/configurations/model-policies")
+        return apiResponse({ items: [policy], page: { hasMore: false } });
+      if (path === "/v1/operations/credentials") {
+        if (request.method === "POST") {
+          await creation.released;
+          return apiResponse(credential, 201);
+        }
+        return apiResponse({ items: [], page: { hasMore: false } });
+      }
+      return apiResponse(
+        { code: "not_found", message: "Not in this fixture", retryable: false },
+        404,
+      );
+    });
+    const queryClient = queryClientFactory.createApplicationQueryClient();
+    const factory = vi
+      .spyOn(queryClientFactory, "createApplicationQueryClient")
+      .mockReturnValueOnce(queryClient);
+    const view = renderOperations(api, "/operations/credentials");
+    factory.mockRestore();
+    const user = userEvent.setup();
+    await user.click(
+      await screen.findByText("Create LLM credential", { selector: "summary" }),
+    );
+    await user.type(screen.getByLabelText("Credential ID"), "worker-budget");
+    await user.selectOptions(
+      screen.getByLabelText("Managed LLM Gateway"),
+      screen.getByRole("option", { name: /local-litellm@1/ }),
+    );
+    await user.click(screen.getByLabelText(/worker@1/));
+    await user.click(
+      screen.getByRole("button", { name: "Create active credential" }),
+    );
+    await act(() => view.router.navigate("/settings"));
+    expect(queryClient.isMutating()).toBe(1);
+    creation.release();
+    await waitFor(() => expect(queryClient.isMutating()).toBe(0));
+    await act(async () => undefined);
+    expect(
+      queryClient
+        .getMutationCache()
+        .getAll()
+        .map((m) => m.state.status),
+    ).toEqual(["success"]);
+    expect(view.router.state.navigation.state).toBe("idle");
+    expect(view.router.state.location.pathname).toBe("/settings");
   });
 
   it("shows Run, Audit and RuntimeConfig label holds on a credential", async () => {
@@ -1339,7 +1509,7 @@ describe("Operations routes", () => {
         ) {
           deletes.push(request.clone());
           items = items.slice(0, 1);
-          return new Response(null, { status: 204 });
+          return apiResponse(undefined, 204);
         }
         if (path === "/v1/operations/runtime-agent-principals")
           return apiResponse({ items, page: { hasMore: false } });
@@ -1534,7 +1704,7 @@ describe("Runtime Agent cards", () => {
           request.method === "DELETE"
         ) {
           forgotten = true;
-          return new Response(null, { status: 204 });
+          return apiResponse(undefined, 204);
         }
         throw new Error(`unexpected ${request.method} ${request.url}`);
       }),

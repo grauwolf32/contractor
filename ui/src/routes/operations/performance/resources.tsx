@@ -5,7 +5,12 @@ import { useId, useState } from "react";
 import { Link } from "react-router";
 
 import type { AllocationResourceSummary } from "../../../api/performance";
-import { compactId, formatBytes, formatTimestamp } from "../../../app/format";
+import {
+  compactId,
+  formatBytes,
+  formatTimestamp,
+  formatSeconds,
+} from "../../../app/format";
 import { DisclosureChevron, OperationsState } from "../common";
 import { RecordedTime } from "../../../app/recorded-time";
 
@@ -18,10 +23,6 @@ function unavailable(
   ) : (
     format(value)
   );
-}
-
-function seconds(value: number): string {
-  return `${value.toLocaleString(undefined, { maximumFractionDigits: 3 })} s`;
 }
 
 function resourceReason(item: AllocationResourceSummary): string {
@@ -190,15 +191,19 @@ export function AllocationResourceList({
             <dl className="allocation-resource-metrics">
               <div>
                 <dt>Measured interval</dt>
-                <dd>{unavailable(resources?.durationSeconds, seconds)}</dd>
+                <dd>
+                  {unavailable(resources?.durationSeconds, formatSeconds)}
+                </dd>
               </div>
               <div>
                 <dt>CPU user</dt>
-                <dd>{unavailable(resources?.cpuUserSeconds, seconds)}</dd>
+                <dd>{unavailable(resources?.cpuUserSeconds, formatSeconds)}</dd>
               </div>
               <div>
                 <dt>CPU system</dt>
-                <dd>{unavailable(resources?.cpuSystemSeconds, seconds)}</dd>
+                <dd>
+                  {unavailable(resources?.cpuSystemSeconds, formatSeconds)}
+                </dd>
               </div>
               <div>
                 <dt>Average used cores</dt>

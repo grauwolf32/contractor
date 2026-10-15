@@ -39,7 +39,7 @@ export function parseRuntimeLabels(text: string): ParsedRuntimeLabels {
   };
 }
 
-export interface CreateRequestDraft {
+interface CreateRequestDraft {
   profile: Pick<AuditProfile["ref"], "name" | "version">;
   /** Chosen material per input name. */
   inputs: Readonly<Record<string, ExactArtifactRef>>;

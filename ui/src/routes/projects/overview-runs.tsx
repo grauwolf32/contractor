@@ -18,10 +18,10 @@ import {
   requireWorkflowOutputs,
 } from "../runs/output-model";
 import { workflowFormats } from "../workflows/formats";
-import { MaterialKindIcon } from "./material-icon";
 import { projectPath } from "./project-sections";
 import { ProjectRunIdentity } from "./run-history";
-import { runStateLabel } from "./run-state";
+import { runStateLabel } from "../../app/vocabulary";
+import { Icon } from "../../app/icon";
 
 /** A Run's exact outputs and its Workflow's published output roles. */
 function useRunOutputs(summary: RunSummary) {
@@ -168,7 +168,7 @@ function RecentRunResult({
                       )}
                     >
                       <span className="projects-output-icon">
-                        <MaterialKindIcon kind="results" />
+                        <Icon name="result" size={16} />
                       </span>
                       <span className="projects-output-text">
                         <strong>{entry.slot}</strong>

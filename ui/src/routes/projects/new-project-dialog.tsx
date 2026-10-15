@@ -19,7 +19,7 @@ import type { NewProjectKeys } from "./new-project-keys";
 
 import "./projects.css";
 
-export interface NewProjectWording {
+interface NewProjectWording {
   /** Dialog title, e.g. "New project". */
   title: string;
   /** Accessible name of the close button. */
@@ -102,7 +102,7 @@ export function NewProjectDialog({
 
   return (
     <Dialog
-      className="project-dialog panel projects-new-dialog"
+      className="ui-dialog ui-panel projects-new-dialog"
       labelledBy={heading}
       initialFocusRef={nameField}
       onRequestClose={close}

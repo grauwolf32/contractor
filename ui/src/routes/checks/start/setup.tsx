@@ -13,18 +13,19 @@ import {
 } from "./check-types";
 import { TextAreaField, TextField } from "./fields";
 import { BulbIcon, ChevronIcon, PlayIcon } from "./icons";
-import { checkPath, isLostResponse, type StartFailure } from "./launch";
+import { isLostResponse, type StartFailure } from "./launch";
 import { MaterialsCard } from "./materials";
 import { projectPaths } from "./paths";
 import { SCOPE_TEXT_LIMIT } from "./request";
 import {
-  describeTimeLimit,
   isTimeLimitChoice,
   MAX_CUSTOM_HOURS,
   MIN_CUSTOM_HOURS,
   TIME_LIMIT_OPTIONS,
 } from "./time-limit";
 import type { StartCheck } from "./use-start-check";
+import { formatTimeLimit } from "../../../app/format";
+import { checkPath } from "../../projects/audits/check-links";
 
 function labelOf(model: StartCheck, checkType: string): string {
   const family = model.catalog.families.find(
@@ -391,7 +392,7 @@ function timeSentence(seconds: number | undefined): string {
   if (seconds === undefined) return "";
   return seconds === 0
     ? "It runs without a time limit."
-    : `It starts no new work after ${describeTimeLimit(seconds)}; work already running can finish.`;
+    : `It starts no new work after ${formatTimeLimit(seconds)}; work already running can finish.`;
 }
 
 /**

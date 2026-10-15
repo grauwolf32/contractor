@@ -8,7 +8,10 @@ import {
 import {
   UNSAFE_DataRouterContext,
   useLocation,
+  useNavigate,
   type Location,
+  type NavigateOptions,
+  type To,
 } from "react-router";
 
 /**
@@ -46,4 +49,28 @@ export function usePageLocationNow(): () => Location | undefined {
     const now = state.navigation.location ?? state.location;
     return now.pathname === page.pathname ? now : undefined;
   }, [dataRouter]);
+}
+
+/**
+ * Navigation on the user's behalf after an answer arrives, such as a saved
+ * form opening the new resource. The returned function navigates only while
+ * the user is still on the page that rendered the hook (usePageLocationNow)
+ * and resolves to whether it did; once the user has moved on, a late answer
+ * leaves them where they are (AGENTS.md 3.8). Every navigation that follows
+ * an await or a mutation goes through it.
+ */
+export function useGuardedNavigate(): (
+  to: To,
+  options?: NavigateOptions,
+) => Promise<boolean> {
+  const navigate = useNavigate();
+  const pageNow = usePageLocationNow();
+  return useCallback(
+    async (to: To, options?: NavigateOptions) => {
+      if (pageNow() === undefined) return false;
+      await navigate(to, options);
+      return true;
+    },
+    [navigate, pageNow],
+  );
 }

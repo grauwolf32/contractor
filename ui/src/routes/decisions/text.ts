@@ -70,7 +70,7 @@ function join(parts: readonly Block[]): string {
 }
 
 /** The AI's description split into what it found and its stated impact. */
-export interface DescriptionParts {
+interface DescriptionParts {
   found: string;
   /** Present when the description has an "Impact" heading or label. */
   impact?: string | undefined;

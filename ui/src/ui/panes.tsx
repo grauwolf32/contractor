@@ -1,7 +1,7 @@
 import { useEffect, useRef, type ReactNode, type Ref } from "react";
 import { Link, type To } from "react-router";
 
-export interface PaneLayoutProps {
+interface PaneLayoutProps {
   /** The list pane content, usually a ListPane. */
   list: ReactNode;
   /** The detail pane content, usually a DetailPane or an EmptyState. */
@@ -20,7 +20,7 @@ export interface PaneLayoutProps {
 const SELECTED_ROW = '[aria-current="true"]';
 
 /**
- * List + detail frame. From 1100 px the list is 360 px wide, from 821 px
+ * List + detail frame. Above 1100 px the list is 360 px wide, from 821 px
  * 300 px; both panes then fill the viewport below the shell top bar and
  * scroll on their own. At 820 px and below one pane shows at a time in
  * normal page flow, and switching panes moves focus to the pane that
@@ -122,7 +122,7 @@ export function PaneLayout({
   );
 }
 
-export interface ListPaneProps {
+interface ListPaneProps {
   /** Pane title, e.g. "Possible issues". */
   title?: ReactNode;
   /** Title level. Default "h1". */
@@ -209,7 +209,7 @@ export function ListPane({
   );
 }
 
-export interface DetailPaneProps {
+interface DetailPaneProps {
   /** Usually a DetailHeader. */
   header?: ReactNode;
   /**
@@ -254,7 +254,7 @@ export interface BreadcrumbItem {
   to?: To | undefined;
 }
 
-export interface DetailHeaderProps {
+interface DetailHeaderProps {
   breadcrumb?: readonly BreadcrumbItem[] | undefined;
   title: ReactNode;
   /** Title level. Default "h2". */

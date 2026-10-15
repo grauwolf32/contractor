@@ -26,7 +26,13 @@ import {
   runtimeConfigVersionPath,
 } from "../../app/navigation";
 import { ErrorNotice } from "../../app/error-notice";
-import { compactDigest, compactId, formatTimestamp } from "../../app/format";
+import {
+  compactDigest,
+  compactId,
+  formatTimestamp,
+  plural,
+  formatElapsed,
+} from "../../app/format";
 import { StaleDataWarning } from "../../app/query-view";
 import { RefreshButton } from "../../app/refresh-button";
 import { useDocumentTitle } from "../../app/document-title";
@@ -47,8 +53,9 @@ import {
 import { type LiveRunProjection, useLiveRunProjection } from "./live";
 import { RecoveryStatus } from "./recovery";
 import { parseWorkflowIdentity } from "./output-model";
-import { publicationStatusLabel, runStateLabel } from "./run-state";
-import { deriveRunTriage, formatRunDuration, type RunTriage } from "./triage";
+import { publicationStatusLabel } from "./run-state";
+import { deriveRunTriage, type RunTriage } from "./triage";
+import { runStateLabel } from "../../app/vocabulary";
 
 function compactMetric(value: number): string {
   if (value < 1_000) {
@@ -58,10 +65,6 @@ function compactMetric(value: number): string {
     return `${Number((value / 1_000).toFixed(1))}K`;
   }
   return `${Number((value / 1_000_000).toFixed(1))}M`;
-}
-
-function plural(count: number, noun: string): string {
-  return `${count} ${noun}${count === 1 ? "" : "s"}`;
 }
 
 function triageTitle(run: RunStatus, triage: RunTriage): string {
@@ -336,13 +339,13 @@ function RunExecutionMetrics({
       id="run-metrics"
       title="Execution metrics"
       description="Duration, attempts, tokens and tool calls"
-      aside={`${formatRunDuration(triage.durationMs)} · ${plural(triage.attemptCount, "attempt")}`}
+      aside={`${formatElapsed(triage.durationMs)} · ${plural(triage.attemptCount, "attempt")}`}
       {...disclosure}
     >
       <dl className="runs-metric-tiles">
         <div>
           <dt>Duration</dt>
-          <dd>{formatRunDuration(triage.durationMs)}</dd>
+          <dd>{formatElapsed(triage.durationMs)}</dd>
         </div>
         <div>
           <dt>Attempts</dt>
@@ -815,7 +818,7 @@ function RunFacts({
       {durationMs === undefined ? null : (
         <div>
           <dt>Duration</dt>
-          <dd>{formatRunDuration(durationMs)}</dd>
+          <dd>{formatElapsed(durationMs)}</dd>
         </div>
       )}
     </dl>

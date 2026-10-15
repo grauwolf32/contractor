@@ -150,7 +150,7 @@ function CatalogPicker({
   const unavailableContinuation = tail?.hasMore && !query.hasNextPage;
   return (
     <Dialog
-      className="project-dialog studio-dialog studio-catalog-dialog"
+      className="ui-dialog studio-dialog studio-catalog-dialog"
       labelledBy={heading}
       initialFocusRef={search}
       onRequestClose={onClose}

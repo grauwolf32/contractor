@@ -30,7 +30,7 @@ export interface Destination {
   readonly capability?: string;
 }
 
-export const DESTINATIONS: readonly Destination[] = [
+const DESTINATIONS: readonly Destination[] = [
   {
     id: "inbox",
     label: TERMS.inbox,

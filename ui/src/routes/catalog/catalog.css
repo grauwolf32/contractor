@@ -364,9 +364,3 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
-
-@media (prefers-reduced-motion: reduce) {
-  .library-item-chevron {
-    transition: none;
-  }
-}

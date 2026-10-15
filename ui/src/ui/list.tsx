@@ -1,7 +1,7 @@
 import { useId, type ReactNode } from "react";
 import { Link, type To } from "react-router";
 
-export interface ListSectionProps {
+interface ListSectionProps {
   /** Small uppercase heading. Without it the section is a plain list. */
   title?: ReactNode;
   /** Shown in monospace after the heading. */
@@ -91,7 +91,7 @@ function renderMeta(meta: ReactNode): ReactNode {
   );
 }
 
-export interface ListRowProps {
+interface ListRowProps {
   /** Selecting the row navigates here (selection lives in the URL). */
   to?: To | undefined;
   /** Selects the row: the title becomes a button, or with `to` also runs on click. */
@@ -212,7 +212,7 @@ export interface FilterChipOption<T extends string = string> {
   count?: number | string | undefined;
 }
 
-export interface FilterChipsProps<T extends string = string> {
+interface FilterChipsProps<T extends string = string> {
   /** Accessible name of the group, e.g. "Filter by status". */
   label: string;
   options: readonly FilterChipOption<T>[];

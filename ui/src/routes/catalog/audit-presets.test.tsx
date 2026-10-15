@@ -333,7 +333,7 @@ describe("Library check types", () => {
     ).toBeVisible();
     expect(screen.getByText("Available")).toBeVisible();
     const facts = screen.getByText("Time limit").closest("dl")!;
-    expect(within(facts).getByText("10 min")).toBeVisible();
+    expect(within(facts).getByText("10 minutes")).toBeVisible();
     expect(within(facts).getByText("Never run")).toBeVisible();
     expect(within(facts).getByText("You confirm each one")).toBeVisible();
     expect(within(facts).getByText("Accepted automatically")).toBeVisible();

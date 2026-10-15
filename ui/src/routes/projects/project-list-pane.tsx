@@ -26,6 +26,8 @@ import {
 } from "../../ui";
 import { type ProjectActivity, useProjectActivity } from "./project-activity";
 import { projectPath } from "./project-sections";
+import { plural } from "../../app/format";
+import { pollWhileAnyDeleting } from "./use-project-deletion";
 
 interface RowStatus {
   tone: StatusTone;
@@ -38,10 +40,6 @@ function Status({ tone, children }: { tone: StatusTone; children: ReactNode }) {
       {children}
     </strong>
   );
-}
-
-function plural(count: number, one: string, many: string): string {
-  return `${count} ${count === 1 ? one : many}`;
 }
 
 /**
@@ -187,12 +185,7 @@ export function ProjectListPane({
         kind: "project",
         ...(cursor === undefined ? {} : { cursor }),
       }),
-    refetchInterval: (current) =>
-      current.state.data?.items.some(
-        (project) => project.lifecycle === "deleting",
-      )
-        ? 1_000
-        : false,
+    refetchInterval: pollWhileAnyDeleting,
   });
   const activity = useProjectActivity();
   const items = query.data?.items ?? [];
