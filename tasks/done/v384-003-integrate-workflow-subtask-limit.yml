@@ -6,7 +6,8 @@ epic: planner-worker
 kind: chore
 introduced_by: V384-001
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 4403083bd40babab2315da228e48f3d76d5a8046
 depends_on: [V384-001, V384-002]
 languages: [go, typescript, markdown]
 goal: >-
@@ -50,3 +51,18 @@ tests:
     covers: [A2]
   - command: make lint
     covers: [A1, A2]
+verification:
+  date: 2026-10-15
+  results:
+    - make test-config passed, including validation of all 21 shipped Workflows.
+    - make test-go passed with dedicated disposable PostgreSQL configured, including the complete Planner, Scheduler, Memory and Streamline packages.
+    - make verify-public-api passed with the required public-operation coverage check.
+    - make ui-verify passed on Node 24.20.0 with 172 test files and all 2015 UI tests, static-server tests, generated-client checking, lint, typecheck and build.
+    - make test-wire-cross-language passed with 230 fixtures, 206 Go and 161 Python shared tests, 293 Runtime contract tests and 1067 selected Runtime tests.
+    - make lint passed after regenerating the combined Audit and Workflow dependency diagram and correcting the pre-existing main importer inventory under V384-004.
+    - git merge-base --is-ancestor feat/v380-workflow-subtask-limit main succeeded after the no-fast-forward main merge.
+  notes:
+    - Incoming V380-001 and V380-002 were renamed to V384-001 and V384-002; their original implementation commits and verification evidence were retained, and main's Project policy task V380-001 was preserved.
+    - The combined public clients, shared-fixture reader manifest, milestone index, dependency diagram and backlog were regenerated or reconciled; UI version is 0.6.6.
+    - The first UI run hit 13 existing test timeouts while Go and lint ran concurrently. The complete successful repeat used two Vitest workers with unchanged assertions and timeouts.
+    - The original branch history is retained in main, and the primary checkout's branch and untracked UI mockups were left untouched.
