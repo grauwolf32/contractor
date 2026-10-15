@@ -131,7 +131,7 @@ export function ReportDetail({
     if (check.error === null)
       return (
         <DetailPane>
-          <p className="reports-quiet" role="status">
+          <p className="ui-caption" role="status">
             Loading the report…
           </p>
         </DetailPane>

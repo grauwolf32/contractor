@@ -126,11 +126,6 @@ src/events/run-events.ts:RunEventSubscription V385-001
 src/events/run-events.ts:parseServerFrame V385-001
 src/events/socket.ts:EventStream V385-001
 src/events/socket.ts:eventSocketURL V385-001
-src/routes/checks/start/suggestions.ts:FORMAT_MATCH_REASON V385-001
-src/routes/checks/start/suggestions.ts:SUGGESTION_RULES V385-001
-src/routes/decisions/announcement.ts:ANNOUNCEMENT_MS V385-001
-src/routes/decisions/finding-decision.tsx:FindingDecisionProps V385-001
-src/routes/decisions/index.ts:AuditReviewDecision V385-001
 src/routes/evals/polling.ts:EVAL_SETTLED_POLL_MS V385-001
 src/routes/evals/recovery.ts:mutationKey V385-001
 src/routes/evals/setup-model.ts:estimatedPlanBytes V385-001

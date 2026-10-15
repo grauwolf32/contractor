@@ -1,10 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  FORMAT_MATCH_REASON,
-  SUGGESTION_RULES,
-  suggestCheckTypes,
-} from "./suggestions";
+import { suggestCheckTypes } from "./suggestions";
 
 const everything = () => true;
 const only =
@@ -67,16 +63,34 @@ describe("check type suggestions", () => {
   });
 
   it("gives the rule's fixed reason and says only that formats match", () => {
-    const result = suggestCheckTypes("security risks", everything);
-    const rule = SUGGESTION_RULES.find((item) => item.id === "security-risks");
-    expect(result.suggestion?.reason).toBe(
-      `${rule?.reason} ${FORMAT_MATCH_REASON}`,
-    );
-    expect(FORMAT_MATCH_REASON).toMatch(/format matches/);
-    for (const item of SUGGESTION_RULES) {
-      expect(item.reason).toMatch(/^Your objective mentions /);
-      expect(item.reason).not.toMatch(/\b(?:proven|certif|guarantee)/i);
+    expect(suggestCheckTypes("security risks", everything).suggestion).toEqual({
+      checkType: "owasp-top10-2025-source-risk",
+      ruleId: "security-risks",
+      reason:
+        "Your objective mentions security risks, vulnerabilities or OWASP, and this check type reviews the source code for the OWASP Top 10 (2025) risks. Your project has a material whose format matches each input it needs.",
+    });
+    // One objective per rule: every reason names the words it matched and
+    // claims no more than a format match.
+    const objectives = [
+      "sqlmap",
+      "nuclei",
+      "checklist",
+      "asvs",
+      "staging",
+      "wstg",
+      "endpoints",
+      "owasp",
+    ];
+    const rules = new Set<string>();
+    for (const objective of objectives) {
+      const suggestion = suggestCheckTypes(objective, everything).suggestion;
+      rules.add(suggestion?.ruleId ?? "");
+      expect(suggestion?.reason).toMatch(
+        /^Your objective mentions .+ Your project has a material whose format matches each input it needs\.$/u,
+      );
+      expect(suggestion?.reason).not.toMatch(/\b(?:proven|certif|guarantee)/i);
     }
+    expect(rules.size).toBe(objectives.length);
   });
 
   it("offers an alternative from a different check type only", () => {

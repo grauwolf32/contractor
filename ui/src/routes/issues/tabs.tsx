@@ -4,7 +4,7 @@ import {
   type ReactNode,
 } from "react";
 
-export interface TabItem<T extends string> {
+interface TabItem<T extends string> {
   id: T;
   label: string;
   /** Shown after the label in monospace; part of the tab's name. */

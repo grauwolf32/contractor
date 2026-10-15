@@ -1,5 +1,4 @@
 import { useId, useMemo, type ReactNode } from "react";
-import { Link } from "react-router";
 
 import type { AuditWorkspace } from "../../../api/audits";
 import type {
@@ -11,6 +10,8 @@ import { ErrorNotice } from "../../../app/error-notice";
 import { RecordedTime } from "../../../app/recorded-time";
 import { checkStateLabel } from "../../../app/vocabulary";
 import {
+  Button,
+  ButtonLink,
   EmptyState,
   FilterChips,
   Kbd,
@@ -182,9 +183,9 @@ export function ChecksListPane({
       <EmptyState
         title={checks.checks.length === 0 ? "No checks yet" : "No checks match"}
         action={
-          <Link className="ui-btn" data-size="sm" to={startHref}>
+          <ButtonLink size="sm" to={startHref}>
             Start a check
-          </Link>
+          </ButtonLink>
         }
       >
         {checks.checks.length === 0
@@ -198,14 +199,9 @@ export function ChecksListPane({
       title="Checks"
       subtitle={subtitle}
       actions={
-        <Link
-          className="ui-btn"
-          data-variant="primary"
-          data-size="sm"
-          to={startHref}
-        >
+        <ButtonLink variant="primary" size="sm" to={startHref}>
           Start a check
-        </Link>
+        </ButtonLink>
       }
       toolbar={
         <div className="checks-list-toolbar">
@@ -255,14 +251,9 @@ export function ChecksListPane({
               ? "Some checks could not be refreshed; the list may be out of date."
               : `Checks of ${failed} could not be loaded; they are missing here.`}
           </p>
-          <button
-            className="ui-btn"
-            data-size="xs"
-            type="button"
-            onClick={() => void checks.refetch()}
-          >
+          <Button size="xs" onClick={() => void checks.refetch()}>
             Try again
-          </button>
+          </Button>
         </div>
       ) : null}
       <div className="checks-list-rows" {...navigation}>

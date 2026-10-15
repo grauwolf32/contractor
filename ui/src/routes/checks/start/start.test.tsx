@@ -948,13 +948,13 @@ describe("Start a check: options and starting", () => {
     );
     await waitForTypes();
     const live = within(setup()).getByRole("region", { name: "Live target" });
-    expect(within(live).getByLabelText("Target")).toHaveValue(
+    expect(within(live).getByRole("textbox", { name: "Target" })).toHaveValue(
       "https://staging.example.com",
     );
     expect(startButton()).toBeDisabled();
     expect(screen.getByText("Describe the authorization scope.")).toBeVisible();
     await user.type(
-      within(live).getByLabelText("Authorization scope"),
+      within(live).getByRole("textbox", { name: "Authorization scope" }),
       "Staging only",
     );
     await user.click(startButton());
@@ -993,14 +993,16 @@ describe("Start a check: live target", () => {
         ),
     ).toBe(true);
     const live = within(pane).getByRole("region", { name: "Live target" });
-    expect(within(live).getByLabelText("Target")).toHaveValue("");
+    expect(within(live).getByRole("textbox", { name: "Target" })).toHaveValue(
+      "",
+    );
     expect(screen.getByText("Enter the target to test.")).toBeVisible();
     await user.type(
-      within(live).getByLabelText("Target"),
+      within(live).getByRole("textbox", { name: "Target" }),
       "https://test.example.com",
     );
     await user.type(
-      within(live).getByLabelText("Authorization scope"),
+      within(live).getByRole("textbox", { name: "Authorization scope" }),
       "Test host only",
     );
     await user.click(startButton());

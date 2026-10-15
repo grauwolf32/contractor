@@ -18,16 +18,11 @@ import {
 } from "../../test/fake-server";
 import { ownerListRoutes } from "../../test/owner-lists";
 import { renderWithAPI } from "../../test/render";
-import type { AuditReviewDecision } from "../decisions";
-import { makeFinding } from "../decisions/test-support";
 import { IssuesRoute } from ".";
 
-export const { DIGEST, NOW } = build;
+const { DIGEST } = build;
 
-export function project(projectId: string, name: string): Project {
-  return build.project(projectId, { name });
-}
-
+/** A held check of `projectId` over the shop's source archive. */
 export function check(
   projectId: string,
   auditId: string,
@@ -46,7 +41,7 @@ export function check(
   });
 }
 
-/** A possible issue of `auditId`, created at `createdAt`. */
+/** A possible issue of `auditId`, proposed at `createdAt`. */
 export function issue(
   auditId: string,
   findingId: string,
@@ -55,15 +50,20 @@ export function issue(
   overrides: Partial<AuditFinding> = {},
   document: Partial<AuditFinding["firstProposal"]["document"]> = {},
 ): AuditFinding {
-  const base = makeFinding(
-    { findingId, auditId, createdAt, updatedAt: createdAt, revision: 1 },
+  const base = build.finding(
+    auditId,
+    findingId,
+    { createdAt, updatedAt: createdAt, revision: 1, ...overrides },
     { title, ...document },
   );
-  base.firstProposal.createdAt = createdAt;
-  return { ...base, ...overrides };
+  return build.conforming("AuditFinding", {
+    ...base,
+    firstProposal: { ...base.firstProposal, createdAt },
+  });
 }
 
-export interface FakeServer {
+/** What the fake Server of the Issues pages holds. */
+export interface IssuesServer {
   projects: Project[];
   audits: Audit[];
   findings: AuditFinding[];
@@ -74,9 +74,11 @@ export interface FakeServer {
   more: Set<string>;
   /** Possible-issue list reads wait for this (exact reads do not). */
   gate?: Promise<void> | undefined;
+  /** Recording a decision waits for this. */
+  decisionGate?: Promise<void> | undefined;
 }
 
-function bump(server: FakeServer, auditId: string) {
+function bump(server: IssuesServer, auditId: string) {
   server.audits = server.audits.map((candidate) =>
     candidate.auditId === auditId
       ? {
@@ -99,7 +101,7 @@ const VERDICT_STATES = {
 } as const;
 
 /** The routes of the Issues pages over `server`. */
-function routes(server: FakeServer) {
+function routes(server: IssuesServer) {
   const auditOf = (auditId: string | undefined) =>
     server.audits.find((candidate) => candidate.auditId === auditId);
   const summary = (audit: Audit) => ({
@@ -257,6 +259,7 @@ function routes(server: FakeServer) {
       params,
       request,
     }: FakeCall) => {
+      await server.decisionGate;
       const auditId = params.auditId ?? "";
       const review = server.reviews.find(
         (candidate) => candidate.requestId === params.requestId,
@@ -268,7 +271,7 @@ function routes(server: FakeServer) {
         severity?: AuditFinding["analystSeverity"];
         rationale: string;
       };
-      const decision: AuditReviewDecision = build.decision(review, {
+      const decision = build.decision(review, {
         auditId,
         ...(body.verdict === undefined ? {} : { verdict: body.verdict }),
         ...(body.severity === undefined ? {} : { severity: body.severity }),
@@ -313,7 +316,7 @@ function routes(server: FakeServer) {
 }
 
 /** Renders the Issues route at `path` against `server`. */
-export function renderIssues(server: FakeServer, path: string) {
+export function renderIssues(server: IssuesServer, path: string) {
   return renderWithAPI(null, {
     path,
     server: fakeServer(routes(server)),
@@ -328,9 +331,9 @@ export function renderIssues(server: FakeServer, path: string) {
   });
 }
 
-export function server(
-  initial: Partial<FakeServer> & Pick<FakeServer, "projects" | "audits">,
-): FakeServer {
+export function issuesServer(
+  initial: Partial<IssuesServer> & Pick<IssuesServer, "projects" | "audits">,
+): IssuesServer {
   return {
     findings: [],
     reviews: [],

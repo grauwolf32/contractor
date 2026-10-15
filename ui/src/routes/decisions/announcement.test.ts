@@ -1,7 +1,10 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { ANNOUNCEMENT_MS, focusIfLost, useAnnouncement } from "./announcement";
+import { focusIfLost, useAnnouncement } from "./announcement";
+
+/** How long useAnnouncement keeps a message (eight seconds). */
+const ANNOUNCEMENT_MS = 8_000;
 
 describe("useAnnouncement", () => {
   beforeEach(() => {

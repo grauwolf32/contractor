@@ -64,7 +64,7 @@ export function StartCheckPage({
                 Try again from the list.
               </EmptyState>
             ) : (
-              <p className="start-quiet" role="status">
+              <p className="ui-caption" role="status">
                 Loading check types…
               </p>
             )

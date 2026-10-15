@@ -7,11 +7,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { getAudit } from "../../api/audits";
 import { usePublicAPI } from "../../api/context";
 import { queryKeys } from "../../api/query-keys";
+import { failure, json } from "../../test/fake-server";
 import { AuditReportView } from "../projects/audits/report";
 import {
   acceptanceReview,
   audit,
-  failure,
   reportsServer,
   gate,
   project,
@@ -518,12 +518,7 @@ describe("Report detail", () => {
     server.state.reports.audit_ready = () =>
       fail
         ? failure(503, "unavailable", "Report store unavailable")
-        : new Response(JSON.stringify(ready), {
-            headers: {
-              "Content-Type": "application/json",
-              "X-Contractor-API-Version": "contractor.public.v1",
-            },
-          });
+        : json(ready);
     const { queryClient } = renderRoutes("/reports/audit_ready", server);
     await screen.findByRole("heading", { name: "Coverage summary" });
 
@@ -561,14 +556,7 @@ describe("Report detail", () => {
     let fail = true;
     const ready = server.state.reports.audit_ready;
     server.state.reports.audit_ready = () =>
-      fail
-        ? failure(500, "internal_error", "Report read failed")
-        : new Response(JSON.stringify(ready), {
-            headers: {
-              "Content-Type": "application/json",
-              "X-Contractor-API-Version": "contractor.public.v1",
-            },
-          });
+      fail ? failure(500, "internal_error", "Report read failed") : json(ready);
     renderRoutes("/reports/audit_ready", server);
     expect(await screen.findByText("Could not load the report")).toBeVisible();
     expect(screen.getByText("Report read failed")).toBeVisible();

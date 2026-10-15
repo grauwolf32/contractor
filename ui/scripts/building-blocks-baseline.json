@@ -42,28 +42,6 @@
     "src/routes/catalog/audit-preset-detail.tsx": {
       "button": 1
     },
-    "src/routes/checks/list/check-summary.tsx": {
-      "button": 1
-    },
-    "src/routes/checks/list/checks-list.tsx": {
-      "button": 1
-    },
-    "src/routes/checks/start/materials.tsx": {
-      "button": 3
-    },
-    "src/routes/checks/start/setup.tsx": {
-      "button": 4
-    },
-    "src/routes/checks/start/type-list.tsx": {
-      "button": 2
-    },
-    "src/routes/decisions/finding-decision.tsx": {
-      "button": 4
-    },
-    "src/routes/decisions/more-menu.tsx": {
-      "button": 2,
-      "svg": 1
-    },
     "src/routes/evals/artifact-picker.tsx": {
       "button": 2
     },
@@ -109,16 +87,6 @@
     },
     "src/routes/inbox/list.tsx": {
       "button": 2
-    },
-    "src/routes/issues/history.tsx": {
-      "button": 1
-    },
-    "src/routes/issues/index.tsx": {
-      "button": 2
-    },
-    "src/routes/issues/issue-detail.tsx": {
-      "button": 6,
-      "svg": 1
     },
     "src/routes/login.tsx": {
       "button": 1
@@ -237,13 +205,6 @@
     },
     "src/routes/projects/workflow-recommendations.tsx": {
       "button": 2
-    },
-    "src/routes/reports/list.tsx": {
-      "button": 2
-    },
-    "src/routes/reports/report-view.tsx": {
-      "button": 3,
-      "svg": 1
     },
     "src/routes/runs/actions.tsx": {
       "button": 3

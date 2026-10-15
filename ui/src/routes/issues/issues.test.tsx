@@ -2,17 +2,11 @@ import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
-import { DIGEST } from "../decisions/test-support";
-import {
-  check,
-  issue,
-  project,
-  renderIssues,
-  server as fakeServer,
-} from "./test-support";
+import * as build from "../../test/builders";
+import { check, issue, issuesServer, renderIssues } from "./test-support";
 
-const shop = project("project_shop", "Shop");
-const billing = project("project_billing", "Billing");
+const shop = build.project("project_shop", { name: "Shop" });
+const billing = build.project("project_billing", { name: "Billing" });
 
 /**
  * Two projects: Shop with a running trace (an older possible issue on an
@@ -20,7 +14,7 @@ const billing = project("project_billing", "Billing");
  * confirmed issue).
  */
 function twoProjects() {
-  return fakeServer({
+  return issuesServer({
     projects: [shop, billing],
     audits: [
       check(shop.projectId, "audit_shop", "active"),
@@ -227,7 +221,7 @@ describe("Issues", () => {
     orders.firstProposal.evidence = [
       {
         ref: { namespace: "audit-evidence", name: "body", revision: "r1" },
-        digest: DIGEST,
+        digest: build.DIGEST,
         mediaType: "application/json",
         sizeBytes: 64,
       },
@@ -371,6 +365,55 @@ describe("Issues", () => {
         .getByRole("region", { name: "Review" })
         .querySelector(".issues-detail-bar"),
     ).toHaveFocus();
+  });
+
+  it("stays where the user went when a decision answers after they left", async () => {
+    const server = twoProjects();
+    let release: () => void = () => undefined;
+    server.decisionGate = new Promise<void>((resolve) => {
+      release = () => resolve();
+    });
+    const { router, sent } = renderIssues(
+      server,
+      "/issues/audit_billing/finding_invoices",
+    );
+    const review = await screen.findByRole("region", { name: "Review" });
+    const bar = await within(review).findByRole("region", {
+      name: "Your decision",
+    });
+    const user = userEvent.setup();
+    await user.click(
+      await within(bar).findByRole("button", { name: "Not an issue" }),
+    );
+    await user.type(
+      within(bar).getByRole("textbox", { name: "Why" }),
+      "Invoices need a session.",
+    );
+    await user.click(
+      within(bar).getByRole("button", { name: "Record decision" }),
+    );
+    await waitFor(() => expect(sent("POST", "/decisions")).toHaveLength(1));
+    // The user opens the check page while the decision is recorded.
+    await act(async () => {
+      await router.navigate(
+        "/projects/project_billing/audits/audit_billing/findings",
+      );
+    });
+    expect(await screen.findByText("Check page")).toBeVisible();
+    await act(async () => {
+      release();
+      await server.decisionGate;
+    });
+    // The decision took the possible issue out of the Needs review list, so
+    // the Issues page would move on; the user stays on the check page.
+    await waitFor(() => expect(server.findings[1]?.state).toBe("rejected"));
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(router.state.location.pathname).toBe(
+      "/projects/project_billing/audits/audit_billing/findings",
+    );
+    expect(screen.getByText("Check page")).toBeVisible();
   });
 
   it("returns to the list after deciding the last possible issue, and stays on one opened from a link", async () => {
@@ -596,21 +639,14 @@ describe("Issues", () => {
     const server = twoProjects();
     const orders = server.findings[0]!;
     orders.revision = 3;
-    server.reviews.push({
-      requestId: "review_old",
-      auditId: "audit_shop",
-      findingId: orders.findingId,
-      subjectKind: "finding",
-      subjectId: orders.findingId,
-      kind: "finding-triage",
-      subjectRevision: 2,
-      subjectDigest: DIGEST,
-      requestedActions: ["true_positive", "false_positive"],
-      state: "pending",
-      revision: 1,
-      createdAt: "2026-10-05T10:00:00Z",
-      updatedAt: "2026-10-05T10:00:00Z",
-    });
+    server.reviews.push(
+      build.review("audit_shop", "review_old", "finding-triage", {
+        findingId: orders.findingId,
+        subjectId: orders.findingId,
+        subjectRevision: 2,
+        requestedActions: ["true_positive", "false_positive"],
+      }),
+    );
     const { router } = renderIssues(
       server,
       "/issues/audit_shop/finding_orders?review=review_old",

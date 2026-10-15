@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import type { AuditFinding } from "../../api/audits";
 import { FindingSummary } from "./finding-summary";
 import { AUDIT_ID, DIGEST, makeFinding, NOW } from "./test-support";
-import { json } from "../../test/fake-server";
+import { failure, fakeServer, json } from "../../test/fake-server";
 import { renderWithAPI } from "../../test/render";
 
 const DESCRIPTION = [
@@ -119,9 +119,10 @@ describe("FindingSummary", () => {
 
     expect(fact("Endpoint")).toBe("GET /orders/{id}");
     expect(
-      screen.getByText("Endpoint", { selector: "dt" }).nextElementSibling
-        ?.firstElementChild,
-    ).toHaveClass("ui-method-chip");
+      screen
+        .getByText("Endpoint", { selector: "dt" })
+        .nextElementSibling?.querySelector(".ui-method-chip"),
+    ).toHaveTextContent("GET");
     expect(fact("Weakness")).toBe("CWE-639");
     expect(fact("Standard")).toBe("A01 owasp-web-top10@2021");
     expect(fact("Severity")).toBe("Not set · AI suggestion: High");
@@ -274,13 +275,12 @@ describe("FindingSummary", () => {
         })}
       />,
       {
-        server: (_request, url) => {
-          if (
-            url.pathname === `/v1/audits/${AUDIT_ID}/findings/finding_original`
-          )
-            return json(original, 200, { ETag: `"${original.revision}"` });
-          throw new Error(`unexpected ${url.pathname}`);
-        },
+        server: fakeServer({
+          "GET /v1/audits/{auditId}/findings/{findingId}": ({ params }) =>
+            params.findingId === "finding_original"
+              ? json(original, 200, { ETag: `"${original.revision}"` })
+              : failure(404),
+        }),
       },
     );
     expect(
