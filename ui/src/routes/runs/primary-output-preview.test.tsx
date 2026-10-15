@@ -9,7 +9,7 @@ import { PublicAPIProvider } from "../../api/context";
 import type { RunStatus } from "../../api/runs";
 import type { RuntimeConfig } from "../../config/runtime-config";
 import { workflowResource } from "../../test/builders-execution";
-import { RunOutputGallery } from "./artifacts";
+import { RunOutputGallery } from "./outputs";
 
 const saved = vi.hoisted(() => [] as Array<{ blob: Blob; filename: string }>);
 vi.mock("../../app/download", () => ({

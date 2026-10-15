@@ -103,13 +103,6 @@
     "src/routes/evals/setup.tsx": {
       "button": 7
     },
-    "src/routes/inbox/detail.tsx": {
-      "button": 3,
-      "svg": 2
-    },
-    "src/routes/inbox/list.tsx": {
-      "button": 2
-    },
     "src/routes/issues/history.tsx": {
       "button": 1
     },
@@ -244,24 +237,6 @@
     "src/routes/reports/report-view.tsx": {
       "button": 3,
       "svg": 1
-    },
-    "src/routes/runs/actions.tsx": {
-      "button": 3
-    },
-    "src/routes/runs/admission.tsx": {
-      "button": 1
-    },
-    "src/routes/runs/artifacts.tsx": {
-      "button": 2
-    },
-    "src/routes/runs/components.tsx": {
-      "svg": 1
-    },
-    "src/routes/runs/detail.tsx": {
-      "svg": 1
-    },
-    "src/routes/runs/list.tsx": {
-      "button": 4
     },
     "src/routes/session-error.tsx": {
       "button": 1

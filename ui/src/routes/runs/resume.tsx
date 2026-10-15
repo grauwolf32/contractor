@@ -21,7 +21,6 @@ export function ContinueRunDialog({
 }) {
   return (
     <AlertDialog
-      className="runs-dialog"
       eyebrow="Continue failed Run"
       title="Continue from failed stage?"
       tone="primary"

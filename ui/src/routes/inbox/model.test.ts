@@ -15,15 +15,18 @@ import {
   moreRecentRunsMayFollow,
   nextToDecide,
   parseRefKey,
-  RECENT_MS,
   recentRuns,
   refKey,
   rowIndex,
-  type InboxInput,
 } from "./model";
 import { checkProgress, primaryOutput } from "./present";
 
 const NOW = Date.parse("2026-10-07T12:00:00Z");
+
+/** The Inbox's "recent" window: the last 7 days. */
+const RECENT_MINUTES = 7 * 24 * 60;
+
+type InboxInput = Parameters<typeof buildInbox>[0];
 
 function ago(minutes: number): string {
   return new Date(NOW - minutes * 60_000).toISOString();
@@ -155,7 +158,7 @@ describe("Inbox sections", () => {
     const failed = recentRuns(
       [
         run("run_new", "failed", 10),
-        run("run_old", "failed", RECENT_MS / 60_000 + 10),
+        run("run_old", "failed", RECENT_MINUTES + 10),
       ],
       NOW,
     );
@@ -214,7 +217,7 @@ describe("Inbox sections", () => {
 
   it("knows when recent Runs may continue on the Server's next page", () => {
     const recent = [run("run_a", "failed", 10), run("run_b", "failed", 20)];
-    const old = run("run_old", "failed", RECENT_MS / 60_000 + 10);
+    const old = run("run_old", "failed", RECENT_MINUTES + 10);
     // A full page of recent Runs: the next page may hold more of them.
     expect(moreRecentRunsMayFollow(recent, true, NOW)).toBe(true);
     // The page reaches past the 7 days, or it is the last page.

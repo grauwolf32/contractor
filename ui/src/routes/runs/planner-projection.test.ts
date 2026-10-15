@@ -5,10 +5,9 @@ import type {
   RunEventEnvelope,
 } from "../../events/run-events";
 import {
-  advancePlannerProjection,
   applyPlannerEvent,
   type PlannerProjection,
-} from "./live";
+} from "./planner-projection";
 
 function event(data: PlannerEventData): RunEventEnvelope<PlannerEventData> {
   return {
@@ -23,6 +22,16 @@ const identity = {
   sessionId: "session-1",
   invocationId: "invocation-1",
 };
+
+/** Applies `next` to the projection of identity's attempt, `current`. */
+function advance(
+  current: PlannerProjection,
+  next: RunEventEnvelope<PlannerEventData>,
+): PlannerProjection | undefined {
+  return applyPlannerEvent({ [identity.stageExecutionId]: current }, next)?.[
+    identity.stageExecutionId
+  ];
+}
 
 const initial: PlannerProjection = {
   plan: {
@@ -55,7 +64,7 @@ describe("Planner live projection", () => {
       currentSubtaskId: "0",
     };
     expect(
-      advancePlannerProjection(
+      advance(
         initial,
         event({
           ...identity,
@@ -65,7 +74,7 @@ describe("Planner live projection", () => {
       )?.plan,
     ).toEqual(changed);
     expect(
-      advancePlannerProjection(
+      advance(
         initial,
         event({
           ...identity,
@@ -78,7 +87,7 @@ describe("Planner live projection", () => {
 
   it("rejects a logical Worker selection for a non-current subtask", () => {
     expect(
-      advancePlannerProjection(
+      advance(
         {
           plan: {
             revision: 2,
@@ -130,7 +139,7 @@ describe("Planner live projection", () => {
         phase: "running",
       },
     };
-    const completed = advancePlannerProjection(
+    const completed = advance(
       active,
       event({
         ...identity,

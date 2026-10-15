@@ -2962,10 +2962,9 @@ describe("Run routes", () => {
       expect(
         within(breadcrumb).getByRole("link", { name: "Completed" }),
       ).toHaveAttribute("href", "/runs?view=completed&state=failed");
-      expect(within(breadcrumb).getByText("run-router")).toHaveAttribute(
-        "aria-current",
-        "page",
-      );
+      expect(
+        within(breadcrumb).getByText("run-router").closest("[aria-current]"),
+      ).toHaveAttribute("aria-current", "page");
     });
   });
 });

@@ -21,7 +21,7 @@ import {
 } from "../../api/states";
 
 /** How far back failed and finished work counts as new: 7 days. */
-export const RECENT_MS = 7 * 24 * 60 * 60 * 1000;
+const RECENT_MS = 7 * 24 * 60 * 60 * 1000;
 /** Rows per kind in Unblock and Ready before "See all …". */
 const SHOWN_PER_KIND = 5;
 
@@ -79,7 +79,7 @@ export interface Shown<T> {
   hidden: number;
 }
 
-export interface InboxInput {
+interface InboxInput {
   /** Milliseconds since the epoch; the 7-day window ends here. */
   now: number;
   /** Possible issues that need a review, newest first. */

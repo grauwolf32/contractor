@@ -56,6 +56,14 @@ export const SECTIONS: Readonly<
   },
 };
 
+/** The title of the section a row is listed in, or `fallback`. */
+export function sectionTitle(
+  row: InboxRow | undefined,
+  fallback: string,
+): string {
+  return row === undefined ? fallback : SECTIONS[row.section].title;
+}
+
 /** The check type's name, e.g. "OpenAPI · Operation trace". */
 export function checkTypeLabel(audit: Pick<Audit, "profile">): string {
   return auditPresetLabel(audit.profile.name);

@@ -1726,6 +1726,14 @@ describe("Inbox", () => {
         name: "Retry model connection",
       }),
     );
+    // The same confirmation as on the Run page; nothing is sent before it.
+    const dialog = screen.getByRole("alertdialog", {
+      name: "Retry the model connection?",
+    });
+    expect(sent("POST", "/v1/runs/run_waiting/retry-gateway")).toHaveLength(0);
+    await user.click(
+      within(dialog).getByRole("button", { name: "Confirm retry" }),
+    );
 
     expect(
       await within(pane).findByText(
