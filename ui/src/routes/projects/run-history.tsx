@@ -4,6 +4,7 @@ import { useLocation, useSearchParams } from "react-router";
 import { AUDIT_ID_PATTERN } from "../../api/audits";
 import { usePublicAPI } from "../../api/context";
 import { listProjectRuns } from "../../api/projects";
+import type { RunPage } from "../../api/runs";
 import { queryKeys } from "../../api/query-keys";
 import {
   isTerminalRunState,
@@ -15,6 +16,7 @@ import { ContextLink } from "../../app/context-navigation";
 import { CursorControls } from "../../app/cursor-controls";
 import { compactId, formatTimestamp } from "../../app/format";
 import { useURLCursorStack } from "../../app/pagination";
+import { pollInterval } from "../../app/polling";
 import { QueryView } from "../../app/query-view";
 import { RefreshButton } from "../../app/refresh-button";
 import {
@@ -100,11 +102,13 @@ export function ProjectRunHistory({ projectId }: { projectId: string }) {
   const runs = useQuery({
     queryKey: queryKeys.projects.runView(projectId, options),
     queryFn: () => listProjectRuns(api, { projectId, ...options }),
-    refetchInterval: (query) =>
-      view === "active" ||
-      query.state.data?.items.some((run) => !isTerminalRunState(run.state))
-        ? 5_000
-        : false,
+    // The active view always polls; others until every listed Run ended.
+    refetchInterval: pollInterval<RunPage>({
+      interval: 5_000,
+      settled: (page) =>
+        view !== "active" &&
+        page.items.every((run) => isTerminalRunState(run.state)),
+    }),
   });
   function chooseView(value: RunView) {
     const next = new URLSearchParams(filters);

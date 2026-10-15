@@ -1,11 +1,16 @@
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "react-router";
 
-import { auditPollInterval, listProjectAudits } from "../../../api/audits";
+import {
+  auditPollInterval,
+  listProjectAudits,
+  type AuditPage,
+} from "../../../api/audits";
 import { usePublicAPI } from "../../../api/context";
 import { queryKeys } from "../../../api/query-keys";
 import { CursorControls } from "../../../app/cursor-controls";
 import { useURLCursorStack } from "../../../app/pagination";
+import { pollInterval } from "../../../app/polling";
 import { QueryView } from "../../../app/query-view";
 import { RecordedTime } from "../../../app/recorded-time";
 import { RefreshButton } from "../../../app/refresh-button";
@@ -56,8 +61,10 @@ export function ProjectAuditWorkspace({
         ...(cursor === undefined ? {} : { cursor }),
       }),
     refetchOnReconnect: true,
-    refetchInterval: (query) =>
-      auditPollInterval(query.state.data?.items ?? [], 5_000),
+    refetchInterval: pollInterval<AuditPage>({
+      interval: 5_000,
+      settled: (page) => auditPollInterval(page.items) === false,
+    }),
   });
   const start = `/checks/new?${new URLSearchParams({ project: projectId }).toString()}`;
   return (

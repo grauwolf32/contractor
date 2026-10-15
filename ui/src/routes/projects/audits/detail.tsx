@@ -25,6 +25,7 @@ import { useDocumentTitle } from "../../../app/document-title";
 import { ErrorNotice } from "../../../app/error-notice";
 import { catalogReturnState } from "../../../app/navigation";
 import { useGuardedNavigate } from "../../../app/page-location";
+import { pollInterval } from "../../../app/polling";
 import {
   checkItemKind,
   checkStateLabel,
@@ -535,11 +536,10 @@ export function ProjectAuditDetailRoute() {
     queryKey: queryKeys.audits.detail(auditId),
     queryFn: () => getAudit(api, auditId),
     enabled: validRoute,
-    refetchInterval: (query) =>
-      auditPollInterval(
-        query.state.data === undefined ? [] : [query.state.data],
-        1_000,
-      ),
+    refetchInterval: pollInterval<Audit>({
+      interval: 1_000,
+      settled: (current) => auditPollInterval([current]) === false,
+    }),
     refetchOnReconnect: true,
     refetchOnWindowFocus: true,
     retry: (count, error) =>
