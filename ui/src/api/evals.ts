@@ -1,5 +1,6 @@
 import type { PublicAPI } from "./client";
 import { requireData } from "./error";
+import { loadCompletePages, type PageLoader } from "./pages";
 import type { components, operations } from "./generated/public";
 
 type Schema = components["schemas"];
@@ -47,36 +48,12 @@ export function isTerminalEvalState(state: EvalExperiment["state"]): boolean {
   return (TERMINAL_EVAL_STATES as readonly string[]).includes(state);
 }
 
-export function evalNextPage(page: {
-  hasMore: boolean;
-  nextCursor?: string | null;
-}): string | undefined {
-  if (!page.hasMore) return undefined;
-  if (!page.nextCursor)
-    throw new Error("The next page is unavailable. Refresh to retry.");
-  return page.nextCursor;
-}
-
-export async function evalInventory<T>(
-  load: (cursor?: string) => Promise<{
-    items: T[];
-    page: { hasMore: boolean; nextCursor?: string | null };
-  }>,
+/** Every page of an Eval list; a partial list is refused, not returned. */
+export function evalInventory<T>(
+  load: PageLoader<T>,
   signal: AbortSignal,
 ): Promise<T[]> {
-  const items: T[] = [];
-  const seen = new Set<string>();
-  let cursor: string | undefined;
-  do {
-    signal.throwIfAborted();
-    const page = await load(cursor);
-    items.push(...page.items);
-    cursor = evalNextPage(page.page);
-    if (cursor && seen.has(cursor))
-      throw new Error("The collection changed. Refresh to retry.");
-    if (cursor) seen.add(cursor);
-  } while (cursor);
-  return items;
+  return loadCompletePages("This list", load, { signal });
 }
 
 export function mutationHeaders(

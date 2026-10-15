@@ -24,8 +24,8 @@ import {
   usePendingDecisions,
   useProjectsIndex,
 } from "./cross-project";
+import { MAXIMUM_LOADED_PAGES } from "./pages";
 import type { Project } from "./projects";
-import { collectOwnerPages } from "./owner-pages";
 import * as build from "../test/builders";
 
 const project = (projectId: string, overrides: Partial<Project> = {}) =>
@@ -243,6 +243,30 @@ describe("owner-wide lists", () => {
         (r) => !r.pathname.match(/projects\/[^/]+\/audits/),
       ),
     ).toBe(true);
+  });
+  it("stops an owner with more check pages than the cap and reports truncation", async () => {
+    // Owner lists read 200 checks per page.
+    const pageSize = 200;
+    const state = base();
+    const one = audit("project_a", "audit_0", "active");
+    state.audits = {
+      project_a: Array.from(
+        { length: MAXIMUM_LOADED_PAGES * pageSize + 1 },
+        (_, i) => ({ ...one, auditId: `audit_${i}` }),
+      ),
+    };
+    const server = setup(state);
+    const { result } = renderHook(() => useAllChecks(), {
+      wrapper: server.wrapper,
+    });
+    await settled(result);
+    expect(server.count("/v1/audits")).toBe(MAXIMUM_LOADED_PAGES);
+    expect(result.current.checks).toHaveLength(MAXIMUM_LOADED_PAGES * pageSize);
+    expect(result.current).toMatchObject({
+      truncated: true,
+      partial: false,
+      error: null,
+    });
   });
   it("filters multiple check states on the Server and shares canonical keys", async () => {
     const server = setup(base());
@@ -496,24 +520,5 @@ describe("owner-wide lists", () => {
     );
     expect(result.current.checks.isPending).toBe(true);
     expect(server.requests).toEqual([]);
-  });
-});
-
-describe("collection continuations", () => {
-  it("stops on a repeated cursor and exposes the failure", async () => {
-    const load = vi.fn(async () => ({
-      items: [1],
-      page: { hasMore: true, nextCursor: "same" },
-    }));
-    const result = await collectOwnerPages(load);
-    expect(load).toHaveBeenCalledTimes(2);
-    expect(result.error?.message).toMatch(/invalid page/);
-  });
-  it("rejects a hasMore page without a cursor", async () => {
-    const result = await collectOwnerPages(async () => ({
-      items: [],
-      page: { hasMore: true },
-    }));
-    expect(result.error).toBeInstanceOf(Error);
   });
 });

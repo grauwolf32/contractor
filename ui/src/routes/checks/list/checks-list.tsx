@@ -232,6 +232,18 @@ export function ChecksListPane({
         </span>
       }
     >
+      {checks.truncated ? (
+        <div
+          className="checks-notice checks-pane-note"
+          data-tone="warning"
+          role="status"
+        >
+          <p>
+            There are more checks than can be read at once, so this list is
+            incomplete.
+          </p>
+        </div>
+      ) : null}
       {checks.partial && checks.error === null ? (
         <div
           className="checks-notice checks-pane-note"

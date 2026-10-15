@@ -8,6 +8,7 @@ import {
   stringRule,
 } from "./contract";
 import { invalidAPIResponse, publicAPIError, requireData } from "./error";
+import { loadCompletePages } from "./pages";
 import type { components } from "./generated/public";
 import {
   CONFIG_NAME_PATTERN,
@@ -279,27 +280,18 @@ function requirePrincipal(
   return principal;
 }
 
+/** Every page of an Operations list as one page; partial lists throw. */
 async function collectAllPages<T>(
   load: (request: CursorPageRequest) => Promise<{
     items: T[];
     page: { hasMore: boolean; nextCursor?: string };
   }>,
-  resource: string,
+  what: string,
 ): Promise<{ items: T[]; page: { hasMore: false } }> {
-  const items: T[] = [];
-  const seen = new Set<string>();
-  let cursor: string | undefined;
-  for (;;) {
-    const page = await load(cursor === undefined ? {} : { cursor });
-    items.push(...page.items);
-    if (!page.page.hasMore) return { items, page: { hasMore: false } };
-    const next = page.page.nextCursor;
-    if (next === undefined || next === "" || seen.has(next)) {
-      throw new Error(`The server returned an invalid ${resource} cursor.`);
-    }
-    seen.add(next);
-    cursor = next;
-  }
+  const items = await loadCompletePages(what, (cursor) =>
+    load(cursor === undefined ? {} : { cursor }),
+  );
+  return { items, page: { hasMore: false } };
 }
 
 function requireSchedulerSettings(
@@ -420,7 +412,7 @@ export function listAllRuntimeAgentPrincipals(
 ): Promise<RuntimeAgentPrincipalPage> {
   return collectAllPages(
     (request) => listRuntimeAgentPrincipals(api, request),
-    "Runtime Agent principal",
+    "The Runtime Agent list",
   );
 }
 
@@ -761,7 +753,7 @@ export function listAllRuntimeLabels(
 ): Promise<RuntimeLabelPage> {
   return collectAllPages(
     (request) => listRuntimeLabels(api, request),
-    "Runtime label",
+    "The Runtime label list",
   );
 }
 

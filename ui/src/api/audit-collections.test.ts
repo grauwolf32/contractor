@@ -35,7 +35,7 @@ describe("Audit collection pagination", () => {
             },
       );
       await expect(collectAuditPages(load)).rejects.toThrow(
-        "invalid Audit pagination cursor",
+        "invalid page continuation",
       );
       expect(load).toHaveBeenCalledTimes(2);
     },
@@ -89,7 +89,7 @@ describe("Audit collection pagination", () => {
         }),
         { cursor: "start" },
       ),
-    ).rejects.toThrow("invalid Audit pagination cursor");
+    ).rejects.toThrow("invalid page continuation");
   });
 
   it.each([0, -1, 1.5, Number.NaN])(
@@ -97,7 +97,7 @@ describe("Audit collection pagination", () => {
     async (maxPages) => {
       await expect(
         collectAuditPages(pagedLoader(1), { maxPages }),
-      ).rejects.toThrow("page cap is invalid");
+      ).rejects.toThrow("Page cap must be a positive integer");
     },
   );
 

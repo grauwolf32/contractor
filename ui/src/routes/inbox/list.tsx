@@ -735,10 +735,12 @@ export function InboxList({
           </p>
         </div>
       ) : null}
-      {data.checks.truncated ? (
+      {data.checks.truncated ||
+      data.issues.truncated ||
+      data.decisions.truncated ? (
         <p className="inbox-quiet-note">
-          The Inbox reads your first 50 projects and the newest 50 checks of
-          each. Checks, Issues and Reports list the rest.
+          There are more checks, possible issues or decisions than the Inbox can
+          read at once, so it is incomplete.
         </p>
       ) : null}
       <div className="inbox-sections" {...containerProps}>

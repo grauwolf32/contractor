@@ -17,6 +17,7 @@ import { Application } from "../../../app/application";
 import { applicationRoutes } from "../../../app/router";
 import * as build from "../../../test/builders";
 import {
+  emptyPageOrNotFound,
   fakeServer,
   json,
   page,
@@ -259,7 +260,8 @@ export type Handler = Fallback;
 
 /**
  * A PublicAPI whose Server answers with `handle`; anything it leaves
- * unanswered gets an empty page, so the shell's own reads stay quiet.
+ * unanswered gets an empty page where the operation pages, so the shell's
+ * own reads stay quiet, and 404 otherwise.
  */
 export function fakeAPI(handle: Handler): {
   api: PublicAPI;
@@ -268,7 +270,8 @@ export function fakeAPI(handle: Handler): {
   const { api, server } = testAPI(
     fakeServer(
       { "GET /v1/auth/session": () => json(testSession()) },
-      async (request, url) => (await handle(request, url)) ?? emptyPage(),
+      async (request, url) =>
+        (await handle(request, url)) ?? emptyPageOrNotFound(request, url),
     ),
   );
   return { api, requests: server.requests };

@@ -504,7 +504,7 @@ describe("Library check types", () => {
     { options: { failCatalog: true }, message: "Preset catalog unavailable" },
     {
       options: { repeatCursor: true },
-      message: "The server returned an invalid Audit pagination cursor.",
+      message: "Server returned an invalid page continuation",
     },
   ])(
     "does not present an incomplete catalog as an empty result: $message",

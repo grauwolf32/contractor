@@ -49,8 +49,8 @@ export interface IssueList {
   errors: CrossProjectError[];
   /** Checks of the shown states with more possible issues than listed. */
   truncatedChecks: CrossProjectCheck[];
-  /** The project index or a project's check page had more than it read. */
-  checksTruncated: boolean;
+  /** A list stopped at its page cap, so more may exist than are listed. */
+  truncated: boolean;
   /** Listed checks in scope, for names of failed reads. */
   checks: CrossProjectCheck[];
   /** Checks in scope that are still running, so more may arrive. */
@@ -215,7 +215,7 @@ export function useIssueList(filters: IssueFilters): IssueList {
           error.projectId === project,
       ),
       truncatedChecks,
-      checksTruncated: checks.truncated,
+      truncated: shownStates.some((value) => byState[value].truncated),
       checks: scopedChecks,
       running: scopedChecks.filter((check) =>
         RUNNING_CHECK_STATES.has(check.audit.state),

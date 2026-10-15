@@ -90,6 +90,24 @@ export function page<T>(
   };
 }
 
+/**
+ * A fallback for reads a test does not care about: an empty page where the
+ * operation answers with a page, otherwise 404. It never serves a body the
+ * operation's schema rejects.
+ */
+export function emptyPageOrNotFound(request: Request, url: URL): Response {
+  const matched = operationOf(request.method, url.pathname);
+  const empty = page([]);
+  return matched !== undefined &&
+    responseViolation(matched.operation, 200, empty) === undefined
+    ? json(empty)
+    : failure(
+        404,
+        "not_found",
+        `No fake route for ${request.method} ${url.pathname}`,
+      );
+}
+
 export interface FakeCall {
   request: Request;
   url: URL;
@@ -161,8 +179,13 @@ async function checkResponse(
   operation: ResponseOperation | undefined,
   label: string,
   response: Response,
+  owner: string | undefined,
 ): Promise<void> {
   if (!response.ok || unchecked.has(response) || response.status === 204) {
+    return;
+  }
+  // A read that outlives the test that served it must not fail a later test.
+  if (owner !== undefined && expect.getState().currentTestName !== owner) {
     return;
   }
   if (
@@ -206,6 +229,8 @@ export function fakeServer(
     Object.entries(routes) as [ResponseOperation, Route][],
   );
   const requests: Request[] = [];
+  // The test this Server serves; its late reads are not checked in another.
+  const owner = expect.getState().currentTestName;
   return {
     requests,
     sent: (method, suffix) =>
@@ -234,7 +259,7 @@ export function fakeServer(
       if (response === undefined) {
         return failure(404, "not_found", `No fake route for ${label}`);
       }
-      await checkResponse(matched?.operation, label, response);
+      await checkResponse(matched?.operation, label, response, owner);
       return response;
     },
   };

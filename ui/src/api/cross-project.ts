@@ -42,7 +42,7 @@ import {
   OPEN_AUDIT_STATES,
   REPORT_AUDIT_STATES,
 } from "./states";
-import { collectOwnerPages, type OwnerCollection } from "./owner-pages";
+import { loadAllPages, type LoadedPages } from "./pages";
 
 /** Page size is enforced by the Server; collections have no fixed cap. */
 export const CROSS_PROJECT_LIMITS = { pageSize: 200, pollMs: 20_000 } as const;
@@ -278,15 +278,17 @@ export function useProjectsIndex(
   const { data, error, isPending } = useQuery({
     queryKey: queryKeys.crossProject.projects,
     queryFn: ({ signal }) =>
-      collectOwnerPages((cursor) =>
-        listProjects(
-          api,
-          {
-            kind: "project",
-            ...(cursor === undefined ? {} : { cursor }),
-          },
-          signal,
-        ),
+      loadAllPages(
+        (cursor) =>
+          listProjects(
+            api,
+            {
+              kind: "project",
+              ...(cursor === undefined ? {} : { cursor }),
+            },
+            signal,
+          ),
+        { signal },
       ),
     enabled: options.enabled ?? true,
     ...POLLED,
@@ -299,7 +301,7 @@ export function useProjectsIndex(
           (project) =>
             project.kind === "project" && project.lifecycle !== "deleting",
         ) ?? NO_PROJECTS,
-      truncated: false,
+      truncated: data?.truncated ?? false,
       partial: failure !== null,
       errors:
         failure === null
@@ -333,15 +335,17 @@ export function useAllChecks(options: AllChecksOptions = {}): AllChecks {
   const query = useQuery({
     queryKey: queryKeys.crossProject.ownerAudits(stateKey),
     queryFn: ({ signal }) =>
-      collectOwnerPages((cursor) =>
-        listOwnerAudits(
-          api,
-          {
-            ...(stateKey === "" ? {} : { state: stateKey }),
-            ...(cursor === undefined ? {} : { cursor }),
-          },
-          signal,
-        ),
+      loadAllPages(
+        (cursor) =>
+          listOwnerAudits(
+            api,
+            {
+              ...(stateKey === "" ? {} : { state: stateKey }),
+              ...(cursor === undefined ? {} : { cursor }),
+            },
+            signal,
+          ),
+        { signal },
       ),
     enabled,
     ...POLLED,
@@ -366,7 +370,8 @@ export function useAllChecks(options: AllChecksOptions = {}): AllChecks {
         : [...index.errors, { scope: "list", error: failure }];
     return {
       checks,
-      truncated: false,
+      // Checks of Projects past a truncated index are left out too.
+      truncated: index.truncated || (query.data?.truncated ?? false),
       partial: index.partial || failure !== null,
       errors,
       error: index.error ?? (query.data === undefined ? query.error : null),
@@ -569,6 +574,8 @@ export interface AllPossibleIssues extends CrossProjectStatus {
 interface MergedIssues {
   issues: CrossProjectIssue[];
   truncatedAuditIds: string[];
+  /** A finding list stopped at the page cap. */
+  truncated: boolean;
   total: number;
 }
 
@@ -633,18 +640,20 @@ function usePossibleIssueReads(options: PossibleIssuesOptions) {
           severity ?? null,
         ),
         queryFn: ({ signal }: { signal: AbortSignal }) =>
-          collectOwnerPages((cursor) =>
-            listOwnerFindings(
-              api,
-              {
-                auditState: auditStateKey,
-                ...(state === undefined ? {} : { state }),
-                ...(verdict === undefined ? {} : { verdict }),
-                ...(severity === undefined ? {} : { severity }),
-                ...(cursor === undefined ? {} : { cursor }),
-              },
-              signal,
-            ),
+          loadAllPages(
+            (cursor) =>
+              listOwnerFindings(
+                api,
+                {
+                  auditState: auditStateKey,
+                  ...(state === undefined ? {} : { state }),
+                  ...(verdict === undefined ? {} : { verdict }),
+                  ...(severity === undefined ? {} : { severity }),
+                  ...(cursor === undefined ? {} : { cursor }),
+                },
+                signal,
+              ),
+            { signal },
           ),
         enabled,
         ...POLLED,
@@ -653,7 +662,7 @@ function usePossibleIssueReads(options: PossibleIssuesOptions) {
   );
   const combine = useCallback(
     (
-      results: UseQueryResult<OwnerCollection<AuditFinding>>[],
+      results: UseQueryResult<LoadedPages<AuditFinding>>[],
     ): CheckReads<MergedIssues> => {
       const byAudit = new Map(
         checks.checks.map((check) => [check.audit.auditId, check]),
@@ -674,7 +683,12 @@ function usePossibleIssueReads(options: PossibleIssuesOptions) {
       }
       issues.sort(newerIssue);
       return {
-        merged: { issues, truncatedAuditIds: [], total: issues.length },
+        merged: {
+          issues,
+          truncatedAuditIds: [],
+          truncated: results.some((result) => result.data?.truncated === true),
+          total: issues.length,
+        },
         errors,
         pending: results.some((result) => result.isPending),
       };
@@ -691,8 +705,12 @@ export function useAllPossibleIssues(
 ): AllPossibleIssues {
   const { checks, findings } = usePossibleIssueReads(options);
   return useMemo(() => {
-    const { issues, truncatedAuditIds, total } = findings.merged;
-    const status = statusOf(checks, findings, truncatedAuditIds.length > 0);
+    const { issues, truncatedAuditIds, truncated, total } = findings.merged;
+    const status = statusOf(
+      checks,
+      findings,
+      truncated || truncatedAuditIds.length > 0,
+    );
     return {
       ...status,
       issues,
@@ -748,16 +766,18 @@ export function usePendingDecisions(
   const query = useQuery({
     queryKey: queryKeys.crossProject.ownerReviews(auditStateKey),
     queryFn: ({ signal }) =>
-      collectOwnerPages((cursor) =>
-        listOwnerReviews(
-          api,
-          {
-            state: "pending",
-            auditState: auditStateKey,
-            ...(cursor === undefined ? {} : { cursor }),
-          },
-          signal,
-        ),
+      loadAllPages(
+        (cursor) =>
+          listOwnerReviews(
+            api,
+            {
+              state: "pending",
+              auditState: auditStateKey,
+              ...(cursor === undefined ? {} : { cursor }),
+            },
+            signal,
+          ),
+        { signal },
       ),
     enabled,
     ...POLLED,
@@ -793,7 +813,7 @@ export function usePendingDecisions(
       pending: query.isPending,
     };
     return {
-      ...statusOf(checks, reads, false),
+      ...statusOf(checks, reads, query.data?.truncated ?? false),
       decisions,
       truncatedAuditIds: [],
     };

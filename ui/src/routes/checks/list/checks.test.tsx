@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
 import type { Audit } from "../../../api/audits";
+import { MAXIMUM_LOADED_PAGES } from "../../../api/pages";
 import type { Project } from "../../../api/projects";
 import {
   fakeAPI,
@@ -54,11 +55,20 @@ function serve(
     projects?: Project[];
     failProject?: string;
     extra?: Record<string, Audit>;
+    /** The owner check list never ends: one check per page. */
+    endless?: boolean;
   } = {},
 ) {
   const projects = options.projects ?? [projectA, projectB];
   return fakeAPI(async (request, url) => {
     const path = url.pathname;
+    if (path === "/v1/audits" && options.endless) {
+      const index = Number(url.searchParams.get("cursor") ?? 0);
+      return json({
+        items: [makeAudit(`audit_${index}`, "project_a", "active")],
+        page: { hasMore: true, nextCursor: String(index + 1) },
+      });
+    }
     if (url.pathname === "/v1/audits" && options.failProject)
       return json(
         {
@@ -469,6 +479,28 @@ describe("Checks list", () => {
       "href",
       "/projects/project_a/audits/old_wait/reviews?state=pending",
     );
+  });
+
+  it("says the list is incomplete when the owner has more pages than the cap", async () => {
+    const { api, requests } = serve({}, { endless: true });
+    renderApplication(api, "/checks");
+    expect(
+      await screen.findByText(
+        "There are more checks than can be read at once, so this list is incomplete.",
+      ),
+    ).toBeVisible();
+    // Each owner list (the page's and the shell's) stops at the cap.
+    const reads = new Map<string, number>();
+    for (const request of requests) {
+      const url = new URL(request.url);
+      if (url.pathname !== "/v1/audits") continue;
+      const key = url.searchParams.get("state") ?? "";
+      reads.set(key, (reads.get(key) ?? 0) + 1);
+    }
+    expect(reads.size).toBeGreaterThan(0);
+    for (const count of reads.values()) {
+      expect(count).toBe(MAXIMUM_LOADED_PAGES);
+    }
   });
 
   it("shows a failed owner check list and retries it", async () => {
