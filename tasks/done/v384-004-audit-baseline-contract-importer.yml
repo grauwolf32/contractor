@@ -6,7 +6,8 @@ epic: quality
 kind: chore
 introduced_by: V380-001
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 3095b27c832f5a74f78361b9feb359b95923df25
 depends_on: [V380-001]
 languages: [go]
 goal: Keep the architectural importer inventory consistent with the Audit baseline's published active-check policy contract.
@@ -33,3 +34,11 @@ tests:
     covers: [A1, A2]
   - command: make lint
     covers: [A2]
+verification:
+  date: 2026-10-15
+  results:
+    - go test -count=1 ./internal/archtest reproduced the missing importer on main at 90d2c293 before the correction.
+    - go test -count=1 ./internal/archtest passed after recording the baseline's exact ActiveChecksPolicy symbol.
+    - make lint passed after the correction, including layer, importer-source, task and shared-fixture checks.
+  notes:
+    - The existing regression tests still reject unlisted importers, stale inventory entries and listed symbols that are no longer used; no guard or production behavior changed.
