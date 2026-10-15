@@ -6,7 +6,8 @@ epic: audits
 kind: chore
 introduced_by: V380-001
 priority: P3
-status: in_progress
+status: completed
+implementation_commit: 2fc2c0a9a9a7f72799fc90b892f51e72546cb409
 depends_on: [V380-001, V381-001]
 languages: [go, sql, markdown]
 goal: >-
