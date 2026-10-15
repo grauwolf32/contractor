@@ -1,6 +1,7 @@
 import { expect, test, type Page, type Route } from "@playwright/test";
 
 import packageMetadata from "../package.json" with { type: "json" };
+import { stageContract } from "../src/test/builders-execution";
 
 const API_VERSION = "contractor.public.v1";
 
@@ -100,6 +101,7 @@ async function installRunsAPI(
             runId: "run-completed-browser",
             workflow: "browser-workflow@1",
             state: "succeeded",
+            deletable: true,
             labels: {},
             createdAt: "2026-09-05T07:00:00Z",
             updatedAt: "2026-09-05T07:02:00Z",
@@ -195,7 +197,7 @@ async function installRunResultAPI(
             mediaTypes: ["application/json"],
           },
         },
-        stages: {},
+        stages: { render: stageContract() },
       });
       return;
     }

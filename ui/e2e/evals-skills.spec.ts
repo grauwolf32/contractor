@@ -27,6 +27,7 @@ async function installAPI(page: Page, origin: string): Promise<void> {
     kind: "evaluation",
     name: "Browser evaluation",
     description: "Evaluation route fixture",
+    activeChecks: "automatic",
     lifecycle: "active",
     revision: "1",
     createdAt: "2026-09-05T08:00:00Z",
@@ -84,6 +85,7 @@ async function installAPI(page: Page, origin: string): Promise<void> {
             projectId: EVAL_ID,
             workflow: "openapi-from-workspace@5",
             state: "succeeded",
+            deletable: true,
             labels: {
               purpose: "eval",
               "eval.name": "browser-regression",

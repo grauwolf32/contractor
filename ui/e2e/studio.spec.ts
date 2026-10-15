@@ -4,6 +4,7 @@ import { parse } from "yaml";
 import { expect, test } from "@playwright/test";
 import packageMetadata from "../package.json" with { type: "json" };
 import { presetFixture } from "../src/test/audit-presets-fixture";
+import { auditInput, auditItem } from "../src/test/builders";
 
 // Fixture copies of authored definitions (tests never read configs/).
 const fixtureRoot = resolve(process.cwd(), "src/routes/studio/testdata");
@@ -57,7 +58,10 @@ for (const width of [1440, 390, 320]) {
                             digest: `sha256:${"a".repeat(64)}`,
                           },
                           source: "operator",
-                          body: { description: "Local gateway" },
+                          body: {
+                            protocol: "openai-compatible@1",
+                            url: "http://127.0.0.1:4000",
+                          },
                         },
                       ]
                     : [],
@@ -229,6 +233,15 @@ for (const width of [1440, 390, 320]) {
           body: {
             description: "Source graph analyst",
             runtime: "adk@1",
+            instructions: {
+              ref: "instructions/source-graph-analyst.md",
+              digest: `sha256:${"a".repeat(64)}`,
+            },
+            modelPolicy: {
+              policyId: "worker",
+              version: "3",
+              digest: `sha256:${"a".repeat(64)}`,
+            },
             sandboxProfile: "local-workdir@1",
             toolsets: [],
           },
@@ -589,7 +602,7 @@ test("studio live fences revisions, preserves paged items on errors and keeps it
     auditId: "audit_studio",
     projectId: "project_studio",
     profile: { ...presetFixture.ref },
-    inputs: {},
+    inputs: { source: auditInput() },
     scope: {},
     runtimeLabels: [],
     state: "completed",
@@ -615,13 +628,14 @@ test("studio live fences revisions, preserves paged items on errors and keeps it
     createdAt: date,
     updatedAt: date,
   };
-  const items = Array.from({ length: 51 }, (_, i) => ({
-    itemId: `item_${i}`,
-    roundId: `round_${"a".repeat(64)}`,
-    itemKey: `Operation ${i + 1}`,
-    state: "settled",
-    finalDisposition: i === 0 ? "execution-failed" : "accepted-result",
-  }));
+  const items = Array.from({ length: 51 }, (_, i) =>
+    auditItem(`item_${i}`, i + 1, "operation", {
+      roundId: `round_${"a".repeat(64)}`,
+      itemKey: `Operation ${i + 1}`,
+      state: "settled",
+      finalDisposition: i === 0 ? "execution-failed" : "accepted-result",
+    }),
+  );
   let failItems = true,
     wrongRevision = false;
   const mutations: string[] = [],

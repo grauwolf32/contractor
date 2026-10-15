@@ -9,6 +9,7 @@ const projects = Array.from({ length: 51 }, (_, i) => ({
   kind: "project",
   name: `Project ${i + 1}`,
   description: "",
+  activeChecks: "automatic",
   lifecycle: "active",
   revision: "1",
   createdAt: date,
@@ -18,7 +19,14 @@ const checks = Array.from({ length: 201 }, (_, i) => ({
   auditId: `audit_${i}`,
   projectId: "project_50",
   profile: { name: "openapi-operation-trace", version: "1", digest },
-  inputs: {},
+  inputs: {
+    source: {
+      ref: { namespace: "sources", name: "owner-source", revision: "r1" },
+      digest,
+      mediaType: "application/zip",
+      sizeBytes: 2048,
+    },
+  },
   scope: {},
   runtimeLabels: [],
   state: "draft",

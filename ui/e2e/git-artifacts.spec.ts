@@ -1,22 +1,25 @@
 import { expect, test, type Page, type Route } from "@playwright/test";
 
 import packageMetadata from "../package.json" with { type: "json" };
+import {
+  stageContract,
+  workflowResource,
+  workflowSummary,
+} from "../src/test/builders-execution";
 
 // Key tests deliberately avoid traces/screenshots of request bodies or inputs.
 test.use({ trace: "off", screenshot: "off" });
 const commit = "a".repeat(40);
 const timestamp = "2026-09-06T12:00:00Z";
-const workflow = {
-  ref: { name: "git-review", version: "1" },
+const workflow = workflowResource("git-review", "1", {
   entryStage: "inspect",
   parameters: { note: { required: true } },
   inputs: {
     source: { required: true, mediaTypes: ["application/zip"] },
     context: { required: false, mediaTypes: ["text/plain"] },
   },
-  outputs: {},
-  stages: {},
-};
+  stages: { inspect: stageContract() },
+});
 
 async function fixture(
   page: Page,
@@ -204,6 +207,7 @@ async function fixture(
         kind: "project",
         name: "Git project",
         description: "",
+        activeChecks: "automatic",
         lifecycle: "active",
         revision: "1",
         createdAt: timestamp,
@@ -212,7 +216,10 @@ async function fixture(
     if (path === "/v1/workflows/git-review/versions/1")
       return reply(route, workflow);
     if (path === "/v1/workflows")
-      return reply(route, { items: [workflow], page: { hasMore: false } });
+      return reply(route, {
+        items: [workflowSummary(workflow)],
+        page: { hasMore: false },
+      });
     if (request.method() === "POST")
       writes.push({
         path,

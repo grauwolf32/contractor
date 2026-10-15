@@ -1,6 +1,10 @@
 import { expect, test } from "@playwright/test";
 
 import packageMetadata from "../package.json" with { type: "json" };
+import {
+  stageContract,
+  workflowResource,
+} from "../src/test/builders-execution";
 
 test("Catalog discovers exact Workflows and Agent usage from direct routes", async ({
   page,
@@ -130,7 +134,10 @@ test("Catalog discovers exact Workflows and Agent usage from direct routes", asy
         page: { hasMore: false },
       };
     } else if (path === "/v1/workflows/openapi-from-source/versions/1")
-      value = { ...workflow, stages: {} };
+      value = workflowResource(workflow.ref.name, workflow.ref.version, {
+        ...workflow,
+        stages: { analyze: stageContract() },
+      });
     await route.fulfill({
       json: value,
       headers: { "X-Contractor-API-Version": "contractor.public.v1" },

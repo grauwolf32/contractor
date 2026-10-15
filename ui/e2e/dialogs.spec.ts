@@ -1,6 +1,11 @@
 import { expect, test, type Page, type Route } from "@playwright/test";
 
 import packageMetadata from "../package.json" with { type: "json" };
+import {
+  stageContract,
+  workflowResource,
+  workflowSummary,
+} from "../src/test/builders-execution";
 
 const API_VERSION = "contractor.public.v1";
 const PROJECT_ID = "project_dialog_fixture";
@@ -18,16 +23,13 @@ const SOURCE = {
   frozen: false,
   createdAt: "2026-09-06T10:00:00Z",
 };
-const WORKFLOW = {
-  ref: { name: WORKFLOW_NAME, version: WORKFLOW_VERSION },
+const WORKFLOW = workflowResource(WORKFLOW_NAME, WORKFLOW_VERSION, {
   entryStage: "inspect",
-  parameters: {},
   inputs: {
     source: { required: true, mediaTypes: ["application/zip"] },
   },
-  outputs: {},
-  stages: {},
-};
+  stages: { inspect: stageContract() },
+});
 
 function responseHeaders(origin?: string): Record<string, string> {
   return {
@@ -106,6 +108,7 @@ async function installDialogFixture(page: Page, apiOrigin: string) {
           kind: "project",
           name: "Dialog workspace",
           description: "Nested dialog browser fixture",
+          activeChecks: "automatic",
           lifecycle: "active",
           revision: "1",
           createdAt: "2026-09-06T10:00:00Z",
@@ -125,7 +128,10 @@ async function installDialogFixture(page: Page, apiOrigin: string) {
       return;
     }
     if (path === "/v1/workflows") {
-      await fulfill(route, { items: [WORKFLOW], page: { hasMore: false } });
+      await fulfill(route, {
+        items: [workflowSummary(WORKFLOW)],
+        page: { hasMore: false },
+      });
       return;
     }
     if (

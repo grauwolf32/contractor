@@ -1,6 +1,11 @@
 import { expect, test, type Page, type Route } from "@playwright/test";
 
 import packageMetadata from "../package.json" with { type: "json" };
+import {
+  stageContract,
+  workflowResource,
+  workflowSummary,
+} from "../src/test/builders-execution";
 
 const API_VERSION = "contractor.public.v1";
 const PROJECT_ID = "project_run_draft";
@@ -9,8 +14,7 @@ const WORKFLOW_VERSION = "1";
 const WORKFLOW_SELECTOR = `${WORKFLOW_NAME}@${WORKFLOW_VERSION}`;
 const timestamp = "2026-09-06T12:00:00Z";
 
-const workflow = {
-  ref: { name: WORKFLOW_NAME, version: WORKFLOW_VERSION },
+const workflow = workflowResource(WORKFLOW_NAME, WORKFLOW_VERSION, {
   entryStage: "inspect",
   parameters: {
     objective: { required: true },
@@ -18,9 +22,8 @@ const workflow = {
   inputs: {
     source: { required: true, mediaTypes: ["application/zip"] },
   },
-  outputs: {},
-  stages: {},
-};
+  stages: { inspect: stageContract() },
+});
 
 const existingArtifact = {
   artifact: {
@@ -126,7 +129,10 @@ async function installFixture(page: Page, apiOrigin: string) {
       return;
     }
     if (path === "/v1/workflows") {
-      await fulfill(route, { items: [workflow], page: { hasMore: false } });
+      await fulfill(route, {
+        items: [workflowSummary(workflow)],
+        page: { hasMore: false },
+      });
       return;
     }
     if (
@@ -150,6 +156,7 @@ async function installFixture(page: Page, apiOrigin: string) {
           kind: "project",
           name: "Run draft workspace",
           description: "In-memory Run draft browser fixture",
+          activeChecks: "automatic",
           lifecycle: "active",
           revision: "1",
           createdAt: timestamp,
