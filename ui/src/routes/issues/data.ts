@@ -47,8 +47,6 @@ export interface IssueList {
   error: Error | null;
   /** Failed reads (deduplicated); everything else is listed. */
   errors: CrossProjectError[];
-  /** Checks of the shown states with more possible issues than listed. */
-  truncatedChecks: CrossProjectCheck[];
   /** A list stopped at its page cap, so more may exist than are listed. */
   truncated: boolean;
   /** Listed checks in scope, for names of failed reads. */
@@ -142,9 +140,6 @@ export function useIssueList(filters: IssueFilters): IssueList {
     const inScope = (check: CrossProjectCheck) =>
       project === undefined || check.project.projectId === project;
     const scopedChecks = checks.checks.filter(inScope);
-    const checkById = new Map(
-      scopedChecks.map((check) => [check.audit.auditId, check]),
-    );
 
     const scoped = new Map<AuditFindingState, CrossProjectIssue[]>();
     const counts: Partial<Record<StateFilter, IssueCount>> = {};
@@ -152,15 +147,12 @@ export function useIssueList(filters: IssueFilters): IssueList {
       const result = byState[value];
       const issues = result.issues.filter(inScope);
       scoped.set(value, issues);
-      const truncatedHere = result.truncatedAuditIds.some((auditId) =>
-        issues.some((issue) => issue.audit.auditId === auditId),
-      );
       counts[value] =
         project === undefined
           ? result.total
           : result.isPending && issues.length === 0
             ? undefined
-            : truncatedHere
+            : result.truncated
               ? `${issues.length}+`
               : issues.length;
     }
@@ -188,13 +180,6 @@ export function useIssueList(filters: IssueFilters): IssueList {
     }
 
     const shownStates = state === "all" ? FINDING_STATES : [state];
-    const truncatedIds = new Set(
-      shownStates.flatMap((value) => byState[value].truncatedAuditIds),
-    );
-    const truncatedChecks = [...truncatedIds].flatMap((auditId) => {
-      const check = checkById.get(auditId);
-      return check === undefined ? [] : [check];
-    });
 
     const errors = new Map<string, CrossProjectError>();
     for (const error of [
@@ -214,7 +199,6 @@ export function useIssueList(filters: IssueFilters): IssueList {
           project === undefined ||
           error.projectId === project,
       ),
-      truncatedChecks,
       truncated: shownStates.some((value) => byState[value].truncated),
       checks: scopedChecks,
       running: scopedChecks.filter((check) =>

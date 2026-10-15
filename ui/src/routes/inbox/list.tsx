@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link } from "react-router";
 
 import { usePublicAPI } from "../../api/context";
@@ -29,7 +29,6 @@ import {
   inboxSearch,
   moreRecentRunsMayFollow,
   runTime,
-  SHOWN_PER_KIND,
   type InboxRow,
   type InboxRowOf,
   type InboxSectionId,
@@ -42,7 +41,6 @@ import {
   excerpt,
   FAILED_RUNS_PATH,
   gapsTitle,
-  pendingReviewsPath,
   primaryOutput,
   reviewSubjectItem,
   reviewTitle,
@@ -399,68 +397,6 @@ function plural(count: number, one: string, many: string): string {
 }
 
 /**
- * Where to decide the requests the Inbox leaves out: each check with more
- * pending requests than its first page links to its own pending requests
- * (the Issues page lists possible issues only).
- */
-function MoreRequests({ data }: { data: InboxData }) {
-  const ids = data.decisions.truncatedAuditIds;
-  if (ids.length === 0) return null;
-  const byId = new Map(
-    data.checks.checks.map((check) => [check.audit.auditId, check]),
-  );
-  const links = ids.map((auditId) => {
-    const check = byId.get(auditId);
-    return check === undefined
-      ? {
-          auditId,
-          to: `/checks?check=${encodeURIComponent(auditId)}`,
-          label: auditId,
-        }
-      : {
-          auditId,
-          to: pendingReviewsPath(check.project.projectId, auditId),
-          label: checkName(check),
-        };
-  });
-  const shown = links.slice(0, SHOWN_PER_KIND);
-  const hidden = links.length - shown.length;
-  return (
-    <More>
-      More decisions wait in{" "}
-      {links.length === 1 ? "this check" : "these checks"} than the Inbox lists:{" "}
-      {shown.map((link, position) => (
-        <Fragment key={link.auditId}>
-          {position === 0 ? null : ", "}
-          <Link to={link.to}>{link.label}</Link>
-        </Fragment>
-      ))}
-      {hidden === 0 ? null : (
-        <>
-          , and {plural(hidden, "more check", "more checks")} in{" "}
-          <Link to="/checks">Checks</Link>
-        </>
-      )}
-      .
-    </More>
-  );
-}
-
-function DecideMore({ data }: { data: InboxData }) {
-  return (
-    <>
-      {data.issues.truncatedAuditIds.length === 0 ? null : (
-        <More>
-          Some checks have more possible issues than the Inbox lists.{" "}
-          <Link to="/issues">Open Issues</Link>
-        </More>
-      )}
-      <MoreRequests data={data} />
-    </>
-  );
-}
-
-/**
  * What a cut list of recent Runs leaves out: "3 more failed Runs in the last
  * 7 days." ("3+" when the Server's next page may hold more of them), or that
  * older ones are not listed when the Server has more pages.
@@ -750,9 +686,7 @@ export function InboxList({
           selection={selection}
           data={data}
           empty={model.decide.length === 0}
-        >
-          <DecideMore data={data} />
-        </Section>
+        />
         <Section
           id="unblock"
           rows={model.unblock}

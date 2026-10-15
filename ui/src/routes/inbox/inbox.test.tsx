@@ -1581,29 +1581,6 @@ describe("Inbox", () => {
     );
   });
 
-  it("lists decisions beyond the first page without a truncation notice", async () => {
-    const server = busyServer();
-    server.reviews.audit_trace = Array.from({ length: 201 }, (_, i) =>
-      review("audit_trace", `review_many_${i}`, "active-check-approval", i),
-    );
-    const { requests } = renderInbox(server);
-    const decide = await findSection("Decide");
-    await waitFor(() =>
-      expect(
-        requests.some(
-          (request) =>
-            new URL(request.url).pathname === "/v1/reviews" &&
-            new URL(request.url).searchParams.has("cursor"),
-        ),
-      ).toBe(true),
-    );
-    expect(
-      within(decide).queryByText(
-        /More decisions wait in this check than the Inbox lists/,
-      ),
-    ).not.toBeInTheDocument();
-  });
-
   it("keeps a check's progress shown while its new counts load", async () => {
     const server = busyServer();
     const { sent } = renderInbox(server, "/?item=check:audit_paused");

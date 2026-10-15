@@ -565,15 +565,12 @@ export interface PossibleIssuesOptions {
 export interface AllPossibleIssues extends CrossProjectStatus {
   /** Matching possible issues from every owner-wide page, newest first. */
   issues: CrossProjectIssue[];
-  /** Compatibility field for consumers; owner-wide lists have no per-check cap. */
-  truncatedAuditIds: string[];
   /** Number of listed matches; a partial collection is a lower bound. */
   total: number | undefined;
 }
 
 interface MergedIssues {
   issues: CrossProjectIssue[];
-  truncatedAuditIds: string[];
   /** A finding list stopped at the page cap. */
   truncated: boolean;
   total: number;
@@ -685,7 +682,6 @@ function usePossibleIssueReads(options: PossibleIssuesOptions) {
       return {
         merged: {
           issues,
-          truncatedAuditIds: [],
           truncated: results.some((result) => result.data?.truncated === true),
           total: issues.length,
         },
@@ -705,16 +701,11 @@ export function useAllPossibleIssues(
 ): AllPossibleIssues {
   const { checks, findings } = usePossibleIssueReads(options);
   return useMemo(() => {
-    const { issues, truncatedAuditIds, truncated, total } = findings.merged;
-    const status = statusOf(
-      checks,
-      findings,
-      truncated || truncatedAuditIds.length > 0,
-    );
+    const { issues, truncated, total } = findings.merged;
+    const status = statusOf(checks, findings, truncated);
     return {
       ...status,
       issues,
-      truncatedAuditIds,
       total: status.isPending || status.error !== null ? undefined : total,
     };
   }, [checks, findings]);
@@ -739,8 +730,6 @@ export interface PendingDecisionsOptions {
 export interface PendingDecisions extends CrossProjectStatus {
   /** All matching pending requests, newest first. */
   decisions: CrossProjectDecision[];
-  /** Compatibility field for consumers; owner-wide lists have no per-check cap. */
-  truncatedAuditIds: string[];
 }
 
 /**
@@ -815,7 +804,6 @@ export function usePendingDecisions(
     return {
       ...statusOf(checks, reads, query.data?.truncated ?? false),
       decisions,
-      truncatedAuditIds: [],
     };
   }, [checks, kindKey, query.data, query.error, query.isPending]);
 }

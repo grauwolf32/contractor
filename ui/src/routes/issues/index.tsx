@@ -343,7 +343,6 @@ export function IssuesRoute() {
     !list.pending &&
     list.error === null &&
     list.errors.length === 0 &&
-    list.truncatedChecks.length === 0 &&
     !list.truncated;
   const running = runningNote(list);
   const empty = emptyText(list, filters, complete, running);

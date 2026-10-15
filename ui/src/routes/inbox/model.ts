@@ -23,7 +23,7 @@ import {
 /** How far back failed and finished work counts as new: 7 days. */
 export const RECENT_MS = 7 * 24 * 60 * 60 * 1000;
 /** Rows per kind in Unblock and Ready before "See all …". */
-export const SHOWN_PER_KIND = 5;
+const SHOWN_PER_KIND = 5;
 
 export type InboxSectionId = "decide" | "unblock" | "ready" | "running";
 
