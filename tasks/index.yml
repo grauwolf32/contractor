@@ -74,6 +74,9 @@ execution_policy:
     P3: Low-impact correction with no user-visible failure, such as documentation, dead code or test hygiene.
 
 milestones:
+  - id: ui-consolidation-2026-10
+    exit_task: V385-001
+    outcome: Every UI rule, vocabulary, building block and style value has one definition, Server responses are checked by generated validators, and gates stop new copies and dead code.
   - id: workflow-planner-subtask-budgets-2026-10
     exit_task: V384-001
     outcome: Each Workflow pins its modeled Planner subtask limit, defaulting to 32, through immutable execution and validated public plan projections.

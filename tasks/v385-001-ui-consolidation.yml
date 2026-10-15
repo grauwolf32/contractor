@@ -1,0 +1,152 @@
+schema_version: "1.0"
+id: V385-001
+title: "Give every UI rule one definition: generated response validators, shared building blocks and one style scale"
+milestone: ui-consolidation-2026-10
+epic: ui
+kind: chore
+priority: P2
+status: in_progress
+depends_on: []
+languages: [typescript, css]
+goal: "The UI states each contract rule, vocabulary, building block and style value once, validates Server responses with validators generated from the pinned OpenAPI document and event schema, and carries no dead code, so that the copies that have already drifted agree and new pages stop adding copies."
+context:
+  review: "UI size analysis of 2026-10-15 on 4403083b (four read-only agents: legacy and dead code, cross-route duplication, the API layer, CSS and tests)"
+  specification: "docs/spec/ui/ui.md#UI-R20"
+  finding: >-
+    ui/src holds about 166k lines (87k production TS/TSX, 54k unit tests,
+    24k CSS) plus 9.7k lines of e2e; it grew from 87k to 163k between
+    2026-10-01 and 2026-10-08 through the V3B page merges, which were done
+    without task files. Very little is leftover code (every production file
+    is reachable); the volume comes from scope plus four structural causes.
+    (1) openapi-typescript generates types only, so every response is
+    checked by hand: about 3.3k lines of validators in src/api and
+    src/events/run-events.ts plus about 880 lines of inline checks in the
+    endpoint wrappers (src/api/performance.ts alone has 576), each throwing
+    its own TypeError. (2) Server rules are copied without a tie to the
+    contract: the ResourceId pattern appears in at least six files
+    (src/api/queue.ts:32, error.ts:6, workflows.ts:17, performance.ts:41,
+    operations.ts:31, routes/inbox/model.ts:145; V371-020 lists twelve),
+    the digest pattern five times, Audit state subsets about twelve times
+    (api/cross-project.ts:119-158, api/audits.ts:854,
+    routes/inbox/model.ts:115-142, routes/issues/data.ts:25-40, ...);
+    api/testdata/v1alpha1/digest-cases.json, performance-cases.json and
+    runtime-capability-cases.json exist but no UI test reads them, and
+    src/api/runtime-configuration.ts:9,135 already lacks the maxLength and
+    maxItems that src/api/operations.ts enforces for the same schema.
+    (3) src/ui has about 2k lines and no Button, alert dialog, facts list
+    or form field: 330 hand-written ui-btn buttons in 107 files, five
+    hand-built alertdialog skeletons next to ConfirmRemovalDialog, 280 dt/dd
+    pairs in 48 files, QueryView bypassed in 49 of the 79 files that call
+    useQuery, plural() defined 18 times, three duration formatters, 27
+    inline SVG icons next to app/icon.tsx. Copies disagree: Run state words
+    and tones (routes/runs/run-state.ts:24, routes/projects/run-state.ts:9,
+    routes/inbox/present.ts:259; initializing is progress, idle and
+    "Starting"), material kinds (routes/projects/material-kinds.ts versus
+    routes/artifacts/kinds.ts; a ZIP is "Source code" on the overview and
+    "Other" on Materials), ConsumerConfigView (routes/runs/components.tsx:218
+    versus routes/workflows/detail.tsx:28). Five load-all page loops bypass
+    api/owner-pages.ts collectOwnerPages, which itself has no page cap
+    (AGENTS.md 3.3); navigation after an await is unguarded at
+    routes/evals/setup.tsx:127, credentials/form.tsx:96,
+    credentials/detail.tsx:42 and runs/actions.tsx:260,301 (AGENTS.md 3.8);
+    about 16 sites test for 409/412 conflicts by hand. (4) CSS is written
+    per route with no scale: 231 identical declaration sets across files,
+    11 max-width breakpoints, 89 distinct gap values, the --space-1..6
+    tokens unused, and the global button rule (src/styles.css:34) forces
+    dozens of fight-back rules; about 600-830 CSS lines and about 60 TS
+    declaration lines are dead (src/routes/projects/audits/styles.css 253 of
+    336 lines, src/styles.css about 375). api/cross-project.ts keeps
+    truncatedAuditIds as a "Compatibility field" (:582, :743) that is always
+    [] but still drives routes/inbox/list.tsx:405-462 and
+    routes/issues/data.ts:161-205. Unit tests spend about 27% of their lines
+    building a fake API: 439 inline fetch routers, src/test shared by 20 of
+    172 files, six area support files that each redefine json helpers,
+    builders and a render harness; 24 of 28 e2e specs mock the API with
+    their own helpers.
+  siblings: >-
+    V371-020 (one UI ResourceId and Revision grammar, If-Match checks) is a
+    separate pending task; this task's generated validators become the
+    shared definition it asks for, and V371-020 lands in its own commit on
+    the same branch. V372-006 (Runtime label set), V372-007 (terminal
+    StageExecution states) and V372-020 (error code vocabularies) change Go
+    as well and stay separate. Studio's Workflow validation
+    (routes/studio/validation.ts, advanced-validation.ts) repeats Server
+    checks that no endpoint exposes; it stays until a Server dry-run
+    endpoint exists.
+  decision: >-
+    Response validation is generated, not hand-written (user decision,
+    2026-10-15). Validators are compiled at generate time by Ajv in
+    standalone mode from the pinned OpenAPI document and
+    api/events/contractor-events-v1.schema.json, because the UI
+    Content-Security-Policy forbids eval (ui/server/static-server.mjs:158).
+    Alternatives considered: consolidating hand-written validators behind
+    shared grammar constants (smaller change, keeps about 3k lines and the
+    drift class) and dropping response validation (contradicts the strict
+    read rule in AGENTS.md section 2). Reversal condition: the generated
+    module costs more than 150 kB gzip in the initial bundle or cannot
+    express a schema the Server publishes; then fall back to per-operation
+    lazy chunks before reconsidering hand-written checks. Server endpoints
+    that would remove the client-side aggregation in api/cross-project.ts
+    (multi-value finding filters, owner-wide reports, Inbox counts) are out
+    of scope (user decision, 2026-10-15) and get their own task.
+scope:
+  in:
+    - "A generator (pnpm generate, make ui-generate, checked by generate:check) that writes standalone validators for every OpenAPI response body schema the UI reads and for the event frames, into src/api/generated/."
+    - "One validation point: JSON success responses are checked against the operation's response schema in the API client, and event frames in the event socket; a mismatch raises one classified client error. Hand-written shape checks are removed; only cross-field invariants a schema cannot express stay (ID echo, ETag equals revision, ordering, generation match), each named in a comment."
+    - "Client-side rules that remain (request-side grammars, limits and enums used by forms, Audit state subsets) come from the generated module or one UI definition tested against the OpenAPI document and the api/testdata case lists."
+    - "Shared building blocks in src/ui with adoption across routes: Button, alert dialog, facts list, form field, icons in app/icon.tsx, QueryView for query states, one pagination helper with a page cap, one conflict helper for 409 and 412, one late-response navigation guard, one Run state vocabulary, one material-kind classification, one set of plural, date, duration and size formatters."
+    - "One style scale: spacing, radius, font-size and breakpoint tokens used by every CSS file; shared panel, toolbar, badge, sheet and table classes in src/ui; the global button rule replaced so that routes no longer fight it; route-only rules moved out of src/styles.css."
+    - "Dead code removed: unreferenced CSS rules and TS declarations, the truncatedAuditIds compatibility field and the UI it drives; a make lint gate that fails on new unused UI exports, test-only exports and unreferenced CSS classes."
+    - "Unit tests share one typed fake Server, response builders and render harness in src/test; area support files and inline fetch routers move onto them; e2e specs share fixtures and stop repeating scenarios that unit tests own."
+  out:
+    - "Server, OpenAPI and Runtime behaviour; any change to the /v1 contract."
+    - "New pages, journeys or copy beyond resolving disagreeing copies."
+    - "Studio's local Workflow validation (needs a Server endpoint)."
+    - "Legacy evaluation workspaces (/evals/legacy, /evals/:projectId), kept by S06."
+requirements:
+  - "UI-R196 in docs/spec/ui/ui.md records the generated-validator rule, its failure outcome and the cross-field exceptions."
+  - "Where copies disagree, the chosen definition follows docs/design/ui/README.md and the spec; each visible change is listed in the commit body."
+  - "The pagination helper reads at most a named number of pages and reports truncation instead of reading without bound; its test covers a realistic owner (more than the cap)."
+  - "No pixel change is intended from the CSS work except where it removes a disagreement; screenshots of every top-level route before and after, at 1280 and 390 px in the light, dark and black themes, are compared and differences explained."
+acceptance_criteria:
+  - id: A1
+    given: "A Server JSON success response that violates the operation's OpenAPI response schema (missing required member, unknown member, wrong enum value, pattern mismatch)"
+    when: "the UI client receives it"
+    then: "It raises the single classified invalid-response client error and no hand-written validator is involved."
+  - id: A2
+    given: "An event frame that violates api/events/contractor-events-v1.schema.json"
+    when: "the event socket receives it"
+    then: "It is rejected through the generated validator and the stream follows its existing resync path."
+  - id: A3
+    text: "generate:check fails when the OpenAPI document or the event schema changes without regenerating the validators."
+  - id: A4
+    text: "A test fails if a ui/src module outside src/api/generated and the named shared definitions contains a ResourceId, digest, runtime-identity pattern or an Audit or Run state list literal."
+  - id: A5
+    text: "Run state words and tones, material kinds and ConsumerConfigView each have one implementation; the Runs, Projects and Inbox pages show the same words and tones for the same state, and a ZIP material has the same kind on the overview and on Materials."
+  - id: A6
+    given: "An owner with more pages than the pagination cap"
+    when: "a load-all reader runs"
+    then: "It stops at the cap and the page reports that the list is incomplete; every load-all reader uses the one helper."
+  - id: A7
+    given: "A user who leaves a page while a mutation started there is pending"
+    when: "the mutation answers"
+    then: "The UI does not navigate; this holds for every post-await navigation site, including evals/setup, credentials form and detail and Run actions."
+  - id: A8
+    text: "No route renders a hand-written ui-btn button, alertdialog skeleton or inline SVG icon; lint enforces it."
+  - id: A9
+    text: "The unused-export, test-only-export and unreferenced-CSS-class gate runs in make lint and fails on a probe that adds an unused export and an unused class."
+  - id: A10
+    text: "truncatedAuditIds and the UI it drives are gone; inbox and issues tests no longer mention it."
+  - id: A11
+    text: "Before/after screenshots of every top-level route at 1280 and 390 px in light, dark and black show no unexplained difference."
+  - id: A12
+    text: "Production TS/TSX, CSS and unit-test line counts under ui/src (excluding generated files) each drop; the commit body records the counts before and after."
+  - id: A13
+    text: "make ui-verify, make lint and the mocked browser gate pass."
+tests:
+  - command: make ui-verify
+    covers: [A1, A2, A3, A4, A5, A6, A7, A8, A10, A12, A13]
+  - command: make lint
+    covers: [A4, A8, A9, A13]
+  - command: make ui-browser-mocked
+    covers: [A11, A13]
