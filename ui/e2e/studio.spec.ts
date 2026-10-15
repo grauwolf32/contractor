@@ -89,7 +89,7 @@ for (const width of [1440, 390, 320]) {
       .getByRole("button", { name: "Remove workspace export", exact: true })
       .click();
     await page
-      .getByRole("dialog")
+      .getByRole("alertdialog")
       .getByRole("button", { name: "Remove block", exact: true })
       .click();
     await page
@@ -655,15 +655,22 @@ test("studio live fences revisions, preserves paged items on errors and keeps it
   failItems = false;
   await page.getByRole("button", { name: "Try again" }).click();
   await expect(page.locator(".studio-matrix a")).toHaveCount(51);
+  // A refresh that fails keeps the last loaded view under the shared
+  // stale-data warning.
+  const stale = page
+    .getByRole("status")
+    .filter({ hasText: "Could not refresh; showing the last loaded data." });
   wrongRevision = true;
   await page.getByRole("button", { name: "Refresh live view" }).click();
-  await expect(page.getByRole("alert")).toContainText("check changed");
+  await expect(stale).toContainText("check changed");
   await expect(page.locator(".studio-matrix a")).toHaveCount(51);
   wrongRevision = false;
   await page.getByRole("button", { name: "Refresh live view" }).click();
-  await expect(page.getByRole("alert")).toHaveCount(0);
+  await expect(stale).toHaveCount(0);
   audit.profile.digest = `sha256:${"f".repeat(64)}`;
   await page.getByRole("button", { name: "Refresh live view" }).click();
+  // A pinned profile digest the catalog does not hold is an error, not
+  // stale data.
   await expect(page.getByRole("alert")).toContainText(
     "catalog profile has a different digest",
   );
