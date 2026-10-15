@@ -188,6 +188,7 @@ export function AgentListRoute() {
 
       {query.data === undefined ? null : (
         <CursorControls
+          size="sm"
           label="Agent pages"
           {...state.controls(query.data.page)}
         />

@@ -49,7 +49,6 @@ export function SkillsRoute() {
         actions={
           <>
             <RefreshButton
-              className="ui-btn"
               isFetching={query.isFetching}
               onRefresh={() => void query.refetch()}
               label="Refresh"

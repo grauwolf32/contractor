@@ -68,6 +68,7 @@ export function ProjectAuditWorkspace({
     <div className="checks-project">
       <ProjectSectionActions>
         <RefreshButton
+          size="sm"
           isFetching={audits.isFetching}
           onRefresh={() => void audits.refetch()}
         />

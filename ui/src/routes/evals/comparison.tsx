@@ -81,7 +81,6 @@ export function EvalComparison({ experiment }: { experiment: EvalExperiment }) {
           <h2 id={chartsHeading}>Charts</h2>
           <div className="ui-toolbar">
             <RefreshButton
-              className="ui-btn"
               isFetching={false}
               onRefresh={() => void refresh()}
               label="Refresh"

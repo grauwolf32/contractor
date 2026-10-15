@@ -45,7 +45,6 @@ export function WorkflowListRoute() {
               onChange={state.changeDraftSearch}
             />
             <RefreshButton
-              className="ui-btn"
               isFetching={query.isFetching}
               onRefresh={() => void query.refetch()}
               label="Refresh"

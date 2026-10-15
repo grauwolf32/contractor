@@ -500,12 +500,6 @@
   min-height: 2rem;
 }
 
-.projects-section-actions .refresh-button.icon-button {
-  width: 2rem;
-  height: 2rem;
-  padding: 0;
-}
-
 /* Narrow detail panes (phones; the pane beside the list on small laptops)
    trade the tabs for the labelled section picker. */
 @container (max-width: 40rem) {

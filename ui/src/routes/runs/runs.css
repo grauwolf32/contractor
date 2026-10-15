@@ -32,24 +32,12 @@
   height: 15px;
 }
 
-.runs-page .runs-icon-button,
-.runs-page .runs-icon-button:not(:disabled):active {
-  display: inline-grid;
-  flex: none;
-  place-items: center;
-  width: 2rem;
-  min-height: 0;
-  height: 2rem;
-  padding: 0;
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius-lg);
-  background: var(--surface);
+/* The refresh icon is quieter than the text actions beside it. */
+.runs-page .runs-icon-button {
   color: var(--muted);
-  transform: none;
 }
 
 .runs-page .runs-icon-button:not(:disabled):hover {
-  background: var(--surface-hover);
   color: var(--text);
 }
 
@@ -269,13 +257,6 @@
   margin: 0;
   padding: var(--space-3) var(--space-5);
   border-top: 1px solid var(--line);
-}
-
-.runs-view > .pagination button {
-  min-height: 2rem;
-  padding: 0 var(--space-3);
-  border-radius: var(--radius-lg);
-  font-size: var(--text-sm);
 }
 
 .runs-table {

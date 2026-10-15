@@ -425,6 +425,7 @@ export function InputFields({
       )}
       {slots}
       <LoadMoreButton
+        size="sm"
         query={artifactInventory}
         label={`Load more ${inputNouns}`}
         pendingLabel={`Loading ${inputNouns}…`}

@@ -209,6 +209,7 @@ export function RuntimePlacement({
           </p>
         )}
         <LoadMoreButton
+          size="sm"
           query={runtimeLabelInventory}
           label="Load more Runtime labels"
           pendingLabel="Loading Runtime labels…"
@@ -741,11 +742,17 @@ export function ExecutionOverrides({
         )}
         <div className="load-more-row">
           <LoadMoreButton
+            size="sm"
             query={modelPolicyInventory}
             label="Load more ModelPolicies"
           />
-          <LoadMoreButton query={gatewayInventory} label="Load more Gateways" />
           <LoadMoreButton
+            size="sm"
+            query={gatewayInventory}
+            label="Load more Gateways"
+          />
+          <LoadMoreButton
+            size="sm"
             query={credentialInventory}
             label="Load more credentials"
           />

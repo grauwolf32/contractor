@@ -82,8 +82,6 @@
   font-weight: 700;
 }
 
-
-
 .workflow-card-tag[data-tone="accent"] {
   background: var(--sel);
   color: var(--text);

@@ -112,7 +112,6 @@ export function EvalPairRoute() {
       action={
         pair.data ? (
           <RefreshButton
-            className="ui-btn"
             isFetching={pair.isFetching || experiment.isFetching}
             onRefresh={refresh}
             label="Refresh"

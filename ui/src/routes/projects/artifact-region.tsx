@@ -150,7 +150,6 @@ export function ProjectArtifactRegion({ projectId }: { projectId: string }) {
             Add material
           </Button>
           <RefreshButton
-            className="ui-btn"
             isFetching={query.isFetching}
             onRefresh={() => void query.refetch()}
             label="Refresh"

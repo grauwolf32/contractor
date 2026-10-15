@@ -211,6 +211,7 @@ export function ProjectFindingsRoute() {
 
   const refreshControl = (
     <RefreshButton
+      size="sm"
       isFetching={refreshing}
       onRefresh={() =>
         void Promise.all([

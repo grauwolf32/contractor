@@ -488,6 +488,7 @@ export function CompletedRunsPanel() {
         </div>
         <RefreshButton
           className="runs-icon-button"
+          size="sm"
           isFetching={query.isFetching}
           disabled={decoded.error !== undefined}
           onRefresh={() => void query.refetch()}
@@ -548,7 +549,11 @@ export function CompletedRunsPanel() {
           </QueryView>
         )}
       </div>
-      <CursorControls label="Run pages" {...pages.controls(query.data?.page)} />
+      <CursorControls
+        size="sm"
+        label="Run pages"
+        {...pages.controls(query.data?.page)}
+      />
       {deleteTarget === undefined ? null : (
         <AlertDialog
           eyebrow="Permanent action"

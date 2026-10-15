@@ -100,7 +100,6 @@ export function ArtifactListRoute() {
               Upload file
             </Button>
             <RefreshButton
-              className="ui-btn"
               isFetching={query.isFetching}
               onRefresh={() => void query.refetch()}
               label="Refresh"

@@ -98,6 +98,7 @@ function AgentVersionSelector({
         {plural(versions.length, "version")} loaded
       </span>
       <LoadMoreButton
+        size="sm"
         query={query}
         label="Load more versions"
         pendingLabel="Loading versions…"
@@ -303,6 +304,7 @@ function AgentUsage({ resource }: { resource: ConfigurationResource }) {
       </QueryView>
       {query.data === undefined ? null : (
         <CursorControls
+          size="sm"
           label="Agent usage pages"
           {...pagination.controls(query.data.page)}
         />

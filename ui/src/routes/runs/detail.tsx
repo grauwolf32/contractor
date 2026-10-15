@@ -479,6 +479,7 @@ function RunPage({ runId }: { runId: string }) {
   const refresh = (
     <RefreshButton
       className="runs-icon-button"
+      size="sm"
       isFetching={query.isFetching}
       onRefresh={() => void query.refetch()}
     />

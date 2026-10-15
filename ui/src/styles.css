@@ -103,15 +103,6 @@ a {
   flex: none;
 }
 
-.icon-button {
-  display: inline-grid;
-  flex: none;
-  width: 2.75rem;
-  height: 2.75rem;
-  padding: 0;
-  place-items: center;
-}
-
 .inline-error {
   grid-column: 1 / -1;
 }
@@ -232,17 +223,6 @@ a {
 .form-grid input:disabled {
   color: var(--muted);
   opacity: 0.8;
-}
-
-.secondary-button {
-  border: 1px solid var(--line);
-  background: var(--surface-raised);
-  color: var(--text);
-}
-
-.secondary-button:not(:disabled):hover {
-  border-color: var(--line-strong);
-  background: var(--surface-hover);
 }
 
 .inline-form {

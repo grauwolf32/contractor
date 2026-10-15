@@ -151,7 +151,6 @@ export function WorkflowOverview({
               }
               actions={
                 <RefreshButton
-                  className="ui-btn"
                   isFetching={refreshing || inventory.isFetching}
                   onRefresh={() => {
                     refresh();

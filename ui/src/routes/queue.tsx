@@ -209,6 +209,7 @@ export function QueuePanel() {
         </div>
         <RefreshButton
           className="runs-icon-button"
+          size="sm"
           isFetching={query.isFetching}
           onRefresh={() => void query.refetch()}
         />
@@ -291,6 +292,7 @@ export function QueuePanel() {
       </div>
 
       <CursorControls
+        size="sm"
         label="Queue pages"
         {...pages.controls(query.data?.page)}
       />

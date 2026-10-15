@@ -484,6 +484,7 @@ export function ProjectOverview({ project }: { project: Project }) {
     <div className="projects-overview">
       <ProjectSectionActions>
         <RefreshButton
+          size="sm"
           isFetching={fetching}
           onRefresh={() => {
             void checks.refetch();

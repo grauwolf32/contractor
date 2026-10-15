@@ -201,26 +201,8 @@
   background: var(--surface);
 }
 
-/* Shared cursor controls (app/cursor-controls.tsx) in the Library's size. */
 .library-page .pagination {
   margin-top: 0;
-}
-
-.library-page .pagination .secondary-button,
-.library-page .library-agent-versions .secondary-button {
-  min-height: 0;
-  height: 2rem;
-  padding: 0 var(--space-3);
-  border-color: var(--line-strong);
-  border-radius: var(--radius-lg);
-  background: var(--surface);
-  color: var(--text);
-  font-size: var(--text-sm);
-}
-
-.library-page .pagination .secondary-button:not(:disabled):hover,
-.library-page .library-agent-versions .secondary-button:not(:disabled):hover {
-  background: var(--surface-hover);
 }
 
 /* ---------- Cards ---------- */
