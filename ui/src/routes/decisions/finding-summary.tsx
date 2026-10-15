@@ -116,7 +116,7 @@ function FindingFacts({
           value: subject !== null && operation === undefined && (
             <>
               <span className="ui-mono">{subject.key}</span>{" "}
-              <span className="decisions-quiet">{subject.kind}</span>
+              <span className="ui-caption">{subject.kind}</span>
             </>
           ),
         },
@@ -152,7 +152,7 @@ function FindingFacts({
                   key={`${reference.scheme}@${reference.version}/${reference.requirement_id}`}
                 >
                   {reference.requirement_id}{" "}
-                  <span className="decisions-quiet">
+                  <span className="ui-caption">
                     {reference.scheme}@{reference.version}
                   </span>
                 </span>
@@ -317,7 +317,7 @@ export function FindingSummary({
           <Heading className="decisions-heading">Locations</Heading>
           <FindingLocations document={shown} />
           {hiddenLocations <= 0 ? null : (
-            <p className="decisions-quiet">
+            <p className="ui-caption">
               {plural(hiddenLocations, "more location")}
             </p>
           )}
@@ -366,7 +366,7 @@ export function FindingSummary({
                 <span className="ui-mono decisions-row-main">
                   {artifact.ref.namespace}/{artifact.ref.name}
                 </span>
-                <span className="decisions-quiet">
+                <span className="ui-caption">
                   {artifact.mediaType} · {formatBytes(artifact.sizeBytes)}
                 </span>
               </li>

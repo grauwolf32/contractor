@@ -23,7 +23,7 @@ export function AuditQueueError({
         onRetry={onRefresh}
         retryLabel="Refresh context"
       />
-      <p className="issues-quiet">
+      <p className="ui-caption">
         {error instanceof PublicAPIError && error.status === 409
           ? "This check changed. Refresh the context to continue; no decision has been replayed."
           : error instanceof PublicAPIError && error.status === 404
@@ -56,7 +56,7 @@ export function AuditQueuePage({
   return (
     <div className="issues-queue">
       <div className="issues-queue-row">
-        <p className="issues-queue-status">
+        <p className="ui-caption">
           Showing {page.items.length} of {page.total ?? "unavailable"} matching
           records in this check
         </p>
@@ -83,7 +83,7 @@ export function AuditQueuePage({
         </p>
       ) : null}
       <TechnicalDetails summary="Snapshot details">
-        <p className="issues-quiet">
+        <p className="ui-caption">
           {page.asOf === undefined
             ? "Count snapshot unavailable"
             : `Check revision ${page.auditRevision} · As of ${formatTimestamp(page.asOf)}`}

@@ -208,11 +208,6 @@
   font-weight: 600;
 }
 
-.workflow-stage-summary {
-  color: var(--muted);
-  font-size: var(--text-sm);
-}
-
 .workflow-stage-body {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

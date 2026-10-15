@@ -60,7 +60,7 @@ export function WorkflowListRoute() {
       <QueryView
         query={query}
         loading={
-          <p className="library-muted" role="status">
+          <p className="ui-caption" role="status">
             Loading the complete Workflow inventory…
           </p>
         }

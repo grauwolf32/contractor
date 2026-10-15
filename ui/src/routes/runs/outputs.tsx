@@ -93,7 +93,7 @@ function RunOutputPreview({
             Unavailable
           </StatusChip>
         </div>
-        <p className="runs-result-missing">
+        <p className="ui-caption">
           {entry.declaration === undefined
             ? "Run output is unavailable."
             : missingOutputCopy(entry.declaration, runState)}

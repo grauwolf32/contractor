@@ -1009,12 +1009,6 @@
   text-decoration: underline;
 }
 
-.runs-result-missing {
-  margin: 0;
-  color: var(--muted);
-  font-size: var(--text-sm);
-}
-
 .runs-result > .notice {
   margin: 0;
 }
@@ -1385,11 +1379,6 @@ a.runs-publication-ref {
   font-size: var(--text-sm);
   font-weight: 600;
   overflow-wrap: anywhere;
-}
-
-.runs-attempt-number {
-  color: var(--muted);
-  font-size: var(--text-sm);
 }
 
 .runs-marker {

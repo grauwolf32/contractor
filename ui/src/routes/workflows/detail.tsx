@@ -102,7 +102,7 @@ function StageContract({
             <span className="workflow-entry-label">Entry</span>
           ) : null}
         </span>
-        <span className="workflow-stage-summary">
+        <span className="ui-caption">
           {stage.planner.plannerId}@{stage.planner.version} ·{" "}
           {plural(Object.keys(stage.agents).length, "logical Worker")}
         </span>
@@ -244,7 +244,7 @@ export function WorkflowDetailRoute() {
         <QueryView
           query={query}
           loading={
-            <p className="library-muted" role="status">
+            <p className="ui-caption" role="status">
               Loading Workflow contract…
             </p>
           }

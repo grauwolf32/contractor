@@ -96,7 +96,7 @@ function HeaderList({
     <div className="issues-exchange-part">
       <p className="issues-exchange-label">{label}</p>
       {headers.length === 0 ? (
-        <p className="issues-quiet">None</p>
+        <p className="ui-caption">None</p>
       ) : (
         <dl className="issues-headers">
           {headers.map((header, index) => (
@@ -120,14 +120,14 @@ function RequestBody({ base64 }: { base64: string }) {
     return (
       <div className="issues-exchange-part">
         <p className="issues-exchange-label">Request body</p>
-        <p className="issues-quiet">None</p>
+        <p className="ui-caption">None</p>
       </div>
     );
   return (
     <div className="issues-exchange-part">
       <p className="issues-exchange-label">
         Request body{" "}
-        <span className="issues-quiet">
+        <span className="ui-caption">
           {body.kind === "text"
             ? formatBytes(body.bytes)
             : `binary, ${formatBytes(body.bytes)}, base64`}
@@ -183,7 +183,7 @@ export function CapturedExchange({
         </div>
       ))}
       {exchange.response_body_evidence_id === undefined ? null : (
-        <p className="issues-quiet">
+        <p className="ui-caption">
           Response body: retained as evidence{" "}
           <code>{exchange.response_body_evidence_id}</code>
         </p>
@@ -196,7 +196,7 @@ export function CapturedExchange({
         <p className="issues-exchange-title">
           Request {exchange.request_id}
           {exchange.request_tag === "" ? null : (
-            <span className="issues-quiet"> · {exchange.request_tag}</span>
+            <span className="ui-caption"> · {exchange.request_tag}</span>
           )}
         </p>
         {attempts}

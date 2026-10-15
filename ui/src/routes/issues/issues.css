@@ -10,22 +10,6 @@
 
 /* ---------- Shared text ---------- */
 
-.issues-quiet {
-  color: var(--muted);
-  font-size: var(--text-sm);
-  line-height: 1.45;
-}
-
-p.issues-quiet {
-  margin: 0;
-}
-
-.issues-mono {
-  font-family: var(--font-mono);
-  font-size: var(--text-sm);
-  overflow-wrap: anywhere;
-}
-
 .issues-heading {
   margin: 0 0 var(--space-1-5);
   color: var(--text);
@@ -918,12 +902,6 @@ code.issues-attempt-request {
   align-items: center;
   justify-content: space-between;
   gap: var(--space-2) var(--space-4);
-}
-
-.issues-queue-status {
-  margin: 0;
-  color: var(--muted);
-  font-size: var(--text-sm);
 }
 
 .issues-queue-actions {

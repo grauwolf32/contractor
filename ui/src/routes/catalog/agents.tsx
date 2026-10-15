@@ -75,7 +75,7 @@ function AgentCard({
         <span className="library-card-text">
           {body.description || "No authored description."}
         </span>
-        <span className="library-agent-facts">
+        <span className="ui-caption">
           {body.runtime} · {plural(body.skills?.length ?? 0, "Skill")} ·{" "}
           {plural(tools, "tool")}
         </span>

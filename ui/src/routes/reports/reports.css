@@ -200,7 +200,7 @@
    or a notice lines up with the pane like the decision bar does. */
 .reports-decision-footer
   .decisions-request
-  > :is(.decisions-record, p.decisions-quiet) {
+  > :is(.decisions-record, p.ui-caption) {
   margin: 0;
   padding: var(--space-3-5) var(--ui-pad-end, 1.75rem) var(--space-3-5)
     var(--ui-pad-start, 1.75rem);
@@ -210,7 +210,7 @@
 /* Right under "Decision recorded: …", which draws the divider. */
 .reports-decision-footer
   .decisions-status:not(:empty)
-  + :is(.decisions-record, p.decisions-quiet) {
+  + :is(.decisions-record, p.ui-caption) {
   padding-top: 0;
   border-top: 0;
 }

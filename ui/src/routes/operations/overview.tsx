@@ -51,7 +51,7 @@ function OverviewTile({
           {warn ? <StatusGlyph tone="warning" /> : null}
           <strong>{count}</strong> {count === 1 ? noun[0] : noun[1]}
         </span>{" "}
-        <span className="ops-tile-text">{text}</span>
+        <span className="ui-caption">{text}</span>
       </Link>
     </li>
   );

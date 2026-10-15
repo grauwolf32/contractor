@@ -7,16 +7,6 @@
 
 /* ---------- Shared text ---------- */
 
-.checks-quiet {
-  color: var(--muted);
-  font-size: var(--text-sm);
-}
-
-/* No specificity, so layout classes (checks-pane-note) keep their margins. */
-:where(p.checks-quiet) {
-  margin: 0;
-}
-
 .checks-eyebrow {
   margin: 0;
   color: var(--muted);

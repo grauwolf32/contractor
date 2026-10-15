@@ -228,13 +228,13 @@ export function ProjectFindingsRoute() {
         <h3 id={headingId} className="issues-section-title">
           Possible issues
         </h3>
-        <p className="issues-quiet">
+        <p className="ui-caption">
           From every check of this project: not reviewed first, then newest.
         </p>
       </header>
       <QueryView
         query={project}
-        loading={<p className="issues-quiet">Loading the project…</p>}
+        loading={<p className="ui-caption">Loading the project…</p>}
         onRetry={() => void project.refetch()}
       >
         {(data) =>
@@ -247,7 +247,7 @@ export function ProjectFindingsRoute() {
           ) : audits.error !== null ? (
             <ErrorNotice error={audits.error} />
           ) : audits.isPending ? (
-            <p className="issues-quiet" role="status">
+            <p className="ui-caption" role="status">
               Loading checks…
             </p>
           ) : (
@@ -341,7 +341,7 @@ export function ProjectFindingsRoute() {
                     </select>
                   </span>
                 </div>
-                <p id={`${severityId}-hint`} className="issues-quiet">
+                <p id={`${severityId}-hint`} className="ui-caption">
                   Severity is the analyst&apos;s rating; AI suggestions are not
                   filtered.
                 </p>
@@ -365,7 +365,7 @@ export function ProjectFindingsRoute() {
                 ) : null}
               </div>
               {loading ? (
-                <p className="issues-quiet" role="status">
+                <p className="ui-caption" role="status">
                   Loading possible issues from every check…
                 </p>
               ) : null}

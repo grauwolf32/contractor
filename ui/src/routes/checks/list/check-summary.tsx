@@ -114,7 +114,7 @@ function Summary({
         <p className="checks-summary-objective">{audit.scope.objective}</p>
       ) : null}
       {audit.state === "draft" ? (
-        <p className="checks-quiet">
+        <p className="ui-caption">
           This check is a draft: it has no {itemNoun(kind, 2)} yet. Start it to
           create them, or delete it.
         </p>
@@ -122,7 +122,7 @@ function Summary({
         <QueryView
           query={workspace}
           loading={
-            <p className="checks-quiet" role="status">
+            <p className="ui-caption" role="status">
               Loading progress…
             </p>
           }
@@ -187,12 +187,12 @@ function Summary({
         </p>
       ) : null}
       {timeLimit === undefined ? null : (
-        <p className="checks-quiet">{timeLimit}</p>
+        <p className="ui-caption">{timeLimit}</p>
       )}
       <QueryView
         query={read}
         loading={
-          <p className="checks-quiet" role="status">
+          <p className="ui-caption" role="status">
             Loading the controls…
           </p>
         }
@@ -281,7 +281,7 @@ export function CheckSummary({
         <QueryView
           query={audit}
           loading={
-            <p className="checks-quiet" role="status">
+            <p className="ui-caption" role="status">
               Loading check…
             </p>
           }

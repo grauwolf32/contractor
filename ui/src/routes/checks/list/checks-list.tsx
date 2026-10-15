@@ -175,7 +175,7 @@ export function ChecksListPane({
     );
   else if (checks.isPending && checks.checks.length === 0)
     state = (
-      <p className="checks-pane-note checks-quiet" role="status">
+      <p className="checks-pane-note ui-caption" role="status">
         Loading checks…
       </p>
     );

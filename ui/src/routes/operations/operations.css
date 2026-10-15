@@ -278,11 +278,6 @@
   letter-spacing: 0;
 }
 
-.ops-panel-aside {
-  color: var(--muted);
-  font-size: var(--text-sm);
-}
-
 .ops-grid-2 {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -686,11 +681,6 @@
 
 .ops-tile-value[data-tone="warning"] {
   color: var(--warning);
-}
-
-.ops-tile-text {
-  color: var(--muted);
-  font-size: var(--text-sm);
 }
 
 /* ---------- Runtime Agents ---------- */

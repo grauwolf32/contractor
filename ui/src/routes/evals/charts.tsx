@@ -506,7 +506,7 @@ export function EvalChartPanel({
       >
         {(data) => (
           <>
-            <p className="eval-chart-scope">
+            <p className="ui-caption">
               {data.coverage.includedPairs}/{data.coverage.expectedPairs} pairs
               included · {data.freshness}
               {data.measurementScope ? ` · ${data.measurementScope}` : ""}

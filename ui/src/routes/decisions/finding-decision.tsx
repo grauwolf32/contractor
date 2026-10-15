@@ -185,7 +185,7 @@ function StateReason({
         {!open ? null : (
           <QueryView
             query={history}
-            loading={<p className="decisions-quiet">Loading the decision…</p>}
+            loading={<p className="ui-caption">Loading the decision…</p>}
             errorContext="The decision could not be loaded."
           >
             {(data) => {
@@ -194,16 +194,13 @@ function StateReason({
                 verdictForState(finding.state),
               );
               return decision === undefined ? (
-                <p className="decisions-quiet">
+                <p className="ui-caption">
                   No recorded decision explains this state.
                 </p>
               ) : (
                 <>
-                  <p className="decisions-record-meta">
-                    by{" "}
-                    <span className="decisions-record-actor">
-                      {decision.actorId}
-                    </span>
+                  <p className="ui-caption">
+                    by <span className="ui-mono">{decision.actorId}</span>
                     {" · "}
                     <RecordedTime value={decision.createdAt} />
                   </p>
@@ -212,7 +209,7 @@ function StateReason({
                     <DecisionMarkdown source={decision.rationale} />
                   </div>
                   {data.truncated ? (
-                    <p className="decisions-quiet">
+                    <p className="ui-caption">
                       This possible issue has more decisions than shown here; a
                       newer one may be missing.
                     </p>
@@ -245,7 +242,7 @@ function CurrentOutcome({
           {state.label}
         </StatusChip>
         {finding.rejectionReason === undefined ? null : (
-          <span className="decisions-record-meta">
+          <span className="ui-caption">
             Reason:{" "}
             {REJECTION_REASONS[finding.rejectionReason] ??
               finding.rejectionReason}

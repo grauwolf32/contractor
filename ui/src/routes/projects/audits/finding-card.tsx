@@ -76,7 +76,7 @@ export function FindingProvenance({
       <div id={panelId} hidden={!expanded}>
         {!expanded ? null : provenance.data === undefined ? (
           provenance.error === null ? (
-            <p className="issues-quiet" role="status">
+            <p className="ui-caption" role="status">
               Loading provenance…
             </p>
           ) : (
@@ -92,7 +92,7 @@ export function FindingProvenance({
             </div>
           )
         ) : provenance.data.items.length === 0 ? (
-          <p className="issues-quiet">No retained provenance records.</p>
+          <p className="ui-caption">No retained provenance records.</p>
         ) : (
           <>
             <ol className="issues-provenance-list">
@@ -104,7 +104,7 @@ export function FindingProvenance({
                     </StatusChip>
                     <strong>{record.origin.workflow.name}</strong>
                     <code>@{record.origin.workflow.version}</code>
-                    <span className="issues-quiet">
+                    <span className="ui-caption">
                       <RecordedTime value={record.createdAt} />
                     </span>
                   </p>
@@ -179,7 +179,7 @@ export function FindingProvenance({
               ))}
             </ol>
             {provenance.data.page.hasMore ? (
-              <p className="issues-quiet">
+              <p className="ui-caption">
                 More provenance records exist than shown here.
               </p>
             ) : null}
@@ -220,7 +220,7 @@ export function FindingSources({
             >
               {artifact.ref.namespace}/{artifact.ref.name}
             </ContextLink>
-            <span className="issues-quiet">
+            <span className="ui-caption">
               {artifact.sizeBytes === undefined
                 ? null
                 : `${formatBytes(artifact.sizeBytes)} · `}
@@ -322,8 +322,8 @@ export function FindingTechnicalDetails({
                 "Not specified"
               ) : (
                 <>
-                  <span className="issues-mono">{document.subject.key}</span>{" "}
-                  <span className="issues-quiet">{document.subject.kind}</span>
+                  <span className="ui-mono">{document.subject.key}</span>{" "}
+                  <span className="ui-caption">{document.subject.kind}</span>
                 </>
               ),
           },
@@ -380,7 +380,7 @@ export function AuditFindingCard({
         id={`decision-${audit.auditId}-${finding.findingId}`}
       >
         {reviewLoading ? (
-          <p className="issues-quiet" role="status">
+          <p className="ui-caption" role="status">
             Loading review status…
           </p>
         ) : reviewError !== null && reviewError !== undefined ? (

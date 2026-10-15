@@ -251,11 +251,6 @@
   font-weight: 600;
 }
 
-.library-agent-facts {
-  color: var(--muted);
-  font-size: var(--text-sm);
-}
-
 .library-agent-open {
   margin-top: auto;
   color: var(--link);
