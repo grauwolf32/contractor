@@ -1,0 +1,52 @@
+schema_version: "1.0"
+id: V384-003
+title: Integrate Workflow Planner subtask budgets with current main
+milestone: workflow-planner-subtask-budgets-2026-10
+epic: planner-worker
+kind: chore
+introduced_by: V380-001
+priority: P2
+status: in_progress
+depends_on: [V380-001, V380-002]
+languages: [go, typescript, markdown]
+goal: >-
+  Merge the completed Workflow subtask budget branch into main while retaining
+  both branches' contracts, generated clients and independently tracked tasks.
+context:
+  request: On 2026-10-15 the user requested merging feat/v380-workflow-subtask-limit into main.
+  finding: >-
+    tasks/done/v380-001-workflow-planner-subtask-limit.yml:2 uses V380-001,
+    which current main already assigns to Project active-check policy;
+    tasks/index.yml, tasks/BACKLOG.md and ui/package.json also changed on both branches.
+  specification:
+    - docs/spec/configuration/workflows.md
+    - docs/spec/execution/planners.md
+    - docs/spec/platform/limits.md
+scope:
+  in:
+    - Renumber the incoming feature and fixture tasks without changing their implementation evidence.
+    - Reconcile main, regenerate combined generated artifacts and advance the UI patch version.
+    - Verify strict Workflow configuration, pinned Planner limits, PostgreSQL session persistence, continuation and public contracts on the combined revision.
+    - Land the verified result in local main with a merge commit preserving the original branch history.
+  out:
+    - New feature behavior, model changes, schema changes, demo deployment and unrelated branches.
+acceptance_criteria:
+  - id: A1
+    text: Both task histories have unique IDs, valid dependencies and milestone exits; generated backlog and public clients reflect the combined contracts.
+  - id: A2
+    text: The incoming feature and fixture checks pass on the combined revision with disposable PostgreSQL configured, including the complete Go suite, UI checks and shared fixtures.
+  - id: A3
+    text: The original feature branch is an ancestor of local main and the user's uncommitted primary-checkout files are preserved.
+tests:
+  - command: make test-config
+    covers: [A1, A2]
+  - command: make test-go
+    covers: [A2]
+  - command: make verify-public-api
+    covers: [A1, A2]
+  - command: make ui-verify
+    covers: [A1, A2]
+  - command: make test-wire-cross-language
+    covers: [A2]
+  - command: make lint
+    covers: [A1, A2]
