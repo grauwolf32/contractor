@@ -15,6 +15,7 @@ import { queryKeys } from "../api/query-keys";
 import { useRunEvents } from "../events/context";
 import { CursorControls } from "../app/cursor-controls";
 import { useURLCursorStack } from "../app/pagination";
+import { pollInterval } from "../app/polling";
 import { RefreshButton } from "../app/refresh-button";
 import { RecordedTime } from "../app/recorded-time";
 import { QueryView } from "../app/query-view";
@@ -171,7 +172,9 @@ export function QueuePanel() {
         ...(membership === undefined ? {} : { membership }),
         ...(cursor === undefined ? {} : { cursor }),
       }),
-    refetchInterval: 10_000,
+    // The active queue never settles: read it every 10 s, backing off while
+    // reads fail.
+    refetchInterval: pollInterval({ interval: 10_000 }),
   });
 
   useQueueInvalidation(query.data?.items ?? []);
@@ -218,11 +221,10 @@ export function QueuePanel() {
         <QueryView
           query={query}
           loading={
-            <p className="runs-loading" role="status">
+            <p className="ui-caption" role="status">
               Loading Queue…
             </p>
           }
-          onRetry={() => void query.refetch()}
           isEmpty={(queryData) => queryData.items.length === 0}
           empty={
             <EmptyState title="No active Runs match this view.">

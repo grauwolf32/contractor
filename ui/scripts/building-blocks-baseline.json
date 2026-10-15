@@ -33,13 +33,6 @@
     "src/routes/artifacts/previews/http-exchange.tsx": {
       "button": 4
     },
-    "src/routes/inbox/detail.tsx": {
-      "button": 3,
-      "svg": 2
-    },
-    "src/routes/inbox/list.tsx": {
-      "button": 2
-    },
     "src/routes/projects/active-checks-editor.tsx": {
       "button": 3
     },
@@ -121,24 +114,6 @@
     },
     "src/routes/projects/workflow-recommendations.tsx": {
       "button": 2
-    },
-    "src/routes/runs/actions.tsx": {
-      "button": 3
-    },
-    "src/routes/runs/admission.tsx": {
-      "button": 1
-    },
-    "src/routes/runs/artifacts.tsx": {
-      "button": 2
-    },
-    "src/routes/runs/components.tsx": {
-      "svg": 1
-    },
-    "src/routes/runs/detail.tsx": {
-      "svg": 1
-    },
-    "src/routes/runs/list.tsx": {
-      "button": 4
     },
     "src/routes/workflows/card.tsx": {
       "button": 1

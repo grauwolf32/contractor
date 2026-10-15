@@ -10,7 +10,7 @@
     },
     {
       "prefix": "run-result-",
-      "source": "src/routes/runs/artifacts.tsx: run-result-${entry.kind}"
+      "source": "src/routes/runs/outputs.tsx: run-result-${entry.kind}"
     }
   ],
   "classes": [
