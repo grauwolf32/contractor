@@ -26,28 +26,6 @@
   text-transform: uppercase;
 }
 
-.checks-text-button,
-.checks-text-button:not(:disabled):hover,
-.checks-text-button:not(:disabled):active {
-  min-height: 0;
-  padding: 0;
-  border: 0;
-  border-radius: var(--radius-xs);
-  background: none;
-  color: var(--link);
-  font-size: inherit;
-  font-weight: 700;
-  text-decoration: underline;
-  text-decoration-thickness: 0.08em;
-  text-underline-offset: 0.18em;
-  transform: none;
-}
-
-.checks-text-button:focus-visible {
-  outline: 2px solid var(--focus);
-  outline-offset: 2px;
-}
-
 .checks-key-hint {
   display: inline-flex;
   flex-wrap: wrap;

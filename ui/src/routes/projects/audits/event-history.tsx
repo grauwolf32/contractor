@@ -10,7 +10,7 @@ import { usePublicAPI } from "../../../api/context";
 import { queryKeys } from "../../../api/query-keys";
 import { ErrorNotice } from "../../../app/error-notice";
 import { checkStateLabel } from "../../../app/vocabulary";
-import { ActivityLog } from "../../../ui";
+import { ActivityLog, Button } from "../../../ui";
 import { type CheckLinks } from "./check-links";
 import { eventEntry } from "./event-model";
 import { useAuditProjectionRefresh } from "./projection-refresh";
@@ -121,30 +121,30 @@ export function CheckEventHistory({
           {pages[0]!.total.toLocaleString("en-US")} recorded events.
         </p>
       )}
-      <button
-        type="button"
-        className="secondary-button"
-        disabled={query.isFetching}
-        onClick={() => {
-          void query.refetch();
-        }}
-      >
-        Refresh activity
-      </button>{" "}
-      {query.hasNextPage ? (
-        <button
-          type="button"
-          className="secondary-button"
+      <div className="ui-toolbar">
+        <Button
+          size="sm"
           disabled={query.isFetching}
           onClick={() => {
-            void query.fetchNextPage();
+            void query.refetch();
           }}
         >
-          {query.isFetchingNextPage
-            ? "Loading older activity…"
-            : "Load older activity"}
-        </button>
-      ) : null}
+          Refresh activity
+        </Button>
+        {query.hasNextPage ? (
+          <Button
+            size="sm"
+            disabled={query.isFetching}
+            pending={query.isFetchingNextPage}
+            pendingLabel="Loading older activity…"
+            onClick={() => {
+              void query.fetchNextPage();
+            }}
+          >
+            Load older activity
+          </Button>
+        ) : null}
+      </div>
     </>
   );
 }

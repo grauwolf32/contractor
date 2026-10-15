@@ -254,13 +254,9 @@ export function CheckListPane({
               onClick={onRefresh}
             />
             {filtered ? (
-              <button
-                type="button"
-                className="checks-text-button"
-                onClick={onClearFilters}
-              >
+              <Button variant="link" size="xs" onClick={onClearFilters}>
                 Clear filters
-              </button>
+              </Button>
             ) : null}
           </div>
         </div>
