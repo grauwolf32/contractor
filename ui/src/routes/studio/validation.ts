@@ -31,11 +31,11 @@ function nextStages(stage: unknown): string[] {
 // Configuration names, versions and selectors follow the Server grammar
 // (CONFIG_NAME_PATTERN, CONFIG_VERSION_PATTERN and isConfigSelector, held to
 // api/testdata/v1alpha1/config-identity-cases.json).
-export const NAME_MESSAGE =
+const NAME_MESSAGE =
   "Use a name of at most 128 lowercase letters, digits, - and _, starting with a letter.";
-export const VERSION_MESSAGE =
+const VERSION_MESSAGE =
   "Use a version of at most 64 letters, digits, ., _, + and -, starting with a letter or digit.";
-export const SELECTOR_MESSAGE = "Use a versioned selector such as worker@1.";
+const SELECTOR_MESSAGE = "Use a versioned selector such as worker@1.";
 
 /**
  * Why a file slot's media types are refused, as the Server refuses them: one

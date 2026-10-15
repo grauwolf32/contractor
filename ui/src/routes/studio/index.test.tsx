@@ -1,26 +1,22 @@
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { createMemoryRouter, RouterProvider } from "react-router";
+import { screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { StudioRoute } from ".";
 import { saveBlob } from "../../app/download";
+import { renderWithAPI } from "../../test/render";
 vi.mock("../../app/download", () => ({ saveBlob: vi.fn() }));
 
 function mount() {
-  const router = createMemoryRouter(
-    [
+  return renderWithAPI(null, {
+    path: "/catalog/studio",
+    routes: [
       { path: "/catalog/studio", element: <StudioRoute /> },
       { path: "/catalog/workflows", element: <h1>Workflow library</h1> },
     ],
-    { initialEntries: ["/catalog/studio"] },
-  );
-  render(<RouterProvider router={router} />);
-  return router;
+  });
 }
 describe("studio draft lifecycle", () => {
   it("guards route changes, preserves a cancelled draft, and exports without browser storage", async () => {
-    const user = userEvent.setup();
-    mount();
+    const { user } = mount();
     const storage = vi.spyOn(Storage.prototype, "setItem");
     const objective = screen.getByLabelText("Objective");
     fireEvent.change(objective, { target: { value: "Keep my changes" } });
@@ -30,7 +26,9 @@ describe("studio draft lifecycle", () => {
     expect(unload.defaultPrevented).toBe(true);
     await user.click(screen.getByRole("link", { name: "Library" }));
     expect(
-      screen.getByRole("dialog", { name: "Discard current draft changes?" }),
+      screen.getByRole("alertdialog", {
+        name: "Discard current draft changes?",
+      }),
     ).toBeVisible();
     await user.click(screen.getByRole("button", { name: "Keep editing" }));
     expect(screen.getByLabelText("Objective")).toHaveValue("Keep my changes");
@@ -42,8 +40,7 @@ describe("studio draft lifecycle", () => {
     await screen.findByRole("heading", { name: "Workflow library" });
   });
   it("keeps unapplied invalid YAML recoverable and blocks replacement until a concrete discard", async () => {
-    const user = userEvent.setup();
-    mount();
+    const { user } = mount();
     await user.click(screen.getByRole("button", { name: "YAML" }));
     fireEvent.change(screen.getByLabelText("Authored YAML"), {
       target: { value: "kind: Workflow\nspec: [" },
@@ -78,8 +75,7 @@ describe("studio draft lifecycle", () => {
     expect(screen.getByRole("button", { name: "Undo" })).toBeDisabled();
   });
   it("reports an unreachable added stage and restores the source with undo", async () => {
-    const user = userEvent.setup();
-    mount();
+    const { user } = mount();
     await user.click(screen.getByRole("button", { name: "+ Stage" }));
     expect(screen.getByText(/Stage is unreachable/)).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Undo" }));

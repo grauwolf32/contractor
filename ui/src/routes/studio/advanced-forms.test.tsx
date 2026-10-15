@@ -21,7 +21,9 @@ import { buildGraph } from "./graph";
 import { validateDraft } from "./validation";
 import { setEscalationMode, setSelectionField } from "./advanced-edits";
 import { renameArgument, setArgumentSource } from "./advanced-edits";
-import { OVERLAY_MEDIA_TYPE } from "./workspace-form";
+
+// The media type of a workspace overlay state (the export's state slot).
+const OVERLAY_MEDIA_TYPE = "application/vnd.contractor.workspace-overlay+json";
 
 function workflow() {
   let draft = starter("Workflow");

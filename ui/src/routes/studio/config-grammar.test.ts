@@ -3,12 +3,12 @@ import mediaTypeCases from "../../../../api/testdata/v1alpha1/media-type-cases.j
 import { describe, expect, it } from "vitest";
 
 import { patchDraft, starter, type Draft, type Path } from "./document";
-import {
-  NAME_MESSAGE,
-  SELECTOR_MESSAGE,
-  validateDraft,
-  VERSION_MESSAGE,
-} from "./validation";
+import { validateDraft } from "./validation";
+
+// Each refusal names the grammar it broke, not some other rule.
+const NAME_MESSAGE = expect.stringMatching(/^Use a name of at most 128 /);
+const VERSION_MESSAGE = expect.stringMatching(/^Use a version of at most 64 /);
+const SELECTOR_MESSAGE = expect.stringMatching(/^Use a versioned selector /);
 
 // Studio refuses exactly what the Server refuses: the shared cases hold its
 // configuration names, versions, selectors and file media types to the

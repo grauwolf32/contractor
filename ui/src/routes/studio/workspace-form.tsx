@@ -1,9 +1,9 @@
+import { Button } from "../../ui";
 import { appendDraft, at, record, uniqueName, type Path } from "./document";
 import { DraftChoice, DraftField } from "./advanced-fields";
 import { useDraftEdit, type FormEditor } from "./form-editor";
 
-export const OVERLAY_MEDIA_TYPE =
-  "application/vnd.contractor.workspace-overlay+json";
+const OVERLAY_MEDIA_TYPE = "application/vnd.contractor.workspace-overlay+json";
 export function WorkspaceForm({
   editor,
   stagePath,
@@ -35,8 +35,7 @@ export function WorkspaceForm({
       {workspace === undefined ? (
         <>
           <p>Mount stage input files into a workspace.</p>
-          <button
-            className="ui-btn"
+          <Button
             onClick={() =>
               onPatch(path, {
                 mode: "direct",
@@ -45,7 +44,7 @@ export function WorkspaceForm({
             }
           >
             Configure workspace
-          </button>
+          </Button>
         </>
       ) : workspace === null ||
         typeof workspace !== "object" ||
@@ -80,8 +79,7 @@ export function WorkspaceForm({
                   path={[...path, "sources", index, "target"]}
                   placeholder="Workspace root"
                 />
-                <button
-                  className="ui-btn"
+                <Button
                   onClick={() =>
                     onRemove(
                       [...path, "sources", index],
@@ -90,14 +88,13 @@ export function WorkspaceForm({
                   }
                 >
                   Remove source {index + 1}
-                </button>
+                </Button>
               </div>
             ))
           ) : (
             <p>Sources must be a list. Repair this value in block YAML.</p>
           )}
-          <button
-            className="ui-btn"
+          <Button
             disabled={Array.isArray(row.sources) && row.sources.length >= 32}
             onClick={() => {
               try {
@@ -117,11 +114,10 @@ export function WorkspaceForm({
             }}
           >
             Add workspace source
-          </button>
+          </Button>
           <h4>Restore state</h4>
           {row.state === undefined ? (
-            <button
-              className="ui-btn"
+            <Button
               onClick={() =>
                 onPatch([...path, "state"], {
                   artifact:
@@ -132,7 +128,7 @@ export function WorkspaceForm({
               }
             >
               Add state input
-            </button>
+            </Button>
           ) : (
             <>
               {binding(
@@ -140,20 +136,18 @@ export function WorkspaceForm({
                 [...path, "state", "artifact"],
                 slots,
               )}
-              <button
-                className="ui-btn"
+              <Button
                 onClick={() =>
                   onRemove([...path, "state"], "workspace state input")
                 }
               >
                 Remove state input
-              </button>
+              </Button>
             </>
           )}
           <h4>Export</h4>
           {row.export === undefined ? (
-            <button
-              className="ui-btn"
+            <Button
               disabled={row.mode !== "overlay"}
               onClick={() =>
                 edit((document) => {
@@ -186,7 +180,7 @@ export function WorkspaceForm({
               }
             >
               Add workspace export
-            </button>
+            </Button>
           ) : (
             <>
               {binding(
@@ -199,8 +193,7 @@ export function WorkspaceForm({
                 [...path, "export", "diff"],
                 Object.keys(results),
               )}
-              <button
-                className="ui-btn"
+              <Button
                 onClick={() =>
                   onRemove(
                     [...path, "export"],
@@ -209,16 +202,13 @@ export function WorkspaceForm({
                 }
               >
                 Remove workspace export
-              </button>
+              </Button>
             </>
           )}
           {row.mode !== "overlay" ? <p>Export requires overlay mode.</p> : null}
-          <button
-            className="ui-btn"
-            onClick={() => onRemove(path, "workspace configuration")}
-          >
+          <Button onClick={() => onRemove(path, "workspace configuration")}>
             Remove workspace
-          </button>
+          </Button>
         </>
       )}
       {error ? <p role="alert">{error}</p> : null}

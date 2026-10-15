@@ -230,30 +230,6 @@
     "src/routes/settings/git-key.tsx": {
       "button": 2
     },
-    "src/routes/studio/canvas.tsx": {
-      "button": 4
-    },
-    "src/routes/studio/catalog-picker.tsx": {
-      "button": 6
-    },
-    "src/routes/studio/execution-form.tsx": {
-      "button": 3
-    },
-    "src/routes/studio/index.tsx": {
-      "button": 18
-    },
-    "src/routes/studio/inspector.tsx": {
-      "button": 12
-    },
-    "src/routes/studio/live.tsx": {
-      "button": 5
-    },
-    "src/routes/studio/tool-execution-form.tsx": {
-      "button": 4
-    },
-    "src/routes/studio/workspace-form.tsx": {
-      "button": 8
-    },
     "src/routes/workflows/card.tsx": {
       "button": 1
     },

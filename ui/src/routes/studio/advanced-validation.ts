@@ -21,7 +21,7 @@ const bindingName = (value: unknown): value is string =>
  * apply the same rule; api/testdata/v1alpha1/workspace-path-cases.json pins
  * all three.
  */
-export function isWorkspaceTarget(target: string): boolean {
+function isWorkspaceTarget(target: string): boolean {
   if (target === "") return true;
   const parts = target.split("/");
   return (

@@ -1,100 +1,100 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { fireEvent, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { PublicAPI } from "../../api/client";
-import { PublicAPIProvider } from "../../api/context";
+
+import type { components } from "../../api/generated/public";
+import { conforming, DIGEST } from "../../test/builders";
+import { failure, fakeServer, json, page } from "../../test/fake-server";
+import { renderWithAPI } from "../../test/render";
 import { CatalogField, type CatalogKind } from "./catalog-picker";
 
-function response(value: unknown, status = 200) {
-  return new Response(JSON.stringify(value), {
-    status,
-    headers: {
-      "Content-Type": "application/json",
-      "X-Contractor-API-Version": "contractor.public.v1",
-    },
-  });
-}
+type Schemas = components["schemas"];
+
 function agent(name: string, version: string) {
-  return {
-    ref: {
-      kind: "agent-templates",
-      name,
-      version,
-      digest: `sha256:${"a".repeat(64)}`,
-    },
+  return conforming("ConfigurationResource", {
+    ref: { kind: "agent-templates", name, version, digest: DIGEST },
     source: "operator",
     body: {
       description: `Published ${name}`,
       runtime: "llm@1",
-      instructions: {
-        ref: "instructions/agent.md",
-        digest: `sha256:${"a".repeat(64)}`,
-      },
-      modelPolicy: {
-        policyId: "worker",
-        version: "1",
-        digest: `sha256:${"a".repeat(64)}`,
-      },
+      instructions: { ref: "instructions/agent.md", digest: DIGEST },
+      modelPolicy: { policyId: "worker", version: "1", digest: DIGEST },
       sandboxProfile: "default@1",
       toolsets: [],
     },
-  };
+  });
 }
-const failed = () =>
-  response(
-    {
-      code: "unavailable",
-      message: "Try again",
-      requestId: "test",
-      retryable: true,
-    },
-    503,
-  );
+
+/** Version 3 of a published configuration named "policy". */
+function configuration(
+  kind: Schemas["ConfigurationRef"]["kind"],
+  body: Schemas["ConfigurationResource"]["body"],
+) {
+  const ref = { kind, name: "policy", version: "3", digest: DIGEST };
+  return conforming("ConfigurationResource", { ref, source: "operator", body });
+}
+
+/** One published version of each other catalog kind. */
+const published = {
+  workflows: () =>
+    conforming("WorkflowSummary", {
+      ref: { name: "workflow", version: "5" },
+      entryStage: "start",
+      inputs: {},
+      outputs: {},
+      parameters: {},
+      presentation: {
+        displayName: "Workflow",
+        description: "Published workflow",
+      },
+    }),
+  "model-policies": () =>
+    configuration("model-policies", {
+      model: "test-model",
+      contextWindowTokens: 1000,
+    }),
+  "llm-gateways": () =>
+    configuration("llm-gateways", {
+      protocol: "openai-compatible@1",
+      url: "http://gateway.test/v1",
+    }),
+  "execution-configs": () =>
+    configuration("execution-configs", {
+      planner: {
+        modelPolicy: { policyId: "worker", version: "1", digest: DIGEST },
+      },
+    }),
+};
+
+const failed = () => failure(503, "unavailable", "Try again", true);
+
+/** The field over a fake Server whose catalog lists answer `load`. */
 function mount(
-  load: (url: URL) => Promise<Response>,
+  load: (url: URL) => Response,
   kind: CatalogKind = "agent-templates",
 ) {
-  const requests: Request[] = [];
-  const api = new PublicAPI(
-    {
-      uiVersion: "0.6.0",
-      supportedApiVersions: ["contractor.public.v1"],
-      apiBaseUrl: "http://127.0.0.1:8080",
-    },
-    async (input) => {
-      const request = input as Request;
-      requests.push(request);
-      return load(new URL(request.url));
-    },
-  );
+  const answer = ({ url }: { url: URL }) => load(url);
   const change = vi.fn();
-  render(
-    <QueryClientProvider
-      client={
-        new QueryClient({ defaultOptions: { queries: { retry: false } } })
-      }
-    >
-      <PublicAPIProvider api={api}>
-        <CatalogField
-          label="Template"
-          kind={kind}
-          value="manual@7"
-          onChange={change}
-        />
-      </PublicAPIProvider>
-    </QueryClientProvider>,
+  const view = renderWithAPI(
+    <CatalogField
+      label="Template"
+      kind={kind}
+      value="manual@7"
+      onChange={change}
+    />,
+    {
+      server: fakeServer({
+        "GET /v1/configurations/{kind}": answer,
+        "GET /v1/workflows": answer,
+      }),
+    },
   );
-  return { change, requests };
+  return { change, requests: view.requests, user: view.user };
 }
+
 describe("Studio catalog selectors", () => {
   it("loads only when opened, cancels without edits and chooses an exact published version", async () => {
-    const user = userEvent.setup();
-    const { change, requests } = mount(async () =>
-      response({
-        items: [agent("worker", "1"), agent("worker", "2")],
-        page: { hasMore: false },
-      }),
+    const { change, requests, user } = mount(() =>
+      json(page([agent("worker", "1"), agent("worker", "2")])),
     );
     expect(requests).toHaveLength(0);
     const open = screen.getByRole("button", {
@@ -116,28 +116,18 @@ describe("Studio catalog selectors", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
   it("retains loaded choices on continuation failure, retries, deduplicates and resets cursors on search", async () => {
-    const user = userEvent.setup();
     let fail = true;
-    const { requests } = mount(async (url) => {
+    const { requests, user } = mount((url) => {
       if (url.searchParams.get("q") === "target")
-        return response({
-          items: [agent("target", "3")],
-          page: { hasMore: false },
-        });
+        return json(page([agent("target", "3")]));
       if (url.searchParams.has("cursor")) {
         if (fail) {
           fail = false;
           return failed();
         }
-        return response({
-          items: [agent("worker", "1"), agent("second", "2")],
-          page: { hasMore: false },
-        });
+        return json(page([agent("worker", "1"), agent("second", "2")]));
       }
-      return response({
-        items: [agent("worker", "1")],
-        page: { hasMore: true, nextCursor: "page-two" },
-      });
+      return json(page([agent("worker", "1")], "page-two"));
     });
     await user.click(
       screen.getByRole("button", { name: "Choose template from catalog" }),
@@ -166,8 +156,7 @@ describe("Studio catalog selectors", () => {
     expect(last.searchParams.get("limit")).toBe("50");
   });
   it("leaves manual editing available after an initial catalog failure", async () => {
-    const user = userEvent.setup();
-    const { change } = mount(async () => failed());
+    const { change, user } = mount(() => failed());
     await user.click(
       screen.getByRole("button", { name: "Choose template from catalog" }),
     );
@@ -184,9 +173,8 @@ describe("Studio catalog selectors", () => {
   it.each(["repeated", "missing"])(
     "stops a %s continuation without hiding loaded choices",
     async (condition) => {
-      const user = userEvent.setup();
-      const { requests } = mount(async () =>
-        response({
+      const { requests, user } = mount(() =>
+        json({
           items: [agent("worker", "1")],
           page: {
             hasMore: true,
@@ -220,36 +208,8 @@ describe("Studio catalog selectors", () => {
     "llm-gateways",
     "execution-configs",
   ] as const)("reads published %s through its own endpoint", async (kind) => {
-    const user = userEvent.setup();
-    const { change, requests } = mount(
-      async () =>
-        response({
-          items: [
-            kind === "workflows"
-              ? {
-                  ref: { name: "workflow", version: "5" },
-                  entryStage: "start",
-                  inputs: {},
-                  outputs: {},
-                  parameters: {},
-                  presentation: {
-                    displayName: "Workflow",
-                    description: "Published workflow",
-                  },
-                }
-              : {
-                  ref: {
-                    kind,
-                    name: "policy",
-                    version: "3",
-                    digest: `sha256:${"a".repeat(64)}`,
-                  },
-                  source: "operator",
-                  body: { model: "test-model", contextWindowTokens: 1000 },
-                },
-          ],
-          page: { hasMore: false },
-        }),
+    const { change, requests, user } = mount(
+      () => json(page([published[kind]()])),
       kind,
     );
     await user.click(

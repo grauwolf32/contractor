@@ -1,3 +1,4 @@
+import { Button, Field } from "../../ui";
 import { at, record, textValue, uniqueName } from "./document";
 import { DraftField } from "./advanced-fields";
 import { useDraftEdit, type FormEditor } from "./form-editor";
@@ -14,8 +15,7 @@ export function ToolExecutionForm({ editor }: { editor: FormEditor }) {
   return (
     <>
       {at(editor.draft.value, path) === undefined ? (
-        <button
-          className="ui-btn"
+        <Button
           onClick={() =>
             editor.onPatch(path, {
               tool: Array.isArray(firstTool) ? (firstTool[0] ?? "") : "",
@@ -26,7 +26,7 @@ export function ToolExecutionForm({ editor }: { editor: FormEditor }) {
           }
         >
           Configure tool execution
-        </button>
+        </Button>
       ) : (
         <>
           <DraftField
@@ -52,69 +52,84 @@ export function ToolExecutionForm({ editor }: { editor: FormEditor }) {
               literalType = typeof binding.value;
             return (
               <div className="studio-group" key={name}>
-                <label className="studio-field">
-                  <span>Argument name</span>
-                  <input
-                    defaultValue={name}
-                    onBlur={(event) => {
-                      if (event.target.value !== name)
+                <Field label="Argument name" className="studio-field">
+                  {(control) => (
+                    <input
+                      {...control}
+                      defaultValue={name}
+                      onBlur={(event) => {
+                        if (event.target.value !== name)
+                          edit((document) =>
+                            renameArgument(document, p, event.target.value),
+                          );
+                      }}
+                    />
+                  )}
+                </Field>
+                <Field label={`${name} source`} className="studio-field">
+                  {(control) => (
+                    <select
+                      {...control}
+                      value={textValue(binding.source)}
+                      onChange={(event) =>
                         edit((document) =>
-                          renameArgument(document, p, event.target.value),
-                        );
-                    }}
-                  />
-                </label>
-                <label className="studio-field">
-                  <span>{name} source</span>
-                  <select
-                    value={textValue(binding.source)}
-                    onChange={(event) =>
-                      edit((document) =>
-                        setArgumentSource(document, p, event.target.value),
-                      )
-                    }
-                  >
-                    {!["parameter", "artifact", "literal"].includes(
-                      textValue(binding.source),
-                    ) ? (
-                      <option value={textValue(binding.source)}>Choose…</option>
-                    ) : null}
-                    {["parameter", "artifact", "literal"].map((source) => (
-                      <option key={source}>{source}</option>
-                    ))}
-                  </select>
-                </label>
+                          setArgumentSource(document, p, event.target.value),
+                        )
+                      }
+                    >
+                      {!["parameter", "artifact", "literal"].includes(
+                        textValue(binding.source),
+                      ) ? (
+                        <option value={textValue(binding.source)}>
+                          Choose…
+                        </option>
+                      ) : null}
+                      {["parameter", "artifact", "literal"].map((source) => (
+                        <option key={source}>{source}</option>
+                      ))}
+                    </select>
+                  )}
+                </Field>
                 {binding.source === "literal" ? (
                   <>
-                    <label className="studio-field">
-                      <span>{name} literal type</span>
-                      <select
-                        value={
-                          ["string", "number", "boolean"].includes(literalType)
-                            ? literalType
-                            : "unsupported"
-                        }
-                        onChange={(event) =>
-                          editor.onPatch(
-                            [...p, "value"],
-                            event.target.value === "boolean"
-                              ? false
-                              : event.target.value === "number"
-                                ? 0
-                                : "",
-                          )
-                        }
-                      >
-                        {!["string", "number", "boolean"].includes(
-                          literalType,
-                        ) ? (
-                          <option value="unsupported">Unsupported value</option>
-                        ) : null}
-                        <option value="string">String</option>
-                        <option value="number">Number</option>
-                        <option value="boolean">Boolean</option>
-                      </select>
-                    </label>
+                    <Field
+                      label={`${name} literal type`}
+                      className="studio-field"
+                    >
+                      {(control) => (
+                        <select
+                          {...control}
+                          value={
+                            ["string", "number", "boolean"].includes(
+                              literalType,
+                            )
+                              ? literalType
+                              : "unsupported"
+                          }
+                          onChange={(event) =>
+                            editor.onPatch(
+                              [...p, "value"],
+                              event.target.value === "boolean"
+                                ? false
+                                : event.target.value === "number"
+                                  ? 0
+                                  : "",
+                            )
+                          }
+                        >
+                          {!["string", "number", "boolean"].includes(
+                            literalType,
+                          ) ? (
+                            <option value="unsupported">
+                              Unsupported value
+                            </option>
+                          ) : null}
+                          <option value="string">String</option>
+                          <option value="number">Number</option>
+                          <option value="boolean">Boolean</option>
+                        </select>
+                      )}
+                    </Field>
                     {literalType === "boolean" ? (
                       <label className="studio-checkbox">
                         <input
@@ -150,17 +165,13 @@ export function ToolExecutionForm({ editor }: { editor: FormEditor }) {
                     path={[...p, "name"]}
                   />
                 )}
-                <button
-                  className="ui-btn"
-                  onClick={() => editor.onRemove(p, `argument ${name}`)}
-                >
+                <Button onClick={() => editor.onRemove(p, `argument ${name}`)}>
                   Remove argument {name}
-                </button>
+                </Button>
               </div>
             );
           })}
-          <button
-            className="ui-btn"
+          <Button
             disabled={Object.keys(record(row.arguments)).length >= 32}
             onClick={() =>
               editor.onPatch(
@@ -170,15 +181,14 @@ export function ToolExecutionForm({ editor }: { editor: FormEditor }) {
             }
           >
             Add argument
-          </button>
-          <button
-            className="ui-btn"
+          </Button>
+          <Button
             onClick={() =>
               editor.onRemove(path, "tool execution configuration")
             }
           >
             Remove tool execution configuration
-          </button>
+          </Button>
         </>
       )}
       {error ? <p role="alert">{error}</p> : null}
