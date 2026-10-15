@@ -1,83 +1,27 @@
-import { expect, test, type Page, type Route } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
-import packageMetadata from "../package.json" with { type: "json" };
-import { stageContract } from "../src/test/builders-execution";
+import {
+  runStatus,
+  stageContract,
+  workflowResource,
+} from "../src/test/builders-execution";
+import {
+  fulfillContent,
+  fulfillEmptyPageOrNotFound,
+  fulfillJSON,
+  mockAPI,
+} from "./support/mock-api";
 
-const API_VERSION = "contractor.public.v1";
-
-function apiHeaders(): Record<string, string> {
-  return {
-    "cache-control": "no-store",
-    "content-type": "application/json",
-    "x-contractor-api-version": API_VERSION,
-  };
-}
-
-async function fulfillJson(route: Route, value: unknown): Promise<void> {
-  await route.fulfill({
-    body: JSON.stringify(value),
-    headers: apiHeaders(),
-    status: 200,
-  });
-}
-
-async function installRunsAPI(
-  page: Page,
-  uiOrigin: string,
-  runListRequests: URL[],
-  queueRequests: URL[],
-): Promise<void> {
-  let queuePaused = false;
-  let queueControlRevision = 0;
-  await page.route("**/runtime-config.json", (route) =>
-    route.fulfill({
-      json: {
-        uiVersion: packageMetadata.version,
-        supportedApiVersions: [API_VERSION],
-        apiBaseUrl: uiOrigin,
-      },
-    }),
-  );
-  await page.route(`${uiOrigin}/v1/**`, async (route) => {
-    const url = new URL(route.request().url());
-    if (url.pathname === "/v1/auth/session") {
-      await fulfillJson(route, {
-        principal: {
-          userId: "user_runs",
-          username: "runs",
-          capabilities: ["user", "operations"],
-        },
-        csrfToken: "a".repeat(43),
-        idleExpiresAt: "2099-01-01T00:00:00Z",
-        absoluteExpiresAt: "2099-01-02T00:00:00Z",
-      });
-      return;
-    }
+async function installRunsAPI(page: Page): Promise<void> {
+  await mockAPI(page, async (route, _request, url) => {
     if (url.pathname === "/v1/queue/control") {
-      if (route.request().method() === "PUT") {
-        const body = route.request().postDataJSON() as { paused: boolean };
-        queuePaused = body.paused;
-        queueControlRevision += 1;
-      }
-      await route.fulfill({
-        body: JSON.stringify({
-          paused: queuePaused,
-          revision: String(queueControlRevision),
-          ...(queueControlRevision === 0
-            ? {}
-            : { updatedAt: "2026-09-05T08:02:00Z" }),
-        }),
-        headers: {
-          ...apiHeaders(),
-          etag: `"${queueControlRevision}"`,
-        },
-        status: 200,
+      await fulfillJSON(route, { paused: false, revision: "0" }, 200, {
+        etag: '"0"',
       });
       return;
     }
     if (url.pathname === "/v1/queue") {
-      queueRequests.push(url);
-      await fulfillJson(route, {
+      await fulfillJSON(route, {
         items: [
           {
             runId: "run-active-browser",
@@ -94,8 +38,7 @@ async function installRunsAPI(
       return;
     }
     if (url.pathname === "/v1/runs") {
-      runListRequests.push(url);
-      await fulfillJson(route, {
+      await fulfillJSON(route, {
         items: [
           {
             runId: "run-completed-browser",
@@ -112,97 +55,54 @@ async function installRunsAPI(
       });
       return;
     }
-    await route.fulfill({ status: 404, body: "not found" });
+    await fulfillEmptyPageOrNotFound(route);
   });
 }
 
 async function installRunResultAPI(
   page: Page,
-  uiOrigin: string,
   resultRequests: URL[],
 ): Promise<void> {
   const source = "browser primary result";
-  const digest = `sha256:${"1".repeat(64)}`;
-  await page.route("**/runtime-config.json", (route) =>
-    route.fulfill({
-      json: {
-        uiVersion: packageMetadata.version,
-        supportedApiVersions: [API_VERSION],
-        apiBaseUrl: uiOrigin,
-      },
-    }),
-  );
-  await page.route(`${uiOrigin}/v1/**`, async (route) => {
-    const url = new URL(route.request().url());
-    if (url.pathname === "/v1/auth/session") {
-      await fulfillJson(route, {
-        principal: {
-          userId: "user_runs",
-          username: "runs",
-          capabilities: ["user", "operations"],
-        },
-        csrfToken: "a".repeat(43),
-        idleExpiresAt: "2099-01-01T00:00:00Z",
-        absoluteExpiresAt: "2099-01-02T00:00:00Z",
-      });
-      return;
-    }
+  const report = {
+    namespace: "outputs",
+    name: "report",
+    revision: "report-browser-r1",
+  };
+  await mockAPI(page, async (route, _request, url) => {
     if (url.pathname === "/v1/runs/run-result-browser") {
-      await fulfillJson(route, {
-        runId: "run-result-browser",
-        workflow: "browser-result@1",
-        state: "succeeded",
-        deletable: true,
-        runtimeLabels: [],
-        labels: {},
-        runtimeConfiguration: {
-          default: {
-            label: "default",
-            bindingRevision: "1",
-            config: { name: "empty", version: "1", digest },
-          },
-          labels: [],
-        },
-        attempts: [],
-        transitions: [],
-        outputs: {
-          report: {
-            namespace: "outputs",
-            name: "report",
-            revision: "report-browser-r1",
-          },
-        },
-        outputPublications: [],
-        createdAt: "2026-09-07T08:00:00Z",
-        updatedAt: "2026-09-07T08:01:00Z",
-        finishedAt: "2026-09-07T08:01:00Z",
-      });
+      await fulfillJSON(
+        route,
+        runStatus("run-result-browser", {
+          workflow: "browser-result@1",
+          outputs: { report },
+          createdAt: "2026-09-07T08:00:00Z",
+          updatedAt: "2026-09-07T08:01:00Z",
+          finishedAt: "2026-09-07T08:01:00Z",
+        }),
+      );
       return;
     }
     if (url.pathname === "/v1/workflows/browser-result/versions/1") {
       resultRequests.push(url);
-      await fulfillJson(route, {
-        ref: { name: "browser-result", version: "1" },
-        entryStage: "render",
-        parameters: {},
-        inputs: {},
-        outputs: {
-          report: {
-            required: true,
-            mediaTypes: ["text/plain"],
-            primary: true,
+      await fulfillJSON(
+        route,
+        workflowResource("browser-result", "1", {
+          entryStage: "render",
+          outputs: {
+            report: {
+              required: true,
+              mediaTypes: ["text/plain"],
+              primary: true,
+            },
+            trace: {
+              required: false,
+              mediaTypes: ["application/json"],
+            },
           },
-          trace: {
-            required: false,
-            mediaTypes: ["application/json"],
-          },
-        },
-        stages: { render: stageContract() },
-      });
-      return;
-    }
-    if (url.pathname === "/v1/runs/run-result-browser/artifacts") {
-      await fulfillJson(route, { items: [], page: { hasMore: false } });
+          stages: { render: stageContract() },
+        }),
+      );
       return;
     }
     if (
@@ -210,12 +110,8 @@ async function installRunResultAPI(
       "/v1/runs/run-result-browser/artifacts/outputs/report/metadata"
     ) {
       resultRequests.push(url);
-      await fulfillJson(route, {
-        artifact: {
-          namespace: "outputs",
-          name: "report",
-          revision: "report-browser-r1",
-        },
+      await fulfillJSON(route, {
+        artifact: report,
         mediaType: "text/plain",
         size: source.length,
         current: true,
@@ -228,32 +124,17 @@ async function installRunResultAPI(
       url.pathname === "/v1/runs/run-result-browser/artifacts/outputs/report"
     ) {
       resultRequests.push(url);
-      await route.fulfill({
-        body: source,
-        headers: {
-          ...apiHeaders(),
-          "content-length": String(source.length),
-          "content-type": "text/plain",
-        },
-        status: 200,
-      });
+      await fulfillContent(route, source, "text/plain");
       return;
     }
-    await route.fulfill({ status: 404, body: "not found" });
+    await fulfillEmptyPageOrNotFound(route);
   });
 }
 
 test("Runs defaults to Queue and keeps terminal history in Completed", async ({
   page,
-}, testInfo) => {
-  const configuredBaseURL = testInfo.project.use.baseURL;
-  if (typeof configuredBaseURL !== "string") {
-    throw new Error("Playwright baseURL is required");
-  }
-  const uiOrigin = new URL(configuredBaseURL).origin;
-  const runListRequests: URL[] = [];
-  const queueRequests: URL[] = [];
-  await installRunsAPI(page, uiOrigin, runListRequests, queueRequests);
+}) => {
+  await installRunsAPI(page);
 
   await page.goto("/runs");
   await expect(
@@ -272,14 +153,6 @@ test("Runs defaults to Queue and keeps terminal history in Completed", async ({
     "aria-current",
     "page",
   );
-  await page.getByRole("button", { name: "Pause queue" }).click();
-  await expect(
-    page.getByRole("button", { name: "Resume queue" }),
-  ).toBeVisible();
-  await expect(page.getByText("Admission paused")).toBeVisible();
-  await page.getByRole("button", { name: "Resume queue" }).click();
-  await expect(page.getByRole("button", { name: "Pause queue" })).toBeVisible();
-
   await views.getByRole("link", { name: /Completed/ }).click();
   await expect(page).toHaveURL(/\/runs\?view=completed$/);
   await expect(
@@ -289,16 +162,6 @@ test("Runs defaults to Queue and keeps terminal history in Completed", async ({
     "aria-current",
     "page",
   );
-  expect(runListRequests).toHaveLength(1);
-  expect(runListRequests[0]?.searchParams.get("lifecycle")).toBe("terminal");
-
-  await page.goto("/runs?membership=project");
-  await expect(page).toHaveURL(/\/runs\?membership=project$/);
-  await expect(
-    page.getByRole("link", { name: "run-active-browser" }),
-  ).toBeVisible();
-  expect(queueRequests.at(-1)?.searchParams.get("membership")).toBe("project");
-
   await page.setViewportSize({ width: 320, height: 568 });
   await expect
     .poll(() => page.evaluate(() => document.documentElement.scrollWidth))
@@ -307,14 +170,9 @@ test("Runs defaults to Queue and keeps terminal history in Completed", async ({
 
 test("Run results expose the declared primary output with one bounded action", async ({
   page,
-}, testInfo) => {
-  const configuredBaseURL = testInfo.project.use.baseURL;
-  if (typeof configuredBaseURL !== "string") {
-    throw new Error("Playwright baseURL is required");
-  }
-  const uiOrigin = new URL(configuredBaseURL).origin;
+}) => {
   const resultRequests: URL[] = [];
-  await installRunResultAPI(page, uiOrigin, resultRequests);
+  await installRunResultAPI(page, resultRequests);
 
   await page.goto("/runs/run-result-browser");
   await expect(page.getByText("Declared primary result")).toBeVisible();

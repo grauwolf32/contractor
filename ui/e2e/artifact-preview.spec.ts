@@ -1,8 +1,13 @@
-import { expect, test, type Page, type Route } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
-import packageMetadata from "../package.json" with { type: "json" };
+import {
+  fulfillContent,
+  fulfillError,
+  fulfillJSON,
+  mockAPI,
+  uiOrigin,
+} from "./support/mock-api";
 
-const API_VERSION = "contractor.public.v1";
 const REVISION = "revision-1";
 
 const artifacts = {
@@ -121,55 +126,15 @@ const artifacts = {
 
 type ArtifactName = keyof typeof artifacts;
 
-function apiHeaders(contentType: string): Record<string, string> {
-  return {
-    "cache-control": "no-store",
-    "content-type": contentType,
-    "x-contractor-api-version": API_VERSION,
-  };
-}
-
-async function fulfillJson(route: Route, value: unknown): Promise<void> {
-  await route.fulfill({
-    body: JSON.stringify(value),
-    headers: apiHeaders("application/json"),
-    status: 200,
-  });
-}
-
-async function installArtifactAPI(page: Page, uiOrigin: string): Promise<void> {
-  await page.route("**/runtime-config.json", async (route) => {
-    await route.fulfill({
-      json: {
-        uiVersion: packageMetadata.version,
-        supportedApiVersions: [API_VERSION],
-        apiBaseUrl: uiOrigin,
-      },
-    });
-  });
-  await page.route(`${uiOrigin}/v1/**`, async (route) => {
-    const url = new URL(route.request().url());
-    if (url.pathname === "/v1/auth/session") {
-      await fulfillJson(route, {
-        principal: {
-          userId: "user_preview",
-          username: "preview",
-          capabilities: ["user", "operations"],
-        },
-        csrfToken: "a".repeat(43),
-        idleExpiresAt: "2099-01-01T00:00:00Z",
-        absoluteExpiresAt: "2099-01-02T00:00:00Z",
-      });
-      return;
-    }
-
+async function installArtifactAPI(page: Page): Promise<void> {
+  await mockAPI(page, async (route, _request, url) => {
     if (
       ["/v1/projects", "/v1/audits", "/v1/findings", "/v1/reviews"].includes(
         url.pathname,
       )
     ) {
       // The Inbox badge reads owner-wide lists on every page.
-      await fulfillJson(route, { items: [], page: { hasMore: false } });
+      await fulfillJSON(route, { items: [], page: { hasMore: false } });
       return;
     }
 
@@ -180,7 +145,7 @@ async function installArtifactAPI(page: Page, uiOrigin: string): Promise<void> {
     const name = match?.[1] as ArtifactName | undefined;
     const endpoint = match?.[2];
     if (name === undefined || !(name in artifacts)) {
-      await route.fulfill({ status: 404, body: "not found" });
+      await fulfillError(route, 404, "not_found");
       return;
     }
     const artifact = artifacts[name];
@@ -193,32 +158,25 @@ async function installArtifactAPI(page: Page, uiOrigin: string): Promise<void> {
       createdAt: "2026-09-02T09:00:00Z",
     };
     if (endpoint === "metadata") {
-      await fulfillJson(route, metadata);
+      await fulfillJSON(route, metadata);
       return;
     }
     if (endpoint === "versions") {
-      await fulfillJson(route, {
+      await fulfillJSON(route, {
         items: [metadata],
         page: { hasMore: false },
       });
       return;
     }
     if (endpoint === "lineage") {
-      await fulfillJson(route, { items: [], page: { hasMore: false } });
+      await fulfillJSON(route, { items: [], page: { hasMore: false } });
       return;
     }
     if (url.searchParams.get("revision") !== REVISION) {
-      await route.fulfill({ status: 412, body: "exact revision required" });
+      await fulfillError(route, 412, "precondition_failed");
       return;
     }
-    await route.fulfill({
-      body: artifact.source,
-      headers: {
-        ...apiHeaders(artifact.mediaType),
-        "content-length": String(metadata.size),
-      },
-      status: 200,
-    });
+    await fulfillContent(route, artifact.source, artifact.mediaType);
   });
 }
 
@@ -241,17 +199,13 @@ for (const viewport of [
     test("renders Markdown, diff, OpenAPI and LikeC4 artifacts locally", async ({
       page,
     }, testInfo) => {
-      const configuredBaseURL = testInfo.project.use.baseURL;
-      if (typeof configuredBaseURL !== "string") {
-        throw new Error("Playwright baseURL is required");
-      }
-      const uiOrigin = new URL(configuredBaseURL).origin;
+      const origin = uiOrigin(testInfo);
       const externalRequests: string[] = [];
       const consoleErrors: string[] = [];
       const pageErrors: string[] = [];
       page.on("request", (request) => {
         const url = new URL(request.url());
-        if (url.origin !== uiOrigin) {
+        if (url.origin !== origin) {
           externalRequests.push(request.url());
         }
       });
@@ -261,7 +215,7 @@ for (const viewport of [
         }
       });
       page.on("pageerror", (error) => pageErrors.push(error.message));
-      await installArtifactAPI(page, uiOrigin);
+      await installArtifactAPI(page);
 
       await openPreview(page, "markdown");
       await expect(
@@ -280,14 +234,18 @@ for (const viewport of [
       );
 
       await openPreview(page, "workspace-diff");
-      await expect(page.getByText("1 file changed")).toBeVisible();
-      await expect(page.getByText("+2 additions")).toBeVisible();
-      await expect(page.getByText("−1 deletion")).toBeVisible();
-      await expect(page.locator(".diff-line-addition")).toHaveCount(2);
-      await expect(page.locator(".diff-line-deletion")).toHaveCount(1);
-      await expect(page.locator(".diff-line-hunk")).toContainText(
-        "@@ -1,3 +1,4 @@",
-      );
+      // Line classification is unit-tested (previews/diff.test.tsx); the
+      // browser checks that the production chunk renders the diff in place.
+      const diff = page.getByRole("region", { name: "Unified diff preview" });
+      await expect(diff.getByText("1 file changed")).toBeVisible();
+      await expect(diff.getByText("+2 additions")).toBeVisible();
+      await expect(diff.getByText("−1 deletion")).toBeVisible();
+      await expect(
+        diff.getByText("@@ -1,3 +1,4 @@", { exact: true }),
+      ).toBeVisible();
+      await expect(
+        diff.getByText("+  lineNumbers: true,", { exact: true }),
+      ).toBeVisible();
 
       await openPreview(page, "openapi");
       await expect(
@@ -327,10 +285,7 @@ for (const viewport of [
 
 for (const theme of ["light", "dark", "black"]) {
   test("HTTP evidence at 390px in " + theme, async ({ page }, testInfo) => {
-    const base = testInfo.project.use.baseURL;
-    if (typeof base !== "string")
-      throw new Error("Playwright baseURL is required");
-    const origin = new URL(base).origin;
+    const origin = uiOrigin(testInfo);
     await page.setViewportSize({ width: 390, height: 844 });
     await page.addInitScript(
       (value) => localStorage.setItem("contractor.theme", value),
@@ -341,7 +296,7 @@ for (const theme of ["light", "dark", "black"]) {
       if (new URL(request.url()).origin !== origin)
         external.push(request.url());
     });
-    await installArtifactAPI(page, origin);
+    await installArtifactAPI(page);
     await openPreview(page, "http-evidence");
     const request = page.getByRole("tab", { name: "Request", exact: true });
     await expect(request).toBeVisible();

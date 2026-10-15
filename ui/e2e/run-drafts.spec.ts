@@ -1,13 +1,20 @@
-import { expect, test, type Page, type Route } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
-import packageMetadata from "../package.json" with { type: "json" };
+import { project } from "../src/test/builders";
 import {
+  runRuntimeConfiguration,
   stageContract,
   workflowResource,
   workflowSummary,
 } from "../src/test/builders-execution";
+import {
+  authSession,
+  fulfillEmptyPageOrNotFound,
+  fulfillJSON,
+  mockAPI,
+  mockedAPIOrigin,
+} from "./support/mock-api";
 
-const API_VERSION = "contractor.public.v1";
 const PROJECT_ID = "project_run_draft";
 const WORKFLOW_NAME = "draft-workflow";
 const WORKFLOW_VERSION = "1";
@@ -51,38 +58,6 @@ const uploadedArtifact = {
   createdAt: timestamp,
 };
 
-function responseHeaders(origin?: string): Record<string, string> {
-  return {
-    "cache-control": "no-store",
-    "content-type": "application/json",
-    "x-contractor-api-version": API_VERSION,
-    ...(origin === undefined
-      ? {}
-      : {
-          "access-control-allow-origin": origin,
-          "access-control-allow-credentials": "true",
-          "access-control-expose-headers":
-            "X-Contractor-API-Version, ETag, X-Request-ID",
-        }),
-  };
-}
-
-async function fulfill(
-  route: Route,
-  value: unknown,
-  status = 200,
-  extraHeaders: Record<string, string> = {},
-): Promise<void> {
-  await route.fulfill({
-    status,
-    body: JSON.stringify(value),
-    headers: {
-      ...responseHeaders(route.request().headers().origin),
-      ...extraHeaders,
-    },
-  });
-}
-
 async function installFixture(page: Page, apiOrigin: string) {
   const uploads: Array<{
     path: string;
@@ -90,132 +65,87 @@ async function installFixture(page: Page, apiOrigin: string) {
     body: Buffer;
   }> = [];
   let uploaded = false;
-  await page.route("**/runtime-config.json", (route) =>
-    route.fulfill({
-      json: {
-        uiVersion: packageMetadata.version,
-        supportedApiVersions: [API_VERSION],
-        apiBaseUrl: apiOrigin,
-      },
-    }),
+  await mockAPI(
+    page,
+    async (route, request, url) => {
+      const path = url.pathname;
+      if (path === "/v1/workflows") {
+        await fulfillJSON(route, {
+          items: [workflowSummary(workflow)],
+          page: { hasMore: false },
+        });
+        return;
+      }
+      if (
+        path === `/v1/workflows/${WORKFLOW_NAME}/versions/${WORKFLOW_VERSION}`
+      ) {
+        await fulfillJSON(route, workflow);
+        return;
+      }
+      if (path === "/v1/artifacts" && request.method() === "GET") {
+        await fulfillJSON(route, {
+          items: [existingArtifact],
+          page: { hasMore: false },
+        });
+        return;
+      }
+      if (path === `/v1/projects/${PROJECT_ID}`) {
+        await fulfillJSON(
+          route,
+          project(PROJECT_ID, {
+            name: "Run draft workspace",
+            description: "In-memory Run draft browser fixture",
+          }),
+          200,
+          { etag: '"1"' },
+        );
+        return;
+      }
+      if (
+        path === `/v1/projects/${PROJECT_ID}/artifacts` &&
+        request.method() === "GET"
+      ) {
+        await fulfillJSON(route, {
+          items: uploaded
+            ? [existingArtifact, uploadedArtifact]
+            : [existingArtifact],
+          page: { hasMore: false },
+        });
+        return;
+      }
+      if (
+        path === `/v1/projects/${PROJECT_ID}/artifacts/artifacts/replacement` &&
+        request.method() === "PUT"
+      ) {
+        uploads.push({
+          path,
+          headers: request.headers(),
+          body: request.postDataBuffer() ?? Buffer.alloc(0),
+        });
+        uploaded = true;
+        await fulfillJSON(
+          route,
+          {
+            artifact: uploadedArtifact.artifact,
+            mediaType: uploadedArtifact.mediaType,
+            size: uploadedArtifact.size,
+          },
+          201,
+          { etag: '"revision-uploaded"' },
+        );
+        return;
+      }
+      if (path === `/v1/projects/${PROJECT_ID}/runs`) {
+        await fulfillJSON(route, { items: [], page: { hasMore: false } });
+        return;
+      }
+      await fulfillEmptyPageOrNotFound(
+        route,
+        `No Run draft fixture for ${request.method()} ${path}`,
+      );
+    },
+    { apiOrigin, session: authSession("draft-owner") },
   );
-  await page.route(`${apiOrigin}/v1/**`, async (route) => {
-    const request = route.request();
-    const path = new URL(request.url()).pathname;
-    if (request.method() === "OPTIONS") {
-      await route.fulfill({
-        status: 204,
-        headers: {
-          "access-control-allow-origin": request.headers().origin ?? "*",
-          "access-control-allow-credentials": "true",
-          "access-control-allow-methods": "GET, POST, PUT, PATCH, OPTIONS",
-          "access-control-allow-headers":
-            "content-type, idempotency-key, if-match, if-none-match, x-csrf-token",
-        },
-      });
-      return;
-    }
-    if (path === "/v1/auth/session") {
-      await fulfill(route, {
-        principal: {
-          userId: "owner_run_draft",
-          username: "draft-owner",
-          capabilities: ["user", "operations"],
-        },
-        csrfToken: "a".repeat(43),
-        idleExpiresAt: "2099-01-01T00:00:00Z",
-        absoluteExpiresAt: "2099-01-02T00:00:00Z",
-      });
-      return;
-    }
-    if (path === "/v1/workflows") {
-      await fulfill(route, {
-        items: [workflowSummary(workflow)],
-        page: { hasMore: false },
-      });
-      return;
-    }
-    if (
-      path === `/v1/workflows/${WORKFLOW_NAME}/versions/${WORKFLOW_VERSION}`
-    ) {
-      await fulfill(route, workflow);
-      return;
-    }
-    if (path === "/v1/artifacts" && request.method() === "GET") {
-      await fulfill(route, {
-        items: [existingArtifact],
-        page: { hasMore: false },
-      });
-      return;
-    }
-    if (path === `/v1/projects/${PROJECT_ID}`) {
-      await fulfill(
-        route,
-        {
-          projectId: PROJECT_ID,
-          kind: "project",
-          name: "Run draft workspace",
-          description: "In-memory Run draft browser fixture",
-          activeChecks: "automatic",
-          lifecycle: "active",
-          revision: "1",
-          createdAt: timestamp,
-          updatedAt: timestamp,
-        },
-        200,
-        { etag: '"1"' },
-      );
-      return;
-    }
-    if (
-      path === `/v1/projects/${PROJECT_ID}/artifacts` &&
-      request.method() === "GET"
-    ) {
-      await fulfill(route, {
-        items: uploaded
-          ? [existingArtifact, uploadedArtifact]
-          : [existingArtifact],
-        page: { hasMore: false },
-      });
-      return;
-    }
-    if (
-      path === `/v1/projects/${PROJECT_ID}/artifacts/artifacts/replacement` &&
-      request.method() === "PUT"
-    ) {
-      uploads.push({
-        path,
-        headers: request.headers(),
-        body: request.postDataBuffer() ?? Buffer.alloc(0),
-      });
-      uploaded = true;
-      await fulfill(
-        route,
-        {
-          artifact: uploadedArtifact.artifact,
-          mediaType: uploadedArtifact.mediaType,
-          size: uploadedArtifact.size,
-        },
-        201,
-        { etag: '"revision-uploaded"' },
-      );
-      return;
-    }
-    if (path === `/v1/projects/${PROJECT_ID}/runs`) {
-      await fulfill(route, { items: [], page: { hasMore: false } });
-      return;
-    }
-    await fulfill(
-      route,
-      {
-        code: "not_found",
-        message: `No Run draft fixture for ${request.method()} ${path}`,
-        retryable: false,
-        requestId: "request-run-draft",
-      },
-      404,
-    );
-  });
   return uploads;
 }
 
@@ -240,8 +170,7 @@ for (const viewport of [
     test("standalone Run draft survives SPA navigation without browser storage", async ({
       page,
     }) => {
-      const apiOrigin =
-        process.env.CONTRACTOR_UI_E2E_API_URL ?? "http://127.0.0.3:8080";
+      const apiOrigin = mockedAPIOrigin();
       await installFixture(page, apiOrigin);
       await page.goto(
         `/catalog/workflows/${WORKFLOW_NAME}/${WORKFLOW_VERSION}`,
@@ -280,8 +209,7 @@ for (const viewport of [
     test("ambiguous launch retains exact request identity after leaving the draft", async ({
       page,
     }) => {
-      const apiOrigin =
-        process.env.CONTRACTOR_UI_E2E_API_URL ?? "http://127.0.0.3:8080";
+      const apiOrigin = mockedAPIOrigin();
       await installFixture(page, apiOrigin);
       const submissions: Array<{ body: unknown; key: string | undefined }> = [];
       await page.route(`${apiOrigin}/v1/runs`, async (route) => {
@@ -292,25 +220,14 @@ for (const viewport of [
           key: request.headers()["idempotency-key"],
         });
         if (submissions.length === 1) return route.abort("failed");
-        await fulfill(
+        await fulfillJSON(
           route,
           {
             runId: "run-recovered-draft",
             state: "initializing",
             runtimeLabels: [],
             labels: {},
-            runtimeConfiguration: {
-              default: {
-                label: "default",
-                bindingRevision: "1",
-                config: {
-                  name: "empty",
-                  version: "1",
-                  digest: `sha256:${"1".repeat(64)}`,
-                },
-              },
-              labels: [],
-            },
+            runtimeConfiguration: runRuntimeConfiguration(),
           },
           202,
         );
@@ -352,8 +269,7 @@ for (const viewport of [
     test("Project Run draft survives close and binds a local upload to its source slot", async ({
       page,
     }) => {
-      const apiOrigin =
-        process.env.CONTRACTOR_UI_E2E_API_URL ?? "http://127.0.0.3:8080";
+      const apiOrigin = mockedAPIOrigin();
       const uploads = await installFixture(page, apiOrigin);
       await page.goto(`/projects/${PROJECT_ID}/workflows`);
       const launcher = page.getByRole("button", {
@@ -361,9 +277,9 @@ for (const viewport of [
       });
       await launcher.click();
       let runDialog = page.getByRole("dialog", { name: "Configure Run" });
-      await expect(
-        runDialog.locator(".workflow-drawer-heading code"),
-      ).toHaveText(WORKFLOW_SELECTOR);
+      await expect(runDialog.getByRole("banner").getByRole("code")).toHaveText(
+        WORKFLOW_SELECTOR,
+      );
       await runDialog
         .locator('[name="parameter-objective"]')
         .fill("Keep Project setup");

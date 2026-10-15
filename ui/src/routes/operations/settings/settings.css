@@ -144,7 +144,9 @@
   min-width: 0;
 }
 
-.ops-page .ops-number-field input {
+/* A limit from 1 through 32 needs a short box; the selector outranks the
+   shared full-width form control rule in app/ui-primitives.css. */
+.ops-page .ops-number-field input[type="number"] {
   max-width: 10rem;
 }
 

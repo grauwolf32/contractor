@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { installEvalFixture } from "./evals-fixture";
+import { installEvalFixture } from "./support/evals";
 
 for (const width of [390, 1280]) {
   for (const kind of ["workflow", "audit"]) {

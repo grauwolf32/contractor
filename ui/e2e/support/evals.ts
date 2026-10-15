@@ -1,36 +1,32 @@
 import type { Page } from "@playwright/test";
-import packageMetadata from "../package.json" with { type: "json" };
-import { createEvalFixture, EVAL_API_VERSION } from "../src/test/evals-fixture";
 
+import { createEvalFixture } from "../../src/test/evals-fixture";
+import { fulfillJSON, routeRuntimeConfig } from "./mock-api";
+
+/**
+ * Serves the managed Evals fixture of the unit tests (src/test) to the
+ * browser, every answer checked against the public contract.
+ */
 export async function installEvalFixture(
   page: Page,
   options: Parameters<typeof createEvalFixture>[0] = {},
 ) {
   const fixture = createEvalFixture(options);
-  await page.route("**/runtime-config.json", (route) =>
-    route.fulfill({
-      json: {
-        uiVersion: packageMetadata.version,
-        supportedApiVersions: [EVAL_API_VERSION],
-        apiBaseUrl: new URL(route.request().url()).origin,
-      },
-    }),
-  );
+  await routeRuntimeConfig(page);
   await page.route("**/v1/**", async (route) => {
     const incoming = route.request();
     try {
+      const postData = incoming.postData();
       const response = await fixture.handle(
         new Request(incoming.url(), {
           method: incoming.method(),
           headers: incoming.headers(),
-          ...(incoming.postData() ? { body: incoming.postData()! } : {}),
+          ...(postData ? { body: postData } : {}),
         }),
       );
-      await route.fulfill({
-        status: response.status,
-        headers: response.headers,
-        body: JSON.stringify(response.body),
-      });
+      const headers = { ...response.headers };
+      delete headers["Content-Type"];
+      await fulfillJSON(route, response.body, response.status, headers);
     } catch (cause) {
       if (
         cause instanceof TypeError &&

@@ -2,9 +2,15 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { parse } from "yaml";
 import { expect, test } from "@playwright/test";
-import packageMetadata from "../package.json" with { type: "json" };
 import { presetFixture } from "../src/test/audit-presets-fixture";
-import { auditInput, auditItem } from "../src/test/builders";
+import { audit as auditBuilder, auditItem } from "../src/test/builders";
+import {
+  authSession,
+  fulfillEmptyPageOrNotFound,
+  fulfillError,
+  fulfillJSON,
+  mockAPI,
+} from "./support/mock-api";
 
 // Fixture copies of authored definitions (tests never read configs/).
 const fixtureRoot = resolve(process.cwd(), "src/routes/studio/testdata");
@@ -13,62 +19,36 @@ for (const width of [1440, 390, 320]) {
     page,
   }, testInfo) => {
     await page.setViewportSize({ width, height: 900 });
-    const origin = new URL(String(testInfo.project.use.baseURL)).origin;
     const errors: string[] = [],
       mutations: string[] = [];
     page.on("pageerror", (error) => errors.push(error.message));
-    await page.route("**/runtime-config.json", (route) =>
-      route.fulfill({
-        json: {
-          uiVersion: packageMetadata.version,
-          supportedApiVersions: ["contractor.public.v1"],
-          apiBaseUrl: origin,
-        },
-      }),
-    );
-    await page.route(`${origin}/v1/**`, async (route) => {
-      const request = route.request(),
-        url = new URL(request.url());
-      if (request.method() !== "GET") mutations.push(request.method());
-      const headers = { "x-contractor-api-version": "contractor.public.v1" };
-      const kind = url.pathname.split("/").at(-1)!;
-      await route.fulfill({
-        headers,
-        json:
-          url.pathname === "/v1/auth/session"
-            ? {
-                principal: {
-                  userId: "owner",
-                  username: "owner",
-                  capabilities: ["user"],
-                },
-                csrfToken: "a".repeat(43),
-                idleExpiresAt: "2099-01-01T00:00:00Z",
-                absoluteExpiresAt: "2099-01-02T00:00:00Z",
-              }
-            : {
-                items:
-                  kind === "llm-gateways"
-                    ? [
-                        {
-                          ref: {
-                            kind,
-                            name: "local-litellm",
-                            version: "1",
-                            digest: `sha256:${"a".repeat(64)}`,
-                          },
-                          source: "operator",
-                          body: {
-                            protocol: "openai-compatible@1",
-                            url: "http://127.0.0.1:4000",
-                          },
-                        },
-                      ]
-                    : [],
-                page: { hasMore: false },
+    await mockAPI(
+      page,
+      async (route, request, url) => {
+        if (request.method() !== "GET") mutations.push(request.method());
+        const kind = url.pathname.split("/").at(-1)!;
+        if (kind !== "llm-gateways") return fulfillEmptyPageOrNotFound(route);
+        return fulfillJSON(route, {
+          items: [
+            {
+              ref: {
+                kind,
+                name: "local-litellm",
+                version: "1",
+                digest: `sha256:${"a".repeat(64)}`,
               },
-      });
-    });
+              source: "operator",
+              body: {
+                protocol: "openai-compatible@1",
+                url: "http://127.0.0.1:4000",
+              },
+            },
+          ],
+          page: { hasMore: false },
+        });
+      },
+      { session: authSession("owner", ["user"]) },
+    );
     await page.goto("/catalog/studio");
     const load = async (source: string) => {
       await page
@@ -109,7 +89,7 @@ for (const width of [1440, 390, 320]) {
       .getByRole("button", { name: "Remove workspace export", exact: true })
       .click();
     await page
-      .getByRole("dialog")
+      .getByRole("alertdialog")
       .getByRole("button", { name: "Remove block", exact: true })
       .click();
     await page
@@ -201,87 +181,64 @@ for (const width of [1440, 390, 320]) {
     page,
   }, testInfo) => {
     await page.setViewportSize({ width, height: 900 });
-    const origin = new URL(String(testInfo.project.use.baseURL)).origin;
     const errors: string[] = [],
       mutations: string[] = [];
     let failCatalogPage = true;
     page.on("pageerror", (error) => errors.push(error.message));
-    await page.route("**/runtime-config.json", (route) =>
-      route.fulfill({
-        json: {
-          uiVersion: packageMetadata.version,
-          supportedApiVersions: ["contractor.public.v1"],
-          apiBaseUrl: origin,
-        },
-      }),
-    );
-    await page.route(`${origin}/v1/**`, async (route) => {
-      if (route.request().method() !== "GET")
-        mutations.push(route.request().method());
-      const url = new URL(route.request().url());
-      const headers = { "x-contractor-api-version": "contractor.public.v1" };
-      if (url.pathname === "/v1/configurations/agent-templates") {
-        expect(url.searchParams.get("limit")).toBe("50");
-        const template = (version: string) => ({
-          ref: {
-            kind: "agent-templates",
-            name: "workspace_source_graph_analyst",
-            version,
-            digest: `sha256:${"a".repeat(64)}`,
-          },
-          source: "operator",
-          body: {
-            description: "Source graph analyst",
-            runtime: "adk@1",
-            instructions: {
-              ref: "instructions/source-graph-analyst.md",
+    await mockAPI(
+      page,
+      async (route, request, url) => {
+        if (request.method() !== "GET") mutations.push(request.method());
+        if (url.pathname === "/v1/configurations/agent-templates") {
+          expect(url.searchParams.get("limit")).toBe("50");
+          const template = (version: string) => ({
+            ref: {
+              kind: "agent-templates",
+              name: "workspace_source_graph_analyst",
+              version,
               digest: `sha256:${"a".repeat(64)}`,
             },
-            modelPolicy: {
-              policyId: "worker",
-              version: "3",
-              digest: `sha256:${"a".repeat(64)}`,
-            },
-            sandboxProfile: "local-workdir@1",
-            toolsets: [],
-          },
-        });
-        if (url.searchParams.has("cursor")) {
-          expect(url.searchParams.get("q")).toBe("source graph");
-          if (failCatalogPage) {
-            failCatalogPage = false;
-            await route.fulfill({
-              headers,
-              status: 503,
-              json: {
-                code: "unavailable",
-                message: "Retry this catalog page",
-                retryable: true,
-                requestId: "studio-test",
+            source: "operator",
+            body: {
+              description: "Source graph analyst",
+              runtime: "adk@1",
+              instructions: {
+                ref: "instructions/source-graph-analyst.md",
+                digest: `sha256:${"a".repeat(64)}`,
               },
-            });
-          } else
-            await route.fulfill({
-              headers,
-              json: {
-                items: [template("3"), template("4")],
-                page: { hasMore: false },
+              modelPolicy: {
+                policyId: "worker",
+                version: "3",
+                digest: `sha256:${"a".repeat(64)}`,
               },
-            });
-        } else
-          await route.fulfill({
-            headers,
-            json: {
-              items: [template("3")],
-              page: { hasMore: true, nextCursor: "catalog-page-two" },
+              sandboxProfile: "local-workdir@1",
+              toolsets: [],
             },
           });
-        return;
-      }
-      if (url.pathname === "/v1/workflows") {
-        await route.fulfill({
-          headers,
-          json: {
+          if (url.searchParams.has("cursor")) {
+            expect(url.searchParams.get("q")).toBe("source graph");
+            if (failCatalogPage) {
+              failCatalogPage = false;
+              await fulfillError(
+                route,
+                500,
+                "internal_error",
+                "Retry this catalog page",
+              );
+            } else
+              await fulfillJSON(route, {
+                items: [template("3"), template("4")],
+                page: { hasMore: false },
+              });
+          } else
+            await fulfillJSON(route, {
+              items: [template("3")],
+              page: { hasMore: true, nextCursor: "catalog-page-two" },
+            });
+          return;
+        }
+        if (url.pathname === "/v1/workflows") {
+          await fulfillJSON(route, {
             items: [
               {
                 ref: { name: "audit-openapi-operation-trace", version: "2" },
@@ -292,14 +249,11 @@ for (const width of [1440, 390, 320]) {
               },
             ],
             page: { hasMore: false },
-          },
-        });
-        return;
-      }
-      if (url.pathname === "/v1/configurations/model-policies") {
-        await route.fulfill({
-          headers,
-          json: {
+          });
+          return;
+        }
+        if (url.pathname === "/v1/configurations/model-policies") {
+          await fulfillJSON(route, {
             items: [
               {
                 ref: {
@@ -313,27 +267,13 @@ for (const width of [1440, 390, 320]) {
               },
             ],
             page: { hasMore: false },
-          },
-        });
-        return;
-      }
-      await route.fulfill({
-        headers,
-        json:
-          new URL(route.request().url()).pathname === "/v1/auth/session"
-            ? {
-                principal: {
-                  userId: "owner",
-                  username: "owner",
-                  capabilities: ["user"],
-                },
-                csrfToken: "a".repeat(43),
-                idleExpiresAt: "2099-01-01T00:00:00Z",
-                absoluteExpiresAt: "2099-01-02T00:00:00Z",
-              }
-            : { items: [], page: { hasMore: false } },
-      });
-    });
+          });
+          return;
+        }
+        await fulfillEmptyPageOrNotFound(route);
+      },
+      { session: authSession("owner", ["user"]) },
+    );
     await page.goto("/catalog/studio");
     await expect(
       page.getByRole("heading", { name: "Node Studio", exact: true }),
@@ -594,23 +534,14 @@ for (const width of [1440, 390, 320]) {
 
 test("studio live fences revisions, preserves paged items on errors and keeps its design draft", async ({
   page,
-}, testInfo) => {
-  const origin = new URL(String(testInfo.project.use.baseURL)).origin;
+}) => {
   const date = "2026-10-07T10:00:00Z",
     revision = 7;
-  const audit = {
-    auditId: "audit_studio",
-    projectId: "project_studio",
+  const audit = auditBuilder("project_studio", "audit_studio", "completed", {
     profile: { ...presetFixture.ref },
-    inputs: { source: auditInput() },
-    scope: {},
-    runtimeLabels: [],
-    state: "completed",
-    phase: "rounds",
     currentRoundId: `round_${"a".repeat(64)}`,
     revision,
     eventSequence: revision,
-    dispatchState: "closed",
     holdState: "released",
     limits: {
       maxRounds: 1,
@@ -621,13 +552,9 @@ test("studio live fences revisions, preserves paged items on errors and keeps it
       maxItemRunAttempts: 2,
       maxEvidenceBytes: 1048576,
     },
-    reservedRunCount: 0,
-    submittedRunCount: 0,
-    outstandingRunCount: 0,
-    retainedEvidenceBytes: 0,
     createdAt: date,
     updatedAt: date,
-  };
+  });
   const items = Array.from({ length: 51 }, (_, i) =>
     auditItem(`item_${i}`, i + 1, "operation", {
       roundId: `round_${"a".repeat(64)}`,
@@ -641,107 +568,80 @@ test("studio live fences revisions, preserves paged items on errors and keeps it
   const mutations: string[] = [],
     errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
-  await page.route("**/runtime-config.json", (route) =>
-    route.fulfill({
-      json: {
-        uiVersion: packageMetadata.version,
-        supportedApiVersions: ["contractor.public.v1"],
-        apiBaseUrl: origin,
-      },
-    }),
-  );
-  await page.route(`${origin}/v1/**`, async (route) => {
-    const url = new URL(route.request().url());
-    if (route.request().method() !== "GET")
-      mutations.push(route.request().method());
-    let json: unknown = {
-      items: [],
-      page: { hasMore: false },
-      total: 0,
-      auditRevision: revision,
-      asOf: date,
-    };
-    let etag = `"${revision}"`;
-    if (url.pathname === "/v1/auth/session")
-      json = {
-        principal: {
-          userId: "owner",
-          username: "owner",
-          capabilities: ["user"],
-        },
-        csrfToken: "a".repeat(43),
-        idleExpiresAt: "2099-01-01T00:00:00Z",
-        absoluteExpiresAt: "2099-01-02T00:00:00Z",
-      };
-    else if (url.pathname === "/v1/audits")
-      json = { items: [audit], page: { hasMore: false } };
-    else if (url.pathname === "/v1/audits/audit_studio") json = audit;
-    else if (url.pathname.endsWith("/workspace"))
-      json = {
-        auditId: audit.auditId,
-        auditRevision: wrongRevision ? revision + 1 : revision,
-        asOf: date,
-        roundId: `round_${"a".repeat(64)}`,
-        executionState: "completed",
-        outstandingRuns: 0,
-        totalChecks: 51,
-        completedChecks: 51,
-        issues: 0,
-        gaps: 1,
-        unchecked: 0,
-        findings: 0,
-        unreviewedFindings: 0,
-        pendingReviews: 0,
-      };
-    else if (url.pathname.startsWith("/v1/audit-profiles/")) {
-      json = presetFixture;
-      etag = `"${presetFixture.ref.digest}"`;
-    } else if (url.pathname.endsWith("/events"))
-      json = {
-        items: [
-          {
-            auditId: audit.auditId,
-            sequence: 1,
-            kind: "audit.created",
-            entityId: audit.auditId,
-            summary: {},
-            createdAt: date,
-          },
-        ],
-        total: 1,
-        throughSequence: 1,
-        page: { hasMore: false },
-      };
-    else if (url.pathname.endsWith("/items")) {
-      if (url.searchParams.has("cursor") && failItems) {
-        await route.fulfill({
-          status: 500,
-          json: {
-            code: "internal_error",
-            message: "Unavailable",
-            requestId: "studio-request",
-          },
-          headers: { "x-contractor-api-version": "contractor.public.v1" },
-        });
-        return;
+  await mockAPI(
+    page,
+    async (route, request, url) => {
+      if (request.method() !== "GET") mutations.push(request.method());
+      // Findings and reviews pages carry the Audit revision they were read at.
+      let json: unknown = /^\/v1\/audits\/[^/]+\/(findings|reviews)$/.test(
+        url.pathname,
+      )
+        ? {
+            items: [],
+            page: { hasMore: false },
+            total: 0,
+            auditRevision: revision,
+            asOf: date,
+          }
+        : { items: [], page: { hasMore: false } };
+      let etag = `"${revision}"`;
+      if (url.pathname === "/v1/audits")
+        json = { items: [audit], page: { hasMore: false } };
+      else if (url.pathname === "/v1/audits/audit_studio") json = audit;
+      else if (url.pathname.endsWith("/workspace"))
+        json = {
+          auditId: audit.auditId,
+          auditRevision: wrongRevision ? revision + 1 : revision,
+          asOf: date,
+          roundId: `round_${"a".repeat(64)}`,
+          executionState: "completed",
+          outstandingRuns: 0,
+          totalChecks: 51,
+          completedChecks: 51,
+          issues: 0,
+          gaps: 1,
+          unchecked: 0,
+          findings: 0,
+          unreviewedFindings: 0,
+          pendingReviews: 0,
+        };
+      else if (url.pathname.startsWith("/v1/audit-profiles/")) {
+        json = presetFixture;
+        etag = `"${presetFixture.ref.digest}"`;
+      } else if (url.pathname.endsWith("/events"))
+        json = {
+          items: [
+            {
+              auditId: audit.auditId,
+              sequence: 1,
+              kind: "audit.created",
+              entityId: audit.auditId,
+              summary: {},
+              createdAt: date,
+            },
+          ],
+          total: 1,
+          throughSequence: 1,
+          page: { hasMore: false },
+        };
+      else if (url.pathname.endsWith("/items")) {
+        if (url.searchParams.has("cursor") && failItems) {
+          await fulfillError(route, 500, "internal_error", "Unavailable");
+          return;
+        }
+        json = {
+          items: url.searchParams.has("cursor")
+            ? items.slice(50)
+            : items.slice(0, 50),
+          page: url.searchParams.has("cursor")
+            ? { hasMore: false }
+            : { hasMore: true, nextCursor: "older" },
+        };
       }
-      json = {
-        items: url.searchParams.has("cursor")
-          ? items.slice(50)
-          : items.slice(0, 50),
-        page: url.searchParams.has("cursor")
-          ? { hasMore: false }
-          : { hasMore: true, nextCursor: "older" },
-      };
-    }
-    await route.fulfill({
-      json,
-      headers: {
-        "x-contractor-api-version": "contractor.public.v1",
-        ETag: etag,
-      },
-    });
-  });
+      await fulfillJSON(route, json, 200, { ETag: etag });
+    },
+    { session: authSession("owner", ["user"]) },
+  );
   await page.goto("/catalog/studio?audit=audit_studio");
   await expect(page.locator(".studio-matrix a")).toHaveCount(50);
   await expect(
@@ -755,15 +655,22 @@ test("studio live fences revisions, preserves paged items on errors and keeps it
   failItems = false;
   await page.getByRole("button", { name: "Try again" }).click();
   await expect(page.locator(".studio-matrix a")).toHaveCount(51);
+  // A refresh that fails keeps the last loaded view under the shared
+  // stale-data warning.
+  const stale = page
+    .getByRole("status")
+    .filter({ hasText: "Could not refresh; showing the last loaded data." });
   wrongRevision = true;
   await page.getByRole("button", { name: "Refresh live view" }).click();
-  await expect(page.getByRole("alert")).toContainText("check changed");
+  await expect(stale).toContainText("check changed");
   await expect(page.locator(".studio-matrix a")).toHaveCount(51);
   wrongRevision = false;
   await page.getByRole("button", { name: "Refresh live view" }).click();
-  await expect(page.getByRole("alert")).toHaveCount(0);
+  await expect(stale).toHaveCount(0);
   audit.profile.digest = `sha256:${"f".repeat(64)}`;
   await page.getByRole("button", { name: "Refresh live view" }).click();
+  // A pinned profile digest the catalog does not hold is an error, not
+  // stale data.
   await expect(page.getByRole("alert")).toContainText(
     "catalog profile has a different digest",
   );

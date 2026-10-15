@@ -1,67 +1,47 @@
 import { expect, test } from "@playwright/test";
 
-import packageMetadata from "../package.json" with { type: "json" };
 import {
   dynamicPresetFixture,
   newerPresetFixture,
   presetFixture,
-  standardFixture,
+  standardResponse,
 } from "../src/test/audit-presets-fixture";
+import { authSession, fulfillJSON, mockAPI } from "./support/mock-api";
 
 test("Check types expose selected requirements and remain usable on mobile", async ({
   page,
 }, testInfo) => {
-  const origin = new URL(String(testInfo.project.use.baseURL)).origin;
   const profiles = [presetFixture, newerPresetFixture, dynamicPresetFixture];
   const pageErrors: string[] = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
-  await page.route("**/runtime-config.json", (route) =>
-    route.fulfill({
-      json: {
-        uiVersion: packageMetadata.version,
-        supportedApiVersions: ["contractor.public.v1"],
-        apiBaseUrl: origin,
-      },
-    }),
+  await mockAPI(
+    page,
+    async (route, _request, url) => {
+      const headers: Record<string, string> = {};
+      let value: unknown = { items: [], page: { hasMore: false } };
+      if (url.pathname === "/v1/audit-profiles")
+        value = {
+          items: url.searchParams.has("cursor")
+            ? profiles.slice(1)
+            : profiles.slice(0, 1),
+          page: url.searchParams.has("cursor")
+            ? { hasMore: false }
+            : { hasMore: true, nextCursor: "page-2" },
+        };
+      else if (url.pathname.startsWith("/v1/audit-profiles/")) {
+        const profile = profiles.find(
+          (item) =>
+            url.pathname ===
+            `/v1/audit-profiles/${item.ref.name}/versions/${item.ref.version}`,
+        )!;
+        value = profile;
+        headers.ETag = `"${profile.ref.digest}"`;
+      } else if (url.pathname.startsWith("/v1/audit-standards/"))
+        value = standardResponse();
+      await fulfillJSON(route, value, 200, headers);
+    },
+    { session: authSession("owner", ["user"]) },
   );
-  await page.route(`${origin}/v1/**`, async (route) => {
-    const url = new URL(route.request().url());
-    const headers: Record<string, string> = {
-      "X-Contractor-API-Version": "contractor.public.v1",
-    };
-    let value: unknown = { items: [], page: { hasMore: false } };
-    if (url.pathname === "/v1/auth/session")
-      value = {
-        principal: {
-          userId: "owner",
-          username: "owner",
-          capabilities: ["user"],
-        },
-        csrfToken: "a".repeat(43),
-        idleExpiresAt: "2099-01-01T00:00:00Z",
-        absoluteExpiresAt: "2099-01-02T00:00:00Z",
-      };
-    else if (url.pathname === "/v1/audit-profiles")
-      value = {
-        items: url.searchParams.has("cursor")
-          ? profiles.slice(1)
-          : profiles.slice(0, 1),
-        page: url.searchParams.has("cursor")
-          ? { hasMore: false }
-          : { hasMore: true, nextCursor: "page-2" },
-      };
-    else if (url.pathname.startsWith("/v1/audit-profiles/")) {
-      const profile = profiles.find(
-        (item) =>
-          url.pathname ===
-          `/v1/audit-profiles/${item.ref.name}/versions/${item.ref.version}`,
-      )!;
-      value = profile;
-      headers.ETag = `"${profile.ref.digest}"`;
-    } else if (url.pathname.startsWith("/v1/audit-standards/"))
-      value = { apiVersion: "contractor/v1alpha1", standard: standardFixture };
-    await route.fulfill({ json: value, headers });
-  });
 
   await page.goto("/catalog/audit-presets");
   await expect(
