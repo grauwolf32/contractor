@@ -1,4 +1,3 @@
-import { ownerListResponse } from "../../test/owner-lists";
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createMemoryRouter, type RouteObject } from "react-router";
@@ -6,81 +5,58 @@ import { describe, expect, it } from "vitest";
 
 import type {
   Audit,
+  AuditAnalystVerdict,
   AuditFinding,
+  AuditItem,
   AuditReport,
+  AuditReviewAction,
   AuditReviewRequest,
   AuditWorkspace,
 } from "../../api/audits";
-import type { AuthSession } from "../../api/client";
 import type { Project } from "../../api/projects";
-import type { RunSummary } from "../../api/runs";
+import type { RunStatus, RunSummary } from "../../api/runs";
+import type { WorkflowResource } from "../../api/workflows";
 import { Application } from "../../app/application";
 import { applicationRoutes } from "../../app/router";
-import { auditItem } from "../../test/builders";
-import { stageAttempt, stageContract } from "../../test/builders-execution";
-import { fakeServer } from "../../test/fake-server";
-import { testAPI } from "../../test/render";
-import { auditFixture, projectFixture } from "../../test/shell-harness";
-import { makeFinding } from "../decisions/test-support";
+import * as build from "../../test/builders";
+import {
+  runStatus,
+  stageAttempt,
+  workflowResource,
+} from "../../test/builders-execution";
+import {
+  emptyPageOrNotFound,
+  failure,
+  fakeServer,
+  json,
+  page,
+  type Route,
+  type Routes,
+} from "../../test/fake-server";
+import { ownerListRoutes } from "../../test/owner-lists";
+import { testAPI, testSession } from "../../test/render";
 
 const NOW = Date.now();
-const DIGEST = `sha256:${"a".repeat(64)}`;
 
 /** An ISO time `minutes` ago. */
 function ago(minutes: number): string {
   return new Date(NOW - minutes * 60_000).toISOString();
 }
 
-const session: AuthSession = {
-  principal: {
-    userId: "user_local",
-    username: "owner",
-    capabilities: ["user", "operations"],
-  },
-  csrfToken: "a".repeat(43),
-  idleExpiresAt: "2099-01-01T00:00:00Z",
-  absoluteExpiresAt: "2099-01-01T00:00:00Z",
-};
-
-function json(
-  value: unknown,
-  status = 200,
-  headers: Record<string, string> = {},
-): Response {
-  return new Response(JSON.stringify(value), {
-    status,
-    headers: {
-      "content-type": "application/json",
-      "X-Contractor-API-Version": "contractor.public.v1",
-      ...headers,
-    },
-  });
-}
-
-function failure(status: number, code: string): Response {
-  return json(
-    { code, message: `${code} (test)`, retryable: false, requestId: "req_1" },
-    status,
-  );
-}
-
-function page(items: readonly unknown[]) {
-  return { items, page: { hasMore: false } };
-}
-
+/** A check last changed 5 minutes ago. */
 function audit(
   projectId: string,
   auditId: string,
   state: Audit["state"],
   overrides: Partial<Audit> = {},
 ): Audit {
-  return {
-    ...auditFixture(projectId, auditId, state),
+  return build.audit(projectId, auditId, state, {
     updatedAt: ago(5),
     ...overrides,
-  } as Audit;
+  });
 }
 
+/** A possible issue proposed `minutes` ago. */
 function finding(
   auditId: string,
   findingId: string,
@@ -88,12 +64,15 @@ function finding(
   minutes: number,
   document: Partial<AuditFinding["firstProposal"]["document"]> = {},
 ): AuditFinding {
-  return makeFinding(
-    { auditId, findingId, createdAt: ago(minutes), updatedAt: ago(minutes) },
+  return build.finding(
+    auditId,
+    findingId,
+    { revision: 3, createdAt: ago(minutes), updatedAt: ago(minutes) },
     { title, ...document },
   );
 }
 
+/** A pending request made `minutes` ago, about work item item_1 by default. */
 function review(
   auditId: string,
   requestId: string,
@@ -101,46 +80,28 @@ function review(
   minutes: number,
   overrides: Partial<AuditReviewRequest> = {},
 ): AuditReviewRequest {
-  return {
-    requestId,
-    auditId,
-    subjectKind:
-      kind === "report-acceptance" ? "audit-report" : "audit-item-action",
-    subjectId: kind === "report-acceptance" ? "report_1" : "item_1",
-    kind,
-    subjectRevision: 1,
-    subjectDigest: DIGEST,
-    requestedActions: ["approve", "reject"],
-    state: "pending",
-    revision: 1,
+  return build.review(auditId, requestId, kind, {
+    ...(kind === "report-acceptance" ? {} : { subjectId: "item_1" }),
     createdAt: ago(minutes),
     updatedAt: ago(minutes),
     ...overrides,
-  };
+  });
 }
 
+/** Workspace counters of `check`: five items, one done, unless given. */
 function workspace(
-  auditId: string,
-  counts: Partial<AuditWorkspace> = {},
+  check: Audit,
+  counts: Parameters<typeof build.workspace>[1] = {},
 ): AuditWorkspace {
-  return {
-    auditId,
-    auditRevision: 1,
-    asOf: ago(1),
-    executionState: "active",
-    outstandingRuns: 0,
+  return build.workspace(check, {
     totalChecks: 5,
     completedChecks: 1,
-    issues: 0,
-    gaps: 0,
     unchecked: 4,
-    findings: 0,
-    unreviewedFindings: 0,
-    pendingReviews: 0,
     ...counts,
-  };
+  });
 }
 
+/** A Run of the owner's list that changed `minutes` ago. */
 function summaryOf(
   runId: string,
   workflow: string,
@@ -149,7 +110,7 @@ function summaryOf(
   projectId?: string,
 ): RunSummary {
   const terminal = ["succeeded", "failed", "cancelled"].includes(state);
-  return {
+  return build.conforming("RunSummary", {
     runId,
     workflow,
     state,
@@ -159,38 +120,20 @@ function summaryOf(
     createdAt: ago(minutes + 5),
     updatedAt: ago(minutes),
     ...(terminal ? { finishedAt: ago(minutes) } : {}),
-  };
+  });
 }
 
-/** A RunStatus body as the Server sends it. */
-function statusOf(
-  run: RunSummary,
-  extra: Record<string, unknown> = {},
-): Record<string, unknown> {
-  return {
-    runId: run.runId,
+/** The status of a listed Run, as the Server reads it. */
+function statusOf(run: RunSummary, extra: Partial<RunStatus> = {}): RunStatus {
+  return runStatus(run.runId, {
     workflow: run.workflow,
     state: run.state,
     deletable: false,
-    runtimeLabels: [],
-    labels: {},
-    runtimeConfiguration: {
-      default: {
-        label: "default",
-        bindingRevision: "1",
-        config: { name: "contractor-empty", version: "1", digest: DIGEST },
-      },
-      labels: [],
-    },
-    attempts: [],
-    transitions: [],
-    outputs: {},
-    outputPublications: [],
     createdAt: run.createdAt,
     updatedAt: run.updatedAt,
     ...(run.finishedAt === undefined ? {} : { finishedAt: run.finishedAt }),
     ...extra,
-  };
+  });
 }
 
 const FAILED_ATTEMPT = stageAttempt("stage_failed_1", {
@@ -208,20 +151,8 @@ const FAILED_ATTEMPT = stageAttempt("stage_failed_1", {
   updatedAt: ago(90),
 });
 
-function readyReport(summary: string): AuditReport {
-  return {
-    status: "ready",
-    summary,
-    summaryArtifact: {
-      ref: { namespace: "audit-reports", name: "summary", revision: "r1" },
-      digest: DIGEST,
-      mediaType: "text/markdown",
-    },
-  };
-}
-
 /** What the fake Server holds; it changes as the page acts on it. */
-interface FakeServer {
+interface InboxServer {
   projects: Project[];
   audits: Record<string, Audit[]>;
   /** Possible issues in state `proposed`, by check. */
@@ -230,10 +161,11 @@ interface FakeServer {
   reviews: Record<string, AuditReviewRequest[]>;
   reports: Record<string, AuditReport>;
   workspaces: Record<string, AuditWorkspace>;
-  items: Record<string, unknown[]>;
+  items: Record<string, AuditItem[]>;
   runs: RunSummary[];
-  statuses: Record<string, Record<string, unknown>>;
-  workflows: Record<string, unknown>;
+  statuses: Record<string, RunStatus>;
+  /** Exact Workflow versions by "name@version". */
+  workflows: Record<string, WorkflowResource>;
   paused: boolean;
   /** Answers a request before the fake does, e.g. with a failure. */
   override?: (url: URL, request: Request) => Response | undefined;
@@ -241,7 +173,10 @@ interface FakeServer {
   delay?: (url: URL, request: Request) => Promise<void> | undefined;
 }
 
-/** A promise the test settles: a Server answer that takes a while. */
+/**
+ * A promise the test settles: a Server answer that takes a while.
+ * V385: needs shared deferred helper in src/test.
+ */
 function gate(): { wait: Promise<void>; release: () => void } {
   let release!: () => void;
   const wait = new Promise<void>((resolve) => {
@@ -250,17 +185,23 @@ function gate(): { wait: Promise<void>; release: () => void } {
   return { wait, release };
 }
 
-/** A recorded decision advances its check's revision, as the Server does. */
-function advance(server: FakeServer, auditId: string) {
-  for (const audits of Object.values(server.audits))
-    for (const entry of audits)
-      if (entry.auditId === auditId) {
-        entry.revision += 1;
-        entry.updatedAt = ago(0);
-      }
+/** The check with this ID. */
+function auditOf(server: InboxServer, auditId: string): Audit {
+  const found = Object.values(server.audits)
+    .flat()
+    .find((entry) => entry.auditId === auditId);
+  if (found === undefined) throw new Error(`No check ${auditId}`);
+  return found;
 }
 
-function emptyServer(): FakeServer {
+/** A recorded decision advances its check's revision, as the Server does. */
+function advance(server: InboxServer, auditId: string) {
+  const entry = auditOf(server, auditId);
+  entry.revision += 1;
+  entry.updatedAt = ago(0);
+}
+
+function emptyServer(): InboxServer {
   return {
     projects: [],
     audits: {},
@@ -277,7 +218,7 @@ function emptyServer(): FakeServer {
 }
 
 /** Two projects with something in every section. */
-function busyServer(): FakeServer {
+function busyServer(): InboxServer {
   const runs = [
     summaryOf("run_failed", "review@2", "failed", 90),
     summaryOf("run_old_failure", "review@2", "failed", 60 * 24 * 10),
@@ -286,28 +227,36 @@ function busyServer(): FakeServer {
     summaryOf("run_ok", "generate@1", "succeeded", 30, "project_identity"),
   ];
   const byId = Object.fromEntries(runs.map((run) => [run.runId, run]));
+  const trace = audit("project_shop", "audit_trace", "active", {
+    revision: 3,
+  });
+  const wait = audit("project_shop", "audit_wait", "waiting_review");
+  const paused = audit("project_shop", "audit_paused", "paused", {
+    pausedAt: ago(40),
+    stopReason: {
+      code: "deadline_exhausted",
+      message: "The check used its time limit.",
+    },
+  });
+  const done = audit("project_identity", "audit_done", "completed", {
+    finishedAt: ago(60),
+  });
+  const acceptance = review(
+    "audit_wait",
+    "review_report",
+    "report-acceptance",
+    15,
+  );
   return {
     ...emptyServer(),
     projects: [
-      projectFixture("project_shop", { name: "crapi-workshop" }),
-      projectFixture("project_identity", { name: "crapi-identity" }),
+      build.project("project_shop", { name: "crapi-workshop" }),
+      build.project("project_identity", { name: "crapi-identity" }),
     ],
     audits: {
-      project_shop: [
-        audit("project_shop", "audit_trace", "active", { revision: 3 }),
-        audit("project_shop", "audit_wait", "waiting_review"),
-        audit("project_shop", "audit_paused", "paused", {
-          pausedAt: ago(40),
-          stopReason: {
-            code: "deadline_exhausted",
-            message: "The check used its time limit.",
-          },
-        }),
-      ],
+      project_shop: [trace, wait, paused],
       project_identity: [
-        audit("project_identity", "audit_done", "completed", {
-          finishedAt: ago(60),
-        }),
+        done,
         audit("project_identity", "audit_failed", "failed", {
           finishedAt: ago(70),
           stopReason: {
@@ -342,52 +291,29 @@ function busyServer(): FakeServer {
       ],
     },
     reviews: {
-      audit_wait: [
-        review("audit_wait", "review_report", "report-acceptance", 15),
-      ],
+      audit_wait: [acceptance],
       audit_trace: [
         review("audit_trace", "review_approval", "active-check-approval", 25),
       ],
     },
     reports: {
-      audit_wait: {
-        status: "proposed",
-        review: review("audit_wait", "review_report", "report-acceptance", 15),
+      audit_wait: build.report("audit_wait", "proposed", {
+        review: acceptance,
         summary: "# Report\n\nThree endpoints were traced.",
-        summaryArtifact: {
-          ref: { namespace: "audit-reports", name: "summary", revision: "r1" },
-          digest: DIGEST,
-          mediaType: "text/markdown",
-        },
-      },
-      audit_done: readyReport("# Report\n\nAll five endpoints were traced."),
+      }),
+      audit_done: build.report("audit_done", "ready", {
+        summary: "# Report\n\nAll five endpoints were traced.",
+      }),
     },
     workspaces: {
-      audit_trace: workspace("audit_trace", {
-        auditRevision: 3,
-        completedChecks: 1,
-        gaps: 2,
-        unchecked: 2,
-      }),
-      audit_wait: workspace("audit_wait", {
-        executionState: "waiting_review",
-        completedChecks: 5,
-        unchecked: 0,
-      }),
-      audit_paused: workspace("audit_paused", {
-        executionState: "paused",
-        completedChecks: 2,
-        unchecked: 3,
-      }),
-      audit_done: workspace("audit_done", {
-        executionState: "completed",
-        completedChecks: 5,
-        unchecked: 0,
-      }),
+      audit_trace: workspace(trace, { gaps: 2, unchecked: 2 }),
+      audit_wait: workspace(wait, { completedChecks: 5, unchecked: 0 }),
+      audit_paused: workspace(paused, { completedChecks: 2, unchecked: 3 }),
+      audit_done: workspace(done, { completedChecks: 5, unchecked: 0 }),
     },
     items: {
       audit_trace: [
-        auditItem("item_1", 0, "standard-mapping", {
+        build.auditItem("item_1", 0, "standard-mapping", {
           itemKey: "WSTG-ATHN-01",
           subjectKey: "WSTG-ATHN-01",
           state: "awaiting_review",
@@ -417,11 +343,7 @@ function busyServer(): FakeServer {
       }),
     },
     workflows: {
-      "generate@1": {
-        ref: { name: "generate", version: "1" },
-        entryStage: "execute",
-        parameters: {},
-        inputs: {},
+      "generate@1": workflowResource("generate", "1", {
         outputs: {
           report: {
             required: true,
@@ -430,266 +352,244 @@ function busyServer(): FakeServer {
           },
           log: { required: false, mediaTypes: ["text/plain"] },
         },
-        stages: { execute: stageContract() },
-      },
+      }),
     },
   };
 }
 
 const TERMINAL = new Set(["succeeded", "failed", "cancelled"]);
 
-async function answer(server: FakeServer, request: Request): Promise<Response> {
-  const url = new URL(request.url);
-  const overridden = server.override?.(url, request);
-  if (overridden !== undefined) return overridden;
-  const held = server.delay?.(url, request);
-  if (held !== undefined) await held;
-  const path = url.pathname;
-  const ownerResponse = ownerListResponse(url, {
-    projects: server.projects,
-    audits: Object.values(server.audits).flat(),
-    findings: Object.values(server.findings).flat(),
-    reviews: Object.values(server.reviews).flat(),
-  });
-  if (ownerResponse !== undefined) return ownerResponse;
+/** The header of a per-check page: the revision it was read at. */
+const CHECK_PAGE = { auditRevision: 1, asOf: ago(1) };
 
-  const query = url.searchParams;
-  if (path === "/v1/auth/session") return json(session);
-  if (path === "/v1/queue/control")
-    return server.paused
-      ? json({ paused: true, revision: "4", updatedAt: ago(10) }, 200, {
-          ETag: '"4"',
-        })
-      : json({ paused: false, revision: "0" }, 200, { ETag: '"0"' });
-  if (path === "/v1/projects") return json(page(server.projects));
-  let match = /^\/v1\/projects\/([^/]+)\/audits$/.exec(path);
-  if (match !== null) {
-    const state = query.get("state");
-    const audits = server.audits[decodeURIComponent(match[1]!)] ?? [];
-    return json(
-      page(state === null ? audits : audits.filter((a) => a.state === state)),
-    );
-  }
-  match =
-    /^\/v1\/audits\/([^/]+)\/(findings|reviews|report|workspace|items)$/.exec(
-      path,
-    );
-  if (match !== null) {
-    const auditId = decodeURIComponent(match[1]!);
-    const head = { auditRevision: 1, asOf: ago(1) };
-    switch (match[2]) {
-      case "findings": {
-        const items =
-          query.get("state") === "proposed"
-            ? (server.findings[auditId] ?? [])
-            : [];
-        return json({ ...head, total: items.length, ...page(items) });
-      }
-      case "reviews": {
-        const finding = query.get("finding");
-        const items = (server.reviews[auditId] ?? []).filter(
-          (candidate) => finding === null || candidate.findingId === finding,
-        );
-        return json({ ...head, total: items.length, ...page(items) });
-      }
-      case "report": {
-        const report = server.reports[auditId];
-        return report === undefined ? failure(404, "not_found") : json(report);
-      }
-      case "workspace": {
-        const counts = server.workspaces[auditId];
-        return counts === undefined ? failure(404, "not_found") : json(counts);
-      }
-      case "items": {
-        const state = query.get("state");
-        return json(
-          page(
-            (server.items[auditId] ?? []).filter(
-              (item) =>
-                state === null || (item as { state?: string }).state === state,
-            ),
-          ),
-        );
-      }
-    }
-  }
-  match = /^\/v1\/audits\/([^/]+)\/findings\/([^/]+)\/reviews$/.exec(path);
-  if (match !== null && request.method === "POST") {
-    const auditId = decodeURIComponent(match[1]!);
-    const findingId = decodeURIComponent(match[2]!);
-    const subject = server.findings[auditId]?.find(
-      (candidate) => candidate.findingId === findingId,
-    );
-    return json(
-      {
-        requestId: `review_${findingId}`,
-        auditId,
-        findingId,
-        subjectKind: "finding",
-        subjectId: findingId,
-        kind: "finding-triage",
-        subjectRevision: subject?.revision ?? 1,
-        subjectDigest: DIGEST,
-        requestedActions: [
-          "true_positive",
-          "false_positive",
-          "duplicate",
-          "reopen",
-          "needs_evidence",
-        ],
-        state: "pending",
-        revision: 1,
-        createdAt: ago(0),
-        updatedAt: ago(0),
-      },
-      201,
-    );
-  }
-  match = /^\/v1\/audits\/([^/]+)\/reviews\/([^/]+)\/decisions$/.exec(path);
-  if (match !== null && request.method === "POST") {
-    const auditId = decodeURIComponent(match[1]!);
-    const requestId = decodeURIComponent(match[2]!);
-    const body = (await request.json()) as Record<string, unknown>;
-    // The decision leaves the list and advances the check's revision.
-    advance(server, auditId);
-    const pending = server.reviews[auditId]?.find(
-      (candidate) => candidate.requestId === requestId,
-    );
-    if (pending !== undefined) {
-      // An approval, applicability or report acceptance request.
-      server.reviews[auditId] = server.reviews[auditId]!.filter(
-        (candidate) => candidate.requestId !== requestId,
-      );
-      const decision = {
-        decisionId: "decision_1",
-        requestId,
-        auditId,
-        actorId: "user_local",
-        action: body.action,
-        rationale: body.rationale,
-        subjectRevision: pending.subjectRevision,
-        subjectDigest: DIGEST,
-        createdAt: ago(0),
-      };
-      return json({
-        request: {
-          ...pending,
-          state: "decided",
-          revision: pending.revision + 1,
-          decision,
-          updatedAt: ago(0),
-        },
-        decision,
-        replayed: false,
-      });
-    }
-    const findingId = requestId.replace(/^review_/, "");
-    // A finding a refresh already removed is still decided by the Server.
-    const subject =
-      server.findings[auditId]?.find(
-        (candidate) => candidate.findingId === findingId,
-      ) ?? finding(auditId, findingId, "Decided possible issue", 0);
-    server.findings[auditId] = (server.findings[auditId] ?? []).filter(
-      (candidate) => candidate.findingId !== findingId,
-    );
-    const decision = {
+/** A decision the Server records, by action or verdict. */
+interface DecisionBody {
+  action?: AuditReviewAction;
+  verdict?: AuditAnalystVerdict;
+  rationale: string;
+}
+
+/** Records the decision on `requestId` and answers as the Server does. */
+async function decide(
+  server: InboxServer,
+  auditId: string,
+  requestId: string,
+  body: DecisionBody,
+): Promise<Response> {
+  // The decision leaves the list and advances the check's revision.
+  advance(server, auditId);
+  const decided = (request: AuditReviewRequest) => {
+    const decision = build.decision(request, {
       decisionId: "decision_1",
-      requestId,
-      auditId,
-      findingId,
       actorId: "user_local",
+      action: body.action,
       verdict: body.verdict,
       rationale: body.rationale,
-      subjectRevision: subject?.revision ?? 1,
-      subjectDigest: DIGEST,
       createdAt: ago(0),
-    };
-    return json({
-      finding: {
-        ...subject,
-        state: "rejected",
-        analystVerdict: body.verdict,
-        analystDecision: decision,
-        revision: (subject?.revision ?? 1) + 1,
-      },
+    });
+    return {
+      decision,
       request: {
-        requestId,
-        auditId,
-        findingId,
-        subjectKind: "finding",
-        subjectId: findingId,
-        kind: "finding-triage",
-        subjectRevision: subject?.revision ?? 1,
-        subjectDigest: DIGEST,
-        requestedActions: ["true_positive", "false_positive"],
-        state: "decided",
-        revision: 2,
+        ...request,
+        state: "decided" as const,
+        revision: request.revision + 1,
         decision,
-        createdAt: ago(0),
         updatedAt: ago(0),
       },
-      decision,
-      replayed: false,
-    });
-  }
-  if (path === "/v1/runs") {
-    const state = query.get("state");
-    const lifecycle = query.get("lifecycle");
-    return json(
-      page(
-        server.runs.filter(
-          (run) =>
-            (state === null || run.state === state) &&
-            (lifecycle === null ||
-              (lifecycle === "active") !== TERMINAL.has(run.state)),
-        ),
-      ),
+    };
+  };
+  const pending = server.reviews[auditId]?.find(
+    (candidate) => candidate.requestId === requestId,
+  );
+  if (pending !== undefined) {
+    // An approval, applicability or report acceptance request.
+    server.reviews[auditId] = server.reviews[auditId]!.filter(
+      (candidate) => candidate !== pending,
     );
+    return json({ ...decided(pending), replayed: false });
   }
-  match = /^\/v1\/runs\/([^/]+)\/retry-gateway$/.exec(path);
-  if (match !== null && request.method === "POST") {
-    const runId = decodeURIComponent(match[1]!);
-    const status = server.statuses[runId];
-    if (status !== undefined) {
-      delete status.recovery;
-      status.state = "running";
-    }
-    server.runs = server.runs.map((run) =>
-      run.runId === runId ? { ...run, state: "running" } : run,
-    );
-    return json({ runId }, 202);
-  }
-  match = /^\/v1\/runs\/([^/]+)$/.exec(path);
-  if (match !== null) {
-    const status = server.statuses[decodeURIComponent(match[1]!)];
-    return status === undefined ? failure(404, "not_found") : json(status);
-  }
-  match = /^\/v1\/audits\/([^/]+)\/findings\/([^/]+)$/.exec(path);
-  if (match !== null) {
-    const found = server.findings[decodeURIComponent(match[1]!)]?.find(
-      (candidate) => candidate.findingId === decodeURIComponent(match![2]!),
-    );
-    return found === undefined
-      ? failure(404, "not_found")
-      : json(found, 200, { ETag: `"${found.revision}"` });
-  }
-  match = /^\/v1\/audits\/([^/]+)$/.exec(path);
-  if (match !== null) {
-    const found = Object.values(server.audits)
-      .flat()
-      .find(
-        (candidate) => candidate.auditId === decodeURIComponent(match![1]!),
+  const findingId = requestId.replace(/^review_/, "");
+  // A finding a refresh already removed is still decided by the Server.
+  const subject =
+    server.findings[auditId]?.find(
+      (candidate) => candidate.findingId === findingId,
+    ) ?? finding(auditId, findingId, "Decided possible issue", 0);
+  server.findings[auditId] = (server.findings[auditId] ?? []).filter(
+    (candidate) => candidate.findingId !== findingId,
+  );
+  const { decision, request } = decided(triageRequest(subject));
+  return json({
+    finding: {
+      ...subject,
+      state: "rejected",
+      analystVerdict: body.verdict,
+      analystDecision: decision,
+      revision: subject.revision + 1,
+    },
+    request,
+    decision,
+    replayed: false,
+  });
+}
+
+/** The triage request the page opens to decide on a possible issue. */
+function triageRequest(subject: AuditFinding): AuditReviewRequest {
+  return build.review(
+    subject.auditId,
+    `review_${subject.findingId}`,
+    "finding-triage",
+    {
+      findingId: subject.findingId,
+      subjectId: subject.findingId,
+      subjectRevision: subject.revision,
+      createdAt: ago(0),
+      updatedAt: ago(0),
+    },
+  );
+}
+
+/** `found`, or the Server's 404 for a resource that is not there. */
+function found<T>(value: T | undefined, headers?: Record<string, string>) {
+  return value === undefined ? failure(404) : json(value, 200, headers);
+}
+
+/** The Server's answers over `server`, which they read and change. */
+function inboxRoutes(server: InboxServer): Routes {
+  return {
+    ...ownerListRoutes(() => ({
+      projects: server.projects,
+      audits: Object.values(server.audits).flat(),
+      findings: Object.values(server.findings).flat(),
+      reviews: Object.values(server.reviews).flat(),
+    })),
+    "GET /v1/auth/session": () => json(testSession(["user", "operations"])),
+    "GET /v1/queue/control": () =>
+      server.paused
+        ? json({ paused: true, revision: "4", updatedAt: ago(10) }, 200, {
+            ETag: '"4"',
+          })
+        : json({ paused: false, revision: "0" }, 200, { ETag: '"0"' }),
+    "GET /v1/projects": () => json(page(server.projects)),
+    "GET /v1/projects/{projectId}/audits": ({ params, url }) => {
+      const state = url.searchParams.get("state");
+      const audits = server.audits[params.projectId!] ?? [];
+      return json(
+        page(state === null ? audits : audits.filter((a) => a.state === state)),
       );
-    return found === undefined
-      ? failure(404, "not_found")
-      : json(found, 200, { ETag: `"${found.revision}"` });
-  }
-  match = /^\/v1\/workflows\/([^/]+)\/versions\/([^/]+)$/.exec(path);
-  if (match !== null) {
-    const workflow = server.workflows[`${match[1]}@${match[2]}`];
-    return workflow === undefined ? failure(404, "not_found") : json(workflow);
-  }
-  return json(page([]));
+    },
+    "GET /v1/audits/{auditId}": ({ params }) => {
+      const check = Object.values(server.audits)
+        .flat()
+        .find((entry) => entry.auditId === params.auditId);
+      return found(check, { ETag: `"${check?.revision}"` });
+    },
+    "GET /v1/audits/{auditId}/findings": ({ params, url }) => {
+      const items =
+        url.searchParams.get("state") === "proposed"
+          ? (server.findings[params.auditId!] ?? [])
+          : [];
+      return json({ ...CHECK_PAGE, total: items.length, ...page(items) });
+    },
+    "GET /v1/audits/{auditId}/findings/{findingId}": ({ params }) => {
+      const subject = server.findings[params.auditId!]?.find(
+        (candidate) => candidate.findingId === params.findingId,
+      );
+      return found(subject, { ETag: `"${subject?.revision}"` });
+    },
+    "POST /v1/audits/{auditId}/findings/{findingId}/reviews": ({ params }) => {
+      const subject =
+        server.findings[params.auditId!]?.find(
+          (candidate) => candidate.findingId === params.findingId,
+        ) ?? finding(params.auditId!, params.findingId!, "Removed", 0);
+      return json(triageRequest(subject), 201);
+    },
+    "GET /v1/audits/{auditId}/reviews": ({ params, url }) => {
+      const subject = url.searchParams.get("finding");
+      const items = (server.reviews[params.auditId!] ?? []).filter(
+        (candidate) => subject === null || candidate.findingId === subject,
+      );
+      return json({ ...CHECK_PAGE, total: items.length, ...page(items) });
+    },
+    "POST /v1/audits/{auditId}/reviews/{requestId}/decisions": async ({
+      params,
+      request,
+    }) =>
+      decide(
+        server,
+        params.auditId!,
+        params.requestId!,
+        (await request.json()) as DecisionBody,
+      ),
+    "GET /v1/audits/{auditId}/report": ({ params }) =>
+      found(server.reports[params.auditId!]),
+    "GET /v1/audits/{auditId}/workspace": ({ params }) =>
+      found(server.workspaces[params.auditId!]),
+    "GET /v1/audits/{auditId}/items": ({ params, url }) => {
+      const state = url.searchParams.get("state");
+      return json(
+        page(
+          (server.items[params.auditId!] ?? []).filter(
+            (item) => state === null || item.state === state,
+          ),
+        ),
+      );
+    },
+    "GET /v1/runs": ({ url }) => {
+      const state = url.searchParams.get("state");
+      const lifecycle = url.searchParams.get("lifecycle");
+      return json(
+        page(
+          server.runs.filter(
+            (run) =>
+              (state === null || run.state === state) &&
+              (lifecycle === null ||
+                (lifecycle === "active") !== TERMINAL.has(run.state)),
+          ),
+        ),
+      );
+    },
+    "GET /v1/runs/{runId}": ({ params }) =>
+      found(server.statuses[params.runId!]),
+    "POST /v1/runs/{runId}/retry-gateway": ({ params }) => {
+      const runId = params.runId!;
+      const status = server.statuses[runId];
+      if (status !== undefined) {
+        delete status.recovery;
+        status.state = "running";
+      }
+      server.runs = server.runs.map((run) =>
+        run.runId === runId ? { ...run, state: "running" } : run,
+      );
+      return json({ runId }, 202);
+    },
+    "GET /v1/workflows/{name}/versions/{version}": ({ params }) =>
+      found(server.workflows[`${params.name}@${params.version}`]),
+  };
+}
+
+/**
+ * The fake Server of `server`: every answer, the fallback's too, first
+ * passes its override and delay.
+ */
+function inboxServer(server: InboxServer) {
+  const held = async (request: Request, url: URL) => {
+    const overridden = server.override?.(url, request);
+    if (overridden !== undefined) return overridden;
+    await server.delay?.(url, request);
+    return undefined;
+  };
+  const routes = Object.fromEntries(
+    Object.entries(inboxRoutes(server)).map(([operation, route]) => [
+      operation,
+      (async (call) =>
+        (await held(call.request, call.url)) ?? route(call)) satisfies Route,
+    ]),
+  );
+  return fakeServer(
+    routes,
+    async (request, url) =>
+      (await held(request, url)) ?? emptyPageOrNotFound(request, url),
+  );
 }
 
 /** Holds a route's lazy code until `until` settles: a slow next page. */
@@ -713,15 +613,16 @@ function delayRoute(
   return false;
 }
 
+/**
+ * The application at `path` over `server`.
+ * V385: needs shared application harness in src/test.
+ */
 function renderInbox(
-  server: FakeServer,
+  server: InboxServer,
   path = "/",
   slowRoute?: { path: string; until: Promise<void> },
 ) {
-  const { api, server: fake } = testAPI(
-    fakeServer({}, (request) => answer(server, request)),
-  );
-  const requests = fake.requests;
+  const { api, server: fake } = testAPI(inboxServer(server));
   const routes = applicationRoutes();
   if (
     slowRoute !== undefined &&
@@ -734,18 +635,7 @@ function renderInbox(
   const view = render(
     <Application api={api} publicAPI={api} router={router} />,
   );
-  return {
-    ...view,
-    router,
-    requests,
-    /** Requests with this method whose path ends with `suffix`. */
-    sent: (method: string, suffix: string) =>
-      requests.filter(
-        (request) =>
-          request.method === method &&
-          new URL(request.url).pathname.endsWith(suffix),
-      ),
-  };
+  return { ...view, router, requests: fake.requests, sent: fake.sent };
 }
 
 /** The detail pane, once the application has rendered it. */
@@ -1303,7 +1193,7 @@ describe("Inbox", () => {
     const server = busyServer();
     server.override = (url) =>
       url.pathname === "/v1/audits/audit_wait/report"
-        ? failure(500, "internal_error")
+        ? failure(500)
         : undefined;
     renderInbox(server, "/?item=review:audit_wait:review_report");
     const pane = await findDetail();
@@ -1597,12 +1487,10 @@ describe("Inbox", () => {
         ? counts.wait
         : undefined;
     advance(server, "audit_paused");
-    server.workspaces.audit_paused = workspace("audit_paused", {
-      auditRevision: 2,
-      executionState: "paused",
-      completedChecks: 3,
-      unchecked: 2,
-    });
+    server.workspaces.audit_paused = workspace(
+      auditOf(server, "audit_paused"),
+      { completedChecks: 3, unchecked: 2 },
+    );
     const reads = sent("GET", "/v1/audits/audit_paused/workspace").length;
     await user.click(screen.getByRole("button", { name: "Refresh" }));
     await waitFor(() =>
@@ -1623,14 +1511,16 @@ describe("Inbox", () => {
 
   it("shows a stopped check's progress, stop reason and follow-up", async () => {
     const server = busyServer();
-    server.workspaces.audit_paused = workspace("audit_paused", {
-      executionState: "paused",
-      completedChecks: 2,
-      issues: 1,
-      gaps: 1,
-      unchecked: 2,
-      unreviewedFindings: 1,
-    });
+    server.workspaces.audit_paused = workspace(
+      auditOf(server, "audit_paused"),
+      {
+        completedChecks: 2,
+        issues: 1,
+        gaps: 1,
+        unchecked: 2,
+        unreviewedFindings: 1,
+      },
+    );
     renderInbox(server, "/?item=check:audit_paused");
 
     const pane = await findDetail();
@@ -1768,9 +1658,7 @@ describe("Inbox", () => {
     const server = busyServer();
     let failing = true;
     server.override = (url) =>
-      failing && url.pathname === "/v1/audits"
-        ? failure(500, "internal_error")
-        : undefined;
+      failing && url.pathname === "/v1/audits" ? failure(500) : undefined;
     renderInbox(server);
     const user = userEvent.setup();
 
