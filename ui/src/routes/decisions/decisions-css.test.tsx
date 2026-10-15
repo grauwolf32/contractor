@@ -53,12 +53,14 @@ describe("decisions.css", () => {
     expect(actions.getPropertyValue("background")).toBe("var(--surface)");
     // The row carries the section's gap and bottom padding as its own, so it
     // covers what scrolls under it and sits where it did when all fits.
-    expect(actions.getPropertyValue("padding-block")).toBe("0.5rem 0.75rem");
+    expect(actions.getPropertyValue("padding-block")).toBe(
+      "var(--space-2) var(--space-3)",
+    );
     const section = rule(
       ".ui-detail-pane-footer .ui-footer-record > .decisions-current",
       PINNED,
     );
-    expect(section.gap).toBe("0.125rem");
+    expect(section.gap).toBe("var(--space-0-5)");
     expect(section.paddingBottom).toBe("0px");
   });
 

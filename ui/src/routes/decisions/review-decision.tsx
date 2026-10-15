@@ -4,6 +4,7 @@ import { useRef, useState, type ReactNode } from "react";
 import {
   decideAuditAction,
   getAuditReport,
+  type AuditActionDecisionResult,
   type AuditReport,
   type AuditReviewAction,
   type AuditReviewRequest,
@@ -12,7 +13,7 @@ import { usePublicAPI } from "../../api/context";
 import { queryKeys } from "../../api/query-keys";
 import { reviewKindLabel } from "../../app/vocabulary";
 import { MutationDraftKeyring } from "../../mutations/idempotency";
-import { DecisionBar, type DecisionOption } from "../../ui";
+import { Button, DecisionBar, type DecisionOption } from "../../ui";
 import { focusIfLost, useAnnouncement } from "./announcement";
 import { DecisionRecord } from "./decision-record";
 import {
@@ -22,7 +23,6 @@ import {
   RATIONALE_HELP,
   REVIEW_ACTIONS,
   utf8Length,
-  type AuditActionDecisionResult,
 } from "./model";
 import { useRecordingCallback } from "./recording";
 import { refreshAfterDecision } from "./refresh";
@@ -355,13 +355,9 @@ function ReportAcceptance({
         <p>
           The report could not be loaded, so this request cannot be decided here
           yet.{" "}
-          <button
-            type="button"
-            className="decisions-text-button"
-            onClick={() => void read.refetch()}
-          >
+          <Button variant="link" size="xs" onClick={() => void read.refetch()}>
             Try again
-          </button>
+          </Button>
         </p>
         <RequestDetails error={read.error} />
       </div>

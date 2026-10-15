@@ -1,5 +1,8 @@
 import { useId, useState } from "react";
 
+import { Icon } from "../../app/icon";
+import { Button } from "../../ui";
+
 export interface MoreDecision {
   id: string;
   label: string;
@@ -17,31 +20,19 @@ export function MoreDecisions({ items }: { items: readonly MoreDecision[] }) {
   if (items.length === 0) return null;
   return (
     <div className="decisions-more">
-      <button
-        type="button"
-        className="ui-btn"
+      <Button
         aria-expanded={open}
         aria-controls={groupId}
         aria-label="More decisions"
         onClick={() => setOpen((value) => !value)}
       >
         <span>More</span>
-        <svg
+        <Icon
+          name="chevron-right"
+          size={14}
           className="decisions-more-chevron"
-          width="14"
-          height="14"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.8"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          aria-hidden="true"
-          focusable="false"
-        >
-          <path d="M9.5 6l6 6-6 6" />
-        </svg>
-      </button>
+        />
+      </Button>
       <div
         id={groupId}
         role="group"
@@ -50,17 +41,15 @@ export function MoreDecisions({ items }: { items: readonly MoreDecision[] }) {
         hidden={!open}
       >
         {items.map((item) => (
-          <button
+          <Button
             key={item.id}
-            type="button"
-            className="ui-btn"
             onClick={() => {
               setOpen(false);
               item.onSelect();
             }}
           >
             {item.label}
-          </button>
+          </Button>
         ))}
       </div>
     </div>
