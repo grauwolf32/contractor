@@ -1,7 +1,7 @@
 // Fixtures and a fake Server for the Checks area tests (the Checks list, the
 // check page and the project's Checks tab). Not imported by the application.
 import { render } from "@testing-library/react";
-import { createMemoryRouter } from "react-router";
+import { createMemoryRouter, type InitialEntry } from "react-router";
 
 import type {
   Audit,
@@ -263,13 +263,16 @@ export type Handler = Fallback;
  * unanswered gets an empty page where the operation pages, so the shell's
  * own reads stay quiet, and 404 otherwise.
  */
-export function fakeAPI(handle: Handler): {
+export function fakeAPI(
+  handle: Handler,
+  options: { capabilities?: Parameters<typeof testSession>[0] } = {},
+): {
   api: PublicAPI;
   requests: Request[];
 } {
   const { api, server } = testAPI(
     fakeServer(
-      { "GET /v1/auth/session": () => json(testSession()) },
+      { "GET /v1/auth/session": () => json(testSession(options.capabilities)) },
       async (request, url) =>
         (await handle(request, url)) ?? emptyPageOrNotFound(request, url),
     ),
@@ -277,7 +280,12 @@ export function fakeAPI(handle: Handler): {
   return { api, requests: server.requests };
 }
 
-export function renderApplication(api: PublicAPI, path: string) {
+/**
+ * The whole application (shell, session, routes) at `path`.
+ * V385: needs shared renderApplication in src/test (full Application at a
+ * path over a fake Server); the Projects and check tests use this one.
+ */
+export function renderApplication(api: PublicAPI, path: InitialEntry) {
   const router = createMemoryRouter(applicationRoutes(), {
     initialEntries: [path],
   });
