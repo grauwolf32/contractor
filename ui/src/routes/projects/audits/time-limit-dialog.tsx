@@ -3,7 +3,7 @@ import { useId, useRef, useState } from "react";
 import type { Audit } from "../../../api/audits";
 import { Dialog, DialogHeader } from "../../../app/dialog";
 import { AuditMutationNotice } from "./controls";
-import { Button } from "../../../ui";
+import { Button, Field } from "../../../ui";
 
 import "./checks.css";
 
@@ -78,37 +78,41 @@ export function AuditTimeLimitDialog({
             ? "Choose how long this check may start new work."
             : "Continue with the same inputs and accepted results. Finished items stay finished; running work can finish."}
         </p>
-        <label className="checks-field">
-          <span>Time limit</span>
-          <select
-            ref={initialFocus}
-            value={choice}
-            disabled={pending}
-            onChange={(event) => setChoice(event.target.value)}
-          >
-            {canKeepTime ? (
-              <option value="remaining">Keep remaining time</option>
-            ) : null}
-            <option value="604800">7 days</option>
-            <option value="86400">24 hours</option>
-            <option value="0">No time limit</option>
-            <option value="custom">Custom duration</option>
-          </select>
-        </label>
-        {choice === "custom" ? (
-          <label className="checks-field">
-            <span>Time limit in hours</span>
-            <input
-              type="number"
-              min="0.01"
-              max="8760"
-              step="0.01"
-              required
-              value={hours}
+        <Field label="Time limit">
+          {(control) => (
+            <select
+              {...control}
+              ref={initialFocus}
+              value={choice}
               disabled={pending}
-              onChange={(event) => setHours(event.target.value)}
-            />
-          </label>
+              onChange={(event) => setChoice(event.target.value)}
+            >
+              {canKeepTime ? (
+                <option value="remaining">Keep remaining time</option>
+              ) : null}
+              <option value="604800">7 days</option>
+              <option value="86400">24 hours</option>
+              <option value="0">No time limit</option>
+              <option value="custom">Custom duration</option>
+            </select>
+          )}
+        </Field>
+        {choice === "custom" ? (
+          <Field label="Time limit in hours">
+            {(control) => (
+              <input
+                {...control}
+                type="number"
+                min="0.01"
+                max="8760"
+                step="0.01"
+                required
+                value={hours}
+                disabled={pending}
+                onChange={(event) => setHours(event.target.value)}
+              />
+            )}
+          </Field>
         ) : null}
         <p className="ui-caption">
           The time includes waiting in the queue and stops while the check is

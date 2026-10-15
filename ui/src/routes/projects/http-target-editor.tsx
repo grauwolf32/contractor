@@ -15,7 +15,7 @@ import {
 } from "../../api/projects";
 import { loadCompletePages } from "../../api/pages";
 import { queryKeys } from "../../api/query-keys";
-import { AlertDialog, Button } from "../../ui";
+import { AlertDialog, Button, Field } from "../../ui";
 import { Dialog, DialogHeader } from "../../app/dialog";
 import { ErrorNotice } from "../../app/error-notice";
 import { createMutationIdempotencyKey } from "../../mutations/idempotency";
@@ -360,32 +360,36 @@ function ProjectHTTPTargetDialog({
         autoComplete="off"
         onSubmit={(event) => void submit(event)}
       >
-        <label className="projects-field">
-          <span>Application URL</span>
-          <input
-            required
-            ref={urlInput}
-            type="url"
-            placeholder="https://app.example.test"
-            value={url}
-            onChange={(event) => setURL(event.target.value)}
-          />
-        </label>
-        <label className="projects-field">
-          <span>Authorization</span>
-          <select
-            value={authMode}
-            onChange={(event) => {
-              setAuthMode(event.target.value as TargetAuthMode);
-              clearSecrets();
-            }}
-          >
-            <option value="none">No Authorization</option>
-            <option value="existing">Existing origin credential</option>
-            <option value="basic">New Basic credential</option>
-            <option value="bearer">New Bearer credential</option>
-          </select>
-        </label>
+        <Field label="Application URL" className="projects-field">
+          {(control) => (
+            <input
+              {...control}
+              required
+              ref={urlInput}
+              type="url"
+              placeholder="https://app.example.test"
+              value={url}
+              onChange={(event) => setURL(event.target.value)}
+            />
+          )}
+        </Field>
+        <Field label="Authorization" className="projects-field">
+          {(control) => (
+            <select
+              {...control}
+              value={authMode}
+              onChange={(event) => {
+                setAuthMode(event.target.value as TargetAuthMode);
+                clearSecrets();
+              }}
+            >
+              <option value="none">No Authorization</option>
+              <option value="existing">Existing origin credential</option>
+              <option value="basic">New Basic credential</option>
+              <option value="bearer">New Bearer credential</option>
+            </select>
+          )}
+        </Field>
         {authMode === "existing" ? (
           <>
             {credentials.isPending ? (
@@ -400,62 +404,73 @@ function ProjectHTTPTargetDialog({
                 retryPending={credentials.isFetching}
               />
             )}
-            <label className="projects-field">
-              <span>Active HTTP origin credential</span>
-              <select
-                required
-                value={credentialID}
-                disabled={credentials.isFetching}
-                onChange={(event) => setCredentialID(event.target.value)}
-              >
-                <option value="">Select credential</option>
-                {currentCredentialMissing ? (
-                  <option value={currentCredential.credentialId}>
-                    {currentCredential.credentialId} · {currentCredential.kind}{" "}
-                    (current)
-                  </option>
-                ) : null}
-                {originCredentials.map((credential) => (
-                  <option
-                    key={credential.credentialId}
-                    value={credential.credentialId}
-                  >
-                    {credential.credentialId} · {credential.kind}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <Field
+              label="Active HTTP origin credential"
+              className="projects-field"
+            >
+              {(control) => (
+                <select
+                  {...control}
+                  required
+                  value={credentialID}
+                  disabled={credentials.isFetching}
+                  onChange={(event) => setCredentialID(event.target.value)}
+                >
+                  <option value="">Select credential</option>
+                  {currentCredentialMissing ? (
+                    <option value={currentCredential.credentialId}>
+                      {currentCredential.credentialId} ·{" "}
+                      {currentCredential.kind} (current)
+                    </option>
+                  ) : null}
+                  {originCredentials.map((credential) => (
+                    <option
+                      key={credential.credentialId}
+                      value={credential.credentialId}
+                    >
+                      {credential.credentialId} · {credential.kind}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </Field>
           </>
         ) : authMode === "basic" ? (
           <div className="projects-field-row">
-            <label className="projects-field">
-              <span>Username</span>
-              <input
-                autoComplete="off"
-                value={username}
-                onChange={(event) => setUsername(event.target.value)}
-              />
-            </label>
-            <label className="projects-field">
-              <span>Password · write only</span>
-              <input
-                type={showSecrets ? "text" : "password"}
-                autoComplete="new-password"
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-              />
-            </label>
+            <Field label="Username" className="projects-field">
+              {(control) => (
+                <input
+                  {...control}
+                  autoComplete="off"
+                  value={username}
+                  onChange={(event) => setUsername(event.target.value)}
+                />
+              )}
+            </Field>
+            <Field label="Password · write only" className="projects-field">
+              {(control) => (
+                <input
+                  {...control}
+                  type={showSecrets ? "text" : "password"}
+                  autoComplete="new-password"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                />
+              )}
+            </Field>
           </div>
         ) : authMode === "bearer" ? (
-          <label className="projects-field">
-            <span>Bearer token · write only</span>
-            <input
-              type={showSecrets ? "text" : "password"}
-              autoComplete="new-password"
-              value={token}
-              onChange={(event) => setToken(event.target.value)}
-            />
-          </label>
+          <Field label="Bearer token · write only" className="projects-field">
+            {(control) => (
+              <input
+                {...control}
+                type={showSecrets ? "text" : "password"}
+                autoComplete="new-password"
+                value={token}
+                onChange={(event) => setToken(event.target.value)}
+              />
+            )}
+          </Field>
         ) : null}
         {authMode === "basic" || authMode === "bearer" ? (
           <label className="projects-checkbox">

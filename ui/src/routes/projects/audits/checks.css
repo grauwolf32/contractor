@@ -339,29 +339,6 @@
   margin: 0;
 }
 
-.checks-field {
-  display: grid;
-  gap: var(--space-1-5);
-  font-size: var(--text-sm);
-  font-weight: 700;
-}
-
-.checks-field :is(select, input) {
-  min-height: 2.375rem;
-  padding: 0 var(--space-3);
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius-lg);
-  background: var(--surface);
-  color: var(--text);
-  font-weight: 400;
-}
-
-.checks-field :is(select, input):focus-visible {
-  border-color: var(--focus);
-  outline: 2px solid var(--focus);
-  outline-offset: 1px;
-}
-
 /* ---------- Check page: list pane ---------- */
 
 .checks-list-toolbar {
