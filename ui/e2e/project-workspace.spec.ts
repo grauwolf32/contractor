@@ -1,21 +1,22 @@
-import { expect, test, type Page, type Route } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
-import packageMetadata from "../package.json" with { type: "json" };
+import { project as projectBuilder } from "../src/test/builders";
+import {
+  runRuntimeConfiguration,
+  runStatus,
+  stageContract,
+  workflowResource,
+  workflowSummary,
+} from "../src/test/builders-execution";
+import {
+  fulfillEmptyPageOrNotFound,
+  fulfillJSON,
+  mockAPI,
+  mockedAPIOrigin,
+  uiOrigin,
+} from "./support/mock-api";
 
-const API_VERSION = "contractor.public.v1";
 const PROJECT_ID = "project_browser_example";
-const RUNTIME_CONFIGURATION = {
-  default: {
-    label: "default",
-    bindingRevision: "1",
-    config: {
-      name: "contractor-empty",
-      version: "1",
-      digest: `sha256:${"0".repeat(64)}`,
-    },
-  },
-  labels: [],
-};
 
 interface ProjectAPIFixtureOptions {
   artifactStoredInitially?: boolean;
@@ -27,42 +28,8 @@ interface ProjectAPIFixtureOptions {
   }>;
 }
 
-function headers(extra: Record<string, string> = {}): Record<string, string> {
-  return {
-    "cache-control": "no-store",
-    "content-type": "application/json",
-    "x-contractor-api-version": API_VERSION,
-    ...extra,
-  };
-}
-
-async function fulfillJSON(
-  route: Route,
-  value: unknown,
-  status = 200,
-  extraHeaders: Record<string, string> = {},
-): Promise<void> {
-  const requestOrigin = route.request().headers()["origin"];
-  await route.fulfill({
-    body: JSON.stringify(value),
-    headers: headers({
-      ...(requestOrigin === undefined
-        ? {}
-        : {
-            "access-control-allow-origin": requestOrigin,
-            "access-control-allow-credentials": "true",
-            "access-control-expose-headers":
-              "X-Contractor-API-Version, ETag, X-Request-ID, Content-Length, Content-Type",
-          }),
-      ...extraHeaders,
-    }),
-    status,
-  });
-}
-
 async function installProjectAPI(
   page: Page,
-  uiOrigin: string,
   apiOrigin: string,
   uploads: Array<{
     url: string;
@@ -72,16 +39,12 @@ async function installProjectAPI(
   options: ProjectAPIFixtureOptions = {},
 ): Promise<void> {
   let artifactStored = options.artifactStoredInitially ?? false;
-  const project = {
-    projectId: PROJECT_ID,
-    kind: "project",
+  const project = projectBuilder(PROJECT_ID, {
     name: "Browser workspace",
     description: "Project UI browser fixture",
-    lifecycle: "active",
-    revision: "1",
     createdAt: "2026-09-01T10:00:00Z",
     updatedAt: "2026-09-01T10:00:00Z",
-  };
+  });
   const artifact = {
     artifact: {
       namespace: "sources",
@@ -94,10 +57,8 @@ async function installProjectAPI(
     frozen: false,
     createdAt: "2026-09-01T10:01:00Z",
   };
-  const workflow = {
-    ref: { name: "openapi-from-source", version: "1" },
+  const workflow = workflowResource("openapi-from-source", "1", {
     entryStage: "analyze",
-    parameters: {},
     inputs: {
       source: { required: true, mediaTypes: ["application/zip"] },
     },
@@ -108,176 +69,129 @@ async function installProjectAPI(
         primary: true,
       },
     },
-  };
-  await page.route("**/runtime-config.json", async (route) => {
-    await route.fulfill({
-      json: {
-        uiVersion: packageMetadata.version,
-        supportedApiVersions: [API_VERSION],
-        apiBaseUrl: apiOrigin,
-      },
-    });
+    stages: { analyze: stageContract() },
   });
-  await page.route(`${apiOrigin}/v1/**`, async (route) => {
-    const request = route.request();
-    const url = new URL(request.url());
-    if (request.method() === "OPTIONS") {
-      await route.fulfill({
-        status: 204,
-        headers: {
-          "access-control-allow-origin": uiOrigin,
-          "access-control-allow-credentials": "true",
-          "access-control-allow-methods": "GET, POST, PUT, PATCH, OPTIONS",
-          "access-control-allow-headers":
-            "content-type, idempotency-key, if-match, if-none-match, x-csrf-token",
-        },
-      });
-      return;
-    }
-    if (url.pathname === "/v1/auth/session") {
-      await fulfillJSON(route, {
-        principal: {
-          userId: "user_browser",
-          username: "browser",
-          capabilities: ["user", "operations"],
-        },
-        csrfToken: "a".repeat(43),
-        idleExpiresAt: "2099-01-01T00:00:00Z",
-        absoluteExpiresAt: "2099-01-02T00:00:00Z",
-      });
-      return;
-    }
-    if (url.pathname === "/v1/projects" && request.method() === "GET") {
-      await fulfillJSON(route, { items: [project], page: { hasMore: false } });
-      return;
-    }
-    if (url.pathname === `/v1/projects/${PROJECT_ID}/audits`) {
-      await fulfillJSON(route, { items: [], page: { hasMore: false } });
-      return;
-    }
-    if (url.pathname === "/v1/workflows") {
-      await fulfillJSON(route, {
-        items: options.exposeWorkflow ? [workflow] : [],
-        page: { hasMore: false },
-      });
-      return;
-    }
-    if (
-      url.pathname === "/v1/workflows/openapi-from-source/versions/1" &&
-      options.exposeWorkflow
-    ) {
-      await fulfillJSON(route, { ...workflow, stages: {} });
-      return;
-    }
-    if (url.pathname === `/v1/projects/${PROJECT_ID}`) {
-      await fulfillJSON(route, project, 200, { etag: '"1"' });
-      return;
-    }
-    if (
-      url.pathname === `/v1/projects/${PROJECT_ID}/artifacts` &&
-      request.method() === "GET"
-    ) {
-      await fulfillJSON(route, {
-        items: artifactStored ? [artifact] : [],
-        page: { hasMore: false },
-      });
-      return;
-    }
-    if (url.pathname === "/v1/artifacts" && request.method() === "GET") {
-      await fulfillJSON(route, {
-        items: artifactStored ? [artifact] : [],
-        page: { hasMore: false },
-      });
-      return;
-    }
-    if (
-      url.pathname ===
-        `/v1/projects/${PROJECT_ID}/artifacts/sources/browser-source` &&
-      request.method() === "PUT"
-    ) {
-      uploads.push({
-        url: request.url(),
-        headers: request.headers(),
-        body: request.postDataBuffer() ?? Buffer.alloc(0),
-      });
-      artifactStored = true;
-      await fulfillJSON(
-        route,
-        {
-          artifact: artifact.artifact,
-          mediaType: artifact.mediaType,
-          size: artifact.size,
-        },
-        201,
-        { etag: '"revision-browser-1"' },
-      );
-      return;
-    }
-    if (
-      url.pathname === `/v1/projects/${PROJECT_ID}/runs` &&
-      request.method() === "POST"
-    ) {
-      options.runRequests?.push({
-        url: request.url(),
-        headers: request.headers(),
-        body: request.postDataJSON(),
-      });
-      await fulfillJSON(
-        route,
-        {
-          runId: "run_project_browser",
-          projectId: PROJECT_ID,
-          state: "initializing",
-          runtimeLabels: [],
-          labels: {},
-          runtimeConfiguration: RUNTIME_CONFIGURATION,
-        },
-        202,
-      );
-      return;
-    }
-    if (
-      url.pathname === `/v1/projects/${PROJECT_ID}/runs` &&
-      request.method() === "GET"
-    ) {
-      await fulfillJSON(route, { items: [], page: { hasMore: false } });
-      return;
-    }
-    if (url.pathname === "/v1/runs/run_project_browser") {
-      await fulfillJSON(route, {
-        runId: "run_project_browser",
-        projectId: PROJECT_ID,
-        workflow: "openapi-from-source@1",
-        state: "initializing",
-        runtimeLabels: [],
-        labels: {},
-        runtimeConfiguration: RUNTIME_CONFIGURATION,
-        attempts: [],
-        transitions: [],
-        outputs: {},
-        outputPublications: [],
-      });
-      return;
-    }
-    if (url.pathname === "/v1/runs/run_project_browser/artifacts") {
-      await fulfillJSON(route, { items: [], page: { hasMore: false } });
-      return;
-    }
-    await fulfillJSON(
-      route,
-      {
-        code: "not_found",
-        message: "not found",
-        retryable: false,
-        requestId: "request-browser",
-      },
-      404,
-    );
-  });
-
-  // Keep this assertion close to the routing setup: Artifact bytes target the
-  // configured Go API origin, not the static UI origin.
-  expect(apiOrigin).not.toBe(uiOrigin);
+  await mockAPI(
+    page,
+    async (route, request, url) => {
+      if (url.pathname === "/v1/projects" && request.method() === "GET") {
+        await fulfillJSON(route, {
+          items: [project],
+          page: { hasMore: false },
+        });
+        return;
+      }
+      if (url.pathname === `/v1/projects/${PROJECT_ID}/audits`) {
+        await fulfillJSON(route, { items: [], page: { hasMore: false } });
+        return;
+      }
+      if (url.pathname === "/v1/workflows") {
+        await fulfillJSON(route, {
+          items: options.exposeWorkflow ? [workflowSummary(workflow)] : [],
+          page: { hasMore: false },
+        });
+        return;
+      }
+      if (
+        url.pathname === "/v1/workflows/openapi-from-source/versions/1" &&
+        options.exposeWorkflow
+      ) {
+        await fulfillJSON(route, workflow);
+        return;
+      }
+      if (url.pathname === `/v1/projects/${PROJECT_ID}`) {
+        await fulfillJSON(route, project, 200, { etag: '"1"' });
+        return;
+      }
+      if (
+        url.pathname === `/v1/projects/${PROJECT_ID}/artifacts` &&
+        request.method() === "GET"
+      ) {
+        await fulfillJSON(route, {
+          items: artifactStored ? [artifact] : [],
+          page: { hasMore: false },
+        });
+        return;
+      }
+      if (url.pathname === "/v1/artifacts" && request.method() === "GET") {
+        await fulfillJSON(route, {
+          items: artifactStored ? [artifact] : [],
+          page: { hasMore: false },
+        });
+        return;
+      }
+      if (
+        url.pathname ===
+          `/v1/projects/${PROJECT_ID}/artifacts/sources/browser-source` &&
+        request.method() === "PUT"
+      ) {
+        uploads.push({
+          url: request.url(),
+          headers: request.headers(),
+          body: request.postDataBuffer() ?? Buffer.alloc(0),
+        });
+        artifactStored = true;
+        await fulfillJSON(
+          route,
+          {
+            artifact: artifact.artifact,
+            mediaType: artifact.mediaType,
+            size: artifact.size,
+          },
+          201,
+          { etag: '"revision-browser-1"' },
+        );
+        return;
+      }
+      if (
+        url.pathname === `/v1/projects/${PROJECT_ID}/runs` &&
+        request.method() === "POST"
+      ) {
+        options.runRequests?.push({
+          url: request.url(),
+          headers: request.headers(),
+          body: request.postDataJSON(),
+        });
+        await fulfillJSON(
+          route,
+          {
+            runId: "run_project_browser",
+            projectId: PROJECT_ID,
+            state: "initializing",
+            runtimeLabels: [],
+            labels: {},
+            runtimeConfiguration: runRuntimeConfiguration(),
+          },
+          202,
+        );
+        return;
+      }
+      if (
+        url.pathname === `/v1/projects/${PROJECT_ID}/runs` &&
+        request.method() === "GET"
+      ) {
+        await fulfillJSON(route, { items: [], page: { hasMore: false } });
+        return;
+      }
+      if (url.pathname === "/v1/runs/run_project_browser") {
+        await fulfillJSON(
+          route,
+          runStatus("run_project_browser", {
+            projectId: PROJECT_ID,
+            workflow: "openapi-from-source@1",
+            state: "initializing",
+          }),
+        );
+        return;
+      }
+      if (url.pathname === "/v1/runs/run_project_browser/artifacts") {
+        await fulfillJSON(route, { items: [], page: { hasMore: false } });
+        return;
+      }
+      await fulfillEmptyPageOrNotFound(route);
+    },
+    { apiOrigin },
+  );
 }
 
 async function openProjectFromShell(page: Page): Promise<void> {
@@ -287,19 +201,16 @@ async function openProjectFromShell(page: Page): Promise<void> {
 test("Project file-drop uploads exact bytes directly to Go API", async ({
   page,
 }, testInfo) => {
-  const configuredBaseURL = testInfo.project.use.baseURL;
-  if (typeof configuredBaseURL !== "string") {
-    throw new Error("Playwright baseURL is required");
-  }
-  const uiOrigin = new URL(configuredBaseURL).origin;
-  const apiOrigin =
-    process.env.CONTRACTOR_UI_E2E_API_URL ?? "http://127.0.0.3:8080";
+  const apiOrigin = mockedAPIOrigin();
   const uploads: Array<{
     url: string;
     headers: Record<string, string>;
     body: Buffer;
   }> = [];
-  await installProjectAPI(page, uiOrigin, apiOrigin, uploads);
+  // Artifact bytes target the configured Go API origin, not the static UI
+  // origin.
+  expect(apiOrigin).not.toBe(uiOrigin(testInfo));
+  await installProjectAPI(page, apiOrigin, uploads);
 
   await openProjectFromShell(page);
   await expect(
@@ -337,21 +248,9 @@ test("Project file-drop uploads exact bytes directly to Go API", async ({
   expect(uploads[0]!.body.toString()).toBe("zip");
 });
 
-test("Project dashboard remains usable at 320px", async ({
-  page,
-}, testInfo) => {
-  const configuredBaseURL = testInfo.project.use.baseURL;
-  if (typeof configuredBaseURL !== "string") {
-    throw new Error("Playwright baseURL is required");
-  }
-  const uiOrigin = new URL(configuredBaseURL).origin;
+test("Project dashboard remains usable at 320px", async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 568 });
-  await installProjectAPI(
-    page,
-    uiOrigin,
-    process.env.CONTRACTOR_UI_E2E_API_URL ?? "http://127.0.0.3:8080",
-    [],
-  );
+  await installProjectAPI(page, mockedAPIOrigin(), []);
 
   await openProjectFromShell(page);
   await page
@@ -368,16 +267,10 @@ test("Project dashboard remains usable at 320px", async ({
 
 test("Project recommendation launches an exact Project Run", async ({
   page,
-}, testInfo) => {
-  const configuredBaseURL = testInfo.project.use.baseURL;
-  if (typeof configuredBaseURL !== "string") {
-    throw new Error("Playwright baseURL is required");
-  }
-  const uiOrigin = new URL(configuredBaseURL).origin;
-  const apiOrigin =
-    process.env.CONTRACTOR_UI_E2E_API_URL ?? "http://127.0.0.3:8080";
+}) => {
+  const apiOrigin = mockedAPIOrigin();
   const runRequests: NonNullable<ProjectAPIFixtureOptions["runRequests"]> = [];
-  await installProjectAPI(page, uiOrigin, apiOrigin, [], {
+  await installProjectAPI(page, apiOrigin, [], {
     artifactStoredInitially: true,
     exposeWorkflow: true,
     runRequests,
@@ -433,20 +326,12 @@ test("Project recommendation launches an exact Project Run", async ({
 
 test("Project sections open inputs and Run setup, while deletion stays in its menu", async ({
   page,
-}, testInfo) => {
-  const configuredBaseURL = testInfo.project.use.baseURL;
-  if (typeof configuredBaseURL !== "string") {
-    throw new Error("Playwright baseURL is required");
-  }
-  const uiOrigin = new URL(configuredBaseURL).origin;
+}) => {
   await page.setViewportSize({ width: 1440, height: 1000 });
-  await installProjectAPI(
-    page,
-    uiOrigin,
-    process.env.CONTRACTOR_UI_E2E_API_URL ?? "http://127.0.0.3:8080",
-    [],
-    { artifactStoredInitially: true, exposeWorkflow: true },
-  );
+  await installProjectAPI(page, mockedAPIOrigin(), [], {
+    artifactStoredInitially: true,
+    exposeWorkflow: true,
+  });
 
   await openProjectFromShell(page);
   const navigation = page.getByRole("navigation", { name: "Project sections" });
@@ -513,19 +398,11 @@ test("Project sections open inputs and Run setup, while deletion stays in its me
 test("Workflow overview leads with Run setup in a dismissible drawer", async ({
   page,
 }, testInfo) => {
-  const configuredBaseURL = testInfo.project.use.baseURL;
-  if (typeof configuredBaseURL !== "string") {
-    throw new Error("Playwright baseURL is required");
-  }
-  const uiOrigin = new URL(configuredBaseURL).origin;
   await page.setViewportSize({ width: 1440, height: 1000 });
-  await installProjectAPI(
-    page,
-    uiOrigin,
-    process.env.CONTRACTOR_UI_E2E_API_URL ?? "http://127.0.0.3:8080",
-    [],
-    { artifactStoredInitially: true, exposeWorkflow: true },
-  );
+  await installProjectAPI(page, mockedAPIOrigin(), [], {
+    artifactStoredInitially: true,
+    exposeWorkflow: true,
+  });
 
   await page.goto("/catalog/workflows/openapi-from-source/1");
   const configure = page.getByRole("button", { name: "Configure Run" });

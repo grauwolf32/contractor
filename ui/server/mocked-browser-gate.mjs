@@ -1,7 +1,6 @@
-import { readdir } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 
-import { runBrowserGate } from "./browser-gate.mjs";
+import { checkBrowserSpecs, runBrowserGate } from "./browser-gate.mjs";
 
 // Every self-contained API-mocked spec belongs here. The remaining spec files
 // run against a real process stack in tests/ui-stack or tests/e2e.
@@ -33,23 +32,11 @@ const processSpecs = [
   "e2e/project-workspace.spec.ts",
   "e2e/run-repeat.spec.ts",
   "e2e/scan-tools.spec.ts",
-  "e2e/scheduler-settings.spec.ts",
   "e2e/stack.spec.ts",
   "e2e/studio-catalog.spec.ts",
 ];
-const e2eDir = fileURLToPath(new URL("../e2e", import.meta.url));
-const listedSpecs = new Set([...mockedSpecs, ...processSpecs]);
-const actualSpecs = new Set(
-  (await readdir(e2eDir))
-    .filter((name) => name.endsWith(".spec.ts"))
-    .map((name) => `e2e/${name}`),
-);
-const unlisted = [...actualSpecs].filter((name) => !listedSpecs.has(name));
-const missing = [...listedSpecs].filter((name) => !actualSpecs.has(name));
-if (unlisted.length !== 0 || missing.length !== 0) {
-  throw new Error(
-    `browser spec inventory differs: unlisted=${unlisted.join(", ")} missing=${missing.join(", ")}`,
-  );
-}
-
+await checkBrowserSpecs(fileURLToPath(new URL("../e2e", import.meta.url)), [
+  ...mockedSpecs,
+  ...processSpecs,
+]);
 await runBrowserGate("Mocked browser", mockedSpecs);

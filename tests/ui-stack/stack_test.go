@@ -307,8 +307,8 @@ func runBrowserStack(t *testing.T, evalMode string) {
 	evidencePath := filepath.Join(temporaryRoot, "browser-evidence.json")
 	screenshotPath := filepath.Join(temporaryRoot, "browser-state.png")
 	playwrightOutput := filepath.Join(temporaryRoot, "playwright-output")
-	// These fixture journeys back the named Project, Audit, lifecycle,
-	// Scheduler and Performance browser gates alongside the real stack.
+	// These fixture journeys back the named Project, Audit, lifecycle, Run
+	// repeat and Performance browser gates alongside the real stack.
 	// Scan and managed Evals retain their own process fixtures and invocations.
 	// studio-catalog loads every shipped definition in configs/ into Studio;
 	// unit tests may not read configs/, so the real catalog is checked here.
@@ -318,7 +318,6 @@ func runBrowserStack(t *testing.T, evalMode string) {
 		"e2e/lifecycle-controls.spec.ts",
 		"e2e/project-workspace.spec.ts",
 		"e2e/run-repeat.spec.ts",
-		"e2e/scheduler-settings.spec.ts",
 		"e2e/performance.spec.ts",
 		"e2e/studio-catalog.spec.ts",
 	}
