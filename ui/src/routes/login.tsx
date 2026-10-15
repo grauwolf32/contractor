@@ -3,7 +3,7 @@ import { useDocumentTitle } from "../app/document-title";
 import { type FormEvent, useState } from "react";
 import { Navigate, useLocation } from "react-router";
 
-import { stringRule } from "../api/contract";
+import { htmlPattern, stringRule } from "../api/contract";
 import { useGuardedNavigate } from "../app/page-location";
 import { UI_VERSION } from "../build";
 import { useSession } from "../auth/session";
@@ -14,6 +14,7 @@ import { SessionConnectionError } from "./session-error";
 
 // The sign-in form's limits are the LoginRequest schema's.
 const USERNAME = stringRule("LoginRequest", "properties", "username");
+const USERNAME_PATTERN = htmlPattern(USERNAME);
 const PASSWORD = stringRule("LoginRequest", "properties", "password");
 
 function safeDestination(state: unknown): string {
@@ -82,9 +83,7 @@ export function LoginRoute() {
             <input
               name="username"
               autoComplete="username"
-              // The LoginRequest pattern, escaped for the v flag browsers
-              // compile pattern attributes with; login.test.tsx ties them.
-              pattern={"[A-Za-z0-9][A-Za-z0-9_.\\-]*"}
+              pattern={USERNAME_PATTERN}
               minLength={USERNAME.minLength}
               maxLength={USERNAME.maxLength}
               required

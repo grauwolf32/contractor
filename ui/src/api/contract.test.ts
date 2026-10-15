@@ -6,6 +6,7 @@ import eventDocument from "../../../api/events/contractor-events-v1.schema.json"
 import {
   conformsTo,
   eventFrameViolation,
+  htmlPattern,
   responseViolation,
   schemaEnum,
   schemaLimit,
@@ -216,6 +217,63 @@ describe("responseViolation", () => {
         }),
       ).toBeUndefined();
     }
+  });
+});
+
+describe("htmlPattern", () => {
+  /** Every `pattern` keyword of the public bundle. */
+  function patterns(value: unknown, found = new Set<string>()): Set<string> {
+    if (Array.isArray(value)) {
+      for (const item of value) patterns(item, found);
+    } else if (typeof value === "object" && value !== null) {
+      for (const [key, member] of Object.entries(value)) {
+        if (key === "pattern" && typeof member === "string") found.add(member);
+        else patterns(member, found);
+      }
+    }
+    return found;
+  }
+
+  const samples = [
+    "",
+    "a",
+    "run_1",
+    "A9-b.c_d",
+    "-lead",
+    "_under",
+    ".dot",
+    "has space",
+    "naïve",
+    "a/b",
+    "sha256:" + "a".repeat(64),
+    "1.2.3",
+    "owasp-top10@2",
+    "a".repeat(300),
+    "x&&y",
+    "[brackets]",
+  ];
+
+  it("turns every contract pattern into an attribute browsers accept as the schema does", () => {
+    const all = [...patterns(publicSchemas)];
+    expect(all.length).toBeGreaterThan(20);
+    for (const source of all) {
+      const pattern = new RegExp(source, "u");
+      const attribute = htmlPattern({ pattern });
+      expect(attribute, source).toBeDefined();
+      const browser = new RegExp(`^(?:${attribute})$`, "v");
+      for (const sample of samples) {
+        expect(browser.test(sample), `${source} on ${sample}`).toBe(
+          pattern.test(sample),
+        );
+      }
+    }
+  });
+
+  it("escapes a class edge dash for the v flag and drops the anchors", () => {
+    const username = stringRule("LoginRequest", "properties", "username");
+    expect(htmlPattern(username)).toBe("[A-Za-z0-9][A-Za-z0-9_.\\-]*");
+    expect(htmlPattern({ pattern: /a[-x]/u })).toBe(".*a[\\-x].*");
+    expect(htmlPattern({})).toBeUndefined();
   });
 });
 

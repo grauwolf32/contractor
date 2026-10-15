@@ -101,9 +101,8 @@ describe("LoginRoute", () => {
       "maxlength",
       String(stringRule("LoginRequest", "properties", "password").maxBytes),
     );
-    // Browsers compile the pattern attribute with the v flag, which the
-    // schema's own pattern does not satisfy, so the form keeps an escaped
-    // copy; it must accept exactly what the schema accepts.
+    // Browsers compile the pattern attribute with the v flag; the attribute
+    // derived from the schema's pattern accepts exactly what it accepts.
     const pattern = new RegExp(`^(?:${input.getAttribute("pattern")})$`, "v");
     for (const name of [
       "owner",

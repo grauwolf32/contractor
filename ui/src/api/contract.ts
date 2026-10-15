@@ -229,6 +229,69 @@ export function stringRule(
   };
 }
 
+/** Characters the v flag reserves inside a class; they need a backslash. */
+const CLASS_SYNTAX = new Set(["(", ")", "[", "{", "}", "/", "|"]);
+/** Characters the v flag reserves when doubled inside a class ("&&"). */
+const CLASS_DOUBLES = new Set([..."&!#$%*+,.:;<=>?@^`~"]);
+
+/**
+ * The rule's pattern as an HTML `pattern` attribute. Browsers anchor the
+ * attribute (^(?:…)$) and compile it with the v flag, which reserves more
+ * characters inside a class than the u flag the contract's patterns use,
+ * so a literal "-" at a class edge and the class syntax characters are
+ * escaped, and the rule's own ^ and $ anchors are dropped (an unanchored
+ * side may hold anything).
+ */
+export function htmlPattern(rule: {
+  readonly pattern?: RegExp;
+}): string | undefined {
+  if (rule.pattern === undefined) return undefined;
+  let source = rule.pattern.source;
+  const start = source.startsWith("^");
+  if (start) source = source.slice(1);
+  const end = /(^|[^\\])(\\\\)*\$$/.test(source);
+  if (end) source = source.slice(0, -1);
+  let out = "";
+  let inClass = false;
+  let classStart = 0;
+  for (let index = 0; index < source.length; index += 1) {
+    const char = source[index]!;
+    if (char === "\\") {
+      out += char + (source[index + 1] ?? "");
+      index += 1;
+      continue;
+    }
+    if (!inClass) {
+      if (char === "[") {
+        inClass = true;
+        classStart = out.length + 1;
+        if (source[index + 1] === "^") {
+          out += "[^";
+          index += 1;
+          classStart += 1;
+          continue;
+        }
+      }
+      out += char;
+      continue;
+    }
+    if (char === "]") {
+      inClass = false;
+      out += char;
+      continue;
+    }
+    const edge = out.length === classStart || source[index + 1] === "]";
+    const doubled =
+      CLASS_DOUBLES.has(char) &&
+      (source[index + 1] === char || out.endsWith(char));
+    out +=
+      CLASS_SYNTAX.has(char) || doubled || (char === "-" && edge)
+        ? `\\${char}`
+        : char;
+  }
+  return `${start ? "" : ".*"}${out}${end ? "" : ".*"}`;
+}
+
 /** The `enum` of the schema at `name` (or at `path` inside it). */
 export function schemaEnum<T extends string = string>(
   name: PublicSchemaName,
