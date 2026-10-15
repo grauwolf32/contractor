@@ -89,10 +89,18 @@ context:
     initial bundle is about 140 kB gzip today), consolidating hand-written
     validators behind shared grammar constants (keeps about 3k lines and
     the drift class) and dropping response validation (contradicts the
-    strict read rule in AGENTS.md section 2). Reversal condition: the
-    interpreter cannot express a schema the Server publishes or costs more
-    than 2 ms on a realistic list page; then generate Ajv standalone code
-    per operation group as lazy chunks. Server endpoints that would remove
+    strict read rule in AGENTS.md section 2). The first reversal bound (2 ms
+    per realistic list page) was a guess: the implementation measured about
+    3.7 ms for a 50-finding page and 13.6 ms for a 200-Audit owner page in
+    Node 26, about a quarter of it the library building error locations for
+    valid input. The user kept the interpreter on 2026-10-16 with a
+    one-frame budget instead. Reversal condition: the interpreter cannot
+    express a schema the Server publishes, or validating the largest page
+    the UI reads (200 items) takes more than 16 ms in Chromium on the
+    development machine; then generate Ajv standalone code per operation
+    group as lazy chunks. The budget is measured by hand when the page
+    limit or the heaviest schemas change, not asserted by a test, because
+    AGENTS.md section 3.5 forbids wall-clock assertions. Server endpoints that would remove
     the client-side aggregation in api/cross-project.ts (multi-value
     finding filters, owner-wide reports, Inbox counts) are out of scope
     (user decision, 2026-10-15) and get their own task.
