@@ -189,6 +189,34 @@ describe("responseViolation", () => {
       "an undeclared body was returned",
     );
   });
+
+  // Error responses are declared through aliases (NotFound refers to
+  // Error404, which declares the body), so the generator follows $ref chains.
+  it.each([
+    "GET /v1/auth/session",
+    "GET /v1/projects/{projectId}",
+    "DELETE /v1/runs/{runId}",
+    "GET /v1/runs/{runId}/artifacts/{namespace}/{name}",
+    "PUT /v1/operations/settings/scheduler",
+  ] as const)("declares the error envelope for every error of %s", (key) => {
+    const declared: Readonly<Record<string, string | null>> =
+      RESPONSE_SCHEMAS[key];
+    const errors = Object.entries(declared).filter(
+      ([status]) => Number(status) >= 400,
+    );
+    expect(errors.length).toBeGreaterThan(0);
+    for (const [status, schema] of errors) {
+      expect(schema, `${key} ${status}`).toBe("Error");
+      expect(
+        responseViolation(key, Number(status), {
+          code: "not_found",
+          message: "Not found",
+          retryable: false,
+          requestId: "request_1",
+        }),
+      ).toBeUndefined();
+    }
+  });
 });
 
 describe("contract rules", () => {

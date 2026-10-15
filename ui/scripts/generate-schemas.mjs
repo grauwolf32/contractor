@@ -117,12 +117,22 @@ function eventRef(value, where) {
   return `${EVENT_SCHEMA_ID}#/$defs/${match[1]}`;
 }
 
+/**
+ * The response a declared response stands for, following $ref chains
+ * (NotFound refers to Error404, which declares the body).
+ */
 function resolveResponse(document, response, where) {
-  if (response.$ref === undefined) return response;
-  const match = /^#\/components\/responses\/([^/]+)$/.exec(response.$ref);
-  const target = match && document.components.responses[match[1]];
-  if (!target) fail(`${where} has an unresolved response $ref`);
-  return target;
+  const seen = new Set();
+  let current = response;
+  while (current.$ref !== undefined) {
+    if (seen.has(current.$ref)) fail(`${where} has a cyclic response $ref`);
+    seen.add(current.$ref);
+    const match = /^#\/components\/responses\/([^/]+)$/.exec(current.$ref);
+    const target = match && document.components.responses[match[1]];
+    if (!target) fail(`${where} has an unresolved response $ref`);
+    current = target;
+  }
+  return current;
 }
 
 /** The $defs name of a header parameter's schema, added on first use. */
