@@ -61,8 +61,8 @@ describe("Operations API", () => {
       logicalWorker: "scanner",
       agentTemplate: { templateId: "nuclei-scan", version: "1", digest },
       executionConfig: {} as { modelPolicy?: typeof policy },
-      authoritativePhase: "ready",
-      observedPhase: "ready",
+      authoritativePhase: "active",
+      observedPhase: "prepared",
       metrics: {
         reportsComplete: false,
         modelCalls: 0,
@@ -89,7 +89,9 @@ describe("Operations API", () => {
       (await getOperationsSnapshot(api)).allocations[0]?.executionConfig,
     ).toEqual({});
     allocation.executionConfig.modelPolicy = policy;
-    await expect(getOperationsSnapshot(api)).rejects.toBeDefined();
+    await expect(getOperationsSnapshot(api)).rejects.toMatchObject({
+      code: "invalid_api_response",
+    });
   });
 
   it("reads one authoritative operations snapshot", async () => {
@@ -221,9 +223,9 @@ describe("Operations API", () => {
         }),
       ),
     );
-    await expect(getOperationsSnapshot(unexpected)).rejects.toThrow(
-      "response shape",
-    );
+    await expect(getOperationsSnapshot(unexpected)).rejects.toMatchObject({
+      code: "invalid_api_response",
+    });
   });
 
   it("fails closed on malformed Runtime Agent capabilities", async () => {
@@ -249,9 +251,9 @@ describe("Operations API", () => {
       ),
     );
 
-    await expect(getOperationsSnapshot(api)).rejects.toThrow(
-      "Runtime Agent capabilities are invalid",
-    );
+    await expect(getOperationsSnapshot(api)).rejects.toMatchObject({
+      code: "invalid_api_response",
+    });
   });
 
   it("gets and publishes exact immutable configuration versions", async () => {
@@ -449,9 +451,9 @@ describe("Operations API", () => {
         }),
       ),
     );
-    await expect(listRuntimeAgentPrincipals(unexpected)).rejects.toThrow(
-      "response shape",
-    );
+    await expect(listRuntimeAgentPrincipals(unexpected)).rejects.toMatchObject({
+      code: "invalid_api_response",
+    });
   });
 
   it.each([
@@ -531,7 +533,9 @@ describe("Operations API", () => {
         }),
       ),
     );
-    await expect(listRuntimeConfigs(api)).rejects.toThrow("response shape");
+    await expect(listRuntimeConfigs(api)).rejects.toMatchObject({
+      code: "invalid_api_response",
+    });
   });
 
   it("manages RuntimeConfig, labels, and write-only Runtime credentials", async () => {
@@ -666,8 +670,8 @@ describe("Operations API", () => {
         }),
       ),
     );
-    await expect(listRuntimeConfigs(malformedAPI)).rejects.toThrow(
-      "response shape",
-    );
+    await expect(listRuntimeConfigs(malformedAPI)).rejects.toMatchObject({
+      code: "invalid_api_response",
+    });
   });
 });

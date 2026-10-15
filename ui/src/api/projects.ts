@@ -1,7 +1,6 @@
 import type { PublicAPI } from "./client";
 import { invalidAPIResponse, PublicAPIError, requireData } from "./error";
 import type { components } from "./generated/public";
-import { safeRunMetadataLabels } from "./run-metadata-labels";
 import {
   RUN_PAGE_SIZE,
   RUN_STATES,
@@ -112,50 +111,10 @@ export function normalizeProjectRequest(
   };
 }
 
-function safeProject(value: Project, status: number): Project {
-  try {
-    requireActiveChecksPolicy(value.activeChecks);
-  } catch {
+// Cross-field: a Project in deletion reports its deletion, and only then.
+function requireProjectLifecycle(value: Project, status: number): Project {
+  if ((value.lifecycle === "deleting") !== (value.deletion !== undefined)) {
     throw invalidProjectResponse(status);
-  }
-  const deletionValid =
-    value.deletion !== undefined &&
-    (value.deletion.phase === "cancelling" ||
-      value.deletion.phase === "draining" ||
-      value.deletion.phase === "purging_runs" ||
-      value.deletion.phase === "purging_artifacts") &&
-    typeof value.deletion.requestedAt === "string" &&
-    value.deletion.requestedAt.length > 0;
-  if (
-    !PROJECT_ID_PATTERN.test(value.projectId) ||
-    (value.kind !== "project" && value.kind !== "evaluation") ||
-    typeof value.name !== "string" ||
-    value.name.length === 0 ||
-    value.name.length > MAXIMUM_PROJECT_NAME_LENGTH ||
-    typeof value.description !== "string" ||
-    value.description.length > MAXIMUM_PROJECT_DESCRIPTION_LENGTH ||
-    (value.lifecycle !== "active" && value.lifecycle !== "deleting") ||
-    (value.lifecycle === "active"
-      ? value.deletion !== undefined
-      : !deletionValid) ||
-    !PROJECT_REVISION_PATTERN.test(value.revision) ||
-    typeof value.createdAt !== "string" ||
-    typeof value.updatedAt !== "string"
-  ) {
-    throw invalidProjectResponse(status);
-  }
-  // A stored target obeys the same rules as an authored one.
-  const target = value.httpTarget;
-  if (target !== undefined) {
-    let normalized: ProjectHTTPTarget;
-    try {
-      normalized = normalizeProjectHTTPTarget(target);
-    } catch {
-      throw invalidProjectResponse(status);
-    }
-    if (normalized.url !== target.url) {
-      throw invalidProjectResponse(status);
-    }
   }
   return value;
 }
@@ -198,6 +157,7 @@ export function normalizeProjectHTTPTarget(
   };
 }
 
+// Cross-field: the ETag header names the revision of the body.
 function requireETag(response: Response, revision: string): void {
   if (response.headers.get("ETag") !== `"${revision}"`) {
     throw invalidProjectResponse(response.status);
@@ -222,15 +182,10 @@ export async function listProjects(
     }),
   );
   const page = requireData(result);
-  if (!Array.isArray(page.items) || page.page === undefined) {
-    throw invalidProjectResponse(result.response.status);
+  for (const project of page.items) {
+    requireProjectLifecycle(project, result.response.status);
   }
-  return {
-    items: page.items.map((project) =>
-      safeProject(project, result.response.status),
-    ),
-    page: { ...page.page },
-  };
+  return page;
 }
 
 export async function getProject(
@@ -243,7 +198,11 @@ export async function getProject(
       params: { path: { projectId } },
     }),
   );
-  const project = safeProject(requireData(result), result.response.status);
+  const project = requireProjectLifecycle(
+    requireData(result),
+    result.response.status,
+  );
+  // Cross-field: the Server answered for the requested Project.
   if (project.projectId !== projectId) {
     throw invalidProjectResponse(result.response.status);
   }
@@ -262,7 +221,11 @@ export async function createProject(
       body: request,
     }),
   );
-  const project = safeProject(requireData(result), result.response.status);
+  const project = requireProjectLifecycle(
+    requireData(result),
+    result.response.status,
+  );
+  // Cross-field: the created Project has the requested kind.
   if (project.kind !== request.kind) {
     throw invalidProjectResponse(result.response.status);
   }
@@ -317,7 +280,11 @@ export async function updateProject(
       body,
     }),
   );
-  const project = safeProject(requireData(result), result.response.status);
+  const project = requireProjectLifecycle(
+    requireData(result),
+    result.response.status,
+  );
+  // Cross-field: the Server answered for the requested Project.
   if (project.projectId !== options.projectId) {
     throw invalidProjectResponse(result.response.status);
   }
@@ -339,7 +306,11 @@ export async function deleteProject(
       },
     }),
   );
-  const project = safeProject(requireData(result), result.response.status);
+  const project = requireProjectLifecycle(
+    requireData(result),
+    result.response.status,
+  );
+  // Cross-field: the requested Project is now in deletion.
   if (
     project.projectId !== options.projectId ||
     project.lifecycle !== "deleting"
@@ -384,15 +355,5 @@ export async function listProjectRuns(
       },
     }),
   );
-  const page = requireData(result);
-  if (!Array.isArray(page.items) || page.page === undefined) {
-    throw invalidProjectResponse(result.response.status);
-  }
-  return {
-    items: page.items.map((run) => ({
-      ...run,
-      labels: safeRunMetadataLabels(run.labels ?? {}),
-    })),
-    page: { ...page.page },
-  };
+  return requireData(result);
 }

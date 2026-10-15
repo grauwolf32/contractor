@@ -120,8 +120,7 @@ describe("performance API", () => {
       null,
       0,
       { ...gauge, min: 41 },
-      { ...gauge, max: 101 },
-      { ...gauge, samples: 0 },
+      { ...gauge, max: 39 },
     ]) {
       await expect(read(metric)).rejects.toMatchObject({
         code: "invalid_api_response",

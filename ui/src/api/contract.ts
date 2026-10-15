@@ -5,17 +5,18 @@ import {
   type Schema,
 } from "@cfworker/json-schema";
 
-import eventSchemas from "./generated/event-schemas.json";
-import publicSchemas from "./generated/public-schemas.json";
+import eventSchemas from "./generated/event-schemas.json" with { type: "json" };
+import publicSchemas from "./generated/public-schemas.json" with { type: "json" };
 import {
   EVENT_SCHEMA_ID,
   PUBLIC_SCHEMA_ID,
   RESPONSE_SCHEMAS,
+  type EventSchemaName,
   type PublicSchemaName,
   type ResponseOperation,
 } from "./generated/response-schemas";
 
-export type { PublicSchemaName, ResponseOperation };
+export type { EventSchemaName, PublicSchemaName, ResponseOperation };
 
 /**
  * The run-time view of the pinned public contract: the OpenAPI component
@@ -74,9 +75,17 @@ function violation(value: unknown, uri: string): string | undefined {
   return result.valid ? undefined : location(result.errors);
 }
 
+/** Where `value` breaks the named public component schema, if it does. */
+export function schemaViolation(
+  name: PublicSchemaName,
+  value: unknown,
+): string | undefined {
+  return violation(value, publicURI(name));
+}
+
 /** Whether `value` conforms to the named public component schema. */
 export function conformsTo(name: PublicSchemaName, value: unknown): boolean {
-  return violation(value, publicURI(name)) === undefined;
+  return schemaViolation(name, value) === undefined;
 }
 
 /**
@@ -102,6 +111,14 @@ export function responseViolation(
 /** Why a parsed event frame breaks contractor-events-v1, if it does. */
 export function eventFrameViolation(frame: unknown): string | undefined {
   return violation(frame, EVENT_SCHEMA_ID);
+}
+
+/** Whether `value` conforms to the named contractor-events-v1 schema. */
+export function conformsToEvent(
+  name: EventSchemaName,
+  value: unknown,
+): boolean {
+  return violation(value, `${EVENT_SCHEMA_ID}#/$defs/${name}`) === undefined;
 }
 
 /** Whether `method` and `path` name an operation with declared responses. */

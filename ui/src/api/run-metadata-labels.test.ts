@@ -3,35 +3,28 @@ import { describe, expect, it } from "vitest";
 
 import {
   normalizeRunMetadataLabelSelectors,
+  RUN_METADATA_LABEL_LIMIT,
   runMetadataLabelKeyError,
   runMetadataLabelValueError,
-  safeRunMetadataLabels,
 } from "./run-metadata-labels";
 
+/** Whether a label map passes the authoring rules a Run form applies. */
+function authorable(value: unknown): boolean {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    return false;
+  }
+  const entries = Object.entries(value);
+  return (
+    entries.length <= RUN_METADATA_LABEL_LIMIT &&
+    entries.every(
+      ([key, entry]) =>
+        runMetadataLabelKeyError(key) === undefined &&
+        runMetadataLabelValueError(entry) === undefined,
+    )
+  );
+}
+
 describe("Run metadata labels", () => {
-  it("returns one detached deterministic string map", () => {
-    const source = { purpose: "eval", "eval.id": "eval_01", debug: "" };
-    const result = safeRunMetadataLabels(source);
-    expect(result).toEqual({
-      debug: "",
-      "eval.id": "eval_01",
-      purpose: "eval",
-    });
-    source.purpose = "changed";
-    expect(result.purpose).toBe("eval");
-  });
-
-  it.each([
-    null,
-    [],
-    { Upper: "value" },
-    { "contractor.internal": "value" },
-    { purpose: null },
-    { purpose: "Ж".repeat(129) },
-  ])("rejects an invalid response map %#", (labels) => {
-    expect(() => safeRunMetadataLabels(labels)).toThrow(TypeError);
-  });
-
   it("normalizes exact selectors and preserves contradictory values", () => {
     expect(
       normalizeRunMetadataLabelSelectors([
@@ -62,17 +55,15 @@ describe("Run metadata labels", () => {
 
 describe("shared run metadata label cases", () => {
   it.each(labelCases.valid)("accepts $name like Go and Python", ({ value }) => {
-    expect(safeRunMetadataLabels(value)).toEqual(value);
+    expect(authorable(value)).toBe(true);
   });
 
   it.each(labelCases.invalid)(
     "rejects $name like Go and Python",
     (labelCase) => {
-      expect(() =>
-        safeRunMetadataLabels(
-          "omit" in labelCase ? undefined : labelCase.value,
-        ),
-      ).toThrow(TypeError);
+      expect(
+        authorable("omit" in labelCase ? undefined : labelCase.value),
+      ).toBe(false);
     },
   );
 });

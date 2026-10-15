@@ -64,6 +64,7 @@ describe("Evals and global Skills routes", () => {
         projectId: evaluation.projectId,
         workflow: "openapi-from-workspace@5",
         state: "succeeded",
+        deletable: true,
         labels: {
           purpose: "eval",
           "eval.name": "openapi-regression",
@@ -82,6 +83,7 @@ describe("Evals and global Skills routes", () => {
         projectId: evaluation.projectId,
         workflow: "openapi-from-workspace@5",
         state: "running",
+        deletable: false,
         labels: {
           purpose: "eval",
           "eval.name": "openapi-regression",
@@ -98,6 +100,7 @@ describe("Evals and global Skills routes", () => {
         projectId: evaluation.projectId,
         workflow: "likec4-from-workspace@5",
         state: "failed",
+        deletable: true,
         labels: { purpose: "eval" },
         createdAt: "2026-09-05T08:09:00Z",
         updatedAt: "2026-09-05T08:10:00Z",

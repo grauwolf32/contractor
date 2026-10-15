@@ -6,22 +6,25 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { ArtifactMetadata } from "../../api/artifacts";
 import type { Audit, AuditFinding, AuditProfile } from "../../api/audits";
-import { PublicAPI } from "../../api/client";
+import type { PublicAPI } from "../../api/client";
 import type { Project } from "../../api/projects";
 import type { RunSummary } from "../../api/runs";
 import type { WorkflowSummary } from "../../api/workflows";
 import { Application } from "../../app/application";
 import * as queryClientFactory from "../../app/query-client";
 import { applicationRoutes } from "../../app/router";
-import type { RuntimeConfig } from "../../config/runtime-config";
+import { stageContract } from "../../test/builders-execution";
+import { fakeServer } from "../../test/fake-server";
+import { testAPI } from "../../test/render";
 import { auditFixture, projectFixture } from "../../test/shell-harness";
 import { makeFinding } from "../decisions/test-support";
 
-const runtimeConfig: RuntimeConfig = {
-  uiVersion: "0.1.0",
-  supportedApiVersions: ["contractor.public.v1"],
-  apiBaseUrl: "http://127.0.0.1:8080",
-};
+/** A PublicAPI over `handle` whose answers the fake Server checks. */
+function checkedAPI(
+  handle: (input: Request) => Response | Promise<Response>,
+): PublicAPI {
+  return testAPI(fakeServer({}, (request) => handle(request))).api;
+}
 
 function session(capabilities: string[] = ["user", "operations"]) {
   return {
@@ -175,147 +178,142 @@ interface FakeServer {
 
 function serve(server: FakeServer) {
   const requests: Request[] = [];
-  const api = new PublicAPI(
-    runtimeConfig,
-    vi.fn(async (input) => {
-      const request = input instanceof Request ? input : new Request(input);
-      requests.push(request.clone());
-      const url = new URL(request.url);
-      const path = url.pathname;
-      if (path === "/v1/audits" && server.holdAudits?.())
-        await new Promise(() => {});
-      if (path === "/v1/findings")
-        await Promise.all(
-          Object.keys(server.findings ?? {}).map((id) =>
-            server.holdFindings?.(id),
-          ),
-        );
-      const ownerResponse = ownerListResponse(url, {
-        projects: server.projects,
-        audits: Object.values(server.audits ?? {}).flat(),
-        findings: Object.values(server.findings ?? {}).flat(),
+  const api = checkedAPI(async (input) => {
+    const request = input instanceof Request ? input : new Request(input);
+    requests.push(request.clone());
+    const url = new URL(request.url);
+    const path = url.pathname;
+    if (path === "/v1/audits" && server.holdAudits?.())
+      await new Promise(() => {});
+    if (path === "/v1/findings")
+      await Promise.all(
+        Object.keys(server.findings ?? {}).map((id) =>
+          server.holdFindings?.(id),
+        ),
+      );
+    const ownerResponse = ownerListResponse(url, {
+      projects: server.projects,
+      audits: Object.values(server.audits ?? {}).flat(),
+      findings: Object.values(server.findings ?? {}).flat(),
+    });
+    if (ownerResponse !== undefined) return ownerResponse;
+    const query = url.searchParams;
+    if (path === "/v1/auth/session") return json(session(server.capabilities));
+    if (path === "/v1/projects" && request.method === "POST") {
+      if (server.createProject === undefined)
+        throw new Error("unexpected POST /v1/projects");
+      return server.createProject(request);
+    }
+    if (path === "/v1/projects") return json(page(server.projects));
+    let match = /^\/v1\/projects\/([^/]+)$/.exec(path);
+    if (match !== null && request.method === "PATCH") {
+      if (server.updateProject === undefined)
+        throw new Error(`unexpected PATCH ${path}`);
+      return server.updateProject(request);
+    }
+    if (match !== null) {
+      const found = server.projects.find(
+        (candidate) => candidate.projectId === match![1],
+      );
+      return found === undefined
+        ? json(
+            { code: "not_found", message: "not found", retryable: false },
+            { status: 404 },
+          )
+        : json(found, { headers: { ETag: `"${found.revision}"` } });
+    }
+    match = /^\/v1\/projects\/([^/]+)\/audits$/.exec(path);
+    if (match !== null) {
+      if (server.holdAudits?.() === true)
+        return new Promise<Response>(() => undefined);
+      const state = query.get("state");
+      const items = (server.audits?.[match[1]!] ?? []).filter(
+        (audit) => state === null || audit.state === state,
+      );
+      return json(page(items, server.moreAudits === true && state === null));
+    }
+    match = /^\/v1\/audits\/([^/]+)\/(start|pause|resume|cancel)$/.exec(path);
+    if (match !== null && request.method === "POST") {
+      if (server.mutateAudit === undefined)
+        throw new Error(`unexpected POST ${path}`);
+      return server.mutateAudit(match[1]!, match[2]!);
+    }
+    match = /^\/v1\/audits\/([^/]+)$/.exec(path);
+    if (match !== null && request.method === "GET") {
+      const auditId = match[1];
+      const found = Object.values(server.audits ?? {})
+        .flat()
+        .find((audit) => audit.auditId === auditId);
+      return found === undefined
+        ? json(
+            { code: "not_found", message: "not found", retryable: false },
+            { status: 404 },
+          )
+        : json(found, { headers: { ETag: `"${found.revision}"` } });
+    }
+    match = /^\/v1\/audits\/([^/]+)\/(findings|reviews)$/.exec(path);
+    if (match !== null) {
+      if (match[2] === "findings") await server.holdFindings?.(match[1]!);
+      const items =
+        match[2] === "findings" && query.get("state") === "proposed"
+          ? (server.findings?.[match[1]!] ?? [])
+          : [];
+      return json({
+        ...page(items),
+        total: items.length,
+        auditRevision: 1,
+        asOf: RECENT,
       });
-      if (ownerResponse !== undefined) return ownerResponse;
-      const query = url.searchParams;
-      if (path === "/v1/auth/session")
-        return json(session(server.capabilities));
-      if (path === "/v1/projects" && request.method === "POST") {
-        if (server.createProject === undefined)
-          throw new Error("unexpected POST /v1/projects");
-        return server.createProject(request);
-      }
-      if (path === "/v1/projects") return json(page(server.projects));
-      let match = /^\/v1\/projects\/([^/]+)$/.exec(path);
-      if (match !== null && request.method === "PATCH") {
-        if (server.updateProject === undefined)
-          throw new Error(`unexpected PATCH ${path}`);
-        return server.updateProject(request);
-      }
-      if (match !== null) {
-        const found = server.projects.find(
-          (candidate) => candidate.projectId === match![1],
-        );
-        return found === undefined
-          ? json(
-              { code: "not_found", message: "not found", retryable: false },
-              { status: 404 },
-            )
-          : json(found, { headers: { ETag: `"${found.revision}"` } });
-      }
-      match = /^\/v1\/projects\/([^/]+)\/audits$/.exec(path);
-      if (match !== null) {
-        if (server.holdAudits?.() === true)
-          return new Promise<Response>(() => undefined);
-        const state = query.get("state");
-        const items = (server.audits?.[match[1]!] ?? []).filter(
-          (audit) => state === null || audit.state === state,
-        );
-        return json(page(items, server.moreAudits === true && state === null));
-      }
-      match = /^\/v1\/audits\/([^/]+)\/(start|pause|resume|cancel)$/.exec(path);
-      if (match !== null && request.method === "POST") {
-        if (server.mutateAudit === undefined)
-          throw new Error(`unexpected POST ${path}`);
-        return server.mutateAudit(match[1]!, match[2]!);
-      }
-      match = /^\/v1\/audits\/([^/]+)$/.exec(path);
-      if (match !== null && request.method === "GET") {
-        const auditId = match[1];
-        const found = Object.values(server.audits ?? {})
-          .flat()
-          .find((audit) => audit.auditId === auditId);
-        return found === undefined
-          ? json(
-              { code: "not_found", message: "not found", retryable: false },
-              { status: 404 },
-            )
-          : json(found, { headers: { ETag: `"${found.revision}"` } });
-      }
-      match = /^\/v1\/audits\/([^/]+)\/(findings|reviews)$/.exec(path);
-      if (match !== null) {
-        if (match[2] === "findings") await server.holdFindings?.(match[1]!);
-        const items =
-          match[2] === "findings" && query.get("state") === "proposed"
-            ? (server.findings?.[match[1]!] ?? [])
-            : [];
-        return json({
-          ...page(items),
-          total: items.length,
-          auditRevision: 1,
-          asOf: RECENT,
-        });
-      }
-      match = /^\/v1\/projects\/([^/]+)\/runs$/.exec(path);
-      if (match !== null) {
-        const state = query.get("state");
-        const limit = Number(query.get("limit") ?? "50");
-        return json(
-          page(
-            (server.runs ?? [])
-              .filter((item) => state === null || item.state === state)
-              .slice(0, limit),
-          ),
-        );
-      }
-      match = /^\/v1\/runs\/([^/]+)$/.exec(path);
-      if (match !== null) {
-        const summary = (server.runs ?? []).find(
-          (item) => item.runId === match![1],
-        );
-        return json({
-          ...summary,
-          runtimeLabels: [],
-          runtimeConfiguration: {
-            default: {
-              label: "default",
-              bindingRevision: "1",
-              config: { name: "empty", version: "1", digest: DIGEST },
-            },
-            labels: [],
+    }
+    match = /^\/v1\/projects\/([^/]+)\/runs$/.exec(path);
+    if (match !== null) {
+      const state = query.get("state");
+      const limit = Number(query.get("limit") ?? "50");
+      return json(
+        page(
+          (server.runs ?? [])
+            .filter((item) => state === null || item.state === state)
+            .slice(0, limit),
+        ),
+      );
+    }
+    match = /^\/v1\/runs\/([^/]+)$/.exec(path);
+    if (match !== null) {
+      const summary = (server.runs ?? []).find(
+        (item) => item.runId === match![1],
+      );
+      return json({
+        ...summary,
+        runtimeLabels: [],
+        runtimeConfiguration: {
+          default: {
+            label: "default",
+            bindingRevision: "1",
+            config: { name: "empty", version: "1", digest: DIGEST },
           },
-          attempts: [],
-          transitions: [],
-          outputs: server.outputs?.[match[1]!] ?? {},
-          outputPublications: [],
-        });
-      }
-      if (path === "/v1/workflows") return json(page([workflow]));
-      if (path === "/v1/workflows/openapi-from-source/versions/1")
-        return json({ ...workflow, stages: {} });
-      match = /^\/v1\/projects\/([^/]+)\/artifacts$/.exec(path);
-      if (match !== null) {
-        const namespace = query.get("namespace");
-        const limit = Number(query.get("limit") ?? "50");
-        const items = (server.artifacts ?? []).filter(
-          (item) => namespace === null || item.artifact.namespace === namespace,
-        );
-        return json(page(items.slice(0, limit), items.length > limit));
-      }
-      if (path === "/v1/audit-profiles")
-        return json(page(server.profiles ?? []));
-      return json(page([]));
-    }),
-  );
+          labels: [],
+        },
+        attempts: [],
+        transitions: [],
+        outputs: server.outputs?.[match[1]!] ?? {},
+        outputPublications: [],
+      });
+    }
+    if (path === "/v1/workflows") return json(page([workflow]));
+    if (path === "/v1/workflows/openapi-from-source/versions/1")
+      return json({ ...workflow, stages: { analyze: stageContract() } });
+    match = /^\/v1\/projects\/([^/]+)\/artifacts$/.exec(path);
+    if (match !== null) {
+      const namespace = query.get("namespace");
+      const limit = Number(query.get("limit") ?? "50");
+      const items = (server.artifacts ?? []).filter(
+        (item) => namespace === null || item.artifact.namespace === namespace,
+      );
+      return json(page(items.slice(0, limit), items.length > limit));
+    }
+    if (path === "/v1/audit-profiles") return json(page(server.profiles ?? []));
+    return json(page([]));
+  });
   return { api, requests };
 }
 

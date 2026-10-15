@@ -475,6 +475,29 @@ export type PublicSchemaName =
   | "retryRunGatewayResponse202"
   | "resumeRunResponse202";
 
+/** A schema under $defs of event-schemas.json. */
+export type EventSchemaName =
+  | "ProtocolVersion"
+  | "SafeIdentifier"
+  | "SubscriptionId"
+  | "RunStream"
+  | "OperationsStream"
+  | "Stream"
+  | "Cursor"
+  | "SubscribeFrame"
+  | "UnsubscribeFrame"
+  | "SubscribedFrame"
+  | "UnsubscribedFrame"
+  | "PlannerSubtask"
+  | "ActiveDispatch"
+  | "PlannerPlan"
+  | "PlannerEventData"
+  | "LifecycleEventData"
+  | "OperationsEventData"
+  | "EventFrame"
+  | "ResyncRequiredFrame"
+  | "ErrorFrame";
+
 /**
  * Each operation's declared statuses and the PublicSchemaName of the JSON
  * body, or null for a status without a JSON body.

@@ -27,6 +27,15 @@ function agent(name: string, version: string) {
     body: {
       description: `Published ${name}`,
       runtime: "llm@1",
+      instructions: {
+        ref: "instructions/agent.md",
+        digest: `sha256:${"a".repeat(64)}`,
+      },
+      modelPolicy: {
+        policyId: "worker",
+        version: "1",
+        digest: `sha256:${"a".repeat(64)}`,
+      },
       sandboxProfile: "default@1",
       toolsets: [],
     },
@@ -218,11 +227,7 @@ describe("Studio catalog selectors", () => {
           items: [
             kind === "workflows"
               ? {
-                  ref: {
-                    name: "workflow",
-                    version: "5",
-                    digest: `sha256:${"a".repeat(64)}`,
-                  },
+                  ref: { name: "workflow", version: "5" },
                   entryStage: "start",
                   inputs: {},
                   outputs: {},

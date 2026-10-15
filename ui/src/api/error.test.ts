@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { invalidAPIResponse, PublicAPIError, requireData } from "./error";
+import {
+  invalidAPIResponse,
+  InvalidResponseError,
+  PublicAPIError,
+  requireData,
+} from "./error";
 
 describe("response helpers", () => {
   it("returns data and throws the carried error envelope", () => {
@@ -24,6 +29,7 @@ describe("response helpers", () => {
   it("reports contract violations as invalid API responses", () => {
     const error = invalidAPIResponse(200, "Server returned an invalid page");
 
+    expect(error).toBeInstanceOf(InvalidResponseError);
     expect(error).toBeInstanceOf(PublicAPIError);
     expect(error).toMatchObject({
       status: 200,

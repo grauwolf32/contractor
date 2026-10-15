@@ -1,10 +1,10 @@
 import type { PublicAPI } from "./client";
 import { invalidAPIResponse, PublicAPIError, requireData } from "./error";
 import type { components } from "./generated/public";
-import { safeConfigurationPage, safeCredentialPage } from "./safe-resources";
-import { safeRunRuntimeConfiguration } from "./runtime-configuration";
-import { safeRunMetadataLabels } from "./run-metadata-labels";
-import { RUN_STATES } from "./runs";
+import {
+  canonicalOrder,
+  canonicalRunRuntimeConfiguration,
+} from "./runtime-configuration";
 
 export const WORKFLOW_PAGE_SIZE = 50;
 export const REFERENCE_PAGE_SIZE = 50;
@@ -117,7 +117,29 @@ export async function listConfigurations(
       ...(request.signal === undefined ? {} : { signal: request.signal }),
     }),
   );
-  return safeConfigurationPage(requireData(result));
+  const page = requireData(result);
+  page.items.forEach((item) =>
+    requireCanonicalConfiguration(item, result.response.status),
+  );
+  return page;
+}
+
+/**
+ * An Agent template lists its Skills in the Server's canonical order (by
+ * name), which the schema cannot express.
+ */
+export function requireCanonicalConfiguration(
+  resource: ConfigurationResource,
+  status: number,
+): ConfigurationResource {
+  const skills = "skills" in resource.body ? resource.body.skills : undefined;
+  if (!canonicalOrder((skills ?? []).map((skill) => skill.name))) {
+    throw invalidAPIResponse(
+      status,
+      "Server returned an invalid configuration resource",
+    );
+  }
+  return resource;
 }
 
 function requireCatalogRequest(request: CatalogPageRequest): void {
@@ -143,7 +165,7 @@ export async function listCredentials(
       },
     }),
   );
-  return safeCredentialPage(requireData(result));
+  return requireData(result);
 }
 
 function invalidRunResponse(status: number): PublicAPIError {
@@ -169,7 +191,7 @@ export async function createRun(
       body: request,
     }),
   );
-  return safeCreateRunResponse(result, undefined);
+  return requireCreateRunResponse(result, undefined);
 }
 
 export async function createProjectRun(
@@ -195,10 +217,10 @@ export async function createProjectRun(
       body: request,
     }),
   );
-  return safeCreateRunResponse(result, projectId);
+  return requireCreateRunResponse(result, projectId);
 }
 
-function safeCreateRunResponse(
+function requireCreateRunResponse(
   result: {
     data?: CreateRunResponse;
     error?: unknown;
@@ -208,40 +230,13 @@ function safeCreateRunResponse(
 ): CreateRunResponse {
   const response = requireData(result);
   if (
-    result.response.status !== 202 ||
-    !RESOURCE_ID_PATTERN.test(response.runId) ||
-    !RUN_STATES.includes(response.state)
+    // A Project Run answers for that Project; an owner Run has none.
+    response.projectId !== expectedProjectId ||
+    // Runtime labels and pins are in the Server's canonical order.
+    !canonicalOrder(response.runtimeLabels) ||
+    !canonicalRunRuntimeConfiguration(response.runtimeConfiguration)
   ) {
     throw invalidRunResponse(result.response.status);
   }
-  if (
-    (expectedProjectId === undefined && response.projectId !== undefined) ||
-    (expectedProjectId !== undefined &&
-      response.projectId !== expectedProjectId)
-  ) {
-    throw invalidRunResponse(result.response.status);
-  }
-  if (
-    !Array.isArray(response.runtimeLabels) ||
-    response.runtimeLabels.some(
-      (label, index) =>
-        !CONFIG_ID_PATTERN.test(label) ||
-        label === "default" ||
-        (index > 0 && response.runtimeLabels[index - 1]! >= label),
-    )
-  ) {
-    throw invalidRunResponse(result.response.status);
-  }
-  return {
-    runId: response.runId,
-    ...(response.projectId === undefined
-      ? {}
-      : { projectId: response.projectId }),
-    state: response.state,
-    runtimeLabels: [...response.runtimeLabels],
-    labels: safeRunMetadataLabels(response.labels),
-    runtimeConfiguration: safeRunRuntimeConfiguration(
-      response.runtimeConfiguration,
-    ),
-  };
+  return response;
 }

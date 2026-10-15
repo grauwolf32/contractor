@@ -12,12 +12,12 @@ import {
   acceptanceReview,
   audit,
   failure,
-  fakeServer,
+  reportsServer,
   gate,
   project,
   renderRoutes,
   report,
-  type FakeServer,
+  type ReportsServer,
   type ServerState,
 } from "./test-support";
 
@@ -57,7 +57,7 @@ function detail() {
  * Another session approves the proposed report of audit_proposed: its
  * request is decided, and the next read of the report shows it ready.
  */
-function approveElsewhere(server: FakeServer) {
+function approveElsewhere(server: ReportsServer) {
   const review = acceptanceReview("audit_proposed");
   server.reviews.set(review.requestId, {
     ...review,
@@ -100,7 +100,7 @@ afterEach(() => {
 
 describe("Report detail", () => {
   it("shows a proposed report as waiting for acceptance, never as accepted", async () => {
-    renderRoutes("/reports/audit_proposed", fakeServer(state()));
+    renderRoutes("/reports/audit_proposed", reportsServer(state()));
     expect(
       await screen.findByText("This report is awaiting owner acceptance."),
     ).toBeVisible();
@@ -138,7 +138,7 @@ describe("Report detail", () => {
 
   it("records the acceptance and keeps the decision on the page", async () => {
     const user = userEvent.setup();
-    const server = fakeServer(state());
+    const server = reportsServer(state());
     renderRoutes("/reports/audit_proposed?status=proposed", server);
     const decision = await screen.findByRole("region", {
       name: "Your decision",
@@ -190,7 +190,7 @@ describe("Report detail", () => {
   });
 
   it("shows a decision recorded elsewhere once the report moves on", async () => {
-    const server = fakeServer(state());
+    const server = reportsServer(state());
     const { queryClient } = renderRoutes("/reports/audit_proposed", server);
     await screen.findByRole("region", { name: "Your decision" });
     approveElsewhere(server);
@@ -211,7 +211,7 @@ describe("Report detail", () => {
   });
 
   it("offers nothing while it reads the request of a report that moved on", async () => {
-    const server = fakeServer(state());
+    const server = reportsServer(state());
     const { queryClient } = renderRoutes("/reports/audit_proposed", server);
     await screen.findByRole("region", { name: "Your decision" });
     const read = gate();
@@ -241,10 +241,11 @@ describe("Report detail", () => {
 
   it("says when the request of a report that moved on cannot be read", async () => {
     const user = userEvent.setup();
-    const server = fakeServer(state());
+    const server = reportsServer(state());
     const { queryClient } = renderRoutes("/reports/audit_proposed", server);
     await screen.findByRole("region", { name: "Your decision" });
-    server.state.reviewRead = () => failure(503, "Review store unavailable");
+    server.state.reviewRead = () =>
+      failure(503, "unavailable", "Review store unavailable");
     approveElsewhere(server);
     await rereadReport(queryClient);
     const pane = detail();
@@ -277,7 +278,7 @@ describe("Report detail", () => {
 
   it("keeps a decision made here while its refresh cannot read the request", async () => {
     const user = userEvent.setup();
-    const server = fakeServer(state());
+    const server = reportsServer(state());
     const { queryClient } = renderRoutes("/reports/audit_proposed", server);
     const decision = await screen.findByRole("region", {
       name: "Your decision",
@@ -286,7 +287,8 @@ describe("Report detail", () => {
     // report moves on and reading its request fails.
     const refresh = gate();
     server.state.hold = { path: /^\/v1\/projects$/, until: refresh.until };
-    server.state.reviewRead = () => failure(503, "Review store unavailable");
+    server.state.reviewRead = () =>
+      failure(503, "unavailable", "Review store unavailable");
     await user.click(within(decision).getByRole("button", { name: "Approve" }));
     await user.type(
       within(decision).getByRole("textbox", { name: "Why" }),
@@ -333,7 +335,7 @@ describe("Report detail", () => {
   });
 
   it("follows the read request over another change in flight", async () => {
-    const server = fakeServer(state());
+    const server = reportsServer(state());
     const { queryClient } = renderRoutes("/reports/audit_proposed", server);
     await screen.findByRole("region", { name: "Your decision" });
     // Another change of the page is in flight while the report moves on
@@ -357,7 +359,7 @@ describe("Report detail", () => {
 
   it("ends without an accepted report when the owner rejects it", async () => {
     const user = userEvent.setup();
-    renderRoutes("/reports/audit_proposed", fakeServer(state()));
+    renderRoutes("/reports/audit_proposed", reportsServer(state()));
     const decision = await screen.findByRole("region", {
       name: "Your decision",
     });
@@ -387,7 +389,7 @@ describe("Report detail", () => {
 
   it("shows a ready report with its header, links and files", async () => {
     const user = userEvent.setup();
-    renderRoutes("/reports/audit_ready", fakeServer(state()));
+    renderRoutes("/reports/audit_ready", reportsServer(state()));
     const pane = await waitFor(() => {
       const region = detail();
       within(region).getByText("Ready");
@@ -439,7 +441,7 @@ describe("Report detail", () => {
 
   it("downloads the JSON and the summary built from the report", async () => {
     const user = userEvent.setup();
-    renderRoutes("/reports/audit_ready", fakeServer(state()));
+    renderRoutes("/reports/audit_ready", reportsServer(state()));
     const json = await screen.findByRole("button", { name: "Download JSON" });
     const saved: { name: string; blob: Blob }[] = [];
     let latest: Blob | undefined;
@@ -478,7 +480,7 @@ describe("Report detail", () => {
   });
 
   it("says when the check has not reached report generation", async () => {
-    renderRoutes("/reports/audit_finishing", fakeServer(state()));
+    renderRoutes("/reports/audit_finishing", reportsServer(state()));
     expect(
       await screen.findByText("The check has not reached report generation."),
     ).toBeVisible();
@@ -498,7 +500,7 @@ describe("Report detail", () => {
   });
 
   it("says when no accepted report is available", async () => {
-    renderRoutes("/reports/audit_failed", fakeServer(state()));
+    renderRoutes("/reports/audit_failed", reportsServer(state()));
     expect(
       await screen.findByText("No accepted report is available."),
     ).toBeVisible();
@@ -510,12 +512,12 @@ describe("Report detail", () => {
 
   it("keeps the last report when a refresh fails", async () => {
     const user = userEvent.setup();
-    const server = fakeServer(state());
+    const server = reportsServer(state());
     let fail = false;
     const ready = server.state.reports.audit_ready;
     server.state.reports.audit_ready = () =>
       fail
-        ? failure(503, "Report store unavailable")
+        ? failure(503, "unavailable", "Report store unavailable")
         : new Response(JSON.stringify(ready), {
             headers: {
               "Content-Type": "application/json",
@@ -555,12 +557,12 @@ describe("Report detail", () => {
 
   it("explains a report that cannot be loaded and tries again", async () => {
     const user = userEvent.setup();
-    const server = fakeServer(state());
+    const server = reportsServer(state());
     let fail = true;
     const ready = server.state.reports.audit_ready;
     server.state.reports.audit_ready = () =>
       fail
-        ? failure(500, "Report read failed")
+        ? failure(500, "internal_error", "Report read failed")
         : new Response(JSON.stringify(ready), {
             headers: {
               "Content-Type": "application/json",
@@ -580,7 +582,7 @@ describe("Report detail", () => {
   });
 
   it("says once that a report is not a certification", async () => {
-    const server = fakeServer(state());
+    const server = reportsServer(state());
     const { router } = renderRoutes("/reports/audit_ready", server);
     await screen.findByRole("heading", { name: "Coverage summary" });
     // The summary does not say it: the page does.
@@ -609,7 +611,7 @@ describe("Report detail", () => {
   });
 
   it("does not decide a review that the report does not carry", async () => {
-    const server = fakeServer(state());
+    const server = reportsServer(state());
     renderRoutes("/reports/audit_proposed?review=review_removed", server);
     expect(
       await screen.findByText(
@@ -626,7 +628,7 @@ describe("Report detail", () => {
   it("offers the review a link names when the report carries it", async () => {
     renderRoutes(
       `/reports/audit_proposed?review=${acceptanceReview("audit_proposed").requestId}`,
-      fakeServer(state()),
+      reportsServer(state()),
     );
     expect(
       await screen.findByRole("region", { name: "Your decision" }),
@@ -639,7 +641,10 @@ describe("Report detail", () => {
   });
 
   it("explains a check that is not available or a broken link", async () => {
-    const { router } = renderRoutes("/reports/audit_gone", fakeServer(state()));
+    const { router } = renderRoutes(
+      "/reports/audit_gone",
+      reportsServer(state()),
+    );
     expect(
       await screen.findByText("This check is not available"),
     ).toBeVisible();
@@ -673,7 +678,7 @@ describe("AuditReportView", () => {
   it("shows the report on the check page with the decision inline", async () => {
     renderRoutes(
       "/projects/project_payment/audits/audit_proposed/report",
-      fakeServer(state()),
+      reportsServer(state()),
       routes,
     );
     const section = await screen.findByRole("region", { name: "Report" });
@@ -701,7 +706,7 @@ describe("AuditReportView", () => {
     const user = userEvent.setup();
     renderRoutes(
       "/projects/project_payment/audits/audit_proposed/report",
-      fakeServer(state()),
+      reportsServer(state()),
       routes,
     );
     const section = await screen.findByRole("region", { name: "Report" });
@@ -741,7 +746,7 @@ describe("AuditReportView", () => {
   it("offers no decision on a ready report", async () => {
     renderRoutes(
       "/projects/project_payment/audits/audit_ready/report",
-      fakeServer(state()),
+      reportsServer(state()),
       routes,
     );
     const section = await screen.findByRole("region", { name: "Report" });

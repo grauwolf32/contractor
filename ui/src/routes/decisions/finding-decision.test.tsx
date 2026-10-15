@@ -14,16 +14,18 @@ import { queryKeys } from "../../api/query-keys";
 import { FindingDecision, type FindingDecisionProps } from "./finding-decision";
 import {
   AUDIT_ID,
-  failure,
   FINDING_ID,
-  json,
   makeDecision,
   makeFinding,
   makeTriageReview,
   NOW,
-  renderWithServer,
-  type Handler,
 } from "./test-support";
+import {
+  json,
+  failure,
+  type Fallback as Handler,
+} from "../../test/fake-server";
+import { renderWithAPI } from "../../test/render";
 
 const STATE_AFTER: Record<AuditAnalystVerdict, AuditFinding["state"]> = {
   true_positive: "confirmed",
@@ -212,7 +214,9 @@ function setup(
   props: Omit<FindingDecisionProps, "auditId" | "finding"> = {},
 ) {
   const server = fakeServer(options);
-  const view = renderWithServer(<LiveDecision {...props} />, server.handle);
+  const view = renderWithAPI(<LiveDecision {...props} />, {
+    server: server.handle,
+  });
   return { ...server, ...view, user: userEvent.setup() };
 }
 
@@ -536,7 +540,7 @@ describe("FindingDecision", () => {
     ).toBeDisabled();
     await user.click(screen.getByText("Request details"));
     expect(screen.getByText("Code unavailable · Status 503")).toBeVisible();
-    expect(screen.getByText("Request req_1")).toBeVisible();
+    expect(screen.getByText("Request request_test")).toBeVisible();
     // The message is already on screen; the details do not repeat it.
     expect(screen.queryByText(/^Message:/u)).toBeNull();
 
@@ -680,7 +684,7 @@ describe("FindingDecision", () => {
     expect(
       screen.getByText("Code precondition_failed · Status 412"),
     ).toBeVisible();
-    expect(screen.getByText("Request req_1")).toBeVisible();
+    expect(screen.getByText("Request request_test")).toBeVisible();
     expect(
       screen.getByText("Message: resource revision precondition failed"),
     ).toBeVisible();
@@ -793,9 +797,9 @@ describe("FindingDecision", () => {
         ];
       return answer;
     };
-    const { queryClient } = renderWithServer(
+    const { queryClient } = renderWithAPI(
       <LiveDecision onRecording={onRecording} />,
-      handle,
+      { server: handle },
     );
     const user = userEvent.setup();
     await readyBar();

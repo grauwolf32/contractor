@@ -1,7 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 
 import type { RuntimeConfig } from "../config/runtime-config";
-import { standardFixture } from "../test/audit-presets-fixture";
+import {
+  standardFixture,
+  standardResponse,
+} from "../test/audit-presets-fixture";
 import { getAuditStandard } from "./audit-presets";
 import { PublicAPI } from "./client";
 
@@ -15,9 +18,12 @@ function standardAPI(scheme: string, version: string) {
   const fetch = vi.fn(
     async () =>
       new Response(
-        JSON.stringify({
-          standard: { ...standardFixture, reference: { scheme, version } },
-        }),
+        JSON.stringify(
+          standardResponse({
+            ...standardFixture,
+            reference: { scheme, version },
+          }),
+        ),
         {
           headers: {
             "content-type": "application/json",
@@ -53,5 +59,35 @@ describe("Audit standard API", () => {
       "Audit standard identity is invalid",
     );
     expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("rejects a standard that lists fewer entries than it counts", async () => {
+    const fetch = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify(
+            standardResponse({
+              ...standardFixture,
+              entries: standardFixture.entries!.slice(1),
+            }),
+          ),
+          {
+            headers: {
+              "content-type": "application/json",
+              "X-Contractor-API-Version": "contractor.public.v1",
+            },
+          },
+        ),
+    );
+    await expect(
+      getAuditStandard(
+        new PublicAPI(runtimeConfig, fetch),
+        "review-standard",
+        "2026",
+      ),
+    ).rejects.toMatchObject({
+      code: "invalid_api_response",
+      message: "Server returned an invalid audit standard response",
+    });
   });
 });

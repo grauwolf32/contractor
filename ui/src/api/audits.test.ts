@@ -420,8 +420,15 @@ describe("Audit API", () => {
         const request = input instanceof Request ? input : new Request(input);
         requests.push(request);
         const path = new URL(request.url).pathname;
-        if (path.endsWith("/items") || path.endsWith("/coverage")) {
+        if (path.endsWith("/items")) {
           return response({ items: [], page: { hasMore: false } });
+        }
+        if (path.endsWith("/coverage")) {
+          return response({
+            items: [],
+            page: { hasMore: false },
+            auditRevision: audit.revision,
+          });
         }
         if (path.endsWith("/audits")) {
           return response({ items: [audit], page: { hasMore: false } });
@@ -501,13 +508,26 @@ describe("Audit API", () => {
         if (path.endsWith("/reviews") && request.method === "POST") {
           return response(review, { status: 201, headers: { ETag: '"1"' } });
         }
+        const summary = {
+          auditRevision: audit.revision,
+          asOf: audit.updatedAt,
+          total: 1,
+        };
         if (path.endsWith("/reviews")) {
-          return response({ items: [review], page: { hasMore: false } });
+          return response({
+            ...summary,
+            items: [review],
+            page: { hasMore: false },
+          });
         }
         if (path.endsWith(`/findings/${finding.findingId}`)) {
           return response(finding, { headers: { ETag: '"1"' } });
         }
-        return response({ items: [finding], page: { hasMore: false } });
+        return response({
+          ...summary,
+          items: [finding],
+          page: { hasMore: false },
+        });
       }),
     );
     api.csrf.replace("a".repeat(43));

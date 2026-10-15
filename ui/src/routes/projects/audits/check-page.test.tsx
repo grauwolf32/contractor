@@ -1,6 +1,7 @@
 import {
   act,
   fireEvent,
+  render,
   screen,
   waitFor,
   within,
@@ -17,6 +18,8 @@ import type {
   AuditReviewRequest,
 } from "../../../api/audits";
 import { queryKeys } from "../../../api/query-keys";
+import { SourceLink } from "../../catalog/audit-preset-checks";
+import { auditRound } from "../../../test/builders";
 import * as queryClientFactory from "../../../app/query-client";
 import { CHECK_STATE_LABELS } from "../../../app/vocabulary";
 import {
@@ -24,7 +27,6 @@ import {
   emptyPage,
   endpointRow,
   fakeAPI,
-  jsonResponse,
   makeAttempt,
   makeAudit,
   makeFinding,
@@ -36,6 +38,7 @@ import {
   workspaceOf,
   type Handler,
 } from "./check-test-support";
+import { json } from "../../../test/fake-server";
 
 const ROOT = "/projects/project_example/audits/audit_example";
 const project = makeProject("project_example", "Payment service");
@@ -69,13 +72,19 @@ interface CheckServer {
   handle?: Handler;
 }
 
-function page(items: unknown[], audit: Audit) {
-  return jsonResponse({
+/** A last page with the summary members its collection carries. */
+function page(
+  items: unknown[],
+  audit: Audit,
+  summary: "none" | "revision" | "full",
+) {
+  return json({
     items,
     page: { hasMore: false },
-    total: items.length,
-    auditRevision: audit.revision,
-    asOf: audit.updatedAt,
+    ...(summary === "none" ? {} : { auditRevision: audit.revision }),
+    ...(summary === "full"
+      ? { total: items.length, asOf: audit.updatedAt }
+      : {}),
   });
 }
 
@@ -86,36 +95,36 @@ function serveCheck(server: CheckServer) {
     const path = url.pathname;
     const audit = server.audit();
     if (path === "/v1/projects/project_example")
-      return jsonResponse(project, { headers: { ETag: '"1"' } });
+      return json(project, 200, { ETag: '"1"' });
     if (path === "/v1/audits/audit_example")
-      return jsonResponse(audit, {
-        headers: { ETag: `"${audit.revision}"` },
-      });
+      return json(audit, 200, { ETag: `"${audit.revision}"` });
     const answer = <T,>(
       read: ((url: URL) => Response | T[]) | undefined,
+      summary: "none" | "revision" | "full",
     ): Response => {
-      if (read === undefined) return page([], audit);
+      if (read === undefined) return page([], audit, summary);
       const value = read(url);
-      return value instanceof Response ? value : page(value, audit);
+      return value instanceof Response ? value : page(value, audit, summary);
     };
     if (path === `/v1/audits/audit_example/coverage`)
-      return answer(server.coverage);
-    if (path === `/v1/audits/audit_example/items`) return answer(server.items);
+      return answer(server.coverage, "revision");
+    if (path === `/v1/audits/audit_example/items`)
+      return answer(server.items, "none");
     if (path === `/v1/audits/audit_example/findings`)
-      return answer(server.findings);
+      return answer(server.findings, "full");
     if (path === `/v1/audits/audit_example/reviews`)
-      return answer(server.reviews);
+      return answer(server.reviews, "full");
     if (path === `/v1/audits/audit_example/workspace`) {
       const value = server.workspace?.(audit) ?? workspaceOf(audit);
-      return value instanceof Response ? value : jsonResponse(value);
+      return value instanceof Response ? value : json(value);
     }
     if (path === `/v1/audits/audit_example/report`)
-      return jsonResponse(server.report?.() ?? { status: "pending" });
+      return json(server.report?.() ?? { status: "pending" });
     if (path === `/v1/audits/audit_example/events`) {
       const events = server.events?.(url) ?? [];
       return events instanceof Response
         ? events
-        : jsonResponse({
+        : json({
             items: events,
             page: { hasMore: false },
             total: events.length,
@@ -341,21 +350,11 @@ describe("Check page", () => {
     );
   });
 
-  it("does not link a non-http standard source", async () => {
-    const current = auditAt("completed", 3);
-    current.baseline = top10Baseline(current);
-    current.baseline.standards[0]!.source.url = "javascript:alert(1)";
-    const { api } = serveCheck({ audit: () => current });
-    renderApplication(api, ROOT);
-    const detail = await screen.findByRole("region", { name: "All activity" });
-    await userEvent
-      .setup()
-      .click(within(detail).getByText("Technical details"));
-    const standards = within(detail).getByTestId("audit-baseline-standards");
-    expect(within(standards).getByText("source")).toBeVisible();
-    expect(
-      within(standards).queryByRole("link", { name: "source" }),
-    ).not.toBeInTheDocument();
+  it("does not link a non-http standard source", () => {
+    // The contract only allows https sources; the link keeps its own guard.
+    render(<SourceLink url="javascript:alert(1)">source</SourceLink>);
+    expect(screen.getByText("source")).toBeVisible();
+    expect(screen.queryByRole("link", { name: "source" })).toBeNull();
   });
 
   it("lists mixed results with their status words and polls a running check", async () => {
@@ -459,14 +458,15 @@ describe("Check page", () => {
         expect(url.searchParams.get("round")).toBe("round_1");
         const cursor = url.searchParams.get("cursor");
         cursors.push(cursor);
-        return jsonResponse(
-          cursor === null
+        return json({
+          auditRevision: completed.revision,
+          ...(cursor === null
             ? {
                 items: [custom],
                 page: { hasMore: true, nextCursor: "next-check" },
               }
-            : { items: [trace], page: { hasMore: false } },
-        );
+            : { items: [trace], page: { hasMore: false } }),
+        });
       },
     });
     const { router } = renderApplication(api, `${ROOT}/coverage`);
@@ -961,13 +961,15 @@ describe("Check page", () => {
     const { api } = serveCheck({
       audit: () => completed,
       coverage: (url) =>
-        jsonResponse(
+        json(
           url.searchParams.get("cursor") === null
             ? {
+                auditRevision: completed.revision,
                 items: [requirementRow("met", 0, "met", "", "satisfied")],
                 page: { hasMore: true, nextCursor: "coverage-next" },
               }
             : {
+                auditRevision: completed.revision,
                 items: [
                   requirementRow("gap", 1, "gap", "", "blocked"),
                   requirementRow("waiting", 2, "waiting", "", "not-tested"),
@@ -977,7 +979,7 @@ describe("Check page", () => {
         ),
       reviews: (url) => {
         reviewReads.push(url.search);
-        return jsonResponse({
+        return json({
           items: [review],
           page: { hasMore: false },
           auditRevision: 4,
@@ -1069,7 +1071,7 @@ describe("Check page", () => {
     const { api, requests } = serveCheck({
       audit: () => current,
       items: (url) =>
-        jsonResponse(
+        json(
           url.searchParams.has("cursor")
             ? { items: [item], page: { hasMore: false } }
             : { items: [], page: { hasMore: true, nextCursor: "later" } },
@@ -1099,7 +1101,7 @@ describe("Check page", () => {
           };
           review = { ...review, state: "decided", revision: 2, decision };
           current = auditAt("active", 4);
-          return jsonResponse({ request: review, decision, replayed: false });
+          return json({ request: review, decision, replayed: false });
         }
         return undefined;
       },
@@ -1360,7 +1362,7 @@ describe("Check page", () => {
         cursors.push(cursor);
         const index =
           cursor === null ? 0 : Number(cursor.slice("page-".length));
-        return jsonResponse({
+        return json({
           items: [
             makeItem(`i${index + 1}`, index, "operation-trace", {
               attempts: [makeAttempt(`i${index + 1}`, 1)],
@@ -1494,16 +1496,13 @@ describe("Check lifecycle controls", () => {
             await new Promise<void>((resolve) => {
               releaseStale = resolve;
             });
-          return jsonResponse(snapshot, {
-            headers: { ETag: `"${snapshot.revision}"` },
-          });
+          return json(snapshot, 200, { ETag: `"${snapshot.revision}"` });
         }
         if (url.pathname.endsWith("/start")) {
           current = auditAt("active", 3);
-          return jsonResponse(
-            { audit: current, round: { roundId: "round_1" }, items: [] },
-            { headers: { ETag: '"3"' } },
-          );
+          return json({ audit: current, round: auditRound(), items: [] }, 200, {
+            ETag: '"3"',
+          });
         }
         return undefined;
       },
@@ -1551,11 +1550,12 @@ describe("Check lifecycle controls", () => {
             expect(await request.json()).toEqual({ deadlineSeconds: 0 });
             expect(request.headers.get("If-Match")).toBe('"2"');
             current = auditAt("active", 3);
-            return jsonResponse(
+            return json(
               url.pathname.endsWith("/start")
-                ? { audit: current, round: { roundId: "round_1" }, items: [] }
+                ? { audit: current, round: auditRound(), items: [] }
                 : current,
-              { headers: { ETag: '"3"' } },
+              200,
+              { ETag: '"3"' },
             );
           }
           return undefined;
@@ -1665,14 +1665,14 @@ describe("Check lifecycle controls", () => {
           expect(request.headers.get("If-Match")).toBe('"2"');
           pauseRequested = true;
           current = auditAt("paused", 3);
-          return jsonResponse(
+          return json(
             {
               code: "precondition_failed",
               message: "Audit revision changed",
               retryable: false,
               requestId: "request_stale",
             },
-            { status: 412 },
+            412,
           );
         }
         return undefined;
@@ -1726,7 +1726,7 @@ describe("Check lifecycle controls", () => {
             listReads.push(url.pathname);
             if (held) await gate;
             const state = url.searchParams.get("state");
-            return jsonResponse({
+            return json({
               items:
                 url.pathname === "/v1/projects"
                   ? [project]
@@ -1740,15 +1740,15 @@ describe("Check lifecycle controls", () => {
             held = true;
             current = auditAt("paused", 3);
             return status === 200
-              ? jsonResponse(current, { headers: { ETag: '"3"' } })
-              : jsonResponse(
+              ? json(current, 200, { ETag: '"3"' })
+              : json(
                   {
                     code: "precondition_failed",
                     message: "Audit revision changed",
                     retryable: false,
                     requestId: "request_stale",
                   },
-                  { status: 412 },
+                  412,
                 );
           }
           return undefined;
@@ -1797,10 +1797,7 @@ describe("Check lifecycle controls", () => {
           mutations.push(request.clone());
           await cancelGate;
           current = auditAt("cancelled", 3);
-          return jsonResponse(current, {
-            status: 202,
-            headers: { ETag: '"3"' },
-          });
+          return json(current, 202, { ETag: '"3"' });
         }
         if (
           url.pathname === "/v1/audits/audit_example" &&
@@ -1808,10 +1805,7 @@ describe("Check lifecycle controls", () => {
         ) {
           mutations.push(request.clone());
           current = auditAt("deleting", 4);
-          return jsonResponse(current, {
-            status: 202,
-            headers: { ETag: '"4"' },
-          });
+          return json(current, 202, { ETag: '"4"' });
         }
         return undefined;
       },
@@ -1927,10 +1921,7 @@ describe("Check lifecycle controls", () => {
               3,
               { deletionRequestedAt: "2026-10-05T10:03:00Z" },
             );
-            return jsonResponse(current, {
-              status: 202,
-              headers: { ETag: '"3"' },
-            });
+            return json(current, 202, { ETag: '"3"' });
           }
           return undefined;
         },
@@ -2001,21 +1992,18 @@ describe("Check lifecycle controls", () => {
           cancelRevisions.push(request.headers.get("If-Match") ?? "");
           if (cancelRevisions.length === 1) {
             current = auditAt("paused", 3);
-            return jsonResponse(
+            return json(
               {
                 code: "precondition_failed",
                 message: "Audit revision changed",
                 retryable: false,
                 requestId: "request_stale_cancel",
               },
-              { status: 412 },
+              412,
             );
           }
           current = auditAt("cancelled", 4);
-          return jsonResponse(current, {
-            status: 202,
-            headers: { ETag: '"4"' },
-          });
+          return json(current, 202, { ETag: '"4"' });
         }
         return undefined;
       },
@@ -2147,14 +2135,14 @@ describe("Check refresh correctness", () => {
       ).mockReturnValue(queryClient);
       let failRead = false;
       const failure = () =>
-        jsonResponse(
+        json(
           {
             code: "temporarily_unavailable",
             message: "Temporary read failure",
             retryable: true,
             requestId: "retry_refresh",
           },
-          { status: 503 },
+          503,
         );
       const { api } = serveCheck({
         audit: () => current,
@@ -2348,7 +2336,7 @@ describe("Check refresh correctness", () => {
       handle: (_request, url) => {
         if (url.pathname === "/v1/audits/audit_example/pause") {
           current = { ...auditAt("paused", 3), outstandingRunCount: 1 };
-          return jsonResponse(current, { headers: { ETag: '"3"' } });
+          return json(current, 200, { ETag: '"3"' });
         }
         return undefined;
       },
@@ -2371,7 +2359,8 @@ describe("Check refresh correctness", () => {
         cursors.push(cursor);
         const ordinal =
           cursor === null ? 0 : Number(cursor.slice("page-".length));
-        return jsonResponse({
+        return json({
+          auditRevision: completed.revision,
           items: [
             requirementRow(
               `check-${ordinal + 1}`,
@@ -2438,9 +2427,9 @@ describe("Project Checks tab", () => {
     });
     const { api } = fakeAPI((_request, url) => {
       if (url.pathname === "/v1/projects/project_example")
-        return jsonResponse(project, { headers: { ETag: '"1"' } });
+        return json(project, 200, { ETag: '"1"' });
       if (url.pathname === "/v1/projects/project_example/audits")
-        return jsonResponse({
+        return json({
           items: [waiting, completed, failed],
           page: { hasMore: false },
         });

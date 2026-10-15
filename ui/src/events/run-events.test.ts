@@ -202,7 +202,7 @@ describe("Run event protocol", () => {
             },
           }),
         ),
-      ).toThrow("activity kind is invalid");
+      ).toThrow("breaks the contract at #/data/activity/kind");
       expect(() =>
         parseServerFrame(
           JSON.stringify({
@@ -210,7 +210,7 @@ describe("Run event protocol", () => {
             data: { ...frame.data, url: "https://secret.invalid" },
           }),
         ),
-      ).toThrow("closed shape");
+      ).toThrow("breaks the contract");
     }
   });
 
@@ -235,7 +235,7 @@ describe("Run event protocol", () => {
     data.prompt = "secret prompt";
     data.toolArguments = { token: "secret" };
     expect(() => parseServerFrame(JSON.stringify(unsafe))).toThrow(
-      "closed shape",
+      "breaks the contract at #/data/toolArguments",
     );
   });
 
@@ -287,7 +287,7 @@ describe("Run event protocol", () => {
           data: { ...frame.data, resourceId: "singleton" },
         }),
       ),
-    ).toThrow("contains a resource ID");
+    ).toThrow("breaks the contract");
   });
 });
 
@@ -639,6 +639,28 @@ describe("RunEventsManager", () => {
     expect(second.states).toEqual(["connecting", "live", "resyncing"]);
     expect(first.resyncs).toEqual(["protocol_error"]);
     expect(second.resyncs).toEqual(["protocol_error"]);
+  });
+
+  it("resyncs through the generated validator when a frame breaks the event schema", () => {
+    FakeWebSocket.instances = [];
+    const run = callbacks();
+    const manager = new RunEventsManager("http://127.0.0.1:8080", {
+      WebSocketImplementation: FakeWebSocket as unknown as typeof WebSocket,
+    });
+    manager.subscribeRun("run-1", cursor("4"), run.value);
+    const socket = FakeWebSocket.instances[0]!;
+    socket.open();
+    socket.message(subscribed("run-ui-1", "run-1", "4"));
+    const event = lifecycleEvent("run-ui-1", "run-1", "5");
+
+    // Valid JSON in a closed frame, but with a member the schema does not
+    // declare: only contractor-events-v1 rejects it.
+    socket.message({ ...event, data: { ...event.data, prompt: "secret" } });
+
+    expect(run.lifecycle).not.toHaveBeenCalled();
+    expect(socket.closed).toEqual([4002, "authoritative resync required"]);
+    expect(run.states).toEqual(["connecting", "live", "resyncing"]);
+    expect(run.resyncs).toEqual(["protocol_error"]);
   });
 
   it("falls back to a normal close and still resyncs after close throws", () => {

@@ -1,9 +1,8 @@
-import { validAuditComposition, validInventory } from "./audit-composition";
-import { validFindingCoordinates } from "./finding-locations";
+import { requireAuditComposition } from "./audit-composition";
 import type { PublicAPI } from "./client";
 import { invalidAPIResponse, PublicAPIError, requireData } from "./error";
 import type { components } from "./generated/public";
-import { requireActiveChecksPolicy, requireProjectID } from "./projects";
+import { requireProjectID } from "./projects";
 import { CONFIG_NAME_PATTERN, CONFIG_VERSION_PATTERN } from "./workflows";
 
 export const AUDIT_PAGE_SIZE = 50;
@@ -76,33 +75,21 @@ export async function listAuditEvents(
     }),
   );
   const value = requireData(result);
-  const page = safePage(value, result.response.status);
+  // Cross-field: the events are this Audit's, newest first, within the
+  // reported sequence and total, and a continued page has a cursor.
   if (
-    !Number.isSafeInteger(value.throughSequence) ||
-    value.throughSequence < 0 ||
-    !Number.isSafeInteger(value.total) ||
-    value.total < page.items.length ||
-    (page.page.hasMore &&
-      (page.items.length === 0 ||
-        page.page.nextCursor === undefined ||
-        page.page.nextCursor === "")) ||
-    page.items.some(
+    value.total < value.items.length ||
+    (value.page.hasMore &&
+      (value.items.length === 0 || value.page.nextCursor === undefined)) ||
+    value.items.some(
       (event, index) =>
         event.auditId !== auditId ||
-        !Number.isSafeInteger(event.sequence) ||
-        event.sequence < 1 ||
         event.sequence > value.throughSequence ||
-        (index > 0 && event.sequence >= page.items[index - 1]!.sequence) ||
-        !AUDIT_ID_PATTERN.test(event.entityId) ||
-        !/^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$/.test(event.kind) ||
-        !Number.isFinite(Date.parse(event.createdAt)) ||
-        event.summary === null ||
-        typeof event.summary !== "object" ||
-        Array.isArray(event.summary),
+        (index > 0 && event.sequence >= value.items[index - 1]!.sequence),
     )
   )
     throw invalidAuditResponse(result.response.status);
-  return structuredClone(value);
+  return value;
 }
 
 export interface ProjectAuditPageRequest extends PageRequest {
@@ -123,11 +110,10 @@ export async function listOwnerAudits(
       params: { query: { limit: 200, ...request } },
     }),
   );
-  const page = safePage(requireData(result), result.response.status);
-  return {
-    items: page.items.map((audit) => safeAudit(audit, result.response.status)),
-    page: page.page,
-  };
+  const page = requireData(result);
+  for (const audit of page.items)
+    requireAuditComposition(audit, result.response.status);
+  return page;
 }
 
 export async function listOwnerFindings(
@@ -143,15 +129,7 @@ export async function listOwnerFindings(
       params: { query: { limit: 200, ...request } },
     }),
   );
-  const page = safePage(requireData(result), result.response.status);
-  if (
-    page.items.some(
-      (finding) => !validFindingCoordinates(finding.firstProposal.document),
-    )
-  ) {
-    throw invalidAuditResponse(result.response.status);
-  }
-  return { items: structuredClone(page.items), page: page.page };
+  return requireData(result);
 }
 
 export async function listOwnerReviews(
@@ -168,8 +146,7 @@ export async function listOwnerReviews(
       params: { query: { limit: 200, ...request } },
     }),
   );
-  const page = safePage(requireData(result), result.response.status);
-  return { items: structuredClone(page.items), page: page.page };
+  return requireData(result);
 }
 
 export interface AuditCreateOptions {
@@ -216,119 +193,18 @@ function requireAuditRevision(revision: number): void {
   }
 }
 
-function safeProfile(profile: AuditProfile, status: number): AuditProfile {
-  if (
-    profile === null ||
-    typeof profile !== "object" ||
-    !CONFIG_NAME_PATTERN.test(profile.ref.name) ||
-    !CONFIG_VERSION_PATTERN.test(profile.ref.version) ||
-    typeof profile.ref.digest !== "string" ||
-    !profile.ref.digest.startsWith("sha256:") ||
-    profile.inputs === null ||
-    typeof profile.inputs !== "object" ||
-    !Array.isArray(profile.standards) ||
-    !Array.isArray(profile.compatibilityReasons) ||
-    typeof profile.serverCompatible !== "boolean" ||
-    typeof profile.requiresInputValidation !== "boolean" ||
-    !validInventory(profile.inventory)
-  ) {
-    throw invalidAuditResponse(status);
-  }
-  return {
-    ref: { ...profile.ref },
-    mode: profile.mode,
-    standards: profile.standards.map((standard) => ({ ...standard })),
-    inputs: Object.fromEntries(
-      Object.entries(profile.inputs).map(([name, input]) => [
-        name,
-        { ...input, mediaTypes: [...input.mediaTypes] },
-      ]),
-    ),
-    inventory: structuredClone(profile.inventory),
-    ...(profile.workflows === undefined
-      ? {}
-      : {
-          workflows: Object.fromEntries(
-            Object.entries(profile.workflows).map(([role, workflow]) => [
-              role,
-              {
-                ...workflow,
-                workflow: { ...workflow.workflow },
-                inputs: Object.fromEntries(
-                  Object.entries(workflow.inputs).map(([name, value]) => [
-                    name,
-                    { ...value },
-                  ]),
-                ),
-                parameters: Object.fromEntries(
-                  Object.entries(workflow.parameters).map(([name, value]) => [
-                    name,
-                    { ...value },
-                  ]),
-                ),
-                outputs: { ...workflow.outputs },
-              },
-            ]),
-          ),
-        }),
-    execution: { ...profile.execution },
-    interaction: { ...profile.interaction },
-    serverCompatible: profile.serverCompatible,
-    requiresInputValidation: profile.requiresInputValidation,
-    compatibilityReasons: [...profile.compatibilityReasons],
-  };
-}
-
-function safeAudit(audit: Audit, status: number): Audit {
-  if (audit?.baseline !== undefined) {
-    try {
-      requireActiveChecksPolicy(audit.baseline.activeChecks);
-    } catch {
-      throw invalidAuditResponse(status);
-    }
-  }
-  if (
-    audit === null ||
-    typeof audit !== "object" ||
-    !AUDIT_ID_PATTERN.test(audit.auditId) ||
-    !AUDIT_ID_PATTERN.test(audit.projectId) ||
-    !Number.isSafeInteger(audit.revision) ||
-    audit.revision < 1 ||
-    typeof audit.state !== "string" ||
-    !Array.isArray(audit.runtimeLabels) ||
-    audit.inputs === null ||
-    typeof audit.inputs !== "object" ||
-    typeof audit.createdAt !== "string" ||
-    typeof audit.updatedAt !== "string" ||
-    !validAuditComposition(audit)
-  ) {
-    throw invalidAuditResponse(status);
-  }
-  // Audit endpoints are deliberately safe projections. structuredClone keeps
-  // query state detached without requesting or interpreting package bytes.
-  return structuredClone(audit);
-}
-
+// Cross-field: the ETag header names the revision of the body.
 function requireRevisionETag(response: Response, revision: number): void {
   if (response.headers.get("ETag") !== `"${revision}"`) {
     throw invalidAuditResponse(response.status);
   }
 }
 
+// Cross-field: the ETag header names the digest of the body.
 function requireProfileETag(response: Response, digest: string): void {
   if (response.headers.get("ETag") !== `"${digest}"`) {
     throw invalidAuditResponse(response.status);
   }
-}
-
-function safePage<T>(
-  value: { items: T[]; page: components["schemas"]["PageInfo"] },
-  status: number,
-): { items: T[]; page: components["schemas"]["PageInfo"] } {
-  if (!Array.isArray(value.items) || value.page === undefined) {
-    throw invalidAuditResponse(status);
-  }
-  return { items: [...value.items], page: { ...value.page } };
 }
 
 export async function listAuditProfiles(
@@ -346,13 +222,7 @@ export async function listAuditProfiles(
       },
     }),
   );
-  const page = safePage(requireData(result), result.response.status);
-  return {
-    items: page.items.map((profile) =>
-      safeProfile(profile, result.response.status),
-    ),
-    page: page.page,
-  };
+  return requireData(result);
 }
 
 export async function getAuditProfile(
@@ -368,7 +238,8 @@ export async function getAuditProfile(
       params: { path: { name, version } },
     }),
   );
-  const profile = safeProfile(requireData(result), result.response.status);
+  const profile = requireData(result);
+  // Cross-field: the Server answered for the requested version.
   if (profile.ref.name !== name || profile.ref.version !== version) {
     throw invalidAuditResponse(result.response.status);
   }
@@ -394,7 +265,11 @@ export async function createAudit(
       body: options.request,
     }),
   );
-  const audit = safeAudit(requireData(result), result.response.status);
+  const audit = requireAuditComposition(
+    requireData(result),
+    result.response.status,
+  );
+  // Cross-field: a new Audit is a draft of the requested Project.
   if (audit.projectId !== options.projectId || audit.state !== "draft") {
     throw invalidAuditResponse(result.response.status);
   }
@@ -429,11 +304,10 @@ export async function listProjectAudits(
       },
     }),
   );
-  const page = safePage(requireData(result), result.response.status);
-  return {
-    items: page.items.map((audit) => safeAudit(audit, result.response.status)),
-    page: page.page,
-  };
+  const page = requireData(result);
+  for (const audit of page.items)
+    requireAuditComposition(audit, result.response.status);
+  return page;
 }
 
 export async function getAudit(
@@ -446,7 +320,11 @@ export async function getAudit(
       params: { path: { auditId } },
     }),
   );
-  const audit = safeAudit(requireData(result), result.response.status);
+  const audit = requireAuditComposition(
+    requireData(result),
+    result.response.status,
+  );
+  // Cross-field: the Server answered for the requested Audit.
   if (audit.auditId !== auditId) {
     throw invalidAuditResponse(result.response.status);
   }
@@ -480,21 +358,21 @@ export async function mutateAudit(
       }),
     );
     const started = requireData(result);
-    const audit = safeAudit(started.audit, result.response.status);
+    const audit = requireAuditComposition(
+      started.audit,
+      result.response.status,
+    );
+    // Cross-field: the started Audit is the requested one, and its first
+    // Round is the one it now points to.
     if (
       audit.auditId !== options.auditId ||
-      !Array.isArray(started.items) ||
-      (audit.phase === "rounds"
-        ? started.round === undefined ||
-          started.round.roundId !== audit.currentRoundId
-        : !["preparing", "inventory"].includes(audit.phase) ||
-          started.round !== undefined ||
-          started.items.length !== 0)
+      (started.round !== undefined &&
+        started.round.roundId !== audit.currentRoundId)
     ) {
       throw invalidAuditResponse(result.response.status);
     }
     requireRevisionETag(result.response, audit.revision);
-    return structuredClone(started);
+    return started;
   }
   if (action === "pause") {
     const result = await api.request((client) =>
@@ -529,7 +407,11 @@ function finishAuditMutation(
   result: { data?: Audit; error?: unknown; response: Response },
   expectedAuditId: string,
 ): Audit {
-  const audit = safeAudit(requireData(result), result.response.status);
+  const audit = requireAuditComposition(
+    requireData(result),
+    result.response.status,
+  );
+  // Cross-field: the Server answered for the requested Audit.
   if (audit.auditId !== expectedAuditId) {
     throw invalidAuditResponse(result.response.status);
   }
@@ -554,8 +436,7 @@ export async function listAuditItems(
       },
     }),
   );
-  const page = safePage(requireData(result), result.response.status);
-  return { items: structuredClone(page.items), page: page.page };
+  return requireData(result);
 }
 
 /**
@@ -586,13 +467,7 @@ export async function listAuditCoverage(
       },
     }),
   );
-  const value = requireData(result);
-  const page = safePage(value, result.response.status);
-  return {
-    items: structuredClone(page.items),
-    page: page.page,
-    auditRevision: value.auditRevision,
-  };
+  return requireData(result);
 }
 
 interface ReportReadQueue {
@@ -639,20 +514,14 @@ export async function getAuditReport(
     ),
   );
   const report = requireData(result);
+  // Cross-field: a proposed or ready report carries its summary.
   if (
-    report === null ||
-    typeof report !== "object" ||
-    (report.status !== "pending" &&
-      report.status !== "proposed" &&
-      report.status !== "ready" &&
-      report.status !== "unavailable") ||
-    ((report.status === "ready" || report.status === "proposed") &&
-      (report.summaryArtifact?.mediaType !== "text/markdown" ||
-        typeof report.summary !== "string"))
+    (report.status === "ready" || report.status === "proposed") &&
+    (report.summaryArtifact === undefined || report.summary === undefined)
   ) {
     throw invalidAuditResponse(result.response.status);
   }
-  return structuredClone(report);
+  return report;
 }
 
 export async function listAuditFindings(
@@ -669,16 +538,7 @@ export async function listAuditFindings(
       },
     }),
   );
-  const value = requireData(result);
-  const page = safePage(value, result.response.status);
-  if (
-    page.items.some(
-      (finding) => !validFindingCoordinates(finding.firstProposal.document),
-    )
-  ) {
-    throw invalidAuditResponse(result.response.status);
-  }
-  return { ...value, items: structuredClone(page.items), page: page.page };
+  return requireData(result);
 }
 
 export async function getAuditFinding(
@@ -694,14 +554,12 @@ export async function getAuditFinding(
     }),
   );
   const finding = requireData(result);
+  // Cross-field: the Server answered for the requested possible issue.
   if (finding.auditId !== auditId || finding.findingId !== findingId) {
     throw invalidAuditResponse(result.response.status);
   }
-  if (!validFindingCoordinates(finding.firstProposal.document)) {
-    throw invalidAuditResponse(result.response.status);
-  }
   requireRevisionETag(result.response, finding.revision);
-  return structuredClone(finding);
+  return finding;
 }
 
 export async function listAuditReviews(
@@ -719,9 +577,7 @@ export async function listAuditReviews(
       },
     }),
   );
-  const value = requireData(result);
-  const page = safePage(value, result.response.status);
-  return { ...value, items: structuredClone(page.items), page: page.page };
+  return requireData(result);
 }
 
 export async function createAuditFindingReview(
@@ -748,7 +604,7 @@ export async function createAuditFindingReview(
       body: {},
     }),
   );
-  return structuredClone(requireData(result));
+  return requireData(result);
 }
 
 export async function decideAuditAction(
@@ -778,10 +634,11 @@ export async function decideAuditAction(
     }),
   );
   const response = requireData(result);
+  // Cross-field: an action decision does not answer with a finding result.
   if ("finding" in response) {
     throw invalidAuditResponse(result.response.status);
   }
-  return structuredClone(response);
+  return response;
 }
 
 export async function decideAuditFinding(
@@ -810,10 +667,11 @@ export async function decideAuditFinding(
     }),
   );
   const response = requireData(result);
+  // Cross-field: a finding decision answers with the decided finding.
   if (!("finding" in response)) {
     throw invalidAuditResponse(result.response.status);
   }
-  return structuredClone(response);
+  return response;
 }
 
 export async function listAuditFindingProvenance(
@@ -839,7 +697,7 @@ export async function listAuditFindingProvenance(
       },
     }),
   );
-  return structuredClone(requireData(result));
+  return requireData(result);
 }
 
 export function auditMutationAudit(value: Audit | AuditStartResponse): Audit {
@@ -884,14 +742,10 @@ export async function getAuditWorkspace(
     }),
   );
   const value = requireData(result);
-  if (
-    value.auditId !== auditId ||
-    !Number.isSafeInteger(value.auditRevision) ||
-    value.auditRevision < 1 ||
-    !Number.isFinite(Date.parse(value.asOf))
-  )
+  // Cross-field: the Server answered for the requested Audit.
+  if (value.auditId !== auditId)
     throw invalidAuditResponse(result.response.status);
-  return structuredClone(value);
+  return value;
 }
 
 export async function getAuditReview(
@@ -907,8 +761,9 @@ export async function getAuditReview(
     }),
   );
   const value = requireData(result);
+  // Cross-field: the Server answered for the requested review request.
   if (value.auditId !== auditId || value.requestId !== requestId)
     throw invalidAuditResponse(result.response.status);
   requireRevisionETag(result.response, value.revision);
-  return structuredClone(value);
+  return value;
 }

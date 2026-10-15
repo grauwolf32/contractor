@@ -4,7 +4,6 @@ import {
   ARTIFACT_REVISION_PATTERN,
   downloadExactArtifact,
   previewExactArtifact,
-  requireArtifactPage,
   requireRequestedMetadata,
   type ArtifactDetailRequest,
   type ArtifactMetadata,
@@ -19,14 +18,14 @@ import {
   requireData,
 } from "./error";
 import type { components } from "./generated/public";
-import { safeAllocationResourceSummary } from "./performance";
+import { consistentAllocationResourceSummary } from "./performance";
 import {
-  safeRunRuntimeConfiguration,
-  safeStageRuntimeConfiguration,
+  canonicalOrder,
+  canonicalRunRuntimeConfiguration,
+  canonicalStageRuntimeConfiguration,
 } from "./runtime-configuration";
 import {
   normalizeRunMetadataLabelSelectors,
-  safeRunMetadataLabels,
   type RunMetadataLabelSelector,
 } from "./run-metadata-labels";
 
@@ -52,14 +51,9 @@ export type WorkflowRunState = components["schemas"]["WorkflowRunState"];
 export type WorkflowRunLifecycle =
   components["schemas"]["WorkflowRunLifecycle"];
 export type RunPage = components["schemas"]["RunPage"];
-export type RunStatus = Omit<components["schemas"]["RunStatus"], "attempts"> & {
-  attempts: StageAttempt[];
-};
+export type RunStatus = components["schemas"]["RunStatus"];
 export type RunSummary = components["schemas"]["RunSummary"];
-export type StageAttempt = components["schemas"]["StageAttempt"] & {
-  /** Client-only marker; an unverified optional projection is never cached. */
-  runtimeConfigurationUnavailable?: true;
-};
+export type StageAttempt = components["schemas"]["StageAttempt"];
 export type StageTransition = components["schemas"]["StageTransition"];
 export type PlannerPlan = components["schemas"]["PlannerPlan"];
 export type CancelRunResponse = components["schemas"]["CancelRunResponse"];
@@ -98,11 +92,10 @@ export async function resumeRun(
     }),
   );
   const value = requireData(result);
+  // The Server answers for the Run and Stage execution it was asked to resume.
   if (
-    result.response.status !== 202 ||
     value.runId !== runId ||
-    value.sourceStageExecutionId !== stageExecutionId ||
-    !RUN_ID_PATTERN.test(value.stageExecutionId)
+    value.sourceStageExecutionId !== stageExecutionId
   ) {
     throw invalidRunResponse(result.response.status);
   }
@@ -180,14 +173,7 @@ export async function listRuns(
       },
     }),
   );
-  const page = requireData(result);
-  return {
-    items: page.items.map((run) => ({
-      ...run,
-      labels: safeRunMetadataLabels(run.labels),
-    })),
-    page: { ...page.page },
-  };
+  return requireData(result);
 }
 
 export async function getRun(
@@ -199,94 +185,30 @@ export async function getRun(
     client.GET("/v1/runs/{runId}", { params: { path: { runId } } }),
   );
   const run = requireData(result);
-  if (run.runId !== runId || !RUN_STATES.includes(run.state)) {
-    throw invalidRunResponse(result.response.status);
-  }
   if (
-    !Array.isArray(run.runtimeLabels) ||
-    run.runtimeLabels.some(
-      (label, index) =>
-        typeof label !== "string" ||
-        label === "default" ||
-        (index > 0 && run.runtimeLabels[index - 1]! >= label),
+    // The Server answers for the requested Run.
+    run.runId !== runId ||
+    // Runtime labels and pins are in the Server's canonical order.
+    !canonicalOrder(run.runtimeLabels) ||
+    !canonicalRunRuntimeConfiguration(run.runtimeConfiguration) ||
+    run.attempts.some(
+      (attempt) =>
+        (attempt.runtimeConfiguration !== undefined &&
+          !canonicalStageRuntimeConfiguration(attempt.runtimeConfiguration)) ||
+        // A resource summary describes the attempt that carries it.
+        (attempt.resources ?? []).some(
+          (resource) =>
+            resource.runId !== run.runId ||
+            resource.stageExecutionId !== attempt.stageExecutionId ||
+            resource.stage !== attempt.stage ||
+            resource.outcome !== attempt.state ||
+            !consistentAllocationResourceSummary(resource),
+        ),
     )
   ) {
     throw invalidRunResponse(result.response.status);
   }
-  const attempts = run.attempts.map((attempt): StageAttempt => {
-    const { runtimeConfiguration: rawConfiguration, ...attemptData } = attempt;
-    let runtimeProjection: Pick<
-      StageAttempt,
-      "runtimeConfiguration" | "runtimeConfigurationUnavailable"
-    > = {};
-    if (rawConfiguration !== undefined) {
-      try {
-        runtimeProjection = {
-          runtimeConfiguration: safeStageRuntimeConfiguration(rawConfiguration),
-        };
-      } catch (error) {
-        if (!(error instanceof TypeError)) throw error;
-        runtimeProjection = { runtimeConfigurationUnavailable: true };
-      }
-    }
-    const resources = (attempt.resources ?? []).map((resource) =>
-      safeAllocationResourceSummary(resource, result.response.status),
-    );
-    if (
-      resources.some(
-        (resource) =>
-          resource.runId !== run.runId ||
-          resource.stageExecutionId !== attempt.stageExecutionId ||
-          resource.stage !== attempt.stage ||
-          resource.outcome !== attempt.state,
-      )
-    ) {
-      throw invalidRunResponse(result.response.status);
-    }
-    return {
-      ...attemptData,
-      ...(attempt.resources === undefined ? {} : { resources }),
-      ...runtimeProjection,
-    };
-  });
-  return {
-    runId: run.runId,
-    ...(run.projectId === undefined ? {} : { projectId: run.projectId }),
-    workflow: run.workflow,
-    state: run.state,
-    ...(run.recovery === undefined ? {} : { recovery: run.recovery }),
-    deletable: run.deletable,
-    ...(typeof run.resumeStageExecutionId === "string" &&
-    RUN_ID_PATTERN.test(run.resumeStageExecutionId)
-      ? { resumeStageExecutionId: run.resumeStageExecutionId }
-      : {}),
-    runtimeLabels: [...run.runtimeLabels],
-    labels: safeRunMetadataLabels(run.labels),
-    runtimeConfiguration: safeRunRuntimeConfiguration(run.runtimeConfiguration),
-    ...(run.cancellation === undefined
-      ? {}
-      : { cancellation: run.cancellation }),
-    ...(run.parameters === undefined ? {} : { parameters: run.parameters }),
-    ...(run.inputs === undefined ? {} : { inputs: run.inputs }),
-    attempts,
-    transitions: [...run.transitions],
-    outputs: { ...run.outputs },
-    outputPublications: (run.outputPublications ?? []).map((publication) => ({
-      ...publication,
-      source: { ...publication.source },
-      ...(publication.target === undefined
-        ? {}
-        : { target: { ...publication.target } }),
-    })),
-    ...(run.eventCursor === undefined ? {} : { eventCursor: run.eventCursor }),
-    ...(run.activeStageExecutionId === undefined
-      ? {}
-      : { activeStageExecutionId: run.activeStageExecutionId }),
-    ...(run.createdAt === undefined ? {} : { createdAt: run.createdAt }),
-    ...(run.updatedAt === undefined ? {} : { updatedAt: run.updatedAt }),
-    ...(run.startedAt === undefined ? {} : { startedAt: run.startedAt }),
-    ...(run.finishedAt === undefined ? {} : { finishedAt: run.finishedAt }),
-  };
+  return run;
 }
 
 export async function getRunRepeatDraft(
@@ -300,74 +222,33 @@ export async function getRunRepeatDraft(
     }),
   );
   const repeat = requireData(result);
+  const draft = repeat.draft;
   if (
+    // The draft repeats the requested Run.
     repeat.sourceRunId !== runId ||
-    (repeat.authority !== "ordinary" && repeat.authority !== "audit-managed") ||
-    !RUN_ID_PATTERN.test(repeat.workflow.name) ||
-    typeof repeat.workflow.version !== "string" ||
-    repeat.workflow.version.length === 0 ||
-    !Array.isArray(repeat.notices) ||
-    (repeat.authority === "audit-managed" && repeat.draft !== undefined) ||
+    // Audit-managed Runs never offer a draft; an ordinary Run without one
+    // says why with a blocking notice.
+    (repeat.authority === "audit-managed" && draft !== undefined) ||
     (repeat.authority === "ordinary" &&
-      repeat.draft === undefined &&
-      !repeat.notices.some((notice) => notice.severity === "blocking"))
+      draft === undefined &&
+      !repeat.notices.some((notice) => notice.severity === "blocking")) ||
+    (draft !== undefined &&
+      (!canonicalOrder(draft.runtimeLabels) ||
+        // An available input names the exact revision its metadata describes.
+        Object.values(draft.inputs).some(
+          (input) =>
+            input.status === "available" &&
+            (input.artifact === undefined ||
+              input.metadata === undefined ||
+              input.sourceScope === undefined ||
+              input.artifact.namespace !== input.metadata.artifact.namespace ||
+              input.artifact.name !== input.metadata.artifact.name ||
+              input.artifact.revision !== input.metadata.artifact.revision),
+        )))
   ) {
     throw invalidRunResponse(result.response.status);
   }
-  if (repeat.draft === undefined) {
-    return {
-      ...repeat,
-      notices: repeat.notices.map((notice) => ({ ...notice })),
-    };
-  }
-  if (
-    !Array.isArray(repeat.draft.runtimeLabels) ||
-    repeat.draft.runtimeLabels.some(
-      (label, index) =>
-        typeof label !== "string" ||
-        label === "default" ||
-        (index > 0 && repeat.draft!.runtimeLabels[index - 1]! >= label),
-    ) ||
-    repeat.draft.executionConfig.status !== "available" ||
-    repeat.draft.executionConfig.value === null ||
-    typeof repeat.draft.executionConfig.value !== "object" ||
-    Array.isArray(repeat.draft.executionConfig.value)
-  ) {
-    throw invalidRunResponse(result.response.status);
-  }
-  for (const input of Object.values(repeat.draft.inputs)) {
-    if (
-      (input.status !== "available" && input.status !== "unavailable") ||
-      (input.status === "available" &&
-        (input.artifact === undefined ||
-          input.metadata === undefined ||
-          input.sourceScope === undefined ||
-          input.artifact.namespace !== input.metadata.artifact.namespace ||
-          input.artifact.name !== input.metadata.artifact.name ||
-          input.artifact.revision !== input.metadata.artifact.revision))
-    ) {
-      throw invalidRunResponse(result.response.status);
-    }
-  }
-  return {
-    ...repeat,
-    notices: repeat.notices.map((notice) => ({ ...notice })),
-    draft: {
-      parameters: { ...repeat.draft.parameters },
-      runtimeLabels: [...repeat.draft.runtimeLabels],
-      labels: safeRunMetadataLabels(repeat.draft.labels),
-      executionConfig: {
-        ...repeat.draft.executionConfig,
-        value: structuredClone(repeat.draft.executionConfig.value),
-      },
-      inputs: Object.fromEntries(
-        Object.entries(repeat.draft.inputs).map(([slot, input]) => [
-          slot,
-          structuredClone(input),
-        ]),
-      ),
-    },
-  };
+  return repeat;
 }
 
 export async function cancelRun(
@@ -387,11 +268,8 @@ export async function cancelRun(
     }),
   );
   const response = requireData(result);
-  if (
-    (result.response.status !== 200 && result.response.status !== 202) ||
-    response.runId !== runId ||
-    !RUN_STATES.includes(response.state)
-  ) {
+  // The Server answers for the Run it was asked to cancel.
+  if (response.runId !== runId) {
     throw invalidRunResponse(result.response.status);
   }
   return response;
@@ -404,7 +282,7 @@ export async function deleteRun(api: PublicAPI, runId: string): Promise<void> {
       params: { path: { runId } },
     }),
   );
-  if (result.response.status !== 204 || result.error !== undefined) {
+  if (!result.response.ok) {
     throw publicAPIError(result.response.status, result.error);
   }
 }
@@ -434,7 +312,7 @@ export async function listRunArtifacts(
       },
     }),
   );
-  return requireArtifactPage(requireData(result), result.response.status);
+  return requireData(result);
 }
 
 export async function getRunArtifactMetadata(
@@ -487,7 +365,7 @@ export async function listRunArtifactVersions(
       },
     }),
   );
-  return requireArtifactPage(requireData(result), result.response.status);
+  return requireData(result);
 }
 
 export async function getRunArtifactLineage(
@@ -517,7 +395,7 @@ export async function getRunArtifactLineage(
       },
     }),
   );
-  return requireArtifactPage(requireData(result), result.response.status);
+  return requireData(result);
 }
 
 export async function downloadRunArtifact(
@@ -554,7 +432,7 @@ export async function retryRunGateway(
       body: {},
     }),
   );
-  const data = requireData(result);
-  if (result.response.status !== 202 || data.runId !== runId)
+  // The Server answers for the Run whose Gateway wait it retries.
+  if (requireData(result).runId !== runId)
     throw invalidRunResponse(result.response.status);
 }

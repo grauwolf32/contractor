@@ -1,7 +1,7 @@
 import { listAuditProfiles, type AuditProfile } from "./audits";
 import { collectAuditPages } from "./audit-collections";
 import type { PublicAPI } from "./client";
-import { PublicAPIError, publicAPIError } from "./error";
+import { invalidAPIResponse, requireData } from "./error";
 import type { components } from "./generated/public";
 
 export type AuditStandard = components["schemas"]["AuditStandardPackage"];
@@ -46,29 +46,12 @@ export async function getAuditStandard(
       ...(signal === undefined ? {} : { signal }),
     }),
   );
-  if (result.data === undefined)
-    throw publicAPIError(result.response.status, result.error);
-  const standard = result.data.standard;
+  const standard = requireData(result).standard;
+  // Cross-field: the requested standard, listing every entry it may disclose
+  // and, with full disclosure, every mapping and evidence contract.
   if (
-    standard?.reference?.scheme !== scheme ||
+    standard.reference.scheme !== scheme ||
     standard.reference.version !== version ||
-    !/^sha256:[a-f0-9]{64}$/.test(standard.digest) ||
-    typeof standard.title !== "string" ||
-    !standard.source ||
-    !standard.license ||
-    !["full", "identifiers", "metadata"].includes(
-      standard.license.disclosure,
-    ) ||
-    !Number.isSafeInteger(standard.entryCount) ||
-    standard.entryCount < 0 ||
-    !Number.isSafeInteger(standard.mappingCount) ||
-    standard.mappingCount < 0 ||
-    !Number.isSafeInteger(standard.evidenceContractCount) ||
-    standard.evidenceContractCount < 0 ||
-    (standard.entries !== undefined && !Array.isArray(standard.entries)) ||
-    (standard.mappings !== undefined && !Array.isArray(standard.mappings)) ||
-    (standard.evidenceContracts !== undefined &&
-      !Array.isArray(standard.evidenceContracts)) ||
     (standard.license.disclosure !== "metadata" &&
       (standard.entries?.length ?? 0) !== standard.entryCount) ||
     (standard.license.disclosure === "full" &&
@@ -76,13 +59,12 @@ export async function getAuditStandard(
         (standard.evidenceContracts?.length ?? 0) !==
           standard.evidenceContractCount))
   ) {
-    throw new PublicAPIError({
-      status: result.response.status,
-      code: "invalid_api_response",
-      message: "Server returned an invalid audit standard response",
-    });
+    throw invalidAPIResponse(
+      result.response.status,
+      "Server returned an invalid audit standard response",
+    );
   }
-  return structuredClone(standard);
+  return standard;
 }
 
 export function auditPresetPath(name: string, version: string): string {

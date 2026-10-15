@@ -1,13 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { PublicAPI } from "./client";
-import type { components } from "./generated/public";
 import {
   getRuntimeConfig,
   listRuntimeConfigs,
   publishRuntimeConfig,
 } from "./operations";
-import { safeConfigurationResource } from "./safe-resources";
 
 const digest = `sha256:${"1".repeat(64)}`;
 const config = {
@@ -27,39 +25,6 @@ function reply(value: unknown, status = 200) {
 }
 
 describe("published configuration optional fields", () => {
-  it("preserves detached exact summarizer instructions without prompt content", () => {
-    const instructions = {
-      ref: "instructions/summarizer.md",
-      digest,
-      text: "PRIVATE_PROMPT_CANARY",
-    };
-    const resource: components["schemas"]["ConfigurationResource"] = {
-      ref: { kind: "agent-templates", name: "worker", version: "1", digest },
-      source: "operator",
-      body: {
-        description: "Worker",
-        runtime: "adk@1",
-        instructions: { ref: "instructions/worker.md", digest },
-        modelPolicy: { policyId: "worker", version: "1", digest },
-        toolsets: [],
-        sandboxProfile: "local-workdir@1",
-        summarizer: {
-          modelPolicy: { policyId: "summary", version: "1", digest },
-          contextWindowRatio: 0.8,
-          instructions,
-        },
-      },
-    };
-    const safe = safeConfigurationResource(resource);
-    const body = safe.body as components["schemas"]["AgentTemplateBody"];
-    expect(body.summarizer?.instructions).toEqual({
-      ref: instructions.ref,
-      digest,
-    });
-    expect(body.summarizer?.instructions).not.toBe(instructions);
-    expect(JSON.stringify(safe)).not.toContain("PRIVATE_PROMPT_CANARY");
-  });
-
   it.each([
     undefined,
     {},
@@ -149,8 +114,8 @@ describe("published configuration optional fields", () => {
       config,
       vi.fn(async () => reply(resource)),
     );
-    await expect(getRuntimeConfig(api, "retry", "1")).rejects.toThrow(
-      TypeError,
-    );
+    await expect(getRuntimeConfig(api, "retry", "1")).rejects.toMatchObject({
+      code: "invalid_api_response",
+    });
   });
 });

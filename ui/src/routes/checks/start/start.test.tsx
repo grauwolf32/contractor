@@ -28,14 +28,9 @@ import {
   wstgLive,
   wstgLiveDetail,
 } from "./test-fixtures";
-import {
-  CSRF_TOKEN,
-  failure,
-  gatewayFailure,
-  json,
-  page,
-  renderStart,
-} from "./test-support";
+import { failure, gatewayFailure, json, page } from "../../../test/fake-server";
+import { CSRF_TOKEN } from "../../../test/render";
+import { renderStart } from "./test-support";
 
 const START = "/checks/new?project=project_shop";
 
@@ -351,7 +346,7 @@ describe("Start a check: check types", () => {
       profiles: [top10, checklist],
       profileList: (_request, url) =>
         url.searchParams.get("cursor") === null
-          ? json(page([top10], { nextCursor: "2" }))
+          ? json(page([top10], "2"))
           : json(page([checklist])),
       materials: [sourceZip],
     });
@@ -377,7 +372,7 @@ describe("Start a check: check types", () => {
       profiles: [top10, checklist],
       profileList: (_request, url) =>
         url.searchParams.get("cursor") === null
-          ? json(page([top10], { nextCursor: "2" }))
+          ? json(page([top10], "2"))
           : unavailable
             ? gatewayFailure(502)
             : json(page([checklist])),
@@ -556,7 +551,7 @@ describe("Start a check: materials", () => {
     const profile = profileFixture("notes-review", {
       inputs: {
         source: { required: true, mediaTypes: ["application/zip"] },
-        notes: { required: false, mediaTypes: ["text/*"] },
+        notes: { required: false, mediaTypes: ["text/markdown"] },
       },
     });
     const { user, sent } = renderStart(START, {

@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 import { PublicAPI, type AuthSession } from "../../api/client";
 import { Application } from "../../app/application";
 import { applicationRoutes } from "../../app/router";
+import { workflowResource } from "../../test/builders-execution";
 
 const digest = `sha256:${"1".repeat(64)}`;
 const secondDigest = `sha256:${"2".repeat(64)}`;
@@ -108,14 +109,7 @@ function setup(
       const parts = url.pathname.split("/");
       const workflowName = decodeURIComponent(parts[3] ?? "");
       const workflowVersion = decodeURIComponent(parts[5] ?? "");
-      body = {
-        ref: { name: workflowName, version: workflowVersion },
-        entryStage: "analyze",
-        parameters: {},
-        inputs: {},
-        outputs: {},
-        stages: {},
-      };
+      body = workflowResource(workflowName, workflowVersion);
     } else if (url.pathname.includes("/versions/"))
       body = options.toolAgent
         ? {
@@ -124,6 +118,13 @@ function setup(
               ...configuration(version).body,
               runtime: "tool@1",
               instructions: undefined,
+              modelPolicy: undefined,
+              execution: {
+                tool: "read_artifact",
+                arguments: {},
+                resultArtifact: "report",
+                timeoutSeconds: 60,
+              },
             },
           }
         : configuration(version);

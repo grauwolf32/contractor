@@ -71,18 +71,26 @@ describe("Artifact API", () => {
     expect(url.searchParams.get("limit")).toBe("50");
   });
 
-  it("rejects a binding page without continuation", async () => {
+  it.each([
+    ["without page information", { items: [metadata] }, "broke the public"],
+    [
+      "that continues without a cursor",
+      { items: [metadata], page: { hasMore: true } },
+      "Server returned an invalid Artifact page",
+    ],
+  ])("rejects a binding page %s", async (_, body, message) => {
     const api = new PublicAPI(
       runtimeConfig,
       vi.fn(async () =>
-        response(JSON.stringify({ items: [metadata] }), {
+        response(JSON.stringify(body), {
           headers: { "content-type": "application/json" },
         }),
       ),
     );
-    await expect(listArtifacts(api)).rejects.toThrow(
-      "Server returned an invalid Artifact page",
-    );
+    await expect(listArtifacts(api)).rejects.toMatchObject({
+      code: "invalid_api_response",
+      message: expect.stringContaining(message),
+    });
   });
 
   it("creates and updates with mutually exclusive exact CAS headers", async () => {

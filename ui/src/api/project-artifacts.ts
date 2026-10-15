@@ -201,7 +201,12 @@ export function writeProjectArtifact(
     request.namespace,
     request.name,
   );
-  return writeScopedArtifact(api, path, request);
+  return writeScopedArtifact(
+    api,
+    "PUT /v1/projects/{projectId}/artifacts/{namespace}/{name}",
+    path,
+    request,
+  );
 }
 
 export function downloadProjectArtifact(

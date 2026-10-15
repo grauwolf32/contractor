@@ -179,7 +179,7 @@ describe("readiness", () => {
     const profile = profileFixture("notes", {
       inputs: {
         source: { required: true, mediaTypes: ["application/zip"] },
-        notes: { required: false, mediaTypes: ["text/*"] },
+        notes: { required: false, mediaTypes: ["text/markdown"] },
       },
     });
     expect(readinessOf(profile, { ...ready, materials: [sourceZip] })).toEqual({

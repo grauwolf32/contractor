@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { AuditStandard } from "../../api/audit-presets";
 import type { AuditProfile } from "../../api/audits";
-import { PublicAPI, type AuthSession } from "../../api/client";
+import type { AuthSession } from "../../api/client";
 import { Application } from "../../app/application";
 import { applicationRoutes } from "../../app/router";
 import {
@@ -14,6 +14,9 @@ import {
   presetFixture,
   standardFixture,
 } from "../../test/audit-presets-fixture";
+import { stageContract, workflowResource } from "../../test/builders-execution";
+import { fakeServer } from "../../test/fake-server";
+import { testAPI } from "../../test/render";
 import { auditPresetLabel } from "../projects/audits/labels";
 
 const session: AuthSession = {
@@ -96,24 +99,15 @@ function setup(
         };
       }
     } else if (url.pathname.startsWith("/v1/workflows/")) {
-      body = {
-        ref: { name: "source-check", version: "3" },
+      body = workflowResource("source-check", "3", {
         entryStage: "check",
-        parameters: {},
-        inputs: {},
-        outputs: {},
-        stages: {},
-      };
+        stages: { check: stageContract() },
+      });
     }
     return new Response(JSON.stringify(body), { status, headers });
   });
-  const publicAPI = new PublicAPI(
-    {
-      uiVersion: "0.1.0",
-      supportedApiVersions: ["contractor.public.v1"],
-      apiBaseUrl: "http://127.0.0.1:8080",
-    },
-    fetcher,
+  const { api: publicAPI } = testAPI(
+    fakeServer({}, (request) => fetcher(request)),
   );
   const router = createMemoryRouter(applicationRoutes(), {
     initialEntries: [path],

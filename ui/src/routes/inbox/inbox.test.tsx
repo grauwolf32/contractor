@@ -2,7 +2,7 @@ import { ownerListResponse } from "../../test/owner-lists";
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createMemoryRouter, type RouteObject } from "react-router";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import type {
   Audit,
@@ -11,12 +11,15 @@ import type {
   AuditReviewRequest,
   AuditWorkspace,
 } from "../../api/audits";
-import { PublicAPI, type AuthSession } from "../../api/client";
+import type { AuthSession } from "../../api/client";
 import type { Project } from "../../api/projects";
 import type { RunSummary } from "../../api/runs";
 import { Application } from "../../app/application";
 import { applicationRoutes } from "../../app/router";
-import type { RuntimeConfig } from "../../config/runtime-config";
+import { auditItem } from "../../test/builders";
+import { stageAttempt, stageContract } from "../../test/builders-execution";
+import { fakeServer } from "../../test/fake-server";
+import { testAPI } from "../../test/render";
 import { auditFixture, projectFixture } from "../../test/shell-harness";
 import { makeFinding } from "../decisions/test-support";
 
@@ -27,12 +30,6 @@ const DIGEST = `sha256:${"a".repeat(64)}`;
 function ago(minutes: number): string {
   return new Date(NOW - minutes * 60_000).toISOString();
 }
-
-const runtimeConfig: RuntimeConfig = {
-  uiVersion: "0.1.0",
-  supportedApiVersions: ["contractor.public.v1"],
-  apiBaseUrl: "http://127.0.0.1:8080",
-};
 
 const session: AuthSession = {
   principal: {
@@ -196,11 +193,8 @@ function statusOf(
   };
 }
 
-const FAILED_ATTEMPT = {
-  stageExecutionId: "stage_failed_1",
+const FAILED_ATTEMPT = stageAttempt("stage_failed_1", {
   stage: "analysis",
-  attempt: 1,
-  executionConfig: {},
   state: "failed",
   termination: {
     outcome: "interrupted",
@@ -212,7 +206,7 @@ const FAILED_ATTEMPT = {
   },
   createdAt: ago(95),
   updatedAt: ago(90),
-};
+});
 
 function readyReport(summary: string): AuditReport {
   return {
@@ -393,20 +387,14 @@ function busyServer(): FakeServer {
     },
     items: {
       audit_trace: [
-        {
-          itemId: "item_1",
-          roundId: "round_1",
+        auditItem("item_1", 0, "standard-mapping", {
           itemKey: "WSTG-ATHN-01",
-          ordinal: 0,
-          kind: "standard-mapping",
           subjectKey: "WSTG-ATHN-01",
-          workflowRole: "check",
           state: "awaiting_review",
           approvalKind: "active-check-approval",
-          attempts: [],
           createdAt: ago(30),
           updatedAt: ago(25),
-        },
+        }),
       ],
     },
     runs,
@@ -442,7 +430,7 @@ function busyServer(): FakeServer {
           },
           log: { required: false, mediaTypes: ["text/plain"] },
         },
-        stages: { execute: {} },
+        stages: { execute: stageContract() },
       },
     },
   };
@@ -596,9 +584,11 @@ async function answer(server: FakeServer, request: Request): Promise<Response> {
       });
     }
     const findingId = requestId.replace(/^review_/, "");
-    const subject = server.findings[auditId]?.find(
-      (candidate) => candidate.findingId === findingId,
-    );
+    // A finding a refresh already removed is still decided by the Server.
+    const subject =
+      server.findings[auditId]?.find(
+        (candidate) => candidate.findingId === findingId,
+      ) ?? finding(auditId, findingId, "Decided possible issue", 0);
     server.findings[auditId] = (server.findings[auditId] ?? []).filter(
       (candidate) => candidate.findingId !== findingId,
     );
@@ -674,6 +664,26 @@ async function answer(server: FakeServer, request: Request): Promise<Response> {
     const status = server.statuses[decodeURIComponent(match[1]!)];
     return status === undefined ? failure(404, "not_found") : json(status);
   }
+  match = /^\/v1\/audits\/([^/]+)\/findings\/([^/]+)$/.exec(path);
+  if (match !== null) {
+    const found = server.findings[decodeURIComponent(match[1]!)]?.find(
+      (candidate) => candidate.findingId === decodeURIComponent(match![2]!),
+    );
+    return found === undefined
+      ? failure(404, "not_found")
+      : json(found, 200, { ETag: `"${found.revision}"` });
+  }
+  match = /^\/v1\/audits\/([^/]+)$/.exec(path);
+  if (match !== null) {
+    const found = Object.values(server.audits)
+      .flat()
+      .find(
+        (candidate) => candidate.auditId === decodeURIComponent(match![1]!),
+      );
+    return found === undefined
+      ? failure(404, "not_found")
+      : json(found, 200, { ETag: `"${found.revision}"` });
+  }
   match = /^\/v1\/workflows\/([^/]+)\/versions\/([^/]+)$/.exec(path);
   if (match !== null) {
     const workflow = server.workflows[`${match[1]}@${match[2]}`];
@@ -708,15 +718,10 @@ function renderInbox(
   path = "/",
   slowRoute?: { path: string; until: Promise<void> },
 ) {
-  const requests: Request[] = [];
-  const api = new PublicAPI(
-    runtimeConfig,
-    vi.fn(async (input: RequestInfo | URL) => {
-      const request = input instanceof Request ? input : new Request(input);
-      requests.push(request.clone());
-      return answer(server, request);
-    }),
+  const { api, server: fake } = testAPI(
+    fakeServer({}, (request) => answer(server, request)),
   );
+  const requests = fake.requests;
   const routes = applicationRoutes();
   if (
     slowRoute !== undefined &&

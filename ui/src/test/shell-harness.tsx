@@ -1,5 +1,3 @@
-import { ownerListResponse } from "./owner-lists";
-import { makeFinding } from "../routes/decisions/test-support";
 /**
  * Renders the application shell around a probe page against a small fake
  * Server, for the shell, account menu and command palette tests.
@@ -16,7 +14,7 @@ import type {
   AuditReviewRequest,
   AuditState,
 } from "../api/audits";
-import { PublicAPI, type AuthSession } from "../api/client";
+import type { AuthSession } from "../api/client";
 import { PublicAPIProvider } from "../api/context";
 import type { Project } from "../api/projects";
 import { queryKeys } from "../api/query-keys";
@@ -24,27 +22,24 @@ import type { WorkflowSummary } from "../api/workflows";
 import { createApplicationQueryClient } from "../app/query-client";
 import { ApplicationShell } from "../app/shell";
 import { SessionProvider, type SessionAPI } from "../auth/session";
+import * as build from "./builders";
+import { fakeServer, json, page } from "./fake-server";
+import { ownerListResponse } from "./owner-lists";
+import { testAPI, testSession } from "./render";
 
 type Capability = AuthSession["principal"]["capabilities"][number];
 
-const digest = `sha256:${"a".repeat(64)}`;
+const CREATED = "2026-10-01T10:00:00Z";
 
 export function projectFixture(
   projectId: string,
   overrides: Partial<Project> = {},
 ): Project {
-  return {
-    projectId,
-    kind: "project",
-    name: projectId,
-    description: "",
-    lifecycle: "active",
-    activeChecks: "automatic",
-    revision: "1",
-    createdAt: "2026-10-01T10:00:00Z",
-    updatedAt: "2026-10-01T10:00:00Z",
+  return build.project(projectId, {
+    createdAt: CREATED,
+    updatedAt: CREATED,
     ...overrides,
-  };
+  });
 }
 
 export function auditFixture(
@@ -53,37 +48,13 @@ export function auditFixture(
   state: AuditState,
   objective?: string,
 ): Audit {
-  const base = {
-    auditId,
-    projectId,
-    profile: { name: "openapi-operation-trace", version: "1", digest },
-    inputs: {},
+  return build.audit(projectId, auditId, state, {
     scope: objective === undefined ? {} : { objective },
-    runtimeLabels: [],
-    state,
-    revision: 1,
-    dispatchState: "closed" as const,
-    holdState: "pending" as const,
-    limits: {
-      maxRounds: 1,
-      batchSize: 1,
-      maxItemsPerRound: 8,
-      maxItemsTotal: 8,
-      maxSubmittedRuns: 8,
-      maxItemRunAttempts: 2,
-      maxEvidenceBytes: 1_048_576,
-    },
-    reservedRunCount: 0,
-    submittedRunCount: 0,
-    outstandingRunCount: 0,
-    retainedEvidenceBytes: 0,
-    eventSequence: 1,
-    createdAt: "2026-10-01T10:00:00Z",
-    updatedAt: "2026-10-01T10:00:00Z",
-  };
-  return state === "draft"
-    ? { ...base, phase: "not-started" }
-    : { ...base, phase: "rounds", currentRoundId: "round_1" };
+    dispatchState: "closed",
+    holdState: "pending",
+    createdAt: CREATED,
+    updatedAt: CREATED,
+  });
 }
 
 export function reviewFixture(
@@ -91,20 +62,10 @@ export function reviewFixture(
   requestId: string,
   kind: AuditReviewRequest["kind"],
 ): AuditReviewRequest {
-  return {
-    requestId,
-    auditId,
-    subjectKind: "audit-item-action",
-    subjectId: "subject_1",
-    kind,
-    subjectRevision: 1,
-    subjectDigest: digest,
-    requestedActions: ["approve", "reject"],
-    state: "pending",
-    revision: 1,
+  return build.review(auditId, requestId, kind, {
     createdAt: "2026-10-03T10:00:00Z",
     updatedAt: "2026-10-03T10:00:00Z",
-  };
+  });
 }
 
 export function workflowFixture(
@@ -112,16 +73,21 @@ export function workflowFixture(
   version: string,
   displayName?: string,
 ): WorkflowSummary {
-  return {
+  return build.conforming("WorkflowSummary", {
     ref: { name, version },
     ...(displayName === undefined
       ? {}
-      : { presentation: { displayName, description: "" } }),
+      : {
+          presentation: {
+            displayName,
+            description: `${displayName} workflow.`,
+          },
+        }),
     entryStage: "execute",
     parameters: {},
     inputs: {},
     outputs: {},
-  };
+  });
 }
 
 /** What the fake Server holds. Everything else answers an empty page. */
@@ -141,17 +107,7 @@ export interface ShellOptions {
   logout?: SessionAPI["logout"];
 }
 
-function json(value: unknown): Response {
-  return new Response(JSON.stringify(value), {
-    headers: {
-      "Content-Type": "application/json",
-      "X-Contractor-API-Version": "contractor.public.v1",
-    },
-  });
-}
-
 function answer(server: FakeServer, url: URL): Response {
-  const page = (items: unknown[]) => ({ items, page: { hasMore: false } });
   const path = url.pathname;
   const ownerResponse = ownerListResponse(url, {
     projects: server.projects ?? [],
@@ -159,7 +115,7 @@ function answer(server: FakeServer, url: URL): Response {
     findings: Object.entries(server.proposedFindings ?? {}).flatMap(
       ([auditId, count]) =>
         Array.from({ length: count }, (_, i) =>
-          makeFinding({ auditId, findingId: `finding_${auditId}_${i}` }),
+          build.finding(auditId, `finding_${auditId}_${i}`),
         ),
     ),
     reviews: Object.values(server.reviews ?? {}).flat(),
@@ -193,12 +149,7 @@ function answer(server: FakeServer, url: URL): Response {
 export const TEST_USERNAME = "owner";
 
 export function sessionFixture(capabilities: Capability[]): AuthSession {
-  return {
-    principal: { userId: "user_local", username: TEST_USERNAME, capabilities },
-    csrfToken: "a".repeat(43),
-    idleExpiresAt: "2026-10-06T20:00:00Z",
-    absoluteExpiresAt: "2026-10-07T12:00:00Z",
-  };
+  return testSession(capabilities);
 }
 
 /** The shell at `path` with a probe page that prints its location. */
@@ -208,15 +159,8 @@ export function renderShell(path: string, options: ShellOptions = {}) {
   );
   const server = options.server ?? {};
   const requests: URL[] = [];
-  const publicAPI = new PublicAPI(
-    {
-      uiVersion: "0.1.0",
-      supportedApiVersions: ["contractor.public.v1"],
-      apiBaseUrl: "http://127.0.0.1:8080",
-    },
-    vi.fn(async (input: RequestInfo | URL) => {
-      const request = input instanceof Request ? input : new Request(input);
-      const url = new URL(request.url);
+  const { api: publicAPI } = testAPI(
+    fakeServer({}, (request, url) => {
       requests.push(url);
       return answer(server, url);
     }),

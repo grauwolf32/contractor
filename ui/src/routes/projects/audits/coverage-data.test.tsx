@@ -8,43 +8,26 @@ import type { Audit, AuditCoverageRow } from "../../../api/audits";
 import { PublicAPI } from "../../../api/client";
 import { PublicAPIProvider } from "../../../api/context";
 import { queryKeys } from "../../../api/query-keys";
+import * as build from "../../../test/builders";
 import { useAuditCoverage } from "./coverage-data";
 
 function auditAt(state: Audit["state"], revision: number): Audit {
-  return {
-    auditId: "audit_example",
-    projectId: "project_example",
+  return build.audit("project_example", "audit_example", state, {
     profile: {
       name: "source-risk",
       version: "1",
       digest: `sha256:${"1".repeat(64)}`,
     },
-    inputs: {},
-    scope: {},
-    runtimeLabels: [],
-    state,
-    phase: "rounds",
     revision,
     currentRoundId: "round_example",
-    dispatchState: state === "active" ? "open" : "closed",
     holdState: "held",
-    limits: {
-      maxRounds: 1,
-      batchSize: 1,
-      maxItemsPerRound: 8,
-      maxItemsTotal: 8,
-      maxSubmittedRuns: 8,
-      maxItemRunAttempts: 2,
-      maxEvidenceBytes: 1_048_576,
-    },
     reservedRunCount: 1,
     submittedRunCount: 1,
     outstandingRunCount: state === "active" ? 1 : 0,
-    retainedEvidenceBytes: 0,
     eventSequence: revision,
     createdAt: "2026-09-20T10:00:00Z",
     updatedAt: "2026-09-20T10:00:00Z",
-  };
+  });
 }
 
 function coverage(audit: Audit): AuditCoverageRow {
