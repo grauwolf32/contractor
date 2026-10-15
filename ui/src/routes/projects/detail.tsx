@@ -16,7 +16,7 @@ import { ProjectHTTPTargetEditor } from "./http-target-editor";
 import { ProjectFacts, ProjectMetadataEditor } from "./metadata-editor";
 import { ProjectsRoute } from "./projects-route";
 import { ProjectRunsRegion } from "./runs-region";
-import { useProjectDeletion } from "./use-project-deletion";
+import { pollWhileDeleting, useProjectDeletion } from "./use-project-deletion";
 
 import "../primary-actions.css";
 import "./collection.css";
@@ -42,8 +42,7 @@ export function EvaluationDetailRoute() {
     queryKey: queryKeys.projects.detail(projectId),
     queryFn: () => getProject(api, projectId),
     enabled: validProject,
-    refetchInterval: (query) =>
-      query.state.data?.lifecycle === "deleting" ? 1_000 : false,
+    refetchInterval: pollWhileDeleting,
     retry: (failureCount, error) =>
       !(error instanceof PublicAPIError && error.status === 404) &&
       failureCount < 2,

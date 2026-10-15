@@ -10,7 +10,7 @@ import {
 import { ErrorNotice } from "../../app/error-notice";
 import { formatTimestamp } from "../../app/format";
 import type { StatusTone } from "../../app/status-tone";
-import { ConfirmRemovalDialog } from "../../app/confirm-removal-dialog";
+import { AlertDialog } from "../../ui";
 import { QueryView } from "../../app/query-view";
 import { IdChip, StatusChip, StatusGlyph } from "../../ui";
 import { Glance } from "../operations/common";
@@ -226,16 +226,12 @@ export function GitKeySettings({
         </div>
       </form>
       {confirmRemoval ? (
-        <ConfirmRemovalDialog
+        <AlertDialog
+          eyebrow="Confirm removal"
           className="ops-confirm"
+          dismissOnBackdrop
           title="Remove Git key?"
-          description={
-            <>
-              Remove the Git SSH key with fingerprint{" "}
-              <code>{query.data?.fingerprint}</code>? Private Git imports will
-              require a new private key.
-            </>
-          }
+          pendingLabel="Removing…"
           confirmLabel="Remove Git key"
           pending={pending}
           error={error === undefined ? null : <ErrorNotice error={error} />}
@@ -244,7 +240,13 @@ export function GitKeySettings({
             setError(undefined);
           }}
           onConfirm={() => void change(true)}
-        />
+        >
+          <p>
+            Remove the Git SSH key with fingerprint{" "}
+            <code>{query.data?.fingerprint}</code>? Private Git imports will
+            require a new private key.
+          </p>
+        </AlertDialog>
       ) : null}
     </SettingSection>
   );

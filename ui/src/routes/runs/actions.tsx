@@ -19,6 +19,7 @@ import { auditDestination, prepareRepeatDraft } from "../../run-drafts/repeat";
 import { CANCELLATION_REASON_LIMIT, CancelRunDialog } from "./cancel";
 import { RetryModelDialog } from "./recovery";
 import { ContinueRunDialog } from "./resume";
+import { Button } from "../../ui";
 
 /** What one header action contributes: its button, a dialog and a notice. */
 interface ActionParts {
@@ -307,18 +308,15 @@ function useConfigureAnotherRun(run: RunStatus): ActionParts {
   if (!isTerminalRunState(run.state)) return { control: null };
   return {
     control: (
-      <button
-        className="ui-btn"
-        data-size="sm"
-        type="button"
-        disabled={mutation.isPending}
+      <Button
+        size="sm"
+        icon={<Icon name="plus" />}
+        pending={mutation.isPending}
+        pendingLabel="Loading retained request…"
         onClick={() => void configureAnotherRun()}
       >
-        <Icon name="plus" />
-        {mutation.isPending
-          ? "Loading retained request…"
-          : "Configure another Run"}
-      </button>
+        Configure another Run
+      </Button>
     ),
     notice:
       mutation.error !== null ? (

@@ -4,6 +4,7 @@ import type { RuntimeAgentObservation } from "../../api/operations";
 import type { StatusTone } from "../../app/status-tone";
 import { ProgressSegments, StatusGlyph } from "../../ui";
 import { useOperationsSnapshot } from "./context";
+import { plural } from "../../app/format";
 
 type SlotState = RuntimeAgentObservation["slotState"];
 
@@ -19,10 +20,6 @@ const SLOT_STATES: readonly {
   { state: "draining", label: "Draining", tone: "warning" },
   { state: "fenced", label: "Fenced", tone: "blocked" },
 ];
-
-function plural(count: number, one: string, many: string): string {
-  return `${count.toLocaleString("en-US")} ${count === 1 ? one : many}`;
-}
 
 /** A count that links to the section it summarizes. */
 function OverviewTile({

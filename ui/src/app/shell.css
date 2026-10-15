@@ -519,7 +519,7 @@
 
 /* ---------- Command palette ---------- */
 
-.project-dialog-backdrop.shell-palette-backdrop {
+.ui-dialog-backdrop.shell-palette-backdrop {
   place-items: start center;
   padding: max(16px, 12vh) 16px 16px;
 }

@@ -84,7 +84,7 @@ export function SkillUploadDialog({
 
   return (
     <Dialog
-      className="project-dialog panel skill-upload-dialog"
+      className="ui-dialog ui-panel skill-upload-dialog"
       labelledBy={heading}
       describedBy={description}
       initialFocusRef={nameInput}

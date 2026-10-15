@@ -1796,10 +1796,6 @@ a.runs-publication-ref {
   font-size: 0.8125rem;
 }
 
-.runs-config-origins {
-  color: var(--muted);
-}
-
 .runs-metrics {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(7rem, 1fr));
@@ -2030,7 +2026,7 @@ a.runs-publication-ref {
   font-weight: 700;
 }
 
-.runs-dialog-form .project-dialog-actions {
+.runs-dialog-form .ui-dialog-actions {
   margin-top: 0.5rem;
 }
 
@@ -2039,11 +2035,5 @@ a.runs-publication-ref {
   .runs-artifact-page > .route-header-row {
     margin-bottom: 1rem;
     gap: 0.65rem;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .runs-section-chevron {
-    transition: none;
   }
 }

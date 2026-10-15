@@ -133,12 +133,6 @@
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .inbox-refresh[data-busy] .app-icon {
-    animation: none;
-  }
-}
-
 .inbox-keys {
   display: inline-flex;
   align-items: center;

@@ -330,7 +330,7 @@ export function AgentDetailRoute() {
   });
   const body = query.data?.body as AgentTemplateBody | undefined;
   return (
-    <div className="library-detail">
+    <div className="ui-stack">
       <LibraryBackLink
         fallback={{ returnTo: "/catalog/agents", returnLabel: "All agents" }}
       />

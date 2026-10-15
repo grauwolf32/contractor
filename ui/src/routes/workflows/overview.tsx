@@ -14,6 +14,7 @@ import { WorkflowRunDrawer } from "./run-drawer";
 import { WorkflowRunForm } from "./run-form";
 import "./cards.css";
 import "./overview.css";
+import { plural } from "../../app/format";
 
 function OverviewSlots({
   title,
@@ -62,10 +63,6 @@ function OverviewSlots({
       )}
     </section>
   );
-}
-
-function plural(count: number, singular: string, many: string): string {
-  return `${count} ${count === 1 ? singular : many}`;
 }
 
 export function WorkflowOverview({
@@ -121,7 +118,7 @@ export function WorkflowOverview({
   const open = location.hash === "#workflow-run-setup";
 
   return (
-    <div className="library-detail workflow-overview-page">
+    <div className="ui-stack workflow-overview-page">
       <LibraryBackLink
         fallback={{
           returnTo: "/catalog/workflows",

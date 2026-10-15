@@ -14,13 +14,6 @@ import { StatusGlyph } from "../../ui";
 import { artifactDetailPath } from "../artifacts/paths";
 import { auditProfileLabel } from "./audits/labels";
 import { CheckComposer } from "./check-composer";
-import { MaterialKindIcon } from "./material-icon";
-import {
-  MATERIAL_KIND_ORDER,
-  materialFormat,
-  materialKind,
-  materialKindLabel,
-} from "./material-kinds";
 import { ProjectSectionActions } from "./navigation";
 import {
   type MaterialsSample,
@@ -40,6 +33,15 @@ import {
 } from "./project-sections";
 import { ProjectTimeline } from "./timeline";
 import { parseTimelineFilter, type TimelineFilter } from "./timeline-filter";
+import { plural } from "../../app/format";
+import {
+  MATERIAL_KIND_LABELS,
+  MATERIAL_KIND_ORDER,
+  materialFormat,
+  materialKindLabel,
+  materialKindOf,
+} from "../artifacts/kinds";
+import { MaterialKindIcon } from "../artifacts/icons";
 
 const NO_CHECKS: Audit[] = [];
 
@@ -56,10 +58,6 @@ const OTHER_LIVE_STATES: readonly AuditState[] = [
 
 /** Material chips shown before "All materials". */
 const CHIP_LIMIT = 4;
-
-function plural(count: number, one: string, many: string): string {
-  return `${count} ${count === 1 ? one : many}`;
-}
 
 function hostOf(url: string): string {
   try {
@@ -94,7 +92,7 @@ function MaterialChips({
           </li>
         ) : null}
         {shown.map((item) => {
-          const kind = materialKind(item);
+          const kind = materialKindOf(item);
           const { namespace, name } = item.artifact;
           return (
             <li key={`${namespace}/${name}`}>
@@ -114,7 +112,7 @@ function MaterialChips({
                   <MaterialKindIcon kind={kind} />
                 </span>
                 <span className="projects-chip-label">
-                  {materialKindLabel(kind)}
+                  {materialKindLabel(item)}
                 </span>
                 <span className="projects-chip-detail">
                   {name} · {materialFormat(item)}
@@ -140,7 +138,7 @@ function MaterialChips({
           {target === undefined ? (
             <span className="projects-chip" data-variant="missing">
               <span className="projects-chip-icon">
-                <MaterialKindIcon kind="target" />
+                <Icon name="target" size={16} />
               </span>
               <span className="projects-chip-label">Live target</span>
               <span className="projects-chip-detail">not configured</span>
@@ -156,7 +154,7 @@ function MaterialChips({
           ) : (
             <Link className="projects-chip" to={settings} title={target.url}>
               <span className="projects-chip-icon">
-                <MaterialKindIcon kind="target" />
+                <Icon name="target" size={16} />
               </span>
               <span className="projects-chip-label">Live target</span>
               <span className="projects-chip-detail">{hostOf(target.url)}</span>
@@ -324,7 +322,7 @@ function GlanceStrip({
             : plural(checks.length, "check", "checks") + " in total";
 
   const kinds = [
-    ...new Set(materials.items.map((item) => materialKind(item))),
+    ...new Set(materials.items.map((item) => materialKindOf(item))),
   ].sort(
     (left, right) =>
       MATERIAL_KIND_ORDER.indexOf(left) - MATERIAL_KIND_ORDER.indexOf(right),
@@ -363,7 +361,10 @@ function GlanceStrip({
         <Cell
           label="Materials"
           value={materialsValue}
-          caption={kinds.map(materialKindLabel).join(", ") || undefined}
+          caption={
+            kinds.map((kind) => MATERIAL_KIND_LABELS[kind]).join(", ") ||
+            undefined
+          }
         />
         <Cell
           label="Last activity"

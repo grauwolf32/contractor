@@ -631,12 +631,6 @@
   font-size: 0.84375rem;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .start-advanced-title > svg {
-    transition: none;
-  }
-}
-
 /* ---------- Footer ---------- */
 
 .start-footer {

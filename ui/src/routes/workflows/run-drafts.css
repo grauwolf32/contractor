@@ -8,6 +8,176 @@
  * tokens.
  */
 
+.run-draft-heading {
+  padding-bottom: 1.2rem;
+}
+
+.run-draft-heading h3,
+.run-draft-advanced-heading h4 {
+  margin-bottom: 0;
+}
+
+.run-draft-workflow {
+  margin-top: 0.65rem;
+}
+
+.run-draft-readiness {
+  flex: none;
+  border-radius: 0.7rem;
+}
+
+.run-draft-readiness strong {
+  color: var(--text);
+  font-size: 1.05rem;
+}
+
+.run-draft-advanced-heading {
+  align-items: end;
+  justify-content: space-between;
+  margin-top: 0.35rem;
+}
+
+.run-draft-advanced-heading .eyebrow,
+.run-draft-advanced-heading > p {
+  margin: 0;
+}
+
+.run-draft-advanced-heading > p {
+  line-height: 1.5;
+}
+
+.run-draft-disclosure > summary {
+  transition: background-color 120ms ease;
+}
+
+.run-draft-disclosure-status.is-active {
+  border-color: var(--accent-line);
+}
+
+.run-draft-disclosure > .run-draft-section {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.run-field-grid,
+.override-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.run-field > label,
+.override-consumer > label {
+  display: grid;
+  gap: 0.4rem;
+  color: var(--muted-strong);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.run-field input,
+.run-field select,
+.override-consumer select {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  background: var(--sunken);
+  color: inherit;
+  padding: 0.7rem 0.75rem;
+}
+
+.run-field input:focus,
+.run-field select:focus,
+.override-consumer select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+.run-field input[aria-invalid="true"],
+.run-field select[aria-invalid="true"] {
+  border-color: var(--danger);
+}
+
+.run-label-secret-warning {
+  margin-top: 0.8rem;
+}
+
+.run-label-secret-warning p {
+  margin-bottom: 0;
+}
+
+.run-label-composer {
+  margin-top: 1rem;
+}
+
+.load-more-row,
+.run-submit-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+  margin-top: 0.9rem;
+}
+
+.run-submit-row {
+  margin-top: 0.25rem;
+}
+
+.run-submit-row > button {
+  flex: none;
+}
+
+.runtime-label-options {
+  margin-top: 0.8rem;
+}
+
+@media (max-width: 820px) {
+  .run-field-grid,
+  .override-grid,
+  .run-label-composer {
+    grid-template-columns: 1fr;
+  }
+
+  .runtime-label-options {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .run-draft-readiness {
+    width: 100%;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .run-draft-advanced-heading {
+    display: grid;
+    align-items: start;
+    gap: 0.35rem;
+  }
+
+  .run-draft-advanced-heading > p {
+    text-align: left;
+  }
+
+  .run-draft-disclosure > summary {
+    gap: 0.55rem;
+    padding-inline: 0.8rem;
+  }
+
+  .run-submit-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .run-submit-row > button {
+    width: 100%;
+  }
+}
+
 .run-draft {
   display: flex;
   flex-direction: column;
@@ -280,7 +450,15 @@
 
 .run-draft .run-field small,
 .run-draft .field-guidance,
-.run-draft .inventory-empty {
+.run-draft .run-field small,
+.inventory-empty {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.76rem;
+  line-height: 1.45;
+}
+
+.inventory-empty {
   margin: 0;
   color: var(--muted);
   font-size: 0.75rem;
@@ -1001,7 +1179,7 @@
 
 /* The title names the slot: a long name breaks instead of widening the
    dialog. */
-.run-input-upload-dialog .project-dialog-heading h2 {
+.run-input-upload-dialog .ui-dialog-heading h2 {
   overflow-wrap: anywhere;
 }
 
@@ -1083,14 +1261,14 @@
   }
 }
 
-@media (max-width: 760px) {
+@media (max-width: 820px) {
   .workflow-run-drawer .run-draft .run-submit-row {
     margin: 0 -1rem;
     padding: 0.875rem 1rem;
   }
 }
 
-@media (max-width: 44rem) {
+@media (max-width: 820px) {
   .run-draft-capacity-list li {
     align-items: stretch;
     flex-direction: column;
@@ -1098,11 +1276,5 @@
 
   .run-repeat-notice {
     grid-template-columns: 1fr;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .run-draft .run-draft-disclosure > summary::after {
-    transition: none;
   }
 }

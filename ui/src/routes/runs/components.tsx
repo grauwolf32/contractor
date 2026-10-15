@@ -14,21 +14,17 @@ import type { PlannerProjection } from "./live";
 import { artifactDetailPath } from "../artifacts/paths";
 import {
   allocationStatusLabel,
-  runStateLabel,
   stageStateLabel,
   subtaskStatusLabel,
 } from "./run-state";
+import { runStateLabel } from "../../app/vocabulary";
+import { ConsumerConfigList } from "../workflows/consumer-config";
 
 type ArtifactRef = components["schemas"]["ExactArtifactRef"];
-type ConsumerConfig = components["schemas"]["ConsumerExecutionConfig"];
 type Metrics = components["schemas"]["MetricsSummary"];
 type Diagnostics = components["schemas"]["AttemptDiagnostics"];
 
 const MarkdownPreview = lazy(() => import("../artifacts/previews/markdown"));
-
-function stateLabel(value: string): string {
-  return value.replaceAll("_", " ");
-}
 
 /** Controlled `<details>` state shared by the heavy Run detail sections. */
 export type RunDisclosureProps = {
@@ -111,18 +107,6 @@ function ResultSummary({ summary }: { summary: string }) {
         <MarkdownPreview source={summary} />
       </Suspense>
     </div>
-  );
-}
-
-/**
- * Lifecycle badge shared by several areas (Projects, Checks, Evals,
- * Operations). The Runs pages use RunStateChip instead.
- */
-export function StateBadge({ state }: { state: WorkflowRunState | string }) {
-  return (
-    <span className={`state-badge state-${state.replaceAll("_", "-")}`}>
-      {stateLabel(state)}
-    </span>
   );
 }
 
@@ -215,52 +199,6 @@ function ExecutionId({ value, label }: { value: string; label: string }) {
   return <IdChip value={value} display={value} label={label} wrap />;
 }
 
-function ConsumerConfigView({
-  label,
-  config,
-}: {
-  label: string;
-  config: ConsumerConfig;
-}) {
-  if (config.modelPolicy === undefined) {
-    return (
-      <li>
-        <strong>{label}</strong>
-        <span>Tool execution · no model</span>
-      </li>
-    );
-  }
-  return (
-    <li>
-      <strong>{label}</strong>
-      <span>
-        ModelPolicy{" "}
-        <code>
-          {config.modelPolicy.policyId}@{config.modelPolicy.version}
-        </code>{" "}
-        <Digest value={config.modelPolicy.digest} />
-      </span>
-      {config.llmGateway === undefined ? (
-        <span>LLMGatewayConfig resolved during Runtime placement</span>
-      ) : (
-        <span>
-          LLMGatewayConfig{" "}
-          <code>
-            {config.llmGateway.gatewayId}@{config.llmGateway.version}
-          </code>{" "}
-          <Digest value={config.llmGateway.digest} />
-        </span>
-      )}
-      <span>Credential {config.credential?.credentialId ?? "none"}</span>
-      <span className="runs-config-origins">
-        Origins: model {config.origins?.modelPolicy ?? "not reported"}; Gateway{" "}
-        {config.origins?.llmGateway ?? "not reported"}; credential{" "}
-        {config.origins?.credential ?? "not reported"}
-      </span>
-    </li>
-  );
-}
-
 function ExecutionConfigView({ attempt }: { attempt: StageAttempt }) {
   const config = attempt.executionConfig;
   return (
@@ -281,20 +219,12 @@ function ExecutionConfigView({ attempt }: { attempt: StageAttempt }) {
           <Digest value={config.ref.digest} />
         </p>
       )}
-      <ul className="runs-consumer-list">
-        {config.planner === undefined ? null : (
-          <ConsumerConfigView label="Planner" config={config.planner} />
-        )}
-        {Object.entries(config.agents)
-          .sort(([left], [right]) => left.localeCompare(right))
-          .map(([name, consumer]) => (
-            <ConsumerConfigView
-              key={name}
-              label={`Logical Worker ${name}`}
-              config={consumer}
-            />
-          ))}
-      </ul>
+      <ConsumerConfigList
+        config={config}
+        workerLabel={(name) => `Logical Worker ${name}`}
+        exact
+        className="runs-consumer-list"
+      />
     </div>
   );
 }

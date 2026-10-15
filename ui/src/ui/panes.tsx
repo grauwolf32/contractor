@@ -20,7 +20,7 @@ interface PaneLayoutProps {
 const SELECTED_ROW = '[aria-current="true"]';
 
 /**
- * List + detail frame. From 1100 px the list is 360 px wide, from 821 px
+ * List + detail frame. Above 1100 px the list is 360 px wide, from 821 px
  * 300 px; both panes then fill the viewport below the shell top bar and
  * scroll on their own. At 820 px and below one pane shows at a time in
  * normal page flow, and switching panes moves focus to the pane that

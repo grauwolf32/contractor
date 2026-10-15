@@ -41,7 +41,7 @@ export function CancelRunDialog({
 
   return (
     <Dialog
-      className="project-dialog panel runs-dialog"
+      className="ui-dialog ui-panel runs-dialog"
       labelledBy={titleId}
       describedBy={descriptionId}
       initialFocusRef={field}
@@ -80,7 +80,7 @@ export function CancelRunDialog({
           </p>
         )}
         {error === null ? null : <ErrorNotice error={error} />}
-        <div className="project-dialog-actions">
+        <div className="ui-dialog-actions">
           <button
             className="secondary-button"
             type="button"

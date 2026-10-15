@@ -96,7 +96,7 @@ export function AgentLabelsDialog({
   );
   return (
     <Dialog
-      className="project-dialog panel ops-dialog ops-labels-dialog"
+      className="ui-dialog ui-panel ops-dialog ops-labels-dialog"
       labelledBy={heading}
       describedBy={description}
       initialFocusRef={firstInput}
@@ -184,7 +184,7 @@ export function AgentLabelsDialog({
             <ErrorNotice error={mutation.error} />
           )}
           {reload.error === null ? null : <ErrorNotice error={reload.error} />}
-          <div className="project-dialog-actions">
+          <div className="ui-dialog-actions">
             <button
               className="ui-btn"
               type="button"

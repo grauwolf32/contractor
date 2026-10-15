@@ -9,7 +9,7 @@ import { queryKeys } from "../../api/query-keys";
 import { CursorControls } from "../../app/cursor-controls";
 import { useCursorStack } from "../../app/pagination";
 import { compactId, formatTimestamp } from "../../app/format";
-import { StateBadge } from "../runs/components";
+import { RunStateChip } from "../runs/components";
 import { ProjectRegion } from "./common";
 import { groupEvaluationRuns } from "./evaluation-groups";
 import { QueryView } from "../../app/query-view";
@@ -82,7 +82,7 @@ function EvaluationRuns({ runs }: { runs: readonly RunSummary[] }) {
                       <code>{run.workflow}</code>
                     </td>
                     <td data-label="State">
-                      <StateBadge state={run.state} />
+                      <RunStateChip state={run.state} />
                     </td>
                     <td data-label="Updated">
                       {formatTimestamp(run.updatedAt)}

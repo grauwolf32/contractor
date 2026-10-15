@@ -4,8 +4,30 @@ import { useNavigate } from "react-router";
 import { usePublicAPI } from "../../api/context";
 import { invalidateCrossProject } from "../../api/cross-project";
 import { PublicAPIError } from "../../api/error";
-import { deleteProject, type Project } from "../../api/projects";
+import {
+  deleteProject,
+  type Project,
+  type ProjectPage,
+} from "../../api/projects";
 import { queryKeys } from "../../api/query-keys";
+import { pollInterval } from "../../app/polling";
+
+const isDeleting = (project: Project) => project.lifecycle === "deleting";
+
+/**
+ * A project being deleted changes on its own: its query polls each second
+ * until the deletion finishes, which the route observes as a 404.
+ */
+export const pollWhileDeleting = pollInterval<Project>({
+  interval: 1_000,
+  settled: (project) => !isDeleting(project),
+});
+
+/** A page of projects polls each second while one of them is being deleted. */
+export const pollWhileAnyDeleting = pollInterval<ProjectPage>({
+  interval: 1_000,
+  settled: (page) => !page.items.some(isDeleting),
+});
 
 // The route owns the sole Project query. Deletion updates that cache entry and
 // observes its polling result to reconcile the eventual 404 exactly once.

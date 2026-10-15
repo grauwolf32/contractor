@@ -24,7 +24,7 @@ import { queryKeys } from "../../api/query-keys";
 import { getRun, retryRunGateway, type RunStatus } from "../../api/runs";
 import { ContextLink } from "../../app/context-navigation";
 import { ErrorNotice } from "../../app/error-notice";
-import { formatTimestamp } from "../../app/format";
+import { formatTimestamp, formatElapsed } from "../../app/format";
 import { RecordedTime } from "../../app/recorded-time";
 import {
   checkStateLabel,
@@ -32,6 +32,8 @@ import {
   reportStatusLabel,
   reviewKindLabel,
   reviewStateLabel,
+  runRecoveryReason,
+  runStateLabel,
 } from "../../app/vocabulary";
 import { useSession } from "../../auth/session";
 import {
@@ -55,7 +57,7 @@ import { decisionOutcome } from "../decisions/model";
 import { firstParagraph, plainText } from "../decisions/text";
 import { artifactDetailPath } from "../artifacts/paths";
 import { describeStopReason } from "../projects/audits/stop-reason";
-import { deriveRunTriage, formatRunDuration } from "../runs/triage";
+import { deriveRunTriage } from "../runs/triage";
 import { newestCached, type InboxData } from "./data";
 import {
   refKey,
@@ -66,7 +68,6 @@ import {
 } from "./model";
 import {
   checkKind,
-  checkPath,
   checkProgress,
   checkTypeLabel,
   excerpt,
@@ -77,14 +78,13 @@ import {
   PROGRESS_LABELS,
   primaryOutput,
   projectPath,
-  recoveryReason,
   reportPath,
   reviewSubjectItem,
   reviewTitle,
   runPath,
-  runStateLabel,
   SECTIONS,
 } from "./present";
+import { checkPath } from "../projects/audits/check-links";
 
 /** What every detail view needs from the page. */
 export interface DetailContext {
@@ -561,7 +561,7 @@ function RunRecovery({ run }: { run: RunStatus }) {
     <Block title="Model connection">
       {recovery === undefined ? null : (
         <>
-          <p className="inbox-cause">{recoveryReason(recovery.code)}</p>
+          <p className="inbox-cause">{runRecoveryReason(recovery.code)}</p>
           <p className="inbox-quiet-note">
             {recovery.requiresRetry
               ? "Automatic recovery has stopped. Restore the model, then retry the connection. Completed work is kept."
@@ -747,9 +747,7 @@ function RunDetail({
             <dl className="inbox-facts" data-size="sm">
               <Fact term="Stage">{triage.stage ?? "—"}</Fact>
               <Fact term="Attempts">{triage.attemptCount}</Fact>
-              <Fact term="Duration">
-                {formatRunDuration(triage.durationMs)}
-              </Fact>
+              <Fact term="Duration">{formatElapsed(triage.durationMs)}</Fact>
               {triage.issue === undefined ? null : (
                 <>
                   <Fact term="Cause code">

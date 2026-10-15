@@ -93,20 +93,20 @@ function MaterialUploadDialog({
 
   return (
     <Dialog
-      className="project-dialog panel materials-sheet"
+      className="ui-dialog ui-panel materials-sheet"
       labelledBy={heading}
       describedBy={`${description} ${cancelNote}`}
       initialFocusRef={closeButton}
       onRequestClose={close}
     >
-      <div className="project-dialog-heading">
+      <div className="ui-dialog-heading">
         <div>
           <p className="eyebrow">Add material</p>
           <h2 id={heading}>{kind.label}</h2>
         </div>
         <button
           ref={closeButton}
-          className="project-dialog-close"
+          className="ui-dialog-close"
           type="button"
           aria-label="Close upload dialog"
           onClick={close}
@@ -167,7 +167,7 @@ export function AddMaterialSheet({
   return (
     <>
       <Dialog
-        className="project-dialog panel materials-sheet"
+        className="ui-dialog ui-panel materials-sheet"
         labelledBy={heading}
         describedBy={description}
         onRequestClose={onClose}

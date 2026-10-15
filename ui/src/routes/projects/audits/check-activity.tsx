@@ -27,15 +27,12 @@ import { findingsReadable, REPORT_STATES } from "./check-data";
 import { issueSummary, splitIssues, type CheckEntry } from "./check-model";
 import type { AuditCollectionQuery } from "./collections";
 import { CheckTechnicalDetails } from "./overview";
+import { plural } from "../../../app/format";
 
 /** Decisions shown in place before "See all decisions". */
 const INLINE_DECISIONS = 3;
 /** Possible issues listed on the activity view. */
 const LISTED_ISSUES = 5;
-
-function plural(count: number, singular: string, many: string): string {
-  return `${count.toLocaleString("en-US")} ${count === 1 ? singular : many}`;
-}
 
 function Block({ title, children }: { title: string; children: ReactNode }) {
   const heading = useId();

@@ -21,9 +21,9 @@ import { EmptyState, FilterChips, IdChip, StatusGlyph } from "../../ui";
 import { RunMetadataLabelChips } from "../runs/components";
 import { ProjectSectionActions } from "./navigation";
 import { projectPath } from "./project-sections";
-import { runStateLabel } from "./run-state";
 
 import "./projects.css";
+import { runStateLabel } from "../../app/vocabulary";
 
 type RunView = "all" | "active" | "completed";
 

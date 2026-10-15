@@ -25,7 +25,7 @@ import { CROSS_PROJECT_LIMITS } from "../../api/cross-project";
 import { listProjectArtifacts } from "../../api/project-artifacts";
 import { listProjectRuns } from "../../api/projects";
 import { queryKeys } from "../../api/query-keys";
-import { materialKind, MATERIAL_KIND_ORDER } from "./material-kinds";
+import { MATERIAL_KIND_ORDER, materialKindOf } from "../artifacts/kinds";
 
 /** How often the overview refreshes checks and Runs while it is open. */
 const OVERVIEW_POLL_MS = 10_000;
@@ -282,8 +282,8 @@ export function useMaterialsSample(projectId: string): MaterialsSample {
     }
     return [...unique.values()].sort(
       (left, right) =>
-        MATERIAL_KIND_ORDER.indexOf(materialKind(left)) -
-          MATERIAL_KIND_ORDER.indexOf(materialKind(right)) ||
+        MATERIAL_KIND_ORDER.indexOf(materialKindOf(left)) -
+          MATERIAL_KIND_ORDER.indexOf(materialKindOf(right)) ||
         `${left.artifact.namespace}/${left.artifact.name}`.localeCompare(
           `${right.artifact.namespace}/${right.artifact.name}`,
         ),

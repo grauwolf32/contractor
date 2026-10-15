@@ -7,7 +7,7 @@ import type {
   RuntimeLabelBinding,
 } from "../../../api/operations";
 import { Icon } from "../../../app/icon";
-import { formatBytes, formatTimestamp } from "../../../app/format";
+import { formatBytes, formatTimestamp, formatAge } from "../../../app/format";
 import { IdChip, StatusChip, TechnicalDetails } from "../../../ui";
 import {
   Glance,
@@ -15,7 +15,7 @@ import {
   OptionalTimestamp,
   SafeReason,
 } from "../common";
-import { agentDisplayName, availabilityCopy, relativeAge } from "./identity";
+import { agentDisplayName, availabilityCopy } from "./identity";
 import { AgentLabelsDialog } from "./labels-dialog";
 
 const adapterNames: Record<string, string> = {
@@ -150,7 +150,7 @@ export function AgentCard({
                     dateTime={live.lastAcceptedHeartbeat}
                     title={formatTimestamp(live.lastAcceptedHeartbeat)}
                   >
-                    {relativeAge(live.lastAcceptedHeartbeat, now)}
+                    {formatAge(live.lastAcceptedHeartbeat, now)}
                   </time>
                 ),
               ],

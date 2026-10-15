@@ -262,7 +262,7 @@ export function Dialog({
 
   return createPortal(
     <div
-      className={`project-dialog-backdrop ${backdropClassName ?? ""}`}
+      className={`ui-dialog-backdrop ${backdropClassName ?? ""}`}
       role="presentation"
       onClick={(event) => {
         event.stopPropagation();
@@ -304,7 +304,7 @@ export function DialogHeader({
 }) {
   const heading = <h2 id={id}>{title}</h2>;
   return (
-    <div className="project-dialog-heading">
+    <div className="ui-dialog-heading">
       {eyebrow === undefined ? (
         heading
       ) : (
@@ -315,7 +315,7 @@ export function DialogHeader({
       )}
       {close === undefined ? null : (
         <button
-          className="project-dialog-close"
+          className="ui-dialog-close"
           type="button"
           aria-label={close.label}
           disabled={close.disabled}

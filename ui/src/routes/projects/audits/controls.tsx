@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useId, useRef, useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 
 import {
   auditMutationAudit,
@@ -9,11 +9,8 @@ import {
 } from "../../../api/audits";
 import { usePublicAPI } from "../../../api/context";
 import { invalidateCrossProject } from "../../../api/cross-project";
-import { PublicAPIError } from "../../../api/error";
 import { queryKeys } from "../../../api/query-keys";
 import { ActionMenu } from "../../../app/action-menu";
-import { DeleteIcon } from "../../../app/delete-icon";
-import { Dialog, DialogHeader } from "../../../app/dialog";
 import { ErrorNotice } from "../../../app/error-notice";
 import { Icon } from "../../../app/icon";
 import { checkStateLabel } from "../../../app/vocabulary";
@@ -23,17 +20,14 @@ import { auditProfileLabel } from "./labels";
 import { AuditTimeLimitDialog } from "./time-limit-dialog";
 
 import "./checks.css";
+import { ConflictNotice } from "../../../app/conflict-notice";
+import { AlertDialog, Facts } from "../../../ui";
 
 export function AuditMutationNotice({ error }: { error: unknown }) {
   return (
     <>
       <ErrorNotice error={error} reconcileWrite />
-      {error instanceof PublicAPIError && error.status === 412 ? (
-        <p className="checks-quiet" role="status">
-          The check changed in the meantime. The page now shows its current
-          state; review it before trying again.
-        </p>
-      ) : null}
+      <ConflictNotice error={error} subject="The check" />
     </>
   );
 }
@@ -95,104 +89,78 @@ function AuditMutationDialog({
   onClose: () => void;
   onConfirm: () => void;
 }) {
-  const heading = useId();
-  const description = useId();
-  const safeAction = useRef<HTMLButtonElement>(null);
   const allowed = auditActionAllowed(audit, action);
   const stopping = action === "cancel";
   const state = checkStateLabel(audit.state).label;
   return (
-    <Dialog
-      className="project-dialog panel checks-dialog"
-      labelledBy={heading}
-      describedBy={description}
-      initialFocusRef={safeAction}
-      onRequestClose={onClose}
-      role="alertdialog"
+    <AlertDialog
+      className="checks-dialog"
+      title={stopping ? "Stop this check?" : "Delete this check?"}
+      closeLabel="Close confirmation"
+      cancelLabel={stopping ? "Keep the check running" : "Keep the check"}
+      confirmLabel={stopping ? "Stop check" : "Delete check"}
+      pendingLabel={stopping ? "Stopping…" : "Deleting…"}
+      pending={pending}
+      confirmDisabled={!allowed}
+      details={
+        <>
+          <Facts
+            layout="list"
+            className="checks-dialog-facts"
+            items={[
+              {
+                term: "Project",
+                value: (
+                  <>
+                    {projectName ?? audit.projectId}{" "}
+                    <code className="ui-mono">{audit.projectId}</code>
+                  </>
+                ),
+              },
+              {
+                term: "Check",
+                value: <code className="ui-mono">{audit.auditId}</code>,
+              },
+              {
+                term: "Check type",
+                value: (
+                  <>
+                    {auditProfileLabel(audit)}{" "}
+                    <code className="ui-mono">
+                      {audit.profile.name}@{audit.profile.version}
+                    </code>
+                  </>
+                ),
+              },
+              {
+                term: "Current state",
+                value: `${state} · revision ${audit.revision}`,
+              },
+            ]}
+          />
+          {!allowed ? (
+            <div className="checks-notice" data-tone="warning" role="status">
+              <strong>This action is no longer available.</strong>
+              <p>
+                The check is now {state.toLocaleLowerCase()}. Close this
+                confirmation and review its current state.
+              </p>
+            </div>
+          ) : null}
+        </>
+      }
+      error={error === null ? null : <AuditMutationNotice error={error} />}
+      onCancel={onClose}
+      onConfirm={onConfirm}
     >
-      <DialogHeader
-        id={heading}
-        title={stopping ? "Stop this check?" : "Delete this check?"}
-        close={{
-          label: "Close confirmation",
-          disabled: pending,
-          onClose: onClose,
-        }}
-      />
-      <p id={description} className="checks-dialog-text">
+      <p>
         {stopping
           ? "Stop this check and cancel its running work. Results already collected stay available. Stopping may take a moment."
           : DELETION[audit.state] === "stops-first"
             ? "Stop this check's running work, then permanently delete the check, its results and retained evidence. This cannot be undone. Stopping and deletion run in the background and may take a moment."
             : "Permanently delete this check, its results and retained evidence. This cannot be undone. Deletion runs in the background and may take a moment."}
       </p>
-      <dl className="checks-facts checks-dialog-facts">
-        <div>
-          <dt>Project</dt>
-          <dd>
-            {projectName ?? audit.projectId}{" "}
-            <code className="checks-mono">{audit.projectId}</code>
-          </dd>
-        </div>
-        <div>
-          <dt>Check</dt>
-          <dd>
-            <code className="checks-mono">{audit.auditId}</code>
-          </dd>
-        </div>
-        <div>
-          <dt>Check type</dt>
-          <dd>
-            {auditProfileLabel(audit)}{" "}
-            <code className="checks-mono">
-              {audit.profile.name}@{audit.profile.version}
-            </code>
-          </dd>
-        </div>
-        <div>
-          <dt>Current state</dt>
-          <dd>
-            {state} · revision {audit.revision}
-          </dd>
-        </div>
-      </dl>
-      {!allowed ? (
-        <div className="checks-notice" data-tone="warning" role="status">
-          <strong>This action is no longer available.</strong>
-          <p>
-            The check is now {state.toLocaleLowerCase()}. Close this
-            confirmation and review its current state.
-          </p>
-        </div>
-      ) : null}
-      {error === null ? null : <AuditMutationNotice error={error} />}
-      <div className="checks-dialog-actions">
-        <button
-          ref={safeAction}
-          type="button"
-          className="ui-btn"
-          disabled={pending}
-          onClick={onClose}
-        >
-          {stopping ? "Keep the check running" : "Keep the check"}
-        </button>
-        <button
-          type="button"
-          className="ui-btn"
-          data-variant="danger"
-          disabled={pending || !allowed}
-          onClick={onConfirm}
-        >
-          {pending
-            ? stopping
-              ? "Stopping…"
-              : "Deleting…"
-            : stopping
-              ? "Stop check"
-              : "Delete check"}
-        </button>
-      </div>
-    </Dialog>
+    </AlertDialog>
   );
 }
 
@@ -251,7 +219,7 @@ function controlButtons(audit: Audit): ControlButton[] {
       text: "Delete check",
       name: "Delete check",
       title: "Delete check",
-      icon: <DeleteIcon />,
+      icon: <Icon name="delete" />,
       variant: "danger",
     });
   return buttons;
@@ -436,7 +404,7 @@ export function AuditControls({
   );
   return (
     <div
-      className="checks-controls"
+      className="ui-toolbar checks-controls"
       data-layout={compact ? "compact" : menu ? "menu" : undefined}
     >
       {visible.map((button) => renderButton(button))}
@@ -451,7 +419,7 @@ export function AuditControls({
                 type="button"
                 disabled
               >
-                <DeleteIcon />
+                <Icon name="delete" />
                 <span>Delete check</span>
               </button>
               <small className="checks-quiet">{DELETING_HINT}</small>
@@ -472,7 +440,7 @@ export function AuditControls({
           title={DELETING_HINT}
           disabled
         >
-          <DeleteIcon />
+          <Icon name="delete" />
           {compact ? null : <span>Delete check</span>}
         </button>
       ) : null}

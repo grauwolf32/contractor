@@ -24,6 +24,7 @@ import {
   itemOperation,
   type ItemOperation,
 } from "./check-title";
+import { plural } from "../../../app/format";
 
 /** How an item reads in lists, chips and the progress line. */
 interface ItemStatus {
@@ -282,10 +283,6 @@ export function endpointArea(path: string, prefix: string): string | undefined {
   return segments.length > 1 && !segments[0]!.startsWith("{")
     ? segments[0]
     : undefined;
-}
-
-function plural(count: number, singular: string, many: string): string {
-  return `${count.toLocaleString("en-US")} ${count === 1 ? singular : many}`;
 }
 
 /**

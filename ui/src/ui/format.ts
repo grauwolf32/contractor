@@ -1,4 +1,4 @@
-import { formatTimestamp, middleTruncate } from "../app/format";
+import { formatClock, formatTimestamp, middleTruncate } from "../app/format";
 
 /**
  * Short form of an identifier for an IdChip: values up to 16 characters stay
@@ -7,12 +7,6 @@ import { formatTimestamp, middleTruncate } from "../app/format";
 export function shortenId(value: string): string {
   return middleTruncate(value, 8, 4);
 }
-
-const clockFormat = new Intl.DateTimeFormat("en-US", {
-  hour: "2-digit",
-  minute: "2-digit",
-  hourCycle: "h23",
-});
 
 interface ClockTime {
   /** HH:MM in local time, or the original text when it is not a date. */
@@ -37,7 +31,7 @@ export function clockTime(
   }
   const iso = date.toISOString();
   return {
-    label: clockFormat.format(date),
+    label: formatClock(date),
     dateTime: iso,
     title: formatTimestamp(iso),
   };

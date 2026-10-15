@@ -12,7 +12,12 @@ import {
 } from "../../api/workflows";
 import { ContextLink } from "../../app/context-navigation";
 import { ErrorNotice } from "../../app/error-notice";
-import { compactDigest, formatBytes } from "../../app/format";
+import {
+  compactDigest,
+  formatBytes,
+  formatTimeLimit,
+  compareVersions,
+} from "../../app/format";
 import { QueryView } from "../../app/query-view";
 import {
   capitalize,
@@ -24,7 +29,6 @@ import {
 } from "../../app/vocabulary";
 import { DetailHeader, DetailPane, IdChip, TechnicalDetails } from "../../ui";
 import { auditPresetLabel } from "../projects/audits/labels";
-import { compareWorkflowVersions } from "../workflows/families";
 import { workflowFormats } from "../workflows/formats";
 import { AuditPresetStandardChecks } from "./audit-preset-checks";
 import {
@@ -45,16 +49,6 @@ const BACK = {
   returnTo: "/catalog/audit-presets",
   returnLabel: "All check types",
 };
-
-/** "10 min", "2 h", "1 h 30 min" for a check type's time limit. */
-function formatDuration(seconds: number): string {
-  if (seconds < 60) return `${seconds} s`;
-  const minutes = Math.round(seconds / 60);
-  if (minutes < 60) return `${minutes} min`;
-  const hours = Math.floor(minutes / 60);
-  const rest = minutes % 60;
-  return rest === 0 ? `${hours} h` : `${hours} h ${rest} min`;
-}
 
 const ACTIVE_TESTS: Readonly<
   Record<AuditProfile["interaction"]["activeChecks"], string>
@@ -116,7 +110,7 @@ function VersionPicker({ name, version }: { name: string; version: string }) {
           }
         >
           {[...versions]
-            .sort((left, right) => compareWorkflowVersions(right, left))
+            .sort((left, right) => compareVersions(right, left))
             .map((item) => (
               <option key={item} value={item}>
                 {item}
@@ -368,7 +362,7 @@ function CheckTypeContents({ profile }: { profile: AuditProfile }) {
         </div>
         <div>
           <dt>Time limit</dt>
-          <dd>{formatDuration(profile.execution.deadlineSeconds)}</dd>
+          <dd>{formatTimeLimit(profile.execution.deadlineSeconds)}</dd>
         </div>
         <div>
           <dt>Active tests</dt>
@@ -410,7 +404,7 @@ export function AuditPresetDetailRoute() {
   const profile = query.data;
   const selector = `${name}@${version}`;
   return (
-    <div className="library-detail">
+    <div className="ui-stack">
       <LibraryBackLink fallback={BACK} />
       <article className="library-sheet" aria-labelledby={titleId}>
         <DetailPane

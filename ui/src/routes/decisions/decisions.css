@@ -585,12 +585,6 @@ p.decisions-quiet {
   transform: rotate(90deg);
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .decisions-more-chevron {
-    transition: none;
-  }
-}
-
 /* ---------- Duplicate picker ---------- */
 
 .decisions-duplicate {

@@ -1,8 +1,6 @@
 import { parseUnifiedDiff } from "./diff-parser";
-
-function countLabel(count: number, singular: string, plural: string): string {
-  return `${count} ${count === 1 ? singular : plural}`;
-}
+import { plural } from "../../../app/format";
+import "./diff.css";
 
 export default function DiffArtifactPreview({ source }: { source: string }) {
   const diff = parseUnifiedDiff(source);
@@ -13,12 +11,12 @@ export default function DiffArtifactPreview({ source }: { source: string }) {
       aria-label="Unified diff preview"
     >
       <div className="diff-artifact-summary" aria-label="Diff summary">
-        <span>{countLabel(diff.files, "file", "files")} changed</span>
+        <span>{plural(diff.files, "file")} changed</span>
         <span className="diff-addition-count">
-          +{countLabel(diff.additions, "addition", "additions")}
+          +{plural(diff.additions, "addition")}
         </span>
         <span className="diff-deletion-count">
-          −{countLabel(diff.deletions, "deletion", "deletions")}
+          −{plural(diff.deletions, "deletion")}
         </span>
       </div>
       {diff.lines.length === 0 ? (

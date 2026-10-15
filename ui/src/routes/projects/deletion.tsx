@@ -1,10 +1,9 @@
-import { useId, useRef, useState } from "react";
+import { useId, useState } from "react";
 
 import type { Project, ProjectDeletionPhase } from "../../api/projects";
-import { Dialog, DialogHeader } from "../../app/dialog";
 import { ErrorNotice } from "../../app/error-notice";
 import { formatTimestamp } from "../../app/format";
-import { StatusGlyph } from "../../ui";
+import { AlertDialog, Field, StatusGlyph } from "../../ui";
 
 import "./projects.css";
 
@@ -54,65 +53,45 @@ export function DeleteProjectDialog({
   onCancel: () => void;
   onConfirm: () => void;
 }) {
-  const heading = useId();
-  const warning = useId();
-  const cancelButton = useRef<HTMLButtonElement>(null);
   const [confirmation, setConfirmation] = useState("");
   const resourceLabel = project.kind === "evaluation" ? "Eval" : "Project";
   return (
-    <Dialog
-      className="project-dialog project-delete-dialog panel"
-      labelledBy={heading}
-      describedBy={warning}
-      initialFocusRef={cancelButton}
-      onRequestClose={() => {
-        if (!pending) onCancel();
-      }}
-      role="alertdialog"
+    <AlertDialog
+      eyebrow="Permanent workspace deletion"
+      title={<>Delete {project.name}?</>}
+      confirmLabel={`Delete ${resourceLabel}`}
+      pendingLabel="Starting deletion…"
+      pending={pending}
+      confirmDisabled={confirmation !== project.name}
+      details={
+        <Field
+          label={
+            <>
+              Type <strong>{project.name}</strong> to confirm
+            </>
+          }
+        >
+          {(control) => (
+            <input
+              {...control}
+              value={confirmation}
+              disabled={pending}
+              autoComplete="off"
+              onChange={(event) => setConfirmation(event.currentTarget.value)}
+            />
+          )}
+        </Field>
+      }
+      error={error === null ? null : <ErrorNotice error={error} />}
+      onCancel={onCancel}
+      onConfirm={onConfirm}
     >
-      <DialogHeader
-        id={heading}
-        eyebrow="Permanent workspace deletion"
-        title={<>Delete {project.name}?</>}
-      />
-      <p className="project-delete-warning" id={warning}>
+      <p>
         This cancels every active Run and permanently deletes all Project Runs,
         execution history, and Project-scoped Artifacts. Shared User Artifacts,
         Skills, and Runtime credentials are retained.
       </p>
-      <label className="projects-field">
-        <span>
-          Type <strong>{project.name}</strong> to confirm
-        </span>
-        <input
-          value={confirmation}
-          disabled={pending}
-          autoComplete="off"
-          onChange={(event) => setConfirmation(event.currentTarget.value)}
-        />
-      </label>
-      {error === null ? null : <ErrorNotice error={error} />}
-      <div className="projects-form-actions">
-        <button
-          ref={cancelButton}
-          className="ui-btn"
-          type="button"
-          disabled={pending}
-          onClick={onCancel}
-        >
-          Cancel
-        </button>
-        <button
-          className="ui-btn"
-          data-variant="danger"
-          type="button"
-          disabled={pending || confirmation !== project.name}
-          onClick={onConfirm}
-        >
-          {pending ? "Starting deletion…" : `Delete ${resourceLabel}`}
-        </button>
-      </div>
-    </Dialog>
+    </AlertDialog>
   );
 }
 

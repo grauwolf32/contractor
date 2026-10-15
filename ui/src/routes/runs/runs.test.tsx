@@ -380,7 +380,7 @@ describe("Run routes", () => {
     const user = userEvent.setup();
     await user.click(retry);
     // Retry has its own confirmation, distinct from Continue and Repeat.
-    const dialog = screen.getByRole("dialog", {
+    const dialog = screen.getByRole("alertdialog", {
       name: "Retry the model connection?",
     });
     expect(dialog).toHaveTextContent(
@@ -394,7 +394,9 @@ describe("Run routes", () => {
     await user.click(retry);
     await user.click(
       within(
-        screen.getByRole("dialog", { name: "Retry the model connection?" }),
+        screen.getByRole("alertdialog", {
+          name: "Retry the model connection?",
+        }),
       ).getByRole("button", { name: "Confirm retry" }),
     );
     await waitFor(() =>
@@ -797,7 +799,7 @@ describe("Run routes", () => {
     await user.click(
       await screen.findByRole("button", { name: "Retry model connection" }),
     );
-    const dialog = screen.getByRole("dialog", {
+    const dialog = screen.getByRole("alertdialog", {
       name: "Retry the model connection?",
     });
     await user.click(
@@ -831,7 +833,7 @@ describe("Run routes", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
     await user.click(trigger);
     expect(
-      screen.getByRole("dialog", { name: "Retry the model connection?" }),
+      screen.getByRole("alertdialog", { name: "Retry the model connection?" }),
     ).toHaveTextContent("The model request timed out.");
     expect(posts).toBe(1);
   });

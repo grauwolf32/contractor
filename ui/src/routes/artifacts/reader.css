@@ -1,3 +1,100 @@
+/* Markdown previews (previews/markdown.tsx). */
+
+.markdown-artifact-preview {
+  max-height: 42rem;
+  overflow: auto;
+  padding: clamp(1rem, 3vw, 2.25rem);
+  color: var(--text);
+  line-height: 1.7;
+}
+
+.markdown-artifact-preview > :first-child {
+  margin-top: 0;
+}
+
+.markdown-artifact-preview > :last-child {
+  margin-bottom: 0;
+}
+
+.markdown-artifact-preview h1,
+.markdown-artifact-preview h2,
+.markdown-artifact-preview h3,
+.markdown-artifact-preview h4 {
+  margin: 1.5em 0 0.55em;
+  color: var(--text);
+  line-height: 1.25;
+}
+
+.markdown-artifact-preview h1,
+.markdown-artifact-preview h2 {
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 0.35em;
+}
+.markdown-artifact-preview h1 {
+  font-size: 1.25rem;
+}
+
+.markdown-artifact-preview h2 {
+  font-size: 1.1rem;
+}
+
+.markdown-artifact-preview h3 {
+  font-size: 1rem;
+}
+
+.markdown-artifact-preview h4,
+.markdown-artifact-preview h5,
+.markdown-artifact-preview h6 {
+  margin: 1.5em 0 0.55em;
+  color: var(--text);
+  font-size: 0.95rem;
+  line-height: 1.25;
+}
+
+.markdown-artifact-preview blockquote {
+  margin-inline: 0;
+  border-left: 3px solid var(--accent-line);
+  color: var(--muted-strong);
+  padding-left: 1rem;
+}
+
+.markdown-artifact-preview pre {
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  background: var(--sunken);
+  padding: 0.85rem;
+}
+
+.markdown-artifact-preview pre code {
+  color: var(--text);
+  white-space: pre;
+}
+
+.markdown-artifact-preview :not(pre) > code {
+  border-radius: 0.25rem;
+  background: var(--surface-raised);
+  padding: 0.12rem 0.3rem;
+}
+
+.markdown-artifact-preview table {
+  display: block;
+  overflow-x: auto;
+}
+
+.markdown-artifact-preview li + li {
+  margin-top: 0.25rem;
+}
+
+.markdown-image-placeholder {
+  display: inline-flex;
+  border: 1px dashed var(--line-strong);
+  border-radius: 0.35rem;
+  color: var(--muted);
+  padding: 0.2rem 0.45rem;
+  font-size: 0.78rem;
+}
+
 /* Document metadata (Skill frontmatter) above a Markdown preview. */
 .document-frontmatter {
   display: grid;

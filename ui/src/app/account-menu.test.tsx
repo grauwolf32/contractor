@@ -149,8 +149,9 @@ describe("account menu", () => {
     await user.click(within(theme).getByRole("radio", { name: "Black" }));
     expect(document.documentElement).toHaveAttribute("data-theme", "black");
 
+    // jsdom reports no dark system preference, so System resolves to light.
     await user.click(within(theme).getByRole("radio", { name: "System" }));
-    expect(document.documentElement).not.toHaveAttribute("data-theme");
+    expect(document.documentElement).toHaveAttribute("data-theme", "light");
   });
 
   it("signs out and discards the session's run drafts", async () => {

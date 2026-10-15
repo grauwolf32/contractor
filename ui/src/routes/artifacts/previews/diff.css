@@ -1,0 +1,116 @@
+/* The unified diff preview (diff.tsx); line colours come from the --diff-* tokens. */
+
+.diff-artifact-preview {
+  color: var(--text);
+}
+
+.diff-artifact-summary {
+  display: flex;
+  min-height: 3rem;
+  align-items: center;
+  gap: 0.8rem;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface-subtle);
+  padding: 0.55rem 0.85rem;
+  color: var(--muted-strong);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.diff-artifact-summary > span:first-child {
+  margin-right: auto;
+}
+
+.diff-addition-count {
+  color: var(--diff-add-count);
+}
+
+.diff-deletion-count {
+  color: var(--diff-del-count);
+}
+
+.diff-lines {
+  max-height: 42rem;
+  overflow: auto;
+  background: var(--sunken);
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  line-height: 1.55;
+}
+
+.diff-line {
+  display: grid;
+  width: max-content;
+  min-width: 100%;
+  grid-template-columns: 3.25rem 3.25rem minmax(max-content, 1fr);
+}
+
+.diff-line > * {
+  padding-block: 0.08rem;
+}
+
+.diff-line-number {
+  border-right: 1px solid var(--diff-num-line);
+  color: var(--diff-num-ink);
+  padding-inline: 0.55rem;
+  text-align: right;
+  user-select: none;
+}
+
+.diff-line code {
+  display: block;
+  max-width: none;
+  overflow-wrap: normal;
+  padding-inline: 0.8rem 1.5rem;
+  color: inherit;
+  font: inherit;
+  white-space: pre;
+}
+
+.diff-line-addition {
+  background: var(--diff-add-bg);
+  color: var(--diff-add-ink);
+}
+
+.diff-line-addition .diff-line-number {
+  background: var(--diff-add-num-bg);
+  color: var(--diff-add-num-ink);
+}
+
+.diff-line-deletion {
+  background: var(--diff-del-bg);
+  color: var(--diff-del-ink);
+}
+
+.diff-line-deletion .diff-line-number {
+  background: var(--diff-del-num-bg);
+  color: var(--diff-del-num-ink);
+}
+
+.diff-line-hunk {
+  background: var(--diff-hunk-bg);
+  color: var(--diff-hunk-ink);
+}
+
+.diff-line-hunk .diff-line-number {
+  background: var(--diff-hunk-num-bg);
+  color: var(--diff-hunk-ink);
+}
+
+.diff-line-file {
+  background: var(--diff-file-bg);
+  color: var(--diff-file-ink);
+  font-weight: 700;
+}
+
+.diff-line-meta {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.diff-artifact-empty {
+  margin: 0;
+  padding: 2.5rem 1rem;
+  color: var(--muted);
+  text-align: center;
+}

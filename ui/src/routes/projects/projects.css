@@ -181,7 +181,7 @@
   gap: 0.5rem;
 }
 
-.project-dialog .projects-form-actions {
+.ui-dialog .projects-form-actions {
   justify-content: flex-end;
   margin-top: 0.25rem;
 }

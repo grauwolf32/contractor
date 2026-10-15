@@ -1,5 +1,5 @@
 import type { EvalCapabilities, EvalDraft, EvalVariant } from "../../api/evals";
-import { compareWorkflowVersions } from "../workflows/families";
+import { compareVersions } from "../../app/format";
 
 export const MAX_EVAL_CASES = 1000;
 export const MAX_EVAL_MEMBERS = 1000;
@@ -112,8 +112,7 @@ export function sortedBindings(
       const [aName, aVersion = ""] = a.selector.split("@");
       const [bName, bVersion = ""] = b.selector.split("@");
       return (
-        aName!.localeCompare(bName!) ||
-        compareWorkflowVersions(bVersion, aVersion)
+        aName!.localeCompare(bName!) || compareVersions(bVersion, aVersion)
       );
     });
 }

@@ -21,7 +21,7 @@ import { DetailHeader, DetailPane, IdChip } from "../../ui";
 import { DeleteProjectDialog, ProjectDeletionProgress } from "./deletion";
 import { ProjectNavigation } from "./navigation";
 import { ProjectSectionActionsContext } from "./section-actions-context";
-import { useProjectDeletion } from "./use-project-deletion";
+import { pollWhileDeleting, useProjectDeletion } from "./use-project-deletion";
 import type { ProjectWorkspaceContext } from "./workspace-context";
 
 import "../primary-actions.css";
@@ -41,8 +41,7 @@ export function ProjectWorkspace({ projectId }: { projectId: string }) {
     queryKey: queryKeys.projects.detail(projectId),
     queryFn: () => getProject(api, projectId),
     enabled: validProject,
-    refetchInterval: (query) =>
-      query.state.data?.lifecycle === "deleting" ? 1_000 : false,
+    refetchInterval: pollWhileDeleting,
     retry: (failureCount, error) =>
       !(error instanceof PublicAPIError && error.status === 404) &&
       failureCount < 2,

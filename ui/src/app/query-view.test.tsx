@@ -59,4 +59,32 @@ describe("QueryView", () => {
     expect(screen.getByText("Nothing yet")).toBeInTheDocument();
     expect(screen.queryByText(/Loaded/)).not.toBeInTheDocument();
   });
+
+  it("reads a query result directly: default loading text and its own refetch", async () => {
+    const refetch = vi.fn();
+    const { rerender } = render(
+      <QueryView
+        query={{ data: undefined, error: null, isFetching: true, refetch }}
+      >
+        {(value: string) => <p>Loaded {value}</p>}
+      </QueryView>,
+    );
+    expect(screen.getByRole("status")).toHaveTextContent("Loading…");
+    rerender(
+      <QueryView
+        query={{
+          data: undefined,
+          error: new Error("Server unavailable"),
+          isFetching: false,
+          refetch,
+        }}
+      >
+        {(value: string) => <p>Loaded {value}</p>}
+      </QueryView>,
+    );
+    await userEvent
+      .setup()
+      .click(screen.getByRole("button", { name: "Try again" }));
+    expect(refetch).toHaveBeenCalledOnce();
+  });
 });

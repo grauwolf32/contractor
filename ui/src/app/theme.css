@@ -1,10 +1,12 @@
 /*
- * Colour and type tokens for the light, dark and black themes
- * (docs/design/ui/themes.md). Every colour in the UI comes from these tokens.
+ * Colour, type and scale tokens for the light, dark and black themes
+ * (docs/design/ui/themes.md). Every colour in the UI comes from these tokens,
+ * and spacing, radii, font sizes and control heights come from the scale
+ * (src/ui/README.md, "Style scale").
  *
- * Light is the base. With no data-theme attribute the system preference
- * decides between light and dark; data-theme="light|dark|black" is an
- * explicit choice (src/app/theme.ts).
+ * Light is the base. src/app/theme.ts always sets data-theme="light|dark|
+ * black": an explicit choice, or the system preference resolved to light or
+ * dark and followed while it changes.
  */
 :root {
   color-scheme: light;
@@ -14,6 +16,44 @@
   --font-mono:
     "JetBrains Mono Variable", ui-monospace, SFMono-Regular, Menlo, Consolas,
     monospace;
+
+  /* Spacing: a 4 px grid, --space-N = N x 0.25rem, with half steps. */
+  --space-0-5: 0.125rem;
+  --space-1: 0.25rem;
+  --space-1-5: 0.375rem;
+  --space-2: 0.5rem;
+  --space-2-5: 0.625rem;
+  --space-3: 0.75rem;
+  --space-3-5: 0.875rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-12: 3rem;
+
+  /* Radii: chips and inputs, controls, cards, panes, pills. */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+  --radius-xl: 12px;
+  --radius-2xl: 14px;
+  --radius-full: 999px;
+
+  /* Font sizes: 11, 12, 13, 14, 16, 20 and 24 px. */
+  --text-2xs: 0.6875rem;
+  --text-xs: 0.75rem;
+  --text-sm: 0.8125rem;
+  --text-md: 0.875rem;
+  --text-base: 1rem;
+  --text-lg: 1.25rem;
+  --text-xl: 1.5rem;
+
+  /* Control heights: xs, sm and md buttons; lg is the touch target. */
+  --control-xs: 1.75rem;
+  --control-sm: 2rem;
+  --control-md: 2.375rem;
+  --control-lg: 2.75rem;
 
   --background: #eceff3;
   --surface: #ffffff;
@@ -126,99 +166,16 @@
   --gpu-16: #2f3744;
 }
 
+/*
+ * First paint for a dark system preference, before src/app/theme.ts sets
+ * data-theme (it resolves "system" to light or dark and follows changes).
+ * The values repeat the dark block below; theme.test.ts keeps them equal.
+ */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme]) {
     color-scheme: dark;
     --background: #0b0e13;
-    --surface: #121720;
-    --surface-subtle: #0e131a;
-    --surface-raised: #1a202b;
-    --surface-hover: #1e2633;
-    --sunken: #090d12;
-    --row-hover: #161d28;
-    --line: #222b38;
-    --line-strong: #344155;
     --text: #e9edf3;
-    --muted: #a8b3c3;
-    --muted-strong: #c9d2de;
-    --primary: #d3dbe6;
-    --primary-hover: #e6ebf2;
-    --on-primary: #0b1017;
-    --accent: #9fbde0;
-    --accent-dark: #172334;
-    --accent-line: #3a5677;
-    --link: #9fbde0;
-    --focus: #9fbde0;
-    --focus-ring: rgb(159 189 224 / 28%);
-    --success: #72d895;
-    --success-bg: #10261a;
-    --success-line: #2c6343;
-    --warning: #f3b54a;
-    --warning-bg: #2a2010;
-    --warning-line: #6b5424;
-    --danger: #ff8e85;
-    --danger-bg: #311614;
-    --danger-bg-strong: #45201d;
-    --danger-line: #6e3431;
-    --danger-ink: #ffc2bc;
-    --danger-strong: #ffa49c;
-    --on-danger: #2a0b09;
-    --info: #8fb3ff;
-    --info-bg: #14213b;
-    --info-line: #2f4878;
-    --code-ink: #cdd9e8;
-    --scrim: rgb(4 6 9 / 72%);
-    --shadow-lg:
-      0 24px 64px -16px rgb(0 0 0 / 75%), 0 0 0 1px rgb(255 255 255 / 4%);
-    --chrome: #1b2331;
-    --chrome-2: #243044;
-    --faint: #99a5b7;
-    --code-bg: #0e131a;
-    --code-hl: #172334;
-    --badge-bg: #d3dbe6;
-    --badge-ink: #0b1017;
-    --m-idle: #2b3546;
-    --m-partial: #f6c35c;
-    --m-progress: #6f9bff;
-    --m-blocked: #e0483f;
-    --m-done: #5cc983;
-    --diff-add-bg: #10291b;
-    --diff-add-ink: #b9f6ca;
-    --diff-add-num-bg: #174127;
-    --diff-add-num-ink: #91dca9;
-    --diff-del-bg: #30171a;
-    --diff-del-ink: #ffd0d4;
-    --diff-del-num-bg: #512027;
-    --diff-del-num-ink: #f3a1a8;
-    --diff-hunk-bg: #10233a;
-    --diff-hunk-ink: #9dcaff;
-    --diff-hunk-num-bg: #142c49;
-    --diff-file-bg: #171d26;
-    --diff-file-ink: #d7e5f8;
-    --diff-num-ink: #7d8a9c;
-    --diff-num-line: rgb(255 255 255 / 6%);
-    --diff-add-count: #75d89a;
-    --diff-del-count: #ff938a;
-    --eval-a: #78b9ff;
-    --eval-b: #ffb56e;
-    --eval-b-stripe: #925621;
-    --chart-axis: #4d5968;
-    --gpu-1: #56b4e9;
-    --gpu-2: #e69f00;
-    --gpu-3: #2fc79a;
-    --gpu-4: #f0e442;
-    --gpu-5: #cc79a7;
-    --gpu-6: #ff7a45;
-    --gpu-7: #a99cff;
-    --gpu-8: #c9d2de;
-    --gpu-9: #9fd3f5;
-    --gpu-10: #f5c45c;
-    --gpu-11: #7ee0bf;
-    --gpu-12: #f7ef8a;
-    --gpu-13: #e3a6c8;
-    --gpu-14: #ffa883;
-    --gpu-15: #cbc3ff;
-    --gpu-16: #e6ebf2;
   }
 }
 

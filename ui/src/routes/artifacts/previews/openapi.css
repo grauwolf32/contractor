@@ -1,0 +1,18 @@
+/* The OpenAPI preview (openapi.tsx) around the Scalar reference. */
+
+.openapi-artifact-preview {
+  height: min(70vh, 52rem);
+  min-height: 32rem;
+  overflow: auto;
+  background: var(--sunken);
+}
+
+.openapi-artifact-preview .scalar-app {
+  min-height: 100%;
+}
+
+/* Third-party buttons inside the preview keep their own size, not the
+   global button rule's minimum height (src/styles.css). */
+.openapi-artifact-preview button {
+  min-height: initial;
+}

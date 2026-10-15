@@ -12,30 +12,10 @@
 import type { ArtifactMetadata } from "../../../api/artifacts";
 import type { AuditProfile } from "../../../api/audits";
 import { checkItemKind, itemCount, itemNoun } from "../../../app/vocabulary";
+import { compareVersions } from "../../../app/format";
 
 export type ProfileInput = AuditProfile["inputs"][string];
 type CompatibilityReason = AuditProfile["compatibilityReasons"][number];
-
-/**
- * Version order, oldest first: dotted numbers compare part by part
- * ("10" after "9", "1.10" after "1.9"); other versions compare naturally.
- */
-export function compareVersions(left: string, right: string): number {
-  const numeric = /^\d+(?:\.\d+)*$/;
-  if (numeric.test(left) && numeric.test(right)) {
-    const a = left.split(".").map(BigInt);
-    const b = right.split(".").map(BigInt);
-    for (let index = 0; index < Math.max(a.length, b.length); index++) {
-      const x = a[index] ?? 0n;
-      const y = b[index] ?? 0n;
-      if (x !== y) return x > y ? 1 : -1;
-    }
-  }
-  return (
-    left.localeCompare(right, "en", { numeric: true }) ||
-    (left < right ? -1 : left > right ? 1 : 0)
-  );
-}
 
 /** All loaded versions of one check type name. */
 export interface CheckTypeFamily {

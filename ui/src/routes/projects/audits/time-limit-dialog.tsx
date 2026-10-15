@@ -49,7 +49,7 @@ export function AuditTimeLimitDialog({
   const title = action === "start" ? "Start check" : "Continue check";
   return (
     <Dialog
-      className="project-dialog panel checks-dialog"
+      className="ui-dialog ui-panel checks-dialog"
       labelledBy={heading}
       initialFocusRef={initialFocus}
       onRequestClose={() => {

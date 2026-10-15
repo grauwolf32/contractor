@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  compareVersions,
   formatList,
   groupFamilies,
   groupRows,
@@ -29,17 +28,6 @@ import {
 } from "./test-fixtures";
 
 describe("check type versions", () => {
-  it("orders numeric versions as numbers and others naturally", () => {
-    expect(["2", "10", "9", "1.10", "1.9"].sort(compareVersions)).toEqual([
-      "1.9",
-      "1.10",
-      "2",
-      "9",
-      "10",
-    ]);
-    expect(compareVersions("beta-2", "beta-10")).toBeLessThan(0);
-  });
-
   it("prefers the newest version the Server can run", () => {
     const newest = profileFixture("source-review", {
       version: "10",

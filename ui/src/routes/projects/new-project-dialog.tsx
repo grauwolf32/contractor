@@ -102,7 +102,7 @@ export function NewProjectDialog({
 
   return (
     <Dialog
-      className="project-dialog panel projects-new-dialog"
+      className="ui-dialog ui-panel projects-new-dialog"
       labelledBy={heading}
       initialFocusRef={nameField}
       onRequestClose={close}

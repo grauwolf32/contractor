@@ -117,7 +117,7 @@
   margin: 0.75rem 0;
 }
 
-@media (max-width: 760px) {
+@media (max-width: 820px) {
   .eval-tabs:has(+ .mobile-section-picker) {
     display: none;
   }
@@ -637,12 +637,6 @@
   flex-direction: column;
   gap: 0.75rem;
   padding: 0.875rem;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  :is(.eval-disclosure, .eval-filters, .eval-data-table) > summary::before {
-    transition: none;
-  }
 }
 
 /* ---------- Experiments list (PaneLayout) ---------- */
@@ -1663,7 +1657,7 @@
 
 /* ---------- Confirmation dialog (portaled out of the page) ---------- */
 
-.project-dialog.eval-dialog {
+.ui-dialog.eval-dialog {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
@@ -1672,7 +1666,7 @@
   border-radius: 14px;
 }
 
-.project-dialog.eval-dialog h2 {
+.ui-dialog.eval-dialog h2 {
   font-size: 1.25rem;
   letter-spacing: -0.02em;
 }

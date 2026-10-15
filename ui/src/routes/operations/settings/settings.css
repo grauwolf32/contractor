@@ -208,7 +208,7 @@
   font-size: 0.78125rem;
 }
 
-@media (max-width: 960px) {
+@media (max-width: 1100px) {
   .ops-setting {
     grid-template-columns: minmax(0, 1fr);
     gap: 1rem;

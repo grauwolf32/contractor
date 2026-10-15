@@ -101,19 +101,6 @@
   outline-offset: 1px;
 }
 
-.workflow-card-tag {
-  display: inline-flex;
-  align-items: center;
-  padding: 0.125rem 0.5rem;
-  border-radius: 999px;
-  background: var(--chrome);
-  color: var(--muted-strong);
-  font-size: 0.75rem;
-  font-weight: 700;
-  line-height: 1.3;
-  white-space: nowrap;
-}
-
 .workflow-card-tag[data-tone="accent"] {
   background: var(--sel);
   color: var(--text);
@@ -292,7 +279,7 @@
   color: var(--text);
 }
 
-@media (max-width: 600px) {
+@media (max-width: 640px) {
   .workflow-card-contract {
     grid-template-columns: 1fr;
   }

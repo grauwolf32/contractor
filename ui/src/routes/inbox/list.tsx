@@ -49,6 +49,7 @@ import {
   SECTIONS,
   SUCCEEDED_RUNS_PATH,
 } from "./present";
+import { plural } from "../../app/format";
 
 const UNAVAILABLE = "Some of this could not be loaded. Try again above.";
 
@@ -392,10 +393,6 @@ function Section({
       {children}
     </ListSection>
   );
-}
-
-function plural(count: number, one: string, many: string): string {
-  return `${count.toLocaleString("en-US")} ${count === 1 ? one : many}`;
 }
 
 /**

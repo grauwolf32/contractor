@@ -14,7 +14,6 @@ import {
   type StatusTone,
 } from "../../ui";
 import { ReportDecision } from "../decisions";
-import { checkPath } from "./filters";
 import {
   downloadReportFile,
   summaryDisclaimsCertification,
@@ -22,6 +21,7 @@ import {
 } from "./report-data";
 
 import "./reports.css";
+import { sectionPath } from "../projects/audits/check-links";
 
 const ReportMarkdown = lazy(() => import("./report-markdown"));
 
@@ -323,7 +323,9 @@ export function ReportContent({
             issues are separate from the technical outcome of the check.
           </span>
         ) : null}
-        <Link to={`${checkPath(audit, "coverage")}?result=uncertain`}>
+        <Link
+          to={`${sectionPath(audit.projectId, audit.auditId, "coverage")}?result=uncertain`}
+        >
           Review coverage gaps →
         </Link>
       </p>

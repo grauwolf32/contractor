@@ -21,7 +21,8 @@ import { QueryView } from "../app/query-view";
 import { EmptyState } from "../ui";
 import { RunMetadataLabelChips, RunStateChip } from "./runs/components";
 import { RunIdLink, RunsFilter } from "./runs/list-parts";
-import { MEMBERSHIP_LABELS, RUN_STATE_LABELS } from "./runs/run-state";
+import { MEMBERSHIP_LABELS } from "./runs/run-state";
+import { RUN_STATE_LABELS } from "../app/vocabulary";
 
 const LIVE_SUBSCRIPTION_LIMIT = 24;
 // Live subscriptions left waiting by a failed resync, or by a live session

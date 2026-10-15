@@ -9,7 +9,7 @@ import type {
   CrossProjectCheck,
   CrossProjectDecision,
 } from "../../api/cross-project";
-import type { RunStatus, RunSummary, WorkflowRunState } from "../../api/runs";
+import type { RunStatus, RunSummary } from "../../api/runs";
 import {
   capitalize,
   checkItemKind,
@@ -17,7 +17,6 @@ import {
   itemCount,
   itemNoun,
   type ItemKind,
-  type VocabularyLabel,
 } from "../../app/vocabulary";
 import type { ProgressSegment } from "../../ui";
 import { auditPresetLabel } from "../projects/audits/labels";
@@ -28,6 +27,7 @@ import {
   type OutputEntry,
   type WorkflowOutputSlot,
 } from "../runs/output-model";
+import { checkPath, sectionPath } from "../projects/audits/check-links";
 
 /** Section titles, asides and empty states (V3B home mockup). */
 export const SECTIONS: Readonly<
@@ -72,21 +72,17 @@ export function projectPath(projectId: string): string {
   return `/projects/${segment(projectId)}`;
 }
 
-export function checkPath(projectId: string, auditId: string): string {
-  return `${projectPath(projectId)}/audits/${segment(auditId)}`;
-}
-
 /**
  * The check's coverage filtered to the work that needs follow-up: blocked,
  * inconclusive, partially traced, unmapped and excluded items, the statuses
  * the workspace counts as gaps.
  */
 export function followUpPath(projectId: string, auditId: string): string {
-  return `${checkPath(projectId, auditId)}/coverage?result=uncertain`;
+  return `${sectionPath(projectId, auditId, "coverage")}?result=uncertain`;
 }
 
 export function pendingReviewsPath(projectId: string, auditId: string) {
-  return `${checkPath(projectId, auditId)}/reviews?state=pending`;
+  return `${sectionPath(projectId, auditId, "reviews")}?state=pending`;
 }
 
 export function issuePath(auditId: string, findingId: string): string {
@@ -254,44 +250,6 @@ export function reviewTitle(
   kindLabel: string,
 ): string {
   return `${kindLabel}: ${item === undefined ? decision.project.name : itemLabel(item)}`;
-}
-
-const RUN_STATE_LABELS: Readonly<Record<WorkflowRunState, VocabularyLabel>> = {
-  initializing: { label: "Starting", tone: "progress" },
-  pending: { label: "Queued", tone: "idle" },
-  waiting: { label: "Waiting for the model", tone: "warning" },
-  running: { label: "Running", tone: "progress" },
-  cancelling: { label: "Cancelling", tone: "warning" },
-  succeeded: { label: "Succeeded", tone: "done" },
-  failed: { label: "Failed", tone: "blocked" },
-  cancelled: { label: "Cancelled", tone: "neutral" },
-};
-
-/** Run state for people: "Failed", "Waiting for the model", … */
-export function runStateLabel(state: WorkflowRunState): VocabularyLabel {
-  return Object.hasOwn(RUN_STATE_LABELS, state)
-    ? RUN_STATE_LABELS[state]
-    : {
-        label: capitalize(String(state).replaceAll("_", " ")),
-        tone: "neutral",
-      };
-}
-
-type RecoveryCode = NonNullable<RunStatus["recovery"]>["code"];
-
-// The Run page's words for each recovery cause (routes/runs/recovery.tsx).
-const RECOVERY_REASONS: Readonly<Record<RecoveryCode, string>> = {
-  model_unavailable: "The model was unloaded or is unavailable.",
-  gateway_unavailable: "The model gateway is unavailable.",
-  gateway_timeout: "The model request timed out.",
-  gateway_rate_limited: "The model gateway is rate limiting requests.",
-};
-
-/** Why a waiting Run waits, in the Run page's words. */
-export function recoveryReason(code: RecoveryCode): string {
-  return Object.hasOwn(RECOVERY_REASONS, code)
-    ? RECOVERY_REASONS[code]
-    : "The model connection is interrupted.";
 }
 
 type OutputArtifact = NonNullable<OutputEntry["artifact"]>;

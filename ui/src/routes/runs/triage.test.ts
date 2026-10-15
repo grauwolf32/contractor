@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { RunStatus, StageAttempt } from "../../api/runs";
-import { deriveRunTriage, formatRunDuration } from "./triage";
+import { deriveRunTriage } from "./triage";
 
 const digest = `sha256:${"1".repeat(64)}`;
 
@@ -197,14 +197,6 @@ describe("Run triage", () => {
       });
     },
   );
-
-  it("formats bounded durations for quick scanning", () => {
-    expect(formatRunDuration(undefined)).toBe("—");
-    expect(formatRunDuration(700)).toBe("<1s");
-    expect(formatRunDuration(34_000)).toBe("34s");
-    expect(formatRunDuration(254_000)).toBe("4m 14s");
-    expect(formatRunDuration(7_440_000)).toBe("2h 4m");
-  });
 
   it("distinguishes an active configured retry from a manual new Run", () => {
     const source = attempt("stage-1", "analysis", 1);

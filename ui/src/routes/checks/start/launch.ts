@@ -21,9 +21,9 @@
  * Nothing is shown as created or started before the Server says so: lists
  * are invalidated and refetched after every answer.
  */
+import { useNavigate } from "react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router";
 
 import {
   auditMutationAudit,
@@ -37,11 +37,12 @@ import { usePublicAPI } from "../../../api/context";
 import { invalidateCrossProject } from "../../../api/cross-project";
 import { PublicAPIError } from "../../../api/error";
 import { queryKeys } from "../../../api/query-keys";
-import { usePageLocationNow } from "../../../app/page-location";
 import {
   canonicalMutationRequest,
   MutationDraftKeyring,
 } from "../../../mutations/idempotency";
+import { usePageLocationNow } from "../../../app/page-location";
+import { checkPath } from "../../projects/audits/check-links";
 
 type LaunchIntent = "start" | "draft";
 
@@ -98,10 +99,6 @@ export type StartFailure =
       /** The draft had changed (412 or a newer revision on the fresh read). */
       readonly revisionChanged: boolean;
     };
-
-export function checkPath(projectId: string, auditId: string): string {
-  return `/projects/${encodeURIComponent(projectId)}/audits/${encodeURIComponent(auditId)}`;
-}
 
 /** A request whose answer did not arrive: the Server may have applied it. */
 export function isLostResponse(error: unknown): boolean {

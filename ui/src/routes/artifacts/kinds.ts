@@ -4,12 +4,15 @@ import {
 } from "../../api/artifacts";
 import { workflowFormats } from "../workflows/formats";
 import { SKILL_ARCHIVE_MEDIA_TYPE } from "./artifact-file";
+import { formatBytes } from "../../app/format";
 
 /**
  * What a material is for, read from where it is stored and its format
  * (coverage map: "Namespaces read as kinds"). The kind only groups and labels
  * materials; it never claims more about the content than its namespace or
- * media type says.
+ * media type says. This is the one classification: a Project's Overview, its
+ * timeline and Materials all read it, so a material has the same kind
+ * everywhere.
  */
 export type MaterialKind =
   "source" | "api" | "architecture" | "docs" | "diffs" | "other";
@@ -24,7 +27,7 @@ export const MATERIAL_KIND_ORDER: readonly MaterialKind[] = [
   "other",
 ];
 
-const MATERIAL_KIND_LABELS: Readonly<Record<MaterialKind, string>> = {
+export const MATERIAL_KIND_LABELS: Readonly<Record<MaterialKind, string>> = {
   source: "Source code",
   api: "API spec",
   architecture: "Architecture",
@@ -110,6 +113,13 @@ export function formatLabel(mediaType: string): string {
   return Object.hasOwn(workflowFormats, mediaType)
     ? workflowFormats[mediaType]!
     : mediaType;
+}
+
+/** "ZIP · 68.7 KiB": the readable format and size of one revision. */
+export function materialFormat(
+  item: Pick<ArtifactMetadata, "mediaType" | "size">,
+): string {
+  return `${formatLabel(item.mediaType)} · ${formatBytes(item.size)}`;
 }
 
 /** One way to add a material, offered by the "Add material" sheet. */

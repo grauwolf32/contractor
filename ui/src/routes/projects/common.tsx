@@ -28,7 +28,7 @@ export function ProjectRegion({
   compact?: boolean;
 }) {
   return (
-    <section className="panel project-region" id={id}>
+    <section className="ui-panel project-region" id={id}>
       {compact ? (
         action === undefined ? null : (
           <ProjectSectionActions>{action}</ProjectSectionActions>

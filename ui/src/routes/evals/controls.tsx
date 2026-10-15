@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useEffectEvent, useId, useRef, useState } from "react";
 import { useNavigate } from "react-router";
+import { useEffect, useEffectEvent, useId, useRef, useState } from "react";
 import { usePublicAPI } from "../../api/context";
 import { invalidateCrossProject } from "../../api/cross-project";
 import { PublicAPIError } from "../../api/error";
@@ -379,7 +379,7 @@ export function EvalControls({
       />
       {confirm ? (
         <Dialog
-          className="project-dialog panel eval-dialog"
+          className="ui-dialog ui-panel eval-dialog"
           labelledBy={heading}
           initialFocusRef={dismiss}
           onRequestClose={() => {

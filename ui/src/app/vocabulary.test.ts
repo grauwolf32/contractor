@@ -30,6 +30,10 @@ import {
   reviewActionLabel,
   reviewKindLabel,
   reviewStateLabel,
+  RUN_STATE_LABELS,
+  runRecoveryReason,
+  runStateLabel,
+  runStatePhrase,
   SEVERITY_LABELS,
   severityLabel,
   TERMS,
@@ -87,6 +91,7 @@ describe("vocabulary", () => {
     ["AuditReviewAction", REVIEW_ACTION_LABELS, enumOf("AuditReviewAction")],
     ["AuditReviewState", REVIEW_STATE_LABELS, enumOf("AuditReviewState")],
     ["AuditReportStatus", REPORT_STATUS_LABELS, enumOf("AuditReportStatus")],
+    ["WorkflowRunState", RUN_STATE_LABELS, enumOf("WorkflowRunState")],
   ])("labels every %s value with a tone", (_schema, table, values) => {
     expect(Object.keys(table).sort()).toEqual([...values].sort());
     for (const value of values) expectLabel(table[value]!);
@@ -433,5 +438,45 @@ describe("checkItemKind", () => {
     expect(checkItemKind(check(name))).toBe(kind);
     // A baseline without standards falls back to the same rule.
     expect(checkItemKind(check(name, {}))).toBe(kind);
+  });
+
+  // V385-001 A5: Runs, Projects and the Inbox read one Run vocabulary; the
+  // words are the API states (v3b-build-contract.md §3, Run unchanged).
+  it("words and tones of Run states", () => {
+    expect(
+      Object.fromEntries(
+        Object.entries(RUN_STATE_LABELS).map(([state, { label, tone }]) => [
+          state,
+          `${label}/${tone}`,
+        ]),
+      ),
+    ).toEqual({
+      initializing: "Initializing/progress",
+      pending: "Pending/idle",
+      waiting: "Waiting/warning",
+      running: "Running/progress",
+      cancelling: "Cancelling/warning",
+      succeeded: "Succeeded/done",
+      failed: "Failed/blocked",
+      cancelled: "Cancelled/neutral",
+    });
+    expect(runStatePhrase("waiting")).toBe("is waiting");
+    expect(runStatePhrase("cancelled")).toBe("was cancelled");
+    const later = "paused" as Parameters<typeof runStateLabel>[0];
+    expect(runStateLabel(later)).toEqual({ label: "Paused", tone: "neutral" });
+    expect(runStatePhrase(later)).toBe("is paused");
+  });
+
+  it("explains every model recovery cause of a waiting Run", () => {
+    const codes = enumOf("RunRecovery", "code");
+    for (const code of codes)
+      expect(
+        runRecoveryReason(code as Parameters<typeof runRecoveryReason>[0]),
+      ).not.toBe("The model connection is interrupted.");
+    expect(
+      runRecoveryReason(
+        "gateway_lost" as Parameters<typeof runRecoveryReason>[0],
+      ),
+    ).toBe("The model connection is interrupted.");
   });
 });

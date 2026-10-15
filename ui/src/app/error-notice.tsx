@@ -1,4 +1,5 @@
 import { PublicAPIError } from "../api/error";
+import { Button } from "../ui/button";
 
 export function ErrorNotice({
   error,
@@ -39,14 +40,14 @@ export function ErrorNotice({
         </p>
       ) : null}
       {onRetry === undefined || reconcileWrite ? null : (
-        <button
-          className="secondary-button"
-          type="button"
-          disabled={retryPending}
+        <Button
+          size="sm"
+          pending={retryPending}
+          pendingLabel="Loading…"
           onClick={onRetry}
         >
-          {retryPending ? "Loading…" : retryLabel}
-        </button>
+          {retryLabel}
+        </Button>
       )}
       {error instanceof PublicAPIError ? (
         <details className="error-details">

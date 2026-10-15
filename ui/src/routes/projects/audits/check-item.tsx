@@ -19,13 +19,14 @@ import {
 import { weaknessReferences } from "../../decisions/text";
 import { itemActivity } from "./activity-model";
 import { statusDescription } from "./assessments";
-import { formatShortDateTime, formatSpan } from "./check-format";
+import { formatSpan } from "./check-format";
 import { itemBeyondLoaded, splitIssues, type CheckEntry } from "./check-model";
 import type { AuditCollectionQuery } from "./collections";
 import { ItemTechnicalDetails } from "./executions";
 import { LoadMoreControl } from "./load-more";
 import { PathText } from "./path-text";
 import { AuditMarkdown } from "./shared";
+import { formatShortDateTime } from "../../../app/format";
 
 const EVIDENCE_LABELS: Readonly<Record<string, string>> = {
   artifact: "Artifact",
