@@ -705,12 +705,6 @@
 
 /* ---------- Run page header (DetailHeader) ---------- */
 
-/* The page kind ("Workflow Run") sits on its own line above the title. */
-.runs-run-kind {
-  flex-basis: 100%;
-  order: -1;
-}
-
 .runs-run-version {
   color: var(--muted);
   font-weight: 700;

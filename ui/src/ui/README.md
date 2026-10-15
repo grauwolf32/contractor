@@ -274,18 +274,21 @@ cap of their own.
 
 ```ts
 DetailHeader(props: {
-  breadcrumb?: readonly { label: ReactNode; to?: To }[];
+  breadcrumb?: readonly { label: ReactNode; to?: To; state?: unknown }[];
   title: ReactNode;
   titleAs?: "h1" | "h2";      // default "h2"
   titleRef?: Ref<HTMLHeadingElement>; // the title can take focus (tabIndex -1)
+  eyebrow?: ReactNode;        // the page kind on a line above the title
   status?: ReactNode;         // usually StatusChip
   meta?: ReactNode;
   actions?: ReactNode;
 })
 ```
 
-Breadcrumb items with `to` are links; a last item without `to` gets
-`aria-current="page"`. The title is 20 px in a list pane and up to 28 px in a
+Breadcrumb items with `to` are links (with `state`, the link carries
+location state, such as the origin page's own way back); a last item
+without `to` gets `aria-current="page"`. `eyebrow` names the kind of page
+in small capitals above the title ("Workflow Run"). The title is 20 px in a list pane and up to 28 px in a
 wide detail pane. It also serves as a list pane `header`, for example the
 check page's breadcrumb, h1 and state. `titleRef` works as in `ListPane`: the
 heading gets `tabIndex={-1}`, so the page can focus it when the control that
