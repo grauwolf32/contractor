@@ -13,6 +13,7 @@ import {
   fulfillError,
   fulfillJSON,
   mockAPI,
+  uiOrigin,
   UNANSWERED,
 } from "./support/mock-api";
 
@@ -206,7 +207,7 @@ async function fixture(
 test("Git key settings live under Operations and retain no browser secret", async ({
   page,
 }, info) => {
-  await fixture(page, new URL(String(info.project.use.baseURL)).origin, {
+  await fixture(page, uiOrigin(info), {
     operations: true,
   });
   await page.goto("/operations/settings");
@@ -240,10 +241,7 @@ for (const project of [false, true]) {
   test(`Git import preserves the ${project ? "Project" : "standalone"} Workflow draft and exact input`, async ({
     page,
   }, info) => {
-    const writes = await fixture(
-      page,
-      new URL(String(info.project.use.baseURL)).origin,
-    );
+    const writes = await fixture(page, uiOrigin(info));
     if (project) {
       await page.goto("/projects/git-project/workflows");
       await page
@@ -291,11 +289,7 @@ for (const project of [false, true]) {
 test("Project import validates ASCII names, reports host errors and restores focus", async ({
   page,
 }, info) => {
-  const writes = await fixture(
-    page,
-    new URL(String(info.project.use.baseURL)).origin,
-    { failImport: true },
-  );
+  const writes = await fixture(page, uiOrigin(info), { failImport: true });
   await page.goto("/projects/git-project/artifacts?add=artifact");
   const trigger = page.getByRole("button", {
     name: "Import Git repository",
@@ -322,11 +316,7 @@ test("Project import validates ASCII names, reports host errors and restores foc
 test("cancelling a pending Git import keeps the Project Workflow form open", async ({
   page,
 }, info) => {
-  const writes = await fixture(
-    page,
-    new URL(String(info.project.use.baseURL)).origin,
-    { pendingImport: true },
-  );
+  const writes = await fixture(page, uiOrigin(info), { pendingImport: true });
   await page.goto("/projects/git-project/workflows");
   await page.getByRole("button", { name: "Configure git-review@1" }).click();
   await page.locator('[name="parameter-note"]').fill("preserved");

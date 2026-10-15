@@ -11,6 +11,7 @@ import {
   fulfillEmptyPageOrNotFound,
   fulfillJSON,
   mockAPI,
+  mockedAPIOrigin,
 } from "./support/mock-api";
 
 const PROJECT_ID = "project_dialog_fixture";
@@ -92,13 +93,8 @@ for (const viewport of [
 
     test("nested Project and Git dialogs isolate focus, forms and Escape", async ({
       page,
-    }, testInfo) => {
-      const configuredBaseURL = testInfo.project.use.baseURL;
-      if (typeof configuredBaseURL !== "string") {
-        throw new Error("Playwright baseURL is required");
-      }
-      const apiOrigin =
-        process.env.CONTRACTOR_UI_E2E_API_URL ?? "http://127.0.0.3:8080";
+    }) => {
+      const apiOrigin = mockedAPIOrigin();
       await installDialogFixture(page, apiOrigin);
       const mutations: string[] = [];
       page.on("request", (request) => {

@@ -12,6 +12,7 @@ import {
   fulfillEmptyPageOrNotFound,
   fulfillJSON,
   mockAPI,
+  mockedAPIOrigin,
 } from "./support/mock-api";
 
 const PROJECT_ID = "project_run_draft";
@@ -169,8 +170,7 @@ for (const viewport of [
     test("standalone Run draft survives SPA navigation without browser storage", async ({
       page,
     }) => {
-      const apiOrigin =
-        process.env.CONTRACTOR_UI_E2E_API_URL ?? "http://127.0.0.3:8080";
+      const apiOrigin = mockedAPIOrigin();
       await installFixture(page, apiOrigin);
       await page.goto(
         `/catalog/workflows/${WORKFLOW_NAME}/${WORKFLOW_VERSION}`,
@@ -209,8 +209,7 @@ for (const viewport of [
     test("ambiguous launch retains exact request identity after leaving the draft", async ({
       page,
     }) => {
-      const apiOrigin =
-        process.env.CONTRACTOR_UI_E2E_API_URL ?? "http://127.0.0.3:8080";
+      const apiOrigin = mockedAPIOrigin();
       await installFixture(page, apiOrigin);
       const submissions: Array<{ body: unknown; key: string | undefined }> = [];
       await page.route(`${apiOrigin}/v1/runs`, async (route) => {
@@ -270,8 +269,7 @@ for (const viewport of [
     test("Project Run draft survives close and binds a local upload to its source slot", async ({
       page,
     }) => {
-      const apiOrigin =
-        process.env.CONTRACTOR_UI_E2E_API_URL ?? "http://127.0.0.3:8080";
+      const apiOrigin = mockedAPIOrigin();
       const uploads = await installFixture(page, apiOrigin);
       await page.goto(`/projects/${PROJECT_ID}/workflows`);
       const launcher = page.getByRole("button", {

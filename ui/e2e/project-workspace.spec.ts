@@ -12,6 +12,8 @@ import {
   fulfillEmptyPageOrNotFound,
   fulfillJSON,
   mockAPI,
+  mockedAPIOrigin,
+  uiOrigin,
 } from "./support/mock-api";
 
 const PROJECT_ID = "project_browser_example";
@@ -28,7 +30,6 @@ interface ProjectAPIFixtureOptions {
 
 async function installProjectAPI(
   page: Page,
-  uiOrigin: string,
   apiOrigin: string,
   uploads: Array<{
     url: string;
@@ -191,10 +192,6 @@ async function installProjectAPI(
     },
     { apiOrigin },
   );
-
-  // Keep this assertion close to the routing setup: Artifact bytes target the
-  // configured Go API origin, not the static UI origin.
-  expect(apiOrigin).not.toBe(uiOrigin);
 }
 
 async function openProjectFromShell(page: Page): Promise<void> {
@@ -204,19 +201,16 @@ async function openProjectFromShell(page: Page): Promise<void> {
 test("Project file-drop uploads exact bytes directly to Go API", async ({
   page,
 }, testInfo) => {
-  const configuredBaseURL = testInfo.project.use.baseURL;
-  if (typeof configuredBaseURL !== "string") {
-    throw new Error("Playwright baseURL is required");
-  }
-  const uiOrigin = new URL(configuredBaseURL).origin;
-  const apiOrigin =
-    process.env.CONTRACTOR_UI_E2E_API_URL ?? "http://127.0.0.3:8080";
+  const apiOrigin = mockedAPIOrigin();
   const uploads: Array<{
     url: string;
     headers: Record<string, string>;
     body: Buffer;
   }> = [];
-  await installProjectAPI(page, uiOrigin, apiOrigin, uploads);
+  // Artifact bytes target the configured Go API origin, not the static UI
+  // origin.
+  expect(apiOrigin).not.toBe(uiOrigin(testInfo));
+  await installProjectAPI(page, apiOrigin, uploads);
 
   await openProjectFromShell(page);
   await expect(
@@ -254,21 +248,9 @@ test("Project file-drop uploads exact bytes directly to Go API", async ({
   expect(uploads[0]!.body.toString()).toBe("zip");
 });
 
-test("Project dashboard remains usable at 320px", async ({
-  page,
-}, testInfo) => {
-  const configuredBaseURL = testInfo.project.use.baseURL;
-  if (typeof configuredBaseURL !== "string") {
-    throw new Error("Playwright baseURL is required");
-  }
-  const uiOrigin = new URL(configuredBaseURL).origin;
+test("Project dashboard remains usable at 320px", async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 568 });
-  await installProjectAPI(
-    page,
-    uiOrigin,
-    process.env.CONTRACTOR_UI_E2E_API_URL ?? "http://127.0.0.3:8080",
-    [],
-  );
+  await installProjectAPI(page, mockedAPIOrigin(), []);
 
   await openProjectFromShell(page);
   await page
@@ -285,16 +267,10 @@ test("Project dashboard remains usable at 320px", async ({
 
 test("Project recommendation launches an exact Project Run", async ({
   page,
-}, testInfo) => {
-  const configuredBaseURL = testInfo.project.use.baseURL;
-  if (typeof configuredBaseURL !== "string") {
-    throw new Error("Playwright baseURL is required");
-  }
-  const uiOrigin = new URL(configuredBaseURL).origin;
-  const apiOrigin =
-    process.env.CONTRACTOR_UI_E2E_API_URL ?? "http://127.0.0.3:8080";
+}) => {
+  const apiOrigin = mockedAPIOrigin();
   const runRequests: NonNullable<ProjectAPIFixtureOptions["runRequests"]> = [];
-  await installProjectAPI(page, uiOrigin, apiOrigin, [], {
+  await installProjectAPI(page, apiOrigin, [], {
     artifactStoredInitially: true,
     exposeWorkflow: true,
     runRequests,
@@ -350,20 +326,12 @@ test("Project recommendation launches an exact Project Run", async ({
 
 test("Project sections open inputs and Run setup, while deletion stays in its menu", async ({
   page,
-}, testInfo) => {
-  const configuredBaseURL = testInfo.project.use.baseURL;
-  if (typeof configuredBaseURL !== "string") {
-    throw new Error("Playwright baseURL is required");
-  }
-  const uiOrigin = new URL(configuredBaseURL).origin;
+}) => {
   await page.setViewportSize({ width: 1440, height: 1000 });
-  await installProjectAPI(
-    page,
-    uiOrigin,
-    process.env.CONTRACTOR_UI_E2E_API_URL ?? "http://127.0.0.3:8080",
-    [],
-    { artifactStoredInitially: true, exposeWorkflow: true },
-  );
+  await installProjectAPI(page, mockedAPIOrigin(), [], {
+    artifactStoredInitially: true,
+    exposeWorkflow: true,
+  });
 
   await openProjectFromShell(page);
   const navigation = page.getByRole("navigation", { name: "Project sections" });
@@ -430,19 +398,11 @@ test("Project sections open inputs and Run setup, while deletion stays in its me
 test("Workflow overview leads with Run setup in a dismissible drawer", async ({
   page,
 }, testInfo) => {
-  const configuredBaseURL = testInfo.project.use.baseURL;
-  if (typeof configuredBaseURL !== "string") {
-    throw new Error("Playwright baseURL is required");
-  }
-  const uiOrigin = new URL(configuredBaseURL).origin;
   await page.setViewportSize({ width: 1440, height: 1000 });
-  await installProjectAPI(
-    page,
-    uiOrigin,
-    process.env.CONTRACTOR_UI_E2E_API_URL ?? "http://127.0.0.3:8080",
-    [],
-    { artifactStoredInitially: true, exposeWorkflow: true },
-  );
+  await installProjectAPI(page, mockedAPIOrigin(), [], {
+    artifactStoredInitially: true,
+    exposeWorkflow: true,
+  });
 
   await page.goto("/catalog/workflows/openapi-from-source/1");
   const configure = page.getByRole("button", { name: "Configure Run" });

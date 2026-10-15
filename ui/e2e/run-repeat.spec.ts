@@ -13,6 +13,7 @@ import {
   fulfillEmptyPageOrNotFound,
   fulfillJSON,
   mockAPI,
+  uiOrigin,
 } from "./support/mock-api";
 
 const timestamp = "2026-09-07T10:00:00Z";
@@ -265,11 +266,7 @@ for (const viewport of [
     test("terminal Run creates a reviewed exact repeat draft and preserves conflicts", async ({
       page,
     }, testInfo) => {
-      const configuredBaseURL = testInfo.project.use.baseURL;
-      if (typeof configuredBaseURL !== "string") {
-        throw new Error("Playwright baseURL is required");
-      }
-      const apiOrigin = new URL(configuredBaseURL).origin;
+      const apiOrigin = uiOrigin(testInfo);
       const created = await installFixture(page, apiOrigin);
       await page.goto("/runs/run-repeat-browser");
       await page.getByRole("button", { name: "Configure another Run" }).click();
@@ -324,7 +321,7 @@ for (const viewport of [
     test("primary output previews in place before preparing an exact repeat", async ({
       page,
     }, testInfo) => {
-      const apiOrigin = new URL(testInfo.project.use.baseURL!).origin;
+      const apiOrigin = uiOrigin(testInfo);
       const created = await installFixture(page, apiOrigin, true);
       const reads: string[] = [];
       page.on("request", (request) => {
@@ -367,7 +364,7 @@ for (const viewport of [
       test(`${code} blocks Repeat without navigation or submission`, async ({
         page,
       }, testInfo) => {
-        const apiOrigin = new URL(testInfo.project.use.baseURL!).origin;
+        const apiOrigin = uiOrigin(testInfo);
         const created = await installFixture(page, apiOrigin);
         let repeatReads = 0;
         await page.route(
@@ -401,11 +398,7 @@ for (const viewport of [
     test("Audit-managed Run returns to the owning Audit", async ({
       page,
     }, testInfo) => {
-      const configuredBaseURL = testInfo.project.use.baseURL;
-      if (typeof configuredBaseURL !== "string") {
-        throw new Error("Playwright baseURL is required");
-      }
-      await installFixture(page, new URL(configuredBaseURL).origin);
+      await installFixture(page, uiOrigin(testInfo));
       await page.goto("/runs/run-audit-browser");
       await page.getByRole("button", { name: "Configure another Run" }).click();
       await expect(page).toHaveURL("/projects/project-audit/audits/audit-one");

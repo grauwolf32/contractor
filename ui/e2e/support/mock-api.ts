@@ -12,7 +12,7 @@
 //
 // The browser gate (ui/server/browser-gate.mjs) refuses spec files that call
 // route.fulfill themselves, so no spec can serve an unchecked answer.
-import type { Page, Request, Route } from "@playwright/test";
+import type { Page, Request, Route, TestInfo } from "@playwright/test";
 
 import packageMetadata from "../../package.json" with { type: "json" };
 import {
@@ -35,6 +35,24 @@ const EXPOSED_HEADERS =
 const ALLOWED_METHODS = "GET, POST, PUT, PATCH, DELETE";
 const ALLOWED_HEADERS =
   "Authorization, Content-Type, Idempotency-Key, If-Match, If-None-Match, X-CSRF-Token";
+
+/** The origin of the UI under test, from the configured baseURL. */
+export function uiOrigin(testInfo: TestInfo): string {
+  const baseURL = testInfo.project.use.baseURL;
+  if (typeof baseURL !== "string") {
+    throw new Error("Playwright baseURL is required");
+  }
+  return new URL(baseURL).origin;
+}
+
+/**
+ * The API origin the served UI is configured for (its Content-Security-Policy
+ * admits no other), or a loopback stand-in when the spec runs against a
+ * development server. The mock intercepts it; nothing listens there.
+ */
+export function mockedAPIOrigin(): string {
+  return process.env.CONTRACTOR_UI_E2E_API_URL ?? "http://127.0.0.3:8080";
+}
 
 /** A signed-in browser session; `username` doubles as the user ID. */
 export function authSession(

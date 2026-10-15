@@ -6,6 +6,7 @@ import {
   fulfillEmptyPageOrNotFound,
   fulfillJSON,
   mockAPI,
+  mockedAPIOrigin,
 } from "./support/mock-api";
 
 const PROJECT_ID = "project_audit_browser";
@@ -24,12 +25,7 @@ function fact(scope: Locator, term: string): Locator {
 test("Project Audit pins exact input and exposes authoritative coverage", async ({
   page,
 }, testInfo) => {
-  const configuredBaseURL = testInfo.project.use.baseURL;
-  if (typeof configuredBaseURL !== "string") {
-    throw new Error("Playwright baseURL is required");
-  }
-  const apiOrigin =
-    process.env.CONTRACTOR_UI_E2E_API_URL ?? "http://127.0.0.3:8080";
+  const apiOrigin = mockedAPIOrigin();
   const project = projectBuilder(PROJECT_ID, {
     name: "Audit browser fixture",
     description: "Exact Project input",
@@ -468,13 +464,8 @@ test("Project Audit pins exact input and exposes authoritative coverage", async 
 
 test("audit program library renders exact Top 10 and ASVS evidence boundaries", async ({
   page,
-}, testInfo) => {
-  const configuredBaseURL = testInfo.project.use.baseURL;
-  if (typeof configuredBaseURL !== "string") {
-    throw new Error("Playwright baseURL is required");
-  }
-  const apiOrigin =
-    process.env.CONTRACTOR_UI_E2E_API_URL ?? "http://127.0.0.3:8080";
+}) => {
+  const apiOrigin = mockedAPIOrigin();
   const now = "2026-09-06T10:30:00Z";
   const digest = (value: string) => `sha256:${value.repeat(64)}`;
   const exact = (namespace: string, name: string, revision: string) => ({
@@ -812,13 +803,8 @@ for (const viewport of [
 ]) {
   test(`Audit UI reviews exact evidence and completes destructive lifecycle controls at ${viewport.width}px`, async ({
     page,
-  }, testInfo) => {
-    const configuredBaseURL = testInfo.project.use.baseURL;
-    if (typeof configuredBaseURL !== "string") {
-      throw new Error("Playwright baseURL is required");
-    }
-    const apiOrigin =
-      process.env.CONTRACTOR_UI_E2E_API_URL ?? "http://127.0.0.3:8080";
+  }) => {
+    const apiOrigin = mockedAPIOrigin();
     await page.setViewportSize(viewport);
     const auditId = "audit_review_browser";
     const now = "2026-09-06T11:00:00Z";

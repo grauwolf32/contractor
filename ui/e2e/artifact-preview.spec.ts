@@ -5,6 +5,7 @@ import {
   fulfillError,
   fulfillJSON,
   mockAPI,
+  uiOrigin,
 } from "./support/mock-api";
 
 const REVISION = "revision-1";
@@ -198,17 +199,13 @@ for (const viewport of [
     test("renders Markdown, diff, OpenAPI and LikeC4 artifacts locally", async ({
       page,
     }, testInfo) => {
-      const configuredBaseURL = testInfo.project.use.baseURL;
-      if (typeof configuredBaseURL !== "string") {
-        throw new Error("Playwright baseURL is required");
-      }
-      const uiOrigin = new URL(configuredBaseURL).origin;
+      const origin = uiOrigin(testInfo);
       const externalRequests: string[] = [];
       const consoleErrors: string[] = [];
       const pageErrors: string[] = [];
       page.on("request", (request) => {
         const url = new URL(request.url());
-        if (url.origin !== uiOrigin) {
+        if (url.origin !== origin) {
           externalRequests.push(request.url());
         }
       });
@@ -284,10 +281,7 @@ for (const viewport of [
 
 for (const theme of ["light", "dark", "black"]) {
   test("HTTP evidence at 390px in " + theme, async ({ page }, testInfo) => {
-    const base = testInfo.project.use.baseURL;
-    if (typeof base !== "string")
-      throw new Error("Playwright baseURL is required");
-    const origin = new URL(base).origin;
+    const origin = uiOrigin(testInfo);
     await page.setViewportSize({ width: 390, height: 844 });
     await page.addInitScript(
       (value) => localStorage.setItem("contractor.theme", value),

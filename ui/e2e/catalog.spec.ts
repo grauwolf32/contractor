@@ -4,12 +4,17 @@ import {
   stageContract,
   workflowResource,
 } from "../src/test/builders-execution";
-import { authSession, fulfillJSON, mockAPI } from "./support/mock-api";
+import {
+  authSession,
+  fulfillJSON,
+  mockAPI,
+  uiOrigin,
+} from "./support/mock-api";
 
 test("Catalog discovers exact Workflows and Agent usage from direct routes", async ({
   page,
 }, testInfo) => {
-  const origin = new URL(String(testInfo.project.use.baseURL)).origin;
+  const origin = uiOrigin(testInfo);
   const digest = `sha256:${"1".repeat(64)}`;
   const secondDigest = `sha256:${"2".repeat(64)}`;
   const prompt =

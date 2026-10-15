@@ -5,6 +5,7 @@ import {
   fulfillError,
   fulfillJSON,
   mockAPI,
+  uiOrigin,
 } from "./support/mock-api";
 
 for (const width of [1440, 390]) {
@@ -12,7 +13,7 @@ for (const width of [1440, 390]) {
     page,
   }, testInfo) => {
     await page.setViewportSize({ width, height: 1000 });
-    const origin = new URL(String(testInfo.project.use.baseURL)).origin;
+    const origin = uiOrigin(testInfo);
     const externalRequests: string[] = [];
     const pageErrors: string[] = [];
     const opened: string[] = [];
