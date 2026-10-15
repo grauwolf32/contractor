@@ -10,7 +10,7 @@ import {
   BUDGET_DURATION_PATTERN,
   createCredential,
   listConfigurations,
-  MANAGED_CONFIG_NAME_PATTERN,
+  CREDENTIAL_ID,
   type ConfigurationResource,
   type CreateCredentialRequest,
 } from "../../../api/operations";
@@ -33,11 +33,6 @@ function configKey(resource: ConfigurationResource): string {
 function optionalNumber(value: string): number | undefined {
   return value === "" ? undefined : Number(value);
 }
-
-// V385: credential IDs are ConfigId in the contract, but src/api/operations.ts
-// (requireConfigIdentity) accepts only ConfigurationName names, so the form
-// checks that rule until the API layer is fixed.
-const CREDENTIAL_ID = MANAGED_CONFIG_NAME_PATTERN;
 
 export function CredentialCreateForm() {
   const api = usePublicAPI();
@@ -126,7 +121,7 @@ export function CredentialCreateForm() {
     const nextErrors: string[] = [];
     if (!CREDENTIAL_ID.test(credentialId)) {
       nextErrors.push(
-        `Credential ID must start with a lowercase letter and contain at most ${CREDENTIAL_ID.maxLength} lowercase letters, digits, dashes or underscores.`,
+        `Credential ID must start with a letter or digit and contain at most ${CREDENTIAL_ID.maxLength} letters, digits, dots, dashes or underscores.`,
       );
     }
     if (selectedGateway === undefined) {

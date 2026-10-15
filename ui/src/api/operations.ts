@@ -1,5 +1,6 @@
 import type { PublicAPI } from "./client";
 import {
+  CONFIG_ID,
   DIGEST,
   RUNTIME_AGENT_ID,
   RUNTIME_CONFIG_VERSION,
@@ -29,7 +30,8 @@ export const WRITABLE_CONFIGURATION_KINDS = [
   "model-policies",
   "llm-gateways",
 ] as const satisfies readonly WritableConfigurationKind[];
-export const MANAGED_CONFIG_NAME_PATTERN = CONFIG_NAME_PATTERN;
+/** LLM credential IDs are ConfigId (CreateCredentialRequest.credentialId). */
+export const CREDENTIAL_ID = CONFIG_ID;
 export const BUDGET_DURATION_PATTERN = stringRule(
   "GatewayPolicy",
   "properties",
@@ -123,6 +125,12 @@ function requireRuntimeIdentity(name: string, version?: string): void {
     (version !== undefined && !RUNTIME_CONFIG_VERSION.test(version))
   ) {
     throw new TypeError("Runtime configuration identity is invalid");
+  }
+}
+
+function requireCredentialId(value: string): void {
+  if (!CREDENTIAL_ID.test(value)) {
+    throw new TypeError("Credential ID is invalid");
   }
 }
 
@@ -551,7 +559,7 @@ export async function publishConfiguration(
     throw new TypeError("Configuration kind is read-only");
   }
   if (
-    !MANAGED_CONFIG_NAME_PATTERN.test(request.name) ||
+    !CONFIG_NAME_PATTERN.test(request.name) ||
     !CONFIG_VERSION_PATTERN.test(request.version)
   ) {
     throw new TypeError("Managed configuration identity is invalid");
@@ -588,7 +596,7 @@ export async function getCredential(
   api: PublicAPI,
   credentialId: string,
 ): Promise<CredentialResource> {
-  requireConfigIdentity(credentialId);
+  requireCredentialId(credentialId);
   const result = await api.request((client) =>
     client.GET("/v1/operations/credentials/{credentialId}", {
       params: { path: { credentialId } },
@@ -610,7 +618,7 @@ export async function createCredential(
   request: CreateCredentialRequest,
   idempotencyKey: string,
 ): Promise<CredentialResource> {
-  requireConfigIdentity(request.credentialId);
+  requireCredentialId(request.credentialId);
   requirePublishedRef(request.llmGateway);
   request.gatewayPolicy.modelPolicies.forEach(requirePublishedRef);
   const header = idempotencyHeader(api, idempotencyKey);
@@ -641,7 +649,7 @@ export async function deleteCredential(
   credentialId: string,
   idempotencyKey: string,
 ): Promise<void> {
-  requireConfigIdentity(credentialId);
+  requireCredentialId(credentialId);
   const header = idempotencyHeader(api, idempotencyKey);
   const result = await api.request((client) =>
     client.DELETE("/v1/operations/credentials/{credentialId}", {
