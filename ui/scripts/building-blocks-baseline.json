@@ -230,15 +230,6 @@
     "src/routes/settings/git-key.tsx": {
       "button": 2
     },
-    "src/routes/skill-description.tsx": {
-      "button": 1
-    },
-    "src/routes/skill-upload-dialog.tsx": {
-      "button": 2
-    },
-    "src/routes/skills.tsx": {
-      "button": 1
-    },
     "src/routes/studio/canvas.tsx": {
       "button": 4
     },
