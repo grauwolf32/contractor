@@ -1,4 +1,4 @@
-import { QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider, type QueryClient } from "@tanstack/react-query";
 import { type ReactNode, useEffect, useState } from "react";
 import { RouterProvider } from "react-router/dom";
 import type { RouterProviderProps } from "react-router/dom";
@@ -15,14 +15,20 @@ export function Application({
   api,
   publicAPI,
   runEvents,
+  queryClient: givenQueryClient,
   router,
 }: {
   api: SessionAPI;
   publicAPI: PublicAPI;
-  runEvents?: RunEventsManager;
+  /** The live event manager; tests give one over a fake socket. */
+  runEvents?: RunEventsManager | undefined;
+  /** The query cache; tests give one they seed or watch. */
+  queryClient?: QueryClient | undefined;
   router: RouterProviderProps["router"];
 }): ReactNode {
-  const [queryClient] = useState(createApplicationQueryClient);
+  const [queryClient] = useState(
+    () => givenQueryClient ?? createApplicationQueryClient(),
+  );
   const [eventManager] = useState(
     () => runEvents ?? new RunEventsManager(publicAPI.apiBaseUrl),
   );

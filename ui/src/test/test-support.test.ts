@@ -9,6 +9,7 @@ import {
   review,
 } from "./builders";
 import {
+  bytes,
   failure,
   fakeServer,
   invalidJSON,
@@ -92,6 +93,22 @@ describe("fake Server", () => {
       ),
     ).rejects.toMatchObject({ code: "invalid_api_response", status: 200 });
     expect(failure(503).status).toBe(503);
+  });
+
+  it("serves artifact content as raw bytes, also when it is JSON", async () => {
+    const server = fakeServer({
+      "GET /v1/runs/{runId}/artifacts/{namespace}/{name}": () =>
+        bytes('{"anything": "goes"}', "application/json"),
+    });
+    const response = await server.fetch(
+      "http://127.0.0.1:8080/v1/runs/run_1/artifacts/outputs/trace",
+    );
+    expect(response.headers.get("Content-Length")).toBe("20");
+    expect(await response.text()).toBe('{"anything": "goes"}');
+    expect(
+      server.handles("GET /v1/runs/{runId}/artifacts/{namespace}/{name}"),
+    ).toBe(true);
+    expect(server.handles("GET /v1/projects")).toBe(false);
   });
 });
 

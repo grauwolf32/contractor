@@ -1,5 +1,5 @@
 import type { ComponentType, ReactNode } from "react";
-import { createBrowserRouter, type RouteObject } from "react-router";
+import type { RouteObject } from "react-router";
 
 import { AuthenticatedRoute } from "../routes/guard";
 import { LoginRoute } from "../routes/login";
@@ -14,7 +14,7 @@ type RouteModule = Record<string, unknown>;
  * router loads on first navigation, so the eager bundle carries only the
  * shell, the guard and the shared API layer.
  */
-export function lazyRoute<M extends RouteModule, K extends keyof M>(
+function lazyRoute<M extends RouteModule, K extends keyof M>(
   load: () => Promise<M>,
   name: K,
 ): NonNullable<RouteObject["lazy"]> {
@@ -47,6 +47,7 @@ function projectSection(
   ));
 }
 
+/** A fresh route table of the application (the browser router's, or a test's). */
 export function applicationRoutes(): RouteObject[] {
   return [
     { path: "/login", element: <LoginRoute /> },
@@ -410,8 +411,4 @@ export function applicationRoutes(): RouteObject[] {
     },
     { path: "*", element: <NotFoundRoute /> },
   ];
-}
-
-export function createApplicationRouter() {
-  return createBrowserRouter(applicationRoutes());
 }

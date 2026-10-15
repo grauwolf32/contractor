@@ -2,16 +2,14 @@ import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
-import * as queryClientFactory from "../../app/query-client";
+import { createApplicationQueryClient } from "../../app/query-client";
 import { queryKeys } from "../../api/query-keys";
+import { renderApplication } from "../../test/application";
 import * as build from "../../test/builders";
 import { runStatus, stageContract } from "../../test/builders-execution";
-import { API_VERSION_HEADERS, json, page } from "../../test/fake-server";
+import { bytes, json, page } from "../../test/fake-server";
 import { CSRF_TOKEN } from "../../test/render";
-import {
-  fakeAPI,
-  renderApplication as renderProjectApplication,
-} from "./audits/check-test-support";
+import { fakeAPI } from "./audits/check-test-support";
 
 const project = build.project("project_example", {
   name: "Payment service",
@@ -32,10 +30,7 @@ describe("Project routes", () => {
       },
       { capabilities: ["user", "operations"] },
     );
-    const { router } = renderProjectApplication(
-      api,
-      "/projects/project_example",
-    );
+    const { router } = renderApplication("/projects/project_example", { api });
     const user = userEvent.setup();
     await screen.findByRole("heading", { name: "Timeline" });
     const reads = (suffix: string) =>
@@ -112,9 +107,9 @@ describe("Project routes", () => {
       },
       { capabilities: ["user", "operations"] },
     );
-    const { router } = renderProjectApplication(
-      api,
+    const { router } = renderApplication(
       "/projects/project_example/runs?view=completed&state=succeeded&cursor=page2",
+      { api },
     );
     const user = userEvent.setup();
     await screen.findByRole("button", { name: "All Runs" });
@@ -173,7 +168,7 @@ describe("Project routes", () => {
       },
       { capabilities: ["user", "operations"] },
     );
-    const { router } = renderProjectApplication(api, "/projects");
+    const { router } = renderApplication("/projects", { api });
     const row = await screen.findByRole("link", { name: project.name });
     expect(row).toHaveAttribute("href", "/projects/project_example");
     expect(row.closest("li")).toHaveTextContent("Deleting");
@@ -216,7 +211,7 @@ describe("Project routes", () => {
       },
       { capabilities: ["user", "operations"] },
     );
-    renderProjectApplication(api, "/projects/project_example");
+    renderApplication("/projects/project_example", { api });
     const user = userEvent.setup();
     await screen.findByRole("heading", { name: "Payment service" });
     await user.click(screen.getByLabelText("Project actions"));
@@ -290,12 +285,11 @@ describe("Project routes", () => {
         },
         { capabilities: ["user", "operations"] },
       );
-      const queryClient = queryClientFactory.createApplicationQueryClient();
-      const factory = vi
-        .spyOn(queryClientFactory, "createApplicationQueryClient")
-        .mockReturnValueOnce(queryClient);
-      renderProjectApplication(api, "/projects/project_example/settings");
-      factory.mockRestore();
+      const queryClient = createApplicationQueryClient();
+      renderApplication("/projects/project_example/settings", {
+        api,
+        queryClient,
+      });
       const user = userEvent.setup();
       await screen.findByRole("heading", { name: "Payment service" });
       await user.click(
@@ -397,10 +391,7 @@ describe("Project routes", () => {
       },
       { capabilities: ["user", "operations"] },
     );
-    const { router } = renderProjectApplication(
-      api,
-      "/projects/project_example",
-    );
+    const { router } = renderApplication("/projects/project_example", { api });
     const user = userEvent.setup();
 
     await screen.findByRole("heading", { name: "Payment service" });
@@ -480,7 +471,7 @@ describe("Project routes", () => {
       },
       { capabilities: ["user", "operations"] },
     );
-    const { router } = renderProjectApplication(api, "/projects");
+    const { router } = renderApplication("/projects", { api });
     const user = userEvent.setup();
 
     await screen.findByRole("heading", { name: "Projects" });
@@ -547,7 +538,7 @@ describe("Project routes", () => {
       },
       { capabilities: ["user", "operations"] },
     );
-    const { router } = renderProjectApplication(api, "/projects?new=1");
+    const { router } = renderApplication("/projects?new=1", { api });
     const user = userEvent.setup();
     const dialog = await screen.findByRole("dialog", { name: "New project" });
     await user.type(within(dialog).getByLabelText("Name"), "Payment service");
@@ -627,10 +618,9 @@ describe("Project routes", () => {
       },
       { capabilities: ["user", "operations"] },
     );
-    renderProjectApplication(
+    renderApplication("/projects/project_example/artifacts?add=artifact", {
       api,
-      "/projects/project_example/artifacts?add=artifact",
-    );
+    });
     const user = userEvent.setup();
 
     await screen.findByRole("dialog", { name: "Add material" });
@@ -704,7 +694,7 @@ describe("Project routes", () => {
       },
       { capabilities: ["user", "operations"] },
     );
-    renderProjectApplication(api, "/projects/project_example/settings");
+    renderApplication("/projects/project_example/settings", { api });
     const user = userEvent.setup();
 
     await screen.findByRole("heading", { name: "Payment service" });
@@ -788,7 +778,7 @@ describe("Project routes", () => {
       },
       { capabilities: ["user", "operations"] },
     );
-    renderProjectApplication(api, "/projects/project_example");
+    renderApplication("/projects/project_example", { api });
 
     expect(
       await screen.findByText("Artifact storage is temporarily unavailable"),
@@ -860,21 +850,15 @@ describe("Project routes", () => {
         if (
           url.pathname === "/v1/projects/project_example/artifacts/docs/readme"
         ) {
-          return new Response(content, {
-            headers: {
-              ...API_VERSION_HEADERS,
-              "content-type": "text/plain",
-              "content-length": String(content.length),
-            },
-          });
+          return bytes(content, "text/plain");
         }
         throw new Error(`unexpected ${request.method} ${url.pathname}`);
       },
       { capabilities: ["user", "operations"] },
     );
-    renderProjectApplication(
-      api,
+    renderApplication(
       "/projects/project_example/artifacts/docs/readme?revision=revision-2",
+      { api },
     );
 
     expect(
@@ -947,11 +931,14 @@ describe("Project routes", () => {
         },
         { capabilities: ["user", "operations"] },
       );
-      const { router } = renderProjectApplication(api, {
-        pathname: `/${scope}/project_example/artifacts/docs/readme`,
-        search: "?revision=revision-1",
-        state: returnState,
-      });
+      const { router } = renderApplication(
+        {
+          pathname: `/${scope}/project_example/artifacts/docs/readme`,
+          search: "?revision=revision-1",
+          state: returnState,
+        },
+        { api },
+      );
       expect(
         await screen.findByText("Current revision", { selector: ".lede" }),
       ).toBeVisible();
@@ -1100,9 +1087,9 @@ describe("Project routes", () => {
       },
       { capabilities: ["user", "operations"] },
     );
-    const { router } = renderProjectApplication(
-      api,
+    const { router } = renderApplication(
       "/projects/project_example/workflows",
+      { api },
     );
     const user = userEvent.setup();
 
@@ -1226,7 +1213,7 @@ describe("Project routes", () => {
       },
       { capabilities: ["user", "operations"] },
     );
-    renderProjectApplication(api, "/projects/project_example/workflows");
+    renderApplication("/projects/project_example/workflows", { api });
     const user = userEvent.setup();
 
     expect(await screen.findByText("No new format matches.")).toBeVisible();

@@ -7,17 +7,14 @@ import {
 } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
+import { FakeEventSocket, renderApplication } from "../../../test/application";
+import { operationsSnapshot } from "../../../test/builders-execution";
 import { conforming } from "../../../test/builders";
 import {
   json,
   preconditionFailed,
   type Routes,
 } from "../../../test/fake-server";
-import {
-  FakeSocket,
-  operationsSnapshot,
-  renderOperationsApp,
-} from "../test-support";
 
 function schedulerSettings(maxConcurrentRuns: number, revision: string) {
   return json(
@@ -39,9 +36,9 @@ const common: Routes = {
 
 describe("Operations Scheduler settings", () => {
   it("keeps personal repository settings available without Operations capability", async () => {
-    renderOperationsApp("/operations/settings", {
+    renderApplication("/operations/settings", {
       capabilities: ["user"],
-      routes: { "GET /v1/settings/git-key": () => json({ configured: false }) },
+      server: { "GET /v1/settings/git-key": () => json({ configured: false }) },
     });
 
     expect(
@@ -78,7 +75,7 @@ describe("Operations Scheduler settings", () => {
   });
 
   it("points sessions without the capability from other Operations pages to Settings", async () => {
-    const { requests } = renderOperationsApp("/operations/runtime-agents", {
+    const { requests } = renderApplication("/operations/runtime-agents", {
       capabilities: ["user"],
     });
     expect(await screen.findByRole("alert")).toHaveTextContent(
@@ -110,8 +107,8 @@ describe("Operations Scheduler settings", () => {
   });
 
   it("shows Settings as an Operations section to operators", async () => {
-    renderOperationsApp("/operations/settings", {
-      routes: {
+    renderApplication("/operations/settings", {
+      server: {
         ...common,
         "GET /v1/operations/settings/scheduler": () =>
           schedulerSettings(2, "3"),
@@ -152,8 +149,8 @@ describe("Operations Scheduler settings", () => {
     const pendingPut = new Promise<Response>((resolve) => {
       finishPut = resolve;
     });
-    const { sent, user } = renderOperationsApp("/operations/settings", {
-      routes: {
+    const { sent, user } = renderApplication("/operations/settings", {
+      server: {
         ...common,
         "GET /v1/operations/settings/scheduler": () =>
           schedulerSettings(1, "1"),
@@ -204,8 +201,8 @@ describe("Operations Scheduler settings", () => {
     let saved = 1;
     let revision = "1";
     let puts = 0;
-    const { user } = renderOperationsApp("/operations/settings", {
-      routes: {
+    const { user } = renderApplication("/operations/settings", {
+      server: {
         ...common,
         "GET /v1/operations/settings/scheduler": () =>
           schedulerSettings(saved, revision),
@@ -248,8 +245,8 @@ describe("Operations Scheduler settings", () => {
     let saved = 1;
     let revision = "1";
     let settingsReads = 0;
-    renderOperationsApp("/operations/settings", {
-      routes: {
+    renderApplication("/operations/settings", {
+      server: {
         ...common,
         "GET /v1/operations/settings/scheduler": () => {
           settingsReads += 1;
@@ -260,8 +257,8 @@ describe("Operations Scheduler settings", () => {
     expect(
       await screen.findByRole("heading", { name: "Workflow scheduling" }),
     ).toBeInTheDocument();
-    await waitFor(() => expect(FakeSocket.instances).toHaveLength(1));
-    const socket = FakeSocket.instances[0];
+    await waitFor(() => expect(FakeEventSocket.instances).toHaveLength(1));
+    const socket = FakeEventSocket.instances[0];
     act(() => socket?.open());
     const subscription = JSON.parse(socket?.sent[0] ?? "{}");
     act(() =>

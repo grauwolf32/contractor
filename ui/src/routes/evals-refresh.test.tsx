@@ -3,9 +3,10 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it } from "vitest";
 
 import { createApplicationQueryClient } from "../app/query-client";
+import { renderApplication } from "../test/application";
 import { createEvalFixture } from "../test/evals-fixture";
 import { json } from "../test/fake-server";
-import { renderEvals, stubEvalBrowser } from "./evals/test-support";
+import { evalServer, stubEvalBrowser } from "./evals/test-support";
 
 beforeEach(stubEvalBrowser);
 
@@ -49,7 +50,14 @@ function refreshFixture() {
 
 function start(fixture: ReturnType<typeof createEvalFixture>, path: string) {
   const cache = createApplicationQueryClient();
-  return { cache, ...renderEvals(fixture, path, { cache, strict: true }) };
+  return {
+    cache,
+    ...renderApplication(path, {
+      server: evalServer(fixture),
+      queryClient: cache,
+      strict: true,
+    }),
+  };
 }
 
 async function release(pending: (() => void)[], index = 0) {

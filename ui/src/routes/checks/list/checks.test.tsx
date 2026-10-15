@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import type { Audit, AuditState } from "../../../api/audits";
 import type { Project } from "../../../api/projects";
+import { renderApplication } from "../../../test/application";
 import {
   emptyPageOrNotFound,
   failure,
@@ -17,7 +18,6 @@ import { testAPI, testSession } from "../../../test/render";
 import {
   makeAudit,
   makeProject,
-  renderApplication,
   workspaceOf,
 } from "../../projects/audits/check-test-support";
 
@@ -162,7 +162,7 @@ function serve(
 describe("Checks list", () => {
   it("lists every project's checks and filters them by state and project in the URL", async () => {
     const { api } = serve(fixture());
-    const { router } = renderApplication(api, "/checks");
+    const { router } = renderApplication("/checks", { api });
     const user = userEvent.setup();
     const list = await screen.findByRole("region", { name: "Checks" });
     expect(
@@ -219,7 +219,7 @@ describe("Checks list", () => {
 
   it("takes a check state as the state filter", async () => {
     const { api } = serve(fixture());
-    renderApplication(api, "/checks?state=waiting_review");
+    renderApplication("/checks?state=waiting_review", { api });
     const filters = await screen.findByRole("group", {
       name: "Filter checks by state",
     });
@@ -230,7 +230,7 @@ describe("Checks list", () => {
 
   it("shows the selected check with progress, what waits for the user and the way in", async () => {
     const { api } = serve(fixture());
-    const { router } = renderApplication(api, "/checks");
+    const { router } = renderApplication("/checks", { api });
     const user = userEvent.setup();
     const list = await screen.findByRole("region", { name: "Checks" });
     await user.click(
@@ -286,7 +286,7 @@ describe("Checks list", () => {
 
   it("moves the selection with J and K and opens the check with Enter", async () => {
     const { api } = serve(fixture());
-    const { router } = renderApplication(api, "/checks?state=all");
+    const { router } = renderApplication("/checks?state=all", { api });
     const user = userEvent.setup();
     const list = await screen.findByRole("region", { name: "Checks" });
     await within(list).findByRole("link", {
@@ -334,7 +334,7 @@ describe("Checks list", () => {
   it("stops and deletes the selected check only after confirmation", async () => {
     const audits = fixture();
     const { api, requests } = serve(audits);
-    renderApplication(api, "/checks?check=a_running");
+    renderApplication("/checks?check=a_running", { api });
     const user = userEvent.setup();
     const detail = await screen.findByRole("region", {
       name: "Selected check",
@@ -411,7 +411,7 @@ describe("Checks list", () => {
 
   it("starts a draft through the time limit dialog", async () => {
     const { api, requests } = serve(fixture());
-    renderApplication(api, "/checks?state=drafts&check=b_draft");
+    renderApplication("/checks?state=drafts&check=b_draft", { api });
     const user = userEvent.setup();
     const detail = await screen.findByRole("region", {
       name: "Selected check",
@@ -439,7 +439,7 @@ describe("Checks list", () => {
       updatedAt: "2026-09-01T10:00:00Z",
     });
     const { api } = serve(fixture(), { extra: { old_check: extra } });
-    const { router } = renderApplication(api, "/checks?check=old_check");
+    const { router } = renderApplication("/checks?check=old_check", { api });
     const detail = await screen.findByRole("region", {
       name: "Selected check",
     });
@@ -458,7 +458,7 @@ describe("Checks list", () => {
       updatedAt: "2026-09-01T10:00:00Z",
     });
     const { api } = serve(fixture(), { extra: { old_wait: extra } });
-    renderApplication(api, "/checks?check=old_wait");
+    renderApplication("/checks?check=old_wait", { api });
     const detail = await screen.findByRole("region", {
       name: "Selected check",
     });
@@ -474,7 +474,7 @@ describe("Checks list", () => {
 
   it("says the list is incomplete when the owner has more pages than the cap", async () => {
     const { api, requests } = serve({}, { endless: true });
-    renderApplication(api, "/checks");
+    renderApplication("/checks", { api });
     expect(
       await screen.findByText(
         "There are more checks than can be read at once, so this list is incomplete.",
@@ -497,7 +497,7 @@ describe("Checks list", () => {
   it("shows a failed owner check list and retries it", async () => {
     const options = { failProject: "project_a" };
     const { api } = serve(fixture(), options);
-    renderApplication(api, "/checks");
+    renderApplication("/checks", { api });
     expect(await screen.findByText("Check list unavailable")).toBeVisible();
     options.failProject = "";
     await userEvent

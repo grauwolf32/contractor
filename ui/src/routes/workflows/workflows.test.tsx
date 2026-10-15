@@ -12,8 +12,14 @@ import {
   RunDraftMemoryStore,
 } from "../../run-drafts/memory";
 import { RunDraftProvider } from "../../run-drafts/provider";
-import { conforming } from "../../test/builders";
+import { renderApplication } from "../../test/application";
+import {
+  artifactMetadata,
+  artifactWrite,
+  conforming,
+} from "../../test/builders";
 import { runStatus, workflowSummary } from "../../test/builders-execution";
+import { deferred } from "../../test/deferred";
 import {
   failure,
   fakeServer,
@@ -22,11 +28,6 @@ import {
   type Routes,
 } from "../../test/fake-server";
 import { CSRF_TOKEN, renderWithAPI } from "../../test/render";
-import {
-  artifactMetadata,
-  artifactWrite,
-  renderApplication,
-} from "../artifacts/test-support";
 import { WorkflowRunForm } from "./run-form";
 
 const digest = `sha256:${"1".repeat(64)}`;
@@ -309,7 +310,9 @@ describe("Workflow overview and Run drawer", () => {
   }
 
   it("shows the contract before setup, loads all versions and preserves a pinned older route", async () => {
-    const { router, sent } = renderApplication(`${route}/1`, overviewRoutes());
+    const { router, sent } = renderApplication(`${route}/1`, {
+      server: overviewRoutes(),
+    });
 
     expect(
       await screen.findByRole("heading", { name: "Inputs and results" }),
@@ -342,7 +345,7 @@ describe("Workflow overview and Run drawer", () => {
   });
 
   it("retains optional and required values across closing, nested dialogs and exact version changes", async () => {
-    renderApplication(`${route}/1`, overviewRoutes());
+    renderApplication(`${route}/1`, { server: overviewRoutes() });
 
     const user = userEvent.setup();
     const trigger = await screen.findByRole("button", {
@@ -416,7 +419,7 @@ describe("Workflow overview and Run drawer", () => {
   });
 
   it("keeps exact setup available if the version inventory fails without claiming Latest", async () => {
-    renderApplication(`${route}/1`, overviewRoutes(true));
+    renderApplication(`${route}/1`, { server: overviewRoutes(true) });
 
     await screen.findByRole("button", { name: "Retry versions" });
     expect(
@@ -432,15 +435,17 @@ describe("Workflow overview and Run drawer", () => {
     let rejectSubmission: (error: Error) => void = () => {};
     const keys: (string | null)[] = [];
     renderApplication(`${route}/1#workflow-run-setup`, {
-      ...inventoryRoutes,
-      [WORKFLOW]: () => json(noInputs),
-      [CREATE_RUN]: ({ request }) => {
-        keys.push(request.headers.get("Idempotency-Key"));
-        if (keys.length === 1)
-          return new Promise<Response>((_, reject) => {
-            rejectSubmission = reject;
-          });
-        return responseLost();
+      server: {
+        ...inventoryRoutes,
+        [WORKFLOW]: () => json(noInputs),
+        [CREATE_RUN]: ({ request }) => {
+          keys.push(request.headers.get("Idempotency-Key"));
+          if (keys.length === 1)
+            return new Promise<Response>((_, reject) => {
+              rejectSubmission = reject;
+            });
+          return responseLost();
+        },
       },
     });
 
@@ -472,7 +477,7 @@ describe("Workflow routes", () => {
     "preserves Workflow search and return state through the %s link",
     async (linkName) => {
       const path = "/catalog/workflows?q=openapi&keep=yes";
-      const { router } = renderApplication(path, workflowRoutes());
+      const { router } = renderApplication(path, { server: workflowRoutes() });
 
       const returnState = { from: "catalog-navigation" };
       await act(async () => {
@@ -511,12 +516,10 @@ describe("Workflow routes", () => {
         throw new TypeError("replacement response lost");
       };
       const queryClient = createApplicationQueryClient();
-      let finishInvalidation!: () => void;
-      const invalidation = new Promise<void>((resolve) => {
-        finishInvalidation = resolve;
-      });
+      const invalidation = deferred();
       const invalidate = vi.spyOn(queryClient, "invalidateQueries");
-      if (resolveBeforeReplacement) invalidate.mockReturnValue(invalidation);
+      if (resolveBeforeReplacement)
+        invalidate.mockReturnValue(invalidation.promise);
       const store = new RunDraftMemoryStore("user_local");
       const formPath =
         projectId === undefined
@@ -608,7 +611,7 @@ describe("Workflow routes", () => {
       const replacementState = structuredClone(replacement.state);
       await act(async () => {
         if (!resolveBeforeReplacement) success();
-        finishInvalidation();
+        invalidation.resolve();
       });
       await waitFor(() =>
         expect(invalidate).toHaveBeenCalledTimes(
@@ -799,11 +802,13 @@ describe("Workflow routes", () => {
 
   it("loads all published Workflow pages before presenting grouped cards", async () => {
     const { router } = renderApplication("/catalog/workflows", {
-      "GET /v1/workflows": ({ url }) =>
-        url.searchParams.get("q") === "likec4" ||
-        url.searchParams.get("cursor") === "next-workflow"
-          ? json(page([workflowSummary(nextWorkflow)]))
-          : json(page([workflowSummary(workflow)], "next-workflow")),
+      server: {
+        "GET /v1/workflows": ({ url }) =>
+          url.searchParams.get("q") === "likec4" ||
+          url.searchParams.get("cursor") === "next-workflow"
+            ? json(page([workflowSummary(nextWorkflow)]))
+            : json(page([workflowSummary(workflow)], "next-workflow")),
+      },
     });
 
     expect(
@@ -841,9 +846,8 @@ describe("Workflow routes", () => {
       "eval.name": "openapi-browser",
       purpose: "eval",
     };
-    const { router } = renderApplication(
-      workflowRoute,
-      workflowRoutes({
+    const { router } = renderApplication(workflowRoute, {
+      server: workflowRoutes({
         [CREATE_RUN]: async ({ request }) => {
           posts.push({ request, body: await request.clone().json() });
           return json(
@@ -868,7 +872,7 @@ describe("Workflow routes", () => {
           ),
         "GET /v1/runs/{runId}/artifacts": () => json(page([])),
       }),
-    );
+    });
 
     expect(
       await screen.findByRole("heading", {
@@ -996,9 +1000,8 @@ describe("Workflow routes", () => {
 
   it("blocks a mutation while required declared fields are missing", async () => {
     let postCount = 0;
-    renderApplication(
-      workflowRoute,
-      workflowRoutes({
+    renderApplication(workflowRoute, {
+      server: workflowRoutes({
         "GET /v1/configurations/{kind}": () => json(page([])),
         "GET /v1/operations/credentials": () => json(page([])),
         [CREATE_RUN]: () => {
@@ -1006,7 +1009,7 @@ describe("Workflow routes", () => {
           return responseLost();
         },
       }),
-    );
+    });
 
     await userEvent
       .setup()
@@ -1043,9 +1046,8 @@ describe("Workflow routes", () => {
 
   it("reuses one key for exact response-loss retry and rotates it after edits", async () => {
     const keys: string[] = [];
-    const { router } = renderApplication(
-      workflowRoute,
-      workflowRoutes({
+    const { router } = renderApplication(workflowRoute, {
+      server: workflowRoutes({
         [CREATE_RUN]: ({ request }) => {
           keys.push(request.headers.get("Idempotency-Key") ?? "missing");
           if (keys.length < 3) return responseLost();
@@ -1055,7 +1057,7 @@ describe("Workflow routes", () => {
           );
         },
       }),
-    );
+    });
 
     await openRunSetup();
     const user = userEvent.setup();
@@ -1124,15 +1126,14 @@ describe("Workflow routes", () => {
 
   it("authors editable colon badges and key-only labels without losing pending input on submit", async () => {
     const requests: unknown[] = [];
-    renderApplication(
-      workflowRoute,
-      workflowRoutes({
+    renderApplication(workflowRoute, {
+      server: workflowRoutes({
         [CREATE_RUN]: async ({ request }) => {
           requests.push(await request.json());
           return responseLost();
         },
       }),
-    );
+    });
 
     await openRunSetup();
     const user = userEvent.setup();
@@ -1201,9 +1202,8 @@ describe("Workflow routes", () => {
       size: 3,
       createdAt: "2026-09-06T20:00:00Z",
     });
-    const { sent } = renderApplication(
-      workflowRoute,
-      workflowRoutes({
+    const { sent } = renderApplication(workflowRoute, {
+      server: workflowRoutes({
         "GET /v1/artifacts": () => json(page(stored ? [uploadedArtifact] : [])),
         "PUT /v1/artifacts/{namespace}/{name}": async ({ request, params }) => {
           expect(params).toEqual({
@@ -1221,8 +1221,8 @@ describe("Workflow routes", () => {
           });
         },
       }),
-      { strict: true },
-    );
+      strict: true,
+    });
     const puts = () => sent("PUT", "/v1/artifacts/inputs/service-source");
 
     await openRunSetup();
@@ -1287,18 +1287,14 @@ describe("Workflow routes", () => {
   });
 
   it("aborts a pending local upload without binding it into the retained draft", async () => {
-    let uploadStarted: (() => void) | undefined;
-    const started = new Promise<void>((resolve) => {
-      uploadStarted = resolve;
-    });
+    const started = deferred();
     let uploadAborted = false;
-    renderApplication(
-      workflowRoute,
-      workflowRoutes({
+    renderApplication(workflowRoute, {
+      server: workflowRoutes({
         "GET /v1/artifacts": () => json(page([])),
         "PUT /v1/artifacts/{namespace}/{name}": async ({ request, params }) => {
           expect(params.name).toBe("cancel-source");
-          uploadStarted?.();
+          started.resolve();
           return await new Promise<Response>((_resolve, reject) => {
             const abort = () => {
               uploadAborted = true;
@@ -1312,8 +1308,8 @@ describe("Workflow routes", () => {
           });
         },
       }),
-      { strict: true },
-    );
+      strict: true,
+    });
 
     await openRunSetup();
     const user = userEvent.setup();
@@ -1336,7 +1332,7 @@ describe("Workflow routes", () => {
         name: "Upload and select",
       }),
     );
-    await started;
+    await started.promise;
     await user.click(
       within(dialog).getByRole("button", {
         name: "Close local file upload",
@@ -1353,15 +1349,14 @@ describe("Workflow routes", () => {
 
   it("blocks duplicate and reserved Run metadata labels before mutation", async () => {
     let postCount = 0;
-    renderApplication(
-      workflowRoute,
-      workflowRoutes({
+    renderApplication(workflowRoute, {
+      server: workflowRoutes({
         [CREATE_RUN]: () => {
           postCount += 1;
           return responseLost();
         },
       }),
-    );
+    });
 
     await openRunSetup();
     const user = userEvent.setup();

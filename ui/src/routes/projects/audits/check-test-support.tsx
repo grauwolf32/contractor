@@ -1,7 +1,5 @@
 // Fixtures and a fake Server for the Checks area tests (the Checks list, the
 // check page and the project's Checks tab). Not imported by the application.
-import { render } from "@testing-library/react";
-import { createMemoryRouter, type InitialEntry } from "react-router";
 
 import type {
   Audit,
@@ -13,8 +11,6 @@ import type {
 } from "../../../api/audits";
 import type { PublicAPI } from "../../../api/client";
 import type { Project } from "../../../api/projects";
-import { Application } from "../../../app/application";
-import { applicationRoutes } from "../../../app/router";
 import * as build from "../../../test/builders";
 import {
   emptyPageOrNotFound,
@@ -278,19 +274,4 @@ export function fakeAPI(
     ),
   );
   return { api, requests: server.requests };
-}
-
-/**
- * The whole application (shell, session, routes) at `path`.
- * V385: needs shared renderApplication in src/test (full Application at a
- * path over a fake Server); the Projects and check tests use this one.
- */
-export function renderApplication(api: PublicAPI, path: InitialEntry) {
-  const router = createMemoryRouter(applicationRoutes(), {
-    initialEntries: [path],
-  });
-  return {
-    ...render(<Application api={api} publicAPI={api} router={router} />),
-    router,
-  };
 }

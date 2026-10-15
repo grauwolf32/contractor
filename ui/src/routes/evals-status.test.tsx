@@ -1,9 +1,10 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it } from "vitest";
+import { renderApplication } from "../test/application";
 import { createEvalFixture } from "../test/evals-fixture";
 import { json } from "../test/fake-server";
-import { renderEvals, stubEvalBrowser } from "./evals/test-support";
+import { evalServer, stubEvalBrowser } from "./evals/test-support";
 
 beforeEach(stubEvalBrowser);
 
@@ -24,8 +25,9 @@ function finishedFixture() {
 }
 
 function start(fixture: ReturnType<typeof createEvalFixture>) {
-  return renderEvals(fixture, "/evals/experiments/experiment-1/overview")
-    .router;
+  return renderApplication("/evals/experiments/experiment-1/overview", {
+    server: evalServer(fixture),
+  }).router;
 }
 
 it("explains zero executions and lets the user prepare a fresh copy", async () => {

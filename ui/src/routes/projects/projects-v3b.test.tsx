@@ -1,17 +1,15 @@
+import { deferred } from "../../test/deferred";
 import { ownerListResponse } from "../../test/owner-lists";
-import { act, render, screen, waitFor, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { createMemoryRouter } from "react-router";
-import { describe, expect, it, vi } from "vitest";
+import { act, screen, waitFor, within } from "@testing-library/react";
+import { describe, expect, it } from "vitest";
 
 import type { ArtifactMetadata } from "../../api/artifacts";
 import type { Audit, AuditFinding, AuditProfile } from "../../api/audits";
 import type { Project } from "../../api/projects";
 import type { RunSummary } from "../../api/runs";
 import type { WorkflowSummary } from "../../api/workflows";
-import { Application } from "../../app/application";
-import * as queryClientFactory from "../../app/query-client";
-import { applicationRoutes } from "../../app/router";
+import { createApplicationQueryClient } from "../../app/query-client";
+import { renderApplication } from "../../test/application";
 import { stageContract } from "../../test/builders-execution";
 import { failure, fakeServer, json, page } from "../../test/fake-server";
 import { testAPI, testSession } from "../../test/render";
@@ -166,8 +164,6 @@ function serve(server: FakeServer) {
       });
       if (ownerResponse !== undefined) return ownerResponse;
       const query = url.searchParams;
-      if (path === "/v1/auth/session")
-        return json(testSession(server.capabilities ?? ["user", "operations"]));
       if (path === "/v1/projects" && request.method === "POST") {
         if (server.createProject === undefined)
           throw new Error("unexpected POST /v1/projects");
@@ -295,17 +291,14 @@ function serve(server: FakeServer) {
 /** Renders the application at `path`, after `earlier` history entries. */
 function renderAt(server: FakeServer, path: string, earlier: string[] = []) {
   const { api, requests } = serve(server);
-  const router = createMemoryRouter(applicationRoutes(), {
-    initialEntries: [...earlier, path],
-    initialIndex: earlier.length,
+  const queryClient = createApplicationQueryClient();
+  const { router, user } = renderApplication(path, {
+    api,
+    history: earlier,
+    queryClient,
+    capabilities: server.capabilities,
   });
-  const queryClient = queryClientFactory.createApplicationQueryClient();
-  const factory = vi
-    .spyOn(queryClientFactory, "createApplicationQueryClient")
-    .mockReturnValueOnce(queryClient);
-  render(<Application api={api} publicAPI={api} router={router} />);
-  factory.mockRestore();
-  return { router, requests, queryClient, user: userEvent.setup() };
+  return { router, requests, queryClient, user };
 }
 
 /** GET requests to `pathname`. */
@@ -1036,12 +1029,9 @@ describe("Project overview", () => {
       finding("audit_running", "finding_1", "Order IDOR"),
       finding("audit_running", "finding_9", "Price tampering"),
     ];
-    let release = () => {};
-    const held = new Promise<void>((resolve) => {
-      release = resolve;
-    });
+    const held = deferred();
     server.holdFindings = (auditId) =>
-      auditId === "audit_running" ? held : undefined;
+      auditId === "audit_running" ? held.promise : undefined;
     const issueReads = () =>
       reads(requests, "/v1/audits/audit_running/findings");
     const before = issueReads();
@@ -1052,7 +1042,7 @@ describe("Project overview", () => {
       within(glance).getByRole("link", { name: "3 to review" }),
     ).toBeVisible();
     expect(within(glance).queryByText("Counting…")).toBeNull();
-    act(() => release());
+    act(() => held.resolve());
     expect(
       await within(glance).findByRole("link", { name: "4 to review" }),
     ).toBeVisible();

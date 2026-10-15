@@ -1,11 +1,9 @@
-import { act, render, screen, waitFor, within } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { createMemoryRouter } from "react-router";
 import { describe, expect, it, vi } from "vitest";
 
 import type { components } from "../../api/generated/public";
-import { Application } from "../../app/application";
-import { applicationRoutes } from "../../app/router";
+import { renderApplication } from "../../test/application";
 import { conforming } from "../../test/builders";
 import { workflowResource } from "../../test/builders-execution";
 import {
@@ -15,7 +13,6 @@ import {
   json,
   page,
 } from "../../test/fake-server";
-import { testAPI, testSession } from "../../test/render";
 
 type Schemas = components["schemas"];
 
@@ -180,23 +177,8 @@ function setup(
     },
     emptyPageOrNotFound,
   );
-  const { api: publicAPI } = testAPI(server);
-  const session = testSession();
-  const router = createMemoryRouter(applicationRoutes(), {
-    initialEntries: [path],
-  });
-  const view = render(
-    <Application
-      api={{
-        getSession: async () => session,
-        login: async () => session,
-        logout: async () => undefined,
-      }}
-      publicAPI={publicAPI}
-      router={router}
-    />,
-  );
-  return { abortedSearches, server, router, ...view };
+  const view = renderApplication(path, { server, capabilities: ["user"] });
+  return { abortedSearches, ...view };
 }
 
 /** Whether `server` received a request whose query has q=`value`. */

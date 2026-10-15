@@ -9,7 +9,7 @@ import { UI_VERSION } from "../build";
 import type { RuntimeConfig } from "../config/runtime-config";
 import type { SessionAPI } from "../auth/session";
 import { Application } from "./application";
-import { applicationRoutes, lazyRoute } from "./router";
+import { applicationRoutes } from "./router";
 
 const session: AuthSession = {
   principal: {
@@ -75,12 +75,9 @@ describe("application session shell", () => {
       logout: vi.fn(async () => undefined),
     };
     const routes = applicationRoutes();
-    runRoute(routes).lazy = lazyRoute(
-      async (): Promise<{ RunsRoute: () => null }> => {
-        throw new TypeError("Failed to fetch dynamically imported module");
-      },
-      "RunsRoute",
-    );
+    runRoute(routes).lazy = async () => {
+      throw new TypeError("Failed to fetch dynamically imported module");
+    };
     renderApplication(api, "/projects", routes);
     const user = userEvent.setup();
     await user.click(await screen.findByRole("link", { name: "Runs" }));

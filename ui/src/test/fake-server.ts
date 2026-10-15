@@ -2,7 +2,9 @@
 // operation ("METHOD /v1/path/{template}") they answer, and every JSON success
 // response is checked against that operation's generated response schema, as
 // the real client checks it: a fixture that breaks the contract fails the test
-// that served it, with the location of the violation.
+// that served it, with the location of the violation. A status the contract
+// declares without a JSON body (artifact content, whatever its media type) is
+// raw bytes and is not checked.
 import { expect } from "vitest";
 
 import { responseViolation, type ResponseOperation } from "../api/contract";
@@ -41,6 +43,26 @@ export function invalidJSON(
   const response = json(value, status, headers);
   unchecked.add(response);
   return response;
+}
+
+/**
+ * Raw bytes as an artifact content operation serves them: `body` in
+ * `mediaType`, with its UTF-8 length. A JSON artifact is no API body, so the
+ * fake Server does not check it.
+ */
+export function bytes(
+  body: string,
+  mediaType: string,
+  headers: Record<string, string> = {},
+): Response {
+  return new Response(body, {
+    headers: {
+      "Content-Type": mediaType,
+      "Content-Length": String(new TextEncoder().encode(body).byteLength),
+      ...API_VERSION_HEADERS,
+      ...headers,
+    },
+  });
 }
 
 /** An error envelope with `status`. */
@@ -184,6 +206,12 @@ async function checkResponse(
   if (!response.ok || unchecked.has(response) || response.status === 204) {
     return;
   }
+  // Raw content: the operation declares this status without a JSON body.
+  if (operation !== undefined) {
+    const declared: Readonly<Record<string, string | null>> =
+      RESPONSE_SCHEMAS[operation];
+    if (declared[String(response.status)] === null) return;
+  }
   // A read that outlives the test that served it must not fail a later test.
   if (owner !== undefined && expect.getState().currentTestName !== owner) {
     return;
@@ -215,6 +243,8 @@ export interface FakeServer {
   sent(method: string, suffix: string): Request[];
   /** Adds or replaces the route of `operation`. */
   route(operation: ResponseOperation, route: Route): void;
+  /** Whether a route answers `operation` (a fallback does not count). */
+  handles(operation: ResponseOperation): boolean;
 }
 
 /**
@@ -242,6 +272,7 @@ export function fakeServer(
     route: (operation, route) => {
       table.set(operation, route);
     },
+    handles: (operation) => table.has(operation),
     fetch: async (input) => {
       const request = input instanceof Request ? input : new Request(input);
       requests.push(request.clone());

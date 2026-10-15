@@ -6,7 +6,7 @@ import { renderWithAPI } from "../../test/render";
 import { inferredArtifactMediaType } from "./artifact-file";
 import { ArtifactWriteForm } from "./common";
 import { LoadedArtifactPreview } from "./loaded-preview";
-import { artifactMetadata, artifactWrite } from "./test-support";
+import { artifactMetadata, artifactWrite } from "../../test/builders";
 
 const wordlist = "text/vnd.contractor.wordlist";
 

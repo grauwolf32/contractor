@@ -2,11 +2,10 @@ import { screen, within } from "@testing-library/react";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 
-import { conforming } from "../../test/builders";
+import { artifactMetadata, conforming } from "../../test/builders";
 import { fakeServer, json, type FakeCall } from "../../test/fake-server";
 import { renderWithAPI } from "../../test/render";
 import { ArtifactPreviewPanel } from "./preview";
-import { artifactMetadata } from "./test-support";
 
 const metadata = artifactMetadata("skills", "example", {
   mediaType: "application/vnd.contractor.agent-skill+zip",

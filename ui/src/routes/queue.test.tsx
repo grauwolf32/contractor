@@ -13,11 +13,7 @@ import {
   type Routes,
 } from "../test/fake-server";
 import { CSRF_TOKEN } from "../test/render";
-import {
-  FakeEventSocket,
-  renderApplication,
-  SIGNED_IN,
-} from "./runs/test-support";
+import { FakeEventSocket, renderApplication } from "../test/application";
 
 type QueueItem = components["schemas"]["RunQueueItem"];
 
@@ -66,18 +62,16 @@ function renderQueue(
   path = "/runs",
   routes: Routes = {},
 ) {
-  const view = renderApplication(
-    fakeServer(
+  const view = renderApplication(path, {
+    server: fakeServer(
       {
-        ...SIGNED_IN,
         "GET /v1/queue/control": () => queueControl(),
         "GET /v1/queue": queue,
         ...routes,
       },
       emptyPageOrNotFound,
     ),
-    path,
-  );
+  });
   return {
     ...view,
     /** The Queue reads so far. */

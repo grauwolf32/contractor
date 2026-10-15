@@ -2,7 +2,11 @@ import { act, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import type { ArtifactMetadata } from "../../api/artifacts";
-import { conforming } from "../../test/builders";
+import {
+  artifactMetadata,
+  artifactWrite,
+  conforming,
+} from "../../test/builders";
 import {
   failure,
   fakeServer,
@@ -12,7 +16,6 @@ import {
 } from "../../test/fake-server";
 import { renderWithAPI } from "../../test/render";
 import { ProjectArtifactRegion } from "../projects/artifact-region";
-import { artifactMetadata, artifactWrite } from "./test-support";
 
 const PROJECT = "project-1";
 const LIST = `/v1/projects/${PROJECT}/artifacts`;

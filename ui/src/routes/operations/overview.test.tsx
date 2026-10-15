@@ -2,8 +2,9 @@ import { screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import type { RuntimeAgentObservation } from "../../api/operations";
+import { renderApplication } from "../../test/application";
+import { operationsSnapshot } from "../../test/builders-execution";
 import { json, page } from "../../test/fake-server";
-import { operationsSnapshot, renderOperationsApp } from "./test-support";
 
 function agent(
   instanceId: string,
@@ -24,8 +25,8 @@ function agent(
 }
 
 function renderOverview(runtimeAgents: RuntimeAgentObservation[]) {
-  renderOperationsApp("/operations", {
-    routes: {
+  renderApplication("/operations", {
+    server: {
       "GET /v1/operations/snapshot": () =>
         json(operationsSnapshot("4", { runtimeAgents })),
       "GET /v1/projects": () => json(page([])),

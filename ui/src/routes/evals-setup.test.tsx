@@ -1,3 +1,4 @@
+import { renderApplication } from "../test/application";
 import { storedValues } from "../test/storage";
 import { onlineManager } from "@tanstack/react-query";
 import { act, screen, waitFor } from "@testing-library/react";
@@ -9,12 +10,12 @@ import {
   EVAL_FIXTURE_SESSION,
 } from "../test/evals-fixture";
 import { writeCommand } from "./evals/recovery";
-import { renderEvals, stubEvalBrowser } from "./evals/test-support";
+import { evalServer, stubEvalBrowser } from "./evals/test-support";
 
 beforeEach(stubEvalBrowser);
 
 function start(fixture: ReturnType<typeof createEvalFixture>, path: string) {
-  return renderEvals(fixture, path);
+  return renderApplication(path, { server: evalServer(fixture) });
 }
 
 describe("Managed Evals setup", () => {

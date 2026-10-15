@@ -1,16 +1,17 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it } from "vitest";
+import { renderApplication } from "../test/application";
 import { createEvalFixture } from "../test/evals-fixture";
 import { json } from "../test/fake-server";
 import pairs from "../../../api/testdata/evals/valid/pair-page.json";
 import { MAX_EVAL_DOCUMENT_BYTES } from "./evals/plan-size";
-import { renderEvals, stubEvalBrowser } from "./evals/test-support";
+import { evalServer, stubEvalBrowser } from "./evals/test-support";
 
 beforeEach(stubEvalBrowser);
 
 function start(fixture: ReturnType<typeof createEvalFixture>, path: string) {
-  return renderEvals(fixture, path);
+  return renderApplication(path, { server: evalServer(fixture) });
 }
 
 function datasetFile(raw: string): File {

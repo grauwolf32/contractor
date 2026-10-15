@@ -7,7 +7,7 @@ import {
   workflowSummary,
 } from "../../test/builders-execution";
 import { json, page } from "../../test/fake-server";
-import { renderApplication } from "../artifacts/test-support";
+import { renderApplication } from "../../test/application";
 
 const workflow = (version: string) =>
   workflowSummary(
@@ -35,10 +35,12 @@ const workflow = (version: string) =>
 describe("shared Workflow cards", () => {
   it("defaults to the latest version across pages, pins an older choice on refresh and keeps exact links and contracts together", async () => {
     const { sent } = renderApplication("/catalog/workflows", {
-      "GET /v1/workflows": ({ url }) =>
-        url.searchParams.get("cursor") === "next"
-          ? json(page([workflow("10")]))
-          : json(page([workflow("9")], "next")),
+      server: {
+        "GET /v1/workflows": ({ url }) =>
+          url.searchParams.get("cursor") === "next"
+            ? json(page([workflow("10")]))
+            : json(page([workflow("9")], "next")),
+      },
     });
     const card = await screen.findByRole("article", { name: "Source check" });
     expect(

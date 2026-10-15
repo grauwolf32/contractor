@@ -12,6 +12,7 @@ import {
 } from "../../api/audits";
 import { usePublicAPI } from "../../api/context";
 import { queryKeys } from "../../api/query-keys";
+import { deferred } from "../../test/deferred";
 import { FindingDecision } from "./finding-decision";
 import {
   AUDIT_ID,
@@ -438,14 +439,11 @@ describe("FindingDecision", () => {
   });
 
   it("offers the exact ID while the possible issues are still loading", async () => {
-    let release: (() => void) | undefined;
-    const listed = new Promise<void>((resolve) => {
-      release = resolve;
-    });
+    const listed = deferred();
     const { user, sent } = setup({
       finding: makeFinding(),
       listFindings: async () => {
-        await listed;
+        await listed.promise;
         return json({
           items: [],
           page: { hasMore: false },
@@ -477,7 +475,7 @@ describe("FindingDecision", () => {
     expect(
       await bodyOf(sent("POST", "/reviews/review_new/decisions")[0]),
     ).toMatchObject({ verdict: "duplicate", duplicateTargetId: "finding_77" });
-    release?.();
+    listed.resolve();
     expect(
       await screen.findByRole("region", { name: "Current decision" }),
     ).toBeVisible();
@@ -765,10 +763,7 @@ describe("FindingDecision", () => {
   });
 
   it("keeps recording while the refreshed reads already show a newer open request", async () => {
-    let release: (() => void) | undefined;
-    const held = new Promise<void>((resolve) => {
-      release = resolve;
-    });
+    const held = deferred();
     const onRecording = vi.fn();
     const { state, routes } = decisionServer({ finding: makeFinding() });
     // After the decision the Server opens a request for the new revision,
@@ -776,7 +771,7 @@ describe("FindingDecision", () => {
     const server = fakeServer({
       ...routes,
       "GET /v1/audits/{auditId}/findings/{findingId}": async (call) => {
-        if (state.decisionAttempts > 0) await held;
+        if (state.decisionAttempts > 0) await held.promise;
         return routes["GET /v1/audits/{auditId}/findings/{findingId}"](call);
       },
       "POST /v1/audits/{auditId}/reviews/{requestId}/decisions": async (
@@ -823,7 +818,7 @@ describe("FindingDecision", () => {
     ).toBeNull();
     expect(reasonField()).toBeEnabled();
 
-    release?.();
+    held.resolve();
     expect(
       await screen.findByText("Decision recorded: Needs evidence."),
     ).toBeVisible();

@@ -2,14 +2,10 @@ import { screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import type { components } from "../../../api/generated/public";
+import { renderApplication } from "../../../test/application";
+import { operationsSnapshot } from "../../../test/builders-execution";
 import { conforming } from "../../../test/builders";
-import {
-  emptyPageOrNotFound,
-  json,
-  noContent,
-  page,
-} from "../../../test/fake-server";
-import { operationsSnapshot, renderOperationsApp } from "../test-support";
+import { json, noContent, page } from "../../../test/fake-server";
 
 type Schemas = components["schemas"];
 type Worker = Schemas["RuntimeConfigDocument"]["spec"]["worker"];
@@ -96,10 +92,10 @@ function setup(
         }),
       ]
     : [];
-  const view = renderOperationsApp(path, {
+  const view = renderApplication(path, {
     capabilities:
       options.authorized === false ? ["user"] : ["user", "operations"],
-    routes: {
+    server: {
       "GET /v1/operations/snapshot": () => json(operationsSnapshot("1")),
       "GET /v1/operations/runtime-configs": () => json(page([resource])),
       "GET /v1/operations/runtime-configs/{name}/versions/{version}": () =>
@@ -117,7 +113,6 @@ function setup(
         return noContent();
       },
     },
-    fallback: emptyPageOrNotFound,
   });
   return {
     ...view,

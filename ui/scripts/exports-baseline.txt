@@ -107,8 +107,6 @@ src/api/workflows.ts:WORKFLOW_PAGE_SIZE V385-001
 src/api/workflows.ts:WorkflowPage V385-001
 src/app/command-palette.tsx:RESULTS_PER_GROUP V385-001
 src/app/document-title.ts:documentTitle V385-001
-src/app/router.tsx:applicationRoutes V385-001
-src/app/router.tsx:lazyRoute V385-001
 src/app/status-tone.ts:STATUS_TONES V385-001
 src/app/vocabulary.ts:AuditReviewKind V385-001
 src/app/vocabulary.ts:REPORT_STATUS_LABELS V385-001

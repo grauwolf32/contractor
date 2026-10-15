@@ -90,15 +90,6 @@ export interface ServerState {
   hold?: { path: RegExp; until: Promise<void> } | undefined;
 }
 
-/** A promise for ServerState.hold and the function that settles it. */
-export function gate(): { until: Promise<void>; release: () => void } {
-  let release: () => void = () => undefined;
-  const until = new Promise<void>((resolve) => {
-    release = resolve;
-  });
-  return { until, release };
-}
-
 /**
  * A Server with projects, checks and reports. Deciding a report acceptance
  * request finishes the check: approve makes the report ready, reject makes

@@ -6,7 +6,7 @@ import type { ArtifactMetadata } from "../../api/artifacts";
 import { sha256Hex } from "../../app/digest";
 import { conforming } from "../../test/builders";
 import {
-  API_VERSION_HEADERS,
+  bytes,
   fakeServer,
   invalidJSON,
   json,
@@ -32,10 +32,7 @@ function renderPicker(
 ) {
   const list = (items: ArtifactMetadata[]) =>
     (broken ? invalidJSON : json)(page(items));
-  const download = () =>
-    new Response("spec", {
-      headers: { ...API_VERSION_HEADERS, "Content-Type": "text/plain" },
-    });
+  const download = () => bytes("spec", "text/plain");
   const server = fakeServer({
     "GET /v1/projects/{projectId}/artifacts": () => list(inventory.project),
     "GET /v1/artifacts": () => list(inventory.user),

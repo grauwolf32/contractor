@@ -1,35 +1,10 @@
-import { render, screen, within } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { createMemoryRouter } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { Application } from "../app/application";
-import { applicationRoutes } from "../app/router";
+import { renderApplication } from "../test/application";
 import { conforming } from "../test/builders";
-import {
-  failure,
-  fakeServer,
-  json,
-  page,
-  type FakeServer,
-  type Routes,
-} from "../test/fake-server";
-import { testAPI, testSession } from "../test/render";
-
-// V385: needs shared Application render harness (src/test renders routes
-// without the Application providers).
-function renderApplication(routes: Routes, path = "/catalog/skills") {
-  const server = fakeServer({
-    "GET /v1/auth/session": () => json(testSession()),
-    ...routes,
-  });
-  const { api } = testAPI(server);
-  const router = createMemoryRouter(applicationRoutes(), {
-    initialEntries: [path],
-  });
-  render(<Application api={api} publicAPI={api} router={router} />);
-  return server;
-}
+import { failure, json, page, type FakeServer } from "../test/fake-server";
 
 function skill(name: string, revision: string) {
   return conforming("ArtifactMetadata", {
@@ -86,29 +61,32 @@ afterEach(() => {
 
 describe("Skills catalog", () => {
   it("shows an explicit error with retry when the archive request fails, and keeps the placeholder for packages without a description", async () => {
-    const server = renderApplication({
-      "GET /v1/artifacts": () =>
-        json(page([skill("broken", "r1"), skill("plain", "r2")])),
-      "GET /v1/artifacts/{namespace}/{name}/archive": ({ params }) => {
-        if (params.name === "plain")
-          return archive("plain", "r2", ["notes.txt"]);
-        return archiveReads(server, "broken") === 1
-          ? failure(503, "unavailable", "Archive store is unavailable")
-          : archive("broken", "r1", ["SKILL.md"]);
+    const { server } = renderApplication("/catalog/skills", {
+      server: {
+        "GET /v1/artifacts": () =>
+          json(page([skill("broken", "r1"), skill("plain", "r2")])),
+        "GET /v1/artifacts/{namespace}/{name}/archive": ({ params }) => {
+          if (params.name === "plain")
+            return archive("plain", "r2", ["notes.txt"]);
+          return archiveReads(server, "broken") === 1
+            ? failure(503, "unavailable", "Archive store is unavailable")
+            : archive("broken", "r1", ["SKILL.md"]);
+        },
+        "GET /v1/artifacts/{namespace}/{name}/archive/file": () => {
+          const text = "---\ndescription: Reviews source evidence\n---\n# Hi\n";
+          return json(
+            conforming("ArtifactArchiveFile", {
+              artifact: { namespace: "skills", name: "broken", revision: "r1" },
+              path: "SKILL.md",
+              text,
+              size: new TextEncoder().encode(text).length,
+            }),
+            200,
+            { ETag: '"r1"' },
+          );
+        },
       },
-      "GET /v1/artifacts/{namespace}/{name}/archive/file": () => {
-        const text = "---\ndescription: Reviews source evidence\n---\n# Hi\n";
-        return json(
-          conforming("ArtifactArchiveFile", {
-            artifact: { namespace: "skills", name: "broken", revision: "r1" },
-            path: "SKILL.md",
-            text,
-            size: new TextEncoder().encode(text).length,
-          }),
-          200,
-          { ETag: '"r1"' },
-        );
-      },
+      capabilities: ["user"],
     });
 
     const broken = (
@@ -146,7 +124,10 @@ describe("Skills catalog", () => {
   });
 
   it("explains how to create the first package in Library words", async () => {
-    renderApplication({ "GET /v1/artifacts": () => json(page([])) });
+    renderApplication("/catalog/skills", {
+      server: { "GET /v1/artifacts": () => json(page([])) },
+      capabilities: ["user"],
+    });
 
     const empty = (await screen.findByText("No global Skill packages found."))
       .parentElement!;
@@ -161,31 +142,34 @@ describe("Skills catalog", () => {
 
   it("lists packages with size, files and revision, and uploads a Skill ZIP", async () => {
     let stored = false;
-    const server = renderApplication({
-      "GET /v1/artifacts": () =>
-        json(
-          page(
-            stored
-              ? [skill("review", "r1"), skill("triage", "r9")]
-              : [skill("review", "r1")],
+    const { server } = renderApplication("/catalog/skills", {
+      server: {
+        "GET /v1/artifacts": () =>
+          json(
+            page(
+              stored
+                ? [skill("review", "r1"), skill("triage", "r9")]
+                : [skill("review", "r1")],
+            ),
           ),
-        ),
-      "GET /v1/artifacts/{namespace}/{name}/archive": ({ params }) =>
-        params.name === "review"
-          ? archive("review", "r1", ["notes.md"])
-          : failure(503, "unavailable", "Later"),
-      "PUT /v1/artifacts/{namespace}/{name}": () => {
-        stored = true;
-        return json(
-          conforming("ArtifactWriteResponse", {
-            artifact: { namespace: "skills", name: "triage", revision: "r9" },
-            mediaType: "application/vnd.contractor.agent-skill+zip",
-            size: 3,
-          }),
-          201,
-          { ETag: '"r9"' },
-        );
+        "GET /v1/artifacts/{namespace}/{name}/archive": ({ params }) =>
+          params.name === "review"
+            ? archive("review", "r1", ["notes.md"])
+            : failure(503, "unavailable", "Later"),
+        "PUT /v1/artifacts/{namespace}/{name}": () => {
+          stored = true;
+          return json(
+            conforming("ArtifactWriteResponse", {
+              artifact: { namespace: "skills", name: "triage", revision: "r9" },
+              mediaType: "application/vnd.contractor.agent-skill+zip",
+              size: 3,
+            }),
+            201,
+            { ETag: '"r9"' },
+          );
+        },
       },
+      capabilities: ["user"],
     });
     const puts = () => server.sent("PUT", "/v1/artifacts/skills/triage");
 

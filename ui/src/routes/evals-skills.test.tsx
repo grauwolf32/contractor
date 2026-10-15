@@ -1,13 +1,11 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { createMemoryRouter } from "react-router";
 import { describe, expect, it } from "vitest";
 
-import { Application } from "../app/application";
-import { applicationRoutes } from "../app/router";
+import { renderApplication } from "../test/application";
 import * as build from "../test/builders";
-import { fakeServer, json, page, type Routes } from "../test/fake-server";
-import { CSRF_TOKEN, testAPI, testSession } from "../test/render";
+import { json, page } from "../test/fake-server";
+import { CSRF_TOKEN } from "../test/render";
 
 const evaluation = build.project("evaluation-openapi", {
   kind: "evaluation",
@@ -16,24 +14,6 @@ const evaluation = build.project("evaluation-openapi", {
   createdAt: "2026-09-05T08:00:00Z",
   updatedAt: "2026-09-05T08:01:00Z",
 });
-
-// V385: needs shared Application render harness (src/test renders routes
-// without the Application providers).
-function renderApplication(routes: Routes, path: string) {
-  const server = fakeServer({
-    "GET /v1/auth/session": () => json(testSession(["user", "operations"])),
-    ...routes,
-  });
-  const { api } = testAPI(server);
-  const router = createMemoryRouter(applicationRoutes(), {
-    initialEntries: [path],
-  });
-  return {
-    ...render(<Application api={api} publicAPI={api} router={router} />),
-    router,
-    server,
-  };
-}
 
 describe("Evals and global Skills routes", () => {
   it("filters evaluation Projects and groups their ordinary Runs by eval metadata", async () => {
@@ -86,8 +66,8 @@ describe("Evals and global Skills routes", () => {
         finishedAt: "2026-09-05T08:10:00Z",
       }),
     ];
-    const view = renderApplication(
-      {
+    const view = renderApplication("/evals/legacy", {
+      server: {
         "GET /v1/projects": () => json(page([evaluation])),
         "GET /v1/projects/{projectId}": () =>
           json(evaluation, 200, { ETag: '"1"' }),
@@ -95,8 +75,7 @@ describe("Evals and global Skills routes", () => {
         "GET /v1/projects/{projectId}/runs": () => json(page(runs)),
         "GET /v1/workflows": () => json(page([])),
       },
-      "/evals/legacy",
-    );
+    });
     const requests = view.server.requests;
 
     const evalLink = await screen.findByRole("link", {
@@ -195,8 +174,8 @@ describe("Evals and global Skills routes", () => {
       frozen: false,
       createdAt: "2026-09-05T08:00:00Z",
     });
-    const { server } = renderApplication(
-      {
+    const { server } = renderApplication("/catalog/skills", {
+      server: {
         "GET /v1/artifacts": () =>
           json(
             page([
@@ -232,8 +211,7 @@ describe("Evals and global Skills routes", () => {
           );
         },
       },
-      "/catalog/skills",
-    );
+    });
     const requests = server.requests;
 
     expect(

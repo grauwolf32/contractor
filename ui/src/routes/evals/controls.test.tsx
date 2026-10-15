@@ -5,12 +5,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { queryKeys } from "../../api/query-keys";
 import { createApplicationQueryClient } from "../../app/query-client";
+import { renderApplication } from "../../test/application";
 import {
   createEvalFixture,
   EVAL_FIXTURE_ORIGIN,
 } from "../../test/evals-fixture";
 import { readCommand, writeCommand } from "./recovery";
-import { renderEvals, stubEvalBrowser } from "./test-support";
+import { evalServer, stubEvalBrowser } from "./test-support";
 
 beforeEach(stubEvalBrowser);
 afterEach(() => {
@@ -25,7 +26,7 @@ function start(
   const cache = createApplicationQueryClient();
   prepare?.(cache);
   const invalidated = vi.spyOn(cache, "invalidateQueries");
-  renderEvals(fixture, path, { cache });
+  renderApplication(path, { server: evalServer(fixture), queryClient: cache });
   return invalidated;
 }
 

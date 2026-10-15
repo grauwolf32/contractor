@@ -4,12 +4,7 @@ import { expect, it } from "vitest";
 import captures from "../../../../api/testdata/http-capture-cases.json";
 import { HTTP_EXCHANGE_MEDIA_TYPE } from "../../api/artifacts";
 import { conforming } from "../../test/builders";
-import {
-  API_VERSION_HEADERS,
-  fakeServer,
-  json,
-  page,
-} from "../../test/fake-server";
+import { bytes, fakeServer, json, page } from "../../test/fake-server";
 import { renderWithAPI } from "../../test/render";
 import { RunArtifactDetailRoute, RunArtifactLibrary } from "./artifacts";
 
@@ -67,12 +62,8 @@ it(
           "/v1/runs/run-test/artifacts/finding-proposals/http.exchange.proposal-100",
         );
         expect(url.searchParams.get("revision")).toBe("exact-100");
-        return new Response(SOURCE, {
-          headers: {
-            ...API_VERSION_HEADERS,
-            "Content-Type": HTTP_EXCHANGE_MEDIA_TYPE,
-            "Content-Length": String(selected.size),
-          },
+        return bytes(SOURCE, HTTP_EXCHANGE_MEDIA_TYPE, {
+          "Content-Length": String(selected.size),
         });
       },
     });

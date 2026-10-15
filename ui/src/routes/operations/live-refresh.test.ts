@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { OperationsSnapshotCursor } from "../../events/run-events";
+import { deferred } from "../../test/deferred";
 import { OperationsLiveRefresh } from "./live-refresh";
 
 const generation = "operations-generation-1";
@@ -8,14 +9,6 @@ const cursor = (revision: number): OperationsSnapshotCursor => ({
   generation,
   revision: String(revision),
 });
-
-function deferred<T>() {
-  let resolve!: (value: T) => void;
-  const promise = new Promise<T>((complete) => {
-    resolve = complete;
-  });
-  return { promise, resolve };
-}
 
 afterEach(() => vi.useRealTimers());
 

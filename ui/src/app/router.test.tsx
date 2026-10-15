@@ -18,7 +18,7 @@ import { InboxRoute } from "../routes/inbox";
 import { IssuesRoute } from "../routes/issues";
 import { ReportsRoute } from "../routes/reports";
 import { Application } from "./application";
-import { applicationRoutes, lazyRoute } from "./router";
+import { applicationRoutes } from "./router";
 
 const session: AuthSession = {
   principal: {
@@ -154,7 +154,7 @@ describe("V3B destinations", () => {
     const routes = applicationRoutes();
     const page = leafRoute(path, routes);
     if (page === undefined) throw new Error(`${path} has no route`);
-    page.lazy = lazyRoute(async () => ({ PageProbe }), "PageProbe");
+    page.lazy = async () => ({ Component: PageProbe });
     renderAt(path, routes);
     const content = await screen.findByText(`Page at ${path}`);
     expect(screen.getByRole("main")).toContainElement(content);
@@ -171,7 +171,7 @@ describe("V3B destinations", () => {
     const routes = applicationRoutes();
     for (const route of shellRoutes(routes)) {
       if (route.path === list || route.path?.startsWith(`${list}/`)) {
-        route.lazy = lazyRoute(async () => ({ ListProbe }), "ListProbe");
+        route.lazy = async () => ({ Component: ListProbe });
       }
     }
     const router = renderAt(list, routes);

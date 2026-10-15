@@ -5,10 +5,9 @@ import type { RunStatus } from "../../api/runs";
 import { conforming } from "../../test/builders";
 import { workflowResource } from "../../test/builders-execution";
 import {
-  API_VERSION_HEADERS,
+  bytes,
   failure,
   fakeServer,
-  invalidJSON,
   json,
   type Routes,
 } from "../../test/fake-server";
@@ -53,17 +52,6 @@ function metadata(
     current: overrides.current ?? true,
     frozen: true,
     createdAt: overrides.createdAt ?? "2026-09-07T08:00:00Z",
-  });
-}
-
-/** Original bytes of an output. */
-function bytes(source: string, mediaType: string): Response {
-  return new Response(source, {
-    headers: {
-      ...API_VERSION_HEADERS,
-      "content-length": String(source.length),
-      "content-type": mediaType,
-    },
   });
 }
 
@@ -253,11 +241,7 @@ describe("Run primary output preview", () => {
             "/v1/runs/run-primary/artifacts/outputs/trace",
           );
           // The payload is an artifact's own JSON, not an API body.
-          // V385: needs shared fake Server support for JSON artifact bytes
-          // (it checks every application/json body against the operation).
-          return invalidJSON(JSON.parse(source), 200, {
-            "content-length": String(source.length),
-          });
+          return bytes(source, "application/json");
         },
       },
     );

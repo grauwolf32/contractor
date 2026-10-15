@@ -7,7 +7,10 @@ import type {
   RuntimeConfigAuthorDocument,
   RuntimeConfigResource,
 } from "../../api/operations";
-import * as queryClientFactory from "../../app/query-client";
+import { createApplicationQueryClient } from "../../app/query-client";
+import { FakeEventSocket, renderApplication } from "../../test/application";
+import { operationsSnapshot as snapshot } from "../../test/builders-execution";
+import { deferred } from "../../test/deferred";
 import {
   failure,
   json,
@@ -16,11 +19,6 @@ import {
   type Fallback,
 } from "../../test/fake-server";
 import { CSRF_TOKEN } from "../../test/render";
-import {
-  FakeSocket,
-  operationsSnapshot as snapshot,
-  renderOperationsApp,
-} from "./test-support";
 
 const digest = `sha256:${"1".repeat(64)}`;
 const secondDigest = `sha256:${"2".repeat(64)}`;
@@ -32,7 +30,7 @@ interface ClientFrame {
 }
 
 function sentFrames(
-  socket: FakeSocket | undefined,
+  socket: FakeEventSocket | undefined,
   type: string,
 ): ClientFrame[] {
   return (socket?.sent ?? [])
@@ -60,20 +58,6 @@ function cursorUnavailableFrame(frame: ClientFrame | undefined) {
   };
 }
 
-/** The application at `path`; the fake Server answers through `answer`. */
-function renderOperations(answer: Fallback, path: string) {
-  return renderOperationsApp(path, { fallback: answer });
-}
-
-/** A response the test releases when it chooses. */
-function heldResponse() {
-  let release: () => void = () => undefined;
-  const released = new Promise<void>((resolve) => {
-    release = resolve;
-  });
-  return { released, release };
-}
-
 afterEach(() => vi.useRealTimers());
 
 describe("Operations routes", () => {
@@ -84,7 +68,7 @@ describe("Operations routes", () => {
       }
       return undefined;
     };
-    renderOperations(api, "/operations");
+    renderApplication("/operations", { server: api });
     const shortcuts = await screen.findByRole("list", {
       name: "Readiness shortcuts",
     });
@@ -144,7 +128,7 @@ describe("Operations routes", () => {
       }
       return undefined;
     };
-    renderOperations(api, "/operations/runtime-agents");
+    renderApplication("/operations/runtime-agents", { server: api });
     expect(
       await screen.findByRole("heading", { name: "Runtime Agents" }),
     ).toBeInTheDocument();
@@ -172,8 +156,8 @@ describe("Operations routes", () => {
       screen.queryByRole("button", { name: /force|idle|reassign/i }),
     ).not.toBeInTheDocument();
 
-    await waitFor(() => expect(FakeSocket.instances).toHaveLength(1));
-    const socket = FakeSocket.instances[0];
+    await waitFor(() => expect(FakeEventSocket.instances).toHaveLength(1));
+    const socket = FakeEventSocket.instances[0];
     act(() => socket?.open());
     const subscription = JSON.parse(socket?.sent[0] ?? "{}");
     expect(subscription).toMatchObject({
@@ -256,7 +240,7 @@ describe("Operations routes", () => {
       }
       return undefined;
     };
-    renderOperations(api, "/operations/allocations#alloc-b");
+    renderApplication("/operations/allocations#alloc-b", { server: api });
     const target = (
       await screen.findByText("alloc-b", { selector: "code" })
     ).closest("details");
@@ -289,9 +273,9 @@ describe("Operations routes", () => {
       }
       return undefined;
     };
-    renderOperations(api, "/operations");
-    await waitFor(() => expect(FakeSocket.instances).toHaveLength(1));
-    const socket = FakeSocket.instances[0];
+    renderApplication("/operations", { server: api });
+    await waitFor(() => expect(FakeEventSocket.instances).toHaveLength(1));
+    const socket = FakeEventSocket.instances[0];
     if (socket === undefined) throw new Error("Operations socket is missing");
     act(() => socket.open());
     act(() =>
@@ -305,7 +289,7 @@ describe("Operations routes", () => {
     // The Server no longer retains revision 7 and answers every subscription
     // from it with another resync request, as the real event hub does.
     socket.send = (value: string) => {
-      FakeSocket.prototype.send.call(socket, value);
+      FakeEventSocket.prototype.send.call(socket, value);
       const frame = JSON.parse(value) as ClientFrame;
       if (frame.type !== "subscribe") return;
       setTimeout(
@@ -361,21 +345,21 @@ describe("Operations routes", () => {
       return undefined;
     };
     const user = userEvent.setup();
-    renderOperations(api, "/operations");
-    await waitFor(() => expect(FakeSocket.instances).toHaveLength(1));
-    const refused = FakeSocket.instances[0];
+    renderApplication("/operations", { server: api });
+    await waitFor(() => expect(FakeEventSocket.instances).toHaveLength(1));
+    const refused = FakeEventSocket.instances[0];
     act(() => refused?.open());
     act(() =>
       refused?.message(subscribedFrame(sentFrames(refused, "subscribe")[0])),
     );
-    act(() => refused?.close(1008));
+    act(() => refused?.serverClose(1008));
     expect(
       await screen.findByText("Live event session is no longer authorized"),
     ).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Refresh" }));
-    await waitFor(() => expect(FakeSocket.instances).toHaveLength(2));
-    const recreated = FakeSocket.instances[1];
+    await waitFor(() => expect(FakeEventSocket.instances).toHaveLength(2));
+    const recreated = FakeEventSocket.instances[1];
     act(() => recreated?.open());
     const subscriptions = sentFrames(recreated, "subscribe");
     expect(subscriptions.map((frame) => frame.after)).toEqual([
@@ -441,7 +425,9 @@ describe("Operations routes", () => {
       }
       return undefined;
     };
-    renderOperations(api, "/operations/configurations/model-policies/worker/1");
+    renderApplication("/operations/configurations/model-policies/worker/1", {
+      server: api,
+    });
     expect(
       await screen.findByRole("heading", { name: "Published values" }),
     ).toBeInTheDocument();
@@ -530,7 +516,7 @@ describe("Operations routes", () => {
       }
       return undefined;
     };
-    renderOperations(api, "/operations/credentials");
+    renderApplication("/operations/credentials", { server: api });
     expect(
       await screen.findByRole("heading", { name: "Create credential" }),
     ).toBeInTheDocument();
@@ -599,13 +585,13 @@ describe("Operations routes", () => {
         models: ["qwen-worker"],
       },
     };
-    const deletion = heldResponse();
+    const deletion = deferred();
     const api: Fallback = async (request) => {
       const path = new URL(request.url).pathname;
       if (path === "/v1/operations/snapshot") return json(snapshot());
       if (path === "/v1/operations/credentials/worker-budget") {
         if (request.method === "DELETE") {
-          await deletion.released;
+          await deletion.promise;
           return noContent();
         }
         return json(credential);
@@ -614,12 +600,11 @@ describe("Operations routes", () => {
         return json({ items: [], page: { hasMore: false } });
       return undefined;
     };
-    const queryClient = queryClientFactory.createApplicationQueryClient();
-    const factory = vi
-      .spyOn(queryClientFactory, "createApplicationQueryClient")
-      .mockReturnValueOnce(queryClient);
-    const view = renderOperations(api, "/operations/credentials/worker-budget");
-    factory.mockRestore();
+    const queryClient = createApplicationQueryClient();
+    const view = renderApplication("/operations/credentials/worker-budget", {
+      server: api,
+      queryClient,
+    });
     const user = userEvent.setup();
     await user.click(
       await screen.findByLabelText(/I understand that the LiteLLM key/),
@@ -631,7 +616,7 @@ describe("Operations routes", () => {
     );
     await act(() => view.router.navigate("/settings"));
     expect(queryClient.isMutating()).toBe(1);
-    deletion.release();
+    deletion.resolve();
     await waitFor(() => expect(queryClient.isMutating()).toBe(0));
     await act(async () => undefined);
     expect(
@@ -681,7 +666,7 @@ describe("Operations routes", () => {
         models: ["qwen-worker"],
       },
     };
-    const creation = heldResponse();
+    const creation = deferred();
     const api: Fallback = async (request) => {
       const path = new URL(request.url).pathname;
       if (path === "/v1/operations/snapshot") return json(snapshot());
@@ -691,19 +676,18 @@ describe("Operations routes", () => {
         return json({ items: [policy], page: { hasMore: false } });
       if (path === "/v1/operations/credentials") {
         if (request.method === "POST") {
-          await creation.released;
+          await creation.promise;
           return json(credential, 201);
         }
         return json({ items: [], page: { hasMore: false } });
       }
       return undefined;
     };
-    const queryClient = queryClientFactory.createApplicationQueryClient();
-    const factory = vi
-      .spyOn(queryClientFactory, "createApplicationQueryClient")
-      .mockReturnValueOnce(queryClient);
-    const view = renderOperations(api, "/operations/credentials");
-    factory.mockRestore();
+    const queryClient = createApplicationQueryClient();
+    const view = renderApplication("/operations/credentials", {
+      server: api,
+      queryClient,
+    });
     const user = userEvent.setup();
     await user.click(
       await screen.findByText("Create LLM credential", { selector: "summary" }),
@@ -719,7 +703,7 @@ describe("Operations routes", () => {
     );
     await act(() => view.router.navigate("/settings"));
     expect(queryClient.isMutating()).toBe(1);
-    creation.release();
+    creation.resolve();
     await waitFor(() => expect(queryClient.isMutating()).toBe(0));
     await act(async () => undefined);
     expect(
@@ -767,7 +751,7 @@ describe("Operations routes", () => {
       }
       return undefined;
     };
-    renderOperations(api, "/operations/credentials/worker-budget");
+    renderApplication("/operations/credentials/worker-budget", { server: api });
     expect(
       await screen.findByText("active", { selector: ".ops-state-word" }),
     ).toBeInTheDocument();
@@ -830,7 +814,7 @@ describe("Operations routes", () => {
       }
       return undefined;
     };
-    renderOperations(api, "/operations/credentials/worker-budget");
+    renderApplication("/operations/credentials/worker-budget", { server: api });
     const user = userEvent.setup();
     await screen.findByText("active", { selector: ".ops-state-word" });
     await user.click(
@@ -987,7 +971,7 @@ describe("Operations routes", () => {
       }
       return undefined;
     };
-    renderOperations(api, "/operations/configuration");
+    renderApplication("/operations/configuration", { server: api });
     expect(
       await screen.findByRole("heading", { name: "RuntimeConfig versions" }),
     ).toBeInTheDocument();
@@ -1211,7 +1195,7 @@ describe("Operations routes", () => {
       }
       return undefined;
     };
-    renderOperations(api, "/operations/runtime-agents");
+    renderApplication("/operations/runtime-agents", { server: api });
     const incompatible = await screen.findByRole("article", { name: "debug" });
     expect(within(incompatible).getByText("bbbbbbbb…bbbb")).toBeVisible();
     expect(screen.getByText("Missing otlp-http@1")).toBeInTheDocument();
@@ -1317,7 +1301,7 @@ describe("Operations routes", () => {
         return json({ items, page: { hasMore: false } });
       return undefined;
     };
-    renderOperations(api, "/operations/runtime-agents");
+    renderApplication("/operations/runtime-agents", { server: api });
     const card = await screen.findByRole("article", { name: "runtime-host-c" });
     expect(within(card).getByText("cccccccc…cccc")).toBeVisible();
     expect(within(card).getByText(/v0\.1\.0/)).toBeVisible();
@@ -1501,7 +1485,7 @@ describe("Runtime Agent cards", () => {
       }
       return undefined;
     };
-    renderOperations(api, "/operations/runtime-agents");
+    renderApplication("/operations/runtime-agents", { server: api });
     const online = await screen.findByRole("article", { name: "zz-scan" });
     expect(within(online).getByText("runtime-page-two")).toBeInTheDocument();
     expect(
@@ -1556,7 +1540,7 @@ describe("Runtime Agent cards", () => {
       if (request.method !== "GET") mutations.push(request.clone());
       return readResponse(request, principalBase) ?? failure(500);
     };
-    renderOperations(api, "/operations/runtime-agents");
+    renderApplication("/operations/runtime-agents", { server: api });
     const card = await screen.findByRole("article", { name: "debug" });
     expect(within(card).getByText("aaaaaaaa…aaaa")).toBeVisible();
     expect(within(card).queryByRole("checkbox")).toBeNull();
@@ -1610,7 +1594,7 @@ describe("Runtime Agent cards", () => {
       }
       return readResponse(request, principal) ?? failure(500);
     };
-    renderOperations(api, "/operations/runtime-agents");
+    renderApplication("/operations/runtime-agents", { server: api });
     const user = userEvent.setup();
     await user.click(
       await screen.findByRole("button", { name: "Edit labels" }),
@@ -1660,7 +1644,7 @@ describe("Runtime Agent cards", () => {
     const api: Fallback = async (request) => {
       return readResponse(request, principal) ?? failure(500);
     };
-    renderOperations(api, "/operations/runtime-agents");
+    renderApplication("/operations/runtime-agents", { server: api });
     const card = await screen.findByRole("article", { name: "debug" });
     expect(within(card).getByText("Available")).toBeVisible();
     principal = {
@@ -1691,7 +1675,7 @@ describe("Runtime Agent cards", () => {
     const api: Fallback = async (request) => {
       return readResponse(request, principal) ?? failure(500);
     };
-    renderOperations(api, "/operations/runtime-agents");
+    renderApplication("/operations/runtime-agents", { server: api });
     const card = await screen.findByRole("article", { name: "debug" });
     expect(within(card).getByText("Slot unavailable")).toBeVisible();
     expect(

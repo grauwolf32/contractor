@@ -38,6 +38,8 @@ export function testSession(
   };
 }
 
+const servers = new WeakMap<PublicAPI, FakeServer>();
+
 /**
  * A PublicAPI whose requests go to `server` (a FakeServer, or a handler
  * that becomes the fallback of an empty one). It holds a CSRF token, as
@@ -50,7 +52,16 @@ export function testAPI(server: FakeServer | Fallback): {
   const fake = typeof server === "function" ? fakeServer({}, server) : server;
   const api = new PublicAPI(TEST_RUNTIME_CONFIG, vi.fn(fake.fetch));
   api.csrf.replace(CSRF_TOKEN);
+  servers.set(api, fake);
   return { api, server: fake };
+}
+
+/** The fake Server behind a PublicAPI from testAPI. */
+export function serverOf(api: PublicAPI): FakeServer {
+  const server = servers.get(api);
+  if (server === undefined)
+    throw new Error("The PublicAPI is not from testAPI");
+  return server;
 }
 
 export interface RenderOptions {
