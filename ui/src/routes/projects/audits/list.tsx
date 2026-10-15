@@ -1,11 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "react-router";
 
-import {
-  auditPollInterval,
-  listProjectAudits,
-  type AuditPage,
-} from "../../../api/audits";
+import { auditPollInterval, listProjectAudits } from "../../../api/audits";
 import { usePublicAPI } from "../../../api/context";
 import { queryKeys } from "../../../api/query-keys";
 import { CursorControls } from "../../../app/cursor-controls";
@@ -61,7 +57,7 @@ export function ProjectAuditWorkspace({
         ...(cursor === undefined ? {} : { cursor }),
       }),
     refetchOnReconnect: true,
-    refetchInterval: pollInterval<AuditPage>({
+    refetchInterval: pollInterval({
       interval: 5_000,
       settled: (page) => auditPollInterval(page.items) === false,
     }),

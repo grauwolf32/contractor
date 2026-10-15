@@ -265,6 +265,9 @@ export function FindingTechnicalDetails({
   const workflow = `${proposal.origin.workflow.name}@${proposal.origin.workflow.version}`;
   return (
     <TechnicalDetails description="Ratings, identifiers and where this possible issue came from.">
+      {/* V385: needs shared removal of .issues-facts (src/routes/issues/
+          issues.css), a copy of ui-facts sm with 13rem columns; then drop
+          the class here. */}
       <Facts
         size="sm"
         className="issues-facts"
