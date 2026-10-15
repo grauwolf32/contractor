@@ -8,24 +8,24 @@
 .library-standard {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: var(--space-3);
   min-width: 0;
-  padding: 1rem 1.125rem;
+  padding: var(--space-4) 1.125rem;
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: var(--radius-xl);
   background: var(--surface);
 }
 
 .library-standard-header {
   display: grid;
-  gap: 0.25rem;
+  gap: var(--space-1);
   min-width: 0;
 }
 
 .library-standard-header h4 {
   margin: 0;
   color: var(--text);
-  font-size: 0.9375rem;
+  font-size: var(--text-base);
   font-weight: 800;
   line-height: 1.35;
 }
@@ -33,7 +33,7 @@
 .library-standard-header p {
   margin: 0;
   color: var(--muted-strong);
-  font-size: 0.84375rem;
+  font-size: var(--text-md);
   line-height: 1.5;
 }
 
@@ -41,17 +41,17 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.25rem 0.625rem;
+  gap: var(--space-1) var(--space-2-5);
   color: var(--muted);
-  font-size: 0.78125rem;
+  font-size: var(--text-sm);
 }
 
 .library-standard-meta code {
-  padding: 0.0625rem 0.375rem;
-  border-radius: 6px;
+  padding: 0.0625rem var(--space-1-5);
+  border-radius: var(--radius-sm);
   background: var(--chrome);
   color: var(--text);
-  font-size: 0.75rem;
+  font-size: var(--text-xs);
 }
 
 .library-standard-meta span {
@@ -76,8 +76,8 @@
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
-  gap: 0.25rem 0.75rem;
-  padding: 0.6875rem 1.125rem 0.6875rem 2.25rem;
+  gap: var(--space-1) var(--space-3);
+  padding: var(--space-3) 1.125rem var(--space-3) 2.25rem;
   cursor: pointer;
   list-style: none;
 }
@@ -113,39 +113,39 @@
   flex: 1 1 18rem;
   flex-wrap: wrap;
   align-items: baseline;
-  gap: 0.25rem 0.625rem;
+  gap: var(--space-1) var(--space-2-5);
   min-width: 0;
 }
 
 .library-item-key {
   flex: none;
-  padding: 0.0625rem 0.375rem;
-  border-radius: 6px;
+  padding: 0.0625rem var(--space-1-5);
+  border-radius: var(--radius-sm);
   background: var(--chrome);
   color: var(--text);
-  font-size: 0.71875rem;
+  font-size: var(--text-xs);
 }
 
 .library-item-title {
   min-width: 0;
   color: var(--text);
-  font-size: 0.875rem;
+  font-size: var(--text-md);
   font-weight: 700;
   line-height: 1.4;
 }
 
 .library-item-method {
   color: var(--muted);
-  font-size: 0.75rem;
+  font-size: var(--text-xs);
   font-weight: 600;
 }
 
 .library-item-body {
   display: grid;
-  gap: 0.75rem;
-  padding: 0 1.125rem 1rem 2.25rem;
+  gap: var(--space-3);
+  padding: 0 1.125rem var(--space-4) 2.25rem;
   color: var(--muted-strong);
-  font-size: 0.84375rem;
+  font-size: var(--text-md);
   line-height: 1.55;
   white-space: pre-wrap;
 }
@@ -156,8 +156,8 @@
 
 .library-entry {
   display: grid;
-  gap: 0.125rem;
-  padding-left: 0.75rem;
+  gap: var(--space-0-5);
+  padding-left: var(--space-3);
   border-left: 2px solid var(--line);
 }
 
@@ -165,33 +165,18 @@
   color: var(--text);
 }
 
+/* Facts (ui-facts) of an item's evidence contract, on a quiet panel. */
 .library-evidence {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 12rem), 1fr));
-  gap: 0.5rem 1.25rem;
-  margin: 0;
-  padding: 0.625rem 0.75rem;
-  border-radius: 8px;
+  padding: var(--space-2-5) var(--space-3);
+  border-radius: var(--radius-md);
   background: var(--surface-subtle);
   white-space: normal;
-}
-
-.library-evidence dt {
-  color: var(--muted);
-  font-size: 0.71875rem;
-  font-weight: 700;
-}
-
-.library-evidence dd {
-  margin: 0;
-  color: var(--text);
-  font-size: 0.8125rem;
 }
 
 .library-identifiers {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.375rem;
+  gap: var(--space-1-5);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -200,11 +185,11 @@
 .library-identifiers li {
   display: inline-flex;
   align-items: baseline;
-  gap: 0.375rem;
-  padding: 0.1875rem 0.5rem;
+  gap: var(--space-1-5);
+  padding: var(--space-1) var(--space-2);
   border: 1px solid var(--line);
-  border-radius: 8px;
-  font-size: 0.75rem;
+  border-radius: var(--radius-md);
+  font-size: var(--text-xs);
 }
 
 .library-identifiers span {
@@ -213,28 +198,28 @@
 
 .library-attribution {
   display: grid;
-  gap: 0.25rem;
-  padding-top: 0.75rem;
+  gap: var(--space-1);
+  padding-top: var(--space-3);
   border-top: 1px solid var(--line);
   color: var(--muted);
-  font-size: 0.78125rem;
+  font-size: var(--text-sm);
   overflow-wrap: anywhere;
 }
 
 /* ---------- Agents ---------- */
 
 .library-agent-card {
-  gap: 0.625rem;
+  gap: var(--space-2-5);
 }
 
 .library-agent-link {
   display: flex;
   flex: 1 1 auto;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: var(--space-2);
   margin: 0 -0.5rem -0.375rem;
-  padding: 0.5rem;
-  border-radius: 8px;
+  padding: var(--space-2);
+  border-radius: var(--radius-md);
   color: var(--text);
   text-decoration: none;
 }
@@ -252,11 +237,11 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.375rem 0.625rem;
+  gap: var(--space-1-5) var(--space-2-5);
 }
 
 .library-agent-identity strong {
-  font-size: 1rem;
+  font-size: var(--text-base);
   font-weight: 800;
   overflow-wrap: anywhere;
 }
@@ -268,13 +253,13 @@
 
 .library-agent-facts {
   color: var(--muted);
-  font-size: 0.78125rem;
+  font-size: var(--text-sm);
 }
 
 .library-agent-open {
   margin-top: auto;
   color: var(--link);
-  font-size: 0.8125rem;
+  font-size: var(--text-sm);
   font-weight: 700;
 }
 
@@ -286,7 +271,7 @@
   display: flex;
   flex-wrap: wrap;
   align-items: flex-end;
-  gap: 0.5rem 1rem;
+  gap: var(--space-2) var(--space-4);
   min-width: 0;
 }
 
@@ -294,16 +279,20 @@
   flex-basis: 100%;
 }
 
+.library-agent-versions > .ui-field {
+  min-width: min(16rem, 100%);
+}
+
 .library-agent-grid {
   display: grid;
   grid-template-columns: minmax(0, 2fr) minmax(16rem, 1fr);
-  gap: 1rem;
+  gap: var(--space-4);
   align-items: start;
 }
 
 .library-agent-tool {
   display: grid;
-  gap: 1rem;
+  gap: var(--space-4);
   max-width: 48rem;
 }
 
@@ -316,20 +305,20 @@
 .library-prompt-preview {
   max-height: 65vh;
   overflow: auto;
-  padding: 0.25rem 0.125rem;
+  padding: var(--space-1) var(--space-0-5);
 }
 
 .library-prompt .catalog-prompt-source {
   max-height: 65vh;
   margin: 0;
   overflow: auto;
-  padding: 0.875rem 1rem;
+  padding: var(--space-3-5) var(--space-4);
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   background: var(--code-bg);
   color: var(--text);
   font-family: var(--font-mono);
-  font-size: 0.8125rem;
+  font-size: var(--text-sm);
   line-height: 1.55;
   white-space: pre-wrap;
   overflow-wrap: anywhere;

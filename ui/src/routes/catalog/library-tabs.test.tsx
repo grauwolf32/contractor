@@ -1,14 +1,11 @@
-import { render, screen, within } from "@testing-library/react";
-import { createMemoryRouter, RouterProvider } from "react-router";
+import { screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
+import { renderWithAPI } from "../../test/render";
 import { LibraryTabs } from "./library-tabs";
 
 function renderTabsAt(path: string) {
-  const router = createMemoryRouter([{ path: "*", element: <LibraryTabs /> }], {
-    initialEntries: [path],
-  });
-  render(<RouterProvider router={router} />);
+  renderWithAPI(<LibraryTabs />, { path });
   return within(screen.getByRole("navigation", { name: "Library sections" }));
 }
 

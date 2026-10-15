@@ -33,15 +33,6 @@
     "src/routes/artifacts/previews/http-exchange.tsx": {
       "button": 4
     },
-    "src/routes/catalog/agent-detail.tsx": {
-      "button": 1
-    },
-    "src/routes/catalog/audit-preset-checks.tsx": {
-      "svg": 1
-    },
-    "src/routes/catalog/audit-preset-detail.tsx": {
-      "button": 1
-    },
     "src/routes/checks/list/check-summary.tsx": {
       "button": 1
     },

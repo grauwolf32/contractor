@@ -75,11 +75,23 @@ const COMPATIBILITY_REASONS: Readonly<Record<CompatibilityReason, string>> = {
   manual_item_unsupported: "This server cannot run manual items.",
 };
 
+/**
+ * The word for `value` in `table`; a value this client does not know yet
+ * reads as written ("release_pending" is "Release pending").
+ */
+// V385: needs shared wordOf (src/app/vocabulary.ts keeps its copy private).
+export function wordOf<K extends string>(
+  table: Readonly<Record<K, string>>,
+  value: K,
+): string {
+  return Object.hasOwn(table, value)
+    ? table[value]
+    : capitalize(value.replaceAll(/[_-]+/g, " "));
+}
+
 /** One readable sentence for a reason the server cannot run a check type. */
 export function compatibilityReasonText(reason: string): string {
-  return Object.hasOwn(COMPATIBILITY_REASONS, reason)
-    ? COMPATIBILITY_REASONS[reason as CompatibilityReason]
-    : capitalize(reason.replaceAll("_", " "));
+  return wordOf(COMPATIBILITY_REASONS, reason as CompatibilityReason);
 }
 
 /** The Start page with this check type chosen (contract §5). */

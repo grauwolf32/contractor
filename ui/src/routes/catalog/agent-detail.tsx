@@ -23,8 +23,9 @@ import { CursorControls } from "../../app/cursor-controls";
 import { ErrorNotice } from "../../app/error-notice";
 import { LoadMoreButton } from "../../app/load-more";
 import { nextPageCursor } from "../../app/pagination";
+import { plural } from "../../app/format";
 import { QueryView } from "../../app/query-view";
-import { DetailHeader, DetailPane } from "../../ui";
+import { Button, ButtonLink, DetailHeader, DetailPane, Field } from "../../ui";
 import { ConfigurationBodyView } from "../operations/llm-configurations/body";
 import {
   useCatalogCursorState,
@@ -71,28 +72,30 @@ function AgentVersionSelector({
 
   return (
     <section className="library-agent-versions" aria-label="Agent versions">
-      <label className="library-field">
-        <span>Published version</span>
-        <select
-          value={resource.ref.version}
-          onChange={(event) =>
-            void navigate(agentPath(resource.ref.name, event.target.value), {
-              state: withoutCatalogPagination(location.state),
-            })
-          }
-        >
-          {versions.map((item) => (
-            <option
-              key={`${item.ref.version}:${item.ref.digest}`}
-              value={item.ref.version}
-            >
-              {item.ref.version}
-            </option>
-          ))}
-        </select>
-      </label>
-      <span className="library-muted">
-        {versions.length} version{versions.length === 1 ? "" : "s"} loaded
+      <Field label="Published version">
+        {(control) => (
+          <select
+            {...control}
+            value={resource.ref.version}
+            onChange={(event) =>
+              void navigate(agentPath(resource.ref.name, event.target.value), {
+                state: withoutCatalogPagination(location.state),
+              })
+            }
+          >
+            {versions.map((item) => (
+              <option
+                key={`${item.ref.version}:${item.ref.digest}`}
+                value={item.ref.version}
+              >
+                {item.ref.version}
+              </option>
+            ))}
+          </select>
+        )}
+      </Field>
+      <span className="ui-caption">
+        {plural(versions.length, "version")} loaded
       </span>
       <LoadMoreButton
         query={query}
@@ -100,7 +103,7 @@ function AgentVersionSelector({
         pendingLabel="Loading versions…"
       />
       {query.isPending ? (
-        <p className="library-muted" role="status">
+        <p className="ui-caption" role="status">
           Loading published versions…
         </p>
       ) : null}
@@ -159,11 +162,11 @@ function AgentPrompt({ resource }: { resource: ConfigurationResource }) {
             <h3 id={heading} className="library-block-title">
               Base prompt
             </h3>
-            <p className="library-muted">
+            <p className="ui-caption">
               Task context and Skill instructions are added during execution.
             </p>
           </div>
-          <div className="library-panel-actions">
+          <div className="ui-toolbar">
             <div
               className="library-segmented"
               role="group"
@@ -184,27 +187,21 @@ function AgentPrompt({ resource }: { resource: ConfigurationResource }) {
                 Source
               </button>
             </div>
-            <button
-              type="button"
-              className="ui-btn"
-              data-size="sm"
+            <Button
+              size="sm"
               disabled={query.data === undefined || query.error !== null}
               onClick={() => void copyPrompt()}
             >
               Copy
-            </button>
+            </Button>
           </div>
         </header>
         {copyStatus && (
-          <p className="library-muted" role="status">
+          <p className="ui-caption" role="status">
             {copyStatus}
           </p>
         )}
-        <QueryView
-          query={query}
-          loading={<p role="status">Loading prompt…</p>}
-          onRetry={() => void query.refetch()}
-        >
+        <QueryView query={query} loading={<p role="status">Loading prompt…</p>}>
           {(data) =>
             view === "source" ? (
               <pre className="catalog-prompt-source" tabIndex={0}>
@@ -261,15 +258,14 @@ function AgentUsage({ resource }: { resource: ConfigurationResource }) {
         <h3 id={heading} className="library-block-title">
           Where used
         </h3>
-        <span className="library-muted">Page {page}</span>
+        <span className="ui-caption">Page {page}</span>
       </header>
       <QueryView
         query={query}
         loading={<p role="status">Loading Workflow bindings…</p>}
-        onRetry={() => void query.refetch()}
         isEmpty={(data) => data.items.length === 0}
         empty={
-          <p className="library-muted">
+          <p className="ui-caption">
             This Agent version is not referenced by a published Workflow.
           </p>
         }
@@ -339,12 +335,9 @@ export function AgentDetailRoute() {
           header={
             <DetailHeader
               actions={
-                <Link
-                  className="ui-btn"
-                  to="/catalog/studio?kind=AgentTemplate"
-                >
+                <ButtonLink to="/catalog/studio?kind=AgentTemplate">
                   Open Node Studio
-                </Link>
+                </ButtonLink>
               }
               title={
                 <span id={titleId}>
@@ -367,11 +360,10 @@ export function AgentDetailRoute() {
             <QueryView
               query={query}
               loading={
-                <p className="library-muted" role="status">
+                <p className="ui-caption" role="status">
                   Loading Agent version…
                 </p>
               }
-              onRetry={() => void query.refetch()}
             >
               {(data) => (
                 <>
