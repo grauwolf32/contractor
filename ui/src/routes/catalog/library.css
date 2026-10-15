@@ -632,9 +632,10 @@ code.library-row-name {
     font-size: 1.375rem;
   }
 
+  /* All five sections stay on one row at 390 px. */
   .library-tabs a {
-    padding: 0 var(--space-2);
-    font-size: var(--text-sm);
+    padding: 0 var(--space-1-5);
+    font-size: var(--text-xs);
   }
 
   .library-section-actions {
