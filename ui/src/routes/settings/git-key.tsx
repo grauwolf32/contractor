@@ -10,10 +10,16 @@ import {
 import { ErrorNotice } from "../../app/error-notice";
 import { formatTimestamp } from "../../app/format";
 import type { StatusTone } from "../../app/status-tone";
-import { AlertDialog } from "../../ui";
 import { QueryView } from "../../app/query-view";
-import { IdChip, StatusChip, StatusGlyph } from "../../ui";
-import { Glance } from "../operations/common";
+import {
+  AlertDialog,
+  Button,
+  Facts,
+  Field,
+  IdChip,
+  StatusChip,
+  StatusGlyph,
+} from "../../ui";
 import { SettingSection, type SettingHeadingLevel } from "./section";
 
 export function GitKeySettings({
@@ -110,7 +116,7 @@ export function GitKeySettings({
               </p>
             </div>
           </div>
-          <p className="ops-note">
+          <p className="ui-caption">
             Removing the key does not affect repository snapshots already
             imported as artifacts.
           </p>
@@ -133,32 +139,34 @@ export function GitKeySettings({
             Loading Git key settings…
           </p>
         }
-        onRetry={() => void query.refetch()}
       >
         {(data) =>
           data.configured ? (
-            <Glance
-              className="ops-key-facts"
-              label="Saved key"
+            <Facts
+              className="ops-glance ops-key-facts"
+              aria-label="Saved key"
               items={[
-                [
-                  "Fingerprint",
-                  data.fingerprint === undefined ? (
-                    "Unknown"
-                  ) : (
-                    <IdChip
-                      key="fingerprint"
-                      value={data.fingerprint}
-                      display={data.fingerprint}
-                      label="fingerprint"
-                    />
-                  ),
-                ],
-                ["Key type", data.keyType],
-                [
-                  "Last updated",
-                  data.updatedAt ? formatTimestamp(data.updatedAt) : "Unknown",
-                ],
+                {
+                  term: "Fingerprint",
+                  value:
+                    data.fingerprint === undefined ? (
+                      "Unknown"
+                    ) : (
+                      <IdChip
+                        value={data.fingerprint}
+                        display={data.fingerprint}
+                        label="fingerprint"
+                        wrap
+                      />
+                    ),
+                },
+                { term: "Key type", value: data.keyType },
+                {
+                  term: "Last updated",
+                  value: data.updatedAt
+                    ? formatTimestamp(data.updatedAt)
+                    : "Unknown",
+                },
               ]}
             />
           ) : (
@@ -171,24 +179,24 @@ export function GitKeySettings({
       </QueryView>
 
       <form className="ops-setting-form" onSubmit={submit}>
-        <label className="ops-field">
-          SSH private key
-          <textarea
-            className="ops-secret-input"
-            aria-label="SSH private key"
-            value={privateKey}
-            onChange={(event) => setPrivateKey(event.target.value)}
-            autoComplete="off"
-            spellCheck={false}
-            rows={7}
-            disabled={pending}
-            aria-describedby="git-key-help"
-            placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"
-          />
-          <small id="git-key-help" className="field-guidance">
-            Unencrypted OpenSSH or PEM · maximum 32 KiB.
-          </small>
-        </label>
+        <Field
+          label="SSH private key"
+          hint="Unencrypted OpenSSH or PEM · maximum 32 KiB."
+        >
+          {(control) => (
+            <textarea
+              {...control}
+              className="ops-secret-input"
+              value={privateKey}
+              onChange={(event) => setPrivateKey(event.target.value)}
+              autoComplete="off"
+              spellCheck={false}
+              rows={7}
+              disabled={pending}
+              placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"
+            />
+          )}
+        </Field>
         {error === undefined || confirmRemoval ? null : (
           <ErrorNotice error={error} />
         )}
@@ -198,22 +206,17 @@ export function GitKeySettings({
           </div>
         ) : null}
         <div className="ops-form-actions">
-          <button
-            className="ui-btn"
-            data-variant="primary"
+          <Button
+            variant="primary"
             type="submit"
-            disabled={pending || privateKey === ""}
+            disabled={privateKey === ""}
+            pending={pending}
+            pendingLabel="Saving…"
           >
-            {pending
-              ? "Saving…"
-              : query.data?.configured
-                ? "Replace Git key"
-                : "Save Git key"}
-          </button>
-          <button
-            className="ui-btn"
-            data-variant="danger"
-            type="button"
+            {query.data?.configured ? "Replace Git key" : "Save Git key"}
+          </Button>
+          <Button
+            variant="danger"
             disabled={pending || !query.data?.configured}
             aria-haspopup="dialog"
             onClick={() => {
@@ -222,7 +225,7 @@ export function GitKeySettings({
             }}
           >
             Remove Git key
-          </button>
+          </Button>
         </div>
       </form>
       {confirmRemoval ? (

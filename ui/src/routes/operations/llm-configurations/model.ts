@@ -20,7 +20,7 @@ export function llmGatewayBody(
 }
 
 /** A ModelPolicyBody bound from the public contract. */
-function policyLimit(
+export function policyLimit(
   keyword: "maximum" | "maxLength",
   property: keyof ModelPolicyBody,
 ): number {
@@ -163,13 +163,13 @@ function isLoopbackIP(hostname: string): boolean {
   );
 }
 
-const GATEWAY_URL_LENGTH = schemaLimit(
+export const GATEWAY_URL_LENGTH = schemaLimit(
   "LLMGatewayBody",
   "maxLength",
   "properties",
   "url",
 );
-const MANAGEMENT_URL_LENGTH = schemaLimit(
+export const MANAGEMENT_URL_LENGTH = schemaLimit(
   "CredentialManagerDescriptor",
   "maxLength",
   "properties",

@@ -3,6 +3,7 @@ import { Link } from "react-router";
 import type { RuntimeAgentObservation } from "../../api/operations";
 import type { StatusTone } from "../../app/status-tone";
 import { ProgressSegments, StatusGlyph } from "../../ui";
+import { OpsSection } from "./common";
 import { useOperationsSnapshot } from "./context";
 import { plural } from "../../app/format";
 
@@ -80,20 +81,11 @@ export function OperationsOverviewRoute() {
     .join(", ");
   return (
     <div className="ops-stack">
-      <section
-        className="ops-section ops-readiness"
-        aria-labelledby="operations-readiness-heading"
+      <OpsSection
+        id="operations-readiness-heading"
+        title="Execution readiness"
+        description="Slots reported by the Runtime Agents in this snapshot."
       >
-        <header className="ops-section-head">
-          <div className="ops-section-heading">
-            <h2 id="operations-readiness-heading" className="ops-section-title">
-              Execution readiness
-            </h2>
-            <p className="ops-section-description">
-              Slots reported by the Runtime Agents in this snapshot.
-            </p>
-          </div>
-        </header>
         <div className="ops-slot-line">
           <span className="ops-slot-total">
             {plural(agents.length, "slot", "slots")}
@@ -143,19 +135,9 @@ export function OperationsOverviewRoute() {
             <Link to="/runs">Inspect Run wait reasons →</Link>
           </li>
         </ul>
-      </section>
+      </OpsSection>
 
-      <section
-        className="ops-section"
-        aria-labelledby="operations-glance-heading"
-      >
-        <header className="ops-section-head">
-          <div className="ops-section-heading">
-            <h2 id="operations-glance-heading" className="ops-section-title">
-              Processes and roles
-            </h2>
-          </div>
-        </header>
+      <OpsSection id="operations-glance-heading" title="Processes and roles">
         <ul className="ops-tiles">
           <OverviewTile
             to="/operations/runtime-agents"
@@ -180,7 +162,7 @@ export function OperationsOverviewRoute() {
             warn={mismatches > 0}
           />
         </ul>
-      </section>
+      </OpsSection>
     </div>
   );
 }

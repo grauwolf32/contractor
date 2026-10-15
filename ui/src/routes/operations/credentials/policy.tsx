@@ -1,4 +1,5 @@
 import type { CredentialResource } from "../../../api/operations";
+import { Facts } from "../../../ui";
 import { ConfigurationRefLink } from "../common";
 import { exactConfigurationRef } from "../references";
 
@@ -36,19 +37,14 @@ export function CredentialPolicyView({ policy }: { policy: EffectivePolicy }) {
           </ul>
         </div>
       </div>
-      <dl
+      <Facts
         className="ops-glance"
         aria-label="Limits enforced by the LiteLLM Gateway"
-      >
-        {gatewayLimits.map(([label, value]) => (
-          <div key={label}>
-            <dt>{label}</dt>
-            <dd>
-              <code>{value ?? "not set"}</code>
-            </dd>
-          </div>
-        ))}
-      </dl>
+        items={gatewayLimits.map(([term, value]) => ({
+          term,
+          value: <code>{value ?? "not set"}</code>,
+        }))}
+      />
     </div>
   );
 }

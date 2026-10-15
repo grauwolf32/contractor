@@ -21,8 +21,7 @@ import type {
 } from "../../events/run-events";
 import { QueryView } from "../../app/query-view";
 import type { StatusTone } from "../../app/status-tone";
-import { StatusChip, StatusGlyph, TechnicalDetails } from "../../ui";
-import { Glance } from "./common";
+import { Facts, StatusChip, StatusGlyph, TechnicalDetails } from "../../ui";
 import type { OperationsOutletContext } from "./context";
 import { RefreshButton } from "../../app/refresh-button";
 import { OperationsLiveRefresh } from "./live-refresh";
@@ -190,13 +189,17 @@ function SnapshotDiagnostics({
       description="Snapshot cursor and live update transport, for operators and debugging."
     >
       <div className="ops-diagnostics-body">
-        <Glance
+        <Facts
+          className="ops-glance"
           items={[
-            ["Generation", <code key="g">{snapshot.cursor.generation}</code>],
-            [
-              "Snapshot revision",
-              <code key="r">{snapshot.cursor.revision}</code>,
-            ],
+            {
+              term: "Generation",
+              value: <code>{snapshot.cursor.generation}</code>,
+            },
+            {
+              term: "Snapshot revision",
+              value: <code>{snapshot.cursor.revision}</code>,
+            },
           ]}
         />
         <div className="ops-live-status" role="status">
@@ -213,7 +216,7 @@ function SnapshotDiagnostics({
             <p>Use Refresh to reload the snapshot.</p>
           </div>
         )}
-        <p className="ops-note">
+        <p className="ui-caption">
           These are transport diagnostics. Runtime readiness and Run wait
           reasons are separate Server-owned facts. Refresh the snapshot if live
           updates are unavailable.
@@ -242,7 +245,7 @@ function OperationsCapabilityRequired() {
           This session is not authorized to observe or manage Operations
           resources.
         </div>
-        <p className="ops-note">
+        <p className="ui-caption">
           Your Git SSH key and theme stay available in{" "}
           <Link to={SETTINGS_PATH}>Settings</Link>.
         </p>

@@ -1,50 +1,9 @@
-import { render, screen, within } from "@testing-library/react";
-import { createMemoryRouter } from "react-router";
-import { describe, expect, it, vi } from "vitest";
+import { screen, within } from "@testing-library/react";
+import { describe, expect, it } from "vitest";
 
-import { PublicAPI } from "../../api/client";
 import type { RuntimeAgentObservation } from "../../api/operations";
-import { Application } from "../../app/application";
-import { applicationRoutes } from "../../app/router";
-import type { RuntimeConfig } from "../../config/runtime-config";
-import { RunEventsManager } from "../../events/run-events";
-
-const runtimeConfig: RuntimeConfig = {
-  uiVersion: "0.1.0",
-  supportedApiVersions: ["contractor.public.v1"],
-  apiBaseUrl: "http://127.0.0.1:8080",
-};
-
-const session = {
-  principal: {
-    userId: "user_local",
-    username: "owner",
-    capabilities: ["user", "operations"],
-  },
-  csrfToken: "a".repeat(43),
-  idleExpiresAt: "2099-08-31T20:00:00Z",
-  absoluteExpiresAt: "2099-09-01T12:00:00Z",
-};
-
-function apiResponse(value: unknown, status = 200): Response {
-  return new Response(JSON.stringify(value), {
-    status,
-    headers: {
-      "content-type": "application/json",
-      "X-Contractor-API-Version": "contractor.public.v1",
-    },
-  });
-}
-
-class IdleWebSocket {
-  readyState = 0;
-  onopen = null;
-  onmessage = null;
-  onerror = null;
-  onclose = null;
-  send(): void {}
-  close(): void {}
-}
+import { json, page } from "../../test/fake-server";
+import { operationsSnapshot, renderOperationsApp } from "./test-support";
 
 function agent(
   instanceId: string,
@@ -65,37 +24,13 @@ function agent(
 }
 
 function renderOverview(runtimeAgents: RuntimeAgentObservation[]) {
-  const api = new PublicAPI(
-    runtimeConfig,
-    vi.fn(async (input) => {
-      const request = input instanceof Request ? input : new Request(input);
-      const path = new URL(request.url).pathname;
-      if (path === "/v1/auth/session") return apiResponse(session);
-      if (path === "/v1/operations/snapshot")
-        return apiResponse({
-          cursor: { generation: "overview-generation", revision: "4" },
-          runtimeAgents,
-          allocations: [],
-        });
-      if (path === "/v1/projects")
-        return apiResponse({ items: [], page: { hasMore: false } });
-      throw new Error(`unexpected ${request.method} ${request.url}`);
-    }),
-  );
-  const router = createMemoryRouter(applicationRoutes(), {
-    initialEntries: ["/operations"],
+  renderOperationsApp("/operations", {
+    routes: {
+      "GET /v1/operations/snapshot": () =>
+        json(operationsSnapshot("4", { runtimeAgents })),
+      "GET /v1/projects": () => json(page([])),
+    },
   });
-  const events = new RunEventsManager(runtimeConfig.apiBaseUrl, {
-    WebSocketImplementation: IdleWebSocket as unknown as typeof WebSocket,
-  });
-  render(
-    <Application
-      api={api}
-      publicAPI={api}
-      runEvents={events}
-      router={router}
-    />,
-  );
 }
 
 describe("Operations overview", () => {
@@ -157,7 +92,7 @@ describe("Operations overview", () => {
       .closest("details");
     expect(diagnostics).not.toHaveAttribute("open");
     expect(
-      within(diagnostics as HTMLElement).getByText("overview-generation"),
+      within(diagnostics as HTMLElement).getByText("operations-generation-1"),
     ).toBeInTheDocument();
   });
 });

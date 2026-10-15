@@ -53,9 +53,8 @@ function AgentCard({
             ))}
           </select>
         </label>
-        <small className="library-muted">
-          {plural(versions.length, "matching version", "matching versions")} on
-          this page
+        <small className="ui-caption">
+          {plural(versions.length, "matching version")} on this page
         </small>
       </div>
       <Link
@@ -75,8 +74,8 @@ function AgentCard({
           {body.description || "No authored description."}
         </span>
         <span className="library-agent-facts">
-          {body.runtime} · {plural(body.skills?.length ?? 0, "Skill", "Skills")}{" "}
-          · {plural(tools, "tool", "tools")}
+          {body.runtime} · {plural(body.skills?.length ?? 0, "Skill")} ·{" "}
+          {plural(tools, "tool")}
         </span>
         <code className="library-selector">
           {item.ref.name}@{item.ref.version}
@@ -142,7 +141,6 @@ export function AgentListRoute() {
       <QueryView
         query={query}
         loading={<p role="status">Searching published Agents…</p>}
-        onRetry={() => void query.refetch()}
         isEmpty={(data) => data.items.length === 0}
         empty={
           <div className="library-empty">

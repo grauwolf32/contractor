@@ -73,7 +73,6 @@ export function RuntimeAgentListRoute() {
               Loading Runtime Agents…
             </p>
           }
-          onRetry={() => void principals.refetch()}
         >
           {() =>
             online.length === 0 && offline.length === 0 ? (
@@ -105,7 +104,7 @@ export function RuntimeAgentListRoute() {
             )
           }
         </QueryView>
-        <p className="ops-note">
+        <p className="ui-caption">
           Availability is reported by Server. Each Workflow still requires
           compatible capabilities.
         </p>

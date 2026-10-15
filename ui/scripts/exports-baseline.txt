@@ -110,7 +110,6 @@ src/app/document-title.ts:documentTitle V385-001
 src/app/router.tsx:applicationRoutes V385-001
 src/app/router.tsx:lazyRoute V385-001
 src/app/status-tone.ts:STATUS_TONES V385-001
-src/app/vocabulary.ts:AuditCoverageStatus V385-001
 src/app/vocabulary.ts:AuditReviewKind V385-001
 src/app/vocabulary.ts:REPORT_STATUS_LABELS V385-001
 src/app/vocabulary.ts:REVIEW_ACTION_LABELS V385-001
