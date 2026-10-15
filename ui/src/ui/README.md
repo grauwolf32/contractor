@@ -830,8 +830,8 @@ Other modal content (forms, pickers) uses `Dialog` and `DialogHeader` from
 
 ```ts
 Facts(props: {
-  items: readonly { term: ReactNode; value: ReactNode; key?: string }[];
-  layout?: "grid" | "row" | "list"; // default "grid" (columns of >= 10rem)
+  items: readonly { term: ReactNode; value: ReactNode; key?: string; wide?: boolean }[];
+  layout?: "grid" | "row" | "list" | "rows"; // default "grid" (columns of >= 10rem)
   size?: "sm" | "md";
   technical?: readonly Fact[];      // behind a Technical details disclosure
   technicalSummary?: string;
@@ -843,6 +843,16 @@ Facts(props: {
 A `<dl>` of term and value pairs, each pair a `<div>`. A fact whose value
 is `undefined`, `null` or `false` is left out (0 and "" stay), so pages list
 what they know without conditionals; with no fact left it renders nothing.
+A `wide` fact takes a row of its own (a repository URL, a revision).
+
+- **`grid`:** columns of at least 10rem; terms above values.
+- **`row`:** pairs wrap on one line.
+- **`list`:** pairs stacked.
+- **`rows`:** terms in one column (8–13rem) beside the values, a hairline
+  between pairs, values in regular weight: configuration and record
+  details. It turns into one column at 640 px, or when a `.ui-facts-frame`
+  around it is narrower than 30rem (a side panel, a nested value; a frame
+  nested in such a list is then indented).
 
 ```tsx
 <Facts

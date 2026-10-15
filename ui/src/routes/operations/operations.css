@@ -874,7 +874,7 @@
   background: var(--surface-subtle);
 }
 
-.ops-agent-card .ops-tech .ops-facts {
+.ops-agent-card .ops-tech .ui-facts[data-layout="rows"] {
   grid-template-columns: minmax(7rem, 12rem) minmax(0, 1fr);
 }
 
@@ -994,7 +994,7 @@
   min-width: 18rem;
 }
 
-.ops-inventory-agent .ops-facts {
+.ops-inventory-agent .ui-facts {
   margin-top: var(--space-2);
 }
 
@@ -1923,7 +1923,7 @@
     border-radius: var(--radius-xl);
   }
 
-  .ops-agent-card .ops-tech .ops-facts {
+  .ops-agent-card .ops-tech .ui-facts[data-layout="rows"] {
     grid-template-columns: minmax(0, 1fr);
   }
 

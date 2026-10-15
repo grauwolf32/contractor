@@ -172,48 +172,6 @@ export function OpsSection({
   );
 }
 
-/** One term and value of FactRows, as in Facts. */
-interface FactRow {
-  term: ReactNode;
-  /** undefined, null and false leave the row out. */
-  value: ReactNode;
-  key?: string;
-}
-
-/**
- * Label / value rows with a hairline between them; the labels share one
- * column (.ops-facts). Like Facts, a row whose value is undefined, null or
- * false is left out, and no row left renders nothing.
- * V385: needs shared Facts layout "rows" (Facts has grid, row and list).
- */
-export function FactRows({
-  items,
-  className,
-}: {
-  items: readonly FactRow[];
-  className?: string | undefined;
-}) {
-  const shown = items.filter(
-    (row) =>
-      row.value !== undefined && row.value !== null && row.value !== false,
-  );
-  if (shown.length === 0) return null;
-  return (
-    <dl
-      className={
-        className === undefined ? "ops-facts" : `ops-facts ${className}`
-      }
-    >
-      {shown.map((row, index) => (
-        <div key={row.key ?? (typeof row.term === "string" ? row.term : index)}>
-          <dt>{row.term}</dt>
-          <dd>{row.value}</dd>
-        </div>
-      ))}
-    </dl>
-  );
-}
-
 export function MetricsSummary({
   metrics,
 }: {

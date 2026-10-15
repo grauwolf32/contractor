@@ -20,12 +20,7 @@ import {
   StatusChip,
   TechnicalDetails,
 } from "../../../ui";
-import {
-  FactRows,
-  OperationsState,
-  OptionalTimestamp,
-  SafeReason,
-} from "../common";
+import { OperationsState, OptionalTimestamp, SafeReason } from "../common";
 import { agentDisplayName, availabilityCopy } from "./identity";
 import { AgentLabelsDialog } from "./labels-dialog";
 
@@ -343,7 +338,8 @@ export function AgentCard({
       </div>
       <div className="ops-tech">
         <TechnicalDetails summary="Capabilities and diagnostics">
-          <FactRows
+          <Facts
+            layout="rows"
             items={[
               {
                 term: "Agent ID",

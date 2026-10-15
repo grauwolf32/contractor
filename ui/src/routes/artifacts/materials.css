@@ -427,12 +427,6 @@ form.materials-filter.inline-form button {
   font-weight: 500;
 }
 
-/* A fact on a row of its own (a repository URL, a revision).
-   V385: needs shared Facts full-width item. */
-.materials-facts > div:has(.materials-fact-wide) {
-  flex: 1 1 100%;
-}
-
 /* Upload a new version. */
 .materials-update {
   min-width: 0;

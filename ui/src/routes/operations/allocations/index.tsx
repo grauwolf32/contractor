@@ -1,12 +1,11 @@
 import { Link, useLocation } from "react-router";
 
 import type { AllocationObservation } from "../../../api/operations";
-import { IdChip } from "../../../ui";
+import { Facts, IdChip } from "../../../ui";
 import { useOperationsSnapshot } from "../context";
 import {
   ConfigurationRefLink,
   DisclosureChevron,
-  FactRows,
   MetricsSummary,
   OperationsState,
   OpsSection,
@@ -51,7 +50,8 @@ function AllocationEntry({
         <div className="ops-allocation-body">
           <div>
             <h3>Bindings</h3>
-            <FactRows
+            <Facts
+              layout="rows"
               items={[
                 {
                   term: "Allocation",

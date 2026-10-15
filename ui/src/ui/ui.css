@@ -1501,6 +1501,77 @@ span.ui-row-control {
   min-width: 0;
 }
 
+.ui-facts > div[data-wide] {
+  grid-column: 1 / -1;
+  flex: 1 1 100%;
+}
+
+/* Term column and hairlines; each pair is a subgrid, so terms line up. */
+.ui-facts[data-layout="rows"] {
+  grid-template-columns: minmax(8rem, 13rem) minmax(0, 1fr);
+  gap: 0;
+}
+
+.ui-facts[data-layout="rows"] > div {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+  row-gap: var(--space-0-5);
+  padding: var(--space-2) 0;
+  border-top: 1px solid var(--line);
+}
+
+.ui-facts[data-layout="rows"] > div:first-child {
+  border-top: 0;
+}
+
+.ui-facts[data-layout="rows"] :is(dt, dd) {
+  min-width: 0;
+}
+
+.ui-facts[data-layout="rows"] dt {
+  padding-right: var(--space-4);
+  font-size: var(--text-sm);
+}
+
+.ui-facts[data-layout="rows"] dd {
+  margin: 0;
+  font-weight: 400;
+}
+
+.ui-facts[data-layout="rows"] dd code {
+  font-size: var(--text-sm);
+}
+
+/* Lists in a value have no bullets; they start where the other values do. */
+.ui-facts[data-layout="rows"] dd ul {
+  margin: 0;
+  padding-left: 0;
+}
+
+/* A box whose rows facts follow its own width, not the viewport's. */
+.ui-facts-frame {
+  container: ui-facts / inline-size;
+  min-width: 0;
+}
+
+@container ui-facts (max-width: 30rem) {
+  .ui-facts[data-layout="rows"] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* A nested frame then sits under its term: indent it by one level. */
+  .ui-facts[data-layout="rows"] .ui-facts-frame {
+    padding-left: var(--space-3);
+  }
+}
+
+@media (max-width: 640px) {
+  .ui-facts[data-layout="rows"] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 .ui-facts dt {
   color: var(--muted);
   font-size: var(--text-xs);

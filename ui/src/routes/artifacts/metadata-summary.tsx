@@ -58,11 +58,8 @@ export function ArtifactFacts({ metadata }: { metadata: ArtifactMetadata }) {
           : [
               {
                 term: "Git repository",
-                value: (
-                  <span className="ui-mono materials-fact-wide">
-                    {git.repositoryUrl}
-                  </span>
-                ),
+                value: <span className="ui-mono">{git.repositoryUrl}</span>,
+                wide: true,
               },
               {
                 term: "Branch or tag",
@@ -111,11 +108,8 @@ export function ArtifactTechnicalDetails({
           items={[
             {
               term: "Revision",
-              value: (
-                <code className="materials-fact-wide">
-                  {metadata.artifact.revision}
-                </code>
-              ),
+              value: <code>{metadata.artifact.revision}</code>,
+              wide: true,
             },
             { term: "Media type", value: <code>{metadata.mediaType}</code> },
           ]}

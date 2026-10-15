@@ -7,7 +7,8 @@ import type {
 } from "../../../api/operations";
 import { Link } from "react-router";
 import { formatNumber } from "../../../app/format";
-import { ConfigurationRefLink, FactRows } from "../common";
+import { Facts } from "../../../ui";
+import { ConfigurationRefLink } from "../common";
 import { exactConfigurationRef } from "../references";
 import { artifactDetailPath } from "../../artifacts/paths";
 
@@ -27,7 +28,8 @@ function ModelPolicyView({ body }: { body: ModelPolicyBody }) {
     ["Temperature", present(body.temperature)],
   ] as const;
   return (
-    <FactRows
+    <Facts
+      layout="rows"
       className="configuration-body"
       items={fields.map(([term, value]) => ({
         term,
@@ -39,7 +41,8 @@ function ModelPolicyView({ body }: { body: ModelPolicyBody }) {
 
 function GatewayView({ body }: { body: LLMGatewayBody }) {
   return (
-    <FactRows
+    <Facts
+      layout="rows"
       className="configuration-body"
       items={[
         { term: "Protocol", value: <code>{body.protocol}</code> },
@@ -91,7 +94,8 @@ function GatewayView({ body }: { body: LLMGatewayBody }) {
 
 function AgentTemplateView({ body }: { body: AgentTemplateBody }) {
   return (
-    <FactRows
+    <Facts
+      layout="rows"
       className="configuration-body"
       items={[
         { term: "Description", value: body.description },
@@ -202,7 +206,8 @@ function ExecutionSelection({
 
 function ExecutionConfigView({ body }: { body: ExecutionConfigBody }) {
   return (
-    <FactRows
+    <Facts
+      layout="rows"
       className="configuration-body"
       items={[
         {
@@ -253,7 +258,7 @@ export function ConfigurationBodyView({
   resource: ConfigurationResource;
 }) {
   return (
-    <div className="ops-facts-frame">
+    <div className="ui-facts-frame">
       <ConfigurationBody resource={resource} />
     </div>
   );
