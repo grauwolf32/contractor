@@ -223,13 +223,6 @@
     "src/routes/projects/workflow-recommendations.tsx": {
       "button": 2
     },
-    "src/routes/reports/list.tsx": {
-      "button": 2
-    },
-    "src/routes/reports/report-view.tsx": {
-      "button": 3,
-      "svg": 1
-    },
     "src/routes/runs/actions.tsx": {
       "button": 3
     },

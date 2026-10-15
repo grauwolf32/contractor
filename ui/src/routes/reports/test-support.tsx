@@ -22,12 +22,8 @@ import { ownerListRoutes } from "../../test/owner-lists";
 import { renderWithAPI } from "../../test/render";
 import { ReportsRoute } from "./index";
 
-export { failure };
-
-export const { DIGEST, NOW } = build;
-
 export function project(projectId: string, name: string): Project {
-  return build.project(projectId, { name, createdAt: NOW, updatedAt: NOW });
+  return build.project(projectId, { name });
 }
 
 export function audit(
@@ -40,7 +36,7 @@ export function audit(
     profile: {
       name: options.profile ?? "owasp-top10-2025-source-risk",
       version: "1",
-      digest: DIGEST,
+      digest: build.DIGEST,
     },
     revision: options.revision ?? 4,
     holdState: "held",
@@ -48,8 +44,7 @@ export function audit(
     reservedRunCount: 1,
     submittedRunCount: 1,
     eventSequence: 4,
-    createdAt: NOW,
-    updatedAt: options.updatedAt ?? NOW,
+    updatedAt: options.updatedAt ?? build.NOW,
   });
 }
 
@@ -63,21 +58,18 @@ export function acceptanceReview(
   });
 }
 
-/** A proposed or ready report with both files; others carry only a status. */
+/**
+ * A proposed or ready report with both files, a proposed one carrying
+ * acceptanceReview; others carry only a status.
+ */
 export function report(
   auditId: string,
   status: AuditReport["status"],
-  options: {
-    summary?: string | undefined;
-    review?: AuditReviewRequest | undefined;
-  } = {},
+  options: { summary?: string | undefined; review?: AuditReviewRequest } = {},
 ): AuditReport {
   return build.report(auditId, status, {
     summary: options.summary,
-    review:
-      status === "proposed"
-        ? (options.review ?? acceptanceReview(auditId))
-        : undefined,
+    review: options.review ?? acceptanceReview(auditId),
   });
 }
 
