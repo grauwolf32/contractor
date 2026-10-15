@@ -98,6 +98,8 @@ function ProjectFilter({
     <label className="reports-project-filter">
       <span>Project</span>
       <select
+        className="ui-control"
+        data-size="sm"
         value={value ?? ""}
         onChange={(event) => onChange(event.target.value)}
       >

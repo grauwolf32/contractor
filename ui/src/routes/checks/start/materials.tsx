@@ -77,7 +77,7 @@ function MaterialSlot({
         ) : null}
         {choosing ? (
           <select
-            className="start-material-select"
+            className="ui-control start-material-select"
             aria-label={`Material for ${slot.label}`}
             value={slot.selection}
             onChange={(event) => onChoose(slot.name, event.target.value)}

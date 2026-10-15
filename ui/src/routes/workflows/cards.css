@@ -82,24 +82,7 @@
   font-weight: 700;
 }
 
-.workflow-card-select select {
-  max-width: 12rem;
-  height: 1.75rem;
-  min-height: 0;
-  padding: 0 var(--space-1-5);
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius-md);
-  background: var(--surface);
-  color: var(--text);
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  font-weight: 600;
-}
 
-.workflow-card-select select:focus-visible {
-  outline: 2px solid var(--focus);
-  outline-offset: 1px;
-}
 
 .workflow-card-tag[data-tone="accent"] {
   background: var(--sel);

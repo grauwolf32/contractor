@@ -30,28 +30,10 @@
 
 .reports-project-filter select {
   flex: 1 1 auto;
-  width: 100%;
-  min-width: 0;
-  max-width: 100%;
-  height: var(--control-sm);
-  padding: 0 var(--space-2);
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius-md);
-  background: var(--surface);
-  color: var(--text);
-  font-size: var(--text-sm);
-  font-weight: 600;
-  text-overflow: ellipsis;
 }
 
 .reports-project-filter select:hover {
   background: var(--surface-hover);
-}
-
-.reports-project-filter select:focus-visible {
-  border-color: var(--focus);
-  outline: 2px solid var(--focus);
-  outline-offset: 1px;
 }
 
 .reports-row-project {

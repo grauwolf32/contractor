@@ -42,6 +42,8 @@ function AgentCard({
         <label className="library-version">
           <span>Version</span>
           <select
+            className="ui-control"
+            data-size="xs"
             aria-label={`Version of ${name}`}
             value={item.ref.version}
             onChange={(event) => onVersion(event.target.value)}

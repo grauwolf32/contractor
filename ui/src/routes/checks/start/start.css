@@ -434,21 +434,10 @@
   gap: var(--space-3-5) var(--space-5);
 }
 
-/* A material choice inside a materials card; its label is the slot name.
-   V385: needs shared form-control class for a control outside a Field. */
+/* A material choice (.ui-control) inside a materials card; its label is
+   the slot name. Room for the arrow on the right. */
 .start-material-select {
-  display: block;
-  width: 100%;
-  max-width: 100%;
-  min-width: 0;
-  min-height: var(--control-md);
-  padding: var(--space-2) var(--space-8) var(--space-2) var(--space-3);
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius-lg);
-  background: var(--surface);
-  color: var(--text);
-  font-size: var(--text-md);
-  text-overflow: ellipsis;
+  padding-right: var(--space-8);
 }
 
 .start-textarea {
@@ -456,7 +445,6 @@
   resize: vertical;
 }
 
-.start-material-select:focus-visible,
 .start-objective-field:focus-visible {
   border-color: var(--focus);
   outline: 2px solid var(--focus);

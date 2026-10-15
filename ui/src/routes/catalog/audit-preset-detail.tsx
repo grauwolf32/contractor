@@ -101,6 +101,8 @@ function VersionPicker({ name, version }: { name: string; version: string }) {
       <label className="library-version">
         <span>Version</span>
         <select
+          className="ui-control"
+          data-size="xs"
           aria-label="Check type version"
           value={version}
           onChange={(event) =>

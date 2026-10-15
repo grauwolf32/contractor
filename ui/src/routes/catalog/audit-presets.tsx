@@ -73,6 +73,8 @@ function CheckTypeCard({
         <label className="library-version">
           <span>Version</span>
           <select
+            className="ui-control"
+            data-size="xs"
             aria-label={`Version of ${name}`}
             value={profile.ref.version}
             onChange={(event) => onVersion(event.target.value)}

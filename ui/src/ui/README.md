@@ -991,6 +991,11 @@ settledInterval?, maxInterval? })` returns a `refetchInterval` function:
 - **`.ui-panel`:** a bordered card on the page surface; dialogs are panels
   too (`ui-dialog ui-panel`).
 - **`.ui-badge`:** a small neutral pill: a version, a scope, "Latest".
+- **`.ui-control`:** a select or input outside a `Field` or form (a list
+  filter, a material choice, a version picker): line border, surface
+  background, focus ring. `data-size="sm"` is 32 px; `data-size="xs"` is a
+  28 px monospace control as wide as its value (up to 12rem); the default
+  is 38 px. Controls inside a `Field` get the form look without it.
 - **`.ui-caption`:** secondary text (muted, 13 px).
 - **`.ui-mono`:** identifiers, paths and digests inline in text.
 - **`.ui-dialog`, `.ui-dialog-heading`, `.ui-dialog-actions`,
