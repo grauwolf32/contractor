@@ -6,6 +6,7 @@ import { listArtifacts, type ArtifactWriteResponse } from "../../api/artifacts";
 import { usePublicAPI } from "../../api/context";
 import { queryKeys } from "../../api/query-keys";
 import { useDocumentTitle } from "../../app/document-title";
+import { usePageLocationNow } from "../../app/page-location";
 import { useURLCursorStack } from "../../app/pagination";
 import { RefreshButton } from "../../app/refresh-button";
 import { Button, ListSection } from "../../ui";
@@ -36,6 +37,7 @@ export function ArtifactListRoute() {
   const [filters, setFilters] = useSearchParams();
   const namespace = filters.get("namespace") || undefined;
   const pages = useURLCursorStack();
+  const pageNow = usePageLocationNow();
   const [written, setWritten] = useState<ArtifactWriteResponse | null>(null);
   const [uploadOpen, setUploadOpen] = useState(false);
   const titleId = useId();
@@ -156,7 +158,9 @@ export function ArtifactListRoute() {
           onClose={() => setUploadOpen(false)}
           onWritten={(result) => {
             setWritten(result);
-            pages.reset();
+            // The upload answered after an await: go back to the first
+            // page only while the user is still on Files.
+            if (pageNow() !== undefined) pages.reset();
             setUploadOpen(false);
           }}
         />

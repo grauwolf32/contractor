@@ -7,6 +7,7 @@ import { usePublicAPI } from "../../api/context";
 import type { GitImportResult } from "../../api/git-artifacts";
 import { listProjectArtifacts } from "../../api/project-artifacts";
 import { queryKeys } from "../../api/query-keys";
+import { usePageLocationNow } from "../../app/page-location";
 import { useURLCursorStack } from "../../app/pagination";
 import { RefreshButton } from "../../app/refresh-button";
 import { Button, ListSection } from "../../ui";
@@ -34,6 +35,7 @@ export function ProjectArtifactRegion({ projectId }: { projectId: string }) {
   const api = usePublicAPI();
   const [filters, setFilters] = useSearchParams();
   const location = useLocation();
+  const pageNow = usePageLocationNow();
   const region = useRef<HTMLElement>(null);
   const addButton = useRef<HTMLButtonElement>(null);
   const notice = useRef<HTMLDivElement>(null);
@@ -114,6 +116,9 @@ export function ProjectArtifactRegion({ projectId }: { projectId: string }) {
   function finishAdd(result: ArtifactWriteResponse | GitImportResult): void {
     focusOutcome.current = true;
     setWritten(result);
+    // The write answered after an await: change the URL only while the
+    // user is still on this page.
+    if (pageNow() === undefined) return;
     // Show the new material: back to the first page of every namespace.
     changeFilters((next) => {
       next.delete(ADD_PARAM);

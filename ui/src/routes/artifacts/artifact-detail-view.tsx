@@ -1,6 +1,6 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { type ReactNode, useCallback, useId, useRef, useState } from "react";
-import { Link, useLocation, useSearchParams } from "react-router";
+import { Link, useLocation } from "react-router";
 
 import type { ArtifactArchiveScope } from "../../api/artifact-archive";
 import type { ArtifactMetadata } from "../../api/artifacts";
@@ -13,6 +13,7 @@ import {
 import { writeConflict } from "../../app/conflict";
 import { saveBlob } from "../../app/download";
 import { ErrorNotice } from "../../app/error-notice";
+import { useGuardedNavigate } from "../../app/page-location";
 import { QueryView } from "../../app/query-view";
 import { RefreshButton } from "../../app/refresh-button";
 import { Button, StatusGlyph } from "../../ui";
@@ -64,7 +65,7 @@ function ArtifactUpdatePanel({
   onUploadRejected: (rejected: RejectedUpload) => void;
 }) {
   const location = useLocation();
-  const [, setSearchParams] = useSearchParams();
+  const navigate = useGuardedNavigate();
   const summaryId = useId();
   const panel = useRef<HTMLDetailsElement>(null);
   const skillSettings =
@@ -105,8 +106,12 @@ function ArtifactUpdatePanel({
           }
           onWritten={(result) => {
             if (panel.current !== null) panel.current.open = false;
-            setSearchParams(
-              { revision: result.artifact.revision },
+            // The upload answered after an await: open the new revision
+            // only while the user is still on this page.
+            void navigate(
+              {
+                search: `?${new URLSearchParams({ revision: result.artifact.revision })}`,
+              },
               { state: location.state },
             );
           }}
@@ -160,7 +165,7 @@ export function ArtifactDetailView({
 }) {
   const api = usePublicAPI();
   const location = useLocation();
-  const [, setSearchParams] = useSearchParams();
+  const navigate = useGuardedNavigate();
   const titleId = useId();
   const noun = SCOPE_NOUNS[scope.kind];
   const artifacts = scopedArtifactAPI(api, scope);
@@ -195,7 +200,7 @@ export function ArtifactDetailView({
     // A precondition conflict means that another writer moved the binding:
     // show its current revision instead of the pinned, now historical one.
     if (revision !== undefined && writeConflict(rejected.error) !== undefined) {
-      setSearchParams({}, { replace: true, state: location.state });
+      void navigate({ search: "" }, { replace: true, state: location.state });
     }
   };
 

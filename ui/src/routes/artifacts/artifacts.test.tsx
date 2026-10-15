@@ -559,6 +559,46 @@ describe("Artifact routes", () => {
     },
   );
 
+  it("stays where the user went when a version upload answers late", async () => {
+    let answer!: (response: Response) => void;
+    const original = source("revision-1");
+    const { router } = renderApplication("/artifacts/projects/source", {
+      [METADATA]: () => json(original),
+      [WRITE]: () =>
+        new Promise<Response>((resolve) => {
+          answer = resolve;
+        }),
+      [LIST]: () => json(page([])),
+    });
+    const user = userEvent.setup();
+    await user.click(
+      await screen.findByText("Upload a new version", { selector: "summary" }),
+    );
+    await user.upload(
+      screen.getByLabelText("Drop a file here"),
+      new File(["new!"], "source.txt", { type: "text/plain" }),
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Upload new version" }),
+    );
+    await waitFor(() => expect(answer).toBeDefined());
+    await act(async () => {
+      await router.navigate("/artifacts");
+    });
+    await screen.findByText("No files yet");
+    await act(async () => {
+      answer(
+        json(artifactWrite(source("revision-2")), 201, {
+          ETag: '"revision-2"',
+        }),
+      );
+    });
+    await waitFor(() =>
+      expect(router.state.location.pathname).toBe("/artifacts"),
+    );
+    expect(router.state.location.search).toBe("");
+  });
+
   it("does not offer inline preview for binary content", async () => {
     const binary = source("revision-1", {
       mediaType: "application/octet-stream",
