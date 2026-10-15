@@ -4,14 +4,14 @@ import { useLocation, useNavigate } from "react-router";
 import type { WorkflowResource } from "../../api/workflows";
 import { plural } from "../../app/format";
 import { RefreshButton } from "../../app/refresh-button";
-import { Button, DetailHeader, DetailPane, IdChip, StatusChip } from "../../ui";
+import { Button, DetailHeader, DetailPane, IdChip } from "../../ui";
+import { formatLabel } from "../artifacts/kinds";
 import { groupWorkflowVersions, hasNumericVersions } from "./families";
-import { workflowFormats } from "./formats";
 import { useWorkflowInventory } from "./inventory";
 import { workflowDisplayName, workflowSelector } from "./presentation";
 import { WorkflowRunDrawer } from "./run-drawer";
 import { WorkflowRunForm } from "./run-form";
-import { WorkflowVersionSelect } from "./version-select";
+import { WorkflowVersionSelect, WorkflowVersionTag } from "./version-select";
 import "./cards.css";
 import "./overview.css";
 
@@ -49,9 +49,9 @@ function OverviewSlots({
                 <dd>
                   {slot.mediaTypes.map((type) => (
                     <span key={type}>
-                      {workflowFormats[type] ? (
-                        <>{workflowFormats[type]} · </>
-                      ) : null}
+                      {formatLabel(type) === type ? null : (
+                        <>{formatLabel(type)} · </>
+                      )}
                       <code>{type}</code>
                     </span>
                   ))}
@@ -126,9 +126,7 @@ export function WorkflowOverview({
               title={<span id={titleId}>{workflowDisplayName(workflow)}</span>}
               status={
                 numericVersions ? (
-                  <StatusChip tone={latest ? "info" : "neutral"} size="sm">
-                    {latest ? "Latest" : "Earlier version"}
-                  </StatusChip>
+                  <WorkflowVersionTag latest={latest} />
                 ) : undefined
               }
               meta={

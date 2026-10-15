@@ -14,9 +14,9 @@ import {
 } from "../../ui";
 import type { WorkflowCompatibility } from "../projects/recommendations";
 import { hasNumericVersions } from "./families";
-import { workflowFormats } from "./formats";
+import { formatLabel } from "../artifacts/kinds";
 import { workflowDisplayName, workflowSelector } from "./presentation";
-import { WorkflowVersionSelect } from "./version-select";
+import { WorkflowVersionSelect, WorkflowVersionTag } from "./version-select";
 import "./cards.css";
 
 function Slots({ slots }: { slots: WorkflowSummary["outputs"] }) {
@@ -39,9 +39,7 @@ function Slots({ slots }: { slots: WorkflowSummary["outputs"] }) {
               ) : null}
             </dt>
             <dd title={slot.mediaTypes.join(", ")}>
-              {slot.mediaTypes
-                .map((value) => workflowFormats[value] ?? value)
-                .join(" · ")}
+              {slot.mediaTypes.map(formatLabel).join(" · ")}
             </dd>
           </div>
         ))}
@@ -121,14 +119,7 @@ export function WorkflowCard({
           versions={versions}
           onChange={onVersion}
         />
-        {numeric ? (
-          <span
-            className="ui-badge workflow-card-tag"
-            data-tone={latest ? "accent" : undefined}
-          >
-            {latest ? "Latest" : "Earlier version"}
-          </span>
-        ) : null}
+        {numeric ? <WorkflowVersionTag latest={latest} /> : null}
         <span className="workflow-card-count">
           {plural(versions.length, "version")}
         </span>

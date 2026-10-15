@@ -28,3 +28,19 @@ export function WorkflowVersionSelect({
     </label>
   );
 }
+
+/**
+ * Whether a version is the latest of its family ("Latest", highlighted) or
+ * an earlier one. Only meaningful when every version is a dotted number
+ * (hasNumericVersions).
+ */
+export function WorkflowVersionTag({ latest }: { latest: boolean }) {
+  return (
+    <span
+      className="ui-badge workflow-card-tag"
+      data-tone={latest ? "accent" : undefined}
+    >
+      {latest ? "Latest" : "Earlier version"}
+    </span>
+  );
+}
