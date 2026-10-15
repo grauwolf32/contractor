@@ -8,6 +8,7 @@ import {
   type EvalExperiment,
 } from "../../api/evals";
 import { queryKeys } from "../../api/query-keys";
+import { QueryView } from "../../app/query-view";
 import { StatusGlyph, type StatusTone } from "../../ui";
 import { EvalError } from "./common";
 
@@ -159,28 +160,37 @@ function ExecutionReasons({
     queryFn: ({ signal }) =>
       listEvalMembers(api, experiment.experimentId, query, signal),
   });
-  const reasons = [
-    ...new Set(
-      (members.data?.items ?? []).flatMap((member) =>
-        [member.member.reason, member.execution?.reason].filter(
-          (reason): reason is string => !!reason,
-        ),
-      ),
-    ),
-  ];
   return (
-    <>
-      <EvalError error={members.error} reload={() => void members.refetch()} />
-      {reasons.length ? (
-        <ul className="eval-reasons">
-          {reasons.map((reason) => (
-            <li key={reason}>{reason}</li>
-          ))}
-        </ul>
-      ) : null}
-      {members.data?.page.hasMore ? (
-        <p>More affected attempts are listed under Attempts.</p>
-      ) : null}
-    </>
+    <QueryView
+      query={members}
+      loading={null}
+      renderError={(error, retry) => <EvalError error={error} reload={retry} />}
+    >
+      {(page) => {
+        const reasons = [
+          ...new Set(
+            page.items.flatMap((member) =>
+              [member.member.reason, member.execution?.reason].filter(
+                (reason): reason is string => !!reason,
+              ),
+            ),
+          ),
+        ];
+        return (
+          <>
+            {reasons.length ? (
+              <ul className="eval-reasons">
+                {reasons.map((reason) => (
+                  <li key={reason}>{reason}</li>
+                ))}
+              </ul>
+            ) : null}
+            {page.page.hasMore ? (
+              <p>More affected attempts are listed under Attempts.</p>
+            ) : null}
+          </>
+        );
+      }}
+    </QueryView>
   );
 }

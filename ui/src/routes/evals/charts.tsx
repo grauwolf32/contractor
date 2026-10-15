@@ -9,6 +9,7 @@ import {
 import { queryKeys } from "../../api/query-keys";
 import { ContextLink } from "../../app/context-navigation";
 import { formatNumber } from "../../app/format";
+import { QueryView } from "../../app/query-view";
 import { Button } from "../../ui";
 import { ArmKey, EvalError } from "./common";
 
@@ -479,8 +480,7 @@ export function EvalChartPanel({
     queryFn: ({ signal }) =>
       getEvalChart(api, experiment.experimentId, chart, query, signal),
   });
-  const data = result.data,
-    comparison = experiment.setup?.comparison;
+  const comparison = experiment.setup?.comparison;
   async function refresh() {
     if (onRefresh) {
       onRefresh();
@@ -496,48 +496,58 @@ export function EvalChartPanel({
   return (
     <section className="eval-panel eval-chart" aria-labelledby={heading}>
       <h3 id={heading}>{CHART_TITLES[chart]}</h3>
-      <EvalError error={result.error} reload={() => void refresh()} />
-      {result.isPending ? <p role="status">Loading chart…</p> : null}
-      {data ? (
-        <>
-          <p className="eval-chart-scope">
-            {data.coverage.includedPairs}/{data.coverage.expectedPairs} pairs
-            included · {data.freshness}
-            {data.measurementScope ? ` · ${data.measurementScope}` : ""}
-          </p>
-          {chart === "duration" ? (
-            <p className="ui-caption">
-              Execution duration in milliseconds, including queue/hold time; a
-              check&apos;s duration is its parent interval.
+      <QueryView
+        query={result}
+        loading={<p role="status">Loading chart…</p>}
+        onRetry={() => void refresh()}
+        renderError={(error, retry) => (
+          <EvalError error={error} reload={retry} />
+        )}
+      >
+        {(data) => (
+          <>
+            <p className="eval-chart-scope">
+              {data.coverage.includedPairs}/{data.coverage.expectedPairs} pairs
+              included · {data.freshness}
+              {data.measurementScope ? ` · ${data.measurementScope}` : ""}
             </p>
-          ) : null}
-          {Object.entries(data.coverage.reasons).map(([reason, count]) => (
-            <p className="ui-caption" key={reason}>
-              {reason.replaceAll("_", " ")}: {count}
-            </p>
-          ))}
-          {chart === "quality" ? (
-            <QualityPlot
-              data={data}
-              baseline={comparison?.baseline ?? "a"}
-              candidate={comparison?.candidate ?? "b"}
-            />
-          ) : chart === "progress" ? (
-            <ProgressPlot data={data} />
-          ) : chart === "pair-deltas" ? (
-            <DifferencePlot data={data} id={experiment.experimentId} />
-          ) : (
-            <DistributionPlot data={data} {...(onBin ? { onBin } : {})} />
-          )}
-          {data.page?.hasMore && data.page.nextCursor && onNext ? (
-            <div className="ui-toolbar">
-              <Button size="sm" onClick={() => onNext(data.page!.nextCursor!)}>
-                Next differences
-              </Button>
-            </div>
-          ) : null}
-        </>
-      ) : null}
+            {chart === "duration" ? (
+              <p className="ui-caption">
+                Execution duration in milliseconds, including queue/hold time; a
+                check&apos;s duration is its parent interval.
+              </p>
+            ) : null}
+            {Object.entries(data.coverage.reasons).map(([reason, count]) => (
+              <p className="ui-caption" key={reason}>
+                {reason.replaceAll("_", " ")}: {count}
+              </p>
+            ))}
+            {chart === "quality" ? (
+              <QualityPlot
+                data={data}
+                baseline={comparison?.baseline ?? "a"}
+                candidate={comparison?.candidate ?? "b"}
+              />
+            ) : chart === "progress" ? (
+              <ProgressPlot data={data} />
+            ) : chart === "pair-deltas" ? (
+              <DifferencePlot data={data} id={experiment.experimentId} />
+            ) : (
+              <DistributionPlot data={data} {...(onBin ? { onBin } : {})} />
+            )}
+            {data.page?.hasMore && data.page.nextCursor && onNext ? (
+              <div className="ui-toolbar">
+                <Button
+                  size="sm"
+                  onClick={() => onNext(data.page!.nextCursor!)}
+                >
+                  Next differences
+                </Button>
+              </div>
+            ) : null}
+          </>
+        )}
+      </QueryView>
     </section>
   );
 }

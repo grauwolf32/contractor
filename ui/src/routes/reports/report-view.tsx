@@ -266,6 +266,7 @@ export function ReportContent({
           </p>
         }
         errorContext="Could not load the report"
+        errorHint={loadErrorHint}
       >
         {(report) => (
           <LoadedReportContent
@@ -275,10 +276,6 @@ export function ReportContent({
           />
         )}
       </QueryView>
-      {/* V385: needs shared QueryView error hint (a line under the error). */}
-      {query.data === undefined && query.error !== null ? (
-        <p className="ui-caption">{loadErrorHint(query.error)}</p>
-      ) : null}
     </div>
   );
 }

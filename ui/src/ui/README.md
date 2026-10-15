@@ -928,10 +928,16 @@ Shared code that is not a component lives in `src/app`:
   `compactDigest`, `middleTruncate` and `compareVersions`. Every Intl
   formatter of the UI is defined there, with en-US conventions.
 - **Query states, `src/app/query-view.tsx`:** `<QueryView query={useQuery(…)}>`
-  renders loading ("Loading…" unless `loading` replaces it), the error panel
-  when nothing is loaded, a stale-data warning after a failed refetch, the
-  `empty` state for data that `isEmpty` selects, and the content. Try again
-  calls the query's own `refetch` unless `onRetry` replaces it.
+  renders loading ("Loading…" unless `loading` replaces it; `null` shows
+  nothing), the error panel when nothing is loaded (with an `errorHint` line
+  under it), a stale-data warning after a failed refetch, the `empty` state
+  for data that `isEmpty` selects, and the content. For an infinite query a
+  failed next page keeps the loaded pages and shows its error
+  (`continuationContext`) under them, retrying only that page. Try again
+  (`retryLabel`) calls the query's own `refetch` unless `onRetry` replaces
+  it; `renderError(error, retry, stale)` replaces the error panel and the
+  stale warning for an area whose errors need their own words, such as the
+  Evals' revision conflicts.
 - **Polling, `src/app/polling.ts`:** `pollInterval({ interval, settled?,
 settledInterval?, maxInterval? })` returns a `refetchInterval` function:
   the base interval while the data can change, stop (or the slow

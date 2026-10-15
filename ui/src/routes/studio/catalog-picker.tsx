@@ -182,18 +182,12 @@ function CatalogPicker({
         </Field>
         <Button type="submit">Search</Button>
       </form>
-      {/* A failed next page keeps the loaded versions and is reported under
-          them, so QueryView only sees the first page's error.
-          V385: needs shared continuation-error state in QueryView */}
       <QueryView
-        query={{
-          data: query.data,
-          error: query.isFetchNextPageError ? null : query.error,
-          isFetching: query.isFetching,
-          refetch: query.refetch,
-        }}
+        query={query}
         loading={<p role="status">Loading catalog…</p>}
         errorContext="Catalog could not be loaded."
+        continuationContext="More versions could not be loaded."
+        retryLabel="Retry catalog"
       >
         {(data) => {
           const items = new Map(
@@ -236,17 +230,6 @@ function CatalogPicker({
                   </li>
                 ))}
               </ul>
-              {query.isFetchNextPageError ? (
-                <p role="alert">
-                  More versions could not be loaded. {query.error?.message}{" "}
-                  <Button
-                    disabled={query.isFetching}
-                    onClick={() => void query.fetchNextPage()}
-                  >
-                    Retry catalog
-                  </Button>
-                </p>
-              ) : null}
               {query.hasNextPage ? (
                 <Button
                   pending={query.isFetchingNextPage}
