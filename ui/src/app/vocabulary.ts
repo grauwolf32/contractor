@@ -22,6 +22,7 @@ import type {
 } from "../api/audits";
 import type { components } from "../api/generated/public";
 import type { RunStatus, WorkflowRunState } from "../api/runs";
+import { formatNumber } from "./format";
 import type { StatusTone } from "./status-tone";
 
 export type AuditCoverageStatus = components["schemas"]["AuditCoverageStatus"];
@@ -161,8 +162,11 @@ export const SEVERITY_LABELS: Readonly<Record<AuditFindingSeverity, string>> = {
   critical: "Critical",
 };
 
-/** Readable fallback for a value this client does not know yet. */
-function unknownLabel(value: string): string {
+/**
+ * An API value in words ("not_eligible" is "Not eligible"), also for a
+ * value this client does not know yet.
+ */
+export function readableValue(value: string): string {
   const words = value.replaceAll(/[_-]+/g, " ").trim();
   return words === "" ? "Unknown" : capitalize(words);
 }
@@ -178,14 +182,18 @@ export function labelOf<K extends string>(
 ): VocabularyLabel {
   return Object.hasOwn(table, value)
     ? table[value]
-    : { label: unknownLabel(value), tone: "neutral" };
+    : { label: readableValue(value), tone: "neutral" };
 }
 
-function wordOf<K extends string>(
+/**
+ * The word for `value` in `table`; a value this client does not know yet
+ * reads as written ("release_pending" is "Release pending").
+ */
+export function wordOf<K extends string>(
   table: Readonly<Record<K, string>>,
   value: K,
 ): string {
-  return Object.hasOwn(table, value) ? table[value] : unknownLabel(value);
+  return Object.hasOwn(table, value) ? table[value] : readableValue(value);
 }
 
 /** Check (Audit) state: "Running", "Waiting for you", "Finished", … */
@@ -325,7 +333,7 @@ export function itemNoun(kind: ItemKind, count: number): string {
 
 /** "1 endpoint", "12 requirements", "1,204 items". */
 export function itemCount(kind: ItemKind, count: number): string {
-  return `${count.toLocaleString("en-US")} ${itemNoun(kind, count)}`;
+  return `${formatNumber(count)} ${itemNoun(kind, count)}`;
 }
 
 type InventoryImplementation = AuditProfile["inventory"]["implementation"];

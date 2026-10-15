@@ -10,8 +10,9 @@ import { queryKeys } from "../../api/query-keys";
 import { ContextLink } from "../../app/context-navigation";
 import { pollInterval } from "../../app/polling";
 import { QueryView } from "../../app/query-view";
+import { readableValue } from "../../app/vocabulary";
 import { Button, StatusChip, type StatusTone } from "../../ui";
-import { executionRefLabel, readableValue } from "./labels";
+import { executionRefLabel } from "./labels";
 
 // The first page polls until the inventory is complete.
 const inventoryPoll = pollInterval<{ inventoryComplete: boolean }>({

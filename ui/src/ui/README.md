@@ -907,6 +907,8 @@ Shared code that is not a component lives in `src/app`:
   Add new icons there instead of an inline `<svg>`; charts and drawings
   are not icons.
 - **Formatting, `src/app/format.ts`:** `plural(count, one, many?)`,
+  `formatNumber(value, maxFractionDigits = 2, minFractionDigits = 0)`
+  (counts and measurements, "1,204"), `formatCompact` ("1.2K", "1.5M"),
   `formatBytes`, `formatTimestamp` (absolute, hover titles),
   `formatShortDateTime` ("Oct 4, 23:51"), `formatClock`, `formatDay`
   ("Today", "Yesterday", "Oct 4"), `formatRelative` (records, minutes and
@@ -948,7 +950,9 @@ settledInterval?, maxInterval? })` returns a `refetchInterval` function:
   coverage, finding, review and Run states. Run states keep the API words
   (Initializing, Pending, Running, Waiting, Cancelling, Succeeded, Failed,
   Cancelled); `runStatePhrase` and `runRecoveryReason` give the sentence
-  forms. Material kinds are classified once in
+  forms. `labelOf(table, value)` and `wordOf(table, value)` read a value
+  this client does not know yet as `readableValue(value)` ("release_pending"
+  is "Release pending"). Material kinds are classified once in
   `src/routes/artifacts/kinds.ts`.
 
 ## Utility classes

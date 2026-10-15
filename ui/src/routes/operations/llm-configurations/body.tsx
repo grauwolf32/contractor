@@ -6,12 +6,13 @@ import type {
   ModelPolicyBody,
 } from "../../../api/operations";
 import { Link } from "react-router";
+import { formatNumber } from "../../../app/format";
 import { ConfigurationRefLink, FactRows } from "../common";
 import { exactConfigurationRef } from "../references";
 import { artifactDetailPath } from "../../artifacts/paths";
 
 function present(value: number | undefined): string {
-  return value === undefined ? "omitted" : value.toLocaleString();
+  return value === undefined ? "omitted" : formatNumber(value);
 }
 
 function ModelPolicyView({ body }: { body: ModelPolicyBody }) {

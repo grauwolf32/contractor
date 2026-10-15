@@ -1,7 +1,7 @@
 import { useId } from "react";
 
 import { metricSeriesSegments } from "./series";
-import { formatTimestamp } from "../../../app/format";
+import { formatNumber, formatTimestamp } from "../../../app/format";
 
 export interface ChartDatum {
   observedAt: string;
@@ -24,9 +24,7 @@ interface ChartProps {
 }
 
 function numeric(value: number, unit: string): string {
-  const formatted = value.toLocaleString(undefined, {
-    maximumFractionDigits: value < 10 ? 2 : 1,
-  });
+  const formatted = formatNumber(value, value < 10 ? 2 : 1);
   return unit === "" ? formatted : `${formatted} ${unit}`;
 }
 
@@ -119,7 +117,7 @@ export function MetricSeriesChart({
         </div>
         <div>
           <dt>Observed points</dt>
-          <dd>{item.values.length.toLocaleString()}</dd>
+          <dd>{formatNumber(item.values.length)}</dd>
         </div>
       </dl>
     </div>

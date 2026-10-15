@@ -4,7 +4,7 @@ import { Link, type To } from "react-router";
 
 import type { AllocationObservation } from "../../api/operations";
 import { ErrorNotice } from "../../app/error-notice";
-import { compactDigest, formatTimestamp } from "../../app/format";
+import { compactDigest, formatNumber, formatTimestamp } from "../../app/format";
 import { Icon } from "../../app/icon";
 import { Facts, StatusChip } from "../../ui";
 import { configurationVersionPath } from "./llm-configurations/kinds";
@@ -234,7 +234,7 @@ export function MetricsSummary({
       items={[
         ...values.map(([term, value]) => ({
           term,
-          value: value.toLocaleString(),
+          value: formatNumber(value),
         })),
         {
           term: "Reports",

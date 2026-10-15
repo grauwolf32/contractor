@@ -1,5 +1,6 @@
 import { Link } from "react-router";
 
+import { formatNumber } from "../../../app/format";
 import { TechnicalDetails } from "../../../ui";
 import { useOperationsSnapshot } from "../context";
 import type { RuntimeAgentObservation } from "../../../api/operations";
@@ -74,9 +75,8 @@ function ProcessFacts({ agent }: { agent: RuntimeAgentObservation }) {
                   <code key={mode}>{mode}</code>
                 ))}
                 {" · "}
-                {workspace.limits.maxFiles.toLocaleString()} files /{" "}
-                {workspace.limits.maxExpandedBytes.toLocaleString()} bytes
-                expanded
+                {formatNumber(workspace.limits.maxFiles)} files /{" "}
+                {formatNumber(workspace.limits.maxExpandedBytes)} bytes expanded
               </>
             ),
         },

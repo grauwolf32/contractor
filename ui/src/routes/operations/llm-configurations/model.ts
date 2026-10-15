@@ -4,6 +4,7 @@ import type {
   LLMGatewayBody,
   ModelPolicyBody,
 } from "../../../api/operations";
+import { formatNumber } from "../../../app/format";
 
 export type ModelPolicyConsumer = "worker" | "planner" | "both";
 
@@ -57,7 +58,7 @@ export function validateModelPolicy(
     const maximum = policyLimit("maximum", property);
     if (!positiveInteger(field, maximum)) {
       errors.push(
-        `${label} must be a positive integer no greater than ${maximum.toLocaleString()}.`,
+        `${label} must be a positive integer no greater than ${formatNumber(maximum)}.`,
       );
     }
   }

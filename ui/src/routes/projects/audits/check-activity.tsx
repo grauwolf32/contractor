@@ -27,7 +27,7 @@ import { findingsReadable, REPORT_STATES } from "./check-data";
 import { issueSummary, splitIssues, type CheckEntry } from "./check-model";
 import type { AuditCollectionQuery } from "./collections";
 import { CheckTechnicalDetails } from "./overview";
-import { plural } from "../../../app/format";
+import { formatNumber, plural } from "../../../app/format";
 
 /** Decisions shown in place before "See all decisions". */
 const INLINE_DECISIONS = 3;
@@ -166,7 +166,7 @@ function issuesSentence(
   setAside: number,
 ): string {
   const summary = issueSummary(findings).join(" and ");
-  const read = findings.length.toLocaleString("en-US");
+  const read = formatNumber(findings.length);
   const counted =
     summary === ""
       ? partial
@@ -175,7 +175,7 @@ function issuesSentence(
       : `This check has ${partial ? "at least " : ""}${summary}.`;
   return setAside === 0
     ? counted
-    : `${counted} ${setAside.toLocaleString("en-US")} ${setAside === 1 ? "was" : "were"} marked not an issue or duplicate.`;
+    : `${counted} ${formatNumber(setAside)} ${setAside === 1 ? "was" : "were"} marked not an issue or duplicate.`;
 }
 
 /**

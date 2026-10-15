@@ -23,9 +23,10 @@ import {
   capitalize,
   checkItemKind,
   itemCount,
+  type ItemKind,
   itemNoun,
   TERMS,
-  type ItemKind,
+  wordOf,
 } from "../../app/vocabulary";
 import {
   Button,
@@ -45,7 +46,6 @@ import {
   presetScope,
   startCheckPath,
   useAuditPresets,
-  wordOf,
 } from "./audit-preset-data";
 import {
   CheckTypeAvailability,

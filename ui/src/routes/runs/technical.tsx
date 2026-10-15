@@ -3,7 +3,13 @@ import { Link } from "react-router";
 
 import type { RunStatus } from "../../api/runs";
 import { runtimeConfigVersionPath } from "../../app/navigation";
-import { formatElapsed, formatTimestamp, plural } from "../../app/format";
+import {
+  formatCompact,
+  formatElapsed,
+  formatNumber,
+  formatTimestamp,
+  plural,
+} from "../../app/format";
 import { useSession } from "../../auth/session";
 import { Facts } from "../../ui";
 import { StageAttemptView } from "./attempt";
@@ -28,18 +34,6 @@ export type LiveStatus = Pick<
   LiveRunProjection,
   "connection" | "error" | "resyncReason"
 >;
-
-// V385: needs shared compact number formatter ("1.2K", "3.4M") in
-// src/app/format.ts.
-function compactMetric(value: number): string {
-  if (value < 1_000) {
-    return String(value);
-  }
-  if (value < 1_000_000) {
-    return `${Number((value / 1_000).toFixed(1))}K`;
-  }
-  return `${Number((value / 1_000_000).toFixed(1))}M`;
-}
 
 export function RunExecutionMetrics({
   run,
@@ -66,10 +60,16 @@ export function RunExecutionMetrics({
         </div>
         <div>
           <dt>Total tokens</dt>
-          <dd title={triage.metrics?.totalTokens.toLocaleString()}>
+          <dd
+            title={
+              triage.metrics === undefined
+                ? undefined
+                : formatNumber(triage.metrics.totalTokens)
+            }
+          >
             {triage.metrics === undefined
               ? "—"
-              : compactMetric(triage.metrics.totalTokens)}
+              : formatCompact(triage.metrics.totalTokens)}
           </dd>
           <small>
             {triage.metrics === undefined
@@ -82,7 +82,7 @@ export function RunExecutionMetrics({
           <dd>
             {triage.metrics === undefined
               ? "—"
-              : compactMetric(triage.metrics.toolCalls)}
+              : formatCompact(triage.metrics.toolCalls)}
           </dd>
           <small>
             {triage.metrics === undefined

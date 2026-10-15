@@ -8,8 +8,9 @@ import type { AllocationResourceSummary } from "../../../api/performance";
 import {
   compactId,
   formatBytes,
-  formatTimestamp,
+  formatNumber,
   formatSeconds,
+  formatTimestamp,
 } from "../../../app/format";
 import { Facts } from "../../../ui";
 import { DisclosureChevron, OperationsState } from "../common";
@@ -200,10 +201,7 @@ export function AllocationResourceList({
                 {
                   term: "Average used cores",
                   value: unavailable(cores, (value) =>
-                    value.toLocaleString(undefined, {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    }),
+                    formatNumber(value, 2, 2),
                   ),
                 },
                 {
@@ -216,7 +214,7 @@ export function AllocationResourceList({
                 {
                   term: "RSS samples",
                   value: unavailable(resources?.rssSampleCount, (value) =>
-                    value.toLocaleString(),
+                    formatNumber(value),
                   ),
                 },
               ]}

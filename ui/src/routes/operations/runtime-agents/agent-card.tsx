@@ -7,7 +7,12 @@ import type {
   RuntimeLabelBinding,
 } from "../../../api/operations";
 import { Icon } from "../../../app/icon";
-import { formatBytes, formatTimestamp, formatAge } from "../../../app/format";
+import {
+  formatAge,
+  formatBytes,
+  formatNumber,
+  formatTimestamp,
+} from "../../../app/format";
 import {
   Button,
   Facts,
@@ -118,7 +123,7 @@ function liveFacts(live: NonNullable<RuntimeAgentPrincipal["live"]>) {
       term: "Workspace limits",
       value: live.workspaceCapabilities !== undefined && (
         <>
-          {live.workspaceCapabilities.limits.maxFiles.toLocaleString()} files ·{" "}
+          {formatNumber(live.workspaceCapabilities.limits.maxFiles)} files ·{" "}
           {formatBytes(live.workspaceCapabilities.limits.maxExpandedBytes)}{" "}
           expanded
         </>

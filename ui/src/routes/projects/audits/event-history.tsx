@@ -9,6 +9,7 @@ import {
 import { usePublicAPI } from "../../../api/context";
 import { queryKeys } from "../../../api/query-keys";
 import { ErrorNotice } from "../../../app/error-notice";
+import { formatNumber } from "../../../app/format";
 import { checkStateLabel } from "../../../app/vocabulary";
 import { ActivityLog, Button } from "../../../ui";
 import { type CheckLinks } from "./check-links";
@@ -117,8 +118,8 @@ export function CheckEventHistory({
       ) : null}
       {pages.length === 0 ? null : (
         <p className="ui-caption">
-          Showing {events.length.toLocaleString("en-US")} of{" "}
-          {pages[0]!.total.toLocaleString("en-US")} recorded events.
+          Showing {formatNumber(events.length)} of{" "}
+          {formatNumber(pages[0]!.total)} recorded events.
         </p>
       )}
       <div className="ui-toolbar">

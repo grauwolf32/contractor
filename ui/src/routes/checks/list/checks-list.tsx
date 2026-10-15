@@ -7,6 +7,7 @@ import type {
   ProjectsIndex,
 } from "../../../api/cross-project";
 import { ErrorNotice } from "../../../app/error-notice";
+import { formatNumber } from "../../../app/format";
 import { RecordedTime } from "../../../app/recorded-time";
 import { checkStateLabel } from "../../../app/vocabulary";
 import {
@@ -152,8 +153,8 @@ export function ChecksListPane({
   const running = counts.running;
   const waiting = counts.waiting;
   const parts = [
-    running === 0 ? "" : `${running.toLocaleString("en-US")} running`,
-    waiting === 0 ? "" : `${waiting.toLocaleString("en-US")} waiting for you`,
+    running === 0 ? "" : `${formatNumber(running)} running`,
+    waiting === 0 ? "" : `${formatNumber(waiting)} waiting for you`,
   ].filter((part) => part !== "");
   const subtitle =
     checks.isPending && checks.checks.length === 0

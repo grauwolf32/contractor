@@ -8,6 +8,7 @@ import {
 } from "../../api/evals";
 import { queryKeys } from "../../api/query-keys";
 import { ContextLink } from "../../app/context-navigation";
+import { formatNumber } from "../../app/format";
 import { Button } from "../../ui";
 import { ArmKey, EvalError } from "./common";
 
@@ -19,11 +20,8 @@ const CHART_TITLES: Record<EvalChart["chart"], string> = {
   "pair-deltas": "Case differences",
 };
 // A missing measurement is never zero (UUS:178-179).
-// V385: needs shared formatNumber (src/app/format.ts has no plain number formatter).
 const format = (value: number | null | undefined) =>
-  value === null || value === undefined
-    ? "Unavailable"
-    : value.toLocaleString();
+  value === null || value === undefined ? "Unavailable" : formatNumber(value);
 
 function DataTable({
   summary = "Show data table",

@@ -22,6 +22,7 @@ import {
   findingStateLabel,
   itemCount,
   itemNoun,
+  readableValue,
   REPORT_STATUS_LABELS,
   reportStatusLabel,
   REVIEW_ACTION_LABELS,
@@ -39,6 +40,7 @@ import {
   TERMS,
   VERDICT_LABELS,
   verdictLabel,
+  wordOf,
   type AuditCoverageStatus,
   type AuditReviewKind,
   type ItemKind,
@@ -251,6 +253,20 @@ describe("vocabulary", () => {
   it("counts items", () => {
     expect(itemCount("endpoint", 1)).toBe("1 endpoint");
     expect(itemCount("requirement", 1204)).toBe("1,204 requirements");
+  });
+});
+
+describe("readable values", () => {
+  it("reads an API value as words, also one this client does not know", () => {
+    expect(readableValue("release_pending")).toBe("Release pending");
+    expect(readableValue("not-eligible")).toBe("Not eligible");
+    expect(readableValue("__")).toBe("Unknown");
+    const table: Record<"ready" | "later", string> = {
+      ready: "Ready to start",
+      later: "Later",
+    };
+    expect(wordOf(table, "ready")).toBe("Ready to start");
+    expect(wordOf(table, "release_pending" as "ready")).toBe("Release pending");
   });
 });
 

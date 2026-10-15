@@ -5,6 +5,7 @@ import { auditPollInterval, listProjectAudits } from "../../../api/audits";
 import { usePublicAPI } from "../../../api/context";
 import { queryKeys } from "../../../api/query-keys";
 import { CursorControls } from "../../../app/cursor-controls";
+import { formatNumber } from "../../../app/format";
 import { useURLCursorStack } from "../../../app/pagination";
 import { pollInterval } from "../../../app/polling";
 import { QueryView } from "../../../app/query-view";
@@ -117,7 +118,7 @@ export function ProjectAuditWorkspace({
                     </StatusChip>,
                     audit.state === "draft"
                       ? "Not started"
-                      : `Runs: ${audit.submittedRunCount.toLocaleString("en-US")} submitted, ${audit.outstandingRunCount.toLocaleString("en-US")} in progress`,
+                      : `Runs: ${formatNumber(audit.submittedRunCount)} submitted, ${formatNumber(audit.outstandingRunCount)} in progress`,
                     <span key="updated">
                       Updated <RecordedTime value={audit.updatedAt} />
                     </span>,

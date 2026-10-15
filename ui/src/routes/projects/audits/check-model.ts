@@ -24,7 +24,7 @@ import {
   itemOperation,
   type ItemOperation,
 } from "./check-title";
-import { plural } from "../../../app/format";
+import { formatNumber, plural } from "../../../app/format";
 
 /** How an item reads in lists, chips and the progress line. */
 interface ItemStatus {
@@ -436,5 +436,5 @@ export function countSegments(
 
 /** "3 of 10 done", from the Server's counts when it has them. */
 export function doneSummary(done: number, total: number): string {
-  return `${done.toLocaleString("en-US")} of ${total.toLocaleString("en-US")} done`;
+  return `${formatNumber(done)} of ${formatNumber(total)} done`;
 }
