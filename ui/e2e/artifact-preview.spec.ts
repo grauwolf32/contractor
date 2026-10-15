@@ -234,14 +234,18 @@ for (const viewport of [
       );
 
       await openPreview(page, "workspace-diff");
-      await expect(page.getByText("1 file changed")).toBeVisible();
-      await expect(page.getByText("+2 additions")).toBeVisible();
-      await expect(page.getByText("−1 deletion")).toBeVisible();
-      await expect(page.locator(".diff-line-addition")).toHaveCount(2);
-      await expect(page.locator(".diff-line-deletion")).toHaveCount(1);
-      await expect(page.locator(".diff-line-hunk")).toContainText(
-        "@@ -1,3 +1,4 @@",
-      );
+      // Line classification is unit-tested (previews/diff.test.tsx); the
+      // browser checks that the production chunk renders the diff in place.
+      const diff = page.getByRole("region", { name: "Unified diff preview" });
+      await expect(diff.getByText("1 file changed")).toBeVisible();
+      await expect(diff.getByText("+2 additions")).toBeVisible();
+      await expect(diff.getByText("−1 deletion")).toBeVisible();
+      await expect(
+        diff.getByText("@@ -1,3 +1,4 @@", { exact: true }),
+      ).toBeVisible();
+      await expect(
+        diff.getByText("+  lineNumbers: true,", { exact: true }),
+      ).toBeVisible();
 
       await openPreview(page, "openapi");
       await expect(
