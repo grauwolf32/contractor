@@ -120,9 +120,6 @@
       "button": 6,
       "svg": 1
     },
-    "src/routes/login.tsx": {
-      "button": 1
-    },
     "src/routes/operations/allocations/completed.tsx": {
       "button": 2
     },
@@ -262,9 +259,6 @@
     },
     "src/routes/runs/list.tsx": {
       "button": 4
-    },
-    "src/routes/session-error.tsx": {
-      "button": 1
     },
     "src/routes/settings/git-key.tsx": {
       "button": 2
