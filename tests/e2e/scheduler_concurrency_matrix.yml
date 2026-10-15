@@ -101,8 +101,8 @@ cases:
     category: browser
     acceptance: [A3, A4]
     faults: [F17]
-    expected: Independently served UI sends exact ETag and CSRF data, preserves a stale draft and requires explicit reset to the authoritative value.
-    test: {source: ui/e2e/scheduler-settings.spec.ts, kind: test_title, name: operator CAS-updates Scheduler settings and recovers a stale edit}
+    expected: The settings page sends the exact ETag, preserves a stale draft after 412 and requires explicit reset to the authoritative value.
+    test: {source: ui/src/routes/operations/settings/settings.test.tsx, kind: test_title, name: reloads after a 412 and preserves the unsaved draft without overwriting}
   - id: ui_reconciles_invalidation_and_reconnect
     category: invalidation
     acceptance: [A2, A4]

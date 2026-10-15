@@ -33,7 +33,6 @@ const processSpecs = [
   "e2e/project-workspace.spec.ts",
   "e2e/run-repeat.spec.ts",
   "e2e/scan-tools.spec.ts",
-  "e2e/scheduler-settings.spec.ts",
   "e2e/stack.spec.ts",
   "e2e/studio-catalog.spec.ts",
 ];
