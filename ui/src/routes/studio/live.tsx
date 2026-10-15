@@ -22,7 +22,9 @@ import { usePublicAPI } from "../../api/context";
 import type { PublicAPI } from "../../api/client";
 import { queryKeys } from "../../api/query-keys";
 import { ErrorNotice } from "../../app/error-notice";
-import { StatusChip } from "../../ui";
+import { pollInterval } from "../../app/polling";
+import { QueryView } from "../../app/query-view";
+import { Button, Field, StatusChip } from "../../ui";
 import { checkLinks, checkPath } from "../projects/audits/check-links";
 import { CheckEventHistory } from "../projects/audits/event-history";
 import { checkStateLabel } from "../../app/vocabulary";
@@ -152,19 +154,18 @@ export function StudioLive({
         definitionError: definition.error,
       };
     },
-    refetchInterval: (query) =>
-      query.state.data
-        ? auditPollInterval([query.state.data.audit], 5_000)
-        : false,
+    refetchInterval: pollInterval({
+      interval: 5_000,
+      settled: (data: { audit: Audit }) =>
+        auditPollInterval([data.audit]) === false,
+    }),
     refetchOnWindowFocus: false,
   });
-  const data = snapshot.data,
-    audits = choices.data?.pages.flatMap((page) => page.items) ?? [];
-  const matches =
-    !!data &&
+  const audits = choices.data?.pages.flatMap((page) => page.items) ?? [];
+  const matches = (audit: Audit) =>
     draft.kind === "AuditProfile" &&
-    at(draft.value, ["metadata", "name"]) === data.audit.profile.name &&
-    at(draft.value, ["metadata", "version"]) === data.audit.profile.version;
+    at(draft.value, ["metadata", "name"]) === audit.profile.name &&
+    at(draft.value, ["metadata", "version"]) === audit.profile.version;
   return (
     <section className="studio-live" aria-label="Live check overlay">
       <div className="studio-live-heading">
@@ -186,14 +187,16 @@ export function StudioLive({
             setAuditId(input);
           }}
         >
-          <label className="studio-field">
-            <span>Check ID</span>
-            <input
-              value={input}
-              onChange={(event) => setInput(event.target.value)}
-              list="studio-check-choices"
-            />
-          </label>
+          <Field label="Check ID" className="studio-field">
+            {(control) => (
+              <input
+                {...control}
+                value={input}
+                onChange={(event) => setInput(event.target.value)}
+                list="studio-check-choices"
+              />
+            )}
+          </Field>
           <datalist id="studio-check-choices">
             {audits.map((audit) => (
               <option key={audit.auditId} value={audit.auditId}>
@@ -201,7 +204,7 @@ export function StudioLive({
               </option>
             ))}
           </datalist>
-          <button className="ui-btn">Load check</button>
+          <Button type="submit">Load check</Button>
         </form>
       </div>
       {inputError ? <p role="alert">{inputError}</p> : null}
@@ -213,160 +216,160 @@ export function StudioLive({
         />
       ) : null}
       {choices.hasNextPage ? (
-        <button
-          className="ui-btn"
+        <Button
           disabled={choices.isFetching}
           onClick={() => void choices.fetchNextPage()}
         >
           Load more check choices
-        </button>
+        </Button>
       ) : null}
-      {snapshot.error ? (
-        <ErrorNotice
-          error={snapshot.error}
-          context="Live view could not be refreshed. Any visible data is from the last successful snapshot."
-          onRetry={() => void snapshot.refetch()}
-        />
-      ) : null}
-      {snapshot.isFetching ? <p role="status">Refreshing live view…</p> : null}
       {!auditId ? (
         <p>Choose an existing check to see its roles, coverage and activity.</p>
-      ) : null}
-      {data ? (
-        <>
-          <p className="studio-notice">
-            Pinned execution definition: {data.audit.profile.name}@
-            {data.audit.profile.version} · revision {data.audit.revision}.{" "}
-            {matches
-              ? "The draft has the same name and version; local edits are not part of this execution."
-              : "This check uses a different definition from the Design draft."}{" "}
-            {data.profile
-              ? "The pinned digest was verified."
-              : "The pinned definition is unavailable; only execution state is shown."}
-          </p>
-          {data.definitionError ? (
-            <ErrorNotice
-              error={data.definitionError}
-              context="The pinned definition is unavailable. Execution data below remains readable."
-              onRetry={() => {
-                void cache
-                  .invalidateQueries({
-                    queryKey: queryKeys.auditProfiles.detail(
-                      data.audit.profile.name,
-                      data.audit.profile.version,
-                    ),
-                  })
-                  .then(() => snapshot.refetch());
-              }}
-            />
-          ) : null}
-          <div className="studio-live-toolbar">
-            <StatusChip tone={checkStateLabel(data.audit.state).tone}>
-              {checkStateLabel(data.audit.state).label}
-            </StatusChip>
-            <Link to={checkPath(data.audit.projectId, auditId)}>
-              Open check
-            </Link>
-            <button
-              className="ui-btn"
-              disabled={snapshot.isFetching}
-              onClick={() => void snapshot.refetch()}
-            >
-              Refresh live view
-            </button>
-            <span>Snapshot: {data.workspace.asOf}</span>
-          </div>
-          <div className="studio-lanes">
-            <section>
-              <h3>Check</h3>
-              <div className="studio-live-cards">
-                <div>
-                  <strong>{data.audit.phase}</strong>
-                  <span>Current phase</span>
-                </div>
-                <div>
-                  <strong>
-                    {data.workspace.completedChecks} /{" "}
-                    {data.workspace.totalChecks}
-                  </strong>
-                  <span>Completed checks</span>
-                </div>
-                <div>
-                  <strong>{data.workspace.outstandingRuns}</strong>
-                  <span>Outstanding runs</span>
-                </div>
-                <div>
-                  <strong>{data.workspace.gaps}</strong>
-                  <span>Gaps</span>
-                </div>
-              </div>
-            </section>
-            <section>
-              <h3>Workflow roles</h3>
-              <div className="studio-live-cards">
-                {Object.entries(data.profile?.workflows ?? {}).map(
-                  ([name, role]) => (
-                    <div key={name}>
-                      <strong>{name}</strong>
-                      <span>
-                        {role.kind} · {role.workflow.name}@
-                        {role.workflow.version}
-                      </span>
-                      <span>
-                        {data.audit.preparation?.roles[name]?.status ??
-                          "Execution details in check activity"}
-                      </span>
-                    </div>
-                  ),
-                )}
-              </div>
-              {!data.profile ? (
-                <p>
-                  Role definitions are unavailable for this pinned digest.{" "}
-                  {Object.entries(data.audit.preparation?.roles ?? {}).map(
-                    ([name, role]) => (
-                      <span key={name}>
-                        {name}: {role.status}.{" "}
-                      </span>
-                    ),
-                  )}
-                </p>
+      ) : (
+        <QueryView
+          query={snapshot}
+          loading={<p role="status">Loading live view…</p>}
+          errorContext="Live view could not be loaded."
+        >
+          {(data) => (
+            <>
+              {snapshot.isFetching ? (
+                <p role="status">Refreshing live view…</p>
               ) : null}
-            </section>
-            <section>
-              <h3>Reviews</h3>
-              <p>
-                {data.workspace.pendingReviews} pending reviews ·{" "}
-                {data.workspace.unreviewedFindings} unreviewed issues
+              <p className="studio-notice">
+                Pinned execution definition: {data.audit.profile.name}@
+                {data.audit.profile.version} · revision {data.audit.revision}.{" "}
+                {matches(data.audit)
+                  ? "The draft has the same name and version; local edits are not part of this execution."
+                  : "This check uses a different definition from the Design draft."}{" "}
+                {data.profile
+                  ? "The pinned digest was verified."
+                  : "The pinned definition is unavailable; only execution state is shown."}
               </p>
-              <LiveReviews
-                key={`${auditId}:${data.audit.revision}`}
+              {data.definitionError ? (
+                <ErrorNotice
+                  error={data.definitionError}
+                  context="The pinned definition is unavailable. Execution data below remains readable."
+                  onRetry={() => {
+                    void cache
+                      .invalidateQueries({
+                        queryKey: queryKeys.auditProfiles.detail(
+                          data.audit.profile.name,
+                          data.audit.profile.version,
+                        ),
+                      })
+                      .then(() => snapshot.refetch());
+                  }}
+                />
+              ) : null}
+              <div className="studio-live-toolbar">
+                <StatusChip tone={checkStateLabel(data.audit.state).tone}>
+                  {checkStateLabel(data.audit.state).label}
+                </StatusChip>
+                <Link to={checkPath(data.audit.projectId, auditId)}>
+                  Open check
+                </Link>
+                <Button
+                  disabled={snapshot.isFetching}
+                  onClick={() => void snapshot.refetch()}
+                >
+                  Refresh live view
+                </Button>
+                <span>Snapshot: {data.workspace.asOf}</span>
+              </div>
+              <div className="studio-lanes">
+                <section>
+                  <h3>Check</h3>
+                  <div className="studio-live-cards">
+                    <div>
+                      <strong>{data.audit.phase}</strong>
+                      <span>Current phase</span>
+                    </div>
+                    <div>
+                      <strong>
+                        {data.workspace.completedChecks} /{" "}
+                        {data.workspace.totalChecks}
+                      </strong>
+                      <span>Completed checks</span>
+                    </div>
+                    <div>
+                      <strong>{data.workspace.outstandingRuns}</strong>
+                      <span>Outstanding runs</span>
+                    </div>
+                    <div>
+                      <strong>{data.workspace.gaps}</strong>
+                      <span>Gaps</span>
+                    </div>
+                  </div>
+                </section>
+                <section>
+                  <h3>Workflow roles</h3>
+                  <div className="studio-live-cards">
+                    {Object.entries(data.profile?.workflows ?? {}).map(
+                      ([name, role]) => (
+                        <div key={name}>
+                          <strong>{name}</strong>
+                          <span>
+                            {role.kind} · {role.workflow.name}@
+                            {role.workflow.version}
+                          </span>
+                          <span>
+                            {data.audit.preparation?.roles[name]?.status ??
+                              "Execution details in check activity"}
+                          </span>
+                        </div>
+                      ),
+                    )}
+                  </div>
+                  {!data.profile ? (
+                    <p>
+                      Role definitions are unavailable for this pinned digest.{" "}
+                      {Object.entries(data.audit.preparation?.roles ?? {}).map(
+                        ([name, role]) => (
+                          <span key={name}>
+                            {name}: {role.status}.{" "}
+                          </span>
+                        ),
+                      )}
+                    </p>
+                  ) : null}
+                </section>
+                <section>
+                  <h3>Reviews</h3>
+                  <p>
+                    {data.workspace.pendingReviews} pending reviews ·{" "}
+                    {data.workspace.unreviewedFindings} unreviewed issues
+                  </p>
+                  <LiveReviews
+                    key={`${auditId}:${data.audit.revision}`}
+                    audit={data.audit}
+                    first={data.reviews}
+                  />
+                </section>
+              </div>
+              <LiveCoverage
+                key={`${auditId}:${data.audit.revision}:${data.audit.currentRoundId}`}
                 audit={data.audit}
-                first={data.reviews}
+                first={data.coverage}
+                api={api}
               />
-            </section>
-          </div>
-          <LiveCoverage
-            key={`${auditId}:${data.audit.revision}:${data.audit.currentRoundId}`}
-            audit={data.audit}
-            first={data.coverage}
-            api={api}
-          />
-          <section className="studio-live-events">
-            <h3>Event stream</h3>
-            <CheckEventHistory
-              audit={data.audit}
-              now={undefined}
-              links={checkLinks(
-                data.audit.projectId,
-                auditId,
-                new URLSearchParams(),
-                "overview",
-              )}
-            />
-          </section>
-        </>
-      ) : null}
+              <section className="studio-live-events">
+                <h3>Event stream</h3>
+                <CheckEventHistory
+                  audit={data.audit}
+                  now={undefined}
+                  links={checkLinks(
+                    data.audit.projectId,
+                    auditId,
+                    new URLSearchParams(),
+                    "overview",
+                  )}
+                />
+              </section>
+            </>
+          )}
+        </QueryView>
+      )}
     </section>
   );
 }
@@ -448,13 +451,12 @@ function LiveCoverage({
       </div>
       {!rows.length ? <p>No items in this check.</p> : null}
       {query.hasNextPage ? (
-        <button
-          className="ui-btn"
+        <Button
           disabled={query.isFetching}
           onClick={() => void query.fetchNextPage()}
         >
           Load more items
-        </button>
+        </Button>
       ) : null}
     </section>
   );
@@ -516,13 +518,12 @@ function LiveReviews({
         {rows.length} of {first.total} reviews loaded.
       </p>
       {query.hasNextPage ? (
-        <button
-          className="ui-btn"
+        <Button
           disabled={query.isFetching}
           onClick={() => void query.fetchNextPage()}
         >
           Load more reviews
-        </button>
+        </Button>
       ) : null}
     </>
   );

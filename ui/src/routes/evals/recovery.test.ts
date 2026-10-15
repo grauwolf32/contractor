@@ -4,7 +4,6 @@ import { PublicAPIError } from "../../api/error";
 import { MemoryStorage } from "../../test/storage";
 import {
   finishMutation,
-  mutationKey,
   RECOVERY_STORAGE_MESSAGE,
   recoverableMutation,
 } from "./recovery";
@@ -35,9 +34,6 @@ describe("Eval mutation recovery", () => {
   it("reports unavailable browser storage before sending", async () => {
     vi.stubGlobal("localStorage", new BlockedStorage());
     const send = vi.fn();
-    await expect(mutationKey("owner", "dataset", { a: 1 })).rejects.toThrow(
-      RECOVERY_STORAGE_MESSAGE,
-    );
     await expect(
       recoverableMutation("owner", "dataset", { a: 1 }, send),
     ).rejects.toThrow(RECOVERY_STORAGE_MESSAGE);

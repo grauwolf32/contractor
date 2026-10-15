@@ -1,6 +1,4 @@
 import {
-  cloneElement,
-  isValidElement,
   useContext,
   useEffect,
   useId,
@@ -12,7 +10,12 @@ import {
 } from "react";
 import { PublicAPIError } from "../../api/error";
 import { ErrorNotice } from "../../app/error-notice";
-import { DetailHeader, StatusChip, type BreadcrumbItem } from "../../ui";
+import {
+  Button,
+  DetailHeader,
+  StatusChip,
+  type BreadcrumbItem,
+} from "../../ui";
 import { KeyValueValidityContext } from "./key-value-validity";
 import { evalStateLabel, type EvalState } from "./labels";
 import "./evals.css";
@@ -162,42 +165,9 @@ export function EvalError({
         </p>
       ) : null}
       {reload ? (
-        <button
-          type="button"
-          className="ui-btn"
-          data-size="sm"
-          onClick={reload}
-        >
+        <Button size="sm" onClick={reload}>
           {changed ? "Reload current revision" : "Try again"}
-        </button>
-      ) : null}
-    </div>
-  );
-}
-
-export function EvalField({
-  label,
-  children,
-  hint,
-}: {
-  label: string;
-  children: ReactNode;
-  hint?: string | undefined;
-}) {
-  const id = useId();
-  return (
-    <div className="eval-field">
-      <label htmlFor={id}>{label}</label>
-      {isValidElement<{ id?: string; "aria-describedby"?: string }>(children)
-        ? cloneElement(children, {
-            id,
-            ...(hint ? { "aria-describedby": `${id}-hint` } : {}),
-          })
-        : children}
-      {hint ? (
-        <small className="eval-field-hint" id={`${id}-hint`}>
-          {hint}
-        </small>
+        </Button>
       ) : null}
     </div>
   );
@@ -316,16 +286,14 @@ export function KeyValueEditor({
               )
             }
           />
-          <button
-            type="button"
-            className="ui-btn"
-            data-variant="ghost"
-            data-size="sm"
+          <Button
+            variant="ghost"
+            size="sm"
             aria-label={`Remove ${label} ${index + 1}`}
             onClick={() => update(rows.filter((item) => item.id !== row.id))}
           >
             Remove
-          </button>
+          </Button>
           {rowProblem(rows, index) ? (
             <small id={`${editorId}-${row.id}-error`} role="alert">
               {rowProblem(rows, index)}
@@ -333,10 +301,8 @@ export function KeyValueEditor({
           ) : null}
         </div>
       ))}
-      <button
-        type="button"
-        className="ui-btn"
-        data-size="sm"
+      <Button
+        size="sm"
         onClick={() => {
           let number = 1;
           while (rows.some((row) => row.name === `field-${number}`)) number++;
@@ -347,7 +313,7 @@ export function KeyValueEditor({
         }}
       >
         Add {label.toLowerCase()}
-      </button>
+      </Button>
     </fieldset>
   );
 }

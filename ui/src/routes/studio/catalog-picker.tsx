@@ -8,6 +8,8 @@ import {
 } from "../../api/workflows";
 import { Dialog, DialogHeader } from "../../app/dialog";
 import { nextPageCursor, type PageContinuation } from "../../app/pagination";
+import { QueryView } from "../../app/query-view";
+import { Button, Field } from "../../ui";
 import { record, textValue } from "./document";
 
 export type CatalogKind =
@@ -61,23 +63,24 @@ export function CatalogField({
   const [open, setOpen] = useState(false);
   return (
     <div className="studio-catalog-field">
-      <label className="studio-field">
-        <span>{label}</span>
-        <input
-          key={value}
-          defaultValue={value}
-          onBlur={(event) => {
-            if (event.target.value !== value) onChange(event.target.value);
-          }}
-        />
-      </label>
-      <button
-        className="ui-btn"
+      <Field label={label} className="studio-field">
+        {(control) => (
+          <input
+            {...control}
+            key={value}
+            defaultValue={value}
+            onBlur={(event) => {
+              if (event.target.value !== value) onChange(event.target.value);
+            }}
+          />
+        )}
+      </Field>
+      <Button
         aria-label={`Choose ${label.toLowerCase()} from catalog`}
         onClick={() => setOpen(true)}
       >
         Choose from catalog
-      </button>
+      </Button>
       {open ? (
         <CatalogPicker
           kind={kind}
@@ -141,16 +144,9 @@ function CatalogPicker({
     retry: false,
     refetchOnWindowFocus: false,
   });
-  const items = new Map(
-    query.data?.pages.flatMap((page) =>
-      page.items.map((item) => [item.selector, item] as const),
-    ),
-  );
-  const tail = query.data?.pages.at(-1)?.page;
-  const unavailableContinuation = tail?.hasMore && !query.hasNextPage;
   return (
     <Dialog
-      className="ui-dialog studio-dialog studio-catalog-dialog"
+      className="ui-dialog ui-panel studio-catalog-dialog"
       labelledBy={heading}
       initialFocusRef={search}
       onRequestClose={onClose}
@@ -172,92 +168,108 @@ function CatalogPicker({
           setQuery(input.trim());
         }}
       >
-        <label className="studio-field">
-          <span>Search catalog</span>
-          <input
-            ref={search}
-            value={input}
-            maxLength={200}
-            placeholder="Name, version or description"
-            onChange={(event) => setInput(event.target.value)}
-          />
-        </label>
-        <button className="ui-btn" type="submit">
-          Search
-        </button>
+        <Field label="Search catalog" className="studio-field">
+          {(control) => (
+            <input
+              {...control}
+              ref={search}
+              value={input}
+              maxLength={200}
+              placeholder="Name, version or description"
+              onChange={(event) => setInput(event.target.value)}
+            />
+          )}
+        </Field>
+        <Button type="submit">Search</Button>
       </form>
-      {query.isPending ? <p role="status">Loading catalog…</p> : null}
-      {query.error ? (
-        <p role="alert">
-          {query.isFetchNextPageError
-            ? "More versions could not be loaded."
-            : "Catalog could not be loaded."}{" "}
-          {query.error.message}{" "}
-          <button
-            className="ui-btn"
-            disabled={query.isFetching}
-            onClick={() =>
-              void (query.isFetchNextPageError
-                ? query.fetchNextPage()
-                : query.refetch())
-            }
-          >
-            Retry catalog
-          </button>
-        </p>
-      ) : null}
-      {query.data ? (
-        <p role="status">
-          {items.size} loaded versions{q ? ` matching “${q}”` : ""}.
-          {tail?.hasMore
-            ? " More versions remain."
-            : " All matching versions loaded."}
-        </p>
-      ) : null}
-      {query.data && items.size === 0 ? (
-        <p>No published versions match this search.</p>
-      ) : null}
-      <ul className="studio-catalog-results" aria-label="Published versions">
-        {[...items.values()].map((item) => (
-          <li key={item.selector}>
-            <div>
-              <strong>{item.selector}</strong>
-              {item.description ? <p>{item.description}</p> : null}
-              <small>{item.facts}</small>
-              {item.selector === current ? (
-                <small>Current reference</small>
+      {/* A failed next page keeps the loaded versions and is reported under
+          them, so QueryView only sees the first page's error.
+          V385: needs shared continuation-error state in QueryView */}
+      <QueryView
+        query={{
+          data: query.data,
+          error: query.isFetchNextPageError ? null : query.error,
+          isFetching: query.isFetching,
+          refetch: query.refetch,
+        }}
+        loading={<p role="status">Loading catalog…</p>}
+        errorContext="Catalog could not be loaded."
+      >
+        {(data) => {
+          const items = new Map(
+            data.pages.flatMap((page) =>
+              page.items.map((item) => [item.selector, item] as const),
+            ),
+          );
+          const tail = data.pages.at(-1)?.page;
+          return (
+            <>
+              <p role="status">
+                {items.size} loaded versions{q ? ` matching “${q}”` : ""}.
+                {tail?.hasMore
+                  ? " More versions remain."
+                  : " All matching versions loaded."}
+              </p>
+              {items.size === 0 ? (
+                <p>No published versions match this search.</p>
               ) : null}
-            </div>
-            <button
-              className="ui-btn"
-              onClick={() => onChoose(item.selector)}
-              aria-label={`Use ${item.selector}`}
-            >
-              Use version
-            </button>
-          </li>
-        ))}
-      </ul>
-      {query.hasNextPage ? (
-        <button
-          className="ui-btn"
-          disabled={query.isFetching}
-          onClick={() => void query.fetchNextPage()}
-        >
-          {query.isFetchingNextPage
-            ? "Loading versions…"
-            : "Load more versions"}
-        </button>
-      ) : null}
-      {unavailableContinuation ? (
-        <p role="alert">
-          The remaining catalog could not be continued within this view. Narrow
-          the search to find another version.
-        </p>
-      ) : null}
-      <button className="ui-btn" onClick={onClose}>
-        Cancel
-      </button>
+              <ul
+                className="studio-catalog-results"
+                aria-label="Published versions"
+              >
+                {[...items.values()].map((item) => (
+                  <li key={item.selector}>
+                    <div>
+                      <strong>{item.selector}</strong>
+                      {item.description ? <p>{item.description}</p> : null}
+                      <small>{item.facts}</small>
+                      {item.selector === current ? (
+                        <small>Current reference</small>
+                      ) : null}
+                    </div>
+                    <Button
+                      onClick={() => onChoose(item.selector)}
+                      aria-label={`Use ${item.selector}`}
+                    >
+                      Use version
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+              {query.isFetchNextPageError ? (
+                <p role="alert">
+                  More versions could not be loaded. {query.error?.message}{" "}
+                  <Button
+                    disabled={query.isFetching}
+                    onClick={() => void query.fetchNextPage()}
+                  >
+                    Retry catalog
+                  </Button>
+                </p>
+              ) : null}
+              {query.hasNextPage ? (
+                <Button
+                  pending={query.isFetchingNextPage}
+                  pendingLabel="Loading versions…"
+                  disabled={query.isFetching}
+                  onClick={() => void query.fetchNextPage()}
+                >
+                  Load more versions
+                </Button>
+              ) : null}
+              {tail?.hasMore && !query.hasNextPage ? (
+                <p role="alert">
+                  The remaining catalog could not be continued within this view.
+                  Narrow the search to find another version.
+                </p>
+              ) : null}
+            </>
+          );
+        }}
+      </QueryView>
+      <div className="ui-dialog-actions">
+        <Button onClick={onClose}>Cancel</Button>
+      </div>
     </Dialog>
   );
 }

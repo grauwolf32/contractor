@@ -1,6 +1,8 @@
 import { useId } from "react";
 import type { EvalDraft, EvalExperiment } from "../../api/evals";
+import { formatTimeLimit } from "../../app/format";
 import {
+  Facts,
   IdChip,
   StatusChip,
   TechnicalDetails,
@@ -89,7 +91,7 @@ export function EvalReadiness({
                   label={`${arm.toUpperCase()} version`}
                 />
               ) : (
-                <span className="eval-muted">Not chosen yet</span>
+                <span className="ui-caption">Not chosen yet</span>
               )}
             </p>
             <dl className="eval-facts">
@@ -139,7 +141,7 @@ export function EvalReadiness({
         <dt>Member allowance</dt>
         <dd>{setup.budgets.maxMembers}</dd>
         <dt>Time allowance</dt>
-        <dd>{setup.budgets.wallMs / 60000} minutes</dd>
+        <dd>{formatTimeLimit(setup.budgets.wallMs / 1000)}</dd>
         <dt>Observed token threshold</dt>
         <dd>{setup.budgets.maxObservedTotalTokens ?? "Not set"}</dd>
         <dt>Quality gates</dt>
@@ -172,7 +174,7 @@ export function EvalReadiness({
           ))}
         </ul>
       ) : (
-        <p className="eval-muted">No criteria selected yet.</p>
+        <p className="ui-caption">No criteria selected yet.</p>
       )}
       {experiment?.readiness ? (
         <>
@@ -236,7 +238,7 @@ export function EvalReadiness({
           </ul>
         </>
       ) : (
-        <p className="eval-muted">
+        <p className="ui-caption">
           Resolved equality and input compatibility are unverified until
           Prepare. Unknown required-equal pins prevent preparation. Prepare
           creates no Runs or checks; Start is a separate action.
@@ -244,22 +246,24 @@ export function EvalReadiness({
       )}
       {experiment?.planSha256 ? (
         <TechnicalDetails description="The frozen plan this experiment runs.">
-          <dl className="eval-facts">
-            <dt>Prepared plan</dt>
-            <dd>
-              <IdChip value={experiment.planSha256} label="plan digest" />
-            </dd>
-            <dt>Revision</dt>
-            <dd>{experiment.revision}</dd>
-            {experiment.viewSnapshot ? (
-              <>
-                <dt>View snapshot</dt>
-                <dd>
+          <Facts
+            size="sm"
+            items={[
+              {
+                term: "Prepared plan",
+                value: (
+                  <IdChip value={experiment.planSha256} label="plan digest" />
+                ),
+              },
+              { term: "Revision", value: experiment.revision },
+              {
+                term: "View snapshot",
+                value: experiment.viewSnapshot ? (
                   <code>{experiment.viewSnapshot}</code>
-                </dd>
-              </>
-            ) : null}
-          </dl>
+                ) : undefined,
+              },
+            ]}
+          />
         </TechnicalDetails>
       ) : null}
     </section>

@@ -1,83 +1,52 @@
-import { QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
-import { PublicAPI } from "../../api/client";
-import { PublicAPIProvider } from "../../api/context";
-import { createApplicationQueryClient } from "../../app/query-client";
+import type { ArtifactMetadata } from "../../api/artifacts";
 import { sha256Hex } from "../../app/digest";
-import { SessionProvider } from "../../auth/session";
+import { conforming } from "../../test/builders";
+import {
+  API_VERSION_HEADERS,
+  fakeServer,
+  invalidJSON,
+  json,
+  page,
+} from "../../test/fake-server";
+import { renderWithAPI, testSession } from "../../test/render";
 import { EvalArtifactPicker } from "./artifact-picker";
 
-const session = {
-  principal: {
-    userId: "user_local",
-    username: "owner",
-    capabilities: ["user"],
-  },
-  csrfToken: "a".repeat(43),
-  idleExpiresAt: "2026-09-01T20:00:00Z",
-  absoluteExpiresAt: "2026-09-02T12:00:00Z",
-};
-
-const input = {
+const input = conforming("ArtifactMetadata", {
   artifact: { namespace: "inputs", name: "spec", revision: "revision-1" },
   mediaType: "text/plain",
   size: 4,
   current: true,
   frozen: false,
   createdAt: "2026-09-01T10:00:00Z",
-};
+});
 
-function reply(body: BodyInit, headers: Record<string, string>): Response {
-  return new Response(body, {
-    headers: { "X-Contractor-API-Version": "contractor.public.v1", ...headers },
-  });
-}
-
-function json(value: unknown): Response {
-  return reply(JSON.stringify(value), { "content-type": "application/json" });
-}
-
+/** The picker over Project and User inventories; `broken` breaks the contract on purpose. */
 function renderPicker(
-  inventory: Record<"project" | "user", unknown[]>,
+  inventory: Record<"project" | "user", ArtifactMetadata[]>,
   onSelect: (value: unknown) => void,
+  broken = false,
 ) {
-  const requests: Request[] = [];
-  const api = new PublicAPI(
-    {
-      uiVersion: "0.1.0",
-      supportedApiVersions: ["contractor.public.v1"],
-      apiBaseUrl: "http://127.0.0.1:8080",
-    },
-    vi.fn(async (value) => {
-      const request = value instanceof Request ? value : new Request(value);
-      requests.push(request);
-      const url = new URL(request.url);
-      if (url.pathname === "/v1/auth/session") return json(session);
-      if (url.pathname === "/v1/projects/project_eval/artifacts")
-        return json({ items: inventory.project, page: { hasMore: false } });
-      if (url.pathname === "/v1/artifacts")
-        return json({ items: inventory.user, page: { hasMore: false } });
-      if (
-        url.pathname === "/v1/artifacts/inputs/spec" ||
-        url.pathname === "/v1/projects/project_eval/artifacts/inputs/spec"
-      )
-        return reply("spec", { "content-type": "text/plain" });
-      throw new Error(`unexpected ${request.method} ${url}`);
-    }),
+  const list = (items: ArtifactMetadata[]) =>
+    (broken ? invalidJSON : json)(page(items));
+  const download = () =>
+    new Response("spec", {
+      headers: { ...API_VERSION_HEADERS, "Content-Type": "text/plain" },
+    });
+  const server = fakeServer({
+    "GET /v1/projects/{projectId}/artifacts": () => list(inventory.project),
+    "GET /v1/artifacts": () => list(inventory.user),
+    "GET /v1/artifacts/{namespace}/{name}": download,
+    "GET /v1/projects/{projectId}/artifacts/{namespace}/{name}": download,
+  });
+  renderWithAPI(
+    <EvalArtifactPicker projectId="project_eval" onSelect={onSelect} />,
+    { server, session: testSession(["user"]) },
   );
-  render(
-    <QueryClientProvider client={createApplicationQueryClient()}>
-      <PublicAPIProvider api={api}>
-        <SessionProvider api={api}>
-          <EvalArtifactPicker projectId="project_eval" onSelect={onSelect} />
-        </SessionProvider>
-      </PublicAPIProvider>
-    </QueryClientProvider>,
-  );
-  return requests;
+  return server.requests;
 }
 
 describe("Eval input picker", () => {
@@ -133,6 +102,7 @@ describe("Eval input picker", () => {
         user: [],
       },
       onSelect,
+      true,
     );
 
     expect(

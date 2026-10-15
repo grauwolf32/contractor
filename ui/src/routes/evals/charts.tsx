@@ -8,6 +8,7 @@ import {
 } from "../../api/evals";
 import { queryKeys } from "../../api/query-keys";
 import { ContextLink } from "../../app/context-navigation";
+import { Button } from "../../ui";
 import { ArmKey, EvalError } from "./common";
 
 const CHART_TITLES: Record<EvalChart["chart"], string> = {
@@ -18,6 +19,7 @@ const CHART_TITLES: Record<EvalChart["chart"], string> = {
   "pair-deltas": "Case differences",
 };
 // A missing measurement is never zero (UUS:178-179).
+// V385: needs shared formatNumber (src/app/format.ts has no plain number formatter).
 const format = (value: number | null | undefined) =>
   value === null || value === undefined
     ? "Unavailable"
@@ -58,7 +60,7 @@ function QualityPlot({
         />
         <span>Quality among scored results only</span>
       </label>
-      <p className="eval-muted">
+      <p className="ui-caption">
         {conditional
           ? "Denominator: scored results"
           : "Denominator: every expected member"}
@@ -146,7 +148,7 @@ function DistributionPlot({
   );
   if (!data.coverage.includedPairs)
     return (
-      <p className="eval-muted">
+      <p className="ui-caption">
         No complete matching pairs are available for this measurement.
       </p>
     );
@@ -230,14 +232,9 @@ function DistributionPlot({
                 <td>{bin.counts.b}</td>
                 <td>
                   {onBin ? (
-                    <button
-                      type="button"
-                      className="ui-btn"
-                      data-size="xs"
-                      onClick={() => onBin(bin.filterToken)}
-                    >
+                    <Button size="xs" onClick={() => onBin(bin.filterToken)}>
                       Open matching pairs
-                    </button>
+                    </Button>
                   ) : null}
                 </td>
               </tr>
@@ -284,7 +281,7 @@ function ProgressPlot({ data }: { data: EvalChart }) {
   }
   return (
     <>
-      <p className="eval-muted">
+      <p className="ui-caption">
         Observed terminal members against experiment wall time. Gaps mean no
         observation, not zero progress.
       </p>
@@ -340,7 +337,7 @@ function ProgressPlot({ data }: { data: EvalChart }) {
           ))}
         </svg>
       ) : (
-        <p className="eval-muted">No progress observations yet.</p>
+        <p className="ui-caption">No progress observations yet.</p>
       )}
       <p className="eval-legend">
         <ArmKey arm="a">A: blue circles</ArmKey>
@@ -382,7 +379,7 @@ function DifferencePlot({ data, id }: { data: EvalChart; id: string }) {
     maximum = Math.max(1, ...points.map((p) => Math.abs(p.difference)));
   return (
     <>
-      <p className="eval-muted">
+      <p className="ui-caption">
         Candidate minus baseline ({data.unit}). Negative values use less;
         quality regressions remain labelled separately.
       </p>
@@ -418,7 +415,7 @@ function DifferencePlot({ data, id }: { data: EvalChart; id: string }) {
           ))}
         </ul>
       ) : (
-        <p className="eval-muted">No complete pairs for this metric.</p>
+        <p className="ui-caption">No complete pairs for this metric.</p>
       )}
       <DataTable>
         <table>
@@ -511,13 +508,13 @@ export function EvalChartPanel({
             {data.measurementScope ? ` · ${data.measurementScope}` : ""}
           </p>
           {chart === "duration" ? (
-            <p className="eval-muted">
+            <p className="ui-caption">
               Execution duration in milliseconds, including queue/hold time; a
               check&apos;s duration is its parent interval.
             </p>
           ) : null}
           {Object.entries(data.coverage.reasons).map(([reason, count]) => (
-            <p className="eval-muted" key={reason}>
+            <p className="ui-caption" key={reason}>
               {reason.replaceAll("_", " ")}: {count}
             </p>
           ))}
@@ -535,15 +532,10 @@ export function EvalChartPanel({
             <DistributionPlot data={data} {...(onBin ? { onBin } : {})} />
           )}
           {data.page?.hasMore && data.page.nextCursor && onNext ? (
-            <div className="eval-actions">
-              <button
-                type="button"
-                className="ui-btn"
-                data-size="sm"
-                onClick={() => onNext(data.page!.nextCursor!)}
-              >
+            <div className="ui-toolbar">
+              <Button size="sm" onClick={() => onNext(data.page!.nextCursor!)}>
                 Next differences
-              </button>
+              </Button>
             </div>
           ) : null}
         </>

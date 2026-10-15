@@ -6,8 +6,10 @@ import {
   getArtifactArchiveFile,
 } from "../api/artifact-archive";
 import { usePublicAPI } from "../api/context";
-import { splitFrontmatter } from "./artifacts/previews/frontmatter";
 import { queryKeys } from "../api/query-keys";
+import { plural } from "../app/format";
+import { Button } from "../ui";
+import { splitFrontmatter } from "./artifacts/previews/frontmatter";
 
 /**
  * A Skill package's purpose: the `description` of its SKILL.md front matter
@@ -64,15 +66,14 @@ export function SkillDescription({ metadata }: { metadata: ArtifactMetadata }) {
         <p className="skill-description" role="status">
           Description unavailable
         </p>
-        <button
-          className="ui-btn skill-description-retry"
-          data-size="xs"
-          type="button"
-          disabled={query.isFetching}
+        <Button
+          size="xs"
+          pending={query.isFetching}
+          pendingLabel="Retrying…"
           onClick={() => void query.refetch()}
         >
-          {query.isFetching ? "Retrying…" : "Retry"}
-        </button>
+          Retry
+        </Button>
       </div>
     );
   }
@@ -86,7 +87,7 @@ export function SkillDescription({ metadata }: { metadata: ArtifactMetadata }) {
       </p>
       {query.data === undefined ? null : (
         <small className="skill-files">
-          {query.data.count} {query.data.count === 1 ? "file" : "files"}
+          {plural(query.data.count, "file")}
         </small>
       )}
     </div>

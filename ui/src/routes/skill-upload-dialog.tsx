@@ -9,13 +9,14 @@ import {
 import { usePublicAPI } from "../api/context";
 import { queryKeys } from "../api/query-keys";
 import { Dialog, DialogHeader } from "../app/dialog";
+import { ErrorNotice } from "../app/error-notice";
+import { Button, Field } from "../ui";
 import {
   artifactFileStem,
   MAXIMUM_SKILL_ARCHIVE_BYTES,
   SKILL_ARCHIVE_MEDIA_TYPE,
 } from "./artifacts/artifact-file";
 import { ArtifactFileDrop } from "./artifacts/common";
-import { ErrorNotice } from "../app/error-notice";
 
 export function SkillUploadDialog({
   onClose,
@@ -106,22 +107,28 @@ export function SkillUploadDialog({
         {MAXIMUM_SKILL_ARCHIVE_BYTES / (1024 * 1024)} MiB. Every Project can use
         it.
       </p>
-      <p className="skill-upload-format">
+      <p className="ui-caption skill-upload-format">
         Stored as a Skill package: <code>{SKILL_ARCHIVE_MEDIA_TYPE}</code>
       </p>
       <form onSubmit={submit}>
-        <fieldset disabled={mutation.isPending} className="skill-upload-fields">
-          <label>
-            Name
-            <input
-              ref={nameInput}
-              name="name"
-              required
-              maxLength={128}
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-            />
-          </label>
+        <fieldset
+          disabled={mutation.isPending}
+          className="ui-stack skill-upload-fields"
+          data-gap="4"
+        >
+          <Field label="Name">
+            {(control) => (
+              <input
+                {...control}
+                ref={nameInput}
+                name="name"
+                required
+                maxLength={128}
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+              />
+            )}
+          </Field>
           <ArtifactFileDrop
             file={file}
             maximumBytes={MAXIMUM_SKILL_ARCHIVE_BYTES}
@@ -136,23 +143,18 @@ export function SkillUploadDialog({
         {mutation.error === null ? null : (
           <ErrorNotice error={mutation.error} reconcileWrite />
         )}
-        <div className="skill-upload-actions">
-          <button
-            className="ui-btn"
-            type="button"
-            disabled={mutation.isPending}
-            onClick={onClose}
-          >
+        <div className="ui-dialog-actions">
+          <Button disabled={mutation.isPending} onClick={onClose}>
             Cancel
-          </button>
-          <button
-            className="ui-btn"
-            data-variant="primary"
+          </Button>
+          <Button
+            variant="primary"
             type="submit"
-            disabled={mutation.isPending}
+            pending={mutation.isPending}
+            pendingLabel="Uploading…"
           >
-            {mutation.isPending ? "Uploading…" : "Upload"}
-          </button>
+            Upload
+          </Button>
         </div>
       </form>
     </Dialog>

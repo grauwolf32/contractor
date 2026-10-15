@@ -10,11 +10,16 @@ import {
 } from "../../api/evals";
 import { queryKeys } from "../../api/query-keys";
 import { useDocumentTitle } from "../../app/document-title";
+import { QueryView } from "../../app/query-view";
 import { RecordedTime } from "../../app/recorded-time";
 import {
+  Button,
+  ButtonLink,
   DetailHeader,
   DetailPane,
   EmptyState,
+  Facts,
+  Field,
   IdChip,
   Kbd,
   ListPane,
@@ -25,7 +30,7 @@ import {
   StatusGlyph,
   useListNavigation,
 } from "../../ui";
-import { ArmKey, EvalError, EvalField, EvalStateChip } from "./common";
+import { ArmKey, EvalError, EvalStateChip } from "./common";
 import { EvalDiagnostics } from "./diagnostics";
 import {
   controlModeLabel,
@@ -78,8 +83,8 @@ export function EvalListRoute() {
   const list = useQuery({
     queryKey: queryKeys.evals.list(query),
     queryFn: ({ signal }) => listEvalExperiments(api, query, signal),
-    refetchInterval: (loaded) =>
-      evalListPollInterval(loaded.state.data?.items, !!cursor),
+    // Later pages are a snapshot the user pages through; only page one polls.
+    refetchInterval: cursor ? false : evalListPollInterval,
   });
   const items = list.data?.items ?? [];
   const filtered = FILTER_KEYS.some((key) => params.get(key));
@@ -119,14 +124,9 @@ export function EvalListRoute() {
         <header className="ui-list-pane-header eval-list-header">
           <div className="eval-list-title-row">
             <h1 className="ui-list-pane-title">Experiments</h1>
-            <Link
-              className="ui-btn"
-              data-variant="primary"
-              data-size="sm"
-              to="/evals/new"
-            >
+            <ButtonLink variant="primary" size="sm" to="/evals/new">
               New experiment
-            </Link>
+            </ButtonLink>
           </div>
           <p className="ui-list-pane-subtitle">
             Compare execution quality, cost and coverage across two variants.
@@ -134,7 +134,7 @@ export function EvalListRoute() {
         </header>
       }
       toolbar={
-        <div className="eval-list-toolbar">
+        <div className="ui-stack eval-list-toolbar" data-gap="2">
           <nav className="eval-collections" aria-label="Evaluation collections">
             <Link to="/evals/datasets">Datasets</Link>
             <Link to="/evals/legacy">Legacy evaluation workspaces</Link>
@@ -144,62 +144,72 @@ export function EvalListRoute() {
               <span>Filter experiments{filtered ? " · active" : ""}</span>
             </summary>
             <div className="eval-filter-fields">
-              <EvalField label="Lifecycle">
-                <select
-                  value={state ?? ""}
-                  onChange={(e) => filter("state", e.target.value)}
-                >
-                  <option value="">All states</option>
-                  {EVAL_STATES.map((s) => (
-                    <option key={s} value={s}>
-                      {EVAL_STATE_LABELS[s].label}
+              <Field label="Lifecycle">
+                {(control) => (
+                  <select
+                    {...control}
+                    value={state ?? ""}
+                    onChange={(e) => filter("state", e.target.value)}
+                  >
+                    <option value="">All states</option>
+                    {EVAL_STATES.map((s) => (
+                      <option key={s} value={s}>
+                        {EVAL_STATE_LABELS[s].label}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </Field>
+              <Field label="Control mode">
+                {(control) => (
+                  <select
+                    {...control}
+                    value={mode ?? ""}
+                    onChange={(e) => filter("controlMode", e.target.value)}
+                  >
+                    <option value="">All control modes</option>
+                    <option value="server">{controlModeLabel("server")}</option>
+                    <option value="external">
+                      {controlModeLabel("external")}
                     </option>
-                  ))}
-                </select>
-              </EvalField>
-              <EvalField label="Control mode">
-                <select
-                  value={mode ?? ""}
-                  onChange={(e) => filter("controlMode", e.target.value)}
-                >
-                  <option value="">All control modes</option>
-                  <option value="server">{controlModeLabel("server")}</option>
-                  <option value="external">
-                    {controlModeLabel("external")}
-                  </option>
-                </select>
-              </EvalField>
-              <EvalField label="Evaluation workspace">
-                <select
-                  value={projectId ?? ""}
-                  onChange={(e) => filter("projectId", e.target.value)}
-                >
-                  <option value="">All workspaces</option>
-                  {projects.data?.map((p) => (
-                    <option key={p.projectId} value={p.projectId}>
-                      {p.name}
-                    </option>
-                  ))}
-                </select>
-              </EvalField>
-              <EvalField label="Dataset ID">
-                <input
-                  value={datasetId ?? ""}
-                  onChange={(e) => filter("datasetId", e.target.value)}
-                />
-              </EvalField>
+                  </select>
+                )}
+              </Field>
+              <Field label="Evaluation workspace">
+                {(control) => (
+                  <select
+                    {...control}
+                    value={projectId ?? ""}
+                    onChange={(e) => filter("projectId", e.target.value)}
+                  >
+                    <option value="">All workspaces</option>
+                    {projects.data?.map((p) => (
+                      <option key={p.projectId} value={p.projectId}>
+                        {p.name}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </Field>
+              <Field label="Dataset ID">
+                {(control) => (
+                  <input
+                    {...control}
+                    value={datasetId ?? ""}
+                    onChange={(e) => filter("datasetId", e.target.value)}
+                  />
+                )}
+              </Field>
             </div>
             {filtered ? (
-              <button
-                type="button"
-                className="ui-btn"
-                data-size="sm"
+              <Button
+                size="sm"
                 onClick={() =>
                   setParams(selectedId ? { experiment: selectedId } : {})
                 }
               >
                 Clear filters
-              </button>
+              </Button>
             ) : null}
           </details>
         </div>
@@ -209,19 +219,15 @@ export function EvalListRoute() {
           <>
             {paged ? (
               <nav className="eval-pages" aria-label="Experiment pages">
-                <button
-                  type="button"
-                  className="ui-btn"
-                  data-size="xs"
+                <Button
+                  size="xs"
                   disabled={!cursor}
                   onClick={() => filter("cursor", "")}
                 >
                   First page
-                </button>
-                <button
-                  type="button"
-                  className="ui-btn"
-                  data-size="xs"
+                </Button>
+                <Button
+                  size="xs"
                   disabled={!list.data?.page.hasMore}
                   onClick={() => {
                     if (list.data?.page.nextCursor) {
@@ -232,7 +238,7 @@ export function EvalListRoute() {
                   }}
                 >
                   Next page
-                </button>
+                </Button>
               </nav>
             ) : null}
             {items.length > 0 ? (
@@ -245,40 +251,45 @@ export function EvalListRoute() {
       }
     >
       <EvalError
-        error={list.error ?? projects.error}
-        reload={() => {
+        error={projects.error}
+        reload={() => void projects.refetch()}
+      />
+      <QueryView
+        query={list}
+        loading={
+          <p className="eval-pane-note" role="status">
+            Loading experiments…
+          </p>
+        }
+        onRetry={() => {
           filter("cursor", "");
           void list.refetch();
-          void projects.refetch();
         }}
-      />
-      {list.isPending ? (
-        <p className="eval-pane-note" role="status">
-          Loading experiments…
-        </p>
-      ) : null}
-      {list.data?.items.length === 0 ? (
-        <EmptyState title="No matching experiments">
-          <p>
-            Create an experiment or change the filters. Earlier evaluation
-            workspaces remain in legacy history.
-          </p>
-        </EmptyState>
-      ) : null}
-      {items.length > 0 ? (
-        <div {...containerProps}>
-          <ListSection aria-keyshortcuts="J K ArrowDown ArrowUp Enter">
-            {items.map((item) => (
-              <ExperimentRow
-                key={item.experimentId}
-                item={item}
-                to={selection(item.experimentId)}
-                selected={item.experimentId === selectedId}
-              />
-            ))}
-          </ListSection>
-        </div>
-      ) : null}
+        isEmpty={(data) => data.items.length === 0}
+        empty={
+          <EmptyState title="No matching experiments">
+            <p>
+              Create an experiment or change the filters. Earlier evaluation
+              workspaces remain in legacy history.
+            </p>
+          </EmptyState>
+        }
+      >
+        {() => (
+          <div {...containerProps}>
+            <ListSection aria-keyshortcuts="J K ArrowDown ArrowUp Enter">
+              {items.map((item) => (
+                <ExperimentRow
+                  key={item.experimentId}
+                  item={item}
+                  to={selection(item.experimentId)}
+                  selected={item.experimentId === selectedId}
+                />
+              ))}
+            </ListSection>
+          </div>
+        )}
+      </QueryView>
     </ListPane>
   );
 
@@ -435,27 +446,21 @@ function ExperimentPreview({
             </>
           }
           actions={
-            <Link
-              className="ui-btn"
-              data-variant="primary"
-              data-size="sm"
-              to={landing}
-            >
+            <ButtonLink variant="primary" size="sm" to={landing}>
               {state === "draft" ? "Continue setup" : "Open experiment"}
-            </Link>
+            </ButtonLink>
           }
         />
       }
     >
-      <EvalError
-        error={experiment.error}
-        reload={() => void experiment.refetch()}
-      />
-      {data ? (
-        <PreviewBody experiment={data} />
-      ) : experiment.isPending ? (
-        <p role="status">Loading experiment…</p>
-      ) : null}
+      <div className="eval-preview">
+        <QueryView
+          query={experiment}
+          loading={<p role="status">Loading experiment…</p>}
+        >
+          {(loaded) => <PreviewBody experiment={loaded} />}
+        </QueryView>
+      </div>
     </DetailPane>
   );
 }
@@ -467,22 +472,23 @@ function PreviewBody({ experiment }: { experiment: EvalExperiment }) {
   const cases = setup?.caseIds?.length;
   const repetitions = setup?.repetitions;
   return (
-    <div className="eval-preview">
+    <>
       <EvalDiagnostics experiment={experiment} />
-      <dl className="eval-glance" aria-label="At a glance">
-        <div>
-          <dt>Matrix</dt>
-          <dd>
-            {cases !== undefined && repetitions !== undefined
-              ? `${cases} cases × 2 variants × ${repetitions} repetitions = `
-              : ""}
-            {expectedMembersText(experiment.expectedMembers)}
-          </dd>
-        </div>
-        <div>
-          <dt>Dataset</dt>
-          <dd>
-            {setup?.dataset?.id ? (
+      <Facts
+        className="eval-glance"
+        aria-label="At a glance"
+        items={[
+          {
+            term: "Matrix",
+            value: `${
+              cases !== undefined && repetitions !== undefined
+                ? `${cases} cases × 2 variants × ${repetitions} repetitions = `
+                : ""
+            }${expectedMembersText(experiment.expectedMembers)}`,
+          },
+          {
+            term: "Dataset",
+            value: setup?.dataset?.id ? (
               <>
                 {setup.dataset.id}{" "}
                 <IdChip
@@ -494,18 +500,20 @@ function PreviewBody({ experiment }: { experiment: EvalExperiment }) {
               `${experiment.setup.source.system}/${experiment.setup.source.id}`
             ) : (
               "Not selected yet"
-            )}
-          </dd>
-        </div>
-        <div>
-          <dt>Updated</dt>
-          <dd>
-            <RecordedTime value={experiment.updatedAt} />
-          </dd>
-        </div>
-      </dl>
+            ),
+          },
+          {
+            term: "Updated",
+            value: <RecordedTime value={experiment.updatedAt} />,
+          },
+        ]}
+      />
       {comparison ? (
-        <section className="eval-block" aria-labelledby={variantsHeading}>
+        <section
+          className="ui-stack"
+          data-gap="2"
+          aria-labelledby={variantsHeading}
+        >
           <h3 id={variantsHeading}>Variants</h3>
           <ul className="eval-variant-list" role="list">
             {(
@@ -525,7 +533,7 @@ function PreviewBody({ experiment }: { experiment: EvalExperiment }) {
                       label={`${arm.toUpperCase()} version`}
                     />
                   ) : (
-                    <span className="eval-muted">Not chosen yet</span>
+                    <span className="ui-caption">Not chosen yet</span>
                   )}
                 </li>
               );
@@ -534,27 +542,23 @@ function PreviewBody({ experiment }: { experiment: EvalExperiment }) {
         </section>
       ) : null}
       {experiment.state === "draft" ? (
-        <p className="eval-muted">
+        <p className="ui-caption">
           Configure the variants and cases, then prepare the experiment.
         </p>
       ) : (
         <EvalOverviewSummary experiment={experiment} />
       )}
-      <nav
-        className="eval-preview-links"
-        aria-label="Open an experiment section"
-      >
+      <nav className="ui-toolbar" aria-label="Open an experiment section">
         {EVAL_SECTIONS.map((section) => (
-          <Link
+          <ButtonLink
             key={section.value}
-            className="ui-btn"
-            data-size="sm"
+            size="sm"
             to={experimentPath(experiment.experimentId, section.value)}
           >
             {section.label}
-          </Link>
+          </ButtonLink>
         ))}
       </nav>
-    </div>
+    </>
   );
 }

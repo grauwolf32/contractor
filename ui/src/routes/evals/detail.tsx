@@ -9,8 +9,10 @@ import {
 } from "../../api/evals";
 import { queryKeys } from "../../api/query-keys";
 import { useDocumentTitle } from "../../app/document-title";
+import { formatTimestamp } from "../../app/format";
 import { MobileSectionPicker } from "../../app/mobile-section-picker";
-import { FilterChips, IdChip } from "../../ui";
+import { QueryView } from "../../app/query-view";
+import { Button, FilterChips, IdChip } from "../../ui";
 import { ArmKey, EvalError, EvalFrame, EvalStateChip } from "./common";
 import { EvalComparison } from "./comparison";
 import { EvalControls } from "./controls";
@@ -75,7 +77,7 @@ function Attempts({ experiment }: { experiment: EvalExperiment }) {
       <EvalError error={members.error} reload={() => void refresh()} />
       {members.data ? (
         <>
-          <p className="eval-muted">
+          <p className="ui-caption">
             {members.data.filteredCount} matching attempts; the experiment
             retains all {experiment.expectedMembers} expected members.
           </p>
@@ -98,17 +100,15 @@ function Attempts({ experiment }: { experiment: EvalExperiment }) {
                       · {member.member.caseId} / sample {member.member.sample}
                     </h3>
                     <MemberSummary member={member} />
-                    <div className="eval-actions">
-                      <button
-                        type="button"
-                        className="ui-btn"
-                        data-size="sm"
+                    <div className="ui-toolbar">
+                      <Button
+                        size="sm"
                         aria-expanded={open}
                         aria-controls={open ? `${evidence}-${id}` : undefined}
                         onClick={() => setExpanded(open ? null : id)}
                       >
                         Execution evidence
-                      </button>
+                      </Button>
                     </div>
                     {open ? (
                       <div id={`${evidence}-${id}`}>
@@ -123,34 +123,26 @@ function Attempts({ experiment }: { experiment: EvalExperiment }) {
               })}
             </ul>
           ) : (
-            <p className="eval-muted">
+            <p className="ui-caption">
               No attempts match this filter. Choose All to inspect every
               expected attempt.
             </p>
           )}
-          <div className="eval-actions">
-            <button
-              type="button"
-              className="ui-btn"
-              data-size="sm"
-              disabled={!cursor}
-              onClick={() => update({})}
-            >
+          <div className="ui-toolbar">
+            <Button size="sm" disabled={!cursor} onClick={() => update({})}>
               First attempts
-            </button>
-            <button
-              type="button"
-              className="ui-btn"
-              data-size="sm"
+            </Button>
+            <Button
+              size="sm"
               disabled={!members.data.page.hasMore}
               onClick={() => update({ cursor: members.data!.page.nextCursor! })}
             >
               Next attempts
-            </button>
+            </Button>
           </div>
         </>
       ) : !snapshot ? (
-        <p className="eval-muted">Attempts are available after preparation.</p>
+        <p className="ui-caption">Attempts are available after preparation.</p>
       ) : members.isPending ? (
         <p role="status">Loading attempts…</p>
       ) : null}
@@ -206,14 +198,14 @@ function Overview({ experiment }: { experiment: EvalExperiment }) {
   return (
     <section className="eval-section" aria-labelledby={heading}>
       <h2 id={heading}>Overview</h2>
-      <p className="eval-muted">
+      <p className="ui-caption">
         Execution completion and assessment coverage are separate.
       </p>
       <EvalOverviewSummary experiment={experiment} />
       {experiment.deadlineAt ? (
-        <p className="eval-muted">
-          Original deadline: {new Date(experiment.deadlineAt).toLocaleString()}.
-          Pausing does not extend it.
+        <p className="ui-caption">
+          Original deadline: {formatTimestamp(experiment.deadlineAt)}. Pausing
+          does not extend it.
         </p>
       ) : null}
       {experiment.viewSnapshot ? (
@@ -263,47 +255,46 @@ export function EvalDetailRoute() {
         ) : undefined
       }
     >
-      <EvalError
-        error={experiment.error}
-        reload={() => void experiment.refetch()}
-      />
-      {data ? (
-        <>
-          <EvalDiagnostics experiment={data} />
-          {section === "setup" ? (
-            data.state === "draft" && data.draft ? (
-              <DraftSetup
-                key={`${data.experimentId}:${data.revision}`}
-                experiment={data}
-              />
+      <QueryView
+        query={experiment}
+        loading={<p role="status">Loading experiment…</p>}
+      >
+        {(data) => (
+          <>
+            <EvalDiagnostics experiment={data} />
+            {section === "setup" ? (
+              data.state === "draft" && data.draft ? (
+                <DraftSetup
+                  key={`${data.experimentId}:${data.revision}`}
+                  experiment={data}
+                />
+              ) : (
+                <>
+                  <EvalControls key={data.experimentId} experiment={data} />
+                  {data.state === "preparing" ? (
+                    <p className="eval-callout" role="status">
+                      Preparing the experiment. Compatibility checks are
+                      running; this page updates automatically.
+                    </p>
+                  ) : null}
+                  <EvalReadiness experiment={data} />
+                </>
+              )
             ) : (
               <>
                 <EvalControls key={data.experimentId} experiment={data} />
-                {data.state === "preparing" ? (
-                  <p className="eval-callout" role="status">
-                    Preparing the experiment. Compatibility checks are running;
-                    this page updates automatically.
-                  </p>
-                ) : null}
-                <EvalReadiness experiment={data} />
+                {section === "comparison" ? (
+                  <EvalComparison experiment={data} />
+                ) : section === "attempts" ? (
+                  <Attempts experiment={data} />
+                ) : (
+                  <Overview experiment={data} />
+                )}
               </>
-            )
-          ) : (
-            <>
-              <EvalControls key={data.experimentId} experiment={data} />
-              {section === "comparison" ? (
-                <EvalComparison experiment={data} />
-              ) : section === "attempts" ? (
-                <Attempts experiment={data} />
-              ) : (
-                <Overview experiment={data} />
-              )}
-            </>
-          )}
-        </>
-      ) : experiment.isPending ? (
-        <p role="status">Loading experiment…</p>
-      ) : null}
+            )}
+          </>
+        )}
+      </QueryView>
     </EvalFrame>
   );
 }

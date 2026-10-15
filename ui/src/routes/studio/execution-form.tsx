@@ -1,3 +1,4 @@
+import { Button, Field } from "../../ui";
 import { at, record, textValue, type Path } from "./document";
 import { useDraftEdit, type FormEditor } from "./form-editor";
 import { setSelectionField, setEscalationMode } from "./advanced-edits";
@@ -47,63 +48,66 @@ function SelectionForm({
               }
             />
           ))}
-          <label className="studio-field">
-            <span>{title} credential mode</span>
-            <select
-              value={credentialMode}
-              onChange={(event) =>
-                edit((document) => {
-                  const mode = event.target.value;
-                  if (mode === "reference")
-                    document.setIn([...path, "credential"], "");
-                  else
-                    setSelectionField(
-                      document,
-                      path,
-                      "credential",
-                      mode === "clear" ? null : undefined,
-                    );
-                })
-              }
-            >
-              <option value="inherit">Inherit</option>
-              <option value="reference">Credential ID</option>
-              {allowClear || credentialMode === "clear" ? (
-                <option value="clear" disabled={!allowClear}>
-                  Clear credential{!allowClear ? " (escalation only)" : ""}
-                </option>
-              ) : null}
-            </select>
-          </label>
-          {credentialMode === "reference" ? (
-            <label className="studio-field">
-              <span>{title} credential ID</span>
-              <input
-                key={textValue(row.credential)}
-                defaultValue={textValue(row.credential)}
-                onBlur={(event) => {
-                  if (event.target.value !== row.credential)
-                    edit((document) =>
+          <Field label={`${title} credential mode`} className="studio-field">
+            {(control) => (
+              <select
+                {...control}
+                value={credentialMode}
+                onChange={(event) =>
+                  edit((document) => {
+                    const mode = event.target.value;
+                    if (mode === "reference")
+                      document.setIn([...path, "credential"], "");
+                    else
                       setSelectionField(
                         document,
                         path,
                         "credential",
-                        event.target.value,
-                      ),
-                    );
-                }}
-              />
-            </label>
+                        mode === "clear" ? null : undefined,
+                      );
+                  })
+                }
+              >
+                <option value="inherit">Inherit</option>
+                <option value="reference">Credential ID</option>
+                {allowClear || credentialMode === "clear" ? (
+                  <option value="clear" disabled={!allowClear}>
+                    Clear credential{!allowClear ? " (escalation only)" : ""}
+                  </option>
+                ) : null}
+              </select>
+            )}
+          </Field>
+          {credentialMode === "reference" ? (
+            <Field label={`${title} credential ID`} className="studio-field">
+              {(control) => (
+                <input
+                  {...control}
+                  key={textValue(row.credential)}
+                  defaultValue={textValue(row.credential)}
+                  onBlur={(event) => {
+                    if (event.target.value !== row.credential)
+                      edit((document) =>
+                        setSelectionField(
+                          document,
+                          path,
+                          "credential",
+                          event.target.value,
+                        ),
+                      );
+                  }}
+                />
+              )}
+            </Field>
           ) : null}
           {value !== undefined ? (
-            <button
-              className="ui-btn"
+            <Button
               onClick={() =>
                 editor.onRemove(path, `${title.toLowerCase()} selection`)
               }
             >
               Remove {title.toLowerCase()} selection
-            </button>
+            </Button>
           ) : null}
         </>
       )}
@@ -140,8 +144,7 @@ export function ExecutionDefaultsForm({ editor }: { editor: FormEditor }) {
         title="Default workers"
       />
       {at(editor.draft.value, ["spec", "executionConfig"]) !== undefined ? (
-        <button
-          className="ui-btn"
+        <Button
           onClick={() =>
             editor.onRemove(
               ["spec", "executionConfig"],
@@ -150,7 +153,7 @@ export function ExecutionDefaultsForm({ editor }: { editor: FormEditor }) {
           }
         >
           Remove all execution selections
-        </button>
+        </Button>
       ) : null}
     </>
   );
@@ -213,12 +216,11 @@ export function StageExecutionForm({
         title="Stage"
       />
       {at(editor.draft.value, path) !== undefined ? (
-        <button
-          className="ui-btn"
+        <Button
           onClick={() => editor.onRemove(path, "stage execution overrides")}
         >
           Remove stage execution overrides
-        </button>
+        </Button>
       ) : null}
     </details>
   );
@@ -241,20 +243,22 @@ export function EscalationForm({
   return (
     <details className="studio-settings">
       <summary>{outcome} escalation configuration</summary>
-      <label className="studio-field">
-        <span>{outcome} escalation mode</span>
-        <select
-          value={mode}
-          onChange={(event) =>
-            edit((document) =>
-              setEscalationMode(document, path, event.target.value),
-            )
-          }
-        >
-          <option value="reference">Published configuration</option>
-          <option value="inline">Inline selections</option>
-        </select>
-      </label>
+      <Field label={`${outcome} escalation mode`} className="studio-field">
+        {(control) => (
+          <select
+            {...control}
+            value={mode}
+            onChange={(event) =>
+              edit((document) =>
+                setEscalationMode(document, path, event.target.value),
+              )
+            }
+          >
+            <option value="reference">Published configuration</option>
+            <option value="inline">Inline selections</option>
+          </select>
+        )}
+      </Field>
       {mode === "reference" ? (
         <CatalogField
           label={`${outcome} execution configuration`}

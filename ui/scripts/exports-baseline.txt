@@ -126,9 +126,6 @@ src/events/run-events.ts:RunEventSubscription V385-001
 src/events/run-events.ts:parseServerFrame V385-001
 src/events/socket.ts:EventStream V385-001
 src/events/socket.ts:eventSocketURL V385-001
-src/routes/evals/polling.ts:EVAL_SETTLED_POLL_MS V385-001
-src/routes/evals/recovery.ts:mutationKey V385-001
-src/routes/evals/setup-model.ts:estimatedPlanBytes V385-001
 src/routes/inbox/model.ts:InboxInput V385-001
 src/routes/inbox/model.ts:RECENT_MS V385-001
 src/routes/projects/audits/assessments.ts:STATUS_GROUPS V385-001
@@ -138,12 +135,7 @@ src/routes/projects/audits/check-model.ts:itemStatus V385-001
 src/routes/projects/audits/stop-reason.ts:STOP_REASON_CODES V385-001
 src/routes/runs/live.ts:advancePlannerProjection V385-001
 src/routes/runs/live.ts:applyPlannerEvent V385-001
-src/routes/studio/advanced-validation.ts:isWorkspaceTarget V385-001
 src/routes/studio/document.ts:Kind V385-001
-src/routes/studio/validation.ts:NAME_MESSAGE V385-001
-src/routes/studio/validation.ts:SELECTOR_MESSAGE V385-001
-src/routes/studio/validation.ts:VERSION_MESSAGE V385-001
-src/routes/studio/workspace-form.tsx:OVERLAY_MEDIA_TYPE V385-001
 src/run-drafts/memory.ts:MAX_RETAINED_RUN_DRAFTS V385-001
 src/run-drafts/memory.ts:RepeatDraftContext V385-001
 src/run-drafts/memory.ts:RunDraftAcquisition V385-001
