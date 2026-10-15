@@ -111,39 +111,6 @@
       "button": 6,
       "svg": 1
     },
-    "src/routes/operations/allocations/completed.tsx": {
-      "button": 2
-    },
-    "src/routes/operations/common.tsx": {
-      "svg": 1
-    },
-    "src/routes/operations/credentials/detail.tsx": {
-      "button": 1
-    },
-    "src/routes/operations/credentials/form.tsx": {
-      "button": 1
-    },
-    "src/routes/operations/llm-configurations/detail.tsx": {
-      "button": 1
-    },
-    "src/routes/operations/llm-configurations/forms.tsx": {
-      "button": 2
-    },
-    "src/routes/operations/runtime-agents/agent-card.tsx": {
-      "button": 1
-    },
-    "src/routes/operations/runtime-agents/labels-dialog.tsx": {
-      "button": 3
-    },
-    "src/routes/operations/runtime-agents/offline-identities.tsx": {
-      "button": 2
-    },
-    "src/routes/operations/runtime-configs/index.tsx": {
-      "button": 14
-    },
-    "src/routes/operations/settings/index.tsx": {
-      "button": 3
-    },
     "src/routes/projects/active-checks-editor.tsx": {
       "button": 3
     },
@@ -250,9 +217,6 @@
     },
     "src/routes/runs/list.tsx": {
       "button": 4
-    },
-    "src/routes/settings/git-key.tsx": {
-      "button": 2
     },
     "src/routes/skill-description.tsx": {
       "button": 1

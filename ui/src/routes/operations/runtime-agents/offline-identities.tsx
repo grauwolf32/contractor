@@ -8,11 +8,10 @@ import {
   type RuntimeLabelBinding,
 } from "../../../api/operations";
 import { queryKeys } from "../../../api/query-keys";
-import { AlertDialog } from "../../../ui";
+import { AlertDialog, Button, IdChip } from "../../../ui";
 import { Icon } from "../../../app/icon";
 import { ErrorNotice } from "../../../app/error-notice";
-import { formatTimestamp, formatAge } from "../../../app/format";
-import { IdChip } from "../../../ui";
+import { formatTimestamp, formatAge, plural } from "../../../app/format";
 import { DisclosureChevron } from "../common";
 import { agentDisplayName } from "./identity";
 import { AgentLabelsDialog } from "./labels-dialog";
@@ -78,27 +77,22 @@ function OfflineIdentityRow({
         </time>
       </span>
       <span className="ops-offline-fact">
-        {principal.labels.length}{" "}
-        {principal.labels.length === 1 ? "label" : "labels"}
+        {plural(principal.labels.length, "label")}
       </span>
       <div className="ops-offline-actions">
-        <button
-          className="ui-btn"
-          data-size="xs"
-          type="button"
+        <Button
+          size="xs"
+          icon={<Icon name="settings" />}
           disabled={bindings === undefined || deletion.isPending}
           aria-haspopup="dialog"
           aria-label={`Edit labels for ${name}`}
           onClick={() => setEditing(true)}
         >
-          <Icon name="settings" />
           Edit labels
-        </button>
-        <button
-          className="ui-btn"
-          data-size="xs"
-          data-variant="danger"
-          type="button"
+        </Button>
+        <Button
+          size="xs"
+          variant="danger"
           disabled={hasLabels || deletion.isPending}
           aria-haspopup="dialog"
           aria-label={`Forget ${name}`}
@@ -113,7 +107,7 @@ function OfflineIdentityRow({
           }}
         >
           Forget
-        </button>
+        </Button>
       </div>
       {editing && bindings !== undefined ? (
         <AgentLabelsDialog

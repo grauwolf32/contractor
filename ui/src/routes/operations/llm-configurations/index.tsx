@@ -12,9 +12,9 @@ import { CursorControls } from "../../../app/cursor-controls";
 import { useCursorStack } from "../../../app/pagination";
 import { QueryView } from "../../../app/query-view";
 import { compactDigest } from "../../../app/format";
-import { FilterChips } from "../../../ui";
+import { ButtonLink, FilterChips } from "../../../ui";
 import { OpsSection, ScopeChip } from "../common";
-import { KIND_LABELS, KIND_ORDER } from "./kinds";
+import { configurationVersionPath, KIND_LABELS, KIND_ORDER } from "./kinds";
 
 const DEFAULT_KIND: ConfigurationKind = "model-policies";
 
@@ -37,7 +37,6 @@ function ConfigurationTable({ kind }: { kind: ConfigurationKind }) {
             Loading configurations…
           </p>
         }
-        onRetry={() => void query.refetch()}
         isEmpty={(data) => data.items.length === 0}
         empty={
           <p className="ops-empty">
@@ -64,7 +63,7 @@ function ConfigurationTable({ kind }: { kind: ConfigurationKind }) {
                     key={`${resource.ref.name}@${resource.ref.version}:${resource.ref.digest}`}
                   >
                     <td data-label="Version">
-                      <strong className="ops-mono">
+                      <strong className="ui-mono">
                         {resource.ref.name}@{resource.ref.version}
                       </strong>
                     </td>
@@ -77,16 +76,15 @@ function ConfigurationTable({ kind }: { kind: ConfigurationKind }) {
                       </code>
                     </td>
                     <td data-label="" className="ops-cell-actions">
-                      <Link
-                        className="ui-btn"
-                        data-size="sm"
-                        to={`/operations/configurations/${resource.ref.kind}/${encodeURIComponent(resource.ref.name)}/${encodeURIComponent(resource.ref.version)}`}
+                      <ButtonLink
+                        size="sm"
+                        to={configurationVersionPath(resource.ref)}
                       >
                         {resource.ref.kind === "model-policies" ||
                         resource.ref.kind === "llm-gateways"
                           ? "Inspect / clone"
                           : "Inspect"}
-                      </Link>
+                      </ButtonLink>
                     </td>
                   </tr>
                 ))}
@@ -141,7 +139,7 @@ export function ConfigurationListRoute() {
           }))}
         />
         {kind === "agent-templates" ? (
-          <p className="ops-note">
+          <p className="ui-caption">
             <Link to="/catalog/agents">
               Explore Agent instructions, Skills and Workflow usage in the
               Library →

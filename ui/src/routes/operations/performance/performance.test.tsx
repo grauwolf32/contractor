@@ -1,70 +1,19 @@
-import { render, screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { createMemoryRouter } from "react-router";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { screen, waitFor } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 
-import { PublicAPI } from "../../../api/client";
-import { Application } from "../../../app/application";
-import { applicationRoutes } from "../../../app/router";
-import type { RuntimeConfig } from "../../../config/runtime-config";
-import { RunEventsManager } from "../../../events/run-events";
+import type { components } from "../../../api/generated/public";
+import { conforming } from "../../../test/builders";
+import { json, page, type FakeCall } from "../../../test/fake-server";
+import { FakeSocket, renderOperationsApp } from "../test-support";
 import { performanceFreshnessState } from "./freshness";
 import { metricSeriesSegments } from "./series";
 
-const runtimeConfig: RuntimeConfig = {
-  uiVersion: "0.1.0",
-  supportedApiVersions: ["contractor.public.v1"],
-  apiBaseUrl: "http://127.0.0.1:8080",
-};
+type Schemas = components["schemas"];
 
-const session = {
-  principal: {
-    userId: "user_local",
-    username: "owner",
-    capabilities: ["user", "operations"] as const,
-  },
-  csrfToken: "a".repeat(43),
-  idleExpiresAt: "2099-09-06T20:00:00Z",
-  absoluteExpiresAt: "2099-09-07T12:00:00Z",
-};
-
-function apiResponse(value: unknown, status = 200): Response {
-  return new Response(JSON.stringify(value), {
-    status,
-    headers: {
-      "content-type": "application/json",
-      "X-Contractor-API-Version": "contractor.public.v1",
-    },
-  });
-}
-
-class UnexpectedOperationsWebSocket {
-  static instances = 0;
-
-  constructor() {
-    UnexpectedOperationsWebSocket.instances += 1;
-  }
-}
-
-function renderRoute(api: PublicAPI, path: string) {
-  const router = createMemoryRouter(applicationRoutes(), {
-    initialEntries: [path],
-  });
-  const events = new RunEventsManager(runtimeConfig.apiBaseUrl, {
-    WebSocketImplementation:
-      UnexpectedOperationsWebSocket as unknown as typeof WebSocket,
-  });
-  return render(
-    <Application
-      api={api}
-      publicAPI={api}
-      runEvents={events}
-      router={router}
-    />,
-  );
-}
-
-function freshness(timestamp: string, intervalSeconds: 15 | 60 | 300 = 15) {
+function freshness(
+  timestamp: string,
+  intervalSeconds: 15 | 60 | 300 = 15,
+): Schemas["PerformanceFreshness"] {
   return {
     status: "ok",
     observedAt: timestamp,
@@ -79,10 +28,10 @@ function freshness(timestamp: string, intervalSeconds: 15 | 60 | 300 = 15) {
       expectedSamples: 1,
       observedSamples: 1,
     },
-  } as const;
+  };
 }
 
-function histogram(count: number) {
+function histogram(count: number): Schemas["PerformanceHistogram"] {
   return {
     count,
     sumSeconds: count * 0.1,
@@ -90,7 +39,10 @@ function histogram(count: number) {
   };
 }
 
-function surface(kind: "public" | "private", count: number) {
+function surface(
+  kind: "public" | "private",
+  count: number,
+): Schemas["PerformanceHTTPSurface"] {
   const counts = Array.from({ length: 10 }, () => [0, 0, 0, 0, 0, 0]);
   counts[0]![1] = count;
   return {
@@ -101,8 +53,8 @@ function surface(kind: "public" | "private", count: number) {
   };
 }
 
-function sample(timestamp: string) {
-  return {
+function sample(timestamp: string): Schemas["PerformanceSample"] {
+  return conforming("PerformanceSample", {
     version: 1,
     generation: "performance-generation-1",
     observedAt: timestamp,
@@ -154,11 +106,21 @@ function sample(timestamp: string) {
       freshness: freshness(timestamp, 300),
       sizeBytes: 2 * 1024 * 1024 * 1024,
     },
-  };
+  });
 }
 
-function snapshot(timestamp = "2026-09-06T12:00:00Z") {
-  return {
+const diagnostics: Schemas["PerformanceDiagnostics"] = {
+  skippedSamples: 0,
+  rejectedSamples: 0,
+  skippedMinutes: 0,
+  droppedMinutes: 0,
+  pendingMinutes: 0,
+};
+
+function snapshot(
+  timestamp = "2026-09-06T12:00:00Z",
+): Schemas["PerformanceSnapshot"] {
+  return conforming("PerformanceSnapshot", {
     enabled: true,
     generation: "performance-generation-1",
     observedAt: timestamp,
@@ -166,25 +128,29 @@ function snapshot(timestamp = "2026-09-06T12:00:00Z") {
     databaseIntervalSeconds: 60,
     databaseSizeIntervalSeconds: 300,
     current: sample(timestamp),
-    diagnostics: {
-      skippedSamples: 0,
-      rejectedSamples: 0,
-      skippedMinutes: 0,
-      droppedMinutes: 0,
-      pendingMinutes: 0,
-    },
+    diagnostics,
+  });
+}
+
+const disabledSnapshot = () =>
+  conforming("PerformanceSnapshot", {
+    enabled: false,
+    generation: "performance-generation-1",
+    observedAt: "2026-09-06T12:00:00Z",
+    sampleIntervalSeconds: 15,
+    databaseIntervalSeconds: 60,
+    databaseSizeIntervalSeconds: 300,
+    diagnostics,
+  });
+
+/** The history request's window, as the page asked for it. */
+function window({ url }: FakeCall) {
+  return {
+    from: url.searchParams.get("from")!,
+    to: url.searchParams.get("to")!,
+    step: url.searchParams.get("step") as Schemas["PerformanceHistory"]["step"],
   };
 }
-
-function sessionResponse(request: Request): Response | undefined {
-  return new URL(request.url).pathname === "/v1/auth/session"
-    ? apiResponse(session)
-    : undefined;
-}
-
-beforeEach(() => {
-  UnexpectedOperationsWebSocket.instances = 0;
-});
 
 describe("Operations performance views", () => {
   it.each(["24h", "7d"] as const)(
@@ -193,26 +159,17 @@ describe("Operations performance views", () => {
       vi.useFakeTimers({ toFake: ["Date"] });
       vi.setSystemTime(new Date("2026-09-06T12:01:30Z"));
       try {
-        const api = new PublicAPI(
-          runtimeConfig,
-          vi.fn(async (input) => {
-            const request =
-              input instanceof Request ? input : new Request(input);
-            const authenticated = sessionResponse(request);
-            if (authenticated !== undefined) return authenticated;
-            const url = new URL(request.url);
-            if (url.pathname === "/v1/operations/performance")
-              return apiResponse(snapshot());
-            if (url.pathname === "/v1/operations/performance/history") {
-              const from = url.searchParams.get("from")!;
-              const to = url.searchParams.get("to")!;
-              const step = url.searchParams.get("step")!;
+        const { user } = renderOperationsApp("/operations/performance", {
+          routes: {
+            "GET /v1/operations/performance": () => json(snapshot()),
+            "GET /v1/operations/performance/history": (call) => {
+              const { from, to, step } = window(call);
               const stepSeconds = step === "5m" ? 300 : 3600;
               const first =
                 Math.floor(Date.parse(from) / (stepSeconds * 1000)) *
                 stepSeconds *
                 1000;
-              return apiResponse({
+              return json({
                 from,
                 to,
                 step,
@@ -243,12 +200,10 @@ describe("Operations performance views", () => {
                         },
                       ],
               });
-            }
-            throw new Error(`unexpected ${request.method} ${request.url}`);
-          }),
-        );
-        renderRoute(api, "/operations/performance");
-        await userEvent.selectOptions(
+            },
+          },
+        });
+        await user.selectOptions(
           await screen.findByLabelText("Time range"),
           range,
         );
@@ -269,41 +224,25 @@ describe("Operations performance views", () => {
   );
 
   it("renders truthful current/history metrics without reading the registry", async () => {
-    let snapshotReads = 0;
     const historySteps: string[] = [];
-    const api = new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const request = input instanceof Request ? input : new Request(input);
-        const authenticated = sessionResponse(request);
-        if (authenticated !== undefined) return authenticated;
-        const url = new URL(request.url);
-        if (url.pathname === "/v1/operations/snapshot") {
-          snapshotReads += 1;
-          throw new Error("performance must not read the registry snapshot");
-        }
-        if (url.pathname === "/v1/operations/performance") {
-          return apiResponse(snapshot());
-        }
-        if (url.pathname === "/v1/operations/performance/history") {
-          const from = url.searchParams.get("from")!;
-          const to = url.searchParams.get("to")!;
-          const step = url.searchParams.get("step")!;
+    const { user, sent } = renderOperationsApp("/operations/performance", {
+      routes: {
+        "GET /v1/operations/performance": () => json(snapshot()),
+        "GET /v1/operations/performance/history": (call) => {
+          const { from, to, step } = window(call);
           historySteps.push(step);
           const observedAt = new Date(Date.parse(to) - 15_000).toISOString();
-          return apiResponse({
+          return json({
             from,
             to,
             step,
             points:
               step === "15s" ? [{ kind: "sample", ...sample(observedAt) }] : [],
           });
-        }
-        throw new Error(`unexpected ${request.method} ${request.url}`);
-      }),
-    );
+        },
+      },
+    });
 
-    renderRoute(api, "/operations/performance");
     expect(
       await screen.findByRole("heading", { name: "Server performance" }),
     ).toBeInTheDocument();
@@ -314,7 +253,7 @@ describe("Operations performance views", () => {
       screen.getByLabelText("CPU usage numeric summary"),
     ).toHaveTextContent("Observed points1");
     expect(screen.getAllByText("1.25 cores").length).toBeGreaterThan(0);
-    await userEvent.click(
+    await user.click(
       screen.getByText("Detailed counters and collection diagnostics"),
     );
     expect(
@@ -322,122 +261,95 @@ describe("Operations performance views", () => {
     ).toBeInTheDocument();
     expect(screen.getByText(/not free disk space/i)).toBeInTheDocument();
     expect(screen.getByText(/not a bloat verdict/i)).toBeInTheDocument();
-    expect(snapshotReads).toBe(0);
-    expect(UnexpectedOperationsWebSocket.instances).toBe(0);
+    expect(sent("GET", "/v1/operations/snapshot")).toHaveLength(0);
+    expect(FakeSocket.instances).toHaveLength(0);
 
-    await userEvent.selectOptions(screen.getByLabelText("Time range"), "7d");
+    await user.selectOptions(screen.getByLabelText("Time range"), "7d");
     await waitFor(() => expect(historySteps).toContain("1h"));
-    expect(snapshotReads).toBe(0);
+    expect(sent("GET", "/v1/operations/snapshot")).toHaveLength(0);
   });
 
   it("aborts obsolete history when the selected range changes", async () => {
     let fineSignal: AbortSignal | undefined;
-    const api = new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const request = input instanceof Request ? input : new Request(input);
-        const authenticated = sessionResponse(request);
-        if (authenticated !== undefined) return authenticated;
-        const url = new URL(request.url);
-        if (url.pathname === "/v1/operations/performance") {
-          return apiResponse({
-            ...snapshot(),
-            enabled: false,
-            current: undefined,
+    const { user } = renderOperationsApp("/operations/performance", {
+      routes: {
+        "GET /v1/operations/performance": () => json(disabledSnapshot()),
+        "GET /v1/operations/performance/history": (call) => {
+          const { from, to, step } = window(call);
+          if (step !== "15s") return json({ from, to, step, points: [] });
+          const signal = call.request.signal;
+          fineSignal = signal;
+          return new Promise<Response>((_resolve, reject) => {
+            signal.addEventListener("abort", () =>
+              reject(new DOMException("aborted", "AbortError")),
+            );
           });
-        }
-        if (url.pathname === "/v1/operations/performance/history") {
-          const from = url.searchParams.get("from")!;
-          const to = url.searchParams.get("to")!;
-          const step = url.searchParams.get("step")!;
-          if (step === "15s") {
-            fineSignal = request.signal;
-            return new Promise<Response>((_resolve, reject) => {
-              request.signal.addEventListener("abort", () =>
-                reject(new DOMException("aborted", "AbortError")),
-              );
-            });
-          }
-          return apiResponse({ from, to, step, points: [] });
-        }
-        throw new Error(`unexpected ${request.method} ${request.url}`);
-      }),
-    );
+        },
+      },
+    });
 
-    renderRoute(api, "/operations/performance");
     expect(
       await screen.findByText("Performance collection is disabled."),
     ).toBeInTheDocument();
     await waitFor(() => expect(fineSignal).toBeDefined());
-    await userEvent.selectOptions(screen.getByLabelText("Time range"), "7d");
+    await user.selectOptions(screen.getByLabelText("Time range"), "7d");
     await waitFor(() => expect(fineSignal?.aborted).toBe(true));
     expect(
       await screen.findAllByText("No observations in this range."),
     ).toHaveLength(3);
-    expect(UnexpectedOperationsWebSocket.instances).toBe(0);
+    expect(FakeSocket.instances).toHaveLength(0);
   });
 
   it("shows durable completed summaries without lifecycle controls", async () => {
-    let snapshotReads = 0;
-    const api = new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const request = input instanceof Request ? input : new Request(input);
-        const authenticated = sessionResponse(request);
-        if (authenticated !== undefined) return authenticated;
-        const url = new URL(request.url);
-        if (url.pathname === "/v1/operations/snapshot") {
-          snapshotReads += 1;
-          throw new Error("completed history must not read the registry");
-        }
-        if (url.pathname === "/v1/operations/allocation-history") {
-          return apiResponse({
-            items: [
-              {
-                allocationId: "allocation-complete",
-                runId: "run-complete",
-                stageExecutionId: "stage-execution-complete",
-                stage: "analyze",
-                logicalAgent: "builder",
-                outcome: "succeeded",
-                finishedAt: "2026-09-06T12:00:00Z",
-                collectionPolicy: "requested",
-                status: "available",
-                resources: {
-                  version: 1,
-                  scope: "runtime_process",
-                  status: "complete",
-                  durationSeconds: 20,
-                  cpuUserSeconds: 3,
-                  cpuSystemSeconds: 1,
-                  rssStartBytes: 100_000_000,
-                  rssEndBytes: 120_000_000,
-                  rssPeakObservedBytes: 134_217_728,
-                  rssSampleCount: 3,
-                  maxSampleGapSeconds: 10,
-                },
-              },
-              {
-                allocationId: "allocation-missing",
-                runId: "run-missing",
-                stageExecutionId: "stage-execution-missing",
-                stage: "document",
-                logicalAgent: "writer",
-                outcome: "failed",
-                finishedAt: "2026-09-06T11:00:00Z",
-                collectionPolicy: "requested",
-                status: "unavailable",
-                reason: "report_missing",
-              },
-            ],
-            page: { hasMore: false },
-          });
-        }
-        throw new Error(`unexpected ${request.method} ${request.url}`);
-      }),
+    const { user, sent } = renderOperationsApp(
+      "/operations/allocations/completed",
+      {
+        routes: {
+          "GET /v1/operations/allocation-history": () =>
+            json(
+              page([
+                conforming("AllocationResourceSummary", {
+                  allocationId: "allocation-complete",
+                  runId: "run-complete",
+                  stageExecutionId: "stage-execution-complete",
+                  stage: "analyze",
+                  logicalAgent: "builder",
+                  outcome: "succeeded",
+                  finishedAt: "2026-09-06T12:00:00Z",
+                  collectionPolicy: "requested",
+                  status: "available",
+                  resources: {
+                    version: 1,
+                    scope: "runtime_process",
+                    status: "complete",
+                    durationSeconds: 20,
+                    cpuUserSeconds: 3,
+                    cpuSystemSeconds: 1,
+                    rssStartBytes: 100_000_000,
+                    rssEndBytes: 120_000_000,
+                    rssPeakObservedBytes: 134_217_728,
+                    rssSampleCount: 3,
+                    maxSampleGapSeconds: 10,
+                  },
+                }),
+                conforming("AllocationResourceSummary", {
+                  allocationId: "allocation-missing",
+                  runId: "run-missing",
+                  stageExecutionId: "stage-execution-missing",
+                  stage: "document",
+                  logicalAgent: "writer",
+                  outcome: "failed",
+                  finishedAt: "2026-09-06T11:00:00Z",
+                  collectionPolicy: "requested",
+                  status: "unavailable",
+                  reason: "report_missing",
+                }),
+              ]),
+            ),
+        },
+      },
     );
 
-    renderRoute(api, "/operations/allocations/completed");
     expect(
       await screen.findByRole("heading", {
         name: "Completed allocation resources",
@@ -450,10 +362,10 @@ describe("Operations performance views", () => {
       name: "Metrics for allocation-complete",
     });
     expect(metrics).toHaveAttribute("aria-expanded", "false");
-    await userEvent.click(metrics);
+    await user.click(metrics);
     expect(metrics).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByText("128.0 MiB")).toBeVisible();
-    await userEvent.click(
+    await user.click(
       screen.getByRole("button", { name: "Metrics for allocation-missing" }),
     );
     expect(screen.getAllByText("report missing").length).toBeGreaterThan(0);
@@ -461,8 +373,8 @@ describe("Operations performance views", () => {
     expect(
       screen.queryByRole("button", { name: /force|idle|reassign|release/i }),
     ).not.toBeInTheDocument();
-    expect(snapshotReads).toBe(0);
-    expect(UnexpectedOperationsWebSocket.instances).toBe(0);
+    expect(sent("GET", "/v1/operations/snapshot")).toHaveLength(0);
+    expect(FakeSocket.instances).toHaveLength(0);
   });
 
   it("splits charts at missing values, gaps and generation changes", () => {

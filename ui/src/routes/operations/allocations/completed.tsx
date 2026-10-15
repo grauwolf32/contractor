@@ -11,6 +11,7 @@ import { AllocationResourceList } from "../performance/resources";
 import { AllocationViewTabs } from "./tabs";
 import { RefreshButton } from "../../../app/refresh-button";
 import { QueryView } from "../../../app/query-view";
+import { Button, Field } from "../../../ui";
 import { OpsSection } from "../common";
 
 export function CompletedAllocationListRoute() {
@@ -63,29 +64,29 @@ export function CompletedAllocationListRoute() {
         }
       >
         <form className="ops-filter-row" onSubmit={applyFilter}>
-          <label className="ops-field">
-            <span>Run ID (optional)</span>
-            <input
-              value={draftRunId}
-              aria-invalid={validationError !== undefined}
-              aria-describedby={
-                validationError === undefined ? undefined : errorId
-              }
-              placeholder="run_…"
-              onChange={(event) => {
-                setDraftRunId(event.target.value);
-                setValidationError(undefined);
-              }}
-            />
-          </label>
-          <button className="ui-btn" type="submit">
-            Apply filter
-          </button>
+          {/* The error shows under the whole row, so the buttons stay
+              level with the input; the input names it itself. */}
+          <Field label="Run ID" optional className="ops-filter-field">
+            {(control) => (
+              <input
+                {...control}
+                value={draftRunId}
+                aria-invalid={validationError !== undefined}
+                aria-describedby={
+                  validationError === undefined ? undefined : errorId
+                }
+                placeholder="run_…"
+                onChange={(event) => {
+                  setDraftRunId(event.target.value);
+                  setValidationError(undefined);
+                }}
+              />
+            )}
+          </Field>
+          <Button type="submit">Apply filter</Button>
           {runId === undefined ? null : (
-            <button
-              className="ui-btn"
-              data-variant="ghost"
-              type="button"
+            <Button
+              variant="ghost"
               onClick={() => {
                 setDraftRunId("");
                 setRunId(undefined);
@@ -94,7 +95,7 @@ export function CompletedAllocationListRoute() {
               }}
             >
               Clear
-            </button>
+            </Button>
           )}
         </form>
         {validationError === undefined ? null : (
@@ -109,7 +110,6 @@ export function CompletedAllocationListRoute() {
               Loading completed allocations…
             </p>
           }
-          onRetry={() => void query.refetch()}
           isEmpty={(data) => data.items.length === 0}
           empty={
             <div className="ops-empty">
