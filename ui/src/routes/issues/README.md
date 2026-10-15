@@ -16,10 +16,9 @@ project pages ([build contract](../../../../docs/design/ui/v3b-build-contract.md
 | `/projects/:projectId/findings`                                  | The project's Issues tab (`ProjectFindingsRoute`): `q`, `audit`, `state`, `severity`, `verdict`.                                                                                             |
 
 Build links with `links.ts`: `issuePath(auditId, findingId)`,
-`issueHref(finding, filters)`, `checkIssuePath(projectId, auditId,
-findingId?)` and `checkIssuesHref(projectId, auditId, filters)` (the check's
-section with the list's `state` and `severity`, as the "not listed here"
-notice links it).
+`issueSearch(filters)` (the list's query string, e.g. `?project=<id>` for
+one project's possible issues), `issueHref(finding, filters)` and
+`checkIssuePath(projectId, auditId, findingId?)`.
 
 ## Building blocks
 
@@ -36,6 +35,10 @@ notice links it).
   `FindingDecision` pinned to the bottom. Without a position the bar says
   "Loading the list…" while a list read is pending (`listPending`; a deep
   link's exact read usually finishes first), then "Not in this list".
+  Reads go through `QueryView`; previous and next are `IconButton`s.
+- A recorded decision that takes the possible issue out of the list moves
+  on with `useGuardedNavigate`: when the user has left the page by the time
+  the decision answers, nothing moves and nothing is announced.
 - Empty list: "That is everything that needs review." and the other
   state-is-clear titles only when every read succeeded, nothing was cut off
   and no severity filter is set (possible issues that need review are not

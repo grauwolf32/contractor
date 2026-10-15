@@ -95,16 +95,6 @@
     "src/routes/inbox/list.tsx": {
       "button": 2
     },
-    "src/routes/issues/history.tsx": {
-      "button": 1
-    },
-    "src/routes/issues/index.tsx": {
-      "button": 2
-    },
-    "src/routes/issues/issue-detail.tsx": {
-      "button": 6,
-      "svg": 1
-    },
     "src/routes/login.tsx": {
       "button": 1
     },
