@@ -4,6 +4,7 @@ import { Link } from "react-router";
 import { ContextLink } from "../../../app/context-navigation";
 import { ErrorNotice } from "../../../app/error-notice";
 import {
+  Button,
   EmptyState,
   Kbd,
   ListPane,
@@ -14,7 +15,7 @@ import {
   type ListNavigationContainerProps,
   type StatusTone,
 } from "../../../ui";
-import { inSentence, missingLabel } from "./check-types";
+import { inSentence, joinWords, missingLabel } from "./check-types";
 import { projectPaths } from "./paths";
 import type { ReadinessGroup, RowView, StartCheck } from "./use-start-check";
 
@@ -32,13 +33,6 @@ const GROUP_TONES: Readonly<Record<ReadinessGroup, StatusTone>> = {
   unknown: "neutral",
 };
 
-/** "source code and an API spec" style list: "Source code, API spec". */
-function wordList(words: readonly string[]): string {
-  const lower = words.map(inSentence);
-  if (lower.length <= 1) return lower[0] ?? "";
-  return `${lower.slice(0, -1).join(", ")} and ${lower.at(-1)}`;
-}
-
 /** The second meta part: what the check type uses or still needs. */
 function rowNeeds(row: RowView): ReactNode {
   const { readiness } = row;
@@ -50,7 +44,9 @@ function rowNeeds(row: RowView): ReactNode {
       </>
     );
   if (readiness?.state === "unavailable") return "Not supported by this server";
-  return row.uses.length === 0 ? undefined : `Uses ${wordList(row.uses)}`;
+  return row.uses.length === 0
+    ? undefined
+    : `Uses ${joinWords(row.uses.map(inSentence))}`;
 }
 
 function RowLinks({ row, projectId }: { row: RowView; projectId: string }) {
@@ -137,7 +133,7 @@ export function TypeList({
     );
   else if (!model.listReady)
     body = (
-      <p className="start-pane-block start-quiet" role="status">
+      <p className="start-pane-block ui-caption" role="status">
         Checking which check types your materials support…
       </p>
     );
@@ -219,19 +215,17 @@ export function TypeList({
             error={materials.error}
             context="The project's materials could not be loaded, so readiness is unknown."
           />
-          <button
-            type="button"
-            className="ui-btn"
-            data-size="sm"
-            disabled={materials.retrying}
+          <Button
+            size="sm"
+            pending={materials.retrying}
             onClick={materials.retry}
           >
             Retry loading materials
-          </button>
+          </Button>
         </div>
       ) : null}
       {model.listReady && materials.hasMore ? (
-        <p className="start-pane-block start-quiet">
+        <p className="start-pane-block ui-caption">
           Readiness uses the first {materials.items?.length ?? 0} materials of
           this project. Load more from a check type&apos;s Materials.
         </p>
@@ -258,26 +252,25 @@ export function TypeList({
       {body}
       {query.hasNextPage ? (
         <div className="start-pane-block">
-          <button
-            type="button"
-            className="ui-btn"
-            data-size="sm"
-            disabled={query.isFetchingNextPage}
+          <Button
+            size="sm"
+            pending={query.isFetchingNextPage}
+            pendingLabel="Loading…"
             onClick={() => void query.fetchNextPage()}
           >
-            {query.isFetchingNextPage ? "Loading…" : "Load more check types"}
-          </button>
+            Load more check types
+          </Button>
         </div>
       ) : null}
       {model.listReady && rows.some((row) => row.group === "missing") ? (
-        <p className="start-pane-block start-list-note">
+        <p className="start-pane-block ui-caption start-list-note">
           Add materials or a live target to unlock more check types.{" "}
           <Link to={paths.addMaterial}>Add materials</Link> ·{" "}
           <Link to={paths.settings}>Project settings</Link>
         </p>
       ) : null}
       {model.listReady && count > 0 ? (
-        <p className="start-pane-block start-quiet">
+        <p className="start-pane-block ui-caption">
           <ContextLink to="/catalog/audit-presets" returnLabel="Start a check">
             See all check types
           </ContextLink>{" "}

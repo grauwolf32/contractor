@@ -1,18 +1,25 @@
-import { ownerListResponse } from "../../../test/owner-lists";
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
-import type { Audit } from "../../../api/audits";
+import type { Audit, AuditState } from "../../../api/audits";
 import type { Project } from "../../../api/projects";
 import {
-  fakeAPI,
+  emptyPageOrNotFound,
+  failure,
+  fakeServer,
+  json,
+  page,
+  type FakeCall,
+} from "../../../test/fake-server";
+import { ownerListRoutes } from "../../../test/owner-lists";
+import { testAPI, testSession } from "../../../test/render";
+import {
   makeAudit,
   makeProject,
   renderApplication,
   workspaceOf,
 } from "../../projects/audits/check-test-support";
-import { json } from "../../../test/fake-server";
 
 // LIM-UI-15 in docs/spec/platform/limits.md.
 const MAXIMUM_LOADED_PAGES = 20;
@@ -62,112 +69,94 @@ function serve(
   } = {},
 ) {
   const projects = options.projects ?? [projectA, projectB];
-  return fakeAPI(async (request, url) => {
-    const path = url.pathname;
-    if (path === "/v1/audits" && options.endless) {
-      const index = Number(url.searchParams.get("cursor") ?? 0);
-      return json({
-        items: [makeAudit(`audit_${index}`, "project_a", "active")],
-        page: { hasMore: true, nextCursor: String(index + 1) },
-      });
-    }
-    if (url.pathname === "/v1/audits" && options.failProject)
-      return json(
-        {
-          code: "internal_error",
-          message: "Check list unavailable",
-          retryable: false,
-          requestId: "req_test",
-        },
-        500,
-      );
-    const ownerResponse = ownerListResponse(url, {
-      projects,
-      audits: Object.values(audits),
+  const owner = ownerListRoutes(() => ({
+    projects,
+    audits: Object.values(audits),
+  }));
+  // Routes of one check; an unknown check is 404.
+  const onAudit =
+    (answer: (audit: Audit) => Response) =>
+    ({ params }: FakeCall) => {
+      const auditId = params.auditId ?? "";
+      const audit = audits[auditId] ?? options.extra?.[auditId];
+      return audit === undefined
+        ? failure(404, "not_found", "Check not found")
+        : answer(audit);
+    };
+  // The check moves to `state` at the next revision (stop, delete).
+  const moveTo = (state: AuditState) =>
+    onAudit((audit) => {
+      const next = { ...audit, state, revision: audit.revision + 1 };
+      audits[audit.auditId] = next;
+      return json(next, 202, { ETag: `"${next.revision}"` });
     });
-    if (ownerResponse !== undefined) return ownerResponse;
-    if (path === "/v1/projects")
-      return json({ items: projects, page: { hasMore: false } });
-    let match = /^\/v1\/projects\/([^/]+)$/.exec(path);
-    if (match)
-      return json(
-        projects.find((project) => project.projectId === match![1]),
-        200,
-        { ETag: '"1"' },
-      );
-    match = /^\/v1\/projects\/([^/]+)\/audits$/.exec(path);
-    if (match) {
-      if (match[1] === options.failProject)
-        return json(
-          {
-            code: "unavailable",
-            message: "Checks unavailable",
-            retryable: true,
-            requestId: "request_failed",
-          },
-          503,
-        );
-      const state = url.searchParams.get("state");
-      return json({
-        items: Object.values(audits).filter(
-          (audit) =>
-            audit.projectId === match![1] &&
-            (state === null || audit.state === state),
+  const { api, server } = testAPI(
+    fakeServer(
+      {
+        ...owner,
+        "GET /v1/auth/session": () => json(testSession()),
+        "GET /v1/audits": (call) => {
+          if (options.endless) {
+            const index = Number(call.url.searchParams.get("cursor") ?? 0);
+            return json(
+              page(
+                [makeAudit(`audit_${index}`, "project_a", "active")],
+                String(index + 1),
+              ),
+            );
+          }
+          if (options.failProject)
+            return failure(500, "internal_error", "Check list unavailable");
+          return owner["GET /v1/audits"]!(call);
+        },
+        "GET /v1/projects": () => json(page(projects)),
+        "GET /v1/projects/{projectId}": ({ params }) => {
+          const project = projects.find(
+            (candidate) => candidate.projectId === params.projectId,
+          );
+          return project === undefined
+            ? failure(404, "not_found", "Project not found")
+            : json(project, 200, { ETag: '"1"' });
+        },
+        "GET /v1/projects/{projectId}/audits": ({ params, url }) => {
+          if (params.projectId === options.failProject)
+            return failure(503, "unavailable", "Checks unavailable", true);
+          const state = url.searchParams.get("state");
+          return json(
+            page(
+              Object.values(audits).filter(
+                (audit) =>
+                  audit.projectId === params.projectId &&
+                  (state === null || audit.state === state),
+              ),
+            ),
+          );
+        },
+        "GET /v1/audits/{auditId}": onAudit((audit) =>
+          json(audit, 200, { ETag: `"${audit.revision}"` }),
         ),
-        page: { hasMore: false },
-      });
-    }
-    match = /^\/v1\/audits\/([^/]+)(\/[a-z]+)?$/.exec(path);
-    if (match) {
-      const audit = audits[match[1]!] ?? options.extra?.[match[1]!];
-      if (audit === undefined)
-        return json(
-          {
-            code: "not_found",
-            message: "Check not found",
-            retryable: false,
-            requestId: "request_missing",
-          },
-          404,
-        );
-      if (match[2] === undefined) {
-        if (request.method === "DELETE") {
-          audits[audit.auditId] = {
-            ...audit,
-            state: "deleting",
-            revision: audit.revision + 1,
-          };
-          return json(audits[audit.auditId], 202, {
-            ETag: `"${audit.revision + 1}"`,
-          });
-        }
-        return json(audit, 200, { ETag: `"${audit.revision}"` });
-      }
-      if (match[2] === "/workspace")
-        return json(
-          workspaceOf(audit, {
-            totalChecks: 3,
-            completedChecks: audit.state === "completed" ? 3 : 1,
-            issues: audit.state === "completed" ? 1 : 0,
-            gaps: audit.state === "completed" ? 0 : 1,
-            unchecked: audit.state === "completed" ? 0 : 1,
-            findings: 2,
-            unreviewedFindings: audit.auditId === "b_waiting" ? 2 : 0,
-            pendingReviews: audit.state === "waiting_review" ? 1 : 0,
-          }),
-        );
-      if (match[2] === "/cancel") {
-        const cancelled = {
-          ...audit,
-          state: "cancelled" as const,
-          revision: audit.revision + 1,
-        };
-        audits[audit.auditId] = cancelled;
-        return json(cancelled, 202, { ETag: `"${cancelled.revision}"` });
-      }
-    }
-    return undefined;
-  });
+        "DELETE /v1/audits/{auditId}": moveTo("deleting"),
+        "POST /v1/audits/{auditId}/cancel": moveTo("cancelled"),
+        "GET /v1/audits/{auditId}/workspace": onAudit((audit) => {
+          const completed = audit.state === "completed";
+          return json(
+            workspaceOf(audit, {
+              totalChecks: 3,
+              completedChecks: completed ? 3 : 1,
+              issues: completed ? 1 : 0,
+              gaps: completed ? 0 : 1,
+              unchecked: completed ? 0 : 1,
+              findings: 2,
+              unreviewedFindings: audit.auditId === "b_waiting" ? 2 : 0,
+              pendingReviews: audit.state === "waiting_review" ? 1 : 0,
+            }),
+          );
+        }),
+      },
+      emptyPageOrNotFound,
+    ),
+  );
+  return { api, requests: server.requests };
 }
 
 describe("Checks list", () => {

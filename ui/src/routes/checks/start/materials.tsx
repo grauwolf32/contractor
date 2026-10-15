@@ -4,8 +4,9 @@ import { Link } from "react-router";
 import type { ArtifactMetadata } from "../../../api/artifacts";
 import { ErrorNotice } from "../../../app/error-notice";
 import { formatBytes } from "../../../app/format";
-import { formatName, inSentence, materialKey } from "./check-types";
-import { CheckIcon } from "./icons";
+import { Icon } from "../../../app/icon";
+import { Button } from "../../../ui";
+import { formatName, inSentence, joinWords, materialKey } from "./check-types";
 import { projectPaths } from "./paths";
 import type { InputSlot, StartCheck } from "./use-start-check";
 
@@ -18,12 +19,6 @@ function sharedMaterials(slots: readonly InputSlot[]): string[][] {
     byMaterial.set(key, [...(byMaterial.get(key) ?? []), slot.label]);
   }
   return [...byMaterial.values()].filter((labels) => labels.length > 1);
-}
-
-function joinWords(words: readonly string[]): string {
-  return words.length <= 1
-    ? (words[0] ?? "")
-    : `${words.slice(0, -1).join(", ")} and ${words.at(-1)}`;
 }
 
 function exactName(material: ArtifactMetadata): string {
@@ -65,12 +60,14 @@ function MaterialSlot({
       data-state={selected === undefined ? "open" : "attached"}
     >
       <span className="start-material-mark" aria-hidden="true">
-        {selected === undefined ? null : <CheckIcon />}
+        {selected === undefined ? null : (
+          <Icon name="check" size={14} strokeWidth={2.2} />
+        )}
       </span>
       <div className="start-material-main">
         <div className="start-material-head">
           <span className="start-material-label">{slot.label}</span>
-          <span className="start-quiet">
+          <span className="ui-caption">
             {slot.formats}
             {input.required ? "" : ", optional"}
           </span>
@@ -80,7 +77,7 @@ function MaterialSlot({
         ) : null}
         {choosing ? (
           <select
-            className="start-input start-select"
+            className="start-material-select"
             aria-label={`Material for ${slot.label}`}
             value={slot.selection}
             onChange={(event) => onChoose(slot.name, event.target.value)}
@@ -99,7 +96,7 @@ function MaterialSlot({
           </select>
         ) : null}
         {candidates.length === 0 && complete ? (
-          <p className="start-quiet start-tight">
+          <p className="ui-caption">
             {input.required
               ? "No material in this format yet. "
               : "Not used: no material in this format. "}
@@ -107,7 +104,7 @@ function MaterialSlot({
           </p>
         ) : null}
         {selected === undefined ? null : (
-          <p className="start-quiet start-tight">
+          <p className="ui-caption">
             {slot.automatic
               ? "Attached: the only material in a matching format."
               : "Format matches."}
@@ -115,16 +112,14 @@ function MaterialSlot({
         )}
       </div>
       {!input.required && selected !== undefined && !choosing ? (
-        <button
-          type="button"
-          className="ui-btn"
-          data-variant="ghost"
-          data-size="xs"
+        <Button
+          variant="ghost"
+          size="xs"
           aria-label={`Don't use ${slot.label}`}
           onClick={() => onChoose(slot.name, "")}
         >
           Don&apos;t use
-        </button>
+        </Button>
       ) : null}
     </li>
   );
@@ -143,15 +138,17 @@ function LiveTargetMaterial({
       data-state={url === undefined ? "open" : "attached"}
     >
       <span className="start-material-mark" aria-hidden="true">
-        {url === undefined ? null : <CheckIcon />}
+        {url === undefined ? null : (
+          <Icon name="check" size={14} strokeWidth={2.2} />
+        )}
       </span>
       <div className="start-material-main">
         <div className="start-material-head">
           <span className="start-material-label">Live target</span>
-          <span className="start-quiet">project setting</span>
+          <span className="ui-caption">project setting</span>
         </div>
         {url === undefined ? (
-          <p className="start-quiet start-tight">
+          <p className="ui-caption">
             Not set for this project.{" "}
             <Link to={settings}>Set the live target</Link> or enter a target for
             this check below.
@@ -177,10 +174,10 @@ export function MaterialsCard({ model }: { model: StartCheck }) {
     <section className="start-card" aria-labelledby={headingId}>
       <div className="start-card-head">
         <h3 id={headingId}>Materials</h3>
-        <span className="start-quiet">Attached from the project</span>
+        <span className="ui-caption">Attached from the project</span>
       </div>
       {materials.loading ? (
-        <p className="start-quiet start-tight" role="status">
+        <p className="ui-caption" role="status">
           Loading the project&apos;s materials…
         </p>
       ) : null}
@@ -198,15 +195,13 @@ export function MaterialsCard({ model }: { model: StartCheck }) {
           />
           {/* Without any page, the list pane offers the retry. */}
           {materials.items === undefined ? null : (
-            <button
-              type="button"
-              className="ui-btn"
-              data-size="sm"
-              disabled={materials.retrying}
+            <Button
+              size="sm"
+              pending={materials.retrying}
               onClick={materials.retry}
             >
               Retry loading materials
-            </button>
+            </Button>
           )}
         </div>
       )}
@@ -240,22 +235,21 @@ export function MaterialsCard({ model }: { model: StartCheck }) {
       ))}
       {materials.hasMore ? (
         <div className="start-stack">
-          <p className="start-quiet start-tight">
+          <p className="ui-caption">
             Showing the first {materials.items?.length ?? 0} materials. Load
             more to choose from the rest.
           </p>
-          <button
-            type="button"
-            className="ui-btn"
-            data-size="sm"
-            disabled={materials.loadingMore}
+          <Button
+            size="sm"
+            pending={materials.loadingMore}
+            pendingLabel="Loading…"
             onClick={materials.loadMore}
           >
-            {materials.loadingMore ? "Loading…" : "Load more materials"}
-          </button>
+            Load more materials
+          </Button>
         </div>
       ) : null}
-      <p className="start-card-note">
+      <p className="ui-caption">
         Picked by file format: a format match does not check what is inside, so
         make sure each one is right.
         {exact?.requiresInputValidation === true

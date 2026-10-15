@@ -36,6 +36,7 @@ import { usePublicAPI } from "../../../api/context";
 import { invalidateCrossProject } from "../../../api/cross-project";
 import { PublicAPIError } from "../../../api/error";
 import { queryKeys } from "../../../api/query-keys";
+import { writeConflict } from "../../../app/conflict";
 import { useGuardedNavigate } from "../../../app/page-location";
 import {
   canonicalMutationRequest,
@@ -107,10 +108,6 @@ export function isLostResponse(error: unknown): boolean {
 /** A server or gateway failure: the request may still have been applied. */
 function isServerFailure(error: unknown): boolean {
   return error instanceof PublicAPIError && error.status >= 500;
-}
-
-function isPreconditionFailure(error: unknown): boolean {
-  return error instanceof PublicAPIError && error.status === 412;
 }
 
 export interface Launch {
@@ -255,7 +252,7 @@ export function useLaunch(projectId: string): Launch {
         kind: "refused",
         error: reason,
         revisionChanged:
-          isPreconditionFailure(error) ||
+          writeConflict(error) === "stale" ||
           current.revision !== attempt.record.audit.revision,
       };
     setFailed({ failure, attempt });

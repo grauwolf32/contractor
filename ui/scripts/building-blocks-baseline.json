@@ -42,21 +42,6 @@
     "src/routes/catalog/audit-preset-detail.tsx": {
       "button": 1
     },
-    "src/routes/checks/list/check-summary.tsx": {
-      "button": 1
-    },
-    "src/routes/checks/list/checks-list.tsx": {
-      "button": 1
-    },
-    "src/routes/checks/start/materials.tsx": {
-      "button": 3
-    },
-    "src/routes/checks/start/setup.tsx": {
-      "button": 4
-    },
-    "src/routes/checks/start/type-list.tsx": {
-      "button": 2
-    },
     "src/routes/decisions/finding-decision.tsx": {
       "button": 4
     },
