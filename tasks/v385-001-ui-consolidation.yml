@@ -74,24 +74,31 @@ context:
     checks that no endpoint exposes; it stays until a Server dry-run
     endpoint exists.
   decision: >-
-    Response validation is generated, not hand-written (user decision,
-    2026-10-15). Validators are compiled at generate time by Ajv in
-    standalone mode from the pinned OpenAPI document and
-    api/events/contractor-events-v1.schema.json, because the UI
-    Content-Security-Policy forbids eval (ui/server/static-server.mjs:158).
-    Alternatives considered: consolidating hand-written validators behind
-    shared grammar constants (smaller change, keeps about 3k lines and the
-    drift class) and dropping response validation (contradicts the strict
-    read rule in AGENTS.md section 2). Reversal condition: the generated
-    module costs more than 150 kB gzip in the initial bundle or cannot
-    express a schema the Server publishes; then fall back to per-operation
-    lazy chunks before reconsidering hand-written checks. Server endpoints
-    that would remove the client-side aggregation in api/cross-project.ts
-    (multi-value finding filters, owner-wide reports, Inbox counts) are out
-    of scope (user decision, 2026-10-15) and get their own task.
+    Response validation is generated from the contract, not hand-written
+    (user decision, 2026-10-15). The generator writes the pinned OpenAPI
+    component schemas and api/events/contractor-events-v1.schema.json,
+    stripped of annotations, plus an operation-to-response-schema map into
+    src/api/generated/; at run time @cfworker/json-schema interprets them
+    (no eval, which the UI Content-Security-Policy forbids at
+    ui/server/static-server.mjs:158). Measured on 4403083b: Ajv standalone
+    code for the 85 response schemas is 1.0 MB minified, 111 kB gzip even
+    with schemaPath and params stripped, against 24 kB gzip for the schema
+    bundle plus the interpreter, which dereferences the bundle in 9 ms and
+    validates an Error envelope in 8 microseconds; all 90 patterns compile
+    with the u flag. Alternatives: Ajv standalone (rejected on size; the
+    initial bundle is about 140 kB gzip today), consolidating hand-written
+    validators behind shared grammar constants (keeps about 3k lines and
+    the drift class) and dropping response validation (contradicts the
+    strict read rule in AGENTS.md section 2). Reversal condition: the
+    interpreter cannot express a schema the Server publishes or costs more
+    than 2 ms on a realistic list page; then generate Ajv standalone code
+    per operation group as lazy chunks. Server endpoints that would remove
+    the client-side aggregation in api/cross-project.ts (multi-value
+    finding filters, owner-wide reports, Inbox counts) are out of scope
+    (user decision, 2026-10-15) and get their own task.
 scope:
   in:
-    - "A generator (pnpm generate, make ui-generate, checked by generate:check) that writes standalone validators for every OpenAPI response body schema the UI reads and for the event frames, into src/api/generated/."
+    - "A generator (pnpm generate, make ui-generate, checked by generate:check) that writes the schema bundle and the operation-to-response-schema map into src/api/generated/; one runtime dependency, @cfworker/json-schema, validates against it."
     - "One validation point: JSON success responses are checked against the operation's response schema in the API client, and event frames in the event socket; a mismatch raises one classified client error. Hand-written shape checks are removed; only cross-field invariants a schema cannot express stay (ID echo, ETag equals revision, ordering, generation match), each named in a comment."
     - "Client-side rules that remain (request-side grammars, limits and enums used by forms, Audit state subsets) come from the generated module or one UI definition tested against the OpenAPI document and the api/testdata case lists."
     - "Shared building blocks in src/ui with adoption across routes: Button, alert dialog, facts list, form field, icons in app/icon.tsx, QueryView for query states, one pagination helper with a page cap, one conflict helper for 409 and 412, one late-response navigation guard, one Run state vocabulary, one material-kind classification, one set of plural, date, duration and size formatters."
